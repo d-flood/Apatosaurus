@@ -21,7 +21,6 @@ class CustomUserChangeForm(UserChangeForm):
         fields = (
             "email",
             "username",
-            "digital_library_access_level",
         )
 
 
