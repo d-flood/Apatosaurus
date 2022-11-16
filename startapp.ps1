@@ -1,1 +1,0 @@
-py manage.py startapp $args[0]
