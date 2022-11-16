@@ -7,6 +7,11 @@ __pycache__/
 
 # secrets
 .env
+*.db
+*.sqlite3
 
 # dev machine specific
 *.ps1
+
+# temporarily ignored
+migrations/
