@@ -1,4 +1,5 @@
 from django.db import models
+from django.db.models.query import QuerySet
 
 from lxml import etree as et
 
@@ -20,6 +21,7 @@ class Chapter(models.Model):
     name = models.CharField(max_length=16)
 
     def ab_elements(self):
+        self.abs: QuerySet[Ab]
         return [ab.as_element() for ab in self.abs.all()]
 
 
@@ -29,6 +31,7 @@ class Ab(models.Model):
     basetext = models.TextField()
 
     def as_element(self):
+        self.apps: QuerySet[App]
         ab = et.Element(f'{XML_NS}ab')
         ab.set('id', self.ab_id)
         ab.text = self.basetext
@@ -37,7 +40,7 @@ class Ab(models.Model):
 
 
 class App(models.Model):
-    ab = models.ForeignKey(Ab, on_delete=models.CASCADE)
+    ab = models.ForeignKey(Ab, on_delete=models.CASCADE, related_name='apps')
     atype = models.CharField(max_length=9, default='main')
     index_from = models.SmallIntegerField()
     index_to = models.SmallIntegerField()
@@ -46,7 +49,8 @@ class App(models.Model):
     def __str__(self) -> str:
         return f'{self.ab.ab_id}: {self.index_from}-{self.index_to}'
 
-    def as_element(self) -> et.Element:
+    def as_element(self) -> et._Element:
+        self.rdgs: QuerySet[Rdg]
         app = et.Element(f'{TEI_NS}app', {'type': self.atype, 'from': str(self.index_from), 'to': str(self.index_to)})
         graph = et.Element(f'{TEI_NS}graph', {'type': 'directed'})
         for rdg in self.rdgs.all():
@@ -79,11 +83,13 @@ class Rdg(models.Model):
     def __str__(self) -> str:
         return f'{self.app.ab.ab_id}U{self.app.index_from}-{self.app.index_to} {self.name}'
 
-    def as_element(self) -> str:
+    def as_element(self) -> et._Element:
         rdg = et.Element(f'{TEI_NS}rdg')
-        rdg.set('wit', self.wit)
+        witnesses = ' '.join([w.siglum for w in self.wit.all()]) 
+        rdg.set('wit', witnesses)
         rdg.set('varSeq', str(self.varSeq))
-        rdg.set('type', self.rtype)
+        if self.rtype:
+            rdg.set('type', self.rtype)
         rdg.text = self.text
         return rdg
 
