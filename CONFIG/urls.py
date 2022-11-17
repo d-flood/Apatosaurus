@@ -24,7 +24,14 @@ from CONFIG import settings
 
 
 def home(request: HttpRequest) -> HttpResponse:
-    return render(request, 'home.html')
+    context = {
+        'page': {
+            'title': 'Home - Apatosaurus', 
+            'description': 'A Web Application for visualizing, editing, analyzing, and publishing digital collations of ancient texts.',
+            'active': 'home',
+        },
+    }
+    return render(request, 'home.html', context)
 
 
 urlpatterns = [
