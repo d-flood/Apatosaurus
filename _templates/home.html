@@ -1,4 +1,35 @@
 {% extends 'base.html' %}
+{% load static %}
 {% block content %}
-
+<main>
+    <h1 class="center">
+        Apatosaurus
+    </h1>
+    <p class="text-center subtitle">
+        A web app that eats TEI collation data.
+    </p>
+    <!-- <div class="center">
+        <img src="{% static 'media/appex.png' %}" aria-hidden="true" style="width: 100%;">
+    </div> -->
+    <ul role="list" class="f-switch">
+        <li class="box">
+            <h2>Visualize</h2>
+            <p>Explore you collation data in an intuative layout.</p>
+        </li>
+        <li class="box">
+            <h2>Edit</h2>
+            <p>Add, remove, or change readings, witnesses, basetext, metadata, etc.</p>
+        </li>
+    </ul>
+    <ul role="list" class="f-switch">
+        <li class="box">
+            <h2>Analyze</h2>
+            <p>Apply custom tools and the CBGM to you collations.</p>
+        </li>
+        <li class="box">
+            <h2>Publish</h2>
+            <p>Post your collation as a digital critical apparatus for others to explore.</p>
+        </li>
+    </ul>
+</main>
 {% endblock content %}
