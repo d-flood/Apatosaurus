@@ -18,9 +18,10 @@ from os import environ
 from django.contrib import admin
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import render
-from django.urls import path
+from django.urls import path, include
 
 from CONFIG import settings
+from published.urls import urls as published_urls
 
 
 def home(request: HttpRequest) -> HttpResponse:
@@ -37,11 +38,5 @@ def home(request: HttpRequest) -> HttpResponse:
 urlpatterns = [
     path(settings.ADMIN_URL, admin.site.urls),
     path('', home, name='home'),
+    path('published/', include(published_urls)),
 ]
-
-# if settings.DEBUG:
-#     from django.conf.urls.static import static
-#     from django.contrib.staticfiles.urls import staticfiles_urlpatterns
-#     # Serve static and media files from development server
-#     urlpatterns += staticfiles_urlpatterns()
-#     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
