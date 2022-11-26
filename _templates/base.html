@@ -33,11 +33,11 @@
                 ☰
             </button>
             <nav class="contents" aria-label="Site Navigation">
-                <p><a href="/" {% if page.active == 'home' %}aria-current="page"{% endif %} aria-label="Home"><b>Apatosaurus</b></a></p>
+                <p><a href="{% url 'home' %}" {% if page.active == 'home' %}aria-current="page"{% endif %} aria-label="Home"><b>Apatosaurus</b></a></p>
                 <hr>
                 <ul role="list">
                     <li class="hide-sm nav-item"><a href="#" {% if page.active == 'about' %}aria-current="page"{% endif %}>About</a></li>
-                    <li class="hide-sm nav-item"><a href="#" {% if page.active == 'published' %}aria-current="page"{% endif %}>Published Collations</a></li>
+                    <li class="hide-sm nav-item"><a href="{% url 'published' %}" {% if page.active == 'published' %}aria-current="page"{% endif %}>Published Collations</a></li>
                     {% if user.is_authenticated %}
                         <li class="hide-sm nav-item"><a href="#" {% if page.active == 'collations' %}aria-current="page"{% endif %}>My Collations</a></li>
                         <hr>
