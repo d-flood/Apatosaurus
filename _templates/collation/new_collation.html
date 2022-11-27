@@ -1,0 +1,5 @@
+<form hx-post="{% url 'new-collation' %}" class="table rows">
+    {% csrf_token %}
+    {{ new_collation_form.as_p }}
+    <input type="submit" value="Submit">
+</form>

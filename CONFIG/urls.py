@@ -22,6 +22,8 @@ from django.urls import path, include
 
 from CONFIG import settings
 from published.urls import urls as published_urls
+from accounts.urls import urls as accounts_urls
+from collation.urls import urls as collation_urls
 
 
 def home(request: HttpRequest) -> HttpResponse:
@@ -39,4 +41,6 @@ urlpatterns = [
     path(settings.ADMIN_URL, admin.site.urls),
     path('', home, name='home'),
     path('published/', include(published_urls)),
+    path('accounts/', include(accounts_urls)),
+    path('collation/', include(collation_urls)),
 ]
