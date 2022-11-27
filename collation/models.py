@@ -15,14 +15,14 @@ class Witness(models.Model):
 
 
 class Collation(models.Model):
-    user = models.ForeignKey(get_user_model(), on_delete=models.CASCADE, related_name='books')
+    user = models.ForeignKey(get_user_model(), on_delete=models.CASCADE, related_name='collations')
     name = models.CharField(max_length=16)
     number = models.SmallIntegerField()
     description = models.TextField(null=True, blank=True)
 
 
-class Chapter(models.Model):
-    book = models.ForeignKey(Collation, on_delete=models.CASCADE, related_name='chapters')
+class Section(models.Model):
+    collation = models.ForeignKey(Collation, on_delete=models.CASCADE, related_name='sections')
     name = models.CharField(max_length=32, null=True, blank=True)
     number = models.SmallIntegerField()
 
@@ -32,7 +32,7 @@ class Chapter(models.Model):
 
 
 class Ab(models.Model):
-    chapter = models.ForeignKey(Chapter, on_delete=models.CASCADE, related_name='abs')
+    section = models.ForeignKey(Section, on_delete=models.CASCADE, related_name='abs')
     ab_id = models.CharField(max_length=10)
     basetext = models.TextField()
     number = models.SmallIntegerField()
