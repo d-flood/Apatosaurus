@@ -1,0 +1,12 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block content %}
+<div class="sidebar-layout">
+    <header id="sidebar-header">
+        {% include 'collation/books.html' %}
+    </header>
+    <div>
+        <main id="main"></main>
+    </div>
+</div>
+{% endblock %}

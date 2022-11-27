@@ -39,13 +39,12 @@
                     <li class="hide-sm nav-item"><a href="#" {% if page.active == 'about' %}aria-current="page"{% endif %}>About</a></li>
                     <li class="hide-sm nav-item"><a href="{% url 'published' %}" {% if page.active == 'published' %}aria-current="page"{% endif %}>Published Collations</a></li>
                     {% if user.is_authenticated %}
-                        <li class="hide-sm nav-item"><a href="#" {% if page.active == 'collations' %}aria-current="page"{% endif %}>My Collations</a></li>
                         <hr>
+                        <li class="hide-sm nav-item"><a href="{% url 'collation' %}" {% if page.active == 'collation' %}aria-current="page"{% endif %}>My Collations</a></li>
                         <li class="hide-sm nav-item" {% if page.active == 'profile' %}aria-current="page"{% endif %}><a href="#">{{ user.username }}</a></li>
-                        <hr>
-                        <li class="hide-sm nav-item"><a href="#">Logout</a></li>
+                        <li class="hide-sm nav-item"><a href="{% url 'logout' %}">Logout</a></li>
                     {% else %}
-                        <li class="hide-sm nav-item"><a href="#">Login</a></li>
+                        <li class="hide-sm nav-item"><a href="{% url 'login' %}">Login</a></li>
                     {% endif %}
                 </ul>
             </nav>
@@ -104,5 +103,6 @@
         <script src="{% static 'js/df.js' %}"></script>
         <script type="module" src="https://the.missing.style/v1.0.1/missing-js/overflow-nav.js"></script>
         <script type="module" src="https://the.missing.style/v1.0.1/missing-js/tabs.js"></script>
+        <script src="https://unpkg.com/htmx.org@1.8.4"></script>
     </body>   
 </html>

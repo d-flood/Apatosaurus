@@ -1,5 +1,6 @@
 from django.db import models
 from django.db.models.query import QuerySet
+from django.contrib.auth import get_user_model
 
 from lxml import etree as et
 
@@ -10,15 +11,20 @@ TEI_NS = '{http://www.tei-c.org/ns/1.0}'
 
 class Witness(models.Model):
     siglum = models.CharField(max_length=32)
+    description = models.CharField(max_length=255, null=True, blank=True)
 
 
-class Book(models.Model):
+class Collation(models.Model):
+    user = models.ForeignKey(get_user_model(), on_delete=models.CASCADE, related_name='books')
     name = models.CharField(max_length=16)
+    number = models.SmallIntegerField()
+    description = models.TextField(null=True, blank=True)
 
 
 class Chapter(models.Model):
-    book = models.ForeignKey(Book, on_delete=models.CASCADE, related_name='chapters')
-    name = models.CharField(max_length=16)
+    book = models.ForeignKey(Collation, on_delete=models.CASCADE, related_name='chapters')
+    name = models.CharField(max_length=32, null=True, blank=True)
+    number = models.SmallIntegerField()
 
     def ab_elements(self):
         self.abs: QuerySet[Ab]
@@ -29,6 +35,7 @@ class Ab(models.Model):
     chapter = models.ForeignKey(Chapter, on_delete=models.CASCADE, related_name='abs')
     ab_id = models.CharField(max_length=10)
     basetext = models.TextField()
+    number = models.SmallIntegerField()
 
     def as_element(self):
         self.apps: QuerySet[App]

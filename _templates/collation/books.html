@@ -1,0 +1,13 @@
+<h1>Collations</h1>
+    <ul role="list">
+        {% for book in user.books.all %}
+            <li><button type="button"
+                hx-get="{% url 'chapter-list' collation_id=book.pk %}"
+                hx-target="#sidebar-header">
+                {{ book.name }}</button></li>
+        {% endfor %}
+    </ul>
+<button type="button" class="info bg color"
+    hx-get="{% url 'new-collation' %}" hx-target="#main">
+    Create New Collation
+</button>
