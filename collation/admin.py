@@ -1,3 +1,10 @@
 from django.contrib import admin
 
-# Register your models here.
+from collation import models
+
+admin.site.register((
+    models.Collation,
+    models.Section,
+    models.Ab,
+    models.App,
+))

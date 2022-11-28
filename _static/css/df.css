@@ -35,7 +35,9 @@
         max-width: 50%;
     }
 }
-
+main {
+    padding-top: 0 !important;
+}
 :root, body {
     --main-font: 'Literata', serif !important;
     --secondary-font: var(--main-font);
@@ -56,6 +58,7 @@ body.light {
     --accent: #8d4232;
     --text-color: #0d1e25;
     --interactive-bg: #c05b46;
+    --interactive-bg-active:#508D32;
     --tab-content: #f5f5f5;
     --plain-bg: #fdf1df;
     --table-stripe: #fde4c0;
@@ -68,6 +71,7 @@ body.dark {
     --accent: #bff4ff;
     --text-color: #fff9f2;
     --interactive-bg: #387987;
+    --interactive-bg-active: #007e24;
     --tab-content: #0d1e25;
     --plain-bg: #003946;
     --table-stripe: #005365;

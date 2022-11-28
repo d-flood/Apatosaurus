@@ -3,7 +3,7 @@ from django.shortcuts import render
 from django.http import HttpRequest, HttpResponse
 from django.views.decorators.http import require_http_methods, require_safe
 
-# from render_block import render_block_to_string #? this threw a "SafeString" error
+from render_block import render_block_to_string 
 
 from collation import forms
 from collation import models
@@ -12,7 +12,7 @@ from collation import models
 @login_required
 def main(request):
     context = {
-        'page': {'active': 'collation', 'title': 'Collation'},
+        'page': {'active': 'collation', 'title': 'Apatosaurus - Collation'},
     }
     return render(request, 'collation/main.html', context)
 
@@ -99,3 +99,37 @@ def abs(request: HttpRequest, section_id: int):
         'section': models.Section.objects.get(id=section_id)
     }
     return render(request, 'collation/abs.html', context)
+
+
+@login_required
+@require_safe
+def apparatus(request: HttpRequest, ab_pk: int):
+    ab = models.Ab.objects.get(pk=ab_pk)
+    context = {
+        'page': {'active': 'collation'},
+        'ab': ab,
+    }
+    return render(request, 'collation/apparatus.html', context)
+
+
+@login_required
+@require_http_methods(['GET', 'POST'])
+def edit_app(request: HttpRequest, ab_pk: int, app_pk: int):
+    if request.method == 'GET':
+        form = forms.AppForm() if app_pk == 0 else forms.AppForm(instance=models.App.objects.get(pk=app_pk))
+    else:
+        if app_pk == 0:
+            form = forms.AppForm(request.POST)
+        else:
+            form = forms.AppForm(request.POST, instance=models.App.objects.get(pk=app_pk))
+        if form.is_valid():
+            form.save(ab_pk)
+            new_app_button = render_block_to_string('collation/apparatus.html', 'new_app_button', {'ab': models.Ab.objects.get(pk=ab_pk)})
+            return HttpResponse(new_app_button)
+    context = {
+        'page': {'active': 'collation'},
+        'form': form,
+        'app_pk': app_pk,
+        'ab_pk': ab_pk
+    }
+    return render(request, 'collation/app_form.html', context)
