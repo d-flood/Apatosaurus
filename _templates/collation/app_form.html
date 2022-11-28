@@ -1,0 +1,5 @@
+<form action="submit" class="table rows" hx-post="{% url 'edit-app' ab_pk=ab_pk app_pk=app_pk %}" hx-swap="outerHTML">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <input type="submit" value="Submit" />
+</form>

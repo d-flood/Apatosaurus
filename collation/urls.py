@@ -10,4 +10,6 @@ urls = [
     path('sections/<int:collation_id>/', views.sections, name='section-list'),
     path('collation-list/', views.collations, name='collation-list'),
     path('ab-list/<int:section_id>/', views.abs, name='ab-list'),
+    path('apparatus/<int:ab_pk>/', views.apparatus, name='apparatus'),
+    path('edit-app/<int:ab_pk>/<int:app_pk>/', views.edit_app, name='edit-app'),
 ]

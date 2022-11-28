@@ -36,6 +36,7 @@ class Ab(models.Model):
     basetext_label = models.CharField(max_length=32, verbose_name='Basetext Label')
     basetext = models.TextField()
     number = models.SmallIntegerField()
+    indexed_basetext = models.JSONField(null=True, blank=True, default=list)
 
     def as_element(self):
         self.apps: QuerySet[App]
@@ -44,6 +45,28 @@ class Ab(models.Model):
         ab.text = self.basetext
         for app in self.apps.all():
             ab.append(app.as_element())
+
+    def set_indexed_basetext(self):
+        self.apps: QuerySet[App]
+        indexed_basetext = []
+        if self.apps.count() > 0:
+            for i, word in enumerate(self.basetext.split(), start=1):
+                index = i*2
+                for app in self.apps.all():
+                    if app.index_from % 2 != 0 and index-1 == app.index_from:
+                        indexed_basetext.append({'word': '-', 'index': index-1, 'is_variant': True, 'app_pk': app.pk})
+                    elif app.index_from <= index <= app.index_to:
+                        indexed_basetext.append({'word': word, 'index': index, 'is_variant': True, 'app_pk': app.pk})
+                        break
+                else:
+                    indexed_basetext.append({'word': word, 'index': index, 'is_variant': False, 'app_pk': None})
+        else:
+            indexed_basetext = [{'word': word, 'index': i*2, 'is_variant': False, 'app_pk': None} for i, word in enumerate(self.basetext.split(), start=1)]
+        self.indexed_basetext = indexed_basetext
+        
+    def save(self, *args, **kwargs):
+        self.set_indexed_basetext()
+        super().save(*args, **kwargs)
 
 
 class App(models.Model):
@@ -77,10 +100,23 @@ class App(models.Model):
 
 
 class Rdg(models.Model):
+    RDG_CHOICES = [
+        ('0', '-'),
+        ('orth', 'Orthographic'),
+        ('subr', 'Subreading'),
+        ('def', 'Defective'),
+        ('lac', 'Lacuna'),
+        ('ns', 'Nomen Sacrum'),
+        ('emm', 'Emendation'),
+        ('ilc', 'Lectionary Adaptation'),
+        ('insi', 'Insignificant'),
+        ('err', 'Error'),
+        ('om', 'Omission'),
+    ]
     app = models.ForeignKey(App, on_delete=models.CASCADE, related_name='rdgs')
     name = models.CharField(max_length=5)
     varSeq = models.SmallIntegerField()
-    rtype = models.CharField(max_length=16, null=True, blank=True)
+    rtype = models.CharField(max_length=5, choices=RDG_CHOICES, default='0')
     wit = models.ManyToManyField(Witness, related_name='rdgs')
     text = models.TextField(null=True, blank=True)
 

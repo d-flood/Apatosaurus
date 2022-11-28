@@ -34,7 +34,7 @@ class SectionForm(forms.ModelForm):
 class AbForm(forms.ModelForm):
     class Meta:
         model = models.Ab
-        exclude = ['section']
+        exclude = ['section', 'indexed_basetext']
 
     def save(self, section_id: int, commit=True):
         instance = super().save(commit=False)
@@ -43,3 +43,16 @@ class AbForm(forms.ModelForm):
             instance.save()
         return instance
 
+
+class AppForm(forms.ModelForm):
+    class Meta:
+        model = models.App
+        exclude = ['ab', 'atype']
+
+    def save(self, ab_pk: int, commit=True):
+        instance = super().save(commit=False)
+        instance.ab_id = ab_pk
+        if commit:
+            instance.save()
+            instance.ab.save()
+        return instance

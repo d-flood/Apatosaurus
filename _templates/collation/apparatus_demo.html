@@ -1,48 +1,71 @@
 <div class="fullbleed">
-    <h3 class="center" style="margin-top:0;">{{ ab.ab_id }}</h3>
+    <h3 class="center" style="margin-top:0;">Romans 1:1</h3>
     <div class="box center plain bg">
         <h4>Variation Units</h4>
         <div class="f-row">
-            {% for app in ab.apps.all %}
-                <button id="app-{{ app.pk }}" class="big app-button" type="button" hx-get="nothing/" hx-trigger="contextmenu" hx-swap="outerHTML"
-                    _="on contextmenu js event.preventDefault(); end
-                    on mouseenter add .highlight to .bt-{{ app.pk }} end
-                    on mouseleave remove .highlight from .bt-{{ app.pk }} end
-                    on click remove .selected from .app-button then add .selected to me 
-                    then remove .selected from <td/> then add .selected to .bt-{{ app.pk }} end">
-                    {{ app.index_from }}{% if app.index_from != app.index_to %}–{{ app.index_to }}{% endif %}
-                </button>
-            {% endfor %}
-            {% block new_app_button %}
-                <button class="ok bg color" type="button" hx-get="{% url 'edit-app' ab_pk=ab.pk app_pk=0 %}" hx-swap="outerHTML" aria-label="add new variation unit" title="add new variation unit">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                        <path fill-rule="evenodd" d="M8 2a.5.5 0 0 1 .5.5v5h5a.5.5 0 0 1 0 1h-5v5a.5.5 0 0 1-1 0v-5h-5a.5.5 0 0 1 0-1h5v-5A.5.5 0 0 1 8 2Z"/>
-                    </svg>
-                </button>
-            {% endblock new_app_button %}
+        <button class="big" type="button" hx-get="nothing/" hx-trigger="contextmenu" hx-swap="outerHTML"
+            _="on contextmenu js event.preventDefault(); end then log 'you right clicked!' end
+            on mouseenter add .HI to #test end
+            on mouseleave remove .HI from #test end">
+            12
+        </button>
+        <button class="big" type="button">16-18</button>
+        <button class="big" type="button">21</button>
+        <button class="big" type="button">28</button>
         </div>
     </div>
 
-    <h4 class="center">Basetext - {{ ab.basetext_label }}</h4>
+    <h4 class="center">Basetext: NA28</h4>
     <table id="basetext" class="plain bg fit">
         <tbody id="basetext_table_body">
             <tr id="basetext">
                 <th scope="row"></th>
-                {% for word in ab.indexed_basetext %}
-                    {% if word.is_variant %}
-                        <td class="text-center v bt-{{ word.app_pk }}" tabindex="0"
-                            _="on mouseenter add .highlight to .bt-{{ word.app_pk }} end
-                            on mouseleave remove .highlight from .bt-{{ word.app_pk }} end
-                            on click remove .selected from <td/> then add .selected to .bt-{{ word.app_pk }} 
-                            then remove .selected from .app-button then add .selected to #app-{{ word.app_pk }}">
-                            {{ word.word }}<br>{{ word.index }}
-                        </td>
-                    {% else %}
+                        <td class="text-center">τα<br>2</td>
+                        <td class="text-center">δε<br>4</td>
+                        <td id="test" class="text-center v">εθνη<br>6</td>
+                        <td class="text-center">υπερ<br>8</td>
+                        <td class="text-center">ελεους<br>10</td>
                         <td class="text-center">
-                            {{ word.word }}<br>{{ word.index }}
+                            <a>
+                                δοξασαι<br>12
+                            </a>
                         </td>
-                    {% endif %}
-                {% endfor %}
+                        <td class="text-center">τον<br>14</td>
+                        <td class="text-center v">θν<br>16</td>
+                        <td class="text-center v">καθως<br>18</td>
+                        <td class="text-center">γεγραπται<br>20</td>
+                        <td class="text-center">δια<br>22</td>
+                        <td class="text-center">τουτο<br>24</td>
+                        <td class="text-center">εξομολογησομαι<br>26</td>
+                        <td class="text-center">σοι<br>28</td>
+                        <td class="text-center">εν<br>30</td>
+                        <td class="text-center">εθνεσιν<br>32</td>
+                        <td class="text-center">και<br>34</td>
+                        <td class="text-center">τω<br>36</td>
+                        <td class="text-center">ονοματι<br>38</td>
+                        <td class="text-center">σου<br>40</td>
+                        <td class="text-center">ψαλω<br>42</td>
+                        <td class="text-center">τα<br>2</td>
+                        <td class="text-center">δε<br>4</td>
+                        <td class="text-center">εθνη<br>6</td>
+                        <td class="text-center">υπερ<br>8</td>
+                        <td class="text-center">ελεους<br>10</td>
+                        <td class="text-center">δοξασαι<br>12</td>
+                        <td class="text-center">τον<br>14</td>
+                        <td class="text-center">θν<br>16</td>
+                        <td class="text-center">καθως<br>18</td>
+                        <td class="text-center">γεγραπται<br>20</td>
+                        <td class="text-center">δια<br>22</td>
+                        <td class="text-center">τουτο<br>24</td>
+                        <td class="text-center">εξομολογησομαι<br>26</td>
+                        <td class="text-center">σοι<br>28</td>
+                        <td class="text-center">εν<br>30</td>
+                        <td class="text-center">εθνεσιν<br>32</td>
+                        <td class="text-center">και<br>34</td>
+                        <td class="text-center">τω<br>36</td>
+                        <td class="text-center">ονοματι<br>38</td>
+                        <td class="text-center">σου<br>40</td>
+                        <td class="text-center">ψαλω<br>42</td>
             </tr>
         </tbody>
     </table>
@@ -184,14 +207,7 @@
     .v {
         background-color: var(--table-stripe);
     }
-    td a {
-        color: var(--link-color);
-    }
-    .selected {
-        background-color: var(--interactive-bg-active);
-    }
-    .highlight {
-        background-color: var(--ok-bg);
-        color: var(--ok-fg);
+    .HI {
+        background-color: green;
     }
 </style>
