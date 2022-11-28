@@ -1,10 +1,11 @@
-<h1>Collation</h1>
+<h1>Collations</h1>
     <ul role="list">
         {% for collation in user.collations.all %}
             <li><button type="button"
                 hx-get="{% url 'section-list' collation_id=collation.pk %}"
                 hx-target="#sidebar-header">
-                {{ collation.name }}</button></li>
+                {{ collation.name }}</button>
+            </li>
         {% endfor %}
     </ul>
 <button type="button" class="info bg color"

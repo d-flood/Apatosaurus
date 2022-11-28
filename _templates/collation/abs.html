@@ -1,0 +1,18 @@
+<button type="button" class="warn bg color" hx-get="{% url 'section-list' collation_id=section.collation.pk %}" hx-target="#sidebar-header">
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+        <path fill-rule="evenodd" d="M15 8a.5.5 0 0 0-.5-.5H2.707l3.147-3.146a.5.5 0 1 0-.708-.708l-4 4a.5.5 0 0 0 0 .708l4 4a.5.5 0 0 0 .708-.708L2.707 8.5H14.5A.5.5 0 0 0 15 8z"/>
+    </svg>
+    Sections
+</button>
+<h1 style="margin-top: 5px;">{{ section.collation.name }}</h1>
+<h2 class="<h4> text-center">{{ section.name }}</h2>
+<hr>
+<ul role="list" id="section_list">
+    {% for ab in abs %}
+        <li><button type="button">{{ ab.number }}: {{ ab.ab_id }}</button></li>
+    {% endfor %}
+</ul>
+<button type="button" class="info bg color"
+    hx-get="{% url 'new-ab' section_id=section.pk %}" hx-target="#main">
+    Create New Collation Unit
+</button>

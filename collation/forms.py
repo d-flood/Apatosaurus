@@ -16,4 +16,30 @@ class CollationForm(forms.ModelForm):
         if commit:
             instance.save()
         return instance
+
+
+class SectionForm(forms.ModelForm):
+    class Meta:
+        model = models.Section
+        exclude = ['collation']
+
+    def save(self, collation_id: int, commit=True):
+        instance = super().save(commit=False)
+        instance.collation_id = collation_id
+        if commit:
+            instance.save()
+        return instance
         
+
+class AbForm(forms.ModelForm):
+    class Meta:
+        model = models.Ab
+        exclude = ['section']
+
+    def save(self, section_id: int, commit=True):
+        instance = super().save(commit=False)
+        instance.section_id = section_id
+        if commit:
+            instance.save()
+        return instance
+
