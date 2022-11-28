@@ -57,6 +57,8 @@ body.light {
     --text-color: #0d1e25;
     --interactive-bg: #c05b46;
     --tab-content: #f5f5f5;
+    --plain-bg: #fdf1df;
+    --table-stripe: #fde4c0;
 }
 body.dark {
     --fg: #fff9f2;
@@ -67,6 +69,8 @@ body.dark {
     --text-color: #fff9f2;
     --interactive-bg: #387987;
     --tab-content: #0d1e25;
+    --plain-bg: #003946;
+    --table-stripe: #005365;
 }
 body {
     background-color: var(--bg);
@@ -87,6 +91,15 @@ footer {
 }
 p {
     font-family: var(--main-font);
+}
+#basetext {
+    display: block;
+}
+#basetext td {
+    display: inline-block;
+}
+.plain {
+    --box-bg: var(--plain-bg);
 }
 .social:hover {
     transform: scale(1.3);

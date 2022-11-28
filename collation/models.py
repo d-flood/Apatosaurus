@@ -16,8 +16,7 @@ class Witness(models.Model):
 
 class Collation(models.Model):
     user = models.ForeignKey(get_user_model(), on_delete=models.CASCADE, related_name='collations')
-    name = models.CharField(max_length=16)
-    number = models.SmallIntegerField()
+    name = models.CharField(max_length=64)
     description = models.TextField(null=True, blank=True)
 
 
@@ -33,7 +32,8 @@ class Section(models.Model):
 
 class Ab(models.Model):
     section = models.ForeignKey(Section, on_delete=models.CASCADE, related_name='abs')
-    ab_id = models.CharField(max_length=10)
+    ab_id = models.CharField(max_length=10, verbose_name='ID')
+    basetext_label = models.CharField(max_length=32, verbose_name='Basetext Label')
     basetext = models.TextField()
     number = models.SmallIntegerField()
 

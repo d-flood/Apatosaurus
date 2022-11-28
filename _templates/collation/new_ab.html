@@ -1,0 +1,10 @@
+<h3>New Collation Unit</h3>
+<p>
+    A collation unit is a section of text that you want to collate. For most people, 
+    this should be a single biblical verse.
+</p>
+<form hx-post="{% url 'new-ab' section_id=section_id %}" class="table rows" hx-target="#main">
+    {% csrf_token %}
+    {{ new_ab_form.as_p }}
+    <input type="submit" value="Submit">
+</form>
