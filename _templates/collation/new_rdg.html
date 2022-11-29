@@ -1,0 +1,18 @@
+<form action="submit"
+    hx-post="{% url 'new-rdg' app_pk=app_pk %}"
+    hx-target="#rdgs_table">
+    {{ form.as_p }}
+    <p>
+        <label class="vh" for="wits-filter">Filter Witnesses</label>
+        <input type="text" id="wits-filter" placeholder="Filter Witnesses"
+            _="on keyup if my value == '' show <option/> in #id_wit else if the event's key is 'Escape' set my value to '' trigger keyup else show <option/> in #id_wit when its textContent.startsWith(my value) end">
+    </p>
+    <button type="submit">
+        Submit
+    </button>
+    <button type="button" 
+        hx-get="{% url 'cancel-new-rdg' app_pk=app_pk %}"
+        hx-target="#rdgs_table">
+        Cancel
+    </button>
+</form>

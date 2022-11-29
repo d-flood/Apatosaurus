@@ -56,3 +56,17 @@ class AppForm(forms.ModelForm):
             instance.save()
             instance.ab.save()
         return instance
+
+
+class RdgForm(forms.ModelForm):
+    class Meta:
+        model = models.Rdg
+        exclude = ['app', 'active', 'varSeq']
+
+    def save(self, app_pk: int, commit=True):
+        instance = super().save(commit=False)
+        instance.app_id = app_pk
+        if commit:
+            instance.save()
+            self.save_m2m()
+        return instance

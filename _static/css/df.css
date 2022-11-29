@@ -58,7 +58,7 @@ body.light {
     --accent: #8d4232;
     --text-color: #0d1e25;
     --interactive-bg: #c05b46;
-    --interactive-bg-active:#508D32;
+    --interactive-bg-active:#d97a66;
     --tab-content: #f5f5f5;
     --plain-bg: #fdf1df;
     --table-stripe: #fde4c0;
@@ -71,7 +71,7 @@ body.dark {
     --accent: #bff4ff;
     --text-color: #fff9f2;
     --interactive-bg: #387987;
-    --interactive-bg-active: #007e24;
+    --interactive-bg-active: #164600;
     --tab-content: #0d1e25;
     --plain-bg: #003946;
     --table-stripe: #005365;
@@ -124,6 +124,55 @@ li {
     font-family: 'Literata', serif !important;
 }
 
+/* APPARATUS */
+.fit {
+    width: 90%; 
+    margin-left: auto; 
+    margin-right: auto;
+    margin-top: 20px;
+}
+tr.stripe {
+    background-color: var(--table-stripe);
+}
+.box {
+    max-width: 90%;
+    margin-left: auto;
+    margin-right: auto;
+}
+select {
+    padding-top: 0;
+    padding-bottom: 0;
+}
+.v {
+    background-color: var(--table-stripe);
+}
+td a {
+    color: var(--link-color);
+}
+.selected {
+    background-color: var(--interactive-bg-active);
+}
+.highlight {
+    filter: brightness(1.2);
+}
+.app-button {
+    margin-left: 10px;
+    border-radius: 3px 0 0 3px;
+    border-right: none;
+}
+.edit-app-button {
+    padding: 1px;
+    border-radius: 0 3px 3px 0;
+    border-left: none;
+}
+#wits-filter::placeholder {
+    color: var(--text-color);
+    filter: brightness(0.8);
+}
+#id_wit {
+    width: 400px;
+    height: 300px;
+}
 
 /* classes added via wagtail */
 .richtext-image.full-width {
