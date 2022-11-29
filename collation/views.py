@@ -82,7 +82,6 @@ def new_rdg(request: HttpRequest, app_pk: int):
             'form': forms.RdgForm(),
             'app_pk': app_pk
         }
-        return render(request, 'collation/new_rdg.html', context)
     else:
         form = forms.RdgForm(request.POST)
         if form.is_valid():
@@ -92,7 +91,8 @@ def new_rdg(request: HttpRequest, app_pk: int):
             'form': form,
             'app_pk': app_pk
         }
-        return render(request, 'collation/new_rdg.html', context)
+
+    return render(request, 'collation/new_rdg.html', context)
 
 
 def cancel_new_rdg(request: HttpRequest, app_pk: int):
