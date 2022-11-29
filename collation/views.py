@@ -73,6 +73,33 @@ def new_ab(request: HttpRequest, section_id: int):
 
 
 @login_required
+@require_http_methods(['GET', 'POST'])
+def new_rdg(request: HttpRequest, app_pk: int):
+    if request.method == 'GET':
+        form = forms.RdgForm()
+        context = {
+            'page': {'active': 'collation'},
+            'form': forms.RdgForm(),
+            'app_pk': app_pk
+        }
+        return render(request, 'collation/new_rdg.html', context)
+    else:
+        form = forms.RdgForm(request.POST)
+        if form.is_valid():
+            form.save(app_pk)
+            return render(request, 'collation/rdgs_table.html', {'app': models.App.objects.get(pk=app_pk)})
+        context = {
+            'form': form,
+            'app_pk': app_pk
+        }
+        return render(request, 'collation/new_rdg.html', context)
+
+
+def cancel_new_rdg(request: HttpRequest, app_pk: int):
+    return render(request, 'collation/rdgs_table.html', {'app': models.App.objects.get(pk=app_pk)})
+
+
+@login_required
 def sections(request: HttpRequest, collation_id: int):
     context = {
         'page': {'active': 'collation'},
@@ -113,23 +140,67 @@ def apparatus(request: HttpRequest, ab_pk: int):
 
 
 @login_required
-@require_http_methods(['GET', 'POST'])
+@require_http_methods(['GET', 'POST', 'DELETE'])
 def edit_app(request: HttpRequest, ab_pk: int, app_pk: int):
     if request.method == 'GET':
         form = forms.AppForm() if app_pk == 0 else forms.AppForm(instance=models.App.objects.get(pk=app_pk))
-    else:
+        context = {
+            'page': {'active': 'collation'},
+            'form': form,
+            'app_pk': app_pk,
+            'ab_pk': ab_pk
+        }
+        return render(request, 'collation/app_form.html', context)
+    elif request.method == 'POST':
         if app_pk == 0:
             form = forms.AppForm(request.POST)
         else:
             form = forms.AppForm(request.POST, instance=models.App.objects.get(pk=app_pk))
         if form.is_valid():
-            form.save(ab_pk)
-            new_app_button = render_block_to_string('collation/apparatus.html', 'new_app_button', {'ab': models.Ab.objects.get(pk=ab_pk)})
-            return HttpResponse(new_app_button)
+            app = form.save(ab_pk)
+            app.ab.save()
+            app_buttons = render_block_to_string('collation/apparatus.html', 'app_buttons', {'ab': models.Ab.objects.get(pk=ab_pk)})
+            resp = HttpResponse(app_buttons)
+            resp['HX-Trigger'] = 'refreshBasetext'
+            return resp
+        else:
+            context = {
+                'page': {'active': 'collation'},
+                'form': form,
+                'app_pk': app_pk,
+                'ab_pk': ab_pk
+            }
+            return render(request, 'collation/app_form.html', context)
+    else:
+        app = models.App.objects.get(pk=app_pk)
+        ab = app.ab
+        app.delete()
+        ab.save()
+        app_buttons = render_block_to_string('collation/apparatus.html', 'app_buttons', {'ab': models.Ab.objects.get(pk=ab_pk)})
+        resp = HttpResponse(app_buttons)
+        resp['HX-Trigger'] = 'refreshBasetext'
+        return resp
+
+
+def cancel_edit_app(request: HttpRequest, ab_pk: int):
+    app_buttons = render_block_to_string('collation/apparatus.html', 'app_buttons', {'ab': models.Ab.objects.get(pk=ab_pk)})
+    return HttpResponse(app_buttons)
+
+
+@login_required
+@require_safe
+def rdgs(request: HttpRequest, app_pk: int):
+    app = models.App.objects.get(pk=app_pk)
     context = {
         'page': {'active': 'collation'},
-        'form': form,
-        'app_pk': app_pk,
-        'ab_pk': ab_pk
+        'app': app,
     }
-    return render(request, 'collation/app_form.html', context)
+    return render(request, 'collation/rdgs_table.html', context)
+
+
+@login_required
+@require_safe
+def refresh_basetext(request: HttpRequest, ab_pk: int):
+    ab = models.Ab.objects.get(pk=ab_pk)
+    basetext_row = render_block_to_string('collation/apparatus.html', 'basetext_row', {'ab': ab})
+    return HttpResponse(basetext_row)

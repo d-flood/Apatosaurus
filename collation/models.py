@@ -13,6 +13,9 @@ class Witness(models.Model):
     siglum = models.CharField(max_length=32)
     description = models.CharField(max_length=255, null=True, blank=True)
 
+    def __str__(self):
+        return self.siglum
+
 
 class Collation(models.Model):
     user = models.ForeignKey(get_user_model(), on_delete=models.CASCADE, related_name='collations')
@@ -76,6 +79,9 @@ class App(models.Model):
     index_to = models.SmallIntegerField()
     connectivity = models.SmallIntegerField(default=10)
 
+    class Meta:
+        ordering = ['index_from']
+
     def __str__(self) -> str:
         return f'{self.ab.ab_id}: {self.index_from}-{self.index_to}'
 
@@ -115,10 +121,10 @@ class Rdg(models.Model):
     ]
     app = models.ForeignKey(App, on_delete=models.CASCADE, related_name='rdgs')
     name = models.CharField(max_length=5)
-    varSeq = models.SmallIntegerField()
-    rtype = models.CharField(max_length=5, choices=RDG_CHOICES, default='0')
-    wit = models.ManyToManyField(Witness, related_name='rdgs')
+    varSeq = models.SmallIntegerField(default=1)
+    rtype = models.CharField(max_length=5, choices=RDG_CHOICES, default='0', verbose_name='Reading Type')
     text = models.TextField(null=True, blank=True)
+    wit = models.ManyToManyField(Witness, related_name='rdgs', blank=True, verbose_name='Witnesses')
 
     active = models.BooleanField(default=True)
     modified = models.DateTimeField(auto_now=True)
@@ -139,7 +145,6 @@ class Rdg(models.Model):
     class Meta:
         ordering = ['varSeq']
         constraints = [
-            models.UniqueConstraint(fields=['app', 'varSeq'], name='unique_varSeq'),
             models.UniqueConstraint(fields=['app', 'name'], name='unique_name'),
         ]
 

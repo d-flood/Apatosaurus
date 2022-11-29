@@ -7,4 +7,6 @@ admin.site.register((
     models.Section,
     models.Ab,
     models.App,
+    models.Witness,
+    models.Rdg,
 ))

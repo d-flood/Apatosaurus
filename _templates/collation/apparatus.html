@@ -1,103 +1,101 @@
-<div class="fullbleed">
+<div id="apparatus-div" class="fullbleed">
     <h3 class="center" style="margin-top:0;">{{ ab.ab_id }}</h3>
     <div class="box center plain bg">
         <h4>Variation Units</h4>
-        <div class="f-row">
-            {% for app in ab.apps.all %}
-                <button id="app-{{ app.pk }}" class="big app-button" type="button" hx-get="nothing/" hx-trigger="contextmenu" hx-swap="outerHTML"
-                    _="on contextmenu js event.preventDefault(); end
-                    on mouseenter add .highlight to .bt-{{ app.pk }} end
-                    on mouseleave remove .highlight from .bt-{{ app.pk }} end
-                    on click remove .selected from .app-button then add .selected to me 
-                    then remove .selected from <td/> then add .selected to .bt-{{ app.pk }} end">
-                    {{ app.index_from }}{% if app.index_from != app.index_to %}–{{ app.index_to }}{% endif %}
-                </button>
-            {% endfor %}
-            {% block new_app_button %}
-                <button class="ok bg color" type="button" hx-get="{% url 'edit-app' ab_pk=ab.pk app_pk=0 %}" hx-swap="outerHTML" aria-label="add new variation unit" title="add new variation unit">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                        <path fill-rule="evenodd" d="M8 2a.5.5 0 0 1 .5.5v5h5a.5.5 0 0 1 0 1h-5v5a.5.5 0 0 1-1 0v-5h-5a.5.5 0 0 1 0-1h5v-5A.5.5 0 0 1 8 2Z"/>
-                    </svg>
-                </button>
+        <div class="f-row flex-wrap:wrap packed" id="app-buttons-wrapper">
+            {% block app_buttons %}
+                {% for app in ab.apps.all %}
+                    <button id="app-{{ app.pk }}" class="big app-button" type="button" 
+                        hx-get="{% url 'rdgs' app_pk=app.pk %}" 
+                        hx-target="#rdgs_table"
+                        _="on contextmenu js event.preventDefault(); end
+                        on mouseenter add .highlight to .bt-{{ app.pk }} end
+                        on mouseleave remove .highlight from .bt-{{ app.pk }} end
+                        on click remove .selected from .app-button then add .selected to me 
+                        then remove .selected from <td/> then add .selected to .bt-{{ app.pk }} end">
+                        {{ app.index_from }}{% if app.index_from != app.index_to %}–{{ app.index_to }}{% endif %}
+                    </button>
+                    <div class="f-col">
+                        <button class="edit-app-button" type="button" aria-haspopup="menu" aria-controls="edit-{{ app.pk }}"
+                            aria-expanded="false" 
+                            aria-label="edit collation unit {{ app.index_from }}{% if app.index_from != app.index_to %}–{{ app.index_to }}{% endif %}"
+                            title="edit collation unit" style="height: 100%;">
+                            &#128393;
+                        </button>
+                        <div class="menu-div" role="menu" id="edit-{{ app.pk }}" hidden>
+                            <a role="menuitem" tabindex="-1"
+                                hx-get="{% url 'edit-app' ab_pk=ab.pk app_pk=app.pk %}" 
+                                hx-target="#app-buttons-wrapper">
+                                Edit
+                            </a>
+                            <a role="menuitem" tabindex="-1"
+                                hx-delete="{% url 'edit-app' ab_pk=ab.pk app_pk=app.pk %}"
+                                hx-target="#app-buttons-wrapper">
+                                Delete
+                            </a>
+                        </div>
+                    </div>
+                {% endfor %}
+                {% block new_app_button %}
+                    <button class="ok bg color" type="button" 
+                        hx-get="{% url 'edit-app' ab_pk=ab.pk app_pk=0 %}" 
+                        hx-target="#app-buttons-wrapper" aria-label="add new variation unit" 
+                        title="add new variation unit" style="margin-left: 10px;">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                            <path fill-rule="evenodd" d="M8 2a.5.5 0 0 1 .5.5v5h5a.5.5 0 0 1 0 1h-5v5a.5.5 0 0 1-1 0v-5h-5a.5.5 0 0 1 0-1h5v-5A.5.5 0 0 1 8 2Z"/>
+                        </svg>
+                    </button>
             {% endblock new_app_button %}
+            <script type="module">
+                import { menu, menuButton } from "https://the.missing.style/v1.0.3/missing-js/menu.js"
+                menuButton(document.getElementById("apparatus-div"))
+                menu(document.getElementById("apparatus-div"))
+            </script>
+            {% endblock app_buttons %}
         </div>
     </div>
 
     <h4 class="center">Basetext - {{ ab.basetext_label }}</h4>
     <table id="basetext" class="plain bg fit">
         <tbody id="basetext_table_body">
-            <tr id="basetext">
-                <th scope="row"></th>
-                {% for word in ab.indexed_basetext %}
-                    {% if word.is_variant %}
-                        <td class="text-center v bt-{{ word.app_pk }}" tabindex="0"
-                            _="on mouseenter add .highlight to .bt-{{ word.app_pk }} end
-                            on mouseleave remove .highlight from .bt-{{ word.app_pk }} end
-                            on click remove .selected from <td/> then add .selected to .bt-{{ word.app_pk }} 
-                            then remove .selected from .app-button then add .selected to #app-{{ word.app_pk }}">
-                            {{ word.word }}<br>{{ word.index }}
-                        </td>
-                    {% else %}
-                        <td class="text-center">
-                            {{ word.word }}<br>{{ word.index }}
-                        </td>
-                    {% endif %}
-                {% endfor %}
-            </tr>
+            
+            {% block basetext_row %}
+                <tr hx-get="{% url 'refresh-basetext' ab_pk=ab.pk %}"
+                    hx-target="#basetext_table_body" hx-trigger="refreshBasetext from:body">
+                    <th scope="row">Basetext<br>Index</th>
+                    {% for word in ab.indexed_basetext %}
+                        {% if word.is_variant %}
+                            <td class="text-center v bt-{{ word.app_pk }}" tabindex="0" hx-get="{% url 'rdgs' app_pk=word.app_pk %}" hx-target="#rdgs_table"
+                                _="on mouseenter add .highlight to .bt-{{ word.app_pk }} then add .highlight to #app-{{ word.app_pk }} end
+                                on mouseleave remove .highlight from .bt-{{ word.app_pk }} then remove .highlight from #app-{{ word.app_pk }} end
+                                on click remove .selected from <td/> then add .selected to .bt-{{ word.app_pk }} 
+                                then remove .selected from .app-button then add .selected to #app-{{ word.app_pk }}">
+                                {{ word.word }}<br>{{ word.index }}
+                            </td>
+                        {% else %}
+                            <td class="text-center">
+                                {{ word.word }}<br>{{ word.index }}
+                            </td>
+                        {% endif %}
+                    {% endfor %}
+                </tr>
+            {% endblock basetext_row %}
+
         </tbody>
     </table>
 
     <h4 class="center">Readings</h4>
     <table class="plain bg fit" id="rdgs_table_parent">
-        <thead id="rdgs_thread">
+        <thead>
             <tr id="rdgs_header">
-                <th scope="col">ID</th>
-                <th scope="col">Type</th>
-                <th scope="col">Reading</th>
-                <th scope="col">Witnesses</th>
-                <th scope="col"></th>
+                <th scope="col" class="rdg-id">ID</th>
+                <th scope="col" class="rdg-type">Type</th>
+                <th scope="col" class="rdg-rdg">Reading</th>
+                <th scope="col" class="rdg-wit">Witnesses</th>
+                <th scope="col" class="rdg-edit" style="text-align:end;">&#128393;</th>
             </tr>
         </thead>
-        <tbody id="rdgs_table">
-            <!-- to be filled in dynamically -->
-            
-            <tr id="rdg-a">
-                <td>a</td>
-                <td>
-                    <p><label for="tf-sel" class="vh">Select</label>
-                        <select id="tf-sel">
-                            <option title="do not assign" selected>-</option>
-                            <option title="error">err</option>
-                            <option>-</option>
-                            <option>-</option>
-                            <option>-</option>
-                        </select>
-                    </p>
-                </td>
-                <td>τουτο</td>
-                <td>P46. 01c1. 01c2. 02. 03. 04. 06. 0150. 0151. 33. 1506. 2110. NA28. RP</td>
-                <td></td>
-            </tr>
-            
-            <tr class="stripe" id="rdg-b">
-                <td>b</td>
-                <td>
-                    <p><label for="tf-sel" class="vh">Select</label>
-                        <select id="tf-sel">
-                            <option>-</option>
-                            <option selected>err</option>
-                            <option>-</option>
-                            <option>-</option>
-                            <option>-</option>
-                        </select>
-                    </p>
-                </td>
-                <td>του προφητου</td>
-                <td>01</td>
-                <td></td>
-            </tr>
-            
-        </tbody>
+        <tbody id="rdgs_table"></tbody>
     </table>
 
     <h4 class="center">Genealogical Relationships</h4>
@@ -161,37 +159,3 @@
         </div>
     </div>    
 </div>
-
-<style>
-    .fit {
-        width: 90%; 
-        margin-left: auto; 
-        margin-right: auto;
-        margin-top: 20px;
-    }
-    tr.stripe {
-        background-color: var(--table-stripe);
-    }
-    .box {
-        max-width: 90%;
-        margin-left: auto;
-        margin-right: auto;
-    }
-    select {
-        padding-top: 0;
-        padding-bottom: 0;
-    }
-    .v {
-        background-color: var(--table-stripe);
-    }
-    td a {
-        color: var(--link-color);
-    }
-    .selected {
-        background-color: var(--interactive-bg-active);
-    }
-    .highlight {
-        background-color: var(--ok-bg);
-        color: var(--ok-fg);
-    }
-</style>
