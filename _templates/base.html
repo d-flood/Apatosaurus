@@ -1,4 +1,5 @@
 {% load static %}
+{% load django_htmx %}
 <!DOCTYPE html>
 <html class="-no-dark-theme" lang="en">
     <head>
@@ -101,9 +102,17 @@
         {% block extra_js %}
         {% endblock %}
         <script src="{% static 'js/df.js' %}"></script>
-        <script type="module" src="https://the.missing.style/v1.0.1/missing-js/overflow-nav.js"></script>
-        <!-- <script type="module" src="https://the.missing.style/v1.0.1/missing-js/tabs.js"></script> -->
+        <script type="module" src="https://the.missing.style/v1.0.3/missing-js/overflow-nav.js"></script>
+        <!-- <script type="module" src="https://the.missing.style/v1.0.3/missing-js/tabs.js"></script> -->
         <script src="https://unpkg.com/htmx.org@1.8.4"></script>
-        <script src="https://unpkg.com/hyperscript.org@0.9.7"></script>
+        {% django_htmx_script %}
+        <script src="https://unpkg.com/hyperscript.org@0.9.7" defer></script>
+
+        <script>
+            document.body.addEventListener('htmx:configRequest', (event) => {
+                event.detail.headers['X-CSRFToken'] = '{{ csrf_token }}';
+            })
+            // htmx.config.useTemplateFragments = true;
+        </script>
     </body>   
 </html>
