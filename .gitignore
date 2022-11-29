@@ -9,6 +9,7 @@ __pycache__/
 .env
 *.db
 *.sqlite3
+liste.json
 
 # dev machine specific
 *.ps1
