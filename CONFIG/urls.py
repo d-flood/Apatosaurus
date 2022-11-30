@@ -26,6 +26,7 @@ from accounts.urls import urls as accounts_urls
 from collation.urls import urls as collation_urls
 
 
+
 def home(request: HttpRequest) -> HttpResponse:
     context = {
         'page': {
