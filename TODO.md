@@ -1,3 +1,0 @@
-- Anytime a new item is added/removed under 'My Collations', the sidebar should be triggered to update.
-- Additions, updates, and removals should trigger a friendly toast notificaton.
-- see if #witnesses-selected-on-load is populated on load of edit form
