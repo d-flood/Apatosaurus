@@ -169,7 +169,7 @@ td a {
     color: var(--text-color);
     filter: brightness(0.8);
 }
-#id_wit {
+#id_wit, #id_selected_witnesses {
     width: 400px;
     height: 300px;
 }

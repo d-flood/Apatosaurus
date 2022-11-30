@@ -59,9 +59,17 @@ class AppForm(forms.ModelForm):
 
 
 class RdgForm(forms.ModelForm):
+
     class Meta:
         model = models.Rdg
-        exclude = ['app', 'active', 'varSeq']
+        # exclude = ['app', 'active', 'varSeq']
+        fields = [
+            'name',
+            'rtype', 
+            'text',
+            'selected_witnesses',
+            'wit',
+            ]
 
     def save(self, app_pk: int, commit=True):
         instance = super().save(commit=False)
@@ -70,3 +78,5 @@ class RdgForm(forms.ModelForm):
             instance.save()
             self.save_m2m()
         return instance
+
+    selected_witnesses = forms.CharField(widget=forms.Textarea(attrs={'readonly': True}), required=False)

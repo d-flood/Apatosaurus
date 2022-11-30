@@ -5,7 +5,9 @@
         <td width="40%">{{ rdg.text }}</td>
         <td width="45%">{% for w in rdg.wit.all %}<span title="{{w.description}}">{{ w.siglum }}.</span> {% endfor %}</td>
         <td style="text-align: end;">
-            <button type="button" title="edit reading" aria-label="edit reading">
+            <button type="button" title="edit reading" aria-label="edit reading"
+                hx-get="{% url 'edit-rdg' rdg_pk=rdg.pk %}"
+                hx-target="#new-rdg-form">
                 &#128393;
             </button>
         </td>
