@@ -28,9 +28,9 @@ class Section(models.Model):
     name = models.CharField(max_length=32, null=True, blank=True)
     number = models.SmallIntegerField()
 
-    def ab_elements(self):
-        self.abs: QuerySet[Ab]
-        return [ab.as_element() for ab in self.abs.all()]
+    # def ab_elements(self):
+    #     self.abs: QuerySet[Ab]
+    #     return [ab.as_element() for ab in self.abs.all()]
 
 
 class Ab(models.Model):
@@ -41,13 +41,13 @@ class Ab(models.Model):
     number = models.SmallIntegerField()
     indexed_basetext = models.JSONField(null=True, blank=True, default=list)
 
-    def as_element(self):
-        self.apps: QuerySet[App]
-        ab = et.Element(f'{XML_NS}ab')
-        ab.set('id', self.ab_id)
-        ab.text = self.basetext
-        for app in self.apps.all():
-            ab.append(app.as_element())
+    # def as_element(self):
+    #     self.apps: QuerySet[App]
+    #     ab = et.Element(f'{XML_NS}ab')
+    #     ab.set('id', self.ab_id)
+    #     ab.text = self.basetext
+    #     for app in self.apps.all():
+    #         ab.append(app.as_element())
 
     def set_indexed_basetext(self):
         self.apps: QuerySet[App]
@@ -68,8 +68,18 @@ class Ab(models.Model):
         self.indexed_basetext = indexed_basetext
         
     def save(self, *args, **kwargs):
-        self.set_indexed_basetext()
+        index_basetext_again = False
+        try:
+            self.set_indexed_basetext()
+        except ValueError: # this object has not been saved yet
+            index_basetext_again = True
         super().save(*args, **kwargs)
+        if index_basetext_again:
+            self.set_indexed_basetext()
+            super().save(*args, **kwargs)
+    
+    class Meta:
+        ordering = ['number']
 
 
 class App(models.Model):
@@ -85,24 +95,24 @@ class App(models.Model):
     def __str__(self) -> str:
         return f'{self.ab.ab_id}: {self.index_from}-{self.index_to}'
 
-    def as_element(self) -> et._Element:
-        self.rdgs: QuerySet[Rdg]
-        app = et.Element(f'{TEI_NS}app', {'type': self.atype, 'from': str(self.index_from), 'to': str(self.index_to)})
-        graph = et.Element(f'{TEI_NS}graph', {'type': 'directed'})
-        for rdg in self.rdgs.all():
-            app.append(rdg.as_element())
-            graph.append(et.Element(f'{TEI_NS}node', {'n': rdg.name}))
-        note = et.Element(f'{TEI_NS}note')
-        fs = et.Element(f'{TEI_NS}fs')
-        f = et.Element(f'{TEI_NS}f')
-        numeric = et.Element(f'{TEI_NS}numeric')
-        numeric.set('value', str(self.connectivity))
-        f.append(numeric)
-        fs.append(f)
-        note.append(fs)
-        note.append(graph)
-        app.append(note)
-        return app
+    # def as_element(self) -> et._Element:
+    #     self.rdgs: QuerySet[Rdg]
+    #     app = et.Element(f'{TEI_NS}app', {'type': self.atype, 'from': str(self.index_from), 'to': str(self.index_to)})
+    #     graph = et.Element(f'{TEI_NS}graph', {'type': 'directed'})
+    #     for rdg in self.rdgs.all():
+    #         app.append(rdg.as_element())
+    #         graph.append(et.Element(f'{TEI_NS}node', {'n': rdg.name}))
+    #     note = et.Element(f'{TEI_NS}note')
+    #     fs = et.Element(f'{TEI_NS}fs')
+    #     f = et.Element(f'{TEI_NS}f')
+    #     numeric = et.Element(f'{TEI_NS}numeric')
+    #     numeric.set('value', str(self.connectivity))
+    #     f.append(numeric)
+    #     fs.append(f)
+    #     note.append(fs)
+    #     note.append(graph)
+    #     app.append(note)
+    #     return app
 
 
 class Rdg(models.Model):
@@ -132,15 +142,15 @@ class Rdg(models.Model):
     def __str__(self) -> str:
         return f'{self.app.ab.ab_id}U{self.app.index_from}-{self.app.index_to} {self.name}'
 
-    def as_element(self) -> et._Element:
-        rdg = et.Element(f'{TEI_NS}rdg')
-        witnesses = ' '.join([w.siglum for w in self.wit.all()]) 
-        rdg.set('wit', witnesses)
-        rdg.set('varSeq', str(self.varSeq))
-        if self.rtype:
-            rdg.set('type', self.rtype)
-        rdg.text = self.text
-        return rdg
+    # def as_element(self) -> et._Element:
+    #     rdg = et.Element(f'{TEI_NS}rdg')
+    #     witnesses = ' '.join([w.siglum for w in self.wit.all()]) 
+    #     rdg.set('wit', witnesses)
+    #     rdg.set('varSeq', str(self.varSeq))
+    #     if self.rtype:
+    #         rdg.set('type', self.rtype)
+    #     rdg.text = self.text
+    #     return rdg
 
     class Meta:
         ordering = ['varSeq']
