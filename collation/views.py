@@ -1,5 +1,5 @@
 from django.contrib.auth.decorators import login_required
-from django.shortcuts import render
+from django.shortcuts import render, redirect
 from django.http import HttpRequest, HttpResponse
 from django.views.decorators.http import require_http_methods, require_safe
 
@@ -7,6 +7,7 @@ from render_block import render_block_to_string
 
 from collation import forms
 from collation import models
+from collation.py import helpers
 
 
 @login_required
@@ -35,6 +36,38 @@ def new_colation(request: HttpRequest):
 
 
 @login_required
+@require_http_methods(['GET', 'POST', 'DELETE'])
+def edit_collation(request: HttpRequest, collation_id: int):
+    collation = models.Collation.objects.get(pk=collation_id)
+    if request.method == 'GET':
+        form = forms.CollationForm(instance=collation)
+        context = {
+            'page': {'active': 'collation'},
+            'form': form,
+            'collation': collation,
+        }
+        return render(request, 'collation/edit_collation.html', context)
+    elif request.method == 'POST':
+        form = forms.CollationForm(request.POST, instance=collation)
+        if form.is_valid():
+            form.save(request.user)
+            resp = HttpResponse()
+            resp['HX-Redirect'] = '/collation'
+            return resp
+        context = {
+            'page': {'active': 'collation'},
+            'form': form,
+            'collation': collation,
+        }
+        return render(request, 'collation/edit_collation.html', context)
+    else:
+        collation.delete()
+        resp = HttpResponse()
+        resp['HX-Redirect'] = '/collation'
+        return resp
+
+
+@login_required
 @require_http_methods(['GET', 'POST'])
 def new_section(request: HttpRequest, collation_id: int):
     if request.method == 'GET':
@@ -49,8 +82,37 @@ def new_section(request: HttpRequest, collation_id: int):
         form = forms.SectionForm(request.POST)
         if form.is_valid():
             form.save(collation_id)
-            return HttpResponse('Section saved')
+            resp = HttpResponse(helpers.quick_message('Section/Chapter created', 'ok'))
+            resp['HX-Trigger'] = 'refreshSections'
+            return resp
         return render(request, 'collation/new_section.html', {'page': {'active': 'collation'}})
+
+
+@login_required
+@require_http_methods(['GET', 'POST', 'DELETE'])
+def edit_section(request: HttpRequest, section_id: int):
+    if request.method == 'GET':
+        section = models.Section.objects.get(pk=section_id)
+        form = forms.SectionForm(instance=section)
+        context = {
+            'page': {'active': 'collation'},
+            'form': form,
+            'section': section
+        }
+        return render(request, 'collation/edit_section.html', context)
+    elif request.method == 'POST':
+        section = models.Section.objects.get(pk=section_id)
+        form = forms.SectionForm(request.POST, instance=section)
+        if form.is_valid():
+            form.save(section.collation.pk)
+            return HttpResponse('Section saved')
+        return render(request, 'collation/edit_section.html', {'page': {'active': 'collation'}})
+    else:
+        section = models.Section.objects.get(pk=section_id)
+        section.delete()
+        resp = HttpResponse(helpers.quick_message('Section deleted', 'warn', 3))
+        resp['HX-Trigger'] = 'refreshSections'
+        return resp
 
 
 @login_required
@@ -68,8 +130,39 @@ def new_ab(request: HttpRequest, section_id: int):
         form = forms.AbForm(request.POST)
         if form.is_valid():
             form.save(section_id)
-            return HttpResponse('Ab saved')
+            resp =  HttpResponse(helpers.quick_message('Collation unit saved', 'ok', 3))
+            resp['HX-Trigger'] = 'refreshAbs'
+            return resp
         return render(request, 'collation/new_ab.html', {'page': {'active': 'collation'}})
+
+
+@login_required
+@require_http_methods(['GET', 'POST', 'DELETE'])
+def edit_ab(request: HttpRequest, ab_pk: int):
+    if request.method == 'GET':
+        ab = models.Ab.objects.get(pk=ab_pk)
+        form = forms.AbForm(instance=ab)
+        context = {
+            'page': {'active': 'collation'},
+            'form': form,
+            'ab': ab
+        }
+        return render(request, 'collation/edit_ab.html', context)
+    elif request.method == 'POST':
+        ab = models.Ab.objects.get(pk=ab_pk)
+        form = forms.AbForm(request.POST, instance=ab)
+        if form.is_valid():
+            form.save(ab.section.pk)
+            resp = HttpResponse('Ab saved')
+            resp['HX-Trigger'] = 'refreshAbs'
+            return resp
+        return render(request, 'collation/edit_ab.html', {'page': {'active': 'collation'}})
+    else:
+        ab = models.Ab.objects.get(pk=ab_pk)
+        ab.delete()
+        resp = HttpResponse(helpers.quick_message(f'{ab.ab_id} deleted', 'warn', 3))
+        resp['HX-Trigger'] = 'refreshAbs'
+        return resp
 
 
 @login_required

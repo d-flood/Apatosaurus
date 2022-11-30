@@ -1,0 +1,15 @@
+<h3>Editing: {{ ab.section.collation.name }} {{ ab.section.name }}:{{ ab.ab_id }}</h3>
+<form hx-post="{% url 'edit-ab' ab_pk=ab.pk %}" class="table rows" hx-target="#main">
+    {{ form.as_p }}
+    <button type="submit" class="ok color bg">Submit</button>
+    <button type="button"
+        _="on click set #main's innerHTML to ''">
+        Cancel
+    </button>
+    <button type="button" class="bad color bg"
+        hx-delete="{% url 'edit-ab' ab_pk=ab.pk %}"
+        hx-confirm="Are you sure you want to delete an entire collation unit? This will also delete all of its readings."
+        hx-target="#main">
+        Delete
+    </button>
+</form>

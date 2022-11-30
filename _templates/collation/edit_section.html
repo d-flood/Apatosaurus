@@ -1,0 +1,16 @@
+<h3>Editing: {{ section.collation.name }} {{ section.name }}</h3>
+<form hx-post="{% url 'edit-section' section_id=section.pk %}" class="table rows" hx-target="#main">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit" class="ok color bg">Submit</button>
+    <button type="button"
+        _="on click set #main's innerHTML to ''">
+        Cancel
+    </button>
+    <button type="button" class="bad color bg"
+        hx-delete="{% url 'edit-section' section_id=section.pk %}"
+        hx-confirm="Are you sure you want to delete an entire section? This will also delete all of the verses, variation units, and readings that belong to this section."
+        hx-target="#main">
+        Delete
+    </button>
+</form>
