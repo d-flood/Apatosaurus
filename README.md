@@ -20,3 +20,13 @@ This new version is more than an explorer. Its features will include
     - Apatosauros will need to make many database calls due to the tree-like structure of collations. These will be *far* faster in SQLite.
     - We can even explore a per-user database
     - If we need to eject and transition to a managed PostGreSQL instance, we can.
+
+## Running the dev server
+This will be dockerized once the initial development on the main site is done. Until then:
+- Apatosaurus is being developed with Python 3.11 and Django 4.1
+- The following environment variables must be present:
+    - `SECRET_KEY`
+    - `DEBUG`
+    - `ADMIN_URL`
+- on Windows run `py manage.py runserver`
+- on Mac/Linux run `python3 manage.py runserver`
