@@ -30,7 +30,8 @@
                             </a>
                             <a role="menuitem" tabindex="-1"
                                 hx-delete="{% url 'edit-app' ab_pk=ab.pk app_pk=app.pk %}"
-                                hx-target="#app-buttons-wrapper">
+                                hx-target="#app-buttons-wrapper"
+                                hx-confirm="Are you sure you want to delete this variation unit? This will delete the readings along with their text and witnsses.">
                                 Delete
                             </a>
                         </div>
@@ -159,3 +160,4 @@
         </div>
     </div>    
 </div>
+<script src="/admin/jsi18n"></script>

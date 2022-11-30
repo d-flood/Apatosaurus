@@ -1,6 +1,7 @@
 <form action="submit"
     hx-post="{% url 'new-rdg' app_pk=app_pk %}"
     hx-target="#rdgs_table">
+    {% comment %} {{ form.as_p }} {% endcomment %}
     {{ form.as_p }}
     <p>
         <label class="vh" for="wits-filter">Filter Witnesses</label>
@@ -16,3 +17,16 @@
         Cancel
     </button>
 </form>
+<script>
+    var selected_witnesses = document.getElementById('id_selected_witnesses');
+    // add change event listener to #id_wit
+    document.getElementById('id_wit').addEventListener('change', function (event) {
+        selected_witnesses.value = ''
+        var selectedOptions = event.target.selectedOptions;
+        var values = [];
+        for (var i = 0; i < selectedOptions.length; i++) {
+            values.push(selectedOptions[i].textContent);
+        }
+        selected_witnesses.value = values.join('. ');
+    });
+</script>

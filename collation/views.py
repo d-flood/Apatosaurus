@@ -95,6 +95,35 @@ def new_rdg(request: HttpRequest, app_pk: int):
     return render(request, 'collation/new_rdg.html', context)
 
 
+@login_required
+@require_http_methods(['GET', 'POST', 'DELETE'])
+def edit_rdg(request: HttpRequest, rdg_pk: int):
+    if request.method == 'GET':
+        rdg = models.Rdg.objects.get(pk=rdg_pk)
+        form = forms.RdgForm(instance=rdg)
+        context = {
+            'page': {'active': 'collation'},
+            'form': form,
+            'rdg': rdg
+        }
+        return render(request, 'collation/edit_rdg.html', context)
+    elif request.method == 'POST':
+        rdg = models.Rdg.objects.get(pk=rdg_pk)
+        form = forms.RdgForm(request.POST, instance=rdg)
+        if form.is_valid():
+            form.save(rdg.app.pk)
+            return render(request, 'collation/rdgs_table.html', {'app': rdg.app})
+        context = {
+            'form': form,
+            'rdg': rdg
+        }
+        return render(request, 'collation/edit_rdg.html', context)
+    else:
+        rdg = models.Rdg.objects.get(pk=rdg_pk)
+        rdg.delete()
+        return render(request, 'collation/rdgs_table.html', {'app': rdg.app})
+
+
 def cancel_new_rdg(request: HttpRequest, app_pk: int):
     return render(request, 'collation/rdgs_table.html', {'app': models.App.objects.get(pk=app_pk)})
 
