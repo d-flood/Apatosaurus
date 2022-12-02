@@ -32,6 +32,9 @@ def new_colation(request: HttpRequest):
         form = forms.CollationForm(request.POST)
         if form.is_valid():
             form.save(request.user)
+            resp = HttpResponse()
+            resp['HX-Redirect'] = '/collation'
+            return resp
         return render(request, 'collation/new_collation.html', {'page': {'active': 'collation'}})
 
 
@@ -179,7 +182,13 @@ def new_rdg(request: HttpRequest, app_pk: int):
         form = forms.RdgForm(request.POST)
         if form.is_valid():
             form.save(app_pk)
-            return render(request, 'collation/rdgs_table.html', {'app': models.App.objects.get(pk=app_pk)})
+            
+            context = {
+                'app': models.App.objects.get(pk=app_pk),
+                'arc_form': forms.ArcForm(models.App.objects.get(pk=app_pk)),
+                'local_stemma': helpers.make_graph(models.App.objects.get(pk=app_pk)),
+            }
+            return render(request, 'collation/rdgs_table.html', context)
         context = {
             'form': form,
             'app_pk': app_pk
@@ -205,7 +214,12 @@ def edit_rdg(request: HttpRequest, rdg_pk: int):
         form = forms.RdgForm(request.POST, instance=rdg)
         if form.is_valid():
             form.save(rdg.app.pk)
-            return render(request, 'collation/rdgs_table.html', {'app': rdg.app})
+            context = {
+                'app': models.App.objects.get(pk=rdg.app.pk),
+                'arc_form': forms.ArcForm(models.App.objects.get(pk=rdg.app.pk)),
+                'local_stemma': helpers.make_graph(models.App.objects.get(pk=rdg.app.pk)),
+            }
+            return render(request, 'collation/rdgs_table.html', context)
         context = {
             'form': form,
             'rdg': rdg
@@ -214,11 +228,22 @@ def edit_rdg(request: HttpRequest, rdg_pk: int):
     else:
         rdg = models.Rdg.objects.get(pk=rdg_pk)
         rdg.delete()
-        return render(request, 'collation/rdgs_table.html', {'app': rdg.app})
+        context = {
+                'app': models.App.objects.get(pk=rdg.app.pk),
+                'arc_form': forms.ArcForm(models.App.objects.get(pk=rdg.app.pk)),
+                'local_stemma': helpers.make_graph(models.App.objects.get(pk=rdg.app.pk)),
+            }
+        return render(request, 'collation/rdgs_table.html', context)
 
 
 def cancel_new_rdg(request: HttpRequest, app_pk: int):
-    return render(request, 'collation/rdgs_table.html', {'app': models.App.objects.get(pk=app_pk)})
+    app = models.App.objects.get(pk=app_pk)
+    context = {
+                'app': app,
+                'arc_form': forms.ArcForm(app),
+                'local_stemma': helpers.make_graph(app),
+            }
+    return render(request, 'collation/rdgs_table.html', context)
 
 
 @login_required
@@ -314,8 +339,9 @@ def cancel_edit_app(request: HttpRequest, ab_pk: int):
 def rdgs(request: HttpRequest, app_pk: int):
     app = models.App.objects.get(pk=app_pk)
     context = {
-        'page': {'active': 'collation'},
         'app': app,
+        'arc_form': forms.ArcForm(models.App.objects.get(pk=app_pk)),
+        'local_stemma': helpers.make_graph(app),
     }
     return render(request, 'collation/rdgs_table.html', context)
 
@@ -326,3 +352,22 @@ def refresh_basetext(request: HttpRequest, ab_pk: int):
     ab = models.Ab.objects.get(pk=ab_pk)
     basetext_row = render_block_to_string('collation/apparatus.html', 'basetext_row', {'ab': ab})
     return HttpResponse(basetext_row)
+
+
+@login_required
+@require_http_methods(['POST'])
+def edit_arc(request: HttpRequest, app_pk: int, delete: int):
+    app = models.App.objects.get(pk=app_pk)
+    if delete == 0:
+        form = forms.ArcForm(app, request.POST)
+        if form.is_valid():
+            if form.save(app):
+                return HttpResponse(helpers.make_graph(app))
+        return HttpResponse(status=204)
+    else:
+        form = forms.ArcForm(app, request.POST)
+        if form.is_valid():
+            for arc in models.Arc.objects.filter(app=app, rdg_from_id=form.cleaned_data['rdg_from'], rdg_to_id=form.cleaned_data['rdg_to']):
+                arc.delete()
+            return HttpResponse(helpers.make_graph(app))
+        return HttpResponse(status=204)

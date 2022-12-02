@@ -1,28 +1,112 @@
-{% for rdg in app.rdgs.all %}
-    <tr class="{% cycle '' 'stripe' %}">
-        <td width="5px">{{ rdg.name }}</td>
-        <td width="5px">{{ rdg.get_rtype_display }}</abbr></td>
-        <td width="40%">{{ rdg.text }}</td>
-        <td width="45%">{% for w in rdg.wit.all %}<span title="{{w.description}}">{{ w.siglum }}.</span> {% endfor %}</td>
-        <td style="text-align: end;">
-            <button type="button" title="edit reading" aria-label="edit reading"
-                hx-get="{% url 'edit-rdg' rdg_pk=rdg.pk %}"
-                hx-target="#new-rdg-form">
-                &#128393;
-            </button>
-        </td>
-    </tr>
-{% endfor %}
-<tr id="new-rdg-row">
-    <td colspan="5" id="new-rdg-form">
-        {% block new_rdg_button %}
-            <button type="button"
-                hx-get="{% url 'new-rdg' app_pk=app.pk %}" hx-target="#new-rdg-form">
-                <svg style="margin-right:3px;" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                    <path d="M2 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2H2zm6.5 4.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3a.5.5 0 0 1 1 0z"/>
-                </svg>
-                New Reading
-            </button>
-        {% endblock new_rdg_button %}
-    </td>
-</tr>
+<table class="plain bg fit" id="rdgs_table_parent">
+    <thead>
+        <tr id="rdgs_header">
+            <th scope="col" class="rdg-id">ID</th>
+            <th scope="col" class="rdg-type">Type</th>
+            <th scope="col" class="rdg-rdg">Reading</th>
+            <th scope="col" class="rdg-wit">Witnesses</th>
+            <th scope="col" class="rdg-edit" style="text-align:end;">&#128393;</th>
+        </tr>
+    </thead>
+    <tbody id="rdgs_table">
+        {% for rdg in app.rdgs.all %}
+            <tr class="{% cycle '' 'stripe' %}">
+                <td width="5px">{{ rdg.name }}</td>
+                <td width="5px">{{ rdg.get_rtype_display }}</abbr></td>
+                <td width="40%">{{ rdg.text }}</td>
+                <td width="45%">{% for w in rdg.wit.all %}<span title="{{w.description}}">{{ w.siglum }}.</span> {% endfor %}</td>
+                <td style="text-align: end;">
+                    <button type="button" title="edit reading" aria-label="edit reading"
+                        hx-get="{% url 'edit-rdg' rdg_pk=rdg.pk %}"
+                        hx-target="#new-rdg-form">
+                        &#128393;
+                    </button>
+                </td>
+            </tr>
+        {% endfor %}
+        <tr id="new-rdg-row">
+            <td colspan="5" id="new-rdg-form">
+                {% block new_rdg_button %}
+                    <button type="button"
+                        hx-get="{% url 'new-rdg' app_pk=app.pk %}" hx-target="#new-rdg-form">
+                        <svg style="margin-right:3px;" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M2 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2H2zm6.5 4.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3a.5.5 0 0 1 1 0z"/>
+                        </svg>
+                        New Reading
+                    </button>
+                {% endblock new_rdg_button %}
+            </td>
+        </tr>
+    </tbody>
+</table>
+
+<h4 class="center">Genealogical Relationships</h4>
+
+<div class="f-switch fit">
+    <div class="box plain bg center">
+        <h4>Local Stemma</h4>
+        <div id="graph-div">{{ local_stemma|safe }}</div>
+    </div>
+
+    <div class="box plain bg center">
+        <h4>Set Relationship</h4>
+        <div class="f-col">
+            <form action="submit" class="f-col">
+                <div class="f-row" id="arc-div">
+                    {{ arc_form.rdg_from }}
+                    <div class="center">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M0 14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2H2a2 2 0 0 0-2 2v12zm4.5-6.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5a.5.5 0 0 1 0-1z"/>
+                        </svg>
+                    </div>
+                    {{ arc_form.rdg_to }}
+                </div>
+                <div class="f-row">
+                    <button name="arc-button" type="button" class="ok color bg" hidden
+                        hx-post="{% url 'edit-arc' app_pk=app.pk delete=0 %}"
+                        hx-target="#graph-div"
+                        hx-include="#arc-div">
+                        Add
+                    </button>
+                    <button name="arc-button" type="button" class="warn color bg" hidden
+                        hx-post="{% url 'edit-arc' app_pk=app.pk delete=1 %}"
+                        hx-target="#graph-div"
+                        hx-include="#arc-div">
+                        Remove
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>   
+<script>
+    document.getElementsByName('rdg_to').forEach(function (rdg_to) {
+        rdg_to.parentElement.parentElement.hidden = true;
+    });
+    for (const rdg_from of document.getElementsByName('rdg_from')) {
+        rdg_from.addEventListener('change', function() {
+            for (const rdg_to of document.getElementsByName('rdg_to')) {
+                rdg_to.checked = false;
+                if (rdg_to.value == rdg_from.value) {
+                    rdg_to.parentElement.parentElement.hidden = true;
+                }
+                else {
+                    rdg_to.parentElement.parentElement.hidden = false;
+                }
+            }
+        });
+    }
+    for (const rdg_to of document.getElementsByName('rdg_to')) {
+        rdg_to.addEventListener('change', function() {
+            for (const rdg_to of document.getElementsByName('rdg_to')) {
+                if (rdg_to.checked) {
+                    document.getElementsByName('arc-button')[0].hidden = false;
+                    document.getElementsByName('arc-button')[1].hidden = false;
+                    return
+                }
+            }
+            document.getElementsByName('arc-button')[0].hidden = True;
+            document.getElementsByName('arc-button')[1].hidden = True;
+        });
+    }
+</script>

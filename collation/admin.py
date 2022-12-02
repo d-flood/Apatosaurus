@@ -9,4 +9,5 @@ admin.site.register((
     models.App,
     models.Witness,
     models.Rdg,
+    models.Arc,
 ))

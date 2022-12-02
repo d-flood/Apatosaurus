@@ -21,4 +21,5 @@ urls = [
     path('cancel-edit-app/<int:ab_pk>/', views.cancel_edit_app, name='cancel-edit-app'),
     path('rdgs/<int:app_pk>/', views.rdgs, name='rdgs'),
     path('refresh-basetext/<int:ab_pk>/', views.refresh_basetext, name='refresh-basetext'),
+    path('arc/edit/<int:app_pk>/<int:delete>/', views.edit_arc, name='edit-arc'),
 ]

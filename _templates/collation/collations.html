@@ -2,7 +2,7 @@
     <ul role="list">
         {% for collation in user.collations.all %}
             <li>
-                <a
+                <a class="<h3>"
                     hx-get="{% url 'section-list' collation_id=collation.pk %}"
                     hx-target="#sidebar-header">
                     {{ collation.name }}

@@ -143,6 +143,11 @@ select {
     padding-top: 0;
     padding-bottom: 0;
 }
+polygon {
+    fill: #874638;
+    stroke: #000;
+    stroke-width: 1px;
+}
 .v {
     background-color: var(--table-stripe);
 }
