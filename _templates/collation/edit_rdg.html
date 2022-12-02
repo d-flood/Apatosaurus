@@ -2,7 +2,7 @@
     <h4 style="margin-top: 10px;">Edit {{ rdg.app.ab.ab_id }}U{{ rdg.app.index_from }}{% if rdg.app.index_from != rdg.app.index_to %}–{{ rdg.app.index_to }}{% endif %}: Reading {{ rdg.name }}</h4>
     <form action="submit"
         hx-post="{% url 'edit-rdg' rdg_pk=rdg.pk %}"
-        hx-target="#rdgs_table">
+        hx-target="#readings">
         {% comment %} {{ form.as_p }} {% endcomment %}
         {{ form.as_p }}
         <p>
@@ -15,7 +15,7 @@
         </button>
         <button type="button" 
             hx-get="{% url 'cancel-new-rdg' app_pk=rdg.app.pk %}"
-            hx-target="#rdgs_table">
+            hx-target="#readings">
             Cancel
         </button>
         <button type="button" onclick="reset_witnesses()">
@@ -23,7 +23,7 @@
         </button>
         <button type="button" class="bad color bg"
             hx-delete="{% url 'edit-rdg' rdg_pk=rdg.pk %}"
-            hx-target="#rdgs_table"
+            hx-target="#readings"
             hx-confirm="Are you sure you want to delete this reading along with its type, reading, and witnesses?">
             Delete
         </button>

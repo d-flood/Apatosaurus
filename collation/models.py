@@ -140,7 +140,7 @@ class Rdg(models.Model):
     modified = models.DateTimeField(auto_now=True)
 
     def __str__(self) -> str:
-        return f'{self.app.ab.ab_id}U{self.app.index_from}-{self.app.index_to} {self.name}'
+        return f'{self.name}'
 
     # def as_element(self) -> et._Element:
     #     rdg = et.Element(f'{TEI_NS}rdg')
@@ -153,7 +153,7 @@ class Rdg(models.Model):
     #     return rdg
 
     class Meta:
-        ordering = ['varSeq']
+        ordering = ['name']
         constraints = [
             models.UniqueConstraint(fields=['app', 'name'], name='unique_name'),
         ]
@@ -166,3 +166,6 @@ class Arc(models.Model):
 
     def __str__(self) -> str:
         return f'{self.app.ab.ab_id}U{self.app.index_from}-{self.app.index_to} {self.rdg_from.name} -> {self.rdg_to.name}'
+
+    class Meta:
+        unique_together = ('app', 'rdg_from', 'rdg_to')

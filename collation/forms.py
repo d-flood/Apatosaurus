@@ -1,5 +1,7 @@
 from django import forms
 from django.contrib.auth import get_user_model
+from django.db.utils import IntegrityError
+
 
 from collation import models
 
@@ -80,3 +82,31 @@ class RdgForm(forms.ModelForm):
         return instance
 
     selected_witnesses = forms.CharField(widget=forms.Textarea(attrs={'readonly': True}), required=False)
+
+
+class ArcForm(forms.Form):
+    def __init__(self, app_instance: models.App, *args, **kwargs):
+        self.app_instance = app_instance
+        super().__init__(*args, **kwargs)
+        self.fields['rdg_from'].queryset = app_instance.rdgs.all() # type: ignore
+        self.fields['rdg_to'].queryset = app_instance.rdgs.all() # type: ignore
+    # class Meta:
+    #     model = models.Arc
+    #     exclude = ['app']
+    #     widgets = {
+    #         'rdg_from': forms.RadioSelect,
+    #         'rdg_to': forms.RadioSelect,
+    #     }
+
+    rdg_from = forms.ModelChoiceField(queryset=models.Rdg.objects.all(), widget=forms.RadioSelect, required=True) # type: ignore
+    rdg_to = forms.ModelChoiceField(queryset=models.Rdg.objects.all(), widget=forms.RadioSelect, required=True) # type: ignore
+
+    def save(self, app):
+        try:
+            return models.Arc.objects.create(
+                rdg_from=self.cleaned_data['rdg_from'], 
+                rdg_to=self.cleaned_data['rdg_to'], 
+                app=app
+            )
+        except IntegrityError:
+            return None

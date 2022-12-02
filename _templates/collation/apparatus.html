@@ -7,7 +7,7 @@
                 {% for app in ab.apps.all %}
                     <button id="app-{{ app.pk }}" class="big app-button" type="button" 
                         hx-get="{% url 'rdgs' app_pk=app.pk %}" 
-                        hx-target="#rdgs_table"
+                        hx-target="#readings"
                         _="on contextmenu js event.preventDefault(); end
                         on mouseenter add .highlight to .bt-{{ app.pk }} end
                         on mouseleave remove .highlight from .bt-{{ app.pk }} end
@@ -66,7 +66,7 @@
                     <th scope="row">Basetext<br>Index</th>
                     {% for word in ab.indexed_basetext %}
                         {% if word.is_variant %}
-                            <td class="text-center v bt-{{ word.app_pk }}" tabindex="0" hx-get="{% url 'rdgs' app_pk=word.app_pk %}" hx-target="#rdgs_table"
+                            <td class="text-center v bt-{{ word.app_pk }}" tabindex="0" hx-get="{% url 'rdgs' app_pk=word.app_pk %}" hx-target="#readings"
                                 _="on mouseenter add .highlight to .bt-{{ word.app_pk }} then add .highlight to #app-{{ word.app_pk }} end
                                 on mouseleave remove .highlight from .bt-{{ word.app_pk }} then remove .highlight from #app-{{ word.app_pk }} end
                                 on click remove .selected from <td/> then add .selected to .bt-{{ word.app_pk }} 
@@ -86,77 +86,5 @@
     </table>
 
     <h4 class="center">Readings</h4>
-    <table class="plain bg fit" id="rdgs_table_parent">
-        <thead>
-            <tr id="rdgs_header">
-                <th scope="col" class="rdg-id">ID</th>
-                <th scope="col" class="rdg-type">Type</th>
-                <th scope="col" class="rdg-rdg">Reading</th>
-                <th scope="col" class="rdg-wit">Witnesses</th>
-                <th scope="col" class="rdg-edit" style="text-align:end;">&#128393;</th>
-            </tr>
-        </thead>
-        <tbody id="rdgs_table"></tbody>
-    </table>
-
-    <h4 class="center">Genealogical Relationships</h4>
-
-    <div class="f-switch fit">
-        <div class="box plain bg center">
-            <h4>Local Stemma</h4>
-            <svg width="152pt" height="44pt" viewBox="0.00 0.00 152.00 44.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
-                <g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 40)">
-                <title>G</title>
-                <polygon fill="#fff0c6" stroke="transparent" points="-4,4 -4,-40 148,-40 148,4 -4,4"></polygon>
-                <!-- a -->
-                <g id="node1" class="node">
-                <title>a</title>
-                <text text-anchor="middle" x="27" y="-14.3" font-family="Times,serif" font-size="14.00" fill="#000000">a</text>
-                </g>
-                <!-- b -->
-                <g id="node2" class="node">
-                <title>b</title>
-                <text text-anchor="middle" x="117" y="-14.3" font-family="Times,serif" font-size="14.00" fill="#000000">b</text>
-                </g>
-                <!-- a&#45;&gt;b -->
-                <g id="edge1" class="edge">
-                <title>a-&gt;b</title>
-                <path fill="none" stroke="#d86a3b" d="M54.003,-18C62.0277,-18 70.9665,-18 79.5309,-18"></path>
-                <polygon fill="#d86a3b" stroke="#d86a3b" points="79.7051,-21.5001 89.705,-18 79.705,-14.5001 79.7051,-21.5001"></polygon>
-                </g>
-                </g>
-                </svg>
-        </div>
-
-        <div class="box plain bg center">
-            <h4>Set Local Stemma</h4>
-            <div class="f-col">
-                <form action="submit">
-                    <div role=radiogroup aria-labelledby=from-node-label>
-                        <span id=from-node-label>Reading Source</span>
-                        <div class="f-row">
-                            <div><label><input type=radio name=source value="a"> a</label></div>
-                            <div><label><input type=radio name=source value="b"> b</label></div>
-                            <div><label><input type=radio name=source value="a"> a</label></div>
-                            <div><label><input type=radio name=source value="b"> b</label></div>
-                            <div><label><input type=radio name=source value="a"> a</label></div>
-                            <div><label><input type=radio name=source value="b"> b</label></div>
-                            <div><label><input type=radio name=source value="a"> a</label></div>
-                            <div><label><input type=radio name=source value="b"> b</label></div>
-                        </div>
-                    </div>
-                </form>
-
-                <form action="submit">
-                    <div role=radiogroup aria-labelledby=to-node-label>
-                        <span id=to-node-label>Reading Destination</span>
-                        <div class="f-row">
-                            <div><label><input type=radio name=destination value="a"> a</label></div>
-                            <div><label><input type=radio name=destination value="b"> b</label></div>
-                        </div>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>    
+    <div id="readings"></div>
 </div>

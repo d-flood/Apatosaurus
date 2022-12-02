@@ -5,7 +5,6 @@
     e.g., "B06K11V1", which indicates the first verse of the 11th chapter of the 6th book of the New Testament.
 </p>
 <form hx-post="{% url 'new-collation' %}" class="table rows" hx-target="#main">
-    {% csrf_token %}
     {{ new_collation_form.as_p }}
     <input type="submit" value="Submit">
 </form>
