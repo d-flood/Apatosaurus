@@ -1,0 +1,33 @@
+<h3>Upload TEI XML Collation File</h3>
+<p>
+    The supported format is TEI, but it should normally be the output of
+    the <a href="https://github.com/itsee-birmingham/standalone_collation_editor">ITSEE Collation Editor</a>
+    or <a href="https://collatex.net/">CollateX</a>. 
+    Other TEI collations may work, but the format is flexible and may not be compatible
+    with the current version of Apatosaurus.
+</p>
+<form action="submit" 
+    hx-encoding='multipart/form-data' 
+    hx-post="{% url 'upload-tei' section_id=section_id %}"
+    hx-target="#main">
+    {{ form.as_p }}
+    <button type="submit" class="ok color bg">
+        Upload and Submit
+    </button>
+</form>
+<script>
+    document.getElementById('id_tei_file').addEventListener('change', function(e) {
+        var file_input = document.getElementById('id_tei_file');
+        var fileName = file_input.files[0].name;
+        // clear the file input if the file name does not end with '.xml'
+        if (!fileName.endsWith('.xml')) {
+            file_input.value = '';
+            alert('File must be an XML file.');
+        }
+    });
+</script>
+<style>
+    .errorlist {
+        color: red;
+    }
+</style>
