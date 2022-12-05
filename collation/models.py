@@ -1,3 +1,4 @@
+import contextlib
 from django.db import models
 from django.db.models.query import QuerySet
 from django.contrib.auth import get_user_model
@@ -10,7 +11,7 @@ TEI_NS = '{http://www.tei-c.org/ns/1.0}'
 
 
 class Witness(models.Model):
-    siglum = models.CharField(max_length=32)
+    siglum = models.CharField(max_length=32, unique=True)
     description = models.CharField(max_length=255, null=True, blank=True)
 
     def __str__(self):
@@ -35,7 +36,7 @@ class Section(models.Model):
 
 class Ab(models.Model):
     section = models.ForeignKey(Section, on_delete=models.CASCADE, related_name='abs')
-    ab_id = models.CharField(max_length=10, verbose_name='ID')
+    name = models.CharField(max_length=10, verbose_name='ID')
     basetext_label = models.CharField(max_length=32, verbose_name='Basetext Label')
     basetext = models.TextField()
     number = models.SmallIntegerField()
@@ -44,7 +45,7 @@ class Ab(models.Model):
     # def as_element(self):
     #     self.apps: QuerySet[App]
     #     ab = et.Element(f'{XML_NS}ab')
-    #     ab.set('id', self.ab_id)
+    #     ab.set('id', self.name)
     #     ab.text = self.basetext
     #     for app in self.apps.all():
     #         ab.append(app.as_element())
@@ -69,17 +70,17 @@ class Ab(models.Model):
         
     def save(self, *args, **kwargs):
         index_basetext_again = False
-        try:
+        with contextlib.suppress(ValueError):
             self.set_indexed_basetext()
-        except ValueError: # this object has not been saved yet
-            index_basetext_again = True
         super().save(*args, **kwargs)
-        if index_basetext_again:
-            self.set_indexed_basetext()
-            super().save(*args, **kwargs)
+        
+
+    def __str__(self):
+        return f'{self.name} ({self.section.collation.user})'
     
     class Meta:
         ordering = ['number']
+        # ordering = ['name']
 
 
 class App(models.Model):
@@ -93,7 +94,7 @@ class App(models.Model):
         ordering = ['index_from']
 
     def __str__(self) -> str:
-        return f'{self.ab.ab_id}: {self.index_from}-{self.index_to}'
+        return f'{self.ab.name}: {self.index_from}-{self.index_to}'
 
     # def as_element(self) -> et._Element:
     #     self.rdgs: QuerySet[Rdg]
@@ -165,7 +166,7 @@ class Arc(models.Model):
     rdg_to = models.ForeignKey(Rdg, on_delete=models.CASCADE, related_name='arcs_to')
 
     def __str__(self) -> str:
-        return f'{self.app.ab.ab_id}U{self.app.index_from}-{self.app.index_to} {self.rdg_from.name} -> {self.rdg_to.name}'
+        return f'{self.app.ab.name}U{self.app.index_from}-{self.app.index_to} {self.rdg_from.name} -> {self.rdg_to.name}'
 
     class Meta:
         unique_together = ('app', 'rdg_from', 'rdg_to')

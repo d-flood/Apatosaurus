@@ -22,4 +22,5 @@ urls = [
     path('rdgs/<int:app_pk>/', views.rdgs, name='rdgs'),
     path('refresh-basetext/<int:ab_pk>/', views.refresh_basetext, name='refresh-basetext'),
     path('arc/edit/<int:app_pk>/<int:delete>/', views.edit_arc, name='edit-arc'),
+    path('upload-tei/<int:section_id>/', views.upload_tei_collation, name='upload-tei'),
 ]
