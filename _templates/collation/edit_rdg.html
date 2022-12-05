@@ -1,5 +1,5 @@
 <div class="box" onload="load_witnesses()" style="margin-top: 10px;">
-    <h4 style="margin-top: 10px;">Edit {{ rdg.app.ab.ab_id }}U{{ rdg.app.index_from }}{% if rdg.app.index_from != rdg.app.index_to %}–{{ rdg.app.index_to }}{% endif %}: Reading {{ rdg.name }}</h4>
+    <h4 style="margin-top: 10px;">Edit {{ rdg.app.ab.name }}U{{ rdg.app.index_from }}{% if rdg.app.index_from != rdg.app.index_to %}–{{ rdg.app.index_to }}{% endif %}: Reading {{ rdg.name }}</h4>
     <form action="submit"
         hx-post="{% url 'edit-rdg' rdg_pk=rdg.pk %}"
         hx-target="#readings">
