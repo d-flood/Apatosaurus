@@ -178,7 +178,12 @@ td a {
     width: 400px;
     height: 300px;
 }
-
+.mr-3 {
+    margin-right: 3px;
+}
+.mt-5 {
+    margin-top: 5px;
+}
 /* classes added via wagtail */
 .richtext-image.full-width {
     width: 100%;
