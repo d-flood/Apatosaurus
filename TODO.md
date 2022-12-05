@@ -4,3 +4,5 @@
     - the number of non-active readings should be limited to something reasonable.
     - to "restore" a reading from the history, copy the current instance, then set all of its fields *except* `active` and `pk` to match the reading being restored. I *think* it is a good idea to keep the primary key for the "main" reading the same for maintaining the other relationships that the reading model has (both "up" to section, and "down" to collation unit).
 - begin building out the TEI Collation file consuming module 
+- Make a user message model that can be displayed to the user for tracking the status of background tasks.
+    - Most importantly, the TEI should be processed in the background, but it should show as processing/failed/successful in the verses sidebar. Then The failed and successful message should have a "dismiss" button that deletes the message instance.
