@@ -8,6 +8,7 @@ from render_block import render_block_to_string
 from collation import forms
 from collation import models
 from collation.py import helpers
+from collation.py import process_tei
 
 
 @login_required
@@ -163,7 +164,7 @@ def edit_ab(request: HttpRequest, ab_pk: int):
     else:
         ab = models.Ab.objects.get(pk=ab_pk)
         ab.delete()
-        resp = HttpResponse(helpers.quick_message(f'{ab.ab_id} deleted', 'warn', 3))
+        resp = HttpResponse(helpers.quick_message(f'{ab.name} deleted', 'warn', 3))
         resp['HX-Trigger'] = 'refreshAbs'
         return resp
 
@@ -358,16 +359,39 @@ def refresh_basetext(request: HttpRequest, ab_pk: int):
 @require_http_methods(['POST'])
 def edit_arc(request: HttpRequest, app_pk: int, delete: int):
     app = models.App.objects.get(pk=app_pk)
+    form = forms.ArcForm(app, request.POST)
     if delete == 0:
-        form = forms.ArcForm(app, request.POST)
-        if form.is_valid():
-            if form.save(app):
-                return HttpResponse(helpers.make_graph(app))
-        return HttpResponse(status=204)
-    else:
-        form = forms.ArcForm(app, request.POST)
-        if form.is_valid():
-            for arc in models.Arc.objects.filter(app=app, rdg_from_id=form.cleaned_data['rdg_from'], rdg_to_id=form.cleaned_data['rdg_to']):
-                arc.delete()
+        if form.is_valid() and form.save(app):
             return HttpResponse(helpers.make_graph(app))
-        return HttpResponse(status=204)
+    elif form.is_valid():
+        for arc in models.Arc.objects.filter(app=app, rdg_from_id=form.cleaned_data['rdg_from'], rdg_to_id=form.cleaned_data['rdg_to']):
+            arc.delete()
+        return HttpResponse(helpers.make_graph(app))
+    return HttpResponse(status=204)
+
+
+@login_required
+@require_http_methods(['GET', 'POST'])
+def upload_tei_collation(request: HttpRequest, section_id: int):
+    if request.method == 'GET':
+        form = forms.TeiCollationFileForm()
+        context = {
+            'form': form,
+            'section_id': section_id
+        }
+        return render(request, 'collation/upload_tei.html', context)
+    else:
+        form = forms.TeiCollationFileForm(request.POST, request.FILES)
+        if form.is_valid():
+            tei_file = form.cleaned_data['tei_file']
+            if (xml := process_tei.parse_xml(tei_file)) is not None:
+                process_tei.tei_to_db(xml, section_id)
+            resp = HttpResponse(helpers.quick_message('File uploaded and processed successfully. The processed verses should now be visible in the left side bar.', 'ok'))
+            resp['HX-Trigger'] = 'refreshAbs'
+            return resp
+        else:
+            context = {
+                'form': form,
+                'section_id': section_id
+            }
+            return render(request, 'collation/upload_tei.html', context)
