@@ -8,6 +8,8 @@ from lxml import etree as et
 
 XML_NS = '{http://www.w3.org/XML/1998/namespace}'
 TEI_NS = '{http://www.tei-c.org/ns/1.0}'
+XML_NS_STR = 'http://www.w3.org/XML/1998/namespace'
+TEI_NS_STR = 'http://www.tei-c.org/ns/1.0'
 
 
 class Witness(models.Model):
@@ -52,8 +54,7 @@ class Ab(models.Model):
         return ab
 
     def as_tei(self):
-        tei_root = et.Element('TEI')
-        tei_root.set('xmlns', 'http://www.tei-c.org/ns/1.0')
+        tei_root = et.Element('TEI', nsmap={None: TEI_NS_STR, 'xml': XML_NS_STR}) #type: ignore
         tei_root.append(self.as_element())
         add_tei_header(tei_root)
         return et.tostring(tei_root, encoding='unicode', pretty_print=True)
@@ -106,15 +107,22 @@ class App(models.Model):
 
     def as_element(self) -> et._Element:
         self.rdgs: QuerySet[Rdg]
-        app = et.Element('app', {'type': self.atype, 'from': str(self.index_from), 'to': str(self.index_to)})
-        graph = et.Element('graph', {'type': 'directed'})
+        app = et.Element(
+            'app', 
+            {
+                'type': self.atype, 
+                'from': str(self.index_from), 
+                'to': str(self.index_to)
+            }, 
+            nsmap={None: TEI_NS_STR, 'xml': XML_NS_STR}) #type: ignore
+        graph = et.Element('graph', {'type': 'directed'}, nsmap={None: TEI_NS_STR, 'xml': XML_NS_STR}) #type: ignore
         for rdg in self.rdgs.all():
             app.append(rdg.as_element())
             graph.append(et.Element('node', {'n': rdg.name}))
-        note = et.Element('note')
-        fs = et.Element('fs')
-        f = et.Element('f')
-        numeric = et.Element('numeric')
+        note = et.Element('note', nsmap={None: TEI_NS_STR, 'xml': XML_NS_STR}) #type: ignore
+        fs = et.Element('fs', nsmap={None: TEI_NS_STR, 'xml': XML_NS_STR}) #type: ignore
+        f = et.Element('f', nsmap={None: TEI_NS_STR, 'xml': XML_NS_STR}) #type: ignore
+        numeric = et.Element('numeric', nsmap={None: TEI_NS_STR, 'xml': XML_NS_STR}) #type: ignore
         numeric.set('value', str(self.connectivity))
         f.append(numeric)
         fs.append(f)
@@ -122,7 +130,9 @@ class App(models.Model):
         note.append(graph)
         app.append(note)
         for arc in self.arcs.all(): #type: ignore
-            graph.append(et.Element('arc', {'from': arc.rdg_from.name, 'to': arc.rdg_to.name}))
+            graph.append(
+                et.Element('arc', {'from': arc.rdg_from.name, 'to': arc.rdg_to.name}, nsmap={None: TEI_NS_STR, 'xml': XML_NS_STR}) #type: ignore
+                )
         return app
 
 
@@ -154,10 +164,11 @@ class Rdg(models.Model):
         return f'{self.name}'
 
     def as_element(self) -> et._Element:
-        rdg = et.Element('rdg')
+        rdg = et.Element('rdg', nsmap={None: TEI_NS_STR, 'xml': XML_NS_STR}) #type: ignore
         witnesses = ' '.join([w.siglum for w in self.wit.all()]) 
         rdg.set('wit', witnesses)
         rdg.set('varSeq', str(self.varSeq))
+        rdg.set('n', self.name)
         if self.rtype:
             rdg.set('type', self.rtype)
         rdg.text = self.text
@@ -183,8 +194,8 @@ class Arc(models.Model):
 
 
 def add_tei_header(xml: et._Element):
-    xml_ns = 'http://www.w3.org/XML/1998/namespace'
-    tei_ns = 'http://www.tei-c.org/ns/1.0'
+    XML_NS_STR = 'http://www.w3.org/XML/1998/namespace'
+    TEI_NS_STR = 'http://www.tei-c.org/ns/1.0'
     def get_wits(xml):
         wits = []
         distinct_wits = set()
@@ -196,27 +207,27 @@ def add_tei_header(xml: et._Element):
         return wits
     TEI = xml.getroottree().getroot()
     wits = get_wits(TEI)
-    teiHeader = et.Element('teiHeader') #type: ignore
-    TEI.insert(0, teiHeader)
-    fileDesc = et.Element('fileDesc') #type: ignore
+    teiHeader = et.Element('teiHeader', nsmap={None: TEI_NS_STR, 'xml': XML_NS_STR}) #type: ignore
+    TEI.insert(0, teiHeader)                                                   #type: ignore
+    fileDesc = et.Element('fileDesc', nsmap={None: TEI_NS_STR, 'xml': XML_NS_STR}) #type: ignore
     teiHeader.append(fileDesc)
-    titleStmt = et.Element('titleStmt') #type: ignore
+    titleStmt = et.Element('titleStmt', nsmap={None: TEI_NS_STR, 'xml': XML_NS_STR}) #type: ignore
     fileDesc.append(titleStmt)
-    titleStmt_p = et.Element('p') #type: ignore
+    titleStmt_p = et.Element('p', nsmap={None: TEI_NS_STR, 'xml': XML_NS_STR}) #type: ignore
     # TODO: Replace these 'temporary' statements with user-supplied statements
     titleStmt_p.text = 'Temporary titleStmt for validation'
     titleStmt.append(titleStmt_p)
-    publicationStmt= et.Element('titleStmt') #type: ignore
+    publicationStmt= et.Element('titleStmt', nsmap={None: TEI_NS_STR, 'xml': XML_NS_STR}) #type: ignore
     fileDesc.append(publicationStmt)
-    publicationStmt_p = et.Element('p') #type: ignore
+    publicationStmt_p = et.Element('p', nsmap={None: TEI_NS_STR, 'xml': XML_NS_STR}) #type: ignore
     publicationStmt_p.text = 'Temporary publicationStmt for validation'
     publicationStmt.append(publicationStmt_p )
-    sourceDesc = et.Element('sourceDesc') #type: ignore
+    sourceDesc = et.Element('sourceDesc', nsmap={None: TEI_NS_STR, 'xml': XML_NS_STR}) #type: ignore
     fileDesc.append(sourceDesc) 
-    listWit = et.Element('listWit') #type: ignore
+    listWit = et.Element('listWit', nsmap={None: TEI_NS_STR, 'xml': XML_NS_STR}) #type: ignore
     sourceDesc.append(listWit)
     for wit in wits:
-        witness = et.Element('witness') #type: ignore
+        witness = et.Element('witness', nsmap={None: TEI_NS_STR, 'xml': XML_NS_STR}) #type: ignore
         witness.set('n', wit)
         listWit.append(witness)
     return
