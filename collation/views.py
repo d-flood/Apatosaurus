@@ -395,3 +395,13 @@ def upload_tei_collation(request: HttpRequest, section_id: int):
                 'section_id': section_id
             }
             return render(request, 'collation/upload_tei.html', context)
+
+
+@login_required
+@require_safe
+def download_tei_ab(request: HttpRequest, ab_pk: int):
+    ab = models.Ab.objects.get(pk=ab_pk)
+    tei = ab.as_tei()
+    response = HttpResponse(tei, content_type='text/xml')
+    response['Content-Disposition'] = f'attachment; filename={ab.name}.xml'
+    return response

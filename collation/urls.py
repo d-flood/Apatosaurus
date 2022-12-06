@@ -23,4 +23,5 @@ urls = [
     path('refresh-basetext/<int:ab_pk>/', views.refresh_basetext, name='refresh-basetext'),
     path('arc/edit/<int:app_pk>/<int:delete>/', views.edit_arc, name='edit-arc'),
     path('upload-tei/<int:section_id>/', views.upload_tei_collation, name='upload-tei'),
+    path('download-tei/ab/<int:ab_pk>/', views.download_tei_ab, name='download-tei-ab'),
 ]
