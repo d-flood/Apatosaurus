@@ -10,6 +10,8 @@ from collation.py.differentiate_subreading_ids import differentiate_subreading_i
 
 TEI_NS = '{http://www.tei-c.org/ns/1.0}'
 XML_NS = '{http://www.w3.org/XML/1998/namespace}'
+XML_NS_STR = 'http://www.w3.org/XML/1998/namespace'
+TEI_NS_STR = 'http://www.tei-c.org/ns/1.0'
 
 def parse_xml(xml_file: UploadedFile) -> et._Element|None:
     text: str = xml_file.read().decode('utf-8', errors='ignore')
@@ -136,7 +138,7 @@ def tei_to_db(xml: et._Element, section_id: int):
         for app_elem in ab_elem.findall(f'{TEI_NS}app'):
             if not (app := create_app_instance(app_elem, ab_instance.pk)):
                 continue
-            for rdg_elem in app_elem.findall(f'{TEI_NS}rdg'):
+            for rdg_elem in app_elem.findall('rdg', namespaces={None: TEI_NS_STR, 'xml': XML_NS_STR}): #type: ignore
                 if not (rdg_instance := create_rdg_instance(rdg_elem, app.pk)):
                     continue
         ab_instance.save()
