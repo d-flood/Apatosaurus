@@ -12,6 +12,7 @@ from collation.py import process_tei
 
 
 @login_required
+@require_safe
 def main(request):
     context = {
         'page': {'active': 'collation', 'title': 'Apatosaurus - Collation'},
@@ -404,4 +405,23 @@ def download_tei_ab(request: HttpRequest, ab_pk: int):
     tei = ab.as_tei()
     response = HttpResponse(tei, content_type='text/xml')
     response['Content-Disposition'] = f'attachment; filename={ab.name}.xml'
+    return response
+
+
+@login_required
+@require_safe
+def download_tei_section(request: HttpRequest, section_pk: int):
+    section = models.Section.objects.get(pk=section_pk)
+    tei = section.as_tei()
+    response = HttpResponse(tei, content_type='text/xml')
+    response['Content-Disposition'] = f'attachment; filename={section.name}.xml'
+    return response
+
+@login_required
+@require_safe
+def download_tei_collation(request: HttpRequest, collation_pk: int):
+    collation = models.Collation.objects.get(pk=collation_pk)
+    tei = collation.as_tei()
+    response = HttpResponse(tei, content_type='text/xml')
+    response['Content-Disposition'] = f'attachment; filename={collation.name}.xml'
     return response
