@@ -27,7 +27,7 @@
         <link rel="stylesheet" type="text/css" href="{% static 'css/df.css' %}">
     </head>
     
-    <body>
+    <body style="overflow-x: hidden;">
         <header class="navbar" data-overflow-nav style="overflow-y: hidden;">
             <button aria-hidden="true" type="button" class="iconbutton" 
                 data-nav-expander aria-pressed="false" hidden>
@@ -42,6 +42,7 @@
                     {% if user.is_authenticated %}
                         <hr>
                         <li class="hide-sm nav-item"><a href="{% url 'collation' %}" {% if page.active == 'collation' %}aria-current="page"{% endif %}>My Collations</a></li>
+                        <li class="hide-sm nav-item"><a href="{% url 'witnesses-main' %}" {% if page.active == 'witnesses' %}aria-current="page"{% endif %}>Witnesses</a></li>
                         <li class="hide-sm nav-item" {% if page.active == 'profile' %}aria-current="page"{% endif %}><a href="#">{{ user.username }}</a></li>
                         <li class="hide-sm nav-item"><a href="{% url 'logout' %}">Logout</a></li>
                     {% else %}
@@ -99,11 +100,9 @@
                 </li>
             </ul>
         </footer>
-        {% block extra_js %}
-        {% endblock %}
         <script src="{% static 'js/df.js' %}"></script>
         <script type="module" src="https://the.missing.style/v1.0.3/missing-js/overflow-nav.js"></script>
-        <!-- <script type="module" src="https://the.missing.style/v1.0.3/missing-js/tabs.js"></script> -->
+        <script type="module" src="https://the.missing.style/v1.0.3/missing-js/tabs.js"></script>
         <script src="https://unpkg.com/htmx.org@1.8.4"></script>
         {% django_htmx_script %}
         <script src="https://unpkg.com/hyperscript.org@0.9.7" defer></script>

@@ -13,11 +13,17 @@ TEI_NS_STR = 'http://www.tei-c.org/ns/1.0'
 
 
 class Witness(models.Model):
-    siglum = models.CharField(max_length=32, unique=True)
+    siglum = models.CharField(max_length=32)
     description = models.CharField(max_length=255, null=True, blank=True)
+    default = models.BooleanField(default=False)
+    user = models.ForeignKey(get_user_model(), on_delete=models.CASCADE, related_name='witnesses', null=True, blank=True)
 
     def __str__(self):
         return self.siglum
+
+    class Meta:
+        unique_together = ('siglum', 'user')
+        indexes = [models.Index(fields=['siglum'])]
 
 
 class Collation(models.Model):
@@ -25,6 +31,13 @@ class Collation(models.Model):
     name = models.CharField(max_length=64)
     description = models.TextField(null=True, blank=True)
 
+    def as_tei(self):
+        tei_root = et.Element('TEI', nsmap={None: TEI_NS_STR, 'xml': XML_NS_STR}) #type: ignore
+        for section in self.sections.all(): #type: ignore
+            for ab in section.ab_elements():
+                tei_root.append(ab)
+        add_tei_header(tei_root)
+        return et.tostring(tei_root, encoding='unicode', pretty_print=True)
 
 
 class Section(models.Model):
@@ -35,6 +48,16 @@ class Section(models.Model):
     def ab_elements(self):
         self.abs: QuerySet[Ab]
         return [ab.as_element() for ab in self.abs.all()]
+
+    def as_tei(self):
+        tei_root = et.Element('TEI', nsmap={None: TEI_NS_STR, 'xml': XML_NS_STR}) #type: ignore
+        for ab in self.ab_elements():
+            tei_root.append(ab)
+        add_tei_header(tei_root)
+        return et.tostring(tei_root, encoding='unicode', pretty_print=True)
+
+    class Meta:
+        ordering = ['number']
 
 
 class Ab(models.Model):

@@ -1,0 +1,19 @@
+<h2>Edit {{ witness.siglum }}</h2>
+<form action="submit"
+    hx-post="{% url 'edit-witness' witness_pk=witness.pk %}"
+    hx-target="#new-witness-form">
+    {{ form.as_p }}
+    <div class="f-row">
+        <button class="ok color bg" type="submit">Submit New Witness</button>
+        <button type="button"
+            hx-get="{% url 'cancel-edit-witness' %}">
+            Cancel
+        </button>
+        <button class="bad color bg" type="button"
+            hx-delete="{% url 'edit-witness' witness_pk=witness.pk %}"
+            hx-target="#new-witness-form"
+            hx-confirm="Are you sure you want to delete {{ witness.siglum }}">
+            Delete
+        </button>
+    </div>
+</form>

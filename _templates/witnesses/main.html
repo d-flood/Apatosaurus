@@ -1,0 +1,65 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block content %}
+<main>
+    <h1 class="text-center">Textual Witnesses</h1>
+    <div class="f-switch fullbleed">
+        <div>
+            <h2 class="vh">Witnesses in Database</h2>
+            <div role="tablist">
+                <button role="tab" aria-controls="default-witnesses" aria-selected="true">Default Witnesses</button>
+                <button role="tab" aria-controls="my-witnesses">My Witnesses</button>
+            </div>
+              
+            <div id="default-witnesses"  role="tabpanel">
+                <p>
+                    <label class="vh" for="wits-filter">Filter Witnesses</label>
+                    <input type="text" id="wits-filter" placeholder="Filter Witnesses"
+                    _="on keyup if my value == '' show <p/> in #default_witnesses_list else if the event's key is 'Escape' set my value to '' trigger keyup else show <p/> in #default_witnesses_list when its textContent.startsWith(my value) end">
+                </p>
+                <div class="vh-60" id="default_witnesses_list">
+                    {% for wit in default_witnesses %}
+                        <p>{{ wit.siglum }} - {{ wit.description }}</p>
+                    {% endfor %}
+                </div>
+            </div>
+            <div id="my-witnesses" role="tabpanel" hidden>
+                <p>
+                    <label class="vh" for="user-wits-filter">Filter Witnesses</label>
+                    <input type="text" id="user-wits-filter" placeholder="Filter Witnesses"
+                    _="on keyup if my value == '' show <p/> in #user_witnesses_list else if the event's key is 'Escape' set my value to '' trigger keyup else show <p/> in #user_witnesses_list when its textContent.startsWith(my value) end">
+                </p>
+                <div class="vh-60" id="user_witnesses_list"
+                    hx-trigger="refreshUserWitnesses from:body"
+                    hx-get="{% url 'refresh-user-witnesses' %}">
+                    {% block user_witnesses %}
+                        {% for wit in user_witnesses %}
+                            <p>
+                                {{ wit.siglum }} - {{ wit.description }}
+                                <button type="button" aria-label="edit" title="edit"
+                                hx-get="{% url 'edit-witness' witness_pk=wit.pk %}"
+                                hx-target="#new-witness-form">
+                                    &#128393;
+                                </button>
+                            </p>
+                        {% endfor %}
+                    {% endblock user_witnesses %}
+                </div>
+            </div>
+        </div>
+        <div>
+            <div id="new-witness-form">
+                {% block new_witness_form %}
+                <h2>New Witness</h2>
+                    <form action="submit" class="table rows"
+                        hx-post="{% url 'add-new-witness' %}"
+                        hx-target="#new-witness-form">
+                        {{ form.as_p }}
+                        <button type="submit">Submit New Witness</button>
+                    </form>
+                {% endblock new_witness_form %}
+            </div>
+        </div>
+    </div>
+</main>
+{% endblock %}
