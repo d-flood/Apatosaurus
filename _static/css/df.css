@@ -184,6 +184,13 @@ td a {
 .mt-5 {
     margin-top: 5px;
 }
+.vh-60 {
+    height: 60vh;
+    overflow-y: auto;
+}
+.errorlist {
+    color: red;
+}
 /* classes added via wagtail */
 .richtext-image.full-width {
     width: 100%;
