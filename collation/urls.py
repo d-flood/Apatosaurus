@@ -24,4 +24,6 @@ urls = [
     path('arc/edit/<int:app_pk>/<int:delete>/', views.edit_arc, name='edit-arc'),
     path('upload-tei/<int:section_id>/', views.upload_tei_collation, name='upload-tei'),
     path('download-tei/ab/<int:ab_pk>/', views.download_tei_ab, name='download-tei-ab'),
+    path('download-tei/section/<int:section_pk>/', views.download_tei_section, name='download-tei-section'),
+    path('download-tei/collation/<int:collation_pk>/', views.download_tei_collation, name='download-tei-collation'),
 ]
