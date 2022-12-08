@@ -109,7 +109,7 @@ def create_rdg_instance(rdg_elem: et._Element, app_pk: int) -> models.Rdg|None:
     rtype = rdg_elem.attrib.get('type')
     if not rtype:
         rtype = '0'
-    text = rdg_elem.text if rdg_elem.text else ''
+    text = rdg_elem.text or ''
     if witnesses := rdg_elem.attrib.get('wit'):
         witnesses = witnesses.split()
         wits = []
