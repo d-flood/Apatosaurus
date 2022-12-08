@@ -36,3 +36,21 @@ class BugReport(models.Model):
 
     def __str__(self):
         return f'{self.user} __ {self.created.date()} | {"✓" if self.closed else "✖"}'
+
+
+class JobStatus(models.Model):
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='job_statuses')
+    name = models.CharField(max_length=50)
+    completed = models.BooleanField(default=False)
+    failed = models.BooleanField(default=False)
+    created = models.DateTimeField(auto_now_add=True)
+    in_progress = models.BooleanField(default=False)
+    progress = models.IntegerField(default=0)
+    message = models.CharField(max_length=100, default='')
+
+    def __str__(self):
+        return f'{self.user} __ {self.name} | {"✓" if self.completed else "✖"}'
+
+    class Meta:
+        ordering = ['-created']
+        indexes = [models.Index(fields=['user'])]

@@ -1,3 +1,5 @@
+from threading import Thread
+
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect
 from django.http import HttpRequest, HttpResponse
@@ -5,6 +7,7 @@ from django.views.decorators.http import require_http_methods, require_safe
 
 from render_block import render_block_to_string 
 
+from accounts.models import JobStatus
 from collation import forms
 from collation import models
 from collation.py import helpers
@@ -386,10 +389,9 @@ def upload_tei_collation(request: HttpRequest, section_id: int):
         if form.is_valid():
             tei_file = form.cleaned_data['tei_file']
             if (xml := process_tei.parse_xml(tei_file)) is not None:
-                process_tei.tei_to_db(xml, section_id)
-            resp = HttpResponse(helpers.quick_message('File uploaded and processed successfully. The processed verses should now be visible in the left side bar.', 'ok'))
-            resp['HX-Trigger'] = 'refreshAbs'
-            return resp
+                job = JobStatus.objects.create(user=request.user, name=f'Import TEI Collation {models.Section.objects.get(pk=section_id).name}', message='Enqueued')
+                Thread(target=process_tei.tei_to_db, args=(xml, section_id, job.pk)).start()
+            return HttpResponse(helpers.quick_message('File uploaded and added to processing queue. You can check the status in home page.', 'ok'))
         else:
             context = {
                 'form': form,

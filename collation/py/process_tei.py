@@ -3,6 +3,8 @@ from django.core.files.uploadedfile import UploadedFile
 
 from lxml import etree as et
 
+from accounts.models import JobStatus
+from accounts.py.update_status import update_status
 from collation import models
 from collation.py.itsee_to_open_cbgm import reformat_xml
 from collation.py.differentiate_subreading_ids import differentiate_subreading_ids as diff_ids
@@ -132,14 +134,24 @@ def create_rdg_instance(rdg_elem: et._Element, app_pk: int) -> models.Rdg|None:
     return rdg_instance
 
 
-def tei_to_db(xml: et._Element, section_id: int):
-    for i, ab_elem in enumerate(xml.findall(f'{TEI_NS}ab'), start=1):
-        ab_instance = create_ab_instance(ab_elem, section_id, i)
-        for app_elem in ab_elem.findall(f'{TEI_NS}app'):
-            if not (app := create_app_instance(app_elem, ab_instance.pk)):
-                continue
-            for rdg_elem in app_elem.findall('rdg', namespaces={None: TEI_NS_STR, 'xml': XML_NS_STR}): #type: ignore
-                if not (rdg_instance := create_rdg_instance(rdg_elem, app.pk)):
+def tei_to_db(xml: et._Element, section_id: int, job_pk: int):
+    total = len(xml.findall(f'{TEI_NS}ab'))
+    if total == 0:
+        total = 1
+    i = 1
+    try:
+        for i, ab_elem in enumerate(xml.findall(f'{TEI_NS}ab'), start=1):
+            update_status(job_pk, f'Importing {ab_elem.attrib.get(f"{XML_NS}id", "")}', int(i/total*100))
+            ab_instance = create_ab_instance(ab_elem, section_id, i)
+            for app_elem in ab_elem.findall(f'{TEI_NS}app'):
+                if not (app := create_app_instance(app_elem, ab_instance.pk)):
                     continue
-        ab_instance.save()
-        print(f'added {ab_instance.name} to db')
+                for rdg_elem in app_elem.findall('rdg', namespaces={None: TEI_NS_STR, 'xml': XML_NS_STR}): #type: ignore
+                    if not (rdg_instance := create_rdg_instance(rdg_elem, app.pk)):
+                        continue
+            ab_instance.save()
+            print(f'added {ab_instance.name} to db')
+        update_status(job_pk, '', 100, False, True)
+    except Exception as e:
+        print(e)
+        update_status(job_pk, f'Error: {e}', int(i/total*100), False, False, True)

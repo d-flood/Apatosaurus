@@ -32,4 +32,5 @@ admin.site.register(CustomUser, CustomUserAdmin)
 admin.site.register((
     models.UserFeedback,
     models.BugReport,
+    models.JobStatus,
 ))

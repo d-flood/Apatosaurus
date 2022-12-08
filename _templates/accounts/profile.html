@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block content %}
+<main>
+    <h1>Home of {{ request.user }}</h1>
+    <div role="tablist">
+        <button role="tab" aria-controls="user-info" aria-selected="true">Your Information</button>
+        <button role="tab" aria-controls="joblist">Background Jobs</button>
+    </div>
+        
+    <div id="user-info"  role="tabpanel">
+        info
+    </div>
+    <div id="joblist" role="tabpanel" hidden
+        hx-trigger="refreshMe"
+        hx-get="{% url 'user-job-list' %}"
+        _="on intersection
+                repeat while me.hidden is false
+                    send refreshMe to me then wait 1s
+                end">
+        {% block user_job_list %}
+            {% for job in jobs %}
+                {% if job.completed %}
+                    <div class="box ok color">
+                        <strong class="block titlebar">{{ job.name }}: Complete</strong>
+                        <div class="f-row"></div>
+                        <p>{{ job.created }}</p>
+                        <button type="button"
+                            hx-delete="{% url 'delete-job-status' job_pk=job.pk %}">
+                            Dismiss
+                        </button>
+                    </div>
+                {% elif job.failed %}
+                    <div class="box bad">
+                        <strong class="block titlebar">{{ job.name }}: Failed</strong>
+                        <p>{{ job.message }}</p>
+                        <button type="button"
+                            hx-delete="{% url 'delete-job-status' job_pk=job.pk %}">
+                            Dismiss
+                        </button>
+                    </div>
+                {% elif job.in_progress %}
+                    <div class="box info color">
+                        <strong class="block titlebar">{{ job.name }}: Processing...</strong>
+                        <p>{{ job.message }}</p>
+                        <label>Progress: <meter value="{{ job.progress }}" min="0" max="100">{{ job.progress }}%</meter> {{ job.progress }}%</label>
+                        <p>{{ job.created }}</p>
+                    </div>
+                {% endif %}
+            {% endfor %}
+        {% endblock user_job_list %}
+    </div>
+</main>
+{% endblock %}
