@@ -9,7 +9,11 @@
     </div>
         
     <div id="user-info"  role="tabpanel">
-        info
+        <form action="submit">
+            {{ user_change_form }}
+            <br>
+            <button type="submit" class="big">Save</button>
+        </form>
     </div>
     <div id="joblist" role="tabpanel" hidden
         hx-trigger="refreshMe"

@@ -5,6 +5,7 @@ from django.views.decorators.http import require_http_methods, require_safe
 
 from render_block import render_block_to_string 
 from accounts import models
+from accounts import forms
 
 
 @login_required
@@ -13,6 +14,7 @@ def profile(request: HttpRequest) -> HttpResponse:
     context = {
         'page': {'title': 'Your Profile', 'active': 'profile'},
         'jobs': request.user.job_statuses.all(), #type: ignore
+        'user_change_form': forms.CustomUserChangeForm(instance=request.user),
     }
     return render(request, 'accounts/profile.html', context)
 
