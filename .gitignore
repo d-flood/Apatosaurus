@@ -13,6 +13,7 @@ liste.json
 
 # dev machine specific
 *.ps1
+*.exe
 
 # temporarily ignored
 migrations/
