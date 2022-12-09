@@ -114,9 +114,6 @@ p {
     font-size: 20px;
     font-style: italic;
 }
-.text-center {
-    text-align: center;
-}
 .research-section {
     background-color: var(--tab-content);
 }
@@ -178,19 +175,31 @@ td a {
     width: 400px;
     height: 300px;
 }
+.errorlist {
+    color: red;
+}
+
+
+/* UTILITIES */
 .mr-3 {
     margin-right: 3px;
 }
 .mt-5 {
     margin-top: 5px;
 }
+.mt-10 {
+    margin-top: 10px;
+}
 .vh-60 {
     height: 60vh;
     overflow-y: auto;
 }
-.errorlist {
-    color: red;
+.text-center {
+    text-align: center;
 }
+/* END UTILITIES */
+
+
 /* classes added via wagtail */
 .richtext-image.full-width {
     width: 100%;
