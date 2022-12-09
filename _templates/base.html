@@ -43,6 +43,7 @@
                         <hr>
                         <li class="hide-sm nav-item"><a href="{% url 'collation' %}" {% if page.active == 'collation' %}aria-current="page"{% endif %}>My Collations</a></li>
                         <li class="hide-sm nav-item"><a href="{% url 'witnesses-main' %}" {% if page.active == 'witnesses' %}aria-current="page"{% endif %}>Witnesses</a></li>
+                        <li class="hide-sm nav-item"><a href="{% url 'open-cbgm' %}" {% if page.active == 'open-cbgm' %}aria-current="page"{% endif %}>open-cbgm</a></li>
                         <li class="hide-sm nav-item" {% if page.active == 'profile' %}aria-current="page"{% endif %}><a href="{% url 'user-profile' %}">{{ user.username }}</a></li>
                         <li class="hide-sm nav-item"><a href="{% url 'logout' %}">Logout</a></li>
                     {% else %}
