@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block content %}
+<main class="fullbleed">
+    <h1>open-cbgm</h1>
+    <div role="tablist">
+        <button role="tab" aria-controls="manage-db" aria-selected="true">Manage Databases</button>
+        <button role="tab" aria-controls="compare-wits">Compare Witnesses</button>
+        <button role="tab" aria-controls="find-relatives">Find Relatives</button>
+        <button role="tab" aria-controls="optimize-substemma">Optimize Substemma</button>
+        <button role="tab" aria-controls="textual-flow">Textual Flow</button>
+        <button role="tab" aria-controls="global-stemma">Global Stemma</button>
+    </div>
+        
+    <div id="manage-db"  role="tabpanel"></div>
+    <div id="compare-wits" role="tabpanel" hidden></div>
+    <div id="find-relatives" role="tabpanel" hidden></div>
+    <div id="optimize-substemma" role="tabpanel" hidden></div>
+    <div id="textual-flow" role="tabpanel" hidden></div>
+    <div id="global-stemma" role="tabpanel" hidden></div>
+</main>
+{% endblock %}
