@@ -1,9 +1,14 @@
 {% extends 'base.html' %}
 {% load static %}
 {% block content %}
-<main class="fullbleed">
-    <h1>open-cbgm</h1>
-    <div role="tablist">
+<div class="fit">
+    <div class="f-row">
+        <h1>open-cbgm</h1>
+        {% if request.session.active_db %}
+            <p>Active Database: {{ request.session.active_db.name }}</p>
+        {% endif %}
+    </div>
+    <div role="tablist" class="mt-10">
         <button role="tab" aria-controls="manage-db" aria-selected="true">Manage Databases</button>
         <button role="tab" aria-controls="compare-wits">Compare Witnesses</button>
         <button role="tab" aria-controls="find-relatives">Find Relatives</button>
@@ -12,11 +17,50 @@
         <button role="tab" aria-controls="global-stemma">Global Stemma</button>
     </div>
         
-    <div id="manage-db"  role="tabpanel"></div>
+    <div id="manage-db"  role="tabpanel">
+        <h2>Manage <code>open-cbgm</code> Databases</h2>
+        <div class="f-switch">
+            <p hx-get={% url 'refresh-dbs' %}
+                hx-target="#select-db"
+                hx-trigger="refreshDbs from:body">
+                <label for="select-db" class="vh">Databases (Imported Collations)</label>
+                <select name="db" id="select-db" size="20"
+                    hx-get="{% url 'edit-db' db_pk=0 %}"
+                    hx-target="#manage-db-right">
+                    {% block db_options %}
+                        <optgroup label="Entire Works">
+                            {% for db in entire_dbs %}
+                                <option value="{{ db.pk }}">{{ db.db_name }}</option>
+                            {% endfor %}
+                        </optgroup>
+                        <optgroup label="Sections">
+                            {% for db in section_dbs %}
+                                <option value="{{ db.pk }}">{{ db.db_name }}</option>
+                            {% endfor %}
+                        </optgroup>
+                        <optgroup label="Verses">
+                            {% for db in verse_dbs %}
+                                <option value="{{ db.pk }}">{{ db.db_name }}</option>
+                            {% endfor %}
+                        </optgroup>
+                    {% endblock db_options %}
+                </select>
+            </p>
+            <p id="manage-db-right"></p>
+            <div id="db-info"></div>
+        </div>
+    </div>
     <div id="compare-wits" role="tabpanel" hidden></div>
     <div id="find-relatives" role="tabpanel" hidden></div>
     <div id="optimize-substemma" role="tabpanel" hidden></div>
     <div id="textual-flow" role="tabpanel" hidden></div>
     <div id="global-stemma" role="tabpanel" hidden></div>
-</main>
+</div>
+<script>
+    document.body.addEventListener('htmx:configRequest', (event) => {
+        if (event.detail.elt.id == 'select-db') {
+            event.detail.path = event.detail.path.replace('0', event.detail.elt.value)
+        }
+    })
+</script>
 {% endblock %}

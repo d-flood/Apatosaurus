@@ -18,8 +18,9 @@
         Download
     </a>
     <button type="button"
-        hx-confirm="Do you want to queue {{ section.name }} to be imported for use in the open-cbgm module?">
-        Send to open-cbgm
+        hx-get="{% url 'send-section-form' section_pk=section.pk %}"
+        hx-target="#main">
+        Import to open-cbgm
     </button>
     <hr aria-orientation="vertical">
     <button type="button" class="bad color bg"
