@@ -13,8 +13,16 @@
     hx-target="#sidebar-header">
     {% for ab in abs %}
         <li>
-            <a hx-get="{% url 'apparatus' ab_pk=ab.pk %}" hx-target="#main">{{ ab.number }}: {{ ab.name }}</a>
-            <button type="button" aria-label="edit section metadata" title="Edit Section Metadata"
+            <a hx-get="{% url 'apparatus' ab_pk=ab.pk %}" hx-target="#main"
+                class="ab-list-li" role="listitem" aria-current="false"
+                _="on click remove @aria-current from .ab-list-li
+                then set my @aria-current to 'location' 
+                then remove .chip from .ab-list-li
+                then add .chip to me end">
+                {{ ab.number }}: {{ ab.name }}
+            </a>
+            <button type="button" aria-label="edit section metadata" class="ml-5"
+                title="Edit Section Metadata"
                 hx-get="{% url 'edit-ab' ab_pk=ab.pk %}"
                 hx-target="#main">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">

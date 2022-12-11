@@ -25,7 +25,7 @@ from published.urls import urls as published_urls
 from accounts.urls import urls as accounts_urls
 from collation.urls import urls as collation_urls
 from witnesses.urls import urls as witnesses_urls
-
+from cbgm.urls import urls as cbgm_urls
 
 
 def home(request: HttpRequest) -> HttpResponse:
@@ -46,4 +46,5 @@ urlpatterns = [
     path('accounts/', include(accounts_urls)),
     path('collation/', include(collation_urls)),
     path('witnesses/', include(witnesses_urls)),
+    path('cbgm/', include(cbgm_urls)),
 ]

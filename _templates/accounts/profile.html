@@ -35,11 +35,12 @@
                         </button>
                     </div>
                 {% elif job.failed %}
-                    <div class="box bad">
+                    <div class="box bad color">
                         <strong class="block titlebar">{{ job.name }}: Failed</strong>
                         <p>{{ job.message }}</p>
                         <button type="button"
-                            hx-delete="{% url 'delete-job-status' job_pk=job.pk %}">
+                            hx-delete="{% url 'delete-job-status' job_pk=job.pk %}"
+                            _="on click set my @disabled to 'true'">
                             Dismiss
                         </button>
                     </div>
@@ -47,8 +48,17 @@
                     <div class="box info color">
                         <strong class="block titlebar">{{ job.name }}: Processing...</strong>
                         <p>{{ job.message }}</p>
-                        <label>Progress: <meter value="{{ job.progress }}" min="0" max="100">{{ job.progress }}%</meter> {{ job.progress }}%</label>
+                        {% if job.progress == -1 %}
+                            <label>Importing <progress>progress</progress></label>
+                        {% else %}
+                            <label>Progress: <meter value="{{ job.progress }}" min="0" max="100">{{ job.progress }}%</meter> {{ job.progress }}%</label>
+                        {% endif %}
                         <p>{{ job.created }}</p>
+                    </div>
+                {% else %}
+                    <div class="box">
+                        <strong class="block titlebar">{{ job.name }}</strong>
+                        <p>{{ job.message }}</p>
                     </div>
                 {% endif %}
             {% endfor %}

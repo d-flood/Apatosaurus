@@ -15,5 +15,9 @@ liste.json
 *.ps1
 *.exe
 
+# temp
+temp/
+tmp/
+
 # temporarily ignored
 migrations/

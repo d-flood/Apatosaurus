@@ -56,6 +56,8 @@ class Section(models.Model):
         add_tei_header(tei_root)
         return et.tostring(tei_root, encoding='unicode', pretty_print=True)
 
+    def __str__(self):
+        return f'{self.collation.name} - {self.name}'
     class Meta:
         ordering = ['number']
 
