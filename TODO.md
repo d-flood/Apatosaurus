@@ -4,3 +4,5 @@
     - the number of non-active readings should be limited to something reasonable.
     - to "restore" a reading from the history, copy the current instance, then set all of its fields *except* `active` and `pk` to match the reading being restored. I *think* it is a good idea to keep the primary key for the "main" reading the same for maintaining the other relationships that the reading model has (both "up" to section, and "down" to collation unit).
 - replace all threading with a task server before production.
+- export to open-cbgm only implemented on sections; also add verse and full collation export.
+- open-cbgm populate_db options implemented in form, but not in call to open-cbgm yet.
