@@ -20,7 +20,7 @@
         hx-get="{% url 'user-job-list' %}"
         _="on intersection
                 repeat while me.hidden is false
-                    send refreshMe to me then wait 1s
+                    send refreshMe to me then wait 1.2s
                 end">
         {% block user_job_list %}
             {% for job in jobs %}
