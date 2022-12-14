@@ -33,11 +33,6 @@ def import_tei_section(user_pk: int, section_pk: int, db_pk: int):
         raise Exception('open-cbgm.populate_db error')
     django_db_file = ContentFile(db_file.read())
     cbgm_db_instance = models.Cbgm_Db.objects.get(pk=db_pk)
-    # cbgm_db_instance = models.Cbgm_Db.objects.create(
-    #     user_id=user_pk,
-    #     db_name=section.name,
-    #     amount=1
-    # )
     cbgm_db_instance.db_file.save(f'{section.name}.db', django_db_file)
     tei_file.unlink(missing_ok=True)
     db_file.close()
@@ -65,3 +60,4 @@ def import_tei_section_task(user_pk: int, section_pk: int, db_pk: int, job_pk: i
             failed=True,
             message=f'Error: {e}'
         )
+        Section.objects.get(pk=section_pk).delete()
