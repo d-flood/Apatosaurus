@@ -6,7 +6,7 @@ from cbgm import models
 class Cbgm_DbForm(forms.ModelForm):
     class Meta:
         model = models.Cbgm_Db
-        exclude = ['user', 'db_file', 'amount']
+        exclude = ['user', 'db_file', 'amount', 'witnesses', 'app_labels']
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -25,3 +25,6 @@ class UpdateCbgmDbForm(forms.ModelForm):
     class Meta:
         model = models.Cbgm_Db
         fields = ['db_name']
+
+
+# class CompareWitnessesForm()
