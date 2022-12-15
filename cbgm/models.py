@@ -23,6 +23,8 @@ class Cbgm_Db(models.Model):
     ignore_suffixes = models.CharField(max_length=255, null=True, blank=True, help_text='List of witness suffixes to strip away. E.g., "* T V"')
     merge_splits = models.BooleanField(default=False)
     use_classic_rules = models.BooleanField(default=False)
+    witnesses = models.JSONField(null=True, default=list)
+    app_labels = models.JSONField(null=True, default=list)
 
     def __str__(self):
         return f'{self.user}: {self.db_name}'

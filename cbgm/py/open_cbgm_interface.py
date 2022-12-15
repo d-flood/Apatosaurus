@@ -44,7 +44,8 @@ def construct_populate_db_command(tei_path: str, db_path: str, db: models.Cbgm_D
 
 def import_tei_section(user_pk: int, section_pk: int, db_pk: int):
     section = Section.objects.get(pk=section_pk)
-    tei = section.as_tei()
+    tei, wits = section.as_tei()
+    app_labels = section.all_app_labels()
     # I cannot get NamedTemporaryFile to work with open-cbgm.populate_db. I would
     # guess that it is because the file is opened by another process.
     tmp_name = f"tei_{''.join(random.choices(string.ascii_letters, k=5))}.xml"
@@ -53,22 +54,18 @@ def import_tei_section(user_pk: int, section_pk: int, db_pk: int):
         f.write(tei)
     db_file = NamedTemporaryFile(delete=False, dir=BASE_DIR / 'temp', prefix='cbgm_', suffix='.db')
     cbgm_db_instance = models.Cbgm_Db.objects.get(pk=db_pk)
+    cbgm_db_instance.app_labels = app_labels #type: ignore
+    cbgm_db_instance.witnesses = list(wits) #type: ignore
     command = construct_populate_db_command(tei_file.resolve().as_posix(), db_file.name, cbgm_db_instance)
     p = Popen(command, shell=True)
     return_code = p.wait()
     if return_code != 0:
         Popen(f'Notepad {tei_file.resolve()}', shell=True)
-        tei_file.unlink(missing_ok=True)
-        db_file.close()
-        with contextlib.suppress(Exception):
-            os.remove(db_file.name)
+        cleanup(tei_file, db_file)
         raise Exception(f'open-cbgm.populate_db error.\nCommand="{command}"\nReturn code={return_code}')
     django_db_file = ContentFile(db_file.read())
     cbgm_db_instance.db_file.save(f'{section.name}.db', django_db_file)
-    tei_file.unlink(missing_ok=True)
-    db_file.close()
-    with contextlib.suppress(Exception):
-        os.remove(db_file.name)
+    cleanup(tei_file, db_file)
 
 
 def import_tei_section_task(user_pk: int, section_pk: int, db_pk: int, job_pk: int):
@@ -77,18 +74,25 @@ def import_tei_section_task(user_pk: int, section_pk: int, db_pk: int, job_pk: i
         progress=-1,
         message='Importing TEI into open-cbgm'
     )
-    try:
-        import_tei_section(user_pk, section_pk, db_pk)
-        JobStatus.objects.filter(pk=job_pk).update(
-            in_progress=False,
-            completed=True,
-            progress=100,
-            message='Imported TEI into open-cbgm'
-        )
-    except Exception as e:
-        JobStatus.objects.filter(pk=job_pk).update(
-            in_progress=False,
-            failed=True,
-            message=f'Error: {e}'
-        )
-        models.Cbgm_Db.objects.get(pk=db_pk).delete()
+    # try:
+    import_tei_section(user_pk, section_pk, db_pk)
+    JobStatus.objects.filter(pk=job_pk).update(
+        in_progress=False,
+        completed=True,
+        progress=100,
+        message='Imported TEI into open-cbgm'
+    )
+    # except Exception as e:
+    #     JobStatus.objects.filter(pk=job_pk).update(
+    #         in_progress=False,
+    #         failed=True,
+    #         message=f'Error: {e}'
+    #     )
+    #     models.Cbgm_Db.objects.get(pk=db_pk).delete()
+
+
+def cleanup(tei_file: Path, db_file):
+    tei_file.unlink(missing_ok=True)
+    db_file.close()
+    with contextlib.suppress(Exception):
+        os.remove(db_file.name)

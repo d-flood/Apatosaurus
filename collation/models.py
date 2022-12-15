@@ -53,8 +53,14 @@ class Section(models.Model):
         tei_root = et.Element('TEI', nsmap={None: TEI_NS_STR, 'xml': XML_NS_STR}) #type: ignore
         for ab in self.ab_elements():
             tei_root.append(ab)
-        add_tei_header(tei_root)
-        return et.tostring(tei_root, encoding='unicode', pretty_print=True)
+        wits = add_tei_header(tei_root)
+        return et.tostring(tei_root, encoding='unicode', pretty_print=True), wits
+
+    def all_app_labels(self):
+        apps: list[str] = []
+        for ab in self.abs.all():
+            apps.extend(f'{ab.name}U{app.index_from}-{app.index_to}' for app in ab.apps.all())
+        return apps
 
     def __str__(self):
         return f'{self.collation.name} - {self.name}'
@@ -222,13 +228,10 @@ def add_tei_header(xml: et._Element):
     XML_NS_STR = 'http://www.w3.org/XML/1998/namespace'
     TEI_NS_STR = 'http://www.tei-c.org/ns/1.0'
     def get_wits(xml):
-        wits = []
-        distinct_wits = set()
+        wits: set[str] = set()
         for rdg in xml.xpath('//rdg'):
             for wit in rdg.get('wit').split():
-                if wit not in distinct_wits:
-                    distinct_wits.add(wit)
-                    wits.append(wit)
+                wits.add(wit)
         return wits
     TEI = xml.getroottree().getroot()
     wits = get_wits(TEI)
@@ -255,4 +258,4 @@ def add_tei_header(xml: et._Element):
         witness = et.Element('witness', nsmap={None: TEI_NS_STR, 'xml': XML_NS_STR}) #type: ignore
         witness.set('n', wit)
         listWit.append(witness)
-    return
+    return wits
