@@ -16,6 +16,8 @@ from accounts.models import JobStatus
 from CONFIG.settings import BASE_DIR
 from collation.models import Section
 from cbgm import models
+from cbgm.py.custom_sql import get_all_witness_siglums, get_all_apps, get_all_witnesses_and_apps
+from witnesses.py.sort_ga_witnesses import sort_ga_witnesses
 
 
 
@@ -48,8 +50,7 @@ def construct_populate_db_command(tei_path: str, db_path: str, db: models.Cbgm_D
 
 def import_tei_section(user_pk: int, section_pk: int, db_pk: int):
     section = Section.objects.get(pk=section_pk)
-    tei, wits = section.as_tei()
-    app_labels = section.all_app_labels()
+    tei, _ = section.as_tei()
     # I cannot get NamedTemporaryFile to work with open-cbgm.populate_db. I would
     # guess that it is because the file is opened by another process.
     tmp_name = f"tei_{''.join(random.choices(string.ascii_letters, k=5))}.xml"
@@ -58,8 +59,6 @@ def import_tei_section(user_pk: int, section_pk: int, db_pk: int):
         f.write(tei)
     db_file = NamedTemporaryFile(delete=False, dir=BASE_DIR / 'temp', prefix='cbgm_', suffix='.db')
     cbgm_db_instance = models.Cbgm_Db.objects.get(pk=db_pk)
-    cbgm_db_instance.witnesses = list(wits) #type: ignore
-    cbgm_db_instance.app_labels = app_labels #type: ignore
     command = construct_populate_db_command(tei_file.resolve().as_posix(), db_file.name, cbgm_db_instance)
     p = Popen(command, shell=True)
     return_code = p.wait()
@@ -67,8 +66,13 @@ def import_tei_section(user_pk: int, section_pk: int, db_pk: int):
         Popen(f'Notepad {tei_file.resolve()}', shell=True)
         cleanup(tei_file, db_file)
         raise Exception(f'open-cbgm.populate_db error.\nCommand="{command}"\nReturn code={return_code}')
+    witnesses, app_labels = get_all_witnesses_and_apps(db_file.name)
+    cbgm_db_instance.witnesses = sort_ga_witnesses(witnesses) #type: ignore
+    cbgm_db_instance.app_labels = app_labels #type: ignore
     django_db_file = ContentFile(db_file.read())
     cbgm_db_instance.db_file.save(f'{section.name}.db', django_db_file)
+    cbgm_db_instance.active = True
+    cbgm_db_instance.save()
     cleanup(tei_file, db_file)
 
 
