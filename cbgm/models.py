@@ -1,6 +1,10 @@
 from django.db import models
 from django.contrib.auth import get_user_model
 
+from natsort import natsorted
+
+from witnesses.py.sort_ga_witnesses import sort_ga_witnesses
+
 
 
 def user_directory_path(instance, filename):
@@ -25,6 +29,12 @@ class Cbgm_Db(models.Model):
     use_classic_rules = models.BooleanField(default=False)
     witnesses = models.JSONField(null=True, default=list)
     app_labels = models.JSONField(null=True, default=list)
+
+    def sorted_witnesses(self):
+        return sort_ga_witnesses(self.witnesses) if self.witnesses else ['']
+
+    def sorted_app_labels(self):
+        return natsorted(self.app_labels) if self.app_labels else ['']
 
     def __str__(self):
         return f'{self.user}: {self.db_name}'

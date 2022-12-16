@@ -10,13 +10,13 @@
     </form>
 <hr>
 <section class="tool-bar mt-10">
-    <button type="button"
+    {% comment %} <button type="button"
         {% if request.session.active_db %}hx-confirm="Do you want to replace {{ request.session.active_db.name }} with {{ db.db_name }} as the active database?"{% endif %}
         hx-post="{% url 'set-active-db' db_pk=db.pk %}"
         hx-target="#manage-db-right">
         Set to Active
     </button>
-    <hr aria-orientation="vertical">
+    <hr aria-orientation="vertical"> {% endcomment %}
     <button type="button" class="bad color bg"
         hx-delete="{% url 'edit-db' db_pk=db.pk %}"
         hx-confirm="Are you sure you want to delete this database? Importing new databases from collations can take a while."
@@ -40,4 +40,44 @@
     <p><strong>Ignore Suffixes:</strong> {{ db.ignore_suffixes }}</p>
     <p><strong>Merge Splits:</strong> {{ db.merge_splits }}</p>
     <p><strong>Use Classic Rules:</strong> {{ db.use_classic_rules }}</p>
+    <p>
+        <label for="wits-in-db"><strong>All Witnesses in this Collation</strong></label>
+        <select style="min-width:300px;" size="10" id="wits-in-db">
+            {% for wit in sorted_witnesses %}
+                <option>{{ wit }}</option>
+            {% endfor %}
+        </select>
+    </p>
+    <p>
+        <label for="apps-in-db"><strong>All Variation Units in this Collation</strong></label>
+        <select style="min-width:300px;" size="10" id="apps-in-db">
+            {% for app in sorted_app_labels %}
+                <option>{{ app }}</option>
+            {% endfor %}
+        </select>
+    </p>
+</div>
+
+<div id="compare-wits" role="tabpanel" 
+    hx-swap-oob="true" hidden>
+    <h2>Compare Witnesses in {{ db.db_name }} <span class="italic">(Pregenealogical Coherence)</span></h2>
+    <div class="f-switch">
+        <form action="submit" 
+            hx-post="{% url 'compare-witnesses' db_pk=db.pk %}"
+            hx-target="#compare-witnesses-results">
+            <h3>Select Witnesses to Compare</h3>
+            <p>Enter a witnesses against which others will be compared. All selected witnesses will be compared to the entered witness. If no witnesses are selected for comparison, then <strong>every</strong> witness in the collation will be compared to the entered witness.</p>
+            {{ compare_wits_form.as_p }}
+            <datalist id="witnesses-datalist">
+                {% for wit in sorted_witnesses %}
+                    <option value="{{ wit }}"></option>
+                {% endfor %}
+            </datalist>
+            <button type="submit" class="big">
+                Compare
+            </button>
+            <div id="all-wits" hidden>{{ all_wits_string }}</div>
+        </form>
+        <div id="compare-witnesses-results"></div>
+    </div>
 </div>

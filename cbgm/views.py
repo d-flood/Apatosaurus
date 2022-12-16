@@ -14,7 +14,7 @@ from collation.models import Section
 from collation.py.helpers import quick_message
 from cbgm import models
 from cbgm import forms
-from cbgm.py.open_cbgm_interface import import_tei_section_task
+from cbgm.py.open_cbgm_interface import import_tei_section_task, compare_witnesses as compare_witnesses_task
 
 
 
@@ -77,15 +77,21 @@ def send_section_form(request: HttpRequest, section_pk: int):
 @require_http_methods(['GET', 'POST', 'DELETE'])
 def edit_db(request: HttpRequest, db_pk: int):
     db = models.Cbgm_Db.objects.get(pk=db_pk)
+    sorted_witnesses = db.sorted_witnesses()
+    witness_options = [(w, w) for w in sorted_witnesses]
     if request.method == 'GET':
-        return render(request, 'cbgm/edit_db.html', {
+        return render(request, 'cbgm/activated_db.html', {
             'db': db,
             'form': forms.UpdateCbgmDbForm(instance=db),
+            'sorted_witnesses': sorted_witnesses,
+            'sorted_app_labels': db.sorted_app_labels(),
+            'compare_wits_form': forms.CompareWitnessesForm(all_witnesses=witness_options),
+            'all_wits_string': ', '.join(sorted_witnesses),
         })
     elif request.method == 'POST':
         form = forms.UpdateCbgmDbForm(request.POST, instance=db)
         if not form.is_valid():
-            return render(request, 'cbgm/edit_db.html', {
+            return render(request, 'cbgm/activated_db.html', {
                 'db': db,
                 'form': form,
             })
@@ -119,3 +125,15 @@ def set_active_db(request: HttpRequest, db_pk: int) -> HttpResponse:
     resp = HttpResponse(status=204)
     resp['HX-Refresh'] = 'true'
     return resp
+
+
+@login_required
+@require_http_methods(['POST'])
+def compare_witnesses(request: HttpRequest, db_pk: int) -> HttpResponse:
+    db = models.Cbgm_Db.objects.get(pk=db_pk)
+    witness_options = [(w, w) for w in db.sorted_witnesses()] # type: ignore
+    form = forms.CompareWitnessesForm(request.POST, all_witnesses=witness_options)
+    if form.is_valid():
+        comparison = compare_witnesses_task(db, form.cleaned_data['witness'], form.cleaned_data['comparative_witnesses'])
+        return render(request, 'cbgm/compare_witnesses.html', {'json': comparison})
+    return HttpResponse(status=204)
