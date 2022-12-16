@@ -15,6 +15,8 @@ from collation.py.helpers import quick_message
 from cbgm import models
 from cbgm import forms
 from cbgm.py.open_cbgm_interface import import_tei_section_task, compare_witnesses as compare_witnesses_task
+from cbgm.py.custom_sql import get_all_witness_siglums
+from witnesses.py.sort_ga_witnesses import sort_ga_witnesses
 
 
 
@@ -23,9 +25,9 @@ from cbgm.py.open_cbgm_interface import import_tei_section_task, compare_witness
 def main(request: HttpRequest) -> HttpResponse:
     return render(request, 'cbgm/index.html', {
         'page': {'title': 'Apatosaurus - open-cbgm', 'active': 'open-cbgm'},
-        'entire_dbs': models.Cbgm_Db.objects.filter(user=request.user, amount=2),
-        'section_dbs': models.Cbgm_Db.objects.filter(user=request.user, amount=1),
-        'verse_dbs': models.Cbgm_Db.objects.filter(user=request.user, amount=0),
+        'entire_dbs': models.Cbgm_Db.objects.filter(user=request.user, amount=2, active=True),
+        'section_dbs': models.Cbgm_Db.objects.filter(user=request.user, amount=1, active=True),
+        'verse_dbs': models.Cbgm_Db.objects.filter(user=request.user, amount=0, active=True),
     })
 
 
@@ -77,16 +79,15 @@ def send_section_form(request: HttpRequest, section_pk: int):
 @require_http_methods(['GET', 'POST', 'DELETE'])
 def edit_db(request: HttpRequest, db_pk: int):
     db = models.Cbgm_Db.objects.get(pk=db_pk)
-    sorted_witnesses = db.sorted_witnesses()
-    witness_options = [(w, w) for w in sorted_witnesses]
     if request.method == 'GET':
+        witnesses = db.witnesses
+        witness_options = [(w, w) for w in witnesses] #type: ignore
         return render(request, 'cbgm/activated_db.html', {
             'db': db,
             'form': forms.UpdateCbgmDbForm(instance=db),
-            'sorted_witnesses': sorted_witnesses,
+            'sorted_witnesses': witnesses,
             'sorted_app_labels': db.sorted_app_labels(),
             'compare_wits_form': forms.CompareWitnessesForm(all_witnesses=witness_options),
-            'all_wits_string': ', '.join(sorted_witnesses),
         })
     elif request.method == 'POST':
         form = forms.UpdateCbgmDbForm(request.POST, instance=db)
@@ -131,7 +132,8 @@ def set_active_db(request: HttpRequest, db_pk: int) -> HttpResponse:
 @require_http_methods(['POST'])
 def compare_witnesses(request: HttpRequest, db_pk: int) -> HttpResponse:
     db = models.Cbgm_Db.objects.get(pk=db_pk)
-    witness_options = [(w, w) for w in db.sorted_witnesses()] # type: ignore
+    # witness_options = [(w, w) for w in db.sorted_witnesses()] # type: ignore
+    witness_options = [(w, w) for w in get_all_witness_siglums(db.db_file.path)]
     form = forms.CompareWitnessesForm(request.POST, all_witnesses=witness_options)
     if form.is_valid():
         comparison = compare_witnesses_task(db, form.cleaned_data['witness'], form.cleaned_data['comparative_witnesses'])
