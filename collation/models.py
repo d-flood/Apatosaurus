@@ -141,6 +141,7 @@ class App(models.Model):
         app = et.Element(
             'app', 
             {
+                'n': f'{self.ab.name}',
                 'type': self.atype, 
                 'from': str(self.index_from), 
                 'to': str(self.index_to)
