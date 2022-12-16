@@ -4,17 +4,15 @@
 <div class="fit">
     <div class="f-row">
         <h1>open-cbgm</h1>
-        {% if request.session.active_db %}
-            <p>Active Database: {{ request.session.active_db.name }}</p>
-        {% endif %}
+            <p id="active-db-p" hidden>Active Database: <strong id="active-db-label"></strong></p>
     </div>
     <div role="tablist" class="mt-10">
         <button role="tab" aria-controls="manage-db" aria-selected="true">Manage Databases</button>
-        <button role="tab" aria-controls="compare-wits">Compare Witnesses</button>
-        <button role="tab" aria-controls="find-relatives">Find Relatives</button>
-        <button role="tab" aria-controls="optimize-substemma">Optimize Substemma</button>
-        <button role="tab" aria-controls="textual-flow">Textual Flow</button>
-        <button role="tab" aria-controls="global-stemma">Global Stemma</button>
+        <button role="tab" aria-controls="compare-wits" class="cbgm-tab" disabled>Compare Witnesses</button>
+        <button role="tab" aria-controls="find-relatives" class="cbgm-tab" disabled>Find Relatives</button>
+        <button role="tab" aria-controls="optimize-substemma" class="cbgm-tab" disabled>Optimize Substemma</button>
+        <button role="tab" aria-controls="textual-flow" class="cbgm-tab" disabled>Textual Flow</button>
+        <button role="tab" aria-controls="global-stemma" class="cbgm-tab" disabled>Global Stemma</button>
     </div>
         
     <div id="manage-db"  role="tabpanel">
@@ -30,17 +28,17 @@
                     {% block db_options %}
                         <optgroup label="Entire Works">
                             {% for db in entire_dbs %}
-                                <option value="{{ db.pk }}">{{ db.db_name }}</option>
+                                <option value="{{ db.pk }}" _="on click remove @disabled from .cbgm-tab then remove @hidden from #active-db-p then set #active-db-label.text to '{{ db.name }}'">{{ db.db_name }}</option>
                             {% endfor %}
                         </optgroup>
                         <optgroup label="Sections">
                             {% for db in section_dbs %}
-                                <option value="{{ db.pk }}">{{ db.db_name }}</option>
+                                <option value="{{ db.pk }}" _="on click remove @disabled from .cbgm-tab then remove @hidden from #active-db-p then put '{{ db.db_name }}' into #active-db-label">{{ db.db_name }}</option>
                             {% endfor %}
                         </optgroup>
                         <optgroup label="Verses">
                             {% for db in verse_dbs %}
-                                <option value="{{ db.pk }}">{{ db.db_name }}</option>
+                                <option value="{{ db.pk }}" _="on click remove @disabled from .cbgm-tab then show #active-db-p then set #active-db-label.text to '{{ db.name }}'">{{ db.db_name }}</option>
                             {% endfor %}
                         </optgroup>
                     {% endblock db_options %}

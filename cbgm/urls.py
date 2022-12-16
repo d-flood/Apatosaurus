@@ -10,4 +10,5 @@ urls = [
     path('edit/db/<int:db_pk>/', views.edit_db, name='edit-db'),
     path('refresh-dbs/', views.refresh_dbs, name='refresh-dbs'),
     path('set-active-db/<int:db_pk>/', views.set_active_db, name='set-active-db'),
+    path('compare-witnesses/<int:db_pk>/', views.compare_witnesses, name='compare-witnesses'),
 ]

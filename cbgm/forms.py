@@ -27,4 +27,20 @@ class UpdateCbgmDbForm(forms.ModelForm):
         fields = ['db_name']
 
 
-# class CompareWitnessesForm()
+class CompareWitnessesForm(forms.Form):
+    def __init__(self, *args, all_witnesses = None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if not all_witnesses:
+            all_witnesses = [('', '')]
+        self.fields['comparative_witnesses'].choices = all_witnesses
+    witness = forms.CharField(
+        max_length=64, 
+        required=True, 
+        label='Witness', 
+        widget=forms.TextInput(attrs={'list': 'witnesses-datalist'})
+    )
+    comparative_witnesses = forms.MultipleChoiceField(
+        required=False,
+        label='Witness to Compare', 
+        widget=forms.SelectMultiple(attrs={'size': '10', 'style': 'min-width: 300px;'}),
+    )

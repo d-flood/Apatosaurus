@@ -1,4 +1,5 @@
 import contextlib
+import json
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 import random
@@ -7,6 +8,9 @@ from subprocess import Popen, check_output
 import os
 
 from django.core.files.base import ContentFile
+
+from natsort import natsorted
+from rich import print
 
 from accounts.models import JobStatus
 from CONFIG.settings import BASE_DIR
@@ -54,8 +58,8 @@ def import_tei_section(user_pk: int, section_pk: int, db_pk: int):
         f.write(tei)
     db_file = NamedTemporaryFile(delete=False, dir=BASE_DIR / 'temp', prefix='cbgm_', suffix='.db')
     cbgm_db_instance = models.Cbgm_Db.objects.get(pk=db_pk)
-    cbgm_db_instance.app_labels = app_labels #type: ignore
     cbgm_db_instance.witnesses = list(wits) #type: ignore
+    cbgm_db_instance.app_labels = app_labels #type: ignore
     command = construct_populate_db_command(tei_file.resolve().as_posix(), db_file.name, cbgm_db_instance)
     p = Popen(command, shell=True)
     return_code = p.wait()
@@ -74,21 +78,21 @@ def import_tei_section_task(user_pk: int, section_pk: int, db_pk: int, job_pk: i
         progress=-1,
         message='Importing TEI into open-cbgm'
     )
-    # try:
-    import_tei_section(user_pk, section_pk, db_pk)
-    JobStatus.objects.filter(pk=job_pk).update(
-        in_progress=False,
-        completed=True,
-        progress=100,
-        message='Imported TEI into open-cbgm'
-    )
-    # except Exception as e:
-    #     JobStatus.objects.filter(pk=job_pk).update(
-    #         in_progress=False,
-    #         failed=True,
-    #         message=f'Error: {e}'
-    #     )
-    #     models.Cbgm_Db.objects.get(pk=db_pk).delete()
+    try:
+        import_tei_section(user_pk, section_pk, db_pk)
+        JobStatus.objects.filter(pk=job_pk).update(
+            in_progress=False,
+            completed=True,
+            progress=100,
+            message='Imported TEI into open-cbgm'
+        )
+    except Exception as e:
+        JobStatus.objects.filter(pk=job_pk).update(
+            in_progress=False,
+            failed=True,
+            message=f'Error: {e}'
+        )
+        models.Cbgm_Db.objects.get(pk=db_pk).delete()
 
 
 def cleanup(tei_file: Path, db_file):
@@ -96,3 +100,30 @@ def cleanup(tei_file: Path, db_file):
     db_file.close()
     with contextlib.suppress(Exception):
         os.remove(db_file.name)
+
+
+def construct_compare_wits_command(db: models.Cbgm_Db, witness: str, comparators: list):
+    compare_wits_exe = BASE_DIR / 'cbgm' / 'bin' / 'compare_witnesses.exe'
+    compare_wits_binary = compare_wits_exe.resolve().as_posix()
+    if witness in comparators:
+        comparators.remove(witness)
+    witnesses = f'{witness} {" ".join(comparators)}'
+    output_file = NamedTemporaryFile(delete=False, dir=BASE_DIR / 'temp', prefix='cbgm_', suffix='.json')
+    command = f'"{compare_wits_binary}" -f json -o "{output_file.name}" "{db.db_file.path}" {witnesses}'
+    return command.replace('\\', '/'), output_file
+
+
+def compare_witnesses(db: models.Cbgm_Db, witness: str, comparators: list[str]) -> dict:
+    command, output_file = construct_compare_wits_command(db, witness, comparators)
+    p = Popen(command)
+    return_code = p.wait()
+    if return_code != 0:
+        output_file.close()
+        with contextlib.suppress(Exception):
+            os.remove(output_file.name)
+        raise Exception(f'open-cbgm.compare_witnesses error.\nCommand="{command}"\nReturn code={return_code}')
+    output = json.load(output_file)
+    output_file.close()
+    with contextlib.suppress(Exception):
+        os.remove(output_file.name)
+    return output
