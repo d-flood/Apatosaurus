@@ -16,6 +16,7 @@ class Cbgm_Db(models.Model):
         (1, 'Section'),
         (2, 'Full'),
     )
+    active = models.BooleanField(default=False)
     user = models.ForeignKey(get_user_model(), on_delete=models.CASCADE)
     db_name = models.CharField(max_length=64)
     db_file = models.FileField(upload_to=user_directory_path)
@@ -29,9 +30,6 @@ class Cbgm_Db(models.Model):
     use_classic_rules = models.BooleanField(default=False)
     witnesses = models.JSONField(null=True, default=list)
     app_labels = models.JSONField(null=True, default=list)
-
-    def sorted_witnesses(self):
-        return sort_ga_witnesses(self.witnesses) if self.witnesses else ['']
 
     def sorted_app_labels(self):
         return natsorted(self.app_labels) if self.app_labels else ['']
