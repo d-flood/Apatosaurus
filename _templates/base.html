@@ -101,6 +101,14 @@
                 </li>
             </ul>
         </footer>
+        <dialog id="modal-dialog"
+            _="on showDialog from body set #modal-title's innerHTML to event.detail.title
+                then set #modal-message's innerHTML to event.detail.message
+                then call #modal-dialog.showModal() end">
+            <h1 class="titlebar" id="modal-title"></h1>
+            <p id="modal-message"></p>
+            <button type="button" onclick="document.getElementById('modal-dialog').close()">Okay</button>
+        </dialog>
         <script src="{% static 'js/df.js' %}"></script>
         <script type="module" src="https://the.missing.style/v1.0.3/missing-js/overflow-nav.js"></script>
         <script type="module" src="https://the.missing.style/v1.0.3/missing-js/tabs.js"></script>
