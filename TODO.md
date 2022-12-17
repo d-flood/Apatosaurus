@@ -6,3 +6,4 @@
 - replace all threading with a task server before production.
 - export to open-cbgm only implemented on sections; also add verse and full collation export.
 - open-cbgm populate_db options implemented in form, but not in call to open-cbgm yet.
+- create small toast/popup that can be triggered via htmx server sent event for quick messages.
