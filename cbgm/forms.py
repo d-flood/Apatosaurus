@@ -44,3 +44,22 @@ class CompareWitnessesForm(forms.Form):
         label='Witness to Compare', 
         widget=forms.SelectMultiple(attrs={'size': '10', 'style': 'min-width: 300px;'}),
     )
+
+
+class FindRelativesForm(forms.Form):
+
+    def __init__(self, *args, all_witnesses: list[tuple[str, str]], app_labels: list[tuple[str, str]], **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['witness'].choices = all_witnesses
+        self.fields['app_labels'].choices = app_labels
+
+    witness = forms.ChoiceField(
+        required=True,
+        label='Witness', 
+        widget=forms.Select(attrs={'size': '10', 'style': 'min-width: 300px;'}),
+    )
+    app_labels = forms.ChoiceField(
+        required=True,
+        label='Variation Unit Address',
+        widget=forms.Select(attrs={'size': '10', 'style': 'min-width: 300px;'}),
+    )

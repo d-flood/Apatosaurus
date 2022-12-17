@@ -31,3 +31,13 @@ def get_all_witnesses_and_apps(db_path: str):
     apps = c.fetchall()
     conn.close()
     return witnesses, apps
+
+
+def get_readings_for_variation_unit(db_path: str, variation_unit: str):
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = lambda cursor, row: row[0]
+    c = conn.cursor()
+    c.execute("SELECT READING FROM READINGS WHERE VARIATION_UNIT=?", (variation_unit,))
+    readings = c.fetchall()
+    conn.close()
+    return readings

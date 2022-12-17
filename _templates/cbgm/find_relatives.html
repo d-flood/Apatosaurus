@@ -1,0 +1,39 @@
+<table class="plain bg">
+    <h3>Relatives for <span class="chip">{{ json.primary_wit }}</span> at <span class="chip">{{ json.primary_extant }}</span> extant variation units</h3>
+    <thead>
+        <tr>
+            <th><abbr title="Identifier (usually a witness siglum)">ID</abbr></th>
+            <th><abbr title="direction of relationship">Dir</abbr></th>
+            <th><abbr title="ask Joey">NR</abbr></th>
+            <th><abbr title="Reading">Rdg</abbr></th>
+            <th><abbr title="Extant Variation Units">ExtV</abbr></th>
+            <th><abbr title="Agreements">Agr</abbr></th>
+            <th><abbr title="Percentage of agreement">PercAgr</abbr></th>
+            <th><abbr title="Prior Readings">Prior</abbr></th>
+            <th><abbr title="Posterior Readings">Posterior</abbr></th>
+            <th><abbr title="No Relationship">NoRel</abbr></th>
+            <th><abbr title="Unclear Readings">Uncl</abbr></th>
+            <th><abbr title="ask Joey">Expl</abbr></th>
+            <th>Cost</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in json.rows %}
+            <tr class="{% cycle '' 'stripe' %}">
+                <td>{{ row.id }}</td>
+                <td>{{ row.dir }}</td>
+                <td>{{ row.nr }}</td>
+                <td>{{ row.rdg }}</td>
+                <td>{{ row.pass }}</td>
+                <td>{{ row.eq }}</td>
+                <td>{{ row.perc }}</td>
+                <td>{{ row.prior }}</td>
+                <td>{{ row.posterior }}</td>
+                <td>{{ row.norel }}</td>
+                <td>{{ row.uncl }}</td>
+                <td>{{ row.expl }}</td>
+                <td>{{ row.cost }}</td>
+            </tr>
+        {% endfor %}
+    </tbody>
+</table>
