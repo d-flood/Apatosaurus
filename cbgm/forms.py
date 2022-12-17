@@ -53,13 +53,33 @@ class FindRelativesForm(forms.Form):
         self.fields['witness'].choices = all_witnesses
         self.fields['app_labels'].choices = app_labels
 
-    witness = forms.ChoiceField(
-        required=True,
+    witness = forms.CharField(
+        max_length=64, 
+        required=True, 
         label='Witness', 
-        widget=forms.Select(attrs={'size': '10', 'style': 'min-width: 300px;'}),
+        widget=forms.TextInput(attrs={'list': 'witnesses-datalist'})
     )
     app_labels = forms.ChoiceField(
         required=True,
         label='Variation Unit Address',
         widget=forms.Select(attrs={'size': '10', 'style': 'min-width: 300px;'}),
+    )
+
+
+class OptimizeSubstemmaForm(forms.Form):
+
+    def __init__(self, *args, all_witnesses: list[tuple[str, str]], **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['witness'].choices = all_witnesses
+
+    witness = forms.CharField(
+        max_length=64, 
+        required=True, 
+        label='Witness', 
+        widget=forms.TextInput(attrs={'list': 'witnesses-datalist'})
+    )
+
+    max_cost = forms.IntegerField(
+        max_value=100, min_value=-1, initial=-1, label='Max Cost (Optional)',
+        help_text='Leave at -1 to ignore this option.'
     )

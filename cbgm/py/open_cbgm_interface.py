@@ -4,7 +4,7 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 import random
 import string
-from subprocess import Popen, check_output
+from subprocess import Popen, check_output, CalledProcessError
 import os
 
 from django.core.files.base import ContentFile
@@ -158,3 +158,36 @@ def find_relatives(db: models.Cbgm_Db, witness: str, app: str, readings: list) -
     with contextlib.suppress(Exception):
         os.remove(output_file.name)
     return output
+
+
+def construct_optimize_substemma_command(db: models.Cbgm_Db, witness: str, max_cost: int):
+    optimize_substemma_exe = BASE_DIR / 'cbgm' / 'bin' / 'optimize_substemmata.exe'
+    optimize_substemma_binary = optimize_substemma_exe.resolve().as_posix()
+    output_file = NamedTemporaryFile(delete=False, dir=BASE_DIR / 'temp', prefix='cbgm_', suffix='.json')
+    if max_cost == -1:
+        command = f'"{optimize_substemma_binary}" -f json -o "{output_file.name}" "{db.db_file.path}" {witness}'
+    else:
+        command = f'"{optimize_substemma_binary}" -b {max_cost} -f json -o "{output_file.name}" "{db.db_file.path}" {witness}'
+    return command.replace('\\', '/'), output_file
+
+
+def optimize_substemma(db: models.Cbgm_Db, witness: str, max_cost: int):
+    command, output_file = construct_optimize_substemma_command(db, witness, max_cost)
+    try:
+        message = check_output(command)
+    except CalledProcessError as e:
+        with contextlib.suppress(Exception):
+            os.remove(output_file.name)
+        print(f'{command=}\n{e.returncode=}')
+        return False, '''{"title": "Error Calling the open-cbgm", "message": "The 'optimize_substemma' function failed to run. Please contact David about it."}'''
+
+    if 'no potential ancestors' in message.decode('utf-8'):
+        with contextlib.suppress(Exception):
+            os.remove(output_file.name)
+        print(f'{command=}\n{message=}')
+        return False, '''{"title": "No Potential Ancestors", "message": "There are no potential ancestors for this witness."}'''
+    output = json.load(output_file)
+    output_file.close()
+    with contextlib.suppress(Exception):
+        os.remove(output_file.name)
+    return True, output

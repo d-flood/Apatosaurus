@@ -6,6 +6,8 @@ from django.http import HttpRequest, HttpResponse
 from django.urls import reverse
 from django.views.decorators.http import require_http_methods, require_safe
 
+from rich import print
+
 from render_block import render_block_to_string
 
 from accounts.models import JobStatus
@@ -14,11 +16,18 @@ from collation.models import Section
 from collation.py.helpers import quick_message
 from cbgm import models
 from cbgm import forms
-from cbgm.py.open_cbgm_interface import import_tei_section_task, compare_witnesses as compare_witnesses_task, find_relatives as find_relatives_task
+from cbgm.py.open_cbgm_interface import (
+    import_tei_section_task, 
+    compare_witnesses as compare_witnesses_task, 
+    find_relatives as find_relatives_task,
+    optimize_substemma as optimize_substemma_task
+)
 from cbgm.py.custom_sql import get_all_witness_siglums, get_readings_for_variation_unit
 from cbgm.py.extract_app_groups import extract_app_groups
 from witnesses.py.sort_ga_witnesses import sort_ga_witnesses
 
+
+# resp['HX-Trigger'] = '''{"showDialog": {"title": "the title", "message": "the message"}}'''
 
 
 @login_required
@@ -59,23 +68,6 @@ def send_section_form(request: HttpRequest, section_pk: int):
     return HttpResponse(quick_message('Collation Export to the CBGM Enqueued. You can track this under "Background Tasks" in your profile.', 'ok'))
 
 
-# @login_required
-# @require_http_methods(['POST'])
-# def send_section_for_import(request: HttpRequest, section_pk) -> HttpResponse:
-#     section = Section.objects.get(pk=section_pk)
-#     job = JobStatus.objects.create(
-#         user=request.user,
-#         name=f'Importing {section.name} into open-cbgm',
-#         message='Enqueued',
-#     )
-#     Thread(target=import_tei_section_task, args=(request.user.pk, section_pk, , job.pk)).start()
-#     return HttpResponse(quick_message(
-#         """Import enqueued. This may take a while. You can monitor the progress in the "Background Jobs" section of your <a href="/accounts/profile/" >profile</a>.""", 
-#         'ok',
-#         timeout=60,
-#         ))
-
-
 @login_required
 @require_http_methods(['GET', 'POST', 'DELETE'])
 def edit_db(request: HttpRequest, db_pk: int):
@@ -94,6 +86,7 @@ def edit_db(request: HttpRequest, db_pk: int):
             'compare_wits_form': forms.CompareWitnessesForm(all_witnesses=witness_options),
             'find_relatives_form': forms.FindRelativesForm(all_witnesses=witness_options, app_labels=app_choices),
             'app_groups': app_groups,
+            'optimize_substemma_form': forms.OptimizeSubstemmaForm(all_witnesses=witness_options),
         })
     elif request.method == 'POST':
         form = forms.UpdateCbgmDbForm(request.POST, instance=db)
@@ -169,3 +162,23 @@ def get_rdgs_for_app(request: HttpRequest, db_pk: int, variation_unit: str) -> H
     db = models.Cbgm_Db.objects.get(pk=db_pk)
     rdgs = get_readings_for_variation_unit(db.db_file.path, variation_unit)
     return render(request, 'cbgm/rdgs.html', {'rdgs': rdgs})
+
+
+@login_required
+@require_http_methods(['POST'])
+def optimize_substemma(request: HttpRequest, db_pk: int) -> HttpResponse:
+    db = models.Cbgm_Db.objects.get(pk=db_pk)
+    witnesses = db.witnesses
+    witness_options = [(w, w) for w in witnesses] #type: ignore
+    form = forms.OptimizeSubstemmaForm(request.POST, all_witnesses=witness_options)
+    if form.is_valid():
+        successful, substemma = optimize_substemma_task(
+            db=db, witness=form.cleaned_data['witness'], 
+            max_cost=form.cleaned_data['max_cost']
+        )
+        if successful:
+            return render(request, 'cbgm/optimize_substemma.html', {'json': substemma})
+        resp = HttpResponse(status=204)
+        resp['HX-Trigger'] = f'{{"showDialog": {substemma}}}'
+        return resp
+    return HttpResponse(status=204)

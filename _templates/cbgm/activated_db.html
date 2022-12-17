@@ -118,10 +118,29 @@
                 <select name="variation-unit-readings" id="id_variation-unit-rdgs"
                     style="min-width: 300px;" size="5" multiple></select>
             </p>
-            <button type="submit" class="big">
-                Find Relatives
-            </button>
+            <div class="f-row">
+                <button class="info bg color">Clear Reading Selection</button>
+                <button type="submit" class="big">
+                    Find Relatives
+                </button>
+            </div>
         </form>
         <div id="find-relatives-results"></div>
+    </div>
+</div>
+
+<div id="optimize-substemma" role="tabpanel" 
+    hx-swap-oob="true" hidden>
+    <h2>Optimize Substemma</h2>
+    <div class="f-switch">
+        <form action="submit" 
+            hx-post="{% url 'optimize-substemmata' db_pk=db.pk %}"
+            hx-target="#optimize-substemma-results">
+            {{ optimize_substemma_form.as_p }}
+            <button type="submit" class="big">
+                Identify Potential Ancestors
+            </button>
+        </form>
+        <div id="optimize-substemma-results"></div>
     </div>
 </div>

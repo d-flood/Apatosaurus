@@ -1,0 +1,19 @@
+<table class="plain bg">
+    <h3>Substemmata for <span class="chip">{{ json.primary_wit }}</span> at <span class="chip">{{ json.primary_extant }}</span> extant variation units</h3>
+    <thead>
+        <tr>
+            <th>Ancestors</th>
+            <th>Cost</th>
+            <th>Agree</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in json.rows %}
+            <tr class="{% cycle '' 'stripe' %}">
+                <td>{{ row.ancestors|join:", " }}</td>
+                <td>{{ row.cost }}</td>
+                <td>{{ row.agreements }}</td>
+            </tr>
+        {% endfor %}
+    </tbody>
+</table>
