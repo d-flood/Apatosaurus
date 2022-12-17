@@ -14,8 +14,9 @@ from collation.models import Section
 from collation.py.helpers import quick_message
 from cbgm import models
 from cbgm import forms
-from cbgm.py.open_cbgm_interface import import_tei_section_task, compare_witnesses as compare_witnesses_task
-from cbgm.py.custom_sql import get_all_witness_siglums
+from cbgm.py.open_cbgm_interface import import_tei_section_task, compare_witnesses as compare_witnesses_task, find_relatives as find_relatives_task
+from cbgm.py.custom_sql import get_all_witness_siglums, get_readings_for_variation_unit
+from cbgm.py.extract_app_groups import extract_app_groups
 from witnesses.py.sort_ga_witnesses import sort_ga_witnesses
 
 
@@ -82,12 +83,17 @@ def edit_db(request: HttpRequest, db_pk: int):
     if request.method == 'GET':
         witnesses = db.witnesses
         witness_options = [(w, w) for w in witnesses] #type: ignore
+        app_labels = db.sorted_app_labels()
+        app_choices = [(a, a) for a in app_labels]
+        app_groups = extract_app_groups(app_labels)
         return render(request, 'cbgm/activated_db.html', {
             'db': db,
             'form': forms.UpdateCbgmDbForm(instance=db),
             'sorted_witnesses': witnesses,
-            'sorted_app_labels': db.sorted_app_labels(),
+            'sorted_app_labels': app_labels,
             'compare_wits_form': forms.CompareWitnessesForm(all_witnesses=witness_options),
+            'find_relatives_form': forms.FindRelativesForm(all_witnesses=witness_options, app_labels=app_choices),
+            'app_groups': app_groups,
         })
     elif request.method == 'POST':
         form = forms.UpdateCbgmDbForm(request.POST, instance=db)
@@ -139,3 +145,27 @@ def compare_witnesses(request: HttpRequest, db_pk: int) -> HttpResponse:
         comparison = compare_witnesses_task(db, form.cleaned_data['witness'], form.cleaned_data['comparative_witnesses'])
         return render(request, 'cbgm/compare_witnesses.html', {'json': comparison})
     return HttpResponse(status=204)
+
+
+@login_required
+@require_http_methods(['POST'])
+def find_relatives(request: HttpRequest, db_pk: int) -> HttpResponse:
+    db = models.Cbgm_Db.objects.get(pk=db_pk)
+    all_witnesses = get_all_witness_siglums(db.db_file.path)
+    all_witnesses = sort_ga_witnesses(all_witnesses)
+    all_witnesses = [(w, w) for w in all_witnesses]
+    app_labels = [(w, w) for w in db.sorted_app_labels()]
+    form = forms.FindRelativesForm(request.POST, all_witnesses=all_witnesses, app_labels=app_labels)
+    if form.is_valid():
+        rdgs = request.POST.getlist('variation-unit-readings')
+        relatives = find_relatives_task(db, form.cleaned_data['witness'], form.cleaned_data['app_labels'], rdgs)
+        return render(request, 'cbgm/find_relatives.html', {'json': relatives})
+    return HttpResponse(status=204)
+
+
+@login_required
+@require_safe
+def get_rdgs_for_app(request: HttpRequest, db_pk: int, variation_unit: str) -> HttpResponse:
+    db = models.Cbgm_Db.objects.get(pk=db_pk)
+    rdgs = get_readings_for_variation_unit(db.db_file.path, variation_unit)
+    return render(request, 'cbgm/rdgs.html', {'rdgs': rdgs})

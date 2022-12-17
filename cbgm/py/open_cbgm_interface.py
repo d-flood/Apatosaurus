@@ -131,3 +131,30 @@ def compare_witnesses(db: models.Cbgm_Db, witness: str, comparators: list[str]) 
     with contextlib.suppress(Exception):
         os.remove(output_file.name)
     return output
+
+
+def construct_find_relatives_command(db: models.Cbgm_Db, witness: str, app: str, readings: list): #type: ignore
+    find_relatives_exe = BASE_DIR / 'cbgm' / 'bin' / 'find_relatives.exe'
+    compare_wits_binary = find_relatives_exe.resolve().as_posix()
+    output_file = NamedTemporaryFile(delete=False, dir=BASE_DIR / 'temp', prefix='cbgm_', suffix='.json')
+    if readings == []:
+        command = f'"{compare_wits_binary}" -f json -o "{output_file.name}" "{db.db_file.path}" {witness} {app}'
+    else:
+        command = f'"{compare_wits_binary}" -f json -o "{output_file.name}" "{db.db_file.path}" {witness} {app} {" ".join(readings)}'
+    return command.replace('\\', '/'), output_file
+
+
+def find_relatives(db: models.Cbgm_Db, witness: str, app: str, readings: list) -> dict:
+    command, output_file = construct_find_relatives_command(db, witness, app, readings)
+    p = Popen(command)
+    return_code = p.wait()
+    if return_code != 0:
+        output_file.close()
+        with contextlib.suppress(Exception):
+            os.remove(output_file.name)
+        raise Exception(f'open-cbgm.compare_witnesses error.\nCommand="{command}"\nReturn code={return_code}')
+    output = json.load(output_file)
+    output_file.close()
+    with contextlib.suppress(Exception):
+        os.remove(output_file.name)
+    return output

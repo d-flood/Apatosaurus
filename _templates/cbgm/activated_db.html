@@ -60,7 +60,7 @@
 
 <div id="compare-wits" role="tabpanel" 
     hx-swap-oob="true" hidden>
-    <h2>Compare Witnesses in {{ db.db_name }} <span class="italic">(Pregenealogical Coherence)</span></h2>
+    <h2>Compare Witnesses <span class="italic">(Pregenealogical Coherence)</span></h2>
     <div class="f-switch">
         <form action="submit" 
             hx-post="{% url 'compare-witnesses' db_pk=db.pk %}"
@@ -76,8 +76,52 @@
             <button type="submit" class="big">
                 Compare
             </button>
-            <div id="all-wits" hidden>{{ all_wits_string }}</div>
         </form>
         <div id="compare-witnesses-results"></div>
+    </div>
+</div>
+
+<div id="find-relatives" role="tabpanel" 
+    hx-swap-oob="true" hidden>
+    <h2>Find Relatives <span class="italic">(Comparison of Witnesses)</span></h2>
+    <div class="f-switch">
+        <form action="submit" 
+            hx-post="{% url 'find-relatives' db_pk=db.pk %}"
+            hx-target="#find-relatives-results">
+            <h3>Select Witnesses to Compare</h3>
+            <p>Enter a witnesses and a variation unit location to see all witnesses that agree in that variation unit.</p>
+            <p>
+                {{ find_relatives_form.witness.label_tag }}
+                {{ find_relatives_form.witness.errors }}
+                {{ find_relatives_form.witness }}
+            </p>
+
+            <p>
+                {{ find_relatives_form.app_labels.label_tag }}
+                {{ find_relatives_form.app_labels.errors }}
+                <select name="app_labels" id="id_app_labels" size="10" style="min-width:300px;">
+                    {% for app in app_groups %}
+                        <optgroup label="{{ app.name }}">
+                            {% for unit in app.units %}
+                                <option value="{{ unit.0 }}" 
+                                    hx-get="{% url 'get-rdgs-for-app' db_pk=db.pk variation_unit=unit.0 %}"
+                                    hx-target="#id_variation-unit-rdgs">
+                                    {{ unit.1 }}
+                                </option>
+                            {% endfor %}
+                        </optgroup>
+                    {% endfor %}
+                </select>
+            </p>
+            <p>
+                <label for="id_variation-unit-rdgs">Readings (optional)</label>
+                <select name="variation-unit-readings" id="id_variation-unit-rdgs"
+                    style="min-width: 300px;" size="5" multiple></select>
+            </p>
+            <button type="submit" class="big">
+                Find Relatives
+            </button>
+        </form>
+        <div id="find-relatives-results"></div>
     </div>
 </div>
