@@ -186,7 +186,14 @@ def optimize_substemma(db: models.Cbgm_Db, witness: str, max_cost: int):
             os.remove(output_file.name)
         print(f'{command=}\n{message=}')
         return False, '''{"title": "No Potential Ancestors", "message": "There are no potential ancestors for this witness."}'''
-    output = json.load(output_file)
+    try:
+        output = json.load(output_file)
+    except json.decoder.JSONDecodeError as e:
+        output_file.close()
+        with contextlib.suppress(Exception):
+            os.remove(output_file.name)
+        print(f'{command=}\n{e=}')
+        return False, '''{"title": "No Results", "message": "There is no data for this witness. Probably, there is insufficient local stemma data for this witness."}'''
     output_file.close()
     with contextlib.suppress(Exception):
         os.remove(output_file.name)
