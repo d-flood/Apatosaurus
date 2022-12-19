@@ -141,8 +141,6 @@ select {
     padding-bottom: 0;
 }
 polygon {
-    fill: #874638;
-    stroke: #000;
     stroke-width: 1px;
 }
 .v {
@@ -179,9 +177,10 @@ td a {
     color: red;
 }
 
-div#graph-div>svg {
+div.svg-graph>svg {
     max-width: 100%;
     max-height: 100%;
+    color: black !important;
 }
 .helptext {
     font-size: calc(80%);
