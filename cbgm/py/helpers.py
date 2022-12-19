@@ -1,5 +1,7 @@
 import re
 
+import pydot
+
 
 def extract_app_groups(apps: list[str]) -> tuple[dict[str, str | list[tuple[str, str]]]]:
     grouped_apps = {}
@@ -9,3 +11,11 @@ def extract_app_groups(apps: list[str]) -> tuple[dict[str, str | list[tuple[str,
             grouped_apps[ab_name] = {'name': ab_name, 'units': []}
         grouped_apps[ab_name]['units'].append((app, app.replace(f'{ab_name}U', '')))
     return tuple(grouped_apps.values())
+
+
+def make_svg_from_dot(dot: str) -> str:
+    graphs = pydot.graph_from_dot_data(dot)
+    if not graphs:
+        return ''
+    svg = graphs[0].create_svg()
+    return svg.decode('utf-8')

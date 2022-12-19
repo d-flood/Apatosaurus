@@ -83,3 +83,15 @@ class OptimizeSubstemmaForm(forms.Form):
         max_value=100, min_value=-1, initial=-1, label='Max Cost (Optional)',
         help_text='Leave at -1 to ignore this option.'
     )
+
+
+class LocalStemmaForm(forms.Form):
+    def __init__(self, *args, app_labels: list[tuple[str, str]], **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['app_labels'].choices = app_labels
+
+    app_labels = forms.ChoiceField(
+        required=True,
+        label='Variation Unit Address',
+        widget=forms.Select(attrs={'size': '10', 'style': 'min-width: 300px;'}),
+    )
