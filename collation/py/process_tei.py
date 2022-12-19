@@ -103,7 +103,7 @@ def create_app_instance(app_elem: et._Element, ab_pk: int) -> models.App|None:
     )
 
 
-def create_rdg_instance(rdg_elem: et._Element, app_pk: int) -> models.Rdg|None:
+def create_rdg_instance(rdg_elem: et._Element, app_pk: int, user_pk: int) -> models.Rdg|None:
     name = rdg_elem.attrib.get('n')
     varSeq = int(varSeq) if (varSeq := rdg_elem.attrib.get('varSeq')) else 0
     rtype = rdg_elem.attrib.get('type')
@@ -115,7 +115,7 @@ def create_rdg_instance(rdg_elem: et._Element, app_pk: int) -> models.Rdg|None:
         wits = []
         for w in witnesses:
             if w not in models.Witness.objects.values_list('siglum', flat=True):
-                wit_to_append = models.Witness.objects.create(siglum=w)
+                wit_to_append = models.Witness.objects.create(siglum=w, user_id=user_pk)
             else:
                 wit_to_append = models.Witness.objects.get(siglum=w)
             wits.append(wit_to_append)
@@ -134,7 +134,25 @@ def create_rdg_instance(rdg_elem: et._Element, app_pk: int) -> models.Rdg|None:
     return rdg_instance
 
 
-def tei_to_db(xml: et._Element, section_id: int, job_pk: int):
+def create_arc_instance(app_elem: et._Element, app_pk: int):
+    note_elem = app_elem.find(f'{TEI_NS}note')
+    if note_elem is None:
+        return
+    graph_elem = note_elem.find(f'{TEI_NS}graph')
+    if graph_elem is not None:
+        for arc in graph_elem.findall(f'{TEI_NS}arc'):
+            rdg_from = arc.attrib.get('from')
+            rdg_to = arc.attrib.get('to')
+            rdg_from_instance = models.Rdg.objects.filter(app_id=app_pk, name=rdg_from).first()
+            rdg_to_instance = models.Rdg.objects.filter(app_id=app_pk, name=rdg_to).first()
+            models.Arc.objects.create(
+                rdg_from=rdg_from_instance,
+                rdg_to=rdg_to_instance,
+                app_id=app_pk,
+            )
+
+
+def tei_to_db(xml: et._Element, section_id: int, job_pk: int, user_pk: int):
     total = len(xml.findall(f'{TEI_NS}ab'))
     if total == 0:
         total = 1
@@ -147,8 +165,9 @@ def tei_to_db(xml: et._Element, section_id: int, job_pk: int):
                 if not (app := create_app_instance(app_elem, ab_instance.pk)):
                     continue
                 for rdg_elem in app_elem.findall('rdg', namespaces={None: TEI_NS_STR, 'xml': XML_NS_STR}): #type: ignore
-                    if not (rdg_instance := create_rdg_instance(rdg_elem, app.pk)):
+                    if not (rdg_instance := create_rdg_instance(rdg_elem, app.pk, user_pk)):
                         continue
+                create_arc_instance(app_elem, app.pk)
             ab_instance.save()
             print(f'added {ab_instance.name} to db')
         update_status(job_pk, '', 100, False, True)
