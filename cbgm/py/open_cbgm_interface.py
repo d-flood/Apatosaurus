@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 import random
+from shutil import rmtree
 import string
 from subprocess import Popen, check_output, CalledProcessError
 import os
@@ -205,6 +206,10 @@ def construct_print_local_stemma_command(db: models.Cbgm_Db, app: str):
     print_local_stemma_exe = BASE_DIR / 'cbgm' / 'bin' / 'print_local_stemma.exe'
     print_local_stemma_binary = print_local_stemma_exe.resolve().as_posix()
     tmp_name = f"cbgm-graphs-{''.join(random.choices(string.ascii_letters, k=5))}"
+    # making a temporary directory is a hack to get around the fact that the open-cbgm
+    # program doesn't have a way to specify the output directory for the dot files.
+    # The *right* way to do this is to create Python bindings to the open-cbgm and
+    # call it directly instead of making a subprocess call. This is a TODO.
     temp_dir = BASE_DIR / 'temp' / tmp_name
     temp_dir.mkdir(parents=True, exist_ok=True)
     command = f'"{print_local_stemma_binary}" "{db.db_file.path}" "{app}"'
@@ -222,4 +227,6 @@ def print_local_stemma(db: models.Cbgm_Db, app: str):
     with open(dot_path, 'r') as f:
         dot = f.read()
     svg = make_svg_from_dot(dot)
+    with contextlib.suppress(Exception):
+        rmtree(temp_dir)
     return True, svg
