@@ -7,3 +7,4 @@
 - export to open-cbgm only implemented on sections; also add verse and full collation export.
 - open-cbgm populate_db options implemented in form, but not in call to open-cbgm yet.
 - create small toast/popup that can be triggered via htmx server sent event for quick messages.
+- Support more sophisticated TEI import and export formats as [Joey McCollum demonstrates](https://jjmccollum.github.io/teiphy/advanced.html#analysis-at-varying-levels-of-detail-using-reading-types).
