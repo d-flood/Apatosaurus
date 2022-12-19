@@ -109,7 +109,6 @@ class Ab(models.Model):
         self.indexed_basetext = indexed_basetext
         
     def save(self, *args, **kwargs):
-        index_basetext_again = False
         with contextlib.suppress(ValueError):
             self.set_indexed_basetext()
         super().save(*args, **kwargs)
@@ -222,7 +221,10 @@ class Arc(models.Model):
         return f'{self.app.ab.name}U{self.app.index_from}-{self.app.index_to} {self.rdg_from.name} -> {self.rdg_to.name}'
 
     class Meta:
-        unique_together = ('app', 'rdg_from', 'rdg_to')
+        # unique_together = ('app', 'rdg_from', 'rdg_to')
+        constraints = [
+            models.UniqueConstraint(fields=['app', 'rdg_from', 'rdg_to'], name='unique_arc'),
+        ]
 
 
 def add_tei_header(xml: et._Element):
