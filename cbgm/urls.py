@@ -14,4 +14,5 @@ urls = [
     path('find-relatives/<int:db_pk>/', views.find_relatives, name='find-relatives'),
     path('get-rdgs-for-app/<int:db_pk>/<str:variation_unit>/', views.get_rdgs_for_app, name='get-rdgs-for-app'),
     path('optimize-substemmata/<int:db_pk>/', views.optimize_substemma, name='optimize-substemmata'),
+    path('print-local-stemma/<int:db_pk>/<str:variation_unit>/', views.local_stemma, name='local-stemma'),
 ]

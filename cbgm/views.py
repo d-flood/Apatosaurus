@@ -20,10 +20,11 @@ from cbgm.py.open_cbgm_interface import (
     import_tei_section_task, 
     compare_witnesses as compare_witnesses_task, 
     find_relatives as find_relatives_task,
-    optimize_substemma as optimize_substemma_task
+    optimize_substemma as optimize_substemma_task,
+    print_local_stemma as local_stemma_task,
 )
 from cbgm.py.custom_sql import get_all_witness_siglums, get_readings_for_variation_unit
-from cbgm.py.extract_app_groups import extract_app_groups
+from cbgm.py.helpers import extract_app_groups
 from witnesses.py.sort_ga_witnesses import sort_ga_witnesses
 
 
@@ -87,6 +88,7 @@ def edit_db(request: HttpRequest, db_pk: int):
             'find_relatives_form': forms.FindRelativesForm(all_witnesses=witness_options, app_labels=app_choices),
             'app_groups': app_groups,
             'optimize_substemma_form': forms.OptimizeSubstemmaForm(all_witnesses=witness_options),
+            'local_stemma_form': forms.LocalStemmaForm(app_labels=app_choices),
         })
     elif request.method == 'POST':
         form = forms.UpdateCbgmDbForm(request.POST, instance=db)
@@ -182,3 +184,17 @@ def optimize_substemma(request: HttpRequest, db_pk: int) -> HttpResponse:
         resp['HX-Trigger'] = f'{{"showDialog": {substemma}}}'
         return resp
     return HttpResponse(status=204)
+
+
+@login_required
+@require_safe
+def local_stemma(request: HttpRequest, db_pk: int, variation_unit: str) -> HttpResponse:
+    db = models.Cbgm_Db.objects.get(pk=db_pk)
+    successful, svg = local_stemma_task(
+        db=db, app=variation_unit,
+    )
+    if successful:
+        return render(request, 'cbgm/local_stemma.html', {'svg': svg, 'app': variation_unit})
+    resp = HttpResponse(status=204)
+    resp['HX-Trigger'] = f'{{"showDialog": {{"title": "Error", "message": "No local stemma found for this variation unit."}}}}'
+    return resp

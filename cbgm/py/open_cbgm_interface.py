@@ -17,6 +17,7 @@ from CONFIG.settings import BASE_DIR
 from collation.models import Section
 from cbgm import models
 from cbgm.py.custom_sql import get_all_witness_siglums, get_all_apps, get_all_witnesses_and_apps
+from cbgm.py.helpers import make_svg_from_dot
 from witnesses.py.sort_ga_witnesses import sort_ga_witnesses
 
 
@@ -198,3 +199,27 @@ def optimize_substemma(db: models.Cbgm_Db, witness: str, max_cost: int):
     with contextlib.suppress(Exception):
         os.remove(output_file.name)
     return True, output
+
+
+def construct_print_local_stemma_command(db: models.Cbgm_Db, app: str):
+    print_local_stemma_exe = BASE_DIR / 'cbgm' / 'bin' / 'print_local_stemma.exe'
+    print_local_stemma_binary = print_local_stemma_exe.resolve().as_posix()
+    tmp_name = f"cbgm-graphs-{''.join(random.choices(string.ascii_letters, k=5))}"
+    temp_dir = BASE_DIR / 'temp' / tmp_name
+    temp_dir.mkdir(parents=True, exist_ok=True)
+    command = f'"{print_local_stemma_binary}" "{db.db_file.path}" "{app}"'
+    return command.replace('\\', '/'), temp_dir
+
+
+def print_local_stemma(db: models.Cbgm_Db, app: str):
+    command, temp_dir = construct_print_local_stemma_command(db, app)
+    try:
+        message = check_output(command, cwd=temp_dir.resolve().as_posix())
+    except CalledProcessError as e:
+        print(f'{command=}\n{e.returncode=}')
+        return False, '''{"title": "Error Calling the open-cbgm", "message": "The 'print_local_stemma' function failed to run. Please contact David about it."}'''
+    dot_path = temp_dir / 'local' / f'{app}-local-stemma.dot'
+    with open(dot_path, 'r') as f:
+        dot = f.read()
+    svg = make_svg_from_dot(dot)
+    return True, svg

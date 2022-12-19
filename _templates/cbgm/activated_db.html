@@ -144,3 +144,30 @@
         <div id="optimize-substemma-results"></div>
     </div>
 </div>
+
+<div id="local-stemma" role="tabpanel" 
+    hx-swap-oob="true" hidden>
+    <h2>Local Stemma</h2>
+    <div class="f-switch">
+        <form >
+            <p>
+                {{ local_stemma_form.app_labels.label_tag }}
+                {{ local_stemma_form.app_labels.errors }}
+                <select name="app_labels" id="id_app_labels" size="10" style="min-width:300px;">
+                    {% for app in app_groups %}
+                        <optgroup label="{{ app.name }}">
+                            {% for unit in app.units %}
+                                <option value="{{ unit.0 }}" 
+                                    hx-get="{% url 'local-stemma' db_pk=db.pk variation_unit=unit.0 %}"
+                                    hx-target="#local-stemma-div">
+                                    {{ unit.1 }}
+                                </option>
+                            {% endfor %}
+                        </optgroup>
+                    {% endfor %}
+                </select>
+            </p>
+        </form>
+        <div id="local-stemma-div"></div>
+    </div>
+</div>
