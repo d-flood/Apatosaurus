@@ -95,3 +95,39 @@ class LocalStemmaForm(forms.Form):
         label='Variation Unit Address',
         widget=forms.Select(attrs={'size': '10', 'style': 'min-width: 300px;'}),
     )
+
+
+class TextualFlowForm(forms.Form):
+    def __init__(self, *args, app_labels: list[tuple[str, str]], **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['app_labels'].choices = app_labels
+
+    app_labels = forms.ChoiceField(
+        required=True,
+        label='Variation Unit Address',
+        widget=forms.Select(attrs={'size': '10', 'style': 'min-width: 300px;'}),
+    )
+
+    graph_type = forms.ChoiceField(
+        required=True,
+        label='Graph Type',
+        choices=(
+            ('--flow', 'Flow'),
+            ('--attestations', 'Attestations'),
+            ('--variants', 'Variants'),
+        ),
+        widget=forms.RadioSelect(),
+    )
+
+    strengths = forms.BooleanField(label='Show Strengths', initial=False, required=False)
+
+    connectivity_limit = forms.IntegerField(
+        max_value=100, min_value=-1, initial=-1, label='Connectivity Limit',
+        help_text='Leave at -1 to ignore this option.'
+    )
+
+
+class GlobalStemmaForm(forms.Form):
+
+    strengths = forms.BooleanField(label='Show Strengths', initial=False, required=False)
+    lengths = forms.BooleanField(label='Show Costs', initial=False, required=False)

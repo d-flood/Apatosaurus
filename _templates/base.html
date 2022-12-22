@@ -115,7 +115,7 @@
         <script src="https://unpkg.com/htmx.org@1.8.4"></script>
         {% django_htmx_script %}
         <script src="https://unpkg.com/hyperscript.org@0.9.7" defer></script>
-
+        {% block extra_js %}{% endblock extra_js %}
         <script>
             document.body.addEventListener('htmx:configRequest', (event) => {
                 event.detail.headers['X-CSRFToken'] = '{{ csrf_token }}';

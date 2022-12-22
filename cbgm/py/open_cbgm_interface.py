@@ -230,3 +230,78 @@ def print_local_stemma(db: models.Cbgm_Db, app: str):
     with contextlib.suppress(Exception):
         rmtree(temp_dir)
     return True, svg
+
+
+def print_textual_flow_command(db: models.Cbgm_Db, app: str, graph_type: str, connectivity_limit: int, strengths: bool):
+    print_textual_flow_exe = BASE_DIR / 'cbgm' / 'bin' / 'print_textual_flow.exe'
+    print_textual_flow_binary = print_textual_flow_exe.resolve().as_posix()
+    tmp_name = f"cbgm-graphs-{''.join(random.choices(string.ascii_letters, k=5))}"
+    temp_dir = BASE_DIR / 'temp' / tmp_name
+    temp_dir.mkdir(parents=True, exist_ok=True)
+    commands: list[str] = [f'"{print_textual_flow_binary}"', graph_type]
+    if connectivity_limit:
+        commands.append(f'-k {connectivity_limit}')
+    if strengths:
+        commands.append('--strengths')
+    commands.extend([f'"{db.db_file.path}"', app])
+    return ' '.join(commands).replace('\\', '/'), temp_dir
+
+
+def print_textual_flow(db: models.Cbgm_Db, data: dict[str, str | int | bool]):
+    app = data['app_labels']
+    graph_type = data['graph_type']
+    connectivity_limit = data['connectivity_limit'] if data['connectivity_limit'] != -1 else None
+    strengths = data['strengths']
+    command, temp_dir = print_textual_flow_command(db, app, graph_type, connectivity_limit, strengths) # type: ignore
+    try:
+        message = check_output(command, cwd=temp_dir.resolve().as_posix())
+    except CalledProcessError as e:
+        print(f'{command=}\n{e.returncode=}')
+        return False, '''{"title": "Error Calling the open-cbgm", "message": "The 'print_textual_flow' function failed to run. Please contact David about it."}''', ''
+    svgs = []
+    dot_dir = temp_dir / data['graph_type'].replace('--', '') # type: ignore
+    for dot_file in dot_dir.glob('*.dot'):
+        with open(dot_file, 'r', encoding='utf-8') as f:
+            dot = f.read()
+        svg = make_svg_from_dot(dot)
+        svgs.append(svg)
+    with contextlib.suppress(Exception):
+        rmtree(temp_dir)
+    if graph_type == '--flow':
+        title = f'Textual Flow Graph for {app}'
+    elif graph_type == '--attestations':
+        title = f'Textual Flow at Attestations Graph for {app}'
+    else:
+        title = f'Textual Flow at Variants Graph for {app}'
+    return True, svgs, title
+
+
+def print_global_stemma_command(db: models.Cbgm_Db, data: dict[str, bool]):
+    print_global_stemma_exe = BASE_DIR / 'cbgm' / 'bin' / 'print_global_stemma.exe'
+    print_global_stemma_binary = print_global_stemma_exe.resolve().as_posix()
+    tmp_name = f"cbgm-graphs-{''.join(random.choices(string.ascii_letters, k=5))}"
+    temp_dir = BASE_DIR / 'temp' / tmp_name
+    temp_dir.mkdir(parents=True, exist_ok=True)
+    commands: list[str] = [f'"{print_global_stemma_binary}"']
+    if data.get('strengths'):
+        commands.append('--strengths')
+    if data.get('lengths'):
+        commands.append('--lengths')
+    commands.append(f'"{db.db_file.path}"')
+    return ' '.join(commands).replace('\\', '/'), temp_dir
+
+
+def print_global_stemma(db: models.Cbgm_Db, data: dict[str, bool]):
+    command, temp_dir = print_global_stemma_command(db, data)
+    try:
+        message = check_output(command, cwd=temp_dir.resolve().as_posix())
+    except CalledProcessError as e:
+        print(f'{command=}\n{e.returncode=}')
+        return False, '''{"title": "Error Calling the open-cbgm", "message": "The 'print_global_stemma' function failed to run. Please contact David about it."}'''
+    dot_path = temp_dir / 'global' / 'global-stemma.dot'
+    with open(dot_path, 'r') as f:
+        dot = f.read()
+    svg = make_svg_from_dot(dot)
+    with contextlib.suppress(Exception):
+        rmtree(temp_dir)
+    return True, svg

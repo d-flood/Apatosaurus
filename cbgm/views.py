@@ -16,13 +16,7 @@ from collation.models import Section
 from collation.py.helpers import quick_message
 from cbgm import models
 from cbgm import forms
-from cbgm.py.open_cbgm_interface import (
-    import_tei_section_task, 
-    compare_witnesses as compare_witnesses_task, 
-    find_relatives as find_relatives_task,
-    optimize_substemma as optimize_substemma_task,
-    print_local_stemma as local_stemma_task,
-)
+from cbgm.py import open_cbgm_interface as cbgm
 from cbgm.py.custom_sql import get_all_witness_siglums, get_readings_for_variation_unit
 from cbgm.py.helpers import extract_app_groups
 from witnesses.py.sort_ga_witnesses import sort_ga_witnesses
@@ -65,7 +59,7 @@ def send_section_form(request: HttpRequest, section_pk: int):
         message='Enqueued',
     )
     db = form.save(request.user.pk, 1)
-    Thread(target=import_tei_section_task, args=(request.user.pk, section_pk, db.pk, job.pk)).start()
+    Thread(target=cbgm.import_tei_section_task, args=(request.user.pk, section_pk, db.pk, job.pk)).start()
     return HttpResponse(quick_message('Collation Export to the CBGM Enqueued. You can track this under "Background Tasks" in your profile.', 'ok'))
 
 
@@ -89,6 +83,8 @@ def edit_db(request: HttpRequest, db_pk: int):
             'app_groups': app_groups,
             'optimize_substemma_form': forms.OptimizeSubstemmaForm(all_witnesses=witness_options),
             'local_stemma_form': forms.LocalStemmaForm(app_labels=app_choices),
+            'textual_flow_form': forms.TextualFlowForm(app_labels=app_choices),
+            'global_stemma_form': forms.GlobalStemmaForm(),
         })
     elif request.method == 'POST':
         form = forms.UpdateCbgmDbForm(request.POST, instance=db)
@@ -137,7 +133,7 @@ def compare_witnesses(request: HttpRequest, db_pk: int) -> HttpResponse:
     witness_options = [(w, w) for w in get_all_witness_siglums(db.db_file.path)]
     form = forms.CompareWitnessesForm(request.POST, all_witnesses=witness_options)
     if form.is_valid():
-        comparison = compare_witnesses_task(db, form.cleaned_data['witness'], form.cleaned_data['comparative_witnesses'])
+        comparison = cbgm.compare_witnesses(db, form.cleaned_data['witness'], form.cleaned_data['comparative_witnesses'])
         return render(request, 'cbgm/compare_witnesses.html', {'json': comparison})
     return HttpResponse(status=204)
 
@@ -153,7 +149,7 @@ def find_relatives(request: HttpRequest, db_pk: int) -> HttpResponse:
     form = forms.FindRelativesForm(request.POST, all_witnesses=all_witnesses, app_labels=app_labels)
     if form.is_valid():
         rdgs = request.POST.getlist('variation-unit-readings')
-        relatives = find_relatives_task(db, form.cleaned_data['witness'], form.cleaned_data['app_labels'], rdgs)
+        relatives = cbgm.find_relatives(db, form.cleaned_data['witness'], form.cleaned_data['app_labels'], rdgs)
         return render(request, 'cbgm/find_relatives.html', {'json': relatives})
     return HttpResponse(status=204)
 
@@ -170,11 +166,10 @@ def get_rdgs_for_app(request: HttpRequest, db_pk: int, variation_unit: str) -> H
 @require_http_methods(['POST'])
 def optimize_substemma(request: HttpRequest, db_pk: int) -> HttpResponse:
     db = models.Cbgm_Db.objects.get(pk=db_pk)
-    witnesses = db.witnesses
-    witness_options = [(w, w) for w in witnesses] #type: ignore
+    witness_options = [(w, w) for w in db.witnesses] #type: ignore
     form = forms.OptimizeSubstemmaForm(request.POST, all_witnesses=witness_options)
     if form.is_valid():
-        successful, substemma = optimize_substemma_task(
+        successful, substemma = cbgm.optimize_substemma(
             db=db, witness=form.cleaned_data['witness'], 
             max_cost=form.cleaned_data['max_cost']
         )
@@ -190,7 +185,7 @@ def optimize_substemma(request: HttpRequest, db_pk: int) -> HttpResponse:
 @require_safe
 def local_stemma(request: HttpRequest, db_pk: int, variation_unit: str) -> HttpResponse:
     db = models.Cbgm_Db.objects.get(pk=db_pk)
-    successful, svg = local_stemma_task(
+    successful, svg = cbgm.print_local_stemma(
         db=db, app=variation_unit,
     )
     if successful:
@@ -198,3 +193,45 @@ def local_stemma(request: HttpRequest, db_pk: int, variation_unit: str) -> HttpR
     resp = HttpResponse(status=204)
     resp['HX-Trigger'] = f'{{"showDialog": {{"title": "Error", "message": "No local stemma found for this variation unit."}}}}'
     return resp
+
+
+@login_required
+@require_http_methods(['POST'])
+def textual_flow(request: HttpRequest, db_pk: int):
+    db = models.Cbgm_Db.objects.get(pk=db_pk)
+    app_labels = [(w, w) for w in db.sorted_app_labels()]
+    form = forms.TextualFlowForm(request.POST, app_labels=app_labels)
+    if form.is_valid():
+        successful, output, title = cbgm.print_textual_flow(db=db, data=form.cleaned_data)
+        if successful:
+            return render(request, 'cbgm/textual_flow.html', {'output': output, 'title': title})
+        else:
+            resp = HttpResponse(status=204)
+            resp['HX-Trigger'] = f'{{"showDialog": {output}}}'
+            return resp
+    else:
+        print(form.errors)
+        # TODO: retarget to #textual-flow-form and return rendered form block; context: db, textual_flow_form
+        return HttpResponse(status=204)
+
+
+
+@login_required
+@require_http_methods(['POST'])
+def global_stemma(request: HttpRequest, db_pk: int):
+    db = models.Cbgm_Db.objects.get(pk=db_pk)
+    form = forms.GlobalStemmaForm(request.POST)
+    if form.is_valid():
+        successful, output = cbgm.print_global_stemma(db=db, data=form.cleaned_data)
+        if successful:
+            return render(request, 'cbgm/global_stemma.html', {'svg': output})
+        else:
+            resp = HttpResponse(status=204)
+            resp['HX-Trigger'] = f'{{"showDialog": {output}}}'
+            return resp
+    else:
+        print(form.errors)
+        # retarget to #global-stemma-form and return rendered form block; context: db, global_stemma_form
+        return HttpResponse(status=204)
+        # TODO: retarget to #global-stemma-form and return rendered form block; context: db, global_stemma_form
+
