@@ -20,7 +20,7 @@
         {% for row in json.rows %}
             <tr class="{% cycle '' 'stripe' %}">
                 <td>{{ row.id }}</td>
-                <td>{{ row.dir }}</td>
+                <td>{% if row.dir == -1 %}🡺{% elif row.dir == 1 %}🡸{% else %}={% endif %}</td>
                 <td>{{ row.nr }}</td>
                 <td>{{ row.pass }}</td>
                 <td>{{ row.eq }}</td>

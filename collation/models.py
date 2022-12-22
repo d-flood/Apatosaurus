@@ -78,7 +78,7 @@ class Ab(models.Model):
 
     def as_element(self):
         ab = et.Element('ab')
-        ab.set(f'{XML_NS}id', self.name)
+        ab.set(f'{XML_NS}id', self.name.replace(':', '.').replace(' ', '_'))
         ab.text = self.basetext
         for app in self.apps.all():
             ab.append(app.as_element())
@@ -140,7 +140,7 @@ class App(models.Model):
         app = et.Element(
             'app', 
             {
-                'n': f'{self.ab.name}',
+                'n': f'{self.ab.name.replace(":", ".").replace(" ", "_")}',
                 'type': self.atype, 
                 'from': str(self.index_from), 
                 'to': str(self.index_to)

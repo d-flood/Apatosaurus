@@ -85,12 +85,25 @@ def create_ab_instance(ab_elem: et._Element, section_id: int, number: int) -> mo
 
 
 def create_app_instance(app_elem: et._Element, ab_pk: int) -> models.App|None:
-    if _index_from := app_elem.attrib.get('from'):
+    if (_index_from := app_elem.attrib.get('from')) and (_index_to := app_elem.attrib.get('to')):
         index_from = int(_index_from)
-    else:
-        return
-    if _index_to := app_elem.attrib.get('to'):
         index_to = int(_index_to)
+    elif n := str(app_elem.attrib.get('n')): # then maybe the format follows that of Joey's example: https://github.com/jjmccollum/open-cbgm/blob/master/examples/3_john_collation.xml
+        if not 'u' in n.lower():
+            return
+        index_single = re.search(r'u\d+', n.lower())
+        index_range = re.search(r'u\d+-\d+', n.lower())
+        if index_range:
+            index = index_range.group(0)
+        elif index_single:
+            index = index_single.group(0)
+        else:
+            return
+        if '-' in index:
+            index_from, index_to = int(index.split('-')[0][1:]), int(index.split('-')[1])
+        else:
+            index_from = int(index[1:])
+            index_to = index_from
     else:
         return
 
@@ -143,8 +156,12 @@ def create_arc_instance(app_elem: et._Element, app_pk: int):
         for arc in graph_elem.findall(f'{TEI_NS}arc'):
             rdg_from = arc.attrib.get('from')
             rdg_to = arc.attrib.get('to')
-            rdg_from_instance = models.Rdg.objects.filter(app_id=app_pk, name=rdg_from).first()
-            rdg_to_instance = models.Rdg.objects.filter(app_id=app_pk, name=rdg_to).first()
+            if not (rdg_from_instance := models.Rdg.objects.filter(app_id=app_pk, name=rdg_from).first()):
+                print(f'rdg_from {rdg_from} not found in app {app_pk}')
+                continue
+            if not (rdg_to_instance := models.Rdg.objects.filter(app_id=app_pk, name=rdg_to).first()):
+                print(f'rdg_to {rdg_to} not found in app {app_pk}')
+                continue
             models.Arc.objects.create(
                 rdg_from=rdg_from_instance,
                 rdg_to=rdg_to_instance,
@@ -158,7 +175,8 @@ def tei_to_db(xml: et._Element, section_id: int, job_pk: int, user_pk: int):
         total = 1
     i = 1
     try:
-        for i, ab_elem in enumerate(xml.findall(f'{TEI_NS}ab'), start=1):
+        # for i, ab_elem in enumerate(xml.findall(f'{TEI_NS}ab'), start=1):
+        for i, ab_elem in enumerate(xml.xpath(f'//tei:ab', namespaces={'tei': TEI_NS_STR}), start=1): #type: ignore
             update_status(job_pk, f'Importing {ab_elem.attrib.get(f"{XML_NS}id", "")}', int(i/total*100))
             ab_instance = create_ab_instance(ab_elem, section_id, i)
             for app_elem in ab_elem.findall(f'{TEI_NS}app'):
