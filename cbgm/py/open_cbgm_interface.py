@@ -39,10 +39,10 @@ def construct_populate_db_command(tei_path: str, db_path: str, db: models.Cbgm_D
     if ignore_types and ignore_types.strip():
         for ignore in ignore_types.split():
             options.extend(['-Z', ignore])
-    if ignore_suffixes and ignore_suffixes.strip():
-        for suffix in ignore_suffixes.split():
-            suffix = '"*"' if suffix == '*' else suffix
-            options.extend(['-s', suffix])
+    # if ignore_suffixes and ignore_suffixes.strip():
+    #     for suffix in ignore_suffixes.split():
+    #         suffix = '"*"' if suffix == '*' else suffix
+    #         options.extend(['-s', suffix])
     if merge_splits:
         options.append('--merge-splits')
     if use_classic_rules:
