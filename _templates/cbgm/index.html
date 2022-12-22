@@ -7,7 +7,8 @@
             <p id="active-db-p" hidden>Active Database: <strong id="active-db-label"></strong></p>
     </div>
     <div role="tablist" class="mt-10">
-        <button role="tab" aria-controls="manage-db" aria-selected="true">Manage Databases</button>
+        <button role="tab" aria-controls="about-open-cbgm" aria-selected="true">About</button>
+        <button role="tab" aria-controls="manage-db">Manage Databases</button>
         <button role="tab" aria-controls="compare-wits" class="cbgm-tab" disabled>Compare Witnesses</button>
         <button role="tab" aria-controls="find-relatives" class="cbgm-tab" disabled>Find Relatives</button>
         <button role="tab" aria-controls="optimize-substemma" class="cbgm-tab" disabled>Optimize Substemma</button>
@@ -16,7 +17,7 @@
         <button role="tab" aria-controls="global-stemma" class="cbgm-tab" disabled>Global Stemma</button>
     </div>
         
-    <div id="manage-db"  role="tabpanel">
+    <div id="manage-db" role="tabpanel" hidden>
         <h2>Manage <code>open-cbgm</code> Databases</h2>
         <div class="f-switch">
             <p hx-get={% url 'refresh-dbs' %}
@@ -47,6 +48,84 @@
             </p>
             <p id="manage-db-right"></p>
             <div id="db-info"></div>
+        </div>
+    </div>
+    <div id="about-open-cbgm" role="tabpanel" hidden>
+        <div class="container">
+            <h2>The "CBGM" and the "<code>open-cbgm</code>"</h2>
+            <p>
+                For the first time, a public platform and user interface for an implementation of 
+                the Coherence-Based Genealogical Method (CBGM) is available to users for use with 
+                their own collation data.
+            </p>
+            <h3>The CBGM</h3>
+            <p>
+                The CBGM is a set of tools for the analysis of the relationships between textual witnesses. 
+                Gerd Mink created and implemented the first versions of the CBGM in association with 
+                <a href="http://egora.uni-muenster.de/intf/index_en.shtml">INTF</a>. It is highly recommended
+                that users of Apatosaurus familiarize themselves with the CBGM in general before attempting to
+                use the modules provided here.
+            </p>
+            <p>
+                There are two aspects to learning about the CBGM:
+                <ol>
+                    <li>Key concepts and terms, e.g. "coherence," "contamination," "witness," etc.</li>
+                    <li>The mechanics of <em>using</em> a specific implementation of the CBGM.</li>
+                </ol>
+            </p>
+            <p>
+                For an introduction to the key concepts and terms, David Flood recommends the following resources:
+                <ul>
+                    <li>
+                        <a href="https://hcommons.org/deposits/objects/hc:31862/datastreams/CONTENT/content">The CBGM: An Illustrated Crash Course</a> by Joey McCollum.
+                        <small>
+                            A brief, helpful, and open-access overview of the CBGM.
+                        </small>
+                    </li>
+                    <li>
+                        <em>A New Approach to Textual Criticism: An Introduction to the Coherence-Based Genealogical Method</em> 
+                        by Tommy Wasserman and Peter Gurry. 
+                        <small>
+                            This book offers a good introductory explanation of the theory of the 
+                            CBGM as originally invented by Gerd Mink. Some of the implementation-specific details are now
+                            out of date, however the theoretical discussions and examples are still very helpful.
+                        </small>
+                    </li>
+                    <li>
+                        For an introduction and collection of other links and sources from the CBGM's creator, 
+                        see <a href="https://www.uni-muenster.de/INTF/Genealogical_method.html">this introductory page from INTF.</a>
+                    </li>
+                </ul>
+            </p>
+            <h3>The <code>open-cbgm</code></h3>
+            <p>
+                The <a href="https://zenodo.org/record/7317855">open-cbgm</a> is an open-source 
+                implementation of the CBGM developed by Joey McCollum. He has released the open-cbgm as both a 
+                <a href="https://github.com/jjmccollum/open-cbgm">class library</a> and as a
+                <a href="https://github.com/jjmccollum/open-cbgm-standalone">standalone command line application</a>.
+                It is only because of this superb software and generous permissions that Apatosaurus is able to 
+                offer the tools of the CBGM to users. For more information about the open-cbgm, see the pages
+                for the class library and standalone versions linked above.
+            </p>
+            <h3>The <code>open-cbgm</code> in Apatosaurus</h3>
+            <p>
+                Apatosaurus provides a user-friendly interface to the <code>open-cbgm</code>.
+                The interface provided here offers the same flexibility and power of the command line
+                application while easing the transition from collation creation to analysis of that collation
+                via the CBGM. Apatosaurus includes the <code>open-cbgm</code> in accordance with the <a href="https://raw.githubusercontent.com/jjmccollum/open-cbgm/master/LICENSE">MIT license</a>.
+            </p>
+            <p>
+                The <code>open-cbgm</code> takes a TEI collation file as input. The advantage that Apatosaurus has is
+                that collations are stored in the database and can be reliably exported in a TEI format that 
+                the <code>open-cbgm</code> accepts. Therefore, this conversion is invisible to the user since Apatosaurus 
+                handles it in the background.
+            </p>
+            <h3>Citing the <code>open-cbgm</code></h3>
+            <p>
+                Whether you use the <code>open-cbgm</code> via Apatosaurus, or the command line version,
+                please use the <a href="https://zenodo.org/record/7317855">DOI for citation purposes</a>. Details for citing Apatosaurus 
+                are forthcoming.
+            </p>
         </div>
     </div>
     <div id="compare-wits" role="tabpanel" hidden></div>
