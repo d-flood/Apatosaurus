@@ -62,10 +62,10 @@ def import_tei_section(user_pk: int, section_pk: int, db_pk: int):
     db_file = NamedTemporaryFile(delete=False, dir=BASE_DIR / 'temp', prefix='cbgm_', suffix='.db')
     cbgm_db_instance = models.Cbgm_Db.objects.get(pk=db_pk)
     command = construct_populate_db_command(tei_file.resolve().as_posix(), db_file.name, cbgm_db_instance)
-    p = Popen(command, shell=True)
+    p = Popen(command)
     return_code = p.wait()
     if return_code != 0:
-        Popen(f'Notepad {tei_file.resolve()}', shell=True)
+        Popen(f'Notepad {tei_file.resolve()}')
         cleanup(tei_file, db_file)
         raise Exception(f'open-cbgm.populate_db error.\nCommand="{command}"\nReturn code={return_code}')
     witnesses, app_labels = get_all_witnesses_and_apps(db_file.name)
@@ -140,9 +140,9 @@ def construct_find_relatives_command(db: models.Cbgm_Db, witness: str, app: str,
     compare_wits_binary = find_relatives_exe.resolve().as_posix()
     output_file = NamedTemporaryFile(delete=False, dir=BASE_DIR / 'temp', prefix='cbgm_', suffix='.json')
     if readings == []:
-        command = f'"{compare_wits_binary}" -f json -o "{output_file.name}" "{db.db_file.path}" {witness} {app}'
+        command = f'"{compare_wits_binary}" -f json -o "{output_file.name}" "{db.db_file.path}" {witness} "{app}"'
     else:
-        command = f'"{compare_wits_binary}" -f json -o "{output_file.name}" "{db.db_file.path}" {witness} {app} {" ".join(readings)}'
+        command = f'"{compare_wits_binary}" -f json -o "{output_file.name}" "{db.db_file.path}" {witness} "{app}" {" ".join(readings)}'
     return command.replace('\\', '/'), output_file
 
 
@@ -243,7 +243,7 @@ def print_textual_flow_command(db: models.Cbgm_Db, app: str, graph_type: str, co
         commands.append(f'-k {connectivity_limit}')
     if strengths:
         commands.append('--strengths')
-    commands.extend([f'"{db.db_file.path}"', app])
+    commands.extend([f'"{db.db_file.path}"', f'"{app}"'])
     return ' '.join(commands).replace('\\', '/'), temp_dir
 
 
