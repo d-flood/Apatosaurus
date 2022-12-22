@@ -200,9 +200,14 @@
                     {% endif %}
                 </p>
             {% endfor %}
-            <button type="submit" class="big" style="max-height: 60px;">
+            <button type="submit" class="big" style="max-height: 60px;"
+                _="on htmx:beforeSend from #textual-flow-form toggle @hidden on #textual-flow-indicator until htmx:afterOnLoad from body end
+                   on htmx:beforeSend from #textual-flow-form toggle @disabled on <button/> until htmx:afterOnLoad from body end">
                 Generate Diagram(s)
             </button>
+            <div id="textual-flow-indicator" hidden>
+                {% include 'svg/clock_spinner.svg' %}
+            </div>
         </form>
     {% endblock textual_flow_form %}
     <div id="textual-flow-graphs" style="width: 100%;"></div>
@@ -211,11 +216,18 @@
 <div id="global-stemma" role="tabpanel" 
     hx-swap-oob="true" hidden>
     <h2>Global Stemma</h2>
-    <form action="submit" 
+    <form action="submit" id="global-stemma-form"
         hx-post="{% url 'global-stemma' db_pk=db.pk %}"
         hx-target="#global-stemma-graph">
         {{ global_stemma_form.as_p }}
-        <button type="submit">Generate Global Stemma</button>
+        <button type="submit" class="big"
+            _="on htmx:beforeSend from #global-stemma-form toggle @hidden on #global-stemma-indicator until htmx:afterOnLoad from body end
+               on htmx:beforeSend from #global-stemma-form toggle @disabled on <button/> until htmx:afterOnLoad from body end">
+            Generate Global Stemma
+        </button>
+        <div id="global-stemma-indicator" hidden>
+            {% include 'svg/clock_spinner.svg' %}
+        </div>
     </form>
     <div id="global-stemma-graph" style="width: 100%;"></div>
 </div>
