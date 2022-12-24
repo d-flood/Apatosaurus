@@ -12,7 +12,7 @@ from render_block import render_block_to_string
 
 from accounts.models import JobStatus
 from CONFIG.settings import BASE_DIR
-from collation.models import Section
+from collation import models as cx_models
 from collation.py.helpers import quick_message
 from cbgm import models
 from cbgm import forms
@@ -38,28 +38,37 @@ def main(request: HttpRequest) -> HttpResponse:
 
 @login_required
 @require_http_methods(['GET', 'POST'])
-def send_section_form(request: HttpRequest, section_pk: int):
+def send_section_form(request: HttpRequest, corpus_pk: int, corpus_type: int):
+    if corpus_type == 1:
+        new_db_html = 'cbgm/new_cbgm_section_db.html'
+        corpus_instance = cx_models.Section.objects.get(pk=corpus_pk)
+    elif corpus_type == 0:
+        new_db_html = 'cbgm/new_cbgm_verse_db.html'
+        corpus_instance = cx_models.Ab.objects.get(pk=corpus_pk)
+    elif corpus_type == 2:
+        new_db_html = 'cbgm/new_cbgm_full_db.html'
+        corpus_instance = cx_models.Collation.objects.get(pk=corpus_pk)
+    else:
+        return HttpResponse(quick_message('Invalid corpus type', 'bad'))
+    context = {
+        'page': {'title': 'Apatosaurus - open-cbgm', 'active': 'open-cbgm'},
+        'corpus': corpus_instance,
+        'corpus_type': corpus_type,
+    }
     if request.method == 'GET':
-        return render(request, 'cbgm/new_cbgm_section_db.html', {
-            'page': {'title': 'Apatosaurus - open-cbgm', 'active': 'open-cbgm'},
-            'section': Section.objects.get(pk=section_pk),
-            'form': forms.Cbgm_DbForm(),
-        })
+        context['form'] = forms.Cbgm_DbForm()
+        return render(request, new_db_html, context)
     form = forms.Cbgm_DbForm(request.POST)
     if not form.is_valid():
-        return render(request, 'cbgm/new_cbgm_section_db.html', {
-            'page': {'title': 'Apatosaurus - open-cbgm', 'active': 'open-cbgm'},
-            'section': Section.objects.get(pk=section_pk),
-            'form': form,
-        })
-    section = Section.objects.get(pk=section_pk)
+        context['form'] = form
+        return render(request, new_db_html, context)
     job = JobStatus.objects.create(
         user=request.user,
-        name=f'Importing {section.name} into open-cbgm',
+        name=f'Importing {corpus_instance.name} into open-cbgm',
         message='Enqueued',
     )
-    db = form.save(request.user.pk, 1)
-    Thread(target=cbgm.import_tei_section_task, args=(request.user.pk, section_pk, db.pk, job.pk)).start()
+    db = form.save(request.user.pk, corpus_type)
+    Thread(target=cbgm.import_tei_task, args=(request.user.pk, corpus_pk, db.pk, job.pk, corpus_type)).start()
     return HttpResponse(quick_message('Collation Export to the CBGM Enqueued. You can track this under "Background Tasks" in your profile.', 'ok'))
 
 

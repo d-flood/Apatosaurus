@@ -18,7 +18,7 @@
         Download
     </a>
     <button type="button"
-        hx-get="{% url 'send-section-form' section_pk=section.pk %}"
+        hx-get="{% url 'send-cbgm-db' corpus_pk=section.pk corpus_type=1 %}"
         hx-target="#main">
         Import to open-cbgm
     </button>
