@@ -427,3 +427,36 @@ def download_tei_collation(request: HttpRequest, collation_pk: int):
     response = HttpResponse(tei, content_type='text/xml')
     response['Content-Disposition'] = f'attachment; filename={collation.name}.xml'
     return response
+
+
+@login_required
+@require_http_methods(['GET', 'POST'])
+def reading_note(request: HttpRequest, rdg_pk: int):
+    rdg = models.Rdg.objects.get(pk=rdg_pk)
+    if request.method == 'GET':
+        form = forms.RdgNoteForm(instance=rdg)
+        context = {
+            'form': form,
+            'instance': rdg,
+            'title': 'Reading'
+        }
+        return render(request, 'collation/draggable_note.html', context)
+    else:
+        form = forms.RdgNoteForm(request.POST, instance=rdg)
+        if form.is_valid():
+            form.save()
+            context = {
+                'form': form,
+                'instance': rdg,
+                'title': 'Reading'
+            }
+            block = render_block_to_string('collation/draggable_note.html', 'inner', context)
+            return HttpResponse(block)
+        else:
+            context = {
+                'form': form,
+                'instance': rdg,
+                'title': 'Reading'
+            }
+            block = render_block_to_string('collation/draggable_note.html', 'inner', context)
+            return HttpResponse(block)

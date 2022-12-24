@@ -1,3 +1,4 @@
+{% load static %}
 <div id="apparatus-div" class="fullbleed">
     <h3 class="center" style="margin-top:0;">{{ ab.name }}</h3>
     <div class="box center plain bg">
@@ -88,3 +89,6 @@
     <h4 class="center">Readings</h4>
     <div id="readings"></div>
 </div>
+{% block extra_js %}
+<script src="{% static 'js/draggable-note.js' %}"></script>
+{% endblock extra_js %}

@@ -26,4 +26,5 @@ urls = [
     path('download-tei/ab/<int:ab_pk>/', views.download_tei_ab, name='download-tei-ab'),
     path('download-tei/section/<int:section_pk>/', views.download_tei_section, name='download-tei-section'),
     path('download-tei/collation/<int:collation_pk>/', views.download_tei_collation, name='download-tei-collation'),
+    path('reading-notes/<int:rdg_pk>/', views.reading_note, name='reading-note'),
 ]
