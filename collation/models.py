@@ -191,6 +191,8 @@ class Rdg(models.Model):
     active = models.BooleanField(default=True)
     modified = models.DateTimeField(auto_now=True)
 
+    note = models.TextField(null=True, blank=True)
+
     def __str__(self) -> str:
         return f'{self.name}'
 

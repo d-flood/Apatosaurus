@@ -207,6 +207,15 @@ div.svg-graph>svg, p.svg-p>svg {
 }
 /* END UTILITIES */
 
+.reading-note {
+    position: absolute;
+    z-index: 9;
+    padding: 20px 0 0 0;
+}
+.reading-note-header {
+    cursor: move;
+    z-index: 10;
+}
 
 /* classes added via wagtail */
 .richtext-image.full-width {

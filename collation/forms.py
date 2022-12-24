@@ -1,4 +1,5 @@
 from django import forms
+from django.urls import reverse
 from django.contrib.auth import get_user_model
 from django.db.utils import IntegrityError
 
@@ -69,8 +70,9 @@ class RdgForm(forms.ModelForm):
         model = models.Rdg
         # exclude = ['app', 'active', 'varSeq']
         fields = [
+            'note',
             'name',
-            'rtype', 
+            'rtype',
             'text',
             'selected_witnesses',
             'wit',
@@ -86,6 +88,31 @@ class RdgForm(forms.ModelForm):
 
     selected_witnesses = forms.CharField(widget=forms.Textarea(attrs={'readonly': True}), required=False)
 
+
+class RdgNoteForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['note'].widget.attrs.update({
+            'rows': 5, 'cols': 40,
+            'hx-post': reverse('reading-note', kwargs={'rdg_pk': self.instance.pk}), # type: ignore
+            'hx-trigger': 'keyup changed delay:1s',
+            'hx-target': f'#note-{self.instance.pk}', # type: ignore
+            # 'hx-swap': 'outerHTML',
+            '_': f"on keyup remove .ok from #note-header-{self.instance.pk} then add .bad to #note-header-{self.instance.pk} end"
+        })
+    class Meta:
+        model = models.Rdg
+        fields = ['note']
+        # widgets = {
+        #     'note': forms.Textarea(attrs={
+        #         'rows': 5, 'cols': 40,
+        #         'hx-post': reverse('reading-note', kwargs={'rdg_pk': self.instance.pk}), # type: ignore
+        #         'hx-trigger': 'keyup changed delay:1s',
+        #         'hx-target': f'#rdg-note-{self.instance.pk}', # type: ignore
+        #         'hx-swap': 'outerHTML',
+        #         '_': 'on keyup remove .ok from closest parent <div/> then add .bad to closest parent <div/> end'
+        #         })
+        # }
 
 class ArcForm(forms.Form):
     def __init__(self, app_instance: models.App, *args, **kwargs):

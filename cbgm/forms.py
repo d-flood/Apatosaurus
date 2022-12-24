@@ -6,7 +6,7 @@ from cbgm import models
 class Cbgm_DbForm(forms.ModelForm):
     class Meta:
         model = models.Cbgm_Db
-        exclude = ['user', 'db_file', 'amount', 'witnesses', 'app_labels']
+        exclude = ['user', 'db_file', 'amount', 'witnesses', 'app_labels', 'active']
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

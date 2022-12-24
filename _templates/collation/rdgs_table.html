@@ -1,3 +1,4 @@
+<div id="reading-note-container"></div>
 <table class="plain bg fit" id="rdgs_table_parent">
     <thead>
         <tr id="rdgs_header">
@@ -14,12 +15,22 @@
                 <td width="5px">{{ rdg.name }}</td>
                 <td width="5px">{{ rdg.get_rtype_display }}</abbr></td>
                 <td width="40%">{{ rdg.text }}</td>
-                <td width="45%">{% for w in rdg.wit.all %}<span title="{{w.description}}">{{ w.siglum }}.</span> {% endfor %}</td>
-                <td style="text-align: end;">
+                <td width="45%">{% for w in rdg.wit.all %}<span title="{{ w.description }}">{{ w.siglum }}.</span> {% endfor %}</td>
+                <td style="text-align: end;" class="f-row">
                     <button type="button" title="edit reading" aria-label="edit reading"
                         hx-get="{% url 'edit-rdg' rdg_pk=rdg.pk %}"
                         hx-target="#new-rdg-form">
                         &#128393;
+                    </button>
+                    <button type="button" class="{% if rdg.note != '' %}ok color bg{% endif %}"
+                        id="open-rdg-note-{{ rdg.pk }}"
+                        hx-get="{% url 'reading-note' rdg_pk=rdg.pk %}"
+                        hx-target="#reading-note-container"
+                        hx-swap="beforeend">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-journal" viewBox="0 0 16 16">
+                            <path d="M3 0h10a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2v-1h1v1a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1v1H1V2a2 2 0 0 1 2-2z"/>
+                            <path d="M1 5v-.5a.5.5 0 0 1 1 0V5h.5a.5.5 0 0 1 0 1h-2a.5.5 0 0 1 0-1H1zm0 3v-.5a.5.5 0 0 1 1 0V8h.5a.5.5 0 0 1 0 1h-2a.5.5 0 0 1 0-1H1zm0 3v-.5a.5.5 0 0 1 1 0v.5h.5a.5.5 0 0 1 0 1h-2a.5.5 0 0 1 0-1H1z"/>
+                        </svg>
                     </button>
                 </td>
             </tr>
@@ -39,46 +50,53 @@
         </tr>
     </tbody>
 </table>
-
 <h4 class="center">Genealogical Relationships</h4>
 
-<!-- <div class="f-switch fit"> -->
-    <div class="box plain bg center">
-        <h4>Local Stemma</h4>
-        <div id="graph-div" class="svg-graph">{{ local_stemma|safe }}</div>
-    </div>
+<div class="box plain bg center">
+    <h4>Local Stemma</h4>
+    <div id="graph-div" class="svg-graph">{{ local_stemma|safe }}</div>
+</div>
 
-    <div class="box plain bg center">
-        <h4>Set Relationship</h4>
-        <div class="f-col">
-            <form action="submit" class="f-col">
-                <div class="f-row" id="arc-div">
-                    {{ arc_form.rdg_from }}
-                    <div class="center">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="currentColor" viewBox="0 0 16 16">
-                            <path d="M0 14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2H2a2 2 0 0 0-2 2v12zm4.5-6.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5a.5.5 0 0 1 0-1z"/>
-                        </svg>
-                    </div>
-                    {{ arc_form.rdg_to }}
+<style>
+    div#graph-div>svg {
+        color: var(--text-color) !important;
+    }
+    div#graph-div>svg>g>g>polygon, div#graph-div>svg>g>g>path {
+        fill: var(--text-color) !important;
+        stroke: var(--text-color) !important;
+    }
+</style>
+
+<div class="box plain bg center">
+    <h4>Set Relationship</h4>
+    <div class="f-col">
+        <form action="submit" class="f-col">
+            <div class="f-row" id="arc-div">
+                {{ arc_form.rdg_from }}
+                <div class="center">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M0 14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2H2a2 2 0 0 0-2 2v12zm4.5-6.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5a.5.5 0 0 1 0-1z"/>
+                    </svg>
                 </div>
-                <div class="f-row">
-                    <button name="arc-button" type="button" class="ok color bg" hidden
-                        hx-post="{% url 'edit-arc' app_pk=app.pk delete=0 %}"
-                        hx-target="#graph-div"
-                        hx-include="#arc-div">
-                        Add
-                    </button>
-                    <button name="arc-button" type="button" class="warn color bg" hidden
-                        hx-post="{% url 'edit-arc' app_pk=app.pk delete=1 %}"
-                        hx-target="#graph-div"
-                        hx-include="#arc-div">
-                        Remove
-                    </button>
-                </div>
-            </form>
-        </div>
+                {{ arc_form.rdg_to }}
+            </div>
+            <div class="f-row">
+                <button name="arc-button" type="button" class="ok color bg" hidden
+                    hx-post="{% url 'edit-arc' app_pk=app.pk delete=0 %}"
+                    hx-target="#graph-div"
+                    hx-include="#arc-div">
+                    Add
+                </button>
+                <button name="arc-button" type="button" class="warn color bg" hidden
+                    hx-post="{% url 'edit-arc' app_pk=app.pk delete=1 %}"
+                    hx-target="#graph-div"
+                    hx-include="#arc-div">
+                    Remove
+                </button>
+            </div>
+        </form>
     </div>
-<!-- </div>    -->
+</div>
 <script>
     document.getElementsByName('rdg_to').forEach(function (rdg_to) {
         rdg_to.parentElement.parentElement.hidden = true;
