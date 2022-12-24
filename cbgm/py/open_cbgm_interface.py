@@ -15,7 +15,7 @@ from rich import print
 
 from accounts.models import JobStatus
 from CONFIG.settings import BASE_DIR
-from collation.models import Section
+import collation.models as cx_models
 from cbgm import models
 from cbgm.py.custom_sql import get_all_witness_siglums, get_all_apps, get_all_witnesses_and_apps
 from cbgm.py.helpers import make_svg_from_dot
@@ -39,7 +39,7 @@ def construct_populate_db_command(tei_path: str, db_path: str, db: models.Cbgm_D
     if ignore_types and ignore_types.strip():
         for ignore in ignore_types.split():
             options.extend(['-Z', ignore])
-    # if ignore_suffixes and ignore_suffixes.strip():
+    # if ignore_suffixes and ignore_suffixes.strip(): #! Including this in the command is causing populate_db to crash. Doesn't seem like a malformed command; investigate.
     #     for suffix in ignore_suffixes.split():
     #         suffix = '"*"' if suffix == '*' else suffix
     #         options.extend(['-s', suffix])
@@ -50,9 +50,17 @@ def construct_populate_db_command(tei_path: str, db_path: str, db: models.Cbgm_D
     return f'{populate_db_binary} {" ".join(options)} "{tei_path}" "{db_path}"'.replace('\\', '/')
 
 
-def import_tei_section(user_pk: int, section_pk: int, db_pk: int):
-    section = Section.objects.get(pk=section_pk)
-    tei, _ = section.as_tei()
+def import_tei(user_pk: int, corpus_pk: int, db_pk: int, corpus_type: int):
+    ''' corpus_type options: 'section', 'verse', 'full' '''
+    if corpus_type == 1:
+        corpus = cx_models.Section.objects.get(pk=corpus_pk)
+    elif corpus_type == 0:
+        corpus = cx_models.Ab.objects.get(pk=corpus_pk)
+    elif corpus_type == 2:
+        corpus = cx_models.Collation.objects.get(pk=corpus_pk)
+    else:
+        raise ValueError(f'Invalid corpus_type: {corpus_type}. Must be one of "verse, 0", "section, 1", or "full, 2".')
+    tei, _ = corpus.as_tei()
     # I cannot get NamedTemporaryFile to work with open-cbgm.populate_db. I would
     # guess that it is because the file is opened by another process.
     tmp_name = f"tei_{''.join(random.choices(string.ascii_letters, k=5))}.xml"
@@ -72,20 +80,20 @@ def import_tei_section(user_pk: int, section_pk: int, db_pk: int):
     cbgm_db_instance.witnesses = sort_ga_witnesses(witnesses) #type: ignore
     cbgm_db_instance.app_labels = app_labels #type: ignore
     django_db_file = ContentFile(db_file.read())
-    cbgm_db_instance.db_file.save(f'{section.name}.db', django_db_file)
+    cbgm_db_instance.db_file.save(f'{corpus.name}.db', django_db_file)
     cbgm_db_instance.active = True
     cbgm_db_instance.save()
     cleanup(tei_file, db_file)
 
 
-def import_tei_section_task(user_pk: int, section_pk: int, db_pk: int, job_pk: int):
+def import_tei_task(user_pk: int, section_pk: int, db_pk: int, job_pk: int, corpus_type: int):
     JobStatus.objects.filter(pk=job_pk).update(
         in_progress=True,
         progress=-1,
         message='Importing TEI into open-cbgm'
     )
     try:
-        import_tei_section(user_pk, section_pk, db_pk)
+        import_tei(user_pk, section_pk, db_pk, corpus_type)
         JobStatus.objects.filter(pk=job_pk).update(
             in_progress=False,
             completed=True,

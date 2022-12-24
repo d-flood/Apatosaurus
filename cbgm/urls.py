@@ -5,7 +5,7 @@ from cbgm import views
 
 urls = [
     path('', views.main, name='open-cbgm'),
-    path('send-section-form/<int:section_pk>/', views.send_section_form, name='send-section-form'),
+    path('send-cbgm-db-form/<int:corpus_pk>/<int:corpus_type>/', views.send_section_form, name='send-cbgm-db'),
     # path('import-tei/section/<int:section_pk>/', views.send_section_for_import, name='import-tei-section'),
     path('edit/db/<int:db_pk>/', views.edit_db, name='edit-db'),
     path('refresh-dbs/', views.refresh_dbs, name='refresh-dbs'),

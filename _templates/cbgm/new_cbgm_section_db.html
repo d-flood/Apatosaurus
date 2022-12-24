@@ -1,11 +1,11 @@
-<h3>Import Section {{ section.name }} to <code>open-cbgm</code></h3>
+<h3>Import Section {{ corpus.name }} to <code>open-cbgm</code></h3>
 <p>
     Collation data must be imported for use in the CBGM.
     There are several options to consider when importing a collation.
     <br><strong>Note:</strong> To make any changes to the import options, 
     you must re-import the collation with the new options.
 </p>
-<form hx-post="{% url 'send-section-form' section_pk=section.pk %}" hx-target="#main">
+<form hx-post="{% url 'send-cbgm-db' corpus_pk=corpus.pk corpus_type=corpus_type %}" hx-target="#main">
     {{ form.as_p }}
     <input type="submit" value="Submit" class="big">
     <style>
