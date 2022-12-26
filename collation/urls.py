@@ -27,4 +27,6 @@ urls = [
     path('download-tei/section/<int:section_pk>/', views.download_tei_section, name='download-tei-section'),
     path('download-tei/collation/<int:collation_pk>/', views.download_tei_collation, name='download-tei-collation'),
     path('reading-notes/<int:rdg_pk>/', views.reading_note, name='reading-note'),
+    path('rdg-history/<int:rdg_pk>/', views.rdg_history, name='rdg-history'),
+    path('restore-rdg/<int:rdg_pk>/<int:history_pk>/', views.restore_rdg, name='restore-rdg'),
 ]

@@ -460,3 +460,29 @@ def reading_note(request: HttpRequest, rdg_pk: int):
             }
             block = render_block_to_string('collation/draggable_note.html', 'inner', context)
             return HttpResponse(block)
+
+
+@login_required
+@require_safe
+def rdg_history(request: HttpRequest, rdg_pk: int):
+    rdg = models.Rdg.objects.get(pk=rdg_pk)
+    context = {
+        'rdg': rdg,
+        'history': rdg.history.all()
+    }
+    return render(request, 'collation/rdg_history.html', context)
+
+
+@login_required
+@require_http_methods(['POST'])
+def restore_rdg(request: HttpRequest, rdg_pk: int, history_pk: int):
+    rdg = models.Rdg.objects.get(pk=rdg_pk)
+    history = rdg.history.get(pk=history_pk)
+    history.restore()
+    app = models.App.objects.get(pk=rdg.app.pk)
+    context = {
+        'app': app,
+        'arc_form': forms.ArcForm(models.App.objects.get(pk=app.pk)),
+        'local_stemma': helpers.make_graph(app),
+    }
+    return render(request, 'collation/rdgs_table.html', context)
