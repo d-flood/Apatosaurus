@@ -19,8 +19,8 @@ function initialize_draggable_textarea() {
             pos2 = pos4 - e.clientY;
             pos3 = e.clientX;
             pos4 = e.clientY;
-            // set the element's new position:
-            note.style.top = (note.offsetTop - pos2 - 22) + "px";
+            var style = note.currentStyle || window.getComputedStyle(note);
+            note.style.top = (note.offsetTop - pos2 - style.marginTop.replace("px", "")) + "px";
             note.style.left = (note.offsetLeft - pos1) + "px";
         }
         function closeDragElement() {
