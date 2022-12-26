@@ -1,4 +1,5 @@
 import contextlib
+from datetime import datetime
 from django.db import models
 from django.db.models.query import QuerySet
 from django.contrib.auth import get_user_model
@@ -188,13 +189,23 @@ class Rdg(models.Model):
     text = models.TextField(null=True, blank=True)
     wit = models.ManyToManyField(Witness, related_name='rdgs', blank=True, verbose_name='Witnesses')
 
-    active = models.BooleanField(default=True)
     modified = models.DateTimeField(auto_now=True)
 
     note = models.TextField(null=True, blank=True)
 
     def __str__(self) -> str:
         return f'{self.name}'
+
+    def save(self, create_history: bool = True, *args, **kwargs):
+        if self._state.adding or not create_history:
+            super().save(*args, **kwargs)
+            return
+        self.history: QuerySet[RdgHistory]
+        rdg_history = RdgHistory.objects.create(rdg=self, name=self.name, text=self.text, rtype=self.rtype, modified=self.modified)
+        rdg_history.wit.set(self.wit.all())
+        if self.history.count() > 4:
+            self.history.last().delete() #type: ignore
+        super().save(*args, **kwargs)
 
     def as_element(self) -> et._Element:
         rdg = et.Element('rdg', nsmap={None: TEI_NS_STR, 'xml': XML_NS_STR}) #type: ignore
@@ -207,11 +218,27 @@ class Rdg(models.Model):
         rdg.text = self.text
         return rdg
 
+class RdgHistory(models.Model):
+    rdg = models.ForeignKey(Rdg, on_delete=models.CASCADE, related_name='history')
+    modified = models.DateTimeField(default=datetime.now())
+    
+    name = models.CharField(max_length=5)
+    rtype = models.CharField(max_length=5, choices=Rdg.RDG_CHOICES, default='0', verbose_name='Reading Type')
+    text = models.TextField(null=True, blank=True)
+    wit = models.ManyToManyField(Witness, related_name='history_rdgs', blank=True, verbose_name='Witnesses')
+
+    def restore(self):
+        self.rdg.name, self.name = self.name, self.rdg.name
+        self.rdg.rtype, self.rtype = self.rtype, self.rdg.rtype
+        self.rdg.text, self.text = self.text, self.rdg.text
+        old_wit = tuple(self.rdg.wit.all())
+        self.rdg.wit.set(self.wit.all())
+        self.wit.set(old_wit)
+        self.rdg.save(create_history=False)
+        self.save()
+
     class Meta:
-        ordering = ['name']
-        constraints = [
-            models.UniqueConstraint(fields=['app', 'name'], name='unique_name'),
-        ]
+        ordering = ['-modified']
 
 
 class Arc(models.Model):

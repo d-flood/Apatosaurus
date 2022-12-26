@@ -10,4 +10,5 @@ admin.site.register((
     models.Witness,
     models.Rdg,
     models.Arc,
+    models.RdgHistory,
 ))
