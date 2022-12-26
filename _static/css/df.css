@@ -208,15 +208,17 @@ div.svg-graph>svg, p.svg-p>svg {
 /* END UTILITIES */
 
 .reading-note {
-    position: absolute;
-    z-index: 9;
-    padding: 20px 0 0 0;
+    position: absolute !important;
+    z-index: 100 !important;
+    padding: 20px 0 0 0 !important;
 }
 .reading-note-header {
-    cursor: move;
-    z-index: 10;
+    cursor: move !important;
+    z-index: 100 !important;
 }
-
+dialog {
+    margin: 200px 0 0 0 !important;
+}
 /* classes added via wagtail */
 .richtext-image.full-width {
     width: 100%;
