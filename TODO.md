@@ -5,8 +5,5 @@
     - to "restore" a reading from the history, copy the current instance, then set all of its fields *except* `active` and `pk` to match the reading being restored. I *think* it is a good idea to keep the primary key for the "main" reading the same for maintaining the other relationships that the reading model has (both "up" to section, and "down" to collation unit).
 - replace all threading with a task server before production.
 - export to open-cbgm only implemented on sections; also add verse and full collation export.
-- open-cbgm populate_db options implemented in form, but not in call to open-cbgm yet.
-- create small toast/popup that can be triggered via htmx server sent event for quick messages.
 - Support more sophisticated TEI import and export formats as [Joey McCollum demonstrates](https://jjmccollum.github.io/teiphy/advanced.html#analysis-at-varying-levels-of-detail-using-reading-types).
 - add indicators during open-cbgm operations
-- add note feature to ab, app, and rdg
