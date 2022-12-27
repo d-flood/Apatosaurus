@@ -39,12 +39,12 @@ def main(request: HttpRequest) -> HttpResponse:
 @login_required
 @require_http_methods(['GET', 'POST'])
 def send_section_form(request: HttpRequest, corpus_pk: int, corpus_type: int):
-    if corpus_type == 1:
-        new_db_html = 'cbgm/new_cbgm_section_db.html'
-        corpus_instance = cx_models.Section.objects.get(pk=corpus_pk)
-    elif corpus_type == 0:
+    if corpus_type == 0:
         new_db_html = 'cbgm/new_cbgm_verse_db.html'
         corpus_instance = cx_models.Ab.objects.get(pk=corpus_pk)
+    elif corpus_type == 1:
+        new_db_html = 'cbgm/new_cbgm_section_db.html'
+        corpus_instance = cx_models.Section.objects.get(pk=corpus_pk)
     elif corpus_type == 2:
         new_db_html = 'cbgm/new_cbgm_full_db.html'
         corpus_instance = cx_models.Collation.objects.get(pk=corpus_pk)
