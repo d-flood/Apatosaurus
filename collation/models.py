@@ -45,6 +45,7 @@ class Section(models.Model):
     collation = models.ForeignKey(Collation, on_delete=models.CASCADE, related_name='sections')
     name = models.CharField(max_length=32, null=True, blank=True)
     number = models.SmallIntegerField()
+    published = models.BooleanField(default=False)
 
     def ab_elements(self):
         self.abs: QuerySet[Ab]

@@ -25,6 +25,11 @@ class CollationForm(forms.ModelForm):
 
 
 class SectionForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['published'].widget.attrs.update({
+            'style': 'height: 1.5em; width: 1.5em; margin-top: 5px;',
+        })
     class Meta:
         model = models.Section
         exclude = ['collation']
