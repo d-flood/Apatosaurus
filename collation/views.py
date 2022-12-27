@@ -486,3 +486,36 @@ def restore_rdg(request: HttpRequest, rdg_pk: int, history_pk: int):
         'local_stemma': helpers.make_graph(app),
     }
     return render(request, 'collation/rdgs_table.html', context)
+
+
+@login_required
+@require_http_methods(['GET', 'POST'])
+def ab_note(request: HttpRequest, ab_pk: int):
+    ab = models.Ab.objects.get(pk=ab_pk)
+    if request.method == 'GET':
+        form = forms.AbNoteForm(instance=ab)
+        context = {
+            'form': form,
+            'instance': ab,
+            'title': ''
+        }
+        return render(request, 'collation/draggable_note.html', context)
+    else:
+        form = forms.AbNoteForm(request.POST, instance=ab)
+        if form.is_valid():
+            form.save()
+            context = {
+                'form': form,
+                'instance': ab,
+                'title': ''
+            }
+            block = render_block_to_string('collation/draggable_note.html', 'inner', context)
+            return HttpResponse(block)
+        else:
+            context = {
+                'form': form,
+                'instance': ab,
+                'title': ''
+            }
+            block = render_block_to_string('collation/draggable_note.html', 'inner', context)
+            return HttpResponse(block)

@@ -29,4 +29,5 @@ urls = [
     path('reading-notes/<int:rdg_pk>/', views.reading_note, name='reading-note'),
     path('rdg-history/<int:rdg_pk>/', views.rdg_history, name='rdg-history'),
     path('restore-rdg/<int:rdg_pk>/<int:history_pk>/', views.restore_rdg, name='restore-rdg'),
+    path('ab/note/<int:ab_pk>/', views.ab_note, name='ab-note'),
 ]
