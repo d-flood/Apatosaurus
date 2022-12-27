@@ -40,13 +40,13 @@ def main(request: HttpRequest) -> HttpResponse:
 @require_http_methods(['GET', 'POST'])
 def send_section_form(request: HttpRequest, corpus_pk: int, corpus_type: int):
     if corpus_type == 0:
-        new_db_html = 'cbgm/new_cbgm_verse_db.html'
+        new_db_html = 'cbgm/new_cbgm_db.html'
         corpus_instance = cx_models.Ab.objects.get(pk=corpus_pk)
     elif corpus_type == 1:
-        new_db_html = 'cbgm/new_cbgm_section_db.html'
+        new_db_html = 'cbgm/new_cbgm_db.html'
         corpus_instance = cx_models.Section.objects.get(pk=corpus_pk)
     elif corpus_type == 2:
-        new_db_html = 'cbgm/new_cbgm_full_db.html'
+        new_db_html = 'cbgm/new_cbgm_db.html'
         corpus_instance = cx_models.Collation.objects.get(pk=corpus_pk)
     else:
         return HttpResponse(quick_message('Invalid corpus type', 'bad'))
@@ -69,7 +69,7 @@ def send_section_form(request: HttpRequest, corpus_pk: int, corpus_type: int):
     )
     db = form.save(request.user.pk, corpus_type)
     Thread(target=cbgm.import_tei_task, args=(request.user.pk, corpus_pk, db.pk, job.pk, corpus_type)).start()
-    return HttpResponse(quick_message('Collation Export to the CBGM Enqueued. You can track this under "Background Tasks" in your profile.', 'ok'))
+    return HttpResponse(quick_message('Collation Export to the CBGM Enqueued. You can track this under "Background Tasks" in your profile. Note that large collations will usually take 1 to 2 second per witness including correctors.', 'ok'))
 
 
 @login_required

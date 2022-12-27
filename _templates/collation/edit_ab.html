@@ -17,6 +17,11 @@
         </svg>
         Download
     </a>
+    <button type="button"
+        hx-get="{% url 'send-cbgm-db' corpus_pk=ab.pk corpus_type=0 %}"
+        hx-target="#main">
+        Import to open-cbgm
+    </button>
     <hr aria-orientation="vertical">
     <button type="button" class="bad color bg"
         hx-delete="{% url 'edit-ab' ab_pk=ab.pk %}"

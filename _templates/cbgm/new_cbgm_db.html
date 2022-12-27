@@ -1,4 +1,14 @@
-<h3>Import Section {{ corpus.name }} to <code>open-cbgm</code></h3>
+<h3>
+    Import 
+    {% if corpus_type == 2 %}
+        Collation: 
+    {% elif corpus_type == 1 %}
+        Section: 
+    {% elif corpus_type == 0 %}
+        Verse:
+    {% endif %} 
+    {{ corpus.name }} to <code>open-cbgm</code>
+</h3>
 <p>
     Collation data must be imported for use in the CBGM.
     There are several options to consider when importing a collation.

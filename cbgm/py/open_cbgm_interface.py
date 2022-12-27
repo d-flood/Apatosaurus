@@ -60,7 +60,7 @@ def import_tei(user_pk: int, corpus_pk: int, db_pk: int, corpus_type: int):
         corpus = cx_models.Collation.objects.get(pk=corpus_pk)
     else:
         raise ValueError(f'Invalid corpus_type: {corpus_type}. Must be one of "verse, 0", "section, 1", or "full, 2".')
-    tei, _ = corpus.as_tei()
+    tei = corpus.as_tei()
     # I cannot get NamedTemporaryFile to work with open-cbgm.populate_db. I would
     # guess that it is because the file is opened by another process.
     tmp_name = f"tei_{''.join(random.choices(string.ascii_letters, k=5))}.xml"
