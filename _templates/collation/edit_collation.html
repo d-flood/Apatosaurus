@@ -15,6 +15,11 @@
         </svg>
         Download
     </a>
+    <button type="button"
+        hx-get="{% url 'send-cbgm-db' corpus_pk=collation.pk corpus_type=2 %}"
+        hx-target="#main">
+        Import to open-cbgm
+    </button>
     <hr aria-orientation="vertical">
     <button type="button" class="bad color bg"
         hx-delete="{% url 'edit-collation' collation_id=collation.pk %}"

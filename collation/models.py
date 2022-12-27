@@ -37,7 +37,7 @@ class Collation(models.Model):
         for section in self.sections.all(): #type: ignore
             for ab in section.ab_elements():
                 tei_root.append(ab)
-        add_tei_header(tei_root)
+        wits = add_tei_header(tei_root)
         return et.tostring(tei_root, encoding='unicode', pretty_print=True)
 
 
@@ -55,7 +55,7 @@ class Section(models.Model):
         for ab in self.ab_elements():
             tei_root.append(ab)
         wits = add_tei_header(tei_root)
-        return et.tostring(tei_root, encoding='unicode', pretty_print=True), wits
+        return et.tostring(tei_root, encoding='unicode', pretty_print=True)
 
     def all_app_labels(self):
         apps: list[str] = []
