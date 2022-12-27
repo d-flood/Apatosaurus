@@ -50,6 +50,21 @@ class AbForm(forms.ModelForm):
         return instance
 
 
+class AbNoteForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['note'].widget.attrs.update({
+            'rows': 10, 'cols': 60,
+            'hx-post': reverse('ab-note', kwargs={'ab_pk': self.instance.pk}), # type: ignore
+            'hx-trigger': 'keyup changed delay:1s',
+            'hx-target': f'#note-{self.instance.pk}', # type: ignore
+            '_': f"on keyup remove .ok from #note-header-{self.instance.pk} then add .bad to #note-header-{self.instance.pk} end"
+        })
+    class Meta:
+        model = models.Ab
+        fields = ['note']
+
+
 class AppForm(forms.ModelForm):
     class Meta:
         model = models.App
@@ -103,16 +118,7 @@ class RdgNoteForm(forms.ModelForm):
     class Meta:
         model = models.Rdg
         fields = ['note']
-        # widgets = {
-        #     'note': forms.Textarea(attrs={
-        #         'rows': 5, 'cols': 40,
-        #         'hx-post': reverse('reading-note', kwargs={'rdg_pk': self.instance.pk}), # type: ignore
-        #         'hx-trigger': 'keyup changed delay:1s',
-        #         'hx-target': f'#rdg-note-{self.instance.pk}', # type: ignore
-        #         'hx-swap': 'outerHTML',
-        #         '_': 'on keyup remove .ok from closest parent <div/> then add .bad to closest parent <div/> end'
-        #         })
-        # }
+
 
 class ArcForm(forms.Form):
     def __init__(self, app_instance: models.App, *args, **kwargs):

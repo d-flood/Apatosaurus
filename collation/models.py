@@ -76,6 +76,7 @@ class Ab(models.Model):
     basetext = models.TextField()
     number = models.SmallIntegerField()
     indexed_basetext = models.JSONField(null=True, blank=True, default=list)
+    note = models.TextField(null=True, blank=True)
 
     def as_element(self):
         ab = et.Element('ab')
