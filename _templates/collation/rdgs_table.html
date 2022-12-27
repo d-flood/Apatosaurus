@@ -24,6 +24,8 @@
                     </button>
                     {% with rdg.note as note %}
                         <button type="button" class="{% if note and note.strip != '' %}ok color bg{% endif %}"
+                            aria-label="view reading note"
+                            title="view reading note"
                             id="open-rdg-note-{{ rdg.pk }}"
                             hx-get="{% url 'reading-note' rdg_pk=rdg.pk %}"
                             hx-target="#reading-note-container"
@@ -73,7 +75,7 @@
         color: var(--text-color) !important;
     }
     div#graph-div>svg>g>g>polygon, div#graph-div>svg>g>g>path {
-        fill: var(--text-color) !important;
+        /* fill: var(--text-color) !important; */
         stroke: var(--text-color) !important;
     }
 </style>
