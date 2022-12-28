@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block content %}
+<nav class="breadcrumbs" aria-label="breadcrumbs">
+    <ol>
+        <li><a href="{% url 'published' %}">Published</a></li>
+        <li><a href="{% url 'browse-collation' collation_pk=section.collation.pk %}">{{ section.collation.name }}</a></li>
+        <li><a href="{% url 'browse-section' section_pk=section.pk %}" aria-current="page">{{ section.name }}</a></li>
+    </ol>
+</nav>
+<div class="sidebar-layout">
+    <header id="sidebar-header">
+        <h1 class="<h3>">Collation Section: {{ section.name }}</h1>
+        <ul role="list">
+            {% for ab in section.abs.all %}
+            <li>
+                <a href="#" hx-get="#" hx-target="#main"
+                class="ab-list-li" role="listitem" aria-current="false"
+                _="on click remove @aria-current from .ab-list-li
+                then set my @aria-current to 'location' 
+                then remove .chip from .ab-list-li
+                then add .chip to me end">
+                {{ ab.name }}
+            </a>
+        </li>
+        {% endfor %}
+    </ul>
+</header>
+<div>
+        <main id="main"></main>
+    </div>
+</div>
+{% endblock content %}

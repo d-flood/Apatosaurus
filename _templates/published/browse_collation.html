@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block content %}
+<main id="main">
+    <nav class="breadcrumbs" aria-label="breadcrumbs">
+        <ol>
+            <li><a href="{% url 'published' %}">Published</a></li>
+            <li><a href="{% url 'browse-collation' collation_pk=collation.pk %}" aria-current="page">{{ collation.name }}</a></li>
+        </ol>
+    </nav>
+    <h1 class="center">
+        {{ collation.name }} Collation Sections
+    </h1>
+    <hr>
+    <div class="f-col">
+        {% for section in sections %}
+            <a href="{% url 'browse-section' section_pk=section.pk %}" class="<button>">{{ section.name }}</a>
+        {% endfor %}
+    </div>
+</main>
+{% endblock content %}

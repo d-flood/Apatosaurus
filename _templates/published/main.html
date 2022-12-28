@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% load static %}
 {% block content %}
-<main>
+<main id="main">
     <h1 class="center">
         Published Collations
     </h1>
@@ -9,14 +9,16 @@
     <div class="f-switch">
         <div class="f-col">
             <h2>Browse by Content</h2>
-            <a href="#" class="<button>">Matthew</a>
-            <a href="#" class="<button>">Romans</a>
-            <a href="#" class="<button>">1 Corinthians</a>
+            {% for collation in collations %}
+                <a href="{% url 'browse-collation' collation_pk=collation.pk %}" class="<button>">{{ collation.name }}</a>
+            {% endfor %}
         </div>
         <div class="f-col">
             <h2>Browse by Editor</h2>
-            <a href="#" class="<button>">David Flood</a>
-            <a href="#" class="<button>">Eberhard Nestle</a>
+            {% for user in published_editors %}
+                <a href="{% url 'browse-editor' user_pk=user.pk %}" class="<button>">{{ user.first_name }} {{ user.last_name }}</a>
+                    {% comment %} TODO: change to display_name once working {% endcomment %}
+            {% endfor %}
         </div>
     </div>
 </main>
