@@ -3,7 +3,7 @@ from django.db import models
 
 
 class CustomUser(AbstractUser):
-    pass
+    display_name = models.CharField(max_length=50, blank=False, default='', help_text='The public name you would like to be displayed with your apparatus if you choose to publish it.')
     
 
 class UserFeedback(models.Model):

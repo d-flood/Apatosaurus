@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block content %}
+<main id="main">
+    <nav class="breadcrumbs" aria-label="breadcrumbs">
+        <ol>
+            <li><a href="{% url 'published' %}">Published</a></li>
+            <li><a href="{% url 'browse-editor' user_pk=editor.pk %}" aria-current="page">{{ editor.display_name }}david</a></li>
+        </ol>
+    </nav>
+    <h1 class="center">
+        {{ editor.display_name }}'s Published Collations
+    </h1>
+    <hr>
+    <div class="f-col">
+        {% for collation in collations %}
+            <a href="#" class="<button>">{{ collation.name }}</a>
+        {% endfor %}
+    </div>
+</main>
+{% endblock content %}

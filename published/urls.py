@@ -4,4 +4,7 @@ from published import views
 
 urls = [
     path('', views.main, name='published'),
+    path('browse-collation/<int:collation_pk>/', views.browse_collation, name='browse-collation'),
+    path('browse-section/<int:section_pk>/', views.browse_section, name='browse-section'),
+    path('browse-editor/<int:user_pk>/', views.browse_editor, name='browse-editor'),
 ]
