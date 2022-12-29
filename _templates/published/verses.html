@@ -1,0 +1,28 @@
+<header id="sidebar-header">
+    <h1 class="<h3>">{{ section.name }}</h1>
+    <ul role="list">
+        {% for ab in section.abs.all %}
+            <li>
+                {% if editor %}
+                    <a href="{% url 'published-apparatus' ab_pk=ab.pk user_pk=editor.pk %}"
+                {% else %}
+                    <a href="{% url 'published-apparatus' ab_pk=ab.pk %}" 
+                {% endif %}
+                {% if ab.name == selected_ab %}
+                    class="ab-list-li chip" @aria-current='location'
+                {% else %}
+                    class="ab-list-li" 
+                {% endif %}
+                role="listitem" aria-current="false"
+                {% comment %} hx-get="#" hx-target="#main"
+                _="on click remove @aria-current from .ab-list-li
+                then set my @aria-current to 'location' 
+                then remove .chip from .ab-list-li
+                then add .chip to me end" {% endcomment %}
+                >
+                {{ ab.name }}
+            </a>
+        </li>
+        {% endfor %}
+    </ul>
+</header>

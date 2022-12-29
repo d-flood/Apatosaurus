@@ -2,20 +2,25 @@
 {% load static %}
 {% block content %}
 <main id="main">
-    <nav class="breadcrumbs" aria-label="breadcrumbs">
-        <ol>
-            <li><a href="{% url 'published' %}">Published</a></li>
-            <li><a href="{% url 'browse-collation' collation_pk=collation.pk %}" aria-current="page">{{ collation.name }}</a></li>
-        </ol>
-    </nav>
+    {% if editor %}
+        {% include 'published/breadcrumbs/editor-collation.html' %}
+    {% else %}
+        {% include 'published/breadcrumbs/collation.html' %}
+    {% endif %}
     <h1 class="center">
         {{ collation.name }} Collation Sections
     </h1>
     <hr>
     <div class="f-col">
-        {% for section in sections %}
-            <a href="{% url 'browse-section' section_pk=section.pk %}" class="<button>">{{ section.name }}</a>
-        {% endfor %}
+        {% if editor %}
+            {% for section in sections %}
+                <a href="{% url 'browse-section' section_pk=section.pk user_pk=editor.pk %}" class="<button>">{{ section.name }}</a>
+            {% endfor %}
+        {% else %}
+            {% for section in sections %}
+                <a href="{% url 'browse-section' section_pk=section.pk %}" class="<button>">{{ section.name }}</a>
+            {% endfor %}
+        {% endif %}
     </div>
 </main>
 {% endblock content %}

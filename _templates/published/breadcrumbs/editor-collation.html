@@ -1,0 +1,7 @@
+<nav class="breadcrumbs" aria-label="breadcrumbs">
+    <ol>
+        <li><a href="{% url 'published' %}">Published</a></li>
+        <li><a href="{% url 'browse-editor' user_pk=editor.pk %}">{{ editor.display_name }}</a></li>
+        <li><a href="{% url 'browse-collation' collation_pk=collation.pk user_pk=editor.pk %}" aria-current="page">{{ collation.name }}</a></li>
+    </ol>
+</nav>

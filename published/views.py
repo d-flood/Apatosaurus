@@ -21,7 +21,8 @@ def main(request):
     return render(request, 'published/main.html', context)
 
 
-def browse_collation(request: HttpRequest, collation_pk: int) -> HttpResponse:
+def browse_collation(request: HttpRequest, collation_pk: int, user_pk: int = False) -> HttpResponse:
+    editor = CustomUser.objects.get(id=user_pk) if user_pk else None
     collation = cmodels.Collation.objects.get(id=collation_pk)
     if collation.sections.filter(published=True).count() == 0: #type: ignore
         return HttpResponse(status=404)
@@ -30,17 +31,20 @@ def browse_collation(request: HttpRequest, collation_pk: int) -> HttpResponse:
         'page': {'active': 'published'},
         'collation': collation,
         'sections': published_sections,
+        'editor': editor,
     }
     return render(request, 'published/browse_collation.html', context)
 
 
-def browse_section(request: HttpRequest, section_pk: int) -> HttpResponse:
+def browse_section(request: HttpRequest, section_pk: int, user_pk: int = False) -> HttpResponse:
+    editor = CustomUser.objects.get(id=user_pk) if user_pk else None
     section = cmodels.Section.objects.get(id=section_pk)
     if not section.published:
         return HttpResponse(status=404)
     context = {
         'page': {'active': 'published'},
         'section': section,
+        'editor': editor,
     }
     return render(request, 'published/browse_section.html', context)
 
@@ -56,3 +60,18 @@ def browse_editor(request: HttpRequest, user_pk: int) -> HttpResponse:
         'collations': published_collations,
     }
     return render(request, 'published/browse_editor.html', context)
+
+
+def apparatus(request: HttpRequest, ab_pk: int, user_pk: int = False) -> HttpResponse:
+    editor = CustomUser.objects.get(id=user_pk) if user_pk else None
+    ab = cmodels.Ab.objects.get(id=ab_pk)
+    if not ab.section.published:
+        return HttpResponse(status=404)
+    context = {
+        'page': {'active': 'published'},
+        'ab': ab,
+        'editor': editor,
+        'section': ab.section,
+        'selected_ab': ab.name,
+    }
+    return render(request, 'published/apparatus.html', context)
