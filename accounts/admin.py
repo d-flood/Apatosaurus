@@ -15,19 +15,19 @@ class CustomUserAdmin(UserAdmin):
     list_display = [
         'email', 
         'username',
+        'display_name',
         'is_staff',
         'is_superuser',
-        'display_name',
     ]
-    # fieldsets = (
-    #     *UserAdmin.fieldsets,  # original form fieldsets, expanded
-    #     (                      
-    #         None,             # group heading of None means we'll have no heading  
-    #         {
-    #             'fields': (),
-    #         },
-    #     ),
-    # )
+    fieldsets = (
+        *UserAdmin.fieldsets,  # original form fieldsets, expanded
+        (                      
+            None,             # group heading of None means we'll have no heading  
+            {
+                'fields': ('display_name',),
+            },
+        ),
+    )
 
 admin.site.register(CustomUser, CustomUserAdmin)
 admin.site.register((
