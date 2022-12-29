@@ -16,8 +16,7 @@
         <div class="f-col">
             <h2>Browse by Editor</h2>
             {% for user in published_editors %}
-                <a href="{% url 'browse-editor' user_pk=user.pk %}" class="<button>">{{ user.first_name }} {{ user.last_name }}</a>
-                    {% comment %} TODO: change to display_name once working {% endcomment %}
+                <a href="{% url 'browse-editor' user_pk=user.pk %}" class="<button>">{{ user.display_name }}</a>
             {% endfor %}
         </div>
     </div>

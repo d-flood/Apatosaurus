@@ -1,0 +1,8 @@
+<nav class="breadcrumbs" aria-label="breadcrumbs">
+    <ol>
+        <li><a href="{% url 'published' %}">Published</a></li>
+        <li><a href="{% url 'browse-collation' collation_pk=section.collation.pk %}">{{ section.collation.name }}</a></li>
+        <li><a href="{% url 'browse-section' section_pk=section.pk %}">{{ section.name }}</a></li>
+        <li><a href="{% url 'published-apparatus' ab_pk=ab.pk %}" aria-current="page">{{ ab.name }}</a></li>
+    </ol>
+</nav>

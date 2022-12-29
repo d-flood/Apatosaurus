@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block content %}
+{% if editor %}
+    {% include 'published/breadcrumbs/editor-collation-section-ab.html' %}
+{% else %}
+    {% include 'published/breadcrumbs/collation-section-ab.html' %}
+{% endif %}
+<div class="sidebar-layout">
+    {% include 'published/verses.html' %}
+    <main id="main">
+
+        {{ ab.name }}
+
+    </main>
+</div>
+{% endblock content %}
