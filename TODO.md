@@ -1,9 +1,6 @@
-- keep n-number of previous versions of *at least* readings around. One idea for how to do it:
-    - the reading model has an `active` boolean field to indicate whether it should be displayed as the main reading or in a history list.
-    - when the reading is saved, a copy of the reading in its previous state is created and related to the reading by `ForeignKey` field but with `active` set to `False`.
-    - the number of non-active readings should be limited to something reasonable.
-    - to "restore" a reading from the history, copy the current instance, then set all of its fields *except* `active` and `pk` to match the reading being restored. I *think* it is a good idea to keep the primary key for the "main" reading the same for maintaining the other relationships that the reading model has (both "up" to section, and "down" to collation unit).
 - replace all threading with a task server before production.
-- export to open-cbgm only implemented on sections; also add verse and full collation export.
 - Support more sophisticated TEI import and export formats as [Joey McCollum demonstrates](https://jjmccollum.github.io/teiphy/advanced.html#analysis-at-varying-levels-of-detail-using-reading-types).
-- add indicators during open-cbgm operations
+
+
+- finish user profile and implement `django-registration`
+- set a limit for the number of completed background jobs that can exist
