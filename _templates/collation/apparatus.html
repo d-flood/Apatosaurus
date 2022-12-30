@@ -106,6 +106,30 @@
     <div id="readings"></div>
     <dialog class="reading-note" id="rdg-history-dialog"></dialog>
 </div>
+<style>
+    .v {
+        padding-left: 5px;
+        padding-right: 5px
+    }
+    {% for app in ab.apps.all %}
+        td.bt-{{ app.pk }} + td:not(.bt-{{ app.pk }}) {
+            border-left: dashed;
+            border-width: 2px;
+        }
+        td:not(.bt-{{ app.pk }}) + td.bt-{{ app.pk }} {
+            border-left: dashed;
+            border-width: 2px;
+        }
+        td.bt-{{ app.pk }}:last-of-type {
+            border-right: dashed;
+            border-width: 1px
+        }
+        td.bt-{{ app.pk }}:first-of-type {
+            border-left: dashed;
+            border-width: 1px
+        }
+    {% endfor %}
+</style>
 {% block extra_js %}
 <script src="{% static 'js/draggable-note.js' %}"></script>
 {% endblock extra_js %}
