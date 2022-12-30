@@ -62,6 +62,7 @@ body.light {
     --tab-content: #f5f5f5;
     --plain-bg: #fdf1df;
     --table-stripe: #fde4c0;
+    --tab-button-hover-text: black;
 }
 body.dark {
     --fg: #fff9f2;
@@ -75,6 +76,7 @@ body.dark {
     --tab-content: #0d1e25;
     --plain-bg: #003946;
     --table-stripe: #005365;
+    --tab-button-hover-text: white;
 }
 body {
     background-color: var(--bg);
@@ -82,9 +84,12 @@ body {
     min-height: 100vh;
     min-width: 100vw;
 }
-button {
-    color: #f5f5f5;
+button:not([aria-selected="true"], .ok, .warn, .bad), a.\<button\> {
+    color: #f5f5f5 !important;
     font-family: var(--secondary-font);
+}
+button[role="tab"]:hover {
+    color: var(--tab-button-hover-text) !important;
 }
 input, textarea {
     color: var(--fg);
