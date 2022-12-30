@@ -113,7 +113,7 @@ def edit_section(request: HttpRequest, section_id: int):
         form = forms.SectionForm(request.POST, instance=section)
         if form.is_valid():
             form.save(section.collation.pk)
-            return HttpResponse('Section saved')
+            return HttpResponse(helpers.quick_message('Section/Chapter saved', 'ok'))
         return render(request, 'collation/edit_section.html', {'page': {'active': 'collation'}})
     else:
         section = models.Section.objects.get(pk=section_id)
