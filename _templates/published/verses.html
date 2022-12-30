@@ -13,16 +13,16 @@
                 {% else %}
                     class="ab-list-li" 
                 {% endif %}
-                role="listitem" aria-current="false"
+                role="listitem" aria-current="false">
                 {% comment %} hx-get="#" hx-target="#main"
                 _="on click remove @aria-current from .ab-list-li
                 then set my @aria-current to 'location' 
                 then remove .chip from .ab-list-li
                 then add .chip to me end" {% endcomment %}
-                >
-                {{ ab.name }}
-            </a>
-        </li>
+                    
+                    {{ ab.name }}
+                </a>
+            </li>
         {% endfor %}
     </ul>
 </header>

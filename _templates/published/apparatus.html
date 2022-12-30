@@ -8,10 +8,80 @@
 {% endif %}
 <div class="sidebar-layout">
     {% include 'published/verses.html' %}
-    <main id="main">
-
-        {{ ab.name }}
-
+    <main id="main" style="min-width:100%">
+        <div class="fullbleed">
+            <h3 class="text-center" style="margin-top:0;">{{ ab.name }}</h3>
+            <div class="box center plain bg">
+                <h4>Variation Units</h4>
+                <div class="f-row flex-wrap:wrap packed" id="app-buttons-wrapper">
+                    {% block app_buttons %}
+                        {% for app in ab.apps.all %}
+                            <button id="app-{{ app.pk }}" class="big app-button" type="button" 
+                                hx-get="{% url 'published-rdgs' app_pk=app.pk %}" 
+                                hx-target="#readings"
+                                _="on mouseenter add .highlight to .bt-{{ app.pk }} end
+                                on mouseleave remove .highlight from .bt-{{ app.pk }} end
+                                on click remove .selected from .app-button then add .selected to me 
+                                then remove .selected from <td/> then add .selected to .bt-{{ app.pk }} end">
+                                {{ app.index_from }}{% if app.index_from != app.index_to %}–{{ app.index_to }}{% endif %}
+                            </button>
+                        {% endfor %}
+                    {% endblock app_buttons %}
+                </div>
+            </div>
+            <h4 class="center">Basetext - {{ ab.basetext_label }}</h4>
+            <table id="basetext" class="plain bg fit">
+                <tbody id="basetext_table_body">
+                    {% block basetext_row %}
+                        <tr hx-get="{% url 'refresh-basetext' ab_pk=ab.pk %}"
+                            hx-target="#basetext_table_body" hx-trigger="refreshBasetext from:body">
+                            <th scope="row">Basetext<br>Index</th>
+                            {% for word in ab.indexed_basetext %}
+                                {% if word.is_variant %}
+                                    <td class="text-center v bt-{{ word.app_pk }}" tabindex="0" hx-get="{% url 'published-rdgs' app_pk=word.app_pk %}" hx-target="#readings"
+                                        _="on mouseenter add .highlight to .bt-{{ word.app_pk }} then add .highlight to #app-{{ word.app_pk }} end
+                                        on mouseleave remove .highlight from .bt-{{ word.app_pk }} then remove .highlight from #app-{{ word.app_pk }} end
+                                        on click remove .selected from <td/> then add .selected to .bt-{{ word.app_pk }} 
+                                        then remove .selected from .app-button then add .selected to #app-{{ word.app_pk }}">
+                                        {{ word.word }}<br>{{ word.index }}
+                                    </td>
+                                {% else %}
+                                    <td class="text-center">
+                                        {{ word.word }}<br>{{ word.index }}
+                                    </td>
+                                {% endif %}
+                            {% endfor %}
+                        </tr>
+                    {% endblock basetext_row %}
+                </tbody>
+            </table>
+            <h4 class="center">Readings</h4>
+            <div id="readings"></div>
+        </div>
     </main>
 </div>
+<style>
+    .v {
+        padding-left: 5px;
+        padding-right: 5px
+    }
+    {% for app in ab.apps.all %}
+        td.bt-{{ app.pk }} + td:not(.bt-{{ app.pk }}) {
+            border-left: dashed;
+            border-width: 2px;
+        }
+        td:not(.bt-{{ app.pk }}) + td.bt-{{ app.pk }} {
+            border-left: dashed;
+            border-width: 2px;
+        }
+        td.bt-{{ app.pk }}:last-of-type {
+            border-right: dashed;
+            border-width: 1px
+        }
+        td.bt-{{ app.pk }}:first-of-type {
+            border-left: dashed;
+            border-width: 1px
+        }
+    {% endfor %}
+</style>
 {% endblock content %}

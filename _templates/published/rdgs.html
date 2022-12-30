@@ -1,0 +1,35 @@
+<div id="reading-note-container"></div>
+<table class="plain bg fit" id="rdgs_table_parent">
+    <thead>
+        <tr id="rdgs_header">
+            <th scope="col" class="rdg-id">ID</th>
+            <th scope="col" class="rdg-type">Type</th>
+            <th scope="col" class="rdg-rdg">Reading</th>
+            <th scope="col" class="rdg-wit">Witnesses</th>
+        </tr>
+    </thead>
+    <tbody id="rdgs_table">
+        {% for rdg in app.rdgs.all %}
+            <tr class="{% cycle '' 'stripe' %}">
+                <td width="5px">{{ rdg.name }}</td>
+                <td width="5px">{{ rdg.get_rtype_display }}</abbr></td>
+                <td width="40%">{{ rdg.text }}</td>
+                <td width="45%">{% for w in rdg.wit.all %}<span title="{{ w.description }}">{{ w.siglum }}.</span> {% endfor %}</td>
+            </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<div class="box plain bg center">
+    <h4>Local Stemma</h4>
+    <div id="graph-div" class="svg-graph">{{ local_stemma|safe }}</div>
+</div>
+
+<style>
+    div#graph-div>svg {
+        color: var(--text-color) !important;
+    }
+    div#graph-div>svg>g>g>polygon, div#graph-div>svg>g>g>path {
+        stroke: var(--text-color) !important;
+    }
+</style>

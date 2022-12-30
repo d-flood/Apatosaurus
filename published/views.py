@@ -6,6 +6,7 @@ from django.views.decorators.http import require_http_methods, require_safe
 
 from collation import models as cmodels
 from accounts.models import CustomUser
+from collation.py import helpers as chelpers
 
 
 def main(request):
@@ -67,6 +68,7 @@ def apparatus(request: HttpRequest, ab_pk: int, user_pk: int = False) -> HttpRes
     ab = cmodels.Ab.objects.get(id=ab_pk)
     if not ab.section.published:
         return HttpResponse(status=404)
+    
     context = {
         'page': {'active': 'published'},
         'ab': ab,
@@ -75,3 +77,12 @@ def apparatus(request: HttpRequest, ab_pk: int, user_pk: int = False) -> HttpRes
         'selected_ab': ab.name,
     }
     return render(request, 'published/apparatus.html', context)
+
+
+def rdgs(request: HttpRequest, app_pk: int):
+    app = cmodels.App.objects.get(pk=app_pk)
+    context = {
+        'app': app,
+        'local_stemma': chelpers.make_graph(app),
+    }
+    return render(request, 'published/rdgs.html', context)
