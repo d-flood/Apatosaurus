@@ -47,4 +47,5 @@ urlpatterns = [
     path('collation/', include(collation_urls)),
     path('witnesses/', include(witnesses_urls)),
     path('cbgm/', include(cbgm_urls)),
+    path('__reload__/', include('django_browser_reload.urls')),
 ]
