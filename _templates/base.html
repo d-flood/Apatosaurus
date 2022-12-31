@@ -1,126 +1,250 @@
 {% load static %}
 {% load django_htmx %}
+{% load tailwind_tags %}
 <!DOCTYPE html>
-<html class="-no-dark-theme" lang="en">
-    <head>
-        <meta charset="utf-8" />
-        <link rel="shortcut icon" type="image/ico" href="{% static 'media/favicon.ico' %}" />
-        <meta name="author" content="David Flood" />
-        <meta name="description" content="{{ page.description }}" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <meta property="og:image" content="{{ page.social_image.url }}" />
-        <meta property="twitter:image" content="{{ page.social_image.url }}" />
-        <meta name="twitter:image:alt" content="{{ page.social_image.alt }}" />
-        <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:site" content="@FloodDavid">
-        <meta name="twitter:creator" content="@FloodDavid" />
-        <meta name="twitter:title" content="{{ page.title }}" />
-        <meta property="twitter:description" content="{{ page.description }}"/>
-        <meta property="og:title" content="{{ page.title }}" />
-        <meta property="og:description" content="{{ page.description }}"/>
-        <meta property="og:url" content="https://apparatusexplorer.com" />  
-        <meta charset="utf-8" />
-        <title>{{ page.title }}</title>
-        {% block extra_css %}
-        {% endblock %}
-        <link rel="stylesheet" href="https://the.missing.style/v1.0.3/missing.min.css">
-        <link rel="stylesheet" type="text/css" href="{% static 'css/df.css' %}">
-    </head>
-    
-    <body style="overflow-x: hidden;">
-        <header class="navbar" data-overflow-nav style="overflow-y: hidden;">
-            <button aria-hidden="true" type="button" class="iconbutton" 
-                data-nav-expander aria-pressed="false" hidden>
-                ☰
-            </button>
-            <nav class="contents" aria-label="Site Navigation">
-                <p><a href="{% url 'home' %}" {% if page.active == 'home' %}aria-current="page"{% endif %} aria-label="Home"><b>Apatosaurus</b></a></p>
-                <hr>
-                <ul role="list">
-                    <li class="hide-sm nav-item"><a href="#" {% if page.active == 'about' %}aria-current="page"{% endif %}>About</a></li>
-                    <li class="hide-sm nav-item"><a href="{% url 'published' %}" {% if page.active == 'published' %}aria-current="page"{% endif %}>Published Collations</a></li>
-                    {% if user.is_authenticated %}
-                        <hr>
-                        <li class="hide-sm nav-item"><a href="{% url 'collation' %}" {% if page.active == 'collation' %}aria-current="page"{% endif %}>My Collations</a></li>
-                        <li class="hide-sm nav-item"><a href="{% url 'witnesses-main' %}" {% if page.active == 'witnesses' %}aria-current="page"{% endif %}>Witnesses</a></li>
-                        <li class="hide-sm nav-item"><a href="{% url 'open-cbgm' %}" {% if page.active == 'open-cbgm' %}aria-current="page"{% endif %}>open-cbgm</a></li>
-                        <li class="hide-sm nav-item" {% if page.active == 'profile' %}aria-current="page"{% endif %}><a href="{% url 'user-profile' %}">{{ user.username }}</a></li>
-                        <li class="hide-sm nav-item"><a href="{% url 'logout' %}">Logout</a></li>
-                    {% else %}
-                        <li class="hide-sm nav-item"><a href="{% url 'login' %}">Login</a></li>
-                    {% endif %}
-                </ul>
-            </nav>
-        </header>
-     
-        {% block content %}{% endblock %}
+<html lang="en">
 
-        <footer>
-            <ul class="f-row justify-content:center" role="list" aria-label="Social Media Links and Color Theme Selection">
-                {% comment %} <li>
-                    <a rel="me" target="_blank" href="https://twitter.com/FloodDavid" title="Twitter" style="outline:0">
-                        <svg class="social" xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="currentColor" viewBox="0 0 16 16">
-                            <path d="M5.026 15c6.038 0 9.341-5.003 9.341-9.334 0-.14 0-.282-.006-.422A6.685 6.685 0 0 0 16 3.542a6.658 6.658 0 0 1-1.889.518 3.301 3.301 0 0 0 1.447-1.817 6.533 6.533 0 0 1-2.087.793A3.286 3.286 0 0 0 7.875 6.03a9.325 9.325 0 0 1-6.767-3.429 3.289 3.289 0 0 0 1.018 4.382A3.323 3.323 0 0 1 .64 6.575v.045a3.288 3.288 0 0 0 2.632 3.218 3.203 3.203 0 0 1-.865.115 3.23 3.23 0 0 1-.614-.057 3.283 3.283 0 0 0 3.067 2.277A6.588 6.588 0 0 1 .78 13.58a6.32 6.32 0 0 1-.78-.045A9.344 9.344 0 0 0 5.026 15z"/>
+<head>
+    <meta charset="utf-8" />
+    <link rel="shortcut icon" type="image/ico" href="{% static 'media/favicon.ico' %}" />
+    <meta name="author" content="David Flood" />
+    <meta name="description" content="{{ page.description }}" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta property="og:image" content="{{ page.social_image.url }}" />
+    <meta property="twitter:image" content="{{ page.social_image.url }}" />
+    <meta name="twitter:image:alt" content="{{ page.social_image.alt }}" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@FloodDavid">
+    <meta name="twitter:creator" content="@FloodDavid" />
+    <meta name="twitter:title" content="{{ page.title }}" />
+    <meta property="twitter:description" content="{{ page.description }}" />
+    <meta property="og:title" content="{{ page.title }}" />
+    <meta property="og:description" content="{{ page.description }}" />
+    <meta property="og:url" content="https://apparatusexplorer.com" />
+    <meta charset="utf-8" />
+    <title>{{ page.title }}</title>
+    {% block extra_css %}
+    {% endblock %}
+    <link href="https://fonts.cdnfonts.com/css/gentiumalt" rel="stylesheet">
+    <link href="https://fonts.cdnfonts.com/css/lora?styles=15525,29947,29948,29949,29950" rel="stylesheet">
+    <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+    {% tailwind_css %}
+</head>
+
+<body class="bg-white dark:bg-darkblue text-gray-900 dark:text-orange-100 flex flex-col min-h-screen">
+    <nav class="bg-orange-300 dark:bg-darknav">
+        <div class="mx-auto max-w-7xl px-2 sm:px-6 lg:px-8">
+            <div class="relative flex h-16 items-center justify-between">
+                <div class="absolute inset-y-0 left-0 flex items-center sm:hidden">
+                    <!-- Mobile menu button-->
+
+
+                    <button type="button"
+                        _="on click toggle .block on .nav-mobile-menu then toggle .hidden on .nav-mobile-menu then if my @aria-expanded is 'false' show #mobile-menu then set my @aria-expanded to 'true' else hide #mobile-menu then set my @aria-expanded to 'false' end"
+                        class="inline-flex items-center justify-center rounded-md p-2 text-gray-00 hover:bg-gray-700 hover:text-white focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white"
+                        aria-controls="mobile-menu" aria-expanded="false">
+                        <span class="sr-only">Open main menu</span>
+                        <!-- closed icon -->
+                        <svg class="block h-6 w-6 nav-mobile-menu" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                            stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
                         </svg>
-                    </a>
-                </li> {% endcomment %}
-                <li>
-                    <a rel="me" target="_blank" href="https://github.com/d-flood/Apatosaurus" title="GitHub" style="outline:0">
-                        <svg class="social" xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="currentColor" viewBox="0 0 16 16">
-                            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z"/>
+                        <!-- open icon -->
+                        <svg class="hidden h-6 w-6 nav-mobile-menu" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                            stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
                         </svg>
-                    </a>
-                </li>
-                <li>
-                    <a rel="me" target="_blank" href="https://fosstodon.org/@davidflood" title="Mastedon" style="outline:0">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="currentColor" class="social" viewBox="0 0 16 16">
-                            <path d="M11.19 12.195c2.016-.24 3.77-1.475 3.99-2.603.348-1.778.32-4.339.32-4.339 0-3.47-2.286-4.488-2.286-4.488C12.062.238 10.083.017 8.027 0h-.05C5.92.017 3.942.238 2.79.765c0 0-2.285 1.017-2.285 4.488l-.002.662c-.004.64-.007 1.35.011 2.091.083 3.394.626 6.74 3.78 7.57 1.454.383 2.703.463 3.709.408 1.823-.1 2.847-.647 2.847-.647l-.06-1.317s-1.303.41-2.767.36c-1.45-.05-2.98-.156-3.215-1.928a3.614 3.614 0 0 1-.033-.496s1.424.346 3.228.428c1.103.05 2.137-.064 3.188-.189zm1.613-2.47H11.13v-4.08c0-.859-.364-1.295-1.091-1.295-.804 0-1.207.517-1.207 1.541v2.233H7.168V5.89c0-1.024-.403-1.541-1.207-1.541-.727 0-1.091.436-1.091 1.296v4.079H3.197V5.522c0-.859.22-1.541.66-2.046.456-.505 1.052-.764 1.793-.764.856 0 1.504.328 1.933.983L8 4.39l.417-.695c.429-.655 1.077-.983 1.934-.983.74 0 1.336.259 1.791.764.442.505.661 1.187.661 2.046v4.203z"/>
-                        </svg>
-                    </a>
-                </li>
-                <li>
-                    <a href="https://www.davidaflood.com/contact/" target="_blank" title="Contact" style="outline:0">
-                        <svg class="social" xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="currentColor" viewBox="0 0 16 16">
-                            <path d="M.05 3.555A2 2 0 0 1 2 2h12a2 2 0 0 1 1.95 1.555L8 8.414.05 3.555ZM0 4.697v7.104l5.803-3.558L0 4.697ZM6.761 8.83l-6.57 4.027A2 2 0 0 0 2 14h12a2 2 0 0 0 1.808-1.144l-6.57-4.027L8 9.586l-1.239-.757Zm3.436-.586L16 11.801V4.697l-5.803 3.546Z"/>
-                        </svg>
-                    </a>
-                </li>
-                <li>
-                    <button style="cursor:pointer;" class="button" theme="light" id="toggle-light-theme" title="change to light theme" type="button" aria-label="change to light mode">
-                        <svg id="sun" xmlns="http://www.w3.org/2000/svg" width="30" height="30" fill="currentColor" viewBox="0 0 16 16">
-                            <path d="M8 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM8 0a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2A.5.5 0 0 1 8 0zm0 13a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2A.5.5 0 0 1 8 13zm8-5a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1 0-1h2a.5.5 0 0 1 .5.5zM3 8a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1 0-1h2A.5.5 0 0 1 3 8zm10.657-5.657a.5.5 0 0 1 0 .707l-1.414 1.415a.5.5 0 1 1-.707-.708l1.414-1.414a.5.5 0 0 1 .707 0zm-9.193 9.193a.5.5 0 0 1 0 .707L3.05 13.657a.5.5 0 0 1-.707-.707l1.414-1.414a.5.5 0 0 1 .707 0zm9.193 2.121a.5.5 0 0 1-.707 0l-1.414-1.414a.5.5 0 0 1 .707-.707l1.414 1.414a.5.5 0 0 1 0 .707zM4.464 4.465a.5.5 0 0 1-.707 0L2.343 3.05a.5.5 0 1 1 .707-.707l1.414 1.414a.5.5 0 0 1 0 .708z"/>
-                        </svg>
-                        <v-h>Change to light theme</v-h>
                     </button>
-                    <button style="cursor:pointer;" theme="dark" id="toggle-dark-theme" title="change to dark theme" type="button" aria-label="change to dark mode">
-                        <svg id="moon" xmlns="http://www.w3.org/2000/svg" width="30" height="30" fill="currentColor" viewBox="0 0 16 16">
-                            <path d="M6 .278a.768.768 0 0 1 .08.858 7.208 7.208 0 0 0-.878 3.46c0 4.021 3.278 7.277 7.318 7.277.527 0 1.04-.055 1.533-.16a.787.787 0 0 1 .81.316.733.733 0 0 1-.031.893A8.349 8.349 0 0 1 8.344 16C3.734 16 0 12.286 0 7.71 0 4.266 2.114 1.312 5.124.06A.752.752 0 0 1 6 .278z"/>
+                </div>
+                <div class="flex flex-1 items-center justify-center sm:items-stretch sm:justify-start">
+                    <div class="flex flex-shrink-0 items-center">
+                        <div class="text-lg">
+                            <a href="{% url 'home' %}" {% if page.active == 'home' %}aria-current="page" class="bg-orange-600 text-orange-50 px-3 py-2 rounded-md font-medium"{% else %}class="dark:text-orange-50 hover:bg-orange-400 hover:text-white px-3 py-2 rounded-md font-medium"{% endif %} aria-label="Home">Apatosaurus</a>
+                        </div>
+                        <!-- <img class="block h-8 w-auto lg:hidden"
+                            src="https://tailwindui.com/img/logos/mark.svg?color=indigo&shade=500" alt="Your Company">
+                        <img class="hidden h-8 w-auto lg:block"
+                            src="https://tailwindui.com/img/logos/mark.svg?color=indigo&shade=500" alt="Your Company"> -->
+                    </div>
+                    
+                    <div class="hidden sm:ml-6 sm:block ml-4">
+                        <div class="flex space-x-4">
+                            <!-- Current: "bg-gray-900 text-white", Default: "text-gray-300 hover:bg-gray-700 hover:text-white" -->
+                            <a href="#" {% if page.active == 'about' %}aria-current="page" class="dark:text-orange-50 hover:bg-orange-400 hover:text-white px-3 py-2 rounded-md text-sm font-medium"{% else %}class="dark:text-orange-50 hover:bg-orange-400 hover:text-white px-3 py-2 rounded-md font-medium"{% endif %}>About</a>
+                            <a href="{% url 'published' %}" {% if page.active == 'published' %}aria-current="page" class="dark:text-orange-50 hover:bg-orange-400 hover:text-white px-3 py-2 rounded-md font-medium"{% else %}class="dark:text-orange-50 hover:bg-orange-400 hover:text-white px-3 py-2 rounded-md font-medium"{% endif %}>Published Collations</a>
+                            {% if user.is_authenticated %}
+                                <span class="border border-solid min-h-full border-orange-500"></span>
+                                <a href="{% url 'collation' %}" {% if page.active == 'collation' %}aria-current="page" class="dark:text-orange-50 hover:bg-orange-400 hover:text-white px-3 py-2 rounded-md font-medium"{% else %}class="dark:text-orange-50 hover:bg-orange-400 hover:text-white px-3 py-2 rounded-md font-medium"{% endif %}>My Collations</a>
+                                <a href="{% url 'witnesses-main' %}" {% if page.active == 'witnesses' %}aria-current="page" class="dark:text-orange-50 hover:bg-orange-400 hover:text-white px-3 py-2 rounded-md font-medium"{% else %}class="dark:text-orange-50 hover:bg-orange-400 hover:text-white px-3 py-2 rounded-md font-medium"{% endif %}>Witnesses</a>
+                                <a href="{% url 'open-cbgm' %}" {% if page.active == 'open-cbgm' %}aria-current="page" class="dark:text-orange-50 hover:bg-orange-400 hover:text-white px-3 py-2 rounded-md font-medium"{% else %}class="dark:text-orange-50 hover:bg-orange-400 hover:text-white px-3 py-2 rounded-md font-medium"{% endif %}>open-cbgm</a>
+                            {% endif %}
+
+                        </div>
+                    </div>
+                </div>
+                <div class="absolute inset-y-0 right-0 flex items-center pr-2 sm:static sm:inset-auto sm:ml-6 sm:pr-0">
+                    <!-- <button type="button"
+                        class="rounded-full bg-gray-800 p-1 text-gray-400 hover:text-white focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-gray-800">
+                        <span class="sr-only">View notifications</span>
+                        <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                            stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
                         </svg>
-                        <v-h>Change to dark theme</v-h>
-                    </button>
-                </li>
-            </ul>
-        </footer>
-        <dialog id="modal-dialog"
-            _="on showDialog from body set #modal-title's innerHTML to event.detail.title
+                    </button> -->
+
+                    <!-- Profile dropdown -->
+                    <div class="relative ml-3">
+                        <div>
+                            <button type="button"
+                                _="on click if my @aria-expanded is 'false' show #user-menu then set my @aria-expanded to 'true' else hide #user-menu then set my @aria-expanded to 'false' end"
+                                class="rounded-full bg-transparent p-1 hover:bg-orange-400 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-gray-800"
+                                id="user-menu-button" aria-expanded="false" aria-haspopup="true">
+                                <span class="sr-only">Open user menu</span>
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-8 w-8">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M17.982 18.725A7.488 7.488 0 0012 15.75a7.488 7.488 0 00-5.982 2.975m11.963 0a9 9 0 10-11.963 0m11.963 0A8.966 8.966 0 0112 21a8.966 8.966 0 01-5.982-2.275M15 9.75a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </svg>
+                                  
+                            </button>
+                            <button style="cursor:pointer;" class="rounded-full bg-transparent p-1 hover:bg-orange-400 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-gray-800" theme="light" id="toggle-light-theme"
+                                title="change to light theme" type="button" aria-label="change to light mode">
+                                <svg id="sun" xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="currentColor"
+                                    viewBox="0 0 16 16">
+                                    <path
+                                        d="M8 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM8 0a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2A.5.5 0 0 1 8 0zm0 13a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2A.5.5 0 0 1 8 13zm8-5a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1 0-1h2a.5.5 0 0 1 .5.5zM3 8a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1 0-1h2A.5.5 0 0 1 3 8zm10.657-5.657a.5.5 0 0 1 0 .707l-1.414 1.415a.5.5 0 1 1-.707-.708l1.414-1.414a.5.5 0 0 1 .707 0zm-9.193 9.193a.5.5 0 0 1 0 .707L3.05 13.657a.5.5 0 0 1-.707-.707l1.414-1.414a.5.5 0 0 1 .707 0zm9.193 2.121a.5.5 0 0 1-.707 0l-1.414-1.414a.5.5 0 0 1 .707-.707l1.414 1.414a.5.5 0 0 1 0 .707zM4.464 4.465a.5.5 0 0 1-.707 0L2.343 3.05a.5.5 0 1 1 .707-.707l1.414 1.414a.5.5 0 0 1 0 .708z" />
+                                </svg>
+                                <span class="sr-only">Change to light theme</span>
+                            </button>
+                            <button style="cursor:pointer;" theme="dark" id="toggle-dark-theme" title="change to dark theme"
+                                class="rounded-full bg-transparent p-1 hover:bg-orange-400 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-gray-800"
+                                type="button" aria-label="change to dark mode">
+                                <svg id="moon" xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="currentColor"
+                                    viewBox="0 0 16 16">
+                                    <path
+                                        d="M6 .278a.768.768 0 0 1 .08.858 7.208 7.208 0 0 0-.878 3.46c0 4.021 3.278 7.277 7.318 7.277.527 0 1.04-.055 1.533-.16a.787.787 0 0 1 .81.316.733.733 0 0 1-.031.893A8.349 8.349 0 0 1 8.344 16C3.734 16 0 12.286 0 7.71 0 4.266 2.114 1.312 5.124.06A.752.752 0 0 1 6 .278z" />
+                                </svg>
+                                <span class="sr-only">Change to dark theme</span>
+                            </button>
+                        </div>
+
+                        <!--
+                      Dropdown menu, show/hide based on menu state.
+          
+                      Entering: "transition ease-out duration-100"
+                        From: "transform opacity-0 scale-95"
+                        To: "transform opacity-100 scale-100"
+                      Leaving: "transition ease-in duration-75"
+                        From: "transform opacity-100 scale-100"
+                        To: "transform opacity-0 scale-95"
+                    -->
+                        <div id="user-menu" class="absolute right-0 z-10 mt-2 w-48 origin-top-right rounded-md bg-white py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none"
+                            role="menu" aria-orientation="vertical" aria-labelledby="user-menu-button" tabindex="-1" style="display: none;">
+                            <!-- Active: "bg-gray-100", Not Active: "" -->
+                            {% if not user.is_authenticated %}
+                                <a href="{% url 'login' %}">Login</a>
+                            {% else %}
+                                <a href="{% url 'user-profile' %}" class="block px-4 py-2 text-sm text-gray-800 hover:bg-gray-300" role="menuitem" tabindex="-1" {% if page.active == 'profile' %}aria-current="page"{% endif %}>
+                                    Your Profile
+                                </a>
+                                <a href="{% url 'logout' %}" class="block px-4 py-2 text-sm text-gray-800 hover:bg-gray-300" role="menuitem" tabindex="-1" id="user-menu-item-2" {% if page.active == 'profile' %}aria-current="page"{% endif %}>
+                                    Sign Out
+                                </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mobile menu, show/hide based on menu state. -->
+        <div class="sm:hidden" id="mobile-menu" style="display: none;">
+            <div class="space-y-1 px-2 pt-2 pb-3">
+                <!-- Current: "bg-gray-900 text-white", Default: "text-gray-300 hover:bg-gray-700 hover:text-white" -->
+                <a href="#" class="bg-gray-900 text-white block px-3 py-2 rounded-md text-base font-medium"
+                    aria-current="page">Dashboard</a>
+
+                <a href="#"
+                    class="text-gray-300 hover:bg-gray-700 hover:text-white block px-3 py-2 rounded-md text-base font-medium">Team</a>
+
+                <a href="#"
+                    class="text-gray-300 hover:bg-gray-700 hover:text-white block px-3 py-2 rounded-md text-base font-medium">Projects</a>
+
+                <a href="#"
+                    class="text-gray-300 hover:bg-gray-700 hover:text-white block px-3 py-2 rounded-md text-base font-medium">Calendar</a>
+            </div>
+        </div>
+    </nav>
+
+
+    {% block content %}{% endblock %}
+    <footer class="mt-auto">
+        <ul class="flex flex-row justify-center" role="list" aria-label="Social Media Links and Color Theme Selection">
+            <li class="mx-2 transition ease-in-out hover:scale-125 hover:text-orange-500">
+                <a rel="me" target="_blank" href="https://twitter.com/FloodDavid" title="Twitter" style="outline:0">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="currentColor"
+                        viewBox="0 0 16 16">
+                        <path
+                            d="M5.026 15c6.038 0 9.341-5.003 9.341-9.334 0-.14 0-.282-.006-.422A6.685 6.685 0 0 0 16 3.542a6.658 6.658 0 0 1-1.889.518 3.301 3.301 0 0 0 1.447-1.817 6.533 6.533 0 0 1-2.087.793A3.286 3.286 0 0 0 7.875 6.03a9.325 9.325 0 0 1-6.767-3.429 3.289 3.289 0 0 0 1.018 4.382A3.323 3.323 0 0 1 .64 6.575v.045a3.288 3.288 0 0 0 2.632 3.218 3.203 3.203 0 0 1-.865.115 3.23 3.23 0 0 1-.614-.057 3.283 3.283 0 0 0 3.067 2.277A6.588 6.588 0 0 1 .78 13.58a6.32 6.32 0 0 1-.78-.045A9.344 9.344 0 0 0 5.026 15z" />
+                    </svg>
+                </a>
+            </li>
+            <li class="mx-2 transition ease-in-out hover:scale-125 hover:text-orange-500">
+                <a rel="me" target="_blank" href="https://github.com/d-flood/Apatosaurus" title="GitHub"
+                    style="outline:0">
+                    <svg class="social" xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="currentColor"
+                        viewBox="0 0 16 16">
+                        <path
+                            d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z" />
+                    </svg>
+                </a>
+            </li>
+            <li class="mx-2 transition ease-in-out hover:scale-125 hover:text-orange-500">
+                <a rel="me" target="_blank" href="https://fosstodon.org/@davidflood" title="Mastedon" style="outline:0">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="currentColor" class="social"
+                        viewBox="0 0 16 16">
+                        <path
+                            d="M11.19 12.195c2.016-.24 3.77-1.475 3.99-2.603.348-1.778.32-4.339.32-4.339 0-3.47-2.286-4.488-2.286-4.488C12.062.238 10.083.017 8.027 0h-.05C5.92.017 3.942.238 2.79.765c0 0-2.285 1.017-2.285 4.488l-.002.662c-.004.64-.007 1.35.011 2.091.083 3.394.626 6.74 3.78 7.57 1.454.383 2.703.463 3.709.408 1.823-.1 2.847-.647 2.847-.647l-.06-1.317s-1.303.41-2.767.36c-1.45-.05-2.98-.156-3.215-1.928a3.614 3.614 0 0 1-.033-.496s1.424.346 3.228.428c1.103.05 2.137-.064 3.188-.189zm1.613-2.47H11.13v-4.08c0-.859-.364-1.295-1.091-1.295-.804 0-1.207.517-1.207 1.541v2.233H7.168V5.89c0-1.024-.403-1.541-1.207-1.541-.727 0-1.091.436-1.091 1.296v4.079H3.197V5.522c0-.859.22-1.541.66-2.046.456-.505 1.052-.764 1.793-.764.856 0 1.504.328 1.933.983L8 4.39l.417-.695c.429-.655 1.077-.983 1.934-.983.74 0 1.336.259 1.791.764.442.505.661 1.187.661 2.046v4.203z" />
+                    </svg>
+                </a>
+            </li>
+            <li class="mx-2 transition ease-in-out hover:scale-125 hover:text-orange-500">
+                <a href="https://www.davidaflood.com/contact/" target="_blank" title="Contact" style="outline:0">
+                    <svg class="social" xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="currentColor"
+                        viewBox="0 0 16 16">
+                        <path
+                            d="M.05 3.555A2 2 0 0 1 2 2h12a2 2 0 0 1 1.95 1.555L8 8.414.05 3.555ZM0 4.697v7.104l5.803-3.558L0 4.697ZM6.761 8.83l-6.57 4.027A2 2 0 0 0 2 14h12a2 2 0 0 0 1.808-1.144l-6.57-4.027L8 9.586l-1.239-.757Zm3.436-.586L16 11.801V4.697l-5.803 3.546Z" />
+                    </svg>
+                </a>
+            </li>
+        </ul>
+        <div class="text-center p-4 mt-4" style="background-color: rgba(0, 0, 0, 0.2);">
+            © 2023 Copyright
+            <a href="https://www.davidaflood.com/" class="hover:border hover:border-solid hover:border-white underline p-1 rounded-md">
+                David Flood
+            </a>
+          </div>
+    </footer>
+    <dialog id="modal-dialog" _="on showDialog from body set #modal-title's innerHTML to event.detail.title
                 then set #modal-message's innerHTML to event.detail.message
                 then call #modal-dialog.showModal() end">
-            <h1 class="titlebar" id="modal-title"></h1>
-            <p id="modal-message"></p>
-            <button type="button" onclick="document.getElementById('modal-dialog').close()">Okay</button>
-        </dialog>
-        <script src="{% static 'js/df.js' %}"></script>
-        <script type="module" src="https://the.missing.style/v1.0.3/missing-js/overflow-nav.js"></script>
-        <script type="module" src="https://the.missing.style/v1.0.3/missing-js/tabs.js"></script>
-        <script src="https://unpkg.com/htmx.org@1.8.4"></script>
-        {% django_htmx_script %}
-        <script src="https://unpkg.com/hyperscript.org@0.9.7" defer></script>
-        {% block extra_js %}{% endblock extra_js %}
-        <script>
-            document.body.addEventListener('htmx:configRequest', (event) => {
-                event.detail.headers['X-CSRFToken'] = '{{ csrf_token }}';
-            })
+        <h1 class="titlebar" id="modal-title"></h1>
+        <p id="modal-message"></p>
+        <button type="button" onclick="document.getElementById('modal-dialog').close()">Okay</button>
+    </dialog>
+    <script src="{% static 'js/df.js' %}"></script>
+    <!-- <script type="module" src="https://the.missing.style/v1.0.3/missing-js/overflow-nav.js"></script> -->
+    <script type="module" src="https://the.missing.style/v1.0.3/missing-js/tabs.js"></script>
+    <script src="https://unpkg.com/htmx.org@1.8.4"></script>
+    {% django_htmx_script %}
+    <script src="https://unpkg.com/hyperscript.org@0.9.7" defer></script>
+    {% block extra_js %}{% endblock extra_js %}
+    <script>
+        document.body.addEventListener('htmx:configRequest', (event) => {
+            event.detail.headers['X-CSRFToken'] = '{{ csrf_token }}';
+        })
             // htmx.config.useTemplateFragments = true;
-        </script>
-    </body>   
+    </script>
+</body>
+
 </html>
