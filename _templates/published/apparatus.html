@@ -1,16 +1,26 @@
 {% extends 'base.html' %}
 {% load static %}
 {% block content %}
-{% if editor %}
-    {% include 'published/breadcrumbs/editor-collation-section-ab.html' %}
-{% else %}
-    {% include 'published/breadcrumbs/collation-section-ab.html' %}
-{% endif %}
-<div class="sidebar-layout">
-    {% include 'published/verses.html' %}
-    <main id="main" style="min-width:100%">
-        <div class="fullbleed">
-            <h3 class="text-center" style="margin-top:0;">{{ ab.name }}</h3>
+<div>
+    <div class="flex">
+        <div class="hidden md:flex flex-col w-64 h-screen px-4 py-8 overflow-y-auto border-r bg-orange-100 dark:bg-darknav">
+            <div class="flex flex-col justify-between mt-6">
+                <h1 class="text-2xl text-center">{{ section.name }}</h1>
+                <hr class="my-4 border-orange-700 border-t-4">
+                <ul>
+                    {% include 'published/verses.html' %}
+                </ul>
+            </div>
+        </div>
+        <main id="main" class="mx-1 mb-auto w-full">
+            <div class="flex flex-col w-full items-center">
+                {% if editor %}
+                    {% include 'published/breadcrumbs/editor-collation-section-ab.html' %}
+                {% else %}
+                    {% include 'published/breadcrumbs/collation-section-ab.html' %}
+                {% endif %}
+            </div>
+            <h2 class="text-2xl text-center my-4">{{ ab.name }}</h2>
             <div class="box center plain bg">
                 <h4>Variation Units</h4>
                 <div class="f-row flex-wrap:wrap packed" id="app-buttons-wrapper">
@@ -57,9 +67,19 @@
             </table>
             <h4 class="center">Readings</h4>
             <div id="readings"></div>
-        </div>
-    </main>
+        </main>
+    </div>
 </div>
+
+
+
+
+<!-- <div class="sidebar-layout">
+    {% include 'published/verses.html' %}
+    <main id="main" style="min-width:100%">
+        
+    </main>
+</div> -->
 <style>
     .v {
         padding-left: 5px;

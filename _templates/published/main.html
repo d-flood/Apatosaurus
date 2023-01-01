@@ -1,22 +1,22 @@
 {% extends 'base.html' %}
 {% load static %}
 {% block content %}
-<main id="main">
-    <h1 class="center">
+<main id="main" class="mx-1 md:mx-10 lg:mx-10 xl:mx-32 2xl:mx-48 mb-auto">
+    <h1 class="text-6xl text-center my-8">
         Published Collations
     </h1>
     <hr>
-    <div class="f-switch">
-        <div class="f-col">
-            <h2>Browse by Content</h2>
+    <div class="grid sm:grid-cols-1 md:grid-cols-2">
+        <div class="flex flex-col items-center">
+            <h2 class="text-3xl text-center my-5">Browse by Content</h2>
             {% for collation in collations %}
-                <a href="{% url 'browse-collation' collation_pk=collation.pk %}" class="<button>">{{ collation.name }}</a>
+                <a href="{% url 'browse-collation' collation_pk=collation.pk %}" class="btn my-1 w-11/12 text-center">{{ collation.name }}</a>
             {% endfor %}
         </div>
-        <div class="f-col">
-            <h2>Browse by Editor</h2>
+        <div class="flex flex-col items-center">
+            <h2 class="text-3xl text-center my-5">Browse by Editor</h2>
             {% for user in published_editors %}
-                <a href="{% url 'browse-editor' user_pk=user.pk %}" class="<button>">{{ user.display_name }}</a>
+                <a href="{% url 'browse-editor' user_pk=user.pk %}" class="btn my-1 w-11/12 text-center">{{ user.display_name }}</a>
             {% endfor %}
         </div>
     </div>

@@ -1,24 +1,26 @@
 {% extends 'base.html' %}
 {% load static %}
 {% block content %}
-<main id="main">
-    {% if editor %}
-        {% include 'published/breadcrumbs/editor-collation.html' %}
-    {% else %}
-        {% include 'published/breadcrumbs/collation.html' %}
-    {% endif %}
-    <h1 class="center">
+<main id="main" class="mx-1 md:mx-10 lg:mx-10 xl:mx-32 2xl:mx-48 mb-auto">
+    <div class="flex flex-col w-full items-center">
+        {% if editor %}
+            {% include 'published/breadcrumbs/editor-collation.html' %}
+        {% else %}
+            {% include 'published/breadcrumbs/collation.html' %}
+        {% endif %}
+    </div>
+    <h1 class="text-4xl text-center my-8">
         {{ collation.name }} Collation Sections
     </h1>
-    <hr>
-    <div class="f-col">
+    <hr class="mb-4">
+    <div class="flex flex-col items-center">
         {% if editor %}
             {% for section in sections %}
-                <a href="{% url 'browse-section' section_pk=section.pk user_pk=editor.pk %}" class="<button>">{{ section.name }}</a>
+                <a href="{% url 'browse-section' section_pk=section.pk user_pk=editor.pk %}" class="btn my-1 w-11/12 md:w-6/12 lg:w-4/12 xl:w-2/12 2xl:w-1/12 text-center">{{ section.name }}</a>
             {% endfor %}
         {% else %}
             {% for section in sections %}
-                <a href="{% url 'browse-section' section_pk=section.pk %}" class="<button>">{{ section.name }}</a>
+                <a href="{% url 'browse-section' section_pk=section.pk %}" class="btn my-1 w-11/12 md:w-8/12 lg:w-6/12 text-center">{{ section.name }}</a>
             {% endfor %}
         {% endif %}
     </div>

@@ -2,10 +2,11 @@
 {% load static %}
 {% block content %}
 <main id="main">
-    <nav class="breadcrumbs" aria-label="breadcrumbs">
-        <ol>
-            <li><a href="{% url 'published' %}">Published</a></li>
-            <li><a href="{% url 'browse-editor' user_pk=editor.pk %}" aria-current="page">{{ editor.display_name }}</a></li>
+    <nav class="rounded-md w-full" aria-label="breadcrumbs">
+        <ol class="list-reset flex">
+            <li><a class="underline hover:text-orange-700 hover:dark:text-cyan-500 rounded-md" href="{% url 'published' %}">Published</a></li>
+                <li><span class="text-gray-500 dark:text-white mx-2">/</span></li>
+            <li><a class="underline hover:text-orange-700 hover:dark:text-cyan-500 rounded-md" href="{% url 'browse-editor' user_pk=editor.pk %}" aria-current="page">{{ editor.display_name }}</a></li>
         </ol>
     </nav>
     <h1 class="center">
