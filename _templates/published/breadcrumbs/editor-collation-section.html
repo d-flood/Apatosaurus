@@ -1,8 +1,11 @@
-<nav class="breadcrumbs" aria-label="breadcrumbs">
-    <ol>
-        <li><a href="{% url 'published' %}">Published</a></li>
-        <li><a href="{% url 'browse-editor' user_pk=editor.pk %}">{{ editor.display_name }}</a></li>
-        <li><a href="{% url 'browse-collation' collation_pk=section.collation.pk user_pk=editor.pk %}">{{ section.collation.name }}</a></li>
-        <li><a href="{% url 'browse-section' section_pk=section.pk user_pk=editor.pk %}" aria-current="page">{{ section.name }}</a></li>
+<nav class="rounded-md w-full" aria-label="breadcrumbs">
+    <ol class="list-reset flex">
+        <li><a class="underline hover:text-orange-700 hover:dark:text-cyan-500 rounded-md" href="{% url 'published' %}">Published</a></li>
+            <li><span class="text-gray-500 dark:text-white mx-2">/</span></li>
+        <li><a class="underline hover:text-orange-700 hover:dark:text-cyan-500 rounded-md" href="{% url 'browse-editor' user_pk=editor.pk %}">{{ editor.display_name }}</a></li>
+            <li><span class="text-gray-500 dark:text-white mx-2">/</span></li>
+        <li><a class="underline hover:text-orange-700 hover:dark:text-cyan-500 rounded-md" href="{% url 'browse-collation' collation_pk=section.collation.pk user_pk=editor.pk %}">{{ section.collation.name }}</a></li>
+            <li><span class="text-gray-500 dark:text-white mx-2">/</span></li>
+        <li><a class="underline hover:text-orange-700 hover:dark:text-cyan-500 rounded-md" href="{% url 'browse-section' section_pk=section.pk user_pk=editor.pk %}" aria-current="page">{{ section.name }}</a></li>
     </ol>
 </nav>
