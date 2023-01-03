@@ -53,6 +53,7 @@ module.exports = {
             colors: {
                 'darkblue': '#00242c',
                 'darknav': '#00151a',
+                'darknav-secondary': '#001c23',
             }
         },
     },
