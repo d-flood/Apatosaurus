@@ -1,35 +1,43 @@
+<h3 class="text-2xl text-center my-4">Readings</h3>
 <div id="reading-note-container"></div>
-<table class="plain bg fit" id="rdgs_table_parent">
-    <thead>
-        <tr id="rdgs_header">
-            <th scope="col" class="rdg-id">ID</th>
-            <th scope="col" class="rdg-type">Type</th>
-            <th scope="col" class="rdg-rdg">Reading</th>
-            <th scope="col" class="rdg-wit">Witnesses</th>
-        </tr>
-    </thead>
-    <tbody id="rdgs_table">
-        {% for rdg in app.rdgs.all %}
-            <tr class="{% cycle '' 'stripe' %}">
-                <td width="5px">{{ rdg.name }}</td>
-                <td width="5px">{{ rdg.get_rtype_display }}</abbr></td>
-                <td width="40%">{{ rdg.text }}</td>
-                <td width="45%">{% for w in rdg.wit.all %}<span title="{{ w.description }}">{{ w.siglum }}.</span> {% endfor %}</td>
-            </tr>
-        {% endfor %}
-    </tbody>
-</table>
-
-<div class="box plain bg center">
-    <h4>Local Stemma</h4>
-    <div id="graph-div" class="svg-graph">{{ local_stemma|safe }}</div>
+<div class="flex flex-col">
+    <div class="overflow-x-hidden">
+        <div class="py-2 inline-block min-w-full">
+            <div class="overflow-hidden">
+                <table class="min-w-full" id="rdgs_table_parent">
+                    <thead>
+                        <tr id="rdgs_header" class="border-b-4 border-orange-700">
+                            <th scope="col" class="rdg-id">ID</th>
+                            <th scope="col" class="rdg-type">Type</th>
+                            <th scope="col" class="rdg-rdg">Reading</th>
+                            <th scope="col" class="rdg-wit">Witnesses</th>
+                        </tr>
+                    </thead>
+                    <tbody id="rdgs_table">
+                        {% for rdg in app.rdgs.all %}
+                            <tr class="{% cycle '' 'bg-orange-50 dark:bg-cyan-1500' %}">
+                                <td class="px-2" width="5px">{{ rdg.name }}</td>
+                                <td class="px-2" width="5px">{{ rdg.get_rtype_display }}</abbr></td>
+                                <td class="font-greek font-semibold px-2" width="40%">{{ rdg.text }}</td>
+                                <td class="px-2" width="45%">{% for w in rdg.wit.all %}<span title="{{ w.description }}">{{ w.siglum }}.</span> {% endfor %}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 </div>
 
+<hr class="border-t-orange-700">
+
+<div class="flex flex-col items-center">
+    <h3 class="text-2xl text-center my-4">Local Stemma</h3>
+    <div id="graph-div">{{ local_stemma|safe }}</div>
+</div>
 <style>
     div#graph-div>svg {
-        color: var(--text-color) !important;
-    }
-    div#graph-div>svg>g>g>polygon, div#graph-div>svg>g>g>path {
-        stroke: var(--text-color) !important;
+        max-width: 100%;
+        max-height: 100%;
     }
 </style>
