@@ -1,10 +1,13 @@
-<h3>New Collation Unit</h3>
-<p>
-    A collation unit is a section of text that you want to collate. For most people, 
-    this should be a single verse or sentence.
-</p>
-<form hx-post="{% url 'new-ab' section_id=section_id %}" class="table rows" hx-target="#main">
-    {% csrf_token %}
-    {{ new_ab_form.as_p }}
-    <input type="submit" value="Submit">
-</form>
+{% load crispy_forms_tags %}
+<div class="flex flex-col items-start sm:mx-12">
+    <h2 class="text-2xl my-3">New Verse</h2>
+    <p class="max-w-xl">
+        A collation unit is a section of text that you want to collate. For most people, 
+        this should be a single verse or sentence.
+    </p>
+    <form hx-post="{% url 'new-ab' section_id=section_id %}" class="my-6" hx-target="#main">
+        {% csrf_token %}
+        {% crispy new_ab_form %}
+        <input type="submit" value="Submit" class="btn-submit">
+    </form>
+</div>

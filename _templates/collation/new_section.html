@@ -1,12 +1,16 @@
-<h3>New Section</h3>
-<p>
-    Before adding data to your collation, you will need to create at least one section.
-    For most people, a section will be equivalent to a chapter, e.g. "Matthew 1", but 
-    others may prefer to organize their collation units into lectionaries or Eusebian sections,
-    for example.
-</p>
-<form hx-post="{% url 'new-section' collation_id=collation_id %}" class="table rows" hx-target="#main">
-    {% csrf_token %}
-    {{ new_section_form.as_p }}
-    <input type="submit" value="Submit">
-</form>
+{% load crispy_forms_tags %}
+<div class="flex flex-col items-start sm:mx-12">
+    <h2 class="text-2xl my-3">New Section</h2>
+    <p class="max-w-xl">
+        Before adding data to your collation, you will need to create at least one section.
+        For most people, a section will be equivalent to a chapter, e.g. "Matthew 1", but 
+        others may prefer to organize their collation units into lectionaries or Eusebian sections,
+        for example.
+    </p>
+    <form hx-post="{% url 'new-section' collation_id=collation_id %}" 
+        class="my-6" hx-target="#main">
+        {% csrf_token %}
+        {% crispy new_section_form %}
+        <input type="submit" value="Submit" class="btn-submit">
+    </form>
+</div>

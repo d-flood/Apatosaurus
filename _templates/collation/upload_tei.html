@@ -1,20 +1,23 @@
-<h3>Upload TEI XML Collation File</h3>
-<p>
-    The supported format is TEI, but it should normally be the output of
-    the <a href="https://github.com/itsee-birmingham/standalone_collation_editor">ITSEE Collation Editor</a>
-    or <a href="https://collatex.net/">CollateX</a>. 
-    Other TEI collations may work, but the format is flexible and may not be compatible
-    with the current version of Apatosaurus.
-</p>
-<form action="submit" 
-    hx-encoding='multipart/form-data' 
-    hx-post="{% url 'upload-tei' section_id=section_id %}"
-    hx-target="#main">
-    {{ form.as_p }}
-    <button type="submit" class="ok color bg">
-        Upload and Submit
-    </button>
-</form>
+{% load crispy_forms_tags %}
+<div class="flex flex-col items-start sm:mx-12">
+    <h2 class="text-2xl my-3">Upload TEI XML Collation File</h2>
+    <p class="max-w-xl">
+        The supported format is TEI, but it should normally be the output of
+        the <a href="https://github.com/itsee-birmingham/standalone_collation_editor">ITSEE Collation Editor</a>
+        or <a href="https://collatex.net/">CollateX</a>. 
+        Other TEI collations may work, but the format is flexible and may not be compatible
+        with the current version of Apatosaurus.
+    </p>
+    <form action="submit" class="my-6"
+        hx-encoding='multipart/form-data' 
+        hx-post="{% url 'upload-tei' section_id=section_id %}"
+        hx-target="#main">
+        {% crispy form %}
+        <button type="submit" class="btn-submit">
+            Upload and Submit
+        </button>
+    </form>
+</div>
 <script>
     document.getElementById('id_tei_file').addEventListener('change', function(e) {
         var file_input = document.getElementById('id_tei_file');

@@ -1,21 +1,26 @@
 {% extends 'base.html' %}
 {% load static %}
 {% block content %}
-<main id="main">
-    <nav class="rounded-md w-full" aria-label="breadcrumbs">
-        <ol class="list-reset flex">
-            <li><a class="underline hover:text-orange-700 hover:dark:text-cyan-500 rounded-md" href="{% url 'published' %}">Published</a></li>
-                <li><span class="text-gray-500 dark:text-white mx-2">/</span></li>
-            <li><a class="underline hover:text-orange-700 hover:dark:text-cyan-500 rounded-md" href="{% url 'browse-editor' user_pk=editor.pk %}" aria-current="page">{{ editor.display_name }}</a></li>
-        </ol>
-    </nav>
-    <h1 class="center">
+<main id="main" class="mx-1 md:mx-10 lg:mx-10 xl:mx-32 2xl:mx-48 mb-auto">
+    <div class="flex flex-col items-center">
+        <nav aria-label="breadcrumbs">
+            <ol class="list-reset flex">
+                <li><a class="underline hover:text-orange-700 hover:dark:text-cyan-500 rounded-md" href="{% url 'published' %}">Published</a></li>
+                    <li><span class="text-gray-500 dark:text-white mx-2">/</span></li>
+                <li><a class="underline hover:text-orange-700 hover:dark:text-cyan-500 rounded-md" href="{% url 'browse-editor' user_pk=editor.pk %}" aria-current="page">{{ editor.display_name }}</a></li>
+            </ol>
+        </nav>
+    </div>
+
+    <h1 class="text-4xl text-center my-8">
         {{ editor.display_name }}'s Published Collations
     </h1>
-    <hr>
-    <div class="f-col">
+    
+    <hr class="mb-4">
+
+    <div class="flex flex-col items-center">
         {% for collation in collations %}
-            <a href="{% url 'browse-collation' collation_pk=collation.pk user_pk=editor.pk %}" class="<button>">{{ collation.name }}</a>
+            <a href="{% url 'browse-collation' collation_pk=collation.pk user_pk=editor.pk %}" class="btn my-1 w-11/12 md:w-8/12 lg:w-6/12 text-center">{{ collation.name }}</a>
         {% endfor %}
     </div>
 </main>

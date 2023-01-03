@@ -1,10 +1,15 @@
-<h3>New Collation</h3>
-<p>
-    To start a new collation, simply assign it a name and number below. 
-    The number is for sorting and in case you would like to use the IGNTP reference designations, 
-    e.g., "B06K11V1", which indicates the first verse of the 11th chapter of the 6th book of the New Testament.
-</p>
-<form hx-post="{% url 'new-collation' %}" class="table rows" hx-target="#main">
-    {{ new_collation_form.as_p }}
-    <input type="submit" value="Submit">
-</form>
+{% load crispy_forms_tags %}
+<div class="flex flex-col items-start">
+    <h2 class="text-2xl my-3 sm:mx-12">New Collation</h2>
+    <div class="mt-2 sm:mx-12">
+        <p class="max-w-xl">
+            To start a new collation, simply assign it a name and number below. 
+            The number is for sorting and in case you would like to use the IGNTP reference designations, 
+            e.g., "B06K11V1", which indicates the first verse of the 11th chapter of the 6th book of the New Testament.
+        </p>
+        <form hx-post="{% url 'new-collation' %}" class="mt-4" hx-target="#main">
+            {% crispy new_collation_form %}
+            <input type="submit" class="btn" value="Submit">
+        </form>
+    </div>
+</div>

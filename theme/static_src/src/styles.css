@@ -4,7 +4,16 @@
 
 @layer components {
     .btn {
-      @apply px-4 bg-orange-500 dark:bg-cyan-900 text-white font-semibold rounded-md shadow-md hover:dark:bg-cyan-800 hover:bg-orange-400 focus:outline-none focus:ring-4 dark:ring-2 focus:dark:ring-gray-100 focus:ring-cyan-600 focus:ring-opacity-75;
+      @apply px-4 bg-orange-500 dark:bg-cyan-900 text-white font-semibold rounded-md shadow-md hover:dark:bg-cyan-800 hover:bg-orange-400 focus:outline-none focus:ring-4 dark:ring-2 focus:dark:ring-gray-100 focus:ring-opacity-75 ring-orange-700 dark:ring-cyan-900;
+    }
+    .btn-secondary {
+        @apply px-4 bg-gray-200 dark:bg-gray-700 text-black dark:text-white font-semibold rounded-md shadow-md hover:dark:bg-gray-600 hover:bg-gray-300 focus:outline-none focus:ring-4 dark:ring-2 focus:dark:ring-gray-100 focus:ring-opacity-75 ring-gray-200 dark:ring-gray-700;
+    }
+    .btn-submit {
+        @apply px-4 bg-teal-400 dark:bg-teal-700 text-black dark:text-white font-semibold rounded-md shadow-md hover:dark:bg-teal-600 hover:bg-teal-300 focus:outline-none focus:ring-4 dark:ring-2 focus:dark:ring-gray-100 focus:ring-opacity-75 ring-teal-400 dark:ring-teal-700;
+    }
+    .btn-danger {
+        @apply px-4 bg-red-500 dark:bg-red-700 text-white font-semibold rounded-md shadow-md hover:dark:bg-red-600 hover:bg-red-400 focus:outline-none focus:ring-4 dark:ring-2 focus:dark:ring-gray-100 focus:ring-opacity-75 ring-red-500 dark:ring-red-700;
     }
     div#graph-div>svg {
         @apply text-black dark:text-white fill-black dark:fill-white;
@@ -15,4 +24,13 @@
     div#graph-div>svg>g>g>polygon {
         @apply dark:fill-white 
     }
-  }
+    textarea, input[type="text"], input[type="number"] {
+        @apply text-black bg-white dark:bg-cyan-1300 dark:text-white;
+    }
+    textarea#id_basetext {
+        @apply font-greek;
+    }
+    .normal-link {
+        @apply underline hover:text-orange-700 hover:dark:text-cyan-500 rounded-md;
+    }
+}
