@@ -1,24 +1,20 @@
-<a class="chip" hx-get="{% url 'collation-list' %}" hx-target="#sidebar-header">
-    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 2 16 16">
-        <path fill-rule="evenodd" d="M15 8a.5.5 0 0 0-.5-.5H2.707l3.147-3.146a.5.5 0 1 0-.708-.708l-4 4a.5.5 0 0 0 0 .708l4 4a.5.5 0 0 0 .708-.708L2.707 8.5H14.5A.5.5 0 0 0 15 8z"/>
-    </svg>
-    Collations
-</a>
-<h1 class="<h2>" style="margin-top: 5px;">
+<h1 class="text-2xl text-center" style="margin-top: 5px;">
     {{ collation.name }}
 </h1>
+<hr class="my-4 border-orange-700 border-t-4">
 <ul role="list" id="section_list"
     hx-trigger="refreshSections from:body"
     hx-get="{% url 'section-list' collation_id=collation.pk %}"
     hx-target="#sidebar-header">
     {% for section in sections %}
-        <li>
-            <a
+        <li class="min-w-full my-2 flex flex-row">
+            <a class="btn w-10/12"
                 hx-get="{% url 'ab-list' section_id=section.pk %}"
                 hx-target="#sidebar-header">
                 {{ section.number }}{% if section.name %}: {{ section.name }}{% endif %}
             </a>
-            <button type="button" aria-label="edit section metadata" title="Edit Section Metadata"
+            <button class="btn ml-2 px-1" 
+                type="button" aria-label="edit section metadata" title="Edit Section Metadata"
                 hx-get="{% url 'edit-section' section_id=section.pk %}"
                 hx-target="#main">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
@@ -28,10 +24,26 @@
         </li>
     {% endfor %}
 </ul>
-<button type="button"
+<button type="button" class="btn w-full mt-4 inline-flex text-center"
     hx-get="{% url 'new-section' collation_id=collation.pk %}" hx-target="#main">
-    <svg style="margin-right:3px;" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-plus-square-fill" viewBox="0 0 16 16">
-        <path d="M2 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2H2zm6.5 4.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3a.5.5 0 0 1 1 0z"/>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6 mr-2">
+        <path fill-rule="evenodd" d="M12 3.75a.75.75 0 01.75.75v6.75h6.75a.75.75 0 010 1.5h-6.75v6.75a.75.75 0 01-1.5 0v-6.75H4.5a.75.75 0 010-1.5h6.75V4.5a.75.75 0 01.75-.75z" clip-rule="evenodd" />
     </svg>
     New Section
 </button>
+
+<div id="breadcrumbs" hx-swap-oob="true">
+    <nav class="m-2" aria-label="breadcrumbs">
+        <ol class="list-reset flex">
+            <li>
+                <a class="inline-flex underline hover:text-orange-700 hover:dark:text-cyan-500 rounded-md" 
+                    hx-get="{% url 'collation-list' %}" hx-target="#sidebar-header">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6 mr-2">
+                        <path fill-rule="evenodd" d="M9.53 2.47a.75.75 0 010 1.06L4.81 8.25H15a6.75 6.75 0 010 13.5h-3a.75.75 0 010-1.5h3a5.25 5.25 0 100-10.5H4.81l4.72 4.72a.75.75 0 11-1.06 1.06l-6-6a.75.75 0 010-1.06l6-6a.75.75 0 011.06 0z" clip-rule="evenodd" />
+                    </svg>
+                    Collations
+                </a>
+            </li>  
+        </ol>
+    </nav>
+</div>

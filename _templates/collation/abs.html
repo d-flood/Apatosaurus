@@ -1,27 +1,24 @@
-<a class="chip" hx-get="{% url 'section-list' collation_id=section.collation.pk %}" hx-target="#sidebar-header">
-    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 2 16 16">
-        <path fill-rule="evenodd" d="M15 8a.5.5 0 0 0-.5-.5H2.707l3.147-3.146a.5.5 0 1 0-.708-.708l-4 4a.5.5 0 0 0 0 .708l4 4a.5.5 0 0 0 .708-.708L2.707 8.5H14.5A.5.5 0 0 0 15 8z"/>
-    </svg>
-    Sections
-</a>
-<h1 style="margin-top: 5px;">{{ section.collation.name }}</h1>
-<h2 class="<h4> text-center">{{ section.name }}</h2>
-<hr>
+<h1 class="text-2xl text-center" style="margin-top: 5px;">
+    {{ section.name }}
+</h1>
+<hr class="my-4 border-orange-700 border-t-4">
 <ul role="list" id="section_list"
     hx-trigger="refreshAbs from:body"
     hx-get="{% url 'ab-list' section_id=section.pk %}"
     hx-target="#sidebar-header">
     {% for ab in abs %}
-        <li>
+        <li class="min-w-full my-2 flex flex-row">
             <a hx-get="{% url 'apparatus' ab_pk=ab.pk %}" hx-target="#main"
-                class="ab-list-li" role="listitem" aria-current="false"
+                class="ab-list-li btn w-10/12" 
+                role="listitem" aria-current="false"
                 _="on click remove @aria-current from .ab-list-li
                 then set my @aria-current to 'location' 
                 then remove .chip from .ab-list-li
                 then add .chip to me end">
                 {{ ab.number }}: {{ ab.name }}
             </a>
-            <button type="button" aria-label="edit section metadata" class="ml-5"
+            <button type="button" aria-label="edit section metadata" 
+                class="btn ml-2 px-1"
                 title="Edit Section Metadata"
                 hx-get="{% url 'edit-ab' ab_pk=ab.pk %}"
                 hx-target="#main">
@@ -32,18 +29,40 @@
         </li>
     {% endfor %}
 </ul>
-<button type="button"
+<hr class="my-4 border-orange-700 border-t-2">
+<button type="button" class="btn w-full mt-2 inline-flex text-center"
     hx-get="{% url 'new-ab' section_id=section.pk %}" hx-target="#main">
-    <svg style="margin-right:3px;" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-plus-square-fill" viewBox="0 0 16 16">
-        <path d="M2 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2H2zm6.5 4.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3a.5.5 0 0 1 1 0z"/>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6 mr-2">
+        <path fill-rule="evenodd" d="M12 3.75a.75.75 0 01.75.75v6.75h6.75a.75.75 0 010 1.5h-6.75v6.75a.75.75 0 01-1.5 0v-6.75H4.5a.75.75 0 010-1.5h6.75V4.5a.75.75 0 01.75-.75z" clip-rule="evenodd" />
     </svg>
     New Verse
 </button>
 <button type="button" style="white-space: nowrap;"
+    class="btn w-full mt-4 inline-flex text-center"
     hx-get="{% url 'upload-tei' section_id=section.pk %}"
     hx-target="#main">
-    <svg style="margin-right: 3px" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+    <svg class="w-6 h-6 mr-2" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 16 16">
         <path d="M8 2a5.53 5.53 0 0 0-3.594 1.342c-.766.66-1.321 1.52-1.464 2.383C1.266 6.095 0 7.555 0 9.318 0 11.366 1.708 13 3.781 13h8.906C14.502 13 16 11.57 16 9.773c0-1.636-1.242-2.969-2.834-3.194C12.923 3.999 10.69 2 8 2zm2.354 5.146a.5.5 0 0 1-.708.708L8.5 6.707V10.5a.5.5 0 0 1-1 0V6.707L6.354 7.854a.5.5 0 1 1-.708-.708l2-2a.5.5 0 0 1 .708 0l2 2z"/>
     </svg>
-    Upload TEI Collation File
+    Upload Collation File
 </button>
+
+<div id="breadcrumbs" hx-swap-oob="true">
+    <nav class="m-2" aria-label="breadcrumbs">
+        <ol class="list-reset flex">
+            <li>
+                <a class="inline-flex underline hover:text-orange-700 hover:dark:text-cyan-500 rounded-md" 
+                    hx-get="{% url 'collation-list' %}" hx-target="#sidebar-header">
+                    Collations
+                </a>
+            </li>
+            <li><span class="text-gray-500 dark:text-white mx-2">/</span></li>
+            <li>
+                <a class="inline-flex underline hover:text-orange-700 hover:dark:text-cyan-500 rounded-md" 
+                    hx-get="{% url 'section-list' collation_id=section.collation.pk %}" hx-target="#sidebar-header">
+                    {{ section.collation.name }}
+                </a>
+            </li>
+        </ol>
+    </nav>
+</div>
