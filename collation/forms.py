@@ -63,7 +63,7 @@ class AbNoteForm(forms.ModelForm):
             'hx-post': reverse('ab-note', kwargs={'ab_pk': self.instance.pk}), # type: ignore
             'hx-trigger': 'keyup changed delay:1s',
             'hx-target': f'#note-{self.instance.pk}', # type: ignore
-            '_': f"on keyup remove .ok from #note-header-{self.instance.pk} then add .bad to #note-header-{self.instance.pk} end"
+            '_': f"on keyup remove .bg-teal-300 .dark:bg-teal-700 from #note-header-{self.instance.pk} then add .bg-red-500 .dark:bg-red-800 .text-white to #note-header-{self.instance.pk} end"
         })
     class Meta:
         model = models.Ab
@@ -85,6 +85,11 @@ class AppForm(forms.ModelForm):
 
 
 class RdgForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['wit'].widget.attrs.update({
+            'size': '10',
+        })
 
     class Meta:
         model = models.Rdg
@@ -118,7 +123,7 @@ class RdgNoteForm(forms.ModelForm):
             'hx-trigger': 'keyup changed delay:1s',
             'hx-target': f'#note-{self.instance.pk}', # type: ignore
             # 'hx-swap': 'outerHTML',
-            '_': f"on keyup remove .ok from #note-header-{self.instance.pk} then add .bad to #note-header-{self.instance.pk} end"
+            '_': f"on keyup remove .bg-teal-300 .dark:bg-teal-700 from #note-header-{self.instance.pk} then add .bg-red-500 .dark:bg-red-800 .text-white to #note-header-{self.instance.pk} end"
         })
     class Meta:
         model = models.Rdg

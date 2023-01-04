@@ -1,22 +1,25 @@
-<form action="submit"
-    hx-post="{% url 'new-rdg' app_pk=app_pk %}"
-    hx-target="#readings">
-    {% comment %} {{ form.as_p }} {% endcomment %}
-    {{ form.as_p }}
-    <p>
-        <label class="vh" for="wits-filter">Filter Witnesses</label>
-        <input type="text" id="wits-filter" placeholder="Filter Witnesses"
-            _="on keyup if my value == '' show <option/> in #id_wit else if the event's key is 'Escape' set my value to '' trigger keyup else show <option/> in #id_wit when its textContent.startsWith(my value) end">
-    </p>
-    <button type="submit">
-        Submit
-    </button>
-    <button type="button" 
-        hx-get="{% url 'cancel-new-rdg' app_pk=app_pk %}"
+{% load crispy_forms_tags %}
+<div class="border-black dark:border-white border-2 p-6 w-fit">
+    <h4 class="text-xl mt-12 mb-4">New Reading</h4>
+    <form action="submit"
+        hx-post="{% url 'new-rdg' app_pk=app_pk %}"
         hx-target="#readings">
-        Cancel
-    </button>
-</form>
+        {% crispy form %}
+        <p>
+            <label class="sr-only" for="wits-filter">Filter Witnesses</label>
+            <input type="text" id="wits-filter" placeholder="Filter Witnesses"
+                _="on keyup if my value == '' show <option/> in #id_wit else if the event's key is 'Escape' set my value to '' trigger keyup else show <option/> in #id_wit when its textContent.startsWith(my value) end">
+        </p>
+        <button type="submit" class="btn-submit mx-2 mt-4">
+            Submit
+        </button>
+        <button type="button" class="btn-secondary mx-2"
+            hx-get="{% url 'cancel-new-rdg' app_pk=app_pk %}"
+            hx-target="#readings">
+            Cancel
+        </button>
+    </form>
+</div>
 <script>
     var selected_witnesses = document.getElementById('id_selected_witnesses');
     // add change event listener to #id_wit

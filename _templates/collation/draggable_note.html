@@ -1,15 +1,19 @@
-<div id="note-{{ instance.pk }}" class="box reading-note" onload="initialize_draggable_textarea()">
+<div id="note-{{ instance.pk }}" class="reading-note absolute z-20" onload="initialize_draggable_textarea()">
     {% block inner %}
-        <strong id="note-header-{{ instance.pk }}" class="block titlebar text-center reading-note-header ok color bg">
-            {{ title }} Note for "{{ instance.name }}"
-            <button class="bad bg" style="margin-left: 60px;" 
-                title="close" aria-label="close"
-                _="on click remove the closest parent <div/>">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                    <path d="M2.146 2.854a.5.5 0 1 1 .708-.708L8 7.293l5.146-5.147a.5.5 0 0 1 .708.708L8.707 8l5.147 5.146a.5.5 0 0 1-.708.708L8 8.707l-5.146 5.147a.5.5 0 0 1-.708-.708L7.293 8 2.146 2.854Z"/>
-                </svg>
-            </button>
-        </strong>
-        {{ form.note }}
+        <div class="relative flex flex-col drop-shadow-xl">
+            <strong id="note-header-{{ instance.pk }}" class="text-center cursor-move reading-note-header bg-teal-300 dark:bg-teal-700 py-2 rounded-t-md">
+                {{ title }} Note for "{{ instance.name }}"
+                <button class="btn-danger ml-4 px-0" 
+                    title="close" aria-label="close"
+                    _="on click remove the closest parent <div/>">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M2.146 2.854a.5.5 0 1 1 .708-.708L8 7.293l5.146-5.147a.5.5 0 0 1 .708.708L8.707 8l5.147 5.146a.5.5 0 0 1-.708.708L8 8.707l-5.146 5.147a.5.5 0 0 1-.708-.708L7.293 8 2.146 2.854Z"/>
+                    </svg>
+                </button>
+            </strong>
+            <div>
+                {{ form.note }}
+            </div>
+        </div>
     {% endblock inner %}
 </div>

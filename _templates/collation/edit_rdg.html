@@ -1,32 +1,36 @@
+{% load crispy_forms_tags %}
 <div class="box" onload="load_witnesses()" style="margin-top: 10px;">
-    <h4 style="margin-top: 10px;">Edit {{ rdg.app.ab.name }}U{{ rdg.app.index_from }}{% if rdg.app.index_from != rdg.app.index_to %}–{{ rdg.app.index_to }}{% endif %}: Reading {{ rdg.name }}</h4>
+    <h4 class="text-xl text-center my-4">Edit {{ rdg.app.ab.name }}U{{ rdg.app.index_from }}{% if rdg.app.index_from != rdg.app.index_to %}–{{ rdg.app.index_to }}{% endif %}: Reading {{ rdg.name }}</h4>
     <form action="submit"
         hx-post="{% url 'edit-rdg' rdg_pk=rdg.pk %}"
         hx-target="#readings">
         {% comment %} {{ form.as_p }} {% endcomment %}
-        {{ form.as_p }}
+        {% crispy form %}
         <p>
-            <label class="vh" for="wits-filter">Filter Witnesses</label>
+            <label class="sr-only" for="wits-filter">Filter Witnesses</label>
             <input type="text" id="wits-filter" placeholder="Filter Witnesses"
             _="on keyup if my value == '' show <option/> in #id_wit else if the event's key is 'Escape' set my value to '' trigger keyup else show <option/> in #id_wit when its textContent.startsWith(my value) end">
         </p>
-        <button type="submit" class="ok bg color">
-            Submit
-        </button>
-        <button type="button" 
-            hx-get="{% url 'cancel-new-rdg' app_pk=rdg.app.pk %}"
-            hx-target="#readings">
-            Cancel
-        </button>
-        <button type="button" onclick="reset_witnesses()">
-            Reset Witnesses
-        </button>
-        <button type="button" class="bad color bg"
-            hx-delete="{% url 'edit-rdg' rdg_pk=rdg.pk %}"
-            hx-target="#readings"
-            hx-confirm="Are you sure you want to delete this reading along with its type, reading, and witnesses?">
-            Delete
-        </button>
+        <div class="flex flex-row my-4">
+            <button type="submit" class="btn-submit mx-2">
+                Submit
+            </button>
+            <button type="button" class="btn-secondary mx-2"
+                hx-get="{% url 'cancel-new-rdg' app_pk=rdg.app.pk %}"
+                hx-target="#readings">
+                Cancel
+            </button>
+            <button class="btn mx-2" 
+                type="button" onclick="reset_witnesses()">
+                Reset Witnesses
+            </button>
+            <button type="button" class="btn-danger mx-2"
+                hx-delete="{% url 'edit-rdg' rdg_pk=rdg.pk %}"
+                hx-target="#readings"
+                hx-confirm="Are you sure you want to delete this reading along with its type, reading, and witnesses?">
+                Delete
+            </button>
+        </div>
     </form>
 </div>
 <script>
