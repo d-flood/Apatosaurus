@@ -6,6 +6,12 @@
     .btn {
       @apply px-4 bg-orange-500 dark:bg-cyan-900 text-white font-semibold rounded-md shadow-md hover:dark:bg-cyan-800 hover:bg-orange-400 focus:outline-none focus:ring-4 dark:ring-2 focus:dark:ring-gray-100 focus:ring-opacity-75 ring-orange-700 dark:ring-cyan-900;
     }
+    .btn-left {
+        @apply px-4 bg-orange-500 dark:bg-cyan-900 text-white font-semibold rounded-l-md shadow-md hover:dark:bg-cyan-800 hover:bg-orange-400 focus:outline-none focus:ring-4 ring-2 dark:ring-2 focus:dark:ring-gray-100 focus:ring-opacity-75 ring-orange-500 dark:ring-cyan-900;
+      }
+    .btn-right {
+    @apply px-4 bg-orange-500 dark:bg-cyan-900 text-white font-semibold rounded-r-md shadow-md hover:dark:bg-cyan-800 hover:bg-orange-400 focus:outline-none focus:ring-4 ring-2 dark:ring-2 focus:dark:ring-gray-100 focus:ring-opacity-75 ring-orange-500 dark:ring-cyan-900;
+    }
     .btn-secondary {
         @apply px-4 bg-gray-200 dark:bg-gray-700 text-black dark:text-white font-semibold rounded-md shadow-md hover:dark:bg-gray-600 hover:bg-gray-300 focus:outline-none focus:ring-4 dark:ring-2 focus:dark:ring-gray-100 focus:ring-opacity-75 ring-gray-200 dark:ring-gray-700;
     }
