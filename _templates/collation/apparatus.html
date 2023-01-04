@@ -1,132 +1,129 @@
 {% load static %}
-<div id="apparatus-div" class="fullbleed">
-    <div class="f-row justify-content:center">
+<div class="flex flex-col items-center">
+    <div class="flex flex-row items-center">
         <div id="ab-note-container"></div>
-        <h3 style="margin-top:0;">{{ ab.name }}</h3>
+        <h2 class="text-4xl text-center my-12">{{ ab.name }}</h2>
         {% with ab.note as note %}
-            <button type="button" class="{% if note and note.strip != '' %}ok color bg{% endif %}"
+            <button type="button" class="p-1 ml-2{% if note and note.strip != '' %} btn-submit{% else %} btn{% endif %}"
                 aria-label="Verse note"
                 title="Verse note"
                 hx-get="{% url 'ab-note' ab_pk=ab.pk %}"
                 hx-target="#ab-note-container"
                 hx-swap="beforeend">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-journal" viewBox="0 0 16 16">
+                <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="currentColor" class="bi bi-journal" viewBox="0 0 16 16">
                     <path d="M3 0h10a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2v-1h1v1a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1v1H1V2a2 2 0 0 1 2-2z"/>
                     <path d="M1 5v-.5a.5.5 0 0 1 1 0V5h.5a.5.5 0 0 1 0 1h-2a.5.5 0 0 1 0-1H1zm0 3v-.5a.5.5 0 0 1 1 0V8h.5a.5.5 0 0 1 0 1h-2a.5.5 0 0 1 0-1H1zm0 3v-.5a.5.5 0 0 1 1 0v.5h.5a.5.5 0 0 1 0 1h-2a.5.5 0 0 1 0-1H1z"/>
                 </svg>
             </button>
         {% endwith %}
     </div>
-    <div class="box center plain bg">
-        <h4>Variation Units</h4>
-        <div class="f-row flex-wrap:wrap packed" id="app-buttons-wrapper">
+</div>
+
+
+<div class="bg-orange-100 dark:bg-cyan-1400 pb-10 pt-5 my-4 drop-shadow">
+    <h3 class="text-2xl text-center my-4">Variation Units</h3>
+    <div class="flex flex-col items-center w-full">
+        <div class="flex flex-row flex-wrap" id="app-buttons-wrapper">
             {% block app_buttons %}
                 {% for app in ab.apps.all %}
-                    <button id="app-{{ app.pk }}" class="big app-button" type="button" 
-                        hx-get="{% url 'rdgs' app_pk=app.pk %}" 
-                        hx-target="#readings"
-                        _="on contextmenu js event.preventDefault(); end
-                        on mouseenter add .highlight to .bt-{{ app.pk }} end
-                        on mouseleave remove .highlight from .bt-{{ app.pk }} end
-                        on click remove .selected from .app-button then add .selected to me 
-                        then remove .selected from <td/> then add .selected to .bt-{{ app.pk }} end">
-                        {{ app.index_from }}{% if app.index_from != app.index_to %}–{{ app.index_to }}{% endif %}
-                    </button>
-                    <div class="f-col">
-                        <button class="edit-app-button" type="button" aria-haspopup="menu" aria-controls="edit-{{ app.pk }}"
-                            aria-expanded="false" 
-                            aria-label="edit collation unit {{ app.index_from }}{% if app.index_from != app.index_to %}–{{ app.index_to }}{% endif %}"
-                            title="edit collation unit" style="height: 100%;">
-                            &#128393;
-                        </button>
-                        <div class="menu-div" role="menu" id="edit-{{ app.pk }}" hidden>
-                            <a role="menuitem" tabindex="-1"
-                                hx-get="{% url 'edit-app' ab_pk=ab.pk app_pk=app.pk %}" 
-                                hx-target="#app-buttons-wrapper">
-                                Edit
-                            </a>
-                            <a role="menuitem" tabindex="-1"
-                                hx-delete="{% url 'edit-app' ab_pk=ab.pk app_pk=app.pk %}"
-                                hx-target="#app-buttons-wrapper"
-                                hx-confirm="Are you sure you want to delete this variation unit? This will delete the readings along with their text and witnsses.">
-                                Delete
-                            </a>
+                    <div class="relative inline-block text-left">
+                        <div>
+                            <button id="app-{{ app.pk }}" class="btn-left ml-2 my-1" type="button" 
+                                hx-get="{% url 'rdgs' app_pk=app.pk %}" 
+                                hx-target="#readings"
+                                _="on contextmenu js event.preventDefault(); end
+                                on mouseenter add .highlight to .bt-{{ app.pk }} end
+                                on mouseleave remove .highlight from .bt-{{ app.pk }} end
+                                on click remove .selected from .app-button then add .selected to me 
+                                then remove .selected from <td/> then add .selected to .bt-{{ app.pk }} end">
+                                {{ app.index_from }}{% if app.index_from != app.index_to %}–{{ app.index_to }}{% endif %}
+                            </button>
+                            <button class="btn-right mr-2 my-1 px-0 inline-flex" 
+                                type="button" aria-haspopup="menu" aria-controls="edit-{{ app.pk }}"
+                                aria-expanded="false" 
+                                aria-label="edit collation unit {{ app.index_from }}{% if app.index_from != app.index_to %}–{{ app.index_to }}{% endif %}"
+                                title="edit collation unit" style="height: 100%;">
+                                &#128393;
+                            </button>
+                            <div class="absolute left-0 z-10 mt-2 w-56 origin-top-right bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
+                                <div class="absolute float-left ml-4 bg-white rounded-md text-black" role="menu" id="edit-{{ app.pk }}" hidden>
+                                    <a role="menuitem" tabindex="-1" class="block my-2 px-2 hover:bg-gray-500 hover:text-white cursor-pointer"
+                                        hx-get="{% url 'edit-app' ab_pk=ab.pk app_pk=app.pk %}" 
+                                        hx-target="#app-buttons-wrapper">
+                                        Edit
+                                    </a>
+                                    <a role="menuitem" tabindex="-1" class="block my-2 px-2 hover:bg-gray-500 hover:text-white cursor-pointer"
+                                        hx-delete="{% url 'edit-app' ab_pk=ab.pk app_pk=app.pk %}"
+                                        hx-target="#app-buttons-wrapper"
+                                        hx-confirm="Are you sure you want to delete this variation unit? This will delete the readings along with their text and witnsses.">
+                                        Delete
+                                    </a>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 {% endfor %}
                 {% block new_app_button %}
-                    <button class="ok bg color" type="button" 
-                        hx-get="{% url 'edit-app' ab_pk=ab.pk app_pk=0 %}" 
-                        hx-target="#app-buttons-wrapper" aria-label="add new variation unit" 
-                        title="add new variation unit" style="margin-left: 10px;">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                            <path fill-rule="evenodd" d="M8 2a.5.5 0 0 1 .5.5v5h5a.5.5 0 0 1 0 1h-5v5a.5.5 0 0 1-1 0v-5h-5a.5.5 0 0 1 0-1h5v-5A.5.5 0 0 1 8 2Z"/>
-                        </svg>
-                    </button>
-            {% endblock new_app_button %}
-            <script type="module">
-                import { menu, menuButton } from "https://the.missing.style/v1.0.3/missing-js/menu.js"
-                menuButton(document.getElementById("apparatus-div"))
-                menu(document.getElementById("apparatus-div"))
-            </script>
-            {% endblock app_buttons %}
         </div>
+                <button class="ok bg color" type="button" 
+                    hx-get="{% url 'edit-app' ab_pk=ab.pk app_pk=0 %}" 
+                    hx-target="#app-buttons-wrapper" aria-label="add new variation unit" 
+                    title="add new variation unit" style="margin-left: 10px;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                        <path fill-rule="evenodd" d="M8 2a.5.5 0 0 1 .5.5v5h5a.5.5 0 0 1 0 1h-5v5a.5.5 0 0 1-1 0v-5h-5a.5.5 0 0 1 0-1h5v-5A.5.5 0 0 1 8 2Z"/>
+                    </svg>
+                </button>
+        {% endblock new_app_button %}
+        <script type="module">
+            import { menu, menuButton } from "https://the.missing.style/v1.0.3/missing-js/menu.js"
+            menuButton(document.getElementById("apparatus-div"))
+            menu(document.getElementById("apparatus-div"))
+        </script>
+        {% endblock app_buttons %}
     </div>
-
-    <h4 class="center">Basetext - {{ ab.basetext_label }}</h4>
-    <table id="basetext" class="plain bg fit">
-        <tbody id="basetext_table_body">
-            
-            {% block basetext_row %}
-                <tr hx-get="{% url 'refresh-basetext' ab_pk=ab.pk %}"
-                    hx-target="#basetext_table_body" hx-trigger="refreshBasetext from:body">
-                    <th scope="row">Basetext<br>Index</th>
-                    {% for word in ab.indexed_basetext %}
-                        {% if word.is_variant %}
-                            <td class="text-center v bt-{{ word.app_pk }}" tabindex="0" hx-get="{% url 'rdgs' app_pk=word.app_pk %}" hx-target="#readings"
-                                _="on mouseenter add .highlight to .bt-{{ word.app_pk }} then add .highlight to #app-{{ word.app_pk }} end
-                                on mouseleave remove .highlight from .bt-{{ word.app_pk }} then remove .highlight from #app-{{ word.app_pk }} end
-                                on click remove .selected from <td/> then add .selected to .bt-{{ word.app_pk }} 
-                                then remove .selected from .app-button then add .selected to #app-{{ word.app_pk }}">
-                                {{ word.word }}<br>{{ word.index }}
-                            </td>
-                        {% else %}
-                            <td class="text-center">
-                                {{ word.word }}<br>{{ word.index }}
-                            </td>
-                        {% endif %}
-                    {% endfor %}
-                </tr>
-            {% endblock basetext_row %}
-
-        </tbody>
-    </table>
-
-    <h4 class="center">Readings</h4>
-    <div id="readings"></div>
-    <dialog class="reading-note" id="rdg-history-dialog"></dialog>
 </div>
+
+<h4 class="center">Basetext - {{ ab.basetext_label }}</h4>
+<table id="basetext" class="plain bg fit">
+    <tbody id="basetext_table_body">
+        
+        {% block basetext_row %}
+            <tr hx-get="{% url 'refresh-basetext' ab_pk=ab.pk %}"
+                hx-target="#basetext_table_body" hx-trigger="refreshBasetext from:body">
+                <th scope="row">Basetext<br>Index</th>
+                {% for word in ab.indexed_basetext %}
+                    {% if word.is_variant %}
+                        <td class="text-center v bt-{{ word.app_pk }}" tabindex="0" hx-get="{% url 'rdgs' app_pk=word.app_pk %}" hx-target="#readings"
+                            _="on mouseenter add .highlight to .bt-{{ word.app_pk }} then add .highlight to #app-{{ word.app_pk }} end
+                            on mouseleave remove .highlight from .bt-{{ word.app_pk }} then remove .highlight from #app-{{ word.app_pk }} end
+                            on click remove .selected from <td/> then add .selected to .bt-{{ word.app_pk }} 
+                            then remove .selected from .app-button then add .selected to #app-{{ word.app_pk }}">
+                            {{ word.word }}<br>{{ word.index }}
+                        </td>
+                    {% else %}
+                        <td class="text-center">
+                            {{ word.word }}<br>{{ word.index }}
+                        </td>
+                    {% endif %}
+                {% endfor %}
+            </tr>
+        {% endblock basetext_row %}
+
+    </tbody>
+</table>
+
+<h4 class="center">Readings</h4>
+<div id="readings"></div>
+<dialog class="reading-note" id="rdg-history-dialog"></dialog>
 <style>
-    .v {
-        padding-left: 5px;
-        padding-right: 5px
-    }
     {% for app in ab.apps.all %}
-        td.bt-{{ app.pk }} + td:not(.bt-{{ app.pk }}) {
-            border-left: dashed;
-            border-width: 2px;
-        }
         td:not(.bt-{{ app.pk }}) + td.bt-{{ app.pk }} {
-            border-left: dashed;
-            border-width: 2px;
-        }
-        td.bt-{{ app.pk }}:last-of-type {
-            border-right: dashed;
-            border-width: 1px
+            border-left: solid 2px #bd461d;
+            margin-left: 15px;
         }
         td.bt-{{ app.pk }}:first-of-type {
-            border-left: dashed;
-            border-width: 1px
+            border-left: solid 2px #bd461d;
+            margin-left: 15px;
         }
     {% endfor %}
 </style>
