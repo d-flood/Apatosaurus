@@ -1,44 +1,49 @@
-<h1 class="titlebar reading-note-header"
-    _="on load call document.getElementById('rdg-history-dialog').showModal() then call initialize_draggable_textarea()">
-    History for Reading "{{ rdg.name }}"
-</h1>
-
-    <table class="plain bg fit" id="rdgs_table_parent">
-        <thead>
-            <tr>
-                <th scope="col">Version</th>
-                <th scope="col">Modified</th>
-                <th scope="col">ID</th>
-                <th scope="col">Type</th>
-                <th scope="col">Reading</th>
-                <th scope="col">Witnesses</th>
-                <th scope="col">Restore</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for old_rdg in history %}
-                {% if not forloop.first %}  
-                    <tr class="{% cycle '' 'stripe' %}">
-                        <td>Previous Version</td>
-                        <td>{{ old_rdg.modified }}</td>
-                        <td>{{ old_rdg.name }}</td>
-                        <td>{{ old_rdg.get_rtype_display }}</abbr></td>
-                        <td>{{ old_rdg.text }}</td>
-                        <td>{% for w in old_rdg.wit.all %}<span title="{{ w.description }}">{{ w.siglum }}.</span> {% endfor %}</td>
-                        <td style="text-align: end;" class="f-row packed">
-                            <button type="button" title="restore this reading" aria-label="restore this reading"
-                                hx-post="{% url 'restore-rdg' rdg_pk=rdg.pk history_pk=old_rdg.pk %}"
-                                hx-target="#readings">
-                                Restore
-                            </button>
-                        </td>
-                    </tr>
-                {% endif %}
-            {% endfor %}
-        </tbody>
-    </table>
-
-<button type="button" onclick="document.getElementById('rdg-history-dialog').close()"
-    _="on htmx:afterRequest from body send click to me end">
-    Close
-</button>
+<div class="relative p-1">
+    <h1 class="reading-note-header text-lg font-bold text-center border-b-2"
+        _="on load call document.getElementById('rdg-history-dialog').showModal() end">
+        {% comment %} TODO: initialize_draggable_textarea() {% endcomment %}
+        History for Reading "{{ rdg.name }}"
+    </h1>
+    
+        <table class="plain bg fit" id="rdgs_table_parent">
+            <thead>
+                <tr>
+                    <th class="px-2" scope="col">Version</th>
+                    <th class="px-2" scope="col">Modified</th>
+                    <th class="px-2" scope="col">ID</th>
+                    <th class="px-2" scope="col">Type</th>
+                    <th class="px-2" scope="col">Reading</th>
+                    <th class="px-2" scope="col">Witnesses</th>
+                    <th class="px-2" scope="col">Restore</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for old_rdg in history %}
+                    {% if not forloop.first %}  
+                        <tr class="py-4 {% cycle '' 'bg-orange-50 dark:bg-cyan-1300' %}">
+                            <td class="px-2 h-8">Previous Version</td>
+                            <td class="px-2 h-8">{{ old_rdg.modified }}</td>
+                            <td class="px-2 h-8">{{ old_rdg.name }}</td>
+                            <td class="px-2 h-8">{{ old_rdg.get_rtype_display }}</abbr></td>
+                            <td class="font-greek px-2 h-8">{{ old_rdg.text }}</td>
+                            <td>{% for w in old_rdg.wit.all %}<span title="{{ w.description }}">{{ w.siglum }}.</span> {% endfor %}</td>
+                            <td class="flex flex-col items-end h-8">
+                                <button class="btn" 
+                                    type="button" title="restore this reading" aria-label="restore this reading"
+                                    hx-post="{% url 'restore-rdg' rdg_pk=rdg.pk history_pk=old_rdg.pk %}"
+                                    hx-target="#readings">
+                                    Restore
+                                </button>
+                            </td>
+                        </tr>
+                    {% endif %}
+                {% endfor %}
+            </tbody>
+        </table>
+    
+    <button class="btn-secondary" 
+        type="button" onclick="document.getElementById('rdg-history-dialog').close()"
+        _="on htmx:afterRequest from body send click to me end">
+        Close
+    </button>
+</div>
