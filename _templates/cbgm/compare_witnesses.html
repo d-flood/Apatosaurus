@@ -1,5 +1,5 @@
-<table class="plain bg">
-    <h3>Comparison Table for <span class="chip">{{ json.primary_wit }}</span> at <span class="chip">{{ json.primary_extant }}</span> extant variation units</h3>
+<table class="table-auto w-full">
+    <h3 class="text-3xl my-4">Comparison Table for <span class="font-bold">{{ json.primary_wit }}</span> at <span class="font-bold">{{ json.primary_extant }}</span> extant variation units</h3>
     <thead>
         <tr>
             <th><abbr title="Identifier (usually a witness siglum)">ID</abbr></th>
@@ -18,19 +18,19 @@
     </thead>
     <tbody>
         {% for row in json.rows %}
-            <tr class="{% cycle '' 'stripe' %}">
-                <td>{{ row.id }}</td>
-                <td>{% if row.dir == -1 %}🡺{% elif row.dir == 1 %}🡸{% else %}={% endif %}</td>
-                <td>{{ row.nr }}</td>
-                <td>{{ row.pass }}</td>
-                <td>{{ row.eq }}</td>
-                <td>{{ row.perc }}</td>
-                <td>{{ row.prior }}</td>
-                <td>{{ row.posterior }}</td>
-                <td>{{ row.norel }}</td>
-                <td>{{ row.uncl }}</td>
-                <td>{{ row.expl }}</td>
-                <td>{{ row.cost }}</td>
+            <tr class="{% cycle '' 'bg-orange-50 dark:bg-cyan-1000' %}">
+                <td class="mx-2">{{ row.id }}</td>
+                <td class="mx-2">{% if row.dir == -1 %}🡺{% elif row.dir == 1 %}🡸{% else %}={% endif %}</td>
+                <td class="mx-2">{{ row.nr }}</td>
+                <td class="mx-2">{{ row.pass }}</td>
+                <td class="mx-2">{{ row.eq }}</td>
+                <td class="mx-2">{{ row.perc }}</td>
+                <td class="mx-2">{{ row.prior }}</td>
+                <td class="mx-2">{{ row.posterior }}</td>
+                <td class="mx-2">{{ row.norel }}</td>
+                <td class="mx-2">{{ row.uncl }}</td>
+                <td class="mx-2">{{ row.expl }}</td>
+                <td class="mx-2">{{ row.cost }}</td>
             </tr>
         {% endfor %}
     </tbody>

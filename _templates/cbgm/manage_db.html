@@ -1,0 +1,32 @@
+<h2 class="text-6xl text-center my-8">Manage <code>open-cbgm</code> Databases</h2>
+<div class="p-4 flex flex-row flex-wrap justify-center sm:justify-start bg-orange-50 dark:bg-cyan-1300">
+    <p class="mr-1 sm:mr-8 md:mr-16 lg:mr-24"
+        hx-get={% url 'refresh-dbs' %}
+        hx-target="#select-db"
+        hx-trigger="refreshDbs from:body">
+        <label for="select-db" class="sr-only">Databases (Imported Collations)</label>
+        <select name="db" id="select-db" size="20"
+            hx-get="{% url 'edit-db' db_pk=0 %}"
+            hx-target="#manage-db-right">
+            {% block db_options %}
+                <optgroup label="Entire Works">
+                    {% for db in entire_dbs %}
+                        <option value="{{ db.pk }}" _="on click remove @disabled from .cbgm-tab then show #active-db-p then put '{{ db.db_name }}' into #active-db-label's innerHTML">{{ db.db_name }}</option>
+                    {% endfor %}
+                </optgroup>
+                <optgroup label="Sections">
+                    {% for db in section_dbs %}
+                        <option value="{{ db.pk }}" _="on click remove @disabled from .cbgm-tab then show #active-db-p then put '{{ db.db_name }}' into #active-db-label's innerHTML">{{ db.db_name }}</option>
+                    {% endfor %}
+                </optgroup>
+                <optgroup label="Verses">
+                    {% for db in verse_dbs %}
+                        <option value="{{ db.pk }}" _="on click remove @disabled from .cbgm-tab then show #active-db-p then put '{{ db.db_name }}' into #active-db-label's innerHTML">{{ db.db_name }}</option>
+                    {% endfor %}
+                </optgroup>
+            {% endblock db_options %}
+        </select>
+    </p>
+    <p class="mr-1 sm:mr-8 md:mr-16 lg:mr-24" id="manage-db-right"></p>
+    <div id="db-info"></div>
+</div>
