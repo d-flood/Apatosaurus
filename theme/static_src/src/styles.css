@@ -39,4 +39,25 @@
     .normal-link {
         @apply underline hover:text-orange-700 hover:dark:text-cyan-500 rounded-md cursor-pointer;
     }
+    .prose>p, .prose>h3 {
+        @apply my-4;
+    }
+    .prose>h3 {
+        @apply text-2xl text-center;
+    }
+    .prose>ul {
+        @apply list-disc;
+    }
+    .prose>ol {
+        @apply list-decimal;
+    }
+    .prose>ol>li, .prose>ul>li {
+        @apply ml-8;
+    }
+    .prose>a, .prose>*>a, .prose>*>*>a {
+        @apply normal-link;
+    }
+    button[disabled] {
+        @apply hover:bg-transparent text-gray-500 dark:text-gray-500;
+    }
 }
