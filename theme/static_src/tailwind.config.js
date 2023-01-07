@@ -15,12 +15,14 @@ module.exports = {
 
         /*  Templates within theme app (<tailwind_app_name>/templates), e.g. base.html. */
         '../templates/**/*.html',
+        '../templates/**/*.svg',
 
         /*
          * Main templates directory of the project (BASE_DIR/templates).
          * Adjust the following line to match your project structure.
          */
         '../../_templates/**/*.html',
+        '../../_templates/**/*.svg',
 
         /*
          * Templates in other django apps (BASE_DIR/<any_app_name>/templates).

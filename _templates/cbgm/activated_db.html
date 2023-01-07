@@ -1,10 +1,10 @@
 {% load crispy_forms_tags %}
 <h3 class="text-3xl">{{ db.db_name }}</h3>
-<hr class="my-2">
-    <form hx-post="{% url 'edit-db' db_pk=db.pk %}" 
+<hr class="my-6">
+    <form class="my-4" 
+        hx-post="{% url 'edit-db' db_pk=db.pk %}" 
         hx-target="#manage-db-right" 
-        hx-encoding="multipart/form-data" 
-        style="padding-top:0">
+        hx-encoding="multipart/form-data">
         {% crispy form %}
         <button type="submit" class="btn-submit mb-2 mt-4">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="inline-flex w-4 h-4">
@@ -25,17 +25,18 @@
 </button>
 
 <div id="db-info" hx-swap-oob="true" class="box">
-    <h4 class="text-2xl my-2">Database Settings</h4>
+    <h4 class="text-3xl">Database Settings</h4>
+    <hr class="my-6">
     <p class="max-w-md my-2">
         Note that these are set upon importing collation data to the open-cbgm.
         To change any settings, you must re-import the collation with the new options.
     </p>
-    <p><strong>Threshold:</strong> {{ db.threshold }}</p>
-    <p><strong>Trivial Types:</strong> {{ db.trivial_types }}</p>
-    <p><strong>Ignore Types:</strong> {{ db.ignore_types }}</p>
-    <p><strong>Ignore Suffixes:</strong> {{ db.ignore_suffixes }}</p>
-    <p><strong>Merge Splits:</strong> {{ db.merge_splits }}</p>
-    <p><strong>Use Classic Rules:</strong> {{ db.use_classic_rules }}</p>
+    <p class="flex border-b dark:border-b-gray-700"><span class="font-bold w-40">Threshold:</span> {{ db.threshold }}</p>
+    <p class="flex border-b dark:border-b-gray-700"><span class="font-bold w-40">Trivial Types:</span> {{ db.trivial_types }}</p>
+    <p class="flex border-b dark:border-b-gray-700"><span class="font-bold w-40">Ignore Types:</span> {{ db.ignore_types }}</p>
+    <p class="flex border-b dark:border-b-gray-700"><span class="font-bold w-40">Ignore Suffixes:</span> {{ db.ignore_suffixes }}</p>
+    <p class="flex border-b dark:border-b-gray-700"><span class="font-bold w-40">Merge Splits:</span> {{ db.merge_splits }}</p>
+    <p class="flex border-b dark:border-b-gray-700"><span class="font-bold w-40">Use Classic Rules:</span> {{ db.use_classic_rules }}</p>
     <p class="my-2">
         <label for="wits-in-db"><strong>All Witnesses in this Collation</strong></label>
         <select class="block min-w-full" size="10" id="wits-in-db">
@@ -78,22 +79,22 @@
     </div>
 </div>
 
-<div id="find-relatives" role="tabpanel" class="tab-content"
+<div id="find-relatives" role="tabpanel" class="tab-content bg-orange-50 dark:bg-cyan-1300 p-4"
     hx-swap-oob="true" style="display:none;">
-    <h2>Find Relatives <span class="italic">(Comparison of Witnesses)</span></h2>
-    <div class="f-switch">
-        <form action="submit" 
+    <h2 class="text-3xl my-4">Find Relatives <span class="italic">(Comparison of Witnesses)</span></h2>
+    <div class="grid grid-cols-1 2xl:grid-cols-2">
+        <form class="max-w-xl" 
             hx-post="{% url 'find-relatives' db_pk=db.pk %}"
             hx-target="#find-relatives-results">
-            <h3>Select Witnesses to Compare</h3>
+            <h3 class="text-2xl my-2">Select Witnesses to Compare</h3>
             <p>Enter a witnesses and a variation unit location to see all witnesses that agree in that variation unit.</p>
-            <p>
+            <p class="flex flex-col max-w-md my-4">
                 {{ find_relatives_form.witness.label_tag }}
                 {{ find_relatives_form.witness.errors }}
                 {{ find_relatives_form.witness }}
             </p>
 
-            <p>
+            <p class="flex flex-col max-w-md my-4">
                 {{ find_relatives_form.app_labels.label_tag }}
                 {{ find_relatives_form.app_labels.errors }}
                 <select name="app_labels" id="id_app_labels" size="10">
@@ -110,14 +111,14 @@
                     {% endfor %}
                 </select>
             </p>
-            <p>
+            <p class="flex flex-col max-w-md my-4">
                 <label for="id_variation-unit-rdgs">Readings (optional)</label>
                 <select name="variation-unit-readings" id="id_variation-unit-rdgs"
                     style="min-width: 300px;" size="5" multiple></select>
             </p>
-            <div class="f-row">
-                <button class="info bg color">Clear Reading Selection</button>
-                <button type="submit" class="big">
+            <div class="flex flex-row">
+                <button class="btn-secondary mx-2">Clear Reading Selection</button>
+                <button type="submit" class="btn-submit mx-2">
                     Find Relatives
                 </button>
             </div>
@@ -128,29 +129,30 @@
 
 <div id="optimize-substemma" role="tabpanel" class="tab-content"
     hx-swap-oob="true" style="display:none;">
-    <h2>Optimize Substemma</h2>
-    <div class="f-switch">
-        <form action="submit" 
-            hx-post="{% url 'optimize-substemmata' db_pk=db.pk %}"
-            hx-target="#optimize-substemma-results">
-            {{ optimize_substemma_form.as_p }}
-            <button type="submit" class="big">
+    <h2 class="text-3xl my-4 text-center">Optimize Substemma</h2>
+    <div class="flex flex-row flex-wrap justify-around">
+        <div id="optimize-substemma-form" class="my-4 w-72">
+            {% crispy optimize_substemma_form %}
+            <button type="button" class="btn-submit my-4"
+                hx-post="{% url 'optimize-substemmata' db_pk=db.pk %}"
+                hx-target="#optimize-substemma-results"
+                hx-include="#optimize-substemma-form">
                 Identify Potential Ancestors
             </button>
-        </form>
-        <div id="optimize-substemma-results"></div>
+        </div>
+        <div id="optimize-substemma-results" class="block"></div>
     </div>
 </div>
 
-<div id="local-stemma" role="tabpanel" class="tab-content"
+<div id="local-stemma" role="tabpanel" class="tab-content flex flex-col items-center sm:block"
     hx-swap-oob="true" style="display:none;">
-    <h2>Local Stemma</h2>
-    <div class="f-switch">
-        <form >
-            <p>
+    <h2 class="text-3xl my-4 sm:ml-8">Local Stemma</h2>
+    <div class="flex flex-row flex-wrap sm:px-12 items-start">
+        <form class="mx-6">
+            <p class="flex flex-col">
                 {{ local_stemma_form.app_labels.label_tag }}
                 {{ local_stemma_form.app_labels.errors }}
-                <select name="app_labels" id="id_app_labels" size="10">
+                <select name="app_labels" id="id_app_labels" size="10" class="my-4">
                     {% for app in app_groups %}
                         <optgroup label="{{ app.name }}">
                             {% for unit in app.units %}
@@ -165,19 +167,19 @@
                 </select>
             </p>
         </form>
-        <div id="local-stemma-div"></div>
+        <div id="local-stemma-div" class="mx-6"></div>
     </div>
 </div>
 
 <div id="textual-flow" role="tabpanel" class="tab-content"
     hx-swap-oob="true" style="display:none;">
-    <h2>Textual Flow Diagrams</h2>
+    <h2 class="text-3xl my-4 text-center`">Textual Flow Diagrams</h2>
     {% block textual_flow_form %}
-        <form action="submit" class="f-switch" id="textual-flow-form"
+        <form action="submit" class="flex flex-row flex-wrap justify-center items-center" id="textual-flow-form"
             hx-post="{% url 'textual-flow' db_pk=db.pk %}"
             hx-target="#textual-flow-graphs">
             {% for field in textual_flow_form %}
-                <p class="f-col">
+                <p class="flex flex-col mx-4 my-4">
                     {% if field.name == 'app_labels' %}
                         {{ field.label_tag }}
                         {{ field.errors }}
@@ -191,14 +193,16 @@
                             {% endfor %}
                         </select>
                     {% else %}
-                        {{ field.label_tag }}
-                        {{ field.errors }}
-                        {{ field }}
+                        <div class="flex flex-col">
+                            {{ field.label_tag }}
+                            {{ field.errors }}
+                            {{ field }}
+                        </div>
                     {% endif %}
                 </p>
             {% endfor %}
-            <button type="submit" class="big" style="max-height: 60px;"
-                _="on htmx:beforeSend from #textual-flow-form toggle @style="display:none;" on #textual-flow-indicator until htmx:afterOnLoad from body end
+            <button type="submit" class="btn-submit inline-flex m-4"
+                _="on htmx:beforeSend from #textual-flow-form toggle the *display of #textual-flow-indicator until htmx:afterOnLoad from body end
                    on htmx:beforeSend from #textual-flow-form toggle @disabled on <button/> until htmx:afterOnLoad from body end">
                 Generate Diagram(s)
             </button>
@@ -207,7 +211,7 @@
             </div>
         </form>
     {% endblock textual_flow_form %}
-    <div id="textual-flow-graphs" style="width: 100%;"></div>
+    <div id="textual-flow-graphs"></div>
 </div>
 
 <div id="global-stemma" role="tabpanel" class="tab-content"
@@ -218,7 +222,7 @@
         hx-target="#global-stemma-graph">
         {{ global_stemma_form.as_p }}
         <button type="submit" class="big"
-            _="on htmx:beforeSend from #global-stemma-form toggle @style="display:none;" on #global-stemma-indicator until htmx:afterOnLoad from body end
+            _="on htmx:beforeSend from #global-stemma-form toggle the *display of #global-stemma-indicator until htmx:afterOnLoad from body end
                on htmx:beforeSend from #global-stemma-form toggle @disabled on <button/> until htmx:afterOnLoad from body end">
             Generate Global Stemma
         </button>
