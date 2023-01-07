@@ -4,3 +4,5 @@
 
 - finish user profile and implement `django-registration`
 - set a limit for the number of completed background jobs that can exist
+
+- build out cbgm styling

@@ -1,18 +1,18 @@
-<table class="plain bg">
-    <h3>Substemmata for <span class="chip">{{ json.primary_wit }}</span> at <span class="chip">{{ json.primary_extant }}</span> extant variation units</h3>
+<table class="table-auto w-full">
+    <h3 class="text-3xl my-4 text-center">Potential Ancestors for <span class="chip">{{ json.primary_wit }}</span> at <span class="chip">{{ json.primary_extant }}</span> extant variation units</h3>
     <thead>
-        <tr>
-            <th>Ancestors</th>
+        <tr class="bg-orange-200 dark:bg-cyan-1400">
+            <th>Ancestor</th>
             <th>Cost</th>
             <th>Agree</th>
         </tr>
     </thead>
     <tbody>
         {% for row in json.rows %}
-            <tr class="{% cycle '' 'stripe' %}">
-                <td>{{ row.ancestors|join:", " }}</td>
-                <td>{{ row.cost }}</td>
-                <td>{{ row.agreements }}</td>
+            <tr class="{% cycle '' 'bg-orange-100 dark:bg-cyan-1000' %}">
+                <td class="mx-2 text-center">{{ row.ancestors|join:", " }}</td>
+                <td class="mx-2 text-center">{{ row.cost }}</td>
+                <td class="mx-2 text-center">{{ row.agreements }}</td>
             </tr>
         {% endfor %}
     </tbody>

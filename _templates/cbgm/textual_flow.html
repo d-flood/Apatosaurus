@@ -1,6 +1,6 @@
 <h3>{{ title }}</h3>
 {% for svg in output %}
-    <p class="svg-p" style="width: 100%;">{{ svg|safe }}</p>
+    <p class="svg-p max-w-full">{{ svg|safe }}</p>
 {% endfor %}
 <script>
     svgs = document.querySelectorAll('p.svg-p svg');
@@ -16,3 +16,8 @@
         element.style.width = '100%';
     });
 </script>
+<style>
+    p.svg-p>svg {
+        width: 100%;
+    }
+</style>

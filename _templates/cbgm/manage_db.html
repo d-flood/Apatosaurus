@@ -4,7 +4,7 @@
         hx-get={% url 'refresh-dbs' %}
         hx-target="#select-db"
         hx-trigger="refreshDbs from:body">
-        <label for="select-db" class="sr-only">Databases (Imported Collations)</label>
+        <label for="select-db" class="block text-lg my-2">Databases (Imported Collations)</label>
         <select name="db" id="select-db" size="20"
             hx-get="{% url 'edit-db' db_pk=0 %}"
             hx-target="#manage-db-right">

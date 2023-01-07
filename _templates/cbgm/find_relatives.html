@@ -1,7 +1,7 @@
-<table class="plain bg">
-    <h3>Relatives for <span class="chip">{{ json.primary_wit }}</span> at <span class="chip">{{ json.primary_extant }}</span> extant variation units</h3>
+<table class="table-auto w-full">
+    <h3 class="text-3xl my-4 text-center">Relatives for <span class="font-bold">{{ json.primary_wit }}</span> at <span class="font-bold">{{ json.primary_extant }}</span> extant variation units</h3>
     <thead>
-        <tr>
+        <tr class="bg-orange-200 dark:bg-cyan-1400">
             <th><abbr title="Identifier (usually a witness siglum)">ID</abbr></th>
             <th><abbr title="direction of relationship">Dir</abbr></th>
             <th><abbr title="ask Joey">NR</abbr></th>
@@ -19,20 +19,20 @@
     </thead>
     <tbody>
         {% for row in json.rows %}
-            <tr class="{% cycle '' 'stripe' %}">
-                <td>{{ row.id }}</td>
-                <td>{% if row.dir == -1 %}🡺{% elif row.dir == 1 %}🡸{% else %}={% endif %}</td>
-                <td>{{ row.nr }}</td>
-                <td>{{ row.rdg }}</td>
-                <td>{{ row.pass }}</td>
-                <td>{{ row.eq }}</td>
-                <td>{{ row.perc }}</td>
-                <td>{{ row.prior }}</td>
-                <td>{{ row.posterior }}</td>
-                <td>{{ row.norel }}</td>
-                <td>{{ row.uncl }}</td>
-                <td>{{ row.expl }}</td>
-                <td>{{ row.cost }}</td>
+            <tr class="{% cycle '' 'bg-orange-100 dark:bg-cyan-1000' %}">
+                <td class="mx-2 text-center">{{ row.id }}</td>
+                <td class="mx-2 text-center">{% if row.dir == -1 %}🡺{% elif row.dir == 1 %}🡸{% else %}={% endif %}</td>
+                <td class="mx-2 text-center">{{ row.nr }}</td>
+                <td class="mx-2 text-center">{{ row.rdg }}</td>
+                <td class="mx-2 text-center">{{ row.pass }}</td>
+                <td class="mx-2 text-center">{{ row.eq }}</td>
+                <td class="mx-2 text-center">{{ row.perc }}</td>
+                <td class="mx-2 text-center">{{ row.prior }}</td>
+                <td class="mx-2 text-center">{{ row.posterior }}</td>
+                <td class="mx-2 text-center">{{ row.norel }}</td>
+                <td class="mx-2 text-center">{{ row.uncl }}</td>
+                <td class="mx-2 text-center">{{ row.expl }}</td>
+                <td class="mx-2 text-center">{{ row.cost }}</td>
             </tr>
         {% endfor %}
     </tbody>
