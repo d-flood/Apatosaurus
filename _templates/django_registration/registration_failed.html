@@ -1,0 +1,11 @@
+{% extends 'base.html' %}
+{% block content %}
+    <main class="block p-8 mx-auto mt-6">
+        <div class="bg-orange-200 dark:bg-cyan-1100">
+            <h1 class="text-4xl my-2">Activation Failed</h1>
+            <p>
+                {{ activation_error.message }}
+            </p>
+        </div>
+    </main>
+{% endblock content %}
