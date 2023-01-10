@@ -1,0 +1,3 @@
+Please follow the link below to activate your Apatosaurus account:
+
+http://127.0.0.1:8000{% url 'django_registration_activate' activation_key=activation_key %}

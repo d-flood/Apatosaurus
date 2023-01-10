@@ -1,16 +1,24 @@
-<h3>{{ title }}</h3>
-<p class="svg-p" style="width: 100%;">{{ svg|safe }}</p>
+<h3 class="text-3xl my-4 text-center">{{ title }}</h3>
+<div class="flex flex-col">
+    <p class="svg-p max-w-full my-8 border-2 border-orange-700">{{ svg|safe }}</p>
+</div>
 <script>
     svgs = document.querySelectorAll('p.svg-p svg');
     svgs.forEach(element => {
         svgPanZoom(element, {
             zoomEnabled: true,
             controlIconsEnabled: true,
-            fit: true,
-            center: false,
+            fit: false,
+            center: true,
             minZoom: 1,
             maxZoom: 10
         })
         element.style.width = '100%';
     });
 </script>
+<style>
+    p.svg-p>svg {
+        width: 100%;
+        max-height: 100%;
+    }
+</style>

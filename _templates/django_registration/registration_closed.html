@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+{% block content %}
+<main class="block p-8 mx-auto mt-6">
+    <div class="bg-orange-100 dark:bg-cyan-1100 p-6">
+        <h1 class="text-4xl my-2">Sorry, Registration is Currently Closed</h1>
+        <p>
+            Apatosaurus is in a closed beta testing phase. If you have been invited to participate,
+            please <a href="{% url 'login' %}">log in</a> using the credentials provided to you.
+        </p>
+    </div>
+</main>
+{% endblock %}
+

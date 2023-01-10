@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+{% block content %}
+<main class="block p-8 mx-auto mt-6">
+    <div class="bg-orange-100 dark:bg-cyan-1100 p-4">
+        <h1 class="text-4xl my-2 text-center">Register to use Apatosaurus</h1>
+        <p class="text-center">
+            Thank you for your interest in Apatosaurus. Please fill out the form below to register
+            for an account.
+        </p>
+        <div class="container my-5">
+            <form method="post" action="{% url 'django_registration_register' %}">
+                {% csrf_token %}
+                {{ form|crispy }}
+                <button type="submit" class="btn-submit mt-8 w-full">Register</button>
+            </form>
+        </div>
+    </div>
+</main>
+{% endblock %}

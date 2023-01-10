@@ -1,0 +1,11 @@
+{% extends 'base.html' %}
+{% block content %}
+<main class="block p-8 mx-auto mt-6">
+    <div class="bg-orange-100 dark:bg-cyan-1100 p-8">
+        <h1 class="text-4xl my-2">Registration Complete!</h1>
+        <p>
+            Your account and email have been confirmed. You may now <a class="normal-link" href="{% url 'login' %}">log in</a>.
+        </p>
+    </div>
+</main>
+{% endblock %}

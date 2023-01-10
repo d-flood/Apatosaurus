@@ -30,6 +30,11 @@ class CustomUserRegistrationForm(RegistrationForm):
     # TODO: add a captha field
     class Meta(RegistrationForm.Meta):
         model = get_user_model()
+        fields = (
+            "email",
+            "username",
+            "registration_purpose",
+        )
 
 
 class UserFeedbackForm(forms.ModelForm):

@@ -127,7 +127,7 @@
     </div>
 </div>
 
-<div id="optimize-substemma" role="tabpanel" class="tab-content"
+<div id="optimize-substemma" role="tabpanel" class="tab-content bg-orange-50 dark:bg-cyan-1300 p-4"
     hx-swap-oob="true" style="display:none;">
     <h2 class="text-3xl my-4 text-center">Optimize Substemma</h2>
     <div class="flex flex-row flex-wrap justify-around">
@@ -144,7 +144,7 @@
     </div>
 </div>
 
-<div id="local-stemma" role="tabpanel" class="tab-content flex flex-col items-center sm:block"
+<div id="local-stemma" role="tabpanel" class="tab-content flex flex-col items-center sm:block bg-orange-50 dark:bg-cyan-1300 p-4"
     hx-swap-oob="true" style="display:none;">
     <h2 class="text-3xl my-4 sm:ml-8">Local Stemma</h2>
     <div class="flex flex-row flex-wrap sm:px-12 items-start">
@@ -171,9 +171,9 @@
     </div>
 </div>
 
-<div id="textual-flow" role="tabpanel" class="tab-content"
+<div id="textual-flow" role="tabpanel" class="tab-content bg-orange-50 dark:bg-cyan-1300 p-4"
     hx-swap-oob="true" style="display:none;">
-    <h2 class="text-3xl my-4 text-center`">Textual Flow Diagrams</h2>
+    <h2 class="text-3xl my-4 text-center">Textual Flow Diagrams</h2>
     {% block textual_flow_form %}
         <form action="submit" class="flex flex-row flex-wrap justify-center items-center" id="textual-flow-form"
             hx-post="{% url 'textual-flow' db_pk=db.pk %}"
@@ -183,7 +183,7 @@
                     {% if field.name == 'app_labels' %}
                         {{ field.label_tag }}
                         {{ field.errors }}
-                        <select name="app_labels" id="id_app_labels" size="10">
+                        <select name="app_labels" id="id_app_labels" size="10" required>
                             {% for app in app_groups %}
                                 <optgroup label="{{ app.name }}">
                                     {% for unit in app.units %}
@@ -214,14 +214,14 @@
     <div id="textual-flow-graphs"></div>
 </div>
 
-<div id="global-stemma" role="tabpanel" class="tab-content"
+<div id="global-stemma" role="tabpanel" class="tab-content bg-orange-50 dark:bg-cyan-1300 p-4"
     hx-swap-oob="true" style="display:none;">
-    <h2>Global Stemma</h2>
-    <form action="submit" id="global-stemma-form"
+    <h2 class="text-3xl my-4 text-center">Global Stemma</h2>
+    <form action="submit" id="global-stemma-form" class="flex flex-row flex-wrap justify-center items-center"
         hx-post="{% url 'global-stemma' db_pk=db.pk %}"
         hx-target="#global-stemma-graph">
         {{ global_stemma_form.as_p }}
-        <button type="submit" class="big"
+        <button type="submit" class="btn-submit inline-flex m-4"
             _="on htmx:beforeSend from #global-stemma-form toggle the *display of #global-stemma-indicator until htmx:afterOnLoad from body end
                on htmx:beforeSend from #global-stemma-form toggle @disabled on <button/> until htmx:afterOnLoad from body end">
             Generate Global Stemma

@@ -1,24 +1,29 @@
 {% extends 'base.html' %}
+{% load crispy_forms_tags %}
 {% block content %}
-<div class="container my-5">
-    {% if form.errors %}
-      <p>Your username and password didn't match. Please try again.</p>
-    {% endif %}
-
-    {% if next %}
-    {% if user.is_authenticated %}
-    <p>Your account doesn't have access to this page. To proceed,
-        please login with an account that has access.</p>
-    {% else %}
-    <p>Please login to see this page.</p>
-    {% endif %}
-    {% endif %}
-
-    <form method="post" action="{% url 'login' %}">
-        {% csrf_token %}
-        {{ form.as_p }}
-        <button class="btn btn-outline-primary" type="submit">Log In</button>
-        {% comment %} <a class="btn btn-outline-info ms-auto" href="{% url 'django_registration_register' %}">Register</a> {% endcomment %}
-    </form>
+<div class="my-5 p-5 flex flex-col items-center">
+    <div class="bg-orange-100 dark:bg-cyan-1100 p-8 rounded-xl">
+        <h1 class="text-4xl my-8 text-center">Log In</h1>
+        {% if form.errors %}
+          <p>Your username and password didn't match. Please try again.</p>
+        {% endif %}
+    
+        {% if next %}
+        {% if user.is_authenticated %}
+        <p>Your account doesn't have access to this page. To proceed,
+            please login with an account that has access.</p>
+        {% else %}
+        <p>Please login to see this page.</p>
+        {% endif %}
+        {% endif %}
+    
+        <form class="flex flex-col items-center"
+            method="post" action="{% url 'login' %}">
+            {% csrf_token %}
+            {{ form|crispy }}
+            <button class="btn-submit my-4 mx-2 block w-full text-center" type="submit">Log In</button>
+            <a class="btn my-4 mx-2 block w-full text-center" href="{% url 'django_registration_register' %}">Register</a>
+        </form>
+    </div>
 </div>
 {% endblock %}
