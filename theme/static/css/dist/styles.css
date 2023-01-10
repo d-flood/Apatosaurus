@@ -1065,14 +1065,14 @@ div#graph-div>svg>g>g>polygon, div#graph-div>svg>g>g>path {
   fill: #fff;
 }
 
-select, textarea, input[type="text"], input[type="number"] {
+select, textarea, input[type="text"], input[type="number"], input[type="password"], input[type="email"] {
   --tw-bg-opacity: 1;
   background-color: rgb(255 255 255 / var(--tw-bg-opacity));
   --tw-text-opacity: 1;
   color: rgb(0 0 0 / var(--tw-text-opacity));
 }
 
-.dark select,.dark  textarea,.dark  input[type="text"],.dark  input[type="number"] {
+.dark select,.dark  textarea,.dark  input[type="text"],.dark  input[type="number"],.dark  input[type="password"],.dark  input[type="email"] {
   --tw-bg-opacity: 1;
   background-color: rgb(10 39 51 / var(--tw-bg-opacity));
   --tw-text-opacity: 1;
@@ -1355,6 +1355,10 @@ button[disabled]:hover {
 
 .mt-12 {
   margin-top: 3rem;
+}
+
+.mt-8 {
+  margin-top: 2rem;
 }
 
 .block {
@@ -1825,6 +1829,10 @@ button[disabled]:hover {
 
 .p-8 {
   padding: 2rem;
+}
+
+.p-5 {
+  padding: 1.25rem;
 }
 
 .px-2 {
