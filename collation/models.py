@@ -222,7 +222,7 @@ class Rdg(models.Model):
 
 class RdgHistory(models.Model):
     rdg = models.ForeignKey(Rdg, on_delete=models.CASCADE, related_name='history')
-    modified = models.DateTimeField(default=datetime.now())
+    modified = models.DateTimeField(auto_now=True)
     
     name = models.CharField(max_length=5)
     rtype = models.CharField(max_length=5, choices=Rdg.RDG_CHOICES, default='0', verbose_name='Reading Type')
