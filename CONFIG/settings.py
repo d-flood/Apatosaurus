@@ -47,6 +47,8 @@ INSTALLED_APPS = [
     'collation',
     'accounts',
     'cbgm',
+    'published',
+    'witnesses',
 
     'django_htmx',
     'crispy_forms',
@@ -145,6 +147,8 @@ STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.StaticFilesStorage'
 MEDIA_URL = 'media/'
 MEDIA_ROOT = BASE_DIR / '_media'
 
+DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.1/ref/settings/#default-auto-field
 
@@ -156,6 +160,7 @@ CSRF_TRUSTED_ORIGINS = [
     'http://localhost/',
     'http://localhost:8000/',
     'https://localhost/',
+    'http://localhost',
 ]
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

@@ -8,6 +8,7 @@ __pycache__/
 # dev machine
 *.ps1
 *.exe
+.vscode/
 
 # temp
 temp/

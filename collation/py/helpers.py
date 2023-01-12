@@ -30,4 +30,4 @@ def make_graph(app: App) -> str:
 
 def quick_message(message: str, klass: str, timeout: int = 2):
     """klass: 'ok', 'warn', 'bad', 'info', 'plain'"""
-    return f'<div class="box {klass} color bg" _="on load wait {timeout}s then remove me"><p>{message}</p></div>'
+    return f'<div class="p-4 dark:bg-cyan-100 bg-cyan-900" _="on load wait {timeout}s then remove me"><p>{message}</p></div>'
