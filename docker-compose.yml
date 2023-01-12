@@ -1,0 +1,58 @@
+version: '3'
+services:
+  ########### DJANGO
+  django:
+    restart: always
+    build:
+      context: .
+      dockerfile: docker_django.dockerfile
+    volumes:
+      - .:/django
+      - uploads:/django/uploads:rw
+    ports:
+      - 8000
+    env_file:
+      - .env
+    container_name: django
+    command: 
+      - /bin/sh
+      - -c 
+      - | 
+        python manage.py migrate && python manage.py runserver 0.0.0.0:8000
+  ########### REDIS
+  redis:
+    image: redis:alpine
+    container_name: redis
+    env_file:
+      - .env
+  ########### HUEY
+  queue:
+    restart: always
+    build:
+      context: .
+      dockerfile: docker_django.dockerfile
+    command: python manage.py run_huey
+    volumes:
+      - .:/django
+      - uploads:/django/uploads:rw
+    container_name: huey
+    env_file:
+      - .env
+    depends_on:
+      - redis
+      - django
+########### NGINX
+  nginx:
+    build: 
+      context: .
+      dockerfile: docker_nginx.dockerfile
+    ports:
+      - 80:80
+    volumes:
+      - ./_static:/static
+    container_name: nginx
+    depends_on:
+      - django
+
+volumes:
+  uploads:
