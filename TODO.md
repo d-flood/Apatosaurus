@@ -5,4 +5,6 @@
 - finish user profile and implement `django-registration`
 - set a limit for the number of completed background jobs that can exist
 
-- build out cbgm styling
+- set up litestream
+- complete containerization
+- store user open-cbgm databases in S3 and cache them on server
