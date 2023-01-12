@@ -9,9 +9,12 @@ https://docs.djangoproject.com/en/4.1/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/4.1/ref/settings/
 """
-
+import logging
 from pathlib import Path
 from os import environ
+
+
+from redis import ConnectionPool
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -28,7 +31,7 @@ ADMINS = [('admin', environ.get('ADMIN_EMAIL')),]
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = environ.get('DEBUG') == 'True'
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['*']
 
 
 # Application definition
@@ -47,6 +50,7 @@ INSTALLED_APPS = [
 
     'django_htmx',
     'crispy_forms',
+    'huey.contrib.djhuey',
     'tailwind',
     'theme',
     'django_browser_reload',
@@ -95,6 +99,7 @@ DATABASES = {
     }
 }
 
+CACHE_TTL = 60
 
 # Password validation
 # https://docs.djangoproject.com/en/4.1/ref/settings/#auth-password-validators
@@ -143,6 +148,16 @@ MEDIA_ROOT = BASE_DIR / '_media'
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.1/ref/settings/#default-auto-field
 
+CSRF_TRUSTED_ORIGINS = [
+    'http://www.apatosaurus.io/',
+    'http://apatosaurus.io/',
+    'https://www.apatosaurus.io/',
+    'https://apatosaurus.io/',
+    'http://localhost/',
+    'http://localhost:8000/',
+    'https://localhost/',
+]
+
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 TAILWIND_APP_NAME = 'theme'
@@ -162,3 +177,31 @@ EMAIL_HOST_USER = environ.get('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = environ.get('EMAIL_HOST_PASSWORD')
 EMAIL_PORT = int(environ.get('EMAIL_PORT', 0))
 EMAIL_USE_TLS = True
+
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+        'LOCATION': 'redis:6379',
+    },
+}
+
+pool = ConnectionPool(
+    host='redis',
+    port=6379,
+    max_connections=20
+)
+
+HUEY = {
+    'name': 'task_worker',
+    'connection': {'connection_pool': pool},
+    'immediate': False,
+    'consumer': {
+        'workers': 4,
+        'worker_type': 'thread',
+        'blocking': True,
+        'loglevel': logging.INFO,
+        'workers': 4,
+        'scheduler_interval': 1,
+        'simple_log': True,
+    },
+}
