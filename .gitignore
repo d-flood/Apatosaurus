@@ -14,10 +14,9 @@ liste.json
 # dev machine specific
 *.ps1
 *.exe
+.vscode/
 
 # temp
 temp/
 tmp/
 
-# temporarily ignored
-migrations/
