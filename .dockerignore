@@ -1,2 +1,14 @@
+# py
+.venv/
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+
+# dev machine
 *.ps1
-# *.sqlite3
+*.exe
+
+# temp
+temp/
+tmp/
