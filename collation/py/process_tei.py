@@ -140,7 +140,6 @@ def create_rdg_instance(rdg_elem: et._Element, app_pk: int, user_pk: int) -> mod
         varSeq=varSeq,
         rtype=rtype,
         text=text,
-        active=True,
     )
     if wits:
         rdg_instance.wit.set(wits)
@@ -174,21 +173,15 @@ def tei_to_db(xml: et._Element, section_id: int, job_pk: int, user_pk: int):
     if total == 0:
         total = 1
     i = 1
-    try:
-        # for i, ab_elem in enumerate(xml.findall(f'{TEI_NS}ab'), start=1):
-        for i, ab_elem in enumerate(xml.xpath(f'//tei:ab', namespaces={'tei': TEI_NS_STR}), start=1): #type: ignore
-            update_status(job_pk, f'Importing {ab_elem.attrib.get(f"{XML_NS}id", "")}', int(i/total*100))
-            ab_instance = create_ab_instance(ab_elem, section_id, i)
-            for app_elem in ab_elem.findall(f'{TEI_NS}app'):
-                if not (app := create_app_instance(app_elem, ab_instance.pk)):
+    for i, ab_elem in enumerate(xml.xpath(f'//tei:ab', namespaces={'tei': TEI_NS_STR}), start=1): #type: ignore
+        update_status(job_pk, f'Importing {ab_elem.attrib.get(f"{XML_NS}id", "")}', int(i/total*100))
+        ab_instance = create_ab_instance(ab_elem, section_id, i)
+        for app_elem in ab_elem.findall(f'{TEI_NS}app'):
+            if not (app := create_app_instance(app_elem, ab_instance.pk)):
+                continue
+            for rdg_elem in app_elem.findall('rdg', namespaces={None: TEI_NS_STR, 'xml': XML_NS_STR}): #type: ignore
+                if not (rdg_instance := create_rdg_instance(rdg_elem, app.pk, user_pk)):
                     continue
-                for rdg_elem in app_elem.findall('rdg', namespaces={None: TEI_NS_STR, 'xml': XML_NS_STR}): #type: ignore
-                    if not (rdg_instance := create_rdg_instance(rdg_elem, app.pk, user_pk)):
-                        continue
-                create_arc_instance(app_elem, app.pk)
-            ab_instance.save()
-            print(f'added {ab_instance.name} to db')
-        update_status(job_pk, '', 100, False, True)
-    except Exception as e:
-        print(e)
-        update_status(job_pk, f'Error: {e}', int(i/total*100), False, False, True)
+            create_arc_instance(app_elem, app.pk)
+        ab_instance.save()
+        print(f'added {ab_instance.name} to db')
