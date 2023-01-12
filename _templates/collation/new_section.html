@@ -10,7 +10,7 @@
     <form hx-post="{% url 'new-section' collation_id=collation_id %}" 
         class="my-6" hx-target="#main">
         {% csrf_token %}
-        {% crispy new_section_form %}
-        <input type="submit" value="Submit" class="btn-submit">
+        {{ new_section_form|crispy }}
+        <input type="submit" value="Submit" class="btn-submit my-4">
     </form>
 </div>

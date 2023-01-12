@@ -12,8 +12,8 @@
         hx-encoding='multipart/form-data' 
         hx-post="{% url 'upload-tei' section_id=section_id %}"
         hx-target="#main">
-        {% crispy form %}
-        <button type="submit" class="btn-submit">
+        {{ form|crispy }}
+        <button type="submit" class="btn-submit my-4">
             Upload and Submit
         </button>
     </form>

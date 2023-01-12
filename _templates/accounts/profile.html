@@ -1,68 +1,85 @@
 {% extends 'base.html' %}
-{% load static %}
+{% load static crispy_forms_tags %}
 {% block content %}
-<main>
-    <h1>Home of {{ request.user }}</h1>
-    <div role="tablist">
-        <button role="tab" aria-controls="user-info" aria-selected="true">Your Information</button>
-        <button role="tab" aria-controls="joblist">Background Jobs</button>
-    </div>
-        
-    <div id="user-info"  role="tabpanel">
-        <form action="submit">
-            {{ user_change_form }}
-            <br>
-            <button style="margin-top: 10px;" type="submit" class="big">Save</button>
-        </form>
-    </div>
-    <div id="joblist" role="tabpanel" hidden
-        hx-trigger="refreshMe"
-        hx-get="{% url 'user-job-list' %}"
-        _="on intersection
-                repeat while me.hidden is false
-                    send refreshMe to me then wait 1.2s
-                end">
-        {% block user_job_list %}
-            {% for job in jobs %}
-                {% if job.completed %}
-                    <div class="box ok color">
-                        <strong class="block titlebar">{{ job.name }}: Complete</strong>
-                        <div class="f-row"></div>
-                        <p>{{ job.created }}</p>
-                        <button type="button"
-                            hx-delete="{% url 'delete-job-status' job_pk=job.pk %}">
-                            Dismiss
-                        </button>
-                    </div>
-                {% elif job.failed %}
-                    <div class="box bad color">
-                        <strong class="block titlebar">{{ job.name }}: Failed</strong>
-                        <p>{{ job.message }}</p>
-                        <button type="button"
-                            hx-delete="{% url 'delete-job-status' job_pk=job.pk %}"
-                            _="on click set my @disabled to 'true'">
-                            Dismiss
-                        </button>
-                    </div>
-                {% elif job.in_progress %}
-                    <div class="box info color">
-                        <strong class="block titlebar">{{ job.name }}: Processing...</strong>
-                        <p>{{ job.message }}</p>
-                        {% if job.progress == -1 %}
-                            <label>Importing <progress>progress</progress></label>
-                        {% else %}
-                            <label>Progress: <meter value="{{ job.progress }}" min="0" max="100">{{ job.progress }}%</meter> {{ job.progress }}%</label>
-                        {% endif %}
-                        <p>{{ job.created }}</p>
-                    </div>
-                {% else %}
-                    <div class="box">
-                        <strong class="block titlebar">{{ job.name }}</strong>
-                        <p>{{ job.message }}</p>
-                    </div>
-                {% endif %}
-            {% endfor %}
-        {% endblock user_job_list %}
+<main id="main" class="mx-1 md:mx-10 lg:mx-10 xl:mx-32 2xl:mx-48 mb-auto">
+    <h1 class="text-center text-4xl my-4">Home of {{ request.user }}</h1>
+    <div class="flex flex-col bg-orange-100 dark:bg-cyan-1400">
+
+        <div role="tablist" class="flex rounded-md bg-orange-200 dark:bg-cyan-1000">
+            <button type="button" class="profile-tab-button text-lg font-semibold bg-orange-100 dark:bg-cyan-1400 h-full w-6/12 py-4" 
+                role="tab" aria-controls="user-info" aria-selected="true"
+                _="on click set my @aria-selected to 'true' then set .profile-tab-button's @aria-selected to 'false'
+                then remove .bg-orange-100 .dark:bg-cyan-1400 from .profile-tab-button then add .hover:bg-orange-300 .hover:dark:bg-cyan-1100 to .profile-tab-button 
+                    then add .bg-orange-100 .dark:bg-cyan-1400 to me then remove .hover:bg-orange-300 .hover:dark:bg-cyan-1100 from me
+                    then hide .tab-content then show #user-info end">
+                Your Information
+            </button>
+            <button type="button" class="profile-tab-button text-lg font-semibold h-full w-6/12 py-4 hover:bg-orange-300 hover:dark:bg-cyan-1100"
+                role="tab" aria-controls="joblist"
+                _="on click set my @aria-selected to 'true' then set .profile-tab-button's @aria-selected to 'false'
+                then remove .bg-orange-100 .dark:bg-cyan-1400 from .profile-tab-button then add .hover:bg-orange-300 .hover:dark:bg-cyan-1100 to .profile-tab-button 
+                    then add .bg-orange-100 .dark:bg-cyan-1400 to me then remove .hover:bg-orange-300 .hover:dark:bg-cyan-1100 from me
+                    then hide .tab-content then show #joblist end">
+                Background Jobs
+            </button>
+        </div>
+            
+        <div id="user-info"  role="tabpanel" class="tab-content">
+            <form action="submit" class="p-6">
+                {{ user_change_form|crispy }}
+                <br>
+                <button type="submit" class="btn-submit">Save</button>
+            </form>
+        </div>
+        <div id="joblist" role="tabpanel" class="tab-content p-2" style="display: none;"
+            hx-trigger="refreshMe"
+            hx-get="{% url 'user-job-list' %}"
+            _="on intersection
+                    repeat while *display is not 'none'
+                        send refreshMe to me then wait 1.2s
+                    end">
+            {% block user_job_list %}
+                {% for job in jobs %}
+                    {% if job.completed %}
+                        <div class="bg-emerald-500 dark:bg-emerald-700 my-2 rounded-lg p-4 text-white">
+                            <strong class="block titlebar">{{ job.name }}: Complete</strong>
+                            <div class="f-row"></div>
+                            <p>{{ job.created }}</p>
+                            <button type="button"
+                                hx-delete="{% url 'delete-job-status' job_pk=job.pk %}">
+                                Dismiss
+                            </button>
+                        </div>
+                    {% elif job.failed %}
+                        <div class="my-2 dark:bg-red-900 border dark:border-red-700 bg-red-400 border-red-500 rounded-lg p-4 text-white">
+                            <strong class="mx-auto">{{ job.name }}: Failed</strong>
+                            <p>{{ job.message }}</p>
+                            <button type="button"
+                                hx-delete="{% url 'delete-job-status' job_pk=job.pk %}"
+                                _="on click set my @disabled to 'true'">
+                                Dismiss
+                            </button>
+                        </div>
+                    {% elif job.in_progress %}
+                        <div class="my-2 bg-cyan-900 rounded-lg p-4 text-white">
+                            <strong class="block titlebar">{{ job.name }}: Processing...</strong>
+                            <p>{{ job.message }}</p>
+                            {% if job.progress == -1 %}
+                                <label>Importing <progress>progress</progress></label>
+                            {% else %}
+                                <label>Progress: <meter value="{{ job.progress }}" min="0" max="100">{{ job.progress }}%</meter> {{ job.progress }}%</label>
+                            {% endif %}
+                            <p>{{ job.created }}</p>
+                        </div>
+                    {% else %}
+                        <div class="my-2 bg-sky-200 dark:bg-sky-900 rounded-lg p-4">
+                            <strong class="block titlebar">{{ job.name }}</strong>
+                            <p>{{ job.message }}</p>
+                        </div>
+                    {% endif %}
+                {% endfor %}
+            {% endblock user_job_list %}
+        </div>
     </div>
 </main>
 {% endblock %}

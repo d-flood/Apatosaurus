@@ -8,7 +8,7 @@
             e.g., "B06K11V1", which indicates the first verse of the 11th chapter of the 6th book of the New Testament.
         </p>
         <form hx-post="{% url 'new-collation' %}" class="mt-4" hx-target="#main">
-            {% crispy new_collation_form %}
+            {{ new_collation_form|crispy }}
             <input type="submit" class="btn" value="Submit">
         </form>
     </div>
