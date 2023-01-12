@@ -30,6 +30,9 @@
     div#graph-div>svg>g>g>polygon {
         @apply dark:fill-white 
     }
+    text {
+        @apply fill-black dark:fill-white;
+    }
     select, textarea, input[type="text"], input[type="number"], input[type="password"], input[type="email"] {
         @apply text-black bg-white dark:bg-cyan-1300 dark:text-white;
     }
@@ -59,5 +62,8 @@
     }
     button[disabled] {
         @apply hover:bg-transparent text-gray-500 dark:text-gray-500 hover:text-gray-500;
+    }
+    p[id^="hint_"] {
+        @apply text-xs text-gray-600 dark:text-gray-200;
     }
 }

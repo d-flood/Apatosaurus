@@ -43,7 +43,8 @@ module.exports = {
          * Python: If you use Tailwind CSS classes in Python, uncomment the following line
          * and make sure the pattern below matches your project structure.
          */
-        '../../**/forms.py'
+        '../../**/forms.py',
+        '../../**/helpers.py'
     ],
     theme: {
         extend: {
