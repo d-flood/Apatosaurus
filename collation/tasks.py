@@ -1,5 +1,4 @@
 from huey.contrib.djhuey import task
-from lxml import etree as et
 
 from collation.py import process_tei
 from accounts.py.update_status import update_status

@@ -1,5 +1,3 @@
-from threading import Thread
-
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect
 from django.http import HttpRequest, HttpResponse
@@ -389,9 +387,7 @@ def upload_tei_collation(request: HttpRequest, section_id: int):
         form = forms.TeiCollationFileForm(request.POST, request.FILES)
         if form.is_valid():
             tei_file = form.cleaned_data['tei_file']
-            # if (xml := process_tei.parse_xml(tei_file)) is not None:
             job = JobStatus.objects.create(user=request.user, name=f'Import TEI Collation {models.Section.objects.get(pk=section_id).name}', message='Enqueued')
-            # Thread(target=process_tei.tei_to_db, args=(xml, section_id, job.pk, request.user.pk)).start()
             tasks.tei_to_db_task(tei_file, section_id, job.pk, request.user.pk)
             return HttpResponse(helpers.quick_message('File uploaded and added to processing queue. You can check the status in home page.', 'ok'))
         else:
