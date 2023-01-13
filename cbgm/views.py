@@ -150,7 +150,8 @@ def compare_witnesses(request: HttpRequest, db_pk: int) -> HttpResponse:
 @require_http_methods(['POST'])
 def find_relatives(request: HttpRequest, db_pk: int) -> HttpResponse:
     db = models.Cbgm_Db.objects.get(pk=db_pk)
-    all_witnesses = get_all_witness_siglums(db.db_file.path)
+    cached_db = cbgm.get_cached_db(db).resolve().as_posix()
+    all_witnesses = get_all_witness_siglums(cached_db)
     all_witnesses = sort_ga_witnesses(all_witnesses)
     all_witnesses = [(w, w) for w in all_witnesses]
     app_labels = [(w, w) for w in db.sorted_app_labels()]
@@ -166,7 +167,8 @@ def find_relatives(request: HttpRequest, db_pk: int) -> HttpResponse:
 @require_safe
 def get_rdgs_for_app(request: HttpRequest, db_pk: int, variation_unit: str) -> HttpResponse:
     db = models.Cbgm_Db.objects.get(pk=db_pk)
-    rdgs = get_readings_for_variation_unit(db.db_file.path, variation_unit)
+    cached_db = cbgm.get_cached_db(db).resolve().as_posix()
+    rdgs = get_readings_for_variation_unit(cached_db, variation_unit)
     return render(request, 'cbgm/rdgs.html', {'rdgs': rdgs})
 
 

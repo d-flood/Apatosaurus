@@ -108,16 +108,12 @@ def construct_compare_wits_command(db_file: Path, witness: str, comparators: lis
     compare_wits_binary = compare_wits_exe.resolve().as_posix()
     if witness in comparators:
         comparators.remove(witness)
-    # witnesses = f'{witness} {" ".join(comparators)}'
     output_file = NamedTemporaryFile(delete=False, dir=BASE_DIR / 'temp', prefix='cbgm_', suffix='.json')
-    # command = f'"{compare_wits_binary}" -f json -o "{output_file.name}" "{db_file.name}" {witnesses}'
     command = [compare_wits_binary, '-f', 'json', '-o', output_file.name, db_file.resolve().as_posix(), witness, *comparators]
     return command, output_file
 
 
 def compare_witnesses(db: models.Cbgm_Db, witness: str, comparators: list[str]) -> dict:
-    # db_file = NamedTemporaryFile(delete=True, dir=BASE_DIR / 'temp', prefix='cbgm_', suffix='.db')
-    # db_file.write(db.db_file.read())
     db_file = get_cached_db(db)
     command, output_file = construct_compare_wits_command(db_file, witness, comparators)
     p = Popen(command)
@@ -134,19 +130,20 @@ def compare_witnesses(db: models.Cbgm_Db, witness: str, comparators: list[str]) 
     return output
 
 
-def construct_find_relatives_command(db: models.Cbgm_Db, witness: str, app: str, readings: list): #type: ignore
+def construct_find_relatives_command(db: Path, witness: str, app: str, readings: list): #type: ignore
     find_relatives_exe = BASE_DIR / 'cbgm' / 'bin' / 'find_relatives'
     compare_wits_binary = find_relatives_exe.resolve().as_posix()
     output_file = NamedTemporaryFile(delete=False, dir=BASE_DIR / 'temp', prefix='cbgm_', suffix='.json')
     if readings == []:
-        command = f'"{compare_wits_binary}" -f json -o "{output_file.name}" "{db.db_file.path}" {witness} "{app}"'
+        command = [compare_wits_binary, '-f', 'json', '-o', output_file.name, db.resolve().as_posix(), witness, app]
     else:
-        command = f'"{compare_wits_binary}" -f json -o "{output_file.name}" "{db.db_file.path}" {witness} "{app}" {" ".join(readings)}'
-    return command.replace('\\', '/'), output_file
+        command = [compare_wits_binary, '-f', 'json', '-o', output_file.name, db.resolve().as_posix(), witness, app, *readings]
+    return command, output_file
 
 
 def find_relatives(db: models.Cbgm_Db, witness: str, app: str, readings: list) -> dict:
-    command, output_file = construct_find_relatives_command(db, witness, app, readings)
+    db_file = get_cached_db(db)
+    command, output_file = construct_find_relatives_command(db_file, witness, app, readings)
     p = Popen(command)
     return_code = p.wait()
     if return_code != 0:
@@ -161,19 +158,22 @@ def find_relatives(db: models.Cbgm_Db, witness: str, app: str, readings: list) -
     return output
 
 
-def construct_optimize_substemma_command(db: models.Cbgm_Db, witness: str, max_cost: int):
+def construct_optimize_substemma_command(db: str, witness: str, max_cost: int):
     optimize_substemma_exe = BASE_DIR / 'cbgm' / 'bin' / 'optimize_substemmata'
     optimize_substemma_binary = optimize_substemma_exe.resolve().as_posix()
     output_file = NamedTemporaryFile(delete=False, dir=BASE_DIR / 'temp', prefix='cbgm_', suffix='.json')
     if max_cost == -1:
-        command = f'"{optimize_substemma_binary}" -f json -o "{output_file.name}" "{db.db_file.path}" {witness}'
+        # command = f'"{optimize_substemma_binary}" -f json -o "{output_file.name}" "{db}" {witness}'
+        command = [optimize_substemma_binary, '-f', 'json', '-o', output_file.name, db, witness]
     else:
-        command = f'"{optimize_substemma_binary}" -b {max_cost} -f json -o "{output_file.name}" "{db.db_file.path}" {witness}'
-    return command.replace('\\', '/'), output_file
+        # command = f'"{optimize_substemma_binary}" -b {max_cost} -f json -o "{output_file.name}" "{db}" {witness}'
+        command = [optimize_substemma_binary, '-b', str(max_cost), '-f', 'json', '-o', output_file.name, db, witness]
+    return command, output_file
 
 
 def optimize_substemma(db: models.Cbgm_Db, witness: str, max_cost: int):
-    command, output_file = construct_optimize_substemma_command(db, witness, max_cost)
+    db_file = get_cached_db(db).resolve().as_posix()
+    command, output_file = construct_optimize_substemma_command(db_file, witness, max_cost)
     try:
         message = check_output(command)
     except CalledProcessError as e:
@@ -201,22 +201,23 @@ def optimize_substemma(db: models.Cbgm_Db, witness: str, max_cost: int):
     return True, output
 
 
-def construct_print_local_stemma_command(db: models.Cbgm_Db, app: str):
+def construct_print_local_stemma_command(db: str, app: str):
     print_local_stemma_exe = BASE_DIR / 'cbgm' / 'bin' / 'print_local_stemma'
     print_local_stemma_binary = print_local_stemma_exe.resolve().as_posix()
     tmp_name = f"cbgm-graphs-{''.join(random.choices(string.ascii_letters, k=5))}"
     # making a temporary directory is a hack to get around the fact that the open-cbgm
     # program doesn't have a way to specify the output directory for the dot files.
     # The *right* way to do this is to create Python bindings to the open-cbgm and
-    # call it directly instead of making a subprocess call. This is a TODO.
+    # call it directly instead of accessing the commandline utility. This is a TODO.
     temp_dir = BASE_DIR / 'temp' / tmp_name
     temp_dir.mkdir(parents=True, exist_ok=True)
-    command = f'"{print_local_stemma_binary}" "{db.db_file.path}" "{app}"'
-    return command.replace('\\', '/'), temp_dir
+    command = [print_local_stemma_binary, db, app]
+    return command, temp_dir
 
 
 def print_local_stemma(db: models.Cbgm_Db, app: str):
-    command, temp_dir = construct_print_local_stemma_command(db, app)
+    db_file = get_cached_db(db).resolve().as_posix()
+    command, temp_dir = construct_print_local_stemma_command(db_file, app)
     try:
         message = check_output(command, cwd=temp_dir.resolve().as_posix())
     except CalledProcessError as e:
@@ -231,27 +232,28 @@ def print_local_stemma(db: models.Cbgm_Db, app: str):
     return True, svg
 
 
-def print_textual_flow_command(db: models.Cbgm_Db, app: str, graph_type: str, connectivity_limit: int, strengths: bool):
+def print_textual_flow_command(db: str, app: str, graph_type: str, connectivity_limit: int, strengths: bool):
     print_textual_flow_exe = BASE_DIR / 'cbgm' / 'bin' / 'print_textual_flow'
     print_textual_flow_binary = print_textual_flow_exe.resolve().as_posix()
     tmp_name = f"cbgm-graphs-{''.join(random.choices(string.ascii_letters, k=5))}"
     temp_dir = BASE_DIR / 'temp' / tmp_name
     temp_dir.mkdir(parents=True, exist_ok=True)
-    commands: list[str] = [f'"{print_textual_flow_binary}"', graph_type]
+    commands: list[str] = [print_textual_flow_binary, graph_type]
     if connectivity_limit:
-        commands.append(f'-k {connectivity_limit}')
+        commands.extend(['-k', str(connectivity_limit)])
     if strengths:
         commands.append('--strengths')
-    commands.extend([f'"{db.db_file.path}"', f'"{app}"'])
-    return ' '.join(commands).replace('\\', '/'), temp_dir
+    commands.extend([db, app])
+    return commands, temp_dir
 
 
 def print_textual_flow(db: models.Cbgm_Db, data: dict[str, str | int | bool]):
+    db_file = get_cached_db(db).resolve().as_posix()
     app = data['app_labels']
     graph_type = data['graph_type']
     connectivity_limit = data['connectivity_limit'] if data['connectivity_limit'] != -1 else None
     strengths = data['strengths']
-    command, temp_dir = print_textual_flow_command(db, app, graph_type, connectivity_limit, strengths) # type: ignore
+    command, temp_dir = print_textual_flow_command(db_file, app, graph_type, connectivity_limit, strengths) # type: ignore
     try:
         message = check_output(command, cwd=temp_dir.resolve().as_posix())
     except CalledProcessError as e:
@@ -275,23 +277,24 @@ def print_textual_flow(db: models.Cbgm_Db, data: dict[str, str | int | bool]):
     return True, svgs, title
 
 
-def print_global_stemma_command(db: models.Cbgm_Db, data: dict[str, bool]):
+def print_global_stemma_command(db: str, data: dict[str, bool]):
     print_global_stemma_exe = BASE_DIR / 'cbgm' / 'bin' / 'print_global_stemma'
     print_global_stemma_binary = print_global_stemma_exe.resolve().as_posix()
     tmp_name = f"cbgm-graphs-{''.join(random.choices(string.ascii_letters, k=5))}"
     temp_dir = BASE_DIR / 'temp' / tmp_name
     temp_dir.mkdir(parents=True, exist_ok=True)
-    commands: list[str] = [f'"{print_global_stemma_binary}"']
+    commands: list[str] = [print_global_stemma_binary]
     if data.get('strengths'):
         commands.append('--strengths')
     if data.get('lengths'):
         commands.append('--lengths')
-    commands.append(f'"{db.db_file.path}"')
-    return ' '.join(commands).replace('\\', '/'), temp_dir
+    commands.append(db)
+    return commands, temp_dir
 
 
 def print_global_stemma(db: models.Cbgm_Db, data: dict[str, bool]):
-    command, temp_dir = print_global_stemma_command(db, data)
+    db_file = get_cached_db(db).resolve().as_posix()
+    command, temp_dir = print_global_stemma_command(db_file, data)
     try:
         message = check_output(command, cwd=temp_dir.resolve().as_posix())
     except CalledProcessError as e:
