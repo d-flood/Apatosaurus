@@ -15,6 +15,7 @@ liste.json
 *.ps1
 *.exe
 .vscode/
+theme/static/css/dist/
 
 # temp
 temp/
