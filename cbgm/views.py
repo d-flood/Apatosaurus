@@ -1,5 +1,3 @@
-from threading import Thread
-
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
 from django.http import HttpRequest, HttpResponse
@@ -16,6 +14,7 @@ from collation import models as cx_models
 from collation.py.helpers import quick_message
 from cbgm import models
 from cbgm import forms
+from cbgm import tasks
 from cbgm.py import open_cbgm_interface as cbgm
 from cbgm.py.custom_sql import get_all_witness_siglums, get_readings_for_variation_unit
 from cbgm.py.helpers import extract_app_groups
@@ -68,7 +67,7 @@ def send_section_form(request: HttpRequest, corpus_pk: int, corpus_type: int):
         message='Enqueued',
     )
     db = form.save(request.user.pk, corpus_type)
-    Thread(target=cbgm.import_tei_task, args=(request.user.pk, corpus_pk, db.pk, job.pk, corpus_type)).start()
+    tasks.import_tei_task(request.user.pk, corpus_pk, db.pk, job.pk, corpus_type)
     return HttpResponse(quick_message('Collation Export to the CBGM Enqueued. You can track this under "Background Tasks" in your profile. Note that large collations will usually take 1 to 2 second per witness including correctors.', 'ok'))
 
 
@@ -138,8 +137,8 @@ def set_active_db(request: HttpRequest, db_pk: int) -> HttpResponse:
 @require_http_methods(['POST'])
 def compare_witnesses(request: HttpRequest, db_pk: int) -> HttpResponse:
     db = models.Cbgm_Db.objects.get(pk=db_pk)
-    # witness_options = [(w, w) for w in db.sorted_witnesses()] # type: ignore
-    witness_options = [(w, w) for w in get_all_witness_siglums(db.db_file.path)]
+    witness_options = [(w, w) for w in db.witnesses] # type: ignore
+    # witness_options = [(w, w) for w in get_all_witness_siglums(db.db_file.path)]
     form = forms.CompareWitnessesForm(request.POST, all_witnesses=witness_options)
     if form.is_valid():
         comparison = cbgm.compare_witnesses(db, form.cleaned_data['witness'], form.cleaned_data['comparative_witnesses'])
