@@ -1,3 +1,4 @@
+{% load crispy_forms_tags %}
 <h3>
     Import 
     {% if corpus_type == 2 %}
@@ -15,9 +16,10 @@
     <br><strong>Note:</strong> To make any changes to the import options, 
     you must re-import the collation with the new options.
 </p>
-<form hx-post="{% url 'send-cbgm-db' corpus_pk=corpus.pk corpus_type=corpus_type %}" hx-target="#main">
-    {{ form.as_p }}
-    <input type="submit" value="Submit" class="big">
+<form hx-post="{% url 'send-cbgm-db' corpus_pk=corpus.pk corpus_type=corpus_type %}" hx-target="#main"
+    class="my-4">
+    {{ form|crispy }}
+    <input type="submit" value="Submit" class="btn-submit my-4">
     <style>
         #id_merge_splits, #id_use_classic_rules {
             transform: scale(1.5);
