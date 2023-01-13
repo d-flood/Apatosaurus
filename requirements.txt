@@ -13,6 +13,7 @@ huey==2.4.4
 redis==4.4.2
 rich
 django-storages==1.13.2
+boto3==1.26.49
 
 # dev
 nodejs-bin
