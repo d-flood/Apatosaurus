@@ -3,7 +3,7 @@
 - Support more sophisticated TEI import and export formats as [Joey McCollum demonstrates](https://jjmccollum.github.io/teiphy/advanced.html#analysis-at-varying-levels-of-detail-using-reading-types).
 
 ## Priority
-- continue replacing all threading with task server before production.
+- make the other six open-cbgm modules call a cached db
 - continue containerizing
     - App is containerized, but that necessitates updatig the handling of user files (see below).
 - store user open-cbgm databases in S3 and cache them on server
