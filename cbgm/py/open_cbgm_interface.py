@@ -1,7 +1,7 @@
 import contextlib
 import json
 from pathlib import Path
-from tempfile import NamedTemporaryFile
+from tempfile import NamedTemporaryFile, _TemporaryFileWrapper
 import random
 from shutil import rmtree
 import string
@@ -23,8 +23,9 @@ from witnesses.py.sort_ga_witnesses import sort_ga_witnesses
 
 
 
-def construct_populate_db_command(tei_path: str, db_path: str, db: models.Cbgm_Db) -> str:
-    populate_db_exe = BASE_DIR / 'cbgm' / 'bin' / 'populate_db.exe'
+def construct_populate_db_command(tei_path: str, db_path: str, db: models.Cbgm_Db) -> list[str]:
+    populate_db_exe = BASE_DIR / 'cbgm' / 'bin' / 'populate_db'
+    # populate_db_binary = f'.{populate_db_exe.resolve().as_posix()}'
     populate_db_binary = populate_db_exe.resolve().as_posix()
     threshold = db.threshold
     trivial_types = db.trivial_types
@@ -47,8 +48,8 @@ def construct_populate_db_command(tei_path: str, db_path: str, db: models.Cbgm_D
         options.append('--merge-splits')
     if use_classic_rules:
         options.append('--classic')
-    return f'{populate_db_binary} {" ".join(options)} "{tei_path}" "{db_path}"'.replace('\\', '/')
-
+    command = [populate_db_binary, *options, tei_path, db_path]
+    return command
 
 def import_tei(user_pk: int, corpus_pk: int, db_pk: int, corpus_type: int):
     ''' corpus_type options: 'section', 'verse', 'full' '''
@@ -86,29 +87,6 @@ def import_tei(user_pk: int, corpus_pk: int, db_pk: int, corpus_type: int):
     cleanup(tei_file, db_file)
 
 
-def import_tei_task(user_pk: int, section_pk: int, db_pk: int, job_pk: int, corpus_type: int):
-    JobStatus.objects.filter(pk=job_pk).update(
-        in_progress=True,
-        progress=-1,
-        message='Importing TEI into open-cbgm'
-    )
-    try:
-        import_tei(user_pk, section_pk, db_pk, corpus_type)
-        JobStatus.objects.filter(pk=job_pk).update(
-            in_progress=False,
-            completed=True,
-            progress=100,
-            message='Imported TEI into open-cbgm'
-        )
-    except Exception as e:
-        JobStatus.objects.filter(pk=job_pk).update(
-            in_progress=False,
-            failed=True,
-            message=f'Error: {e}'
-        )
-        models.Cbgm_Db.objects.get(pk=db_pk).delete()
-
-
 def cleanup(tei_file: Path, db_file):
     tei_file.unlink(missing_ok=True)
     db_file.close()
@@ -116,19 +94,32 @@ def cleanup(tei_file: Path, db_file):
         os.remove(db_file.name)
 
 
-def construct_compare_wits_command(db: models.Cbgm_Db, witness: str, comparators: list):
-    compare_wits_exe = BASE_DIR / 'cbgm' / 'bin' / 'compare_witnesses.exe'
+def get_cached_db(db: models.Cbgm_Db) -> Path:
+    db_file = Path(f'temp/{db.db_file}')
+    if not db_file.exists():
+        db_file.parent.mkdir(parents=True)
+        with open(db_file, 'wb') as f:
+            f.write(db.db_file.read())
+    return db_file
+
+
+def construct_compare_wits_command(db_file: Path, witness: str, comparators: list):
+    compare_wits_exe = BASE_DIR / 'cbgm' / 'bin' / 'compare_witnesses'
     compare_wits_binary = compare_wits_exe.resolve().as_posix()
     if witness in comparators:
         comparators.remove(witness)
-    witnesses = f'{witness} {" ".join(comparators)}'
+    # witnesses = f'{witness} {" ".join(comparators)}'
     output_file = NamedTemporaryFile(delete=False, dir=BASE_DIR / 'temp', prefix='cbgm_', suffix='.json')
-    command = f'"{compare_wits_binary}" -f json -o "{output_file.name}" "{db.db_file.path}" {witnesses}'
-    return command.replace('\\', '/'), output_file
+    # command = f'"{compare_wits_binary}" -f json -o "{output_file.name}" "{db_file.name}" {witnesses}'
+    command = [compare_wits_binary, '-f', 'json', '-o', output_file.name, db_file.resolve().as_posix(), witness, *comparators]
+    return command, output_file
 
 
 def compare_witnesses(db: models.Cbgm_Db, witness: str, comparators: list[str]) -> dict:
-    command, output_file = construct_compare_wits_command(db, witness, comparators)
+    # db_file = NamedTemporaryFile(delete=True, dir=BASE_DIR / 'temp', prefix='cbgm_', suffix='.db')
+    # db_file.write(db.db_file.read())
+    db_file = get_cached_db(db)
+    command, output_file = construct_compare_wits_command(db_file, witness, comparators)
     p = Popen(command)
     return_code = p.wait()
     if return_code != 0:
@@ -144,7 +135,7 @@ def compare_witnesses(db: models.Cbgm_Db, witness: str, comparators: list[str]) 
 
 
 def construct_find_relatives_command(db: models.Cbgm_Db, witness: str, app: str, readings: list): #type: ignore
-    find_relatives_exe = BASE_DIR / 'cbgm' / 'bin' / 'find_relatives.exe'
+    find_relatives_exe = BASE_DIR / 'cbgm' / 'bin' / 'find_relatives'
     compare_wits_binary = find_relatives_exe.resolve().as_posix()
     output_file = NamedTemporaryFile(delete=False, dir=BASE_DIR / 'temp', prefix='cbgm_', suffix='.json')
     if readings == []:
@@ -171,7 +162,7 @@ def find_relatives(db: models.Cbgm_Db, witness: str, app: str, readings: list) -
 
 
 def construct_optimize_substemma_command(db: models.Cbgm_Db, witness: str, max_cost: int):
-    optimize_substemma_exe = BASE_DIR / 'cbgm' / 'bin' / 'optimize_substemmata.exe'
+    optimize_substemma_exe = BASE_DIR / 'cbgm' / 'bin' / 'optimize_substemmata'
     optimize_substemma_binary = optimize_substemma_exe.resolve().as_posix()
     output_file = NamedTemporaryFile(delete=False, dir=BASE_DIR / 'temp', prefix='cbgm_', suffix='.json')
     if max_cost == -1:
@@ -211,7 +202,7 @@ def optimize_substemma(db: models.Cbgm_Db, witness: str, max_cost: int):
 
 
 def construct_print_local_stemma_command(db: models.Cbgm_Db, app: str):
-    print_local_stemma_exe = BASE_DIR / 'cbgm' / 'bin' / 'print_local_stemma.exe'
+    print_local_stemma_exe = BASE_DIR / 'cbgm' / 'bin' / 'print_local_stemma'
     print_local_stemma_binary = print_local_stemma_exe.resolve().as_posix()
     tmp_name = f"cbgm-graphs-{''.join(random.choices(string.ascii_letters, k=5))}"
     # making a temporary directory is a hack to get around the fact that the open-cbgm
@@ -241,7 +232,7 @@ def print_local_stemma(db: models.Cbgm_Db, app: str):
 
 
 def print_textual_flow_command(db: models.Cbgm_Db, app: str, graph_type: str, connectivity_limit: int, strengths: bool):
-    print_textual_flow_exe = BASE_DIR / 'cbgm' / 'bin' / 'print_textual_flow.exe'
+    print_textual_flow_exe = BASE_DIR / 'cbgm' / 'bin' / 'print_textual_flow'
     print_textual_flow_binary = print_textual_flow_exe.resolve().as_posix()
     tmp_name = f"cbgm-graphs-{''.join(random.choices(string.ascii_letters, k=5))}"
     temp_dir = BASE_DIR / 'temp' / tmp_name
@@ -285,7 +276,7 @@ def print_textual_flow(db: models.Cbgm_Db, data: dict[str, str | int | bool]):
 
 
 def print_global_stemma_command(db: models.Cbgm_Db, data: dict[str, bool]):
-    print_global_stemma_exe = BASE_DIR / 'cbgm' / 'bin' / 'print_global_stemma.exe'
+    print_global_stemma_exe = BASE_DIR / 'cbgm' / 'bin' / 'print_global_stemma'
     print_global_stemma_binary = print_global_stemma_exe.resolve().as_posix()
     tmp_name = f"cbgm-graphs-{''.join(random.choices(string.ascii_letters, k=5))}"
     temp_dir = BASE_DIR / 'temp' / tmp_name
