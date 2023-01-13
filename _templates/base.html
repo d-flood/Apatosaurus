@@ -238,18 +238,19 @@
             </a>
           </div>
     </footer>
-    <dialog id="modal-dialog" class="bg-orange-200 dark:bg-cyan-1000 dark:text-white"
+    <dialog id="modal-dialog" class="bg-orange-200 dark:bg-cyan-1000 dark:text-white rounded-lg p-0 drop-shadow-xl"
             _="on showDialog from body set #modal-title's innerHTML to event.detail.title
                 then set #modal-message's innerHTML to event.detail.message
                 then call #modal-dialog.showModal() end">
-        <h1 class="text-center font-bold" id="modal-title"></h1>
-        <p id="modal-message" class="my-2"></p>
-        <button type="button" class="btn-secondary my-4" onclick="document.getElementById('modal-dialog').close()">
-            Okay
-        </button>
+        <h1 class="text-center font-bold w-full bg-teal-300 dark:bg-teal-700" id="modal-title"></h1>
+        <div class="px-4 pt-4 flex flex-col items-center">
+            <p id="modal-message" class="my-2"></p>
+            <button type="button" class="btn-secondary my-4" onclick="document.getElementById('modal-dialog').close()">
+                Okay
+            </button>
+        </div>
     </dialog>
     <script src="{% static 'js/df.js' %}"></script>
-    <!-- <script type="module" src="https://the.missing.style/v1.0.3/missing-js/tabs.js"></script> -->
     <script src="https://unpkg.com/htmx.org@1.8.4"></script>
     {% django_htmx_script %}
     <script src="https://unpkg.com/hyperscript.org@0.9.7" defer></script>
