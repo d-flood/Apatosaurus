@@ -41,11 +41,21 @@
                                 type="button" aria-haspopup="menu" aria-controls="edit-{{ app.pk }}"
                                 aria-expanded="false" 
                                 aria-label="edit collation unit {{ app.index_from }}{% if app.index_from != app.index_to %}–{{ app.index_to }}{% endif %}"
-                                title="edit collation unit" style="height: 100%;">
+                                title="edit collation unit" style="height: 100%;"
+                                _="on click 
+                                    if my @aria-expanded is 'true'
+                                        set my @aria-expanded to 'false'
+                                        then hide the <div/> in the next <div/>
+                                    else 
+                                        set my @aria-expanded to 'true'
+                                        then show the <div/> in the next <div/>
+                                    end 
+                                on click elsewhere set my @aria-expanded to 'false' 
+                                    then hide the <div/> in the next <div/> end">
                                 &#128393;
                             </button>
                             <div class="absolute left-0 bottom-28 w-56 bg-white shadow-lg z-10">
-                                <div class="absolute ml-4 bg-white rounded-md text-black" role="menu" id="edit-{{ app.pk }}" hidden>
+                                <div class="absolute ml-4 bg-white rounded-md text-black" role="menu" id="edit-{{ app.pk }}" style="display:none;">
                                     <a role="menuitem" tabindex="-1" class="block my-2 px-2 hover:bg-red-500 hover:text-white cursor-pointer bg-red-300"
                                     hx-delete="{% url 'edit-app' ab_pk=ab.pk app_pk=app.pk %}"
                                     hx-target="#app-buttons-wrapper"
@@ -73,11 +83,11 @@
                 </button>
                 {% endblock new_app_button %}
         </div>
-        <script type="module">
+        <!-- <script type="module">
             import { menu, menuButton } from "https://the.missing.style/v1.0.3/missing-js/menu.js"
             menuButton(document.getElementById("apparatus-div"))
             menu(document.getElementById("apparatus-div"))
-        </script>
+        </script> -->
         {% endblock app_buttons %}
     </div>
 </div>

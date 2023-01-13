@@ -25,10 +25,13 @@
         </div>
             
         <div id="user-info"  role="tabpanel" class="tab-content">
-            <form action="submit" class="p-6">
+            <form class="p-6"
+                hx-post="{% url 'update-user' %}">
                 {{ user_change_form|crispy }}
-                <br>
-                <button type="submit" class="btn-submit">Save</button>
+                <p class="my-2">
+                    <a class="normal-link" href="{% url 'password_change' %}">Click here</a> to change your password.
+                </p>
+                <button type="submit" class="btn-submit my-2">Save</button>
             </form>
         </div>
         <div id="joblist" role="tabpanel" class="tab-content p-2" style="display: none;"

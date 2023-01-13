@@ -23,6 +23,7 @@
             {{ form|crispy }}
             <button class="btn-submit my-4 mx-2 block w-full text-center" type="submit">Log In</button>
             <a class="btn my-4 mx-2 block w-full text-center" href="{% url 'django_registration_register' %}">Register</a>
+            <a class="btn my-4 mx-2 block w-full text-center" href="{% url 'password_reset' %}">Forgot Password</a>
         </form>
     </div>
 </div>

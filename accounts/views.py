@@ -34,3 +34,16 @@ def delete_job_status(request: HttpRequest, job_pk: int):
     if job.user == request.user:
         job.delete()
     return HttpResponse(status=204)
+
+
+@login_required
+@require_http_methods(['POST'])
+def update_user(request: HttpRequest):
+    form = forms.CustomUserChangeForm(request.POST, instance=request.user)
+    resp = HttpResponse(status=204)
+    if form.is_valid():
+        form.save()
+        resp['HX-Trigger'] = '''{"showDialog": {"title": "Succes", "message": "User Information Updated"}}'''
+        return resp
+    resp['HX-Trigger'] = '''{"showDialog": {"title": "Succes", "message": "User Information Updated"}}'''
+    return resp
