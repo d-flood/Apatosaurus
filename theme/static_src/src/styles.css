@@ -30,7 +30,7 @@
     div#graph-div>svg>g>g>polygon {
         @apply dark:fill-white 
     }
-    text {
+    div#graph-div>svg>g>g>text {
         @apply fill-black dark:fill-white;
     }
     select, textarea, input[type="text"], input[type="number"], input[type="password"], input[type="email"] {
