@@ -155,7 +155,7 @@
                             role="menu" aria-orientation="vertical" aria-labelledby="user-menu-button" tabindex="-1" style="display: none;">
                             <!-- Active: "bg-gray-100", Not Active: "" -->
                             {% if not user.is_authenticated %}
-                                <a href="{% url 'login' %}">Login</a>
+                                <a class="px-4 py-2" href="{% url 'login' %}">Login</a>
                             {% else %}
                                 <a href="{% url 'user-profile' %}" class="block px-4 py-2 text-sm text-gray-800 hover:bg-gray-300" role="menuitem" tabindex="-1" {% if page.active == 'profile' %}aria-current="page"{% endif %}>
                                     Your Profile
