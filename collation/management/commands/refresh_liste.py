@@ -34,6 +34,6 @@ class Command(BaseCommand):
             try:
                 Witness.objects.get(siglum=siglum)
             except Witness.DoesNotExist:
-                Witness.objects.create(siglum=siglum, description=m.get('orig'))
+                Witness.objects.create(siglum=siglum, description=m.get('orig'), default=True)
            
         self.stdout.write(self.style.SUCCESS('Successfully refreshed liste'))
