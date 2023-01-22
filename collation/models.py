@@ -150,9 +150,12 @@ class App(models.Model):
             }, 
             nsmap={None: TEI_NS_STR, 'xml': XML_NS_STR}) #type: ignore
         graph = et.Element('graph', {'type': 'directed'}, nsmap={None: TEI_NS_STR, 'xml': XML_NS_STR}) #type: ignore
-        for rdg in self.rdgs.all():
+        for rdg in self.rdgs.filter(witDetail=False):
             app.append(rdg.as_element())
             graph.append(et.Element('node', {'n': rdg.name}))
+        for wit_detail in self.rdgs.filter(witDetail=True):
+            app.append(wit_detail.as_element())
+            graph.append(et.Element('node', {'n': wit_detail.name}))
         note = et.Element('note', nsmap={None: TEI_NS_STR, 'xml': XML_NS_STR}) #type: ignore
         fs = et.Element('fs', nsmap={None: TEI_NS_STR, 'xml': XML_NS_STR}) #type: ignore
         f = et.Element('f', nsmap={None: TEI_NS_STR, 'xml': XML_NS_STR}) #type: ignore
@@ -183,6 +186,7 @@ class Rdg(models.Model):
         ('insi', 'Insignificant'),
         ('err', 'Error'),
         ('om', 'Omission'),
+        ('amb', 'Ambiguous')
     ]
     app = models.ForeignKey(App, on_delete=models.CASCADE, related_name='rdgs')
     name = models.CharField(max_length=5)
@@ -191,8 +195,10 @@ class Rdg(models.Model):
     text = models.TextField(null=True, blank=True)
     wit = models.ManyToManyField(Witness, related_name='rdgs', blank=True, verbose_name='Witnesses')
 
-    modified = models.DateTimeField(auto_now=True)
+    witDetail = models.BooleanField(default=False)
+    target = models.ManyToManyField('self', related_name='wit_details', null=True, blank=True, verbose_name='Ambiguous Readings')
 
+    modified = models.DateTimeField(auto_now=True)
     note = models.TextField(null=True, blank=True)
 
     def __str__(self) -> str:
@@ -207,18 +213,32 @@ class Rdg(models.Model):
         rdg_history.wit.set(self.wit.all())
         if self.history.count() > 4:
             self.history.last().delete() #type: ignore
+        if self.witDetail:
+            targets = '/'.join([trdg.name for trdg in self.target.all()])
+            self.name = f'zw-{targets}'
         super().save(*args, **kwargs)
 
     def as_element(self) -> et._Element:
-        rdg = et.Element('rdg', nsmap={None: TEI_NS_STR, 'xml': XML_NS_STR}) #type: ignore
-        witnesses = ' '.join([w.siglum for w in self.wit.all()]) 
-        rdg.set('wit', witnesses)
-        rdg.set('varSeq', str(self.varSeq))
-        rdg.set('n', self.name)
-        if self.rtype:
-            rdg.set('type', self.rtype)
-        rdg.text = self.text
-        return rdg
+        if self.witDetail:
+            witDetail = et.Element('witDetail', nsmap={None: TEI_NS_STR, 'xml': XML_NS_STR}) #type: ignore
+            witnesses = ' '.join([w.siglum for w in self.wit.all()])
+            rdgs = [r.name for r in self.target.all()]
+            witDetail.set('varSeq', str(self.varSeq))
+            witDetail.set('n', self.name)
+            witDetail.set('wit', witnesses)
+            witDetail.set('type', 'ambiguous')
+            witDetail.set('target', ' '.join(rdgs))
+            return witDetail
+        else:
+            rdg = et.Element('rdg', nsmap={None: TEI_NS_STR, 'xml': XML_NS_STR}) #type: ignore
+            witnesses = ' '.join([w.siglum for w in self.wit.all()]) 
+            rdg.set('wit', witnesses)
+            rdg.set('varSeq', str(self.varSeq))
+            rdg.set('n', self.name)
+            if self.rtype:
+                rdg.set('type', self.rtype)
+            rdg.text = self.text
+            return rdg
 
 class RdgHistory(models.Model):
     rdg = models.ForeignKey(Rdg, on_delete=models.CASCADE, related_name='history')

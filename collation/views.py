@@ -344,6 +344,8 @@ def rdgs(request: HttpRequest, app_pk: int):
     app = models.App.objects.get(pk=app_pk)
     context = {
         'app': app,
+        'rdgs': app.rdgs.filter(witDetail=False),
+        'witDetails': app.rdgs.filter(witDetail=True),
         'arc_form': forms.ArcForm(models.App.objects.get(pk=app_pk)),
         'local_stemma': helpers.make_graph(app),
     }

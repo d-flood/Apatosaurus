@@ -116,7 +116,7 @@ def create_app_instance(app_elem: et._Element, ab_pk: int) -> models.App|None:
     )
 
 
-def create_rdg_instance(rdg_elem: et._Element, app_pk: int, user_pk: int) -> models.Rdg|None:
+def create_rdg_instance(rdg_elem: et._Element, app: models.App, user_pk: int) -> models.Rdg|None:
     name = rdg_elem.attrib.get('n')
     varSeq = int(varSeq) if (varSeq := rdg_elem.attrib.get('varSeq')) else 0
     rtype = rdg_elem.attrib.get('type')
@@ -135,7 +135,7 @@ def create_rdg_instance(rdg_elem: et._Element, app_pk: int, user_pk: int) -> mod
     else:
         wits = None
     rdg_instance = models.Rdg.objects.create(
-        app_id=app_pk,
+        app_id=app.pk,
         name=name,
         varSeq=varSeq,
         rtype=rtype,
@@ -146,25 +146,64 @@ def create_rdg_instance(rdg_elem: et._Element, app_pk: int, user_pk: int) -> mod
     return rdg_instance
 
 
+def create_witDetail_rdg_instance(witDetail: et._Element, app: models.App, user_pk: int) -> models.Rdg|None:
+    name = witDetail.attrib.get('n')
+    varSeq = int(varSeq) if (varSeq := witDetail.attrib.get('varSeq')) else 0
+    rtype = rtype if (rtype := witDetail.attrib.get('type')) else 'ambiguous'
+    if witnesses := witDetail.attrib.get('wit'):
+        witnesses = witnesses.split()
+        wits = []
+        for w in witnesses:
+            if w not in models.Witness.objects.values_list('siglum', flat=True):
+                wit_to_append = models.Witness.objects.create(siglum=w, user_id=user_pk)
+            else:
+                wit_to_append = models.Witness.objects.get(siglum=w)
+            wits.append(wit_to_append)
+    else:
+        wits = None
+    if target := witDetail.attrib.get('target'):
+        target = target.split()
+        targets = []
+        for t in target:
+            try:
+                targets.append(app.rdgs.filter(witDetail=False).get(name=t))
+            except Exception as e:
+                print(f'target not found: {t}\n{e}')
+    else:
+        targets = None
+    rdg_instance = models.Rdg.objects.create(
+        app_id=app.pk,
+        name=name,
+        varSeq=varSeq,
+        rtype=rtype,
+        witDetail=True,
+    )
+    if wits:
+        rdg_instance.wit.set(wits)
+    if targets:
+        rdg_instance.target.set(targets)
+    return rdg_instance
+
+
 def create_arc_instance(app_elem: et._Element, app_pk: int):
     note_elem = app_elem.find(f'{TEI_NS}note')
     if note_elem is None:
         return
-    graph_elem = note_elem.find(f'{TEI_NS}graph')
-    if graph_elem is not None:
-        for arc in graph_elem.findall(f'{TEI_NS}arc'):
-            rdg_from = arc.attrib.get('from')
-            rdg_to = arc.attrib.get('to')
-            if not (rdg_from_instance := models.Rdg.objects.filter(app_id=app_pk, name=rdg_from).first()):
-                print(f'rdg_from {rdg_from} not found in app {app_pk}')
-                continue
-            if not (rdg_to_instance := models.Rdg.objects.filter(app_id=app_pk, name=rdg_to).first()):
-                print(f'rdg_to {rdg_to} not found in app {app_pk}')
-                continue
-            models.Arc.objects.create(
-                rdg_from=rdg_from_instance,
-                rdg_to=rdg_to_instance,
-                app_id=app_pk,
+    if (graph_elem := note_elem.find(f'{TEI_NS}graph')) is None:
+        return
+    for arc in graph_elem.findall(f'{TEI_NS}arc'):
+        rdg_from = arc.attrib.get('from')
+        rdg_to = arc.attrib.get('to')
+        if not (rdg_from_instance := models.Rdg.objects.filter(app_id=app_pk, name=rdg_from).first()):
+            print(f'rdg_from {rdg_from} not found in app {app_pk}')
+            continue
+        if not (rdg_to_instance := models.Rdg.objects.filter(app_id=app_pk, name=rdg_to).first()):
+            print(f'rdg_to {rdg_to} not found in app {app_pk}')
+            continue
+        models.Arc.objects.create(
+            rdg_from=rdg_from_instance,
+            rdg_to=rdg_to_instance,
+            app_id=app_pk,
             )
 
 
@@ -180,7 +219,10 @@ def tei_to_db(xml: et._Element, section_id: int, job_pk: int, user_pk: int):
             if not (app := create_app_instance(app_elem, ab_instance.pk)):
                 continue
             for rdg_elem in app_elem.findall('rdg', namespaces={None: TEI_NS_STR, 'xml': XML_NS_STR}): #type: ignore
-                if not (rdg_instance := create_rdg_instance(rdg_elem, app.pk, user_pk)):
+                if not (rdg_instance := create_rdg_instance(rdg_elem, app, user_pk)):
+                    continue
+            for witDetail in app_elem.findall('witDetail', namespaces={None: TEI_NS_STR, 'xml': XML_NS_STR}):
+                if not (rdg_instance := create_witDetail_rdg_instance(witDetail, app, user_pk)):
                     continue
             create_arc_instance(app_elem, app.pk)
         ab_instance.save()
