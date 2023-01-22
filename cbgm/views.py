@@ -11,7 +11,6 @@ from render_block import render_block_to_string
 from accounts.models import JobStatus
 from CONFIG.settings import BASE_DIR
 from collation import models as cx_models
-from collation.py.helpers import quick_message
 from cbgm import models
 from cbgm import forms
 from cbgm import tasks
@@ -48,7 +47,8 @@ def send_section_form(request: HttpRequest, corpus_pk: int, corpus_type: int):
         new_db_html = 'cbgm/new_cbgm_db.html'
         corpus_instance = cx_models.Collation.objects.get(pk=corpus_pk)
     else:
-        return HttpResponse(quick_message('Invalid corpus type', 'bad'))
+        return render(request, 'scraps/quick_message.html', {'message': 'Invalid corpus type', 'timeout': 4})
+
     context = {
         'page': {'title': 'Apatosaurus - open-cbgm', 'active': 'open-cbgm'},
         'corpus': corpus_instance,
@@ -68,7 +68,7 @@ def send_section_form(request: HttpRequest, corpus_pk: int, corpus_type: int):
     )
     db = form.save(request.user.pk, corpus_type)
     tasks.import_tei_task(request.user.pk, corpus_pk, db.pk, job.pk, corpus_type)
-    return HttpResponse(quick_message('Collation Export to the CBGM Enqueued. You can track this under "Background Tasks" in your profile. Note that large collations will usually take 1 to 2 second per witness including correctors.', 'ok'))
+    return render(request, 'scraps/quick_message.html', {'message': 'Collation Export to the CBGM Enqueued. You can track this under "Background Tasks" in your profile. Note that large collations will usually take 1 to 2 second per witness including correctors.', 'timeout': 4})
 
 
 @login_required
@@ -102,12 +102,12 @@ def edit_db(request: HttpRequest, db_pk: int):
                 'form': form,
             })
         form.save()
-        resp = HttpResponse(quick_message('Database updated', 'ok'))
+        resp = render(request, 'scraps/quick_message.html', {'message': 'Database updated', 'timeout': 4})
         resp['HX-Trigger'] = 'refreshDbs'
         return resp
     else:
         db.delete()
-        resp = HttpResponse(quick_message('Database deleted', 'warn'))
+        resp = render(request, 'scraps/quick_message.html', {'message': 'Database deleted', 'timeout': 4})
         resp['HX-Trigger'] = 'refreshDbs'
         return resp
 

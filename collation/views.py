@@ -89,7 +89,7 @@ def new_section(request: HttpRequest, collation_id: int):
         form = forms.SectionForm(request.POST)
         if form.is_valid():
             form.save(collation_id)
-            resp = HttpResponse(helpers.quick_message('Section/Chapter created', 'ok'))
+            resp = render(request, 'scraps/quick_message.html', {'message': 'Section/Chapter saved', 'timout': '3'})
             resp['HX-Trigger'] = 'refreshSections'
             return resp
         return render(request, 'collation/new_section.html', {'page': {'active': 'collation'}})
@@ -112,12 +112,12 @@ def edit_section(request: HttpRequest, section_id: int):
         form = forms.SectionForm(request.POST, instance=section)
         if form.is_valid():
             form.save(section.collation.pk)
-            return HttpResponse(helpers.quick_message('Section/Chapter saved', 'ok'))
+            return render(request, 'scraps/quick_message.html', {'message': 'Section/Chapter saved', 'timout': '3'})
         return render(request, 'collation/edit_section.html', {'page': {'active': 'collation'}})
     else:
         section = models.Section.objects.get(pk=section_id)
         section.delete()
-        resp = HttpResponse(helpers.quick_message('Section deleted', 'warn', 3))
+        resp = render(request, 'scraps/quick_message.html', {'message': 'Section deleted', 'timout': '3'})
         resp['HX-Trigger'] = 'refreshSections'
         return resp
 
@@ -137,7 +137,7 @@ def new_ab(request: HttpRequest, section_id: int):
         form = forms.AbForm(request.POST)
         if form.is_valid():
             form.save(section_id)
-            resp =  HttpResponse(helpers.quick_message('Collation unit saved', 'ok', 3))
+            resp = render(request, 'scraps/quick_message.html', {'message': 'Collation unit saved', 'timout': '3'})
             resp['HX-Trigger'] = 'refreshAbs'
             return resp
         return render(request, 'collation/new_ab.html', {'page': {'active': 'collation'}})
@@ -167,7 +167,7 @@ def edit_ab(request: HttpRequest, ab_pk: int):
     else:
         ab = models.Ab.objects.get(pk=ab_pk)
         ab.delete()
-        resp = HttpResponse(helpers.quick_message(f'{ab.name} deleted', 'warn', 3))
+        resp = render(request, 'scraps/quick_message.html', {'message': f'{ab.name} deleted', 'timout': '3'})
         resp['HX-Trigger'] = 'refreshAbs'
         return resp
 
@@ -389,7 +389,7 @@ def upload_tei_collation(request: HttpRequest, section_id: int):
             tei_file = form.cleaned_data['tei_file']
             job = JobStatus.objects.create(user=request.user, name=f'Import TEI Collation {models.Section.objects.get(pk=section_id).name}', message='Enqueued')
             tasks.tei_to_db_task(tei_file, section_id, job.pk, request.user.pk)
-            return HttpResponse(helpers.quick_message('File uploaded and added to processing queue. You can check the status in home page.', 'ok'))
+            return render(request, 'scraps/quick_message.html', {'message': 'File uploaded and added to processing queue. You can check the status in home page.', 'timout': '3'})
         else:
             context = {
                 'form': form,
