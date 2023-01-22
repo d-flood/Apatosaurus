@@ -3,9 +3,9 @@
 <form action="submit"
     hx-post="{% url 'edit-witness' witness_pk=witness.pk %}"
     hx-target="#new-witness-form">
-    {% crispy form %}
+    {{ form|crispy }}
     <div class="flex flex-row">
-        <button class="btn-submit mx-2" type="submit">Submit New Witness</button>
+        <button class="btn-submit mx-2" type="submit">Submit</button>
         <button type="button" class="btn-secondary mx-2"
             hx-get="{% url 'cancel-edit-witness' %}"
             hx-target="#new-witness-form">
