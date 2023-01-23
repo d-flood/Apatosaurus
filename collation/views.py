@@ -176,14 +176,14 @@ def edit_ab(request: HttpRequest, ab_pk: int):
 @require_http_methods(['GET', 'POST'])
 def new_rdg(request: HttpRequest, app_pk: int):
     if request.method == 'GET':
-        form = forms.RdgForm()
+        form = forms.RdgForm(app=models.App.objects.get(pk=app_pk))
         context = {
             'page': {'active': 'collation'},
-            'form': forms.RdgForm(),
+            'form': form,
             'app_pk': app_pk
         }
     else:
-        form = forms.RdgForm(request.POST)
+        form = forms.RdgForm(request.POST, app=models.App.objects.get(pk=app_pk))
         if form.is_valid():
             form.save(app_pk)
             
@@ -206,7 +206,7 @@ def new_rdg(request: HttpRequest, app_pk: int):
 def edit_rdg(request: HttpRequest, rdg_pk: int):
     if request.method == 'GET':
         rdg = models.Rdg.objects.get(pk=rdg_pk)
-        form = forms.RdgForm(instance=rdg)
+        form = forms.RdgForm(instance=rdg, app=rdg.app)
         context = {
             'page': {'active': 'collation'},
             'form': form,
@@ -215,7 +215,7 @@ def edit_rdg(request: HttpRequest, rdg_pk: int):
         return render(request, 'collation/edit_rdg.html', context)
     elif request.method == 'POST':
         rdg = models.Rdg.objects.get(pk=rdg_pk)
-        form = forms.RdgForm(request.POST, instance=rdg)
+        form = forms.RdgForm(request.POST, instance=rdg, app=rdg.app)
         if form.is_valid():
             form.save(rdg.app.pk)
             context = {

@@ -85,23 +85,29 @@ class AppForm(forms.ModelForm):
 
 
 class RdgForm(forms.ModelForm):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, app: models.App, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['wit'].widget.attrs.update({
+            'size': '10',
+        })
+        self.fields['target'].queryset = app.rdgs.filter(witDetail=False)
+        self.fields['target'].widget.attrs.update({
+            '_': "on load if #id_witDetail.checked hide #div_id_rtype then hide #div_id_text else hide #div_id_target end",
             'size': '10',
         })
 
     class Meta:
         model = models.Rdg
-        # exclude = ['app', 'active', 'varSeq']
         fields = [
             'note',
+            'witDetail',
             'name',
             'rtype',
             'text',
+            'target',
             'selected_witnesses',
             'wit',
-            ]
+        ]
 
     def save(self, app_pk: int, commit=True):
         instance = super().save(commit=False)
@@ -112,6 +118,9 @@ class RdgForm(forms.ModelForm):
         return instance
 
     selected_witnesses = forms.CharField(widget=forms.Textarea(attrs={'readonly': True}), required=False)
+    witDetail = forms.BooleanField(widget=forms.CheckboxInput(
+        attrs={'_': 'on change if me.checked show #div_id_target then hide #div_id_rtype then hide #div_id_text else hide #div_id_target then show #div_id_rtype then show #div_id_text end'}
+        ), required=True, label='Ambiguous Reading')
 
 
 class RdgNoteForm(forms.ModelForm):
