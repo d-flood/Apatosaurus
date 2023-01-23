@@ -67,7 +67,7 @@
                         <form action="submit" class="table rows"
                             hx-post="{% url 'add-new-witness' %}"
                             hx-target="#new-witness-form">
-                            {% crispy form %}
+                            {{ form|crispy }}
                             <button type="submit" class="btn-submit">Submit New Witness</button>
                         </form>
                     {% endblock new_witness_form %}

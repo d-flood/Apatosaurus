@@ -2,7 +2,7 @@
 <div id="app-form">
     <form action="submit" class="py-4 flex flex-col" hx-post="{% url 'edit-app' ab_pk=ab_pk app_pk=app_pk %}" hx-swap="outerHTML" hx-target="#app-form">
         {% csrf_token %}
-        {% crispy form %}
+        {{ form|crispy }}
         <input type="submit" value="Submit" class="btn-submit mx-2 h-6 self-center" />
         <button type="button" class="btn-danger mx-2 h-6 self-center"
             hx-get="{% url 'cancel-edit-app' ab_pk=ab_pk %}" hx-target="#app-form" hx-swap="outerHTML">

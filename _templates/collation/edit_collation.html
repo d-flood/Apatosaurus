@@ -2,7 +2,7 @@
 <div class="flex flex-col items-start sm:mx-12">
     <h2 class="text-2xl my-3">Editing: {{ collation.name }}</h2>
     <form hx-post="{% url 'edit-collation' collation_id=collation.pk %}" class="table rows" hx-target="#main">
-        {% crispy form %}
+        {{ form|crispy }}
         <button type="submit" class="btn-submit my-2">Submit</button>
     </form>
     <button type="button" class="btn-secondary my-2"

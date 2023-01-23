@@ -7,7 +7,7 @@
     </p>
     <form hx-post="{% url 'new-ab' section_id=section_id %}" class="my-6" hx-target="#main">
         {% csrf_token %}
-        {% crispy new_ab_form %}
+        {{ new_ab_form|crispy }}
         <input type="submit" value="Submit" class="btn-submit">
     </form>
 </div>
