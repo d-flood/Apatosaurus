@@ -7,14 +7,14 @@
                 <table class="min-w-full" id="rdgs_table_parent">
                     <thead>
                         <tr id="rdgs_header" class="border-b-4 border-orange-700">
-                            <th scope="col" class="rdg-id">ID</th>
-                            <th scope="col" class="rdg-type">Type</th>
-                            <th scope="col" class="rdg-rdg">Reading</th>
-                            <th scope="col" class="rdg-wit">Witnesses</th>
+                            <th scope="col" class="rdg-id text-start">ID</th>
+                            <th scope="col" class="rdg-type text-start">Type</th>
+                            <th scope="col" class="rdg-rdg text-start">Reading</th>
+                            <th scope="col" class="rdg-wit text-start">Witnesses</th>
                         </tr>
                     </thead>
                     <tbody id="rdgs_table">
-                        {% for rdg in app.rdgs.all %}
+                        {% for rdg in rdgs %}
                             <tr class="{% cycle '' 'bg-orange-50 dark:bg-cyan-1500' %}">
                                 <td class="px-2" width="5px">{{ rdg.name }}</td>
                                 <td class="px-2" width="5px">{{ rdg.get_rtype_display }}</abbr></td>
@@ -24,6 +24,31 @@
                         {% endfor %}
                     </tbody>
                 </table>
+                {% if witDetails %}
+                    <h4 class="text-xl text-center my-4 font-bold">
+                        Ambiguous Witness Readings
+                    </h4>
+                    <table class="min-w-full" id="rdgs_table_parent">
+                        <thead>
+                            <tr id="rdgs_header" class="border-b-4 border-orange-700">
+                                <th scope="col" class="rdg-id text-start">ID</th>
+                                <th scope="col" class="rdg-type text-start">Type</th>
+                                <th scope="col" class="rdg-rdg text-start">Potential Readings</th>
+                                <th scope="col" class="rdg-wit text-start">Witnesses</th>
+                            </tr>
+                        </thead>
+                        <tbody id="rdgs_table">
+                            {% for rdg in witDetails %}
+                                <tr class="{% cycle '' 'bg-orange-50 dark:bg-cyan-1500' %}">
+                                    <td class="px-2">{{ rdg.name }}</td>
+                                    <td class="px-2">{{ rdg.get_rtype_display }}</abbr></td>
+                                    <td class="font-greek font-semibold px-2">{% for t in rdg.target.all %}{% if forloop.last %}{{ t.name }}{% else %}{{ t.name }}, {% endif %}{% endfor %}</td>
+                                    <td class="px-2">{% for w in rdg.wit.all %}<span title="{{ w.description }}">{{ w.siglum }}.</span> {% endfor %}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                {% endif %}
             </div>
         </div>
     </div>
