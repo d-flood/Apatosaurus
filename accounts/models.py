@@ -54,3 +54,8 @@ class JobStatus(models.Model):
     class Meta:
         ordering = ['-created']
         indexes = [models.Index(fields=['user'])]
+
+    def save(self, *args, **kwargs):
+        if self.user.job_statuses.count() > 20: # type: ignore
+            self.user.job_statuses.last().delete() # type: ignore
+        super().save(*args, **kwargs)
