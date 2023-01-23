@@ -2,7 +2,7 @@
 <div class="flex flex-col items-start sm:mx-12">
     <h2 class="text-2xl my-3">Editing: {{ section.collation.name }} {{ section.name }}</h2>
     <form hx-post="{% url 'edit-section' section_id=section.pk %}" class="my-6" hx-target="#main">
-        {% crispy form %}
+        {{ form|crispy }}
         <button type="submit" class="btn-submit my-2">
             Update
         </button>
