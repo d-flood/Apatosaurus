@@ -29,6 +29,8 @@ class WitnessForm(forms.ModelForm):
     description = forms.CharField(widget=forms.Textarea(attrs={'rows': 2}), required=False, max_length=255)
 
     def clean_siglum(self):
+        if self.instance.pk:
+            return self.cleaned_data['siglum']
         siglum = self.cleaned_data['siglum']
         if cmodels.Witness.objects.filter(siglum=siglum, user_id=self.user_pk).exists():
             raise forms.ValidationError('You already have a witness with this siglum.')
