@@ -4,7 +4,7 @@
     <form action="submit"
         hx-post="{% url 'new-rdg' app_pk=app_pk %}"
         hx-target="#readings">
-        {% crispy form %}
+        {{ form|crispy }}
         <p>
             <label class="sr-only" for="wits-filter">Filter Witnesses</label>
             <input type="text" id="wits-filter" placeholder="Filter Witnesses"
