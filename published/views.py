@@ -81,8 +81,11 @@ def apparatus(request: HttpRequest, ab_pk: int, user_pk: int = False) -> HttpRes
 
 def rdgs(request: HttpRequest, app_pk: int):
     app = cmodels.App.objects.get(pk=app_pk)
+    rdgs = app.rdgs.filter(witDetail=False)
+    witDetails = app.rdgs.filter(witDetail=True)
     context = {
-        'app': app,
+        'rdgs': rdgs,
+        'witDetails': witDetails,
         'local_stemma': chelpers.make_graph(app),
     }
     return render(request, 'published/rdgs.html', context)
