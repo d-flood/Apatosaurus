@@ -120,7 +120,7 @@ class RdgForm(forms.ModelForm):
     selected_witnesses = forms.CharField(widget=forms.Textarea(attrs={'readonly': True}), required=False)
     witDetail = forms.BooleanField(widget=forms.CheckboxInput(
         attrs={'_': 'on change if me.checked show #div_id_target then hide #div_id_rtype then hide #div_id_text else hide #div_id_target then show #div_id_rtype then show #div_id_text end'}
-        ), required=True, label='Ambiguous Reading')
+        ), required=False, label='Ambiguous Reading')
 
 
 class RdgNoteForm(forms.ModelForm):
