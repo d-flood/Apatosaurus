@@ -40,3 +40,6 @@ class Cbgm_Db(models.Model):
     def delete(self, *args, **kwargs):
         self.db_file.delete()
         super().delete(*args, **kwargs)
+
+    class Meta:
+        unique_together = ('user', 'db_name')
