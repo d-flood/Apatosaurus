@@ -8,17 +8,26 @@ class Cbgm_DbForm(forms.ModelForm):
         model = models.Cbgm_Db
         exclude = ['user', 'db_file', 'amount', 'witnesses', 'app_labels', 'active']
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, user_pk: int = 0, **kwargs):
+        self.user_pk = user_pk
         super().__init__(*args, **kwargs)
         self.fields['merge_splits'].widget.attrs['class'] = 'big'
     
-    def save(self, user_pk: int, amount: int, commit: bool = True):
+    def save(self, amount: int, commit: bool = True):
         instance = super().save(commit=False)
-        self.instance.user_id = user_pk
+        self.instance.user_id = self.user_pk
         self.instance.amount = amount
         if commit:
             instance.save()
         return instance
+
+    def clean_db_name(self):
+        cleaned_data = super().clean()
+        db_name = cleaned_data.get('db_name')
+        if db_name:
+            if models.Cbgm_Db.objects.filter(db_name=db_name, user_id=self.user_pk).exists():
+                raise forms.ValidationError('You already have a database with this name.')
+        return db_name
 
 
 class UpdateCbgmDbForm(forms.ModelForm):

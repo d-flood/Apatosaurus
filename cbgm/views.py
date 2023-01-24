@@ -57,7 +57,7 @@ def send_section_form(request: HttpRequest, corpus_pk: int, corpus_type: int):
     if request.method == 'GET':
         context['form'] = forms.Cbgm_DbForm()
         return render(request, new_db_html, context)
-    form = forms.Cbgm_DbForm(request.POST)
+    form = forms.Cbgm_DbForm(request.POST, user_pk=request.user.pk)
     if not form.is_valid():
         context['form'] = form
         return render(request, new_db_html, context)
@@ -66,7 +66,7 @@ def send_section_form(request: HttpRequest, corpus_pk: int, corpus_type: int):
         name=f'Importing {corpus_instance.name} into open-cbgm',
         message='Enqueued',
     )
-    db = form.save(request.user.pk, corpus_type)
+    db = form.save(corpus_type)
     tasks.import_tei_task(request.user.pk, corpus_pk, db.pk, job.pk, corpus_type)
     return render(request, 'scraps/quick_message.html', {'message': 'Collation Export to the CBGM Enqueued. You can track this under "Background Tasks" in your profile. Note that large collations will usually take 1 to 2 second per witness including correctors.', 'timeout': 4})
 
@@ -115,7 +115,7 @@ def edit_db(request: HttpRequest, db_pk: int):
 @login_required
 @require_safe
 def refresh_dbs(request: HttpRequest) -> HttpResponse:
-    return HttpResponse(render_block_to_string('cbgm/index.html', 'db_options', {
+    return HttpResponse(render_block_to_string('cbgm/manage_db.html', 'db_options', {
         'page': {'title': 'Apatosaurus - open-cbgm', 'active': 'open-cbgm'},
         'entire_dbs': models.Cbgm_Db.objects.filter(user=request.user, amount=2),
         'section_dbs': models.Cbgm_Db.objects.filter(user=request.user, amount=1),
