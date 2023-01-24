@@ -81,7 +81,7 @@ def import_tei(user_pk: int, corpus_pk: int, db_pk: int, corpus_type: int):
     cbgm_db_instance.witnesses = sort_ga_witnesses(witnesses) #type: ignore
     cbgm_db_instance.app_labels = app_labels #type: ignore
     django_db_file = ContentFile(db_file.read())
-    cbgm_db_instance.db_file.save(f'{corpus.name}.db', django_db_file)
+    cbgm_db_instance.db_file.save(f'{cbgm_db_instance.db_name}.db', django_db_file)
     cbgm_db_instance.active = True
     cbgm_db_instance.save()
     cleanup(tei_file, db_file)
@@ -97,7 +97,7 @@ def cleanup(tei_file: Path, db_file):
 def get_cached_db(db: models.Cbgm_Db) -> Path:
     db_file = Path(f'temp/{db.db_file}')
     if not db_file.exists():
-        db_file.parent.mkdir(parents=True)
+        db_file.parent.mkdir(parents=True, exist_ok=True)
         with open(db_file, 'wb') as f:
             f.write(db.db_file.read())
     return db_file
