@@ -10,6 +10,9 @@ __pycache__/
 *.db
 *.sqlite3
 liste.json
+*-litestream
+db.sqlite*
+litestream.yml
 
 # dev machine specific
 *.ps1
@@ -21,3 +24,5 @@ theme/static/css/dist/
 temp/
 tmp/
 
+# vendored
+*.deb
