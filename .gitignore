@@ -26,3 +26,5 @@ tmp/
 
 # vendored
 *.deb
+
+_staticfiles/

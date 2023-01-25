@@ -18,7 +18,7 @@ services:
       - /bin/sh
       - -c 
       - | 
-        python clear_db.py && python wait_for_db.py && python manage.py migrate && python manage.py runserver 0.0.0.0:8000
+        python clear_db.py && python wait_for_db.py && python manage.py migrate && gunicorn -w 2 --bind 0.0.0.0:8000 CONFIG.wsgi
     depends_on:
       - litestream
   ########### REDIS
@@ -56,8 +56,6 @@ services:
       dockerfile: docker_nginx.dockerfile
     ports:
       - 80:80
-    volumes:
-      - ./_static:/static
     container_name: nginx
     depends_on:
       - django
