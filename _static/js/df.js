@@ -1,14 +1,20 @@
-if (localStorage.getItem('theme')) {
-    var theme = localStorage.getItem('theme')
-    document.documentElement.classList.add(theme)
-    if (theme === 'dark') {
-        document.getElementById('toggle-dark-theme').style.display = 'none';
-        document.getElementById('toggle-light-theme').style.display = 'inline-block';
-    } else {
-        document.getElementById('toggle-dark-theme').style.display = 'inline-block';
-        document.getElementById('toggle-light-theme').style.display = 'none';
-    }
+
+if (localStorage.getItem('theme') === 'dark') {
+    document.documentElement.classList.add('dark');
+    document.getElementById('toggle-dark-theme').style.display = 'none';
+    document.getElementById('toggle-light-theme').style.display = 'inline-block';
+} else if (localStorage.getItem('theme') === 'light') {
+    document.getElementById('toggle-dark-theme').style.display = 'inline-block';
+    document.getElementById('toggle-light-theme').style.display = 'none';
+} else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+    document.documentElement.classList.add('dark');
+    document.getElementById('toggle-dark-theme').style.display = 'none';
+    document.getElementById('toggle-light-theme').style.display = 'inline-block';
+} else {
+    document.getElementById('toggle-dark-theme').style.display = 'inline-block';
+    document.getElementById('toggle-light-theme').style.display = 'none';
 }
+
 function toggleTheme(event) {
     var theme = event.currentTarget.getAttribute('theme')
     if (theme === 'dark') {
