@@ -32,7 +32,9 @@ SITE_ID = 1
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = environ.get('DEBUG') == 'True'
 
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = [
+    '*',
+]
 
 
 # Application definition
@@ -158,8 +160,8 @@ AWS_STORAGE_BUCKET_NAME = environ.get('AWS_STORAGE_BUCKET_NAME')
 CSRF_TRUSTED_ORIGINS = [
     'https://apatosaurus.io',
     'https://www.apatosaurus.io',
-    'http://localhost/',
     'http://localhost',
+    'https://localhost',
 ]
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
