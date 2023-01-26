@@ -2,6 +2,7 @@ version: '3'
 services:
   ########### DJANGO
   django:
+    image: 027323396275.dkr.ecr.us-east-1.amazonaws.com/django:latest
     restart: always
     build:
       context: .
@@ -29,6 +30,7 @@ services:
       - .env
   ########### HUEY
   queue:
+    image: 027323396275.dkr.ecr.us-east-1.amazonaws.com/queue:latest
     restart: always
     build:
       context: .
@@ -50,30 +52,32 @@ services:
       - django
 ########### NGINX
   nginx:
+    image: 027323396275.dkr.ecr.us-east-1.amazonaws.com/nginx:latest
     restart: always
     build: 
       context: .
       dockerfile: docker_nginx.dockerfile
     ports:
       - 80:80
+      - 443:443
     container_name: nginx
     depends_on:
       - django
 
 ############ LITESTREAM
   litestream:
+    image: 027323396275.dkr.ecr.us-east-1.amazonaws.com/litestream:latest
     build:
       context: .
       dockerfile: docker_litestream.dockerfile
     ports:
       - 9000
-    image: litestream/litestream:latest
     container_name: litestream
     volumes:
       - db:/data/db:rw
-    # command: ./start_lights
     env_file:
       - .env
+    command: restore -o /data/db/apatosaurus.db s3://apatosaurus/litestream/main_db && litestream replicate
 
 volumes:
   uploads:
