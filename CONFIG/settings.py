@@ -156,13 +156,9 @@ AWS_STORAGE_BUCKET_NAME = environ.get('AWS_STORAGE_BUCKET_NAME')
 # https://docs.djangoproject.com/en/4.1/ref/settings/#default-auto-field
 
 CSRF_TRUSTED_ORIGINS = [
-    'http://www.apatosaurus.io/',
-    'http://apatosaurus.io/',
-    'https://www.apatosaurus.io/',
-    'https://apatosaurus.io/',
+    'https://apatosaurus.io',
+    'https://www.apatosaurus.io',
     'http://localhost/',
-    'http://localhost:8000/',
-    'https://localhost/',
     'http://localhost',
 ]
 
@@ -204,7 +200,7 @@ HUEY = {
     'connection': {'connection_pool': pool},
     'immediate': False,
     'consumer': {
-        'workers': 4,
+        'workers': 2,
         'worker_type': 'thread',
         'blocking': True,
         'loglevel': logging.INFO,
