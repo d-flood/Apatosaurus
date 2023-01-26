@@ -1,0 +1,88 @@
+version: '3'
+services:
+  ########### DJANGO
+  django:
+    image: 027323396275.dkr.ecr.us-east-1.amazonaws.com/django:latest
+    restart: always
+    build:
+      context: .
+      dockerfile: docker_django.dockerfile
+    volumes:
+      - uploads:/django/uploads:rw
+      - db:/django/db:rw
+    ports:
+      - 8000
+    env_file:
+      - .env
+    environment:
+      - DEBUG=False
+    container_name: django
+    command: 
+      - /bin/sh
+      - -c 
+      - | 
+        python clear_db.py && python wait_for_db.py && python manage.py migrate && gunicorn -w 2 --bind 0.0.0.0:8000 CONFIG.wsgi
+    depends_on:
+      - litestream
+  ########### REDIS
+  redis:
+    image: redis:alpine
+    container_name: redis
+    env_file:
+      - .env
+  ########### HUEY
+  queue:
+    image: 027323396275.dkr.ecr.us-east-1.amazonaws.com/queue:latest
+    restart: always
+    build:
+      context: .
+      dockerfile: docker_django.dockerfile
+    command: 
+      - /bin/sh
+      - -c 
+      - |
+        python wait_for_db.py && python manage.py run_huey
+    volumes:
+      # - .:/django
+      - uploads:/django/uploads:rw
+      - db:/django/db:rw
+    container_name: huey
+    env_file:
+      - .env
+    environment:
+      - DEBUG=False
+    depends_on:
+      - redis
+      - django
+########### NGINX
+  nginx:
+    image: 027323396275.dkr.ecr.us-east-1.amazonaws.com/nginx:latest
+    restart: always
+    build: 
+      context: .
+      dockerfile: docker_nginx.dockerfile
+    ports:
+      - 80:80
+      - 443:443
+    container_name: nginx
+    depends_on:
+      - django
+
+############ LITESTREAM
+  litestream:
+    image: 027323396275.dkr.ecr.us-east-1.amazonaws.com/litestream:latest
+    build:
+      context: .
+      dockerfile: docker_litestream.dockerfile
+    ports:
+      - 9000
+    container_name: litestream
+    volumes:
+      - db:/data/db:rw
+    env_file:
+      - .env
+    command: restore -o /data/db/apatosaurus.db s3://apatosaurus/litestream/main_db && litestream replicate
+
+volumes:
+  uploads:
+  db:

@@ -1,0 +1,85 @@
+version: '3'
+services:
+  ########### DJANGO
+  django:
+    image: dev_django:latest
+    restart: always
+    build:
+      context: .
+      dockerfile: docker_django.dockerfile
+    volumes:
+      - uploads:/django/uploads:rw
+      - dev_db:/django/db:rw
+      - ./_templates/:/django/_templates/
+    ports:
+      - 8000
+    env_file:
+      - .env
+    environment:
+      - DEBUG=True
+    container_name: django
+    command: 
+      - /bin/sh
+      - -c 
+      - | 
+        python manage.py migrate && python manage.py runserver 0.0.0.0:8000
+    # depends_on:
+    #   - litestream
+  ########### REDIS
+  redis:
+    image: redis:alpine
+    container_name: redis
+    env_file:
+      - .env
+  ########### HUEY
+  queue:
+    image: dev_queue:latest
+    restart: always
+    build:
+      context: .
+      dockerfile: docker_django.dockerfile
+    command: 
+      - /bin/sh
+      - -c 
+      - |
+        python manage.py run_huey
+    volumes:
+      # - .:/django
+      - uploads:/django/uploads:rw
+      - dev_db:/django/db:rw
+    container_name: huey
+    env_file:
+      - .env
+    environment:
+      - DEBUG=True
+    depends_on:
+      - redis
+      - django
+########### NGINX
+  nginx:
+    image: dev_nginx:latest
+    restart: always
+    build: 
+      context: .
+      dockerfile: docker_nginx.dockerfile
+    ports:
+      - 80:80
+    container_name: nginx
+    depends_on:
+      - django
+
+########### LITESTREAM
+  # litestream:
+  #   image: litestream/litestream:latest
+  #   ports:
+  #     - 9000
+  #   container_name: litestream
+  #   volumes:
+  #     - dev_db:/data/db:rw
+  #   env_file:
+  #     - .env
+  #   command: restore -o /data/db/apatosaurus.db s3://apatosaurus/litestream/main_db
+
+volumes:
+  uploads:
+  dev_db:
