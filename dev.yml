@@ -9,7 +9,7 @@ services:
       dockerfile: docker_django.dockerfile
     volumes:
       - uploads:/django/uploads:rw
-      - dev_db:/django/db:rw
+      - ./db:/django/db:rw
       - .:/django
     ports:
       - 8000
@@ -45,7 +45,7 @@ services:
         python manage.py run_huey
     volumes:
       - uploads:/django/uploads:rw
-      - dev_db:/django/db:rw
+      - ./db:/django/db:rw
     container_name: huey
     env_file:
       - .env
@@ -83,4 +83,4 @@ services:
 
 volumes:
   uploads:
-  dev_db:
+  # dev_db:
