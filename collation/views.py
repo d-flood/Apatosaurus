@@ -186,11 +186,13 @@ def new_rdg(request: HttpRequest, app_pk: int):
         form = forms.RdgForm(request.POST, app=models.App.objects.get(pk=app_pk))
         if form.is_valid():
             form.save(app_pk)
-            
+            app = models.App.objects.get(pk=app_pk)
             context = {
-                'app': models.App.objects.get(pk=app_pk),
+                'app': app,
                 'arc_form': forms.ArcForm(models.App.objects.get(pk=app_pk)),
                 'local_stemma': helpers.make_graph(models.App.objects.get(pk=app_pk)),
+                'rdgs': app.rdgs.filter(witDetail=False),
+                'witDetails': app.rdgs.filter(witDetail=True),
             }
             return render(request, 'collation/rdgs_table.html', context)
         context = {
@@ -218,10 +220,13 @@ def edit_rdg(request: HttpRequest, rdg_pk: int):
         form = forms.RdgForm(request.POST, instance=rdg, app=rdg.app)
         if form.is_valid():
             form.save(rdg.app.pk)
+            app = rdg.app
             context = {
-                'app': models.App.objects.get(pk=rdg.app.pk),
-                'arc_form': forms.ArcForm(models.App.objects.get(pk=rdg.app.pk)),
-                'local_stemma': helpers.make_graph(models.App.objects.get(pk=rdg.app.pk)),
+                'app': app,
+                'arc_form': forms.ArcForm(models.App.objects.get(pk=app.pk)),
+                'local_stemma': helpers.make_graph(models.App.objects.get(pk=app.pk)),
+                'rdgs': app.rdgs.filter(witDetail=False),
+                'witDetails': app.rdgs.filter(witDetail=True),
             }
             return render(request, 'collation/rdgs_table.html', context)
         context = {
@@ -231,11 +236,14 @@ def edit_rdg(request: HttpRequest, rdg_pk: int):
         return render(request, 'collation/edit_rdg.html', context)
     else:
         rdg = models.Rdg.objects.get(pk=rdg_pk)
+        app = rdg.app
         rdg.delete()
         context = {
-                'app': models.App.objects.get(pk=rdg.app.pk),
-                'arc_form': forms.ArcForm(models.App.objects.get(pk=rdg.app.pk)),
-                'local_stemma': helpers.make_graph(models.App.objects.get(pk=rdg.app.pk)),
+                'app': app,
+                'arc_form': forms.ArcForm(models.App.objects.get(pk=app.pk)),
+                'local_stemma': helpers.make_graph(models.App.objects.get(pk=app.pk)),
+                'rdgs': app.rdgs.filter(witDetail=False),
+                'witDetails': app.rdgs.filter(witDetail=True),
             }
         return render(request, 'collation/rdgs_table.html', context)
 
@@ -244,8 +252,10 @@ def cancel_new_rdg(request: HttpRequest, app_pk: int):
     app = models.App.objects.get(pk=app_pk)
     context = {
                 'app': app,
-                'arc_form': forms.ArcForm(app),
-                'local_stemma': helpers.make_graph(app),
+                'arc_form': forms.ArcForm(models.App.objects.get(pk=app.pk)),
+                'local_stemma': helpers.make_graph(models.App.objects.get(pk=app.pk)),
+                'rdgs': app.rdgs.filter(witDetail=False),
+                'witDetails': app.rdgs.filter(witDetail=True),
             }
     return render(request, 'collation/rdgs_table.html', context)
 
@@ -309,7 +319,7 @@ def edit_app(request: HttpRequest, ab_pk: int, app_pk: int):
             form = forms.AppForm(request.POST, instance=models.App.objects.get(pk=app_pk))
         if form.is_valid():
             app = form.save(ab_pk)
-            app.ab.save()
+            app.ab.save() # calling save() on the ab will update the basetext indexing
             app_buttons = render_block_to_string('collation/apparatus.html', 'app_buttons', {'ab': models.Ab.objects.get(pk=ab_pk)})
             resp = HttpResponse(app_buttons)
             resp['HX-Trigger'] = 'refreshBasetext'
@@ -483,7 +493,9 @@ def restore_rdg(request: HttpRequest, rdg_pk: int, history_pk: int):
     context = {
         'app': app,
         'arc_form': forms.ArcForm(models.App.objects.get(pk=app.pk)),
-        'local_stemma': helpers.make_graph(app),
+        'local_stemma': helpers.make_graph(models.App.objects.get(pk=app.pk)),
+        'rdgs': app.rdgs.filter(witDetail=False),
+        'witDetails': app.rdgs.filter(witDetail=True),
     }
     return render(request, 'collation/rdgs_table.html', context)
 
