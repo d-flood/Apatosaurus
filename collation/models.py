@@ -173,8 +173,8 @@ class App(models.Model):
                 )
         return app
 
-    def save(self, *args, **kwargs):
-        if not self.pk:
+    def save(self, *args, ab_pk: int = 0, **kwargs):
+        if not self.pk and ab_pk > 0:
             # then create the main rdg
             super().save(*args, **kwargs)
             words = []
