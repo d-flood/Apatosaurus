@@ -32,7 +32,7 @@
 </head>
 
 <body class="bg-white dark:bg-cyan-1500 text-gray-900 dark:text-orange-100 flex flex-col min-h-screen">
-    <nav class="bg-orange-100 dark:bg-cyan-1600 drop-shadow-md z-30 shadow-white">
+    <nav aria-label="Main Site Navigation" class="bg-orange-100 dark:bg-cyan-1600 drop-shadow-md z-30 shadow-white">
         <div class="mx-auto max-w-7xl px-2 sm:px-6 lg:px-8">
             <div class="relative flex h-16 items-center justify-between">
                 <div class="absolute inset-y-0 left-0 flex items-center sm:hidden">
@@ -76,7 +76,7 @@
                     <div class="hidden sm:ml-6 sm:block ml-4">
                         <div class="flex space-x-4">
                             <!-- Current: "bg-gray-900 text-white", Default: "text-gray-300 hover:bg-gray-700 hover:text-white" -->
-                            <a href="#" {% if page.active == 'about' %}aria-current="page" class="bg-orange-700 dark:text-orange-50 hover:text-white px-3 py-2 rounded-md text-sm font-medium"{% else %}class="dark:text-orange-50 hover:bg-orange-400 hover:text-white px-3 py-2 rounded-md font-medium"{% endif %}>About</a>
+                            <a href="{% url 'about' %}" {% if page.active == 'about' %} class="bg-orange-700 dark:text-orange-50 text-white px-3 py-2 rounded-md text-sm font-medium"{% else %}class="dark:text-orange-50 hover:bg-orange-400 hover:text-white px-3 py-2 rounded-md font-medium"{% endif %}>About</a>
                             <a href="{% url 'published' %}" {% if page.active == 'published' %}aria-current="page" class="dark:text-orange-50 bg-orange-700 text-white hover:text-white px-3 py-2 rounded-md font-medium"{% else %}class="dark:text-orange-50 hover:bg-orange-400 hover:text-white px-3 py-2 rounded-md font-medium"{% endif %}>
                                 Published Collations
                             </a>
