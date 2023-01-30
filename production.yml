@@ -74,8 +74,6 @@ services:
     build:
       context: .
       dockerfile: docker_litestream.dockerfile
-    ports:
-      - 9000
     container_name: litestream
     volumes:
       - db:/data/db:rw
