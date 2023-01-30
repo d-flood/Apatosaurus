@@ -19,6 +19,7 @@ litestream.yml
 *.exe
 .vscode/
 theme/static/css/dist/
+/db
 
 # temp
 temp/
