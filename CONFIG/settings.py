@@ -53,6 +53,7 @@ INSTALLED_APPS = [
     'cbgm',
     'published',
     'witnesses',
+    'content',
 
     'django_htmx',
     'crispy_forms',

@@ -10,6 +10,7 @@ COPY CONFIG CONFIG
 COPY published published
 COPY theme theme
 COPY witnesses witnesses
+COPY content content
 
 COPY manage.py manage.py
 COPY requirements_prod.txt requirements_prod.txt

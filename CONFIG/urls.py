@@ -26,6 +26,7 @@ from accounts.urls import urls as accounts_urls
 from collation.urls import urls as collation_urls
 from witnesses.urls import urls as witnesses_urls
 from cbgm.urls import urls as cbgm_urls
+from content.urls import urls as content_urls
 
 
 def home(request: HttpRequest) -> HttpResponse:
@@ -42,6 +43,7 @@ def home(request: HttpRequest) -> HttpResponse:
 urlpatterns = [
     path(settings.ADMIN_URL, admin.site.urls),
     path('', home, name='home'),
+    path('', include(content_urls)),
     path('published/', include(published_urls)),
     path('accounts/', include(accounts_urls)),
     path('collation/', include(collation_urls)),
