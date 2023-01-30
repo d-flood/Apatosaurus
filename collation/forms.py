@@ -79,7 +79,7 @@ class AppForm(forms.ModelForm):
         instance = super().save(commit=False)
         instance.ab_id = ab_pk
         if commit:
-            instance.save()
+            instance.save(ab_pk=ab_pk)
             instance.ab.save()
         return instance
 
