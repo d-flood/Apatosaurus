@@ -46,6 +46,7 @@ services:
     volumes:
       - uploads:/django/uploads:rw
       - ./db:/django/db:rw
+      - .:/django
     container_name: huey
     env_file:
       - .env
