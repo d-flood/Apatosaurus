@@ -173,6 +173,18 @@ class App(models.Model):
                 )
         return app
 
+    def save(self, *args, **kwargs):
+        if not self.pk:
+            # then create the main rdg
+            super().save(*args, **kwargs)
+            words = []
+            if self.ab.indexed_basetext:
+                for word in self.ab.indexed_basetext:
+                    if self.index_from <= word['index'] <= self.index_to:
+                        words.append(word['word'])
+                Rdg(app=self, name='a', varSeq=1, rtype='-', text=' '.join(words)).save()
+        super().save(*args, **kwargs)
+
 
 class Rdg(models.Model):
     RDG_CHOICES = [
@@ -190,7 +202,7 @@ class Rdg(models.Model):
         ('amb', 'Ambiguous')
     ]
     app = models.ForeignKey(App, on_delete=models.CASCADE, related_name='rdgs')
-    name = models.CharField(max_length=5)
+    name = models.CharField(max_length=15)
     varSeq = models.SmallIntegerField(default=1)
     rtype = models.CharField(max_length=5, choices=RDG_CHOICES, default='0', verbose_name='Reading Type')
     text = models.TextField(null=True, blank=True)
