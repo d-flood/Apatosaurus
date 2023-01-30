@@ -2,6 +2,7 @@ FROM python:3.11.1-slim-buster
 ENV PYTHONUNBUFFERED=1
 WORKDIR /django
 COPY _static _static
+COPY _staticfiles _staticfiles
 COPY _templates _templates
 COPY accounts accounts
 COPY cbgm cbgm
