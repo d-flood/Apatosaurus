@@ -2,7 +2,8 @@
 {% load static %}
 {% block content %}
 <div class="flex overflow-x-hidden">
-    <div class="hidden absolute lg:relative lg:flex lg:flex-col w-64 min-h-screen px-4 py-8 overflow-y-auto border-r bg-orange-50 dark:bg-cyan-1400">
+    <div class="hidden absolute lg:relative lg:flex lg:flex-col w-64 min-h-screen px-4 py-8 overflow-y-auto border-r bg-orange-50 dark:bg-cyan-1400"
+        id="sidebar-nav">
         <div class="flex flex-col justify-between mt-6">
             <h1 class="text-2xl text-center">open-cbgm</h1>
             <hr class="my-4 border-orange-700 border-t-4">
@@ -75,6 +76,13 @@
             </div>
         </div>
     </div>
+    <button type="button" aria-label="Show Menu" title="Show Menu"
+        class="absolute lg:hidden rounded-md p-2 text-gray-00 hover:bg-gray-700 hover:text-white focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white"
+        _="on click toggle .hidden on #sidebar-nav">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+        </svg>
+    </button>
     <main id="main" class="mx-3 mb-auto w-full">
         <div class="tab-content md:max-w-2xl lg:max-w-3xl xl:max-w-4xl mx-auto" id="about" role="tabpanel">{% include 'cbgm/about.html' %}</div>
         <div class="tab-content" id="manage-db" role="tabpanel" style="display: none;">

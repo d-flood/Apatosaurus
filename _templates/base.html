@@ -76,19 +76,19 @@
                     <div class="hidden sm:ml-6 sm:block ml-4">
                         <div class="flex space-x-4">
                             <!-- Current: "bg-gray-900 text-white", Default: "text-gray-300 hover:bg-gray-700 hover:text-white" -->
-                            <a href="{% url 'about' %}" {% if page.active == 'about' %} class="bg-orange-700 dark:text-orange-50 text-white px-3 py-2 rounded-md text-sm font-medium"{% else %}class="dark:text-orange-50 hover:bg-orange-400 hover:text-white px-3 py-2 rounded-md font-medium"{% endif %}>About</a>
+                            <a href="{% url 'about' %}" {% if page.active == 'about' %}aria-current="page" class="bg-orange-700 dark:text-orange-50 text-white px-3 py-2 rounded-md text-sm font-medium"{% else %}class="dark:text-orange-50 hover:bg-orange-400 hover:text-white px-3 py-2 rounded-md font-medium"{% endif %}>About</a>
                             <a href="{% url 'published' %}" {% if page.active == 'published' %}aria-current="page" class="dark:text-orange-50 bg-orange-700 text-white hover:text-white px-3 py-2 rounded-md font-medium"{% else %}class="dark:text-orange-50 hover:bg-orange-400 hover:text-white px-3 py-2 rounded-md font-medium"{% endif %}>
                                 Published Collations
                             </a>
                             {% if user.is_authenticated %}
                                 <span class="border border-solid min-h-full border-orange-700"></span>
-                                <a href="{% url 'collation' %}" {% if page.active == 'collation' %}aria-current="page" class="dark:text-orange-50 hover:bg-orange-400 hover:text-white px-3 py-2 rounded-md font-medium"{% else %}class="dark:text-orange-50 hover:bg-orange-400 hover:text-white px-3 py-2 rounded-md font-medium"{% endif %}>
+                                <a href="{% url 'collation' %}" {% if page.active == 'collation' %}aria-current="page" class="bg-orange-700 dark:text-orange-50 text-white px-3 py-2 rounded-md text-sm font-medium"{% else %}class="dark:text-orange-50 hover:bg-orange-400 hover:text-white px-3 py-2 rounded-md font-medium"{% endif %}>
                                     My Collations
                                 </a>
-                                <a href="{% url 'witnesses-main' %}" {% if page.active == 'witnesses' %}aria-current="page" class="dark:text-orange-50 hover:bg-orange-400 hover:text-white px-3 py-2 rounded-md font-medium"{% else %}class="dark:text-orange-50 hover:bg-orange-400 hover:text-white px-3 py-2 rounded-md font-medium"{% endif %}>
+                                <a href="{% url 'witnesses-main' %}" {% if page.active == 'witnesses' %}aria-current="page" class="bg-orange-700 dark:text-orange-50 text-white px-3 py-2 rounded-md text-sm font-medium"{% else %}class="dark:text-orange-50 hover:bg-orange-400 hover:text-white px-3 py-2 rounded-md font-medium"{% endif %}>
                                     Witnesses
                                 </a>
-                                <a href="{% url 'open-cbgm' %}" {% if page.active == 'open-cbgm' %}aria-current="page" class="dark:text-orange-50 hover:bg-orange-400 hover:text-white px-3 py-2 rounded-md font-medium"{% else %}class="dark:text-orange-50 hover:bg-orange-400 hover:text-white px-3 py-2 rounded-md font-medium"{% endif %}>
+                                <a href="{% url 'open-cbgm' %}" {% if page.active == 'open-cbgm' %}aria-current="page" class="bg-orange-700 dark:text-orange-50 text-white px-3 py-2 rounded-md text-sm font-medium"{% else %}class="dark:text-orange-50 hover:bg-orange-400 hover:text-white px-3 py-2 rounded-md font-medium"{% endif %}>
                                     open-cbgm
                                 </a>
                             {% endif %}
@@ -174,17 +174,31 @@
         <div class="sm:hidden" id="mobile-menu" style="display: none;">
             <div class="space-y-1 px-2 pt-2 pb-3">
                 <!-- Current: "bg-gray-900 text-white", Default: "text-gray-300 hover:bg-gray-700 hover:text-white" -->
-                <a href="#" class="bg-gray-900 text-white block px-3 py-2 rounded-md text-base font-medium"
-                    aria-current="page">Dashboard</a>
+                <a href="{% url 'about' %}"
+                    {% if page.active == 'about' %} class="block bg-orange-700 dark:text-orange-50 text-white px-3 py-2 rounded-md text-sm font-medium" aria-current="page"{% else %}class="block dark:text-orange-50 hover:bg-orange-400 hover:text-white px-3 py-2 rounded-md font-medium"{% endif %}>
+                    About
+                </a>
+                <a href="{% url 'published' %}"
+                    {% if page.active == 'published' %} class="block bg-orange-700 dark:text-orange-50 text-white px-3 py-2 rounded-md text-sm font-medium" aria-current="page"{% else %}class="block dark:text-orange-50 hover:bg-orange-400 hover:text-white px-3 py-2 rounded-md font-medium"{% endif %}>
+                    Published Collations
+                </a>
 
-                <a href="#"
-                    class="text-gray-300 hover:bg-gray-700 hover:text-white block px-3 py-2 rounded-md text-base font-medium">Team</a>
-
-                <a href="#"
-                    class="text-gray-300 hover:bg-gray-700 hover:text-white block px-3 py-2 rounded-md text-base font-medium">Projects</a>
-
-                <a href="#"
-                    class="text-gray-300 hover:bg-gray-700 hover:text-white block px-3 py-2 rounded-md text-base font-medium">Calendar</a>
+                {% if user.is_authenticated %}
+                    <hr>
+                    <a href="{% url 'collation' %}"
+                        {% if page.active == 'collation' %} class="block bg-orange-700 dark:text-orange-50 text-white px-3 py-2 rounded-md text-sm font-medium" aria-current="page"{% else %}class="block dark:text-orange-50 hover:bg-orange-400 hover:text-white px-3 py-2 rounded-md font-medium"{% endif %}>
+                        My Collations
+                    </a>
+                    <a href="{% url 'witnesses-main' %}" 
+                        {% if page.active == 'witnesses' %}aria-current="page" class="block bg-orange-700 dark:text-orange-50 text-white px-3 py-2 rounded-md text-sm font-medium" aria-current="page"{% else %}class="block dark:text-orange-50 hover:bg-orange-400 hover:text-white px-3 py-2 rounded-md font-medium"{% endif %}>
+                        Witnesses
+                    </a>
+                    <a href="{% url 'open-cbgm' %}" 
+                        {% if page.active == 'open-cbgm' %}aria-current="page" class="block bg-orange-700 dark:text-orange-50 text-white px-3 py-2 rounded-md text-sm font-medium" aria-current="page"{% else %}class="block dark:text-orange-50 hover:bg-orange-400 hover:text-white px-3 py-2 rounded-md font-medium"{% endif %}>
+                        open-cbgm
+                    </a>
+                {% endif %}
+                
             </div>
         </div>
     </nav>
