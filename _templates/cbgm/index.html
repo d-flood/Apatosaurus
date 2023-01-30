@@ -16,7 +16,7 @@
                         then hide .tab-content then show #about end">
                     About
                 </button>
-                <button type="button" role="tab" aria-controls="manage-db"
+            <button type="button" role="tab" aria-controls="manage-db" {% if not request.user.is_authenticated %}disabled{% endif %}
                     class="cbgm-tab w-full px-4 py-1 text-back dark:text-white hover:bg-orange-400 rounded-md my-2"
                     _="on click set .cbgm-tab's @aria-selected to 'false' then set my @aria-selected to 'true'
                         then add .hover:bg-orange-400 .hover:text-white to .cbgm-tab then remove .hover:bg-orange-400 .hover:text-white from me 
@@ -77,7 +77,11 @@
     </div>
     <main id="main" class="mx-3 mb-auto w-full">
         <div class="tab-content md:max-w-2xl lg:max-w-3xl xl:max-w-4xl mx-auto" id="about" role="tabpanel">{% include 'cbgm/about.html' %}</div>
-        <div class="tab-content" id="manage-db" role="tabpanel" style="display: none;">{% include 'cbgm/manage_db.html' %}</div>
+        <div class="tab-content" id="manage-db" role="tabpanel" style="display: none;">
+            {% if request.user.is_authenticated %}
+                {% include 'cbgm/manage_db.html' %}
+            {% endif %}
+        </div>
         <div class="tab-content" id="compare-wits" role="tabpanel" style="display: none;"></div>
         <div class="tab-content" id="find-relatives" role="tabpanel" style="display: none;"></div>
         <div class="tab-content" id="optimize-substemma" role="tabpanel" style="display: none;"></div>

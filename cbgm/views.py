@@ -23,14 +23,17 @@ from witnesses.py.sort_ga_witnesses import sort_ga_witnesses
 # resp['HX-Trigger'] = '''{"showDialog": {"title": "the title", "message": "the message"}}'''
 
 
-@login_required
 @require_safe
 def main(request: HttpRequest) -> HttpResponse:
+    if request.user.is_authenticated:
+        return render(request, 'cbgm/index.html', {
+            'page': {'title': 'Apatosaurus - open-cbgm', 'active': 'open-cbgm'},
+            'entire_dbs': models.Cbgm_Db.objects.filter(user=request.user, amount=2, active=True),
+            'section_dbs': models.Cbgm_Db.objects.filter(user=request.user, amount=1, active=True),
+            'verse_dbs': models.Cbgm_Db.objects.filter(user=request.user, amount=0, active=True),
+        })
     return render(request, 'cbgm/index.html', {
         'page': {'title': 'Apatosaurus - open-cbgm', 'active': 'open-cbgm'},
-        'entire_dbs': models.Cbgm_Db.objects.filter(user=request.user, amount=2, active=True),
-        'section_dbs': models.Cbgm_Db.objects.filter(user=request.user, amount=1, active=True),
-        'verse_dbs': models.Cbgm_Db.objects.filter(user=request.user, amount=0, active=True),
     })
 
 
