@@ -196,7 +196,7 @@ class Rdg(models.Model):
     wit = models.ManyToManyField(Witness, related_name='rdgs', blank=True, verbose_name='Witnesses')
 
     witDetail = models.BooleanField(default=False, verbose_name='Ambiguous Reading')
-    target = models.ManyToManyField('self', related_name='wit_details', null=True, blank=True, verbose_name='Potential Readings')
+    target = models.ManyToManyField('self', blank=True, verbose_name='Potential Readings')
 
     modified = models.DateTimeField(auto_now=True)
     note = models.TextField(null=True, blank=True)
