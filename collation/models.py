@@ -112,8 +112,9 @@ class Ab(models.Model):
         self.indexed_basetext = indexed_basetext
         
     def save(self, *args, **kwargs):
-        with contextlib.suppress(ValueError):
-            self.set_indexed_basetext()
+        if not self.pk:
+            super().save(*args, **kwargs)
+        self.set_indexed_basetext()
         super().save(*args, **kwargs)
         
 
