@@ -22,7 +22,7 @@
                     {% if not forloop.first %}  
                         <tr class="py-4 {% cycle '' 'bg-orange-50 dark:bg-cyan-1300' %}">
                             <td class="px-2 h-8">Previous Version</td>
-                            <td class="px-2 h-8">{{ old_rdg.modified }}</td>
+                            <td class="px-2 h-8">{{ old_rdg.modified.date }}</td>
                             <td class="px-2 h-8">{{ old_rdg.name }}</td>
                             <td class="px-2 h-8">{{ old_rdg.get_rtype_display }}</abbr></td>
                             <td class="font-greek px-2 h-8">{{ old_rdg.text }}</td>

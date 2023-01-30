@@ -7,10 +7,10 @@
                 <table class="min-w-full" id="rdgs_table_parent">
                     <thead>
                         <tr id="rdgs_header" class="border-b-4 border-orange-700">
-                            <th scope="col" class="rdg-id">ID</th>
-                            <th scope="col" class="rdg-type">Type</th>
-                            <th scope="col" class="rdg-rdg">Reading</th>
-                            <th scope="col" class="rdg-wit">Witnesses</th>
+                            <th scope="col" class="rdg-id text-start">ID</th>
+                            <th scope="col" class="rdg-type text-start">Type</th>
+                            <th scope="col" class="rdg-rdg text-start">Reading</th>
+                            <th scope="col" class="rdg-wit text-start">Witnesses</th>
                             <th scope="col" class="rdg-edit text-end">Edit</th>
                         </tr>
                     </thead>
@@ -65,7 +65,7 @@
                             <tr id="new-rdg-row" class="h-8">
                                 <td colspan="5" id="new-rdg-form" class="w-full">
                                     <div class="flex flex-col items-center">
-                                        <button type="button" class="btn-submit"
+                                        <button type="button" class="btn-submit my-2"
                                             hx-get="{% url 'new-rdg' app_pk=app.pk %}" hx-target="#new-rdg-form">
                                             <svg class="w-6 h-6 inline-flex" style="margin-right:3px;" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 16 16">
                                                 <path d="M2 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2H2zm6.5 4.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3a.5.5 0 0 1 1 0z"/>
@@ -81,7 +81,7 @@
                 </table>
                 {% if witDetails %}
                 <h4 class="text-xl text-center my-4 font-bold">
-                    Ambiguous Witness Readings
+                    Ambiguous Witnesses
                 </h4>
                 <table class="min-w-full" id="rdgs_table_parent">
                     <thead>
@@ -125,7 +125,7 @@
                                                 </svg>
                                             </button>
                                         {% endwith %}
-                                        <button class="my-1 btn px-0" 
+                                        {% comment %} <button class="my-1 btn px-0" 
                                             type="button" title="view edit history for this reading" aria-label="view edit history for this reading"
                                             hx-get="{% url 'rdg-history' rdg_pk=rdg.pk %}"
                                             hx-target="#rdg-history-dialog">
@@ -135,7 +135,7 @@
                                                 <path d="M8 1a7 7 0 1 0 4.95 11.95l.707.707A8.001 8.001 0 1 1 8 0v1z"/>
                                                 <path d="M7.5 3a.5.5 0 0 1 .5.5v5.21l3.248 1.856a.5.5 0 0 1-.496.868l-3.5-2A.5.5 0 0 1 7 9V3.5a.5.5 0 0 1 .5-.5z"/>
                                             </svg>
-                                        </button>
+                                        </button> {% endcomment %}
                                     </div>
                                 </td>
                             </tr>
@@ -144,7 +144,7 @@
                             <td colspan="5" id="new-rdg-form" class="w-full">
                                 {% block new_rdg_button %}
                                 <div class="flex flex-col items-center">
-                                    <button type="button" class="btn-submit"
+                                    <button type="button" class="btn-submit my-2"
                                         hx-get="{% url 'new-rdg' app_pk=app.pk %}" hx-target="#new-rdg-form">
                                         <svg class="w-6 h-6 inline-flex" style="margin-right:3px;" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 16 16">
                                             <path d="M2 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2H2zm6.5 4.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3a.5.5 0 0 1 1 0z"/>
