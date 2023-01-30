@@ -61,6 +61,7 @@ class FindRelativesForm(forms.Form):
         super().__init__(*args, **kwargs)
         self.fields['witness'].choices = all_witnesses
         self.fields['app_labels'].choices = app_labels
+        self.fields['app_labels'].required = True
 
     witness = forms.CharField(
         max_length=64, 
