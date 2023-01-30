@@ -5,4 +5,5 @@
 ## Priority
 
 - set up litestream
+    - done... BUT this application probably needs a full Postgres database.
 - write "About"
