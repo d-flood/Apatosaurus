@@ -9,16 +9,16 @@
             <ul class="mt-10 flex flex-col items-center">
                 {% for page in pages %}
                     {% if about_active == page.slug %}
-                        <li class="my-2">
+                        <li class="w-full px-4 py-1 text-white bg-orange-700 rounded-md my-2">
                             <a href="#" aria-current="page"
-                                class="w-full px-4 py-1 text-white bg-orange-700 rounded-md my-2">
+                                class="block">
                                 {{ page.title }}
                             </a>
                         </li>
                     {% else %}
-                        <li class="my-2">
+                        <li class="w-full px-4 py-1 text-back dark:text-white hover:bg-orange-400 rounded-md my-2">
                             <a href="{% url 'about' slug=page.slug %}"
-                                class="w-full px-4 py-1 text-back dark:text-white hover:bg-orange-400 rounded-md my-2">
+                                class="block">
                                 {{ page.title }}
                             </a>
                         </li>
