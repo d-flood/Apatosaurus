@@ -1,0 +1,11 @@
+version: '3'
+services:
+############ LITESTREAM
+  litestream:
+    image: litestream/litestream:latest
+    container_name: local_restore
+    volumes:
+      - ./db:/data/db:rw
+    env_file:
+      - .env
+    command: restore -o /data/db/apatosaurus.db s3://apatosaurus/litestream/main_db

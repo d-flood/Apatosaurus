@@ -9,7 +9,6 @@ services:
       dockerfile: docker_django.dockerfile
     volumes:
       - uploads:/django/uploads:rw
-      - ./db:/django/db:rw
       - .:/django
     ports:
       - 8000
@@ -22,9 +21,10 @@ services:
       - /bin/sh
       - -c 
       - | 
-        python manage.py migrate && python manage.py runserver 0.0.0.0:8000
-    # depends_on:
-    #   - litestream
+        python wait_for_db.py && python manage.py migrate && python manage.py runserver 0.0.0.0:8000
+    depends_on:
+      - litestream
+      - redis
   ########### REDIS
   redis:
     image: redis:alpine
@@ -42,7 +42,7 @@ services:
       - /bin/sh
       - -c 
       - |
-        python manage.py run_huey
+        python wait_for_db.py && python manage.py run_huey
     volumes:
       - uploads:/django/uploads:rw
       - ./db:/django/db:rw
@@ -55,6 +55,7 @@ services:
     depends_on:
       - redis
       - django
+      - litestream
 ########### NGINX
   nginx:
     image: dev_nginx:latest
@@ -71,17 +72,16 @@ services:
       - django
 
 ########### LITESTREAM
-  # litestream:
-  #   image: litestream/litestream:latest
-  #   ports:
-  #     - 9000
-  #   container_name: litestream
-  #   volumes:
-  #     - dev_db:/data/db:rw
-  #   env_file:
-  #     - .env
-  #   command: restore -o /data/db/apatosaurus.db s3://apatosaurus/litestream/main_db
+  litestream:
+    image: dev_litestream:latest
+    build:
+      context: .
+      dockerfile: docker_litestream.dockerfile
+    container_name: litestream
+    volumes:
+      - ./db:/data/db:rw
+    env_file:
+      - .env
 
 volumes:
   uploads:
-  # dev_db:

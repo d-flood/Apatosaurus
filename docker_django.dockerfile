@@ -17,6 +17,7 @@ COPY manage.py manage.py
 COPY requirements_prod.txt requirements_prod.txt
 COPY wait_for_db.py wait_for_db.py
 COPY clear_db.py clear_db.py
+COPY liste.json liste.json
 
 RUN apt-get update
 RUN apt-get install graphviz -y
