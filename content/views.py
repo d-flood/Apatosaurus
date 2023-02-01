@@ -21,7 +21,7 @@ def index(request: HttpRequest, slug: str = '') -> HttpResponse:
         'page': {
             'description': 'A Web Application for visualizing, editing, analyzing, and publishing digital collations of ancient texts.',
             'active': 'about',
-            'title': f'Apatosaurus - About - {about_page.title}',
+            'title': f'Apatosaurus - {about_page.title}',
         },
         'about_page': about_page,
         'about_active': slug,
