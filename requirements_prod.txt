@@ -16,3 +16,4 @@ rich
 django-storages==1.13.2
 boto3==1.26.49
 Markdown==3.4.1
+Pillow
