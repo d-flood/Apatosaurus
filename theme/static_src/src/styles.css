@@ -66,6 +66,9 @@
     .color-prose>h2, .color-prose>h3, .color-prose>h4 {
         @apply text-orange-700;
     }
+    .prose>img {
+        @apply drop-shadow-xl mb-2;
+    }
     button[disabled] {
         @apply hover:bg-transparent text-gray-500 dark:text-gray-500 hover:text-gray-500;
     }
