@@ -2,7 +2,7 @@
 {% load static %}
 {% block content %}
 <div class="flex overflow-x-hidden">
-    <div class="hidden absolute lg:relative lg:flex lg:flex-col w-64 min-h-screen px-4 py-8 overflow-y-auto border-r bg-orange-50 dark:bg-cyan-1400"
+    <div class="z-10 hidden absolute lg:relative lg:flex lg:flex-col min-w-max min-h-screen px-4 py-8 overflow-y-auto border-r bg-orange-50 dark:bg-cyan-1400"
         id="about-nav">
         <nav role="navigation" aria-label="About Apatosaurus" class="flex flex-col justify-between mt-6">
             <h1 class="text-2xl text-center font-bold">About</h1>
@@ -29,18 +29,33 @@
         </nav>
     </div>
     <button type="button" aria-label="Show Menu" title="Show Menu"
-        class="absolute rounded-md p-2 text-gray-00 hover:bg-gray-700 hover:text-white focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white"
+        class="z-20 absolute lg:hidden rounded-md p-2 text-gray-00 hover:bg-gray-700 hover:text-white focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white"
         _="on click toggle .hidden on previous <div/>">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
             <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
         </svg>
     </button>
-    <main id="main" class="md:max-w-2xl lg:max-w-3xl xl:max-w-4xl mx-auto">
+    <main id="main" class="{% if about_page.slug == 'introduction' %}md:max-w-2xl lg:max-w-3xl xl:max-w-4xl mx-auto{% else %}mx-4{% endif %}">
         <div class="prose color-prose bg-orange-50 dark:bg-cyan-1300 py-4 px-2 sm:px-8">
             <h2 class="text-4xl text-center font-bold">
                 {{ about_page.title }}
             </h2>
-            {{ about_page.html|safe }}
+            <div class="prose color-prose mx-auto max-w-2xl">
+                {{ about_page.html|safe }}
+            </div>
+            <div id="image-blocks" class="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-2">
+                {% for block in about_page.blocks.all %}
+                    <div class="bg-orange-200 border border-orange-700 dark:bg-cyan-1000 my-2 flex flex-col rounded-md drop-shadow-xl w-full">
+                        <div class="flex flex-row p-4">
+                            <p class="text-xl font-bold text-center mx-2">{{ block.order }}.</p>
+                            <p class="mx-2">{{ block.html|safe }}</p>
+                        </div>
+                        <div class="mx-auto mt-auto">
+                            <img loading="lazy" src="{{ block.image.url }}" aria-hidden="true" class="lg:max-w-lg xl:max-w-none w-full object-scale-contain rounded-md">
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
         </div>
     </main>
 </div>
