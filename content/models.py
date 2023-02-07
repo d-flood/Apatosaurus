@@ -17,7 +17,7 @@ class AboutPage(models.Model):
         return f'/{self.slug}/'
 
     def save(self, *args, **kwargs):
-        self.html = markdown(self.markdown)
+        self.html = markdown(self.markdown, extensions=['attr_list'])
         super().save(*args, **kwargs)
 
     class Meta:
@@ -34,7 +34,7 @@ class ImageBlock(models.Model):
         return f'{self.about_page.title} > {self.markdown[:20]}'
 
     def save(self, *args, **kwargs):
-        self.html = markdown(self.markdown)
+        self.html = markdown(self.markdown, extensions=['attr_list'])
         super().save(*args, **kwargs)
 
     class Meta:
