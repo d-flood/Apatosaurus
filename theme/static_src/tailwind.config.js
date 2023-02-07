@@ -49,7 +49,7 @@ module.exports = {
     theme: {
         extend: {
             fontFamily: {
-                sans: ['Inter var', ...defaultTheme.fontFamily.sans],
+                sans: ['Inter', ...defaultTheme.fontFamily.sans],
                 serif: ['Lora', ...defaultTheme.fontFamily.serif],
                 'greek': ['GentiumAlt', 'serif'],
               },
