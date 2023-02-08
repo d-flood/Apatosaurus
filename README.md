@@ -15,9 +15,7 @@ Copyright (C) 2023  David Flood
 
 # Apatosaurus
 
-I'm still waiting on a better name. This is the open source rewrite of [Apparatus Explorer](https://www.apparatusexplorer.com/).
-
-At this stage I am merely creating the basic data models.
+This is the open source rewrite of [Apparatus Explorer](https://www.apparatusexplorer.com/).
 
 This new version is more than an explorer. Its features will include
 - visualization
@@ -39,9 +37,5 @@ This new version is more than an explorer. Its features will include
 ## Running the dev server
 This will be dockerized once the initial development on the main site is done. Until then:
 - Apatosaurus is being developed with Python 3.11 and Django 4.1
-- The following environment variables must be present:
-    - `SECRET_KEY`
-    - `DEBUG`
-    - `ADMIN_URL`
-- on Windows run `py manage.py runserver`
-- on Mac/Linux run `python3 manage.py runserver`
+- Docker and Docker Compose is required to run.
+- Start development server `docker compose --file dev.yml up`
