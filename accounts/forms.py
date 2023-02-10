@@ -29,6 +29,18 @@ class CustomUserChangeForm(UserChangeForm):
         )
 
 
+class CustomUserChangeAdminForm(UserChangeForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+    class Meta:
+        model = get_user_model()
+        fields = (
+            "email",
+            "username",
+            "display_name",
+        )
+
+
 class CustomUserRegistrationForm(RegistrationForm):
     # TODO: add a captha field
     class Meta(RegistrationForm.Meta):
