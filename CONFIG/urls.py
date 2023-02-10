@@ -32,8 +32,8 @@ from content.urls import urls as content_urls
 def home(request: HttpRequest) -> HttpResponse:
     context = {
         'page': {
-            'title': 'Home - Apatosaurus', 
-            'description': 'A Web Application for visualizing, editing, analyzing, and publishing digital collations of ancient texts.',
+            'title': 'Apatosaurus', 
+            'description': 'A web application for visualizing, editing, analyzing, and publishing digital collations of ancient texts.',
             'active': 'home',
         },
     }
