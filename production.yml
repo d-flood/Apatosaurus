@@ -10,6 +10,7 @@ services:
     volumes:
       - uploads:/django/uploads:rw
       - db:/django/db:rw
+      - temp:/django/temp:rw
     ports:
       - 8000
     env_file:
@@ -45,6 +46,7 @@ services:
     volumes:
       - uploads:/django/uploads:rw
       - db:/django/db:rw
+      - temp:/django/temp:rw
     container_name: huey
     env_file:
       - .env
@@ -82,3 +84,4 @@ services:
 volumes:
   uploads:
   db:
+  temp:
