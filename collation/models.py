@@ -40,6 +40,9 @@ class Collation(models.Model):
         wits = add_tei_header(tei_root)
         return et.tostring(tei_root, encoding='unicode', pretty_print=True)
 
+    def __str__(self):
+        return f'{self.user} - {self.name}'
+
 
 class Section(models.Model):
     collation = models.ForeignKey(Collation, on_delete=models.CASCADE, related_name='sections')
