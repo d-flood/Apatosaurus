@@ -1,13 +1,14 @@
 {% extends 'base.html' %}
 {% load static %}
 {% block content %}
-<div class="flex">
+<div class="flex" id="body-inner-content">
+    {% block inner_content %}
     <div class="z-20 hidden absolute lg:relative lg:flex lg:flex-col w-64 min-h-screen px-4 py-8 overflow-y-auto border-r bg-orange-50 dark:bg-cyan-1400"
         id="sidebar-nav-published">
         <div class="flex flex-col justify-between mt-6">
             <h1 class="text-2xl text-center">{{ section.name }}</h1>
             <hr class="my-4 border-orange-700 border-t-4">
-            <ul>
+            <ul hx-boost="true" hx-target="#body-inner-content">
                 {% include 'published/verses.html' %}
             </ul>
         </div>
@@ -86,25 +87,22 @@
         </div>
         <div id="readings" class="bg-orange-100 border-orange-100 dark:bg-cyan-1400 dark:border-darknav pb-10 pt-5 my-4 drop-shadow"></div>
     </main>
-
-
-
+    <style>
+        {% for app in ab.apps.all %}
+            td:not(.bt-{{ app.pk }}) + td.bt-{{ app.pk }} {
+                border-left: solid 2px #bd461d;
+                margin-left: 15px;
+            }
+            td.bt-{{ app.pk }}:first-of-type {
+                border-left: solid 2px #bd461d;
+                margin-left: 15px;
+            }
+        {% endfor %}
+        .selected {
+            background-color: #bd461d;
+            color: white;
+        }
+    </style>
+    {% endblock inner_content %}
 </div>
-
-<style>
-    {% for app in ab.apps.all %}
-        td:not(.bt-{{ app.pk }}) + td.bt-{{ app.pk }} {
-            border-left: solid 2px #bd461d;
-            margin-left: 15px;
-        }
-        td.bt-{{ app.pk }}:first-of-type {
-            border-left: solid 2px #bd461d;
-            margin-left: 15px;
-        }
-    {% endfor %}
-    .selected {
-        background-color: #bd461d;
-        color: white;
-    }
-</style>
 {% endblock content %}

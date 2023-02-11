@@ -4,6 +4,8 @@ from django.shortcuts import render, redirect
 from django.http import HttpRequest, HttpResponse
 from django.views.decorators.http import require_http_methods, require_safe
 
+from render_block import render_block_to_string
+
 from collation import models as cmodels
 from accounts.models import CustomUser
 from collation.py import helpers as chelpers
@@ -76,7 +78,14 @@ def apparatus(request: HttpRequest, ab_pk: int, user_pk: int = False) -> HttpRes
         'section': ab.section,
         'selected_ab': ab.name,
     }
-    return render(request, 'published/apparatus.html', context)
+    if request.htmx: #type: ignore
+        html = render_block_to_string('published/apparatus.html', 'inner_content', request=request, context=context)
+        resp = HttpResponse(html)
+        print('HTMX')
+    else:
+        resp = render(request, 'published/apparatus.html', context)
+        print('BROWSER')
+    return resp
 
 
 def rdgs(request: HttpRequest, app_pk: int):
