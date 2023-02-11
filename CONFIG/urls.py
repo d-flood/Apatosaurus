@@ -44,6 +44,7 @@ urlpatterns = [
     path(settings.ADMIN_URL, admin.site.urls),
     path('', home, name='home'),
     path('', include(content_urls)),
+    path('impersonate/', include('impersonate.urls')),
     path('published/', include(published_urls)),
     path('accounts/', include(accounts_urls)),
     path('collation/', include(collation_urls)),
