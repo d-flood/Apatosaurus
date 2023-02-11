@@ -81,10 +81,8 @@ def apparatus(request: HttpRequest, ab_pk: int, user_pk: int = False) -> HttpRes
     if request.htmx: #type: ignore
         html = render_block_to_string('published/apparatus.html', 'inner_content', request=request, context=context)
         resp = HttpResponse(html)
-        print('HTMX')
     else:
         resp = render(request, 'published/apparatus.html', context)
-        print('BROWSER')
     return resp
 
 
