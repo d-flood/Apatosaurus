@@ -23,7 +23,7 @@ services:
       - | 
         python wait_for_db.py && python manage.py migrate && python manage.py runserver 0.0.0.0:8000
     depends_on:
-      - litestream
+      # - litestream
       - redis
   ########### REDIS
   redis:
@@ -55,7 +55,7 @@ services:
     depends_on:
       - redis
       - django
-      - litestream
+      # - litestream
 ########### NGINX
   nginx:
     image: dev_nginx:latest
@@ -74,6 +74,7 @@ services:
 ########### LITESTREAM
   litestream:
     image: dev_litestream:latest
+    # image: litestream/litestream:latest
     build:
       context: .
       dockerfile: docker_litestream.dockerfile
