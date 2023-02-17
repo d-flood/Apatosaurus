@@ -74,7 +74,6 @@ def import_tei(user_pk: int, corpus_pk: int, db_pk: int, corpus_type: int):
     p = Popen(command)
     return_code = p.wait()
     if return_code != 0:
-        Popen(f'Notepad {tei_file.resolve()}')
         cleanup(tei_file, db_file)
         raise Exception(f'open-cbgm.populate_db error.\nCommand="{command}"\nReturn code={return_code}')
     witnesses, app_labels = get_all_witnesses_and_apps(db_file.name)
@@ -293,9 +292,12 @@ def print_global_stemma_command(db: str, data: dict[str, bool]):
 
 
 def print_global_stemma(db: models.Cbgm_Db, data: dict[str, bool]):
+    print('starting print_global_stemma')
     db_file = get_cached_db(db).resolve().as_posix()
     command, temp_dir = print_global_stemma_command(db_file, data)
+    print(f'{command=}')
     try:
+        print('trying to run command')
         message = check_output(command, cwd=temp_dir.resolve().as_posix())
     except CalledProcessError as e:
         print(f'{command=}\n{e.returncode=}')
@@ -303,6 +305,7 @@ def print_global_stemma(db: models.Cbgm_Db, data: dict[str, bool]):
     dot_path = temp_dir / 'global' / 'global-stemma.dot'
     with open(dot_path, 'r') as f:
         dot = f.read()
+    print('making svg')
     svg = make_svg_from_dot(dot)
     with contextlib.suppress(Exception):
         rmtree(temp_dir)
