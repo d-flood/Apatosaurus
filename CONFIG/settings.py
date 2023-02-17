@@ -108,6 +108,30 @@ DATABASES = {
     }
 }
 
+# if environ.get('USE_PRODUCTION_DB') != 'True':
+#     DATABASES = {
+#         'default': {
+#             'ENGINE': 'django.db.backends.postgresql',
+#             'NAME': 'postgres',
+#             'USER': 'postgres',
+#             'PASSWORD': 'atestpasswordforgettingup',
+#             'HOST': 'db',
+#             'PORT': 5432
+#         }
+#     }
+# else:
+#     DATABASES = {
+#         'default': {
+#             'ENGINE': 'django.db.backends.postgresql',
+#             'NAME': environ.get('PRODUCTION_POSTGRES_NAME'),
+#             'USER': environ.get('PRODUCTION_POSTGRES_USER'),
+#             'PASSWORD': environ.get('PRODUCTION_POSTGRES_PASSWORD'),
+#             'HOST': environ.get('PRODUCTION_POSTGRES_HOST'),
+#             'PORT': 5432
+#         }
+#     }
+
+
 CACHE_TTL = 60
 
 # Password validation
