@@ -3,6 +3,11 @@ services:
   ########### DJANGO
   django:
     image: 027323396275.dkr.ecr.us-east-1.amazonaws.com/django:latest
+    deploy:
+      resources:
+        reservations:
+          cpus: '1.00'
+          memory: 2gb
     restart: always
     build:
       context: .
@@ -22,7 +27,7 @@ services:
       - /bin/sh
       - -c 
       - | 
-        python wait_for_db.py && python manage.py migrate && gunicorn -w 2 --bind 0.0.0.0:8000 CONFIG.wsgi
+        python wait_for_db.py && python manage.py migrate && gunicorn -w 2 --bind 0.0.0.0:8000 CONFIG.wsgi --timeout 60
     depends_on:
       - litestream
   ########### REDIS
@@ -34,6 +39,11 @@ services:
   ########### HUEY
   queue:
     image: 027323396275.dkr.ecr.us-east-1.amazonaws.com/queue:latest
+    deploy:
+      resources:
+        reservations:
+          cpus: '1.00'
+          memory: 2gb
     restart: always
     build:
       context: .
@@ -53,6 +63,7 @@ services:
     environment:
       - DEBUG=False
     depends_on:
+      - litestream
       - redis
       - django
 ########### NGINX
@@ -64,7 +75,7 @@ services:
       dockerfile: docker_nginx.dockerfile
     ports:
       - 80:80
-      - 443:443
+      # - 443:443
     container_name: nginx
     depends_on:
       - django
