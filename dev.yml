@@ -9,21 +9,22 @@ services:
       dockerfile: docker_django.dockerfile
     volumes:
       - uploads:/django/uploads:rw
-      - .:/django
+      - .:/django:rw
     ports:
       - 8000
     env_file:
       - .env
     environment:
       - DEBUG=True
+      - BASE_SITE_URL=http://localhost
+      - USE_PRODUCTION_DB=False
     container_name: django
     command: 
       - /bin/sh
       - -c 
       - | 
-        python wait_for_db.py && python manage.py migrate && python manage.py runserver 0.0.0.0:8000
+        python manage.py migrate && python manage.py runserver 0.0.0.0:8000
     depends_on:
-      # - litestream
       - redis
   ########### REDIS
   redis:
@@ -42,7 +43,7 @@ services:
       - /bin/sh
       - -c 
       - |
-        python wait_for_db.py && python manage.py run_huey
+        python manage.py run_huey
     volumes:
       - uploads:/django/uploads:rw
       - ./db:/django/db:rw
@@ -52,10 +53,10 @@ services:
       - .env
     environment:
       - DEBUG=True
+      - USE_PRODUCTION_DB=False
     depends_on:
       - redis
       - django
-      # - litestream
 ########### NGINX
   nginx:
     image: dev_nginx:latest
@@ -71,18 +72,17 @@ services:
     depends_on:
       - django
 
-########### LITESTREAM
-  litestream:
-    image: dev_litestream:latest
-    # image: litestream/litestream:latest
-    build:
-      context: .
-      dockerfile: docker_litestream.dockerfile
-    container_name: litestream
-    volumes:
-      - ./db:/data/db:rw
-    env_file:
-      - .env
+  # The postgres image is just for development--should use a managed db service (RDS)
+  # db:
+  #   image: dev_postgres:latest
+  #   build:
+  #     context: .
+  #     dockerfile: docker_postgres.dockerfile
+  #   volumes:
+  #     - ./data/db:/var/lib/postgresql/data
+  #   env_file:
+  #     - .env
+  #   container_name: postgres_dev
 
 volumes:
   uploads:

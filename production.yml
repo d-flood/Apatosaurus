@@ -13,8 +13,6 @@ services:
       context: .
       dockerfile: docker_django.dockerfile
     volumes:
-      - uploads:/django/uploads:rw
-      - db:/django/db:rw
       - temp:/django/temp:rw
     ports:
       - 8000
@@ -22,14 +20,15 @@ services:
       - .env
     environment:
       - DEBUG=False
+      - BASE_SITE_URL=http://apatosaurus.io
+      - USE_PRODUCTION_DB=True
     container_name: django
     command: 
       - /bin/sh
       - -c 
       - | 
-        python wait_for_db.py && python manage.py migrate && gunicorn -w 2 --bind 0.0.0.0:8000 CONFIG.wsgi --timeout 60
-    depends_on:
-      - litestream
+        python manage.py migrate && gunicorn -w 2 --bind 0.0.0.0:8000 CONFIG.wsgi --timeout 120
+  
   ########### REDIS
   redis:
     image: redis:alpine
@@ -52,18 +51,17 @@ services:
       - /bin/sh
       - -c 
       - |
-        python wait_for_db.py && python manage.py run_huey
+        python manage.py run_huey
     volumes:
-      - uploads:/django/uploads:rw
-      - db:/django/db:rw
       - temp:/django/temp:rw
     container_name: huey
     env_file:
       - .env
     environment:
       - DEBUG=False
+      - BASE_SITE_URL=http://apatosaurus.io
+      - USE_PRODUCTION_DB=True
     depends_on:
-      - litestream
       - redis
       - django
 ########### NGINX
@@ -75,24 +73,9 @@ services:
       dockerfile: docker_nginx.dockerfile
     ports:
       - 80:80
-      # - 443:443
     container_name: nginx
     depends_on:
       - django
 
-############ LITESTREAM
-  litestream:
-    image: 027323396275.dkr.ecr.us-east-1.amazonaws.com/litestream:latest
-    build:
-      context: .
-      dockerfile: docker_litestream.dockerfile
-    container_name: litestream
-    volumes:
-      - db:/data/db:rw
-    env_file:
-      - .env
-
 volumes:
-  uploads:
-  db:
   temp:
