@@ -18,3 +18,4 @@ boto3==1.26.49
 Markdown==3.4.1
 Pillow
 django-impersonate==1.8.2
+psycopg2-binary
