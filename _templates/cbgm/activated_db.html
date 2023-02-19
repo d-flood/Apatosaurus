@@ -38,7 +38,7 @@
     <p class="flex border-b dark:border-b-gray-700"><span class="font-bold w-40">Merge Splits:</span> {{ db.merge_splits }}</p>
     <p class="flex border-b dark:border-b-gray-700"><span class="font-bold w-40">Use Classic Rules:</span> {{ db.use_classic_rules }}</p>
     <p class="my-2">
-        <label for="wits-in-db"><strong>All Witnesses in this Collation</strong></label>
+        <label for="wits-in-db"><strong>{{ sorted_witnesses|length }} Witnesses in this Collation</strong></label>
         <select class="block min-w-full" size="10" id="wits-in-db">
             {% for wit in sorted_witnesses %}
                 <option>{{ wit }}</option>
@@ -46,7 +46,7 @@
         </select>
     </p>
     <p class="my-2">
-        <label for="apps-in-db"><strong>All Variation Units in this Collation</strong></label>
+        <label for="apps-in-db"><strong>{{ sorted_app_labels|length }} Units in this Collation</strong></label>
         <select class="block min-w-full" size="10" id="apps-in-db">
             {% for app in sorted_app_labels %}
                 <option>{{ app }}</option>
