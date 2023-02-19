@@ -205,9 +205,9 @@ class Rdg(models.Model):
         ('amb', 'Ambiguous')
     ]
     app = models.ForeignKey(App, on_delete=models.CASCADE, related_name='rdgs')
-    name = models.CharField(max_length=15)
+    name = models.CharField(max_length=64)
     varSeq = models.SmallIntegerField(default=1)
-    rtype = models.CharField(max_length=5, choices=RDG_CHOICES, default='0', verbose_name='Reading Type')
+    rtype = models.CharField(max_length=64, choices=RDG_CHOICES, default='0', verbose_name='Reading Type')
     text = models.TextField(null=True, blank=True)
     wit = models.ManyToManyField(Witness, related_name='rdgs', blank=True, verbose_name='Witnesses')
 
