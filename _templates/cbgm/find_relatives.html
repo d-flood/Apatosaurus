@@ -21,7 +21,17 @@
         {% for row in json.rows %}
             <tr class="{% cycle '' 'bg-orange-100 dark:bg-cyan-1000' %}">
                 <td class="mx-2 text-center">{{ row.id }}</td>
-                <td class="mx-2 text-center">{% if row.dir == -1 %}🡺{% elif row.dir == 1 %}🡸{% else %}={% endif %}</td>
+                <td class="mx-2 text-center">
+                    {% if row.dir == -1 %}
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 12h-15m0 0l6.75 6.75M4.5 12l6.75-6.75" />
+                        </svg>  
+                    {% elif row.dir == 1 %}
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12h15m0 0l-6.75-6.75M19.5 12l-6.75 6.75" />
+                        </svg>
+                    {% else %}={% endif %}
+                </td>
                 <td class="mx-2 text-center">{{ row.nr }}</td>
                 <td class="mx-2 text-center">{{ row.rdg }}</td>
                 <td class="mx-2 text-center">{{ row.pass }}</td>
