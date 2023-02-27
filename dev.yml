@@ -73,16 +73,16 @@ services:
       - django
 
   # The postgres image is just for development--should use a managed db service (RDS)
-  # db:
-  #   image: dev_postgres:latest
-  #   build:
-  #     context: .
-  #     dockerfile: docker_postgres.dockerfile
-  #   volumes:
-  #     - ./data/db:/var/lib/postgresql/data
-  #   env_file:
-  #     - .env
-  #   container_name: postgres_dev
+  db:
+    image: dev_postgres:latest
+    build:
+      context: .
+      dockerfile: docker_postgres.dockerfile
+    volumes:
+      - ./data/db:/var/lib/postgresql/data
+    env_file:
+      - .env
+    container_name: postgres_dev
 
 volumes:
   uploads:
