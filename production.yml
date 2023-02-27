@@ -6,8 +6,8 @@ services:
     deploy:
       resources:
         reservations:
-          cpus: '1.00'
-          memory: 2gb
+          cpus: '2.00'
+          memory: 6gb
     restart: always
     build:
       context: .
@@ -27,7 +27,7 @@ services:
       - /bin/sh
       - -c 
       - | 
-        python manage.py migrate && gunicorn -w 2 --bind 0.0.0.0:8000 CONFIG.wsgi --timeout 120
+        python manage.py migrate && gunicorn -w 5 --bind 0.0.0.0:8000 CONFIG.wsgi --timeout 120
   
   ########### REDIS
   redis:
@@ -51,7 +51,7 @@ services:
       - /bin/sh
       - -c 
       - |
-        python manage.py run_huey
+        python manage.py run_huey 
     volumes:
       - temp:/django/temp:rw
     container_name: huey
