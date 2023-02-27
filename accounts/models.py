@@ -47,6 +47,8 @@ class JobStatus(models.Model):
     in_progress = models.BooleanField(default=False)
     progress = models.IntegerField(default=0)
     message = models.CharField(max_length=100, default='')
+    data = models.TextField(default='')
+    textual_flow = models.BooleanField(default=False)
 
     def __str__(self):
         return f'{self.user} __ {self.name} | {"✓" if self.completed else "✖"}'
@@ -56,6 +58,6 @@ class JobStatus(models.Model):
         indexes = [models.Index(fields=['user'])]
 
     def save(self, *args, **kwargs):
-        if self.user.job_statuses.count() > 20: # type: ignore
-            self.user.job_statuses.last().delete() # type: ignore
         super().save(*args, **kwargs)
+        # if self.user.job_statuses.count() > 20: # type: ignore
+        #     self.user.job_statuses.last().delete() # type: ignore

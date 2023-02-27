@@ -214,9 +214,11 @@ EMAIL_USE_TLS = True
 CACHES = {
     'default': {
         'BACKEND': 'django.core.cache.backends.redis.RedisCache',
-        'LOCATION': 'redis:6379',
+        'LOCATION': 'redis://redis:6379',
     },
 }
+
+SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
 
 pool = ConnectionPool(
     host='redis',
@@ -230,10 +232,10 @@ HUEY = {
     'immediate': False,
     'consumer': {
         'workers': 2,
-        'worker_type': 'thread',
+        'worker_type': 'process',
         'blocking': True,
         'loglevel': logging.INFO,
-        'workers': 4,
+        'workers': 3,
         'scheduler_interval': 1,
         'simple_log': True,
     },

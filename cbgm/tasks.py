@@ -1,3 +1,5 @@
+import json
+
 from huey.contrib.djhuey import task
 
 from accounts.models import JobStatus
@@ -27,3 +29,70 @@ def import_tei_task(user_pk: int, section_pk: int, db_pk: int, job_pk: int, corp
             message=f'Error: {e}'
         )
         models.Cbgm_Db.objects.get(pk=db_pk).delete()
+
+
+@task()
+def global_stemma_task(db_pk: int, data: dict, job_pk: int):
+    JobStatus.objects.filter(pk=job_pk).update(
+        in_progress=True,
+        progress=-1,
+        message='Calculating global stemma'
+    )
+    try:
+        result, svg = cbgm.print_global_stemma(db_pk, data)
+        if not result:
+            JobStatus.objects.filter(pk=job_pk).update(
+                in_progress=False,
+                failed=True,
+                message=f'Error: {svg}'
+            )
+            return
+        JobStatus.objects.filter(pk=job_pk).update(
+            in_progress=False,
+            completed=True,
+            progress=100,
+            message='Calculated global stemma',
+            data = svg
+        )
+    except Exception as e:
+        JobStatus.objects.filter(pk=job_pk).update(
+            in_progress=False,
+            failed=True,
+            message=f'Error: {e}'
+        )
+
+
+@task()
+def textual_flow_task(db_pk: int, data: dict, job_pk: int):
+    JobStatus.objects.filter(pk=job_pk).update(
+        in_progress=True,
+        progress=-1,
+        message='Calculating global stemma'
+    )
+    # try:
+    result, svg, title = cbgm.print_textual_flow(db_pk, data)
+    if not result:
+        JobStatus.objects.filter(pk=job_pk).update(
+            in_progress=False,
+            failed=True,
+            message=f'Error: {svg}'
+        )
+        return
+    payload = {
+        'svgs': svg,
+        'title': title
+    }
+    JobStatus.objects.filter(pk=job_pk).update(
+        in_progress=False,
+        completed=True,
+        progress=100,
+        message='Calculated global stemma',
+        data = json.dumps(payload, ensure_ascii=False),
+        textual_flow = True
+    )
+    # except Exception as e:
+    #     JobStatus.objects.filter(pk=job_pk).update(
+    #         in_progress=False,
+    #         failed=True,
+    #         message=f'Error: {e}'
+    #     )

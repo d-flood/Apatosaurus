@@ -398,7 +398,10 @@ def upload_tei_collation(request: HttpRequest, section_id: int):
     else:
         form = forms.TeiCollationFileForm(request.POST, request.FILES)
         if form.is_valid():
-            tei_file = form.cleaned_data['tei_file']
+            try:
+                tei_file = form.cleaned_data['tei_file'].read().decode('utf-8', errors='ignore')
+            except:
+                return render(request, 'scraps/quick_message.html', {'message': 'Error reading file. Was that an XML file?', 'timout': '60'})
             job = JobStatus.objects.create(user=request.user, name=f'Import TEI Collation {models.Section.objects.get(pk=section_id).name}', message='Enqueued')
             tasks.tei_to_db_task(tei_file, section_id, job.pk, request.user.pk)
             return render(request, 'scraps/quick_message.html', {'message': 'File uploaded and added to processing queue. You can check the status in home page.', 'timout': '3'})

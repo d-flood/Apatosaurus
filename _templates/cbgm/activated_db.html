@@ -202,16 +202,22 @@
                 </p>
             {% endfor %}
             <button type="submit" class="btn-submit inline-flex m-4"
-                _="on htmx:beforeSend from #textual-flow-form toggle the *display of #textual-flow-indicator until htmx:afterOnLoad from body end
-                   on htmx:beforeSend from #textual-flow-form toggle @disabled on <button/> until htmx:afterOnLoad from body end">
+                _="on click show #textual-flow-indicator end
+                    on textualFlowTaskStarted from body repeat until event svgTaskCompleted from body 
+                    send 'fire' to #textual-flow-graphs then wait 3s end
+                    end">
                 Generate Diagram(s)
             </button>
-            <div id="textual-flow-indicator" style="display:none;">
+            <div id="textual-flow-indicator" style="display:none;"
+                _="on svgTaskCompleted from body hide me end">
                 {% include 'svg/clock_spinner.svg' %}
             </div>
         </form>
     {% endblock textual_flow_form %}
-    <div id="textual-flow-graphs"></div>
+    <div id="textual-flow-graphs"
+        hx-get="{% url 'get-svg-task-status' %}"
+        hx-trigger="fire">
+    </div>
 </div>
 
 <div id="global-stemma" role="tabpanel" class="tab-content bg-orange-50 dark:bg-cyan-1300 p-4"
@@ -222,13 +228,19 @@
         hx-target="#global-stemma-graph">
         {{ global_stemma_form.as_p }}
         <button type="submit" class="btn-submit inline-flex m-4"
-            _="on htmx:beforeSend from #global-stemma-form toggle the *display of #global-stemma-indicator until htmx:afterOnLoad from body end
-               on htmx:beforeSend from #global-stemma-form toggle @disabled on <button/> until htmx:afterOnLoad from body end">
+            _="on click show #global-stemma-indicator end
+               on svgTaskStarted from body repeat until event svgTaskCompleted from body 
+                send 'fire' to #global-stemma-graph then wait 3s end
+                end">
             Generate Global Stemma
         </button>
-        <div id="global-stemma-indicator" style="display:none;">
+        <div id="global-stemma-indicator" style="display:none;"
+            _="on svgTaskCompleted from body hide me end">
             {% include 'svg/clock_spinner.svg' %}
         </div>
     </form>
-    <div id="global-stemma-graph" style="width: 100%;"></div>
+    <div id="global-stemma-graph" style="width: 100%;"
+        hx-get="{% url 'get-svg-task-status' %}"
+        hx-trigger="fire">
+    </div>
 </div>

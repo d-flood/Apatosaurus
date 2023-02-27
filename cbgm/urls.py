@@ -17,4 +17,5 @@ urls = [
     path('print-local-stemma/<int:db_pk>/<str:variation_unit>/', views.local_stemma, name='local-stemma'),
     path('print-textual-flow/<int:db_pk>/', views.textual_flow, name='textual-flow'),
     path('print-global-stemma/<int:db_pk>/', views.global_stemma, name='global-stemma'),
+    path('get-svg-task-status/', views.get_svg_task_status, name='get-svg-task-status'),
 ]

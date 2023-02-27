@@ -246,7 +246,9 @@ def print_textual_flow_command(db: str, app: str, graph_type: str, connectivity_
     return commands, temp_dir
 
 
-def print_textual_flow(db: models.Cbgm_Db, data: dict[str, str | int | bool]):
+def print_textual_flow(db_pk: int, data: dict[str, str | int | bool]):
+    print('starting print_textual_flow')
+    db = models.Cbgm_Db.objects.get(pk=db_pk)
     db_file = get_cached_db(db).resolve().as_posix()
     app = data['app_labels']
     graph_type = data['graph_type']
@@ -291,8 +293,9 @@ def print_global_stemma_command(db: str, data: dict[str, bool]):
     return commands, temp_dir
 
 
-def print_global_stemma(db: models.Cbgm_Db, data: dict[str, bool]):
+def print_global_stemma(db_pk: int, data: dict[str, bool]):
     print('starting print_global_stemma')
+    db = models.Cbgm_Db.objects.get(pk=db_pk)
     db_file = get_cached_db(db).resolve().as_posix()
     command, temp_dir = print_global_stemma_command(db_file, data)
     print(f'{command=}')

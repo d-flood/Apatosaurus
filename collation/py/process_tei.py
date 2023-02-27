@@ -15,8 +15,7 @@ XML_NS = '{http://www.w3.org/XML/1998/namespace}'
 XML_NS_STR = 'http://www.w3.org/XML/1998/namespace'
 TEI_NS_STR = 'http://www.tei-c.org/ns/1.0'
 
-def parse_xml(xml_file: UploadedFile) -> et._Element|None:
-    text: str = xml_file.read().decode('utf-8', errors='ignore')
+def parse_xml(text: str) -> et._Element|None:
     text = text.replace('xml:id="1', 'xml:id="I')
     text = text.replace('xml:id="2', 'xml:id="II')
     text = text.replace('xml:id="3', 'xml:id="III')

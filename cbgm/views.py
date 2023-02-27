@@ -1,3 +1,5 @@
+import json
+
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
 from django.http import HttpRequest, HttpResponse
@@ -215,19 +217,23 @@ def textual_flow(request: HttpRequest, db_pk: int):
     app_labels = [(w, w) for w in db.sorted_app_labels()]
     form = forms.TextualFlowForm(request.POST, app_labels=app_labels)
     if form.is_valid():
-        successful, output, title = cbgm.print_textual_flow(db=db, data=form.cleaned_data)
-        if successful:
-            return render(request, 'cbgm/textual_flow.html', {'output': output, 'title': title})
-        else:
-            resp = HttpResponse(status=204)
-            resp['HX-Trigger'] = f'{{"showDialog": {output}}}'
-            return resp
+        job = JobStatus.objects.create(
+            user=request.user,
+            name=f'Generating Textual Flow',
+            message='Enqueued',
+            textual_flow=True,
+        )
+        request.session['svg_task'] = job.pk
+        tasks.textual_flow_task(db.pk, form.cleaned_data, job.pk)
+
+        resp = HttpResponse(status=204)
+        resp['HX-Trigger'] = 'textualFlowTaskStarted'
+        return resp
     else:
         print(form.errors)
         # TODO: retarget to #textual-flow-form and return rendered form block; context: db, textual_flow_form
         return HttpResponse(status=204)
-
-
+    
 
 @login_required
 @require_http_methods(['POST'])
@@ -235,16 +241,45 @@ def global_stemma(request: HttpRequest, db_pk: int):
     db = models.Cbgm_Db.objects.get(pk=db_pk)
     form = forms.GlobalStemmaForm(request.POST)
     if form.is_valid():
-        successful, output = cbgm.print_global_stemma(db=db, data=form.cleaned_data)
-        if successful:
-            return render(request, 'cbgm/global_stemma.html', {'svg': output})
-        else:
-            resp = HttpResponse(status=204)
-            resp['HX-Trigger'] = f'{{"showDialog": {output}}}'
-            return resp
+        job = JobStatus.objects.create(
+            user=request.user,
+            name=f'Generating Global Stemma',
+            message='Enqueued',
+        )
+        job.save()
+        request.session['svg_task'] = job.pk
+        tasks.global_stemma_task(db.pk, form.cleaned_data, job.pk)
+        
+        resp = HttpResponse(status=204)
+        resp['HX-Trigger'] = 'svgTaskStarted'
+        return resp
     else:
         print(form.errors)
         # retarget to #global-stemma-form and return rendered form block; context: db, global_stemma_form
         return HttpResponse(status=204)
         # TODO: retarget to #global-stemma-form and return rendered form block; context: db, global_stemma_form
 
+
+@login_required
+@require_safe
+def get_svg_task_status(request: HttpRequest):
+    job_id = request.session.get('svg_task')
+    if not job_id:
+        resp = HttpResponse(status=204)
+        resp['HX-Trigger'] = '''{"showDialog": {"title": "No Task", "message": "There is no task running or completed for this operation."}}'''
+        return resp
+    job = JobStatus.objects.get(pk=job_id)
+    if job.completed:
+        if job.textual_flow:
+            resp = render(request, 'cbgm/textual_flow.html', {'result': json.loads(job.data)})
+        else:
+            resp = render(request, 'cbgm/global_stemma.html', {'svg': job.data})
+        resp['HX-Trigger'] = 'svgTaskCompleted'
+        del request.session['svg_task']
+        return resp
+    elif job.failed:
+        resp = HttpResponse(status=204)
+        resp['HX-Trigger'] = f'{{"showDialog": {{"title": "Error", "message": "{job.message}"}}}}'
+        return resp
+    else:
+        return HttpResponse(status=204)
