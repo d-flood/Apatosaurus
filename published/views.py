@@ -1,6 +1,6 @@
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.http import HttpRequest, HttpResponse
 from django.views.decorators.http import require_http_methods, require_safe
 
@@ -67,7 +67,7 @@ def browse_editor(request: HttpRequest, user_pk: int) -> HttpResponse:
 
 def apparatus(request: HttpRequest, ab_pk: int, user_pk: int = False) -> HttpResponse:
     editor = CustomUser.objects.get(id=user_pk) if user_pk else None
-    ab = cmodels.Ab.objects.get(id=ab_pk)
+    ab = get_object_or_404(cmodels.Ab, id=ab_pk)
     if not ab.section.published:
         return HttpResponse(status=404)
     
