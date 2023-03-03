@@ -101,13 +101,6 @@ WSGI_APPLICATION = 'CONFIG.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/4.1/ref/settings/#databases
 
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.sqlite3',
-#         'NAME': BASE_DIR / 'db' / 'apatosaurus.db',
-#     }
-# }
-
 if environ.get('USE_PRODUCTION_DB') != 'True':
     DATABASES = {
         'default': {
@@ -214,11 +207,11 @@ EMAIL_USE_TLS = True
 CACHES = {
     'default': {
         'BACKEND': 'django.core.cache.backends.redis.RedisCache',
-        'LOCATION': 'redis://redis:6379',
+        'LOCATION': 'redis:6379',
     },
 }
 
-SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
+# SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
 
 pool = ConnectionPool(
     host='redis',
