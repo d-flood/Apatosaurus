@@ -1,9 +1,7 @@
 import re
-from django.core.files.uploadedfile import UploadedFile
 
 from lxml import etree as et
 
-from accounts.models import JobStatus
 from accounts.py.update_status import update_status
 from collation import models
 from collation.py.itsee_to_open_cbgm import reformat_xml
