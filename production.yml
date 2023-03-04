@@ -27,7 +27,7 @@ services:
       - /bin/sh
       - -c 
       - | 
-        python manage.py migrate && gunicorn -w 5 --bind 0.0.0.0:8000 CONFIG.wsgi --timeout 120
+        python manage.py migrate && gunicorn -w 5 --bind 0.0.0.0:8000 CONFIG.wsgi
   
   ########### REDIS
   redis:
