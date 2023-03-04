@@ -1,4 +1,4 @@
-FROM python:3.11.1-slim-buster
+FROM python:3.9-slim-buster
 ENV PYTHONUNBUFFERED=1
 WORKDIR /django
 COPY _static _static
@@ -15,9 +15,5 @@ COPY content content
 
 COPY manage.py manage.py
 COPY requirements_prod.txt requirements_prod.txt
-COPY liste.json liste.json
-
-RUN apt-get update
-RUN apt-get install graphviz -y
 
 RUN pip3 install -r requirements_prod.txt

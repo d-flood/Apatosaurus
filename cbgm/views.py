@@ -6,8 +6,6 @@ from django.http import HttpRequest, HttpResponse
 from django.urls import reverse
 from django.views.decorators.http import require_http_methods, require_safe
 
-from rich import print
-
 from render_block import render_block_to_string
 
 from accounts.models import JobStatus

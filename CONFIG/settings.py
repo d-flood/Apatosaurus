@@ -9,12 +9,9 @@ https://docs.djangoproject.com/en/4.1/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/4.1/ref/settings/
 """
-import logging
 from pathlib import Path
 from os import environ
 
-
-from redis import ConnectionPool
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -57,7 +54,6 @@ INSTALLED_APPS = [
 
     'django_htmx',
     'crispy_forms',
-    'huey.contrib.djhuey',
     'tailwind',
     'theme',
     'django_browser_reload',
@@ -66,6 +62,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -159,14 +156,13 @@ USE_I18N = True
 
 USE_TZ = True
 
-
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/4.1/howto/static-files/
 
 STATIC_URL = 'static/'
 STATICFILES_DIRS = [BASE_DIR / '_static']
 STATIC_ROOT = BASE_DIR / '_staticfiles'
-STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.ManifestStaticFilesStorage'
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 MEDIA_URL = 'media/'
 MEDIA_ROOT = BASE_DIR / '_media'
@@ -204,32 +200,9 @@ EMAIL_HOST_PASSWORD = environ.get('EMAIL_HOST_PASSWORD')
 EMAIL_PORT = int(environ.get('EMAIL_PORT', 0))
 EMAIL_USE_TLS = True
 
-CACHES = {
-    'default': {
-        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
-        'LOCATION': 'redis:6379',
-    },
-}
-
-# SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
-
-pool = ConnectionPool(
-    host='redis',
-    port=6379,
-    max_connections=20
-)
-
-HUEY = {
-    'name': 'task_worker',
-    'connection': {'connection_pool': pool},
-    'immediate': False,
-    'consumer': {
-        'workers': 2,
-        'worker_type': 'process',
-        'blocking': True,
-        'loglevel': logging.INFO,
-        'workers': 3,
-        'scheduler_interval': 1,
-        'simple_log': True,
-    },
-}
+# CACHES = {
+#     'default': {
+#         'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+#         'LOCATION': 'redis:6379',
+#     },
+# }

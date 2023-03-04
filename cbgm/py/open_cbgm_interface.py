@@ -11,7 +11,6 @@ import os
 from django.core.files.base import ContentFile
 
 from natsort import natsorted
-from rich import print
 
 from accounts.models import JobStatus
 from CONFIG.settings import BASE_DIR
@@ -246,7 +245,7 @@ def print_textual_flow_command(db: str, app: str, graph_type: str, connectivity_
     return commands, temp_dir
 
 
-def print_textual_flow(db_pk: int, data: dict[str, str | int | bool]):
+def print_textual_flow(db_pk: int, data: dict):
     print('starting print_textual_flow')
     db = models.Cbgm_Db.objects.get(pk=db_pk)
     db_file = get_cached_db(db).resolve().as_posix()
