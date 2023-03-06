@@ -1,4 +1,4 @@
-FROM python:3.9-slim-buster
+FROM amazon/aws-lambda-python:3.10
 ENV PYTHONUNBUFFERED=1
 WORKDIR /django
 COPY _static _static
@@ -14,6 +14,11 @@ COPY witnesses witnesses
 COPY content content
 
 COPY manage.py manage.py
-COPY requirements_prod.txt requirements_prod.txt
+COPY requirements.txt requirements.txt
+# COPY dot /usr/local/bin/dot
 
-RUN pip3 install -r requirements_prod.txt
+# ENV VIRTUAL_ENV=/venv
+# RUN python -m venv $VIRTUAL_ENV
+# ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+
+RUN pip install -r requirements.txt
