@@ -1,5 +1,6 @@
 # py
 .venv/
+.prod/
 *.pyc
 *.pyo
 *.pyd
