@@ -2,7 +2,7 @@ version: '3'
 services:
   ########### DJANGO
   django:
-    image: dev_django:latest
+    image: 027323396275.dkr.ecr.us-east-1.amazonaws.com/apatosaurus-lambda:latest
     restart: always
     build:
       context: .
@@ -18,7 +18,7 @@ services:
       - BASE_SITE_URL=http://localhost
       - USE_PRODUCTION_DB=False
     container_name: django
-    command: handler.lambda_handler
+    # command: handler.lambda_handler
     #   - /bin/sh
     #   - -c 
     #   - | 

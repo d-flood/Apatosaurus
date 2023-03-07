@@ -17,6 +17,8 @@ db.sqlite*
 litestream.yml
 zappa_settings.py
 zappa_settings.json
+*.pem
+*.key
 
 # dev machine specific
 *.ps1
