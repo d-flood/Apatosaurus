@@ -1,8 +1,11 @@
+import json
+
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect
 from django.http import HttpRequest, HttpResponse
 from django.views.decorators.http import require_http_methods, require_safe
 
+import boto3
 from render_block import render_block_to_string 
 
 from accounts.models import JobStatus
@@ -10,6 +13,8 @@ from collation import forms
 from collation import models
 from collation.py import helpers
 from collation.py import process_tei
+from collation.py import import_collation
+from CONFIG import settings
 
 
 @login_required
@@ -398,11 +403,12 @@ def upload_tei_collation(request: HttpRequest, section_id: int):
         form = forms.TeiCollationFileForm(request.POST, request.FILES)
         if form.is_valid():
             try:
-                tei_file = form.cleaned_data['tei_file'].read().decode('utf-8', errors='ignore')
+                # tei_file: str = form.cleaned_data['tei_file'].read().decode('utf-8', errors='ignore')
+                tei_file = form.cleaned_data['tei_file']
             except:
                 return render(request, 'scraps/quick_message.html', {'message': 'Error reading file. Was that an XML file?', 'timout': '60'})
-            job = JobStatus.objects.create(user=request.user, name=f'Import TEI Collation {models.Section.objects.get(pk=section_id).name}', message='Enqueued')
-            # tasks.tei_to_db_task(tei_file, section_id, job.pk, request.user.pk)
+            tei_file_name = f'temp/{request.user.username}/{request.FILES["tei_file"].name}.xml' # type: ignore
+            import_collation.import_tei(tei_file, tei_file_name, section_id, request.user.pk)
             return render(request, 'scraps/quick_message.html', {'message': 'File uploaded and added to processing queue. You can check the status in home page.', 'timout': '3'})
         else:
             context = {
