@@ -7,33 +7,12 @@ services:
     build:
       context: .
       dockerfile: docker_django.dockerfile
-    # volumes:
-    #   - .:/django:rw
     ports:
       - 8080:8080
     env_file:
       - .env
     environment:
-      - DEBUG=True
-      - BASE_SITE_URL=http://localhost
-      - USE_PRODUCTION_DB=False
+      - DEBUG=False
+      - BASE_SITE_URL=https://apatosaurus.io
+      - USE_PRODUCTION_DB=True
     container_name: django
-    # command: handler.lambda_handler
-    #   - /bin/sh
-    #   - -c 
-    #   - | 
-    #     python manage.py runserver 0.0.0.0:8080
-    depends_on:
-      - db
-
-  # The postgres image is just for development--should use a managed db service (RDS)
-  db:
-    image: dev_postgres:latest
-    build:
-      context: .
-      dockerfile: docker_postgres.dockerfile
-    volumes:
-      - ./data/db:/var/lib/postgresql/data
-    env_file:
-      - .env
-    container_name: postgres_dev
