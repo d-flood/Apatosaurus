@@ -15,6 +15,7 @@ from cbgm import models, forms
 from cbgm.py import open_cbgm_interface as cbgm
 from cbgm.py.custom_sql import get_all_witness_siglums, get_readings_for_variation_unit
 from cbgm.py.helpers import extract_app_groups
+from cbgm import tasks
 from witnesses.py.sort_ga_witnesses import sort_ga_witnesses
 
 
@@ -62,13 +63,8 @@ def send_section_form(request: HttpRequest, corpus_pk: int, corpus_type: int):
     if not form.is_valid():
         context['form'] = form
         return render(request, new_db_html, context)
-    job = JobStatus.objects.create(
-        user=request.user,
-        name=f'Importing {corpus_instance.name} into open-cbgm',
-        message='Enqueued',
-    )
     db = form.save(corpus_type)
-    # tasks.import_tei_task(request.user.pk, corpus_pk, db.pk, job.pk, corpus_type)
+    tasks.import_tei_task(request.user.pk, corpus_pk, db.pk, corpus_type)
     return render(request, 'scraps/quick_message.html', {'message': 'Collation Export to the CBGM Enqueued. You can track this under "Background Tasks" in your profile. Note that large collations will usually take 1 to 2 second per witness including correctors.', 'timeout': 4})
 
 
@@ -220,7 +216,7 @@ def textual_flow(request: HttpRequest, db_pk: int):
             textual_flow=True,
         )
         request.session['svg_task'] = job.pk
-        # tasks.textual_flow_task(db.pk, form.cleaned_data, job.pk)
+        tasks.textual_flow_task(job.pk, db.pk, form.cleaned_data)
 
         resp = HttpResponse(status=204)
         resp['HX-Trigger'] = 'textualFlowTaskStarted'
@@ -244,7 +240,7 @@ def global_stemma(request: HttpRequest, db_pk: int):
         )
         job.save()
         request.session['svg_task'] = job.pk
-        # tasks.global_stemma_task(db.pk, form.cleaned_data, job.pk)
+        tasks.global_stemma_task(job.pk, db.pk, form.cleaned_data)
         
         resp = HttpResponse(status=204)
         resp['HX-Trigger'] = 'svgTaskStarted'

@@ -1,5 +1,3 @@
-import json
-
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect
 from django.http import HttpRequest, HttpResponse
@@ -407,7 +405,7 @@ def upload_tei_collation(request: HttpRequest, section_id: int):
                 tei_file = form.cleaned_data['tei_file']
             except:
                 return render(request, 'scraps/quick_message.html', {'message': 'Error reading file. Was that an XML file?', 'timout': '60'})
-            tei_file_name = f'temp/{request.user.username}/{request.FILES["tei_file"].name}.xml' # type: ignore
+            tei_file_name = f'/tmp/{request.user.username}/{request.FILES["tei_file"].name}.xml' # type: ignore
             import_collation.import_tei(tei_file, tei_file_name, section_id, request.user.pk)
             return render(request, 'scraps/quick_message.html', {'message': 'File uploaded and added to processing queue. You can check the status in home page.', 'timout': '3'})
         else:
