@@ -15,4 +15,5 @@ services:
       - DEBUG=False
       - BASE_SITE_URL=https://apatosaurus.io
       - USE_PRODUCTION_DB=True
+      - ZAPPA_RUNNING_IN_DOCKER=True
     container_name: django
