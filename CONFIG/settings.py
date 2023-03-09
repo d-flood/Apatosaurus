@@ -168,8 +168,9 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / '_media'
 
-DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
 AWS_STORAGE_BUCKET_NAME = environ.get('AWS_STORAGE_BUCKET_NAME')
+
+DEFAULT_FILE_STORAGE = 'CONFIG.custom.LambdaStorage'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.1/ref/settings/#default-auto-field
@@ -179,6 +180,9 @@ CSRF_TRUSTED_ORIGINS = [
     'https://www.apatosaurus.io',
     'http://localhost',
     'https://localhost',
+    'https://dev.greekligatures.com',
+    'https://greekligatures.com',
+    'https://www.greekligatures.com',
 ]
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
