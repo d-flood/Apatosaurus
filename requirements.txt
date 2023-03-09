@@ -16,6 +16,7 @@ django-impersonate==1.8.2
 psycopg2-binary
 whitenoise==6.4.0
 zappa==0.56.1
+awslambdaric
 
 # dev
 # rich
