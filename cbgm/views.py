@@ -64,7 +64,7 @@ def send_section_form(request: HttpRequest, corpus_pk: int, corpus_type: int):
         context['form'] = form
         return render(request, new_db_html, context)
     db = form.save(corpus_type)
-    tasks.import_tei_task(request.user.pk, corpus_pk, db.pk, corpus_type)
+    tasks.import_tei_batch_job(request.user.pk, corpus_pk, db.pk, corpus_type)
     return render(request, 'scraps/quick_message.html', {'message': 'Collation Export to the CBGM Enqueued. You can track this under "Background Tasks" in your profile. Note that large collations will usually take 1 to 2 second per witness including correctors.', 'timeout': 4})
 
 
@@ -216,8 +216,11 @@ def textual_flow(request: HttpRequest, db_pk: int):
             textual_flow=True,
         )
         request.session['svg_task'] = job.pk
-        tasks.textual_flow_task(job.pk, db.pk, form.cleaned_data)
-
+        # route shorter running tasks to aws lambda, others to batch job
+        if len(db.witnesses) > 140 or len(db.app_labels) > 200: # type: ignore
+            tasks.textual_flow_batch_job(job.pk, db.pk, form.cleaned_data) # aws batch job takes a long time to start, but has a long timoeout
+        else:
+            tasks.textual_flow_task(job.pk, db.pk, form.cleaned_data) # starts within seconds, but will timout after 15 minutes
         resp = HttpResponse(status=204)
         resp['HX-Trigger'] = 'textualFlowTaskStarted'
         return resp
@@ -240,8 +243,10 @@ def global_stemma(request: HttpRequest, db_pk: int):
         )
         job.save()
         request.session['svg_task'] = job.pk
-        tasks.global_stemma_task(job.pk, db.pk, form.cleaned_data)
-        
+        if len(db.witnesses) > 140 or len(db.app_labels) > 200: # type: ignore
+            tasks.global_stemma_batch_job(job.pk, db.pk, form.cleaned_data)
+        else:
+            tasks.global_stemma_task(job.pk, db.pk, form.cleaned_data)
         resp = HttpResponse(status=204)
         resp['HX-Trigger'] = 'svgTaskStarted'
         return resp
