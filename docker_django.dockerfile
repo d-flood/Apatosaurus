@@ -1,23 +1,26 @@
-FROM python:3.11.1-slim-buster
-ENV PYTHONUNBUFFERED=1
-WORKDIR /django
-COPY _static _static
-COPY _staticfiles _staticfiles
-COPY _templates _templates
-COPY accounts accounts
-COPY cbgm cbgm
-COPY collation collation
-COPY CONFIG CONFIG
-COPY published published
-COPY theme theme
-COPY witnesses witnesses
-COPY content content
+# FROM amazon/aws-lambda-python:3.10
+FROM python:3.11-slim-buster
 
-COPY manage.py manage.py
-COPY requirements_prod.txt requirements_prod.txt
-COPY liste.json liste.json
-
+ARG LAMBDA_TASK_ROOT="/var/task/"
+RUN mkdir -p ${LAMBDA_TASK_ROOT}
+WORKDIR ${LAMBDA_TASK_ROOT}
+COPY . ${LAMBDA_TASK_ROOT}
+COPY requirements.txt .
+# RUN yum makecache
+# RUN yum install glib* -y
+# RUN yum update -y
+# RUN yum -y install graphviz
 RUN apt-get update
-RUN apt-get install graphviz -y
+RUN apt-get install -y graphviz
 
-RUN pip3 install -r requirements_prod.txt
+ENV ZAPPA_RUNNING_IN_DOCKER=True
+RUN pip install -r requirements.txt --target ${LAMBDA_TASK_ROOT}
+
+RUN ZAPPA_HANDLER_PATH=$( \
+    python -c "from zappa import handler; print(handler.__file__)" \
+    ) \
+    && echo $ZAPPA_HANDLER_PATH \
+    && cp $ZAPPA_HANDLER_PATH ${LAMBDA_TASK_ROOT}
+    
+ENTRYPOINT [ "/usr/local/bin/python", "-m", "awslambdaric" ]
+CMD [ "handler.lambda_handler" ]

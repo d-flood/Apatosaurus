@@ -226,7 +226,13 @@
     <form action="submit" id="global-stemma-form" class="flex flex-row flex-wrap justify-center items-center"
         hx-post="{% url 'global-stemma' db_pk=db.pk %}"
         hx-target="#global-stemma-graph">
-        {{ global_stemma_form.as_p }}
+        {% comment %} {{ global_stemma_form.as_p }} {% endcomment %}
+        {% for field in global_stemma_form %}
+            <p class="px-4">
+                {{ field.label_tag }}
+                {{ field }}
+            </p>
+        {% endfor %}
         <button type="submit" class="btn-submit inline-flex m-4"
             _="on click show #global-stemma-indicator end
                on svgTaskStarted from body repeat until event svgTaskCompleted from body 

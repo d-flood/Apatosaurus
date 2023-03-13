@@ -136,8 +136,15 @@ class TextualFlowForm(forms.Form):
         help_text='Leave at -1 to ignore this option.'
     )
 
+    email_graph = forms.BooleanField(
+        label='Email Graph', initial=False, required=False,
+    )
+
 
 class GlobalStemmaForm(forms.Form):
 
     strengths = forms.BooleanField(label='Show Strengths', initial=False, required=False)
     lengths = forms.BooleanField(label='Show Costs', initial=False, required=False)
+    email_graph = forms.BooleanField(
+        label='Email Graph', initial=False, required=False,
+    )

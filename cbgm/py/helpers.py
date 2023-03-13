@@ -3,7 +3,7 @@ import re
 import pydot
 
 
-def extract_app_groups(apps: list[str]) -> tuple[dict[str, str | list[tuple[str, str]]]]:
+def extract_app_groups(apps: list[str]):
     grouped_apps = {}
     for app in apps:
         ab_name = re.sub(r'U\d+.*', '', app)

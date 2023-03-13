@@ -1,0 +1,39 @@
+version: '3'
+services:
+  ########### DJANGO
+  django:
+    image: apatosaurus:latest
+    restart: always
+    build:
+      context: .
+      dockerfile: docker_django_dev.dockerfile
+    volumes:
+      - .:/django:rw
+    ports:
+      - 8000:8000
+    env_file:
+      - .env
+    environment:
+      - DEBUG=True
+      - BASE_SITE_URL=http://localhost
+      - USE_PRODUCTION_DB=False
+    container_name: django
+    command: 
+      - /bin/sh
+      - -c 
+      - | 
+        python manage.py runserver 0.0.0.0:8000
+    depends_on:
+      - db
+
+  # The postgres image is just for development--should use a managed db service (RDS)
+  db:
+    image: dev_postgres:latest
+    build:
+      context: .
+      dockerfile: docker_postgres.dockerfile
+    volumes:
+      - ./data/db:/var/lib/postgresql/data
+    env_file:
+      - .env
+    container_name: postgres_dev

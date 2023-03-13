@@ -13,7 +13,7 @@ XML_NS = '{http://www.w3.org/XML/1998/namespace}'
 XML_NS_STR = 'http://www.w3.org/XML/1998/namespace'
 TEI_NS_STR = 'http://www.tei-c.org/ns/1.0'
 
-def parse_xml(text: str) -> et._Element|None:
+def parse_xml(text: str):
     text = text.replace('xml:id="1', 'xml:id="I')
     text = text.replace('xml:id="2', 'xml:id="II')
     text = text.replace('xml:id="3', 'xml:id="III')
@@ -81,7 +81,7 @@ def create_ab_instance(ab_elem: et._Element, section_id: int, number: int) -> mo
     return instance
 
 
-def create_app_instance(app_elem: et._Element, ab_pk: int) -> models.App|None:
+def create_app_instance(app_elem: et._Element, ab_pk: int):
     if (_index_from := app_elem.attrib.get('from')) and (_index_to := app_elem.attrib.get('to')):
         index_from = int(_index_from)
         index_to = int(_index_to)
@@ -113,7 +113,7 @@ def create_app_instance(app_elem: et._Element, ab_pk: int) -> models.App|None:
     )
 
 
-def create_rdg_instance(rdg_elem: et._Element, app: models.App, user_pk: int) -> models.Rdg|None:
+def create_rdg_instance(rdg_elem: et._Element, app: models.App, user_pk: int):
     name = rdg_elem.attrib.get('n')
     varSeq = int(varSeq) if (varSeq := rdg_elem.attrib.get('varSeq')) else 0
     rtype = rdg_elem.attrib.get('type')
@@ -143,7 +143,7 @@ def create_rdg_instance(rdg_elem: et._Element, app: models.App, user_pk: int) ->
     return rdg_instance
 
 
-def create_witDetail_rdg_instance(witDetail: et._Element, app: models.App, user_pk: int) -> models.Rdg|None:
+def create_witDetail_rdg_instance(witDetail: et._Element, app: models.App, user_pk: int):
     name = witDetail.attrib.get('n')
     varSeq = int(varSeq) if (varSeq := witDetail.attrib.get('varSeq')) else 0
     rtype = rtype if (rtype := witDetail.attrib.get('type')) else 'ambiguous'
