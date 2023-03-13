@@ -41,7 +41,7 @@ def browse_collation(request: HttpRequest, collation_pk: int, user_pk: int = Fal
 
 def browse_section(request: HttpRequest, section_pk: int, user_pk: int = False) -> HttpResponse:
     editor = CustomUser.objects.get(id=user_pk) if user_pk else None
-    section = cmodels.Section.objects.get(id=section_pk)
+    section  = get_object_or_404(cmodels.Section, id=section_pk)
     if not section.published:
         return HttpResponse(status=404)
     context = {
@@ -87,7 +87,7 @@ def apparatus(request: HttpRequest, ab_pk: int, user_pk: int = False) -> HttpRes
 
 
 def rdgs(request: HttpRequest, app_pk: int):
-    app = cmodels.App.objects.get(pk=app_pk)
+    app = get_object_or_404(cmodels.App, id=app_pk)
     rdgs = app.rdgs.filter(witDetail=False)
     witDetails = app.rdgs.filter(witDetail=True)
     context = {
