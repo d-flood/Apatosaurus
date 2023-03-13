@@ -15,9 +15,13 @@ Copyright (C) 2023  David Flood
 
 # Apatosaurus
 
+Apatosaurus is live at [apatosaurus.io](https://www.apatosaurus.io)
+
+See the ["About"](https://www.apatosaurus.io/about/introduction/) pages for details about use, the tech stack, tutorials, and more.
+
 This is the open source rewrite of [Apparatus Explorer](https://www.apparatusexplorer.com/).
 
-This new version is more than an explorer. Its features will include
+This new version is more than an explorer. Its features include
 - visualization
 - editing
 - publishing
@@ -25,17 +29,10 @@ This new version is more than an explorer. Its features will include
 - CBGM via `open-cbgm`
 - and as many modules from [Criticus](https://github.com/d-flood/criticus/) as make sense to bring to a web app.
 
-## Redesign Priorities
-- type annotate most places (or where it makes sense) for static typing analysis
-- push SQLite as far as it will go with [Litestream](https://litestream.io/) or [litefs](https://github.com/superfly/litefs). 
-    - For data integrity, SQLite is essentially bulletproof.
-    - [Simon Willison has shown that it is far more performant](https://simonwillison.net/2022/Oct/23/datasette-gunicorn/) concerning concurrent writes than most people think.
-    - Apatosauros will need to make many database calls due to the tree-like structure of collations. These will be *far* faster in SQLite.
-    - We can even explore a per-user database
-    - If we need to eject and transition to a managed PostGreSQL instance, we can.
 
 ## Running the dev server
-This will be dockerized once the initial development on the main site is done. Until then:
 - Apatosaurus is being developed with Python 3.11 and Django 4.1
 - Docker and Docker Compose is required to run.
-- Start development server `docker compose --file dev.yml up`
+- Start development server `docker compose --file docker-compose_dev.yml up`
+This will start up a Postgres container and the main app container. In production, several functions in the app container are actually run either as serverless functions via AWS Lambda, and others are queued as an AWS Batch job.
+
