@@ -178,11 +178,9 @@ DEFAULT_FILE_STORAGE = 'CONFIG.custom.LambdaStorage'
 CSRF_TRUSTED_ORIGINS = [
     'https://apatosaurus.io',
     'https://www.apatosaurus.io',
-    'http://localhost',
-    'https://localhost',
-    'https://dev.greekligatures.com',
-    'https://greekligatures.com',
-    'https://www.greekligatures.com',
+    'https://dev.apatosaurus.io',
+    # 'http://localhost',
+    # 'https://localhost',
 ]
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
