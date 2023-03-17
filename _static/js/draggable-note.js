@@ -1,3 +1,4 @@
+// adapted from https://www.w3schools.com/howto/howto_js_draggable.asp
 function initialize_draggable_textarea() {
     for (const note of document.getElementsByClassName("reading-note")) {
         const header = note.getElementsByClassName("reading-note-header")[0];
