@@ -113,7 +113,7 @@
                             <button type="button"
                                 _="on click if my @aria-expanded is 'false' show #user-menu then set my @aria-expanded to 'true' else hide #user-menu then set my @aria-expanded to 'false' end"
                                 class="rounded-full bg-transparent p-1 hover:bg-orange-400 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-gray-800"
-                                id="user-menu-button" aria-expanded="false" aria-haspopup="true">
+                                id="user-menu-button" aria-expanded="false" aria-haspopup="true" title="User Menu">
                                 <span class="sr-only">Open user menu</span>
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-8 w-8">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M17.982 18.725A7.488 7.488 0 0012 15.75a7.488 7.488 0 00-5.982 2.975m11.963 0a9 9 0 10-11.963 0m11.963 0A8.966 8.966 0 0112 21a8.966 8.966 0 01-5.982-2.275M15 9.75a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -140,17 +140,6 @@
                                 <span class="sr-only">Change to dark theme</span>
                             </button>
                         </div>
-
-                        <!--
-                      Dropdown menu, show/hide based on menu state.
-          
-                      Entering: "transition ease-out duration-100"
-                        From: "transform opacity-0 scale-95"
-                        To: "transform opacity-100 scale-100"
-                      Leaving: "transition ease-in duration-75"
-                        From: "transform opacity-100 scale-100"
-                        To: "transform opacity-0 scale-95"
-                    -->
                         <div id="user-menu" class="absolute right-0 z-10 mt-2 w-48 origin-top-right rounded-md bg-white py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none text-black"
                             role="menu" aria-orientation="vertical" aria-labelledby="user-menu-button" tabindex="-1" style="display: none;">
                             <!-- Active: "bg-gray-100", Not Active: "" -->
@@ -173,7 +162,6 @@
         <!-- Mobile menu, show/hide based on menu state. -->
         <div class="sm:hidden" id="mobile-menu" style="display: none;">
             <div class="space-y-1 px-2 pt-2 pb-3">
-                <!-- Current: "bg-gray-900 text-white", Default: "text-gray-300 hover:bg-gray-700 hover:text-white" -->
                 <a href="{% url 'about' %}"
                     {% if page.active == 'about' %} class="block bg-orange-700 dark:text-orange-50 text-white px-3 py-2 rounded-md text-sm font-medium" aria-current="page"{% else %}class="block dark:text-orange-50 hover:bg-orange-400 hover:text-white px-3 py-2 rounded-md font-medium"{% endif %}>
                     About

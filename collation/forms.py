@@ -95,6 +95,8 @@ class RdgForm(forms.ModelForm):
             '_': "on load if #id_witDetail.checked hide #div_id_rtype then hide #div_id_text else hide #div_id_target end",
             'size': '10',
         })
+    
+    rtype = forms.ChoiceField(choices=models.Rdg.RDG_CHOICES, widget=forms.RadioSelect, required=False)
 
     class Meta:
         model = models.Rdg
