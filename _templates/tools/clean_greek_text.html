@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+{% block content %}
+
+<fieldset class="flex flex-col p-4">
+    <legend class="text-4xl text-center">Normalize Greek</legend>
+    <textarea name="greek-input" id="greek-input" rows="10"></textarea>
+    <button id="normalize-greek" type="button" class="btn my-4 mx-6">Normalize Greek</button>
+    <textarea name="greek-output" id="greek-output" rows="10" readonly="readonly"></textarea>
+</fieldset>
+
+<script>
+    // write a function to remove accents from a string of Greek unicode characters and remove all punctuation and make all characters lowercase
+    function normalizeGreek(str) {
+        const withoutPunctuation = str.replace(/[\u0300-\u036f\u0021-\u002f\u003a-\u0040\u005b-\u0060\u007b-\u007e]/g, '');
+        const withoutAccents = withoutPunctuation.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        return withoutAccents;
+    }
+    function normalizeGreekInTextarea() {
+        var greek = document.getElementById("greek-input").value;
+        var normalizedGreek = normalizeGreek(greek);
+        document.getElementById("greek-output").value = normalizedGreek;
+    }
+    document.getElementById("normalize-greek").addEventListener("click", normalizeGreekInTextarea);
+</script>
+
+{% endblock %}

@@ -27,6 +27,7 @@ from collation.urls import urls as collation_urls
 from witnesses.urls import urls as witnesses_urls
 from cbgm.urls import urls as cbgm_urls
 from content.urls import urls as content_urls
+from tools.urls import urls as tools_urls
 
 
 def home(request: HttpRequest) -> HttpResponse:
@@ -50,5 +51,6 @@ urlpatterns = [
     path('collation/', include(collation_urls)),
     path('witnesses/', include(witnesses_urls)),
     path('cbgm/', include(cbgm_urls)),
+    path('tools/', include(tools_urls)),
     path('__reload__/', include('django_browser_reload.urls')),
 ]

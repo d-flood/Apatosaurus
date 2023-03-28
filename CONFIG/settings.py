@@ -51,6 +51,7 @@ INSTALLED_APPS = [
     'published',
     'witnesses',
     'content',
+    'tools',
 
     'django_htmx',
     'crispy_forms',
