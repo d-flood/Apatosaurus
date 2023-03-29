@@ -11,7 +11,7 @@
 <script>
     // write a function to remove accents from a string of Greek unicode characters and remove all punctuation and make all characters lowercase
     function normalizeGreek(str) {
-        const withoutPunctuation = str.replace(/[\u0300-\u036f\u0021-\u002f\u003a-\u0040\u005b-\u0060\u007b-\u007e]/g, '');
+        const withoutPunctuation = str.replace(/[\u0300-\u036f\u0021-\u002f\u003a-\u0040\u005b-\u0060\u007b-\u007e\u0267]/g, '');
         const withoutAccents = withoutPunctuation.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
         return withoutAccents;
     }
