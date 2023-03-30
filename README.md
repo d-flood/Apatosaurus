@@ -19,6 +19,8 @@ Apatosaurus is live at [apatosaurus.io](https://www.apatosaurus.io)
 
 See the ["About"](https://www.apatosaurus.io/about/introduction/) pages for details about use, the tech stack, tutorials, and more.
 
+![screenshot of apatosaurus.io homepage](_static/media/home_page_20230329.png)
+
 This is the open source rewrite of [Apparatus Explorer](https://www.apparatusexplorer.com/).
 
 This new version is more than an explorer. Its features include
