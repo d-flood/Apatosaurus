@@ -90,10 +90,14 @@
         "πνεύματι": "πνι"
     }
     function normalizeGreek(str) {
+        if (document.getElementById("removeNumerals").checked) {
+            str = str.normalize('NFD').replace(/[0-9]\s+/g, '');
+            str = str.normalize('NFD').replace(/[0-9]/g, '');
+        }
         if (document.getElementById("removeLineBreaks").checked) {
+            str = str.replace(/\n/g, '');
             str = str.replace(/[]/g, '');
             str = str.replace(/[\n]/g, ' ');
-            str = str.replace(/\s+/g, ' ');
         }
         if (document.getElementById("removeAccents").checked) {
             str = str.normalize('NFD').replace(/[\u0300-\u036f\u0021-\u002f\u003a-\u0040\u005b-\u0060\u007b-\u007e\u0267]/g, '');
@@ -101,15 +105,13 @@
         if (document.getElementById("removePunctuation").checked) {
             str = str.normalize('NFD').replace(/[,.·]/g, '');
         }
-        if (document.getElementById("removeNumerals").checked) {
-            str = str.normalize('NFD').replace(/[0-9]/g, '');
-        }
         if (document.getElementById("makeLowercase").checked) {
             str = str.toLowerCase();
         }
         if (document.getElementById("abbreviateNominaSacra").checked) {
             str = abbreviateNominaSacra(str);
         }
+        str = str.replace(/\s+/g, ' ');
         return str;
     }
     
