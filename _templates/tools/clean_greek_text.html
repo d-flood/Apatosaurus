@@ -19,7 +19,7 @@
             <input type="checkbox" name="removeNumerals" id="removeNumerals" class="mr-4">
         </div>
         <div>
-            <label for="removeAccents" class="mr-1">Remove Accents</label>
+            <label for="removeAccents" class="mr-1">Remove Diacritics</label>
             <input type="checkbox" name="removeAccents" id="removeAccents" class="mr-4">
         </div>
         <div>
@@ -100,7 +100,7 @@
             str = str.replace(/[\n]/g, ' ');
         }
         if (document.getElementById("removeAccents").checked) {
-            str = str.normalize('NFD').replace(/[\u0300-\u036f\u0021-\u002f\u003a-\u0040\u005b-\u0060\u007b-\u007e\u0267]/g, '');
+            str = str.normalize('NFD').replace(/[\u0300-\u036f\u0021-\u002f\u003a-\u0040\u005b-\u0060\u007b-\u007e\u0267᾽]/g, '');
         }
         if (document.getElementById("removePunctuation").checked) {
             str = str.normalize('NFD').replace(/[,.·]/g, '');
