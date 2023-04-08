@@ -91,7 +91,9 @@
     }
     function normalizeGreek(str) {
         if (document.getElementById("removeLineBreaks").checked) {
-            str = str.replace(/[\n]/g, '');
+            str = str.replace(/[]/g, '');
+            str = str.replace(/[\n]/g, ' ');
+            str = str.replace(/\s+/g, ' ');
         }
         if (document.getElementById("removeAccents").checked) {
             str = str.normalize('NFD').replace(/[\u0300-\u036f\u0021-\u002f\u003a-\u0040\u005b-\u0060\u007b-\u007e\u0267]/g, '');
