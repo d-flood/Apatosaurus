@@ -6,14 +6,39 @@
     <textarea name="greek-input" id="greek-input" rows="10"></textarea>
     <button id="normalize-greek" type="button" class="btn my-4 mx-6">Normalize Greek</button>
     <textarea name="greek-output" id="greek-output" rows="10" readonly="readonly"></textarea>
+    <div class="flex flex-row items-center flex-wrap">
+        <label for="removePunctuation" class="mr-2">Remove Punctuation</label>
+        <input type="checkbox" name="removePunctuation" id="removePunctuation" class="mr-4">
+        <label for="removeNumerals" class="mr-2">Remove Arabic Numerals</label>
+        <input type="checkbox" name="removeNumerals" id="removeNumerals" class="mr-4">
+        <label for="removeAccents" class="mr-2">Remove Accents</label>
+        <input type="checkbox" name="removeAccents" id="removeAccents" class="mr-4">
+        <label for="removeLineBreaks" class="mr-2">Remove Line Breaks</label>
+        <input type="checkbox" name="removeLineBreaks" id="removeLineBreaks" class="mr-4">
+        <label for="makeLowercase" class="mr-2">Make Lowercase</label>
+        <input type="checkbox" name="makeLowercase" id="makeLowercase" class="mr-4">
+    </div>
 </fieldset>
 
 <script>
     // write a function to remove accents from a string of Greek unicode characters and remove all punctuation and make all characters lowercase
     function normalizeGreek(str) {
-        const withoutPunctuation = str.replace(/[\u0300-\u036f\u0021-\u002f\u003a-\u0040\u005b-\u0060\u007b-\u007e\u0267]/g, '');
-        const withoutAccents = withoutPunctuation.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-        return withoutAccents;
+        if (document.getElementById("removeLineBreaks").checked) {
+            str = str.replace(/[\n]/g, '');
+        }
+        if (document.getElementById("removeAccents").checked) {
+            str = str.normalize('NFD').replace(/[\u0300-\u036f\u0021-\u002f\u003a-\u0040\u005b-\u0060\u007b-\u007e\u0267]/g, '');
+        }
+        if (document.getElementById("removePunctuation").checked) {
+            str = str.normalize('NFD').replace(/[,.·]/g, '');
+        }
+        if (document.getElementById("removeNumerals").checked) {
+            str = str.normalize('NFD').replace(/[0-9]/g, '');
+        }
+        if (document.getElementById("makeLowercase").checked) {
+            str = str.toLowerCase();
+        }
+        return str;
     }
     function normalizeGreekInTextarea() {
         var greek = document.getElementById("greek-input").value;
