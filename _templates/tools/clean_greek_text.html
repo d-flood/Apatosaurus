@@ -4,9 +4,12 @@
 <fieldset class="flex flex-col p-4">
     <legend class="text-4xl text-center">Normalize Greek</legend>
     <textarea name="greek-input" id="greek-input" rows="10"></textarea>
-    <button id="normalize-greek" type="button" class="btn my-4 mx-6">Normalize Greek</button>
+    <div class="flex-row self-center">
+        <button id="normalize-greek" type="button" class="btn my-4 mx-6">Normalize Greek</button>
+        <button type="button" id="copyToClipboard" class="btn my-4 mx-6">Copy Output</button>
+    </div>
     <textarea name="greek-output" id="greek-output" rows="10" readonly="readonly"></textarea>
-    <div class="flex flex-row items-center flex-wrap">
+    <div class="flex-row items-center flex-wrap">
         <label for="removePunctuation" class="mr-2">Remove Punctuation</label>
         <input type="checkbox" name="removePunctuation" id="removePunctuation" class="mr-4">
         <label for="removeNumerals" class="mr-2">Remove Arabic Numerals</label>
@@ -45,7 +48,18 @@
         var normalizedGreek = normalizeGreek(greek);
         document.getElementById("greek-output").value = normalizedGreek;
     }
+    document.getElementById("copyToClipboard").addEventListener("click", function() {
+        document.getElementById("greek-output").select();
+        document.execCommand("copy");
+    });
     document.getElementById("normalize-greek").addEventListener("click", normalizeGreekInTextarea);
+    // trigger same function when user presses enter in the input field
+    document.getElementById("greek-input").addEventListener("keyup", function(event) {
+        if (event.keyCode === 13) {
+            event.preventDefault();
+            document.getElementById("normalize-greek").click();
+        }
+    });
 </script>
 
 {% endblock %}
