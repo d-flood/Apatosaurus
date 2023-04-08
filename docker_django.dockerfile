@@ -6,10 +6,7 @@ RUN mkdir -p ${LAMBDA_TASK_ROOT}
 WORKDIR ${LAMBDA_TASK_ROOT}
 COPY . ${LAMBDA_TASK_ROOT}
 COPY requirements.txt .
-# RUN yum makecache
-# RUN yum install glib* -y
-# RUN yum update -y
-# RUN yum -y install graphviz
+
 RUN apt-get update
 RUN apt-get install -y graphviz
 
