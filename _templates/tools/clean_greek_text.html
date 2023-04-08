@@ -30,11 +30,65 @@
             <label for="makeLowercase" class="mr-1">Make Lowercase</label>
             <input type="checkbox" name="makeLowercase" id="makeLowercase" class="mr-4">
         </div>
+        <div>
+            <label for="abbreviateNominaSacra" class="mr-1">Abbreviate Nomina Sacra</label>
+            <input type="checkbox" name="abbreviateNominaSacra" id="abbreviateNominaSacra" class="mr-4">
+        </div>
     </div>
 </fieldset>
 
 <script>
-    // write a function to remove accents from a string of Greek unicode characters and remove all punctuation and make all characters lowercase
+    const nominaSacra = {
+        "κυριος": "κς",
+        "κυριου": "κυ",
+        "κυριω": "κω",
+        "κυριον": "κν",
+        "κυριε": "κε",
+        "ιησους": "ις",
+        "ιησου": "ιυ",
+        "χριστος": "χς",
+        "χριστου": "χυ",
+        "χριστω": "χω",
+        "χριστον": "χν",
+        "θεος": "θς",
+        "θεου": "θυ",
+        "θεω": "θω",
+        "θεον": "θν",
+        "θεε": "θε",
+        "υιος": "υς",
+        "υιου": "υυ",
+        "υιω": "υω",
+        "υιον": "υν",
+        "υιε": "υε",
+        "πνευμα": "πνα",
+        "πνευματος": "πνς",
+        "πνευματι": "πνι",
+        "κύριος": "κς",
+        // same but with diacritics
+        "κυρίου": "κυ",
+        "κυρίω": "κω",
+        "κύριον": "κν",
+        "κύριε": "κε",
+        "ἰησοῦς": "ις",
+        "ἰησοῦ": "ιυ",
+        "χριστός": "χς",
+        "χριστοῦ": "χυ",
+        "χριστῷ": "χω",
+        "χριστόν": "χν",
+        "θεός": "θς",
+        "θεοῦ": "θυ",
+        "θεῷ": "θω",
+        "θεόν": "θν",
+        "θεέ": "θε",
+        "υἱός": "υς",
+        "υἱοῦ": "υυ",
+        "υἱῷ": "υω",
+        "υἱόν": "υν",
+        "υἱέ": "υε",
+        "πνεῦμα": "πνα",
+        "πνεύματος": "πνς",
+        "πνεύματι": "πνι"
+    }
     function normalizeGreek(str) {
         if (document.getElementById("removeLineBreaks").checked) {
             str = str.replace(/[\n]/g, '');
@@ -51,8 +105,19 @@
         if (document.getElementById("makeLowercase").checked) {
             str = str.toLowerCase();
         }
+        if (document.getElementById("abbreviateNominaSacra").checked) {
+            str = abbreviateNominaSacra(str);
+        }
         return str;
     }
+    
+    function abbreviateNominaSacra(str) {
+        for (const [key, value] of Object.entries(nominaSacra)) {
+            str = str.replace(new RegExp(key, 'g'), value);
+        }
+        return str;
+    }
+    
     function normalizeGreekInTextarea() {
         var greek = document.getElementById("greek-input").value;
         var normalizedGreek = normalizeGreek(greek);
