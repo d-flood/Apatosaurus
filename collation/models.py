@@ -219,6 +219,9 @@ class Rdg(models.Model):
 
     def __str__(self) -> str:
         return f'{self.name}'
+    
+    class Meta:
+        ordering = ['name']
 
     def save(self, create_history: bool = True, *args, **kwargs):
         if self._state.adding or not create_history:
