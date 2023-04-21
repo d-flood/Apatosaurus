@@ -96,12 +96,11 @@ class RdgForm(forms.ModelForm):
             'size': '10',
         })
     
-    rtype = forms.ChoiceField(choices=models.Rdg.RDG_CHOICES, widget=forms.RadioSelect, required=False)
+    rtype = forms.ChoiceField(choices=models.Rdg.RDG_CHOICES, widget=forms.Select, required=False)
 
     class Meta:
         model = models.Rdg
         fields = [
-            'note',
             'witDetail',
             'name',
             'rtype',
