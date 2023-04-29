@@ -75,7 +75,7 @@ class Section(models.Model):
 
 class Ab(models.Model):
     section = models.ForeignKey(Section, on_delete=models.CASCADE, related_name='abs')
-    name = models.CharField(max_length=10, verbose_name='ID')
+    name = models.CharField(max_length=32, verbose_name='ID')
     basetext_label = models.CharField(max_length=32, verbose_name='Basetext Label')
     basetext = models.TextField()
     number = models.SmallIntegerField()
@@ -192,17 +192,18 @@ class App(models.Model):
 class Rdg(models.Model):
     RDG_CHOICES = [
         ('0', '-'),
-        ('orth', 'Orthographic'),
-        ('subr', 'Subreading'),
+        ('amb', 'Ambiguous'),
+        ('corr', 'Correction'),
         ('def', 'Defective'),
-        ('lac', 'Lacuna'),
-        ('ns', 'Nomen Sacrum'),
         ('emm', 'Emendation'),
-        ('ilc', 'Lectionary Adaptation'),
-        ('insi', 'Insignificant'),
         ('err', 'Error'),
+        ('insi', 'Insignificant'),
+        ('lac', 'Lacuna'),
+        ('ilc', 'Lectionary Adaptation'),
+        ('ns', 'Nomen Sacrum'),
+        ('orth', 'Orthographic'),
         ('om', 'Omission'),
-        ('amb', 'Ambiguous')
+        ('subr', 'Subreading'),
     ]
     app = models.ForeignKey(App, on_delete=models.CASCADE, related_name='rdgs')
     name = models.CharField(max_length=64)
