@@ -6,6 +6,9 @@
     .btn {
       @apply px-4 bg-orange-700 dark:bg-cyan-900 text-white font-semibold rounded-md shadow-md hover:dark:bg-cyan-800 hover:bg-orange-500 focus:outline-none focus:ring-4 dark:ring-2 focus:dark:ring-gray-100 focus:ring-opacity-75 ring-2 ring-orange-700 dark:ring-cyan-900 cursor-pointer;
     }
+    .btn-selected {
+        @apply px-4 bg-teal-700 dark:bg-orange-700 text-white font-semibold rounded-md shadow-md focus:outline-none focus:ring-4 dark:ring-2 focus:dark:ring-gray-100 focus:ring-opacity-75 ring-2 ring-orange-700 dark:ring-cyan-900 cursor-pointer outline outline-4 outline-teal-500 dark:outline-orange-500 pointer-events-none;
+      }
     .btn-left {
         @apply px-4 bg-orange-700 dark:bg-cyan-900 text-white font-semibold rounded-l-md shadow-md hover:dark:bg-cyan-800 hover:bg-orange-500 focus:outline-none focus:ring-4 ring-2 dark:ring-2 focus:dark:ring-gray-100 focus:ring-opacity-75 ring-orange-700 dark:ring-cyan-900 cursor-pointer;
       }
