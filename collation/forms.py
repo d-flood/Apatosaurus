@@ -47,6 +47,14 @@ class AbForm(forms.ModelForm):
         model = models.Ab
         exclude = ['section', 'indexed_basetext']
 
+    def clean_name(self):
+        name = self.cleaned_data['name']
+        if not name:
+            raise forms.ValidationError('Name cannot be empty')
+        if '/' in name or '\\' in name:
+            raise forms.ValidationError('Name cannot contain slashes "/" "\\"')
+        return name
+
     def save(self, section_id: int, commit=True):
         instance = super().save(commit=False)
         instance.section_id = section_id

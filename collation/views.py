@@ -142,7 +142,11 @@ def new_ab(request: HttpRequest, section_id: int):
             resp = render(request, 'scraps/quick_message.html', {'message': 'Collation unit saved', 'timout': '3'})
             resp['HX-Trigger'] = 'refreshAbs'
             return resp
-        return render(request, 'collation/new_ab.html', {'page': {'active': 'collation'}})
+        return render(request, 'collation/new_ab.html', {
+                'page': {'active': 'collation'},
+                'section_id': section_id,
+                'new_ab_form': form
+            })
 
 
 @login_required
@@ -165,7 +169,12 @@ def edit_ab(request: HttpRequest, ab_pk: int):
             resp = HttpResponse('Ab saved')
             resp['HX-Trigger'] = 'refreshAbs'
             return resp
-        return render(request, 'collation/edit_ab.html', {'page': {'active': 'collation'}})
+        context = {
+            'page': {'active': 'collation'},
+            'form': form,
+            'ab': ab
+        }
+        return render(request, 'collation/edit_ab.html', context)
     else:
         ab = models.Ab.objects.get(pk=ab_pk)
         ab.delete()
