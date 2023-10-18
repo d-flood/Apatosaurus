@@ -42,6 +42,10 @@ class Collation(models.Model):
 
     def __str__(self):
         return f'{self.user} - {self.name}'
+    
+    class Meta:
+        unique_together = ('user', 'name')
+        indexes = [models.Index(fields=['name'])]
 
 
 class Section(models.Model):
