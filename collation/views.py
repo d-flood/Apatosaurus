@@ -191,7 +191,8 @@ def new_rdg(request: HttpRequest, app_pk: int):
         context = {
             'page': {'active': 'collation'},
             'form': form,
-            'app_pk': app_pk
+            'app_pk': app_pk,
+            'rtypes': models.Rdg.RDG_CHOICES,
         }
     else:
         form = forms.RdgForm(request.POST, app=models.App.objects.get(pk=app_pk))
@@ -208,7 +209,8 @@ def new_rdg(request: HttpRequest, app_pk: int):
             return render(request, 'collation/rdgs_table.html', context)
         context = {
             'form': form,
-            'app_pk': app_pk
+            'app_pk': app_pk,
+            'rtypes': models.Rdg.RDG_CHOICES,
         }
 
     return render(request, 'collation/new_rdg.html', context)
@@ -223,7 +225,8 @@ def edit_rdg(request: HttpRequest, rdg_pk: int):
         context = {
             'page': {'active': 'collation'},
             'form': form,
-            'rdg': rdg
+            'rdg': rdg,
+            'rtypes': models.Rdg.RDG_CHOICES,
         }
         return render(request, 'collation/edit_rdg.html', context)
     elif request.method == 'POST':
@@ -242,7 +245,8 @@ def edit_rdg(request: HttpRequest, rdg_pk: int):
             return render(request, 'collation/rdgs_table.html', context)
         context = {
             'form': form,
-            'rdg': rdg
+            'rdg': rdg,
+            'rtypes': models.Rdg.RDG_CHOICES,
         }
         return render(request, 'collation/edit_rdg.html', context)
     else:

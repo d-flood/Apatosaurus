@@ -22,7 +22,7 @@
                         <tr class="py-4 {% cycle '' 'bg-orange-50 dark:bg-cyan-1300' %}">
                             <td class="px-2 h-8">{{ old_rdg.modified.date }}</td>
                             <td class="px-2 h-8">{{ old_rdg.name }}</td>
-                            <td class="px-2 h-8">{{ old_rdg.get_rtype_display }}</abbr></td>
+                            <td class="px-2 h-8">{{ old_rdg.rtype }}</abbr></td>
                             <td class="font-greek px-2 h-8">{{ old_rdg.text }}</td>
                             <td>{% for w in old_rdg.wit.all %}<span title="{{ w.description }}">{{ w.siglum }}.</span> {% endfor %}</td>
                             <td class="flex flex-col items-end h-8">

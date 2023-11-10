@@ -194,25 +194,24 @@ class App(models.Model):
 
 
 class Rdg(models.Model):
-    RDG_CHOICES = [
-        ('0', '-'),
-        ('amb', 'Ambiguous'),
-        ('corr', 'Correction'),
-        ('def', 'Defective'),
-        ('emm', 'Emendation'),
-        ('err', 'Error'),
-        ('insi', 'Insignificant'),
-        ('lac', 'Lacuna'),
-        ('ilc', 'Lectionary Adaptation'),
-        ('ns', 'Nomen Sacrum'),
-        ('orth', 'Orthographic'),
-        ('om', 'Omission'),
-        ('subr', 'Subreading'),
-    ]
+    RDG_CHOICES = (
+        'amb', # 'Ambiguous'),
+        'corr', # 'Correction'),
+        'def', # 'Defective'),
+        'emm', # 'Emendation'),
+        'err', # 'Error'),
+        'insi', # 'Insignificant'),
+        'lac', # 'Lacuna'),
+        'ilc', # 'Lectionary Adaptation'),
+        'ns', # 'Nomen Sacrum'),
+        'orth', # 'Orthographic'),
+        'om', # 'Omission'),
+        'subr', # 'Subreading'),
+    )
     app = models.ForeignKey(App, on_delete=models.CASCADE, related_name='rdgs')
     name = models.CharField(max_length=64)
     varSeq = models.SmallIntegerField(default=1)
-    rtype = models.CharField(max_length=64, choices=RDG_CHOICES, default='0', verbose_name='Reading Type')
+    rtype = models.CharField(max_length=64, default='-', verbose_name='Reading Type')
     text = models.TextField(null=True, blank=True)
     wit = models.ManyToManyField(Witness, related_name='rdgs', blank=True, verbose_name='Witnesses')
 
@@ -269,7 +268,7 @@ class RdgHistory(models.Model):
     modified = models.DateTimeField(auto_now=True)
     
     name = models.CharField(max_length=5)
-    rtype = models.CharField(max_length=5, choices=Rdg.RDG_CHOICES, default='0', verbose_name='Reading Type')
+    rtype = models.CharField(max_length=5, default='-', verbose_name='Reading Type')
     text = models.TextField(null=True, blank=True)
     wit = models.ManyToManyField(Witness, related_name='history_rdgs', blank=True, verbose_name='Witnesses')
 
