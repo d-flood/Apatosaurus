@@ -104,7 +104,9 @@ class RdgForm(forms.ModelForm):
             'size': '10',
         })
     
-    rtype = forms.ChoiceField(choices=models.Rdg.RDG_CHOICES, widget=forms.Select, required=False)
+    rtype = forms.TimeField(
+        widget=forms.TextInput(attrs={'list': 'rdg-types'}),
+    )
 
     class Meta:
         model = models.Rdg

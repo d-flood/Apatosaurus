@@ -5,6 +5,11 @@
         hx-post="{% url 'edit-rdg' rdg_pk=rdg.pk %}"
         hx-target="#readings">
         {{ form|crispy }}
+        <datalist id="rdg-types">
+            {% for type in rtypes %}
+                <option>{{ type }}</option>
+            {% endfor %}
+        </datalist>
         <p>
             <label class="sr-only" for="wits-filter">Filter Witnesses</label>
             <input type="text" id="wits-filter" placeholder="Filter Witnesses"
