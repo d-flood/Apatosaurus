@@ -17,6 +17,7 @@ services:
       - DEBUG=True
       - BASE_SITE_URL=http://localhost
       - USE_PRODUCTION_DB=False
+      - ZAPPA_RUNNING_IN_DOCKER=True
     container_name: django
     command: 
       - /bin/sh
