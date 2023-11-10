@@ -9,6 +9,7 @@ from render_block import render_block_to_string
 from accounts.models import JobStatus
 from collation import forms
 from collation import models
+import collation
 from collation.py import helpers
 from collation.py import process_tei
 from collation.py import import_collation
@@ -20,6 +21,7 @@ from CONFIG import settings
 def main(request):
     context = {
         'page': {'active': 'collation', 'title': 'Apatosaurus - Collation'},
+        'collation_list': True,
     }
     return render(request, 'collation/main.html', context)
 
@@ -206,7 +208,7 @@ def new_rdg(request: HttpRequest, app_pk: int):
                 'rdgs': app.rdgs.filter(witDetail=False),
                 'witDetails': app.rdgs.filter(witDetail=True),
             }
-            return render(request, 'collation/rdgs_table.html', context)
+            return render(request, 'collation/_rdgs_table.html', context)
         context = {
             'form': form,
             'app_pk': app_pk,
@@ -242,7 +244,7 @@ def edit_rdg(request: HttpRequest, rdg_pk: int):
                 'rdgs': app.rdgs.filter(witDetail=False),
                 'witDetails': app.rdgs.filter(witDetail=True),
             }
-            return render(request, 'collation/rdgs_table.html', context)
+            return render(request, 'collation/_rdgs_table.html', context)
         context = {
             'form': form,
             'rdg': rdg,
@@ -260,7 +262,7 @@ def edit_rdg(request: HttpRequest, rdg_pk: int):
                 'rdgs': app.rdgs.filter(witDetail=False),
                 'witDetails': app.rdgs.filter(witDetail=True),
             }
-        return render(request, 'collation/rdgs_table.html', context)
+        return render(request, 'collation/_rdgs_table.html', context)
 
 
 def cancel_new_rdg(request: HttpRequest, app_pk: int):
@@ -272,17 +274,21 @@ def cancel_new_rdg(request: HttpRequest, app_pk: int):
                 'rdgs': app.rdgs.filter(witDetail=False),
                 'witDetails': app.rdgs.filter(witDetail=True),
             }
-    return render(request, 'collation/rdgs_table.html', context)
+    return render(request, 'collation/_rdgs_table.html', context)
 
 
 @login_required
-def sections(request: HttpRequest, collation_id: int):
+def sections(request: HttpRequest, collation_slug: str):
+    collation = models.Collation.objects.get(slug=collation_slug)
     context = {
         'page': {'active': 'collation'},
-        'sections': models.Section.objects.filter(collation__id=collation_id),
-        'collation': models.Collation.objects.get(id=collation_id)
+        'collation': collation,
+        'section_list': True,
     }
-    return render(request, 'collation/sections.html', context)
+    if request.htmx: # type: ignore
+        return render(request, 'collation/sections.html', context)
+    else:
+        return render(request, 'collation/main.html', context)
 
 
 @login_required
@@ -295,11 +301,13 @@ def collations(request: HttpRequest):
 
 
 @login_required
-def abs(request: HttpRequest, section_id: int):
+def abs(request: HttpRequest, collation_slug: str, section_slugname: str):
+    collation = models.Collation.objects.get(slug=collation_slug)
+    section = collation.sections.get(slugname=section_slugname) # type: ignore
     context = {
         'page': {'active': 'collation'},
-        'abs': models.Ab.objects.filter(section__id=section_id),
-        'section': models.Section.objects.get(id=section_id)
+        'abs': section.abs.all(),
+        'section': section,
     }
     return render(request, 'collation/abs.html', context)
 
@@ -374,7 +382,9 @@ def rdgs(request: HttpRequest, app_pk: int):
         'arc_form': forms.ArcForm(models.App.objects.get(pk=app_pk)),
         'local_stemma': helpers.make_graph(app),
     }
-    return render(request, 'collation/rdgs_table.html', context)
+    if request.htmx: # type: ignore
+        return render(request, 'collation/_rdgs_table.html', context)
+    
 
 
 @login_required
@@ -516,7 +526,7 @@ def restore_rdg(request: HttpRequest, rdg_pk: int, history_pk: int):
         'rdgs': app.rdgs.filter(witDetail=False),
         'witDetails': app.rdgs.filter(witDetail=True),
     }
-    return render(request, 'collation/rdgs_table.html', context)
+    return render(request, 'collation/_rdgs_table.html', context)
 
 
 @login_required

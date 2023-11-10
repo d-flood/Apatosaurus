@@ -1,5 +1,4 @@
-import contextlib
-from datetime import datetime
+from django.template.defaultfilters import slugify
 from django.db import models
 from django.db.models.query import QuerySet
 from django.contrib.auth import get_user_model
@@ -11,6 +10,15 @@ XML_NS = '{http://www.w3.org/XML/1998/namespace}'
 TEI_NS = '{http://www.tei-c.org/ns/1.0}'
 XML_NS_STR = 'http://www.w3.org/XML/1998/namespace'
 TEI_NS_STR = 'http://www.tei-c.org/ns/1.0'
+
+def unique_slugify(_model, initial_value: str):
+    slug = slugify(initial_value)
+    unique_slug = slug
+    num = 1
+    while _model.objects.filter(slug=unique_slug).exists():
+        unique_slug = f"{slug}-{num}"
+        num += 1
+    return unique_slug
 
 
 class Witness(models.Model):
@@ -31,6 +39,7 @@ class Collation(models.Model):
     user = models.ForeignKey(get_user_model(), on_delete=models.CASCADE, related_name='collations')
     name = models.CharField(max_length=64)
     description = models.TextField(null=True, blank=True)
+    slug = models.SlugField(max_length=84, null=True, blank=True)
 
     def as_tei(self):
         tei_root = et.Element('TEI', nsmap={None: TEI_NS_STR, 'xml': XML_NS_STR}) #type: ignore
@@ -43,6 +52,11 @@ class Collation(models.Model):
     def __str__(self):
         return f'{self.user} - {self.name}'
     
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = slugify(f'{self.user.display_name}-{self.name}') #type: ignore
+        super().save(*args, **kwargs)
+    
     class Meta:
         unique_together = ('user', 'name')
         indexes = [models.Index(fields=['name'])]
@@ -50,9 +64,10 @@ class Collation(models.Model):
 
 class Section(models.Model):
     collation = models.ForeignKey(Collation, on_delete=models.CASCADE, related_name='sections')
-    name = models.CharField(max_length=32, null=True, blank=True)
+    name = models.CharField(max_length=64, null=False, blank=True)
     number = models.SmallIntegerField()
     published = models.BooleanField(default=False)
+    slugname = models.CharField(max_length=64, null=True, blank=True)
 
     def ab_elements(self):
         self.abs: QuerySet[Ab]
@@ -73,8 +88,15 @@ class Section(models.Model):
 
     def __str__(self):
         return f'{self.collation.name} - {self.name}'
+    
+    def save(self, *args, **kwargs):
+        if not self.slugname:
+            self.slugname = slugify(self.name)
+        super().save(*args, **kwargs)
+
     class Meta:
         ordering = ['number']
+        unique_together = ['collation', 'name']
 
 
 class Ab(models.Model):
