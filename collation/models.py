@@ -267,8 +267,8 @@ class RdgHistory(models.Model):
     rdg = models.ForeignKey(Rdg, on_delete=models.CASCADE, related_name='history')
     modified = models.DateTimeField(auto_now=True)
     
-    name = models.CharField(max_length=5)
-    rtype = models.CharField(max_length=5, default='-', verbose_name='Reading Type')
+    name = models.CharField(max_length=64)
+    rtype = models.CharField(max_length=64, default='-', verbose_name='Reading Type')
     text = models.TextField(null=True, blank=True)
     wit = models.ManyToManyField(Witness, related_name='history_rdgs', blank=True, verbose_name='Witnesses')
 
