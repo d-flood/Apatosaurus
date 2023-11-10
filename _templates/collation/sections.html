@@ -4,12 +4,12 @@
 <hr class="my-4 border-orange-700 border-t-4">
 <ul role="list" id="section_list"
     hx-trigger="refreshSections from:body"
-    hx-get="{% url 'section-list' collation_id=collation.pk %}"
+    hx-get="{% url 'section-list' collation_slug=collation.slug %}"
     hx-target="#sidebar-header">
-    {% for section in sections %}
+    {% for section in collation.sections.all %}
         <li class="min-w-full my-2 flex flex-row">
             <a class="btn w-10/12"
-                hx-get="{% url 'ab-list' section_id=section.pk %}"
+                hx-get="{% url 'ab-list' collation_slug=section.collation.slug section_slugname=section.slugname %}"
                 hx-target="#sidebar-header">
                 {{ section.number }}{% if section.name %}: {{ section.name }}{% endif %}
             </a>

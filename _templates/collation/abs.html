@@ -4,7 +4,7 @@
 <hr class="my-4 border-orange-700 border-t-4">
 <ul role="list" id="section_list"
     hx-trigger="refreshAbs from:body"
-    hx-get="{% url 'ab-list' section_id=section.pk %}"
+    hx-get="{% url 'ab-list' collation_slug=section.collation.slug section_slugname=section.slugname %}"
     hx-target="#sidebar-header">
     {% for ab in abs %}
         <li class="min-w-full my-2 flex flex-row">
@@ -59,7 +59,7 @@
             <li><span class="text-gray-500 dark:text-white mx-2">/</span></li>
             <li>
                 <a class="inline-flex underline hover:text-orange-700 hover:dark:text-cyan-500 rounded-md" 
-                    hx-get="{% url 'section-list' collation_id=section.collation.pk %}" hx-target="#sidebar-header">
+                    hx-get="{% url 'section-list' collation_slug=section.collation.slug %}" hx-target="#sidebar-header">
                     {{ section.collation.name }}
                 </a>
             </li>
