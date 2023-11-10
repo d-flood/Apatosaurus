@@ -107,6 +107,7 @@ class Ab(models.Model):
     number = models.SmallIntegerField()
     indexed_basetext = models.JSONField(null=True, blank=True, default=list)
     note = models.TextField(null=True, blank=True)
+    slugname = models.CharField(max_length=64, null=True, blank=True)
 
     def as_element(self):
         ab = et.Element('ab')
@@ -141,6 +142,8 @@ class Ab(models.Model):
         self.indexed_basetext = indexed_basetext
         
     def save(self, *args, **kwargs):
+        if not self.slugname:
+            self.slugname = slugify(self.name)
         if not self.pk:
             super().save(*args, **kwargs)
         self.set_indexed_basetext()
