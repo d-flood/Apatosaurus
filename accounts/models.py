@@ -3,7 +3,7 @@ from django.db import models
 
 
 class CustomUser(AbstractUser):
-    display_name = models.CharField(max_length=50, unique=True, blank=False, default='', help_text='The public name you would like to be displayed with your apparatus if you choose to publish it.')
+    display_name = models.CharField(max_length=50, blank=False, default='', help_text='The public name you would like to be displayed with your apparatus if you choose to publish it.')
     registration_purpose = models.TextField(blank=False, default='', help_text='Briefly explain why you would like to use Apatosaurus.')
 
     class Meta:
