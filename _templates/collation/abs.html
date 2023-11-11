@@ -1,3 +1,22 @@
+<div id="breadcrumbs" hx-swap-oob="true">
+    <nav class="m-2" aria-label="breadcrumbs">
+        <ol class="list-reset flex">
+            <li>
+                <a class="inline-flex underline hover:text-orange-700 hover:dark:text-cyan-500 rounded-md" 
+                    hx-get="{% url 'collation' %}" hx-target="#sidebar-header">
+                    Collations
+                </a>
+            </li>
+            <li><span class="text-gray-500 dark:text-white mx-2">/</span></li>
+            <li>
+                <a class="inline-flex whitespace-nowrap underline hover:text-orange-700 hover:dark:text-cyan-500 rounded-md" 
+                    hx-get="{% url 'section-list' collation_slug=section.collation.slug %}" hx-target="#sidebar-header">
+                    {{ section.collation.name }}
+                </a>
+            </li>
+        </ol>
+    </nav>
+</div>
 <h1 class="text-2xl text-center" style="margin-top: 5px;">
     {{ section.name }}
 </h1>
@@ -5,10 +24,13 @@
 <ul role="list" id="section_list"
     hx-trigger="refreshAbs from:body"
     hx-get="{% url 'ab-list' collation_slug=section.collation.slug section_slugname=section.slugname %}"
+    hx-push-url="true"
     hx-target="#sidebar-header">
-    {% for ab in abs %}
+    {% with coll=section.collation %}
+    {% for ab in section.abs.all %}
         <li class="min-w-full my-2 flex flex-row">
-            <a hx-get="{% url 'apparatus' ab_pk=ab.pk %}" hx-target="#main"
+            <a hx-get="{% url 'apparatus' collation_slug=coll.slug section_slugname=section.slugname ab_slugname=ab.slugname %}" 
+                hx-target="#main"
                 class="ab-list-li btn w-10/12" 
                 role="listitem" aria-current="false"
                 _="on click remove @aria-current from .ab-list-li
@@ -28,6 +50,7 @@
             </button>
         </li>
     {% endfor %}
+    {% endwith %}
 </ul>
 <hr class="my-4 border-orange-700 border-t-2">
 <button type="button" class="btn w-full mt-2 inline-flex text-center"
@@ -46,23 +69,3 @@
     </svg>
     Upload Collation File
 </button>
-
-<div id="breadcrumbs" hx-swap-oob="true">
-    <nav class="m-2" aria-label="breadcrumbs">
-        <ol class="list-reset flex">
-            <li>
-                <a class="inline-flex underline hover:text-orange-700 hover:dark:text-cyan-500 rounded-md" 
-                    hx-get="{% url 'collation-list' %}" hx-target="#sidebar-header">
-                    Collations
-                </a>
-            </li>
-            <li><span class="text-gray-500 dark:text-white mx-2">/</span></li>
-            <li>
-                <a class="inline-flex underline hover:text-orange-700 hover:dark:text-cyan-500 rounded-md" 
-                    hx-get="{% url 'section-list' collation_slug=section.collation.slug %}" hx-target="#sidebar-header">
-                    {{ section.collation.name }}
-                </a>
-            </li>
-        </ol>
-    </nav>
-</div>

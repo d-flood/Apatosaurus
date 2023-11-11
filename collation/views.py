@@ -3,7 +3,6 @@ from django.shortcuts import render, redirect
 from django.http import HttpRequest, HttpResponse
 from django.views.decorators.http import require_http_methods, require_safe
 
-import boto3
 from render_block import render_block_to_string 
 
 from accounts.models import JobStatus
@@ -18,7 +17,9 @@ from CONFIG import settings
 
 @login_required
 @require_safe
-def main(request):
+def main(request: HttpRequest):
+    if request.htmx: # type: ignore
+        return collations(request)
     context = {
         'page': {'active': 'collation', 'title': 'Apatosaurus - Collation'},
         'collation_list': True,
@@ -308,19 +309,32 @@ def abs(request: HttpRequest, collation_slug: str, section_slugname: str):
         'page': {'active': 'collation'},
         'abs': section.abs.all(),
         'section': section,
+        'ab_list': True,
     }
-    return render(request, 'collation/abs.html', context)
+    if request.htmx: # type: ignore
+        return render(request, 'collation/abs.html', context)
+    else:
+        return render(request, 'collation/main.html', context)
 
 
 @login_required
 @require_safe
-def apparatus(request: HttpRequest, ab_pk: int):
-    ab = models.Ab.objects.get(pk=ab_pk)
+def apparatus(request: HttpRequest, collation_slug: str, section_slugname: str, ab_slugname: str):
+    collation = models.Collation.objects.get(slug=collation_slug)
+    section = collation.sections.get(slugname=section_slugname) # type: ignore
+    ab = section.abs.get(slugname=ab_slugname) # type: ignore
     context = {
         'page': {'active': 'collation'},
+        'collation': collation,
+        'section': section,
         'ab': ab,
+        'ab_list': True,
+        'load_apparatus': True,
     }
-    return render(request, 'collation/apparatus.html', context)
+    if request.htmx: # type: ignore
+        return render(request, 'collation/apparatus.html', context)
+    else:
+        return render(request, 'collation/main.html', context)
 
 
 @login_required
@@ -373,17 +387,28 @@ def cancel_edit_app(request: HttpRequest, ab_pk: int):
 
 @login_required
 @require_safe
-def rdgs(request: HttpRequest, app_pk: int):
-    app = models.App.objects.get(pk=app_pk)
+def rdgs(request: HttpRequest, collation_slug: str, section_slugname: str, ab_slugname: str, app_slugname: str):
+    collation = models.Collation.objects.get(slug=collation_slug)
+    section = collation.sections.get(slugname=section_slugname) # type: ignore
+    ab = section.abs.get(slugname=ab_slugname) # type: ignore
+    app = ab.apps.get(slugname=app_slugname) # type: ignore
     context = {
+        'collation': collation,
+        'section': section,
+        'ab': ab,
         'app': app,
         'rdgs': app.rdgs.filter(witDetail=False),
         'witDetails': app.rdgs.filter(witDetail=True),
-        'arc_form': forms.ArcForm(models.App.objects.get(pk=app_pk)),
+        'arc_form': forms.ArcForm(app),
         'local_stemma': helpers.make_graph(app),
+        'ab_list': True,
+        'load_apparatus': True,
+        'load_rdgs': True,
     }
     if request.htmx: # type: ignore
         return render(request, 'collation/_rdgs_table.html', context)
+    else:
+        return render(request, 'collation/main.html', context)
     
 
 
