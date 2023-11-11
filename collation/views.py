@@ -287,7 +287,7 @@ def sections(request: HttpRequest, collation_slug: str):
         'section_list': True,
     }
     if request.htmx: # type: ignore
-        return render(request, 'collation/sections.html', context)
+        return render(request, 'collation/_sections.html', context)
     else:
         return render(request, 'collation/main.html', context)
 
@@ -312,7 +312,7 @@ def abs(request: HttpRequest, collation_slug: str, section_slugname: str):
         'ab_list': True,
     }
     if request.htmx: # type: ignore
-        return render(request, 'collation/abs.html', context)
+        return render(request, 'collation/_abs.html', context)
     else:
         return render(request, 'collation/main.html', context)
 
@@ -332,7 +332,7 @@ def apparatus(request: HttpRequest, collation_slug: str, section_slugname: str, 
         'load_apparatus': True,
     }
     if request.htmx: # type: ignore
-        return render(request, 'collation/apparatus.html', context)
+        return render(request, 'collation/_apparatus.html', context)
     else:
         return render(request, 'collation/main.html', context)
 
@@ -357,7 +357,7 @@ def edit_app(request: HttpRequest, ab_pk: int, app_pk: int):
         if form.is_valid():
             app = form.save(ab_pk)
             app.ab.save() # calling save() on the ab will update the basetext indexing
-            app_buttons = render_block_to_string('collation/apparatus.html', 'app_buttons', {'ab': models.Ab.objects.get(pk=ab_pk)})
+            app_buttons = render_block_to_string('collation/_apparatus.html', 'app_buttons', {'ab': models.Ab.objects.get(pk=ab_pk)})
             resp = HttpResponse(app_buttons)
             resp['HX-Trigger'] = 'refreshBasetext'
             return resp
@@ -374,14 +374,14 @@ def edit_app(request: HttpRequest, ab_pk: int, app_pk: int):
         ab = app.ab
         app.delete()
         ab.save()
-        app_buttons = render_block_to_string('collation/apparatus.html', 'app_buttons', {'ab': models.Ab.objects.get(pk=ab_pk)})
+        app_buttons = render_block_to_string('collation/_apparatus.html', 'app_buttons', {'ab': models.Ab.objects.get(pk=ab_pk)})
         resp = HttpResponse(app_buttons)
         resp['HX-Trigger'] = 'refreshBasetext'
         return resp
 
 
 def cancel_edit_app(request: HttpRequest, ab_pk: int):
-    app_buttons = render_block_to_string('collation/apparatus.html', 'app_buttons', {'ab': models.Ab.objects.get(pk=ab_pk)})
+    app_buttons = render_block_to_string('collation/_apparatus.html', 'app_buttons', {'ab': models.Ab.objects.get(pk=ab_pk)})
     return HttpResponse(app_buttons)
 
 
@@ -416,7 +416,7 @@ def rdgs(request: HttpRequest, collation_slug: str, section_slugname: str, ab_sl
 @require_safe
 def refresh_basetext(request: HttpRequest, ab_pk: int):
     ab = models.Ab.objects.get(pk=ab_pk)
-    basetext_row = render_block_to_string('collation/apparatus.html', 'basetext_row', {'ab': ab})
+    basetext_row = render_block_to_string('collation/_apparatus.html', 'basetext_row', {'ab': ab})
     return HttpResponse(basetext_row)
 
 

@@ -79,10 +79,10 @@ def apparatus(request: HttpRequest, ab_pk: int, user_pk: int = False) -> HttpRes
         'selected_ab': ab.name,
     }
     if request.htmx: #type: ignore
-        html = render_block_to_string('published/apparatus.html', 'inner_content', request=request, context=context)
+        html = render_block_to_string('published/_apparatus.html', 'inner_content', request=request, context=context)
         resp = HttpResponse(html)
     else:
-        resp = render(request, 'published/apparatus.html', context)
+        resp = render(request, 'published/_apparatus.html', context)
     return resp
 
 

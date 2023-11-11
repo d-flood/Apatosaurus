@@ -9,9 +9,9 @@
             {% if collation_list %}
                 {% include 'collation/collations.html' %}
             {% elif section_list %}
-                {% include "collation/sections.html" %}
+                {% include "collation/_sections.html" %}
             {% elif ab_list %}
-                {% include "collation/abs.html" %}
+                {% include "collation/_abs.html" %}
             {% endif %}
         </div>
     </header>
@@ -24,7 +24,7 @@
     </button>
     <main id="main" class="mx-3 mb-auto w-full">
         {% if load_apparatus %}
-            {% include "collation/apparatus.html" %}
+            {% include "collation/_apparatus.html" %}
         {% endif %}
     </main>
 </div>
