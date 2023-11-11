@@ -4,12 +4,12 @@ from collation import views
 
 urls = [
     path('', views.main, name='collation'),
-    path('new/', views.new_colation, name='new-collation'),
-    path('edit/<int:collation_id>/', views.edit_collation, name='edit-collation'),
+    path('new-collation/', views.new_colation, name='new-collation'),
+    path('edit-collation/<int:collation_id>/', views.edit_collation, name='edit-collation'),
     path('<slug:collation_slug>/sections/', views.sections, name='section-list'),
     path('new-section/<int:collation_id>/', views.new_section, name='new-section'),
     path('edit-section/<int:section_id>/', views.edit_section, name='edit-section'),
-    path('<slug:collation_slug>/<str:section_slugname>/', views.abs, name='ab-list'),
+    path('<slug:collation_slug>/<str:section_slugname>/verses/', views.abs, name='ab-list'),
     path('new-ab/<int:section_id>/', views.new_ab, name='new-ab'),
     path('edit-ab/<int:ab_pk>/', views.edit_ab, name='edit-ab'),
     path('<slug:collation_slug>/<str:section_slugname>/<str:ab_slugname>/', views.apparatus, name='apparatus'),

@@ -393,6 +393,7 @@ def rdgs(request: HttpRequest, collation_slug: str, section_slugname: str, ab_sl
     ab = section.abs.get(slugname=ab_slugname) # type: ignore
     app = ab.apps.get(slugname=app_slugname) # type: ignore
     context = {
+        'page': {'active': 'collation'},
         'collation': collation,
         'section': section,
         'ab': ab,
@@ -408,6 +409,7 @@ def rdgs(request: HttpRequest, collation_slug: str, section_slugname: str, ab_sl
     if request.htmx: # type: ignore
         return render(request, 'collation/_rdgs_table.html', context)
     else:
+        context['browser_load'] = 'true'
         return render(request, 'collation/main.html', context)
     
 
