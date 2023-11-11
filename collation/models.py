@@ -164,6 +164,7 @@ class App(models.Model):
     index_from = models.SmallIntegerField()
     index_to = models.SmallIntegerField()
     connectivity = models.SmallIntegerField(default=10)
+    slugname = models.CharField(max_length=32, null=True, blank=True)
 
     class Meta:
         ordering = ['index_from']
@@ -206,6 +207,7 @@ class App(models.Model):
         return app
 
     def save(self, *args, ab_pk: int = 0, **kwargs):
+        self.slugname = f'{self.index_from}-{self.index_to}'
         if not self.pk and ab_pk > 0:
             # then create the main rdg
             super().save(*args, **kwargs)
