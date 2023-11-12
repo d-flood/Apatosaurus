@@ -50,7 +50,7 @@ def new_colation(request: HttpRequest):
 @login_required
 @require_http_methods(['GET', 'POST', 'DELETE'])
 def edit_collation(request: HttpRequest, collation_id: int):
-    collation = models.Collation.objects.get(pk=collation_id)
+    collation = models.Collation.objects.filter(user=request.user).get(pk=collation_id)
     if request.method == 'GET':
         form = forms.CollationForm(instance=collation)
         context = {
@@ -280,7 +280,7 @@ def cancel_new_rdg(request: HttpRequest, app_pk: int):
 
 @login_required
 def sections(request: HttpRequest, collation_slug: str):
-    collation = models.Collation.objects.get(slug=collation_slug)
+    collation = models.Collation.objects.filter(user=request.user).get(slug=collation_slug)
     context = {
         'page': {'active': 'collation'},
         'collation': collation,
@@ -303,7 +303,7 @@ def collations(request: HttpRequest):
 
 @login_required
 def abs(request: HttpRequest, collation_slug: str, section_slugname: str):
-    collation = models.Collation.objects.get(slug=collation_slug)
+    collation = models.Collation.objects.filter(user=request.user).get(slug=collation_slug)
     section = collation.sections.get(slugname=section_slugname) # type: ignore
     context = {
         'page': {'active': 'collation'},
@@ -320,7 +320,7 @@ def abs(request: HttpRequest, collation_slug: str, section_slugname: str):
 @login_required
 @require_safe
 def apparatus(request: HttpRequest, collation_slug: str, section_slugname: str, ab_slugname: str):
-    collation = models.Collation.objects.get(slug=collation_slug)
+    collation = models.Collation.objects.filter(user=request.user).get(slug=collation_slug)
     section = collation.sections.get(slugname=section_slugname) # type: ignore
     ab = section.abs.get(slugname=ab_slugname) # type: ignore
     context = {
@@ -388,7 +388,7 @@ def cancel_edit_app(request: HttpRequest, ab_pk: int):
 @login_required
 @require_safe
 def rdgs(request: HttpRequest, collation_slug: str, section_slugname: str, ab_slugname: str, app_slugname: str):
-    collation = models.Collation.objects.get(slug=collation_slug)
+    collation = models.Collation.objects.filter(user=request.user).get(slug=collation_slug)
     section = collation.sections.get(slugname=section_slugname) # type: ignore
     ab = section.abs.get(slugname=ab_slugname) # type: ignore
     app = ab.apps.get(slugname=app_slugname) # type: ignore
@@ -488,7 +488,7 @@ def download_tei_section(request: HttpRequest, section_pk: int):
 @login_required
 @require_safe
 def download_tei_collation(request: HttpRequest, collation_pk: int):
-    collation = models.Collation.objects.get(pk=collation_pk)
+    collation = models.Collation.objects.filter(user=request.user).get(pk=collation_pk)
     tei = collation.as_tei()
     response = HttpResponse(tei, content_type='text/xml')
     response['Content-Disposition'] = f'attachment; filename={collation.name}.xml'
