@@ -120,14 +120,31 @@ def analyze_collation(request: HttpRequest, collation_slug: str):
 @login_required
 @require_safe
 def filter_variants(request: HttpRequest, collation_slug: str):
+    collation = models.Collation.objects.filter(user=request.user).get(slug=collation_slug)
+    witnesses = models.Witness.objects.filter(rdgs__app__ab__section__collation=collation).distinct().values_list('siglum', flat=True)
+    context = {
+        'page': {'active': 'collation'},
+        'selected_collation': collation,
+        'witnesses': witnesses,
+        'collation_list': True,
+        'analyze_collation': True,
+        'load_filtered_variants': True,
+    }
     result, message = forms.variant_filter_is_valid(request)
     if not result:
-        resp = HttpResponse(message)
-        resp['HX-Retarget'] = '#filter-form-errors'
-        return resp
+        if request.htmx: # type: ignore
+            resp = HttpResponse(message)
+            resp['HX-Retarget'] = '#filter-form-errors'
+            return resp
+        else:
+            context['filter_form_errors'] = message
+            return render(request, 'collation/main.html', context)
     apps, total = filter_variants_by_witnesses(request, collation_slug)
-    context = {'apps': apps, 'total': total}
-    return render(request, 'collation/_filtered_variants.html', context)
+    context.update({'apps': apps, 'total': total})
+    if request.htmx: # type: ignore
+        return render(request, 'collation/_filtered_variants.html', context)
+    else:
+        return render(request, 'collation/main.html', context)
 
 
 @login_required

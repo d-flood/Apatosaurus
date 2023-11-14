@@ -7,9 +7,10 @@
 
 <div class="bg-orange-100 dark:bg-cyan-1400 p-5 my-4 drop-shadow">
     <form hx-get="{% url 'filter-variants' collation_slug=selected_collation.slug %}"
-          hx-target="#filtered-variants">
+          hx-target="#filtered-variants"
+          hx-push-url="true">
         <legend class="text-xl text-center mb-2">Query Parameters</legend>
-        <div id="filter-form-errors" class="text-red-700 dark:text-red-500 font-bold"></div>
+        <div id="filter-form-errors" class="text-red-700 dark:text-red-500 font-bold">{{ filter_form_errors }}</div>
         <div class="flex flex-row flex-wrap justify-around">
 
             <div class="flex flex-col my-1">
@@ -65,13 +66,10 @@
         </datalist>
     </form>
     <script>
-        function addSiglum(inputElemId, targetElemId) {
+        function addSiglum(inputElemId, targetElemId, wit='') {
             let inputElem = document.getElementById(inputElemId);
-            let siglum = inputElem.value;
+            let siglum = wit ? wit : inputElem.value;
             let targetElem = document.getElementById(targetElemId);
-            if (siglum === "") {
-                return;
-            }
             for (let i = 0; i < targetElem.children.length; i++) {
                 if (targetElem.children[i].children[0].value === siglum) {
                     document.getElementById("filter-form-errors").innerHTML = "Siglum already added";
@@ -97,7 +95,26 @@
             let li = elem.parentElement;
             li.parentElement.removeChild(li);
         }
+        function addSigliFromUrl() {
+            let url = new URL(window.location.href);
+            let params = new URLSearchParams(url.search);
+            let allOf = params.getAll("all-of");
+            let anyOf = params.getAll("any-of");
+            let noneOf = params.getAll("none-of");
+            for (let siglum of allOf) {
+                addSiglum("allOfInput", "all-of", wit=siglum);
+            }
+            for (let siglum of anyOf) {
+                addSiglum("anyOfInput", "any-of", wit=siglum);
+            }
+            for (let siglum of noneOf) {
+                addSiglum("noneOfInput", "none-of", wit=siglum);
+            }
+        }
+        addSigliFromUrl()
     </script>
 </div>
 
-<div id="filtered-variants" class="bg-orange-100 dark:bg-cyan-1400 p-5 my-4 drop-shadow"></div>
+<div id="filtered-variants" class="bg-orange-100 dark:bg-cyan-1400 p-5 my-4 drop-shadow">
+    {% if load_filtered_variants %}{% include "collation/_filtered_variants.html" %}{% endif %}
+</div>
