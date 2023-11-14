@@ -29,7 +29,7 @@
                     <div class="relative inline-block text-left">
                         <div>
                             <button id="app-{{ app.pk }}" class="btn-left ml-2 my-1" type="button" 
-                                hx-get="{% url 'rdgs' collation_slug=collation.slug section_slugname=section.slugname ab_slugname=ab.slugname app_slugname=app.slugname %}"
+                                hx-get="{% url 'rdgs' collation_slug=ab.section.collation.slug section_slugname=ab.section.slugname ab_slugname=ab.slugname app_slugname=app.slugname %}"
                                 hx-push-url="true"
                                 hx-target="#readings"
                                 _="on mouseenter add .bg-orange-300 .dark:bg-cyan-800 to .bt-{{ app.pk }} end
