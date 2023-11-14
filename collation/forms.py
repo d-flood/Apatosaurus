@@ -104,7 +104,7 @@ class RdgForm(forms.ModelForm):
             'size': '10',
         })
     
-    rtype = forms.TimeField(
+    rtype = forms.CharField(
         widget=forms.TextInput(attrs={'list': 'rdg-types'}),
     )
 
