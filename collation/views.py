@@ -5,14 +5,12 @@ from django.views.decorators.http import require_http_methods, require_safe
 
 from render_block import render_block_to_string 
 
-from accounts.models import JobStatus
 from collation import forms
 from collation import models
-import collation
 from collation.py import helpers
-from collation.py import process_tei
 from collation.py import import_collation
-from CONFIG import settings
+from witnesses.py.sort_ga_witnesses import sort_ga_witnesses
+from collation.py.filter_apps import filter_variants_by_witnesses
 
 
 @login_required
@@ -98,6 +96,38 @@ def new_section(request: HttpRequest, collation_id: int):
             resp['HX-Trigger'] = 'refreshSections'
             return resp
         return render(request, 'collation/new_section.html', {'page': {'active': 'collation'}})
+
+
+@login_required
+@require_safe
+def analyze_collation(request: HttpRequest, collation_slug: str):
+    collation = models.Collation.objects.filter(user=request.user).get(slug=collation_slug)
+    witnesses = models.Witness.objects.filter(rdgs__app__ab__section__collation=collation).distinct().values_list('siglum', flat=True)
+    witnesses = sort_ga_witnesses(list(witnesses))
+    context = {
+        'page': {'active': 'collation'},
+        'selected_collation': collation,
+        'witnesses': witnesses,
+        'collation_list': True,
+        'analyze_collation': True,
+    }
+    if request.htmx: # type: ignore
+        return render(request, 'collation/_analyze.html', context)
+    else:
+        return render(request, 'collation/main.html', context)
+    
+
+@login_required
+@require_safe
+def filter_variants(request: HttpRequest, collation_slug: str):
+    result, message = forms.variant_filter_is_valid(request)
+    if not result:
+        resp = HttpResponse(message)
+        resp['HX-Retarget'] = '#filter-form-errors'
+        return resp
+    apps, total = filter_variants_by_witnesses(request, collation_slug)
+    context = {'apps': apps, 'total': total}
+    return render(request, 'collation/_filtered_variants.html', context)
 
 
 @login_required

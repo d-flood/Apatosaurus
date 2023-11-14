@@ -25,6 +25,8 @@
     <main id="main" class="mx-3 mb-auto w-full">
         {% if load_apparatus %}
             {% include "collation/_apparatus.html" %}
+        {% elif analyze_collation %}
+            {% include 'collation/_analyze.html' %}
         {% endif %}
     </main>
 </div>

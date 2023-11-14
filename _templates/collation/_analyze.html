@@ -1,0 +1,103 @@
+<div class="flex flex-col items-center">
+    <div class="flex flex-row items-center">
+        <!-- TODO <div id="analysis-note-container"></div> -->
+        <h2 class="text-4xl text-center my-12"><span class="italic">Filter Variation Units for</span> {{ selected_collation.name }}</h2>
+    </div>
+</div>
+
+<div class="bg-orange-100 dark:bg-cyan-1400 p-5 my-4 drop-shadow">
+    <form hx-get="{% url 'filter-variants' collation_slug=selected_collation.slug %}"
+          hx-target="#filtered-variants">
+        <legend class="text-xl text-center mb-2">Query Parameters</legend>
+        <div id="filter-form-errors" class="text-red-700 dark:text-red-500 font-bold"></div>
+        <div class="flex flex-row flex-wrap justify-around">
+
+            <div class="flex flex-col my-1">
+                <div class="flex flex-row justify-around">
+                    <label for="all-of" class="text-lg font-bold">All of</label>
+                    <span>
+                        <label for="only-these" class="ml-auto"><em class="underline">Only</em> these</label>
+                        <input type="checkbox" name="only-these" id="only-these">
+                    </span>
+                </div>
+                <ul id="all-of" class="border w-full p-1 h-48 overflow-y-scroll"></ul>
+                <div class="flex flex-row">
+                    <input id="allOfInput" type="text" list="witness-list">
+                    <button type="button" class="px-4 bg-orange-700 dark:bg-cyan-900 text-white font-semibold shadow-md hover:dark:bg-cyan-800 hover:bg-orange-500 focus:outline-none focus:ring-4 focus:dark:ring-gray-100 focus:ring-opacity-75 ring-orange-700 dark:ring-cyan-900 cursor-pointer"
+                        onclick="addSiglum('allOfInput', 'all-of')">
+                        Add
+                    </button>
+                </div>
+            </div>
+    
+            <div class="flex flex-col my-1">
+                <label for="any-of" class="text-lg font-bold text-center">Any (one or more) of</label>
+                <ul id="any-of" class="border w-full p-1 h-48 overflow-y-scroll"></ul>
+                <div class="flex flex-row">
+                    <input id="anyOfInput" type="text" list="witness-list">
+                    <button type="button" class="px-4 bg-orange-700 dark:bg-cyan-900 text-white font-semibold shadow-md hover:dark:bg-cyan-800 hover:bg-orange-500 focus:outline-none focus:ring-4 focus:dark:ring-gray-100 focus:ring-opacity-75 ring-orange-700 dark:ring-cyan-900 cursor-pointer"
+                        onclick="addSiglum('anyOfInput', 'any-of')">
+                        Add
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex flex-col my-1">
+                <label for="none-of" class="text-lg font-bold text-center">None of</label>
+                <ul id="none-of" class="border w-full p-1 h-48 overflow-y-scroll"></ul>
+                <div class="flex flex-row">
+                    <input id="noneOfInput" type="text" list="witness-list">
+                    <button type="button" class="px-4 bg-orange-700 dark:bg-cyan-900 text-white font-semibold shadow-md hover:dark:bg-cyan-800 hover:bg-orange-500 focus:outline-none focus:ring-4 focus:dark:ring-gray-100 focus:ring-opacity-75 ring-orange-700 dark:ring-cyan-900 cursor-pointer"
+                        onclick="addSiglum('noneOfInput', 'none-of')">
+                        Add
+                    </button>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="flex flex-row justify-center mt-5">
+            <button type="submit" class="btn place-self-center">Find Variants</button>
+        </div>
+
+        <datalist id="witness-list">
+            {% for wit in witnesses %}<option>{{ wit }}</option>{% endfor %}
+        </datalist>
+    </form>
+    <script>
+        function addSiglum(inputElemId, targetElemId) {
+            let inputElem = document.getElementById(inputElemId);
+            let siglum = inputElem.value;
+            let targetElem = document.getElementById(targetElemId);
+            if (siglum === "") {
+                return;
+            }
+            for (let i = 0; i < targetElem.children.length; i++) {
+                if (targetElem.children[i].children[0].value === siglum) {
+                    document.getElementById("filter-form-errors").innerHTML = "Siglum already added";
+                    return;
+                }
+            }
+            if (!document.getElementById("witness-list").innerHTML.includes(`<option>${siglum}</option>`)) {
+                // document.getElementById("filter-form-errors").innerHTML = "Siglum not found in collation";
+                return;
+            }
+            targetElem.innerHTML += `
+            <li>
+                <input class="cursor-default" type='text' value='${siglum}' name='${targetElemId}' readonly>
+                <button type="button" class="btn-danger p-1 rounded-full" title="Remove witness"
+                    onclick="removeWitness(this)">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/><path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/></svg>
+                </button>
+            </li>`;
+            document.getElementById("filter-form-errors").innerHTML = "";
+            inputElem.value = "";
+        }
+        function removeWitness(elem) {
+            let li = elem.parentElement;
+            li.parentElement.removeChild(li);
+        }
+    </script>
+</div>
+
+<div id="filtered-variants" class="bg-orange-100 dark:bg-cyan-1400 p-5 my-4 drop-shadow"></div>

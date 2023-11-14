@@ -1,0 +1,5 @@
+<h3 class="text-xl text-start">Variant Matches: {{ total }}</h3>
+<hr class="border-orange-700 my-2">
+{% for app in apps %}
+    <p>{{ app.ab.section.name }}; {{ app }}</p>
+{% endfor %}
