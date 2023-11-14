@@ -1,5 +1,13 @@
 <h3 class="text-xl text-start">Variant Matches: {{ total }}</h3>
 <hr class="border-orange-700 my-2">
 {% for app in apps %}
-    <p>{{ app.ab.section.name }}; {{ app }}</p>
+    <p>
+        {{ app.ab.section.name }}; 
+        <a 
+            href="{% url 'rdgs' collation_slug=selected_collation.slug section_slugname=app.ab.section.slugname ab_slugname=app.ab.slugname app_slugname=app.slugname %}"
+            class="normal-link"
+            target="_blank">
+            {{ app }} (new tab)
+        </a>
+    </p>
 {% endfor %}
