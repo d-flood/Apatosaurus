@@ -103,11 +103,13 @@ def new_section(request: HttpRequest, collation_id: int):
 def analyze_collation(request: HttpRequest, collation_slug: str):
     collation = models.Collation.objects.filter(user=request.user).get(slug=collation_slug)
     witnesses = models.Witness.objects.filter(rdgs__app__ab__section__collation=collation).distinct().values_list('siglum', flat=True)
+    rtypes = models.Rdg.objects.filter(app__ab__section__collation=collation).distinct().values_list('rtype', flat=True)
     witnesses = sort_ga_witnesses(list(witnesses))
     context = {
         'page': {'active': 'collation'},
         'selected_collation': collation,
         'witnesses': witnesses,
+        'rtypes': set(rtypes),
         'collation_list': True,
         'analyze_collation': True,
     }
@@ -122,10 +124,12 @@ def analyze_collation(request: HttpRequest, collation_slug: str):
 def filter_variants(request: HttpRequest, collation_slug: str):
     collation = models.Collation.objects.filter(user=request.user).get(slug=collation_slug)
     witnesses = models.Witness.objects.filter(rdgs__app__ab__section__collation=collation).distinct().values_list('siglum', flat=True)
+    rtypes = models.Rdg.objects.filter(app__ab__section__collation=collation).distinct().values_list('rtype', flat=True)
     context = {
         'page': {'active': 'collation'},
         'selected_collation': collation,
         'witnesses': witnesses,
+        'rtypes': set(rtypes),
         'collation_list': True,
         'analyze_collation': True,
         'load_filtered_variants': True,

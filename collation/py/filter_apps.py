@@ -1,6 +1,6 @@
 from multiprocessing.managers import BaseManager
 from pyexpat import model
-from django.db.models import Count, QuerySet
+from django.db.models import Count, QuerySet, Q
 from django.http import HttpRequest
 
 from collation import models
@@ -30,12 +30,21 @@ def apply_none_of(none_of: list[str], rdgs: QuerySet):
     return excluded_rdgs
 
 
+def filter_apps_by_rtype(ignore_rtypes: list[str], variants: QuerySet[models.App]):
+    "Filters out App objects if they contain only a single reading that is not in the ignore list."
+    
+    return variants.annotate(
+        num_exclude_rdgs=Count('rdgs', filter=~Q(rdgs__rtype__in=ignore_rtypes))
+    ).filter(num_exclude_rdgs__gte=2)
+
+
 def filter_variants_by_witnesses(request: HttpRequest, collation_slug: str):
     data = request.GET
     all_of = data.getlist('all-of')
     any_of = data.getlist('any-of')
     none_of = data.getlist('none-of')
     only_these = data.get('only-these')
+    ignore_rtypes = data.getlist('ignore-rtypes')
 
     collation = models.Collation.objects.filter(user=request.user).get(slug=collation_slug)
     rdgs = models.Rdg.objects.filter(app__ab__section__collation=collation)
@@ -51,6 +60,10 @@ def filter_variants_by_witnesses(request: HttpRequest, collation_slug: str):
         rdgs = apply_none_of(none_of, rdgs)
 
     variants = models.App.objects.filter(rdgs__in=rdgs).distinct()
+    if ignore_rtypes and ignore_rtypes != ['']:
+        print(f'Filtering out {ignore_rtypes} readings')
+        variants = filter_apps_by_rtype(ignore_rtypes, variants)
+        print(f'Filtered out {variants.count()} variants')
 
     return variants, variants.count()
     # TODO: Also have option to exclude Rdgs by type
