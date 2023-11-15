@@ -1,6 +1,4 @@
-from multiprocessing.managers import BaseManager
-from pyexpat import model
-from django.db.models import Count, QuerySet, Q
+from django.db.models import Count, QuerySet, Subquery, OuterRef
 from django.http import HttpRequest
 
 from collation import models
@@ -31,11 +29,22 @@ def apply_none_of(none_of: list[str], rdgs: QuerySet):
 
 
 def filter_apps_by_rtype(ignore_rtypes: list[str], variants: QuerySet[models.App]):
-    "Filters out App objects if they contain only a single reading that is not in the ignore list."
+    """Filters out App objects if they contain only a single reading that is not in the ignore list.
+    It does the equivalent of this (probably) less efficient query:
+    ```
+    for app in variants:
+        rdgs = app.rdgs.exclude(rtype__in=ignore_rtypes)
+        if rdgs.count() < 2:
+            variants = variants.exclude(pk=app.pk)
+    return variants
+    ```
+    """
     
-    return variants.annotate(
-        num_exclude_rdgs=Count('rdgs', filter=~Q(rdgs__rtype__in=ignore_rtypes))
-    ).filter(num_exclude_rdgs__gte=2)
+    rdgs_count = models.Rdg.objects.filter(app=OuterRef('pk')).exclude(rtype__in=ignore_rtypes).values('app').annotate(cnt=Count('pk')).values('cnt')
+    variants = variants.annotate(relevant_rdg_count=Subquery(rdgs_count))
+    variants = variants.filter(relevant_rdg_count__gte=2)
+
+    return variants
 
 
 def filter_variants_by_witnesses(request: HttpRequest, collation_slug: str):
@@ -59,14 +68,10 @@ def filter_variants_by_witnesses(request: HttpRequest, collation_slug: str):
     if none_of:
         rdgs = apply_none_of(none_of, rdgs)
 
-    variants = models.App.objects.filter(rdgs__in=rdgs).distinct()
+    variants = models.App.objects.filter(rdgs__in=rdgs)
     if ignore_rtypes and ignore_rtypes != ['']:
-        print(f'Filtering out {ignore_rtypes} readings')
         variants = filter_apps_by_rtype(ignore_rtypes, variants)
-        print(f'Filtered out {variants.count()} variants')
+
+    variants = variants.order_by('ab__number', 'index_from')
 
     return variants, variants.count()
-    # TODO: Also have option to exclude Rdgs by type
-
-
-
