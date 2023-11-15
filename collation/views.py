@@ -129,7 +129,7 @@ def filter_variants(request: HttpRequest, collation_slug: str):
         'page': {'active': 'collation'},
         'selected_collation': collation,
         'witnesses': witnesses,
-        'rtypes': set(rtypes),
+        'rtypes': sorted(set(rtypes)),
         'collation_list': True,
         'analyze_collation': True,
         'load_filtered_variants': True,
