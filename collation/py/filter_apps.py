@@ -72,6 +72,6 @@ def filter_variants_by_witnesses(request: HttpRequest, collation_slug: str):
     if ignore_rtypes and ignore_rtypes != ['']:
         variants = filter_apps_by_rtype(ignore_rtypes, variants)
 
-    variants = variants.order_by('ab__number', 'index_from')
+    variants = variants.order_by('ab__section__number', 'ab__number', 'index_from')
 
     return variants, variants.count()
