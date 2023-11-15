@@ -2,6 +2,8 @@ from django.db import models
 
 from markdown import markdown
 
+import published
+
 
 class AboutPage(models.Model):
     title = models.CharField(max_length=30)
@@ -9,6 +11,7 @@ class AboutPage(models.Model):
     markdown = models.TextField(blank=False)
     order = models.SmallIntegerField(default=0)
     html = models.TextField(blank=True)
+    published = models.BooleanField(default=True)
 
     def __str__(self):
         return self.title
