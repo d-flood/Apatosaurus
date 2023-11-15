@@ -1,15 +1,33 @@
+<div id="breadcrumbs" hx-swap-oob="true">
+    <nav class="m-2" aria-label="breadcrumbs">
+        <ol class="list-reset flex">
+            <li>
+                <a class="inline-flex underline hover:text-orange-700 hover:dark:text-cyan-500 rounded-md" 
+                    hx-get="{% url 'collation' %}" 
+                    hx-target="#sidebar-header"
+                    hx-push-url="true">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6 mr-2">
+                        <path fill-rule="evenodd" d="M9.53 2.47a.75.75 0 010 1.06L4.81 8.25H15a6.75 6.75 0 010 13.5h-3a.75.75 0 010-1.5h3a5.25 5.25 0 100-10.5H4.81l4.72 4.72a.75.75 0 11-1.06 1.06l-6-6a.75.75 0 010-1.06l6-6a.75.75 0 011.06 0z" clip-rule="evenodd" />
+                    </svg>
+                    Collations
+                </a>
+            </li>  
+        </ol>
+    </nav>
+</div>
 <h1 class="text-2xl text-center" style="margin-top: 5px;">
     {{ collation.name }}
 </h1>
 <hr class="my-4 border-orange-700 border-t-4">
 <ul role="list" id="section_list"
     hx-trigger="refreshSections from:body"
-    hx-get="{% url 'section-list' collation_id=collation.pk %}"
+    hx-get="{% url 'section-list' collation_slug=collation.slug %}"
     hx-target="#sidebar-header">
-    {% for section in sections %}
+    {% for section in collation.sections.all %}
         <li class="min-w-full my-2 flex flex-row">
             <a class="btn w-10/12"
-                hx-get="{% url 'ab-list' section_id=section.pk %}"
+                hx-get="{% url 'ab-list' collation_slug=section.collation.slug section_slugname=section.slugname %}"
+                hx-push-url="true"
                 hx-target="#sidebar-header">
                 {{ section.number }}{% if section.name %}: {{ section.name }}{% endif %}
             </a>
@@ -31,19 +49,3 @@
     </svg>
     New Section
 </button>
-
-<div id="breadcrumbs" hx-swap-oob="true">
-    <nav class="m-2" aria-label="breadcrumbs">
-        <ol class="list-reset flex">
-            <li>
-                <a class="inline-flex underline hover:text-orange-700 hover:dark:text-cyan-500 rounded-md" 
-                    hx-get="{% url 'collation-list' %}" hx-target="#sidebar-header">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6 mr-2">
-                        <path fill-rule="evenodd" d="M9.53 2.47a.75.75 0 010 1.06L4.81 8.25H15a6.75 6.75 0 010 13.5h-3a.75.75 0 010-1.5h3a5.25 5.25 0 100-10.5H4.81l4.72 4.72a.75.75 0 11-1.06 1.06l-6-6a.75.75 0 010-1.06l6-6a.75.75 0 011.06 0z" clip-rule="evenodd" />
-                    </svg>
-                    Collations
-                </a>
-            </li>  
-        </ol>
-    </nav>
-</div>

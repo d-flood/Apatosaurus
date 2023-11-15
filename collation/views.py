@@ -3,23 +3,24 @@ from django.shortcuts import render, redirect
 from django.http import HttpRequest, HttpResponse
 from django.views.decorators.http import require_http_methods, require_safe
 
-import boto3
 from render_block import render_block_to_string 
 
-from accounts.models import JobStatus
 from collation import forms
 from collation import models
 from collation.py import helpers
-from collation.py import process_tei
 from collation.py import import_collation
-from CONFIG import settings
+from witnesses.py.sort_ga_witnesses import sort_ga_witnesses
+from collation.py.filter_apps import filter_variants_by_witnesses
 
 
 @login_required
 @require_safe
-def main(request):
+def main(request: HttpRequest):
+    if request.htmx: # type: ignore
+        return collations(request)
     context = {
         'page': {'active': 'collation', 'title': 'Apatosaurus - Collation'},
+        'collation_list': True,
     }
     return render(request, 'collation/main.html', context)
 
@@ -47,7 +48,7 @@ def new_colation(request: HttpRequest):
 @login_required
 @require_http_methods(['GET', 'POST', 'DELETE'])
 def edit_collation(request: HttpRequest, collation_id: int):
-    collation = models.Collation.objects.get(pk=collation_id)
+    collation = models.Collation.objects.filter(user=request.user).get(pk=collation_id)
     if request.method == 'GET':
         form = forms.CollationForm(instance=collation)
         context = {
@@ -95,6 +96,59 @@ def new_section(request: HttpRequest, collation_id: int):
             resp['HX-Trigger'] = 'refreshSections'
             return resp
         return render(request, 'collation/new_section.html', {'page': {'active': 'collation'}})
+
+
+@login_required
+@require_safe
+def analyze_collation(request: HttpRequest, collation_slug: str):
+    collation = models.Collation.objects.filter(user=request.user).get(slug=collation_slug)
+    witnesses = models.Witness.objects.filter(rdgs__app__ab__section__collation=collation).distinct().values_list('siglum', flat=True)
+    rtypes = models.Rdg.objects.filter(app__ab__section__collation=collation).distinct().values_list('rtype', flat=True)
+    witnesses = sort_ga_witnesses(list(witnesses))
+    context = {
+        'page': {'active': 'collation'},
+        'selected_collation': collation,
+        'witnesses': witnesses,
+        'rtypes': sorted(set(rtypes)),
+        'collation_list': True,
+        'analyze_collation': True,
+    }
+    if request.htmx: # type: ignore
+        return render(request, 'collation/_analyze.html', context)
+    else:
+        return render(request, 'collation/main.html', context)
+    
+
+@login_required
+@require_safe
+def filter_variants(request: HttpRequest, collation_slug: str):
+    collation = models.Collation.objects.filter(user=request.user).get(slug=collation_slug)
+    witnesses = models.Witness.objects.filter(rdgs__app__ab__section__collation=collation).distinct().values_list('siglum', flat=True)
+    rtypes = models.Rdg.objects.filter(app__ab__section__collation=collation).distinct().values_list('rtype', flat=True)
+    context = {
+        'page': {'active': 'collation'},
+        'selected_collation': collation,
+        'witnesses': witnesses,
+        'rtypes': sorted(set(rtypes)),
+        'collation_list': True,
+        'analyze_collation': True,
+        'load_filtered_variants': True,
+    }
+    result, message = forms.variant_filter_is_valid(request)
+    if not result:
+        if request.htmx: # type: ignore
+            resp = HttpResponse(message)
+            resp['HX-Retarget'] = '#filter-form-errors'
+            return resp
+        else:
+            context['filter_form_errors'] = message
+            return render(request, 'collation/main.html', context)
+    apps, total = filter_variants_by_witnesses(request, collation_slug)
+    context.update({'apps': apps, 'total': total})
+    if request.htmx: # type: ignore
+        return render(request, 'collation/_filtered_variants.html', context)
+    else:
+        return render(request, 'collation/main.html', context)
 
 
 @login_required
@@ -206,7 +260,7 @@ def new_rdg(request: HttpRequest, app_pk: int):
                 'rdgs': app.rdgs.filter(witDetail=False),
                 'witDetails': app.rdgs.filter(witDetail=True),
             }
-            return render(request, 'collation/rdgs_table.html', context)
+            return render(request, 'collation/_rdgs_table.html', context)
         context = {
             'form': form,
             'app_pk': app_pk,
@@ -242,7 +296,7 @@ def edit_rdg(request: HttpRequest, rdg_pk: int):
                 'rdgs': app.rdgs.filter(witDetail=False),
                 'witDetails': app.rdgs.filter(witDetail=True),
             }
-            return render(request, 'collation/rdgs_table.html', context)
+            return render(request, 'collation/_rdgs_table.html', context)
         context = {
             'form': form,
             'rdg': rdg,
@@ -260,7 +314,7 @@ def edit_rdg(request: HttpRequest, rdg_pk: int):
                 'rdgs': app.rdgs.filter(witDetail=False),
                 'witDetails': app.rdgs.filter(witDetail=True),
             }
-        return render(request, 'collation/rdgs_table.html', context)
+        return render(request, 'collation/_rdgs_table.html', context)
 
 
 def cancel_new_rdg(request: HttpRequest, app_pk: int):
@@ -272,17 +326,21 @@ def cancel_new_rdg(request: HttpRequest, app_pk: int):
                 'rdgs': app.rdgs.filter(witDetail=False),
                 'witDetails': app.rdgs.filter(witDetail=True),
             }
-    return render(request, 'collation/rdgs_table.html', context)
+    return render(request, 'collation/_rdgs_table.html', context)
 
 
 @login_required
-def sections(request: HttpRequest, collation_id: int):
+def sections(request: HttpRequest, collation_slug: str):
+    collation = models.Collation.objects.filter(user=request.user).get(slug=collation_slug)
     context = {
         'page': {'active': 'collation'},
-        'sections': models.Section.objects.filter(collation__id=collation_id),
-        'collation': models.Collation.objects.get(id=collation_id)
+        'collation': collation,
+        'section_list': True,
     }
-    return render(request, 'collation/sections.html', context)
+    if request.htmx: # type: ignore
+        return render(request, 'collation/_sections.html', context)
+    else:
+        return render(request, 'collation/main.html', context)
 
 
 @login_required
@@ -295,24 +353,39 @@ def collations(request: HttpRequest):
 
 
 @login_required
-def abs(request: HttpRequest, section_id: int):
+def abs(request: HttpRequest, collation_slug: str, section_slugname: str):
+    collation = models.Collation.objects.filter(user=request.user).get(slug=collation_slug)
+    section = collation.sections.get(slugname=section_slugname) # type: ignore
     context = {
         'page': {'active': 'collation'},
-        'abs': models.Ab.objects.filter(section__id=section_id),
-        'section': models.Section.objects.get(id=section_id)
+        'abs': section.abs.all(),
+        'section': section,
+        'ab_list': True,
     }
-    return render(request, 'collation/abs.html', context)
+    if request.htmx: # type: ignore
+        return render(request, 'collation/_abs.html', context)
+    else:
+        return render(request, 'collation/main.html', context)
 
 
 @login_required
 @require_safe
-def apparatus(request: HttpRequest, ab_pk: int):
-    ab = models.Ab.objects.get(pk=ab_pk)
+def apparatus(request: HttpRequest, collation_slug: str, section_slugname: str, ab_slugname: str):
+    collation = models.Collation.objects.filter(user=request.user).get(slug=collation_slug)
+    section = collation.sections.get(slugname=section_slugname) # type: ignore
+    ab = section.abs.get(slugname=ab_slugname) # type: ignore
     context = {
         'page': {'active': 'collation'},
+        'collation': collation,
+        'section': section,
         'ab': ab,
+        'ab_list': True,
+        'load_apparatus': True,
     }
-    return render(request, 'collation/apparatus.html', context)
+    if request.htmx: # type: ignore
+        return render(request, 'collation/_apparatus.html', context)
+    else:
+        return render(request, 'collation/main.html', context)
 
 
 @login_required
@@ -335,7 +408,7 @@ def edit_app(request: HttpRequest, ab_pk: int, app_pk: int):
         if form.is_valid():
             app = form.save(ab_pk)
             app.ab.save() # calling save() on the ab will update the basetext indexing
-            app_buttons = render_block_to_string('collation/apparatus.html', 'app_buttons', {'ab': models.Ab.objects.get(pk=ab_pk)})
+            app_buttons = render_block_to_string('collation/_apparatus.html', 'app_buttons', {'ab': models.Ab.objects.get(pk=ab_pk)})
             resp = HttpResponse(app_buttons)
             resp['HX-Trigger'] = 'refreshBasetext'
             return resp
@@ -352,36 +425,51 @@ def edit_app(request: HttpRequest, ab_pk: int, app_pk: int):
         ab = app.ab
         app.delete()
         ab.save()
-        app_buttons = render_block_to_string('collation/apparatus.html', 'app_buttons', {'ab': models.Ab.objects.get(pk=ab_pk)})
+        app_buttons = render_block_to_string('collation/_apparatus.html', 'app_buttons', {'ab': models.Ab.objects.get(pk=ab_pk)})
         resp = HttpResponse(app_buttons)
         resp['HX-Trigger'] = 'refreshBasetext'
         return resp
 
 
 def cancel_edit_app(request: HttpRequest, ab_pk: int):
-    app_buttons = render_block_to_string('collation/apparatus.html', 'app_buttons', {'ab': models.Ab.objects.get(pk=ab_pk)})
+    app_buttons = render_block_to_string('collation/_apparatus.html', 'app_buttons', {'ab': models.Ab.objects.get(pk=ab_pk)})
     return HttpResponse(app_buttons)
 
 
 @login_required
 @require_safe
-def rdgs(request: HttpRequest, app_pk: int):
-    app = models.App.objects.get(pk=app_pk)
+def rdgs(request: HttpRequest, collation_slug: str, section_slugname: str, ab_slugname: str, app_slugname: str):
+    collation = models.Collation.objects.filter(user=request.user).get(slug=collation_slug)
+    section = collation.sections.get(slugname=section_slugname) # type: ignore
+    ab = section.abs.get(slugname=ab_slugname) # type: ignore
+    app = ab.apps.get(slugname=app_slugname) # type: ignore
     context = {
+        'page': {'active': 'collation'},
+        'collation': collation,
+        'section': section,
+        'ab': ab,
         'app': app,
         'rdgs': app.rdgs.filter(witDetail=False),
         'witDetails': app.rdgs.filter(witDetail=True),
-        'arc_form': forms.ArcForm(models.App.objects.get(pk=app_pk)),
+        'arc_form': forms.ArcForm(app),
         'local_stemma': helpers.make_graph(app),
+        'ab_list': True,
+        'load_apparatus': True,
+        'load_rdgs': True,
     }
-    return render(request, 'collation/rdgs_table.html', context)
+    if request.htmx: # type: ignore
+        return render(request, 'collation/_rdgs_table.html', context)
+    else:
+        context['browser_load'] = 'true'
+        return render(request, 'collation/main.html', context)
+    
 
 
 @login_required
 @require_safe
 def refresh_basetext(request: HttpRequest, ab_pk: int):
     ab = models.Ab.objects.get(pk=ab_pk)
-    basetext_row = render_block_to_string('collation/apparatus.html', 'basetext_row', {'ab': ab})
+    basetext_row = render_block_to_string('collation/_apparatus.html', 'basetext_row', {'ab': ab})
     return HttpResponse(basetext_row)
 
 
@@ -451,7 +539,7 @@ def download_tei_section(request: HttpRequest, section_pk: int):
 @login_required
 @require_safe
 def download_tei_collation(request: HttpRequest, collation_pk: int):
-    collation = models.Collation.objects.get(pk=collation_pk)
+    collation = models.Collation.objects.filter(user=request.user).get(pk=collation_pk)
     tei = collation.as_tei()
     response = HttpResponse(tei, content_type='text/xml')
     response['Content-Disposition'] = f'attachment; filename={collation.name}.xml'
@@ -516,7 +604,7 @@ def restore_rdg(request: HttpRequest, rdg_pk: int, history_pk: int):
         'rdgs': app.rdgs.filter(witDetail=False),
         'witDetails': app.rdgs.filter(witDetail=True),
     }
-    return render(request, 'collation/rdgs_table.html', context)
+    return render(request, 'collation/_rdgs_table.html', context)
 
 
 @login_required

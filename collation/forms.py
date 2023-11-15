@@ -1,4 +1,7 @@
 from django import forms
+from django.http import HttpRequest, QueryDict
+# from django.db.models import BaseManager
+from django.db.models import Q, Count
 from django.urls import reverse
 from django.contrib.auth import get_user_model
 from django.db.utils import IntegrityError
@@ -183,3 +186,13 @@ class TeiCollationFileForm(forms.Form):
         return tei_file
         # except et.XMLSyntaxError as e:
         #     raise forms.ValidationError('Uploaded file is not valid XML') from e
+
+
+def variant_filter_is_valid(request: HttpRequest) -> tuple[bool, str]:
+    data = request.GET
+    if all([not data.getlist('all-of'), not data.getlist('any-of'), not data.getlist('none-of')]):
+        return False, 'You must enter a witness in at least one of "All of", "Any of", or "None of"'
+    elif data.get('only-these') and not data.get('all-of'):
+        return False, 'You must enter a witness in "All of" if you select "Only these"'
+    return True, ''
+    

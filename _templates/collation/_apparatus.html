@@ -29,7 +29,8 @@
                     <div class="relative inline-block text-left">
                         <div>
                             <button id="app-{{ app.pk }}" class="btn-left ml-2 my-1" type="button" 
-                                hx-get="{% url 'rdgs' app_pk=app.pk %}" 
+                                hx-get="{% url 'rdgs' collation_slug=ab.section.collation.slug section_slugname=ab.section.slugname ab_slugname=ab.slugname app_slugname=app.slugname %}"
+                                hx-push-url="true"
                                 hx-target="#readings"
                                 _="on mouseenter add .bg-orange-300 .dark:bg-cyan-800 to .bt-{{ app.pk }} end
                                 on mouseleave remove .bg-orange-300 .dark:bg-cyan-800 from .bt-{{ app.pk }} end
@@ -100,11 +101,13 @@
                         <th scope="row" class="px-2">Basetext<br>Index</th>
                         {% for word in ab.indexed_basetext %}
                             {% if word.is_variant %}
-                                <td class="font-greek font-semibold text-center bt-{{ word.app_pk }} px-2 border-b-2 border-b-orange-700 cursor-pointer" tabindex="0" hx-get="{% url 'rdgs' app_pk=word.app_pk %}" hx-target="#readings"
-                                _="on mouseenter add .bg-orange-300 .dark:bg-cyan-800 to .bt-{{ word.app_pk }} then add .bg-orange-400 .dark:bg-cyan-800 to #app-{{ word.app_pk }} end
-                                on mouseleave remove .bg-orange-300 .dark:bg-cyan-800 from .bt-{{ word.app_pk }} then remove .bg-orange-400 .dark:bg-cyan-800 from #app-{{ word.app_pk }} end
-                                on click remove .selected from <td/> then add .selected to .bt-{{ word.app_pk }} 
-                                then remove .selected from .app-button then add .selected to #app-{{ word.app_pk }}">
+                                <td class="font-greek font-semibold text-center bt-{{ word.app_pk }} px-2 border-b-2 border-b-orange-700 cursor-pointer" tabindex="0" 
+                                    _="on load if '{{ browser_load }}' == 'true' then if '{{ app.pk }}' == '{{ word.app_pk }}' add .selected to me end end
+                                    on mouseenter add .bg-orange-300 .dark:bg-cyan-800 to .bt-{{ word.app_pk }} then add .bg-orange-400 .dark:bg-cyan-800 to #app-{{ word.app_pk }} end
+                                    on mouseleave remove .bg-orange-300 .dark:bg-cyan-800 from .bt-{{ word.app_pk }} then remove .bg-orange-400 .dark:bg-cyan-800 from #app-{{ word.app_pk }} end
+                                    on click remove .selected from <td/> then add .selected to .bt-{{ word.app_pk }} 
+                                    then remove .selected from .app-button then add .selected to #app-{{ word.app_pk }}
+                                    then send click to #app-{{ word.app_pk }} end">
                                     {{ word.word }}<br>{{ word.index }}
                                 </td>
                             {% else %}
@@ -115,13 +118,16 @@
                         {% endfor %}
                     </tr>
                 {% endblock basetext_row %}
-        
             </tbody>
         </table>
     </div>
 </div>
 
-<div id="readings" class="bg-orange-100 border-orange-100 dark:bg-cyan-1400 dark:border-darknav pb-10 pt-5 my-4 drop-shadow"></div>
+<div id="readings" class="bg-orange-100 border-orange-100 dark:bg-cyan-1400 dark:border-darknav pb-10 pt-5 my-4 drop-shadow">
+    {% if load_rdgs %}
+        {% include "collation/_rdgs_table.html" %}
+    {% endif %}
+</div>
 <div>
     <dialog class="reading-note absolute z-20 p-0 text-black bg-white dark:text-white dark:bg-cyan-1100 rounded-md" id="rdg-history-dialog"></dialog>
 </div>
