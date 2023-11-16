@@ -20,9 +20,11 @@
                         <div class="med-prose lg:big-prose p-2">
                             {{ block.html|safe }}
                         </div>
-                        <div class="mx-auto my-auto overflow-y-hidden">
-                            <img loading="lazy" src="{{ block.image.url }}" aria-hidden="true" class="h-full object-scale-down rounded-md overflow-y-hidden">
-                        </div>
+                        {% if block.image %}
+                            <div class="mx-auto my-auto overflow-y-hidden">
+                                <img loading="lazy" src="{{ block.image.url }}" aria-hidden="true" class="h-full object-scale-down rounded-md overflow-y-hidden">
+                            </div>
+                        {% endif %}
                         {% if not forloop.first %}
                             <div class="absolute bottom-8">
                                 <button type="button" tabindex="-1"

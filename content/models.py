@@ -32,7 +32,7 @@ class AboutPage(models.Model):
         ordering = ('order',)
 
 class ImageBlock(models.Model):
-    image = models.ImageField(upload_to='content/about/images/', blank=False)
+    image = models.ImageField(upload_to='content/about/images/', blank=True, null=True)
     markdown = models.TextField(blank=False)
     html = models.TextField(blank=True)
     order = models.SmallIntegerField(default=0)
