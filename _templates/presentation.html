@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block content %}
+    <main id="main" class="w-full">
+        <div class="prose color-prose bg-orange-50 dark:bg-cyan-1300 py-4">
+            <h2 class="text-4xl text-center font-bold">
+                {{ about_page.title }}
+            </h2>
+            <div class="prose color-prose mx-auto max-w-2xl">
+                {{ about_page.html|safe }}
+            </div>
+            <button type="button" class="text-xl p-0 bg-transparent text-black dark:text-white font-semibold rounded-md shadow-md hover:dark:bg-gray-600 hover:bg-gray-300 focus:outline-none focus:ring-4 focus:dark:ring-gray-100 focus:ring-opacity-75 cursor-pointer"
+                _="on click go to the top of the next <section/> smoothly end"
+                title="Go to first slide" aria-label="Go to first slide">
+                🔽 Go to first slide
+            </button>
+            <div id="image-blocks" class="grid grid-cols-1">
+                {% for block in about_page.blocks.all %}
+                    <section class="bg-orange-200 border border-orange-700 dark:bg-cyan-1000 my-2 flex flex-col rounded-md drop-shadow-xl w-full h-screen">
+                        <div class="med-prose lg:big-prose p-2">
+                            {{ block.html|safe }}
+                        </div>
+                        <div class="mx-auto my-auto overflow-y-hidden">
+                            <img loading="lazy" src="{{ block.image.url }}" aria-hidden="true" class="h-full object-scale-down rounded-md overflow-y-hidden">
+                        </div>
+                        {% if not forloop.first %}
+                            <div class="absolute bottom-8">
+                                <button type="button" tabindex="-1"
+                                    class="text-3xl p-0 bg-transparent text-black dark:text-white font-semibold rounded-md shadow-md hover:dark:bg-gray-600 hover:bg-gray-300 focus:outline-none focus:ring-4 focus:dark:ring-gray-100 focus:ring-opacity-75 cursor-pointer"
+                                    _="on click go to the top of the previous <section/> smoothly end"
+                                    title="Go to previous slide" aria-label="Go to previous slide">
+                                    🔼
+                                </button>
+                            </div>
+                        {% endif %}
+                        {% if not forloop.last %}
+                            <div class="absolute bottom-0">
+                                <button type="button" class="text-3xl p-0 bg-transparent text-black dark:text-white font-semibold rounded-md shadow-md hover:dark:bg-gray-600 hover:bg-gray-300 focus:outline-none focus:ring-4 focus:dark:ring-gray-100 focus:ring-opacity-75 cursor-pointer"
+                                    _="on click go to the top of the next <section/> smoothly end
+                                       on focus go to the closest parent <section/> end"
+                                    title="Go to next slide" aria-label="Go to next slide">
+                                    🔽
+                                </button>
+                            </div>
+                        {% endif %}
+                    </section>
+                {% endfor %}
+            </div>
+        </div>
+    </main>
+{% endblock %}

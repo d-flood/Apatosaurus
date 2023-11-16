@@ -54,13 +54,25 @@
     .prose>h3 {
         @apply text-2xl text-center;
     }
-    .prose>ul {
+    .big-prose>h3 {
+        @apply text-7xl text-center mb-2 border-b-2 border-orange-700;
+    }
+    .med-prose>h3 {
+        @apply text-5xl text-center mb-2 border-b-2 border-orange-700;
+    }
+    .big-prose>p, .big-prose>ol, .big-prose>ul {
+        @apply text-5xl mt-10;
+    }
+    .med-prose>p, .med-prose>ol, .med-prose>ul {
+        @apply text-xl mt-10;
+    }
+    .prose>ul, .big-prose>ul, .med-prose>ul {
         @apply list-disc;
     }
-    .prose>ol {
+    .prose>ol, .big-prose>ol, .med-prose>ol {
         @apply list-decimal;
     }
-    .prose>ol>li, .prose>ul>li {
+    .prose>ol>li, .prose>ul>li, .big-prose>ol>li, .big-prose>ul>li, .med-prose>ol>li, .med-prose>ul>li {
         @apply ml-8;
     }
     .prose>a, .prose>*>a, .prose>*>*>a {
