@@ -8,7 +8,9 @@
 <div class="bg-orange-100 dark:bg-cyan-1400 p-5 my-4 drop-shadow">
     <form hx-get="{% url 'filter-variants' collation_slug=selected_collation.slug %}"
           hx-target="#filtered-variants"
-          hx-push-url="true">
+          hx-push-url="true"
+          autocomplete="off"
+          aria-autocomplete="none">
         <legend class="text-xl text-center mb-2">Query Parameters</legend>
         <div id="filter-form-errors" class="text-red-700 dark:text-red-500 font-bold">{{ filter_form_errors }}</div>
         <div class="flex flex-row flex-wrap justify-around">
@@ -18,12 +20,12 @@
                     <label for="all-of" class="text-lg font-bold">All of</label>
                     <span>
                         <label for="only-these" class="ml-auto"><em class="underline">Only</em> these</label>
-                        <input type="checkbox" name="only-these" id="only-these">
+                        <input autocomplete="off" aria-autocomplete="none" type="checkbox" name="only-these" id="only-these">
                     </span>
                 </div>
                 <ul id="all-of" class="border w-full p-1 h-48 overflow-y-scroll"></ul>
                 <div class="flex flex-row">
-                    <input id="allOfInput" type="text" list="witness-list"
+                    <input autocomplete="off" aria-autocomplete="none" id="allOfInput" type="text" list="witness-list"
                         _="on keyup[key is 'Enter'] send click to the next <button/> end">
                     <button type="button" class="px-4 bg-orange-700 dark:bg-cyan-900 text-white font-semibold shadow-md hover:dark:bg-cyan-800 hover:bg-orange-500 focus:outline-none focus:ring-4 focus:dark:ring-gray-100 focus:ring-opacity-75 ring-orange-700 dark:ring-cyan-900 cursor-pointer"
                         onclick="addSiglum('allOfInput', 'all-of')">
@@ -36,7 +38,7 @@
                 <label for="any-of" class="text-lg font-bold text-center">Any (one or more) of</label>
                 <ul id="any-of" class="border w-full p-1 h-48 overflow-y-scroll"></ul>
                 <div class="flex flex-row">
-                    <input id="anyOfInput" type="text" list="witness-list"
+                    <input autocomplete="off" aria-autocomplete="none" id="anyOfInput" type="text" list="witness-list"
                         _="on keyup[key is 'Enter'] send click to the next <button/> end">
                     <button type="button" class="px-4 bg-orange-700 dark:bg-cyan-900 text-white font-semibold shadow-md hover:dark:bg-cyan-800 hover:bg-orange-500 focus:outline-none focus:ring-4 focus:dark:ring-gray-100 focus:ring-opacity-75 ring-orange-700 dark:ring-cyan-900 cursor-pointer"
                         onclick="addSiglum('anyOfInput', 'any-of')">
