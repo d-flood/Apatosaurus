@@ -6,12 +6,17 @@ import published
 
 
 class AboutPage(models.Model):
+    PAGE_CHOICES = (
+        ('normal', 'Normal'),
+        ('presentation', 'Presentation'),
+    )
     title = models.CharField(max_length=30)
     slug = models.SlugField(unique=True)
     markdown = models.TextField(blank=False)
     order = models.SmallIntegerField(default=0)
     html = models.TextField(blank=True)
     published = models.BooleanField(default=True)
+    page_type = models.CharField(max_length=20, choices=PAGE_CHOICES, default='normal')
 
     def __str__(self):
         return self.title
