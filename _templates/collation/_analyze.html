@@ -1,7 +1,7 @@
 <div class="flex flex-col items-center">
     <div class="flex flex-row items-center">
         <!-- TODO <div id="analysis-note-container"></div> -->
-        <h2 class="text-4xl text-center my-12"><span class="italic">Filter Variation Units for</span> {{ selected_collation.name }}</h2>
+        <h2 class="text-4xl text-center my-12"><span class="italic">Witness Queries for</span> {{ selected_collation.name }}</h2>
     </div>
 </div>
 
@@ -11,7 +11,7 @@
           hx-push-url="true"
           autocomplete="off"
           aria-autocomplete="none">
-        <legend class="text-xl text-center mb-2">Query Parameters</legend>
+        <legend class="text-xl text-center mb-2 sr-only">Witiness Query Parameters</legend>
         <div id="filter-form-errors" class="text-red-700 dark:text-red-500 font-bold">{{ filter_form_errors }}</div>
         <div class="flex flex-row flex-wrap justify-around">
 
