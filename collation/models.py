@@ -108,6 +108,7 @@ class Ab(models.Model):
     indexed_basetext = models.JSONField(null=True, blank=True, default=list)
     note = models.TextField(null=True, blank=True)
     slugname = models.CharField(max_length=64, null=True, blank=True)
+    right_to_left = models.BooleanField(default=False)
 
     def as_element(self):
         ab = et.Element('ab') #type: ignore
@@ -139,6 +140,8 @@ class Ab(models.Model):
                     indexed_basetext.append({'word': word, 'index': index, 'is_variant': False, 'app_pk': None})
         else:
             indexed_basetext = [{'word': word, 'index': i*2, 'is_variant': False, 'app_pk': None} for i, word in enumerate(self.basetext.split(), start=1)]
+        if self.right_to_left:
+            indexed_basetext.reverse()
         self.indexed_basetext = indexed_basetext
         
     def save(self, *args, **kwargs):
@@ -216,6 +219,8 @@ class App(models.Model):
                 for word in self.ab.indexed_basetext:
                     if self.index_from <= word['index'] <= self.index_to:
                         words.append(word['word'])
+                if self.ab.right_to_left:
+                    words = words[::-1]
                 Rdg(app=self, name='a', varSeq=1, rtype='-', text=' '.join(words)).save()
         super().save(*args, **kwargs)
 
