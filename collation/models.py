@@ -1,6 +1,6 @@
 from django.template.defaultfilters import slugify
 from django.db import models
-from django.db.models.query import QuerySet
+from django.db.models import Count, OuterRef, Subquery, Q, QuerySet
 from django.contrib.auth import get_user_model
 
 from lxml import etree as et
@@ -110,11 +110,12 @@ class Ab(models.Model):
     slugname = models.CharField(max_length=64, null=True, blank=True)
     right_to_left = models.BooleanField(default=False)
 
-    def as_element(self):
+    def as_element(self, ignore_rdg_types: list[str] = []):
         ab = et.Element('ab') #type: ignore
         ab.set(f'{XML_NS}id', self.name.replace(':', '.').replace(' ', '_'))
         ab.text = self.basetext
-        for app in self.apps.all():
+        apps = filter_apps_by_rtype(ignore_rdg_types, self.apps.all()) if ignore_rdg_types else self.apps.all()
+        for app in apps:
             ab.append(app.as_element())
         return ab
 
@@ -223,6 +224,25 @@ class App(models.Model):
                     words = words[::-1]
                 Rdg(app=self, name='a', varSeq=1, rtype='-', text=' '.join(words)).save()
         super().save(*args, **kwargs)
+
+
+def filter_apps_by_rtype(ignore_rtypes: list[str], variants: QuerySet[App]):
+    """Filters out App objects if they contain only a single reading that is not in the ignore list.
+    It does the equivalent of this (probably) less efficient query:
+    ```
+    for app in variants:
+        rdgs = app.rdgs.exclude(rtype__in=ignore_rtypes)
+        if rdgs.count() < 2:
+            variants = variants.exclude(pk=app.pk)
+    return variants
+    ```
+    """
+    
+    rdgs_count = Rdg.objects.filter(app=OuterRef('pk')).exclude(rtype__in=ignore_rtypes).values('app').annotate(cnt=Count('pk')).values('cnt')
+    variants = variants.annotate(relevant_rdg_count=Subquery(rdgs_count))
+    variants = variants.filter(relevant_rdg_count__gte=2)
+
+    return variants
 
 
 class Rdg(models.Model):
