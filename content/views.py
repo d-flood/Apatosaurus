@@ -27,4 +27,7 @@ def index(request: HttpRequest, slug: str = '') -> HttpResponse:
         'about_active': slug,
         'pages': AboutPage.objects.all(),
     }
-    return render(request, 'about.html', context)
+    template = 'about.html' if about_page.page_type == 'normal' else 'presentation.html'
+    return render(request, template, context)
+
+

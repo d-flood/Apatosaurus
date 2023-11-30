@@ -1,6 +1,6 @@
 from django.template.defaultfilters import slugify
 from django.db import models
-from django.db.models.query import QuerySet
+from django.db.models import Count, OuterRef, Subquery, Q, QuerySet
 from django.contrib.auth import get_user_model
 
 from lxml import etree as et
@@ -47,7 +47,7 @@ class Collation(models.Model):
             for ab in section.ab_elements():
                 tei_root.append(ab)
         wits = add_tei_header(tei_root)
-        return et.tostring(tei_root, encoding='unicode', pretty_print=True)
+        return et.tostring(tei_root, encoding='unicode', pretty_print=True) #type: ignore
 
     def __str__(self):
         return f'{self.user} - {self.name}'
@@ -78,7 +78,7 @@ class Section(models.Model):
         for ab in self.ab_elements():
             tei_root.append(ab)
         wits = add_tei_header(tei_root)
-        return et.tostring(tei_root, encoding='unicode', pretty_print=True)
+        return et.tostring(tei_root, encoding='unicode', pretty_print=True) #type: ignore
 
     def all_app_labels(self):
         apps: list[str] = []
@@ -108,12 +108,14 @@ class Ab(models.Model):
     indexed_basetext = models.JSONField(null=True, blank=True, default=list)
     note = models.TextField(null=True, blank=True)
     slugname = models.CharField(max_length=64, null=True, blank=True)
+    right_to_left = models.BooleanField(default=False)
 
-    def as_element(self):
-        ab = et.Element('ab')
+    def as_element(self, ignore_rdg_types: list[str] = []):
+        ab = et.Element('ab') #type: ignore
         ab.set(f'{XML_NS}id', self.name.replace(':', '.').replace(' ', '_'))
         ab.text = self.basetext
-        for app in self.apps.all():
+        apps = filter_apps_by_rtype(ignore_rdg_types, self.apps.all()) if ignore_rdg_types else self.apps.all()
+        for app in apps:
             ab.append(app.as_element())
         return ab
 
@@ -121,7 +123,7 @@ class Ab(models.Model):
         tei_root = et.Element('TEI', nsmap={None: TEI_NS_STR, 'xml': XML_NS_STR}) #type: ignore
         tei_root.append(self.as_element())
         add_tei_header(tei_root)
-        return et.tostring(tei_root, encoding='unicode', pretty_print=True)
+        return et.tostring(tei_root, encoding='unicode', pretty_print=True) #type: ignore
 
     def set_indexed_basetext(self):
         self.apps: QuerySet[App]
@@ -139,6 +141,8 @@ class Ab(models.Model):
                     indexed_basetext.append({'word': word, 'index': index, 'is_variant': False, 'app_pk': None})
         else:
             indexed_basetext = [{'word': word, 'index': i*2, 'is_variant': False, 'app_pk': None} for i, word in enumerate(self.basetext.split(), start=1)]
+        if self.right_to_left:
+            indexed_basetext.reverse()
         self.indexed_basetext = indexed_basetext
         
     def save(self, *args, **kwargs):
@@ -186,10 +190,10 @@ class App(models.Model):
         graph = et.Element('graph', {'type': 'directed'}, nsmap={None: TEI_NS_STR, 'xml': XML_NS_STR}) #type: ignore
         for rdg in self.rdgs.filter(witDetail=False):
             app.append(rdg.as_element())
-            graph.append(et.Element('node', {'n': rdg.name}))
+            graph.append(et.Element('node', {'n': rdg.name})) #type: ignore
         for wit_detail in self.rdgs.filter(witDetail=True):
             app.append(wit_detail.as_element())
-            graph.append(et.Element('node', {'n': wit_detail.name}))
+            graph.append(et.Element('node', {'n': wit_detail.name}))    #type: ignore
         note = et.Element('note', nsmap={None: TEI_NS_STR, 'xml': XML_NS_STR}) #type: ignore
         fs = et.Element('fs', nsmap={None: TEI_NS_STR, 'xml': XML_NS_STR}) #type: ignore
         f = et.Element('f', nsmap={None: TEI_NS_STR, 'xml': XML_NS_STR}) #type: ignore
@@ -216,8 +220,29 @@ class App(models.Model):
                 for word in self.ab.indexed_basetext:
                     if self.index_from <= word['index'] <= self.index_to:
                         words.append(word['word'])
+                if self.ab.right_to_left:
+                    words = words[::-1]
                 Rdg(app=self, name='a', varSeq=1, rtype='-', text=' '.join(words)).save()
         super().save(*args, **kwargs)
+
+
+def filter_apps_by_rtype(ignore_rtypes: list[str], variants: QuerySet[App]):
+    """Filters out App objects if they contain only a single reading that is not in the ignore list.
+    It does the equivalent of this (probably) less efficient query:
+    ```
+    for app in variants:
+        rdgs = app.rdgs.exclude(rtype__in=ignore_rtypes)
+        if rdgs.count() < 2:
+            variants = variants.exclude(pk=app.pk)
+    return variants
+    ```
+    """
+    
+    rdgs_count = Rdg.objects.filter(app=OuterRef('pk')).exclude(rtype__in=ignore_rtypes).values('app').annotate(cnt=Count('pk')).values('cnt')
+    variants = variants.annotate(relevant_rdg_count=Subquery(rdgs_count))
+    variants = variants.filter(relevant_rdg_count__gte=2)
+
+    return variants
 
 
 class Rdg(models.Model):
