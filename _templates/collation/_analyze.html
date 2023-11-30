@@ -65,13 +65,7 @@
         <div class="flex flex-row justify-around mt-5">
             <button type="submit" class="btn place-self-center">Find Variants</button>
             <div class="flex flex-col">
-                <label for="rtype-select">Exclude variants that involve only the selected reading types</label>
-                <select id="rtype-select" name="ignore-rtypes" multiple size="5">
-                    <option value=""></option>
-                    {% for rtype in rtypes %}
-                        <option value="{{ rtype }}">{{ rtype }}</option>
-                    {% endfor %}
-                </select>
+                {% include 'collation/_exclude_rypes.html' %}
             </div>
         </div>
 
