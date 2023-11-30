@@ -24,8 +24,8 @@ urls = [
     path('collation_slug/section_slug/<int:ab_pk>/download-tei/', views.download_tei_ab, name='download-tei-ab'),
 
     path('<slug:collation_slug>/<str:section_slugname>/<str:ab_slugname>/apparatus/', views.apparatus, name='apparatus'),
-    path('collation_slug/section_slug/<int:ab_pk>/basetext/', views.refresh_basetext, name='refresh-basetext'),#!
-    path('collation_slug/section_slug/<int:ab_pk>/cancel-edit-app/', views.cancel_edit_app, name='cancel-edit-app'),#!
+    path('collation_slug/section_slug/<int:ab_pk>/basetext/', views.refresh_basetext, name='refresh-basetext'),
+    path('collation_slug/section_slug/<int:ab_pk>/cancel-edit-app/', views.cancel_edit_app, name='cancel-edit-app'),
     path('collation_slug/section_slug/<int:ab_pk>/<int:app_pk>/edit/', views.edit_app, name='edit-app'),
 
     path('<slug:collation_slug>/<str:section_slugname>/<str:ab_slugname>/<str:app_slugname>/rdgs/', views.rdgs, name='rdgs'),
