@@ -1,0 +1,21 @@
+{% for app in deleted_apps %}
+    <div class="relative inline-block text-left deleted-app">
+        <div>
+            <button id="app-{{ app.pk }}" 
+            class="btn-left bg-gray-500 border-gray-500 dark:bg-gray-500 dark:border-gray-500 ml-2 my-1" type="button" 
+                hx-get="{% url 'rdgs' collation_slug=ab.section.collation.slug section_slugname=ab.section.slugname ab_slugname=ab.slugname app_slugname=app.slugname %}"
+                hx-push-url="true"
+                hx-target="#readings">
+                {{ app.index_from }}{% if app.index_from != app.index_to %}–{{ app.index_to }}{% endif %}
+            </button>
+            <button class="btn-right mr-2 my-1 px-0 inline-flex"
+                hx-post="{% url 'restore-app' app_pk=app.pk %}"
+                hx-target="#app-buttons-wrapper"
+                type="button"
+                aria-label="restore {{ app.index_from }}{% if app.index_from != app.index_to %}–{{ app.index_to }}{% endif %}"
+                title="restore variation unit" style="height: 100%;">
+                🔃
+            </button>
+        </div>
+    </div>
+{% endfor %}

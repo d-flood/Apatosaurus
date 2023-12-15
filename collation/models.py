@@ -47,7 +47,7 @@ class Collation(models.Model):
             for ab in section.ab_elements():
                 tei_root.append(ab)
         wits = add_tei_header(tei_root)
-        return et.tostring(tei_root, encoding='unicode', pretty_print=True)
+        return et.tostring(tei_root, encoding='unicode', pretty_print=True) #type: ignore
 
     def __str__(self):
         return f'{self.user} - {self.name}'
@@ -78,7 +78,7 @@ class Section(models.Model):
         for ab in self.ab_elements():
             tei_root.append(ab)
         wits = add_tei_header(tei_root)
-        return et.tostring(tei_root, encoding='unicode', pretty_print=True)
+        return et.tostring(tei_root, encoding='unicode', pretty_print=True) #type: ignore
 
     def all_app_labels(self):
         apps: list[str] = []
@@ -110,7 +110,7 @@ class Ab(models.Model):
     slugname = models.CharField(max_length=64, null=True, blank=True)
 
     def as_element(self):
-        ab = et.Element('ab')
+        ab = et.Element('ab') #type: ignore
         ab.set(f'{XML_NS}id', self.name.replace(':', '.').replace(' ', '_'))
         ab.text = self.basetext
         for app in self.apps.all():
@@ -121,7 +121,7 @@ class Ab(models.Model):
         tei_root = et.Element('TEI', nsmap={None: TEI_NS_STR, 'xml': XML_NS_STR}) #type: ignore
         tei_root.append(self.as_element())
         add_tei_header(tei_root)
-        return et.tostring(tei_root, encoding='unicode', pretty_print=True)
+        return et.tostring(tei_root, encoding='unicode', pretty_print=True) #type: ignore
 
     def set_indexed_basetext(self):
         self.apps: QuerySet[App]
@@ -129,7 +129,7 @@ class Ab(models.Model):
         if self.apps.count() > 0:
             for i, word in enumerate(self.basetext.split(), start=1):
                 index = i*2
-                for app in self.apps.all():
+                for app in self.apps.filter(deleted=False):
                     if app.index_from % 2 != 0 and index-1 == app.index_from:
                         indexed_basetext.append({'word': '-', 'index': index-1, 'is_variant': True, 'app_pk': app.pk})
                     elif app.index_from <= index <= app.index_to:
@@ -141,6 +141,10 @@ class Ab(models.Model):
             indexed_basetext = [{'word': word, 'index': i*2, 'is_variant': False, 'app_pk': None} for i, word in enumerate(self.basetext.split(), start=1)]
         self.indexed_basetext = indexed_basetext
         
+    @property
+    def active_apps(self):
+        return self.apps.filter(deleted=False)
+    
     def save(self, *args, **kwargs):
         if not self.slugname:
             self.slugname = slugify(self.name)
@@ -155,7 +159,6 @@ class Ab(models.Model):
     
     class Meta:
         ordering = ['number']
-        # ordering = ['name']
 
 
 class App(models.Model):
@@ -165,6 +168,8 @@ class App(models.Model):
     index_to = models.SmallIntegerField()
     connectivity = models.SmallIntegerField(default=10)
     slugname = models.CharField(max_length=32, null=True, blank=True)
+    updated = models.DateTimeField(auto_now=True)
+    deleted = models.BooleanField(default=False)
 
     class Meta:
         ordering = ['index_from']
@@ -186,10 +191,10 @@ class App(models.Model):
         graph = et.Element('graph', {'type': 'directed'}, nsmap={None: TEI_NS_STR, 'xml': XML_NS_STR}) #type: ignore
         for rdg in self.rdgs.filter(witDetail=False):
             app.append(rdg.as_element())
-            graph.append(et.Element('node', {'n': rdg.name}))
+            graph.append(et.Element('node', {'n': rdg.name})) #type: ignore
         for wit_detail in self.rdgs.filter(witDetail=True):
             app.append(wit_detail.as_element())
-            graph.append(et.Element('node', {'n': wit_detail.name}))
+            graph.append(et.Element('node', {'n': wit_detail.name})) #type: ignore
         note = et.Element('note', nsmap={None: TEI_NS_STR, 'xml': XML_NS_STR}) #type: ignore
         fs = et.Element('fs', nsmap={None: TEI_NS_STR, 'xml': XML_NS_STR}) #type: ignore
         f = et.Element('f', nsmap={None: TEI_NS_STR, 'xml': XML_NS_STR}) #type: ignore
@@ -205,6 +210,10 @@ class App(models.Model):
                 et.Element('arc', {'from': arc.rdg_from.name, 'to': arc.rdg_to.name}, nsmap={None: TEI_NS_STR, 'xml': XML_NS_STR}) #type: ignore
                 )
         return app
+    
+    def mark_deleted(self):
+        self.deleted = True
+        self.save()
 
     def save(self, *args, ab_pk: int = 0, **kwargs):
         self.slugname = f'{self.index_from}-{self.index_to}'

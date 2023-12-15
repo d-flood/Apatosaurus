@@ -3,7 +3,7 @@ from django.shortcuts import render, redirect
 from django.http import HttpRequest, HttpResponse
 from django.views.decorators.http import require_http_methods, require_safe
 
-from render_block import render_block_to_string 
+from render_block import render_block_to_string
 
 from collation import forms
 from collation import models
@@ -423,7 +423,7 @@ def edit_app(request: HttpRequest, ab_pk: int, app_pk: int):
     else:
         app = models.App.objects.get(pk=app_pk)
         ab = app.ab
-        app.delete()
+        app.mark_deleted()
         ab.save()
         app_buttons = render_block_to_string('collation/_apparatus.html', 'app_buttons', {'ab': models.Ab.objects.get(pk=ab_pk)})
         resp = HttpResponse(app_buttons)
@@ -433,6 +433,27 @@ def edit_app(request: HttpRequest, ab_pk: int, app_pk: int):
 
 def cancel_edit_app(request: HttpRequest, ab_pk: int):
     app_buttons = render_block_to_string('collation/_apparatus.html', 'app_buttons', {'ab': models.Ab.objects.get(pk=ab_pk)})
+    return HttpResponse(app_buttons)
+
+@login_required
+@require_safe
+def show_deleted_apps(request: HttpRequest, ab_pk: int):
+    deleted_apps = models.App.objects.filter(ab__pk=ab_pk, deleted=True)
+    context = {
+        "ab": models.Ab.objects.get(pk=ab_pk),
+        "deleted_apps": deleted_apps,
+    }
+    return render(request, 'collation/_deleted_apps.html', context)
+
+
+@login_required
+@require_http_methods(['POST'])
+def restore_app(request: HttpRequest, app_pk: int):
+    print('hello')
+    app = models.App.objects.filter(ab__section__collation__user=request.user).get(pk=app_pk)
+    app.deleted = False
+    app.save()
+    app_buttons = render_block_to_string('collation/_apparatus.html', 'app_buttons', {'ab': app.ab})
     return HttpResponse(app_buttons)
 
 
