@@ -3,6 +3,11 @@
     <h2 class="text-2xl my-3">Editing: {{ ab.name }}</h2>
     <form hx-post="{% url 'edit-ab' ab_pk=ab.pk %}" class="my-5" hx-target="#main">
         {{ form|crispy }}
+        <style>
+            .control-group {
+                margin-bottom: 1rem;
+            }
+        </style>
         <div class="f-row">
             <button type="submit" class="btn-submit">
                 Submit

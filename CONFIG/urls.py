@@ -44,13 +44,13 @@ def home(request: HttpRequest) -> HttpResponse:
 urlpatterns = [
     path(settings.ADMIN_URL, admin.site.urls),
     path('', home, name='home'),
-    path('', include(content_urls)),
-    path('impersonate/', include('impersonate.urls')),
     path('published/', include(published_urls)),
+    path('impersonate/', include('impersonate.urls')),
     path('accounts/', include(accounts_urls)),
     path('collation/', include(collation_urls)),
     path('witnesses/', include(witnesses_urls)),
     path('cbgm/', include(cbgm_urls)),
     path('tools/', include(tools_urls)),
     path('__reload__/', include('django_browser_reload.urls')),
+    path('', include(content_urls)),
 ]

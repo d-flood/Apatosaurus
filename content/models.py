@@ -2,13 +2,21 @@ from django.db import models
 
 from markdown import markdown
 
+import published
+
 
 class AboutPage(models.Model):
+    PAGE_CHOICES = (
+        ('normal', 'Normal'),
+        ('presentation', 'Presentation'),
+    )
     title = models.CharField(max_length=30)
     slug = models.SlugField(unique=True)
     markdown = models.TextField(blank=False)
     order = models.SmallIntegerField(default=0)
     html = models.TextField(blank=True)
+    published = models.BooleanField(default=True)
+    page_type = models.CharField(max_length=20, choices=PAGE_CHOICES, default='normal')
 
     def __str__(self):
         return self.title
@@ -24,7 +32,7 @@ class AboutPage(models.Model):
         ordering = ('order',)
 
 class ImageBlock(models.Model):
-    image = models.ImageField(upload_to='content/about/images/', blank=False)
+    image = models.ImageField(upload_to='content/about/images/', blank=True, null=True)
     markdown = models.TextField(blank=False)
     html = models.TextField(blank=True)
     order = models.SmallIntegerField(default=0)
