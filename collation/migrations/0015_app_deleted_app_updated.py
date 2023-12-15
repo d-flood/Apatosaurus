@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('collation', '0013_app_slugname'),
+        ('collation', '0014_ab_right_to_left'),
     ]
 
     operations = [
