@@ -3,18 +3,27 @@
         <div>
             <button id="app-{{ app.pk }}" 
             class="btn-left bg-gray-500 border-gray-500 dark:bg-gray-500 dark:border-gray-500 ml-2 my-1" type="button" 
-                hx-get="{% url 'rdgs' collation_slug=ab.section.collation.slug section_slugname=ab.section.slugname ab_slugname=ab.slugname app_slugname=app.slugname %}"
+                hx-get="{% url 'rdgs' app_pk=app.pk %}"
                 hx-push-url="true"
                 hx-target="#readings">
                 {{ app.index_from }}{% if app.index_from != app.index_to %}–{{ app.index_to }}{% endif %}
             </button>
-            <button class="btn-right mr-2 my-1 px-0 inline-flex"
+            <button class="btn-middle my-1 px-0 inline-flex"
                 hx-post="{% url 'restore-app' app_pk=app.pk %}"
                 hx-target="#app-buttons-wrapper"
                 type="button"
                 aria-label="restore {{ app.index_from }}{% if app.index_from != app.index_to %}–{{ app.index_to }}{% endif %}"
                 title="restore variation unit" style="height: 100%;">
                 🔃
+            </button>
+            <button class="btn-right mr-2 my-1 px-0 inline-flex"
+                hx-delete="{% url 'edit-app' ab_pk=app.ab.pk app_pk=app.pk permanently_delete='yes' %}"
+                hx-target="#app-buttons-wrapper"
+                hx-confirm="Are you sure you want to permanently delete {{ app.index_from }}{% if app.index_from != app.index_to %}–{{ app.index_to }}{% endif %}?"
+                type="button"
+                aria-label="permanently delete {{ app.index_from }}{% if app.index_from != app.index_to %}–{{ app.index_to }}{% endif %}"
+                title="permanently delete" style="height: 100%;">
+                🗑
             </button>
         </div>
     </div>

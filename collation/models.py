@@ -1,3 +1,5 @@
+import string
+
 from django.template.defaultfilters import slugify
 from django.db import models
 from django.db.models import Count, OuterRef, Subquery, Q, QuerySet
@@ -218,6 +220,51 @@ class App(models.Model):
     def mark_deleted(self):
         self.deleted = True
         self.save()
+
+    def combine_with(self, other_app: 'App'):
+        """
+        Create and return a new App which combines the values of self and other_app. Marks both as deleted.
+        """
+        if self.ab != other_app.ab:
+            raise ValueError('Cannot combine Apps from different Abs')
+        if self.index_from <= other_app.index_from <= self.index_to or self.index_from <= other_app.index_to <= self.index_to:
+            raise ValueError('Cannot combine overlapping Apps')
+        if self.rdgs.filter(witDetail=True).exists() or other_app.rdgs.filter(witDetail=True).exists():
+            raise ValueError('Cannot combine Apps with abimiguous witnesses')
+        before_app = self if self.index_from < other_app.index_from else other_app
+        after_app = self if self.index_from > other_app.index_from else other_app
+        new_app = App.objects.create(
+            ab=self.ab, 
+            atype=self.atype, 
+            index_from=min(self.index_from, other_app.index_from), 
+            index_to=max(self.index_to, other_app.index_to),
+            connectivity=self.connectivity
+        )
+        rdg_wits: dict[str, list[str]] = {}
+        for w in self.rdgs.values_list('wit__siglum', flat=True).union(other_app.rdgs.values_list('wit__siglum', flat=True)):
+            print(f'w: {w}')
+            if before_app.rdgs.filter(wit__siglum=w).exists() and after_app.rdgs.filter(wit__siglum=w).exists():
+                before_text = before_app.rdgs.get(wit__siglum=w).text or ''
+                after_text = after_app.rdgs.get(wit__siglum=w).text or ''
+                full_text = f'{before_text} {after_text}'.strip()
+            elif before_app.rdgs.filter(wit__siglum=w).exists():
+                full_text = before_app.rdgs.get(wit__siglum=w).text or ''
+            else:
+                full_text = after_app.rdgs.get(wit__siglum=w).text or ''
+            if full_text in rdg_wits:
+                rdg_wits[full_text].append(w)
+            else:
+                rdg_wits[full_text] = [w]
+        # create the new rdgs
+        self.mark_deleted()
+        other_app.mark_deleted()
+        for text, wits, name in zip(rdg_wits.keys(), rdg_wits.values(), string.ascii_lowercase):
+            rdg = Rdg(app=new_app, name=name, text=text)
+            rdg.save(create_history=False)
+            rdg.wit.set(Witness.objects.filter(siglum__in=wits))
+        self.ab.save()
+        return new_app
+
 
     def save(self, *args, ab_pk: int = 0, **kwargs):
         self.slugname = f'{self.index_from}-{self.index_to}'
