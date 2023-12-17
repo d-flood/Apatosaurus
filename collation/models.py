@@ -85,7 +85,7 @@ class Section(models.Model):
     def all_app_labels(self):
         apps: list[str] = []
         for ab in self.abs.all():
-            apps.extend(f'{ab.name}U{app.index_from}-{app.index_to}' for app in ab.apps.all())
+            apps.extend(f'{ab.name}U{app.index_from}-{app.index_to}' for app in ab.active_apps.all())
         return apps
 
     def __str__(self):
@@ -116,7 +116,7 @@ class Ab(models.Model):
         ab = et.Element('ab') #type: ignore
         ab.set(f'{XML_NS}id', self.name.replace(':', '.').replace(' ', '_'))
         ab.text = self.basetext
-        apps = filter_apps_by_rtype(ignore_rdg_types, self.apps.all()) if ignore_rdg_types else self.apps.all()
+        apps = filter_apps_by_rtype(ignore_rdg_types, self.active_apps.all()) if ignore_rdg_types else self.active_apps.all()
         for app in apps:
             ab.append(app.as_element())
         return ab
@@ -128,12 +128,11 @@ class Ab(models.Model):
         return et.tostring(tei_root, encoding='unicode', pretty_print=True) #type: ignore
 
     def set_indexed_basetext(self):
-        self.apps: QuerySet[App]
         indexed_basetext = []
-        if self.apps.count() > 0:
+        if self.active_apps.count() > 0:
             for i, word in enumerate(self.basetext.split(), start=1):
                 index = i*2
-                for app in self.apps.filter(deleted=False):
+                for app in self.active_apps.filter(deleted=False):
                     if app.index_from % 2 != 0 and index-1 == app.index_from:
                         indexed_basetext.append({'word': '-', 'index': index-1, 'is_variant': True, 'app_pk': app.pk})
                     elif app.index_from <= index <= app.index_to:
@@ -149,6 +148,7 @@ class Ab(models.Model):
         
     @property
     def active_apps(self):
+        self.apps: QuerySet[App]
         return self.apps.filter(deleted=False)
     
     def save(self, *args, **kwargs):
@@ -283,7 +283,8 @@ class App(models.Model):
 
 
 def filter_apps_by_rtype(ignore_rtypes: list[str], variants: QuerySet[App]):
-    """Filters out App objects if they contain only a single reading that is not in the ignore list.
+    """
+    Filters out App objects if they contain only a single reading that is not in the ignore list.
     It does the equivalent of this (probably) less efficient query:
     ```
     for app in variants:
