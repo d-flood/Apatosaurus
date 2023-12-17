@@ -174,7 +174,7 @@
     <dialog class="reading-note absolute z-20 p-0 text-black bg-white dark:text-white dark:bg-cyan-1100 rounded-md" id="rdg-history-dialog"></dialog>
 </div>
 <style>
-    {% for app in ab.apps.all %}
+    {% for app in ab.active_apps.all %}
         td:not(.bt-{{ app.pk }}) + td.bt-{{ app.pk }} {
             border-left: solid 2px #bd461d;
             margin-left: 15px;
