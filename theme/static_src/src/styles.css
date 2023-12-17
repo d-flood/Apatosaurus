@@ -15,6 +15,9 @@
     .btn-right {
     @apply px-4 bg-orange-700 dark:bg-cyan-900 text-white font-semibold rounded-r-md shadow-md hover:dark:bg-cyan-800 hover:bg-orange-500 focus:outline-none focus:ring-4 ring-2 dark:ring-2 focus:dark:ring-gray-100 focus:ring-opacity-75 ring-orange-700 dark:ring-cyan-900 cursor-pointer;
     }
+    .btn-middle {
+        @apply px-4 bg-orange-700 dark:bg-cyan-900 text-white font-semibold shadow-md hover:dark:bg-cyan-800 hover:bg-orange-500 focus:outline-none focus:ring-4 ring-2 dark:ring-2 focus:dark:ring-gray-100 focus:ring-opacity-75 ring-orange-700 dark:ring-cyan-900 cursor-pointer;
+        }
     .btn-secondary {
         @apply px-4 bg-gray-200 dark:bg-gray-700 text-black dark:text-white font-semibold rounded-md shadow-md hover:dark:bg-gray-600 hover:bg-gray-300 focus:outline-none focus:ring-4 dark:ring-2 focus:dark:ring-gray-100 focus:ring-opacity-75 ring-2 ring-gray-200 dark:ring-gray-700 cursor-pointer;
     }
@@ -45,43 +48,43 @@
     .normal-link {
         @apply underline hover:text-orange-700 hover:dark:text-cyan-500 rounded-md cursor-pointer;
     }
-    .prose>p, .prose>h3 {
+    .prose p, .prose>h3 {
         @apply my-4;
     }
-    .prose>h2 {
+    .prose h2 {
         @apply text-3xl text-center;
     }
-    .prose>h3 {
+    .prose h3 {
         @apply text-2xl text-center;
     }
-    .big-prose>h3 {
+    .big-prose h3 {
         @apply text-7xl text-center mb-2 border-b-2 border-orange-700;
     }
-    .med-prose>h3 {
-        @apply text-5xl text-center mb-2 border-b-2 border-orange-700;
+    .med-prose h3 {
+        @apply text-2xl text-center mb-2 border-b-2 border-orange-700;
     }
-    .big-prose>p, .big-prose>ol, .big-prose>ul {
+    .big-prose p, .big-prose ol, .big-prose ul {
         @apply text-5xl mt-10;
     }
-    .med-prose>p, .med-prose>ol, .med-prose>ul {
+    .med-prose p, .med-prose ol, .med-prose ul {
         @apply text-xl mt-10;
     }
-    .prose>ul, .big-prose>ul, .med-prose>ul {
+    .prose ul, .big-prose ul, .med-prose ul {
         @apply list-disc;
     }
-    .prose>ol, .big-prose>ol, .med-prose>ol {
+    .prose ol, .big-prose ol, .med-prose ol {
         @apply list-decimal;
     }
-    .prose>ol>li, .prose>ul>li, .big-prose>ol>li, .big-prose>ul>li, .med-prose>ol>li, .med-prose>ul>li {
+    .prose li, .big-prose li, .med-prose li {
         @apply ml-8;
     }
-    .prose>a, .prose>*>a, .prose>*>*>a {
+    .prose a, .med-prose a, .big-prose a {
         @apply normal-link;
     }
     .color-prose>h2, .color-prose>h3, .color-prose>h4 {
         @apply text-orange-700;
     }
-    .prose>img {
+    .prose img {
         @apply drop-shadow-xl mb-2;
     }
     button[disabled] {

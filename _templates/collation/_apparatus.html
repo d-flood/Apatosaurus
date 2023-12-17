@@ -24,21 +24,38 @@
     <h3 class="text-2xl text-center my-4">Variation Units</h3>
     <div class="flex flex-col items-center w-full">
         <div class="flex flex-row flex-wrap" id="app-buttons-wrapper">
+            <form id="combine-apps-form"
+                hx-post="{% url 'combine-apps' %}"
+                hx-trigger="combineApps"
+                hx-target="#app-buttons-wrapper">
+                <input type="hidden" name="appSource" id="appSource">
+                <input type="hidden" name="appTarget", id="appTarget">
+            </form>
             {% block app_buttons %}
-                {% for app in ab.apps.all %}
+                {% for app in ab.active_apps.all %}
                     <div class="relative inline-block text-left">
                         <div>
                             <button id="app-{{ app.pk }}" class="btn-left ml-2 my-1" type="button" 
-                                hx-get="{% url 'rdgs' collation_slug=ab.section.collation.slug section_slugname=ab.section.slugname ab_slugname=ab.slugname app_slugname=app.slugname %}"
+                                hx-get="{% url 'rdgs' app_pk=app.pk %}"
                                 hx-push-url="true"
                                 hx-target="#readings"
+                                draggable="true"
+                                ondragover="event.preventDefault();"
+                                ondrop="event.preventDefault();"
                                 _="on mouseenter add .bg-orange-300 .dark:bg-cyan-800 to .bt-{{ app.pk }} end
                                 on mouseleave remove .bg-orange-300 .dark:bg-cyan-800 from .bt-{{ app.pk }} end
                                 on click remove .selected from .app-button then add .selected to me 
-                                then remove .selected from <td/> then add .selected to .bt-{{ app.pk }} end">
+                                then remove .selected from <td/> then add .selected to .bt-{{ app.pk }} end
+                                on dragenter if the $dragFrom != event.target.id then add .border-2 .rounded-md to me end
+                                on dragleave remove .border-2 .rounded-md from me end
+                                on dragstart set $dragFrom to my id end
+                                on drop set myID to my id 
+                                    then set #appSource's @value to $dragFrom 
+                                    then set #appTarget's @value to myID 
+                                    then send combineApps to #combine-apps-form end">
                                 {{ app.index_from }}{% if app.index_from != app.index_to %}–{{ app.index_to }}{% endif %}
                             </button>
-                            <button class="btn-right mr-2 my-1 px-0 inline-flex" 
+                            <button class="btn-right mr-2 my-1 px-0 inline-flex"
                                 type="button" aria-haspopup="menu" aria-controls="edit-{{ app.pk }}"
                                 aria-expanded="false" 
                                 aria-label="edit collation unit {{ app.index_from }}{% if app.index_from != app.index_to %}–{{ app.index_to }}{% endif %}"
@@ -83,6 +100,31 @@
                     </svg>
                 </button>
                 {% endblock new_app_button %}
+                <button class="btn-submit p-1 h-6 my-1" type="button" id="show-deleted-apps-button"
+                    hx-get="{% url 'show-deleted-apps' ab_pk=ab.pk %}"
+                    hx-target="#app-buttons-wrapper" 
+                    hx-swap="beforeend"
+                    aria-label="view deleted variation units" 
+                    title="view deleted variation units" style="margin-left: 10px;"
+                    _="on click hide me then show #close-deleted-apps-button">
+                    <svg height="16" width="16"
+                        xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M8.515 1.019A7 7 0 0 0 8 1V0a8 8 0 0 1 .589.022l-.074.997zm2.004.45a7.003 7.003 0 0 0-.985-.299l.219-.976c.383.086.76.2 1.126.342l-.36.933zm1.37.71a7.01 7.01 0 0 0-.439-.27l.493-.87a8.025 8.025 0 0 1 .979.654l-.615.789a6.996 6.996 0 0 0-.418-.302zm1.834 1.79a6.99 6.99 0 0 0-.653-.796l.724-.69c.27.285.52.59.747.91l-.818.576zm.744 1.352a7.08 7.08 0 0 0-.214-.468l.893-.45a7.976 7.976 0 0 1 .45 1.088l-.95.313a7.023 7.023 0 0 0-.179-.483zm.53 2.507a6.991 6.991 0 0 0-.1-1.025l.985-.17c.067.386.106.778.116 1.17l-1 .025zm-.131 1.538c.033-.17.06-.339.081-.51l.993.123a7.957 7.957 0 0 1-.23 1.155l-.964-.267c.046-.165.086-.332.12-.501zm-.952 2.379c.184-.29.346-.594.486-.908l.914.405c-.16.36-.345.706-.555 1.038l-.845-.535zm-.964 1.205c.122-.122.239-.248.35-.378l.758.653a8.073 8.073 0 0 1-.401.432l-.707-.707z"/>
+                        <path d="M8 1a7 7 0 1 0 4.95 11.95l.707.707A8.001 8.001 0 1 1 8 0v1z"/>
+                        <path d="M7.5 3a.5.5 0 0 1 .5.5v5.21l3.248 1.856a.5.5 0 0 1-.496.868l-3.5-2A.5.5 0 0 1 7 9V3.5a.5.5 0 0 1 .5-.5z"/>
+                    </svg>
+                </button>
+                <button id="close-deleted-apps-button" type="button"
+                    class="btn-danger p-1 h-6 my-1 ml-2"
+                    _="on click hide me then show #show-deleted-apps-button
+                       then set .deleted-app's outerHTML to ''"
+                    style="display: none;"  
+                    aria-label="close deleted variation units" 
+                    title="close deleted variation units" style="margin-left: 10px;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-caret-left-fill" viewBox="0 0 16 16">
+                        <path d="m3.86 8.753 5.482 4.796c.646.566 1.658.106 1.658-.753V3.204a1 1 0 0 0-1.659-.753l-5.48 4.796a1 1 0 0 0 0 1.506z"/>
+                    </svg>
+                </button>
         </div>
         {% endblock app_buttons %}
     </div>
@@ -132,7 +174,7 @@
     <dialog class="reading-note absolute z-20 p-0 text-black bg-white dark:text-white dark:bg-cyan-1100 rounded-md" id="rdg-history-dialog"></dialog>
 </div>
 <style>
-    {% for app in ab.apps.all %}
+    {% for app in ab.active_apps.all %}
         td:not(.bt-{{ app.pk }}) + td.bt-{{ app.pk }} {
             border-left: solid 2px #bd461d;
             margin-left: 15px;

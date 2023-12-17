@@ -5,7 +5,7 @@
     <p>
         {{ app.ab.section.name }}; 
         <a 
-            href="{% url 'rdgs' collation_slug=selected_collation.slug section_slugname=app.ab.section.slugname ab_slugname=app.ab.slugname app_slugname=app.slugname %}"
+            href="{% url 'rdgs' app_pk=app.pk %}"
             class="normal-link"
             target="_blank">
             {{ app }}

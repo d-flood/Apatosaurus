@@ -24,11 +24,15 @@ urls = [
     path('collation_slug/section_slug/<int:ab_pk>/download-tei/', views.download_tei_ab, name='download-tei-ab'),
 
     path('<slug:collation_slug>/<str:section_slugname>/<str:ab_slugname>/apparatus/', views.apparatus, name='apparatus'),
-    path('collation_slug/section_slug/<int:ab_pk>/basetext/', views.refresh_basetext, name='refresh-basetext'),#!
-    path('collation_slug/section_slug/<int:ab_pk>/cancel-edit-app/', views.cancel_edit_app, name='cancel-edit-app'),#!
+    path('collation_slug/section_slug/<int:ab_pk>/basetext/', views.refresh_basetext, name='refresh-basetext'),
+    path('collation_slug/section_slug/<int:ab_pk>/deleted-apps/', views.show_deleted_apps, name='show-deleted-apps'),
+    path('collation_slug/section_slug/<int:ab_pk>/cancel-edit-app/', views.cancel_edit_app, name='cancel-edit-app'),
     path('collation_slug/section_slug/<int:ab_pk>/<int:app_pk>/edit/', views.edit_app, name='edit-app'),
+    path('collation_slug/section_slug/<int:ab_pk>/<int:app_pk>/<str:permanently_delete>/', views.edit_app, name='edit-app'),
+    path('apps/restore-app/<int:app_pk>/', views.restore_app, name='restore-app'),
+    path('apps/combine-apps/', views.combine_apps, name='combine-apps'),
 
-    path('<slug:collation_slug>/<str:section_slugname>/<str:ab_slugname>/<str:app_slugname>/rdgs/', views.rdgs, name='rdgs'),
+    path('readings/variation-unit/<int:app_pk>/', views.rdgs, name='rdgs'),
 
     path('collation_slug/section_slug/ab_slug/<int:app_pk>/rdgs/new/', views.new_rdg, name='new-rdg'),
     path('collation_slug/section_slug/ab_slug/app_slug/<int:rdg_pk>/edit/', views.edit_rdg, name='edit-rdg'),

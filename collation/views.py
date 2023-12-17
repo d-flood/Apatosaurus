@@ -3,7 +3,7 @@ from django.shortcuts import render, redirect
 from django.http import HttpRequest, HttpResponse
 from django.views.decorators.http import require_http_methods, require_safe
 
-from render_block import render_block_to_string 
+from render_block import render_block_to_string
 
 from collation import forms
 from collation import models
@@ -390,7 +390,7 @@ def apparatus(request: HttpRequest, collation_slug: str, section_slugname: str, 
 
 @login_required
 @require_http_methods(['GET', 'POST', 'DELETE'])
-def edit_app(request: HttpRequest, ab_pk: int, app_pk: int):
+def edit_app(request: HttpRequest, ab_pk: int, app_pk: int, permanently_delete: str|None = None):
     if request.method == 'GET':
         form = forms.AppForm() if app_pk == 0 else forms.AppForm(instance=models.App.objects.get(pk=app_pk))
         context = {
@@ -423,7 +423,10 @@ def edit_app(request: HttpRequest, ab_pk: int, app_pk: int):
     else:
         app = models.App.objects.get(pk=app_pk)
         ab = app.ab
-        app.delete()
+        if permanently_delete == 'yes':
+            app.delete()
+        else:
+            app.mark_deleted()
         ab.save()
         app_buttons = render_block_to_string('collation/_apparatus.html', 'app_buttons', {'ab': models.Ab.objects.get(pk=ab_pk)})
         resp = HttpResponse(app_buttons)
@@ -435,14 +438,55 @@ def cancel_edit_app(request: HttpRequest, ab_pk: int):
     app_buttons = render_block_to_string('collation/_apparatus.html', 'app_buttons', {'ab': models.Ab.objects.get(pk=ab_pk)})
     return HttpResponse(app_buttons)
 
+@login_required
+@require_safe
+def show_deleted_apps(request: HttpRequest, ab_pk: int):
+    deleted_apps = models.App.objects.filter(ab__pk=ab_pk, deleted=True)
+    context = {
+        "ab": models.Ab.objects.get(pk=ab_pk),
+        "deleted_apps": deleted_apps,
+    }
+    return render(request, 'collation/_deleted_apps.html', context)
+
+
+@login_required
+@require_http_methods(['POST'])
+def restore_app(request: HttpRequest, app_pk: int):
+    print('hello')
+    app = models.App.objects.filter(ab__section__collation__user=request.user).get(pk=app_pk)
+    app.deleted = False
+    app.save()
+    app.ab.save()
+    app_buttons = render_block_to_string('collation/_apparatus.html', 'app_buttons', {'ab': app.ab})
+    resp = HttpResponse(app_buttons)
+    resp['HX-Trigger'] = 'refreshBasetext'
+    return resp
+
+
+@login_required
+@require_http_methods(['POST'])
+def combine_apps(request: HttpRequest):
+    if (appSource := request.POST.get('appSource')) and (appTarget := request.POST.get('appTarget')):
+        app1_pk = int(appSource.replace('app-', ''))
+        app2_pk = int(appTarget.replace('app-', ''))
+    else:
+        return HttpResponse(status=204)
+    app1 = models.App.objects.get(pk=app1_pk)
+    app2 = models.App.objects.get(pk=app2_pk)
+    app1.combine_with(app2)
+    app_buttons = render_block_to_string('collation/_apparatus.html', 'app_buttons', {'ab': app1.ab})
+    resp = HttpResponse(app_buttons)
+    resp['HX-Trigger'] = 'refreshBasetext'
+    return resp
+
 
 @login_required
 @require_safe
-def rdgs(request: HttpRequest, collation_slug: str, section_slugname: str, ab_slugname: str, app_slugname: str):
-    collation = models.Collation.objects.filter(user=request.user).get(slug=collation_slug)
-    section = collation.sections.get(slugname=section_slugname) # type: ignore
-    ab = section.abs.get(slugname=ab_slugname) # type: ignore
-    app = ab.apps.get(slugname=app_slugname) # type: ignore
+def rdgs(request: HttpRequest, app_pk: int):
+    app = models.App.objects.filter(ab__section__collation__user=request.user).get(pk=app_pk)
+    ab = app.ab
+    section = ab.section
+    collation = section.collation
     context = {
         'page': {'active': 'collation'},
         'collation': collation,

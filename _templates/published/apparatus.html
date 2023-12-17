@@ -37,7 +37,7 @@
             <div class="flex flex-col items-center w-full">
                 <div class="flex flex-row flex-wrap" id="app-buttons-wrapper">
                     {% block app_buttons %}
-                        {% for app in ab.apps.all %}
+                        {% for app in ab.active_apps.all %}
                             <button id="app-{{ app.pk }}" class="btn mx-2 my-1 py-0" type="button" 
                                 hx-get="{% url 'published-rdgs' app_pk=app.pk %}" 
                                 hx-target="#readings"
@@ -88,7 +88,7 @@
         <div id="readings" class="bg-orange-100 border-orange-100 dark:bg-cyan-1400 dark:border-darknav pb-10 pt-5 my-4 drop-shadow"></div>
     </main>
     <style>
-        {% for app in ab.apps.all %}
+        {% for app in ab.active_apps.all %}
             td:not(.bt-{{ app.pk }}) + td.bt-{{ app.pk }} {
                 border-left: solid 2px #bd461d;
                 margin-left: 15px;
