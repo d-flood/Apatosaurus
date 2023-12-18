@@ -120,7 +120,7 @@ def create_rdg_instance(rdg_elem: et._Element, app: models.App, user_pk: int):
     varSeq = int(varSeq) if (varSeq := rdg_elem.attrib.get('varSeq')) else 0
     rtype = rdg_elem.attrib.get('type')
     if not rtype:
-        rtype = '0'
+        rtype = '-'
     text = rdg_elem.text or ''
     if witnesses := rdg_elem.attrib.get('wit'):
         witnesses = witnesses.split()
