@@ -37,7 +37,7 @@ def construct_basetext(ab: et._Element) -> str:
     if ab.text:
         return ab.text
     basetext = []
-    for elem in ab:
+    for elem in ab: #type: ignore
         if elem.tag == 'seg':
             if text := elem.text:
                 basetext.append(text)
@@ -66,7 +66,7 @@ def create_ab_instance(ab_elem: et._Element, section_id: int, number: int) -> mo
         name = str(name).replace('-APP', '')
     else:
         name = f'{models.Section.objects.get(pk=section_id).name}: {number}'
-    if (lem := ab_elem.find(f'{TEI_NS}app/{TEI_NS}lem')) is not None:
+    if (lem := ab_elem.find(f'{TEI_NS}app/{TEI_NS}lem')) is not None:   #type: ignore
         basetext_label = lem.attrib.get('wit') or 'unknown'
     else:
         basetext_label = 'unknown'
@@ -183,7 +183,7 @@ def create_witDetail_rdg_instance(witDetail: et._Element, app: models.App, user_
 
 
 def create_arc_instance(app_elem: et._Element, app_pk: int):
-    note_elem = app_elem.find(f'{TEI_NS}note')
+    note_elem = app_elem.find(f'{TEI_NS}note') #type: ignore
     if note_elem is None:
         return
     if (graph_elem := note_elem.find(f'{TEI_NS}graph')) is None:
@@ -205,7 +205,7 @@ def create_arc_instance(app_elem: et._Element, app_pk: int):
 
 
 def tei_to_db(xml: et._Element, section_id: int, job_pk: int, user_pk: int):
-    total = len(xml.findall(f'{TEI_NS}ab'))
+    total = len(xml.findall(f'{TEI_NS}ab')) #type: ignore
     if total == 0:
         total = 1
     i = 1
