@@ -124,10 +124,10 @@ def create_rdg_instance(rdg_elem: et._Element, app: models.App, user_pk: int):
         witnesses = witnesses.split()
         wits = []
         for w in witnesses:
-            if w not in models.Witness.objects.values_list('siglum', flat=True):
+            if w not in models.Witness.objects.filter(user_id=user_pk).values_list('siglum', flat=True):
                 wit_to_append = models.Witness.objects.create(siglum=w, user_id=user_pk)
             else:
-                wit_to_append = models.Witness.objects.get(siglum=w)
+                wit_to_append = models.Witness.objects.filter(user_id=user_pk).get(siglum=w)
             wits.append(wit_to_append)
     else:
         wits = None
@@ -151,10 +151,10 @@ def create_witDetail_rdg_instance(witDetail: et._Element, app: models.App, user_
         witnesses = witnesses.split()
         wits = []
         for w in witnesses:
-            if w not in models.Witness.objects.values_list('siglum', flat=True):
+            if w not in models.Witness.objects.filter(user_id=user_pk).values_list('siglum', flat=True):
                 wit_to_append = models.Witness.objects.create(siglum=w, user_id=user_pk)
             else:
-                wit_to_append = models.Witness.objects.get(siglum=w)
+                wit_to_append = models.Witness.objects.filter(user_id=user_pk).get(siglum=w)
             wits.append(wit_to_append)
     else:
         wits = None
