@@ -1,0 +1,27 @@
+<div class="choice-filter-multi-container">
+    <p id="{{ name }}_errors" class="choice-filter-errors"></p>
+    <input type="text" id="{{ name }}_visible_input" placeholder="Select one or more {{ name }}" autocomplete="off" class="choice-filter choice-filter-multi" data-name="{{ name }}">
+    <ul id="{{ name }}_ul" class="choice-filter" style="display: none;" tabindex="0">
+        {% for value, label in choices %}
+            <li>
+                <button class="choice-filter choice-filter-multi" 
+                    type="button" tabindex="0" data-value="{{ value }}" 
+                    data-target="id_{{ name }}_ul">{{ label }}</button>
+            </li>
+        {% endfor %}
+    </ul>
+
+
+    <ul id="id_{{ name }}_ul" class="choice-filter-selected-box" aria-label="selected {{ name }}">
+        {% for object in current_values %}
+            <li class="choice-filter-flex-row">
+                <input class="choice-filter-multi-selected" type="text" value="{{ object }}" readonly>
+                <input type="hidden" name="{{ name }}" value="{{ object.pk }}">
+                <button type="button" class="choice-filter-rm-btn choice-filter-red" title="Remove witness"
+                    onclick="choiceFilterRemoveItem(this)">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/><path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/></svg>
+                </button>
+            </li>
+        {% endfor %}
+    </ul>
+</div>

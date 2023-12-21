@@ -7,10 +7,10 @@ from django.db.utils import IntegrityError
 from django.http import HttpRequest, QueryDict
 from django.urls import reverse
 from lxml import etree as et
-from peasywidgets.filter_widgets import ChoiceFilterMulti, ChoiceFilterSingle
 
 from collation import models
 from collation.py import helpers, process_tei
+from peasywidgets.filter_widgets import ChoiceFilterMulti, ChoiceFilterSingle
 
 
 class CollationForm(forms.ModelForm):
@@ -102,8 +102,11 @@ class AppForm(forms.ModelForm):
 
 
 class RdgForm(forms.ModelForm):
-    def __init__(self, *args, app: models.App, **kwargs):
+    def __init__(self, *args, app: models.App, user, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields["wit"].queryset = models.Witness.objects.filter(
+            Q(default=True) | Q(user=user)
+        )
         self.fields["target"].queryset = app.rdgs.filter(witDetail=False)
         self.fields["target"].widget.attrs.update(
             {
@@ -124,7 +127,6 @@ class RdgForm(forms.ModelForm):
             "rtype",
             "text",
             "target",
-            # 'selected_witnesses',
             "wit",
         ]
         widgets = {"wit": ChoiceFilterMulti(models.Witness)}
@@ -137,7 +139,6 @@ class RdgForm(forms.ModelForm):
             self.save_m2m()
         return instance
 
-    # selected_witnesses = forms.CharField(widget=forms.Textarea(attrs={'readonly': True}), required=False)
     witDetail = forms.BooleanField(
         widget=forms.CheckboxInput(
             attrs={

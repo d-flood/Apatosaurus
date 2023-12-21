@@ -1,0 +1,13 @@
+<p id="{{ name }}_errors" class="choice-filter-errors"></p>
+<input type="text" value="{% if current_object %}{{ current_object }}{% endif %}" id="{{ name }}_visible_input" 
+    autocomplete="off" class="choice-filter choice-filter-single{% if current_object %} valid{% endif %}" 
+    data-name="{{ name }}" data-value={{ current_object.pk }}
+    {% if not current_object %}onload="setInitialDisplay(this)"{% endif %}>
+<input type="hidden" name="{{ name }}" id="{{ name }}_hidden_input" value="{{ current_object.pk }}">
+<ul id="{{ name }}_ul" class="choice-filter" style="display: none;" aria-label="{{ name }} options" tabindex="0">
+    {% for pk, label in choices %}
+        <li>
+            <button class="choice-filter choice-filter-single" type="button" tabindex="0" data-value="{{ pk }}">{{ label }}</button>
+        </li>
+    {% endfor %}
+</ul>

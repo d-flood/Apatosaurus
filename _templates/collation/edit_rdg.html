@@ -1,5 +1,5 @@
-{% load crispy_forms_tags %}
-<div class="box" onload="load_witnesses()" style="margin-top: 10px;">
+{% load static crispy_forms_tags %}
+<div class="box" style="margin-top: 10px;">
     <h4 class="text-xl text-center my-4">Edit {{ rdg.app.ab.name }}U{{ rdg.app.index_from }}{% if rdg.app.index_from != rdg.app.index_to %}–{{ rdg.app.index_to }}{% endif %}: Reading {{ rdg.name }}</h4>
     <form action="submit"
         hx-post="{% url 'edit-rdg' rdg_pk=rdg.pk %}"
@@ -10,11 +10,6 @@
                 <option>{{ type }}</option>
             {% endfor %}
         </datalist>
-        <p>
-            <label class="sr-only" for="wits-filter">Filter Witnesses</label>
-            <input type="text" id="wits-filter" placeholder="Filter Witnesses"
-            _="on keyup if my value == '' show <option/> in #id_wit else if the event's key is 'Escape' set my value to '' trigger keyup else show <option/> in #id_wit when its textContent.startsWith(my value) end">
-        </p>
         <div class="flex flex-row my-4">
             <button type="submit" class="btn-submit mx-2">
                 Submit
@@ -23,10 +18,6 @@
                 hx-get="{% url 'cancel-new-rdg' app_pk=rdg.app.pk %}"
                 hx-target="#readings">
                 Cancel
-            </button>
-            <button class="btn mx-2" 
-                type="button" onclick="reset_witnesses()">
-                Reset Witnesses
             </button>
             <button type="button" class="btn-danger mx-2"
                 hx-delete="{% url 'edit-rdg' rdg_pk=rdg.pk %}"
@@ -37,38 +28,4 @@
         </div>
     </form>
 </div>
-<script>
-    var selected_witnesses = document.getElementById('id_selected_witnesses');
-    // add change event listener to #id_wit
-    document.getElementById('id_wit').addEventListener('change', function (event) {
-        selected_witnesses.value = ''
-        var selectedOptions = event.target.selectedOptions;
-        var values = [];
-        for (var i = 0; i < selectedOptions.length; i++) {
-            values.push(selectedOptions[i].textContent);
-        }
-        selected_witnesses.value = values.join('. ');
-    });
-    // add load event listener to #id_wit
-    function load_witnesses() {
-        var witnesses_selected_on_load = document.getElementById('witnesses-selected-on-load');
-        selected_witnesses.value = ''
-        var selectedOptions = document.getElementById('id_wit').selectedOptions;
-        var values_on_load = [];
-        for (var i = 0; i < selectedOptions.length; i++) {
-            values_on_load.push(selectedOptions[i].textContent);
-        }
-        selected_witnesses.value = values_on_load.join('. ');
-        window.witness_values_on_load = values_on_load;
-    };
-    function reset_witnesses() {
-        for (const option of document.getElementById('id_wit').options) {
-            if (window.witness_values_on_load.includes(option.textContent)) {
-                option.selected = true;
-            } else {
-                option.selected = false;
-            }
-        }
-        load_witnesses()
-    }
-</script>
+<div _="on load call setEventListeners()"></div>

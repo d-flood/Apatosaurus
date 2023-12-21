@@ -93,4 +93,80 @@
     p[id^="hint_"] {
         @apply text-xs text-gray-600 dark:text-gray-200;
     }
+    /* PeasyWidgets */
+    p.choice-filter-errors {
+        @apply text-red-500;
+    }
+    
+    .choice-filter-multi-container {
+        @apply border p-2 min-h-0 max-w-3xl;
+    }
+    
+    .choice-filter-flex-row {
+        @apply flex flex-row w-full;
+    }
+    
+    .choice-filter-flex-col {
+        @apply flex flex-col;
+    }
+    
+    .choice-filter-red {
+        @apply text-white bg-red-600 border-red-600;
+    }
+    
+    .choice-filter-red:hover {
+        @apply bg-red-700 border-red-700;
+        @apply dark:bg-red-500 dark:border-red-500;
+    }
+    
+    input.choice-filter-multi-selected {
+        @apply flex-grow block py-1 px-2 ml-2 text-sm leading-6 text-gray-700 border border-gray-300 mb-1;
+        @apply dark:text-gray-300 dark:border-gray-600;
+    }
+    
+    .choice-filter-selected-box {
+        @apply overflow-y-auto mt-0 max-h-52 pr-2;
+    }
+    
+    button.choice-filter-rm-btn {
+        @apply h-6 w-6 p-0 rounded-full cursor-pointer mt-auto mb-auto ml-2 text-center;
+    }
+    
+    button > svg {
+        @apply block mx-auto;
+    }
+    
+    .choice-filter-multi-input {
+        @apply border-0 bg-transparent flex-grow cursor-default;
+    }
+    
+    input.choice-filter {
+        @apply border border-gray-300 px-3 py-2 text-base leading-6 w-full mb-2 cursor-pointer;
+        @apply dark:border-gray-600 dark:bg-gray-800;
+        background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="black" viewBox="0 0 32 32"><path d="M16 22L6 10h20l-10 12z"/></svg>') no-repeat right .75rem center;
+    }
+    
+    input.choice-filter.choice-filter-multi {
+        @apply mt-0;
+    }
+    
+    input.choice-filter.valid {
+        @apply bg-blue-200;
+        @apply dark:bg-blue-700;
+    }
+    
+    ul.choice-filter {
+        @apply list-none mb-2 h-48 overflow-y-auto overflow-x-hidden absolute bg-white border border-gray-300 shadow-lg;
+        @apply dark:bg-gray-800 dark:border-gray-600 dark:shadow-none;
+    }
+    
+    button.choice-filter {
+        @apply text-left mb-1 mt-1 px-3 bg-white w-full;
+        @apply dark:bg-gray-800;
+    }
+    
+    button.choice-filter:focus, button.choice-filter:hover {
+        @apply bg-blue-500 text-white;
+        @apply dark:bg-blue-700;
+    }
 }
