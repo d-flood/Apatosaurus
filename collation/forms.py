@@ -10,6 +10,7 @@ from lxml import etree as et
 
 from collation import models
 from collation.py import helpers, process_tei
+from peasywidgets.datalist_widgets import DatalistMultiple, DatalistSingle
 from peasywidgets.filter_widgets import ChoiceFilterMulti, ChoiceFilterSingle
 
 
@@ -111,7 +112,6 @@ class RdgForm(forms.ModelForm):
         self.fields["target"].widget.attrs.update(
             {
                 "_": "on load if #id_witDetail.checked hide #div_id_rtype then hide #div_id_text else hide #div_id_target end",
-                "size": "10",
             }
         )
 
@@ -129,7 +129,10 @@ class RdgForm(forms.ModelForm):
             "target",
             "wit",
         ]
-        widgets = {"wit": ChoiceFilterMulti(models.Witness)}
+        widgets = {
+            "wit": DatalistMultiple(models.Witness),
+            "target": DatalistMultiple(models.Rdg),
+        }
 
     def save(self, app_pk: int, commit=True):
         instance = super().save(commit=False)
@@ -142,7 +145,7 @@ class RdgForm(forms.ModelForm):
     witDetail = forms.BooleanField(
         widget=forms.CheckboxInput(
             attrs={
-                "_": "on change if me.checked show #div_id_target then hide #div_id_rtype then hide #div_id_text else hide #div_id_target then show #div_id_rtype then show #div_id_text end"
+                "_": "on change if me.checked show #div_id_target then hide #div_id_rtype then hide #div_id_text else hide #div_id_target then show #div_id_rtype then show #div_id_text end on load if me.checked hide #div_id_rtype then hide #div_id_text else hide #div_id_target end"
             }
         ),
         required=False,

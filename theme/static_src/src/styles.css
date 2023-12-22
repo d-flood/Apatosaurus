@@ -145,7 +145,12 @@
         @apply dark:border-gray-600 dark:bg-gray-800;
         background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="black" viewBox="0 0 32 32"><path d="M16 22L6 10h20l-10 12z"/></svg>') no-repeat right .75rem center;
     }
-    
+
+    input.datalist-filter {
+        @apply border border-gray-300 px-3 py-2 text-base leading-6 w-full mb-2 cursor-pointer;
+        @apply dark:border-gray-600 dark:bg-gray-800;
+    }
+
     input.choice-filter.choice-filter-multi {
         @apply mt-0;
     }

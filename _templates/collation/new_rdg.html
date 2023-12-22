@@ -5,11 +5,6 @@
         hx-post="{% url 'new-rdg' app_pk=app_pk %}"
         hx-target="#readings">
         {{ form|crispy }}
-        <p>
-            <label class="sr-only" for="wits-filter">Filter Witnesses</label>
-            <input type="text" id="wits-filter" placeholder="Filter Witnesses"
-                _="on keyup if my value == '' show <option/> in #id_wit else if the event's key is 'Escape' set my value to '' trigger keyup else show <option/> in #id_wit when its textContent.startsWith(my value) end">
-        </p>
         <button type="submit" class="btn-submit mx-2 mt-4">
             Submit
         </button>
@@ -20,16 +15,3 @@
         </button>
     </form>
 </div>
-<script>
-    var selected_witnesses = document.getElementById('id_selected_witnesses');
-    // add change event listener to #id_wit
-    document.getElementById('id_wit').addEventListener('change', function (event) {
-        selected_witnesses.value = ''
-        var selectedOptions = event.target.selectedOptions;
-        var values = [];
-        for (var i = 0; i < selectedOptions.length; i++) {
-            values.push(selectedOptions[i].textContent);
-        }
-        selected_witnesses.value = values.join('. ');
-    });
-</script>
