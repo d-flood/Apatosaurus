@@ -260,26 +260,39 @@ function datalistFilterAdd(button, event) {
     let name = button.dataset.name;
     let targetUl = document.getElementById(button.dataset.targetul);
     let single = button.dataset.single === 'true';
-    if (event.ctrlKey) {
+    let success = false;
+    // if ',' in input, add multiple items
+    if (input.value.includes(",")) {
         // try to add multiple items
         let inputValues = input.value.split(",");
         for (let inputValue of inputValues) {
-            datalistAddSingleItem(targetUl, inputValue.trim(), datalist, name, single);
+            success = datalistAddSingleItem(targetUl, inputValue.trim(), datalist, name, single);
+            if (!success) {
+                break;
+            }
         }
     } else {
         // add single item
-        datalistAddSingleItem(targetUl, input.value, datalist, name, single);
+        success = datalistAddSingleItem(targetUl, input.value, datalist, name, single);
     }
-    input.value = "";
+    if (success) {
+        input.value = "";
+    }
 }
 function datalistAddSingleItem(targetUl, inputValue, datalist, name, single) {
-    // Add single item to list
+    // Check if item already exists
     for (let item of targetUl.getElementsByTagName("input")) {
       if (item.value === inputValue) {
         document.getElementById(`${name}_errors`).innerHTML =
           `${inputValue}" is already added`;
         return;
       }
+    }
+    // Check if item exists in datalist
+    if (!datalist.querySelector(`option[value='${inputValue}']`)) {
+      document.getElementById(`${name}_errors`).innerHTML =
+        `${inputValue}" is not a valid option`;
+      return;
     }
     // get the value from the corresponding datalist.option's data-value attribute
     let value = datalist.querySelector(`option[value='${inputValue}']`).dataset.value;
@@ -301,4 +314,5 @@ function datalistAddSingleItem(targetUl, inputValue, datalist, name, single) {
     document.getElementById(`${name}_errors`).innerHTML = "";
     // focus the created input
     targetUl.lastElementChild.firstElementChild.focus();
+    return true;
   }
