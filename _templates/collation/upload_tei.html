@@ -10,7 +10,7 @@
     </p>
     <form action="submit" class="my-6"
         hx-encoding='multipart/form-data' 
-        hx-post="{% url 'upload-tei' section_id=section_id %}"
+        hx-post="{% url 'upload-tei' section_pk=section_pk %}"
         hx-target="#main">
         {{ form|crispy }}
         <button type="submit" class="btn-submit my-4">

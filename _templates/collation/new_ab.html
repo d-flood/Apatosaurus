@@ -5,7 +5,7 @@
         A collation unit is a section of text that you want to collate. For most people, 
         this should be a single verse or sentence.
     </p>
-    <form hx-post="{% url 'new-ab' section_id=section_id %}" class="my-6" hx-target="#main">
+    <form hx-post="{% url 'new-ab' section_pk=section_pk %}" class="my-6" hx-target="#main">
         {% csrf_token %}
         {{ new_ab_form|crispy }}
         <input type="submit" value="Submit" class="btn-submit">

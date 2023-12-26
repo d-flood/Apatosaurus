@@ -1,7 +1,7 @@
 {% load crispy_forms_tags %}
 <div class="flex flex-col items-start sm:mx-12">
     <h2 class="text-2xl my-3">Editing: {{ collation.name }}</h2>
-    <form hx-post="{% url 'edit-collation' collation_id=collation.pk %}" class="table rows" hx-target="#main">
+    <form hx-post="{% url 'edit-collation' collation_pk=collation.pk %}" class="table rows" hx-target="#main">
         {{ form|crispy }}
         <button type="submit" class="btn-submit my-2">Submit</button>
     </form>
@@ -26,7 +26,7 @@
         </button>
         <span class="px-6">|</span>
         <button type="button" class="btn-danger ml-2"
-            hx-delete="{% url 'edit-collation' collation_id=collation.pk %}"
+            hx-delete="{% url 'edit-collation' collation_pk=collation.pk %}"
             hx-confirm="Are you sure you want to delete an entire collation? This will also delete all of the sections, verses, variation units, and readings that belong to this collation."
             hx-target="#main">
             <svg class="inline-block" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">

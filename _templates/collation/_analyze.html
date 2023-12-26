@@ -6,7 +6,7 @@
 </div>
 
 <div class="bg-orange-100 dark:bg-cyan-1400 p-5 my-4 drop-shadow">
-    <form hx-get="{% url 'filter-variants' collation_slug=selected_collation.slug %}"
+    <form hx-get="{% url 'filter-variants' collation_pk=selected_collation.pk %}"
           hx-target="#filtered-variants"
           hx-push-url="true"
           autocomplete="off"

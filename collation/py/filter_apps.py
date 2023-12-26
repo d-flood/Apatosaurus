@@ -1,4 +1,4 @@
-from django.db.models import Count, QuerySet, Subquery, OuterRef
+from django.db.models import Count, OuterRef, QuerySet, Subquery
 from django.http import HttpRequest
 
 from collation import models
@@ -11,9 +11,11 @@ def apply_all_of(all_of: list[str], rdgs: QuerySet, only_these):
     for w in witnesses:
         rdgs = rdgs.filter(wit=w)
     if only_these:
-        objects_to_exclude = models.Rdg.objects.annotate(num_related_objects=Count('wit')).filter(num_related_objects__gt=number_of_witnesses)
-        rdgs = rdgs.exclude(pk__in=objects_to_exclude.values_list('pk', flat=True))
-    
+        objects_to_exclude = models.Rdg.objects.annotate(
+            num_related_objects=Count("wit")
+        ).filter(num_related_objects__gt=number_of_witnesses)
+        rdgs = rdgs.exclude(pk__in=objects_to_exclude.values_list("pk", flat=True))
+
     return rdgs
 
 
@@ -29,15 +31,15 @@ def apply_none_of(none_of: list[str], rdgs: QuerySet):
     return excluded_rdgs
 
 
-def filter_variants_by_witnesses(request: HttpRequest, collation_slug: str):
+def filter_variants_by_witnesses(request: HttpRequest, collation_pk: int):
     data = request.GET
-    all_of = data.getlist('all-of')
-    any_of = data.getlist('any-of')
-    none_of = data.getlist('none-of')
-    only_these = data.get('only-these')
-    ignore_rtypes = data.getlist('ignore-rtypes')
+    all_of = data.getlist("all-of")
+    any_of = data.getlist("any-of")
+    none_of = data.getlist("none-of")
+    only_these = data.get("only-these")
+    ignore_rtypes = data.getlist("ignore-rtypes")
 
-    collation = models.Collation.objects.filter(user=request.user).get(slug=collation_slug)
+    collation = models.Collation.objects.filter(user=request.user).get(pk=collation_pk)
     rdgs = models.Rdg.objects.filter(app__ab__section__collation=collation)
 
     if all_of:
@@ -51,9 +53,9 @@ def filter_variants_by_witnesses(request: HttpRequest, collation_slug: str):
         rdgs = apply_none_of(none_of, rdgs)
 
     variants = models.App.objects.filter(rdgs__in=rdgs)
-    if ignore_rtypes and ignore_rtypes != ['']:
+    if ignore_rtypes and ignore_rtypes != [""]:
         variants = filter_apps_by_rtype(ignore_rtypes, variants)
 
-    variants = variants.order_by('ab__section__number', 'ab__number', 'index_from')
+    variants = variants.order_by("ab__section__number", "ab__number", "index_from")
 
     return variants, variants.count()
