@@ -5,6 +5,11 @@
         hx-post="{% url 'new-rdg' app_pk=app_pk %}"
         hx-target="#readings">
         {{ form|crispy }}
+        <datalist id="rdg-types">
+            {% for type in rtypes %}
+                <option>{{ type }}</option>
+            {% endfor %}
+        </datalist>
         <button type="submit" class="btn-submit mx-2 mt-4">
             Submit
         </button>
