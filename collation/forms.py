@@ -63,7 +63,7 @@ class AbForm(forms.ModelForm):
 
     def save(self, section_pk: int, commit=True):
         instance = super().save(commit=False)
-        instance.section_pk = section_pk
+        instance.section_id = section_pk
         if commit:
             instance.save()
         return instance
@@ -115,10 +115,6 @@ class RdgForm(forms.ModelForm):
             }
         )
 
-    rtype = forms.CharField(
-        widget=forms.TextInput(attrs={"list": "rdg-types"}),
-    )
-
     class Meta:
         model = models.Rdg
         fields = [
@@ -142,6 +138,9 @@ class RdgForm(forms.ModelForm):
             self.save_m2m()
         return instance
 
+    rtype = forms.CharField(
+        widget=forms.TextInput(attrs={"list": "rdg-types", "autocomplete": "off"}),
+    )
     witDetail = forms.BooleanField(
         widget=forms.CheckboxInput(
             attrs={
