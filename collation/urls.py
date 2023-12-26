@@ -5,7 +5,7 @@ from collation import views
 urls = [
     path("", views.main, name="collation"),
     path("new/", views.new_colation, name="new-collation"),
-    path("<int:collation_id>/edit/", views.edit_collation, name="edit-collation"),
+    path("<int:collation_pk>/edit/", views.edit_collation, name="edit-collation"),
     path(
         "<int:collation_pk>/download-tei",
         views.download_tei_collation,
@@ -22,7 +22,7 @@ urls = [
         name="filter-variants",
     ),
     path("<slug:collation_slug>/sections/", views.sections, name="section-list"),
-    path("<int:collation_id>/new-section/", views.new_section, name="new-section"),
+    path("<int:collation_pk>/new-section/", views.new_section, name="new-section"),
     path(
         "collation_slug/<int:section_id>/upload-tei/",
         views.upload_tei_collation,

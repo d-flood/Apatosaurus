@@ -46,8 +46,8 @@ def new_colation(request: HttpRequest):
 
 @login_required
 @require_http_methods(["GET", "POST", "DELETE"])
-def edit_collation(request: HttpRequest, collation_id: int):
-    collation = models.Collation.objects.filter(user=request.user).get(pk=collation_id)
+def edit_collation(request: HttpRequest, collation_pk: int):
+    collation = models.Collation.objects.filter(user=request.user).get(pk=collation_pk)
     if request.method == "GET":
         form = forms.CollationForm(instance=collation)
         context = {
@@ -78,19 +78,19 @@ def edit_collation(request: HttpRequest, collation_id: int):
 
 @login_required
 @require_http_methods(["GET", "POST"])
-def new_section(request: HttpRequest, collation_id: int):
+def new_section(request: HttpRequest, collation_pk: int):
     if request.method == "GET":
         form = forms.SectionForm()
         context = {
             "page": {"active": "collation"},
             "new_section_form": forms.SectionForm(),
-            "collation_id": collation_id,
+            "collation_pk": collation_pk,
         }
         return render(request, "collation/new_section.html", context)
     else:
         form = forms.SectionForm(request.POST)
         if form.is_valid():
-            form.save(collation_id)
+            form.save(collation_pk)
             resp = render(
                 request,
                 "scraps/quick_message.html",

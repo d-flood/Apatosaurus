@@ -40,9 +40,9 @@ class SectionForm(forms.ModelForm):
         model = models.Section
         exclude = ["collation"]
 
-    def save(self, collation_id: int, commit=True):
+    def save(self, collation_pk: int, commit=True):
         instance = super().save(commit=False)
-        instance.collation_id = collation_id
+        instance.collation_id = collation_pk
         if commit:
             instance.save()
         return instance

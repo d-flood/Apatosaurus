@@ -7,7 +7,7 @@
         others may prefer to organize their collation units into lectionaries or Eusebian sections,
         for example.
     </p>
-    <form hx-post="{% url 'new-section' collation_id=collation_id %}" 
+    <form hx-post="{% url 'new-section' collation_pk=collation_pk %}" 
         class="my-6" hx-target="#main">
         {% csrf_token %}
         {{ new_section_form|crispy }}
