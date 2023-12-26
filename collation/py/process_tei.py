@@ -69,18 +69,18 @@ def construct_basetext(ab: et._Element) -> str:
     return " ".join(basetext)
 
 
-def create_ab_instance(ab_elem: et._Element, section_id: int, number: int) -> models.Ab:
+def create_ab_instance(ab_elem: et._Element, section_pk: int, number: int) -> models.Ab:
     basetext = construct_basetext(ab_elem)
     if name := ab_elem.attrib.get(f"{XML_NS}id", ""):
         name = str(name).replace("-APP", "")
     else:
-        name = f"{models.Section.objects.get(pk=section_id).name}: {number}"
+        name = f"{models.Section.objects.get(pk=section_pk).name}: {number}"
     if (lem := ab_elem.find(f"{TEI_NS}app/{TEI_NS}lem")) is not None:  # type: ignore
         basetext_label = lem.attrib.get("wit") or "unknown"
     else:
         basetext_label = "unknown"
     instance = models.Ab(
-        section_id=section_id,
+        section_pk=section_pk,
         number=number,
         basetext=basetext,
         basetext_label=basetext_label,
@@ -231,7 +231,7 @@ def create_arc_instance(app_elem: et._Element, app_pk: int):
         )
 
 
-def tei_to_db(xml: et._Element, section_id: int, job_pk: int, user_pk: int):
+def tei_to_db(xml: et._Element, section_pk: int, job_pk: int, user_pk: int):
     total = len(xml.findall(f"{TEI_NS}ab"))  # type: ignore
     if total == 0:
         total = 1
@@ -242,7 +242,7 @@ def tei_to_db(xml: et._Element, section_id: int, job_pk: int, user_pk: int):
             f'Importing {ab_elem.attrib.get(f"{XML_NS}id", "")}',
             int(i / total * 100),
         )
-        ab_instance = create_ab_instance(ab_elem, section_id, i)
+        ab_instance = create_ab_instance(ab_elem, section_pk, i)
         for app_elem in ab_elem.findall(f"{TEI_NS}app"):
             if not (app := create_app_instance(app_elem, ab_instance.pk)):
                 continue

@@ -61,9 +61,9 @@ class AbForm(forms.ModelForm):
             raise forms.ValidationError('Name cannot contain slashes "/" "\\"')
         return name
 
-    def save(self, section_id: int, commit=True):
+    def save(self, section_pk: int, commit=True):
         instance = super().save(commit=False)
-        instance.section_id = section_id
+        instance.section_pk = section_pk
         if commit:
             instance.save()
         return instance

@@ -105,10 +105,8 @@ def new_section(request: HttpRequest, collation_pk: int):
 
 @login_required
 @require_safe
-def analyze_collation(request: HttpRequest, collation_slug: str):
-    collation = models.Collation.objects.filter(user=request.user).get(
-        slug=collation_slug
-    )
+def analyze_collation(request: HttpRequest, collation_pk: int):
+    collation = models.Collation.objects.filter(user=request.user).get(pk=collation_pk)
     witnesses = (
         models.Witness.objects.filter(rdgs__app__ab__section__collation=collation)
         .distinct()
@@ -136,10 +134,8 @@ def analyze_collation(request: HttpRequest, collation_slug: str):
 
 @login_required
 @require_safe
-def filter_variants(request: HttpRequest, collation_slug: str):
-    collation = models.Collation.objects.filter(user=request.user).get(
-        slug=collation_slug
-    )
+def filter_variants(request: HttpRequest, collation_pk: int):
+    collation = models.Collation.objects.filter(user=request.user).get(pk=collation_pk)
     witnesses = (
         models.Witness.objects.filter(rdgs__app__ab__section__collation=collation)
         .distinct()
@@ -168,7 +164,7 @@ def filter_variants(request: HttpRequest, collation_slug: str):
         else:
             context["filter_form_errors"] = message
             return render(request, "collation/main.html", context)
-    apps, total = filter_variants_by_witnesses(request, collation_slug)
+    apps, total = filter_variants_by_witnesses(request, collation_pk)
     context.update({"apps": apps, "total": total})
     if request.htmx:  # type: ignore
         return render(request, "collation/_filtered_variants.html", context)
@@ -178,14 +174,14 @@ def filter_variants(request: HttpRequest, collation_slug: str):
 
 @login_required
 @require_http_methods(["GET", "POST", "DELETE"])
-def edit_section(request: HttpRequest, section_id: int):
+def edit_section(request: HttpRequest, section_pk: int):
     if request.method == "GET":
-        section = models.Section.objects.get(pk=section_id)
+        section = models.Section.objects.get(pk=section_pk)
         form = forms.SectionForm(instance=section)
         context = {"page": {"active": "collation"}, "form": form, "section": section}
         return render(request, "collation/edit_section.html", context)
     elif request.method == "POST":
-        section = models.Section.objects.get(pk=section_id)
+        section = models.Section.objects.get(pk=section_pk)
         form = forms.SectionForm(request.POST, instance=section)
         if form.is_valid():
             form.save(section.collation.pk)
@@ -198,7 +194,7 @@ def edit_section(request: HttpRequest, section_id: int):
             request, "collation/edit_section.html", {"page": {"active": "collation"}}
         )
     else:
-        section = models.Section.objects.get(pk=section_id)
+        section = models.Section.objects.get(pk=section_pk)
         section.delete()
         resp = render(
             request,
@@ -211,19 +207,19 @@ def edit_section(request: HttpRequest, section_id: int):
 
 @login_required
 @require_http_methods(["GET", "POST"])
-def new_ab(request: HttpRequest, section_id: int):
+def new_ab(request: HttpRequest, section_pk: int):
     if request.method == "GET":
         form = forms.AbForm()
         context = {
             "page": {"active": "collation"},
             "new_ab_form": forms.AbForm(),
-            "section_id": section_id,
+            "section_pk": section_pk,
         }
         return render(request, "collation/new_ab.html", context)
     else:
         form = forms.AbForm(request.POST)
         if form.is_valid():
-            form.save(section_id)
+            form.save(section_pk)
             resp = render(
                 request,
                 "scraps/quick_message.html",
@@ -236,7 +232,7 @@ def new_ab(request: HttpRequest, section_id: int):
             "collation/new_ab.html",
             {
                 "page": {"active": "collation"},
-                "section_id": section_id,
+                "section_pk": section_pk,
                 "new_ab_form": form,
             },
         )
@@ -275,8 +271,11 @@ def edit_ab(request: HttpRequest, ab_pk: int):
 @login_required
 @require_http_methods(["GET", "POST"])
 def new_rdg(request: HttpRequest, app_pk: int):
+    app = models.App.objects.filter(ab__section__collation__user=request.user).get(
+        pk=app_pk
+    )
     if request.method == "GET":
-        form = forms.RdgForm(app=models.App.objects.get(pk=app_pk), user=request.user)
+        form = forms.RdgForm(app=app, user=request.user)
         context = {
             "page": {"active": "collation"},
             "form": form,
@@ -284,12 +283,10 @@ def new_rdg(request: HttpRequest, app_pk: int):
             "rtypes": models.Rdg.RDG_CHOICES,
         }
     else:
-        form = forms.RdgForm(
-            request.POST, app=models.App.objects.get(pk=app_pk), user=request.user
-        )
+        form = forms.RdgForm(request.POST, app=app, user=request.user)
         if form.is_valid():
             form.save(app_pk)
-            app = models.App.objects.get(pk=app_pk)
+            app = app
             context = {
                 "app": app,
                 "arc_form": forms.ArcForm(models.App.objects.get(pk=app_pk)),
@@ -367,10 +364,9 @@ def cancel_new_rdg(request: HttpRequest, app_pk: int):
 
 
 @login_required
-def sections(request: HttpRequest, collation_slug: str):
-    collation = models.Collation.objects.filter(user=request.user).get(
-        slug=collation_slug
-    )
+def sections(request: HttpRequest, collation_pk: int):
+    print("\n\n\nsections\n\n\n")
+    collation = models.Collation.objects.filter(user=request.user).get(pk=collation_pk)
     context = {
         "page": {"active": "collation"},
         "collation": collation,
@@ -392,11 +388,10 @@ def collations(request: HttpRequest):
 
 
 @login_required
-def abs(request: HttpRequest, collation_slug: str, section_slugname: str):
-    collation = models.Collation.objects.filter(user=request.user).get(
-        slug=collation_slug
+def abs(request: HttpRequest, section_pk: int):
+    section = models.Section.objects.filter(collation__user=request.user).get(
+        pk=section_pk
     )
-    section = collation.sections.get(slugname=section_slugname)  # type: ignore
     context = {
         "page": {"active": "collation"},
         "abs": section.abs.all(),
@@ -411,18 +406,10 @@ def abs(request: HttpRequest, collation_slug: str, section_slugname: str):
 
 @login_required
 @require_safe
-def apparatus(
-    request: HttpRequest, collation_slug: str, section_slugname: str, ab_slugname: str
-):
-    collation = models.Collation.objects.filter(user=request.user).get(
-        slug=collation_slug
-    )
-    section = collation.sections.get(slugname=section_slugname)  # type: ignore
-    ab = section.abs.get(slugname=ab_slugname)  # type: ignore
+def apparatus(request: HttpRequest, ab_pk: int):
+    ab = models.Ab.objects.filter(section__collation__user=request.user).get(pk=ab_pk)
     context = {
         "page": {"active": "collation"},
-        "collation": collation,
-        "section": section,
         "ab": ab,
         "ab_list": True,
         "load_apparatus": True,
@@ -518,7 +505,6 @@ def show_deleted_apps(request: HttpRequest, ab_pk: int):
 @login_required
 @require_http_methods(["POST"])
 def restore_app(request: HttpRequest, app_pk: int):
-    print("hello")
     app = models.App.objects.filter(ab__section__collation__user=request.user).get(
         pk=app_pk
     )
@@ -543,8 +529,12 @@ def combine_apps(request: HttpRequest):
         app2_pk = int(appTarget.replace("app-", ""))
     else:
         return HttpResponse(status=204)
-    app1 = models.App.objects.get(pk=app1_pk)
-    app2 = models.App.objects.get(pk=app2_pk)
+    app1 = models.App.objects.filter(ab__section__collation__user=request.user).get(
+        pk=app1_pk
+    )
+    app2 = models.App.objects.filter(ab__section__collation__user=request.user).get(
+        pk=app2_pk
+    )
     app1.combine_with(app2)
     app_buttons = render_block_to_string(
         "collation/_apparatus.html", "app_buttons", {"ab": app1.ab}
@@ -615,10 +605,10 @@ def edit_arc(request: HttpRequest, app_pk: int, delete: int):
 
 @login_required
 @require_http_methods(["GET", "POST"])
-def upload_tei_collation(request: HttpRequest, section_id: int):
+def upload_tei_collation(request: HttpRequest, section_pk: int):
     if request.method == "GET":
         form = forms.TeiCollationFileForm()
-        context = {"form": form, "section_id": section_id}
+        context = {"form": form, "section_pk": section_pk}
         return render(request, "collation/upload_tei.html", context)
     else:
         form = forms.TeiCollationFileForm(request.POST, request.FILES)
@@ -637,7 +627,7 @@ def upload_tei_collation(request: HttpRequest, section_id: int):
                 )
             tei_file_name = f'/tmp/{request.user.username}/{request.FILES["tei_file"].name}.xml'  # type: ignore
             import_collation.import_tei(
-                tei_file, tei_file_name, section_id, request.user.pk
+                tei_file, tei_file_name, section_pk, request.user.pk
             )
             return render(
                 request,
@@ -648,7 +638,7 @@ def upload_tei_collation(request: HttpRequest, section_id: int):
                 },
             )
         else:
-            context = {"form": form, "section_id": section_id}
+            context = {"form": form, "section_pk": section_pk}
             return render(request, "collation/upload_tei.html", context)
 
 

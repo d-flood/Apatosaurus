@@ -59,6 +59,7 @@ INSTALLED_APPS = [
     "django_browser_reload",
     "impersonate",
     "peasywidgets",
+    "transcriptions",
 ]
 
 MIDDLEWARE = [

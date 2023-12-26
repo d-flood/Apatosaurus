@@ -10,7 +10,7 @@ from CONFIG import settings
 
 
 @task
-def tei_to_db(tei_file_name: str, section_id: int, user_pk: int):
+def tei_to_db(tei_file_name: str, section_pk: int, user_pk: int):
     session = boto3.Session(
         aws_access_key_id=os.environ.get("AWS_S3_ACCESS_KEY_ID"),
         aws_secret_access_key=os.environ.get("AWS_S3_SECRET_ACCESS_KEY"),
@@ -26,12 +26,12 @@ def tei_to_db(tei_file_name: str, section_id: int, user_pk: int):
     )
     job_pk = JobStatus.objects.create(
         user_id=user_pk,
-        name=f"Import TEI Collation {models.Section.objects.get(pk=section_id).name}",
+        name=f"Import TEI Collation {models.Section.objects.get(pk=section_pk).name}",
         message="Started",
     ).pk
     try:
         if (xml := process_tei.parse_xml(tei_string)) is not None:
-            process_tei.tei_to_db(xml, section_id, job_pk, user_pk)
+            process_tei.tei_to_db(xml, section_pk, job_pk, user_pk)
             update_status(job_pk, "", 100, False, True)
         else:
             update_status(job_pk, "Error: XML file is not valid", 0, False, False, True)
@@ -41,7 +41,7 @@ def tei_to_db(tei_file_name: str, section_id: int, user_pk: int):
     s3.delete_object(Bucket=settings.AWS_STORAGE_BUCKET_NAME, Key=tei_file_name)
 
 
-def import_tei(tei_file, tei_file_name: str, section_id: int, user_pk: int):
+def import_tei(tei_file, tei_file_name: str, section_pk: int, user_pk: int):
     session = boto3.Session(
         aws_access_key_id=os.environ.get("AWS_S3_ACCESS_KEY_ID"),
         aws_secret_access_key=os.environ.get("AWS_S3_SECRET_ACCESS_KEY"),
@@ -53,4 +53,4 @@ def import_tei(tei_file, tei_file_name: str, section_id: int, user_pk: int):
         Key=tei_file_name,
         Body=tei_file.read(),
     )
-    tei_to_db(tei_file_name, section_id, user_pk)
+    tei_to_db(tei_file_name, section_pk, user_pk)

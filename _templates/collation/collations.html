@@ -5,7 +5,7 @@
         {% for collation in user.collations.all %}
             <li class="min-w-full my-2 flex flex-row">
                 <a class="btn w-10/12 px-1 whitespace-nowrap overflow-hidden text-ellipsis"
-                    hx-get="{% url 'section-list' collation_slug=collation.slug %}"
+                    hx-get="{% url 'section-list' collation_pk=collation.pk %}"
                     hx-push-url="true"
                     hx-target="#sidebar-header"
                     title="{{ collation.name }}">
@@ -21,7 +21,7 @@
                 </button>
                 <button class="btn ml-2 px-1 analyze-btn{% if selected_collation.pk == collation.pk %} btn-selected{% endif %}"
                     type="button" aria-label="collation options" title="Analyze Collation"
-                    hx-get="{% url 'analyze-collation' collation_slug=collation.slug %}"
+                    hx-get="{% url 'analyze-collation' collation_pk=collation.pk %}"
                     hx-target="#main"
                     hx-push-url="true"
                     _="on click remove .btn-selected from .analyze-btn then add .btn-selected to me end">
