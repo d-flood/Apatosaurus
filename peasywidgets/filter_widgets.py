@@ -1,6 +1,4 @@
 from django import forms
-
-# from django.forms.models import ModelChoiceIterator
 from django.http import QueryDict
 from django.template.loader import render_to_string
 from django.utils.safestring import mark_safe
@@ -24,7 +22,7 @@ class ChoiceFilterSingle(forms.Widget):
         return mark_safe(output)
 
 
-class ChoiceFilterMulti(forms.Widget):
+class ChoiceFilterMultiple(forms.Widget):
     def __init__(self, object_model, choices=[], attrs=None):
         self.object_model = object_model
         if choices:

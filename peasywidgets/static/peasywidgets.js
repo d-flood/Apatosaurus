@@ -203,7 +203,7 @@ function setInitialDisplay(inputElem) {
 }
 
 // ###############################################################################
-// ChoiceFilterMulti Functions
+// ChoiceFilterMultiple Functions
 
 function choiceFilterRemoveItem(elem) {
   let li = elem.parentElement;

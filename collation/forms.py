@@ -11,7 +11,7 @@ from lxml import etree as et
 from collation import models
 from collation.py import helpers, process_tei
 from peasywidgets.datalist_widgets import DatalistMultiple, DatalistSingle
-from peasywidgets.filter_widgets import ChoiceFilterMulti, ChoiceFilterSingle
+from peasywidgets.filter_widgets import ChoiceFilterMultiple, ChoiceFilterSingle
 
 
 class CollationForm(forms.ModelForm):

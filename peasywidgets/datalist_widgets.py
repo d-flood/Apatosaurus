@@ -1,5 +1,3 @@
-import re
-
 from django import forms
 from django.http import QueryDict
 from django.template.loader import render_to_string
@@ -19,8 +17,9 @@ class DatalistSingle(forms.Widget):
             "name": name,
             "current_object": current_object,
             "choices": self.choices,
+            "single": "true",
         }
-        output = render_to_string("datalist_single.html", context)
+        output = render_to_string("datalist.html", context)
         return mark_safe(output)
 
 
@@ -41,8 +40,9 @@ class DatalistMultiple(forms.Widget):
                 o for o in self.object_model.objects.filter(pk__in=value)
             ],
             "choices": self.choices,
+            "single": "false",
         }
-        output = render_to_string("datalist_multiple.html", context)
+        output = render_to_string("datalist.html", context)
         return mark_safe(output)
 
     def value_from_datadict(self, data: QueryDict, files, name):
