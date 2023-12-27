@@ -365,7 +365,6 @@ def cancel_new_rdg(request: HttpRequest, app_pk: int):
 
 @login_required
 def sections(request: HttpRequest, collation_pk: int):
-    print("\n\n\nsections\n\n\n")
     collation = models.Collation.objects.filter(user=request.user).get(pk=collation_pk)
     context = {
         "page": {"active": "collation"},
@@ -609,7 +608,7 @@ def upload_tei_collation(request: HttpRequest, section_pk: int):
     if request.method == "GET":
         form = forms.TeiCollationFileForm()
         context = {"form": form, "section_pk": section_pk}
-        return render(request, "collation/upload_tei.html", context)
+        return render(request, "transcriptions/_upload_tei.html", context)
     else:
         form = forms.TeiCollationFileForm(request.POST, request.FILES)
         if form.is_valid():
@@ -629,14 +628,11 @@ def upload_tei_collation(request: HttpRequest, section_pk: int):
             import_collation.import_tei(
                 tei_file, tei_file_name, section_pk, request.user.pk
             )
-            return render(
-                request,
-                "scraps/quick_message.html",
-                {
-                    "message": "File uploaded and added to processing queue. You can check the status in home page.",
-                    "timout": "3",
-                },
-            )
+            context = {
+                "message": "File uploaded and added to processing queue. You can check the status in home page.",
+                "timout": "3",
+            }
+            return render(request, "scraps/quick_message.html", context)
         else:
             context = {"form": form, "section_pk": section_pk}
             return render(request, "collation/upload_tei.html", context)
