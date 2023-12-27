@@ -18,6 +18,8 @@ psycopg2-binary
 whitenoise==6.4.0
 zappa==0.56.1
 awslambdaric
+collatex==2.3
+Levenshtein==0.23.0
 
 # dev
 # rich

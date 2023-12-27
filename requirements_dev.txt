@@ -17,6 +17,8 @@ django-impersonate==1.8.2
 psycopg2-binary
 whitenoise==6.4.0
 zappa==0.56.1
+collatex==2.3
+Levenshtein==0.23.0
 
 # dev
 boto3-stubs==1.26.85

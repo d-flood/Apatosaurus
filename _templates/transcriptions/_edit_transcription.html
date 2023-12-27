@@ -1,0 +1,42 @@
+{% load crispy_forms_tags humanize %}
+<div class="flex flex-col items-start">
+    <h2 class="text-2xl my-3 sm:mx-12">Edit {{ transcription.name }} Transcription 
+        <span class="text-sm">(modified {{ transcription.date_modified|naturaltime }})</span>
+    </h2>
+    <div class="mt-2 sm:mx-12">
+        <p class="max-w-xl">
+            The "Original" values should be accurate transcriptions without normalization or other editorial modifications.
+            The "Normalized" values can be anything which you would like the word to be matched against during collation.
+            The original value will always be displayed, but providing a normalized form can help the automated collation
+            process correctly align abbreviations with full spellings or alternative spellings. Note that once you begin
+            making use of normalizations, you should remain consistent and include a normalization for every similar context.
+        </p>
+        <form hx-post="{% url 'edit-transcription' transcription_pk=transcription.pk %}" class="mt-4" hx-target="#main">
+            <div class="errors">{{ errors }}</div>
+            <div class="flex flex-row flex-wrap">
+                <div class="flex flex-col">
+                    <p class="flex-grow">Original</p>
+                    <p class="flex-grow">Normalized</p>
+                </div>
+                {% for token in transcription.tokens %}
+                    <div class="flex flex-col mb-4">
+                        <div class="flex flex-row">
+                            <label for="original-{{ forloop.counter }}" class="flex-grow text-sm sr-only">Original</label>
+                            <input type="text" name="original" id="original-{{ forloop.counter }}" class="w-32 mx-1" value="{{ token.t }}"
+                                _="on input if my value is '' set my value to '{{ token.t }}'">
+                        </div>
+                        <div class="flex flex-row">
+                            <label for="normalized-{{ forloop.counter }}" class="flex-grow text-sm sr-only">Normalized</label>
+                            <input type="text" name="normalized" id="normalized-{{ forloop.counter }}" class="w-32 mx-1" value="{{ token.n }}"
+                                _="on input if my value is '' set my value to '{{ token.n }}'">
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+            <p class="mb-4">
+                Plain text: {% for t in transcription.tokens %}{{ t.t }} {% endfor %}
+            </p>
+            <input type="submit" class="btn" value="Submit">
+        </form>
+    </div>
+</div>

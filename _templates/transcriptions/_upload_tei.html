@@ -1,0 +1,32 @@
+{% load crispy_forms_tags %}
+<div class="flex flex-col items-start sm:mx-12">
+    <h2 class="text-2xl my-3">Upload TEI Transcription File</h2>
+    <p class="max-w-xl">
+        Only TEI that follows the 
+        <a class="normal-link" href="http://epapers.bham.ac.uk/1727/5/IGNTP_XML_guidelines_1-4.pdf">
+            IGNTP Guidelines</a> is currently supported.
+    </p>
+    <p class="max-w-xl my-2">
+        Note that uploading a TEI transcription may result in the creation of additional witnesses including correctors.
+    </p>
+    <form class="my-6"
+        hx-encoding='multipart/form-data' 
+        hx-post="{% url 'import-tei-transcription' witness_pk=witness_pk %}"
+        hx-target="#main">
+        {{ form|crispy }}
+        <button type="submit" class="btn-submit my-4">
+            Upload and Import
+        </button>
+    </form>
+</div>
+<script>
+    document.getElementById('id_tei_file').addEventListener('change', function(e) {
+        var file_input = document.getElementById('id_tei_file');
+        var fileName = file_input.files[0].name;
+        // clear the file input if the file name does not end with '.xml'
+        if (!fileName.endsWith('.xml')) {
+            file_input.value = '';
+            alert('File must be an XML file.');
+        }
+    });
+</script>

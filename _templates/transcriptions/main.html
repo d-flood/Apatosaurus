@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+
+<div class="flex">
+    <header id="sidebar-header" class="z-20 hidden absolute lg:relative lg:flex lg:flex-col w-72 min-h-screen px-4 py-8 overflow-y-auto border-r bg-orange-50 dark:bg-cyan-1400">
+        <div class="flex flex-col justify-between mt-6">
+            <h1 class="text-2xl text-center">Transcriptions for <br>{{ witness.siglum }}</h1>
+            <hr class="my-4 border-orange-700 border-t-4">
+                <ul role="list">
+                    {% for transcription in transcriptions %}
+                        <li class="min-w-full my-2 flex flex-row">
+                            <a class="btn w-10/12 px-1 whitespace-nowrap overflow-hidden text-ellipsis"
+                                hx-get="{% url 'edit-transcription' transcription_pk=transcription.pk %}"
+                                hx-push-url="true"
+                                hx-target="#main">
+                                {{ transcription.name }}
+                            </a>
+                            <!-- delete button -->
+                            <button type="button" class="btn-danger w-2/12 ml-2 p-0"
+                                title="delete" aria-label="delete {{ transcription.name }}"
+                                hx-delete="{% url 'edit-transcription' transcription_pk=transcription.pk %}"
+                                hx-confirm="Are you sure you want to delete your {{ transcription.name }} transcription?">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash3-fill" viewBox="0 0 16 16">
+                                    <path d="M11 1.5v1h3.5a.5.5 0 0 1 0 1h-.538l-.853 10.66A2 2 0 0 1 11.115 16h-6.23a2 2 0 0 1-1.994-1.84L2.038 3.5H1.5a.5.5 0 0 1 0-1H5v-1A1.5 1.5 0 0 1 6.5 0h3A1.5 1.5 0 0 1 11 1.5m-5 0v1h4v-1a.5.5 0 0 0-.5-.5h-3a.5.5 0 0 0-.5.5M4.5 5.029l.5 8.5a.5.5 0 1 0 .998-.06l-.5-8.5a.5.5 0 1 0-.998.06Zm6.53-.528a.5.5 0 0 0-.528.47l-.5 8.5a.5.5 0 0 0 .998.058l.5-8.5a.5.5 0 0 0-.47-.528ZM8 4.5a.5.5 0 0 0-.5.5v8.5a.5.5 0 0 0 1 0V5a.5.5 0 0 0-.5-.5"/>
+                                </svg>
+                            </button>
+                        </li>
+                    {% endfor %}
+                </ul>
+            <button type="button" class="btn w-full mt-4 inline-flex text-center"
+                hx-get="{% url 'new-transcription' witness_pk=witness.pk %}" hx-target="#main">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6 mr-2">
+                    <path fill-rule="evenodd" d="M12 3.75a.75.75 0 01.75.75v6.75h6.75a.75.75 0 010 1.5h-6.75v6.75a.75.75 0 01-1.5 0v-6.75H4.5a.75.75 0 010-1.5h6.75V4.5a.75.75 0 01.75-.75z" clip-rule="evenodd" />
+                </svg>
+                New Transcription
+            </button>
+            <button type="button" class="btn w-full mt-4 inline-flex text-center"
+                hx-get="{% url 'import-tei-transcription' witness_pk=witness.pk %}" hx-target="#main">
+                Import TEI Transcription
+            </button>
+        </div>
+    </header>
+    <button type="button" aria-label="Show Menu" title="Show Menu"
+        class="z-30 absolute lg:hidden rounded-md p-2 text-gray-00 hover:bg-gray-700 hover:text-white focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white"
+        _="on click toggle .hidden on previous <header/>">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+        </svg>
+    </button>
+    <main id="main" class="mx-3 mb-auto w-full">
+        {% if show_transcription %}
+            {% include "transcriptions/_edit_transcription.html" %}
+        {% endif %}
+    </main>
+</div>
+
+{% endblock %}
