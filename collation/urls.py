@@ -89,6 +89,11 @@ urls = [
         name="apparatus",
     ),
     path(
+        "parallel-apparatus/<int:ab_pk>/",
+        views.parallel_apparatus,
+        name="parallel-apparatus",
+    ),
+    path(
         "refresh-basetext/<int:ab_pk>/basetext/",
         views.refresh_basetext,
         name="refresh-basetext",

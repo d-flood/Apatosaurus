@@ -422,6 +422,21 @@ def apparatus(request: HttpRequest, ab_pk: int):
 
 
 @login_required
+@require_safe
+def parallel_apparatus(request: HttpRequest, ab_pk: int):
+    ab = models.Ab.objects.filter(section__collation__user=request.user).get(pk=ab_pk)
+    context = {
+        "page": {"active": "collation"},
+        "ab": ab,
+        "section": ab.section,
+        "ab_list": True,
+        "parallel_apparatus": True,
+        "parallel_basetext": helpers.mix_basetext_and_apps(ab),
+    }
+    return render(request, "collation/main.html", context)
+
+
+@login_required
 @require_http_methods(["GET", "POST", "DELETE"])
 def edit_app(
     request: HttpRequest, ab_pk: int, app_pk: int, permanently_delete: str | None = None
