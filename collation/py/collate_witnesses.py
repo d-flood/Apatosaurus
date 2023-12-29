@@ -3,44 +3,9 @@ import string
 
 from collatex import collate
 from django.db.models import Q
-from natsort import index_natsorted
 
 from collation import models as cmodels
 from transcriptions import models as tmodels
-
-text = [
-    {
-        "id": "Base",
-        "tokens": [
-            {"t": "a", "n": "a", "index": 2},
-            {"t": "big", "n": "big", "index": 4},
-            {"t": "brown", "n": "brown", "index": 6},
-            {"t": "dog", "n": "dog", "index": 8},
-            {"t": "growls", "n": "growls", "index": 10},
-        ],
-    },
-    {
-        "id": "A",
-        "tokens": [
-            {"t": "a", "n": "a"},
-            {"t": "black", "n": "black"},
-            {"t": "dog", "n": "dog"},
-            {"t": "growls", "n": "growls"},
-        ],
-    },
-    {
-        "id": "B",
-        "tokens": [
-            {"t": "a", "n": "one"},
-            {"t": "black", "n": "black"},
-            {"t": "cat", "n": "cat"},
-            {"t": "jumps", "n": "jumps"},
-            {"t": "up", "n": "up"},
-            {"t": "the", "n": "the"},
-            {"t": "tree", "n": "tree"},
-        ],
-    },
-]
 
 
 def get_basetext_tokens(basetext_pk: int, transcription_names: list[str]) -> list[dict]:
@@ -58,10 +23,11 @@ def gather_witness_transcriptions(
     basetext_pk: int,
     ab_pk: int,
     user_pk: int,
-) -> list:
+) -> tuple[list[dict], list[str]]:
     """
     Given a list of witness pks and a list of ab names, return a list of transcriptions.
     """
+    errors = []
     ab = cmodels.Ab.objects.filter(
         section__collation__user_id=user_pk, pk=ab_pk
     ).first()
@@ -78,15 +44,13 @@ def gather_witness_transcriptions(
         transcription = tmodels.Transcription.objects.filter(
             witness__pk=witness_pk, name__in=transcription_names
         ).first()
-        # for tr_name in transcription_names:
-        #     transcription = tmodels.Transcription.objects.filter(
-        #         witness=witness, name=tr_name
-        #     ).first()
-        #     if not transcription:
-        #         continue
+        if not transcription:
+            errors.append(
+                f"Transcription not found for witness {witness} matching any of: {transcription_names}"
+            )
+            continue
         witnesses.append({"id": witness_pk, "tokens": transcription.tokens})
-        # break
-    return witnesses
+    return witnesses, errors
 
 
 def collapse_witness_readings(
@@ -127,7 +91,6 @@ def get_variation_units(table):
         if not segment:
             variation_units.append(None)
             continue
-        print(f"segment: {segment}")
         _from = min([token["index"] for token in segment])
         _to = max([token["index"] for token in segment])
         tokens = []
@@ -147,12 +110,19 @@ def get_variation_units(table):
 
 def get_readings(table, variation_units):
     cleaned_variation_units = []
+    errors = []
     for i, variant in enumerate(variation_units):
         if not variant:
             continue
         variant_readings = []
         for witness in table:
-            witness_id = witness[0][0]["_sigil"]
+            for segment in witness:
+                if segment:
+                    witness_id = segment[0]["_sigil"]
+                    break
+            else:
+                errors.append(f"No data for an unknown witness.")
+                continue
             if not witness[i]:
                 text = ""
             else:
@@ -164,7 +134,7 @@ def get_readings(table, variation_units):
         # only include variaiton units with 2 or more readings
         if len(variant_readings) > 1:
             cleaned_variation_units.append(variant)
-    return cleaned_variation_units
+    return cleaned_variation_units, errors
 
 
 def add_collation_to_db(variation_units: list[dict], ab_pk: int, user_pk: int):
@@ -202,12 +172,13 @@ def collate_verse(
     ab_pk: int,
     user_pk: int,
 ):
-    witnesses = gather_witness_transcriptions(
+    witnesses, errors = gather_witness_transcriptions(
         witnes_pks, transcription_names, basetext, ab_pk, user_pk
     )
     witnesses = {"witnesses": witnesses}
     collation = json.loads(collate(witnesses, output="json", segmentation=True))
     table = collation["table"]
     variation_units = get_variation_units(table)
-    variation_units = get_readings(table, variation_units)
+    variation_units, table_errors = get_readings(table, variation_units)
     add_collation_to_db(variation_units, ab_pk, user_pk)
+    return errors + table_errors

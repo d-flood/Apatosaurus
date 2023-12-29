@@ -405,8 +405,7 @@ def abs(request: HttpRequest, section_pk: int):
 
 
 @login_required
-@require_safe
-def apparatus(request: HttpRequest, ab_pk: int):
+def apparatus(request: HttpRequest, ab_pk: int, errors: list[str] | None = None):
     ab = models.Ab.objects.filter(section__collation__user=request.user).get(pk=ab_pk)
     context = {
         "page": {"active": "collation"},
@@ -414,6 +413,7 @@ def apparatus(request: HttpRequest, ab_pk: int):
         "section": ab.section,
         "ab_list": True,
         "load_apparatus": True,
+        "errors": "\n".join(errors) if errors else None,
     }
     if request.htmx:  # type: ignore
         return render(request, "collation/_apparatus.html", context)
@@ -769,14 +769,14 @@ def collate(request: HttpRequest, ab_pk: int):
     else:
         form = forms.CollateForm(request.POST)
         if form.is_valid():
-            collate_witnesses.collate_verse(
+            errors = collate_witnesses.collate_verse(
                 request.POST.getlist("witnesses"),
                 request.POST.getlist("transcription_names"),
                 request.POST.get("basetext"),
                 ab_pk,
                 request.user.pk,
             )
-            return redirect("apparatus", ab_pk=ab_pk)
+            return apparatus(request, ab_pk, errors=errors)
         else:
             print(form.errors)
     context = {
@@ -796,9 +796,11 @@ def get_nonduplicate_transcription_names_by_wits(request: HttpRequest):
     basetext_wit = request.GET.get("basetext")
     if basetext_wit:
         witness_pks.append(basetext_wit)
-    transcription_names = Transcription.objects.filter(
-        witness__pk__in=witness_pks
-    ).values_list("name", flat=True)
+    transcription_names = (
+        Transcription.objects.filter(witness__pk__in=witness_pks)
+        .values_list("name", flat=True)
+        .distinct()
+    )
     option_elements = "\n".join(
         [
             f'<option value="{name}" data-value="{name}"></option>'

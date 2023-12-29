@@ -23,4 +23,9 @@ urls = [
         views.upload_tei_transcription,
         name="import-tei-transcription",
     ),
+    path(
+        "delete/<int:witness_pk>/",
+        views.delete_all_transcriptions_for_witness,
+        name="delete-transcriptions",
+    ),
 ]

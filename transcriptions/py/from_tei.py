@@ -85,21 +85,21 @@ def write_xml(root):
 def handle_abbr(abbr: et._Element):  # * PASSING
     if not abbr.text and abbr.getchildren():
         if abbr.getchildren()[0].text:
-            return abbr.getchildren()[0].text
+            return abbr.getchildren()[0].text.strip()
     elif abbr.text and not abbr.getchildren():
-        return abbr.text
+        return abbr.text.strip()
 
 
 def handle_app(app: et._Element, hand: str):
     def get_text(word: et._Element, words: list):
         if word.text and word.tag != "{http://www.tei-c.org/ns/1.0}pc":
-            words.append(word.text)
+            words.append(word.text.strip())
         elif word.getchildren():
             if (
                 word.getchildren()[0].text
                 and word.tag != "{http://www.tei-c.org/ns/1.0}pc"
             ):
-                words.append(word.getchildren()[0].text)
+                words.append(word.getchildren()[0].text.strip())
             elif word.getchildren()[0].tag == "{http://www.tei-c.org/ns/1.0}abbr":
                 t = handle_abbr(word.getchildren()[0])
                 if t:
@@ -126,13 +126,13 @@ def get_all_words_in_verse(verse: et._Element, hand: str) -> list[str]:
     words = []
     for elem in verse:
         if elem.tag == f"{{{tei_ns}}}w" and not elem.getchildren() and elem.text:
-            words.append(elem.text)
+            words.append(elem.text.strip())
         elif elem.tag == f"{{{tei_ns}}}w" and elem.getchildren():
             for child in elem:
                 if child.tag == f"{{{tei_ns}}}abbr":
                     words.append(handle_abbr(child))
                 elif child.text:
-                    words.append(child.text)
+                    words.append(child.text.strip())
         elif elem.tag == f"{{{tei_ns}}}app":
             words += handle_app(elem, hand)
     return words

@@ -124,3 +124,16 @@ def upload_tei_transcription(request: HttpRequest, witness_pk: int) -> HttpRespo
             return render(
                 request, "transcriptions/_upload_tei_transcription.html", context
             )
+
+
+@login_required
+@require_http_methods(["DELETE"])
+def delete_all_transcriptions_for_witness(request: HttpRequest, witness_pk: int):
+    witness = Witness.objects.get(pk=witness_pk)
+    transcriptions = models.Transcription.objects.filter(
+        witness=witness, user=request.user
+    )
+    transcriptions.delete()
+    resp = HttpResponse()
+    resp["HX-Redirect"] = reverse("transcriptions", kwargs={"witness_pk": witness_pk})
+    return resp
