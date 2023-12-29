@@ -20,6 +20,11 @@
     <div>
         <span class="text-sm"><a href="{% url 'apparatus' ab_pk=ab.pk %}" class="text-sm font-light normal-link no-underline">Traditional Apparatus</a></span> | <span class="sr-only">Viewing: </span><span class="font-bold">Parallel Apparatus</span>
     </div>
+    <div class="flex flex-row align-middle mt-4 items-center">
+        <input type="checkbox" id="hide-wits"
+            _="on change if me.checked hide .wits-div else show .wits-div end">
+        <label for="hide-wits" class="ml-2 underline">Hide Witnesses</label>
+    </div>
 </div>
 
 
@@ -35,16 +40,18 @@
             <div class="flex flex-col border-2 border-orange-700 text-center p-2">
                 <h4>{{ thing.app.index_from }}{% if thing.app.index_from != thing.app.index_to %}–{{ thing.app.index_to }}{% endif %}</h4>
                 {% for rdg in thing.app.rdgs.all %}
-                    <div class="flex flex-col">
-                        <div class="flex flex-row space-x-2">
+                    <div class="flex flex-col space-y-2">
+                        <div class="flex flex-row space-x-2 rdg-row">
                             <div class="">({{ rdg.name }})</div>
                             <div class="font-greek whitespace-nowrap">{% if rdg.text %}{{ rdg.text }}{% else %}[{{ rdg.rtype }}]{% endif %}</div>
                         </div>
-                        <div class="text-start text-sm">
+                        <div class="text-start text-sm wits-div">
                             {% for w in rdg.wit.all %}
-                                <button type="button" class="{{ w.siglum }} wit mx-1" title="{{ w.description }}"
-                                    {% comment %} _="on click remove .border-orange-500 from .wit then add .border-orange-500 to .{{ w.siglum }}" {% endcomment %}
-                                    >
+                                <button type="button" class="w{{ w.siglum }} wit mx-1 hover:bg-slate-300 dark:hover:bg-slate-700" title="{{ w.description }}"
+                                    _="on click remove .border-2 .border-orange-500 from .wit then add .border-2 .border-orange-500 to .w{{ w.siglum }}
+                                    then remove .bg-orange-200 .dark:bg-orange-900 from .rdg-row 
+                                    then repeat for b in .w{{ w.siglum }} add .bg-orange-200 .dark:bg-orange-900 to the b.parentElement.parentElement.firstElementChild end"
+                                >
                                     {{ w.siglum }}
                                 </button>
                             {% endfor %}
