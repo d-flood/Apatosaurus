@@ -18,7 +18,10 @@ class TranscriptionForm(forms.ModelForm):
 
     def clean_text(self) -> list[dict[str, str]]:
         text = self.cleaned_data["text"]
-        return [{"t": token, "n": token} for token in text.split()]
+        return [
+            {"t": token, "n": token, "index": i * 2}
+            for i, token in enumerate(text.split(), 1)
+        ]
 
     def clean_name(self) -> str:
         name = self.cleaned_data["name"]

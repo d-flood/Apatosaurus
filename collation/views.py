@@ -5,8 +5,9 @@ from django.views.decorators.http import require_http_methods, require_safe
 from render_block import render_block_to_string
 
 from collation import forms, models
-from collation.py import helpers, import_collation
+from collation.py import collate_witnesses, helpers, import_collation
 from collation.py.filter_apps import filter_variants_by_witnesses
+from transcriptions.models import Transcription
 from witnesses.py.sort_ga_witnesses import sort_ga_witnesses
 
 
@@ -245,7 +246,7 @@ def edit_ab(request: HttpRequest, ab_pk: int):
         ab = models.Ab.objects.get(pk=ab_pk)
         form = forms.AbForm(instance=ab)
         context = {"page": {"active": "collation"}, "form": form, "ab": ab}
-        return render(request, "collation/edit_ab.html", context)
+        return render(request, "collation/_edit_ab.html", context)
     elif request.method == "POST":
         ab = models.Ab.objects.get(pk=ab_pk)
         form = forms.AbForm(request.POST, instance=ab)
@@ -255,7 +256,7 @@ def edit_ab(request: HttpRequest, ab_pk: int):
             resp["HX-Trigger"] = "refreshAbs"
             return resp
         context = {"page": {"active": "collation"}, "form": form, "ab": ab}
-        return render(request, "collation/edit_ab.html", context)
+        return render(request, "collation/_edit_ab.html", context)
     else:
         ab = models.Ab.objects.get(pk=ab_pk)
         ab.delete()
@@ -410,6 +411,7 @@ def apparatus(request: HttpRequest, ab_pk: int):
     context = {
         "page": {"active": "collation"},
         "ab": ab,
+        "section": ab.section,
         "ab_list": True,
         "load_apparatus": True,
     }
@@ -608,7 +610,7 @@ def upload_tei_collation(request: HttpRequest, section_pk: int):
     if request.method == "GET":
         form = forms.TeiCollationFileForm()
         context = {"form": form, "section_pk": section_pk}
-        return render(request, "transcriptions/_upload_tei.html", context)
+        return render(request, "collation/upload_tei.html", context)
     else:
         form = forms.TeiCollationFileForm(request.POST, request.FILES)
         if form.is_valid():
@@ -741,3 +743,51 @@ def ab_note(request: HttpRequest, ab_pk: int):
                 "collation/draggable_note.html", "inner", context
             )
             return HttpResponse(block)
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def collate(request: HttpRequest, ab_pk: int):
+    ab = models.Ab.objects.get(pk=ab_pk)
+    if request.method == "GET":
+        form = forms.CollateForm()
+    else:
+        form = forms.CollateForm(request.POST)
+        if form.is_valid():
+            collate_witnesses.collate_verse(
+                request.POST.getlist("witnesses"),
+                request.POST.getlist("transcription_names"),
+                request.POST.get("basetext"),
+                ab_pk,
+                request.user.pk,
+            )
+            return redirect("apparatus", ab_pk=ab_pk)
+        else:
+            print(form.errors)
+    context = {
+        "ab": ab,
+        "ab_list": True,
+        "collate": True,
+        "section": ab.section,
+        "form": form,
+    }
+    return render(request, "collation/main.html", context)
+
+
+@login_required
+@require_safe
+def get_nonduplicate_transcription_names_by_wits(request: HttpRequest):
+    witness_pks = request.GET.getlist("witnesses")
+    basetext_wit = request.GET.get("basetext")
+    if basetext_wit:
+        witness_pks.append(basetext_wit)
+    transcription_names = Transcription.objects.filter(
+        witness__pk__in=witness_pks
+    ).values_list("name", flat=True)
+    option_elements = "\n".join(
+        [
+            f'<option value="{name}" data-value="{name}"></option>'
+            for name in transcription_names
+        ]
+    )
+    return HttpResponse(option_elements)

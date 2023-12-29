@@ -27,6 +27,8 @@
             {% include "collation/_apparatus.html" %}
         {% elif analyze_collation %}
             {% include 'collation/_analyze.html' %}
+        {% elif collate %}
+            {% include 'collation/_collate.html' %}
         {% endif %}
     </main>
 </div>

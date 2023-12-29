@@ -19,8 +19,8 @@
         Cancel
     </button>
 
-    <label for="ab-options" class="mt-10">Options:</label>
-    <section id="ab-options" class="flex flex-row">
+    <label for="ab-options" class="mt-10 mb-4 text-lg border-b px-4">Options</label>
+    <section id="ab-options" class="flex flex-row my-2">
         <a href="{% url 'download-tei-ab' ab_pk=ab.pk %}" target="_blank"
             class="normal-link mx-2">
             <svg class="mr-3 inline-flex" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
@@ -33,6 +33,10 @@
             hx-target="#main">
             Import to open-cbgm
         </button>
+        <a type="button" class="btn mx-2"
+            href="{% url 'collate' ab_pk=ab.pk %}">
+            Collate Verse
+        </a>
         <span class="px-6">|</span>
         <button type="button" class="btn-danger ml-2"
             hx-delete="{% url 'edit-ab' ab_pk=ab.pk %}"

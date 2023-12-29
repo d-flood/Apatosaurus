@@ -2,7 +2,7 @@
     <p id="{{ name }}_errors" class="choice-filter-errors"></p>
     <div class="flex flex-row">
         <input type="text" id="{{ name }}_input" class="datalist-filter" 
-            placeholder="Select one{% if single == 'false' %} or more{% endif %} {{ name }}(s)" 
+            placeholder="Select one{% if single == 'false' %} or more{% endif %}" 
             autocomplete="off" list="{{ name }}_datalist"
             _="on input if my value contains ',' set #{{ name }}_add_btn's textContent to 'Add+' else set #{{ name }}_add_btn's textContent to 'Add' end">
         <button type="button" class="btn-submit h-8 px-1 ml-2 mt-1" id="{{ name }}_add_btn"
@@ -11,7 +11,7 @@
             Add
         </button>
     </div>
-    <datalist id="{{ name }}_datalist">
+    <datalist id="{{ name }}_datalist" {{ datalist_attrs|safe }}>
         {% for value, label in choices %}
             <option data-value="{{ value }}" value="{{ label }}"></option>
         {% endfor %}

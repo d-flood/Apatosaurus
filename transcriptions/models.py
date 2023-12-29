@@ -1,7 +1,7 @@
 from django.contrib.auth import get_user_model
 from django.db import models
 
-from collation.models import Ab, Witness
+from collation.models import Witness
 
 
 class Transcription(models.Model):

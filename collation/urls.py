@@ -163,4 +163,14 @@ urls = [
         views.restore_rdg,
         name="restore-rdg",
     ),
+    path(
+        "collate/<int:ab_pk>/",
+        views.collate,
+        name="collate",
+    ),
+    path(
+        "collate/get-unique-ab-names/",
+        views.get_nonduplicate_transcription_names_by_wits,
+        name="get-unique-ab-names",
+    ),
 ]
