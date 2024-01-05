@@ -80,7 +80,7 @@ def create_ab_instance(ab_elem: et._Element, section_pk: int, number: int) -> mo
     else:
         basetext_label = "unknown"
     instance = models.Ab(
-        section_pk=section_pk,
+        section_id=section_pk,
         number=number,
         basetext=basetext,
         basetext_label=basetext_label,
@@ -138,12 +138,15 @@ def create_rdg_instance(rdg_elem: et._Element, app: models.App, user_pk: int):
     if witnesses := rdg_elem.attrib.get("wit"):
         witnesses = witnesses.split()
         wits = []
-        db_wits = models.Witness.objects.filter(Q(user_id=user_pk) | Q(default=True))
+        db_wits = models.Witness.objects.filter(
+            Q(default=True) | Q(user_id=user_pk)
+        ).order_by("-default")
         for w in witnesses:
             if not db_wits.filter(siglum=w).exists():
                 wit_to_append = models.Witness.objects.create(siglum=w, user_id=user_pk)
             else:
-                wit_to_append = db_wits.get(siglum=w)
+                wit_to_append = db_wits.filter(siglum=w).first()
+
             wits.append(wit_to_append)
     else:
         wits = None
@@ -168,12 +171,14 @@ def create_witDetail_rdg_instance(
     if witnesses := witDetail.attrib.get("wit"):
         witnesses = witnesses.split()
         wits = []
-        db_wits = models.Witness.objects.filter(Q(user_id=user_pk) | Q(default=True))
+        db_wits = models.Witness.objects.filter(
+            Q(user_id=user_pk) | Q(default=True)
+        ).order_by("-default")
         for w in witnesses:
             if not db_wits.filter(siglum=w).exists():
                 wit_to_append = models.Witness.objects.create(siglum=w, user_id=user_pk)
             else:
-                wit_to_append = db_wits.get(siglum=w)
+                wit_to_append = db_wits.filter(siglum=w).first()
             wits.append(wit_to_append)
     else:
         wits = None
