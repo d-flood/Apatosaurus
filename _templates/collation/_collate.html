@@ -14,13 +14,22 @@
     <p class="text-center my-4 italic">Note that running a collation will replace any existing variation units currently defined in this verse.</p>
     <div class="flex flex-col items-center w-full">
         <div class="flex flex-row flex-wrap" id="app-buttons-wrapper">
-            <form id="collate-form" action="{% url 'collate' ab_pk=ab.pk %}" method="post">
-                <div class="flex flex-col md:flex-row space-y-2 md:space-y-0 md:space-x-2">
-                    {% csrf_token %}
-                    {{ form|crispy }}
-                </div>
-                <button class="btn-submit mt-4" type="submit">Collate Witnesses</button>
-            </form>
+            {% block collate_form %}
+                <form class="flex flex-col" id="collate-form" action="{% url 'collate' ab_pk=ab.pk %}" method="post">
+                    <div id="form-success-msg" class="my-2"></div>
+                    <div class="flex flex-col md:flex-row space-y-2 md:space-y-0 md:space-x-2">
+                        {% csrf_token %}
+                        {{ form|crispy }}
+                    </div>
+                    <button class="btn mt-4"
+                        hx-post="{% url 'save-collate-config' ab_pk=ab.pk %}"
+                        hx-target="#collate-form"
+                        hx-include="#collate-form">
+                        Save Collation Settings
+                    </button>
+                    <button class="btn-submit mt-4" type="submit">Collate Witnesses</button>
+                </form>
+            {% endblock collate_form %}
         </div>    
     </div>
 </div>

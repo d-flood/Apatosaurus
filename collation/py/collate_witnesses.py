@@ -13,7 +13,7 @@ def get_basetext_tokens(basetext_pk: int, transcription_names: list[str]) -> lis
         witness__pk=basetext_pk, name__in=transcription_names
     ).first()
     if not basetext:
-        raise ValueError("Basetext not found")
+        raise ValueError(f"Basetext not found: {basetext_pk}")
     return [{"id": basetext_pk, "tokens": basetext.tokens}]
 
 

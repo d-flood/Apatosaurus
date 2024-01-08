@@ -50,11 +50,12 @@ class Datalist(forms.Widget):
     def render(self, name, value, attrs=None, renderer=None):
         if value is None:
             value = []
-
+        if not hasattr(value, "__iter__"):
+            value = [value]
         current_values = (
             [o for o in self.object_model.objects.filter(pk__in=value)]
             if self.object_model
-            else []
+            else value
         )
 
         context = {

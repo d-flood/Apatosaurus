@@ -206,6 +206,17 @@ class Ab(models.Model):
         ordering = ["number"]
 
 
+class CollationConfig(models.Model):
+    ab = models.OneToOneField(
+        Ab, on_delete=models.CASCADE, related_name="collation_config"
+    )
+    witnesses = models.ManyToManyField(Witness, related_name="collation_configs")
+    basetext = models.ForeignKey(
+        Witness, on_delete=models.CASCADE, related_name="is_basetext_for", null=True
+    )
+    transcription_names = models.JSONField(null=True, blank=True, default=list)
+
+
 class App(models.Model):
     ab = models.ForeignKey(Ab, on_delete=models.CASCADE, related_name="apps")
     atype = models.CharField(max_length=9, default="main")
@@ -290,7 +301,6 @@ class App(models.Model):
         for w in self.rdgs.values_list("wit__siglum", flat=True).union(
             other_app.rdgs.values_list("wit__siglum", flat=True)
         ):
-            print(f"w: {w}")
             if (
                 before_app.rdgs.filter(wit__siglum=w).exists()
                 and after_app.rdgs.filter(wit__siglum=w).exists()

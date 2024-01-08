@@ -10,6 +10,7 @@ from django.http import HttpRequest, QueryDict
 from django.urls import reverse_lazy
 from lxml import etree as et
 
+import witnesses
 from collation import models
 from collation.py import helpers, process_tei
 from peasywidgets.datalist_widgets import Datalist
@@ -232,23 +233,31 @@ def variant_filter_is_valid(request: HttpRequest) -> tuple[bool, str]:
     return True, ""
 
 
-class CollateForm(forms.Form):
-    witnesses = forms.ModelMultipleChoiceField(
-        queryset=models.Witness.objects.all(),
-        widget=Datalist(
-            multiple=True,
-            object_model=models.Witness,
-        ),
-    )
-    basetext = forms.ModelChoiceField(
-        queryset=models.Witness.objects.all(),
-        widget=Datalist(
-            multiple=False,
-            object_model=models.Witness,
-        ),
-    )
+class CollationConfigForm(forms.ModelForm):
+    class Meta:
+        model = models.CollationConfig
+        fields = [
+            "witnesses",
+            "basetext",
+            "transcription_names",
+        ]
+        widgets = {
+            "witnesses": Datalist(multiple=True, object_model=models.Witness),
+            "basetext": Datalist(multiple=False, object_model=models.Witness),
+        }
+
+    def save(self, ab_pk: int, commit=True):
+        instance = super().save(commit=False)
+        instance.ab_id = ab_pk
+        if commit:
+            instance.save()
+        # print cleaned data
+        print(self.cleaned_data)
+        self.save_m2m()
+        return instance
+
     transcription_names = MultipleChoiceFieldNoValidation(
-        label="Transcription Names",
+        label="Transcription Name(s)",
         widget=Datalist(
             multiple=True,
             datalist_attrs={

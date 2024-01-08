@@ -761,13 +761,38 @@ def ab_note(request: HttpRequest, ab_pk: int):
 
 
 @login_required
+@require_http_methods(["POST"])
+def save_collate_config(request: HttpRequest, ab_pk: int):
+    ab = models.Ab.objects.get(pk=ab_pk)
+    collation_config: models.CollationConfig = ab.collation_config
+    form = forms.CollationConfigForm(request.POST, instance=collation_config)
+    if not form.is_valid():
+        html = render_block_to_string(
+            "collation/_collate.html",
+            "collate_form",
+            {"form": form, "ab": ab},
+            request,
+        )
+        return HttpResponse(html)
+    form.save(ab_pk)
+    resp = render(
+        request,
+        "scraps/quick_message.html",
+        {"message": "Collation settings saved!", "timout": 5},
+    )
+    resp["HX-Retarget"] = "#form-success-msg"
+    return resp
+
+
+@login_required
 @require_http_methods(["GET", "POST"])
 def collate(request: HttpRequest, ab_pk: int):
     ab = models.Ab.objects.get(pk=ab_pk)
+    collation_config = models.CollationConfig.objects.get_or_create(ab_id=ab_pk)[0]
     if request.method == "GET":
-        form = forms.CollateForm()
+        form = forms.CollationConfigForm(instance=collation_config)
     else:
-        form = forms.CollateForm(request.POST)
+        form = forms.CollationConfigForm(request.POST)
         if form.is_valid():
             errors = collate_witnesses.collate_verse(
                 request.POST.getlist("witnesses"),
@@ -796,10 +821,12 @@ def get_nonduplicate_transcription_names_by_wits(request: HttpRequest):
     basetext_wit = request.GET.get("basetext")
     if basetext_wit:
         witness_pks.append(basetext_wit)
-    transcription_names = (
-        Transcription.objects.filter(witness__pk__in=witness_pks)
-        .values_list("name", flat=True)
-        .distinct()
+    transcription_names = set(
+        (
+            Transcription.objects.filter(witness__pk__in=witness_pks)
+            .values_list("name", flat=True)
+            .distinct()
+        )
     )
     option_elements = "\n".join(
         [

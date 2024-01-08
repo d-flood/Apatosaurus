@@ -178,4 +178,9 @@ urls = [
         views.get_nonduplicate_transcription_names_by_wits,
         name="get-unique-ab-names",
     ),
+    path(
+        "collate/save-collate-config/<int:ab_pk>/",
+        views.save_collate_config,
+        name="save-collate-config",
+    ),
 ]
