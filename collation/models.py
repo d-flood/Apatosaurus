@@ -34,12 +34,25 @@ class Witness(models.Model):
         blank=True,
     )
 
-    def __str__(self):
-        return self.siglum
-
     class Meta:
         unique_together = ("siglum", "user")
         indexes = [models.Index(fields=["siglum"])]
+
+    def __str__(self):
+        return self.siglum
+
+    def get_by_siglum(siglum: str, user=None):
+        """
+        Returns a Witness object by siglum and prefers default witnesses.
+        """
+        if user:
+            return (
+                Witness.objects.filter(Q(siglum=siglum) | Q(user=user))
+                .order_by("-default", "siglum")
+                .first()
+            )
+        else:
+            return Witness.objects.filter(siglum=siglum, default=True).first()
 
 
 class Collation(models.Model):
