@@ -40,7 +40,7 @@ def save_transcription_to_db(verse_dict: dict, user_pk, witness_pk: int):
             witness_object = first_hand_witness
         else:
             witness_object, _ = Witness.objects.get_or_create(
-                siglum=witness["id"], user_id=user_pk
+                siglum=first_hand_witness.siglum, user_id=user_pk
             )
         models.Transcription.objects.create(
             user_id=user_pk,
