@@ -3,7 +3,7 @@
     <div class="flex flex-row items-center">
         <div id="ab-note-container"></div>
         <h2 class="text-4xl text-center my-12">
-            Collate {{ ab.name }}
+            Collate <span class="border-b border-r border-orange-700 pr-2">{{ ab.name }}</span>
         </h2>
     </div>
 </div>
@@ -21,18 +21,50 @@
                         {% csrf_token %}
                         {{ form|crispy }}
                     </div>
-                    <button class="btn mt-4"
-                        hx-post="{% url 'save-collate-config' ab_pk=ab.pk %}"
-                        hx-target="#collate-form"
-                        hx-include="#collate-form">
-                        Save Collation Settings
-                    </button>
+                    <div class="flex flex-row space-x-4">
+                        <button class="btn mt-4 w-1/2"
+                            type="button"
+                            hx-post="{% url 'save-collate-config' ab_pk=ab.pk %}"
+                            hx-target="#collate-form"
+                            hx-include="#collate-form">
+                            Save Collation Settings
+                        </button>
+                        <button class="btn mt-4 w-1/2"
+                            type="button"
+                            onclick="document.getElementById('collate-modal').showModal()">
+                            Import Configuration
+                        </button>
+                    </div>
                     <button class="btn-submit mt-4" type="submit">Collate Witnesses</button>
                 </form>
             {% endblock collate_form %}
         </div>    
     </div>
 </div>
+
+<dialog id="collate-modal" 
+    class="fixed inset-1/2 -translate-x-1/2 p-4 w-80 shadow-xl bg-slate-500 text-white">
+    <form method="dialog">
+        <button class="btn-danger absolute right-0 top-0 p-1 rounded-none">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-x-lg" viewBox="0 0 16 16">
+                <path d="M2.146 2.854a.5.5 0 1 1 .708-.708L8 7.293l5.146-5.147a.5.5 0 0 1 .708.708L8.707 8l5.147 5.146a.5.5 0 0 1-.708.708L8 8.707l-5.146 5.147a.5.5 0 0 1-.708-.708L7.293 8z"/>
+            </svg>
+        </button>
+    </form>
+    <form action="{% url 'collate' ab_pk=ab.pk %}" method="GET">
+        <legend class="my-1">Select an existing Collation Configuration from which to import a list of witnesses and a basetext.</legend>
+        {% csrf_token %}
+        {{ previous_collation_form|crispy }}
+        <input class="btn-submit mt-4" type="submit" value="Load"/>
+    </form>
+
+    <style>
+        ::backdrop {
+        background-color: gray;
+        opacity: 0.5;
+        }
+    </style>
+</dialog>
 
 
 {% block extra_js %}
@@ -46,7 +78,7 @@
 
    function getValidVerseNames() {
     setTimeout(() => {
-        document.getElementById("transcription_names_datalist").dispatchEvent(new Event("getAbNames"))
+        document.getElementById("transcription_name_datalist").dispatchEvent(new Event("getAbNames"))
     }, 250)
    }
 </script>

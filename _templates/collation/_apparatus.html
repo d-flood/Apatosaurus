@@ -162,8 +162,8 @@
                                     on mouseleave remove .brightness-150 from #app-{{ word.app_pk }} end
                                     on mouseleave remove .bg-orange-300 .dark:bg-cyan-800 from .bt-{{ word.app_pk }} then remove .bg-orange-400 .dark:bg-cyan-800 from #app-{{ word.app_pk }} end
                                     on mousedown send mousedown to #app-{{ word.app_pk }}
-                                    then remove .selected from <td/> then add .selected to .bt-{{ word.app_pk }} 
-                                    then remove .selected from .app-button then add .selected to #app-{{ word.app_pk }} end">
+                                        then remove .selected from <td/> then add .selected to .bt-{{ word.app_pk }} 
+                                        then remove .selected from .app-button then add .selected to #app-{{ word.app_pk }} end">
                                     {{ word.word }}<br>{{ word.index }}
                                 </td>
                             {% else %}
