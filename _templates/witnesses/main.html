@@ -27,40 +27,61 @@
             
         <div id="default-witnesses"  role="tabpanel" class="p-8">
             <p class="mb-4">
-                <label class="sr-only" for="wits-filter">Filter Witnesses</label>
+                <label c
+                lass="sr-only" for="wits-filter">Filter Witnesses</label>
                 <input type="text" id="wits-filter" placeholder="Filter Witnesses"
-                _="on keyup if my value == '' show <p/> in #default_witnesses_list else if the event's key is 'Escape' set my value to '' trigger keyup else show <p/> in #default_witnesses_list when its textContent.startsWith(my value) end">
+                _="on input show <li/> in #default_witnesses_list when its textContent.toLowerCase() contains my value.toLowerCase() end">
             </p>
-            <div class="flex flex-col max-h-screen overflow-y-auto" id="default_witnesses_list">
+            <ul class="flex flex-col max-h-screen overflow-y-auto" id="default_witnesses_list">
                 {% for wit in default_witnesses %}
-                    <p>{{ wit.siglum }} - {{ wit.description }}</p>
+                    <li>
+                        {% if request.user.is_superuser %}
+                            <a class="normal-link inline-flex" 
+                                href="{% url 'transcriptions' witness_pk=wit.pk %}"
+                                aria-label="transcription" title="transcription">
+                                {{ wit.siglum }} - {{ wit.description }}
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 14" fill="currentColor" class="w-4 h-4 mx-2">
+                                    <path d="M11.25 4.533A9.707 9.707 0 0 0 6 3a9.735 9.735 0 0 0-3.25.555.75.75 0 0 0-.5.707v14.25a.75.75 0 0 0 1 .707A8.237 8.237 0 0 1 6 18.75c1.995 0 3.823.707 5.25 1.886V4.533ZM12.75 20.636A8.214 8.214 0 0 1 18 18.75c.966 0 1.89.166 2.75.47a.75.75 0 0 0 1-.708V4.262a.75.75 0 0 0-.5-.707A9.735 9.735 0 0 0 18 3a9.707 9.707 0 0 0-5.25 1.533v16.103Z" />
+                                </svg>
+                            </a>
+                        {% else %}
+                            {{ wit.siglum }} - {{ wit.description }}
+                        {% endif %}
+                    </li>
                 {% endfor %}
-            </div>
+            </ul>
         </div>
         <div id="my-witnesses" role="tabpanel" class="p-8" style="display: none;">
             <p class="mb-4">
                 <label class="sr-only" for="user-wits-filter">Filter Witnesses</label>
                 <input type="text" id="user-wits-filter" placeholder="Filter Witnesses"
-                _="on keyup if my value == '' show <p/> in #user_witnesses_list else if the event's key is 'Escape' set my value to '' trigger keyup else show <p/> in #user_witnesses_list when its textContent.startsWith(my value) end">
+                _="on input show <li/> in #user_witnesses_list when its textContent.toLowerCase() contains my value.toLowerCase() end">
             </p>
             <div class="flex flex-row justify-around flex-wrap">
-                <div class="flex flex-col max-h-screen overflow-y-auto" id="user_witnesses_list"
+                <ul class="flex flex-col max-h-screen overflow-y-auto" id="user_witnesses_list"
                     hx-trigger="refreshUserWitnesses from:body"
                     hx-get="{% url 'refresh-user-witnesses' %}">
                     {% block user_witnesses %}
                         {% for wit in user_witnesses %}
-                            <p>
-                                {{ wit.siglum }} - {{ wit.description }}
+                            <li>
+                                <a class="normal-link inline-flex" 
+                                    href="{% url "transcriptions" witness_pk=wit.pk %}"
+                                    aria-label="transcription" title="transcription">
+                                    {{ wit.siglum }} - {{ wit.description }}
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 14" fill="currentColor" class="w-4 h-4 mx-2">
+                                        <path d="M11.25 4.533A9.707 9.707 0 0 0 6 3a9.735 9.735 0 0 0-3.25.555.75.75 0 0 0-.5.707v14.25a.75.75 0 0 0 1 .707A8.237 8.237 0 0 1 6 18.75c1.995 0 3.823.707 5.25 1.886V4.533ZM12.75 20.636A8.214 8.214 0 0 1 18 18.75c.966 0 1.89.166 2.75.47a.75.75 0 0 0 1-.708V4.262a.75.75 0 0 0-.5-.707A9.735 9.735 0 0 0 18 3a9.707 9.707 0 0 0-5.25 1.533v16.103Z" />
+                                    </svg>
+                                </a>
                                 <button class="btn p-0 my-1 mx-4" 
                                     type="button" aria-label="edit" title="edit"
                                     hx-get="{% url 'edit-witness' witness_pk=wit.pk %}"
                                     hx-target="#new-witness-form">
                                     &#128393;
                                 </button>
-                            </p>
+                            </li>
                         {% endfor %}
                     {% endblock user_witnesses %}
-                </div>
+                        </ul>
                 <div id="new-witness-form">
                     {% block new_witness_form %}
                     <h2 class="text-xl font-semibold">New Witness</h2>

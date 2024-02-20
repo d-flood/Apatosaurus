@@ -1,0 +1,86 @@
+{% load static crispy_forms_tags %}
+<div class="flex flex-col items-center">
+    <div class="flex flex-row items-center">
+        <div id="ab-note-container"></div>
+        <h2 class="text-4xl text-center my-12">
+            Collate <span class="border-b border-r border-orange-700 pr-2">{{ ab.name }}</span>
+        </h2>
+    </div>
+</div>
+
+
+<div class="bg-orange-100 dark:bg-cyan-1400 pb-10 pt-5 my-4 drop-shadow">
+    <h3 class="text-2xl text-center my-4">Select Witnesses and Verses to Collate</h3>
+    <p class="text-center my-4 italic">Note that running a collation will replace any existing variation units currently defined in this verse.</p>
+    <div class="flex flex-col items-center w-full">
+        <div class="flex flex-row flex-wrap" id="app-buttons-wrapper">
+            {% block collate_form %}
+                <form class="flex flex-col" id="collate-form" action="{% url 'collate' ab_pk=ab.pk %}" method="post">
+                    <div id="form-success-msg" class="my-2"></div>
+                    <div class="flex flex-col md:flex-row space-y-2 md:space-y-0 md:space-x-2">
+                        {% csrf_token %}
+                        {{ form|crispy }}
+                    </div>
+                    <div class="flex flex-row space-x-4">
+                        <button class="btn mt-4 w-1/2"
+                            type="button"
+                            hx-post="{% url 'save-collate-config' ab_pk=ab.pk %}"
+                            hx-target="#collate-form"
+                            hx-include="#collate-form">
+                            Save Collation Settings
+                        </button>
+                        <button class="btn mt-4 w-1/2"
+                            type="button"
+                            onclick="document.getElementById('collate-modal').showModal()">
+                            Import Configuration
+                        </button>
+                    </div>
+                    <button class="btn-submit mt-4" type="submit">Collate Witnesses</button>
+                </form>
+            {% endblock collate_form %}
+        </div>    
+    </div>
+</div>
+
+<dialog id="collate-modal" 
+    class="fixed inset-1/2 -translate-x-1/2 p-4 w-80 shadow-xl bg-slate-500 text-white">
+    <form method="dialog">
+        <button class="btn-danger absolute right-0 top-0 p-1 rounded-none">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-x-lg" viewBox="0 0 16 16">
+                <path d="M2.146 2.854a.5.5 0 1 1 .708-.708L8 7.293l5.146-5.147a.5.5 0 0 1 .708.708L8.707 8l5.147 5.146a.5.5 0 0 1-.708.708L8 8.707l-5.146 5.147a.5.5 0 0 1-.708-.708L7.293 8z"/>
+            </svg>
+        </button>
+    </form>
+    <form action="{% url 'collate' ab_pk=ab.pk %}" method="GET">
+        <legend class="my-1">Select an existing Collation Configuration from which to import a list of witnesses and a basetext.</legend>
+        {% csrf_token %}
+        {{ previous_collation_form|crispy }}
+        <input class="btn-submit mt-4" type="submit" value="Load"/>
+    </form>
+
+    <style>
+        ::backdrop {
+        background-color: gray;
+        opacity: 0.5;
+        }
+    </style>
+</dialog>
+
+
+{% block extra_js %}
+<script>
+   document.getElementById("witnesses_add_btn").addEventListener("click", () => {
+        getValidVerseNames()
+   })
+    document.getElementById("basetext_add_btn").addEventListener("click", () => {
+          getValidVerseNames()
+    })
+
+   function getValidVerseNames() {
+    setTimeout(() => {
+        document.getElementById("transcription_name_datalist").dispatchEvent(new Event("getAbNames"))
+    }, 250)
+   }
+</script>
+<script src="{% static 'peasywidgets.js' %}"></script>
+{% endblock extra_js %}

@@ -2,14 +2,14 @@
     <nav class="m-2" aria-label="breadcrumbs">
         <ol class="list-reset flex">
             <li>
-                <a class="inline-flex underline hover:text-orange-700 hover:dark:text-cyan-500 rounded-md" 
+                <a class="normal-link" 
                     hx-get="{% url 'collation' %}" hx-target="#sidebar-header">
-                    Collations
+                    Apparatuses
                 </a>
             </li>
             <li><span class="text-gray-500 dark:text-white mx-2">/</span></li>
             <li>
-                <a class="inline-flex whitespace-nowrap underline hover:text-orange-700 hover:dark:text-cyan-500 rounded-md" 
+                <a class="normal-link"" 
                     hx-get="{% url 'section-list' collation_pk=section.collation.pk %}" hx-target="#sidebar-header">
                     {{ section.collation.name }}
                 </a>

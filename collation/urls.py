@@ -89,6 +89,11 @@ urls = [
         name="apparatus",
     ),
     path(
+        "parallel-apparatus/<int:ab_pk>/",
+        views.parallel_apparatus,
+        name="parallel-apparatus",
+    ),
+    path(
         "refresh-basetext/<int:ab_pk>/basetext/",
         views.refresh_basetext,
         name="refresh-basetext",
@@ -162,5 +167,20 @@ urls = [
         "restore-reading/<int:rdg_pk>/<int:history_pk>/",
         views.restore_rdg,
         name="restore-rdg",
+    ),
+    path(
+        "collate/<int:ab_pk>/",
+        views.collate,
+        name="collate",
+    ),
+    path(
+        "collate/get-unique-ab-names/",
+        views.get_nonduplicate_transcription_names_by_wits,
+        name="get-unique-ab-names",
+    ),
+    path(
+        "collate/save-collate-config/<int:ab_pk>/",
+        views.save_collate_config,
+        name="save-collate-config",
     ),
 ]

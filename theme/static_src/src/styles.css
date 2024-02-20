@@ -132,7 +132,7 @@
         @apply h-6 w-6 p-0 rounded-full cursor-pointer mt-auto mb-auto ml-2 text-center;
     }
     
-    button > svg {
+    button.choice-filter-rm-btn > svg {
         @apply block mx-auto;
     }
     

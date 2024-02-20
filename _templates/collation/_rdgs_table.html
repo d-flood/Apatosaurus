@@ -14,7 +14,7 @@
                             <th scope="col" class="rdg-edit text-end">Edit</th>
                         </tr>
                     </thead>
-                    <tbody id="rdgs_table">
+                    <tbody id="rdgs_table" preload>
                         {% for rdg in rdgs %}
                             <tr class="{% cycle '' 'bg-orange-50 dark:bg-cyan-1500' %}">
                                 <td class="px-2" width="5px">{{ rdg.name }}</td>

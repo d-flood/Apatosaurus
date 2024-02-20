@@ -5,8 +5,8 @@ from collation import models
 from collation.models import filter_apps_by_rtype
 
 
-def apply_all_of(all_of: list[str], rdgs: QuerySet, only_these):
-    witnesses = [models.Witness.objects.get(siglum=wit) for wit in all_of]
+def apply_all_of(all_of: list[str], rdgs: QuerySet, only_these, user):
+    witnesses = [models.Witness.get_by_siglum(wit, user) for wit in all_of]
     number_of_witnesses = len(witnesses)
     for w in witnesses:
         rdgs = rdgs.filter(wit=w)
@@ -19,14 +19,14 @@ def apply_all_of(all_of: list[str], rdgs: QuerySet, only_these):
     return rdgs
 
 
-def apply_any_of(any_of: list[str], rdgs: QuerySet):
-    witnesses = [models.Witness.objects.get(siglum=wit) for wit in any_of]
+def apply_any_of(any_of: list[str], rdgs: QuerySet, user):
+    witnesses = [models.Witness.get_by_siglum(wit, user) for wit in any_of]
     rdgs = rdgs.filter(wit__in=witnesses)
     return rdgs
 
 
-def apply_none_of(none_of: list[str], rdgs: QuerySet):
-    witnesses = [models.Witness.objects.get(siglum=wit) for wit in none_of]
+def apply_none_of(none_of: list[str], rdgs: QuerySet, user):
+    witnesses = [models.Witness.get_by_siglum(wit, user) for wit in none_of]
     excluded_rdgs = rdgs.exclude(wit__in=witnesses)
     return excluded_rdgs
 
@@ -43,14 +43,14 @@ def filter_variants_by_witnesses(request: HttpRequest, collation_pk: int):
     rdgs = models.Rdg.objects.filter(app__ab__section__collation=collation)
 
     if all_of:
-        rdgs = apply_all_of(all_of, rdgs, only_these)
+        rdgs = apply_all_of(all_of, rdgs, only_these, request.user)
         if only_these:
             variants = models.App.objects.filter(rdgs__in=rdgs).distinct()
             return variants, variants.count()
     if any_of:
-        rdgs = apply_any_of(any_of, rdgs)
+        rdgs = apply_any_of(any_of, rdgs, request.user)
     if none_of:
-        rdgs = apply_none_of(none_of, rdgs)
+        rdgs = apply_none_of(none_of, rdgs, request.user)
 
     variants = models.App.objects.filter(rdgs__in=rdgs)
     if ignore_rtypes and ignore_rtypes != [""]:

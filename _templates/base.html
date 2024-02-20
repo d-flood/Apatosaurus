@@ -31,7 +31,8 @@
     {% tailwind_css %}
 </head>
 
-<body class="bg-white dark:bg-cyan-1500 text-gray-900 dark:text-orange-100 flex flex-col min-h-screen overflow-x-hidden">
+<body class="bg-white dark:bg-cyan-1500 text-gray-900 dark:text-orange-100 flex flex-col min-h-screen overflow-x-auto"
+    hx-ext="preload">
     <nav aria-label="Main Site Navigation" class="bg-orange-100 dark:bg-cyan-1600 drop-shadow-md z-30 shadow-white">
         <div class="mx-auto max-w-7xl px-2 sm:px-6 lg:px-8">
             <div class="relative flex h-16 items-center justify-between">
@@ -78,12 +79,12 @@
                             <!-- Current: "bg-gray-900 text-white", Default: "text-gray-300 hover:bg-gray-700 hover:text-white" -->
                             <a href="{% url 'about' %}" {% if page.active == 'about' %}aria-current="page" class="bg-orange-700 dark:text-orange-50 text-white px-3 py-2 rounded-md text-sm font-medium"{% else %}class="dark:text-orange-50 hover:bg-orange-400 hover:text-white px-3 py-2 rounded-md font-medium"{% endif %}>About</a>
                             <a href="{% url 'published' %}" {% if page.active == 'published' %}aria-current="page" class="dark:text-orange-50 bg-orange-700 text-white hover:text-white px-3 py-2 rounded-md font-medium"{% else %}class="dark:text-orange-50 hover:bg-orange-400 hover:text-white px-3 py-2 rounded-md font-medium"{% endif %}>
-                                Published Collations
+                                Published Apparatuses
                             </a>
                             {% if user.is_authenticated %}
                                 <span class="border border-solid min-h-full border-orange-700"></span>
                                 <a href="{% url 'collation' %}" {% if page.active == 'collation' %}aria-current="page" class="bg-orange-700 dark:text-orange-50 text-white px-3 py-2 rounded-md text-sm font-medium"{% else %}class="dark:text-orange-50 hover:bg-orange-400 hover:text-white px-3 py-2 rounded-md font-medium"{% endif %}>
-                                    My Collations
+                                    My Apparatuses
                                 </a>
                                 <a href="{% url 'witnesses-main' %}" {% if page.active == 'witnesses' %}aria-current="page" class="bg-orange-700 dark:text-orange-50 text-white px-3 py-2 rounded-md text-sm font-medium"{% else %}class="dark:text-orange-50 hover:bg-orange-400 hover:text-white px-3 py-2 rounded-md font-medium"{% endif %}>
                                     Witnesses
@@ -168,14 +169,14 @@
                 </a>
                 <a href="{% url 'published' %}"
                     {% if page.active == 'published' %} class="block bg-orange-700 dark:text-orange-50 text-white px-3 py-2 rounded-md text-sm font-medium" aria-current="page"{% else %}class="block dark:text-orange-50 hover:bg-orange-400 hover:text-white px-3 py-2 rounded-md font-medium"{% endif %}>
-                    Published Collations
+                    Published Apparatuses
                 </a>
 
                 {% if user.is_authenticated %}
                     <hr>
                     <a href="{% url 'collation' %}"
                         {% if page.active == 'collation' %} class="block bg-orange-700 dark:text-orange-50 text-white px-3 py-2 rounded-md text-sm font-medium" aria-current="page"{% else %}class="block dark:text-orange-50 hover:bg-orange-400 hover:text-white px-3 py-2 rounded-md font-medium"{% endif %}>
-                        My Collations
+                        My Apparatuses
                     </a>
                     <a href="{% url 'witnesses-main' %}" 
                         {% if page.active == 'witnesses' %}aria-current="page" class="block bg-orange-700 dark:text-orange-50 text-white px-3 py-2 rounded-md text-sm font-medium" aria-current="page"{% else %}class="block dark:text-orange-50 hover:bg-orange-400 hover:text-white px-3 py-2 rounded-md font-medium"{% endif %}>
@@ -254,8 +255,9 @@
     </dialog>
     <script src="{% static 'js/df.js' %}"></script>
     <script src="https://unpkg.com/htmx.org@1.8.4"></script>
+    <script src="https://unpkg.com/htmx.org/dist/ext/preload.js"></script>
     {% django_htmx_script %}
-    <script src="https://unpkg.com/hyperscript.org@0.9.7" defer></script>
+    <script src="https://unpkg.com/hyperscript.org@0.9.12"></script>
     {% block extra_js %}{% endblock extra_js %}
     <script>
         document.body.addEventListener('htmx:configRequest', (event) => {

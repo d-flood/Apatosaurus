@@ -1,3 +1,5 @@
+from audioop import mul
+
 from django import forms
 from django.contrib.auth import get_user_model
 
@@ -5,19 +7,24 @@ from django.contrib.auth import get_user_model
 from django.db.models import Count, Q
 from django.db.utils import IntegrityError
 from django.http import HttpRequest, QueryDict
-from django.urls import reverse
+from django.urls import reverse_lazy
 from lxml import etree as et
 
+import witnesses
 from collation import models
 from collation.py import helpers, process_tei
-from peasywidgets.datalist_widgets import DatalistMultiple, DatalistSingle
-from peasywidgets.filter_widgets import ChoiceFilterMultiple, ChoiceFilterSingle
+from peasywidgets.datalist_widgets import Datalist
+
+
+class ChoiceFieldNoValidation(forms.ChoiceField):
+    def valid_value(self, value):
+        return True
 
 
 class CollationForm(forms.ModelForm):
     class Meta:
         model = models.Collation
-        exclude = ["user"]
+        exclude = ["user", "slug"]
 
     def save(self, user, commit=True):
         instance = super().save(commit=False)
@@ -38,7 +45,7 @@ class SectionForm(forms.ModelForm):
 
     class Meta:
         model = models.Section
-        exclude = ["collation"]
+        exclude = ["collation", "slugname"]
 
     def save(self, collation_pk: int, commit=True):
         instance = super().save(commit=False)
@@ -51,7 +58,7 @@ class SectionForm(forms.ModelForm):
 class AbForm(forms.ModelForm):
     class Meta:
         model = models.Ab
-        exclude = ["section", "indexed_basetext"]
+        exclude = ["section", "indexed_basetext", "slugname"]
 
     def clean_name(self):
         name = self.cleaned_data["name"]
@@ -91,7 +98,7 @@ class AbNoteForm(forms.ModelForm):
 class AppForm(forms.ModelForm):
     class Meta:
         model = models.App
-        exclude = ["ab", "atype"]
+        exclude = ["ab", "atype", "slugname"]
 
     def save(self, ab_pk: int, commit=True):
         instance = super().save(commit=False)
@@ -126,8 +133,8 @@ class RdgForm(forms.ModelForm):
             "wit",
         ]
         widgets = {
-            "wit": DatalistMultiple(models.Witness),
-            "target": DatalistMultiple(models.Rdg),
+            "wit": Datalist(multiple=True, object_model=models.Witness),
+            "target": Datalist(multiple=True, object_model=models.Rdg),
         }
 
     def save(self, app_pk: int, commit=True):
@@ -223,3 +230,66 @@ def variant_filter_is_valid(request: HttpRequest) -> tuple[bool, str]:
     elif data.get("only-these") and not data.get("all-of"):
         return False, 'You must enter a witness in "All of" if you select "Only these"'
     return True, ""
+
+
+class CollationConfigForm(forms.ModelForm):
+    def __init__(self, user_id, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["witnesses"].queryset = models.Witness.objects.filter(
+            Q(default=True) | Q(user_id=user_id)
+        )
+        self.fields["basetext"].queryset = models.Witness.objects.filter(
+            Q(default=True) | Q(user=user_id)
+        )
+        self.initial["transcription_name"] = [
+            self.initial.get("transcription_name", ""),
+        ]
+
+    class Meta:
+        model = models.CollationConfig
+        fields = [
+            "witnesses",
+            "basetext",
+            "transcription_name",
+        ]
+        widgets = {
+            "witnesses": Datalist(multiple=True, object_model=models.Witness),
+            "basetext": Datalist(multiple=False, object_model=models.Witness),
+        }
+
+    def save(self, ab_pk: int, commit=True):
+        instance = super().save(commit=False)
+        instance.ab_id = ab_pk
+        if commit:
+            instance.save()
+        self.save_m2m()
+        return instance
+
+    transcription_name = ChoiceFieldNoValidation(
+        label="Transcription Name",
+        widget=Datalist(
+            multiple=False,
+            datalist_attrs={
+                "hx-get": reverse_lazy("get-unique-ab-names"),
+                "hx-trigger": "getAbNames",
+                "hx-include": "#collate-form",
+            },
+        ),
+    )
+
+
+class PreviousCollationForm(forms.Form):
+    def __init__(self, user_pk, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["collation_config"].queryset = (
+            models.CollationConfig.objects.filter(
+                ab__section__collation__user_id=user_pk
+            )
+        )
+
+    collation_config = forms.ModelChoiceField(
+        label="Existing Collation",
+        queryset=models.CollationConfig.objects.none(),
+        widget=Datalist(multiple=False, object_model=models.CollationConfig),
+        required=True,
+    )

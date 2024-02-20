@@ -1,21 +1,31 @@
 {% load static %}
+
+{% if errors %}
+    <script>
+        alert("{{ errors|safe }}");
+    </script>
+{% endif %}
+
 <div class="flex flex-col items-center">
     <div class="flex flex-row items-center">
         <div id="ab-note-container"></div>
         <h2 class="text-4xl text-center my-12">{{ ab.name }}</h2>
         {% with ab.note as note %}
-            <button type="button" class="p-1 ml-2{% if note and note.strip != '' %} btn-submit{% else %} btn{% endif %}"
-                aria-label="Verse note"
-                title="Verse note"
-                hx-get="{% url 'ab-note' ab_pk=ab.pk %}"
-                hx-target="#ab-note-container"
-                hx-swap="beforeend">
-                <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="currentColor" class="bi bi-journal" viewBox="0 0 16 16">
-                    <path d="M3 0h10a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2v-1h1v1a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1v1H1V2a2 2 0 0 1 2-2z"/>
-                    <path d="M1 5v-.5a.5.5 0 0 1 1 0V5h.5a.5.5 0 0 1 0 1h-2a.5.5 0 0 1 0-1H1zm0 3v-.5a.5.5 0 0 1 1 0V8h.5a.5.5 0 0 1 0 1h-2a.5.5 0 0 1 0-1H1zm0 3v-.5a.5.5 0 0 1 1 0v.5h.5a.5.5 0 0 1 0 1h-2a.5.5 0 0 1 0-1H1z"/>
-                </svg>
-            </button>
+        <button type="button" class="p-1 ml-2{% if note and note.strip != '' %} btn-submit{% else %} btn{% endif %}"
+            aria-label="Verse note"
+            title="Verse note"
+            hx-get="{% url 'ab-note' ab_pk=ab.pk %}"
+            hx-target="#ab-note-container"
+            hx-swap="beforeend">
+            <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="currentColor" class="bi bi-journal" viewBox="0 0 16 16">
+                <path d="M3 0h10a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2v-1h1v1a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1v1H1V2a2 2 0 0 1 2-2z"/>
+                <path d="M1 5v-.5a.5.5 0 0 1 1 0V5h.5a.5.5 0 0 1 0 1h-2a.5.5 0 0 1 0-1H1zm0 3v-.5a.5.5 0 0 1 1 0V8h.5a.5.5 0 0 1 0 1h-2a.5.5 0 0 1 0-1H1zm0 3v-.5a.5.5 0 0 1 1 0v.5h.5a.5.5 0 0 1 0 1h-2a.5.5 0 0 1 0-1H1z"/>
+            </svg>
+        </button>
         {% endwith %}
+        </div>
+    <div>
+        <span class="sr-only">Viewing: </span><span class="font-bold">Traditional Apparatus</span> | <a href="{% url 'parallel-apparatus' ab_pk=ab.pk %}" class="text-sm font-light normal-link no-underline">Parallel Apparatus</a>
     </div>
 </div>
 
@@ -23,7 +33,7 @@
 <div class="bg-orange-100 dark:bg-cyan-1400 pb-10 pt-5 my-4 drop-shadow">
     <h3 class="text-2xl text-center my-4">Variation Units</h3>
     <div class="flex flex-col items-center w-full">
-        <div class="flex flex-row flex-wrap" id="app-buttons-wrapper">
+        <div class="flex flex-row flex-wrap" id="app-buttons-wrapper" preload="mouseenter">
             <form id="combine-apps-form"
                 hx-post="{% url 'combine-apps' %}"
                 hx-trigger="combineApps"
@@ -37,6 +47,7 @@
                         <div>
                             <button id="app-{{ app.pk }}" class="btn-left ml-2 my-1" type="button" 
                                 hx-get="{% url 'rdgs' app_pk=app.pk %}"
+                                hx-trigger="mousedown"
                                 hx-push-url="true"
                                 hx-target="#readings"
                                 draggable="true"
@@ -81,7 +92,8 @@
                                     Delete
                                 </a>
                                 <a role="menuitem" tabindex="-1" class="block my-2 px-2 hover:bg-gray-500 hover:text-white cursor-pointer"
-                                    hx-get="{% url 'edit-app' ab_pk=ab.pk app_pk=app.pk %}" 
+                                    hx-get="{% url 'edit-app' ab_pk=ab.pk app_pk=app.pk %}"
+                                    hx-trigger="mousedown"
                                     hx-target="#app-buttons-wrapper">
                                     Edit
                                 </a>
@@ -137,19 +149,21 @@
             <tbody id="basetext_table_body">
                 
                 {% block basetext_row %}
-                    <tr class="flex flex-row flex-wrap"
+                    <tr class="flex flex-row flex-wrap" preload="mouseenter"
                         hx-get="{% url 'refresh-basetext' ab_pk=ab.pk %}"
-                        hx-target="#basetext_table_body" hx-trigger="refreshBasetext from:body">
+                        hx-target="#basetext_table_body" 
+                        hx-trigger="refreshBasetext from:body">
                         <th scope="row" class="px-2">Basetext<br>Index</th>
                         {% for word in ab.indexed_basetext %}
                             {% if word.is_variant %}
                                 <td class="font-greek font-semibold text-center bt-{{ word.app_pk }} px-2 border-b-2 border-b-orange-700 cursor-pointer" tabindex="0" 
                                     _="on load if '{{ browser_load }}' == 'true' then if '{{ app.pk }}' == '{{ word.app_pk }}' add .selected to me end end
-                                    on mouseenter add .bg-orange-300 .dark:bg-cyan-800 to .bt-{{ word.app_pk }} then add .bg-orange-400 .dark:bg-cyan-800 to #app-{{ word.app_pk }} end
+                                    on mouseenter send mouseenter to #app-{{ word.app_pk }} then add .brightness-150 to #app-{{ word.app_pk }} end
+                                    on mouseleave remove .brightness-150 from #app-{{ word.app_pk }} end
                                     on mouseleave remove .bg-orange-300 .dark:bg-cyan-800 from .bt-{{ word.app_pk }} then remove .bg-orange-400 .dark:bg-cyan-800 from #app-{{ word.app_pk }} end
-                                    on click remove .selected from <td/> then add .selected to .bt-{{ word.app_pk }} 
-                                    then remove .selected from .app-button then add .selected to #app-{{ word.app_pk }}
-                                    then send click to #app-{{ word.app_pk }} end">
+                                    on mousedown send mousedown to #app-{{ word.app_pk }}
+                                        then remove .selected from <td/> then add .selected to .bt-{{ word.app_pk }} 
+                                        then remove .selected from .app-button then add .selected to #app-{{ word.app_pk }} end">
                                     {{ word.word }}<br>{{ word.index }}
                                 </td>
                             {% else %}

@@ -34,12 +34,25 @@ class Witness(models.Model):
         blank=True,
     )
 
-    def __str__(self):
-        return self.siglum
-
     class Meta:
         unique_together = ("siglum", "user")
         indexes = [models.Index(fields=["siglum"])]
+
+    def __str__(self):
+        return self.siglum
+
+    def get_by_siglum(siglum: str, user=None):
+        """
+        Returns a Witness object by siglum and prefers default witnesses.
+        """
+        if user:
+            return (
+                Witness.objects.filter(Q(siglum=siglum) | Q(user=user))
+                .order_by("-default", "siglum")
+                .first()
+            )
+        else:
+            return Witness.objects.filter(siglum=siglum, default=True).first()
 
 
 class Collation(models.Model):
@@ -206,6 +219,24 @@ class Ab(models.Model):
         ordering = ["number"]
 
 
+class CollationConfig(models.Model):
+    ab = models.OneToOneField(
+        Ab, on_delete=models.CASCADE, related_name="collation_config"
+    )
+    witnesses = models.ManyToManyField(Witness, related_name="collation_configs")
+    basetext = models.ForeignKey(
+        Witness, on_delete=models.CASCADE, related_name="is_basetext_for", null=True
+    )
+    transcription_name = models.CharField(max_length=32, null=True)
+    updated = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.ab.name}"
+
+    class Meta:
+        ordering = ["-updated"]
+
+
 class App(models.Model):
     ab = models.ForeignKey(Ab, on_delete=models.CASCADE, related_name="apps")
     atype = models.CharField(max_length=9, default="main")
@@ -290,7 +321,6 @@ class App(models.Model):
         for w in self.rdgs.values_list("wit__siglum", flat=True).union(
             other_app.rdgs.values_list("wit__siglum", flat=True)
         ):
-            print(f"w: {w}")
             if (
                 before_app.rdgs.filter(wit__siglum=w).exists()
                 and after_app.rdgs.filter(wit__siglum=w).exists()

@@ -1,0 +1,72 @@
+{% load static %}
+<div class="flex flex-col items-center">
+    <div class="flex flex-row items-center">
+        <div id="ab-note-container"></div>
+        <h2 class="text-4xl text-center my-12">{{ ab.name }}</h2>
+        {% with ab.note as note %}
+            <button type="button" class="p-1 ml-2{% if note and note.strip != '' %} btn-submit{% else %} btn{% endif %}"
+                aria-label="Verse note"
+                title="Verse note"
+                hx-get="{% url 'ab-note' ab_pk=ab.pk %}"
+                hx-target="#ab-note-container"
+                hx-swap="beforeend">
+                <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="currentColor" class="bi bi-journal" viewBox="0 0 16 16">
+                    <path d="M3 0h10a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2v-1h1v1a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1v1H1V2a2 2 0 0 1 2-2z"/>
+                    <path d="M1 5v-.5a.5.5 0 0 1 1 0V5h.5a.5.5 0 0 1 0 1h-2a.5.5 0 0 1 0-1H1zm0 3v-.5a.5.5 0 0 1 1 0V8h.5a.5.5 0 0 1 0 1h-2a.5.5 0 0 1 0-1H1zm0 3v-.5a.5.5 0 0 1 1 0v.5h.5a.5.5 0 0 1 0 1h-2a.5.5 0 0 1 0-1H1z"/>
+                </svg>
+            </button>
+        {% endwith %}
+    </div>
+    <div>
+        <span class="text-sm"><a href="{% url 'apparatus' ab_pk=ab.pk %}" class="text-sm font-light normal-link no-underline">Traditional Apparatus</a></span> | <span class="sr-only">Viewing: </span><span class="font-bold">Parallel Apparatus</span>
+    </div>
+    <div class="flex flex-row align-middle mt-4 items-center">
+        <input type="checkbox" id="hide-wits"
+            _="on change if me.checked hide .wits-div else show .wits-div end">
+        <label for="hide-wits" class="ml-2 underline">Hide Witnesses</label>
+    </div>
+</div>
+
+
+
+<div class="flex flex-row space-x-2 my-4 py-2">
+    {% for thing in parallel_basetext %}
+        {% if thing.type == 'basetext' %}
+            <div class="flex flex-col text-center p-2">
+                <div>{{ thing.word.index }}</div>
+                <div class="font-greek">{{ thing.word.word }}</div>
+            </div>
+        {% else %}
+            <div class="flex flex-col border-2 border-orange-700 text-center p-2">
+                <h4>{{ thing.app.index_from }}{% if thing.app.index_from != thing.app.index_to %}–{{ thing.app.index_to }}{% endif %}</h4>
+                {% for rdg in thing.app.rdgs.all %}
+                    <div class="flex flex-col space-y-2">
+                        <div class="flex flex-row space-x-2 rdg-row">
+                            <div class="text-orange-700 dark:text-orange-300">({{ rdg.name }})</div>
+                            <div class="font-greek whitespace-nowrap">{% if rdg.text %}{{ rdg.text }}{% else %}[{{ rdg.rtype }}]{% endif %}</div>
+                        </div>
+                        <div class="text-start text-sm wits-div">
+                            {% for w in rdg.wit.all %}
+                                <button type="button" class="w{{ w.siglum }} wit mx-1 hover:bg-slate-300 dark:hover:bg-slate-700" title="{{ w.description }}"
+                                    _="on click remove .border-2 .border-orange-500 from .wit then add .border-2 .border-orange-500 to .w{{ w.siglum }}
+                                    then remove .bg-orange-200 .dark:bg-orange-900 from .rdg-row 
+                                    then repeat for b in .w{{ w.siglum }} add .bg-orange-200 .dark:bg-orange-900 to the b.parentElement.parentElement.firstElementChild end"
+                                >
+                                    {{ w.siglum }}
+                                </button>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% if not forloop.last %}
+                        <hr class="my-2 border-orange-700">
+                    {% endif %}
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endfor %}
+</div>
+
+{% block extra_js %}
+<script src="{% static 'js/draggable-note.js' %}"></script>
+<script src="{% static 'peasywidgets.js' %}"></script>
+{% endblock extra_js %}

@@ -1,0 +1,17 @@
+{% load crispy_forms_tags %}
+<div class="flex flex-col items-start">
+    <h2 class="text-2xl my-3 sm:mx-12">New Transcription</h2>
+    <div class="mt-2 sm:mx-12">
+        <p class="max-w-xl">
+            Add a new transcription by naming it and providing the plain text of the transcription. 
+            Once you have added the transcription, you can then add normalized values for any of the words.
+            Note that you should not (yet) use Apatosaurus for transcription. Transcriptions should merely
+            be pasted in for the purpose of automated collation. If you have a TEI encoded transcription
+            created in association with the IGNTP or INTF, then please use "Import TEI Transcription" instead.
+        </p>
+        <form hx-post="{% url 'new-transcription' witness_pk=witness_pk %}" class="mt-4" hx-target="#main">
+            {{ form|crispy }}
+            <input type="submit" class="btn" value="Submit">
+        </form>
+    </div>
+</div>

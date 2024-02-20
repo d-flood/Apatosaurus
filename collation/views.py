@@ -2,11 +2,13 @@ from django.contrib.auth.decorators import login_required
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
 from django.views.decorators.http import require_http_methods, require_safe
+from natsort import natsorted
 from render_block import render_block_to_string
 
 from collation import forms, models
-from collation.py import helpers, import_collation
+from collation.py import collate_witnesses, helpers, import_collation
 from collation.py.filter_apps import filter_variants_by_witnesses
+from transcriptions.models import Transcription
 from witnesses.py.sort_ga_witnesses import sort_ga_witnesses
 
 
@@ -245,7 +247,7 @@ def edit_ab(request: HttpRequest, ab_pk: int):
         ab = models.Ab.objects.get(pk=ab_pk)
         form = forms.AbForm(instance=ab)
         context = {"page": {"active": "collation"}, "form": form, "ab": ab}
-        return render(request, "collation/edit_ab.html", context)
+        return render(request, "collation/_edit_ab.html", context)
     elif request.method == "POST":
         ab = models.Ab.objects.get(pk=ab_pk)
         form = forms.AbForm(request.POST, instance=ab)
@@ -255,7 +257,7 @@ def edit_ab(request: HttpRequest, ab_pk: int):
             resp["HX-Trigger"] = "refreshAbs"
             return resp
         context = {"page": {"active": "collation"}, "form": form, "ab": ab}
-        return render(request, "collation/edit_ab.html", context)
+        return render(request, "collation/_edit_ab.html", context)
     else:
         ab = models.Ab.objects.get(pk=ab_pk)
         ab.delete()
@@ -365,7 +367,6 @@ def cancel_new_rdg(request: HttpRequest, app_pk: int):
 
 @login_required
 def sections(request: HttpRequest, collation_pk: int):
-    print("\n\n\nsections\n\n\n")
     collation = models.Collation.objects.filter(user=request.user).get(pk=collation_pk)
     context = {
         "page": {"active": "collation"},
@@ -405,19 +406,35 @@ def abs(request: HttpRequest, section_pk: int):
 
 
 @login_required
-@require_safe
-def apparatus(request: HttpRequest, ab_pk: int):
+def apparatus(request: HttpRequest, ab_pk: int, errors: list[str] | None = None):
     ab = models.Ab.objects.filter(section__collation__user=request.user).get(pk=ab_pk)
     context = {
         "page": {"active": "collation"},
         "ab": ab,
+        "section": ab.section,
         "ab_list": True,
         "load_apparatus": True,
+        "errors": "\n".join(errors) if errors else None,
     }
     if request.htmx:  # type: ignore
         return render(request, "collation/_apparatus.html", context)
     else:
         return render(request, "collation/main.html", context)
+
+
+@login_required
+@require_safe
+def parallel_apparatus(request: HttpRequest, ab_pk: int):
+    ab = models.Ab.objects.filter(section__collation__user=request.user).get(pk=ab_pk)
+    context = {
+        "page": {"active": "collation"},
+        "ab": ab,
+        "section": ab.section,
+        "ab_list": True,
+        "parallel_apparatus": True,
+        "parallel_basetext": helpers.mix_basetext_and_apps(ab),
+    }
+    return render(request, "collation/main.html", context)
 
 
 @login_required
@@ -568,7 +585,9 @@ def rdgs(request: HttpRequest, app_pk: int):
         "load_rdgs": True,
     }
     if request.htmx:  # type: ignore
-        return render(request, "collation/_rdgs_table.html", context)
+        resp = render(request, "collation/_rdgs_table.html", context)
+        resp["Cache-Control"] = "private, max-age=60"
+        return resp
     else:
         context["browser_load"] = "true"
         return render(request, "collation/main.html", context)
@@ -629,14 +648,11 @@ def upload_tei_collation(request: HttpRequest, section_pk: int):
             import_collation.import_tei(
                 tei_file, tei_file_name, section_pk, request.user.pk
             )
-            return render(
-                request,
-                "scraps/quick_message.html",
-                {
-                    "message": "File uploaded and added to processing queue. You can check the status in home page.",
-                    "timout": "3",
-                },
-            )
+            context = {
+                "message": "File uploaded and added to processing queue. You can check the status in home page.",
+                "timout": "3",
+            }
+            return render(request, "scraps/quick_message.html", context)
         else:
             context = {"form": form, "section_pk": section_pk}
             return render(request, "collation/upload_tei.html", context)
@@ -745,3 +761,106 @@ def ab_note(request: HttpRequest, ab_pk: int):
                 "collation/draggable_note.html", "inner", context
             )
             return HttpResponse(block)
+
+
+@login_required
+@require_http_methods(["POST"])
+def save_collate_config(request: HttpRequest, ab_pk: int):
+    ab = models.Ab.objects.get(pk=ab_pk)
+    collation_config: models.CollationConfig = ab.collation_config
+    form = forms.CollationConfigForm(
+        request.user.pk, request.POST, instance=collation_config
+    )
+    if not form.is_valid():
+        html = render_block_to_string(
+            "collation/_collate.html",
+            "collate_form",
+            {"form": form, "ab": ab},
+            request,
+        )
+        return HttpResponse(html)
+    form.save(ab_pk)
+    resp = render(
+        request,
+        "scraps/quick_message.html",
+        {"message": "Collation settings saved!", "timout": 5},
+    )
+    resp["HX-Retarget"] = "#form-success-msg"
+    return resp
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def collate(request: HttpRequest, ab_pk: int):
+    ab = models.Ab.objects.get(pk=ab_pk)
+    collation_config = models.CollationConfig.objects.get_or_create(ab_id=ab_pk)[0]
+    previous_collation_pk = (
+        int(request.GET.get("collation_config"))
+        if request.GET.get("collation_config")
+        else None
+    )
+    previous_collation_form = forms.PreviousCollationForm(request.user.pk)
+    if request.method == "GET":
+        if previous_collation_pk:
+            previous_config = models.CollationConfig.objects.get(
+                pk=previous_collation_pk
+            )
+            form = forms.CollationConfigForm(
+                request.user.pk,
+                instance=collation_config,
+                initial={
+                    "witnesses": previous_config.witnesses.all(),
+                    "basetext": previous_config.basetext,
+                    "transcription_names": [],
+                },
+            )
+        else:
+            form = forms.CollationConfigForm(request.user.pk, instance=collation_config)
+    else:
+        form = forms.CollationConfigForm(request.user.pk, request.POST)
+        if form.is_valid():
+            errors = collate_witnesses.collate_verse(
+                request.POST.getlist("witnesses"),
+                request.POST.get("transcription_name"),
+                request.POST.get("basetext"),
+                ab_pk,
+                request.user.pk,
+            )
+            return apparatus(request, ab_pk, errors=errors)
+        else:
+            print(form.errors)
+    context = {
+        "ab": ab,
+        "ab_list": True,
+        "collate": True,
+        "section": ab.section,
+        "form": form,
+        "previous_collation_form": previous_collation_form,
+    }
+    return render(request, "collation/main.html", context)
+
+
+@login_required
+@require_safe
+def get_nonduplicate_transcription_names_by_wits(request: HttpRequest):
+    witness_pks = request.GET.getlist("witnesses")
+    basetext_wit = request.GET.get("basetext")
+    if basetext_wit:
+        witness_pks.append(basetext_wit)
+    transcription_names = list(
+        set(
+            (
+                Transcription.objects.filter(witness__pk__in=witness_pks)
+                .values_list("name", flat=True)
+                .distinct()
+            )
+        )
+    )
+    transcription_names = natsorted(transcription_names)
+    option_elements = "\n".join(
+        [
+            f'<option value="{name}" data-value="{name}"></option>'
+            for name in transcription_names
+        ]
+    )
+    return HttpResponse(option_elements)
