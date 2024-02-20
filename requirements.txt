@@ -1,5 +1,5 @@
 Werkzeug==2.2.2
-Django==4.1.7
+Django==4.2.8
 django-registration==3.3
 lxml #@ <local-file>/lxml-4.9.0-cp311-cp311-win_amd64.whl
 django-render-block==0.9.2
