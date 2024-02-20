@@ -227,7 +227,14 @@ class CollationConfig(models.Model):
     basetext = models.ForeignKey(
         Witness, on_delete=models.CASCADE, related_name="is_basetext_for", null=True
     )
-    transcription_names = models.JSONField(null=True, blank=True, default=list)
+    transcription_name = models.CharField(max_length=32, null=True)
+    updated = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.ab.name}"
+
+    class Meta:
+        ordering = ["-updated"]
 
 
 class App(models.Model):

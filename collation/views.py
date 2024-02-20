@@ -2,6 +2,7 @@ from django.contrib.auth.decorators import login_required
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
 from django.views.decorators.http import require_http_methods, require_safe
+from natsort import natsorted
 from render_block import render_block_to_string
 
 from collation import forms, models
@@ -793,14 +794,34 @@ def save_collate_config(request: HttpRequest, ab_pk: int):
 def collate(request: HttpRequest, ab_pk: int):
     ab = models.Ab.objects.get(pk=ab_pk)
     collation_config = models.CollationConfig.objects.get_or_create(ab_id=ab_pk)[0]
+    previous_collation_pk = (
+        int(request.GET.get("collation_config"))
+        if request.GET.get("collation_config")
+        else None
+    )
+    previous_collation_form = forms.PreviousCollationForm(request.user.pk)
     if request.method == "GET":
-        form = forms.CollationConfigForm(request.user.pk, instance=collation_config)
+        if previous_collation_pk:
+            previous_config = models.CollationConfig.objects.get(
+                pk=previous_collation_pk
+            )
+            form = forms.CollationConfigForm(
+                request.user.pk,
+                instance=collation_config,
+                initial={
+                    "witnesses": previous_config.witnesses.all(),
+                    "basetext": previous_config.basetext,
+                    "transcription_names": [],
+                },
+            )
+        else:
+            form = forms.CollationConfigForm(request.user.pk, instance=collation_config)
     else:
         form = forms.CollationConfigForm(request.user.pk, request.POST)
         if form.is_valid():
             errors = collate_witnesses.collate_verse(
                 request.POST.getlist("witnesses"),
-                request.POST.getlist("transcription_names"),
+                request.POST.get("transcription_name"),
                 request.POST.get("basetext"),
                 ab_pk,
                 request.user.pk,
@@ -814,6 +835,7 @@ def collate(request: HttpRequest, ab_pk: int):
         "collate": True,
         "section": ab.section,
         "form": form,
+        "previous_collation_form": previous_collation_form,
     }
     return render(request, "collation/main.html", context)
 
@@ -825,13 +847,16 @@ def get_nonduplicate_transcription_names_by_wits(request: HttpRequest):
     basetext_wit = request.GET.get("basetext")
     if basetext_wit:
         witness_pks.append(basetext_wit)
-    transcription_names = set(
-        (
-            Transcription.objects.filter(witness__pk__in=witness_pks)
-            .values_list("name", flat=True)
-            .distinct()
+    transcription_names = list(
+        set(
+            (
+                Transcription.objects.filter(witness__pk__in=witness_pks)
+                .values_list("name", flat=True)
+                .distinct()
+            )
         )
     )
+    transcription_names = natsorted(transcription_names)
     option_elements = "\n".join(
         [
             f'<option value="{name}" data-value="{name}"></option>'

@@ -14,10 +14,9 @@ import witnesses
 from collation import models
 from collation.py import helpers, process_tei
 from peasywidgets.datalist_widgets import Datalist
-from peasywidgets.filter_widgets import ChoiceFilterMultiple, ChoiceFilterSingle
 
 
-class MultipleChoiceFieldNoValidation(forms.MultipleChoiceField):
+class ChoiceFieldNoValidation(forms.ChoiceField):
     def valid_value(self, value):
         return True
 
@@ -242,13 +241,16 @@ class CollationConfigForm(forms.ModelForm):
         self.fields["basetext"].queryset = models.Witness.objects.filter(
             Q(default=True) | Q(user=user_id)
         )
+        self.initial["transcription_name"] = [
+            self.initial.get("transcription_name", ""),
+        ]
 
     class Meta:
         model = models.CollationConfig
         fields = [
             "witnesses",
             "basetext",
-            "transcription_names",
+            "transcription_name",
         ]
         widgets = {
             "witnesses": Datalist(multiple=True, object_model=models.Witness),
@@ -260,19 +262,34 @@ class CollationConfigForm(forms.ModelForm):
         instance.ab_id = ab_pk
         if commit:
             instance.save()
-        # print cleaned data
-        print(self.cleaned_data)
         self.save_m2m()
         return instance
 
-    transcription_names = MultipleChoiceFieldNoValidation(
-        label="Transcription Name(s)",
+    transcription_name = ChoiceFieldNoValidation(
+        label="Transcription Name",
         widget=Datalist(
-            multiple=True,
+            multiple=False,
             datalist_attrs={
                 "hx-get": reverse_lazy("get-unique-ab-names"),
                 "hx-trigger": "getAbNames",
                 "hx-include": "#collate-form",
             },
         ),
+    )
+
+
+class PreviousCollationForm(forms.Form):
+    def __init__(self, user_pk, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["collation_config"].queryset = (
+            models.CollationConfig.objects.filter(
+                ab__section__collation__user_id=user_pk
+            )
+        )
+
+    collation_config = forms.ModelChoiceField(
+        label="Existing Collation",
+        queryset=models.CollationConfig.objects.none(),
+        widget=Datalist(multiple=False, object_model=models.CollationConfig),
+        required=True,
     )
