@@ -33,7 +33,7 @@
 <div class="bg-orange-100 dark:bg-cyan-1400 pb-10 pt-5 my-4 drop-shadow">
     <h3 class="text-2xl text-center my-4">Variation Units</h3>
     <div class="flex flex-col items-center w-full">
-        <div class="flex flex-row flex-wrap" id="app-buttons-wrapper">
+        <div class="flex flex-row flex-wrap" id="app-buttons-wrapper" preload="mouseenter">
             <form id="combine-apps-form"
                 hx-post="{% url 'combine-apps' %}"
                 hx-trigger="combineApps"
@@ -47,6 +47,7 @@
                         <div>
                             <button id="app-{{ app.pk }}" class="btn-left ml-2 my-1" type="button" 
                                 hx-get="{% url 'rdgs' app_pk=app.pk %}"
+                                hx-trigger="mousedown"
                                 hx-push-url="true"
                                 hx-target="#readings"
                                 draggable="true"
@@ -91,7 +92,8 @@
                                     Delete
                                 </a>
                                 <a role="menuitem" tabindex="-1" class="block my-2 px-2 hover:bg-gray-500 hover:text-white cursor-pointer"
-                                    hx-get="{% url 'edit-app' ab_pk=ab.pk app_pk=app.pk %}" 
+                                    hx-get="{% url 'edit-app' ab_pk=ab.pk app_pk=app.pk %}"
+                                    hx-trigger="mousedown"
                                     hx-target="#app-buttons-wrapper">
                                     Edit
                                 </a>
@@ -147,9 +149,10 @@
             <tbody id="basetext_table_body">
                 
                 {% block basetext_row %}
-                    <tr class="flex flex-row flex-wrap"
+                    <tr class="flex flex-row flex-wrap" preload="mouseenter"
                         hx-get="{% url 'refresh-basetext' ab_pk=ab.pk %}"
-                        hx-target="#basetext_table_body" hx-trigger="refreshBasetext from:body">
+                        hx-target="#basetext_table_body" 
+                        hx-trigger="refreshBasetext from:body">
                         <th scope="row" class="px-2">Basetext<br>Index</th>
                         {% for word in ab.indexed_basetext %}
                             {% if word.is_variant %}
@@ -157,9 +160,9 @@
                                     _="on load if '{{ browser_load }}' == 'true' then if '{{ app.pk }}' == '{{ word.app_pk }}' add .selected to me end end
                                     on mouseenter add .bg-orange-300 .dark:bg-cyan-800 to .bt-{{ word.app_pk }} then add .bg-orange-400 .dark:bg-cyan-800 to #app-{{ word.app_pk }} end
                                     on mouseleave remove .bg-orange-300 .dark:bg-cyan-800 from .bt-{{ word.app_pk }} then remove .bg-orange-400 .dark:bg-cyan-800 from #app-{{ word.app_pk }} end
-                                    on click remove .selected from <td/> then add .selected to .bt-{{ word.app_pk }} 
+                                    on mousedown remove .selected from <td/> then add .selected to .bt-{{ word.app_pk }} 
                                     then remove .selected from .app-button then add .selected to #app-{{ word.app_pk }}
-                                    then send click to #app-{{ word.app_pk }} end">
+                                    then send mousedown to #app-{{ word.app_pk }} end">
                                     {{ word.word }}<br>{{ word.index }}
                                 </td>
                             {% else %}

@@ -234,6 +234,15 @@ def variant_filter_is_valid(request: HttpRequest) -> tuple[bool, str]:
 
 
 class CollationConfigForm(forms.ModelForm):
+    def __init__(self, user_id, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["witnesses"].queryset = models.Witness.objects.filter(
+            Q(default=True) | Q(user_id=user_id)
+        )
+        self.fields["basetext"].queryset = models.Witness.objects.filter(
+            Q(default=True) | Q(user=user_id)
+        )
+
     class Meta:
         model = models.CollationConfig
         fields = [
