@@ -18,7 +18,7 @@ services:
       - BASE_SITE_URL=http://localhost
       - USE_PRODUCTION_DB=False
       - ZAPPA_RUNNING_IN_DOCKER=True
-    container_name: django
+    container_name: apatosaurus-django
     command: 
       - /bin/sh
       - -c 
