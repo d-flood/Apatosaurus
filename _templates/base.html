@@ -112,7 +112,14 @@
                     <div class="relative ml-3">
                         <div>
                             <button type="button"
-                                _="on click if my @aria-expanded is 'false' show #user-menu then set my @aria-expanded to 'true' else hide #user-menu then set my @aria-expanded to 'false' end"
+                                _="on click 
+                                    if my @aria-expanded is 'false' show #user-menu 
+                                        then set my @aria-expanded to 'true' 
+                                    else hide #user-menu 
+                                        then set my @aria-expanded to 'false' end
+                                    on click elsewhere
+                                        hide #user-menu
+                                        then set my @aria-expanded to 'false'"
                                 class="rounded-full bg-transparent p-1 hover:bg-orange-400 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-gray-800"
                                 id="user-menu-button" aria-expanded="false" aria-haspopup="true" title="User Menu">
                                 <span class="sr-only">Open user menu</span>
