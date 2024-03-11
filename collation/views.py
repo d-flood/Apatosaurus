@@ -5,7 +5,7 @@ from django.views.decorators.http import require_http_methods, require_safe
 from natsort import natsorted
 from render_block import render_block_to_string
 
-from collation import forms, models
+from collation import forms, models, tasks
 from collation.py import collate_witnesses, helpers, import_collation
 from collation.py.filter_apps import filter_variants_by_witnesses
 from transcriptions.models import Transcription
@@ -669,23 +669,25 @@ def download_tei_ab(request: HttpRequest, ab_pk: int):
 
 
 @login_required
-@require_safe
+@require_http_methods(["POST"])
 def download_tei_section(request: HttpRequest, section_pk: int):
-    section = models.Section.objects.get(pk=section_pk)
-    tei = section.as_tei()
-    response = HttpResponse(tei, content_type="text/xml")
-    response["Content-Disposition"] = f"attachment; filename={section.name}.xml"
-    return response
+    tasks.download_apparatus_task("section", request.user.pk, section_pk)
+    context = {
+        "message": "TEI generation task enqued. You can check the status in your profile. When processing is complete, it will be added to your files.",
+        "timout": "300",
+    }
+    return render(request, "scraps/quick_message.html", context)
 
 
 @login_required
-@require_safe
+@require_http_methods(["POST"])
 def download_tei_collation(request: HttpRequest, collation_pk: int):
-    collation = models.Collation.objects.filter(user=request.user).get(pk=collation_pk)
-    tei = collation.as_tei()
-    response = HttpResponse(tei, content_type="text/xml")
-    response["Content-Disposition"] = f"attachment; filename={collation.name}.xml"
-    return response
+    tasks.download_apparatus_task("collation", request.user.pk, collation_pk)
+    context = {
+        "message": "TEI generation task enqued. You can check the status in your profile. When processing is complete, it will be added to your files.",
+        "timout": "300",
+    }
+    return render(request, "scraps/quick_message.html", context)
 
 
 @login_required
