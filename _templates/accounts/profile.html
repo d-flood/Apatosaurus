@@ -9,18 +9,32 @@
             <button type="button" class="profile-tab-button text-lg font-semibold bg-orange-100 dark:bg-cyan-1400 h-full w-6/12 py-4" 
                 role="tab" aria-controls="user-info" aria-selected="true"
                 _="on click set my @aria-selected to 'true' then set .profile-tab-button's @aria-selected to 'false'
-                then remove .bg-orange-100 .dark:bg-cyan-1400 from .profile-tab-button then add .hover:bg-orange-300 .hover:dark:bg-cyan-1100 to .profile-tab-button 
+                    then remove .bg-orange-100 .dark:bg-cyan-1400 from .profile-tab-button then add .hover:bg-orange-300 .hover:dark:bg-cyan-1100 to .profile-tab-button 
                     then add .bg-orange-100 .dark:bg-cyan-1400 to me then remove .hover:bg-orange-300 .hover:dark:bg-cyan-1100 from me
-                    then hide .tab-content then show #user-info end">
+                    then hide .tab-content then show #user-info 
+                    then history.pushState(null, null, '#info') end
+                    on load if location.hash is '#info' send click to me end">
                 Your Information
             </button>
             <button type="button" class="profile-tab-button text-lg font-semibold h-full w-6/12 py-4 hover:bg-orange-300 hover:dark:bg-cyan-1100"
                 role="tab" aria-controls="joblist"
                 _="on click set my @aria-selected to 'true' then set .profile-tab-button's @aria-selected to 'false'
-                then remove .bg-orange-100 .dark:bg-cyan-1400 from .profile-tab-button then add .hover:bg-orange-300 .hover:dark:bg-cyan-1100 to .profile-tab-button 
+                    then remove .bg-orange-100 .dark:bg-cyan-1400 from .profile-tab-button then add .hover:bg-orange-300 .hover:dark:bg-cyan-1100 to .profile-tab-button 
                     then add .bg-orange-100 .dark:bg-cyan-1400 to me then remove .hover:bg-orange-300 .hover:dark:bg-cyan-1100 from me
-                    then hide .tab-content then show #joblist end">
+                    then hide .tab-content then show #joblist 
+                    then history.pushState(null, null, '#jobs') end
+                    on load if location.hash is '#jobs' send click to me end">
                 Background Jobs
+            </button>
+            <button type="button" class="profile-tab-button text-lg font-semibold h-full w-6/12 py-4 hover:bg-orange-300 hover:dark:bg-cyan-1100"
+                role="tab" aria-controls="joblist"
+                _="on click set my @aria-selected to 'true' then set .profile-tab-button's @aria-selected to 'false'
+                    then remove .bg-orange-100 .dark:bg-cyan-1400 from .profile-tab-button then add .hover:bg-orange-300 .hover:dark:bg-cyan-1100 to .profile-tab-button 
+                    then add .bg-orange-100 .dark:bg-cyan-1400 to me then remove .hover:bg-orange-300 .hover:dark:bg-cyan-1100 from me
+                    then hide .tab-content then show #user-files 
+                    then history.pushState(null, null, '#files') end
+                    on load if location.hash is '#files' send click to me end">
+                Your Files
             </button>
         </div>
             
@@ -82,6 +96,34 @@
                     {% endif %}
                 {% endfor %}
             {% endblock user_job_list %}
+        </div>
+        <div id="user-files" role="tabpanel" class="tab-content p-2" style="display: none;">
+            <table class="min-w-full" id="rdgs_table_parent">
+                <thead>
+                    <tr class="border-b-4 border-orange-700">
+                        <th scope="col" class="text-start px-2">File Name</th>
+                        <th scope="col" class="text-start px-2">Date Created</th>
+                        <th scope="col" class="text-start px-2">Delete</th>
+                    </tr>
+                </thead>
+                <tbody id="rdgs_table">
+                    {% for file in files %}
+                        <tr class="{% cycle '' 'bg-orange-50 dark:bg-cyan-1500' %}">
+                            <td class="px-2 font-semibold"><a class="normal-link" href="{{ file.file.url }}" target="_blank">{{ file.name }}</a></td>
+                            <td class="px-2">{{ file.created|timesince }} ago ({{ file.created }})</td>
+                            <td class="px-2">
+                                <button type="button" class="btn-danger my-1 text-sm"
+                                    hx-delete="{% url 'delete-user-file' file_pk=file.pk %}"
+                                    hx-confirm="Are you sure you want to delete this file? This is not reversible."
+                                    hx-target="closest tr"
+                                    hx-swap="outerHTML">
+                                    Delete
+                                </button>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
     </div>
 </main>

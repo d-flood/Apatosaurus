@@ -2,9 +2,11 @@ import string
 
 from django.contrib.auth import get_user_model
 from django.db import models
-from django.db.models import Count, OuterRef, Q, QuerySet, Subquery
+from django.db.models import Count, OuterRef, Q, QuerySet, Subquery, Sum
 from django.template.defaultfilters import slugify
 from lxml import etree as et
+
+from accounts.models import JobStatus
 
 XML_NS = "{http://www.w3.org/XML/1998/namespace}"
 TEI_NS = "{http://www.tei-c.org/ns/1.0}"
@@ -63,10 +65,11 @@ class Collation(models.Model):
     description = models.TextField(null=True, blank=True)
     slug = models.SlugField(max_length=84, null=True, blank=True)
 
-    def as_tei(self):
+    def as_tei(self, job_pk: int = 0) -> str:
         tei_root = et.Element("TEI", nsmap={None: TEI_NS_STR, "xml": XML_NS_STR})  # type: ignore
+        total_abs = Ab.objects.filter(section__collation=self).count()
         for section in self.sections.all():  # type: ignore
-            for ab in section.ab_elements():
+            for ab in section.ab_elements(job_pk, total_abs):
                 tei_root.append(ab)
         wits = add_tei_header(tei_root)
         return et.tostring(tei_root, encoding="unicode", pretty_print=True)  # type: ignore
@@ -93,13 +96,24 @@ class Section(models.Model):
     published = models.BooleanField(default=False)
     slugname = models.CharField(max_length=64, null=True, blank=True)
 
-    def ab_elements(self):
+    def ab_elements(self, job_pk: int = 0, total_abs: int = 0):
         self.abs: QuerySet[Ab]
-        return [ab.as_element() for ab in self.abs.all()]
+        elements = []
+        for i, ab in enumerate(self.abs.all(), start=1):
+            elements.append(ab.as_element())
+            if job_pk:
+                if not total_abs:
+                    total_abs = self.abs.count()
+                JobStatus.objects.filter(pk=job_pk).update(
+                    progress=round((i / total_abs) * 100, 1),
+                    message=f"Converted {self.collation.name}, {self.name}, {ab.name} to TEI",
+                )
+        return elements
 
-    def as_tei(self):
+    def as_tei(self, job_pk: int = 0) -> str:
         tei_root = et.Element("TEI", nsmap={None: TEI_NS_STR, "xml": XML_NS_STR})  # type: ignore
-        for ab in self.ab_elements():
+        total_abs = self.abs.count()
+        for ab in self.ab_elements(job_pk, total_abs):
             tei_root.append(ab)
         wits = add_tei_header(tei_root)
         return et.tostring(tei_root, encoding="unicode", pretty_print=True)  # type: ignore

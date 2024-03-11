@@ -16,7 +16,7 @@ services:
       - BASE_SITE_URL=https://apatosaurus.io
       - USE_PRODUCTION_DB=True
       - ZAPPA_RUNNING_IN_DOCKER=True
-    container_name: django
+    container_name: apatosaurus-django
 
   long_task:
     image: 027323396275.dkr.ecr.us-east-1.amazonaws.com/apatosaurus-long-task:latest

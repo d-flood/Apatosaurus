@@ -9,7 +9,7 @@
             </li>
             <li><span class="text-gray-500 dark:text-white mx-2">/</span></li>
             <li>
-                <a class="normal-link"" 
+                <a class="normal-link"
                     hx-get="{% url 'section-list' collation_pk=section.collation.pk %}" hx-target="#sidebar-header">
                     {{ section.collation.name }}
                 </a>
@@ -26,8 +26,19 @@
     hx-get="{% url 'list-abs' section_pk=section.pk %}"
     hx-push-url="true"
     hx-target="#sidebar-header">
-    {% with coll=section.collation %}
-    {% for ab in section.abs.all %}
+    {% with coll=section.collation abs=section.abs.all %}
+    {% if abs.count > 30 %}
+        <input type="text" name="filter verses" title="filter verses" aria-label="filter verses" class="w-full" 
+            placeholder="filter verses"
+            _="on keyup
+            if the event's key is 'Escape'
+              set my value to ''
+              trigger keyup
+            else
+             show <li/> in #section_list when its textContent contains my value
+            end">
+    {% endif %}
+    {% for ab in abs %}
         <li class="min-w-full my-2 flex flex-row">
             <a hx-get="{% url 'apparatus' ab_pk=ab.pk %}" 
                 hx-target="#main"
