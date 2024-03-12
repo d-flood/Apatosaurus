@@ -1,6 +1,5 @@
 {% extends 'base.html' %}
-{% load static %}
-{% load crispy_forms_tags %}
+{% load static crispy_forms_tags partials %}
 {% block content %}
 <main id="main" class="mx-1 md:mx-10 lg:mx-10 xl:mx-32 2xl:mx-48 mb-auto">
     <h1 class="text-center text-4xl my-4">Textual Witnesses</h1>
@@ -32,22 +31,31 @@
                 _="on input show <li/> in #default_witnesses_list when its textContent.toLowerCase() contains my value.toLowerCase() end">
             </p>
             <ul class="flex flex-col max-h-screen overflow-y-auto" id="default_witnesses_list">
-                {% for wit in default_witnesses %}
-                    <li>
-                        {% if request.user.is_superuser %}
-                            <a class="normal-link inline-flex" 
-                                href="{% url 'transcriptions' witness_pk=wit.pk %}"
-                                aria-label="transcription" title="transcription">
+                {% partialdef default-witnesses inline=True %}
+                    {% for wit in default_witnesses %}
+                        <li>
+                            {% if request.user.is_superuser %}
+                                <a class="normal-link inline-flex" 
+                                    href="{% url 'transcriptions' witness_pk=wit.pk %}"
+                                    aria-label="transcription" title="transcription">
+                                    {{ wit.siglum }} - {{ wit.description }}
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 14" fill="currentColor" class="w-4 h-4 mx-2">
+                                        <path d="M11.25 4.533A9.707 9.707 0 0 0 6 3a9.735 9.735 0 0 0-3.25.555.75.75 0 0 0-.5.707v14.25a.75.75 0 0 0 1 .707A8.237 8.237 0 0 1 6 18.75c1.995 0 3.823.707 5.25 1.886V4.533ZM12.75 20.636A8.214 8.214 0 0 1 18 18.75c.966 0 1.89.166 2.75.47a.75.75 0 0 0 1-.708V4.262a.75.75 0 0 0-.5-.707A9.735 9.735 0 0 0 18 3a9.707 9.707 0 0 0-5.25 1.533v16.103Z" />
+                                    </svg>
+                                </a>
+                            {% else %}
                                 {{ wit.siglum }} - {{ wit.description }}
-                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 14" fill="currentColor" class="w-4 h-4 mx-2">
-                                    <path d="M11.25 4.533A9.707 9.707 0 0 0 6 3a9.735 9.735 0 0 0-3.25.555.75.75 0 0 0-.5.707v14.25a.75.75 0 0 0 1 .707A8.237 8.237 0 0 1 6 18.75c1.995 0 3.823.707 5.25 1.886V4.533ZM12.75 20.636A8.214 8.214 0 0 1 18 18.75c.966 0 1.89.166 2.75.47a.75.75 0 0 0 1-.708V4.262a.75.75 0 0 0-.5-.707A9.735 9.735 0 0 0 18 3a9.707 9.707 0 0 0-5.25 1.533v16.103Z" />
-                                </svg>
-                            </a>
-                        {% else %}
-                            {{ wit.siglum }} - {{ wit.description }}
-                        {% endif %}
-                    </li>
-                {% endfor %}
+                            {% endif %}
+                        </li>
+                    {% endfor %}
+                    {% if default_witnesses.has_next %}
+                        <input type="hidden" name="page" value="{{ default_witnesses.next_page_number }}"
+                            hx-get="{% url 'witnesses-main' %}"
+                            hx-target="#default_witnesses_list"
+                            hx-swap="beforeend"
+                            hx-trigger="load">
+                    {% endif %}
+                {% endpartialdef %}
             </ul>
         </div>
         <div id="my-witnesses" role="tabpanel" class="p-8" style="display: none;">
