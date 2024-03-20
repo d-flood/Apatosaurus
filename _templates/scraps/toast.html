@@ -10,17 +10,8 @@
     toast_type: string
 {% endcomment %}
 <div id="{{ toast_id }}" role="alert" aria-live="assertive" aria-atomic="true"
-    class="w-56 my-1 rounded-xl drop-shadow-md
-        {% if toast_type == 'bad' %}bg-red-200 dark:bg-red-700
-        {% elif toast_type == 'good' %}bg-green-200 dark:bg-green-700
-        {% else %}bg-orange-200 dark:bg-cyan-700
-        {% endif %}"
-        >
-    <div class="rounded-t-xl flex justify-between p-1
-        {% if toast_type == 'bad' %}bg-red-300 dark:bg-red-900
-        {% elif toast_type == 'good' %}bg-green-300 dark:bg-green-900
-        {% else %}bg-orange-300 dark:bg-cyan-900
-        {% endif %}">
+    class="w-56 my-1 rounded-xl drop-shadow-md {% if toast_type == 'bad' %}bg-red-200 dark:bg-red-700 {% elif toast_type == 'good' %}bg-green-200 dark:bg-green-700 {% else %}bg-orange-200 dark:bg-cyan-700{% endif %}">
+    <div class="rounded-t-xl flex justify-between p-1 {% if toast_type == 'bad' %}bg-red-300 dark:bg-red-900 {% elif toast_type == 'good' %}bg-green-300 dark:bg-green-900 {% else %}bg-orange-300 dark:bg-cyan-900{% endif %}">
         <strong class="text-lg text-center font-semibold w-full">{{ toast_title }}</strong>
         <button type="button" aria-label="Dismiss"
             _="on click remove #{{ toast_id }}">
