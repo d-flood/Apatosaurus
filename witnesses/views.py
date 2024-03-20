@@ -49,7 +49,7 @@ def add_new_witness(request: HttpRequest) -> HttpResponse:
     if form.is_valid():
         form.save(request.user.pk)
     new_witness_form = render_block_to_string(
-        "witnesses/main.html",
+        "witnesses.html",
         "new_witness_form",
         request=request,
         context={"form": form},
@@ -64,7 +64,7 @@ def add_new_witness(request: HttpRequest) -> HttpResponse:
 def refresh_user_witnesses(request: HttpRequest) -> HttpResponse:
     user_witnesses = cmodels.Witness.objects.filter(user=request.user)
     user_witnesses_html = render_block_to_string(
-        "witnesses/main.html",
+        "witnesses.html",
         "user_witnesses",
         request=request,
         context={"user_witnesses": user_witnesses},
@@ -88,7 +88,7 @@ def edit_witness(request: HttpRequest, witness_pk: int):
         if form.is_valid():
             form.save(request.user.pk)
             new_witness_form = render_block_to_string(
-                "witnesses/main.html",
+                "witnesses.html",
                 "new_witness_form",
                 request=request,
                 context={"form": form},
@@ -102,7 +102,7 @@ def edit_witness(request: HttpRequest, witness_pk: int):
     else:
         witness.delete()
         new_wit_form = render_block_to_string(
-            "witnesses/main.html",
+            "witnesses.html",
             "new_witness_form",
             request=request,
             context={"form": forms.WitnessForm()},
@@ -116,7 +116,7 @@ def edit_witness(request: HttpRequest, witness_pk: int):
 @require_safe
 def cancel_edit_witness(request: HttpRequest):
     new_wit_form = render_block_to_string(
-        "witnesses/main.html",
+        "witnesses.html",
         "new_witness_form",
         request=request,
         context={"form": forms.WitnessForm()},
