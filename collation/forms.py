@@ -83,7 +83,7 @@ class AbNoteForm(forms.ModelForm):
             {
                 "rows": 10,
                 "cols": 60,
-                "hx-post": reverse("ab-note", kwargs={"ab_pk": self.instance.pk}),  # type: ignore
+                "hx-post": reverse_lazy("ab-note", kwargs={"ab_pk": self.instance.pk}),  # type: ignore
                 "hx-trigger": "keyup changed delay:1s",
                 "hx-target": f"#note-{self.instance.pk}",  # type: ignore
                 "_": f"on keyup remove .bg-teal-300 .dark:bg-teal-700 from #note-header-{self.instance.pk} then add .bg-red-500 .dark:bg-red-800 .text-white to #note-header-{self.instance.pk} end",
@@ -166,7 +166,7 @@ class RdgNoteForm(forms.ModelForm):
             {
                 "rows": 5,
                 "cols": 40,
-                "hx-post": reverse("reading-note", kwargs={"rdg_pk": self.instance.pk}),  # type: ignore
+                "hx-post": reverse_lazy("reading-note", kwargs={"rdg_pk": self.instance.pk}),  # type: ignore
                 "hx-trigger": "keyup changed delay:1s",
                 "hx-target": f"#note-{self.instance.pk}",  # type: ignore
                 # 'hx-swap': 'outerHTML',
