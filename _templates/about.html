@@ -37,7 +37,7 @@
             <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
         </svg>
     </button>
-    <main id="main" class="{% if about_page.slug in 'introduction,colophon,history' %}md:max-w-2xl lg:max-w-3xl xl:max-w-4xl mx-auto{% else %}mx-4{% endif %}">
+    <main id="main" class="{% if about_page.slug in 'introduction,colophon,history,support' %}md:max-w-2xl lg:max-w-3xl xl:max-w-4xl mx-auto{% else %}mx-4{% endif %}">
         <div class="prose color-prose bg-orange-50 dark:bg-cyan-1300 py-4 px-2 sm:px-8">
             <h2 class="text-4xl text-center font-bold">
                 {{ about_page.title }}
