@@ -5,16 +5,20 @@ from content import models
 
 class ImageBlockInline(admin.TabularInline):
     model = models.ImageBlock
-    exclude = ('html',)
+    exclude = ("html",)
     extra = 1
 
+
+@admin.register(models.AboutPage)
 class AboutPageAdmin(admin.ModelAdmin):
     inlines = [ImageBlockInline]
-    exclude = ('html',)
+    exclude = ("html",)
 
 
 class ImageBlockAdmin(admin.ModelAdmin):
-    exclude = ('html',)
+    exclude = ("html",)
 
 
-admin.site.register(models.AboutPage, AboutPageAdmin)
+@admin.register(models.Announcement)
+class AnnouncementAdmin(admin.ModelAdmin):
+    exclude = ("html",)

@@ -47,3 +47,19 @@ class ImageBlock(models.Model):
 
     class Meta:
         ordering = ("order",)
+
+
+class Announcement(models.Model):
+    title = models.CharField(max_length=255, help_text="H2")
+    markdown = models.TextField(blank=False)
+    html = models.TextField(blank=True)
+    published = models.BooleanField(default=True)
+    time_published = models.DateTimeField()
+    updated = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("-time_published",)
+
+    def save(self, *args, **kwargs):
+        self.html = markdown(self.markdown, extensions=["attr_list"])
+        super().save(*args, **kwargs)
