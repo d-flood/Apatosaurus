@@ -63,3 +63,6 @@ class Announcement(models.Model):
     def save(self, *args, **kwargs):
         self.html = markdown(self.markdown, extensions=["attr_list"])
         super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.title
