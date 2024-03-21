@@ -17,6 +17,7 @@ class CustomUser(AbstractUser):
         default="",
         help_text="Briefly explain why you would like to use Apatosaurus.",
     )
+    has_unread_announcements = models.BooleanField(default=True)
 
     class Meta:
         ordering = ["-date_joined"]
