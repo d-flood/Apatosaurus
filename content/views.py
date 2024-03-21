@@ -5,7 +5,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_safe
 
-from content.models import AboutPage
+from content.models import AboutPage, Announcement
 
 
 @require_safe
@@ -28,3 +28,20 @@ def index(request: HttpRequest, slug: str = "") -> HttpResponse:
     }
     template = "about.html" if about_page.page_type == "normal" else "presentation.html"
     return render(request, template, context)
+
+
+@require_safe
+def announcements(request: HttpRequest):
+    context = {
+        "page": {
+            "description": "News and updates about Apatosaurus.",
+            "active": "announcements",
+            "title": "Apatosaurus - Announcements",
+        },
+        "announcements": Announcement.objects.filter(published=True),
+    }
+    resp = render(request, "announcements.html", context)
+    if request.user.is_authenticated and request.user.has_unread_announcements:
+        request.user.has_unread_announcements = False
+        request.user.save()
+    return resp

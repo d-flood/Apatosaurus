@@ -34,9 +34,9 @@
 <body class="bg-white dark:bg-cyan-1500 text-gray-900 dark:text-orange-100 flex flex-col min-h-screen overflow-x-auto"
     hx-ext="preload">
     <nav aria-label="Main Site Navigation" class="bg-orange-100 dark:bg-cyan-1600 drop-shadow-md z-30 shadow-white">
-        <div class="mx-auto max-w-7xl px-2 sm:px-6 lg:px-8">
+        <div class="mx-auto max-w-7xl px-2 xl:px-6 2xl:px-8">
             <div class="relative flex h-16 items-center justify-between">
-                <div class="absolute inset-y-0 left-0 flex items-center sm:hidden">
+                <div class="absolute inset-y-0 left-0 flex items-center xl:hidden">
                     <!-- Mobile menu button-->
 
 
@@ -58,7 +58,7 @@
                         </svg>
                     </button>
                 </div>
-                <div class="flex flex-1 items-center justify-center sm:items-stretch sm:justify-start">
+                <div class="flex flex-1 items-center justify-center xl:items-stretch xl:justify-start">
                     <div class="flex flex-shrink-0 items-center">
                         <div class="text-lg">
                             <a href="{% url 'home' %}" title="Home" {% if page.active == 'home' %}aria-current="page"
@@ -70,12 +70,18 @@
                         </div>
                     </div>
                     
-                    <div class="hidden sm:ml-6 sm:block ml-4">
+                    <div class="hidden xl:ml-6 xl:block ml-4">
                         <div class="flex space-x-4">
                             <!-- Current: "bg-gray-900 text-white", Default: "text-gray-300 hover:bg-gray-700 hover:text-white" -->
                             <a href="{% url 'about' %}" {% if page.active == 'about' %}aria-current="page" class="bg-orange-700 dark:text-orange-50 text-white px-3 py-2 rounded-md text-sm font-medium"{% else %}class="dark:text-orange-50 hover:bg-orange-400 hover:text-white px-3 py-2 rounded-md font-medium"{% endif %}>About</a>
                             <a href="{% url 'published' %}" {% if page.active == 'published' %}aria-current="page" class="dark:text-orange-50 bg-orange-700 text-white hover:text-white px-3 py-2 rounded-md font-medium"{% else %}class="dark:text-orange-50 hover:bg-orange-400 hover:text-white px-3 py-2 rounded-md font-medium"{% endif %}>
                                 Published Apparatuses
+                            </a>
+                            <a href="{% url 'announcements' %}" {% if page.active == 'announcements' %}aria-current="page" class="dark:text-orange-50 bg-orange-700 text-white hover:text-white px-3 py-2 rounded-md font-medium"{% else %}class="dark:text-orange-50 hover:bg-orange-400 hover:text-white px-3 py-2 rounded-md font-medium"{% endif %}>
+                                Announcements
+                                {% if request.user.has_unread_announcements %}
+                                    {% include 'svg/bouncing_bell.html' %}
+                                {% endif %}
                             </a>
                             {% if user.is_authenticated %}
                                 <span class="border border-solid min-h-full border-orange-700"></span>
@@ -93,16 +99,7 @@
                         </div>
                     </div>
                 </div>
-                <div class="absolute inset-y-0 right-0 flex items-center pr-2 sm:static sm:inset-auto sm:ml-6 sm:pr-0">
-                    <!-- <button type="button"
-                        class="rounded-full bg-gray-800 p-1 text-gray-400 hover:text-white focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-gray-800">
-                        <span class="sr-only">View notifications</span>
-                        <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
-                            stroke-width="1.5" stroke="currentColor" aria-hidden="true">
-                            <path stroke-linecap="round" stroke-linejoin="round"
-                                d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
-                        </svg>
-                    </button> -->
+                <div class="absolute inset-y-0 right-0 flex items-center pr-2 xl:static xl:inset-auto xl:ml-6 xl:pr-0">
 
                     <!-- Profile dropdown -->
                     <div class="relative ml-3">
@@ -164,7 +161,7 @@
         </div>
 
         <!-- Mobile menu, show/hide based on menu state. -->
-        <div class="sm:hidden" id="mobile-menu" style="display: none;">
+        <div class="xl:hidden" id="mobile-menu" style="display: none;">
             <div class="space-y-1 px-2 pt-2 pb-3">
                 <a href="{% url 'about' %}"
                     {% if page.active == 'about' %} class="block bg-orange-700 dark:text-orange-50 text-white px-3 py-2 rounded-md text-sm font-medium" aria-current="page"{% else %}class="block dark:text-orange-50 hover:bg-orange-400 hover:text-white px-3 py-2 rounded-md font-medium"{% endif %}>
@@ -173,6 +170,13 @@
                 <a href="{% url 'published' %}"
                     {% if page.active == 'published' %} class="block bg-orange-700 dark:text-orange-50 text-white px-3 py-2 rounded-md text-sm font-medium" aria-current="page"{% else %}class="block dark:text-orange-50 hover:bg-orange-400 hover:text-white px-3 py-2 rounded-md font-medium"{% endif %}>
                     Published Apparatuses
+                </a>
+                <a href="{% url 'announcements' %}"
+                    {% if page.active == 'announcements' %} class="block bg-orange-700 dark:text-orange-50 text-white px-3 py-2 rounded-md text-sm font-medium" aria-current="page"{% else %}class="block dark:text-orange-50 hover:bg-orange-400 hover:text-white px-3 py-2 rounded-md font-medium"{% endif %}>
+                    Announcements
+                    {% if request.user.has_unread_announcements %}
+                        {% include 'svg/bouncing_bell.html' %}
+                    {% endif %}
                 </a>
 
                 {% if user.is_authenticated %}

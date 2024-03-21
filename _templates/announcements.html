@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block content %}
+<div class="flex overflow-x-hidden">
+    <main id="main" class="md:max-w-2xl lg:max-w-3xl xl:max-w-4xl mx-auto">
+        <div class="prose color-prose bg-orange-50 dark:bg-cyan-1300 py-4 px-2 sm:px-8">
+            <h1 class="text-4xl text-center font-bold">Announcements</h1>
+            <hr class="border-2 border-orange-400 my-4">
+            <section class="prose color-prose mx-auto max-w-2xl">
+                {% for announcement in announcements %}
+                    <header class="flex items-center justify-between text-orange-700">
+                        <h2>{{ announcement.title }}</h2>
+                        <span _="on load set updatedDate to '{{ announcement.time_published|date:"c" }}' as a Date then put updatedDate.toLocaleString() into my innerHTML end"></span>
+                    </header>
+                    {{ announcement.html|safe }}
+                    <p class="text-sm italic text-gray-500 text-right">
+                        Last Updated
+                        <span _="on load set updatedDate to '{{ announcement.updated|date:"c" }}' as a Date then put updatedDate.toLocaleString() into my innerHTML end"></span>
+                    </p>
+                    {% if not forloop.last %}
+                        <hr class="border border-orange-400 w-1/2 mx-auto my-4">
+                    {% endif %}
+                {% endfor %}
+            </section>
+        </div>
+    </main>
+</div>
+{% endblock %}
