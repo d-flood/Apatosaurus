@@ -8,18 +8,24 @@ from collation import models as cmodels
 from transcriptions import models as tmodels
 
 
-def get_basetext_tokens(basetext_pk: int, transcription_names: list[str]) -> list[dict]:
+def get_basetext_tokens(basetext_pk: int, transcription_name: str) -> list[dict]:
     basetext = tmodels.Transcription.objects.filter(
-        witness__pk=basetext_pk, name__in=transcription_names
+        witness__pk=basetext_pk, name=transcription_name
     ).first()
     if not basetext:
-        raise ValueError(f"Basetext not found: {basetext_pk}")
+        try:
+            siglum = cmodels.Witness.objects.get(pk=basetext_pk).siglum
+        except cmodels.Witness.DoesNotExist:
+            siglum = f"ID-{basetext_pk}"
+        raise ValueError(
+            f"Basetext witness {siglum} not found for transcription {transcription_name}."
+        )
     return [{"id": basetext_pk, "tokens": basetext.tokens}]
 
 
 def gather_witness_transcriptions(
     witnes_pks: list[int],
-    transcription_names: list[str],
+    transcription_name: str,
     basetext_pk: int,
     ab_pk: int,
     user_pk: int,
@@ -33,7 +39,7 @@ def gather_witness_transcriptions(
     ).first()
     if not ab:
         raise ValueError("Ab (verse) not found")
-    witnesses = get_basetext_tokens(basetext_pk, transcription_names)
+    witnesses = get_basetext_tokens(basetext_pk, transcription_name)
     available_witnesses = Q(default=True) | Q(user_id=user_pk)
     for witness_pk in witnes_pks:
         witness = cmodels.Witness.objects.filter(
@@ -42,11 +48,11 @@ def gather_witness_transcriptions(
         if not witness:
             raise ValueError("Witness not found")
         transcription = tmodels.Transcription.objects.filter(
-            witness__pk=witness_pk, name__in=transcription_names
+            witness__pk=witness_pk, name=transcription_name
         ).first()
         if not transcription:
             errors.append(
-                f"Transcription not found for witness {witness} matching any of: {transcription_names}"
+                f"Transcription not found for witness {witness} matching: {transcription_name}"
             )
             continue
         witnesses.append({"id": witness_pk, "tokens": transcription.tokens})
