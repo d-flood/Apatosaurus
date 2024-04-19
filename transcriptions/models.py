@@ -13,7 +13,9 @@ class Transcription(models.Model):
         max_length=255, help_text="Normally a single verse reference."
     )
     user = models.ForeignKey(get_user_model(), on_delete=models.CASCADE)
-    witness = models.ForeignKey(Witness, on_delete=models.CASCADE)
+    witness = models.ForeignKey(
+        Witness, on_delete=models.CASCADE, related_name="transcriptions"
+    )
     tokens = models.JSONField(default=list)
     date_created = models.DateTimeField(auto_now_add=True)
     date_modified = models.DateTimeField(auto_now=True)
