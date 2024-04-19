@@ -41,6 +41,7 @@ def gather_witness_transcriptions(
         raise ValueError("Ab (verse) not found")
     witnesses = get_basetext_tokens(basetext_pk, transcription_name)
     available_witnesses = Q(default=True) | Q(user_id=user_pk)
+    wit_errors = []
     for witness_pk in witnes_pks:
         witness = cmodels.Witness.objects.filter(
             available_witnesses, pk=witness_pk
@@ -51,11 +52,11 @@ def gather_witness_transcriptions(
             witness__pk=witness_pk, name=transcription_name
         ).first()
         if not transcription:
-            errors.append(
-                f"\nTranscription '{transcription_name}' not found for witness '{witness}', so '{witness}' will be excluded from the following collation."
-            )
+            wit_errors.append(witness.siglum)
             continue
         witnesses.append({"id": witness_pk, "tokens": transcription.tokens})
+    if wit_errors:
+        errors.append(f"Transcription not found for: {', '.join(wit_errors)}.")
     return witnesses, errors
 
 
@@ -143,7 +144,7 @@ def get_readings(table, variation_units):
     return cleaned_variation_units, errors
 
 
-def add_collation_to_db(variation_units: list[dict], ab_pk: int, user_pk: int):
+def add_collation_to_db(variation_units: list[dict], ab_pk: int, user_pk: int, errors: list[str]):
     ab = cmodels.Ab.objects.filter(
         section__collation__user_id=user_pk, pk=ab_pk
     ).first()
@@ -151,6 +152,7 @@ def add_collation_to_db(variation_units: list[dict], ab_pk: int, user_pk: int):
     cmodels.App.objects.filter(ab=ab).delete()
     if not ab:
         raise ValueError("Ab (verse) not found")
+    ab.note = f"———\nWarnings from automated collation: \n{'\n➡️'.join(errors)}\n———"
     for variation_unit in variation_units:
         app = cmodels.App.objects.create(
             ab=ab,
@@ -186,5 +188,5 @@ def collate_verse(
     table = collation["table"]
     variation_units = get_variation_units(table)
     variation_units, table_errors = get_readings(table, variation_units)
-    add_collation_to_db(variation_units, ab_pk, user_pk)
+    add_collation_to_db(variation_units, ab_pk, user_pk, errors)
     return errors + table_errors
