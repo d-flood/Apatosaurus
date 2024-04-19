@@ -1,11 +1,5 @@
 {% load static %}
 
-{% if errors %}
-    <script>
-        alert("{{ errors|safe }}");
-    </script>
-{% endif %}
-
 <div class="flex flex-col items-center">
     <div class="flex flex-row items-center">
         <div id="ab-note-container"></div>
@@ -204,6 +198,11 @@
     }
 </style>
 {% block extra_js %}
-<script src="{% static 'js/draggable-note.js' %}"></script>
-<script src="{% static 'peasywidgets.js' %}"></script>
+    {% if errors %}
+        <script>
+            alert(`{{ errors|safe }}`);
+        </script>
+    {% endif %}
+    <script src="{% static 'js/draggable-note.js' %}"></script>
+    <script src="{% static 'peasywidgets.js' %}"></script>
 {% endblock extra_js %}
