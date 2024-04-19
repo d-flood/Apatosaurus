@@ -17,7 +17,7 @@
             {% block collate_form %}
                 <form class="flex flex-col" id="collate-form" action="{% url 'collate' ab_pk=ab.pk %}" method="post">
                     <div id="form-success-msg" class="my-2"></div>
-                    <div class="flex flex-col md:flex-row md: flex-wrap justify-evenly space-y-2 md:space-y-2 md:space-x-2">
+                    <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 px-4">
                         {% csrf_token %}
                         {{ form|crispy }}
                     </div>
