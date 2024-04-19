@@ -9,7 +9,7 @@
 </div>
 
 
-<div class="bg-orange-100 dark:bg-cyan-1400 pb-10 pt-5 my-4 drop-shadow">
+<div class="bg-orange-100 dark:bg-cyan-1400 pb-10 pt-5 my-4 drop-shadow sm:px-1 md:px-4">
     <h3 class="text-2xl text-center my-4">Select Witnesses and Verses to Collate</h3>
     <p class="text-center my-4 italic">Note that running a collation will replace any existing variation units currently defined in this verse.</p>
     <div class="flex flex-col items-center w-full">
@@ -17,9 +17,26 @@
             {% block collate_form %}
                 <form class="flex flex-col" id="collate-form" action="{% url 'collate' ab_pk=ab.pk %}" method="post">
                     <div id="form-success-msg" class="my-2"></div>
-                    <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 px-4">
+                    <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
                         {% csrf_token %}
                         {{ form|crispy }}
+                        <style>
+                            label:has(input[id="id_ignore_invalid_witnesses"]) {
+                                display: flex;
+                                flex-direction: column-reverse;
+                                align-items: center;
+                                justify-content: center;
+                                height: 100%;
+                                border: 1px solid #e5e7eb;
+                                padding: 1rem;
+                                margin-top: 1.5rem;
+                            }
+                            input[id="id_ignore_invalid_witnesses"] {
+                                width: 1.5rem;
+                                height: 1.5rem;
+                                margin-top: 0.5rem;
+                            }
+                        </style>
                     </div>
                     <div class="flex flex-row space-x-4">
                         <button class="btn mt-4 w-1/2"

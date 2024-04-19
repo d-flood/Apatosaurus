@@ -268,6 +268,12 @@ class CollationConfigForm(forms.ModelForm):
         ),
     )
 
+    ignore_invalid_witnesses = forms.BooleanField(
+        label="Ignore witnesses without a matching transcription",
+        required=False,
+        widget=forms.CheckboxInput(),
+    )
+
     def clean_witnesses(self):
         transcription_name = self.data["transcription_name"]
         witnesses: QuerySet | None = self.cleaned_data["witnesses"]
@@ -278,7 +284,7 @@ class CollationConfigForm(forms.ModelForm):
             )
         if len(witnesses) < 2:
             raise forms.ValidationError("You must select at least two witnesses.")
-        if transcription_name:
+        if transcription_name and not self.data.get("ignore_invalid_witnesses"):
             if invalid_wits := witnesses.exclude(
                 transcriptions__name=transcription_name
             ):
