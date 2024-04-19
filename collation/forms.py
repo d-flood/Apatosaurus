@@ -1,10 +1,8 @@
-from audioop import mul
-
 from django import forms
 from django.contrib.auth import get_user_model
 
 # from django.db.models import BaseManager
-from django.db.models import Count, Q
+from django.db.models import Count, Q, QuerySet
 from django.db.utils import IntegrityError
 from django.http import HttpRequest, QueryDict
 from django.urls import reverse_lazy
@@ -259,6 +257,7 @@ class CollationConfigForm(forms.ModelForm):
 
     transcription_name = ChoiceFieldNoValidation(
         label="Transcription Name",
+        required=True,
         widget=Datalist(
             multiple=False,
             datalist_attrs={
@@ -268,6 +267,40 @@ class CollationConfigForm(forms.ModelForm):
             },
         ),
     )
+
+    def clean_witnesses(self):
+        transcription_name = self.data["transcription_name"]
+        witnesses: QuerySet | None = self.cleaned_data["witnesses"]
+        basetext = self.data.get("basetext")
+        if witnesses.filter(pk=basetext).exists():
+            raise forms.ValidationError(
+                "Basetext must not be one of the selected witnesses."
+            )
+        if len(witnesses) < 2:
+            raise forms.ValidationError("You must select at least two witnesses.")
+        if transcription_name:
+            if invalid_wits := witnesses.exclude(
+                transcriptions__name=transcription_name
+            ):
+                wits_list = list(invalid_wits.values_list("siglum", flat=True))
+                if len(wits_list) == 1:
+                    wits_msg = f'{wits_list[0]} does not have a transcription named "{transcription_name}"'
+                else:
+                    all_but_last = ", ".join(wits_list[:-1])
+                    last = wits_list[-1]
+                    wits_msg = f'{all_but_last} and {last} do not have a transcription named "{transcription_name}"'
+                raise forms.ValidationError(wits_msg)
+
+        return witnesses
+
+    def clean_basetext(self):
+        basetext = self.cleaned_data["basetext"]
+        transcription_name = self.data["transcription_name"]
+        if not basetext.transcriptions.filter(name=transcription_name).exists():
+            raise forms.ValidationError(
+                f'The witness designated as the basetext, "{basetext.siglum}", does not have a transcription named "{transcription_name}".'
+            )
+        return basetext
 
     def save(self, ab_pk: int, commit=True):
         instance = super().save(commit=False)
