@@ -52,7 +52,7 @@ def gather_witness_transcriptions(
         ).first()
         if not transcription:
             errors.append(
-                f"Transcription not found for witness {witness} matching: {transcription_name}"
+                f"\nTranscription '{transcription_name}' not found for witness '{witness}', so '{witness}' will be excluded from the following collation."
             )
             continue
         witnesses.append({"id": witness_pk, "tokens": transcription.tokens})
