@@ -845,8 +845,6 @@ def collate(request: HttpRequest, ab_pk: int):
                 request.user.pk,
             )
             return apparatus(request, ab_pk, errors=errors)
-        else:
-            print(form.errors)
     context = {
         "ab": ab,
         "ab_list": True,
