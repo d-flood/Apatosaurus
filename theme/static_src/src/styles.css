@@ -174,4 +174,10 @@
         @apply bg-blue-500 text-white;
         @apply dark:bg-blue-700;
     }
+    .alert.alert-block.alert-error {
+        @apply text-red-500 font-bold max-w-xs;
+    }
+    .alert.alert-block > ul {
+        @apply list-disc list-inside;
+    }
 }
