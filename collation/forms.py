@@ -257,14 +257,6 @@ class CollationConfigForm(forms.ModelForm):
             "basetext": Datalist(multiple=False, object_model=models.Witness),
         }
 
-    def save(self, ab_pk: int, commit=True):
-        instance = super().save(commit=False)
-        instance.ab_id = ab_pk
-        if commit:
-            instance.save()
-        self.save_m2m()
-        return instance
-
     transcription_name = ChoiceFieldNoValidation(
         label="Transcription Name",
         widget=Datalist(
@@ -276,6 +268,14 @@ class CollationConfigForm(forms.ModelForm):
             },
         ),
     )
+
+    def save(self, ab_pk: int, commit=True):
+        instance = super().save(commit=False)
+        instance.ab_id = ab_pk
+        if commit:
+            instance.save()
+        self.save_m2m()
+        return instance
 
 
 class PreviousCollationForm(forms.Form):
