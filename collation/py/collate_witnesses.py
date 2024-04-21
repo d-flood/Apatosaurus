@@ -144,7 +144,9 @@ def get_readings(table, variation_units):
     return cleaned_variation_units, errors
 
 
-def add_collation_to_db(variation_units: list[dict], ab_pk: int, user_pk: int, errors: list[str]):
+def add_collation_to_db(
+    variation_units: list[dict], ab_pk: int, user_pk: int, errors_list: list[str]
+):
     ab = cmodels.Ab.objects.filter(
         section__collation__user_id=user_pk, pk=ab_pk
     ).first()
@@ -152,7 +154,9 @@ def add_collation_to_db(variation_units: list[dict], ab_pk: int, user_pk: int, e
     cmodels.App.objects.filter(ab=ab).delete()
     if not ab:
         raise ValueError("Ab (verse) not found")
-    ab.note = f"———\nWarnings from automated collation: \n{'\n➡️'.join(errors)}\n———"
+    if errors_list:
+        errors = "\n".join(errors_list)
+        ab.note = f"———\nWarnings from automated collation: \n{errors}\n———\n{ab.note if ab.note else ''}"
     for variation_unit in variation_units:
         app = cmodels.App.objects.create(
             ab=ab,
