@@ -602,7 +602,7 @@ def rdgs(request: HttpRequest, app_pk: int):
     }
     if request.htmx:  # type: ignore
         resp = render(request, "collation/_rdgs_table.html", context)
-        resp["Cache-Control"] = "private, max-age=60"
+        resp["Cache-Control"] = "private, max-age=2"
         return resp
     else:
         context["browser_load"] = "true"
