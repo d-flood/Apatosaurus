@@ -189,11 +189,14 @@ def remove_duplicate_witnesses(witnesses: list[list]):
     return new_wits
 
 
-def get_verse_as_tuple(verse: et._Element, hands: list = ["firsthand"]) -> list[tuple]:
+def get_verse_as_tuple(
+    verse: et._Element, hands: list[str] = ["firsthand"]
+) -> list[tuple[str, list[str]]]:
     witnesses = []
     for hand in hands:
         words = get_all_words_in_verse(verse, hand)
         words = handle_lacunae(words)
+        words = [re.sub(r"\s+", "", w) for w in words]  # remove all whitespace
         witnesses.append((hand, words))
     witnesses = remove_duplicate_witnesses(witnesses)
     return witnesses
