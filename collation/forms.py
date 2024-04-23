@@ -262,7 +262,7 @@ class CollationConfigForm(forms.ModelForm):
             multiple=False,
             datalist_attrs={
                 "hx-get": reverse_lazy("get-unique-ab-names"),
-                "hx-trigger": "getAbNames",
+                "hx-trigger": "load, getAbNames",
                 "hx-include": "#collate-form",
             },
         ),
