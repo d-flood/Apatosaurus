@@ -7,6 +7,8 @@ from django.db.models import Q
 from collation import models as cmodels
 from transcriptions import models as tmodels
 
+# from rich import print
+
 
 def get_basetext_tokens(basetext_pk: int, transcription_name: str) -> list[dict]:
     basetext = tmodels.Transcription.objects.filter(
@@ -24,7 +26,7 @@ def get_basetext_tokens(basetext_pk: int, transcription_name: str) -> list[dict]
 
 
 def gather_witness_transcriptions(
-    witnes_pks: list[int],
+    witness_pks: list[int],
     transcription_name: str,
     basetext_pk: int,
     ab_pk: int,
@@ -42,7 +44,7 @@ def gather_witness_transcriptions(
     witnesses = get_basetext_tokens(basetext_pk, transcription_name)
     available_witnesses = Q(default=True) | Q(user_id=user_pk)
     wit_errors = []
-    for witness_pk in witnes_pks:
+    for witness_pk in witness_pks:
         witness = cmodels.Witness.objects.filter(
             available_witnesses, pk=witness_pk
         ).first()
@@ -94,16 +96,25 @@ def name_readings(
 
 def get_variation_units(table):
     variation_units: list[dict] = []
-    for segment in table[0]:
+    for i, segment in enumerate(table[0]):
         if not segment:
-            variation_units.append(None)
-            continue
-        _from = min([token["index"] for token in segment])
-        _to = max([token["index"] for token in segment])
-        tokens = []
-        for token in segment:
-            tokens.append(token["t"])
-        words = " ".join(tokens)
+            try:
+                _from = (
+                    int(table[0][i - 1][0]["index"]) + 1
+                )  # get the index one one less than current
+            except TypeError:
+                _from = (
+                    int(table[0][i + 1][0]["index"]) - 1
+                )  # get the index one more than current
+            _to = _from
+            words = "-"
+        else:
+            _from = min([token["index"] for token in segment])
+            _to = max([token["index"] for token in segment])
+            tokens = []
+            for token in segment:
+                tokens.append(token["t"])
+            words = " ".join(tokens)
         variation_units.append(
             {
                 "from": _from,
@@ -119,8 +130,6 @@ def get_readings(table, variation_units):
     cleaned_variation_units = []
     errors = []
     for i, variant in enumerate(variation_units):
-        if not variant:
-            continue
         variant_readings = []
         for witness in table:
             for segment in witness:
@@ -188,7 +197,9 @@ def collate_verse(
         witnes_pks, transcription_names, basetext, ab_pk, user_pk
     )
     witnesses = {"witnesses": witnesses}
-    collation = json.loads(collate(witnesses, output="json", segmentation=True))
+    collation = json.loads(
+        collate(witnesses, output="json", segmentation=False, near_match=True)
+    )
     table = collation["table"]
     variation_units = get_variation_units(table)
     variation_units, table_errors = get_readings(table, variation_units)
