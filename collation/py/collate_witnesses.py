@@ -94,18 +94,24 @@ def name_readings(
     return readings
 
 
-def get_variation_units(table):
+def get_variation_units(table, errors: list):
     variation_units: list[dict] = []
     for i, segment in enumerate(table[0]):
         if not segment:
             try:
                 _from = (
                     int(table[0][i - 1][0]["index"]) + 1
-                )  # get the index one one less than current
-            except TypeError:
-                _from = (
-                    int(table[0][i + 1][0]["index"]) - 1
-                )  # get the index one more than current
+                )  # get the index one less than current
+            except (TypeError, IndexError):
+                try:
+                    _from = (
+                        int(table[0][i + 1][0]["index"]) - 1
+                    )  # get the index one more than current
+                except (IndexError, TypeError):
+                    errors.append(
+                        f"There is probably an unhandled omission by the basetext."
+                    )
+                    continue
             _to = _from
             words = "-"
         else:
@@ -123,7 +129,7 @@ def get_variation_units(table):
                 "readings": [],
             }
         )
-    return variation_units
+    return variation_units, errors
 
 
 def get_readings(table, variation_units):
@@ -201,7 +207,7 @@ def collate_verse(
         collate(witnesses, output="json", segmentation=False, near_match=True)
     )
     table = collation["table"]
-    variation_units = get_variation_units(table)
+    variation_units, errors = get_variation_units(table, errors)
     variation_units, table_errors = get_readings(table, variation_units)
     add_collation_to_db(variation_units, ab_pk, user_pk, errors)
     return errors + table_errors
