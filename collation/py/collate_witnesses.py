@@ -7,19 +7,27 @@ from django.db.models import Q
 from collation import models as cmodels
 from transcriptions import models as tmodels
 
+# from rich import print
 
-def get_basetext_tokens(basetext_pk: int, transcription_names: list[str]) -> list[dict]:
+
+def get_basetext_tokens(basetext_pk: int, transcription_name: str) -> list[dict]:
     basetext = tmodels.Transcription.objects.filter(
-        witness__pk=basetext_pk, name__in=transcription_names
+        witness__pk=basetext_pk, name=transcription_name
     ).first()
     if not basetext:
-        raise ValueError(f"Basetext not found: {basetext_pk}")
+        try:
+            siglum = cmodels.Witness.objects.get(pk=basetext_pk).siglum
+        except cmodels.Witness.DoesNotExist:
+            siglum = f"ID-{basetext_pk}"
+        raise ValueError(
+            f"Basetext witness {siglum} not found for transcription {transcription_name}."
+        )
     return [{"id": basetext_pk, "tokens": basetext.tokens}]
 
 
 def gather_witness_transcriptions(
-    witnes_pks: list[int],
-    transcription_names: list[str],
+    witness_pks: list[int],
+    transcription_name: str,
     basetext_pk: int,
     ab_pk: int,
     user_pk: int,
@@ -33,23 +41,24 @@ def gather_witness_transcriptions(
     ).first()
     if not ab:
         raise ValueError("Ab (verse) not found")
-    witnesses = get_basetext_tokens(basetext_pk, transcription_names)
+    witnesses = get_basetext_tokens(basetext_pk, transcription_name)
     available_witnesses = Q(default=True) | Q(user_id=user_pk)
-    for witness_pk in witnes_pks:
+    wit_errors = []
+    for witness_pk in witness_pks:
         witness = cmodels.Witness.objects.filter(
             available_witnesses, pk=witness_pk
         ).first()
         if not witness:
             raise ValueError("Witness not found")
         transcription = tmodels.Transcription.objects.filter(
-            witness__pk=witness_pk, name__in=transcription_names
+            witness__pk=witness_pk, name=transcription_name
         ).first()
         if not transcription:
-            errors.append(
-                f"Transcription not found for witness {witness} matching any of: {transcription_names}"
-            )
+            wit_errors.append(witness.siglum)
             continue
         witnesses.append({"id": witness_pk, "tokens": transcription.tokens})
+    if wit_errors:
+        errors.append(f"Transcription not found for: {', '.join(wit_errors)}.")
     return witnesses, errors
 
 
@@ -85,18 +94,33 @@ def name_readings(
     return readings
 
 
-def get_variation_units(table):
+def get_variation_units(table, errors: list):
     variation_units: list[dict] = []
-    for segment in table[0]:
+    for i, segment in enumerate(table[0]):
         if not segment:
-            variation_units.append(None)
-            continue
-        _from = min([token["index"] for token in segment])
-        _to = max([token["index"] for token in segment])
-        tokens = []
-        for token in segment:
-            tokens.append(token["t"])
-        words = " ".join(tokens)
+            try:
+                _from = (
+                    int(table[0][i - 1][0]["index"]) + 1
+                )  # get the index one less than current
+            except (TypeError, IndexError):
+                try:
+                    _from = (
+                        int(table[0][i + 1][0]["index"]) - 1
+                    )  # get the index one more than current
+                except (IndexError, TypeError):
+                    errors.append(
+                        f"There is probably an unhandled omission by the basetext."
+                    )
+                    continue
+            _to = _from
+            words = "-"
+        else:
+            _from = min([token["index"] for token in segment])
+            _to = max([token["index"] for token in segment])
+            tokens = []
+            for token in segment:
+                tokens.append(token["t"])
+            words = " ".join(tokens)
         variation_units.append(
             {
                 "from": _from,
@@ -105,15 +129,13 @@ def get_variation_units(table):
                 "readings": [],
             }
         )
-    return variation_units
+    return variation_units, errors
 
 
 def get_readings(table, variation_units):
     cleaned_variation_units = []
     errors = []
     for i, variant in enumerate(variation_units):
-        if not variant:
-            continue
         variant_readings = []
         for witness in table:
             for segment in witness:
@@ -137,7 +159,9 @@ def get_readings(table, variation_units):
     return cleaned_variation_units, errors
 
 
-def add_collation_to_db(variation_units: list[dict], ab_pk: int, user_pk: int):
+def add_collation_to_db(
+    variation_units: list[dict], ab_pk: int, user_pk: int, errors_list: list[str]
+):
     ab = cmodels.Ab.objects.filter(
         section__collation__user_id=user_pk, pk=ab_pk
     ).first()
@@ -145,6 +169,9 @@ def add_collation_to_db(variation_units: list[dict], ab_pk: int, user_pk: int):
     cmodels.App.objects.filter(ab=ab).delete()
     if not ab:
         raise ValueError("Ab (verse) not found")
+    if errors_list:
+        errors = "\n".join(errors_list)
+        ab.note = f"———\nWarnings from automated collation: \n{errors}\n———\n{ab.note if ab.note else ''}"
     for variation_unit in variation_units:
         app = cmodels.App.objects.create(
             ab=ab,
@@ -176,9 +203,11 @@ def collate_verse(
         witnes_pks, transcription_names, basetext, ab_pk, user_pk
     )
     witnesses = {"witnesses": witnesses}
-    collation = json.loads(collate(witnesses, output="json", segmentation=True))
+    collation = json.loads(
+        collate(witnesses, output="json", segmentation=False, near_match=True)
+    )
     table = collation["table"]
-    variation_units = get_variation_units(table)
+    variation_units, errors = get_variation_units(table, errors)
     variation_units, table_errors = get_readings(table, variation_units)
-    add_collation_to_db(variation_units, ab_pk, user_pk)
+    add_collation_to_db(variation_units, ab_pk, user_pk, errors)
     return errors + table_errors

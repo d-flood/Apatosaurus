@@ -312,7 +312,12 @@ class App(models.Model):
         """
         if self.ab != other_app.ab:
             raise ValueError("Cannot combine Apps from different Abs")
-        if (
+        if not (
+            self.index_from
+            == self.index_to
+            == other_app.index_from
+            == other_app.index_to
+        ) and (
             self.index_from <= other_app.index_from <= self.index_to
             or self.index_from <= other_app.index_to <= self.index_to
         ):
@@ -322,8 +327,17 @@ class App(models.Model):
             or other_app.rdgs.filter(witDetail=True).exists()
         ):
             raise ValueError("Cannot combine Apps with abimiguous witnesses")
-        before_app = self if self.index_from < other_app.index_from else other_app
-        after_app = self if self.index_from > other_app.index_from else other_app
+        if (
+            self.index_from
+            == self.index_to
+            == other_app.index_from
+            == other_app.index_to
+        ):
+            before_app = self
+            after_app = other_app
+        else:
+            before_app = self if self.index_from < other_app.index_from else other_app
+            after_app = self if self.index_from > other_app.index_from else other_app
         new_app = App.objects.create(
             ab=self.ab,
             atype=self.atype,
@@ -358,7 +372,7 @@ class App(models.Model):
         ):
             rdg = Rdg(app=new_app, name=name, text=text)
             rdg.save(create_history=False)
-            rdg.wit.set(Witness.objects.filter(siglum__in=wits))
+            rdg.wit.set(Witness.objects.filter(siglum__in=wits).distinct())
         self.ab.save()
         return new_app
 

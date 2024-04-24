@@ -406,6 +406,22 @@ def abs(request: HttpRequest, section_pk: int):
 
 
 @login_required
+def sort_abs_by_name(request: HttpRequest, section_pk: int):
+    section = models.Section.objects.filter(collation__user=request.user).get(
+        pk=section_pk
+    )
+    abs = natsorted(section.abs.all(), key=lambda x: x.name)
+    for i, ab in enumerate(abs):
+        ab.number = i
+    models.Ab.objects.bulk_update(abs, ["number"])
+    context = {
+        "abs": abs,
+        "section": section,
+    }
+    return render(request, "collation/_abs.html", context)
+
+
+@login_required
 def apparatus(request: HttpRequest, ab_pk: int, errors: list[str] | None = None):
     ab = models.Ab.objects.filter(section__collation__user=request.user).get(pk=ab_pk)
     context = {
@@ -586,7 +602,7 @@ def rdgs(request: HttpRequest, app_pk: int):
     }
     if request.htmx:  # type: ignore
         resp = render(request, "collation/_rdgs_table.html", context)
-        resp["Cache-Control"] = "private, max-age=60"
+        resp["Cache-Control"] = "private, max-age=2"
         return resp
     else:
         context["browser_load"] = "true"
@@ -829,8 +845,6 @@ def collate(request: HttpRequest, ab_pk: int):
                 request.user.pk,
             )
             return apparatus(request, ab_pk, errors=errors)
-        else:
-            print(form.errors)
     context = {
         "ab": ab,
         "ab_list": True,

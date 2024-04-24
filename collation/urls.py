@@ -69,6 +69,11 @@ urls = [
         name="list-abs",
     ),
     path(
+        "sort-abs-by-name/<int:section_pk>/",
+        views.sort_abs_by_name,
+        name="sort-abs-by-name",
+    ),
+    path(
         "edit-ab/<int:ab_pk>/",
         views.edit_ab,
         name="edit-ab",

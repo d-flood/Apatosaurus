@@ -26,13 +26,13 @@ def tei_to_db(tei_file_name: str, section_pk: int, user_pk: int):
     )
     job_pk = JobStatus.objects.create(
         user_id=user_pk,
-        name=f"Import TEI Collation {models.Section.objects.get(pk=section_pk).name}",
-        message="Started",
+        name=f"Enqueue batch jobs for {models.Section.objects.get(pk=section_pk).name}",
+        message="",
     ).pk
     try:
         if (xml := process_tei.parse_xml(tei_string)) is not None:
-            process_tei.tei_to_db(xml, section_pk, job_pk, user_pk)
-            update_status(job_pk, "", 100, False, True)
+            process_tei.tei_to_db(xml, section_pk, user_pk)
+            update_status(job_pk, "Done", 100, False, True)
         else:
             update_status(job_pk, "Error: XML file is not valid", 0, False, False, True)
     except Exception as e:

@@ -1,8 +1,13 @@
+import base64
+import gzip
+import pickle
 import re
 
 from django.db.models import Q
 from lxml import etree as et
+from zappa.asynchronous import task
 
+from accounts.models import JobStatus
 from accounts.py.update_status import update_status
 from collation import models
 from collation.py.differentiate_subreading_ids import (
@@ -10,6 +15,7 @@ from collation.py.differentiate_subreading_ids import (
 )
 from collation.py.itsee_to_open_cbgm import reformat_xml
 
+AB_CHUNK_SIZE = 50
 TEI_NS = "{http://www.tei-c.org/ns/1.0}"
 XML_NS = "{http://www.w3.org/XML/1998/namespace}"
 XML_NS_STR = "http://www.w3.org/XML/1998/namespace"
@@ -236,17 +242,26 @@ def create_arc_instance(app_elem: et._Element, app_pk: int):
         )
 
 
-def tei_to_db(xml: et._Element, section_pk: int, job_pk: int, user_pk: int):
-    total = len(xml.findall(f"{TEI_NS}ab"))  # type: ignore
+@task
+def import_ab(
+    compressed_string: bytes,
+    section_pk: int,
+    user_pk: int,
+):
+    compressed_chunk = base64.b64decode(compressed_string.encode("utf-8"))
+    serialized_chunk = pickle.loads(gzip.decompress(compressed_chunk))
+    chunk, serialized_abs = serialized_chunk
+    total = len(serialized_abs)
     if total == 0:
         total = 1
-    i = 1
-    for i, ab_elem in enumerate(xml.xpath(f"//tei:ab", namespaces={"tei": TEI_NS_STR}), start=1):  # type: ignore
-        update_status(
-            job_pk,
-            f'Importing {ab_elem.attrib.get(f"{XML_NS}id", "")}',
-            int(i / total * 100),
-        )
+    job = JobStatus.objects.create(
+        user_id=user_pk,
+        name=f"Importing {models.Section.objects.get(pk=section_pk).name} part {chunk+1}",
+        message="Started",
+        in_progress=True,
+    )
+    for i, ab_str in enumerate(serialized_abs):
+        ab_elem = et.fromstring(ab_str.encode("utf-8"))
         ab_instance = create_ab_instance(ab_elem, section_pk, i)
         for app_elem in ab_elem.findall(f"{TEI_NS}app"):
             if not (app := create_app_instance(app_elem, ab_instance.pk)):
@@ -266,3 +281,24 @@ def tei_to_db(xml: et._Element, section_pk: int, job_pk: int, user_pk: int):
             create_arc_instance(app_elem, app.pk)
         ab_instance.save()
         print(f"added {ab_instance.name} to db")
+        # update job status
+        progress = ((i + 1) / total) * 100
+        print(f"progress: {progress}")
+        update_status(job.pk, f"Imported {ab_instance.name}", progress, True, False)
+    update_status(job.pk, "Done", 100, False, True)
+
+
+def tei_to_db(xml: et._Element, section_pk: int, user_pk: int):
+    all_abs = xml.findall(f"{TEI_NS}ab")
+    chunked_abs = []
+    for part, i in enumerate(range(0, len(all_abs), AB_CHUNK_SIZE)):
+        chunk = all_abs[i : i + AB_CHUNK_SIZE]
+        serialized_chunk = (part, [et.tostring(ab, encoding="unicode") for ab in chunk])
+        chunked_abs.append(serialized_chunk)
+    for serialized_ab_chunk in chunked_abs:
+        compressed_chunk = gzip.compress(
+            pickle.dumps(serialized_ab_chunk),
+            compresslevel=9,
+        )
+        compressed_string = base64.b64encode(compressed_chunk).decode("utf-8")
+        import_ab(compressed_string, section_pk, user_pk)
