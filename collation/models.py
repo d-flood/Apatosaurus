@@ -346,20 +346,20 @@ class App(models.Model):
             connectivity=self.connectivity,
         )
         rdg_wits: dict[str, list[str]] = {}
-        for w in self.rdgs.values_list("wit__siglum", flat=True).union(
-            other_app.rdgs.values_list("wit__siglum", flat=True)
+        for w in self.rdgs.values_list("wit__pk", flat=True).union(
+            other_app.rdgs.values_list("wit__pk", flat=True)
         ):
             if (
-                before_app.rdgs.filter(wit__siglum=w).exists()
-                and after_app.rdgs.filter(wit__siglum=w).exists()
+                before_app.rdgs.filter(wit__pk=w).exists()
+                and after_app.rdgs.filter(wit__pk=w).exists()
             ):
-                before_text = before_app.rdgs.get(wit__siglum=w).text or ""
-                after_text = after_app.rdgs.get(wit__siglum=w).text or ""
+                before_text = before_app.rdgs.get(wit__pk=w).text or ""
+                after_text = after_app.rdgs.get(wit__pk=w).text or ""
                 full_text = f"{before_text} {after_text}".strip()
-            elif before_app.rdgs.filter(wit__siglum=w).exists():
-                full_text = before_app.rdgs.get(wit__siglum=w).text or ""
+            elif before_app.rdgs.filter(wit__pk=w).exists():
+                full_text = before_app.rdgs.get(wit__pk=w).text or ""
             else:
-                full_text = after_app.rdgs.get(wit__siglum=w).text or ""
+                full_text = after_app.rdgs.get(wit__pk=w).text or ""
             if full_text in rdg_wits:
                 rdg_wits[full_text].append(w)
             else:
@@ -372,7 +372,7 @@ class App(models.Model):
         ):
             rdg = Rdg(app=new_app, name=name, text=text)
             rdg.save(create_history=False)
-            rdg.wit.set(Witness.objects.filter(siglum__in=wits).distinct())
+            rdg.wit.set(Witness.objects.filter(pk__in=wits).distinct())
         self.ab.save()
         return new_app
 
