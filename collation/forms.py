@@ -306,6 +306,10 @@ class CollationConfigForm(forms.ModelForm):
             raise forms.ValidationError(
                 f'The witness designated as the basetext, "{basetext.siglum}", does not have a transcription named "{transcription_name}".'
             )
+        elif not basetext.transcriptions.filter(name=transcription_name).first().tokens:
+            raise forms.ValidationError(
+                f'The transcription "{transcription_name}" for the basetext witness "{basetext.siglum}" is empty. Please upload a transcription before proceeding.'
+            )
         return basetext
 
     def save(self, ab_pk: int, commit=True):

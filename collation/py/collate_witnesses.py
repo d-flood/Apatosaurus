@@ -56,6 +56,16 @@ def gather_witness_transcriptions(
         if not transcription:
             wit_errors.append(witness.siglum)
             continue
+        elif (
+            not hasattr(transcription, "tokens")
+            or not transcription.tokens
+            or not isinstance(transcription.tokens, list)
+            or len(transcription.tokens) == 0
+            or not isinstance(transcription.tokens[0], dict)
+            or "t" not in transcription.tokens[0]
+        ):
+            errors.append(f"Transcription for {witness.siglum} is empty.")
+            continue
         witnesses.append({"id": witness_pk, "tokens": transcription.tokens})
     if wit_errors:
         errors.append(f"Transcription not found for: {', '.join(wit_errors)}.")
