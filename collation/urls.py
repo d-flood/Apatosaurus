@@ -154,6 +154,11 @@ urls = [
         name="cancel-new-rdg",
     ),
     path(
+        "edit-rdg-single-field/<int:rdg_pk>/<str:field>/",
+        views.edit_rdg_single_field,
+        name="edit-rdg-single-field",
+    ),
+    path(
         "reading-note/<int:rdg_pk>/",
         views.reading_note,
         name="reading-note",

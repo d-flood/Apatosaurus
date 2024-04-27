@@ -365,6 +365,52 @@ def cancel_new_rdg(request: HttpRequest, app_pk: int):
     return render(request, "collation/_rdgs_table.html", context)
 
 
+def edit_rdg_single_field(request: HttpRequest, rdg_pk: int, field: str):
+    rdg = models.Rdg.objects.get(pk=rdg_pk)
+    app = rdg.app
+    form_classes = {
+        "name": forms.RdgNameForm,
+        "rtype": forms.RdgTypeForm,
+        "text": forms.RdgTextForm,
+        "wit": forms.RdgWitForm,
+    }
+    if field not in form_classes:
+        return HttpResponse(status=204)
+    FormClass = form_classes[field]
+    if request.method == "POST":
+        form = FormClass(request.POST, instance=rdg)
+        if form.is_valid():
+            form.save()
+            context = {
+                "app": app,
+                "arc_form": forms.ArcForm(models.App.objects.get(pk=app.pk)),
+                "local_stemma": helpers.make_graph(models.App.objects.get(pk=app.pk)),
+                "rdgs": app.rdgs.filter(witDetail=False),
+                "witDetails": app.rdgs.filter(witDetail=True),
+            }
+            resp = render(request, "collation/_rdgs_table.html", context)
+            resp["HX-Retarget"] = "#readings"
+            return resp
+        else:
+            field_name = "ID" if field == "name" else field
+            return helpers.htmx_toast_resp(
+                request, f'Invalid "{field_name}" Value', form.errors.get(field), "bad"
+            )
+    else:
+        form = FormClass(instance=rdg)
+        context = {
+            "form": form,
+            "field": field,
+            "rdg_pk": rdg_pk,
+            "rtypes": models.Rdg.RDG_CHOICES,
+        }
+        return render(
+            request,
+            "collation/_edit_rdg_single_field.html",
+            context,
+        )
+
+
 @login_required
 def sections(request: HttpRequest, collation_pk: int):
     collation = models.Collation.objects.filter(user=request.user).get(pk=collation_pk)

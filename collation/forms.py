@@ -1,3 +1,4 @@
+from crispy_forms.helper import FormHelper
 from django import forms
 from django.contrib.auth import get_user_model
 
@@ -155,6 +156,58 @@ class RdgForm(forms.ModelForm):
         required=False,
         label="Ambiguous Reading",
     )
+
+
+class RdgNameForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.helper = FormHelper()
+        self.helper.form_show_labels = False
+
+    class Meta:
+        model = models.Rdg
+        fields = ["name"]
+
+
+class RdgTypeForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.helper = FormHelper()
+        self.helper.form_show_labels = False
+
+    class Meta:
+        model = models.Rdg
+        fields = ["rtype"]
+
+    rtype = forms.CharField(
+        widget=forms.TextInput(attrs={"list": "rdg-types", "autocomplete": "off"}),
+    )
+
+
+class RdgTextForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.helper = FormHelper()
+        self.helper.form_show_labels = False
+        self.fields["text"].widget = forms.TextInput()
+
+    class Meta:
+        model = models.Rdg
+        fields = ["text"]
+
+
+class RdgWitForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.helper = FormHelper()
+        self.helper.form_show_labels = False
+
+    class Meta:
+        model = models.Rdg
+        fields = ["wit"]
+        widgets = {
+            "wit": Datalist(multiple=True, object_model=models.Witness),
+        }
 
 
 class RdgNoteForm(forms.ModelForm):

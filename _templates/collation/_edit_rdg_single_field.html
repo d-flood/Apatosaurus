@@ -1,0 +1,13 @@
+{% load crispy_forms_tags %}
+<form hx-post="{% url 'edit-rdg-single-field' rdg_pk=rdg_pk field=field %}"
+    hx-target="#readings"
+    hx-trigger="submit, keyup[keyCode==13]">
+    {% crispy form %}
+    {% if field == 'rtype' %}
+        <datalist id="rdg-types">
+            {% for type in rtypes %}
+                <option>{{ type }}</option>
+            {% endfor %}
+        </datalist>
+    {% endif %}
+</form>

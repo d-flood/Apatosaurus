@@ -1,4 +1,9 @@
+import random
+import string
+
 import pydot
+from django.http import HttpRequest
+from django.shortcuts import render
 
 from collation import models as cmodels
 
@@ -44,3 +49,22 @@ def mix_basetext_and_apps(ab: cmodels.Ab):
             app = cmodels.App.objects.get(pk=app_pk)
             combined.append({"type": "app", "app": app})
     return combined
+
+
+def random_chars(length=4):
+    return "".join(random.choice(string.ascii_letters) for _ in range(length))
+
+
+def htmx_toast_resp(request: HttpRequest, title: str, message: str, _type: str = None):
+    """Returns an HTTP response for htmx requests.
+    _type can be "good", "bad" or `None` for neutral."""
+    context = {
+        "toast_id": random_chars(),
+        "toast_title": title,
+        "toast_message": message,
+        "toast_type": _type,
+    }
+    resp = render(request, "scraps/toast.html", context)
+    resp["HX-Retarget"] = "#toast-container"
+    resp["HX-Reswap"] = "afterbegin"
+    return resp
