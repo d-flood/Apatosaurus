@@ -881,8 +881,11 @@ def collate(request: HttpRequest, ab_pk: int):
         else:
             form = forms.CollationConfigForm(request.user.pk, instance=collation_config)
     else:
-        form = forms.CollationConfigForm(request.user.pk, request.POST)
+        form = forms.CollationConfigForm(
+            request.user.pk, request.POST, instance=collation_config
+        )
         if form.is_valid():
+            form.save(ab_pk)
             errors = collate_witnesses.collate_verse(
                 request.POST.getlist("witnesses"),
                 request.POST.get("transcription_name"),
