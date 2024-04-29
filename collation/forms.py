@@ -158,6 +158,38 @@ class RdgForm(forms.ModelForm):
     )
 
 
+class RdgInlineForm(forms.ModelForm):
+    def __init__(self, *args, app: models.App, user, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["wit"].queryset = models.Witness.objects.filter(
+            Q(default=True) | Q(user=user)
+        )
+
+    class Meta:
+        model = models.Rdg
+        fields = [
+            "name",
+            "rtype",
+            "text",
+            "wit",
+        ]
+        widgets = {
+            "wit": Datalist(multiple=True, object_model=models.Witness),
+        }
+
+    def save(self, app_pk: int, commit=True):
+        instance = super().save(commit=False)
+        instance.app_id = app_pk
+        if commit:
+            instance.save()
+            self.save_m2m()
+        return instance
+
+    rtype = forms.CharField(
+        widget=forms.TextInput(attrs={"list": "rdg-types", "autocomplete": "off"}),
+    )
+
+
 class RdgNameForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

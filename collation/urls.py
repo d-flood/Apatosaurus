@@ -144,7 +144,7 @@ urls = [
         name="new-rdg",
     ),
     path(
-        "edit-reading/<int:rdg_pk>/",
+        "edit-reading/<int:rdg_pk>/<str:inline>/",
         views.edit_rdg,
         name="edit-rdg",
     ),

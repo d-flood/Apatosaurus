@@ -16,46 +16,34 @@
                     </thead>
                     <tbody id="rdgs_table" preload>
                         {% for rdg in rdgs %}
-                            <tr class="{% cycle '' 'bg-orange-50 dark:bg-cyan-1500' %}">
+                            <tr class="hover:dark:bg-cyan-1200 cursor-pointer{% cycle '' ' bg-orange-50 dark:bg-cyan-1500' %}"
+                                title="click to edit" aria-label="click to edit reading data"
+                                hx-get="{% url 'edit-rdg' rdg_pk=rdg.pk inline='True' %}"
+                                hx-target="closest tr"
+                                hx-swap="outerHTML">
                                 <td class="px-2" width="5px">
-                                    <a class="normal-link no-underline" title="edit reading name"
-                                        hx-get="{% url 'edit-rdg-single-field' rdg_pk=rdg.pk field='name' %}"
-                                        hx-swap="outerHTML">
-                                        {{ rdg.name }} <span class="sr-only">click to edit</span>
-                                    </a>
+                                    {{ rdg.name }}
                                 </td>
                                 <td class="px-2" width="5px">
-                                    <a class="normal-link no-underline" title="edit reading name"
-                                        hx-get="{% url 'edit-rdg-single-field' rdg_pk=rdg.pk field='rtype' %}"
-                                        hx-swap="outerHTML">
-                                        {{ rdg.rtype }} <span class="sr-only">click to edit</span>
-                                    </a>
+                                    {{ rdg.rtype }}
                                 </td>
                                 <td class="font-greek font-semibold px-2" width="40%">
-                                    <a class="normal-link no-underline" title="edit reading name"
-                                        hx-get="{% url 'edit-rdg-single-field' rdg_pk=rdg.pk field='text' %}"
-                                        hx-swap="outerHTML">
-                                        {{ rdg.text }} <span class="sr-only">click to edit</span>
-                                    </a>
+                                    {{ rdg.text }}
                                 </td>
                                 <td class="px-2" width="45%">
-                                    <a class="normal-link no-underline" title="edit reading name"
-                                        hx-get="{% url 'edit-rdg-single-field' rdg_pk=rdg.pk field='wit' %}"
-                                        hx-swap="outerHTML">
-                                        {% for w in rdg.wit.all %}<span title="{{ w.siglum }} - {{ w.description }}">{{ w.siglum }}.</span> {% endfor %}
-                                        <span class="sr-only">click to edit</span>
-                                    </a>
-                                </td>
-                                <td class="flex flex-col items-end">
-                                    <div class="flex flex-row">
+                                    {% for w in rdg.wit.all %}<span title="{{ w.siglum }} - {{ w.description }}">{{ w.siglum }}.</span> {% endfor %}
+                                <td class="flex flex-col items-end min-w-max">
+                                    <div class="flex flex-row flex-nowrap">
+                                        {% comment  %}
                                         <button class="btn px-0 my-1"
                                             type="button" title="edit reading" aria-label="edit reading"
-                                            hx-get="{% url 'edit-rdg' rdg_pk=rdg.pk %}"
+                                            hx-get="{% url 'edit-rdg' rdg_pk=rdg.pk inline='False' %}"
                                             hx-target="#new-rdg-form">
                                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6">
                                                 <path d="M21.731 2.269a2.625 2.625 0 00-3.712 0l-1.157 1.157 3.712 3.712 1.157-1.157a2.625 2.625 0 000-3.712zM19.513 8.199l-3.712-3.712-12.15 12.15a5.25 5.25 0 00-1.32 2.214l-.8 2.685a.75.75 0 00.933.933l2.685-.8a5.25 5.25 0 002.214-1.32L19.513 8.2z" />
                                             </svg>
                                         </button>
+                                        {% endcomment %}
                                         {% with rdg.note as note %}
                                             <button type="button" 
                                                 class="my-1 px-0 h-full{% if note and note.strip != '' %} btn-submit{% else %} btn{% endif %}"
@@ -129,7 +117,7 @@
                                     <div class="flex flex-row">
                                         <button class="btn px-0 my-1"
                                             type="button" title="edit reading" aria-label="edit reading"
-                                            hx-get="{% url 'edit-rdg' rdg_pk=rdg.pk %}"
+                                            hx-get="{% url 'edit-rdg' rdg_pk=rdg.pk inline='False' %}"
                                             hx-target="#new-rdg-form">
                                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6">
                                                 <path d="M21.731 2.269a2.625 2.625 0 00-3.712 0l-1.157 1.157 3.712 3.712 1.157-1.157a2.625 2.625 0 000-3.712zM19.513 8.199l-3.712-3.712-12.15 12.15a5.25 5.25 0 00-1.32 2.214l-.8 2.685a.75.75 0 00.933.933l2.685-.8a5.25 5.25 0 002.214-1.32L19.513 8.2z" />

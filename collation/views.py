@@ -308,7 +308,12 @@ def new_rdg(request: HttpRequest, app_pk: int):
 
 @login_required
 @require_http_methods(["GET", "POST", "DELETE"])
-def edit_rdg(request: HttpRequest, rdg_pk: int):
+def edit_rdg(request: HttpRequest, rdg_pk: int, inline: str):
+    form_template = (
+        "collation/_edit_rdg_inline.html"
+        if inline == "True"
+        else "collation/edit_rdg.html"
+    )
     if request.method == "GET":
         rdg = models.Rdg.objects.get(pk=rdg_pk)
         form = forms.RdgForm(instance=rdg, app=rdg.app, user=request.user)
@@ -318,7 +323,7 @@ def edit_rdg(request: HttpRequest, rdg_pk: int):
             "rdg": rdg,
             "rtypes": models.Rdg.RDG_CHOICES,
         }
-        return render(request, "collation/edit_rdg.html", context)
+        return render(request, form_template, context)
     elif request.method == "POST":
         rdg = models.Rdg.objects.get(pk=rdg_pk)
         form = forms.RdgForm(request.POST, instance=rdg, app=rdg.app, user=request.user)
@@ -333,12 +338,10 @@ def edit_rdg(request: HttpRequest, rdg_pk: int):
                 "witDetails": app.rdgs.filter(witDetail=True),
             }
             return render(request, "collation/_rdgs_table.html", context)
-        context = {
-            "form": form,
-            "rdg": rdg,
-            "rtypes": models.Rdg.RDG_CHOICES,
-        }
-        return render(request, "collation/edit_rdg.html", context)
+        else:
+            return helpers.htmx_toast_resp(
+                request, f"Form Errors", form.errors.as_text(), "bad"
+            )
     else:
         rdg = models.Rdg.objects.get(pk=rdg_pk)
         app = rdg.app
