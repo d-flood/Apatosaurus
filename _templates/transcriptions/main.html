@@ -27,8 +27,9 @@
                     Delete All
                 </button>
             {% endif %}
-            <ul role="list" id="transcription-list">
-                <input type="text" name="filter verses" title="filter verses" aria-label="filter verses" class="w-full py-0" 
+            <div class="flex flex-row justify-around mb-2">
+                <input type="text" name="filter verses" title="filter verses" aria-label="filter verses" 
+                    class="w-2/3 py-0" 
                     placeholder="filter verses"
                     _="on keyup
                         if the event's key is 'Escape'
@@ -37,8 +38,26 @@
                         else
                         show <li/> in #transcription-list when its textContent contains my value
                         end">
+                <button type="button" class="btn-secondary text-center p-0" title="reverse" aria-label="reverse"
+                    _="on click if my @aria-label is 'reverse' 
+                                    then remove .flex-col from #transcription-list 
+                                    then add .flex-col-reverse to #transcription-list
+                                    then set my @aria-label to 'unreverse'
+                                else remove .flex-col-reverse from #transcription-list
+                                    then add .flex-col to #transcription-list
+                                    then set my @aria-label to 'reverse'
+                                end">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 inline">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 4.5h14.25M3 9h9.75M3 13.5h9.75m4.5-4.5v12m0 0-3.75-3.75M17.25 21 21 17.25" />
+                    </svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 inline">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 4.5h14.25M3 9h9.75M3 13.5h5.25m5.25-.75L17.25 9m0 0L21 12.75M17.25 9v12" />
+                    </svg>
+                </button>
+            </div>
+            <ul role="list" id="transcription-list" class="flex flex-col space-y-2">
                 {% for transcription in transcriptions %}
-                    <li class="min-w-full my-2 flex flex-row">
+                    <li class="min-w-full flex flex-row">
                         <a class="btn w-10/12 px-1 whitespace-nowrap overflow-hidden text-ellipsis"
                             hx-get="{% url 'edit-transcription' transcription_pk=transcription.pk %}"
                             hx-push-url="true"
