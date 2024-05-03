@@ -55,6 +55,10 @@ class SectionForm(forms.ModelForm):
 
 
 class AbForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["number"].widget.attrs.update({"autocomplete": "off"})
+
     class Meta:
         model = models.Ab
         exclude = ["section", "indexed_basetext", "slugname"]
