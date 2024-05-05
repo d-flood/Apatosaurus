@@ -76,7 +76,7 @@
                                                         role="menu"
                                                         style="display: none;"
                                                     >
-                                                        <button tabindex="-1" class="block my-1 px-2 hover:bg-red-500 hover:text-white cursor-pointer bg-red-300"
+                                                        <button tabindex="-1" class="block my-1 px-2 w-full hover:bg-red-500 hover:text-white cursor-pointer bg-red-300 rounded"
                                                             role="menuitem"
                                                             hx-delete="{% url 'edit-rdg' rdg_pk=rdg.pk inline="False" %}"
                                                             hx-target="#readings"
@@ -84,12 +84,20 @@
                                                         >
                                                             Delete
                                                         </button>
-                                                        <button tabindex="-1" class="block my-2 px-2 w-full hover:bg-gray-500 hover:text-white cursor-pointer"
+                                                        <button tabindex="-1" class="block my-2 px-2 w-full hover:bg-blue-500 hover:text-white cursor-pointer bg-blue-300 rounded"
                                                             role="menuitem"
                                                             hx-get="{% url 'edit-rdg' rdg_pk=rdg.pk inline="False" %}"
                                                             hx-target="#readings"
                                                         >
                                                             Edit
+                                                        </button>
+                                                        <button tabindex="-1" class="block my-2 px-2 w-full hover:bg-blue-500 hover:text-white cursor-pointer bg-blue-300 rounded"
+                                                            role="menuitem"
+                                                            hx-get="{% url 'edit-rdg' rdg_pk=rdg.pk inline="True" %}"
+                                                            hx-target="closest tr"
+                                                            hx-swap="outerHTML"
+                                                        >
+                                                            Edit (inline)
                                                         </button>
                                                     </div>
                                                 </div>
