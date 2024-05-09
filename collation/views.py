@@ -247,7 +247,17 @@ def edit_ab(request: HttpRequest, ab_pk: int):
         ab = models.Ab.objects.get(pk=ab_pk)
         form = forms.AbForm(instance=ab)
         context = {"page": {"active": "collation"}, "form": form, "ab": ab}
-        return render(request, "collation/_edit_ab.html", context)
+        if request.htmx:
+            return render(request, "collation/_edit_ab.html", context)
+        else:
+            context.update(
+                {
+                    "ab_list": True,
+                    "edit_ab": True,
+                    "section": ab.section,
+                }
+            )
+            return render(request, "collation/main.html", context)
     elif request.method == "POST":
         ab = models.Ab.objects.get(pk=ab_pk)
         form = forms.AbForm(request.POST, instance=ab)

@@ -33,6 +33,8 @@
             {% include 'collation/_collate.html' %}
         {% elif parallel_apparatus %}
             {% include 'collation/_apparatus_parallel.html' %}
+        {% elif edit_ab %}
+            {% include 'collation/_edit_ab.html' %}
         {% endif %}
     </main>
 </div>
