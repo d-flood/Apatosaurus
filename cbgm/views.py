@@ -84,13 +84,14 @@ def send_section_form(request: HttpRequest, corpus_pk: int, corpus_type: int):
     if not form.is_valid():
         context["form"] = form
         return render(request, new_db_html, context)
-    db = form.save(corpus_type)
+    db = form.save(corpus_type, commit=False)
+    db.remove_rdg_types_before_import = request.POST.getlist("ignore_rdg_types")
+    db.save()
     tasks.import_tei_batch_job(
         request.user.pk,
         corpus_pk,
         db.pk,
         corpus_type,
-        request.POST.getlist("ignore_rdg_types"),
     )
     return render(
         request,

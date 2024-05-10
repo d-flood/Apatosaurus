@@ -60,7 +60,6 @@ def import_tei(
     corpus_pk: int,
     db_pk: int,
     corpus_type: int,
-    ignore_rdg_types: list[str],
 ):
     """corpus_type options: 'section', 'verse', 'full'"""
     if corpus_type == 1:
@@ -73,7 +72,8 @@ def import_tei(
         raise ValueError(
             f'Invalid corpus_type: {corpus_type}. Must be one of "verse, 0", "section, 1", or "full, 2".'
         )
-    tei = corpus.as_tei(ignore_rdg_types)
+    cbgm_db_instance = models.Cbgm_Db.objects.get(pk=db_pk)
+    tei = corpus.as_tei(cbgm_db_instance.remove_rdg_types_before_import)
     # I cannot get NamedTemporaryFile to work with open-cbgm.populate_db. I would
     # guess that it is because the file is opened by another process.
     tmp_name = f"tei_{''.join(random.choices(string.ascii_letters, k=5))}.xml"
@@ -81,7 +81,6 @@ def import_tei(
     with open(tei_file, "w", encoding="utf-8") as f:
         f.write(tei)
     db_file = NamedTemporaryFile(delete=False, dir="/tmp", prefix="cbgm_", suffix=".db")
-    cbgm_db_instance = models.Cbgm_Db.objects.get(pk=db_pk)
     command = construct_populate_db_command(
         tei_file.resolve().as_posix(), db_file.name, cbgm_db_instance
     )

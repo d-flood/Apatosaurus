@@ -7,7 +7,15 @@ from collation import models as cmodels
 class Cbgm_DbForm(forms.ModelForm):
     class Meta:
         model = models.Cbgm_Db
-        exclude = ["user", "db_file", "amount", "witnesses", "app_labels", "active"]
+        exclude = [
+            "user",
+            "db_file",
+            "amount",
+            "witnesses",
+            "app_labels",
+            "active",
+            "remove_rdg_types_before_import",
+        ]
 
     def __init__(
         self,
