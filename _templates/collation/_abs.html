@@ -1,6 +1,6 @@
 <div id="breadcrumbs" hx-swap-oob="true">
     <nav class="m-2" aria-label="breadcrumbs">
-        <ol class="list-reset flex">
+        <ol class="list-reset flex flex-row flex-wrap">
             <li>
                 <a class="normal-link" 
                     hx-get="{% url 'collation' %}" hx-target="#sidebar-header">
@@ -21,25 +21,68 @@
     {{ section.name }}
 </h1>
 <hr class="my-4 border-orange-700 border-t-4">
-<ul role="list" id="section_list"
+<button type="button" class="btn w-full inline-flex text-center"
+    hx-get="{% url 'new-ab' section_pk=section.pk %}" hx-target="#main">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6 mr-2">
+        <path fill-rule="evenodd" d="M12 3.75a.75.75 0 01.75.75v6.75h6.75a.75.75 0 010 1.5h-6.75v6.75a.75.75 0 01-1.5 0v-6.75H4.5a.75.75 0 010-1.5h6.75V4.5a.75.75 0 01.75-.75z" clip-rule="evenodd" />
+    </svg>
+    New Verse
+</button>
+<button type="button" style="white-space: nowrap;"
+    class="btn w-full mt-2 inline-flex text-center"
+    hx-get="{% url 'upload-tei' section_pk=section.pk %}"
+    hx-target="#main">
+    <svg class="w-6 h-6 mr-2" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 16 16">
+        <path d="M8 2a5.53 5.53 0 0 0-3.594 1.342c-.766.66-1.321 1.52-1.464 2.383C1.266 6.095 0 7.555 0 9.318 0 11.366 1.708 13 3.781 13h8.906C14.502 13 16 11.57 16 9.773c0-1.636-1.242-2.969-2.834-3.194C12.923 3.999 10.69 2 8 2zm2.354 5.146a.5.5 0 0 1-.708.708L8.5 6.707V10.5a.5.5 0 0 1-1 0V6.707L6.354 7.854a.5.5 0 1 1-.708-.708l2-2a.5.5 0 0 1 .708 0l2 2z"/>
+    </svg>
+    Upload Collation File
+</button>
+<button type="button" class="btn w-full mt-2 inline-flex text-center"
+    hx-get="{% url 'sort-abs-by-name' section_pk=section.pk %}"
+    hx-target="#sidebar-header"
+    hx-confirm="Are you sure you want to sort by verse name? This will update the order number for all verses.">
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="w-6 h-6 mr-2" viewBox="0 0 16 16">
+        <path d="M3.5 3.5a.5.5 0 0 0-1 0v8.793l-1.146-1.147a.5.5 0 0 0-.708.708l2 1.999.007.007a.497.497 0 0 0 .7-.006l2-2a.5.5 0 0 0-.707-.708L3.5 12.293zm4 .5a.5.5 0 0 1 0-1h1a.5.5 0 0 1 0 1zm0 3a.5.5 0 0 1 0-1h3a.5.5 0 0 1 0 1zm0 3a.5.5 0 0 1 0-1h5a.5.5 0 0 1 0 1zM7 12.5a.5.5 0 0 0 .5.5h7a.5.5 0 0 0 0-1h-7a.5.5 0 0 0-.5.5"/>
+    </svg>
+    Set Verse Order
+</button>
+
+<hr class="mt-4 mb-2 border-orange-700 border-t-2">
+<div class="flex flex-row justify-around mb-2">
+    <input type="text" name="filter verses" title="filter verses" aria-label="filter verses" class="w-2/3 py-0" 
+        placeholder="filter verses"
+        _="on keyup
+            if the event's key is 'Escape'
+            set my value to ''
+            trigger keyup
+            else
+            show <li/> in #section_list when its textContent contains my value
+            end">
+        <button type="button" class="btn-secondary text-center p-0" title="reverse" aria-label="reverse"
+        _="on click if my @aria-label is 'reverse' 
+                        then remove .flex-col from #section_list 
+                        then add .flex-col-reverse to #section_list
+                        then set my @aria-label to 'unreverse'
+                    else remove .flex-col-reverse from #section_list
+                        then add .flex-col to #section_list
+                        then set my @aria-label to 'reverse'
+                    end">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 inline">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3 4.5h14.25M3 9h9.75M3 13.5h9.75m4.5-4.5v12m0 0-3.75-3.75M17.25 21 21 17.25" />
+        </svg>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 inline">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3 4.5h14.25M3 9h9.75M3 13.5h5.25m5.25-.75L17.25 9m0 0L21 12.75M17.25 9v12" />
+        </svg>
+    </button>
+</div>
+<ul role="list" id="section_list" class="flex flex-col space-y-2"
     hx-trigger="refreshAbs from:body"
     hx-get="{% url 'list-abs' section_pk=section.pk %}"
     hx-push-url="true"
     hx-target="#sidebar-header">
     {% with coll=section.collation abs=section.abs.all %}
-    {% if abs.count > 30 %}
-        <input type="text" name="filter verses" title="filter verses" aria-label="filter verses" class="w-full" 
-            placeholder="filter verses"
-            _="on keyup
-            if the event's key is 'Escape'
-              set my value to ''
-              trigger keyup
-            else
-             show <li/> in #section_list when its textContent contains my value
-            end">
-    {% endif %}
     {% for ab in abs %}
-        <li class="min-w-full my-2 flex flex-row">
+        <li class="min-w-full flex flex-row">
             <a hx-get="{% url 'apparatus' ab_pk=ab.pk %}" 
                 hx-target="#main"
                 class="list-abs-li btn w-10/12" 
@@ -63,29 +106,3 @@
     {% endfor %}
     {% endwith %}
 </ul>
-<hr class="my-4 border-orange-700 border-t-2">
-<button type="button" class="btn w-full mt-2 inline-flex text-center"
-    hx-get="{% url 'new-ab' section_pk=section.pk %}" hx-target="#main">
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6 mr-2">
-        <path fill-rule="evenodd" d="M12 3.75a.75.75 0 01.75.75v6.75h6.75a.75.75 0 010 1.5h-6.75v6.75a.75.75 0 01-1.5 0v-6.75H4.5a.75.75 0 010-1.5h6.75V4.5a.75.75 0 01.75-.75z" clip-rule="evenodd" />
-    </svg>
-    New Verse
-</button>
-<button type="button" style="white-space: nowrap;"
-    class="btn w-full mt-4 inline-flex text-center"
-    hx-get="{% url 'upload-tei' section_pk=section.pk %}"
-    hx-target="#main">
-    <svg class="w-6 h-6 mr-2" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 16 16">
-        <path d="M8 2a5.53 5.53 0 0 0-3.594 1.342c-.766.66-1.321 1.52-1.464 2.383C1.266 6.095 0 7.555 0 9.318 0 11.366 1.708 13 3.781 13h8.906C14.502 13 16 11.57 16 9.773c0-1.636-1.242-2.969-2.834-3.194C12.923 3.999 10.69 2 8 2zm2.354 5.146a.5.5 0 0 1-.708.708L8.5 6.707V10.5a.5.5 0 0 1-1 0V6.707L6.354 7.854a.5.5 0 1 1-.708-.708l2-2a.5.5 0 0 1 .708 0l2 2z"/>
-    </svg>
-    Upload Collation File
-</button>
-<button type="button" class="btn w-full mt-4 inline-flex text-center"
-    hx-get="{% url 'sort-abs-by-name' section_pk=section.pk %}"
-    hx-target="#sidebar-header"
-    hx-confirm="Are you sure you want to sort by verse name? This will update the order number for all verses.">
-    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="w-6 h-6 mr-2" viewBox="0 0 16 16">
-        <path d="M3.5 3.5a.5.5 0 0 0-1 0v8.793l-1.146-1.147a.5.5 0 0 0-.708.708l2 1.999.007.007a.497.497 0 0 0 .7-.006l2-2a.5.5 0 0 0-.707-.708L3.5 12.293zm4 .5a.5.5 0 0 1 0-1h1a.5.5 0 0 1 0 1zm0 3a.5.5 0 0 1 0-1h3a.5.5 0 0 1 0 1zm0 3a.5.5 0 0 1 0-1h5a.5.5 0 0 1 0 1zM7 12.5a.5.5 0 0 0 .5.5h7a.5.5 0 0 0 0-1h-7a.5.5 0 0 0-.5.5"/>
-    </svg>
-    Set Verse Order
-</button>

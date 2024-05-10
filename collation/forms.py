@@ -1,3 +1,4 @@
+from crispy_forms.helper import FormHelper
 from django import forms
 from django.contrib.auth import get_user_model
 
@@ -54,6 +55,10 @@ class SectionForm(forms.ModelForm):
 
 
 class AbForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["number"].widget.attrs.update({"autocomplete": "off"})
+
     class Meta:
         model = models.Ab
         exclude = ["section", "indexed_basetext", "slugname"]
@@ -155,6 +160,90 @@ class RdgForm(forms.ModelForm):
         required=False,
         label="Ambiguous Reading",
     )
+
+
+class RdgInlineForm(forms.ModelForm):
+    def __init__(self, *args, app: models.App, user, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["wit"].queryset = models.Witness.objects.filter(
+            Q(default=True) | Q(user=user)
+        )
+
+    class Meta:
+        model = models.Rdg
+        fields = [
+            "name",
+            "rtype",
+            "text",
+            "wit",
+        ]
+        widgets = {
+            "wit": Datalist(multiple=True, object_model=models.Witness),
+        }
+
+    def save(self, app_pk: int, commit=True):
+        instance = super().save(commit=False)
+        instance.app_id = app_pk
+        if commit:
+            instance.save()
+            self.save_m2m()
+        return instance
+
+    rtype = forms.CharField(
+        widget=forms.TextInput(attrs={"list": "rdg-types", "autocomplete": "off"}),
+    )
+
+
+class RdgNameForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.helper = FormHelper()
+        self.helper.form_show_labels = False
+
+    class Meta:
+        model = models.Rdg
+        fields = ["name"]
+
+
+class RdgTypeForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.helper = FormHelper()
+        self.helper.form_show_labels = False
+
+    class Meta:
+        model = models.Rdg
+        fields = ["rtype"]
+
+    rtype = forms.CharField(
+        widget=forms.TextInput(attrs={"list": "rdg-types", "autocomplete": "off"}),
+    )
+
+
+class RdgTextForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.helper = FormHelper()
+        self.helper.form_show_labels = False
+        self.fields["text"].widget = forms.TextInput()
+
+    class Meta:
+        model = models.Rdg
+        fields = ["text"]
+
+
+class RdgWitForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.helper = FormHelper()
+        self.helper.form_show_labels = False
+
+    class Meta:
+        model = models.Rdg
+        fields = ["wit"]
+        widgets = {
+            "wit": Datalist(multiple=True, object_model=models.Witness),
+        }
 
 
 class RdgNoteForm(forms.ModelForm):
@@ -305,6 +394,10 @@ class CollationConfigForm(forms.ModelForm):
         if not basetext.transcriptions.filter(name=transcription_name).exists():
             raise forms.ValidationError(
                 f'The witness designated as the basetext, "{basetext.siglum}", does not have a transcription named "{transcription_name}".'
+            )
+        elif not basetext.transcriptions.filter(name=transcription_name).first().tokens:
+            raise forms.ValidationError(
+                f'The transcription "{transcription_name}" for the basetext witness "{basetext.siglum}" is empty. Please upload a transcription before proceeding.'
             )
         return basetext
 

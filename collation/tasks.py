@@ -54,3 +54,36 @@ def download_apparatus_task(corpus_type: str, user_pk: int, corpus_pk: int):
             message=f"Error: {e}",
         )
     return
+
+
+@task
+def build_collation_index(
+    collation_pk: int, user_pk: int, child_rdg_types: list[str] = None
+):
+    """Build the index for a collation."""
+    collation = Collation.objects.get(pk=collation_pk)
+    job_pk = JobStatus.objects.create(
+        user_id=user_pk,
+        in_progress=True,
+        progress=0,
+        name=f"Build index for {collation.name}",
+        message="Starting task...",
+    ).pk
+    try:
+        JobStatus.objects.filter(pk=job_pk).update(
+            progress=0,
+            message="Building index...",
+        )
+        collation.build_index(child_rdg_types)
+        JobStatus.objects.filter(pk=job_pk).update(
+            progress=100,
+            completed=True,
+            message="Index built.",
+        )
+    except Exception as e:
+        JobStatus.objects.filter(pk=job_pk).update(
+            in_progress=False,
+            failed=True,
+            message=f"Error: {e}",
+        )
+    return

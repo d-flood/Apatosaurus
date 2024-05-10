@@ -4,49 +4,78 @@
 {% block content %}
 
 <div class="flex">
-    <header id="sidebar-header" class="z-20 hidden absolute lg:relative lg:flex lg:flex-col w-72 min-h-screen px-4 py-8 overflow-y-auto border-r bg-orange-50 dark:bg-cyan-1400">
-        <div class="flex flex-col justify-between mt-6">
+    <header id="sidebar-header" class="z-20 hidden absolute lg:relative lg:flex lg:flex-col w-72 overflow-y-auto px-2 py-8 border-r bg-orange-50 dark:bg-cyan-1400"
+        style="max-height: calc(100vh - 65px);">
+        <div class="flex flex-col justify-between">
             <h1 class="text-2xl text-center">Transcriptions for <br>{{ witness.siglum }}</h1>
             <hr class="my-4 border-orange-700 border-t-4">
-                <ul role="list">
-                    {% for transcription in transcriptions %}
-                        <li class="min-w-full my-2 flex flex-row">
-                            <a class="btn w-10/12 px-1 whitespace-nowrap overflow-hidden text-ellipsis"
-                                hx-get="{% url 'edit-transcription' transcription_pk=transcription.pk %}"
-                                hx-push-url="true"
-                                hx-target="#main">
-                                {{ transcription.name }}
-                            </a>
-                            <!-- delete button -->
-                            <button type="button" class="btn-danger w-2/12 ml-2 p-0 flex items-center justify-center"
-                                title="delete" aria-label="delete {{ transcription.name }}"
-                                hx-delete="{% url 'edit-transcription' transcription_pk=transcription.pk %}"
-                                hx-confirm="Are you sure you want to delete your {{ transcription.name }} transcription?">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                                    <path d="M11 1.5v1h3.5a.5.5 0 0 1 0 1h-.538l-.853 10.66A2 2 0 0 1 11.115 16h-6.23a2 2 0 0 1-1.994-1.84L2.038 3.5H1.5a.5.5 0 0 1 0-1H5v-1A1.5 1.5 0 0 1 6.5 0h3A1.5 1.5 0 0 1 11 1.5m-5 0v1h4v-1a.5.5 0 0 0-.5-.5h-3a.5.5 0 0 0-.5.5M4.5 5.029l.5 8.5a.5.5 0 1 0 .998-.06l-.5-8.5a.5.5 0 1 0-.998.06Zm6.53-.528a.5.5 0 0 0-.528.47l-.5 8.5a.5.5 0 0 0 .998.058l.5-8.5a.5.5 0 0 0-.47-.528ZM8 4.5a.5.5 0 0 0-.5.5v8.5a.5.5 0 0 0 1 0V5a.5.5 0 0 0-.5-.5"/>
-                                </svg>
-                            </button>
-                        </li>
-                    {% endfor %}
-                </ul>
-            <button type="button" class="btn w-full mt-4 inline-flex text-center"
+            <button type="button" class="btn w-full inline-flex text-center"
                 hx-get="{% url 'new-transcription' witness_pk=witness.pk %}" hx-target="#main">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6 mr-2">
                     <path fill-rule="evenodd" d="M12 3.75a.75.75 0 01.75.75v6.75h6.75a.75.75 0 010 1.5h-6.75v6.75a.75.75 0 01-1.5 0v-6.75H4.5a.75.75 0 010-1.5h6.75V4.5a.75.75 0 01.75-.75z" clip-rule="evenodd" />
                 </svg>
-                New Transcription
+                New
             </button>
-            <button type="button" class="btn w-full mt-4 inline-flex text-center"
+            <button type="button" class="btn w-full mt-2 inline-flex text-center"
                 hx-get="{% url 'import-tei-transcription' witness_pk=witness.pk %}" hx-target="#main">
-                Import TEI Transcription
+                Import TEI
             </button>
             {% if transcriptions.count > 0 %}
-                <button type="button" class="btn-danger w-full mt-4 inline-flex text-center"
+                <button type="button" class="btn-danger w-full my-2 inline-flex text-center"
                     hx-delete="{% url 'delete-transcriptions' witness_pk=witness.pk %}"
                     hx-confirm="Are you sure you want to delete ALL transcriptions for {{ witness }}?">
-                    Delete All Transcriptions
+                    Delete All
                 </button>
             {% endif %}
+            <div class="flex flex-row justify-around mb-2">
+                <input type="text" name="filter verses" title="filter verses" aria-label="filter verses" 
+                    class="w-2/3 py-0" 
+                    placeholder="filter verses"
+                    _="on keyup
+                        if the event's key is 'Escape'
+                        set my value to ''
+                        trigger keyup
+                        else
+                        show <li/> in #transcription-list when its textContent contains my value
+                        end">
+                <button type="button" class="btn-secondary text-center p-0" title="reverse" aria-label="reverse"
+                    _="on click if my @aria-label is 'reverse' 
+                                    then remove .flex-col from #transcription-list 
+                                    then add .flex-col-reverse to #transcription-list
+                                    then set my @aria-label to 'unreverse'
+                                else remove .flex-col-reverse from #transcription-list
+                                    then add .flex-col to #transcription-list
+                                    then set my @aria-label to 'reverse'
+                                end">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 inline">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 4.5h14.25M3 9h9.75M3 13.5h9.75m4.5-4.5v12m0 0-3.75-3.75M17.25 21 21 17.25" />
+                    </svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 inline">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 4.5h14.25M3 9h9.75M3 13.5h5.25m5.25-.75L17.25 9m0 0L21 12.75M17.25 9v12" />
+                    </svg>
+                </button>
+            </div>
+            <ul role="list" id="transcription-list" class="flex flex-col space-y-2">
+                {% for transcription in transcriptions %}
+                    <li class="min-w-full flex flex-row">
+                        <a class="btn w-10/12 px-1 whitespace-nowrap overflow-hidden text-ellipsis"
+                            hx-get="{% url 'edit-transcription' transcription_pk=transcription.pk %}"
+                            hx-push-url="true"
+                            hx-target="#main">
+                            {{ transcription.name }}
+                        </a>
+                        <!-- delete button -->
+                        <button type="button" class="btn-danger w-2/12 ml-2 p-0 flex items-center justify-center"
+                            title="delete" aria-label="delete {{ transcription.name }}"
+                            hx-delete="{% url 'edit-transcription' transcription_pk=transcription.pk %}"
+                            hx-confirm="Are you sure you want to delete your {{ transcription.name }} transcription?">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                <path d="M11 1.5v1h3.5a.5.5 0 0 1 0 1h-.538l-.853 10.66A2 2 0 0 1 11.115 16h-6.23a2 2 0 0 1-1.994-1.84L2.038 3.5H1.5a.5.5 0 0 1 0-1H5v-1A1.5 1.5 0 0 1 6.5 0h3A1.5 1.5 0 0 1 11 1.5m-5 0v1h4v-1a.5.5 0 0 0-.5-.5h-3a.5.5 0 0 0-.5.5M4.5 5.029l.5 8.5a.5.5 0 1 0 .998-.06l-.5-8.5a.5.5 0 1 0-.998.06Zm6.53-.528a.5.5 0 0 0-.528.47l-.5 8.5a.5.5 0 0 0 .998.058l.5-8.5a.5.5 0 0 0-.47-.528ZM8 4.5a.5.5 0 0 0-.5.5v8.5a.5.5 0 0 0 1 0V5a.5.5 0 0 0-.5-.5"/>
+                            </svg>
+                        </button>
+                    </li>
+                {% endfor %}
+            </ul>
         </div>
     </header>
     <button type="button" aria-label="Show Menu" title="Show Menu"

@@ -3,12 +3,11 @@
 {% if apps %}<p class="text-sm italic mb-2">Links open in a new tab</p>{% endif %}
 {% for app in apps %}
     <p>
-        {{ app.ab.section.name }}; 
         <a 
-            href="{% url 'rdgs' app_pk=app.pk %}"
+            href="{% url 'rdgs' app_pk=app.app_pk %}"
             class="normal-link"
             target="_blank">
-            {{ app }}
+            {{ app.name }}
         </a>
     </p>
 {% endfor %}

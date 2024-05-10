@@ -29,6 +29,11 @@ urls = [
         name="analyze-collation",
     ),
     path(
+        "rebuils-collation-index/<int:collation_pk>/",
+        views.rebuild_collation_index,
+        name="rebuild-collation-index",
+    ),
+    path(
         "filter-variants/<int:collation_pk>/",
         views.filter_variants,
         name="filter-variants",
@@ -144,7 +149,7 @@ urls = [
         name="new-rdg",
     ),
     path(
-        "edit-reading/<int:rdg_pk>/",
+        "edit-reading/<int:rdg_pk>/<str:inline>/",
         views.edit_rdg,
         name="edit-rdg",
     ),
@@ -152,6 +157,11 @@ urls = [
         "cancel-new-reading/<int:app_pk>/",
         views.cancel_new_rdg,
         name="cancel-new-rdg",
+    ),
+    path(
+        "edit-rdg-single-field/<int:rdg_pk>/<str:field>/",
+        views.edit_rdg_single_field,
+        name="edit-rdg-single-field",
     ),
     path(
         "reading-note/<int:rdg_pk>/",
