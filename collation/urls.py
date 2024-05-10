@@ -29,6 +29,11 @@ urls = [
         name="analyze-collation",
     ),
     path(
+        "rebuils-collation-index/<int:collation_pk>/",
+        views.rebuild_collation_index,
+        name="rebuild-collation-index",
+    ),
+    path(
         "filter-variants/<int:collation_pk>/",
         views.filter_variants,
         name="filter-variants",

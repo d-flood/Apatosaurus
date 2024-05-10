@@ -109,6 +109,14 @@ def new_section(request: HttpRequest, collation_pk: int):
 @require_safe
 def analyze_collation(request: HttpRequest, collation_pk: int):
     collation = models.Collation.objects.filter(user=request.user).get(pk=collation_pk)
+    # build index if one does not exist
+    if request.htmx and not collation.app_indexes.exists():
+        tasks.build_collation_index(collation_pk, request.user.pk)
+        return helpers.htmx_toast_resp(
+            request,
+            f"Building Index",
+            "This may take a few minutes. Any new changes to your collation after this will not be reflected here until you initiate another reindex.",
+        )
     witnesses = (
         models.Witness.objects.filter(rdgs__app__ab__section__collation=collation)
         .distinct()
@@ -132,6 +140,18 @@ def analyze_collation(request: HttpRequest, collation_pk: int):
         return render(request, "collation/_analyze.html", context)
     else:
         return render(request, "collation/main.html", context)
+
+
+@login_required
+@require_http_methods(["POST"])
+def rebuild_collation_index(request: HttpRequest, collation_pk: int):
+    ignore_rtypes = request.POST.getlist("ignore-rtypes")
+    tasks.build_collation_index(collation_pk, request.user.pk, ignore_rtypes)
+    return helpers.htmx_toast_resp(
+        request,
+        f"Building Index",
+        "This may take a few minutes. Any new changes to your collation after this will not be reflected here until you initiate another reindex.",
+    )
 
 
 @login_required

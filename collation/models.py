@@ -1,4 +1,6 @@
 import string
+from os import name
+from runpy import _ModifiedArgv0
 
 from django.contrib.auth import get_user_model
 from django.db import models
@@ -47,12 +49,10 @@ class Witness(models.Model):
         """
         Returns a Witness object by siglum and prefers default witnesses.
         """
-        if user:
-            return (
-                Witness.objects.filter(Q(siglum=siglum) | Q(user=user))
-                .order_by("-default", "siglum")
-                .first()
-            )
+        if (
+            wits := Witness.objects.filter(siglum=siglum, default=False, user=user)
+        ).exists():
+            return wits.order_by("-default").first()
         else:
             return Witness.objects.filter(siglum=siglum, default=True).first()
 
@@ -65,11 +65,12 @@ class Collation(models.Model):
     description = models.TextField(null=True, blank=True)
     slug = models.SlugField(max_length=84, null=True, blank=True)
 
-    def as_tei(self, job_pk: int = 0) -> str:
+    def as_tei(self, job_pk: int = 0, ignore_rdg_types: list[str] | None = None) -> str:
         tei_root = et.Element("TEI", nsmap={None: TEI_NS_STR, "xml": XML_NS_STR})  # type: ignore
         total_abs = Ab.objects.filter(section__collation=self).count()
+        section: Section
         for section in self.sections.all():  # type: ignore
-            for ab in section.ab_elements(job_pk, total_abs):
+            for ab in section.ab_elements(job_pk, total_abs, ignore_rdg_types):
                 tei_root.append(ab)
         wits = add_tei_header(tei_root)
         return et.tostring(tei_root, encoding="unicode", pretty_print=True)  # type: ignore
@@ -81,6 +82,69 @@ class Collation(models.Model):
         if not self.slug:
             self.slug = slugify(f"{self.user.display_name}-{self.name}")  # type: ignore
         super().save(*args, **kwargs)
+
+    def build_index(self, child_rdg_types: list[str] | None = None):
+        # delete all existing AppIndex and RdgIndex objects
+        AppIndex.objects.filter(collation=self).delete()
+        RdgIndex.objects.filter(app_index__collation=self).delete()
+        if not child_rdg_types:
+            child_rdg_types = []
+        # iterate over all Apps in the Collation
+        for app in App.objects.filter(ab__section__collation=self, deleted=False):
+            print(f"Building index for {app}")
+            app_indices = (
+                f"{app.index_from}-{app.index_to}"
+                if app.index_from != app.index_to
+                else f"{app.index_from}"
+            )
+            app_index = AppIndex.objects.create(
+                collation=self, app_pk=app.pk, name=f"{app.ab.name}U{app_indices}"
+            )
+            if child_rdg_types:
+                rdgs = app.rdgs.filter(arcs_from=None, arcs_to=None)
+                arcs = app.arcs.all()
+            else:
+                rdgs = app.rdgs.all()
+                arcs = []
+            # first gather readings not related to an Arc
+            for rdg in rdgs:
+                rdg_index = RdgIndex.objects.create(
+                    app_index=app_index,
+                    rdg_pk=rdg.pk,
+                    name=rdg.name,
+                    rtype=rdg.rtype,
+                )
+                rdg_index.witnesses.set(rdg.wit.all())
+            # then gather readings related to an Arc; if there are any, conditionally collapse child and parent rdgs
+            arc: Arc
+            for arc in arcs:
+                if arc.rdg_to.rtype in child_rdg_types:
+                    # add the witnesses of rdg_to to rdg_from
+                    rdg_parent = RdgIndex.objects.create(
+                        app_index=app_index,
+                        rdg_pk=arc.rdg_from.pk,
+                        name=arc.rdg_from.name,
+                        rtype=arc.rdg_from.rtype,
+                    )
+                    parent_witnesses = arc.rdg_from.wit.all() | arc.rdg_to.wit.all()
+                    rdg_parent.witnesses.set(parent_witnesses)
+                else:
+                    rdg_index = RdgIndex.objects.create(
+                        app_index=app_index,
+                        rdg_pk=arc.rdg_to.pk,
+                        name=arc.rdg_to.name,
+                        rtype=arc.rdg_to.rtype,
+                    )
+                    rdg_index.witnesses.set(arc.rdg_to.wit.all())
+                    rdg_index = RdgIndex.objects.create(
+                        app_index=app_index,
+                        rdg_pk=arc.rdg_from.pk,
+                        name=arc.rdg_from.name,
+                        rtype=arc.rdg_from.rtype,
+                    )
+                    rdg_index.witnesses.set(arc.rdg_from.wit.all())
+            if app_index.rdg_indexes.count() == 1:
+                app_index.rdg_indexes.all().delete()
 
     class Meta:
         unique_together = ("user", "name")
@@ -96,11 +160,16 @@ class Section(models.Model):
     published = models.BooleanField(default=False)
     slugname = models.CharField(max_length=64, null=True, blank=True)
 
-    def ab_elements(self, job_pk: int = 0, total_abs: int = 0):
+    def ab_elements(
+        self,
+        job_pk: int = 0,
+        total_abs: int = 0,
+        ignore_rdg_types: list[str] | None = None,
+    ):
         self.abs: QuerySet[Ab]
         elements = []
         for i, ab in enumerate(self.abs.all(), start=1):
-            elements.append(ab.as_element())
+            elements.append(ab.as_element(ignore_rdg_types))
             if job_pk:
                 if not total_abs:
                     total_abs = self.abs.count()
@@ -110,10 +179,10 @@ class Section(models.Model):
                 )
         return elements
 
-    def as_tei(self, job_pk: int = 0) -> str:
+    def as_tei(self, job_pk: int = 0, ignore_rdg_types: list[str] | None = None) -> str:
         tei_root = et.Element("TEI", nsmap={None: TEI_NS_STR, "xml": XML_NS_STR})  # type: ignore
         total_abs = self.abs.count()
-        for ab in self.ab_elements(job_pk, total_abs):
+        for ab in self.ab_elements(job_pk, total_abs, ignore_rdg_types):
             tei_root.append(ab)
         wits = add_tei_header(tei_root)
         return et.tostring(tei_root, encoding="unicode", pretty_print=True)  # type: ignore
@@ -151,7 +220,7 @@ class Ab(models.Model):
     slugname = models.CharField(max_length=64, null=True, blank=True)
     right_to_left = models.BooleanField(default=False)
 
-    def as_element(self, ignore_rdg_types: list[str] = []):
+    def as_element(self, ignore_rdg_types: list[str] | None = None) -> et._Element:
         ab = et.Element("ab")  # type: ignore
         ab.set(f"{XML_NS}id", self.name.replace(":", ".").replace(" ", "_"))
         ab.text = self.basetext
@@ -164,9 +233,9 @@ class Ab(models.Model):
             ab.append(app.as_element())
         return ab
 
-    def as_tei(self):
+    def as_tei(self, ignore_rdg_types: list[str] | None = None) -> str:
         tei_root = et.Element("TEI", nsmap={None: TEI_NS_STR, "xml": XML_NS_STR})  # type: ignore
-        tei_root.append(self.as_element())
+        tei_root.append(self.as_element(ignore_rdg_types))
         add_tei_header(tei_root)
         return et.tostring(tei_root, encoding="unicode", pretty_print=True)  # type: ignore
 
@@ -408,9 +477,9 @@ def filter_apps_by_rtype(ignore_rtypes: list[str], variants: QuerySet[App]):
     """
 
     rdgs_count = (
-        Rdg.objects.filter(app=OuterRef("pk"))
+        RdgIndex.objects.filter(app_index=OuterRef("pk"))
         .exclude(rtype__in=ignore_rtypes)
-        .values("app")
+        .values("app_index")
         .annotate(cnt=Count("pk"))
         .values("cnt")
     )
@@ -582,3 +651,29 @@ def add_tei_header(xml: et._Element):
         witness.set("n", wit)
         listWit.append(witness)
     return wits
+
+
+class AppIndex(models.Model):
+    collation = models.ForeignKey(
+        Collation,
+        on_delete=models.CASCADE,
+        related_name="app_indexes",
+        null=True,
+        blank=True,
+    )
+    app_pk = models.IntegerField()
+    name = models.CharField(max_length=64)
+
+
+class RdgIndex(models.Model):
+    app_index = models.ForeignKey(
+        AppIndex,
+        on_delete=models.CASCADE,
+        related_name="rdg_indexes",
+        null=True,
+        blank=True,
+    )
+    rdg_pk = models.IntegerField()
+    name = models.CharField(max_length=64)
+    rtype = models.CharField(max_length=64)
+    witnesses = models.ManyToManyField(Witness, related_name="rdg_indexes")
