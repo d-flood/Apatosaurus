@@ -1,29 +1,31 @@
 {% load crispy_forms_tags %}
-<h3>
-    Import 
-    {% if corpus_type == 2 %}
-        Collation: 
-    {% elif corpus_type == 1 %}
-        Section: 
-    {% elif corpus_type == 0 %}
-        Verse:
-    {% endif %} 
-    {{ corpus.name }} to <code>open-cbgm</code>
-</h3>
-<p>
-    Collation data must be imported for use in the CBGM.
-    There are several options to consider when importing a collation.
-    <br><strong>Note:</strong> To make any changes to the import options, 
-    you must re-import the collation with the new options.
-</p>
-<form hx-post="{% url 'send-cbgm-db' corpus_pk=corpus.pk corpus_type=corpus_type %}" hx-target="#main"
-    class="my-4">
-    {{ form|crispy }}
-    <input type="submit" value="Submit" class="btn-submit my-4">
-    <style>
-        #id_merge_splits, #id_use_classic_rules {
-            transform: scale(1.5);
-            margin-left: 10px;
-        }
-    </style>
-</form>
+<div class="ml-6">
+    <h3>
+        Import 
+        {% if corpus_type == 2 %}
+            Collation: 
+        {% elif corpus_type == 1 %}
+            Section: 
+        {% elif corpus_type == 0 %}
+            Verse:
+        {% endif %} 
+        {{ corpus.name }} to <code>open-cbgm</code>
+    </h3>
+    <p>
+        Collation data must be imported for use in the CBGM.
+        There are several options to consider when importing a collation.
+        <br><strong>Note:</strong> To make any changes to the import options, 
+        you must re-import the collation with the new options.
+    </p>
+    <form hx-post="{% url 'send-cbgm-db' corpus_pk=corpus.pk corpus_type=corpus_type %}" hx-target="#main"
+        class="my-4 space-y-4">
+        {{ form|crispy }}
+        <input type="submit" value="Submit" class="btn-submit my-4">
+        <style>
+            #id_merge_splits, #id_use_classic_rules {
+                transform: scale(1.5);
+                margin-left: 10px;
+            }
+        </style>
+    </form>
+</div>

@@ -71,14 +71,27 @@ def send_section_form(request: HttpRequest, corpus_pk: int, corpus_type: int):
         "corpus_type": corpus_type,
     }
     if request.method == "GET":
-        context["form"] = forms.Cbgm_DbForm()
+        context["form"] = forms.Cbgm_DbForm(
+            corpus_type=corpus_type, corpus_pk=corpus_pk, user_pk=request.user.pk
+        )
         return render(request, new_db_html, context)
-    form = forms.Cbgm_DbForm(request.POST, user_pk=request.user.pk)
+    form = forms.Cbgm_DbForm(
+        request.POST,
+        user_pk=request.user.pk,
+        corpus_pk=corpus_pk,
+        corpus_type=corpus_type,
+    )
     if not form.is_valid():
         context["form"] = form
         return render(request, new_db_html, context)
     db = form.save(corpus_type)
-    tasks.import_tei_batch_job(request.user.pk, corpus_pk, db.pk, corpus_type)
+    tasks.import_tei_batch_job(
+        request.user.pk,
+        corpus_pk,
+        db.pk,
+        corpus_type,
+        request.POST.getlist("ignore_rdg_types"),
+    )
     return render(
         request,
         "scraps/quick_message.html",

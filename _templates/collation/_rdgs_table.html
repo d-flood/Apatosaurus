@@ -87,7 +87,7 @@
                                                         <button tabindex="-1" class="block my-2 px-2 w-full hover:bg-blue-500 hover:text-white cursor-pointer bg-blue-300 rounded"
                                                             role="menuitem"
                                                             hx-get="{% url 'edit-rdg' rdg_pk=rdg.pk inline="False" %}"
-                                                            hx-target="#readings"
+                                                            hx-target="#edit-rdg-div"
                                                         >
                                                             Edit
                                                         </button>
@@ -231,10 +231,12 @@
                 </table>
                 {% endif %}
 
+                <div id="edit-rdg-div" class="p-2"></div>
             </div>
         </div>
     </div>
 </div>
+
 
 <hr class="border-t-orange-700">
 
@@ -312,20 +314,6 @@
             }
             document.getElementsByName('arc-button')[0].hidden = True;
             document.getElementsByName('arc-button')[1].hidden = True;
-        });
-    }
-
-    function rdgEditContextMenu() {
-        document.getElementById('myButton').addEventListener('contextmenu', function(e) {
-            e.preventDefault();
-            var contextMenu = document.getElementById('contextMenu');
-            contextMenu.style.display = 'block';
-            contextMenu.style.left = e.pageX + 'px';
-            contextMenu.style.top = e.pageY + 'px';
-        });
-
-        window.addEventListener('click', function(e) {
-            document.getElementById('contextMenu').style.display = 'none';
         });
     }
 </script>
