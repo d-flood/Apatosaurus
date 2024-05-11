@@ -425,3 +425,40 @@ class PreviousCollationForm(forms.Form):
         widget=Datalist(multiple=False, object_model=models.CollationConfig),
         required=True,
     )
+
+
+class WitnessComparisonCollationForm(forms.ModelForm):
+    def __init__(self, user_id, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["witnesses"].queryset = models.Witness.objects.filter(
+            Q(default=True) | Q(user_id=user_id)
+        )
+        self.fields["basetext"].queryset = models.Witness.objects.filter(
+            Q(default=True) | Q(user=user_id)
+        )
+
+    class Meta:
+        model = models.CollationConfig
+        fields = [
+            "collapse_rdg_types",
+            "ignore_rdg_types",
+            "witness_threshold",
+            "witnesses",
+        ]
+        widgets = {
+            "witnesses": Datalist(multiple=True, object_model=models.Witness),
+        }
+
+    def clean_witnesses(self):
+        witnesses = self.cleaned_data["witnesses"]
+        basetext = self.data.get("basetext")
+        if witnesses.filter(pk=basetext).exists():
+            raise forms.ValidationError(
+                "Basetext must not be one of the selected witnesses."
+            )
+        if len(witnesses) < 2:
+            raise forms.ValidationError("You must select at least two witnesses.")
+        return witnesses
+
+    def clean_basetext(self):
+        basetext = self.cleaned_data["basetext"]
