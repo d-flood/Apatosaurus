@@ -47,7 +47,7 @@ def filter_variants_by_witnesses(request: HttpRequest, collation_pk: int):
         rdgs = apply_all_of(all_of, rdgs, only_these, request.user)
         if only_these:
             variants = models.AppIndex.objects.filter(rdg_indexes__in=rdgs).distinct()
-            return variants, variants.count()
+            return variants.order_by("name"), variants.count()
     if any_of:
         rdgs = apply_any_of(any_of, rdgs, request.user)
     if none_of:
