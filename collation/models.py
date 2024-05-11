@@ -108,7 +108,6 @@ class Collation(models.Model):
             child_rdg_types = []
         # iterate over all Apps in the Collation
         for app in App.objects.filter(ab__section__collation=self, deleted=False):
-            print(f"Building index for {app}")
             app_indices = (
                 f"{app.index_from}-{app.index_to}"
                 if app.index_from != app.index_to
