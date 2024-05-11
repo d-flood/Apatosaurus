@@ -50,12 +50,12 @@ class Cbgm_DbForm(forms.ModelForm):
             (rdg_type, rdg_type) for rdg_type in set(rdg_types)
         ]
 
-    ignore_rdg_types = forms.MultipleChoiceField(
-        label="Strip These Types Entirely",
-        help_text="Variation units in which all readings but one are of these types will be removed from the collation before being imported into the CBGM.",
-        required=False,
-        widget=forms.CheckboxSelectMultiple(attrs={"class": "mr-2 ml-3"}),
-    )
+    # ignore_rdg_types = forms.MultipleChoiceField(
+    #     label="Strip These Types Entirely",
+    #     help_text="Variation units in which all readings but one are of these types will be removed from the collation before being imported into the CBGM.",
+    #     required=False,
+    #     widget=forms.CheckboxSelectMultiple(attrs={"class": "mr-2 ml-3"}),
+    # )
 
     def get_ignore_rdg_types(self):
         return self.rdg_type_choices
