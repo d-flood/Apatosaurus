@@ -1,5 +1,3 @@
-from os import name
-
 from django.core.files.base import ContentFile
 from zappa.asynchronous import task
 

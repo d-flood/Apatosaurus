@@ -1,14 +1,16 @@
+import csv
+import json
 import string
-from os import name
-from runpy import _ModifiedArgv0
 
 from django.contrib.auth import get_user_model
+from django.core.files.base import ContentFile
 from django.db import models
 from django.db.models import Count, OuterRef, Q, QuerySet, Subquery, Sum
 from django.template.defaultfilters import slugify
+from django.utils import timezone
 from lxml import etree as et
 
-from accounts.models import JobStatus
+from accounts.models import JobStatus, UserFile
 
 XML_NS = "{http://www.w3.org/XML/1998/namespace}"
 TEI_NS = "{http://www.tei-c.org/ns/1.0}"
@@ -82,6 +84,21 @@ class Collation(models.Model):
         if not self.slug:
             self.slug = slugify(f"{self.user.display_name}-{self.name}")  # type: ignore
         super().save(*args, **kwargs)
+
+    def get_all_witnesses(self):
+        return Witness.objects.filter(rdgs__app__ab__section__collation=self).distinct()
+
+    def get_all_apps(self):
+        return App.objects.filter(ab__section__collation=self, deleted=False)
+
+    def get_all_arcs(self):
+        return Arc.objects.filter(app__ab__section__collation=self)
+
+    def get_all_rdgs(self):
+        return Rdg.objects.filter(app__ab__section__collation=self)
+
+    def get_owner(self):
+        return self.user
 
     def build_index(self, child_rdg_types: list[str] | None = None):
         # delete all existing AppIndex and RdgIndex objects
@@ -196,6 +213,21 @@ class Section(models.Model):
             )
         return apps
 
+    def get_all_witnesses(self):
+        return Witness.objects.filter(rdgs__app__ab__section=self).distinct()
+
+    def get_all_apps(self):
+        return App.objects.filter(ab__section=self, deleted=False)
+
+    def get_all_arcs(self):
+        return Arc.objects.filter(app__ab__section=self)
+
+    def get_all_rdgs(self):
+        return Rdg.objects.filter(app__ab__section=self)
+
+    def get_owner(self):
+        return self.collation.user
+
     def __str__(self):
         return f"{self.collation.name} - {self.name}"
 
@@ -286,6 +318,21 @@ class Ab(models.Model):
     def active_apps(self):
         self.apps: QuerySet[App]
         return self.apps.filter(deleted=False)
+
+    def get_all_witnesses(self):
+        return Witness.objects.filter(rdgs__app__ab=self)
+
+    def get_all_apps(self):
+        return self.apps.filter(deleted=False)
+
+    def get_all_arcs(self):
+        return Arc.objects.filter(app__ab=self)
+
+    def get_all_rdgs(self):
+        return Rdg.objects.filter(app__ab=self)
+
+    def get_owner(self):
+        return self.section.collation.user
 
     def save(self, *args, **kwargs):
         if not self.slugname:
@@ -677,3 +724,203 @@ class RdgIndex(models.Model):
     name = models.CharField(max_length=64)
     rtype = models.CharField(max_length=64)
     witnesses = models.ManyToManyField(Witness, related_name="rdg_indexes")
+
+
+class WitnessComparisonBase(models.Model):
+
+    # subclasses must include a corpus_instance field that is a foreign key to Collation, Section, or Ab
+    corpus_instance: Collation | Section | Ab = None
+    user = models.ForeignKey(get_user_model(), on_delete=models.CASCADE, null=True)
+
+    matrix_file = models.ForeignKey(
+        UserFile,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+    )
+    name = models.CharField(max_length=64)
+    collapse_rdg_types = models.JSONField(null=True, blank=True, default=list)
+    ignore_rdg_types = models.JSONField(null=True, blank=True, default=list)
+    witness_threshold = models.SmallIntegerField(default=0)
+    witnesses = models.JSONField(null=True, blank=True, default=list)
+
+    created = models.DateTimeField(auto_now_add=True)
+    updated = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        abstract = True
+
+    def __str__(self):
+        return f"{self.corpus_instance.name} - {self.name}"
+
+    def generate_comparison(self):
+        """
+        Generate a comparison matrix and creates a UserFile for it.
+        """
+        if not self.corpus_instance:
+            raise ValueError(
+                "corpus_instance must be set before generating a comparison"
+            )
+        self.user = self.corpus_instance.get_owner()
+        cleaned_apps = self._get_cleaned_apps()
+        matrix = self._create_matrix(cleaned_apps)
+        encoded_matrix = json.dumps(matrix, ensure_ascii=False).encode("utf-8")
+
+        now = timezone.now().strftime("%Y%m%d-%H%M%S")
+        new_matrix_file = UserFile.objects.create(
+            user=self.user,
+            name=f"{self.name}_{now}_matrix.json",
+            file=ContentFile(encoded_matrix, f"{self.name}_matrix.json"),
+        )
+
+        if self.matrix_file:
+            self.matrix_file.name = (
+                f"{self.matrix_file.name.replace('.json', '_replaced.json')}"
+            )
+            self.matrix_file.save()
+
+        self.matrix_file = new_matrix_file
+
+        self.save()
+
+    def generate_csv(self):
+        """
+        Generate a CSV file from the comparison matrix.
+        """
+        if not self.matrix_file:
+            raise ValueError("A comparison matrix must be generated first.")
+
+        if not self.user:
+            self.user = self.corpus_instance.get_owner()
+
+        matrix: dict[str, dict[str, dict[str, int | float]]] = json.loads(
+            self.matrix_file.file.read().decode("utf-8")
+        )
+
+        nodes = sorted(set(matrix.keys()))
+        csv_data = [[""] + nodes]  # Header row
+
+        for row_node in nodes:
+            row = [row_node]
+            for col_node in nodes:
+                agreements = (
+                    matrix.get(row_node, {}).get(col_node, {}).get("agreements", 0)
+                )
+                total_apps = (
+                    matrix.get(row_node, {}).get(col_node, {}).get("total_apps", 1)
+                )
+                percentage = self._calc_percent(agreements, total_apps)
+                row.append(f"{percentage:.1f}% ({agreements}/{total_apps})")
+            csv_data.append(row)
+
+        # Create a CSV file
+        csv_data_str = "\n".join([",".join(row) for row in csv_data])
+        encoded_csv_data = csv_data_str.encode("utf-8")
+
+        now = timezone.now().strftime("%Y%m%d-%H%M%S")
+        filename = f"{self.name}_{now}_matrix.csv"
+        csv_file = UserFile.objects.create(
+            user=self.user,
+            name=filename,
+            file=ContentFile(encoded_csv_data, filename),
+        )
+        return csv_file
+
+    def _calc_percent(self, agreements: int, total_apps: int):
+        if total_apps == 0:
+            return 0.0
+        return (agreements / total_apps) * 100
+
+    def _get_cleaned_apps(self):
+        cleaned_apps: list[list[set[str]]] = []
+        for app in self.corpus_instance.get_all_apps():
+            # only include apps that have more than one Rdg object whose rtype is not in ignore_these_rdg_types
+            valid_agreements: list[set[str]] = []
+            # get all Rdg objects that are not connected to any Arc objects
+            for rdg in app.rdgs.filter(arcs_from__isnull=True, arcs_to__isnull=True):
+                if rdg.rtype not in self.ignore_rdg_types:
+                    valid_agreements.append(
+                        set(rdg.wit.all().values_list("siglum", flat=True)),  # type: ignore
+                    )
+            # now collapse rdgs in the app
+            # first, iterate over arcs whose rdg_to.rtype is in collapse_these_rdg_types
+            arc: Arc
+            for arc in app.arcs.filter(rdg_to__rtype__in=self.collapse_rdg_types):  # type: ignore
+                # combine the witness sigla from both rdg_from and rdg_to
+                combined_witnesses = set(
+                    arc.rdg_from.wit.all().values_list("siglum", flat=True)  # type: ignore
+                ) | set(
+                    arc.rdg_to.wit.all().values_list("siglum", flat=True)  # type: ignore
+                )  # type: ignore
+                valid_agreements.append(combined_witnesses)
+            # second, iterate over arcs that apparently contain two valid agreements—treat them separately
+            for arc in app.arcs.exclude(rdg_to__rtype__in=self.collapse_rdg_types):  # type: ignore
+                valid_agreements.append(
+                    set(arc.rdg_from.wit.all().values_list("siglum", flat=True)),  # type: ignore
+                )
+                valid_agreements.append(
+                    set(arc.rdg_to.wit.all().values_list("siglum", flat=True)),  # type: ignore
+                )
+            # check if the app is valid
+            if len(valid_agreements) > 1:
+                cleaned_apps.append(valid_agreements)
+        return cleaned_apps
+
+    def _create_matrix(self, cleaned_apps):
+        matrix: dict[str, dict[str, dict[str, int | float]]] = {}
+        if self.witnesses:
+            all_witnesses = self.witnesses
+        else:
+            all_witnesses = (
+                self.corpus_instance.get_all_witnesses()
+                .annotate(rdg_count=Count("rdgs"))
+                .filter(rdg_count__gte=self.witness_threshold)
+                .distinct()
+                .values_list("siglum", flat=True)
+            )
+        for first in all_witnesses:
+            for second in all_witnesses:
+                if first not in matrix:
+                    matrix[first] = {}
+                if second not in matrix[first]:
+                    matrix[first][second] = {
+                        "agreements": 0,
+                        "total_apps": 0,
+                    }
+                if first == second:
+                    continue
+                first_in_app = False
+                second_in_app = False
+                for app in cleaned_apps:
+                    for rdg in app:
+                        if first in rdg and second in rdg:
+                            matrix[first][second]["agreements"] += 1
+                            matrix[first][second]["total_apps"] += 1
+                            break
+                        if first in rdg:
+                            first_in_app = True
+                        if second in rdg:
+                            second_in_app = True
+                    if first_in_app and second_in_app:
+                        matrix[first][second]["total_apps"] += 1
+                        first_in_app = False
+                        second_in_app = False
+        return matrix
+
+
+class CollationComparison(WitnessComparisonBase):
+    corpus_instance = models.ForeignKey(
+        Collation, on_delete=models.CASCADE, related_name="comparisons"
+    )
+
+
+class SectionComparison(WitnessComparisonBase):
+    corpus_instance = models.ForeignKey(
+        Section, on_delete=models.CASCADE, related_name="comparisons"
+    )
+
+
+class AbComparison(WitnessComparisonBase):
+    corpus_instance = models.ForeignKey(
+        Ab, on_delete=models.CASCADE, related_name="comparisons"
+    )
