@@ -741,6 +741,7 @@ class WitnessComparisonBase(models.Model):
     collapse_rdg_types = models.JSONField(null=True, blank=True, default=list)
     ignore_rdg_types = models.JSONField(null=True, blank=True, default=list)
     witness_threshold = models.SmallIntegerField(default=0)
+    ignore_singular_readings = models.BooleanField(default=False)
     witnesses = models.JSONField(null=True, blank=True, default=list)
 
     created = models.DateTimeField(auto_now_add=True)
@@ -837,10 +838,14 @@ class WitnessComparisonBase(models.Model):
             valid_agreements: list[set[str]] = []
             # get all Rdg objects that are not connected to any Arc objects
             for rdg in app.rdgs.filter(arcs_from__isnull=True, arcs_to__isnull=True):
-                if rdg.rtype not in self.ignore_rdg_types:
-                    valid_agreements.append(
-                        set(rdg.wit.all().values_list("siglum", flat=True)),  # type: ignore
-                    )
+                if rdg.rtype in self.ignore_rdg_types:
+                    continue
+                elif self.ignore_singular_readings and rdg.wit.count() == 1:
+                    continue
+                valid_agreements.append(
+                    set(rdg.wit.all().values_list("siglum", flat=True)),  # type: ignore
+                )
+
             # now collapse rdgs in the app
             # first, iterate over arcs whose rdg_to.rtype is in collapse_these_rdg_types
             arc: Arc
