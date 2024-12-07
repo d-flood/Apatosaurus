@@ -47,7 +47,15 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "django.contrib.sites",
     "django.contrib.humanize",
+    # Third party apps
     "template_partials",
+    "peasy_jobs",
+    "tailwind",
+    "django_browser_reload",
+    "peasywidgets",
+    "impersonate",
+    "crispy_forms",
+    # Local apps
     "collation",
     "accounts",
     "cbgm",
@@ -56,13 +64,8 @@ INSTALLED_APPS = [
     "content",
     "tools",
     "django_htmx",
-    "crispy_forms",
-    "tailwind",
-    "theme",
-    "django_browser_reload",
-    "impersonate",
-    "peasywidgets",
     "transcriptions",
+    "theme",
 ]
 
 MIDDLEWARE = [
