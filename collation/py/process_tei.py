@@ -5,7 +5,6 @@ import re
 
 from django.db.models import Q
 from lxml import etree as et
-from zappa.asynchronous import task
 
 from accounts.models import JobStatus
 from accounts.py.update_status import update_status
@@ -242,7 +241,6 @@ def create_arc_instance(app_elem: et._Element, app_pk: int):
         )
 
 
-@task
 def import_ab(
     compressed_string: bytes,
     section_pk: int,

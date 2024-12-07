@@ -4,7 +4,6 @@ import boto3
 import lxml.etree as et
 from django.conf import settings
 from django.core.files.uploadedfile import UploadedFile
-from zappa.asynchronous import task
 
 from accounts.py.update_status import JobStatus, update_status
 from collation.models import Witness
@@ -83,7 +82,6 @@ def get_file_from_s3(tei_file_name: str):
     return tei_string
 
 
-@task
 def tei_to_db(
     tei_file_name: str, siglum: str, user_pk: int, job_pk: int, witness_pk: int
 ):
