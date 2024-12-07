@@ -23,22 +23,22 @@ class CorpusComparisonAdmin(admin.ModelAdmin):
     list_filter = ["created", "updated", "user"]
     actions = ["generate_matrix", "generate_csv"]
 
+    @admin.action(
+        description="Generate a comparison matrix for the selected comparisons"
+    )
     def generate_matrix(self, request, queryset):
         comparison: models.SectionComparison
         for comparison in queryset:
             comparison.generate_comparison()
 
+    @admin.action(
+        description="Generate a CSV file from the existing matrix for the selected comparisons"
+    )
     def generate_csv(self, request, queryset):
         comparison: models.SectionComparison
         for comparison in queryset:
             comparison.generate_csv()
 
-    generate_matrix.short_description = (
-        "Generate a comparison matrix for the selected comparisons"
-    )
-    generate_csv.short_description = (
-        "Generate a CSV file from the existing matrix for the selected comparisons"
-    )
 
 
 admin.site.register(models.CollationComparison, CorpusComparisonAdmin)

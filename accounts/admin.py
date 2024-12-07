@@ -8,6 +8,7 @@ from accounts.forms import CustomUserChangeAdminForm, CustomUserCreationForm
 CustomUser = get_user_model()
 
 
+@admin.register(CustomUser)
 class CustomUserAdmin(UserAdmin):
     add_form = CustomUserCreationForm
     form = CustomUserChangeAdminForm
@@ -31,15 +32,14 @@ class CustomUserAdmin(UserAdmin):
     )
     actions = ["set_has_unread_announcements"]
 
+    @admin.action(
+        description="Set has_unread_announcements to True for selected users"
+    )
     def set_has_unread_announcements(self, request, queryset):
         queryset.update(has_unread_announcements=True)
 
-    set_has_unread_announcements.short_description = (
-        "Set has_unread_announcements to True for selected users"
-    )
 
 
-admin.site.register(CustomUser, CustomUserAdmin)
 admin.site.register(
     (
         models.UserFeedback,
