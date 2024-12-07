@@ -1,33 +1,81 @@
-version: '3'
-services:
-  ########### DJANGO
-  django:
-    image: 027323396275.dkr.ecr.us-east-1.amazonaws.com/apatosaurus-lambda:latest
-    restart: always
-    build:
-      context: .
-      dockerfile: docker_django.dockerfile
-    ports:
-      - 8080:8080
-    env_file:
-      - .env
-    environment:
-      - DEBUG=False
-      - BASE_SITE_URL=https://apatosaurus.io
-      - USE_PRODUCTION_DB=True
-      - ZAPPA_RUNNING_IN_DOCKER=True
-    container_name: apatosaurus-django
+x-db-env: &db_env
+    POSTGRES_DB: ${POSTGRES_DB:-postgres}
+    POSTGRES_USER: ${POSTGRES_USER:-postgres}
+    POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    POSTGRES_HOST: ${POSTGRES_HOST:-db}
 
-  long_task:
-    image: 027323396275.dkr.ecr.us-east-1.amazonaws.com/apatosaurus-long-task:latest
-    restart: always
-    build:
-      context: .
-      dockerfile: docker_long_task.dockerfile
-    env_file:
-      - .env
-    environment:
-      - DEBUG=False
-      - BASE_SITE_URL=https://apatosaurus.io
-      - USE_PRODUCTION_DB=True
-    container_name: long_task
+x-app-env: &app_env
+    <<: *db_env
+    DEBUG: "True"
+    DJANGO_SECRET: ${DJANGO_SECRET:-"this-secret-doesnt-matter-in-local-dev"}
+    ADMIN_URL: ${ADMIN_URL:-"admin/"}
+    ADMIN_EMAIL: ${ADMIN_EMAIL}"
+    EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD}
+    EMAIL_HOST_USER: ${EMAIL_HOST_USER}
+    EMAIL_HOST: ${EMAIL_HOST}
+    EMAIL_PORT: ${EMAIL_PORT}
+    # AWS_ACCESS_KEY_ID: ${AWS_S3_ACCESS_KEY_ID}
+    # AWS_SECRET_ACCESS_KEY: ${AWS_S3_SECRET_ACCESS_KEY}
+    # AWS_REGION_NAME: ${AWS_S3_REGION_NAME}
+    # AWS_STORAGE_BUCKET_NAME: ${AWS_S3_STORAGE_BUCKET_NAME}
+    BASE_SITE_URL: http://localhost
+    USE_PRODUCTION_DB: "True"
+    ZAPPA_RUNNING_IN_DOCKER: "True"
+
+services:
+    ########### DJANGO
+    django:
+        image: damascus.flicker-lionfish.ts.net/apatosaurus:latest
+        restart: always
+        build:
+            context: .
+            dockerfile: django.dockerfile
+        volumes:
+            - .:/app:rw
+        ports:
+            - 8000:8000
+        env_file:
+            - .env
+        environment:
+            <<: *app_env
+        container_name: django
+        command:
+            - /bin/sh
+            - -c
+            - |
+              python manage.py runserver 0.0.0.0:8000
+        depends_on:
+            - db
+
+    ########### PEASY
+    peasy:
+        image: damascus.flicker-lionfish.ts.net/peasy:latest
+        restart: always
+        build:
+            context: .
+            dockerfile: django.dockerfile
+        volumes:
+            - .:/app:rw
+        ports:
+            - 8001:8001
+        env_file:
+            - .env
+        environment:
+            <<: *app_env
+        container_name: peasy
+        command:
+            - /bin/sh
+            - -c
+            - |
+              python manage.py run_peasy
+
+    ########### POSTGRES
+    db:
+        image: postgres:14.0-alpine
+        volumes:
+            - ./data/db:/var/lib/postgresql/data
+        env_file:
+            - .env
+        environment:
+            <<: *db_env
+        container_name: postgres
