@@ -21,7 +21,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/4.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = environ.get("SECRET_KEY")
+SECRET_KEY = environ.get("DJANGO_SECRET")
 ADMIN_URL = environ.get("ADMIN_URL", "admin")
 ADMINS = [
     ("admin", environ.get("ADMIN_EMAIL")),
@@ -103,28 +103,16 @@ WSGI_APPLICATION = "CONFIG.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/4.1/ref/settings/#databases
 
-if environ.get("USE_PRODUCTION_DB") != "True":
-    DATABASES = {
-        "default": {
-            "ENGINE": "django.db.backends.postgresql",
-            "NAME": "postgres",
-            "USER": "postgres",
-            "PASSWORD": "atestpasswordforgettingup",
-            "HOST": "db",
-            "PORT": 5432,
-        }
+DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": environ.get("POSTGRES_NAME"),
+        "USER": environ.get("POSTGRES_USER"),
+        "PASSWORD": environ.get("POSTGRES_PASSWORD"),
+        "HOST": environ.get("POSTGRES_HOST"),
+        "PORT": 5432,
     }
-else:
-    DATABASES = {
-        "default": {
-            "ENGINE": "django.db.backends.postgresql",
-            "NAME": environ.get("PRODUCTION_POSTGRES_NAME"),
-            "USER": environ.get("PRODUCTION_POSTGRES_USER"),
-            "PASSWORD": environ.get("PRODUCTION_POSTGRES_PASSWORD"),
-            "HOST": environ.get("PRODUCTION_POSTGRES_HOST"),
-            "PORT": 5432,
-        }
-    }
+}
 
 
 CACHE_TTL = 60
@@ -173,9 +161,7 @@ STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "_media"
 
-AWS_STORAGE_BUCKET_NAME = environ.get("AWS_STORAGE_BUCKET_NAME")
-
-DEFAULT_FILE_STORAGE = "CONFIG.custom.LambdaStorage"
+DEFAULT_FILE_STORAGE = "django.core.files.storage.FileSystemStorage"
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.1/ref/settings/#default-auto-field
