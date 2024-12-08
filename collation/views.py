@@ -1,12 +1,12 @@
 from django.contrib.auth.decorators import login_required
 from django.http import HttpRequest, HttpResponse
-from django.shortcuts import redirect, render
+from django.shortcuts import render
 from django.views.decorators.http import require_http_methods, require_safe
 from natsort import natsorted
 from render_block import render_block_to_string
 
 from collation import forms, models, tasks
-from collation.py import collate_witnesses, helpers, import_collation
+from collation.py import collate_witnesses, helpers
 from collation.py.filter_apps import filter_variants_by_witnesses
 from transcriptions.models import Transcription
 from witnesses.py.sort_ga_witnesses import sort_ga_witnesses
@@ -114,7 +114,7 @@ def analyze_collation(request: HttpRequest, collation_pk: int):
         tasks.build_collation_index(collation_pk, request.user.pk)
         return helpers.htmx_toast_resp(
             request,
-            f"Building Index",
+            "Building Index",
             "This may take a few minutes. Any new changes to your collation after this will not be reflected here until you initiate another reindex.",
         )
     witnesses = (
@@ -149,7 +149,7 @@ def rebuild_collation_index(request: HttpRequest, collation_pk: int):
     tasks.build_collation_index(collation_pk, request.user.pk, ignore_rtypes)
     return helpers.htmx_toast_resp(
         request,
-        f"Building Index",
+        "Building Index",
         "This may take a few minutes. Any new changes to your collation after this will not be reflected here until you initiate another reindex.",
     )
 
@@ -370,7 +370,7 @@ def edit_rdg(request: HttpRequest, rdg_pk: int, inline: str):
             return render(request, "collation/_rdgs_table.html", context)
         else:
             return helpers.htmx_toast_resp(
-                request, f"Form Errors", form.errors.as_text(), "bad"
+                request, "Form Errors", form.errors.as_text(), "bad"
             )
     else:
         rdg = models.Rdg.objects.get(pk=rdg_pk)
@@ -728,9 +728,8 @@ def upload_tei_collation(request: HttpRequest, section_pk: int):
         form = forms.TeiCollationFileForm(request.POST, request.FILES)
         if form.is_valid():
             try:
-                # tei_file: str = form.cleaned_data['tei_file'].read().decode('utf-8', errors='ignore')
                 tei_file = form.cleaned_data["tei_file"]
-            except:
+            except Exception:
                 return render(
                     request,
                     "scraps/quick_message.html",
@@ -739,10 +738,12 @@ def upload_tei_collation(request: HttpRequest, section_pk: int):
                         "timout": "60",
                     },
                 )
-            tei_file_name = f'/tmp/{request.user.username}/{request.FILES["tei_file"].name}.xml'  # type: ignore
-            import_collation.import_tei(
-                tei_file, tei_file_name, section_pk, request.user.pk
+            user_file = models.UserFile.objects.create(
+                user_id=request.user.pk,
+                name=tei_file.name,
+                file=tei_file
             )
+            tasks.tei_to_db(user_file.pk, section_pk, request.user.pk)
             context = {
                 "message": "File uploaded and added to processing queue. You can check the status in home page.",
                 "timout": "3",
