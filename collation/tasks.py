@@ -96,19 +96,19 @@ def build_collation_index(
 @peasy.job("import tei")
 def tei_to_db(user_file_pk: int, section_pk: int, user_pk: int, job_pk: int):
     logger.info(f"Processing TEI file {user_file_pk} for section {section_pk}")
-    # try:
-    user_file = UserFile.objects.get(pk=user_file_pk)
-    with user_file.file.open('r') as f:
-        tei_string = f.read()
-    
-    peasy.update_status(job_pk, "Processing XML file")
-    
-    if (xml := process_tei.parse_xml(tei_string)) is not None:
-        process_tei.tei_to_db(xml, section_pk, user_pk)
-        peasy.update_status(job_pk, "XML file processed")
-    else:
-        peasy.update_status(job_pk, "Error: TEI file could not be processed")
-    # except Exception as e:
-    #     peasy.update_status(job_pk, f"Error: {e}")
-    # finally:
-    #     user_file.delete()
+    try:
+        user_file = UserFile.objects.get(pk=user_file_pk)
+        with user_file.file.open('r') as f:
+            tei_string = f.read()
+        
+        peasy.update_status(job_pk, "Processing XML file")
+        
+        if (xml := process_tei.parse_xml(tei_string)) is not None:
+            process_tei.tei_to_db(xml, section_pk, user_pk)
+            peasy.update_status(job_pk, "XML file processed")
+        else:
+            peasy.update_status(job_pk, "Error: TEI file could not be processed")
+    except Exception as e:
+        raise e
+    finally:
+        user_file.delete()
