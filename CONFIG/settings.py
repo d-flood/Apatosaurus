@@ -12,6 +12,8 @@ https://docs.djangoproject.com/en/4.1/ref/settings/
 
 from os import environ
 from pathlib import Path
+import logging
+
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -211,16 +213,45 @@ EMAIL_USE_TLS = True
 # }
 
 
+class DebugFilter(logging.Filter):
+    def filter(self, record):
+        return DEBUG
+
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
+    "formatters": {
+        "standard": {
+            "format": "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+            "datefmt": "%Y-%m-%d %H:%M:%S"
+        },
+    },
     "handlers": {
         "console": {
             "class": "logging.StreamHandler",
+            "formatter": "standard",
+            "level": "DEBUG",
         },
     },
     "root": {
         "handlers": ["console"],
         "level": "DEBUG",
+        "propagate": False,
+    },
+    "loggers": {
+        "django": {
+            "handlers": ["console"],
+            "level": environ.get("DJANGO_LOG_LEVEL", "WARNING"),
+            "propagate": False,
+        },
     },
 }
+
+PEASY_MAX_COMPLETED = 2
+PEASY_MAX_FAILED = 2
+PEASY_MAX_CANCELLED = 2
+PEASY_POLLING_INTERVAL = 2
+PEASY_MAX_CONCURRENCY = 1
+PEASY_CONCURRENCY = 1
+PEASY_WORKER_TYPE = "process"
+PEASY_SHUTDOWN_TIMEOUT = 5
