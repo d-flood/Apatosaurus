@@ -45,5 +45,6 @@ admin.site.register(
         models.UserFeedback,
         models.BugReport,
         models.JobStatus,
+        models.UserFile,
     )
 )
