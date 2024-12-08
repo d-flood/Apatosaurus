@@ -56,8 +56,6 @@ services:
             dockerfile: django.dockerfile
         volumes:
             - .:/app:rw
-        ports:
-            - 8001:8001
         env_file:
             - .env
         environment:
@@ -76,8 +74,6 @@ services:
         image: postgres:14.0-alpine
         volumes:
             - ./data/db:/var/lib/postgresql/data
-        env_file:
-            - .env
         environment:
             <<: *db_env
         container_name: postgres
