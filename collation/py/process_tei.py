@@ -148,7 +148,7 @@ def create_rdg_instance(rdg_elem: et._Element, app: models.App, user_pk: int):
         ).order_by("-default")
         for w in witnesses:
             if not db_wits.filter(siglum=w).exists():
-                wit_to_append = models.Witness.objects.create(siglum=w, user_id=user_pk)
+                wit_to_append, _ = models.Witness.objects.get_or_create(siglum=w, user_id=user_pk)
             else:
                 wit_to_append = db_wits.filter(siglum=w).first()
 
@@ -181,7 +181,7 @@ def create_witDetail_rdg_instance(
         ).order_by("-default")
         for w in witnesses:
             if not db_wits.filter(siglum=w).exists():
-                wit_to_append = models.Witness.objects.create(siglum=w, user_id=user_pk)
+                wit_to_append = models.Witness.objects.get_or_create(siglum=w, user_id=user_pk)
             else:
                 wit_to_append = db_wits.filter(siglum=w).first()
             wits.append(wit_to_append)
