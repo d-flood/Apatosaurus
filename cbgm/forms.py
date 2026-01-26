@@ -46,9 +46,9 @@ class Cbgm_DbForm(forms.ModelForm):
                 .distinct()
                 .values_list("rtype", flat=True)
             )
-        self.fields["ignore_rdg_types"].choices = [
-            (rdg_type, rdg_type) for rdg_type in set(rdg_types)
-        ]
+        # self.fields["ignore_rdg_types"].choices = [
+        #     (rdg_type, rdg_type) for rdg_type in set(rdg_types)
+        # ]
 
     # ignore_rdg_types = forms.MultipleChoiceField(
     #     label="Strip These Types Entirely",

@@ -1,5 +1,3 @@
-# TODO: refactor long running tasks
-
 import logging
 
 from django.core.files.base import ContentFile

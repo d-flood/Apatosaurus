@@ -9,8 +9,9 @@ from django.db.models import Count, OuterRef, Q, QuerySet, Subquery, Sum
 from django.template.defaultfilters import slugify
 from django.utils import timezone
 from lxml import etree as et
+from peasy_jobs.peasy_jobs import peasy
 
-from accounts.models import JobStatus, UserFile
+from accounts.models import UserFile
 
 XML_NS = "{http://www.w3.org/XML/1998/namespace}"
 TEI_NS = "{http://www.tei-c.org/ns/1.0}"
@@ -189,9 +190,10 @@ class Section(models.Model):
             if job_pk:
                 if not total_abs:
                     total_abs = self.abs.count()
-                JobStatus.objects.filter(pk=job_pk).update(
-                    progress=round((i / total_abs) * 100, 1),
-                    message=f"Converted {self.collation.name}, {self.name}, {ab.name} to TEI",
+                peasy.update_status(
+                    job_pk,
+                    f"Converted {self.collation.name}, {self.name}, {ab.name} to TEI",
+                    extra={"progress": round((i / total_abs) * 100, 1)},
                 )
         return elements
 

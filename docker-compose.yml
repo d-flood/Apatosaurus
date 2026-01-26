@@ -77,3 +77,5 @@ services:
         environment:
             <<: *db_env
         container_name: postgres
+        ports:
+            - 5432:5432

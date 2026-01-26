@@ -5,8 +5,8 @@ import re
 
 from django.db.models import Q
 from lxml import etree as et
+from peasy_jobs.peasy_jobs import peasy
 
-from accounts.models import JobStatus
 from accounts.py.update_status import update_status
 from collation import models
 from collation.py.differentiate_subreading_ids import (
@@ -245,6 +245,7 @@ def import_ab(
     compressed_string: bytes,
     section_pk: int,
     user_pk: int,
+    job_pk: int,
 ):
     compressed_chunk = base64.b64decode(compressed_string.encode("utf-8"))
     serialized_chunk = pickle.loads(gzip.decompress(compressed_chunk))
@@ -252,6 +253,10 @@ def import_ab(
     total = len(serialized_abs)
     if total == 0:
         total = 1
+    peasy.update_status(
+        job_pk,
+        f"Importing {models.Section.objects.get(pk=section_pk).name} part {chunk+1}",
+    )
     job = JobStatus.objects.create(
         user_id=user_pk,
         name=f"Importing {models.Section.objects.get(pk=section_pk).name} part {chunk+1}",

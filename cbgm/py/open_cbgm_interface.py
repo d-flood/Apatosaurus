@@ -1,5 +1,6 @@
 import contextlib
 import json
+import logging
 import os
 import random
 import string
@@ -12,7 +13,6 @@ from django.core.files.base import ContentFile
 from natsort import natsorted
 
 import collation.models as cx_models
-from accounts.models import JobStatus
 from cbgm import models
 from cbgm.py.custom_sql import (
     get_all_apps,
@@ -22,6 +22,8 @@ from cbgm.py.custom_sql import (
 from cbgm.py.helpers import make_svg_from_dot
 from CONFIG.settings import BASE_DIR
 from witnesses.py.sort_ga_witnesses import sort_ga_witnesses
+
+logger = logging.getLogger(__name__)
 
 
 def construct_populate_db_command(
@@ -54,6 +56,24 @@ def construct_populate_db_command(
     command = [populate_db_binary, *options, tei_path, db_path]
     return command
 
+def check_binary(path):
+    logger.info(f"Checking binary at {path}")
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"Binary not found: {path}")
+    
+    # Log current permissions
+    st = os.stat(path)
+    logger.info(f"Current permissions: {oct(st.st_mode)}")
+    logger.info(f"Owner: {st.st_uid}, Group: {st.st_gid}")
+
+    try:
+        os.chmod(path, 0o755)  # Try to set executable
+        logger.info("Set permissions to 755")
+    except Exception as e:
+        logger.error(f"Failed to set permissions: {e}")
+
+    if not os.access(path, os.X_OK):
+        raise PermissionError(f"Binary not executable after chmod: {path}")
 
 def import_tei(
     user_pk: int,
@@ -84,6 +104,7 @@ def import_tei(
     command = construct_populate_db_command(
         tei_file.resolve().as_posix(), db_file.name, cbgm_db_instance
     )
+    # check_binary(command[0])
     p = Popen(command)
     return_code = p.wait()
     if return_code != 0:
@@ -141,22 +162,14 @@ def construct_compare_wits_command(db_file: Path, witness: str, comparators: lis
 def compare_witnesses(db: models.Cbgm_Db, witness: str, comparators: list[str]) -> dict:
     db_file = get_cached_db(db)
     command, output_file = construct_compare_wits_command(db_file, witness, comparators)
-    # p = Popen(command)
-    # return_code = p.wait()
-    try:
-        command_output = check_output(command)
-    except CalledProcessError as e:
+    check_binary(command[0])
+    p = Popen(command)
+    return_code = p.wait()
+    if return_code != 0:
         output_file.close()
         with contextlib.suppress(Exception):
             os.remove(output_file.name)
-        raise Exception(
-            f'open-cbgm.compare_witnesses error.\nCommand="{command}"\nReturn code={e.returncode}\nOutput={e.output}'
-        )
-    # if return_code != 0:
-    #     output_file.close()
-    #     with contextlib.suppress(Exception):
-    #         os.remove(output_file.name)
-    #     raise Exception(f'open-cbgm.compare_witnesses error.\nCommand="{command}"\nReturn code={return_code}')
+        raise Exception(f'open-cbgm.compare_witnesses error.\nCommand="{command}"\nReturn code={return_code}')
     output = json.load(output_file)
     output_file.close()
     with contextlib.suppress(Exception):
@@ -201,6 +214,7 @@ def find_relatives(db: models.Cbgm_Db, witness: str, app: str, readings: list) -
     command, output_file = construct_find_relatives_command(
         db_file, witness, app, readings
     )
+    check_binary(command[0])
     p = Popen(command)
     return_code = p.wait()
     if return_code != 0:
@@ -255,6 +269,7 @@ def optimize_substemma(db: models.Cbgm_Db, witness: str, max_cost: int):
     command, output_file = construct_optimize_substemma_command(
         db_file, witness, max_cost
     )
+    check_binary(command[0])
     try:
         message = check_output(command)
     except CalledProcessError as e:
@@ -308,6 +323,7 @@ def construct_print_local_stemma_command(db: str, app: str):
 def print_local_stemma(db: models.Cbgm_Db, app: str):
     db_file = get_cached_db(db).resolve().as_posix()
     command, temp_dir = construct_print_local_stemma_command(db_file, app)
+    check_binary(command[0])
     try:
         message = check_output(command, cwd=temp_dir.resolve().as_posix())
     except CalledProcessError as e:
@@ -329,6 +345,7 @@ def print_textual_flow_command(
     db: str, app: str, graph_type: str, connectivity_limit: int, strengths: bool
 ):
     print_textual_flow_exe = BASE_DIR / "cbgm" / "bin" / "print_textual_flow"
+    check_binary(print_textual_flow_exe)
     print_textual_flow_binary = print_textual_flow_exe.resolve().as_posix()
     tmp_name = f"cbgm-graphs-{''.join(random.choices(string.ascii_letters, k=5))}"
     temp_dir = Path(f"/tmp/{tmp_name}")
@@ -353,6 +370,7 @@ def print_textual_flow(db_pk: int, data: dict):
     )
     strengths = data["strengths"]
     command, temp_dir = print_textual_flow_command(db_file, app, graph_type, connectivity_limit, strengths)  # type: ignore
+    check_binary(command[0])
     try:
         message = check_output(command, cwd=temp_dir.resolve().as_posix())
     except CalledProcessError as e:
@@ -383,6 +401,7 @@ def print_textual_flow(db_pk: int, data: dict):
 def print_global_stemma_command(db: str, data: dict[str, bool]):
     print_global_stemma_exe = BASE_DIR / "cbgm" / "bin" / "print_global_stemma"
     print_global_stemma_binary = print_global_stemma_exe.resolve().as_posix()
+    check_binary(print_global_stemma_binary)
     tmp_name = f"cbgm-graphs-{''.join(random.choices(string.ascii_letters, k=5))}"
     temp_dir = Path(f"/tmp/{tmp_name}")
     temp_dir.mkdir(parents=True, exist_ok=True)

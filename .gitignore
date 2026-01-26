@@ -35,3 +35,4 @@ tmp/
 *.deb
 
 _staticfiles/
+_media/
