@@ -39,9 +39,16 @@ export function validateIgntpXsd(xml: string): void {
 			},
 		);
 
+		if (result.error) {
+			throw new Error(`Failed to start XSD validation: ${result.error.message}`);
+		}
+
 		if (result.status !== 0) {
 			const output = [result.stdout, result.stderr].filter(Boolean).join('\n').trim();
-			throw new Error(output || `XSD validation exited with status ${result.status}`);
+			throw new Error(
+				output ||
+					`XSD validation exited with status ${result.status}${result.signal ? ` (signal: ${result.signal})` : ''}`
+			);
 		}
 	} finally {
 		rmSync(tempDir, { recursive: true, force: true });
