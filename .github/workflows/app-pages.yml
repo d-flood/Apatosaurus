@@ -6,9 +6,12 @@ on:
       - main
     paths:
       - 'app/**'
+      - 'djazzkit'
       - 'djazzkit/packages/core/**'
       - 'djazzkit/packages/svelte/**'
+      - 'collatex'
       - 'collatex/collatex-tsport/**'
+      - 'triiiceratops'
       - 'triiiceratops/**'
       - 'packages/tei-transcription/**'
       - '.github/workflows/app-pages.yml'

@@ -4,18 +4,24 @@ on:
   push:
     paths:
       - 'app/**'
+      - 'djazzkit'
       - 'djazzkit/packages/core/**'
       - 'djazzkit/packages/svelte/**'
+      - 'collatex'
       - 'collatex/collatex-tsport/**'
+      - 'triiiceratops'
       - 'triiiceratops/**'
       - 'packages/tei-transcription/**'
       - '.github/workflows/app-ci.yml'
   pull_request:
     paths:
       - 'app/**'
+      - 'djazzkit'
       - 'djazzkit/packages/core/**'
       - 'djazzkit/packages/svelte/**'
+      - 'collatex'
       - 'collatex/collatex-tsport/**'
+      - 'triiiceratops'
       - 'triiiceratops/**'
       - 'packages/tei-transcription/**'
       - '.github/workflows/app-ci.yml'
