@@ -1,0 +1,30 @@
+services:
+  sveltekit:
+    build:
+      context: .
+      dockerfile: app/Dockerfile
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./:/workspace
+      - sveltekit_node_modules:/workspace/node_modules
+    stdin_open: true
+    tty: true
+    command: bun run --cwd app dev
+
+  caddy:
+    image: caddy:2.10.2-alpine
+    container_name: caddy
+    platform: linux/amd64
+    restart: always
+    ports:
+      - "8888:8888"
+    volumes:
+      - ./caddy/caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data: {}
+  caddy_config: {}
+  sveltekit_node_modules: {}

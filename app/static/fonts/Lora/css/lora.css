@@ -1,0 +1,128 @@
+/**
+* @license
+*
+* Font Family: Lora
+* Designed by: Cyreal, Olga Karpushina, Alexei Vanyashin
+* URL: https://www.fontshare.com/fonts/lora
+* © 2025 Indian Type Foundry
+*
+* Lora Regular 
+* Lora Italic 
+* Lora Medium 
+* Lora MediumItalic 
+* Lora SemiBold 
+* Lora SemiBoldItalic 
+* Lora Bold 
+* Lora BoldItalic 
+* Lora Variable (Variable font)
+* Lora VariableItalic (Variable font)
+
+*
+*/
+@font-face {
+  font-family: 'Lora-Regular';
+  src: url('../fonts/Lora-Regular.woff2') format('woff2'),
+       url('../fonts/Lora-Regular.woff') format('woff'),
+       url('../fonts/Lora-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-display: swap;
+  font-style: normal;
+}
+@font-face {
+  font-family: 'Lora-Italic';
+  src: url('../fonts/Lora-Italic.woff2') format('woff2'),
+       url('../fonts/Lora-Italic.woff') format('woff'),
+       url('../fonts/Lora-Italic.ttf') format('truetype');
+  font-weight: 400;
+  font-display: swap;
+  font-style: italic;
+}
+@font-face {
+  font-family: 'Lora-Medium';
+  src: url('../fonts/Lora-Medium.woff2') format('woff2'),
+       url('../fonts/Lora-Medium.woff') format('woff'),
+       url('../fonts/Lora-Medium.ttf') format('truetype');
+  font-weight: 500;
+  font-display: swap;
+  font-style: normal;
+}
+@font-face {
+  font-family: 'Lora-MediumItalic';
+  src: url('../fonts/Lora-MediumItalic.woff2') format('woff2'),
+       url('../fonts/Lora-MediumItalic.woff') format('woff'),
+       url('../fonts/Lora-MediumItalic.ttf') format('truetype');
+  font-weight: 500;
+  font-display: swap;
+  font-style: italic;
+}
+@font-face {
+  font-family: 'Lora-SemiBold';
+  src: url('../fonts/Lora-SemiBold.woff2') format('woff2'),
+       url('../fonts/Lora-SemiBold.woff') format('woff'),
+       url('../fonts/Lora-SemiBold.ttf') format('truetype');
+  font-weight: 600;
+  font-display: swap;
+  font-style: normal;
+}
+@font-face {
+  font-family: 'Lora-SemiBoldItalic';
+  src: url('../fonts/Lora-SemiBoldItalic.woff2') format('woff2'),
+       url('../fonts/Lora-SemiBoldItalic.woff') format('woff'),
+       url('../fonts/Lora-SemiBoldItalic.ttf') format('truetype');
+  font-weight: 600;
+  font-display: swap;
+  font-style: italic;
+}
+@font-face {
+  font-family: 'Lora-Bold';
+  src: url('../fonts/Lora-Bold.woff2') format('woff2'),
+       url('../fonts/Lora-Bold.woff') format('woff'),
+       url('../fonts/Lora-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-display: swap;
+  font-style: normal;
+}
+@font-face {
+  font-family: 'Lora-BoldItalic';
+  src: url('../fonts/Lora-BoldItalic.woff2') format('woff2'),
+       url('../fonts/Lora-BoldItalic.woff') format('woff'),
+       url('../fonts/Lora-BoldItalic.ttf') format('truetype');
+  font-weight: 700;
+  font-display: swap;
+  font-style: italic;
+}
+/**
+* This is a variable font
+* You can control variable axes as shown below:
+* font-variation-settings: wght 400.0;
+*
+* available axes:
+'wght' (range from 400.0 to 700.0
+*/
+@font-face {
+  font-family: 'Lora-Variable';
+  src: url('../fonts/Lora-Variable.woff2') format('woff2'),
+       url('../fonts/Lora-Variable.woff') format('woff'),
+       url('../fonts/Lora-Variable.ttf') format('truetype');
+  font-weight: 400 700;
+  font-display: swap;
+  font-style: normal;
+}
+/**
+* This is a variable font
+* You can control variable axes as shown below:
+* font-variation-settings: wght 400.0;
+*
+* available axes:
+'wght' (range from 400.0 to 700.0
+*/
+@font-face {
+  font-family: 'Lora-VariableItalic';
+  src: url('../fonts/Lora-VariableItalic.woff2') format('woff2'),
+       url('../fonts/Lora-VariableItalic.woff') format('woff'),
+       url('../fonts/Lora-VariableItalic.ttf') format('truetype');
+  font-weight: 400 700;
+  font-display: swap;
+  font-style: italic;
+}
+

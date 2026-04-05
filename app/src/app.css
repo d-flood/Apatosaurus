@@ -1,0 +1,273 @@
+@import 'tailwindcss';
+
+@source "../../triiiceratops/src/lib/**/*.svelte";
+
+@plugin "daisyui" {
+	themes: light --default, dark --prefersdark;
+}
+@plugin "daisyui/theme" {
+	name: 'majuscule';
+	default: true;
+	prefersdark: false;
+	color-scheme: 'light';
+	--color-base-100: oklch(100% 0 0);
+	--color-base-200: oklch(98% 0.016 73.684);
+	--color-base-300: oklch(95% 0.038 75.164);
+	--color-base-content: oklch(40% 0.123 38.172);
+	--color-primary: oklch(55% 0.195 38.402);
+	--color-primary-content: oklch(95% 0.038 75.164);
+	--color-secondary: oklch(52% 0.095 210);
+	--color-secondary-content: oklch(97% 0.015 210);
+	--color-accent: oklch(70% 0.213 47.604);
+	--color-accent-content: oklch(26% 0.079 36.259);
+	--color-neutral: oklch(90% 0.076 70.697);
+	--color-neutral-content: oklch(47% 0.157 37.304);
+	--color-info: oklch(50% 0.12 250);
+	--color-info-content: oklch(92% 0.03 250);
+	--color-success: oklch(55% 0.12 145);
+	--color-success-content: oklch(95% 0.03 145);
+	--color-warning: oklch(68% 0.155 75);
+	--color-warning-content: oklch(30% 0.07 75);
+	--color-error: oklch(50% 0.213 27.518);
+	--color-error-content: oklch(93% 0.04 27);
+	--radius-selector: 0.5rem;
+	--radius-field: 0.5rem;
+	--radius-box: 0.5rem;
+	--size-selector: 0.25rem;
+	--size-field: 0.21875rem;
+	--border: 1.5px;
+	--depth: 1;
+	--noise: 0;
+}
+
+@plugin "daisyui/theme" {
+	name: 'minuscule';
+	default: false;
+	prefersdark: false;
+	color-scheme: 'dark';
+	--color-base-100: oklch(20% 0.042 265.755);
+	--color-base-200: oklch(27% 0.041 260.031);
+	--color-base-300: oklch(37% 0.044 257.287);
+	--color-base-content: oklch(86% 0.022 252.894);
+	--color-primary: oklch(55% 0.195 38.402);
+	--color-primary-content: oklch(95% 0.038 75.164);
+	--color-secondary: oklch(82% 0.06 210);
+	--color-secondary-content: oklch(25% 0.04 210);
+	--color-accent: oklch(26% 0.079 36.259);
+	--color-accent-content: oklch(70% 0.213 47.604);
+	--color-neutral: oklch(86% 0.022 252.894);
+	--color-neutral-content: oklch(37% 0.044 257.287);
+	--color-info: oklch(75% 0.09 250);
+	--color-info-content: oklch(25% 0.05 250);
+	--color-success: oklch(75% 0.1 145);
+	--color-success-content: oklch(25% 0.04 145);
+	--color-warning: oklch(80% 0.12 75);
+	--color-warning-content: oklch(25% 0.06 75);
+	--color-error: oklch(78% 0.1 27);
+	--color-error-content: oklch(25% 0.06 27);
+	--radius-selector: 0.5rem;
+	--radius-field: 0.5rem;
+	--radius-box: 0.5rem;
+	--size-selector: 0.25rem;
+	--size-field: 0.21875rem;
+	--border: 1.5px;
+	--depth: 0;
+	--noise: 0;
+}
+
+@custom-variant dark (&:is([data-theme=dark], [data-theme=dark] *));
+
+@theme {
+	--font-serif: 'Lora-Regular', ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif;
+	--font-greek: 'GentiumAlt Regular', 'serif';
+}
+
+@font-face {
+	font-family: 'GentiumAlt Regular';
+	font-style: normal;
+	font-weight: normal;
+	src: local('GentiumAlt Regular'), url('../static/fonts/GentiumAlt/GenAR101.woff') format('woff');
+}
+
+@font-face {
+	font-family: 'Lora-Regular';
+	src: url('../static/fonts/Lora/fonts/Lora-Regular.woff2') format('woff2'),
+		url('../static/fonts/Lora/fonts/Lora-Regular.woff') format('woff'),
+		url('../static/fonts/Lora/fonts/Lora-Regular.ttf') format('truetype');
+	font-weight: 400;
+	font-display: swap;
+	font-style: normal;
+}
+
+.show-lacunose .lacunose {
+	@apply text-base-content bg-base-300 opacity-60;
+}
+
+.show-lacunose .lacunose::before {
+	content: '[';
+}
+
+.show-lacunose .lacunose::after {
+	content: ']';
+}
+
+.show-unclear .unclear {
+	@apply underline decoration-dotted decoration-2 underline-offset-6;
+}
+
+.show-correction .correction {
+	text-decoration-line: underline;
+	text-decoration-style: wavy;
+	text-decoration-color: var(--color-error);
+	text-underline-offset: 6px;
+}
+
+.abbreviation.nomSac {
+	@apply overline;
+}
+
+.show-abbreviation .abbreviation.other {
+	@apply text-secondary;
+}
+
+.show-paragraphStart .paragraph-start {
+	@apply -ms-2;
+}
+
+.punctuation {
+	@apply hidden;
+}
+
+.show-punctuation .punctuation {
+	@apply inline text-info mr-1;
+}
+
+.tei-inline-badge {
+	margin-inline: 0.125rem;
+	padding: 0.125rem;
+	@apply inline-flex items-center rounded-md align-middle leading-none;
+}
+
+.tei-inline-badge-shell {
+	margin-inline: 0.125rem;
+	@apply inline-flex items-center rounded-md align-middle;
+}
+
+.tei-inline-badge-shell > .tei-inline-badge {
+	@apply mx-0;
+}
+
+.gap-milestone {
+	@apply hidden;
+}
+
+.show-gap .gap-milestone {
+	@apply inline-flex select-none text-error-content bg-error px-0.5;
+}
+
+.book-milestone {
+	@apply hidden;
+}
+
+.show-book .book-milestone {
+	@apply inline-flex;
+}
+
+.chapter-milestone {
+	@apply hidden;
+}
+
+.show-chapter .chapter-milestone {
+	@apply inline-flex;
+}
+
+.verse-milestone {
+	@apply hidden;
+}
+
+.show-verse .verse-milestone {
+	@apply inline-flex;
+}
+
+.untranscribed-milestone {
+	@apply hidden;
+}
+
+.show-untranscribed .untranscribed-milestone {
+	@apply inline-flex select-none text-warning-content bg-warning text-sm font-normal;
+}
+
+.wrapped-arrow {
+	@apply hidden text-sm;
+}
+
+.wrapped-arrow {
+	@apply hidden text-sm;
+}
+
+.show-wrappedArrow .wrapped-arrow.is-wrapped {
+	@apply inline-block;
+}
+
+/* Styles for correction editor display */
+.correction-display.show-lacunose .lacunose {
+	@apply text-base-content bg-base-300 opacity-60;
+}
+
+.correction-display.show-lacunose .lacunose::before {
+	content: '[';
+}
+
+.correction-display.show-lacunose .lacunose::after {
+	content: ']';
+}
+
+.correction-display.show-unclear .unclear {
+	@apply underline decoration-dotted decoration-2 underline-offset-6;
+}
+
+.correction-display .abbreviation.nomSac {
+	@apply overline;
+}
+
+.correction-display.show-abbreviation .abbreviation.other {
+	@apply text-secondary;
+}
+
+.correction-display .line-break-marker {
+	@apply text-secondary text-xs font-bold;
+}
+
+/* Styles for correction editor input area (mini-editor) */
+.correction-editor-input.show-lacunose .lacunose {
+	@apply text-base-content bg-base-300 opacity-60;
+}
+
+.correction-editor-input.show-lacunose .lacunose::before {
+	content: '[';
+}
+
+.correction-editor-input.show-lacunose .lacunose::after {
+	content: ']';
+}
+
+.correction-editor-input.show-unclear .unclear {
+	@apply underline decoration-dotted decoration-2 underline-offset-6;
+}
+
+.correction-editor-input .abbreviation.nomSac {
+	@apply overline;
+}
+
+.correction-editor-input.show-abbreviation .abbreviation.other {
+	@apply text-secondary;
+}
+
+.correction-editor-input .line-break-marker {
+	@apply text-secondary text-xs font-bold;
+}
+
+.osd-background,
+.osd-background .openseadragon-container {
+	@apply bg-transparent;
+}

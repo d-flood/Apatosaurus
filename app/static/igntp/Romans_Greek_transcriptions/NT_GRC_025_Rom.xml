@@ -1,0 +1,1316 @@
+<!DOCTYPE TEI>
+<?xml-stylesheet type="text/xsl" href="Rom.xsl"?><TEI xmlns="http://www.tei-c.org/ns/1.0"><teiHeader><fileDesc><titleStmt><title n="025" type="document" key="20025">A transcription of Romans in 025</title><title type="collection" xml:lang="en">The New Testament</title><title type="collection" xml:lang="de">Das Neue Testament</title><title type="work" xml:lang="en">The Epistle to the Romans</title><title type="short" xml:lang="en">Romans</title><respStmt><resp>Created by</resp><name type="org">The International Greek New Testament Project</name></respStmt><respStmt><resp when-iso="2020-08-30">Transcribed by</resp><name type="person">Anna Shirav</name></respStmt><respStmt><resp when-iso="2021-02-25">Proofread by</resp><name type="person">Amy Myshrall</name></respStmt><funder>This transcription was made as part of the CATENA project, which has received funding from the European Research Council (ERC) under the European Union Horizon 2020 research and innovation programme (grant agreement no. 770816).</funder><sponsor><name type="org">The Institute for Textual Scholarship and Electronic Editing</name></sponsor></titleStmt><editionStmt><edition n="1.1">Version 1.1, created on <date when-iso="2021-02-25">25.02.2021</date>, archived on the University of Birmingham eData repository on <date>13.5.2024</date>.</edition></editionStmt><publicationStmt><publisher><name type="org">The International Greek New Testament Project (IGNTP)</name></publisher><date>13.5.2024</date><availability><p>Attribution 4.0 International (CC BY 4.0) Available for re-use under a creative commons license provided attribution is made to the original creators.</p></availability></publicationStmt><sourceDesc><msDesc><msIdentifier><country>Russia</country><settlement>St. Petersburg</settlement><repository>National Library of Russia</repository><idno>Ф. № 906 / Gr. 225 </idno><altIdentifier type="GA"><idno>025</idno></altIdentifier><altIdentifier type="Liste"><idno>20025</idno></altIdentifier></msIdentifier></msDesc><listWit><witness xml:id="firsthand"/><witness xml:id="corrector"/></listWit></sourceDesc></fileDesc><encodingDesc n="1.6"><projectDesc><p>This transcription was made by the International Greek New Testament Project in its work towards the Editio Critica Maior. A transcription was made using Tischendorf's Monumenta Sacra 5, which was proofread using the same edition.</p></projectDesc><editorialDecl><p>This transcription was produced using the online transcription editor developed by the Center for Digital Humanities at the University of Trier as part of the Workspace for Collaborative Editing Project between 2010 and 2013 and made available for use by the Institute for Textual Scholarship and Electronic Editing and the University of Birmingham.</p><p>The XML specifications used are version 1.6 of the IGNTP Guidelines available at <ptr target="http://epapers.bham.ac.uk/4301/"/></p></editorialDecl><variantEncoding method="parallel-segmentation" location="internal"/></encodingDesc></teiHeader><text xml:lang="grc"><body>
+<pb n="58" type="page" xml:id="P58-025"/>
+<cb n="P58C1-025"/>
+<lb n="P58C1L-025" rend="indent"/><div type="book" n="Rom"><div type="inscriptio"><ab n="Rom.inscriptio"><w>επιστολη</w><w>του</w><w>παναγιου</w><w>παυλου</w>
+<lb n="P58C1L-025" rend="indent"/><w>του</w><w>αποστ<ex>ολου</ex></w><w>προς</w><w>ρωμαιους</w>
+<lb n="P58C1L-025" rend="hang"/></ab></div><div type="chapter" n="Rom.1"><ab n="Rom.1.1"><w><hi rend="cap" height="2">π</hi>αυλος</w><w>δουλος</w><w><abbr type="nomSac"><hi rend="overline">ιυ</hi></abbr></w><w><abbr type="nomSac"><hi rend="overline">χυ</hi></abbr></w><pc>˙</pc><w>κλητος</w><w>αποστο
+<lb n="P58C1L-025" break="no"/>λος</w><pc>˙</pc><w>αφωρισμενος</w><w>εις</w><w>ευαγγελιον</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><pc>˙</pc>
+<lb n="P58C1L-025"/></ab><ab n="Rom.1.2"><w>ο</w><pc>,</pc><w>προεπηγγειλατο</w><w>δια</w><w>των</w><w>προφη
+<lb n="P58C1L-025" break="no"/>των</w><w>αυτου</w><pc>·</pc><w>εν</w><w>γραφαις</w><w>αγιαις</w><pc>·</pc></ab><ab n="Rom.1.3"><w>πε
+<lb n="P58C1L-025" break="no"/>ρι</w><w>του</w><w><abbr type="nomSac"><hi rend="overline">υυ</hi></abbr></w><w>αυτου</w><pc>.</pc><w>του</w><w>γενομενου</w>
+<lb n="P58C1L-025"/><w>εκ</w><w>σπερματος</w><w><abbr type="nomSac"><hi rend="overline">δαδ</hi></abbr></w><pc>·</pc><w>κατα</w><w>σαρκα</w><pc>˙</pc>
+<lb n="P58C1L-025"/></ab><ab n="Rom.1.4"><w>του</w><w>ορισθεντος</w><w><abbr type="nomSac"><hi rend="overline">υυ</hi></abbr></w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><w>εν</w><w>δυναμει</w><pc>˙</pc>
+<lb n="P58C1L-025"/><w>κατα</w><w><abbr type="nomSac"><hi rend="overline">πνα</hi></abbr></w><w>αγιωσυνης</w><pc>·</pc><w>εξ</w><w>αναστα
+<pb n="59" type="page" xml:id="P59-025" break="no"/>
+<cb n="P59C1-025"/>
+<lb n="P59C1L-025"/>σεως</w><w>νεκρων</w><pc>·</pc><w><abbr type="nomSac"><hi rend="overline">ιυ</hi></abbr></w><w><abbr type="nomSac"><hi rend="overline">χυ</hi></abbr></w><pc>·</pc><w>του</w><w><abbr type="nomSac"><hi rend="overline">κυ</hi></abbr></w><w>ημων</w><pc>˙</pc>
+<lb n="P59C1L-025"/></ab><ab n="Rom.1.5"><w>δι</w><w>ου</w><w>ελαβομεν</w><w>χα<supplied source="na28" reason="illegible">ρι</supplied>ν</w><w>και</w><w>αποστο
+<lb n="P59C1L-025" break="no"/>λην</w><pc>·</pc><w>εις</w><w>υπακοην</w><w>πιστεως</w><pc>·</pc><w>εν</w><w>πασ<supplied source="na28" reason="illegible">ι</supplied><ex rend="̅">ν</ex></w>
+<lb n="P59C1L-025"/><w>τοις</w><w>εθνεσιν</w><pc>·</pc><w>υπερ</w><w>του</w><w>ονοματος</w>
+<lb n="P59C1L-025"/><w>αυτου</w><pc>˙</pc></ab><ab n="Rom.1.6"><w>εν</w><w>οις</w><pc>,</pc><w>εσται</w><w>και</w><w>υ<supplied source="na28" reason="illegible">με</supplied>ις</w><w>κλη
+<lb n="P59C1L-025" break="no"/>τοι</w><w><abbr type="nomSac"><hi rend="overline">ιυ</hi></abbr></w><w><abbr type="nomSac"><hi rend="overline">χυ</hi></abbr></w><pc>·</pc></ab><ab n="Rom.1.7"><w>πασιν</w><w>τοις</w><w>ουσιν</w><w>εν</w><w>ρωμη</w><pc>·</pc>
+<lb n="P59C1L-025"/><w>αγαπητοις</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><pc>·</pc><w>κλητοις</w><w><supplied source="na28" reason="illegible">αγιοι</supplied>ς</w><pc>˙</pc>
+<lb n="P59C1L-025" rend="hang"/><w><hi rend="cap" height="2">χ</hi>αρις</w><w>υμιν</w><w>και</w><w>ειρηνη</w><pc>.</pc><w>απο</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><w><abbr type="nomSac"><hi rend="overline">πρς</hi></abbr></w><w>η
+<lb n="P59C1L-025" break="no"/>μων</w><w>και</w><w><abbr type="nomSac"><hi rend="overline">κυ</hi></abbr></w><w><abbr type="nomSac"><hi rend="overline">ιυ</hi></abbr></w><w><abbr type="nomSac"><hi rend="overline">χυ</hi></abbr></w><pc>˙</pc></ab><ab n="Rom.1.8"><w>πρωτον</w><w>μεν</w><w>ευ
+<lb n="P59C1L-025" break="no"/>χαριστω</w><w>τω</w><w><abbr type="nomSac"><hi rend="overline">θω</hi></abbr></w><w>μου</w><pc>·</pc><w>δια</w><w><abbr type="nomSac"><hi rend="overline">ιυ</hi></abbr></w><w><abbr type="nomSac"><hi rend="overline">χυ</hi></abbr></w><w>υπερ</w>
+<lb n="P59C1L-025"/><w>παντων</w><w>υμων</w><pc>·</pc><w>οτι</w><w>η</w><w>πιστις</w><w>υμω<ex rend="̅">ν</ex></w>
+<lb n="P59C1L-025"/><w>καταγγελλεται</w><w>εν</w><w>ολω</w><w>τω</w><w>κ<unclear>ο</unclear>σμω</w><pc>˙</pc>
+<lb n="P59C1L-025"/></ab><ab n="Rom.1.9"><w>μαρτυς</w><w>γαρ</w><w>μου</w><w>εστιν</w><w>ο</w><w><abbr type="nomSac"><hi rend="overline">θς</hi></abbr></w><pc>.</pc><w>ω</w><pc>,</pc><w>λατρευ
+<lb n="P59C1L-025" break="no"/>ω</w><w>εν</w><w>τω</w><w><abbr type="nomSac"><hi rend="overline">πνι</hi></abbr></w><w>μου</w><pc>·</pc><w>εν</w><w>τω</w><w>ευαγγελιω</w>
+<lb n="P59C1L-025"/><w>του</w><w><abbr type="nomSac"><hi rend="overline">υυ</hi></abbr></w><w>αυτου</w><pc>·</pc><w>ως</w><w>αδιαλειπτως</w><w>μνει
+<lb n="P59C1L-025" break="no"/>αν</w><w>υμων</w><w>ποιουμαι</w><pc>·</pc></ab><ab n="Rom.1.10"><w>παντοτε</w><w>επι</w>
+<lb n="P59C1L-025"/><w>των</w><w>προσευχων</w><w>μου</w><w>δεομενος</w><pc>·</pc><w>ει</w>
+<lb n="P59C1L-025"/><w>πως</w><w>ηδη</w><w>ποτε</w><pc>·</pc><w>ευοδωθησομαι</w><w>εν</w>
+<lb n="P59C1L-025"/><w>τω</w><w>θεληματι</w><w>του</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><w>ελθειν</w><w>προς</w><w>υ
+<lb n="P59C1L-025" break="no"/>μας</w><pc>˙</pc></ab><ab n="Rom.1.11"><w>επιποθω</w><w>γαρ</w><w>ιδειν</w><w>υμας</w><pc>·</pc><w>ινα</w>
+<lb n="P59C1L-025"/><w>τι</w><w>μεταδω</w><w>χαρισμα</w><w>υμιν</w><w><abbr type="nomSac"><hi rend="overline">πνικον</hi></abbr></w><pc>·</pc>
+<lb n="P59C1L-025"/><w>εις</w><w>το</w><w>στηριχθηναι</w><w>υμας</w><pc>˙</pc></ab><ab n="Rom.1.12"><w>του
+<lb n="P59C1L-025" rend="hang" break="no"/><hi rend="cap" height="2">τ</hi>ο</w><w>δε</w><w>εστιν</w><pc>·</pc><w>συμπαρακληθηναι</w><w>εν</w>
+<lb n="P59C1L-025"/><w>υμιν</w><pc>·</pc><w>δια</w><w>της</w><w>εν</w><w>αλληλοις</w><w>πιστεως</w>
+<pb n="60" type="page" xml:id="P60-025"/>
+<cb n="P60C1-025"/>
+<lb n="P60C1L-025"/><w>υμων</w><w>τε</w><w>και</w><w>εμου</w><pc>·</pc></ab><ab n="Rom.1.13"><w>ου</w><w>θελω</w><w>δε</w>
+<lb n="P60C1L-025"/><w>υμας</w><w>αγνοειν</w><w><supplied source="na28" reason="illegible">α</supplied>δελφοι</w><pc>·</pc><w>οτι</w><w>πολλα
+<lb n="P60C1L-025" break="no"/>κις</w><w>προεθεμην</w><w>ελθειν</w><w>προς</w><w>υμας</w><pc>˙</pc>
+<lb n="P60C1L-025"/><w>και</w><w>εκωλυθην</w><w>αχρι</w><w>του</w><w>δευρο</w><pc>˙</pc><w>ι
+<lb n="P60C1L-025" break="no"/>να</w><w>τι<supplied source="na28" reason="illegible">να</supplied></w><w>καρπον</w><pc>·</pc><w>σχω</w><w>και</w><w>εν</w><w>υμιν</w><pc>˙</pc>
+<lb n="P60C1L-025"/><w>καθ<supplied source="na28" reason="illegible">ω</supplied>ς</w><w><supplied source="na28" reason="illegible">κ</supplied>αι</w><w>εν</w><w>τοις</w><w>λοιποις</w><w>εθνεσιν</w><pc>·</pc>
+<lb n="P60C1L-025"/></ab><ab n="Rom.1.14"><w>ελλη<supplied source="na28" reason="illegible">σιν</supplied></w><w><supplied source="na28" reason="illegible">τ</supplied>ε</w><w>και</w><w>βαρβαροις</w><pc>·</pc><w>σοφοις</w><w>τε</w>
+<lb n="P60C1L-025"/><w>και</w><w>ανοητοις</w><pc>·</pc><w><supplied source="na28" reason="illegible">οφ</supplied>ιλετης</w><w>ειμι</w><pc>˙</pc></ab><ab n="Rom.1.15"><w>ου
+<lb n="P60C1L-025" break="no"/>τως</w><w>το</w><w>κατ</w><w>εμε</w><w>προθυμον</w><w>και</w><w>υ
+<lb n="P60C1L-025" break="no"/>μιν</w><w>τοις</w><w>εν</w><w>ρωμη</w><w>ευαγγελισασθαι</w><pc>˙</pc>
+<lb n="P60C1L-025"/></ab><ab n="Rom.1.16"><w>ου</w><w>γαρ</w><w>επαισχυνομαι</w><w>το</w><w>ευαγγελι
+<lb n="P60C1L-025" break="no"/>ον</w><w>του</w><w><abbr type="nomSac"><hi rend="overline">χυ</hi></abbr></w><pc>˙</pc><w>δυναμις</w><w>γαρ</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><w>εστιν</w>
+<lb n="P60C1L-025"/><w>εις</w><w><abbr type="nomSac"><hi rend="overline">σριαν</hi></abbr></w><w>παντι</w><w>τω</w><w>πιστευοντι</w><pc>·</pc><w>ι
+<lb n="P60C1L-025" break="no"/>ουδαιω</w><w>τε</w><w>πρωτον</w><w>και</w><w>ελληνι</w><pc>˙</pc></ab><ab n="Rom.1.17"><w>δι
+<lb n="P60C1L-025" break="no"/>καιοσυνη</w><w>γαρ</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><w>εν</w><w>αυτω</w><w>αποκα
+<lb n="P60C1L-025" break="no"/>λυπτεται</w><pc>·</pc><w>εκ</w><w>πιστεως</w><w>εις</w><w>πιστιν</w><pc>˙</pc>
+<lb n="P60C1L-025"/><w>καθως</w><w>γεγραπται</w><pc>·</pc><w>ο</w><w>δε</w><w>δικαιος</w><w>εκ</w>
+<lb n="P60C1L-025"/><w>πιστεως</w><w>ζησεται</w><pc>˙</pc></ab><ab n="Rom.1.18"><w>αποκαλυπτετ<ex>αι</ex></w>
+<lb n="P60C1L-025"/><w>γαρ</w><w>οργη</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><w>απ</w><w><abbr type="nomSac"><hi rend="overline">ουνου</hi></abbr></w><pc>·</pc><w>επι</w><w>πασαν</w><w>ασε
+<lb n="P60C1L-025" break="no"/>βειαν</w><w>και</w><w>αδικιαν</w><w><abbr type="nomSac"><hi rend="overline">ανων</hi></abbr></w><w>των</w>
+<lb n="P60C1L-025"/><w>την</w><w>αληθειαν</w><w>εν</w><w>αδικια</w><w>κατεχο<ex rend="̅">ν̣</ex>
+<lb n="P60C1L-025" break="no"/>των</w><pc>˙</pc></ab><ab n="Rom.1.19"><w>διοτι</w><w>το</w><w>γνωστον</w><w>του</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><pc>.</pc>
+<lb n="P60C1L-025"/><w>φανερον</w><w>εστιν</w><w>εν</w><w>αυτοις</w><pc>·</pc><w>ο</w><w>γαρ</w><w><abbr type="nomSac"><hi rend="overline">θς</hi></abbr></w><w>αυ
+<lb n="P60C1L-025" break="no"/>τοις</w><w>εφανερωσεν</w><pc>˙</pc></ab><ab n="Rom.1.20"><w>τα</w><w>γαρ</w><w>αορατα</w><w>αυ
+<pb n="61" type="page" xml:id="P61-025" break="no"/>
+<cb n="P61C1-025"/>
+<lb n="P61C1L-025"/>του</w><w>απο</w><w>κτισεως</w><w>κοσμου</w><pc>·</pc><w>τοις</w><w>ποιη
+<lb n="P61C1L-025" break="no"/>μασι</w><pc>,</pc><w>νοουμενα</w><w>καθοραται</w><pc>˙</pc><w>η</w><w><supplied source="na28" reason="illegible">τ</supplied>ε</w><w>αι
+<lb n="P61C1L-025" break="no"/>διος</w><w>αυτου</w><w>δυναμις</w><w>και</w><w>θεοτης</w><pc>·</pc>
+<lb n="P61C1L-025"/><w>εις</w><w>το</w><w>ειναι</w><w>αυτους</w><w>αναπολογητους</w><pc>˙</pc>
+<lb n="P61C1L-025"/></ab><ab n="Rom.1.21"><w>διοτι</w><w>γνοντες</w><w>τον</w><w><abbr type="nomSac"><hi rend="overline">θν</hi></abbr></w><pc>·</pc><w>ουχ</w><w>ως</w><w><abbr type="nomSac"><hi rend="overline">θν</hi></abbr></w>
+<lb n="P61C1L-025"/><w>εδοξασαν</w><w>η</w><w>ευχαριστησαν</w><pc>˙</pc><w>αλλ</w><w>εμα
+<lb n="P61C1L-025" break="no"/>ταιοθησαν</w><w>εν</w><w>τοις</w><w>διαλογισμοις</w><w>αυ
+<lb n="P61C1L-025" break="no"/>των</w><pc>·</pc><w>και</w><w>εσκοτισθη</w><w>η</w><w>ασυνετος</w><w>αυ
+<lb n="P61C1L-025" break="no"/>των</w><w>καρδια</w><pc>·</pc></ab><ab n="Rom.1.22"><w>φασκοντες</w><w>ειναι</w><w>σο
+<lb n="P61C1L-025" break="no"/>φοι</w><w>εμωρανθησαν</w><pc>·</pc></ab><ab n="Rom.1.23"><w>και</w><w>ηλλαξαν</w>
+<lb n="P61C1L-025"/><w>την</w><w>δοξαν</w><w>του</w><w>αφθαρτου</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><w>εν</w>
+<lb n="P61C1L-025"/><w>ομοιωματι</w><w>εικονος</w><w>φθαρτου</w><w>αν
+<lb n="P61C1L-025" break="no"/>θρωπου</w><w>και</w><w>πετειν<supplied source="na28" reason="illegible">ων</supplied></w><w><supplied source="na28" reason="illegible">και</supplied></w><w><supplied source="na28" reason="illegible">τετρα</supplied>
+<lb n="P61C1L-025" break="no"/>ποδων</w><w>και</w><w>ερπετων</w><pc>˙</pc></ab><ab n="Rom.1.24"><w>διο</w><w>και</w><w>παρε
+<lb n="P61C1L-025" break="no"/>δωκεν</w><w>αυτους</w><w>ο</w><w><abbr type="nomSac"><hi rend="overline">θς</hi></abbr></w><pc>·</pc><w>εν</w><w>ταις</w><w>επιθυ
+<lb n="P61C1L-025" break="no"/>μιαις</w><w>των</w><w>καρδιων</w><w>αυτων</w><w>εις</w><w>α
+<lb n="P61C1L-025" break="no"/>καθαρσιαν</w><pc>.</pc><w>του</w><w>ατιμαζεσθαι</w><w>τα</w>
+<lb n="P61C1L-025"/><w>σωματα</w><w>αυτων</w><w>εν</w><w>εαυτοις</w><pc>˙</pc></ab><ab n="Rom.1.25"><w>οιτι
+<lb n="P61C1L-025" break="no"/>νες</w><w>μετηλλαξαν</w><w>την</w><w>αληθειαν</w>
+<lb n="P61C1L-025"/><w>του</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><w>εν</w><w>τω</w><w>ψευδει</w><pc>˙</pc><w>και</w><w>εσεβαστη
+<lb n="P61C1L-025" break="no"/>σαν</w><w>και</w><w>ελατρευσαν</w><w>την</w><w>κτησιν</w>
+<lb n="P61C1L-025"/><w>παρα</w><w>τον</w><w>κτισαντα</w><pc>·</pc><w>ος</w><w>εστιν</w><w>ευλο
+<lb n="P61C1L-025" break="no"/>γητος</w><w>εις</w><w>τους</w><w>αιωνας</w><w>αμην</w><pc>˙</pc>
+<lb n="P61C1L-025" rend="hang"/></ab><ab n="Rom.1.26"><w><hi rend="cap" height="2">δ</hi>ια</w><w>τουτο</w><w>παρεδωκεν</w><w>αυτους</w><w>ο</w><w><abbr type="nomSac"><hi rend="overline">θς</hi></abbr></w>
+<pb n="62" type="page" xml:id="P62-025"/>
+<cb n="P62C1-025"/>
+<lb n="P62C1L-025"/><w>εις</w><w>παθη</w><w>ατιμιας</w><pc>˙</pc><w>αι</w><w>τε</w><w>γαρ</w><w>θηλι
+<lb n="P62C1L-025" break="no"/>αι</w><w><supplied source="na28" reason="illegible">α</supplied>υτων</w><pc>.</pc><w>μετηλλαξαν</w><w>την</w><w>φυ
+<lb n="P62C1L-025" break="no"/>σικην</w><w>χρησιν</w><w>εις</w><w>την</w><w>παρα</w><w>φυσιν</w><pc>˙</pc>
+<lb n="P62C1L-025"/></ab><ab n="Rom.1.27"><w>ομοιως</w><w>δε</w><w>και</w><w>οι</w><w>αρρενες</w><pc>·</pc><w>αφεντες</w>
+<lb n="P62C1L-025"/><w>την</w><w>φυσικην</w><w>χρησιν</w><w>της</w><w>θηλει
+<lb n="P62C1L-025" break="no"/>ας</w><pc>·</pc><w>εξεκαυθησαν</w><w>εν</w><w>τη</w><w>ορεξει</w><w>αυ
+<lb n="P62C1L-025" break="no"/>των</w><w>εις</w><w>αλληλους</w><pc>·</pc><w>αρσενες</w><w>εν</w><w>αρσε
+<lb n="P62C1L-025" break="no"/>σιν</w><pc>·</pc><w>την</w><w>ασχημοσυνην</w><w>κατεργα
+<lb n="P62C1L-025" break="no"/>ζομενοι</w><pc>·</pc><w>και</w><w>την</w><w>αντιμισθιαν</w>
+<lb n="P62C1L-025"/><w>ην</w><w>εδει</w><w>της</w><w>πλανης</w><w>αυτων</w><w>εν</w><w>ε
+<lb n="P62C1L-025" break="no"/>αυτοις</w><w>απολαμβανοντες</w><pc>˙</pc>
+<lb n="P62C1L-025" rend="hang"/></ab><ab n="Rom.1.28"><w><hi rend="cap" height="2">κ</hi>αι</w><w>καθως</w><w>ουκ</w><w>εδοκιμασαν</w><w>τον</w><w><abbr type="nomSac"><hi rend="overline">θν</hi></abbr></w>
+<lb n="P62C1L-025"/><w>εχειν</w><w>εν</w><w>επιγνωσει</w><pc>·</pc><w>παρεδωκεν</w><w>αυ
+<lb n="P62C1L-025" break="no"/>τους</w><w>ο</w><w><abbr type="nomSac"><hi rend="overline">θς</hi></abbr></w><pc>·</pc><w>εις</w><w>αδοκιμον</w><w>νουν</w><pc>·</pc><w>ποι
+<lb n="P62C1L-025" break="no"/>ειν</w><w>τα</w><w>μη</w><w>καθηκοντα</w><pc>·</pc></ab><ab n="Rom.1.29"><w>πεπληρω
+<lb n="P62C1L-025" break="no"/>μενους</w><w>παση</w><w>αδικια</w><w>και</w><w>πορνεια</w><pc>˙</pc>
+<lb n="P62C1L-025"/><w>πλεονεξια</w><pc>·</pc><w>κακια</w><pc>·</pc><w>μεστους</w><w>φθο
+<lb n="P62C1L-025" break="no"/>νου</w><pc>·</pc><w>φονου</w><pc>·</pc><w>εριδος</w><pc>·</pc><w>δολου</w><pc>·</pc><w>κακοη
+<lb n="P62C1L-025" break="no"/>θειας</w><pc>˙</pc><w>ψηθυριστας</w><pc>·</pc></ab><ab n="Rom.1.30"><w>καταλαλους</w><pc>·</pc>
+<lb n="P62C1L-025"/><w>θεοστυγεις</w><pc>·</pc><w>υβρηστας</w><pc>·</pc><w>υπερηφα
+<lb n="P62C1L-025" break="no"/>νους</w><pc>·</pc><w>αλαζονας</w><pc>·</pc><w>εφευρετας</w><w>κακω<ex rend="̅">ν</ex></w><pc>·</pc>
+<lb n="P62C1L-025"/><w>γονευσιν</w><w>απιθεις</w><pc>·</pc></ab><ab n="Rom.1.31"><w>ασυνετους</w><pc>·</pc><w>ασυ<ex rend="̅">ν</ex>
+<lb n="P62C1L-025" break="no"/>θετους</w><pc>·</pc><w>αστοργους</w><pc>·</pc><w>ασπονδους</w><pc>·</pc><w>α
+<lb n="P62C1L-025" break="no"/>νελεημονας</w><pc>˙</pc></ab><ab n="Rom.1.32"><w>οιτινες</w><w>το</w><w>δικαιω
+<pb n="63" type="page" xml:id="P63-025" break="no"/>
+<cb n="P63C1-025"/>
+<lb n="P63C1L-025"/>μα</w><w>του</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><w>επιγνοντες</w><pc>·</pc><w>οτι</w><w>οι</w><w>τα</w><w>τοι
+<lb n="P63C1L-025" break="no"/>αυτα</w><w>πρασσοντες</w><pc>.</pc><w>αξιοι</w><w>θανατου</w><w>ει
+<lb n="P63C1L-025" break="no"/>σιν</w><pc>·</pc><w>ου</w><w>μονον</w><w>αυτα</w><w>ποιουσιν</w><pc>·</pc><w>αλλα</w>
+<lb n="P63C1L-025"/><w>και</w><w>συνευδοκουσι</w><w>τοις</w><w>πρασσουσιν</w><pc>˙</pc>
+<lb n="P63C1L-025"/></ab></div><div type="chapter" n="Rom.2"><ab n="Rom.2.1"><w>διο</w><w>αναπολογητος</w><w>ει</w><pc>.</pc><w>ω</w><w><abbr type="nomSac"><hi rend="overline">ανε</hi></abbr></w><pc>·</pc><w>πας</w><w>ο</w>
+<lb n="P63C1L-025"/><w>κρινων</w><pc>˙</pc><w>εν</w><w>ω</w><w>γαρ</w><w>κρινεις</w><w>τον</w><w>ετε
+<lb n="P63C1L-025" break="no"/>ρον</w><pc>·</pc><w>σεαυτον</w><w>κατακρινεις</w><pc>˙</pc><w>τα</w><w>γαρ</w>
+<lb n="P63C1L-025"/><w>αυτα</w><w>πρασσεις</w><w>ο</w><w>κρινων</w><pc>˙</pc></ab><ab n="Rom.2.2"><w>οιδαμεν</w>
+<lb n="P63C1L-025" rend="hang"/><w><hi rend="cap" height="2">δ</hi>ε</w><w>οτι</w><w>το</w><w>κριμα</w><w>του</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><w>εστιν</w><w>κατα</w>
+<lb n="P63C1L-025"/><w>αληθειαν</w><w>επι</w><w>τους</w><w>τα</w><w>τοιαυτα</w><w>πρασ
+<lb n="P63C1L-025" break="no"/>σοντας</w><pc>˙</pc></ab><ab n="Rom.2.3"><w>νομιζεις</w><w>ουν</w><w>ο</w><w>ταυτα</w><w>πρασ
+<lb n="P63C1L-025" break="no"/>σων</w><pc>·</pc><w>και</w><w>ποιων</w><w>αυτα</w><w>οτι</w><w>συ</w><w>εκφευ
+<lb n="P63C1L-025" break="no"/>ξη</w><w>το</w><w>κριμα</w><w>του</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><pc>·</pc></ab><ab n="Rom.2.4"><w>η</w><w>του</w><w>πλουτου</w>
+<lb n="P63C1L-025"/><w>της</w><w>χρηστοτιτος</w><w>αυτου</w><w>και</w><w>της</w>
+<lb n="P63C1L-025"/><w>ανοχης</w><w>και</w><w>της</w><w>μακροθυμιας</w><w>κα
+<lb n="P63C1L-025" break="no"/>ταφρονεις</w><pc>·</pc><w>αγνοων</w><pc>·</pc><w>οτι</w><w>το</w><w>χρησ
+<lb n="P63C1L-025" break="no"/>τον</w><w>του</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><pc>·</pc><w>εις</w><w>μετανοιαν</w><w>σε</w><w>αγει</w><pc>˙</pc>
+<lb n="P63C1L-025" rend="hang"/></ab><ab n="Rom.2.5"><w><hi rend="cap" height="2">κ</hi>ατα</w><w>δε</w><w>την</w><w>σκληροτητα</w><w>σου</w><pc>·</pc><w>και</w><w>α
+<lb n="P63C1L-025" break="no"/>μετανοητον</w><w>καρδιαν</w><w>θησαυρι
+<lb n="P63C1L-025" break="no"/>ζεις</w><w>σεαυτω</w><w>οργην</w><w>εν</w><w>ημερα</w><w>οργης</w>
+<lb n="P63C1L-025"/><w>και</w><w>αποκαλυψεως</w><w>και</w><w>δικαιοκρι
+<lb n="P63C1L-025" break="no"/>σιας</w><w>του</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><pc>·</pc></ab><ab n="Rom.2.6"><w>ος</w><w>αποδωσει</w><w>εκαστω</w><w>κα
+<lb n="P63C1L-025" break="no"/>τα</w><w>τα</w><w>εργα</w><w>αυτου</w><pc>˙</pc></ab><ab n="Rom.2.7"><w>τοις</w><w>μεν</w><w>καθ</w>
+<lb n="P63C1L-025" rend="hang"/><w><hi rend="cap" height="2">υ</hi>πομονην</w><w>εργου</w><w>αγαθου</w><pc>·</pc><w>δοξαν</w><w>κ<ex rend="ϗ">αι</ex></w>
+<pb n="64" type="page" xml:id="P64-025"/>
+<cb n="P64C1-025"/>
+<lb n="P64C1L-025"/><w>τιμην</w><w>και</w><w>αφθαρσιαν</w><pc>·</pc><w>ζητουσιν</w>
+<lb n="P64C1L-025"/><w>ζωην</w><w>αιωνιον</w><pc>˙</pc></ab><ab n="Rom.2.8"><w>τοις</w><w>δε</w><w>εξ</w><w>εριθειας</w>
+<lb n="P64C1L-025"/><w>και</w><w>απιθουσιν</w><w>μεν</w><w>τη</w><w>αληθεια</w><pc>.</pc><w>πι
+<lb n="P64C1L-025" break="no"/>θομενοις</w><w>δε</w><w>τη</w><w>αδικια</w><pc>·</pc><w>θυμος</w><w>κ<ex rend="ϗ">αι</ex></w>
+<lb n="P64C1L-025"/><w>οργη</w><pc>˙</pc></ab><ab n="Rom.2.9"><w>θλιψις</w><w>και</w><w>στενοχωρια</w><pc>·</pc><w>επι</w>
+<lb n="P64C1L-025"/><w>πασαν</w><w>ψυχην</w><w><abbr type="nomSac"><hi rend="overline">ανου</hi></abbr></w><w>του</w><w>κατεργα
+<lb n="P64C1L-025" break="no"/>ζομενου</w><w>το</w><w>κακον</w><pc>·</pc><w>ιουδαιου</w><w>τε</w>
+<lb n="P64C1L-025"/><w>πρωτον</w><w>και</w><w>ελληνος</w><pc>˙</pc></ab><ab n="Rom.2.10"><w>δοξα</w><w>δε</w><w>κ<ex rend="ϗ">αι</ex></w>
+<lb n="P64C1L-025"/><w>τιμη</w><w>και</w><w>ειρηνη</w><pc>·</pc><w>παντι</w><w>τω</w><w>εργαζο
+<lb n="P64C1L-025" break="no"/>μενω</w><w>το</w><w>αγαθον</w><pc>·</pc><w>ιουδαιω</w><w>τε</w><w>πρω
+<lb n="P64C1L-025" break="no"/>τον</w><w>και</w><w>ελληνι</w><pc>˙</pc></ab><ab n="Rom.2.11"><w>ου</w><w>γαρ</w><w>εστιν</w><w>προσω
+<lb n="P64C1L-025" break="no"/>ποληψια</w><w>παρα</w><w>τω</w><w><abbr type="nomSac"><hi rend="overline">θω</hi></abbr></w><pc>˙</pc></ab><ab n="Rom.2.12"><w>οσοι</w><w>γαρ</w><w>ανο
+<lb n="P64C1L-025" break="no"/>μως</w><w>ημαρτον</w><pc>.</pc><w>ανομως</w><w>και</w><w>απο
+<lb n="P64C1L-025" break="no"/>λουνται</w><pc>˙</pc><w>και</w><w>οσοι</w><w>εν</w><w>νομω</w><w>ημαρ
+<lb n="P64C1L-025" break="no"/>τον</w><pc>.</pc><w>δια</w><w>νομου</w><w>κριθησονται</w><pc>˙</pc>
+<lb n="P64C1L-025" rend="hang"/></ab><ab n="Rom.2.13"/><ab n="Rom.2.14"><w><hi rend="cap" height="2">ο</hi>ταν</w><w>γαρ</w><w>εθνη</w><w>τα</w><w>μη</w><w>νομον</w><w>εχον
+<lb n="P64C1L-025" break="no"/>τα</w><pc>·</pc><w>φυσει</w><w>τα</w><w>του</w><w>νομου</w><w>ποιει</w><pc>.</pc><w>ουτοι</w>
+<lb n="P64C1L-025"/><w>νομον</w><w>μη</w><w>εχοντες</w><pc>.</pc><w>εαυτοις</w><w>εισιν</w>
+<lb n="P64C1L-025"/><w>νομος</w><pc>·</pc></ab><ab n="Rom.2.15"><w>οιτινες</w><w>ενδεικνυνται</w><w>το</w>
+<lb n="P64C1L-025"/><w>εργον</w><w>του</w><w>νομου</w><pc>·</pc><w>γραπτον</w><w>εν</w><w>ταις</w>
+<lb n="P64C1L-025"/><w>καρδιαις</w><w>αυτων</w><pc>·</pc><w>συμμαρτυρου
+<lb n="P64C1L-025" break="no"/>σης</w><w>αυτων</w><w>της</w><w>συνειδησεως</w><pc>·</pc><w>και</w>
+<lb n="P64C1L-025"/><w>μεταξυ</w><w>αλληλων</w><w>των</w><w>λογισμων</w>
+<lb n="P64C1L-025"/><w>κατηγορουντων</w><w>η</w><w>κ<ex rend="ϗ">αι</ex></w><w>απολογου<gap reason="lacuna" unit="word" extent="part"/></w><gap reason="lacuna" unit="chapter" extent="part"/><gap reason="lacuna" unit="page" extent="2"/>
+<pb n="65" type="page" xml:id="P65-025"/>
+<cb n="P65C1-025"/>
+<lb n="P65C1L-025" rend="hang"/></ab></div><div type="chapter" n="Rom.3"><ab n="Rom.3.5"><gap reason="lacuna" unit="chapter" extent="part"/><w><gap reason="lacuna" unit="word" extent="part"/></w><w><hi rend="cap" height="2">μ</hi>ων</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><w>δικαιοσυνην</w><w>συνιστησιν</w><pc>·</pc>
+<lb n="P65C1L-025"/><w>τι</w><w>ερουμεν</w><pc>;</pc><w>μη</w><w>αδικος</w><w>ο</w><w><abbr type="nomSac"><hi rend="overline">θς</hi></abbr></w><pc>,</pc><w>ο</w><w>επιφε
+<lb n="P65C1L-025" break="no"/>ρων</w><w>την</w><w>οργην</w><pc>·</pc><w>κατα</w><w><abbr type="nomSac"><hi rend="overline">ανον</hi></abbr></w><w>λεγω</w><pc>˙</pc>
+<lb n="P65C1L-025"/></ab><ab n="Rom.3.6"><w>μη</w><w>γενοιτο</w><pc>˙</pc><w>επει</w><pc>.</pc><w>πως</w><w>κρινει</w><w>ο</w><w><abbr type="nomSac"><hi rend="overline">θς</hi></abbr></w><w>το<ex rend="̅">ν</ex></w>
+<lb n="P65C1L-025"/><w>κοσμον</w><pc>˙</pc></ab><ab n="Rom.3.7"><w>η</w><w>γαρ</w><w>η</w><w>αληθεια</w><w>του</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><pc>.</pc><w>εν</w>
+<lb n="P65C1L-025"/><w>τω</w><w>εμω</w><w>ψευσματι</w><w>επερισσευσεν</w><w>εις</w>
+<lb n="P65C1L-025"/><w>την</w><w>δοξαν</w><w>αυτου</w><pc>·</pc><w>τι</w><w>ετι</w><w>καγω</w><w>ως</w>
+<lb n="P65C1L-025"/><w>αμαρτωλος</w><w>κρινομαι</w><pc>·</pc></ab><ab n="Rom.3.8"><w>και</w><w>μη</w><w>κα
+<lb n="P65C1L-025" break="no"/>θως</w><w>βλαφημουμεθα</w><pc>·</pc><w>και</w><w>καθως</w>
+<lb n="P65C1L-025"/><w>φασιν</w><w>τινες</w><w>ημας</w><w>λεγειν</w><pc>·</pc><w>οτι</w><w>ποιη
+<lb n="P65C1L-025" break="no"/>σωμεν</w><w>τα</w><w>κακα</w><w>ινα</w><w>ελθη</w><w>τα</w><w>αγα
+<lb n="P65C1L-025" break="no"/>θα</w><pc>·</pc><w>ων</w><pc>,</pc><w>το</w><w>κριμα</w><w>ενδικον</w><w>εστιν</w><pc>˙</pc>
+<lb n="P65C1L-025" rend="hang"/></ab><ab n="Rom.3.9"><w><hi rend="cap" height="2">τ</hi>ι</w><w>ουν</w><w>προεχομεθα</w><pc>·</pc><w>προητιασαμεθα</w>
+<lb n="P65C1L-025"/><w>γαρ</w><w>ιουδαιους</w><w>τε</w><w>και</w><w>ελληνας</w><pc>·</pc><w>παν
+<lb n="P65C1L-025" break="no"/>τας</w><w>υφ</w><w>αμαρτιαν</w><w>ειναι</w></ab><ab n="Rom.3.10"><w>καθως</w><w>γε
+<lb n="P65C1L-025" break="no"/>γραπται</w><pc>˙</pc><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w>οτι</w><w>ουκ</w><w>εστιν</w><w>δικαιος</w>
+<lb n="P65C1L-025" rend="hang"/><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w><hi rend="cap" height="2">ο</hi>υδε</w><w>εις</w><pc>·</pc></ab><ab n="Rom.3.11"><w>ουκ</w><w>εστιν</w><w>ο</w><w>συνιων</w><pc>·</pc><w>ουκ</w><w>ε
+<lb n="P65C1L-025" break="no"/>στιν</w><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w>ο</w><w>εκζητων</w><w>τον</w><w><abbr type="nomSac"><hi rend="overline">θν</hi></abbr></w><pc>·</pc></ab><ab n="Rom.3.12"><w>παν
+<lb n="P65C1L-025" break="no"/>τες</w><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w>εξεκλιναν</w><pc>·</pc><w>αμα</w><w>ηχριωθησα<ex rend="̅">ν</ex></w><pc>·</pc>
+<lb n="P65C1L-025"/><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w>ουκ</w><w>εστιν</w><w>ποιων</w><w>χρηστοτητα</w><w>ου
+<lb n="P65C1L-025" break="no"/>κ</w><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w>εστιν</w><w>εως</w><w>ενος</w><pc>˙</pc></ab><ab n="Rom.3.13"><w>ταφος</w><w>ανεωγμε
+<lb n="P65C1L-025" break="no"/>νος</w><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w>ο</w><w>λαρυξ</w><w>αυτων</w><pc>˙</pc><w>ταις</w><w>γλωσσαις</w>
+<lb n="P65C1L-025"/><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w>αυτων</w><w>εδολιουσαν</w><pc>˙</pc><w>ιος</w><w>ασπιδων</w>
+<lb n="P65C1L-025"/><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w>υπο</w><w>τα</w><w>χειλη</w><w>αυτων</w><pc>˙</pc></ab><ab n="Rom.3.14"><w>ων</w><w>το</w><w>στο
+<pb n="66" type="page" xml:id="P66-025" break="no"/>
+<cb n="P66C1-025"/>
+<lb n="P66C1L-025"/>μα</w><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w>αρας</w><w>και</w><w>πικριας</w><w>γεμει</w><pc>˙</pc></ab><ab n="Rom.3.15"><w>οξεις</w><w>οι</w><w>πο
+<lb n="P66C1L-025" break="no"/>δες</w><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w>αυτων</w><w>εκχεαι</w><w>αιμα</w><pc>˙</pc></ab><ab n="Rom.3.16"><w>συντριμ
+<lb n="P66C1L-025" break="no"/>μα</w><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w>και</w><w>ταλεπορια</w><app><rdg type="orig" hand="firsthand"><w>ε</w></rdg><rdg type="corr" hand="firsthand"><seg type="line" subtype="above" n="@P66C1L-025"><w>εν</w></seg></rdg></app><w>ταις</w><w>οδοις</w><w>αυτω<ex rend="̅">ν</ex></w><pc>·</pc>
+<lb n="P66C1L-025"/></ab><ab n="Rom.3.17"><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w>και</w><w>οδον</w><w>ειρηνης</w><w>ουκ</w><w>εγνωσαν</w><pc>·</pc></ab><ab n="Rom.3.18"><w>ου
+<lb n="P66C1L-025" break="no"/>κ</w><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w>εστιν</w><w>φοβος</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><w>απεναντι</w><w>των</w>
+<lb n="P66C1L-025"/><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w>οφθαλμων</w><w>αυτων</w><pc>˙</pc>
+<lb n="P66C1L-025" rend="hang" break="no"/></ab><ab n="Rom.3.19"><w><hi rend="cap" height="2">ο</hi>ιδαμεν</w><w>δε</w><w>οτι</w><w>οσα</w><w>ο</w><w>νομος</w><w>λεγει</w><pc>·</pc><w>τοις</w>
+<lb n="P66C1L-025"/><w>εν</w><w>τω</w><w>νομω</w><w>λαλει</w><pc>·</pc><w>ινα</w><w>παν</w><w>στομα</w>
+<lb n="P66C1L-025"/><w>φραγη</w><pc>·</pc><w>και</w><w>υποδικος</w><w>γενηται</w><w>πας</w>
+<lb n="P66C1L-025"/><w>ο</w><w>κοσμος</w><w>τω</w><w><abbr type="nomSac"><hi rend="overline">θω</hi></abbr></w><pc>˙</pc></ab><ab n="Rom.3.20"><w>διοτι</w><w>εξ</w><w>εργων</w><w>νο
+<lb n="P66C1L-025" break="no"/>μου</w><w>ου</w><w>δικαιωθησεται</w><w>πασα</w><w>σαρξ</w>
+<lb n="P66C1L-025"/><w>ενωπιων</w><w>αυτου</w><pc>·</pc><w>δια</w><w>γαρ</w><w>νομου</w><w>ε
+<lb n="P66C1L-025" break="no"/>πιγνωσις</w><w>αμαρτιας</w><pc>˙</pc></ab><ab n="Rom.3.21"><w>νυνι</w><w>δε</w><w>χω
+<lb n="P66C1L-025" break="no"/>ρις</w><w>νομου</w><pc>·</pc><w>δικαιοσυνη</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><w>πεφα
+<lb n="P66C1L-025" break="no"/>νεροται</w><pc>·</pc><w>μαρτυρουμενη</w><w>υπο</w>
+<lb n="P66C1L-025"/><w>του</w><w>νομου</w><w>και</w><w>των</w><w>προφητων</w><pc>˙</pc>
+<lb n="P66C1L-025"/></ab><ab n="Rom.3.22"><w>δικαιοσυνη</w><w>δε</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><w>δια</w><w>πιστεως</w><w><abbr type="nomSac"><hi rend="overline">ιυ</hi></abbr></w>
+<lb n="P66C1L-025"/><w><abbr type="nomSac"><hi rend="overline">χυ</hi></abbr></w><pc>·</pc><w>εις</w><w>παντας</w><w>τους</w><w>πιστευοντας</w><pc>˙</pc>
+<lb n="P66C1L-025"/><w>ου</w><w>γαρ</w><w>εστιν</w><w>διαστολη</w><pc>˙</pc></ab><ab n="Rom.3.23"><w>παντες</w>
+<lb n="P66C1L-025"/><w>γαρ</w><w>ημαρτον</w><w>και</w><w>υστερουνται</w>
+<lb n="P66C1L-025"/><w>της</w><w>δοξης</w><w>του</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><pc>·</pc></ab><ab n="Rom.3.24"><w>δικαιουμε
+<lb n="P66C1L-025" break="no"/>νοι</w><w>δωρεαν</w><w>τη</w><w>αυτου</w><w>χαριτι</w><pc>·</pc><w>δια</w>
+<lb n="P66C1L-025"/><w>της</w><w>απολυτρωσεως</w><w>της</w><w>εν</w><w><abbr type="nomSac"><hi rend="overline">χω</hi></abbr></w><w><abbr type="nomSac"><hi rend="overline">ιυ</hi></abbr></w><pc>˙</pc>
+<lb n="P66C1L-025"/></ab><ab n="Rom.3.25"><w>ον</w><w>προεθετο</w><w>ο</w><w><abbr type="nomSac"><hi rend="overline">θς</hi></abbr></w><w>ιλαστηριον</w><w>δια</w>
+<pb n="67" type="page" xml:id="P67-025"/>
+<cb n="P67C1-025"/>
+<lb n="P67C1L-025"/><w>της</w><w>πιστεως</w><w>εν</w><w>τω</w><w>αυτου</w><w>αιματι</w><pc>˙</pc>
+<lb n="P67C1L-025"/><w>εις</w><w>ενδειξιν</w><w>της</w><w>δικαιοσυνης</w><w>αυ
+<lb n="P67C1L-025" break="no"/>του</w><pc>·</pc><w>δια</w><w>την</w><w>παρεσιν</w><w>των</w><w>προγε
+<lb n="P67C1L-025" break="no"/>γονοτων</w><w>αμαρτηματων</w></ab><ab n="Rom.3.26"><w>εν</w><w>τη</w>
+<lb n="P67C1L-025"/><w>ανοχη</w><w>του</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><pc>·</pc><w>προς</w><w>την</w><w>ενδειξιν</w>
+<lb n="P67C1L-025"/><w>της</w><w>δικαιοσυνης</w><w>αυτου</w><pc>·</pc><w>εν</w><w>τω</w>
+<lb n="P67C1L-025"/><w>νυν</w><w>καιρω</w><pc>·</pc><w>εις</w><w>το</w><w>ειναι</w><w>αυτον</w><w>δι
+<lb n="P67C1L-025" break="no"/>καιον</w><pc>·</pc><w>και</w><w>δικαιουντα</w><w>τον</w><w>εκ</w><w>πι
+<lb n="P67C1L-025" break="no"/>στεως</w><w><abbr type="nomSac"><hi rend="overline">ιυ</hi></abbr></w><pc>˙</pc></ab><ab n="Rom.3.27"><w>που</w><w>ουν</w><pc>,</pc><w>η</w><w>καυχησις</w><pc>·</pc>
+<lb n="P67C1L-025"/><w>εξεκλεισθη</w><pc>·</pc><w>δια</w><w>ποιου</w><w>νομου</w><pc>·</pc><w>τω<ex rend="̅">ν</ex></w>
+<lb n="P67C1L-025"/><w>εργων</w><pc>·</pc><w>ουχι</w><pc>·</pc><w>αλλα</w><w>δια</w><w>νομου</w><w>πιστεως</w><pc>˙</pc>
+<lb n="P67C1L-025" rend="hang"/></ab><ab n="Rom.3.28"><w><hi rend="cap" height="2">λ</hi>ογιζωμεθα</w><w>ουν</w><w>πιστει</w><w>δικαιου
+<lb n="P67C1L-025" break="no"/>σθαι</w><w><abbr type="nomSac"><hi rend="overline">ανον</hi></abbr></w><pc>.</pc><w>χωρις</w><w>εργων</w><w>νομου</w><pc>˙</pc></ab><ab n="Rom.3.29"><w>η</w>
+<lb n="P67C1L-025"/><w>ιουδαιων</w><w>ο</w><w><abbr type="nomSac"><hi rend="overline">θς</hi></abbr></w><w>μονον</w><pc>˙</pc><w>ουχι</w><w>δε</w><w>και</w>
+<lb n="P67C1L-025"/><w>εθνων</w><pc>;</pc><w>ναι</w><w>και</w><w>εθνων</w><pc>˙</pc></ab><ab n="Rom.3.30"><w>επειπερ</w><pc>˙</pc>
+<lb n="P67C1L-025"/><w>εις</w><w>ο</w><w><abbr type="nomSac"><hi rend="overline">θς</hi></abbr></w><pc>,</pc><w>ος</w><pc>,</pc><w>δικαιωσει</w><w>περιτομην</w>
+<lb n="P67C1L-025"/><w>εκ</w><w>πιστεως</w><pc>·</pc><w>και</w><w>ακροβυστιαν</w><w>δι
+<lb n="P67C1L-025" break="no"/>α</w><w>της</w><w>πιστεως</w><pc>˙</pc></ab><ab n="Rom.3.31"><w>νομον</w><w>ουν</w><w>καταρ
+<lb n="P67C1L-025" break="no"/>γουμεν</w><w>δια</w><w>της</w><w>πιστεως</w><pc>;</pc><w>μη</w><w>γε
+<lb n="P67C1L-025" break="no"/>νοιτο</w><pc>·</pc><w>αλλα</w><w>νομον</w><w>ιστωμεν</w><pc>·</pc>
+<lb n="P67C1L-025" rend="hang"/></ab></div><div type="chapter" n="Rom.4"><ab n="Rom.4.1"><w><hi rend="cap" height="2">τ</hi>ι</w><w>ουν</w><w>ερουμεν</w><pc>·</pc><w>αβρααμ</w><w>τον</w><w><abbr type="nomSac"><hi rend="overline">πρα</hi></abbr></w>
+<lb n="P67C1L-025"/><w>ημων</w><w>ευρηκεναι</w><w>κατα</w><w>σαρκα</w><pc>˙</pc></ab><ab n="Rom.4.2"><w>ει</w><w>γαρ</w>
+<lb n="P67C1L-025"/><w>αβρααμ</w><w>εξ</w><w>εργων</w><w>εδικαιωθη</w><pc>·</pc><w>ε
+<lb n="P67C1L-025" break="no"/>χει</w><w>καυχημα</w><w>αλλ</w><w>ου</w><w>προς</w><w><abbr type="nomSac"><hi rend="overline">θν</hi></abbr></w><pc>˙</pc>
+<pb n="68" type="page" xml:id="P68-025"/>
+<cb n="P68C1-025"/>
+<lb n="P68C1L-025"/></ab><ab n="Rom.4.3"><w>τι</w><w>γαρ</w><w>η</w><w>γραφη</w><w>λεγει</w><pc>˙</pc><w>επιστευσεν</w>
+<lb n="P68C1L-025"/><w>δε</w><w>αβρααμ</w><w>τω</w><w><abbr type="nomSac"><hi rend="overline">θω</hi></abbr></w><pc>˙</pc><w>και</w><w>ελογισθη</w>
+<lb n="P68C1L-025"/><w>αυτω</w><w>εις</w><w>δικαιωσυνην</w><pc>·</pc>
+<lb n="P68C1L-025" rend="hang"/></ab><ab n="Rom.4.4"><w><hi rend="cap" height="2">τ</hi>ω</w><w>δε</w><w>εργαζομενω</w><w>ο</w><w>μισθος</w><w>ου</w><w>λογι
+<lb n="P68C1L-025" break="no"/>ζεται</w><w>κατα</w><w>χαριν</w><pc>·</pc><w>αλλα</w><w>κατα</w><w>οφει
+<lb n="P68C1L-025" break="no"/>λημα</w><pc>˙</pc></ab><ab n="Rom.4.5"><w>τω</w><w>δε</w><w>μη</w><w>εργαζομενω</w><pc>·</pc><w>πι
+<lb n="P68C1L-025" break="no"/>στευοντι</w><w>δε</w><w>επι</w><w>τον</w><w>δικαιουντα</w>
+<lb n="P68C1L-025"/><w>τον</w><w>ασεβη</w><pc>.</pc><w>λογιζεται</w><w>η</w><w>πιστις</w><w>αυ
+<lb n="P68C1L-025" break="no"/>του</w><w>εις</w><w>δικαιοσυνην</w><pc>˙</pc></ab><ab n="Rom.4.6"><w>καθαπερ</w>
+<lb n="P68C1L-025"/><w>και</w><w><abbr type="nomSac"><hi rend="overline">δαδ</hi></abbr></w><w>λεγει</w><w>τον</w><w>μακαρισμον</w>
+<lb n="P68C1L-025"/><w>του</w><w><abbr type="nomSac"><hi rend="overline">ανου</hi></abbr></w><pc>·</pc><w>ω</w><pc>,</pc><w>ο</w><w><abbr type="nomSac"><hi rend="overline">θς</hi></abbr></w><w>λογιζεται</w><w>δικ<ex>αι</ex>
+<lb n="P68C1L-025" break="no"/>οσυνην</w><w>χωρις</w><w>εργων</w><pc>˙</pc></ab><ab n="Rom.4.7"><w>μακαριοι</w>
+<lb n="P68C1L-025"/><w>ων</w><pc>,</pc><w>αφεθησαν</w><w>αι</w><w>ανομιαι</w><pc>·</pc><w>και</w><w>ων</w>
+<lb n="P68C1L-025"/><w>επεκαλυφθησαν</w><w>αι</w><w>αμαρτιαι</w><pc>˙</pc></ab><ab n="Rom.4.8"><w>μα
+<lb n="P68C1L-025" break="no"/>καριος</w><w>ανηρ</w><w>ω</w><pc>,</pc><w>ου</w><w>μη</w><w>λογισεται</w><w><abbr type="nomSac"><hi rend="overline">κς</hi></abbr></w>
+<lb n="P68C1L-025"/><w>αμαρτιαν</w><pc>˙</pc></ab><ab n="Rom.4.9"><w>ο</w><w>μακαρισμος</w><w>ουν</w><w>ου
+<lb n="P68C1L-025" break="no"/>τος</w><pc>.</pc><w>επι</w><w>την</w><w>περιτομην</w><pc>·</pc><w>η</w><w>και</w><w>ε
+<lb n="P68C1L-025" break="no"/>πι</w><w>την</w><w>ακροβυστιαν</w><pc>˙</pc><w>λεγομεν</w>
+<lb n="P68C1L-025"/><w>γαρ</w><w>οτι</w><w>ελογισθη</w><w>τω</w><w>αβρααμ</w><pc>,</pc><w>η</w><w>πι
+<lb n="P68C1L-025" break="no"/>στις</w><w>εις</w><w>δικαιοσυνην</w><pc>·</pc></ab><ab n="Rom.4.10"><w>πως</w><w>ουν</w><w>ελο
+<lb n="P68C1L-025" break="no"/>γισθη</w><pc>·</pc><w>εν</w><w>περιτομη</w><w>οντι</w><pc>.</pc><w>η</w><w>εν</w><w>α
+<lb n="P68C1L-025" break="no"/>κροβυστια</w><pc>˙</pc><w>ουκ</w><w>εν</w><w>περιτομη</w><w>αλ
+<lb n="P68C1L-025" break="no"/>λ</w><w>εν</w><w>ακροβυστια</w><pc>˙</pc></ab><ab n="Rom.4.11"><w>και</w><w>σημειον</w><w>ε
+<lb n="P68C1L-025" break="no"/>λαβεν</w><w>περιτομης</w><pc>·</pc><w>σφραγιδα</w><w>της</w>
+<pb n="69" type="page" xml:id="P69-025"/>
+<cb n="P69C1-025"/>
+<lb n="P69C1L-025"/><w>δικαιοσυνης</w><w>της</w><w>πιστεως</w><pc>·</pc><w>της</w><w>εν</w>
+<lb n="P69C1L-025"/><w>τη</w><w>ακροβυστια</w><pc>·</pc><w>εις</w><w>το</w><w>ειναι</w><w>αυτον</w>
+<lb n="P69C1L-025"/><w><abbr type="nomSac"><hi rend="overline">πρα</hi></abbr></w><w>παντων</w><pc>.</pc><w>των</w><w>πιστευοντω<ex rend="̅">ν</ex></w>
+<lb n="P69C1L-025"/><w>δι</w><w>ακροβυστιας</w><pc>·</pc><w>εις</w><w>το</w><w>λογισθηναι</w>
+<lb n="P69C1L-025"/><w>και</w><w>αυτοις</w><w>την</w><w>δικαιοσυνην</w><pc>˙</pc>
+<lb n="P69C1L-025"/></ab><ab n="Rom.4.12"><w>και</w><w><abbr type="nomSac"><hi rend="overline">πρα</hi></abbr></w><w>περιτομης</w><pc>.</pc><w>τοις</w><w>ουκ</w><w>εκ</w><w>πε
+<lb n="P69C1L-025" break="no"/>ριτομης</w><w>μονον</w><pc>,</pc><w>αλλα</w><w>και</w><w>τοις</w><w>στυ
+<lb n="P69C1L-025" break="no"/>χουσιν</w><w>τοις</w><w>ιχνεσιν</w><w>της</w><w>πιστεως</w><pc>·</pc>
+<lb n="P69C1L-025"/><w>τοις</w><w>εν</w><w>τη</w><w>ακροβυστια</w><w>του</w><w><abbr type="nomSac"><hi rend="overline">πρς</hi></abbr></w><w>η
+<lb n="P69C1L-025" break="no"/>μων</w><w>αβρααμ</w><pc>˙</pc></ab><ab n="Rom.4.13"><w>ου</w><w>γαρ</w><w>δια</w><w>νομου</w>
+<lb n="P69C1L-025"/><w>η</w><w>επαγγελια</w><w>τω</w><w>αβρααμ</w><w>η</w><w>τω</w><w>σπερ
+<lb n="P69C1L-025" break="no"/>ματι</w><w>αυτου</w><pc>.</pc><w>το</w><w>κληρονομον</w><w>αυ
+<lb n="P69C1L-025" break="no"/>τον</w><w>ειναι</w><w>του</w><w>κοσμου</w><pc>·</pc><w>αλλα</w><w>δια</w>
+<lb n="P69C1L-025"/><w>δικαιοσυνης</w><w>πιστεως</w><pc>˙</pc></ab><ab n="Rom.4.14"><w>ει</w><w>γαρ</w><w>οι</w><w>εκ</w>
+<lb n="P69C1L-025"/><w>νομου</w><w>κληρονομοι</w><pc>·</pc><w>κεκενωται</w>
+<lb n="P69C1L-025"/><w>η</w><w>πιστις</w><pc>·</pc><w>και</w><w>κατηργηται</w><w>η</w><w>επαγ
+<lb n="P69C1L-025" break="no"/>γελια</w><pc>˙</pc></ab><ab n="Rom.4.15"><w>ο</w><w>γαρ</w><w>νομος</w><pc>.</pc><w>οργην</w><w>κατεργα
+<lb n="P69C1L-025" break="no"/>ζεται</w><pc>˙</pc><w>ου</w><w>γαρ</w><w>ουκ</w><w>εστιν</w><w>νομος</w><pc>.</pc><w>ου
+<lb n="P69C1L-025" break="no"/>δε</w><w>παραβασις</w><pc>˙</pc></ab><ab n="Rom.4.16"><w>δια</w><w>τουτο</w><w>εκ</w><w>πιστε
+<lb n="P69C1L-025" break="no"/>ως</w><pc>.</pc><w>ινα</w><w>κατα</w><w>χαριν</w><pc>·</pc><w>εις</w><w>το</w><w>ειναι</w><w>βε
+<lb n="P69C1L-025" break="no"/>βαιαν</w><w>την</w><w>επαγγελιαν</w><w>παντι</w>
+<lb n="P69C1L-025"/><w>τω</w><w>σπερματι</w><pc>·</pc><w>ου</w><w>τω</w><w>εκ</w><w>του</w><w>νομ<ex>ου</ex></w>
+<lb n="P69C1L-025"/><w>μονον</w><pc>·</pc><w>αλλα</w><w>και</w><w>τω</w><w>εκ</w><w>πιστεως</w>
+<lb n="P69C1L-025"/><w>αβρααμ</w><pc>˙</pc><w>ος</w><pc>,</pc><w>εστιν</w><w><abbr type="nomSac"><hi rend="overline">πηρ</hi></abbr></w><w>παντων</w>
+<pb n="70" type="page" xml:id="P70-025"/>
+<cb n="P70C1-025"/>
+<lb n="P70C1L-025"/><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><seg type="margin" subtype="pageleft"><w>γενεσεως</w></seg><w>ημων</w></ab><ab n="Rom.4.17"><w>καθως</w><w>γεγραπται</w><pc>˙</pc><w>οτι</w>
+<lb n="P70C1L-025"/><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w><abbr type="nomSac"><hi rend="overline">πρα</hi></abbr></w><w>πολλων</w><w>εθνων</w><w>τεθεικα</w><w>σε</w><pc>˙</pc>
+<lb n="P70C1L-025"/><w>κατεναντι</w><w>ου</w><w>επιστευσεν</w><pc>·</pc><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w>
+<lb n="P70C1L-025"/><w>του</w><w>ζωοποιουντος</w><w>τους</w><w>νεκρους</w><pc>,</pc>
+<lb n="P70C1L-025"/><w>και</w><w>καλουντος</w><w>τα</w><w>μη</w><w>οντα</w><w>ως</w>
+<lb n="P70C1L-025"/><w>οντα</w><pc>˙</pc></ab><ab n="Rom.4.18"><w>ος</w><pc>,</pc><w>παρ</w><w>ελπιδα</w><w>επ</w><w>ελπιδι</w><w>ε
+<lb n="P70C1L-025" break="no"/>πιστευσεν</w><pc>·</pc><w>εις</w><w>το</w><w>γενεσθαι</w><w>αυτον</w>
+<lb n="P70C1L-025"/><w><abbr type="nomSac"><hi rend="overline">πρα</hi></abbr></w><w>πολλων</w><w>εθνων</w><pc>˙</pc><w>κατα</w><w>το</w><w>ει
+<lb n="P70C1L-025" break="no"/>ρημενον</w><pc>·</pc><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><seg type="margin" subtype="pageleft"><w>γενεσεως</w></seg><w>ουτως</w><w>εσται</w><w>το</w><w>σπερ
+<lb n="P70C1L-025" break="no"/>μα</w><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w>σου</w><pc>˙</pc></ab><ab n="Rom.4.19"><w>και</w><w>μη</w><w>ασθενησας</w><w>τη</w><w>πι
+<lb n="P70C1L-025" break="no"/>στει</w><pc>.</pc><w>ου</w><w>κατενοησεν</w><w>το</w><w>εαυτου</w><w>σω
+<lb n="P70C1L-025" break="no"/>μα</w><w>ηδην</w><w>νενεκρωμενον</w><pc>·</pc><w>εκα
+<lb n="P70C1L-025" break="no"/>τονταετης</w><w>που</w><w>υπαρχων</w><pc>·</pc><w>και</w>
+<lb n="P70C1L-025"/><w>την</w><w>νεκρωσιν</w><w>της</w><w>μητρας</w><w>σαρ
+<lb n="P70C1L-025" break="no"/>ρας</w><pc>˙</pc></ab><ab n="Rom.4.20"><w>εις</w><w>δε</w><w>την</w><w>επαγγελιαν</w><w>του</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w>
+<lb n="P70C1L-025"/><w>ου</w><w>διεκριθη</w><w>τη</w><w>απιστεια</w><pc>˙</pc><w>αλλ</w><w>ε
+<lb n="P70C1L-025" break="no"/>νεδυναμωθη</w><w>τη</w><w>πιστει</w><w>δους</w>
+<lb n="P70C1L-025"/><w>δοξαν</w><w>τω</w><w><abbr type="nomSac"><hi rend="overline">θω</hi></abbr></w></ab><ab n="Rom.4.21"><w>και</w><w>πλιρωφορη
+<lb n="P70C1L-025" break="no"/>θεις</w><pc>·</pc><w>οτι</w><w>ο</w><pc>,</pc><w>επηγγελται</w><w>δυνατος</w>
+<lb n="P70C1L-025"/><w>εστιν</w><w>και</w><w>ποιησαι</w><pc>˙</pc></ab><ab n="Rom.4.22"><w>διο</w><w>και</w><w>ελογι
+<lb n="P70C1L-025" break="no"/>σθη</w><w>αυτω</w><w>εις</w><w>δικαιοσυνην</w><pc>˙</pc>
+<lb n="P70C1L-025" rend="hang"/></ab><ab n="Rom.4.23"><w><hi rend="cap" height="2">ο</hi>υκ</w><w>εγραφη</w><w>δε</w><w>δι</w><w>αυτον</w><w>μονον</w><pc>·</pc>
+<lb n="P70C1L-025"/><w>οτι</w><w>ελογισθη</w><w>αυτω</w><pc>·</pc></ab><ab n="Rom.4.24"><w>αλλα</w><w>και</w><w>δι</w>
+<lb n="P70C1L-025"/><w>ημας</w><pc>·</pc><w>οις</w><pc>,</pc><w>μελλη</w><w>λογιζεσθαι</w><w>τοις</w>
+<pb n="71" type="page" xml:id="P71-025"/>
+<cb n="P71C1-025"/>
+<lb n="P71C1L-025"/><w>πιστευουσιν</w><w>επι</w><w>τον</w><w>εγειραντα</w>
+<lb n="P71C1L-025"/><w><abbr type="nomSac"><hi rend="overline">ιν</hi></abbr></w><w>τον</w><w><abbr type="nomSac"><hi rend="overline">κν</hi></abbr></w><w>ημων</w><w>εκ</w><w>νεκρων</w><pc>·</pc></ab><ab n="Rom.4.25"><w>ος</w><pc>,</pc>
+<lb n="P71C1L-025"/><w>παρεδοθη</w><w>δια</w><w>τα</w><w>παραπτωμα
+<lb n="P71C1L-025" break="no"/>τα</w><w>ημων</w><pc>·</pc><w>και</w><w>ηγερθη</w><w>δια</w><w>την</w>
+<lb n="P71C1L-025"/><w>δικαιωσιν</w><w>ημων</w><pc>˙</pc>
+<lb n="P71C1L-025" rend="hang"/></ab></div><div type="chapter" n="Rom.5"><ab n="Rom.5.1"><w><hi rend="cap" height="2">δ</hi>ικαιωθεντες</w><w>ουν</w><w>εκ</w><w>πιστεως</w><pc>.</pc><w>ει
+<lb n="P71C1L-025" break="no"/>ρηνην</w><w>εχομεν</w><w>προς</w><w>τον</w><w><abbr type="nomSac"><hi rend="overline">θν</hi></abbr></w><pc>·</pc><w>δια</w>
+<lb n="P71C1L-025"/><w>του</w><w><abbr type="nomSac"><hi rend="overline">κυ</hi></abbr></w><w>ημων</w><w><abbr type="nomSac"><hi rend="overline">ιυ</hi></abbr></w><w><abbr type="nomSac"><hi rend="overline">χυ</hi></abbr></w><pc>·</pc></ab><ab n="Rom.5.2"><w>δι</w><w>ου</w><pc>,</pc><w>και</w><w>τη<ex rend="̅">ν</ex></w>
+<lb n="P71C1L-025"/><w>προσαγωγην</w><w>εσχηκαμεν</w><w>τη</w><w>πι
+<lb n="P71C1L-025" break="no"/>στει</w><pc>·</pc><w>εις</w><w>την</w><w>χαριν</w><w>ταυτην</w><pc>·</pc><w>εν</w><w>η</w><pc>,</pc>
+<lb n="P71C1L-025"/><w>εστηκαμεν</w><w>και</w><w>καυχωμεθα</w><pc>·</pc><w>επ</w>
+<lb n="P71C1L-025"/><w>ελπιδι</w><w>της</w><w>δοξης</w><w>του</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><pc>·</pc></ab><ab n="Rom.5.3"><w>ου</w><w>μο
+<lb n="P71C1L-025" break="no"/>νον</w><w>δε</w><w>αλλα</w><w>και</w><w>καυχωμεθα</w><w>εν</w>
+<lb n="P71C1L-025"/><w>ταις</w><w>θλιψεσιν</w><pc>·</pc><w>ειδοτες</w><w>οτι</w><w>η</w><w>θλι
+<lb n="P71C1L-025" break="no"/>ψις</w><pc>·</pc><w>υπομονην</w><w>κατεργαζεται</w><pc>˙</pc>
+<lb n="P71C1L-025"/></ab><ab n="Rom.5.4"><w>η</w><w>δε</w><w>υπομονη</w><pc>·</pc><w>δοκιμην</w><pc>·</pc><w>η</w><w>δε</w><w>δο
+<lb n="P71C1L-025" break="no"/>κιμη</w><pc>,</pc><w>ελπιδα</w><pc>·</pc></ab><ab n="Rom.5.5"><w>η</w><w>δε</w><w>ελπις</w><pc>.</pc><w>ου</w><w>καται
+<lb n="P71C1L-025" break="no"/>σχυνει</w><pc>˙</pc><w>οτι</w><w>η</w><w>αγαπη</w><w>του</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w>
+<lb n="P71C1L-025" rend="hang"/><w><hi rend="cap" height="2">ε</hi>κκεχυται</w><w>εν</w><w>ταις</w><w>καρδιαις</w><w>ημω<ex rend="̅">ν</ex></w><pc>·</pc>
+<lb n="P71C1L-025"/><w>δια</w><w><abbr type="nomSac"><hi rend="overline">πνς</hi></abbr></w><w>αγιου</w><w>του</w><w>δοθεντος</w><w>ημι<ex rend="̅">ν</ex></w><pc>·</pc>
+<lb n="P71C1L-025"/></ab><ab n="Rom.5.6"><w>ετι</w><w>γαρ</w><w><abbr type="nomSac"><hi rend="overline">χς</hi></abbr></w><pc>.</pc><w>οντων</w><w>ημων</w><w>ασθενω<ex rend="̅">ν</ex></w><pc>·</pc>
+<lb n="P71C1L-025"/><w>κατα</w><w>καιρον</w><w>υπερ</w><w>ασεβων</w><w>απεθα
+<lb n="P71C1L-025" break="no"/>νεν</w><pc>˙</pc></ab><ab n="Rom.5.7"><w>μολις</w><w>γαρ</w><w>υπερ</w><w>δικαιου</w><w>τις</w><w>α
+<lb n="P71C1L-025" break="no"/>ποθανειται</w><pc>˙</pc><w>υπερ</w><w>γαρ</w><w>του</w><w>αγαθου</w>
+<pb n="72" type="page" xml:id="P72-025"/>
+<cb n="P72C1-025"/>
+<lb n="P72C1L-025"/><w>ταχα</w><pc>.</pc><w>τις</w><w>και</w><w>τολμα</w><w>αποθανειν</w><pc>˙</pc>
+<lb n="P72C1L-025"/></ab><ab n="Rom.5.8"><w>συνιστησι</w><w>δε</w><w>την</w><w>εαυτου</w><w>αγαπην</w>
+<lb n="P72C1L-025"/><w>εις</w><w>ημας</w><w>ο</w><w><abbr type="nomSac"><hi rend="overline">θς</hi></abbr></w><pc>.</pc><w>οτι</w><w>ετι</w><w>αμαρτωλων</w>
+<lb n="P72C1L-025"/><w>οντων</w><w>ημων</w><pc>·</pc><w><abbr type="nomSac"><hi rend="overline">χς</hi></abbr></w><w>υπερ</w><w>ημων</w><w>απε
+<lb n="P72C1L-025" break="no"/>θανεν</w><pc>˙</pc></ab><ab n="Rom.5.9"><w>πολλω</w><w>ουν</w><w>μαλλον</w><pc>·</pc><w>δικαι
+<lb n="P72C1L-025" break="no"/>ωθεντες</w><w>νυν</w><pc>·</pc><w>εν</w><w>τω</w><w>αιματι</w><w>αυ
+<lb n="P72C1L-025" break="no"/>του</w><pc>.</pc><w>σωθησομεθα</w><w>δι</w><w>αυτου</w><w>απο</w><w>της</w>
+<lb n="P72C1L-025"/><w>οργης</w><pc>˙</pc></ab><ab n="Rom.5.10"><w>ει</w><w>γαρ</w><w>εχθροι</w><w>οντες</w><w>κατηλ
+<lb n="P72C1L-025" rend="hang" break="no"/><hi rend="cap" height="2">λ</hi>αγημεν</w><w>τω</w><w><abbr type="nomSac"><hi rend="overline">θω</hi></abbr></w><w>δια</w><w>του</w><w>θανατ<ex>ου</ex></w>
+<lb n="P72C1L-025"/><w>του</w><w><abbr type="nomSac"><hi rend="overline">υυ</hi></abbr></w><w>αυτου</w><pc>·</pc><w>πολλω</w><w>μαλλον</w><w>κα
+<lb n="P72C1L-025" break="no"/>ταλλαγεντες</w><pc>.</pc><w>σωθησομεθα</w><w>εν</w><w>τη</w>
+<lb n="P72C1L-025"/><w>ζωη</w><w>αυτου</w><pc>˙</pc></ab><ab n="Rom.5.11"><w>ου</w><w>μονον</w><w>δε</w><pc>.</pc><w>αλ
+<lb n="P72C1L-025" break="no"/>λα</w><w>και</w><w>καυχωμενοι</w><w>εν</w><w>τω</w><w><abbr type="nomSac"><hi rend="overline">θω</hi></abbr></w><w>δια</w>
+<lb n="P72C1L-025"/><w>του</w><w><abbr type="nomSac"><hi rend="overline">κυ</hi></abbr></w><w>ημων</w><w><abbr type="nomSac"><hi rend="overline">ιυ</hi></abbr></w><w><abbr type="nomSac"><hi rend="overline">χυ</hi></abbr></w><pc>·</pc><w>δι</w><w>ου</w><pc>,</pc><w>νυν</w><w>τη<ex rend="̅">ν</ex></w>
+<lb n="P72C1L-025"/><w>καταλλαγην</w><w>ελαβομεν</w><pc>˙</pc></ab><ab n="Rom.5.12"><w>δια</w><w>του
+<lb n="P72C1L-025" break="no"/>το</w><pc>.</pc><w>ωσπερ</w><w>δι</w><w>ενος</w><w><abbr type="nomSac"><hi rend="overline">ανου</hi></abbr></w><w>η</w><w>αμαρτια</w><w>εις</w>
+<lb n="P72C1L-025"/><w>τον</w><w>κοσμον</w><w>εισηλθεν</w><pc>·</pc><w>και</w><w>δια</w><w>της</w>
+<lb n="P72C1L-025"/><w>αμαρτιας</w><w>ο</w><w>θανατος</w><pc>·</pc><w>και</w><w>ουτως</w>
+<lb n="P72C1L-025"/><w>εις</w><w>παντας</w><w><abbr type="nomSac"><hi rend="overline">ανους</hi></abbr></w><w>ο</w><w>θανατος</w><w>διηλ
+<lb n="P72C1L-025" break="no"/>θεν</w><pc>·</pc><w>εφ</w><w>ω</w><pc>,</pc><w>παντες</w><w>ημαρτον</w><pc>˙</pc></ab><ab n="Rom.5.13"><w>αχρι</w>
+<lb n="P72C1L-025"/><w>γαρ</w><w>νομου</w><pc>.</pc><w>αμαρτια</w><w>ην</w><w>εν</w><w>κοσμω</w><pc>˙</pc>
+<lb n="P72C1L-025"/><w>αμαρτια</w><w>δε</w><w>ουκ</w><w>ελλογειται</w><w>μη</w><w>ον
+<lb n="P72C1L-025" break="no"/>τος</w><w>νομου</w><pc>˙</pc></ab><ab n="Rom.5.14"><w>αλλ</w><w>εβασιλευσεν</w><w>ο</w><w>θανα
+<lb n="P72C1L-025" break="no"/>τος</w><w>απο</w><w>αδαμ</w><w>μεχρι</w><w>μωσεως</w><pc>.</pc><w>κ<ex rend="ϗ">αι</ex></w><w>επι</w>
+<pb n="73" type="page" xml:id="P73-025"/>
+<cb n="P73C1-025"/>
+<lb n="P73C1L-025"/><w>τους</w><w>μη</w><w>αμαρτησαντας</w><pc>.</pc><w>επι</w><w>τω</w><w>ο
+<lb n="P73C1L-025" break="no"/>μοιωματι</w><w>της</w><w>παραβασεως</w><w>αδαμ</w>
+<lb n="P73C1L-025"/><w>ος</w><pc>,</pc><w>εστιν</w><w>τυπος</w><w>του</w><w>μελλοντος</w><pc>˙</pc></ab><ab n="Rom.5.15"><w>αλ
+<lb n="P73C1L-025" break="no"/>λ</w><w>ουχ</w><w>ως</w><w>το</w><w>παραπτωμα</w><w>ουτως</w><w>κ<ex rend="ϗ">αι</ex></w>
+<lb n="P73C1L-025"/><w>το</w><w>χαρισμα</w><pc>˙</pc><w>ει</w><w>γαρ</w><w>τω</w><w>του</w><w>ενος</w><w>παρα
+<lb n="P73C1L-025" break="no"/>πτωματι</w><w>οι</w><w>πολλοι</w><w>απεθανον</w><pc>·</pc>
+<lb n="P73C1L-025"/><w>πολλω</w><w>μαλλον</w><w>η</w><w>χαρις</w><w>του</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><pc>·</pc><w>κ<ex rend="ϗ">αι</ex></w>
+<lb n="P73C1L-025"/><w>η</w><w>δωρεα</w><w>εν</w><w>χαριτι</w><w>τη</w><w>του</w><w>ενος</w><w>αν
+<lb n="P73C1L-025" break="no"/>θρωπου</w><w><abbr type="nomSac"><hi rend="overline">ιυ</hi></abbr></w><w><abbr type="nomSac"><hi rend="overline">χυ</hi></abbr></w><w>εις</w><w>τους</w><w>πολλους</w><w>επε
+<lb n="P73C1L-025" break="no"/>ρισσευσεν</w><pc>˙</pc></ab><ab n="Rom.5.16"><w>και</w><w>ουχ</w><w>ως</w><w>δι</w><w>ενος</w><w>αμαρτη
+<lb n="P73C1L-025" break="no"/>σαντος</w><w>το</w><w>δωρημα</w><pc>·</pc><w>το</w><w>μεν</w><w>γαρ</w><w>κρι
+<lb n="P73C1L-025" break="no"/>μα</w><w>εξ</w><w>ενος</w><w>εις</w><w>κατακριμα</w><pc>·</pc><w>το</w><w>δε</w><w>χα
+<lb n="P73C1L-025" break="no"/>ρισμα</w><w>εκ</w><w>πολλων</w><w>παραπτωματω<ex rend="̅">ν</ex></w>
+<lb n="P73C1L-025"/><w>εις</w><w>δικαιωμα</w><pc>˙</pc></ab><ab n="Rom.5.17"><w>ει</w><w>γαρ</w><w>τω</w><w>του</w><w>ενος</w><w>πα
+<lb n="P73C1L-025" break="no"/>ραπτωματι</w><w>ο</w><w>θανατος</w><w>εβασιλευσε<ex rend="̅">ν</ex></w>
+<lb n="P73C1L-025"/><w>δια</w><w>του</w><w>ενος</w><pc>·</pc><w>πολλω</w><w>μαλλον</w><w>οι</w><w>την</w>
+<lb n="P73C1L-025"/><w>περισσιαν</w><w>της</w><w>χαριτος</w><w>και</w><w>της</w><w>δω
+<lb n="P73C1L-025" break="no"/>ρεας</w><w>της</w><w>δικαιοσυνης</w><w>λαμβανον
+<lb n="P73C1L-025" break="no"/>τες</w><pc>·</pc><w>εν</w><w>ζωη</w><w>βασιλευουσιν</w><w>δια</w><w>του</w><w>ε
+<lb n="P73C1L-025" break="no"/>νος</w><w><abbr type="nomSac"><hi rend="overline">ιυ</hi></abbr></w><w><abbr type="nomSac"><hi rend="overline">χυ</hi></abbr></w><pc>˙</pc></ab><ab n="Rom.5.18"><w>αρα</w><w>ουν</w><w>ως</w><w>δι</w><w>ενος</w><w>παραπτω
+<lb n="P73C1L-025" break="no"/>ματος</w><pc>·</pc><w>εις</w><w>παντας</w><w><abbr type="nomSac"><hi rend="overline">ανους</hi></abbr></w><w>εις</w><w>κατα
+<lb n="P73C1L-025" break="no"/>κριμα</w><pc>·</pc><w>ουτως</w><w>και</w><w>δι</w><w>ενος</w><w>δικαιω
+<lb n="P73C1L-025" break="no"/>ματος</w><pc>·</pc><w>εις</w><w>παντας</w><w><abbr type="nomSac"><hi rend="overline">ανους</hi></abbr></w><w>εις</w><w>δικαιω
+<lb n="P73C1L-025" break="no"/>σιν</w><w>ζωης</w><pc>˙</pc></ab><ab n="Rom.5.19"><w>ωσπερ</w><w>γαρ</w><w>δια</w><w>της</w><w>παρα
+<pb n="74" type="page" xml:id="P74-025" break="no"/>
+<cb n="P74C1-025"/>
+<lb n="P74C1L-025"/>κοης</w><w>του</w><w>ενος</w><w><abbr type="nomSac"><hi rend="overline">ανου</hi></abbr></w><pc>·</pc><w>αμαρτωλοι</w>
+<lb n="P74C1L-025"/><w>κατεσταθησαν</w><w>οι</w><w>πολλοι</w><pc>·</pc><w>ουτως</w>
+<lb n="P74C1L-025"/><w>και</w><w>δια</w><w>της</w><w>υπακοης</w><w>του</w><w>ενος</w><pc>.</pc><w>δι
+<lb n="P74C1L-025" break="no"/>καιοι</w><w>κατασταθησονται</w><w>οι</w><w>πολλοι</w><pc>˙</pc>
+<lb n="P74C1L-025"/></ab><ab n="Rom.5.20"><w>νομος</w><w>δε</w><w>παρεισηλθεν</w><pc>·</pc><w>ινα</w><w>πλεονα
+<lb n="P74C1L-025" break="no"/>ση</w><w>το</w><w>παραπτωμα</w><pc>˙</pc><w>ου</w><w>δε</w><w>επλεονα
+<lb n="P74C1L-025" break="no"/>σεν</w><w>η</w><w>αμαρτια</w><pc>·</pc><w>υπερεπερισσευσεν</w><w>η</w>
+<lb n="P74C1L-025"/><w>χαρις</w><pc>˙</pc></ab><ab n="Rom.5.21"><w>ινα</w><w>ωσπερ</w><w>εβασιλευσεν</w><w>η</w><w>α
+<lb n="P74C1L-025" rend="hang" break="no"/><hi rend="cap" height="2">μ</hi>αρτια</w><w>εν</w><w>τω</w><w>θανατω</w><pc>·</pc><w>ουτως</w><w>κ<ex rend="ϗ">αι</ex></w>
+<lb n="P74C1L-025"/><w>η</w><w>χαρις</w><w>βασιλευση</w><w>δια</w><w>δικαιοσυνης</w>
+<lb n="P74C1L-025"/><w>εις</w><w>ζωην</w><w>αιωνιον</w><pc>·</pc><w>δια</w><w><abbr type="nomSac"><hi rend="overline">ιυ</hi></abbr></w><w><abbr type="nomSac"><hi rend="overline">χυ</hi></abbr></w><w>του</w><w><abbr type="nomSac"><hi rend="overline">κυ</hi></abbr></w>
+<lb n="P74C1L-025"/><w>ημων</w><pc>˙</pc></ab></div><div type="chapter" n="Rom.6"><ab n="Rom.6.1"><w>τι</w><w>ουν</w><w>ερουμεν</w><pc>·</pc><w>επιμενο
+<lb n="P74C1L-025" break="no"/>μεν</w><w>τη</w><w>αμαρτια</w><w>ινα</w><w>η</w><w>χαρις</w><w>πλεο
+<lb n="P74C1L-025" break="no"/>ναση</w><pc>·</pc></ab><ab n="Rom.6.2"><w>μη</w><w>γενοιτο</w><pc>˙</pc><w>οιτινες</w><w>απεθα
+<lb n="P74C1L-025" break="no"/>νομεν</w><w>τη</w><w>αμαρτια</w><pc>·</pc><w>πως</w><w>ετι</w><w>ζησο
+<lb n="P74C1L-025" break="no"/>μεν</w><w>εν</w><w>αυτη</w><pc>˙</pc></ab><ab n="Rom.6.3"><w>η</w><w>αγνοειτε</w><pc>·</pc><w>οτι</w>
+<lb n="P74C1L-025" rend="hang"/><w><hi rend="cap" height="2">ο</hi>σοι</w><w>εβαπτισθημεν</w><w>εις</w><w><abbr type="nomSac"><hi rend="overline">χν</hi></abbr></w><w><abbr type="nomSac"><hi rend="overline">ιν</hi></abbr></w><pc>·</pc><w>εις</w><w>τον</w>
+<lb n="P74C1L-025"/><w>θανατον</w><w>αυτου</w><w>εβαπτισθημεν</w><pc>˙</pc>
+<lb n="P74C1L-025"/></ab><ab n="Rom.6.4"><w>συνεταφημεν</w><w>ουν</w><w>αυτω</w><w>δια</w><w>του</w>
+<lb n="P74C1L-025"/><w>βαπτισματος</w><w>εις</w><w>τον</w><w>θανατον</w><pc>·</pc><w>ι
+<lb n="P74C1L-025" break="no"/>να</w><w>ωσπερ</w><w>εγερθη</w><w><abbr type="nomSac"><hi rend="overline">χς</hi></abbr></w><w>εκ</w><w>νεκρων</w><pc>·</pc><w>δια</w>
+<lb n="P74C1L-025"/><w>της</w><w>δοξης</w><w>του</w><w><abbr type="nomSac"><hi rend="overline">πρς</hi></abbr></w><pc>·</pc><w>ουτως</w><w>και</w><w>ημεις</w>
+<lb n="P74C1L-025"/><w>εν</w><w>καινοτητι</w><w>ζωης</w><w>περιπατησω
+<lb n="P74C1L-025" break="no"/>μεν</w><pc>˙</pc></ab><ab n="Rom.6.5"><w>ει</w><w>γαρ</w><w>συμφυτοι</w><w>γεγοναμεν</w>
+<pb n="75" type="page" xml:id="P75-025"/>
+<cb n="P75C1-025"/>
+<lb n="P75C1L-025"/><w>τω</w><w>ομοιωματι</w><w>του</w><w>θανατου</w><w>αυ
+<lb n="P75C1L-025" break="no"/>του</w><pc>·</pc><w>αλλα</w><w>και</w><w>της</w><w>αναστασεως</w><w>εσο
+<lb n="P75C1L-025" break="no"/>μεθα</w><pc>·</pc></ab><ab n="Rom.6.6"><w>τουτο</w><w>γινωσκοντες</w><pc>·</pc><w>οτι</w><w>ο</w>
+<lb n="P75C1L-025"/><w>παλαιος</w><w>ημων</w><w><abbr type="nomSac"><hi rend="overline">ανος</hi></abbr></w><w>συνεσταυρω
+<lb n="P75C1L-025" break="no"/>θη</w><pc>·</pc><w>ινα</w><w>καταργηθη</w><w>το</w><w>σωμα</w><w>της</w>
+<lb n="P75C1L-025"/><w>αμαρτιας</w><pc>·</pc><w>του</w><w>μηκετι</w><w>δουλευειν</w>
+<lb n="P75C1L-025"/><w>ημας</w><w>τη</w><w>αμαρτια</w><pc>˙</pc></ab><ab n="Rom.6.7"><w>ο</w><w>γαρ</w><w>αποθανω<ex rend="̅">ν</ex></w>
+<lb n="P75C1L-025"/><w>δεδικαιωται</w><w>απο</w><w>της</w><w>αμαρτιας</w><pc>˙</pc>
+<lb n="P75C1L-025"/></ab><ab n="Rom.6.8"><w>ει</w><w>δε</w><w>απεθανομεν</w><w>συν</w><w><abbr type="nomSac"><hi rend="overline">χω</hi></abbr></w><pc>·</pc><w>πιστευ
+<lb n="P75C1L-025" break="no"/>ομεν</w><w>οτι</w><w>και</w><w>συζησωμεν</w><w>αυτω</w><pc>˙</pc></ab><ab n="Rom.6.9"><w>ει
+<lb n="P75C1L-025" break="no"/>δοτες</w><pc>.</pc><w>οτι</w><w><abbr type="nomSac"><hi rend="overline">χς</hi></abbr></w><w>εγερθεις</w><w>εκ</w><w>νεκρων</w><pc>·</pc><w>ου
+<lb n="P75C1L-025" break="no"/>κετι</w><w>αποθνησκει</w><pc>˙</pc><w>θανατος</w><w>αυτου</w>
+<lb n="P75C1L-025"/><w>ουκετι</w><w>κυριευει</w><pc>˙</pc></ab><ab n="Rom.6.10"><w>ο</w><pc>,</pc><w>γαρ</w><w>απεθανεν</w>
+<lb n="P75C1L-025"/><w>τη</w><w>αμαρτια</w><pc>·</pc><w>απεθανεν</w><w>εφαπαξ</w><pc>˙</pc>
+<lb n="P75C1L-025"/><w>ο</w><pc>,</pc><w>δε</w><w>ζη</w><pc>·</pc><w>ζη</w><w>τω</w><w><abbr type="nomSac"><hi rend="overline">θω</hi></abbr></w><pc>˙</pc></ab><ab n="Rom.6.11"><w>ουτως</w><w>και</w><w>υ
+<lb n="P75C1L-025" break="no"/>μεις</w><w>λογιζεσθε</w><w>εαυτους</w><pc>·</pc><w>νεκρους</w><w>με<ex rend="̅">ν</ex></w>
+<lb n="P75C1L-025"/><w>ειναι</w><w>τη</w><w>αμαρτια</w><pc>·</pc><w>ζωντας</w><w>δε</w><w>τω</w>
+<lb n="P75C1L-025"/><w><abbr type="nomSac"><hi rend="overline">θω</hi></abbr></w><pc>.</pc><w>εν</w><w><abbr type="nomSac"><hi rend="overline">χω</hi></abbr></w><w><abbr type="nomSac"><hi rend="overline">ιυ</hi></abbr></w><w>τω</w><w><abbr type="nomSac"><hi rend="overline">κω</hi></abbr></w><w>ημων</w><pc>˙</pc></ab><ab n="Rom.6.12"><w>μη</w>
+<lb n="P75C1L-025"/><w>ουν</w><w>βασιλευετω</w><w>η</w><w>αμαρτια</w><w>εν</w><w>τω</w>
+<lb n="P75C1L-025"/><w>θνητω</w><w>υμων</w><w>σωματι</w><pc>·</pc><w>εις</w><w>το</w><w>υπα
+<lb n="P75C1L-025" break="no"/>κουειν</w><w>αυτη</w><w>εν</w><w>ταις</w><w>επιθυμιαις</w><w>αυ
+<lb n="P75C1L-025" break="no"/>του</w><pc>˙</pc></ab><ab n="Rom.6.13"><w>μηδε</w><w>παριστανετε</w><w>τα</w><w>μελη</w><w>υ
+<lb n="P75C1L-025" break="no"/>μων</w><pc>·</pc><w>οπλα</w><w>αδικιας</w><w>τη</w><w>αμαρτια</w><pc>˙</pc><w>αλ
+<lb n="P75C1L-025" break="no"/>λα</w><w>παραστησατε</w><w>εαυτους</w><w>τω</w><w><abbr type="nomSac"><hi rend="overline">θω</hi></abbr></w><pc>·</pc><w>ως</w>
+<pb n="76" type="page" xml:id="P76-025"/>
+<cb n="P76C1-025"/>
+<lb n="P76C1L-025"/><w>εκ</w><w>νεκρων</w><w>ζωντας</w><pc>·</pc><w>και</w><w>τα</w><w>μελη</w>
+<lb n="P76C1L-025"/><w>υμων</w><w>οπλα</w><w>δικαιοσυνης</w><w>τω</w><w><abbr type="nomSac"><hi rend="overline">θω</hi></abbr></w><pc>˙</pc>
+<lb n="P76C1L-025"/></ab><ab n="Rom.6.14"><w>αμαρτια</w><w>γαρ</w><w>υμων</w><w>ου</w><w>κυριευσει</w><pc>·</pc>
+<lb n="P76C1L-025"/><w>ου</w><w>γαρ</w><w>εστε</w><w>υπο</w><w>νομον</w><pc>·</pc><w>αλλ</w><w>υπο</w><w>χα
+<lb n="P76C1L-025" break="no"/>ριν</w><pc>˙</pc></ab><ab n="Rom.6.15"><w>τι</w><w>ουν</w><w>αμαρτησωμεν</w><w>οτι</w>
+<lb n="P76C1L-025" rend="hang"/><w><hi rend="cap" height="2">ο</hi>υκ</w><w>εσμεν</w><w>υπο</w><w>νομον</w><w>αλλ</w><w>υπο</w><w>χαρι<ex rend="̅">ν</ex></w><pc>·</pc>
+<lb n="P76C1L-025"/><w>μη</w><w>γενοιτο</w><pc>˙</pc></ab><ab n="Rom.6.16"><w>ουκ</w><w>υδατε</w><pc>,</pc><w>οτι</w><w>ω</w><pc>,</pc><w>πα
+<lb n="P76C1L-025" break="no"/>ριστανετε</w><w>εαυτους</w><w>δουλους</w><w>εις</w><w>υπα
+<lb n="P76C1L-025" break="no"/>κοην</w><pc>·</pc><w>δουλοι</w><w>εστε</w><w>ω</w><pc>,</pc><w>υπακουετε</w><pc>˙</pc><w>η
+<lb n="P76C1L-025" break="no"/>τοι</w><w>αμαρτιας</w><w>εις</w><w>θανατον</w><pc>·</pc><w>η</w><w>υπακο
+<lb n="P76C1L-025" break="no"/>ης</w><w>εις</w><w>δικαιοσυνην</w><pc>˙</pc></ab><ab n="Rom.6.17"><w>χαρις</w><w>δε</w><w>τω</w>
+<lb n="P76C1L-025" rend="hang"/><w><abbr type="nomSac"><hi rend="overline"><hi rend="cap" height="2">θ</hi>ω</hi></abbr></w><pc>·</pc><w>οτι</w><w>ηται</w><w>δουλοι</w><w>της</w><w>αμαρτιας</w><pc>·</pc>
+<lb n="P76C1L-025"/><w>υπηκουσατε</w><w>δε</w><w>εκ</w><w>καρδιας</w><pc>.</pc><w>εις</w><w>ον</w><pc>,</pc>
+<lb n="P76C1L-025"/><w>παρεδοθηται</w><w>τυπον</w><w>διδαχης</w><pc>·</pc>
+<lb n="P76C1L-025" rend="hang"/></ab><ab n="Rom.6.18"><w><hi rend="cap" height="2">ε</hi>λευθερωθεντες</w><w>δε</w><w>απο</w><w>της</w><w>αμαρ
+<lb n="P76C1L-025" break="no"/>τιας</w><pc>.</pc><w>εδουλωθηται</w><w>τη</w><w>δικαιοσυ
+<lb n="P76C1L-025" break="no"/>νη</w><pc>˙</pc></ab><ab n="Rom.6.19"><w>ανθρωπινον</w><w>λεγω</w><w>δια</w><w>την</w><w>α
+<lb n="P76C1L-025" break="no"/>σθενιαν</w><w>της</w><w>σαρκος</w><w>υμων</w><pc>˙</pc><w>ωσπερ</w>
+<lb n="P76C1L-025"/><w>γαρ</w><w>παρεστησατε</w><w>τα</w><w>μελη</w><w>υμων</w>
+<lb n="P76C1L-025"/><w>δουλα</w><w>τη</w><w>ακαθαρσια</w><pc>·</pc><w>και</w><w>τη</w><w>ανο
+<lb n="P76C1L-025" break="no"/>μια</w><w>εις</w><w>την</w><w>ανομιαν</w><pc>·</pc><w>ουτως</w><w>νυν</w>
+<lb n="P76C1L-025"/><w>παραστησατε</w><w>τα</w><w>μελη</w><w>υμων</w><w>δ<unclear>ο</unclear>υ
+<lb n="P76C1L-025" break="no"/>λα</w><w>τη</w><w>δικαιοσυνη</w><w>εις</w><w>αγιασμον</w><pc>˙</pc>
+<lb n="P76C1L-025" rend="hang"/></ab><ab n="Rom.6.20"><w><hi rend="cap" height="2">ο</hi>τε</w><w>γαρ</w><w>δουλοι</w><w>ηται</w><w>της</w><w>αμαρτιας</w><pc>·</pc><w>ε
+<pb n="77" type="page" xml:id="P77-025" break="no"/>
+<cb n="P77C1-025"/>
+<lb n="P77C1L-025"/>λευθεροι</w><w>ητε</w><w>τη</w><w>δικαιοσυνη</w><pc>·</pc></ab><ab n="Rom.6.21"><w>τι
+<lb n="P77C1L-025" break="no"/>να</w><w>ουν</w><w>καρπον</w><w>ειχετε</w><w>τοτε</w><pc>·</pc><w>εφ</w><w>οις</w>
+<lb n="P77C1L-025"/><w>νυν</w><w>επεσχυνεσθε</w><pc>˙</pc><w>το</w><w>γαρ</w><w>τελος</w><w>εκει
+<lb n="P77C1L-025" break="no"/>νων</w><w>θανατος</w><pc>˙</pc></ab><ab n="Rom.6.22"><w>νυνι</w><w>δε</w><w>ελευθερω
+<lb n="P77C1L-025" break="no"/>θεντες</w><w>απο</w><w>της</w><w>αμαρτιας</w><pc>.</pc><w>δουλω
+<lb n="P77C1L-025" break="no"/>θεντες</w><w>δε</w><w>τω</w><w><abbr type="nomSac"><hi rend="overline">θω</hi></abbr></w><pc>·</pc><w>εχετε</w><w>τον</w><w>καρ
+<lb n="P77C1L-025" break="no"/>πον</w><w>υμων</w><w>εις</w><w>αγιασμον</w><pc>˙</pc><w>το</w><w>δε</w><w>τελος</w>
+<lb n="P77C1L-025"/><w>ζωην</w><w>αιωνιον</w><pc>·</pc></ab><ab n="Rom.6.23"><w>εν</w><w><abbr type="nomSac"><hi rend="overline">χω</hi></abbr></w><w><abbr type="nomSac"><hi rend="overline">ιυ</hi></abbr></w><w>τω</w><w><abbr type="nomSac"><hi rend="overline">κω</hi></abbr></w><w>ημω<ex rend="̅">ν</ex></w><pc>·</pc>
+<lb n="P77C1L-025" rend="hang"/></ab></div><div type="chapter" n="Rom.7"><ab n="Rom.7.1"><w><hi rend="cap" height="2">ε</hi>ι</w><w>αγνοειτε</w><w>αδελφοι</w><pc>·</pc><w>γινωσκουσι</w><w>γαρ</w>
+<lb n="P77C1L-025"/><w>νομον</w><w>λαλω</w><pc>˙</pc><w>οτι</w><w>ο</w><w>νομος</w><w>κυριευει</w>
+<lb n="P77C1L-025"/><w>του</w><w><abbr type="nomSac"><hi rend="overline">ανου</hi></abbr></w><pc>·</pc><w>εφ</w><w>οσον</w><w>χρονον</w><w>ζη</w><pc>˙</pc></ab><ab n="Rom.7.2"><w>η</w><w>γαρ</w>
+<lb n="P77C1L-025"/><w>υπανδρος</w><w>γυνη</w><w>τω</w><w>ζωντι</w><w>ανδρι</w>
+<lb n="P77C1L-025"/><w>δεδεται</w><w>νομω</w><pc>˙</pc><w>εαν</w><w>δε</w><w>αποθανη</w>
+<lb n="P77C1L-025"/><w>ο</w><w>ανηρ</w><w>κατηργηται</w><w>απο</w><w>του</w><w>νομου</w>
+<lb n="P77C1L-025"/><w>του</w><w>ανδρος</w><pc>˙</pc></ab><ab n="Rom.7.3"><w>αρα</w><w>ουν</w><w>ζωντος</w><w>του</w>
+<lb n="P77C1L-025"/><w>ανδρος</w><pc>.</pc><w>μοιχαλις</w><w>χριματισει</w><w>εαν</w><w>γε
+<lb n="P77C1L-025" break="no"/>νηται</w><w>ανδρι</w><w>ετερω</w><pc>˙</pc><w>εαν</w><w>δε</w><w>αποθα
+<lb n="P77C1L-025" break="no"/>νη</w><w>ο</w><w>ανηρ</w><pc>,</pc><w>ελευθερα</w><w>εστιν</w><w>απο</w><w>του</w>
+<lb n="P77C1L-025"/><w>νομου</w><pc>·</pc><w>του</w><w>μη</w><w>ειναι</w><w>αυτην</w><w>μοιχα
+<lb n="P77C1L-025" break="no"/>λιδα</w><w>γενομενην</w><w>ανδι</w><w>ετερω</w><pc>˙</pc></ab><ab n="Rom.7.4"><w>ωσ
+<lb n="P77C1L-025" break="no"/>τε</w><w>αδελφοι</w><w>μου</w><pc>·</pc><w>και</w><w>υμεις</w><pc>·</pc><w>εθανα
+<lb n="P77C1L-025" break="no"/>τωθηται</w><w>τω</w><w>νομω</w><w>δια</w><w>του</w><w>σωμα
+<lb n="P77C1L-025" break="no"/>τος</w><w>του</w><w><abbr type="nomSac"><hi rend="overline">χυ</hi></abbr></w><pc>·</pc><w>εις</w><w>το</w><w>γενεσθαι</w><w>υμας</w><w>ετε
+<lb n="P77C1L-025" break="no"/>ρω</w><pc>·</pc><w>τω</w><w>εκ</w><w>νεκρων</w><w>εγερθεντι</w><pc>·</pc><w>ινα</w>
+<pb n="78" type="page" xml:id="P78-025"/>
+<cb n="P78C1-025"/>
+<lb n="P78C1L-025"/><w>καρποφορησομεν</w><w>τω</w><w><abbr type="nomSac"><hi rend="overline">θω</hi></abbr></w><pc>˙</pc></ab><ab n="Rom.7.5"><w>οτε</w><w>γαρ</w>
+<lb n="P78C1L-025"/><w>ημεν</w><w>εν</w><w>τη</w><w>σαρκι</w><pc>.</pc><w>τα</w><w>παθηματα</w>
+<lb n="P78C1L-025"/><w>των</w><w>αμαρτιων</w><pc>·</pc><w>τα</w><w>δια</w><w>του</w><w>νομ<ex>ου</ex></w>
+<lb n="P78C1L-025"/><w>ενηργειτο</w><pc>·</pc><w>εν</w><w>τοις</w><w>μελεσιν</w><w>ημων</w><pc>·</pc>
+<lb n="P78C1L-025"/><w>εις</w><w>το</w><w>καρποφορησαι</w><w>τω</w><w>θανατω</w><pc>˙</pc>
+<lb n="P78C1L-025" rend="hang"/></ab><ab n="Rom.7.6"><w><hi rend="cap" height="2">ν</hi>υνι</w><w>δε</w><w>κατηργηθημεν</w><w>απο</w><w>του</w>
+<lb n="P78C1L-025"/><w>νομου</w><w>αποθανοντες</w><pc>·</pc><w>εν</w><w>ω</w><w>κατει
+<lb n="P78C1L-025" break="no"/>χομεθα</w><pc>˙</pc><w>ωστε</w><w>δουλευειν</w><w>ημας</w><pc>,</pc><w>εν</w>
+<lb n="P78C1L-025"/><w>καινοτητι</w><w><abbr type="nomSac"><hi rend="overline">πνς</hi></abbr></w><pc>.</pc><w>και</w><w>ου</w><w>παλαιοτη
+<lb n="P78C1L-025" break="no"/>τι</w><w>γραμματος</w><pc>˙</pc></ab><ab n="Rom.7.7"><w>τι</w><w>ουν</w><w>ερουμεν</w><pc>˙</pc><w>ο</w>
+<lb n="P78C1L-025"/><w>νομος</w><w>αμαρτια</w><pc>;</pc><w>μη</w><w>γενοιτο</w><pc>·</pc><w>αλλα</w>
+<lb n="P78C1L-025"/><w>την</w><w>αμαρτιαν</w><w>ουκ</w><w>εγνων</w><pc>·</pc><w>ει</w><w>μη</w>
+<lb n="P78C1L-025"/><w>δια</w><w>νομου</w><pc>˙</pc><w>την</w><w>τε</w><w>γαρ</w><w>επιθυμια</w>
+<lb n="P78C1L-025"/><w>ουκ</w><w>ηδειν</w><pc>·</pc><w>ει</w><w>μη</w><w>ο</w><w>νομος</w><w>ελεγεν</w><w>ου
+<lb n="P78C1L-025" break="no"/>κ</w><w>επιθυμησης</w><pc>˙</pc></ab><ab n="Rom.7.8"><w>αφορμην</w><w>δε</w><w>λαβου
+<lb n="P78C1L-025" break="no"/>σα</w><w>η</w><w>αμαρτια</w><w>δια</w><w>της</w><w>εντολης</w><pc>.</pc><w>κα
+<lb n="P78C1L-025" break="no"/>τηργασατο</w><w>εν</w><w>εμοι</w><w>πασαν</w><w>επιθυμι
+<lb n="P78C1L-025" break="no"/>αν</w><pc>˙</pc><w>χωρις</w><w>γαρ</w><w>νομου</w><w>αμαρτια</w><w>νε
+<lb n="P78C1L-025" break="no"/>κρα</w><pc>˙</pc></ab><ab n="Rom.7.9"><w>εγω</w><w>δε</w><w>εζων</w><w>χωρις</w><w>νομου</w><w>πο
+<lb n="P78C1L-025" break="no"/>τε</w><pc>·</pc><w>ελθουσης</w><w>δε</w><w>της</w><w>εντολης</w><pc>,</pc><w>η</w><w>α
+<lb n="P78C1L-025" break="no"/>μαρτια</w><w>ανεζησεν</w><pc>·</pc></ab><ab n="Rom.7.10"><w>εγω</w><w>δε</w><w>απεθα
+<lb n="P78C1L-025" break="no"/>νον</w><pc>˙</pc><w>και</w><w>ευρεθη</w><w>μοι</w><w>η</w><w>εντολη</w><w>η</w><w>εις</w>
+<lb n="P78C1L-025"/><w>ζωην</w><pc>.</pc><w>αυτη</w><w>εις</w><w>θανατον</w><pc>˙</pc></ab><ab n="Rom.7.11"><w>η</w><w>γαρ</w><w>α
+<lb n="P78C1L-025" break="no"/>μαρτια</w><w>αφορμην</w><w>λαβουσα</w><w>δια</w><w>της</w>
+<pb n="79" type="page" xml:id="P79-025"/>
+<cb n="P79C1-025"/>
+<lb n="P79C1L-025"/><w><supplied source="na28" reason="illegible">εντολης</supplied></w><w>εξηπατησεν</w><w>με</w><pc>·</pc><w>και</w>
+<lb n="P79C1L-025"/><w>δι</w><w>αυτης</w><w>απεκτινεν</w><pc>˙</pc></ab><ab n="Rom.7.12"><w>ωστε</w><w>ο</w><w>μεν</w>
+<lb n="P79C1L-025"/><w>νομος</w><w>αγιος</w><pc>·</pc><w>και</w><w>η</w><w>εντολη</w><w>αγια</w><w>κ<ex rend="ϗ">αι</ex></w>
+<lb n="P79C1L-025"/><w>δικαια</w><w>και</w><w>αγαθη</w><pc>˙</pc></ab><ab n="Rom.7.13"><w>τι</w><w>ουν</w><pc>·</pc><w>το</w><w>α
+<lb n="P79C1L-025" break="no"/>γαθον</w><w>εμοι</w><w>εγενετο</w><w>θανατος</w><pc>·</pc><w>μη</w>
+<lb n="P79C1L-025"/><w>γενοιτο</w><pc>˙</pc><w>αλλ</w><w>η</w><w>αμαρτια</w><pc>·</pc><w>ινα</w><w>φα
+<lb n="P79C1L-025" break="no"/>νη</w><w>αμαρτια</w><pc>·</pc><w>δια</w><w>του</w><w>αγαθου</w><w>μοι</w>
+<lb n="P79C1L-025"/><w>κατεργαζομενη</w><w>θανατον</w><pc>˙</pc><w>ινα</w>
+<lb n="P79C1L-025"/><w>γενηται</w><w>καθ</w><w>υπερβολην</w><w>αμαρ
+<lb n="P79C1L-025" break="no"/>τωλος</w><pc>.</pc><w>η</w><w>αμαρτια</w><w>δια</w><w>της</w><w>εντολης</w><pc>˙</pc>
+<lb n="P79C1L-025" rend="hang"/></ab><ab n="Rom.7.14"><w><hi rend="cap" height="2">ο</hi>ιδαμεν</w><w>γαρ</w><w>οτι</w><w>ο</w><w>νομος</w><w><abbr type="nomSac"><hi rend="overline">πνικος</hi></abbr></w><w>εσ
+<lb n="P79C1L-025" break="no"/>τιν</w><pc>˙</pc><w>εγω</w><w>δε</w><w>σαρκικος</w><w>ειμι</w><pc>·</pc><w>πεπρα
+<lb n="P79C1L-025" break="no"/>μενος</w><w>υπο</w><w>την</w><w>αμαρτιαν</w><pc>˙</pc></ab><ab n="Rom.7.15"><w>ο</w><w>γαρ</w>
+<lb n="P79C1L-025"/><w>κατεργαζομαι</w><w>ου</w><w>γινωσκω</w><pc>˙</pc><w>ου</w>
+<lb n="P79C1L-025"/><w>γαρ</w><w>ο</w><pc>,</pc><w>θελω</w><pc>·</pc><w>τουτο</w><w>πρασσω</w><pc>·</pc><w>αλλ</w><w>ο</w><pc>,</pc><w>μι
+<lb n="P79C1L-025" break="no"/>σω</w><pc>·</pc><w>τουτο</w><w>ποιω</w><pc>˙</pc></ab><ab n="Rom.7.16"><w>ει</w><w>δε</w><w>ο</w><pc>,</pc><w>ου</w><w>θελω</w><w>του
+<lb n="P79C1L-025" break="no"/>το</w><w>ποιω</w><pc>·</pc><w>συμφημι</w><w>τω</w><w>νομω</w><w>οτι</w>
+<lb n="P79C1L-025"/><w>καλος</w><pc>˙</pc></ab><ab n="Rom.7.17"><w>νυνι</w><w>δε</w><w>ουκετι</w><w>εγω</w><w>κατερ
+<lb n="P79C1L-025" break="no"/>γαζομαι</w><w>αυτο</w><pc>·</pc><w>αλλ</w><w>η</w><w>οικουσα</w><w>εν</w><w>ε
+<lb n="P79C1L-025" break="no"/>μοι</w><w>αμαρτια</w><pc>˙</pc></ab><ab n="Rom.7.18"><w>οιδα</w><w>γαρ</w><w>οτι</w><w>ουκ</w><w>οι
+<lb n="P79C1L-025" break="no"/>κει</w><w>εν</w><w>εμοι</w><pc>.</pc><w>τουτ</w><w>εστιν</w><w>εν</w><w>τη</w><w>σαρ
+<lb n="P79C1L-025" break="no"/>κι</w><w>μου</w><w>αγαθον</w><pc>˙</pc><w>το</w><w>γαρ</w><w>θελειν</w><w>πα
+<lb n="P79C1L-025" break="no"/>ρακειται</w><w>μοι</w><pc>·</pc><w>το</w><w>δε</w><w>κατεργαζεσ
+<lb n="P79C1L-025" break="no"/>θαι</w><w>το</w><w>καλον</w><w>ουχ</w><w>ευρισκω</w><pc>˙</pc></ab><ab n="Rom.7.19"><w>ου</w><w>γαρ</w>
+<pb n="80" type="page" xml:id="P80-025"/>
+<cb n="P80C1-025"/>
+<lb n="P80C1L-025"/><w>ο</w><pc>,</pc><w>θελω</w><pc>·</pc><w>ποιω</w><w>αγαθον</w><pc>·</pc><w>αλλ</w><w>ο</w><pc>,</pc><w>ου</w><w>θε
+<lb n="P80C1L-025" break="no"/>λω</w><w>κακον</w><pc>·</pc><w>τουτο</w><w>πρασσω</w><pc>˙</pc></ab><ab n="Rom.7.20"><w>ει</w><w>δε</w><w>ο</w><w>ου</w>
+<lb n="P80C1L-025"/><w>θελω</w><w>εγω</w><w>τουτο</w><w>ποιω</w><pc>·</pc><w>ουκετι</w><w>εγω</w>
+<lb n="P80C1L-025"/><w>κατεργαζομαι</w><w>αυτο</w><pc>·</pc><w>αλλ</w><w>η</w><w>οικου
+<lb n="P80C1L-025" break="no"/>σα</w><w>εν</w><w>εμοι</w><w>αμαρτια</w><pc>˙</pc></ab><ab n="Rom.7.21"><w>ευρισκω</w><w>αρα</w>
+<lb n="P80C1L-025"/><w>τον</w><w>νομον</w><pc>·</pc><w>τω</w><w>θελοντι</w><w>εμοι</w><w>ποιει</w>
+<lb n="P80C1L-025"/><w>το</w><w>καλον</w><pc>·</pc><w>οτι</w><w>εμοι</w><w>το</w><w>κακον</w><w>πα
+<lb n="P80C1L-025" break="no"/>ρακειται</w><pc>˙</pc></ab><ab n="Rom.7.22"><w>συνηδομε</w><w>γαρ</w><w>τω</w><w>νο
+<lb n="P80C1L-025" break="no"/>μω</w><w>του</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><w>κατα</w><w>τον</w><w>εσω</w><w><abbr type="nomSac"><hi rend="overline">ανον</hi></abbr></w><pc>˙</pc>
+<lb n="P80C1L-025"/></ab><ab n="Rom.7.23"><w>βλεπω</w><w>δε</w><w>ετερον</w><w>νομον</w><w>εν</w><w>τοις</w>
+<lb n="P80C1L-025"/><w>μελεσιν</w><w>μου</w><w>αντιστρατευομενο<ex rend="̅">ν</ex></w>
+<lb n="P80C1L-025"/><w>τω</w><w>νομω</w><w>του</w><w>νοος</w><w>μου</w><pc>·</pc><w>και</w><w>αιχ
+<lb n="P80C1L-025" break="no"/>μαλοτιζοντα</w><w>με</w><w>εν</w><w>τω</w><w>νομω</w>
+<lb n="P80C1L-025"/><w>της</w><w>αμαρτιας</w><pc>.</pc><w>τω</w><w>οντι</w><w>εν</w><w>τοις</w>
+<lb n="P80C1L-025"/><w>μελεσιν</w><w>μου</w><pc>˙</pc></ab><ab n="Rom.7.24"><w>ταλαιπωρος</w><w>εγω</w>
+<lb n="P80C1L-025" rend="hang"/><w><abbr type="nomSac"><hi rend="overline"><hi rend="cap" height="2">α</hi>νος</hi></abbr></w><w>τις</w><w>με</w><w>ρυσεται</w><w>εκ</w><w>του</w><w>σωματος</w>
+<lb n="P80C1L-025"/><w>του</w><w>θανατου</w><w>τουτου</w><pc>˙</pc></ab><ab n="Rom.7.25"><w>ευχαρι
+<lb n="P80C1L-025" rend="hang" break="no"/><hi rend="cap" height="2">σ</hi>τω</w><w>τω</w><w><abbr type="nomSac"><hi rend="overline">θω</hi></abbr></w><pc>·</pc><w>δια</w><w><abbr type="nomSac"><hi rend="overline">ιυ</hi></abbr></w><w><abbr type="nomSac"><hi rend="overline">χυ</hi></abbr></w><w>του</w><w><abbr type="nomSac"><hi rend="overline">κυ</hi></abbr></w><w>ημω<ex rend="̅">ν</ex></w><pc>˙</pc>
+<lb n="P80C1L-025"/><w>αρα</w><w>ουν</w><w>αυτος</w><w>εγω</w><pc>.</pc><w>τω</w><w>μεν</w><w>νοι</w>
+<lb n="P80C1L-025"/><w>δουλευω</w><w>νομω</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><pc>·</pc><w>τω</w><w>δε</w><w>σαρκι</w>
+<lb n="P80C1L-025"/><w>νομω</w><w>αμαρτιας</w><pc>˙</pc></ab></div><div type="chapter" n="Rom.8"><ab n="Rom.8.1"><w>ουδεν</w><w>αρα</w><w>νυν</w>
+<lb n="P80C1L-025"/><w>κατακριμα</w><w>τοις</w><w>εν</w><w><abbr type="nomSac"><hi rend="overline">χω</hi></abbr></w><w><abbr type="nomSac"><hi rend="overline">ιυ</hi></abbr></w><pc>.</pc><w>μη</w><w>κα
+<lb n="P80C1L-025" break="no"/>τα</w><w>σαρκα</w><w>περιπατουσιν</w><w>αλλα</w><w>κατα</w>
+<lb n="P80C1L-025"/><w><abbr type="nomSac"><hi rend="overline">πνα</hi></abbr></w><pc>˙</pc></ab><ab n="Rom.8.2"><w>ο</w><w>γαρ</w><w>νομος</w><w>του</w><w><abbr type="nomSac"><hi rend="overline">πνς</hi></abbr></w><w>της</w><w>ζωης</w>
+<pb n="81" type="page" xml:id="P81-025"/>
+<cb n="P81C1-025"/>
+<lb n="P81C1L-025"/><w>εν</w><w><abbr type="nomSac"><hi rend="overline">χω</hi></abbr></w><w><abbr type="nomSac"><hi rend="overline">ιυ</hi></abbr></w><pc>.</pc><w>ηλευθερωσεν</w><w>με</w><w>απο</w><w>του</w>
+<lb n="P81C1L-025"/><w>νομου</w><w>της</w><w>αμαρτιας</w><w>και</w><w>του</w><w>θα
+<lb n="P81C1L-025" break="no"/>νατου</w><pc>˙</pc></ab><ab n="Rom.8.3"><w>το</w><w>γαρ</w><w>αδυνατον</w><w>του</w><w>νο
+<lb n="P81C1L-025" break="no"/>μου</w><pc>·</pc><w>εν</w><w>ω</w><w>ησθενει</w><w>δια</w><w>της</w><w>σαρκος</w><pc>·</pc>
+<lb n="P81C1L-025"/><w>ο</w><w><abbr type="nomSac"><hi rend="overline">θς</hi></abbr></w><w>τον</w><w>εαυτου</w><w><abbr type="nomSac"><hi rend="overline">υν</hi></abbr></w><w>πεμψας</w><pc>.</pc><w>εν</w><w>ο
+<lb n="P81C1L-025" break="no"/>μοιωματι</w><w>σαρκος</w><w>αμαρτιας</w><pc>·</pc><w>και</w>
+<lb n="P81C1L-025"/><w>περι</w><w>αμαρτιας</w><w>κατεκρινεν</w><w>την</w>
+<lb n="P81C1L-025"/><w>αμαρτιαν</w><w>εν</w><w>τη</w><w>σαρκι</w><pc>·</pc></ab><ab n="Rom.8.4"><w>ινα</w><w>το</w><w>δι
+<lb n="P81C1L-025" break="no"/>καιωμα</w><w>του</w><w>νομου</w><w>πληρωθη</w><w>εν</w>
+<lb n="P81C1L-025"/><w>ημιν</w><pc>·</pc><w>τοις</w><w>μη</w><w>κατα</w><w>σαρκα</w><w>περιπα
+<lb n="P81C1L-025" break="no"/>τουσιν</w><pc>·</pc><w>αλλα</w><w>κατα</w><w><abbr type="nomSac"><hi rend="overline">πνα</hi></abbr></w><pc>˙</pc></ab><ab n="Rom.8.5"><w>οι</w><w>γαρ</w><w>κα
+<lb n="P81C1L-025" break="no"/>τα</w><w>σαρκα</w><w>οντες</w><pc>·</pc><w>τα</w><w>της</w><w>σαρκος</w><w>φρο
+<lb n="P81C1L-025" break="no"/>νουσι</w><pc>˙</pc><w>οι</w><w>δε</w><w>κατα</w><w><abbr type="nomSac"><hi rend="overline">πνα</hi></abbr></w><pc>.</pc><w>τα</w><w>του</w><w><abbr type="nomSac"><hi rend="overline">πνς</hi></abbr></w><pc>˙</pc>
+<lb n="P81C1L-025"/></ab><ab n="Rom.8.6"><w>το</w><w>γαρ</w><w>φρονημα</w><w>της</w><w>σαρκος</w><pc>.</pc><w>θανα
+<lb n="P81C1L-025" break="no"/>τος</w><pc>˙</pc><w>το</w><w>δε</w><w>φρονημα</w><w>του</w><w><abbr type="nomSac"><hi rend="overline">πνς</hi></abbr></w><w>ζωη</w>
+<lb n="P81C1L-025"/><w>και</w><w>ειρηνη</w><pc>˙</pc></ab><ab n="Rom.8.7"><w>διοτι</w><w>το</w><w>φρονημα</w><w>της</w>
+<lb n="P81C1L-025"/><w>σαρκος</w><pc>.</pc><w>εχθρα</w><w>εις</w><w><abbr type="nomSac"><hi rend="overline">θν</hi></abbr></w><pc>˙</pc><w>τω</w><w>γαρ</w><w>νομω</w>
+<lb n="P81C1L-025"/><w>του</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><w>ουχ</w><w>υποτασσεται</w><pc>˙</pc><w>ουδε</w><w>γαρ</w>
+<lb n="P81C1L-025"/><w>δυναται</w><pc>˙</pc></ab><ab n="Rom.8.8"><w>οι</w><w>δε</w><w>εν</w><w>σαρκι</w><w>οντες</w><w><abbr type="nomSac"><hi rend="overline">θω</hi></abbr></w>
+<lb n="P81C1L-025"/><w>αρεσαι</w><w>ου</w><w>δυνανται</w><pc>˙</pc></ab><ab n="Rom.8.9"><w>υμεις</w><w>δε</w><w>ουκ</w><w>ε
+<lb n="P81C1L-025" break="no"/>σται</w><w>εν</w><w>σαρκι</w><pc>·</pc><w>αλλ</w><w>εν</w><w><abbr type="nomSac"><hi rend="overline">πνι</hi></abbr></w><pc>·</pc><w>ειπερ</w><w><abbr type="nomSac"><hi rend="overline">πνα</hi></abbr></w>
+<lb n="P81C1L-025"/><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><w>οικει</w><w>εν</w><w>υμιν</w><pc>˙</pc><w>ει</w><w>δε</w><w>τις</w><w><abbr type="nomSac"><hi rend="overline">πνα</hi></abbr></w><w><abbr type="nomSac"><hi rend="overline">χυ</hi></abbr></w>
+<lb n="P81C1L-025"/><w>ουκ</w><w>εχει</w><pc>·</pc><w>ουτος</w><w>ουκ</w><w>εστιν</w><w>αυτου</w><pc>˙</pc>
+<lb n="P81C1L-025"/></ab><ab n="Rom.8.10"><w>ει</w><w>δε</w><w><abbr type="nomSac"><hi rend="overline">χς</hi></abbr></w><w>εν</w><w>υμιν</w><pc>·</pc><w>το</w><w>μεν</w><w>σωμα</w><w>νε
+<pb n="82" type="page" xml:id="P82-025" break="no"/>
+<cb n="P82C1-025"/>
+<lb n="P82C1L-025"/>κρον</w><w>δια</w><w>αμαρτιαν</w><pc>˙</pc><w>το</w><w>δε</w><w><abbr type="nomSac"><hi rend="overline">πνα</hi></abbr></w><w>ζω
+<lb n="P82C1L-025" break="no"/>η</w><w>δια</w><w>δικαιοσυνην</w><pc>˙</pc></ab><ab n="Rom.8.11"><w>ει</w><w>δε</w><w>το</w>
+<lb n="P82C1L-025" rend="hang"/><w><abbr type="nomSac"><hi rend="overline"><hi rend="cap" height="2">π</hi>να</hi></abbr></w><w>του</w><w>εγειραντος</w><w><abbr type="nomSac"><hi rend="overline">ιν</hi></abbr></w><w>εκ</w><w>νεκρων</w>
+<lb n="P82C1L-025"/><w>οικει</w><w>εν</w><w>υμιν</w><pc>˙</pc><w>ο</w><w>εγειρας</w><w>τον</w><w><abbr type="nomSac"><hi rend="overline">χν</hi></abbr></w><w>εκ</w>
+<lb n="P82C1L-025"/><w>νεκρων</w><pc>·</pc><w>ζωοποιησει</w><w>και</w><w>τα</w><w>θνη
+<lb n="P82C1L-025" break="no"/>τα</w><w>σωματα</w><w>υμων</w><pc>·</pc><w>δια</w><w>το</w><w>ενοι
+<lb n="P82C1L-025" break="no"/>κουν</w><w>αυτου</w><w><abbr type="nomSac"><hi rend="overline">πνα</hi></abbr></w><w>εν</w><w>υμιν</w><pc>˙</pc></ab><ab n="Rom.8.12"><w>αρα</w><w>ου<ex rend="̅">ν</ex></w>
+<lb n="P82C1L-025"/><w>αδελφοι</w><pc>·</pc><w>οφιλεται</w><w>εσμεν</w><pc>·</pc><w>ου</w><w>τη</w>
+<lb n="P82C1L-025"/><w>σαρκι</w><w>του</w><w>κατα</w><w>σαρκα</w><w>ζην</w><pc>˙</pc></ab><ab n="Rom.8.13"><w>ει</w><w>γαρ</w>
+<lb n="P82C1L-025"/><w>κατα</w><w>σαρκα</w><w>ζηται</w><pc>·</pc><w>μελλεται</w><w>απο
+<lb n="P82C1L-025" break="no"/>θνησκειν</w><pc>˙</pc><w>ει</w><w>δε</w><w><abbr type="nomSac"><hi rend="overline">πνι</hi></abbr></w><w>τας</w><w>πραξεις</w>
+<lb n="P82C1L-025"/><w>του</w><w>σωματος</w><w>θανατουτε</w><pc>·</pc><w>ζησεσθε</w><pc>˙</pc>
+<lb n="P82C1L-025" rend="hang"/></ab><ab n="Rom.8.14"><w><hi rend="cap" height="2">ο</hi>σοι</w><w>γαρ</w><w><abbr type="nomSac"><hi rend="overline">πνι</hi></abbr></w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><w>αγονται</w><pc>·</pc><w>ουτοι</w><w>εισιν</w>
+<lb n="P82C1L-025"/><w>υιοι</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><pc>˙</pc></ab><ab n="Rom.8.15"><w>ου</w><w>γαρ</w><w>ελαβετε</w><w><abbr type="nomSac"><hi rend="overline">πνα</hi></abbr></w><w>δουλι
+<lb n="P82C1L-025" break="no"/>ας</w><w>παλιν</w><w>εις</w><w>φοβον</w><pc>·</pc><w>αλλ</w><w>ελαβετε</w>
+<lb n="P82C1L-025"/><w><abbr type="nomSac"><hi rend="overline">πνα</hi></abbr></w><w>υιοθεσιας</w><pc>·</pc><w>εν</w><w>ω</w><w>κραζομεν</w><w>αβ
+<lb n="P82C1L-025" break="no"/>βα</w><w>ο</w><w><abbr type="nomSac"><hi rend="overline">πηρ</hi></abbr></w><pc>.</pc></ab><ab n="Rom.8.16"><w>αυτο</w><w>το</w><w><abbr type="nomSac"><hi rend="overline">πνα</hi></abbr></w><pc>.</pc><w>συμμαρτυ
+<lb n="P82C1L-025" break="no"/>ρει</w><w>τω</w><w><abbr type="nomSac"><hi rend="overline">πνι</hi></abbr></w><w>ημων</w><pc>.</pc><w>οτι</w><w>εσμεν</w><w>τε
+<lb n="P82C1L-025" break="no"/>κνα</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><pc>˙</pc></ab><ab n="Rom.8.17"><w>ει</w><w>δε</w><w>τεκνα</w><pc>·</pc><w>και</w><w>κληρο
+<lb n="P82C1L-025" break="no"/>νομοι</w><pc>˙</pc><w>κληρονομοι</w><w>μεν</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><pc>·</pc><w>συν
+<lb n="P82C1L-025" break="no"/>κληρονομοι</w><w>δε</w><w><abbr type="nomSac"><hi rend="overline">χυ</hi></abbr></w><pc>˙</pc><w>ειπερ</w><w>συμπασχω
+<lb n="P82C1L-025" break="no"/>μεν</w><pc>·</pc><w>ινα</w><w>και</w><w>συνδοξασθωμεν</w><pc>˙</pc></ab><ab n="Rom.8.18"><w>λο
+<lb n="P82C1L-025" break="no"/>γιζομαι</w><w>δε</w><pc>·</pc><w>οτι</w><w>ουκ</w><w>αξια</w><w>τα</w><w>παθη
+<lb n="P82C1L-025" break="no"/>ματα</w><w>του</w><w>νυν</w><w>καιρου</w><pc>.</pc><w>προς</w><w>την</w><w>μελ
+<pb n="83" type="page" xml:id="P83-025" break="no"/>
+<cb n="P83C1-025"/>
+<lb n="P83C1L-025"/>λουσαν</w><w>δοξαν</w><w>αποκαλυφθηναι</w>
+<lb n="P83C1L-025"/><w>εις</w><w>ημας</w><pc>˙</pc></ab><ab n="Rom.8.19"><w>η</w><w>γαρ</w><w>αποκαραδοκια</w><w>της</w>
+<lb n="P83C1L-025" rend="hang"/><w><hi rend="cap" height="2">κ</hi>τισεως</w><pc>.</pc><w>την</w><w>αποκαλυψιν</w><w>των</w><w>υ
+<lb n="P83C1L-025" break="no"/>ιων</w><w>του</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><w>απεκδεχεται</w><pc>˙</pc></ab><ab n="Rom.8.20"><w>τη</w><w>γαρ</w>
+<lb n="P83C1L-025"/><w>ματαιοτητι</w><w>η</w><w>κτισις</w><w>υπεταγη</w><pc>·</pc>
+<lb n="P83C1L-025"/><w>ουχ</w><w>εκουσα</w><pc>.</pc><w>αλλα</w><w>δια</w><w>τον</w><w>υποταξα<ex rend="̅">ν</ex>
+<lb n="P83C1L-025" break="no"/>τα</w><w>επ</w><w>ελπιδι</w><pc>˙</pc></ab><ab n="Rom.8.21"><w>οτι</w><w>και</w><w>αυτη</w><w>η</w><w>κτι
+<lb n="P83C1L-025" break="no"/>σις</w><pc>.</pc><w>ελευθερωθησεται</w><w>απο</w><w>της</w><w>δου
+<lb n="P83C1L-025" break="no"/>λιας</w><w>της</w><w>φθορας</w><pc>·</pc><w>εις</w><w>την</w><w>ελευθερι
+<lb n="P83C1L-025" break="no"/>αν</w><w>της</w><w>δοξης</w><w>των</w><w>τεκνων</w><w>του</w>
+<lb n="P83C1L-025"/><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><pc>˙</pc></ab><ab n="Rom.8.22"><w>οιδαμεν</w><w>γαρ</w><w>οτι</w><w>πασα</w><w>η</w>
+<lb n="P83C1L-025" rend="hang"/><w><hi rend="cap" height="2">κ</hi>τισις</w><pc>˙</pc><w>συστεναζει</w><pc>·</pc><w>και</w><w>συνωδινει</w><pc>·</pc>
+<lb n="P83C1L-025"/><w>αχρι</w><w>του</w><w>νυν</w><pc>˙</pc></ab><ab n="Rom.8.23"><w>ου</w><w>μονον</w><w>δε</w><pc>·</pc><w>αλλα</w><w>κ<ex rend="ϗ">αι</ex></w>
+<lb n="P83C1L-025"/><w>αυτοι</w><pc>·</pc><w>την</w><w>απαρχην</w><w>του</w><w><abbr type="nomSac"><hi rend="overline">πνς</hi></abbr></w><w>εχον
+<lb n="P83C1L-025" break="no"/>τες</w><pc>·</pc><w>και</w><w>ημεις</w><w>αυτοι</w><w>εν</w><w>εαυτοις</w><w>στε
+<lb n="P83C1L-025" break="no"/>ναζομεν</w><pc>·</pc><w>υιοθεσιαν</w><w>απεκδεχομε
+<lb n="P83C1L-025" break="no"/>νοι</w><pc>·</pc><w>την</w><w>απολυτρωσιν</w><w>του</w><w>σωμα
+<lb n="P83C1L-025" break="no"/>τος</w><w>ημων</w><pc>˙</pc></ab><ab n="Rom.8.24"><w>τη</w><w>γαρ</w><w>ελπιδει</w><w>εσωθημε<ex rend="̅">ν</ex></w>
+<lb n="P83C1L-025"/><w>ελπις</w><w>δε</w><w>βλεπομενη</w><pc>.</pc><w>ουκ</w><w>εστιν</w><w>ελ
+<lb n="P83C1L-025" break="no"/>πις</w><pc>˙</pc><w>ο</w><w>γαρ</w><w>βλεπει</w><w>τις</w><pc>,</pc><w>τι</w><w>και</w><w>ελπιζει</w><pc>˙</pc>
+<lb n="P83C1L-025"/></ab><ab n="Rom.8.25"><w>ει</w><w>δε</w><w>ο</w><pc>,</pc><w>ου</w><w>βλεπομεν</w><w>ελπιζομεν</w><pc>·</pc><w>δι</w><w>υ
+<lb n="P83C1L-025" break="no"/>πομονης</w><w>απεκδεχομεθα</w><pc>˙</pc></ab><ab n="Rom.8.26"><w>ωαυτως</w>
+<lb n="P83C1L-025"/><w>δε</w><w>και</w><w>το</w><w><abbr type="nomSac"><hi rend="overline">πνα</hi></abbr></w><pc>·</pc><w>συναντιλαμβανε
+<lb n="P83C1L-025" break="no"/>ται</w><w>ταις</w><w>ασθενιαις</w><w>ημων</w><pc>˙</pc><w>το</w><w>γαρ</w><w>τι</w>
+<pb n="84" type="page" xml:id="P84-025"/>
+<cb n="P84C1-025"/>
+<lb n="P84C1L-025"/><w>προσευξομεθα</w><pc>·</pc><w>καθο</w><pc>,</pc><w>δει</w><w>ουκ</w><w>οιδα
+<lb n="P84C1L-025" break="no"/>μεν</w><pc>˙</pc><w>αλλ</w><w>αυτο</w><w>το</w><w><abbr type="nomSac"><hi rend="overline">πνα</hi></abbr></w><w>υπερεντυγ
+<lb n="P84C1L-025" break="no"/>χανει</w><w>υπερ</w><w>ημων</w><w>στεναγμοις</w><w>α
+<lb n="P84C1L-025" break="no"/>λαλητοις</w><pc>˙</pc></ab><ab n="Rom.8.27"><w>ο</w><w>δε</w><w>ερευνων</w><w>τας</w><w>καρ
+<lb n="P84C1L-025" break="no"/>διας</w><pc>.</pc><w>οιδεν</w><w>τι</w><w>το</w><w>φρονημα</w><w>του</w>
+<lb n="P84C1L-025"/><w><abbr type="nomSac"><hi rend="overline">πνς</hi></abbr></w><pc>·</pc><w>οτι</w><w>κατα</w><w><abbr type="nomSac"><hi rend="overline">θν</hi></abbr></w><w>εντυγχανει</w><w>υ
+<lb n="P84C1L-025" break="no"/>περ</w><w>αγιων</w><pc>˙</pc></ab><ab n="Rom.8.28"><w>οιδαμεν</w><w>δε</w><w>οτι</w><w>τοις</w><w>α
+<lb n="P84C1L-025" break="no"/>γαπωσιν</w><w>τον</w><w><abbr type="nomSac"><hi rend="overline">θν</hi></abbr></w><pc>·</pc><w>παντα</w><w>συνερ
+<lb n="P84C1L-025" break="no"/>γει</w><w>εις</w><w>αγαθον</w><pc>·</pc><w>τοις</w><w>κατα</w><w>προθε
+<lb n="P84C1L-025" break="no"/>σιν</w><w>κλητοις</w><w>ουσιν</w><pc>˙</pc></ab><ab n="Rom.8.29"><w>οτι</w><w>ους</w><w>προ
+<lb n="P84C1L-025" rend="hang" break="no"/><hi rend="cap" height="2">ε</hi>γνω</w><pc>·</pc><w>και</w><w>προωρισεν</w><pc>·</pc><w>συμμορφους</w>
+<lb n="P84C1L-025"/><w>της</w><w>εικονος</w><w>του</w><w><abbr type="nomSac"><hi rend="overline">υυ</hi></abbr></w><w>αυτου</w><pc>·</pc><w>εις</w><w>το</w><w>ει
+<lb n="P84C1L-025" break="no"/>ναι</w><w>αυτον</w><w>πρωτοτοκον</w><w>εν</w><w>πολλοις</w>
+<lb n="P84C1L-025"/><w>αδελφοις</w><pc>˙</pc></ab><ab n="Rom.8.30"><w>ους</w><pc>,</pc><w>δε</w><w>προωρισεν</w><pc>˙</pc><w>του
+<lb n="P84C1L-025" break="no"/>τους</w><w>και</w><w>εκαλεσεν</w><pc>˙</pc><w>και</w><w>ους</w><pc>,</pc><w>εκαλε
+<lb n="P84C1L-025" break="no"/>σεν</w><pc>·</pc><w>τουτους</w><w>και</w><w>εδικαιωσεν</w><pc>˙</pc><w>ους</w><pc>,</pc>
+<lb n="P84C1L-025"/><w>δε</w><w>εδικαιωσεν</w><pc>·</pc><w>τουτους</w><w>και</w><w>εδο
+<lb n="P84C1L-025" break="no"/>ξασεν</w><pc>˙</pc></ab><ab n="Rom.8.31"><w>τι</w><w>ουν</w><w>ερουμεν</w><w>προς</w><w>ταυτα</w><pc>·</pc>
+<lb n="P84C1L-025"/><w>ει</w><w>ο</w><w><abbr type="nomSac"><hi rend="overline">θς</hi></abbr></w><w>υπερ</w><w>ημων</w><pc>·</pc><w>τις</w><w>καθ</w><w>ημων</w><pc>˙</pc>
+<lb n="P84C1L-025"/></ab><ab n="Rom.8.32"><w>ος</w><pc>,</pc><w>γε</w><w>του</w><w>ιδιου</w><w><abbr type="nomSac"><hi rend="overline">υυ</hi></abbr></w><w>ουκ</w><w>εφεισατο</w><pc>·</pc><w>αλ
+<lb n="P84C1L-025" break="no"/>λ</w><w>υπερ</w><w>ημων</w><w>παντων</w><w>παρεδω
+<lb n="P84C1L-025" break="no"/>κεν</w><w>αυτον</w><pc>·</pc><w>πως</w><w>ουχι</w><w>και</w><w>συν</w><w>αυ
+<lb n="P84C1L-025" break="no"/>τω</w><w>τα</w><w>παντα</w><w>ημιν</w><w>χαρισεται</w><pc>˙</pc></ab><ab n="Rom.8.33"><w>τις</w>
+<lb n="P84C1L-025"/><w>εγκαλεσει</w><w>κατα</w><w>εκλεκτων</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><pc>˙</pc><gap reason="lacuna" unit="verse" extent="part"/><gap reason="lacuna" unit="page" extent="2"/>
+<pb n="85" type="page" xml:id="P85-025"/>
+<cb n="P85C1-025"/>
+<lb n="P85C1L-025"/></ab></div><div type="chapter" n="Rom.9"><ab n="Rom.9.11"><gap reason="lacuna" unit="verse" extent="part"/><w><gap reason="lacuna" unit="word" extent="part"/>τ</w><w>εκλογην</w><w>προθεσις</w><w>του</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><w>μενει</w><pc>˙</pc>
+<lb n="P85C1L-025"/></ab><ab n="Rom.9.12"><w>ουκ</w><w>εξ</w><w>εργων</w><pc>·</pc><w>αλλ</w><w>εκ</w><w>του</w><w>καλουν
+<lb n="P85C1L-025" break="no"/>τος</w><pc>˙</pc><w>ερρεθη</w><w>γαρ</w><w>αυτη</w><pc>·</pc><w>οτι</w><w>ο</w><w>μιζων</w>
+<lb n="P85C1L-025"/><w>δουλευσει</w><w>τω</w><w>ελασσονι</w><pc>·</pc></ab><ab n="Rom.9.13"><w>καθως</w><w>γε
+<lb n="P85C1L-025" break="no"/>γραπται</w><pc>˙</pc><w>τον</w><w>ιακωβ</w><w>ηγαπησα</w><pc>·</pc><w>το<ex rend="̅">ν</ex></w>
+<lb n="P85C1L-025"/><w>δε</w><w>ησαυ</w><w>εμισησα</w><pc>˙</pc></ab><ab n="Rom.9.14"><w>τι</w><w>ουν</w><w>ερουμεν</w><pc>·</pc>
+<lb n="P85C1L-025" rend="hang"/><w><hi rend="cap" height="2">μ</hi>η</w><w>αδικια</w><w>παρα</w><w>τω</w><w><abbr type="nomSac"><hi rend="overline">θω</hi></abbr></w><pc>;</pc><w>μη</w><w>γενοιτο</w><pc>˙</pc>
+<lb n="P85C1L-025"/></ab><ab n="Rom.9.15"><w>τω</w><w>μωυση</w><w>γαρ</w><w>λεγει</w><pc>˙</pc><w>ελεησω</w><pc>.</pc><w>ον</w><w>αν</w>
+<lb n="P85C1L-025"/><w>ελεω</w><w>και</w><w>οικτηρησω</w><pc>.</pc><w>ον</w><pc>,</pc><w>αν</w><pc>,</pc><w>οικτη
+<lb n="P85C1L-025" break="no"/>ρω</w><pc>˙</pc></ab><ab n="Rom.9.16"><w>αρα</w><w>ουν</w><w>ου</w><w>του</w><w>θελοντος</w><pc>·</pc><w>ουδε</w>
+<lb n="P85C1L-025"/><w>του</w><w>τρεχοντος</w><pc>·</pc><w>αλλα</w><w>του</w><w>ελεωντος</w>
+<lb n="P85C1L-025"/><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><pc>˙</pc></ab><ab n="Rom.9.17"><w>λεγει</w><w>γαρ</w><w>η</w><w>γραφη</w><w>τω</w><w>φαραω</w><pc>·</pc><w>ο
+<lb n="P85C1L-025" break="no"/>τι</w><w>εις</w><w>αυτο</w><w>τουτο</w><w>εξηγειρα</w><w>σε</w><pc>·</pc><w>οπως</w>
+<lb n="P85C1L-025"/><w>ενδειξομαι</w><w>εν</w><w>σοι</w><w>την</w><w>δυναμιν</w>
+<lb n="P85C1L-025"/><w>μου</w><pc>·</pc><w>και</w><w>οπως</w><w>διαγγελει</w><w>το</w><w>ονομα</w>
+<lb n="P85C1L-025"/><w>μου</w><w>εν</w><w>παση</w><w>τη</w><w>γη</w><pc>˙</pc></ab><ab n="Rom.9.18"><w>αρα</w><w>ουν</w><pc>,</pc><w>ον</w><w>θε
+<lb n="P85C1L-025" rend="hang" break="no"/><hi rend="cap" height="2">λ</hi>ει</w><w>ελεει</w><pc>·</pc><w>ον</w><w>δε</w><w>θελει</w><w>σκληρυνει</w><pc>˙</pc></ab><ab n="Rom.9.19"><w>ερεις</w>
+<lb n="P85C1L-025"/><w>μοι</w><w>ουν</w><pc>.</pc><w>τι</w><w>ετι</w><w>μεμφεται</w><pc>·</pc><w>τω</w><w>γαρ</w>
+<lb n="P85C1L-025"/><w>βουληματι</w><w>αυτου</w><w>τις</w><w>ανθεστηκε<ex rend="̅">ν</ex></w><pc>˙</pc>
+<lb n="P85C1L-025"/></ab><ab n="Rom.9.20"><w>μενουνγε</w><w>ω</w><w><abbr type="nomSac"><hi rend="overline">ανε</hi></abbr></w><pc>·</pc><w>συ</w><w>τις</w><w>ει</w><pc>,</pc><w>ο</w><w>ανταπο
+<lb n="P85C1L-025" break="no"/>κρινομενος</w><w>τω</w><w><abbr type="nomSac"><hi rend="overline">θω</hi></abbr></w><pc>˙</pc><w>μη</w><w>ερει</w><w>το</w><w>πλα
+<lb n="P85C1L-025" break="no"/>σμα</w><w>τω</w><w>πλασαντι</w><pc>·</pc><w>τι</w><w>με</w><w>εποιησας</w><w>ου
+<lb n="P85C1L-025" break="no"/>τως</w><pc>˙</pc></ab><ab n="Rom.9.21"><w>η</w><w>ουκ</w><w>εχη</w><w>εξουσιαν</w><w>ο</w><w>κεραμευς</w>
+<lb n="P85C1L-025"/><w>του</w><w>πηλου</w><pc>.</pc><w>εκ</w><w>του</w><w>αυτου</w><w>φυραματος</w>
+<pb n="86" type="page" xml:id="P86-025"/>
+<cb n="P86C1-025"/>
+<lb n="P86C1L-025"/><w>ποιησαι</w><pc>.</pc><w>ο</w><w>μεν</w><w>εις</w><w>τιμην</w><w>σκευος</w><pc>.</pc><w>ο</w>
+<lb n="P86C1L-025"/><w>δε</w><w>εις</w><w>ατιμιαν</w><pc>˙</pc></ab><ab n="Rom.9.22"><w>ει</w><w>δε</w><w>θελων</w><w>ο</w><w><abbr type="nomSac"><hi rend="overline">θς</hi></abbr></w>
+<lb n="P86C1L-025"/><w>ενδειξασθαι</w><w>την</w><w>οργην</w><pc>·</pc><w>και</w><w>γνω
+<lb n="P86C1L-025" break="no"/>ρησαι</w><w>το</w><w>δυνατον</w><w>αυτου</w><pc>·</pc><w>ηνεγ
+<lb n="P86C1L-025" break="no"/>κεν</w><w>εν</w><w>πολλη</w><w>μακροθυμια</w><w>σκευ
+<lb n="P86C1L-025" break="no"/>η</w><w>οργης</w><pc>.</pc><w>κατηρτισμενα</w><w>εις</w><w>απολι
+<lb n="P86C1L-025" break="no"/>αν</w><pc>˙</pc></ab><ab n="Rom.9.23"><w>και</w><w>ινα</w><w>γνωρηση</w><w>τον</w><w>πλουτο<ex rend="̅">ν</ex></w>
+<lb n="P86C1L-025"/><w>της</w><w>χρηστοτητος</w><w>αυτου</w><w>επι</w><w>σκευ
+<lb n="P86C1L-025" break="no"/>η</w><w>ελεους</w><pc>·</pc><w>α</w><pc>,</pc><w>προητοιμασεν</w><w>εις</w><w>δοξαν</w><pc>.</pc>
+<lb n="P86C1L-025"/></ab><ab n="Rom.9.24"><w>ους</w><pc>,</pc><w>και</w><w>εκαλεσεν</w><w>ημας</w><pc>·</pc><w>ου</w><w>μονον</w><w>ε
+<lb n="P86C1L-025" break="no"/>ξ</w><w>ιουδαιων</w><pc>.</pc><w>αλλα</w><w>και</w><w>εξ</w><w>εθνων</w><pc>˙</pc>
+<lb n="P86C1L-025"/></ab><ab n="Rom.9.25"><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w>ως</w><w>και</w><w>εν</w><w>τω</w><w>ωσε</w><w>λεγει</w><pc>˙</pc><w>καλεσω</w><w>τον</w>
+<lb n="P86C1L-025"/><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w>ου</w><w>λαον</w><w>μου</w><pc>,</pc><w>λαον</w><w>μου</w><pc>·</pc><w>και</w><w>την</w><w>ου
+<lb n="P86C1L-025" break="no"/>κ</w><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w>ηγαπημενην</w><pc>,</pc><w>ηγαπημενην</w><pc>˙</pc>
+<lb n="P86C1L-025"/></ab><ab n="Rom.9.26"><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w>και</w><w>εσται</w><w>εν</w><w>τω</w><w>τοπω</w><w>ου</w><pc>,</pc><w>ερρεθη</w><w>αυ
+<lb n="P86C1L-025" break="no"/>τοις</w><pc>·</pc><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w>ου</w><w>λαος</w><w>μου</w><w>υμεις</w><pc>·</pc><w>εκει</w><w>κληθη
+<lb n="P86C1L-025" break="no"/>σονται</w><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w>ουτοι</w><pc>.</pc><w>υιοι</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><w>ζωντος</w><pc>˙</pc></ab><ab n="Rom.9.27"><w>ησα
+<lb n="P86C1L-025" break="no"/>ιας</w><w>δε</w><w>κραζει</w><w>υπερ</w><w>του</w><w><abbr type="nomSac"><hi rend="overline">ιηλ</hi></abbr></w><pc>˙</pc><w>εαν</w><w>η</w><pc>,</pc><w>ο</w><w>α
+<lb n="P86C1L-025" break="no"/>ριθμος</w><w>των</w><w>υιων</w><w><abbr type="nomSac"><hi rend="overline">ιηλ</hi></abbr></w><w>ως</w><w>η</w><w>αμμος</w>
+<lb n="P86C1L-025"/><w>της</w><w>θαλασσης</w><pc>·</pc><w>το</w><w>καταλειμμα</w><w>σω
+<lb n="P86C1L-025" break="no"/>θησεται</w><pc>˙</pc></ab><ab n="Rom.9.28"><w>λογον</w><w>γαρ</w><w>συντελων</w><w>κ<ex rend="ϗ">αι</ex></w>
+<lb n="P86C1L-025"/><w>συντεμνων</w><w>εν</w><w>δικαιοσυνη</w><pc>˙</pc><w>οτι</w>
+<lb n="P86C1L-025"/><w>λογον</w><w>συντετμημενον</w><w>ποιησει</w>
+<lb n="P86C1L-025"/><w><abbr type="nomSac"><hi rend="overline">κς</hi></abbr></w><w>επι</w><w>της</w><w>γης</w><pc>˙</pc></ab><ab n="Rom.9.29"><w>και</w><w>καθως</w><w>προειρη
+<pb n="87" type="page" xml:id="P87-025" break="no"/>
+<cb n="P87C1-025"/>
+<lb n="P87C1L-025"/>κεν</w><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w>ησαιας</w><pc>·</pc><w>ει</w><w>μη</w><w><abbr type="nomSac"><hi rend="overline">κς</hi></abbr></w><w>σαβαωθ</w><w>εγκα
+<lb n="P87C1L-025" break="no"/>τελειπεν</w><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w>ημιν</w><w>σπερμα</w><pc>·</pc><w>ως</w><w>σοδομα</w>
+<lb n="P87C1L-025"/><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w>αν</w><pc>,</pc><w>εγενηθημεν</w><pc>·</pc><w>και</w><w>ως</w><w>γομορ
+<lb n="P87C1L-025" break="no"/>ρα</w><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w>αν</w><pc>.</pc><w>ομοιωθημεν</w><pc>˙</pc></ab><ab n="Rom.9.30"><w>τι</w><w>ουν</w><w>ερου
+<lb n="P87C1L-025" rend="hang" break="no"/><hi rend="cap" height="2">μ</hi>εν</w><pc>·</pc><w>οτι</w><w>εθνη</w><w>τα</w><w>μη</w><w>διωκοντα</w><w>δι
+<lb n="P87C1L-025" break="no"/>καιωσυνην</w><pc>.</pc><w>κατελαβεν</w><w>δικαιω
+<lb n="P87C1L-025" break="no"/>συνην</w><pc>.</pc><w>δικαιωσυνην</w><w>δε</w><pc>,</pc><w>την</w><w>εκ</w>
+<lb n="P87C1L-025"/><w>πιστεως</w><pc>˙</pc></ab><ab n="Rom.9.31"><w><abbr type="nomSac"><hi rend="overline">ιηλ</hi></abbr></w><w>δε</w><w>διωκων</w><w>δικαιω
+<lb n="P87C1L-025" break="no"/>συνης</w><w>νομον</w><pc>·</pc><w>εις</w><w>νομον</w><w>δικαιωσυ
+<lb n="P87C1L-025" break="no"/>νης</w><w>ουκ</w><w>εφθασεν</w><pc>˙</pc></ab><ab n="Rom.9.32"><w>δια</w><w>τι</w><pc>·</pc><w>οτι</w><w>ου
+<lb n="P87C1L-025" break="no"/>κ</w><w>εκ</w><w>πιστεως</w><pc>·</pc><w>αλλ</w><w>ως</w><w>εξ</w><w>εργων</w><w>νο
+<lb n="P87C1L-025" break="no"/>μου</w><pc>˙</pc><w>προσεκοψαν</w><w>γαρ</w><w>τω</w><w>λιθω</w><w>του</w>
+<lb n="P87C1L-025"/><w>προσκομματος</w><pc>·</pc></ab><ab n="Rom.9.33"><w>καθως</w><w>γεγραπται</w><pc>˙</pc>
+<lb n="P87C1L-025"/><w>ιδου</w><w>τιθημι</w><pc>.</pc><w>εν</w><w>σιων</w><w>λιθον</w><w>προ
+<lb n="P87C1L-025" break="no"/>σκομματος</w><pc>.</pc><w>και</w><w>πετραν</w><w>σκανδα
+<lb n="P87C1L-025" break="no"/>λου</w><pc>·</pc><w>και</w><w>πας</w><w>ο</w><w>πιστευων</w><w>επ</w><app><rdg type="orig" hand="firsthand"><w>τω</w></rdg><rdg type="corr" hand="corrector"><w>αυτω</w></rdg></app><w>ου</w>
+<lb n="P87C1L-025"/><w>καταισχυνθησεται</w><pc>˙</pc></ab></div><div type="chapter" n="Rom.10"><ab n="Rom.10.1"><w>αδελφοι</w>
+<lb n="P87C1L-025" rend="hang"/><w><hi rend="cap" height="2">η</hi></w><w>μεν</w><w>ευδοκια</w><w>της</w><w>εμης</w><w>καρδιας</w><pc>·</pc><w>και</w>
+<lb n="P87C1L-025"/><w>η</w><w>δεησις</w><w>μου</w><w>προς</w><w>τον</w><w><abbr type="nomSac"><hi rend="overline">θν</hi></abbr></w><pc>·</pc><w>υπερ</w><w>αυ
+<lb n="P87C1L-025" break="no"/>των</w><w>εστιν</w><w>εις</w><w><abbr type="nomSac"><hi rend="overline">σριαν</hi></abbr></w><pc>˙</pc></ab><ab n="Rom.10.2"><w>μαρτυρω</w><w>γαρ</w>
+<lb n="P87C1L-025"/><w>αυτοις</w><pc>·</pc><w>οτι</w><w>ζηλον</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><w>εχουσιν</w><pc>·</pc><w>αλλ</w><w>ου</w>
+<lb n="P87C1L-025"/><w>κατ</w><w>επιγνωσιν</w><pc>˙</pc></ab><ab n="Rom.10.3"><w>αγνοουντες</w><w>γαρ</w>
+<lb n="P87C1L-025"/><w>την</w><w>του</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><w>δικαιοσυνην</w><pc>·</pc><w>και</w><w>τη</w>
+<lb n="P87C1L-025"/><w>ιδιαν</w><w>ζητουντες</w><w>στησαι</w><pc>.</pc><w>τη</w><w>δικ<ex rend="ϗ">αι</ex>
+<pb n="88" type="page" xml:id="P88-025" break="no"/>
+<cb n="P88C1-025"/>
+<lb n="P88C1L-025"/>οσυνη</w><w>του</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><w>ουχ</w><w>υπεταγησαν</w><pc>˙</pc>
+<lb n="P88C1L-025"/></ab><ab n="Rom.10.4"><w>τελος</w><w>γαρ</w><w>νομου</w><w><abbr type="nomSac"><hi rend="overline">χς</hi></abbr></w><w>εις</w><w>δικαιοσυνη<ex rend="̅">ν</ex></w><pc>.</pc>
+<lb n="P88C1L-025"/><w>παντι</w><w>τω</w><w>πιστευοντι</w><pc>˙</pc></ab><ab n="Rom.10.5"><w>μωσης</w><w>γαρ</w>
+<lb n="P88C1L-025"/><w>γραφει</w><w>την</w><w>δικαιοσυνην</w><w>την</w>
+<lb n="P88C1L-025"/><w>εκ</w><w>του</w><w>νομου</w><pc>·</pc><w>οτι</w><w>ο</w><w>ποιησας</w><w>αυτα</w>
+<lb n="P88C1L-025"/><w><abbr type="nomSac"><hi rend="overline">ανος</hi></abbr></w><pc>.</pc><w>ζησεται</w><w>εν</w><w>αυτοις</w><pc>˙</pc></ab><ab n="Rom.10.6"><w>η</w><w>δε</w><w>εκ</w><w>πι
+<lb n="P88C1L-025" break="no"/>στεως</w><w>δικαιοσυνη</w><pc>.</pc><w>ουτως</w><w>λεγει</w><pc>˙</pc>
+<lb n="P88C1L-025"/><w>μη</w><w>ειπης</w><w>εν</w><w>τη</w><w>καρδια</w><w>σου</w><pc>·</pc><w>τις</w><w>ανα
+<lb n="P88C1L-025" break="no"/>βησεται</w><w>εις</w><w>τον</w><w><abbr type="nomSac"><hi rend="overline">ουνον</hi></abbr></w><pc>·</pc><w>τουτ</w><w>εστι<ex rend="̅">ν</ex></w><pc>·</pc>
+<lb n="P88C1L-025"/><w><abbr type="nomSac"><hi rend="overline">χν</hi></abbr></w><w>καταγαγειν</w><pc>˙</pc></ab><ab n="Rom.10.7"><w>η</w><w>τις</w><w>καταβησε
+<lb n="P88C1L-025" break="no"/>ται</w><w>εις</w><w>την</w><w>αβυσσον</w><pc>·</pc><w>τουτ</w><w>εστιν</w>
+<lb n="P88C1L-025"/><w><abbr type="nomSac"><hi rend="overline">χν</hi></abbr></w><w>εκ</w><w>νεκρων</w><w>αναγαγειν</w><pc>˙</pc></ab><ab n="Rom.10.8"><w>αλλα</w>
+<lb n="P88C1L-025"/><w>τι</w><w>λεγει</w><pc>,</pc><w>εγγυς</w><w>σου</w><w>το</w><w>ρημα</w><w>εστιν</w><pc>·</pc><w>εν</w>
+<lb n="P88C1L-025"/><w>τω</w><w>στοματι</w><w>σου</w><w>και</w><w>εν</w><w>τη</w><w>καρδια</w>
+<lb n="P88C1L-025"/><w>σου</w><pc>·</pc><w>τουτ</w><w>εστιν</w><pc>·</pc><w>το</w><w>ρημα</w><w>της</w><w>πιστε
+<lb n="P88C1L-025" break="no"/>ως</w><pc>·</pc><w>ο</w><pc>,</pc><w>κηρυσσωμεν</w><pc>˙</pc></ab><ab n="Rom.10.9"><w>οτι</w><w>εαν</w><w>ομολογη
+<lb n="P88C1L-025" break="no"/>σης</w><w>εν</w><w>τω</w><w>στοματι</w><w>σου</w><w><abbr type="nomSac"><hi rend="overline">κν</hi></abbr></w><w><abbr type="nomSac"><hi rend="overline">ιν</hi></abbr></w><pc>.</pc><w>και</w><w>πι
+<lb n="P88C1L-025" break="no"/>στευσις</w><w>εν</w><w>τη</w><w>καρδια</w><w>σου</w><pc>.</pc><w>οτι</w><w>ο</w><w><abbr type="nomSac"><hi rend="overline">θς</hi></abbr></w><w>η
+<lb n="P88C1L-025" break="no"/>γιρεν</w><w>αυτον</w><w>εκ</w><w>νεκρων</w><pc>.</pc><w>σωθηση</w><pc>˙</pc>
+<lb n="P88C1L-025"/></ab><ab n="Rom.10.10"><w>καρδια</w><w>γαρ</w><w>πιστευεται</w><w>εις</w><w>δικαι
+<lb n="P88C1L-025" break="no"/>οσυνην</w><pc>·</pc><w>στομα</w><w>δε</w><w>ομολογειται</w><w>εις</w>
+<lb n="P88C1L-025"/><w><abbr type="nomSac"><hi rend="overline">σριαν</hi></abbr></w><pc>·</pc></ab><ab n="Rom.10.11"><w>λεγει</w><w>γαρ</w><w>η</w><w>γραφη</w><pc>·</pc><w>πας</w><w>ο</w><w>πι
+<lb n="P88C1L-025" break="no"/>στευων</w><w>επ</w><w>αυτω</w><pc>.</pc><w>ου</w><w>καταισχυνθη
+<lb n="P88C1L-025" break="no"/>σεται</w><pc>˙</pc></ab><ab n="Rom.10.12"><w>ου</w><w>γαρ</w><w>εστιν</w><w>διαστολη</w><pc>,</pc><w>ιουδ<ex>αι</ex>
+<pb n="89" type="page" xml:id="P89-025" break="no"/>
+<cb n="P89C1-025"/>
+<lb n="P89C1L-025"/>ου</w><w>τε</w><w>και</w><w>ελληνος</w><pc>˙</pc><w>ο</w><w>γαρ</w><w>αυτος</w><w><abbr type="nomSac"><hi rend="overline">κς</hi></abbr></w><w>πα<ex rend="̅">ν</ex>
+<lb n="P89C1L-025" break="no"/>των</w><pc>·</pc><w>πλουτων</w><w>εις</w><w>παντας</w><w>τους</w>
+<lb n="P89C1L-025"/><w>επικαλουμενους</w><w>αυτον</w><pc>˙</pc></ab><ab n="Rom.10.13"><w>πας</w><w>γαρ</w>
+<lb n="P89C1L-025"/><w>ος</w><w>αν</w><w>επικαλεσηται</w><w>το</w><w>ονομα</w><w><abbr type="nomSac"><hi rend="overline">κυ</hi></abbr></w><w>σω
+<lb n="P89C1L-025" break="no"/>θησεται</w><pc>˙</pc></ab><ab n="Rom.10.14"><w>πως</w><w>ουν</w><w>επικαλεσονται</w>
+<lb n="P89C1L-025"/><w>εις</w><w>ον</w><pc>,</pc><w>ουκ</w><w>επιστευσαν</w><pc>˙</pc><w>πως</w><w>δε</w><w>πι
+<lb n="P89C1L-025" break="no"/>στευσωσιν</w><pc>·</pc><w>ου</w><pc>,</pc><w>ουκ</w><w>ηκουσαν</w><pc>˙</pc><w>πως</w>
+<lb n="P89C1L-025"/><w>δε</w><w>ακουσονται</w><w>ανευ</w><w>κηρυσσοντος</w><pc>˙</pc>
+<lb n="P89C1L-025"/></ab><ab n="Rom.10.15"><w>πως</w><w>δε</w><w>κηρυξωσιν</w><pc>·</pc><w>εαν</w><w>μη</w><w>απο
+<lb n="P89C1L-025" break="no"/>σταλωσιν</w><pc>˙</pc><w>καθως</w><w>γεγραπται</w><pc>·</pc><w>ως</w>
+<lb n="P89C1L-025"/><w>ωραιοι</w><w>οι</w><w>ποδες</w><w>των</w><w>ευαγγελιζομε
+<lb n="P89C1L-025" break="no"/>νων</w><w>ειρηνην</w><pc>·</pc><w>των</w><w>ευαγγελιζο
+<lb n="P89C1L-025" break="no"/>μενων</w><w>αγαθα</w><pc>˙</pc></ab><ab n="Rom.10.16"><w>αλλ</w><w>ου</w><w>παντες</w><w>υπη
+<lb n="P89C1L-025" break="no"/>κουσαν</w><w>τω</w><w>ευαγγελιω</w><pc>˙</pc><w>ησαιας</w><w>γαρ</w>
+<lb n="P89C1L-025" rend="hang"/><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w><hi rend="cap" height="2">λ</hi>εγει</w><pc>·</pc><w><abbr type="nomSac"><hi rend="overline">κε</hi></abbr></w><w>τις</w><w>επιστευσεν</w><w>τη</w><w>ακοη</w><w>η
+<lb n="P89C1L-025" break="no"/>μων</w><pc>˙</pc><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg></ab><ab n="Rom.10.17"><w>αρα</w><w>η</w><w>πιστις</w><w>εξ</w><w>ακοης</w><pc>˙</pc><w>η</w><w>δε</w><w>α
+<lb n="P89C1L-025" break="no"/>κοη</w><w>δια</w><w>ρηματος</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><pc>˙</pc></ab><ab n="Rom.10.18"><w>αλλα</w><w>λεγω</w><pc>·</pc><w>μη</w>
+<lb n="P89C1L-025"/><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w>ουκ</w><w>ηκουσαν</w><pc>·</pc><w>μενουνγε</w><pc>·</pc><w>εις</w><w>πασαν</w>
+<lb n="P89C1L-025"/><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w>την</w><w>γην</w><w>εξηλθεν</w><w>ο</w><w>φθογγος</w><w>αυ
+<lb n="P89C1L-025" break="no"/>των</w><pc>·</pc><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w>και</w><w>εις</w><w>τα</w><w>περατα</w><w>της</w><w>οικου
+<lb n="P89C1L-025" break="no"/>μενης</w><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w>τα</w><w>ρηματα</w><w>αυτων</w><pc>˙</pc></ab><ab n="Rom.10.19"><w>αλλα</w><w>λε
+<lb n="P89C1L-025" break="no"/>γω</w><pc>·</pc><w>μη</w><w><abbr type="nomSac"><hi rend="overline">ιηλ</hi></abbr></w><w>ουκ</w><w>εγνω</w><pc>˙</pc><w>πρωτος</w><w>μω
+<lb n="P89C1L-025" break="no"/>υσης</w><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w>λεγει</w><pc>·</pc><w>εγω</w><w>παραζηλωσω</w><w>υμας</w><pc>.</pc>
+<lb n="P89C1L-025"/><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w>επ</w><w>ουκ</w><w>εθνει</w><pc>˙</pc><w>επ</w><w>εθνει</w><w>ασυνετω</w><w>παρ
+<pb n="90" type="page" xml:id="P90-025" break="no"/>
+<cb n="P90C1-025"/>
+<lb n="P90C1L-025"/>οργιω</w><w>υμας</w><pc>˙</pc></ab><ab n="Rom.10.20"><w>ησαιας</w><w>δε</w><w>αποτολμα</w>
+<lb n="P90C1L-025"/><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w>και</w><w>λεγει</w><pc>˙</pc><w>ευρεθην</w><w>τοις</w><w>εμε</w><w>μη</w><w>ζη
+<lb n="P90C1L-025" break="no"/>τουσιν</w><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><pc>·</pc><w>εμφανης</w><w>εγενομην</w><w>τοις</w>
+<lb n="P90C1L-025"/><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w>εμε</w><w>μη</w><w>επερωτωσιν</w><pc>˙</pc></ab><ab n="Rom.10.21"><w>προς</w><w>δε</w><w>το<ex rend="̅">ν</ex></w>
+<lb n="P90C1L-025" rend="hang"/><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w><abbr type="nomSac"><hi rend="overline"><hi rend="cap" height="2">ι</hi>ηλ</hi></abbr></w><w>λεγει</w><pc>˙</pc><w>ολην</w><w>την</w><w>ημεραν</w><w>εξεπε
+<lb n="P90C1L-025" break="no"/>τασα</w><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w>τας</w><w>εχειρας</w><w>μου</w><pc>·</pc><w>προς</w><w>λαον</w><w>απι
+<lb n="P90C1L-025" break="no"/>θουντα</w><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w>και</w><w>αντιλεγοντα</w><pc>˙</pc></ab></div><div type="chapter" n="Rom.11"><ab n="Rom.11.1"><w>λεγω</w>
+<lb n="P90C1L-025"/><w>ουν</w><pc>.</pc><w>μη</w><w>απωσατο</w><w>ο</w><w><abbr type="nomSac"><hi rend="overline">θς</hi></abbr></w><w>τον</w><w>λαον</w><w>αυ
+<lb n="P90C1L-025" break="no"/>του</w><pc>˙</pc><w>μη</w><w>γενοιτο</w><pc>˙</pc><w>και</w><w>γαρ</w><w>εγω</w><w>ισρα
+<lb n="P90C1L-025" break="no"/>ηλιτης</w><w>ειμι</w><pc>·</pc><w>εκ</w><w>σπερματος</w><w>αβρα
+<lb n="P90C1L-025" break="no"/>αμ</w><pc>·</pc><w>φυλης</w><w>βενιαμιν</w><pc>·</pc></ab><ab n="Rom.11.2"><w>ουκ</w><w>απω
+<lb n="P90C1L-025" break="no"/>σατο</w><w>ο</w><w><abbr type="nomSac"><hi rend="overline">θς</hi></abbr></w><w>τον</w><w>λαον</w><w>αυτου</w><pc>·</pc><w>ον</w><w>προε
+<lb n="P90C1L-025" break="no"/>γνω</w><pc>˙</pc><seg type="margin" subtype="lineleft" n="@P90C1L-025"><num type="chapNum" n="16" rend="center"><abbr type="num"><hi rend="overline">ιϛ</hi></abbr></num></seg><w>η</w><w>ουκ</w><w>οιδαται</w><w>εν</w><w>ηλια</w><w>τι</w>
+<lb n="P90C1L-025" rend="hang"/><w><hi rend="cap" height="2">λ</hi>εγει</w><w>η</w><w>γραφη</w><pc>·</pc><w>ως</w><w>εντυγχανει</w><w>τω</w>
+<lb n="P90C1L-025"/><w><abbr type="nomSac"><hi rend="overline">θω</hi></abbr></w><w>κατα</w><w>του</w><w><abbr type="nomSac"><hi rend="overline">ιηλ</hi></abbr></w><pc>˙</pc></ab><ab n="Rom.11.3"><w><abbr type="nomSac"><hi rend="overline">κε</hi></abbr></w><w>τους</w><w>προφη
+<lb n="P90C1L-025" break="no"/>τας</w><w>σου</w><w>απεκτιναν</w><pc>·</pc><w>τα</w><w>θυσιαστη
+<lb n="P90C1L-025" break="no"/>ρια</w><w>σου</w><w>κατεσκαψαν</w><pc>·</pc><w>καγω</w><w>υπε
+<lb n="P90C1L-025" break="no"/>λειφθην</w><w>μονος</w><pc>.</pc><w>και</w><w>ζητουσιν</w>
+<lb n="P90C1L-025"/><w>την</w><w>ψυχην</w><w>μου</w><pc>˙</pc></ab><ab n="Rom.11.4"><w>αλλα</w><w>τι</w><w>λεγει</w>
+<lb n="P90C1L-025"/><w>αυτω</w><w>ο</w><w>χρηματισμος</w><pc>˙</pc><w>κατελει
+<lb n="P90C1L-025" break="no"/>πον</w><w>εμαυτω</w><pc>.</pc><w>επτακισχιλιους</w><w>αν
+<lb n="P90C1L-025" break="no"/>δρας</w><pc>.</pc><w>οιτινες</w><w>ουκ</w><w>εκαμψαν</w><w>γονοι</w>
+<lb n="P90C1L-025"/><w>τη</w><w>βααλ</w><pc>˙</pc></ab><ab n="Rom.11.5"><w>ουτως</w><w>ουν</w><w>και</w><w>εν</w><w>τω</w>
+<lb n="P90C1L-025"/><w>νυν</w><w>καιρω</w><pc>·</pc><w>λειμμα</w><w>κατ</w><w>εκλογη<ex rend="̅">ν</ex></w>
+<pb n="91" type="page" xml:id="P91-025"/>
+<cb n="P91C1-025"/>
+<lb n="P91C1L-025"/><w>χαριτος</w><w>γεγονεν</w><pc>˙</pc></ab><ab n="Rom.11.6"><w>ει</w><w>δε</w><w>χαριτι</w><pc>·</pc><w>ου
+<lb n="P91C1L-025" rend="hang" break="no"/><hi rend="cap" height="2">κ</hi>ετι</w><w>εξ</w><w>εργων</w><pc>˙</pc><w>επει</w><w>η</w><w>χαρις</w><w>ουκετι</w>
+<lb n="P91C1L-025"/><w>γινεται</w><w>χαρις</w><pc>˙</pc></ab><ab n="Rom.11.7"><w>τι</w><w>ουν</w><pc>˙</pc><w>ο</w><w>επιζητει</w>
+<lb n="P91C1L-025"/><w><abbr type="nomSac"><hi rend="overline">ιηλ</hi></abbr></w><pc>.</pc><w>τουτο</w><w>ουκ</w><w>επετυχεν</w><pc>˙</pc><w>η</w><w>δε</w><w>εκ
+<lb n="P91C1L-025" break="no"/>λογη</w><w>επετυχεν</w><pc>˙</pc><w>οι</w><w>δε</w><w>λοιποι</w><w>επωρω
+<lb n="P91C1L-025" break="no"/>θησαν</w><pc>·</pc></ab><ab n="Rom.11.8"><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w>καθως</w><w>γεγραπται</w><pc>˙</pc><w>εδωκε<ex rend="̅">ν</ex></w>
+<lb n="P91C1L-025"/><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w>αυτοις</w><w>ο</w><w><abbr type="nomSac"><hi rend="overline">θς</hi></abbr></w><w><abbr type="nomSac"><hi rend="overline">πνα</hi></abbr></w><w>κατανυξεως</w><pc>·</pc><w>οφ
+<lb n="P91C1L-025" break="no"/>θαλμους</w><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w>του</w><w>μη</w><w>βλεπειν</w><pc>·</pc><w>και</w><w>ω
+<lb n="P91C1L-025" break="no"/>τα</w><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w>του</w><w>μη</w><w>ακουειν</w><pc>·</pc><w>εως</w><w>της</w><w>σημε
+<lb n="P91C1L-025" break="no"/>ρον</w><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w>ημερας</w><pc>˙</pc></ab><ab n="Rom.11.9"><w>και</w><w><abbr type="nomSac"><hi rend="overline">δαδ</hi></abbr></w><w>λεγει</w><pc>˙</pc><w>γενη
+<lb n="P91C1L-025" break="no"/>θητω</w><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w>η</w><w>τραπεζα</w><w>αυτων</w><w>εις</w><w>παγι
+<lb n="P91C1L-025" break="no"/>δα</w><pc>·</pc><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w>και</w><w>εις</w><w>θηραν</w><pc>·</pc><w>και</w><w>εις</w><w>σκανδα
+<lb n="P91C1L-025" break="no"/>λον</w><pc>·</pc><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w>και</w><w>εις</w><w>ανταποδομα</w><w>αυτοις</w><pc>˙</pc>
+<lb n="P91C1L-025"/></ab><ab n="Rom.11.10"><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w>σκοτισθητωσαν</w><w>οι</w><w>οφθαλμοι</w><w>αυ
+<lb n="P91C1L-025" break="no"/>των</w><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w>του</w><w>μη</w><w>βλεπειν</w><pc>˙</pc><w>και</w><w>τον</w><w>νω
+<lb n="P91C1L-025" break="no"/>τον</w><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w>αυτων</w><w>δια</w><w>παντος</w><w>συγκαμ
+<lb n="P91C1L-025" break="no"/>ψον</w><pc>˙</pc><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg></ab><ab n="Rom.11.11"><w>λεγω</w><w>ουν</w><pc>·</pc><w>μη</w><w>επταισαν</w><w>ινα</w>
+<lb n="P91C1L-025"/><w>πεσωσιν</w><pc>˙</pc><w>μη</w><w>γενοιτο</w><pc>˙</pc><w>αλλα</w><w>τω</w><w>αυ
+<lb n="P91C1L-025" break="no"/>των</w><w>παραπτωματι</w><w>η</w><w><abbr type="nomSac"><hi rend="overline">σρια</hi></abbr></w><w>τοις</w>
+<lb n="P91C1L-025"/><w>εθνεσιν</w><pc>·</pc><w>εις</w><w>το</w><w>παραζηλωσαι</w><w>αυ
+<lb n="P91C1L-025" break="no"/>τους</w><pc>˙</pc></ab><ab n="Rom.11.12"><w>ει</w><w>δε</w><w>το</w><w>παραπτωμα</w><w>αυτω<ex rend="̅">ν</ex></w>
+<lb n="P91C1L-025"/><w>πλουτος</w><w>κοσμου</w><pc>·</pc><w>και</w><w>το</w><w>ηττημα</w>
+<lb n="P91C1L-025"/><w>αυτων</w><w>πλουτος</w><w>εθνων</w><pc>·</pc><w>ποσω</w>
+<lb n="P91C1L-025"/><w>μαλλον</w><w>το</w><w>πληρωμα</w><w>αυτων</w><pc>˙</pc></ab><ab n="Rom.11.13"><w>υ
+<pb n="92" type="page" xml:id="P92-025" break="no"/>
+<cb n="P92C1-025"/>
+<lb n="P92C1L-025"/>μιν</w><w>δε</w><w>λεγω</w><w>τοις</w><w>εθνεσιν</w><pc>·</pc><w>εφ</w><w>οσον</w>
+<lb n="P92C1L-025"/><w>μεν</w><w>ουν</w><w>ειμι</w><w>εγω</w><w>εθνων</w><w>αποστο
+<lb n="P92C1L-025" break="no"/>λος</w><pc>·</pc><w>την</w><w>διακονιαν</w><w>μου</w><w>δοξαζω</w><pc>˙</pc>
+<lb n="P92C1L-025"/></ab><ab n="Rom.11.14"><w>ει</w><w>πως</w><w>παραζηλωσω</w><w>μου</w><w>την</w><w>σαρ
+<lb n="P92C1L-025" break="no"/>κα</w><pc>·</pc><w>και</w><w>σωσω</w><w>τινας</w><w>εξ</w><w>αυτων</w><pc>˙</pc></ab><ab n="Rom.11.15"><w>η</w>
+<lb n="P92C1L-025"/><w>γαρ</w><w>η</w><w>αποβολη</w><w>αυτων</w><w>καταλλα
+<lb n="P92C1L-025" break="no"/>γη</w><w>κοσμου</w><pc>.</pc><w>τις</w><w>η</w><w>προσληψις</w><pc>·</pc><w>ει</w><w>μη</w>
+<lb n="P92C1L-025"/><w>ζωη</w><w>εκ</w><w>νεκρων</w><pc>˙</pc></ab><ab n="Rom.11.16"><w>ει</w><w>δε</w><w>η</w><w>απαρχη</w><w>α
+<lb n="P92C1L-025" break="no"/>για</w><w>και</w><w>το</w><w>φυραμα</w><pc>˙</pc><w>και</w><app><rdg type="orig" hand="firsthand"/><rdg type="corr" hand="corrector"><w>ει</w></rdg></app><w>η</w><w>ριζα</w><w>α
+<lb n="P92C1L-025" break="no"/>για</w><w>και</w><w>οι</w><w>κλαδοι</w><pc>˙</pc></ab><ab n="Rom.11.17"><w>ει</w><w>δε</w><w>τινες</w><w>των</w>
+<lb n="P92C1L-025"/><w>κλαδων</w><w>εξεκλασθησαν</w><pc>·</pc><w>συ</w><w>δε</w><w>α
+<lb n="P92C1L-025" break="no"/>γριελαιος</w><w>ων</w><pc>,</pc><w>ενεκεντρισθης</w><w>εν</w><w>αυ
+<lb n="P92C1L-025" break="no"/>τοις</w><pc>·</pc><w>και</w><w>συγκοινωνος</w><w>της</w><w>ριζης</w>
+<lb n="P92C1L-025"/><w>και</w><w>της</w><w>πιοτητος</w><w>της</w><w>ελαιας</w><w>εγε
+<lb n="P92C1L-025" break="no"/>νου</w><pc>˙</pc></ab><ab n="Rom.11.18"><w>μη</w><w>κατακαυχω</w><w>των</w><w>κλα
+<lb n="P92C1L-025" break="no"/>δων</w><pc>˙</pc><w>ει</w><w>δε</w><w>κατακαυχασε</w><pc>·</pc><w>ου</w><w>συ</w><w>τη<ex rend="̅">ν</ex></w>
+<lb n="P92C1L-025"/><w>ριζαν</w><w>βασταζεις</w><pc>·</pc><w>αλλ</w><w>η</w><w>ριζα</w><w>σε</w><pc>˙</pc>
+<lb n="P92C1L-025" rend="hang"/></ab><ab n="Rom.11.19"><w><hi rend="cap" height="2">ε</hi>ρεις</w><w>ουν</w><w>εξεκλασθησαν</w><w>κλαδοι</w><pc>·</pc><w>ι
+<lb n="P92C1L-025" break="no"/>να</w><w>εγω</w><w>εγκεντρισθω</w><pc>·</pc></ab><ab n="Rom.11.20"><w>καλως</w><w>τη</w>
+<lb n="P92C1L-025"/><w>απιστια</w><w>εξεκλασθησαν</w><pc>·</pc><w>συ</w><w>δε</w><w>τη</w>
+<lb n="P92C1L-025"/><w>πιστει</w><w>εστηκας</w><pc>˙</pc><w>μη</w><w>υψηλοφρονει</w><pc>.</pc>
+<lb n="P92C1L-025"/><w>αλλα</w><w>φοβου</w><pc>˙</pc></ab><ab n="Rom.11.21"><w>ει</w><w>γαρ</w><w>ο</w><w><abbr type="nomSac"><hi rend="overline">θς</hi></abbr></w><w>των</w><w>κατα</w>
+<lb n="P92C1L-025"/><w>φυσιν</w><w>κλαδων</w><w>ουκ</w><w>εφισατο</w><pc>,</pc><w>ουδε</w>
+<lb n="P92C1L-025"/><w>σου</w><w>φισεται</w><pc>˙</pc></ab><ab n="Rom.11.22"><w>ιδε</w><w>ουν</w><w>χρηστοτητα</w><gap reason="lacuna" unit="verse" extent="part"/><gap reason="lacuna" unit="page" extent="2"/>
+<pb n="93" type="page" xml:id="P93-025"/>
+<cb n="P93C1-025"/>
+<lb n="P93C1L-025"/></ab></div><div type="chapter" n="Rom.12"><ab n="Rom.12.1"><gap reason="lacuna" unit="verse" extent="part"/><w>ζωσαν</w><w>αγιαν</w><w>τω</w><w><abbr type="nomSac"><hi rend="overline">θω</hi></abbr></w><w>ευαρεστον</w><pc>·</pc><w>τη<ex rend="̅">ν</ex></w>
+<lb n="P93C1L-025"/><w>λογικην</w><w>λατριαν</w><w>υμων</w><pc>˙</pc></ab><ab n="Rom.12.2"><w>και</w><w>μη</w>
+<lb n="P93C1L-025"/><w>συσχηματιζεσθε</w><w>τω</w><w>αιωνι</w><w>του
+<lb n="P93C1L-025" break="no"/>τω</w><pc>·</pc><w>αλλα</w><w>μεταμορφουσθε</w><w>τη</w><w>ανα
+<lb n="P93C1L-025" break="no"/>καινωσει</w><w>του</w><w>νοος</w><w>υμων</w><pc>·</pc><w>εις</w><w>το</w>
+<lb n="P93C1L-025"/><w>δοκιμαζειν</w><w>υμας</w><w>τι</w><w>το</w><w>θελημα</w>
+<lb n="P93C1L-025"/><w>του</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><w>το</w><w>αγαθον</w><w>και</w><w>ευαρεστον</w>
+<lb n="P93C1L-025"/><w>και</w><w>τελιον</w><pc>˙</pc></ab><ab n="Rom.12.3"><seg type="margin" subtype="lineleft"><w>η</w></seg><w>λεγω</w><w>γαρ</w><w>δια</w><w>της</w><w>χα
+<lb n="P93C1L-025" rend="hang" break="no"/><hi rend="cap" height="2">ρ</hi>ιτος</w><w>της</w><w>δοθεισης</w><w>μοι</w><pc>·</pc><w>παντι</w><w>τω</w>
+<lb n="P93C1L-025"/><w>οντι</w><w>εν</w><w>υμιν</w><pc>·</pc><w>μη</w><w>υπερφρονειν</w><w>πα
+<lb n="P93C1L-025" break="no"/>ρ</w><w>ο</w><w>δει</w><w>φρονειν</w><pc>·</pc><w>αλλα</w><w>φρονειν</w><w>εις</w><w>το</w>
+<lb n="P93C1L-025"/><w>σωφρονειν</w><pc>˙</pc><w>εκαστω</w><w>ως</w><w>ο</w><w><abbr type="nomSac"><hi rend="overline">θς</hi></abbr></w><w>εμερη
+<lb n="P93C1L-025" break="no"/>σεν</w><w>μετρον</w><w>πιστεως</w><pc>˙</pc></ab><ab n="Rom.12.4"><w>καθαπερ</w>
+<lb n="P93C1L-025"/><w>γαρ</w><w>εν</w><w>ενι</w><w>σωματι</w><w>μελη</w><w>πολλα</w><w>εχο
+<lb n="P93C1L-025" break="no"/>μεν</w><pc>·</pc><w>τα</w><w>δε</w><w>μελη</w><w>παντα</w><w>ου</w><w>την</w><w>αυ
+<lb n="P93C1L-025" break="no"/>την</w><w>εχει</w><w>πραξιν</w><pc>·</pc></ab><ab n="Rom.12.5"><w>ουτως</w><w>οι</w><w>πολλοι</w>
+<lb n="P93C1L-025"/><w>εν</w><w>σωμα</w><w>εσμεν</w><w>εν</w><w><abbr type="nomSac"><hi rend="overline">χω</hi></abbr></w><pc>˙</pc><w>το</w><w>δε</w><w>καθ</w><w>εις</w>
+<lb n="P93C1L-025"/><w>αλληλων</w><w>μελη</w><pc>·</pc></ab><ab n="Rom.12.6"><w>εχοντες</w><w>ουν</w><w>χαρι
+<lb n="P93C1L-025" break="no"/>σματα</w><w>κατα</w><w>την</w><w>χαριν</w><w>την</w><w>δοθει
+<lb n="P93C1L-025" break="no"/>σαν</w><w>ημιν</w><w>διαφορα</w><pc>˙</pc><w>ειτε</w><w>προφητει
+<lb n="P93C1L-025" break="no"/>αν</w><pc>.</pc><w>κατα</w><w>την</w><w>αναλογιαν</w><w>της</w><w>πι
+<lb n="P93C1L-025" break="no"/>στεως</w><pc>˙</pc></ab><ab n="Rom.12.7"><w>ειτε</w><w>διακονιαν</w><pc>.</pc><w>εν</w><w>τη</w><w>δια
+<lb n="P93C1L-025" break="no"/>κονια</w><pc>˙</pc><w>ειτε</w><w>ο</w><w>διδασκων</w><pc>.</pc><w>εν</w><w>τη</w><w>δι
+<lb n="P93C1L-025" break="no"/>δασκαλια</w><pc>˙</pc></ab><ab n="Rom.12.8"><w>ειτε</w><w>ο</w><w>παρακαλων</w><pc>.</pc><w>εν</w>
+<pb n="94" type="page" xml:id="P94-025"/>
+<cb n="P94C1-025"/>
+<lb n="P94C1L-025"/><w>τη</w><w>παρακλησει</w><pc>˙</pc><w>ο</w><w>μεταδιδους</w><pc>.</pc><w>εν</w>
+<lb n="P94C1L-025"/><w>απλωτητι</w><pc>˙</pc><w>ο</w><w>προισταμενος</w><pc>.</pc><w>εν</w>
+<lb n="P94C1L-025"/><w>σπουδη</w><pc>˙</pc><w>ο</w><w>ελεων</w><pc>.</pc><w>εν</w><w>ιλαροτητι</w><pc>˙</pc></ab><ab n="Rom.12.9"><w>η</w><w>α
+<lb n="P94C1L-025" break="no"/>γαπη</w><pc>.</pc><w>ανυποκριτος</w><pc>˙</pc><w>αποστυγουν
+<lb n="P94C1L-025" break="no"/>τες</w><w>το</w><w>πονηρον</w><pc>˙</pc><w>κολλωμενοι</w><w>τω</w>
+<lb n="P94C1L-025"/><w>αγαθω</w><pc>˙</pc></ab><ab n="Rom.12.10"><w>τη</w><w>φιλαδελφια</w><w>εις</w><w>αλλη
+<lb n="P94C1L-025" break="no"/>λους</w><w>φιλοστοργοι</w><pc>˙</pc><w>τη</w><w>τιμη</w><w>αλλη
+<lb n="P94C1L-025" break="no"/>λους</w><w>προηγουμενοι</w><pc>˙</pc></ab><ab n="Rom.12.11"><w>τη</w><w>σπουδη</w>
+<lb n="P94C1L-025"/><w>μη</w><w>οκνηροι</w><pc>˙</pc><w>τω</w><w><abbr type="nomSac"><hi rend="overline">πνι</hi></abbr></w><w>ζεοντες</w><pc>˙</pc><w>τω</w>
+<lb n="P94C1L-025"/><w><abbr type="nomSac"><hi rend="overline">κω</hi></abbr></w><w>δουλευοντες</w><pc>˙</pc></ab><ab n="Rom.12.12"><w>τη</w><w>ελπιδει</w><w>χαι
+<lb n="P94C1L-025" break="no"/>ροντες</w><pc>˙</pc><w>τη</w><w>θλιψει</w><w>υπομενοντες</w><pc>˙</pc>
+<lb n="P94C1L-025"/><w>τη</w><w>προσευχη</w><w>προσκαρτερουντες</w><pc>˙</pc>
+<lb n="P94C1L-025"/></ab><ab n="Rom.12.13"><w>ταις</w><w>χρειαις</w><w>των</w><w>αγιων</w><w>κοινωνου<ex rend="̅">ν</ex>
+<lb n="P94C1L-025" break="no"/>τες</w><pc>˙</pc><w>την</w><w>φιλοξενιαν</w><w>διωκοντ<ex>ες</ex></w><pc>˙</pc>
+<lb n="P94C1L-025" rend="hang"/></ab><ab n="Rom.12.14"><w><hi rend="cap" height="2">ε</hi>υλογειτε</w><w>τους</w><w>διωκοντας</w><w>υμας</w><pc>˙</pc>
+<lb n="P94C1L-025"/><w>ευλογειτε</w><w>και</w><w>μη</w><w>καταρασθε</w><pc>˙</pc></ab><ab n="Rom.12.15"><w>χαι
+<lb n="P94C1L-025" break="no"/>ρειν</w><w>μετα</w><w>χαιροντων</w><pc>˙</pc><w>και</w><w>κλαιει<ex rend="̅">ν</ex></w>
+<lb n="P94C1L-025"/><w>μετα</w><w>κλαιοντων</w><pc>˙</pc></ab><ab n="Rom.12.16"><w>το</w><w>αυτο</w><w>εις</w><w>αλ
+<lb n="P94C1L-025" break="no"/>ληλους</w><w>φρονουντες</w><w>αγαπητοι</w><w>αλ
+<lb n="P94C1L-025" break="no"/>λα</w><w>τοις</w><w>ταπεινοις</w><w>συναπαγομενοι</w><pc>˙</pc>
+<lb n="P94C1L-025"/><w>μη</w><w>γινεσθε</w><w>φρονημοι</w><w>παρ</w><w>εαυτοις</w><pc>˙</pc>
+<lb n="P94C1L-025"/></ab><ab n="Rom.12.17"><w>μηδενι</w><w>κακον</w><w>αντι</w><w>κακου</w><w>απο
+<lb n="P94C1L-025" break="no"/>διδοντες</w><pc>˙</pc><w>προνοουμενοι</w><w>καλα</w><w>ενω
+<lb n="P94C1L-025" break="no"/>πιον</w><w>παντων</w><w><abbr type="nomSac"><hi rend="overline">ανων</hi></abbr></w><pc>˙</pc></ab><ab n="Rom.12.18"><w>ει</w><w>δυνατον</w>
+<pb n="95" type="page" xml:id="P95-025"/>
+<cb n="P95C1-025"/>
+<lb n="P95C1L-025"/><w>το</w><w>εξ</w><w>υμων</w><w>μετα</w><w>παντων</w><w><abbr type="nomSac"><hi rend="overline">ανων</hi></abbr></w>
+<lb n="P95C1L-025"/><w>ειρηνευοντες</w><pc>˙</pc></ab><ab n="Rom.12.19"><w>μη</w><w>εαυτους</w><w>εκδι
+<lb n="P95C1L-025" break="no"/>κουντες</w><w>αγαπητοι</w><pc>·</pc><w>αλλα</w><w>δοτε</w>
+<lb n="P95C1L-025"/><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w>τοπον</w><w>τη</w><w>οργη</w><pc>˙</pc><w>γεγραπται</w><w>γαρ</w><pc>·</pc><w>ε
+<lb n="P95C1L-025" break="no"/>μοι</w><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w>εκδικησις</w><w>εγω</w><w>ανταποδω
+<lb n="P95C1L-025" break="no"/>σω</w><pc>˙</pc><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w>λεγει</w><w><abbr type="nomSac"><hi rend="overline">κς</hi></abbr></w><pc>˙</pc></ab><ab n="Rom.12.20"><w>αλλ</w><w>εαν</w><w>πινα</w><w>ο</w><w>εχθρος</w>
+<lb n="P95C1L-025"/><w>σου</w><pc>·</pc><w>ψωμιζε</w><w>αυτον</w><pc>·</pc><w>εαν</w><w>διψα</w><w>ποτι
+<lb n="P95C1L-025" break="no"/>ζε</w><w>αυτον</w><pc>˙</pc><w>τουτο</w><w>γαρ</w><w>ποιων</w><pc>.</pc><w>ανθρα
+<lb n="P95C1L-025" break="no"/>κας</w><w>πυρος</w><w>σωρευσεις</w><w>επι</w><w>την</w><w>κεφα
+<lb n="P95C1L-025" break="no"/>λην</w><w>αυτου</w><pc>˙</pc></ab><ab n="Rom.12.21"><w>μη</w><w>νικω</w><w>υπο</w><w>του</w><w>κα
+<lb n="P95C1L-025" break="no"/>κου</w><pc>·</pc><w>αλλα</w><w>νικα</w><w>εν</w><w>τω</w><w>αγαθω</w><w>το</w>
+<lb n="P95C1L-025"/><w>κακον</w><pc>:</pc></ab></div><div type="chapter" n="Rom.13"><ab n="Rom.13.1"><seg type="margin" subtype="lineleft" n="@P95C1L-025"><num type="chapNum" n="20" rend="center"><abbr type="num"><hi rend="overline">κ</hi></abbr></num></seg><w>πασα</w><w>ψυχη</w><w>εξουσιαις</w><w>υ
+<lb n="P95C1L-025" rend="hang" break="no"/><hi rend="cap" height="2">π</hi>ερεχουσαις</w><w>υποτασσεσθω</w><pc>·</pc><w>ου</w><w>γαρ</w><w>εσ
+<lb n="P95C1L-025" break="no"/>τιν</w><w>εξουσια</w><w>ει</w><w>μη</w><w>υπο</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><pc>˙</pc><w>αι</w><w>δε</w><w>ουσαι</w>
+<lb n="P95C1L-025"/><w>εξουσιαι</w><w>υπο</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><w>τεταγμεναι</w><w>εισιν</w><pc>˙</pc>
+<lb n="P95C1L-025"/></ab><ab n="Rom.13.2"><w>ωστε</w><w>ο</w><w>αντιτασσομενος</w><w>τη</w><w>εξουσια</w><pc>·</pc>
+<lb n="P95C1L-025"/><w>τη</w><w>του</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><w>διαταγη</w><w>ανθεστηκεν</w><pc>˙</pc>
+<lb n="P95C1L-025"/><w>οι</w><w>δε</w><w>ανθεστηκοτες</w><pc>.</pc><w>εαυτοις</w><w>κριμα</w>
+<lb n="P95C1L-025"/><w>ληψονται</w><pc>˙</pc></ab><ab n="Rom.13.3"><w>οι</w><w>γαρ</w><w>αρχοντες</w><pc>,</pc><w>ουκ</w><w>εισι<ex rend="̅">ν</ex></w>
+<lb n="P95C1L-025"/><w>φοβος</w><w>τω</w><w>αγαθω</w><w>εργω</w><pc>·</pc><w>αλλα</w><w>τω</w><w>κα
+<lb n="P95C1L-025" break="no"/>κω</w><pc>˙</pc><w>θελεις</w><w>δε</w><w>μη</w><w>φοβεισθαι</w><w>την</w><w>ε
+<lb n="P95C1L-025" break="no"/>ξουσιαν</w><pc>.</pc><w>το</w><w>αγαθον</w><w>ποιει</w><pc>·</pc><w>και</w><w>εξεις</w><w>ε
+<lb n="P95C1L-025" break="no"/>παινον</w><w>εξ</w><w>αυτης</w><pc>˙</pc></ab><ab n="Rom.13.4"><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><w>γαρ</w><w>διακονος</w>
+<lb n="P95C1L-025"/><w>εστιν</w><w>σοι</w><w>εις</w><w>το</w><w>αγαθον</w><pc>˙</pc><w>εαν</w><w>δε</w><w>το</w><w>κα
+<pb n="96" type="page" xml:id="P96-025" break="no"/>
+<cb n="P96C1-025"/>
+<lb n="P96C1L-025"/>κον</w><w>ποιεις</w><pc>,</pc><w>φοβου</w><pc>·</pc><w>ου</w><w>γαρ</w><w>εικη</w><w>την</w>
+<lb n="P96C1L-025"/><w>μαχαιραν</w><w>φορει</w><pc>˙</pc><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><w>γαρ</w><w>διακονος</w>
+<lb n="P96C1L-025"/><w>εστιν</w><pc>.</pc><w>εκδικος</w><w>εις</w><w>οργην</w><pc>.</pc><w>τω</w><w>το</w><w>κα
+<lb n="P96C1L-025" break="no"/>κον</w><w>πρασσοντι</w><pc>˙</pc></ab><ab n="Rom.13.5"><w>διο</w><w>αναγκη</w><w>υπο
+<lb n="P96C1L-025" break="no"/>τασσεσθαι</w><pc>·</pc><w>ου</w><w>μονον</w><w>δια</w><w>την</w><w>ορ
+<lb n="P96C1L-025" break="no"/>γην</w><pc>,</pc><w>αλλα</w><w>και</w><w>δια</w><w>την</w><w>συνειδη
+<lb n="P96C1L-025" break="no"/>σιν</w><pc>˙</pc></ab><ab n="Rom.13.6"><w>δια</w><w>τουτο</w><w>γαρ</w><w>και</w><w>φορους</w><w>τε
+<lb n="P96C1L-025" break="no"/>λειται</w><pc>˙</pc><w>λειτουργοι</w><w>γαρ</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><w>εισιν</w><pc>.</pc><w>εις</w>
+<lb n="P96C1L-025"/><w>αυτο</w><w>τουτο</w><w>προσκαρτερουντες</w><pc>˙</pc></ab><ab n="Rom.13.7"><w>α
+<lb n="P96C1L-025" break="no"/>ποδοτε</w><w>ουν</w><w>πασι</w><pc>.</pc><w>τας</w><w>οφιλας</w><pc>.</pc><w>τω</w><w>το<ex rend="̅">ν</ex></w>
+<lb n="P96C1L-025"/><w>φορον</w><pc>.</pc><w>τον</w><w>φορον</w><pc>˙</pc><w>τω</w><w>το</w><w>τελος</w><pc>.</pc><w>το</w>
+<lb n="P96C1L-025"/><w>τελος</w><pc>˙</pc><w>τω</w><w>τον</w><w>φοβον</w><pc>.</pc><w>τον</w><w>φοβον</w><pc>˙</pc>
+<lb n="P96C1L-025"/><w>τω</w><w>την</w><w>τιμην</w><pc>,</pc><w>την</w><w>τιμην</w><pc>˙</pc></ab><ab n="Rom.13.8"><w>μη
+<lb n="P96C1L-025" break="no"/>δενι</w><w>μηδεν</w><w>οφιλεται</w><pc>·</pc><w>ει</w><w>μη</w><w>το</w><w>αλ
+<lb n="P96C1L-025" break="no"/>ληλους</w><w>αγαπαν</w><pc>˙</pc><w>ο</w><w>γαρ</w><w>αγαπων</w><w>το<ex rend="̅">ν</ex></w>
+<lb n="P96C1L-025"/><w>ετερον</w><pc>.</pc><w>νομον</w><w>πεπληρωκεν</w><pc>˙</pc></ab><ab n="Rom.13.9"><w>το</w>
+<lb n="P96C1L-025"/><w>γαρ</w><w>ου</w><w>μοιχευσης</w><pc>·</pc><w>ου</w><w>φονευσης</w><pc>·</pc><w>ου</w>
+<lb n="P96C1L-025"/><w>κλεψης</w><pc>·</pc><w>ου</w><w>ψευδομαρτυρησης</w><pc>·</pc><w>ου
+<lb n="P96C1L-025" break="no"/>κ</w><w>επιθυμησης</w><pc>·</pc><w>και</w><w>η</w><w>τις</w><w>ετερα</w><w>εν
+<lb n="P96C1L-025" break="no"/>τολη</w><pc>·</pc><w>εν</w><w>τουτω</w><w>τω</w><w>λογω</w><w>ανακε
+<lb n="P96C1L-025" break="no"/>φαλαιουται</w><pc>·</pc><w>εν</w><w>τω</w><w>αγαπησης</w><w>το</w>
+<lb n="P96C1L-025"/><w>πλησιον</w><w>σου</w><w>ως</w><w>εαυτον</w><pc>˙</pc></ab><ab n="Rom.13.10"><w>η</w><w>αγαπη</w>
+<lb n="P96C1L-025"/><w>τω</w><w>πλησιον</w><w>κακον</w><w>ουκ</w><w>εργαζετ<ex>αι</ex></w><pc>˙</pc>
+<lb n="P96C1L-025"/><w>πληρομα</w><w>νομου</w><pc>.</pc><w>η</w><w>αγαπη</w><pc>˙</pc></ab><ab n="Rom.13.11"><w>κ<ex rend="ϗ">αι</ex></w><w>του
+<pb n="97" type="page" xml:id="P97-025" break="no"/>
+<cb n="P97C1-025"/>
+<lb n="P97C1L-025" rend="hang"/><hi rend="cap" height="2">τ</hi>ο</w><seg type="margin" subtype="lineleft" n="@P97C1L-025"><num type="chapNum" n="21" rend="center"><abbr type="num"><hi rend="overline">κα</hi></abbr></num></seg><w>ειδοτες</w><w>τον</w><w>καιρον</w><pc>˙</pc><w>οτι</w><w>ηδη</w><w>ωρα</w>
+<lb n="P97C1L-025"/><w>υμας</w><w>εξ</w><w>υπνου</w><w>εγερθηναι</w><pc>˙</pc>
+<lb n="P97C1L-025" rend="hang"/><w><hi rend="cap" height="2">ν</hi>υν</w><w>γαρ</w><w>εγγυτερον</w><w>υμων</w><w>η</w><w><abbr type="nomSac"><hi rend="overline">σρια</hi></abbr></w><pc>·</pc><w>η</w><w>ο
+<lb n="P97C1L-025" break="no"/>τε</w><w>επιστευσαμεν</w><pc>˙</pc></ab><ab n="Rom.13.12"><w>η</w><w>νυξ</w><w>προεκοψεν</w><pc>·</pc>
+<lb n="P97C1L-025"/><w>η</w><w>δε</w><w>ημερα</w><w>ηγγικεν</w><pc>˙</pc><w>αποθωμεθα</w>
+<lb n="P97C1L-025"/><w>ουν</w><w>τα</w><w>εργα</w><w>του</w><w>σκοτους</w><pc>·</pc><w>ενδυσωμε
+<lb n="P97C1L-025" break="no"/>θα</w><w>δε</w><w>τα</w><w>οπλα</w><w>του</w><w>φωτος</w><pc>˙</pc></ab><ab n="Rom.13.13"><w>ως</w><w>εν</w><w>η
+<lb n="P97C1L-025" break="no"/>μερα</w><pc>.</pc><w>ευσχημωνως</w><w>περιπατησω
+<lb n="P97C1L-025" break="no"/>μεν</w><pc>˙</pc><w>μη</w><w>κωμοις</w><w>και</w><w>μεθαις</w><pc>˙</pc><w>μη</w>
+<lb n="P97C1L-025"/><w>κοιταις</w><w>και</w><w>ασελγιαις</w><pc>·</pc><w>μη</w><w>αιριδει</w>
+<lb n="P97C1L-025"/><w>και</w><w>ζηλω</w><pc>˙</pc></ab><ab n="Rom.13.14"><w>αλλ</w><w>ενδυσασθε</w><w>τον</w>
+<lb n="P97C1L-025"/><w><abbr type="nomSac"><hi rend="overline">κν</hi></abbr></w><w><abbr type="nomSac"><hi rend="overline">ιν</hi></abbr></w><w><abbr type="nomSac"><hi rend="overline">χν</hi></abbr></w><pc>·</pc><w>και</w><w>της</w><w>σαρκος</w><w>προνοι
+<lb n="P97C1L-025" break="no"/>αν</w><w>μη</w><w>ποιεισθε</w><w>εις</w><w>επιθυμιας</w><pc>˙</pc></ab></div><div type="chapter" n="Rom.14"><ab n="Rom.14.1"><seg type="margin" subtype="lineleft" n="@P97C1L-025"><num type="chapNum" n="22" rend="center"><abbr type="num"><hi rend="overline">κβ</hi></abbr></num></seg><w>τον</w>
+<lb n="P97C1L-025"/><w>δε</w><w>ασθενουντα</w><w>τη</w><w>πιστει</w><w>προσλαμ
+<lb n="P97C1L-025" break="no"/>βανεσθε</w><pc>˙</pc><w>μη</w><w>εις</w><w>διακρισεις</w><w>διαλο
+<lb n="P97C1L-025" break="no"/>γισμων</w><pc>˙</pc></ab><ab n="Rom.14.2"><w>ος</w><pc>,</pc><w>μεν</w><w>πιστευει</w><w>φαγειν</w>
+<lb n="P97C1L-025"/><w>παντα</w><pc>·</pc><w>ο</w><w>δε</w><w>ασθενων</w><pc>,</pc><w>λαχανα</w><w>ε
+<lb n="P97C1L-025" break="no"/>σθιει</w><pc>˙</pc></ab><ab n="Rom.14.3"><w>ο</w><w>εσθιων</w><w>τον</w><w>μη</w><w>εσθιοντα</w>
+<lb n="P97C1L-025" rend="hang"/><w><hi rend="cap" height="2">μ</hi>η</w><w>εξουθενειτω</w><pc>˙</pc><w>και</w><w>ο</w><w>μη</w><w>εσθιων</w>
+<lb n="P97C1L-025"/><w>τον</w><w>εσθιοντα</w><w>μη</w><w>κρινετω</w><pc>˙</pc><w>ο</w><w><abbr type="nomSac"><hi rend="overline">θς</hi></abbr></w>
+<lb n="P97C1L-025"/><w>γαρ</w><w>αυτον</w><w>προσελαβετο</w><pc>˙</pc></ab><ab n="Rom.14.4"><w>συ</w><w>τις</w><w>ει</w><w>ο</w>
+<lb n="P97C1L-025"/><w>κρινων</w><w>αλλοτριον</w><w>οικετην</w><pc>˙</pc><w>τω</w>
+<lb n="P97C1L-025"/><w>ιδιω</w><w><abbr type="nomSac"><hi rend="overline">κω</hi></abbr></w><w>στηκει</w><w>η</w><w>πιπτει</w><pc>˙</pc><w>σταθη
+<lb n="P97C1L-025" break="no"/>σεται</w><w>δε</w><pc>,</pc><w>δυνατος</w><w>γαρ</w><w>ο</w><w><abbr type="nomSac"><hi rend="overline">κς</hi></abbr></w><w>στησαι</w>
+<lb n="P97C1L-025"/><w>αυτον</w><pc>·</pc>
+<pb n="98" type="page" xml:id="P98-025"/>
+<cb n="P98C1-025"/>
+<lb n="P98C1L-025" rend="hang"/></ab><ab n="Rom.14.5"><w><hi rend="cap" height="2">ο</hi>ς</w><pc>,</pc><w>μεν</w><w>γαρ</w><w>κρινει</w><w>ημεραν</w><w>παρ</w><w>ημε
+<lb n="P98C1L-025" break="no"/>ραν</w><pc>·</pc><w>ος</w><w>δε</w><w>κρινει</w><w>πασαν</w><w>ημεραν</w><pc>˙</pc><w>ε
+<lb n="P98C1L-025" break="no"/>καστος</w><w>εν</w><w>τω</w><w>ιδιω</w><w>νοι</w><w>πληροφο
+<lb n="P98C1L-025" break="no"/>ρεισθω</w><pc>˙</pc></ab><ab n="Rom.14.6"><w>ο</w><w>φρονων</w><w>την</w><w>ημερα<ex rend="̅">ν</ex></w>
+<lb n="P98C1L-025"/><w><abbr type="nomSac"><hi rend="overline">κω</hi></abbr></w><w>φρονει</w><pc>·</pc><w>και</w><w>ο</w><w>μη</w><w>φρονων</w><w>τη<ex rend="̅">ν</ex></w>
+<lb n="P98C1L-025"/><w>ημεραν</w><w><abbr type="nomSac"><hi rend="overline">κω</hi></abbr></w><w>ου</w><w>φρονει</w><pc>˙</pc><w>και</w><w>ο</w><w>εσθι
+<lb n="P98C1L-025" break="no"/>ων</w><w><abbr type="nomSac"><hi rend="overline">κω</hi></abbr></w><app><rdg type="orig" hand="firsthand"><w>ουκ</w></rdg><rdg type="corr" hand="corrector"/></app><w>εσθιει</w><w>και</w><w>ευχαριστει</w>
+<lb n="P98C1L-025"/><w>τω</w><w><abbr type="nomSac"><hi rend="overline">θω</hi></abbr></w><pc>˙</pc><w>και</w><w>ο</w><w>μη</w><w>εσθιων</w><w><abbr type="nomSac"><hi rend="overline">κω</hi></abbr></w><w>ουκ</w><w>ε
+<lb n="P98C1L-025" break="no"/>σθιει</w><w>και</w><w>ευχαριστει</w><w>τω</w><w><abbr type="nomSac"><hi rend="overline">θω</hi></abbr></w><pc>˙</pc></ab><ab n="Rom.14.7"><w>ουδεις</w>
+<lb n="P98C1L-025"/><w>γαρ</w><w>ημων</w><w>εαυτω</w><w>ζη</w><pc>·</pc><w>και</w><w>ουδεις</w>
+<lb n="P98C1L-025"/><w>εαυτω</w><w>αποθνησκει</w><pc>˙</pc></ab><ab n="Rom.14.8"><w>εαν</w><w>τε</w><w>γαρ</w><w>ζω
+<lb n="P98C1L-025" break="no"/>μεν</w><w>τω</w><w><abbr type="nomSac"><hi rend="overline">κω</hi></abbr></w><w>ζωμεν</w><pc>·</pc><w>εαν</w><w>τε</w><w>απο
+<lb n="P98C1L-025" break="no"/>θνησκομεν</w><pc>,</pc><w>τω</w><w><abbr type="nomSac"><hi rend="overline">κω</hi></abbr></w><w>αποθνησκο
+<lb n="P98C1L-025" break="no"/>μεν</w><pc>˙</pc><w>εαν</w><w>τε</w><w>ουν</w><w>ζωμεν</w><pc>.</pc><w>εαν</w><w>τε</w><w>α
+<lb n="P98C1L-025" break="no"/>ποθνησκομεν</w><pc>·</pc><w>του</w><w><abbr type="nomSac"><hi rend="overline">κυ</hi></abbr></w><w>εσμεν</w><pc>˙</pc></ab><ab n="Rom.14.9"><w>εις</w>
+<lb n="P98C1L-025"/><w>τουτο</w><w>γαρ</w><w><abbr type="nomSac"><hi rend="overline">χς</hi></abbr></w><w>απεθανεν</w><w>και</w><w>ανε
+<lb n="P98C1L-025" break="no"/>στη</w><w>και</w><w>εζησεν</w><pc>·</pc><w>ινα</w><w>και</w><w>νεκρων</w>
+<lb n="P98C1L-025"/><w>και</w><w>ζωντων</w><w>κυριευσει</w><pc>·</pc></ab><ab n="Rom.14.10"><w>συ</w><w>δε</w>
+<lb n="P98C1L-025"/><w>τι</w><w>κρινεις</w><w>τον</w><w>αδελφον</w><w>σου</w><pc>·</pc><w>η</w><w>και</w>
+<lb n="P98C1L-025"/><w>συ</w><w>τι</w><w>εξουθενεις</w><w>τον</w><w>αδελφον</w><w>σου</w><pc>˙</pc>
+<lb n="P98C1L-025"/><w>παντες</w><w>γαρ</w><w>παραστησομεθα</w><w>τω</w>
+<lb n="P98C1L-025"/><w>βηματι</w><w>του</w><w><abbr type="nomSac"><hi rend="overline">χυ</hi></abbr></w><pc>˙</pc></ab><ab n="Rom.14.11"><w>γεγραπται</w><w>γαρ</w><pc>.</pc>
+<lb n="P98C1L-025"/><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w>ζω</w><w>εγω</w><w>λεγει</w><w><abbr type="nomSac"><hi rend="overline">κς</hi></abbr></w><pc>·</pc><w>οτι</w><w>εμοι</w><w>καμψει</w>
+<lb n="P98C1L-025"/><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w>παν</w><w>γονυ</w><pc>·</pc><w>κ<ex rend="ϗ">αι</ex></w><w>πασα</w><w>γλωσσα</w><w>εξομολο
+<pb n="99" type="page" xml:id="P99-025" break="no"/>
+<cb n="P99C1-025"/>
+<lb n="P99C1L-025"/>γησεται</w><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w>τω</w><w><abbr type="nomSac"><hi rend="overline">θω</hi></abbr></w><pc>˙</pc></ab><ab n="Rom.14.12"><w>αρα</w><w>εκαστος</w><w>ημω<ex rend="̅">ν</ex></w>
+<lb n="P99C1L-025"/><w>περι</w><w>εαυτου</w><w>δωσει</w><w>λογον</w><w>τω</w><w><abbr type="nomSac"><hi rend="overline">θω</hi></abbr></w><pc>˙</pc>
+<lb n="P99C1L-025"/></ab><ab n="Rom.14.13"><w>μηκετι</w><w>ουν</w><w>αλληλους</w><w>κρινομεν</w><pc>˙</pc>
+<lb n="P99C1L-025"/><w>αλλα</w><w>τουτο</w><w>κρινομεν</w><w>μαλλον</w><pc>·</pc><w>το</w>
+<lb n="P99C1L-025"/><w>μη</w><w>τιθεναι</w><w>προσκομμα</w><w>τω</w><w>αδελ
+<lb n="P99C1L-025" break="no"/>φω</w><pc>·</pc><w>η</w><w>σκανδαλον</w><pc>˙</pc></ab><ab n="Rom.14.14"><w>οιδα</w><w>και</w><w>πεπισμ<ex>αι</ex></w>
+<lb n="P99C1L-025"/><w>εν</w><w><abbr type="nomSac"><hi rend="overline">χω</hi></abbr></w><w><abbr type="nomSac"><hi rend="overline">ιυ</hi></abbr></w><pc>·</pc><w>οτι</w><w>ουδεν</w><w>κοινον</w><w>δι</w><w>αυτου</w><pc>·</pc>
+<lb n="P99C1L-025"/><w>ει</w><w>μη</w><w>τω</w><w>λογιζομενω</w><w>τι</w><w>κοινον</w><w>ει
+<lb n="P99C1L-025" break="no"/>ναι</w><pc>·</pc><w>εκεινω</w><w>κοινον</w><pc>˙</pc></ab><ab n="Rom.14.15"><w>ει</w><w>γαρ</w><w>δια</w><w>βρω
+<lb n="P99C1L-025" break="no"/>μα</w><w>ο</w><w>αδελφος</w><w>σου</w><w>λυπειται</w><pc>·</pc><w>ουκετι</w>
+<lb n="P99C1L-025"/><w>κατα</w><w>αγαπην</w><w>περιπατεις</w><pc>˙</pc><w>μη</w><w>τω</w>
+<lb n="P99C1L-025"/><w>βρωματι</w><w>σου</w><w>εκεινον</w><w>απολλυε</w><pc>·</pc><w>υπερ</w>
+<lb n="P99C1L-025"/><w>ου</w><w><abbr type="nomSac"><hi rend="overline">χς</hi></abbr></w><w>απεθανεν</w><pc>˙</pc></ab><ab n="Rom.14.16"><w>μη</w><w>βλασφημεισ
+<lb n="P99C1L-025" break="no"/>θω</w><w>ουν</w><w>υμων</w><w>το</w><w>αγαθον</w><pc>˙</pc></ab><ab n="Rom.14.17"><w>ου</w><w>γαρ</w><w>ε
+<lb n="P99C1L-025" break="no"/>στιν</w><w>η</w><w>βασιλεια</w><w>του</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><pc>.</pc><w>βρωσις</w><w>και</w>
+<lb n="P99C1L-025"/><w>ποσις</w><pc>·</pc><w>αλλα</w><w>δικαιοσυνη</w><pc>·</pc><w>και</w><w>ειρηνη</w>
+<lb n="P99C1L-025"/><w>και</w><w>χαρα</w><w>εν</w><w><abbr type="nomSac"><hi rend="overline">πνι</hi></abbr></w><w>αγιω</w><pc>˙</pc></ab><ab n="Rom.14.18"><w>ο</w><w>γαρ</w><w>εν</w><w>του
+<lb n="P99C1L-025" break="no"/>τω</w><w>δουλευων</w><w>τω</w><w><abbr type="nomSac"><hi rend="overline">χω</hi></abbr></w><pc>·</pc><w>ευαρεστος</w><w>τω</w>
+<lb n="P99C1L-025"/><w><abbr type="nomSac"><hi rend="overline">θω</hi></abbr></w><w>και</w><w>δοκιμος</w><w>τοις</w><w><abbr type="nomSac"><hi rend="overline">ανοις</hi></abbr></w><pc>˙</pc></ab><ab n="Rom.14.19"><w>αρα</w><w>ουν</w>
+<lb n="P99C1L-025" rend="hang"/><w><hi rend="cap" height="2">τ</hi>α</w><w>της</w><w>ειρηνης</w><w>διωκομεν</w><pc>·</pc><w>και</w><w>τα</w>
+<lb n="P99C1L-025"/><w>της</w><w>οικοδομης</w><w>της</w><w>εις</w><w>αλληλους</w><pc>˙</pc></ab><ab n="Rom.14.20"><w>μη</w>
+<lb n="P99C1L-025"/><w>ενεκεν</w><w>βρωματος</w><w>καταλυε</w><w>το</w><w>εργον</w>
+<lb n="P99C1L-025"/><w>του</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><pc>˙</pc><w>παντα</w><w>μεν</w><w>καθαρα</w><pc>;</pc><w>αλλα</w>
+<lb n="P99C1L-025"/><w>κακον</w><w>τω</w><w><abbr type="nomSac"><hi rend="overline">ανω</hi></abbr></w><pc>.</pc><w>τω</w><w>δια</w><w>προσκομ
+<pb n="100" type="page" xml:id="P100-025" break="no"/>
+<cb n="P100C1-025"/>
+<lb n="P100C1L-025"/>ματος</w><w>εσθιοντι</w><pc>˙</pc></ab><ab n="Rom.14.21"><w>καλον</w><w>το</w><w>μη</w><w>φα
+<lb n="P100C1L-025" rend="hang" break="no"/><hi rend="cap" height="2">γ</hi>ειν</w><w>κρεα</w><pc>·</pc><w>μηδε</w><w>πιειν</w><w>οινον</w><pc>·</pc><w>μηδε</w>
+<lb n="P100C1L-025"/><w>εν</w><w>ω</w><w>ο</w><w>αδελφος</w><w>σου</w><w>λυπειται</w><pc>·</pc><w>η</w><w>σκα<ex rend="̅">ν</ex>
+<lb n="P100C1L-025" break="no"/>δαλιζεται</w><pc>·</pc><w>η</w><w>ασθενει</w><pc>˙</pc></ab><ab n="Rom.14.22"><w>συ</w><w>πιστιν</w>
+<lb n="P100C1L-025"/><w>εχεις</w><pc>·</pc><w>κατα</w><w>σεαυτον</w><w>εχε</w><pc>·</pc><w>ενωπιον</w>
+<lb n="P100C1L-025"/><w>του</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><pc>˙</pc><w>μακαριος</w><w>ο</w><w>μη</w><w>κρινων</w>
+<lb n="P100C1L-025"/><w>εαυτον</w><pc>.</pc><w>εν</w><w>ω</w><w>δοκιμαζει</w><pc>˙</pc></ab><ab n="Rom.14.23"><w>ο</w><w>δε</w><w>δια
+<lb n="P100C1L-025" break="no"/>κρινομενος</w><w>εαν</w><w>φαγη</w><pc>·</pc><w>κατακρι
+<lb n="P100C1L-025" break="no"/>νεται</w><pc>˙</pc><w>οτι</w><w>ουκ</w><w>εκ</w><w>πιστεως</w><pc>˙</pc><w>παν</w>
+<lb n="P100C1L-025"/><w>δε</w><w>το</w><w>ουκ</w><w>εκ</w><w>πιστεως</w><pc>·</pc><w>αμαρτια</w><w>ε
+<lb n="P100C1L-025" break="no"/>στιν</w><pc>˙</pc></ab><ab n="Rom.14.24"><w>τω</w><w>δε</w><w>δυναμενω</w><w>ημας</w><w>στη
+<lb n="P100C1L-025" break="no"/>ριξαι</w><pc>·</pc><w>κατα</w><w>το</w><w>ευαγγελιον</w><w>μου</w><pc>·</pc>
+<lb n="P100C1L-025"/><w>και</w><w>το</w><w>κηρυγμα</w><w><abbr type="nomSac"><hi rend="overline">ιυ</hi></abbr></w><w><abbr type="nomSac"><hi rend="overline">χυ</hi></abbr></w><pc>.</pc><w>κατα</w><w>απο
+<lb n="P100C1L-025" break="no"/>καλυψειν</w><w>μυστηριου</w><pc>·</pc><w>χρονοις</w><w>αι
+<lb n="P100C1L-025" break="no"/>ωνιοις</w><w>σεσιγημενου</w><pc>·</pc></ab><ab n="Rom.14.25"><w>φανεροθεν
+<lb n="P100C1L-025" break="no"/>τος</w><w>δε</w><w>νυν</w><pc>,</pc><w>δια</w><w>τε</w><w>γραφων</w><w>προφη
+<lb n="P100C1L-025" break="no"/>τικων</w><pc>·</pc><w>κατ</w><w>επιταγην</w><w>του</w><w>αιω
+<lb n="P100C1L-025" break="no"/>νιου</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><pc>˙</pc><w>εις</w><w>υπακοην</w><w>πιστεως</w><pc>·</pc><w>εις</w>
+<lb n="P100C1L-025"/><w>παντα</w><w>τα</w><w>εθνη</w><pc>·</pc><w>γνωρισθεντος</w><pc>·</pc>
+<lb n="P100C1L-025"/></ab><ab n="Rom.14.26"><w>μονω</w><w>σοφω</w><w><abbr type="nomSac"><hi rend="overline">θω</hi></abbr></w><pc>·</pc><w>δια</w><w><abbr type="nomSac"><hi rend="overline">ιυ</hi></abbr></w><w><abbr type="nomSac"><hi rend="overline">χυ</hi></abbr></w><pc>˙</pc><w>ω</w><w>η</w><w>δο
+<lb n="P100C1L-025" break="no"/>ξα</w><w>εις</w><w>τους</w><w>αιωνας</w><w>αμην</w>
+<lb n="P100C1L-025" rend="hang"/></ab></div><div type="chapter" n="Rom.15"><ab n="Rom.15.1"><w><hi rend="cap" height="2">ο</hi>φιλομεν</w><w>ημεις</w><w>οι</w><w>δυνατοι</w><pc>.</pc><w>τα</w><w>ασθε
+<lb n="P100C1L-025" break="no"/>νηματα</w><w>των</w><w>αδυνατων</w><w>βαστα
+<lb n="P100C1L-025" break="no"/>ζειν</w><w>κ<ex rend="ϗ">αι</ex></w><w>μη</w><w>εαυτοις</w><w>αρεσκειν</w><pc>˙</pc></ab><ab n="Rom.15.2"><w>εκαστος</w>
+<pb n="101" type="page" xml:id="P101-025"/>
+<cb n="P101C1-025"/>
+<lb n="P101C1L-025"/><w>υμων</w><w>τω</w><w>πλησιον</w><w>αρεσκετω</w>
+<lb n="P101C1L-025"/><w>εις</w><w>το</w><w>αγαθον</w><pc>·</pc><w>προς</w><w>οικοδομην</w><pc>˙</pc>
+<lb n="P101C1L-025"/></ab><ab n="Rom.15.3"><w>και</w><w>γαρ</w><w>ο</w><w><abbr type="nomSac"><hi rend="overline">χς</hi></abbr></w><w>ουχ</w><w>εαυτω</w><w>ηρεσεν</w><pc>·</pc><w>αλ
+<lb n="P101C1L-025" break="no"/>λα</w><w>καθως</w><w>γεγραπται</w><pc>·</pc><w>οι</w><w>ονιδι
+<lb n="P101C1L-025" break="no"/>σμοι</w><w>των</w><w>ονιδιζοντων</w><w>σε</w><w>επε
+<lb n="P101C1L-025" break="no"/>πεσαν</w><w>επ</w><w>εμε</w><pc>˙</pc></ab><ab n="Rom.15.4"><w>οσα</w><w>γαρ</w><w>προεγραφει</w><pc>.</pc>
+<lb n="P101C1L-025"/><w>παντα</w><w>εις</w><w>την</w><w>ημετεραν</w><w>διδα
+<lb n="P101C1L-025" break="no"/>σκαλιαν</w><w>προεγραφει</w><pc>˙</pc><w>ινα</w><w>δια</w><w>της</w>
+<lb n="P101C1L-025"/><w>υπομονης</w><w>και</w><w>δια</w><w>της</w><w>παρακλησεως</w>
+<lb n="P101C1L-025"/><w>των</w><w>γραφων</w><w>την</w><w>ελπιδα</w><w>εχο
+<lb n="P101C1L-025" break="no"/>μεν</w><pc>˙</pc></ab><ab n="Rom.15.5"><w>ο</w><w>δε</w><w><abbr type="nomSac"><hi rend="overline">θς</hi></abbr></w><w>της</w><w>υπομονης</w><w>και</w>
+<lb n="P101C1L-025"/><w>της</w><w>παρακλησεως</w><pc>.</pc><w>δωη</w><w>υμιν</w>
+<lb n="P101C1L-025"/><w>το</w><w>αυτο</w><w>φρονειν</w><w>εν</w><w>αλληλοις</w><pc>.</pc><w>κα
+<lb n="P101C1L-025" break="no"/>τα</w><w><abbr type="nomSac"><hi rend="overline">ιν</hi></abbr></w><w><abbr type="nomSac"><hi rend="overline">χν</hi></abbr></w><pc>˙</pc></ab><ab n="Rom.15.6"><w>ινα</w><w>ομοθυμαδον</w><pc>·</pc><w>εν</w>
+<lb n="P101C1L-025"/><w>ενι</w><w>στοματι</w><w>δοξαζηται</w><w>τον</w><w><abbr type="nomSac"><hi rend="overline">θν</hi></abbr></w>
+<lb n="P101C1L-025"/><w>και</w><w><abbr type="nomSac"><hi rend="overline">πρα</hi></abbr></w><w>του</w><w><abbr type="nomSac"><hi rend="overline">κυ</hi></abbr></w><w>ημων</w><w><abbr type="nomSac"><hi rend="overline">ιυ</hi></abbr></w><w><abbr type="nomSac"><hi rend="overline">χυ</hi></abbr></w><pc>˙</pc></ab><ab n="Rom.15.7"><w>διο</w>
+<lb n="P101C1L-025"/><w>προσλαμβανεσθε</w><w>αλληλους</w><pc>·</pc><w>κα
+<lb n="P101C1L-025" break="no"/>θως</w><w>και</w><w>ο</w><w><abbr type="nomSac"><hi rend="overline">χς</hi></abbr></w><w>προσελαβετο</w><w>ημας</w><w>εις</w>
+<lb n="P101C1L-025"/><w>δοξαν</w><w>του</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><pc>˙</pc></ab><ab n="Rom.15.8"><w>λεγω</w><w>γαρ</w><w><abbr type="nomSac"><hi rend="overline">χν</hi></abbr></w><w><abbr type="nomSac"><hi rend="overline">ιν</hi></abbr></w>
+<lb n="P101C1L-025"/><w>διακονον</w><w>γεγενησθαι</w><w>περιτομης</w>
+<lb n="P101C1L-025"/><w>υπερ</w><w>αληθειας</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><pc>·</pc><w>εις</w><w>το</w><w>βεβαιωσαι</w>
+<lb n="P101C1L-025"/><w>τας</w><w>επαγγελιας</w><w>των</w><w><abbr type="nomSac"><hi rend="overline">πρων</hi></abbr></w><pc>˙</pc></ab><ab n="Rom.15.9"><w>τα</w>
+<lb n="P101C1L-025"/><w>δε</w><w>εθνη</w><w>υπερ</w><w>ελεους</w><w>δοξασαι</w><w>τον</w>
+<lb n="P101C1L-025"/><w><abbr type="nomSac"><hi rend="overline">θν</hi></abbr></w><pc>˙</pc><w>καθως</w><w>γεγραπται</w><pc>·</pc><w>δια</w><w>του
+<pb n="102" type="page" xml:id="P102-025" break="no"/>
+<cb n="P102C1-025"/>
+<lb n="P102C1L-025"/>το</w><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w>εξομολογησομαι</w><w>σοι</w><w>εν</w><w>εθνεσιν</w><pc>·</pc>
+<lb n="P102C1L-025"/><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w>και</w><w>τω</w><w>ονοματι</w><w>σου</w><w>ψαλω</w><pc>˙</pc></ab><ab n="Rom.15.10"><w>και</w><w>πα
+<lb n="P102C1L-025" break="no"/>λιν</w><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w>λεγει</w><pc>·</pc><w>ευφρανθητε</w><w>εθνη</w><w>με
+<lb n="P102C1L-025" break="no"/>τα</w><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w>του</w><w>λαου</w><w>αυτου</w><pc>·</pc></ab><ab n="Rom.15.11"><w>και</w><w>παλιν</w><pc>·</pc><w>αι
+<lb n="P102C1L-025" break="no"/>νειτε</w><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w>παντα</w><w>τα</w><w>εθνη</w><w>τον</w><w><abbr type="nomSac"><hi rend="overline">κν</hi></abbr></w><pc>·</pc><w>κ<ex rend="ϗ">αι</ex></w>
+<lb n="P102C1L-025"/><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w>επαινεσατε</w><w>αυτον</w><w>παντες</w><w>οι</w><w>λαοι</w><pc>˙</pc>
+<lb n="P102C1L-025"/></ab><ab n="Rom.15.12"><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w>και</w><w>παλιν</w><w>ησαιας</w><w>λεγει</w><pc>·</pc><w>εσται</w><w>η</w><w>ρι
+<lb n="P102C1L-025" break="no"/>ζα</w><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w>του</w><w>ιεσσαι</w><pc>·</pc><w>και</w><w>ο</w><w>ανισταμενος</w><w>αρ
+<lb n="P102C1L-025" break="no"/>χειν</w><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg><w>εθνων</w><pc>·</pc><w>επ</w><w>αυτω</w><w>εθνη</w><w>ελπι
+<lb n="P102C1L-025" break="no"/>ουσιν</w><pc>˙</pc><seg type="margin" subtype="lineleft"><pc>&gt;</pc></seg></ab><ab n="Rom.15.13"><w>ο</w><w>δε</w><w><abbr type="nomSac"><hi rend="overline">θς</hi></abbr></w><w>της</w><w>ελπιδος</w><pc>·</pc><w>πληρω
+<lb n="P102C1L-025" break="no"/>σαι</w><w>υμας</w><w>πασης</w><w>χαρας</w><w>και</w><w>ειρηνης</w><pc>·</pc>
+<lb n="P102C1L-025"/><w>εν</w><w>τω</w><w>πιστευειν</w><pc>·</pc><w>εις</w><w>το</w><w>περισσευειν</w>
+<lb n="P102C1L-025"/><w>υμας</w><pc>.</pc><w>εν</w><w>τη</w><w>ελπιδι</w><pc>·</pc><w>εν</w><w>δυναμει</w>
+<lb n="P102C1L-025"/><w><abbr type="nomSac"><hi rend="overline">πνς</hi></abbr></w><w>αγιου</w><pc>˙</pc></ab><ab n="Rom.15.14"><seg type="margin" subtype="lineleft" n="@P102C1L-025"><num type="chapNum" n="24" rend="center"><abbr type="num"><hi rend="overline">κδ</hi></abbr></num></seg><w>πεπισμαι</w><w>δε</w><w>αδελφοι</w>
+<lb n="P102C1L-025" rend="hang"/><w><hi rend="cap" height="2">μ</hi>ου</w><pc>·</pc><w>και</w><w>αυτος</w><w>εγω</w><w>περι</w><w>υμων</w><pc>.</pc><w>οτι</w>
+<lb n="P102C1L-025"/><w>και</w><w>αυτοι</w><w>μεστοι</w><w>εσται</w><w>αγαθοσυν<ex>ης</ex></w>
+<lb n="P102C1L-025"/><w>πεπληρωμενοι</w><w>πασης</w><w>της</w><w>γνωσε
+<lb n="P102C1L-025" break="no"/>ως</w><pc>·</pc><w>δυναμενοι</w><w>και</w><w>αλληλους</w><w>νου
+<lb n="P102C1L-025" break="no"/>θετειν</w><pc>˙</pc></ab><ab n="Rom.15.15"><w>τολμηροτερον</w><w>δε</w><w>εγρα
+<lb n="P102C1L-025" break="no"/>ψα</w><w>υμιν</w><w>αδελφοι</w><w>απο</w><w>μερους</w><pc>·</pc><w>ως</w><w>ε
+<lb n="P102C1L-025" break="no"/>παναμιμνησκων</w><w>υμας</w><pc>·</pc><w>δια</w><w>τη<ex rend="̅">ν</ex></w>
+<lb n="P102C1L-025"/><w>χαριν</w><pc>·</pc><w>την</w><w>δοθεισαν</w><w>μοι</w><w>υπο</w><w>του</w>
+<lb n="P102C1L-025"/><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><pc>·</pc></ab><ab n="Rom.15.16"><w>εις</w><w>το</w><w>ειναι</w><w>με</w><w>λειτουργον</w><w><abbr type="nomSac"><hi rend="overline">χυ</hi></abbr></w>
+<lb n="P102C1L-025"/><w><abbr type="nomSac"><hi rend="overline">ιυ</hi></abbr></w><w>εις</w><w>τα</w><w>εθνη</w><pc>·</pc><w>ιερουργουντα</w><w>το</w><w>ευ
+<pb n="103" type="page" xml:id="P103-025" break="no"/>
+<cb n="P103C1-025"/>
+<lb n="P103C1L-025"/>αγγελιον</w><w>του</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><pc>˙</pc><w>ινα</w><w>γενηται</w><w>η</w>
+<lb n="P103C1L-025"/><w>προσφορα</w><w>των</w><w>εθνων</w><pc>.</pc><w>ευπροσδε
+<lb n="P103C1L-025" break="no"/>κτος</w><pc>·</pc><w>ηγιασμενη</w><w>εν</w><w><abbr type="nomSac"><hi rend="overline">πνι</hi></abbr></w><w>αγιω</w><pc>˙</pc></ab><ab n="Rom.15.17"><w>ε
+<lb n="P103C1L-025" break="no"/>χω</w><w>ουν</w><w>καυχησιν</w><w>εν</w><w><abbr type="nomSac"><hi rend="overline">χω</hi></abbr></w><w><abbr type="nomSac"><hi rend="overline">ιυ</hi></abbr></w><w>τα</w><w>προς</w>
+<lb n="P103C1L-025"/><w>τον</w><w><abbr type="nomSac"><hi rend="overline">θν</hi></abbr></w><pc>˙</pc></ab><ab n="Rom.15.18"><w>ου</w><w>γαρ</w><w>τολμησω</w><w>τι</w><w>λαλει<ex rend="̅">ν</ex></w>
+<lb n="P103C1L-025"/><w>ων</w><pc>,</pc><w>ου</w><w>κατειργασατο</w><w><abbr type="nomSac"><hi rend="overline">χς</hi></abbr></w><w>δι</w><w>εμου</w><pc>·</pc>
+<lb n="P103C1L-025"/><w>εις</w><w>υπακοην</w><w>εθνων</w><pc>·</pc><w>λογω</w><w>και</w>
+<lb n="P103C1L-025"/><w>εργω</w><pc>·</pc></ab><ab n="Rom.15.19"><w>εν</w><w>δυναμει</w><w>σημειων</w><w>και</w>
+<lb n="P103C1L-025"/><w>τερατων</w><pc>·</pc><w>εν</w><w>δυναμει</w><w><abbr type="nomSac"><hi rend="overline">πνς</hi></abbr></w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><pc>˙</pc>
+<lb n="P103C1L-025"/><w>ωστε</w><w>με</w><pc>,</pc><w>απο</w><w><abbr type="nomSac"><hi rend="overline">ιλημ</hi></abbr></w><w>και</w><w>κυκλω</w>
+<lb n="P103C1L-025"/><w>μεχρι</w><w>του</w><w>ιλλυρικου</w><pc>·</pc><w>πεπληρω
+<lb n="P103C1L-025" break="no"/>κεναι</w><w>το</w><w>ευαγγελιον</w><w>του</w><w><abbr type="nomSac"><hi rend="overline">χυ</hi></abbr></w><pc>˙</pc></ab><ab n="Rom.15.20"><w>ου
+<lb n="P103C1L-025" break="no"/>τως</w><w>δε</w><w>φιλοτιμουμενον</w><w>ευαγ
+<lb n="P103C1L-025" break="no"/>γελισασθαι</w><w>ουχ</w><w>οπου</w><w>ονομασθη</w>
+<lb n="P103C1L-025"/><w><abbr type="nomSac"><hi rend="overline">χς</hi></abbr></w><pc>·</pc><w>ινα</w><w>μη</w><w>επ</w><w>αλλοτριον</w><w>θεμελιο<ex rend="̅">ν</ex></w>
+<lb n="P103C1L-025"/><w>οικοδομω</w><pc>·</pc></ab><ab n="Rom.15.21"><w>αλλα</w><w>καθως</w><w>γεγρα
+<lb n="P103C1L-025" break="no"/>πται</w><pc>·</pc><w>οις</w><w>ουκ</w><w>ανηγγελη</w><w>περι</w><w>αυ
+<lb n="P103C1L-025" break="no"/>του</w><w>οψονται</w><pc>·</pc><w>και</w><w>οι</w><w>ουκ</w><w>ακηκο
+<lb n="P103C1L-025" break="no"/>ασι</w><pc>.</pc><w>συνησουσιν</w><pc>˙</pc></ab><ab n="Rom.15.22"><w>διο</w><w>και</w><w>ενεκοπτο
+<lb n="P103C1L-025" break="no"/>μην</w><pc>.</pc><w>τα</w><w>πολλα</w><w>του</w><w>ελθειν</w><w>προς</w><w>υ
+<lb n="P103C1L-025" break="no"/>μας</w><pc>˙</pc></ab><ab n="Rom.15.23"><w>νυνι</w><w>δε</w><w>ουκετι</w><w>τοπον</w><w>εχω<ex rend="̅">ν</ex></w>
+<lb n="P103C1L-025"/><w>εν</w><w>τοις</w><w>κλημασι</w><w>τουτοις</w><pc>·</pc><w>επιπο
+<lb n="P103C1L-025" break="no"/>θιαν</w><w>δε</w><w>εχων</w><w>του</w><w>ελθειν</w><w>προς</w><w>υμας</w>
+<lb n="P103C1L-025"/><w>απο</w><w>ικανων</w><w>ετων</w><pc>·</pc></ab><ab n="Rom.15.24"><w>ως</w><w>αν</w><w>πορευ
+<pb n="104" type="page" xml:id="P104-025" break="no"/>
+<cb n="P104C1-025"/>
+<lb n="P104C1L-025"/>ομαι</w><w>εις</w><w>την</w><w>σπανιαν</w><pc>·</pc><w>ελπιζω</w>
+<lb n="P104C1L-025"/><w>γαρ</w><w>διαπορευομενος</w><w>θεασασθαι</w>
+<lb n="P104C1L-025"/><w>υμας</w><pc>·</pc><w>και</w><w>υφ</w><w>υμων</w><w>πορευθη
+<lb n="P104C1L-025" break="no"/>ναι</w><w>εκει</w><pc>·</pc><w>εαν</w><w>υμων</w><w>πρωτον</w><w>α
+<lb n="P104C1L-025" break="no"/>πο</w><w>μερους</w><w>εμπλησθω</w><pc>˙</pc></ab><ab n="Rom.15.25"><w>νυνι</w><w>δε</w>
+<lb n="P104C1L-025"/><w>πορευομαι</w><w>εις</w><w><abbr type="nomSac"><hi rend="overline">ιλημ</hi></abbr></w><pc>·</pc><w>διακονων</w>
+<lb n="P104C1L-025"/><w>τοις</w><w>αγιοις</w><pc>˙</pc></ab><ab n="Rom.15.26"><w>ευδοκησαν</w><w>γαρ</w><w>μα
+<lb n="P104C1L-025" break="no"/>κεδονια</w><w>και</w><w>αχαια</w><pc>·</pc><w>κοινωνιαν</w>
+<lb n="P104C1L-025"/><w>τινα</w><w>ποιησασθαι</w><w>εις</w><w>τους</w><w>πτω
+<lb n="P104C1L-025" break="no"/>χους</w><pc>.</pc><w>των</w><w>αγιων</w><w>των</w><w>εν</w><w><abbr type="nomSac"><hi rend="overline">ιλημ</hi></abbr></w><pc>˙</pc>
+<lb n="P104C1L-025"/></ab><ab n="Rom.15.27"><w>ευδοκησαν</w><w>γαρ</w><pc>.</pc><w>και</w><w>οφιλεται</w><w>ει
+<lb n="P104C1L-025" break="no"/>σιν</w><w>αυτων</w><pc>˙</pc><w>ει</w><w>γαρ</w><w>τοις</w><w><abbr type="nomSac"><hi rend="overline">πνικοις</hi></abbr></w>
+<lb n="P104C1L-025"/><w>αυτων</w><w>εκοινωνησαν</w><w>τα</w><w>εθνη</w>
+<lb n="P104C1L-025"/><w>οφιλουσιν</w><w>και</w><w>εν</w><w>τοις</w><w>σαρκικοις</w>
+<lb n="P104C1L-025"/><w>λειτουργησαι</w><w>αυτοις</w><pc>˙</pc></ab><ab n="Rom.15.28"><w>τουτο</w><w>ου<ex rend="̅">ν</ex></w>
+<lb n="P104C1L-025"/><w>επιτελεσας</w><w>κ<ex rend="ϗ">αι</ex></w><w>σφραγισαμενος</w>
+<lb n="P104C1L-025"/><w>αυτοις</w><w>τον</w><w>καρπον</w><w>τουτον</w><pc>·</pc><w>α
+<lb n="P104C1L-025" break="no"/>πελευσομαι</w><w>δι</w><w>υμων</w><w>εις</w><w>σπανι
+<lb n="P104C1L-025" break="no"/>αν</w><pc>˙</pc></ab><ab n="Rom.15.29"><w>οιδα</w><w>δε</w><w>οτι</w><w>ερχομενος</w><w>προς</w><w>υ
+<lb n="P104C1L-025" break="no"/>μας</w><pc>.</pc><w>εν</w><w>πληρωματι</w><w>ευλογιας</w><w><abbr type="nomSac"><hi rend="overline">χυ</hi></abbr></w>
+<lb n="P104C1L-025"/><w>ελευσομαι</w><pc>˙</pc></ab><ab n="Rom.15.30"><w>παρακαλω</w><w>δε</w><w>υμας</w><pc>·</pc><w>α
+<lb n="P104C1L-025" break="no"/>δελφοι</w><pc>·</pc><w>δια</w><w>του</w><w><abbr type="nomSac"><hi rend="overline">κυ</hi></abbr></w><w>ημων</w><w><abbr type="nomSac"><hi rend="overline">ιυ</hi></abbr></w><w><abbr type="nomSac"><hi rend="overline">χυ</hi></abbr></w><pc>·</pc>
+<lb n="P104C1L-025"/><w>και</w><w>δια</w><w>της</w><w>αγαπης</w><w>του</w><w><abbr type="nomSac"><hi rend="overline">πνς</hi></abbr></w><pc>˙</pc><w>συν
+<lb n="P104C1L-025" break="no"/>αγωνισασθαι</w><w>μοι</w><w>εν</w><w>ταις</w><w>προσευχ<ex>αις</ex></w>
+<pb n="105" type="page" xml:id="P105-025"/>
+<cb n="P105C1-025"/>
+<lb n="P105C1L-025"/><w>υπερ</w><w>εμου</w><w>προς</w><w>τον</w><w><abbr type="nomSac"><hi rend="overline">θν</hi></abbr></w><pc>˙</pc></ab><ab n="Rom.15.31"><w>ινα</w><w>ρυ
+<lb n="P105C1L-025" break="no"/>σθω</w><w>απο</w><w>των</w><w>απειθουντων</w><w>εν</w>
+<lb n="P105C1L-025"/><w>τη</w><w>ιουδαια</w><pc>·</pc><w>και</w><w>η</w><w>διακονια</w><w>μ<ex>ου</ex></w>
+<lb n="P105C1L-025"/><w>εις</w><w><abbr type="nomSac"><hi rend="overline">ιλημ</hi></abbr></w><pc>˙</pc><w>ευπροσδεκτος</w><w>τοις</w><w>αγι
+<lb n="P105C1L-025" break="no"/>οις</w><w>γενηται</w><pc>˙</pc></ab><ab n="Rom.15.32"><w>ινα</w><w>εν</w><w>χαρα</w><w>ελθω</w>
+<lb n="P105C1L-025"/><w>προς</w><w>υμας</w><w>δια</w><w>θεληματος</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><pc>·</pc><w>κ<ex rend="ϗ">αι</ex></w>
+<lb n="P105C1L-025"/><w>συναναπαυσομαι</w><w>υμιν</w><pc>˙</pc></ab><ab n="Rom.15.33"><w>ο</w><w>δε</w><w><abbr type="nomSac"><hi rend="overline">θς</hi></abbr></w>
+<lb n="P105C1L-025" rend="hang"/><w><hi rend="cap" height="2">τ</hi>ης</w><w>ειρηνης</w><w>μετα</w><w>παντων</w><w>υμω<ex rend="̅">ν</ex></w>
+<lb n="P105C1L-025"/><w>αμην</w><pc>˙</pc></ab><ab n="Rom.15.34"/><ab n="Rom.15.35"/><ab n="Rom.15.36"/></div><div type="chapter" n="Rom.16"><ab n="Rom.16.1"><w>συνιστιμι</w><w>δε</w><w>υμιν</w><w>φυ
+<lb n="P105C1L-025" break="no"/>βην</w><w>την</w><w>αδελφην</w><w>υμων</w><pc>·</pc><w>ουσα</w>
+<lb n="P105C1L-025"/><w>διακονον</w><w>της</w><w>εκκλησιας</w><w>της</w>
+<lb n="P105C1L-025"/><w>εν</w><w>κεγχρεαις</w><pc>.</pc></ab><ab n="Rom.16.2"><w>ινα</w><w>αυτην</w><w>προσδε
+<lb n="P105C1L-025" break="no"/>ξησθαι</w><w>εν</w><w><abbr type="nomSac"><hi rend="overline">κω</hi></abbr></w><w>αξιως</w><w>των</w><w>αγιω<ex rend="̅">ν</ex></w><pc>·</pc>
+<lb n="P105C1L-025"/><w>και</w><w>παραστηται</w><w>αυτη</w><pc>.</pc><w>εν</w><w>ω</w><w>αν</w>
+<lb n="P105C1L-025"/><w>υμων</w><w>χριζει</w><w>πραγματι</w><pc>˙</pc><w>και</w><w>γαρ</w>
+<lb n="P105C1L-025"/><w>αυτη</w><w>προστατης</w><w>πολλων</w><w>εγενηθη</w>
+<lb n="P105C1L-025"/><w>και</w><w>εμου</w><w>αυτου</w><pc>˙</pc></ab><ab n="Rom.16.3"><w>ασπασασθε</w><w>πρισκα<ex rend="̅">ν</ex></w>
+<lb n="P105C1L-025"/><w>και</w><w>ακυλλαν</w><pc>·</pc><w>τους</w><w>συνεργους</w><w>μου</w>
+<lb n="P105C1L-025"/><w>εν</w><w><abbr type="nomSac"><hi rend="overline">χω</hi></abbr></w><w><abbr type="nomSac"><hi rend="overline">ιυ</hi></abbr></w><pc>˙</pc></ab><ab n="Rom.16.4"><w>οιτινες</w><w>υπερ</w><w>της</w><w>ψυχης</w>
+<lb n="P105C1L-025"/><w>μου</w><w>τον</w><w>εαυτον</w><w>υπεθηκαν</w><w>τρα
+<lb n="P105C1L-025" break="no"/>χηλον</w><pc>˙</pc><w>οις</w><w>ουκ</w><w>εγω</w><w>μονος</w><w>ευχαρι
+<lb n="P105C1L-025" break="no"/>στω</w><pc>·</pc><w>αλλα</w><w>και</w><w>πασαι</w><w>αι</w><w>εκκλησιαι</w>
+<lb n="P105C1L-025"/><w>των</w><w>εθνων</w><pc>˙</pc></ab><ab n="Rom.16.5"><w>ασπασασθε</w><w>επαινε
+<lb n="P105C1L-025" break="no"/>τον</w><w>τον</w><w>αγαπητον</w><w>μου</w><pc>·</pc><w>ος</w><w>εστιν</w><app><rdg type="orig" hand="firsthand"/><rdg type="corr" hand="corrector"><seg type="margin" subtype="lineright" n="@P105C1L-025"><w>απαρχη</w></seg></rdg></app>
+<pb n="106" type="page" xml:id="P106-025"/>
+<cb n="P106C1-025"/>
+<lb n="P106C1L-025"/><app><rdg type="orig" hand="firsthand"/><rdg type="corr" hand="corrector"><seg type="margin" subtype="lineleft" n="@P106C1L-025"><w>της</w></seg></rdg></app><w>αχαιας</w><w>εις</w><w><abbr type="nomSac"><hi rend="overline">χν</hi></abbr></w><pc>˙</pc></ab><ab n="Rom.16.6"><w>ασπασασθε</w><w>μαριαν</w><pc>·</pc>
+<lb n="P106C1L-025" rend="hang"/><w><hi rend="cap" height="2">η</hi>τις</w><w>πολλα</w><w>εκοπιασεν</w><w>εις</w><w>υμας</w><pc>˙</pc></ab><ab n="Rom.16.7"><w>ασπα
+<lb n="P106C1L-025" break="no"/>σασθε</w><w>ανδρονικον</w><pc>·</pc><w>και</w><w>ιουνιαν</w><pc>·</pc>
+<lb n="P106C1L-025"/><w>τους</w><w>συγγενεις</w><w>μου</w><pc>·</pc><w>και</w><w>συναι
+<lb n="P106C1L-025" break="no"/>χμαλωτους</w><w>μου</w><pc>·</pc><w>οιτινες</w><w>εισιν</w><w>ε
+<lb n="P106C1L-025" break="no"/>πισημοι</w><w>εν</w><w>τοις</w><w>αποστολοις</w><pc>·</pc><w>οι</w><w>και</w>
+<lb n="P106C1L-025"/><w>προ</w><w>εμου</w><w>γεγονασιν</w><w>εν</w><w><abbr type="nomSac"><hi rend="overline">χω</hi></abbr></w><pc>˙</pc></ab><ab n="Rom.16.8"><w>ασπα
+<lb n="P106C1L-025" rend="hang" break="no"/><hi rend="cap" height="2">σ</hi>ασθε</w><w>αμπλιαν</w><w>τον</w><w>αγαπητον</w><w>μ<ex>ου</ex></w>
+<lb n="P106C1L-025"/><w>εν</w><w><abbr type="nomSac"><hi rend="overline">κω</hi></abbr></w><pc>˙</pc></ab><ab n="Rom.16.9"><w>ασπασασθε</w><w>ουρβανον</w><w>τον</w>
+<lb n="P106C1L-025"/><w>συνεργον</w><w>υμων</w><w>εν</w><w><abbr type="nomSac"><hi rend="overline">χω</hi></abbr></w><pc>·</pc><w>και</w><w>στα
+<lb n="P106C1L-025" break="no"/>χυν</w><w>τον</w><w>αγαπητον</w><w>μου</w><pc>˙</pc></ab><ab n="Rom.16.10"><w>ασπασα
+<lb n="P106C1L-025" break="no"/>σθε</w><w>απελλην</w><w>τον</w><w>δοκιμον</w><w>εν</w>
+<lb n="P106C1L-025"/><w><abbr type="nomSac"><hi rend="overline">χω</hi></abbr></w><pc>˙</pc><w>ασπασασθε</w><w>τους</w><w>εκ</w><w>των</w><w>αρι
+<lb n="P106C1L-025" break="no"/>στοβολου</w><pc>˙</pc></ab><ab n="Rom.16.11"><w>ασπασασθε</w><w>ηρωδιωνα</w>
+<lb n="P106C1L-025"/><w>τον</w><w>συγγενη</w><w>μου</w><pc>˙</pc><w>ασπασασθε</w><w>τους</w>
+<lb n="P106C1L-025"/><w>εκ</w><w>των</w><w>ναρκισσου</w><pc>·</pc><w>τους</w><w>οντας</w>
+<lb n="P106C1L-025"/><w>εν</w><w><abbr type="nomSac"><hi rend="overline">κω</hi></abbr></w><pc>˙</pc></ab><ab n="Rom.16.12"><w>ασπασασθε</w><w>τρυφεναν</w><w>κ<ex rend="ϗ">αι</ex></w>
+<lb n="P106C1L-025" rend="hang"/><w><hi rend="cap" height="2">τ</hi>ρυφωσαν</w><pc>.</pc><w>τας</w><w>κοπιωσας</w><w>εν</w><w><abbr type="nomSac"><hi rend="overline">κω</hi></abbr></w><pc>˙</pc>
+<lb n="P106C1L-025"/><w>ασπασασθε</w><w>περσιδα</w><w>την</w><w>αγαπητη<ex rend="̅">ν</ex></w><pc>.</pc>
+<lb n="P106C1L-025"/><w>ητις</w><w>πολλα</w><w>εκοπιασεν</w><w>εν</w><w><abbr type="nomSac"><hi rend="overline">κω</hi></abbr></w><pc>˙</pc></ab><ab n="Rom.16.13"><w>ασπα
+<lb n="P106C1L-025" break="no"/>σασθε</w><w>ρουφον</w><w>τον</w><w>εκλεκτον</w><w>εν</w>
+<lb n="P106C1L-025"/><w><abbr type="nomSac"><hi rend="overline">κω</hi></abbr></w><pc>˙</pc><w>και</w><w>την</w><w><abbr type="nomSac"><hi rend="overline">μρα</hi></abbr></w><w>αυτου</w><w>και</w><w>εμ<ex>ου</ex></w><pc>˙</pc>
+<lb n="P106C1L-025"/></ab><ab n="Rom.16.14"><w>ασπασασθε</w><w>ασυγκριτον</w><pc>·</pc><w>φλεγον
+<lb n="P106C1L-025" break="no"/>τα</w><pc>·</pc><w>ερμην</w><pc>·</pc><w>πατροβαν</w><pc>·</pc><w>ερμαν</w><pc>·</pc><w>κ<ex rend="ϗ">αι</ex></w>
+<pb n="107" type="page" xml:id="P107-025"/>
+<cb n="P107C1-025"/>
+<lb n="P107C1L-025"/><w>τους</w><w>συν</w><w>αυτοις</w><w>αδελφοις</w><pc>˙</pc></ab><ab n="Rom.16.15"><w>ασπασα
+<lb n="P107C1L-025" break="no"/>σθε</w><w>φιλολογον</w><w>και</w><w>ιουλιαν</w><pc>·</pc><w>νιρεα</w>
+<lb n="P107C1L-025"/><w>και</w><w>την</w><w>αδελφην</w><w>αυτου</w><pc>·</pc><w>ολυμ
+<lb n="P107C1L-025" break="no"/>παν</w><pc>·</pc><w>και</w><w>τους</w><w>συν</w><w>αυτοις</w><w>παντας</w>
+<lb n="P107C1L-025"/><w>αγιους</w><pc>˙</pc></ab><ab n="Rom.16.16"><w>ασπασασθε</w><w>αλληλους</w><w>εν</w><w>φι
+<lb n="P107C1L-025" rend="hang" break="no"/><hi rend="cap" height="2">λ</hi>ηματι</w><w>αγιω</w><pc>˙</pc><w>ασπαζονται</w><w>υμας</w>
+<lb n="P107C1L-025"/><w>αι</w><w>εκκλησιαι</w><w>πασαι</w><w>του</w><w><abbr type="nomSac"><hi rend="overline">χυ</hi></abbr></w><pc>˙</pc>
+<lb n="P107C1L-025" rend="hang"/></ab><ab n="Rom.16.17"><w><hi rend="cap" height="2">π</hi>αρακαλω</w><w>δε</w><w>υμας</w><w>αδελφοι</w><pc>.</pc><w>σκοπει<ex rend="̅">ν</ex></w>
+<lb n="P107C1L-025"/><w>τους</w><w>τας</w><w>διχοστασιας</w><w>και</w><w>τα</w><w>σκα<ex rend="̅">ν</ex>
+<lb n="P107C1L-025" break="no"/>δαλα</w><pc>·</pc><w>παρα</w><w>την</w><w>διδαχην</w><pc>·</pc><w>ην</w><pc>,</pc><w>υ
+<lb n="P107C1L-025" break="no"/>μεις</w><w>εμαθεται</w><w>ποιουντας</w><pc>·</pc><w>κ<ex rend="ϗ">αι</ex></w>
+<lb n="P107C1L-025"/><w>εκκλινατε</w><w>απ</w><w>αυτων</w><pc>˙</pc></ab><ab n="Rom.16.18"><w>οι</w><w>γαρ</w><w>τοι
+<lb n="P107C1L-025" break="no"/>ουτοι</w><w>τω</w><w><abbr type="nomSac"><hi rend="overline">κω</hi></abbr></w><w>ημων</w><w><abbr type="nomSac"><hi rend="overline">χω</hi></abbr></w><w>ου</w><w>δου
+<lb n="P107C1L-025" break="no"/>λευουσιν</w><pc>·</pc><w>αλλα</w><w>τη</w><w>εαυτων</w><w>κοιλι
+<lb n="P107C1L-025" break="no"/>α</w><pc>˙</pc><w>και</w><w>δια</w><w>της</w><w>χρηστολογιας</w><w>και</w>
+<lb n="P107C1L-025"/><w>ευλογιας</w><pc>·</pc><w>εξαπατωσι</w><w>τας</w><w>καρδι
+<lb n="P107C1L-025" break="no"/>ας</w><w>των</w><w>ακακων</w><pc>˙</pc></ab><ab n="Rom.16.19"><w>η</w><w>γαρ</w><w>υμων</w><w>υ
+<lb n="P107C1L-025" break="no"/>πακοη</w><pc>.</pc><w>εις</w><w>παντας</w><w>αφικετο</w><pc>˙</pc><w>ε
+<lb n="P107C1L-025" break="no"/>φ</w><w>υμιν</w><w>ουν</w><w>χαιρω</w><pc>˙</pc><w>θελω</w><w>δε</w><w>υμας</w>
+<lb n="P107C1L-025"/><w>σοφους</w><w>μεν</w><w>ειναι</w><w>εις</w><w>το</w><w>αγαθον</w><pc>.</pc><w>α
+<lb n="P107C1L-025" break="no"/>κερεους</w><w>δε</w><w>εις</w><w>το</w><w>κακον</w><pc>˙</pc></ab><ab n="Rom.16.20"><w>ο</w><w>δε</w><w><abbr type="nomSac"><hi rend="overline">θς</hi></abbr></w><w>της</w>
+<lb n="P107C1L-025"/><w>ειρηνης</w><pc>.</pc><w>συντριψει</w><w>τον</w><w>σαταναν</w>
+<lb n="P107C1L-025"/><w>υπο</w><w>τους</w><w>ποδας</w><w>υμων</w><w>εν</w><w>ταχει</w><pc>˙</pc><w>η</w>
+<lb n="P107C1L-025"/><w>χαρις</w><w>του</w><w><abbr type="nomSac"><hi rend="overline">κυ</hi></abbr></w><w>ημων</w><w><abbr type="nomSac"><hi rend="overline">ιυ</hi></abbr></w><w><abbr type="nomSac"><hi rend="overline">χυ</hi></abbr></w><w>μεθ</w><w>υ
+<pb n="108" type="page" xml:id="P108-025" break="no"/>
+<cb n="P108C1-025"/>
+<lb n="P108C1L-025"/>μων</w><pc>˙</pc></ab><ab n="Rom.16.21"><w>ασπαζεται</w><w>υμας</w><w>τιμοθε
+<lb n="P108C1L-025" break="no"/>ος</w><w>ο</w><w>συνεργος</w><w>μου</w><pc>·</pc><w>και</w><w>λουκιος</w><pc>·</pc><w>και</w>
+<lb n="P108C1L-025"/><w>ιασων</w><pc>·</pc><w>και</w><w>σωσιπατρος</w><pc>·</pc><w>οι</w><w>συγγε
+<lb n="P108C1L-025" break="no"/>νεις</w><w>μου</w><pc>˙</pc></ab><ab n="Rom.16.22"><w>ασπαζομαι</w><w>υμας</w><w>εγω</w>
+<lb n="P108C1L-025"/><w>τερτιος</w><pc>·</pc><w>ο</w><w>γραψας</w><w>την</w><w>επιστολη<ex rend="̅">ν</ex></w>
+<lb n="P108C1L-025"/><w>εν</w><w><abbr type="nomSac"><hi rend="overline">κω</hi></abbr></w><pc>˙</pc></ab><ab n="Rom.16.23"><w>ασπαζεται</w><w>υμας</w><w>γαιος</w>
+<lb n="P108C1L-025" rend="hang"/><w><hi rend="cap" height="2">ο</hi></w><w>ξενος</w><w>μου</w><pc>·</pc><w>και</w><w>ολης</w><w>της</w><w>εκκλησι
+<lb n="P108C1L-025" break="no"/>ας</w><pc>˙</pc><w>ασπαζεται</w><w>υμας</w><pc>.</pc><w>εραστος</w><pc>·</pc><w>ο</w><w>οι
+<lb n="P108C1L-025" break="no"/>κονομος</w><w>της</w><w>πολεως</w><pc>·</pc><w>και</w><w>κουαρ
+<lb n="P108C1L-025" break="no"/>τος</w><w>ο</w><w>αδελφος</w><pc>˙</pc></ab><ab n="Rom.16.25"><w>τω</w><w>δε</w><w>δυναμε
+<lb n="P108C1L-025" break="no"/>νω</w><w>υμας</w><w>στηριξαι</w><w>κατα</w><w>το</w><w>ευ
+<lb n="P108C1L-025" break="no"/>αγγελιον</w><w>μου</w><pc>·</pc><w>και</w><w>το</w><w>κηρυγμα</w>
+<lb n="P108C1L-025"/><w><abbr type="nomSac"><hi rend="overline">ιυ</hi></abbr></w><w><abbr type="nomSac"><hi rend="overline">χυ</hi></abbr></w><pc>·</pc><w>κατα</w><w>αποκαλυψιν</w><w>μυστη
+<lb n="P108C1L-025" break="no"/>ριου</w><pc>·</pc><w>χρονοις</w><w>αιωνιοις</w><w>σεσιγημε
+<lb n="P108C1L-025" break="no"/>νου</w><pc>·</pc></ab><ab n="Rom.16.26"><w>φανερωθεντος</w><w>δε</w><w>νυν</w><pc>·</pc>
+<lb n="P108C1L-025"/><w>δια</w><w>τε</w><w>γραφων</w><w>προφητικων</w><pc>.</pc>
+<lb n="P108C1L-025"/><w>κατ</w><w>επιταγην</w><w>του</w><w>αιωνιου</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><pc>·</pc>
+<lb n="P108C1L-025"/><w>εις</w><w>υπακοην</w><w>πιστεος</w><w>εις</w><w>παντα</w><w>τα</w><w>ε
+<lb n="P108C1L-025" break="no"/>θνη</w><w>γνωρισθεντος</w><pc>·</pc></ab><ab n="Rom.16.27"><w>μονω</w><w>σοφω</w>
+<lb n="P108C1L-025"/><w><abbr type="nomSac"><hi rend="overline">θω</hi></abbr></w><w>δια</w><w><abbr type="nomSac"><hi rend="overline">ιυ</hi></abbr></w><w><abbr type="nomSac"><hi rend="overline">χυ</hi></abbr></w><pc>˙</pc><w>αυτω</w><w>η</w><w>δοξα</w><w>εις</w><w>τους</w>
+<lb n="P108C1L-025"/><w>αιωνας</w><w>των</w><w>αιωνων</w><w>αμην</w><pc>:</pc></ab><ab n="Rom.16.24"><w>η</w><w>χα
+<lb n="P108C1L-025" break="no"/>ρις</w><w>του</w><w><abbr type="nomSac"><hi rend="overline">κυ</hi></abbr></w><w><abbr type="nomSac"><hi rend="overline">ιυ</hi></abbr></w><w><abbr type="nomSac"><hi rend="overline">χυ</hi></abbr></w><w>μετα</w><w>παντων</w><w>υ
+<lb n="P108C1L-025" break="no"/>μων</w><w>αμην</w><pc>:</pc>
+<lb n="P108C1L-025"/></ab></div><div type="subscriptio"><ab n="Rom.subscriptio"><w>παυλου</w><w>επιστ<ex>ολη</ex></w><w>πρ<ex>ος</ex></w><w>ρωμαιους</w><pc>·</pc><w>εγραφ<ex>η</ex></w><w>απο</w><w>κο
+<lb n="P108C1L-025" rend="indent" break="no"/>ρινθου</w><pc>:</pc></ab></div></div></body></text></TEI>

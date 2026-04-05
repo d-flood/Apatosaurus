@@ -1,0 +1,112 @@
+{
+  // Format on save
+  "editor.formatOnSave": true,
+
+  // Use the workspace version of TypeScript/JavaScript language features when available
+  "typescript.tsdk": "node_modules/typescript/lib",
+
+  // Prefer the Svelte extension for Svelte files
+  // (file associations are consolidated further down)
+
+  // Default formatters and per-language settings (merged later in the file)
+
+  // When saving, run ESLint fixes automatically and also organize imports if possible
+  "editor.codeActionsOnSave": {
+    "source.fixAll": "explicit",
+    "source.fixAll.eslint": "explicit",
+    "source.organizeImports": "explicit"
+  },
+
+  // Ensure prettier respects project config and integrates with svelte and tailwind
+  "prettier.requireConfig": true,
+  "prettier.enable": true,
+
+  // Editor indentation: use tabs across the project
+  "editor.insertSpaces": false,
+  "editor.tabSize": 4,
+  // Don't auto-detect indentation from files — enforce workspace settings
+  "editor.detectIndentation": false,
+
+  // Per-language editor settings to ensure tabs for Svelte, JS, TS
+  "[svelte]": {
+    "editor.defaultFormatter": "svelte.svelte-vscode",
+    "editor.insertSpaces": false,
+    "editor.tabSize": 4
+  },
+  "[javascript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.insertSpaces": false,
+    "editor.tabSize": 4
+  },
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.insertSpaces": false,
+    "editor.tabSize": 4
+  },
+
+  // Use Prettier for CSS and PostCSS files (ensures prettier handles Tailwind/@apply etc.)
+  "[css]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.insertSpaces": false,
+    "editor.tabSize": 4
+  },
+  "[postcss]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.insertSpaces": false,
+    "editor.tabSize": 4
+  },
+
+  // Use Docker extension formatter for Dockerfiles
+  "[dockerfile]": {
+    // Use the official Docker extension ID 'docker.docker' for formatting
+    "editor.defaultFormatter": "docker.docker",
+    "editor.insertSpaces": true,
+    "editor.tabSize": 4
+  },
+
+
+
+  // Format whole file on save (not only modifications)
+  "editor.formatOnSaveMode": "file",
+
+  // Svelte plugin settings (if using svelte-check / svelte-language-server)
+  "svelte.language-server.runtime": "node",
+  "svelte.plugin.typescript.enable": true,
+
+  // Tailwind CSS IntelliSense settings: scan Svelte files and class attributes
+  "tailwindCSS.includeLanguages": {
+    "svelte": "html",
+    "typescript": "javascript"
+  },
+  "tailwindCSS.emmetCompletions": true,
+  // Enable validation for stylesheets so Tailwind directives are linted
+  "tailwindCSS.validate": true,
+  // Suppress "Unknown at rule" diagnostics for Tailwind/DaisyUI/PostCSS directives
+  "css.lint.unknownAtRules": "ignore",
+  "scss.lint.unknownAtRules": "ignore",
+  "less.lint.unknownAtRules": "ignore",
+  // Explicitly include project CSS files that act as Tailwind entry points
+  // Treat CSS files in src that use Tailwind directives as PostCSS so the language server
+  // understands @tailwind, @apply, @plugin, etc. Merge Svelte association here too.
+  "files.associations": {
+    "*.svelte": "svelte",
+    "app/src/*.css": "postcss",
+    "app/src/**/*.css": "postcss",
+    "**/*.css": "postcss", // Associate all CSS files with Tailwind (PostCSS)
+    "Dockerfile": "dockerfile",
+    "**/Dockerfile": "dockerfile"
+  },
+  // Experimental: support class extraction from patterns like `class: 'foo bar'` or `class: "foo bar"`
+  "tailwindCSS.experimental.classRegex": [
+    // matches: class: 'foo bar', class: "foo bar", class: `foo ${bar}`
+    "class\\s*:\\s*['\"`]([^'\"`]*)['\"`]",
+    // matches Svelte shorthand: class:active="foo bar"
+    "class:?[\\w-]*\\s*=\\s*['\"]([^'\"]+)['\"]"
+  ],
+
+  // Optional: format on paste for convenience
+  "editor.formatOnPaste": false,
+
+  // Extensions recommendations (kept in settings for quick reference — optional)
+  "extensions.ignoreRecommendations": false
+}

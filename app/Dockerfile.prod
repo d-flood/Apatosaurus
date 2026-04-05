@@ -1,0 +1,26 @@
+FROM oven/bun:1-alpine AS builder
+
+WORKDIR /workspace
+
+# Build this image from the repository root so sibling workspace packages are available.
+COPY . .
+COPY app/.npmrc.docker app/.npmrc
+
+RUN bun install
+
+RUN bun run --cwd app build
+
+FROM oven/bun:1-alpine
+
+RUN apk add --no-cache wget
+
+WORKDIR /workspace
+COPY --from=builder /workspace /workspace
+
+ENV NODE_ENV=production
+ENV PORT=3000
+
+EXPOSE 3000
+
+WORKDIR /workspace/app
+CMD ["bun", "run", "./build"]

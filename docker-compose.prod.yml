@@ -1,0 +1,37 @@
+services:
+  sveltekit:
+    image: damascus.flicker-lionfish.ts.net/apatosaurus-sveltekit:latest
+    build:
+      context: .
+      dockerfile: app/Dockerfile.prod
+    container_name: sveltekit-prod
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      ORIGIN: ${ORIGIN:-http://localhost:8888}
+      PUBLIC_ENABLE_COLLATION: "false"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  caddy:
+    image: damascus.flicker-lionfish.ts.net/apatosaurus-caddy:latest
+    build:
+      context: ./caddy
+      dockerfile: Dockerfile.prod
+    container_name: caddy-prod
+    platform: linux/amd64
+    restart: unless-stopped
+    ports:
+      - "8888:8888"
+    volumes:
+      - caddy_config:/config
+      - caddy_data:/data
+    depends_on:
+      - sveltekit
+
+volumes:
+  caddy_data:
+  caddy_config:

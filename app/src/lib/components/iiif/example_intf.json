@@ -1,0 +1,2045 @@
+{
+	"status": "success",
+	"data": {
+		"manuscript": {
+			"docID": 10045,
+			"columns": {
+				"columnsMin": 1,
+				"content": 1
+			},
+			"groupID": "",
+			"primaryName": "P45",
+			"shelfInstances": {
+				"shelfInstance": [
+					{
+						"institution": {
+							"country": "Ireland",
+							"instID": 259,
+							"nameCustom": "",
+							"geoLocator": "",
+							"name": "Chester Beatty Library",
+							"place": "Dublin",
+							"logoURL": "http://ntmss.info/instlogos/cbl.png",
+							"url": "http://www.cbl.ie/"
+						},
+						"leavesDescription": 28,
+						"shelfID": 5436,
+						"originYearDescription": "III",
+						"pages": {
+							"count": 0
+						},
+						"manuscripts": {
+							"count": 0
+						},
+						"formerGANumber": "",
+						"leavesCount": 0,
+						"shelfNumber": "CBL BP I",
+						"contentOverview": "Mt 20:24-32; 21:13-19; Mk 4:36-40; 5:15-26; 5:38-6:3,16-25,36-50; 7:3-15; 7:25-8:1,10-26; 8:34-9:9,18-31; 11:27-12:1,5-8,13-19,24-28; Lk 6:31-41; 6:45-7:7; 9:26-41; 9:45-10:1,6-22; 10:26-11:1,6-25,28-46; 11:50-12:12,18-37; 12:42-13:1,6-24; 13:29-14:10,17-33; Jn 4:51,54; 5:21,24; 10:7-25; 10:30-11:10,18-36,42-57; Ac 4:27-36; 5:10-21,30-39; 6:7-7:2,10-21,32-41; 7:52-8:1,14-25; 8:34-9:6,16-27; 9:35-10:2,10-23,31-41; 11:2-14; 11:24-12:5,13-22; 13:6-16,25-36; 13:46-14:3,15-23; 15:2-7,19-27; 15:38-16:4, 15-21, 32-40; 17:9-17"
+					},
+					{
+						"institution": {
+							"country": "Austria",
+							"instID": 328,
+							"nameCustom": "",
+							"geoLocator": "",
+							"name": "Österreichische Nationalbibliothek",
+							"place": "Wien",
+							"logoURL": "http://ntmss.info/instlogos/OesterNationalbib.jpg",
+							"url": "http://www.onb.ac.at/"
+						},
+						"leavesDescription": 2,
+						"shelfID": 5437,
+						"originYearDescription": "III",
+						"pages": {
+							"count": 0
+						},
+						"manuscripts": {
+							"count": 0
+						},
+						"formerGANumber": "",
+						"leavesCount": 0,
+						"shelfNumber": "Pap. G. 31974",
+						"contentOverview": "Mt 25:41-26:39"
+					}
+				]
+			},
+			"userID": "",
+			"v11n": "",
+			"originYear": {
+				"late": 299,
+				"early": 200,
+				"content": "III"
+			},
+			"leavesDescription": 30,
+			"pages": {
+				"count": 64,
+				"page": [
+					{
+						"biblicalContent": "Matt 20:24-32",
+						"images": {
+							"image": {
+								"instID": 49,
+								"shelfID": 0,
+								"shelfNumberPartID": "",
+								"accessLevel": 0,
+								"viewURL": "https://ntvmr.uni-muenster.de/community/modules/papyri/?site=VMR&image=10045/8/10",
+								"attribution": "<a target=\"_blank\" href=\"http://www.cbl.ie\"><img src=\"http://ntmss.info/instlogos/cbl.png\"/><div>Images © The Trustees of the<br/>Chester Beatty Library, Dublin</div></a>",
+								"thumbURL": "https://ntmss.info/images/thumbs/10045/8_49_10.jpg",
+								"userName": "",
+								"uri": "https://ntmss.info/images/full/10045/T0004411-2.jpg",
+								"webFriendlyURL": "https://ntmss.info/images/webfriendly/10045/T0004411-2.jpg",
+								"surrID": 10,
+								"protectLevel": 0
+							}
+						},
+						"shelfID": "",
+						"shelfFolioNums": "",
+						"sortOrder": "00008",
+						"folio": "1r",
+						"indexContent": "Matt 20:24-32",
+						"transcriptions": {
+							"transcription": {
+								"uri": "http://localhost:8080/community/vmr/api/transcript/get/?docid=10045&pageID=8&format=xhtml"
+							}
+						},
+						"pageID": 8,
+						"indexedBy": "lakmann"
+					},
+					{
+						"biblicalContent": "Matt 21:13-19",
+						"images": {
+							"image": {
+								"instID": 49,
+								"shelfID": 0,
+								"shelfNumberPartID": "",
+								"accessLevel": 0,
+								"viewURL": "https://ntvmr.uni-muenster.de/community/modules/papyri/?site=VMR&image=10045/9/10",
+								"attribution": "<a target=\"_blank\" href=\"http://www.cbl.ie\"><img src=\"http://ntmss.info/instlogos/cbl.png\"/><div>Images © The Trustees of the<br/>Chester Beatty Library, Dublin</div></a>",
+								"thumbURL": "https://ntmss.info/images/thumbs/10045/9_49_10.jpg",
+								"userName": "",
+								"uri": "https://ntmss.info/images/full/10045/T0004410-1.jpg",
+								"webFriendlyURL": "https://ntmss.info/images/webfriendly/10045/T0004410-1.jpg",
+								"surrID": 10,
+								"protectLevel": 0
+							}
+						},
+						"shelfID": "",
+						"shelfFolioNums": "",
+						"sortOrder": "00009",
+						"folio": "1v",
+						"indexContent": "Matt 21:13-19",
+						"transcriptions": {
+							"transcription": {
+								"uri": "http://localhost:8080/community/vmr/api/transcript/get/?docid=10045&pageID=9&format=xhtml"
+							}
+						},
+						"pageID": 9,
+						"indexedBy": "drubschmid"
+					},
+					{
+						"biblicalContent": "Matt 25:41-46; Matt 26:1-17",
+						"images": {
+							"image": [
+								{
+									"instID": 49,
+									"shelfID": 0,
+									"shelfNumberPartID": "",
+									"accessLevel": 0,
+									"viewURL": "https://ntvmr.uni-muenster.de/community/modules/papyri/?site=VMR&image=10045/10/10",
+									"attribution": "<a target=\"_blank\" href=\"http://digital.onb.ac.at/RepViewer/viewer.faces?doc=DOD_%2BZ146423009&order=1&view=SINGLE\"><img src=\" http://digital.onb.ac.at/RepViewer/images/logo_c4.gif\"><div> Images©<br/>ÖNB</div></a>",
+									"thumbURL": "https://ntmss.info/images/thumbs/10045/10_49_10.jpg",
+									"userName": "",
+									"uri": "https://ntmss.info/images/webfriendly/10045/10045x00030_OENB.jpg",
+									"webFriendlyURL": "https://ntmss.info/images/webfriendly/10045/10045x00030_OENB.jpg",
+									"surrID": 10,
+									"protectLevel": 0
+								},
+								{
+									"instID": 49,
+									"shelfID": 0,
+									"shelfNumberPartID": "",
+									"accessLevel": 0,
+									"viewURL": "https://ntvmr.uni-muenster.de/community/modules/papyri/?site=VMR&image=10045/10/20",
+									"attribution": "<a target=\"_blank\" href=\"http://www.cbl.ie\"><img src=\"http://ntmss.info/instlogos/cbl.png\"/><div>Images © The Trustees of the<br/>Chester Beatty Library, Dublin</div></a>",
+									"thumbURL": "https://ntmss.info/images/thumbs/10045/10_49_20.jpg",
+									"userName": "",
+									"uri": "https://ntmss.info/images/full/10045/T0004410-2.jpg",
+									"webFriendlyURL": "https://ntmss.info/images/webfriendly/10045/T0004410-2.jpg",
+									"surrID": 20,
+									"protectLevel": 0
+								}
+							]
+						},
+						"shelfID": 5437,
+						"shelfFolioNums": "002r",
+						"sortOrder": "00010",
+						"folio": "2r",
+						"indexContent": "Matt 25:41-46; Matt 26:1-17",
+						"transcriptions": {
+							"transcription": {
+								"uri": "http://localhost:8080/community/vmr/api/transcript/get/?docid=10045&pageID=10&format=xhtml"
+							}
+						},
+						"pageID": 10,
+						"indexedBy": "lakmann"
+					},
+					{
+						"biblicalContent": "Matt 26:18-39",
+						"images": {
+							"image": [
+								{
+									"instID": 49,
+									"shelfID": 0,
+									"shelfNumberPartID": "",
+									"accessLevel": 0,
+									"viewURL": "https://ntvmr.uni-muenster.de/community/modules/papyri/?site=VMR&image=10045/20/10",
+									"attribution": "<a target=\"_blank\" href=\"http://digital.onb.ac.at/RepViewer/viewer.faces?doc=DOD_%2BZ146423009&order=1&view=SINGLE\"><img src=\" http://digital.onb.ac.at/RepViewer/images/logo_c4.gif\"><div> Images©<br/>ÖNB</div></a>",
+									"thumbURL": "https://ntmss.info/images/thumbs/10045/20_49_10.jpg",
+									"userName": "",
+									"uri": "https://ntmss.info/images/webfriendly/10045/10045x00040_OENB.jpg",
+									"webFriendlyURL": "https://ntmss.info/images/webfriendly/10045/10045x00040_OENB.jpg",
+									"surrID": 10,
+									"protectLevel": 0
+								},
+								{
+									"instID": 49,
+									"shelfID": 0,
+									"shelfNumberPartID": "",
+									"accessLevel": 0,
+									"viewURL": "https://ntvmr.uni-muenster.de/community/modules/papyri/?site=VMR&image=10045/20/20",
+									"attribution": "<a target=\"_blank\" href=\"http://www.cbl.ie\"><img src=\"http://ntmss.info/instlogos/cbl.png\"/><div>Images © The Trustees of the<br/>Chester Beatty Library, Dublin</div></a>",
+									"thumbURL": "https://ntmss.info/images/thumbs/10045/20_49_20.jpg",
+									"userName": "",
+									"uri": "https://ntmss.info/images/full/10045/T0004411-1.jpg",
+									"webFriendlyURL": "https://ntmss.info/images/webfriendly/10045/T0004411-1.jpg",
+									"surrID": 20,
+									"protectLevel": 0
+								}
+							]
+						},
+						"shelfID": 5437,
+						"shelfFolioNums": "002v",
+						"sortOrder": "00020",
+						"folio": "2v",
+						"indexContent": "Matt 26:18-39",
+						"transcriptions": {
+							"transcription": {
+								"uri": "http://localhost:8080/community/vmr/api/transcript/get/?docid=10045&pageID=20&format=xhtml"
+							}
+						},
+						"pageID": 20,
+						"indexedBy": "lakmann"
+					},
+					{
+						"biblicalContent": "Mark 4:33-41; Mark 5:1-2",
+						"images": {
+							"image": {
+								"instID": 49,
+								"shelfID": 0,
+								"shelfNumberPartID": "",
+								"accessLevel": 0,
+								"viewURL": "https://ntvmr.uni-muenster.de/community/modules/papyri/?site=VMR&image=10045/30/20",
+								"attribution": "",
+								"thumbURL": "https://ntmss.info/images/thumbs/10045/30_49_20.jpg",
+								"userName": "",
+								"uri": "https://ntmss.info/images/webfriendly/10045/T0004412-1.jpg",
+								"webFriendlyURL": "https://ntmss.info/images/webfriendly/10045/T0004412-1.jpg",
+								"surrID": 20,
+								"protectLevel": 0
+							}
+						},
+						"shelfID": 5436,
+						"shelfFolioNums": "",
+						"sortOrder": "00030",
+						"folio": "3r",
+						"indexContent": "Mark 4:33-41; Mark 5:1-2",
+						"transcriptions": {
+							"transcription": {
+								"uri": "http://localhost:8080/community/vmr/api/transcript/get/?docid=10045&pageID=30&format=xhtml"
+							}
+						},
+						"pageID": 30,
+						"indexedBy": "lakmann"
+					},
+					{
+						"biblicalContent": "Mark 5:16-26",
+						"images": {
+							"image": {
+								"instID": 49,
+								"shelfID": 0,
+								"shelfNumberPartID": "",
+								"accessLevel": 0,
+								"viewURL": "https://ntvmr.uni-muenster.de/community/modules/papyri/?site=VMR&image=10045/40/20",
+								"attribution": "",
+								"thumbURL": "https://ntmss.info/images/thumbs/10045/40_49_20.jpg",
+								"userName": "",
+								"uri": "https://ntmss.info/images/webfriendly/10045/T0004413-2.jpg",
+								"webFriendlyURL": "https://ntmss.info/images/webfriendly/10045/T0004413-2.jpg",
+								"surrID": 20,
+								"protectLevel": 0
+							}
+						},
+						"shelfID": 5436,
+						"shelfFolioNums": "",
+						"sortOrder": "00040",
+						"folio": "3v",
+						"indexContent": "Mark 5:16-26",
+						"transcriptions": {
+							"transcription": {
+								"uri": "http://localhost:8080/community/vmr/api/transcript/get/?docid=10045&pageID=40&format=xhtml"
+							}
+						},
+						"pageID": 40,
+						"indexedBy": "lakmann"
+					},
+					{
+						"biblicalContent": "Mark 5:38-43; Mark 6:1-3",
+						"images": {
+							"image": {
+								"instID": 49,
+								"shelfID": 0,
+								"shelfNumberPartID": "",
+								"accessLevel": 0,
+								"viewURL": "https://ntvmr.uni-muenster.de/community/modules/papyri/?site=VMR&image=10045/50/20",
+								"attribution": "",
+								"thumbURL": "https://ntmss.info/images/thumbs/10045/50_49_20.jpg",
+								"userName": "",
+								"uri": "https://ntmss.info/images/webfriendly/10045/T0004412-2.jpg",
+								"webFriendlyURL": "https://ntmss.info/images/webfriendly/10045/T0004412-2.jpg",
+								"surrID": 20,
+								"protectLevel": 0
+							}
+						},
+						"shelfID": 5436,
+						"shelfFolioNums": "",
+						"sortOrder": "00050",
+						"folio": "4r",
+						"indexContent": "Mark 5:38-43; Mark 6:1-3",
+						"transcriptions": {
+							"transcription": {
+								"uri": "http://localhost:8080/community/vmr/api/transcript/get/?docid=10045&pageID=50&format=xhtml"
+							}
+						},
+						"pageID": 50,
+						"indexedBy": "lakmann"
+					},
+					{
+						"biblicalContent": "Mark 6:15-25",
+						"images": {
+							"image": {
+								"instID": 49,
+								"shelfID": 0,
+								"shelfNumberPartID": "",
+								"accessLevel": 0,
+								"viewURL": "https://ntvmr.uni-muenster.de/community/modules/papyri/?site=VMR&image=10045/60/20",
+								"attribution": "",
+								"thumbURL": "https://ntmss.info/images/thumbs/10045/60_49_20.jpg",
+								"userName": "",
+								"uri": "https://ntmss.info/images/webfriendly/10045/T0004413-1.jpg",
+								"webFriendlyURL": "https://ntmss.info/images/webfriendly/10045/T0004413-1.jpg",
+								"surrID": 20,
+								"protectLevel": 0
+							}
+						},
+						"shelfID": 5436,
+						"shelfFolioNums": "",
+						"sortOrder": "00060",
+						"folio": "4v",
+						"indexContent": "Mark 6:15-25",
+						"transcriptions": {
+							"transcription": {
+								"uri": "http://localhost:8080/community/vmr/api/transcript/get/?docid=10045&pageID=60&format=xhtml"
+							}
+						},
+						"pageID": 60,
+						"indexedBy": "ECM"
+					},
+					{
+						"biblicalContent": "Mark 6:36-50",
+						"images": {
+							"image": {
+								"instID": 49,
+								"shelfID": 0,
+								"shelfNumberPartID": "",
+								"accessLevel": 0,
+								"viewURL": "https://ntvmr.uni-muenster.de/community/modules/papyri/?site=VMR&image=10045/70/10",
+								"attribution": "<a target=\"_blank\" href=\"http://www.cbl.ie\"><img src=\"http://ntmss.info/instlogos/cbl.png\"/><div>Images © The Trustees of the<br/>Chester Beatty Library, Dublin</div></a>",
+								"thumbURL": "https://ntmss.info/images/thumbs/10045/70_49_10.jpg",
+								"userName": "",
+								"uri": "https://ntmss.info/images/full/10045/T0004407.jpg",
+								"webFriendlyURL": "https://ntmss.info/images/webfriendly/10045/T0004407.jpg",
+								"surrID": 10,
+								"protectLevel": 0
+							}
+						},
+						"shelfID": 5436,
+						"shelfFolioNums": "",
+						"sortOrder": "00070",
+						"folio": "5r",
+						"indexContent": "Mark 6:36-50",
+						"transcriptions": {
+							"transcription": {
+								"uri": "http://localhost:8080/community/vmr/api/transcript/get/?docid=10045&pageID=70&format=xhtml"
+							}
+						},
+						"pageID": 70,
+						"indexedBy": "lakmann"
+					},
+					{
+						"biblicalContent": "Mark 7:3-15",
+						"images": {
+							"image": {
+								"instID": 49,
+								"shelfID": 0,
+								"shelfNumberPartID": "",
+								"accessLevel": 0,
+								"viewURL": "https://ntvmr.uni-muenster.de/community/modules/papyri/?site=VMR&image=10045/80/10",
+								"attribution": "<a target=\"_blank\" href=\"http://www.cbl.ie\"><img src=\"http://ntmss.info/instlogos/cbl.png\"/><div>Images © The Trustees of the<br/>Chester Beatty Library, Dublin</div></a>",
+								"thumbURL": "https://ntmss.info/images/thumbs/10045/80_49_10.jpg",
+								"userName": "",
+								"uri": "https://ntmss.info/images/full/10045/T0004406.jpg",
+								"webFriendlyURL": "https://ntmss.info/images/webfriendly/10045/T0004406.jpg",
+								"surrID": 10,
+								"protectLevel": 0
+							}
+						},
+						"shelfID": 5436,
+						"shelfFolioNums": "",
+						"sortOrder": "00080",
+						"folio": "5v",
+						"indexContent": "Mark 7:3-15",
+						"transcriptions": {
+							"transcription": {
+								"uri": "http://localhost:8080/community/vmr/api/transcript/get/?docid=10045&pageID=80&format=xhtml"
+							}
+						},
+						"pageID": 80,
+						"indexedBy": "ECM"
+					},
+					{
+						"biblicalContent": "Mark 7:25-8:1",
+						"images": {
+							"image": {
+								"instID": 49,
+								"shelfID": 0,
+								"shelfNumberPartID": "",
+								"accessLevel": 0,
+								"viewURL": "https://ntvmr.uni-muenster.de/community/modules/papyri/?site=VMR&image=10045/90/10",
+								"attribution": "<a target=\"_blank\" href=\"http://www.cbl.ie\"><img src=\"http://ntmss.info/instlogos/cbl.png\"/><div>Images © The Trustees of the<br/>Chester Beatty Library, Dublin</div></a>",
+								"thumbURL": "https://ntmss.info/images/thumbs/10045/90_49_10.jpg",
+								"userName": "",
+								"uri": "https://ntmss.info/images/full/10045/T0004554.jpg",
+								"webFriendlyURL": "https://ntmss.info/images/webfriendly/10045/T0004554.jpg",
+								"surrID": 10,
+								"protectLevel": 0
+							}
+						},
+						"shelfID": 5436,
+						"shelfFolioNums": "",
+						"sortOrder": "00090",
+						"folio": "6r",
+						"indexContent": "Mark 7:25-8:1",
+						"transcriptions": {
+							"transcription": {
+								"uri": "http://localhost:8080/community/vmr/api/transcript/get/?docid=10045&pageID=90&format=xhtml"
+							}
+						},
+						"pageID": 90,
+						"indexedBy": "ah"
+					},
+					{
+						"biblicalContent": "Mark 8:10-26",
+						"images": {
+							"image": {
+								"instID": 49,
+								"shelfID": 0,
+								"shelfNumberPartID": "",
+								"accessLevel": 0,
+								"viewURL": "https://ntvmr.uni-muenster.de/community/modules/papyri/?site=VMR&image=10045/100/10",
+								"attribution": "<a target=\"_blank\" href=\"http://www.cbl.ie\"><img src=\"http://ntmss.info/instlogos/cbl.png\"/><div>Images © The Trustees of the<br/>Chester Beatty Library, Dublin</div></a>",
+								"thumbURL": "https://ntmss.info/images/thumbs/10045/100_49_10.jpg",
+								"userName": "",
+								"uri": "https://ntmss.info/images/full/10045/T0004553_a.jpg",
+								"webFriendlyURL": "https://ntmss.info/images/webfriendly/10045/T0004553_a.jpg",
+								"surrID": 10,
+								"protectLevel": 0
+							}
+						},
+						"shelfID": 5436,
+						"shelfFolioNums": "",
+						"sortOrder": "00100",
+						"folio": "6v",
+						"indexContent": "Mark 8:10-26",
+						"transcriptions": {
+							"transcription": {
+								"uri": "http://localhost:8080/community/vmr/api/transcript/get/?docid=10045&pageID=100&format=xhtml"
+							}
+						},
+						"pageID": 100,
+						"indexedBy": "ECM"
+					},
+					{
+						"biblicalContent": "Mark 8:34-38; Mark 9:1-9",
+						"images": {
+							"image": {
+								"instID": 49,
+								"shelfID": 0,
+								"shelfNumberPartID": "",
+								"accessLevel": 0,
+								"viewURL": "https://ntvmr.uni-muenster.de/community/modules/papyri/?site=VMR&image=10045/110/10",
+								"attribution": "<a target=\"_blank\" href=\"http://www.cbl.ie\"><img src=\"http://ntmss.info/instlogos/cbl.png\"/><div>Images © The Trustees of the<br/>Chester Beatty Library, Dublin</div></a>",
+								"thumbURL": "https://ntmss.info/images/thumbs/10045/110_49_10.jpg",
+								"userName": "",
+								"uri": "https://ntmss.info/images/full/10045/T0004408.jpg",
+								"webFriendlyURL": "https://ntmss.info/images/webfriendly/10045/T0004408.jpg",
+								"surrID": 10,
+								"protectLevel": 0
+							}
+						},
+						"shelfID": 5436,
+						"shelfFolioNums": "",
+						"sortOrder": "00110",
+						"folio": "7r",
+						"indexContent": "Mark 8:34-38; Mark 9:1-9",
+						"transcriptions": {
+							"transcription": {
+								"uri": "http://localhost:8080/community/vmr/api/transcript/get/?docid=10045&pageID=110&format=xhtml"
+							}
+						},
+						"pageID": 110,
+						"indexedBy": "ECM"
+					},
+					{
+						"biblicalContent": "Mark 9:18-31",
+						"images": {
+							"image": {
+								"instID": 49,
+								"shelfID": 0,
+								"shelfNumberPartID": "",
+								"accessLevel": 0,
+								"viewURL": "https://ntvmr.uni-muenster.de/community/modules/papyri/?site=VMR&image=10045/120/10",
+								"attribution": "<a target=\"_blank\" href=\"http://www.cbl.ie\"><img src=\"http://ntmss.info/instlogos/cbl.png\"/><div>Images © The Trustees of the<br/>Chester Beatty Library, Dublin</div></a>",
+								"thumbURL": "https://ntmss.info/images/thumbs/10045/120_49_10.jpg",
+								"userName": "",
+								"uri": "https://ntmss.info/images/full/10045/T0004409.jpg",
+								"webFriendlyURL": "https://ntmss.info/images/webfriendly/10045/T0004409.jpg",
+								"surrID": 10,
+								"protectLevel": 0
+							}
+						},
+						"shelfID": 5436,
+						"shelfFolioNums": "",
+						"sortOrder": "00120",
+						"folio": "7v",
+						"indexContent": "Mark 9:18-31",
+						"transcriptions": {
+							"transcription": {
+								"uri": "http://localhost:8080/community/vmr/api/transcript/get/?docid=10045&pageID=120&format=xhtml"
+							}
+						},
+						"pageID": 120,
+						"indexedBy": "ECM"
+					},
+					{
+						"biblicalContent": "Mark 11:27-33; Mark 12:1; Mark 12:5-8",
+						"images": {
+							"image": {
+								"instID": 49,
+								"shelfID": 0,
+								"shelfNumberPartID": "",
+								"accessLevel": 0,
+								"viewURL": "https://ntvmr.uni-muenster.de/community/modules/papyri/?site=VMR&image=10045/130/10",
+								"attribution": "<a target=\"_blank\" href=\"http://www.cbl.ie\"><img src=\"http://ntmss.info/instlogos/cbl.png\"/><div>Images © The Trustees of the<br/>Chester Beatty Library, Dublin</div></a>",
+								"thumbURL": "https://ntmss.info/images/thumbs/10045/130_49_10.jpg",
+								"userName": "",
+								"uri": "https://ntmss.info/images/full/10045/T0004555.jpg",
+								"webFriendlyURL": "https://ntmss.info/images/webfriendly/10045/T0004555.jpg",
+								"surrID": 10,
+								"protectLevel": 0
+							}
+						},
+						"shelfID": 5436,
+						"shelfFolioNums": "",
+						"sortOrder": "00130",
+						"folio": "8r",
+						"indexContent": "Mark 11:27-33; Mark 12:1; Mark 12:5-8",
+						"transcriptions": {
+							"transcription": {
+								"uri": "http://localhost:8080/community/vmr/api/transcript/get/?docid=10045&pageID=130&format=xhtml"
+							}
+						},
+						"pageID": 130,
+						"indexedBy": "ECM"
+					},
+					{
+						"biblicalContent": "Mark 12:13-19; Mark 12:24-28",
+						"images": {
+							"image": {
+								"instID": 49,
+								"shelfID": 0,
+								"shelfNumberPartID": "",
+								"accessLevel": 0,
+								"viewURL": "https://ntvmr.uni-muenster.de/community/modules/papyri/?site=VMR&image=10045/140/10",
+								"attribution": "<a target=\"_blank\" href=\"http://www.cbl.ie\"><img src=\"http://ntmss.info/instlogos/cbl.png\"/><div>Images © The Trustees of the<br/>Chester Beatty Library, Dublin</div></a>",
+								"thumbURL": "https://ntmss.info/images/thumbs/10045/140_49_10.jpg",
+								"userName": "",
+								"uri": "https://ntmss.info/images/full/10045/T0004556.jpg",
+								"webFriendlyURL": "https://ntmss.info/images/webfriendly/10045/T0004556.jpg",
+								"surrID": 10,
+								"protectLevel": 0
+							}
+						},
+						"shelfID": 5436,
+						"shelfFolioNums": "",
+						"sortOrder": "00140",
+						"folio": "8v",
+						"indexContent": "Mark 12:13-19; Mark 12:24-28",
+						"transcriptions": {
+							"transcription": {
+								"uri": "http://localhost:8080/community/vmr/api/transcript/get/?docid=10045&pageID=140&format=xhtml"
+							}
+						},
+						"pageID": 140,
+						"indexedBy": "lakmann"
+					},
+					{
+						"biblicalContent": "Luke 6:31-41",
+						"images": {
+							"image": {
+								"instID": 49,
+								"shelfID": 0,
+								"shelfNumberPartID": "",
+								"accessLevel": 0,
+								"viewURL": "https://ntvmr.uni-muenster.de/community/modules/papyri/?site=VMR&image=10045/150/20",
+								"attribution": "",
+								"thumbURL": "https://ntmss.info/images/thumbs/10045/150_49_20.jpg",
+								"userName": "",
+								"uri": "https://ntmss.info/images/webfriendly/10045/T0005484.jpg",
+								"webFriendlyURL": "https://ntmss.info/images/webfriendly/10045/T0005484.jpg",
+								"surrID": 20,
+								"protectLevel": 0
+							}
+						},
+						"shelfID": 5436,
+						"shelfFolioNums": "",
+						"sortOrder": "00150",
+						"folio": "9r",
+						"indexContent": "Luke 6:31-41",
+						"transcriptions": {
+							"transcription": {
+								"uri": "http://localhost:8080/community/vmr/api/transcript/get/?docid=10045&pageID=150&format=xhtml"
+							}
+						},
+						"pageID": 150,
+						"indexedBy": "lakmann"
+					},
+					{
+						"biblicalContent": "Luke 6:45-49; Luke 7:1-7",
+						"images": {
+							"image": {
+								"instID": 49,
+								"shelfID": 0,
+								"shelfNumberPartID": "",
+								"accessLevel": 0,
+								"viewURL": "https://ntvmr.uni-muenster.de/community/modules/papyri/?site=VMR&image=10045/160/20",
+								"attribution": "",
+								"thumbURL": "https://ntmss.info/images/thumbs/10045/160_49_20.jpg",
+								"userName": "",
+								"uri": "https://ntmss.info/images/webfriendly/10045/T0005485.jpg",
+								"webFriendlyURL": "https://ntmss.info/images/webfriendly/10045/T0005485.jpg",
+								"surrID": 20,
+								"protectLevel": 0
+							}
+						},
+						"shelfID": 5436,
+						"shelfFolioNums": "",
+						"sortOrder": "00160",
+						"folio": "9v",
+						"indexContent": "Luke 6:45-49; Luke 7:1-7",
+						"transcriptions": {
+							"transcription": {
+								"uri": "http://localhost:8080/community/vmr/api/transcript/get/?docid=10045&pageID=160&format=xhtml"
+							}
+						},
+						"pageID": 160,
+						"indexedBy": "lakmann"
+					},
+					{
+						"biblicalContent": "Luke 9:26-41",
+						"images": {
+							"image": {
+								"instID": 49,
+								"shelfID": 0,
+								"shelfNumberPartID": "",
+								"accessLevel": 0,
+								"viewURL": "https://ntvmr.uni-muenster.de/community/modules/papyri/?site=VMR&image=10045/170/10",
+								"attribution": "<a target=\"_blank\" href=\"http://www.cbl.ie\"><img src=\"http://ntmss.info/instlogos/cbl.png\"/><div>Images © The Trustees of the<br/>Chester Beatty Library, Dublin</div></a>",
+								"thumbURL": "https://ntmss.info/images/thumbs/10045/170_49_10.jpg",
+								"userName": "",
+								"uri": "https://ntmss.info/images/full/10045/T0005401.jpg",
+								"webFriendlyURL": "https://ntmss.info/images/webfriendly/10045/T0005401.jpg",
+								"surrID": 10,
+								"protectLevel": 0
+							}
+						},
+						"shelfID": 5436,
+						"shelfFolioNums": "",
+						"sortOrder": "00170",
+						"folio": "10r",
+						"indexContent": "Luke 9:26-41",
+						"transcriptions": {
+							"transcription": {
+								"uri": "http://localhost:8080/community/vmr/api/transcript/get/?docid=10045&pageID=170&format=xhtml"
+							}
+						},
+						"pageID": 170,
+						"indexedBy": "lakmann"
+					},
+					{
+						"biblicalContent": "Luke 9:45-62; Luke 10:1",
+						"images": {
+							"image": {
+								"instID": 49,
+								"shelfID": 0,
+								"shelfNumberPartID": "",
+								"accessLevel": 0,
+								"viewURL": "https://ntvmr.uni-muenster.de/community/modules/papyri/?site=VMR&image=10045/180/10",
+								"attribution": "<a target=\"_blank\" href=\"http://www.cbl.ie\"><img src=\"http://ntmss.info/instlogos/cbl.png\"/><div>Images © The Trustees of the<br/>Chester Beatty Library, Dublin</div></a>",
+								"thumbURL": "https://ntmss.info/images/thumbs/10045/180_49_10.jpg",
+								"userName": "",
+								"uri": "https://ntmss.info/images/full/10045/T0005402.jpg",
+								"webFriendlyURL": "https://ntmss.info/images/webfriendly/10045/T0005402.jpg",
+								"surrID": 10,
+								"protectLevel": 0
+							}
+						},
+						"shelfID": 5436,
+						"shelfFolioNums": "",
+						"sortOrder": "00180",
+						"folio": "10v",
+						"indexContent": "Luke 9:45-62; Luke 10:1",
+						"transcriptions": {
+							"transcription": {
+								"uri": "http://localhost:8080/community/vmr/api/transcript/get/?docid=10045&pageID=180&format=xhtml"
+							}
+						},
+						"pageID": 180,
+						"indexedBy": "lakmann"
+					},
+					{
+						"biblicalContent": "Luke 10:6-22",
+						"images": {
+							"image": {
+								"instID": 49,
+								"shelfID": 0,
+								"shelfNumberPartID": "",
+								"accessLevel": 0,
+								"viewURL": "https://ntvmr.uni-muenster.de/community/modules/papyri/?site=VMR&image=10045/190/10",
+								"attribution": "<a target=\"_blank\" href=\"http://www.cbl.ie\"><img src=\"http://ntmss.info/instlogos/cbl.png\"/><div>Images © The Trustees of the<br/>Chester Beatty Library, Dublin</div></a>",
+								"thumbURL": "https://ntmss.info/images/thumbs/10045/190_49_10.jpg",
+								"userName": "",
+								"uri": "https://ntmss.info/images/full/10045/T0001015-2.jpg",
+								"webFriendlyURL": "https://ntmss.info/images/webfriendly/10045/T0001015-2.jpg",
+								"surrID": 10,
+								"protectLevel": 0
+							}
+						},
+						"shelfID": 5436,
+						"shelfFolioNums": "",
+						"sortOrder": "00190",
+						"folio": "11r",
+						"indexContent": "Luke 10:6-22",
+						"transcriptions": {
+							"transcription": {
+								"uri": "http://localhost:8080/community/vmr/api/transcript/get/?docid=10045&pageID=190&format=xhtml"
+							}
+						},
+						"pageID": 190,
+						"indexedBy": "lakmann"
+					},
+					{
+						"biblicalContent": "Luke 10:26-42; Luke 11:1",
+						"images": {
+							"image": {
+								"instID": 49,
+								"shelfID": 0,
+								"shelfNumberPartID": "",
+								"accessLevel": 0,
+								"viewURL": "https://ntvmr.uni-muenster.de/community/modules/papyri/?site=VMR&image=10045/200/10",
+								"attribution": "<a target=\"_blank\" href=\"http://www.cbl.ie\"><img src=\"http://ntmss.info/instlogos/cbl.png\"/><div>Images © The Trustees of the<br/>Chester Beatty Library, Dublin</div></a>",
+								"thumbURL": "https://ntmss.info/images/thumbs/10045/200_49_10.jpg",
+								"userName": "",
+								"uri": "https://ntmss.info/images/full/10045/T0001014-1.jpg",
+								"webFriendlyURL": "https://ntmss.info/images/webfriendly/10045/T0001014-1.jpg",
+								"surrID": 10,
+								"protectLevel": 0
+							}
+						},
+						"shelfID": 5436,
+						"shelfFolioNums": "",
+						"sortOrder": "00200",
+						"folio": "11v",
+						"indexContent": "Luke 10:26-42; Luke 11:1",
+						"transcriptions": {
+							"transcription": {
+								"uri": "http://localhost:8080/community/vmr/api/transcript/get/?docid=10045&pageID=200&format=xhtml"
+							}
+						},
+						"pageID": 200,
+						"indexedBy": "lakmann"
+					},
+					{
+						"biblicalContent": "Luke 11:6-26",
+						"images": {
+							"image": {
+								"instID": 49,
+								"shelfID": 0,
+								"shelfNumberPartID": "",
+								"accessLevel": 0,
+								"viewURL": "https://ntvmr.uni-muenster.de/community/modules/papyri/?site=VMR&image=10045/210/10",
+								"attribution": "<a target=\"_blank\" href=\"http://www.cbl.ie\"><img src=\"http://ntmss.info/instlogos/cbl.png\"/><div>Images © The Trustees of the<br/>Chester Beatty Library, Dublin</div></a>",
+								"thumbURL": "https://ntmss.info/images/thumbs/10045/210_49_10.jpg",
+								"userName": "",
+								"uri": "https://ntmss.info/images/full/10045/T0001014-2.jpg",
+								"webFriendlyURL": "https://ntmss.info/images/webfriendly/10045/T0001014-2.jpg",
+								"surrID": 10,
+								"protectLevel": 0
+							}
+						},
+						"shelfID": 5436,
+						"shelfFolioNums": "",
+						"sortOrder": "00210",
+						"folio": "12r",
+						"indexContent": "Luke 11:6-26",
+						"transcriptions": {
+							"transcription": {
+								"uri": "http://localhost:8080/community/vmr/api/transcript/get/?docid=10045&pageID=210&format=xhtml"
+							}
+						},
+						"pageID": 210,
+						"indexedBy": "lakmann"
+					},
+					{
+						"biblicalContent": "Luke 11:28-46",
+						"images": {
+							"image": {
+								"instID": 49,
+								"shelfID": 0,
+								"shelfNumberPartID": "",
+								"accessLevel": 0,
+								"viewURL": "https://ntvmr.uni-muenster.de/community/modules/papyri/?site=VMR&image=10045/220/10",
+								"attribution": "<a target=\"_blank\" href=\"http://www.cbl.ie\"><img src=\"http://ntmss.info/instlogos/cbl.png\"/><div>Images © The Trustees of the<br/>Chester Beatty Library, Dublin</div></a>",
+								"thumbURL": "https://ntmss.info/images/thumbs/10045/220_49_10.jpg",
+								"userName": "",
+								"uri": "https://ntmss.info/images/full/10045/T0001015-1.jpg",
+								"webFriendlyURL": "https://ntmss.info/images/webfriendly/10045/T0001015-1.jpg",
+								"surrID": 10,
+								"protectLevel": 0
+							}
+						},
+						"shelfID": 5436,
+						"shelfFolioNums": "",
+						"sortOrder": "00220",
+						"folio": "12v",
+						"indexContent": "Luke 11:28-46",
+						"transcriptions": {
+							"transcription": {
+								"uri": "http://localhost:8080/community/vmr/api/transcript/get/?docid=10045&pageID=220&format=xhtml"
+							}
+						},
+						"pageID": 220,
+						"indexedBy": "lakmann"
+					},
+					{
+						"biblicalContent": "Luke 11:50-54; Luke 12:1-12",
+						"images": {
+							"image": {
+								"instID": 49,
+								"shelfID": 0,
+								"shelfNumberPartID": "",
+								"accessLevel": 0,
+								"viewURL": "https://ntvmr.uni-muenster.de/community/modules/papyri/?site=VMR&image=10045/230/10",
+								"attribution": "<a target=\"_blank\" href=\"http://www.cbl.ie\"><img src=\"http://ntmss.info/instlogos/cbl.png\"/><div>Images © The Trustees of the<br/>Chester Beatty Library, Dublin</div></a>",
+								"thumbURL": "https://ntmss.info/images/thumbs/10045/230_49_10.jpg",
+								"userName": "",
+								"uri": "https://ntmss.info/images/full/10045/T0001016-2.jpg",
+								"webFriendlyURL": "https://ntmss.info/images/webfriendly/10045/T0001016-2.jpg",
+								"surrID": 10,
+								"protectLevel": 0
+							}
+						},
+						"shelfID": 5436,
+						"shelfFolioNums": "",
+						"sortOrder": "00230",
+						"folio": "13r",
+						"indexContent": "Luke 11:50-54; Luke 12:1-12",
+						"transcriptions": {
+							"transcription": {
+								"uri": "http://localhost:8080/community/vmr/api/transcript/get/?docid=10045&pageID=230&format=xhtml"
+							}
+						},
+						"pageID": 230,
+						"indexedBy": "lakmann"
+					},
+					{
+						"biblicalContent": "Luke 12:18-37",
+						"images": {
+							"image": {
+								"instID": 49,
+								"shelfID": 0,
+								"shelfNumberPartID": "",
+								"accessLevel": 0,
+								"viewURL": "https://ntvmr.uni-muenster.de/community/modules/papyri/?site=VMR&image=10045/240/10",
+								"attribution": "<a target=\"_blank\" href=\"http://www.cbl.ie\"><img src=\"http://ntmss.info/instlogos/cbl.png\"/><div>Images © The Trustees of the<br/>Chester Beatty Library, Dublin</div></a>",
+								"thumbURL": "https://ntmss.info/images/thumbs/10045/240_49_10.jpg",
+								"userName": "",
+								"uri": "https://ntmss.info/images/full/10045/T0002545-1.jpg",
+								"webFriendlyURL": "https://ntmss.info/images/webfriendly/10045/T0002545-1.jpg",
+								"surrID": 10,
+								"protectLevel": 0
+							}
+						},
+						"shelfID": 5436,
+						"shelfFolioNums": "",
+						"sortOrder": "00240",
+						"folio": "13v",
+						"indexContent": "Luke 12:18-37",
+						"transcriptions": {
+							"transcription": {
+								"uri": "http://localhost:8080/community/vmr/api/transcript/get/?docid=10045&pageID=240&format=xhtml"
+							}
+						},
+						"pageID": 240,
+						"indexedBy": "ECM"
+					},
+					{
+						"biblicalContent": "Luke 12:42-59; Luke 13:1",
+						"images": {
+							"image": {
+								"instID": 49,
+								"shelfID": 0,
+								"shelfNumberPartID": "",
+								"accessLevel": 0,
+								"viewURL": "https://ntvmr.uni-muenster.de/community/modules/papyri/?site=VMR&image=10045/250/10",
+								"attribution": "<a target=\"_blank\" href=\"http://www.cbl.ie\"><img src=\"http://ntmss.info/instlogos/cbl.png\"/><div>Images © The Trustees of the<br/>Chester Beatty Library, Dublin</div></a>",
+								"thumbURL": "https://ntmss.info/images/thumbs/10045/250_49_10.jpg",
+								"userName": "",
+								"uri": "https://ntmss.info/images/full/10045/T0002545-2.jpg",
+								"webFriendlyURL": "https://ntmss.info/images/webfriendly/10045/T0002545-2.jpg",
+								"surrID": 10,
+								"protectLevel": 0
+							}
+						},
+						"shelfID": 5436,
+						"shelfFolioNums": "",
+						"sortOrder": "00250",
+						"folio": "14r",
+						"indexContent": "Luke 12:42-59; Luke 13:1",
+						"transcriptions": {
+							"transcription": {
+								"uri": "http://localhost:8080/community/vmr/api/transcript/get/?docid=10045&pageID=250&format=xhtml"
+							}
+						},
+						"pageID": 250,
+						"indexedBy": "ECM"
+					},
+					{
+						"biblicalContent": "Luke 13:6-25",
+						"images": {
+							"image": {
+								"instID": 49,
+								"shelfID": 0,
+								"shelfNumberPartID": "",
+								"accessLevel": 0,
+								"viewURL": "https://ntvmr.uni-muenster.de/community/modules/papyri/?site=VMR&image=10045/260/10",
+								"attribution": "<a target=\"_blank\" href=\"http://www.cbl.ie\"><img src=\"http://ntmss.info/instlogos/cbl.png\"/><div>Images © The Trustees of the<br/>Chester Beatty Library, Dublin</div></a>",
+								"thumbURL": "https://ntmss.info/images/thumbs/10045/260_49_10.jpg",
+								"userName": "",
+								"uri": "https://ntmss.info/images/full/10045/T0001016-1.jpg",
+								"webFriendlyURL": "https://ntmss.info/images/webfriendly/10045/T0001016-1.jpg",
+								"surrID": 10,
+								"protectLevel": 0
+							}
+						},
+						"shelfID": 5436,
+						"shelfFolioNums": "",
+						"sortOrder": "00260",
+						"folio": "14v",
+						"indexContent": "Luke 13:6-25",
+						"transcriptions": {
+							"transcription": {
+								"uri": "http://localhost:8080/community/vmr/api/transcript/get/?docid=10045&pageID=260&format=xhtml"
+							}
+						},
+						"pageID": 260,
+						"indexedBy": "ECM"
+					},
+					{
+						"biblicalContent": "Luke 13:29-35; Luke 14:1-10",
+						"images": {
+							"image": {
+								"instID": 49,
+								"shelfID": 0,
+								"shelfNumberPartID": "",
+								"accessLevel": 0,
+								"viewURL": "https://ntvmr.uni-muenster.de/community/modules/papyri/?site=VMR&image=10045/270/10",
+								"attribution": "<a target=\"_blank\" href=\"http://www.cbl.ie\"><img src=\"http://ntmss.info/instlogos/cbl.png\"/><div>Images © The Trustees of the<br/>Chester Beatty Library, Dublin</div></a>",
+								"thumbURL": "https://ntmss.info/images/thumbs/10045/270_49_10.jpg",
+								"userName": "",
+								"uri": "https://ntmss.info/images/full/10045/D0005419.jpg",
+								"webFriendlyURL": "https://ntmss.info/images/webfriendly/10045/D0005419.jpg",
+								"surrID": 10,
+								"protectLevel": 0
+							}
+						},
+						"shelfID": 5436,
+						"shelfFolioNums": "",
+						"sortOrder": "00270",
+						"folio": "15r",
+						"indexContent": "Luke 13:29-35; Luke 14:1-10",
+						"transcriptions": {
+							"transcription": {
+								"uri": "http://localhost:8080/community/vmr/api/transcript/get/?docid=10045&pageID=270&format=xhtml"
+							}
+						},
+						"pageID": 270,
+						"indexedBy": "ECM"
+					},
+					{
+						"biblicalContent": "Luke 14:17-33",
+						"images": {
+							"image": {
+								"instID": 49,
+								"shelfID": 0,
+								"shelfNumberPartID": "",
+								"accessLevel": 0,
+								"viewURL": "https://ntvmr.uni-muenster.de/community/modules/papyri/?site=VMR&image=10045/280/10",
+								"attribution": "<a target=\"_blank\" href=\"http://www.cbl.ie\"><img src=\"http://ntmss.info/instlogos/cbl.png\"/><div>Images © The Trustees of the<br/>Chester Beatty Library, Dublin</div></a>",
+								"thumbURL": "https://ntmss.info/images/thumbs/10045/280_49_10.jpg",
+								"userName": "",
+								"uri": "https://ntmss.info/images/full/10045/D0005420.jpg",
+								"webFriendlyURL": "https://ntmss.info/images/webfriendly/10045/D0005420.jpg",
+								"surrID": 10,
+								"protectLevel": 0
+							}
+						},
+						"shelfID": 5436,
+						"shelfFolioNums": "",
+						"sortOrder": "00280",
+						"folio": "15v",
+						"indexContent": "Luke 14:17-33",
+						"transcriptions": {
+							"transcription": {
+								"uri": "http://localhost:8080/community/vmr/api/transcript/get/?docid=10045&pageID=280&format=xhtml"
+							}
+						},
+						"pageID": 280,
+						"indexedBy": "ECM"
+					},
+					{
+						"biblicalContent": "John 4:51-53",
+						"shelfID": 5436,
+						"shelfFolioNums": "",
+						"sortOrder": "00290",
+						"folio": "Br",
+						"indexContent": "John 4:51-53",
+						"transcriptions": {
+							"transcription": {
+								"uri": "http://localhost:8080/community/vmr/api/transcript/get/?docid=10045&pageID=290&format=xhtml"
+							}
+						},
+						"pageID": 290,
+						"indexedBy": "lakmann"
+					},
+					{
+						"biblicalContent": "John 4:54; John 5:1-2",
+						"shelfID": 5436,
+						"shelfFolioNums": "",
+						"sortOrder": "00300",
+						"folio": "Cr",
+						"indexContent": "John 4:54; John 5:1-2",
+						"transcriptions": {
+							"transcription": {
+								"uri": "http://localhost:8080/community/vmr/api/transcript/get/?docid=10045&pageID=300&format=xhtml"
+							}
+						},
+						"pageID": 300,
+						"indexedBy": "lakmann"
+					},
+					{
+						"biblicalContent": "John 5:21-23",
+						"shelfID": 5436,
+						"shelfFolioNums": "",
+						"sortOrder": "00310",
+						"folio": "Bv",
+						"indexContent": "John 5:21-23",
+						"transcriptions": {
+							"transcription": {
+								"uri": "http://localhost:8080/community/vmr/api/transcript/get/?docid=10045&pageID=310&format=xhtml"
+							}
+						},
+						"pageID": 310,
+						"indexedBy": "lakmann"
+					},
+					{
+						"biblicalContent": "John 5:24-25",
+						"shelfID": 5436,
+						"shelfFolioNums": "",
+						"sortOrder": "00320",
+						"folio": "Cv",
+						"indexContent": "John 5:24-25",
+						"transcriptions": {
+							"transcription": {
+								"uri": "http://localhost:8080/community/vmr/api/transcript/get/?docid=10045&pageID=320&format=xhtml"
+							}
+						},
+						"pageID": 320,
+						"indexedBy": "lakmann"
+					},
+					{
+						"biblicalContent": "John 10:7-25",
+						"images": {
+							"image": {
+								"instID": 49,
+								"shelfID": 0,
+								"shelfNumberPartID": "",
+								"accessLevel": 0,
+								"viewURL": "https://ntvmr.uni-muenster.de/community/modules/papyri/?site=VMR&image=10045/330/10",
+								"attribution": "<a target=\"_blank\" href=\"http://www.cbl.ie\"><img src=\"http://ntmss.info/instlogos/cbl.png\"/><div>Images © The Trustees of the<br/>Chester Beatty Library, Dublin</div></a>",
+								"thumbURL": "https://ntmss.info/images/thumbs/10045/330_49_10.jpg",
+								"userName": "",
+								"uri": "https://ntmss.info/images/full/10045/T0001018a-2.jpg",
+								"webFriendlyURL": "https://ntmss.info/images/webfriendly/10045/T0001018a-2.jpg",
+								"surrID": 10,
+								"protectLevel": 0
+							}
+						},
+						"shelfID": 5436,
+						"shelfFolioNums": "",
+						"sortOrder": "00330",
+						"folio": "16r",
+						"indexContent": "John 10:7-25",
+						"transcriptions": {
+							"transcription": {
+								"uri": "http://localhost:8080/community/vmr/api/transcript/get/?docid=10045&pageID=330&format=xhtml"
+							}
+						},
+						"pageID": 330,
+						"indexedBy": "ECM"
+					},
+					{
+						"biblicalContent": "John 10:30-42; John 11:1-10",
+						"images": {
+							"image": {
+								"instID": 49,
+								"shelfID": 0,
+								"shelfNumberPartID": "",
+								"accessLevel": 0,
+								"viewURL": "https://ntvmr.uni-muenster.de/community/modules/papyri/?site=VMR&image=10045/340/10",
+								"attribution": "<a target=\"_blank\" href=\"http://www.cbl.ie\"><img src=\"http://ntmss.info/instlogos/cbl.png\"/><div>Images © The Trustees of the<br/>Chester Beatty Library, Dublin</div></a>",
+								"thumbURL": "https://ntmss.info/images/thumbs/10045/340_49_10.jpg",
+								"userName": "",
+								"uri": "https://ntmss.info/images/full/10045/T0001017-1.jpg",
+								"webFriendlyURL": "https://ntmss.info/images/webfriendly/10045/T0001017-1.jpg",
+								"surrID": 10,
+								"protectLevel": 0
+							}
+						},
+						"shelfID": 5436,
+						"shelfFolioNums": "",
+						"sortOrder": "00340",
+						"folio": "16v",
+						"indexContent": "John 10:30-42; John 11:1-10",
+						"transcriptions": {
+							"transcription": {
+								"uri": "http://localhost:8080/community/vmr/api/transcript/get/?docid=10045&pageID=340&format=xhtml"
+							}
+						},
+						"pageID": 340,
+						"indexedBy": "lakmann"
+					},
+					{
+						"biblicalContent": "John 11:18-38",
+						"images": {
+							"image": {
+								"instID": 49,
+								"shelfID": 0,
+								"shelfNumberPartID": "",
+								"accessLevel": 0,
+								"viewURL": "https://ntvmr.uni-muenster.de/community/modules/papyri/?site=VMR&image=10045/350/10",
+								"attribution": "<a target=\"_blank\" href=\"http://www.cbl.ie\"><img src=\"http://ntmss.info/instlogos/cbl.png\"/><div>Images © The Trustees of the<br/>Chester Beatty Library, Dublin</div></a>",
+								"thumbURL": "https://ntmss.info/images/thumbs/10045/350_49_10.jpg",
+								"userName": "",
+								"uri": "https://ntmss.info/images/full/10045/T0001017-2.jpg",
+								"webFriendlyURL": "https://ntmss.info/images/webfriendly/10045/T0001017-2.jpg",
+								"surrID": 10,
+								"protectLevel": 0
+							}
+						},
+						"shelfID": 5436,
+						"shelfFolioNums": "",
+						"sortOrder": "00350",
+						"folio": "17r",
+						"indexContent": "John 11:18-38",
+						"transcriptions": {
+							"transcription": {
+								"uri": "http://localhost:8080/community/vmr/api/transcript/get/?docid=10045&pageID=350&format=xhtml"
+							}
+						},
+						"pageID": 350,
+						"indexedBy": "lakmann"
+					},
+					{
+						"biblicalContent": "John 11:42-57",
+						"images": {
+							"image": {
+								"instID": 49,
+								"shelfID": 0,
+								"shelfNumberPartID": "",
+								"accessLevel": 0,
+								"viewURL": "https://ntvmr.uni-muenster.de/community/modules/papyri/?site=VMR&image=10045/360/10",
+								"attribution": "<a target=\"_blank\" href=\"http://www.cbl.ie\"><img src=\"http://ntmss.info/instlogos/cbl.png\"/><div>Images © The Trustees of the<br/>Chester Beatty Library, Dublin</div></a>",
+								"thumbURL": "https://ntmss.info/images/thumbs/10045/360_49_10.jpg",
+								"userName": "",
+								"uri": "https://ntmss.info/images/full/10045/T0001018a-1.jpg",
+								"webFriendlyURL": "https://ntmss.info/images/webfriendly/10045/T0001018a-1.jpg",
+								"surrID": 10,
+								"protectLevel": 0
+							}
+						},
+						"shelfID": 5436,
+						"shelfFolioNums": "",
+						"sortOrder": "00360",
+						"folio": "17v",
+						"indexContent": "John 11:42-57",
+						"transcriptions": {
+							"transcription": {
+								"uri": "http://localhost:8080/community/vmr/api/transcript/get/?docid=10045&pageID=360&format=xhtml"
+							}
+						},
+						"pageID": 360,
+						"indexedBy": "ECM"
+					},
+					{
+						"biblicalContent": "Acts 4:27-36",
+						"images": {
+							"image": {
+								"instID": 49,
+								"shelfID": 0,
+								"shelfNumberPartID": "",
+								"accessLevel": 0,
+								"viewURL": "https://ntvmr.uni-muenster.de/community/modules/papyri/?site=VMR&image=10045/370/10",
+								"attribution": "<a target=\"_blank\" href=\"http://www.cbl.ie\"><img src=\"http://ntmss.info/instlogos/cbl.png\"/><div>Images © The Trustees of the<br/>Chester Beatty Library, Dublin</div></a>",
+								"thumbURL": "https://ntmss.info/images/thumbs/10045/370_49_10.jpg",
+								"userName": "",
+								"uri": "https://ntmss.info/images/full/10045/T0005395-2.jpg",
+								"webFriendlyURL": "https://ntmss.info/images/webfriendly/10045/T0005395-2.jpg",
+								"surrID": 10,
+								"protectLevel": 0
+							}
+						},
+						"shelfID": 5436,
+						"shelfFolioNums": "",
+						"sortOrder": "00370",
+						"folio": "18r",
+						"indexContent": "Acts 4:27-36",
+						"transcriptions": {
+							"transcription": {
+								"uri": "http://localhost:8080/community/vmr/api/transcript/get/?docid=10045&pageID=370&format=xhtml"
+							}
+						},
+						"pageID": 370,
+						"indexedBy": "lakmann"
+					},
+					{
+						"biblicalContent": "Acts 5:10-21",
+						"images": {
+							"image": {
+								"instID": 49,
+								"shelfID": 0,
+								"shelfNumberPartID": "",
+								"accessLevel": 0,
+								"viewURL": "https://ntvmr.uni-muenster.de/community/modules/papyri/?site=VMR&image=10045/380/10",
+								"attribution": "<a target=\"_blank\" href=\"http://www.cbl.ie\"><img src=\"http://ntmss.info/instlogos/cbl.png\"/><div>Images © The Trustees of the<br/>Chester Beatty Library, Dublin</div></a>",
+								"thumbURL": "https://ntmss.info/images/thumbs/10045/380_49_10.jpg",
+								"userName": "",
+								"uri": "https://ntmss.info/images/full/10045/T0005396-1.jpg",
+								"webFriendlyURL": "https://ntmss.info/images/webfriendly/10045/T0005396-1.jpg",
+								"surrID": 10,
+								"protectLevel": 0
+							}
+						},
+						"shelfID": 5436,
+						"shelfFolioNums": "",
+						"sortOrder": "00380",
+						"folio": "18v",
+						"indexContent": "Acts 5:10-21",
+						"transcriptions": {
+							"transcription": {
+								"uri": "http://localhost:8080/community/vmr/api/transcript/get/?docid=10045&pageID=380&format=xhtml"
+							}
+						},
+						"pageID": 380,
+						"indexedBy": "lakmann"
+					},
+					{
+						"biblicalContent": "Acts 5:30-39",
+						"images": {
+							"image": {
+								"instID": 49,
+								"shelfID": 0,
+								"shelfNumberPartID": "",
+								"accessLevel": 0,
+								"viewURL": "https://ntvmr.uni-muenster.de/community/modules/papyri/?site=VMR&image=10045/390/10",
+								"attribution": "<a target=\"_blank\" href=\"http://www.cbl.ie\"><img src=\"http://ntmss.info/instlogos/cbl.png\"/><div>Images © The Trustees of the<br/>Chester Beatty Library, Dublin</div></a>",
+								"thumbURL": "https://ntmss.info/images/thumbs/10045/390_49_10.jpg",
+								"userName": "",
+								"uri": "https://ntmss.info/images/full/10045/T0005395-1.jpg",
+								"webFriendlyURL": "https://ntmss.info/images/webfriendly/10045/T0005395-1.jpg",
+								"surrID": 10,
+								"protectLevel": 0
+							}
+						},
+						"shelfID": 5436,
+						"shelfFolioNums": "",
+						"sortOrder": "00390",
+						"folio": "19r",
+						"indexContent": "Acts 5:30-39",
+						"transcriptions": {
+							"transcription": {
+								"uri": "http://localhost:8080/community/vmr/api/transcript/get/?docid=10045&pageID=390&format=xhtml"
+							}
+						},
+						"pageID": 390,
+						"indexedBy": "lakmann"
+					},
+					{
+						"biblicalContent": "Acts 6:7-15; Acts 7:1-2",
+						"images": {
+							"image": {
+								"instID": 49,
+								"shelfID": 0,
+								"shelfNumberPartID": "",
+								"accessLevel": 0,
+								"viewURL": "https://ntvmr.uni-muenster.de/community/modules/papyri/?site=VMR&image=10045/400/10",
+								"attribution": "<a target=\"_blank\" href=\"http://www.cbl.ie\"><img src=\"http://ntmss.info/instlogos/cbl.png\"/><div>Images © The Trustees of the<br/>Chester Beatty Library, Dublin</div></a>",
+								"thumbURL": "https://ntmss.info/images/thumbs/10045/400_49_10.jpg",
+								"userName": "",
+								"uri": "https://ntmss.info/images/full/10045/T0005396-2.jpg",
+								"webFriendlyURL": "https://ntmss.info/images/webfriendly/10045/T0005396-2.jpg",
+								"surrID": 10,
+								"protectLevel": 0
+							}
+						},
+						"shelfID": 5436,
+						"shelfFolioNums": "",
+						"sortOrder": "00400",
+						"folio": "19v",
+						"indexContent": "Acts 6:7-15; Acts 7:1-2",
+						"transcriptions": {
+							"transcription": {
+								"uri": "http://localhost:8080/community/vmr/api/transcript/get/?docid=10045&pageID=400&format=xhtml"
+							}
+						},
+						"pageID": 400,
+						"indexedBy": "lakmann"
+					},
+					{
+						"biblicalContent": "Acts 7:10-21",
+						"images": {
+							"image": {
+								"instID": 49,
+								"shelfID": 0,
+								"shelfNumberPartID": "",
+								"accessLevel": 0,
+								"viewURL": "https://ntvmr.uni-muenster.de/community/modules/papyri/?site=VMR&image=10045/410/10",
+								"attribution": "<a target=\"_blank\" href=\"http://www.cbl.ie\"><img src=\"http://ntmss.info/instlogos/cbl.png\"/><div>Images © The Trustees of the<br/>Chester Beatty Library, Dublin</div></a>",
+								"thumbURL": "https://ntmss.info/images/thumbs/10045/410_49_10.jpg",
+								"userName": "",
+								"uri": "https://ntmss.info/images/full/10045/T0005404-2.jpg",
+								"webFriendlyURL": "https://ntmss.info/images/webfriendly/10045/T0005404-2.jpg",
+								"surrID": 10,
+								"protectLevel": 0
+							}
+						},
+						"shelfID": 5436,
+						"shelfFolioNums": "",
+						"sortOrder": "00410",
+						"folio": "20r",
+						"indexContent": "Acts 7:10-21",
+						"transcriptions": {
+							"transcription": {
+								"uri": "http://localhost:8080/community/vmr/api/transcript/get/?docid=10045&pageID=410&format=xhtml"
+							}
+						},
+						"pageID": 410,
+						"indexedBy": "lakmann"
+					},
+					{
+						"biblicalContent": "Acts 7:32-41",
+						"images": {
+							"image": {
+								"instID": 49,
+								"shelfID": 0,
+								"shelfNumberPartID": "",
+								"accessLevel": 0,
+								"viewURL": "https://ntvmr.uni-muenster.de/community/modules/papyri/?site=VMR&image=10045/420/10",
+								"attribution": "<a target=\"_blank\" href=\"http://www.cbl.ie\"><img src=\"http://ntmss.info/instlogos/cbl.png\"/><div>Images © The Trustees of the<br/>Chester Beatty Library, Dublin</div></a>",
+								"thumbURL": "https://ntmss.info/images/thumbs/10045/420_49_10.jpg",
+								"userName": "",
+								"uri": "https://ntmss.info/images/full/10045/T0005403-1.jpg",
+								"webFriendlyURL": "https://ntmss.info/images/webfriendly/10045/T0005403-1.jpg",
+								"surrID": 10,
+								"protectLevel": 0
+							}
+						},
+						"shelfID": 5436,
+						"shelfFolioNums": "",
+						"sortOrder": "00420",
+						"folio": "20v",
+						"indexContent": "Acts 7:32-41",
+						"transcriptions": {
+							"transcription": {
+								"uri": "http://localhost:8080/community/vmr/api/transcript/get/?docid=10045&pageID=420&format=xhtml"
+							}
+						},
+						"pageID": 420,
+						"indexedBy": "lakmann"
+					},
+					{
+						"biblicalContent": "Acts 7:52-60; Acts 8:1",
+						"images": {
+							"image": {
+								"instID": 49,
+								"shelfID": 0,
+								"shelfNumberPartID": "",
+								"accessLevel": 0,
+								"viewURL": "https://ntvmr.uni-muenster.de/community/modules/papyri/?site=VMR&image=10045/430/10",
+								"attribution": "<a target=\"_blank\" href=\"http://www.cbl.ie\"><img src=\"http://ntmss.info/instlogos/cbl.png\"/><div>Images © The Trustees of the<br/>Chester Beatty Library, Dublin</div></a>",
+								"thumbURL": "https://ntmss.info/images/thumbs/10045/430_49_10.jpg",
+								"userName": "",
+								"uri": "https://ntmss.info/images/full/10045/T0005404-1.jpg",
+								"webFriendlyURL": "https://ntmss.info/images/webfriendly/10045/T0005404-1.jpg",
+								"surrID": 10,
+								"protectLevel": 0
+							}
+						},
+						"shelfID": 5436,
+						"shelfFolioNums": "",
+						"sortOrder": "00430",
+						"folio": "21r",
+						"indexContent": "Acts 7:52-60; Acts 8:1",
+						"transcriptions": {
+							"transcription": {
+								"uri": "http://localhost:8080/community/vmr/api/transcript/get/?docid=10045&pageID=430&format=xhtml"
+							}
+						},
+						"pageID": 430,
+						"indexedBy": "lakmann"
+					},
+					{
+						"biblicalContent": "Acts 8:14-25",
+						"images": {
+							"image": {
+								"instID": 49,
+								"shelfID": 0,
+								"shelfNumberPartID": "",
+								"accessLevel": 0,
+								"viewURL": "https://ntvmr.uni-muenster.de/community/modules/papyri/?site=VMR&image=10045/440/10",
+								"attribution": "<a target=\"_blank\" href=\"http://www.cbl.ie\"><img src=\"http://ntmss.info/instlogos/cbl.png\"/><div>Images © The Trustees of the<br/>Chester Beatty Library, Dublin</div></a>",
+								"thumbURL": "https://ntmss.info/images/thumbs/10045/440_49_10.jpg",
+								"userName": "",
+								"uri": "https://ntmss.info/images/full/10045/T0005403-2.jpg",
+								"webFriendlyURL": "https://ntmss.info/images/webfriendly/10045/T0005403-2.jpg",
+								"surrID": 10,
+								"protectLevel": 0
+							}
+						},
+						"shelfID": 5436,
+						"shelfFolioNums": "",
+						"sortOrder": "00440",
+						"folio": "21v",
+						"indexContent": "Acts 8:14-25",
+						"transcriptions": {
+							"transcription": {
+								"uri": "http://localhost:8080/community/vmr/api/transcript/get/?docid=10045&pageID=440&format=xhtml"
+							}
+						},
+						"pageID": 440,
+						"indexedBy": "lakmann"
+					},
+					{
+						"biblicalContent": "Acts 8:34-40; Acts 9:1-7",
+						"images": {
+							"image": {
+								"instID": 49,
+								"shelfID": 0,
+								"shelfNumberPartID": "",
+								"accessLevel": 0,
+								"viewURL": "https://ntvmr.uni-muenster.de/community/modules/papyri/?site=VMR&image=10045/450/10",
+								"attribution": "<a target=\"_blank\" href=\"http://www.cbl.ie\"><img src=\"http://ntmss.info/instlogos/cbl.png\"/><div>Images © The Trustees of the<br/>Chester Beatty Library, Dublin</div></a>",
+								"thumbURL": "https://ntmss.info/images/thumbs/10045/450_49_10.jpg",
+								"userName": "",
+								"uri": "https://ntmss.info/images/full/10045/T0006028_a.jpg",
+								"webFriendlyURL": "https://ntmss.info/images/webfriendly/10045/T0006028_a.jpg",
+								"surrID": 10,
+								"protectLevel": 0
+							}
+						},
+						"shelfID": 5436,
+						"shelfFolioNums": "",
+						"sortOrder": "00450",
+						"folio": "22r",
+						"indexContent": "Acts 8:34-40; Acts 9:1-7",
+						"transcriptions": {
+							"transcription": {
+								"uri": "http://localhost:8080/community/vmr/api/transcript/get/?docid=10045&pageID=450&format=xhtml"
+							}
+						},
+						"pageID": 450,
+						"indexedBy": "lakmann"
+					},
+					{
+						"biblicalContent": "Acts 9:16-27",
+						"images": {
+							"image": {
+								"instID": 49,
+								"shelfID": 0,
+								"shelfNumberPartID": "",
+								"accessLevel": 0,
+								"viewURL": "https://ntvmr.uni-muenster.de/community/modules/papyri/?site=VMR&image=10045/460/10",
+								"attribution": "<a target=\"_blank\" href=\"http://www.cbl.ie\"><img src=\"http://ntmss.info/instlogos/cbl.png\"/><div>Images © The Trustees of the<br/>Chester Beatty Library, Dublin</div></a>",
+								"thumbURL": "https://ntmss.info/images/thumbs/10045/460_49_10.jpg",
+								"userName": "",
+								"uri": "https://ntmss.info/images/full/10045/T0006029.jpg",
+								"webFriendlyURL": "https://ntmss.info/images/webfriendly/10045/T0006029.jpg",
+								"surrID": 10,
+								"protectLevel": 0
+							}
+						},
+						"shelfID": 5436,
+						"shelfFolioNums": "",
+						"sortOrder": "00460",
+						"folio": "22v",
+						"indexContent": "Acts 9:16-27",
+						"transcriptions": {
+							"transcription": {
+								"uri": "http://localhost:8080/community/vmr/api/transcript/get/?docid=10045&pageID=460&format=xhtml"
+							}
+						},
+						"pageID": 460,
+						"indexedBy": "lakmann"
+					},
+					{
+						"biblicalContent": "Acts 9:35-43; Acts 10:1-2",
+						"images": {
+							"image": {
+								"instID": 49,
+								"shelfID": 0,
+								"shelfNumberPartID": "",
+								"accessLevel": 0,
+								"viewURL": "https://ntvmr.uni-muenster.de/community/modules/papyri/?site=VMR&image=10045/470/10",
+								"attribution": "<a target=\"_blank\" href=\"http://www.cbl.ie\"><img src=\"http://ntmss.info/instlogos/cbl.png\"/><div>Images © The Trustees of the<br/>Chester Beatty Library, Dublin</div></a>",
+								"thumbURL": "https://ntmss.info/images/thumbs/10045/470_49_10.jpg",
+								"userName": "",
+								"uri": "https://ntmss.info/images/full/10045/T0005423.jpg",
+								"webFriendlyURL": "https://ntmss.info/images/webfriendly/10045/T0005423.jpg",
+								"surrID": 10,
+								"protectLevel": 0
+							}
+						},
+						"shelfID": 5436,
+						"shelfFolioNums": "",
+						"sortOrder": "00470",
+						"folio": "23r",
+						"indexContent": "Acts 9:35-43; Acts 10:1-2",
+						"transcriptions": {
+							"transcription": {
+								"uri": "http://localhost:8080/community/vmr/api/transcript/get/?docid=10045&pageID=470&format=xhtml"
+							}
+						},
+						"pageID": 470,
+						"indexedBy": "lakmann"
+					},
+					{
+						"biblicalContent": "Acts 10:10-23",
+						"images": {
+							"image": {
+								"instID": 49,
+								"shelfID": 0,
+								"shelfNumberPartID": "",
+								"accessLevel": 0,
+								"viewURL": "https://ntvmr.uni-muenster.de/community/modules/papyri/?site=VMR&image=10045/480/10",
+								"attribution": "<a target=\"_blank\" href=\"http://www.cbl.ie\"><img src=\"http://ntmss.info/instlogos/cbl.png\"/><div>Images © The Trustees of the<br/>Chester Beatty Library, Dublin</div></a>",
+								"thumbURL": "https://ntmss.info/images/thumbs/10045/480_49_10.jpg",
+								"userName": "",
+								"uri": "https://ntmss.info/images/full/10045/T0005424.jpg",
+								"webFriendlyURL": "https://ntmss.info/images/webfriendly/10045/T0005424.jpg",
+								"surrID": 10,
+								"protectLevel": 0
+							}
+						},
+						"shelfID": 5436,
+						"shelfFolioNums": "",
+						"sortOrder": "00480",
+						"folio": "23v",
+						"indexContent": "Acts 10:10-23",
+						"transcriptions": {
+							"transcription": {
+								"uri": "http://localhost:8080/community/vmr/api/transcript/get/?docid=10045&pageID=480&format=xhtml"
+							}
+						},
+						"pageID": 480,
+						"indexedBy": "lakmann"
+					},
+					{
+						"biblicalContent": "Acts 10:31-41",
+						"images": {
+							"image": {
+								"instID": 49,
+								"shelfID": 0,
+								"shelfNumberPartID": "",
+								"accessLevel": 0,
+								"viewURL": "https://ntvmr.uni-muenster.de/community/modules/papyri/?site=VMR&image=10045/490/10",
+								"attribution": "<a target=\"_blank\" href=\"http://www.cbl.ie\"><img src=\"http://ntmss.info/instlogos/cbl.png\"/><div>Images © The Trustees of the<br/>Chester Beatty Library, Dublin</div></a>",
+								"thumbURL": "https://ntmss.info/images/thumbs/10045/490_49_10.jpg",
+								"userName": "",
+								"uri": "https://ntmss.info/images/full/10045/T0005393.jpg",
+								"webFriendlyURL": "https://ntmss.info/images/webfriendly/10045/T0005393.jpg",
+								"surrID": 10,
+								"protectLevel": 0
+							}
+						},
+						"shelfID": 5436,
+						"shelfFolioNums": "",
+						"sortOrder": "00490",
+						"folio": "24r",
+						"indexContent": "Acts 10:31-41",
+						"transcriptions": {
+							"transcription": {
+								"uri": "http://localhost:8080/community/vmr/api/transcript/get/?docid=10045&pageID=490&format=xhtml"
+							}
+						},
+						"pageID": 490,
+						"indexedBy": "lakmann"
+					},
+					{
+						"biblicalContent": "Acts 11:2-15",
+						"images": {
+							"image": {
+								"instID": 49,
+								"shelfID": 0,
+								"shelfNumberPartID": "",
+								"accessLevel": 0,
+								"viewURL": "https://ntvmr.uni-muenster.de/community/modules/papyri/?site=VMR&image=10045/500/10",
+								"attribution": "<a target=\"_blank\" href=\"http://www.cbl.ie\"><img src=\"http://ntmss.info/instlogos/cbl.png\"/><div>Images © The Trustees of the<br/>Chester Beatty Library, Dublin</div></a>",
+								"thumbURL": "https://ntmss.info/images/thumbs/10045/500_49_10.jpg",
+								"userName": "",
+								"uri": "https://ntmss.info/images/full/10045/T0005394.jpg",
+								"webFriendlyURL": "https://ntmss.info/images/webfriendly/10045/T0005394.jpg",
+								"surrID": 10,
+								"protectLevel": 0
+							}
+						},
+						"shelfID": 5436,
+						"shelfFolioNums": "",
+						"sortOrder": "00500",
+						"folio": "24v",
+						"indexContent": "Acts 11:2-15",
+						"transcriptions": {
+							"transcription": {
+								"uri": "http://localhost:8080/community/vmr/api/transcript/get/?docid=10045&pageID=500&format=xhtml"
+							}
+						},
+						"pageID": 500,
+						"indexedBy": "lakmann"
+					},
+					{
+						"biblicalContent": "Acts 11:24-30; Acts 12:1-6",
+						"images": {
+							"image": {
+								"instID": 49,
+								"shelfID": 0,
+								"shelfNumberPartID": "",
+								"accessLevel": 0,
+								"viewURL": "https://ntvmr.uni-muenster.de/community/modules/papyri/?site=VMR&image=10045/510/10",
+								"attribution": "<a target=\"_blank\" href=\"http://www.cbl.ie\"><img src=\"http://ntmss.info/instlogos/cbl.png\"/><div>Images © The Trustees of the<br/>Chester Beatty Library, Dublin</div></a>",
+								"thumbURL": "https://ntmss.info/images/thumbs/10045/510_49_10.jpg",
+								"userName": "",
+								"uri": "https://ntmss.info/images/full/10045/T0005425.jpg",
+								"webFriendlyURL": "https://ntmss.info/images/webfriendly/10045/T0005425.jpg",
+								"surrID": 10,
+								"protectLevel": 0
+							}
+						},
+						"shelfID": 5436,
+						"shelfFolioNums": "",
+						"sortOrder": "00510",
+						"folio": "25r",
+						"indexContent": "Acts 11:24-30; Acts 12:1-6",
+						"transcriptions": {
+							"transcription": {
+								"uri": "http://localhost:8080/community/vmr/api/transcript/get/?docid=10045&pageID=510&format=xhtml"
+							}
+						},
+						"pageID": 510,
+						"indexedBy": "lakmann"
+					},
+					{
+						"biblicalContent": "Acts 12:13-23",
+						"images": {
+							"image": {
+								"instID": 49,
+								"shelfID": 0,
+								"shelfNumberPartID": "",
+								"accessLevel": 0,
+								"viewURL": "https://ntvmr.uni-muenster.de/community/modules/papyri/?site=VMR&image=10045/520/10",
+								"attribution": "<a target=\"_blank\" href=\"http://www.cbl.ie\"><img src=\"http://ntmss.info/instlogos/cbl.png\"/><div>Images © The Trustees of the<br/>Chester Beatty Library, Dublin</div></a>",
+								"thumbURL": "https://ntmss.info/images/thumbs/10045/520_49_10.jpg",
+								"userName": "",
+								"uri": "https://ntmss.info/images/full/10045/T0005426.jpg",
+								"webFriendlyURL": "https://ntmss.info/images/webfriendly/10045/T0005426.jpg",
+								"surrID": 10,
+								"protectLevel": 0
+							}
+						},
+						"shelfID": 5436,
+						"shelfFolioNums": "",
+						"sortOrder": "00520",
+						"folio": "25v",
+						"indexContent": "Acts 12:13-23",
+						"transcriptions": {
+							"transcription": {
+								"uri": "http://localhost:8080/community/vmr/api/transcript/get/?docid=10045&pageID=520&format=xhtml"
+							}
+						},
+						"pageID": 520,
+						"indexedBy": "lakmann"
+					},
+					{
+						"biblicalContent": "Acts 13:6-16",
+						"images": {
+							"image": {
+								"instID": 49,
+								"shelfID": 0,
+								"shelfNumberPartID": "",
+								"accessLevel": 0,
+								"viewURL": "https://ntvmr.uni-muenster.de/community/modules/papyri/?site=VMR&image=10045/530/10",
+								"attribution": "<a target=\"_blank\" href=\"http://www.cbl.ie\"><img src=\"http://ntmss.info/instlogos/cbl.png\"/><div>Images © The Trustees of the<br/>Chester Beatty Library, Dublin</div></a>",
+								"thumbURL": "https://ntmss.info/images/thumbs/10045/530_49_10.jpg",
+								"userName": "",
+								"uri": "https://ntmss.info/images/full/10045/T0005427.jpg",
+								"webFriendlyURL": "https://ntmss.info/images/webfriendly/10045/T0005427.jpg",
+								"surrID": 10,
+								"protectLevel": 0
+							}
+						},
+						"shelfID": 5436,
+						"shelfFolioNums": "",
+						"sortOrder": "00530",
+						"folio": "26r",
+						"indexContent": "Acts 13:6-16",
+						"transcriptions": {
+							"transcription": {
+								"uri": "http://localhost:8080/community/vmr/api/transcript/get/?docid=10045&pageID=530&format=xhtml"
+							}
+						},
+						"pageID": 530,
+						"indexedBy": "lakmann"
+					},
+					{
+						"biblicalContent": "Acts 13:25-36",
+						"images": {
+							"image": {
+								"instID": 49,
+								"shelfID": 0,
+								"shelfNumberPartID": "",
+								"accessLevel": 0,
+								"viewURL": "https://ntvmr.uni-muenster.de/community/modules/papyri/?site=VMR&image=10045/540/10",
+								"attribution": "<a target=\"_blank\" href=\"http://www.cbl.ie\"><img src=\"http://ntmss.info/instlogos/cbl.png\"/><div>Images © The Trustees of the<br/>Chester Beatty Library, Dublin</div></a>",
+								"thumbURL": "https://ntmss.info/images/thumbs/10045/540_49_10.jpg",
+								"userName": "",
+								"uri": "https://ntmss.info/images/full/10045/T0005428.jpg",
+								"webFriendlyURL": "https://ntmss.info/images/webfriendly/10045/T0005428.jpg",
+								"surrID": 10,
+								"protectLevel": 0
+							}
+						},
+						"shelfID": 5436,
+						"shelfFolioNums": "",
+						"sortOrder": "00540",
+						"folio": "26v",
+						"indexContent": "Acts 13:25-36",
+						"transcriptions": {
+							"transcription": {
+								"uri": "http://localhost:8080/community/vmr/api/transcript/get/?docid=10045&pageID=540&format=xhtml"
+							}
+						},
+						"pageID": 540,
+						"indexedBy": "lakmann"
+					},
+					{
+						"biblicalContent": "Acts 13:46-52; Acts 14:1-4",
+						"images": {
+							"image": {
+								"instID": 49,
+								"shelfID": 0,
+								"shelfNumberPartID": "",
+								"accessLevel": 0,
+								"viewURL": "https://ntvmr.uni-muenster.de/community/modules/papyri/?site=VMR&image=10045/550/10",
+								"attribution": "<a target=\"_blank\" href=\"http://www.cbl.ie\"><img src=\"http://ntmss.info/instlogos/cbl.png\"/><div>Images © The Trustees of the<br/>Chester Beatty Library, Dublin</div></a>",
+								"thumbURL": "https://ntmss.info/images/thumbs/10045/550_49_10.jpg",
+								"userName": "",
+								"uri": "https://ntmss.info/images/full/10045/T0005400.jpg",
+								"webFriendlyURL": "https://ntmss.info/images/webfriendly/10045/T0005400.jpg",
+								"surrID": 10,
+								"protectLevel": 0
+							}
+						},
+						"shelfID": 5436,
+						"shelfFolioNums": "",
+						"sortOrder": "00550",
+						"folio": "27r",
+						"indexContent": "Acts 13:46-52; Acts 14:1-4",
+						"transcriptions": {
+							"transcription": {
+								"uri": "http://localhost:8080/community/vmr/api/transcript/get/?docid=10045&pageID=550&format=xhtml"
+							}
+						},
+						"pageID": 550,
+						"indexedBy": "lakmann"
+					},
+					{
+						"biblicalContent": "Acts 14:15-23",
+						"images": {
+							"image": {
+								"instID": 49,
+								"shelfID": 0,
+								"shelfNumberPartID": "",
+								"accessLevel": 0,
+								"viewURL": "https://ntvmr.uni-muenster.de/community/modules/papyri/?site=VMR&image=10045/560/10",
+								"attribution": "<a target=\"_blank\" href=\"http://www.cbl.ie\"><img src=\"http://ntmss.info/instlogos/cbl.png\"/><div>Images © The Trustees of the<br/>Chester Beatty Library, Dublin</div></a>",
+								"thumbURL": "https://ntmss.info/images/thumbs/10045/560_49_10.jpg",
+								"userName": "",
+								"uri": "https://ntmss.info/images/full/10045/T0005399.jpg",
+								"webFriendlyURL": "https://ntmss.info/images/webfriendly/10045/T0005399.jpg",
+								"surrID": 10,
+								"protectLevel": 0
+							}
+						},
+						"shelfID": 5436,
+						"shelfFolioNums": "",
+						"sortOrder": "00560",
+						"folio": "27v",
+						"indexContent": "Acts 14:15-23",
+						"transcriptions": {
+							"transcription": {
+								"uri": "http://localhost:8080/community/vmr/api/transcript/get/?docid=10045&pageID=560&format=xhtml"
+							}
+						},
+						"pageID": 560,
+						"indexedBy": "lakmann"
+					},
+					{
+						"biblicalContent": "Acts 15:2-9",
+						"images": {
+							"image": {
+								"instID": 49,
+								"shelfID": 0,
+								"shelfNumberPartID": "",
+								"accessLevel": 0,
+								"viewURL": "https://ntvmr.uni-muenster.de/community/modules/papyri/?site=VMR&image=10045/570/10",
+								"attribution": "<a target=\"_blank\" href=\"http://www.cbl.ie\"><img src=\"http://ntmss.info/instlogos/cbl.png\"/><div>Images © The Trustees of the<br/>Chester Beatty Library, Dublin</div></a>",
+								"thumbURL": "https://ntmss.info/images/thumbs/10045/570_49_10.jpg",
+								"userName": "",
+								"uri": "https://ntmss.info/images/full/10045/T0005398.jpg",
+								"webFriendlyURL": "https://ntmss.info/images/webfriendly/10045/T0005398.jpg",
+								"surrID": 10,
+								"protectLevel": 0
+							}
+						},
+						"shelfID": 5436,
+						"shelfFolioNums": "",
+						"sortOrder": "00570",
+						"folio": "28r",
+						"indexContent": "Acts 15:2-9",
+						"transcriptions": {
+							"transcription": {
+								"uri": "http://localhost:8080/community/vmr/api/transcript/get/?docid=10045&pageID=570&format=xhtml"
+							}
+						},
+						"pageID": 570,
+						"indexedBy": "lakmann"
+					},
+					{
+						"biblicalContent": "Acts 15:19-27",
+						"images": {
+							"image": {
+								"instID": 49,
+								"shelfID": 0,
+								"shelfNumberPartID": "",
+								"accessLevel": 0,
+								"viewURL": "https://ntvmr.uni-muenster.de/community/modules/papyri/?site=VMR&image=10045/580/10",
+								"attribution": "<a target=\"_blank\" href=\"http://www.cbl.ie\"><img src=\"http://ntmss.info/instlogos/cbl.png\"/><div>Images © The Trustees of the<br/>Chester Beatty Library, Dublin</div></a>",
+								"thumbURL": "https://ntmss.info/images/thumbs/10045/580_49_10.jpg",
+								"userName": "",
+								"uri": "https://ntmss.info/images/full/10045/T0005397.jpg",
+								"webFriendlyURL": "https://ntmss.info/images/webfriendly/10045/T0005397.jpg",
+								"surrID": 10,
+								"protectLevel": 0
+							}
+						},
+						"shelfID": 5436,
+						"shelfFolioNums": "",
+						"sortOrder": "00580",
+						"folio": "28v",
+						"indexContent": "Acts 15:19-27",
+						"transcriptions": {
+							"transcription": {
+								"uri": "http://localhost:8080/community/vmr/api/transcript/get/?docid=10045&pageID=580&format=xhtml"
+							}
+						},
+						"pageID": 580,
+						"indexedBy": "lakmann"
+					},
+					{
+						"biblicalContent": "Acts 15:38-41; Acts 16:1-4",
+						"images": {
+							"image": {
+								"instID": 49,
+								"shelfID": 0,
+								"shelfNumberPartID": "",
+								"accessLevel": 0,
+								"viewURL": "https://ntvmr.uni-muenster.de/community/modules/papyri/?site=VMR&image=10045/590/10",
+								"attribution": "<a target=\"_blank\" href=\"http://www.cbl.ie\"><img src=\"http://ntmss.info/instlogos/cbl.png\"/><div>Images © The Trustees of the<br/>Chester Beatty Library, Dublin</div></a>",
+								"thumbURL": "https://ntmss.info/images/thumbs/10045/590_49_10.jpg",
+								"userName": "",
+								"uri": "https://ntmss.info/images/full/10045/D0005421.jpg",
+								"webFriendlyURL": "https://ntmss.info/images/webfriendly/10045/D0005421.jpg",
+								"surrID": 10,
+								"protectLevel": 0
+							}
+						},
+						"shelfID": "",
+						"shelfFolioNums": "",
+						"sortOrder": "00590",
+						"folio": "29r",
+						"indexContent": "Acts 15:38-41; Acts 16:1-4",
+						"transcriptions": {
+							"transcription": {
+								"uri": "http://localhost:8080/community/vmr/api/transcript/get/?docid=10045&pageID=590&format=xhtml"
+							}
+						},
+						"pageID": 590,
+						"indexedBy": "lakmann"
+					},
+					{
+						"biblicalContent": "Acts 16:15-22",
+						"images": {
+							"image": {
+								"instID": 49,
+								"shelfID": 0,
+								"shelfNumberPartID": "",
+								"accessLevel": 0,
+								"viewURL": "https://ntvmr.uni-muenster.de/community/modules/papyri/?site=VMR&image=10045/600/10",
+								"attribution": "<a target=\"_blank\" href=\"http://www.cbl.ie\"><img src=\"http://ntmss.info/instlogos/cbl.png\"/><div>Images © The Trustees of the<br/>Chester Beatty Library, Dublin</div></a>",
+								"thumbURL": "https://ntmss.info/images/thumbs/10045/600_49_10.jpg",
+								"userName": "",
+								"uri": "https://ntmss.info/images/full/10045/D0005422.jpg",
+								"webFriendlyURL": "https://ntmss.info/images/webfriendly/10045/D0005422.jpg",
+								"surrID": 10,
+								"protectLevel": 0
+							}
+						},
+						"shelfID": "",
+						"shelfFolioNums": "",
+						"sortOrder": "00600",
+						"folio": "29v",
+						"indexContent": "Acts 16:15-22",
+						"transcriptions": {
+							"transcription": {
+								"uri": "http://localhost:8080/community/vmr/api/transcript/get/?docid=10045&pageID=600&format=xhtml"
+							}
+						},
+						"pageID": 600,
+						"indexedBy": "lakmann"
+					},
+					{
+						"biblicalContent": "Acts 16:32-40",
+						"images": {
+							"image": {
+								"instID": 49,
+								"shelfID": 0,
+								"shelfNumberPartID": "",
+								"accessLevel": 0,
+								"viewURL": "https://ntvmr.uni-muenster.de/community/modules/papyri/?site=VMR&image=10045/610/10",
+								"attribution": "<a target=\"_blank\" href=\"http://www.cbl.ie\"><img src=\"http://ntmss.info/instlogos/cbl.png\"/><div>Images © The Trustees of the<br/>Chester Beatty Library, Dublin</div></a>",
+								"thumbURL": "https://ntmss.info/images/thumbs/10045/610_49_10.jpg",
+								"userName": "",
+								"uri": "https://ntmss.info/images/full/10045/D0005424.jpg",
+								"webFriendlyURL": "https://ntmss.info/images/webfriendly/10045/D0005424.jpg",
+								"surrID": 10,
+								"protectLevel": 0
+							}
+						},
+						"shelfID": "",
+						"shelfFolioNums": "",
+						"sortOrder": "00610",
+						"folio": "30r",
+						"indexContent": "Acts 16:32-40",
+						"transcriptions": {
+							"transcription": {
+								"uri": "http://localhost:8080/community/vmr/api/transcript/get/?docid=10045&pageID=610&format=xhtml"
+							}
+						},
+						"pageID": 610,
+						"indexedBy": "lakmann"
+					},
+					{
+						"biblicalContent": "Acts 17:9-17",
+						"images": {
+							"image": {
+								"instID": 49,
+								"shelfID": 0,
+								"shelfNumberPartID": "",
+								"accessLevel": 0,
+								"viewURL": "https://ntvmr.uni-muenster.de/community/modules/papyri/?site=VMR&image=10045/620/10",
+								"attribution": "<a target=\"_blank\" href=\"http://www.cbl.ie\"><img src=\"http://ntmss.info/instlogos/cbl.png\"/><div>Images © The Trustees of the<br/>Chester Beatty Library, Dublin</div></a>",
+								"thumbURL": "https://ntmss.info/images/thumbs/10045/620_49_10.jpg",
+								"userName": "",
+								"uri": "https://ntmss.info/images/full/10045/D0005423.jpg",
+								"webFriendlyURL": "https://ntmss.info/images/webfriendly/10045/D0005423.jpg",
+								"surrID": 10,
+								"protectLevel": 0
+							}
+						},
+						"shelfID": "",
+						"shelfFolioNums": "",
+						"sortOrder": "00620",
+						"folio": "30v",
+						"indexContent": "Acts 17:9-17",
+						"transcriptions": {
+							"transcription": {
+								"uri": "http://localhost:8080/community/vmr/api/transcript/get/?docid=10045&pageID=620&format=xhtml"
+							}
+						},
+						"pageID": 620,
+						"indexedBy": "ECM"
+					}
+				]
+			},
+			"gaNum": "P45",
+			"leaves": {
+				"leavesCount": 30,
+				"content": 30
+			},
+			"lang": "g",
+			"contentOverview": "ea: Act",
+			"lineCount": {
+				"lineCountMax": 33,
+				"lineCountMin": 32,
+				"content": "32-33 (39)"
+			}
+		}
+	}
+}

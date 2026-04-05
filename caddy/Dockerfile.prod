@@ -1,0 +1,5 @@
+FROM caddy:2.10.2-alpine
+
+COPY caddyfile.prod /etc/caddy/Caddyfile
+
+EXPOSE 8888

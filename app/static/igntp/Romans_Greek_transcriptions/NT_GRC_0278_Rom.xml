@@ -1,0 +1,112 @@
+<!DOCTYPE TEI>
+<?xml-stylesheet type="text/xsl" href="Rom.xsl"?><TEI xmlns="http://www.tei-c.org/ns/1.0"><teiHeader><fileDesc><titleStmt><title n="0278" type="document" key="20278">A transcription of Romans in 0278</title><title type="collection" xml:lang="en">The New Testament</title><title type="collection" xml:lang="de">Das Neue Testament</title><title type="work" xml:lang="en">The Epistle to the Romans</title><title type="short" xml:lang="en">Romans</title><respStmt><resp>Created by</resp><name type="org">The International Greek New Testament Project</name></respStmt><respStmt><resp when-iso="2020-09-01">Transcribed by</resp><name type="person">Anna Shirav</name></respStmt><respStmt><resp when-iso="2020-08-26">Transcribed by</resp><name type="person">Maria Ester Portokali</name></respStmt><respStmt><resp when-iso="2021-02-26">Reconciled by</resp><name type="person">Amy Myshrall</name></respStmt><respStmt><resp when-iso="2021-02-26">Proofread by</resp><name type="person">Amy Myshrall</name></respStmt><funder>This transcription was made as part of the CATENA project, which has received funding from the European Research Council (ERC) under the European Union Horizon 2020 research and innovation programme (grant agreement no. 770816).</funder><sponsor><name type="org">The Institute for Textual Scholarship and Electronic Editing</name></sponsor></titleStmt><editionStmt><edition n="1.1">Version 1.1, created on <date when-iso="2021-02-26">26.02.2021</date>, archived on the University of Birmingham eData repository on <date>13.5.2024</date>.</edition></editionStmt><publicationStmt><publisher><name type="org">The International Greek New Testament Project (IGNTP)</name></publisher><date>13.5.2024</date><availability><p>Attribution 4.0 International (CC BY 4.0) Available for re-use under a creative commons license provided attribution is made to the original creators.</p></availability></publicationStmt><sourceDesc><msDesc><msIdentifier><country>Egypt</country><settlement>Sinai</settlement><repository>Saint Catherine's Monastery</repository><idno>N.E. MΓ 2 + Σπ.</idno><altIdentifier type="GA"><idno>0278</idno></altIdentifier><altIdentifier type="Liste"><idno>20278</idno></altIdentifier></msIdentifier></msDesc></sourceDesc></fileDesc><encodingDesc n="1.6"><projectDesc><p>This transcription was made by the International Greek New Testament Project in its work towards the Editio Critica Maior.</p></projectDesc><editorialDecl><p>This transcription was produced using the online transcription editor developed by the Center for Digital Humanities at the University of Trier as part of the Workspace for Collaborative Editing Project between 2010 and 2013 and made available for use by the Institute for Textual Scholarship and Electronic Editing and the University of Birmingham.</p><p>The XML specifications used are version 1.6 of the IGNTP Guidelines available at <ptr target="http://epapers.bham.ac.uk/4301/"/></p></editorialDecl><variantEncoding method="parallel-segmentation" location="internal"/></encodingDesc></teiHeader><text xml:lang="grc"><body>
+<pb n="14r" type="folio" xml:id="P14r-0278"/>
+<cb n="P14rC1-0278"/>
+<lb n="P14rC1L-0278"/><div type="book" n="Rom"><div type="inscriptio"><ab n="Rom.inscriptio"><w><hi rend="rubric">προς</hi></w><w><hi rend="rubric">ρ<unclear reason="damage to page">ω</unclear>μαιους</hi></w><pc>˙</pc><w><hi rend="rubric">παυλου</hi></w><pc>.</pc><w><hi rend="rubric">επιστολη</hi></w><pc>˙</pc>
+<lb n="P14rC1L-0278" rend="hang"/></ab></div><div type="chapter" n="Rom.1"><ab n="Rom.1.1"><seg type="margin" subtype="lineleft" n="@P14rC1L-0278"><fw type="lectTitle" rend="right"><w><hi rend="rubric">αρχ<ex>η</ex></hi></w></fw></seg><w><hi rend="rubric"><hi rend="cap" height="2">π</hi></hi>αυλος</w><w>δουλος</w><w><abbr type="nomSac"><hi rend="overline">ιυ</hi></abbr></w><w><abbr type="nomSac"><hi rend="overline">χυ</hi></abbr></w><pc>.</pc>
+<lb n="P14rC1L-0278"/><seg type="margin" subtype="lineleft" n="@P14rC1L-0278"><num type="chapNum" rend="right"><abbr type="num"><hi rend="overline"><hi rend="rubric">α</hi></hi></abbr></num></seg><w>κλητος</w><w>αποστολος</w><pc>˙</pc>
+<lb n="P14rC1L-0278"/><w>αφ</w><w>ωρισμενος</w><w>εις</w>
+<lb n="P14rC1L-0278"/><w>ευαγγε<unclear reason="damage to page">λ</unclear><supplied source="na28" reason="lacuna">ι</supplied><unclear reason="damage to page">ο</unclear>ν</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><pc>.</pc></ab><ab n="Rom.1.2"><w>ο</w><pc>,</pc>
+<lb n="P14rC1L-0278"/><w>προ</w><w>επη<unclear reason="damage to page">γ</unclear><supplied source="na28" reason="lacuna">γε</supplied><unclear reason="damage to page">ι</unclear>λατο</w><w>δια</w>
+<lb n="P14rC1L-0278"/><w>των</w><w>πρ<supplied source="na28" reason="lacuna">οφ</supplied>ητων</w>
+<lb n="P14rC1L-0278"/><w>αυτου</w><pc>.</pc><w><unclear reason="damage to page">ε</unclear><supplied source="na28" reason="lacuna">ν</supplied></w><w><unclear reason="damage to page">γ</unclear>ραφαις</w>
+<lb n="P14rC1L-0278"/><w>αγιαις</w></ab><ab n="Rom.1.3"><w>περ<unclear reason="damage to page">ι</unclear></w><w><supplied source="na28" reason="lacuna">τ</supplied>ου</w><w><abbr type="nomSac"><hi rend="overline">υιυ</hi></abbr></w>
+<lb n="P14rC1L-0278"/><w>αυτου</w><pc>.</pc><w>του</w><w>γενομε
+<lb n="P14rC1L-0278" break="no"/>νου</w><w>εκ</w><w>σπερματος</w>
+<lb n="P14rC1L-0278"/><w><abbr type="nomSac"><hi rend="overline">δαδ</hi></abbr></w><w>κατα</w><w>σαρ<unclear reason="damage to page">κ</unclear>α</w>
+<lb n="P14rC1L-0278" rend="hang"/></ab><ab n="Rom.1.4"><w><hi rend="cap" height="2">τ</hi>ου</w><w>ορισ<supplied source="na28" reason="lacuna">θ</supplied>εντ<supplied source="na28" reason="lacuna">ο</supplied><unclear reason="damage to page">ς</unclear></w><w><abbr type="nomSac"><hi rend="overline">υιυ</hi></abbr></w>
+<lb n="P14rC1L-0278"/><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><pc>.</pc><w>εν</w><w>δυνα<unclear reason="damage to page">μ</unclear><supplied source="na28" reason="lacuna">ει</supplied></w><w>κα
+<lb n="P14rC1L-0278" break="no"/>τα</w><w><abbr type="nomSac"><hi rend="overline">πνα</hi></abbr></w><w>αγ<unclear reason="damage to page">ι</unclear>ω<supplied source="na28" reason="lacuna">συν</supplied>ης</w><pc>.</pc>
+<lb n="P14rC1L-0278"/><w>εξ</w><w>αναστασε<unclear reason="damage to page">ω</unclear><supplied source="na28" reason="lacuna">ς</supplied></w><w><supplied source="na28" reason="lacuna">ν</supplied><unclear reason="damage to page">ε</unclear>
+<lb n="P14rC1L-0278" break="no"/>κρων</w><w><abbr type="nomSac"><hi rend="overline">ιυ</hi></abbr></w><w><abbr type="nomSac"><hi rend="overline">χυ</hi></abbr></w><w>τ<supplied source="na28" reason="lacuna">ου</supplied></w><w><abbr type="nomSac"><hi rend="overline"><unclear reason="damage to page">κ</unclear>υ</hi></abbr></w>
+<lb n="P14rC1L-0278"/><w><supplied source="na28" reason="lacuna">ημω</supplied><unclear reason="damage to page">ν</unclear></w><pc>˙</pc></ab><ab n="Rom.1.5"><w>δι</w><w><unclear reason="damage to page">ο</unclear><supplied source="na28" reason="lacuna">υ</supplied></w><w><unclear reason="damage to page">ε</unclear>
+<lb n="P14rC1L-0278" break="no"/><supplied source="na28" reason="lacuna">λαβο</supplied>μεν</w><w>χαριν</w><w>και</w>
+<lb n="P14rC1L-0278"/><w><supplied source="na28" reason="lacuna">αποσ</supplied>τολην</w><w>εις</w><w>υπα
+<cb n="P14rC2-0278" break="no"/>
+<lb n="P14rC2L-0278"/><note type="editorial">Arabic text.</note>
+<pb n="14v" type="folio" xml:id="P14v-0278"/>
+<cb n="P14vC1-0278"/>
+<lb n="P14vC1L-0278"/><supplied source="na28" reason="lacuna">κοη</supplied>ν</w><w>πισ<unclear reason="damage to page">τ</unclear>εω<unclear reason="damage to page">ς</unclear></w><pc>.</pc><w>εν</w>
+<lb n="P14vC1L-0278"/><w><supplied source="na28" reason="lacuna">πα</supplied>σιν</w><w>τοις</w><w>εθνεσι<ex rend="̅">ν</ex></w><pc>.</pc>
+<lb n="P14vC1L-0278"/><w>υπερ</w><w>του</w><w>ονοματος</w>
+<lb n="P14vC1L-0278"/><w>αυτου</w><pc>˙</pc></ab><ab n="Rom.1.6"><w>εν</w><w>οις</w><w>ε
+<lb n="P14vC1L-0278" break="no"/>στε</w><w>και</w><w>υμεις</w><w>κλη
+<lb n="P14vC1L-0278" break="no"/>τοι</w><w><abbr type="nomSac"><hi rend="overline">ιυ</hi></abbr></w><w><abbr type="nomSac"><hi rend="overline">χυ</hi></abbr></w><pc>˙</pc>
+<lb n="P14vC1L-0278"/></ab><ab n="Rom.1.7"><w>πασιν</w><w>τοις</w><w>ουσιν</w><w>εν</w>
+<lb n="P14vC1L-0278"/><w>ρωμη</w><w>αγαπητοις</w>
+<lb n="P14vC1L-0278"/><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><pc>.</pc><w>κλητοις</w><w>αγιοις</w><pc>˙</pc>
+<lb n="P14vC1L-0278" rend="hang"/><w><hi rend="cap" height="2">χ</hi>αρις</w><w>υμιν</w><w>και</w><w>ειρη
+<lb n="P14vC1L-0278" break="no"/>νη</w><w>απο</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><w><abbr type="nomSac"><hi rend="overline">πρς</hi></abbr></w><w>ημ<unclear reason="damage to page">ω</unclear><supplied source="na28" reason="lacuna">ν</supplied></w>
+<lb n="P14vC1L-0278"/><w>και</w><w><abbr type="nomSac"><hi rend="overline">κυ</hi></abbr></w><w><abbr type="nomSac"><hi rend="overline">ιυ</hi></abbr></w><w><abbr type="nomSac"><hi rend="overline">χυ</hi></abbr></w><pc>˙</pc>
+<lb n="P14vC1L-0278" rend="hang"/></ab><ab n="Rom.1.8"><seg type="margin" subtype="lineleft" n="@P14vC1L-0278"><num type="chapNum" rend="center">κεφαλ<w><ex>αιον</ex></w>
+<lb/><abbr type="num"><hi rend="overline">α</hi></abbr></num></seg><w><hi rend="cap" height="2">π</hi>ρωτον</w><w>μεν</w><pc>.</pc><w>ευχα
+<lb n="P14vC1L-0278" break="no"/>ριστω</w><w>τωι</w><w><abbr type="nomSac"><hi rend="overline">θωι</hi></abbr></w><w>μου</w>
+<lb n="P14vC1L-0278"/><w><supplied source="na28" reason="lacuna">δ</supplied>ια</w><w><abbr type="nomSac"><hi rend="overline">ιυ</hi></abbr></w><w><abbr type="nomSac"><hi rend="overline">χυ</hi></abbr></w><pc>.</pc><w>υπερ</w><w>παν
+<lb n="P14vC1L-0278" break="no"/><unclear reason="damage to page">τ</unclear>ων</w><w>υμων</w><pc>˙</pc>
+<lb n="P14vC1L-0278"/><w><supplied source="na28" reason="lacuna">οτ</supplied>ι</w><w>η</w><w>πιστις</w><w>υμων</w>
+<lb n="P14vC1L-0278"/><w><unclear reason="damage to page">κ</unclear>αταγγελλετ<supplied source="na28" reason="lacuna">αι</supplied></w><w><unclear reason="damage to page">ε</unclear>ν</w>
+<lb n="P14vC1L-0278"/><w><unclear reason="damage to page">ο</unclear>λωι</w><w>τωι</w><w>κοσ<unclear reason="damage to page">μ</unclear><supplied source="na28" reason="lacuna">ωι</supplied></w><pc>˙</pc>
+<lb n="P14vC1L-0278" rend="hang"/></ab><ab n="Rom.1.9"><w><hi rend="cap" height="2">μ</hi>αρτυς</w><w>γαρ</w><w>μ<unclear reason="damage to page">ο</unclear><supplied source="na28" reason="lacuna">υ</supplied></w><w><supplied source="na28" reason="lacuna">εσ</supplied><unclear reason="damage to page">τ</unclear>ι<ex rend="̅">ν</ex></w>
+<lb n="P14vC1L-0278"/><w>ο</w><w><abbr type="nomSac"><hi rend="overline">θς</hi></abbr></w><pc>.</pc><w>ω</w><w>λατρ<supplied source="na28" reason="lacuna">ευ</supplied>ω</w>
+<lb n="P14vC1L-0278"/><w>εν</w><w>τωι</w><w><abbr type="nomSac"><hi rend="overline">πνι</hi></abbr></w><w>μ<supplied source="na28" reason="lacuna">ο</supplied><unclear reason="damage to page">υ</unclear></w><pc>.</pc>
+<lb n="P14vC1L-0278"/><w>εν</w><w>τωι</w><w>ευαγγελιωι</w>
+<lb n="P14vC1L-0278"/><w>του</w><w><abbr type="nomSac"><hi rend="overline">υιυ</hi></abbr></w><w>αυτου</w><pc>.</pc>
+<cb n="P14vC2-0278"/>
+<lb n="P14vC2L-0278"/><note type="editorial">Arabic text. </note><gap reason="unspecified"/>
+<pb n="15r" type="folio" xml:id="P15r-0278"/>
+<cb n="P15rC1-0278"/>
+<lb n="P15rC1L-0278"/></ab></div><div type="chapter" n="Rom.1"><ab n="Rom.1.24"><gap unit="verse" extent="part"/><w>του</w><w>ατιμαζεσθ<supplied source="na28" reason="lacuna">αι</supplied></w><w><supplied source="na28" reason="lacuna">τα</supplied></w>
+<lb n="P15rC1L-0278"/><w>σωματ<unclear reason="damage to page">α</unclear></w><w>αυτων</w><w>εν</w>
+<lb n="P15rC1L-0278"/><w>εαυτο<unclear reason="damage to page">ις</unclear></w><pc>˙</pc>
+<lb n="P15rC1L-0278" rend="hang"/></ab><ab n="Rom.1.25"><w><hi rend="cap" height="2">ο</hi>ιτινες</w><w>μετηλλαξα<ex rend="̅">ν</ex></w>
+<lb n="P15rC1L-0278"/><w>την</w><w>αληθειαν</w><w>του</w>
+<lb n="P15rC1L-0278"/><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><w>εν</w><w>τω</w><w>ψευδει</w><pc>˙</pc>
+<lb n="P15rC1L-0278"/><w>και</w><w>εσεβασθησαν</w>
+<lb n="P15rC1L-0278"/><w>και</w><w>ελατ<supplied source="na28" reason="lacuna">ρε</supplied>υσαν</w>
+<lb n="P15rC1L-0278"/><w>την</w><w>κτ<unclear reason="damage to page">ισ</unclear>ειν</w><w>παρα</w>
+<lb n="P15rC1L-0278"/><w>τον</w><w>κτισ<unclear reason="damage to page">α</unclear>ντα</w><pc>.</pc>
+<lb n="P15rC1L-0278"/><w>ος</w><pc>,</pc><w>εστιν</w><w>ε<unclear reason="damage to page">υλ</unclear>ογητος</w>
+<lb n="P15rC1L-0278"/><w>εις</w><w>τους</w><w>αι<supplied source="na28" reason="lacuna">ω</supplied>νας</w>
+<lb n="P15rC1L-0278"/><w>αμην</w><pc>˙</pc>
+<lb n="P15rC1L-0278" rend="hang"/></ab><ab n="Rom.1.26"><w><hi rend="cap" height="2">δ</hi>ια</w><w>τουτο</w><pc>.</pc><w>παρεδωκε<ex rend="̅">ν</ex></w>
+<lb n="P15rC1L-0278"/><w>αυτους</w><w>ο</w><w><abbr type="nomSac"><hi rend="overline">θς</hi></abbr></w><w>εις</w><w>πα
+<lb n="P15rC1L-0278" break="no"/>θη</w><w>ατιμιας</w><pc>˙</pc><w>αι</w><w>τε</w>
+<lb n="P15rC1L-0278"/><w>γαρ</w><w>θηλειαι</w><w>αυτων</w><pc>.</pc>
+<lb n="P15rC1L-0278"/><w>μετηλλαξα<unclear reason="damage to page">ν</unclear></w><w>την</w>
+<lb n="P15rC1L-0278"/><w>φυσικην</w><w>χρ<unclear reason="damage to page">η</unclear><supplied source="na28" reason="lacuna">σι</supplied>ν</w>
+<lb n="P15rC1L-0278"/><w>εις</w><w>την</w><w>παρα</w><w><supplied source="na28" reason="lacuna">φυ</supplied><unclear reason="damage to page">σ</unclear>ι<ex rend="̅">ν</ex></w><pc>˙</pc>
+<lb n="P15rC1L-0278" rend="hang"/></ab><ab n="Rom.1.27"><w><supplied source="na28" reason="lacuna">ο</supplied>μοιως</w><w>και</w><w>οι</w><w>α<supplied source="na28" reason="lacuna">ρσ</supplied><unclear>ε</unclear>
+<lb n="P15rC1L-0278" break="no"/><unclear reason="damage to page">ν</unclear>ε<supplied source="na28" reason="lacuna">ς</supplied></w><w>αφεντες</w><w><supplied source="na28" reason="lacuna">τ</supplied><unclear reason="damage to page">η</unclear>ν</w>
+<lb n="P15rC1L-0278"/><w><supplied source="na28" reason="lacuna">φυ</supplied><unclear reason="damage to page">σ</unclear>ικην</w><w>χρη<unclear reason="damage to page">σι</unclear>ν</w>
+<lb n="P15rC1L-0278"/><w><supplied source="na28" reason="lacuna">της</supplied></w><w>θηλειας</w><pc>.</pc>
+<cb n="P15rC2-0278"/>
+<lb n="P15rC2L-0278"/><note type="editorial">Arabic text. </note>
+<pb n="15v" type="folio" xml:id="P15v-0278"/>
+<cb n="P15vC1-0278"/>
+<lb n="P15vC1L-0278"/><w>εξεκαυθ<unclear reason="damage to page">η</unclear><supplied source="na28" reason="lacuna">σαν</supplied></w><w><supplied source="na28" reason="lacuna">ε</supplied>ν</w><w>τη</w>
+<lb n="P15vC1L-0278"/><w>ο<unclear reason="damage to page">ρεξ</unclear>ει</w><w>αυτων</w><w>εις</w>
+<lb n="P15vC1L-0278"/><w>α<supplied source="na28" reason="lacuna">λλ</supplied>ηλους</w><pc>˙</pc><w>αρσε
+<lb n="P15vC1L-0278" break="no"/>νες</w><w>εν</w><w>αρ<unclear reason="damage to page">σ</unclear>εσιν</w><w>την</w>
+<lb n="P15vC1L-0278"/><w>ασχημοσυνην</w><w>κα
+<lb n="P15vC1L-0278" break="no"/>τεργαζομενοι</w><pc>˙</pc>
+<lb n="P15vC1L-0278" rend="hang"/><w><hi rend="cap" height="2">κ</hi>αι</w><w>την</w><w>αντιμισθια<ex rend="̅">ν</ex></w>
+<lb n="P15vC1L-0278"/><w>ην</w><w>εδει</w><w>της</w><w>πλανη<unclear reason="damage to page">ς</unclear></w>
+<lb n="P15vC1L-0278"/><w>αυτων</w><pc>.</pc><w>εν</w><w>εαυτοις</w>
+<lb n="P15vC1L-0278"/><w>απολαμβανοντες</w><pc>˙</pc>
+<lb n="P15vC1L-0278" rend="hang"/></ab><ab n="Rom.1.28"><w><hi rend="cap" height="2">κ</hi>αι</w><w>καθως</w><w>ουκ</w><w>εδοκ<unclear reason="damage to page">ι</unclear>
+<lb n="P15vC1L-0278" break="no"/>μασαν</w><w>τον</w><w><abbr type="nomSac"><hi rend="overline">θν</hi></abbr></w><w>εχε<unclear reason="damage to page">ι</unclear><supplied source="na28" reason="lacuna">ν</supplied></w>
+<lb n="P15vC1L-0278"/><w>εν</w><w>επιγνωσει</w><pc>.</pc><w>παρε
+<lb n="P15vC1L-0278" break="no"/>δωκεν</w><w>αυτους</w><w>ο</w><w><abbr type="nomSac"><hi rend="overline">θς</hi></abbr></w>
+<lb n="P15vC1L-0278"/><w>εις</w><w>αδοκημον</w><w>νουν</w><pc>.</pc>
+<lb n="P15vC1L-0278"/><w><unclear reason="damage to page">π</unclear>οιειν</w><w>τα</w><w>μη</w><w>καθη
+<lb n="P15vC1L-0278" break="no"/><unclear reason="damage to page">κ</unclear>οντα</w><pc>˙</pc>
+<lb n="P15vC1L-0278"/></ab><ab n="Rom.1.29"><w><supplied source="na28" reason="lacuna">π</supplied><unclear reason="damage to page">ε</unclear>πληρωμενους</w><w>πα
+<lb n="P15vC1L-0278" break="no"/><supplied source="na28" reason="lacuna">ση</supplied></w><w><supplied source="na28" reason="lacuna">α</supplied>δικεια</w><pc>˙</pc><w>πορ<unclear reason="damage to page">ν</unclear><supplied source="na28" reason="lacuna">ει</supplied>α</w><pc>˙</pc>
+<lb n="P15vC1L-0278"/><w><supplied source="na28" reason="lacuna">πο</supplied>νηρια</w><pc>˙</pc><w>πλεο<unclear reason="damage to page">ν</unclear><supplied source="na28" reason="lacuna">εξ</supplied><unclear reason="damage to page">ε</unclear>ια</w><pc>˙</pc>
+<lb n="P15vC1L-0278"/><w><unclear reason="damage to page">κ</unclear>ακεια</w><pc>˙</pc><w>μεσ<unclear reason="damage to page">τ</unclear><supplied source="na28" reason="lacuna">ους</supplied></w>
+<lb n="P15vC1L-0278"/><w>φθονου</w><pc>˙</pc><w>φο<unclear reason="damage to page">ν</unclear><supplied source="na28" reason="lacuna">ου</supplied></w><pc>˙</pc>
+<lb n="P15vC1L-0278"/><w>ερειδος</w><pc>˙</pc><w>δολου</w>
+<lb n="P15vC1L-0278"/><w>κακοηθειας</w><pc>˙</pc><w>ψιθυριστας</w><pc>˙</pc>
+<lb n="P15vC1L-0278"/></ab><ab n="Rom.1.30"><w>καταλαλους</w><pc>·</pc>
+<cb n="P15vC2-0278"/>
+<lb n="P15vC2L-0278"/><note type="editorial">Arabic text. </note><gap reason="witnessEnd"/></ab></div></div></body></text></TEI>

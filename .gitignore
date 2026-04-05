@@ -1,0 +1,9 @@
+.env
+local.ini
+node_modules/
+.pnpm-store/
+.bun/
+dist/
+.env*
+
+scratch*

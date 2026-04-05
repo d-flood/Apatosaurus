@@ -1,0 +1,100 @@
+<!DOCTYPE TEI>
+<?xml-stylesheet type="text/xsl" href="Rom.xsl"?><TEI xmlns="http://www.tei-c.org/ns/1.0"><teiHeader><fileDesc><titleStmt><title n="1947" type="document" key="31947">A transcription of Romans in 1947</title><title type="collection" xml:lang="en">The New Testament</title><title type="collection" xml:lang="de">Das Neue Testament</title><title type="work" xml:lang="en">The Epistle to the Romans</title><title type="short" xml:lang="en">Romans</title><respStmt><resp>Created by</resp><name type="org">The International Greek New Testament Project</name></respStmt><respStmt><resp when-iso="2019-11-29">Transcribed by</resp><name type="person">Dimitra Maravelaki</name></respStmt><respStmt><resp when-iso="2019-10-24">Transcribed by</resp><name type="person">Panagiota (Penny) Mantouvalou</name></respStmt><respStmt><resp when-iso="2021-06-17">Reconciled by</resp><name type="person">Amy Myshrall</name></respStmt><respStmt><resp when-iso="2021-06-17">Proofread by</resp><name type="person">Amy Myshrall</name></respStmt><funder>This transcription was made as part of the CATENA project, which has received funding from the European Research Council (ERC) under the European Union Horizon 2020 research and innovation programme (grant agreement no. 770816).</funder><sponsor><name type="org">The Institute for Textual Scholarship and Electronic Editing</name></sponsor></titleStmt><editionStmt><edition n="1.1">Version 1.1, created on <date when-iso="2021-06-17">17.06.2021</date>, archived on the University of Birmingham eData repository on <date>13.5.2024</date>.</edition></editionStmt><publicationStmt><publisher><name type="org">The International Greek New Testament Project (IGNTP)</name></publisher><date>13.5.2024</date><availability><p>Attribution 4.0 International (CC BY 4.0) Available for re-use under a creative commons license provided attribution is made to the original creators.</p></availability></publicationStmt><sourceDesc><msDesc><msIdentifier><country>Vatican City</country><settlement>Città del Vaticano</settlement><repository>Biblioteca Apostolica Vaticana</repository><idno>Ottob. gr. 61</idno><altIdentifier type="GA"><idno>1947</idno></altIdentifier><altIdentifier type="Liste"><idno>31947</idno></altIdentifier></msIdentifier></msDesc><listWit><witness xml:id="firsthand"/><witness xml:id="corrector"/></listWit></sourceDesc></fileDesc><encodingDesc n="1.6"><projectDesc><p>This transcription was made by the International Greek New Testament Project in its work towards the Editio Critica Maior.</p></projectDesc><editorialDecl><p>This transcription was produced using the online transcription editor developed by the Center for Digital Humanities at the University of Trier as part of the Workspace for Collaborative Editing Project between 2010 and 2013 and made available for use by the Institute for Textual Scholarship and Electronic Editing and the University of Birmingham.</p><p>The XML specifications used are version 1.6 of the IGNTP Guidelines available at <ptr target="http://epapers.bham.ac.uk/4301/"/></p></editorialDecl><variantEncoding method="parallel-segmentation" location="internal"/></encodingDesc></teiHeader><text xml:lang="grc"><body>
+<pb n="1r" type="folio" xml:id="P1r-1947"/>
+<cb n="P1rC1-1947"/>
+<lb/><div type="book" n="Rom"><div type="chapter" n="Rom.16"><ab n="Rom.16.5"><gap reason="inferredPage"/><gap reason="lacuna" unit="verse" extent="part"/><w>α<unclear>σ</unclear>πασασθε</w><w>επαινετον</w><w>τον</w><w>αγαπητον</w><w>μου</w>
+<lb n="P1rC1L-1947"/><w><unclear>ος</unclear></w><w><unclear>εστιν</unclear></w><w><unclear>απ</unclear>α<unclear>ρ</unclear>χη</w><w>της</w><w>αχαιας</w><w>εις</w><w><abbr type="nomSac"><hi rend="overline">χν</hi></abbr></w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P1rC1L-1947"/><note type="commentary">Untranscribed commentary text within the line</note></ab><ab n="Rom.16.6"><w>ασπασασθε</w><w>μαριαμ</w><w>ητις</w><w>πολλα</w><w>εκοπιασεν</w><w>εις</w><w>ημας</w>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P1rC1L-1947"/><note type="commentary">Untranscribed commentary text within the line</note></ab><ab n="Rom.16.7"><w>ασπασασθε</w><w>ανδρονικον</w><w>και</w><w>ἰουνίαν</w><w>τους</w>
+<lb n="P1rC1L-1947"/><w>συγγενεις</w><w>μου</w><w>και</w><w>συναιχμαλωτους</w><w>μου</w><w>οιτινες</w><w>εισιν</w><w>επισημοι</w><w>εν</w>
+<lb n="P1rC1L-1947"/><w>τοις</w><w>αποστολοις</w><w>οι</w><w>και</w><w>προ</w><w>εμου</w><w>γεγονασιν</w><w>εν</w><w><abbr type="nomSac"><hi rend="overline">χω</hi></abbr></w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P1rC1L-1947"/><note type="commentary">Untranscribed commentary text within the line</note></ab><ab n="Rom.16.8"><w>ασπα
+<lb n="P1rC1L-1947" break="no"/>σασθε</w><w>αμπλιαν</w><w>τον</w><w>αγαπητον</w><w>μου</w><w>εν</w><w><abbr type="nomSac"><hi rend="overline">κω</hi></abbr></w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb n="P1rC1L-1947"/><note type="commentary">Untranscribed commentary text within the line</note></ab><ab n="Rom.16.9"><w>και</w><w>ουρβανον</w>
+<lb n="P1rC1L-1947"/><w>τον</w><w>συνεργον</w><w>ημων</w><w>εν</w><w><abbr type="nomSac"><hi rend="overline">χω</hi></abbr></w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb n="P1rC1L-1947"/><note type="commentary">Untranscribed commentary text within the line</note><w>και</w><w>σταχυν</w>
+<lb n="P1rC1L-1947"/><w>τον</w><w>αγαπητον</w><w>μου</w><note type="commentary">Untranscribed commentary text within the line</note></ab><ab n="Rom.16.10"><w>ασπασασθε</w>
+<lb n="P1rC1L-1947"/><w>απελλην</w><w>τον</w><w>δοκιμον</w><w>εν</w><w><abbr type="nomSac"><hi rend="overline">χω</hi></abbr></w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P1rC1L-1947"/><w><supplied source="na28" reason="illegible">α</supplied><unclear>σ</unclear>πασασθε</w><w>τους</w><w>εκ</w><w>των</w><w>αριστοβουλου</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb n="P1rC1L-1947"/><note type="commentary">Untranscribed commentary text within the line</note></ab><ab n="Rom.16.11"><w>ασπασασθε</w><w>ηρωδιωνα</w><w>τον</w><w>συγγενη</w><w>μου</w>
+<lb n="P1rC1L-1947"/><w>ασπασασθε</w><w>τους</w><w>εκ</w><w>των</w><w>ναρκισσου</w><w>τους</w><w>οντας</w><w>εν</w><w><abbr type="nomSac"><hi rend="overline">κω</hi></abbr></w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb n="P1rC1L-1947"/><note type="commentary">Untranscribed commentary text within the line</note></ab><ab n="Rom.16.12"><w>ασπασασθε</w><w>τρυφαιναν</w>
+<lb n="P1rC1L-1947"/><w>και</w><w>τρυφωσαν</w><w>τας</w><w>κοπιωσας</w><w>εν</w><w><abbr type="nomSac"><hi rend="overline">κω</hi></abbr></w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P1rC1L-1947"/><note type="commentary">Untranscribed commentary text within the line</note><w>ασπασασθε</w><w>περσιδα</w><w>την</w><w>αγαπητην</w><w>ητις</w><w>πολλα</w>
+<lb n="P1rC1L-1947"/><w>εκοπιασεν</w><w>εν</w><w><abbr type="nomSac"><hi rend="overline">κω</hi></abbr></w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb n="P1rC1L-1947"/><note type="commentary">Untranscribed commentary text within the line</note></ab><ab n="Rom.16.13"><w>ασπασασθε</w><w>ρουφον</w><w>τον</w>
+<lb n="P1rC1L-1947"/><w>εκλεκτον</w><w>εν</w><w><abbr type="nomSac"><hi rend="overline">κω</hi></abbr></w><w>και</w><w>την</w><w><abbr type="nomSac"><hi rend="overline">μρα</hi></abbr></w><w>αυτου</w><w>και</w><w>εμου</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P1rC1L-1947"/><note type="commentary">Untranscribed commentary text within the line</note></ab><ab n="Rom.16.14"><w>ασπασασθε</w><w>ασυγκριτον</w><w>φλεγοντα</w><w>ερμαν</w>
+<lb n="P1rC1L-1947"/><w>πατροβαν</w><w>και</w><w>ερμην</w><w>και</w><w>τους</w><w>συν</w><w>αυτοις</w><w>αδελφους</w><note type="commentary">Untranscribed commentary text within the line</note>
+<pb n="1v" type="folio" xml:id="P1v-1947"/>
+<cb n="P1vC1-1947"/>
+<lb n="P1vC1L-1947"/><note type="commentary">Untranscribed commentary text within the line</note></ab><ab n="Rom.16.15"><w>ασπασασθε</w><w>φιλο<unclear>λο</unclear>γον</w><w>και</w><w>ιουλι<unclear>αν</unclear></w>
+<lb n="P1vC1L-1947"/><w>νιρεα</w><w>και</w><w>την</w><w>αδελφην</w><w>αυτου</w><w>και</w><w>ολυμπαν</w><w>και</w><w>τους</w><w>συν</w><w>αυτοις</w><w>παντας</w>
+<lb n="P1vC1L-1947"/><w>αγιους</w><note type="commentary">Untranscribed commentary text within the line</note></ab><ab n="Rom.16.16"><w>ασπασασθε</w><w>αλληλους</w><w>εν</w><w>φι
+<lb n="P1vC1L-1947" break="no"/>ληματι</w><w>αγιω</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb n="P1vC1L-1947"/><note type="commentary">Untranscribed commentary text within the line</note><w>ασπα
+<lb n="P1vC1L-1947" break="no"/>ζονται</w><w>υμας</w><w>αι</w><w>εκκλησιαι</w><w>του</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb n="P1vC1L-1947"/><note type="commentary">Untranscribed commentary text within the line</note></ab><ab n="Rom.16.17"><w>παρακαλω</w><w>δε</w><w>υμας</w><w>αδελφοι</w>
+<lb n="P1vC1L-1947"/><note type="commentary">Untranscribed commentary text within the line</note><w>σκο<unclear>π</unclear>ειν</w>
+<lb n="P1vC1L-1947"/><w>τους</w><w>τας</w><w>διχοστασιας</w><w>και</w><w>τα</w><w>σκανδαλα</w><w>παρα</w><w>την</w><w>διδαχην</w><w>ην</w><w>υμεις</w><w>εμαθετε</w>
+<lb n="P1vC1L-1947"/><w>ποιουντας</w><w>και</w><w>εκκλινατε</w><w>απ</w><w>αυτων</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P1vC1L-1947"/><note type="commentary">Untranscribed commentary text within the line</note></ab><ab n="Rom.16.18"><w>οι</w><w>γαρ</w><w>τοιουτοι</w><w>τω</w><w><abbr type="nomSac"><hi rend="overline">κω</hi></abbr></w><w>ημων</w><w><abbr type="nomSac"><hi rend="overline">ιυ</hi></abbr></w><w><abbr type="nomSac"><hi rend="overline">χω</hi></abbr></w><w>ου</w><w>δουλευουσιν</w><w>αλλα</w><w>τη</w><w>εαυτων</w>
+<lb n="P1vC1L-1947"/><w>κοιλια</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P1vC1L-1947"/><note type="commentary">Untranscribed commentary text within the line</note><w>και</w><w>δια</w><w>της</w><w>χρηστολογιας</w><w>και</w><w>ευλογι<unclear>ας</unclear></w>
+<lb n="P1vC1L-1947"/><w>εξαπατωσι</w><w>τας</w><w>καρδιας</w><w>των</w><w>ακακων</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P1vC1L-1947"/><note type="commentary">Untranscribed commentary text within the line</note></ab><ab n="Rom.16.19"><w>η</w><w>γαρ</w><w>υμων</w>
+<lb n="P1vC1L-1947"/><w>υπακοη</w><w>εις</w><w>παντας</w><w>αφικετο</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P1vC1L-1947"/><note type="commentary">Untranscribed commentary text within the line</note><w>χαιρω</w>
+<lb n="P1vC1L-1947"/><w>ουν</w><w>το</w><w>εφ</w><w>υμιν</w><note type="commentary">Untranscribed commentary text within the line</note><w>θελω</w><w>δε</w><w>υμας</w><w>σοφους</w><w>μεν</w>
+<lb n="P1vC1L-1947"/><w>ειναι</w><w>εις</w><w>το</w><w>αγαθον</w><w>ακεραιους</w><w>δε</w><w>εις</w><w>το</w><w>κακον</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P1vC1L-1947"/><note type="commentary">Untranscribed commentary text within the line</note></ab><ab n="Rom.16.20"><w>ο</w><w>δε</w><w><abbr type="nomSac"><hi rend="overline">θς</hi></abbr></w><w>της</w><w>ειρηνης</w><w>συν
+<lb n="P1vC1L-1947" break="no"/>τριψαι</w><w>τον</w><w>σαταναν</w><w>υπο</w><w>τους</w><w>ποδας</w><w>υμων</w><w>εν</w><w>ταχει</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P1vC1L-1947"/><note type="commentary">Untranscribed commentary text within the line</note><w>η</w><w>χαρις</w><w>του</w><w><abbr type="nomSac"><hi rend="overline">κυ</hi></abbr></w><w>ημων</w><w><abbr type="nomSac"><hi rend="overline">ιυ</hi></abbr></w><w><abbr type="nomSac"><hi rend="overline">χυ</hi></abbr></w><w>μεθ</w><w>υμων</w>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P1vC1L-1947"/><note type="commentary">Untranscribed commentary text within the line</note></ab><ab n="Rom.16.21"><w>ασπαζονται</w>
+<lb n="P1vC1L-1947"/><w>υμας</w><w>τιμοθεος</w><w>ο</w><w>συνεργος</w><w>μου</w><w>και</w><w>λουκιος</w><app><rdg type="orig" hand="firsthand"/><rdg type="corr" hand="corrector"><w>ιασων</w></rdg></app><w>και</w><w>σωσιπατρος</w><w>οι</w><w>συ
+<lb n="P1vC1L-1947" break="no"/>γγενεις</w><w>μου</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb n="P1vC1L-1947"/><note type="commentary">Untranscribed commentary text within the line</note></ab><ab n="Rom.16.22"><w>ασπαζομαι</w><w>υμας</w><w>εγω</w><w>τερτιος</w><w>ο</w>
+<lb n="P1vC1L-1947"/><w>γραψας</w><w>την</w><w>επιστολην</w><w>εν</w><w><abbr type="nomSac"><hi rend="overline">κω</hi></abbr></w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb n="P1vC1L-1947"/><note type="commentary">Untranscribed commentary text within the line</note></ab><ab n="Rom.16.23"><w>ασπαζεται</w><w>υμας</w><w>γαιος</w><w>ο</w><w>ξενος</w><w>μου</w><w>και</w><w>της</w><w>εκκλησιας</w>
+<lb n="P1vC1L-1947"/><w>ολης</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P1vC1L-1947"/><w>ασπαζεται</w><w>υμας</w><w>εραστος</w><w>ο</w><w>οικονομος</w><w>της</w><w>πολεως</w><w>και</w><w>κουαρτος</w><w>ο</w>
+<lb n="P1vC1L-1947"/><w>αδελφος</w><note type="commentary">Untranscribed commentary text within the line</note>
+<pb n="2r" type="folio" xml:id="P2r-1947"/>
+<cb n="P2rC1-1947"/>
+<lb n="P2rC1L-1947"/><note type="commentary">Untranscribed commentary text within the line</note></ab><ab n="Rom.16.24"><w>η</w><w>χαρις</w><w>του</w><w><abbr type="nomSac"><hi rend="overline">κυ</hi></abbr></w>
+<lb n="P2rC1L-1947"/><w>ημων</w><w><abbr type="nomSac"><hi rend="overline">ιυ</hi></abbr></w><w><abbr type="nomSac"><hi rend="overline">χυ</hi></abbr></w><w>μετα</w><w>παντων</w><w>υμων</w><w>αμην</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P2rC1L-1947"/><note type="commentary">Untranscribed commentary text within the line</note></ab><ab n="Rom.16.25"/><ab n="Rom.16.26"/><ab n="Rom.16.27"/></div><div type="subscriptio"><ab n="Rom.subscriptio"><w>τελος</w><w>της</w><w>προς</w><w>ρωμαιους</w><w>επιστολης</w><w>εγραφη</w><w>δε</w>
+<lb n="P2rC1L-1947"/><w>αυτη</w><w>απο</w><w>κορινθου</w><w>δια</w><w>φοιβης</w><w>της</w><w>διακονισσης</w></ab></div></div></body></text></TEI>

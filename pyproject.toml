@@ -1,0 +1,53 @@
+[project]
+name = "apatopwa-scripts"
+version = "0.1.0"
+description = "Scripts for Apatopwa development"
+dependencies = [
+    "pillow>=10.0.0",
+    "cairosvg>=2.7.0",
+    "lxml>=6.0.2",
+]
+requires-python = ">=3.14"
+
+[tool.uv]
+required-version = ">=0.5"
+
+[tool.uv.workspace]
+members = [
+    "backend",
+    "djazzkit/packages/django",
+]
+
+[tool.uv.sources]
+djazzkit = { workspace = true }
+
+[tool.poe.tasks.dev]
+cwd = "."
+cmd = "docker compose"
+
+[tool.poe.tasks.prod]
+cwd = "."
+cmd = "docker compose -f docker-compose.prod.yml"
+
+[tool.poe.tasks.upload-prod-compose]
+cwd = "."
+cmd = "scp docker-compose.prod.yml dflood@damascus.flicker-lionfish.ts.net:/home/dflood/apatosaurus/docker-compose.yml"
+
+[tool.poe.tasks.upload-env-prod]
+cwd = "."
+cmd = "scp .env.prod dflood@damascus.flicker-lionfish.ts.net:/home/dflood/apatosaurus/.env"
+
+[tool.poe.tasks.upload-artifacts]
+sequence = ["upload-prod-compose", "upload-env-prod"]
+
+[tool.poe.tasks.ssh-prod]
+cmd = 'ssh -t dflood@damascus.flicker-lionfish.ts.net "cd /home/dflood/apatosaurus && bash"'
+
+[tool.poe.tasks.restart-prod]
+cmd = 'ssh dflood@damascus.flicker-lionfish.ts.net "cd /home/dflood/apatosaurus && docker compose pull && docker compose up -d"'
+
+[tool.poe.tasks.docker-prod]
+cmd = 'ssh dflood@damascus.flicker-lionfish.ts.net "cd /home/dflood/apatosaurus && docker compose"'
+
+[tool.poe.tasks.deploy-prod]
+sequence = ["prod build", "prod push", "upload-artifacts", "restart-prod"]

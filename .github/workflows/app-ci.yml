@@ -1,0 +1,70 @@
+name: App CI
+
+on:
+  push:
+    paths:
+      - 'app/**'
+      - 'djazzkit/packages/core/**'
+      - 'djazzkit/packages/svelte/**'
+      - 'collatex/collatex-tsport/**'
+      - 'triiiceratops/**'
+      - 'packages/tei-transcription/**'
+      - '.github/workflows/app-ci.yml'
+  pull_request:
+    paths:
+      - 'app/**'
+      - 'djazzkit/packages/core/**'
+      - 'djazzkit/packages/svelte/**'
+      - 'collatex/collatex-tsport/**'
+      - 'triiiceratops/**'
+      - 'packages/tei-transcription/**'
+      - '.github/workflows/app-ci.yml'
+
+jobs:
+  app:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1'
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build djazzkit/core
+        run: bun run build
+        working-directory: djazzkit/packages/core
+
+      - name: Build djazzkit/svelte
+        run: bun run build
+        working-directory: djazzkit/packages/svelte
+
+      - name: Build triiiceratops
+        run: pnpm run build:lib
+        working-directory: triiiceratops
+
+      - name: Install Playwright browsers
+        run: bunx playwright install --with-deps chromium
+        working-directory: app
+
+      - name: Lint
+        run: bun run lint
+        working-directory: app
+
+      - name: Typecheck
+        run: bun run check
+        working-directory: app
+
+      - name: Unit tests
+        run: bun run test:unit -- --run
+        working-directory: app
+
+      - name: Build
+        run: bun run build
+        working-directory: app
+
+      - name: End-to-end tests
+        run: bun run test:e2e
+        working-directory: app

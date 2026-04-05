@@ -1,0 +1,59 @@
+<!DOCTYPE TEI>
+<?xml-stylesheet type="text/xsl" href="Rom.xsl"?><TEI xmlns="http://www.tei-c.org/ns/1.0"><teiHeader>
+<fileDesc>
+<titleStmt>
+<title n="P31" type="document" key="10031">A transcription of Romans in P31</title>
+<title type="collection" xml:lang="en">The New Testament</title>
+<title type="collection" xml:lang="de">Das Neue Testament</title>
+<title type="work" xml:lang="en">The Epistle to the Romans</title>
+<title type="short" xml:lang="en">Romans</title>
+<respStmt><resp>Created by</resp><name type="org">The Institut für neutestamentliche Textforschung</name></respStmt><respStmt><resp when-iso="2020-10-15">Transcribed by</resp><name type="person">members of the INTF</name></respStmt><funder>The Institut für neutestamentliche Textforschung</funder><sponsor><name type="org">The Institut für neutestamentliche Textforschung</name></sponsor></titleStmt><editionStmt><edition n="1.0">Version 1.0, published on <date when-iso="2021-05-02">02.05.2021</date>, archived on the University of Birmingham eData repository on <date>13.5.2024</date>.</edition></editionStmt><publicationStmt><publisher><name type="org">The International Greek New Testament Project (IGNTP)</name></publisher><date>13.5.2024</date><availability><p>Attribution 4.0 International (CC BY 4.0) Available for re-use under a creative commons license provided attribution is made to the original creators.</p></availability></publicationStmt>
+<sourceDesc>
+<msDesc>
+<msIdentifier>
+<country>United Kingdom</country>
+<settlement>Manchester</settlement>
+<repository>John Rylands University Library of Manchester</repository>
+<idno>Gr. P. 4</idno>
+</msIdentifier>
+</msDesc>
+</sourceDesc>
+</fileDesc>
+<profileDesc>
+<langUsage>
+<language ident="grc"/>
+</langUsage>
+<handNotes>
+<handNote>
+<listWit>
+<witness xml:id="firsthand"/>
+</listWit>
+</handNote>
+</handNotes>
+</profileDesc>
+<encodingDesc n="1.6">
+<projectDesc>
+<p>This transcription was made by the INTF and converted into XML by ITSEE. It was published online in the NTVMR in 2017. </p>
+</projectDesc>
+<editorialDecl>
+<p>The XML specifications used are version 1.6 of the IGNTP Guidelines available at <ptr target="http://epapers.bham.ac.uk/4301/"/>
+</p>
+</editorialDecl>
+<variantEncoding method="parallel-segmentation" location="internal"/>
+</encodingDesc>
+  <revisionDesc>
+    <change n="2" when="2023-03-08">Proofread by Amy Myshrall.</change>
+    <change n="1" when="2020-10-15">Downloaded from NTVMR and initial adjustments in encoding made for inclusion in ECM by Hugh Houghton.</change>
+  </revisionDesc>
+  </teiHeader><text xml:lang="grc"><body>
+<pb n="1v" type="folio" xml:id="P1v-P31"/>
+<cb n="P1vC1-P31"/>
+<lb n="P1vC1L-P31"/><div type="book" n="Rom"><div type="chapter" n="Rom.12"><ab n="Rom.12.3"><gap reason="lacuna" unit="verse" extent="part"/><w><gap reason="lacuna" unit="word" extent="part"/><unclear>φρον</unclear>ει<unclear>ν</unclear></w><w><unclear>π</unclear>α<unclear>ρ</unclear></w><w><unclear>ο</unclear></w><w><supplied source="na28" reason="illegible">δει</supplied></w><w><unclear>φρον</unclear><supplied source="na28" reason="illegible">ει</supplied><unclear>ν</unclear></w><w><supplied source="na28" reason="illegible">αλλα</supplied></w><w>φρ<unclear>ο</unclear>ν<unclear>ε</unclear>ιν</w><w><supplied source="na28" reason="illegible">ει</supplied>ς</w><w>τ<supplied source="na28" reason="illegible">ο</supplied></w><w>σ<unclear>ω</unclear>φρονειν</w>
+<lb n="P1vC1L-P31"/><w><unclear>ε</unclear>κα<supplied source="na28" reason="illegible">στω</supplied></w><w><supplied source="na28" reason="illegible">ως</supplied></w><w><supplied source="na28" reason="illegible">ο</supplied></w><w><supplied source="na28" reason="illegible"><abbr type="nomSac"><hi rend="overline">θς</hi></abbr></supplied></w><w><supplied source="na28" reason="illegible">εμερι</supplied><unclear>σεν</unclear></w><w>πισ<unclear>τε</unclear>ω<supplied source="na28" reason="illegible">ς</supplied></w></ab><ab n="Rom.12.4"><w><supplied source="na28" reason="illegible">καθαπερ</supplied></w><w>γαρ</w><w><unclear>εν</unclear></w><w><unclear>εν</unclear>ι</w><w><unclear>σ</unclear>ω<unclear>μ</unclear>ατι</w>
+<lb n="P1vC1L-P31"/><w>πο<unclear>λ</unclear><supplied source="na28" reason="illegible">λ</supplied>α</w><w>μελη</w><w>εχ<unclear>ομεν</unclear></w><w>τ<unclear>α</unclear></w><w><unclear>δ</unclear><supplied source="na28" reason="illegible">ε</supplied></w><w>μελη</w><w>π<unclear>αν</unclear>τ<supplied source="na28" reason="illegible">α</supplied></w><w><supplied source="na28" reason="illegible">ου</supplied></w><w>την</w><w>αυτην</w><w>πραξιν</w><w>εχ<unclear>ε</unclear>ι</w>
+<lb n="P1vC1L-P31"/></ab><ab n="Rom.12.5"><w>ο<unclear>υτ</unclear>ως</w><w><unclear>ο</unclear><supplied source="na28" reason="illegible">ι</supplied></w><w><unclear>π</unclear>ολλο<unclear>ι</unclear></w><w><unclear>ε</unclear>ν</w><w>σωμ<supplied source="na28" reason="illegible">α</supplied></w><w><supplied source="na28" reason="illegible">εσ</supplied>μ<unclear>εν</unclear></w><w><unclear>ε</unclear>ν</w><w><abbr type="nomSac"><unclear><hi rend="overline">χ</hi></unclear><hi rend="overline">ω</hi></abbr></w><w>το</w><w>δε</w><w>καθ</w><w><unclear>ε</unclear>ν</w><w><unclear>α</unclear>λλ<supplied source="na28" reason="illegible">η</supplied><unclear>λων</unclear></w><w><unclear>μελ</unclear>η</w>
+<lb n="P1vC1L-P31"/></ab><ab n="Rom.12.6"><w>εχο<unclear>ντ</unclear><supplied source="na28" reason="illegible">ε</supplied><unclear>ς</unclear></w><w>δε</w><w>χ<supplied source="na28" reason="illegible">α</supplied><unclear>ρ</unclear><supplied source="na28" reason="illegible">ισματα</supplied></w><w><supplied source="na28" reason="illegible">κατα</supplied></w><w><supplied source="na28" reason="illegible">την</supplied></w><w><supplied source="na28" reason="illegible">χαριν</supplied></w><w><supplied source="na28" reason="illegible">την</supplied></w><w>δ<supplied source="na28" reason="illegible">οθεισαν</supplied></w><w><unclear>ημιν</unclear></w>
+<lb n="P1vC1L-P31"/><w><unclear>δ</unclear><supplied source="na28" reason="illegible">ια</supplied><unclear>φ</unclear><supplied source="na28" reason="illegible">ο</supplied><unclear>ρ</unclear><supplied source="na28" reason="illegible">α</supplied></w><w><supplied source="na28" reason="illegible">ειτε</supplied></w><w><supplied source="na28" reason="illegible">προφητ</supplied>ε<supplied source="na28" reason="illegible">ι</supplied><unclear>αν</unclear></w><w>κ<supplied source="na28" reason="illegible">ατα</supplied></w><w><unclear>τη</unclear>ν</w><w><unclear>αναλογιαν</unclear></w><w>τ<unclear>η</unclear><supplied source="na28" reason="illegible">ς</supplied></w><w><supplied source="na28" reason="illegible">πιστεω</supplied><unclear>ς</unclear></w>
+<lb n="P1vC1L-P31"/></ab><ab n="Rom.12.7"><w>ειτε</w><w>διακ<unclear>ονι</unclear><supplied source="na28" reason="illegible">αν</supplied></w><w><supplied source="na28" reason="illegible">ε</supplied>ν</w><w>τ<unclear>η</unclear></w><w><unclear>δ</unclear><supplied source="na28" reason="illegible">ια</supplied><unclear>κονι</unclear>α</w><w>ε<unclear>ι</unclear>τε</w><w><supplied source="na28" reason="illegible">ο</supplied></w><w>δ<supplied source="na28" reason="illegible">ι</supplied>δα<unclear>σ</unclear>κ<unclear>ω</unclear>ν</w><w>εν</w><w>τη</w><w>διδασκαλεια</w>
+<lb n="P1vC1L-P31"/></ab><ab n="Rom.12.8"><w>ειτε</w><w>ο</w><w>παρα<unclear>κ</unclear><supplied source="na28" reason="illegible">α</supplied><unclear>λ</unclear>ων</w><w><supplied source="na28" reason="illegible">ε</supplied><unclear>ν</unclear></w><w>τ<unclear>η</unclear></w><w>παρα<unclear>κ</unclear>λη<unclear>σ</unclear>ει</w><w>ο</w><w>μεταδιδους</w><w><unclear>ε</unclear><supplied source="na28" reason="lacuna">ν</supplied></w><w><unclear>α</unclear>πλοτητι</w>
+<lb n="P1vC1L-P31"/><w>ο</w><w>προειστανο<unclear>μ</unclear>ενος</w><w>εν</w><w>σπουδη</w><w>ο</w><w>ε<unclear>λ</unclear>εων</w><w>εν</w><w>ιλαρο<unclear>τ</unclear>ητι</w></ab></div></div></body></text></TEI>

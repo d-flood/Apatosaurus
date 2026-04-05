@@ -1,0 +1,1525 @@
+{
+  "scope": "single-witness-transcription",
+  "manifest": "packages/tei-transcription/igntp-audit-corpus.json",
+  "matrix": "packages/tei-transcription/igntp-support-matrix.json",
+  "entries": [
+    {
+      "id": "p118-rom",
+      "label": "P118 Romans",
+      "kind": "real-witness",
+      "path": "app/src/lib/tei/NT_GRC_P118_Rom.xml",
+      "notes": "Sparse real witness with supplied text, gaps, abbreviations, and simple correction readings.",
+      "scan": {
+        "tags": {
+          "w": 102,
+          "supplied": 87,
+          "unclear": 34,
+          "lb": 29,
+          "ab": 11,
+          "hi": 7,
+          "gap": 7,
+          "abbr": 6,
+          "title": 5,
+          "name": 4,
+          "cb": 4,
+          "date": 3,
+          "p": 3,
+          "div": 3,
+          "respStmt": 2,
+          "resp": 2,
+          "witness": 2,
+          "pb": 2,
+          "pc": 2,
+          "rdg": 2,
+          "TEI": 1,
+          "teiHeader": 1,
+          "fileDesc": 1,
+          "titleStmt": 1,
+          "funder": 1,
+          "sponsor": 1,
+          "editionStmt": 1,
+          "edition": 1,
+          "publicationStmt": 1,
+          "publisher": 1,
+          "availability": 1,
+          "sourceDesc": 1,
+          "msDesc": 1,
+          "msIdentifier": 1,
+          "country": 1,
+          "settlement": 1,
+          "repository": 1,
+          "idno": 1,
+          "profileDesc": 1,
+          "langUsage": 1,
+          "language": 1,
+          "handNotes": 1,
+          "handNote": 1,
+          "listWit": 1,
+          "encodingDesc": 1,
+          "projectDesc": 1,
+          "editorialDecl": 1,
+          "ptr": 1,
+          "variantEncoding": 1,
+          "revisionDesc": 1,
+          "change": 1,
+          "text": 1,
+          "body": 1,
+          "ex": 1,
+          "app": 1
+        },
+        "attribute_patterns": {
+          "supplied reason=lacuna,source=na28": 87,
+          "hi rend=overline": 7,
+          "lb break=no": 6,
+          "abbr type=nomSac": 6,
+          "gap extent=part,reason=lacuna,unit=verse": 6,
+          "name type=org": 3,
+          "cb n=1": 2,
+          "cb n=2": 2,
+          "title key=10118,n=P118,type=document": 1,
+          "title type=collection,lang=en": 1,
+          "title type=collection,lang=de": 1,
+          "title type=work,lang=en": 1,
+          "title type=short,lang=en": 1,
+          "resp when-iso=2020-10-15": 1,
+          "name type=person": 1,
+          "edition n=1.0": 1,
+          "date when-iso=2021-05-02": 1,
+          "language ident=grc": 1,
+          "witness id=firsthand": 1,
+          "witness id=corrector": 1,
+          "encodingDesc n=1.6": 1,
+          "ptr target=http://epapers.bham.ac.uk/4301/": 1,
+          "variantEncoding location=internal,method=parallel-segmentation": 1,
+          "change n=1,when=2020-10-15": 1,
+          "text lang=grc": 1
+        },
+        "nested_wrapper_patterns": {},
+        "correction_patterns": {
+          "orig@firsthand | corr@corrector": 1
+        },
+        "formwork_shapes": {},
+        "carrier_examples": {
+          "gaps-spaces-untranscribed:gap": 7
+        },
+        "encountered_constructs": [
+          "abbreviation-expansion",
+          "corrections",
+          "document-structure",
+          "gaps-spaces-untranscribed",
+          "header-and-record-metadata",
+          "inline-editorial-text-marks"
+        ],
+        "uncategorized_body_tags": []
+      }
+    },
+    {
+      "id": "01-romans",
+      "label": "01 Romans",
+      "kind": "real-witness",
+      "path": "app/src/lib/tei/NT_GRC_01_Rom.xml",
+      "notes": "Dense real witness with extensive book/chapter/verse structure, corrections, and marginal formwork.",
+      "scan": {
+        "tags": {
+          "w": 7343,
+          "lb": 2555,
+          "pc": 750,
+          "ab": 441,
+          "hi": 380,
+          "abbr": 379,
+          "rdg": 294,
+          "ex": 234,
+          "app": 141,
+          "seg": 118,
+          "cb": 54,
+          "div": 19,
+          "pb": 14,
+          "witness": 8,
+          "fw": 6,
+          "title": 5,
+          "unclear": 5,
+          "gap": 5,
+          "name": 4,
+          "date": 3,
+          "p": 3,
+          "respStmt": 2,
+          "resp": 2,
+          "change": 2,
+          "TEI": 1,
+          "teiHeader": 1,
+          "fileDesc": 1,
+          "titleStmt": 1,
+          "funder": 1,
+          "sponsor": 1,
+          "editionStmt": 1,
+          "edition": 1,
+          "publicationStmt": 1,
+          "publisher": 1,
+          "availability": 1,
+          "sourceDesc": 1,
+          "msDesc": 1,
+          "msIdentifier": 1,
+          "country": 1,
+          "settlement": 1,
+          "repository": 1,
+          "idno": 1,
+          "profileDesc": 1,
+          "langUsage": 1,
+          "language": 1,
+          "handNotes": 1,
+          "handNote": 1,
+          "listWit": 1,
+          "encodingDesc": 1,
+          "projectDesc": 1,
+          "editorialDecl": 1,
+          "ptr": 1,
+          "variantEncoding": 1,
+          "revisionDesc": 1,
+          "text": 1,
+          "body": 1,
+          "supplied": 1
+        },
+        "attribute_patterns": {
+          "hi rend=overline": 380,
+          "abbr type=nomSac": 379,
+          "ex rend=\u00af": 210,
+          "rdg hand=firsthand,type=orig": 141,
+          "rdg hand=corrector2,type=corr": 78,
+          "lb n=P264vC1L-01": 34,
+          "lb n=P261rC1L-01": 30,
+          "lb n=P264rC4L-01": 30,
+          "lb break=no,n=P262rC4L-01": 29,
+          "lb n=P265vC1L-01": 28,
+          "lb n=P266rC4L-01": 28,
+          "lb n=P265vC3L-01": 27,
+          "lb n=P266rC2L-01": 27,
+          "lb n=P266rC3L-01": 27,
+          "lb n=P262vC4L-01": 26,
+          "lb n=P263vC1L-01": 26,
+          "lb n=P263vC4L-01": 26,
+          "lb break=no,n=P265vC2L-01": 26,
+          "lb n=P266vC4L-01": 26,
+          "lb n=P262rC1L-01": 25,
+          "lb n=P265rC1L-01": 25,
+          "lb n=P265rC4L-01": 25,
+          "lb break=no,n=P266rC1L-01": 25,
+          "lb n=P267rC3L-01": 25,
+          "rdg hand=corrector1,type=corr": 24
+        },
+        "nested_wrapper_patterns": {
+          "seg>w": 75,
+          "seg>w>w": 13,
+          "seg>w>w>w": 8,
+          "seg>fw": 6,
+          "seg>w>w>w>pc": 3,
+          "seg>w>pc": 3,
+          "seg>w>w>w>w>w>w>w": 2,
+          "seg>w>w>w>w": 1,
+          "seg>w>w>w>w>pc": 1,
+          "seg>w>w>pc>w>w>w": 1,
+          "seg>w>lb>w>w": 1,
+          "seg>w>w>w>w>w>w>w>pc>w>w>w>w>w>w": 1,
+          "seg>w>w>w>w>pc>w>w>w>pc>w>w>w>w>w>w>pc": 1,
+          "seg>w>w>pc>w>w>pc": 1,
+          "seg>w>w>w>w>w>w": 1
+        },
+        "correction_patterns": {
+          "orig@firsthand | corr@corrector2": 95,
+          "orig@firsthand | corr@corrector1": 29,
+          "orig@firsthand | corr@corrector2a | corr@corrector2b": 5,
+          "orig@firsthand | corr@corrector": 4,
+          "orig@firsthand | corr@corrector1a | corr@corrector1b": 3,
+          "orig@firsthand | corr@corrector1 | corr@corrector": 2,
+          "orig@firsthand | corr@corrector1 | corr@corrector2": 2,
+          "orig@firsthand | corr@firsthand": 1
+        },
+        "formwork_shapes": {
+          "fw(seg)|runTitle|-|-": 6
+        },
+        "carrier_examples": {
+          "formwork-and-marginalia:seg": 50,
+          "formwork-and-marginalia:fw": 6,
+          "gaps-spaces-untranscribed:gap": 5
+        },
+        "encountered_constructs": [
+          "abbreviation-expansion",
+          "corrections",
+          "document-structure",
+          "formwork-and-marginalia",
+          "gaps-spaces-untranscribed",
+          "header-and-record-metadata",
+          "inline-editorial-text-marks",
+          "structured-inline-wrappers"
+        ],
+        "uncategorized_body_tags": []
+      }
+    },
+    {
+      "id": "fixture-body",
+      "label": "Kitchen sink body fixture",
+      "kind": "focused-fixture",
+      "path": "packages/tei-transcription/tests/fixtures/IGNTP_KITCHEN_SINK_body.xml",
+      "notes": "Exercises body-level carrier families such as handShift, space, milestone, atoms, wrappers, and metamark.",
+      "scan": {
+        "tags": {
+          "w": 15,
+          "title": 2,
+          "p": 2,
+          "lb": 2,
+          "ab": 2,
+          "foreign": 2,
+          "supplied": 2,
+          "TEI": 1,
+          "teiHeader": 1,
+          "fileDesc": 1,
+          "titleStmt": 1,
+          "publicationStmt": 1,
+          "sourceDesc": 1,
+          "text": 1,
+          "body": 1,
+          "pb": 1,
+          "cb": 1,
+          "damage": 1,
+          "surplus": 1,
+          "secl": 1,
+          "pc": 1,
+          "space": 1,
+          "handShift": 1,
+          "milestone": 1,
+          "gloss": 1,
+          "placeName": 1,
+          "objectName": 1,
+          "unclear": 1,
+          "abbr": 1,
+          "expan": 1,
+          "am": 1,
+          "hi": 1,
+          "note": 1,
+          "gb": 1,
+          "ptr": 1,
+          "ellipsis": 1,
+          "metamark": 1
+        },
+        "attribute_patterns": {
+          "foreign lang=la": 2,
+          "TEI id=fixture-body": 1,
+          "text type=transcription,lang=grc": 1,
+          "body ana=#body-1": 1,
+          "pb n=1r,type=folio": 1,
+          "cb n=1": 1,
+          "lb n=1,rend=hang": 1,
+          "ab type=main": 1,
+          "w join=right,lemma=\u03bb\u03bf\u03b3\u03bf\u03c2,msd=n-s---mn-,part=I,pos=noun": 1,
+          "damage agent=smudge,degree=low": 1,
+          "surplus reason=dittography": 1,
+          "secl reason=overlap": 1,
+          "pc force=strong,pre=false,unit=sentence": 1,
+          "space dim=horizontal,extent=2,unit=chars": 1,
+          "handShift medium=ink,new=#h2": 1,
+          "milestone ed=NA28,n=A,unit=section": 1,
+          "gloss lang=en": 1,
+          "placeName ref=#rome": 1,
+          "objectName type=codex": 1,
+          "title type=short": 1,
+          "supplied cert=low,reason=lost-folio,source=#ed1": 1,
+          "unclear cert=medium": 1,
+          "abbr type=nomSac": 1,
+          "hi height=2,rend=overline": 1,
+          "note place=margin": 1
+        },
+        "nested_wrapper_patterns": {
+          "foreign>w>w": 2,
+          "gloss>w": 1,
+          "placeName>w": 1,
+          "objectName>w": 1,
+          "title>w": 1,
+          "expan>w": 1,
+          "am>w": 1
+        },
+        "correction_patterns": {},
+        "formwork_shapes": {},
+        "carrier_examples": {
+          "gaps-spaces-untranscribed:space": 1,
+          "hand-shifts:handShift": 1,
+          "tei-milestones:milestone": 1,
+          "tei-atoms:note": 1,
+          "tei-atoms:gb": 1,
+          "tei-atoms:ptr": 1,
+          "tei-atoms:ellipsis": 1,
+          "metamarks:metamark": 1
+        },
+        "encountered_constructs": [
+          "abbreviation-expansion",
+          "document-structure",
+          "flat-inline-wrappers",
+          "gaps-spaces-untranscribed",
+          "hand-shifts",
+          "header-and-record-metadata",
+          "inline-editorial-text-marks",
+          "metamarks",
+          "tei-atoms",
+          "tei-milestones"
+        ],
+        "uncategorized_body_tags": []
+      }
+    },
+    {
+      "id": "fixture-editorial",
+      "label": "Kitchen sink editorial fixture",
+      "kind": "focused-fixture",
+      "path": "packages/tei-transcription/tests/fixtures/IGNTP_KITCHEN_SINK_editorial.xml",
+      "notes": "Exercises standalone metamarks and editorial action carriers.",
+      "scan": {
+        "tags": {
+          "w": 3,
+          "metamark": 3,
+          "p": 2,
+          "ptr": 2,
+          "TEI": 1,
+          "teiHeader": 1,
+          "fileDesc": 1,
+          "titleStmt": 1,
+          "title": 1,
+          "publicationStmt": 1,
+          "sourceDesc": 1,
+          "text": 1,
+          "body": 1,
+          "pb": 1,
+          "cb": 1,
+          "lb": 1,
+          "mod": 1,
+          "undo": 1,
+          "redo": 1,
+          "retrace": 1,
+          "substJoin": 1,
+          "listTranspose": 1,
+          "transpose": 1
+        },
+        "attribute_patterns": {
+          "metamark function=insertion,target=#mod1": 2,
+          "TEI id=fixture-editorial": 1,
+          "pb n=1r": 1,
+          "cb n=1": 1,
+          "mod type=add,id=mod1": 1,
+          "metamark function=transposition,target=#tr1": 1,
+          "undo target=#mod1": 1,
+          "redo target=#mod1": 1,
+          "retrace cert=low": 1,
+          "substJoin target=#mod1 #mod2": 1,
+          "ptr target=#seg1": 1,
+          "ptr target=#seg2": 1
+        },
+        "nested_wrapper_patterns": {
+          "retrace>w": 1
+        },
+        "correction_patterns": {},
+        "formwork_shapes": {},
+        "carrier_examples": {
+          "metamarks:metamark": 3,
+          "tei-atoms:ptr": 2
+        },
+        "encountered_constructs": [
+          "document-structure",
+          "editorial-actions",
+          "flat-inline-wrappers",
+          "header-and-record-metadata",
+          "metamarks",
+          "tei-atoms"
+        ],
+        "uncategorized_body_tags": []
+      }
+    },
+    {
+      "id": "fixture-header-msdesc",
+      "label": "Kitchen sink header/msDesc fixture",
+      "kind": "focused-fixture",
+      "path": "packages/tei-transcription/tests/fixtures/IGNTP_KITCHEN_SINK_header_msdesc.xml",
+      "notes": "Exercises TEI header metadata and manuscript-description preservation.",
+      "scan": {
+        "tags": {
+          "name": 3,
+          "idno": 3,
+          "title": 2,
+          "date": 2,
+          "note": 2,
+          "msIdentifier": 2,
+          "history": 2,
+          "origin": 2,
+          "TEI": 1,
+          "teiHeader": 1,
+          "fileDesc": 1,
+          "titleStmt": 1,
+          "funder": 1,
+          "sponsor": 1,
+          "respStmt": 1,
+          "resp": 1,
+          "editionStmt": 1,
+          "edition": 1,
+          "publicationStmt": 1,
+          "publisher": 1,
+          "availability": 1,
+          "licence": 1,
+          "notesStmt": 1,
+          "sourceDesc": 1,
+          "msDesc": 1,
+          "country": 1,
+          "settlement": 1,
+          "repository": 1,
+          "altIdentifier": 1,
+          "msContents": 1,
+          "msItemStruct": 1,
+          "locus": 1,
+          "author": 1,
+          "textLang": 1,
+          "physDesc": 1,
+          "objectDesc": 1,
+          "supportDesc": 1,
+          "foliation": 1,
+          "condition": 1,
+          "layoutDesc": 1,
+          "layout": 1,
+          "handDesc": 1,
+          "handNote": 1,
+          "decoDesc": 1,
+          "decoNote": 1,
+          "origDate": 1,
+          "origPlace": 1,
+          "provenance": 1,
+          "additional": 1,
+          "listBibl": 1,
+          "bibl": 1,
+          "msPart": 1,
+          "encodingDesc": 1,
+          "schemaRef": 1,
+          "profileDesc": 1,
+          "langUsage": 1,
+          "language": 1,
+          "revisionDesc": 1,
+          "change": 1,
+          "text": 1,
+          "body": 1,
+          "pb": 1,
+          "cb": 1,
+          "lb": 1,
+          "w": 1
+        },
+        "attribute_patterns": {
+          "name type=org": 2,
+          "TEI id=fixture-header": 1,
+          "edition n=1.0": 1,
+          "date when-iso=2024-01-01": 1,
+          "availability status=free": 1,
+          "licence target=https://example.org/licence": 1,
+          "date when-iso=2024-01-03": 1,
+          "note type=editorial": 1,
+          "altIdentifier type=former": 1,
+          "textLang mainLang=grc": 1,
+          "objectDesc form=codex": 1,
+          "supportDesc material=parchment": 1,
+          "layout columns=2,writtenLines=40": 1,
+          "handDesc hands=2": 1,
+          "handNote script=majuscule,id=h1": 1,
+          "decoNote type=ink": 1,
+          "msPart id=part1": 1,
+          "encodingDesc n=1.6": 1,
+          "schemaRef key=igntp,url=https://example.org/schema": 1,
+          "language ident=grc": 1,
+          "change n=1,when-iso=2024-01-02": 1,
+          "text lang=grc": 1,
+          "pb n=1r": 1,
+          "cb n=1": 1
+        },
+        "nested_wrapper_patterns": {},
+        "correction_patterns": {},
+        "formwork_shapes": {},
+        "carrier_examples": {},
+        "encountered_constructs": [
+          "document-structure",
+          "header-and-record-metadata"
+        ],
+        "uncategorized_body_tags": []
+      }
+    },
+    {
+      "id": "fixture-resources",
+      "label": "Kitchen sink resources fixture",
+      "kind": "focused-fixture",
+      "path": "packages/tei-transcription/tests/fixtures/IGNTP_KITCHEN_SINK_resources.xml",
+      "notes": "Exercises front/back/facsimile/standOff/sourceDoc preservation.",
+      "scan": {
+        "tags": {
+          "p": 5,
+          "media": 2,
+          "TEI": 1,
+          "teiHeader": 1,
+          "fileDesc": 1,
+          "titleStmt": 1,
+          "title": 1,
+          "publicationStmt": 1,
+          "sourceDesc": 1,
+          "facsimile": 1,
+          "standOff": 1,
+          "listRelation": 1,
+          "annotation": 1,
+          "note": 1,
+          "sourceDoc": 1,
+          "text": 1,
+          "front": 1,
+          "body": 1,
+          "pb": 1,
+          "cb": 1,
+          "lb": 1,
+          "w": 1,
+          "back": 1
+        },
+        "attribute_patterns": {
+          "TEI id=fixture-resources": 1,
+          "media mimeType=image/jpeg,url=https://example.org/facsimile.jpg": 1,
+          "annotation motivation=commenting,target=#l1,id=ann1": 1,
+          "media mimeType=image/jpeg,url=https://example.org/source.jpg": 1,
+          "pb n=1r": 1,
+          "cb n=1": 1
+        },
+        "nested_wrapper_patterns": {},
+        "correction_patterns": {},
+        "formwork_shapes": {},
+        "carrier_examples": {},
+        "encountered_constructs": [
+          "document-structure",
+          "header-and-record-metadata",
+          "non-body-tei-sections"
+        ],
+        "uncategorized_body_tags": []
+      }
+    },
+    {
+      "id": "fixture-apparatus",
+      "label": "Kitchen sink apparatus fixture",
+      "kind": "out-of-scope-fixture",
+      "path": "packages/tei-transcription/tests/fixtures/IGNTP_KITCHEN_SINK_apparatus.xml",
+      "notes": "Exercises broader apparatus constructs that must stay explicitly rejected.",
+      "scan": {
+        "tags": {
+          "w": 7,
+          "rdg": 5,
+          "p": 2,
+          "app": 2,
+          "lem": 2,
+          "note": 2,
+          "TEI": 1,
+          "teiHeader": 1,
+          "fileDesc": 1,
+          "titleStmt": 1,
+          "title": 1,
+          "publicationStmt": 1,
+          "sourceDesc": 1,
+          "text": 1,
+          "body": 1,
+          "pb": 1,
+          "cb": 1,
+          "lb": 1,
+          "listApp": 1,
+          "rdgGrp": 1,
+          "noteGrp": 1
+        },
+        "attribute_patterns": {
+          "TEI id=fixture-apparatus": 1,
+          "pb n=1r": 1,
+          "cb n=1": 1,
+          "listApp type=editorial": 1,
+          "app from=#l1,loc=Rom1.1,to=#l1,type=variant": 1,
+          "lem wit=#A": 1,
+          "rdg hand=#c1,rend=first-hand,wit=#B": 1,
+          "rdgGrp type=split": 1,
+          "lem wit=#C": 1,
+          "rdg hand=#c2,wit=#D": 1,
+          "rdg hand=#c3,wit=#E": 1,
+          "note place=margin": 1,
+          "note type=editorial": 1,
+          "app loc=Rom1.2,type=correction": 1,
+          "rdg type=orig": 1,
+          "rdg type=corr": 1
+        },
+        "nested_wrapper_patterns": {},
+        "correction_patterns": {
+          "lem | rdg@#c1/wit=#B | rdgGrp | noteGrp": 1,
+          "orig | corr": 1
+        },
+        "formwork_shapes": {},
+        "carrier_examples": {
+          "tei-atoms:note": 2
+        },
+        "encountered_constructs": [
+          "corrections",
+          "document-structure",
+          "header-and-record-metadata",
+          "lem-rdggrp-listapp-notegrp",
+          "multi-witness-apparatus",
+          "tei-atoms"
+        ],
+        "uncategorized_body_tags": []
+      }
+    }
+  ],
+  "aggregate_top_tags": [
+    [
+      "w",
+      7472
+    ],
+    [
+      "lb",
+      2590
+    ],
+    [
+      "pc",
+      753
+    ],
+    [
+      "ab",
+      454
+    ],
+    [
+      "hi",
+      388
+    ],
+    [
+      "abbr",
+      386
+    ],
+    [
+      "rdg",
+      301
+    ],
+    [
+      "ex",
+      235
+    ],
+    [
+      "app",
+      144
+    ],
+    [
+      "seg",
+      118
+    ],
+    [
+      "supplied",
+      90
+    ],
+    [
+      "cb",
+      63
+    ],
+    [
+      "unclear",
+      40
+    ],
+    [
+      "div",
+      22
+    ],
+    [
+      "pb",
+      21
+    ],
+    [
+      "title",
+      17
+    ],
+    [
+      "p",
+      17
+    ],
+    [
+      "gap",
+      12
+    ],
+    [
+      "name",
+      11
+    ],
+    [
+      "witness",
+      10
+    ],
+    [
+      "date",
+      8
+    ],
+    [
+      "TEI",
+      7
+    ],
+    [
+      "teiHeader",
+      7
+    ],
+    [
+      "fileDesc",
+      7
+    ],
+    [
+      "titleStmt",
+      7
+    ],
+    [
+      "publicationStmt",
+      7
+    ],
+    [
+      "sourceDesc",
+      7
+    ],
+    [
+      "text",
+      7
+    ],
+    [
+      "body",
+      7
+    ],
+    [
+      "fw",
+      6
+    ],
+    [
+      "note",
+      6
+    ],
+    [
+      "respStmt",
+      5
+    ],
+    [
+      "resp",
+      5
+    ],
+    [
+      "idno",
+      5
+    ],
+    [
+      "ptr",
+      5
+    ],
+    [
+      "msIdentifier",
+      4
+    ],
+    [
+      "change",
+      4
+    ],
+    [
+      "metamark",
+      4
+    ],
+    [
+      "funder",
+      3
+    ],
+    [
+      "sponsor",
+      3
+    ]
+  ],
+  "aggregate_attribute_patterns": [
+    [
+      "hi rend=overline",
+      387
+    ],
+    [
+      "abbr type=nomSac",
+      386
+    ],
+    [
+      "ex rend=\u00af",
+      211
+    ],
+    [
+      "rdg hand=firsthand,type=orig",
+      142
+    ],
+    [
+      "supplied reason=lacuna,source=na28",
+      87
+    ],
+    [
+      "rdg hand=corrector2,type=corr",
+      78
+    ],
+    [
+      "lb n=P264vC1L-01",
+      34
+    ],
+    [
+      "lb n=P261rC1L-01",
+      30
+    ],
+    [
+      "lb n=P264rC4L-01",
+      30
+    ],
+    [
+      "lb break=no,n=P262rC4L-01",
+      29
+    ],
+    [
+      "lb n=P265vC1L-01",
+      28
+    ],
+    [
+      "lb n=P266rC4L-01",
+      28
+    ],
+    [
+      "lb n=P265vC3L-01",
+      27
+    ],
+    [
+      "lb n=P266rC2L-01",
+      27
+    ],
+    [
+      "lb n=P266rC3L-01",
+      27
+    ],
+    [
+      "lb n=P262vC4L-01",
+      26
+    ],
+    [
+      "lb n=P263vC1L-01",
+      26
+    ],
+    [
+      "lb n=P263vC4L-01",
+      26
+    ],
+    [
+      "lb break=no,n=P265vC2L-01",
+      26
+    ],
+    [
+      "lb n=P266vC4L-01",
+      26
+    ],
+    [
+      "lb n=P262rC1L-01",
+      25
+    ],
+    [
+      "lb n=P265rC1L-01",
+      25
+    ],
+    [
+      "lb n=P265rC4L-01",
+      25
+    ],
+    [
+      "lb break=no,n=P266rC1L-01",
+      25
+    ],
+    [
+      "lb n=P267rC3L-01",
+      25
+    ],
+    [
+      "rdg hand=corrector1,type=corr",
+      24
+    ],
+    [
+      "lb break=no,n=P261rC3L-01",
+      24
+    ],
+    [
+      "lb n=P261vC1L-01",
+      24
+    ],
+    [
+      "lb n=P262vC1L-01",
+      24
+    ],
+    [
+      "lb n=P263rC2L-01",
+      24
+    ]
+  ],
+  "aggregate_nested_wrapper_patterns": [
+    [
+      "seg>w",
+      75
+    ],
+    [
+      "seg>w>w",
+      13
+    ],
+    [
+      "seg>w>w>w",
+      8
+    ],
+    [
+      "seg>fw",
+      6
+    ],
+    [
+      "seg>w>w>w>pc",
+      3
+    ],
+    [
+      "seg>w>pc",
+      3
+    ],
+    [
+      "seg>w>w>w>w>w>w>w",
+      2
+    ],
+    [
+      "foreign>w>w",
+      2
+    ],
+    [
+      "seg>w>w>w>w",
+      1
+    ],
+    [
+      "seg>w>w>w>w>pc",
+      1
+    ],
+    [
+      "seg>w>w>pc>w>w>w",
+      1
+    ],
+    [
+      "seg>w>lb>w>w",
+      1
+    ],
+    [
+      "seg>w>w>w>w>w>w>w>pc>w>w>w>w>w>w",
+      1
+    ],
+    [
+      "seg>w>w>w>w>pc>w>w>w>pc>w>w>w>w>w>w>pc",
+      1
+    ],
+    [
+      "seg>w>w>pc>w>w>pc",
+      1
+    ],
+    [
+      "seg>w>w>w>w>w>w",
+      1
+    ],
+    [
+      "gloss>w",
+      1
+    ],
+    [
+      "placeName>w",
+      1
+    ],
+    [
+      "objectName>w",
+      1
+    ],
+    [
+      "title>w",
+      1
+    ],
+    [
+      "expan>w",
+      1
+    ],
+    [
+      "am>w",
+      1
+    ],
+    [
+      "retrace>w",
+      1
+    ]
+  ],
+  "aggregate_correction_patterns": [
+    [
+      "orig@firsthand | corr@corrector2",
+      95
+    ],
+    [
+      "orig@firsthand | corr@corrector1",
+      29
+    ],
+    [
+      "orig@firsthand | corr@corrector",
+      5
+    ],
+    [
+      "orig@firsthand | corr@corrector2a | corr@corrector2b",
+      5
+    ],
+    [
+      "orig@firsthand | corr@corrector1a | corr@corrector1b",
+      3
+    ],
+    [
+      "orig@firsthand | corr@corrector1 | corr@corrector",
+      2
+    ],
+    [
+      "orig@firsthand | corr@corrector1 | corr@corrector2",
+      2
+    ],
+    [
+      "orig@firsthand | corr@firsthand",
+      1
+    ],
+    [
+      "lem | rdg@#c1/wit=#B | rdgGrp | noteGrp",
+      1
+    ],
+    [
+      "orig | corr",
+      1
+    ]
+  ],
+  "aggregate_formwork_shapes": [
+    [
+      "fw(seg)|runTitle|-|-",
+      6
+    ]
+  ],
+  "aggregate_carrier_examples": [
+    [
+      "formwork-and-marginalia:seg",
+      50
+    ],
+    [
+      "gaps-spaces-untranscribed:gap",
+      12
+    ],
+    [
+      "formwork-and-marginalia:fw",
+      6
+    ],
+    [
+      "metamarks:metamark",
+      4
+    ],
+    [
+      "tei-atoms:note",
+      3
+    ],
+    [
+      "tei-atoms:ptr",
+      3
+    ],
+    [
+      "gaps-spaces-untranscribed:space",
+      1
+    ],
+    [
+      "hand-shifts:handShift",
+      1
+    ],
+    [
+      "tei-milestones:milestone",
+      1
+    ],
+    [
+      "tei-atoms:gb",
+      1
+    ],
+    [
+      "tei-atoms:ellipsis",
+      1
+    ]
+  ],
+  "matrix_dispositions": [
+    {
+      "construct": "abbreviation-expansion",
+      "status": "supported-editor-addressable",
+      "disposition": "already-supported",
+      "mechanism": "abbreviation-mark",
+      "editor_surface": "selection-ui",
+      "observed_in": [
+        "01-romans",
+        "fixture-body",
+        "p118-rom"
+      ],
+      "occurrence_count": 621,
+      "observed_tags": [
+        "abbr[type=nomSac]",
+        "ex",
+        "ex[rend=\u00af]",
+        "ex[rend=\u03d7]",
+        "ex[rend=\u203e]"
+      ],
+      "notes": "abbr and ex round-trip through the shared abbreviation mark and editor tooling."
+    },
+    {
+      "construct": "corrections",
+      "status": "supported-editor-addressable",
+      "disposition": "already-supported",
+      "mechanism": "correction-mark-and-node",
+      "editor_surface": "selection-ui-and-node-inspector",
+      "observed_in": [
+        "01-romans",
+        "fixture-apparatus",
+        "p118-rom"
+      ],
+      "occurrence_count": 441,
+      "observed_tags": [
+        "app",
+        "app[loc=Rom1.2, type=correction]",
+        "rdg[hand=corrector, rend=erased, type=corr]",
+        "rdg[hand=corrector, type=corr]",
+        "rdg[hand=corrector1, rend=erased, type=corr]",
+        "rdg[hand=corrector1, rend=strikethrough, type=corr]",
+        "rdg[hand=corrector1, type=corr]",
+        "rdg[hand=corrector1a, type=corr]"
+      ],
+      "notes": "Single-witness correction-style app/rdg content is modeled semantically in both inline and correction-only forms."
+    },
+    {
+      "construct": "document-structure",
+      "status": "supported-editor-addressable",
+      "disposition": "already-supported",
+      "mechanism": "canonical-pages-columns-lines",
+      "editor_surface": "main-editor",
+      "observed_in": [
+        "01-romans",
+        "fixture-apparatus",
+        "fixture-body",
+        "fixture-editorial",
+        "fixture-header-msdesc",
+        "fixture-resources",
+        "p118-rom"
+      ],
+      "occurrence_count": 11375,
+      "observed_tags": [
+        "ab[n=Rom.1.10]",
+        "ab[n=Rom.1.11]",
+        "ab[n=Rom.1.12]",
+        "ab[n=Rom.1.13]",
+        "ab[n=Rom.1.14]",
+        "ab[n=Rom.1.15]",
+        "ab[n=Rom.1.16]",
+        "ab[n=Rom.1.17]"
+      ],
+      "notes": "TEI/text/body attrs, page-column-line flow, book/chapter/verse milestones, and implicit words are modeled directly."
+    },
+    {
+      "construct": "editorial-actions",
+      "status": "supported-carrier-ui",
+      "disposition": "supported-but-inspector-driven",
+      "mechanism": "editorialAction-node",
+      "editor_surface": "node-inspector",
+      "observed_in": [
+        "fixture-editorial"
+      ],
+      "occurrence_count": 5,
+      "observed_tags": [
+        "listTranspose",
+        "redo[target=#mod1]",
+        "substJoin[target=#mod1 #mod2]",
+        "transpose",
+        "undo[target=#mod1]"
+      ],
+      "notes": "undo, redo, substJoin, transpose, and listTranspose are modeled as structured editorial action carriers."
+    },
+    {
+      "construct": "flat-inline-wrappers",
+      "status": "supported-editor-addressable",
+      "disposition": "already-supported",
+      "mechanism": "teiSpan-mark",
+      "editor_surface": "main-editor",
+      "observed_in": [
+        "fixture-body",
+        "fixture-editorial"
+      ],
+      "occurrence_count": 10,
+      "observed_tags": [
+        "am",
+        "expan",
+        "foreign[lang=la]",
+        "gloss[lang=en]",
+        "mod[type=add, id=mod1]",
+        "objectName[type=codex]",
+        "placeName[ref=#rome]",
+        "retrace[cert=low]"
+      ],
+      "notes": "foreign, term, name, num, date, unit, am, expan, gloss, placeName, objectName, body title, bibl, mod, and retrace flatten to text marks when structurally safe."
+    },
+    {
+      "construct": "formwork-and-marginalia",
+      "status": "supported-carrier-ui",
+      "disposition": "supported-but-inspector-driven",
+      "mechanism": "fw-node",
+      "editor_surface": "page-ui-and-node-inspector",
+      "observed_in": [
+        "01-romans"
+      ],
+      "occurrence_count": 56,
+      "observed_tags": [
+        "fw[rend=center, type=runTitle]",
+        "seg[n=@P261r-01, subtype=pagetop, type=margin]",
+        "seg[n=@P261rC4L-01, subtype=lineright, type=margin]",
+        "seg[n=@P261vC4L-01, subtype=lineleft, type=margin]",
+        "seg[n=@P262r-01, subtype=pagetop, type=margin]",
+        "seg[n=@P262rC2L-01, subtype=lineright, type=margin]",
+        "seg[n=@P262rC3L-01, subtype=lineright, type=margin]",
+        "seg[n=@P262vC1L-01, subtype=lineright, type=margin]"
+      ],
+      "notes": "fw and marginal seg metadata are preserved canonically with insertion and editing paths in the page editor surface."
+    },
+    {
+      "construct": "gaps-spaces-untranscribed",
+      "status": "supported-carrier-ui",
+      "disposition": "supported-but-inspector-driven",
+      "mechanism": "dedicated-carrier-nodes",
+      "editor_surface": "node-inspector",
+      "observed_in": [
+        "01-romans",
+        "fixture-body",
+        "p118-rom"
+      ],
+      "occurrence_count": 13,
+      "observed_tags": [
+        "gap[extent=1-2, reason=illegible, unit=char]",
+        "gap[extent=3-4, reason=illegible, unit=char]",
+        "gap[extent=4-5, reason=illegible, unit=char]",
+        "gap[extent=4-6, reason=illegible, unit=char]",
+        "gap[extent=part, reason=lacuna, unit=verse]",
+        "gap[reason=witnessEnd]",
+        "space[dim=horizontal, extent=2, unit=chars]"
+      ],
+      "notes": "gap, space, and note type=untranscribed are canonical body carriers with deliberate inspector surfaces."
+    },
+    {
+      "construct": "hand-shifts",
+      "status": "supported-carrier-ui",
+      "disposition": "supported-but-inspector-driven",
+      "mechanism": "handShift-node",
+      "editor_surface": "node-inspector",
+      "observed_in": [
+        "fixture-body"
+      ],
+      "occurrence_count": 1,
+      "observed_tags": [
+        "handShift[medium=ink, new=#h2]"
+      ],
+      "notes": "handShift is represented as a dedicated carrier node with editable TEI attrs."
+    },
+    {
+      "construct": "header-and-record-metadata",
+      "status": "supported-carrier-ui",
+      "disposition": "supported-but-inspector-driven",
+      "mechanism": "typed-header-plus-db-bridge",
+      "editor_surface": "metadata-dialog",
+      "observed_in": [
+        "01-romans",
+        "fixture-apparatus",
+        "fixture-body",
+        "fixture-editorial",
+        "fixture-header-msdesc",
+        "fixture-resources",
+        "p118-rom"
+      ],
+      "occurrence_count": 209,
+      "observed_tags": [
+        "additional",
+        "altIdentifier[type=former]",
+        "author",
+        "availability",
+        "availability[status=free]",
+        "bibl",
+        "change[n=1, when-iso=2024-01-02]",
+        "change[n=1, when=2020-10-15]"
+      ],
+      "notes": "Database-backed transcription metadata stays outside TipTap while TEI header and manuscript details are preserved structurally."
+    },
+    {
+      "construct": "inline-editorial-text-marks",
+      "status": "supported-editor-addressable",
+      "disposition": "already-supported",
+      "mechanism": "inline-text-marks",
+      "editor_surface": "main-editor",
+      "observed_in": [
+        "01-romans",
+        "fixture-body",
+        "p118-rom"
+      ],
+      "occurrence_count": 521,
+      "observed_tags": [
+        "damage[agent=smudge, degree=low]",
+        "hi[height=2, rend=overline]",
+        "hi[rend=overline]",
+        "secl[reason=overlap]",
+        "supplied[cert=low, reason=lost-folio, source=#ed1]",
+        "supplied[reason=illegible, source=na28]",
+        "supplied[reason=lacuna, source=na28]",
+        "supplied[reason=lost-folio]"
+      ],
+      "notes": "supplied, unclear, hi, damage, surplus, and secl remain directly editable inline marks in the main editor flow."
+    },
+    {
+      "construct": "lem-rdggrp-listapp-notegrp",
+      "status": "out-of-scope",
+      "disposition": "correctly-out-of-scope",
+      "mechanism": "explicit-import-error",
+      "editor_surface": "none",
+      "observed_in": [
+        "fixture-apparatus"
+      ],
+      "occurrence_count": 5,
+      "observed_tags": [
+        "lem[wit=#A]",
+        "lem[wit=#C]",
+        "listApp[type=editorial]",
+        "noteGrp",
+        "rdgGrp[type=split]"
+      ],
+      "notes": "lem, rdgGrp, listApp, and noteGrp remain outside the transcription editor boundary unless they participate in the simple single-witness correction path."
+    },
+    {
+      "construct": "metamarks",
+      "status": "supported-carrier-ui",
+      "disposition": "supported-but-inspector-driven",
+      "mechanism": "mark-or-carrier-node",
+      "editor_surface": "node-inspector",
+      "observed_in": [
+        "fixture-body",
+        "fixture-editorial"
+      ],
+      "occurrence_count": 4,
+      "observed_tags": [
+        "metamark[function=insertion, target=#mod1]",
+        "metamark[function=omission]",
+        "metamark[function=transposition, target=#tr1]"
+      ],
+      "notes": "Text-bearing metamark stays a flat span when safe; standalone or non-flat cases use explicit carriers."
+    },
+    {
+      "construct": "multi-witness-apparatus",
+      "status": "out-of-scope",
+      "disposition": "correctly-out-of-scope",
+      "mechanism": "explicit-import-error",
+      "editor_surface": "none",
+      "observed_in": [
+        "fixture-apparatus"
+      ],
+      "occurrence_count": 4,
+      "observed_tags": [
+        "app[from=#l1, loc=Rom1.1, to=#l1, type=variant]",
+        "rdg[hand=#c1, rend=first-hand, wit=#B]",
+        "rdg[hand=#c2, wit=#D]",
+        "rdg[hand=#c3, wit=#E]"
+      ],
+      "notes": "Broader apparatus documents and witness-based variant encoding stay rejected for the single-witness transcription subset."
+    },
+    {
+      "construct": "non-body-tei-sections",
+      "status": "supported-carrier-ui",
+      "disposition": "supported-but-inspector-driven",
+      "mechanism": "structured-tei-tree-preservation",
+      "editor_surface": "import-summary-and-export",
+      "observed_in": [
+        "fixture-resources"
+      ],
+      "occurrence_count": 13,
+      "observed_tags": [
+        "annotation[motivation=commenting, target=#l1, id=ann1]",
+        "back",
+        "facsimile",
+        "front",
+        "listRelation",
+        "media[mimeType=image/jpeg, url=https://example.org/facsimile.jpg]",
+        "media[mimeType=image/jpeg, url=https://example.org/source.jpg]",
+        "note"
+      ],
+      "notes": "teiHeader, front, back, facsimile, standOff, sourceDoc, and other ordered text globals are preserved as TEI trees outside the PM body."
+    },
+    {
+      "construct": "structured-inline-wrappers",
+      "status": "supported-carrier-ui",
+      "disposition": "supported-but-inspector-driven",
+      "mechanism": "teiWrapper-carrier",
+      "editor_surface": "node-inspector",
+      "observed_in": [
+        "01-romans"
+      ],
+      "occurrence_count": 186,
+      "observed_tags": [
+        "seg[n=@P261r-01, subtype=pagetop, type=margin]",
+        "seg[n=@P261rC2L-01, subtype=above, type=line]",
+        "seg[n=@P261rC4L-01, subtype=above, type=line]",
+        "seg[n=@P261rC4L-01, subtype=lineright, type=margin]",
+        "seg[n=@P261vC1L-01, subtype=above, type=line]",
+        "seg[n=@P261vC2L-01, subtype=above, type=line]",
+        "seg[n=@P261vC3L-01, subtype=above, type=line]",
+        "seg[n=@P261vC3L-01, subtype=overwritten, type=line]"
+      ],
+      "notes": "Non-flat wrapper cases are preserved as structured carrier nodes with editable attrs and visible previews instead of hard-failing."
+    },
+    {
+      "construct": "tei-atoms",
+      "status": "supported-carrier-ui",
+      "disposition": "supported-but-inspector-driven",
+      "mechanism": "teiAtom-node",
+      "editor_surface": "node-inspector",
+      "observed_in": [
+        "fixture-apparatus",
+        "fixture-body",
+        "fixture-editorial"
+      ],
+      "occurrence_count": 8,
+      "observed_tags": [
+        "ellipsis[quantity=2, unit=chars]",
+        "gb[n=g1]",
+        "note[place=margin]",
+        "note[type=editorial]",
+        "ptr[target=#seg1]",
+        "ptr[target=#seg2]",
+        "ptr[target=#target1, type=crossref]"
+      ],
+      "notes": "gb, ptr, media, note, and ellipsis are carried as dedicated structured nodes rather than opaque XML strings."
+    },
+    {
+      "construct": "tei-milestones",
+      "status": "supported-carrier-ui",
+      "disposition": "supported-but-inspector-driven",
+      "mechanism": "teiMilestone-node",
+      "editor_surface": "node-inspector",
+      "observed_in": [
+        "fixture-body"
+      ],
+      "occurrence_count": 1,
+      "observed_tags": [
+        "milestone[ed=NA28, n=A, unit=section]"
+      ],
+      "notes": "Generic milestone elements are preserved as explicit carriers while verse/book/chapter milestones also drive editor structure."
+    }
+  ],
+  "summary": {
+    "real_witness_count": 2,
+    "focused_fixture_count": 4,
+    "out_of_scope_fixture_count": 1,
+    "missing_in_scope_constructs": [],
+    "weak_editor_surfaces": [
+      "editorial-actions",
+      "formwork-and-marginalia",
+      "gaps-spaces-untranscribed",
+      "hand-shifts",
+      "header-and-record-metadata",
+      "metamarks",
+      "non-body-tei-sections",
+      "structured-inline-wrappers",
+      "tei-atoms",
+      "tei-milestones"
+    ],
+    "out_of_scope_constructs": [
+      "lem-rdggrp-listapp-notegrp",
+      "multi-witness-apparatus"
+    ],
+    "uncategorized_body_tags": []
+  }
+}

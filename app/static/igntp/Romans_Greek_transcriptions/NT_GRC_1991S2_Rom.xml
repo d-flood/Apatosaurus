@@ -1,0 +1,396 @@
+<!DOCTYPE TEI>
+<?xml-stylesheet type="text/xsl" href="Rom.xsl"?><TEI xmlns="http://www.tei-c.org/ns/1.0"><teiHeader><fileDesc><titleStmt><title n="1991S2" type="document" key="31991">A transcription of Romans in 1991S2</title><title type="collection" xml:lang="en">The New Testament</title><title type="collection" xml:lang="de">Das Neue Testament</title><title type="work" xml:lang="en">The Epistle to the Romans</title><title type="short" xml:lang="en">Romans</title><respStmt><resp>Created by</resp><name type="org">The International Greek New Testament Project</name></respStmt><respStmt><resp when-iso="2021-12-10">Transcribed by</resp><name type="person">Dimitra Maravelaki</name></respStmt><respStmt><resp when-iso="2021-12-03">Transcribed by</resp><name type="person">Clark Bates</name></respStmt><respStmt><resp when-iso="2021-12-13">Reconciled by</resp><name type="person">Amy Myshrall</name></respStmt><respStmt><resp when-iso="2021-12-13">Proofread by</resp><name type="person">Amy Myshrall</name></respStmt><funder>This transcription was made as part of the CATENA project, which has received funding from the European Research Council (ERC) under the European Union Horizon 2020 research and innovation programme (grant agreement no. 770816).</funder><sponsor><name type="org">The Institute for Textual Scholarship and Electronic Editing</name></sponsor></titleStmt><editionStmt><edition n="1.1">Version 1.1, created on <date when-iso="2021-12-13">13.12.2021</date>, archived on the University of Birmingham eData repository on <date>13.5.2024</date>.</edition></editionStmt><publicationStmt><publisher><name type="org">The International Greek New Testament Project (IGNTP)</name></publisher><date>13.5.2024</date><availability><p>Attribution 4.0 International (CC BY 4.0) Available for re-use under a creative commons license provided attribution is made to the original creators.</p></availability></publicationStmt><sourceDesc><msDesc><msIdentifier><country>Vatican City</country><settlement>Città del Vaticano</settlement><repository>Biblioteca Apostolica Vaticana</repository><idno>Vat. gr. 646</idno><altIdentifier type="GA"><idno>1991S2</idno></altIdentifier><altIdentifier type="Liste"><idno>31991</idno></altIdentifier></msIdentifier></msDesc><listWit><witness xml:id="firsthand"/><witness xml:id="corrector"/></listWit></sourceDesc></fileDesc><encodingDesc n="1.6"><projectDesc><p>This transcription was made by the International Greek New Testament Project in its work towards the Editio Critica Maior.</p></projectDesc><editorialDecl><p>This transcription was produced using the online transcription editor developed by the Center for Digital Humanities at the University of Trier as part of the Workspace for Collaborative Editing Project between 2010 and 2013 and made available for use by the Institute for Textual Scholarship and Electronic Editing and the University of Birmingham.</p><p>The XML specifications used are version 1.6 of the IGNTP Guidelines available at <ptr target="http://epapers.bham.ac.uk/4301/"/></p></editorialDecl><variantEncoding method="parallel-segmentation" location="internal"/></encodingDesc></teiHeader><text xml:lang="grc"><body>
+<pb n="532r" type="folio" xml:id="P532r-1991S2"/>
+<cb n="P532rC1-1991S2"/>
+<lb n="P532rC1L-1991S2"/><div type="book" n="Rom"><div type="inscriptio"><ab n="Rom.inscriptio"><w>επιστολη</w><w>πρωτη</w><w>προς</w><w>ρωμαιους</w>
+<lb n="P532rC1L-1991S2"/></ab></div><div type="chapter" n="Rom.1"><ab n="Rom.1.1"><w>παυλος</w><w>δουλος</w><w><abbr type="nomSac"><hi rend="overline">ιυ</hi></abbr></w><w><abbr type="nomSac"><hi rend="overline">χυ</hi></abbr></w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P532rC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note><w>κλητος</w><w>αποστολος</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<pb n="532v" type="folio" xml:id="P532v-1991S2"/>
+<cb n="P532vC1-1991S2"/>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P532vC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note><w>αφωρισμενος</w><w>εις</w><w>ευαγγε
+<lb n="P532vC1L-1991S2" break="no"/>λιον</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P532vC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note></ab><ab n="Rom.1.2"><w>ο</w><w>προεπηγγειλατο</w>
+<lb n="P532vC1L-1991S2"/><w>δια</w><w>των</w><w>προφητων</w><w>αυτου</w><w>εν</w><w>γραφαις</w><w>αγιαις</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P532vC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note></ab><ab n="Rom.1.3"><w>περι</w><w>του</w><w>υιου</w><w>αυτου</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb n="P532vC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note><w>του</w><w>γενομενου</w><w>εκ</w>
+<lb n="P532vC1L-1991S2"/><w>σπερματος</w><w><abbr type="nomSac"><hi rend="overline">δαδ</hi></abbr></w><w>κατα</w><w>σαρκα</w><note type="commentary">Untranscribed commentary text within the line</note>
+<pb n="533r" type="folio" xml:id="P533r-1991S2"/>
+<cb n="P533rC1-1991S2"/>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P533rC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note></ab><ab n="Rom.1.4"><w>του</w><w>ορισθεντος</w>
+<lb n="P533rC1L-1991S2"/><w>υιου</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><w>εν</w><w>δυναμει</w><w>κατα</w><w><abbr type="nomSac"><hi rend="overline">πνα</hi></abbr></w><w>αγιωσυνης</w><w>εξ</w><w>αναστασεως</w><w>νεκρων</w><w><abbr type="nomSac"><hi rend="overline">ιυ</hi></abbr></w><w><abbr type="nomSac"><hi rend="overline">χυ</hi></abbr></w><w>του</w><w><abbr type="nomSac"><hi rend="overline">κυ</hi></abbr></w><w>ημων</w>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P533rC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note></ab><ab n="Rom.1.5"><w>δι</w><w>ου</w><w>ελαβομεν</w><w>την</w><w>χαριν</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb n="P533rC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note><w>και</w><w>αποστολην</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb n="P533rC1L-1991S2"/><w>εις</w><w>υπακοην</w><w>πιστεως</w><w>εν</w><w>πασι</w><w>τοις</w><w>εθνεσιν</w><w>υπερ</w><w>του</w><w>ονοματος</w><w>αυτου</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P533rC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note></ab><ab n="Rom.1.6"><w>εν</w><w>οις</w><w>εστε</w><w>και</w><w>υμεις</w><w>κλητοι</w><w><abbr type="nomSac"><hi rend="overline">ιυ</hi></abbr></w><w><abbr type="nomSac"><hi rend="overline">χυ</hi></abbr></w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P533rC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note></ab><ab n="Rom.1.7"><w>πασι</w><w>τοις</w><w>ουσιν</w><w>εν</w><w>ρωμη</w><w>αγαπητοις</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><w>κλητοις</w><w>αγιοις</w>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P533rC1L-1991S2"/><w>χαρις</w><w>υμιν</w><w>και</w><w>ειρηνη</w><w>απο</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><w><abbr type="nomSac"><hi rend="overline">πρς</hi></abbr></w><w>ημων</w><w>και</w><w><abbr type="nomSac"><hi rend="overline">κυ</hi></abbr></w><w><abbr type="nomSac"><hi rend="overline">ιυ</hi></abbr></w><w><abbr type="nomSac"><hi rend="overline">χυ</hi></abbr></w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<pb n="533v" type="folio" xml:id="P533v-1991S2"/>
+<cb n="P533vC1-1991S2"/>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P533vC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note></ab><ab n="Rom.1.8"><w>πρωτον</w><w>μεν</w><w>ευχαριστω</w><w>τω</w><w><abbr type="nomSac"><hi rend="overline">θω</hi></abbr></w><w>μου</w><w>δια</w><w><abbr type="nomSac"><hi rend="overline">ιυ</hi></abbr></w><w><abbr type="nomSac"><hi rend="overline">χυ</hi></abbr></w><w>υπερ</w><w>παντων</w>
+<lb n="P533vC1L-1991S2"/><w>ημων</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P533vC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note><w>οτι</w><w>η</w><w>πιστις</w><w>ημων</w><w>καταγγελλεται</w><w>εν</w><w>ολω</w><w>τω</w><w>κοσμω</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P533vC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note></ab><ab n="Rom.1.9"><w>μαρτυς</w><w>γαρ</w><w>μου</w><w>εστιν</w><w>ο</w><w><abbr type="nomSac"><hi rend="overline">θς</hi></abbr></w><w>ω</w><w>λατρευω</w><w>εν</w><w>τω</w><w><abbr type="nomSac"><hi rend="overline">πνι</hi></abbr></w><w>μου</w><w>εν</w><w>τω</w><w>ευαγγελιω</w><w>του</w><w>υιου</w>
+<lb n="P533vC1L-1991S2"/><w>αυτου</w><w>ως</w><w>αδιαλειπτως</w><w>μνειαν</w><w>υμων</w><w>ποιουμαι</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P533vC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note></ab><ab n="Rom.1.10"><w>παντοτε</w><w>επι</w><w>των</w><w>προσευχων</w><w>μου</w><w>δεομενος</w><w>ει</w>
+<lb n="P533vC1L-1991S2"/><w>πως</w><w>ηδη</w><w>ποτε</w><app><rdg type="orig" hand="firsthand"><w>ευδοθησομαι</w></rdg><rdg type="corr" hand="corrector"><w>ευοδοθησομαι</w></rdg></app><w>εν</w><w>τω</w><w>θεληματι</w><w>του</w><w>υιου</w><w>ελθειν</w><w>προς</w><w>υμας</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P533vC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note></ab><ab n="Rom.1.11"><w>επιποθω</w><w>γαρ</w><w>ιδειν</w><w>υμας</w><w>ινα</w><w>τι</w><w>μεταδω</w><w>υμιν</w><w>χαρισμα</w><w><abbr type="nomSac"><hi rend="overline">πνικον</hi></abbr></w><w>εις</w><w>το</w><w>στηριχθηναι</w>
+<lb n="P533vC1L-1991S2"/><w>υμας</w><note type="commentary">Untranscribed commentary text within the line</note>
+<pb n="534r" type="folio" xml:id="P534r-1991S2"/>
+<cb n="P534rC1-1991S2"/>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P534rC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note></ab><ab n="Rom.1.12"><w>τουτο</w><w>δε</w><w>εστι</w><w>συμπαρακληθηναι</w><w>υμιν</w>
+<lb n="P534rC1L-1991S2"/><w>δια</w><w>της</w><w>εν</w><w>αλληλοις</w><w>πιστεως</w><w>υμων</w><w>τε</w><w>και</w><w>εμου</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P534rC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note></ab><ab n="Rom.1.13"><w>ου</w><w>θελω</w><w>δε</w><w>υμας</w><w>αγνοειν</w><w>αδελ
+<lb n="P534rC1L-1991S2" break="no"/>φοι</w><w>οτι</w><w>πολλακις</w><w>προεθεμην</w><w>ελθειν</w><w>προς</w><w>υμας</w><w>και</w><w>εκωλυθην</w><w>αχρι</w><w>του</w><w>δευρο</w><w>ινα</w><w>τι</w>
+<lb n="P534rC1L-1991S2"/><w>καρπον</w><w>σχω</w><w>και</w><w>εν</w><w>υμιν</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P534rC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note><w>καθως</w><w>εν</w><w>τοις</w><w>λοιποις</w><w>ε
+<lb n="P534rC1L-1991S2" break="no"/>θνεσιν</w></ab><ab n="Rom.1.14"><w>ελλησι</w><w>τε</w><w>και</w><w>βαρβαροις</w><w>σοφοις</w><w>τε</w><w>και</w><w>ανοητοις</w><w>οφειλετης</w><w>ειμι</w></ab><ab n="Rom.1.15"><w>ουτω</w><w>το</w><w>κατ</w><w>ε
+<lb n="P534rC1L-1991S2" break="no"/>με</w><w>προθυμον</w><w>και</w><w>υμιν</w><w>τοις</w><w>εν</w><w>ρωμη</w><w>ευαγγελισασθαι</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P534rC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note></ab><ab n="Rom.1.16"><w>ου</w><w>γαρ</w><w>επαι
+<lb n="P534rC1L-1991S2" break="no"/>σχυνομαι</w><w>το</w><w>ευαγγελιον</w><w>του</w><w><abbr type="nomSac"><hi rend="overline">χυ</hi></abbr></w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<pb n="534v" type="folio" xml:id="P534v-1991S2"/>
+<cb n="P534vC1-1991S2"/>
+<lb n="P534vC1L-1991S2"/><w>δυναμις</w><w>γαρ</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><w>εστιν</w><w>εις</w><w><abbr type="nomSac"><hi rend="overline">σριαν</hi></abbr></w><w>παντι</w><w>τω</w><w>πιστευοντι</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P534vC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note><w>ιουδαιω</w><w>τε</w><w>πρωτον</w><w>και</w><w>ελληνι</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P534vC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note></ab><ab n="Rom.1.17"><w>δικαιοσυνη</w><w>γαρ</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><w>εν</w><w>αυτω</w><w>αποκαλυπτεται</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P534vC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note><w>εκ</w><w>πιστεως</w><w>εις</w><w>πιστιν</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P534vC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note><w>καθως</w><w>γεγραπται</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb n="P534vC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note><w>ο</w><w>δε</w><w>δικαιος</w><w>εκ</w><w>πιστεως</w><w>ζησεται</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P534vC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note></ab><ab n="Rom.1.18"><w>αποκαλυπτεται</w><w>δε</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w>
+<lb n="P534vC1L-1991S2"/><w>οργη</w><w>απ</w><w><abbr type="nomSac"><hi rend="overline">ουνου</hi></abbr></w><w>επι</w><w>πασαν</w><w>ασεβειαν</w><w>και</w><w>αδικιαν</w><w><abbr type="nomSac"><hi rend="overline">ανων</hi></abbr></w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P534vC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note><w>των</w><w>την</w><w>αληθειαν</w><w>εν</w><w>αδικια</w><w>κατεχοντων</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<pb n="535r" type="folio" xml:id="P535r-1991S2"/>
+<cb n="P535rC1-1991S2"/>
+<lb n="P535rC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note></ab><ab n="Rom.1.19"><w>διοτι</w><w>το</w><w>γνωστον</w><w>του</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><w>φανερον</w><w>εστιν</w><w>εν</w><w>αυτοις</w>
+<lb n="P535rC1L-1991S2"/><w>ο</w><w>γαρ</w><w><abbr type="nomSac"><hi rend="overline">θς</hi></abbr></w><w>αυτοις</w><w>εφανερωσε</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb n="P535rC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note></ab><ab n="Rom.1.20"><w>τα</w><w>γαρ</w><w>αορατα</w><w>αυτου</w><w>απο</w><w>κτισεως</w><w>κοσμου</w><w>τοις</w><w>ποιη
+<lb n="P535rC1L-1991S2" break="no"/>μασιν</w><w>νοουμενα</w><w>καθο<unclear>ρ</unclear>αται</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P535rC1L-1991S2"/><w>η</w><w>τε</w><w>αιδιος</w><w>αυτου</w><w>δυναμις</w><w>και</w><w>θεοτης</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P535rC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note><w>εις</w><w>το</w><w>ειναι</w>
+<lb n="P535rC1L-1991S2"/><w>αυτους</w><w>αναπολογητους</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P535rC1L-1991S2"/></ab><ab n="Rom.1.21"><w>διοτι</w><w>γνοντες</w><w>τον</w><w><abbr type="nomSac"><hi rend="overline">θν</hi></abbr></w><w>ουχ</w><w>ως</w><w><abbr type="nomSac"><hi rend="overline">θν</hi></abbr></w><w>εδοξασαν</w><w>η</w><w>ηυχαριστησαν</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P535rC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note><w>αλλ</w><w>εματαιωθησαν</w><w>εν</w><w>τοις</w><w>διαλογισμοις</w><w>αυτων</w>
+<lb n="P535rC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note><w>και</w><w>εσκοτισθη</w><w>η</w><w>ασυνετος</w><w>αυτων</w><w>καρδια</w>
+<lb n="P535rC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note></ab><ab n="Rom.1.22"><w>φησαντες</w><w>ειναι</w><w>σοφοι</w><w>εμωρανθησαν</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P535rC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note></ab><ab n="Rom.1.23"><w>και</w><w>ηλλαξαντο</w>
+<lb n="P535rC1L-1991S2"/><w>την</w><w>δοξαν</w><w>του</w><w>αφθαρτου</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><w>εν</w><w>ομοιωματι</w><w>εικονος</w><w>φθαρτου</w><w><abbr type="nomSac"><hi rend="overline">ανου</hi></abbr></w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P535rC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note><w>και</w><w>πετεινων</w><w>και</w><w>τετραποδων</w><w>και</w><w>ερπετων</w>
+<pb n="535v" type="folio" xml:id="P535v-1991S2"/>
+<cb n="P535vC1-1991S2"/>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P535vC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note></ab><ab n="Rom.1.24"><w>διο</w><w>και</w><w>παρεδωκεν</w><w>αυτους</w>
+<lb n="P535vC1L-1991S2"/><w>ο</w><w><abbr type="nomSac"><hi rend="overline">θς</hi></abbr></w><w>εν</w><w>ταις</w><w>επιθυμιαις</w><w>των</w><w>καρδιων</w><w>αυτων</w><w>εις</w><w>ακαθαρσιαν</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P535vC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note><w>του</w><w>ατιμαζεσθαι</w><w>τα</w><w>σωματα</w><w>αυτων</w><w>εν</w><w>εαυτοις</w>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P535vC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note></ab><ab n="Rom.1.25"><w>οιτινες</w><w>μετηλλαξαν</w><w>την</w><w>αληθειαν</w><w>του</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><w>εν</w><w>τω</w><w>ψευδει</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P535vC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note><w>και</w><w>εσεβασθησαν</w><w>και</w><w>ελατρευσαν</w><w>τη</w><w>κτισει</w><w>παρα</w><w>τον</w><w>κτισαντα</w>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P535vC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note><w>ος</w><w>εστιν</w><w>ευλογητος</w><w>εις</w><w>τους</w>
+<lb n="P535vC1L-1991S2"/><w>αιωνας</w><w>αμην</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P535vC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note></ab><ab n="Rom.1.26"><w>δια</w><w>τουτο</w>
+<lb n="P535vC1L-1991S2"/><w>παρεδωκεν</w><w>αυτους</w><w>ο</w><w><abbr type="nomSac"><hi rend="overline">θς</hi></abbr></w><w>εις</w><w>παθη</w><w>ατιμιας</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb n="P535vC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note><w>αι</w><w>τε</w><w>γαρ</w><w>θηλειαι</w><w>αυτων</w>
+<lb n="P535vC1L-1991S2"/><w>μετηλλαξαν</w><w>την</w><w>φυσικην</w><w>χρησιν</w><w>εις</w><w>την</w><w>παρα</w><w>φυσιν</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb n="P535vC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note></ab><ab n="Rom.1.27"><w>ομοιως</w><w>και</w><w>οι</w><w>αρρε
+<lb n="P535vC1L-1991S2" break="no"/>νες</w><w>αυτων</w><w>αφεντες</w><w>την</w><w>φυσικην</w><w>χρησιν</w><w>της</w><w>θηλειας</w><w>εξεκαυθησαν</w><w>εν</w><w>τη</w><w>ορεξει</w><w>αυτων</w><w>εις</w><w>αλληλους</w>
+<lb n="P535vC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note><w>αρσενες</w>
+<pb n="536r" type="folio" xml:id="P536r-1991S2"/>
+<cb n="P536rC1-1991S2"/>
+<lb n="P536rC1L-1991S2"/><w>εν</w><w>αρσεσι</w><w>την</w><w>ασχημοσυνην</w><w>κατεργαζομενοι</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P536rC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note><w>και</w><w>την</w><w>αντιμισθιαν</w><w>ην</w><w>εδει</w><w>της</w>
+<lb n="P536rC1L-1991S2"/><w>πλανης</w><w>αυτων</w><w>εν</w><w>εαυτοις</w><w>απολαμβανοντες</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P536rC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note></ab><ab n="Rom.1.28"><w>και</w><w>καθως</w><w>ουκ</w><w>εδοκιμασαμεν</w>
+<lb n="P536rC1L-1991S2"/><w>τον</w><w><abbr type="nomSac"><hi rend="overline">θν</hi></abbr></w><w>εχειν</w><w>εν</w><w>επιγνωσει</w><w>παρεδωκεν</w><w>αυτους</w><w>ο</w><w><abbr type="nomSac"><hi rend="overline">θς</hi></abbr></w><w>εις</w><w>αδοκιμον</w><w>νουν</w><w>ποιειν</w><w>τα</w><w>μη</w><w>καθηκοντα</w>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P536rC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note></ab><ab n="Rom.1.29"><w>πεπληρωμενους</w><w>παση</w><w>αδικια</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P536rC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note><w>πορνεια</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P536rC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note><w>πονηρια</w>
+<lb n="P536rC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note><w>πλεονεξια</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb n="P536rC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note><w>κακια</w><note type="commentary">Untranscribed commentary text within the line</note><w>μεστους</w><w>φθονου</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb n="P536rC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note><w>φονου</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb n="P536rC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note><w>εριδος</w><note type="commentary">Untranscribed commentary text within the line</note><w>δολου</w><note type="commentary">Untranscribed commentary text within the line</note><w>κακοηθειας</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb n="P536rC1L-1991S2"/><w>ψιθυριστας</w><note type="commentary">Untranscribed commentary text within the line</note></ab><ab n="Rom.1.30"><w>καταλαλους</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb n="P536rC1L-1991S2"/><w>θεοστυγεις</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb n="P536rC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note><w>υβριστας</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb n="P536rC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note><w>υπερηφανους</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<pb n="536v" type="folio" xml:id="P536v-1991S2"/>
+<cb n="P536vC1-1991S2"/>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P536vC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note><w>αλαζονειας</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb n="P536vC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note><w>εφευρετας</w><w>κακων</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb n="P536vC1L-1991S2"/><w>γονευσιν</w><w>απειθεις</w><note type="commentary">Untranscribed commentary text within the line</note></ab><ab n="Rom.1.31"><w>ασυνετους</w><note type="commentary">Untranscribed commentary text within the line</note><w>ασυνθετους</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb n="P536vC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note><w>αστεργους</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb n="P536vC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note><w>ασπονδους</w><note type="commentary">Untranscribed commentary text within the line</note><w>ανελεημονας</w><note type="commentary">Untranscribed commentary text within the line</note></ab><ab n="Rom.1.32"><w>οιτινες</w>
+<lb n="P536vC1L-1991S2"/><w>το</w><w>δικαιωμα</w><w>του</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><w>επιγνοντες</w><w>οτι</w><w>οι</w><w>τα</w><w>τοιαυτα</w><w>πρασσοντες</w><w>αξιοι</w><w>θανατου</w><w>εισιν</w><w>ου</w><w>μονον</w><w>αυτα</w>
+<lb n="P536vC1L-1991S2"/><w>ποιουσιν</w><w>αλλα</w><w>και</w><w>συνευδοκουσι</w><w>τοις</w><w>πρασσουσι</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P536vC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note></ab></div><div type="chapter" n="Rom.2"><ab n="Rom.2.1"><w>διο</w><w>ανα
+<lb n="P536vC1L-1991S2" break="no"/>πολογητος</w><w>ει</w><w>ω</w><w><abbr type="nomSac"><hi rend="overline">ανε</hi></abbr></w><w>πας</w><w>ο</w><w>κρινων</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P536vC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note><w>εν</w><w>ω</w><w>γαρ</w><w>κρινεις</w><w>τον</w><w>ετερον</w><w>σεαυτον</w><w>κατακρινεις</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P536vC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note></ab><ab n="Rom.2.2"><w>οιδαμεν</w><w>δε</w><w>οτι</w><w>το</w><w>κριμα</w><w>του</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><w>εστι</w><w>κατα</w><w>αληθειαν</w><w>επι</w><w>τους</w><w>τα</w><w>τοιαυτα</w><w>πρασσοντας</w>
+<lb n="P536vC1L-1991S2"/></ab><ab n="Rom.2.3"><w>λογιζη</w><w>δε</w><w>τουτο</w><w>ω</w><w><abbr type="nomSac"><hi rend="overline">ανε</hi></abbr></w><w>ο</w><w>κρινων</w><w>τους</w><w>τα</w><w>τοιαυτα</w><w>πρασσοντας</w><w>και</w><w>ποιων</w><w>αυτα</w><w>οτι</w><w>συ</w><w>εκφευξη</w><w>το</w>
+<lb n="P536vC1L-1991S2"/><w>κριμα</w><w>του</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P536vC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note></ab><ab n="Rom.2.4"><w>η</w><w>του</w><w>πλουτου</w><w>της</w><w>χρηστοτητος</w><w>αυτου</w><w>και</w><w>της</w><w>ανοχης</w><w>και</w><w>της</w><w>μακροθυμιας</w><w>κατα
+<lb n="P536vC1L-1991S2" break="no"/>φρονεις</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb n="P536vC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note><w>αγνοων</w><w>οτι</w><w>το</w><w>χρηστον</w><w>του</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><w>εις</w><w>μετανοιαν</w><w>σε</w><w>αγει</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb n="P536vC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note></ab><ab n="Rom.2.5"><w>κατα</w><w>δε</w><w>την</w><w>σκληροτητα</w><w>σου</w><w>και</w><w>αμετανοητον</w><w>καρδιαν</w><w>θησαυριζεις</w><w>σεαυτω</w>
+<lb n="P536vC1L-1991S2"/><w>οργην</w><w>εν</w><w>ημερα</w><w>οργης</w><w>και</w><w>αποκαλυψεως</w><w>και</w><w>δικαιοκρισιας</w><w>του</w><w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<pb n="537r" type="folio" xml:id="P537r-1991S2"/>
+<cb n="P537rC1-1991S2"/>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P537rC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note></ab><ab n="Rom.2.6"><w>ος</w><w>αποδωσει</w><w>εκαστω</w><w>κατα</w><w>τα</w><w>εργα</w><w>αυτου</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P537rC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note></ab><ab n="Rom.2.7"><w>τοις</w><w>μεν</w><w>καθ</w><w>υπομονην</w><w>εργου</w><w>αγαθου</w><w>δοξαν</w><w>και</w><w>τιμην</w><w>και</w><w>αφθαρσιαν</w><w>ζητουσι</w>
+<lb n="P537rC1L-1991S2"/><w>ζωην</w><w>αιωνιον</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P537rC1L-1991S2"/></ab><ab n="Rom.2.8"><w>τοις</w><w>δε</w><w>εξ</w><w>εριθειας</w><w>και</w><w>απειθουσι</w><w>μεν</w><w>τη</w><w>αληθεια</w><w>πειθομενοις</w><w>δε</w><w>τη</w><w>αδικια</w><w>θυμος</w><w>και</w><w>οργη</w>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P537rC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note></ab><ab n="Rom.2.9"><w>θλιψις</w><w>και</w><w>στενοχωρια</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb n="P537rC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note><w>επι</w><w>πασαν</w><w>ψυχην</w><w><abbr type="nomSac"><hi rend="overline">ανου</hi></abbr></w><w>του</w><w>κατεργαζομενου</w><w>το</w><w>κακον</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P537rC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note><w>ιουδαιου</w><w>τε</w><w>πρωτον</w><w>και</w><w>ελληνος</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P537rC1L-1991S2"/></ab><ab n="Rom.2.10"><w>δοξα</w><w>τε</w><w>και</w><w>τιμη</w><w>και</w><w>ειρηνη</w><w>παντι</w><w>τω</w><w>εργαζομενω</w><w>αρχη</w><w>το</w><w>αγαθον</w><w>ιουδαιω</w><w>τε</w><w>πρωτον</w><w>και</w><w>ελ
+<lb n="P537rC1L-1991S2" break="no"/>ληνι</w><note type="commentary">Untranscribed commentary text within the line</note>
+<pb n="537v" type="folio" xml:id="P537v-1991S2"/>
+<cb n="P537vC1-1991S2"/>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P537vC1L-1991S2"/></ab><ab n="Rom.2.11"><w>ου</w><w>γαρ</w><w>εστι</w><w>προσωποληψια</w><w>παρα</w><w>τω</w><w><abbr type="nomSac"><hi rend="overline">θω</hi></abbr></w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P537vC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note></ab><ab n="Rom.2.12"><w>οσοι</w><w>γαρ</w><w>ανομως</w><w>ημαρτον</w><w>ανομως</w><w>και</w><w>απολουνται</w><w>και</w><w>οσοι</w><w>εν</w><w>νομω<unclear>ς</unclear></w><w>ημαρτον</w>
+<lb n="P537vC1L-1991S2"/><w>δια</w><w>νομου</w><w>κριθησονται</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P537vC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note></ab><ab n="Rom.2.13"><w>ου</w><w>γαρ</w><w>οι</w><w>ακροαται</w><w>του</w><w>νομου</w><w>δικαιοι</w>
+<lb n="P537vC1L-1991S2"/><w>παρα</w><w>το</w><w><abbr type="nomSac"><hi rend="overline">θω</hi></abbr></w><w>αλλ</w><w>οι</w><w>ποιηται</w><w>νομου</w><w>δικαιωθησονται</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P537vC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note></ab><ab n="Rom.2.14"><w>οταν</w><w>γαρ</w><w>εθνη</w><w>τα</w><w>μη</w><w>νομον</w><w>εχοντα</w><w>φυσει</w><w>τα</w><w>του</w><w>νομου</w>
+<lb n="P537vC1L-1991S2"/><w>ποιη</w><w>ουτοι</w><w>νομον</w><w>μη</w><w>εχοντες</w><w>εαυτοις</w><w>εισι</w><w>νομος</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P537vC1L-1991S2"/></ab><ab n="Rom.2.15"><w>οιτινες</w><w>ενδεικνυνται</w><w>το</w><w>εργον</w><w>του</w><w>νομου</w><w>γραπτον</w><w>εν</w><w>ταις</w><w>καρδιαις</w><w>αυτων</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note>
+<lb n="P537vC1L-1991S2"/><note type="commentary">Untranscribed commentary text within the line</note><w>συμμαρτυρουσης</w><w>αυτων</w><w>της</w><w>συνει
+<lb n="P537vC1L-1991S2" break="no"/>δησεως</w><note type="commentary">Untranscribed commentary text within the line</note>
+<lb/><note type="commentary">One line of untranscribed commentary text</note><gap reason="witnessEnd"/></ab></div></div></body></text></TEI>

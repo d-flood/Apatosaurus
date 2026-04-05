@@ -1,0 +1,6 @@
+- Add option to cache images for a transcript.
+	- INTF/image urls is easy—just download them.
+	- IIIF images would be trickier, but I think the service worker could be used to hard cache all visited images so that when Triiiceratops requests the tiles, they are served from a long cache instead.
+- Additional images linked to a page should be iiif choice objects.
+- Punctuation isn't handled correctly in collations
+- Need undo/redo in collation flows

@@ -1,0 +1,5 @@
+:8888 {
+	handle * {
+		reverse_proxy sveltekit:3000
+	}
+}

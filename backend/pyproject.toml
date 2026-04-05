@@ -1,0 +1,10 @@
+[project]
+name = "backend"
+version = "0.1.0"
+description = "Apatopwa backend schema source for DjazzKit type generation"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "django>=6.0.2",
+    "djazzkit",
+]

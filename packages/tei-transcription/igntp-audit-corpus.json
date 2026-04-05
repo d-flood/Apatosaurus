@@ -1,0 +1,55 @@
+{
+  "scope": "single-witness-transcription",
+  "description": "Repository-local corpus used to audit the single-witness IGNTP transcription subset. Real witnesses are supplemented with focused fixtures that exercise rarer carrier families not present in the two checked-in witness files.",
+  "entries": [
+    {
+      "id": "p118-rom",
+      "label": "P118 Romans",
+      "kind": "real-witness",
+      "path": "app/src/lib/tei/NT_GRC_P118_Rom.xml",
+      "notes": "Sparse real witness with supplied text, gaps, abbreviations, and simple correction readings."
+    },
+    {
+      "id": "01-romans",
+      "label": "01 Romans",
+      "kind": "real-witness",
+      "path": "app/src/lib/tei/NT_GRC_01_Rom.xml",
+      "notes": "Dense real witness with extensive book/chapter/verse structure, corrections, and marginal formwork."
+    },
+    {
+      "id": "fixture-body",
+      "label": "Kitchen sink body fixture",
+      "kind": "focused-fixture",
+      "path": "packages/tei-transcription/tests/fixtures/IGNTP_KITCHEN_SINK_body.xml",
+      "notes": "Exercises body-level carrier families such as handShift, space, milestone, atoms, wrappers, and metamark."
+    },
+    {
+      "id": "fixture-editorial",
+      "label": "Kitchen sink editorial fixture",
+      "kind": "focused-fixture",
+      "path": "packages/tei-transcription/tests/fixtures/IGNTP_KITCHEN_SINK_editorial.xml",
+      "notes": "Exercises standalone metamarks and editorial action carriers."
+    },
+    {
+      "id": "fixture-header-msdesc",
+      "label": "Kitchen sink header/msDesc fixture",
+      "kind": "focused-fixture",
+      "path": "packages/tei-transcription/tests/fixtures/IGNTP_KITCHEN_SINK_header_msdesc.xml",
+      "notes": "Exercises TEI header metadata and manuscript-description preservation."
+    },
+    {
+      "id": "fixture-resources",
+      "label": "Kitchen sink resources fixture",
+      "kind": "focused-fixture",
+      "path": "packages/tei-transcription/tests/fixtures/IGNTP_KITCHEN_SINK_resources.xml",
+      "notes": "Exercises front/back/facsimile/standOff/sourceDoc preservation."
+    },
+    {
+      "id": "fixture-apparatus",
+      "label": "Kitchen sink apparatus fixture",
+      "kind": "out-of-scope-fixture",
+      "path": "packages/tei-transcription/tests/fixtures/IGNTP_KITCHEN_SINK_apparatus.xml",
+      "notes": "Exercises broader apparatus constructs that must stay explicitly rejected."
+    }
+  ]
+}

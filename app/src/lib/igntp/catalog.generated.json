@@ -1,0 +1,1513 @@
+{
+	"generatedAt": "2026-03-23T16:43:28.881Z",
+	"groups": [
+		{
+			"name": "Romans_Greek_transcriptions",
+			"entries": [
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_01_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_01_Rom.xml",
+					"title": "A transcription of Romans in 01",
+					"siglum": "MS Add. 43725",
+					"duplicateKey": "ms add. 43725",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_010_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_010_Rom.xml",
+					"title": "A transcription of Romans in 010",
+					"siglum": "B.17.1",
+					"duplicateKey": "b.17.1",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_012_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_012_Rom.xml",
+					"title": "A transcription of Romans in 012",
+					"siglum": "A 145b",
+					"duplicateKey": "a 145b",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_0150_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_0150_Rom.xml",
+					"title": "A transcription of Romans in 0150",
+					"siglum": "61",
+					"duplicateKey": "61",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_0172_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_0172_Rom.xml",
+					"title": "A transcription of Romans in 0172",
+					"siglum": "PSI I 4",
+					"duplicateKey": "psi i 4",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_02_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_02_Rom.xml",
+					"title": "A transcription of Romans in 02",
+					"siglum": "Royal 1 D.VIII",
+					"duplicateKey": "royal 1 d.viii",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_020_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_020_Rom.xml",
+					"title": "A transcription of Romans in 020",
+					"siglum": "Ang. gr. 39",
+					"duplicateKey": "ang. gr. 39",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_0209_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_0209_Rom.xml",
+					"title": "A transcription of Romans in 0209",
+					"siglum": "Ms. 8, fol. 96.106-112",
+					"duplicateKey": "ms. 8, fol. 96.106-112",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_0219_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_0219_Rom.xml",
+					"title": "A transcription of Romans in 0219",
+					"siglum": "Pap. G. 36113 u. 26083",
+					"duplicateKey": "pap. g. 36113 u. 26083",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_0220_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_0220_Rom.xml",
+					"title": "A transcription of Romans in 0220",
+					"siglum": "MOTB.MS.000566",
+					"duplicateKey": "motb.ms.000566",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_0221_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_0221_Rom.xml",
+					"title": "A transcription of Romans in 0221",
+					"siglum": "Pap. G. 19890",
+					"duplicateKey": "pap. g. 19890",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_025_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_025_Rom.xml",
+					"title": "A transcription of Romans in 025",
+					"siglum": "Ф. № 906 / Gr. 225",
+					"duplicateKey": "ф. № 906 / gr. 225",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_0278_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_0278_Rom.xml",
+					"title": "A transcription of Romans in 0278",
+					"siglum": "N.E. MΓ 2 + Σπ.",
+					"duplicateKey": "n.e. mγ 2 + σπ.",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_0285_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_0285_Rom.xml",
+					"title": "A transcription of Romans in 0285",
+					"siglum": "0285",
+					"duplicateKey": "0285",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_0289_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_0289_Rom.xml",
+					"title": "A transcription of Romans in 0289",
+					"siglum": "N.E. MΓ 99",
+					"duplicateKey": "n.e. mγ 99",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_03_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_03_Rom.xml",
+					"title": "A transcription of Romans in 03",
+					"siglum": "Vat. gr. 1209, p. 1235-1518 (p. 1519-1536: GA1957)",
+					"duplicateKey": "vat. gr. 1209, p. 1235-1518 (p. 1519-1536: ga1957)",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_0311_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_0311_Rom.xml",
+					"title": "A transcription of Romans in 0311",
+					"siglum": "de Hamel MS 390",
+					"duplicateKey": "de hamel ms 390",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_0319_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_0319_Rom.xml",
+					"title": "A transcription of Romans in 0319",
+					"siglum": "Ф. № 906 /Gr. 20",
+					"duplicateKey": "ф. № 906 /gr. 20",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_04_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_04_Rom.xml",
+					"title": "A transcription of Romans in 04",
+					"siglum": "Gr. 9",
+					"duplicateKey": "gr. 9",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_044_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_044_Rom.xml",
+					"title": "A transcription of Romans in 044",
+					"siglum": "B' 52",
+					"duplicateKey": "b' 52",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_048_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_048_Rom.xml",
+					"title": "A transcription of Romans in 048",
+					"siglum": "Vat. gr. 2061, fol. 198. 199. 221. 222. 229. 230. 293-303. 305-308",
+					"duplicateKey": "vat. gr. 2061, fol. 198. 199. 221. 222. 229. 230. 293-303. 305-308",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_049_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_049_Rom.xml",
+					"title": "A transcription of Romans in 049",
+					"siglum": "A' 88",
+					"duplicateKey": "a' 88",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_06_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_06_Rom.xml",
+					"title": "A transcription of Romans in 06",
+					"siglum": "Gr. 107 AB",
+					"duplicateKey": "gr. 107 ab",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_1_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_1_Rom.xml",
+					"title": "GA 1",
+					"siglum": "AN IV 2",
+					"duplicateKey": "an iv 2",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_103_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_103_Rom.xml",
+					"title": "A transcription of Romans in 103",
+					"siglum": "Sinod. gr. 347 (Vlad. 096)",
+					"duplicateKey": "sinod. gr. 347 (vlad. 096)",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_104_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_104_Rom.xml",
+					"title": "GA 104",
+					"siglum": "Harley 5537",
+					"duplicateKey": "harley 5537",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_1069_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_1069_Rom.xml",
+					"title": "A transcription of Romans in 1069",
+					"siglum": "80",
+					"duplicateKey": "80",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_1108_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_1108_Rom.xml",
+					"title": "A transcription of Romans in 1108",
+					"siglum": "64",
+					"duplicateKey": "64",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_1115_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_1115_Rom.xml",
+					"title": "A transcription of Romans in 1115",
+					"siglum": "66",
+					"duplicateKey": "66",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_1175_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_1175_Rom.xml",
+					"title": "A transcription of Romans in 1175",
+					"siglum": "16",
+					"duplicateKey": "16",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_1241_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_1241_Rom.xml",
+					"title": "A transcription of Romans in 1241",
+					"siglum": "Gr. 260",
+					"duplicateKey": "gr. 260",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_1243_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_1243_Rom.xml",
+					"title": "A transcription of Romans in 1243",
+					"siglum": "Gr. 262",
+					"duplicateKey": "gr. 262",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_1297_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_1297_Rom.xml",
+					"title": "GA 1297",
+					"siglum": "Suppl. Gr. 1259, fol. 155-319",
+					"duplicateKey": "suppl. gr. 1259, fol. 155-319",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_1319_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_1319_Rom.xml",
+					"title": "A transcription of Romans in 1319",
+					"siglum": "Taphu 47",
+					"duplicateKey": "taphu 47",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_1359_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_1359_Rom.xml",
+					"title": "A transcription of Romans in 1359",
+					"siglum": "Suppl. Gr. 1335",
+					"duplicateKey": "suppl. gr. 1335",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_1505_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_1505_Rom.xml",
+					"title": "A transcription of Romans in 1505",
+					"siglum": "B' 26",
+					"duplicateKey": "b' 26",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_1506_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_1506_Rom.xml",
+					"title": "A transcription of Romans in 1506",
+					"siglum": "B' 89",
+					"duplicateKey": "b' 89",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_1524_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_1524_Rom.xml",
+					"title": "A transcription of Romans in 1524",
+					"siglum": "Theol. gr. 150",
+					"duplicateKey": "theol. gr. 150",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_1573_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_1573_Rom.xml",
+					"title": "A transcription of Romans in 1573",
+					"siglum": "939",
+					"duplicateKey": "939",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_1611_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_1611_Rom.xml",
+					"title": "A transcription of Romans in 1611",
+					"siglum": "EBE 94",
+					"duplicateKey": "ebe 94",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_1617_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_1617_Rom.xml",
+					"title": "A transcription of Romans in 1617",
+					"siglum": "E' 157",
+					"duplicateKey": "e' 157",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_1718_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_1718_Rom.xml",
+					"title": "A transcription of Romans in 1718",
+					"siglum": "851",
+					"duplicateKey": "851",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_1729_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_1729_Rom.xml",
+					"title": "A transcription of Romans in 1729",
+					"siglum": "968",
+					"duplicateKey": "968",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_1739_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_1739_Rom.xml",
+					"title": "A transcription of Romans in 1739",
+					"siglum": "B' 64",
+					"duplicateKey": "b' 64",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_1751_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_1751_Rom.xml",
+					"title": "A transcription of Romans in 1751",
+					"siglum": "K' 190, fol. 1-168",
+					"duplicateKey": "k' 190, fol. 1-168",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_1798_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_1798_Rom.xml",
+					"title": "A transcription of Romans in 1798",
+					"siglum": "Urbani 24",
+					"duplicateKey": "urbani 24",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_18_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_18_Rom.xml",
+					"title": "A transcription of Romans in 18",
+					"siglum": "Gr. 47",
+					"duplicateKey": "gr. 47",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_1834_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_1834_Rom.xml",
+					"title": "A transcription of Romans in 1834",
+					"siglum": "Ф. № 906 / Gr. 225",
+					"duplicateKey": "ф. № 906 / gr. 225",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_1837_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_1837_Rom.xml",
+					"title": "A transcription of Romans in 1837",
+					"siglum": "A. β. 3",
+					"duplicateKey": "a. β. 3",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_1838_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_1838_Rom.xml",
+					"title": "A transcription of Romans in 1838",
+					"siglum": "A. β. 6",
+					"duplicateKey": "a. β. 6",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_1846_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_1846_Rom.xml",
+					"title": "A transcription of Romans in 1846",
+					"siglum": "Vat. gr. 2099",
+					"duplicateKey": "vat. gr. 2099",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_1852_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_1852_Rom.xml",
+					"title": "A transcription of Romans in 1852",
+					"siglum": "Ms. Gr. 11",
+					"duplicateKey": "ms. gr. 11",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_1875_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_1875_Rom.xml",
+					"title": "A transcription of Romans in 1875",
+					"siglum": "EBE 149",
+					"duplicateKey": "ebe 149",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_1877_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_1877_Rom.xml",
+					"title": "A transcription of Romans in 1877",
+					"siglum": "Gr. 280",
+					"duplicateKey": "gr. 280",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_1881_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_1881_Rom.xml",
+					"title": "A transcription of Romans in 1881",
+					"siglum": "Gr. 300",
+					"duplicateKey": "gr. 300",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_1886_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_1886_Rom.xml",
+					"title": "A transcription of Romans in 1886",
+					"siglum": "Suppl. Gr. 1263",
+					"duplicateKey": "suppl. gr. 1263",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_1893_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_1893_Rom.xml",
+					"title": "A transcription of Romans in 1893",
+					"siglum": "Saba 665",
+					"duplicateKey": "saba 665",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_1908_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_1908_Rom.xml",
+					"title": "A transcription of Romans in 1908",
+					"siglum": "Ms. Roe 16",
+					"duplicateKey": "ms. roe 16",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_1909_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_1909_Rom.xml",
+					"title": "A transcription of Romans in 1909",
+					"siglum": "Cod. graec. 412",
+					"duplicateKey": "cod. graec. 412",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_1912_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_1912_Rom.xml",
+					"title": "A transcription of Romans in 1912",
+					"siglum": "Cod. Neapol. ex Vind. 8",
+					"duplicateKey": "cod. neapol. ex vind. 8",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_1935_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_1935_Rom.xml",
+					"title": "A transcription of Romans in 1935",
+					"siglum": "Gr. 225",
+					"duplicateKey": "gr. 225",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_1942_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_1942_Rom.xml",
+					"title": "A transcription of Romans in 1942",
+					"siglum": "A. 51b sup.",
+					"duplicateKey": "a. 51b sup.",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_1947_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_1947_Rom.xml",
+					"title": "A transcription of Romans in 1947",
+					"siglum": "Ottob. gr. 61",
+					"duplicateKey": "ottob. gr. 61",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_1950_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_1950_Rom.xml",
+					"title": "A transcription of Romans in 1950",
+					"siglum": "Chig. R V 32",
+					"duplicateKey": "chig. r v 32",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_1959_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_1959_Rom.xml",
+					"title": "A transcription of Romans in 1959",
+					"siglum": "B. P. Gr. 66",
+					"duplicateKey": "b. p. gr. 66",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_1961_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_1961_Rom.xml",
+					"title": "A transcription of Romans in 1961",
+					"siglum": "Arundel 534",
+					"duplicateKey": "arundel 534",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_1962_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_1962_Rom.xml",
+					"title": "A transcription of Romans in 1962",
+					"siglum": "Theol. gr. 157",
+					"duplicateKey": "theol. gr. 157",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_1963_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_1963_Rom.xml",
+					"title": "A transcription of Romans in 1963",
+					"siglum": "Ms. 169",
+					"duplicateKey": "ms. 169",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_1969_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_1969_Rom.xml",
+					"title": "A transcription of Romans in 1969",
+					"siglum": "Coislin Grec 29",
+					"duplicateKey": "coislin grec 29",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_1973_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_1973_Rom.xml",
+					"title": "A transcription of Romans in 1973",
+					"siglum": "EBE 96",
+					"duplicateKey": "ebe 96",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_1985_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_1985_Rom.xml",
+					"title": "A transcription of Romans in 1985",
+					"siglum": "Ms. II. B. 24, fol. 354-925",
+					"duplicateKey": "ms. ii. b. 24, fol. 354-925",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_1987_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_1987_Rom.xml",
+					"title": "A transcription of Romans in 1987",
+					"siglum": "1298",
+					"duplicateKey": "1298",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_1987S_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_1987S_Rom.xml",
+					"title": "A transcription of Romans in 1987S",
+					"siglum": "1298",
+					"duplicateKey": "1298",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_1991_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_1991_Rom.xml",
+					"title": "A transcription of Romans in 1991",
+					"siglum": "Vat. gr. 646",
+					"duplicateKey": "vat. gr. 646",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_1991S1_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_1991S1_Rom.xml",
+					"title": "A transcription of Romans in 1991S1",
+					"siglum": "Vat. gr. 646",
+					"duplicateKey": "vat. gr. 646",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_1991S2_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_1991S2_Rom.xml",
+					"title": "A transcription of Romans in 1991S2",
+					"siglum": "Vat. gr. 646",
+					"duplicateKey": "vat. gr. 646",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_1995_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_1995_Rom.xml",
+					"title": "A transcription of Romans in 1995",
+					"siglum": "Vat. gr. 2180",
+					"duplicateKey": "vat. gr. 2180",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_1996_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_1996_Rom.xml",
+					"title": "A transcription of Romans in 1996",
+					"siglum": "Ottob. gr. 17",
+					"duplicateKey": "ottob. gr. 17",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_1999_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_1999_Rom.xml",
+					"title": "A transcription of Romans in 1999",
+					"siglum": "Gr. Z. 36 (350)",
+					"duplicateKey": "gr. z. 36 (350)",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_2000_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_2000_Rom.xml",
+					"title": "A transcription of Romans in 2000",
+					"siglum": "129",
+					"duplicateKey": "129",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_2006_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_2006_Rom.xml",
+					"title": "A transcription of Romans in 2006",
+					"siglum": "Reg. gr. 4",
+					"duplicateKey": "reg. gr. 4",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_2012_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_2012_Rom.xml",
+					"title": "A transcription of Romans in 2012",
+					"siglum": "Saba 217",
+					"duplicateKey": "saba 217",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_206_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_206_Rom.xml",
+					"title": "A transcription of Romans in 206",
+					"siglum": "MS. 1182",
+					"duplicateKey": "ms. 1182",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_2102_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_2102_Rom.xml",
+					"title": "A transcription of Romans in 2102",
+					"siglum": "Ms. Barocci 146, fol. 1-401",
+					"duplicateKey": "ms. barocci 146, fol. 1-401",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_2105_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_2105_Rom.xml",
+					"title": "A transcription of Romans in 2105",
+					"siglum": "Ms. Auct. E. 1. 6",
+					"duplicateKey": "ms. auct. e. 1. 6",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_2110_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_2110_Rom.xml",
+					"title": "A transcription of Romans in 2110",
+					"siglum": "Gr. 702, fol. 252-434",
+					"duplicateKey": "gr. 702, fol. 252-434",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_2127_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_2127_Rom.xml",
+					"title": "A transcription of Romans in 2127",
+					"siglum": "2127",
+					"duplicateKey": "2127",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_218_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_218_Rom.xml",
+					"title": "A transcription of Romans in 218",
+					"siglum": "Theol. gr. 23, NT: fol. 486-623",
+					"duplicateKey": "theol. gr. 23, nt: fol. 486-623",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_2197_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_2197_Rom.xml",
+					"title": "A transcription of Romans in 2197",
+					"siglum": "245",
+					"duplicateKey": "245",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_2200_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_2200_Rom.xml",
+					"title": "A transcription of Romans in 2200",
+					"siglum": "79",
+					"duplicateKey": "79",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_2344_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_2344_Rom.xml",
+					"title": "A transcription of Romans in 2344",
+					"siglum": "Coislin Grec 18, fol. 170-230",
+					"duplicateKey": "coislin grec 18, fol. 170-230",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_2352_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_2352_Rom.xml",
+					"title": "A transcription of Romans in 2352",
+					"siglum": "237",
+					"duplicateKey": "237",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_2400_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_2400_Rom.xml",
+					"title": "A transcription of Romans in 2400",
+					"siglum": "Ms. 965 (Goodspeed)",
+					"duplicateKey": "ms. 965 (goodspeed)",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_2400S_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_2400S_Rom.xml",
+					"title": "A transcription of Romans in 2400S",
+					"siglum": "Ms. 965 (Goodspeed)",
+					"duplicateKey": "ms. 965 (goodspeed)",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_2464_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_2464_Rom.xml",
+					"title": "A transcription of Romans in 2464",
+					"siglum": "742",
+					"duplicateKey": "742",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_2495_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_2495_Rom.xml",
+					"title": "A transcription of Romans in 2495",
+					"siglum": "Gr. 1992",
+					"duplicateKey": "gr. 1992",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_2516_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_2516_Rom.xml",
+					"title": "A transcription of Romans in 2516",
+					"siglum": "27",
+					"duplicateKey": "27",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_2523_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_2523_Rom.xml",
+					"title": "A transcription of Romans in 2523",
+					"siglum": "EBE 2720",
+					"duplicateKey": "ebe 2720",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_2544_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_2544_Rom.xml",
+					"title": "A transcription of Romans in 2544",
+					"siglum": "Ф. № 351 /120.125",
+					"duplicateKey": "ф. № 351 /120.125",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_256_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_256_Rom.xml",
+					"title": "A transcription of Romans in 256",
+					"siglum": "Armen. 27",
+					"duplicateKey": "armen. 27",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_2576_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_2576_Rom.xml",
+					"title": "A transcription of Romans in 2576",
+					"siglum": "F. 104 sup.",
+					"duplicateKey": "f. 104 sup.",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_263_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_263_Rom.xml",
+					"title": "A transcription of Romans in 263",
+					"siglum": "Gr. 61",
+					"duplicateKey": "gr. 61",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_2659_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_2659_Rom.xml",
+					"title": "A transcription of Romans in 2659",
+					"siglum": "Μπ. 8",
+					"duplicateKey": "μπ. 8",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_2685_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_2685_Rom.xml",
+					"title": "A transcription of Romans in 2685",
+					"siglum": "3",
+					"duplicateKey": "3",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_2816S_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_2816S_Rom.xml",
+					"title": "A transcription of Romans in 2816S",
+					"siglum": "AN IV 5",
+					"duplicateKey": "an iv 5",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_2853_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_2853_Rom.xml",
+					"title": "A transcription of Romans in 2853",
+					"siglum": "VK 908",
+					"duplicateKey": "vk 908",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_2936_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_2936_Rom.xml",
+					"title": "A transcription of Romans in 2936",
+					"siglum": "122",
+					"duplicateKey": "122",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_3_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_3_Rom.xml",
+					"title": "GA 3",
+					"siglum": "Suppl. gr. 52",
+					"duplicateKey": "suppl. gr. 52",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_326_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_326_Rom.xml",
+					"title": "A transcription of Romans in 326",
+					"siglum": "Lincoln College Ms. Gr. 82",
+					"duplicateKey": "lincoln college ms. gr. 82",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_33_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_33_Rom.xml",
+					"title": "A transcription of Romans in 33",
+					"siglum": "Gr. 14",
+					"duplicateKey": "gr. 14",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_330_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_330_Rom.xml",
+					"title": "A transcription of Romans in 330",
+					"siglum": "Ф. № 906 /Gr. 101",
+					"duplicateKey": "ф. № 906 /gr. 101",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_35_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_35_Rom.xml",
+					"title": "A transcription of Romans in 35",
+					"siglum": "Coislin Grec 199",
+					"duplicateKey": "coislin grec 199",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_363_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_363_Rom.xml",
+					"title": "GA 363",
+					"siglum": "Pluteo    VI. 13",
+					"duplicateKey": "pluteo    vi. 13",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_365_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_365_Rom.xml",
+					"title": "GA 365",
+					"siglum": "Pluteo  VI. 36",
+					"duplicateKey": "pluteo  vi. 36",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_38_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_38_Rom.xml",
+					"title": "A transcription of Romans in 38",
+					"siglum": "Coislin Grec 200",
+					"duplicateKey": "coislin grec 200",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_398_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_398_Rom.xml",
+					"title": "A transcription of Romans in 398",
+					"siglum": "Ms. Kk. 6.4",
+					"duplicateKey": "ms. kk. 6.4",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_400_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_400_Rom.xml",
+					"title": "A transcription of Romans in 400",
+					"siglum": "Diez. A Duod. 10",
+					"duplicateKey": "diez. a duod. 10",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_421_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_421_Rom.xml",
+					"title": "A transcription of Romans in 421",
+					"siglum": "Theol. gr. 303",
+					"duplicateKey": "theol. gr. 303",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_424_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_424_Rom.xml",
+					"title": "A transcription of Romans in 424",
+					"siglum": "Theol. gr. 302, fol. 1-353",
+					"duplicateKey": "theol. gr. 302, fol. 1-353",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_43_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_43_Rom.xml",
+					"title": "A transcription of Romans in 43",
+					"siglum": "43",
+					"duplicateKey": "43",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_436_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_436_Rom.xml",
+					"title": "A transcription of Romans in 436",
+					"siglum": "Vat. gr. 367",
+					"duplicateKey": "vat. gr. 367",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_441_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_441_Rom.xml",
+					"title": "A transcription of Romans in 441",
+					"siglum": "Gr. 1, p. 3-182",
+					"duplicateKey": "gr. 1, p. 3-182",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_451_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_451_Rom.xml",
+					"title": "A transcription of Romans in 451",
+					"siglum": "Urb. gr. 3",
+					"duplicateKey": "urb. gr. 3",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_455_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_455_Rom.xml",
+					"title": "A transcription of Romans in 455",
+					"siglum": "Pluteo    IV. 5",
+					"duplicateKey": "pluteo    iv. 5",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_459_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_459_Rom.xml",
+					"title": "GA 459",
+					"siglum": "Pluteo IV. 32",
+					"duplicateKey": "pluteo iv. 32",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_467_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_467_Rom.xml",
+					"title": "A transcription of Romans in 467",
+					"siglum": "Gr. 59",
+					"duplicateKey": "gr. 59",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_5_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_5_Rom.xml",
+					"title": "GA 5",
+					"siglum": "Gr. 106",
+					"duplicateKey": "gr. 106",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_6_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_6_Rom.xml",
+					"title": "A transcription of Romans in 6",
+					"siglum": "Gr. 112",
+					"duplicateKey": "gr. 112",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_606_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_606_Rom.xml",
+					"title": "A transcription of Romans in 606",
+					"siglum": "Gr. 217",
+					"duplicateKey": "gr. 217",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_608_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_608_Rom.xml",
+					"title": "A transcription of Romans in 608",
+					"siglum": "Gr. 220",
+					"duplicateKey": "gr. 220",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_61_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_61_Rom.xml",
+					"title": "A transcription of Romans in 61",
+					"siglum": "MS 30",
+					"duplicateKey": "ms 30",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_621_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_621_Rom.xml",
+					"title": "A transcription of Romans in 621",
+					"siglum": "Vat. gr. 1270",
+					"duplicateKey": "vat. gr. 1270",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_623_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_623_Rom.xml",
+					"title": "A transcription of Romans in 623",
+					"siglum": "Vat. gr. 1650",
+					"duplicateKey": "vat. gr. 1650",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_629_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_629_Rom.xml",
+					"title": "A transcription of Romans in 629",
+					"siglum": "Ottob. gr. 298",
+					"duplicateKey": "ottob. gr. 298",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_630_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_630_Rom.xml",
+					"title": "GA 630",
+					"siglum": "Ottob. gr. 325",
+					"duplicateKey": "ottob. gr. 325",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_69_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_69_Rom.xml",
+					"title": "A transcription of Romans in 69",
+					"siglum": "6 D 32.1",
+					"duplicateKey": "6 d 32.1",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_81_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_81_Rom.xml",
+					"title": "A transcription of Romans in 81",
+					"siglum": "81",
+					"duplicateKey": "81",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_88_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_88_Rom.xml",
+					"title": "A transcription of Romans in 88",
+					"siglum": "Ms. II. A. 7",
+					"duplicateKey": "ms. ii. a. 7",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_886_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_886_Rom.xml",
+					"title": "A transcription of Romans in 886",
+					"siglum": "Reg. gr. 6",
+					"duplicateKey": "reg. gr. 6",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_90_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_90_Rom.xml",
+					"title": "A transcription of Romans in 90",
+					"siglum": "Remonstr. 186",
+					"duplicateKey": "remonstr. 186",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_915_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_915_Rom.xml",
+					"title": "A transcription of Romans in 915",
+					"siglum": "T. III. 12",
+					"duplicateKey": "t. iii. 12",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_basetext_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_basetext_Rom.xml",
+					"title": "The Greek Bible text of the Nestle-Aland, Novum Testamentum Graece, 28th revised edition, \n          © 2012 Deutsche Bibelgesellschaft, Stuttgart.",
+					"siglum": "",
+					"duplicateKey": "the greek bible text of the nestle-aland, novum testamentum graece, 28th revised edition, \n          © 2012 deutsche bibelgesellschaft, stuttgart.",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_L1126_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_L1126_Rom.xml",
+					"title": "A transcription of Romans in L1126",
+					"siglum": "866",
+					"duplicateKey": "866",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_L1159_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_L1159_Rom.xml",
+					"title": "A transcription of Romans in L1159",
+					"siglum": "Γ 123",
+					"duplicateKey": "γ 123",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_L1178_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_L1178_Rom.xml",
+					"title": "A transcription of Romans in L1178",
+					"siglum": "11",
+					"duplicateKey": "11",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_L1188_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_L1188_Rom.xml",
+					"title": "A transcription of Romans in L1188",
+					"siglum": "67",
+					"duplicateKey": "67",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_L1298_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_L1298_Rom.xml",
+					"title": "A transcription of Romans in L1298",
+					"siglum": "Saba 266",
+					"duplicateKey": "saba 266",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_L1440_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_L1440_Rom.xml",
+					"title": "A transcription of Romans in L1440",
+					"siglum": "Gr. 290",
+					"duplicateKey": "gr. 290",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_L156_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_L156_Rom.xml",
+					"title": "A transcription of Romans in L156",
+					"siglum": "Gr. 382",
+					"duplicateKey": "gr. 382",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_L169_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_L169_Rom.xml",
+					"title": "A transcription of Romans in L169",
+					"siglum": "Add. 32051",
+					"duplicateKey": "add. 32051",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_L2010_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_L2010_Rom.xml",
+					"title": "A transcription of Romans in L2010",
+					"siglum": "EBE 2010",
+					"duplicateKey": "ebe 2010",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_L2058_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_L2058_Rom.xml",
+					"title": "A transcription of Romans in L2058",
+					"siglum": "7",
+					"duplicateKey": "7",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_L23_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_L23_Rom.xml",
+					"title": "A transcription of Romans in L23",
+					"siglum": "Cotton Vesp. B XVIII",
+					"duplicateKey": "cotton vesp. b xviii",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_L587_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_L587_Rom.xml",
+					"title": "A transcription of Romans in L587",
+					"siglum": "EBE 205",
+					"duplicateKey": "ebe 205",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_L60_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_L60_Rom.xml",
+					"title": "A transcription of Romans in L60",
+					"siglum": "Gr. 375",
+					"duplicateKey": "gr. 375",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_L809_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_L809_Rom.xml",
+					"title": "A transcription of Romans in L809",
+					"siglum": "Gr. 286",
+					"duplicateKey": "gr. 286",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_P10_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_P10_Rom.xml",
+					"title": "A transcription of Romans in P10",
+					"siglum": "MS Gr SM2218",
+					"duplicateKey": "ms gr sm2218",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_P113_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_P113_Rom.xml",
+					"title": "A transcription of Romans in P113",
+					"siglum": "(P. Oxy. 4497)",
+					"duplicateKey": "(p. oxy. 4497)",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_P118_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_P118_Rom.xml",
+					"title": "A transcription of Romans in P118",
+					"siglum": "Inv. Nr. 10311",
+					"duplicateKey": "inv. nr. 10311",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_P131_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_P131_Rom.xml",
+					"title": "A transcription of Romans in P131",
+					"siglum": "P.Oxy. 5573",
+					"duplicateKey": "p.oxy. 5573",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_P26_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_P26_Rom.xml",
+					"title": "A transcription of Romans in P26",
+					"siglum": "Pap. 1",
+					"duplicateKey": "pap. 1",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_P27_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_P27_Rom.xml",
+					"title": "A transcription of Romans in P27",
+					"siglum": "Ms. Add. 7211",
+					"duplicateKey": "ms. add. 7211",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_P31_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_P31_Rom.xml",
+					"title": "A transcription of Romans in P31",
+					"siglum": "Gr. P. 4",
+					"duplicateKey": "gr. p. 4",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_P40_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_P40_Rom.xml",
+					"title": "A transcription of Romans in P40",
+					"siglum": "P. Heid. Inv. G. 645",
+					"duplicateKey": "p. heid. inv. g. 645",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_P46_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_P46_Rom.xml",
+					"title": "A transcription of Romans in P46",
+					"siglum": "CBL BP II",
+					"duplicateKey": "cbl bp ii",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_P61_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_P61_Rom.xml",
+					"title": "A transcription of Romans in P61",
+					"siglum": "Colt Pap. 5.1-4",
+					"duplicateKey": "colt pap. 5.1-4",
+					"isSupported": true
+				},
+				{
+					"directory": "Romans_Greek_transcriptions",
+					"fileName": "NT_GRC_P94_Rom.xml",
+					"path": "Romans_Greek_transcriptions/NT_GRC_P94_Rom.xml",
+					"title": "A transcription of Romans in P94",
+					"siglum": "P. Cair. 10730",
+					"duplicateKey": "p. cair. 10730",
+					"isSupported": true
+				}
+			]
+		}
+	]
+}

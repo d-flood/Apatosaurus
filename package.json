@@ -1,0 +1,19 @@
+{
+	"private": true,
+	"packageManager": "bun@1",
+	"workspaces": [
+		"app",
+		"triiiceratops",
+		"packages/tei-transcription",
+		"collatex/collatex-tsport",
+		"djazzkit/packages/create-djazzkit",
+		"djazzkit/packages/core",
+		"djazzkit/packages/react",
+		"djazzkit/packages/svelte",
+		"djazzkit/tests/integration",
+		"djazzkit/demos/todo/frontend-svelte"
+	],
+	"dependencies": {
+		"tsx": "^4.20.6"
+	}
+}
