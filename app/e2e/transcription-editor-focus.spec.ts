@@ -257,3 +257,36 @@ test('typing after creating a new transcription with multiple framed pages stays
 		)
 	).not.toContainText('ab');
 });
+
+test('insert page popover blocks duplicate page names', async ({ page }) => {
+	await createBlankTranscription(page);
+	await insertFramedPage(page, '001r');
+
+	await page.locator('[aria-label="Insert Page"]').click();
+	const popover = page.locator('[id$="popover-insert-page"]');
+	await expect(popover).toBeVisible();
+	await popover.locator('input[placeholder="e.g. 123r"]').fill('001r');
+
+	await expect(popover).toContainText('Page names must be unique.');
+	await expect(popover.getByRole('button', { name: 'Standard Page' })).toBeDisabled();
+	await expect(popover.getByRole('button', { name: 'Framed Page (Catena)' })).toBeDisabled();
+	await expect(page.locator('[data-page-id]')).toHaveCount(1);
+});
+
+test('metadata dialog blocks renaming a page to a duplicate name', async ({ page }) => {
+	await createBlankTranscription(page);
+	await insertFramedPage(page, '001r');
+	await insertFramedPage(page, '001v');
+
+	await page.locator('[aria-label="Open transcription metadata modal"]').click();
+	const dialog = page.locator('#transcription-metadata-modal[open]');
+	await expect(dialog).toBeVisible();
+	await dialog.getByText('Page Metadata (2 pages)').click();
+
+	const pageNameInputs = dialog.locator('input[placeholder="Page name (e.g. 123r)"]');
+	await pageNameInputs.nth(1).fill('001r');
+
+	await expect(dialog).toContainText('Page names must be unique.');
+	await expect(page.locator('[data-page-id]').nth(0)).toHaveAttribute('data-page-name', '001r');
+	await expect(page.locator('[data-page-id]').nth(1)).toHaveAttribute('data-page-name', '001v');
+});

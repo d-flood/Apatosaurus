@@ -17,7 +17,7 @@
 		transcription: TranscriptionRecord | undefined | null;
 		canonicalDocument: StoredTranscriptionDocument;
 		pages: PageEditorMetadata[];
-		onUpdatePageName: (pos: number, newName: string) => void;
+		onUpdatePageName: (pos: number, newName: string) => boolean;
 		onDeletePage: (pos: number) => void;
 		onUpdatePageFormWork: (
 			pagePos: number,
@@ -38,6 +38,8 @@
 		onSaveTranscription,
 	}: Props = $props();
 	let editMode = $state(false);
+	let pageNameDrafts = $state<Record<string, string>>({});
+	let pageNameErrors = $state<Record<string, string>>({});
 
 	const tags = $derived(parseTranscriptionTags(transcription?.tags));
 	const teiHeader = $derived(canonicalDocument.header);
@@ -112,6 +114,60 @@
 
 		onDeletePage(page.pos);
 	}
+
+	function normalizePageName(name: string | null | undefined): string {
+		return name?.trim().toLowerCase() ?? '';
+	}
+
+	function pageNameIsDuplicate(page: PageEditorMetadata, value: string): boolean {
+		const normalizedName = normalizePageName(value);
+		if (!normalizedName) return false;
+
+		return pages.some(
+			candidate =>
+				candidate.pageId !== page.pageId &&
+				normalizePageName(candidate.pageName) === normalizedName
+		);
+	}
+
+	function pageNameValue(page: PageEditorMetadata): string {
+		return pageNameDrafts[page.pageId] ?? page.pageName ?? '';
+	}
+
+	function handlePageNameInput(page: PageEditorMetadata, value: string) {
+		pageNameDrafts[page.pageId] = value;
+		const updated = onUpdatePageName(page.pos, value);
+		pageNameErrors[page.pageId] = updated ? '' : 'Page names must be unique.';
+		if (updated) {
+			delete pageNameDrafts[page.pageId];
+		}
+	}
+
+	$effect(() => {
+		const pageIds = new Set(pages.map(page => page.pageId));
+
+		for (const pageId of Object.keys(pageNameDrafts)) {
+			if (!pageIds.has(pageId)) {
+				delete pageNameDrafts[pageId];
+			}
+		}
+
+		for (const pageId of Object.keys(pageNameErrors)) {
+			if (!pageIds.has(pageId)) {
+				delete pageNameErrors[pageId];
+			}
+		}
+
+		for (const page of pages) {
+			if (!pageNameErrors[page.pageId]) continue;
+
+			const draftValue = pageNameDrafts[page.pageId] ?? page.pageName ?? '';
+			if (!pageNameIsDuplicate(page, draftValue)) {
+				pageNameErrors[page.pageId] = '';
+				delete pageNameDrafts[page.pageId];
+			}
+		}
+	});
 </script>
 
 <dialog id="transcription-metadata-modal" class="modal">
@@ -287,12 +343,21 @@
 									<span class="text-sm text-gray-600 w-28">Page name</span>
 									<input
 										type="text"
-										value={page.pageName || ''}
-										oninput={e => onUpdatePageName(page.pos, e.currentTarget.value)}
+										value={pageNameValue(page)}
+										oninput={e => handlePageNameInput(page, e.currentTarget.value)}
 										placeholder="Page name (e.g. 123r)"
-										class="rounded px-3 py-1 border border-gray-300 flex-1"
+										aria-invalid={Boolean(pageNameErrors[page.pageId])}
+										class={[
+											'rounded px-3 py-1 border flex-1',
+											pageNameErrors[page.pageId]
+												? 'border-error'
+												: 'border-gray-300',
+										]}
 									/>
 								</div>
+								{#if pageNameErrors[page.pageId]}
+									<p class="-mt-1 text-xs text-error">{pageNameErrors[page.pageId]}</p>
+								{/if}
 								<div class="flex gap-2 items-center">
 									<span class="text-sm text-gray-600 w-28">Page label</span>
 									<input

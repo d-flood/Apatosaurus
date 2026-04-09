@@ -51,6 +51,7 @@
 		editor: Editor | null;
 		idPrefix?: string;
 		pageName: string;
+		pageNameDuplicate?: boolean;
 		hasPage: boolean;
 		exportLoading: boolean;
 		showPageNameInput?: boolean;
@@ -103,6 +104,7 @@
 		editor,
 		idPrefix = 'editor-toolbar',
 		pageName,
+		pageNameDuplicate = false,
 		hasPage,
 		exportLoading,
 		showPageNameInput = true,
@@ -305,9 +307,9 @@
 				data-group-position={position}
 				type="text"
 				bind:value={pageName}
-				onchange={e => onPageNameChange((e.target as HTMLInputElement).value)}
+				oninput={e => onPageNameChange((e.target as HTMLInputElement).value)}
 				placeholder="Page name (e.g. 123r)"
-				class="input join-item"
+				class={['input join-item', pageNameDuplicate && 'input-error']}
 			/>
 		{:else if item === 'insert-page'}
 			<div
@@ -338,10 +340,14 @@
 							<input
 								type="text"
 								bind:value={pageName}
-								onchange={e => onPageNameChange((e.target as HTMLInputElement).value)}
+								oninput={e => onPageNameChange((e.target as HTMLInputElement).value)}
 								placeholder="e.g. 123r"
+								aria-invalid={pageNameDuplicate}
 							/>
 						</label>
+						{#if pageNameDuplicate}
+							<p class="mb-2 text-xs text-warning">Page names must be unique.</p>
+						{/if}
 					{/if}
 					<button
 						onclick={() => {
@@ -352,7 +358,7 @@
 							if (popover?.hidePopover) popover.hidePopover();
 						}}
 						class="btn btn-sm btn-neutral mb-1 w-full rounded-field"
-						disabled={!pageName.trim()}
+						disabled={!pageName.trim() || pageNameDuplicate}
 					>
 						<BookOpenText size={16} />
 						Standard Page
@@ -367,7 +373,7 @@
 								if (popover?.hidePopover) popover.hidePopover();
 							}}
 							class="btn btn-sm btn-neutral w-full rounded-field"
-							disabled={!pageName.trim()}
+							disabled={!pageName.trim() || pageNameDuplicate}
 						>
 							<BookOpenText size={16} />
 							Framed Page (Catena)

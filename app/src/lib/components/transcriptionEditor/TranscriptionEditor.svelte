@@ -175,6 +175,40 @@ import {
 		}
 		return `${prefix}-${Math.random().toString(36).slice(2, 12)}`;
 	}
+
+	function normalizePageName(name: string | null | undefined): string {
+		return name?.trim().toLowerCase() ?? '';
+	}
+
+	function pageNameExists(name: string, excludedPagePos?: number): boolean {
+		const normalizedName = normalizePageName(name);
+		if (!normalizedName) return false;
+
+		const editor = editorState.editor;
+		if (!editor) {
+			return pages.some(
+				page => page.pos !== excludedPagePos && normalizePageName(page.pageName) === normalizedName
+			);
+		}
+
+		let duplicateFound = false;
+		editor.state.doc.descendants((node, pos) => {
+			if (node.type.name !== 'page' || pos === excludedPagePos) {
+				return true;
+			}
+
+			if (normalizePageName(node.attrs.pageName) === normalizedName) {
+				duplicateFound = true;
+				return false;
+			}
+
+			return true;
+		});
+
+		return duplicateFound;
+	}
+
+	const pageNameDuplicate = $derived(pageNameExists(pageName));
 	// Helper function to check if document has pages
 	function checkForPages(editor: Editor | null): boolean {
 		if (!editor) return false;
@@ -400,8 +434,10 @@ import {
 		}
 	});
 
-	function updatePageName(pos: number, newName: string) {
-		if (!editorState.editor) return;
+	function updatePageName(pos: number, newName: string): boolean {
+		if (!editorState.editor) return false;
+		if (pageNameExists(newName, pos)) return false;
+
 		editorState.editor
 			.chain()
 			.command(({ tr, state }) => {
@@ -415,6 +451,8 @@ import {
 				return true;
 			})
 			.run();
+
+		return true;
 	}
 
 	function deletePage(pagePos: number) {
@@ -795,7 +833,7 @@ import {
 
 	function insertPage() {
 		const editor = editorState.editor;
-		if (!editor) return;
+		if (!editor || pageNameExists(pageName)) return;
 
 		editor.commands.insertContent({
 			type: 'page',
@@ -834,7 +872,7 @@ import {
 
 	function insertFramedPage() {
 		const editor = editorState.editor;
-		if (!editor) return;
+		if (!editor || pageNameExists(pageName)) return;
 
 		const zones = ['top', 'left', 'right', 'bottom', 'center'] as const;
 		const columns = zones.map((zone, i) => ({
@@ -1340,6 +1378,7 @@ import {
 					editor={editorState.editor}
 					idPrefix="main-editor-toolbar"
 					{pageName}
+					{pageNameDuplicate}
 					{hasPage}
 					{exportLoading}
 					{cursorPosition}
