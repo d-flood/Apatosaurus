@@ -7,6 +7,7 @@
 	import type { StoredTranscriptionDocument } from '$lib/client/transcription/content';
 	import TranscriptionForm from '$lib/components/TranscriptionForm.svelte';
 	import BookmarkSimple from 'phosphor-svelte/lib/BookmarkSimple';
+	import Trash from 'phosphor-svelte/lib/Trash';
 	import FlagBanner from 'phosphor-svelte/lib/FlagBanner';
 	import { PanelTop } from 'lucide-svelte';
 	import type { PageEditorMetadata } from './pageFormwork';
@@ -17,6 +18,7 @@
 		canonicalDocument: StoredTranscriptionDocument;
 		pages: PageEditorMetadata[];
 		onUpdatePageName: (pos: number, newName: string) => void;
+		onDeletePage: (pos: number) => void;
 		onUpdatePageFormWork: (
 			pagePos: number,
 			kind: 'pageLabel' | 'runningTitle' | 'catchword' | 'quireSignature',
@@ -30,6 +32,7 @@
 		canonicalDocument,
 		pages,
 		onUpdatePageName,
+		onDeletePage,
 		onUpdatePageFormWork,
 		data,
 		onSaveTranscription,
@@ -99,6 +102,15 @@
 	function summarizeXml(xml: string, maxLength: number = 180): string {
 		const compact = xml.replace(/\s+/g, ' ').trim();
 		return compact.length > maxLength ? `${compact.slice(0, maxLength)}...` : compact;
+	}
+
+	function confirmDeletePage(page: PageEditorMetadata) {
+		const pageLabel = page.pageName?.trim() || `Page ${page.pageOrder}`;
+		if (!window.confirm(`Remove ${pageLabel}? This cannot be undone.`)) {
+			return;
+		}
+
+		onDeletePage(page.pos);
 	}
 </script>
 
@@ -258,9 +270,19 @@
 						>Page Metadata ({pages.length} pages)</summary
 					>
 					<div class="collapse-content text-sm">
-						{#each pages as page, index}
+						{#each pages as page, index (page.pageId)}
 							<div class="rounded border border-base-300 p-3 space-y-3">
-								<div class="font-semibold text-sm">Page {index + 1}</div>
+								<div class="flex items-start justify-between gap-3">
+									<div class="font-semibold text-sm">Page {index + 1}</div>
+									<button
+										type="button"
+										class="btn btn-sm btn-outline btn-error"
+										onclick={() => confirmDeletePage(page)}
+									>
+										<Trash size={14} />
+										Remove page
+									</button>
+								</div>
 								<div class="flex gap-2 items-center">
 									<span class="text-sm text-gray-600 w-28">Page name</span>
 									<input

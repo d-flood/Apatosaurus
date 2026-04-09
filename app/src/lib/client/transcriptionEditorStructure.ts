@@ -1,4 +1,4 @@
-import type { EditorState, Transaction } from '@tiptap/pm/state';
+import { TextSelection, type EditorState, type Transaction } from '@tiptap/pm/state';
 
 const MAIN_LINE_CONTENT_NODE_NAMES = new Set([
 	'text',
@@ -19,6 +19,22 @@ const MAIN_LINE_CONTENT_NODE_NAMES = new Set([
 ]);
 
 type JsonNode = Record<string, any>;
+
+const FRAMED_PAGE_DOCUMENT_ZONE_ORDER = ['top', 'left', 'right', 'bottom', 'center'] as const;
+
+interface ManuscriptRepairOptions {
+	framedPageZoneOrder?: 'preserve' | 'visual';
+	ensureNodeIds?: boolean;
+}
+
+export const LINE_SPLIT_TARGET_LINE_ID_META = 'lineSplitTargetLineId';
+
+function createStableEditorNodeId(prefix: string): string {
+	if (typeof crypto?.randomUUID === 'function') {
+		return `${prefix}-${crypto.randomUUID()}`;
+	}
+	return `${prefix}-${Math.random().toString(36).slice(2, 12)}`;
+}
 
 export interface ManuscriptStructureRepairResult {
 	doc: JsonNode;
@@ -42,23 +58,60 @@ function isRecord(value: unknown): value is JsonNode {
 }
 
 function isAllowedMainLineContentNode(node: unknown): node is JsonNode {
-	return isRecord(node) && typeof node.type === 'string' && MAIN_LINE_CONTENT_NODE_NAMES.has(node.type);
+	return (
+		isRecord(node) &&
+		typeof node.type === 'string' &&
+		MAIN_LINE_CONTENT_NODE_NAMES.has(node.type)
+	);
 }
 
-function buildEmptyLine(lineNumber: number): JsonNode {
+function buildEmptyLine(lineNumber: number, ensureNodeIds = false): JsonNode {
 	return {
 		type: 'line',
-		attrs: { lineNumber },
-		content: [],
+		attrs: {
+			lineNumber,
+			...(ensureNodeIds ? { lineId: createStableEditorNodeId('line') } : {}),
+		},
 	};
 }
 
-function buildEmptyColumn(columnNumber: number): JsonNode {
+function buildEmptyColumn(columnNumber: number, ensureNodeIds = false): JsonNode {
 	return {
 		type: 'column',
-		attrs: { columnNumber },
-		content: [buildEmptyLine(1)],
+		attrs: {
+			columnNumber,
+			...(ensureNodeIds ? { columnId: createStableEditorNodeId('col') } : {}),
+		},
+		content: [buildEmptyLine(1, ensureNodeIds)],
 	};
+}
+
+function getFrameZoneRank(column: JsonNode): number {
+	const zone = isRecord(column.attrs) ? column.attrs.zone : null;
+	const rank =
+		typeof zone === 'string'
+			? FRAMED_PAGE_DOCUMENT_ZONE_ORDER.indexOf(
+					zone as (typeof FRAMED_PAGE_DOCUMENT_ZONE_ORDER)[number]
+				)
+			: -1;
+	return rank === -1 ? Number.MAX_SAFE_INTEGER : rank;
+}
+
+function orderFramedPageColumns(columns: JsonNode[], path: string, issues: string[]): JsonNode[] {
+	if (columns.length < 2) return columns;
+
+	const zonedColumns = columns.filter(
+		column => isRecord(column.attrs) && typeof column.attrs.zone === 'string'
+	);
+	if (zonedColumns.length !== columns.length) return columns;
+
+	const sortedColumns = [...columns].sort((a, b) => getFrameZoneRank(a) - getFrameZoneRank(b));
+	if (sortedColumns.every((column, index) => column === columns[index])) {
+		return columns;
+	}
+
+	issues.push(`${path}: reordered framed page columns to match visual zone order`);
+	return sortedColumns;
 }
 
 function sanitizeLineContentNode(node: JsonNode): JsonNode | null {
@@ -80,7 +133,9 @@ function sanitizeLineNode(node: JsonNode, issues: string[], path: string): JsonN
 		.map(child => {
 			const sanitized = sanitizeLineContentNode(child);
 			if (sanitized) return sanitized;
-			issues.push(`${path}: dropped invalid line child ${String((child as JsonNode)?.type || '[unknown]')}`);
+			issues.push(
+				`${path}: dropped invalid line child ${String((child as JsonNode)?.type || '[unknown]')}`
+			);
 			return null;
 		})
 		.filter((child): child is JsonNode => child !== null);
@@ -88,29 +143,42 @@ function sanitizeLineNode(node: JsonNode, issues: string[], path: string): JsonN
 	return {
 		...cloneJsonNode(node),
 		type: 'line',
-		content,
+		...(content.length > 0 ? { content } : {}),
 	};
 }
 
 function wrapRecoveredLineContent(
 	content: JsonNode[],
 	columnNumber: number,
-	lineNumber: number
+	lineNumber: number,
+	ensureNodeIds = false
 ): JsonNode {
 	return {
 		type: 'column',
-		attrs: { columnNumber },
+		attrs: {
+			columnNumber,
+			...(ensureNodeIds ? { columnId: createStableEditorNodeId('col') } : {}),
+		},
 		content: [
 			{
 				type: 'line',
-				attrs: { lineNumber },
+				attrs: {
+					lineNumber,
+					...(ensureNodeIds ? { lineId: createStableEditorNodeId('line') } : {}),
+				},
 				content,
 			},
 		],
 	};
 }
 
-function repairColumnNode(node: JsonNode, columnNumber: number, issues: string[], path: string): JsonNode {
+function repairColumnNode(
+	node: JsonNode,
+	columnNumber: number,
+	issues: string[],
+	path: string,
+	options: ManuscriptRepairOptions
+): JsonNode {
 	const rawChildren = Array.isArray(node.content) ? node.content : [];
 	const lines: JsonNode[] = [];
 	let recoveredLineContent: JsonNode[] = [];
@@ -119,7 +187,10 @@ function repairColumnNode(node: JsonNode, columnNumber: number, issues: string[]
 		if (recoveredLineContent.length === 0) return;
 		lines.push({
 			type: 'line',
-			attrs: { lineNumber: lines.length + 1 },
+			attrs: {
+				lineNumber: lines.length + 1,
+				...(options.ensureNodeIds ? { lineId: createStableEditorNodeId('line') } : {}),
+			},
 			content: recoveredLineContent,
 		});
 		recoveredLineContent = [];
@@ -141,13 +212,15 @@ function repairColumnNode(node: JsonNode, columnNumber: number, issues: string[]
 			continue;
 		}
 
-		issues.push(`${path}: dropped invalid column child ${String((child as JsonNode)?.type || '[unknown]')}`);
+		issues.push(
+			`${path}: dropped invalid column child ${String((child as JsonNode)?.type || '[unknown]')}`
+		);
 	}
 
 	flushRecoveredLineContent();
 
 	if (lines.length === 0) {
-		lines.push(buildEmptyLine(1));
+		lines.push(buildEmptyLine(1, options.ensureNodeIds));
 		issues.push(`${path}: inserted empty line into column with no valid line children`);
 	}
 
@@ -157,32 +230,58 @@ function repairColumnNode(node: JsonNode, columnNumber: number, issues: string[]
 		attrs: {
 			...(isRecord(node.attrs) ? cloneJsonNode(node.attrs) : {}),
 			columnNumber,
+			...(options.ensureNodeIds && !node.attrs?.columnId
+				? { columnId: createStableEditorNodeId('col') }
+				: {}),
 		},
 		content: lines.map((line, lineIndex) => ({
 			...line,
 			attrs: {
 				...(isRecord(line.attrs) ? cloneJsonNode(line.attrs) : {}),
 				lineNumber: lineIndex + 1,
+				...(options.ensureNodeIds && !line.attrs?.lineId
+					? { lineId: createStableEditorNodeId('line') }
+					: {}),
 			},
 		})),
 	};
 }
 
-function repairPageNode(node: JsonNode, issues: string[], path: string): JsonNode {
+function repairPageNode(
+	node: JsonNode,
+	issues: string[],
+	path: string,
+	options: ManuscriptRepairOptions
+): JsonNode {
 	const rawChildren = Array.isArray(node.content) ? node.content : [];
 	const columns: JsonNode[] = [];
 	let recoveredLineContent: JsonNode[] = [];
 
 	const flushRecoveredColumn = () => {
 		if (recoveredLineContent.length === 0) return;
-		columns.push(wrapRecoveredLineContent(recoveredLineContent, columns.length + 1, 1));
+		columns.push(
+			wrapRecoveredLineContent(
+				recoveredLineContent,
+				columns.length + 1,
+				1,
+				options.ensureNodeIds
+			)
+		);
 		recoveredLineContent = [];
 	};
 
 	for (const child of rawChildren) {
 		if (isRecord(child) && child.type === 'column') {
 			flushRecoveredColumn();
-			columns.push(repairColumnNode(child, columns.length + 1, issues, `${path}.column[${columns.length}]`));
+			columns.push(
+				repairColumnNode(
+					child,
+					columns.length + 1,
+					issues,
+					`${path}.column[${columns.length}]`,
+					options
+				)
+			);
 			continue;
 		}
 
@@ -190,7 +289,10 @@ function repairPageNode(node: JsonNode, issues: string[], path: string): JsonNod
 			flushRecoveredColumn();
 			columns.push({
 				type: 'column',
-				attrs: { columnNumber: columns.length + 1 },
+				attrs: {
+					columnNumber: columns.length + 1,
+					...(options.ensureNodeIds ? { columnId: createStableEditorNodeId('col') } : {}),
+				},
 				content: [sanitizeLineNode(child, issues, `${path}.syntheticColumn.line[0]`)],
 			});
 			issues.push(`${path}: wrapped stray line into a synthetic column`);
@@ -201,36 +303,60 @@ function repairPageNode(node: JsonNode, issues: string[], path: string): JsonNod
 			const sanitized = sanitizeLineContentNode(child);
 			if (sanitized) {
 				recoveredLineContent.push(sanitized);
-				issues.push(`${path}: wrapped stray ${child.type} node into a synthetic column/line`);
+				issues.push(
+					`${path}: wrapped stray ${child.type} node into a synthetic column/line`
+				);
 			}
 			continue;
 		}
 
-		issues.push(`${path}: dropped invalid page child ${String((child as JsonNode)?.type || '[unknown]')}`);
+		issues.push(
+			`${path}: dropped invalid page child ${String((child as JsonNode)?.type || '[unknown]')}`
+		);
 	}
 
 	flushRecoveredColumn();
 
 	if (columns.length === 0) {
-		columns.push(buildEmptyColumn(1));
+		columns.push(buildEmptyColumn(1, options.ensureNodeIds));
 		issues.push(`${path}: inserted empty column into page with no valid columns`);
 	}
+
+	const orderedColumns =
+		options.framedPageZoneOrder === 'visual'
+			? orderFramedPageColumns(columns, path, issues)
+			: columns;
 
 	return {
 		...cloneJsonNode(node),
 		type: 'page',
-		content: columns.map((column, columnIndex) =>
-			repairColumnNode(column, columnIndex + 1, issues, `${path}.column[${columnIndex}]`)
+		content: orderedColumns.map((column, columnIndex) =>
+			repairColumnNode(
+				column,
+				columnIndex + 1,
+				issues,
+				`${path}.column[${columnIndex}]`,
+				options
+			)
 		),
 	};
 }
 
-export function repairManuscriptStructureJson(input: unknown): ManuscriptStructureRepairResult {
+export function repairManuscriptStructureJson(
+	input: unknown,
+	options: ManuscriptRepairOptions = {}
+): ManuscriptStructureRepairResult {
+	const normalizedOptions: Required<ManuscriptRepairOptions> = {
+		framedPageZoneOrder: options.framedPageZoneOrder ?? 'preserve',
+		ensureNodeIds: options.ensureNodeIds ?? false,
+	};
 	const issues: string[] = [];
 	const doc = isRecord(input) ? cloneJsonNode(input) : { type: 'manuscript', content: [] };
 
 	if (doc.type !== 'manuscript') {
-		issues.push(`root: expected manuscript but found ${String(doc.type || '[unknown]')}; reset to empty manuscript`);
+		issues.push(
+			`root: expected manuscript but found ${String(doc.type || '[unknown]')}; reset to empty manuscript`
+		);
 		return {
 			doc: { type: 'manuscript', content: [] },
 			repaired: true,
@@ -247,7 +373,14 @@ export function repairManuscriptStructureJson(input: unknown): ManuscriptStructu
 		pages.push({
 			type: 'page',
 			attrs: {},
-			content: [wrapRecoveredLineContent(recoveredLineContent, 1, 1)],
+			content: [
+				wrapRecoveredLineContent(
+					recoveredLineContent,
+					1,
+					1,
+					normalizedOptions.ensureNodeIds
+				),
+			],
 		});
 		recoveredLineContent = [];
 	};
@@ -255,7 +388,7 @@ export function repairManuscriptStructureJson(input: unknown): ManuscriptStructu
 	for (const child of rawPages) {
 		if (isRecord(child) && child.type === 'page') {
 			flushRecoveredPage();
-			pages.push(repairPageNode(child, issues, `page[${pages.length}]`));
+			pages.push(repairPageNode(child, issues, `page[${pages.length}]`, normalizedOptions));
 			continue;
 		}
 
@@ -264,7 +397,15 @@ export function repairManuscriptStructureJson(input: unknown): ManuscriptStructu
 			pages.push({
 				type: 'page',
 				attrs: {},
-				content: [repairColumnNode(child, 1, issues, `page[${pages.length}].column[0]`)],
+				content: [
+					repairColumnNode(
+						child,
+						1,
+						issues,
+						`page[${pages.length}].column[0]`,
+						normalizedOptions
+					),
+				],
 			});
 			issues.push(`root: wrapped stray column into a synthetic page`);
 			continue;
@@ -278,8 +419,28 @@ export function repairManuscriptStructureJson(input: unknown): ManuscriptStructu
 				content: [
 					{
 						type: 'column',
-						attrs: { columnNumber: 1 },
-						content: [sanitizeLineNode(child, issues, `page[${pages.length}].column[0].line[0]`)],
+						attrs: {
+							columnNumber: 1,
+							...(normalizedOptions.ensureNodeIds
+								? { columnId: createStableEditorNodeId('col') }
+								: {}),
+						},
+						content: [
+							{
+								...sanitizeLineNode(
+									child,
+									issues,
+									`page[${pages.length}].column[0].line[0]`
+								),
+								attrs: {
+									...(isRecord(child.attrs) ? cloneJsonNode(child.attrs) : {}),
+									lineNumber: 1,
+									...(normalizedOptions.ensureNodeIds
+										? { lineId: createStableEditorNodeId('line') }
+										: {}),
+								},
+							},
+						],
 					},
 				],
 			});
@@ -291,12 +452,16 @@ export function repairManuscriptStructureJson(input: unknown): ManuscriptStructu
 			const sanitized = sanitizeLineContentNode(child);
 			if (sanitized) {
 				recoveredLineContent.push(sanitized);
-				issues.push(`root: wrapped stray ${child.type} node into a synthetic page/column/line`);
+				issues.push(
+					`root: wrapped stray ${child.type} node into a synthetic page/column/line`
+				);
 			}
 			continue;
 		}
 
-		issues.push(`root: dropped invalid manuscript child ${String((child as JsonNode)?.type || '[unknown]')}`);
+		issues.push(
+			`root: dropped invalid manuscript child ${String((child as JsonNode)?.type || '[unknown]')}`
+		);
 	}
 
 	flushRecoveredPage();
@@ -382,29 +547,207 @@ export function createColumnSplitTransaction(state: EditorState): Transaction | 
 	const firstColumnLines = [...linesBefore, firstLine];
 	const secondColumnLines = [secondLine, ...linesAfter];
 
-	const nextColumnNumber = Math.max(
-		0,
-		...state.doc.content.content.flatMap(pageNode =>
-			pageNode.type.name === 'page'
-				? pageNode.content.content
-						.filter(columnNode => columnNode.type.name === 'column')
-						.map(columnNode => Number(columnNode.attrs?.columnNumber) || 0)
-				: []
-		)
-	) + 1;
+	const nextColumnNumber =
+		Math.max(
+			0,
+			...state.doc.content.content.flatMap(pageNode =>
+				pageNode.type.name === 'page'
+					? pageNode.content.content
+							.filter(columnNode => columnNode.type.name === 'column')
+							.map(columnNode => Number(columnNode.attrs?.columnNumber) || 0)
+					: []
+			)
+		) + 1;
 
 	const newFirstColumn = state.schema.nodes.column.create(
 		{ ...columnNode.attrs },
-		firstColumnLines.length > 0 ? firstColumnLines : [state.schema.nodes.line.create({ lineNumber: 1 })]
+		firstColumnLines.length > 0
+			? firstColumnLines
+			: [state.schema.nodes.line.create({ lineNumber: 1 })]
 	);
 	const newSecondColumn = state.schema.nodes.column.create(
 		{ columnNumber: nextColumnNumber, columnId: null },
-		secondColumnLines.length > 0 ? secondColumnLines : [state.schema.nodes.line.create({ lineNumber: 1 })]
+		secondColumnLines.length > 0
+			? secondColumnLines
+			: [state.schema.nodes.line.create({ lineNumber: 1 })]
 	);
 
-	return state.tr.replaceWith(
-		columnPos,
-		columnPos + columnNode.nodeSize,
-		[newFirstColumn, newSecondColumn]
+	return state.tr.replaceWith(columnPos, columnPos + columnNode.nodeSize, [
+		newFirstColumn,
+		newSecondColumn,
+	]);
+}
+
+export function createLineSplitTransaction(state: EditorState): Transaction | null {
+	const { selection } = state;
+	const resolvedFrom = selection.$from;
+	const resolvedTo = selection.$to;
+
+	let lineDepth = -1;
+	for (let depth = resolvedFrom.depth; depth >= 0; depth--) {
+		if (resolvedFrom.node(depth).type.name === 'line') {
+			lineDepth = depth;
+			break;
+		}
+	}
+	if (lineDepth === -1) return null;
+
+	let columnDepth = -1;
+	for (let depth = lineDepth - 1; depth >= 0; depth--) {
+		if (resolvedFrom.node(depth).type.name === 'column') {
+			columnDepth = depth;
+			break;
+		}
+	}
+	if (columnDepth === -1) return null;
+
+	const lineStart = resolvedFrom.start(lineDepth);
+	const lineEnd = resolvedFrom.end(lineDepth);
+	if (
+		selection.from < lineStart ||
+		selection.to > lineEnd ||
+		resolvedTo.start(lineDepth) !== lineStart
+	) {
+		return null;
+	}
+
+	const currentLine = resolvedFrom.node(lineDepth);
+	const columnNode = resolvedFrom.node(columnDepth);
+	const linePos = resolvedFrom.before(lineDepth);
+	const currentLineIndex = resolvedFrom.index(lineDepth - 1);
+	const beforeOffset = selection.from - lineStart;
+	const afterOffset = selection.to - lineStart;
+
+	const linesBefore: any[] = [];
+	const linesAfter: any[] = [];
+	columnNode.forEach((child, _offset, index) => {
+		if (child.type.name !== 'line') return;
+		if (index < currentLineIndex) {
+			linesBefore.push(child);
+			return;
+		}
+		if (index > currentLineIndex) {
+			linesAfter.push(child);
+		}
+	});
+
+	const firstLine = currentLine.type.create(
+		{ ...currentLine.attrs },
+		currentLine.content.cut(0, beforeOffset)
 	);
+	const secondLine = currentLine.type.create(
+		{
+			...currentLine.attrs,
+			lineId: createStableEditorNodeId('line'),
+			wrapped: false,
+			'paragraph-start': false,
+		},
+		currentLine.content.cut(afterOffset, currentLine.content.size)
+	);
+
+	const replacement = [...linesBefore, firstLine, secondLine, ...linesAfter].map((line, index) =>
+		line.type.create(
+			{
+				...line.attrs,
+				lineNumber: index + 1,
+				lineId: line.attrs.lineId || createStableEditorNodeId('line'),
+			},
+			line.content
+		)
+	);
+	const tr = state.tr.replaceWith(linePos, linePos + currentLine.nodeSize, replacement);
+	const secondLinePos = linePos + firstLine.nodeSize;
+	tr.setMeta(LINE_SPLIT_TARGET_LINE_ID_META, secondLine.attrs.lineId);
+	tr.setSelection(TextSelection.near(tr.doc.resolve(secondLinePos + 1)));
+	return tr;
+}
+
+export function createEmptyLineInsertTransaction(state: EditorState): Transaction | null {
+	const { selection } = state;
+	if (!selection.empty) return null;
+
+	const resolvedFrom = selection.$from;
+
+	let lineDepth = -1;
+	for (let depth = resolvedFrom.depth; depth >= 0; depth--) {
+		if (resolvedFrom.node(depth).type.name === 'line') {
+			lineDepth = depth;
+			break;
+		}
+	}
+	if (lineDepth === -1) return null;
+
+	let columnDepth = -1;
+	for (let depth = lineDepth - 1; depth >= 0; depth--) {
+		if (resolvedFrom.node(depth).type.name === 'column') {
+			columnDepth = depth;
+			break;
+		}
+	}
+	if (columnDepth === -1) return null;
+
+	const currentLine = resolvedFrom.node(lineDepth);
+	if (currentLine.content.size > 0) return null;
+
+	const columnPos = resolvedFrom.before(columnDepth);
+	const linePosFallback = resolvedFrom.before(lineDepth);
+	const currentLineId = currentLine.attrs?.lineId;
+	const columnNode = resolvedFrom.node(columnDepth);
+	let currentLinePos = -1;
+
+	columnNode.forEach((child, offset) => {
+		if (currentLinePos !== -1 || child.type.name !== 'line') return;
+		const childPos = columnPos + 1 + offset;
+		if (
+			(currentLineId && child.attrs?.lineId === currentLineId) ||
+			childPos === linePosFallback
+		) {
+			currentLinePos = childPos;
+		}
+	});
+	if (currentLinePos === -1) return null;
+
+	const preservedLine = currentLine.type.create({ ...currentLine.attrs }, currentLine.content);
+	const insertedLine = currentLine.type.create(
+		{
+			...currentLine.attrs,
+			lineId: createStableEditorNodeId('line'),
+			wrapped: false,
+			'paragraph-start': false,
+		},
+		currentLine.content.cut(0, 0)
+	);
+
+	const tr = state.tr.replaceWith(currentLinePos, currentLinePos + currentLine.nodeSize, [
+		preservedLine,
+		insertedLine,
+	]);
+	tr.setMeta(LINE_SPLIT_TARGET_LINE_ID_META, insertedLine.attrs.lineId);
+	tr.setSelection(
+		TextSelection.near(tr.doc.resolve(currentLinePos + preservedLine.nodeSize + 1))
+	);
+	return tr;
+}
+
+export function findLineStartPositionById(
+	doc: any,
+	lineId: string | null | undefined
+): number | null {
+	if (!lineId) return null;
+
+	let position: number | null = null;
+	doc.descendants((node: any, pos: number) => {
+		if (node.type.name !== 'line') {
+			return true;
+		}
+
+		if (node.attrs?.lineId === lineId) {
+			position = pos + 1;
+			return false;
+		}
+
+		return false;
+	});
+
+	return position;
 }

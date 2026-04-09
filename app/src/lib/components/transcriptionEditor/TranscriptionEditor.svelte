@@ -168,6 +168,13 @@ import {
 		}
 		return `page-${Math.random().toString(36).slice(2, 12)}`;
 	}
+
+	function createEditorNodeId(prefix: string): string {
+		if (typeof crypto?.randomUUID === 'function') {
+			return `${prefix}-${crypto.randomUUID()}`;
+		}
+		return `${prefix}-${Math.random().toString(36).slice(2, 12)}`;
+	}
 	// Helper function to check if document has pages
 	function checkForPages(editor: Editor | null): boolean {
 		if (!editor) return false;
@@ -410,6 +417,24 @@ import {
 			.run();
 	}
 
+	function deletePage(pagePos: number) {
+		const editor = editorState.editor;
+		if (!editor) return;
+
+		editor
+			.chain()
+			.command(({ tr, state }) => {
+				const pageNode = state.doc.nodeAt(pagePos);
+				if (!pageNode || pageNode.type.name !== 'page') {
+					return false;
+				}
+
+				tr.delete(pagePos, pagePos + pageNode.nodeSize);
+				return true;
+			})
+			.run();
+	}
+
 	function updatePageFormWork(
 		pagePos: number,
 		kind: 'pageLabel' | 'runningTitle' | 'catchword' | 'quireSignature',
@@ -543,7 +568,10 @@ import {
 			canonicalDocument = initialDocument;
 			const initialPm = toProseMirror(initialDocument) as any;
 			annotatePageChromeInJson(initialPm);
-			const repairResult = repairManuscriptStructureJson(initialPm);
+			const repairResult = repairManuscriptStructureJson(initialPm, {
+				framedPageZoneOrder: 'visual',
+				ensureNodeIds: true,
+			});
 			if (repairResult.repaired && repairResult.issues.length > 0) {
 				console.warn('[Transcription] Repaired invalid manuscript content during editor init:', repairResult.issues);
 			}
@@ -775,11 +803,11 @@ import {
 			content: [
 				{
 					type: 'column',
-					attrs: { columnNumber: 1 },
+					attrs: { columnNumber: 1, columnId: createEditorNodeId('col') },
 					content: [
 						{
 							type: 'line',
-							attrs: { lineNumber: 1 },
+							attrs: { lineNumber: 1, lineId: createEditorNodeId('line') },
 						},
 					],
 				},
@@ -808,11 +836,13 @@ import {
 		const editor = editorState.editor;
 		if (!editor) return;
 
-		const zones = ['center', 'top', 'right', 'bottom', 'left'] as const;
+		const zones = ['top', 'left', 'right', 'bottom', 'center'] as const;
 		const columns = zones.map((zone, i) => ({
 			type: 'column',
-			attrs: { columnNumber: i + 1, zone },
-			content: [{ type: 'line', attrs: { lineNumber: 1 } }],
+			attrs: { columnNumber: i + 1, zone, columnId: createEditorNodeId('col') },
+			content: [
+				{ type: 'line', attrs: { lineNumber: 1, lineId: createEditorNodeId('line') } },
+			],
 		}));
 
 		editor.commands.insertContent({
@@ -1404,6 +1434,7 @@ import {
 	{pages}
 	{data}
 	onUpdatePageName={updatePageName}
+	onDeletePage={deletePage}
 	onUpdatePageFormWork={updatePageFormWork}
 />
 <div use:portal={statusBarTarget} class="w-full">
@@ -1618,13 +1649,43 @@ import {
 	}
 
 	:global(.frame-grid) {
-		display: grid;
-		grid-template-areas:
-			"top    top    top"
-			"left   center right"
-			"bottom bottom bottom";
-		grid-template-columns: 1fr 2fr 1fr;
-		grid-template-rows: auto 1fr auto;
+		display: flex;
+		flex-wrap: wrap;
+		align-items: flex-start;
 		gap: 0.5rem;
+	}
+
+	:global(.frame-grid > .column[data-zone="top"]),
+	:global(.frame-grid > .column[data-zone="bottom"]) {
+		flex: 0 0 100%;
+	}
+
+	:global(.frame-grid > .column[data-zone="top"]) {
+		order: 1;
+	}
+
+	:global(.frame-grid > .column[data-zone="left"]) {
+		order: 2;
+	}
+
+	:global(.frame-grid > .column[data-zone="center"]) {
+		order: 3;
+	}
+
+	:global(.frame-grid > .column[data-zone="right"]) {
+		order: 4;
+	}
+
+	:global(.frame-grid > .column[data-zone="bottom"]) {
+		order: 5;
+	}
+
+	:global(.frame-grid > .column[data-zone="left"]),
+	:global(.frame-grid > .column[data-zone="right"]) {
+		flex: 1 1 16rem;
+	}
+
+	:global(.frame-grid > .column[data-zone="center"]) {
+		flex: 2 1 24rem;
 	}
 </style>

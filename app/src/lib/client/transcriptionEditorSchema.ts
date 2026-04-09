@@ -1,5 +1,11 @@
 import { badgeIconSpec, type BadgeIconName } from '$lib/client/transcriptionEditorBadgeIcons';
-import { repairManuscriptStructureJson } from '$lib/client/transcriptionEditorStructure';
+import {
+	createEmptyLineInsertTransaction,
+	createLineSplitTransaction,
+	findLineStartPositionById,
+	LINE_SPLIT_TARGET_LINE_ID_META,
+	repairManuscriptStructureJson,
+} from '$lib/client/transcriptionEditorStructure';
 import { classifyFormWork } from '$lib/components/transcriptionEditor/formworkConcepts';
 import {
 	formWorkContentToPlainText,
@@ -9,7 +15,7 @@ import { Editor, Extension, Mark, Node, generateHTML, markInputRule } from '@tip
 import { BubbleMenu } from '@tiptap/extension-bubble-menu';
 import { History } from '@tiptap/extension-history';
 import { Text } from '@tiptap/extension-text';
-import { NodeSelection, Plugin, PluginKey } from '@tiptap/pm/state';
+import { NodeSelection, Plugin, PluginKey, TextSelection } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import { nanoid } from 'nanoid';
 
@@ -788,6 +794,7 @@ const PunctuationHighlighter = Extension.create({
 					// If the document didn't change, we don't need to do anything
 					if (!newState.doc.eq(oldState.doc)) {
 						const tr = newState.tr;
+						let changed = false;
 						// Comprehensive regex for Latin and Greek punctuation
 						const punctuationRegex = /[.,;:!?"'«»()\[\]{}\-–—/\\·⸄⸃´`†‡]/g;
 
@@ -812,9 +819,18 @@ const PunctuationHighlighter = Extension.create({
 										to,
 										newState.schema.marks.punctuation.create()
 									);
+									changed = true;
 								}
 							}
 						});
+
+						if (!changed) {
+							return null;
+						}
+
+						const mappedFrom = tr.mapping.map(newState.selection.from);
+						const clampedFrom = Math.min(Math.max(0, mappedFrom), tr.doc.content.size);
+						tr.setSelection(TextSelection.near(tr.doc.resolve(clampedFrom)));
 
 						// Return the transaction with our new marks
 						return tr;
@@ -1129,6 +1145,7 @@ const Column = Node.create({
 	renderHTML({ node, HTMLAttributes }) {
 		const columnNumber = (node as any).attrs.columnNumber;
 		const zone = (node as any).attrs.zone;
+		const zoneClass = zone ? ` frame-zone-${zone}` : '';
 		const label = zone
 			? FRAME_ZONE_LABELS[zone] || `Column ${columnNumber || 1}`
 			: `Column ${columnNumber || 1}`;
@@ -1138,13 +1155,11 @@ const Column = Node.create({
 				: zone
 					? 'border border-dashed border-primary/60'
 					: 'border border-primary';
-		const gridAreaStyle = zone ? `grid-area: ${zone}` : '';
 		return [
 			'div',
 			{
 				...HTMLAttributes,
-				class: `column ${borderClass} rounded-lg p-3 bg-transparent flex-1`,
-				...(gridAreaStyle ? { style: gridAreaStyle } : {}),
+				class: `column ${borderClass}${zoneClass} rounded-lg p-3 bg-transparent flex-1`,
 			},
 			[
 				'div',
@@ -1240,6 +1255,26 @@ function createStableEditorNodeId(prefix: string): string {
 const manuscriptStructureRepairKey = new PluginKey('manuscriptStructureRepair');
 const lineNumberNormalizerKey = new PluginKey('lineNumberNormalizer');
 
+function restoreMappedSelection(tr: any, selection: any) {
+	if (selection instanceof NodeSelection) {
+		const mappedFrom = Math.min(
+			Math.max(0, tr.mapping.map(selection.from)),
+			tr.doc.content.size
+		);
+		tr.setSelection(NodeSelection.create(tr.doc, mappedFrom));
+		return;
+	}
+
+	const mappedFrom = Math.min(Math.max(0, tr.mapping.map(selection.from)), tr.doc.content.size);
+	const mappedTo = Math.min(Math.max(0, tr.mapping.map(selection.to)), tr.doc.content.size);
+	if (mappedFrom !== mappedTo) {
+		tr.setSelection(TextSelection.create(tr.doc, mappedFrom, mappedTo));
+		return;
+	}
+
+	tr.setSelection(TextSelection.near(tr.doc.resolve(mappedFrom)));
+}
+
 function createManuscriptStructureRepairTransaction(state: Editor['state']) {
 	if (state.doc.type.name !== 'manuscript') {
 		return null;
@@ -1253,7 +1288,9 @@ function createManuscriptStructureRepairTransaction(state: Editor['state']) {
 	}
 
 	const repairedDoc = state.schema.nodeFromJSON(repairResult.doc);
-	return state.tr.replaceWith(0, state.doc.content.size, repairedDoc.content);
+	const tr = state.tr.replaceWith(0, state.doc.content.size, repairedDoc.content);
+	restoreMappedSelection(tr, state.selection);
+	return tr;
 }
 
 function createLineNumberNormalizationTransaction(state: Editor['state']) {
@@ -1305,8 +1342,55 @@ function createLineNumberNormalizationTransaction(state: Editor['state']) {
 		return false;
 	});
 
+	if (changed) {
+		restoreMappedSelection(tr, state.selection);
+	}
+
 	return changed ? tr : null;
 }
+
+function findAncestorDepthByTypeName($pos: any, typeNames: string[]): number {
+	for (let depth = $pos.depth; depth >= 0; depth--) {
+		if (typeNames.includes($pos.node(depth).type.name)) {
+			return depth;
+		}
+	}
+
+	return -1;
+}
+
+const EmptyLineTextInputStabilizer = Extension.create({
+	name: 'emptyLineTextInputStabilizer',
+
+	addProseMirrorPlugins() {
+		return [
+			new Plugin({
+				key: new PluginKey('emptyLineTextInputStabilizer'),
+				props: {
+					handleTextInput(view, from, to, text) {
+						const { state } = view;
+						const $from = state.doc.resolve(from);
+						const lineDepth = findAncestorDepthByTypeName($from, [
+							'line',
+							'marginaliaLine',
+						]);
+						if (lineDepth === -1) return false;
+
+						const lineNode = $from.node(lineDepth);
+						if (lineNode.content.size > 0) {
+							return false;
+						}
+
+						const tr = state.tr.insertText(text, from, to);
+						tr.setSelection(TextSelection.create(tr.doc, from + text.length));
+						view.dispatch(tr);
+						return true;
+					},
+				},
+			}),
+		];
+	},
+});
 
 const LineNumberNormalizer = Extension.create({
 	name: 'lineNumberNormalizer',
@@ -1444,7 +1528,25 @@ const Line = Node.create({
 	},
 	addKeyboardShortcuts() {
 		return {
-			Enter: ({ editor }) => editor.chain().splitBlock().run(),
+			Enter: ({ editor }) => {
+				const tr =
+					createEmptyLineInsertTransaction(editor.state) ||
+					createLineSplitTransaction(editor.state);
+				if (!tr) {
+					return editor.chain().splitBlock().run();
+				}
+
+				const targetLineId = tr.getMeta(LINE_SPLIT_TARGET_LINE_ID_META) as
+					| string
+					| undefined;
+				editor.view.dispatch(tr);
+				queueMicrotask(() => {
+					const pos = findLineStartPositionById(editor.state.doc, targetLineId);
+					if (pos === null) return;
+					editor.chain().focus().setTextSelection(pos).run();
+				});
+				return true;
+			},
 			'Mod-Shift-b': ({ editor }) => {
 				const { state } = editor;
 				const from = state.selection.$from;
@@ -2389,6 +2491,7 @@ function getSharedInlineExtensions() {
 	return [
 		...SHARED_MARK_EXTENSIONS,
 		...SHARED_SELECTION_EXTENSIONS,
+		EmptyLineTextInputStabilizer,
 		LineNumberNormalizer,
 		...SHARED_INLINE_NODE_EXTENSIONS,
 		Text,
