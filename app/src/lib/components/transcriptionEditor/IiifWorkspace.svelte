@@ -67,6 +67,62 @@
 		);
 	}
 
+	function getCompositeChoiceItems(
+		canvas: Record<string, unknown> | null | undefined
+	): Record<string, unknown>[] {
+		const annotationPages = Array.isArray(canvas?.items) ? canvas.items : [];
+		for (const page of annotationPages) {
+			const annotations = Array.isArray((page as Record<string, unknown>)?.items)
+				? ((page as Record<string, unknown>).items as unknown[])
+				: [];
+			for (const annotation of annotations) {
+				const body = (annotation as Record<string, unknown>)?.body;
+				if (!body || typeof body !== 'object' || Array.isArray(body)) continue;
+				const candidate = body as Record<string, unknown>;
+				if (candidate.type !== 'Choice' && candidate.type !== 'oa:Choice') continue;
+				const items = candidate.items || candidate.item || [];
+				if (Array.isArray(items)) {
+					return items.filter((item): item is Record<string, unknown> =>
+						Boolean(item && typeof item === 'object')
+					);
+				}
+				if (items && typeof items === 'object') {
+					return [items as Record<string, unknown>];
+				}
+			}
+		}
+		return [];
+	}
+
+	function getCompositeChoiceSourceRef(
+		canvas: Record<string, unknown> | null | undefined,
+		choiceId: string | null | undefined
+	): CompositeCanvasSourceRef | null {
+		if (!choiceId) return null;
+		const choiceItem = getCompositeChoiceItems(canvas).find(item => {
+			const itemId = item.id || item['@id'];
+			return typeof itemId === 'string' && itemId === choiceId;
+		});
+		return isCompositeCanvasSourceRef(choiceItem?.apatopwaSource)
+			? choiceItem.apatopwaSource
+			: null;
+	}
+
+	function getCompositeCanvasSourceRefs(
+		canvas: Record<string, unknown> | null | undefined
+	): CompositeCanvasSourceRef[] {
+		const refs: CompositeCanvasSourceRef[] = [];
+		if (isCompositeCanvasSourceRef(canvas?.apatopwaSource)) {
+			refs.push(canvas.apatopwaSource);
+		}
+		for (const choiceItem of getCompositeChoiceItems(canvas)) {
+			if (isCompositeCanvasSourceRef(choiceItem.apatopwaSource)) {
+				refs.push(choiceItem.apatopwaSource);
+			}
+		}
+		return refs;
+	}
+
 	function getPageCanvasLinkKey(input: {
 		manifestSourceId: string;
 		pageId: string;
@@ -272,13 +328,15 @@
 			if (!isCompositeCanvasSourceRef(item?.apatopwaSource) || typeof item?.id !== 'string') {
 				continue;
 			}
-			nextMap[
-				getPageCanvasLinkKey({
-					manifestSourceId: item.apatopwaSource.manifestSourceId,
-					pageId: item.apatopwaSource.pageId,
-					canvasId: item.apatopwaSource.sourceCanvasId,
-				})
-			] = item.id;
+			for (const sourceRef of getCompositeCanvasSourceRefs(item)) {
+				nextMap[
+					getPageCanvasLinkKey({
+						manifestSourceId: sourceRef.manifestSourceId,
+						pageId: sourceRef.pageId,
+						canvasId: sourceRef.sourceCanvasId,
+					})
+				] = item.id;
+			}
 		}
 		return nextMap;
 	});
@@ -309,6 +367,9 @@
 		const currentCanvas = items.find(
 			(canvas: Record<string, unknown>) => canvas?.id === currentCanvasId
 		);
+		const selectedChoiceId = viewerState?.getSelectedChoice(currentCanvasId);
+		const selectedChoiceSource = getCompositeChoiceSourceRef(currentCanvas, selectedChoiceId);
+		if (selectedChoiceSource) return selectedChoiceSource;
 		return isCompositeCanvasSourceRef(currentCanvas?.apatopwaSource)
 			? currentCanvas.apatopwaSource
 			: null;
@@ -345,8 +406,12 @@
 		}
 		return selectedActivePageLinks[0] || null;
 	});
-	const activePageViewerCanvasId: string | null = $derived(getViewerCanvasIdForLink(activePageLink));
-	const viewerCanvasPropId: string | null = $derived(pendingCanvasRequest || currentCanvasId || null);
+	const activePageViewerCanvasId: string | null = $derived(
+		getViewerCanvasIdForLink(activePageLink)
+	);
+	const viewerCanvasPropId: string | null = $derived(
+		pendingCanvasRequest || currentCanvasId || null
+	);
 	const isAwaitingActivePageCanvas = $derived(
 		Boolean(pendingCanvasRequest && pendingCanvasRequest !== currentCanvasId)
 	);
@@ -355,7 +420,8 @@
 			? selectedLinks.filter((link: PageCanvasLink) => {
 					if (isCompositeSelected && currentCompositeCanvasSource) {
 						return (
-							link.manifestSourceId === currentCompositeCanvasSource.manifestSourceId &&
+							link.manifestSourceId ===
+								currentCompositeCanvasSource.manifestSourceId &&
 							link.canvasId === currentCompositeCanvasSource.sourceCanvasId &&
 							link.pageId === currentCompositeCanvasSource.pageId
 						);
@@ -378,7 +444,8 @@
 					(link: PageCanvasLink) =>
 						link.pageId === activePageId &&
 						(isCompositeSelected && currentCompositeCanvasSource
-							? link.manifestSourceId === currentCompositeCanvasSource.manifestSourceId &&
+							? link.manifestSourceId ===
+									currentCompositeCanvasSource.manifestSourceId &&
 								link.canvasId === currentCompositeCanvasSource.sourceCanvasId &&
 								link.pageId === currentCompositeCanvasSource.pageId
 							: link.canvasId === currentCanvasId)
@@ -1122,7 +1189,10 @@
 				<div class="space-y-3">
 					{#if intfImportStage}
 						<div class="alert alert-info py-2 text-xs">
-							<span class="loading loading-spinner loading-xs shrink-0" aria-hidden="true"></span>
+							<span
+								class="loading loading-spinner loading-xs shrink-0"
+								aria-hidden="true"
+							></span>
 							<span>{intfImportStage}</span>
 						</div>
 					{/if}
@@ -1545,16 +1615,18 @@
 													<div
 														class="flex shrink-0 flex-col items-stretch gap-1"
 													>
-									<button
-										class="btn btn-xs btn-ghost"
-									onclick={() => {
-										onRequestPageJump?.(link.pageId);
-										const viewerCanvasId = getViewerCanvasIdForLink(link);
-										if (viewerCanvasId) {
-											pendingCanvasRequest = viewerCanvasId;
-										}
-									}}
-								>
+														<button
+															class="btn btn-xs btn-ghost"
+															onclick={() => {
+																onRequestPageJump?.(link.pageId);
+																const viewerCanvasId =
+																	getViewerCanvasIdForLink(link);
+																if (viewerCanvasId) {
+																	pendingCanvasRequest =
+																		viewerCanvasId;
+																}
+															}}
+														>
 															Jump
 														</button>
 														<button
