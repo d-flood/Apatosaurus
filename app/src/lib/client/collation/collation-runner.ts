@@ -228,7 +228,7 @@ export function extractWitnessTokensForVerse(
 	let awaitingNoBreakContinuation = false;
 	const state: MilestoneState = { book: '', chapter: '', verse: '' };
 	const baseHand = target?.baseHand || inferBaseHand(document);
-	let currentHand = baseHand;
+	let currentHand: string;
 
 	function flushPendingTokenSegments(segments: WitnessTextSegment[]) {
 		if (segments.length === 0) return;
@@ -524,7 +524,7 @@ function collectCorrectionHandsForVerse(
 	baseHand: string,
 ): string[] {
 	const state: MilestoneState = { book: '', chapter: '', verse: '' };
-	let currentHand = baseHand;
+	let currentHand: string;
 	const hands = new Set<string>();
 
 	function addHand(hand: string | undefined) {

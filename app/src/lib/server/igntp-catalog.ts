@@ -2,6 +2,7 @@ import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { DOMParser } from '@xmldom/xmldom';
+import type { Document as XmlDocument, Element as XmlElement } from '@xmldom/xmldom';
 
 import { buildTranscriptionDuplicateKey, normalizeTranscriptionDuplicateValue } from '../igntp/duplicate-key';
 import type { IgntpCatalog, IgntpCatalogEntry, IgntpCatalogGroup } from '../igntp/types';
@@ -93,8 +94,8 @@ function checkIgntpSupport(xml: string): { isSupported: boolean; unsupportedReas
 	}
 }
 
-function getElements(parent: Document | Element, tagName: string): Element[] {
-	const matches: Element[] = [];
+function getElements(parent: XmlDocument | XmlElement, tagName: string): XmlElement[] {
+	const matches: XmlElement[] = [];
 	const elements = parent.getElementsByTagName(tagName);
 	for (let index = 0; index < elements.length; index += 1) {
 		const element = elements.item(index);

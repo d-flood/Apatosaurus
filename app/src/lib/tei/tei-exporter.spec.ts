@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { DOMParser } from '@xmldom/xmldom';
+import type { Document as XmlDocument } from '@xmldom/xmldom';
 
 import { exportTEI, exportTEIDocument } from './tei-exporter';
 import { importTEI, importTEIDocument } from './tei-importer';
@@ -24,7 +25,7 @@ beforeAll(() => {
 	}
 });
 
-function parseTEI(xml: string): Document {
+function parseTEI(xml: string): XmlDocument {
 	return new DOMParser().parseFromString(xml, 'application/xml');
 }
 

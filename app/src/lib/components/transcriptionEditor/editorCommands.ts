@@ -59,7 +59,7 @@ export function insertSelectableCarrierNode(
 	if (!nodeType) return false;
 	const node = nodeType.create(attrs);
 	let tr = state.tr;
-	let insertedPos = state.selection.from;
+	let insertedPos: number;
 	if (state.selection instanceof NodeSelection && state.selection.node.isInline) {
 		insertedPos = state.selection.to;
 		tr = tr.insert(insertedPos, node);

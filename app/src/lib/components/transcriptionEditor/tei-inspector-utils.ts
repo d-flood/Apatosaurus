@@ -6,7 +6,9 @@ export function parseJsonObject(
 	try {
 		parsed = JSON.parse(value);
 	} catch (error) {
-		throw new Error(error instanceof Error ? error.message : `Invalid ${label} JSON`);
+		throw new Error(error instanceof Error ? error.message : `Invalid ${label} JSON`, {
+			cause: error,
+		});
 	}
 	if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
 		throw new Error(`${label} must be a JSON object.`);

@@ -14,6 +14,9 @@
 		"djazzkit/demos/todo/frontend-svelte"
 	],
 	"dependencies": {
-		"tsx": "^4.20.6"
+		"tsx": "^4.21.0"
+	},
+	"overrides": {
+		"daisyui": "5.5.8"
 	}
 }

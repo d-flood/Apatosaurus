@@ -372,12 +372,10 @@ const UntranscribedNode = Node.create({
 		const reason = node.attrs.reason || 'Untranscribed';
 		const extent = node.attrs.extent || 'partial';
 
-		let label = '';
-		if (extent === 'partial') {
-			label = `Partial Line Untranscribed (${reason})`;
-		} else {
-			label = `Line Untranscribed (${reason})`;
-		}
+		const label =
+			extent === 'partial'
+				? `Partial Line Untranscribed (${reason})`
+				: `Line Untranscribed (${reason})`;
 
 		return [
 			'span',
@@ -650,21 +648,15 @@ const Abbreviation = Mark.create({
 		const id = mark.attrs.id || nanoid(8);
 
 		// Build tooltip text based on type
-		let tooltipText = 'Abbreviation';
-		if (type === 'nomSac') {
-			tooltipText = `Nomen Sacrum ${expansion}` || 'Abbreviation';
-		} else {
-			// For ligature and other types, show expansion or type info
-			if (type === 'ligature') {
-				tooltipText = expansion || 'Expansion';
-			} else {
-				// For other custom types, show type and expansion
-				const tooltipParts = [];
-				if (type) tooltipParts.push(`Type: ${type}`);
-				if (expansion) tooltipParts.push(`Expansion: ${expansion}`);
-				tooltipText = tooltipParts.join(' | ') || 'Abbreviation';
-			}
-		}
+		const tooltipText = (() => {
+			if (type === 'nomSac') return `Nomen Sacrum ${expansion}` || 'Abbreviation';
+			if (type === 'ligature') return expansion || 'Expansion';
+
+			const tooltipParts = [];
+			if (type) tooltipParts.push(`Type: ${type}`);
+			if (expansion) tooltipParts.push(`Expansion: ${expansion}`);
+			return tooltipParts.join(' | ') || 'Abbreviation';
+		})();
 
 		// Render differently based on type
 		if (type === 'nomSac') {

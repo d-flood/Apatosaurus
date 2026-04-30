@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { DOMParser } from '@xmldom/xmldom';
+import type { Document as XmlDocument } from '@xmldom/xmldom';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -28,7 +29,7 @@ beforeAll(() => {
 	}
 });
 
-function parse(xml: string): Document {
+function parse(xml: string): XmlDocument {
 	return new DOMParser().parseFromString(xml, 'application/xml');
 }
 
