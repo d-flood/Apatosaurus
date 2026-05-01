@@ -2531,6 +2531,26 @@ function createEditorForProfile(profile: EditorProfile, options: BaseEditorOptio
 			},
 			...(profile === 'main-manuscript'
 				? {
+						handleClick: (view, _pos, event) => {
+							const target = event.target instanceof Element ? event.target : null;
+							const line = target?.closest<HTMLElement>('.line');
+							if (!line) return false;
+
+							const lineContent = line.querySelector<HTMLElement>('.line-content');
+							if (!lineContent) return false;
+							if (target?.closest('.line-content') && lineContent.textContent !== '') {
+								return false;
+							}
+
+							const lineStart = view.posAtDOM(lineContent, 0);
+							view.dispatch(
+								view.state.tr.setSelection(
+									TextSelection.near(view.state.doc.resolve(lineStart))
+								)
+							);
+							view.focus();
+							return true;
+						},
 						handleDOMEvents: {
 							mousemove: () => true,
 							mouseenter: () => true,
