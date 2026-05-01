@@ -199,22 +199,33 @@ test('typing in the full transcription page keeps focus in the active page and c
 
 	await page.mouse.click(box.x + box.width - 2, box.y + box.height / 2);
 	await page.keyboard.type('a', { delay: 100 });
-	await page.waitForTimeout(150);
 
-	const afterFirstCharacter = await readSelectionSnapshot(page);
-	expect(afterFirstCharacter.pageId).toBe('harness-page-1');
-	expect(afterFirstCharacter.zone).toBe('top');
+	await expect
+		.poll(async () => {
+			const selection = await readSelectionSnapshot(page);
+			return `${selection.pageId}:${selection.zone}`;
+		})
+		.toBe('harness-page-1:top');
 
 	await page.keyboard.type('b', { delay: 100 });
-	await page.waitForTimeout(150);
 
-	const selection = await readSelectionSnapshot(page);
-	const editedText = await readLineText(page, 'harness-page-1', 'top');
-
-	expect(selection.pageId).toBe('harness-page-1');
-	expect(selection.zone).toBe('top');
-	expect(selection.lineText).toBe('page one topab');
-	expect(editedText).toBe('page one topab');
+	await expect
+		.poll(async () => {
+			const selection = await readSelectionSnapshot(page);
+			const editedText = await readLineText(page, 'harness-page-1', 'top');
+			return {
+				pageId: selection.pageId,
+				zone: selection.zone,
+				selectionText: selection.lineText,
+				editedText,
+			};
+		})
+		.toEqual({
+			pageId: 'harness-page-1',
+			zone: 'top',
+			selectionText: 'page one topab',
+			editedText: 'page one topab',
+		});
 });
 
 test('typing after creating a new transcription with multiple framed pages stays on the active page', async ({
