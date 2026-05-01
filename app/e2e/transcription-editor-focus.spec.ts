@@ -192,12 +192,15 @@ test('typing in the full transcription page keeps focus in the active page and c
 	);
 	await expect(topLine).toBeVisible();
 
-	const box = await topLine.boundingBox();
-	if (!box) {
-		throw new Error('top line bounding box not available on full transcription page');
-	}
+	await topLine.click();
+	await page.keyboard.press('End');
+	await expect
+		.poll(async () => {
+			const selection = await readSelectionSnapshot(page);
+			return `${selection.pageId}:${selection.zone}`;
+		})
+		.toBe('harness-page-1:top');
 
-	await page.mouse.click(box.x + box.width - 2, box.y + box.height / 2);
 	await page.keyboard.type('a', { delay: 100 });
 
 	await expect
