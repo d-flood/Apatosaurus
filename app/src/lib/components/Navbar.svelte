@@ -2,7 +2,6 @@
 	import { browser } from '$app/environment';
 	import { asset, resolve } from '$app/paths';
 	import { notificationCenter } from '$lib/client/notification-center.svelte';
-	import { isCollationEnabled } from '$lib/config/feature-flags';
 	import Bell from 'phosphor-svelte/lib/Bell';
 	import Moon from 'phosphor-svelte/lib/Moon';
 	import Sun from 'phosphor-svelte/lib/Sun';
@@ -66,15 +65,7 @@
 			>
 				<li><a href={resolve('/transcription')}>Transcriptions</a></li>
 				<li><a href={resolve('/projects')}>Projects</a></li>
-				{#if isCollationEnabled}
-					<li><a href={resolve('/collation')}>Collations</a></li>
-				{:else}
-					<li>
-						<span class="text-base-content/50 cursor-not-allowed" aria-disabled="true">
-							Collations <span class="sr-only">(disabled)</span>
-						</span>
-					</li>
-				{/if}
+				<li><a href={resolve('/collation')}>Collations</a></li>
 			</ul>
 		</div>
 		<a href={resolve('/')} class="hover:brightness-90">
@@ -86,20 +77,7 @@
 		<ul class="menu menu-horizontal px-1">
 			<li class="text-lg"><a href={resolve('/transcription')}>Transcriptions</a></li>
 			<li class="text-lg"><a href={resolve('/projects')}>Projects</a></li>
-			{#if isCollationEnabled}
-				<li class="text-lg"><a href={resolve('/collation')}>Collations</a></li>
-			{:else}
-				<div
-					class="tooltip tooltip-bottom"
-					data-tip="Collation features will be enabled soon. Stay tuned!"
-				>
-					<li class="text-lg">
-						<span class="text-base-content/50 cursor-not-allowed" aria-disabled="true">
-							Collations <span class="sr-only">(disabled)</span>
-						</span>
-					</li>
-				</div>
-			{/if}
+			<li class="text-lg"><a href={resolve('/collation')}>Collations</a></li>
 		</ul>
 	</div>
 	<div class="navbar-end gap-2">

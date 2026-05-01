@@ -9,7 +9,6 @@ services:
     environment:
       NODE_ENV: production
       ORIGIN: ${ORIGIN:-http://localhost:8888}
-      PUBLIC_ENABLE_COLLATION: "false"
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000"]
       interval: 30s

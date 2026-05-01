@@ -41,16 +41,6 @@ bun run build
 bun run test:e2e
 ```
 
-## Environment
-
-Copy `.env.example` to `.env` if you need to override defaults.
-
-Currently supported flags:
-
-- `PUBLIC_ENABLE_COLLATION=true`
-
-If unset, collation is enabled in dev and disabled in production/preview.
-
 ## Docker
 
 The Dockerfiles expect the repository root as the build context because the app uses sibling workspace packages.
