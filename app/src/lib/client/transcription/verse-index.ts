@@ -43,18 +43,18 @@ export async function getVerseIndexRows(): Promise<VerseIndexRow[]> {
 
 export async function getVerseIndexRowsForVerse(
 	verseIdentifier: string,
-	transcriptionIds?: string[],
+	transcriptionIds?: string[]
 ): Promise<VerseIndexRow[]> {
 	await ensureDjazzkitRuntime();
 	const uniqueTranscriptionIds =
 		Array.isArray(transcriptionIds) && transcriptionIds.length > 0
 			? [...new Set(transcriptionIds.filter(Boolean))]
 			: [];
-	let query = TranscriptionVerseIndex.objects
-		.filter((fields) => fields.verse_identifier.eq(verseIdentifier))
-		.filter((fields) => fields._djazzkit_deleted.eq(false));
+	let query = TranscriptionVerseIndex.objects.filter(fields =>
+		fields.verse_identifier.eq(verseIdentifier)
+	);
 	if (uniqueTranscriptionIds.length > 0) {
-		query = query.filter((fields) => fields.transcription.inList(uniqueTranscriptionIds));
+		query = query.filter(fields => fields.transcription.inList(uniqueTranscriptionIds));
 	}
 	return query.all();
 }
@@ -112,10 +112,10 @@ export async function syncVerseIndexFromDocument(
 	}
 
 	const now = new Date().toISOString();
-	const existing = await TranscriptionVerseIndex.objects.filter((f) =>
-		f.transcription.eq(transcriptionId),
-	).all();
-	const existingByIdentifier = new Map(existing.map((row) => [row.verse_identifier, row]));
+	const existing = await TranscriptionVerseIndex.objects
+		.filter(f => f.transcription.eq(transcriptionId))
+		.all();
+	const existingByIdentifier = new Map(existing.map(row => [row.verse_identifier, row]));
 
 	for (const row of existing) {
 		if (!uniqueByIdentifier.has(row.verse_identifier)) {
@@ -182,8 +182,7 @@ export async function rebuildVerseIndexForTranscriptions(
 	try {
 		for (const transcriptionId of ids) {
 			const transcription = await Transcription.objects
-				.filter((fields) => fields._djazzkit_id.eq(transcriptionId))
-				.filter((fields) => fields._djazzkit_deleted.eq(false))
+				.filter(fields => fields._djazzkit_id.eq(transcriptionId))
 				.first();
 			const label = transcription ? formatTranscriptionLabel(transcription) : transcriptionId;
 
@@ -208,7 +207,8 @@ export async function rebuildVerseIndexForTranscriptions(
 				failures.push({
 					transcriptionId,
 					label,
-					message: error instanceof Error ? error.message : 'Failed to rebuild verse index',
+					message:
+						error instanceof Error ? error.message : 'Failed to rebuild verse index',
 				});
 			} finally {
 				completed += 1;
@@ -235,6 +235,10 @@ export async function rebuildVerseIndexForTranscriptions(
 	};
 }
 
-function formatTranscriptionLabel(transcription: Pick<TranscriptionRow, '_djazzkit_id' | 'siglum' | 'title'>): string {
-	return transcription.siglum?.trim() || transcription.title?.trim() || transcription._djazzkit_id;
+function formatTranscriptionLabel(
+	transcription: Pick<TranscriptionRow, '_djazzkit_id' | 'siglum' | 'title'>
+): string {
+	return (
+		transcription.siglum?.trim() || transcription.title?.trim() || transcription._djazzkit_id
+	);
 }

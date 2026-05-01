@@ -712,7 +712,9 @@ function createCollationState() {
 		regularizedTexts = new Map();
 	}
 
-	function cloneWitnessSourceTokens(tokens: WitnessSourceToken[] | undefined): WitnessSourceToken[] {
+	function cloneWitnessSourceTokens(
+		tokens: WitnessSourceToken[] | undefined
+	): WitnessSourceToken[] {
 		return (tokens ?? []).map(token => ({
 			...token,
 			segments: token.segments.map(segment => ({ ...segment })),
@@ -720,7 +722,9 @@ function createCollationState() {
 		}));
 	}
 
-	function normalizeConcreteWitnessTreatment(treatment: WitnessTreatment): 'full' | 'fragmentary' {
+	function normalizeConcreteWitnessTreatment(
+		treatment: WitnessTreatment
+	): 'full' | 'fragmentary' {
 		return treatment === 'full' ? 'full' : 'fragmentary';
 	}
 
@@ -745,12 +749,12 @@ function createCollationState() {
 	}
 
 	function filterWitnessesByProjectSettings(configs: WitnessConfig[]): WitnessConfig[] {
-		return configs.filter((config) => isWitnessIncludedByProjectSettings(config));
+		return configs.filter(config => isWitnessIncludedByProjectSettings(config));
 	}
 
 	function ensureBaseTextSelection(configs: WitnessConfig[]): WitnessConfig[] {
 		if (configs.length === 0) return configs;
-		if (configs.some((witness) => witness.isBaseText)) return configs;
+		if (configs.some(witness => witness.isBaseText)) return configs;
 		return configs.map((witness, index) => ({
 			...witness,
 			isBaseText: index === 0,
@@ -774,7 +778,9 @@ function createCollationState() {
 		}
 		const activeTreatment =
 			witness.treatment === 'inherit'
-				? normalizeConcreteWitnessTreatment(getProjectTranscriptionTreatment(witness.transcriptionId))
+				? normalizeConcreteWitnessTreatment(
+						getProjectTranscriptionTreatment(witness.transcriptionId)
+					)
 				: normalizeConcreteWitnessTreatment(witness.treatment);
 		const nextTokens =
 			activeTreatment === 'full'
@@ -782,8 +788,8 @@ function createCollationState() {
 				: cloneWitnessSourceTokens(witness.fragmentaryTokens ?? witness.tokens);
 		const nextContent =
 			activeTreatment === 'full'
-				? witness.fullContent ?? witness.content
-				: witness.fragmentaryContent ?? witness.content;
+				? (witness.fullContent ?? witness.content)
+				: (witness.fragmentaryContent ?? witness.content);
 		return {
 			...witness,
 			kind,
@@ -812,7 +818,9 @@ function createCollationState() {
 			fullContent: prepared.fullContent,
 			fullTokens: cloneWitnessSourceTokens(prepared.fullTokens ?? prepared.tokens),
 			fragmentaryContent: prepared.fragmentaryContent,
-			fragmentaryTokens: cloneWitnessSourceTokens(prepared.fragmentaryTokens ?? prepared.tokens),
+			fragmentaryTokens: cloneWitnessSourceTokens(
+				prepared.fragmentaryTokens ?? prepared.tokens
+			),
 			treatment: prepared.kind === 'corrector' ? 'inherit' : 'full',
 			isBaseText: options?.isBaseText === true,
 			isExcluded: false,
@@ -861,10 +869,9 @@ function createCollationState() {
 			Object.entries(settings.transcriptionWitnessTreatments ?? {})
 		);
 		transcriptionWitnessExcludedHands = new Map(
-			Object.entries(settings.transcriptionWitnessExcludedHands ?? {}).map(([id, handIds]) => [
-				id,
-				[...handIds],
-			]),
+			Object.entries(settings.transcriptionWitnessExcludedHands ?? {}).map(
+				([id, handIds]) => [id, [...handIds]]
+			)
 		);
 		rules = mergeProjectRules(rules, settings.regularizationRules ?? []);
 		if (
@@ -911,11 +918,11 @@ function createCollationState() {
 					ignoreWordBreaks: false,
 					lowercase: false,
 					ignoreTokenWhitespace: true,
-				ignorePunctuation: false,
-				suppliedTextMode: 'clear',
-				segmentation: true,
-				transcriptionWitnessTreatments,
-				transcriptionWitnessExcludedHands,
+					ignorePunctuation: false,
+					suppliedTextMode: 'clear',
+					segmentation: true,
+					transcriptionWitnessTreatments,
+					transcriptionWitnessExcludedHands,
 				})
 			),
 			owner_id: null,
@@ -929,7 +936,7 @@ function createCollationState() {
 	// Witness configuration
 	function setWitnesses(configs: WitnessConfig[]) {
 		witnesses = ensureBaseTextSelection(
-			applyWitnessTreatmentSources(filterWitnessesByProjectSettings(configs)),
+			applyWitnessTreatmentSources(filterWitnessesByProjectSettings(configs))
 		);
 		applyRegularization();
 		markUnsaved();
@@ -937,14 +944,14 @@ function createCollationState() {
 
 	function updateWitness(witnessId: string, updates: Partial<WitnessConfig>) {
 		witnesses = applyWitnessTreatmentSources(
-			witnesses.map((w) => {
+			witnesses.map(w => {
 				if (w.witnessId !== witnessId) return w;
 				const next = { ...w, ...updates };
 				if (Object.prototype.hasOwnProperty.call(updates, 'treatment')) {
 					next.overridesDefault = next.treatment !== 'inherit';
 				}
 				return next;
-			}),
+			})
 		);
 		applyRegularization();
 		markUnsaved();
@@ -986,13 +993,13 @@ function createCollationState() {
 						ignoreWordBreaks,
 						lowercase,
 						ignoreTokenWhitespace,
-				ignorePunctuation,
-				suppliedTextMode,
-				segmentation,
-				transcriptionWitnessTreatments,
-				transcriptionWitnessExcludedHands,
-				})
-			),
+						ignorePunctuation,
+						suppliedTextMode,
+						segmentation,
+						transcriptionWitnessTreatments,
+						transcriptionWitnessExcludedHands,
+					})
+				),
 				_djazzkit_updated_at: new Date().toISOString(),
 			});
 		} catch (err) {
@@ -1098,7 +1105,7 @@ function createCollationState() {
 	function setProjectTranscriptionHandIncluded(
 		transcriptionId: string,
 		handId: string,
-		included: boolean,
+		included: boolean
 	) {
 		const normalizedHandId = handId.trim();
 		if (!normalizedHandId) return;
@@ -1410,11 +1417,12 @@ function createCollationState() {
 		if ((witness.handId ?? 'firsthand') !== prepared.handId) return true;
 		if (witness.siglum !== prepared.siglum) return true;
 		if ((witness.sourceVersion ?? '') !== prepared.sourceVersion) return true;
-		if ((witness.fullContent ?? witness.content) !== (prepared.fullContent ?? prepared.content)) return true;
+		if ((witness.fullContent ?? witness.content) !== (prepared.fullContent ?? prepared.content))
+			return true;
 		if ((witness.fragmentaryContent ?? '') !== (prepared.fragmentaryContent ?? '')) return true;
 		if (
 			JSON.stringify(witness.fullTokens ?? witness.tokens) !==
-				JSON.stringify(prepared.fullTokens ?? prepared.tokens)
+			JSON.stringify(prepared.fullTokens ?? prepared.tokens)
 		) {
 			return true;
 		}
@@ -1436,7 +1444,7 @@ function createCollationState() {
 
 		const currentRows = await Transcription.objects
 			.filter(fields => fields._djazzkit_id.inList(transcriptionIds))
-			.filter(fields => fields._djazzkit_deleted.eq(false))
+			.only('_djazzkit_id', 'updated_at', '_djazzkit_updated_at')
 			.all();
 		const currentVersionById = new Map(
 			currentRows.map(
@@ -1476,14 +1484,17 @@ function createCollationState() {
 			return false;
 		const scopedIds = new Set(scopedTranscriptionIds);
 		const preparedByKey = new Map(
-			preparedWitnesses.map(witness => [
-				buildWitnessSourceKey({
-					transcriptionId: witness.transcriptionUid,
-					kind: witness.kind,
-					handId: witness.handId,
-				}),
-				witness,
-			] as const)
+			preparedWitnesses.map(
+				witness =>
+					[
+						buildWitnessSourceKey({
+							transcriptionId: witness.transcriptionUid,
+							kind: witness.kind,
+							handId: witness.handId,
+						}),
+						witness,
+					] as const
+			)
 		);
 		let didChange = false;
 		const nextWitnesses: WitnessConfig[] = [];
@@ -1520,7 +1531,7 @@ function createCollationState() {
 					fragmentaryTokens: cloneWitnessSourceTokens(prepared.fragmentaryTokens ?? []),
 					content: prepared.content,
 					tokens: cloneWitnessSourceTokens(prepared.tokens),
-				}),
+				})
 			);
 		}
 		for (const prepared of preparedWitnesses) {
@@ -2332,7 +2343,9 @@ function createCollationState() {
 		return collected;
 	}
 
-	function getReadingFamilyKey(reading: Pick<ClassifiedReading, 'normalizedText' | 'text' | 'isOmission' | 'isLacuna'>): string {
+	function getReadingFamilyKey(
+		reading: Pick<ClassifiedReading, 'normalizedText' | 'text' | 'isOmission' | 'isLacuna'>
+	): string {
 		if (reading.isOmission) return '__OMISSION__';
 		if (reading.isLacuna) return '__LACUNA__';
 		return reading.normalizedText ?? reading.text ?? '__EMPTY__';
@@ -2361,7 +2374,7 @@ function createCollationState() {
 	}
 
 	function buildClassifiedReadingsFromFamilyGroups(
-		groups: ReadingFamilyGroup[],
+		groups: ReadingFamilyGroup[]
 	): ClassifiedReading[] {
 		const readings: ClassifiedReading[] = [];
 		for (const [groupIndex, group] of groups.entries()) {
@@ -2415,7 +2428,9 @@ function createCollationState() {
 
 		const updates = new Map<string, ClassifiedReading>();
 		for (const family of readingsByFamilyKey.values()) {
-			const sortedFamily = [...family].sort((a, b) => compareReadingsForOrder(a, b, getBaseWitnessId()));
+			const sortedFamily = [...family].sort((a, b) =>
+				compareReadingsForOrder(a, b, getBaseWitnessId())
+			);
 			const explicitParent =
 				sortedFamily.find(candidate =>
 					sortedFamily.some(reading => reading.parentReadingId === candidate.id)
@@ -2441,7 +2456,9 @@ function createCollationState() {
 					parentReadingId: shouldBeSubreading ? preferredParent.id : null,
 					isSubreading: shouldBeSubreading,
 					readingType: shouldBeSubreading ? ('ns' as const) : null,
-					autoGenerated: shouldBeSubreading ? reading.autoGenerated || family.length > 1 : false,
+					autoGenerated: shouldBeSubreading
+						? reading.autoGenerated || family.length > 1
+						: false,
 				});
 				childOrder += 1;
 			}
@@ -2598,7 +2615,9 @@ function createCollationState() {
 			return [...reading.witnessIds];
 		}
 
-		const family = getReadingFamiliesForUnit(unitIndex).find(entry => entry.parent.id === readingId);
+		const family = getReadingFamiliesForUnit(unitIndex).find(
+			entry => entry.parent.id === readingId
+		);
 		if (!family) return [...reading.witnessIds];
 
 		const witnessIds: string[] = [];
@@ -2710,7 +2729,7 @@ function createCollationState() {
 		const readings = ensureReadingsForUnit(unitIndex);
 		const target = readings.find(reading => reading.id === readingId);
 		const parent = parentReadingId
-			? readings.find(reading => reading.id === parentReadingId) ?? null
+			? (readings.find(reading => reading.id === parentReadingId) ?? null)
 			: null;
 		if (!target) return;
 		if (parent && getReadingFamilyKey(parent) !== getReadingFamilyKey(target)) return;

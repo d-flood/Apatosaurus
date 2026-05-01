@@ -58,6 +58,7 @@ const {
 function makeFilterQuery<T>(handlers: { first?: () => Promise<T>; all?: () => Promise<T[]> }) {
 	const query = {
 		filter: vi.fn(() => query),
+		only: vi.fn(() => query),
 		orderBy: vi.fn(() => query),
 		first: handlers.first,
 		all: handlers.all,
@@ -166,19 +167,22 @@ function makeWitness(witnessId: string, content: string, isBaseText: boolean = f
 		transcriptionId: `${witnessId}-tx`,
 		sourceVersion: '2026-03-10T00:00:00.000Z',
 		content,
-		tokens: content.split(/\s+/).filter(Boolean).map((token) => ({
-			kind: 'text' as const,
-			original: token,
-			segments: [
-				{
-					text: token,
-					hasUnclear: false,
-					isPunctuation: false,
-					isSupplied: false,
-				},
-			],
-			gap: null,
-		})),
+		tokens: content
+			.split(/\s+/)
+			.filter(Boolean)
+			.map(token => ({
+				kind: 'text' as const,
+				original: token,
+				segments: [
+					{
+						text: token,
+						hasUnclear: false,
+						isPunctuation: false,
+						isSupplied: false,
+					},
+				],
+				gap: null,
+			})),
 		treatment: 'inherit' as const,
 		isBaseText,
 		isExcluded: false,
@@ -204,10 +208,7 @@ function makeDocumentPayload() {
 			selectedBook: 'Romans',
 			selectedChapter: '1',
 			selectedVerseNum: '1',
-			witnesses: [
-				makeWitness('A', 'και θεος', true),
-				makeWitness('B', 'και λογος'),
-			],
+			witnesses: [makeWitness('A', 'και θεος', true), makeWitness('B', 'και λογος')],
 			rules: [],
 			ignoreWordBreaks: false,
 			lowercase: false,
@@ -221,7 +222,7 @@ function makeDocumentPayload() {
 			stemmaEdges: new Map(),
 			alignmentDisplayMode: 'regularized',
 			alignmentLayout: 'variation-units',
-		}),
+		})
 	);
 }
 
@@ -467,7 +468,7 @@ describe('collationState artifact-first persistence', () => {
 
 		expect(updateCollationRow).toHaveBeenCalledWith(
 			collationId,
-			expect.objectContaining({ status: 'regularization' }),
+			expect.objectContaining({ status: 'regularization' })
 		);
 		expect(listCollationWitnessRows).not.toHaveBeenCalled();
 	});
@@ -556,7 +557,7 @@ describe('collationState artifact-first persistence', () => {
 		expect(listCollationWitnessRows).toHaveBeenCalled();
 		expect(updateCollationRow).toHaveBeenCalledWith(
 			collationId,
-			expect.objectContaining({ status: 'complete' }),
+			expect.objectContaining({ status: 'complete' })
 		);
 	});
 });

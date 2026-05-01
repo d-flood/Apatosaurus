@@ -37,6 +37,7 @@ vi.mock('$generated/models/Transcription', () => ({
 				filter: vi.fn(() => ({
 					first: getTranscription,
 				})),
+				first: getTranscription,
 			})),
 		},
 	},
@@ -103,10 +104,11 @@ describe('rebuildVerseIndexForTranscriptions', () => {
 				],
 			}),
 		});
-		const progressUpdates: Array<{ completed: number; total: number; currentLabel: string }> = [];
+		const progressUpdates: Array<{ completed: number; total: number; currentLabel: string }> =
+			[];
 
 		const result = await rebuildVerseIndexForTranscriptions(['tx-1'], {
-			onProgress: (progress) => {
+			onProgress: progress => {
 				progressUpdates.push({
 					completed: progress.completed,
 					total: progress.total,

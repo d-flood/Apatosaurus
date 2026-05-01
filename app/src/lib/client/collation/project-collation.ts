@@ -37,6 +37,20 @@ export interface ProjectTranscriptionOption {
 	hands: ProjectTranscriptionHandOption[];
 }
 
+const PROJECT_COLLATION_LOG_PREFIX = '[project-collation]';
+
+function nowMs(): number {
+	return typeof performance !== 'undefined' ? performance.now() : Date.now();
+}
+
+function logProjectCollation(message: string, details?: Record<string, unknown>) {
+	if (details && Object.keys(details).length > 0) {
+		console.debug(`${PROJECT_COLLATION_LOG_PREFIX} ${message}`, details);
+		return;
+	}
+	console.debug(`${PROJECT_COLLATION_LOG_PREFIX} ${message}`);
+}
+
 function normalizeHandRef(value: string | null | undefined): string {
 	return (value || '').trim().replace(/^#/, '');
 }
@@ -72,7 +86,9 @@ function collectCorrectionHandIds(corrections: CorrectionReading[] | undefined, 
 	}
 }
 
-function collectDocumentHandOptions(document: TranscriptionDocument | null): ProjectTranscriptionHandOption[] {
+function collectDocumentHandOptions(
+	document: TranscriptionDocument | null
+): ProjectTranscriptionHandOption[] {
 	if (!document) return [];
 	const baseHand = inferBaseHand(document);
 	const handIds = new Set<string>([baseHand]);
@@ -114,7 +130,7 @@ function collectDocumentHandOptions(document: TranscriptionDocument | null): Pro
 			if (right === baseHand) return 1;
 			return left.localeCompare(right, undefined, { sensitivity: 'base', numeric: true });
 		})
-		.map((handId) => ({
+		.map(handId => ({
 			id: handId,
 			label: handId,
 			kind: handId === baseHand ? 'firsthand' : 'corrector',
@@ -125,10 +141,11 @@ function collectDocumentHandOptions(document: TranscriptionDocument | null): Pro
 export async function listProjects(): Promise<ProjectOption[]> {
 	await ensureDjazzkitRuntime();
 	const rows = await Project.objects
-		.filter((fields) => fields._djazzkit_deleted.eq(false))
-		.orderBy((fields) => fields.updated_at, 'desc')
+		.query()
+		.orderBy(fields => fields.updated_at, 'desc')
+		.only('_djazzkit_id', 'name', 'description', 'created_at', 'updated_at')
 		.all();
-	return rows.map((row) => ({
+	return rows.map(row => ({
 		id: row._djazzkit_id,
 		name: row.name,
 		description: row.description,
@@ -139,10 +156,7 @@ export async function listProjects(): Promise<ProjectOption[]> {
 
 export async function getProject(projectId: string): Promise<ProjectRecord | null> {
 	await ensureDjazzkitRuntime();
-	const row = await Project.objects
-		.filter((fields) => fields._djazzkit_id.eq(projectId))
-		.filter((fields) => fields._djazzkit_deleted.eq(false))
-		.first();
+	const row = await Project.objects.filter(fields => fields._djazzkit_id.eq(projectId)).first();
 	if (!row) return null;
 	return {
 		id: row._djazzkit_id,
@@ -181,7 +195,7 @@ export async function createProjectRecord(input: {
 				segmentation: true,
 				transcriptionWitnessTreatments: new Map(),
 				transcriptionWitnessExcludedHands: new Map(),
-			}),
+			})
 		),
 		owner_id: null,
 		created_at: now,
@@ -195,7 +209,7 @@ export async function updateProjectMetadata(
 	updates: {
 		name?: string;
 		description?: string;
-	},
+	}
 ): Promise<void> {
 	await ensureDjazzkitRuntime();
 	const now = new Date().toISOString();
@@ -210,57 +224,77 @@ export async function updateProjectMetadata(
 
 export async function listTranscriptions(): Promise<ProjectTranscriptionOption[]> {
 	await ensureDjazzkitRuntime();
+	const queryStartedAt = nowMs();
 	const rows = await Transcription.objects
-		.filter((fields) => fields._djazzkit_deleted.eq(false))
+		.query()
+		.only('_djazzkit_id', 'siglum', 'title', 'description')
 		.all();
-	return rows
-		.map((row) => {
-			const document = coerceTranscriptionDocument(row.content_json);
-			const displayLabel = getPreferredTranscriptionLabel({
-				document,
+	const queryElapsedMs = nowMs() - queryStartedAt;
+	const options = rows
+		.map(row => ({
+			id: row._djazzkit_id,
+			siglum: row.siglum,
+			displayLabel: getPreferredTranscriptionLabel({
+				document: null,
 				siglum: row.siglum,
 				fallbackId: row._djazzkit_id,
-			});
-			return {
-				id: row._djazzkit_id,
-				siglum: row.siglum,
-				displayLabel,
-				title: row.title,
-				description: row.description,
-				hands: collectDocumentHandOptions(document),
-			};
-		})
+			}),
+			title: row.title,
+			description: row.description,
+			hands: [] as ProjectTranscriptionHandOption[],
+		}))
 		.sort((a, b) =>
-			a.displayLabel.localeCompare(b.displayLabel, undefined, { sensitivity: 'base', numeric: true }),
+			a.displayLabel.localeCompare(b.displayLabel, undefined, {
+				sensitivity: 'base',
+				numeric: true,
+			})
 		);
+	logProjectCollation('listTranscriptions completed', {
+		rowCount: rows.length,
+		queryElapsedMs,
+	});
+	return options;
+}
+
+export async function loadTranscriptionHands(
+	transcriptionId: string
+): Promise<ProjectTranscriptionHandOption[]> {
+	await ensureDjazzkitRuntime();
+	const row = await Transcription.objects
+		.filter(fields => fields._djazzkit_id.eq(transcriptionId))
+		.only('_djazzkit_id', 'content_json')
+		.first();
+	if (!row) return [];
+	const document = coerceTranscriptionDocument(row.content_json);
+	return collectDocumentHandOptions(document);
 }
 
 export async function getProjectTranscriptionIds(projectId: string): Promise<string[]> {
 	await ensureDjazzkitRuntime();
 	const rows = await ProjectTranscription.objects
-		.filter((fields) => fields.project.eq(projectId))
-		.filter((fields) => fields._djazzkit_deleted.eq(false))
+		.filter(fields => fields.project.eq(projectId))
+		.only('_djazzkit_id', 'transcription_id')
 		.all();
-	return rows.map((row) => row.transcription_id);
+	return rows.map(row => row.transcription_id);
 }
 
 export async function syncProjectTranscriptionIds(
 	projectId: string,
-	nextIds: string[],
+	nextIds: string[]
 ): Promise<void> {
 	await ensureDjazzkitRuntime();
 	const existing = await ProjectTranscription.objects
-		.filter((fields) => fields.project.eq(projectId))
+		.filter(fields => fields.project.eq(projectId))
 		.all();
 	const activeByTranscriptionId = new Map(
 		existing
-			.filter((row) => !row._djazzkit_deleted)
-			.map((row) => [row.transcription_id, row] as const),
+			.filter(row => !row._djazzkit_deleted)
+			.map(row => [row.transcription_id, row] as const)
 	);
 	const deletedByTranscriptionId = new Map(
 		existing
-			.filter((row) => row._djazzkit_deleted)
-			.map((row) => [row.transcription_id, row] as const),
+			.filter(row => row._djazzkit_deleted)
+			.map(row => [row.transcription_id, row] as const)
 	);
 	const nextIdSet = new Set(nextIds);
 	const now = new Date().toISOString();

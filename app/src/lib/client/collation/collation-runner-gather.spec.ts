@@ -1,10 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const {
-	ensureDjazzkitRuntime,
-	getVerseIndexRowsForVerse,
-	listTranscriptions,
-} = vi.hoisted(() => ({
+const { ensureDjazzkitRuntime, getVerseIndexRowsForVerse, listTranscriptions } = vi.hoisted(() => ({
 	ensureDjazzkitRuntime: vi.fn(),
 	getVerseIndexRowsForVerse: vi.fn(),
 	listTranscriptions: vi.fn(),
@@ -13,6 +9,7 @@ const {
 function makeFilterQuery<T>(handlers: { all?: () => Promise<T[]> }) {
 	const query = {
 		filter: vi.fn(() => query),
+		only: vi.fn(() => query),
 		all: handlers.all,
 	};
 	return query;
@@ -98,7 +95,12 @@ describe('gatherWitnessesForVerse', () => {
 																	{
 																		type: 'element',
 																		tag: 'idno',
-																		children: [{ type: 'text', text: '32495' }],
+																		children: [
+																			{
+																				type: 'text',
+																				text: '32495',
+																			},
+																		],
 																	},
 																],
 															},
@@ -122,7 +124,11 @@ describe('gatherWitnessesForVerse', () => {
 												{
 													type: 'milestone',
 													kind: 'verse',
-													attrs: { book: 'Romans', chapter: '1', verse: '1' },
+													attrs: {
+														book: 'Romans',
+														chapter: '1',
+														verse: '1',
+													},
 												},
 												{ type: 'text', text: 'λογος' },
 											],
@@ -153,7 +159,11 @@ describe('gatherWitnessesForVerse', () => {
 												{
 													type: 'milestone',
 													kind: 'verse',
-													attrs: { book: 'Romans', chapter: '1', verse: '1' },
+													attrs: {
+														book: 'Romans',
+														chapter: '1',
+														verse: '1',
+													},
 												},
 												{ type: 'text', text: 'θεος' },
 											],
@@ -173,10 +183,10 @@ describe('gatherWitnessesForVerse', () => {
 
 		expect(getVerseIndexRowsForVerse).toHaveBeenCalledWith('Romans 1:1', ['tx-1', 'tx-2']);
 		expect(listTranscriptions).toHaveBeenCalledTimes(1);
-		expect(witnesses.map((witness) => witness.transcriptionUid)).toEqual(['tx-2', 'tx-1']);
-		expect(witnesses.map((witness) => witness.id)).toEqual(['Shelfmark 02', '32495']);
-		expect(witnesses.map((witness) => witness.siglum)).toEqual(['Shelfmark 02', '32495']);
-		expect(witnesses.map((witness) => witness.content)).toEqual(['θεος', 'λογος']);
+		expect(witnesses.map(witness => witness.transcriptionUid)).toEqual(['tx-2', 'tx-1']);
+		expect(witnesses.map(witness => witness.id)).toEqual(['Shelfmark 02', '32495']);
+		expect(witnesses.map(witness => witness.siglum)).toEqual(['Shelfmark 02', '32495']);
+		expect(witnesses.map(witness => witness.content)).toEqual(['θεος', 'λογος']);
 	});
 
 	it('merges wrapped words before building gathered witness content', async () => {
@@ -206,7 +216,11 @@ describe('gatherWitnessesForVerse', () => {
 												{
 													type: 'milestone',
 													kind: 'verse',
-													attrs: { book: 'Romans', chapter: '1', verse: '1' },
+													attrs: {
+														book: 'Romans',
+														chapter: '1',
+														verse: '1',
+													},
 												},
 												{ type: 'text', text: 'part1' },
 											],
@@ -233,7 +247,10 @@ describe('gatherWitnessesForVerse', () => {
 		const witnesses = await gatherWitnessesForVerse('Romans 1:1', ['tx-1']);
 
 		expect(witnesses).toHaveLength(1);
-		expect(witnesses[0]?.tokens.map((token) => token.original)).toEqual(['part1\\npart2', 'next']);
+		expect(witnesses[0]?.tokens.map(token => token.original)).toEqual([
+			'part1\\npart2',
+			'next',
+		]);
 		expect(witnesses[0]?.content).toBe('part1\\npart2 next');
 	});
 
@@ -264,7 +281,11 @@ describe('gatherWitnessesForVerse', () => {
 												{
 													type: 'milestone',
 													kind: 'verse',
-													attrs: { book: 'Romans', chapter: '1', verse: '1' },
+													attrs: {
+														book: 'Romans',
+														chapter: '1',
+														verse: '1',
+													},
 												},
 												{ type: 'text', text: 'part1' },
 											],
@@ -293,7 +314,7 @@ describe('gatherWitnessesForVerse', () => {
 		});
 
 		expect(witnesses).toHaveLength(1);
-		expect(witnesses[0]?.tokens.map((token) => token.original)).toEqual(['part1part2', 'next']);
+		expect(witnesses[0]?.tokens.map(token => token.original)).toEqual(['part1part2', 'next']);
 		expect(witnesses[0]?.content).toBe('part1part2 next');
 	});
 
@@ -318,10 +339,18 @@ describe('gatherWitnessesForVerse', () => {
 												{
 													type: 'milestone',
 													kind: 'verse',
-													attrs: { book: 'Romans', chapter: '1', verse: '1' },
+													attrs: {
+														book: 'Romans',
+														chapter: '1',
+														verse: '1',
+													},
 												},
 												{ type: 'text', text: 'λογος' },
-												{ type: 'text', text: ',', marks: [{ type: 'punctuation' }] },
+												{
+													type: 'text',
+													text: ',',
+													marks: [{ type: 'punctuation' }],
+												},
 												{ type: 'text', text: 'θεος' },
 											],
 										},
@@ -337,7 +366,7 @@ describe('gatherWitnessesForVerse', () => {
 		const witnesses = await gatherWitnessesForVerse('Romans 1:1', ['tx-1']);
 
 		expect(witnesses).toHaveLength(1);
-		expect(witnesses[0]?.tokens.map((token) => token.original)).toEqual(['λογος', ',', 'θεος']);
+		expect(witnesses[0]?.tokens.map(token => token.original)).toEqual(['λογος', ',', 'θεος']);
 		expect(witnesses[0]?.content).toBe('λογος, θεος');
 	});
 
@@ -368,7 +397,11 @@ describe('gatherWitnessesForVerse', () => {
 												{
 													type: 'milestone',
 													kind: 'verse',
-													attrs: { book: 'Romans', chapter: '1', verse: '1' },
+													attrs: {
+														book: 'Romans',
+														chapter: '1',
+														verse: '1',
+													},
 												},
 												{ type: 'text', text: 'part1' },
 											],
@@ -395,7 +428,11 @@ describe('gatherWitnessesForVerse', () => {
 												{
 													type: 'milestone',
 													kind: 'verse',
-													attrs: { book: 'Romans', chapter: '1', verse: '2' },
+													attrs: {
+														book: 'Romans',
+														chapter: '1',
+														verse: '2',
+													},
 												},
 												{ type: 'text', text: 'start' },
 												{ type: 'boundary', kind: 'word' },
@@ -413,7 +450,7 @@ describe('gatherWitnessesForVerse', () => {
 		const witnesses = await gatherWitnessesForVerse('Romans 1:2', ['tx-1']);
 
 		expect(witnesses).toHaveLength(1);
-		expect(witnesses[0]?.tokens.map((token) => token.original)).toEqual(['start']);
+		expect(witnesses[0]?.tokens.map(token => token.original)).toEqual(['start']);
 		expect(witnesses[0]?.content).toBe('start');
 	});
 
@@ -441,7 +478,11 @@ describe('gatherWitnessesForVerse', () => {
 												{
 													type: 'milestone',
 													kind: 'verse',
-													attrs: { book: 'Romans', chapter: '1', verse: '1' },
+													attrs: {
+														book: 'Romans',
+														chapter: '1',
+														verse: '1',
+													},
 												},
 												{
 													type: 'text',
@@ -451,7 +492,15 @@ describe('gatherWitnessesForVerse', () => {
 															type: 'correction',
 															attrs: {
 																corrections: [
-																	{ hand: '#corrector1', content: [{ type: 'text', text: 'ρημα' }] },
+																	{
+																		hand: '#corrector1',
+																		content: [
+																			{
+																				type: 'text',
+																				text: 'ρημα',
+																			},
+																		],
+																	},
 																],
 															},
 														},
@@ -463,7 +512,12 @@ describe('gatherWitnessesForVerse', () => {
 												{
 													type: 'correctionOnly',
 													corrections: [
-														{ hand: '#corrector1', content: [{ type: 'text', text: 'κυριος' }] },
+														{
+															hand: '#corrector1',
+															content: [
+																{ type: 'text', text: 'κυριος' },
+															],
+														},
 													],
 												},
 											],
@@ -491,7 +545,7 @@ describe('gatherWitnessesForVerse', () => {
 			siglum: 'Corrected 01 corrector1',
 			fullContent: 'ρημα θεος κυριος',
 		});
-		expect(witnesses[1]?.fragmentaryTokens?.map((token) => token.kind)).toEqual([
+		expect(witnesses[1]?.fragmentaryTokens?.map(token => token.kind)).toEqual([
 			'text',
 			'untranscribed',
 			'text',

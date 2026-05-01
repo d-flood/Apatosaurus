@@ -4,9 +4,7 @@ import {
 	type StoredTranscriptionDocument,
 } from '$lib/client/transcription/content';
 import type { CorrectionReading, InlineItem } from '@apatopwa/tei-transcription';
-import {
-	getPreferredTranscriptionLabel,
-} from '$lib/client/transcription/display';
+import { getPreferredTranscriptionLabel } from '$lib/client/transcription/display';
 import { Transcription, type TranscriptionRow } from '$generated/models/Transcription';
 import {
 	getVerseIndexRowsForVerse,
@@ -66,7 +64,7 @@ function currentVerseIdentifier(state: MilestoneState): string {
 }
 
 function hasMark(item: { marks?: Array<{ type?: string }> }, markType: string): boolean {
-	return Array.isArray(item.marks) && item.marks.some((mark) => mark?.type === markType);
+	return Array.isArray(item.marks) && item.marks.some(mark => mark?.type === markType);
 }
 
 function buildTextSegment(item: {
@@ -84,7 +82,7 @@ function buildTextSegment(item: {
 
 function buildGapMetadata(
 	source: GapMetadata['source'],
-	attrs: Record<string, unknown> | undefined,
+	attrs: Record<string, unknown> | undefined
 ): GapMetadata {
 	return {
 		source,
@@ -94,7 +92,9 @@ function buildGapMetadata(
 	};
 }
 
-function isNoBreakItem(item: { type?: string; attrs?: Record<string, unknown> } | undefined): boolean {
+function isNoBreakItem(
+	item: { type?: string; attrs?: Record<string, unknown> } | undefined
+): boolean {
 	return (
 		(item?.type === 'lineBreak' ||
 			item?.type === 'columnBreak' ||
@@ -119,10 +119,10 @@ function breakMarkerPriority(marker: '\\n' | '\\c' | '\\p' | null): number {
 
 function buildWitnessContent(tokens: WitnessSourceToken[]): string {
 	return joinTokenTexts(
-		tokens.map((token) => ({
+		tokens.map(token => ({
 			text: token.original,
 			originalSegments: token.segments,
-		})),
+		}))
 	);
 }
 
@@ -132,31 +132,31 @@ function normalizeHandRef(value: string | null | undefined): string {
 
 function inferBaseHand(document: StoredTranscriptionDocument): string {
 	const witnessIds = Array.isArray(document.header?.witnessIds)
-		? document.header.witnessIds.map((value) => value.trim()).filter(Boolean)
+		? document.header.witnessIds.map(value => value.trim()).filter(Boolean)
 		: [];
 	const handIds = Array.isArray(document.header?.msDescription?.hands)
 		? document.header.msDescription.hands
-				.map((hand) => {
+				.map(hand => {
 					const id = hand?.attrs?.['xml:id'] || hand?.attrs?.n || '';
 					return id.trim();
 				})
 				.filter(Boolean)
 		: [];
 	const preferredWitness =
-		witnessIds.find((id) => /firsthand/i.test(id)) ||
-		witnessIds.find((id) => /base|main/i.test(id)) ||
-		witnessIds.find((id) => !/correct/i.test(id));
+		witnessIds.find(id => /firsthand/i.test(id)) ||
+		witnessIds.find(id => /base|main/i.test(id)) ||
+		witnessIds.find(id => !/correct/i.test(id));
 	if (preferredWitness) return normalizeHandRef(preferredWitness);
 	const preferredHand =
-		handIds.find((id) => /firsthand/i.test(id)) ||
-		handIds.find((id) => /first hand/i.test(id)) ||
-		handIds.find((id) => !/correct/i.test(id));
+		handIds.find(id => /firsthand/i.test(id)) ||
+		handIds.find(id => /first hand/i.test(id)) ||
+		handIds.find(id => !/correct/i.test(id));
 	return normalizeHandRef(preferredHand || 'firsthand') || 'firsthand';
 }
 
 function getCorrectionForHand(
 	item: { marks?: unknown[] },
-	handId: string,
+	handId: string
 ): CorrectionReading | null {
 	for (const mark of item.marks || []) {
 		if (!mark || typeof mark !== 'object') continue;
@@ -171,7 +171,10 @@ function getCorrectionForHand(
 	return null;
 }
 
-function getCorrectionOnlyForHand(corrections: CorrectionReading[], handId: string): CorrectionReading | null {
+function getCorrectionOnlyForHand(
+	corrections: CorrectionReading[],
+	handId: string
+): CorrectionReading | null {
 	for (const correction of corrections) {
 		if (normalizeHandRef(correction.hand) === handId) {
 			return correction;
@@ -181,9 +184,7 @@ function getCorrectionOnlyForHand(corrections: CorrectionReading[], handId: stri
 }
 
 function countPlaceholderTokens(text: string): number {
-	return text
-		.split(/(\s+)/)
-		.filter((piece) => piece.length > 0 && !/^\s+$/u.test(piece)).length;
+	return text.split(/(\s+)/).filter(piece => piece.length > 0 && !/^\s+$/u.test(piece)).length;
 }
 
 function buildInheritedPlaceholderTokens(text: string): WitnessSourceToken[] {
@@ -203,7 +204,7 @@ function buildInheritedPlaceholderTokens(text: string): WitnessSourceToken[] {
 function cloneSourceToken(token: WitnessSourceToken): WitnessSourceToken {
 	return {
 		...token,
-		segments: token.segments.map((segment) => ({ ...segment })),
+		segments: token.segments.map(segment => ({ ...segment })),
 		gap: token.gap ? { ...token.gap } : null,
 	};
 }
@@ -220,7 +221,7 @@ export function extractWitnessTokensForVerse(
 	document: StoredTranscriptionDocument,
 	targetVerseIdentifier: string,
 	options: WitnessExtractionOptions = {},
-	target?: WitnessExtractionTarget,
+	target?: WitnessExtractionTarget
 ): WitnessSourceToken[] {
 	const tokens: WitnessSourceToken[] = [];
 	let pendingSegments: WitnessTextSegment[] = [];
@@ -232,7 +233,10 @@ export function extractWitnessTokensForVerse(
 
 	function flushPendingTokenSegments(segments: WitnessTextSegment[]) {
 		if (segments.length === 0) return;
-		const original = segments.map((segment) => segment.text).join('').trim();
+		const original = segments
+			.map(segment => segment.text)
+			.join('')
+			.trim();
 		if (original.length === 0) return;
 		tokens.push({
 			kind: 'text',
@@ -254,7 +258,7 @@ export function extractWitnessTokensForVerse(
 		}
 
 		for (const segment of segments) {
-			const pieces = segment.text.split(/(\s+)/).filter((piece) => piece.length > 0);
+			const pieces = segment.text.split(/(\s+)/).filter(piece => piece.length > 0);
 			for (const piece of pieces) {
 				if (/^\s+$/u.test(piece)) {
 					flushCurrentToken();
@@ -339,10 +343,7 @@ export function extractWitnessTokensForVerse(
 		tokens.push(...buildInheritedPlaceholderTokens(text));
 	}
 
-	function shouldUseOriginalText(item: {
-		text?: string;
-		marks?: unknown[];
-	}): boolean {
+	function shouldUseOriginalText(item: { text?: string; marks?: unknown[] }): boolean {
 		if (!target) {
 			return true;
 		}
@@ -439,7 +440,9 @@ export function extractWitnessTokensForVerse(
 			}
 
 			if (item.type === 'correctionOnly') {
-				const correction = target ? getCorrectionOnlyForHand(item.corrections, target.handId) : null;
+				const correction = target
+					? getCorrectionOnlyForHand(item.corrections, target.handId)
+					: null;
 				if (!correction) {
 					continue;
 				}
@@ -453,7 +456,7 @@ export function extractWitnessTokensForVerse(
 
 	function flushAtStructuralBoundary(
 		kind: 'page' | 'column' | 'line',
-		isContinuation: boolean | undefined,
+		isContinuation: boolean | undefined
 	) {
 		if (isContinuation) {
 			if (currentVerseIdentifier(state) === targetVerseIdentifier) {
@@ -488,21 +491,21 @@ export function extractWitnessTokensForVerse(
 							state.chapter = item.attrs.chapter || state.chapter;
 							state.verse = item.attrs.verse || state.verse;
 						}
-					if (
-						previousVerseIdentifier === targetVerseIdentifier &&
-						currentVerseIdentifier(state) !== targetVerseIdentifier
-					) {
-						flushPendingSegments();
+						if (
+							previousVerseIdentifier === targetVerseIdentifier &&
+							currentVerseIdentifier(state) !== targetVerseIdentifier
+						) {
+							flushPendingSegments();
+						}
+						if (
+							previousVerseIdentifier !== targetVerseIdentifier &&
+							currentVerseIdentifier(state) === targetVerseIdentifier &&
+							pendingSegments.length === 0
+						) {
+							clearPendingContinuation();
+						}
+						continue;
 					}
-					if (
-						previousVerseIdentifier !== targetVerseIdentifier &&
-						currentVerseIdentifier(state) === targetVerseIdentifier &&
-						pendingSegments.length === 0
-					) {
-						clearPendingContinuation();
-					}
-					continue;
-				}
 
 					if (currentVerseIdentifier(state) !== targetVerseIdentifier) {
 						continue;
@@ -521,7 +524,7 @@ export function extractWitnessTokensForVerse(
 function collectCorrectionHandsForVerse(
 	document: StoredTranscriptionDocument,
 	targetVerseIdentifier: string,
-	baseHand: string,
+	baseHand: string
 ): string[] {
 	const state: MilestoneState = { book: '', chapter: '', verse: '' };
 	let currentHand: string;
@@ -558,7 +561,8 @@ function collectCorrectionHandsForVerse(
 						continue;
 					}
 					if (item.type === 'handShift') {
-						currentHand = normalizeHandRef(item.attrs.new || item.attrs.hand || '') || baseHand;
+						currentHand =
+							normalizeHandRef(item.attrs.new || item.attrs.hand || '') || baseHand;
 						continue;
 					}
 					if (item.type === 'text') {
@@ -596,7 +600,7 @@ function buildWitnessId(base: string, seen: Map<string, number>): string {
 export async function gatherWitnessesForVerse(
 	verseIdentifier: string,
 	transcriptionIds?: string[],
-	options: WitnessExtractionOptions = {},
+	options: WitnessExtractionOptions = {}
 ): Promise<PreparedWitness[]> {
 	await ensureDjazzkitRuntime();
 	const verseRows = await getVerseIndexRowsForVerse(verseIdentifier, transcriptionIds);
@@ -614,10 +618,12 @@ export async function gatherWitnessesForVerse(
 
 	const transcriptions: TranscriptionRow[] = await Transcription.objects
 		.filter((fields: any) => fields._djazzkit_id.inList(orderedTranscriptionIds))
-		.filter((fields: any) => fields._djazzkit_deleted.eq(false))
+		.only('_djazzkit_id', 'content_json', 'siglum', 'updated_at', '_djazzkit_updated_at')
 		.all();
 	const transcriptionById = new Map(
-		transcriptions.map((transcription) => [String(transcription._djazzkit_id || ''), transcription] as const),
+		transcriptions.map(
+			transcription => [String(transcription._djazzkit_id || ''), transcription] as const
+		)
 	);
 
 	for (const transcriptionId of orderedTranscriptionIds) {
@@ -628,9 +634,9 @@ export async function gatherWitnessesForVerse(
 		const baseHand = inferBaseHand(document);
 		const witnessBase = getPreferredTranscriptionLabel({
 			document,
-				siglum: typeof transcription.siglum === 'string' ? transcription.siglum : null,
-				fallbackId: String(transcription._djazzkit_id || transcriptionId),
-			});
+			siglum: typeof transcription.siglum === 'string' ? transcription.siglum : null,
+			fallbackId: String(transcription._djazzkit_id || transcriptionId),
+		});
 		const firsthandTokens = extractWitnessTokensForVerse(document, verseIdentifier, options, {
 			kind: 'firsthand',
 			baseHand,
@@ -650,7 +656,7 @@ export async function gatherWitnessesForVerse(
 				fullTokens: cloneSourceTokens(firsthandTokens),
 				transcriptionUid: String(transcription._djazzkit_id || transcriptionId),
 				sourceVersion: String(
-					transcription.updated_at || transcription._djazzkit_updated_at || '',
+					transcription.updated_at || transcription._djazzkit_updated_at || ''
 				),
 			});
 		}
@@ -663,12 +669,17 @@ export async function gatherWitnessesForVerse(
 				handId,
 				treatment: 'full',
 			});
-			const fragmentaryTokens = extractWitnessTokensForVerse(document, verseIdentifier, options, {
-				kind: 'corrector',
-				baseHand,
-				handId,
-				treatment: 'fragmentary',
-			});
+			const fragmentaryTokens = extractWitnessTokensForVerse(
+				document,
+				verseIdentifier,
+				options,
+				{
+					kind: 'corrector',
+					baseHand,
+					handId,
+					treatment: 'fragmentary',
+				}
+			);
 			const fullContent = buildWitnessContent(fullTokens);
 			const fragmentaryContent = buildWitnessContent(fragmentaryTokens);
 			if (!fullContent && !fragmentaryContent) continue;
@@ -679,14 +690,16 @@ export async function gatherWitnessesForVerse(
 				kind: 'corrector',
 				handId,
 				content: fragmentaryContent || fullContent,
-				tokens: cloneSourceTokens(fragmentaryTokens.length > 0 ? fragmentaryTokens : fullTokens),
+				tokens: cloneSourceTokens(
+					fragmentaryTokens.length > 0 ? fragmentaryTokens : fullTokens
+				),
 				fullContent,
 				fullTokens: cloneSourceTokens(fullTokens),
 				fragmentaryContent,
 				fragmentaryTokens: cloneSourceTokens(fragmentaryTokens),
 				transcriptionUid: String(transcription._djazzkit_id || transcriptionId),
 				sourceVersion: String(
-					transcription.updated_at || transcription._djazzkit_updated_at || '',
+					transcription.updated_at || transcription._djazzkit_updated_at || ''
 				),
 			});
 		}

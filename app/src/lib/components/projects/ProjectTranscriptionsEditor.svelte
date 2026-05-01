@@ -135,7 +135,7 @@
 	{#if isLoading}
 		<div class="flex items-center gap-2 rounded-box bg-base-200/70 p-4 text-sm text-base-content/60">
 			<span class="loading loading-spinner loading-sm"></span>
-			Loading project scope...
+			Loading transcription settings...
 		</div>
 	{:else if allTranscriptions.length === 0}
 		<div class="rounded-box border border-dashed border-base-300/80 p-4 text-sm text-base-content/55">
