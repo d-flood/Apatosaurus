@@ -10,7 +10,10 @@ import type {
 	ProjectRpcResponse,
 	TranscriptionRpcRequest,
 	TranscriptionRpcResponse,
+	IiifRpcRequest,
+	IiifRpcResponse,
 } from './rpc';
+import type { W3CAnnotation } from 'triiiceratops/plugins/annotation-editor';
 import type {
 	CollationListItem,
 	CreateCollationInput,
@@ -35,6 +38,8 @@ import type {
 	ProjectTranscriptionOption,
 	UpdateProjectMetadataInput,
 } from './repositories/projects';
+import type { EnsureManifestSourceInput } from './repositories/iiif';
+import type { AnnotationAnchor, ManifestSourceSummary, PageCanvasLink, SavePageCanvasLinkInput } from '../iiif/types';
 
 let nextRequestId = 1;
 const pending = new Map<number, { resolve: (value: unknown) => void; reject: (error: Error) => void }>();
@@ -171,6 +176,74 @@ export async function deleteCollation(id: string): Promise<void> {
 	await sendCollationRequest({ type: 'collations.delete', collationId: id });
 }
 
+export async function listManifestSources(transcriptionId: string): Promise<ManifestSourceSummary[]> {
+	return sendIiifRequest({ type: 'iiif.listManifestSources', transcriptionId });
+}
+
+export async function listManifestSourcesForUrl(transcriptionId: string, manifestUrl: string): Promise<ManifestSourceSummary[]> {
+	return sendIiifRequest({ type: 'iiif.listManifestSourcesForUrl', transcriptionId, manifestUrl });
+}
+
+export async function ensureManifestSource(input: EnsureManifestSourceInput): Promise<ManifestSourceSummary> {
+	return sendIiifRequest({ type: 'iiif.ensureManifestSource', input });
+}
+
+export async function getManifestSource(transcriptionId: string, manifestSourceId: string): Promise<ManifestSourceSummary | null> {
+	return sendIiifRequest({ type: 'iiif.getManifestSource', input: { transcriptionId, manifestSourceId } });
+}
+
+export async function listPageCanvasLinks(transcriptionId: string): Promise<PageCanvasLink[]> {
+	return sendIiifRequest({ type: 'iiif.listPageCanvasLinks', transcriptionId });
+}
+
+export async function upsertPageCanvasLink(input: SavePageCanvasLinkInput): Promise<PageCanvasLink> {
+	return sendIiifRequest({ type: 'iiif.upsertPageCanvasLink', input });
+}
+
+export async function savePageCanvasLinks(inputs: SavePageCanvasLinkInput[]): Promise<PageCanvasLink[]> {
+	return sendIiifRequest({ type: 'iiif.savePageCanvasLinks', inputs });
+}
+
+export async function deletePageCanvasLink(input: { transcriptionId: string; pageId: string; manifestSourceId: string; canvasId: string }): Promise<number> {
+	return sendIiifRequest({ type: 'iiif.deletePageCanvasLink', input });
+}
+
+export async function deletePageCanvasLinksForPage(input: { transcriptionId: string; pageId: string }): Promise<number> {
+	return sendIiifRequest({ type: 'iiif.deletePageCanvasLinksForPage', input });
+}
+
+export async function deleteAllPageCanvasLinks(transcriptionId: string): Promise<number> {
+	return sendIiifRequest({ type: 'iiif.deleteAllPageCanvasLinks', transcriptionId });
+}
+
+export async function deleteManifestSource(input: { transcriptionId: string; manifestSourceId: string }): Promise<boolean> {
+	return sendIiifRequest({ type: 'iiif.deleteManifestSource', input });
+}
+
+export async function deleteManifestSourceLinks(input: { transcriptionId: string; manifestSourceId: string }): Promise<number> {
+	return sendIiifRequest({ type: 'iiif.deleteManifestSourceLinks', input });
+}
+
+export async function findLinkedPageForCanvas(input: { transcriptionId: string; manifestSourceId: string; canvasId: string }): Promise<PageCanvasLink | null> {
+	return sendIiifRequest({ type: 'iiif.findLinkedPageForCanvas', input });
+}
+
+export async function listCanvasAnnotations(input: { transcriptionId: string; manifestSourceIds: string[]; canvasId: string; mode?: 'headers' | 'full'; previewLength?: number }): Promise<W3CAnnotation[]> {
+	return sendIiifRequest({ type: 'iiif.listCanvasAnnotations', input });
+}
+
+export async function getCanvasAnnotation(input: { transcriptionId: string; manifestSourceId: string; annotationId: string }): Promise<W3CAnnotation | null> {
+	return sendIiifRequest({ type: 'iiif.getCanvasAnnotation', input });
+}
+
+export async function upsertCanvasAnnotation(input: { transcriptionId: string; pageId: string; manifestSourceId: string; canvasId: string; annotation: W3CAnnotation; anchor: AnnotationAnchor; createdBy?: string }): Promise<void> {
+	await sendIiifRequest({ type: 'iiif.upsertCanvasAnnotation', input });
+}
+
+export async function deleteCanvasAnnotation(input: { transcriptionId: string; manifestSourceId: string; annotationId: string }): Promise<void> {
+	await sendIiifRequest({ type: 'iiif.deleteCanvasAnnotation', input });
+}
+
 export function attachLocalDbClient(worker: Worker): void {
 	worker.addEventListener('message', (event: MessageEvent<DbResponse | DbInvalidationEvent>) => {
 		const message = event.data;
@@ -213,4 +286,10 @@ async function sendCollationRequest<T extends CollationRpcRequest>(
 	payload: T,
 ): Promise<CollationRpcResponse<T['type']>> {
 	return send<CollationRpcResponse<T['type']>>(payload);
+}
+
+async function sendIiifRequest<T extends IiifRpcRequest>(
+	payload: T,
+): Promise<IiifRpcResponse<T['type']>> {
+	return send<IiifRpcResponse<T['type']>>(payload);
 }

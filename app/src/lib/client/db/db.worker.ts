@@ -30,6 +30,7 @@ import {
 	rebuildVerseIndexForTranscriptions,
 	updateTranscriptionContent,
 } from './repositories/transcriptions';
+import * as iiifRepository from './repositories/iiif';
 import type { Database } from './types.generated';
 import { createWorkerKysely } from './worker-kysely';
 import { LocalSqliteDatabase } from './worker-sqlite';
@@ -143,6 +144,63 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 	if (request.type === 'collations.delete') {
 		await deleteCollation(getKyselyDb(), request.collationId);
 		postMessage({ type: 'db:invalidate', domain: 'collations' });
+		return null;
+	}
+	if (request.type === 'iiif.listManifestSources') return iiifRepository.listManifestSources(getKyselyDb(), request.transcriptionId);
+	if (request.type === 'iiif.listManifestSourcesForUrl') return iiifRepository.listManifestSourcesForUrl(getKyselyDb(), request.transcriptionId, request.manifestUrl);
+	if (request.type === 'iiif.ensureManifestSource') {
+		const row = await iiifRepository.ensureManifestSource(getKyselyDb(), request.input);
+		postMessage({ type: 'db:invalidate', domain: 'iiif' });
+		return row;
+	}
+	if (request.type === 'iiif.getManifestSource') return iiifRepository.getManifestSource(getKyselyDb(), request.input);
+	if (request.type === 'iiif.listPageCanvasLinks') return iiifRepository.listPageCanvasLinks(getKyselyDb(), request.transcriptionId);
+	if (request.type === 'iiif.upsertPageCanvasLink') {
+		const row = await iiifRepository.upsertPageCanvasLink(getKyselyDb(), request.input);
+		postMessage({ type: 'db:invalidate', domain: 'iiif' });
+		return row;
+	}
+	if (request.type === 'iiif.savePageCanvasLinks') {
+		const rows = await iiifRepository.savePageCanvasLinks(getKyselyDb(), request.inputs);
+		postMessage({ type: 'db:invalidate', domain: 'iiif' });
+		return rows;
+	}
+	if (request.type === 'iiif.deletePageCanvasLink') {
+		const count = await iiifRepository.deletePageCanvasLink(getKyselyDb(), request.input);
+		postMessage({ type: 'db:invalidate', domain: 'iiif' });
+		return count;
+	}
+	if (request.type === 'iiif.deletePageCanvasLinksForPage') {
+		const count = await iiifRepository.deletePageCanvasLinksForPage(getKyselyDb(), request.input);
+		postMessage({ type: 'db:invalidate', domain: 'iiif' });
+		return count;
+	}
+	if (request.type === 'iiif.deleteAllPageCanvasLinks') {
+		const count = await iiifRepository.deleteAllPageCanvasLinks(getKyselyDb(), request.transcriptionId);
+		postMessage({ type: 'db:invalidate', domain: 'iiif' });
+		return count;
+	}
+	if (request.type === 'iiif.deleteManifestSource') {
+		const deleted = await iiifRepository.deleteManifestSource(getKyselyDb(), request.input);
+		postMessage({ type: 'db:invalidate', domain: 'iiif' });
+		return deleted;
+	}
+	if (request.type === 'iiif.deleteManifestSourceLinks') {
+		const count = await iiifRepository.deleteManifestSourceLinks(getKyselyDb(), request.input);
+		postMessage({ type: 'db:invalidate', domain: 'iiif' });
+		return count;
+	}
+	if (request.type === 'iiif.findLinkedPageForCanvas') return iiifRepository.findLinkedPageForCanvas(getKyselyDb(), request.input);
+	if (request.type === 'iiif.listCanvasAnnotations') return iiifRepository.listCanvasAnnotations(getKyselyDb(), request.input);
+	if (request.type === 'iiif.getCanvasAnnotation') return iiifRepository.getCanvasAnnotation(getKyselyDb(), request.input);
+	if (request.type === 'iiif.upsertCanvasAnnotation') {
+		await iiifRepository.upsertCanvasAnnotation(getKyselyDb(), request.input);
+		postMessage({ type: 'db:invalidate', domain: 'iiif' });
+		return null;
+	}
+	if (request.type === 'iiif.deleteCanvasAnnotation') {
+		await iiifRepository.deleteCanvasAnnotation(getKyselyDb(), request.input);
+		postMessage({ type: 'db:invalidate', domain: 'iiif' });
 		return null;
 	}
 	if (request.type === 'transaction') {
