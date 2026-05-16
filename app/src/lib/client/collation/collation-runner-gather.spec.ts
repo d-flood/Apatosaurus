@@ -1,22 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { ensureDjazzkitRuntime, getVerseIndexRowsForVerse, listTranscriptions } = vi.hoisted(() => ({
-	ensureDjazzkitRuntime: vi.fn(),
+const { getTranscriptionsByIds, getVerseIndexRowsForVerse } = vi.hoisted(() => ({
+	getTranscriptionsByIds: vi.fn(),
 	getVerseIndexRowsForVerse: vi.fn(),
-	listTranscriptions: vi.fn(),
 }));
 
-function makeFilterQuery<T>(handlers: { all?: () => Promise<T[]> }) {
-	const query = {
-		filter: vi.fn(() => query),
-		only: vi.fn(() => query),
-		all: handlers.all,
-	};
-	return query;
-}
-
-vi.mock('$lib/client/djazzkit-runtime', () => ({
-	ensureDjazzkitRuntime,
+vi.mock('$lib/client/db/client', () => ({
+	getTranscriptionsByIds,
 }));
 
 vi.mock('$lib/client/transcription/verse-index', () => ({
@@ -25,33 +15,22 @@ vi.mock('$lib/client/transcription/verse-index', () => ({
 		`${verse.book} ${verse.chapter}:${verse.verse}`,
 }));
 
-vi.mock('$generated/models/Transcription', () => ({
-	Transcription: {
-		objects: {
-			filter: vi.fn(() => makeFilterQuery({ all: listTranscriptions })),
-		},
-	},
-}));
-
 import { gatherWitnessesForVerse } from './collation-runner';
 
 describe('gatherWitnessesForVerse', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
-		ensureDjazzkitRuntime.mockResolvedValue(undefined);
 		getVerseIndexRowsForVerse.mockResolvedValue([
 			{ transcription_id: 'tx-2' },
 			{ transcription_id: 'tx-1' },
 			{ transcription_id: 'tx-2' },
 		]);
-		listTranscriptions.mockResolvedValue([
+		getTranscriptionsByIds.mockResolvedValue([
 			{
-				_djazzkit_id: 'tx-1',
-				_djazzkit_deleted: false,
+				id: 'tx-1',
 				siglum: 'Gr. 1992',
 				title: 'Witness 01',
 				updated_at: '2026-03-12T00:00:00.000Z',
-				_djazzkit_updated_at: '2026-03-12T00:00:00.000Z',
 				content_json: JSON.stringify({
 					type: 'transcriptionDocument',
 					header: {
@@ -141,12 +120,10 @@ describe('gatherWitnessesForVerse', () => {
 				}),
 			},
 			{
-				_djazzkit_id: 'tx-2',
-				_djazzkit_deleted: false,
+				id: 'tx-2',
 				siglum: 'Shelfmark 02',
 				title: 'Witness 02',
 				updated_at: '2026-03-13T00:00:00.000Z',
-				_djazzkit_updated_at: '2026-03-13T00:00:00.000Z',
 				content_json: JSON.stringify({
 					type: 'transcriptionDocument',
 					pages: [
@@ -182,7 +159,7 @@ describe('gatherWitnessesForVerse', () => {
 		const witnesses = await gatherWitnessesForVerse('Romans 1:1', ['tx-1', 'tx-2']);
 
 		expect(getVerseIndexRowsForVerse).toHaveBeenCalledWith('Romans 1:1', ['tx-1', 'tx-2']);
-		expect(listTranscriptions).toHaveBeenCalledTimes(1);
+		expect(getTranscriptionsByIds).toHaveBeenCalledWith(['tx-2', 'tx-1']);
 		expect(witnesses.map(witness => witness.transcriptionUid)).toEqual(['tx-2', 'tx-1']);
 		expect(witnesses.map(witness => witness.id)).toEqual(['Shelfmark 02', '32495']);
 		expect(witnesses.map(witness => witness.siglum)).toEqual(['Shelfmark 02', '32495']);
@@ -190,14 +167,12 @@ describe('gatherWitnessesForVerse', () => {
 	});
 
 	it('merges wrapped words before building gathered witness content', async () => {
-		listTranscriptions.mockResolvedValue([
+		getTranscriptionsByIds.mockResolvedValue([
 			{
-				_djazzkit_id: 'tx-1',
-				_djazzkit_deleted: false,
+				id: 'tx-1',
 				siglum: 'Wrapped 01',
 				title: 'Witness 01',
 				updated_at: '2026-03-12T00:00:00.000Z',
-				_djazzkit_updated_at: '2026-03-12T00:00:00.000Z',
 				content_json: JSON.stringify({
 					type: 'transcriptionDocument',
 					pages: [
@@ -255,14 +230,12 @@ describe('gatherWitnessesForVerse', () => {
 	});
 
 	it('can ignore wrapped word-break markers when gathering witnesses', async () => {
-		listTranscriptions.mockResolvedValue([
+		getTranscriptionsByIds.mockResolvedValue([
 			{
-				_djazzkit_id: 'tx-1',
-				_djazzkit_deleted: false,
+				id: 'tx-1',
 				siglum: 'Wrapped 01',
 				title: 'Witness 01',
 				updated_at: '2026-03-12T00:00:00.000Z',
-				_djazzkit_updated_at: '2026-03-12T00:00:00.000Z',
 				content_json: JSON.stringify({
 					type: 'transcriptionDocument',
 					pages: [
@@ -319,14 +292,12 @@ describe('gatherWitnessesForVerse', () => {
 	});
 
 	it('builds gathered witness content with standalone punctuation tokens', async () => {
-		listTranscriptions.mockResolvedValue([
+		getTranscriptionsByIds.mockResolvedValue([
 			{
-				_djazzkit_id: 'tx-1',
-				_djazzkit_deleted: false,
+				id: 'tx-1',
 				siglum: 'Punct 01',
 				title: 'Witness 01',
 				updated_at: '2026-03-12T00:00:00.000Z',
-				_djazzkit_updated_at: '2026-03-12T00:00:00.000Z',
 				content_json: JSON.stringify({
 					type: 'transcriptionDocument',
 					pages: [
@@ -371,14 +342,12 @@ describe('gatherWitnessesForVerse', () => {
 	});
 
 	it('does not add a false leading page marker when the target verse starts after a wrapped page break', async () => {
-		listTranscriptions.mockResolvedValue([
+		getTranscriptionsByIds.mockResolvedValue([
 			{
-				_djazzkit_id: 'tx-1',
-				_djazzkit_deleted: false,
+				id: 'tx-1',
 				siglum: 'Wrapped 01',
 				title: 'Witness 01',
 				updated_at: '2026-03-12T00:00:00.000Z',
-				_djazzkit_updated_at: '2026-03-12T00:00:00.000Z',
 				content_json: JSON.stringify({
 					type: 'transcriptionDocument',
 					pages: [
@@ -455,14 +424,12 @@ describe('gatherWitnessesForVerse', () => {
 	});
 
 	it('emits correctors as separate witnesses with full and fragmentary source variants', async () => {
-		listTranscriptions.mockResolvedValue([
+		getTranscriptionsByIds.mockResolvedValue([
 			{
-				_djazzkit_id: 'tx-1',
-				_djazzkit_deleted: false,
+				id: 'tx-1',
 				siglum: 'Corrected 01',
 				title: 'Witness 01',
 				updated_at: '2026-03-12T00:00:00.000Z',
-				_djazzkit_updated_at: '2026-03-12T00:00:00.000Z',
 				content_json: JSON.stringify({
 					type: 'transcriptionDocument',
 					header: {

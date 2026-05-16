@@ -1,13 +1,14 @@
-import { Collation } from '$generated/models/Collation';
-import { CollationArtifact } from '$generated/models/CollationArtifact';
-import { CollationReading } from '$generated/models/CollationReading';
-import { CollationReadingWitness } from '$generated/models/CollationReadingWitness';
-import { CollationToken } from '$generated/models/CollationToken';
-import { CollationVariationUnit } from '$generated/models/CollationVariationUnit';
-import { CollationWitness } from '$generated/models/CollationWitness';
 import { Project } from '$generated/models/Project';
 import { Transcription } from '$generated/models/Transcription';
 import { ensureDjazzkitRuntime } from '$lib/client/djazzkit-runtime';
+import {
+	createCollation,
+	loadCollation,
+	saveCollationArtifact,
+	saveCollationProjection,
+	updateCollationMetadata,
+} from '$lib/client/db/client';
+import type { CollationProjectionRecord, CollationRecord } from '$lib/client/db/repositories/collations';
 import {
 	cloneAlignmentColumn,
 	deserializeAlignmentColumns,
@@ -67,9 +68,6 @@ const PHASE_ORDER: CollationPhase[] = [
 	'readings',
 	'stemma',
 ];
-const WORKSPACE_ARTIFACT_TYPE = 'workspace_state_v2';
-const LEGACY_WORKSPACE_ARTIFACT_TYPE = 'workspace_state_v1';
-
 export type ReadingEditorType = 'none' | 'om' | 'lac' | 'ns';
 
 export type { CollationPhase, StemmaEdge, WitnessConfig, WitnessTreatment };
@@ -289,10 +287,8 @@ function createCollationState() {
 		return phase === 'stemma';
 	}
 
-	async function syncNormalizedProjection(now: string): Promise<void> {
+	async function syncNormalizedProjection(): Promise<void> {
 		if (!collationId) return;
-		const persistedCollationId = collationId;
-
 		const projection = buildCollationProjection({
 			witnesses,
 			alignmentColumns,
@@ -301,321 +297,30 @@ function createCollationState() {
 			getBaseTextForVariationUnit,
 			getBaseWitnessId,
 		});
-
-		const existingWitnessRows = await CollationWitness.objects
-			.filter(fields => fields.collation.eq(persistedCollationId))
-			.all();
-		const witnessRowByKey = new Map(
-			existingWitnessRows.map(row => [row.witness_id, row] as const)
-		);
-		const activeWitnessKeys = new Set(projection.witnesses.map(row => row.witnessId));
-		for (const row of projection.witnesses) {
-			const existing = witnessRowByKey.get(row.witnessId);
-			if (existing) {
-				await CollationWitness.objects.update(existing._djazzkit_id, {
-					_djazzkit_deleted: false,
-					_djazzkit_updated_at: now,
-					transcription_id: row.transcriptionId,
-					source_version: row.sourceVersion,
-					content: row.content,
-					position: row.position,
-				});
-				continue;
-			}
-			await CollationWitness.objects.create({
-				_djazzkit_id: crypto.randomUUID(),
-				_djazzkit_rev: 0,
-				_djazzkit_deleted: false,
-				_djazzkit_updated_at: now,
-				collation_id: persistedCollationId,
-				witness_id: row.witnessId,
-				transcription_id: row.transcriptionId,
-				source_version: row.sourceVersion,
-				content: row.content,
-				position: row.position,
-			});
-		}
-		for (const row of existingWitnessRows) {
-			if (!activeWitnessKeys.has(row.witness_id) && !row._djazzkit_deleted) {
-				await CollationWitness.objects.update(row._djazzkit_id, {
-					_djazzkit_deleted: true,
-					_djazzkit_updated_at: now,
-				});
-			}
-		}
-
-		const existingTokenRows = await CollationToken.objects
-			.filter(fields => fields.collation.eq(persistedCollationId))
-			.all();
-		const tokenRowByKey = new Map<string, (typeof existingTokenRows)[number]>(
-			existingTokenRows.map(row => [`${row.witness_id}::${row.token_index}`, row] as const)
-		);
-		const activeTokenKeys = new Set(
-			projection.tokens.map(row => `${row.witnessId}::${row.tokenIndex}`)
-		);
-		for (const row of projection.tokens) {
-			const key = `${row.witnessId}::${row.tokenIndex}`;
-			const existing = tokenRowByKey.get(key);
-			if (existing) {
-				await CollationToken.objects.update(existing._djazzkit_id, {
-					_djazzkit_deleted: false,
-					_djazzkit_updated_at: now,
-					token_text: row.tokenText.slice(0, 255),
-				});
-				continue;
-			}
-			await CollationToken.objects.create({
-				_djazzkit_id: crypto.randomUUID(),
-				_djazzkit_rev: 0,
-				_djazzkit_deleted: false,
-				_djazzkit_updated_at: now,
-				collation_id: persistedCollationId,
-				witness_id: row.witnessId,
-				token_index: row.tokenIndex,
-				token_text: row.tokenText.slice(0, 255),
-			});
-		}
-		for (const row of existingTokenRows) {
-			const key = `${row.witness_id}::${row.token_index}`;
-			if (!activeTokenKeys.has(key) && !row._djazzkit_deleted) {
-				await CollationToken.objects.update(row._djazzkit_id, {
-					_djazzkit_deleted: true,
-					_djazzkit_updated_at: now,
-				});
-			}
-		}
-
-		const existingVariationUnits = await CollationVariationUnit.objects
-			.filter(fields => fields.collation.eq(persistedCollationId))
-			.all();
-		const variationUnitRowByKey = new Map<string, (typeof existingVariationUnits)[number]>();
-		for (const row of existingVariationUnits) {
-			const key = `${row.start_index}:${row.end_index}:${row.unit_type}`;
-			if (!variationUnitRowByKey.has(key)) variationUnitRowByKey.set(key, row);
-		}
-
-		const allReadingRows = await CollationReading.objects.all().all();
-		const collationVariationUnitIds = new Set(
-			existingVariationUnits.map(row => row._djazzkit_id)
-		);
-		const existingReadingRows = allReadingRows.filter(row =>
-			collationVariationUnitIds.has(row.variation_unit_id)
-		);
-		const allReadingWitnessRows = await CollationReadingWitness.objects.all().all();
-		const existingReadingIds = new Set(existingReadingRows.map(row => row._djazzkit_id));
-		const existingReadingWitnessRows = allReadingWitnessRows.filter(row =>
-			existingReadingIds.has(row.reading_id)
-		);
-
-		const activeVariationUnitKeys = new Set(
-			projection.variationUnits.map(
-				row => `${row.startIndex}:${row.endIndex}:${row.unitType}`
-			)
-		);
-		const chosenVariationUnitIds = new Set<string>();
-		const chosenReadingIds = new Set<string>();
-		const chosenReadingWitnessIds = new Set<string>();
-
-		for (const unit of projection.variationUnits) {
-			const unitKey = `${unit.startIndex}:${unit.endIndex}:${unit.unitType}`;
-			let variationUnitId = variationUnitRowByKey.get(unitKey)?._djazzkit_id ?? null;
-			if (variationUnitId) {
-				chosenVariationUnitIds.add(variationUnitId);
-				await CollationVariationUnit.objects.update(variationUnitId, {
-					_djazzkit_deleted: false,
-					_djazzkit_updated_at: now,
-					start_index: unit.startIndex,
-					end_index: unit.endIndex,
-					unit_type: unit.unitType,
-					base_text: unit.baseText,
-				});
-			} else {
-				variationUnitId = crypto.randomUUID();
-				chosenVariationUnitIds.add(variationUnitId);
-				await CollationVariationUnit.objects.create({
-					_djazzkit_id: variationUnitId,
-					_djazzkit_rev: 0,
-					_djazzkit_deleted: false,
-					_djazzkit_updated_at: now,
-					collation_id: persistedCollationId,
-					start_index: unit.startIndex,
-					end_index: unit.endIndex,
-					unit_type: unit.unitType,
-					base_text: unit.baseText,
-				});
-			}
-
-			const existingUnitReadings = existingReadingRows.filter(
-				row => row.variation_unit_id === variationUnitId
-			);
-			const readingRowByOrder = new Map(
-				existingUnitReadings.map(row => [row.reading_order, row] as const)
-			);
-			const activeReadingOrders = new Set(unit.readings.map(row => row.readingOrder));
-
-			for (const reading of unit.readings) {
-				let readingId = readingRowByOrder.get(reading.readingOrder)?._djazzkit_id ?? null;
-				if (readingId) {
-					chosenReadingIds.add(readingId);
-					await CollationReading.objects.update(readingId, {
-						_djazzkit_deleted: false,
-						_djazzkit_updated_at: now,
-						reading_text: reading.readingText,
-						is_omission: reading.isOmission,
-						is_lacuna: reading.isLacuna,
-					});
-				} else {
-					readingId = crypto.randomUUID();
-					chosenReadingIds.add(readingId);
-					await CollationReading.objects.create({
-						_djazzkit_id: readingId,
-						_djazzkit_rev: 0,
-						_djazzkit_deleted: false,
-						_djazzkit_updated_at: now,
-						variation_unit_id: variationUnitId,
-						reading_order: reading.readingOrder,
-						reading_text: reading.readingText,
-						is_omission: reading.isOmission,
-						is_lacuna: reading.isLacuna,
-					});
-				}
-
-				const existingWitnessAssignments = existingReadingWitnessRows.filter(
-					row => row.reading_id === readingId
-				);
-				const witnessAssignmentByKey = new Map(
-					existingWitnessAssignments.map(row => [row.witness_id, row] as const)
-				);
-				const activeWitnessIds = new Set(reading.witnessIds);
-				for (const witnessId of reading.witnessIds) {
-					const existing = witnessAssignmentByKey.get(witnessId);
-					if (existing) {
-						chosenReadingWitnessIds.add(existing._djazzkit_id);
-						await CollationReadingWitness.objects.update(existing._djazzkit_id, {
-							_djazzkit_deleted: false,
-							_djazzkit_updated_at: now,
-						});
-						continue;
-					}
-					const assignmentId = crypto.randomUUID();
-					chosenReadingWitnessIds.add(assignmentId);
-					await CollationReadingWitness.objects.create({
-						_djazzkit_id: assignmentId,
-						_djazzkit_rev: 0,
-						_djazzkit_deleted: false,
-						_djazzkit_updated_at: now,
-						reading_id: readingId,
-						witness_id: witnessId,
-					});
-				}
-				for (const row of existingWitnessAssignments) {
-					if (!activeWitnessIds.has(row.witness_id) && !row._djazzkit_deleted) {
-						await CollationReadingWitness.objects.update(row._djazzkit_id, {
-							_djazzkit_deleted: true,
-							_djazzkit_updated_at: now,
-						});
-					}
-				}
-			}
-
-			for (const row of existingUnitReadings) {
-				if (!activeReadingOrders.has(row.reading_order) && !row._djazzkit_deleted) {
-					await CollationReading.objects.update(row._djazzkit_id, {
-						_djazzkit_deleted: true,
-						_djazzkit_updated_at: now,
-					});
-				}
-			}
-		}
-
-		for (const row of existingReadingWitnessRows) {
-			if (!chosenReadingWitnessIds.has(row._djazzkit_id) && !row._djazzkit_deleted) {
-				await CollationReadingWitness.objects.update(row._djazzkit_id, {
-					_djazzkit_deleted: true,
-					_djazzkit_updated_at: now,
-				});
-			}
-		}
-		for (const row of existingReadingRows) {
-			if (!chosenReadingIds.has(row._djazzkit_id) && !row._djazzkit_deleted) {
-				await CollationReading.objects.update(row._djazzkit_id, {
-					_djazzkit_deleted: true,
-					_djazzkit_updated_at: now,
-				});
-			}
-		}
-		for (const row of existingVariationUnits) {
-			const key = `${row.start_index}:${row.end_index}:${row.unit_type}`;
-			if (
-				(!activeVariationUnitKeys.has(key) ||
-					!chosenVariationUnitIds.has(row._djazzkit_id)) &&
-				!row._djazzkit_deleted
-			) {
-				await CollationVariationUnit.objects.update(row._djazzkit_id, {
-					_djazzkit_deleted: true,
-					_djazzkit_updated_at: now,
-				});
-			}
-		}
+		await saveCollationProjection({ collationId, ...projection });
 	}
 
-	async function materializeFinalCollationProjection(now: string): Promise<void> {
+	async function materializeFinalCollationProjection(): Promise<void> {
 		if (!isFinalizedCollationPhase()) return;
-		await syncNormalizedProjection(now);
+		await syncNormalizedProjection();
 	}
 
 	async function persistDocument(): Promise<void> {
 		if (!collationId) return;
 		try {
-			await ensureDjazzkitRuntime();
 			const now = new Date().toISOString();
 			const payload = serializeCollationDocument(buildCollationDocumentPayload());
-
-			const currentArtifactId = workspaceArtifactId;
-			if (currentArtifactId) {
-				// Update existing artifact
-				const existing = await CollationArtifact.objects
-					.filter(f => f._djazzkit_id.eq(currentArtifactId))
-					.filter(f => f._djazzkit_deleted.eq(false))
-					.first();
-				if (existing) {
-					await CollationArtifact.objects.update(currentArtifactId, {
-						payload,
-						_djazzkit_updated_at: now,
-					});
-				} else {
-					// Artifact was deleted, re-create
-					workspaceArtifactId = crypto.randomUUID();
-					await CollationArtifact.objects.create({
-						_djazzkit_id: workspaceArtifactId,
-						_djazzkit_rev: 0,
-						_djazzkit_deleted: false,
-						_djazzkit_updated_at: now,
-						collation_id: collationId,
-						artifact_type: COLLATION_DOCUMENT_ARTIFACT_TYPE,
-						payload,
-						created_at: now,
-					});
-				}
-			} else {
-				// Create new artifact
-				workspaceArtifactId = crypto.randomUUID();
-				await CollationArtifact.objects.create({
-					_djazzkit_id: workspaceArtifactId,
-					_djazzkit_rev: 0,
-					_djazzkit_deleted: false,
-					_djazzkit_updated_at: now,
-					collation_id: collationId,
-					artifact_type: COLLATION_DOCUMENT_ARTIFACT_TYPE,
-					payload,
-					created_at: now,
-				});
-			}
-			await materializeFinalCollationProjection(now);
-			// Also update the collation's updated_at
-			await Collation.objects.update(collationId, {
-				updated_at: now,
-				_djazzkit_updated_at: now,
+			workspaceArtifactId = await saveCollationArtifact({
+				artifactId: workspaceArtifactId,
+				collationId,
+				artifactType: COLLATION_DOCUMENT_ARTIFACT_TYPE,
+				payload,
+				now,
+			});
+			await materializeFinalCollationProjection();
+			await updateCollationMetadata({
+				id: collationId,
+				updatedAt: now,
 				status: isFinalizedCollationPhase() ? 'complete' : phase,
 			});
 		} catch (err) {
@@ -3132,23 +2837,13 @@ function createCollationState() {
 		if (!projectId) {
 			throw new Error('A project must be selected before creating a collation.');
 		}
-		await ensureDjazzkitRuntime();
 		const now = new Date().toISOString();
-		const id = crypto.randomUUID();
-		await Collation.objects.create({
-			_djazzkit_id: id,
-			_djazzkit_rev: 0,
-			_djazzkit_deleted: false,
-			_djazzkit_updated_at: now,
+		const id = await createCollation({
+			id: crypto.randomUUID(),
+			projectId,
 			title,
-			verse_identifier: verseIdentifier,
-			project_id: projectId,
-			notes: '',
-			group_path: '',
-			sort_key: 0,
-			status: 'setup',
-			created_at: now,
-			updated_at: now,
+			verseIdentifier,
+			now,
 		});
 		collationId = id;
 		await persistDocument();
@@ -3158,64 +2853,35 @@ function createCollationState() {
 	async function loadCollationById(id: string): Promise<boolean> {
 		isLoading = true;
 		try {
-			await ensureDjazzkitRuntime();
-			const row = await Collation.objects
-				.filter(f => f._djazzkit_id.eq(id))
-				.filter(f => f._djazzkit_deleted.eq(false))
-				.first();
-			if (!row) {
+			const loaded = await loadCollation(id);
+			if (!loaded) {
 				isLoading = false;
 				return false;
 			}
-			if (!row.project_id) {
+			if (!loaded.row.projectId) {
 				throw new Error('Collation is missing its required project association.');
 			}
 
 			collationId = id;
 
 			// Try to load the canonical collation document first.
-			let artifact = await CollationArtifact.objects
-				.filter(f => f.collation.eq(id))
-				.filter(f => f.artifact_type.eq(COLLATION_DOCUMENT_ARTIFACT_TYPE))
-				.filter(f => f._djazzkit_deleted.eq(false))
-				.first();
-
-			if (artifact && artifact.payload) {
-				workspaceArtifactId = artifact._djazzkit_id;
-				const raw =
-					typeof artifact.payload === 'string'
-						? artifact.payload
-						: JSON.stringify(artifact.payload);
-				applyCollationDocumentPayload(raw);
+			if (loaded.artifact?.payload) {
+				workspaceArtifactId = loaded.artifact.id;
+				applyCollationDocumentPayload(loaded.artifact.payload);
 			} else {
-				const legacyArtifact =
-					(await CollationArtifact.objects
-						.filter(f => f.collation.eq(id))
-						.filter(f => f.artifact_type.eq(WORKSPACE_ARTIFACT_TYPE))
-						.filter(f => f._djazzkit_deleted.eq(false))
-						.first()) ??
-					(await CollationArtifact.objects
-						.filter(f => f.collation.eq(id))
-						.filter(f => f.artifact_type.eq(LEGACY_WORKSPACE_ARTIFACT_TYPE))
-						.filter(f => f._djazzkit_deleted.eq(false))
-						.first());
-				if (legacyArtifact?.payload) {
-					const raw =
-						typeof legacyArtifact.payload === 'string'
-							? legacyArtifact.payload
-							: JSON.stringify(legacyArtifact.payload);
-					const snap = JSON.parse(raw) as WorkspaceSnapshot;
+				if (loaded.legacyArtifact?.payload) {
+					const snap = JSON.parse(loaded.legacyArtifact.payload) as WorkspaceSnapshot;
 					applyLegacySnapshot(snap);
 					workspaceArtifactId = null;
-				} else if (row.status === 'complete') {
-					await rebuildFromPersistedData(id, row);
+				} else if (loaded.row.status === 'complete') {
+					await rebuildFromPersistedData(loaded.row, loaded.projection);
 				} else {
 					throw new Error(
 						'Collation document artifact missing for in-progress collation.'
 					);
 				}
 			}
-			await hydrateProjectContext(row.project_id);
+			await hydrateProjectContext(loaded.row.projectId);
 			const repairedCollapsedAlignment = hasCollapsedAlignmentRegression();
 			if (repairedCollapsedAlignment) {
 				rebuildAlignmentFromWitnessTokens();
@@ -3238,8 +2904,11 @@ function createCollationState() {
 		}
 	}
 
-	async function rebuildFromPersistedData(id: string, collationRow: any): Promise<void> {
-		const vi = collationRow.verse_identifier ?? '';
+	async function rebuildFromPersistedData(
+		collationRow: CollationRecord,
+		projection: CollationProjectionRecord
+	): Promise<void> {
+		const vi = collationRow.verseIdentifier ?? '';
 		selectedVerse = {
 			identifier: vi,
 			book: '',
@@ -3247,36 +2916,26 @@ function createCollationState() {
 			verse: '',
 			count: 0,
 		};
-		const witnessRows = await CollationWitness.objects
-			.filter(fields => fields.collation.eq(id))
-			.filter(fields => fields._djazzkit_deleted.eq(false))
-			.orderBy(fields => fields.position, 'asc')
-			.all();
-		const tokenRows = await CollationToken.objects
-			.filter(fields => fields.collation.eq(id))
-			.filter(fields => fields._djazzkit_deleted.eq(false))
-			.orderBy(fields => fields.token_index, 'asc')
-			.all();
-		const tokensByWitnessId = new Map<string, typeof tokenRows>();
-		for (const row of tokenRows) {
-			const existing = tokensByWitnessId.get(row.witness_id) ?? [];
+		const tokensByWitnessId = new Map<string, typeof projection.tokens>();
+		for (const row of projection.tokens) {
+			const existing = tokensByWitnessId.get(row.witnessId) ?? [];
 			existing.push(row);
-			tokensByWitnessId.set(row.witness_id, existing);
+			tokensByWitnessId.set(row.witnessId, existing);
 		}
-		witnesses = witnessRows.map((row, index) => ({
-			witnessId: row.witness_id,
-			siglum: row.witness_id,
-			transcriptionId: row.transcription_id ?? '',
-			sourceVersion: row.source_version,
+		witnesses = projection.witnesses.map((row, index) => ({
+			witnessId: row.witnessId,
+			siglum: row.witnessId,
+			transcriptionId: row.transcriptionId ?? '',
+			sourceVersion: row.sourceVersion,
 			content: row.content,
-			tokens: (tokensByWitnessId.get(row.witness_id) ?? [])
-				.sort((a, b) => a.token_index - b.token_index)
+			tokens: (tokensByWitnessId.get(row.witnessId) ?? [])
+				.sort((a, b) => a.tokenIndex - b.tokenIndex)
 				.map(token => ({
 					kind: 'text' as const,
-					original: token.token_text,
+					original: token.tokenText,
 					segments: [
 						{
-							text: token.token_text,
+							text: token.tokenText,
 							hasUnclear: false,
 							isPunctuation: false,
 							isSupplied: false,
@@ -3289,7 +2948,7 @@ function createCollationState() {
 			isExcluded: false,
 			overridesDefault: false,
 		}));
-		witnessOrder = witnessRows.map(row => row.witness_id);
+		witnessOrder = projection.witnesses.map(row => row.witnessId);
 		alignmentColumns = [];
 		furthestPhase = 'setup';
 		phase = 'setup';

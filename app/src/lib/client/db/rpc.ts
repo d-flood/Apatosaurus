@@ -6,6 +6,14 @@ import type {
 	UpdateProjectMetadataInput,
 } from './repositories/projects';
 import type {
+	CollationListItem,
+	CreateCollationInput,
+	LoadedCollation,
+	SaveCollationArtifactInput,
+	SaveCollationProjectionInput,
+	UpdateCollationMetadataInput,
+} from './repositories/collations';
+import type {
 	CreateTranscriptionInput,
 	TranscriptionRecord,
 	TranscriptionSummary,
@@ -79,6 +87,20 @@ export type ProjectRpcRequest = ProjectRpcMap[keyof ProjectRpcMap]['request'];
 
 export type ProjectRpcResponse<T extends ProjectRpcRequest['type']> = ProjectRpcMap[T]['response'];
 
+export interface CollationRpcMap {
+	'collations.listWithProjectNames': { request: { type: 'collations.listWithProjectNames' }; response: CollationListItem[] };
+	'collations.create': { request: { type: 'collations.create'; input: CreateCollationInput }; response: string };
+	'collations.load': { request: { type: 'collations.load'; collationId: string }; response: LoadedCollation | null };
+	'collations.saveArtifact': { request: { type: 'collations.saveArtifact'; input: SaveCollationArtifactInput }; response: string };
+	'collations.saveProjection': { request: { type: 'collations.saveProjection'; input: SaveCollationProjectionInput }; response: null };
+	'collations.updateMetadata': { request: { type: 'collations.updateMetadata'; input: UpdateCollationMetadataInput }; response: null };
+	'collations.delete': { request: { type: 'collations.delete'; collationId: string }; response: null };
+}
+
+export type CollationRpcRequest = CollationRpcMap[keyof CollationRpcMap]['request'];
+
+export type CollationRpcResponse<T extends CollationRpcRequest['type']> = CollationRpcMap[T]['response'];
+
 export type DbRequest =
 	| { id?: number; type: 'init' }
 	| { id?: number; type: 'query'; sql: string; params?: DbValue[] }
@@ -88,7 +110,8 @@ export type DbRequest =
 	| { id?: number; type: 'checkpoint' }
 	| { id?: number; type: 'reset' }
 	| ({ id?: number } & TranscriptionRpcRequest)
-	| ({ id?: number } & ProjectRpcRequest);
+	| ({ id?: number } & ProjectRpcRequest)
+	| ({ id?: number } & CollationRpcRequest);
 
 export type DbRequestPayload =
 	| { type: 'init' }
@@ -99,7 +122,8 @@ export type DbRequestPayload =
 	| { type: 'checkpoint' }
 	| { type: 'reset' }
 	| TranscriptionRpcRequest
-	| ProjectRpcRequest;
+	| ProjectRpcRequest
+	| CollationRpcRequest;
 
 export type DbResponse =
 	| { id: number; ok: true; result?: unknown }

@@ -1,44 +1,23 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import { ensureDjazzkitRuntime } from '$lib/client/djazzkit-runtime';
-	import { Collation } from '$generated/models/Collation';
-	import { Project } from '$generated/models/Project';
-	import type { CollationData } from '$generated/models/Collation';
+	import {
+		deleteCollation as deleteLocalCollation,
+		listCollationsWithProjectNames,
+	} from '$lib/client/db/client';
+	import type { CollationListItem } from '$lib/client/db/repositories/collations';
 	import Plus from 'phosphor-svelte/lib/Plus';
 	import ArrowRight from 'phosphor-svelte/lib/ArrowRight';
 	import Trash from 'phosphor-svelte/lib/Trash';
 	import { onMount } from 'svelte';
 
-	let collations = $state<CollationData[]>([]);
+	let collations = $state<CollationListItem[]>([]);
 	let isLoading = $state(true);
 	let error = $state<string | null>(null);
 	let deletingId = $state<string | null>(null);
-	let projectNames = $state<Record<string, string>>({});
 
 	onMount(async () => {
 		try {
-			await ensureDjazzkitRuntime();
-			const rows = await Collation.objects
-				.filter((f) => f._djazzkit_deleted.eq(false))
-				.orderBy((f) => f.updated_at, 'desc')
-				.all();
-			collations = rows.filter((collation) => Boolean(collation.project_id));
-			const projectIds = [...new Set(collations.map((collation) => collation.project_id).filter(Boolean))];
-			if (projectIds.length > 0) {
-				const projects = await Promise.all(
-					projectIds.map((projectId) =>
-						Project.objects
-							.filter((fields) => fields._djazzkit_id.eq(projectId!))
-							.filter((fields) => fields._djazzkit_deleted.eq(false))
-							.first(),
-					),
-				);
-				projectNames = Object.fromEntries(
-					projects
-						.filter((project): project is NonNullable<typeof project> => Boolean(project))
-						.map((project) => [project._djazzkit_id, project.name]),
-				);
-			}
+			collations = await listCollationsWithProjectNames();
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Failed to load collations';
 		} finally {
@@ -69,8 +48,8 @@
 	async function deleteCollation(id: string) {
 		deletingId = id;
 		try {
-			await Collation.objects.update(id, { _djazzkit_deleted: true });
-			collations = collations.filter((c) => c._djazzkit_id !== id);
+			await deleteLocalCollation(id);
+			collations = collations.filter((c) => c.id !== id);
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Failed to delete collation';
 		} finally {
@@ -123,35 +102,35 @@
 		</div>
 	{:else}
 		<ul class="list rounded-box shadow-md bg-base-100">
-			{#each collations as c (c._djazzkit_id)}
+			{#each collations as c (c.id)}
 				<li class="list-row gap-4 items-center">
 					<div class="flex-1 min-w-0">
 						<div class="font-serif font-medium">{c.title}</div>
 						<div class="text-xs text-base-content/50 flex items-center gap-2 mt-0.5">
-							<span>{projectNames[c.project_id!] ?? 'Project'}</span>
+							<span>{c.projectName}</span>
 							<span class="text-base-content/20">|</span>
-							<span class="font-mono">{c.verse_identifier}</span>
+							<span class="font-mono">{c.verseIdentifier}</span>
 							<span class="text-base-content/20">|</span>
-							<span>{formatDate(c.updated_at)}</span>
+							<span>{formatDate(c.updatedAt)}</span>
 						</div>
 					</div>
 					<span class="badge badge-sm {phaseBadge(c.status)}">
 						{phaseLabel(c.status)}
 					</span>
-					<a href={resolve('/collation/[id]', { id: c._djazzkit_id })} class="btn btn-ghost btn-sm gap-1">
+					<a href={resolve('/collation/[id]', { id: c.id })} class="btn btn-ghost btn-sm gap-1">
 						{c.status === 'complete' ? 'View' : 'Resume'}
 						<ArrowRight size={14} />
 					</a>
 					<button
 						class="btn btn-ghost btn-sm text-error"
-						disabled={deletingId === c._djazzkit_id}
+						disabled={deletingId === c.id}
 						onclick={() => {
 							if (confirm(`Delete "${c.title}"?`)) {
-								deleteCollation(c._djazzkit_id);
+								deleteCollation(c.id);
 							}
 						}}
 					>
-						{#if deletingId === c._djazzkit_id}
+						{#if deletingId === c.id}
 							<span class="loading loading-spinner loading-xs"></span>
 						{:else}
 							<Trash size={16} />
