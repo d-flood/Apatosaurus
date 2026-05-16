@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildCollationDocument, serializeCollationDocument } from './collation-document';
 
 const {
-	ensureDjazzkitRuntime,
 	loadCollation,
 	createCollation,
 	saveCollationArtifact,
@@ -12,32 +11,8 @@ const {
 	createProject,
 	updateProjectMetadata,
 	getTranscriptionsByIds,
-	getCollationRow,
-	createCollationRow,
-	updateCollationRow,
-	getArtifactRow,
-	createArtifactRow,
-	updateArtifactRow,
-	getProjectRow,
-	getTranscriptionRows,
-	listCollationWitnessRows,
-	createCollationWitnessRow,
-	updateCollationWitnessRow,
-	listCollationTokenRows,
-	createCollationTokenRow,
-	updateCollationTokenRow,
-	listVariationUnitRows,
-	createVariationUnitRow,
-	updateVariationUnitRow,
-	listReadingRows,
-	createReadingRow,
-	updateReadingRow,
-	listReadingWitnessRows,
-	createReadingWitnessRow,
-	updateReadingWitnessRow,
 	gatherWitnessesForVerse,
 } = vi.hoisted(() => ({
-	ensureDjazzkitRuntime: vi.fn(),
 	loadCollation: vi.fn(),
 	createCollation: vi.fn(),
 	saveCollationArtifact: vi.fn(),
@@ -47,45 +22,7 @@ const {
 	createProject: vi.fn(),
 	updateProjectMetadata: vi.fn(),
 	getTranscriptionsByIds: vi.fn(),
-	getCollationRow: vi.fn(),
-	createCollationRow: vi.fn(),
-	updateCollationRow: vi.fn(),
-	getArtifactRow: vi.fn(),
-	createArtifactRow: vi.fn(),
-	updateArtifactRow: vi.fn(),
-	getProjectRow: vi.fn(),
-	getTranscriptionRows: vi.fn(),
-	listCollationWitnessRows: vi.fn(),
-	createCollationWitnessRow: vi.fn(),
-	updateCollationWitnessRow: vi.fn(),
-	listCollationTokenRows: vi.fn(),
-	createCollationTokenRow: vi.fn(),
-	updateCollationTokenRow: vi.fn(),
-	listVariationUnitRows: vi.fn(),
-	createVariationUnitRow: vi.fn(),
-	updateVariationUnitRow: vi.fn(),
-	listReadingRows: vi.fn(),
-	createReadingRow: vi.fn(),
-	updateReadingRow: vi.fn(),
-	listReadingWitnessRows: vi.fn(),
-	createReadingWitnessRow: vi.fn(),
-	updateReadingWitnessRow: vi.fn(),
 	gatherWitnessesForVerse: vi.fn(),
-}));
-
-function makeFilterQuery<T>(handlers: { first?: () => Promise<T>; all?: () => Promise<T[]> }) {
-	const query = {
-		filter: vi.fn(() => query),
-		only: vi.fn(() => query),
-		orderBy: vi.fn(() => query),
-		first: handlers.first,
-		all: handlers.all,
-	};
-	return query;
-}
-
-vi.mock('$lib/client/djazzkit-runtime', () => ({
-	ensureDjazzkitRuntime,
 }));
 
 vi.mock('$lib/client/db/client', () => ({
@@ -98,92 +35,6 @@ vi.mock('$lib/client/db/client', () => ({
 	createProject,
 	updateProjectMetadata,
 	getTranscriptionsByIds,
-}));
-
-vi.mock('$generated/models/Collation', () => ({
-	Collation: {
-		objects: {
-			filter: vi.fn(() => makeFilterQuery({ first: getCollationRow })),
-			create: createCollationRow,
-			update: updateCollationRow,
-		},
-	},
-}));
-
-vi.mock('$generated/models/CollationArtifact', () => ({
-	CollationArtifact: {
-		objects: {
-			filter: vi.fn(() => makeFilterQuery({ first: getArtifactRow })),
-			create: createArtifactRow,
-			update: updateArtifactRow,
-		},
-	},
-}));
-
-vi.mock('$generated/models/Project', () => ({
-	Project: {
-		objects: {
-			filter: vi.fn(() => makeFilterQuery({ first: getProjectRow })),
-		},
-	},
-}));
-
-vi.mock('$generated/models/Transcription', () => ({
-	Transcription: {
-		objects: {
-			filter: vi.fn(() => makeFilterQuery({ all: getTranscriptionRows })),
-		},
-	},
-}));
-
-vi.mock('$generated/models/CollationWitness', () => ({
-	CollationWitness: {
-		objects: {
-			filter: vi.fn(() => makeFilterQuery({ all: listCollationWitnessRows })),
-			create: createCollationWitnessRow,
-			update: updateCollationWitnessRow,
-		},
-	},
-}));
-
-vi.mock('$generated/models/CollationToken', () => ({
-	CollationToken: {
-		objects: {
-			filter: vi.fn(() => makeFilterQuery({ all: listCollationTokenRows })),
-			create: createCollationTokenRow,
-			update: updateCollationTokenRow,
-		},
-	},
-}));
-
-vi.mock('$generated/models/CollationVariationUnit', () => ({
-	CollationVariationUnit: {
-		objects: {
-			filter: vi.fn(() => makeFilterQuery({ all: listVariationUnitRows })),
-			create: createVariationUnitRow,
-			update: updateVariationUnitRow,
-		},
-	},
-}));
-
-vi.mock('$generated/models/CollationReading', () => ({
-	CollationReading: {
-		objects: {
-			all: vi.fn(() => makeFilterQuery({ all: listReadingRows })),
-			create: createReadingRow,
-			update: updateReadingRow,
-		},
-	},
-}));
-
-vi.mock('$generated/models/CollationReadingWitness', () => ({
-	CollationReadingWitness: {
-		objects: {
-			all: vi.fn(() => makeFilterQuery({ all: listReadingWitnessRows })),
-			create: createReadingWitnessRow,
-			update: updateReadingWitnessRow,
-		},
-	},
 }));
 
 vi.mock('./collation-runner', () => ({
@@ -265,7 +116,6 @@ describe('collationState artifact-first persistence', () => {
 	beforeEach(() => {
 		vi.useFakeTimers();
 		vi.clearAllMocks();
-		ensureDjazzkitRuntime.mockResolvedValue(undefined);
 		loadCollation.mockResolvedValue({
 			row: {
 				id: 'col-1',
@@ -323,63 +173,6 @@ describe('collationState artifact-first persistence', () => {
 				updated_at: '2026-03-10T00:00:00.000Z',
 			},
 		]);
-		getCollationRow.mockResolvedValue({
-			_djazzkit_id: 'col-1',
-			project_id: 'proj-1',
-			verse_identifier: 'Romans 1:1',
-			status: 'alignment',
-		});
-		createCollationRow.mockResolvedValue(undefined);
-		updateCollationRow.mockResolvedValue(undefined);
-		getArtifactRow.mockResolvedValue({
-			_djazzkit_id: 'artifact-1',
-			payload: makeDocumentPayload(),
-		});
-		createArtifactRow.mockResolvedValue(undefined);
-		updateArtifactRow.mockResolvedValue(undefined);
-		getProjectRow.mockResolvedValue({
-			_djazzkit_id: 'proj-1',
-			name: 'Project 1',
-			collation_settings: JSON.stringify({
-				regularizationRules: [],
-				ignoreWordBreaks: false,
-				lowercase: false,
-				ignoreTokenWhitespace: true,
-				ignorePunctuation: false,
-				suppliedTextMode: 'clear',
-				segmentation: true,
-				transcriptionWitnessTreatments: {},
-			}),
-		});
-		getTranscriptionRows.mockResolvedValue([
-			{
-				_djazzkit_id: 'A-tx',
-				_djazzkit_deleted: false,
-				_djazzkit_updated_at: '2026-03-10T00:00:00.000Z',
-				updated_at: '2026-03-10T00:00:00.000Z',
-			},
-			{
-				_djazzkit_id: 'B-tx',
-				_djazzkit_deleted: false,
-				_djazzkit_updated_at: '2026-03-10T00:00:00.000Z',
-				updated_at: '2026-03-10T00:00:00.000Z',
-			},
-		]);
-		listCollationWitnessRows.mockResolvedValue([]);
-		createCollationWitnessRow.mockResolvedValue(undefined);
-		updateCollationWitnessRow.mockResolvedValue(undefined);
-		listCollationTokenRows.mockResolvedValue([]);
-		createCollationTokenRow.mockResolvedValue(undefined);
-		updateCollationTokenRow.mockResolvedValue(undefined);
-		listVariationUnitRows.mockResolvedValue([]);
-		createVariationUnitRow.mockResolvedValue(undefined);
-		updateVariationUnitRow.mockResolvedValue(undefined);
-		listReadingRows.mockResolvedValue([]);
-		createReadingRow.mockResolvedValue(undefined);
-		updateReadingRow.mockResolvedValue(undefined);
-		listReadingWitnessRows.mockResolvedValue([]);
-		createReadingWitnessRow.mockResolvedValue(undefined);
-		updateReadingWitnessRow.mockResolvedValue(undefined);
 		gatherWitnessesForVerse.mockResolvedValue([]);
 	});
 
@@ -526,19 +319,9 @@ describe('collationState artifact-first persistence', () => {
 		await collationState.selectProject('proj-1');
 		await vi.advanceTimersByTimeAsync(801);
 		vi.clearAllMocks();
-		ensureDjazzkitRuntime.mockResolvedValue(undefined);
-		getArtifactRow.mockResolvedValue({
-			_djazzkit_id: 'artifact-existing',
-		});
 
 		const collationId = await collationState.createNewCollation('Romans 1:1', 'Romans 1:1');
 		vi.clearAllMocks();
-		ensureDjazzkitRuntime.mockResolvedValue(undefined);
-		getArtifactRow.mockResolvedValue({
-			_djazzkit_id: 'artifact-existing',
-		});
-		updateArtifactRow.mockResolvedValue(undefined);
-		updateCollationRow.mockResolvedValue(undefined);
 
 		collationState.selectedVerse = {
 			identifier: 'Romans 1:1',
@@ -566,19 +349,9 @@ describe('collationState artifact-first persistence', () => {
 		await collationState.selectProject('proj-1');
 		await vi.advanceTimersByTimeAsync(801);
 		vi.clearAllMocks();
-		ensureDjazzkitRuntime.mockResolvedValue(undefined);
-		getArtifactRow.mockResolvedValue({
-			_djazzkit_id: 'artifact-existing',
-		});
 
 		const collationId = await collationState.createNewCollation('Romans 1:1', 'Romans 1:1');
 		vi.clearAllMocks();
-		ensureDjazzkitRuntime.mockResolvedValue(undefined);
-		getArtifactRow.mockResolvedValue({
-			_djazzkit_id: 'artifact-existing',
-		});
-		updateArtifactRow.mockResolvedValue(undefined);
-		updateCollationRow.mockResolvedValue(undefined);
 
 		collationState.selectedVerse = {
 			identifier: 'Romans 1:1',
