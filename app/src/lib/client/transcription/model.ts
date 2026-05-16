@@ -1,6 +1,19 @@
-import type { TranscriptionData } from '$generated/models/Transcription';
+import type { TranscriptionRecord as DbTranscriptionRecord } from '$lib/client/db/repositories/transcriptions';
 
-export type TranscriptionRecord = TranscriptionData;
+export type TranscriptionRecord = DbTranscriptionRecord & {
+	_djazzkit_id: string;
+	_djazzkit_deleted: boolean;
+	_djazzkit_updated_at: string | null;
+};
+
+export function mapLocalTranscriptionRecord(record: DbTranscriptionRecord): TranscriptionRecord {
+	return {
+		...record,
+		_djazzkit_id: record.id,
+		_djazzkit_deleted: false,
+		_djazzkit_updated_at: record.updated_at,
+	};
+}
 
 export function parseTranscriptionTags(tags: unknown): string[] {
 	if (Array.isArray(tags)) {

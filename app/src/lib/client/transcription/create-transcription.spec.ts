@@ -1,47 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const {
-	ensureDjazzkitRuntime,
-	createTranscriptionRow,
-	createManyTranscriptionRows,
-	rebuildVerseIndexForTranscriptions,
-	suppressNotifications,
-	resumeNotifications,
-} = vi.hoisted(() => ({
-	ensureDjazzkitRuntime: vi.fn(),
-	createTranscriptionRow: vi.fn(),
-	createManyTranscriptionRows: vi.fn(),
-	rebuildVerseIndexForTranscriptions: vi.fn(),
-	suppressNotifications: vi.fn(),
-	resumeNotifications: vi.fn(),
+const { createTranscription, createTranscriptions } = vi.hoisted(() => ({
+	createTranscription: vi.fn(),
+	createTranscriptions: vi.fn(),
 }));
 
-vi.mock('$lib/client/djazzkit-runtime', () => ({
-	ensureDjazzkitRuntime,
+vi.mock('$lib/client/db/client', () => ({
+	createTranscription,
+	createTranscriptions,
 }));
 
-vi.mock('$generated/models/Transcription', () => ({
-	Transcription: {
-		objects: {
-			create: createTranscriptionRow,
-			createMany: createManyTranscriptionRows,
-		},
-	},
-}));
-
-vi.mock('$lib/client/transcription/verse-index', () => ({
-	rebuildVerseIndexForTranscriptions,
-}));
-
-vi.mock('@djazzkit/core', () => ({
-	suppressNotifications,
-	resumeNotifications,
-}));
-
-import {
-	createTranscriptionRecord,
-	createTranscriptionRecords,
-} from './create-transcription';
+import { createTranscriptionRecord, createTranscriptionRecords } from './create-transcription';
 
 const baseInput = {
 	title: 'Romans Witness',
@@ -52,29 +21,31 @@ const baseInput = {
 	language: 'grc',
 };
 
-describe('create-transcription indexing hooks', () => {
+describe('create-transcription storage calls', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
-		ensureDjazzkitRuntime.mockResolvedValue(undefined);
-		createTranscriptionRow.mockResolvedValue(undefined);
-		createManyTranscriptionRows.mockResolvedValue(undefined);
-		rebuildVerseIndexForTranscriptions.mockResolvedValue({
-			processed: 0,
-			succeeded: 0,
-			failed: 0,
-			failures: [],
-		});
-		resumeNotifications.mockResolvedValue(undefined);
+		createTranscription.mockResolvedValue('tx-single');
+		createTranscriptions
+			.mockResolvedValueOnce(['tx-1', 'tx-2'])
+			.mockResolvedValueOnce(['tx-3']);
 	});
 
-	it('indexes a transcription after single-record creation', async () => {
+	it('creates a single transcription through the local DB client', async () => {
 		const transcriptionId = await createTranscriptionRecord(baseInput);
 
-		expect(createTranscriptionRow).toHaveBeenCalledTimes(1);
-		expect(rebuildVerseIndexForTranscriptions).toHaveBeenCalledWith([transcriptionId]);
+		expect(transcriptionId).toBe('tx-single');
+		expect(createTranscription).toHaveBeenCalledWith(
+			expect.objectContaining({
+				title: 'Romans Witness',
+				siglum: 'P46',
+				format: 'normalized_ast_v3',
+				isPublic: false,
+				tags: [],
+			})
+		);
 	});
 
-	it('indexes each created chunk during bulk creation', async () => {
+	it('creates bulk transcriptions in chunks and reports progress', async () => {
 		const onChunkComplete = vi.fn();
 
 		const ids = await createTranscriptionRecords(
@@ -87,14 +58,11 @@ describe('create-transcription indexing hooks', () => {
 			2,
 		);
 
-		expect(ids).toHaveLength(3);
-		expect(createManyTranscriptionRows).toHaveBeenCalledTimes(2);
-		expect(rebuildVerseIndexForTranscriptions).toHaveBeenCalledTimes(2);
-		expect(rebuildVerseIndexForTranscriptions.mock.calls[0][0]).toHaveLength(2);
-		expect(rebuildVerseIndexForTranscriptions.mock.calls[1][0]).toHaveLength(1);
+		expect(ids).toEqual(['tx-1', 'tx-2', 'tx-3']);
+		expect(createTranscriptions).toHaveBeenCalledTimes(2);
+		expect(createTranscriptions.mock.calls[0][0]).toHaveLength(2);
+		expect(createTranscriptions.mock.calls[1][0]).toHaveLength(1);
 		expect(onChunkComplete).toHaveBeenNthCalledWith(1, 2, 3);
 		expect(onChunkComplete).toHaveBeenNthCalledWith(2, 3, 3);
-		expect(suppressNotifications).toHaveBeenCalledTimes(1);
-		expect(resumeNotifications).toHaveBeenCalledTimes(1);
 	});
 });

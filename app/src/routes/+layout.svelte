@@ -3,7 +3,6 @@
 	import { registerServiceWorker } from '$lib/client/sw-registration';
 	import { syncService } from '$lib/client/sync/sync-service.svelte';
 	import Navbar from '$lib/components/Navbar.svelte';
-	import SchemaMigrationModal from '$lib/components/SchemaMigrationModal.svelte';
 	import { onMount } from 'svelte';
 	import '../app.css';
 
@@ -22,7 +21,6 @@
 </svelte:head>
 
 <Navbar />
-<SchemaMigrationModal />
 
 <div class="bg-transparent rounded-lg">
 	{@render children?.()}

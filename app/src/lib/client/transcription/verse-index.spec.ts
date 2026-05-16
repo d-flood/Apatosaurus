@@ -1,114 +1,79 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
-	ensureDjazzkitRuntime,
 	getTranscription,
-	listExistingVerseIndexRows,
-	createManyVerseIndexRows,
-	deleteVerseIndexRow,
-	getSyncClient,
-	suppressNotifications,
-	resumeNotifications,
+	listVerseIndexRows,
+	getVerseIndexRowsForVerse,
+	rebuildVerseIndexForTranscriptions,
+	updateTranscriptionContent,
 } = vi.hoisted(() => ({
-	ensureDjazzkitRuntime: vi.fn(),
 	getTranscription: vi.fn(),
-	listExistingVerseIndexRows: vi.fn(),
-	createManyVerseIndexRows: vi.fn(),
-	deleteVerseIndexRow: vi.fn(),
-	getSyncClient: vi.fn(),
-	suppressNotifications: vi.fn(),
-	resumeNotifications: vi.fn(),
+	listVerseIndexRows: vi.fn(),
+	getVerseIndexRowsForVerse: vi.fn(),
+	rebuildVerseIndexForTranscriptions: vi.fn(),
+	updateTranscriptionContent: vi.fn(),
 }));
 
-vi.mock('$lib/client/djazzkit-runtime', () => ({
-	ensureDjazzkitRuntime,
+vi.mock('$lib/client/db/client', () => ({
+	getTranscription,
+	listVerseIndexRows,
+	getVerseIndexRowsForVerse,
+	rebuildVerseIndexForTranscriptions,
+	updateTranscriptionContent,
 }));
 
-vi.mock('@djazzkit/core', () => ({
-	getSyncClient,
-	suppressNotifications,
-	resumeNotifications,
-}));
+import {
+	getVerseIndexRows,
+	getVerseIndexRowsForVerse as getPublicVerseIndexRowsForVerse,
+	rebuildVerseIndexForTranscriptions as rebuildPublicVerseIndexForTranscriptions,
+	syncVerseIndexFromDocument,
+} from './verse-index';
 
-vi.mock('$generated/models/Transcription', () => ({
-	Transcription: {
-		objects: {
-			filter: vi.fn(() => ({
-				filter: vi.fn(() => ({
-					first: getTranscription,
-				})),
-				first: getTranscription,
-			})),
-		},
-	},
-}));
+const verseRow = {
+	id: 'idx-1',
+	transcription_id: 'tx-1',
+	verse_identifier: 'Romans 1:1',
+	book: 'Romans',
+	chapter: '1',
+	verse: '1',
+	last_indexed_at: '2026-01-01T00:00:00.000Z',
+};
 
-vi.mock('$generated/index', () => ({
-	TranscriptionVerseIndex: {
-		objects: {
-			filter: vi.fn(() => ({
-				all: listExistingVerseIndexRows,
-			})),
-			createMany: createManyVerseIndexRows,
-			delete: deleteVerseIndexRow,
-		},
-	},
-}));
-
-import { rebuildVerseIndexForTranscriptions } from './verse-index';
-
-describe('rebuildVerseIndexForTranscriptions', () => {
+describe('verse-index local DB bridge', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
-		ensureDjazzkitRuntime.mockResolvedValue(undefined);
-		getTranscription.mockReset();
-		listExistingVerseIndexRows.mockResolvedValue([]);
-		createManyVerseIndexRows.mockResolvedValue(undefined);
-		deleteVerseIndexRow.mockResolvedValue(undefined);
-		resumeNotifications.mockResolvedValue(undefined);
-		getSyncClient.mockReturnValue({
-			setUploadsPaused: vi.fn(),
+		listVerseIndexRows.mockResolvedValue([verseRow]);
+		getVerseIndexRowsForVerse.mockResolvedValue([verseRow]);
+		getTranscription.mockResolvedValue({ id: 'tx-1', siglum: '01', title: 'Codex 01' });
+		rebuildVerseIndexForTranscriptions.mockResolvedValue({
+			processed: 1,
+			succeeded: 1,
+			failed: 0,
+			failures: [],
 		});
+		updateTranscriptionContent.mockResolvedValue(undefined);
 	});
 
-	it('rebuilds unique verse rows in a batch and reports progress', async () => {
-		getTranscription.mockResolvedValueOnce({
-			_djazzkit_id: 'tx-1',
-			siglum: '01',
-			title: 'Codex 01',
-			content_json: JSON.stringify({
-				type: 'transcriptionDocument',
-				pages: [
-					{
-						columns: [
-							{
-								lines: [
-									{
-										items: [
-											{
-												type: 'milestone',
-												kind: 'verse',
-												attrs: { book: 'Romans', chapter: '1', verse: '1' },
-											},
-											{
-												type: 'milestone',
-												kind: 'verse',
-												attrs: { book: 'Romans', chapter: '1', verse: '1' },
-											},
-										],
-									},
-								],
-							},
-						],
-					},
-				],
+	it('maps verse index rows to the temporary compatibility shape', async () => {
+		await expect(getVerseIndexRows()).resolves.toEqual([
+			expect.objectContaining({
+				id: 'idx-1',
+				_djazzkit_id: 'idx-1',
+				_djazzkit_deleted: false,
+				transcription_id: 'tx-1',
+				transcription: 'tx-1',
 			}),
-		});
-		const progressUpdates: Array<{ completed: number; total: number; currentLabel: string }> =
-			[];
+		]);
 
-		const result = await rebuildVerseIndexForTranscriptions(['tx-1'], {
-			onProgress: progress => {
+		await getPublicVerseIndexRowsForVerse('Romans 1:1', ['tx-1']);
+		expect(getVerseIndexRowsForVerse).toHaveBeenCalledWith('Romans 1:1', ['tx-1']);
+	});
+
+	it('rebuilds through one worker operation and reports label progress', async () => {
+		const progressUpdates: Array<{ completed: number; total: number; currentLabel: string }> = [];
+
+		const result = await rebuildPublicVerseIndexForTranscriptions(['tx-1'], {
+			onProgress: (progress) => {
 				progressUpdates.push({
 					completed: progress.completed,
 					total: progress.total,
@@ -117,80 +82,25 @@ describe('rebuildVerseIndexForTranscriptions', () => {
 			},
 		});
 
-		expect(result).toEqual({
-			processed: 1,
-			succeeded: 1,
-			failed: 0,
-			failures: [],
-		});
-		expect(createManyVerseIndexRows).toHaveBeenCalledTimes(1);
-		expect(createManyVerseIndexRows).toHaveBeenCalledWith([
-			expect.objectContaining({
-				transcription_id: 'tx-1',
-				verse_identifier: 'Romans 1:1',
-				book: 'Romans',
-				chapter: '1',
-				verse: '1',
-			}),
-		]);
-		expect(deleteVerseIndexRow).not.toHaveBeenCalled();
+		expect(result).toEqual({ processed: 1, succeeded: 1, failed: 0, failures: [] });
+		expect(rebuildVerseIndexForTranscriptions).toHaveBeenCalledWith(['tx-1']);
 		expect(progressUpdates).toEqual([
 			{ completed: 0, total: 1, currentLabel: '01' },
 			{ completed: 1, total: 1, currentLabel: '01' },
 		]);
 	});
 
-	it('suppresses notifications and pauses uploads for manual rebuilds', async () => {
-		const setUploadsPaused = vi.fn();
-		getSyncClient.mockReturnValue({ setUploadsPaused });
-		getTranscription.mockResolvedValueOnce({
-			_djazzkit_id: 'tx-1',
-			siglum: '01',
-			title: 'Codex 01',
-			content_json: JSON.stringify({
-				type: 'transcriptionDocument',
-				pages: [],
-			}),
-		});
+	it('updates content and index together when syncing from an editor document', async () => {
+		const document = { type: 'transcriptionDocument' as const, pages: [] };
 
-		await rebuildVerseIndexForTranscriptions(['tx-1'], {
-			suppressReactiveNotifications: true,
-			pauseUploads: true,
-		});
+		await syncVerseIndexFromDocument('tx-1', document);
 
-		expect(suppressNotifications).toHaveBeenCalledTimes(1);
-		expect(resumeNotifications).toHaveBeenCalledTimes(1);
-		expect(setUploadsPaused).toHaveBeenNthCalledWith(1, true);
-		expect(setUploadsPaused).toHaveBeenNthCalledWith(2, false);
-	});
-
-	it('continues when content is invalid or a transcription is missing', async () => {
-		getTranscription
-			.mockResolvedValueOnce({
-				_djazzkit_id: 'tx-invalid',
-				siglum: 'BAD',
-				title: 'Broken Import',
-				content_json: '{not-json',
+		expect(updateTranscriptionContent).toHaveBeenCalledWith(
+			expect.objectContaining({
+				id: 'tx-1',
+				document,
+				contentJson: JSON.stringify(document),
 			})
-			.mockResolvedValueOnce(null);
-
-		const result = await rebuildVerseIndexForTranscriptions(['tx-invalid', 'tx-missing']);
-
-		expect(result.processed).toBe(2);
-		expect(result.succeeded).toBe(0);
-		expect(result.failed).toBe(2);
-		expect(result.failures).toEqual([
-			{
-				transcriptionId: 'tx-invalid',
-				label: 'BAD',
-				message: 'Transcription content is missing or invalid',
-			},
-			{
-				transcriptionId: 'tx-missing',
-				label: 'tx-missing',
-				message: 'Transcription was not found',
-			},
-		]);
-		expect(createManyVerseIndexRows).not.toHaveBeenCalled();
+		);
 	});
 });

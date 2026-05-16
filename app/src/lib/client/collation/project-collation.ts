@@ -1,11 +1,21 @@
-import { Project } from '$generated/models/Project';
-import { ProjectTranscription } from '$generated/models/ProjectTranscription';
-import { Transcription } from '$generated/models/Transcription';
-import { ensureDjazzkitRuntime } from '$lib/client/djazzkit-runtime';
 import { coerceTranscriptionDocument } from '$lib/client/transcription/content';
-import { getPreferredTranscriptionLabel } from '$lib/client/transcription/display';
 import type { CorrectionReading, TranscriptionDocument } from '@apatopwa/tei-transcription';
 import { createProjectCollationSettings } from './project-settings';
+import {
+	createProject,
+	getProject as getLocalProject,
+	getProjectTranscriptionIds as getLocalProjectTranscriptionIds,
+	listProjects as listLocalProjects,
+	listProjectTranscriptionOptions,
+	loadProjectTranscriptionContent,
+	syncProjectTranscriptionIds as syncLocalProjectTranscriptionIds,
+	updateProjectMetadata as updateLocalProjectMetadata,
+} from '$lib/client/db/client';
+import type {
+	ProjectOption,
+	ProjectRecord,
+	ProjectTranscriptionOption as LocalProjectTranscriptionOption,
+} from '$lib/client/db/repositories/projects';
 
 export interface ProjectTranscriptionHandOption {
 	id: string;
@@ -14,21 +24,9 @@ export interface ProjectTranscriptionHandOption {
 	isBaseHand: boolean;
 }
 
-export interface ProjectOption {
-	id: string;
-	name: string;
-	description: string;
-	createdAt: string;
-	updatedAt: string;
-}
+export type { ProjectOption, ProjectRecord } from '$lib/client/db/repositories/projects';
 
-export interface ProjectRecord extends ProjectOption {
-	charter: string;
-	collationSettings: unknown;
-	ownerId: number | null;
-}
-
-export interface ProjectTranscriptionOption {
+export interface ProjectTranscriptionOption extends LocalProjectTranscriptionOption {
 	id: string;
 	siglum: string;
 	displayLabel: string;
@@ -139,69 +137,33 @@ function collectDocumentHandOptions(
 }
 
 export async function listProjects(): Promise<ProjectOption[]> {
-	await ensureDjazzkitRuntime();
-	const rows = await Project.objects
-		.query()
-		.orderBy(fields => fields.updated_at, 'desc')
-		.only('_djazzkit_id', 'name', 'description', 'created_at', 'updated_at')
-		.all();
-	return rows.map(row => ({
-		id: row._djazzkit_id,
-		name: row.name,
-		description: row.description,
-		createdAt: row.created_at,
-		updatedAt: row.updated_at,
-	}));
+	return listLocalProjects();
 }
 
 export async function getProject(projectId: string): Promise<ProjectRecord | null> {
-	await ensureDjazzkitRuntime();
-	const row = await Project.objects.filter(fields => fields._djazzkit_id.eq(projectId)).first();
-	if (!row) return null;
-	return {
-		id: row._djazzkit_id,
-		name: row.name,
-		description: row.description,
-		charter: row.charter,
-		collationSettings: row.collation_settings,
-		ownerId: row.owner_id,
-		createdAt: row.created_at,
-		updatedAt: row.updated_at,
-	};
+	return getLocalProject(projectId);
 }
 
 export async function createProjectRecord(input: {
 	name: string;
 	description?: string;
 }): Promise<string> {
-	await ensureDjazzkitRuntime();
-	const now = new Date().toISOString();
-	const id = crypto.randomUUID();
-	await Project.objects.create({
-		_djazzkit_id: id,
-		_djazzkit_rev: 0,
-		_djazzkit_deleted: false,
-		_djazzkit_updated_at: now,
+	return createProject({
 		name: input.name.trim(),
 		description: input.description?.trim() ?? '',
 		charter: '',
-		collation_settings: JSON.stringify(
-			createProjectCollationSettings([], {
-				ignoreWordBreaks: false,
-				lowercase: false,
-				ignoreTokenWhitespace: true,
-				ignorePunctuation: false,
-				suppliedTextMode: 'clear',
-				segmentation: true,
-				transcriptionWitnessTreatments: new Map(),
-				transcriptionWitnessExcludedHands: new Map(),
-			})
-		),
-		owner_id: null,
-		created_at: now,
-		updated_at: now,
+		collationSettings: createProjectCollationSettings([], {
+			ignoreWordBreaks: false,
+			lowercase: false,
+			ignoreTokenWhitespace: true,
+			ignorePunctuation: false,
+			suppliedTextMode: 'clear',
+			segmentation: true,
+			transcriptionWitnessTreatments: new Map(),
+			transcriptionWitnessExcludedHands: new Map(),
+		}),
+		ownerId: null,
 	});
-	return id;
 }
 
 export async function updateProjectMetadata(
@@ -209,46 +171,18 @@ export async function updateProjectMetadata(
 	updates: {
 		name?: string;
 		description?: string;
+		collationSettings?: unknown;
+		updatedAt?: string;
 	}
 ): Promise<void> {
-	await ensureDjazzkitRuntime();
-	const now = new Date().toISOString();
-	const payload: Record<string, unknown> = {
-		_djazzkit_updated_at: now,
-		updated_at: now,
-	};
-	if (updates.name !== undefined) payload.name = updates.name.trim();
-	if (updates.description !== undefined) payload.description = updates.description.trim();
-	await Project.objects.update(projectId, payload);
+	await updateLocalProjectMetadata({ projectId, ...updates });
 }
 
 export async function listTranscriptions(): Promise<ProjectTranscriptionOption[]> {
-	await ensureDjazzkitRuntime();
 	const queryStartedAt = nowMs();
-	const rows = await Transcription.objects
-		.query()
-		.only('_djazzkit_id', 'siglum', 'title', 'description')
-		.all();
+	const rows = await listProjectTranscriptionOptions();
 	const queryElapsedMs = nowMs() - queryStartedAt;
-	const options = rows
-		.map(row => ({
-			id: row._djazzkit_id,
-			siglum: row.siglum,
-			displayLabel: getPreferredTranscriptionLabel({
-				document: null,
-				siglum: row.siglum,
-				fallbackId: row._djazzkit_id,
-			}),
-			title: row.title,
-			description: row.description,
-			hands: [] as ProjectTranscriptionHandOption[],
-		}))
-		.sort((a, b) =>
-			a.displayLabel.localeCompare(b.displayLabel, undefined, {
-				sensitivity: 'base',
-				numeric: true,
-			})
-		);
+	const options = rows.map(row => ({ ...row, hands: [] as ProjectTranscriptionHandOption[] }));
 	logProjectCollation('listTranscriptions completed', {
 		rowCount: rows.length,
 		queryElapsedMs,
@@ -259,73 +193,19 @@ export async function listTranscriptions(): Promise<ProjectTranscriptionOption[]
 export async function loadTranscriptionHands(
 	transcriptionId: string
 ): Promise<ProjectTranscriptionHandOption[]> {
-	await ensureDjazzkitRuntime();
-	const row = await Transcription.objects
-		.filter(fields => fields._djazzkit_id.eq(transcriptionId))
-		.only('_djazzkit_id', 'content_json')
-		.first();
-	if (!row) return [];
-	const document = coerceTranscriptionDocument(row.content_json);
+	const contentJson = await loadProjectTranscriptionContent(transcriptionId);
+	if (!contentJson) return [];
+	const document = coerceTranscriptionDocument(contentJson);
 	return collectDocumentHandOptions(document);
 }
 
 export async function getProjectTranscriptionIds(projectId: string): Promise<string[]> {
-	await ensureDjazzkitRuntime();
-	const rows = await ProjectTranscription.objects
-		.filter(fields => fields.project.eq(projectId))
-		.only('_djazzkit_id', 'transcription_id')
-		.all();
-	return rows.map(row => row.transcription_id);
+	return getLocalProjectTranscriptionIds(projectId);
 }
 
 export async function syncProjectTranscriptionIds(
 	projectId: string,
 	nextIds: string[]
 ): Promise<void> {
-	await ensureDjazzkitRuntime();
-	const existing = await ProjectTranscription.objects
-		.filter(fields => fields.project.eq(projectId))
-		.all();
-	const activeByTranscriptionId = new Map(
-		existing
-			.filter(row => !row._djazzkit_deleted)
-			.map(row => [row.transcription_id, row] as const)
-	);
-	const deletedByTranscriptionId = new Map(
-		existing
-			.filter(row => row._djazzkit_deleted)
-			.map(row => [row.transcription_id, row] as const)
-	);
-	const nextIdSet = new Set(nextIds);
-	const now = new Date().toISOString();
-
-	for (const row of activeByTranscriptionId.values()) {
-		if (nextIdSet.has(row.transcription_id)) continue;
-		await ProjectTranscription.objects.update(row._djazzkit_id, {
-			_djazzkit_deleted: true,
-			_djazzkit_updated_at: now,
-		});
-	}
-
-	for (const transcriptionId of nextIdSet) {
-		if (activeByTranscriptionId.has(transcriptionId)) continue;
-		const deleted = deletedByTranscriptionId.get(transcriptionId);
-		if (deleted) {
-			await ProjectTranscription.objects.update(deleted._djazzkit_id, {
-				_djazzkit_deleted: false,
-				_djazzkit_updated_at: now,
-			});
-			continue;
-		}
-		await ProjectTranscription.objects.create({
-			_djazzkit_id: crypto.randomUUID(),
-			_djazzkit_rev: 0,
-			_djazzkit_deleted: false,
-			_djazzkit_updated_at: now,
-			project_id: projectId,
-			transcription_id: transcriptionId,
-			added_at: now,
-			added_by_id: null,
-		});
-	}
+	await syncLocalProjectTranscriptionIds(projectId, nextIds);
 }

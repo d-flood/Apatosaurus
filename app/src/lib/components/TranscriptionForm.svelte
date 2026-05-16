@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { ensureDjazzkitRuntime } from '$lib/client/djazzkit-runtime';
+	import { getTranscription, localDbExecute } from '$lib/client/db/client';
+	import { ensureLocalDbRuntime } from '$lib/client/db/runtime';
 	import {
 		createTranscriptionRecord,
 		formatTranscriptionFieldList,
@@ -13,6 +14,7 @@
 	} from '$lib/tei/imported-tei-summary';
 	import { extractTranscriptionRecordMetadataPatch } from '$lib/tei/transcription-record-metadata';
 	import {
+		mapLocalTranscriptionRecord,
 		parseTranscriptionTags,
 		serializeTranscriptionTags,
 		type TranscriptionRecord,
@@ -21,7 +23,6 @@
 		EMPTY_TRANSCRIPTION_DOC,
 		type StoredTranscriptionDocument,
 	} from '$lib/client/transcription/content';
-	import { Transcription } from '../../generated/models/Transcription';
 	import { onMount } from 'svelte';
 
 	interface Props {
@@ -65,7 +66,7 @@
 	});
 
 	onMount(async () => {
-		await ensureDjazzkitRuntime();
+		await ensureLocalDbRuntime();
 	});
 
 	async function handleTeiFileChange(event: Event) {
@@ -115,7 +116,7 @@
 		loading = true;
 		error = '';
 
-		await ensureDjazzkitRuntime();
+		await ensureLocalDbRuntime();
 
 		if (!isEditMode && importMode === 'tei' && !importedDocument) {
 			error = 'Choose a TEI XML file to import';
@@ -151,25 +152,28 @@
 		try {
 			if (isEditMode && transcription) {
 				const now = new Date().toISOString();
-				await Transcription.objects.update(transcription._djazzkit_id, {
-					title: title.trim(),
-					siglum: siglum.trim(),
-					description: description.trim(),
-					updated_at: now,
-					_djazzkit_updated_at: now,
-					is_public: isPublic,
-					tags: serializeTranscriptionTags(tags),
-					transcriber: transcriber?.trim() || '',
-					repository: repository?.trim() || '',
-					settlement: settlement?.trim() || '',
-					language: language?.trim() || '',
-				});
-
-				const updatedTranscription = await Transcription.objects.get(f =>
-					f._djazzkit_id.eq(transcription._djazzkit_id),
+				await localDbExecute(
+					`UPDATE transcriptions
+					SET title = ?, siglum = ?, description = ?, updated_at = ?, is_public = ?, tags = ?, transcriber = ?, repository = ?, settlement = ?, language = ?
+					WHERE id = ?`,
+					[
+						title.trim(),
+						siglum.trim(),
+						description.trim(),
+						now,
+						isPublic ? 1 : 0,
+						serializeTranscriptionTags(tags),
+						transcriber?.trim() || '',
+						repository?.trim() || '',
+						settlement?.trim() || '',
+						language?.trim() || '',
+						transcription.id,
+					]
 				);
+
+				const updatedTranscription = await getTranscription(transcription.id);
 				if (onSave) {
-					onSave(updatedTranscription);
+					onSave(updatedTranscription ? mapLocalTranscriptionRecord(updatedTranscription) : transcription);
 				}
 			} else {
 				const transcriptionId = await createTranscriptionRecord({

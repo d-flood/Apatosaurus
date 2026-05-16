@@ -1,0 +1,161 @@
+import type { DbRequest, DbResponse } from './rpc';
+import {
+	createProject,
+	getProject,
+	getProjectTranscriptionIds,
+	listProjects,
+	listProjectTranscriptionOptions,
+	loadTranscriptionContent,
+	syncProjectTranscriptionIds,
+	updateProjectMetadata,
+} from './repositories/projects';
+import {
+	createTranscription,
+	createTranscriptions,
+	deleteTranscription,
+	getTranscription,
+	getTranscriptionsByIds,
+	getVerseIndexRowsForVerse,
+	listVerseIndexRows,
+	listTranscriptionSummaries,
+	rebuildVerseIndexForTranscriptions,
+	updateTranscriptionContent,
+} from './repositories/transcriptions';
+import type { Database } from './types.generated';
+import { createWorkerKysely } from './worker-kysely';
+import { LocalSqliteDatabase } from './worker-sqlite';
+import { applyLocalDbMigrations } from './worker-migrator';
+import type { Kysely } from 'kysely';
+
+const db = new LocalSqliteDatabase();
+let kyselyDb: Kysely<Database> | null = null;
+let initialized = false;
+
+self.onmessage = async (event: MessageEvent<DbRequest>) => {
+	const request = event.data;
+	try {
+		const result = await handleRequest(request);
+		postResponse({ id: request.id ?? 0, ok: true, result });
+	} catch (error) {
+		postResponse({
+			id: request.id ?? 0,
+			ok: false,
+			error: error instanceof Error ? error.message : String(error),
+		});
+	}
+};
+
+async function handleRequest(request: DbRequest): Promise<unknown> {
+	if (request.type === 'init') {
+		await init();
+		return null;
+	}
+	await init();
+	if (request.type === 'query') return db.query(request.sql, request.params ?? []);
+	if (request.type === 'execute') return db.execute(request.sql, request.params ?? []);
+	if (request.type === 'exec') {
+		await db.exec(request.sql);
+		return null;
+	}
+	if (request.type === 'transcriptions.listSummaries') return listTranscriptionSummaries(getKyselyDb());
+	if (request.type === 'transcriptions.get') return getTranscription(getKyselyDb(), request.transcriptionId);
+	if (request.type === 'transcriptions.getByIds') return getTranscriptionsByIds(getKyselyDb(), request.ids);
+	if (request.type === 'transcriptions.create') {
+		const id = await createTranscription(getKyselyDb(), request.input);
+		postMessage({ type: 'db:invalidate', domain: 'transcriptions' });
+		return id;
+	}
+	if (request.type === 'transcriptions.createMany') {
+		const ids = await createTranscriptions(getKyselyDb(), request.inputs);
+		postMessage({ type: 'db:invalidate', domain: 'transcriptions' });
+		return ids;
+	}
+	if (request.type === 'transcriptions.updateContent') {
+		await updateTranscriptionContent(getKyselyDb(), request.input);
+		postMessage({ type: 'db:invalidate', domain: 'transcriptions' });
+		return null;
+	}
+	if (request.type === 'transcriptions.delete') {
+		await deleteTranscription(getKyselyDb(), request.transcriptionId);
+		postMessage({ type: 'db:invalidate', domain: 'transcriptions' });
+		return null;
+	}
+	if (request.type === 'transcriptions.getVerseIndexRowsForVerse') {
+		return getVerseIndexRowsForVerse(getKyselyDb(), request.verseIdentifier, request.transcriptionIds);
+	}
+	if (request.type === 'transcriptions.listVerseIndexRows') return listVerseIndexRows(getKyselyDb());
+	if (request.type === 'transcriptions.rebuildVerseIndex') {
+		const result = await rebuildVerseIndexForTranscriptions(getKyselyDb(), request.transcriptionIds);
+		postMessage({ type: 'db:invalidate', domain: 'transcriptions' });
+		return result;
+	}
+	if (request.type === 'projects.list') return listProjects(getKyselyDb());
+	if (request.type === 'projects.get') return getProject(getKyselyDb(), request.projectId);
+	if (request.type === 'projects.create') {
+		const id = await createProject(getKyselyDb(), request.input);
+		postMessage({ type: 'db:invalidate', domain: 'projects' });
+		return id;
+	}
+	if (request.type === 'projects.updateMetadata') {
+		await updateProjectMetadata(getKyselyDb(), request.input);
+		postMessage({ type: 'db:invalidate', domain: 'projects' });
+		return null;
+	}
+	if (request.type === 'projects.listTranscriptionOptions') return listProjectTranscriptionOptions(getKyselyDb());
+	if (request.type === 'projects.loadTranscriptionContent') return loadTranscriptionContent(getKyselyDb(), request.transcriptionId);
+	if (request.type === 'projects.getTranscriptionIds') return getProjectTranscriptionIds(getKyselyDb(), request.projectId);
+	if (request.type === 'projects.syncTranscriptionIds') {
+		await syncProjectTranscriptionIds(getKyselyDb(), request.projectId, request.nextIds);
+		postMessage({ type: 'db:invalidate', domain: 'projects' });
+		return null;
+	}
+	if (request.type === 'transaction') {
+		await db.transaction(request.statements);
+		postMessage({ type: 'db:invalidate', domain: inferInvalidationDomain(request.statements.map((s) => s.sql).join('\n')) });
+		return null;
+	}
+	if (request.type === 'checkpoint') {
+		await db.exec('PRAGMA wal_checkpoint(TRUNCATE)');
+		return null;
+	}
+	if (request.type === 'reset') {
+		await kyselyDb?.destroy();
+		kyselyDb = null;
+		await db.close();
+		initialized = false;
+		await init();
+		const tables = await db.query("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name <> 'schema_migrations'");
+		await db.transaction(tables.map((row) => ({ sql: `DELETE FROM ${quoteIdent(String(row.name))}` })));
+		return null;
+	}
+	return null;
+}
+
+async function init(): Promise<void> {
+	if (initialized) return;
+	await db.open();
+	await applyLocalDbMigrations(db);
+	kyselyDb = createWorkerKysely(db);
+	initialized = true;
+}
+
+function getKyselyDb(): Kysely<Database> {
+	if (!kyselyDb) kyselyDb = createWorkerKysely(db);
+	return kyselyDb;
+}
+
+function inferInvalidationDomain(sql: string): string {
+	if (/transcriptions|transcription_verse_index/i.test(sql)) return 'transcriptions';
+	if (/projects|project_transcriptions/i.test(sql)) return 'projects';
+	if (/collations|collation_/i.test(sql)) return 'collations';
+	if (/iiif_|page_canvas/i.test(sql)) return 'iiif';
+	return 'all';
+}
+
+function quoteIdent(value: string): string {
+	return `"${value.replace(/"/g, '""')}"`;
+}
+
+function postResponse(response: DbResponse): void {
+	postMessage(response);
+}

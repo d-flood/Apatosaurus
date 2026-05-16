@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { Project } from '$generated/models/Project';
 	import {
 		createProjectRecord,
 		getProject,
@@ -26,7 +25,7 @@
 	import ProjectCollationSettingsEditor from '$lib/components/projects/ProjectCollationSettingsEditor.svelte';
 	import ProjectTranscriptionsEditor from '$lib/components/projects/ProjectTranscriptionsEditor.svelte';
 	import ProjectUserManagementStub from '$lib/components/projects/ProjectUserManagementStub.svelte';
-	import { ensureDjazzkitRuntime } from '$lib/client/djazzkit-runtime';
+	import { ensureLocalDbRuntime } from '$lib/client/db/runtime';
 	import FolderOpen from 'phosphor-svelte/lib/FolderOpen';
 	import Plus from 'phosphor-svelte/lib/Plus';
 	import { onMount } from 'svelte';
@@ -231,7 +230,7 @@
 				selectedProjectId,
 				runId,
 			});
-			await runLoggedStep('ensureDjazzkitRuntime', () => ensureDjazzkitRuntime(), {
+			await runLoggedStep('ensureLocalDbRuntime', () => ensureLocalDbRuntime(), {
 				preferredProjectId,
 				runId,
 			});
@@ -379,36 +378,25 @@
 		isSavingSettings = true;
 		error = null;
 		try {
-			await Project.objects.update(selectedProjectId, {
-				collation_settings: JSON.stringify(
-					createProjectCollationSettings(nextRules, {
-						ignoreWordBreaks: nextIgnoreWordBreaks,
-						lowercase: nextLowercase,
-						ignoreTokenWhitespace: true,
-						ignorePunctuation: nextIgnorePunctuation,
-						suppliedTextMode: nextSuppliedTextMode,
-						segmentation: nextSegmentation,
-						transcriptionWitnessTreatments: nextTreatments,
-						transcriptionWitnessExcludedHands: nextExcludedHands,
-					}),
-				),
-				_djazzkit_updated_at: now,
-				updated_at: now,
+			const collationSettings = createProjectCollationSettings(nextRules, {
+				ignoreWordBreaks: nextIgnoreWordBreaks,
+				lowercase: nextLowercase,
+				ignoreTokenWhitespace: true,
+				ignorePunctuation: nextIgnorePunctuation,
+				suppliedTextMode: nextSuppliedTextMode,
+				segmentation: nextSegmentation,
+				transcriptionWitnessTreatments: nextTreatments,
+				transcriptionWitnessExcludedHands: nextExcludedHands,
+			});
+			await updateProjectMetadata(selectedProjectId, {
+				collationSettings,
+				updatedAt: now,
 			});
 			touchProjectList(selectedProjectId, {}, now);
 			if (currentProject?.id === selectedProjectId) {
 				currentProject = {
 					...currentProject,
-					collationSettings: createProjectCollationSettings(nextRules, {
-						ignoreWordBreaks: nextIgnoreWordBreaks,
-						lowercase: nextLowercase,
-						ignoreTokenWhitespace: true,
-						ignorePunctuation: nextIgnorePunctuation,
-						suppliedTextMode: nextSuppliedTextMode,
-						segmentation: nextSegmentation,
-						transcriptionWitnessTreatments: nextTreatments,
-						transcriptionWitnessExcludedHands: nextExcludedHands,
-					}),
+					collationSettings,
 					updatedAt: now,
 				};
 			}

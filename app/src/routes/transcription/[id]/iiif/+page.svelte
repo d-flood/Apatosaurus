@@ -1,11 +1,14 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import { ensureDjazzkitRuntime } from '$lib/client/djazzkit-runtime';
+	import { getTranscription, subscribeLocalDbInvalidations } from '$lib/client/db/client';
+	import { ensureLocalDbRuntime } from '$lib/client/db/runtime';
 	import type { TranscriptionSelectionQuote } from '$lib/client/iiif/types';
 	import type { PageEditorMetadata } from '$lib/components/transcriptionEditor/pageFormwork';
-	import type { TranscriptionRecord } from '$lib/client/transcription/model';
+	import {
+		mapLocalTranscriptionRecord,
+		type TranscriptionRecord,
+	} from '$lib/client/transcription/model';
 	import IiifWorkspace from '$lib/components/transcriptionEditor/IiifWorkspace.svelte';
-	import { Transcription } from '../../../../generated/models/Transcription';
 	import { onMount } from 'svelte';
 
 	const transcriptionIdValue = page.params.id;
@@ -46,7 +49,7 @@
 
 	let transcription = $state<TranscriptionRecord | null>(null);
 	let loadError = $state<string | null>(null);
-	let unsubscribe: (() => void) | null = null;
+	let unsubscribeInvalidations: (() => void) | null = null;
 	let pages = $state<PageEditorMetadata[]>([]);
 	let activePageId = $state<string | null>(null);
 	let selectionQuote = $state<TranscriptionSelectionQuote | null>(null);
@@ -117,26 +120,27 @@
 		window.addEventListener('message', handleWindowMessage);
 		postToOpener({ type: 'popup-ready' });
 
-		void ensureDjazzkitRuntime()
-			.then(async () => {
-				const queryset = Transcription.objects
-					.filter(f => f._djazzkit_id.eq(transcriptionId))
-					.filter(f => f._djazzkit_deleted.eq(false));
-				transcription = await queryset.first();
-				loadError = transcription ? null : 'Failed to load transcription';
-				unsubscribe = queryset.subscribe(rows => {
-					transcription = rows[0] ?? null;
-				});
-			})
+		async function loadTranscription() {
+			await ensureLocalDbRuntime();
+			const nextTranscription = await getTranscription(transcriptionId);
+			transcription = nextTranscription ? mapLocalTranscriptionRecord(nextTranscription) : null;
+			loadError = nextTranscription ? null : 'Failed to load transcription';
+		}
+
+		void loadTranscription()
 			.catch(err => {
 				loadError = err instanceof Error ? err.message : 'Failed to load transcription';
 			});
 
+		unsubscribeInvalidations = subscribeLocalDbInvalidations(event => {
+			if (event.domain === 'transcriptions') void loadTranscription();
+		});
+
 		return () => {
 			handleWindowUnload();
 			window.removeEventListener('message', handleWindowMessage);
-			unsubscribe?.();
-			unsubscribe = null;
+			unsubscribeInvalidations?.();
+			unsubscribeInvalidations = null;
 		};
 	});
 </script>
@@ -158,7 +162,7 @@
 {:else}
 	<div class="mx-auto flex h-[100vh] max-w-[1800px] flex-col p-4">
 		<IiifWorkspace
-			transcriptionId={transcription._djazzkit_id}
+			transcriptionId={transcription.id}
 			{transcriptionTitle}
 			initialManifestSourceId={initialManifestSourceId}
 			{pages}
