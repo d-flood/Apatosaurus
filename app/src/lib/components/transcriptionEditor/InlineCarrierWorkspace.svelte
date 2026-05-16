@@ -2,7 +2,7 @@
 	import {
 		createStructuredFormWorkContent,
 		flattenStructuredFormWorkContent,
-	} from '@apatopwa/tei-transcription';
+	} from '$lib/tei/tei-transcription';
 	import { getInlineCarrierEditor } from '$lib/client/transcriptionEditorSchema';
 	import type { Editor } from '@tiptap/core';
 	import { onMount } from 'svelte';

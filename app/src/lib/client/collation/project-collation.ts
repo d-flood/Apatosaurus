@@ -1,5 +1,5 @@
 import { coerceTranscriptionDocument } from '$lib/client/transcription/content';
-import type { CorrectionReading, TranscriptionDocument } from '@apatopwa/tei-transcription';
+import type { CorrectionReading, TranscriptionDocument } from '$lib/tei/tei-transcription';
 import { createProjectCollationSettings } from './project-settings';
 import {
 	createProject,

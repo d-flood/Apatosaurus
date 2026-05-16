@@ -3,7 +3,7 @@ import {
 	toProseMirror,
 	type ProseMirrorJSON,
 	type TranscriptionDocument,
-} from '@apatopwa/tei-transcription';
+} from './tei-transcription';
 
 export function importTEI(xmlString: string): ProseMirrorJSON {
 	return toProseMirror(parseTei(xmlString));

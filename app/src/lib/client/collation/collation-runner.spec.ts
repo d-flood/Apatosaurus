@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fromProseMirror, type ProseMirrorJSON } from '@apatopwa/tei-transcription';
+import { fromProseMirror, type ProseMirrorJSON } from '$lib/tei/tei-transcription';
 
 import type { StoredTranscriptionDocument } from '$lib/client/transcription/content';
 import { extractWitnessTokensForVerse } from './collation-runner';

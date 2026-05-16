@@ -93,6 +93,18 @@ export async function createTranscriptions(inputs: CreateTranscriptionInput[]): 
 }
 
 export async function updateTranscriptionContent(input: UpdateTranscriptionContentInput): Promise<void> {
+	if (input.contentJson !== undefined) {
+		await sendTranscriptionRequest({
+			type: 'transcriptions.updateContent',
+			input: {
+				id: input.id,
+				contentJson: input.contentJson,
+				format: input.format,
+				updatedAt: input.updatedAt,
+			},
+		});
+		return;
+	}
 	await sendTranscriptionRequest({ type: 'transcriptions.updateContent', input });
 }
 

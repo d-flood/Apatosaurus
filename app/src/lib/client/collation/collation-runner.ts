@@ -3,7 +3,7 @@ import {
 	coerceTranscriptionDocument,
 	type StoredTranscriptionDocument,
 } from '$lib/client/transcription/content';
-import type { CorrectionReading, InlineItem } from '@apatopwa/tei-transcription';
+import type { CorrectionReading, InlineItem } from '$lib/tei/tei-transcription';
 import { getPreferredTranscriptionLabel } from '$lib/client/transcription/display';
 import {
 	getVerseIndexRowsForVerse,

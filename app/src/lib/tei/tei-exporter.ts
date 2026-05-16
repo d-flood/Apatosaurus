@@ -4,7 +4,7 @@ import {
 	type ProseMirrorJSON,
 	type TeiMetadata as TEIMetadata,
 	type TranscriptionDocument,
-} from '@apatopwa/tei-transcription';
+} from './tei-transcription';
 
 export type { TEIMetadata };
 

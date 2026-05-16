@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import type { Editor } from '@tiptap/core';
 	import { NodeSelection, TextSelection } from '@tiptap/pm/state';
-	import { fromProseMirror, parseTei, serializeTei, toProseMirror } from '@apatopwa/tei-transcription';
+	import { fromProseMirror, parseTei, serializeTei, toProseMirror } from '$lib/tei/tei-transcription';
 
 	import { getEditor } from '$lib/client/transcriptionEditorSchema';
 	import {

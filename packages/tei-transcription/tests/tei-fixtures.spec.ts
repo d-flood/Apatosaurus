@@ -1,5 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { DOMParser } from '@xmldom/xmldom';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 import { parseTei, serializeTei } from '../src/index';
 import { validateIgntpXsd } from '../../../test-support/validate-igntp-xsd';
@@ -38,6 +40,15 @@ const unsupportedFixtures = [
 ] as const;
 
 describe('IGNTP kitchen-sink fixtures', () => {
+	it('parses the Romans 010 transcription with word breaks across page breaks', () => {
+		const xml = readFileSync(
+			resolve(process.cwd(), '../../app/static/igntp/Romans_Greek_transcriptions/NT_GRC_010_Rom.xml'),
+			'utf8',
+		);
+
+		expect(() => parseTei(xml)).not.toThrow();
+	});
+
 	it.each(kitchenSinkFixtures)('round-trips %s through parse and serialize with XSD validation', (name) => {
 		const xml = readFixture(name);
 		const exported = serializeTei(parseTei(xml));
