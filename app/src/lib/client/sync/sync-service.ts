@@ -1,5 +1,3 @@
-import { ensureDjazzkitRuntime } from '$lib/client/djazzkit-runtime';
-
 class SyncService {
 	lastSyncTime = $state<string | null>(null);
 	ready = $state(false);
@@ -7,7 +5,6 @@ class SyncService {
 	connected = $state(false);
 
 	async startSync(_dbName: string, _email: string): Promise<void> {
-		await ensureDjazzkitRuntime();
 		this.ready = true;
 		this.connected = false;
 		this.syncStatus = 'paused';

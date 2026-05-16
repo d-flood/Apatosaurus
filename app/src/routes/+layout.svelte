@@ -1,7 +1,7 @@
 <script lang="ts">
 	import favicon from '$lib/assets/favicon.ico';
+	import { ensureLocalDbRuntime } from '$lib/client/db/runtime';
 	import { registerServiceWorker } from '$lib/client/sw-registration';
-	import { syncService } from '$lib/client/sync/sync-service.svelte';
 	import Navbar from '$lib/components/Navbar.svelte';
 	import { onMount } from 'svelte';
 	import '../app.css';
@@ -9,7 +9,7 @@
 	let { children } = $props();
 
 	onMount(() => {
-		syncService.initLocalDB('local').catch((err: unknown) => {
+		ensureLocalDbRuntime().catch((err: unknown) => {
 			console.error('Failed to initialize local runtime:', err);
 		});
 		registerServiceWorker();
