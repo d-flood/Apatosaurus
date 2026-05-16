@@ -1,7 +1,7 @@
 import {
 	normalizeDocument,
 	type TranscriptionDocument,
-} from '@apatopwa/tei-transcription';
+} from '$lib/tei/tei-transcription';
 
 export type StoredTranscriptionDocument = TranscriptionDocument;
 

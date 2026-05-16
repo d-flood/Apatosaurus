@@ -88,7 +88,6 @@ class WorkerSqliteConnection implements DatabaseConnection {
 		return {
 			rows: [],
 			numAffectedRows: affectedRows,
-			numUpdatedOrDeletedRows: affectedRows,
 			numUpdatedRows: affectedRows,
 		} as QueryResult<R>;
 	}

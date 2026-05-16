@@ -163,7 +163,7 @@ function processNode(node: Node, context: ParseContext): void {
 			case 'w':
 				emitPendingMilestones(context);
 				processWordElement(element, context, withWordAttrs(element, []));
-				appendWordBoundary(context.currentLineItems);
+				if (context.currentLineItems) appendWordBoundary(context.currentLineItems);
 				break;
 
 			case 'pc':
@@ -683,7 +683,7 @@ function processContainerContent(
 
 		if (tagName === 'w') {
 			processWordElement(element, context, withWordAttrs(element, marks));
-			appendWordBoundary(context.currentLineItems);
+			if (context.currentLineItems) appendWordBoundary(context.currentLineItems);
 			continue;
 		}
 
@@ -1658,7 +1658,7 @@ function flushCurrentPage(context: ParseContext): void {
 
 
 function appendWordBoundary(items?: Array<LineItem | InlineItem>): void {
-	if (!items) return;
+	if (!Array.isArray(items)) return;
 	const previous = items[items.length - 1];
 	if (
 		!previous ||

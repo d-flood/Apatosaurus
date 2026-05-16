@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { updateTranscriptionContent } from '$lib/client/db/client';
 	import { ensureLocalDbRuntime } from '$lib/client/db/runtime';
-	import { fromProseMirror, toProseMirror } from '@apatopwa/tei-transcription';
+	import { fromProseMirror, toProseMirror } from '$lib/tei/tei-transcription';
 	import { syncVerseIndexFromDocument } from '$lib/client/transcription/verse-index';
 	import {
 		coerceTranscriptionDocument,

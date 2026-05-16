@@ -2,7 +2,7 @@ import type {
 	TeiHeaderInfo,
 	TeiMetadata as TEIMetadata,
 	TranscriptionDocument,
-} from '@apatopwa/tei-transcription';
+} from './tei-transcription';
 
 import type { TranscriptionRecord } from '$lib/client/transcription/model';
 

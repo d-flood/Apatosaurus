@@ -67,7 +67,7 @@ function buildTranscriptionRecord(input: CreateTranscriptionInput) {
 	};
 }
 
-const DEFAULT_CHUNK_SIZE = 10;
+const DEFAULT_CHUNK_SIZE = 1;
 
 export async function createTranscriptionRecords(
 	inputs: CreateTranscriptionInput[],

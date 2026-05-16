@@ -1,7 +1,7 @@
 <script lang="ts">
 	import PencilSimple from 'phosphor-svelte/lib/PencilSimple';
 	import X from 'phosphor-svelte/lib/X';
-	import { serializeTeiNode, serializeTeiNodes } from '@apatopwa/tei-transcription';
+	import { serializeTeiNode, serializeTeiNodes } from '$lib/tei/tei-transcription';
 	import type { TranscriptionRecord } from '$lib/client/transcription/model';
 	import { parseTranscriptionTags } from '$lib/client/transcription/model';
 	import type { StoredTranscriptionDocument } from '$lib/client/transcription/content';

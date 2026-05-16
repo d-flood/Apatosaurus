@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { DOMParser } from '@xmldom/xmldom';
 
-import { serializeTeiNode, serializeTeiNodes } from '@apatopwa/tei-transcription';
+import { serializeTeiNode, serializeTeiNodes } from './tei-transcription';
 import { importTEI, importTEIDocument } from './tei-importer';
 
 beforeAll(() => {
