@@ -1,11 +1,12 @@
-import { Project } from '$generated/models/Project';
-import { Transcription } from '$generated/models/Transcription';
-import { ensureDjazzkitRuntime } from '$lib/client/djazzkit-runtime';
 import {
 	createCollation,
+	createProject as createLocalProject,
+	getProject,
+	getTranscriptionsByIds,
 	loadCollation,
 	saveCollationArtifact,
 	saveCollationProjection,
+	updateProjectMetadata,
 	updateCollationMetadata,
 } from '$lib/client/db/client';
 import type { CollationProjectionRecord, CollationRecord } from '$lib/client/db/repositories/collations';
@@ -551,11 +552,7 @@ function createCollationState() {
 			return;
 		}
 
-		await ensureDjazzkitRuntime();
-		const project = await Project.objects
-			.filter(fields => fields._djazzkit_id.eq(nextProjectId))
-			.filter(fields => fields._djazzkit_deleted.eq(false))
-			.first();
+		const project = await getProject(nextProjectId);
 		if (!project) {
 			projectId = null;
 			applyRegularization();
@@ -563,7 +560,7 @@ function createCollationState() {
 		}
 
 		projectName = project.name;
-		const settings = parseProjectCollationSettings(project.collation_settings);
+		const settings = parseProjectCollationSettings(project.collationSettings);
 		ignoreWordBreaks = settings.ignoreWordBreaks ?? false;
 		lowercase = settings.lowercase ?? false;
 		ignoreTokenWhitespace = settings.ignoreTokenWhitespace ?? true;
@@ -607,32 +604,25 @@ function createCollationState() {
 	}
 
 	async function createProject(name: string): Promise<string> {
-		await ensureDjazzkitRuntime();
 		const now = new Date().toISOString();
-		const id = crypto.randomUUID();
-		await Project.objects.create({
-			_djazzkit_id: id,
-			_djazzkit_rev: 0,
-			_djazzkit_deleted: false,
-			_djazzkit_updated_at: now,
+		const id = await createLocalProject({
+			id: crypto.randomUUID(),
 			name,
 			description: '',
 			charter: '',
-			collation_settings: JSON.stringify(
-				createProjectCollationSettings([], {
-					ignoreWordBreaks: false,
-					lowercase: false,
-					ignoreTokenWhitespace: true,
-					ignorePunctuation: false,
-					suppliedTextMode: 'clear',
-					segmentation: true,
-					transcriptionWitnessTreatments,
-					transcriptionWitnessExcludedHands,
-				})
-			),
-			owner_id: null,
-			created_at: now,
-			updated_at: now,
+			collationSettings: createProjectCollationSettings([], {
+				ignoreWordBreaks: false,
+				lowercase: false,
+				ignoreTokenWhitespace: true,
+				ignorePunctuation: false,
+				suppliedTextMode: 'clear',
+				segmentation: true,
+				transcriptionWitnessTreatments,
+				transcriptionWitnessExcludedHands,
+			}),
+			ownerId: null,
+			createdAt: now,
+			updatedAt: now,
 		});
 		await selectProject(id);
 		return id;
@@ -691,21 +681,19 @@ function createCollationState() {
 	async function persistRulesToProject(nextRules: RegularizationRule[]): Promise<void> {
 		if (!projectId) return;
 		try {
-			await ensureDjazzkitRuntime();
-			await Project.objects.update(projectId, {
-				collation_settings: JSON.stringify(
-					createProjectCollationSettings(nextRules, {
-						ignoreWordBreaks,
-						lowercase,
-						ignoreTokenWhitespace,
-						ignorePunctuation,
-						suppliedTextMode,
-						segmentation,
-						transcriptionWitnessTreatments,
-						transcriptionWitnessExcludedHands,
-					})
-				),
-				_djazzkit_updated_at: new Date().toISOString(),
+			await updateProjectMetadata({
+				projectId,
+				collationSettings: createProjectCollationSettings(nextRules, {
+					ignoreWordBreaks,
+					lowercase,
+					ignoreTokenWhitespace,
+					ignorePunctuation,
+					suppliedTextMode,
+					segmentation,
+					transcriptionWitnessTreatments,
+					transcriptionWitnessExcludedHands,
+				}),
+				updatedAt: new Date().toISOString(),
 			});
 		} catch (err) {
 			console.error('Failed to persist project collation settings:', err);
@@ -1147,14 +1135,9 @@ function createCollationState() {
 		];
 		if (transcriptionIds.length === 0) return [];
 
-		const currentRows = await Transcription.objects
-			.filter(fields => fields._djazzkit_id.inList(transcriptionIds))
-			.only('_djazzkit_id', 'updated_at', '_djazzkit_updated_at')
-			.all();
+		const currentRows = await getTranscriptionsByIds(transcriptionIds);
 		const currentVersionById = new Map(
-			currentRows.map(
-				row => [row._djazzkit_id, row.updated_at || row._djazzkit_updated_at || ''] as const
-			)
+			currentRows.map(row => [row.id, row.updated_at || ''] as const)
 		);
 		const changed = new Set<string>();
 		for (const witness of witnesses) {
