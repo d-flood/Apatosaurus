@@ -21,6 +21,17 @@ import type {
 	VerseIndexRebuildResult,
 	VerseIndexRow,
 } from './repositories/transcriptions';
+import type {
+	CanvasAnnotationIdInput,
+	DeletePageCanvasLinkInput,
+	EnsureManifestSourceInput,
+	FindLinkedPageForCanvasInput,
+	ListCanvasAnnotationsInput,
+	ManifestSourceIdInput,
+	UpsertCanvasAnnotationInput,
+} from './repositories/iiif';
+import type { ManifestSourceSummary, PageCanvasLink, SavePageCanvasLinkInput } from '../iiif/types';
+import type { W3CAnnotation } from 'triiiceratops/plugins/annotation-editor';
 
 export type DbValue = string | number | boolean | null | Uint8Array;
 export type DbRow = Record<string, unknown>;
@@ -101,6 +112,30 @@ export type CollationRpcRequest = CollationRpcMap[keyof CollationRpcMap]['reques
 
 export type CollationRpcResponse<T extends CollationRpcRequest['type']> = CollationRpcMap[T]['response'];
 
+export interface IiifRpcMap {
+	'iiif.listManifestSources': { request: { type: 'iiif.listManifestSources'; transcriptionId: string }; response: ManifestSourceSummary[] };
+	'iiif.listManifestSourcesForUrl': { request: { type: 'iiif.listManifestSourcesForUrl'; transcriptionId: string; manifestUrl: string }; response: ManifestSourceSummary[] };
+	'iiif.ensureManifestSource': { request: { type: 'iiif.ensureManifestSource'; input: EnsureManifestSourceInput }; response: ManifestSourceSummary };
+	'iiif.getManifestSource': { request: { type: 'iiif.getManifestSource'; input: ManifestSourceIdInput }; response: ManifestSourceSummary | null };
+	'iiif.listPageCanvasLinks': { request: { type: 'iiif.listPageCanvasLinks'; transcriptionId: string }; response: PageCanvasLink[] };
+	'iiif.upsertPageCanvasLink': { request: { type: 'iiif.upsertPageCanvasLink'; input: SavePageCanvasLinkInput }; response: PageCanvasLink };
+	'iiif.savePageCanvasLinks': { request: { type: 'iiif.savePageCanvasLinks'; inputs: SavePageCanvasLinkInput[] }; response: PageCanvasLink[] };
+	'iiif.deletePageCanvasLink': { request: { type: 'iiif.deletePageCanvasLink'; input: DeletePageCanvasLinkInput }; response: number };
+	'iiif.deletePageCanvasLinksForPage': { request: { type: 'iiif.deletePageCanvasLinksForPage'; input: { transcriptionId: string; pageId: string } }; response: number };
+	'iiif.deleteAllPageCanvasLinks': { request: { type: 'iiif.deleteAllPageCanvasLinks'; transcriptionId: string }; response: number };
+	'iiif.deleteManifestSource': { request: { type: 'iiif.deleteManifestSource'; input: ManifestSourceIdInput }; response: boolean };
+	'iiif.deleteManifestSourceLinks': { request: { type: 'iiif.deleteManifestSourceLinks'; input: ManifestSourceIdInput }; response: number };
+	'iiif.findLinkedPageForCanvas': { request: { type: 'iiif.findLinkedPageForCanvas'; input: FindLinkedPageForCanvasInput }; response: PageCanvasLink | null };
+	'iiif.listCanvasAnnotations': { request: { type: 'iiif.listCanvasAnnotations'; input: ListCanvasAnnotationsInput }; response: W3CAnnotation[] };
+	'iiif.getCanvasAnnotation': { request: { type: 'iiif.getCanvasAnnotation'; input: CanvasAnnotationIdInput }; response: W3CAnnotation | null };
+	'iiif.upsertCanvasAnnotation': { request: { type: 'iiif.upsertCanvasAnnotation'; input: UpsertCanvasAnnotationInput }; response: null };
+	'iiif.deleteCanvasAnnotation': { request: { type: 'iiif.deleteCanvasAnnotation'; input: CanvasAnnotationIdInput }; response: null };
+}
+
+export type IiifRpcRequest = IiifRpcMap[keyof IiifRpcMap]['request'];
+
+export type IiifRpcResponse<T extends IiifRpcRequest['type']> = IiifRpcMap[T]['response'];
+
 export type DbRequest =
 	| { id?: number; type: 'init' }
 	| { id?: number; type: 'query'; sql: string; params?: DbValue[] }
@@ -111,7 +146,8 @@ export type DbRequest =
 	| { id?: number; type: 'reset' }
 	| ({ id?: number } & TranscriptionRpcRequest)
 	| ({ id?: number } & ProjectRpcRequest)
-	| ({ id?: number } & CollationRpcRequest);
+	| ({ id?: number } & CollationRpcRequest)
+	| ({ id?: number } & IiifRpcRequest);
 
 export type DbRequestPayload =
 	| { type: 'init' }
@@ -123,7 +159,8 @@ export type DbRequestPayload =
 	| { type: 'reset' }
 	| TranscriptionRpcRequest
 	| ProjectRpcRequest
-	| CollationRpcRequest;
+	| CollationRpcRequest
+	| IiifRpcRequest;
 
 export type DbResponse =
 	| { id: number; ok: true; result?: unknown }
