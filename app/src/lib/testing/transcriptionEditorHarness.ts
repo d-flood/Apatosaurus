@@ -149,10 +149,6 @@ export const HARNESS_TRANSCRIPTION_DOCUMENT: StoredTranscriptionDocument = {
 
 export function buildHarnessTranscriptionCreatePayload(now: string) {
 	return {
-		_djazzkit_id: HARNESS_TRANSCRIPTION_ID,
-		_djazzkit_rev: 0,
-		_djazzkit_deleted: false,
-		_djazzkit_updated_at: now,
 		title: HARNESS_TRANSCRIPTION_TITLE,
 		siglum: 'HARNESS',
 		description: 'Deterministic browser harness for transcription editor focus regressions.',
@@ -179,7 +175,6 @@ export function buildHarnessTranscriptionUpdatePayload(now: string, createdAt: s
 		format: TRANSCRIPTION_FORMAT,
 		created_at: createdAt,
 		updated_at: now,
-		_djazzkit_updated_at: now,
 		owner: null,
 		is_public: false,
 		tags: '[]',
