@@ -179,7 +179,7 @@ class ExternalSyncService {
 			return;
 		}
 
-		const transcriptionId = transcription._djazzkit_id;
+		const transcriptionId = transcription.id;
 		const title = (transcription.title || '').trim();
 		const siglum = (transcription.siglum || '').trim();
 		const slugSource = title || siglum || 'transcription';

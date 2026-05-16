@@ -40,12 +40,7 @@ export interface VerseIndexRebuildResult {
 	failures: VerseIndexRebuildFailure[];
 }
 
-export type VerseIndexRow = DbVerseIndexRow & {
-	_djazzkit_id: string;
-	_djazzkit_deleted: boolean;
-	transcription_id: string;
-	transcription?: string;
-};
+export type VerseIndexRow = DbVerseIndexRow;
 
 export async function getVerseIndexRows(): Promise<VerseIndexRow[]> {
 	return (await listVerseIndexRows()).map(mapVerseIndexRow);
@@ -158,11 +153,5 @@ function formatTranscriptionLabel(
 }
 
 function mapVerseIndexRow(row: DbVerseIndexRow): VerseIndexRow {
-	return {
-		...row,
-		_djazzkit_id: row.id,
-		_djazzkit_deleted: false,
-		transcription_id: row.transcription_id,
-		transcription: row.transcription_id,
-	};
+	return row;
 }

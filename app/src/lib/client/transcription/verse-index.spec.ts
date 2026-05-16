@@ -54,14 +54,11 @@ describe('verse-index local DB bridge', () => {
 		updateTranscriptionContent.mockResolvedValue(undefined);
 	});
 
-	it('maps verse index rows to the temporary compatibility shape', async () => {
+	it('returns local DB verse index rows without compatibility aliases', async () => {
 		await expect(getVerseIndexRows()).resolves.toEqual([
 			expect.objectContaining({
 				id: 'idx-1',
-				_djazzkit_id: 'idx-1',
-				_djazzkit_deleted: false,
 				transcription_id: 'tx-1',
-				transcription: 'tx-1',
 			}),
 		]);
 
