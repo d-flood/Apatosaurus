@@ -15,11 +15,7 @@ required-version = ">=0.5"
 [tool.uv.workspace]
 members = [
     "backend",
-    "djazzkit/packages/django",
 ]
-
-[tool.uv.sources]
-djazzkit = { workspace = true }
 
 [tool.poe.tasks.dev]
 cwd = "."

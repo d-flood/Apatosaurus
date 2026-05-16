@@ -1,18 +1,18 @@
+import uuid
+
 from django.db import models
 from django.utils import timezone
 
-from djazzkit.models import SyncModel
-from djazzkit.sync_meta import ConflictMode, SyncScope, SyncStrategy
 
 
-class Collation(SyncModel):
+class Collation(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     title = models.CharField(max_length=255)
     verse_identifier = models.CharField(max_length=128, db_index=True)
     notes = models.TextField(blank=True, default="")
     project = models.ForeignKey(
         "project.Project",
         on_delete=models.SET_NULL,
-        to_field="_djazzkit_id",
         null=True,
         blank=True,
         related_name="collations",
@@ -23,25 +23,20 @@ class Collation(SyncModel):
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(default=timezone.now)
 
-    class SyncMeta:
-        scope = SyncScope.SHARED
-        strategy = SyncStrategy.EAGER
-        conflict_mode = ConflictMode.LWW
-        sync_filter = staticmethod(lambda _user: models.Q())
-        allow_sensitive_fields = True
+    class Meta:
+        ordering = ["-updated_at"]
 
 
-class CollationWitness(SyncModel):
+class CollationWitness(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     collation = models.ForeignKey(
         Collation,
         on_delete=models.CASCADE,
-        to_field="_djazzkit_id",
     )
     witness_id = models.CharField(max_length=64)
     transcription = models.ForeignKey(
         "transcription.Transcription",
         on_delete=models.SET_NULL,
-        to_field="_djazzkit_id",
         null=True,
         blank=True,
     )
@@ -57,19 +52,13 @@ class CollationWitness(SyncModel):
             )
         ]
 
-    class SyncMeta:
-        scope = SyncScope.SHARED
-        strategy = SyncStrategy.EAGER
-        conflict_mode = ConflictMode.LWW
-        sync_filter = staticmethod(lambda _user: models.Q())
-        allow_sensitive_fields = True
 
 
-class CollationToken(SyncModel):
+class CollationToken(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     collation = models.ForeignKey(
         Collation,
         on_delete=models.CASCADE,
-        to_field="_djazzkit_id",
     )
     witness_id = models.CharField(max_length=64, db_index=True)
     token_index = models.IntegerField()
@@ -83,38 +72,26 @@ class CollationToken(SyncModel):
             )
         ]
 
-    class SyncMeta:
-        scope = SyncScope.SHARED
-        strategy = SyncStrategy.EAGER
-        conflict_mode = ConflictMode.LWW
-        sync_filter = staticmethod(lambda _user: models.Q())
-        allow_sensitive_fields = True
 
 
-class CollationVariationUnit(SyncModel):
+class CollationVariationUnit(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     collation = models.ForeignKey(
         Collation,
         on_delete=models.CASCADE,
-        to_field="_djazzkit_id",
     )
     start_index = models.IntegerField()
     end_index = models.IntegerField()
     unit_type = models.CharField(max_length=32)
     base_text = models.TextField(blank=True, default="")
 
-    class SyncMeta:
-        scope = SyncScope.SHARED
-        strategy = SyncStrategy.EAGER
-        conflict_mode = ConflictMode.LWW
-        sync_filter = staticmethod(lambda _user: models.Q())
-        allow_sensitive_fields = True
 
 
-class CollationReading(SyncModel):
+class CollationReading(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     variation_unit = models.ForeignKey(
         CollationVariationUnit,
         on_delete=models.CASCADE,
-        to_field="_djazzkit_id",
     )
     reading_order = models.IntegerField(default=0)
     reading_text = models.TextField(blank=True, default="")
@@ -129,19 +106,13 @@ class CollationReading(SyncModel):
             )
         ]
 
-    class SyncMeta:
-        scope = SyncScope.SHARED
-        strategy = SyncStrategy.EAGER
-        conflict_mode = ConflictMode.LWW
-        sync_filter = staticmethod(lambda _user: models.Q())
-        allow_sensitive_fields = True
 
 
-class CollationReadingWitness(SyncModel):
+class CollationReadingWitness(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     reading = models.ForeignKey(
         CollationReading,
         on_delete=models.CASCADE,
-        to_field="_djazzkit_id",
     )
     witness_id = models.CharField(max_length=64, db_index=True)
 
@@ -153,27 +124,14 @@ class CollationReadingWitness(SyncModel):
             )
         ]
 
-    class SyncMeta:
-        scope = SyncScope.SHARED
-        strategy = SyncStrategy.EAGER
-        conflict_mode = ConflictMode.LWW
-        sync_filter = staticmethod(lambda _user: models.Q())
-        allow_sensitive_fields = True
 
 
-class CollationArtifact(SyncModel):
+class CollationArtifact(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     collation = models.ForeignKey(
         Collation,
         on_delete=models.CASCADE,
-        to_field="_djazzkit_id",
     )
     artifact_type = models.CharField(max_length=32)
     payload = models.JSONField(default=dict)
     created_at = models.DateTimeField(default=timezone.now)
-
-    class SyncMeta:
-        scope = SyncScope.SHARED
-        strategy = SyncStrategy.EAGER
-        conflict_mode = ConflictMode.LWW
-        sync_filter = staticmethod(lambda _user: models.Q())
-        allow_sensitive_fields = True

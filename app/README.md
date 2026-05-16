@@ -9,7 +9,7 @@ This app is active work in progress. The codebase is intended to be readable and
 Current known gaps:
 
 - authentication routes are UI stubs only
-- the app currently lives inside this monorepo and depends on sibling packages under `../djazzkit`, `../triiiceratops`, `../collatex`, and `../packages/tei-transcription`
+- the app currently lives inside this monorepo and depends on sibling packages under `../triiiceratops`, `../collatex`, and `../packages/tei-transcription`
 - a project license has not been finalized yet
 
 ## Prerequisites
