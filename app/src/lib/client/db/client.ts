@@ -4,11 +4,21 @@ import type {
 	DbResponse,
 	DbRow,
 	DbValue,
+	CollationRpcRequest,
+	CollationRpcResponse,
 	ProjectRpcRequest,
 	ProjectRpcResponse,
 	TranscriptionRpcRequest,
 	TranscriptionRpcResponse,
 } from './rpc';
+import type {
+	CollationListItem,
+	CreateCollationInput,
+	LoadedCollation,
+	SaveCollationArtifactInput,
+	SaveCollationProjectionInput,
+	UpdateCollationMetadataInput,
+} from './repositories/collations';
 import { ensureLocalDbRuntime, getLocalDbWorker } from './runtime';
 import type {
 	CreateTranscriptionInput,
@@ -133,6 +143,34 @@ export async function syncProjectTranscriptionIds(projectId: string, nextIds: st
 	await sendProjectRequest({ type: 'projects.syncTranscriptionIds', projectId, nextIds });
 }
 
+export async function listCollationsWithProjectNames(): Promise<CollationListItem[]> {
+	return sendCollationRequest({ type: 'collations.listWithProjectNames' });
+}
+
+export async function createCollation(input: CreateCollationInput): Promise<string> {
+	return sendCollationRequest({ type: 'collations.create', input });
+}
+
+export async function loadCollation(id: string): Promise<LoadedCollation | null> {
+	return sendCollationRequest({ type: 'collations.load', collationId: id });
+}
+
+export async function saveCollationArtifact(input: SaveCollationArtifactInput): Promise<string> {
+	return sendCollationRequest({ type: 'collations.saveArtifact', input });
+}
+
+export async function saveCollationProjection(input: SaveCollationProjectionInput): Promise<void> {
+	await sendCollationRequest({ type: 'collations.saveProjection', input });
+}
+
+export async function updateCollationMetadata(input: UpdateCollationMetadataInput): Promise<void> {
+	await sendCollationRequest({ type: 'collations.updateMetadata', input });
+}
+
+export async function deleteCollation(id: string): Promise<void> {
+	await sendCollationRequest({ type: 'collations.delete', collationId: id });
+}
+
 export function attachLocalDbClient(worker: Worker): void {
 	worker.addEventListener('message', (event: MessageEvent<DbResponse | DbInvalidationEvent>) => {
 		const message = event.data;
@@ -169,4 +207,10 @@ async function sendProjectRequest<T extends ProjectRpcRequest>(
 	payload: T,
 ): Promise<ProjectRpcResponse<T['type']>> {
 	return send<ProjectRpcResponse<T['type']>>(payload);
+}
+
+async function sendCollationRequest<T extends CollationRpcRequest>(
+	payload: T,
+): Promise<CollationRpcResponse<T['type']>> {
+	return send<CollationRpcResponse<T['type']>>(payload);
 }

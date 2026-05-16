@@ -1,15 +1,15 @@
-import { ensureDjazzkitRuntime } from '$lib/client/djazzkit-runtime';
+import { getTranscriptionsByIds } from '$lib/client/db/client';
 import {
 	coerceTranscriptionDocument,
 	type StoredTranscriptionDocument,
 } from '$lib/client/transcription/content';
 import type { CorrectionReading, InlineItem } from '@apatopwa/tei-transcription';
 import { getPreferredTranscriptionLabel } from '$lib/client/transcription/display';
-import { Transcription, type TranscriptionRow } from '$generated/models/Transcription';
 import {
 	getVerseIndexRowsForVerse,
 	normalizeVerseIdentifier,
 } from '$lib/client/transcription/verse-index';
+import type { TranscriptionRecord } from '$lib/client/db/repositories/transcriptions';
 import type {
 	GapMetadata,
 	WitnessKind,
@@ -602,7 +602,6 @@ export async function gatherWitnessesForVerse(
 	transcriptionIds?: string[],
 	options: WitnessExtractionOptions = {}
 ): Promise<PreparedWitness[]> {
-	await ensureDjazzkitRuntime();
 	const verseRows = await getVerseIndexRowsForVerse(verseIdentifier, transcriptionIds);
 	const witnesses: PreparedWitness[] = [];
 	const seenWitnessIds = new Map<string, number>();
@@ -616,14 +615,9 @@ export async function gatherWitnessesForVerse(
 	}
 	if (orderedTranscriptionIds.length === 0) return witnesses;
 
-	const transcriptions: TranscriptionRow[] = await Transcription.objects
-		.filter((fields: any) => fields._djazzkit_id.inList(orderedTranscriptionIds))
-		.only('_djazzkit_id', 'content_json', 'siglum', 'updated_at', '_djazzkit_updated_at')
-		.all();
+	const transcriptions: TranscriptionRecord[] = await getTranscriptionsByIds(orderedTranscriptionIds);
 	const transcriptionById = new Map(
-		transcriptions.map(
-			transcription => [String(transcription._djazzkit_id || ''), transcription] as const
-		)
+		transcriptions.map(transcription => [transcription.id, transcription] as const)
 	);
 
 	for (const transcriptionId of orderedTranscriptionIds) {
@@ -635,7 +629,7 @@ export async function gatherWitnessesForVerse(
 		const witnessBase = getPreferredTranscriptionLabel({
 			document,
 			siglum: typeof transcription.siglum === 'string' ? transcription.siglum : null,
-			fallbackId: String(transcription._djazzkit_id || transcriptionId),
+			fallbackId: transcription.id || transcriptionId,
 		});
 		const firsthandTokens = extractWitnessTokensForVerse(document, verseIdentifier, options, {
 			kind: 'firsthand',
@@ -654,10 +648,8 @@ export async function gatherWitnessesForVerse(
 				tokens: cloneSourceTokens(firsthandTokens),
 				fullContent: firsthandContent,
 				fullTokens: cloneSourceTokens(firsthandTokens),
-				transcriptionUid: String(transcription._djazzkit_id || transcriptionId),
-				sourceVersion: String(
-					transcription.updated_at || transcription._djazzkit_updated_at || ''
-				),
+				transcriptionUid: transcription.id || transcriptionId,
+				sourceVersion: String(transcription.updated_at || ''),
 			});
 		}
 
@@ -697,10 +689,8 @@ export async function gatherWitnessesForVerse(
 				fullTokens: cloneSourceTokens(fullTokens),
 				fragmentaryContent,
 				fragmentaryTokens: cloneSourceTokens(fragmentaryTokens),
-				transcriptionUid: String(transcription._djazzkit_id || transcriptionId),
-				sourceVersion: String(
-					transcription.updated_at || transcription._djazzkit_updated_at || ''
-				),
+				transcriptionUid: transcription.id || transcriptionId,
+				sourceVersion: String(transcription.updated_at || ''),
 			});
 		}
 	}

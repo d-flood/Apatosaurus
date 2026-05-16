@@ -1,5 +1,14 @@
 import type { DbRequest, DbResponse } from './rpc';
 import {
+	createCollation,
+	deleteCollation,
+	listCollationsWithProjectNames,
+	loadCollation,
+	saveCollationArtifact,
+	saveCollationProjection,
+	updateCollationMetadata,
+} from './repositories/collations';
+import {
 	createProject,
 	getProject,
 	getProjectTranscriptionIds,
@@ -107,6 +116,33 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 	if (request.type === 'projects.syncTranscriptionIds') {
 		await syncProjectTranscriptionIds(getKyselyDb(), request.projectId, request.nextIds);
 		postMessage({ type: 'db:invalidate', domain: 'projects' });
+		return null;
+	}
+	if (request.type === 'collations.listWithProjectNames') return listCollationsWithProjectNames(getKyselyDb());
+	if (request.type === 'collations.create') {
+		const id = await createCollation(getKyselyDb(), request.input);
+		postMessage({ type: 'db:invalidate', domain: 'collations' });
+		return id;
+	}
+	if (request.type === 'collations.load') return loadCollation(getKyselyDb(), request.collationId);
+	if (request.type === 'collations.saveArtifact') {
+		const artifactId = await saveCollationArtifact(getKyselyDb(), request.input);
+		postMessage({ type: 'db:invalidate', domain: 'collations' });
+		return artifactId;
+	}
+	if (request.type === 'collations.saveProjection') {
+		await saveCollationProjection(getKyselyDb(), request.input);
+		postMessage({ type: 'db:invalidate', domain: 'collations' });
+		return null;
+	}
+	if (request.type === 'collations.updateMetadata') {
+		await updateCollationMetadata(getKyselyDb(), request.input);
+		postMessage({ type: 'db:invalidate', domain: 'collations' });
+		return null;
+	}
+	if (request.type === 'collations.delete') {
+		await deleteCollation(getKyselyDb(), request.collationId);
+		postMessage({ type: 'db:invalidate', domain: 'collations' });
 		return null;
 	}
 	if (request.type === 'transaction') {
