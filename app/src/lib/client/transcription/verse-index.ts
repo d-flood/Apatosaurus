@@ -1,6 +1,7 @@
 import {
 	getTranscription,
 	getVerseIndexRowsForVerse as getDbVerseIndexRowsForVerse,
+	listVerseIndexRowsForTranscription as listDbVerseIndexRowsForTranscription,
 	listVerseIndexRows,
 	rebuildVerseIndexForTranscriptions as rebuildDbVerseIndexForTranscriptions,
 	updateTranscriptionContent,
@@ -44,6 +45,10 @@ export type VerseIndexRow = DbVerseIndexRow;
 
 export async function getVerseIndexRows(): Promise<VerseIndexRow[]> {
 	return (await listVerseIndexRows()).map(mapVerseIndexRow);
+}
+
+export async function getVerseIndexRowsForTranscription(transcriptionId: string): Promise<VerseIndexRow[]> {
+	return (await listDbVerseIndexRowsForTranscription(transcriptionId)).map(mapVerseIndexRow);
 }
 
 export async function getVerseIndexRowsForVerse(

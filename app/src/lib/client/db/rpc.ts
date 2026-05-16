@@ -73,6 +73,10 @@ export interface TranscriptionRpcMap {
 		request: { type: 'transcriptions.listVerseIndexRows' };
 		response: VerseIndexRow[];
 	};
+	'transcriptions.listVerseIndexRowsForTranscription': {
+		request: { type: 'transcriptions.listVerseIndexRowsForTranscription'; transcriptionId: string };
+		response: VerseIndexRow[];
+	};
 	'transcriptions.rebuildVerseIndex': {
 		request: { type: 'transcriptions.rebuildVerseIndex'; transcriptionIds: string[] };
 		response: VerseIndexRebuildResult;

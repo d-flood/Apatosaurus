@@ -8,6 +8,7 @@ import {
 	getTranscription,
 	getTranscriptionsByIds,
 	getVerseIndexRowsForVerse,
+	listVerseIndexRowsForTranscription,
 	listTranscriptionSummaries,
 	rebuildVerseIndexForTranscriptions,
 	updateTranscriptionContent,
@@ -113,6 +114,24 @@ describe('transcriptions repository', () => {
 		expect(ids).toEqual(['tx-1', 'tx-2']);
 		expect(rows).toHaveLength(2);
 		expect(rows.map((row) => row.transcription_id)).toEqual(['tx-1', 'tx-2']);
+	});
+
+	it('lists verse index rows for one transcription', async () => {
+		await createTranscriptions(harness.db, [
+			{
+				...baseInput('tx-1', '01'),
+				document: documentWithVerses(['Romans 1:1', 'Romans 1:2']),
+			},
+			{
+				...baseInput('tx-2', '02'),
+				document: documentWithVerses(['Romans 1:1']),
+			},
+		]);
+
+		const rows = await listVerseIndexRowsForTranscription(harness.db, 'tx-1');
+
+		expect(rows.map((row) => row.transcription_id)).toEqual(['tx-1', 'tx-1']);
+		expect(rows.map((row) => row.verse_identifier)).toEqual(['Romans 1:1', 'Romans 1:2']);
 	});
 
 	it('loads full transcriptions in caller id order', async () => {

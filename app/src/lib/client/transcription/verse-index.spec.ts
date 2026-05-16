@@ -2,12 +2,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
 	getTranscription,
+	listVerseIndexRowsForTranscription,
 	listVerseIndexRows,
 	getVerseIndexRowsForVerse,
 	rebuildVerseIndexForTranscriptions,
 	updateTranscriptionContent,
 } = vi.hoisted(() => ({
 	getTranscription: vi.fn(),
+	listVerseIndexRowsForTranscription: vi.fn(),
 	listVerseIndexRows: vi.fn(),
 	getVerseIndexRowsForVerse: vi.fn(),
 	rebuildVerseIndexForTranscriptions: vi.fn(),
@@ -16,6 +18,7 @@ const {
 
 vi.mock('$lib/client/db/client', () => ({
 	getTranscription,
+	listVerseIndexRowsForTranscription,
 	listVerseIndexRows,
 	getVerseIndexRowsForVerse,
 	rebuildVerseIndexForTranscriptions,
@@ -24,6 +27,7 @@ vi.mock('$lib/client/db/client', () => ({
 
 import {
 	getVerseIndexRows,
+	getVerseIndexRowsForTranscription,
 	getVerseIndexRowsForVerse as getPublicVerseIndexRowsForVerse,
 	rebuildVerseIndexForTranscriptions as rebuildPublicVerseIndexForTranscriptions,
 	syncVerseIndexFromDocument,
@@ -42,6 +46,7 @@ const verseRow = {
 describe('verse-index local DB bridge', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		listVerseIndexRowsForTranscription.mockResolvedValue([verseRow]);
 		listVerseIndexRows.mockResolvedValue([verseRow]);
 		getVerseIndexRowsForVerse.mockResolvedValue([verseRow]);
 		getTranscription.mockResolvedValue({ id: 'tx-1', siglum: '01', title: 'Codex 01' });
@@ -64,6 +69,9 @@ describe('verse-index local DB bridge', () => {
 
 		await getPublicVerseIndexRowsForVerse('Romans 1:1', ['tx-1']);
 		expect(getVerseIndexRowsForVerse).toHaveBeenCalledWith('Romans 1:1', ['tx-1']);
+
+		await getVerseIndexRowsForTranscription('tx-1');
+		expect(listVerseIndexRowsForTranscription).toHaveBeenCalledWith('tx-1');
 	});
 
 	it('rebuilds through one worker operation and reports label progress', async () => {

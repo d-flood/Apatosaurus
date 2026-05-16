@@ -41,8 +41,13 @@ import type {
 import type { EnsureManifestSourceInput } from './repositories/iiif';
 import type { AnnotationAnchor, ManifestSourceSummary, PageCanvasLink, SavePageCanvasLinkInput } from '../iiif/types';
 
+const DB_REQUEST_TIMEOUT_MS = 60_000;
+
 let nextRequestId = 1;
-const pending = new Map<number, { resolve: (value: unknown) => void; reject: (error: Error) => void }>();
+const pending = new Map<
+	number,
+	{ resolve: (value: unknown) => void; reject: (error: Error) => void; timeoutId?: ReturnType<typeof setTimeout> }
+>();
 const invalidationListeners = new Set<(event: DbInvalidationEvent) => void>();
 
 export async function localDbQuery(sql: string, params: DbValue[] = []): Promise<DbRow[]> {
@@ -108,6 +113,10 @@ export async function getVerseIndexRowsForVerse(
 
 export async function listVerseIndexRows(): Promise<VerseIndexRow[]> {
 	return sendTranscriptionRequest({ type: 'transcriptions.listVerseIndexRows' });
+}
+
+export async function listVerseIndexRowsForTranscription(transcriptionId: string): Promise<VerseIndexRow[]> {
+	return sendTranscriptionRequest({ type: 'transcriptions.listVerseIndexRowsForTranscription', transcriptionId });
 }
 
 export async function rebuildVerseIndexForTranscriptions(
@@ -255,6 +264,7 @@ export function attachLocalDbClient(worker: Worker): void {
 		const pendingRequest = pending.get(message.id);
 		if (!pendingRequest) return;
 		pending.delete(message.id);
+		if (pendingRequest.timeoutId) clearTimeout(pendingRequest.timeoutId);
 		if (message.ok) pendingRequest.resolve('result' in message ? message.result : undefined);
 		else pendingRequest.reject(new Error(message.error));
 	});
@@ -265,7 +275,11 @@ async function send<T>(payload: DbRequestPayload): Promise<T> {
 	const worker = getLocalDbWorker();
 	const id = nextRequestId++;
 	return new Promise<T>((resolve, reject) => {
-		pending.set(id, { resolve: (value) => resolve(value as T), reject });
+		const timeoutId = setTimeout(() => {
+			pending.delete(id);
+			reject(new Error('Timed out waiting for a response from the local database worker.'));
+		}, DB_REQUEST_TIMEOUT_MS);
+		pending.set(id, { resolve: (value) => resolve(value as T), reject, timeoutId });
 		worker.postMessage({ ...payload, id });
 	});
 }

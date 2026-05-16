@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { getTranscription, localDbExecute } from '$lib/client/db/client';
-	import { ensureLocalDbRuntime } from '$lib/client/db/runtime';
+	import { checkpointLocalDb, ensureLocalDbRuntime } from '$lib/client/db/runtime';
 	import {
 		createTranscriptionRecord,
 		formatTranscriptionFieldList,
@@ -188,6 +188,11 @@
 					settlement: effectiveSettlement,
 					language: effectiveLanguage,
 				});
+				try {
+					await checkpointLocalDb();
+				} catch {
+					// Non-critical: checkpoint failure doesn't affect data integrity
+				}
 				await goto(`/transcription/${transcriptionId}`);
 			}
 		} catch (err) {

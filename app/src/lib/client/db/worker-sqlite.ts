@@ -49,8 +49,9 @@ export class LocalSqliteDatabase {
 		try {
 			for await (const prepared of statement) {
 				this.bind(prepared, params);
+				const columns = this.sqlite!.column_names(prepared);
 				while ((await this.sqlite!.step(prepared)) === SQLite.SQLITE_ROW) {
-					rows.push(this.sqlite!.row(prepared) as unknown as DbRow);
+					rows.push(rowArrayToObject(columns, this.sqlite!.row(prepared)));
 				}
 			}
 		} finally {
@@ -109,4 +110,8 @@ export class LocalSqliteDatabase {
 	private assertOpen() {
 		if (!this.sqlite || this.db === null) throw new Error('Local SQLite database is not open.');
 	}
+}
+
+function rowArrayToObject(columns: string[], values: unknown[]): DbRow {
+	return Object.fromEntries(columns.map((column, index) => [column, values[index]]));
 }

@@ -4,7 +4,7 @@
 	import { page } from '$app/state';
 	import { getTranscription, subscribeLocalDbInvalidations } from '$lib/client/db/client';
 	import { ensureLocalDbRuntime } from '$lib/client/db/runtime';
-	import { getVerseIndexRows, type VerseIndexRow } from '$lib/client/transcription/verse-index';
+	import { getVerseIndexRowsForTranscription, type VerseIndexRow } from '$lib/client/transcription/verse-index';
 	import {
 		mapLocalTranscriptionRecord,
 		type TranscriptionRecord,
@@ -383,10 +383,9 @@
 
 		async function loadVerseIndex() {
 			await ensureLocalDbRuntime();
-			const rows = await getVerseIndexRows();
+			const rows = await getVerseIndexRowsForTranscription(transcriptionId);
 			if (cancelled) return;
 			verseIndexOptions = rows
-				.filter(row => row.transcription_id === transcriptionId)
 				.sort((a, b) =>
 					a.verse_identifier.localeCompare(b.verse_identifier, undefined, {
 						numeric: true,

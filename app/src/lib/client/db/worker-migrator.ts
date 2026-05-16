@@ -1,10 +1,16 @@
 import initialMigrationSql from './migrations/0001_initial.sql?raw';
+import type { DbRow, DbValue } from './rpc';
 import { LOCAL_DB_MIGRATIONS } from './schema-version.generated';
-import type { LocalSqliteDatabase } from './worker-sqlite';
+
+interface MigrationDatabase {
+	exec(sql: string): Promise<void>;
+	query(sql: string): Promise<DbRow[]>;
+	execute(sql: string, params?: DbValue[]): Promise<{ changes: number }>;
+}
 
 const MIGRATION_SQL = new Map<number, string>([[1, initialMigrationSql]]);
 
-export async function applyLocalDbMigrations(db: LocalSqliteDatabase): Promise<void> {
+export async function applyLocalDbMigrations(db: MigrationDatabase): Promise<void> {
 	await db.exec('PRAGMA foreign_keys = ON');
 	await db.exec(`CREATE TABLE IF NOT EXISTS schema_migrations (
 		version INTEGER PRIMARY KEY,
@@ -21,7 +27,7 @@ export async function applyLocalDbMigrations(db: LocalSqliteDatabase): Promise<v
 		try {
 			await db.exec(sql);
 			await db.execute(
-				'INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)',
+				'INSERT OR IGNORE INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)',
 				[migration.version, migration.name, new Date().toISOString()]
 			);
 			await db.exec('COMMIT');
