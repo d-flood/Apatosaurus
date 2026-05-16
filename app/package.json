@@ -16,7 +16,9 @@
 		"format:check": "prettier --check .",
 		"test:unit": "vitest",
 		"test": "bun run test:unit -- --run && bun run test:e2e",
-		"test:e2e": "playwright test"
+		"test:e2e": "playwright test",
+		"db:generate": "tsx scripts/db/generate-types.ts",
+		"db:check": "tsx scripts/db/check-types.ts"
 	},
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",
@@ -26,14 +28,17 @@
 		"@sveltejs/vite-plugin-svelte": "^6.2.4",
 		"@tailwindcss/vite": "^4.2.4",
 		"@types/node": "^25",
+		"@types/better-sqlite3": "^7.6.13",
 		"@vitest/browser": "^3.2.4",
 		"@xmldom/xmldom": "^0.9.10",
 		"daisyui": "^5.5.8",
+		"better-sqlite3": "^12.5.0",
 		"dotenv": "^17.4.2",
 		"eslint": "^10.2.1",
 		"eslint-config-prettier": "^10.1.8",
 		"eslint-plugin-svelte": "^3.17.1",
 		"globals": "^17.5.0",
+		"kysely-codegen": "^0.19.0",
 		"mdsvex": "^0.12.7",
 		"phosphor-svelte": "^3.1.0",
 		"playwright": "^1.59.1",
@@ -52,8 +57,7 @@
 	},
 	"dependencies": {
 		"@apatopwa/tei-transcription": "file:../packages/tei-transcription",
-		"@djazzkit/core": "file:../djazzkit/packages/core",
-		"@djazzkit/svelte": "file:../djazzkit/packages/svelte",
+		"@journeyapps/wa-sqlite": "^1.2.1",
 		"@floating-ui/dom": "^1.7.6",
 		"@tiptap/core": "^3.22.5",
 		"@tiptap/extension-bubble-menu": "^3.22.5",
@@ -65,8 +69,10 @@
 		"@tiptap/pm": "^3.22.5",
 		"collatex-tsport": "file:../collatex/collatex-tsport",
 		"events": "^3.3.0",
+		"kysely": "^0.28.8",
 		"lucide-svelte": "^1.0.1",
 		"nanoid": "^5.1.11",
+		"sqlite-wasm-kysely": "^0.3.0",
 		"triiiceratops": "file:../triiiceratops"
 	}
 }

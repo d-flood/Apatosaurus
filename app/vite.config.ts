@@ -37,26 +37,6 @@ export default defineConfig({
 		alias: [
 			{ find: 'events', replacement: 'events' },
 			{
-				find: '@djazzkit/core/fields',
-				replacement: workspacePath('djazzkit', 'packages', 'core', 'src', 'query', 'fields.ts'),
-			},
-			{
-				find: '@djazzkit/core/',
-				replacement: workspacePath('djazzkit', 'packages', 'core', 'src') + '/',
-			},
-			{
-				find: '@djazzkit/core',
-				replacement: workspacePath('djazzkit', 'packages', 'core', 'src', 'index.ts'),
-			},
-			{
-				find: '@djazzkit/svelte/',
-				replacement: workspacePath('djazzkit', 'packages', 'svelte', 'src') + '/',
-			},
-			{
-				find: '@djazzkit/svelte',
-				replacement: workspacePath('djazzkit', 'packages', 'svelte', 'src', 'index.ts'),
-			},
-			{
 				find: 'collatex-tsport',
 				replacement: workspacePath('collatex', 'collatex-tsport', 'src', 'index.ts'),
 			},

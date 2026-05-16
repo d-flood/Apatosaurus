@@ -33,6 +33,3 @@ export { Transcription, type TranscriptionData, TranscriptionFields } from './mo
 export { TranscriptionCheckpoint, type TranscriptionCheckpointData, TranscriptionCheckpointFields } from './models/TranscriptionCheckpoint';
 
 export { TranscriptionVerseIndex, type TranscriptionVerseIndexData, TranscriptionVerseIndexFields } from './models/TranscriptionVerseIndex';
-
-export { rpc, type RpcMap, type RpcName, type LiveRpcName } from './rpc';
-export { CLIENT_MIGRATIONS } from './migrations';

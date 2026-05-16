@@ -1,14 +1,21 @@
 <script lang="ts">
-	import { ensureDjazzkitRuntime } from '$lib/client/djazzkit-runtime';
-	import type { TranscriptionRecord } from '$lib/client/transcription/model';
+	import {
+		createTranscription,
+		getTranscription,
+		subscribeLocalDbInvalidations,
+		updateTranscriptionContent,
+	} from '$lib/client/db/client';
+	import { ensureLocalDbRuntime } from '$lib/client/db/runtime';
+	import {
+		mapLocalTranscriptionRecord,
+		type TranscriptionRecord,
+	} from '$lib/client/transcription/model';
 	import {
 		buildHarnessTranscriptionCreatePayload,
-		buildHarnessTranscriptionUpdatePayload,
 		HARNESS_TRANSCRIPTION_ID,
 		HARNESS_TRANSCRIPTION_TITLE,
 	} from '$lib/testing/transcriptionEditorHarness';
 	import TranscriptionEditor from '$lib/components/transcriptionEditor/TranscriptionEditor.svelte';
-	import { Transcription } from '$generated/models/Transcription';
 	import { onMount } from 'svelte';
 
 	const harnessData = {};
@@ -17,7 +24,7 @@
 	let loadError = $state<string | null>(null);
 	let toolbarHost = $state<HTMLElement | null>(null);
 	let statusBarHost = $state<HTMLElement | null>(null);
-	let unsubscribe: (() => void) | null = null;
+	let unsubscribeInvalidations: (() => void) | null = null;
 
 	function captureToolbarHost(node: HTMLElement) {
 		toolbarHost = node;
@@ -43,41 +50,52 @@
 
 	async function seedHarnessTranscription() {
 		const now = new Date().toISOString();
-		const queryset = Transcription.objects
-			.filter(f => f._djazzkit_id.eq(HARNESS_TRANSCRIPTION_ID))
-			.filter(f => f._djazzkit_deleted.eq(false));
-		const existing = await queryset.first();
+		const existing = await getTranscription(HARNESS_TRANSCRIPTION_ID);
+		const payload = buildHarnessTranscriptionCreatePayload(now);
 
 		if (existing) {
-			await Transcription.objects.update(
-				HARNESS_TRANSCRIPTION_ID,
-				buildHarnessTranscriptionUpdatePayload(now, existing.created_at)
-			);
+			await updateTranscriptionContent({
+				id: HARNESS_TRANSCRIPTION_ID,
+				contentJson: payload.content_json,
+				format: payload.format,
+				updatedAt: now,
+			});
 			return;
 		}
 
-		await Transcription.objects.create(buildHarnessTranscriptionCreatePayload(now));
+		await createTranscription({
+			id: HARNESS_TRANSCRIPTION_ID,
+			title: payload.title,
+			siglum: payload.siglum,
+			description: payload.description,
+			contentJson: payload.content_json,
+			format: payload.format,
+			createdAt: payload.created_at,
+			updatedAt: payload.updated_at,
+			owner: payload.owner,
+			isPublic: payload.is_public,
+			tags: [],
+			transcriber: payload.transcriber,
+			repository: payload.repository,
+			settlement: payload.settlement,
+			language: payload.language,
+		});
 	}
 
 	onMount(() => {
 		let cancelled = false;
 
-		void ensureDjazzkitRuntime()
+		async function loadTranscription() {
+			const nextTranscription = await getTranscription(HARNESS_TRANSCRIPTION_ID);
+			if (cancelled) return;
+			transcription = nextTranscription ? mapLocalTranscriptionRecord(nextTranscription) : null;
+			loadError = nextTranscription ? null : 'Failed to load transcription harness';
+		}
+
+		void ensureLocalDbRuntime()
 			.then(async () => {
 				await seedHarnessTranscription();
-				if (cancelled) return;
-
-				const queryset = Transcription.objects
-					.filter(f => f._djazzkit_id.eq(HARNESS_TRANSCRIPTION_ID))
-					.filter(f => f._djazzkit_deleted.eq(false));
-				const nextTranscription = await queryset.first();
-				if (cancelled) return;
-
-				transcription = nextTranscription;
-				loadError = nextTranscription ? null : 'Failed to load transcription harness';
-				unsubscribe = queryset.subscribe(rows => {
-					transcription = rows[0] ?? null;
-				});
+				await loadTranscription();
 			})
 			.catch(error => {
 				if (cancelled) return;
@@ -85,10 +103,14 @@
 					error instanceof Error ? error.message : 'Failed to initialize transcription harness';
 			});
 
+		unsubscribeInvalidations = subscribeLocalDbInvalidations(event => {
+			if (event.domain === 'transcriptions') void loadTranscription();
+		});
+
 		return () => {
 			cancelled = true;
-			unsubscribe?.();
-			unsubscribe = null;
+			unsubscribeInvalidations?.();
+			unsubscribeInvalidations = null;
 		};
 	});
 </script>
@@ -133,7 +155,7 @@
 
 		<div
 			data-testid="harness-ready"
-			data-transcription-id={transcription._djazzkit_id}
+			data-transcription-id={transcription.id}
 			class="sr-only"
 		>
 			Harness ready

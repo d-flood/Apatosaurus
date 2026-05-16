@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { ensureDjazzkitRuntime } from '$lib/client/djazzkit-runtime';
+	import { updateTranscriptionContent } from '$lib/client/db/client';
+	import { ensureLocalDbRuntime } from '$lib/client/db/runtime';
 	import { fromProseMirror, toProseMirror } from '@apatopwa/tei-transcription';
 	import { syncVerseIndexFromDocument } from '$lib/client/transcription/verse-index';
 	import {
@@ -16,7 +17,6 @@ import {
 	createColumnSplitTransaction,
 	repairManuscriptStructureJson,
 } from '$lib/client/transcriptionEditorStructure';
-	import { Transcription } from '../../../generated/models/Transcription';
 	import { exportTEIDocument } from '$lib/tei/tei-exporter';
 	import { Editor } from '@tiptap/core';
 	import { NodeSelection } from '@tiptap/pm/state';
@@ -594,7 +594,7 @@ import {
 		}
 
 		try {
-			void ensureDjazzkitRuntime().catch(error => {
+			void ensureLocalDbRuntime().catch(error => {
 				console.error('[Autosave] Runtime init failed:', error);
 			});
 			void externalSyncService.init().catch(error => {
@@ -1031,8 +1031,8 @@ import {
 			}
 			timeoutId = setTimeout(() => {
 				timeoutId = null;
-				if (!transcription?._djazzkit_id) return;
-				syncVerseIndexFromDocument(transcription._djazzkit_id, document).catch((error: unknown) => {
+				if (!transcription?.id) return;
+				syncVerseIndexFromDocument(transcription.id, document).catch((error: unknown) => {
 					console.error('[Verse Index] Failed to sync verse index:', error);
 				});
 			}, delayMs);
@@ -1046,15 +1046,16 @@ import {
 
 		const persist = async (document: StoredTranscriptionDocument) => {
 			const currentTranscription = transcription;
-			if (!currentTranscription?._djazzkit_id) return false;
+			if (!currentTranscription?.id) return false;
 			try {
 				const now = new Date().toISOString();
-				await ensureDjazzkitRuntime();
-				await Transcription.objects.update(currentTranscription._djazzkit_id, {
-					content_json: serializeTranscriptionDocument(document),
+				await ensureLocalDbRuntime();
+				await updateTranscriptionContent({
+					id: currentTranscription.id,
+					document,
+					contentJson: serializeTranscriptionDocument(document),
 					format: TRANSCRIPTION_FORMAT,
-					updated_at: now,
-					_djazzkit_updated_at: now,
+					updatedAt: now,
 				});
 				externalSyncService.enqueueSync(currentTranscription, document);
 				return true;

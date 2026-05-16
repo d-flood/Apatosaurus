@@ -2,16 +2,19 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import { ensureDjazzkitRuntime } from '$lib/client/djazzkit-runtime';
+	import { getTranscription, subscribeLocalDbInvalidations } from '$lib/client/db/client';
+	import { ensureLocalDbRuntime } from '$lib/client/db/runtime';
 	import { getVerseIndexRows, type VerseIndexRow } from '$lib/client/transcription/verse-index';
-	import type { TranscriptionRecord } from '$lib/client/transcription/model';
+	import {
+		mapLocalTranscriptionRecord,
+		type TranscriptionRecord,
+	} from '$lib/client/transcription/model';
 	import IiifWorkspace from '$lib/components/transcriptionEditor/IiifWorkspace.svelte';
 	import type { TranscriptionSelectionQuote } from '$lib/client/iiif/types';
 	import type { PageEditorMetadata } from '$lib/components/transcriptionEditor/pageFormwork';
 	import TranscriptionEditor from '$lib/components/transcriptionEditor/TranscriptionEditor.svelte';
 	import CheckCircle from 'phosphor-svelte/lib/CheckCircle';
 	import { onMount, tick } from 'svelte';
-	import { Transcription } from '../../../generated/models/Transcription';
 
 	let { data } = $props();
 	const transcriptionIdValue = page.params.id;
@@ -55,7 +58,7 @@
 
 	let transcription = $state<TranscriptionRecord | null>(null);
 	let loadError = $state<string | null>(null);
-	let unsubscribe: (() => void) | null = null;
+	let unsubscribeInvalidations: (() => void) | null = null;
 	let nowMs = $state(Date.now());
 	let hasUnsavedChanges = $state(false);
 	let iiifWorkspaceOpen = $state(false);
@@ -171,7 +174,7 @@
 	);
 
 	const lastSavedText = $derived.by(() => {
-		const value = transcription?.updated_at || transcription?._djazzkit_updated_at;
+		const value = transcription?.updated_at;
 		if (!value) return 'Saved time unavailable';
 		const savedMs = new Date(value).getTime();
 		if (!Number.isFinite(savedMs)) return 'Saved time unavailable';
@@ -365,44 +368,48 @@
 		let cancelled = false;
 		verseIndexOptions = [];
 		goToVerseIdentifier = currentVerseIdentifier;
-		unsubscribe?.();
-		unsubscribe = null;
+		unsubscribeInvalidations?.();
+		unsubscribeInvalidations = null;
 		transcription = null;
 		loadError = null;
 
-		void ensureDjazzkitRuntime()
-			.then(async () => {
-				if (cancelled) return;
-				const queryset = Transcription.objects
-					.filter(f => f._djazzkit_id.eq(transcriptionId))
-					.filter(f => f._djazzkit_deleted.eq(false));
-				const nextTranscription = await queryset.first();
-				if (cancelled) return;
-				transcription = nextTranscription;
-				loadError = nextTranscription ? null : 'Failed to load transcription';
-				unsubscribe = queryset.subscribe(rows => {
-					transcription = rows[0] ?? null;
-				});
-			})
+		async function loadTranscription() {
+			await ensureLocalDbRuntime();
+			const nextTranscription = await getTranscription(transcriptionId);
+			if (cancelled) return;
+			transcription = nextTranscription ? mapLocalTranscriptionRecord(nextTranscription) : null;
+			loadError = nextTranscription ? null : 'Failed to load transcription';
+		}
+
+		async function loadVerseIndex() {
+			await ensureLocalDbRuntime();
+			const rows = await getVerseIndexRows();
+			if (cancelled) return;
+			verseIndexOptions = rows
+				.filter(row => row.transcription_id === transcriptionId)
+				.sort((a, b) =>
+					a.verse_identifier.localeCompare(b.verse_identifier, undefined, {
+						numeric: true,
+						sensitivity: 'base',
+					})
+				);
+		}
+
+		void loadTranscription()
 			.catch(err => {
 				if (cancelled) return;
 				loadError = err instanceof Error ? err.message : 'Failed to load transcription';
 				console.error('Failed to load transcription:', err);
 			});
 
-		void ensureDjazzkitRuntime()
-			.then(() => getVerseIndexRows())
-			.then(rows => {
-				if (cancelled) return;
-				verseIndexOptions = rows
-					.filter(row => row.transcription_id === transcriptionId && !row._djazzkit_deleted)
-					.sort((a, b) =>
-						a.verse_identifier.localeCompare(b.verse_identifier, undefined, {
-							numeric: true,
-							sensitivity: 'base',
-						})
-					);
-			})
+		unsubscribeInvalidations = subscribeLocalDbInvalidations(event => {
+			if (event.domain === 'transcriptions') {
+				void loadTranscription();
+				void loadVerseIndex();
+			}
+		});
+
+		void loadVerseIndex()
 			.catch(err => {
 				if (cancelled) return;
 				console.error('Failed to load verse index:', err);
@@ -410,8 +417,8 @@
 
 		return () => {
 			cancelled = true;
-			unsubscribe?.();
-			unsubscribe = null;
+			unsubscribeInvalidations?.();
+			unsubscribeInvalidations = null;
 		};
 	});
 
@@ -498,7 +505,7 @@
 									placeholder="Select or type a verse"
 								/>
 								<datalist id="transcription-verse-index">
-									{#each verseIndexOptions as row (row._djazzkit_id)}
+							{#each verseIndexOptions as row (row.id)}
 										<option value={row.verse_identifier}></option>
 									{/each}
 								</datalist>
@@ -552,7 +559,7 @@
 			{#if iiifWorkspaceOpen}
 				<div class="sticky top-16 h-[calc(100vh-5rem)] w-[46%] shrink-0">
 					<IiifWorkspace
-						transcriptionId={transcription._djazzkit_id}
+						transcriptionId={transcription.id}
 						{transcriptionTitle}
 						pages={editorPages}
 						{activePageId}

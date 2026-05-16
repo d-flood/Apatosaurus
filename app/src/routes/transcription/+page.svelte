@@ -2,15 +2,20 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
-	import { tick } from 'svelte';
-	import { ensureDjazzkitRuntime } from '$lib/client/djazzkit-runtime';
+	import { onMount, tick } from 'svelte';
 	import {
 		createTranscriptionRecords,
 		formatTranscriptionFieldList,
 		listMissingRequiredTranscriptionFields,
 		type CreateTranscriptionInput,
 	} from '$lib/client/transcription/create-transcription';
-	import { getSyncClient, DjazzkitDatabase } from '@djazzkit/core';
+	import { checkpointLocalDb, ensureLocalDbRuntime } from '$lib/client/db/runtime';
+	import {
+		deleteTranscription,
+		listTranscriptionSummaries,
+		subscribeLocalDbInvalidations,
+	} from '$lib/client/db/client';
+	import type { TranscriptionSummary } from '$lib/client/db/repositories/transcriptions';
 	import {
 		externalSyncService,
 		type ExternalSyncState,
@@ -19,9 +24,7 @@
 	import IgntpImportPanel from '$lib/components/IgntpImportPanel.svelte';
 	import { buildTranscriptionDuplicateKey } from '$lib/igntp/duplicate-key';
 	import { flattenIgntpCatalogEntries, igntpCatalog } from '$lib/igntp/catalog';
-	import type { TranscriptionRecord } from '$lib/client/transcription/model';
 	import Plus from 'phosphor-svelte/lib/Plus';
-	import { Transcription } from '../../generated/models/Transcription';
 
 	type IgntpImportResultStatus = 'created' | 'duplicate' | 'failed';
 
@@ -43,7 +46,7 @@
 	const TRANSCRIPTION_ROUTE_LOG_PREFIX = '[transcription-route]';
 	const DEFAULT_TRANSCRIPTION_TAB: TranscriptionTab = 'listing';
 
-	let transcriptions = $state<TranscriptionRecord[]>([]);
+	let transcriptions = $state<TranscriptionSummary[]>([]);
 	let deleting = $state<string | null>(null);
 	let externalSyncBusy = $state(false);
 	let igntpImportBusy = $state(false);
@@ -102,6 +105,12 @@
 			});
 			throw error;
 		}
+	}
+
+	async function loadTranscriptionSummaries() {
+		transcriptions = await listTranscriptionSummaries();
+		loadError = null;
+		isLoading = false;
 	}
 
 	const igntpEntries = flattenIgntpCatalogEntries(igntpCatalog);
@@ -176,8 +185,9 @@
 		deleting = id;
 
 		try {
-			await ensureDjazzkitRuntime();
-			await Transcription.objects.delete(id);
+			await ensureLocalDbRuntime();
+			await deleteTranscription(id);
+			await loadTranscriptionSummaries();
 		} catch (err) {
 			console.error('Failed to delete transcription:', err);
 		} finally {
@@ -185,26 +195,26 @@
 		}
 	}
 
-	$effect(() => {
+	onMount(() => {
 		logTranscriptionRoute('debug', 'transcription list effect start', {});
-		void runLoggedStep('ensureDjazzkitRuntime', () => ensureDjazzkitRuntime(), {})
-			.then(async () => {
-				logTranscriptionRoute('debug', 'ensureDjazzkitRuntime resolved for transcription list', {});
-				const queryset = Transcription.objects
-					.filter(f => f._djazzkit_deleted.eq(false))
-					.orderBy(f => f.updated_at, 'desc')
-					.only('_djazzkit_id', 'title', 'siglum', 'created_at', 'updated_at');
-				unsubscribe = queryset.subscribe(rows => {
-					transcriptions = rows;
-					if (isLoading) {
-						loadError = null;
-						isLoading = false;
-						logTranscriptionRoute('debug', 'transcription list initial load from subscribe', {
-							rowCount: rows.length,
-						});
-					}
+		unsubscribe = subscribeLocalDbInvalidations(event => {
+			if (event.domain !== 'transcriptions' && event.domain !== 'all') return;
+			void loadTranscriptionSummaries().catch(err => {
+				console.error('Failed to reload transcriptions:', err);
+				loadError = err instanceof Error ? err.message : 'Failed to load transcriptions.';
+				isLoading = false;
+			});
+		});
+		logTranscriptionRoute('debug', 'transcription list invalidation listener attached', {});
+
+		void runLoggedStep('loadTranscriptionSummaries', async () => {
+			await ensureLocalDbRuntime();
+			await loadTranscriptionSummaries();
+		}, {})
+			.then(() => {
+				logTranscriptionRoute('debug', 'transcription list initial load completed', {
+					rowCount: transcriptions.length,
 				});
-				logTranscriptionRoute('debug', 'transcription list subscription attached', {});
 			})
 			.catch(err => {
 				logTranscriptionRoute('error', 'transcription list bootstrap failed', {
@@ -272,7 +282,7 @@
 		const pendingCreates: { input: CreateTranscriptionInput; fileName: string; duplicateKey: string }[] = [];
 
 		try {
-			await ensureDjazzkitRuntime();
+			await ensureLocalDbRuntime();
 
 			for (const requestedPath of paths) {
 				const entry = igntpEntryByPath.get(requestedPath);
@@ -378,13 +388,6 @@
 				};
 				await tick();
 
-				// Unsubscribe the list store during import to prevent refresh() from
-				// running SELECT * (with large content_json) after each chunk.
-				unsubscribe?.();
-				unsubscribe = null;
-
-				const syncClient = getSyncClient();
-				syncClient?.setUploadsPaused(true);
 				let savedCount = 0;
 				try {
 					await createTranscriptionRecords(
@@ -430,27 +433,19 @@
 							message: error instanceof Error ? error.message : 'Bulk save failed.',
 						});
 					}
-				} finally {
-					syncClient?.setUploadsPaused(false);
 				}
 
 				// Checkpoint before reloading to flush WAL after bulk writes.
 				// Without this, the reload query can hang waiting on a large WAL.
 				try {
-					await DjazzkitDatabase.getInstance().checkpoint();
+					await checkpointLocalDb();
 				} catch {
 					// Non-critical: checkpoint failure doesn't affect data integrity
 				}
 
-				// Reload the transcription list and resubscribe
+				// Reload the transcription list after checkpointing bulk writes.
 				try {
-					const queryset = Transcription.objects
-						.filter(f => f._djazzkit_deleted.eq(false))
-						.orderBy(f => f.updated_at, 'desc')
-						.only('_djazzkit_id', 'title', 'siglum', 'created_at', 'updated_at');
-					unsubscribe = queryset.subscribe(rows => {
-						transcriptions = rows;
-					});
+					await loadTranscriptionSummaries();
 				} catch (reloadError) {
 					console.error('Failed to reload transcription list after import:', reloadError);
 				}
@@ -588,9 +583,9 @@
 			</div>
 		{:else}
 			<ul class="list bg-base-300 rounded-lg overflow-y-auto flex-1 min-h-0">
-				{#each transcriptions as transcription}
+				{#each transcriptions as transcription (transcription.id)}
 					<li class="list-row items-center flex flex-row align-center">
-						<a href={resolve('/transcription/[id]', { id: transcription._djazzkit_id })} class="underline flex-1">
+						<a href={resolve('/transcription/[id]', { id: transcription.id })} class="underline flex-1">
 							<h2 class="text-lg font-semibold">{transcription.title}</h2>
 						</a>
 						<div class="text-sm text-base-content/80">
@@ -598,11 +593,11 @@
 						</div>
 						<button
 							type="button"
-							onclick={e => handleDelete(transcription._djazzkit_id, e)}
-							disabled={deleting === transcription._djazzkit_id}
+							onclick={e => handleDelete(transcription.id, e)}
+							disabled={deleting === transcription.id}
 							class="btn btn-error"
 						>
-							{deleting === transcription._djazzkit_id ? 'Deleting...' : 'Delete'}
+							{deleting === transcription.id ? 'Deleting...' : 'Delete'}
 						</button>
 					</li>
 				{/each}
