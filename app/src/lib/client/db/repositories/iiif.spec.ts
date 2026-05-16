@@ -92,7 +92,9 @@ describe('iiif repository', () => {
 
 		const full = await getCanvasAnnotation(harness.db, { transcriptionId: 'tx-1', manifestSourceId: source.id, annotationId: 'anno-1' });
 		expect(full?.__fullBodyLoaded).toBe(true);
-		expect(full?.body?.[0]?.value).toBe('A long annotation body');
+		expect(Array.isArray(full?.body) ? full.body[0]?.value : full?.body?.value).toBe(
+			'A long annotation body'
+		);
 	});
 });
 
