@@ -1,6 +1,7 @@
 import { notificationCenter } from '$lib/client/notification-center.svelte';
 import { attachLocalDbClient } from './client';
 import { purgeLegacyDjazzkitStorage } from './legacy-djazzkit-purge';
+import { purgeLocalDbStorage } from './storage-reset';
 import type { DbRequest, DbResponse } from './rpc';
 
 const RUNTIME_FAILURE_NOTIFICATION_ID = 'local-db-runtime-init-failed';
@@ -43,9 +44,18 @@ export async function checkpointLocalDb(): Promise<void> {
 }
 
 export async function resetLocalDb(): Promise<void> {
-	await ensureLocalDbRuntime();
-	await postWorkerMessage({ type: 'reset' });
+	await destroyLocalDbWorker();
+	await purgeLocalDbStorage();
 	if (typeof window !== 'undefined') window.location.reload();
+}
+
+async function destroyLocalDbWorker(): Promise<void> {
+	if (!worker) return;
+	const dbWorker = worker;
+	worker = null;
+	initialized = false;
+	initPromise = null;
+	dbWorker.terminate();
 }
 
 function reportRuntimeInitFailure(error: unknown): void {
@@ -107,7 +117,7 @@ function postWorkerMessage(payload: Omit<DbRequest, 'id'>): Promise<void> {
 	});
 }
 
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+export function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
 	return new Promise((resolve, reject) => {
 		const timeoutId = setTimeout(() => reject(new Error(message)), timeoutMs);
 		promise.then(

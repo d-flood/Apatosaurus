@@ -177,6 +177,19 @@ export async function listVerseIndexRows(db: DbExecutor): Promise<VerseIndexRow[
 	return rows.map((row) => ({ ...row, id: requireId(row.id, 'verse index row') }));
 }
 
+export async function listVerseIndexRowsForTranscription(
+	db: DbExecutor,
+	transcriptionId: string,
+): Promise<VerseIndexRow[]> {
+	const rows = await db
+		.selectFrom('transcription_verse_index')
+		.selectAll()
+		.where('transcription_id', '=', transcriptionId)
+		.orderBy('verse_identifier')
+		.execute();
+	return rows.map((row) => ({ ...row, id: requireId(row.id, 'verse index row') }));
+}
+
 export async function rebuildVerseIndexForTranscriptions(
 	db: Kysely<Database>,
 	transcriptionIds: string[],

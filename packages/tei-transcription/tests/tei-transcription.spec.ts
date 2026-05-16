@@ -1622,6 +1622,21 @@ describe('frame zones', () => {
 		]);
 	});
 
+	it('parses a word that ends with an inline layout break', () => {
+		const tei = wrapInTei(`
+<pb n="1r" type="folio"/>
+<cb n="1"/>
+<lb/><ab><w>alpha<pb n="1v" type="folio" break="no"/></w></ab>
+`);
+
+		const doc = parseTei(tei);
+		expect(doc.pages).toHaveLength(2);
+		expect(doc.pages[0].columns[0].lines[0].items).toMatchObject([
+			{ type: 'text', text: 'alpha' },
+		]);
+		expect(doc.pages[1].id).toBe('1v');
+	});
+
 	it('parses cb type="frame" subtype into column zone', () => {
 		const tei = wrapInTei(`
 <pb n="1r" type="folio"/>

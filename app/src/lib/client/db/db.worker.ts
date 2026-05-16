@@ -25,12 +25,14 @@ import {
 	getTranscription,
 	getTranscriptionsByIds,
 	getVerseIndexRowsForVerse,
+	listVerseIndexRowsForTranscription,
 	listVerseIndexRows,
 	listTranscriptionSummaries,
 	rebuildVerseIndexForTranscriptions,
 	updateTranscriptionContent,
 } from './repositories/transcriptions';
 import * as iiifRepository from './repositories/iiif';
+import { clearDomainTables } from './repositories/maintenance';
 import type { Database } from './types.generated';
 import { createWorkerKysely } from './worker-kysely';
 import { LocalSqliteDatabase } from './worker-sqlite';
@@ -40,9 +42,17 @@ import type { Kysely } from 'kysely';
 const db = new LocalSqliteDatabase();
 let kyselyDb: Kysely<Database> | null = null;
 let initialized = false;
+let requestQueue = Promise.resolve();
 
 self.onmessage = async (event: MessageEvent<DbRequest>) => {
 	const request = event.data;
+	requestQueue = requestQueue.then(
+		() => processRequest(request),
+		() => processRequest(request),
+	);
+};
+
+async function processRequest(request: DbRequest): Promise<void> {
 	try {
 		const result = await handleRequest(request);
 		postResponse({ id: request.id ?? 0, ok: true, result });
@@ -53,7 +63,7 @@ self.onmessage = async (event: MessageEvent<DbRequest>) => {
 			error: error instanceof Error ? error.message : String(error),
 		});
 	}
-};
+}
 
 async function handleRequest(request: DbRequest): Promise<unknown> {
 	if (request.type === 'init') {
@@ -94,6 +104,9 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 		return getVerseIndexRowsForVerse(getKyselyDb(), request.verseIdentifier, request.transcriptionIds);
 	}
 	if (request.type === 'transcriptions.listVerseIndexRows') return listVerseIndexRows(getKyselyDb());
+	if (request.type === 'transcriptions.listVerseIndexRowsForTranscription') {
+		return listVerseIndexRowsForTranscription(getKyselyDb(), request.transcriptionId);
+	}
 	if (request.type === 'transcriptions.rebuildVerseIndex') {
 		const result = await rebuildVerseIndexForTranscriptions(getKyselyDb(), request.transcriptionIds);
 		postMessage({ type: 'db:invalidate', domain: 'transcriptions' });
@@ -218,8 +231,7 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 		await db.close();
 		initialized = false;
 		await init();
-		const tables = await db.query("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name <> 'schema_migrations'");
-		await db.transaction(tables.map((row) => ({ sql: `DELETE FROM ${quoteIdent(String(row.name))}` })));
+		await clearDomainTables(getKyselyDb());
 		return null;
 	}
 	return null;
@@ -244,10 +256,6 @@ function inferInvalidationDomain(sql: string): string {
 	if (/collations|collation_/i.test(sql)) return 'collations';
 	if (/iiif_|page_canvas/i.test(sql)) return 'iiif';
 	return 'all';
-}
-
-function quoteIdent(value: string): string {
-	return `"${value.replace(/"/g, '""')}"`;
 }
 
 function postResponse(response: DbResponse): void {
