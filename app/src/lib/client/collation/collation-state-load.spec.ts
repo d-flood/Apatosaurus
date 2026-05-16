@@ -3,6 +3,15 @@ import { buildCollationDocument, serializeCollationDocument } from './collation-
 
 const {
 	ensureDjazzkitRuntime,
+	loadCollation,
+	createCollation,
+	saveCollationArtifact,
+	saveCollationProjection,
+	updateCollationMetadata,
+	getProject,
+	createProject,
+	updateProjectMetadata,
+	getTranscriptionsByIds,
 	getCollationRow,
 	createCollationRow,
 	updateCollationRow,
@@ -29,6 +38,15 @@ const {
 	gatherWitnessesForVerse,
 } = vi.hoisted(() => ({
 	ensureDjazzkitRuntime: vi.fn(),
+	loadCollation: vi.fn(),
+	createCollation: vi.fn(),
+	saveCollationArtifact: vi.fn(),
+	saveCollationProjection: vi.fn(),
+	updateCollationMetadata: vi.fn(),
+	getProject: vi.fn(),
+	createProject: vi.fn(),
+	updateProjectMetadata: vi.fn(),
+	getTranscriptionsByIds: vi.fn(),
 	getCollationRow: vi.fn(),
 	createCollationRow: vi.fn(),
 	updateCollationRow: vi.fn(),
@@ -68,6 +86,18 @@ function makeFilterQuery<T>(handlers: { first?: () => Promise<T>; all?: () => Pr
 
 vi.mock('$lib/client/djazzkit-runtime', () => ({
 	ensureDjazzkitRuntime,
+}));
+
+vi.mock('$lib/client/db/client', () => ({
+	loadCollation,
+	createCollation,
+	saveCollationArtifact,
+	saveCollationProjection,
+	updateCollationMetadata,
+	getProject,
+	createProject,
+	updateProjectMetadata,
+	getTranscriptionsByIds,
 }));
 
 vi.mock('$generated/models/Collation', () => ({
@@ -236,6 +266,63 @@ describe('collationState artifact-first persistence', () => {
 		vi.useFakeTimers();
 		vi.clearAllMocks();
 		ensureDjazzkitRuntime.mockResolvedValue(undefined);
+		loadCollation.mockResolvedValue({
+			row: {
+				id: 'col-1',
+				projectId: 'proj-1',
+				title: 'Romans 1:1',
+				verseIdentifier: 'Romans 1:1',
+				status: 'alignment',
+				groupPath: '',
+				notes: '',
+				sortKey: 0,
+				createdAt: '2026-03-10T00:00:00.000Z',
+				updatedAt: '2026-03-10T00:00:00.000Z',
+			},
+			artifact: {
+				id: 'artifact-1',
+				artifactType: 'collation_document_v1',
+				payload: makeDocumentPayload(),
+				createdAt: '2026-03-10T00:00:00.000Z',
+			},
+			legacyArtifact: null,
+			projection: { witnesses: [], tokens: [], variationUnits: [] },
+		});
+		createCollation.mockResolvedValue('col-new');
+		saveCollationArtifact.mockResolvedValue('artifact-existing');
+		saveCollationProjection.mockResolvedValue(undefined);
+		updateCollationMetadata.mockResolvedValue(undefined);
+		createProject.mockResolvedValue('proj-new');
+		updateProjectMetadata.mockResolvedValue(undefined);
+		getProject.mockResolvedValue({
+			id: 'proj-1',
+			name: 'Project 1',
+			description: '',
+			charter: '',
+			collationSettings: {
+				regularizationRules: [],
+				ignoreWordBreaks: false,
+				lowercase: false,
+				ignoreTokenWhitespace: true,
+				ignorePunctuation: false,
+				suppliedTextMode: 'clear',
+				segmentation: true,
+				transcriptionWitnessTreatments: {},
+			},
+			ownerId: null,
+			createdAt: '2026-03-10T00:00:00.000Z',
+			updatedAt: '2026-03-10T00:00:00.000Z',
+		});
+		getTranscriptionsByIds.mockResolvedValue([
+			{
+				id: 'A-tx',
+				updated_at: '2026-03-10T00:00:00.000Z',
+			},
+			{
+				id: 'B-tx',
+				updated_at: '2026-03-10T00:00:00.000Z',
+			},
+		]);
 		getCollationRow.mockResolvedValue({
 			_djazzkit_id: 'col-1',
 			project_id: 'proj-1',
@@ -314,17 +401,13 @@ describe('collationState artifact-first persistence', () => {
 	}, 30000);
 
 	it('does not block artifact load while changed witnesses refresh in the background', async () => {
-		getTranscriptionRows.mockResolvedValue([
+		getTranscriptionsByIds.mockResolvedValue([
 			{
-				_djazzkit_id: 'A-tx',
-				_djazzkit_deleted: false,
-				_djazzkit_updated_at: '2026-03-12T00:00:00.000Z',
+				id: 'A-tx',
 				updated_at: '2026-03-12T00:00:00.000Z',
 			},
 			{
-				_djazzkit_id: 'B-tx',
-				_djazzkit_deleted: false,
-				_djazzkit_updated_at: '2026-03-10T00:00:00.000Z',
+				id: 'B-tx',
 				updated_at: '2026-03-10T00:00:00.000Z',
 			},
 		]);
@@ -381,10 +464,12 @@ describe('collationState artifact-first persistence', () => {
 	}, 30000);
 
 	it('refreshes witness tokens after load when project preprocessing differs from the artifact', async () => {
-		getProjectRow.mockResolvedValue({
-			_djazzkit_id: 'proj-1',
+		getProject.mockResolvedValue({
+			id: 'proj-1',
 			name: 'Project 1',
-			collation_settings: JSON.stringify({
+			description: '',
+			charter: '',
+			collationSettings: {
 				regularizationRules: [],
 				ignoreWordBreaks: true,
 				lowercase: false,
@@ -393,7 +478,10 @@ describe('collationState artifact-first persistence', () => {
 				suppliedTextMode: 'clear',
 				segmentation: true,
 				transcriptionWitnessTreatments: {},
-			}),
+			},
+			ownerId: null,
+			createdAt: '2026-03-10T00:00:00.000Z',
+			updatedAt: '2026-03-10T00:00:00.000Z',
 		});
 		gatherWitnessesForVerse.mockResolvedValue([
 			{
@@ -466,11 +554,10 @@ describe('collationState artifact-first persistence', () => {
 		collationState.nextPhase();
 		await vi.advanceTimersByTimeAsync(801);
 
-		expect(updateCollationRow).toHaveBeenCalledWith(
-			collationId,
-			expect.objectContaining({ status: 'regularization' })
+		expect(updateCollationMetadata).toHaveBeenCalledWith(
+			expect.objectContaining({ id: collationId, status: 'regularization' })
 		);
-		expect(listCollationWitnessRows).not.toHaveBeenCalled();
+		expect(saveCollationProjection).not.toHaveBeenCalled();
 	});
 
 	it('materializes the normalized projection when the collation is saved in stemma', async () => {
@@ -554,10 +641,9 @@ describe('collationState artifact-first persistence', () => {
 		collationState.nextPhase();
 		await vi.advanceTimersByTimeAsync(801);
 
-		expect(listCollationWitnessRows).toHaveBeenCalled();
-		expect(updateCollationRow).toHaveBeenCalledWith(
-			collationId,
-			expect.objectContaining({ status: 'complete' })
+		expect(saveCollationProjection).toHaveBeenCalled();
+		expect(updateCollationMetadata).toHaveBeenCalledWith(
+			expect.objectContaining({ id: collationId, status: 'complete' })
 		);
 	});
 });
