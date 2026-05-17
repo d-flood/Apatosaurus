@@ -27,6 +27,7 @@ import type {
 	CreateTranscriptionInput,
 	TranscriptionRecord,
 	TranscriptionSummary,
+	TranscriptionVersion,
 	UpdateTranscriptionContentInput,
 	VerseIndexRebuildResult,
 	VerseIndexRow,
@@ -73,7 +74,21 @@ export function subscribeLocalDbInvalidations(listener: (event: DbInvalidationEv
 }
 
 export async function listTranscriptionSummaries(): Promise<TranscriptionSummary[]> {
-	return sendTranscriptionRequest({ type: 'transcriptions.listSummaries' });
+	const startedAt = now();
+	const rows = await sendTranscriptionRequest({ type: 'transcriptions.listSummaries' });
+	console.debug('[local-db] transcriptions.listSummaries client completed', {
+		rowCount: rows.length,
+		elapsedMs: elapsed(startedAt),
+	});
+	return rows;
+}
+
+export async function getTranscriptionSummary(id: string): Promise<TranscriptionSummary | null> {
+	return sendTranscriptionRequest({ type: 'transcriptions.getSummary', transcriptionId: id });
+}
+
+export async function getTranscriptionVersionsByIds(ids: string[]): Promise<TranscriptionVersion[]> {
+	return sendTranscriptionRequest({ type: 'transcriptions.getVersionsByIds', ids });
 }
 
 export async function getTranscription(id: string): Promise<TranscriptionRecord | null> {
@@ -286,14 +301,49 @@ async function send<T>(payload: DbRequestPayload): Promise<T> {
 	await ensureLocalDbRuntime();
 	const worker = getLocalDbWorker();
 	const id = nextRequestId++;
+	const startedAt = now();
 	return new Promise<T>((resolve, reject) => {
 		const timeoutId = setTimeout(() => {
 			pending.delete(id);
+			console.error('[local-db] worker request timed out', {
+				type: payload.type,
+				id,
+				elapsedMs: elapsed(startedAt),
+			});
 			reject(new Error('Timed out waiting for a response from the local database worker.'));
 		}, DB_REQUEST_TIMEOUT_MS);
-		pending.set(id, { resolve: (value) => resolve(value as T), reject, timeoutId });
+		pending.set(id, {
+			resolve: (value) => {
+				if (payload.type === 'transcriptions.listSummaries') {
+					console.debug('[local-db] worker request round trip completed', {
+						type: payload.type,
+						id,
+						elapsedMs: elapsed(startedAt),
+					});
+				}
+				resolve(value as T);
+			},
+			reject: (error) => {
+				console.error('[local-db] worker request failed', {
+					type: payload.type,
+					id,
+					elapsedMs: elapsed(startedAt),
+					error: error.message,
+				});
+				reject(error);
+			},
+			timeoutId,
+		});
 		worker.postMessage({ ...payload, id });
 	});
+}
+
+function now(): number {
+	return globalThis.performance?.now() ?? Date.now();
+}
+
+function elapsed(startedAt: number): number {
+	return Math.round(now() - startedAt);
 }
 
 async function sendTranscriptionRequest<T extends TranscriptionRpcRequest>(

@@ -2,8 +2,8 @@
 	import {
 		createTranscription,
 		getTranscription,
+		getTranscriptionSummary,
 		subscribeLocalDbInvalidations,
-		updateTranscriptionContent,
 	} from '$lib/client/db/client';
 	import { ensureLocalDbRuntime } from '$lib/client/db/runtime';
 	import {
@@ -50,16 +50,10 @@
 
 	async function seedHarnessTranscription() {
 		const now = new Date().toISOString();
-		const existing = await getTranscription(HARNESS_TRANSCRIPTION_ID);
+		const existing = await getTranscriptionSummary(HARNESS_TRANSCRIPTION_ID);
 		const payload = buildHarnessTranscriptionCreatePayload(now);
 
 		if (existing) {
-			await updateTranscriptionContent({
-				id: HARNESS_TRANSCRIPTION_ID,
-				contentJson: payload.content_json,
-				format: payload.format,
-				updatedAt: now,
-			});
 			return;
 		}
 

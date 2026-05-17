@@ -23,6 +23,8 @@ import {
 	createTranscriptions,
 	deleteTranscription,
 	getTranscription,
+	getTranscriptionSummary,
+	getTranscriptionVersionsByIds,
 	getTranscriptionsByIds,
 	getVerseIndexRowsForVerse,
 	listVerseIndexRowsForTranscription,
@@ -46,17 +48,28 @@ let requestQueue = Promise.resolve();
 
 self.onmessage = async (event: MessageEvent<DbRequest>) => {
 	const request = event.data;
+	const receivedAt = now();
 	requestQueue = requestQueue.then(
-		() => processRequest(request),
-		() => processRequest(request),
+		() => processRequest(request, receivedAt),
+		() => processRequest(request, receivedAt),
 	);
 };
 
-async function processRequest(request: DbRequest): Promise<void> {
+async function processRequest(request: DbRequest, receivedAt: number): Promise<void> {
+	const startedAt = now();
+	const queueWaitMs = elapsed(receivedAt);
 	try {
 		const result = await handleRequest(request);
+		logWorkerTiming(request, queueWaitMs, elapsed(startedAt));
 		postResponse({ id: request.id ?? 0, ok: true, result });
 	} catch (error) {
+		console.error('[local-db] worker request failed', {
+			type: request.type,
+			id: request.id,
+			queueWaitMs,
+			handlerMs: elapsed(startedAt),
+			error: error instanceof Error ? error.message : String(error),
+		});
 		postResponse({
 			id: request.id ?? 0,
 			ok: false,
@@ -78,6 +91,8 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 		return null;
 	}
 	if (request.type === 'transcriptions.listSummaries') return listTranscriptionSummaries(getKyselyDb());
+	if (request.type === 'transcriptions.getSummary') return getTranscriptionSummary(getKyselyDb(), request.transcriptionId);
+	if (request.type === 'transcriptions.getVersionsByIds') return getTranscriptionVersionsByIds(getKyselyDb(), request.ids);
 	if (request.type === 'transcriptions.get') return getTranscription(getKyselyDb(), request.transcriptionId);
 	if (request.type === 'transcriptions.getByIds') return getTranscriptionsByIds(getKyselyDb(), request.ids);
 	if (request.type === 'transcriptions.create') {
@@ -239,10 +254,12 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 
 async function init(): Promise<void> {
 	if (initialized) return;
-	await db.open();
-	await applyLocalDbMigrations(db);
-	kyselyDb = createWorkerKysely(db);
+	const startedAt = now();
+	await timeWorkerStep('db.open', () => db.open());
+	await timeWorkerStep('migrations', () => applyLocalDbMigrations(db));
+	kyselyDb = timeWorkerStepSync('kysely init', () => createWorkerKysely(db));
 	initialized = true;
+	console.debug('[local-db] worker init completed', { elapsedMs: elapsed(startedAt) });
 }
 
 function getKyselyDb(): Kysely<Database> {
@@ -260,4 +277,52 @@ function inferInvalidationDomain(sql: string): string {
 
 function postResponse(response: DbResponse): void {
 	postMessage(response);
+}
+
+function logWorkerTiming(request: DbRequest, queueWaitMs: number, handlerMs: number): void {
+	if (request.type !== 'init' && request.type !== 'transcriptions.listSummaries') return;
+	console.debug('[local-db] worker request completed', {
+		type: request.type,
+		id: request.id,
+		queueWaitMs,
+		handlerMs,
+	});
+}
+
+async function timeWorkerStep<T>(label: string, step: () => Promise<T>): Promise<T> {
+	const startedAt = now();
+	try {
+		const result = await step();
+		console.debug(`[local-db] worker ${label} completed`, { elapsedMs: elapsed(startedAt) });
+		return result;
+	} catch (error) {
+		console.error(`[local-db] worker ${label} failed`, {
+			elapsedMs: elapsed(startedAt),
+			error: error instanceof Error ? error.message : String(error),
+		});
+		throw error;
+	}
+}
+
+function timeWorkerStepSync<T>(label: string, step: () => T): T {
+	const startedAt = now();
+	try {
+		const result = step();
+		console.debug(`[local-db] worker ${label} completed`, { elapsedMs: elapsed(startedAt) });
+		return result;
+	} catch (error) {
+		console.error(`[local-db] worker ${label} failed`, {
+			elapsedMs: elapsed(startedAt),
+			error: error instanceof Error ? error.message : String(error),
+		});
+		throw error;
+	}
+}
+
+function now(): number {
+	return globalThis.performance?.now() ?? Date.now();
+}
+
+function elapsed(startedAt: number): number {
+	return Math.round(now() - startedAt);
 }

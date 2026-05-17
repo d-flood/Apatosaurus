@@ -94,7 +94,7 @@
 </script>
 
 <section
-	class="rounded-[1.75rem] flex flex-col h-full border border-base-300 bg-linear-to-br from-base-100 via-base-100 to-base-200/70 p-5 shadow-sm space-y-5 overflow-hidden"
+	class="rounded-[1.75rem] flex flex-col h-full min-h-0 border border-base-300 bg-linear-to-br from-base-100 via-base-100 to-base-200/70 p-5 shadow-sm space-y-5 overflow-hidden"
 >
 	<div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between shrink-0">
 		<div class="space-y-2">
@@ -185,16 +185,16 @@
 						</div>
 					</div>
 
-					<div class="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+					<div class="overflow-hidden rounded-2xl border border-base-300 bg-base-100 divide-y divide-base-300">
 						{#each group.entries as entry (entry.path)}
 							<label
-								class="flex min-h-28 cursor-pointer gap-3 rounded-[1.25rem] border px-3 py-3 transition {!entry.isSupported
-									? 'border-warning/40 bg-warning/10 text-base-content/75'
+								class="flex cursor-pointer items-start gap-3 px-3 py-2 transition {!entry.isSupported
+									? 'bg-warning/10 text-base-content/75'
 									: isAlreadyImported(entry)
-										? 'border-success/40 bg-success/5 text-base-content/70'
+										? 'bg-success/5 text-base-content/70'
 										: isSelected(entry.path)
-											? 'border-primary bg-primary/10 shadow-sm'
-											: 'border-base-300 bg-base-100 hover:border-base-content/20'}"
+											? 'bg-primary/10 shadow-sm'
+											: 'bg-base-100 hover:bg-base-200/60'}"
 							>
 								<input
 									type="checkbox"
@@ -208,11 +208,12 @@
 											(event.currentTarget as HTMLInputElement).checked
 										)}
 								/>
-								<div class="min-w-0 flex-1 space-y-2">
+								<div class="min-w-0 flex-1 space-y-1">
 									<div class="flex flex-wrap items-center gap-2">
-										<span class="badge badge-outline badge-sm"
-											>{entry.fileName}</span
-										>
+										<span class="min-w-48 flex-1 font-semibold leading-snug line-clamp-2">
+											{entry.title}
+										</span>
+										<span class="badge badge-outline badge-sm">{entry.fileName}</span>
 										{#if entry.siglum}
 											<span class="badge badge-neutral badge-sm"
 												>{entry.siglum}</span
@@ -229,11 +230,8 @@
 											>
 										{/if}
 									</div>
-									<div class="font-semibold leading-snug line-clamp-2">
-										{entry.title}
-									</div>
 									<div
-										class="text-xs uppercase tracking-[0.18em] text-base-content/50 break-all"
+										class="truncate text-xs uppercase tracking-[0.18em] text-base-content/50"
 									>
 										/{entry.directory}
 									</div>
