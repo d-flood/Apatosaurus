@@ -1,5 +1,5 @@
 import { nanoid } from 'nanoid';
-import type { Kysely, Selectable, Transaction } from 'kysely';
+import { sql, type Kysely, type Selectable, type Transaction } from 'kysely';
 
 import {
 	coerceTranscriptionDocument,
@@ -14,6 +14,11 @@ type DbExecutor = Kysely<Database> | Transaction<Database>;
 
 export type TranscriptionSummary = Omit<
 	Pick<Selectable<Transcriptions>, 'id' | 'title' | 'siglum' | 'created_at' | 'updated_at'>,
+	'id'
+> & { id: string };
+
+export type TranscriptionVersion = Omit<
+	Pick<Selectable<Transcriptions>, 'id' | 'updated_at'>,
 	'id'
 > & { id: string };
 
@@ -74,13 +79,49 @@ interface VerseNode {
 export async function listTranscriptionSummaries(
 	db: DbExecutor,
 ): Promise<TranscriptionSummary[]> {
+	if (import.meta.env.DEV) await logSummaryQueryPlan(db);
+	const startedAt = now();
 	const rows = await db
 		.selectFrom('transcriptions')
 		.select(['id', 'title', 'siglum', 'created_at', 'updated_at'])
 		.orderBy('updated_at', 'desc')
 		.execute();
+	console.debug('[local-db] transcriptions.listSummaries query completed', {
+		rowCount: rows.length,
+		elapsedMs: elapsed(startedAt),
+	});
 
 	return rows.map((row) => ({ ...row, id: requireId(row.id, 'transcription') }));
+}
+
+export async function getTranscriptionSummary(
+	db: DbExecutor,
+	id: string,
+): Promise<TranscriptionSummary | null> {
+	const row = await db
+		.selectFrom('transcriptions')
+		.select(['id', 'title', 'siglum', 'created_at', 'updated_at'])
+		.where('id', '=', id)
+		.executeTakeFirst();
+	return row ? { ...row, id: requireId(row.id, 'transcription') } : null;
+}
+
+export async function getTranscriptionVersionsByIds(
+	db: DbExecutor,
+	ids: string[],
+): Promise<TranscriptionVersion[]> {
+	const uniqueIds = uniqueNonEmpty(ids);
+	if (uniqueIds.length === 0) return [];
+	const rows = await db
+		.selectFrom('transcriptions')
+		.select(['id', 'updated_at'])
+		.where('id', 'in', uniqueIds)
+		.execute();
+	const byId = new Map(rows.map((row) => [row.id, { ...row, id: requireId(row.id, 'transcription') }]));
+	return uniqueIds.flatMap((id) => {
+		const row = byId.get(id);
+		return row ? [row] : [];
+	});
 }
 
 export async function getTranscription(
@@ -353,6 +394,33 @@ function formatTranscriptionLabel(row: Pick<Selectable<Transcriptions>, 'id' | '
 function requireId(id: string | null, recordType: string): string {
 	if (!id) throw new Error(`Missing ${recordType} id.`);
 	return id;
+}
+
+async function logSummaryQueryPlan(db: DbExecutor): Promise<void> {
+	const startedAt = now();
+	try {
+		const result = await sql`EXPLAIN QUERY PLAN
+			SELECT id, title, siglum, created_at, updated_at
+			FROM transcriptions
+			ORDER BY updated_at DESC`.execute(db);
+		console.debug('[local-db] transcriptions.listSummaries query plan', {
+			rows: result.rows,
+			elapsedMs: elapsed(startedAt),
+		});
+	} catch (error) {
+		console.warn('[local-db] transcriptions.listSummaries query plan failed', {
+			elapsedMs: elapsed(startedAt),
+			error: error instanceof Error ? error.message : String(error),
+		});
+	}
+}
+
+function now(): number {
+	return globalThis.performance?.now() ?? Date.now();
+}
+
+function elapsed(startedAt: number): number {
+	return Math.round(now() - startedAt);
 }
 
 function createId(): string {

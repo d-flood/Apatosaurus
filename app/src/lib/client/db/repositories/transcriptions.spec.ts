@@ -6,6 +6,8 @@ import {
 	createTranscriptions,
 	deleteTranscription,
 	getTranscription,
+	getTranscriptionSummary,
+	getTranscriptionVersionsByIds,
 	getTranscriptionsByIds,
 	getVerseIndexRowsForVerse,
 	listVerseIndexRowsForTranscription,
@@ -144,6 +146,23 @@ describe('transcriptions repository', () => {
 		const rows = await getTranscriptionsByIds(harness.db, ['tx-3', 'tx-1', 'tx-missing']);
 
 		expect(rows.map((row) => row.id)).toEqual(['tx-3', 'tx-1']);
+	});
+
+	it('loads metadata-only transcription summaries and versions', async () => {
+		await createTranscriptions(harness.db, [
+			baseInput('tx-1', '01'),
+			baseInput('tx-2', '02'),
+			baseInput('tx-3', '03'),
+		]);
+
+		const summary = await getTranscriptionSummary(harness.db, 'tx-1');
+		const versions = await getTranscriptionVersionsByIds(harness.db, ['tx-3', 'tx-1', 'tx-missing']);
+
+		expect(summary).toMatchObject({ id: 'tx-1', siglum: '01' });
+		expect(summary).not.toHaveProperty('content_json');
+		expect(versions.map((row) => row.id)).toEqual(['tx-3', 'tx-1']);
+		expect(versions[0]).toEqual({ id: 'tx-3', updated_at: expect.any(String) });
+		expect(versions[0]).not.toHaveProperty('content_json');
 	});
 
 	it('replaces verse indexes when content is updated', async () => {

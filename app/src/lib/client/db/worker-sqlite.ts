@@ -1,7 +1,6 @@
-import AsyncSQLiteESMFactory from '@journeyapps/wa-sqlite/dist/wa-sqlite-async.mjs';
-import asyncWasmUrl from '@journeyapps/wa-sqlite/dist/wa-sqlite-async.wasm?url';
-import { IDBBatchAtomicVFS } from '@journeyapps/wa-sqlite/src/examples/IDBBatchAtomicVFS.js';
-import { OPFSAnyContextVFS } from '@journeyapps/wa-sqlite/src/examples/OPFSAnyContextVFS.js';
+import SQLiteESMFactory from '@journeyapps/wa-sqlite/dist/wa-sqlite.mjs';
+import wasmUrl from '@journeyapps/wa-sqlite/dist/wa-sqlite.wasm?url';
+import { OPFSCoopSyncVFS } from '@journeyapps/wa-sqlite/src/examples/OPFSCoopSyncVFS.js';
 import * as SQLite from '@journeyapps/wa-sqlite';
 
 import type { DbRow, DbValue } from './rpc';
@@ -10,7 +9,6 @@ type SQLiteApi = ReturnType<typeof SQLite.Factory>;
 
 const DB_FILENAME = 'apatosaurus-local-v1.db';
 const OPFS_VFS_NAME = 'apatosaurus-local-v1-opfs';
-const IDB_VFS_NAME = 'apatosaurus-local-v1-idb';
 
 export class LocalSqliteDatabase {
 	private sqlite: SQLiteApi | null = null;
@@ -19,19 +17,28 @@ export class LocalSqliteDatabase {
 
 	async open(): Promise<void> {
 		if (this.sqlite && this.db !== null) return;
-		const module = await AsyncSQLiteESMFactory({
+		const openStartedAt = now();
+		const module = await timeSqliteStep('module load', () => SQLiteESMFactory({
 			locateFile(path: string) {
-				return path.endsWith('.wasm') ? asyncWasmUrl : path;
+				return path.endsWith('.wasm') ? wasmUrl : path;
 			},
-		});
+		}));
 		this.sqlite = SQLite.Factory(module);
-		this.vfs = (await this.createVfs(module)) as { close?: () => Promise<void> | void };
+		this.vfs = (await timeSqliteStep('VFS creation', () => this.createVfs(module))) as { close?: () => Promise<void> | void };
 		this.sqlite.vfs_register(this.vfs as never, true);
-		this.db = await this.sqlite.open_v2(DB_FILENAME);
-		await this.exec('PRAGMA foreign_keys = ON');
-		await this.exec('PRAGMA busy_timeout = 250');
-		await this.exec('PRAGMA journal_mode = WAL');
-		await this.exec('PRAGMA synchronous = NORMAL');
+		this.db = await timeSqliteStep('open_v2', () => this.sqlite!.open_v2(DB_FILENAME));
+		await timeSqliteStep('PRAGMAs', async () => {
+			await this.exec('PRAGMA foreign_keys = ON');
+			await this.exec('PRAGMA busy_timeout = 250');
+			await this.exec('PRAGMA journal_mode = WAL');
+			await this.exec('PRAGMA synchronous = NORMAL');
+		});
+		console.debug('[local-db] SQLite database opened', {
+			build: 'wa-sqlite',
+			vfs: OPFS_VFS_NAME,
+			filename: DB_FILENAME,
+			elapsedMs: elapsed(openStartedAt),
+		});
 	}
 
 	async close(): Promise<void> {
@@ -93,14 +100,11 @@ export class LocalSqliteDatabase {
 	}
 
 	private async createVfs(module: unknown) {
-		if (typeof navigator !== 'undefined' && typeof navigator.storage?.getDirectory === 'function') {
-			try {
-				return await (OPFSAnyContextVFS as never as { create: (name: string, module: unknown) => Promise<unknown> }).create(OPFS_VFS_NAME, module);
-			} catch (error) {
-				console.warn('[local-db] OPFS SQLite VFS unavailable; falling back to IndexedDB', error);
-			}
+		if (typeof navigator === 'undefined' || typeof navigator.storage?.getDirectory !== 'function') {
+			throw new Error('Local transcription database requires sync OPFS storage in a dedicated browser worker. This browser does not expose OPFS storage.');
 		}
-		return (IDBBatchAtomicVFS as never as { create: (name: string, module: unknown) => Promise<unknown> }).create(IDB_VFS_NAME, module);
+		console.debug('[local-db] selecting SQLite VFS', { build: 'wa-sqlite', vfs: 'OPFSCoopSyncVFS' });
+		return (OPFSCoopSyncVFS as never as { create: (name: string, module: unknown) => Promise<unknown> }).create(OPFS_VFS_NAME, module);
 	}
 
 	private bind(statement: number, params: DbValue[]) {
@@ -114,4 +118,27 @@ export class LocalSqliteDatabase {
 
 function rowArrayToObject(columns: string[], values: unknown[]): DbRow {
 	return Object.fromEntries(columns.map((column, index) => [column, values[index]]));
+}
+
+async function timeSqliteStep<T>(label: string, step: () => Promise<T> | T): Promise<T> {
+	const startedAt = now();
+	try {
+		const result = await step();
+		console.debug(`[local-db] SQLite ${label} completed`, { elapsedMs: elapsed(startedAt) });
+		return result;
+	} catch (error) {
+		console.error(`[local-db] SQLite ${label} failed`, {
+			elapsedMs: elapsed(startedAt),
+			error: error instanceof Error ? error.message : String(error),
+		});
+		throw error;
+	}
+}
+
+function now(): number {
+	return globalThis.performance?.now() ?? Date.now();
+}
+
+function elapsed(startedAt: number): number {
+	return Math.round(now() - startedAt);
 }

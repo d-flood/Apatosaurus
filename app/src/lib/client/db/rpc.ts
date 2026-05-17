@@ -17,6 +17,7 @@ import type {
 	CreateTranscriptionInput,
 	TranscriptionRecord,
 	TranscriptionSummary,
+	TranscriptionVersion,
 	UpdateTranscriptionContentInput,
 	VerseIndexRebuildResult,
 	VerseIndexRow,
@@ -40,6 +41,14 @@ export interface TranscriptionRpcMap {
 	'transcriptions.listSummaries': {
 		request: { type: 'transcriptions.listSummaries' };
 		response: TranscriptionSummary[];
+	};
+	'transcriptions.getSummary': {
+		request: { type: 'transcriptions.getSummary'; transcriptionId: string };
+		response: TranscriptionSummary | null;
+	};
+	'transcriptions.getVersionsByIds': {
+		request: { type: 'transcriptions.getVersionsByIds'; ids: string[] };
+		response: TranscriptionVersion[];
 	};
 	'transcriptions.get': {
 		request: { type: 'transcriptions.get'; transcriptionId: string };

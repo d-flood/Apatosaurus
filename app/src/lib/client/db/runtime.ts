@@ -1,6 +1,6 @@
 import { notificationCenter } from '$lib/client/notification-center.svelte';
 import { attachLocalDbClient } from './client';
-import { purgeLegacyDjazzkitStorage } from './legacy-djazzkit-purge';
+import { clearLegacyDjazzkitPurgeMarker, purgeLegacyDjazzkitStorage } from './legacy-djazzkit-purge';
 import { purgeLocalDbStorage } from './storage-reset';
 import type { DbRequest, DbResponse } from './rpc';
 
@@ -15,11 +15,15 @@ export async function ensureLocalDbRuntime(): Promise<void> {
 	if (initialized) return;
 	if (initPromise) return initPromise;
 	initPromise = (async () => {
-		await purgeLegacyDjazzkitStorage();
-		const dbWorker = getLocalDbWorker();
-		await withTimeout(sendInit(dbWorker), RUNTIME_INIT_TIMEOUT_MS, 'Timed out while starting the local SQLite database.');
+		const startedAt = now();
+		await timeRuntimeStep('legacy djazzkit purge', () => purgeLegacyDjazzkitStorage());
+		const dbWorker = timeRuntimeStepSync('worker init', () => getLocalDbWorker());
+		await timeRuntimeStep('worker startup', () =>
+			withTimeout(sendInit(dbWorker), RUNTIME_INIT_TIMEOUT_MS, 'Timed out while starting the local SQLite database.')
+		);
 		initialized = true;
 		notificationCenter.remove(RUNTIME_FAILURE_NOTIFICATION_ID);
+		console.debug('[local-db] runtime ready', { elapsedMs: elapsed(startedAt) });
 	})().catch((error) => {
 		initialized = false;
 		reportRuntimeInitFailure(error);
@@ -45,6 +49,7 @@ export async function checkpointLocalDb(): Promise<void> {
 
 export async function resetLocalDb(): Promise<void> {
 	await destroyLocalDbWorker();
+	clearLegacyDjazzkitPurgeMarker();
 	await purgeLocalDbStorage();
 	if (typeof window !== 'undefined') window.location.reload();
 }
@@ -100,6 +105,44 @@ function sendInit(dbWorker: Worker): Promise<void> {
 		dbWorker.addEventListener('message', onMessage);
 		dbWorker.postMessage({ id, type: 'init' } satisfies DbRequest);
 	});
+}
+
+async function timeRuntimeStep<T>(label: string, step: () => Promise<T>): Promise<T> {
+	const startedAt = now();
+	try {
+		const result = await step();
+		console.debug(`[local-db] ${label} completed`, { elapsedMs: elapsed(startedAt) });
+		return result;
+	} catch (error) {
+		console.error(`[local-db] ${label} failed`, {
+			elapsedMs: elapsed(startedAt),
+			error: error instanceof Error ? error.message : String(error),
+		});
+		throw error;
+	}
+}
+
+function timeRuntimeStepSync<T>(label: string, step: () => T): T {
+	const startedAt = now();
+	try {
+		const result = step();
+		console.debug(`[local-db] ${label} completed`, { elapsedMs: elapsed(startedAt) });
+		return result;
+	} catch (error) {
+		console.error(`[local-db] ${label} failed`, {
+			elapsedMs: elapsed(startedAt),
+			error: error instanceof Error ? error.message : String(error),
+		});
+		throw error;
+	}
+}
+
+function now(): number {
+	return globalThis.performance?.now() ?? Date.now();
+}
+
+function elapsed(startedAt: number): number {
+	return Math.round(now() - startedAt);
 }
 
 function postWorkerMessage(payload: Omit<DbRequest, 'id'>): Promise<void> {

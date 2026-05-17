@@ -2,7 +2,7 @@ import {
 	createCollation,
 	createProject as createLocalProject,
 	getProject,
-	getTranscriptionsByIds,
+	getTranscriptionVersionsByIds,
 	loadCollation,
 	saveCollationArtifact,
 	saveCollationProjection,
@@ -1135,7 +1135,7 @@ function createCollationState() {
 		];
 		if (transcriptionIds.length === 0) return [];
 
-		const currentRows = await getTranscriptionsByIds(transcriptionIds);
+		const currentRows = await getTranscriptionVersionsByIds(transcriptionIds);
 		const currentVersionById = new Map(
 			currentRows.map(row => [row.id, row.updated_at || ''] as const)
 		);

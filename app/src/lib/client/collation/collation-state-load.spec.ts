@@ -10,7 +10,7 @@ const {
 	getProject,
 	createProject,
 	updateProjectMetadata,
-	getTranscriptionsByIds,
+	getTranscriptionVersionsByIds,
 	gatherWitnessesForVerse,
 } = vi.hoisted(() => ({
 	loadCollation: vi.fn(),
@@ -21,7 +21,7 @@ const {
 	getProject: vi.fn(),
 	createProject: vi.fn(),
 	updateProjectMetadata: vi.fn(),
-	getTranscriptionsByIds: vi.fn(),
+	getTranscriptionVersionsByIds: vi.fn(),
 	gatherWitnessesForVerse: vi.fn(),
 }));
 
@@ -34,7 +34,7 @@ vi.mock('$lib/client/db/client', () => ({
 	getProject,
 	createProject,
 	updateProjectMetadata,
-	getTranscriptionsByIds,
+	getTranscriptionVersionsByIds,
 }));
 
 vi.mock('./collation-runner', () => ({
@@ -163,7 +163,7 @@ describe('collationState artifact-first persistence', () => {
 			createdAt: '2026-03-10T00:00:00.000Z',
 			updatedAt: '2026-03-10T00:00:00.000Z',
 		});
-		getTranscriptionsByIds.mockResolvedValue([
+		getTranscriptionVersionsByIds.mockResolvedValue([
 			{
 				id: 'A-tx',
 				updated_at: '2026-03-10T00:00:00.000Z',
@@ -194,7 +194,7 @@ describe('collationState artifact-first persistence', () => {
 	}, 30000);
 
 	it('does not block artifact load while changed witnesses refresh in the background', async () => {
-		getTranscriptionsByIds.mockResolvedValue([
+		getTranscriptionVersionsByIds.mockResolvedValue([
 			{
 				id: 'A-tx',
 				updated_at: '2026-03-12T00:00:00.000Z',
