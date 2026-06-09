@@ -64,7 +64,6 @@ Thumbs.db
 
 # Docker
 Dockerfile*
-docker-compose*.yml
 .dockerignore
 
 # Test files (if not needed in production)

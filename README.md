@@ -32,18 +32,24 @@ This new version is more than an explorer. Its features include
 - and as many modules from [Criticus](https://github.com/d-flood/criticus/) as make sense to bring to a web app.
 
 
-## Running the dev server
-- Apatosaurus is being developed with Python 3.11 and Django 4.1
-- Docker and Docker Compose are required to run.
-- `docker-compose_dev.yml` sets most environment variables from a file `.env`. The following variables are the minimum dev server to run. Note that images being served by AWS (limited to the "About" pages) will not work without AWS credentials.
-    - `SECRET_KEY`
-    - `ADMIN_URL`
-    - `POSTGRES_PASSWORD='atestpasswordforgettingup'`
-- Start development server `docker compose --file docker-compose_dev.yml up`
-This will start up a Postgres container and the main app container. In production, several functions in the app container are actually run either as serverless functions via AWS Lambda, and others are queued as an AWS Batch job.
+## Development
 
+Apatosaurus is now a frontend-only SvelteKit app. The legacy Django backend and bundled reverse-proxy deployment have been removed.
+
+Install dependencies from the repository root or from `app/` with the full monorepo checked out:
+
+```sh
+bun install
+```
+
+Start the development server from `app/`:
+
+```sh
+bun run dev
+```
+
+See `app/README.md` for app-specific setup and quality gates.
 
 ## Production
-In Apatosaurus' brief history, it has been run as several services all within an AWS EC2 instance and it has been deployed to AWS Fargate as a cluster of services running in containers.
 
-Now Apatosaurus runs in an AWS Lambda serverless function and uses Zappa to automate (some) of the infrustructure setup. Tasks that would have been run in a task server are now run by starting another serverless function. Long tasks are sent to AWS Batch, which does not have a timeout like a Lambda, but at the expense of much longer startup times for each job. This option seems to provide the best balance of performance and affordability.
+The app builds as static SvelteKit output and is deployed by the GitHub Pages workflow in `.github/workflows/app-pages.yml`.
