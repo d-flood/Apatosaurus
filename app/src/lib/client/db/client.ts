@@ -12,6 +12,8 @@ import type {
 	TranscriptionRpcResponse,
 	IiifRpcRequest,
 	IiifRpcResponse,
+	RevisionRpcRequest,
+	RevisionRpcResponse,
 } from './rpc';
 import type { W3CAnnotation } from 'triiiceratops/plugins/annotation-editor';
 import type {
@@ -40,6 +42,12 @@ import type {
 	UpdateProjectMetadataInput,
 } from './repositories/projects';
 import type { EnsureManifestSourceInput } from './repositories/iiif';
+import type {
+	CollationCheckpoint,
+	CommitCollationInput,
+	CommitTranscriptionInput,
+	TranscriptionCheckpoint,
+} from './repositories/revisions';
 import type { AnnotationAnchor, ManifestSourceSummary, PageCanvasLink, SavePageCanvasLinkInput } from '../iiif/types';
 
 const DB_REQUEST_TIMEOUT_MS = 60_000;
@@ -280,6 +288,26 @@ export async function deleteCanvasAnnotation(input: { transcriptionId: string; m
 	await sendIiifRequest({ type: 'iiif.deleteCanvasAnnotation', input });
 }
 
+export async function createCommittedTranscriptionCheckpoint(
+	input: CommitTranscriptionInput
+): Promise<TranscriptionCheckpoint> {
+	return sendRevisionRequest({ type: 'revisions.commitTranscription', input });
+}
+
+export async function createCommittedCollationCheckpoint(
+	input: CommitCollationInput
+): Promise<CollationCheckpoint> {
+	return sendRevisionRequest({ type: 'revisions.commitCollation', input });
+}
+
+export async function isTranscriptionDirty(projectTranscriptionId: string): Promise<boolean> {
+	return sendRevisionRequest({ type: 'revisions.isTranscriptionDirty', projectTranscriptionId });
+}
+
+export async function isCollationDirty(collationId: string): Promise<boolean> {
+	return sendRevisionRequest({ type: 'revisions.isCollationDirty', collationId });
+}
+
 export function attachLocalDbClient(worker: Worker): void {
 	worker.addEventListener('message', (event: MessageEvent<DbResponse | DbInvalidationEvent>) => {
 		const message = event.data;
@@ -368,4 +396,10 @@ async function sendIiifRequest<T extends IiifRpcRequest>(
 	payload: T,
 ): Promise<IiifRpcResponse<T['type']>> {
 	return send<IiifRpcResponse<T['type']>>(payload);
+}
+
+async function sendRevisionRequest<T extends RevisionRpcRequest>(
+	payload: T
+): Promise<RevisionRpcResponse<T['type']>> {
+	return send<RevisionRpcResponse<T['type']>>(payload);
 }

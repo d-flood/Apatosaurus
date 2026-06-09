@@ -8,7 +8,7 @@ The sequence assumes Apatosaurus is still greenfield: change the initial schema 
 
 1. [x] [Session 01: Initial Schema and Generated Types](cloud_sync_01_initial_schema.md)
 2. [x] [Session 02: Project Transcription Snapshots](cloud_sync_02_project_snapshots.md)
-3. [Session 03: Revisions, Hashes, and Checkpoints](cloud_sync_03_revisions_hashes_checkpoints.md)
+3. [x] [Session 03: Revisions, Hashes, and Checkpoints](cloud_sync_03_revisions_hashes_checkpoints.md)
 4. [Session 04: Serialization Formats](cloud_sync_04_serialization_formats.md)
 5. [Session 05: Collation Versioning, Tombstones, and Conflicts](cloud_sync_05_collation_tombstones_conflicts.md)
 6. [Session 06: Provider Interface, Auth, and Mock Provider](cloud_sync_06_provider_auth_mock.md)

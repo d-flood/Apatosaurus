@@ -34,6 +34,12 @@ import {
 	updateTranscriptionContent,
 } from './repositories/transcriptions';
 import * as iiifRepository from './repositories/iiif';
+import {
+	createCommittedCollationCheckpoint,
+	createCommittedTranscriptionCheckpoint,
+	isCollationDirty,
+	isTranscriptionDirty,
+} from './repositories/revisions';
 import { clearDomainTables } from './repositories/maintenance';
 import type { Database } from './types.generated';
 import { createWorkerKysely } from './worker-kysely';
@@ -233,6 +239,18 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 		postMessage({ type: 'db:invalidate', domain: 'iiif' });
 		return null;
 	}
+	if (request.type === 'revisions.commitTranscription') {
+		const checkpoint = await createCommittedTranscriptionCheckpoint(getKyselyDb(), request.input);
+		postMessage({ type: 'db:invalidate', domain: 'transcriptions' });
+		return checkpoint;
+	}
+	if (request.type === 'revisions.commitCollation') {
+		const checkpoint = await createCommittedCollationCheckpoint(getKyselyDb(), request.input);
+		postMessage({ type: 'db:invalidate', domain: 'collations' });
+		return checkpoint;
+	}
+	if (request.type === 'revisions.isTranscriptionDirty') return isTranscriptionDirty(getKyselyDb(), request.projectTranscriptionId);
+	if (request.type === 'revisions.isCollationDirty') return isCollationDirty(getKyselyDb(), request.collationId);
 	if (request.type === 'transaction') {
 		await db.transaction(request.statements);
 		postMessage({ type: 'db:invalidate', domain: inferInvalidationDomain(request.statements.map((s) => s.sql).join('\n')) });

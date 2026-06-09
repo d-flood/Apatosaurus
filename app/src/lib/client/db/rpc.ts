@@ -31,6 +31,12 @@ import type {
 	ManifestSourceIdInput,
 	UpsertCanvasAnnotationInput,
 } from './repositories/iiif';
+import type {
+	CollationCheckpoint,
+	CommitCollationInput,
+	CommitTranscriptionInput,
+	TranscriptionCheckpoint,
+} from './repositories/revisions';
 import type { ManifestSourceSummary, PageCanvasLink, SavePageCanvasLinkInput } from '../iiif/types';
 import type { W3CAnnotation } from 'triiiceratops/plugins/annotation-editor';
 
@@ -149,6 +155,29 @@ export type IiifRpcRequest = IiifRpcMap[keyof IiifRpcMap]['request'];
 
 export type IiifRpcResponse<T extends IiifRpcRequest['type']> = IiifRpcMap[T]['response'];
 
+export interface RevisionRpcMap {
+	'revisions.commitTranscription': {
+		request: { type: 'revisions.commitTranscription'; input: CommitTranscriptionInput };
+		response: TranscriptionCheckpoint;
+	};
+	'revisions.commitCollation': {
+		request: { type: 'revisions.commitCollation'; input: CommitCollationInput };
+		response: CollationCheckpoint;
+	};
+	'revisions.isTranscriptionDirty': {
+		request: { type: 'revisions.isTranscriptionDirty'; projectTranscriptionId: string };
+		response: boolean;
+	};
+	'revisions.isCollationDirty': {
+		request: { type: 'revisions.isCollationDirty'; collationId: string };
+		response: boolean;
+	};
+}
+
+export type RevisionRpcRequest = RevisionRpcMap[keyof RevisionRpcMap]['request'];
+
+export type RevisionRpcResponse<T extends RevisionRpcRequest['type']> = RevisionRpcMap[T]['response'];
+
 export type DbRequest =
 	| { id?: number; type: 'init' }
 	| { id?: number; type: 'query'; sql: string; params?: DbValue[] }
@@ -160,7 +189,8 @@ export type DbRequest =
 	| ({ id?: number } & TranscriptionRpcRequest)
 	| ({ id?: number } & ProjectRpcRequest)
 	| ({ id?: number } & CollationRpcRequest)
-	| ({ id?: number } & IiifRpcRequest);
+	| ({ id?: number } & IiifRpcRequest)
+	| ({ id?: number } & RevisionRpcRequest);
 
 export type DbRequestPayload =
 	| { type: 'init' }
@@ -173,7 +203,8 @@ export type DbRequestPayload =
 	| TranscriptionRpcRequest
 	| ProjectRpcRequest
 	| CollationRpcRequest
-	| IiifRpcRequest;
+	| IiifRpcRequest
+	| RevisionRpcRequest;
 
 export type DbResponse =
 	| { id: number; ok: true; result?: unknown }
