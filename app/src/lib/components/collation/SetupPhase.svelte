@@ -85,7 +85,7 @@
 			error = null;
 			statusMessage = null;
 			try {
-				allTranscriptions = await listTranscriptions();
+				allTranscriptions = await listTranscriptions(currentProjectId);
 				selectedTranscriptionIds = await getProjectTranscriptionIds(currentProjectId);
 				await reloadVerses();
 			} catch (err) {
@@ -145,7 +145,8 @@
 	});
 
 	async function toggleProjectTranscription(transcriptionId: string) {
-		if (!collationState.projectId) return;
+		const projectId = collationState.projectId;
+		if (!projectId) return;
 		isSavingTranscriptions = true;
 		error = null;
 		statusMessage = null;
@@ -153,8 +154,10 @@
 			const nextIds = selectedTranscriptionIds.includes(transcriptionId)
 				? selectedTranscriptionIds.filter(id => id !== transcriptionId)
 				: [...selectedTranscriptionIds, transcriptionId];
-			await syncProjectTranscriptionIds(collationState.projectId, nextIds);
-			selectedTranscriptionIds = nextIds;
+			const syncedIds = await syncProjectTranscriptionIds(projectId, nextIds);
+			if (collationState.projectId !== projectId) return;
+			selectedTranscriptionIds = syncedIds;
+			allTranscriptions = await listTranscriptions(projectId);
 			collationState.setWitnesses([]);
 			collationState.selectedVerse = null;
 			collationState.selectedBook = '';

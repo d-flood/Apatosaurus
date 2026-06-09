@@ -139,13 +139,15 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 		postMessage({ type: 'db:invalidate', domain: 'projects' });
 		return null;
 	}
-	if (request.type === 'projects.listTranscriptionOptions') return listProjectTranscriptionOptions(getKyselyDb());
+	if (request.type === 'projects.listTranscriptionOptions') return listProjectTranscriptionOptions(getKyselyDb(), request.projectId);
 	if (request.type === 'projects.loadTranscriptionContent') return loadTranscriptionContent(getKyselyDb(), request.transcriptionId);
 	if (request.type === 'projects.getTranscriptionIds') return getProjectTranscriptionIds(getKyselyDb(), request.projectId);
 	if (request.type === 'projects.syncTranscriptionIds') {
-		await syncProjectTranscriptionIds(getKyselyDb(), request.projectId, request.nextIds);
+		const ids = await syncProjectTranscriptionIds(getKyselyDb(), request.projectId, request.nextIds);
 		postMessage({ type: 'db:invalidate', domain: 'projects' });
-		return null;
+		postMessage({ type: 'db:invalidate', domain: 'transcriptions' });
+		postMessage({ type: 'db:invalidate', domain: 'iiif' });
+		return ids;
 	}
 	if (request.type === 'collations.listWithProjectNames') return listCollationsWithProjectNames(getKyselyDb());
 	if (request.type === 'collations.create') {

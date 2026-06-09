@@ -120,8 +120,6 @@ export async function getTranscriptionVersionsByIds(
 		.selectFrom('transcriptions')
 		.select(['id', 'updated_at'])
 		.where('id', 'in', uniqueIds)
-		.where('scope_type', '=', 'global')
-		.where('project_id', 'is', null)
 		.execute();
 	const byId = new Map(rows.map((row) => [row.id, { ...row, id: requireId(row.id, 'transcription') }]));
 	return uniqueIds.flatMap((id) => {
@@ -138,8 +136,6 @@ export async function getTranscription(
 		.selectFrom('transcriptions')
 		.selectAll()
 		.where('id', '=', id)
-		.where('scope_type', '=', 'global')
-		.where('project_id', 'is', null)
 		.executeTakeFirst();
 	return row ? mapTranscription(row) : null;
 }
@@ -154,8 +150,6 @@ export async function getTranscriptionsByIds(
 		.selectFrom('transcriptions')
 		.selectAll()
 		.where('id', 'in', uniqueIds)
-		.where('scope_type', '=', 'global')
-		.where('project_id', 'is', null)
 		.execute();
 	const byId = new Map(rows.map((row) => [row.id, mapTranscription(row)]));
 	return uniqueIds.flatMap((id) => {

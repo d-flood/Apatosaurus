@@ -178,12 +178,13 @@ export async function updateProjectMetadata(
 	await updateLocalProjectMetadata({ projectId, ...updates });
 }
 
-export async function listTranscriptions(): Promise<ProjectTranscriptionOption[]> {
+export async function listTranscriptions(projectId?: string): Promise<ProjectTranscriptionOption[]> {
 	const queryStartedAt = nowMs();
-	const rows = await listProjectTranscriptionOptions();
+	const rows = await listProjectTranscriptionOptions(projectId);
 	const queryElapsedMs = nowMs() - queryStartedAt;
 	const options = rows.map(row => ({ ...row, hands: [] as ProjectTranscriptionHandOption[] }));
 	logProjectCollation('listTranscriptions completed', {
+		projectId,
 		rowCount: rows.length,
 		queryElapsedMs,
 	});
@@ -206,6 +207,6 @@ export async function getProjectTranscriptionIds(projectId: string): Promise<str
 export async function syncProjectTranscriptionIds(
 	projectId: string,
 	nextIds: string[]
-): Promise<void> {
-	await syncLocalProjectTranscriptionIds(projectId, nextIds);
+): Promise<string[]> {
+	return syncLocalProjectTranscriptionIds(projectId, nextIds);
 }

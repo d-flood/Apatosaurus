@@ -168,8 +168,8 @@ export async function updateProjectMetadata(input: UpdateProjectMetadataInput): 
 	await sendProjectRequest({ type: 'projects.updateMetadata', input });
 }
 
-export async function listProjectTranscriptionOptions(): Promise<ProjectTranscriptionOption[]> {
-	return sendProjectRequest({ type: 'projects.listTranscriptionOptions' });
+export async function listProjectTranscriptionOptions(projectId?: string): Promise<ProjectTranscriptionOption[]> {
+	return sendProjectRequest({ type: 'projects.listTranscriptionOptions', projectId });
 }
 
 export async function loadProjectTranscriptionContent(transcriptionId: string): Promise<string | null> {
@@ -180,8 +180,8 @@ export async function getProjectTranscriptionIds(projectId: string): Promise<str
 	return sendProjectRequest({ type: 'projects.getTranscriptionIds', projectId });
 }
 
-export async function syncProjectTranscriptionIds(projectId: string, nextIds: string[]): Promise<void> {
-	await sendProjectRequest({ type: 'projects.syncTranscriptionIds', projectId, nextIds });
+export async function syncProjectTranscriptionIds(projectId: string, nextIds: string[]): Promise<string[]> {
+	return sendProjectRequest({ type: 'projects.syncTranscriptionIds', projectId, nextIds });
 }
 
 export async function listCollationsWithProjectNames(): Promise<CollationListItem[]> {

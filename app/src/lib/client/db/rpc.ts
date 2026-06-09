@@ -101,10 +101,10 @@ export interface ProjectRpcMap {
 	'projects.get': { request: { type: 'projects.get'; projectId: string }; response: ProjectRecord | null };
 	'projects.create': { request: { type: 'projects.create'; input: CreateProjectInput }; response: string };
 	'projects.updateMetadata': { request: { type: 'projects.updateMetadata'; input: UpdateProjectMetadataInput }; response: null };
-	'projects.listTranscriptionOptions': { request: { type: 'projects.listTranscriptionOptions' }; response: ProjectTranscriptionOption[] };
+	'projects.listTranscriptionOptions': { request: { type: 'projects.listTranscriptionOptions'; projectId?: string }; response: ProjectTranscriptionOption[] };
 	'projects.loadTranscriptionContent': { request: { type: 'projects.loadTranscriptionContent'; transcriptionId: string }; response: string | null };
 	'projects.getTranscriptionIds': { request: { type: 'projects.getTranscriptionIds'; projectId: string }; response: string[] };
-	'projects.syncTranscriptionIds': { request: { type: 'projects.syncTranscriptionIds'; projectId: string; nextIds: string[] }; response: null };
+	'projects.syncTranscriptionIds': { request: { type: 'projects.syncTranscriptionIds'; projectId: string; nextIds: string[] }; response: string[] };
 }
 
 export type ProjectRpcRequest = ProjectRpcMap[keyof ProjectRpcMap]['request'];

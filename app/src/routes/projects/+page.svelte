@@ -180,16 +180,20 @@
 		}
 	}
 
-	async function loadTranscriptionCatalog(runId: number, preferredProjectId: string | null) {
+	async function loadTranscriptionCatalog(runId: number, projectId: string | null) {
 		isLoadingTranscriptions = true;
 		try {
-			const transcriptionRows = await runLoggedStep('listTranscriptions', () => listTranscriptions(), {
-				preferredProjectId,
-				runId,
-			});
+			const transcriptionRows = await runLoggedStep(
+				'listTranscriptions',
+				() => listTranscriptions(projectId ?? undefined),
+				{
+					projectId,
+					runId,
+				},
+			);
 			if (runId !== bootstrapRunId) {
 				logProjects('warn', 'discarded stale transcription catalog load', {
-					preferredProjectId,
+					projectId,
 					runId,
 					activeRunId: bootstrapRunId,
 				});
@@ -197,7 +201,7 @@
 			}
 			allTranscriptions = transcriptionRows;
 			logProjects('debug', 'transcription catalog loaded', {
-				preferredProjectId,
+				projectId,
 				runId,
 				transcriptionCount: transcriptionRows.length,
 			});
@@ -208,7 +212,7 @@
 			}
 			error = err instanceof Error ? err.message : 'Failed to load transcriptions';
 			logProjects('error', 'transcription catalog failed', {
-				preferredProjectId,
+				projectId,
 				runId,
 				error,
 			});
@@ -217,6 +221,15 @@
 				isLoadingTranscriptions = false;
 			}
 		}
+	}
+
+	async function selectProject(projectId: string) {
+		const runId = ++bootstrapRunId;
+		await loadProject(projectId);
+		if (runId !== bootstrapRunId || selectedProjectId !== projectId) {
+			return;
+		}
+		void loadTranscriptionCatalog(runId, projectId);
 	}
 
 	async function bootstrap(preferredProjectId: string | null = null) {
@@ -267,7 +280,6 @@
 				(preferredProjectId && availableIds.has(preferredProjectId) && preferredProjectId) ||
 				(selectedProjectId && availableIds.has(selectedProjectId) && selectedProjectId) ||
 				projectRows[0]!.id;
-			void loadTranscriptionCatalog(runId, preferredProjectId);
 			await runLoggedStep('loadProject', () => loadProject(nextProjectId), {
 				preferredProjectId,
 				projectId: nextProjectId,
@@ -276,6 +288,7 @@
 			if (runId !== bootstrapRunId) {
 				return;
 			}
+			void loadTranscriptionCatalog(runId, nextProjectId);
 			logProjects('debug', 'bootstrap critical path completed', {
 				preferredProjectId,
 				projectId: nextProjectId,
@@ -463,17 +476,18 @@
 	}
 
 	async function toggleAllProjectTranscriptions(checked: boolean) {
-		if (!selectedProjectId) return;
+		const projectId = selectedProjectId;
+		if (!projectId) return;
 		isSavingTranscriptions = true;
 		error = null;
 		try {
 			const nextIds = checked ? allTranscriptions.map((t) => t.id) : [];
-			await syncProjectTranscriptionIds(selectedProjectId, nextIds);
-			selectedTranscriptionIds = nextIds;
-			touchProjectList(selectedProjectId, {}, new Date().toISOString());
-			if (checked) {
-				void loadHandsForSelectedTranscriptions();
-			}
+			const syncedIds = await syncProjectTranscriptionIds(projectId, nextIds);
+			touchProjectList(projectId, {}, new Date().toISOString());
+			if (selectedProjectId !== projectId) return;
+			const runId = ++bootstrapRunId;
+			selectedTranscriptionIds = syncedIds;
+			await loadTranscriptionCatalog(runId, projectId);
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Failed to update project transcriptions';
 		} finally {
@@ -501,20 +515,20 @@
 	}
 
 	async function toggleProjectTranscription(transcriptionId: string) {
-		if (!selectedProjectId) return;
+		const projectId = selectedProjectId;
+		if (!projectId) return;
 		isSavingTranscriptions = true;
 		error = null;
 		try {
-			const wasSelected = selectedTranscriptionIds.includes(transcriptionId);
-			const nextIds = wasSelected
+			const nextIds = selectedTranscriptionIds.includes(transcriptionId)
 				? selectedTranscriptionIds.filter((id) => id !== transcriptionId)
 				: [...selectedTranscriptionIds, transcriptionId];
-			await syncProjectTranscriptionIds(selectedProjectId, nextIds);
-			selectedTranscriptionIds = nextIds;
-			touchProjectList(selectedProjectId, {}, new Date().toISOString());
-			if (!wasSelected) {
-				void ensureTranscriptionHands(transcriptionId);
-			}
+			const syncedIds = await syncProjectTranscriptionIds(projectId, nextIds);
+			touchProjectList(projectId, {}, new Date().toISOString());
+			if (selectedProjectId !== projectId) return;
+			const runId = ++bootstrapRunId;
+			selectedTranscriptionIds = syncedIds;
+			await loadTranscriptionCatalog(runId, projectId);
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Failed to update project transcriptions';
 		} finally {
@@ -653,7 +667,7 @@
 										}`}
 										onclick={() => {
 											if (project.id !== selectedProjectId) {
-												void loadProject(project.id);
+												void selectProject(project.id);
 											}
 										}}
 									>

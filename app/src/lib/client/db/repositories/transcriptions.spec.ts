@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import { createProject, syncProjectTranscriptionIds } from './projects';
 import { createLocalDbTestHarness, type LocalDbTestHarness } from '../test-harness';
 import {
 	createTranscription,
@@ -163,6 +164,31 @@ describe('transcriptions repository', () => {
 		expect(versions.map((row) => row.id)).toEqual(['tx-3', 'tx-1']);
 		expect(versions[0]).toEqual({ id: 'tx-3', updated_at: expect.any(String) });
 		expect(versions[0]).not.toHaveProperty('content_json');
+	});
+
+	it('excludes project snapshots from global library queries but loads them by direct id', async () => {
+		await createTranscription(harness.db, {
+			...baseInput('tx-1', '01'),
+			document: documentWithVerses(['Romans 1:1']),
+		});
+		await createProject(harness.db, { id: 'project-1', name: 'Project' });
+		const [snapshotId] = await syncProjectTranscriptionIds(harness.db, 'project-1', ['tx-1']);
+
+		const summaries = await listTranscriptionSummaries(harness.db);
+		const snapshotSummary = await getTranscriptionSummary(harness.db, snapshotId);
+		const loadedByIds = await getTranscriptionsByIds(harness.db, [snapshotId, 'tx-1']);
+		const versions = await getTranscriptionVersionsByIds(harness.db, [snapshotId]);
+		const snapshot = await getTranscription(harness.db, snapshotId);
+
+		expect(summaries.map((row) => row.id)).toEqual(['tx-1']);
+		expect(snapshotSummary).toBeNull();
+		expect(loadedByIds.map((row) => row.id)).toEqual([snapshotId, 'tx-1']);
+		expect(versions.map((row) => row.id)).toEqual([snapshotId]);
+		expect(snapshot).toMatchObject({
+			id: snapshotId,
+			scope_type: 'project_snapshot',
+			project_id: 'project-1',
+		});
 	});
 
 	it('replaces verse indexes when content is updated', async () => {
