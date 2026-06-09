@@ -1,5 +1,9 @@
 export interface Database {
+	cloud_connections: CloudConnections;
+	cloud_project_folders: CloudProjectFolders;
+	cloud_sync_metadata: CloudSyncMetadata;
 	collation_artifacts: CollationArtifacts;
+	collation_checkpoints: CollationCheckpoints;
 	collation_reading_witnesses: CollationReadingWitnesses;
 	collation_readings: CollationReadings;
 	collation_tokens: CollationTokens;
@@ -11,9 +15,46 @@ export interface Database {
 	project_transcriptions: ProjectTranscriptions;
 	projects: Projects;
 	schema_migrations: SchemaMigrations;
+	sync_tombstones: SyncTombstones;
+	transcription_checkpoints: TranscriptionCheckpoints;
 	transcription_page_canvas_links: TranscriptionPageCanvasLinks;
 	transcription_verse_index: TranscriptionVerseIndex;
 	transcriptions: Transcriptions;
+}
+
+export interface CloudConnections {
+	id: string | null;
+	provider_id: string;
+	provider_account_id: string;
+	account_email: string;
+	scopes: string;
+	access_token: string;
+	refresh_token: string | null;
+	expires_at: number | null;
+	connected_at: string;
+	updated_at: string;
+}
+
+export interface CloudProjectFolders {
+	project_id: string | null;
+	connection_id: string;
+	cloud_folder_id: string;
+	cloud_folder_path: string;
+	sync_cursor: string;
+	last_fully_synced_at: string | null;
+}
+
+export interface CloudSyncMetadata {
+	connection_id: string;
+	scope_type: string;
+	scope_id: string;
+	entity_type: string;
+	entity_id: string;
+	cloud_file_id: string;
+	cloud_path: string;
+	last_synced_revision: string;
+	last_synced_hash: string;
+	last_synced_at: string;
 }
 
 export interface CollationArtifacts {
@@ -21,6 +62,18 @@ export interface CollationArtifacts {
 	collation_id: string;
 	artifact_type: string;
 	payload: string;
+	created_at: string;
+}
+
+export interface CollationCheckpoints {
+	id: string | null;
+	collation_id: string;
+	parent_checkpoint_id: string | null;
+	payload: string;
+	content_hash: string;
+	is_committed: number;
+	commit_message: string | null;
+	author_name: string;
 	created_at: string;
 }
 
@@ -62,13 +115,17 @@ export interface CollationWitnesses {
 	witness_id: string;
 	content: string;
 	position: number;
-	source_version: string;
+	project_transcription_id: string | null;
 	transcription_id: string | null;
+	source_revision_id: string;
+	source_content_hash: string;
 }
 
 export interface Collations {
 	id: string | null;
 	project_id: string | null;
+	current_revision_id: string;
+	current_content_hash: string;
 	title: string;
 	verse_identifier: string;
 	status: string;
@@ -113,6 +170,7 @@ export interface ProjectTranscriptions {
 	id: string | null;
 	project_id: string;
 	transcription_id: string;
+	canonical_transcription_id: string | null;
 	added_at: string;
 	added_by_id: number | null;
 }
@@ -132,6 +190,30 @@ export interface SchemaMigrations {
 	version: number | null;
 	name: string;
 	applied_at: string;
+}
+
+export interface SyncTombstones {
+	id: string | null;
+	project_id: string | null;
+	entity_type: string;
+	entity_id: string;
+	cloud_path: string;
+	deletion_revision_id: string;
+	deleted_by: string;
+	deleted_at: string;
+}
+
+export interface TranscriptionCheckpoints {
+	id: string | null;
+	transcription_id: string;
+	parent_checkpoint_id: string | null;
+	format: string;
+	payload: string;
+	content_hash: string;
+	is_committed: number;
+	commit_message: string | null;
+	author_name: string;
+	created_at: string;
 }
 
 export interface TranscriptionPageCanvasLinks {
@@ -164,6 +246,15 @@ export interface TranscriptionVerseIndex {
 
 export interface Transcriptions {
 	id: string | null;
+	scope_type: string;
+	project_id: string | null;
+	origin_type: string;
+	origin_project_id: string | null;
+	origin_transcription_id: string | null;
+	origin_revision_id: string;
+	origin_content_hash: string;
+	current_revision_id: string;
+	current_content_hash: string;
 	title: string;
 	siglum: string;
 	description: string;

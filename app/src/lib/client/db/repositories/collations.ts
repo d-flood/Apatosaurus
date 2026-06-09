@@ -153,6 +153,8 @@ export async function createCollation(db: DbExecutor, input: CreateCollationInpu
 		.values({
 			id,
 			project_id: input.projectId,
+			current_revision_id: '',
+			current_content_hash: '',
 			title: input.title,
 			verse_identifier: input.verseIdentifier,
 			status: 'setup',
@@ -220,7 +222,8 @@ export async function saveCollationProjection(db: Kysely<Database>, input: SaveC
 					collation_id: input.collationId,
 					witness_id: row.witnessId,
 					transcription_id: row.transcriptionId,
-					source_version: row.sourceVersion,
+					source_revision_id: row.sourceVersion,
+					source_content_hash: '',
 					content: row.content,
 					position: row.position,
 				})))
@@ -353,7 +356,7 @@ async function loadProjection(db: DbExecutor, collationId: string): Promise<Coll
 		witnesses: witnesses.map((row) => ({
 			witnessId: row.witness_id,
 			transcriptionId: row.transcription_id,
-			sourceVersion: row.source_version,
+			sourceVersion: row.source_revision_id,
 			content: row.content,
 			position: row.position,
 		})),

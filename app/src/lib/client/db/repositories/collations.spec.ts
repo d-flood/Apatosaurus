@@ -149,6 +149,8 @@ async function insertCollation(id: string, title: string, updatedAt: string): Pr
 		.values({
 			id,
 			project_id: 'project-1',
+			current_revision_id: '',
+			current_content_hash: '',
 			title,
 			verse_identifier: 'Rom 1:1',
 			status: 'setup',

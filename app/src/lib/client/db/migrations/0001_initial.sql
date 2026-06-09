@@ -6,8 +6,30 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 	applied_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS projects (
+	id TEXT PRIMARY KEY,
+	name TEXT NOT NULL,
+	description TEXT NOT NULL DEFAULT '',
+	charter TEXT NOT NULL DEFAULT '',
+	collation_settings TEXT NOT NULL DEFAULT '{}',
+	owner_id INTEGER,
+	created_at TEXT NOT NULL,
+	updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_projects_updated_at ON projects(updated_at DESC);
+
 CREATE TABLE IF NOT EXISTS transcriptions (
 	id TEXT PRIMARY KEY,
+	scope_type TEXT NOT NULL DEFAULT 'global',
+	project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
+	origin_type TEXT NOT NULL DEFAULT '',
+	origin_project_id TEXT,
+	origin_transcription_id TEXT,
+	origin_revision_id TEXT NOT NULL DEFAULT '',
+	origin_content_hash TEXT NOT NULL DEFAULT '',
+	current_revision_id TEXT NOT NULL DEFAULT '',
+	current_content_hash TEXT NOT NULL DEFAULT '',
 	title TEXT NOT NULL,
 	siglum TEXT NOT NULL,
 	description TEXT NOT NULL DEFAULT '',
@@ -24,7 +46,8 @@ CREATE TABLE IF NOT EXISTS transcriptions (
 	language TEXT NOT NULL DEFAULT ''
 );
 
-CREATE INDEX IF NOT EXISTS idx_transcriptions_updated_at ON transcriptions(updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_transcriptions_scope ON transcriptions(scope_type, project_id, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_transcriptions_origin ON transcriptions(origin_transcription_id, origin_revision_id);
 
 CREATE TABLE IF NOT EXISTS transcription_verse_index (
 	id TEXT PRIMARY KEY,
@@ -40,23 +63,11 @@ CREATE TABLE IF NOT EXISTS transcription_verse_index (
 CREATE INDEX IF NOT EXISTS idx_transcription_verse_index_transcription_id ON transcription_verse_index(transcription_id);
 CREATE INDEX IF NOT EXISTS idx_transcription_verse_index_verse_identifier ON transcription_verse_index(verse_identifier, transcription_id);
 
-CREATE TABLE IF NOT EXISTS projects (
-	id TEXT PRIMARY KEY,
-	name TEXT NOT NULL,
-	description TEXT NOT NULL DEFAULT '',
-	charter TEXT NOT NULL DEFAULT '',
-	collation_settings TEXT NOT NULL DEFAULT '{}',
-	owner_id INTEGER,
-	created_at TEXT NOT NULL,
-	updated_at TEXT NOT NULL
-);
-
-CREATE INDEX IF NOT EXISTS idx_projects_updated_at ON projects(updated_at DESC);
-
 CREATE TABLE IF NOT EXISTS project_transcriptions (
 	id TEXT PRIMARY KEY,
 	project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
 	transcription_id TEXT NOT NULL REFERENCES transcriptions(id) ON DELETE CASCADE,
+	canonical_transcription_id TEXT,
 	added_at TEXT NOT NULL,
 	added_by_id INTEGER,
 	UNIQUE(project_id, transcription_id)
@@ -64,10 +75,13 @@ CREATE TABLE IF NOT EXISTS project_transcriptions (
 
 CREATE INDEX IF NOT EXISTS idx_project_transcriptions_project_id ON project_transcriptions(project_id);
 CREATE INDEX IF NOT EXISTS idx_project_transcriptions_transcription_id ON project_transcriptions(transcription_id);
+CREATE INDEX IF NOT EXISTS idx_project_transcriptions_canonical ON project_transcriptions(canonical_transcription_id);
 
 CREATE TABLE IF NOT EXISTS collations (
 	id TEXT PRIMARY KEY,
 	project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
+	current_revision_id TEXT NOT NULL DEFAULT '',
+	current_content_hash TEXT NOT NULL DEFAULT '',
 	title TEXT NOT NULL,
 	verse_identifier TEXT NOT NULL DEFAULT '',
 	status TEXT NOT NULL DEFAULT 'draft',
@@ -96,8 +110,10 @@ CREATE TABLE IF NOT EXISTS collation_witnesses (
 	witness_id TEXT NOT NULL,
 	content TEXT NOT NULL DEFAULT '',
 	position INTEGER NOT NULL DEFAULT 0,
-	source_version TEXT NOT NULL DEFAULT '',
+	project_transcription_id TEXT REFERENCES project_transcriptions(id) ON DELETE SET NULL,
 	transcription_id TEXT REFERENCES transcriptions(id) ON DELETE SET NULL,
+	source_revision_id TEXT NOT NULL DEFAULT '',
+	source_content_hash TEXT NOT NULL DEFAULT '',
 	UNIQUE(collation_id, witness_id)
 );
 
@@ -195,3 +211,86 @@ CREATE TABLE IF NOT EXISTS iiif_canvas_annotations (
 
 CREATE INDEX IF NOT EXISTS idx_canvas_annotations_canvas_id ON iiif_canvas_annotations(canvas_id);
 CREATE INDEX IF NOT EXISTS idx_canvas_annotations_page_id ON iiif_canvas_annotations(page_id);
+
+CREATE TABLE IF NOT EXISTS cloud_connections (
+	id TEXT PRIMARY KEY,
+	provider_id TEXT NOT NULL,
+	provider_account_id TEXT NOT NULL DEFAULT '',
+	account_email TEXT NOT NULL,
+	scopes TEXT NOT NULL DEFAULT '[]',
+	access_token TEXT NOT NULL,
+	refresh_token TEXT,
+	expires_at INTEGER,
+	connected_at TEXT NOT NULL,
+	updated_at TEXT NOT NULL,
+	UNIQUE(provider_id, provider_account_id)
+);
+
+CREATE TABLE IF NOT EXISTS cloud_project_folders (
+	project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
+	connection_id TEXT NOT NULL REFERENCES cloud_connections(id) ON DELETE RESTRICT,
+	cloud_folder_id TEXT NOT NULL,
+	cloud_folder_path TEXT NOT NULL,
+	sync_cursor TEXT NOT NULL DEFAULT '',
+	last_fully_synced_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS cloud_sync_metadata (
+	connection_id TEXT NOT NULL REFERENCES cloud_connections(id) ON DELETE CASCADE,
+	scope_type TEXT NOT NULL,
+	scope_id TEXT NOT NULL,
+	entity_type TEXT NOT NULL,
+	entity_id TEXT NOT NULL,
+	cloud_file_id TEXT NOT NULL,
+	cloud_path TEXT NOT NULL,
+	last_synced_revision TEXT NOT NULL,
+	last_synced_hash TEXT NOT NULL,
+	last_synced_at TEXT NOT NULL,
+	PRIMARY KEY (connection_id, scope_type, scope_id, entity_type, entity_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_cloud_sync_metadata_scope ON cloud_sync_metadata(scope_type, scope_id);
+CREATE INDEX IF NOT EXISTS idx_cloud_sync_metadata_path ON cloud_sync_metadata(connection_id, cloud_path);
+
+CREATE TABLE IF NOT EXISTS transcription_checkpoints (
+	id TEXT PRIMARY KEY,
+	transcription_id TEXT NOT NULL REFERENCES transcriptions(id) ON DELETE CASCADE,
+	parent_checkpoint_id TEXT REFERENCES transcription_checkpoints(id) ON DELETE SET NULL,
+	format TEXT NOT NULL,
+	payload TEXT NOT NULL,
+	content_hash TEXT NOT NULL,
+	is_committed INTEGER NOT NULL DEFAULT 0,
+	commit_message TEXT,
+	author_name TEXT NOT NULL DEFAULT '',
+	created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_transcription_checkpoints_lookup ON transcription_checkpoints(transcription_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_transcription_checkpoints_committed ON transcription_checkpoints(transcription_id, is_committed, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS collation_checkpoints (
+	id TEXT PRIMARY KEY,
+	collation_id TEXT NOT NULL REFERENCES collations(id) ON DELETE CASCADE,
+	parent_checkpoint_id TEXT REFERENCES collation_checkpoints(id) ON DELETE SET NULL,
+	payload TEXT NOT NULL,
+	content_hash TEXT NOT NULL,
+	is_committed INTEGER NOT NULL DEFAULT 0,
+	commit_message TEXT,
+	author_name TEXT NOT NULL DEFAULT '',
+	created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_collation_checkpoints_lookup ON collation_checkpoints(collation_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_collation_checkpoints_committed ON collation_checkpoints(collation_id, is_committed, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS sync_tombstones (
+	id TEXT PRIMARY KEY,
+	project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
+	entity_type TEXT NOT NULL,
+	entity_id TEXT NOT NULL,
+	cloud_path TEXT NOT NULL,
+	deletion_revision_id TEXT NOT NULL DEFAULT '',
+	deleted_by TEXT NOT NULL DEFAULT '',
+	deleted_at TEXT NOT NULL,
+	UNIQUE(project_id, entity_type, entity_id)
+);

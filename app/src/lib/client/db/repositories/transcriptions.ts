@@ -84,6 +84,8 @@ export async function listTranscriptionSummaries(
 	const rows = await db
 		.selectFrom('transcriptions')
 		.select(['id', 'title', 'siglum', 'created_at', 'updated_at'])
+		.where('scope_type', '=', 'global')
+		.where('project_id', 'is', null)
 		.orderBy('updated_at', 'desc')
 		.execute();
 	console.debug('[local-db] transcriptions.listSummaries query completed', {
@@ -102,6 +104,8 @@ export async function getTranscriptionSummary(
 		.selectFrom('transcriptions')
 		.select(['id', 'title', 'siglum', 'created_at', 'updated_at'])
 		.where('id', '=', id)
+		.where('scope_type', '=', 'global')
+		.where('project_id', 'is', null)
 		.executeTakeFirst();
 	return row ? { ...row, id: requireId(row.id, 'transcription') } : null;
 }
@@ -116,6 +120,8 @@ export async function getTranscriptionVersionsByIds(
 		.selectFrom('transcriptions')
 		.select(['id', 'updated_at'])
 		.where('id', 'in', uniqueIds)
+		.where('scope_type', '=', 'global')
+		.where('project_id', 'is', null)
 		.execute();
 	const byId = new Map(rows.map((row) => [row.id, { ...row, id: requireId(row.id, 'transcription') }]));
 	return uniqueIds.flatMap((id) => {
@@ -128,7 +134,13 @@ export async function getTranscription(
 	db: DbExecutor,
 	id: string,
 ): Promise<TranscriptionRecord | null> {
-	const row = await db.selectFrom('transcriptions').selectAll().where('id', '=', id).executeTakeFirst();
+	const row = await db
+		.selectFrom('transcriptions')
+		.selectAll()
+		.where('id', '=', id)
+		.where('scope_type', '=', 'global')
+		.where('project_id', 'is', null)
+		.executeTakeFirst();
 	return row ? mapTranscription(row) : null;
 }
 
@@ -138,7 +150,13 @@ export async function getTranscriptionsByIds(
 ): Promise<TranscriptionRecord[]> {
 	const uniqueIds = uniqueNonEmpty(ids);
 	if (uniqueIds.length === 0) return [];
-	const rows = await db.selectFrom('transcriptions').selectAll().where('id', 'in', uniqueIds).execute();
+	const rows = await db
+		.selectFrom('transcriptions')
+		.selectAll()
+		.where('id', 'in', uniqueIds)
+		.where('scope_type', '=', 'global')
+		.where('project_id', 'is', null)
+		.execute();
 	const byId = new Map(rows.map((row) => [row.id, mapTranscription(row)]));
 	return uniqueIds.flatMap((id) => {
 		const row = byId.get(id);
@@ -275,6 +293,15 @@ function buildTranscriptionRow(input: CreateTranscriptionInput): Selectable<Tran
 	const now = new Date().toISOString();
 	return {
 		id: input.id ?? createId(),
+		scope_type: 'global',
+		project_id: null,
+		origin_type: '',
+		origin_project_id: null,
+		origin_transcription_id: null,
+		origin_revision_id: '',
+		origin_content_hash: '',
+		current_revision_id: '',
+		current_content_hash: '',
 		title: input.title.trim(),
 		siglum: input.siglum.trim(),
 		description: input.description?.trim() || '',
@@ -402,6 +429,8 @@ async function logSummaryQueryPlan(db: DbExecutor): Promise<void> {
 		const result = await sql`EXPLAIN QUERY PLAN
 			SELECT id, title, siglum, created_at, updated_at
 			FROM transcriptions
+			WHERE scope_type = 'global'
+				AND project_id IS NULL
 			ORDER BY updated_at DESC`.execute(db);
 		console.debug('[local-db] transcriptions.listSummaries query plan', {
 			rows: result.rows,

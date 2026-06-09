@@ -102,6 +102,8 @@ export async function listProjectTranscriptionOptions(
 	const rows = await db
 		.selectFrom('transcriptions')
 		.select(['id', 'siglum', 'title', 'description'])
+		.where('scope_type', '=', 'global')
+		.where('project_id', 'is', null)
 		.orderBy('siglum')
 		.execute();
 	return rows
@@ -123,6 +125,8 @@ export async function loadTranscriptionContent(
 		.selectFrom('transcriptions')
 		.select('content_json')
 		.where('id', '=', transcriptionId)
+		.where('scope_type', '=', 'global')
+		.where('project_id', 'is', null)
 		.executeTakeFirst();
 	return row?.content_json ?? null;
 }
@@ -162,6 +166,7 @@ export async function syncProjectTranscriptionIds(
 			id: createId(),
 			project_id: projectId,
 			transcription_id: transcriptionId,
+			canonical_transcription_id: null,
 			added_at: now,
 			added_by_id: null,
 		}));
