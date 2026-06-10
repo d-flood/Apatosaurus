@@ -13,7 +13,7 @@ The sequence assumes Apatosaurus is still greenfield: change the initial schema 
 5. [x] [Session 05: Collation Versioning, Tombstones, and Conflicts](cloud_sync_05_collation_tombstones_conflicts.md)
 6. [x] [Session 06: Provider Interface, Auth, and Mock Provider](cloud_sync_06_provider_auth_mock.md)
 7. [x] [Session 07: Dropbox Provider](cloud_sync_07_dropbox_provider.md)
-8. [Session 08: Sync Manager, Polling, and UI States](cloud_sync_08_sync_manager_polling_ui.md)
+8. [x] [Session 08: Sync Manager, Polling, and UI States](cloud_sync_08_sync_manager_polling_ui.md)
 9. [Session 09: Google Drive Provider](cloud_sync_09_google_drive_provider.md)
 
 ## Global Decisions

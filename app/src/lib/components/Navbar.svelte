@@ -2,6 +2,7 @@
 	import { browser } from '$app/environment';
 	import { asset, resolve } from '$app/paths';
 	import { notificationCenter } from '$lib/client/notification-center.svelte';
+	import SyncStatusIndicator from '$lib/components/SyncStatusIndicator.svelte';
 	import Bell from 'phosphor-svelte/lib/Bell';
 	import Moon from 'phosphor-svelte/lib/Moon';
 	import Sun from 'phosphor-svelte/lib/Sun';
@@ -81,6 +82,7 @@
 		</ul>
 	</div>
 	<div class="navbar-end gap-2">
+		<SyncStatusIndicator />
 		<div class="dropdown dropdown-end">
 			<div tabindex="0" role="button" class="btn btn-ghost btn-circle">
 				<div class="indicator">

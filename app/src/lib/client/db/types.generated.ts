@@ -51,6 +51,7 @@ export interface CloudSyncMetadata {
 	entity_type: string;
 	entity_id: string;
 	cloud_file_id: string;
+	cloud_file_revision: string;
 	cloud_path: string;
 	last_synced_revision: string;
 	last_synced_hash: string;

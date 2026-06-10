@@ -242,6 +242,7 @@ CREATE TABLE IF NOT EXISTS cloud_sync_metadata (
 	entity_type TEXT NOT NULL,
 	entity_id TEXT NOT NULL,
 	cloud_file_id TEXT NOT NULL,
+	cloud_file_revision TEXT NOT NULL,
 	cloud_path TEXT NOT NULL,
 	last_synced_revision TEXT NOT NULL,
 	last_synced_hash TEXT NOT NULL,
