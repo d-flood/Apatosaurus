@@ -649,7 +649,7 @@ export async function gatherWitnessesForVerse(
 				fullContent: firsthandContent,
 				fullTokens: cloneSourceTokens(firsthandTokens),
 				transcriptionUid: transcription.id || transcriptionId,
-				sourceVersion: String(transcription.updated_at || ''),
+				sourceVersion: String(transcription.current_revision_id || ''),
 			});
 		}
 
@@ -690,7 +690,7 @@ export async function gatherWitnessesForVerse(
 				fragmentaryContent,
 				fragmentaryTokens: cloneSourceTokens(fragmentaryTokens),
 				transcriptionUid: transcription.id || transcriptionId,
-				sourceVersion: String(transcription.updated_at || ''),
+				sourceVersion: String(transcription.current_revision_id || ''),
 			});
 		}
 	}

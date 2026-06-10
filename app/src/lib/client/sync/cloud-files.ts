@@ -314,6 +314,7 @@ export async function serializeCollationCloudFile(
 		loadSerializedCollation(db, collationId),
 		loadCollationMetadata(db, collationId),
 	]);
+	assertCollationSourcesSyncReady(collation);
 	const contentHash = await hashCanonicalPayload(buildCollationHashPayload(collation));
 	if (contentHash !== metadata.current_content_hash) {
 		throw new Error(
@@ -905,6 +906,20 @@ function tombstoneRowToCloudFile(row: Selectable<SyncTombstones>): TombstoneClou
 		deleted_by: row.deleted_by,
 		deleted_at: row.deleted_at,
 	};
+}
+
+function assertCollationSourcesSyncReady(collation: SerializedCollation): void {
+	const missing = collation.witnesses.find(
+		(witness) =>
+			!witness.project_transcription_id ||
+			!witness.transcription_id ||
+			!witness.source_revision_id ||
+			!witness.source_content_hash,
+	);
+	if (!missing) return;
+	throw new Error(
+		`Collation ${collation.id} witness ${missing.witness_id} is missing committed source revision metadata and cannot be serialized for cloud sync.`,
+	);
 }
 
 async function assertHashMatches(

@@ -204,6 +204,42 @@ describe('cloud file serialization formats', () => {
 
 	it('round-trips collations with child records and history files', async () => {
 		await createProject(harness.db, { id: 'project-1', name: 'Project' });
+		await createTranscription(harness.db, {
+			id: 'tx-a',
+			title: 'Witness A',
+			siglum: 'A',
+			document: documentWithVerses(['John 18:1']),
+			transcriber: 'Editor',
+			repository: 'Library',
+			settlement: 'City',
+			language: 'grc',
+		});
+		await createTranscription(harness.db, {
+			id: 'tx-b',
+			title: 'Witness B',
+			siglum: 'B',
+			document: documentWithVerses(['John 18:1']),
+			transcriber: 'Editor',
+			repository: 'Library',
+			settlement: 'City',
+			language: 'grc',
+		});
+		const [snapshotAId, snapshotBId] = await syncProjectTranscriptionIds(harness.db, 'project-1', [
+			'tx-a',
+			'tx-b',
+		]);
+		const projectTranscriptionAId = await getProjectTranscriptionId(snapshotAId);
+		const projectTranscriptionBId = await getProjectTranscriptionId(snapshotBId);
+		const sourceA = await createCommittedTranscriptionCheckpoint(harness.db, {
+			projectTranscriptionId: projectTranscriptionAId,
+			checkpointId: 'tx-a-cp-1',
+			createdAt: '2026-06-08T12:01:00.000Z',
+		});
+		const sourceB = await createCommittedTranscriptionCheckpoint(harness.db, {
+			projectTranscriptionId: projectTranscriptionBId,
+			checkpointId: 'tx-b-cp-1',
+			createdAt: '2026-06-08T12:02:00.000Z',
+		});
 		await createCollation(harness.db, {
 			id: 'col-1',
 			projectId: 'project-1',
@@ -211,7 +247,20 @@ describe('cloud file serialization formats', () => {
 			verseIdentifier: 'B04K18V1',
 			now: '2026-06-08T12:00:00.000Z',
 		});
-		await insertCollationChildRows();
+		await insertCollationChildRows({
+			a: {
+				projectTranscriptionId: projectTranscriptionAId,
+				transcriptionId: snapshotAId,
+				sourceRevisionId: sourceA.id,
+				sourceContentHash: sourceA.contentHash,
+			},
+			b: {
+				projectTranscriptionId: projectTranscriptionBId,
+				transcriptionId: snapshotBId,
+				sourceRevisionId: sourceB.id,
+				sourceContentHash: sourceB.contentHash,
+			},
+		});
 		await saveCollationArtifact(harness.db, {
 			collationId: 'col-1',
 			artifactId: 'artifact-1',
@@ -327,7 +376,20 @@ async function getProjectTranscriptionId(transcriptionId: string): Promise<strin
 	return row.id;
 }
 
-async function insertCollationChildRows(): Promise<void> {
+async function insertCollationChildRows(sources: {
+	a: {
+		projectTranscriptionId: string;
+		transcriptionId: string;
+		sourceRevisionId: string;
+		sourceContentHash: string;
+	};
+	b: {
+		projectTranscriptionId: string;
+		transcriptionId: string;
+		sourceRevisionId: string;
+		sourceContentHash: string;
+	};
+}): Promise<void> {
 	await harness.db
 		.insertInto('collation_witnesses')
 		.values([
@@ -337,10 +399,10 @@ async function insertCollationChildRows(): Promise<void> {
 				witness_id: 'B',
 				content: 'in pricipio',
 				position: 1,
-				project_transcription_id: null,
-				transcription_id: null,
-				source_revision_id: 'source-rev-b',
-				source_content_hash: 'sha256:source-b',
+				project_transcription_id: sources.b.projectTranscriptionId,
+				transcription_id: sources.b.transcriptionId,
+				source_revision_id: sources.b.sourceRevisionId,
+				source_content_hash: sources.b.sourceContentHash,
 			},
 			{
 				id: 'witness-a',
@@ -348,10 +410,10 @@ async function insertCollationChildRows(): Promise<void> {
 				witness_id: 'A',
 				content: 'in principio',
 				position: 0,
-				project_transcription_id: null,
-				transcription_id: null,
-				source_revision_id: 'source-rev-a',
-				source_content_hash: 'sha256:source-a',
+				project_transcription_id: sources.a.projectTranscriptionId,
+				transcription_id: sources.a.transcriptionId,
+				source_revision_id: sources.a.sourceRevisionId,
+				source_content_hash: sources.a.sourceContentHash,
 			},
 		])
 		.execute();

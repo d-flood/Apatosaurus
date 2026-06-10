@@ -79,6 +79,16 @@ export interface CollationProjectionRecord {
 	}>;
 }
 
+export interface SaveCollationProjectionWitnessInput {
+	witnessId: string;
+	transcriptionId: string | null;
+	projectTranscriptionId?: string | null;
+	sourceVersion: string;
+	sourceContentHash?: string;
+	content: string;
+	position: number;
+}
+
 export interface LoadedCollation {
 	row: CollationRecord;
 	artifact: CollationArtifactRecord | null;
@@ -96,7 +106,7 @@ export interface SaveCollationArtifactInput {
 
 export interface SaveCollationProjectionInput {
 	collationId: string;
-	witnesses: CollationProjectionRecord['witnesses'];
+	witnesses: SaveCollationProjectionWitnessInput[];
 	tokens: CollationProjectionRecord['tokens'];
 	variationUnits: Array<{
 		startIndex: number;
@@ -210,6 +220,18 @@ export async function saveCollationArtifact(db: DbExecutor, input: SaveCollation
 
 export async function saveCollationProjection(db: Kysely<Database>, input: SaveCollationProjectionInput): Promise<void> {
 	await db.transaction().execute(async (trx) => {
+		const collation = await trx
+			.selectFrom('collations')
+			.select(['project_id'])
+			.where('id', '=', input.collationId)
+			.executeTakeFirst();
+		if (!collation) throw new Error(`Collation ${input.collationId} was not found.`);
+		const sourceMetadataByTranscriptionId = await loadWitnessSourceMetadata(
+			trx,
+			collation.project_id,
+			input.witnesses,
+		);
+
 		await trx.deleteFrom('collation_witnesses').where('collation_id', '=', input.collationId).execute();
 		await trx.deleteFrom('collation_tokens').where('collation_id', '=', input.collationId).execute();
 		await trx.deleteFrom('collation_variation_units').where('collation_id', '=', input.collationId).execute();
@@ -218,12 +240,10 @@ export async function saveCollationProjection(db: Kysely<Database>, input: SaveC
 			await trx
 				.insertInto('collation_witnesses')
 				.values(input.witnesses.map((row) => ({
+					...sourceMetadataForWitness(row, sourceMetadataByTranscriptionId),
 					id: crypto.randomUUID(),
 					collation_id: input.collationId,
 					witness_id: row.witnessId,
-					transcription_id: row.transcriptionId,
-					source_revision_id: row.sourceVersion,
-					source_content_hash: '',
 					content: row.content,
 					position: row.position,
 				})))
@@ -309,6 +329,71 @@ export function mapCollationRow(row: Selectable<Collations>): CollationListItem 
 function requireId(value: string | null, label: string): string {
 	if (!value) throw new Error(`Missing ${label} id`);
 	return value;
+}
+
+interface WitnessSourceMetadata {
+	projectTranscriptionId: string | null;
+	revisionId: string;
+	contentHash: string;
+}
+
+async function loadWitnessSourceMetadata(
+	db: DbExecutor,
+	projectId: string | null,
+	witnesses: SaveCollationProjectionWitnessInput[],
+): Promise<Map<string, WitnessSourceMetadata>> {
+	const transcriptionIds = [...new Set(witnesses.map((row) => row.transcriptionId).filter(isNonEmptyString))];
+	if (transcriptionIds.length === 0) return new Map();
+
+	const transcriptionRows = await db
+		.selectFrom('transcriptions')
+		.select(['id', 'current_revision_id', 'current_content_hash'])
+		.where('id', 'in', transcriptionIds)
+		.execute();
+	const projectTranscriptionRows = projectId
+		? await db
+				.selectFrom('project_transcriptions')
+				.select(['id', 'transcription_id'])
+				.where('project_id', '=', projectId)
+				.where('transcription_id', 'in', transcriptionIds)
+				.execute()
+		: [];
+	const projectTranscriptionIdByTranscriptionId = new Map(
+		projectTranscriptionRows.map((row) => [row.transcription_id, requireId(row.id, 'project transcription')]),
+	);
+
+	return new Map(
+		transcriptionRows.map((row) => {
+			const transcriptionId = requireId(row.id, 'transcription');
+			return [
+				transcriptionId,
+				{
+					projectTranscriptionId: projectTranscriptionIdByTranscriptionId.get(transcriptionId) ?? null,
+					revisionId: row.current_revision_id,
+					contentHash: row.current_content_hash,
+				},
+			] as const;
+		}),
+	);
+}
+
+function sourceMetadataForWitness(
+	witness: SaveCollationProjectionWitnessInput,
+	sourceMetadataByTranscriptionId: Map<string, WitnessSourceMetadata>,
+): Pick<Selectable<Database['collation_witnesses']>, 'project_transcription_id' | 'transcription_id' | 'source_revision_id' | 'source_content_hash'> {
+	const source = witness.transcriptionId
+		? sourceMetadataByTranscriptionId.get(witness.transcriptionId)
+		: undefined;
+	return {
+		project_transcription_id: witness.projectTranscriptionId ?? source?.projectTranscriptionId ?? null,
+		transcription_id: witness.transcriptionId,
+		source_revision_id: source ? source.revisionId : witness.sourceVersion,
+		source_content_hash: source ? source.contentHash : witness.sourceContentHash ?? '',
+	};
+}
+
+function isNonEmptyString(value: string | null): value is string {
+	return typeof value === 'string' && value.length > 0;
 }
 
 async function loadProjection(db: DbExecutor, collationId: string): Promise<CollationProjectionRecord> {
