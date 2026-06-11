@@ -1,4 +1,7 @@
-import { getVerseIndexRows } from '$lib/client/transcription/verse-index';
+import {
+	getVerseIndexRows,
+	getVerseIndexRowsForTranscription,
+} from '$lib/client/transcription/verse-index';
 
 export interface VerseNode {
 	book: string;
@@ -71,13 +74,17 @@ export function sortVerses(verses: AggregatedVerse[]): AggregatedVerse[] {
 }
 
 export async function gatherVerses(transcriptionIds?: string[]): Promise<AggregatedVerse[]> {
-	const transcriptionIdSet =
-		Array.isArray(transcriptionIds) && transcriptionIds.length > 0
-			? new Set(transcriptionIds)
-			: null;
-	const rows = (await getVerseIndexRows()).filter((row) =>
-		transcriptionIdSet ? transcriptionIdSet.has(String(row.transcription_id ?? '')) : true,
-	);
-	const verses = rows.map((row) => ({ book: row.book, chapter: row.chapter, verse: row.verse }));
+	const uniqueTranscriptionIds = Array.isArray(transcriptionIds)
+		? [...new Set(transcriptionIds.map(id => id.trim()).filter(Boolean))]
+		: [];
+	const rows =
+		uniqueTranscriptionIds.length > 0
+			? (
+					await Promise.all(
+						uniqueTranscriptionIds.map(id => getVerseIndexRowsForTranscription(id))
+					)
+				).flat()
+			: await getVerseIndexRows();
+	const verses = rows.map(row => ({ book: row.book, chapter: row.chapter, verse: row.verse }));
 	return sortVerses([...aggregateVerses(verses).values()]);
 }

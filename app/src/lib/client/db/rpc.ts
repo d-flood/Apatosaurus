@@ -1,4 +1,8 @@
 import type {
+	CloudConnectionRecord,
+	UpsertCloudConnectionInput,
+} from './repositories/cloud-connections';
+import type {
 	CreateProjectInput,
 	ProjectOption,
 	ProjectRecord,
@@ -81,7 +85,11 @@ export interface TranscriptionRpcMap {
 		response: null;
 	};
 	'transcriptions.getVerseIndexRowsForVerse': {
-		request: { type: 'transcriptions.getVerseIndexRowsForVerse'; verseIdentifier: string; transcriptionIds?: string[] };
+		request: {
+			type: 'transcriptions.getVerseIndexRowsForVerse';
+			verseIdentifier: string;
+			transcriptionIds?: string[];
+		};
 		response: VerseIndexRow[];
 	};
 	'transcriptions.listVerseIndexRows': {
@@ -89,7 +97,10 @@ export interface TranscriptionRpcMap {
 		response: VerseIndexRow[];
 	};
 	'transcriptions.listVerseIndexRowsForTranscription': {
-		request: { type: 'transcriptions.listVerseIndexRowsForTranscription'; transcriptionId: string };
+		request: {
+			type: 'transcriptions.listVerseIndexRowsForTranscription';
+			transcriptionId: string;
+		};
 		response: VerseIndexRow[];
 	};
 	'transcriptions.rebuildVerseIndex': {
@@ -100,17 +111,39 @@ export interface TranscriptionRpcMap {
 
 export type TranscriptionRpcRequest = TranscriptionRpcMap[keyof TranscriptionRpcMap]['request'];
 
-export type TranscriptionRpcResponse<T extends TranscriptionRpcRequest['type']> = TranscriptionRpcMap[T]['response'];
+export type TranscriptionRpcResponse<T extends TranscriptionRpcRequest['type']> =
+	TranscriptionRpcMap[T]['response'];
 
 export interface ProjectRpcMap {
 	'projects.list': { request: { type: 'projects.list' }; response: ProjectOption[] };
-	'projects.get': { request: { type: 'projects.get'; projectId: string }; response: ProjectRecord | null };
-	'projects.create': { request: { type: 'projects.create'; input: CreateProjectInput }; response: string };
-	'projects.updateMetadata': { request: { type: 'projects.updateMetadata'; input: UpdateProjectMetadataInput }; response: null };
-	'projects.listTranscriptionOptions': { request: { type: 'projects.listTranscriptionOptions'; projectId?: string }; response: ProjectTranscriptionOption[] };
-	'projects.loadTranscriptionContent': { request: { type: 'projects.loadTranscriptionContent'; transcriptionId: string }; response: string | null };
-	'projects.getTranscriptionIds': { request: { type: 'projects.getTranscriptionIds'; projectId: string }; response: string[] };
-	'projects.syncTranscriptionIds': { request: { type: 'projects.syncTranscriptionIds'; projectId: string; nextIds: string[] }; response: string[] };
+	'projects.get': {
+		request: { type: 'projects.get'; projectId: string };
+		response: ProjectRecord | null;
+	};
+	'projects.create': {
+		request: { type: 'projects.create'; input: CreateProjectInput };
+		response: string;
+	};
+	'projects.updateMetadata': {
+		request: { type: 'projects.updateMetadata'; input: UpdateProjectMetadataInput };
+		response: null;
+	};
+	'projects.listTranscriptionOptions': {
+		request: { type: 'projects.listTranscriptionOptions'; projectId?: string };
+		response: ProjectTranscriptionOption[];
+	};
+	'projects.loadTranscriptionContent': {
+		request: { type: 'projects.loadTranscriptionContent'; transcriptionId: string };
+		response: string | null;
+	};
+	'projects.getTranscriptionIds': {
+		request: { type: 'projects.getTranscriptionIds'; projectId: string };
+		response: string[];
+	};
+	'projects.syncTranscriptionIds': {
+		request: { type: 'projects.syncTranscriptionIds'; projectId: string; nextIds: string[] };
+		response: string[];
+	};
 }
 
 export type ProjectRpcRequest = ProjectRpcMap[keyof ProjectRpcMap]['request'];
@@ -118,37 +151,117 @@ export type ProjectRpcRequest = ProjectRpcMap[keyof ProjectRpcMap]['request'];
 export type ProjectRpcResponse<T extends ProjectRpcRequest['type']> = ProjectRpcMap[T]['response'];
 
 export interface CollationRpcMap {
-	'collations.listWithProjectNames': { request: { type: 'collations.listWithProjectNames' }; response: CollationListItem[] };
-	'collations.create': { request: { type: 'collations.create'; input: CreateCollationInput }; response: string };
-	'collations.load': { request: { type: 'collations.load'; collationId: string }; response: LoadedCollation | null };
-	'collations.saveArtifact': { request: { type: 'collations.saveArtifact'; input: SaveCollationArtifactInput }; response: string };
-	'collations.saveProjection': { request: { type: 'collations.saveProjection'; input: SaveCollationProjectionInput }; response: null };
-	'collations.updateMetadata': { request: { type: 'collations.updateMetadata'; input: UpdateCollationMetadataInput }; response: null };
-	'collations.delete': { request: { type: 'collations.delete'; collationId: string }; response: null };
+	'collations.listWithProjectNames': {
+		request: { type: 'collations.listWithProjectNames' };
+		response: CollationListItem[];
+	};
+	'collations.create': {
+		request: { type: 'collations.create'; input: CreateCollationInput };
+		response: string;
+	};
+	'collations.load': {
+		request: { type: 'collations.load'; collationId: string };
+		response: LoadedCollation | null;
+	};
+	'collations.saveArtifact': {
+		request: { type: 'collations.saveArtifact'; input: SaveCollationArtifactInput };
+		response: string;
+	};
+	'collations.saveProjection': {
+		request: { type: 'collations.saveProjection'; input: SaveCollationProjectionInput };
+		response: null;
+	};
+	'collations.updateMetadata': {
+		request: { type: 'collations.updateMetadata'; input: UpdateCollationMetadataInput };
+		response: null;
+	};
+	'collations.delete': {
+		request: { type: 'collations.delete'; collationId: string };
+		response: null;
+	};
 }
 
 export type CollationRpcRequest = CollationRpcMap[keyof CollationRpcMap]['request'];
 
-export type CollationRpcResponse<T extends CollationRpcRequest['type']> = CollationRpcMap[T]['response'];
+export type CollationRpcResponse<T extends CollationRpcRequest['type']> =
+	CollationRpcMap[T]['response'];
 
 export interface IiifRpcMap {
-	'iiif.listManifestSources': { request: { type: 'iiif.listManifestSources'; transcriptionId: string }; response: ManifestSourceSummary[] };
-	'iiif.listManifestSourcesForUrl': { request: { type: 'iiif.listManifestSourcesForUrl'; transcriptionId: string; manifestUrl: string }; response: ManifestSourceSummary[] };
-	'iiif.ensureManifestSource': { request: { type: 'iiif.ensureManifestSource'; input: EnsureManifestSourceInput }; response: ManifestSourceSummary };
-	'iiif.getManifestSource': { request: { type: 'iiif.getManifestSource'; input: ManifestSourceIdInput }; response: ManifestSourceSummary | null };
-	'iiif.listPageCanvasLinks': { request: { type: 'iiif.listPageCanvasLinks'; transcriptionId: string }; response: PageCanvasLink[] };
-	'iiif.upsertPageCanvasLink': { request: { type: 'iiif.upsertPageCanvasLink'; input: SavePageCanvasLinkInput }; response: PageCanvasLink };
-	'iiif.savePageCanvasLinks': { request: { type: 'iiif.savePageCanvasLinks'; inputs: SavePageCanvasLinkInput[] }; response: PageCanvasLink[] };
-	'iiif.deletePageCanvasLink': { request: { type: 'iiif.deletePageCanvasLink'; input: DeletePageCanvasLinkInput }; response: number };
-	'iiif.deletePageCanvasLinksForPage': { request: { type: 'iiif.deletePageCanvasLinksForPage'; input: { transcriptionId: string; pageId: string } }; response: number };
-	'iiif.deleteAllPageCanvasLinks': { request: { type: 'iiif.deleteAllPageCanvasLinks'; transcriptionId: string }; response: number };
-	'iiif.deleteManifestSource': { request: { type: 'iiif.deleteManifestSource'; input: ManifestSourceIdInput }; response: boolean };
-	'iiif.deleteManifestSourceLinks': { request: { type: 'iiif.deleteManifestSourceLinks'; input: ManifestSourceIdInput }; response: number };
-	'iiif.findLinkedPageForCanvas': { request: { type: 'iiif.findLinkedPageForCanvas'; input: FindLinkedPageForCanvasInput }; response: PageCanvasLink | null };
-	'iiif.listCanvasAnnotations': { request: { type: 'iiif.listCanvasAnnotations'; input: ListCanvasAnnotationsInput }; response: W3CAnnotation[] };
-	'iiif.getCanvasAnnotation': { request: { type: 'iiif.getCanvasAnnotation'; input: CanvasAnnotationIdInput }; response: W3CAnnotation | null };
-	'iiif.upsertCanvasAnnotation': { request: { type: 'iiif.upsertCanvasAnnotation'; input: UpsertCanvasAnnotationInput }; response: null };
-	'iiif.deleteCanvasAnnotation': { request: { type: 'iiif.deleteCanvasAnnotation'; input: CanvasAnnotationIdInput }; response: null };
+	'iiif.listManifestSources': {
+		request: { type: 'iiif.listManifestSources'; transcriptionId: string };
+		response: ManifestSourceSummary[];
+	};
+	'iiif.listManifestSourcesForUrl': {
+		request: {
+			type: 'iiif.listManifestSourcesForUrl';
+			transcriptionId: string;
+			manifestUrl: string;
+		};
+		response: ManifestSourceSummary[];
+	};
+	'iiif.ensureManifestSource': {
+		request: { type: 'iiif.ensureManifestSource'; input: EnsureManifestSourceInput };
+		response: ManifestSourceSummary;
+	};
+	'iiif.getManifestSource': {
+		request: { type: 'iiif.getManifestSource'; input: ManifestSourceIdInput };
+		response: ManifestSourceSummary | null;
+	};
+	'iiif.listPageCanvasLinks': {
+		request: { type: 'iiif.listPageCanvasLinks'; transcriptionId: string };
+		response: PageCanvasLink[];
+	};
+	'iiif.upsertPageCanvasLink': {
+		request: { type: 'iiif.upsertPageCanvasLink'; input: SavePageCanvasLinkInput };
+		response: PageCanvasLink;
+	};
+	'iiif.savePageCanvasLinks': {
+		request: { type: 'iiif.savePageCanvasLinks'; inputs: SavePageCanvasLinkInput[] };
+		response: PageCanvasLink[];
+	};
+	'iiif.deletePageCanvasLink': {
+		request: { type: 'iiif.deletePageCanvasLink'; input: DeletePageCanvasLinkInput };
+		response: number;
+	};
+	'iiif.deletePageCanvasLinksForPage': {
+		request: {
+			type: 'iiif.deletePageCanvasLinksForPage';
+			input: { transcriptionId: string; pageId: string };
+		};
+		response: number;
+	};
+	'iiif.deleteAllPageCanvasLinks': {
+		request: { type: 'iiif.deleteAllPageCanvasLinks'; transcriptionId: string };
+		response: number;
+	};
+	'iiif.deleteManifestSource': {
+		request: { type: 'iiif.deleteManifestSource'; input: ManifestSourceIdInput };
+		response: boolean;
+	};
+	'iiif.deleteManifestSourceLinks': {
+		request: { type: 'iiif.deleteManifestSourceLinks'; input: ManifestSourceIdInput };
+		response: number;
+	};
+	'iiif.findLinkedPageForCanvas': {
+		request: { type: 'iiif.findLinkedPageForCanvas'; input: FindLinkedPageForCanvasInput };
+		response: PageCanvasLink | null;
+	};
+	'iiif.listCanvasAnnotations': {
+		request: { type: 'iiif.listCanvasAnnotations'; input: ListCanvasAnnotationsInput };
+		response: W3CAnnotation[];
+	};
+	'iiif.getCanvasAnnotation': {
+		request: { type: 'iiif.getCanvasAnnotation'; input: CanvasAnnotationIdInput };
+		response: W3CAnnotation | null;
+	};
+	'iiif.upsertCanvasAnnotation': {
+		request: { type: 'iiif.upsertCanvasAnnotation'; input: UpsertCanvasAnnotationInput };
+		response: null;
+	};
+	'iiif.deleteCanvasAnnotation': {
+		request: { type: 'iiif.deleteCanvasAnnotation'; input: CanvasAnnotationIdInput };
+		response: null;
+	};
 }
 
 export type IiifRpcRequest = IiifRpcMap[keyof IiifRpcMap]['request'];
@@ -176,7 +289,29 @@ export interface RevisionRpcMap {
 
 export type RevisionRpcRequest = RevisionRpcMap[keyof RevisionRpcMap]['request'];
 
-export type RevisionRpcResponse<T extends RevisionRpcRequest['type']> = RevisionRpcMap[T]['response'];
+export type RevisionRpcResponse<T extends RevisionRpcRequest['type']> =
+	RevisionRpcMap[T]['response'];
+
+export interface CloudConnectionRpcMap {
+	'cloudConnections.list': {
+		request: { type: 'cloudConnections.list' };
+		response: CloudConnectionRecord[];
+	};
+	'cloudConnections.upsert': {
+		request: { type: 'cloudConnections.upsert'; input: UpsertCloudConnectionInput };
+		response: CloudConnectionRecord;
+	};
+	'cloudConnections.disconnect': {
+		request: { type: 'cloudConnections.disconnect'; connectionId: string };
+		response: boolean;
+	};
+}
+
+export type CloudConnectionRpcRequest =
+	CloudConnectionRpcMap[keyof CloudConnectionRpcMap]['request'];
+
+export type CloudConnectionRpcResponse<T extends CloudConnectionRpcRequest['type']> =
+	CloudConnectionRpcMap[T]['response'];
 
 export type DbRequest =
 	| { id?: number; type: 'init' }
@@ -190,7 +325,8 @@ export type DbRequest =
 	| ({ id?: number } & ProjectRpcRequest)
 	| ({ id?: number } & CollationRpcRequest)
 	| ({ id?: number } & IiifRpcRequest)
-	| ({ id?: number } & RevisionRpcRequest);
+	| ({ id?: number } & RevisionRpcRequest)
+	| ({ id?: number } & CloudConnectionRpcRequest);
 
 export type DbRequestPayload =
 	| { type: 'init' }
@@ -204,7 +340,8 @@ export type DbRequestPayload =
 	| ProjectRpcRequest
 	| CollationRpcRequest
 	| IiifRpcRequest
-	| RevisionRpcRequest;
+	| RevisionRpcRequest
+	| CloudConnectionRpcRequest;
 
 export type DbResponse =
 	| { id: number; ok: true; result?: unknown }

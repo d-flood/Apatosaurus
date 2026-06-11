@@ -1,7 +1,9 @@
 <script lang="ts">
-	import { browser } from '$app/environment';
+	import { browser, dev } from '$app/environment';
 	import { asset, resolve } from '$app/paths';
+	import { resetLocalDb } from '$lib/client/db/runtime';
 	import { notificationCenter } from '$lib/client/notification-center.svelte';
+	import CloudConnectButton from '$lib/components/CloudConnectButton.svelte';
 	import SyncStatusIndicator from '$lib/components/SyncStatusIndicator.svelte';
 	import Bell from 'phosphor-svelte/lib/Bell';
 	import Moon from 'phosphor-svelte/lib/Moon';
@@ -9,6 +11,7 @@
 	import { onMount } from 'svelte';
 
 	let theme = $state('');
+	let resettingLocalDb = $state(false);
 
 	function toggleTheme() {
 		if (browser) {
@@ -33,12 +36,32 @@
 		return 'badge-neutral';
 	}
 
-	function actionClass(variant?: 'primary' | 'secondary' | 'neutral' | 'error' | 'ghost'): string {
+	function actionClass(
+		variant?: 'primary' | 'secondary' | 'neutral' | 'error' | 'ghost'
+	): string {
 		if (variant === 'primary') return 'btn btn-xs btn-primary';
 		if (variant === 'secondary') return 'btn btn-xs btn-secondary';
 		if (variant === 'neutral') return 'btn btn-xs btn-neutral';
 		if (variant === 'error') return 'btn btn-xs btn-error';
 		return 'btn btn-xs btn-ghost';
+	}
+
+	async function resetDevelopmentDb() {
+		if (resettingLocalDb) return;
+		if (
+			!window.confirm(
+				'Reset the local development database? This clears local data and reloads.'
+			)
+		)
+			return;
+
+		resettingLocalDb = true;
+		try {
+			await resetLocalDb();
+		} catch (error) {
+			resettingLocalDb = false;
+			console.error('Failed to reset local DB', error);
+		}
 	}
 </script>
 
@@ -83,12 +106,25 @@
 	</div>
 	<div class="navbar-end gap-2">
 		<SyncStatusIndicator />
+		<CloudConnectButton />
+		{#if dev}
+			<button
+				type="button"
+				class="btn btn-xs btn-outline btn-error"
+				onclick={resetDevelopmentDb}
+				disabled={resettingLocalDb}
+			>
+				{resettingLocalDb ? 'Resetting...' : 'Reset DB'}
+			</button>
+		{/if}
 		<div class="dropdown dropdown-end">
 			<div tabindex="0" role="button" class="btn btn-ghost btn-circle">
 				<div class="indicator">
 					<Bell size={22} />
 					{#if notificationCenter.count > 0}
-						<span class="badge badge-sm badge-error indicator-item">{notificationCenter.count}</span>
+						<span class="badge badge-sm badge-error indicator-item"
+							>{notificationCenter.count}</span
+						>
 					{/if}
 				</div>
 			</div>
@@ -107,12 +143,18 @@
 					{:else}
 						<div class="space-y-2 max-h-80 overflow-y-auto pr-1">
 							{#each notificationCenter.items as item (item.id)}
-								<div class="rounded-box border border-base-300 bg-base-200/40 p-3 space-y-2">
+								<div
+									class="rounded-box border border-base-300 bg-base-200/40 p-3 space-y-2"
+								>
 									<div class="flex items-center justify-between gap-2">
 										<div class="font-medium text-sm">{item.title}</div>
-										<span class={`badge badge-xs ${badgeClass(item.tone)}`}>{item.tone ?? 'notice'}</span>
+										<span class={`badge badge-xs ${badgeClass(item.tone)}`}
+											>{item.tone ?? 'notice'}</span
+										>
 									</div>
-									<p class="text-xs text-base-content/80 leading-relaxed">{item.message}</p>
+									<p class="text-xs text-base-content/80 leading-relaxed">
+										{item.message}
+									</p>
 									{#if item.actions && item.actions.length > 0}
 										<div class="flex flex-wrap gap-2">
 											{#each item.actions as action (action.id)}

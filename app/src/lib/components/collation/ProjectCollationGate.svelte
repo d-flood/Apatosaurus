@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { collationState } from '$lib/client/collation/collation-state.svelte';
 	import { listProjects, type ProjectOption } from '$lib/client/collation/project-collation';
@@ -34,7 +33,6 @@
 		error = null;
 		try {
 			await collationState.selectProject(projectId);
-			await goto(resolve('/collation/new'), { replaceState: true });
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Failed to select project';
 		} finally {
@@ -51,7 +49,6 @@
 			await collationState.createProject(name);
 			projectName = '';
 			await refreshProjects();
-			await goto(resolve('/collation/new'), { replaceState: true });
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Failed to create project';
 		} finally {

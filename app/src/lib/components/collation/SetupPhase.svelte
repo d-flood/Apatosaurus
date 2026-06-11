@@ -27,6 +27,7 @@
 	import FolderOpen from 'phosphor-svelte/lib/FolderOpen';
 	import LinkBreak from 'phosphor-svelte/lib/LinkBreak';
 	import LinkSimple from 'phosphor-svelte/lib/LinkSimple';
+	import { onMount } from 'svelte';
 
 	let verses = $state<AggregatedVerse[]>([]);
 	let allTranscriptions = $state<ProjectTranscriptionOption[]>([]);
@@ -37,9 +38,16 @@
 	let isRebuildingVerseIndex = $state(false);
 	let error = $state<string | null>(null);
 	let statusMessage = $state<string | null>(null);
-	let setupLoadedForProject: string | null = null;
+	let setupLoadToken = 0;
 	let verseFilter = $state('');
 	let rebuildProgress = $state<VerseIndexRebuildProgress | null>(null);
+	let activeWitnessLoadKey: string | null = null;
+	type WitnessLoadRequest = {
+		verse: AggregatedVerse;
+		transcriptionIds: string[];
+		ignoreWordBreaks: boolean;
+		key: string;
+	};
 
 	let matchingVerse = $derived(
 		verses.find(
@@ -75,73 +83,138 @@
 		verses = await gatherVerses(selectedTranscriptionIds);
 	}
 
-	$effect(() => {
-		const currentProjectId = collationState.projectId;
-		if (!currentProjectId) return;
-		if (setupLoadedForProject === currentProjectId) return;
-		setupLoadedForProject = currentProjectId;
-		void (async () => {
-			isLoadingSetup = true;
-			error = null;
-			statusMessage = null;
-			try {
-				allTranscriptions = await listTranscriptions(currentProjectId);
-				selectedTranscriptionIds = await getProjectTranscriptionIds(currentProjectId);
-				await reloadVerses();
-			} catch (err) {
-				error = err instanceof Error ? err.message : 'Failed to load setup data';
-			} finally {
+	function buildWitnessLoadKey(
+		verseIdentifier: string,
+		transcriptionIds: string[],
+		ignoreWordBreaks: boolean
+	) {
+		return JSON.stringify({
+			verseIdentifier,
+			transcriptionIds,
+			ignoreWordBreaks,
+		});
+	}
+
+	function clearSetupProjectLoad() {
+		setupLoadToken += 1;
+		isLoadingSetup = false;
+	}
+
+	function isCurrentSetupLoad(projectId: string, loadToken: number) {
+		return setupLoadToken === loadToken && collationState.projectId === projectId;
+	}
+
+	async function loadSetupForProject(projectId: string, loadToken: number) {
+		isLoadingSetup = true;
+		error = null;
+		statusMessage = null;
+		try {
+			const nextAllTranscriptions = await listTranscriptions(projectId);
+			if (!isCurrentSetupLoad(projectId, loadToken)) return;
+			allTranscriptions = nextAllTranscriptions;
+
+			const nextSelectedTranscriptionIds = await getProjectTranscriptionIds(projectId);
+			if (!isCurrentSetupLoad(projectId, loadToken)) return;
+			selectedTranscriptionIds = nextSelectedTranscriptionIds;
+
+			const nextVerses = await gatherVerses(nextSelectedTranscriptionIds);
+			if (!isCurrentSetupLoad(projectId, loadToken)) return;
+			verses = nextVerses;
+		} catch (err) {
+			if (!isCurrentSetupLoad(projectId, loadToken)) return;
+			error = err instanceof Error ? err.message : 'Failed to load setup data';
+		} finally {
+			if (isCurrentSetupLoad(projectId, loadToken)) {
 				isLoadingSetup = false;
 			}
-		})();
-	});
-
-	$effect(() => {
-		if (
-			matchingVerse &&
-			collationState.selectedVerse?.identifier !== matchingVerse.identifier &&
-			!isLoadingWitnesses &&
-			selectedTranscriptionIds.length > 0
-		) {
-			const verse = matchingVerse;
-			void (async () => {
-				isLoadingWitnesses = true;
-				error = null;
-				try {
-					const prepared = await gatherWitnessesForVerse(
-						verse.identifier,
-						selectedTranscriptionIds,
-						{
-							ignoreWordBreaks: collationState.ignoreWordBreaks,
-						}
-					);
-					const configs: WitnessConfig[] = prepared.map((witness, index) => ({
-						witnessId: witness.id,
-						siglum: witness.siglum,
-						transcriptionId: witness.transcriptionUid,
-						kind: witness.kind,
-						handId: witness.handId,
-						sourceVersion: witness.sourceVersion,
-						content: witness.content,
-						tokens: witness.tokens,
-						fullContent: witness.fullContent,
-						fullTokens: witness.fullTokens,
-						fragmentaryContent: witness.fragmentaryContent,
-						fragmentaryTokens: witness.fragmentaryTokens,
-						treatment: witness.kind === 'corrector' ? 'inherit' : 'full',
-						isBaseText: index === 0,
-						isExcluded: false,
-						overridesDefault: false,
-					}));
-					collationState.setWitnesses(configs);
-					collationState.selectedVerse = verse;
-				} catch (err) {
-					error = err instanceof Error ? err.message : 'Failed to load witnesses';
-				} finally {
-					isLoadingWitnesses = false;
-				}
-			})();
 		}
+	}
+
+	function isCurrentWitnessLoad(request: WitnessLoadRequest) {
+		return (
+			activeWitnessLoadKey === request.key &&
+			collationState.selectedBook === request.verse.book &&
+			collationState.selectedChapter === request.verse.chapter &&
+			collationState.selectedVerseNum === request.verse.verse &&
+			buildWitnessLoadKey(
+				request.verse.identifier,
+				selectedTranscriptionIds,
+				collationState.ignoreWordBreaks
+			) === request.key
+		);
+	}
+
+	function createWitnessLoadRequest(verse: AggregatedVerse): WitnessLoadRequest | null {
+		if (selectedTranscriptionIds.length === 0) return null;
+
+		const transcriptionIds = [...selectedTranscriptionIds];
+		const ignoreWordBreaks = collationState.ignoreWordBreaks;
+		return {
+			verse,
+			transcriptionIds,
+			ignoreWordBreaks,
+			key: buildWitnessLoadKey(verse.identifier, transcriptionIds, ignoreWordBreaks),
+		};
+	}
+
+	async function loadWitnessesForRequest(request: WitnessLoadRequest) {
+		activeWitnessLoadKey = request.key;
+		isLoadingWitnesses = true;
+		error = null;
+		try {
+			const prepared = await gatherWitnessesForVerse(
+				request.verse.identifier,
+				request.transcriptionIds,
+				{
+					ignoreWordBreaks: request.ignoreWordBreaks,
+				}
+			);
+			if (!isCurrentWitnessLoad(request)) return;
+
+			const configs: WitnessConfig[] = prepared.map((witness, index) => ({
+				witnessId: witness.id,
+				siglum: witness.siglum,
+				transcriptionId: witness.transcriptionUid,
+				kind: witness.kind,
+				handId: witness.handId,
+				sourceVersion: witness.sourceVersion,
+				content: witness.content,
+				tokens: witness.tokens,
+				fullContent: witness.fullContent,
+				fullTokens: witness.fullTokens,
+				fragmentaryContent: witness.fragmentaryContent,
+				fragmentaryTokens: witness.fragmentaryTokens,
+				treatment: witness.kind === 'corrector' ? 'inherit' : 'full',
+				isBaseText: index === 0,
+				isExcluded: false,
+				overridesDefault: false,
+			}));
+			collationState.setWitnesses(configs);
+			collationState.selectedVerse = request.verse;
+		} catch (err) {
+			console.error('Failed to load witnesses for verse', request.verse.identifier, err);
+			if (!isCurrentWitnessLoad(request)) return;
+			error = err instanceof Error ? err.message : 'Failed to load witnesses';
+		} finally {
+			if (activeWitnessLoadKey === request.key) {
+				activeWitnessLoadKey = null;
+				isLoadingWitnesses = false;
+			}
+		}
+	}
+
+	onMount(() => {
+		const currentProjectId = collationState.projectId;
+		if (!currentProjectId) {
+			clearSetupProjectLoad();
+			return;
+		}
+		const loadToken = ++setupLoadToken;
+		void loadSetupForProject(currentProjectId, loadToken);
+
+		return () => {
+			setupLoadToken += 1;
+		};
 	});
 
 	async function toggleProjectTranscription(transcriptionId: string) {
@@ -243,6 +316,11 @@
 		collationState.selectedVerseNum = verse.verse;
 		collationState.setWitnesses([]);
 		collationState.selectedVerse = null;
+
+		const request = createWitnessLoadRequest(verse);
+		if (request) {
+			void loadWitnessesForRequest(request);
+		}
 	}
 </script>
 

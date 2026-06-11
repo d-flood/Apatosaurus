@@ -41,6 +41,11 @@ import {
 	isTranscriptionDirty,
 } from './repositories/revisions';
 import { clearDomainTables } from './repositories/maintenance';
+import {
+	disconnectCloudConnection,
+	listCloudConnections,
+	upsertCloudConnection,
+} from './repositories/cloud-connections';
 import type { Database } from './types.generated';
 import { createWorkerKysely } from './worker-kysely';
 import { LocalSqliteDatabase } from './worker-sqlite';
@@ -57,7 +62,7 @@ self.onmessage = async (event: MessageEvent<DbRequest>) => {
 	const receivedAt = now();
 	requestQueue = requestQueue.then(
 		() => processRequest(request, receivedAt),
-		() => processRequest(request, receivedAt),
+		() => processRequest(request, receivedAt)
 	);
 };
 
@@ -96,11 +101,27 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 		await db.exec(request.sql);
 		return null;
 	}
-	if (request.type === 'transcriptions.listSummaries') return listTranscriptionSummaries(getKyselyDb());
-	if (request.type === 'transcriptions.getSummary') return getTranscriptionSummary(getKyselyDb(), request.transcriptionId);
-	if (request.type === 'transcriptions.getVersionsByIds') return getTranscriptionVersionsByIds(getKyselyDb(), request.ids);
-	if (request.type === 'transcriptions.get') return getTranscription(getKyselyDb(), request.transcriptionId);
-	if (request.type === 'transcriptions.getByIds') return getTranscriptionsByIds(getKyselyDb(), request.ids);
+	if (request.type === 'cloudConnections.list') return listCloudConnections(getKyselyDb());
+	if (request.type === 'cloudConnections.upsert') {
+		const connection = await upsertCloudConnection(getKyselyDb(), request.input);
+		postMessage({ type: 'db:invalidate', domain: 'cloud-connections' });
+		return connection;
+	}
+	if (request.type === 'cloudConnections.disconnect') {
+		const disconnected = await disconnectCloudConnection(getKyselyDb(), request.connectionId);
+		postMessage({ type: 'db:invalidate', domain: 'cloud-connections' });
+		return disconnected;
+	}
+	if (request.type === 'transcriptions.listSummaries')
+		return listTranscriptionSummaries(getKyselyDb());
+	if (request.type === 'transcriptions.getSummary')
+		return getTranscriptionSummary(getKyselyDb(), request.transcriptionId);
+	if (request.type === 'transcriptions.getVersionsByIds')
+		return getTranscriptionVersionsByIds(getKyselyDb(), request.ids);
+	if (request.type === 'transcriptions.get')
+		return getTranscription(getKyselyDb(), request.transcriptionId);
+	if (request.type === 'transcriptions.getByIds')
+		return getTranscriptionsByIds(getKyselyDb(), request.ids);
 	if (request.type === 'transcriptions.create') {
 		const id = await createTranscription(getKyselyDb(), request.input);
 		postMessage({ type: 'db:invalidate', domain: 'transcriptions' });
@@ -122,14 +143,22 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 		return null;
 	}
 	if (request.type === 'transcriptions.getVerseIndexRowsForVerse') {
-		return getVerseIndexRowsForVerse(getKyselyDb(), request.verseIdentifier, request.transcriptionIds);
+		return getVerseIndexRowsForVerse(
+			getKyselyDb(),
+			request.verseIdentifier,
+			request.transcriptionIds
+		);
 	}
-	if (request.type === 'transcriptions.listVerseIndexRows') return listVerseIndexRows(getKyselyDb());
+	if (request.type === 'transcriptions.listVerseIndexRows')
+		return listVerseIndexRows(getKyselyDb());
 	if (request.type === 'transcriptions.listVerseIndexRowsForTranscription') {
 		return listVerseIndexRowsForTranscription(getKyselyDb(), request.transcriptionId);
 	}
 	if (request.type === 'transcriptions.rebuildVerseIndex') {
-		const result = await rebuildVerseIndexForTranscriptions(getKyselyDb(), request.transcriptionIds);
+		const result = await rebuildVerseIndexForTranscriptions(
+			getKyselyDb(),
+			request.transcriptionIds
+		);
 		postMessage({ type: 'db:invalidate', domain: 'transcriptions' });
 		return result;
 	}
@@ -145,23 +174,32 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 		postMessage({ type: 'db:invalidate', domain: 'projects' });
 		return null;
 	}
-	if (request.type === 'projects.listTranscriptionOptions') return listProjectTranscriptionOptions(getKyselyDb(), request.projectId);
-	if (request.type === 'projects.loadTranscriptionContent') return loadTranscriptionContent(getKyselyDb(), request.transcriptionId);
-	if (request.type === 'projects.getTranscriptionIds') return getProjectTranscriptionIds(getKyselyDb(), request.projectId);
+	if (request.type === 'projects.listTranscriptionOptions')
+		return listProjectTranscriptionOptions(getKyselyDb(), request.projectId);
+	if (request.type === 'projects.loadTranscriptionContent')
+		return loadTranscriptionContent(getKyselyDb(), request.transcriptionId);
+	if (request.type === 'projects.getTranscriptionIds')
+		return getProjectTranscriptionIds(getKyselyDb(), request.projectId);
 	if (request.type === 'projects.syncTranscriptionIds') {
-		const ids = await syncProjectTranscriptionIds(getKyselyDb(), request.projectId, request.nextIds);
+		const ids = await syncProjectTranscriptionIds(
+			getKyselyDb(),
+			request.projectId,
+			request.nextIds
+		);
 		postMessage({ type: 'db:invalidate', domain: 'projects' });
 		postMessage({ type: 'db:invalidate', domain: 'transcriptions' });
 		postMessage({ type: 'db:invalidate', domain: 'iiif' });
 		return ids;
 	}
-	if (request.type === 'collations.listWithProjectNames') return listCollationsWithProjectNames(getKyselyDb());
+	if (request.type === 'collations.listWithProjectNames')
+		return listCollationsWithProjectNames(getKyselyDb());
 	if (request.type === 'collations.create') {
 		const id = await createCollation(getKyselyDb(), request.input);
 		postMessage({ type: 'db:invalidate', domain: 'collations' });
 		return id;
 	}
-	if (request.type === 'collations.load') return loadCollation(getKyselyDb(), request.collationId);
+	if (request.type === 'collations.load')
+		return loadCollation(getKyselyDb(), request.collationId);
 	if (request.type === 'collations.saveArtifact') {
 		const artifactId = await saveCollationArtifact(getKyselyDb(), request.input);
 		postMessage({ type: 'db:invalidate', domain: 'collations' });
@@ -182,15 +220,23 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 		postMessage({ type: 'db:invalidate', domain: 'collations' });
 		return null;
 	}
-	if (request.type === 'iiif.listManifestSources') return iiifRepository.listManifestSources(getKyselyDb(), request.transcriptionId);
-	if (request.type === 'iiif.listManifestSourcesForUrl') return iiifRepository.listManifestSourcesForUrl(getKyselyDb(), request.transcriptionId, request.manifestUrl);
+	if (request.type === 'iiif.listManifestSources')
+		return iiifRepository.listManifestSources(getKyselyDb(), request.transcriptionId);
+	if (request.type === 'iiif.listManifestSourcesForUrl')
+		return iiifRepository.listManifestSourcesForUrl(
+			getKyselyDb(),
+			request.transcriptionId,
+			request.manifestUrl
+		);
 	if (request.type === 'iiif.ensureManifestSource') {
 		const row = await iiifRepository.ensureManifestSource(getKyselyDb(), request.input);
 		postMessage({ type: 'db:invalidate', domain: 'iiif' });
 		return row;
 	}
-	if (request.type === 'iiif.getManifestSource') return iiifRepository.getManifestSource(getKyselyDb(), request.input);
-	if (request.type === 'iiif.listPageCanvasLinks') return iiifRepository.listPageCanvasLinks(getKyselyDb(), request.transcriptionId);
+	if (request.type === 'iiif.getManifestSource')
+		return iiifRepository.getManifestSource(getKyselyDb(), request.input);
+	if (request.type === 'iiif.listPageCanvasLinks')
+		return iiifRepository.listPageCanvasLinks(getKyselyDb(), request.transcriptionId);
 	if (request.type === 'iiif.upsertPageCanvasLink') {
 		const row = await iiifRepository.upsertPageCanvasLink(getKyselyDb(), request.input);
 		postMessage({ type: 'db:invalidate', domain: 'iiif' });
@@ -207,12 +253,18 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 		return count;
 	}
 	if (request.type === 'iiif.deletePageCanvasLinksForPage') {
-		const count = await iiifRepository.deletePageCanvasLinksForPage(getKyselyDb(), request.input);
+		const count = await iiifRepository.deletePageCanvasLinksForPage(
+			getKyselyDb(),
+			request.input
+		);
 		postMessage({ type: 'db:invalidate', domain: 'iiif' });
 		return count;
 	}
 	if (request.type === 'iiif.deleteAllPageCanvasLinks') {
-		const count = await iiifRepository.deleteAllPageCanvasLinks(getKyselyDb(), request.transcriptionId);
+		const count = await iiifRepository.deleteAllPageCanvasLinks(
+			getKyselyDb(),
+			request.transcriptionId
+		);
 		postMessage({ type: 'db:invalidate', domain: 'iiif' });
 		return count;
 	}
@@ -226,9 +278,12 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 		postMessage({ type: 'db:invalidate', domain: 'iiif' });
 		return count;
 	}
-	if (request.type === 'iiif.findLinkedPageForCanvas') return iiifRepository.findLinkedPageForCanvas(getKyselyDb(), request.input);
-	if (request.type === 'iiif.listCanvasAnnotations') return iiifRepository.listCanvasAnnotations(getKyselyDb(), request.input);
-	if (request.type === 'iiif.getCanvasAnnotation') return iiifRepository.getCanvasAnnotation(getKyselyDb(), request.input);
+	if (request.type === 'iiif.findLinkedPageForCanvas')
+		return iiifRepository.findLinkedPageForCanvas(getKyselyDb(), request.input);
+	if (request.type === 'iiif.listCanvasAnnotations')
+		return iiifRepository.listCanvasAnnotations(getKyselyDb(), request.input);
+	if (request.type === 'iiif.getCanvasAnnotation')
+		return iiifRepository.getCanvasAnnotation(getKyselyDb(), request.input);
 	if (request.type === 'iiif.upsertCanvasAnnotation') {
 		await iiifRepository.upsertCanvasAnnotation(getKyselyDb(), request.input);
 		postMessage({ type: 'db:invalidate', domain: 'iiif' });
@@ -240,7 +295,10 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 		return null;
 	}
 	if (request.type === 'revisions.commitTranscription') {
-		const checkpoint = await createCommittedTranscriptionCheckpoint(getKyselyDb(), request.input);
+		const checkpoint = await createCommittedTranscriptionCheckpoint(
+			getKyselyDb(),
+			request.input
+		);
 		postMessage({ type: 'db:invalidate', domain: 'transcriptions' });
 		return checkpoint;
 	}
@@ -249,11 +307,16 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 		postMessage({ type: 'db:invalidate', domain: 'collations' });
 		return checkpoint;
 	}
-	if (request.type === 'revisions.isTranscriptionDirty') return isTranscriptionDirty(getKyselyDb(), request.projectTranscriptionId);
-	if (request.type === 'revisions.isCollationDirty') return isCollationDirty(getKyselyDb(), request.collationId);
+	if (request.type === 'revisions.isTranscriptionDirty')
+		return isTranscriptionDirty(getKyselyDb(), request.projectTranscriptionId);
+	if (request.type === 'revisions.isCollationDirty')
+		return isCollationDirty(getKyselyDb(), request.collationId);
 	if (request.type === 'transaction') {
 		await db.transaction(request.statements);
-		postMessage({ type: 'db:invalidate', domain: inferInvalidationDomain(request.statements.map((s) => s.sql).join('\n')) });
+		postMessage({
+			type: 'db:invalidate',
+			domain: inferInvalidationDomain(request.statements.map(s => s.sql).join('\n')),
+		});
 		return null;
 	}
 	if (request.type === 'checkpoint') {

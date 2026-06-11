@@ -14,8 +14,14 @@ import type {
 	IiifRpcResponse,
 	RevisionRpcRequest,
 	RevisionRpcResponse,
+	CloudConnectionRpcRequest,
+	CloudConnectionRpcResponse,
 } from './rpc';
 import type { W3CAnnotation } from 'triiiceratops/plugins/annotation-editor';
+import type {
+	CloudConnectionRecord,
+	UpsertCloudConnectionInput,
+} from './repositories/cloud-connections';
 import type {
 	CollationListItem,
 	CreateCollationInput,
@@ -48,14 +54,23 @@ import type {
 	CommitTranscriptionInput,
 	TranscriptionCheckpoint,
 } from './repositories/revisions';
-import type { AnnotationAnchor, ManifestSourceSummary, PageCanvasLink, SavePageCanvasLinkInput } from '../iiif/types';
+import type {
+	AnnotationAnchor,
+	ManifestSourceSummary,
+	PageCanvasLink,
+	SavePageCanvasLinkInput,
+} from '../iiif/types';
 
 const DB_REQUEST_TIMEOUT_MS = 60_000;
 
 let nextRequestId = 1;
 const pending = new Map<
 	number,
-	{ resolve: (value: unknown) => void; reject: (error: Error) => void; timeoutId?: ReturnType<typeof setTimeout> }
+	{
+		resolve: (value: unknown) => void;
+		reject: (error: Error) => void;
+		timeoutId?: ReturnType<typeof setTimeout>;
+	}
 >();
 const invalidationListeners = new Set<(event: DbInvalidationEvent) => void>();
 
@@ -64,7 +79,10 @@ export async function localDbQuery(sql: string, params: DbValue[] = []): Promise
 	return send<DbRow[]>({ type: 'query', sql, params });
 }
 
-export async function localDbExecute(sql: string, params: DbValue[] = []): Promise<{ changes: number }> {
+export async function localDbExecute(
+	sql: string,
+	params: DbValue[] = []
+): Promise<{ changes: number }> {
 	await ensureLocalDbRuntime();
 	return send<{ changes: number }>({ type: 'execute', sql, params });
 }
@@ -76,7 +94,9 @@ export async function localDbTransaction(
 	await send<void>({ type: 'transaction', statements });
 }
 
-export function subscribeLocalDbInvalidations(listener: (event: DbInvalidationEvent) => void): () => void {
+export function subscribeLocalDbInvalidations(
+	listener: (event: DbInvalidationEvent) => void
+): () => void {
 	invalidationListeners.add(listener);
 	return () => invalidationListeners.delete(listener);
 }
@@ -95,7 +115,9 @@ export async function getTranscriptionSummary(id: string): Promise<Transcription
 	return sendTranscriptionRequest({ type: 'transcriptions.getSummary', transcriptionId: id });
 }
 
-export async function getTranscriptionVersionsByIds(ids: string[]): Promise<TranscriptionVersion[]> {
+export async function getTranscriptionVersionsByIds(
+	ids: string[]
+): Promise<TranscriptionVersion[]> {
 	return sendTranscriptionRequest({ type: 'transcriptions.getVersionsByIds', ids });
 }
 
@@ -115,7 +137,9 @@ export async function createTranscriptions(inputs: CreateTranscriptionInput[]): 
 	return sendTranscriptionRequest({ type: 'transcriptions.createMany', inputs });
 }
 
-export async function updateTranscriptionContent(input: UpdateTranscriptionContentInput): Promise<void> {
+export async function updateTranscriptionContent(
+	input: UpdateTranscriptionContentInput
+): Promise<void> {
 	if (input.contentJson !== undefined) {
 		await sendTranscriptionRequest({
 			type: 'transcriptions.updateContent',
@@ -150,8 +174,13 @@ export async function listVerseIndexRows(): Promise<VerseIndexRow[]> {
 	return sendTranscriptionRequest({ type: 'transcriptions.listVerseIndexRows' });
 }
 
-export async function listVerseIndexRowsForTranscription(transcriptionId: string): Promise<VerseIndexRow[]> {
-	return sendTranscriptionRequest({ type: 'transcriptions.listVerseIndexRowsForTranscription', transcriptionId });
+export async function listVerseIndexRowsForTranscription(
+	transcriptionId: string
+): Promise<VerseIndexRow[]> {
+	return sendTranscriptionRequest({
+		type: 'transcriptions.listVerseIndexRowsForTranscription',
+		transcriptionId,
+	});
 }
 
 export async function rebuildVerseIndexForTranscriptions(
@@ -176,11 +205,15 @@ export async function updateProjectMetadata(input: UpdateProjectMetadataInput): 
 	await sendProjectRequest({ type: 'projects.updateMetadata', input });
 }
 
-export async function listProjectTranscriptionOptions(projectId?: string): Promise<ProjectTranscriptionOption[]> {
+export async function listProjectTranscriptionOptions(
+	projectId?: string
+): Promise<ProjectTranscriptionOption[]> {
 	return sendProjectRequest({ type: 'projects.listTranscriptionOptions', projectId });
 }
 
-export async function loadProjectTranscriptionContent(transcriptionId: string): Promise<string | null> {
+export async function loadProjectTranscriptionContent(
+	transcriptionId: string
+): Promise<string | null> {
 	return sendProjectRequest({ type: 'projects.loadTranscriptionContent', transcriptionId });
 }
 
@@ -188,7 +221,10 @@ export async function getProjectTranscriptionIds(projectId: string): Promise<str
 	return sendProjectRequest({ type: 'projects.getTranscriptionIds', projectId });
 }
 
-export async function syncProjectTranscriptionIds(projectId: string, nextIds: string[]): Promise<string[]> {
+export async function syncProjectTranscriptionIds(
+	projectId: string,
+	nextIds: string[]
+): Promise<string[]> {
 	return sendProjectRequest({ type: 'projects.syncTranscriptionIds', projectId, nextIds });
 }
 
@@ -220,39 +256,68 @@ export async function deleteCollation(id: string): Promise<void> {
 	await sendCollationRequest({ type: 'collations.delete', collationId: id });
 }
 
-export async function listManifestSources(transcriptionId: string): Promise<ManifestSourceSummary[]> {
+export async function listManifestSources(
+	transcriptionId: string
+): Promise<ManifestSourceSummary[]> {
 	return sendIiifRequest({ type: 'iiif.listManifestSources', transcriptionId });
 }
 
-export async function listManifestSourcesForUrl(transcriptionId: string, manifestUrl: string): Promise<ManifestSourceSummary[]> {
-	return sendIiifRequest({ type: 'iiif.listManifestSourcesForUrl', transcriptionId, manifestUrl });
+export async function listManifestSourcesForUrl(
+	transcriptionId: string,
+	manifestUrl: string
+): Promise<ManifestSourceSummary[]> {
+	return sendIiifRequest({
+		type: 'iiif.listManifestSourcesForUrl',
+		transcriptionId,
+		manifestUrl,
+	});
 }
 
-export async function ensureManifestSource(input: EnsureManifestSourceInput): Promise<ManifestSourceSummary> {
+export async function ensureManifestSource(
+	input: EnsureManifestSourceInput
+): Promise<ManifestSourceSummary> {
 	return sendIiifRequest({ type: 'iiif.ensureManifestSource', input });
 }
 
-export async function getManifestSource(transcriptionId: string, manifestSourceId: string): Promise<ManifestSourceSummary | null> {
-	return sendIiifRequest({ type: 'iiif.getManifestSource', input: { transcriptionId, manifestSourceId } });
+export async function getManifestSource(
+	transcriptionId: string,
+	manifestSourceId: string
+): Promise<ManifestSourceSummary | null> {
+	return sendIiifRequest({
+		type: 'iiif.getManifestSource',
+		input: { transcriptionId, manifestSourceId },
+	});
 }
 
 export async function listPageCanvasLinks(transcriptionId: string): Promise<PageCanvasLink[]> {
 	return sendIiifRequest({ type: 'iiif.listPageCanvasLinks', transcriptionId });
 }
 
-export async function upsertPageCanvasLink(input: SavePageCanvasLinkInput): Promise<PageCanvasLink> {
+export async function upsertPageCanvasLink(
+	input: SavePageCanvasLinkInput
+): Promise<PageCanvasLink> {
 	return sendIiifRequest({ type: 'iiif.upsertPageCanvasLink', input });
 }
 
-export async function savePageCanvasLinks(inputs: SavePageCanvasLinkInput[]): Promise<PageCanvasLink[]> {
+export async function savePageCanvasLinks(
+	inputs: SavePageCanvasLinkInput[]
+): Promise<PageCanvasLink[]> {
 	return sendIiifRequest({ type: 'iiif.savePageCanvasLinks', inputs });
 }
 
-export async function deletePageCanvasLink(input: { transcriptionId: string; pageId: string; manifestSourceId: string; canvasId: string }): Promise<number> {
+export async function deletePageCanvasLink(input: {
+	transcriptionId: string;
+	pageId: string;
+	manifestSourceId: string;
+	canvasId: string;
+}): Promise<number> {
 	return sendIiifRequest({ type: 'iiif.deletePageCanvasLink', input });
 }
 
-export async function deletePageCanvasLinksForPage(input: { transcriptionId: string; pageId: string }): Promise<number> {
+export async function deletePageCanvasLinksForPage(input: {
+	transcriptionId: string;
+	pageId: string;
+}): Promise<number> {
 	return sendIiifRequest({ type: 'iiif.deletePageCanvasLinksForPage', input });
 }
 
@@ -260,31 +325,63 @@ export async function deleteAllPageCanvasLinks(transcriptionId: string): Promise
 	return sendIiifRequest({ type: 'iiif.deleteAllPageCanvasLinks', transcriptionId });
 }
 
-export async function deleteManifestSource(input: { transcriptionId: string; manifestSourceId: string }): Promise<boolean> {
+export async function deleteManifestSource(input: {
+	transcriptionId: string;
+	manifestSourceId: string;
+}): Promise<boolean> {
 	return sendIiifRequest({ type: 'iiif.deleteManifestSource', input });
 }
 
-export async function deleteManifestSourceLinks(input: { transcriptionId: string; manifestSourceId: string }): Promise<number> {
+export async function deleteManifestSourceLinks(input: {
+	transcriptionId: string;
+	manifestSourceId: string;
+}): Promise<number> {
 	return sendIiifRequest({ type: 'iiif.deleteManifestSourceLinks', input });
 }
 
-export async function findLinkedPageForCanvas(input: { transcriptionId: string; manifestSourceId: string; canvasId: string }): Promise<PageCanvasLink | null> {
+export async function findLinkedPageForCanvas(input: {
+	transcriptionId: string;
+	manifestSourceId: string;
+	canvasId: string;
+}): Promise<PageCanvasLink | null> {
 	return sendIiifRequest({ type: 'iiif.findLinkedPageForCanvas', input });
 }
 
-export async function listCanvasAnnotations(input: { transcriptionId: string; manifestSourceIds: string[]; canvasId: string; mode?: 'headers' | 'full'; previewLength?: number }): Promise<W3CAnnotation[]> {
+export async function listCanvasAnnotations(input: {
+	transcriptionId: string;
+	manifestSourceIds: string[];
+	canvasId: string;
+	mode?: 'headers' | 'full';
+	previewLength?: number;
+}): Promise<W3CAnnotation[]> {
 	return sendIiifRequest({ type: 'iiif.listCanvasAnnotations', input });
 }
 
-export async function getCanvasAnnotation(input: { transcriptionId: string; manifestSourceId: string; annotationId: string }): Promise<W3CAnnotation | null> {
+export async function getCanvasAnnotation(input: {
+	transcriptionId: string;
+	manifestSourceId: string;
+	annotationId: string;
+}): Promise<W3CAnnotation | null> {
 	return sendIiifRequest({ type: 'iiif.getCanvasAnnotation', input });
 }
 
-export async function upsertCanvasAnnotation(input: { transcriptionId: string; pageId: string; manifestSourceId: string; canvasId: string; annotation: W3CAnnotation; anchor: AnnotationAnchor; createdBy?: string }): Promise<void> {
+export async function upsertCanvasAnnotation(input: {
+	transcriptionId: string;
+	pageId: string;
+	manifestSourceId: string;
+	canvasId: string;
+	annotation: W3CAnnotation;
+	anchor: AnnotationAnchor;
+	createdBy?: string;
+}): Promise<void> {
 	await sendIiifRequest({ type: 'iiif.upsertCanvasAnnotation', input });
 }
 
-export async function deleteCanvasAnnotation(input: { transcriptionId: string; manifestSourceId: string; annotationId: string }): Promise<void> {
+export async function deleteCanvasAnnotation(input: {
+	transcriptionId: string;
+	manifestSourceId: string;
+	annotationId: string;
+}): Promise<void> {
 	await sendIiifRequest({ type: 'iiif.deleteCanvasAnnotation', input });
 }
 
@@ -306,6 +403,20 @@ export async function isTranscriptionDirty(projectTranscriptionId: string): Prom
 
 export async function isCollationDirty(collationId: string): Promise<boolean> {
 	return sendRevisionRequest({ type: 'revisions.isCollationDirty', collationId });
+}
+
+export async function listCloudConnections(): Promise<CloudConnectionRecord[]> {
+	return sendCloudConnectionRequest({ type: 'cloudConnections.list' });
+}
+
+export async function upsertCloudConnection(
+	input: UpsertCloudConnectionInput
+): Promise<CloudConnectionRecord> {
+	return sendCloudConnectionRequest({ type: 'cloudConnections.upsert', input });
+}
+
+export async function disconnectCloudConnection(connectionId: string): Promise<boolean> {
+	return sendCloudConnectionRequest({ type: 'cloudConnections.disconnect', connectionId });
 }
 
 export function attachLocalDbClient(worker: Worker): void {
@@ -341,7 +452,7 @@ async function send<T>(payload: DbRequestPayload): Promise<T> {
 			reject(new Error('Timed out waiting for a response from the local database worker.'));
 		}, DB_REQUEST_TIMEOUT_MS);
 		pending.set(id, {
-			resolve: (value) => {
+			resolve: value => {
 				if (payload.type === 'transcriptions.listSummaries') {
 					console.debug('[local-db] worker request round trip completed', {
 						type: payload.type,
@@ -351,7 +462,7 @@ async function send<T>(payload: DbRequestPayload): Promise<T> {
 				}
 				resolve(value as T);
 			},
-			reject: (error) => {
+			reject: error => {
 				console.error('[local-db] worker request failed', {
 					type: payload.type,
 					id,
@@ -381,19 +492,19 @@ async function sendTranscriptionRequest<T extends TranscriptionRpcRequest>(
 }
 
 async function sendProjectRequest<T extends ProjectRpcRequest>(
-	payload: T,
+	payload: T
 ): Promise<ProjectRpcResponse<T['type']>> {
 	return send<ProjectRpcResponse<T['type']>>(payload);
 }
 
 async function sendCollationRequest<T extends CollationRpcRequest>(
-	payload: T,
+	payload: T
 ): Promise<CollationRpcResponse<T['type']>> {
 	return send<CollationRpcResponse<T['type']>>(payload);
 }
 
 async function sendIiifRequest<T extends IiifRpcRequest>(
-	payload: T,
+	payload: T
 ): Promise<IiifRpcResponse<T['type']>> {
 	return send<IiifRpcResponse<T['type']>>(payload);
 }
@@ -402,4 +513,10 @@ async function sendRevisionRequest<T extends RevisionRpcRequest>(
 	payload: T
 ): Promise<RevisionRpcResponse<T['type']>> {
 	return send<RevisionRpcResponse<T['type']>>(payload);
+}
+
+async function sendCloudConnectionRequest<T extends CloudConnectionRpcRequest>(
+	payload: T
+): Promise<CloudConnectionRpcResponse<T['type']>> {
+	return send<CloudConnectionRpcResponse<T['type']>>(payload);
 }
