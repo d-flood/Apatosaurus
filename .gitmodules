@@ -2,10 +2,6 @@
 	path = collatex
 	url = https://github.com/d-flood/collatex.git
 	branch = wasm-compatible
-[submodule "djazzkit"]
-	path = djazzkit
-	url = https://github.com/d-flood/djazzkit.git
-	branch = main
 [submodule "NT_Manuscripts_TEI_Schema"]
 	path = NT_Manuscripts_TEI_Schema
 	url = https://github.com/itsee-birmingham/NT_Manuscripts_TEI_Schema.git

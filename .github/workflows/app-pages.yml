@@ -6,9 +6,6 @@ on:
       - main
     paths:
       - 'app/**'
-      - 'djazzkit'
-      - 'djazzkit/packages/core/**'
-      - 'djazzkit/packages/svelte/**'
       - 'collatex'
       - 'collatex/collatex-tsport/**'
       - 'triiiceratops'

@@ -4,9 +4,6 @@ on:
   push:
     paths:
       - 'app/**'
-      - 'djazzkit'
-      - 'djazzkit/packages/core/**'
-      - 'djazzkit/packages/svelte/**'
       - 'collatex'
       - 'collatex/collatex-tsport/**'
       - 'triiiceratops'
@@ -16,9 +13,6 @@ on:
   pull_request:
     paths:
       - 'app/**'
-      - 'djazzkit'
-      - 'djazzkit/packages/core/**'
-      - 'djazzkit/packages/svelte/**'
       - 'collatex'
       - 'collatex/collatex-tsport/**'
       - 'triiiceratops'
@@ -48,14 +42,6 @@ jobs:
 
       - name: Install dependencies
         run: bun install
-
-      - name: Build djazzkit/core
-        run: bun run build
-        working-directory: djazzkit/packages/core
-
-      - name: Build djazzkit/svelte
-        run: bun run build
-        working-directory: djazzkit/packages/svelte
 
       - name: Build triiiceratops
         run: pnpm run build:lib
