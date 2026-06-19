@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { browser, dev } from '$app/environment';
+	import { browser } from '$app/environment';
 	import { asset, resolve } from '$app/paths';
 	import { resetLocalDb } from '$lib/client/db/runtime';
 	import { notificationCenter } from '$lib/client/notification-center.svelte';
@@ -50,7 +50,7 @@
 		if (resettingLocalDb) return;
 		if (
 			!window.confirm(
-				'Reset the local development database? This clears local data and reloads.'
+				'Reset the local database? This clears local data and reloads.'
 			)
 		)
 			return;
@@ -107,16 +107,14 @@
 	<div class="navbar-end gap-2">
 		<SyncStatusIndicator />
 		<CloudConnectButton />
-		{#if dev}
-			<button
-				type="button"
-				class="btn btn-xs btn-outline btn-error"
-				onclick={resetDevelopmentDb}
-				disabled={resettingLocalDb}
-			>
-				{resettingLocalDb ? 'Resetting...' : 'Reset DB'}
-			</button>
-		{/if}
+		<button
+			type="button"
+			class="btn btn-xs btn-outline btn-error"
+			onclick={resetDevelopmentDb}
+			disabled={resettingLocalDb}
+		>
+			{resettingLocalDb ? 'Resetting...' : 'Reset DB'}
+		</button>
 		<div class="dropdown dropdown-end">
 			<div tabindex="0" role="button" class="btn btn-ghost btn-circle">
 				<div class="indicator">
