@@ -9,9 +9,30 @@ const pages = [
 ];
 
 const canvases = [
-	{ manifestId: 'm1', canvasId: 'c1', canvasLabel: '1r', canvasOrder: 1, imageServiceUrl: null, thumbnailUrl: null },
-	{ manifestId: 'm1', canvasId: 'c2', canvasLabel: '1v', canvasOrder: 2, imageServiceUrl: null, thumbnailUrl: null },
-	{ manifestId: 'm1', canvasId: 'c3', canvasLabel: '2r', canvasOrder: 3, imageServiceUrl: null, thumbnailUrl: null },
+	{
+		manifestId: 'm1',
+		canvasId: 'c1',
+		canvasLabel: '1r',
+		canvasOrder: 1,
+		imageServiceUrl: null,
+		thumbnailUrl: null,
+	},
+	{
+		manifestId: 'm1',
+		canvasId: 'c2',
+		canvasLabel: '1v',
+		canvasOrder: 2,
+		imageServiceUrl: null,
+		thumbnailUrl: null,
+	},
+	{
+		manifestId: 'm1',
+		canvasId: 'c3',
+		canvasLabel: '2r',
+		canvasOrder: 3,
+		imageServiceUrl: null,
+		thumbnailUrl: null,
+	},
 ];
 
 describe('createSmartLinkPlan', () => {

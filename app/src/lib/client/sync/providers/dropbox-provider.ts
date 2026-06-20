@@ -5,7 +5,7 @@ import {
 	type CloudListResult,
 	type CloudProviderCapabilities,
 	type CloudProviderErrorCode,
-	type CloudStorageProvider,
+	type OAuthCloudStorageProvider,
 	type CloudWriteResult,
 } from './provider';
 
@@ -116,7 +116,7 @@ const DEFAULT_SHARE_JOB_MAX_POLLS = 5;
 const DEFAULT_SHARE_JOB_POLL_DELAY_MS = 1_000;
 const FOLDER_MODIFIED_AT = '1970-01-01T00:00:00.000Z';
 
-export class DropboxStorageProvider implements CloudStorageProvider {
+export class DropboxStorageProvider implements OAuthCloudStorageProvider {
 	id = 'dropbox';
 	name = 'Dropbox';
 	capabilities: CloudProviderCapabilities = {
@@ -125,6 +125,9 @@ export class DropboxStorageProvider implements CloudStorageProvider {
 		supportsExpectedRevisionDelete: true,
 		requiresPathAddressing: true,
 		sharingMayBeAsync: true,
+		requiresOAuth: true,
+		requiresUserGestureForConnection: false,
+		supportsDirectoryHandlePersistence: false,
 	};
 
 	readonly rootPath: string;

@@ -18,10 +18,19 @@ export function createSmartLinkPlan(input: {
 }): SmartLinkPlan {
 	const startPageIndex = input.pages.findIndex(page => page.pageId === input.startPageId);
 	const endPageIndex = input.pages.findIndex(page => page.pageId === input.endPageId);
-	const startCanvasIndex = input.canvases.findIndex(canvas => canvas.canvasId === input.startCanvasId);
-	const endCanvasIndex = input.canvases.findIndex(canvas => canvas.canvasId === input.endCanvasId);
+	const startCanvasIndex = input.canvases.findIndex(
+		canvas => canvas.canvasId === input.startCanvasId
+	);
+	const endCanvasIndex = input.canvases.findIndex(
+		canvas => canvas.canvasId === input.endCanvasId
+	);
 
-	if (startPageIndex === -1 || endPageIndex === -1 || startCanvasIndex === -1 || endCanvasIndex === -1) {
+	if (
+		startPageIndex === -1 ||
+		endPageIndex === -1 ||
+		startCanvasIndex === -1 ||
+		endCanvasIndex === -1
+	) {
 		return {
 			status: 'invalid',
 			assignments: [],
@@ -127,7 +136,9 @@ function scoreMatch(
 	return null;
 }
 
-function getCanvasTokens(canvas: IntfAutoLinkCanvas): Array<{ token: NormalizedFolioToken; matchedOn: string }> {
+function getCanvasTokens(
+	canvas: IntfAutoLinkCanvas
+): Array<{ token: NormalizedFolioToken; matchedOn: string }> {
 	const sources = [
 		{ value: canvas.folio, matchedOn: 'folio' },
 		{ value: canvas.shelfFolioNums, matchedOn: 'shelfFolioNums' },
@@ -155,7 +166,10 @@ export function createIntfAutoLinkPlan(input: {
 	let ambiguousCount = 0;
 	let skippedCount = 0;
 
-	const canvasTokenMap = new Map<string, Array<{ token: NormalizedFolioToken; matchedOn: string }>>();
+	const canvasTokenMap = new Map<
+		string,
+		Array<{ token: NormalizedFolioToken; matchedOn: string }>
+	>();
 	for (const canvas of input.canvases) {
 		canvasTokenMap.set(canvas.canvasId, getCanvasTokens(canvas));
 	}

@@ -27,7 +27,10 @@ export interface PageChromeAttrs {
 	quireSignature: string | null;
 }
 
-export function extractPageMetadata(pageNode: ProseMirrorNode, pagePos: number): PageEditorMetadata {
+export function extractPageMetadata(
+	pageNode: ProseMirrorNode,
+	pagePos: number
+): PageEditorMetadata {
 	const metadata: PageEditorMetadata = {
 		pos: pagePos,
 		pageId: pageNode.attrs?.pageId || `page-${pagePos}`,
@@ -222,7 +225,10 @@ function extractPageMetadataFromJson(pageNode: Record<string, any>): PageEditorM
 	return metadata;
 }
 
-function visitJsonNodes(node: Record<string, any> | null | undefined, visit: (node: Record<string, any>) => void): void {
+function visitJsonNodes(
+	node: Record<string, any> | null | undefined,
+	visit: (node: Record<string, any>) => void
+): void {
 	if (!node || typeof node !== 'object') return;
 
 	visit(node);

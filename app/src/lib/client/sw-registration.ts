@@ -41,7 +41,7 @@ export function unregisterServiceWorker(): Promise<boolean> {
 		return Promise.resolve(false);
 	}
 
-	return navigator.serviceWorker.getRegistration().then((registration) => {
+	return navigator.serviceWorker.getRegistration().then(registration => {
 		if (registration) {
 			return registration.unregister();
 		}

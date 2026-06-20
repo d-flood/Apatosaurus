@@ -8,12 +8,13 @@ class InMemoryMigrationDb {
 	private migrationVersions = new Set<number>();
 
 	async exec(sql: string): Promise<void> {
-		if (/CREATE TABLE IF NOT EXISTS schema_migrations/i.test(sql)) this.tables.add('schema_migrations');
+		if (/CREATE TABLE IF NOT EXISTS schema_migrations/i.test(sql))
+			this.tables.add('schema_migrations');
 	}
 
 	async query(sql: string): Promise<DbRow[]> {
 		if (/SELECT version FROM schema_migrations/i.test(sql)) {
-			return [...this.migrationVersions].map((version) => ({ version }));
+			return [...this.migrationVersions].map(version => ({ version }));
 		}
 		return [];
 	}

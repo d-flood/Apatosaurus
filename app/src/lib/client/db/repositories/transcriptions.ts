@@ -76,9 +76,7 @@ interface VerseNode {
 	verse: string;
 }
 
-export async function listTranscriptionSummaries(
-	db: DbExecutor,
-): Promise<TranscriptionSummary[]> {
+export async function listTranscriptionSummaries(db: DbExecutor): Promise<TranscriptionSummary[]> {
 	if (import.meta.env.DEV) await logSummaryQueryPlan(db);
 	const startedAt = now();
 	const rows = await db
@@ -93,12 +91,12 @@ export async function listTranscriptionSummaries(
 		elapsedMs: elapsed(startedAt),
 	});
 
-	return rows.map((row) => ({ ...row, id: requireId(row.id, 'transcription') }));
+	return rows.map(row => ({ ...row, id: requireId(row.id, 'transcription') }));
 }
 
 export async function getTranscriptionSummary(
 	db: DbExecutor,
-	id: string,
+	id: string
 ): Promise<TranscriptionSummary | null> {
 	const row = await db
 		.selectFrom('transcriptions')
@@ -112,7 +110,7 @@ export async function getTranscriptionSummary(
 
 export async function getTranscriptionVersionsByIds(
 	db: DbExecutor,
-	ids: string[],
+	ids: string[]
 ): Promise<TranscriptionVersion[]> {
 	const uniqueIds = uniqueNonEmpty(ids);
 	if (uniqueIds.length === 0) return [];
@@ -121,8 +119,10 @@ export async function getTranscriptionVersionsByIds(
 		.select(['id', 'updated_at'])
 		.where('id', 'in', uniqueIds)
 		.execute();
-	const byId = new Map(rows.map((row) => [row.id, { ...row, id: requireId(row.id, 'transcription') }]));
-	return uniqueIds.flatMap((id) => {
+	const byId = new Map(
+		rows.map(row => [row.id, { ...row, id: requireId(row.id, 'transcription') }])
+	);
+	return uniqueIds.flatMap(id => {
 		const row = byId.get(id);
 		return row ? [row] : [];
 	});
@@ -130,7 +130,7 @@ export async function getTranscriptionVersionsByIds(
 
 export async function getTranscription(
 	db: DbExecutor,
-	id: string,
+	id: string
 ): Promise<TranscriptionRecord | null> {
 	const row = await db
 		.selectFrom('transcriptions')
@@ -142,7 +142,7 @@ export async function getTranscription(
 
 export async function getTranscriptionsByIds(
 	db: DbExecutor,
-	ids: string[],
+	ids: string[]
 ): Promise<TranscriptionRecord[]> {
 	const uniqueIds = uniqueNonEmpty(ids);
 	if (uniqueIds.length === 0) return [];
@@ -151,8 +151,8 @@ export async function getTranscriptionsByIds(
 		.selectAll()
 		.where('id', 'in', uniqueIds)
 		.execute();
-	const byId = new Map(rows.map((row) => [row.id, mapTranscription(row)]));
-	return uniqueIds.flatMap((id) => {
+	const byId = new Map(rows.map(row => [row.id, mapTranscription(row)]));
+	return uniqueIds.flatMap(id => {
 		const row = byId.get(id);
 		return row ? [row] : [];
 	});
@@ -160,7 +160,7 @@ export async function getTranscriptionsByIds(
 
 export async function createTranscription(
 	db: Kysely<Database>,
-	input: CreateTranscriptionInput,
+	input: CreateTranscriptionInput
 ): Promise<string> {
 	const ids = await createTranscriptions(db, [input]);
 	return ids[0];
@@ -168,24 +168,25 @@ export async function createTranscription(
 
 export async function createTranscriptions(
 	db: Kysely<Database>,
-	inputs: CreateTranscriptionInput[],
+	inputs: CreateTranscriptionInput[]
 ): Promise<string[]> {
 	if (inputs.length === 0) return [];
-	return db.transaction().execute(async (trx) => {
+	return db.transaction().execute(async trx => {
 		const rows = inputs.map(buildTranscriptionRow);
 		await trx.insertInto('transcriptions').values(rows).execute();
-		for (const row of rows) await replaceVerseIndexRows(trx, requireId(row.id, 'transcription'), row.content_json);
-		return rows.map((row) => requireId(row.id, 'transcription'));
+		for (const row of rows)
+			await replaceVerseIndexRows(trx, requireId(row.id, 'transcription'), row.content_json);
+		return rows.map(row => requireId(row.id, 'transcription'));
 	});
 }
 
 export async function updateTranscriptionContent(
 	db: Kysely<Database>,
-	input: UpdateTranscriptionContentInput,
+	input: UpdateTranscriptionContentInput
 ): Promise<void> {
 	const contentJson = getContentJson(input);
 	const updatedAt = input.updatedAt ?? new Date().toISOString();
-	await db.transaction().execute(async (trx) => {
+	await db.transaction().execute(async trx => {
 		const result = await trx
 			.updateTable('transcriptions')
 			.set({
@@ -196,7 +197,8 @@ export async function updateTranscriptionContent(
 			.where('id', '=', input.id)
 			.executeTakeFirst();
 
-		if (Number(result.numUpdatedRows) === 0) throw new Error(`Transcription ${input.id} was not found.`);
+		if (Number(result.numUpdatedRows) === 0)
+			throw new Error(`Transcription ${input.id} was not found.`);
 		await replaceVerseIndexRows(trx, input.id, contentJson, updatedAt);
 	});
 }
@@ -208,7 +210,7 @@ export async function deleteTranscription(db: DbExecutor, id: string): Promise<v
 export async function getVerseIndexRowsForVerse(
 	db: DbExecutor,
 	verseIdentifier: string,
-	transcriptionIds?: string[],
+	transcriptionIds?: string[]
 ): Promise<VerseIndexRow[]> {
 	let query = db
 		.selectFrom('transcription_verse_index')
@@ -217,7 +219,7 @@ export async function getVerseIndexRowsForVerse(
 	const uniqueIds = uniqueNonEmpty(transcriptionIds ?? []);
 	if (uniqueIds.length > 0) query = query.where('transcription_id', 'in', uniqueIds);
 	const rows = await query.orderBy('transcription_id').execute();
-	return rows.map((row) => ({ ...row, id: requireId(row.id, 'verse index row') }));
+	return rows.map(row => ({ ...row, id: requireId(row.id, 'verse index row') }));
 }
 
 export async function listVerseIndexRows(db: DbExecutor): Promise<VerseIndexRow[]> {
@@ -227,12 +229,12 @@ export async function listVerseIndexRows(db: DbExecutor): Promise<VerseIndexRow[
 		.orderBy('transcription_id')
 		.orderBy('verse_identifier')
 		.execute();
-	return rows.map((row) => ({ ...row, id: requireId(row.id, 'verse index row') }));
+	return rows.map(row => ({ ...row, id: requireId(row.id, 'verse index row') }));
 }
 
 export async function listVerseIndexRowsForTranscription(
 	db: DbExecutor,
-	transcriptionId: string,
+	transcriptionId: string
 ): Promise<VerseIndexRow[]> {
 	const rows = await db
 		.selectFrom('transcription_verse_index')
@@ -240,12 +242,12 @@ export async function listVerseIndexRowsForTranscription(
 		.where('transcription_id', '=', transcriptionId)
 		.orderBy('verse_identifier')
 		.execute();
-	return rows.map((row) => ({ ...row, id: requireId(row.id, 'verse index row') }));
+	return rows.map(row => ({ ...row, id: requireId(row.id, 'verse index row') }));
 }
 
 export async function rebuildVerseIndexForTranscriptions(
 	db: Kysely<Database>,
-	transcriptionIds: string[],
+	transcriptionIds: string[]
 ): Promise<VerseIndexRebuildResult> {
 	const ids = uniqueNonEmpty(transcriptionIds);
 	if (ids.length === 0) return { processed: 0, succeeded: 0, failed: 0, failures: [] };
@@ -253,7 +255,7 @@ export async function rebuildVerseIndexForTranscriptions(
 	const failures: VerseIndexRebuildFailure[] = [];
 	let succeeded = 0;
 
-	await db.transaction().execute(async (trx) => {
+	await db.transaction().execute(async trx => {
 		for (const id of ids) {
 			const row = await trx
 				.selectFrom('transcriptions')
@@ -269,7 +271,8 @@ export async function rebuildVerseIndexForTranscriptions(
 				failures.push({
 					transcriptionId: id,
 					label,
-					message: error instanceof Error ? error.message : 'Failed to rebuild verse index',
+					message:
+						error instanceof Error ? error.message : 'Failed to rebuild verse index',
 				});
 			}
 		}
@@ -281,6 +284,15 @@ export async function rebuildVerseIndexForTranscriptions(
 		failed: failures.length,
 		failures,
 	};
+}
+
+export async function replaceTranscriptionVerseIndexRows(
+	db: DbExecutor,
+	transcriptionId: string,
+	contentJson: string,
+	indexedAt: string = new Date().toISOString()
+): Promise<void> {
+	await replaceVerseIndexRows(db, transcriptionId, contentJson, indexedAt);
 }
 
 function buildTranscriptionRow(input: CreateTranscriptionInput): Selectable<Transcriptions> {
@@ -317,12 +329,15 @@ async function replaceVerseIndexRows(
 	db: DbExecutor,
 	transcriptionId: string,
 	contentJson: string,
-	indexedAt: string = new Date().toISOString(),
+	indexedAt: string = new Date().toISOString()
 ): Promise<void> {
 	const document = coerceTranscriptionDocument(contentJson);
 	if (!document) throw new Error('Transcription content is missing or invalid');
 
-	await db.deleteFrom('transcription_verse_index').where('transcription_id', '=', transcriptionId).execute();
+	await db
+		.deleteFrom('transcription_verse_index')
+		.where('transcription_id', '=', transcriptionId)
+		.execute();
 
 	const uniqueByIdentifier = new Map<string, VerseNode>();
 	for (const verse of extractVersesFromDocument(document)) {
@@ -331,15 +346,17 @@ async function replaceVerseIndexRows(
 		uniqueByIdentifier.set(identifier, verse);
 	}
 
-	const rows: Selectable<TranscriptionVerseIndex>[] = [...uniqueByIdentifier].map(([identifier, verse]) => ({
-		id: createId(),
-		transcription_id: transcriptionId,
-		verse_identifier: identifier,
-		book: verse.book,
-		chapter: verse.chapter,
-		verse: verse.verse,
-		last_indexed_at: indexedAt,
-	}));
+	const rows: Selectable<TranscriptionVerseIndex>[] = [...uniqueByIdentifier].map(
+		([identifier, verse]) => ({
+			id: createId(),
+			transcription_id: transcriptionId,
+			verse_identifier: identifier,
+			book: verse.book,
+			chapter: verse.chapter,
+			verse: verse.verse,
+			last_indexed_at: indexedAt,
+		})
+	);
 
 	if (rows.length > 0) await db.insertInto('transcription_verse_index').values(rows).execute();
 }
@@ -398,7 +415,9 @@ function mapTranscription(row: Selectable<Transcriptions>): TranscriptionRecord 
 function parseTags(value: string): string[] {
 	try {
 		const parsed = JSON.parse(value);
-		return Array.isArray(parsed) ? parsed.filter((tag): tag is string => typeof tag === 'string') : [];
+		return Array.isArray(parsed)
+			? parsed.filter((tag): tag is string => typeof tag === 'string')
+			: [];
 	} catch {
 		return [];
 	}
@@ -408,7 +427,9 @@ function uniqueNonEmpty(values: string[]): string[] {
 	return [...new Set(values.filter(Boolean))];
 }
 
-function formatTranscriptionLabel(row: Pick<Selectable<Transcriptions>, 'id' | 'siglum' | 'title'>): string {
+function formatTranscriptionLabel(
+	row: Pick<Selectable<Transcriptions>, 'id' | 'siglum' | 'title'>
+): string {
 	return row.siglum?.trim() || row.title?.trim() || requireId(row.id, 'transcription');
 }
 

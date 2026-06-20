@@ -57,7 +57,10 @@ describe('resolveIiifWorkspaceSelection', () => {
 			resolveIiifWorkspaceSelection({
 				selection: null,
 				initialManifestSourceId: 'source-b',
-				manifestSources: [createManifestSource('source-a'), createManifestSource('source-b')],
+				manifestSources: [
+					createManifestSource('source-a'),
+					createManifestSource('source-b'),
+				],
 				hasCompositeManifest: true,
 			})
 		).toBe('source-b');
@@ -67,7 +70,10 @@ describe('resolveIiifWorkspaceSelection', () => {
 		expect(
 			resolveIiifWorkspaceSelection({
 				selection: null,
-				manifestSources: [createManifestSource('source-a'), createManifestSource('source-b')],
+				manifestSources: [
+					createManifestSource('source-a'),
+					createManifestSource('source-b'),
+				],
 				hasCompositeManifest: false,
 			})
 		).toBe('source-a');

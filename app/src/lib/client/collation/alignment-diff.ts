@@ -8,10 +8,7 @@ export interface DiffSegment {
 
 function tokenize(text: string | null): string[] {
 	if (!text) return [];
-	return text
-		.trim()
-		.split(/\s+/)
-		.filter(Boolean);
+	return text.trim().split(/\s+/).filter(Boolean);
 }
 
 function compactSegments(segments: DiffSegment[]): DiffSegment[] {
@@ -21,7 +18,8 @@ function compactSegments(segments: DiffSegment[]): DiffSegment[] {
 		const prev = compacted[compacted.length - 1];
 		if (prev && prev.kind === segment.kind) {
 			const spacing = segment.spacing ?? 'word';
-			prev.text = spacing === 'none' ? `${prev.text}${segment.text}` : `${prev.text} ${segment.text}`;
+			prev.text =
+				spacing === 'none' ? `${prev.text}${segment.text}` : `${prev.text} ${segment.text}`;
 		} else {
 			compacted.push({ ...segment });
 		}
@@ -91,7 +89,10 @@ function computeCharSemanticDiff(baseWord: string, witnessWord: string): DiffSeg
 }
 
 // Computes a simple word-level diff using LCS to align unchanged tokens.
-export function computeWordDiff(baseText: string | null, witnessText: string | null): DiffSegment[] {
+export function computeWordDiff(
+	baseText: string | null,
+	witnessText: string | null
+): DiffSegment[] {
 	const baseTokens = tokenize(baseText);
 	const witnessTokens = tokenize(witnessText);
 	const m = baseTokens.length;

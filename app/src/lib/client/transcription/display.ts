@@ -5,39 +5,41 @@ function normalizeTeiWitnessIdentifier(value: string): string {
 }
 
 function readTeiNodeText(
-	node: { text?: string; children?: Array<{ type: string; text?: string; children?: unknown[] }> } | undefined,
+	node:
+		| { text?: string; children?: Array<{ type: string; text?: string; children?: unknown[] }> }
+		| undefined
 ): string {
 	if (!node) return '';
 	if (node.text) return node.text;
 	if (!Array.isArray(node.children)) return '';
 	return node.children
-		.map((child) =>
+		.map(child =>
 			child.type === 'text'
 				? (child.text ?? '')
 				: readTeiNodeText(
-					child as {
-						text?: string;
-						children?: Array<{ type: string; text?: string; children?: unknown[] }>;
-					},
-				),
+						child as {
+							text?: string;
+							children?: Array<{ type: string; text?: string; children?: unknown[] }>;
+						}
+					)
 		)
 		.join('');
 }
 
 function findImmediateTeiChildren(
 	node: StoredTranscriptionDocument['teiHeader'],
-	tag: string,
+	tag: string
 ): NonNullable<StoredTranscriptionDocument['teiHeader']>[] {
 	if (!node?.children) return [];
 	return node.children.filter(
 		(child): child is NonNullable<StoredTranscriptionDocument['teiHeader']> =>
-			child.type === 'element' && child.tag.toLowerCase() === tag.toLowerCase(),
+			child.type === 'element' && child.tag.toLowerCase() === tag.toLowerCase()
 	);
 }
 
 function findTeiDescendantByPath(
 	root: StoredTranscriptionDocument['teiHeader'],
-	path: string[],
+	path: string[]
 ): NonNullable<StoredTranscriptionDocument['teiHeader']> | undefined {
 	let current = root;
 	for (const segment of path) {
@@ -56,7 +58,7 @@ function findListeAltIdentifierSiglum(document: StoredTranscriptionDocument): st
 	]);
 	if (!msIdentifier) return undefined;
 	const listeAltIdentifier = findImmediateTeiChildren(msIdentifier, 'altIdentifier').find(
-		(child) => child.attrs?.type?.toLowerCase() === 'liste',
+		child => child.attrs?.type?.toLowerCase() === 'liste'
 	);
 	if (!listeAltIdentifier) return undefined;
 	const idno = findImmediateTeiChildren(listeAltIdentifier, 'idno')[0];
@@ -65,10 +67,10 @@ function findListeAltIdentifierSiglum(document: StoredTranscriptionDocument): st
 }
 
 export function findPreferredTeiWitnessSiglum(
-	document: StoredTranscriptionDocument,
+	document: StoredTranscriptionDocument
 ): string | undefined {
 	return (
-		document.header?.titles?.find((title) => title.type === 'document')?.key?.trim() ||
+		document.header?.titles?.find(title => title.type === 'document')?.key?.trim() ||
 		findListeAltIdentifierSiglum(document) ||
 		undefined
 	);

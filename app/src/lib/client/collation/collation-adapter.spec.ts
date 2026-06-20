@@ -12,7 +12,10 @@ describe('collateToAlignmentSnapshot', () => {
 
 		expect(result.snapshot.witnessOrder).toEqual(['B', 'A']);
 		expect(result.snapshot.columns).toHaveLength(1);
-		expect(result.snapshot.columns[0]?.cells.map(([witnessId]) => witnessId)).toEqual(['B', 'A']);
+		expect(result.snapshot.columns[0]?.cells.map(([witnessId]) => witnessId)).toEqual([
+			'B',
+			'A',
+		]);
 	});
 
 	it('uses segmented collation by default', () => {
@@ -86,13 +89,13 @@ describe('collateToAlignmentSnapshot', () => {
 		expect(result.snapshot.witnessOrder).toEqual(['A', 'B']);
 		expect(result.snapshot.columns[0]?.cells[0]).toEqual([
 			'A',
-				{
-					text: 'και εγενετο',
-					regularizedText: 'και εγενετο',
-					alignmentValue: 'και εγενετο',
-					sourceTokenIds: ['A::source::0'],
-					kind: 'text',
-					gap: null,
+			{
+				text: 'και εγενετο',
+				regularizedText: 'και εγενετο',
+				alignmentValue: 'και εγενετο',
+				sourceTokenIds: ['A::source::0'],
+				kind: 'text',
+				gap: null,
 				isOmission: false,
 				isLacuna: false,
 				isRegularized: false,
@@ -173,19 +176,33 @@ describe('collateToAlignmentSnapshot', () => {
 				{
 					id: 'A',
 					content: 'unused',
-					tokens: [{
-						t: 'θεος',
-						n: 'θεος',
-						originalSegments: [
-							{ text: 'θε', hasUnclear: false, isPunctuation: false, isSupplied: false },
-							{ text: 'ος', hasUnclear: true, isPunctuation: false, isSupplied: false },
-						],
-					}],
+					tokens: [
+						{
+							t: 'θεος',
+							n: 'θεος',
+							originalSegments: [
+								{
+									text: 'θε',
+									hasUnclear: false,
+									isPunctuation: false,
+									isSupplied: false,
+								},
+								{
+									text: 'ος',
+									hasUnclear: true,
+									isPunctuation: false,
+									isSupplied: false,
+								},
+							],
+						},
+					],
 				},
 				{
 					id: 'B',
 					content: 'unused',
-					tokens: [{ t: 'θς', n: 'θεος', ruleIds: ['rule-1'], regularizationTypes: ['ns'] }],
+					tokens: [
+						{ t: 'θς', n: 'θεος', ruleIds: ['rule-1'], regularizationTypes: ['ns'] },
+					],
 				},
 			],
 			options: { segmentation: false },
@@ -249,7 +266,12 @@ describe('collateToAlignmentSnapshot', () => {
 							n: ',',
 							isPunctuation: true,
 							originalSegments: [
-								{ text: ',', hasUnclear: false, isPunctuation: true, isSupplied: false },
+								{
+									text: ',',
+									hasUnclear: false,
+									isPunctuation: true,
+									isSupplied: false,
+								},
 							],
 							sourceTokenIds: ['A::source::1'],
 						},
@@ -310,13 +332,13 @@ describe('collateToAlignmentSnapshot', () => {
 
 		expect(result.snapshot.columns[0]?.cells[0]).toEqual([
 			'A',
-				{
-					text: '⊘',
-					regularizedText: null,
-					alignmentValue: '__gap:reason=lacuna;unit=chars;extent=3__',
-					sourceTokenIds: [],
-					kind: 'gap',
-					gap: {
+			{
+				text: '⊘',
+				regularizedText: null,
+				alignmentValue: '__gap:reason=lacuna;unit=chars;extent=3__',
+				sourceTokenIds: [],
+				kind: 'gap',
+				gap: {
 					source: 'gap',
 					reason: 'lacuna',
 					unit: 'chars',

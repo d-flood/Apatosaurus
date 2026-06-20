@@ -102,7 +102,13 @@ describe('Verse Gathering', () => {
 		it('should handle unknown books by sorting to end', () => {
 			const verses = [
 				{ identifier: 'Matthew 1:1', book: 'Matthew', chapter: '1', verse: '1', count: 1 },
-				{ identifier: 'Unknown Book 1:1', book: 'Unknown Book', chapter: '1', verse: '1', count: 1 },
+				{
+					identifier: 'Unknown Book 1:1',
+					book: 'Unknown Book',
+					chapter: '1',
+					verse: '1',
+					count: 1,
+				},
 				{ identifier: 'Genesis 1:1', book: 'Genesis', chapter: '1', verse: '1', count: 1 },
 			];
 

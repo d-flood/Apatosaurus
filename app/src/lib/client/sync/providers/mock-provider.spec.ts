@@ -21,7 +21,7 @@ describe('mock cloud storage provider', () => {
 		});
 
 		expect(firstPage).toMatchObject({ hasMore: true, cursor: '2' });
-		expect([...firstPage.entries, ...secondPage.entries].map((entry) => entry.path)).toEqual([
+		expect([...firstPage.entries, ...secondPage.entries].map(entry => entry.path)).toEqual([
 			'Project/project.json',
 			'Project/transcriptions',
 			'Project/transcriptions/a.json',
@@ -46,7 +46,9 @@ describe('mock cloud storage provider', () => {
 			code: 'conflict',
 		});
 		await provider.deleteFile(created.id, updated.revision);
-		await expect(provider.downloadFile(created.id)).rejects.toMatchObject({ code: 'not-found' });
+		await expect(provider.downloadFile(created.id)).rejects.toMatchObject({
+			code: 'not-found',
+		});
 	});
 
 	it('injects typed provider failures for deterministic sync tests', async () => {
@@ -73,7 +75,9 @@ describe('mock cloud storage provider', () => {
 	it('surfaces permission and reauthorization failures through typed errors', async () => {
 		const provider = new MockCloudStorageProvider();
 		provider.failNext('permission-denied', 'create-folder');
-		await expect(provider.createFolder('Project')).rejects.toMatchObject({ code: 'permission-denied' });
+		await expect(provider.createFolder('Project')).rejects.toMatchObject({
+			code: 'permission-denied',
+		});
 
 		provider.failNext('reauthorization-required', 'exchange-code');
 		await expect(provider.exchangeCode('code', 'verifier')).rejects.toMatchObject({

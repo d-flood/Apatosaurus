@@ -36,7 +36,9 @@ export function resolveIiifWorkspaceSelection({
 
 	if (
 		initialManifestSourceId &&
-		manifestSources.some((source: ManifestSourceSummary) => source.id === initialManifestSourceId)
+		manifestSources.some(
+			(source: ManifestSourceSummary) => source.id === initialManifestSourceId
+		)
 	) {
 		return initialManifestSourceId;
 	}

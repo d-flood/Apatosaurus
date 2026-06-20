@@ -28,7 +28,7 @@ class NotificationCenter {
 		const existingIndex = this.items.findIndex(existing => existing.id === item.id);
 		const next: NotificationItem = {
 			...item,
-			createdAt: item.createdAt ?? new Date().toISOString()
+			createdAt: item.createdAt ?? new Date().toISOString(),
 		};
 		if (existingIndex === -1) {
 			this.items = [next, ...this.items];

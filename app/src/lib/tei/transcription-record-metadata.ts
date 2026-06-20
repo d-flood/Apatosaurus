@@ -14,7 +14,9 @@ type MetadataPatchKeys =
 	| 'siglum'
 	| 'language';
 
-export type TranscriptionRecordMetadataPatch = Partial<Pick<TranscriptionRecord, MetadataPatchKeys>>;
+export type TranscriptionRecordMetadataPatch = Partial<
+	Pick<TranscriptionRecord, MetadataPatchKeys>
+>;
 
 export function buildTEIMetadataFromTranscription(record: TranscriptionRecord): TEIMetadata {
 	const createdDate = new Date(record.created_at || new Date().toISOString())
@@ -37,16 +39,9 @@ export function extractTranscriptionRecordMetadataPatch(
 ): TranscriptionRecordMetadataPatch {
 	const metadata = document.metadata;
 	const header = document.header;
-	const title =
-		firstNonEmpty(
-			metadata?.title,
-			findPreferredTitle(header),
-		) || undefined;
+	const title = firstNonEmpty(metadata?.title, findPreferredTitle(header)) || undefined;
 	const transcriber =
-		firstNonEmpty(
-			metadata?.transcriber,
-			findPreferredResponsibilityName(header),
-		) || undefined;
+		firstNonEmpty(metadata?.transcriber, findPreferredResponsibilityName(header)) || undefined;
 	const repository =
 		firstNonEmpty(metadata?.repository, header?.msIdentifier?.repository) || undefined;
 	const settlement =

@@ -38,9 +38,18 @@ test('transcription list metadata path stays fast with imported IGNTP corpus', a
 	await waitForTranscriptionList(page);
 	const coldWorkerLogs = logs.splice(0);
 
-	const coldListMs = requireTiming(coldRouteLogs, '[local-db] transcriptions.listSummaries client completed');
-	const warmListMs = requireTiming(warmRouteLogs, '[local-db] transcriptions.listSummaries client completed');
-	const refreshListMs = requireTiming(coldWorkerLogs, '[local-db] transcriptions.listSummaries client completed');
+	const coldListMs = requireTiming(
+		coldRouteLogs,
+		'[local-db] transcriptions.listSummaries client completed'
+	);
+	const warmListMs = requireTiming(
+		warmRouteLogs,
+		'[local-db] transcriptions.listSummaries client completed'
+	);
+	const refreshListMs = requireTiming(
+		coldWorkerLogs,
+		'[local-db] transcriptions.listSummaries client completed'
+	);
 
 	console.info('IGNTP transcription list performance', {
 		coldListMs,
@@ -58,7 +67,9 @@ test('transcription list metadata path stays fast with imported IGNTP corpus', a
 
 async function importVisibleIgntpCorpus(page: Page): Promise<void> {
 	await page.goto('/transcription/igntp');
-	await expect(page.getByRole('heading', { name: 'Import Provided Transcriptions' })).toBeVisible();
+	await expect(
+		page.getByRole('heading', { name: 'Import Provided Transcriptions' })
+	).toBeVisible();
 
 	for (const button of await page.getByRole('button', { name: 'Select Visible' }).all()) {
 		await button.click();
@@ -77,27 +88,32 @@ async function waitForTranscriptionList(page: Page): Promise<void> {
 
 async function resetBrowserLocalDb(page: Page): Promise<void> {
 	await page.goto('/');
-	await page.evaluate(async ({ localDbPrefix, idbDatabases }) => {
-		localStorage.removeItem('apatosaurus:legacy-djazzkit-purged');
+	await page.evaluate(
+		async ({ localDbPrefix, idbDatabases }) => {
+			localStorage.removeItem('apatosaurus:legacy-djazzkit-purged');
 
-		const indexedDbWithDatabases = indexedDB as IDBFactory & {
-			databases?: () => Promise<Array<{ name?: string }>>;
-		};
-		const names = new Set(idbDatabases);
-		if (typeof indexedDbWithDatabases.databases === 'function') {
-			for (const database of await indexedDbWithDatabases.databases()) {
-				if (database.name?.startsWith(localDbPrefix)) names.add(database.name);
+			const indexedDbWithDatabases = indexedDB as IDBFactory & {
+				databases?: () => Promise<Array<{ name?: string }>>;
+			};
+			const names = new Set(idbDatabases);
+			if (typeof indexedDbWithDatabases.databases === 'function') {
+				for (const database of await indexedDbWithDatabases.databases()) {
+					if (database.name?.startsWith(localDbPrefix)) names.add(database.name);
+				}
 			}
-		}
-		await Promise.all([...names].map(name => deleteIndexedDb(name)));
+			await Promise.all([...names].map(name => deleteIndexedDb(name)));
 
-		const root = await navigator.storage?.getDirectory?.();
-		if (!root || typeof root.entries !== 'function') return;
-		for await (const [name, handle] of root.entries()) {
-			if (!name.startsWith(localDbPrefix)) continue;
-			await root.removeEntry(name, { recursive: handle.kind === 'directory' }).catch(() => undefined);
-		}
-	}, { localDbPrefix: LOCAL_DB_PREFIX, idbDatabases: LOCAL_DB_IDB_DATABASES });
+			const root = await navigator.storage?.getDirectory?.();
+			if (!root || typeof root.entries !== 'function') return;
+			for await (const [name, handle] of root.entries()) {
+				if (!name.startsWith(localDbPrefix)) continue;
+				await root
+					.removeEntry(name, { recursive: handle.kind === 'directory' })
+					.catch(() => undefined);
+			}
+		},
+		{ localDbPrefix: LOCAL_DB_PREFIX, idbDatabases: LOCAL_DB_IDB_DATABASES }
+	);
 }
 
 function deleteIndexedDb(name: string): Promise<void> {
@@ -110,7 +126,12 @@ function deleteIndexedDb(name: string): Promise<void> {
 }
 
 async function readConsoleDetails(message: ConsoleMessage): Promise<unknown[]> {
-	return Promise.all(message.args().slice(1).map(argument => argument.jsonValue().catch(() => null)));
+	return Promise.all(
+		message
+			.args()
+			.slice(1)
+			.map(argument => argument.jsonValue().catch(() => null))
+	);
 }
 
 function requireTiming(logs: TimingLog[], text: string): number {

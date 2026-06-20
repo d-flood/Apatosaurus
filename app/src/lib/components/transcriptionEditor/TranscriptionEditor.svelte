@@ -1042,7 +1042,7 @@ import {
 	function createDebouncedAutosave(delayMs: number = 1000) {
 		let timeoutId: ReturnType<typeof setTimeout> | null = null;
 		let pendingDocument: StoredTranscriptionDocument | null = null;
-		let saveInFlight = false;
+		let saveInFlight: Promise<boolean> | null = null;
 
 		const persist = async (document: StoredTranscriptionDocument) => {
 			const currentTranscription = transcription;
@@ -1065,20 +1065,37 @@ import {
 			}
 		};
 
-		const flush = async () => {
-			if (saveInFlight || !pendingDocument) return;
-			saveInFlight = true;
-			const nextDocument = pendingDocument;
-			pendingDocument = null;
-			const saved = await persist(nextDocument);
-			saveInFlight = false;
-			if (pendingDocument) {
-				await flush();
-				return;
+		async function persistNextDocument(document: StoredTranscriptionDocument): Promise<boolean> {
+			saveInFlight = persist(document);
+			try {
+				return await saveInFlight;
+			} finally {
+				saveInFlight = null;
 			}
-			if (saved) {
+		}
+
+		const flush = async (): Promise<boolean> => {
+			let saved = true;
+			if (saveInFlight) {
+				saved = await saveInFlight;
+			}
+			while (pendingDocument) {
+				const nextDocument = pendingDocument;
+				pendingDocument = null;
+				const nextDocumentSaved = await persistNextDocument(nextDocument);
+				saved = nextDocumentSaved;
+				if (!nextDocumentSaved) {
+					pendingDocument ??= nextDocument;
+					break;
+				}
+				if (saveInFlight) {
+					saved = await saveInFlight;
+				}
+			}
+			if (saved && !pendingDocument && !saveInFlight) {
 				onSaveStateChange?.(true);
 			}
+			return saved && !pendingDocument && !saveInFlight;
 		};
 
 		const schedule = (editorJson: unknown) => {
@@ -1102,7 +1119,7 @@ import {
 					clearTimeout(timeoutId);
 					timeoutId = null;
 				}
-				await flush();
+				return flush();
 			},
 		};
 	}
@@ -1113,6 +1130,10 @@ import {
 	const autosave = createDebouncedAutosave();
 	const debouncedAutosave = autosave.schedule;
 	const flushAutosave = autosave.flush;
+
+	export function flushPendingAutosave(): Promise<boolean> {
+		return flushAutosave();
+	}
 
 	function insertMilestoneNode(type: 'book' | 'chapter' | 'verse', value: string, event: Event) {
 		if (!editorState.editor || !value) return;

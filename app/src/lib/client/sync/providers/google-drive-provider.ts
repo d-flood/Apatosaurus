@@ -5,7 +5,7 @@ import {
 	type CloudListResult,
 	type CloudProviderCapabilities,
 	type CloudProviderErrorCode,
-	type CloudStorageProvider,
+	type OAuthCloudStorageProvider,
 	type CloudWriteResult,
 } from './provider';
 
@@ -92,7 +92,7 @@ const DRIVE_FILE_FIELDS =
 	'id,name,mimeType,parents,modifiedTime,size,version,headRevisionId,appProperties,trashed';
 const DEFAULT_SCOPES = ['https://www.googleapis.com/auth/drive.file'];
 
-export class GoogleDriveStorageProvider implements CloudStorageProvider {
+export class GoogleDriveStorageProvider implements OAuthCloudStorageProvider {
 	id = 'google-drive';
 	name = 'Google Drive';
 	capabilities: CloudProviderCapabilities = {
@@ -101,6 +101,9 @@ export class GoogleDriveStorageProvider implements CloudStorageProvider {
 		supportsExpectedRevisionDelete: true,
 		requiresPathAddressing: false,
 		sharingMayBeAsync: false,
+		requiresOAuth: true,
+		requiresUserGestureForConnection: false,
+		supportsDirectoryHandlePersistence: false,
 	};
 
 	readonly rootFolderId: string;

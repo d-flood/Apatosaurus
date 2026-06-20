@@ -46,9 +46,9 @@ describe('IgntpImportPanel', () => {
 			onImport: vi.fn(),
 		});
 
-		await expect.element(
-			browserPage.getByRole('heading', { name: 'Romans_Greek_transcriptions' })
-		).toBeInTheDocument();
+		await expect
+			.element(browserPage.getByRole('heading', { name: 'Romans_Greek_transcriptions' }))
+			.toBeInTheDocument();
 		await expect.element(browserPage.getByLabelText('NT_GRC_01_Rom.xml')).toBeDisabled();
 	});
 

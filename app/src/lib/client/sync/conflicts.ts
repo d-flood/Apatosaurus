@@ -138,7 +138,7 @@ export interface CollationConflictCopyResult {
 }
 
 export function classifyCommittedHeadSync(
-	input: ClassifyCommittedHeadSyncInput,
+	input: ClassifyCommittedHeadSyncInput
 ): CommittedHeadSyncClassification {
 	if (headsEqual(input.localHead, input.remoteHead)) return 'in_sync';
 	const localChanged = !headsEqual(input.localHead, input.lastSyncedHead);
@@ -151,9 +151,9 @@ export function classifyCommittedHeadSync(
 
 export async function createProjectTranscriptionTombstone(
 	db: Kysely<Database>,
-	input: CreateTombstoneInput,
+	input: CreateTombstoneInput
 ): Promise<TombstoneData> {
-	return db.transaction().execute(async (trx) => {
+	return db.transaction().execute(async trx => {
 		const entity = await loadProjectTranscriptionEntity(trx, input.entityId);
 		const projectId = entity?.link.project_id ?? input.projectId ?? null;
 		if (!projectId) throw new Error(`Project transcription ${input.entityId} was not found.`);
@@ -162,8 +162,10 @@ export async function createProjectTranscriptionTombstone(
 			project_id: projectId,
 			entity_type: 'project-transcription',
 			entity_id: input.entityId,
-			cloud_path: input.cloudPath ?? projectRelativeCloudPaths().transcriptions(input.entityId),
-			deletion_revision_id: input.deletionRevisionId ?? entity?.transcription.current_revision_id ?? '',
+			cloud_path:
+				input.cloudPath ?? projectRelativeCloudPaths().transcriptions(input.entityId),
+			deletion_revision_id:
+				input.deletionRevisionId ?? entity?.transcription.current_revision_id ?? '',
 			deleted_by: input.deletedBy ?? '',
 			deleted_at: input.deletedAt ?? new Date().toISOString(),
 		});
@@ -174,9 +176,9 @@ export async function createProjectTranscriptionTombstone(
 
 export async function createCollationTombstone(
 	db: Kysely<Database>,
-	input: CreateTombstoneInput,
+	input: CreateTombstoneInput
 ): Promise<TombstoneData> {
-	return db.transaction().execute(async (trx) => {
+	return db.transaction().execute(async trx => {
 		const collation = await trx
 			.selectFrom('collations')
 			.selectAll()
@@ -193,14 +195,15 @@ export async function createCollationTombstone(
 			deleted_by: input.deletedBy ?? '',
 			deleted_at: input.deletedAt ?? new Date().toISOString(),
 		});
-		if (collation) await trx.deleteFrom('collations').where('id', '=', input.entityId).execute();
+		if (collation)
+			await trx.deleteFrom('collations').where('id', '=', input.entityId).execute();
 		return tombstone;
 	});
 }
 
 export async function classifyTombstoneAgainstProjectTranscription(
 	db: DbExecutor,
-	tombstone: TombstoneData,
+	tombstone: TombstoneData
 ): Promise<TombstoneResolution | 'entity_missing'> {
 	const entity = await loadProjectTranscriptionEntity(db, tombstone.entity_id);
 	if (!entity) return 'entity_missing';
@@ -209,13 +212,13 @@ export async function classifyTombstoneAgainstProjectTranscription(
 		'project-transcription',
 		entity.transcription.id,
 		entity.transcription.current_revision_id,
-		tombstone.deletion_revision_id,
+		tombstone.deletion_revision_id
 	);
 }
 
 export async function classifyTombstoneAgainstCollation(
 	db: DbExecutor,
-	tombstone: TombstoneData,
+	tombstone: TombstoneData
 ): Promise<TombstoneResolution | 'entity_missing'> {
 	const collation = await db
 		.selectFrom('collations')
@@ -228,15 +231,15 @@ export async function classifyTombstoneAgainstCollation(
 		'collation',
 		requireId(collation.id, 'collation'),
 		collation.current_revision_id,
-		tombstone.deletion_revision_id,
+		tombstone.deletion_revision_id
 	);
 }
 
 export async function applyProjectTranscriptionTombstone(
 	db: Kysely<Database>,
-	tombstone: TombstoneData,
+	tombstone: TombstoneData
 ): Promise<TombstoneApplicationResult> {
-	return db.transaction().execute(async (trx) => {
+	return db.transaction().execute(async trx => {
 		const saved = await upsertTombstone(trx, tombstone);
 		const entity = await loadProjectTranscriptionEntity(trx, tombstone.entity_id);
 		if (!entity) return { outcome: 'entity_missing', tombstone: saved, entityRevisionId: '' };
@@ -245,7 +248,7 @@ export async function applyProjectTranscriptionTombstone(
 			'project-transcription',
 			entity.transcription.id,
 			entity.transcription.current_revision_id,
-			tombstone.deletion_revision_id,
+			tombstone.deletion_revision_id
 		);
 		if (resolution === 'delete_edit_conflict') {
 			return {
@@ -265,23 +268,24 @@ export async function applyProjectTranscriptionTombstone(
 
 export async function applyCollationTombstone(
 	db: Kysely<Database>,
-	tombstone: TombstoneData,
+	tombstone: TombstoneData
 ): Promise<TombstoneApplicationResult> {
-	return db.transaction().execute(async (trx) => {
+	return db.transaction().execute(async trx => {
 		const saved = await upsertTombstone(trx, tombstone);
 		const collation = await trx
 			.selectFrom('collations')
 			.select(['id', 'current_revision_id'])
 			.where('id', '=', tombstone.entity_id)
 			.executeTakeFirst();
-		if (!collation) return { outcome: 'entity_missing', tombstone: saved, entityRevisionId: '' };
+		if (!collation)
+			return { outcome: 'entity_missing', tombstone: saved, entityRevisionId: '' };
 		const entityRevisionId = collation.current_revision_id;
 		const resolution = await classifyTombstoneRevision(
 			trx,
 			'collation',
 			requireId(collation.id, 'collation'),
 			entityRevisionId,
-			tombstone.deletion_revision_id,
+			tombstone.deletion_revision_id
 		);
 		if (resolution === 'delete_edit_conflict') {
 			return { outcome: 'delete_edit_conflict', tombstone: saved, entityRevisionId };
@@ -293,9 +297,9 @@ export async function applyCollationTombstone(
 
 export async function preserveProjectTranscriptionDraftCheckpoint(
 	db: Kysely<Database>,
-	input: PreserveProjectTranscriptionDraftInput,
+	input: PreserveProjectTranscriptionDraftInput
 ): Promise<DraftCheckpointResult | null> {
-	return db.transaction().execute(async (trx) => {
+	return db.transaction().execute(async trx => {
 		const snapshot = await loadProjectTranscriptionSnapshot(trx, input.projectTranscriptionId);
 		const head = await trx
 			.selectFrom('transcriptions')
@@ -329,9 +333,9 @@ export async function preserveProjectTranscriptionDraftCheckpoint(
 
 export async function preserveCollationDraftCheckpoint(
 	db: Kysely<Database>,
-	input: PreserveCollationDraftInput,
+	input: PreserveCollationDraftInput
 ): Promise<DraftCheckpointResult | null> {
-	return db.transaction().execute(async (trx) => {
+	return db.transaction().execute(async trx => {
 		const collation = await loadSerializedCollation(trx, input.collationId);
 		const head = await trx
 			.selectFrom('collations')
@@ -364,18 +368,22 @@ export async function preserveCollationDraftCheckpoint(
 
 export async function createProjectTranscriptionConflictCopy(
 	db: Kysely<Database>,
-	input: CreateProjectTranscriptionConflictCopyInput,
+	input: CreateProjectTranscriptionConflictCopyInput
 ): Promise<ProjectTranscriptionConflictCopyResult> {
-	return db.transaction().execute(async (trx) => {
+	return db.transaction().execute(async trx => {
 		const entity = await loadProjectTranscriptionEntity(trx, input.projectTranscriptionId);
-		if (!entity) throw new Error(`Project transcription ${input.projectTranscriptionId} was not found.`);
+		if (!entity)
+			throw new Error(`Project transcription ${input.projectTranscriptionId} was not found.`);
 
 		const now = input.now ?? new Date().toISOString();
 		const conflictTranscriptionId = input.conflictTranscriptionId ?? createId();
 		const conflictProjectTranscriptionId = input.conflictProjectTranscriptionId ?? createId();
 		const suffix = conflictSuffix(input.actorName);
 		const title = appendConflictSuffix(entity.transcription.title, suffix);
-		const siglum = appendConflictSuffix(entity.transcription.siglum || entity.transcription.title, suffix);
+		const siglum = appendConflictSuffix(
+			entity.transcription.siglum || entity.transcription.title,
+			suffix
+		);
 		await trx
 			.insertInto('transcriptions')
 			.values({
@@ -407,13 +415,18 @@ export async function createProjectTranscriptionConflictCopy(
 				added_by_id: null,
 			})
 			.execute();
-		await copyTranscriptionChildRows(trx, entity.transcription.id, conflictTranscriptionId, now);
+		await copyTranscriptionChildRows(
+			trx,
+			entity.transcription.id,
+			conflictTranscriptionId,
+			now
+		);
 		const checkpoint = await createCommittedCheckpointForProjectTranscriptionCopy(
 			trx,
 			conflictProjectTranscriptionId,
 			input.checkpointId ?? createId(),
 			input.actorName ?? '',
-			now,
+			now
 		);
 		return {
 			projectTranscriptionId: conflictProjectTranscriptionId,
@@ -428,9 +441,9 @@ export async function createProjectTranscriptionConflictCopy(
 
 export async function createCollationConflictCopy(
 	db: Kysely<Database>,
-	input: CreateCollationConflictCopyInput,
+	input: CreateCollationConflictCopyInput
 ): Promise<CollationConflictCopyResult> {
-	return db.transaction().execute(async (trx) => {
+	return db.transaction().execute(async trx => {
 		const source = await trx
 			.selectFrom('collations')
 			.selectAll()
@@ -453,13 +466,18 @@ export async function createCollationConflictCopy(
 				updated_at: now,
 			})
 			.execute();
-		await copyCollationChildRows(trx, requireId(source.id, 'collation'), conflictCollationId, now);
+		await copyCollationChildRows(
+			trx,
+			requireId(source.id, 'collation'),
+			conflictCollationId,
+			now
+		);
 		const checkpoint = await createCommittedCheckpointForCollationCopy(
 			trx,
 			conflictCollationId,
 			input.checkpointId ?? createId(),
 			input.actorName ?? '',
-			now,
+			now
 		);
 		return {
 			collationId: conflictCollationId,
@@ -479,7 +497,7 @@ async function classifyTombstoneRevision(
 	entityType: SyncEntityType,
 	entityId: string,
 	entityRevisionId: string,
-	deletionRevisionId: string,
+	deletionRevisionId: string
 ): Promise<TombstoneResolution> {
 	if (!entityRevisionId) return 'tombstone_wins';
 	if (!deletionRevisionId) return 'delete_edit_conflict';
@@ -495,16 +513,17 @@ async function isRevisionAncestor(
 	entityType: SyncEntityType,
 	entityId: string,
 	ancestorRevisionId: string,
-	descendantRevisionId: string,
+	descendantRevisionId: string
 ): Promise<boolean> {
 	if (ancestorRevisionId === descendantRevisionId) return true;
 	let current: string | null = descendantRevisionId;
 	const seen = new Set<string>();
 	while (current && !seen.has(current)) {
 		seen.add(current);
-		const parent: string | null = entityType === 'project-transcription'
-			? await loadTranscriptionCheckpointParent(db, entityId, current)
-			: await loadCollationCheckpointParent(db, entityId, current);
+		const parent: string | null =
+			entityType === 'project-transcription'
+				? await loadTranscriptionCheckpointParent(db, entityId, current)
+				: await loadCollationCheckpointParent(db, entityId, current);
 		if (parent === ancestorRevisionId) return true;
 		current = parent;
 	}
@@ -514,7 +533,7 @@ async function isRevisionAncestor(
 async function loadTranscriptionCheckpointParent(
 	db: DbExecutor,
 	transcriptionId: string,
-	checkpointId: string,
+	checkpointId: string
 ): Promise<string | null> {
 	const row = await db
 		.selectFrom('transcription_checkpoints')
@@ -528,7 +547,7 @@ async function loadTranscriptionCheckpointParent(
 async function loadCollationCheckpointParent(
 	db: DbExecutor,
 	collationId: string,
-	checkpointId: string,
+	checkpointId: string
 ): Promise<string | null> {
 	const row = await db
 		.selectFrom('collation_checkpoints')
@@ -543,14 +562,14 @@ async function upsertTombstone(db: DbExecutor, tombstone: TombstoneData): Promis
 	await db
 		.insertInto('sync_tombstones')
 		.values(tombstone)
-		.onConflict((oc) =>
+		.onConflict(oc =>
 			oc.columns(['project_id', 'entity_type', 'entity_id']).doUpdateSet({
 				id: tombstone.id,
 				cloud_path: tombstone.cloud_path,
 				deletion_revision_id: tombstone.deletion_revision_id,
 				deleted_by: tombstone.deleted_by,
 				deleted_at: tombstone.deleted_at,
-			}),
+			})
 		)
 		.execute();
 	const row = await db
@@ -568,7 +587,7 @@ interface ProjectTranscriptionEntity {
 
 async function loadProjectTranscriptionEntity(
 	db: DbExecutor,
-	projectTranscriptionId: string,
+	projectTranscriptionId: string
 ): Promise<ProjectTranscriptionEntity | null> {
 	const link = await db
 		.selectFrom('project_transcriptions')
@@ -590,7 +609,7 @@ async function loadProjectTranscriptionEntity(
 
 async function deleteProjectTranscriptionEntity(
 	db: DbExecutor,
-	entity: ProjectTranscriptionEntity,
+	entity: ProjectTranscriptionEntity
 ): Promise<void> {
 	await db.deleteFrom('project_transcriptions').where('id', '=', entity.link.id).execute();
 	if (
@@ -609,7 +628,7 @@ async function copyTranscriptionChildRows(
 	db: DbExecutor,
 	sourceTranscriptionId: string,
 	targetTranscriptionId: string,
-	now: string,
+	now: string
 ): Promise<void> {
 	const verseRows = await db
 		.selectFrom('transcription_verse_index')
@@ -617,7 +636,7 @@ async function copyTranscriptionChildRows(
 		.where('transcription_id', '=', sourceTranscriptionId)
 		.execute();
 	if (verseRows.length > 0) {
-		const copiedRows: Selectable<TranscriptionVerseIndex>[] = verseRows.map((row) => ({
+		const copiedRows: Selectable<TranscriptionVerseIndex>[] = verseRows.map(row => ({
 			...row,
 			id: createId(),
 			transcription_id: targetTranscriptionId,
@@ -632,45 +651,66 @@ async function copyTranscriptionChildRows(
 		.where('transcription_id', '=', sourceTranscriptionId)
 		.execute();
 	const manifestIdMap = new Map<string, string>();
-	const copiedManifestRows: Selectable<IiifManifestSources>[] = manifestRows.map((row) => {
+	const copiedManifestRows: Selectable<IiifManifestSources>[] = manifestRows.map(row => {
 		const nextId = createId();
 		manifestIdMap.set(requireId(row.id, 'manifest source'), nextId);
 		return { ...row, id: nextId, transcription_id: targetTranscriptionId };
 	});
-	if (copiedManifestRows.length > 0) await db.insertInto('iiif_manifest_sources').values(copiedManifestRows).execute();
+	if (copiedManifestRows.length > 0)
+		await db.insertInto('iiif_manifest_sources').values(copiedManifestRows).execute();
 
 	const pageLinkRows = await db
 		.selectFrom('transcription_page_canvas_links')
 		.selectAll()
 		.where('transcription_id', '=', sourceTranscriptionId)
 		.execute();
-	const copiedPageLinkRows: Selectable<TranscriptionPageCanvasLinks>[] = pageLinkRows.flatMap((row) => {
-		const manifestSourceId = manifestIdMap.get(row.manifest_source_id);
-		return manifestSourceId
-			? [{ ...row, id: createId(), transcription_id: targetTranscriptionId, manifest_source_id: manifestSourceId }]
-			: [];
-	});
-	if (copiedPageLinkRows.length > 0) await db.insertInto('transcription_page_canvas_links').values(copiedPageLinkRows).execute();
+	const copiedPageLinkRows: Selectable<TranscriptionPageCanvasLinks>[] = pageLinkRows.flatMap(
+		row => {
+			const manifestSourceId = manifestIdMap.get(row.manifest_source_id);
+			return manifestSourceId
+				? [
+						{
+							...row,
+							id: createId(),
+							transcription_id: targetTranscriptionId,
+							manifest_source_id: manifestSourceId,
+						},
+					]
+				: [];
+		}
+	);
+	if (copiedPageLinkRows.length > 0)
+		await db.insertInto('transcription_page_canvas_links').values(copiedPageLinkRows).execute();
 
 	const annotationRows = await db
 		.selectFrom('iiif_canvas_annotations')
 		.selectAll()
 		.where('transcription_id', '=', sourceTranscriptionId)
 		.execute();
-	const copiedAnnotationRows: Selectable<IiifCanvasAnnotations>[] = annotationRows.flatMap((row) => {
-		const manifestSourceId = manifestIdMap.get(row.manifest_source_id);
-		return manifestSourceId
-			? [{ ...row, id: createId(), transcription_id: targetTranscriptionId, manifest_source_id: manifestSourceId }]
-			: [];
-	});
-	if (copiedAnnotationRows.length > 0) await db.insertInto('iiif_canvas_annotations').values(copiedAnnotationRows).execute();
+	const copiedAnnotationRows: Selectable<IiifCanvasAnnotations>[] = annotationRows.flatMap(
+		row => {
+			const manifestSourceId = manifestIdMap.get(row.manifest_source_id);
+			return manifestSourceId
+				? [
+						{
+							...row,
+							id: createId(),
+							transcription_id: targetTranscriptionId,
+							manifest_source_id: manifestSourceId,
+						},
+					]
+				: [];
+		}
+	);
+	if (copiedAnnotationRows.length > 0)
+		await db.insertInto('iiif_canvas_annotations').values(copiedAnnotationRows).execute();
 }
 
 async function copyCollationChildRows(
 	db: DbExecutor,
 	sourceCollationId: string,
 	targetCollationId: string,
-	now: string,
+	now: string
 ): Promise<void> {
 	const artifactRows = await db
 		.selectFrom('collation_artifacts')
@@ -678,7 +718,7 @@ async function copyCollationChildRows(
 		.where('collation_id', '=', sourceCollationId)
 		.execute();
 	if (artifactRows.length > 0) {
-		const copiedRows: Selectable<CollationArtifacts>[] = artifactRows.map((row) => ({
+		const copiedRows: Selectable<CollationArtifacts>[] = artifactRows.map(row => ({
 			...row,
 			id: createId(),
 			collation_id: targetCollationId,
@@ -693,7 +733,7 @@ async function copyCollationChildRows(
 		.where('collation_id', '=', sourceCollationId)
 		.execute();
 	if (witnessRows.length > 0) {
-		const copiedRows: Selectable<CollationWitnesses>[] = witnessRows.map((row) => ({
+		const copiedRows: Selectable<CollationWitnesses>[] = witnessRows.map(row => ({
 			...row,
 			id: createId(),
 			collation_id: targetCollationId,
@@ -707,7 +747,7 @@ async function copyCollationChildRows(
 		.where('collation_id', '=', sourceCollationId)
 		.execute();
 	if (tokenRows.length > 0) {
-		const copiedRows: Selectable<CollationTokens>[] = tokenRows.map((row) => ({
+		const copiedRows: Selectable<CollationTokens>[] = tokenRows.map(row => ({
 			...row,
 			id: createId(),
 			collation_id: targetCollationId,
@@ -722,7 +762,7 @@ async function copyCollationChildRows(
 		.execute();
 	const variationUnitIdMap = new Map<string, string>();
 	if (variationUnitRows.length > 0) {
-		const copiedRows: Selectable<CollationVariationUnits>[] = variationUnitRows.map((row) => {
+		const copiedRows: Selectable<CollationVariationUnits>[] = variationUnitRows.map(row => {
 			const nextId = createId();
 			variationUnitIdMap.set(requireId(row.id, 'variation unit'), nextId);
 			return { ...row, id: nextId, collation_id: targetCollationId };
@@ -739,14 +779,15 @@ async function copyCollationChildRows(
 		.execute();
 	const readingIdMap = new Map<string, string>();
 	if (readingRows.length > 0) {
-		const copiedRows: Selectable<CollationReadings>[] = readingRows.flatMap((row) => {
+		const copiedRows: Selectable<CollationReadings>[] = readingRows.flatMap(row => {
 			const variationUnitId = variationUnitIdMap.get(row.variation_unit_id);
 			if (!variationUnitId) return [];
 			const nextId = createId();
 			readingIdMap.set(requireId(row.id, 'reading'), nextId);
 			return [{ ...row, id: nextId, variation_unit_id: variationUnitId }];
 		});
-		if (copiedRows.length > 0) await db.insertInto('collation_readings').values(copiedRows).execute();
+		if (copiedRows.length > 0)
+			await db.insertInto('collation_readings').values(copiedRows).execute();
 	}
 
 	const sourceReadingIds = [...readingIdMap.keys()];
@@ -757,11 +798,14 @@ async function copyCollationChildRows(
 		.where('reading_id', 'in', sourceReadingIds)
 		.execute();
 	if (readingWitnessRows.length > 0) {
-		const copiedRows: Selectable<CollationReadingWitnesses>[] = readingWitnessRows.flatMap((row) => {
-			const readingId = readingIdMap.get(row.reading_id);
-			return readingId ? [{ ...row, id: createId(), reading_id: readingId }] : [];
-		});
-		if (copiedRows.length > 0) await db.insertInto('collation_reading_witnesses').values(copiedRows).execute();
+		const copiedRows: Selectable<CollationReadingWitnesses>[] = readingWitnessRows.flatMap(
+			row => {
+				const readingId = readingIdMap.get(row.reading_id);
+				return readingId ? [{ ...row, id: createId(), reading_id: readingId }] : [];
+			}
+		);
+		if (copiedRows.length > 0)
+			await db.insertInto('collation_reading_witnesses').values(copiedRows).execute();
 	}
 }
 
@@ -770,7 +814,7 @@ async function createCommittedCheckpointForProjectTranscriptionCopy(
 	projectTranscriptionId: string,
 	checkpointId: string,
 	authorName: string,
-	now: string,
+	now: string
 ): Promise<{ checkpointId: string; contentHash: string }> {
 	const snapshot = await loadProjectTranscriptionSnapshot(db, projectTranscriptionId);
 	const payload = buildTranscriptionHashPayload(snapshot);
@@ -803,7 +847,7 @@ async function createCommittedCheckpointForCollationCopy(
 	collationId: string,
 	checkpointId: string,
 	authorName: string,
-	now: string,
+	now: string
 ): Promise<{ checkpointId: string; contentHash: string }> {
 	const collation = await loadSerializedCollation(db, collationId);
 	const payload = buildCollationHashPayload(collation);

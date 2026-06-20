@@ -85,14 +85,21 @@ export function createExternalImageImportMetadata(
 	};
 }
 
-export function isExternalImageManifestSource(source: ManifestSourceSummary | null | undefined): boolean {
+export function isExternalImageManifestSource(
+	source: ManifestSourceSummary | null | undefined
+): boolean {
 	return source?.metadata?.inputKind === 'external-image-list';
 }
 
 export function buildExternalImageManifest(input: {
 	manifestUrl: string;
 	label?: string;
-	images: Array<Pick<ExternalImageProbe, 'url' | 'width' | 'height' | 'label' | 'canvasId' | 'annotationId' | 'annotationPageId'>>;
+	images: Array<
+		Pick<
+			ExternalImageProbe,
+			'url' | 'width' | 'height' | 'label' | 'canvasId' | 'annotationId' | 'annotationPageId'
+		>
+	>;
 }): Record<string, any> {
 	return {
 		'@context': 'http://iiif.io/api/presentation/3/context.json',

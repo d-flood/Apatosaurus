@@ -47,35 +47,38 @@ export function parseProjectCollationSettings(value: unknown): ProjectCollationS
 	const transcriptionWitnessTreatments: Record<string, WitnessTreatment> | undefined =
 		settings.transcriptionWitnessTreatments &&
 		typeof settings.transcriptionWitnessTreatments === 'object'
-			? Object.fromEntries(
+			? (Object.fromEntries(
 					Object.entries(
-						settings.transcriptionWitnessTreatments as Record<string, unknown>,
+						settings.transcriptionWitnessTreatments as Record<string, unknown>
 					).map(([transcriptionId, treatment]) => [
 						transcriptionId,
 						(treatment === 'full' ? 'full' : 'fragmentary') as WitnessTreatment,
-					]),
-				) as Record<string, WitnessTreatment>
+					])
+				) as Record<string, WitnessTreatment>)
 			: undefined;
 	const transcriptionWitnessExcludedHands: Record<string, string[]> | undefined =
 		settings.transcriptionWitnessExcludedHands &&
 		typeof settings.transcriptionWitnessExcludedHands === 'object'
-			? Object.fromEntries(
+			? (Object.fromEntries(
 					Object.entries(
-						settings.transcriptionWitnessExcludedHands as Record<string, unknown>,
+						settings.transcriptionWitnessExcludedHands as Record<string, unknown>
 					).map(([transcriptionId, handIds]) => [
 						transcriptionId,
 						Array.isArray(handIds)
 							? Array.from(
 									new Set(
 										handIds
-											.filter((handId): handId is string => typeof handId === 'string')
-											.map((handId) => handId.trim())
-											.filter(Boolean),
-									),
+											.filter(
+												(handId): handId is string =>
+													typeof handId === 'string'
+											)
+											.map(handId => handId.trim())
+											.filter(Boolean)
+									)
 								)
 							: [],
-					]),
-				) as Record<string, string[]>
+					])
+				) as Record<string, string[]>)
 			: undefined;
 	return {
 		regularizationRules,
@@ -101,10 +104,10 @@ export function createProjectCollationSettings(
 		segmentation: boolean;
 		transcriptionWitnessTreatments: Map<string, WitnessTreatment>;
 		transcriptionWitnessExcludedHands: Map<string, string[]>;
-	},
+	}
 ): ProjectCollationSettings {
 	return {
-		regularizationRules: rules.filter((rule) => rule.scope === 'project'),
+		regularizationRules: rules.filter(rule => rule.scope === 'project'),
 		ignoreWordBreaks: options.ignoreWordBreaks,
 		lowercase: options.lowercase,
 		ignoreTokenWhitespace: options.ignoreTokenWhitespace,
@@ -112,15 +115,17 @@ export function createProjectCollationSettings(
 		suppliedTextMode: options.suppliedTextMode,
 		segmentation: options.segmentation,
 		transcriptionWitnessTreatments: Object.fromEntries(options.transcriptionWitnessTreatments),
-		transcriptionWitnessExcludedHands: Object.fromEntries(options.transcriptionWitnessExcludedHands),
+		transcriptionWitnessExcludedHands: Object.fromEntries(
+			options.transcriptionWitnessExcludedHands
+		),
 	};
 }
 
 export function mergeProjectRules(
 	existingRules: RegularizationRule[],
-	projectRules: RegularizationRule[],
+	projectRules: RegularizationRule[]
 ): RegularizationRule[] {
-	const verseRules = existingRules.filter((rule) => rule.scope !== 'project');
-	const dedupedProjectRules = new Map(projectRules.map((rule) => [rule.id, rule]));
+	const verseRules = existingRules.filter(rule => rule.scope !== 'project');
+	const dedupedProjectRules = new Map(projectRules.map(rule => [rule.id, rule]));
 	return [...verseRules, ...dedupedProjectRules.values()];
 }

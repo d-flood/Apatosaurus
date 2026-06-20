@@ -35,6 +35,9 @@ export interface CloudProviderCapabilities {
 	supportsExpectedRevisionDelete: boolean;
 	requiresPathAddressing: boolean;
 	sharingMayBeAsync: boolean;
+	requiresOAuth: boolean;
+	requiresUserGestureForConnection: boolean;
+	supportsDirectoryHandlePersistence: boolean;
 }
 
 export type CloudProviderErrorCode =
@@ -50,7 +53,7 @@ export class CloudProviderError extends Error {
 	constructor(
 		readonly code: CloudProviderErrorCode,
 		message: string,
-		readonly providerDetails?: unknown,
+		readonly providerDetails?: unknown
 	) {
 		super(message);
 		this.name = 'CloudProviderError';
@@ -60,7 +63,7 @@ export class CloudProviderError extends Error {
 
 export function isCloudProviderError(
 	error: unknown,
-	code?: CloudProviderErrorCode,
+	code?: CloudProviderErrorCode
 ): error is CloudProviderError {
 	return error instanceof CloudProviderError && (code === undefined || error.code === code);
 }
@@ -70,23 +73,25 @@ export interface CloudStorageProvider {
 	name: string;
 	capabilities: CloudProviderCapabilities;
 
-	getAuthUrl(state: string, codeChallenge: string): string;
-	exchangeCode(code: string, codeVerifier: string): Promise<CloudCredentials>;
-	refreshCredentials(refreshToken: string): Promise<CloudCredentials>;
-
 	createFolder(folderName: string, parentFolderId?: string): Promise<string>;
 	shareFolder(folderId: string, inviteeEmail: string, role: 'viewer' | 'editor'): Promise<void>;
 
 	listFiles(
 		folderId: string,
-		options?: { recursive?: boolean; cursor?: string },
+		options?: { recursive?: boolean; cursor?: string }
 	): Promise<CloudListResult>;
 	downloadFile(fileId: string): Promise<string>;
 	createFile(folderId: string, path: string, content: string): Promise<CloudWriteResult>;
 	updateFile(
 		fileId: string,
 		content: string,
-		expectedRevision: string,
+		expectedRevision: string
 	): Promise<CloudWriteResult>;
 	deleteFile(fileId: string, expectedRevision?: string): Promise<void>;
+}
+
+export interface OAuthCloudStorageProvider extends CloudStorageProvider {
+	getAuthUrl(state: string, codeChallenge: string): string;
+	exchangeCode(code: string, codeVerifier: string): Promise<CloudCredentials>;
+	refreshCredentials(refreshToken: string): Promise<CloudCredentials>;
 }

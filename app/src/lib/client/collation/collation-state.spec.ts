@@ -2,25 +2,25 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { deserializeAlignmentColumns } from './alignment-snapshot';
 import { collateToAlignmentSnapshot } from './collation-adapter';
 import { collationState, type WitnessConfig } from './collation-state.svelte';
-import type {
-	RegularizationRule,
-	WitnessSourceToken,
-} from './collation-types';
+import type { RegularizationRule, WitnessSourceToken } from './collation-types';
 
 function makeTokens(content: string): WitnessSourceToken[] {
-	return content.split(/\s+/).filter(Boolean).map((token) => ({
-		kind: 'text',
-		original: token,
-		segments: [
-			{
-				text: token,
-				hasUnclear: false,
-				isPunctuation: false,
-				isSupplied: false,
-			},
-		],
-		gap: null,
-	}));
+	return content
+		.split(/\s+/)
+		.filter(Boolean)
+		.map(token => ({
+			kind: 'text',
+			original: token,
+			segments: [
+				{
+					text: token,
+					hasUnclear: false,
+					isPunctuation: false,
+					isSupplied: false,
+				},
+			],
+			gap: null,
+		}));
 }
 
 function makeWitness(
@@ -39,7 +39,7 @@ function makeWitness(
 			| 'fragmentaryContent'
 			| 'fragmentaryTokens'
 		>
-	>,
+	>
 ): WitnessConfig {
 	return {
 		witnessId,
@@ -74,10 +74,7 @@ function makeRule(overrides?: Partial<RegularizationRule>): RegularizationRule {
 	};
 }
 
-function makeSourceToken(
-	text: string,
-	options?: { isPunctuation?: boolean },
-): WitnessSourceToken {
+function makeSourceToken(text: string, options?: { isPunctuation?: boolean }): WitnessSourceToken {
 	return {
 		kind: 'text',
 		original: text,
@@ -143,14 +140,8 @@ describe('collationState stemma derivation', () => {
 					index: 0,
 					merged: false,
 					cells: [
-						[
-							'A',
-							makeTextCell('και εγενετο'),
-						],
-						[
-							'B',
-							makeTextCell('και εγενετο'),
-						],
+						['A', makeTextCell('και εγενετο')],
+						['B', makeTextCell('και εγενετο')],
 					],
 				},
 			],
@@ -180,14 +171,8 @@ describe('collationState stemma derivation', () => {
 					index: 0,
 					merged: false,
 					cells: [
-						[
-							'A',
-							makeTextCell('και'),
-						],
-						[
-							'B',
-							makeTextCell('και'),
-						],
+						['A', makeTextCell('και')],
+						['B', makeTextCell('και')],
 					],
 				},
 				{
@@ -195,14 +180,8 @@ describe('collationState stemma derivation', () => {
 					index: 1,
 					merged: false,
 					cells: [
-						[
-							'A',
-							makeTextCell('λογος'),
-						],
-						[
-							'B',
-							makeTextCell('λογος'),
-						],
+						['A', makeTextCell('λογος')],
+						['B', makeTextCell('λογος')],
 					],
 				},
 			],
@@ -250,7 +229,7 @@ describe('collationState stemma derivation', () => {
 			],
 		});
 
-		const initialColumnIds = collationState.alignmentColumns.map((column) => column.id);
+		const initialColumnIds = collationState.alignmentColumns.map(column => column.id);
 
 		expect(collationState.canShiftToken('col-2', 'A', 'right')).toBe(true);
 
@@ -378,19 +357,19 @@ describe('collationState stemma derivation', () => {
 			],
 		});
 
-		const initialColumnIds = collationState.alignmentColumns.map((column) => column.id);
+		const initialColumnIds = collationState.alignmentColumns.map(column => column.id);
 
 		collationState.shiftToken('col-2', 'A', 'right');
-		const shiftedColumnIds = collationState.alignmentColumns.map((column) => column.id);
-		expect(collationState.alignmentColumns.map((column) => column.cells.get('A')?.text)).toEqual([
+		const shiftedColumnIds = collationState.alignmentColumns.map(column => column.id);
+		expect(collationState.alignmentColumns.map(column => column.cells.get('A')?.text)).toEqual([
 			'και',
 			'λογος',
 		]);
 		expect(shiftedColumnIds[1]).not.toBe(initialColumnIds[1]);
 
 		collationState.undo();
-		expect(collationState.alignmentColumns.map((column) => column.id)).toEqual(initialColumnIds);
-		expect(collationState.alignmentColumns.map((column) => column.cells.get('A')?.text)).toEqual([
+		expect(collationState.alignmentColumns.map(column => column.id)).toEqual(initialColumnIds);
+		expect(collationState.alignmentColumns.map(column => column.cells.get('A')?.text)).toEqual([
 			'και',
 			'λογος',
 		]);
@@ -398,7 +377,7 @@ describe('collationState stemma derivation', () => {
 		expect(collationState.alignmentColumns[1]?.cells.get('B')?.isOmission).toBe(true);
 
 		collationState.redo();
-		expect(collationState.alignmentColumns.map((column) => column.cells.get('A')?.text)).toEqual([
+		expect(collationState.alignmentColumns.map(column => column.cells.get('A')?.text)).toEqual([
 			'και',
 			'λογος',
 		]);
@@ -467,14 +446,8 @@ describe('collationState stemma derivation', () => {
 					index: 0,
 					merged: false,
 					cells: [
-						[
-							'A',
-							makeTextCell('και λογος'),
-						],
-						[
-							'B',
-							makeTextCell('και ρημα'),
-						],
+						['A', makeTextCell('και λογος')],
+						['B', makeTextCell('και ρημα')],
 					],
 				},
 			],
@@ -482,8 +455,8 @@ describe('collationState stemma derivation', () => {
 
 		const inputs = collationState.buildCollationWitnessInputs();
 		expect(inputs[0]?.tokens).toHaveLength(2);
-		expect(inputs[0]?.tokens?.map((token) => token.t)).toEqual(['και', 'λογος']);
-		expect(inputs[1]?.tokens?.map((token) => token.t)).toEqual(['και', 'ρημα']);
+		expect(inputs[0]?.tokens?.map(token => token.t)).toEqual(['και', 'λογος']);
+		expect(inputs[1]?.tokens?.map(token => token.t)).toEqual(['και', 'ρημα']);
 	});
 
 	it('can force reruns to use source witness tokens instead of the current alignment cells', () => {
@@ -525,8 +498,20 @@ describe('collationState stemma derivation', () => {
 		});
 
 		const inputs = collationState.buildCollationWitnessInputs({ forceSourceWitnesses: true });
-		expect(inputs[0]?.tokens?.map((token) => token.t)).toEqual(['και', 'λογος', 'ον', 'the', 'mat']);
-		expect(inputs[1]?.tokens?.map((token) => token.t)).toEqual(['και', 'ρημα', 'ον', 'the', 'mat']);
+		expect(inputs[0]?.tokens?.map(token => token.t)).toEqual([
+			'και',
+			'λογος',
+			'ον',
+			'the',
+			'mat',
+		]);
+		expect(inputs[1]?.tokens?.map(token => token.t)).toEqual([
+			'και',
+			'ρημα',
+			'ον',
+			'the',
+			'mat',
+		]);
 	});
 
 	it('can update project transcription treatment individually and in bulk for correctors', () => {
@@ -574,11 +559,14 @@ describe('collationState stemma derivation', () => {
 
 		collationState.setWitnesses([
 			makeWitness('A', 'λογος', { isBaseText: true, treatment: 'full' }),
-			{ ...makeWitness('A-c1', 'θς', { kind: 'corrector', handId: 'corrector1' }), transcriptionId: 'A-tx' },
+			{
+				...makeWitness('A-c1', 'θς', { kind: 'corrector', handId: 'corrector1' }),
+				transcriptionId: 'A-tx',
+			},
 		]);
 
 		expect(collationState.isProjectTranscriptionHandIncluded('A-tx', 'corrector1')).toBe(false);
-		expect(collationState.witnesses.map((witness) => witness.witnessId)).toEqual(['A']);
+		expect(collationState.witnesses.map(witness => witness.witnessId)).toEqual(['A']);
 	});
 
 	it('creates an ns subreading for a regularized match to the base reading', () => {
@@ -599,8 +587,8 @@ describe('collationState stemma derivation', () => {
 		const readings = collationState.getReadingsForUnit(0);
 		expect(readings).toHaveLength(2);
 
-		const base = readings.find((reading) => reading.text === 'θεος');
-		const sub = readings.find((reading) => reading.text === 'θς');
+		const base = readings.find(reading => reading.text === 'θεος');
+		const sub = readings.find(reading => reading.text === 'θς');
 
 		expect(base?.label).toBe('a');
 		expect(sub?.label).toBe('a1');
@@ -688,9 +676,9 @@ describe('collationState stemma derivation', () => {
 		});
 
 		const readings = collationState.getReadingsForUnit(0);
-		const parent = readings.find((reading) => reading.text === 'beta');
-		const alpha = readings.find((reading) => reading.text === 'alpha');
-		const gamma = readings.find((reading) => reading.text === 'gamma');
+		const parent = readings.find(reading => reading.text === 'beta');
+		const alpha = readings.find(reading => reading.text === 'alpha');
+		const gamma = readings.find(reading => reading.text === 'gamma');
 
 		expect(parent?.label).toBe('a');
 		expect(parent?.parentReadingId).toBeNull();
@@ -715,7 +703,12 @@ describe('collationState stemma derivation', () => {
 							{
 								...makeTextCell('θεος'),
 								originalSegments: [
-									{ text: 'θεος', hasUnclear: false, isPunctuation: false, isSupplied: false },
+									{
+										text: 'θεος',
+										hasUnclear: false,
+										isPunctuation: false,
+										isSupplied: false,
+									},
 								],
 							},
 						],
@@ -729,7 +722,12 @@ describe('collationState stemma derivation', () => {
 								ruleIds: ['rule-1'],
 								regularizationTypes: ['ns'],
 								originalSegments: [
-									{ text: 'θς', hasUnclear: false, isPunctuation: false, isSupplied: false },
+									{
+										text: 'θς',
+										hasUnclear: false,
+										isPunctuation: false,
+										isSupplied: false,
+									},
 								],
 							},
 						],
@@ -740,7 +738,12 @@ describe('collationState stemma derivation', () => {
 								regularizedText: 'θεος',
 								alignmentValue: 'θεος',
 								originalSegments: [
-									{ text: 'θεοσ', hasUnclear: false, isPunctuation: false, isSupplied: false },
+									{
+										text: 'θεοσ',
+										hasUnclear: false,
+										isPunctuation: false,
+										isSupplied: false,
+									},
 								],
 							},
 						],
@@ -806,8 +809,18 @@ describe('collationState stemma derivation', () => {
 								regularizedText: 'κλητος',
 								alignmentValue: 'κλητος',
 								originalSegments: [
-									{ text: 'κλη', hasUnclear: false, isPunctuation: false, isSupplied: false },
-									{ text: 'τος', hasUnclear: false, isPunctuation: false, isSupplied: false },
+									{
+										text: 'κλη',
+										hasUnclear: false,
+										isPunctuation: false,
+										isSupplied: false,
+									},
+									{
+										text: 'τος',
+										hasUnclear: false,
+										isPunctuation: false,
+										isSupplied: false,
+									},
 								],
 							},
 						],
@@ -816,7 +829,12 @@ describe('collationState stemma derivation', () => {
 							{
 								...makeTextCell('κλητος'),
 								originalSegments: [
-									{ text: 'κλητος', hasUnclear: false, isPunctuation: false, isSupplied: false },
+									{
+										text: 'κλητος',
+										hasUnclear: false,
+										isPunctuation: false,
+										isSupplied: false,
+									},
 								],
 							},
 						],
@@ -848,7 +866,12 @@ describe('collationState stemma derivation', () => {
 							{
 								...makeTextCell('θεος'),
 								originalSegments: [
-									{ text: 'θεος', hasUnclear: false, isPunctuation: false, isSupplied: false },
+									{
+										text: 'θεος',
+										hasUnclear: false,
+										isPunctuation: false,
+										isSupplied: false,
+									},
 								],
 							},
 						],
@@ -862,7 +885,12 @@ describe('collationState stemma derivation', () => {
 								ruleIds: ['rule-1'],
 								regularizationTypes: ['ns'],
 								originalSegments: [
-									{ text: 'θς', hasUnclear: false, isPunctuation: false, isSupplied: false },
+									{
+										text: 'θς',
+										hasUnclear: false,
+										isPunctuation: false,
+										isSupplied: false,
+									},
 								],
 							},
 						],
@@ -871,16 +899,15 @@ describe('collationState stemma derivation', () => {
 			],
 		});
 
-		const parent = collationState
-			.getReadingFamiliesForUnit(0)[0]?.parent;
+		const parent = collationState.getReadingFamiliesForUnit(0)[0]?.parent;
 
 		expect(parent).toBeTruthy();
 		expect(
 			collationState.getDisplayedWitnessIdsForReading(0, parent!.id, 'regularized')
 		).toEqual(['A', 'B']);
-		expect(
-			collationState.getDisplayedWitnessIdsForReading(0, parent!.id, 'original')
-		).toEqual(['A']);
+		expect(collationState.getDisplayedWitnessIdsForReading(0, parent!.id, 'original')).toEqual([
+			'A',
+		]);
 	});
 
 	it('can lowercase alignment text while preserving original token text', () => {
@@ -919,7 +946,7 @@ describe('collationState stemma derivation', () => {
 
 		const inputs = collationState.buildCollationWitnessInputs({ forceSourceWitnesses: true });
 
-		expect(inputs[0]?.tokens?.map((token) => token.t)).toEqual(['λογος', ',', 'θεος']);
+		expect(inputs[0]?.tokens?.map(token => token.t)).toEqual(['λογος', ',', 'θεος']);
 		expect(inputs[0]?.content).toBe('λογος, θεος');
 		expect(inputs[0]?.tokens?.[1]).toMatchObject({ isPunctuation: true, n: ',' });
 	});
@@ -942,12 +969,9 @@ describe('collationState stemma derivation', () => {
 
 		const inputs = collationState.buildCollationWitnessInputs({ forceSourceWitnesses: true });
 
-		expect(inputs[0]?.tokens?.map((token) => token.t)).toEqual(['λογος,', 'θεος']);
-		expect(inputs[0]?.tokens?.map((token) => token.n)).toEqual(['λογος', 'θεος']);
-		expect(inputs[0]?.tokens?.[0]?.sourceTokenIds).toEqual([
-			'A::source::0',
-			'A::source::1',
-		]);
+		expect(inputs[0]?.tokens?.map(token => token.t)).toEqual(['λογος,', 'θεος']);
+		expect(inputs[0]?.tokens?.map(token => token.n)).toEqual(['λογος', 'θεος']);
+		expect(inputs[0]?.tokens?.[0]?.sourceTokenIds).toEqual(['A::source::0', 'A::source::1']);
 		expect(inputs[0]?.tokens?.[0]?.originalSegments).toEqual([
 			{ text: 'λογος', hasUnclear: false, isPunctuation: false, isSupplied: false },
 			{ text: ',', hasUnclear: false, isPunctuation: true, isSupplied: false },
@@ -1066,6 +1090,6 @@ describe('collationState stemma derivation', () => {
 
 		const updated = collationState.getReadingsForUnit(0);
 		expect(updated).toHaveLength(2);
-		expect(updated.map((reading) => reading.witnessIds)).toEqual([['A', 'B'], ['C']]);
+		expect(updated.map(reading => reading.witnessIds)).toEqual([['A', 'B'], ['C']]);
 	});
 });

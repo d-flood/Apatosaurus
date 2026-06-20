@@ -31,62 +31,68 @@ describe('summarizeImportedTeiDocument', () => {
 							type: 'column',
 							number: 1,
 							lines: [
-						{
-							type: 'line',
-							number: 1,
-							items: [
 								{
-									type: 'milestone',
-									kind: 'book',
-									attrs: { book: 'Rom' },
-								},
-								{
-									type: 'milestone',
-									kind: 'chapter',
-									attrs: { book: 'Rom', chapter: '1' },
-								},
-								{
-									type: 'milestone',
-									kind: 'verse',
-									attrs: { book: 'Rom', chapter: '1', verse: '1' },
-								},
-								{
-									type: 'text',
-									text: 'alpha',
-									marks: [
+									type: 'line',
+									number: 1,
+									items: [
 										{
-											type: 'correction',
-											attrs: {
-												corrections: [
-													{
-														hand: '#corrector1',
-														content: [{ type: 'text', text: 'beta' }],
+											type: 'milestone',
+											kind: 'book',
+											attrs: { book: 'Rom' },
+										},
+										{
+											type: 'milestone',
+											kind: 'chapter',
+											attrs: { book: 'Rom', chapter: '1' },
+										},
+										{
+											type: 'milestone',
+											kind: 'verse',
+											attrs: { book: 'Rom', chapter: '1', verse: '1' },
+										},
+										{
+											type: 'text',
+											text: 'alpha',
+											marks: [
+												{
+													type: 'correction',
+													attrs: {
+														corrections: [
+															{
+																hand: '#corrector1',
+																content: [
+																	{ type: 'text', text: 'beta' },
+																],
+															},
+														],
 													},
-												],
+												},
+											],
+										},
+										{
+											type: 'handShift',
+											attrs: { new: '#h2', medium: 'ink' },
+										},
+										{
+											type: 'fw',
+											attrs: { type: 'runTitle' },
+											content: [{ type: 'text', text: 'προς ρωμαιους' }],
+										},
+										{
+											type: 'gap',
+											attrs: {
+												reason: 'lacuna',
+												unit: 'verse',
+												extent: 'part',
 											},
+										},
+										{
+											type: 'untranscribed',
+											attrs: { reason: 'damaged', extent: 'partial' },
 										},
 									],
 								},
 								{
-									type: 'handShift',
-									attrs: { new: '#h2', medium: 'ink' },
-								},
-								{
-									type: 'fw',
-									attrs: { type: 'runTitle' },
-									content: [{ type: 'text', text: 'προς ρωμαιους' }],
-								},
-								{
-									type: 'gap',
-									attrs: { reason: 'lacuna', unit: 'verse', extent: 'part' },
-								},
-								{
-									type: 'untranscribed',
-									attrs: { reason: 'damaged', extent: 'partial' },
-								},
-							],
-						},
-						{
 									type: 'line',
 									number: 2,
 									items: [

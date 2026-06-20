@@ -1,7 +1,4 @@
-import {
-	normalizeDocument,
-	type TranscriptionDocument,
-} from '$lib/tei/tei-transcription';
+import { normalizeDocument, type TranscriptionDocument } from '$lib/tei/tei-transcription';
 
 export type StoredTranscriptionDocument = TranscriptionDocument;
 

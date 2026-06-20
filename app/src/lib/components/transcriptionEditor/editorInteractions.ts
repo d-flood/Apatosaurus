@@ -71,13 +71,13 @@ function getPageContextForPosition(editor: Editor, position: number): PageSelect
 		const pageId = typeof node.attrs.pageId === 'string' ? node.attrs.pageId : '';
 		resolved = pageId
 			? {
-				pageId,
-				pageName:
-					typeof node.attrs.n === 'string' && node.attrs.n.trim().length > 0
-						? node.attrs.n.trim()
-						: null,
-				pageOrder,
-			}
+					pageId,
+					pageName:
+						typeof node.attrs.n === 'string' && node.attrs.n.trim().length > 0
+							? node.attrs.n.trim()
+							: null,
+					pageOrder,
+				}
 			: null;
 		return false;
 	});
@@ -171,7 +171,10 @@ export function readAbbreviationDraft(editor: Editor | null): AbbreviationDraft 
 	if (!editor || !range) return null;
 
 	const abbreviationMark = editor.state.schema.marks.abbreviation;
-	if (!abbreviationMark || !editor.state.doc.rangeHasMark(range.from, range.to, abbreviationMark)) {
+	if (
+		!abbreviationMark ||
+		!editor.state.doc.rangeHasMark(range.from, range.to, abbreviationMark)
+	) {
 		return { ...DEFAULT_ABBREVIATION_DRAFT };
 	}
 

@@ -4,7 +4,10 @@ import path from 'node:path';
 import { DOMParser } from '@xmldom/xmldom';
 import type { Document as XmlDocument, Element as XmlElement } from '@xmldom/xmldom';
 
-import { buildTranscriptionDuplicateKey, normalizeTranscriptionDuplicateValue } from '../igntp/duplicate-key';
+import {
+	buildTranscriptionDuplicateKey,
+	normalizeTranscriptionDuplicateValue,
+} from '../igntp/duplicate-key';
 import type { IgntpCatalog, IgntpCatalogEntry, IgntpCatalogGroup } from '../igntp/types';
 import { importTEIDocument } from '../tei/tei-importer';
 
@@ -28,7 +31,9 @@ export async function buildIgntpCatalog(rootDir: string): Promise<IgntpCatalog> 
 		const groupEntries = await readdir(directoryPath, { withFileTypes: true });
 		const entries: IgntpCatalogEntry[] = [];
 
-		for (const file of groupEntries.filter(entry => entry.isFile() && /\.xml$/i.test(entry.name)).sort(byName)) {
+		for (const file of groupEntries
+			.filter(entry => entry.isFile() && /\.xml$/i.test(entry.name))
+			.sort(byName)) {
 			const filePath = path.join(directoryPath, file.name);
 			const xml = await readFile(filePath, 'utf8');
 			const metadata = extractCatalogMetadata(xml);
@@ -74,7 +79,9 @@ function extractCatalogMetadata(xml: string): { title: string; siglum: string } 
 		titleElements.find(element => element.getAttribute('type') === 'short') ||
 		titleElements[0];
 	const msIdentifier = getElements(document, 'msIdentifier')[0];
-	const siglum = msIdentifier ? getElements(msIdentifier, 'idno')[0]?.textContent?.trim() || '' : '';
+	const siglum = msIdentifier
+		? getElements(msIdentifier, 'idno')[0]?.textContent?.trim() || ''
+		: '';
 
 	return {
 		title: preferredTitle?.textContent?.trim() || '',

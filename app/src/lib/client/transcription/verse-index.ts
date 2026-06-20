@@ -47,7 +47,9 @@ export async function getVerseIndexRows(): Promise<VerseIndexRow[]> {
 	return (await listVerseIndexRows()).map(mapVerseIndexRow);
 }
 
-export async function getVerseIndexRowsForTranscription(transcriptionId: string): Promise<VerseIndexRow[]> {
+export async function getVerseIndexRowsForTranscription(
+	transcriptionId: string
+): Promise<VerseIndexRow[]> {
 	return (await listDbVerseIndexRowsForTranscription(transcriptionId)).map(mapVerseIndexRow);
 }
 
@@ -55,7 +57,9 @@ export async function getVerseIndexRowsForVerse(
 	verseIdentifier: string,
 	transcriptionIds?: string[]
 ): Promise<VerseIndexRow[]> {
-	return (await getDbVerseIndexRowsForVerse(verseIdentifier, transcriptionIds)).map(mapVerseIndexRow);
+	return (await getDbVerseIndexRowsForVerse(verseIdentifier, transcriptionIds)).map(
+		mapVerseIndexRow
+	);
 }
 
 export function extractVersesFromDocument(document: StoredTranscriptionDocument): VerseNode[] {
@@ -135,9 +139,19 @@ export async function rebuildVerseIndexForTranscriptions(
 	for (const transcriptionId of ids) {
 		const transcription = await getTranscription(transcriptionId);
 		const label = transcription ? formatTranscriptionLabel(transcription) : transcriptionId;
-		options.onProgress?.({ completed, total, currentLabel: label, currentTranscriptionId: transcriptionId });
+		options.onProgress?.({
+			completed,
+			total,
+			currentLabel: label,
+			currentTranscriptionId: transcriptionId,
+		});
 		completed += 1;
-		options.onProgress?.({ completed, total, currentLabel: label, currentTranscriptionId: transcriptionId });
+		options.onProgress?.({
+			completed,
+			total,
+			currentLabel: label,
+			currentTranscriptionId: transcriptionId,
+		});
 	}
 
 	const result = await rebuildDbVerseIndexForTranscriptions(ids);

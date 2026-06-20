@@ -8,7 +8,9 @@ type DirectoryHandleWithEntries = FileSystemDirectoryHandle & {
 
 export async function purgeLegacyDjazzkitStorage(): Promise<void> {
 	if (hasLegacyDjazzkitPurgeMarker()) {
-		console.debug('[local-db] legacy djazzkit purge skipped', { marker: LEGACY_DJAZZKIT_PURGE_MARKER });
+		console.debug('[local-db] legacy djazzkit purge skipped', {
+			marker: LEGACY_DJAZZKIT_PURGE_MARKER,
+		});
 		return;
 	}
 
@@ -21,7 +23,7 @@ export async function purgeLegacyDjazzkitStorage(): Promise<void> {
 			const idbStartedAt = now();
 			const idbNames = await getLegacyIndexedDbNames();
 			idbFound = idbNames.length;
-			await Promise.allSettled(idbNames.map((name) => deleteIndexedDb(name)));
+			await Promise.allSettled(idbNames.map(name => deleteIndexedDb(name)));
 			console.debug('[local-db] legacy djazzkit IndexedDB purge completed', {
 				found: idbFound,
 				elapsedMs: elapsed(idbStartedAt),
@@ -33,7 +35,10 @@ export async function purgeLegacyDjazzkitStorage(): Promise<void> {
 	}
 
 	try {
-		if (typeof navigator !== 'undefined' && typeof navigator.storage?.getDirectory === 'function') {
+		if (
+			typeof navigator !== 'undefined' &&
+			typeof navigator.storage?.getDirectory === 'function'
+		) {
 			const opfsStartedAt = now();
 			opfsFound = await deleteOpfsEntriesWithPrefix(LEGACY_DJAZZKIT_OPFS_PREFIX);
 			console.debug('[local-db] legacy djazzkit OPFS purge completed', {
@@ -77,7 +82,7 @@ async function getLegacyIndexedDbNames(): Promise<string[]> {
 }
 
 function deleteIndexedDb(name: string): Promise<void> {
-	return new Promise((resolve) => {
+	return new Promise(resolve => {
 		const request = indexedDB.deleteDatabase(name);
 		request.onsuccess = () => resolve();
 		request.onerror = () => resolve();
@@ -91,7 +96,9 @@ async function deleteOpfsEntriesWithPrefix(prefix: string): Promise<number> {
 	let deleted = 0;
 	for await (const [name, handle] of root.entries()) {
 		if (!name.startsWith(prefix)) continue;
-		await root.removeEntry(name, { recursive: handle.kind === 'directory' }).catch(() => undefined);
+		await root
+			.removeEntry(name, { recursive: handle.kind === 'directory' })
+			.catch(() => undefined);
 		deleted += 1;
 	}
 	return deleted;

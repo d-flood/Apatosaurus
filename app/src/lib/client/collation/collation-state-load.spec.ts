@@ -10,8 +10,11 @@ const {
 	getProject,
 	createProject,
 	updateProjectMetadata,
-	getTranscriptionVersionsByIds,
+	getCollationVersionStatus,
+	loadCommittedTranscriptionCheckpointPayload,
 	gatherWitnessesForVerse,
+	prepareWitnessesFromDocument,
+	coerceTranscriptionDocument,
 } = vi.hoisted(() => ({
 	loadCollation: vi.fn(),
 	createCollation: vi.fn(),
@@ -21,8 +24,11 @@ const {
 	getProject: vi.fn(),
 	createProject: vi.fn(),
 	updateProjectMetadata: vi.fn(),
-	getTranscriptionVersionsByIds: vi.fn(),
+	getCollationVersionStatus: vi.fn(),
+	loadCommittedTranscriptionCheckpointPayload: vi.fn(),
 	gatherWitnessesForVerse: vi.fn(),
+	prepareWitnessesFromDocument: vi.fn(),
+	coerceTranscriptionDocument: vi.fn(),
 }));
 
 vi.mock('$lib/client/db/client', () => ({
@@ -34,11 +40,17 @@ vi.mock('$lib/client/db/client', () => ({
 	getProject,
 	createProject,
 	updateProjectMetadata,
-	getTranscriptionVersionsByIds,
+	getCollationVersionStatus,
+	loadCommittedTranscriptionCheckpointPayload,
 }));
 
 vi.mock('./collation-runner', () => ({
 	gatherWitnessesForVerse,
+	prepareWitnessesFromDocument,
+}));
+
+vi.mock('$lib/client/transcription/content', () => ({
+	coerceTranscriptionDocument,
 }));
 
 function makeWitness(witnessId: string, content: string, isBaseText: boolean = false) {
@@ -163,17 +175,11 @@ describe('collationState artifact-first persistence', () => {
 			createdAt: '2026-03-10T00:00:00.000Z',
 			updatedAt: '2026-03-10T00:00:00.000Z',
 		});
-		getTranscriptionVersionsByIds.mockResolvedValue([
-			{
-				id: 'A-tx',
-				updated_at: '2026-03-10T00:00:00.000Z',
-			},
-			{
-				id: 'B-tx',
-				updated_at: '2026-03-10T00:00:00.000Z',
-			},
-		]);
 		gatherWitnessesForVerse.mockResolvedValue([]);
+		prepareWitnessesFromDocument.mockReturnValue([]);
+		coerceTranscriptionDocument.mockReturnValue(null);
+		getCollationVersionStatus.mockResolvedValue(null);
+		loadCommittedTranscriptionCheckpointPayload.mockResolvedValue(null);
 	});
 
 	afterEach(() => {
@@ -193,17 +199,7 @@ describe('collationState artifact-first persistence', () => {
 		expect(gatherWitnessesForVerse).not.toHaveBeenCalled();
 	}, 30000);
 
-	it('does not block artifact load while changed witnesses refresh in the background', async () => {
-		getTranscriptionVersionsByIds.mockResolvedValue([
-			{
-				id: 'A-tx',
-				updated_at: '2026-03-12T00:00:00.000Z',
-			},
-			{
-				id: 'B-tx',
-				updated_at: '2026-03-10T00:00:00.000Z',
-			},
-		]);
+	it('does not automatically refresh changed witnesses on load (pinned witness model)', async () => {
 		gatherWitnessesForVerse.mockReturnValue(new Promise(() => {}));
 		const collationState = await importState();
 		collationState.reset();
@@ -213,9 +209,7 @@ describe('collationState artifact-first persistence', () => {
 		await Promise.resolve();
 
 		expect(loaded).toBe(true);
-		expect(gatherWitnessesForVerse).toHaveBeenCalledWith('Romans 1:1', ['A-tx'], {
-			ignoreWordBreaks: false,
-		});
+		expect(gatherWitnessesForVerse).not.toHaveBeenCalled();
 	}, 30000);
 
 	it('can refresh witness tokens from source before rerunning collation', async () => {
@@ -254,6 +248,252 @@ describe('collationState artifact-first persistence', () => {
 			ignoreWordBreaks: false,
 		});
 		expect(collationState.witnesses[0]?.tokens[0]?.original).toBe('κλη\\nτος');
+	}, 30000);
+
+	it('refreshWitnessSource replaces witness content from a committed checkpoint and marks dirty', async () => {
+		const checkpointDocument = { type: 'transcriptionDocument', pages: [] };
+		coerceTranscriptionDocument.mockReturnValue(checkpointDocument);
+		prepareWitnessesFromDocument.mockReturnValue([
+			{
+				id: 'A',
+				siglum: 'A',
+				kind: 'firsthand',
+				handId: 'firsthand',
+				content: 'refreshed',
+				tokens: [
+					{
+						kind: 'text' as const,
+						original: 'refreshed',
+						segments: [
+							{
+								text: 'refreshed',
+								hasUnclear: false,
+								isPunctuation: false,
+								isSupplied: false,
+							},
+						],
+						gap: null,
+					},
+				],
+				transcriptionUid: 'A-tx',
+				sourceVersion: 'cp-refreshed',
+			},
+		]);
+		loadCommittedTranscriptionCheckpointPayload.mockResolvedValue({
+			id: 'cp-refreshed',
+			transcriptionId: 'A-tx',
+			parentCheckpointId: null,
+			contentHash: 'sha256:refreshed',
+			isCommitted: true,
+			commitMessage: null,
+			authorName: '',
+			createdAt: '2026-06-20T00:00:00.000Z',
+			payload: {
+				project_transcription_id: 'pt-a',
+				id: 'A-tx',
+				format: 'tei',
+				title: 'Witness A',
+				siglum: 'A',
+				description: '',
+				content_json: checkpointDocument,
+				owner: null,
+				is_public: false,
+				tags: [],
+				transcriber: '',
+				repository: '',
+				settlement: '',
+				language: 'grc',
+				iiif_manifest_sources: [],
+				page_canvas_links: [],
+				canvas_annotations: [],
+			},
+		});
+		getCollationVersionStatus.mockResolvedValue({
+			projectId: 'proj-1',
+			collationId: 'col-1',
+			title: 'Romans 1:1',
+			verseIdentifier: 'Romans 1:1',
+			workflowStatus: 'alignment',
+			currentCheckpoint: null,
+			workingContentHash: 'sha256:working',
+			dirtyToCheckpoint: true,
+			commitState: 'never-committed',
+			witnesses: [
+				{
+					witnessId: 'A',
+					position: 0,
+					projectTranscriptionId: 'pt-a',
+					projectOwnedTranscriptionId: 'A-tx',
+					pinnedCheckpoint: { revisionId: 'cp-old', contentHash: 'sha256:old' },
+					availableCheckpoint: {
+						revisionId: 'cp-refreshed',
+						contentHash: 'sha256:refreshed',
+					},
+					sourceDirtyToCheckpoint: false,
+					versionState: 'newer-source-available',
+				},
+			],
+		});
+
+		const collationState = await importState();
+		collationState.reset();
+		await collationState.loadCollationById('col-1');
+		vi.clearAllMocks();
+
+		const refreshed = await collationState.refreshWitnessSource('A', 'cp-refreshed');
+
+		expect(refreshed).toBe(true);
+		expect(loadCommittedTranscriptionCheckpointPayload).toHaveBeenCalledWith(
+			'A-tx',
+			'cp-refreshed'
+		);
+		expect(prepareWitnessesFromDocument).toHaveBeenCalledWith(
+			expect.objectContaining({
+				verseIdentifier: 'Romans 1:1',
+				transcriptionId: 'A-tx',
+				sourceVersion: 'cp-refreshed',
+			})
+		);
+		expect(collationState.witnesses[0]?.content).toBe('refreshed');
+		expect(collationState.witnesses[0]?.sourceVersion).toBe('cp-refreshed');
+		expect(collationState.witnesses[0]?.sourceContentHash).toBe('sha256:refreshed');
+		expect(collationState.saveStatus).toBe('unsaved');
+
+		const flushed = await collationState.flushPendingSave();
+
+		expect(flushed).toBe(true);
+		expect(saveCollationArtifact).toHaveBeenCalledWith(
+			expect.objectContaining({
+				payload: expect.stringContaining('sha256:refreshed'),
+			})
+		);
+	}, 30000);
+
+	it('refreshAllStaleWitnessSources refreshes all stale witnesses before one dirty mark', async () => {
+		const checkpointDocument = { type: 'transcriptionDocument', pages: [] };
+		coerceTranscriptionDocument.mockReturnValue(checkpointDocument);
+		prepareWitnessesFromDocument.mockImplementation(input => {
+			const transcriptionId = String(input.transcriptionId);
+			const witnessId = transcriptionId.startsWith('A') ? 'A' : 'B';
+			const content = `${witnessId.toLowerCase()} refreshed`;
+			return [
+				{
+					id: witnessId,
+					siglum: witnessId,
+					kind: 'firsthand',
+					handId: 'firsthand',
+					content,
+					tokens: [
+						{
+							kind: 'text' as const,
+							original: content,
+							segments: [
+								{
+									text: content,
+									hasUnclear: false,
+									isPunctuation: false,
+									isSupplied: false,
+								},
+							],
+							gap: null,
+						},
+					],
+					transcriptionUid: transcriptionId,
+					sourceVersion: String(input.sourceVersion),
+				},
+			];
+		});
+		loadCommittedTranscriptionCheckpointPayload.mockImplementation(
+			(transcriptionId, checkpointId) =>
+				Promise.resolve({
+					id: checkpointId,
+					transcriptionId,
+					parentCheckpointId: null,
+					contentHash: `sha256:${checkpointId}`,
+					isCommitted: true,
+					commitMessage: null,
+					authorName: '',
+					createdAt: '2026-06-20T00:00:00.000Z',
+					payload: {
+						project_transcription_id: `pt-${transcriptionId}`,
+						id: transcriptionId,
+						format: 'tei',
+						title: `Witness ${transcriptionId}`,
+						siglum: transcriptionId.startsWith('A') ? 'A' : 'B',
+						description: '',
+						content_json: checkpointDocument,
+						owner: null,
+						is_public: false,
+						tags: [],
+						transcriber: '',
+						repository: '',
+						settlement: '',
+						language: 'grc',
+						iiif_manifest_sources: [],
+						page_canvas_links: [],
+						canvas_annotations: [],
+					},
+				})
+		);
+		getCollationVersionStatus.mockResolvedValue({
+			projectId: 'proj-1',
+			collationId: 'col-1',
+			title: 'Romans 1:1',
+			verseIdentifier: 'Romans 1:1',
+			workflowStatus: 'alignment',
+			currentCheckpoint: null,
+			workingContentHash: 'sha256:working',
+			dirtyToCheckpoint: true,
+			commitState: 'dirty',
+			witnesses: [
+				{
+					witnessId: 'A',
+					position: 0,
+					projectTranscriptionId: 'pt-a',
+					projectOwnedTranscriptionId: 'A-tx',
+					pinnedCheckpoint: { revisionId: 'cp-a-old', contentHash: 'sha256:a-old' },
+					availableCheckpoint: { revisionId: 'cp-a-new', contentHash: 'sha256:cp-a-new' },
+					sourceDirtyToCheckpoint: false,
+					versionState: 'newer-source-available',
+				},
+				{
+					witnessId: 'B',
+					position: 1,
+					projectTranscriptionId: 'pt-b',
+					projectOwnedTranscriptionId: 'B-tx',
+					pinnedCheckpoint: { revisionId: 'cp-b-old', contentHash: 'sha256:b-old' },
+					availableCheckpoint: { revisionId: 'cp-b-new', contentHash: 'sha256:cp-b-new' },
+					sourceDirtyToCheckpoint: false,
+					versionState: 'newer-source-available',
+				},
+			],
+		});
+
+		const collationState = await importState();
+		collationState.reset();
+		await collationState.loadCollationById('col-1');
+		vi.clearAllMocks();
+
+		const refreshedCount = await collationState.refreshAllStaleWitnessSources();
+
+		expect(refreshedCount).toBe(2);
+		expect(loadCommittedTranscriptionCheckpointPayload).toHaveBeenCalledWith(
+			'A-tx',
+			'cp-a-new'
+		);
+		expect(loadCommittedTranscriptionCheckpointPayload).toHaveBeenCalledWith(
+			'B-tx',
+			'cp-b-new'
+		);
+		expect(collationState.witnesses.map(witness => witness.sourceVersion)).toEqual([
+			'cp-a-new',
+			'cp-b-new',
+		]);
+		expect(collationState.witnesses.map(witness => witness.sourceContentHash)).toEqual([
+			'sha256:cp-a-new',
+			'sha256:cp-b-new',
+		]);
+		expect(collationState.saveStatus).toBe('unsaved');
 	}, 30000);
 
 	it('refreshes witness tokens after load when project preprocessing differs from the artifact', async () => {
@@ -418,5 +658,122 @@ describe('collationState artifact-first persistence', () => {
 		expect(updateCollationMetadata).toHaveBeenCalledWith(
 			expect.objectContaining({ id: collationId, status: 'complete' })
 		);
+	});
+
+	describe('flushPendingSave', () => {
+		it('returns true without persisting when there are no pending changes', async () => {
+			const collationState = await importState();
+			collationState.reset();
+			await collationState.loadCollationById('col-1');
+			await Promise.resolve();
+			await Promise.resolve();
+			vi.clearAllMocks();
+
+			expect(collationState.saveStatus).toBe('saved');
+
+			const result = await collationState.flushPendingSave();
+
+			expect(result).toBe(true);
+			expect(saveCollationArtifact).not.toHaveBeenCalled();
+		});
+
+		it('persists pending unsaved state before returning', async () => {
+			const collationState = await importState();
+			collationState.reset();
+			await collationState.loadCollationById('col-1');
+			await Promise.resolve();
+			await Promise.resolve();
+			vi.clearAllMocks();
+			saveCollationArtifact.mockResolvedValue('artifact-existing');
+			saveCollationProjection.mockResolvedValue(undefined);
+			updateCollationMetadata.mockResolvedValue(undefined);
+
+			collationState.selectedVerse = {
+				identifier: 'Romans 1:2',
+				book: 'Romans',
+				chapter: '1',
+				verse: '2',
+				count: 2,
+			};
+			expect(collationState.saveStatus).toBe('unsaved');
+
+			const result = await collationState.flushPendingSave();
+
+			expect(result).toBe(true);
+			expect(collationState.saveStatus).toBe('saved');
+			expect(saveCollationArtifact).toHaveBeenCalledTimes(1);
+			expect(updateCollationMetadata).toHaveBeenCalledTimes(1);
+		});
+
+		it('awaits an in-flight save instead of starting a concurrent save', async () => {
+			const collationState = await importState();
+			collationState.reset();
+			await collationState.loadCollationById('col-1');
+			await Promise.resolve();
+			await Promise.resolve();
+			vi.clearAllMocks();
+			saveCollationProjection.mockResolvedValue(undefined);
+			updateCollationMetadata.mockResolvedValue(undefined);
+
+			let resolveSave!: (value: string) => void;
+			const savePromise = new Promise<string>(resolve => {
+				resolveSave = resolve;
+			});
+			saveCollationArtifact.mockReturnValue(savePromise);
+
+			collationState.selectedVerse = {
+				identifier: 'Romans 1:2',
+				book: 'Romans',
+				chapter: '1',
+				verse: '2',
+				count: 2,
+			};
+			await vi.advanceTimersByTimeAsync(801);
+
+			expect(collationState.saveStatus).toBe('saving');
+			let flushResolved = false;
+			const flushPromise = collationState.flushPendingSave().then(result => {
+				flushResolved = true;
+				return result;
+			});
+			await Promise.resolve();
+			await Promise.resolve();
+
+			expect(flushResolved).toBe(false);
+			expect(saveCollationArtifact).toHaveBeenCalledTimes(1);
+
+			resolveSave('artifact-existing');
+			const result = await flushPromise;
+
+			expect(result).toBe(true);
+			expect(flushResolved).toBe(true);
+			expect(collationState.saveStatus).toBe('saved');
+			expect(saveCollationArtifact).toHaveBeenCalledTimes(1);
+		});
+
+		it('returns false when persistence fails', async () => {
+			const collationState = await importState();
+			collationState.reset();
+			await collationState.loadCollationById('col-1');
+			await Promise.resolve();
+			await Promise.resolve();
+			vi.clearAllMocks();
+			saveCollationArtifact.mockRejectedValue(new Error('disk full'));
+			saveCollationProjection.mockResolvedValue(undefined);
+			updateCollationMetadata.mockResolvedValue(undefined);
+
+			collationState.selectedVerse = {
+				identifier: 'Romans 1:2',
+				book: 'Romans',
+				chapter: '1',
+				verse: '2',
+				count: 2,
+			};
+
+			const result = await collationState.flushPendingSave();
+
+			expect(result).toBe(false);
+			expect(collationState.saveStatus).toBe('error');
+		});
 	});
 });

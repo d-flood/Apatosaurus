@@ -1,4 +1,8 @@
-import { serializeAlignmentColumns, type AlignmentColumn, type SerializedAlignmentColumn } from './alignment-snapshot';
+import {
+	serializeAlignmentColumns,
+	type AlignmentColumn,
+	type SerializedAlignmentColumn,
+} from './alignment-snapshot';
 import type { AggregatedVerse } from './gather-verses';
 import type {
 	AlignmentLayout,
@@ -22,6 +26,7 @@ export interface CollationWitnessNode {
 	kind?: WitnessConfig['kind'];
 	handId?: string;
 	sourceVersion?: string;
+	sourceContentHash?: string;
 	content: string;
 	fullContent?: string;
 	fragmentaryContent?: string;
@@ -206,7 +211,7 @@ function normalizeSuppliedTextMode(value: unknown): SuppliedTextMode {
 }
 
 function normalizeWitnesses(witnesses: WitnessConfig[]): CollationWitnessNode[] {
-	return witnesses.map((witness) => ({
+	return witnesses.map(witness => ({
 		type: 'witness',
 		id: witness.witnessId,
 		siglum: witness.siglum,
@@ -214,6 +219,7 @@ function normalizeWitnesses(witnesses: WitnessConfig[]): CollationWitnessNode[] 
 		kind: witness.kind,
 		handId: witness.handId,
 		sourceVersion: witness.sourceVersion,
+		sourceContentHash: witness.sourceContentHash,
 		content: witness.content,
 		fullContent: witness.fullContent,
 		fragmentaryContent: witness.fragmentaryContent,
@@ -258,11 +264,14 @@ function parseWitnesses(nodes: unknown): WitnessConfig[] {
 		if (!node || typeof node !== 'object') continue;
 		const raw = node as Record<string, unknown>;
 		if (typeof raw.id !== 'string' || typeof raw.siglum !== 'string') continue;
-			const parseSourceTokens = (input: unknown): WitnessSourceToken[] =>
-				Array.isArray(input)
-					? input
-						.filter((token): token is WitnessSourceToken => Boolean(token) && typeof token === 'object')
-						.map<WitnessSourceToken>((token) => {
+		const parseSourceTokens = (input: unknown): WitnessSourceToken[] =>
+			Array.isArray(input)
+				? input
+						.filter(
+							(token): token is WitnessSourceToken =>
+								Boolean(token) && typeof token === 'object'
+						)
+						.map<WitnessSourceToken>(token => {
 							const candidate = token as unknown as Record<string, unknown>;
 							const kind: WitnessSourceToken['kind'] =
 								candidate.kind === 'gap' || candidate.kind === 'untranscribed'
@@ -272,7 +281,9 @@ function parseWitnesses(nodes: unknown): WitnessConfig[] {
 								candidate.gap && typeof candidate.gap === 'object'
 									? (() => {
 											const rawGap = candidate.gap as Record<string, unknown>;
-											const source: NonNullable<WitnessSourceToken['gap']>['source'] =
+											const source: NonNullable<
+												WitnessSourceToken['gap']
+											>['source'] =
 												rawGap.source === 'supplied'
 													? 'supplied'
 													: rawGap.source === 'untranscribed'
@@ -280,26 +291,49 @@ function parseWitnesses(nodes: unknown): WitnessConfig[] {
 														: 'gap';
 											return {
 												source,
-												reason: typeof rawGap.reason === 'string' ? rawGap.reason : '',
-												unit: typeof rawGap.unit === 'string' ? rawGap.unit : '',
-												extent: typeof rawGap.extent === 'string' ? rawGap.extent : '',
+												reason:
+													typeof rawGap.reason === 'string'
+														? rawGap.reason
+														: '',
+												unit:
+													typeof rawGap.unit === 'string'
+														? rawGap.unit
+														: '',
+												extent:
+													typeof rawGap.extent === 'string'
+														? rawGap.extent
+														: '',
 											};
 										})()
 									: null;
 							return {
 								kind,
-								original: typeof candidate.original === 'string' ? candidate.original : '',
+								original:
+									typeof candidate.original === 'string'
+										? candidate.original
+										: '',
 								segments: Array.isArray(candidate.segments)
 									? candidate.segments
-											.filter((segment): segment is NonNullable<WitnessSourceToken['segments'][number]> =>
-												Boolean(segment) && typeof segment === 'object',
+											.filter(
+												(
+													segment
+												): segment is NonNullable<
+													WitnessSourceToken['segments'][number]
+												> => Boolean(segment) && typeof segment === 'object'
 											)
-											.map((segment) => {
-												const rawSegment = segment as unknown as Record<string, unknown>;
+											.map(segment => {
+												const rawSegment = segment as unknown as Record<
+													string,
+													unknown
+												>;
 												return {
-													text: typeof rawSegment.text === 'string' ? rawSegment.text : '',
+													text:
+														typeof rawSegment.text === 'string'
+															? rawSegment.text
+															: '',
 													hasUnclear: rawSegment.hasUnclear === true,
-													isPunctuation: rawSegment.isPunctuation === true,
+													isPunctuation:
+														rawSegment.isPunctuation === true,
 													isSupplied: rawSegment.isSupplied === true,
 												};
 											})
@@ -307,10 +341,10 @@ function parseWitnesses(nodes: unknown): WitnessConfig[] {
 								gap,
 							};
 						})
-					: [];
-			const sourceTokens = parseSourceTokens(raw.sourceTokens);
-			const fullSourceTokens = parseSourceTokens(raw.fullSourceTokens);
-			const fragmentarySourceTokens = parseSourceTokens(raw.fragmentarySourceTokens);
+				: [];
+		const sourceTokens = parseSourceTokens(raw.sourceTokens);
+		const fullSourceTokens = parseSourceTokens(raw.fullSourceTokens);
+		const fragmentarySourceTokens = parseSourceTokens(raw.fragmentarySourceTokens);
 		parsed.push({
 			witnessId: raw.id,
 			siglum: raw.siglum,
@@ -318,6 +352,8 @@ function parseWitnesses(nodes: unknown): WitnessConfig[] {
 			kind: raw.kind === 'corrector' ? 'corrector' : 'firsthand',
 			handId: typeof raw.handId === 'string' ? raw.handId : undefined,
 			sourceVersion: typeof raw.sourceVersion === 'string' ? raw.sourceVersion : '',
+			sourceContentHash:
+				typeof raw.sourceContentHash === 'string' ? raw.sourceContentHash : undefined,
 			content: typeof raw.content === 'string' ? raw.content : '',
 			tokens: sourceTokens,
 			fullContent: typeof raw.fullContent === 'string' ? raw.fullContent : undefined,
@@ -326,7 +362,9 @@ function parseWitnesses(nodes: unknown): WitnessConfig[] {
 				typeof raw.fragmentaryContent === 'string' ? raw.fragmentaryContent : undefined,
 			fragmentaryTokens: fragmentarySourceTokens,
 			treatment:
-				raw.treatment === 'full' || raw.treatment === 'fragmentary' ? raw.treatment : 'inherit',
+				raw.treatment === 'full' || raw.treatment === 'fragmentary'
+					? raw.treatment
+					: 'inherit',
 			isBaseText: raw.isBaseText === true,
 			isExcluded: raw.isExcluded === true,
 			overridesDefault: raw.overridesDefault === true,
@@ -341,13 +379,15 @@ function buildVariationUnitId(columnId: string | null, unitIndex: number): strin
 
 function buildApparatus(
 	classifiedReadings: Map<string, ClassifiedReading[]>,
-	alignmentColumns: AlignmentColumn[],
+	alignmentColumns: AlignmentColumn[]
 ): CollationApparatusNode | null {
 	if (classifiedReadings.size === 0) return null;
 	const units = [...classifiedReadings.entries()]
 		.map(([key, readings]) => {
 			const unitIndex = Number.parseInt(key, 10);
-			const columnId = Number.isFinite(unitIndex) ? alignmentColumns[unitIndex]?.id ?? null : null;
+			const columnId = Number.isFinite(unitIndex)
+				? (alignmentColumns[unitIndex]?.id ?? null)
+				: null;
 			return {
 				type: 'variationUnit' as const,
 				id: buildVariationUnitId(columnId, Number.isFinite(unitIndex) ? unitIndex : 0),
@@ -362,13 +402,15 @@ function buildApparatus(
 
 function buildStemma(
 	stemmaEdges: Map<string, StemmaEdge[]>,
-	alignmentColumns: AlignmentColumn[],
+	alignmentColumns: AlignmentColumn[]
 ): CollationStemmaNode | null {
 	if (stemmaEdges.size === 0) return null;
 	const units = [...stemmaEdges.entries()]
 		.map(([key, edges]) => {
 			const unitIndex = Number.parseInt(key, 10);
-			const columnId = Number.isFinite(unitIndex) ? alignmentColumns[unitIndex]?.id ?? null : null;
+			const columnId = Number.isFinite(unitIndex)
+				? (alignmentColumns[unitIndex]?.id ?? null)
+				: null;
 			return {
 				type: 'stemmaUnit' as const,
 				id: buildVariationUnitId(columnId, Number.isFinite(unitIndex) ? unitIndex : 0),
@@ -452,16 +494,20 @@ export function hydrateCollationDocument(document: CollationDocument): HydratedC
 				: [],
 		witnessOrder:
 			document.alignment && Array.isArray(document.alignment.witnessOrder)
-				? document.alignment.witnessOrder.filter((id): id is string => typeof id === 'string')
+				? document.alignment.witnessOrder.filter(
+						(id): id is string => typeof id === 'string'
+					)
 				: [],
 		classifiedReadings:
 			document.apparatus?.units
-				?.filter((unit) => Number.isFinite(unit.unitIndex) && Array.isArray(unit.readings))
-				.map((unit) => [String(unit.unitIndex), unit.readings] as [string, ClassifiedReading[]]) ?? [],
+				?.filter(unit => Number.isFinite(unit.unitIndex) && Array.isArray(unit.readings))
+				.map(
+					unit => [String(unit.unitIndex), unit.readings] as [string, ClassifiedReading[]]
+				) ?? [],
 		stemmaEdges:
 			document.stemma?.units
-				?.filter((unit) => Number.isFinite(unit.unitIndex) && Array.isArray(unit.edges))
-				.map((unit) => [String(unit.unitIndex), unit.edges] as [string, StemmaEdge[]]) ?? [],
+				?.filter(unit => Number.isFinite(unit.unitIndex) && Array.isArray(unit.edges))
+				.map(unit => [String(unit.unitIndex), unit.edges] as [string, StemmaEdge[]]) ?? [],
 		alignmentDisplayMode: normalizeDisplayMode(document.flow?.alignmentDisplayMode),
 		alignmentLayout: normalizeAlignmentLayout(document.flow?.alignmentLayout),
 	};

@@ -31,7 +31,9 @@ function buildTextBody(text: string): W3CAnnotationBody {
 	};
 }
 
-function canCreateFromContext(hostContext: CompositeTranscriptionAnnotationHostContext | null): boolean {
+function canCreateFromContext(
+	hostContext: CompositeTranscriptionAnnotationHostContext | null
+): boolean {
 	return !!(
 		hostContext?.isCompositeSelected &&
 		hostContext.persistenceContext &&
@@ -40,7 +42,9 @@ function canCreateFromContext(hostContext: CompositeTranscriptionAnnotationHostC
 	);
 }
 
-function getDisabledReason(hostContext: CompositeTranscriptionAnnotationHostContext | null): string | null {
+function getDisabledReason(
+	hostContext: CompositeTranscriptionAnnotationHostContext | null
+): string | null {
 	if (!hostContext?.isCompositeSelected) {
 		return 'Annotations are available only in the composite local manifest.';
 	}
@@ -61,7 +65,9 @@ export function createCompositeTranscriptionAnnotationExtension(
 ): AnnotationEditorExtension<CompositeTranscriptionAnnotationHostContext> {
 	return {
 		getContext: getHostContext,
-		canCreate: ({ hostContext }: AnnotationEditorRuntimeContext<CompositeTranscriptionAnnotationHostContext>) =>
+		canCreate: ({
+			hostContext,
+		}: AnnotationEditorRuntimeContext<CompositeTranscriptionAnnotationHostContext>) =>
 			canCreateFromContext(hostContext),
 		getCreateDisabledReason: ({
 			hostContext,
@@ -69,7 +75,9 @@ export function createCompositeTranscriptionAnnotationExtension(
 			getDisabledReason(hostContext),
 		prepareDraft: (
 			annotation: W3CAnnotation,
-			{ hostContext }: AnnotationEditorRuntimeContext<CompositeTranscriptionAnnotationHostContext>
+			{
+				hostContext,
+			}: AnnotationEditorRuntimeContext<CompositeTranscriptionAnnotationHostContext>
 		) => {
 			const selectedText = hostContext?.selectionQuote?.text?.trim();
 			if (!selectedText) return annotation;
@@ -80,7 +88,9 @@ export function createCompositeTranscriptionAnnotationExtension(
 		},
 		beforeSave: async (
 			annotation: W3CAnnotation,
-			{ hostContext }: AnnotationEditorRuntimeContext<CompositeTranscriptionAnnotationHostContext>
+			{
+				hostContext,
+			}: AnnotationEditorRuntimeContext<CompositeTranscriptionAnnotationHostContext>
 		) => {
 			const selectedText = hostContext?.selectionQuote?.text?.trim();
 			if (!selectedText) return annotation;

@@ -1,15 +1,20 @@
 import {
 	createCollation,
 	createProject as createLocalProject,
+	getCollationVersionStatus,
 	getProject,
-	getTranscriptionVersionsByIds,
 	loadCollation,
+	loadCommittedTranscriptionCheckpointPayload,
 	saveCollationArtifact,
 	saveCollationProjection,
 	updateProjectMetadata,
 	updateCollationMetadata,
 } from '$lib/client/db/client';
-import type { CollationProjectionRecord, CollationRecord } from '$lib/client/db/repositories/collations';
+import { coerceTranscriptionDocument } from '$lib/client/transcription/content';
+import type {
+	CollationProjectionRecord,
+	CollationRecord,
+} from '$lib/client/db/repositories/collations';
 import {
 	cloneAlignmentColumn,
 	deserializeAlignmentColumns,
@@ -27,7 +32,11 @@ import {
 	serializeCollationDocument,
 } from './collation-document';
 import { buildCollationProjection } from './collation-projection';
-import { gatherWitnessesForVerse, type PreparedWitness } from './collation-runner';
+import {
+	gatherWitnessesForVerse,
+	prepareWitnessesFromDocument,
+	type PreparedWitness,
+} from './collation-runner';
 import type {
 	AlignmentCellKind,
 	AlignmentDisplayMode,
@@ -306,8 +315,8 @@ function createCollationState() {
 		await syncNormalizedProjection();
 	}
 
-	async function persistDocument(): Promise<void> {
-		if (!collationId) return;
+	async function persistDocument(): Promise<boolean> {
+		if (!collationId) return false;
 		try {
 			const now = new Date().toISOString();
 			const payload = serializeCollationDocument(buildCollationDocumentPayload());
@@ -324,9 +333,11 @@ function createCollationState() {
 				updatedAt: now,
 				status: isFinalizedCollationPhase() ? 'complete' : phase,
 			});
+			return true;
 		} catch (err) {
 			console.error('Failed to persist collation document:', err);
 			saveStatus = 'error';
+			return false;
 		}
 	}
 
@@ -336,15 +347,47 @@ function createCollationState() {
 	}
 
 	let saveTimeout: ReturnType<typeof setTimeout> | null = null;
+	let inFlightSave: Promise<boolean> | null = null;
+
+	async function runPersist(): Promise<boolean> {
+		if (inFlightSave) return inFlightSave;
+		saveStatus = 'saving';
+		const promise = persistDocument();
+		inFlightSave = promise;
+		try {
+			const ok = await promise;
+			if (saveStatus === 'saving') {
+				saveStatus = ok ? 'saved' : 'error';
+			}
+			return ok;
+		} finally {
+			if (inFlightSave === promise) {
+				inFlightSave = null;
+			}
+		}
+	}
+
 	function scheduleSave() {
 		if (saveTimeout) clearTimeout(saveTimeout);
-		saveTimeout = setTimeout(async () => {
-			saveStatus = 'saving';
-			await persistDocument();
-			if (saveStatus === 'saving') {
-				saveStatus = 'saved';
-			}
+		saveTimeout = setTimeout(() => {
+			saveTimeout = null;
+			void runPersist();
 		}, 800);
+	}
+
+	async function flushPendingSave(): Promise<boolean> {
+		if (!collationId) return false;
+		if (saveTimeout) {
+			clearTimeout(saveTimeout);
+			saveTimeout = null;
+		}
+		if (inFlightSave) {
+			await inFlightSave;
+		}
+		if (saveStatus === 'unsaved' || saveStatus === 'error') {
+			return runPersist();
+		}
+		return true;
 	}
 
 	function pushCommand(cmd: CommandEntry) {
@@ -1125,32 +1168,6 @@ function createCollationState() {
 		);
 	}
 
-	async function findChangedWitnessTranscriptionIds(): Promise<string[]> {
-		const transcriptionIds = [
-			...new Set(
-				witnesses
-					.map(witness => witness.transcriptionId)
-					.filter((id): id is string => typeof id === 'string' && id.length > 0)
-			),
-		];
-		if (transcriptionIds.length === 0) return [];
-
-		const currentRows = await getTranscriptionVersionsByIds(transcriptionIds);
-		const currentVersionById = new Map(
-			currentRows.map(row => [row.id, row.updated_at || ''] as const)
-		);
-		const changed = new Set<string>();
-		for (const witness of witnesses) {
-			if (!witness.transcriptionId) continue;
-			const currentVersion = currentVersionById.get(witness.transcriptionId);
-			if (!currentVersion) continue;
-			if ((witness.sourceVersion ?? '') !== currentVersion) {
-				changed.add(witness.transcriptionId);
-			}
-		}
-		return [...changed];
-	}
-
 	async function refreshWitnessesFromTranscriptionSource(
 		transcriptionIds?: string[],
 		options?: { expectedCollationId?: string }
@@ -1244,25 +1261,6 @@ function createCollationState() {
 		return didChange;
 	}
 
-	async function refreshChangedWitnessSourcesAfterLoad(
-		expectedCollationId: string
-	): Promise<void> {
-		const changedTranscriptionIds = await findChangedWitnessTranscriptionIds();
-		if (changedTranscriptionIds.length === 0) return;
-		if (collationId !== expectedCollationId) return;
-		const didChange = await refreshWitnessesFromTranscriptionSource(changedTranscriptionIds, {
-			expectedCollationId,
-		});
-		if (!didChange || collationId !== expectedCollationId) return;
-		applyRegularization();
-		const repairedCollapsedAlignment = hasCollapsedAlignmentRegression();
-		if (repairedCollapsedAlignment) {
-			rebuildAlignmentFromWitnessTokens();
-		}
-		saveStatus = 'unsaved';
-		scheduleSave();
-	}
-
 	async function refreshWitnessesFromSource(transcriptionIds?: string[]): Promise<boolean> {
 		const didChange = await refreshWitnessesFromTranscriptionSource(transcriptionIds);
 		if (!didChange) return false;
@@ -1270,6 +1268,99 @@ function createCollationState() {
 		saveStatus = 'unsaved';
 		scheduleSave();
 		return true;
+	}
+
+	async function applyCheckpointToWitness(
+		witnessId: string,
+		checkpointId: string
+	): Promise<boolean> {
+		if (!collationId || !selectedVerse?.identifier) return false;
+		const witness = witnesses.find(w => w.witnessId === witnessId);
+		if (!witness || !witness.transcriptionId) return false;
+
+		const loaded = await loadCommittedTranscriptionCheckpointPayload(
+			witness.transcriptionId,
+			checkpointId
+		);
+		const document = coerceTranscriptionDocument(loaded.payload.content_json);
+		if (!document) return false;
+
+		const preparedWitnesses = prepareWitnessesFromDocument({
+			document,
+			verseIdentifier: selectedVerse.identifier,
+			transcriptionId: witness.transcriptionId,
+			siglum: loaded.payload.siglum || witness.siglum,
+			sourceVersion: loaded.id,
+			options: { ignoreWordBreaks },
+		});
+
+		const witnessKind = witness.kind ?? 'firsthand';
+		const witnessHandId = witness.handId ?? 'firsthand';
+		const matching = preparedWitnesses.find(
+			prepared =>
+				(prepared.kind ?? 'firsthand') === witnessKind &&
+				(prepared.handId ?? 'firsthand') === witnessHandId
+		);
+		if (!matching) return false;
+
+		const updated = applyWitnessTreatmentSource({
+			...witness,
+			siglum: matching.siglum,
+			sourceVersion: matching.sourceVersion,
+			sourceContentHash: loaded.contentHash,
+			content: matching.content,
+			tokens: cloneWitnessSourceTokens(matching.tokens),
+			fullContent: matching.fullContent,
+			fullTokens: cloneWitnessSourceTokens(matching.fullTokens ?? matching.tokens),
+			fragmentaryContent: matching.fragmentaryContent,
+			fragmentaryTokens: cloneWitnessSourceTokens(matching.fragmentaryTokens ?? []),
+		});
+		witnesses = applyWitnessTreatmentSources(
+			witnesses.map(w => (w.witnessId === witnessId ? updated : w))
+		);
+		return true;
+	}
+
+	async function refreshWitnessSource(
+		witnessId: string,
+		sourceCheckpointId?: string
+	): Promise<boolean> {
+		if (!collationId) return false;
+		let checkpointId = sourceCheckpointId ?? null;
+		if (!checkpointId) {
+			const status = await getCollationVersionStatus(collationId);
+			const witnessStatus = status.witnesses.find(entry => entry.witnessId === witnessId);
+			if (!witnessStatus?.availableCheckpoint) return false;
+			checkpointId = witnessStatus.availableCheckpoint.revisionId;
+		}
+
+		const didRefresh = await applyCheckpointToWitness(witnessId, checkpointId);
+		if (!didRefresh) return false;
+
+		handleWitnessSourceChange();
+		markUnsaved();
+		return true;
+	}
+
+	async function refreshAllStaleWitnessSources(): Promise<number> {
+		if (!collationId) return 0;
+		const status = await getCollationVersionStatus(collationId);
+		const staleWitnesses = status.witnesses.filter(
+			witness =>
+				witness.versionState === 'newer-source-available' && witness.availableCheckpoint
+		);
+		let refreshedCount = 0;
+		for (const witness of staleWitnesses) {
+			const checkpointId = witness.availableCheckpoint?.revisionId;
+			if (!checkpointId) continue;
+			if (await applyCheckpointToWitness(witness.witnessId, checkpointId)) {
+				refreshedCount++;
+			}
+		}
+		if (refreshedCount === 0) return 0;
+		handleWitnessSourceChange();
+		markUnsaved();
+		return refreshedCount;
 	}
 
 	function handleWitnessSourceChange() {
@@ -2875,9 +2966,6 @@ function createCollationState() {
 			if (!repairedCollapsedAlignment) {
 				saveStatus = 'saved';
 			}
-			void refreshChangedWitnessSourcesAfterLoad(id).catch(err => {
-				console.error('Failed to refresh stale witness sources after load:', err);
-			});
 			isLoading = false;
 			return true;
 		} catch (err) {
@@ -3091,6 +3179,8 @@ function createCollationState() {
 		applyRegularization,
 		buildCollationWitnessInputs,
 		refreshWitnessesFromSource,
+		refreshWitnessSource,
+		refreshAllStaleWitnessSources,
 		setAlignmentSnapshot,
 		setAlignmentDisplayMode,
 		setAlignmentLayout,
@@ -3140,6 +3230,7 @@ function createCollationState() {
 		reset,
 		createNewCollation,
 		loadCollationById,
+		flushPendingSave,
 		pushCommand,
 	};
 }

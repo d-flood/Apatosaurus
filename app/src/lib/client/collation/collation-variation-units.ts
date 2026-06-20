@@ -108,17 +108,20 @@ export function getOriginalReadingKey(cell: AlignmentCell | undefined): string {
 	}
 
 	if (Array.isArray(cell.originalSegments) && cell.originalSegments.length > 0) {
-		const normalizedSegments = getCellSegments(cell, 'original').reduce<DisplaySegment[]>((acc, segment) => {
-			const previous = acc[acc.length - 1];
-			if (previous && previous.hasUnclear === segment.hasUnclear) {
-				previous.text += segment.text;
+		const normalizedSegments = getCellSegments(cell, 'original').reduce<DisplaySegment[]>(
+			(acc, segment) => {
+				const previous = acc[acc.length - 1];
+				if (previous && previous.hasUnclear === segment.hasUnclear) {
+					previous.text += segment.text;
+					return acc;
+				}
+				acc.push({ ...segment });
 				return acc;
-			}
-			acc.push({ ...segment });
-			return acc;
-		}, []);
+			},
+			[]
+		);
 		return normalizedSegments
-			.map((segment) => `${segment.text}::${segment.hasUnclear ? '1' : '0'}`)
+			.map(segment => `${segment.text}::${segment.hasUnclear ? '1' : '0'}`)
 			.join('\u0001');
 	}
 
@@ -133,7 +136,10 @@ function getOriginalReadingKeyForCells(cells: Array<AlignmentCell | undefined>):
 	return cells.map(cell => getOriginalReadingKey(cell)).join('\u0002');
 }
 
-function getCellVisibleText(cell: AlignmentCell, alignmentDisplayMode: AlignmentDisplayMode): string | null {
+function getCellVisibleText(
+	cell: AlignmentCell,
+	alignmentDisplayMode: AlignmentDisplayMode
+): string | null {
 	if (cell.kind === 'gap') {
 		return alignmentDisplayMode === 'regularized' ? '<gap>' : cell.text;
 	}
@@ -147,7 +153,7 @@ function getCellVisibleText(cell: AlignmentCell, alignmentDisplayMode: Alignment
 
 function getCellSegments(
 	cell: AlignmentCell,
-	alignmentDisplayMode: AlignmentDisplayMode,
+	alignmentDisplayMode: AlignmentDisplayMode
 ): DisplaySegment[] {
 	if (
 		alignmentDisplayMode !== 'original' ||
@@ -158,38 +164,43 @@ function getCellSegments(
 	}
 
 	return cell.originalSegments
-		.filter((segment) => segment.text.length > 0)
-		.map((segment) => ({ text: segment.text, hasUnclear: segment.hasUnclear }));
+		.filter(segment => segment.text.length > 0)
+		.map(segment => ({ text: segment.text, hasUnclear: segment.hasUnclear }));
 }
 
 function getCellsSegments(
 	cells: Array<AlignmentCell | undefined>,
-	alignmentDisplayMode: AlignmentDisplayMode,
+	alignmentDisplayMode: AlignmentDisplayMode
 ): DisplaySegment[] {
 	return cells.flatMap(cell => {
 		if (!cell) return [];
-		return getCellSegments(cell, alignmentDisplayMode).filter(segment => segment.text.length > 0);
+		return getCellSegments(cell, alignmentDisplayMode).filter(
+			segment => segment.text.length > 0
+		);
 	});
 }
 
 function joinCellsText(
 	cells: Array<AlignmentCell | undefined>,
-	mode: 'original' | 'normalized',
+	mode: 'original' | 'normalized'
 ): string | null {
 	const value = joinTokenTexts(
 		cells.map(cell => ({
-			text: mode === 'normalized' ? (cell?.regularizedText ?? cell?.text) : (cell?.text ?? null),
+			text:
+				mode === 'normalized'
+					? (cell?.regularizedText ?? cell?.text)
+					: (cell?.text ?? null),
 			originalSegments: cell?.originalSegments,
 			isPunctuation:
 				mode === 'normalized'
 					? false
 					: Boolean(
-						cell?.text &&
+							cell?.text &&
 							isPunctuationToken({
 								text: cell.text,
 								originalSegments: cell.originalSegments,
 							})
-					),
+						),
 		}))
 	);
 	return value.length > 0 ? value : null;
@@ -202,7 +213,7 @@ export function readingText(reading: {
 }): string {
 	if (reading.isOmission) return 'om.';
 	if (reading.isLacuna) return 'lac.';
-	const text = reading.segments.map((segment) => segment.text).join('');
+	const text = reading.segments.map(segment => segment.text).join('');
 	return text.length > 0 ? text : '—';
 }
 
@@ -223,7 +234,8 @@ function buildReadingBucketId(columnId: string, originalKey: string): string {
 
 function compareReadingBuckets(a: ReadingBucket, b: ReadingBucket): number {
 	if (a.isBase !== b.isBase) return a.isBase ? -1 : 1;
-	if (a.witnessIds.length !== b.witnessIds.length) return b.witnessIds.length - a.witnessIds.length;
+	if (a.witnessIds.length !== b.witnessIds.length)
+		return b.witnessIds.length - a.witnessIds.length;
 	return readingText(a).localeCompare(readingText(b));
 }
 
@@ -232,7 +244,7 @@ function toDisplayReading(reading: ReadingBucket, label: string): CollapsedReadi
 		id: reading.id,
 		label,
 		witnessIds: [...reading.witnessIds],
-		segments: reading.segments.map((segment) => ({ ...segment })),
+		segments: reading.segments.map(segment => ({ ...segment })),
 		isBase: reading.isBase,
 		isOmission: reading.isOmission,
 		isLacuna: reading.isLacuna,
@@ -262,7 +274,7 @@ function toFamilyBucket(reading: ReadingBucket): ReadingFamilyBucket {
 function buildReadingBuckets(
 	entries: ReadingFamilyWitnessEntry[],
 	baseWitnessId: string | null,
-	columnId: string,
+	columnId: string
 ): ReadingBucket[] {
 	const buckets = new Map<string, ReadingBucket>();
 
@@ -274,7 +286,8 @@ function buildReadingBuckets(
 			existing.witnessIds.push(entry.witnessId);
 			if (baseWitnessId && entry.witnessId === baseWitnessId) existing.isBase = true;
 			existing.hasRegularization =
-				existing.hasRegularization || entry.cells.some(cell => Boolean(cell?.isRegularized));
+				existing.hasRegularization ||
+				entry.cells.some(cell => Boolean(cell?.isRegularized));
 			existing.allCellsRegularized =
 				existing.allCellsRegularized &&
 				entry.cells.every(cell => !cell || Boolean(cell.isRegularized));
@@ -291,7 +304,9 @@ function buildReadingBuckets(
 			entry.cells.length === 0 ||
 			entry.cells.every(cell => !cell || cell.isOmission || cell.text === null);
 		const isLacuna =
-			!isOmission && entry.cells.some(cell => Boolean(cell?.isLacuna)) && !entry.cells.some(cell => Boolean(cell?.text?.trim()));
+			!isOmission &&
+			entry.cells.some(cell => Boolean(cell?.isLacuna)) &&
+			!entry.cells.some(cell => Boolean(cell?.text?.trim()));
 		const segments = getCellsSegments(entry.cells, 'original');
 		buckets.set(originalKey, {
 			id: buildReadingBucketId(columnId, originalKey),
@@ -300,14 +315,18 @@ function buildReadingBuckets(
 			witnessIds: [entry.witnessId],
 			segments: segments.length > 0 ? segments : [{ text: '—', hasUnclear: false }],
 			originalText: isOmission || isLacuna ? null : joinCellsText(entry.cells, 'original'),
-			normalizedText: isOmission || isLacuna ? null : joinCellsText(entry.cells, 'normalized'),
+			normalizedText:
+				isOmission || isLacuna ? null : joinCellsText(entry.cells, 'normalized'),
 			isBase: Boolean(baseWitnessId && entry.witnessId === baseWitnessId),
 			isOmission,
 			isLacuna,
 			hasRegularization: entry.cells.some(cell => Boolean(cell?.isRegularized)),
 			allCellsRegularized:
-				entry.cells.length > 0 && entry.cells.every(cell => !cell || Boolean(cell.isRegularized)),
-			regularizationTypes: new Set(entry.cells.flatMap(cell => cell?.regularizationTypes ?? [])),
+				entry.cells.length > 0 &&
+				entry.cells.every(cell => !cell || Boolean(cell.isRegularized)),
+			regularizationTypes: new Set(
+				entry.cells.flatMap(cell => cell?.regularizationTypes ?? [])
+			),
 			ruleIds: new Set(entry.cells.flatMap(cell => cell?.ruleIds ?? [])),
 		});
 	}
@@ -351,10 +370,12 @@ export function buildReadingFamilyGroups({
 			primaryIds.add(reading.id);
 			continue;
 		}
-		const preferredParent = equivalenceKeys
-			.map(equivalenceKey => bucketsByEquivalenceKey.get(equivalenceKey) ?? [])
-			.flat()
-			.find(candidate => primaryIds.has(candidate.id) && candidate.id !== reading.id) ?? null;
+		const preferredParent =
+			equivalenceKeys
+				.map(equivalenceKey => bucketsByEquivalenceKey.get(equivalenceKey) ?? [])
+				.flat()
+				.find(candidate => primaryIds.has(candidate.id) && candidate.id !== reading.id) ??
+			null;
 		if (preferredParent) {
 			parentIdByChildId.set(reading.id, preferredParent.id);
 		} else {
@@ -406,17 +427,29 @@ export function buildCollapsedReadingGroups({
 					id: group.parent.id,
 					originalKey: group.parent.originalKey,
 					equivalenceKeys: new Set(group.parent.equivalenceKeys),
-					witnessIds: [group.parent, ...group.children].flatMap(reading => reading.witnessIds),
+					witnessIds: [group.parent, ...group.children].flatMap(
+						reading => reading.witnessIds
+					),
 					segments:
 						group.parent.isOmission || group.parent.isLacuna
 							? [{ text: '—', hasUnclear: false }]
-							: [{ text: group.parent.normalizedText ?? group.parent.originalText ?? '—', hasUnclear: false }],
+							: [
+									{
+										text:
+											group.parent.normalizedText ??
+											group.parent.originalText ??
+											'—',
+										hasUnclear: false,
+									},
+								],
 					originalText: group.parent.originalText,
 					normalizedText: group.parent.normalizedText,
 					isBase: group.parent.isBase,
 					isOmission: group.parent.isOmission,
 					isLacuna: group.parent.isLacuna,
-					hasRegularization: [group.parent, ...group.children].some(reading => reading.hasRegularization),
+					hasRegularization: [group.parent, ...group.children].some(
+						reading => reading.hasRegularization
+					),
 					allCellsRegularized: group.parent.allCellsRegularized,
 					regularizationTypes: new Set(group.parent.regularizationTypes),
 					ruleIds: new Set(group.parent.ruleIds),
@@ -442,8 +475,14 @@ export function buildCollapsedReadingGroups({
 					equivalenceKeys: new Set(group.parent.equivalenceKeys),
 					witnessIds: group.parent.witnessIds,
 					segments:
-						getCellsSegments([column.cells.get(group.parent.witnessIds[0] ?? '')], 'original').length > 0
-							? getCellsSegments([column.cells.get(group.parent.witnessIds[0] ?? '')], 'original')
+						getCellsSegments(
+							[column.cells.get(group.parent.witnessIds[0] ?? '')],
+							'original'
+						).length > 0
+							? getCellsSegments(
+									[column.cells.get(group.parent.witnessIds[0] ?? '')],
+									'original'
+								)
 							: [{ text: '—', hasUnclear: false }],
 					originalText: group.parent.originalText,
 					normalizedText: group.parent.normalizedText,
@@ -465,8 +504,14 @@ export function buildCollapsedReadingGroups({
 						equivalenceKeys: new Set(child.equivalenceKeys),
 						witnessIds: child.witnessIds,
 						segments:
-							getCellsSegments([column.cells.get(child.witnessIds[0] ?? '')], 'original').length > 0
-								? getCellsSegments([column.cells.get(child.witnessIds[0] ?? '')], 'original')
+							getCellsSegments(
+								[column.cells.get(child.witnessIds[0] ?? '')],
+								'original'
+							).length > 0
+								? getCellsSegments(
+										[column.cells.get(child.witnessIds[0] ?? '')],
+										'original'
+									)
 								: [{ text: '—', hasUnclear: false }],
 						originalText: child.originalText,
 						normalizedText: child.normalizedText,
@@ -514,6 +559,6 @@ export function buildVariationUnitSpans(columns: AlignmentColumn[]): VariationUn
 						columnIds: [column.id],
 					} satisfies VariationUnitSpan,
 				]
-			: [],
+			: []
 	);
 }

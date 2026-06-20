@@ -12,9 +12,6 @@ export function exportTEI(pmJSON: ProseMirrorJSON, metadata?: TEIMetadata): stri
 	return serializeTei(fromProseMirror(pmJSON), metadata);
 }
 
-export function exportTEIDocument(
-	document: TranscriptionDocument,
-	metadata?: TEIMetadata
-): string {
+export function exportTEIDocument(document: TranscriptionDocument, metadata?: TEIMetadata): string {
 	return serializeTei(document, metadata);
 }

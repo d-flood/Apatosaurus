@@ -57,7 +57,10 @@ describe('intfManifest', () => {
 									sortOrder: '00002',
 									images: {
 										image: [
-											{ webFriendlyURL: 'https://example.org/1v-a.jpg', surrID: 10 },
+											{
+												webFriendlyURL: 'https://example.org/1v-a.jpg',
+												surrID: 10,
+											},
 											{ uri: 'https://example.org/1v-b.jpg', surrID: 20 },
 										],
 									},
@@ -123,12 +126,14 @@ describe('intfManifest', () => {
 			],
 		});
 
-		expect(manifestUrl).toBe(buildIntfManifestUrl({
-			docId: 10045,
-			pageImages: [
-				{ pageId: 8, sortOrder: 8, surrId: 10, imageUrl: 'https://example.org/1r.jpg' },
-			],
-		}));
+		expect(manifestUrl).toBe(
+			buildIntfManifestUrl({
+				docId: 10045,
+				pageImages: [
+					{ pageId: 8, sortOrder: 8, surrId: 10, imageUrl: 'https://example.org/1r.jpg' },
+				],
+			})
+		);
 		expect(metadata).toMatchObject({
 			inputKind: 'intf-manuscript-json',
 			docId: 10045,

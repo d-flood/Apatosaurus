@@ -116,7 +116,7 @@ describe('transcriptions repository', () => {
 
 		expect(ids).toEqual(['tx-1', 'tx-2']);
 		expect(rows).toHaveLength(2);
-		expect(rows.map((row) => row.transcription_id)).toEqual(['tx-1', 'tx-2']);
+		expect(rows.map(row => row.transcription_id)).toEqual(['tx-1', 'tx-2']);
 	});
 
 	it('lists verse index rows for one transcription', async () => {
@@ -133,8 +133,8 @@ describe('transcriptions repository', () => {
 
 		const rows = await listVerseIndexRowsForTranscription(harness.db, 'tx-1');
 
-		expect(rows.map((row) => row.transcription_id)).toEqual(['tx-1', 'tx-1']);
-		expect(rows.map((row) => row.verse_identifier)).toEqual(['Romans 1:1', 'Romans 1:2']);
+		expect(rows.map(row => row.transcription_id)).toEqual(['tx-1', 'tx-1']);
+		expect(rows.map(row => row.verse_identifier)).toEqual(['Romans 1:1', 'Romans 1:2']);
 	});
 
 	it('loads full transcriptions in caller id order', async () => {
@@ -146,7 +146,7 @@ describe('transcriptions repository', () => {
 
 		const rows = await getTranscriptionsByIds(harness.db, ['tx-3', 'tx-1', 'tx-missing']);
 
-		expect(rows.map((row) => row.id)).toEqual(['tx-3', 'tx-1']);
+		expect(rows.map(row => row.id)).toEqual(['tx-3', 'tx-1']);
 	});
 
 	it('loads metadata-only transcription summaries and versions', async () => {
@@ -157,11 +157,15 @@ describe('transcriptions repository', () => {
 		]);
 
 		const summary = await getTranscriptionSummary(harness.db, 'tx-1');
-		const versions = await getTranscriptionVersionsByIds(harness.db, ['tx-3', 'tx-1', 'tx-missing']);
+		const versions = await getTranscriptionVersionsByIds(harness.db, [
+			'tx-3',
+			'tx-1',
+			'tx-missing',
+		]);
 
 		expect(summary).toMatchObject({ id: 'tx-1', siglum: '01' });
 		expect(summary).not.toHaveProperty('content_json');
-		expect(versions.map((row) => row.id)).toEqual(['tx-3', 'tx-1']);
+		expect(versions.map(row => row.id)).toEqual(['tx-3', 'tx-1']);
 		expect(versions[0]).toEqual({ id: 'tx-3', updated_at: expect.any(String) });
 		expect(versions[0]).not.toHaveProperty('content_json');
 	});
@@ -180,10 +184,10 @@ describe('transcriptions repository', () => {
 		const versions = await getTranscriptionVersionsByIds(harness.db, [snapshotId]);
 		const snapshot = await getTranscription(harness.db, snapshotId);
 
-		expect(summaries.map((row) => row.id)).toEqual(['tx-1']);
+		expect(summaries.map(row => row.id)).toEqual(['tx-1']);
 		expect(snapshotSummary).toBeNull();
-		expect(loadedByIds.map((row) => row.id)).toEqual([snapshotId, 'tx-1']);
-		expect(versions.map((row) => row.id)).toEqual([snapshotId]);
+		expect(loadedByIds.map(row => row.id)).toEqual([snapshotId, 'tx-1']);
+		expect(versions.map(row => row.id)).toEqual([snapshotId]);
 		expect(snapshot).toMatchObject({
 			id: snapshotId,
 			scope_type: 'project_snapshot',
@@ -286,7 +290,7 @@ function documentWithVerses(verses: string[]): StoredTranscriptionDocument {
 							{
 								type: 'line',
 								number: 1,
-								items: verses.map((identifier) => {
+								items: verses.map(identifier => {
 									const [book, chapterVerse] = identifier.split(' ');
 									const [chapter, verse] = chapterVerse.split(':');
 									return {

@@ -198,7 +198,11 @@ class ExternalSyncService {
 	}
 
 	private detectSupport(): boolean {
-		return typeof window !== 'undefined' && typeof Worker !== 'undefined' && !!this.getDirectoryPicker();
+		return (
+			typeof window !== 'undefined' &&
+			typeof Worker !== 'undefined' &&
+			!!this.getDirectoryPicker()
+		);
 	}
 
 	private handleWorkerMessage(message: WorkerOutgoing): void {
@@ -236,8 +240,12 @@ class ExternalSyncService {
 		requestIfNeeded: boolean
 	): Promise<boolean> {
 		const withPermission = handle as FileSystemDirectoryHandle & {
-			queryPermission?: (descriptor: { mode?: 'read' | 'readwrite' }) => Promise<PermissionState>;
-			requestPermission?: (descriptor: { mode?: 'read' | 'readwrite' }) => Promise<PermissionState>;
+			queryPermission?: (descriptor: {
+				mode?: 'read' | 'readwrite';
+			}) => Promise<PermissionState>;
+			requestPermission?: (descriptor: {
+				mode?: 'read' | 'readwrite';
+			}) => Promise<PermissionState>;
 		};
 		if (!withPermission.queryPermission) {
 			return false;
@@ -260,7 +268,9 @@ class ExternalSyncService {
 			return null;
 		}
 		const maybeWindow = window as Window & {
-			showDirectoryPicker?: (options?: { mode?: 'read' | 'readwrite' }) => Promise<FileSystemDirectoryHandle>;
+			showDirectoryPicker?: (options?: {
+				mode?: 'read' | 'readwrite';
+			}) => Promise<FileSystemDirectoryHandle>;
 		};
 		return maybeWindow.showDirectoryPicker ?? null;
 	}
@@ -284,7 +294,8 @@ class ExternalSyncService {
 		await new Promise<void>((resolve, reject) => {
 			const tx = db.transaction(IDB_STORE, 'readwrite');
 			tx.oncomplete = () => resolve();
-			tx.onerror = () => reject(tx.error ?? new Error('Failed to persist external sync directory.'));
+			tx.onerror = () =>
+				reject(tx.error ?? new Error('Failed to persist external sync directory.'));
 			tx.objectStore(IDB_STORE).put(handle, IDB_KEY);
 		});
 		db.close();
@@ -294,12 +305,14 @@ class ExternalSyncService {
 		const db = await this.openSettingsDb();
 		const value = await new Promise<FileSystemDirectoryHandle | null>((resolve, reject) => {
 			const tx = db.transaction(IDB_STORE, 'readonly');
-			tx.onerror = () => reject(tx.error ?? new Error('Failed to read external sync directory.'));
+			tx.onerror = () =>
+				reject(tx.error ?? new Error('Failed to read external sync directory.'));
 			const request = tx.objectStore(IDB_STORE).get(IDB_KEY);
 			request.onsuccess = () => {
 				resolve((request.result as FileSystemDirectoryHandle | undefined) ?? null);
 			};
-			request.onerror = () => reject(request.error ?? new Error('Failed to read external sync directory.'));
+			request.onerror = () =>
+				reject(request.error ?? new Error('Failed to read external sync directory.'));
 		});
 		db.close();
 		return value;
@@ -310,7 +323,8 @@ class ExternalSyncService {
 		await new Promise<void>((resolve, reject) => {
 			const tx = db.transaction(IDB_STORE, 'readwrite');
 			tx.oncomplete = () => resolve();
-			tx.onerror = () => reject(tx.error ?? new Error('Failed to clear external sync directory.'));
+			tx.onerror = () =>
+				reject(tx.error ?? new Error('Failed to clear external sync directory.'));
 			tx.objectStore(IDB_STORE).delete(IDB_KEY);
 		});
 		db.close();

@@ -6,10 +6,15 @@ import {
 	disconnectCloudConnection,
 	getCloudConnection,
 	getCloudConnectionByProviderAccount,
+	getCloudProjectFolder,
+	listCloudProjectFolders,
 	listCloudConnections,
 	refreshCloudConnectionCredentials,
+	unlinkCloudProjectFolder,
 	updateCloudConnectionCredentials,
+	updateCloudProjectFolderSyncState,
 	upsertCloudConnection,
+	upsertCloudProjectFolder,
 	wipeCloudConnections,
 } from './cloud-connections';
 
@@ -57,9 +62,67 @@ describe('cloud connection credential persistence', () => {
 			updatedAt: '2026-06-10T12:05:00.000Z',
 		});
 		expect(updated.credentials.refreshToken).toBeUndefined();
-		expect(await getCloudConnectionByProviderAccount(harness.db, 'mock', 'acct-1')).toMatchObject({
+		expect(
+			await getCloudConnectionByProviderAccount(harness.db, 'mock', 'acct-1')
+		).toMatchObject({
 			id: connection.id,
 		});
+	});
+
+	it('stores project backup folder bindings and sync state', async () => {
+		await createProject(harness.db, { id: 'project-1', name: 'Project' });
+		await upsertCloudConnection(harness.db, {
+			id: 'conn-1',
+			providerId: 'mock',
+			providerAccountId: 'acct-1',
+			accountEmail: 'editor@example.com',
+			credentials: { accessToken: 'access-1' },
+		});
+
+		const folder = await upsertCloudProjectFolder(harness.db, {
+			projectId: 'project-1',
+			connectionId: 'conn-1',
+			cloudFolderId: 'folder-1',
+			cloudFolderPath: 'Apatosaurus/Projects/project-1',
+		});
+
+		expect(folder).toMatchObject({
+			projectId: 'project-1',
+			connectionId: 'conn-1',
+			cloudFolderId: 'folder-1',
+			syncCursor: '',
+			lastFullySyncedAt: null,
+		});
+		await expect(listCloudProjectFolders(harness.db, 'project-1')).resolves.toHaveLength(1);
+
+		await upsertCloudProjectFolder(harness.db, {
+			projectId: 'project-1',
+			connectionId: 'conn-1',
+			cloudFolderId: 'folder-2',
+			cloudFolderPath: 'Apatosaurus/Projects/project-1-renamed',
+			syncCursor: 'cursor-1',
+			lastFullySyncedAt: '2026-06-10T12:00:00.000Z',
+		});
+		await expect(getCloudProjectFolder(harness.db, 'project-1', 'conn-1')).resolves.toMatchObject({
+			cloudFolderId: 'folder-2',
+			cloudFolderPath: 'Apatosaurus/Projects/project-1-renamed',
+			syncCursor: 'cursor-1',
+			lastFullySyncedAt: '2026-06-10T12:00:00.000Z',
+		});
+
+		await updateCloudProjectFolderSyncState(harness.db, {
+			projectId: 'project-1',
+			connectionId: 'conn-1',
+			syncCursor: 'cursor-2',
+			lastFullySyncedAt: '2026-06-10T12:05:00.000Z',
+		});
+		await expect(getCloudProjectFolder(harness.db, 'project-1', 'conn-1')).resolves.toMatchObject({
+			syncCursor: 'cursor-2',
+			lastFullySyncedAt: '2026-06-10T12:05:00.000Z',
+		});
+
+		expect(await unlinkCloudProjectFolder(harness.db, 'project-1', 'conn-1')).toBe(true);
+		await expect(getCloudProjectFolder(harness.db, 'project-1', 'conn-1')).resolves.toBeNull();
 	});
 
 	it('refreshes access tokens while preserving or rotating refresh tokens', async () => {

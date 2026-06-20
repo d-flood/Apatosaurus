@@ -64,13 +64,13 @@ export function normalizeMarginaliaContent(content: unknown): Record<string, any
 }
 
 export function isStructuredFormWorkContent(content: unknown): content is Record<string, any> {
-	return !!content && typeof content === 'object' && (content as Record<string, any>).type === 'doc';
+	return (
+		!!content && typeof content === 'object' && (content as Record<string, any>).type === 'doc'
+	);
 }
 
 export function formWorkContentToPlainText(content: unknown): string {
-	return collectText(content)
-		.replace(/\s+/g, ' ')
-		.trim();
+	return collectText(content).replace(/\s+/g, ' ').trim();
 }
 
 function collectText(content: unknown): string {

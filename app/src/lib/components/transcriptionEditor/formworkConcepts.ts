@@ -74,7 +74,9 @@ export interface FormWorkAttrsLike {
 }
 
 function normalize(value: unknown): string {
-	return String(value || '').trim().toLowerCase();
+	return String(value || '')
+		.trim()
+		.toLowerCase();
 }
 
 function getAttr(attrs: FormWorkAttrsLike | null | undefined, key: string): string {
@@ -117,20 +119,16 @@ function classifyPlacement(
 
 	if (
 		segSubtype === 'lineleft' ||
-		(
-			placeTokens.has('left') &&
-			(placeTokens.has('margin') || segType === 'margin' || segType === 'marginalia')
-		)
+		(placeTokens.has('left') &&
+			(placeTokens.has('margin') || segType === 'margin' || segType === 'marginalia'))
 	) {
 		return 'lineLeft';
 	}
 
 	if (
 		segSubtype === 'lineright' ||
-		(
-			placeTokens.has('right') &&
-			(placeTokens.has('margin') || segType === 'margin' || segType === 'marginalia')
-		)
+		(placeTokens.has('right') &&
+			(placeTokens.has('margin') || segType === 'margin' || segType === 'marginalia'))
 	) {
 		return 'lineRight';
 	}
@@ -223,7 +221,17 @@ function classifyContent(
 		return 'footer';
 	}
 
-	if (['margin', 'lineAbove', 'lineBelow', 'lineLeft', 'lineRight', 'columnTop', 'columnBottom'].includes(placement)) {
+	if (
+		[
+			'margin',
+			'lineAbove',
+			'lineBelow',
+			'lineLeft',
+			'lineRight',
+			'columnTop',
+			'columnBottom',
+		].includes(placement)
+	) {
 		return 'marginalLabel';
 	}
 
@@ -247,11 +255,13 @@ function buildClassification(
 				contentConcept,
 				placementConcept,
 				label: 'Running Title',
-				description: 'A recurring title or book label carried in page chrome rather than the main text flow.',
+				description:
+					'A recurring title or book label carried in page chrome rather than the main text flow.',
 				editorSurface: 'pageChrome',
 				entryPoint,
 				marginaliaCategory,
-				editorStrategy: 'Use a page-header/running-title control and collapse it to fw on export.',
+				editorStrategy:
+					'Use a page-header/running-title control and collapse it to fw on export.',
 				placementLabel: placementInfo.label,
 				placementDescription: placementInfo.description,
 			};
@@ -266,7 +276,8 @@ function buildClassification(
 				editorSurface: 'pageChrome',
 				entryPoint,
 				marginaliaCategory,
-				editorStrategy: 'Represent it in page-level chrome controls, not as ordinary transcription text.',
+				editorStrategy:
+					'Represent it in page-level chrome controls, not as ordinary transcription text.',
 				placementLabel: placementInfo.label,
 				placementDescription: placementInfo.description,
 			};
@@ -281,7 +292,8 @@ function buildClassification(
 				editorSurface: 'pageBoundary',
 				entryPoint,
 				marginaliaCategory,
-				editorStrategy: 'Treat it as page-boundary layout content with dedicated footer/catchword controls.',
+				editorStrategy:
+					'Treat it as page-boundary layout content with dedicated footer/catchword controls.',
 				placementLabel: placementInfo.label,
 				placementDescription: placementInfo.description,
 			};
@@ -292,11 +304,13 @@ function buildClassification(
 				contentConcept,
 				placementConcept,
 				label: 'Page Label',
-				description: 'A page number, folio label, or pagination mark tied to page identity.',
+				description:
+					'A page number, folio label, or pagination mark tied to page identity.',
 				editorSurface: 'pageMetadata',
 				entryPoint,
 				marginaliaCategory,
-				editorStrategy: 'Use page metadata UI as the primary editor surface and export to fw when needed.',
+				editorStrategy:
+					'Use page metadata UI as the primary editor surface and export to fw when needed.',
 				placementLabel: placementInfo.label,
 				placementDescription: placementInfo.description,
 			};
@@ -307,11 +321,13 @@ function buildClassification(
 				contentConcept,
 				placementConcept,
 				label: 'Line Label',
-				description: 'A line number or line-identifying label that should stay tied to line structure.',
+				description:
+					'A line number or line-identifying label that should stay tied to line structure.',
 				editorSurface: 'lineMetadata',
 				entryPoint,
 				marginaliaCategory,
-				editorStrategy: 'Edit it through line metadata controls rather than inline prose editing.',
+				editorStrategy:
+					'Edit it through line metadata controls rather than inline prose editing.',
 				placementLabel: placementInfo.label,
 				placementDescription: placementInfo.description,
 			};
@@ -322,11 +338,13 @@ function buildClassification(
 				contentConcept,
 				placementConcept,
 				label: 'Quire Signature',
-				description: 'A codicological signature or quire label associated with manuscript structure.',
+				description:
+					'A codicological signature or quire label associated with manuscript structure.',
 				editorSurface: 'codicology',
 				entryPoint,
 				marginaliaCategory,
-				editorStrategy: 'Use a codicology-focused inspector and export it as fw only at the TEI boundary.',
+				editorStrategy:
+					'Use a codicology-focused inspector and export it as fw only at the TEI boundary.',
 				placementLabel: placementInfo.label,
 				placementDescription: placementInfo.description,
 			};
@@ -337,11 +355,13 @@ function buildClassification(
 				contentConcept,
 				placementConcept,
 				label: 'Catchword',
-				description: 'A catchword used at a page boundary to support reading order across openings.',
+				description:
+					'A catchword used at a page boundary to support reading order across openings.',
 				editorSurface: 'pageBoundary',
 				entryPoint,
 				marginaliaCategory,
-				editorStrategy: 'Represent it as a page-boundary widget and export it as bottom-placed fw.',
+				editorStrategy:
+					'Represent it as a page-boundary widget and export it as bottom-placed fw.',
 				placementLabel: placementInfo.label,
 				placementDescription: placementInfo.description,
 			};
@@ -351,12 +371,14 @@ function buildClassification(
 				functionConcept: contentConcept,
 				contentConcept,
 				placementConcept,
-				label: placementConcept === 'lineAbove' || placementConcept === 'lineBelow'
-					? 'Interlinear Annotation'
-					: 'Margin Annotation',
-				description: placementConcept === 'lineAbove' || placementConcept === 'lineBelow'
-					? 'A layout annotation positioned relative to a line, such as above-line or below-line content.'
-					: 'A margin- or column-bound layout annotation rather than running text.',
+				label:
+					placementConcept === 'lineAbove' || placementConcept === 'lineBelow'
+						? 'Interlinear Annotation'
+						: 'Margin Annotation',
+				description:
+					placementConcept === 'lineAbove' || placementConcept === 'lineBelow'
+						? 'A layout annotation positioned relative to a line, such as above-line or below-line content.'
+						: 'A margin- or column-bound layout annotation rather than running text.',
 				editorSurface:
 					placementConcept === 'lineAbove' || placementConcept === 'lineBelow'
 						? 'interlinearPlacement'
@@ -378,7 +400,8 @@ function buildClassification(
 				contentConcept: 'genericFormwork',
 				placementConcept,
 				label: 'Layout Annotation',
-				description: 'Layout-bound content that is distinct from the main transcription but not yet a narrower editor concept.',
+				description:
+					'Layout-bound content that is distinct from the main transcription but not yet a narrower editor concept.',
 				editorSurface:
 					placementConcept === 'inline' || placementConcept === 'inSpace'
 						? 'inlineWidget'
@@ -443,25 +466,43 @@ function getPlacementInfo(placementConcept: FormWorkPlacementConcept): {
 		case 'pageTop':
 			return { label: 'Page Top', description: 'Placed at the top of the page.' };
 		case 'pageBottom':
-			return { label: 'Page Bottom', description: 'Placed at the foot or lower boundary of the page.' };
+			return {
+				label: 'Page Bottom',
+				description: 'Placed at the foot or lower boundary of the page.',
+			};
 		case 'columnTop':
 			return { label: 'Column Top', description: 'Placed at the top of a text column.' };
 		case 'columnBottom':
-			return { label: 'Column Bottom', description: 'Placed at the bottom of a text column.' };
+			return {
+				label: 'Column Bottom',
+				description: 'Placed at the bottom of a text column.',
+			};
 		case 'margin':
-			return { label: 'Margin', description: 'Placed in a margin outside the main text block.' };
+			return {
+				label: 'Margin',
+				description: 'Placed in a margin outside the main text block.',
+			};
 		case 'lineAbove':
 			return { label: 'Above Line', description: 'Placed above the main text line.' };
 		case 'lineBelow':
 			return { label: 'Below Line', description: 'Placed below the main text line.' };
 		case 'lineLeft':
-			return { label: 'Line Left', description: 'Placed to the left side of the relevant line.' };
+			return {
+				label: 'Line Left',
+				description: 'Placed to the left side of the relevant line.',
+			};
 		case 'lineRight':
-			return { label: 'Line Right', description: 'Placed to the right side of the relevant line.' };
+			return {
+				label: 'Line Right',
+				description: 'Placed to the right side of the relevant line.',
+			};
 		case 'inline':
 			return { label: 'Inline', description: 'Placed inline with the main text.' };
 		case 'inSpace':
-			return { label: 'Reserved Space', description: 'Placed in a predefined or reserved space.' };
+			return {
+				label: 'Reserved Space',
+				description: 'Placed in a predefined or reserved space.',
+			};
 		case 'oppositePage':
 			return { label: 'Opposite Page', description: 'Placed on the facing page.' };
 		case 'overleaf':
@@ -472,12 +513,15 @@ function getPlacementInfo(placementConcept: FormWorkPlacementConcept): {
 		default:
 			return {
 				label: 'Unspecified Placement',
-				description: 'No stronger placement concept can be inferred yet from the available TEI attrs.',
+				description:
+					'No stronger placement concept can be inferred yet from the available TEI attrs.',
 			};
 	}
 }
 
-export function classifyFormWork(attrs: FormWorkAttrsLike | null | undefined): FormWorkClassification {
+export function classifyFormWork(
+	attrs: FormWorkAttrsLike | null | undefined
+): FormWorkClassification {
 	const type = getAttr(attrs, 'type');
 	const segType = getAttr(attrs, 'segType');
 	const segSubtype = getAttr(attrs, 'segSubtype');

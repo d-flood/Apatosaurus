@@ -2,7 +2,7 @@ import { nanoid } from 'nanoid';
 import type { Kysely, Selectable, Transaction } from 'kysely';
 
 import type { CloudCredentials } from '$lib/client/sync/providers/provider';
-import type { CloudConnections, Database } from '../types.generated';
+import type { CloudConnections, CloudProjectFolders, Database } from '../types.generated';
 
 type DbExecutor = Kysely<Database> | Transaction<Database>;
 
@@ -34,6 +34,31 @@ export interface UpdateCloudCredentialsInput {
 	updatedAt?: string;
 }
 
+export interface CloudProjectFolderRecord {
+	projectId: string;
+	connectionId: string;
+	cloudFolderId: string;
+	cloudFolderPath: string;
+	syncCursor: string;
+	lastFullySyncedAt: string | null;
+}
+
+export interface UpsertCloudProjectFolderInput {
+	projectId: string;
+	connectionId: string;
+	cloudFolderId: string;
+	cloudFolderPath: string;
+	syncCursor?: string;
+	lastFullySyncedAt?: string | null;
+}
+
+export interface UpdateCloudProjectFolderSyncStateInput {
+	projectId: string;
+	connectionId: string;
+	syncCursor?: string;
+	lastFullySyncedAt?: string | null;
+}
+
 export async function listCloudConnections(db: DbExecutor): Promise<CloudConnectionRecord[]> {
 	const rows = await db
 		.selectFrom('cloud_connections')
@@ -45,7 +70,7 @@ export async function listCloudConnections(db: DbExecutor): Promise<CloudConnect
 
 export async function getCloudConnection(
 	db: DbExecutor,
-	connectionId: string,
+	connectionId: string
 ): Promise<CloudConnectionRecord | null> {
 	const row = await db
 		.selectFrom('cloud_connections')
@@ -58,7 +83,7 @@ export async function getCloudConnection(
 export async function getCloudConnectionByProviderAccount(
 	db: DbExecutor,
 	providerId: string,
-	providerAccountId = '',
+	providerAccountId = ''
 ): Promise<CloudConnectionRecord | null> {
 	const row = await db
 		.selectFrom('cloud_connections')
@@ -71,7 +96,7 @@ export async function getCloudConnectionByProviderAccount(
 
 export async function upsertCloudConnection(
 	db: DbExecutor,
-	input: UpsertCloudConnectionInput,
+	input: UpsertCloudConnectionInput
 ): Promise<CloudConnectionRecord> {
 	const now = new Date().toISOString();
 	const providerAccountId = input.providerAccountId ?? '';
@@ -93,7 +118,7 @@ export async function upsertCloudConnection(
 			connected_at: connectedAt,
 			updated_at: updatedAt,
 		})
-		.onConflict((oc) =>
+		.onConflict(oc =>
 			oc.columns(['provider_id', 'provider_account_id']).doUpdateSet({
 				account_email: input.accountEmail.trim(),
 				scopes: serializeScopes(input.scopes),
@@ -101,7 +126,7 @@ export async function upsertCloudConnection(
 				refresh_token: input.credentials.refreshToken ?? null,
 				expires_at: input.credentials.expiresAt ?? null,
 				updated_at: updatedAt,
-			}),
+			})
 		)
 		.execute();
 
@@ -116,7 +141,7 @@ export async function upsertCloudConnection(
 
 export async function updateCloudConnectionCredentials(
 	db: DbExecutor,
-	input: UpdateCloudCredentialsInput,
+	input: UpdateCloudCredentialsInput
 ): Promise<CloudConnectionRecord> {
 	await db
 		.updateTable('cloud_connections')
@@ -139,7 +164,7 @@ export async function updateCloudConnectionCredentials(
 
 export async function refreshCloudConnectionCredentials(
 	db: DbExecutor,
-	input: UpdateCloudCredentialsInput,
+	input: UpdateCloudCredentialsInput
 ): Promise<CloudConnectionRecord> {
 	const current = await db
 		.selectFrom('cloud_connections')
@@ -161,13 +186,110 @@ export async function refreshCloudConnectionCredentials(
 	return (await getCloudConnection(db, input.connectionId)) as CloudConnectionRecord;
 }
 
+export async function listCloudProjectFolders(
+	db: DbExecutor,
+	projectId: string
+): Promise<CloudProjectFolderRecord[]> {
+	const rows = await db
+		.selectFrom('cloud_project_folders')
+		.selectAll()
+		.where('project_id', '=', projectId)
+		.orderBy('cloud_folder_path', 'asc')
+		.execute();
+	return rows.map(mapCloudProjectFolder);
+}
+
+export async function getCloudProjectFolder(
+	db: DbExecutor,
+	projectId: string,
+	connectionId: string
+): Promise<CloudProjectFolderRecord | null> {
+	const row = await db
+		.selectFrom('cloud_project_folders')
+		.selectAll()
+		.where('project_id', '=', projectId)
+		.where('connection_id', '=', connectionId)
+		.executeTakeFirst();
+	return row ? mapCloudProjectFolder(row) : null;
+}
+
+export async function upsertCloudProjectFolder(
+	db: DbExecutor,
+	input: UpsertCloudProjectFolderInput
+): Promise<CloudProjectFolderRecord> {
+	await db
+		.insertInto('cloud_project_folders')
+		.values({
+			project_id: input.projectId,
+			connection_id: input.connectionId,
+			cloud_folder_id: input.cloudFolderId,
+			cloud_folder_path: input.cloudFolderPath,
+			sync_cursor: input.syncCursor ?? '',
+			last_fully_synced_at: input.lastFullySyncedAt ?? null,
+		})
+		.onConflict(oc =>
+			oc.column('project_id').doUpdateSet({
+				connection_id: input.connectionId,
+				cloud_folder_id: input.cloudFolderId,
+				cloud_folder_path: input.cloudFolderPath,
+				sync_cursor: input.syncCursor ?? '',
+				last_fully_synced_at: input.lastFullySyncedAt ?? null,
+			})
+		)
+		.execute();
+	return (await getCloudProjectFolder(db, input.projectId, input.connectionId)) as CloudProjectFolderRecord;
+}
+
+export async function updateCloudProjectFolderSyncState(
+	db: DbExecutor,
+	input: UpdateCloudProjectFolderSyncStateInput
+): Promise<CloudProjectFolderRecord> {
+	await db
+		.updateTable('cloud_project_folders')
+		.set({
+			...(input.syncCursor !== undefined ? { sync_cursor: input.syncCursor } : {}),
+			...(input.lastFullySyncedAt !== undefined
+				? { last_fully_synced_at: input.lastFullySyncedAt }
+				: {}),
+		})
+		.where('project_id', '=', input.projectId)
+		.where('connection_id', '=', input.connectionId)
+		.executeTakeFirst();
+	const folder = await getCloudProjectFolder(db, input.projectId, input.connectionId);
+	if (!folder) {
+		throw new Error(
+			`Cloud project folder for project ${input.projectId} and connection ${input.connectionId} was not found.`
+		);
+	}
+	return folder;
+}
+
+export async function unlinkCloudProjectFolder(
+	db: DbExecutor,
+	projectId: string,
+	connectionId: string
+): Promise<boolean> {
+	const result = await db
+		.deleteFrom('cloud_project_folders')
+		.where('project_id', '=', projectId)
+		.where('connection_id', '=', connectionId)
+		.executeTakeFirst();
+	return Number(result.numDeletedRows) > 0;
+}
+
 export async function disconnectCloudConnection(
 	db: Kysely<Database>,
-	connectionId: string,
+	connectionId: string
 ): Promise<boolean> {
-	return db.transaction().execute(async (trx) => {
-		await trx.deleteFrom('cloud_project_folders').where('connection_id', '=', connectionId).execute();
-		await trx.deleteFrom('cloud_sync_metadata').where('connection_id', '=', connectionId).execute();
+	return db.transaction().execute(async trx => {
+		await trx
+			.deleteFrom('cloud_project_folders')
+			.where('connection_id', '=', connectionId)
+			.execute();
+		await trx
+			.deleteFrom('cloud_sync_metadata')
+			.where('connection_id', '=', connectionId)
+			.execute();
 		const result = await trx
 			.deleteFrom('cloud_connections')
 			.where('id', '=', connectionId)
@@ -177,13 +299,16 @@ export async function disconnectCloudConnection(
 }
 
 export async function wipeCloudConnections(db: Kysely<Database>): Promise<number> {
-	return db.transaction().execute(async (trx) => {
+	return db.transaction().execute(async trx => {
 		const rows = await trx.selectFrom('cloud_connections').select('id').execute();
-		const ids = rows.map((row) => requireId(row.id, 'cloud connection'));
+		const ids = rows.map(row => requireId(row.id, 'cloud connection'));
 		if (ids.length === 0) return 0;
 		await trx.deleteFrom('cloud_project_folders').where('connection_id', 'in', ids).execute();
 		await trx.deleteFrom('cloud_sync_metadata').where('connection_id', 'in', ids).execute();
-		const result = await trx.deleteFrom('cloud_connections').where('id', 'in', ids).executeTakeFirst();
+		const result = await trx
+			.deleteFrom('cloud_connections')
+			.where('id', 'in', ids)
+			.executeTakeFirst();
 		return Number(result.numDeletedRows);
 	});
 }
@@ -205,14 +330,27 @@ function mapCloudConnection(row: Selectable<CloudConnections>): CloudConnectionR
 	};
 }
 
+function mapCloudProjectFolder(row: Selectable<CloudProjectFolders>): CloudProjectFolderRecord {
+	return {
+		projectId: requireId(row.project_id, 'cloud project folder project'),
+		connectionId: row.connection_id,
+		cloudFolderId: row.cloud_folder_id,
+		cloudFolderPath: row.cloud_folder_path,
+		syncCursor: row.sync_cursor,
+		lastFullySyncedAt: row.last_fully_synced_at,
+	};
+}
+
 function serializeScopes(scopes: string[] = []): string {
-	return JSON.stringify([...new Set(scopes.map((scope) => scope.trim()).filter(Boolean))].sort());
+	return JSON.stringify([...new Set(scopes.map(scope => scope.trim()).filter(Boolean))].sort());
 }
 
 function parseScopes(raw: string): string[] {
 	try {
 		const parsed: unknown = JSON.parse(raw);
-		return Array.isArray(parsed) ? parsed.filter((scope): scope is string => typeof scope === 'string') : [];
+		return Array.isArray(parsed)
+			? parsed.filter((scope): scope is string => typeof scope === 'string')
+			: [];
 	} catch {
 		return [];
 	}

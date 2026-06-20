@@ -95,7 +95,12 @@ describe('TEI exporter wrapper', () => {
 														corrections: [
 															{
 																hand: 'corrector',
-																content: [{ type: 'text', text: 'corrected' }],
+																content: [
+																	{
+																		type: 'text',
+																		text: 'corrected',
+																	},
+																],
 															},
 														],
 													},
@@ -272,10 +277,11 @@ describe('TEI exporter wrapper', () => {
 
 		const doc = parseTEI(exportTEIDocument(document));
 
-		expect(Array.from(doc.getElementsByTagName('titleStmt')[0].getElementsByTagName('title')).map(node => node.textContent)).toEqual([
-			'Generated Title',
-			'Romans',
-		]);
+		expect(
+			Array.from(doc.getElementsByTagName('titleStmt')[0].getElementsByTagName('title')).map(
+				node => node.textContent
+			)
+		).toEqual(['Generated Title', 'Romans']);
 		expect(doc.getElementsByTagName('name')[0].textContent).toBe('Editor Name');
 		expect(doc.getElementsByTagName('country')[0].textContent).toBe('Italy');
 		expect(doc.getElementsByTagName('settlement')[0].textContent).toBe('City');
@@ -283,7 +289,9 @@ describe('TEI exporter wrapper', () => {
 		expect(doc.getElementsByTagName('idno')[0].textContent).toBe('MS 1');
 		expect(doc.getElementsByTagName('msName')[0].textContent).toBe('Codex Test');
 		expect(doc.getElementsByTagName('objectDesc')[0].getAttribute('form')).toBe('codex');
-		expect(doc.getElementsByTagName('supportDesc')[0].getAttribute('material')).toBe('parchment');
+		expect(doc.getElementsByTagName('supportDesc')[0].getAttribute('material')).toBe(
+			'parchment'
+		);
 		expect(doc.getElementsByTagName('support')[0].textContent).toBe('parchment');
 		expect(doc.getElementsByTagName('origDate')[0].textContent).toBe('4th c.');
 		expect(doc.getElementsByTagName('origPlace')[0].textContent).toBe('Alexandria');
@@ -298,10 +306,9 @@ describe('TEI exporter wrapper', () => {
 		expect(doc.getElementsByTagName('surrogates')[0].textContent).toBe('digital facsimile');
 		expect(doc.getElementsByTagName('language')[0].getAttribute('ident')).toBe('la');
 		expect(doc.getElementsByTagName('encodingDesc')[0].getAttribute('n')).toBe('1.6');
-		expect(Array.from(doc.getElementsByTagName('witness')).map(node => node.getAttribute('xml:id'))).toEqual([
-			'firsthand',
-			'corrector',
-		]);
+		expect(
+			Array.from(doc.getElementsByTagName('witness')).map(node => node.getAttribute('xml:id'))
+		).toEqual(['firsthand', 'corrector']);
 		expect(doc.getElementsByTagName('change')[0].textContent).toBe('Initial import.');
 	});
 
@@ -349,12 +356,24 @@ describe('TEI exporter wrapper', () => {
 		const exported = exportTEIDocument(document);
 
 		expect(exported).toContain('<funder>IGNTP</funder>');
-		expect(exported).toContain('<notesStmt><note type="editorial">header note</note></notesStmt>');
-		expect(exported).toContain('<altIdentifier type="former"><idno>Alt 1</idno><note>old shelfmark</note></altIdentifier>');
-		expect(exported).toContain('<decoDesc><decoNote type="ink">red initials</decoNote></decoDesc>');
-		expect(exported).toContain('<facsimile><media mimeType="image/jpeg" url="https://example.org/facsimile.jpg"/></facsimile>');
-		expect(exported).toContain('<standOff><listRelation><p>related witnesses</p></listRelation></standOff>');
-		expect(exported).toContain('<sourceDoc><media mimeType="image/jpeg" url="https://example.org/source.jpg"/></sourceDoc>');
+		expect(exported).toContain(
+			'<notesStmt><note type="editorial">header note</note></notesStmt>'
+		);
+		expect(exported).toContain(
+			'<altIdentifier type="former"><idno>Alt 1</idno><note>old shelfmark</note></altIdentifier>'
+		);
+		expect(exported).toContain(
+			'<decoDesc><decoNote type="ink">red initials</decoNote></decoDesc>'
+		);
+		expect(exported).toContain(
+			'<facsimile><media mimeType="image/jpeg" url="https://example.org/facsimile.jpg"/></facsimile>'
+		);
+		expect(exported).toContain(
+			'<standOff><listRelation><p>related witnesses</p></listRelation></standOff>'
+		);
+		expect(exported).toContain(
+			'<sourceDoc><media mimeType="image/jpeg" url="https://example.org/source.jpg"/></sourceDoc>'
+		);
 	});
 
 	it('exports supplied attrs and flat phrase-like inline spans', () => {
@@ -379,7 +398,12 @@ describe('TEI exporter wrapper', () => {
 											marks: [
 												{
 													type: 'lacunose',
-													attrs: { teiAttrs: { source: '#ed1', reason: 'lost-folio' } },
+													attrs: {
+														teiAttrs: {
+															source: '#ed1',
+															reason: 'lost-folio',
+														},
+													},
 												},
 											],
 										},
@@ -390,7 +414,10 @@ describe('TEI exporter wrapper', () => {
 											marks: [
 												{
 													type: 'teiSpan',
-													attrs: { tag: 'foreign', teiAttrs: { 'xml:lang': 'la' } },
+													attrs: {
+														tag: 'foreign',
+														teiAttrs: { 'xml:lang': 'la' },
+													},
 												},
 											],
 										},
@@ -433,25 +460,57 @@ describe('TEI exporter wrapper', () => {
 										{
 											type: 'text',
 											text: 'cd',
-											marks: [{ type: 'teiSpan', attrs: { tag: 'gloss', teiAttrs: { 'xml:lang': 'en' } } }],
+											marks: [
+												{
+													type: 'teiSpan',
+													attrs: {
+														tag: 'gloss',
+														teiAttrs: { 'xml:lang': 'en' },
+													},
+												},
+											],
 										},
 										{ type: 'text', text: ' ' },
 										{
 											type: 'text',
 											text: 'ef',
-											marks: [{ type: 'teiSpan', attrs: { tag: 'placeName', teiAttrs: { ref: '#rome' } } }],
+											marks: [
+												{
+													type: 'teiSpan',
+													attrs: {
+														tag: 'placeName',
+														teiAttrs: { ref: '#rome' },
+													},
+												},
+											],
 										},
 										{ type: 'text', text: ' ' },
 										{
 											type: 'text',
 											text: 'gh',
-											marks: [{ type: 'teiSpan', attrs: { tag: 'objectName', teiAttrs: { type: 'codex' } } }],
+											marks: [
+												{
+													type: 'teiSpan',
+													attrs: {
+														tag: 'objectName',
+														teiAttrs: { type: 'codex' },
+													},
+												},
+											],
 										},
 										{ type: 'text', text: ' ' },
 										{
 											type: 'text',
 											text: 'ij',
-											marks: [{ type: 'teiSpan', attrs: { tag: 'title', teiAttrs: { type: 'short' } } }],
+											marks: [
+												{
+													type: 'teiSpan',
+													attrs: {
+														tag: 'title',
+														teiAttrs: { type: 'short' },
+													},
+												},
+											],
 										},
 									],
 								},
@@ -465,13 +524,21 @@ describe('TEI exporter wrapper', () => {
 		const doc = parseTEI(exportTEI(pmJSON as any));
 
 		expect(doc.getElementsByTagName('gloss')[0].getAttribute('xml:lang')).toBe('en');
-		expect(doc.getElementsByTagName('gloss')[0].getElementsByTagName('w')[0].textContent).toBe('cd');
+		expect(doc.getElementsByTagName('gloss')[0].getElementsByTagName('w')[0].textContent).toBe(
+			'cd'
+		);
 		expect(doc.getElementsByTagName('placeName')[0].getAttribute('ref')).toBe('#rome');
-		expect(doc.getElementsByTagName('placeName')[0].getElementsByTagName('w')[0].textContent).toBe('ef');
+		expect(
+			doc.getElementsByTagName('placeName')[0].getElementsByTagName('w')[0].textContent
+		).toBe('ef');
 		expect(doc.getElementsByTagName('objectName')[0].getAttribute('type')).toBe('codex');
-		expect(doc.getElementsByTagName('objectName')[0].getElementsByTagName('w')[0].textContent).toBe('gh');
+		expect(
+			doc.getElementsByTagName('objectName')[0].getElementsByTagName('w')[0].textContent
+		).toBe('gh');
 		const bodyTitle = Array.from(doc.getElementsByTagName('title')).find(
-			node => node.getAttribute('type') === 'short' && node.getElementsByTagName('w')[0]?.textContent === 'ij'
+			node =>
+				node.getAttribute('type') === 'short' &&
+				node.getElementsByTagName('w')[0]?.textContent === 'ij'
 		);
 		expect(bodyTitle).toBeTruthy();
 	});
@@ -495,13 +562,29 @@ describe('TEI exporter wrapper', () => {
 										{
 											type: 'text',
 											text: 'ab',
-											marks: [{ type: 'teiSpan', attrs: { tag: 'foreign', teiAttrs: { 'xml:lang': 'la' } } }],
+											marks: [
+												{
+													type: 'teiSpan',
+													attrs: {
+														tag: 'foreign',
+														teiAttrs: { 'xml:lang': 'la' },
+													},
+												},
+											],
 										},
 										{ type: 'text', text: ' ' },
 										{
 											type: 'text',
 											text: 'cd',
-											marks: [{ type: 'teiSpan', attrs: { tag: 'foreign', teiAttrs: { 'xml:lang': 'la' } } }],
+											marks: [
+												{
+													type: 'teiSpan',
+													attrs: {
+														tag: 'foreign',
+														teiAttrs: { 'xml:lang': 'la' },
+													},
+												},
+											],
 										},
 									],
 								},
@@ -544,7 +627,11 @@ describe('TEI exporter wrapper', () => {
 														tag: 'w',
 														children: [
 															{ type: 'text', text: 'ab' },
-															{ type: 'element', tag: 'lb', attrs: { break: 'no' } },
+															{
+																type: 'element',
+																tag: 'lb',
+																attrs: { break: 'no' },
+															},
 															{ type: 'text', text: 'cd' },
 														],
 													},
@@ -595,16 +682,31 @@ describe('TEI exporter wrapper', () => {
 																		type: 'teiWrapper',
 																		attrs: {
 																			tag: 'foreign',
-																			summary: '<foreign> abcd',
-																			teiAttrs: { 'xml:lang': 'la' },
+																			summary:
+																				'<foreign> abcd',
+																			teiAttrs: {
+																				'xml:lang': 'la',
+																			},
 																			children: [
 																				{
 																					type: 'element',
 																					tag: 'w',
 																					children: [
-																						{ type: 'text', text: 'ab' },
-																						{ type: 'element', tag: 'lb', attrs: { break: 'no' } },
-																						{ type: 'text', text: 'cd' },
+																						{
+																							type: 'text',
+																							text: 'ab',
+																						},
+																						{
+																							type: 'element',
+																							tag: 'lb',
+																							attrs: {
+																								break: 'no',
+																							},
+																						},
+																						{
+																							type: 'text',
+																							text: 'cd',
+																						},
 																					],
 																				},
 																			],
@@ -633,9 +735,19 @@ describe('TEI exporter wrapper', () => {
 																	type: 'element',
 																	tag: 'w',
 																	children: [
-																		{ type: 'text', text: 'ef' },
-																		{ type: 'element', tag: 'lb', attrs: { break: 'no' } },
-																		{ type: 'text', text: 'gh' },
+																		{
+																			type: 'text',
+																			text: 'ef',
+																		},
+																		{
+																			type: 'element',
+																			tag: 'lb',
+																			attrs: { break: 'no' },
+																		},
+																		{
+																			type: 'text',
+																			text: 'gh',
+																		},
 																	],
 																},
 															],
@@ -682,11 +794,56 @@ describe('TEI exporter wrapper', () => {
 									type: 'line',
 									attrs: { lineNumber: 1 },
 									content: [
-										{ type: 'teiAtom', attrs: { tag: 'gb', summary: 'gb:g1', xml: '<gb n="g1"/>', teiAttrs: { n: 'g1' } } },
-										{ type: 'teiAtom', attrs: { tag: 'ptr', summary: '#target1', xml: '<ptr target=\"#target1\" type=\"crossref\"/>', teiAttrs: { target: '#target1', type: 'crossref' } } },
-										{ type: 'teiAtom', attrs: { tag: 'media', summary: 'image/png', xml: '<media mimeType=\"image/png\" url=\"https://example.com/image.png\"/>', teiAttrs: { mimeType: 'image/png', url: 'https://example.com/image.png' } } },
-										{ type: 'teiAtom', attrs: { tag: 'note', summary: 'note:see note', xml: '<note place=\"margin\">see note</note>', teiAttrs: { place: 'margin' }, text: 'see note' } },
-										{ type: 'teiAtom', attrs: { tag: 'ellipsis', summary: 'ellipsis:ab', xml: '<ellipsis unit=\"chars\" quantity=\"2\"><metamark function=\"omission\"/><supplied reason=\"lost-folio\">ab</supplied></ellipsis>', teiAttrs: { unit: 'chars', quantity: '2' }, text: 'ab' } },
+										{
+											type: 'teiAtom',
+											attrs: {
+												tag: 'gb',
+												summary: 'gb:g1',
+												xml: '<gb n="g1"/>',
+												teiAttrs: { n: 'g1' },
+											},
+										},
+										{
+											type: 'teiAtom',
+											attrs: {
+												tag: 'ptr',
+												summary: '#target1',
+												xml: '<ptr target=\"#target1\" type=\"crossref\"/>',
+												teiAttrs: { target: '#target1', type: 'crossref' },
+											},
+										},
+										{
+											type: 'teiAtom',
+											attrs: {
+												tag: 'media',
+												summary: 'image/png',
+												xml: '<media mimeType=\"image/png\" url=\"https://example.com/image.png\"/>',
+												teiAttrs: {
+													mimeType: 'image/png',
+													url: 'https://example.com/image.png',
+												},
+											},
+										},
+										{
+											type: 'teiAtom',
+											attrs: {
+												tag: 'note',
+												summary: 'note:see note',
+												xml: '<note place=\"margin\">see note</note>',
+												teiAttrs: { place: 'margin' },
+												text: 'see note',
+											},
+										},
+										{
+											type: 'teiAtom',
+											attrs: {
+												tag: 'ellipsis',
+												summary: 'ellipsis:ab',
+												xml: '<ellipsis unit=\"chars\" quantity=\"2\"><metamark function=\"omission\"/><supplied reason=\"lost-folio\">ab</supplied></ellipsis>',
+												teiAttrs: { unit: 'chars', quantity: '2' },
+												text: 'ab',
+											},
+										},
 									],
 								},
 							],
@@ -727,7 +884,10 @@ describe('TEI exporter wrapper', () => {
 											marks: [
 												{
 													type: 'teiSpan',
-													attrs: { tag: 'mod', teiAttrs: { type: 'add' } },
+													attrs: {
+														tag: 'mod',
+														teiAttrs: { type: 'add' },
+													},
 												},
 											],
 										},
@@ -778,7 +938,10 @@ describe('TEI exporter wrapper', () => {
 											type: 'metamark',
 											attrs: {
 												summary: 'insertion #mod1',
-												teiAttrs: { function: 'insertion', target: '#mod1' },
+												teiAttrs: {
+													function: 'insertion',
+													target: '#mod1',
+												},
 												xml: '<metamark function="insertion" target="#mod1"/>',
 											},
 										},
@@ -787,7 +950,10 @@ describe('TEI exporter wrapper', () => {
 											type: 'metamark',
 											attrs: {
 												summary: 'insertion #mod2',
-												teiAttrs: { function: 'insertion', target: '#mod2' },
+												teiAttrs: {
+													function: 'insertion',
+													target: '#mod2',
+												},
 												xml: '<metamark function="insertion" target="#mod2"/>',
 												wordInline: true,
 											},

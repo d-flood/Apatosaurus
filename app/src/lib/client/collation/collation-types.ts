@@ -40,6 +40,7 @@ export interface WitnessConfig {
 	kind?: WitnessKind;
 	handId?: string;
 	sourceVersion?: string;
+	sourceContentHash?: string;
 	content: string;
 	tokens: WitnessSourceToken[];
 	fullContent?: string;

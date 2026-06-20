@@ -30,25 +30,43 @@ describe('maintenance repository', () => {
 });
 
 function seedDomainRows(): void {
-	harness.sqlite.prepare(`
+	harness.sqlite
+		.prepare(
+			`
 		INSERT INTO schema_migrations (version, name, applied_at)
 		VALUES (999, 'test-migration', '2024-01-01T00:00:00.000Z')
-	`).run();
-	harness.sqlite.prepare(`
+	`
+		)
+		.run();
+	harness.sqlite
+		.prepare(
+			`
 		INSERT INTO transcriptions (id, title, siglum, content_json, format, created_at, updated_at)
 		VALUES ('tx-1', 'Romans Witness', 'P46', '{}', 'json', '2024-01-01T00:00:00.000Z', '2024-01-01T00:00:00.000Z')
-	`).run();
-	harness.sqlite.prepare(`
+	`
+		)
+		.run();
+	harness.sqlite
+		.prepare(
+			`
 		INSERT INTO projects (id, name, created_at, updated_at)
 		VALUES ('project-1', 'Project', '2024-01-01T00:00:00.000Z', '2024-01-01T00:00:00.000Z')
-	`).run();
-	harness.sqlite.prepare(`
+	`
+		)
+		.run();
+	harness.sqlite
+		.prepare(
+			`
 		INSERT INTO iiif_manifest_sources (id, transcription_id, manifest_url, label, created_at, updated_at)
 		VALUES ('source-1', 'tx-1', 'https://example.test/manifest.json', 'Manifest', '2024-01-01T00:00:00.000Z', '2024-01-01T00:00:00.000Z')
-	`).run();
+	`
+		)
+		.run();
 }
 
 function countRows(tableName: string): number {
-	const row = harness.sqlite.prepare(`SELECT COUNT(*) AS count FROM "${tableName}"`).get() as { count: number };
+	const row = harness.sqlite.prepare(`SELECT COUNT(*) AS count FROM "${tableName}"`).get() as {
+		count: number;
+	};
 	return row.count;
 }

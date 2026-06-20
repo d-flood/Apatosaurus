@@ -2538,7 +2538,10 @@ function createEditorForProfile(profile: EditorProfile, options: BaseEditorOptio
 
 							const lineContent = line.querySelector<HTMLElement>('.line-content');
 							if (!lineContent) return false;
-							if (target?.closest('.line-content') && lineContent.textContent !== '') {
+							if (
+								target?.closest('.line-content') &&
+								lineContent.textContent !== ''
+							) {
 								return false;
 							}
 

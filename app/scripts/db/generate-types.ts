@@ -7,7 +7,9 @@ const db = new Database(':memory:');
 applyMigrations(db);
 
 const tables = db
-	.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name")
+	.prepare(
+		"SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
+	)
 	.all() as Array<{ name: string }>;
 
 const lines = ['export interface Database {'];
@@ -33,14 +35,15 @@ db.close();
 
 function sqliteTypeToTs(type: string): string {
 	const normalized = type.toUpperCase();
-	if (normalized.includes('INT') || normalized.includes('REAL') || normalized.includes('NUM')) return 'number';
+	if (normalized.includes('INT') || normalized.includes('REAL') || normalized.includes('NUM'))
+		return 'number';
 	return 'string';
 }
 
 function toTypeName(table: string): string {
 	return table
 		.split('_')
-		.map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`)
+		.map(part => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`)
 		.join('');
 }
 

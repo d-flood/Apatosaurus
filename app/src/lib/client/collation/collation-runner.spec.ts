@@ -45,7 +45,7 @@ function buildAstDocument(
 				items: Array<Record<string, unknown>>;
 			}>;
 		}>;
-	}>,
+	}>
 ): StoredTranscriptionDocument {
 	return {
 		type: 'transcriptionDocument',
@@ -76,12 +76,19 @@ describe('extractWitnessTokensForVerse', () => {
 					type: 'text',
 					text: 'The cat sat on the mat',
 				},
-			]),
+			])
 		);
 
 		const tokens = extractWitnessTokensForVerse(document, 'John 1:1');
 
-		expect(tokens.map((token) => token.original)).toEqual(['The', 'cat', 'sat', 'on', 'the', 'mat']);
+		expect(tokens.map(token => token.original)).toEqual([
+			'The',
+			'cat',
+			'sat',
+			'on',
+			'the',
+			'mat',
+		]);
 	});
 
 	it('keeps wrapped line continuations in one token', () => {
@@ -102,7 +109,10 @@ describe('extractWitnessTokensForVerse', () => {
 							},
 							{
 								wrapped: true,
-								items: [{ type: 'text', text: 'part2' }, { type: 'boundary', kind: 'word' }],
+								items: [
+									{ type: 'text', text: 'part2' },
+									{ type: 'boundary', kind: 'word' },
+								],
 							},
 							{
 								items: [{ type: 'text', text: 'next' }],
@@ -115,7 +125,7 @@ describe('extractWitnessTokensForVerse', () => {
 
 		const tokens = extractWitnessTokensForVerse(document, 'John 1:1');
 
-		expect(tokens.map((token) => token.original)).toEqual(['part1\\npart2', 'next']);
+		expect(tokens.map(token => token.original)).toEqual(['part1\\npart2', 'next']);
 	});
 
 	it('can ignore wrapped line break markers in original tokens', () => {
@@ -136,7 +146,10 @@ describe('extractWitnessTokensForVerse', () => {
 							},
 							{
 								wrapped: true,
-								items: [{ type: 'text', text: 'part2' }, { type: 'boundary', kind: 'word' }],
+								items: [
+									{ type: 'text', text: 'part2' },
+									{ type: 'boundary', kind: 'word' },
+								],
 							},
 						],
 					},
@@ -144,9 +157,11 @@ describe('extractWitnessTokensForVerse', () => {
 			},
 		]);
 
-		const tokens = extractWitnessTokensForVerse(document, 'John 1:1', { ignoreWordBreaks: true });
+		const tokens = extractWitnessTokensForVerse(document, 'John 1:1', {
+			ignoreWordBreaks: true,
+		});
 
-		expect(tokens.map((token) => token.original)).toEqual(['part1part2']);
+		expect(tokens.map(token => token.original)).toEqual(['part1part2']);
 	});
 
 	it('drops formatting whitespace around wrapped continuations', () => {
@@ -167,7 +182,10 @@ describe('extractWitnessTokensForVerse', () => {
 							},
 							{
 								wrapped: true,
-								items: [{ type: 'text', text: 'τος' }, { type: 'boundary', kind: 'word' }],
+								items: [
+									{ type: 'text', text: 'τος' },
+									{ type: 'boundary', kind: 'word' },
+								],
 							},
 						],
 					},
@@ -177,7 +195,7 @@ describe('extractWitnessTokensForVerse', () => {
 
 		const tokens = extractWitnessTokensForVerse(document, 'John 1:1');
 
-		expect(tokens.map((token) => token.original)).toEqual(['κλη\\nτος']);
+		expect(tokens.map(token => token.original)).toEqual(['κλη\\nτος']);
 	});
 
 	it('emits punctuation-marked text as a standalone token', () => {
@@ -210,7 +228,7 @@ describe('extractWitnessTokensForVerse', () => {
 
 		const tokens = extractWitnessTokensForVerse(document, 'John 1:1');
 
-		expect(tokens.map((token) => token.original)).toEqual(['λογος', ',', 'θεος']);
+		expect(tokens.map(token => token.original)).toEqual(['λογος', ',', 'θεος']);
 		expect(tokens[1]?.segments).toEqual([
 			{ text: ',', hasUnclear: false, isPunctuation: true, isSupplied: false },
 		]);
@@ -239,7 +257,10 @@ describe('extractWitnessTokensForVerse', () => {
 						lines: [
 							{
 								wrapped: true,
-								items: [{ type: 'text', text: 'part2' }, { type: 'boundary', kind: 'word' }],
+								items: [
+									{ type: 'text', text: 'part2' },
+									{ type: 'boundary', kind: 'word' },
+								],
 							},
 							{
 								items: [{ type: 'text', text: 'next' }],
@@ -252,7 +273,7 @@ describe('extractWitnessTokensForVerse', () => {
 
 		const tokens = extractWitnessTokensForVerse(document, 'John 1:1');
 
-		expect(tokens.map((token) => token.original)).toEqual(['part1\\cpart2', 'next']);
+		expect(tokens.map(token => token.original)).toEqual(['part1\\cpart2', 'next']);
 	});
 
 	it('can ignore wrapped column break markers in original tokens', () => {
@@ -278,7 +299,10 @@ describe('extractWitnessTokensForVerse', () => {
 						lines: [
 							{
 								wrapped: true,
-								items: [{ type: 'text', text: 'part2' }, { type: 'boundary', kind: 'word' }],
+								items: [
+									{ type: 'text', text: 'part2' },
+									{ type: 'boundary', kind: 'word' },
+								],
 							},
 						],
 					},
@@ -286,9 +310,11 @@ describe('extractWitnessTokensForVerse', () => {
 			},
 		]);
 
-		const tokens = extractWitnessTokensForVerse(document, 'John 1:1', { ignoreWordBreaks: true });
+		const tokens = extractWitnessTokensForVerse(document, 'John 1:1', {
+			ignoreWordBreaks: true,
+		});
 
-		expect(tokens.map((token) => token.original)).toEqual(['part1part2']);
+		expect(tokens.map(token => token.original)).toEqual(['part1part2']);
 	});
 
 	it('keeps wrapped page continuations in one token', () => {
@@ -319,7 +345,10 @@ describe('extractWitnessTokensForVerse', () => {
 						lines: [
 							{
 								wrapped: true,
-								items: [{ type: 'text', text: 'part2' }, { type: 'boundary', kind: 'word' }],
+								items: [
+									{ type: 'text', text: 'part2' },
+									{ type: 'boundary', kind: 'word' },
+								],
 							},
 							{
 								items: [{ type: 'text', text: 'next' }],
@@ -332,7 +361,7 @@ describe('extractWitnessTokensForVerse', () => {
 
 		const tokens = extractWitnessTokensForVerse(document, 'John 1:1');
 
-		expect(tokens.map((token) => token.original)).toEqual(['part1\\ppart2', 'next']);
+		expect(tokens.map(token => token.original)).toEqual(['part1\\ppart2', 'next']);
 	});
 
 	it('can ignore wrapped page break markers in original tokens', () => {
@@ -363,7 +392,10 @@ describe('extractWitnessTokensForVerse', () => {
 						lines: [
 							{
 								wrapped: true,
-								items: [{ type: 'text', text: 'part2' }, { type: 'boundary', kind: 'word' }],
+								items: [
+									{ type: 'text', text: 'part2' },
+									{ type: 'boundary', kind: 'word' },
+								],
 							},
 						],
 					},
@@ -371,9 +403,11 @@ describe('extractWitnessTokensForVerse', () => {
 			},
 		]);
 
-		const tokens = extractWitnessTokensForVerse(document, 'John 1:1', { ignoreWordBreaks: true });
+		const tokens = extractWitnessTokensForVerse(document, 'John 1:1', {
+			ignoreWordBreaks: true,
+		});
 
-		expect(tokens.map((token) => token.original)).toEqual(['part1part2']);
+		expect(tokens.map(token => token.original)).toEqual(['part1part2']);
 	});
 
 	it('does not leak wrapped page markers from the previous verse', () => {
@@ -422,7 +456,7 @@ describe('extractWitnessTokensForVerse', () => {
 
 		const tokens = extractWitnessTokensForVerse(document, 'John 1:2');
 
-		expect(tokens.map((token) => token.original)).toEqual(['start']);
+		expect(tokens.map(token => token.original)).toEqual(['start']);
 	});
 
 	it('preserves wrapped page markers that occur inside the target verse before the first word', () => {
@@ -465,7 +499,7 @@ describe('extractWitnessTokensForVerse', () => {
 
 		const tokens = extractWitnessTokensForVerse(document, 'John 1:1');
 
-		expect(tokens.map((token) => token.original)).toEqual(['\\pstart']);
+		expect(tokens.map(token => token.original)).toEqual(['\\pstart']);
 	});
 
 	it('keeps inline no-break break items in one token', () => {
@@ -496,7 +530,7 @@ describe('extractWitnessTokensForVerse', () => {
 
 		const tokens = extractWitnessTokensForVerse(document, 'John 1:1');
 
-		expect(tokens.map((token) => token.original)).toEqual(['part1\\npart2', 'next']);
+		expect(tokens.map(token => token.original)).toEqual(['part1\\npart2', 'next']);
 	});
 
 	it('can ignore inline no-break markers in original tokens', () => {
@@ -524,9 +558,11 @@ describe('extractWitnessTokensForVerse', () => {
 			},
 		]);
 
-		const tokens = extractWitnessTokensForVerse(document, 'John 1:1', { ignoreWordBreaks: true });
+		const tokens = extractWitnessTokensForVerse(document, 'John 1:1', {
+			ignoreWordBreaks: true,
+		});
 
-		expect(tokens.map((token) => token.original)).toEqual(['part1part2']);
+		expect(tokens.map(token => token.original)).toEqual(['part1part2']);
 	});
 
 	it('splits tokens on explicit break items without no-break markup', () => {
@@ -555,6 +591,6 @@ describe('extractWitnessTokensForVerse', () => {
 
 		const tokens = extractWitnessTokensForVerse(document, 'John 1:1');
 
-		expect(tokens.map((token) => token.original)).toEqual(['part1', 'part2']);
+		expect(tokens.map(token => token.original)).toEqual(['part1', 'part2']);
 	});
 });

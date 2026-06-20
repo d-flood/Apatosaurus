@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-	annotatePageChromeInJson,
-	createDefaultFormWorkAttrs,
-} from './pageFormwork';
+import { annotatePageChromeInJson, createDefaultFormWorkAttrs } from './pageFormwork';
 import { buildPlainTextFormWorkContent } from './formworkContent';
 
 describe('page formwork helpers', () => {
@@ -29,7 +26,8 @@ describe('page formwork helpers', () => {
 												type: 'runTitle',
 												segType: 'margin',
 												segSubtype: 'pagetop',
-												content: buildPlainTextFormWorkContent('προς ρωμαιους'),
+												content:
+													buildPlainTextFormWorkContent('προς ρωμαιους'),
 											},
 										},
 										{ type: 'text', text: 'alpha' },

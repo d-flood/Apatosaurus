@@ -11,9 +11,7 @@ describe('project collation settings', () => {
 			suppliedTextMode: 'clear',
 			segmentation: true,
 			transcriptionWitnessTreatments: new Map([['tx-1', 'full']]),
-			transcriptionWitnessExcludedHands: new Map([
-				['tx-1', ['corrector1', 'corrector2']],
-			]),
+			transcriptionWitnessExcludedHands: new Map([['tx-1', ['corrector1', 'corrector2']]]),
 		});
 
 		expect(parseProjectCollationSettings(JSON.stringify(settings))).toMatchObject({

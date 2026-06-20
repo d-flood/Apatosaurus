@@ -57,7 +57,7 @@ export function serializeAlignmentColumns(columns: AlignmentColumn[]): Serialize
 }
 
 export function deserializeAlignmentColumns(
-	columns: SerializedAlignmentColumn[],
+	columns: SerializedAlignmentColumn[]
 ): AlignmentColumn[] {
 	const deserializeColumn = (column: SerializedAlignmentColumn): AlignmentColumn => ({
 		id: column.id,
@@ -69,24 +69,17 @@ export function deserializeAlignmentColumns(
 					text: cell.text ?? null,
 					regularizedText: cell.regularizedText ?? cell.text ?? null,
 					alignmentValue:
-						cell.alignmentValue ??
-						cell.regularizedText ??
-						cell.text ??
-						null,
+						cell.alignmentValue ?? cell.regularizedText ?? cell.text ?? null,
 					sourceTokenIds: cell.sourceTokenIds ?? [],
 					kind:
 						cell.kind ??
-						(cell.isOmission
-							? 'omission'
-							: cell.isLacuna
-								? 'gap'
-								: 'text'),
+						(cell.isOmission ? 'omission' : cell.isLacuna ? 'gap' : 'text'),
 					gap: cell.gap ?? null,
 					isOmission: cell.isOmission,
 					isLacuna: cell.isLacuna,
 					isRegularized:
 						cell.isRegularized ??
-						((cell.text ?? null) !== (cell.regularizedText ?? cell.text ?? null)),
+						(cell.text ?? null) !== (cell.regularizedText ?? cell.text ?? null),
 					ruleIds: cell.ruleIds ?? [],
 					regularizationTypes: cell.regularizationTypes ?? [],
 					originalSegments: Array.isArray(cell.originalSegments)
@@ -96,12 +89,12 @@ export function deserializeAlignmentColumns(
 										typeof segment?.text === 'string' &&
 										typeof segment?.hasUnclear === 'boolean' &&
 										typeof segment?.isPunctuation === 'boolean' &&
-										typeof segment?.isSupplied === 'boolean',
+										typeof segment?.isSupplied === 'boolean'
 								)
-								.map((segment) => ({ ...segment }))
+								.map(segment => ({ ...segment }))
 						: undefined,
 				},
-			]),
+			])
 		),
 		merged: column.merged,
 		mergedWith: column.mergedWith,

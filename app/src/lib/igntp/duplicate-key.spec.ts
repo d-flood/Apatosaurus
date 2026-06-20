@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildTranscriptionDuplicateKey, normalizeTranscriptionDuplicateValue } from './duplicate-key';
+import {
+	buildTranscriptionDuplicateKey,
+	normalizeTranscriptionDuplicateValue,
+} from './duplicate-key';
 
 describe('buildTranscriptionDuplicateKey', () => {
 	it('prefers siglum over title', () => {

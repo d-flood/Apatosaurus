@@ -5,7 +5,7 @@ import {
 	type CloudListResult,
 	type CloudProviderCapabilities,
 	type CloudProviderErrorCode,
-	type CloudStorageProvider,
+	type OAuthCloudStorageProvider,
 	type CloudWriteResult,
 } from './provider';
 
@@ -52,7 +52,7 @@ interface MockCloudEntry {
 
 const DEFAULT_ROOT_FOLDER_ID = 'mock-root';
 
-export class MockCloudStorageProvider implements CloudStorageProvider {
+export class MockCloudStorageProvider implements OAuthCloudStorageProvider {
 	id = 'mock';
 	name = 'Mock Cloud Storage';
 	capabilities: CloudProviderCapabilities = {
@@ -61,6 +61,9 @@ export class MockCloudStorageProvider implements CloudStorageProvider {
 		supportsExpectedRevisionDelete: true,
 		requiresPathAddressing: false,
 		sharingMayBeAsync: false,
+		requiresOAuth: true,
+		requiresUserGestureForConnection: false,
+		supportsDirectoryHandlePersistence: false,
 	};
 
 	readonly rootFolderId: string;
@@ -103,7 +106,8 @@ export class MockCloudStorageProvider implements CloudStorageProvider {
 
 	async exchangeCode(code: string, codeVerifier: string): Promise<CloudCredentials> {
 		this.throwInjectedError('exchange-code');
-		if (!code || !codeVerifier) throw providerError('reauthorization-required', 'Missing OAuth code.');
+		if (!code || !codeVerifier)
+			throw providerError('reauthorization-required', 'Missing OAuth code.');
 		return {
 			accessToken: `mock-access-${code}`,
 			refreshToken: `mock-refresh-${code}`,
@@ -113,7 +117,8 @@ export class MockCloudStorageProvider implements CloudStorageProvider {
 
 	async refreshCredentials(refreshToken: string): Promise<CloudCredentials> {
 		this.throwInjectedError('refresh-credentials');
-		if (!refreshToken) throw providerError('reauthorization-required', 'Missing refresh token.');
+		if (!refreshToken)
+			throw providerError('reauthorization-required', 'Missing refresh token.');
 		return {
 			accessToken: `mock-access-refreshed-${this.nextAuthCounter()}`,
 			refreshToken,
@@ -127,7 +132,8 @@ export class MockCloudStorageProvider implements CloudStorageProvider {
 		const name = normalizeSinglePathSegment(folderName);
 		const existing = this.findActiveChild(parent.id, name);
 		if (existing) {
-			if (!existing.isFolder) throw providerError('conflict', `File already exists at ${existing.path}.`);
+			if (!existing.isFolder)
+				throw providerError('conflict', `File already exists at ${existing.path}.`);
 			return existing.id;
 		}
 		return this.createFolderEntry(parent, name).id;
@@ -136,24 +142,27 @@ export class MockCloudStorageProvider implements CloudStorageProvider {
 	async shareFolder(
 		folderId: string,
 		inviteeEmail: string,
-		_role: 'viewer' | 'editor',
+		_role: 'viewer' | 'editor'
 	): Promise<void> {
 		this.throwInjectedError('share-folder');
 		this.requireFolder(folderId);
-		if (!inviteeEmail.trim()) throw providerError('permission-denied', 'Invitee email is required.');
+		if (!inviteeEmail.trim())
+			throw providerError('permission-denied', 'Invitee email is required.');
 	}
 
 	async listFiles(
 		folderId: string,
-		options: { recursive?: boolean; cursor?: string } = {},
+		options: { recursive?: boolean; cursor?: string } = {}
 	): Promise<CloudListResult> {
 		this.throwInjectedError('list-files');
 		const folder = this.requireFolder(folderId);
 		const start = parseCursor(options.cursor);
 		const entries = [...this.entries.values()]
-			.filter((entry) => !entry.isDeleted && entry.id !== folder.id)
-			.filter((entry) =>
-				options.recursive ? this.isDescendantOf(entry, folder.id) : entry.parentId === folder.id,
+			.filter(entry => !entry.isDeleted && entry.id !== folder.id)
+			.filter(entry =>
+				options.recursive
+					? this.isDescendantOf(entry, folder.id)
+					: entry.parentId === folder.id
 			)
 			.sort(compareEntries);
 		const page = entries.slice(start, start + this.pageSize);
@@ -177,7 +186,8 @@ export class MockCloudStorageProvider implements CloudStorageProvider {
 		const fileName = segments[segments.length - 1];
 		const parent = this.ensureFolderPath(folder, segments.slice(0, -1));
 		const existing = this.findActiveChild(parent.id, fileName);
-		if (existing) throw providerError('conflict', `Cloud entry already exists at ${existing.path}.`);
+		if (existing)
+			throw providerError('conflict', `Cloud entry already exists at ${existing.path}.`);
 
 		const entry = this.createEntry({
 			parentId: parent.id,
@@ -192,12 +202,15 @@ export class MockCloudStorageProvider implements CloudStorageProvider {
 	async updateFile(
 		fileId: string,
 		content: string,
-		expectedRevision: string,
+		expectedRevision: string
 	): Promise<CloudWriteResult> {
 		this.throwInjectedError('update-file');
 		const entry = this.requireFile(fileId);
 		if (entry.revision !== expectedRevision) {
-			throw providerError('conflict', `Expected revision ${expectedRevision}, found ${entry.revision}.`);
+			throw providerError(
+				'conflict',
+				`Expected revision ${expectedRevision}, found ${entry.revision}.`
+			);
 		}
 		entry.content = content;
 		entry.size = byteSize(content);
@@ -209,7 +222,10 @@ export class MockCloudStorageProvider implements CloudStorageProvider {
 		this.throwInjectedError('delete-file');
 		const entry = this.requireEntry(fileId);
 		if (expectedRevision !== undefined && entry.revision !== expectedRevision) {
-			throw providerError('conflict', `Expected revision ${expectedRevision}, found ${entry.revision}.`);
+			throw providerError(
+				'conflict',
+				`Expected revision ${expectedRevision}, found ${entry.revision}.`
+			);
 		}
 		this.markDeleted(entry);
 	}
@@ -221,7 +237,7 @@ export class MockCloudStorageProvider implements CloudStorageProvider {
 	failNext(
 		code: CloudProviderErrorCode,
 		operation?: MockProviderOperation,
-		message?: string,
+		message?: string
 	): void {
 		this.injectError({ code, message, operations: operation ? [operation] : undefined });
 	}
@@ -232,9 +248,9 @@ export class MockCloudStorageProvider implements CloudStorageProvider {
 
 	private throwInjectedError(operation: MockProviderOperation): void {
 		const index = this.errorInjections.findIndex(
-			(injection) =>
+			injection =>
 				(injection.remaining ?? 0) > 0 &&
-				(!injection.operations || injection.operations.includes(operation)),
+				(!injection.operations || injection.operations.includes(operation))
 		);
 		if (index === -1) return;
 		const injection = this.errorInjections[index];
@@ -245,13 +261,14 @@ export class MockCloudStorageProvider implements CloudStorageProvider {
 		throw providerError(
 			injection.code,
 			injection.message ?? defaultProviderErrorMessage(injection.code),
-			injection.providerDetails,
+			injection.providerDetails
 		);
 	}
 
 	private requireEntry(id: string): MockCloudEntry {
 		const entry = this.entries.get(id);
-		if (!entry || entry.isDeleted) throw providerError('not-found', `Cloud entry ${id} was not found.`);
+		if (!entry || entry.isDeleted)
+			throw providerError('not-found', `Cloud entry ${id} was not found.`);
 		return entry;
 	}
 
@@ -272,7 +289,8 @@ export class MockCloudStorageProvider implements CloudStorageProvider {
 		for (const segment of segments) {
 			const existing = this.findActiveChild(current.id, segment);
 			if (existing) {
-				if (!existing.isFolder) throw providerError('conflict', `File already exists at ${existing.path}.`);
+				if (!existing.isFolder)
+					throw providerError('conflict', `File already exists at ${existing.path}.`);
 				current = existing;
 				continue;
 			}
@@ -334,7 +352,7 @@ export class MockCloudStorageProvider implements CloudStorageProvider {
 	private findActiveChild(parentId: string, name: string): MockCloudEntry | null {
 		return (
 			[...this.entries.values()].find(
-				(entry) => !entry.isDeleted && entry.parentId === parentId && entry.name === name,
+				entry => !entry.isDeleted && entry.parentId === parentId && entry.name === name
 			) ?? null
 		);
 	}
@@ -366,7 +384,7 @@ export class MockCloudStorageProvider implements CloudStorageProvider {
 function normalizeRelativePath(path: string): string[] {
 	const segments = path
 		.split('/')
-		.map((segment) => segment.trim())
+		.map(segment => segment.trim())
 		.filter(Boolean);
 	if (segments.length === 0) throw providerError('unknown', 'Cloud file path is required.');
 	for (const segment of segments) validatePathSegment(segment);
@@ -388,7 +406,8 @@ function validatePathSegment(segment: string): void {
 function parseCursor(cursor: string | undefined): number {
 	if (!cursor) return 0;
 	const parsed = Number(cursor);
-	if (!Number.isInteger(parsed) || parsed < 0) throw providerError('unknown', 'Invalid list cursor.');
+	if (!Number.isInteger(parsed) || parsed < 0)
+		throw providerError('unknown', 'Invalid list cursor.');
 	return parsed;
 }
 
@@ -424,13 +443,16 @@ function toWriteResult(entry: MockCloudEntry): CloudWriteResult {
 }
 
 function compareEntries(left: MockCloudEntry, right: MockCloudEntry): number {
-	return left.path.localeCompare(right.path, undefined, { sensitivity: 'base', numeric: true }) || left.createdOrder - right.createdOrder;
+	return (
+		left.path.localeCompare(right.path, undefined, { sensitivity: 'base', numeric: true }) ||
+		left.createdOrder - right.createdOrder
+	);
 }
 
 function providerError(
 	code: CloudProviderErrorCode,
 	message: string,
-	providerDetails?: unknown,
+	providerDetails?: unknown
 ): CloudProviderError {
 	return new CloudProviderError(code, message, providerDetails);
 }

@@ -155,6 +155,29 @@ export interface Checkpoint {
 	createdAt: string;
 }
 
+export interface EntityCheckpointHead {
+	revisionId: string;
+	contentHash: string;
+}
+
+export type EntityCommitState = 'never-committed' | 'clean' | 'dirty';
+
+export interface EntityCheckpointStatus {
+	currentCheckpoint: EntityCheckpointHead | null;
+	workingContentHash: string;
+	dirtyToCheckpoint: boolean;
+	commitState: EntityCommitState;
+}
+
+export interface ProjectTranscriptionCheckpointStatus extends EntityCheckpointStatus {
+	projectTranscriptionId: string;
+	projectOwnedTranscriptionId: string;
+}
+
+export interface CollationCheckpointStatus extends EntityCheckpointStatus {
+	collationId: string;
+}
+
 export interface TranscriptionCheckpoint extends Checkpoint {
 	projectTranscriptionId: string;
 	transcriptionId: string;
@@ -429,27 +452,198 @@ export async function isTranscriptionDirty(
 	db: DbExecutor,
 	projectTranscriptionId: string
 ): Promise<boolean> {
-	const snapshot = await loadProjectTranscriptionSnapshot(db, projectTranscriptionId);
-	const head = await db
-		.selectFrom('transcriptions')
-		.select(['current_revision_id', 'current_content_hash'])
-		.where('id', '=', snapshot.id)
-		.executeTakeFirstOrThrow();
-	if (!head.current_revision_id || !head.current_content_hash) return true;
-	const contentHash = await hashCanonicalPayload(buildTranscriptionHashPayload(snapshot));
-	return contentHash !== head.current_content_hash;
+	return (await getProjectTranscriptionCheckpointStatus(db, projectTranscriptionId))
+		.dirtyToCheckpoint;
 }
 
 export async function isCollationDirty(db: DbExecutor, collationId: string): Promise<boolean> {
+	return (await getCollationCheckpointStatus(db, collationId)).dirtyToCheckpoint;
+}
+
+export async function getProjectTranscriptionCheckpointStatus(
+	db: DbExecutor,
+	projectTranscriptionId: string
+): Promise<ProjectTranscriptionCheckpointStatus> {
+	const snapshot = await loadProjectTranscriptionSnapshot(db, projectTranscriptionId);
+	const currentCheckpoint = await getTranscriptionCommittedHead(db, snapshot.id);
+	const workingContentHash = await hashCanonicalPayload(buildTranscriptionHashPayload(snapshot));
+	return {
+		projectTranscriptionId,
+		projectOwnedTranscriptionId: snapshot.id,
+		...deriveCheckpointStatus(currentCheckpoint, workingContentHash),
+	};
+}
+
+export async function getCollationCheckpointStatus(
+	db: DbExecutor,
+	collationId: string
+): Promise<CollationCheckpointStatus> {
 	const collation = await loadSerializedCollation(db, collationId);
-	const head = await db
+	const currentCheckpoint = await getCollationCommittedHead(db, collation.id);
+	const workingContentHash = await hashCanonicalPayload(buildCollationHashPayload(collation));
+	return {
+		collationId: collation.id,
+		...deriveCheckpointStatus(currentCheckpoint, workingContentHash),
+	};
+}
+
+export async function getTranscriptionCommittedHead(
+	db: DbExecutor,
+	transcriptionId: string
+): Promise<EntityCheckpointHead | null> {
+	const row = await db
+		.selectFrom('transcriptions')
+		.select(['current_revision_id', 'current_content_hash'])
+		.where('id', '=', transcriptionId)
+		.executeTakeFirst();
+	if (!row?.current_revision_id || !row.current_content_hash) return null;
+	return { revisionId: row.current_revision_id, contentHash: row.current_content_hash };
+}
+
+export async function getCollationCommittedHead(
+	db: DbExecutor,
+	collationId: string
+): Promise<EntityCheckpointHead | null> {
+	const row = await db
 		.selectFrom('collations')
 		.select(['current_revision_id', 'current_content_hash'])
-		.where('id', '=', collation.id)
-		.executeTakeFirstOrThrow();
-	if (!head.current_revision_id || !head.current_content_hash) return true;
-	const contentHash = await hashCanonicalPayload(buildCollationHashPayload(collation));
-	return contentHash !== head.current_content_hash;
+		.where('id', '=', collationId)
+		.executeTakeFirst();
+	if (!row?.current_revision_id || !row.current_content_hash) return null;
+	return { revisionId: row.current_revision_id, contentHash: row.current_content_hash };
+}
+
+export interface TranscriptionCheckpointSummary {
+	id: string;
+	transcriptionId: string;
+	parentCheckpointId: string | null;
+	contentHash: string;
+	isCommitted: boolean;
+	commitMessage: string | null;
+	authorName: string;
+	createdAt: string;
+}
+
+export interface TranscriptionCheckpointPayload {
+	project_transcription_id: string;
+	id: string;
+	format: string;
+	title: string;
+	siglum: string;
+	description: string;
+	content_json: unknown;
+	owner: string | null;
+	is_public: boolean;
+	tags: string[];
+	transcriber: string;
+	repository: string;
+	settlement: string;
+	language: string;
+	iiif_manifest_sources: SerializedIiifManifestSource[];
+	page_canvas_links: SerializedTranscriptionPageCanvasLink[];
+	canvas_annotations: SerializedIiifCanvasAnnotation[];
+}
+
+export interface LoadedTranscriptionCheckpoint {
+	id: string;
+	transcriptionId: string;
+	parentCheckpointId: string | null;
+	contentHash: string;
+	isCommitted: boolean;
+	commitMessage: string | null;
+	authorName: string;
+	createdAt: string;
+	payload: TranscriptionCheckpointPayload;
+}
+
+export async function listCommittedTranscriptionCheckpoints(
+	db: DbExecutor,
+	transcriptionId: string
+): Promise<TranscriptionCheckpointSummary[]> {
+	const rows = await db
+		.selectFrom('transcription_checkpoints')
+		.select([
+			'id',
+			'transcription_id',
+			'parent_checkpoint_id',
+			'content_hash',
+			'is_committed',
+			'commit_message',
+			'author_name',
+			'created_at',
+		])
+		.where('transcription_id', '=', transcriptionId)
+		.where('is_committed', '=', 1)
+		.orderBy('created_at', 'desc')
+		.orderBy('id', 'desc')
+		.execute();
+	return rows.map(row => ({
+		id: requireId(row.id, 'transcription checkpoint'),
+		transcriptionId: row.transcription_id,
+		parentCheckpointId: row.parent_checkpoint_id,
+		contentHash: row.content_hash,
+		isCommitted: row.is_committed === 1,
+		commitMessage: row.commit_message,
+		authorName: row.author_name,
+		createdAt: row.created_at,
+	}));
+}
+
+export async function loadCommittedTranscriptionCheckpointPayload(
+	db: DbExecutor,
+	transcriptionId: string,
+	checkpointId: string
+): Promise<LoadedTranscriptionCheckpoint> {
+	const row = await db
+		.selectFrom('transcription_checkpoints')
+		.selectAll()
+		.where('id', '=', checkpointId)
+		.where('transcription_id', '=', transcriptionId)
+		.where('is_committed', '=', 1)
+		.executeTakeFirst();
+	if (!row) {
+		throw new Error(
+			`Committed transcription checkpoint ${checkpointId} for ${transcriptionId} was not found.`
+		);
+	}
+	const payload = parseCheckpointPayload(
+		row.payload,
+		requireId(row.id, 'transcription checkpoint')
+	);
+	const contentHash = await hashCanonicalPayload(payload);
+	if (contentHash !== row.content_hash) {
+		throw new Error('Transcription checkpoint payload hash does not match its content hash.');
+	}
+	return {
+		id: requireId(row.id, 'transcription checkpoint'),
+		transcriptionId: row.transcription_id,
+		parentCheckpointId: row.parent_checkpoint_id,
+		contentHash: row.content_hash,
+		isCommitted: row.is_committed === 1,
+		commitMessage: row.commit_message,
+		authorName: row.author_name,
+		createdAt: row.created_at,
+		payload,
+	};
+}
+
+function parseCheckpointPayload(
+	value: string,
+	checkpointId: string
+): TranscriptionCheckpointPayload {
+	try {
+		const parsed = JSON.parse(value);
+		if (!parsed || typeof parsed !== 'object') {
+			throw new Error('Checkpoint payload is not an object.');
+		}
+		return parsed as TranscriptionCheckpointPayload;
+	} catch (error) {
+		throw new Error(
+			`Invalid transcription checkpoint payload for ${checkpointId}: ${
+				error instanceof Error ? error.message : String(error)
+			}`
+		);
+	}
 }
 
 async function loadManifestSources(
@@ -474,6 +668,27 @@ async function loadManifestSources(
 			`iiif_manifest_sources.metadata_json for ${row.id}`
 		),
 	}));
+}
+
+function deriveCheckpointStatus(
+	currentCheckpoint: EntityCheckpointHead | null,
+	workingContentHash: string
+): EntityCheckpointStatus {
+	if (!currentCheckpoint) {
+		return {
+			currentCheckpoint: null,
+			workingContentHash,
+			dirtyToCheckpoint: true,
+			commitState: 'never-committed',
+		};
+	}
+	const dirtyToCheckpoint = workingContentHash !== currentCheckpoint.contentHash;
+	return {
+		currentCheckpoint,
+		workingContentHash,
+		dirtyToCheckpoint,
+		commitState: dirtyToCheckpoint ? 'dirty' : 'clean',
+	};
 }
 
 async function loadPageCanvasLinks(

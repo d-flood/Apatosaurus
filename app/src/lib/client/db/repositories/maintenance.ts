@@ -12,11 +12,11 @@ export async function clearDomainTables(db: DbExecutor): Promise<string[]> {
 			AND name <> 'schema_migrations'
 		ORDER BY name
 	`.execute(db);
-	const tableNames = result.rows.map((row) => row.name);
+	const tableNames = result.rows.map(row => row.name);
 
 	if (tableNames.length === 0) return [];
 
-	await db.transaction().execute(async (trx) => {
+	await db.transaction().execute(async trx => {
 		for (const tableName of tableNames) {
 			await sql.raw(`DELETE FROM ${quoteIdent(tableName)}`).execute(trx);
 		}

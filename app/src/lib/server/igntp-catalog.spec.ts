@@ -9,7 +9,9 @@ import { buildIgntpCatalog } from './igntp-catalog';
 const tempDirectories: string[] = [];
 
 afterEach(async () => {
-	await Promise.all(tempDirectories.splice(0).map(directory => rm(directory, { recursive: true, force: true })));
+	await Promise.all(
+		tempDirectories.splice(0).map(directory => rm(directory, { recursive: true, force: true }))
+	);
 });
 
 describe('buildIgntpCatalog', () => {
@@ -34,7 +36,11 @@ describe('buildIgntpCatalog', () => {
 			buildTeiXml('Acts witness 03', '03'),
 			'utf8'
 		);
-		await writeFile(path.join(rootDir, 'Acts_Greek_transcriptions', 'README.txt'), 'skip me', 'utf8');
+		await writeFile(
+			path.join(rootDir, 'Acts_Greek_transcriptions', 'README.txt'),
+			'skip me',
+			'utf8'
+		);
 
 		const catalog = await buildIgntpCatalog(rootDir);
 

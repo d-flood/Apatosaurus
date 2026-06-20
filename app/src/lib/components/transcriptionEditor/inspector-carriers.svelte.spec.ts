@@ -30,7 +30,9 @@ async function exportedXml(): Promise<string> {
 }
 
 function latestInlineEditor(): Element | null {
-	const editors = Array.from(document.querySelectorAll('.inline-carrier-editor-input .ProseMirror'));
+	const editors = Array.from(
+		document.querySelectorAll('.inline-carrier-editor-input .ProseMirror')
+	);
 	return editors.at(-1) ?? null;
 }
 
@@ -60,9 +62,9 @@ async function replaceTextarea(label: string, value: string) {
 }
 
 async function fillInlineCarrierEditor(value: string) {
-	const editorElement = document.querySelector('.inline-carrier-editor-input .ProseMirror') as
-		| Element
-		| null;
+	const editorElement = document.querySelector(
+		'.inline-carrier-editor-input .ProseMirror'
+	) as Element | null;
 	expect(editorElement).toBeTruthy();
 	const editorLocator = browserPage.elementLocator(editorElement!);
 	await editorLocator.click();
@@ -331,10 +333,14 @@ describe('transcription editor carrier inspectors', () => {
 		expect(compactXml(xml)).toMatch(
 			/<segtype="margin"subtype="lineright"n="@P1"><fwplace="marginright"><w>margin<\/w><w>note<\/w><\/fw><\/seg>/
 		);
-		expect(compactXml(xml)).toContain(compactXml('<gap reason="Illegible" unit="chars" extent="4"/>'));
+		expect(compactXml(xml)).toContain(
+			compactXml('<gap reason="Illegible" unit="chars" extent="4"/>')
+		);
 		expect(compactXml(xml)).toContain(
 			compactXml('<note place="margin" type="local">reviewed aside</note>')
 		);
-		expect(compactXml(xml)).toContain(compactXml('<metamark function="insertion" target="#omit1"/>'));
+		expect(compactXml(xml)).toContain(
+			compactXml('<metamark function="insertion" target="#omit1"/>')
+		);
 	});
 });

@@ -90,6 +90,18 @@ describe('cloud file serialization formats', () => {
 			name: 'Gospel of John Collation',
 			collationSettings: { normalization: true, regularize: false },
 		});
+		expect(parsedProject.value.manifest_content_hash).toMatch(/^sha256:/);
+		expect(parsedProject.value.transcriptions).toEqual([]);
+		expect(parsedProject.value.collations).toEqual([]);
+		expect(parsedProject.value.tombstones).toEqual([
+			expect.objectContaining({
+				tombstone_id: 'tombstone-1',
+				entity_type: 'project-transcription',
+				entity_id: 'pt-1',
+				primary_path: 'tombstones/tombstone-1.json',
+				content_hash: expect.stringMatching(/^sha256:/),
+			}),
+		]);
 		expect(tombstoneCloudFileToRow(parsedTombstone.value)).toMatchObject({
 			id: 'tombstone-1',
 			cloud_path: 'transcriptions/pt-1.json',
@@ -188,6 +200,18 @@ describe('cloud file serialization formats', () => {
 			transcription_id: snapshotId,
 			content_hash: primary.current_revision.content_hash,
 		});
+		const projectFile = await serializeProjectCloudFile(harness.db, 'project-1');
+		expect(projectFile.transcriptions).toEqual([
+			expect.objectContaining({
+				project_transcription_id: projectTranscriptionId,
+				transcription_id: snapshotId,
+				current_revision: {
+					id: 'tx-cp-1',
+					content_hash: primary.current_revision.content_hash,
+				},
+				primary_path: `transcriptions/${projectTranscriptionId}.json`,
+			}),
+		]);
 		expect(
 			await parseProjectTranscriptionCloudFile({ ...primary, title: 'Tampered title' })
 		).toMatchObject({ ok: false, quarantine: { code: 'hash_mismatch' } });
@@ -224,10 +248,11 @@ describe('cloud file serialization formats', () => {
 			settlement: 'City',
 			language: 'grc',
 		});
-		const [snapshotAId, snapshotBId] = await syncProjectTranscriptionIds(harness.db, 'project-1', [
-			'tx-a',
-			'tx-b',
-		]);
+		const [snapshotAId, snapshotBId] = await syncProjectTranscriptionIds(
+			harness.db,
+			'project-1',
+			['tx-a', 'tx-b']
+		);
 		const projectTranscriptionAId = await getProjectTranscriptionId(snapshotAId);
 		const projectTranscriptionBId = await getProjectTranscriptionId(snapshotBId);
 		const sourceA = await createCommittedTranscriptionCheckpoint(harness.db, {

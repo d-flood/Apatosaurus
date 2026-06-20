@@ -66,23 +66,27 @@ describe('transcription editor toolbar insertions', () => {
 		await browserPage.getByRole('button', { name: /^Insert Mark$|^Apply Mark$/ }).click();
 
 		await browserPage.getByTestId('select-editorial-action').click();
-		await expect.element(browserPage.getByTestId('selected-carrier')).toHaveTextContent(
-			'editorialAction'
-		);
+		await expect
+			.element(browserPage.getByTestId('selected-carrier'))
+			.toHaveTextContent('editorialAction');
 		await mainToolbar.getByLabelText('Insert Scribal Mark').click();
 		setInputValue('editor-toolbar-metamark-function-input', 'deletion');
 		await browserPage.getByRole('button', { name: /^Insert Mark$|^Apply Mark$/ }).click();
 		expect(browserPage.getByTestId('selected-carrier').element().textContent).toBe('metamark');
 
 		await mainToolbar.getByRole('button', { name: 'Insert Scribal Correction' }).click();
-		expect(browserPage.getByTestId('selected-carrier').element().textContent).toBe('correctionNode');
+		expect(browserPage.getByTestId('selected-carrier').element().textContent).toBe(
+			'correctionNode'
+		);
 
 		await mainToolbar.getByRole('button', { name: 'Insert Book, Chapter, or Verse' }).click();
 		setInputValue('editor-toolbar-tei-milestone-unit-input', 'section');
 		setInputValue('editor-toolbar-tei-milestone-value-input', 'A');
 		setInputValue('editor-toolbar-tei-milestone-ed-input', 'NA28');
 		await browserPage.getByRole('button', { name: 'Insert Reference Marker' }).click();
-		expect(browserPage.getByTestId('selected-carrier').element().textContent).toBe('teiMilestone');
+		expect(browserPage.getByTestId('selected-carrier').element().textContent).toBe(
+			'teiMilestone'
+		);
 
 		const xml = compactXml(await exportedXml());
 		expect(xml).toContain(compactXml('<gap reason="Damage/Loss" unit="chars" extent="3"/>'));

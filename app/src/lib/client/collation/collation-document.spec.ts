@@ -15,19 +15,22 @@ function makeWitness(witnessId: string, content: string, isBaseText = false): Wi
 		transcriptionId: `${witnessId}-tx`,
 		sourceVersion: 'v1',
 		content,
-		tokens: content.split(/\s+/).filter(Boolean).map((token) => ({
-			kind: 'text',
-			original: token,
-			segments: [
-				{
-					text: token,
-					hasUnclear: false,
-					isPunctuation: false,
-					isSupplied: false,
-				},
-			],
-			gap: null,
-		})),
+		tokens: content
+			.split(/\s+/)
+			.filter(Boolean)
+			.map(token => ({
+				kind: 'text',
+				original: token,
+				segments: [
+					{
+						text: token,
+						hasUnclear: false,
+						isPunctuation: false,
+						isSupplied: false,
+					},
+				],
+				gap: null,
+			})),
 		treatment: 'inherit',
 		isBaseText,
 		isExcluded: false,
@@ -186,7 +189,9 @@ describe('collation document', () => {
 		expect(hydrated.alignmentDisplayMode).toBe('original');
 		expect(hydrated.alignmentLayout).toBe('variation-units');
 		expect(hydrated.witnesses[1]?.tokens[0]?.original).toBe('θς');
-		expect(hydrated.alignmentColumns[0]?.cells[1]?.[1].sourceTokenIds).toEqual(['B::source::0']);
+		expect(hydrated.alignmentColumns[0]?.cells[1]?.[1].sourceTokenIds).toEqual([
+			'B::source::0',
+		]);
 		expect(hydrated.classifiedReadings[0]?.[1][1]?.readingType).toBe('ns');
 		expect(hydrated.stemmaEdges[0]?.[1][0]?.targetReadingId).toBe('r-b');
 	});
@@ -230,7 +235,7 @@ describe('collation document', () => {
 				stemmaEdges: new Map(),
 				alignmentDisplayMode: 'regularized',
 				alignmentLayout: 'grid',
-			}),
+			})
 		);
 
 		expect(hydrated.witnesses[0]).toMatchObject({
@@ -239,7 +244,9 @@ describe('collation document', () => {
 			fullContent: 'λογος',
 			fragmentaryContent: 'θς',
 		});
-		expect(hydrated.witnesses[0]?.fullTokens?.map((token) => token.original)).toEqual(['λογος']);
-		expect(hydrated.witnesses[0]?.fragmentaryTokens?.map((token) => token.original)).toEqual(['θς']);
+		expect(hydrated.witnesses[0]?.fullTokens?.map(token => token.original)).toEqual(['λογος']);
+		expect(hydrated.witnesses[0]?.fragmentaryTokens?.map(token => token.original)).toEqual([
+			'θς',
+		]);
 	});
 });

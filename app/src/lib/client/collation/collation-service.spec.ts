@@ -28,8 +28,18 @@ describe('makeCloneableCollationRunPayload', () => {
 							kind: 'gap',
 							displayRegularized: 'alpha',
 							originalSegments: [
-								{ text: 'al', hasUnclear: false, isPunctuation: false, isSupplied: false },
-								{ text: 'pha', hasUnclear: true, isPunctuation: false, isSupplied: false },
+								{
+									text: 'al',
+									hasUnclear: false,
+									isPunctuation: false,
+									isSupplied: false,
+								},
+								{
+									text: 'pha',
+									hasUnclear: true,
+									isPunctuation: false,
+									isSupplied: false,
+								},
 							],
 							gap: gap as never,
 							hasUnclear: true,
@@ -61,8 +71,18 @@ describe('makeCloneableCollationRunPayload', () => {
 							kind: 'gap',
 							displayRegularized: 'alpha',
 							originalSegments: [
-								{ text: 'al', hasUnclear: false, isPunctuation: false, isSupplied: false },
-								{ text: 'pha', hasUnclear: true, isPunctuation: false, isSupplied: false },
+								{
+									text: 'al',
+									hasUnclear: false,
+									isPunctuation: false,
+									isSupplied: false,
+								},
+								{
+									text: 'pha',
+									hasUnclear: true,
+									isPunctuation: false,
+									isSupplied: false,
+								},
 							],
 							gap: {
 								source: 'gap',

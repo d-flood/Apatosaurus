@@ -13,7 +13,11 @@ export function isPunctuationOnlyText(text: string): boolean {
 }
 
 export function arePunctuationOnlySegments(segments: WitnessTextSegment[] | undefined): boolean {
-	return Array.isArray(segments) && segments.length > 0 && segments.every((segment) => segment.isPunctuation);
+	return (
+		Array.isArray(segments) &&
+		segments.length > 0 &&
+		segments.every(segment => segment.isPunctuation)
+	);
 }
 
 export function isPunctuationToken(options: {
@@ -31,7 +35,7 @@ export function joinTokenTexts(
 		text: string | null | undefined;
 		isPunctuation?: boolean;
 		originalSegments?: WitnessTextSegment[];
-	}>,
+	}>
 ): string {
 	let result = '';
 	for (const part of parts) {

@@ -56,7 +56,10 @@ class WorkerSqliteDriver implements Driver {
 		return this.connection;
 	}
 
-	async beginTransaction(connection: DatabaseConnection, _settings: TransactionSettings): Promise<void> {
+	async beginTransaction(
+		connection: DatabaseConnection,
+		_settings: TransactionSettings
+	): Promise<void> {
 		await connection.executeQuery(CompiledQuery.raw('BEGIN'));
 	}
 

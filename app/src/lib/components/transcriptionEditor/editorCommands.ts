@@ -271,10 +271,7 @@ export function getMetamarkInsertContext(editor: Editor | null): MetamarkInsertC
 	return null;
 }
 
-export function insertMetamarkForSelection(
-	editor: Editor | null,
-	functionValue: string
-): boolean {
+export function insertMetamarkForSelection(editor: Editor | null, functionValue: string): boolean {
 	if (!editor) return false;
 
 	const trimmedFunction = functionValue.trim();
@@ -295,14 +292,16 @@ export function insertMetamarkForSelection(
 		return true;
 	}
 
-	const attrs = buildMetamarkAttrs(trimmedFunction, context.targetValue || '', context.targetLabel);
+	const attrs = buildMetamarkAttrs(
+		trimmedFunction,
+		context.targetValue || '',
+		context.targetLabel
+	);
 	if (!attrs) return false;
 	return insertSelectableCarrierNode(editor, 'metamark', attrs);
 }
 
-export function describeMetamarkTarget(
-	attrs: Record<string, any> | null | undefined
-): string {
+export function describeMetamarkTarget(attrs: Record<string, any> | null | undefined): string {
 	const targetLabel = String(attrs?.targetLabel || '').trim();
 	if (targetLabel) return targetLabel;
 
@@ -321,7 +320,11 @@ export function buildCorrectionNodeAttrs(): Record<string, any> {
 	return { corrections: [] };
 }
 
-export function buildTeiMilestoneAttrs(unit: string, value: string, ed: string): Record<string, any> | null {
+export function buildTeiMilestoneAttrs(
+	unit: string,
+	value: string,
+	ed: string
+): Record<string, any> | null {
 	if (!unit.trim() && !value.trim() && !ed.trim()) return null;
 	return {
 		teiAttrs: {

@@ -16,9 +16,7 @@ describe('PKCE helpers', () => {
 	it('generates browser-safe verifier and S256 challenge values', async () => {
 		const verifier = generateCodeVerifier();
 		const state = generatePkceState();
-		const challenge = await createCodeChallenge(
-			'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk',
-		);
+		const challenge = await createCodeChallenge('dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk');
 
 		expect(verifier).toMatch(/^[A-Za-z0-9_-]{43,128}$/);
 		expect(state).toMatch(/^[A-Za-z0-9_-]{22,}$/);
@@ -34,12 +32,12 @@ describe('PKCE helpers', () => {
 		const valid = validatePkceCallback(
 			new URLSearchParams({ code: 'auth-code', state: pending.state }),
 			stored,
-			'mock',
+			'mock'
 		);
 		const mismatch = validatePkceCallback(
 			new URLSearchParams({ code: 'auth-code', state: 'wrong' }),
 			pending,
-			'mock',
+			'mock'
 		);
 
 		expect(valid).toEqual({
@@ -55,7 +53,7 @@ describe('PKCE helpers', () => {
 
 	it('recognizes provider callback errors and strips OAuth query parameters', () => {
 		const url = new URL(
-			'https://app.example/callback?code=abc&state=state&error=access_denied&error_description=Denied&view=sync',
+			'https://app.example/callback?code=abc&state=state&error=access_denied&error_description=Denied&view=sync'
 		);
 
 		expect(validatePkceCallback(url, null)).toEqual({
@@ -64,7 +62,7 @@ describe('PKCE helpers', () => {
 			description: 'Denied',
 		});
 		expect(removeOAuthCallbackParams(url).toString()).toBe(
-			'https://app.example/callback?view=sync',
+			'https://app.example/callback?view=sync'
 		);
 	});
 });

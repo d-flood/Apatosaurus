@@ -1,9 +1,4 @@
-import {
-	AlignmentTable,
-	collate,
-	type AlignmentTableRow,
-	type TokenData,
-} from 'collatex-tsport';
+import { AlignmentTable, collate, type AlignmentTableRow, type TokenData } from 'collatex-tsport';
 import type { AlignmentSnapshot, SerializedAlignmentColumn } from './alignment-snapshot';
 import type {
 	CollationRunPayload,
@@ -31,7 +26,7 @@ function getTokenIsPunctuation(token: TableToken): boolean | undefined {
 function getTokenOriginalSegments(token: TableToken): WitnessTextSegment[] | undefined {
 	const segments = token.tokenData?.originalSegments;
 	if (!Array.isArray(segments)) return undefined;
-	return segments.flatMap((segment) => {
+	return segments.flatMap(segment => {
 		if (
 			typeof segment?.text === 'string' &&
 			typeof segment?.hasUnclear === 'boolean' &&
@@ -52,7 +47,7 @@ function makeId(): string {
 }
 
 function toPretokenizedTokens(tokens: CollationTokenInput[]): TokenData[] {
-	return tokens.map((token) => ({ ...token }));
+	return tokens.map(token => ({ ...token }));
 }
 
 function normalizeCellText(text: string): string {
@@ -67,8 +62,8 @@ function toCellText(cell: TableCell): string | null {
 				text: typeof token.tokenData?.t === 'string' ? token.tokenData.t : token.content,
 				isPunctuation: getTokenIsPunctuation(token),
 				originalSegments: getTokenOriginalSegments(token),
-			})),
-		),
+			}))
+		)
 	);
 	return text.length > 0 ? text : null;
 }
@@ -93,8 +88,8 @@ function toCellRegularizedText(cell: TableCell): string | null {
 					isPunctuation: getTokenIsPunctuation(token),
 					originalSegments: getTokenOriginalSegments(token),
 				};
-			}),
-		),
+			})
+		)
 	);
 	return text.length > 0 ? text : null;
 }
@@ -107,8 +102,8 @@ function toCellAlignmentValue(cell: TableCell): string | null {
 				text: typeof token.tokenData?.n === 'string' ? token.tokenData.n : token.normalized,
 				isPunctuation: getTokenIsPunctuation(token),
 				originalSegments: getTokenOriginalSegments(token),
-			})),
-		),
+			}))
+		)
 	);
 	return text.length > 0 ? text : null;
 }
@@ -212,14 +207,14 @@ function toPackageWitness(witness: CollationWitnessInput) {
 
 function buildSnapshot(
 	table: AlignmentTable,
-	witnesses: CollationWitnessInput[],
+	witnesses: CollationWitnessInput[]
 ): AlignmentSnapshot {
 	const rowByWitnessId = new Map(
-		table.rows.map((row: AlignmentTableRow) => [row.witness.sigil, row] as const),
+		table.rows.map((row: AlignmentTableRow) => [row.witness.sigil, row] as const)
 	);
-	const orderedWitnessIds = witnesses.map((witness) => witness.id);
-	const orderedRows = orderedWitnessIds.map((witnessId) => rowByWitnessId.get(witnessId) ?? null);
-	const columnCount = Math.max(...orderedRows.map((row) => row?.cells.length ?? 0), 0);
+	const orderedWitnessIds = witnesses.map(witness => witness.id);
+	const orderedRows = orderedWitnessIds.map(witnessId => rowByWitnessId.get(witnessId) ?? null);
+	const columnCount = Math.max(...orderedRows.map(row => row?.cells.length ?? 0), 0);
 	const columns: SerializedAlignmentColumn[] = [];
 
 	for (let columnIndex = 0; columnIndex < columnCount; columnIndex += 1) {
@@ -282,7 +277,7 @@ export function collateToAlignmentSnapshot(payload: CollationRunPayload): Collat
 		{
 			output: 'table',
 			segmentation,
-		},
+		}
 	) as AlignmentTable;
 
 	return {

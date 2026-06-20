@@ -59,8 +59,5 @@
 			"purpose": "any maskable"
 		}
 	],
-	"categories": [
-		"productivity",
-		"education"
-	]
+	"categories": ["productivity", "education"]
 }

@@ -30,7 +30,7 @@ export default ts.config(
 		ignores: ['build/', '.svelte-kit/', 'node_modules/', 'test-results/', 'src/generated/'],
 	},
 	{
-			rules: {
+		rules: {
 			'@typescript-eslint/no-explicit-any': 'off',
 			'@typescript-eslint/no-unused-expressions': 'off',
 			'no-constant-binary-expression': 'off',
@@ -52,5 +52,5 @@ export default ts.config(
 			'svelte/prefer-writable-derived': 'off',
 			'svelte/require-each-key': 'off',
 		},
-	},
+	}
 );

@@ -18,13 +18,17 @@ export class LocalSqliteDatabase {
 	async open(): Promise<void> {
 		if (this.sqlite && this.db !== null) return;
 		const openStartedAt = now();
-		const module = await timeSqliteStep('module load', () => SQLiteESMFactory({
-			locateFile(path: string) {
-				return path.endsWith('.wasm') ? wasmUrl : path;
-			},
-		}));
+		const module = await timeSqliteStep('module load', () =>
+			SQLiteESMFactory({
+				locateFile(path: string) {
+					return path.endsWith('.wasm') ? wasmUrl : path;
+				},
+			})
+		);
 		this.sqlite = SQLite.Factory(module);
-		this.vfs = (await timeSqliteStep('VFS creation', () => this.createVfs(module))) as { close?: () => Promise<void> | void };
+		this.vfs = (await timeSqliteStep('VFS creation', () => this.createVfs(module))) as {
+			close?: () => Promise<void> | void;
+		};
 		this.sqlite.vfs_register(this.vfs as never, true);
 		this.db = await timeSqliteStep('open_v2', () => this.sqlite!.open_v2(DB_FILENAME));
 		await timeSqliteStep('PRAGMAs', async () => {
@@ -91,7 +95,8 @@ export class LocalSqliteDatabase {
 	async transaction(statements: Array<{ sql: string; params?: DbValue[] }>): Promise<void> {
 		await this.exec('BEGIN');
 		try {
-			for (const statement of statements) await this.execute(statement.sql, statement.params ?? []);
+			for (const statement of statements)
+				await this.execute(statement.sql, statement.params ?? []);
 			await this.exec('COMMIT');
 		} catch (error) {
 			await this.exec('ROLLBACK').catch(() => undefined);
@@ -100,11 +105,23 @@ export class LocalSqliteDatabase {
 	}
 
 	private async createVfs(module: unknown) {
-		if (typeof navigator === 'undefined' || typeof navigator.storage?.getDirectory !== 'function') {
-			throw new Error('Local transcription database requires sync OPFS storage in a dedicated browser worker. This browser does not expose OPFS storage.');
+		if (
+			typeof navigator === 'undefined' ||
+			typeof navigator.storage?.getDirectory !== 'function'
+		) {
+			throw new Error(
+				'Local transcription database requires sync OPFS storage in a dedicated browser worker. This browser does not expose OPFS storage.'
+			);
 		}
-		console.debug('[local-db] selecting SQLite VFS', { build: 'wa-sqlite', vfs: 'OPFSCoopSyncVFS' });
-		return (OPFSCoopSyncVFS as never as { create: (name: string, module: unknown) => Promise<unknown> }).create(OPFS_VFS_NAME, module);
+		console.debug('[local-db] selecting SQLite VFS', {
+			build: 'wa-sqlite',
+			vfs: 'OPFSCoopSyncVFS',
+		});
+		return (
+			OPFSCoopSyncVFS as never as {
+				create: (name: string, module: unknown) => Promise<unknown>;
+			}
+		).create(OPFS_VFS_NAME, module);
 	}
 
 	private bind(statement: number, params: DbValue[]) {

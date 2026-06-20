@@ -48,7 +48,14 @@ function line(x1: number, y1: number, x2: number, y2: number): DomSpecChild {
 	return ['line', { x1, y1, x2, y2 }];
 }
 
-function rect(x: number, y: number, width: number, height: number, rx: number, extra = {}): DomSpecChild {
+function rect(
+	x: number,
+	y: number,
+	width: number,
+	height: number,
+	rx: number,
+	extra = {}
+): DomSpecChild {
 	return ['rect', { x, y, width, height, rx, ...extra }];
 }
 
@@ -59,15 +66,17 @@ function circle(cx: number, cy: number, r: number, extra = {}): DomSpecChild {
 export function badgeIconSpec(name: BadgeIconName, size: number = 14): DomSpecChild {
 	switch (name) {
 		case 'blankSpace':
-			return svg(
-				size,
-				path('M40,128V184a8,8,0,0,0,8,8H208a8,8,0,0,0,8-8V128'),
-				['line', { x1: 40, y1: 144, x2: 216, y2: 144, 'stroke-dasharray': '24 12' }]
-			);
+			return svg(size, path('M40,128V184a8,8,0,0,0,8,8H208a8,8,0,0,0,8-8V128'), [
+				'line',
+				{ x1: 40, y1: 144, x2: 216, y2: 144, 'stroke-dasharray': '24 12' },
+			]);
 		case 'column':
 			return svg(
 				size,
-				['rect', { x: 32, y: 48, width: 80, height: 160, rx: 8, 'stroke-dasharray': '24 12' }],
+				[
+					'rect',
+					{ x: 32, y: 48, width: 80, height: 160, rx: 8, 'stroke-dasharray': '24 12' },
+				],
 				rect(144, 48, 80, 160, 8),
 				line(160, 88, 208, 88),
 				line(160, 128, 208, 128),
@@ -91,14 +100,19 @@ export function badgeIconSpec(name: BadgeIconName, size: number = 14): DomSpecCh
 		case 'handShift':
 			return svg(
 				size,
-				path('M216,40,168,88c-12-12-32-12-44,0l-84,84c-12,12-12,32,0,44s32,12,44,0l84-84C180,120,180,100,168,88L216,40Z'),
+				path(
+					'M216,40,168,88c-12-12-32-12-44,0l-84,84c-12,12-12,32,0,44s32,12,44,0l84-84C180,120,180,100,168,88L216,40Z'
+				),
 				line(40, 216, 64, 192),
 				path('M128,128c8,8,16,16,24,24')
 			);
 		case 'inline':
 			return svg(
 				size,
-				['rect', { x: 40, y: 40, width: 176, height: 176, rx: 16, 'stroke-dasharray': '24 12' }],
+				[
+					'rect',
+					{ x: 40, y: 40, width: 176, height: 176, rx: 16, 'stroke-dasharray': '24 12' },
+				],
 				rect(88, 104, 80, 48, 4)
 			);
 		case 'interlinear':
@@ -122,7 +136,10 @@ export function badgeIconSpec(name: BadgeIconName, size: number = 14): DomSpecCh
 		case 'marginal':
 			return svg(
 				size,
-				['rect', { x: 96, y: 48, width: 120, height: 160, rx: 8, 'stroke-dasharray': '24 12' }],
+				[
+					'rect',
+					{ x: 96, y: 48, width: 120, height: 160, rx: 8, 'stroke-dasharray': '24 12' },
+				],
 				rect(32, 80, 48, 96, 4)
 			);
 		case 'metamark':

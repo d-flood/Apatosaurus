@@ -21,6 +21,7 @@ import {
 	type SerializedTranscriptionPageCanvasLink,
 } from '$lib/client/db/repositories/revisions';
 import { canonicalJson, hashCanonicalPayload } from './canonical-json';
+import { projectRelativeCloudPaths } from './cloud-paths';
 
 type DbExecutor = Kysely<Database> | Transaction<Database>;
 
@@ -43,8 +44,44 @@ export interface ProjectCloudFile {
 	description: string;
 	charter: string;
 	collation_settings: unknown;
+	manifest_content_hash: string;
+	transcriptions: ProjectManifestTranscriptionHead[];
+	collations: ProjectManifestCollationHead[];
+	tombstones: ProjectManifestTombstoneHead[];
 	created_at: string;
 	updated_at: string;
+}
+
+export interface ProjectManifestRevisionHead {
+	id: string;
+	content_hash: string;
+}
+
+export interface ProjectManifestTranscriptionHead {
+	project_transcription_id: string;
+	transcription_id: string;
+	current_revision: ProjectManifestRevisionHead | null;
+	title: string;
+	siglum: string;
+	primary_path: string;
+}
+
+export interface ProjectManifestCollationHead {
+	collation_id: string;
+	current_revision: ProjectManifestRevisionHead | null;
+	title: string;
+	verse_identifier: string;
+	primary_path: string;
+}
+
+export interface ProjectManifestTombstoneHead {
+	tombstone_id: string;
+	entity_type: string;
+	entity_id: string;
+	deletion_revision_id: string;
+	content_hash: string;
+	primary_path: string;
+	deleted_at: string;
 }
 
 export interface ProjectTranscriptionOriginCloudFile {
@@ -196,31 +233,8 @@ export type CloudFileValidationResult =
 	| { ok: true }
 	| { ok: false; quarantine: CloudFileQuarantine };
 
-export interface ProjectCloudPaths {
-	project: string;
-	transcriptions: (projectTranscriptionId: string) => string;
-	collations: (collationId: string) => string;
-	transcriptionHistory: (projectTranscriptionId: string, checkpointId: string) => string;
-	collationHistory: (collationId: string, checkpointId: string) => string;
-	tombstones: (tombstoneId: string) => string;
-}
-
-export function projectCloudRootPath(projectId: string): string {
-	return `Apatosaurus/Projects/${projectId}`;
-}
-
-export function projectRelativeCloudPaths(): ProjectCloudPaths {
-	return {
-		project: 'project.json',
-		transcriptions: projectTranscriptionId => `transcriptions/${projectTranscriptionId}.json`,
-		collations: collationId => `collations/${collationId}.json`,
-		transcriptionHistory: (projectTranscriptionId, checkpointId) =>
-			`history/transcriptions/${projectTranscriptionId}/${checkpointId}.json`,
-		collationHistory: (collationId, checkpointId) =>
-			`history/collations/${collationId}/${checkpointId}.json`,
-		tombstones: tombstoneId => `tombstones/${tombstoneId}.json`,
-	};
-}
+export { projectCloudRootPath, projectRelativeCloudPaths } from './cloud-paths';
+export type { ProjectCloudPaths } from './cloud-paths';
 
 export function serializeCloudFile(file: CloudFile): string {
 	return canonicalJson(file);
@@ -232,6 +246,17 @@ export async function serializeProjectCloudFile(
 ): Promise<ProjectCloudFile> {
 	const project = await getProject(db, projectId);
 	if (!project) throw new Error(`Project ${projectId} was not found.`);
+	const [transcriptions, collations, tombstones] = await Promise.all([
+		listProjectManifestTranscriptionHeads(db, projectId),
+		listProjectManifestCollationHeads(db, projectId),
+		listProjectManifestTombstoneHeads(db, projectId),
+	]);
+	const manifest_content_hash = await hashCanonicalPayload({
+		project_id: project.id,
+		transcriptions,
+		collations,
+		tombstones,
+	});
 
 	return {
 		schema_version: CLOUD_FILE_SCHEMA_VERSION,
@@ -240,6 +265,10 @@ export async function serializeProjectCloudFile(
 		description: project.description,
 		charter: project.charter,
 		collation_settings: project.collationSettings,
+		manifest_content_hash,
+		transcriptions,
+		collations,
+		tombstones,
 		created_at: project.createdAt,
 		updated_at: project.updatedAt,
 	};
@@ -447,6 +476,10 @@ export function parseProjectCloudFile(input: unknown): CloudFileParseResult<Proj
 				description: readString(record, 'description'),
 				charter: readString(record, 'charter'),
 				collation_settings: readJsonValue(record, 'collation_settings'),
+				manifest_content_hash: readString(record, 'manifest_content_hash'),
+				transcriptions: readProjectManifestTranscriptionHeads(record, 'transcriptions'),
+				collations: readProjectManifestCollationHeads(record, 'collations'),
+				tombstones: readProjectManifestTombstoneHeads(record, 'tombstones'),
 				created_at: readString(record, 'created_at'),
 				updated_at: readString(record, 'updated_at'),
 			},
@@ -454,6 +487,95 @@ export function parseProjectCloudFile(input: unknown): CloudFileParseResult<Proj
 	} catch (error) {
 		return quarantineResult(error);
 	}
+}
+
+async function listProjectManifestTranscriptionHeads(
+	db: DbExecutor,
+	projectId: string
+): Promise<ProjectManifestTranscriptionHead[]> {
+	const paths = projectRelativeCloudPaths();
+	const rows = await db
+		.selectFrom('project_transcriptions')
+		.innerJoin('transcriptions', 'transcriptions.id', 'project_transcriptions.transcription_id')
+		.select([
+			'project_transcriptions.id as project_transcription_id',
+			'project_transcriptions.transcription_id as transcription_id',
+			'transcriptions.current_revision_id as current_revision_id',
+			'transcriptions.current_content_hash as current_content_hash',
+			'transcriptions.title as title',
+			'transcriptions.siglum as siglum',
+		])
+		.where('project_transcriptions.project_id', '=', projectId)
+		.orderBy('project_transcriptions.id', 'asc')
+		.execute();
+	return rows.map(row => ({
+		project_transcription_id: requireId(row.project_transcription_id, 'project transcription'),
+		transcription_id: row.transcription_id,
+		current_revision: revisionHead(row.current_revision_id, row.current_content_hash),
+		title: row.title,
+		siglum: row.siglum,
+		primary_path: paths.transcriptions(requireId(row.project_transcription_id, 'project transcription')),
+	}));
+}
+
+async function listProjectManifestCollationHeads(
+	db: DbExecutor,
+	projectId: string
+): Promise<ProjectManifestCollationHead[]> {
+	const paths = projectRelativeCloudPaths();
+	const rows = await db
+		.selectFrom('collations')
+		.select([
+			'id',
+			'current_revision_id',
+			'current_content_hash',
+			'title',
+			'verse_identifier',
+		])
+		.where('project_id', '=', projectId)
+		.orderBy('id', 'asc')
+		.execute();
+	return rows.map(row => ({
+		collation_id: requireId(row.id, 'collation'),
+		current_revision: revisionHead(row.current_revision_id, row.current_content_hash),
+		title: row.title,
+		verse_identifier: row.verse_identifier,
+		primary_path: paths.collations(requireId(row.id, 'collation')),
+	}));
+}
+
+async function listProjectManifestTombstoneHeads(
+	db: DbExecutor,
+	projectId: string
+): Promise<ProjectManifestTombstoneHead[]> {
+	const paths = projectRelativeCloudPaths();
+	const rows = await db
+		.selectFrom('sync_tombstones')
+		.selectAll()
+		.where('project_id', '=', projectId)
+		.orderBy('id', 'asc')
+		.execute();
+	return Promise.all(
+		rows.map(async row => {
+			const tombstone = tombstoneRowToCloudFile(row);
+			return {
+				tombstone_id: tombstone.id,
+				entity_type: tombstone.entity_type,
+				entity_id: tombstone.entity_id,
+				deletion_revision_id: tombstone.deletion_revision_id,
+				content_hash: await hashCanonicalPayload(tombstone),
+				primary_path: paths.tombstones(tombstone.id),
+				deleted_at: tombstone.deleted_at,
+			};
+		})
+	);
+}
+
+function revisionHead(
+	revisionId: string | null,
+	contentHash: string | null
+): ProjectManifestRevisionHead | null {
+	return revisionId && contentHash ? { id: revisionId, content_hash: contentHash } : null;
 }
 
 export async function parseProjectTranscriptionCloudFile(
@@ -910,15 +1032,15 @@ function tombstoneRowToCloudFile(row: Selectable<SyncTombstones>): TombstoneClou
 
 function assertCollationSourcesSyncReady(collation: SerializedCollation): void {
 	const missing = collation.witnesses.find(
-		(witness) =>
+		witness =>
 			!witness.project_transcription_id ||
 			!witness.transcription_id ||
 			!witness.source_revision_id ||
-			!witness.source_content_hash,
+			!witness.source_content_hash
 	);
 	if (!missing) return;
 	throw new Error(
-		`Collation ${collation.id} witness ${missing.witness_id} is missing committed source revision metadata and cannot be serialized for cloud sync.`,
+		`Collation ${collation.id} witness ${missing.witness_id} is missing committed source revision metadata and cannot be serialized for cloud sync.`
 	);
 }
 
@@ -993,6 +1115,70 @@ function readCurrentRevision(record: Record<string, unknown>, key: string): Clou
 		created_at: readString(revision, 'created_at'),
 		author_name: readString(revision, 'author_name'),
 	};
+}
+
+function readProjectManifestRevisionHead(
+	record: Record<string, unknown>,
+	key: string
+): ProjectManifestRevisionHead | null {
+	const value = record[key];
+	if (value === null) return null;
+	const revision = readObjectValue(value, key);
+	return {
+		id: readString(revision, 'id'),
+		content_hash: readString(revision, 'content_hash'),
+	};
+}
+
+function readProjectManifestTranscriptionHeads(
+	record: Record<string, unknown>,
+	key: string
+): ProjectManifestTranscriptionHead[] {
+	return readArray(record, key).map((entry, index) => {
+		const row = readObjectValue(entry, `${key}[${index}]`);
+		return {
+			project_transcription_id: readString(row, 'project_transcription_id'),
+			transcription_id: readString(row, 'transcription_id'),
+			current_revision: readProjectManifestRevisionHead(row, 'current_revision'),
+			title: readString(row, 'title'),
+			siglum: readString(row, 'siglum'),
+			primary_path: readString(row, 'primary_path'),
+		};
+	});
+}
+
+function readProjectManifestCollationHeads(
+	record: Record<string, unknown>,
+	key: string
+): ProjectManifestCollationHead[] {
+	return readArray(record, key).map((entry, index) => {
+		const row = readObjectValue(entry, `${key}[${index}]`);
+		return {
+			collation_id: readString(row, 'collation_id'),
+			current_revision: readProjectManifestRevisionHead(row, 'current_revision'),
+			title: readString(row, 'title'),
+			verse_identifier: readString(row, 'verse_identifier'),
+			primary_path: readString(row, 'primary_path'),
+		};
+	});
+}
+
+function readProjectManifestTombstoneHeads(
+	record: Record<string, unknown>,
+	key: string
+): ProjectManifestTombstoneHead[] {
+	return readArray(record, key).map((entry, index) => {
+		const row = readObjectValue(entry, `${key}[${index}]`);
+		return {
+			tombstone_id: readString(row, 'tombstone_id'),
+			entity_type: readString(row, 'entity_type'),
+			entity_id: readString(row, 'entity_id'),
+			deletion_revision_id: readString(row, 'deletion_revision_id'),
+			content_hash: readString(row, 'content_hash'),
+			primary_path: readString(row, 'primary_path'),
+			deleted_at: readString(row, 'deleted_at'),
+		};
+	});
 }
 
 function readManifestSources(

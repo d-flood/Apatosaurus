@@ -29,14 +29,21 @@ import {
 	type SyncEntityHead,
 } from './conflicts';
 import {
+	updateCloudProjectFolderSyncState,
+	type CloudProjectFolderRecord,
+} from '$lib/client/db/repositories/cloud-connections';
+import { deriveEntityCloudBackupState, type EntityCloudBackupState } from './backup-status';
+import {
 	parseCollationCloudFile,
 	parseHistoryCloudFile,
+	parseProjectCloudFile,
 	parseProjectTranscriptionCloudFile,
 	parseTombstoneCloudFile,
 	projectRelativeCloudPaths,
 	serializeCloudFile,
 	serializeCollationCloudFile,
 	serializeCollationHistoryCloudFile,
+	serializeProjectCloudFile,
 	serializeProjectTranscriptionCloudFile,
 	serializeProjectTranscriptionHistoryCloudFile,
 	serializeTombstoneCloudFile,
@@ -45,6 +52,7 @@ import {
 	type CloudFileQuarantine,
 	type CollationCloudFile,
 	type HistoryCloudFile,
+	type ProjectCloudFile,
 	type ProjectTranscriptionCloudFile,
 	type TombstoneCloudFile,
 } from './cloud-files';
@@ -56,6 +64,14 @@ import {
 	type CloudStorageProvider,
 	type CloudWriteResult,
 } from './providers/provider';
+
+export {
+	cloudPathForEntity,
+	deriveEntityCloudBackupState,
+	type EntityCloudBackupState,
+	type EntityCloudBackupStatus,
+	type EntityCloudBackupStatusOptions,
+} from './backup-status';
 
 type DbExecutor = Kysely<Database> | Transaction<Database>;
 
@@ -112,6 +128,70 @@ export interface SyncOperationResult {
 	quarantines: SyncQuarantine[];
 }
 
+export type ProjectBackupItemType = 'project-manifest' | SyncEntityType | 'tombstone';
+
+export type ProjectBackupItemStatus =
+	| 'backed-up'
+	| 'committed-pending-backup'
+	| 'uncommitted-local-changes'
+	| 'never-committed'
+	| 'remote-update-available'
+	| 'diverged'
+	| 'unknown';
+
+export type ProjectRemoteManifestState =
+	| 'not-checked'
+	| 'up-to-date'
+	| 'remote-update-available'
+	| 'diverged'
+	| 'unavailable';
+
+export interface BackupItemState {
+	itemType: ProjectBackupItemType;
+	itemId: string;
+	path: string;
+	status: ProjectBackupItemStatus;
+	localHead?: SyncEntityHead;
+	remoteHead?: SyncEntityHead;
+	reason?: string;
+}
+
+export interface ProjectManifestComparison {
+	state: ProjectRemoteManifestState;
+	manifest: ProjectCloudFile | null;
+	manifestPath: string;
+	downloadedPaths: string[];
+	quarantines: SyncQuarantine[];
+	providerError?: CloudProviderErrorCode;
+	providerMessage?: string;
+}
+
+export interface ProjectBackupSummary {
+	projectId: string;
+	connectionId: string;
+	cloudFolderId: string;
+	projectManifestState: BackupItemState;
+	transcriptions: BackupItemState[];
+	collations: BackupItemState[];
+	tombstones: BackupItemState[];
+	remoteManifestState: ProjectRemoteManifestState;
+	blockingItems: BackupItemState[];
+	pendingItems: BackupItemState[];
+	lastFullySyncedAt: string | null;
+}
+
+export interface ProjectBackupResult extends SyncOperationResult {
+	projectId: string;
+	manifestUploaded: boolean;
+	entityResults: SyncOperationResult[];
+	skippedItems: BackupItemState[];
+}
+
+export interface ProjectBackupOptions extends SyncManagerOptions {
+	strict?: boolean;
+	folder?: CloudProjectFolderRecord | null;
+}
+
 export type OpenObjectPollerConnectionState =
 	| 'idle'
 	| 'polling'
@@ -162,7 +242,7 @@ const PROJECT_SCOPE_TYPE = 'project';
 
 export async function commitProjectTranscriptionForSync(
 	db: Kysely<Database>,
-	input: CommitTranscriptionInput,
+	input: CommitTranscriptionInput
 ): Promise<SyncOperationResult & { checkpoint: TranscriptionCheckpoint }> {
 	const checkpoint = await createCommittedTranscriptionCheckpoint(db, input);
 	return {
@@ -175,7 +255,7 @@ export async function commitProjectTranscriptionForSync(
 
 export async function commitCollationForSync(
 	db: Kysely<Database>,
-	input: CommitCollationInput,
+	input: CommitCollationInput
 ): Promise<SyncOperationResult & { checkpoint: CollationCheckpoint }> {
 	const checkpoint = await createCommittedCollationCheckpoint(db, input);
 	return {
@@ -191,7 +271,7 @@ export async function publishEntity(
 	provider: CloudStorageProvider,
 	context: SyncProjectContext,
 	reference: SyncEntityReference,
-	options: SyncManagerOptions = {},
+	options: SyncManagerOptions = {}
 ): Promise<SyncOperationResult> {
 	const result = baseResult('sync pending', reference.entityType, reference.entityId);
 	let historyUploaded = false;
@@ -208,9 +288,20 @@ export async function publishEntity(
 		historyUploaded = true;
 
 		const primaryContent = await serializePrimaryFile(db, local);
-		const primaryWrite = await putCloudFile(provider, context, local.primaryPath, primaryContent);
+		const primaryWrite = await putCloudFile(
+			provider,
+			context,
+			local.primaryPath,
+			primaryContent
+		);
 		result.uploadedPaths.push(local.primaryPath);
-		await upsertSyncMetadata(db, context, local, primaryWrite, options.now?.() ?? new Date().toISOString());
+		await upsertSyncMetadata(
+			db,
+			context,
+			local,
+			primaryWrite,
+			options.now?.() ?? new Date().toISOString()
+		);
 		result.uiState = 'synced';
 		result.checkpointId = local.head.revisionId;
 		return result;
@@ -223,7 +314,10 @@ export async function publishEntity(
 		if (isCloudProviderError(error)) {
 			result.providerError = error.code;
 			result.providerMessage = error.message;
-			result.uiState = error.code === 'conflict' && historyUploaded ? 'conflict requires resolution' : 'sync pending';
+			result.uiState =
+				error.code === 'conflict' && historyUploaded
+					? 'conflict requires resolution'
+					: 'sync pending';
 			return result;
 		}
 		throw error;
@@ -235,7 +329,7 @@ export async function pollOpenEntity(
 	provider: CloudStorageProvider,
 	context: SyncProjectContext,
 	reference: SyncEntityReference,
-	options: SyncManagerOptions = {},
+	options: SyncManagerOptions = {}
 ): Promise<SyncOperationResult> {
 	const result = baseResult('saved locally', reference.entityType, reference.entityId);
 	const local = await loadLocalEntity(db, reference);
@@ -267,11 +361,21 @@ export async function pollOpenEntity(
 
 	const lastSynced = metadata ? lastSyncedHead(metadata) : { revisionId: '', contentHash: '' };
 	const classification = metadata
-		? classifyCommittedHeadSync({ localHead: local.head, remoteHead: remote.head, lastSyncedHead: lastSynced })
+		? classifyCommittedHeadSync({
+				localHead: local.head,
+				remoteHead: remote.head,
+				lastSyncedHead: lastSynced,
+			})
 		: classifyWithoutMetadata(local, remote.head);
 
 	if (classification === 'in_sync') {
-		await upsertSyncMetadataFromRemote(db, context, local, remote, options.now?.() ?? new Date().toISOString());
+		await upsertSyncMetadataFromRemote(
+			db,
+			context,
+			local,
+			remote,
+			options.now?.() ?? new Date().toISOString()
+		);
 		result.uiState = local.dirty ? 'uncommitted local changes' : 'synced';
 		return result;
 	}
@@ -288,7 +392,13 @@ export async function pollOpenEntity(
 			return result;
 		}
 		await applyRemoteEntity(db, local, remote);
-		await upsertSyncMetadataFromRemote(db, context, local, remote, options.now?.() ?? new Date().toISOString());
+		await upsertSyncMetadataFromRemote(
+			db,
+			context,
+			local,
+			remote,
+			options.now?.() ?? new Date().toISOString()
+		);
 		result.uiState = 'synced';
 		return result;
 	}
@@ -302,7 +412,7 @@ export async function pollOpenEntity(
 export async function syncProjectTombstones(
 	db: Kysely<Database>,
 	provider: CloudStorageProvider,
-	context: SyncProjectContext,
+	context: SyncProjectContext
 ): Promise<SyncOperationResult> {
 	const result = baseResult('synced');
 	const tombstones = await db
@@ -322,14 +432,14 @@ export async function syncProjectTombstones(
 		if (primary) {
 			await provider.deleteFile(
 				primary.id,
-				provider.capabilities.supportsExpectedRevisionDelete ? primary.revision : undefined,
+				provider.capabilities.supportsExpectedRevisionDelete ? primary.revision : undefined
 			);
 			result.deletedPaths.push(tombstone.cloud_path);
 		}
 	}
 
 	const remoteTombstones = await listRemoteMetadata(provider, context, 'tombstones/');
-	for (const metadata of remoteTombstones.filter((entry) => entry.path.endsWith('.json'))) {
+	for (const metadata of remoteTombstones.filter(entry => entry.path.endsWith('.json'))) {
 		const content = await provider.downloadFile(metadata.id);
 		result.downloadedPaths.push(relativeEntryPath(metadata.path, context));
 		const parsed = parseTombstoneCloudFile(content);
@@ -344,10 +454,245 @@ export async function syncProjectTombstones(
 	return result;
 }
 
+export async function deriveProjectBackupSummary(
+	db: Kysely<Database>,
+	context: SyncProjectContext,
+	folder: CloudProjectFolderRecord | null = null
+): Promise<ProjectBackupSummary> {
+	const [transcriptionReferences, collationReferences, tombstones] = await Promise.all([
+		listProjectTranscriptionReferences(db, context.projectId),
+		listProjectCollationReferences(db, context.projectId),
+		db
+			.selectFrom('sync_tombstones')
+			.select(['id'])
+			.where('project_id', '=', context.projectId)
+			.orderBy('id', 'asc')
+			.execute(),
+	]);
+	const [transcriptions, collations] = await Promise.all([
+		Promise.all(
+			transcriptionReferences.map(reference => deriveEntityBackupItem(db, context, reference))
+		),
+		Promise.all(
+			collationReferences.map(reference => deriveEntityBackupItem(db, context, reference))
+		),
+	]);
+	const tombstoneItems = tombstones.map(row => {
+		const id = requireId(row.id, 'tombstone');
+		return {
+			itemType: 'tombstone' as const,
+			itemId: id,
+			path: projectRelativeCloudPaths().tombstones(id),
+			status: 'committed-pending-backup' as const,
+		};
+	});
+	const items = [...transcriptions, ...collations, ...tombstoneItems];
+	const blockingItems = items.filter(isBlockingBackupItem);
+	const pendingItems = items.filter(item => item.status === 'committed-pending-backup');
+	return {
+		projectId: context.projectId,
+		connectionId: context.connectionId,
+		cloudFolderId: context.cloudFolderId,
+		projectManifestState: {
+			itemType: 'project-manifest',
+			itemId: context.projectId,
+			path: projectRelativeCloudPaths().project,
+			status:
+				pendingItems.length > 0 || blockingItems.length > 0
+					? 'committed-pending-backup'
+					: 'unknown',
+		},
+		transcriptions,
+		collations,
+		tombstones: tombstoneItems,
+		remoteManifestState: 'not-checked',
+		blockingItems,
+		pendingItems,
+		lastFullySyncedAt: folder?.lastFullySyncedAt ?? null,
+	};
+}
+
+export async function publishProjectManifest(
+	db: Kysely<Database>,
+	provider: CloudStorageProvider,
+	context: SyncProjectContext
+): Promise<SyncOperationResult> {
+	const result = baseResult('sync pending');
+	const path = projectRelativeCloudPaths().project;
+	try {
+		const manifest = await serializeProjectCloudFile(db, context.projectId);
+		await putCloudFile(provider, context, path, serializeCloudFile(manifest));
+		result.uploadedPaths.push(path);
+		result.uiState = 'synced';
+		return result;
+	} catch (error) {
+		if (isCloudProviderError(error)) {
+			result.providerError = error.code;
+			result.providerMessage = error.message;
+			result.uiState =
+				error.code === 'conflict' ? 'conflict requires resolution' : 'sync pending';
+			return result;
+		}
+		throw error;
+	}
+}
+
+export async function downloadAndCompareProjectManifest(
+	db: Kysely<Database>,
+	provider: CloudStorageProvider,
+	context: SyncProjectContext
+): Promise<ProjectManifestComparison> {
+	const manifestPath = projectRelativeCloudPaths().project;
+	const result: ProjectManifestComparison = {
+		state: 'unavailable',
+		manifest: null,
+		manifestPath,
+		downloadedPaths: [],
+		quarantines: [],
+	};
+	try {
+		const metadata = await findRemoteMetadata(provider, context, manifestPath);
+		if (!metadata) return { ...result, state: 'not-checked' };
+		const content = await provider.downloadFile(metadata.id);
+		result.downloadedPaths.push(manifestPath);
+		const parsed = parseProjectCloudFile(content);
+		if (!parsed.ok) {
+			result.quarantines.push(quarantineFor(manifestPath, parsed.quarantine));
+			return { ...result, state: 'unavailable' };
+		}
+		result.manifest = parsed.value;
+		result.state = await compareProjectManifestHeads(db, context, parsed.value);
+		return result;
+	} catch (error) {
+		if (isCloudProviderError(error)) {
+			result.providerError = error.code;
+			result.providerMessage = error.message;
+			return result;
+		}
+		throw error;
+	}
+}
+
+export async function backupProject(
+	db: Kysely<Database>,
+	provider: CloudStorageProvider,
+	context: SyncProjectContext,
+	options: ProjectBackupOptions = {}
+): Promise<ProjectBackupResult> {
+	const strict = options.strict ?? true;
+	const summary = await deriveProjectBackupSummary(db, context, options.folder ?? null);
+	const result: ProjectBackupResult = {
+		...baseResult('sync pending'),
+		projectId: context.projectId,
+		manifestUploaded: false,
+		entityResults: [],
+		skippedItems: [],
+	};
+
+	if (strict && summary.blockingItems.length > 0) {
+		result.uiState = 'uncommitted local changes';
+		result.skippedItems = summary.blockingItems;
+		return result;
+	}
+
+	for (const item of [...summary.transcriptions, ...summary.collations]) {
+		if (isBlockingBackupItem(item)) {
+			result.skippedItems.push(item);
+			continue;
+		}
+		const entityResult = await publishEntity(
+			db,
+			provider,
+			context,
+			{ entityType: item.itemType as SyncEntityType, entityId: item.itemId },
+			options
+		);
+		mergeOperationResult(result, entityResult);
+		result.entityResults.push(entityResult);
+	}
+
+	const tombstoneResult = await syncProjectTombstones(db, provider, context);
+	mergeOperationResult(result, tombstoneResult);
+	result.entityResults.push(tombstoneResult);
+
+	if (!hasOperationFailure(result)) {
+		const manifestResult = await publishProjectManifest(db, provider, context);
+		mergeOperationResult(result, manifestResult);
+		result.manifestUploaded = manifestResult.uiState === 'synced';
+	}
+
+	if (
+		result.manifestUploaded &&
+		!hasOperationFailure(result) &&
+		result.skippedItems.length === 0
+	) {
+		await updateCloudProjectFolderSyncState(db, {
+			projectId: context.projectId,
+			connectionId: context.connectionId,
+			lastFullySyncedAt: options.now?.() ?? new Date().toISOString(),
+		});
+		result.uiState = 'synced';
+		return result;
+	}
+
+	result.uiState =
+		result.quarantines.length > 0 ? 'conflict requires resolution' : 'sync pending';
+	return result;
+}
+
+export async function backupProjectEntity(
+	db: Kysely<Database>,
+	provider: CloudStorageProvider,
+	context: SyncProjectContext,
+	reference: SyncEntityReference,
+	options: ProjectBackupOptions = {}
+): Promise<ProjectBackupResult> {
+	const result: ProjectBackupResult = {
+		...baseResult('sync pending', reference.entityType, reference.entityId),
+		projectId: context.projectId,
+		manifestUploaded: false,
+		entityResults: [],
+		skippedItems: [],
+	};
+	const local = await loadLocalEntity(db, reference);
+	if (local.projectId !== context.projectId) {
+		throw new Error(`${reference.entityType} ${reference.entityId} does not belong to this project.`);
+	}
+	const item = await deriveEntityBackupItem(db, context, reference);
+	if (isBlockingBackupItem(item)) {
+		result.uiState = item.status === 'uncommitted-local-changes' ? 'uncommitted local changes' : 'saved locally';
+		result.skippedItems = [item];
+		return result;
+	}
+
+	const entityResult = await publishEntity(db, provider, context, reference, options);
+	mergeOperationResult(result, entityResult);
+	result.entityResults.push(entityResult);
+	if (entityResult.uiState !== 'synced' || hasOperationFailure(result)) {
+		result.uiState = result.quarantines.length > 0 ? 'conflict requires resolution' : 'sync pending';
+		return result;
+	}
+
+	const manifestResult = await publishProjectManifest(db, provider, context);
+	mergeOperationResult(result, manifestResult);
+	result.manifestUploaded = manifestResult.uiState === 'synced';
+	result.uiState = result.manifestUploaded && !hasOperationFailure(result) ? 'synced' : 'sync pending';
+	return result;
+}
+
+export function backupEligibleProjectEntities(
+	db: Kysely<Database>,
+	provider: CloudStorageProvider,
+	context: SyncProjectContext,
+	options: ProjectBackupOptions = {}
+): Promise<ProjectBackupResult> {
+	return backupProject(db, provider, context, { ...options, strict: false });
+}
+
 export async function deriveLocalSyncUiState(
 	db: Kysely<Database>,
 	context: SyncProjectContext,
-	reference: SyncEntityReference,
+	reference: SyncEntityReference
 ): Promise<SyncUiState> {
 	const local = await loadLocalEntity(db, reference);
 	if (local.dirty) return local.hasCommittedHead ? 'uncommitted local changes' : 'saved locally';
@@ -455,36 +800,57 @@ async function ensureHistoryFile(
 	context: SyncProjectContext,
 	local: LocalEntityState,
 	historyPath: string,
-	result: SyncOperationResult,
+	result: SyncOperationResult
 ): Promise<CloudFileMetadata | CloudWriteResult> {
 	const existing = await findRemoteMetadata(provider, context, historyPath);
 	if (existing) {
 		const parsed = await parseHistoryCloudFile(await provider.downloadFile(existing.id));
 		result.downloadedPaths.push(historyPath);
-		if (!parsed.ok) throw new SyncQuarantineError(quarantineFor(historyPath, parsed.quarantine));
-		if (parsed.value.checkpoint_id !== local.head.revisionId || parsed.value.content_hash !== local.head.contentHash) {
+		if (!parsed.ok)
+			throw new SyncQuarantineError(quarantineFor(historyPath, parsed.quarantine));
+		if (
+			parsed.value.checkpoint_id !== local.head.revisionId ||
+			parsed.value.content_hash !== local.head.contentHash
+		) {
 			throw new SyncQuarantineError({
 				path: historyPath,
 				code: 'hash_mismatch',
 				message: 'Remote history file does not match the committed local checkpoint.',
 				expected: local.head,
-				actual: { revisionId: parsed.value.checkpoint_id, contentHash: parsed.value.content_hash },
+				actual: {
+					revisionId: parsed.value.checkpoint_id,
+					contentHash: parsed.value.content_hash,
+				},
 			});
 		}
 		return existing;
 	}
 
-	const content = local.entityType === 'project-transcription'
-		? serializeCloudFile(
-				await serializeProjectTranscriptionHistoryCloudFile(db, local.entityId, local.head.revisionId),
-			)
-		: serializeCloudFile(await serializeCollationHistoryCloudFile(db, local.entityId, local.head.revisionId));
+	const content =
+		local.entityType === 'project-transcription'
+			? serializeCloudFile(
+					await serializeProjectTranscriptionHistoryCloudFile(
+						db,
+						local.entityId,
+						local.head.revisionId
+					)
+				)
+			: serializeCloudFile(
+					await serializeCollationHistoryCloudFile(
+						db,
+						local.entityId,
+						local.head.revisionId
+					)
+				);
 	const write = await provider.createFile(context.cloudFolderId, historyPath, content);
 	result.uploadedPaths.push(historyPath);
 	return write;
 }
 
-async function serializePrimaryFile(db: Kysely<Database>, local: LocalEntityState): Promise<string> {
+async function serializePrimaryFile(
+	db: Kysely<Database>,
+	local: LocalEntityState
+): Promise<string> {
 	if (local.entityType === 'project-transcription') {
 		return serializeCloudFile(await serializeProjectTranscriptionCloudFile(db, local.entityId));
 	}
@@ -495,7 +861,7 @@ async function putCloudFile(
 	provider: CloudStorageProvider,
 	context: SyncProjectContext,
 	path: string,
-	content: string,
+	content: string
 ): Promise<CloudWriteResult> {
 	const existing = await findRemoteMetadata(provider, context, path);
 	return existing
@@ -508,14 +874,15 @@ async function downloadRemoteEntity(
 	context: SyncProjectContext,
 	reference: SyncEntityReference,
 	metadata: CloudFileMetadata,
-	result: SyncOperationResult,
+	result: SyncOperationResult
 ): Promise<RemoteEntityState | null> {
 	const primaryPath = primaryPathFor(reference.entityType, reference.entityId);
 	const primaryContent = await provider.downloadFile(metadata.id);
 	result.downloadedPaths.push(primaryPath);
-	const primaryParse = reference.entityType === 'project-transcription'
-		? await parseProjectTranscriptionCloudFile(primaryContent)
-		: await parseCollationCloudFile(primaryContent);
+	const primaryParse =
+		reference.entityType === 'project-transcription'
+			? await parseProjectTranscriptionCloudFile(primaryContent)
+			: await parseCollationCloudFile(primaryContent);
 	if (!primaryParse.ok) {
 		result.quarantines.push(quarantineFor(primaryPath, primaryParse.quarantine));
 		result.uiState = 'conflict requires resolution';
@@ -526,7 +893,7 @@ async function downloadRemoteEntity(
 	const historyPath = historyPathFor(
 		reference.entityType,
 		reference.entityId,
-		primary.current_revision.id,
+		primary.current_revision.id
 	);
 	const historyMetadata = await findRemoteMetadata(provider, context, historyPath);
 	if (!historyMetadata) {
@@ -548,12 +915,16 @@ async function downloadRemoteEntity(
 		return null;
 	}
 
-	const validation = reference.entityType === 'project-transcription'
-		? validateProjectTranscriptionHeadMatchesCheckpoint(
-				primary as ProjectTranscriptionCloudFile,
-				historyParse.value,
-			)
-		: validateCollationHeadMatchesCheckpoint(primary as CollationCloudFile, historyParse.value);
+	const validation =
+		reference.entityType === 'project-transcription'
+			? validateProjectTranscriptionHeadMatchesCheckpoint(
+					primary as ProjectTranscriptionCloudFile,
+					historyParse.value
+				)
+			: validateCollationHeadMatchesCheckpoint(
+					primary as CollationCloudFile,
+					historyParse.value
+				);
 	if (!validation.ok) {
 		result.quarantines.push(quarantineFor(primaryPath, validation.quarantine));
 		result.uiState = 'conflict requires resolution';
@@ -575,11 +946,15 @@ async function downloadRemoteEntity(
 async function applyRemoteEntity(
 	db: Kysely<Database>,
 	local: LocalEntityState,
-	remote: RemoteEntityState,
+	remote: RemoteEntityState
 ): Promise<void> {
-	await db.transaction().execute(async (trx) => {
+	await db.transaction().execute(async trx => {
 		if (local.entityType === 'project-transcription') {
-			await applyProjectTranscriptionPrimary(trx, local.projectId, remote.primary as ProjectTranscriptionCloudFile);
+			await applyProjectTranscriptionPrimary(
+				trx,
+				local.projectId,
+				remote.primary as ProjectTranscriptionCloudFile
+			);
 			await insertRemoteCheckpoint(trx, remote.history);
 			return;
 		}
@@ -590,7 +965,12 @@ async function applyRemoteEntity(
 
 async function insertRemoteCheckpoint(db: DbExecutor, history: HistoryCloudFile): Promise<void> {
 	const parentId = history.parent_checkpoint_id
-		? await existingCheckpointId(db, history.entity_type, history.entity_id, history.parent_checkpoint_id)
+		? await existingCheckpointId(
+				db,
+				history.entity_type,
+				history.entity_id,
+				history.parent_checkpoint_id
+			)
 		: null;
 	if (history.entity_type === 'project-transcription') {
 		await db
@@ -607,7 +987,7 @@ async function insertRemoteCheckpoint(db: DbExecutor, history: HistoryCloudFile)
 				author_name: history.author_name,
 				created_at: history.created_at,
 			})
-			.onConflict((oc) => oc.column('id').doNothing())
+			.onConflict(oc => oc.column('id').doNothing())
 			.execute();
 		return;
 	}
@@ -624,14 +1004,14 @@ async function insertRemoteCheckpoint(db: DbExecutor, history: HistoryCloudFile)
 			author_name: history.author_name,
 			created_at: history.created_at,
 		})
-		.onConflict((oc) => oc.column('id').doNothing())
+		.onConflict(oc => oc.column('id').doNothing())
 		.execute();
 }
 
 async function applyProjectTranscriptionPrimary(
 	db: DbExecutor,
 	projectId: string,
-	file: ProjectTranscriptionCloudFile,
+	file: ProjectTranscriptionCloudFile
 ): Promise<void> {
 	const now = file.updated_at;
 	await db
@@ -662,7 +1042,7 @@ async function applyProjectTranscriptionPrimary(
 			settlement: file.settlement,
 			language: file.language,
 		})
-		.onConflict((oc) =>
+		.onConflict(oc =>
 			oc.column('id').doUpdateSet({
 				scope_type: 'project_snapshot',
 				project_id: projectId,
@@ -686,7 +1066,7 @@ async function applyProjectTranscriptionPrimary(
 				repository: file.repository,
 				settlement: file.settlement,
 				language: file.language,
-			}),
+			})
 		)
 		.execute();
 	await db
@@ -699,12 +1079,12 @@ async function applyProjectTranscriptionPrimary(
 			added_at: file.created_at,
 			added_by_id: null,
 		})
-		.onConflict((oc) =>
+		.onConflict(oc =>
 			oc.column('id').doUpdateSet({
 				project_id: projectId,
 				transcription_id: file.id,
 				canonical_transcription_id: file.canonical_transcription_id,
-			}),
+			})
 		)
 		.execute();
 
@@ -713,18 +1093,20 @@ async function applyProjectTranscriptionPrimary(
 		await db
 			.insertInto('iiif_manifest_sources')
 			.values(
-				file.iiif_manifest_sources.map((row): Selectable<IiifManifestSources> => ({
-					id: row.id,
-					transcription_id: file.id,
-					manifest_url: row.manifest_url,
-					label: row.label,
-					source_kind: row.source_kind,
-					default_canvas_id: row.default_canvas_id,
-					default_image_service_url: row.default_image_service_url,
-					metadata_json: canonicalJson(row.metadata_json),
-					created_at: now,
-					updated_at: now,
-				})),
+				file.iiif_manifest_sources.map(
+					(row): Selectable<IiifManifestSources> => ({
+						id: row.id,
+						transcription_id: file.id,
+						manifest_url: row.manifest_url,
+						label: row.label,
+						source_kind: row.source_kind,
+						default_canvas_id: row.default_canvas_id,
+						default_image_service_url: row.default_image_service_url,
+						metadata_json: canonicalJson(row.metadata_json),
+						created_at: now,
+						updated_at: now,
+					})
+				)
 			)
 			.execute();
 	}
@@ -732,23 +1114,25 @@ async function applyProjectTranscriptionPrimary(
 		await db
 			.insertInto('transcription_page_canvas_links')
 			.values(
-				file.page_canvas_links.map((row): Selectable<TranscriptionPageCanvasLinks> => ({
-					id: row.id,
-					transcription_id: file.id,
-					page_id: row.page_id,
-					page_name_snapshot: row.page_name_snapshot,
-					page_order: row.page_order,
-					manifest_source_id: row.manifest_source_id,
-					manifest_url_snapshot: row.manifest_url_snapshot,
-					canvas_id: row.canvas_id,
-					canvas_order: row.canvas_order,
-					canvas_label: row.canvas_label,
-					image_service_url: row.image_service_url,
-					thumbnail_url: row.thumbnail_url,
-					link_role: row.link_role,
-					created_at: now,
-					updated_at: now,
-				})),
+				file.page_canvas_links.map(
+					(row): Selectable<TranscriptionPageCanvasLinks> => ({
+						id: row.id,
+						transcription_id: file.id,
+						page_id: row.page_id,
+						page_name_snapshot: row.page_name_snapshot,
+						page_order: row.page_order,
+						manifest_source_id: row.manifest_source_id,
+						manifest_url_snapshot: row.manifest_url_snapshot,
+						canvas_id: row.canvas_id,
+						canvas_order: row.canvas_order,
+						canvas_label: row.canvas_label,
+						image_service_url: row.image_service_url,
+						thumbnail_url: row.thumbnail_url,
+						link_role: row.link_role,
+						created_at: now,
+						updated_at: now,
+					})
+				)
 			)
 			.execute();
 	}
@@ -756,22 +1140,24 @@ async function applyProjectTranscriptionPrimary(
 		await db
 			.insertInto('iiif_canvas_annotations')
 			.values(
-				file.canvas_annotations.map((row): Selectable<IiifCanvasAnnotations> => ({
-					id: row.id,
-					transcription_id: file.id,
-					manifest_source_id: row.manifest_source_id,
-					canvas_id: row.canvas_id,
-					page_id: row.page_id,
-					annotation_id: row.annotation_id,
-					annotation_kind: row.annotation_kind,
-					body_json: canonicalJson(row.body_json),
-					target_json: canonicalJson(row.target_json),
-					anchor_json: canonicalJson(row.anchor_json),
-					motivation: row.motivation,
-					created_by: row.created_by,
-					created_at: now,
-					updated_at: now,
-				})),
+				file.canvas_annotations.map(
+					(row): Selectable<IiifCanvasAnnotations> => ({
+						id: row.id,
+						transcription_id: file.id,
+						manifest_source_id: row.manifest_source_id,
+						canvas_id: row.canvas_id,
+						page_id: row.page_id,
+						annotation_id: row.annotation_id,
+						annotation_kind: row.annotation_kind,
+						body_json: canonicalJson(row.body_json),
+						target_json: canonicalJson(row.target_json),
+						anchor_json: canonicalJson(row.anchor_json),
+						motivation: row.motivation,
+						created_by: row.created_by,
+						created_at: now,
+						updated_at: now,
+					})
+				)
 			)
 			.execute();
 	}
@@ -794,7 +1180,7 @@ async function applyCollationPrimary(db: DbExecutor, file: CollationCloudFile): 
 			created_at: file.created_at,
 			updated_at: file.updated_at,
 		})
-		.onConflict((oc) =>
+		.onConflict(oc =>
 			oc.column('id').doUpdateSet({
 				project_id: file.project_id,
 				current_revision_id: file.current_revision.id,
@@ -806,7 +1192,7 @@ async function applyCollationPrimary(db: DbExecutor, file: CollationCloudFile): 
 				notes: file.notes,
 				sort_key: file.sort_key,
 				updated_at: file.updated_at,
-			}),
+			})
 		)
 		.execute();
 	await deleteCollationChildren(db, file.id);
@@ -814,43 +1200,43 @@ async function applyCollationPrimary(db: DbExecutor, file: CollationCloudFile): 
 		await db
 			.insertInto('collation_artifacts')
 			.values(
-				file.artifacts.map((row) => ({
+				file.artifacts.map(row => ({
 					id: row.id,
 					collation_id: file.id,
 					artifact_type: row.artifact_type,
 					payload: canonicalJson(row.payload),
 					created_at: file.updated_at,
-				})),
+				}))
 			)
 			.execute();
 	}
 	if (file.witnesses.length > 0) {
 		await db
 			.insertInto('collation_witnesses')
-			.values(file.witnesses.map((row) => ({ ...row, collation_id: file.id })))
+			.values(file.witnesses.map(row => ({ ...row, collation_id: file.id })))
 			.execute();
 	}
 	if (file.tokens.length > 0) {
 		await db
 			.insertInto('collation_tokens')
-			.values(file.tokens.map((row) => ({ ...row, collation_id: file.id })))
+			.values(file.tokens.map(row => ({ ...row, collation_id: file.id })))
 			.execute();
 	}
 	if (file.variation_units.length > 0) {
 		await db
 			.insertInto('collation_variation_units')
-			.values(file.variation_units.map((row) => ({ ...row, collation_id: file.id })))
+			.values(file.variation_units.map(row => ({ ...row, collation_id: file.id })))
 			.execute();
 	}
 	if (file.readings.length > 0) {
 		await db
 			.insertInto('collation_readings')
 			.values(
-				file.readings.map((row) => ({
+				file.readings.map(row => ({
 					...row,
 					is_lacuna: row.is_lacuna ? 1 : 0,
 					is_omission: row.is_omission ? 1 : 0,
-				})),
+				}))
 			)
 			.execute();
 	}
@@ -858,20 +1244,32 @@ async function applyCollationPrimary(db: DbExecutor, file: CollationCloudFile): 
 		await db
 			.insertInto('collation_reading_witnesses')
 			.values(
-				file.reading_witnesses.map((row) => ({
+				file.reading_witnesses.map(row => ({
 					id: `${row.reading_id}:${row.witness_id}`,
 					reading_id: row.reading_id,
 					witness_id: row.witness_id,
-				})),
+				}))
 			)
 			.execute();
 	}
 }
 
-async function deleteProjectTranscriptionChildren(db: DbExecutor, transcriptionId: string): Promise<void> {
-	await db.deleteFrom('iiif_canvas_annotations').where('transcription_id', '=', transcriptionId).execute();
-	await db.deleteFrom('transcription_page_canvas_links').where('transcription_id', '=', transcriptionId).execute();
-	await db.deleteFrom('iiif_manifest_sources').where('transcription_id', '=', transcriptionId).execute();
+async function deleteProjectTranscriptionChildren(
+	db: DbExecutor,
+	transcriptionId: string
+): Promise<void> {
+	await db
+		.deleteFrom('iiif_canvas_annotations')
+		.where('transcription_id', '=', transcriptionId)
+		.execute();
+	await db
+		.deleteFrom('transcription_page_canvas_links')
+		.where('transcription_id', '=', transcriptionId)
+		.execute();
+	await db
+		.deleteFrom('iiif_manifest_sources')
+		.where('transcription_id', '=', transcriptionId)
+		.execute();
 }
 
 async function deleteCollationChildren(db: DbExecutor, collationId: string): Promise<void> {
@@ -880,19 +1278,28 @@ async function deleteCollationChildren(db: DbExecutor, collationId: string): Pro
 		.select('id')
 		.where('collation_id', '=', collationId)
 		.execute();
-	const variationUnitIds = variationUnits.map((row) => requireId(row.id, 'variation unit'));
+	const variationUnitIds = variationUnits.map(row => requireId(row.id, 'variation unit'));
 	if (variationUnitIds.length > 0) {
 		const readings = await db
 			.selectFrom('collation_readings')
 			.select('id')
 			.where('variation_unit_id', 'in', variationUnitIds)
 			.execute();
-		const readingIds = readings.map((row) => requireId(row.id, 'reading'));
+		const readingIds = readings.map(row => requireId(row.id, 'reading'));
 		if (readingIds.length > 0) {
-			await db.deleteFrom('collation_reading_witnesses').where('reading_id', 'in', readingIds).execute();
+			await db
+				.deleteFrom('collation_reading_witnesses')
+				.where('reading_id', 'in', readingIds)
+				.execute();
 		}
-		await db.deleteFrom('collation_readings').where('variation_unit_id', 'in', variationUnitIds).execute();
-		await db.deleteFrom('collation_variation_units').where('id', 'in', variationUnitIds).execute();
+		await db
+			.deleteFrom('collation_readings')
+			.where('variation_unit_id', 'in', variationUnitIds)
+			.execute();
+		await db
+			.deleteFrom('collation_variation_units')
+			.where('id', 'in', variationUnitIds)
+			.execute();
 	}
 	await db.deleteFrom('collation_tokens').where('collation_id', '=', collationId).execute();
 	await db.deleteFrom('collation_witnesses').where('collation_id', '=', collationId).execute();
@@ -903,29 +1310,34 @@ async function existingCheckpointId(
 	db: DbExecutor,
 	entityType: SyncEntityType,
 	entityId: string,
-	checkpointId: string,
+	checkpointId: string
 ): Promise<string | null> {
-	const row = entityType === 'project-transcription'
-		? await db
-				.selectFrom('project_transcriptions')
-				.innerJoin('transcription_checkpoints', 'transcription_checkpoints.transcription_id', 'project_transcriptions.transcription_id')
-				.select('transcription_checkpoints.id as id')
-				.where('project_transcriptions.id', '=', entityId)
-				.where('transcription_checkpoints.id', '=', checkpointId)
-				.executeTakeFirst()
-		: await db
-				.selectFrom('collation_checkpoints')
-				.select('id')
-				.where('collation_id', '=', entityId)
-				.where('id', '=', checkpointId)
-				.executeTakeFirst();
+	const row =
+		entityType === 'project-transcription'
+			? await db
+					.selectFrom('project_transcriptions')
+					.innerJoin(
+						'transcription_checkpoints',
+						'transcription_checkpoints.transcription_id',
+						'project_transcriptions.transcription_id'
+					)
+					.select('transcription_checkpoints.id as id')
+					.where('project_transcriptions.id', '=', entityId)
+					.where('transcription_checkpoints.id', '=', checkpointId)
+					.executeTakeFirst()
+			: await db
+					.selectFrom('collation_checkpoints')
+					.select('id')
+					.where('collation_id', '=', entityId)
+					.where('id', '=', checkpointId)
+					.executeTakeFirst();
 	return row?.id ?? null;
 }
 
 async function preserveLocalDraft(
 	db: Kysely<Database>,
 	local: LocalEntityState,
-	options: SyncManagerOptions,
+	options: SyncManagerOptions
 ): Promise<{ checkpointId: string } | null> {
 	if (local.entityType === 'project-transcription') {
 		return preserveProjectTranscriptionDraftCheckpoint(db, {
@@ -944,7 +1356,7 @@ async function preserveLocalDraft(
 async function createConflictCopy(
 	db: Kysely<Database>,
 	local: LocalEntityState,
-	options: SyncManagerOptions,
+	options: SyncManagerOptions
 ): Promise<string> {
 	if (local.entityType === 'project-transcription') {
 		const copy = await createProjectTranscriptionConflictCopy(db, {
@@ -990,11 +1402,168 @@ async function applyRemoteTombstone(db: Kysely<Database>, file: TombstoneCloudFi
 	}
 }
 
-async function loadLocalEntity(db: Kysely<Database>, reference: SyncEntityReference): Promise<LocalEntityState> {
+async function listProjectTranscriptionReferences(
+	db: DbExecutor,
+	projectId: string
+): Promise<SyncEntityReference[]> {
+	const rows = await db
+		.selectFrom('project_transcriptions')
+		.select('id')
+		.where('project_id', '=', projectId)
+		.orderBy('id', 'asc')
+		.execute();
+	return rows.map(row => ({
+		entityType: 'project-transcription',
+		entityId: requireId(row.id, 'project transcription'),
+	}));
+}
+
+async function listProjectCollationReferences(
+	db: DbExecutor,
+	projectId: string
+): Promise<SyncEntityReference[]> {
+	const rows = await db
+		.selectFrom('collations')
+		.select('id')
+		.where('project_id', '=', projectId)
+		.orderBy('id', 'asc')
+		.execute();
+	return rows.map(row => ({
+		entityType: 'collation',
+		entityId: requireId(row.id, 'collation'),
+	}));
+}
+
+async function deriveEntityBackupItem(
+	db: Kysely<Database>,
+	context: SyncProjectContext,
+	reference: SyncEntityReference
+): Promise<BackupItemState> {
+	const local = await loadLocalEntity(db, reference);
+	const backupState = await deriveEntityCloudBackupState(
+		db,
+		context,
+		reference,
+		local.hasCommittedHead ? local.head : null,
+		local.dirty
+	);
+	return backupStateToItem(reference, local, backupState);
+}
+
+function backupStateToItem(
+	reference: SyncEntityReference,
+	local: LocalEntityState,
+	backupState: EntityCloudBackupState | undefined
+): BackupItemState {
+	const base = {
+		itemType: reference.entityType,
+		itemId: reference.entityId,
+		path: local.primaryPath,
+		localHead: local.hasCommittedHead ? local.head : undefined,
+	};
+	if (!backupState) return { ...base, status: 'unknown' };
+	if (backupState.status === 'never-backed-up') {
+		return {
+			...base,
+			status: local.hasCommittedHead ? 'committed-pending-backup' : 'never-committed',
+			reason: local.hasCommittedHead ? undefined : 'No committed version exists.',
+		};
+	}
+	return {
+		...base,
+		status: backupState.status as ProjectBackupItemStatus,
+		reason:
+			backupState.status === 'uncommitted-local-changes'
+				? 'Commit local changes before backup.'
+				: undefined,
+	};
+}
+
+async function compareProjectManifestHeads(
+	db: Kysely<Database>,
+	context: SyncProjectContext,
+	remoteManifest: ProjectCloudFile
+): Promise<ProjectRemoteManifestState> {
+	if (remoteManifest.id !== context.projectId) return 'diverged';
+	const references = [
+		...(await listProjectTranscriptionReferences(db, context.projectId)),
+		...(await listProjectCollationReferences(db, context.projectId)),
+	];
+	let sawRemoteOnlyChange = false;
+	let sawLocalOnlyChange = false;
+	for (const reference of references) {
+		const local = await loadLocalEntity(db, reference);
+		const remoteHead = remoteManifestHead(remoteManifest, reference);
+		const metadata = await getSyncMetadata(db, context, reference);
+		if (!remoteHead) {
+			if (local.hasCommittedHead) sawLocalOnlyChange = true;
+			continue;
+		}
+		if (!local.hasCommittedHead) {
+			sawRemoteOnlyChange = true;
+			continue;
+		}
+		if (headsEqual(local.head, remoteHead)) continue;
+		if (!metadata) return 'diverged';
+		const lastSynced = lastSyncedHead(metadata);
+		if (headsEqual(local.head, lastSynced) && !headsEqual(remoteHead, lastSynced)) {
+			sawRemoteOnlyChange = true;
+			continue;
+		}
+		if (!headsEqual(local.head, lastSynced) && headsEqual(remoteHead, lastSynced)) {
+			sawLocalOnlyChange = true;
+			continue;
+		}
+		return 'diverged';
+	}
+	if (sawRemoteOnlyChange && sawLocalOnlyChange) return 'diverged';
+	if (sawRemoteOnlyChange) return 'remote-update-available';
+	return 'up-to-date';
+}
+
+function remoteManifestHead(
+	manifest: ProjectCloudFile,
+	reference: SyncEntityReference
+): SyncEntityHead | null {
+	const head =
+		reference.entityType === 'project-transcription'
+			? manifest.transcriptions.find(
+					item => item.project_transcription_id === reference.entityId
+				)?.current_revision
+			: manifest.collations.find(item => item.collation_id === reference.entityId)
+					?.current_revision;
+	return head ? { revisionId: head.id, contentHash: head.content_hash } : null;
+}
+
+function isBlockingBackupItem(item: BackupItemState): boolean {
+	return item.status === 'uncommitted-local-changes' || item.status === 'never-committed';
+}
+
+function mergeOperationResult(target: SyncOperationResult, source: SyncOperationResult): void {
+	target.uploadedPaths.push(...source.uploadedPaths);
+	target.downloadedPaths.push(...source.downloadedPaths);
+	target.deletedPaths.push(...source.deletedPaths);
+	target.quarantines.push(...source.quarantines);
+	if (source.providerError) target.providerError = source.providerError;
+	if (source.providerMessage) target.providerMessage = source.providerMessage;
+}
+
+function hasOperationFailure(result: SyncOperationResult): boolean {
+	return Boolean(result.providerError) || result.quarantines.length > 0;
+}
+
+async function loadLocalEntity(
+	db: Kysely<Database>,
+	reference: SyncEntityReference
+): Promise<LocalEntityState> {
 	if (reference.entityType === 'project-transcription') {
 		const row = await db
 			.selectFrom('project_transcriptions')
-			.innerJoin('transcriptions', 'transcriptions.id', 'project_transcriptions.transcription_id')
+			.innerJoin(
+				'transcriptions',
+				'transcriptions.id',
+				'project_transcriptions.transcription_id'
+			)
 			.select([
 				'project_transcriptions.project_id as project_id',
 				'transcriptions.current_revision_id as current_revision_id',
@@ -1024,7 +1593,8 @@ async function loadLocalEntity(db: Kysely<Database>, reference: SyncEntityRefere
 		.where('id', '=', reference.entityId)
 		.executeTakeFirst();
 	if (!row) throw new Error(`Collation ${reference.entityId} was not found.`);
-	if (!row.project_id) throw new Error(`Collation ${reference.entityId} is not attached to a project.`);
+	if (!row.project_id)
+		throw new Error(`Collation ${reference.entityId} is not attached to a project.`);
 	const head = {
 		revisionId: row.current_revision_id,
 		contentHash: row.current_content_hash,
@@ -1043,7 +1613,7 @@ async function loadLocalEntity(db: Kysely<Database>, reference: SyncEntityRefere
 async function getSyncMetadata(
 	db: DbExecutor,
 	context: SyncProjectContext,
-	reference: SyncEntityReference,
+	reference: SyncEntityReference
 ): Promise<CloudSyncMetadataRecord | null> {
 	const row = await db
 		.selectFrom('cloud_sync_metadata')
@@ -1062,7 +1632,7 @@ async function upsertSyncMetadata(
 	context: SyncProjectContext,
 	local: LocalEntityState,
 	write: CloudWriteResult,
-	now: string,
+	now: string
 ): Promise<void> {
 	await db
 		.insertInto('cloud_sync_metadata')
@@ -1079,15 +1649,17 @@ async function upsertSyncMetadata(
 			last_synced_hash: local.head.contentHash,
 			last_synced_at: now,
 		})
-		.onConflict((oc) =>
-			oc.columns(['connection_id', 'scope_type', 'scope_id', 'entity_type', 'entity_id']).doUpdateSet({
-				cloud_file_id: write.id,
-				cloud_file_revision: write.revision,
-				cloud_path: local.primaryPath,
-				last_synced_revision: local.head.revisionId,
-				last_synced_hash: local.head.contentHash,
-				last_synced_at: now,
-			}),
+		.onConflict(oc =>
+			oc
+				.columns(['connection_id', 'scope_type', 'scope_id', 'entity_type', 'entity_id'])
+				.doUpdateSet({
+					cloud_file_id: write.id,
+					cloud_file_revision: write.revision,
+					cloud_path: local.primaryPath,
+					last_synced_revision: local.head.revisionId,
+					last_synced_hash: local.head.contentHash,
+					last_synced_at: now,
+				})
 		)
 		.execute();
 }
@@ -1097,7 +1669,7 @@ async function upsertSyncMetadataFromRemote(
 	context: SyncProjectContext,
 	local: LocalEntityState,
 	remote: RemoteEntityState,
-	now: string,
+	now: string
 ): Promise<void> {
 	await upsertSyncMetadata(
 		db,
@@ -1110,34 +1682,34 @@ async function upsertSyncMetadataFromRemote(
 			modifiedAt: remote.metadata.modifiedAt,
 			size: remote.metadata.size,
 		},
-		now,
+		now
 	);
 }
 
 async function listRemoteMetadata(
 	provider: CloudStorageProvider,
 	context: SyncProjectContext,
-	prefix = '',
+	prefix = ''
 ): Promise<CloudFileMetadata[]> {
 	let cursor: string | undefined;
 	const entries: CloudFileMetadata[] = [];
 	do {
 		const page = await provider.listFiles(context.cloudFolderId, { recursive: true, cursor });
-		entries.push(...page.entries.filter((entry) => !entry.isFolder && !entry.isDeleted));
+		entries.push(...page.entries.filter(entry => !entry.isFolder && !entry.isDeleted));
 		cursor = page.hasMore ? page.cursor : undefined;
 	} while (cursor);
 	return prefix
-		? entries.filter((entry) => relativeEntryPath(entry.path, context).startsWith(prefix))
+		? entries.filter(entry => relativeEntryPath(entry.path, context).startsWith(prefix))
 		: entries;
 }
 
 async function findRemoteMetadata(
 	provider: CloudStorageProvider,
 	context: SyncProjectContext,
-	path: string,
+	path: string
 ): Promise<CloudFileMetadata | null> {
 	const entries = await listRemoteMetadata(provider, context);
-	return entries.find((entry) => relativeEntryPath(entry.path, context) === path) ?? null;
+	return entries.find(entry => relativeEntryPath(entry.path, context) === path) ?? null;
 }
 
 function relativeEntryPath(path: string, context: SyncProjectContext): string {
@@ -1155,7 +1727,11 @@ function primaryPathFor(entityType: SyncEntityType, entityId: string): string {
 		: paths.collations(entityId);
 }
 
-function historyPathFor(entityType: SyncEntityType, entityId: string, checkpointId: string): string {
+function historyPathFor(
+	entityType: SyncEntityType,
+	entityId: string,
+	checkpointId: string
+): string {
 	const paths = projectRelativeCloudPaths();
 	return entityType === 'project-transcription'
 		? paths.transcriptionHistory(entityId, checkpointId)
@@ -1164,7 +1740,7 @@ function historyPathFor(entityType: SyncEntityType, entityId: string, checkpoint
 
 function classifyWithoutMetadata(
 	local: LocalEntityState,
-	remoteHead: SyncEntityHead,
+	remoteHead: SyncEntityHead
 ): ReturnType<typeof classifyCommittedHeadSync> {
 	if (!local.hasCommittedHead) return 'remote_only_change';
 	return headsEqual(local.head, remoteHead) ? 'in_sync' : 'local_remote_conflict';
@@ -1204,7 +1780,7 @@ function hasHead(head: SyncEntityHead): boolean {
 function baseResult(
 	uiState: SyncUiState,
 	entityType?: SyncEntityType,
-	entityId?: string,
+	entityId?: string
 ): SyncOperationResult {
 	return {
 		uiState,
@@ -1249,7 +1825,7 @@ class SyncQuarantineError extends Error {
 
 export function syncProviderErrorResult(
 	error: CloudProviderError,
-	entity?: SyncEntityReference,
+	entity?: SyncEntityReference
 ): SyncOperationResult {
 	return {
 		...baseResult('sync pending', entity?.entityType, entity?.entityId),

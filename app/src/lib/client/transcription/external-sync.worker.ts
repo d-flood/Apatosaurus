@@ -1,4 +1,8 @@
-import { serializeTei, type TeiMetadata as TEIMetadata, type TranscriptionDocument } from '$lib/tei/tei-transcription';
+import {
+	serializeTei,
+	type TeiMetadata as TEIMetadata,
+	type TranscriptionDocument,
+} from '$lib/tei/tei-transcription';
 
 interface SyncJob {
 	jobId: string;

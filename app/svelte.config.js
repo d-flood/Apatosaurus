@@ -27,7 +27,7 @@ const config = {
 				'annotation-editor',
 				'index.ts'
 			),
-			'triiiceratops': workspacePath('triiiceratops', 'src', 'lib', 'index.ts'),
+			triiiceratops: workspacePath('triiiceratops', 'src', 'lib', 'index.ts'),
 			$generated: 'src/generated',
 		},
 		prerender: {

@@ -6,6 +6,7 @@ export interface ProjectedWitnessRow {
 	witnessId: string;
 	transcriptionId: string | null;
 	sourceVersion: string;
+	sourceContentHash?: string;
 	content: string;
 	position: number;
 }
@@ -45,32 +46,33 @@ export function buildCollationProjection(input: {
 	getBaseTextForVariationUnit: (unitIndex: number) => string;
 	getBaseWitnessId: () => string | null;
 }): CollationProjection {
-	const activeWitnesses = input.witnesses.filter((witness) => !witness.isExcluded);
+	const activeWitnesses = input.witnesses.filter(witness => !witness.isExcluded);
 	const witnesses = activeWitnesses.map((witness, position) => ({
 		witnessId: witness.witnessId,
 		transcriptionId: witness.transcriptionId || null,
 		sourceVersion: witness.sourceVersion ?? '',
+		sourceContentHash: witness.sourceContentHash,
 		content: witness.content,
 		position,
 	}));
 
-	const tokens = activeWitnesses.flatMap((witness) =>
+	const tokens = activeWitnesses.flatMap(witness =>
 		witness.tokens.map((token, tokenIndex) => ({
 			witnessId: witness.witnessId,
 			tokenIndex,
 			tokenText: token.original,
-		})),
+		}))
 	);
 
 	const baseWitnessId = input.getBaseWitnessId();
 	const variationUnits = buildVariationUnitSpans(input.alignmentColumns).map(
 		({ startIndex, endIndex }) => {
 			const readings = [...input.getReadingsForUnit(startIndex)].sort(
-				(a, b) => a.order - b.order,
+				(a, b) => a.order - b.order
 			);
 			const baseReading =
 				(baseWitnessId
-					? readings.find((reading) => reading.witnessIds.includes(baseWitnessId))
+					? readings.find(reading => reading.witnessIds.includes(baseWitnessId))
 					: undefined) ?? readings[0];
 			return {
 				startIndex,
@@ -85,7 +87,7 @@ export function buildCollationProjection(input: {
 					witnessIds: reading.witnessIds,
 				})),
 			};
-		},
+		}
 	);
 
 	return {

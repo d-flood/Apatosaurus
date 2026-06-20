@@ -48,7 +48,7 @@ export default defineConfig({
 					'lib',
 					'plugins',
 					'annotation-editor',
-					'index.ts',
+					'index.ts'
 				),
 			},
 			{
@@ -61,7 +61,7 @@ export default defineConfig({
 		expect: { requireAssertions: true },
 		projects: [
 			{
-					extends: './vite.config.ts',
+				extends: './vite.config.ts',
 				test: {
 					name: 'client',
 					environment: 'browser',

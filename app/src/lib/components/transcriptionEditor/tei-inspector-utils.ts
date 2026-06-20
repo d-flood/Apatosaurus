@@ -1,7 +1,4 @@
-export function parseJsonObject(
-	value: string,
-	label: string
-): Record<string, any> {
+export function parseJsonObject(value: string, label: string): Record<string, any> {
 	let parsed: unknown;
 	try {
 		parsed = JSON.parse(value);
@@ -52,7 +49,9 @@ export function syncTeiNode(
 	return nextNode;
 }
 
-export function extractTextChildren(teiNode: Record<string, any> | null | undefined): string | null {
+export function extractTextChildren(
+	teiNode: Record<string, any> | null | undefined
+): string | null {
 	if (!teiNode || typeof teiNode !== 'object') return null;
 	return extractTextChildrenFromNodes(Array.isArray(teiNode.children) ? teiNode.children : []);
 }
@@ -118,7 +117,9 @@ export function applyTextLeafUpdates(
 			if (node?.type === 'text') {
 				return {
 					...node,
-					text: Object.prototype.hasOwnProperty.call(updates, key) ? updates[key] : node.text,
+					text: Object.prototype.hasOwnProperty.call(updates, key)
+						? updates[key]
+						: node.text,
 				};
 			}
 
@@ -183,7 +184,7 @@ const ATTR_KEY_LABELS: Record<string, string> = {
 	resp: 'Responsibility',
 	hand: 'Hand',
 	medium: 'Medium',
-	'function': 'Function',
+	function: 'Function',
 	target: 'Target',
 	n: 'Value',
 	ed: 'Edition',

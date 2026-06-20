@@ -11,9 +11,12 @@ import {
 	canonicalJson,
 	createCommittedCollationCheckpoint,
 	createCommittedTranscriptionCheckpoint,
+	getCollationCheckpointStatus,
+	getProjectTranscriptionCheckpointStatus,
 	hashCanonicalPayload,
 	isCollationDirty,
 	isTranscriptionDirty,
+	listCommittedTranscriptionCheckpoints,
 	type SerializedCollation,
 } from './revisions';
 
@@ -107,6 +110,18 @@ describe('revision hashing and checkpoints', () => {
 			},
 		});
 
+		const initialStatus = await getProjectTranscriptionCheckpointStatus(
+			harness.db,
+			projectTranscriptionId
+		);
+		expect(initialStatus).toMatchObject({
+			projectTranscriptionId,
+			projectOwnedTranscriptionId: snapshotId,
+			currentCheckpoint: null,
+			dirtyToCheckpoint: true,
+			commitState: 'never-committed',
+		});
+		expect(initialStatus.workingContentHash).toMatch(/^sha256:[0-9a-f]{64}$/);
 		expect(await isTranscriptionDirty(harness.db, projectTranscriptionId)).toBe(true);
 
 		const first = await createCommittedTranscriptionCheckpoint(harness.db, {
@@ -153,6 +168,14 @@ describe('revision hashing and checkpoints', () => {
 			id: snapshotId,
 			iiif_manifest_sources: [{ metadata_json: { a: 'first', b: 'second' } }],
 		});
+		expect(
+			await getProjectTranscriptionCheckpointStatus(harness.db, projectTranscriptionId)
+		).toMatchObject({
+			currentCheckpoint: { revisionId: 'tx-cp-1', contentHash: first.contentHash },
+			workingContentHash: first.contentHash,
+			dirtyToCheckpoint: false,
+			commitState: 'clean',
+		});
 		expect(await isTranscriptionDirty(harness.db, projectTranscriptionId)).toBe(false);
 
 		await updateTranscriptionContent(harness.db, {
@@ -161,6 +184,16 @@ describe('revision hashing and checkpoints', () => {
 			updatedAt: '2026-06-09T11:00:00.000Z',
 		});
 
+		const dirtyStatus = await getProjectTranscriptionCheckpointStatus(
+			harness.db,
+			projectTranscriptionId
+		);
+		expect(dirtyStatus).toMatchObject({
+			currentCheckpoint: { revisionId: 'tx-cp-1', contentHash: first.contentHash },
+			dirtyToCheckpoint: true,
+			commitState: 'dirty',
+		});
+		expect(dirtyStatus.workingContentHash).not.toBe(first.contentHash);
 		expect(await isTranscriptionDirty(harness.db, projectTranscriptionId)).toBe(true);
 
 		const second = await createCommittedTranscriptionCheckpoint(harness.db, {
@@ -172,6 +205,47 @@ describe('revision hashing and checkpoints', () => {
 		expect(second.parentCheckpointId).toBe('tx-cp-1');
 		expect(second.contentHash).not.toBe(first.contentHash);
 		expect(await isTranscriptionDirty(harness.db, projectTranscriptionId)).toBe(false);
+	});
+
+	it('lists committed transcription checkpoints newest-first and omits uncommitted rows', async () => {
+		await createTranscription(harness.db, {
+			id: 'tx-1',
+			title: 'Witness 01',
+			siglum: '01',
+			document: documentWithVerses(['Romans 1:1']),
+			transcriber: 'Editor',
+			repository: 'Library',
+			settlement: 'City',
+			language: 'grc',
+		});
+		await createProject(harness.db, { id: 'project-1', name: 'Project' });
+		const [snapshotId] = await syncProjectTranscriptionIds(harness.db, 'project-1', ['tx-1']);
+		const projectTranscriptionId = await getProjectTranscriptionId(snapshotId);
+
+		await createCommittedTranscriptionCheckpoint(harness.db, {
+			projectTranscriptionId,
+			checkpointId: 'tx-cp-a',
+			createdAt: '2026-06-20T10:00:00.000Z',
+		});
+		await updateTranscriptionContent(harness.db, {
+			id: snapshotId,
+			document: documentWithVerses(['Romans 1:2']),
+			updatedAt: '2026-06-20T11:00:00.000Z',
+		});
+		await createCommittedTranscriptionCheckpoint(harness.db, {
+			projectTranscriptionId,
+			checkpointId: 'tx-cp-b',
+			createdAt: '2026-06-20T12:00:00.000Z',
+		});
+
+		const summaries = await listCommittedTranscriptionCheckpoints(harness.db, snapshotId);
+
+		expect(summaries.map(row => row.id)).toEqual(['tx-cp-b', 'tx-cp-a']);
+		expect(summaries[0]).toMatchObject({
+			transcriptionId: snapshotId,
+			isCommitted: true,
+			parentCheckpointId: 'tx-cp-a',
+		});
 	});
 
 	it('creates committed collation checkpoints and tracks dirty working collations', async () => {
@@ -192,6 +266,12 @@ describe('revision hashing and checkpoints', () => {
 			now: '2026-06-09T09:30:00.000Z',
 		});
 
+		expect(await getCollationCheckpointStatus(harness.db, 'col-1')).toMatchObject({
+			collationId: 'col-1',
+			currentCheckpoint: null,
+			dirtyToCheckpoint: true,
+			commitState: 'never-committed',
+		});
 		expect(await isCollationDirty(harness.db, 'col-1')).toBe(true);
 
 		const first = await createCommittedCollationCheckpoint(harness.db, {
@@ -237,6 +317,12 @@ describe('revision hashing and checkpoints', () => {
 			variation_units: [{ readings: [{ witness_ids: ['A'] }, { witness_ids: ['B'] }] }],
 			artifacts: [{ artifact_type: 'collation_document_v1', payload: { a: 1, b: 2 } }],
 		});
+		expect(await getCollationCheckpointStatus(harness.db, 'col-1')).toMatchObject({
+			currentCheckpoint: { revisionId: 'col-cp-1', contentHash: first.contentHash },
+			workingContentHash: first.contentHash,
+			dirtyToCheckpoint: false,
+			commitState: 'clean',
+		});
 		expect(await isCollationDirty(harness.db, 'col-1')).toBe(false);
 
 		await updateCollationMetadata(harness.db, {
@@ -245,6 +331,13 @@ describe('revision hashing and checkpoints', () => {
 			updatedAt: '2026-06-09T11:00:00.000Z',
 		});
 
+		const dirtyStatus = await getCollationCheckpointStatus(harness.db, 'col-1');
+		expect(dirtyStatus).toMatchObject({
+			currentCheckpoint: { revisionId: 'col-cp-1', contentHash: first.contentHash },
+			dirtyToCheckpoint: true,
+			commitState: 'dirty',
+		});
+		expect(dirtyStatus.workingContentHash).not.toBe(first.contentHash);
 		expect(await isCollationDirty(harness.db, 'col-1')).toBe(true);
 
 		const second = await createCommittedCollationCheckpoint(harness.db, {

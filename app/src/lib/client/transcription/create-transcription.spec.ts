@@ -55,7 +55,7 @@ describe('create-transcription storage calls', () => {
 				{ ...baseInput, siglum: 'P48', title: 'Romans Witness 3' },
 			],
 			onChunkComplete,
-			2,
+			2
 		);
 
 		expect(ids).toEqual(['tx-1', 'tx-2', 'tx-3']);

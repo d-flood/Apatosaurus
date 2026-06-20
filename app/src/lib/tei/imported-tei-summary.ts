@@ -59,7 +59,7 @@ export function summarizeImportedTeiDocument(
 		verseIdentifiers,
 		correctionHands,
 		handShiftTargets,
-		summaryCounts,
+		summaryCounts
 	);
 	const sortedBooks = Array.from(bookIdentifiers).sort();
 	const sortedChapters = Array.from(chapterIdentifiers).sort(compareChapterIdentifiers);
@@ -78,8 +78,9 @@ export function summarizeImportedTeiDocument(
 		columnCount: document.pages.reduce((total, page) => total + page.columns.length, 0),
 		lineCount: document.pages.reduce(
 			(total, page) =>
-				total + page.columns.reduce((columnTotal, column) => columnTotal + column.lines.length, 0),
-			0,
+				total +
+				page.columns.reduce((columnTotal, column) => columnTotal + column.lines.length, 0),
+			0
 		),
 		bookIdentifiers: sortedBooks,
 		chapterIdentifiers: sortedChapters,
@@ -112,7 +113,7 @@ function collectDocumentSummaries(
 		marginaliaCount: number;
 		gapCount: number;
 		untranscribedCount: number;
-	},
+	}
 ) {
 	for (const page of pages) {
 		for (const column of page.columns) {
@@ -124,7 +125,7 @@ function collectDocumentSummaries(
 					verseIdentifiers,
 					correctionHands,
 					handShiftTargets,
-					summaryCounts,
+					summaryCounts
 				);
 			}
 		}
@@ -144,7 +145,7 @@ function collectSummariesFromLine(
 		marginaliaCount: number;
 		gapCount: number;
 		untranscribedCount: number;
-	},
+	}
 ) {
 	for (const item of line.items) {
 		if (item.type === 'milestone') {
@@ -197,7 +198,7 @@ function collectCorrectionHandsFromTextItem(
 	summaryCounts: {
 		correctionSiteCount: number;
 		correctionReadingCount: number;
-	},
+	}
 ) {
 	for (const mark of item.marks || []) {
 		if (mark.type === 'correction') {
@@ -210,7 +211,7 @@ function collectCorrectionHandsFromTextItem(
 function collectCorrectionHands(
 	corrections: CorrectionReading[],
 	correctionHands: Set<string>,
-	summaryCounts: { correctionReadingCount: number },
+	summaryCounts: { correctionReadingCount: number }
 ) {
 	for (const correction of corrections) {
 		summaryCounts.correctionReadingCount += 1;
@@ -268,7 +269,11 @@ function compareChapterIdentifiers(a: string, b: string): number {
 	return aParsed.chapter - bParsed.chapter;
 }
 
-function parseVerseIdentifier(identifier: string): { book: string; chapter: number; verse: number } {
+function parseVerseIdentifier(identifier: string): {
+	book: string;
+	chapter: number;
+	verse: number;
+} {
 	const match = identifier.match(/^(.*?)(?:\s+(\d+)(?::(\d+))?)?$/);
 	return {
 		book: match?.[1]?.trim() || identifier,
@@ -286,11 +291,5 @@ function formatHandInfo(hand: TeiHandInfo | undefined): string {
 }
 
 function uniqueStrings(values: Array<string | undefined>): string[] {
-	return Array.from(
-		new Set(
-			values
-				.map(value => value?.trim() || '')
-				.filter(Boolean),
-		),
-	);
+	return Array.from(new Set(values.map(value => value?.trim() || '').filter(Boolean)));
 }

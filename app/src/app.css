@@ -3,7 +3,9 @@
 @source "../../triiiceratops/src/lib/**/*.svelte";
 
 @plugin "daisyui" {
-	themes: light --default, dark --prefersdark;
+	themes:
+		light --default,
+		dark --prefersdark;
 }
 @plugin "daisyui/theme" {
 	name: 'majuscule';
@@ -86,12 +88,15 @@
 	font-family: 'GentiumAlt Regular';
 	font-style: normal;
 	font-weight: normal;
-	src: local('GentiumAlt Regular'), url('../static/fonts/GentiumAlt/GenAR101.woff') format('woff');
+	src:
+		local('GentiumAlt Regular'),
+		url('../static/fonts/GentiumAlt/GenAR101.woff') format('woff');
 }
 
 @font-face {
 	font-family: 'Lora-Regular';
-	src: url('../static/fonts/Lora/fonts/Lora-Regular.woff2') format('woff2'),
+	src:
+		url('../static/fonts/Lora/fonts/Lora-Regular.woff2') format('woff2'),
 		url('../static/fonts/Lora/fonts/Lora-Regular.woff') format('woff'),
 		url('../static/fonts/Lora/fonts/Lora-Regular.ttf') format('truetype');
 	font-weight: 400;

@@ -16,4 +16,3 @@ export const METAMARK_FUNCTION_OPTIONS: MetamarkFunctionOption[] = [
 	{ value: 'diple', label: 'Diple' },
 	{ value: 'paragraphus', label: 'Paragraphus' },
 ];
-

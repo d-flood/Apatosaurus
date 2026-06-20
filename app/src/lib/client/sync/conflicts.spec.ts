@@ -42,28 +42,28 @@ describe('local sync conflicts and tombstones', () => {
 				localHead: lastSyncedHead,
 				remoteHead: lastSyncedHead,
 				lastSyncedHead,
-			}),
+			})
 		).toBe('in_sync');
 		expect(
 			classifyCommittedHeadSync({
 				localHead: { revisionId: 'rev-2', contentHash: 'sha256:two' },
 				remoteHead: lastSyncedHead,
 				lastSyncedHead,
-			}),
+			})
 		).toBe('local_only_change');
 		expect(
 			classifyCommittedHeadSync({
 				localHead: lastSyncedHead,
 				remoteHead: { revisionId: 'rev-3', contentHash: 'sha256:three' },
 				lastSyncedHead,
-			}),
+			})
 		).toBe('remote_only_change');
 		expect(
 			classifyCommittedHeadSync({
 				localHead: { revisionId: 'rev-2', contentHash: 'sha256:two' },
 				remoteHead: { revisionId: 'rev-3', contentHash: 'sha256:three' },
 				lastSyncedHead,
-			}),
+			})
 		).toBe('local_remote_conflict');
 	});
 
@@ -99,10 +99,14 @@ describe('local sync conflicts and tombstones', () => {
 				.selectFrom('project_transcriptions')
 				.selectAll()
 				.where('id', '=', projectTranscriptionId)
-				.executeTakeFirst(),
+				.executeTakeFirst()
 		).resolves.toBeUndefined();
 		await expect(
-			harness.db.selectFrom('collations').selectAll().where('id', '=', 'col-1').executeTakeFirst(),
+			harness.db
+				.selectFrom('collations')
+				.selectAll()
+				.where('id', '=', 'col-1')
+				.executeTakeFirst()
 		).resolves.toBeUndefined();
 		expect(transcriptionTombstone).toMatchObject({
 			entity_type: 'project-transcription',
@@ -158,7 +162,11 @@ describe('local sync conflicts and tombstones', () => {
 			entityRevisionId: second.id,
 		});
 		await expect(
-			harness.db.selectFrom('collations').selectAll().where('id', '=', 'col-1').executeTakeFirst(),
+			harness.db
+				.selectFrom('collations')
+				.selectAll()
+				.where('id', '=', 'col-1')
+				.executeTakeFirst()
 		).resolves.toMatchObject({ current_revision_id: second.id, notes: 'Newer committed edit' });
 	});
 
@@ -214,14 +222,14 @@ describe('local sync conflicts and tombstones', () => {
 				.selectFrom('transcription_checkpoints')
 				.selectAll()
 				.where('id', '=', 'draft-cp-1')
-				.executeTakeFirst(),
+				.executeTakeFirst()
 		).resolves.toMatchObject({ is_committed: 0, parent_checkpoint_id: 'tx-cp-1' });
 		await expect(
 			harness.db
 				.selectFrom('transcriptions')
 				.select(['current_revision_id'])
 				.where('id', '=', snapshotId)
-				.executeTakeFirst(),
+				.executeTakeFirst()
 		).resolves.toEqual({ current_revision_id: 'tx-cp-1' });
 	});
 
@@ -270,14 +278,14 @@ describe('local sync conflicts and tombstones', () => {
 				.selectFrom('transcriptions')
 				.select(['current_revision_id'])
 				.where('id', '=', await getSnapshotId(projectTranscriptionId))
-				.executeTakeFirst(),
+				.executeTakeFirst()
 		).resolves.toEqual({ current_revision_id: 'tx-cp-1' });
 		await expect(
 			harness.db
 				.selectFrom('collations')
 				.select(['current_revision_id'])
 				.where('id', '=', 'col-1')
-				.executeTakeFirst(),
+				.executeTakeFirst()
 		).resolves.toEqual({ current_revision_id: 'col-cp-1' });
 	});
 });

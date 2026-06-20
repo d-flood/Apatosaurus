@@ -3,11 +3,21 @@ import type { CorrectionReading, TranscriptionDocument } from '$lib/tei/tei-tran
 import { createProjectCollationSettings } from './project-settings';
 import {
 	createProject,
+	getCollationVersionStatus as getLocalCollationVersionStatus,
 	getProject as getLocalProject,
+	getProjectTranscriptionStatus as getLocalProjectTranscriptionStatus,
+	getProjectTranscriptionStatusForOwnedTranscription as getLocalProjectTranscriptionStatusForOwnedTranscription,
 	getProjectTranscriptionIds as getLocalProjectTranscriptionIds,
+	listProjectCollationVersionStatuses as listLocalProjectCollationVersionStatuses,
 	listProjects as listLocalProjects,
 	listProjectTranscriptionOptions,
+	listProjectTranscriptionStatuses as listLocalProjectTranscriptionStatuses,
+	listProjectTranscriptionSourceCandidates as listLocalProjectTranscriptionSourceCandidates,
+	listCommittedTranscriptionCheckpoints as listLocalCommittedTranscriptionCheckpoints,
 	loadProjectTranscriptionContent,
+	promoteProjectTranscriptionToLibrary as promoteLocalProjectTranscriptionToLibrary,
+	addProjectTranscriptionFromProject as addLocalProjectTranscriptionFromProject,
+	refreshProjectTranscription as refreshLocalProjectTranscription,
 	syncProjectTranscriptionIds as syncLocalProjectTranscriptionIds,
 	updateProjectMetadata as updateLocalProjectMetadata,
 } from '$lib/client/db/client';
@@ -15,7 +25,14 @@ import type {
 	ProjectOption,
 	ProjectRecord,
 	ProjectTranscriptionOption as LocalProjectTranscriptionOption,
+	ProjectTranscriptionStatusOptions,
+	ProjectTranscriptionSourceCandidate,
+	PromoteProjectTranscriptionToLibraryInput,
+	AddProjectTranscriptionFromProjectInput,
+	RefreshProjectTranscriptionInput,
 } from '$lib/client/db/repositories/projects';
+import type { CollationVersionStatusOptions } from '$lib/client/db/repositories/collations';
+import type { TranscriptionCheckpointSummary } from '$lib/client/db/repositories/revisions';
 
 export interface ProjectTranscriptionHandOption {
 	id: string;
@@ -25,6 +42,22 @@ export interface ProjectTranscriptionHandOption {
 }
 
 export type { ProjectOption, ProjectRecord } from '$lib/client/db/repositories/projects';
+export type {
+	ProjectTranscriptionStatus,
+	ProjectTranscriptionStatusOptions,
+	ProjectTranscriptionSourceState,
+} from '$lib/client/db/repositories/projects';
+export type { RefreshProjectTranscriptionInput } from '$lib/client/db/repositories/projects';
+export type {
+	PromoteProjectTranscriptionToLibraryInput,
+	AddProjectTranscriptionFromProjectInput,
+	ProjectTranscriptionSourceCandidate,
+} from '$lib/client/db/repositories/projects';
+export type { TranscriptionCheckpointSummary } from '$lib/client/db/repositories/revisions';
+export type {
+	CollationVersionStatus,
+	CollationVersionStatusOptions,
+} from '$lib/client/db/repositories/collations';
 
 export interface ProjectTranscriptionOption extends LocalProjectTranscriptionOption {
 	id: string;
@@ -178,7 +211,9 @@ export async function updateProjectMetadata(
 	await updateLocalProjectMetadata({ projectId, ...updates });
 }
 
-export async function listTranscriptions(projectId?: string): Promise<ProjectTranscriptionOption[]> {
+export async function listTranscriptions(
+	projectId?: string
+): Promise<ProjectTranscriptionOption[]> {
 	const queryStartedAt = nowMs();
 	const rows = await listProjectTranscriptionOptions(projectId);
 	const queryElapsedMs = nowMs() - queryStartedAt;
@@ -189,6 +224,44 @@ export async function listTranscriptions(projectId?: string): Promise<ProjectTra
 		queryElapsedMs,
 	});
 	return options;
+}
+
+export async function listProjectTranscriptionStatuses(
+	projectId: string,
+	options?: ProjectTranscriptionStatusOptions
+) {
+	return listLocalProjectTranscriptionStatuses(projectId, options);
+}
+
+export async function getProjectTranscriptionStatus(
+	projectTranscriptionId: string,
+	options?: ProjectTranscriptionStatusOptions
+) {
+	return getLocalProjectTranscriptionStatus(projectTranscriptionId, options);
+}
+
+export async function getProjectTranscriptionStatusForOwnedTranscription(
+	projectOwnedTranscriptionId: string,
+	options?: ProjectTranscriptionStatusOptions
+) {
+	return getLocalProjectTranscriptionStatusForOwnedTranscription(
+		projectOwnedTranscriptionId,
+		options
+	);
+}
+
+export async function listProjectCollationVersionStatuses(
+	projectId: string,
+	options?: CollationVersionStatusOptions
+) {
+	return listLocalProjectCollationVersionStatuses(projectId, options);
+}
+
+export async function getCollationVersionStatus(
+	collationId: string,
+	options?: CollationVersionStatusOptions
+) {
+	return getLocalCollationVersionStatus(collationId, options);
 }
 
 export async function loadTranscriptionHands(
@@ -209,4 +282,32 @@ export async function syncProjectTranscriptionIds(
 	nextIds: string[]
 ): Promise<string[]> {
 	return syncLocalProjectTranscriptionIds(projectId, nextIds);
+}
+
+export async function refreshProjectTranscription(input: RefreshProjectTranscriptionInput) {
+	return refreshLocalProjectTranscription(input);
+}
+
+export async function promoteProjectTranscriptionToLibrary(
+	input: PromoteProjectTranscriptionToLibraryInput
+): Promise<string> {
+	return promoteLocalProjectTranscriptionToLibrary(input);
+}
+
+export async function addProjectTranscriptionFromProject(
+	input: AddProjectTranscriptionFromProjectInput
+): Promise<{ projectTranscriptionId: string; projectOwnedTranscriptionId: string }> {
+	return addLocalProjectTranscriptionFromProject(input);
+}
+
+export async function listProjectTranscriptionSourceCandidates(
+	targetProjectId: string
+): Promise<ProjectTranscriptionSourceCandidate[]> {
+	return listLocalProjectTranscriptionSourceCandidates(targetProjectId);
+}
+
+export async function listCommittedTranscriptionCheckpoints(
+	transcriptionId: string
+): Promise<TranscriptionCheckpointSummary[]> {
+	return listLocalCommittedTranscriptionCheckpoints(transcriptionId);
 }

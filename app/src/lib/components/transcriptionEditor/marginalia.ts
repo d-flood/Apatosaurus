@@ -71,9 +71,7 @@ export function createDefaultMarginaliaAttrs(
 	};
 }
 
-export function defaultPlacementForCategory(
-	category: Exclude<MarginaliaCategory, null>
-): string {
+export function defaultPlacementForCategory(category: Exclude<MarginaliaCategory, null>): string {
 	switch (category) {
 		case 'Marginal':
 			return 'lineRight';
@@ -95,9 +93,19 @@ export function marginaliaPlacementPreset(
 ): Record<string, any> {
 	switch (placement) {
 		case 'lineLeft':
-			return { place: 'margin left', segType: 'margin', segSubtype: 'lineleft', segPlace: 'margin left' };
+			return {
+				place: 'margin left',
+				segType: 'margin',
+				segSubtype: 'lineleft',
+				segPlace: 'margin left',
+			};
 		case 'lineRight':
-			return { place: 'margin right', segType: 'margin', segSubtype: 'lineright', segPlace: 'margin right' };
+			return {
+				place: 'margin right',
+				segType: 'margin',
+				segSubtype: 'lineright',
+				segPlace: 'margin right',
+			};
 		case 'margin':
 			return { place: 'margin', segType: 'margin', segSubtype: '', segPlace: 'margin' };
 		case 'lineAbove':
@@ -107,7 +115,12 @@ export function marginaliaPlacementPreset(
 		case 'columnTop':
 			return { place: 'top', segType: 'margin', segSubtype: 'coltop', segPlace: 'top' };
 		case 'columnBottom':
-			return { place: 'bottom', segType: 'margin', segSubtype: 'colbottom', segPlace: 'bottom' };
+			return {
+				place: 'bottom',
+				segType: 'margin',
+				segSubtype: 'colbottom',
+				segPlace: 'bottom',
+			};
 		case 'inline':
 			return { place: 'inline', segType: '', segSubtype: '', segPlace: 'inline' };
 		case 'inSpace':

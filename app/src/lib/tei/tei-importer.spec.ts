@@ -41,9 +41,13 @@ function getFormWorkInlineContent(fwNode: any): any[] {
 		return [];
 	}
 	return content.content.flatMap((column: any, columnIndex: number) => [
-		...(columnIndex > 0 ? [{ type: 'columnBreak', attrs: { teiAttrs: column.attrs?.breakAttrs || {} } }] : []),
+		...(columnIndex > 0
+			? [{ type: 'columnBreak', attrs: { teiAttrs: column.attrs?.breakAttrs || {} } }]
+			: []),
 		...((column.content || []) as any[]).flatMap((line: any, lineIndex: number) => [
-			...(lineIndex > 0 ? [{ type: 'lineBreak', attrs: { teiAttrs: line.attrs?.breakAttrs || {} } }] : []),
+			...(lineIndex > 0
+				? [{ type: 'lineBreak', attrs: { teiAttrs: line.attrs?.breakAttrs || {} } }]
+				: []),
 			...((line.content || []) as any[]),
 		]),
 	]);
@@ -160,7 +164,9 @@ describe('TEI importer wrapper', () => {
 		expect(document.teiAttrs).toMatchObject({ version: '5.0', 'xml:id': 'doc1' });
 		expect(document.textAttrs).toMatchObject({ type: 'transcription', 'xml:lang': 'grc' });
 		expect(document.bodyAttrs).toMatchObject({ ana: '#body-1' });
-		expect(serializeTeiNodes(document.textLeading)).toEqual(['<milestone unit="preface" n="p0"/>']);
+		expect(serializeTeiNodes(document.textLeading)).toEqual([
+			'<milestone unit="preface" n="p0"/>',
+		]);
 		expect(serializeTeiNodes(document.textBetweenFrontBody)).toEqual([
 			'<milestone unit="preface" n="p1"/>',
 		]);
@@ -285,7 +291,10 @@ describe('TEI importer wrapper', () => {
 				layouts: [{ columns: '2', writtenLines: '45', text: 'double column' }],
 				hands: [
 					{ attrs: { 'xml:id': 'firsthand', script: 'majuscule' }, text: 'first hand' },
-					{ attrs: { 'xml:id': 'corrector1', script: 'minuscule' }, text: 'corrector hand' },
+					{
+						attrs: { 'xml:id': 'corrector1', script: 'minuscule' },
+						text: 'corrector hand',
+					},
 				],
 				contents: [
 					{
@@ -324,7 +333,9 @@ describe('TEI importer wrapper', () => {
 		expect(suppliedNode).toMatchObject({
 			type: 'text',
 			text: 'ab',
-			marks: [{ type: 'lacunose', attrs: { teiAttrs: { source: '#ed1', reason: 'lost-folio' } } }],
+			marks: [
+				{ type: 'lacunose', attrs: { teiAttrs: { source: '#ed1', reason: 'lost-folio' } } },
+			],
 		});
 		expect(foreignNode).toMatchObject({
 			type: 'text',
@@ -371,7 +382,9 @@ describe('TEI importer wrapper', () => {
 
 	it('imports multi-word whole-token wrappers as flat marks on each word', () => {
 		const result = importTEI(
-			wrapInTEI('<pb n="1r"/><cb n="1"/><lb/><foreign xml:lang="la"><w>ab</w><w>cd</w></foreign>')
+			wrapInTEI(
+				'<pb n="1r"/><cb n="1"/><lb/><foreign xml:lang="la"><w>ab</w><w>cd</w></foreign>'
+			)
 		);
 
 		const line = result.content![0].content![0].content![0];
@@ -387,7 +400,9 @@ describe('TEI importer wrapper', () => {
 
 	it('imports structurally non-flat phrase wrappers as dedicated carrier nodes', () => {
 		const result = importTEI(
-			wrapInTEI('<pb n="1r"/><cb n="1"/><lb/><foreign xml:lang="la"><w>ab<lb break="no"/>cd</w></foreign>')
+			wrapInTEI(
+				'<pb n="1r"/><cb n="1"/><lb/><foreign xml:lang="la"><w>ab<lb break="no"/>cd</w></foreign>'
+			)
 		);
 
 		const line = result.content![0].content![0].content![0];
@@ -416,12 +431,16 @@ describe('TEI importer wrapper', () => {
 		);
 
 		const line = result.content![0].content![0].content![0];
-		const correctedText = line.content!.find(node => node.type === 'text' && node.text === 'alpha');
+		const correctedText = line.content!.find(
+			node => node.type === 'text' && node.text === 'alpha'
+		);
 		const correctionWrapper = correctedText?.marks?.[0]?.attrs?.corrections?.[0]?.content?.find(
 			(node: any) => node.type === 'teiWrapper'
 		);
 		const fwNode = line.content!.find(node => node.type === 'fw');
-		const fwWrapper = getFormWorkInlineContent(fwNode).find((node: any) => node.type === 'teiWrapper');
+		const fwWrapper = getFormWorkInlineContent(fwNode).find(
+			(node: any) => node.type === 'teiWrapper'
+		);
 
 		expect(correctionWrapper?.attrs?.tag).toBe('foreign');
 		expect(fwWrapper?.attrs?.tag).toBe('foreign');
@@ -442,7 +461,13 @@ describe('TEI importer wrapper', () => {
 		const line = result.content![0].content![0].content![0];
 		const atoms = line.content!.filter(node => node.type === 'teiAtom');
 
-		expect(atoms.map(node => node.attrs?.tag)).toEqual(['gb', 'ptr', 'media', 'note', 'ellipsis']);
+		expect(atoms.map(node => node.attrs?.tag)).toEqual([
+			'gb',
+			'ptr',
+			'media',
+			'note',
+			'ellipsis',
+		]);
 		expect(atoms[3]?.attrs?.text).toBe('see note');
 		expect(atoms[4]?.attrs?.teiAttrs).toEqual({ unit: 'chars', quantity: '2' });
 	});
@@ -450,7 +475,7 @@ describe('TEI importer wrapper', () => {
 	it('rejects non-simple apparatus markup that is out of scope for transcription editing', () => {
 		expect(() =>
 			importTEI(
-			wrapInTEI(`
+				wrapInTEI(`
 				<pb n="1r"/><cb n="1"/><lb/>
 				<app type="variant">
 					<lem wit="#A"><w>alpha</w></lem>

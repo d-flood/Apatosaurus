@@ -106,13 +106,20 @@ function getIntfEntryLabel(input: {
 	duplicateIndex: number;
 	totalForPage: number;
 }): string {
-	const baseLabel = input.folio || input.shelfFolioNums || (input.pageId ? `Page ${input.pageId}` : 'INTF image');
+	const baseLabel =
+		input.folio ||
+		input.shelfFolioNums ||
+		(input.pageId ? `Page ${input.pageId}` : 'INTF image');
 	if (input.totalForPage <= 1) return baseLabel;
 	if (input.surrId !== null) return `${baseLabel} (surr ${input.surrId})`;
 	return `${baseLabel} (${input.duplicateIndex + 1})`;
 }
 
-function getManifestLabel(input: { primaryName: string | null; docId: number | null; imageCount: number }): string {
+function getManifestLabel(input: {
+	primaryName: string | null;
+	docId: number | null;
+	imageCount: number;
+}): string {
 	if (input.primaryName && input.docId !== null) {
 		return `${input.primaryName} (INTF ${input.docId})`;
 	}
@@ -127,7 +134,10 @@ export function buildIntfManifestUrl(input: {
 }): string {
 	const docPart = input.docId !== null ? String(input.docId) : 'unknown';
 	const fingerprint = input.pageImages
-		.map(image => `${image.pageId ?? 'x'}:${image.sortOrder ?? 'x'}:${image.surrId ?? 'x'}:${image.imageUrl}`)
+		.map(
+			image =>
+				`${image.pageId ?? 'x'}:${image.sortOrder ?? 'x'}:${image.surrId ?? 'x'}:${image.imageUrl}`
+		)
 		.join('\n');
 	return `urn:apatopwa:iiif:intf:${docPart}:${hashString(fingerprint)}`;
 }
@@ -294,7 +304,12 @@ export function buildIntfManifest(input: {
 					? [{ label: { none: ['folio'] }, value: { none: [image.folio] } }]
 					: []),
 				...(image.shelfFolioNums
-					? [{ label: { none: ['shelfFolioNums'] }, value: { none: [image.shelfFolioNums] } }]
+					? [
+							{
+								label: { none: ['shelfFolioNums'] },
+								value: { none: [image.shelfFolioNums] },
+							},
+						]
 					: []),
 				...(image.pageId !== null
 					? [{ label: { none: ['pageID'] }, value: { none: [String(image.pageId)] } }]

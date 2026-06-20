@@ -50,7 +50,11 @@ describe('iiif repository', () => {
 
 		const rows = await listManifestSources(harness.db, 'tx-1');
 		expect(rows).toHaveLength(1);
-		expect(rows[0]).toMatchObject({ id: updated.id, label: 'Updated', metadata: { source: 'test', manifestJson: { id: 'manifest' } } });
+		expect(rows[0]).toMatchObject({
+			id: updated.id,
+			label: 'Updated',
+			metadata: { source: 'test', manifestJson: { id: 'manifest' } },
+		});
 	});
 
 	it('upserts and batch saves page canvas links with hard deletes through manifest cascade', async () => {
@@ -59,14 +63,26 @@ describe('iiif repository', () => {
 			manifestUrl: 'https://example.org/manifest.json',
 		});
 		await upsertPageCanvasLink(harness.db, linkInput(source.id, 'page-1', 'canvas-old', 0));
-		const updated = await upsertPageCanvasLink(harness.db, linkInput(source.id, 'page-1', 'canvas-new', 1));
+		const updated = await upsertPageCanvasLink(
+			harness.db,
+			linkInput(source.id, 'page-1', 'canvas-new', 1)
+		);
 		await savePageCanvasLinks(harness.db, [linkInput(source.id, 'page-2', 'canvas-2', 2)]);
 
 		expect(updated.canvasId).toBe('canvas-new');
-		expect(await findLinkedPageForCanvas(harness.db, { transcriptionId: 'tx-1', manifestSourceId: source.id, canvasId: 'canvas-new' })).toMatchObject({ pageId: 'page-1' });
+		expect(
+			await findLinkedPageForCanvas(harness.db, {
+				transcriptionId: 'tx-1',
+				manifestSourceId: source.id,
+				canvasId: 'canvas-new',
+			})
+		).toMatchObject({ pageId: 'page-1' });
 		expect(await listPageCanvasLinks(harness.db, 'tx-1')).toHaveLength(2);
 
-		await deleteManifestSource(harness.db, { transcriptionId: 'tx-1', manifestSourceId: source.id });
+		await deleteManifestSource(harness.db, {
+			transcriptionId: 'tx-1',
+			manifestSourceId: source.id,
+		});
 		expect(await listPageCanvasLinks(harness.db, 'tx-1')).toEqual([]);
 	});
 
@@ -85,12 +101,18 @@ describe('iiif repository', () => {
 				'@context': 'http://www.w3.org/ns/anno.jsonld',
 				id: 'anno-1',
 				type: 'Annotation',
-				body: [{ type: 'TextualBody', value: 'A long annotation body', purpose: 'commenting' }],
+				body: [
+					{ type: 'TextualBody', value: 'A long annotation body', purpose: 'commenting' },
+				],
 				target: { source: 'canvas-1', selector: { type: 'SvgSelector' } },
 			},
 		});
 
-		const full = await getCanvasAnnotation(harness.db, { transcriptionId: 'tx-1', manifestSourceId: source.id, annotationId: 'anno-1' });
+		const full = await getCanvasAnnotation(harness.db, {
+			transcriptionId: 'tx-1',
+			manifestSourceId: source.id,
+			annotationId: 'anno-1',
+		});
 		expect(full?.__fullBodyLoaded).toBe(true);
 		expect(Array.isArray(full?.body) ? full.body[0]?.value : full?.body?.value).toBe(
 			'A long annotation body'

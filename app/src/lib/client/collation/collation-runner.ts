@@ -597,13 +597,99 @@ function buildWitnessId(base: string, seen: Map<string, number>): string {
 	return count === 1 ? normalized : `${normalized}#${count}`;
 }
 
+export interface PrepareWitnessesFromDocumentInput {
+	document: StoredTranscriptionDocument;
+	verseIdentifier: string;
+	transcriptionId: string;
+	siglum: string;
+	sourceVersion: string;
+	options?: WitnessExtractionOptions;
+	seenWitnessIds?: Map<string, number>;
+}
+
+export function prepareWitnessesFromDocument(
+	input: PrepareWitnessesFromDocumentInput
+): PreparedWitness[] {
+	const {
+		document,
+		verseIdentifier,
+		transcriptionId,
+		siglum,
+		sourceVersion,
+		options = {},
+	} = input;
+	const seenWitnessIds = input.seenWitnessIds ?? new Map<string, number>();
+	const witnesses: PreparedWitness[] = [];
+	const baseHand = inferBaseHand(document);
+	const witnessBase = siglum || transcriptionId;
+
+	const firsthandTokens = extractWitnessTokensForVerse(document, verseIdentifier, options, {
+		kind: 'firsthand',
+		baseHand,
+		handId: baseHand,
+		treatment: 'full',
+	});
+	const firsthandContent = buildWitnessContent(firsthandTokens);
+	if (firsthandContent) {
+		witnesses.push({
+			id: buildWitnessId(witnessBase, seenWitnessIds),
+			siglum: witnessBase,
+			kind: 'firsthand',
+			handId: baseHand,
+			content: firsthandContent,
+			tokens: cloneSourceTokens(firsthandTokens),
+			fullContent: firsthandContent,
+			fullTokens: cloneSourceTokens(firsthandTokens),
+			transcriptionUid: transcriptionId,
+			sourceVersion,
+		});
+	}
+
+	const correctionHands = collectCorrectionHandsForVerse(document, verseIdentifier, baseHand);
+	for (const handId of correctionHands) {
+		const fullTokens = extractWitnessTokensForVerse(document, verseIdentifier, options, {
+			kind: 'corrector',
+			baseHand,
+			handId,
+			treatment: 'full',
+		});
+		const fragmentaryTokens = extractWitnessTokensForVerse(document, verseIdentifier, options, {
+			kind: 'corrector',
+			baseHand,
+			handId,
+			treatment: 'fragmentary',
+		});
+		const fullContent = buildWitnessContent(fullTokens);
+		const fragmentaryContent = buildWitnessContent(fragmentaryTokens);
+		if (!fullContent && !fragmentaryContent) continue;
+		const correctorSiglum = formatWitnessSiglum(witnessBase, handId, 'corrector');
+		witnesses.push({
+			id: buildWitnessId(`${witnessBase}:${handId}`, seenWitnessIds),
+			siglum: correctorSiglum,
+			kind: 'corrector',
+			handId,
+			content: fragmentaryContent || fullContent,
+			tokens: cloneSourceTokens(
+				fragmentaryTokens.length > 0 ? fragmentaryTokens : fullTokens
+			),
+			fullContent,
+			fullTokens: cloneSourceTokens(fullTokens),
+			fragmentaryContent,
+			fragmentaryTokens: cloneSourceTokens(fragmentaryTokens),
+			transcriptionUid: transcriptionId,
+			sourceVersion,
+		});
+	}
+
+	return witnesses;
+}
+
 export async function gatherWitnessesForVerse(
 	verseIdentifier: string,
 	transcriptionIds?: string[],
 	options: WitnessExtractionOptions = {}
 ): Promise<PreparedWitness[]> {
 	const verseRows = await getVerseIndexRowsForVerse(verseIdentifier, transcriptionIds);
-	const witnesses: PreparedWitness[] = [];
 	const seenWitnessIds = new Map<string, number>();
 	const orderedTranscriptionIds: string[] = [];
 	const seenTranscriptions = new Set<string>();
@@ -613,86 +699,35 @@ export async function gatherWitnessesForVerse(
 		seenTranscriptions.add(transcriptionId);
 		orderedTranscriptionIds.push(transcriptionId);
 	}
-	if (orderedTranscriptionIds.length === 0) return witnesses;
+	if (orderedTranscriptionIds.length === 0) return [];
 
-	const transcriptions: TranscriptionRecord[] = await getTranscriptionsByIds(orderedTranscriptionIds);
+	const transcriptions: TranscriptionRecord[] =
+		await getTranscriptionsByIds(orderedTranscriptionIds);
 	const transcriptionById = new Map(
 		transcriptions.map(transcription => [transcription.id, transcription] as const)
 	);
 
+	const witnesses: PreparedWitness[] = [];
 	for (const transcriptionId of orderedTranscriptionIds) {
 		const transcription = transcriptionById.get(transcriptionId);
 		if (!transcription) continue;
 		const document = coerceTranscriptionDocument(transcription.content_json);
 		if (!document) continue;
-		const baseHand = inferBaseHand(document);
-		const witnessBase = getPreferredTranscriptionLabel({
+		const siglum = getPreferredTranscriptionLabel({
 			document,
 			siglum: typeof transcription.siglum === 'string' ? transcription.siglum : null,
 			fallbackId: transcription.id || transcriptionId,
 		});
-		const firsthandTokens = extractWitnessTokensForVerse(document, verseIdentifier, options, {
-			kind: 'firsthand',
-			baseHand,
-			handId: baseHand,
-			treatment: 'full',
+		const prepared = prepareWitnessesFromDocument({
+			document,
+			verseIdentifier,
+			transcriptionId: transcription.id || transcriptionId,
+			siglum,
+			sourceVersion: String(transcription.current_revision_id || ''),
+			options,
+			seenWitnessIds,
 		});
-		const firsthandContent = buildWitnessContent(firsthandTokens);
-		if (firsthandContent) {
-			witnesses.push({
-				id: buildWitnessId(witnessBase, seenWitnessIds),
-				siglum: witnessBase,
-				kind: 'firsthand',
-				handId: baseHand,
-				content: firsthandContent,
-				tokens: cloneSourceTokens(firsthandTokens),
-				fullContent: firsthandContent,
-				fullTokens: cloneSourceTokens(firsthandTokens),
-				transcriptionUid: transcription.id || transcriptionId,
-				sourceVersion: String(transcription.current_revision_id || ''),
-			});
-		}
-
-		const correctionHands = collectCorrectionHandsForVerse(document, verseIdentifier, baseHand);
-		for (const handId of correctionHands) {
-			const fullTokens = extractWitnessTokensForVerse(document, verseIdentifier, options, {
-				kind: 'corrector',
-				baseHand,
-				handId,
-				treatment: 'full',
-			});
-			const fragmentaryTokens = extractWitnessTokensForVerse(
-				document,
-				verseIdentifier,
-				options,
-				{
-					kind: 'corrector',
-					baseHand,
-					handId,
-					treatment: 'fragmentary',
-				}
-			);
-			const fullContent = buildWitnessContent(fullTokens);
-			const fragmentaryContent = buildWitnessContent(fragmentaryTokens);
-			if (!fullContent && !fragmentaryContent) continue;
-			const siglum = formatWitnessSiglum(witnessBase, handId, 'corrector');
-			witnesses.push({
-				id: buildWitnessId(`${witnessBase}:${handId}`, seenWitnessIds),
-				siglum,
-				kind: 'corrector',
-				handId,
-				content: fragmentaryContent || fullContent,
-				tokens: cloneSourceTokens(
-					fragmentaryTokens.length > 0 ? fragmentaryTokens : fullTokens
-				),
-				fullContent,
-				fullTokens: cloneSourceTokens(fullTokens),
-				fragmentaryContent,
-				fragmentaryTokens: cloneSourceTokens(fragmentaryTokens),
-				transcriptionUid: transcription.id || transcriptionId,
-				sourceVersion: String(transcription.current_revision_id || ''),
-			});
-		}
+		witnesses.push(...prepared);
 	}
 
 	return witnesses;

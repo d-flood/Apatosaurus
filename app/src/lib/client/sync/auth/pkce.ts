@@ -41,16 +41,16 @@ export type PkceCallbackValidationResult =
 			code: string;
 			state: string;
 			codeVerifier: string;
-		}
+	  }
 	| {
 			ok: false;
 			error: PkceCallbackValidationError;
 			description?: string;
-		};
+	  };
 
 export async function createPkceAuthorizationRequest(
 	providerId: string,
-	now = new Date().toISOString(),
+	now = new Date().toISOString()
 ): Promise<PkceAuthorizationRequest> {
 	const codeVerifier = generateCodeVerifier();
 	return {
@@ -78,7 +78,7 @@ export function generatePkceState(byteLength = 32): string {
 export async function createCodeChallenge(codeVerifier: string): Promise<string> {
 	const digest = await globalThis.crypto?.subtle?.digest(
 		'SHA-256',
-		new TextEncoder().encode(codeVerifier),
+		new TextEncoder().encode(codeVerifier)
 	);
 	if (!digest) throw new Error('PKCE S256 code challenge requires Web Crypto support.');
 	return base64UrlEncode(new Uint8Array(digest));
@@ -87,14 +87,14 @@ export async function createCodeChallenge(codeVerifier: string): Promise<string>
 export function storePkceAuthorization(
 	store: PkceSessionStore,
 	pending: PendingPkceAuthorization,
-	key = PKCE_SESSION_STORAGE_KEY,
+	key = PKCE_SESSION_STORAGE_KEY
 ): void {
 	store.setItem(key, JSON.stringify(pending));
 }
 
 export function readPkceAuthorization(
 	store: PkceSessionStore,
-	key = PKCE_SESSION_STORAGE_KEY,
+	key = PKCE_SESSION_STORAGE_KEY
 ): PendingPkceAuthorization | null {
 	const raw = store.getItem(key);
 	if (!raw) return null;
@@ -108,7 +108,7 @@ export function readPkceAuthorization(
 
 export function consumePkceAuthorization(
 	store: PkceSessionStore,
-	key = PKCE_SESSION_STORAGE_KEY,
+	key = PKCE_SESSION_STORAGE_KEY
 ): PendingPkceAuthorization | null {
 	const pending = readPkceAuthorization(store, key);
 	store.removeItem(key);
@@ -128,7 +128,7 @@ export function parsePkceCallbackParams(input: string | URL | URLSearchParams): 
 export function validatePkceCallback(
 	input: string | URL | URLSearchParams,
 	pending: PendingPkceAuthorization | null,
-	expectedProviderId?: string,
+	expectedProviderId?: string
 ): PkceCallbackValidationResult {
 	const params = parsePkceCallbackParams(input);
 	if (params.error) {
@@ -174,7 +174,8 @@ function randomBytes(byteLength: number): Uint8Array {
 function base64UrlEncode(bytes: Uint8Array): string {
 	let binary = '';
 	for (const byte of bytes) binary += String.fromCharCode(byte);
-	const base64 = typeof btoa === 'function' ? btoa(binary) : Buffer.from(bytes).toString('base64');
+	const base64 =
+		typeof btoa === 'function' ? btoa(binary) : Buffer.from(bytes).toString('base64');
 	return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
 }
 

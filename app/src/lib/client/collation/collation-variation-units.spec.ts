@@ -8,7 +8,7 @@ import {
 } from './collation-variation-units';
 
 function makeGroupedRows(...witnessIds: string[]) {
-	return witnessIds.map((witnessId) => ({ witnessIds: [witnessId] }));
+	return witnessIds.map(witnessId => ({ witnessIds: [witnessId] }));
 }
 
 describe('collation variation units', () => {
@@ -19,8 +19,38 @@ describe('collation variation units', () => {
 				index: 0,
 				merged: false,
 				cells: [
-					['A', { text: 'και', regularizedText: 'και', alignmentValue: 'και', sourceTokenIds: ['A::0'], kind: 'text', gap: null, isOmission: false, isLacuna: false, isRegularized: false, ruleIds: [], regularizationTypes: [] }],
-					['B', { text: 'και', regularizedText: 'και', alignmentValue: 'και', sourceTokenIds: ['B::0'], kind: 'text', gap: null, isOmission: false, isLacuna: false, isRegularized: false, ruleIds: [], regularizationTypes: [] }],
+					[
+						'A',
+						{
+							text: 'και',
+							regularizedText: 'και',
+							alignmentValue: 'και',
+							sourceTokenIds: ['A::0'],
+							kind: 'text',
+							gap: null,
+							isOmission: false,
+							isLacuna: false,
+							isRegularized: false,
+							ruleIds: [],
+							regularizationTypes: [],
+						},
+					],
+					[
+						'B',
+						{
+							text: 'και',
+							regularizedText: 'και',
+							alignmentValue: 'και',
+							sourceTokenIds: ['B::0'],
+							kind: 'text',
+							gap: null,
+							isOmission: false,
+							isLacuna: false,
+							isRegularized: false,
+							ruleIds: [],
+							regularizationTypes: [],
+						},
+					],
 				],
 			},
 			{
@@ -28,8 +58,38 @@ describe('collation variation units', () => {
 				index: 1,
 				merged: false,
 				cells: [
-					['A', { text: 'ο', regularizedText: 'ο', alignmentValue: 'ο', sourceTokenIds: ['A::1'], kind: 'text', gap: null, isOmission: false, isLacuna: false, isRegularized: false, ruleIds: [], regularizationTypes: [] }],
-					['B', { text: 'του', regularizedText: 'του', alignmentValue: 'του', sourceTokenIds: ['B::1'], kind: 'text', gap: null, isOmission: false, isLacuna: false, isRegularized: false, ruleIds: [], regularizationTypes: [] }],
+					[
+						'A',
+						{
+							text: 'ο',
+							regularizedText: 'ο',
+							alignmentValue: 'ο',
+							sourceTokenIds: ['A::1'],
+							kind: 'text',
+							gap: null,
+							isOmission: false,
+							isLacuna: false,
+							isRegularized: false,
+							ruleIds: [],
+							regularizationTypes: [],
+						},
+					],
+					[
+						'B',
+						{
+							text: 'του',
+							regularizedText: 'του',
+							alignmentValue: 'του',
+							sourceTokenIds: ['B::1'],
+							kind: 'text',
+							gap: null,
+							isOmission: false,
+							isLacuna: false,
+							isRegularized: false,
+							ruleIds: [],
+							regularizationTypes: [],
+						},
+					],
 				],
 			},
 			{
@@ -37,8 +97,38 @@ describe('collation variation units', () => {
 				index: 2,
 				merged: false,
 				cells: [
-					['A', { text: 'λογος', regularizedText: 'λογος', alignmentValue: 'λογος', sourceTokenIds: ['A::2'], kind: 'text', gap: null, isOmission: false, isLacuna: false, isRegularized: false, ruleIds: [], regularizationTypes: [] }],
-					['B', { text: 'λογου', regularizedText: 'λογου', alignmentValue: 'λογου', sourceTokenIds: ['B::2'], kind: 'text', gap: null, isOmission: false, isLacuna: false, isRegularized: false, ruleIds: [], regularizationTypes: [] }],
+					[
+						'A',
+						{
+							text: 'λογος',
+							regularizedText: 'λογος',
+							alignmentValue: 'λογος',
+							sourceTokenIds: ['A::2'],
+							kind: 'text',
+							gap: null,
+							isOmission: false,
+							isLacuna: false,
+							isRegularized: false,
+							ruleIds: [],
+							regularizationTypes: [],
+						},
+					],
+					[
+						'B',
+						{
+							text: 'λογου',
+							regularizedText: 'λογου',
+							alignmentValue: 'λογου',
+							sourceTokenIds: ['B::2'],
+							kind: 'text',
+							gap: null,
+							isOmission: false,
+							isLacuna: false,
+							isRegularized: false,
+							ruleIds: [],
+							regularizationTypes: [],
+						},
+					],
 				],
 			},
 			{
@@ -46,8 +136,38 @@ describe('collation variation units', () => {
 				index: 3,
 				merged: false,
 				cells: [
-					['A', { text: 'ην', regularizedText: 'ην', alignmentValue: 'ην', sourceTokenIds: ['A::3'], kind: 'text', gap: null, isOmission: false, isLacuna: false, isRegularized: false, ruleIds: [], regularizationTypes: [] }],
-					['B', { text: 'ην', regularizedText: 'ην', alignmentValue: 'ην', sourceTokenIds: ['B::3'], kind: 'text', gap: null, isOmission: false, isLacuna: false, isRegularized: false, ruleIds: [], regularizationTypes: [] }],
+					[
+						'A',
+						{
+							text: 'ην',
+							regularizedText: 'ην',
+							alignmentValue: 'ην',
+							sourceTokenIds: ['A::3'],
+							kind: 'text',
+							gap: null,
+							isOmission: false,
+							isLacuna: false,
+							isRegularized: false,
+							ruleIds: [],
+							regularizationTypes: [],
+						},
+					],
+					[
+						'B',
+						{
+							text: 'ην',
+							regularizedText: 'ην',
+							alignmentValue: 'ην',
+							sourceTokenIds: ['B::3'],
+							kind: 'text',
+							gap: null,
+							isOmission: false,
+							isLacuna: false,
+							isRegularized: false,
+							ruleIds: [],
+							regularizationTypes: [],
+						},
+					],
 				],
 			},
 		]);
@@ -84,7 +204,12 @@ describe('collation variation units', () => {
 							ruleIds: [],
 							regularizationTypes: [],
 							originalSegments: [
-								{ text: 'θεος', hasUnclear: false, isPunctuation: false, isSupplied: false },
+								{
+									text: 'θεος',
+									hasUnclear: false,
+									isPunctuation: false,
+									isSupplied: false,
+								},
 							],
 						},
 					],
@@ -103,7 +228,12 @@ describe('collation variation units', () => {
 							ruleIds: ['rule-1'],
 							regularizationTypes: ['ns'],
 							originalSegments: [
-								{ text: 'θς', hasUnclear: false, isPunctuation: false, isSupplied: false },
+								{
+									text: 'θς',
+									hasUnclear: false,
+									isPunctuation: false,
+									isSupplied: false,
+								},
 							],
 						},
 					],
@@ -122,7 +252,12 @@ describe('collation variation units', () => {
 							ruleIds: ['rule-2'],
 							regularizationTypes: ['ns'],
 							originalSegments: [
-								{ text: 'θ(εο)ς', hasUnclear: false, isPunctuation: false, isSupplied: false },
+								{
+									text: 'θ(εο)ς',
+									hasUnclear: false,
+									isPunctuation: false,
+									isSupplied: false,
+								},
 							],
 						},
 					],
@@ -140,8 +275,8 @@ describe('collation variation units', () => {
 		expect(groups).toHaveLength(1);
 		expect(groups[0]?.parent.label).toBe('a.');
 		expect(groups[0]?.parent.witnessIds).toEqual(['A']);
-		expect(groups[0]?.children.map((reading) => reading.label)).toEqual(['a1', 'a2']);
-		expect(groups[0]?.children.map((reading) => reading.witnessIds)).toEqual([['C'], ['B']]);
+		expect(groups[0]?.children.map(reading => reading.label)).toEqual(['a1', 'a2']);
+		expect(groups[0]?.children.map(reading => reading.witnessIds)).toEqual([['C'], ['B']]);
 	});
 
 	it('attaches all original-form readings to the preferred primary within an equivalence group', () => {
@@ -166,7 +301,12 @@ describe('collation variation units', () => {
 							ruleIds: [],
 							regularizationTypes: [],
 							originalSegments: [
-								{ text: 'θεος', hasUnclear: false, isPunctuation: false, isSupplied: false },
+								{
+									text: 'θεος',
+									hasUnclear: false,
+									isPunctuation: false,
+									isSupplied: false,
+								},
 							],
 						},
 					],
@@ -185,7 +325,12 @@ describe('collation variation units', () => {
 							ruleIds: [],
 							regularizationTypes: [],
 							originalSegments: [
-								{ text: 'θεοσ', hasUnclear: false, isPunctuation: false, isSupplied: false },
+								{
+									text: 'θεοσ',
+									hasUnclear: false,
+									isPunctuation: false,
+									isSupplied: false,
+								},
 							],
 						},
 					],
@@ -204,7 +349,12 @@ describe('collation variation units', () => {
 							ruleIds: ['rule-1'],
 							regularizationTypes: ['ns'],
 							originalSegments: [
-								{ text: 'θς', hasUnclear: false, isPunctuation: false, isSupplied: false },
+								{
+									text: 'θς',
+									hasUnclear: false,
+									isPunctuation: false,
+									isSupplied: false,
+								},
 							],
 						},
 					],
@@ -222,8 +372,8 @@ describe('collation variation units', () => {
 		expect(groups).toHaveLength(1);
 		expect(groups[0]?.parent.label).toBe('a.');
 		expect(groups[0]?.parent.witnessIds).toEqual(['A']);
-		expect(groups[0]?.children.map((reading) => reading.label)).toEqual(['a1', 'a2']);
-		expect(groups[0]?.children.map((reading) => reading.witnessIds)).toEqual([['B'], ['C']]);
+		expect(groups[0]?.children.map(reading => reading.label)).toEqual(['a1', 'a2']);
+		expect(groups[0]?.children.map(reading => reading.witnessIds)).toEqual([['B'], ['C']]);
 	});
 
 	it('keeps the number of primary original readings aligned with regularized groups', () => {
@@ -233,11 +383,86 @@ describe('collation variation units', () => {
 				index: 0,
 				merged: false,
 				cells: [
-					['A', { text: 'alpha', regularizedText: 'omega', alignmentValue: 'omega', sourceTokenIds: ['A::0'], kind: 'text', gap: null, isOmission: false, isLacuna: false, isRegularized: false, ruleIds: [], regularizationTypes: [] }],
-					['B', { text: 'beta', regularizedText: 'omega', alignmentValue: 'omega', sourceTokenIds: ['B::0'], kind: 'text', gap: null, isOmission: false, isLacuna: false, isRegularized: false, ruleIds: [], regularizationTypes: [] }],
-					['C', { text: 'abbr', regularizedText: 'omega', alignmentValue: 'omega', sourceTokenIds: ['C::0'], kind: 'text', gap: null, isOmission: false, isLacuna: false, isRegularized: true, ruleIds: ['rule-1'], regularizationTypes: ['ns'] }],
-					['D', { text: 'delta', regularizedText: 'delta', alignmentValue: 'delta', sourceTokenIds: ['D::0'], kind: 'text', gap: null, isOmission: false, isLacuna: false, isRegularized: false, ruleIds: [], regularizationTypes: [] }],
-					['E', { text: 'delta-alt', regularizedText: 'delta', alignmentValue: 'delta', sourceTokenIds: ['E::0'], kind: 'text', gap: null, isOmission: false, isLacuna: false, isRegularized: false, ruleIds: [], regularizationTypes: [] }],
+					[
+						'A',
+						{
+							text: 'alpha',
+							regularizedText: 'omega',
+							alignmentValue: 'omega',
+							sourceTokenIds: ['A::0'],
+							kind: 'text',
+							gap: null,
+							isOmission: false,
+							isLacuna: false,
+							isRegularized: false,
+							ruleIds: [],
+							regularizationTypes: [],
+						},
+					],
+					[
+						'B',
+						{
+							text: 'beta',
+							regularizedText: 'omega',
+							alignmentValue: 'omega',
+							sourceTokenIds: ['B::0'],
+							kind: 'text',
+							gap: null,
+							isOmission: false,
+							isLacuna: false,
+							isRegularized: false,
+							ruleIds: [],
+							regularizationTypes: [],
+						},
+					],
+					[
+						'C',
+						{
+							text: 'abbr',
+							regularizedText: 'omega',
+							alignmentValue: 'omega',
+							sourceTokenIds: ['C::0'],
+							kind: 'text',
+							gap: null,
+							isOmission: false,
+							isLacuna: false,
+							isRegularized: true,
+							ruleIds: ['rule-1'],
+							regularizationTypes: ['ns'],
+						},
+					],
+					[
+						'D',
+						{
+							text: 'delta',
+							regularizedText: 'delta',
+							alignmentValue: 'delta',
+							sourceTokenIds: ['D::0'],
+							kind: 'text',
+							gap: null,
+							isOmission: false,
+							isLacuna: false,
+							isRegularized: false,
+							ruleIds: [],
+							regularizationTypes: [],
+						},
+					],
+					[
+						'E',
+						{
+							text: 'delta-alt',
+							regularizedText: 'delta',
+							alignmentValue: 'delta',
+							sourceTokenIds: ['E::0'],
+							kind: 'text',
+							gap: null,
+							isOmission: false,
+							isLacuna: false,
+							isRegularized: false,
+							ruleIds: [],
+							regularizationTypes: [],
+						},
+					],
 				],
 			},
 		]);
@@ -258,8 +483,11 @@ describe('collation variation units', () => {
 
 		expect(regularizedGroups).toHaveLength(2);
 		expect(originalGroups).toHaveLength(2);
-		expect(originalGroups[0]?.children.map((reading) => reading.witnessIds)).toEqual([['C'], ['B']]);
-		expect(originalGroups[1]?.children.map((reading) => reading.witnessIds)).toEqual([['E']]);
+		expect(originalGroups[0]?.children.map(reading => reading.witnessIds)).toEqual([
+			['C'],
+			['B'],
+		]);
+		expect(originalGroups[1]?.children.map(reading => reading.witnessIds)).toEqual([['E']]);
 	});
 
 	it('builds reusable reading families with a preferred parent and children', () => {
@@ -269,9 +497,54 @@ describe('collation variation units', () => {
 				index: 0,
 				merged: false,
 				cells: [
-					['A', { text: 'θεος', regularizedText: 'θεος', alignmentValue: 'θεος', sourceTokenIds: ['A::0'], kind: 'text', gap: null, isOmission: false, isLacuna: false, isRegularized: false, ruleIds: [], regularizationTypes: [] }],
-					['B', { text: 'θς', regularizedText: 'θεος', alignmentValue: 'θεος', sourceTokenIds: ['B::0'], kind: 'text', gap: null, isOmission: false, isLacuna: false, isRegularized: true, ruleIds: ['rule-1'], regularizationTypes: ['ns'] }],
-					['C', { text: 'θεοσ', regularizedText: 'θεος', alignmentValue: 'θεος', sourceTokenIds: ['C::0'], kind: 'text', gap: null, isOmission: false, isLacuna: false, isRegularized: false, ruleIds: [], regularizationTypes: [] }],
+					[
+						'A',
+						{
+							text: 'θεος',
+							regularizedText: 'θεος',
+							alignmentValue: 'θεος',
+							sourceTokenIds: ['A::0'],
+							kind: 'text',
+							gap: null,
+							isOmission: false,
+							isLacuna: false,
+							isRegularized: false,
+							ruleIds: [],
+							regularizationTypes: [],
+						},
+					],
+					[
+						'B',
+						{
+							text: 'θς',
+							regularizedText: 'θεος',
+							alignmentValue: 'θεος',
+							sourceTokenIds: ['B::0'],
+							kind: 'text',
+							gap: null,
+							isOmission: false,
+							isLacuna: false,
+							isRegularized: true,
+							ruleIds: ['rule-1'],
+							regularizationTypes: ['ns'],
+						},
+					],
+					[
+						'C',
+						{
+							text: 'θεοσ',
+							regularizedText: 'θεος',
+							alignmentValue: 'θεος',
+							sourceTokenIds: ['C::0'],
+							kind: 'text',
+							gap: null,
+							isOmission: false,
+							isLacuna: false,
+							isRegularized: false,
+							ruleIds: [],
+							regularizationTypes: [],
+						},
+					],
 				],
 			},
 		]);
@@ -298,8 +571,38 @@ describe('collation variation units', () => {
 				index: 0,
 				merged: false,
 				cells: [
-					['A', { text: 'θεος', regularizedText: 'θεος', alignmentValue: 'θεος', sourceTokenIds: ['A::0'], kind: 'text', gap: null, isOmission: false, isLacuna: false, isRegularized: false, ruleIds: [], regularizationTypes: [] }],
-					['B', { text: 'θς', regularizedText: 'θεος', alignmentValue: 'θεος', sourceTokenIds: ['B::0'], kind: 'text', gap: null, isOmission: false, isLacuna: false, isRegularized: true, ruleIds: ['rule-1'], regularizationTypes: ['ns'] }],
+					[
+						'A',
+						{
+							text: 'θεος',
+							regularizedText: 'θεος',
+							alignmentValue: 'θεος',
+							sourceTokenIds: ['A::0'],
+							kind: 'text',
+							gap: null,
+							isOmission: false,
+							isLacuna: false,
+							isRegularized: false,
+							ruleIds: [],
+							regularizationTypes: [],
+						},
+					],
+					[
+						'B',
+						{
+							text: 'θς',
+							regularizedText: 'θεος',
+							alignmentValue: 'θεος',
+							sourceTokenIds: ['B::0'],
+							kind: 'text',
+							gap: null,
+							isOmission: false,
+							isLacuna: false,
+							isRegularized: true,
+							ruleIds: ['rule-1'],
+							regularizationTypes: ['ns'],
+						},
+					],
 				],
 			},
 		]);
@@ -336,7 +639,12 @@ describe('collation variation units', () => {
 							ruleIds: [],
 							regularizationTypes: [],
 							originalSegments: [
-								{ text: 'προφητικων', hasUnclear: false, isPunctuation: false, isSupplied: false },
+								{
+									text: 'προφητικων',
+									hasUnclear: false,
+									isPunctuation: false,
+									isSupplied: false,
+								},
 							],
 						},
 					],
@@ -355,8 +663,18 @@ describe('collation variation units', () => {
 							ruleIds: [],
 							regularizationTypes: [],
 							originalSegments: [
-								{ text: 'προ', hasUnclear: false, isPunctuation: false, isSupplied: false },
-								{ text: 'φητικων', hasUnclear: false, isPunctuation: false, isSupplied: false },
+								{
+									text: 'προ',
+									hasUnclear: false,
+									isPunctuation: false,
+									isSupplied: false,
+								},
+								{
+									text: 'φητικων',
+									hasUnclear: false,
+									isPunctuation: false,
+									isSupplied: false,
+								},
 							],
 						},
 					],
@@ -383,10 +701,70 @@ describe('collation variation units', () => {
 				index: 0,
 				merged: false,
 				cells: [
-					['A', { text: 'alpha', regularizedText: 'omega', alignmentValue: 'omega', sourceTokenIds: ['A::0'], kind: 'text', gap: null, isOmission: false, isLacuna: false, isRegularized: true, ruleIds: ['rule-1'], regularizationTypes: ['ns'] }],
-					['B', { text: 'beta', regularizedText: 'omega', alignmentValue: 'omega', sourceTokenIds: ['B::0'], kind: 'text', gap: null, isOmission: false, isLacuna: false, isRegularized: true, ruleIds: ['rule-2'], regularizationTypes: ['ns'] }],
-					['C', { text: 'beta', regularizedText: 'omega', alignmentValue: 'omega', sourceTokenIds: ['C::0'], kind: 'text', gap: null, isOmission: false, isLacuna: false, isRegularized: true, ruleIds: ['rule-2'], regularizationTypes: ['ns'] }],
-					['D', { text: 'gamma', regularizedText: 'omega', alignmentValue: 'omega', sourceTokenIds: ['D::0'], kind: 'text', gap: null, isOmission: false, isLacuna: false, isRegularized: true, ruleIds: ['rule-3'], regularizationTypes: ['ns'] }],
+					[
+						'A',
+						{
+							text: 'alpha',
+							regularizedText: 'omega',
+							alignmentValue: 'omega',
+							sourceTokenIds: ['A::0'],
+							kind: 'text',
+							gap: null,
+							isOmission: false,
+							isLacuna: false,
+							isRegularized: true,
+							ruleIds: ['rule-1'],
+							regularizationTypes: ['ns'],
+						},
+					],
+					[
+						'B',
+						{
+							text: 'beta',
+							regularizedText: 'omega',
+							alignmentValue: 'omega',
+							sourceTokenIds: ['B::0'],
+							kind: 'text',
+							gap: null,
+							isOmission: false,
+							isLacuna: false,
+							isRegularized: true,
+							ruleIds: ['rule-2'],
+							regularizationTypes: ['ns'],
+						},
+					],
+					[
+						'C',
+						{
+							text: 'beta',
+							regularizedText: 'omega',
+							alignmentValue: 'omega',
+							sourceTokenIds: ['C::0'],
+							kind: 'text',
+							gap: null,
+							isOmission: false,
+							isLacuna: false,
+							isRegularized: true,
+							ruleIds: ['rule-2'],
+							regularizationTypes: ['ns'],
+						},
+					],
+					[
+						'D',
+						{
+							text: 'gamma',
+							regularizedText: 'omega',
+							alignmentValue: 'omega',
+							sourceTokenIds: ['D::0'],
+							kind: 'text',
+							gap: null,
+							isOmission: false,
+							isLacuna: false,
+							isRegularized: true,
+							ruleIds: ['rule-3'],
+							regularizationTypes: ['ns'],
+						},
+					],
 				],
 			},
 		]);
@@ -400,8 +778,8 @@ describe('collation variation units', () => {
 
 		expect(groups).toHaveLength(1);
 		expect(groups[0]?.parent.witnessIds).toEqual(['B', 'C']);
-		expect(groups[0]?.children.map((reading) => reading.label)).toEqual(['a1', 'a2']);
-		expect(groups[0]?.children.map((reading) => reading.witnessIds)).toEqual([['A'], ['D']]);
+		expect(groups[0]?.children.map(reading => reading.label)).toEqual(['a1', 'a2']);
+		expect(groups[0]?.children.map(reading => reading.witnessIds)).toEqual([['A'], ['D']]);
 	});
 
 	it('keeps regularized-mode readings as flat primary labels', () => {
@@ -411,9 +789,54 @@ describe('collation variation units', () => {
 				index: 0,
 				merged: false,
 				cells: [
-					['A', { text: 'θεος', regularizedText: 'θεος', alignmentValue: 'θεος', sourceTokenIds: ['A::0'], kind: 'text', gap: null, isOmission: false, isLacuna: false, isRegularized: false, ruleIds: [], regularizationTypes: [] }],
-					['B', { text: 'θς', regularizedText: 'θεος', alignmentValue: 'θεος', sourceTokenIds: ['B::0'], kind: 'text', gap: null, isOmission: false, isLacuna: false, isRegularized: true, ruleIds: ['rule-1'], regularizationTypes: ['ns'] }],
-					['C', { text: 'κυριος', regularizedText: 'κυριος', alignmentValue: 'κυριος', sourceTokenIds: ['C::0'], kind: 'text', gap: null, isOmission: false, isLacuna: false, isRegularized: false, ruleIds: [], regularizationTypes: [] }],
+					[
+						'A',
+						{
+							text: 'θεος',
+							regularizedText: 'θεος',
+							alignmentValue: 'θεος',
+							sourceTokenIds: ['A::0'],
+							kind: 'text',
+							gap: null,
+							isOmission: false,
+							isLacuna: false,
+							isRegularized: false,
+							ruleIds: [],
+							regularizationTypes: [],
+						},
+					],
+					[
+						'B',
+						{
+							text: 'θς',
+							regularizedText: 'θεος',
+							alignmentValue: 'θεος',
+							sourceTokenIds: ['B::0'],
+							kind: 'text',
+							gap: null,
+							isOmission: false,
+							isLacuna: false,
+							isRegularized: true,
+							ruleIds: ['rule-1'],
+							regularizationTypes: ['ns'],
+						},
+					],
+					[
+						'C',
+						{
+							text: 'κυριος',
+							regularizedText: 'κυριος',
+							alignmentValue: 'κυριος',
+							sourceTokenIds: ['C::0'],
+							kind: 'text',
+							gap: null,
+							isOmission: false,
+							isLacuna: false,
+							isRegularized: false,
+							ruleIds: [],
+							regularizationTypes: [],
+						},
+					],
 				],
 			},
 		]);
@@ -425,7 +848,7 @@ describe('collation variation units', () => {
 			baseWitnessId: 'A',
 		});
 
-		expect(groups.map((group) => group.parent.label)).toEqual(['a.', 'b.']);
-		expect(groups.every((group) => group.children.length === 0)).toBe(true);
+		expect(groups.map(group => group.parent.label)).toEqual(['a.', 'b.']);
+		expect(groups.every(group => group.children.length === 0)).toBe(true);
 	});
 });

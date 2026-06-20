@@ -2,7 +2,9 @@ import type { DbRequest, DbResponse } from './rpc';
 import {
 	createCollation,
 	deleteCollation,
+	getCollationVersionStatus,
 	listCollationsWithProjectNames,
+	listProjectCollationVersionStatuses,
 	loadCollation,
 	saveCollationArtifact,
 	saveCollationProjection,
@@ -10,14 +12,23 @@ import {
 } from './repositories/collations';
 import {
 	createProject,
+	forkProject,
 	getProject,
 	getProjectTranscriptionIds,
+	getProjectTranscriptionStatus,
+	getProjectTranscriptionStatusForOwnedTranscription,
 	listProjects,
 	listProjectTranscriptionOptions,
+	listProjectTranscriptionStatuses,
+	listProjectTranscriptionSourceCandidates,
 	loadTranscriptionContent,
+	promoteProjectTranscriptionToLibrary,
+	addProjectTranscriptionFromProject,
+	refreshProjectTranscription,
 	syncProjectTranscriptionIds,
 	updateProjectMetadata,
 } from './repositories/projects';
+import { removeLocalProject } from './repositories/project-removal';
 import {
 	createTranscription,
 	createTranscriptions,
@@ -39,13 +50,34 @@ import {
 	createCommittedTranscriptionCheckpoint,
 	isCollationDirty,
 	isTranscriptionDirty,
+	listCommittedTranscriptionCheckpoints,
+	loadCommittedTranscriptionCheckpointPayload,
 } from './repositories/revisions';
 import { clearDomainTables } from './repositories/maintenance';
 import {
 	disconnectCloudConnection,
+	getCloudConnection,
+	listCloudProjectFolders,
 	listCloudConnections,
+	updateCloudConnectionCredentials,
+	upsertCloudProjectFolder,
 	upsertCloudConnection,
 } from './repositories/cloud-connections';
+import {
+	backupProject,
+	backupProjectEntity,
+	deriveProjectBackupSummary,
+	downloadAndCompareProjectManifest,
+} from '$lib/client/sync/sync-manager';
+import { verifyRemoteProjectBackupHealth } from '$lib/client/sync/backup-health';
+import {
+	importCloudProject,
+	listCloudProjectCandidates,
+	pollLinkedProjectManifest,
+	pullLinkedProjectUpdates,
+} from '$lib/client/sync/project-restore';
+import { createProviderForConnection } from '$lib/client/sync/provider-factory';
+import type { CloudStorageProvider } from '$lib/client/sync/providers/provider';
 import type { Database } from './types.generated';
 import { createWorkerKysely } from './worker-kysely';
 import { LocalSqliteDatabase } from './worker-sqlite';
@@ -112,6 +144,169 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 		postMessage({ type: 'db:invalidate', domain: 'cloud-connections' });
 		return disconnected;
 	}
+	if (request.type === 'cloudProjectFolders.list') {
+		return listCloudProjectFolders(getKyselyDb(), request.projectId);
+	}
+	if (request.type === 'cloudProjectFolders.upsert') {
+		const folder = await upsertCloudProjectFolder(getKyselyDb(), request.input);
+		postMessage({ type: 'db:invalidate', domain: 'cloud-project-folders' });
+		return folder;
+	}
+	if (request.type === 'projectBackup.summary') {
+		return deriveProjectBackupSummary(getKyselyDb(), request.context, request.folder ?? null);
+	}
+	if (request.type === 'projectBackup.compareManifest') {
+		const db = getKyselyDb();
+		const connection = await getCloudConnection(db, request.context.connectionId);
+		if (!connection) throw new Error('Backup connection was not found.');
+		const provider = await createProviderForConnection(connection, {
+			onCredentialsUpdated: async credentials => {
+				await updateCloudConnectionCredentials(db, {
+					connectionId: connection.id,
+					credentials,
+				});
+			},
+		});
+		return downloadAndCompareProjectManifest(db, provider, request.context);
+	}
+	if (request.type === 'projectBackup.verifyHealth') {
+		const db = getKyselyDb();
+		const connection = await getCloudConnection(db, request.context.connectionId);
+		if (!connection) throw new Error('Backup connection was not found.');
+		const provider = await createProviderForConnection(connection, {
+			onCredentialsUpdated: async credentials => {
+				await updateCloudConnectionCredentials(db, {
+					connectionId: connection.id,
+					credentials,
+				});
+			},
+		});
+		return verifyRemoteProjectBackupHealth(db, provider, request.context);
+	}
+	if (request.type === 'projectBackup.removeLocalProject') {
+		const result = await removeLocalProject(getKyselyDb(), request.input);
+		postMessage({ type: 'db:invalidate', domain: 'projects' });
+		postMessage({ type: 'db:invalidate', domain: 'transcriptions' });
+		postMessage({ type: 'db:invalidate', domain: 'collations' });
+		postMessage({ type: 'db:invalidate', domain: 'cloud-project-folders' });
+		postMessage({ type: 'db:invalidate', domain: 'iiif' });
+		return result;
+	}
+	if (request.type === 'projectBackup.backup') {
+		const db = getKyselyDb();
+		const connection = await getCloudConnection(db, request.context.connectionId);
+		if (!connection) throw new Error('Backup connection was not found.');
+		const provider = await createProviderForConnection(connection, {
+			onCredentialsUpdated: async credentials => {
+				await updateCloudConnectionCredentials(db, {
+					connectionId: connection.id,
+					credentials,
+				});
+			},
+		});
+		const result = await backupProject(db, provider, request.context, {
+			folder: request.folder ?? null,
+			strict: request.strict ?? true,
+		});
+		postMessage({ type: 'db:invalidate', domain: 'cloud-project-folders' });
+		postMessage({ type: 'db:invalidate', domain: 'cloud-connections' });
+		return result;
+	}
+	if (request.type === 'projectBackup.backupEntity') {
+		const db = getKyselyDb();
+		const connection = await getCloudConnection(db, request.context.connectionId);
+		if (!connection) throw new Error('Backup connection was not found.');
+		const provider = await createProviderForConnection(connection, {
+			onCredentialsUpdated: async credentials => {
+				await updateCloudConnectionCredentials(db, {
+					connectionId: connection.id,
+					credentials,
+				});
+			},
+		});
+		const result = await backupProjectEntity(db, provider, request.context, request.reference, {
+			folder: request.folder ?? null,
+		});
+		postMessage({ type: 'db:invalidate', domain: 'cloud-project-folders' });
+		postMessage({
+			type: 'db:invalidate',
+			domain: request.reference.entityType === 'collation' ? 'collations' : 'transcriptions',
+		});
+		return result;
+	}
+	if (request.type === 'cloudProjects.listCandidates') {
+		const db = getKyselyDb();
+		const connection = await getCloudConnection(db, request.connectionId);
+		if (!connection) throw new Error('Cloud connection was not found.');
+		const provider = await createProviderForConnection(connection, {
+			onCredentialsUpdated: async credentials => {
+				await updateCloudConnectionCredentials(db, {
+					connectionId: connection.id,
+					credentials,
+				});
+			},
+		});
+		return listCloudProjectCandidates(
+			db,
+			provider,
+			connection.id,
+			request.rootFolderId?.trim() || providerRootFolderId(provider)
+		);
+	}
+	if (request.type === 'cloudProjects.import') {
+		const db = getKyselyDb();
+		const connection = await getCloudConnection(db, request.input.connectionId);
+		if (!connection) throw new Error('Cloud connection was not found.');
+		const provider = await createProviderForConnection(connection, {
+			onCredentialsUpdated: async credentials => {
+				await updateCloudConnectionCredentials(db, {
+					connectionId: connection.id,
+					credentials,
+				});
+			},
+		});
+		const result = await importCloudProject(db, provider, request.input);
+		postMessage({ type: 'db:invalidate', domain: 'projects' });
+		postMessage({ type: 'db:invalidate', domain: 'transcriptions' });
+		postMessage({ type: 'db:invalidate', domain: 'collations' });
+		postMessage({ type: 'db:invalidate', domain: 'iiif' });
+		postMessage({ type: 'db:invalidate', domain: 'cloud-project-folders' });
+		return result;
+	}
+	if (request.type === 'cloudProjects.pollLinkedManifest') {
+		const db = getKyselyDb();
+		const connection = await getCloudConnection(db, request.context.connectionId);
+		if (!connection) throw new Error('Cloud connection was not found.');
+		const provider = await createProviderForConnection(connection, {
+			onCredentialsUpdated: async credentials => {
+				await updateCloudConnectionCredentials(db, {
+					connectionId: connection.id,
+					credentials,
+				});
+			},
+		});
+		return pollLinkedProjectManifest(db, provider, request.context);
+	}
+	if (request.type === 'cloudProjects.pullLinkedUpdates') {
+		const db = getKyselyDb();
+		const connection = await getCloudConnection(db, request.context.connectionId);
+		if (!connection) throw new Error('Cloud connection was not found.');
+		const provider = await createProviderForConnection(connection, {
+			onCredentialsUpdated: async credentials => {
+				await updateCloudConnectionCredentials(db, {
+					connectionId: connection.id,
+					credentials,
+				});
+			},
+		});
+		const result = await pullLinkedProjectUpdates(db, provider, request.context);
+		postMessage({ type: 'db:invalidate', domain: 'projects' });
+		postMessage({ type: 'db:invalidate', domain: 'transcriptions' });
+		postMessage({ type: 'db:invalidate', domain: 'collations' });
+		postMessage({ type: 'db:invalidate', domain: 'iiif' });
+		postMessage({ type: 'db:invalidate', domain: 'cloud-project-folders' });
+		return result;
+	}
 	if (request.type === 'transcriptions.listSummaries')
 		return listTranscriptionSummaries(getKyselyDb());
 	if (request.type === 'transcriptions.getSummary')
@@ -169,6 +364,14 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 		postMessage({ type: 'db:invalidate', domain: 'projects' });
 		return id;
 	}
+	if (request.type === 'projects.fork') {
+		const result = await forkProject(getKyselyDb(), request.input);
+		postMessage({ type: 'db:invalidate', domain: 'projects' });
+		postMessage({ type: 'db:invalidate', domain: 'transcriptions' });
+		postMessage({ type: 'db:invalidate', domain: 'collations' });
+		postMessage({ type: 'db:invalidate', domain: 'iiif' });
+		return result;
+	}
 	if (request.type === 'projects.updateMetadata') {
 		await updateProjectMetadata(getKyselyDb(), request.input);
 		postMessage({ type: 'db:invalidate', domain: 'projects' });
@@ -176,6 +379,20 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 	}
 	if (request.type === 'projects.listTranscriptionOptions')
 		return listProjectTranscriptionOptions(getKyselyDb(), request.projectId);
+	if (request.type === 'projects.listTranscriptionStatuses')
+		return listProjectTranscriptionStatuses(getKyselyDb(), request.projectId, request.options);
+	if (request.type === 'projects.getTranscriptionStatus')
+		return getProjectTranscriptionStatus(
+			getKyselyDb(),
+			request.projectTranscriptionId,
+			request.options
+		);
+	if (request.type === 'projects.getTranscriptionStatusForOwnedTranscription')
+		return getProjectTranscriptionStatusForOwnedTranscription(
+			getKyselyDb(),
+			request.projectOwnedTranscriptionId,
+			request.options
+		);
 	if (request.type === 'projects.loadTranscriptionContent')
 		return loadTranscriptionContent(getKyselyDb(), request.transcriptionId);
 	if (request.type === 'projects.getTranscriptionIds')
@@ -191,6 +408,27 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 		postMessage({ type: 'db:invalidate', domain: 'iiif' });
 		return ids;
 	}
+	if (request.type === 'projects.refreshTranscription') {
+		const status = await refreshProjectTranscription(getKyselyDb(), request.input);
+		postMessage({ type: 'db:invalidate', domain: 'projects' });
+		postMessage({ type: 'db:invalidate', domain: 'transcriptions' });
+		postMessage({ type: 'db:invalidate', domain: 'iiif' });
+		return status;
+	}
+	if (request.type === 'projects.promoteTranscriptionToLibrary') {
+		const libraryId = await promoteProjectTranscriptionToLibrary(getKyselyDb(), request.input);
+		postMessage({ type: 'db:invalidate', domain: 'transcriptions' });
+		return libraryId;
+	}
+	if (request.type === 'projects.addTranscriptionFromProject') {
+		const result = await addProjectTranscriptionFromProject(getKyselyDb(), request.input);
+		postMessage({ type: 'db:invalidate', domain: 'projects' });
+		postMessage({ type: 'db:invalidate', domain: 'transcriptions' });
+		postMessage({ type: 'db:invalidate', domain: 'iiif' });
+		return result;
+	}
+	if (request.type === 'projects.listTranscriptionSourceCandidates')
+		return listProjectTranscriptionSourceCandidates(getKyselyDb(), request.targetProjectId);
 	if (request.type === 'collations.listWithProjectNames')
 		return listCollationsWithProjectNames(getKyselyDb());
 	if (request.type === 'collations.create') {
@@ -200,6 +438,14 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 	}
 	if (request.type === 'collations.load')
 		return loadCollation(getKyselyDb(), request.collationId);
+	if (request.type === 'collations.listProjectVersionStatuses')
+		return listProjectCollationVersionStatuses(
+			getKyselyDb(),
+			request.projectId,
+			request.options
+		);
+	if (request.type === 'collations.getVersionStatus')
+		return getCollationVersionStatus(getKyselyDb(), request.collationId, request.options);
 	if (request.type === 'collations.saveArtifact') {
 		const artifactId = await saveCollationArtifact(getKyselyDb(), request.input);
 		postMessage({ type: 'db:invalidate', domain: 'collations' });
@@ -311,6 +557,14 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 		return isTranscriptionDirty(getKyselyDb(), request.projectTranscriptionId);
 	if (request.type === 'revisions.isCollationDirty')
 		return isCollationDirty(getKyselyDb(), request.collationId);
+	if (request.type === 'revisions.listCommittedTranscriptionCheckpoints')
+		return listCommittedTranscriptionCheckpoints(getKyselyDb(), request.transcriptionId);
+	if (request.type === 'revisions.loadCommittedTranscriptionCheckpointPayload')
+		return loadCommittedTranscriptionCheckpointPayload(
+			getKyselyDb(),
+			request.transcriptionId,
+			request.checkpointId
+		);
 	if (request.type === 'transaction') {
 		await db.transaction(request.statements);
 		postMessage({
@@ -400,6 +654,16 @@ function timeWorkerStepSync<T>(label: string, step: () => T): T {
 		});
 		throw error;
 	}
+}
+
+function providerRootFolderId(provider: CloudStorageProvider): string {
+	if ('rootFolderId' in provider && typeof provider.rootFolderId === 'string') {
+		return provider.rootFolderId;
+	}
+	if ('rootPath' in provider && typeof provider.rootPath === 'string') {
+		return provider.rootPath;
+	}
+	return '';
 }
 
 function now(): number {

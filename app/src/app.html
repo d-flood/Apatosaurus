@@ -3,12 +3,15 @@
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
-		
+
 		<!-- PWA Meta Tags -->
-		<meta name="description" content="Offline-first manuscript transcription and collation tool" />
+		<meta
+			name="description"
+			content="Offline-first manuscript transcription and collation tool"
+		/>
 		<meta name="theme-color" content="#782b11" />
 		<link rel="manifest" href="%sveltekit.assets%/manifest.json" />
-		
+
 		<!-- iOS & Mobile Web App Meta Tags -->
 		<meta name="mobile-web-app-capable" content="yes" />
 		<meta name="apple-mobile-web-app-capable" content="yes" />
@@ -18,11 +21,19 @@
 		%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="hover">
-		<input type="checkbox" id="activeTheme" class="hidden theme-controller" value="majuscule" checked />
+		<input
+			type="checkbox"
+			id="activeTheme"
+			class="hidden theme-controller"
+			value="majuscule"
+			checked
+		/>
 		<script>
 			const currentTheme =
 				localStorage.getItem('theme') ||
-				(window.matchMedia('(prefers-color-scheme: dark)').matches ? 'minuscule' : 'majuscule');
+				(window.matchMedia('(prefers-color-scheme: dark)').matches
+					? 'minuscule'
+					: 'majuscule');
 			const themeController = document.getElementById('activeTheme');
 			if (themeController instanceof HTMLInputElement) {
 				themeController.value = currentTheme;

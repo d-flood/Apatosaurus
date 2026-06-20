@@ -75,10 +75,11 @@ describe('verse-index local DB bridge', () => {
 	});
 
 	it('rebuilds through one worker operation and reports label progress', async () => {
-		const progressUpdates: Array<{ completed: number; total: number; currentLabel: string }> = [];
+		const progressUpdates: Array<{ completed: number; total: number; currentLabel: string }> =
+			[];
 
 		const result = await rebuildPublicVerseIndexForTranscriptions(['tx-1'], {
-			onProgress: (progress) => {
+			onProgress: progress => {
 				progressUpdates.push({
 					completed: progress.completed,
 					total: progress.total,

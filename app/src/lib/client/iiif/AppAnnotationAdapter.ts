@@ -1,5 +1,8 @@
 import { manifestsState } from 'triiiceratops';
-import type { AnnotationStorageAdapter, W3CAnnotation } from 'triiiceratops/plugins/annotation-editor';
+import type {
+	AnnotationStorageAdapter,
+	W3CAnnotation,
+} from 'triiiceratops/plugins/annotation-editor';
 
 import {
 	deleteCanvasAnnotation,
@@ -36,12 +39,14 @@ export class AppAnnotationAdapter implements AnnotationStorageAdapter {
 		const context = await this.resolvePersistenceContext(manifestId, canvasId);
 		if (!context) return [];
 		const transcriptionId = this.resolveTranscriptionId();
-		const annotations = (await listCanvasAnnotations({
-			transcriptionId,
-			manifestSourceIds: [context.manifestSourceId],
-			canvasId: context.sourceCanvasId,
-			mode: 'headers',
-		})).map(annotation => this.mapAnnotationTargetToViewerCanvas(annotation, canvasId));
+		const annotations = (
+			await listCanvasAnnotations({
+				transcriptionId,
+				manifestSourceIds: [context.manifestSourceId],
+				canvasId: context.sourceCanvasId,
+				mode: 'headers',
+			})
+		).map(annotation => this.mapAnnotationTargetToViewerCanvas(annotation, canvasId));
 		this.injectIntoManifestState(manifestId, canvasId, annotations);
 		return annotations;
 	}
@@ -133,7 +138,9 @@ export class AppAnnotationAdapter implements AnnotationStorageAdapter {
 	): void {
 		const existing = manifestsState.getUserAnnotations(manifestId, canvasId);
 		const next = existing.some((entry: W3CAnnotation) => entry.id === annotation.id)
-			? existing.map((entry: W3CAnnotation) => (entry.id === annotation.id ? annotation : entry))
+			? existing.map((entry: W3CAnnotation) =>
+					entry.id === annotation.id ? annotation : entry
+				)
 			: [...existing, annotation];
 		this.injectIntoManifestState(manifestId, canvasId, next);
 	}

@@ -13,16 +13,23 @@ const MIGRATION_SQL = new Map<number, string>([[1, initialMigrationSql]]);
 export async function applyLocalDbMigrations(db: MigrationDatabase): Promise<void> {
 	const startedAt = now();
 	await timeMigrationStep('PRAGMA foreign_keys', () => db.exec('PRAGMA foreign_keys = ON'));
-	await timeMigrationStep('schema_migrations create', () => db.exec(`CREATE TABLE IF NOT EXISTS schema_migrations (
+	await timeMigrationStep('schema_migrations create', () =>
+		db.exec(`CREATE TABLE IF NOT EXISTS schema_migrations (
 		version INTEGER PRIMARY KEY,
 		name TEXT NOT NULL,
 		applied_at TEXT NOT NULL
-	)`));
-	const rows = await timeMigrationStep('schema_migrations select', () => db.query('SELECT version FROM schema_migrations'));
-	const applied = new Set(rows.map((row) => Number(row.version)));
+	)`)
+	);
+	const rows = await timeMigrationStep('schema_migrations select', () =>
+		db.query('SELECT version FROM schema_migrations')
+	);
+	const applied = new Set(rows.map(row => Number(row.version)));
 	for (const migration of LOCAL_DB_MIGRATIONS) {
 		if (applied.has(migration.version)) {
-			console.debug('[local-db] migration skipped', { version: migration.version, name: migration.name });
+			console.debug('[local-db] migration skipped', {
+				version: migration.version,
+				name: migration.name,
+			});
 			continue;
 		}
 		const sql = MIGRATION_SQL.get(migration.version);

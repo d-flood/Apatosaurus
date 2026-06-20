@@ -1,6 +1,9 @@
 import { notificationCenter } from '$lib/client/notification-center.svelte';
 import { attachLocalDbClient } from './client';
-import { clearLegacyDjazzkitPurgeMarker, purgeLegacyDjazzkitStorage } from './legacy-djazzkit-purge';
+import {
+	clearLegacyDjazzkitPurgeMarker,
+	purgeLegacyDjazzkitStorage,
+} from './legacy-djazzkit-purge';
 import { purgeLocalDbStorage } from './storage-reset';
 import type { DbRequest, DbResponse } from './rpc';
 
@@ -19,18 +22,24 @@ export async function ensureLocalDbRuntime(): Promise<void> {
 		await timeRuntimeStep('legacy djazzkit purge', () => purgeLegacyDjazzkitStorage());
 		const dbWorker = timeRuntimeStepSync('worker init', () => getLocalDbWorker());
 		await timeRuntimeStep('worker startup', () =>
-			withTimeout(sendInit(dbWorker), RUNTIME_INIT_TIMEOUT_MS, 'Timed out while starting the local SQLite database.')
+			withTimeout(
+				sendInit(dbWorker),
+				RUNTIME_INIT_TIMEOUT_MS,
+				'Timed out while starting the local SQLite database.'
+			)
 		);
 		initialized = true;
 		notificationCenter.remove(RUNTIME_FAILURE_NOTIFICATION_ID);
 		console.debug('[local-db] runtime ready', { elapsedMs: elapsed(startedAt) });
-	})().catch((error) => {
-		initialized = false;
-		reportRuntimeInitFailure(error);
-		throw error;
-	}).finally(() => {
-		initPromise = null;
-	});
+	})()
+		.catch(error => {
+			initialized = false;
+			reportRuntimeInitFailure(error);
+			throw error;
+		})
+		.finally(() => {
+			initPromise = null;
+		});
 	return initPromise;
 }
 
@@ -160,15 +169,19 @@ function postWorkerMessage(payload: Omit<DbRequest, 'id'>): Promise<void> {
 	});
 }
 
-export function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+export function withTimeout<T>(
+	promise: Promise<T>,
+	timeoutMs: number,
+	message: string
+): Promise<T> {
 	return new Promise((resolve, reject) => {
 		const timeoutId = setTimeout(() => reject(new Error(message)), timeoutMs);
 		promise.then(
-			(value) => {
+			value => {
 				clearTimeout(timeoutId);
 				resolve(value);
 			},
-			(error) => {
+			error => {
 				clearTimeout(timeoutId);
 				reject(error);
 			}

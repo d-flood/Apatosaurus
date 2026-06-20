@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { computeWordDiff } from './alignment-diff';
 
 function simplify(base: string | null, witness: string | null) {
-	return computeWordDiff(base, witness).map((s) => ({ kind: s.kind, text: s.text }));
+	return computeWordDiff(base, witness).map(s => ({ kind: s.kind, text: s.text }));
 }
 
 describe('computeWordDiff', () => {

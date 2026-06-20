@@ -1,16 +1,45 @@
 import type {
+	CloudProjectFolderRecord,
+	UpsertCloudProjectFolderInput,
 	CloudConnectionRecord,
 	UpsertCloudConnectionInput,
 } from './repositories/cloud-connections';
+import type { ProjectBackupHealth } from '../sync/backup-health';
+import type { RemoveLocalProjectInput, RemoveLocalProjectResult } from './repositories/project-removal';
+import type {
+	ProjectManifestComparison,
+	ProjectBackupResult,
+	ProjectBackupSummary,
+	SyncEntityReference,
+	SyncProjectContext,
+} from '../sync/sync-manager';
+import type {
+	CloudProjectCandidate,
+	ImportCloudProjectInput,
+	ImportCloudProjectResult,
+	LinkedProjectManifestContext,
+	PollLinkedProjectManifestResult,
+	PullLinkedProjectUpdatesResult,
+} from '../sync/project-restore';
 import type {
 	CreateProjectInput,
 	ProjectOption,
 	ProjectRecord,
 	ProjectTranscriptionOption,
+	ProjectTranscriptionStatusOptions,
+	ProjectTranscriptionStatus,
+	ProjectTranscriptionSourceCandidate,
+	PromoteProjectTranscriptionToLibraryInput,
+	AddProjectTranscriptionFromProjectInput,
+	ForkProjectInput,
+	ForkProjectResult,
+	RefreshProjectTranscriptionInput,
 	UpdateProjectMetadataInput,
 } from './repositories/projects';
 import type {
 	CollationListItem,
+	CollationVersionStatusOptions,
+	CollationVersionStatus,
 	CreateCollationInput,
 	LoadedCollation,
 	SaveCollationArtifactInput,
@@ -39,7 +68,9 @@ import type {
 	CollationCheckpoint,
 	CommitCollationInput,
 	CommitTranscriptionInput,
+	LoadedTranscriptionCheckpoint,
 	TranscriptionCheckpoint,
+	TranscriptionCheckpointSummary,
 } from './repositories/revisions';
 import type { ManifestSourceSummary, PageCanvasLink, SavePageCanvasLinkInput } from '../iiif/types';
 import type { W3CAnnotation } from 'triiiceratops/plugins/annotation-editor';
@@ -124,6 +155,10 @@ export interface ProjectRpcMap {
 		request: { type: 'projects.create'; input: CreateProjectInput };
 		response: string;
 	};
+	'projects.fork': {
+		request: { type: 'projects.fork'; input: ForkProjectInput };
+		response: ForkProjectResult;
+	};
 	'projects.updateMetadata': {
 		request: { type: 'projects.updateMetadata'; input: UpdateProjectMetadataInput };
 		response: null;
@@ -131,6 +166,30 @@ export interface ProjectRpcMap {
 	'projects.listTranscriptionOptions': {
 		request: { type: 'projects.listTranscriptionOptions'; projectId?: string };
 		response: ProjectTranscriptionOption[];
+	};
+	'projects.listTranscriptionStatuses': {
+		request: {
+			type: 'projects.listTranscriptionStatuses';
+			projectId: string;
+			options?: ProjectTranscriptionStatusOptions;
+		};
+		response: ProjectTranscriptionStatus[];
+	};
+	'projects.getTranscriptionStatus': {
+		request: {
+			type: 'projects.getTranscriptionStatus';
+			projectTranscriptionId: string;
+			options?: ProjectTranscriptionStatusOptions;
+		};
+		response: ProjectTranscriptionStatus;
+	};
+	'projects.getTranscriptionStatusForOwnedTranscription': {
+		request: {
+			type: 'projects.getTranscriptionStatusForOwnedTranscription';
+			projectOwnedTranscriptionId: string;
+			options?: ProjectTranscriptionStatusOptions;
+		};
+		response: ProjectTranscriptionStatus | null;
 	};
 	'projects.loadTranscriptionContent': {
 		request: { type: 'projects.loadTranscriptionContent'; transcriptionId: string };
@@ -143,6 +202,31 @@ export interface ProjectRpcMap {
 	'projects.syncTranscriptionIds': {
 		request: { type: 'projects.syncTranscriptionIds'; projectId: string; nextIds: string[] };
 		response: string[];
+	};
+	'projects.refreshTranscription': {
+		request: { type: 'projects.refreshTranscription'; input: RefreshProjectTranscriptionInput };
+		response: ProjectTranscriptionStatus;
+	};
+	'projects.promoteTranscriptionToLibrary': {
+		request: {
+			type: 'projects.promoteTranscriptionToLibrary';
+			input: PromoteProjectTranscriptionToLibraryInput;
+		};
+		response: string;
+	};
+	'projects.addTranscriptionFromProject': {
+		request: {
+			type: 'projects.addTranscriptionFromProject';
+			input: AddProjectTranscriptionFromProjectInput;
+		};
+		response: { projectTranscriptionId: string; projectOwnedTranscriptionId: string };
+	};
+	'projects.listTranscriptionSourceCandidates': {
+		request: {
+			type: 'projects.listTranscriptionSourceCandidates';
+			targetProjectId: string;
+		};
+		response: ProjectTranscriptionSourceCandidate[];
 	};
 }
 
@@ -162,6 +246,22 @@ export interface CollationRpcMap {
 	'collations.load': {
 		request: { type: 'collations.load'; collationId: string };
 		response: LoadedCollation | null;
+	};
+	'collations.listProjectVersionStatuses': {
+		request: {
+			type: 'collations.listProjectVersionStatuses';
+			projectId: string;
+			options?: CollationVersionStatusOptions;
+		};
+		response: CollationVersionStatus[];
+	};
+	'collations.getVersionStatus': {
+		request: {
+			type: 'collations.getVersionStatus';
+			collationId: string;
+			options?: CollationVersionStatusOptions;
+		};
+		response: CollationVersionStatus;
 	};
 	'collations.saveArtifact': {
 		request: { type: 'collations.saveArtifact'; input: SaveCollationArtifactInput };
@@ -285,6 +385,21 @@ export interface RevisionRpcMap {
 		request: { type: 'revisions.isCollationDirty'; collationId: string };
 		response: boolean;
 	};
+	'revisions.listCommittedTranscriptionCheckpoints': {
+		request: {
+			type: 'revisions.listCommittedTranscriptionCheckpoints';
+			transcriptionId: string;
+		};
+		response: TranscriptionCheckpointSummary[];
+	};
+	'revisions.loadCommittedTranscriptionCheckpointPayload': {
+		request: {
+			type: 'revisions.loadCommittedTranscriptionCheckpointPayload';
+			transcriptionId: string;
+			checkpointId: string;
+		};
+		response: LoadedTranscriptionCheckpoint;
+	};
 }
 
 export type RevisionRpcRequest = RevisionRpcMap[keyof RevisionRpcMap]['request'];
@@ -304,6 +419,81 @@ export interface CloudConnectionRpcMap {
 	'cloudConnections.disconnect': {
 		request: { type: 'cloudConnections.disconnect'; connectionId: string };
 		response: boolean;
+	};
+	'cloudProjectFolders.list': {
+		request: { type: 'cloudProjectFolders.list'; projectId: string };
+		response: CloudProjectFolderRecord[];
+	};
+	'cloudProjectFolders.upsert': {
+		request: { type: 'cloudProjectFolders.upsert'; input: UpsertCloudProjectFolderInput };
+		response: CloudProjectFolderRecord;
+	};
+	'projectBackup.summary': {
+		request: {
+			type: 'projectBackup.summary';
+			context: SyncProjectContext;
+			folder?: CloudProjectFolderRecord | null;
+		};
+		response: ProjectBackupSummary;
+	};
+	'projectBackup.compareManifest': {
+		request: {
+			type: 'projectBackup.compareManifest';
+			context: SyncProjectContext;
+		};
+		response: ProjectManifestComparison;
+	};
+	'projectBackup.verifyHealth': {
+		request: {
+			type: 'projectBackup.verifyHealth';
+			context: SyncProjectContext;
+		};
+		response: ProjectBackupHealth;
+	};
+	'projectBackup.removeLocalProject': {
+		request: { type: 'projectBackup.removeLocalProject'; input: RemoveLocalProjectInput };
+		response: RemoveLocalProjectResult;
+	};
+	'projectBackup.backup': {
+		request: {
+			type: 'projectBackup.backup';
+			context: SyncProjectContext;
+			folder?: CloudProjectFolderRecord | null;
+			strict?: boolean;
+		};
+		response: ProjectBackupResult;
+	};
+	'projectBackup.backupEntity': {
+		request: {
+			type: 'projectBackup.backupEntity';
+			context: SyncProjectContext;
+			reference: SyncEntityReference;
+			folder?: CloudProjectFolderRecord | null;
+		};
+		response: ProjectBackupResult;
+	};
+	'cloudProjects.listCandidates': {
+		request: {
+			type: 'cloudProjects.listCandidates';
+			connectionId: string;
+			rootFolderId?: string;
+		};
+		response: CloudProjectCandidate[];
+	};
+	'cloudProjects.import': {
+		request: { type: 'cloudProjects.import'; input: ImportCloudProjectInput };
+		response: ImportCloudProjectResult;
+	};
+	'cloudProjects.pollLinkedManifest': {
+		request: {
+			type: 'cloudProjects.pollLinkedManifest';
+			context: LinkedProjectManifestContext;
+		};
+		response: PollLinkedProjectManifestResult;
+	};
+	'cloudProjects.pullLinkedUpdates': {
+		request: { type: 'cloudProjects.pullLinkedUpdates'; context: LinkedProjectManifestContext };
+		response: PullLinkedProjectUpdatesResult;
 	};
 }
 

@@ -17,13 +17,34 @@ import type {
 	CloudConnectionRpcRequest,
 	CloudConnectionRpcResponse,
 } from './rpc';
+import type { RemoveLocalProjectInput, RemoveLocalProjectResult } from './repositories/project-removal';
 import type { W3CAnnotation } from 'triiiceratops/plugins/annotation-editor';
 import type {
 	CloudConnectionRecord,
+	CloudProjectFolderRecord,
+	UpsertCloudProjectFolderInput,
 	UpsertCloudConnectionInput,
 } from './repositories/cloud-connections';
+import type { ProjectBackupHealth } from '../sync/backup-health';
+import type {
+	ProjectManifestComparison,
+	ProjectBackupResult,
+	ProjectBackupSummary,
+	SyncEntityReference,
+	SyncProjectContext,
+} from '../sync/sync-manager';
+import type {
+	CloudProjectCandidate,
+	ImportCloudProjectInput,
+	ImportCloudProjectResult,
+	LinkedProjectManifestContext,
+	PollLinkedProjectManifestResult,
+	PullLinkedProjectUpdatesResult,
+} from '../sync/project-restore';
 import type {
 	CollationListItem,
+	CollationVersionStatusOptions,
+	CollationVersionStatus,
 	CreateCollationInput,
 	LoadedCollation,
 	SaveCollationArtifactInput,
@@ -45,6 +66,14 @@ import type {
 	ProjectOption,
 	ProjectRecord,
 	ProjectTranscriptionOption,
+	ProjectTranscriptionStatusOptions,
+	ProjectTranscriptionStatus,
+	ProjectTranscriptionSourceCandidate,
+	PromoteProjectTranscriptionToLibraryInput,
+	AddProjectTranscriptionFromProjectInput,
+	ForkProjectInput,
+	ForkProjectResult,
+	RefreshProjectTranscriptionInput,
 	UpdateProjectMetadataInput,
 } from './repositories/projects';
 import type { EnsureManifestSourceInput } from './repositories/iiif';
@@ -52,7 +81,9 @@ import type {
 	CollationCheckpoint,
 	CommitCollationInput,
 	CommitTranscriptionInput,
+	LoadedTranscriptionCheckpoint,
 	TranscriptionCheckpoint,
+	TranscriptionCheckpointSummary,
 } from './repositories/revisions';
 import type {
 	AnnotationAnchor,
@@ -201,6 +232,10 @@ export async function createProject(input: CreateProjectInput): Promise<string> 
 	return sendProjectRequest({ type: 'projects.create', input });
 }
 
+export async function forkProject(input: ForkProjectInput): Promise<ForkProjectResult> {
+	return sendProjectRequest({ type: 'projects.fork', input });
+}
+
 export async function updateProjectMetadata(input: UpdateProjectMetadataInput): Promise<void> {
 	await sendProjectRequest({ type: 'projects.updateMetadata', input });
 }
@@ -209,6 +244,35 @@ export async function listProjectTranscriptionOptions(
 	projectId?: string
 ): Promise<ProjectTranscriptionOption[]> {
 	return sendProjectRequest({ type: 'projects.listTranscriptionOptions', projectId });
+}
+
+export async function listProjectTranscriptionStatuses(
+	projectId: string,
+	options?: ProjectTranscriptionStatusOptions
+): Promise<ProjectTranscriptionStatus[]> {
+	return sendProjectRequest({ type: 'projects.listTranscriptionStatuses', projectId, options });
+}
+
+export async function getProjectTranscriptionStatus(
+	projectTranscriptionId: string,
+	options?: ProjectTranscriptionStatusOptions
+): Promise<ProjectTranscriptionStatus> {
+	return sendProjectRequest({
+		type: 'projects.getTranscriptionStatus',
+		projectTranscriptionId,
+		options,
+	});
+}
+
+export async function getProjectTranscriptionStatusForOwnedTranscription(
+	projectOwnedTranscriptionId: string,
+	options?: ProjectTranscriptionStatusOptions
+): Promise<ProjectTranscriptionStatus | null> {
+	return sendProjectRequest({
+		type: 'projects.getTranscriptionStatusForOwnedTranscription',
+		projectOwnedTranscriptionId,
+		options,
+	});
 }
 
 export async function loadProjectTranscriptionContent(
@@ -228,6 +292,33 @@ export async function syncProjectTranscriptionIds(
 	return sendProjectRequest({ type: 'projects.syncTranscriptionIds', projectId, nextIds });
 }
 
+export async function refreshProjectTranscription(
+	input: RefreshProjectTranscriptionInput
+): Promise<ProjectTranscriptionStatus> {
+	return sendProjectRequest({ type: 'projects.refreshTranscription', input });
+}
+
+export async function promoteProjectTranscriptionToLibrary(
+	input: PromoteProjectTranscriptionToLibraryInput
+): Promise<string> {
+	return sendProjectRequest({ type: 'projects.promoteTranscriptionToLibrary', input });
+}
+
+export async function addProjectTranscriptionFromProject(
+	input: AddProjectTranscriptionFromProjectInput
+): Promise<{ projectTranscriptionId: string; projectOwnedTranscriptionId: string }> {
+	return sendProjectRequest({ type: 'projects.addTranscriptionFromProject', input });
+}
+
+export async function listProjectTranscriptionSourceCandidates(
+	targetProjectId: string
+): Promise<ProjectTranscriptionSourceCandidate[]> {
+	return sendProjectRequest({
+		type: 'projects.listTranscriptionSourceCandidates',
+		targetProjectId,
+	});
+}
+
 export async function listCollationsWithProjectNames(): Promise<CollationListItem[]> {
 	return sendCollationRequest({ type: 'collations.listWithProjectNames' });
 }
@@ -238,6 +329,24 @@ export async function createCollation(input: CreateCollationInput): Promise<stri
 
 export async function loadCollation(id: string): Promise<LoadedCollation | null> {
 	return sendCollationRequest({ type: 'collations.load', collationId: id });
+}
+
+export async function listProjectCollationVersionStatuses(
+	projectId: string,
+	options?: CollationVersionStatusOptions
+): Promise<CollationVersionStatus[]> {
+	return sendCollationRequest({
+		type: 'collations.listProjectVersionStatuses',
+		projectId,
+		options,
+	});
+}
+
+export async function getCollationVersionStatus(
+	collationId: string,
+	options?: CollationVersionStatusOptions
+): Promise<CollationVersionStatus> {
+	return sendCollationRequest({ type: 'collations.getVersionStatus', collationId, options });
 }
 
 export async function saveCollationArtifact(input: SaveCollationArtifactInput): Promise<string> {
@@ -405,6 +514,26 @@ export async function isCollationDirty(collationId: string): Promise<boolean> {
 	return sendRevisionRequest({ type: 'revisions.isCollationDirty', collationId });
 }
 
+export async function listCommittedTranscriptionCheckpoints(
+	transcriptionId: string
+): Promise<TranscriptionCheckpointSummary[]> {
+	return sendRevisionRequest({
+		type: 'revisions.listCommittedTranscriptionCheckpoints',
+		transcriptionId,
+	});
+}
+
+export async function loadCommittedTranscriptionCheckpointPayload(
+	transcriptionId: string,
+	checkpointId: string
+): Promise<LoadedTranscriptionCheckpoint> {
+	return sendRevisionRequest({
+		type: 'revisions.loadCommittedTranscriptionCheckpointPayload',
+		transcriptionId,
+		checkpointId,
+	});
+}
+
 export async function listCloudConnections(): Promise<CloudConnectionRecord[]> {
 	return sendCloudConnectionRequest({ type: 'cloudConnections.list' });
 }
@@ -417,6 +546,109 @@ export async function upsertCloudConnection(
 
 export async function disconnectCloudConnection(connectionId: string): Promise<boolean> {
 	return sendCloudConnectionRequest({ type: 'cloudConnections.disconnect', connectionId });
+}
+
+export async function listCloudProjectFolders(
+	projectId: string
+): Promise<CloudProjectFolderRecord[]> {
+	return sendCloudConnectionRequest({ type: 'cloudProjectFolders.list', projectId });
+}
+
+export async function upsertCloudProjectFolder(
+	input: UpsertCloudProjectFolderInput
+): Promise<CloudProjectFolderRecord> {
+	return sendCloudConnectionRequest({ type: 'cloudProjectFolders.upsert', input });
+}
+
+export async function deriveProjectBackupSummary(
+	context: SyncProjectContext,
+	folder?: CloudProjectFolderRecord | null
+): Promise<ProjectBackupSummary> {
+	return sendCloudConnectionRequest({ type: 'projectBackup.summary', context, folder });
+}
+
+export async function compareProjectBackupManifest(
+	context: SyncProjectContext
+): Promise<ProjectManifestComparison> {
+	return sendCloudConnectionRequest({ type: 'projectBackup.compareManifest', context });
+}
+
+export async function verifyProjectBackupHealth(
+	context: SyncProjectContext
+): Promise<ProjectBackupHealth> {
+	return sendCloudConnectionRequest({ type: 'projectBackup.verifyHealth', context });
+}
+
+export async function removeLocalProject(
+	input: RemoveLocalProjectInput
+): Promise<RemoveLocalProjectResult> {
+	return sendCloudConnectionRequest({ type: 'projectBackup.removeLocalProject', input });
+}
+
+export async function backupProject(
+	context: SyncProjectContext,
+	folder?: CloudProjectFolderRecord | null
+): Promise<ProjectBackupResult> {
+	return sendCloudConnectionRequest({
+		type: 'projectBackup.backup',
+		context,
+		folder,
+		strict: true,
+	});
+}
+
+export async function backupEligibleProjectEntities(
+	context: SyncProjectContext,
+	folder?: CloudProjectFolderRecord | null
+): Promise<ProjectBackupResult> {
+	return sendCloudConnectionRequest({
+		type: 'projectBackup.backup',
+		context,
+		folder,
+		strict: false,
+	});
+}
+
+export async function backupProjectEntity(
+	context: SyncProjectContext,
+	reference: SyncEntityReference,
+	folder?: CloudProjectFolderRecord | null
+): Promise<ProjectBackupResult> {
+	return sendCloudConnectionRequest({
+		type: 'projectBackup.backupEntity',
+		context,
+		reference,
+		folder,
+	});
+}
+
+export async function listCloudProjectCandidates(
+	connectionId: string,
+	rootFolderId?: string
+): Promise<CloudProjectCandidate[]> {
+	return sendCloudConnectionRequest({
+		type: 'cloudProjects.listCandidates',
+		connectionId,
+		rootFolderId,
+	});
+}
+
+export async function importCloudProject(
+	input: ImportCloudProjectInput
+): Promise<ImportCloudProjectResult> {
+	return sendCloudConnectionRequest({ type: 'cloudProjects.import', input });
+}
+
+export async function pollLinkedProjectManifest(
+	context: LinkedProjectManifestContext
+): Promise<PollLinkedProjectManifestResult> {
+	return sendCloudConnectionRequest({ type: 'cloudProjects.pollLinkedManifest', context });
+}
+
+export async function pullLinkedProjectUpdates(
+	context: LinkedProjectManifestContext
+): Promise<PullLinkedProjectUpdatesResult> {
+	return sendCloudConnectionRequest({ type: 'cloudProjects.pullLinkedUpdates', context });
 }
 
 export function attachLocalDbClient(worker: Worker): void {

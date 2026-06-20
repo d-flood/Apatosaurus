@@ -71,7 +71,7 @@ function postWorkerRequest<T>(message: WorkerIncomingMessage): Promise<T> {
 }
 
 export async function runCollationInWorker(
-	payload: CollationRunPayload,
+	payload: CollationRunPayload
 ): Promise<CollationRunResult> {
 	if (payload.witnesses.length < 2) {
 		throw new Error('At least two witnesses are required for collation.');
@@ -84,10 +84,14 @@ export async function runCollationInWorker(
 	});
 }
 
-export function makeCloneableCollationRunPayload(payload: CollationRunPayload): CollationRunPayload {
+export function makeCloneableCollationRunPayload(
+	payload: CollationRunPayload
+): CollationRunPayload {
 	return {
 		witnesses: payload.witnesses.map(makeCloneableWitnessInput),
-		options: payload.options ? { segmentation: payload.options.segmentation === true } : undefined,
+		options: payload.options
+			? { segmentation: payload.options.segmentation === true }
+			: undefined,
 	};
 }
 
@@ -106,7 +110,7 @@ function makeCloneableTokenInput(token: CollationTokenInput): CollationTokenInpu
 		sourceTokenIds: token.sourceTokenIds ? [...token.sourceTokenIds] : undefined,
 		kind: token.kind,
 		displayRegularized: token.displayRegularized ?? null,
-		originalSegments: token.originalSegments?.map((segment) => ({ ...segment })),
+		originalSegments: token.originalSegments?.map(segment => ({ ...segment })),
 		gap: cloneGapMetadata(token.gap),
 		hasUnclear: token.hasUnclear === true,
 		isPunctuation: token.isPunctuation === true,

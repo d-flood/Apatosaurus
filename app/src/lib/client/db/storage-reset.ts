@@ -16,7 +16,7 @@ export async function purgeLocalDbStorage(): Promise<void> {
 async function purgeLocalDbIndexedDbStorage(): Promise<void> {
 	if (typeof indexedDB === 'undefined') return;
 	const names = await getLocalIndexedDbNames();
-	await Promise.allSettled(names.map((name) => deleteIndexedDb(name)));
+	await Promise.allSettled(names.map(name => deleteIndexedDb(name)));
 }
 
 async function getLocalIndexedDbNames(): Promise<string[]> {
@@ -32,7 +32,7 @@ async function getLocalIndexedDbNames(): Promise<string[]> {
 }
 
 function deleteIndexedDb(name: string): Promise<void> {
-	return new Promise((resolve) => {
+	return new Promise(resolve => {
 		const request = indexedDB.deleteDatabase(name);
 		request.onsuccess = () => resolve();
 		request.onerror = () => resolve();
@@ -41,11 +41,14 @@ function deleteIndexedDb(name: string): Promise<void> {
 }
 
 async function purgeLocalDbOpfsStorage(): Promise<void> {
-	if (typeof navigator === 'undefined' || typeof navigator.storage?.getDirectory !== 'function') return;
+	if (typeof navigator === 'undefined' || typeof navigator.storage?.getDirectory !== 'function')
+		return;
 	const root = (await navigator.storage.getDirectory()) as DirectoryHandleWithEntries;
 	if (typeof root.entries !== 'function') return;
 	for await (const [name, handle] of root.entries()) {
 		if (!name.startsWith(LOCAL_DB_OPFS_PREFIX)) continue;
-		await root.removeEntry(name, { recursive: handle.kind === 'directory' }).catch(() => undefined);
+		await root
+			.removeEntry(name, { recursive: handle.kind === 'directory' })
+			.catch(() => undefined);
 	}
 }

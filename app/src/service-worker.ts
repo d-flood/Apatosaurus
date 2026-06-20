@@ -25,12 +25,12 @@ const STATIC_EXTENSIONS = [
 
 declare const self: ServiceWorkerGlobalScope;
 
-self.addEventListener('install', (event) => {
+self.addEventListener('install', event => {
 	event.waitUntil(
 		(async () => {
 			const cache = await caches.open(CACHE_NAME);
 			await Promise.all(
-				PRECACHE_URLS.map(async (url) => {
+				PRECACHE_URLS.map(async url => {
 					try {
 						await cache.add(url);
 					} catch (error) {
@@ -43,14 +43,12 @@ self.addEventListener('install', (event) => {
 	self.skipWaiting();
 });
 
-self.addEventListener('activate', (event) => {
+self.addEventListener('activate', event => {
 	event.waitUntil(
 		(async () => {
 			const cacheNames = await caches.keys();
 			await Promise.all(
-				cacheNames
-					.filter((name) => name !== CACHE_NAME)
-					.map((name) => caches.delete(name))
+				cacheNames.filter(name => name !== CACHE_NAME).map(name => caches.delete(name))
 			);
 		})()
 	);
@@ -70,7 +68,7 @@ function isSameOriginAsset(url: URL): boolean {
 		return true;
 	}
 
-	return STATIC_EXTENSIONS.some((ext) => url.pathname.endsWith(ext));
+	return STATIC_EXTENSIONS.some(ext => url.pathname.endsWith(ext));
 }
 
 async function handleNavigation(request: Request): Promise<Response> {
@@ -106,7 +104,7 @@ async function handleAssetRequest(request: Request): Promise<Response> {
 	const cachedResponse = await cache.match(request);
 
 	const networkUpdate = fetch(request)
-		.then((response) => {
+		.then(response => {
 			if (response.ok) {
 				cache.put(request, response.clone());
 			}
@@ -130,7 +128,7 @@ async function handleAssetRequest(request: Request): Promise<Response> {
 	});
 }
 
-self.addEventListener('fetch', (event) => {
+self.addEventListener('fetch', event => {
 	const { request } = event;
 	const url = new URL(request.url);
 

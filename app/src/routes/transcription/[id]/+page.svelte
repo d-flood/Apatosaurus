@@ -2,8 +2,14 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import { getTranscription, subscribeLocalDbInvalidations } from '$lib/client/db/client';
+	import {
+		createCommittedTranscriptionCheckpoint,
+		getProjectTranscriptionStatusForOwnedTranscription,
+		getTranscription,
+		subscribeLocalDbInvalidations,
+	} from '$lib/client/db/client';
 	import { ensureLocalDbRuntime } from '$lib/client/db/runtime';
+	import type { ProjectTranscriptionStatus } from '$lib/client/db/repositories/projects';
 	import { getVerseIndexRowsForTranscription, type VerseIndexRow } from '$lib/client/transcription/verse-index';
 	import {
 		mapLocalTranscriptionRecord,
@@ -55,12 +61,22 @@
 		verse: string;
 		token: string;
 	};
+	type TranscriptionEditorHandle = {
+		flushPendingAutosave: () => Promise<boolean>;
+	};
 
 	let transcription = $state<TranscriptionRecord | null>(null);
+	let transcriptionVersionStatus = $state<ProjectTranscriptionStatus | null>(null);
 	let loadError = $state<string | null>(null);
+	let versionStatusError = $state<string | null>(null);
 	let unsubscribeInvalidations: (() => void) | null = null;
 	let nowMs = $state(Date.now());
 	let hasUnsavedChanges = $state(false);
+	let isCommitFormOpen = $state(false);
+	let commitMessage = $state('');
+	let commitInFlight = $state(false);
+	let commitError = $state<string | null>(null);
+	let commitSuccess = $state<string | null>(null);
 	let iiifWorkspaceOpen = $state(false);
 	let iiifPopupOpen = $state(false);
 	let editorPages = $state<PageEditorMetadata[]>([]);
@@ -83,6 +99,7 @@
 	let goToVerseIdentifier = $state('');
 	let forcedVerseKey = $state('');
 	let forcedVerseNonce = $state(0);
+	let transcriptionEditorRef = $state<TranscriptionEditorHandle | null>(null);
 
 	const scrollToVerseRequest = $derived.by<ScrollToVerseRequest | null>(() => {
 		const book = page.url.searchParams.get('book')?.trim() ?? '';
@@ -175,22 +192,68 @@
 
 	const lastSavedText = $derived.by(() => {
 		const value = transcription?.updated_at;
-		if (!value) return 'Saved time unavailable';
+		if (!value) return 'Local save time unavailable';
 		const savedMs = new Date(value).getTime();
-		if (!Number.isFinite(savedMs)) return 'Saved time unavailable';
+		if (!Number.isFinite(savedMs)) return 'Local save time unavailable';
 		const diffSeconds = Math.max(0, Math.floor((nowMs - savedMs) / 1000));
-		if (diffSeconds < 5) return 'Saved just now';
-		if (diffSeconds < 60) return `Saved ${diffSeconds}s ago`;
+		if (diffSeconds < 5) return 'Saved locally just now';
+		if (diffSeconds < 60) return `Saved locally ${diffSeconds}s ago`;
 		const diffMinutes = Math.floor(diffSeconds / 60);
-		if (diffMinutes < 60) return `Saved ${diffMinutes}m ago`;
+		if (diffMinutes < 60) return `Saved locally ${diffMinutes}m ago`;
 		const diffHours = Math.floor(diffMinutes / 60);
-		if (diffHours < 24) return `Saved ${diffHours}h ago`;
+		if (diffHours < 24) return `Saved locally ${diffHours}h ago`;
 		const diffDays = Math.floor(diffHours / 24);
-		return `Saved ${diffDays}d ago`;
+		return `Saved locally ${diffDays}d ago`;
 	});
+
+	const versionStateText = $derived.by(() => {
+		if (!transcriptionVersionStatus) return '';
+		if (transcriptionVersionStatus.commitState === 'never-committed') {
+			return 'No committed version yet';
+		}
+		if (transcriptionVersionStatus.commitState === 'dirty') {
+			return 'Changes since commit';
+		}
+		return 'Committed';
+	});
+
+	const checkpointText = $derived.by(() => {
+		const checkpoint = transcriptionVersionStatus?.currentCheckpoint;
+		if (!checkpoint) return '';
+		return `Version ${shortRevisionId(checkpoint.revisionId)}`;
+	});
+
+	const canCommitVersion = $derived.by(() => {
+		return (
+			!!transcriptionVersionStatus?.isProjectOwned &&
+			!!transcriptionEditorRef &&
+			!commitInFlight &&
+			(transcriptionVersionStatus.commitState === 'never-committed' ||
+				transcriptionVersionStatus.commitState === 'dirty')
+		);
+	});
+
+	const commitDisabledReason = $derived.by(() => {
+		if (!transcriptionVersionStatus?.isProjectOwned) {
+			return 'Only project transcriptions can be committed for project backup.';
+		}
+		if (!transcriptionEditorRef) return 'Editor is still loading.';
+		if (commitInFlight) return 'Committing version.';
+		if (transcriptionVersionStatus.commitState === 'clean') {
+			return 'No changes since the last committed version.';
+		}
+		return '';
+	});
+
+	function shortRevisionId(revisionId: string): string {
+		return revisionId.length <= 12 ? revisionId : `${revisionId.slice(0, 8)}...`;
+	}
 
 	function handleSaveStateChange(saved: boolean) {
 		hasUnsavedChanges = !saved;
+		if (!saved) {
+			commitSuccess = null;
+		}
 		if (saved) {
 			nowMs = Date.now();
 		}
@@ -201,6 +264,80 @@
 			pageId,
 			token: Date.now(),
 		};
+	}
+
+	async function loadTranscription(isCancelled: () => boolean = () => false) {
+		await ensureLocalDbRuntime();
+		const nextTranscription = await getTranscription(transcriptionId);
+		if (isCancelled()) return;
+		transcription = nextTranscription ? mapLocalTranscriptionRecord(nextTranscription) : null;
+		loadError = nextTranscription ? null : 'Failed to load transcription';
+	}
+
+	async function loadTranscriptionVersionStatus(isCancelled: () => boolean = () => false) {
+		await ensureLocalDbRuntime();
+		try {
+			const nextStatus = await getProjectTranscriptionStatusForOwnedTranscription(transcriptionId);
+			if (isCancelled()) return;
+			transcriptionVersionStatus = nextStatus;
+			versionStatusError = null;
+		} catch (err) {
+			if (isCancelled()) return;
+			transcriptionVersionStatus = null;
+			versionStatusError = err instanceof Error ? err.message : 'Failed to load version status';
+			console.error('Failed to load transcription version status:', err);
+		}
+	}
+
+	async function loadVerseIndex(isCancelled: () => boolean = () => false) {
+		await ensureLocalDbRuntime();
+		const rows = await getVerseIndexRowsForTranscription(transcriptionId);
+		if (isCancelled()) return;
+		verseIndexOptions = rows.sort((a, b) =>
+			a.verse_identifier.localeCompare(b.verse_identifier, undefined, {
+				numeric: true,
+				sensitivity: 'base',
+			})
+		);
+	}
+
+	function openCommitForm() {
+		commitError = null;
+		commitSuccess = null;
+		isCommitFormOpen = true;
+	}
+
+	function closeCommitForm() {
+		if (commitInFlight) return;
+		isCommitFormOpen = false;
+		commitMessage = '';
+		commitError = null;
+	}
+
+	async function handleCommitVersion(event: SubmitEvent) {
+		event.preventDefault();
+		if (!canCommitVersion || !transcriptionVersionStatus) return;
+		commitInFlight = true;
+		commitError = null;
+		commitSuccess = null;
+		try {
+			const flushed = await transcriptionEditorRef?.flushPendingAutosave?.();
+			if (!flushed) {
+				throw new Error('Local save failed. Commit was not created.');
+			}
+			await createCommittedTranscriptionCheckpoint({
+				projectTranscriptionId: transcriptionVersionStatus.projectTranscriptionId,
+				commitMessage: commitMessage.trim() || null,
+			});
+			await Promise.all([loadTranscription(), loadTranscriptionVersionStatus()]);
+			isCommitFormOpen = false;
+			commitMessage = '';
+			commitSuccess = 'Committed locally';
+		} catch (err) {
+			commitError = err instanceof Error ? err.message : 'Failed to commit version';
+		} finally {
+			commitInFlight = false;
+		}
 	}
 
 	function buildVerseHref(book: string, chapter: string, verse: string): string {
@@ -371,44 +508,33 @@
 		unsubscribeInvalidations?.();
 		unsubscribeInvalidations = null;
 		transcription = null;
+		transcriptionVersionStatus = null;
 		loadError = null;
+		versionStatusError = null;
+		isCommitFormOpen = false;
+		commitMessage = '';
+		commitError = null;
+		commitSuccess = null;
 
-		async function loadTranscription() {
-			await ensureLocalDbRuntime();
-			const nextTranscription = await getTranscription(transcriptionId);
-			if (cancelled) return;
-			transcription = nextTranscription ? mapLocalTranscriptionRecord(nextTranscription) : null;
-			loadError = nextTranscription ? null : 'Failed to load transcription';
-		}
-
-		async function loadVerseIndex() {
-			await ensureLocalDbRuntime();
-			const rows = await getVerseIndexRowsForTranscription(transcriptionId);
-			if (cancelled) return;
-			verseIndexOptions = rows
-				.sort((a, b) =>
-					a.verse_identifier.localeCompare(b.verse_identifier, undefined, {
-						numeric: true,
-						sensitivity: 'base',
-					})
-				);
-		}
-
-		void loadTranscription()
+		void loadTranscription(() => cancelled)
 			.catch(err => {
 				if (cancelled) return;
 				loadError = err instanceof Error ? err.message : 'Failed to load transcription';
 				console.error('Failed to load transcription:', err);
 			});
+		void loadTranscriptionVersionStatus(() => cancelled);
 
 		unsubscribeInvalidations = subscribeLocalDbInvalidations(event => {
+			if (event.domain === 'transcriptions' || event.domain === 'projects') {
+				void loadTranscriptionVersionStatus(() => cancelled);
+			}
 			if (event.domain === 'transcriptions') {
-				void loadTranscription();
-				void loadVerseIndex();
+				void loadTranscription(() => cancelled);
+				void loadVerseIndex(() => cancelled);
 			}
 		});
 
-		void loadVerseIndex()
+		void loadVerseIndex(() => cancelled)
 			.catch(err => {
 				if (cancelled) return;
 				console.error('Failed to load verse index:', err);
@@ -479,7 +605,7 @@
 				>
 					<CheckCircle size={16} weight="fill" />
 				</span>
-				<span>{hasUnsavedChanges ? 'Unsaved changes' : lastSavedText}</span>
+				<span>{hasUnsavedChanges ? 'Unsaved local edits' : lastSavedText}</span>
 			</div>
 		</div>
 
@@ -489,6 +615,69 @@
 						class="sticky top-0 z-20 mb-4 rounded-box border border-base-300 bg-base-100/95 p-3 shadow-sm backdrop-blur"
 					>
 						<div bind:this={toolbarHost}></div>
+						{#if transcriptionVersionStatus?.isProjectOwned}
+							<div class="mt-3 rounded-box border border-base-300/70 bg-base-200/50 p-3">
+								<div class="flex flex-wrap items-center justify-between gap-3">
+									<div>
+										<p class="text-xs font-semibold uppercase tracking-[0.14em] opacity-70">
+											Committed version
+										</p>
+										<p class="text-sm font-medium">{versionStateText}</p>
+										{#if checkpointText}
+											<p class="text-xs opacity-70">{checkpointText}</p>
+										{/if}
+									</div>
+									<button
+										type="button"
+										class="btn btn-sm btn-secondary"
+										disabled={!canCommitVersion}
+										title={commitDisabledReason}
+										onclick={openCommitForm}
+									>
+										{commitInFlight ? 'Committing...' : 'Commit version'}
+									</button>
+								</div>
+
+								{#if isCommitFormOpen}
+									<form class="mt-3 space-y-2" onsubmit={handleCommitVersion}>
+										<label class="form-control">
+											<span class="label pb-1">
+												<span class="label-text text-xs">Optional note for this local version.</span>
+											</span>
+											<textarea
+												bind:value={commitMessage}
+												class="textarea textarea-bordered textarea-sm min-h-20"
+												placeholder="Describe this version"
+												disabled={commitInFlight}
+											></textarea>
+										</label>
+										<div class="flex flex-wrap justify-end gap-2">
+											<button
+												type="button"
+												class="btn btn-sm btn-ghost"
+												disabled={commitInFlight}
+												onclick={closeCommitForm}
+											>
+												Cancel
+											</button>
+											<button type="submit" class="btn btn-sm btn-primary" disabled={commitInFlight}>
+												{commitInFlight ? 'Committing...' : 'Commit version'}
+											</button>
+										</div>
+									</form>
+								{/if}
+
+								{#if commitError}
+									<p class="mt-2 text-sm text-error" role="alert">{commitError}</p>
+								{:else if commitSuccess}
+									<p class="mt-2 text-sm text-success">{commitSuccess}</p>
+								{/if}
+							</div>
+						{:else if versionStatusError}
+							<p class="mt-3 text-right text-xs text-warning" role="status">
+								Version status unavailable: {versionStatusError}
+							</p>
+						{/if}
 						<form
 							class="mt-3 flex flex-wrap items-end justify-end gap-2 border-t border-base-300/70 pt-3"
 							onsubmit={handleGoToVerse}
@@ -534,6 +723,7 @@
 					data-transcription-scroll-container
 				>
 					<TranscriptionEditor
+						bind:this={transcriptionEditorRef}
 						{transcription}
 						{data}
 						onSaveStateChange={handleSaveStateChange}

@@ -1,8 +1,5 @@
 import { collateToAlignmentSnapshot } from './collation-adapter';
-import type {
-	WorkerIncomingMessage,
-	WorkerOutgoingMessage,
-} from './collation-worker-types';
+import type { WorkerIncomingMessage, WorkerOutgoingMessage } from './collation-worker-types';
 
 self.onmessage = (event: MessageEvent<WorkerIncomingMessage>) => {
 	void handleMessage(event.data);

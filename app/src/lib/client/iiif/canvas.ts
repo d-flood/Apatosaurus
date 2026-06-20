@@ -11,7 +11,11 @@ function firstValue(value: unknown): string | null {
 	}
 	if (value && typeof value === 'object') {
 		const candidate = value as Record<string, unknown>;
-		return firstValue(candidate.value) || firstValue(candidate['@value']) || firstValue(candidate.none);
+		return (
+			firstValue(candidate.value) ||
+			firstValue(candidate['@value']) ||
+			firstValue(candidate.none)
+		);
 	}
 	return null;
 }
@@ -34,7 +38,13 @@ export function getCanvasThumbnailUrl(canvas: any, size = 220): string | null {
 			const thumbnail = canvas.getThumbnail();
 			if (typeof thumbnail === 'string') return thumbnail;
 			if (thumbnail && typeof thumbnail === 'object') {
-				return String((thumbnail as Record<string, unknown>).id || (thumbnail as Record<string, unknown>)['@id'] || '') || null;
+				return (
+					String(
+						(thumbnail as Record<string, unknown>).id ||
+							(thumbnail as Record<string, unknown>)['@id'] ||
+							''
+					) || null
+				);
 			}
 		}
 	} catch {
@@ -132,6 +142,7 @@ function getPrimaryCanvasResource(canvas: any): any | null {
 function getCanvasImageResourceId(canvas: any): string | null {
 	const resource = getPrimaryCanvasResource(canvas);
 	if (!resource) return null;
-	const id = resource.id || resource['@id'] || resource?.__jsonld?.id || resource?.__jsonld?.['@id'];
+	const id =
+		resource.id || resource['@id'] || resource?.__jsonld?.id || resource?.__jsonld?.['@id'];
 	return typeof id === 'string' && id.length > 0 ? id : null;
 }

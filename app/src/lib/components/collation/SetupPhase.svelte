@@ -10,10 +10,12 @@
 	import { gatherVerses, type AggregatedVerse } from '$lib/client/collation/gather-verses';
 	import {
 		getProjectTranscriptionIds,
+		listCommittedTranscriptionCheckpoints,
 		listTranscriptions,
 		syncProjectTranscriptionIds,
 		type ProjectTranscriptionOption,
 	} from '$lib/client/collation/project-collation';
+	import type { TranscriptionCheckpointSummary } from '$lib/client/db/repositories/revisions';
 	import {
 		rebuildVerseIndexForTranscriptions,
 		type VerseIndexRebuildProgress,
@@ -27,7 +29,18 @@
 	import FolderOpen from 'phosphor-svelte/lib/FolderOpen';
 	import LinkBreak from 'phosphor-svelte/lib/LinkBreak';
 	import LinkSimple from 'phosphor-svelte/lib/LinkSimple';
+	import Warning from 'phosphor-svelte/lib/Warning';
 	import { onMount } from 'svelte';
+	import type {
+		CollationWitnessSourceStatus,
+		CollationWitnessVersionState,
+	} from '$lib/client/db/repositories/collations';
+
+	interface Props {
+		witnessStatuses?: CollationWitnessSourceStatus[] | null;
+	}
+
+	let { witnessStatuses = null }: Props = $props();
 
 	let verses = $state<AggregatedVerse[]>([]);
 	let allTranscriptions = $state<ProjectTranscriptionOption[]>([]);
@@ -302,6 +315,125 @@
 
 	function isCorrectorWitness(witness: WitnessConfig): boolean {
 		return witness.kind === 'corrector';
+	}
+
+	let refreshWitnessId = $state<string | null>(null);
+	let refreshInFlight = $state(false);
+	let refreshError = $state<string | null>(null);
+	let refreshCheckpoints = $state<TranscriptionCheckpointSummary[]>([]);
+	let selectedRefreshCheckpointId = $state('');
+	let refreshCheckpointLoadToken = 0;
+
+	const refreshTargetStatus = $derived(
+		refreshWitnessId && witnessStatuses
+			? (witnessStatuses.find(w => w.witnessId === refreshWitnessId) ?? null)
+			: null
+	);
+
+	function witnessStatusFor(witnessId: string): CollationWitnessSourceStatus | null {
+		if (!witnessStatuses) return null;
+		return witnessStatuses.find(entry => entry.witnessId === witnessId) ?? null;
+	}
+
+	function witnessVersionStateLabel(state: CollationWitnessVersionState): string {
+		switch (state) {
+			case 'pinned-current':
+				return 'Pinned current';
+			case 'newer-source-available':
+				return 'Newer source version';
+			case 'source-has-uncommitted-changes':
+				return 'Source has uncommitted edits';
+			case 'source-has-no-committed-version':
+				return 'No committed source version';
+			case 'source-missing':
+				return 'Source missing';
+			case 'no-source':
+				return 'Legacy witness metadata';
+			default:
+				return '';
+		}
+	}
+
+	function witnessVersionStateBadgeClass(state: CollationWitnessVersionState): string {
+		switch (state) {
+			case 'pinned-current':
+				return 'badge-success';
+			case 'newer-source-available':
+				return 'badge-info';
+			case 'source-has-uncommitted-changes':
+				return 'badge-warning';
+			default:
+				return 'badge-ghost';
+		}
+	}
+
+	function canRefreshWitness(status: CollationWitnessSourceStatus | null): boolean {
+		if (!status) return false;
+		return status.versionState === 'newer-source-available';
+	}
+
+	async function openRefreshDialog(witnessId: string) {
+		refreshWitnessId = witnessId;
+		refreshError = null;
+		refreshCheckpoints = [];
+		selectedRefreshCheckpointId = '';
+		const status = witnessStatusFor(witnessId);
+		const transcriptionId = status?.projectOwnedTranscriptionId;
+		if (!transcriptionId) return;
+		const loadToken = ++refreshCheckpointLoadToken;
+		try {
+			const checkpoints = await listCommittedTranscriptionCheckpoints(transcriptionId);
+			if (loadToken !== refreshCheckpointLoadToken || refreshWitnessId !== witnessId) return;
+			refreshCheckpoints = checkpoints;
+			selectedRefreshCheckpointId =
+				status.availableCheckpoint?.revisionId ?? checkpoints[0]?.id ?? '';
+		} catch (err) {
+			if (loadToken !== refreshCheckpointLoadToken || refreshWitnessId !== witnessId) return;
+			refreshError =
+				err instanceof Error ? err.message : 'Failed to load source checkpoints.';
+		}
+	}
+
+	function closeRefreshDialog() {
+		if (refreshInFlight) return;
+		refreshWitnessId = null;
+		refreshError = null;
+		refreshCheckpoints = [];
+		selectedRefreshCheckpointId = '';
+		refreshCheckpointLoadToken++;
+	}
+
+	async function handleRefreshWitness(event: SubmitEvent) {
+		event.preventDefault();
+		if (!refreshWitnessId || refreshInFlight) return;
+		const status = refreshTargetStatus;
+		if (!status?.availableCheckpoint && !selectedRefreshCheckpointId) {
+			refreshError = 'No committed source checkpoint available.';
+			return;
+		}
+		const checkpointId = selectedRefreshCheckpointId || status?.availableCheckpoint?.revisionId;
+		if (!checkpointId) {
+			refreshError = 'No committed source checkpoint available.';
+			return;
+		}
+		refreshInFlight = true;
+		refreshError = null;
+		try {
+			const refreshed = await collationState.refreshWitnessSource(
+				refreshWitnessId,
+				checkpointId
+			);
+			if (!refreshed) {
+				refreshError =
+					'Witness source could not be refreshed from the committed checkpoint.';
+			} else {
+				refreshWitnessId = null;
+			}
+		} catch (err) {
+			refreshError = err instanceof Error ? err.message : 'Failed to refresh witness source.';
+		} finally {
+			refreshInFlight = false;
+		}
 	}
 
 	async function chooseDifferentProject() {
@@ -620,11 +752,13 @@
 									<th>Siglum</th>
 									<th>Text Preview</th>
 									<th class="w-36">Treatment</th>
+									<th class="w-40">Source Version</th>
 									<th class="w-16 text-center">Base</th>
 								</tr>
 							</thead>
 							<tbody>
 								{#each collationState.witnesses as witness (witness.witnessId)}
+									{@const witnessStatus = witnessStatusFor(witness.witnessId)}
 									<tr
 										class:opacity-40={witness.isExcluded}
 										class="transition-opacity duration-200"
@@ -699,6 +833,37 @@
 												>
 											{/if}
 										</td>
+										<td>
+											<div class="flex flex-col items-start gap-1">
+												{#if witnessStatus}
+													<span
+														class={`badge badge-xs ${witnessVersionStateBadgeClass(witnessStatus.versionState)}`}
+													>
+														{witnessVersionStateLabel(
+															witnessStatus.versionState
+														)}
+													</span>
+													{#if canRefreshWitness(witnessStatus)}
+														<button
+															type="button"
+															class="btn btn-xs btn-outline btn-secondary gap-1"
+															disabled={refreshInFlight}
+															onclick={() =>
+																void openRefreshDialog(
+																	witness.witnessId
+																)}
+														>
+															<ArrowsClockwise size={12} />
+															Refresh
+														</button>
+													{/if}
+												{:else}
+													<span class="text-[11px] text-base-content/40"
+														>Status unavailable</span
+													>
+												{/if}
+											</div>
+										</td>
 										<td class="text-center">
 											<input
 												type="radio"
@@ -732,9 +897,15 @@
 							}
 							collationState.setPhase('alignment');
 							if (targetId) {
-								await goto(resolve('/collation/[id]/[phase]', { id: targetId, phase: 'alignment' }), {
-									replaceState: true,
-								});
+								await goto(
+									resolve('/collation/[id]/[phase]', {
+										id: targetId,
+										phase: 'alignment',
+									}),
+									{
+										replaceState: true,
+									}
+								);
 							}
 						}}
 					>
@@ -746,3 +917,140 @@
 		</div>
 	</div>
 </div>
+
+{#if refreshWitnessId && refreshTargetStatus}
+	<div class="fixed inset-0 z-50 flex items-center justify-center p-4">
+		<div
+			class="absolute inset-0 bg-black/40"
+			role="button"
+			tabindex="-1"
+			aria-label="Close refresh dialog"
+			onclick={closeRefreshDialog}
+			onkeydown={event => {
+				if (event.key === 'Escape') closeRefreshDialog();
+			}}
+		></div>
+		<div
+			class="relative z-10 w-full max-w-lg rounded-box border border-base-300/60 bg-base-100 p-5 shadow-xl"
+		>
+			<div class="flex items-start justify-between gap-3">
+				<div class="flex items-start gap-3">
+					<div class="rounded-box bg-secondary/10 p-2 text-secondary">
+						<ArrowsClockwise size={20} />
+					</div>
+					<div>
+						<h2 class="font-serif text-lg font-semibold leading-tight">
+							Refresh witness from committed source
+						</h2>
+						<p class="text-xs text-base-content/50">
+							{#if collationState.witnesses.find(w => w.witnessId === refreshWitnessId)}
+								{collationState.witnesses.find(
+									w => w.witnessId === refreshWitnessId
+								)?.siglum}
+							{/if}
+						</p>
+					</div>
+				</div>
+				<button
+					type="button"
+					class="btn btn-sm btn-circle btn-ghost"
+					aria-label="Close refresh dialog"
+					disabled={refreshInFlight}
+					onclick={closeRefreshDialog}
+				>
+					<Warning size={16} />
+				</button>
+			</div>
+
+			<div class="mt-4 space-y-3 text-sm">
+				<p class="text-base-content/80">
+					This replaces the witness's pinned source text with the selected committed
+					project transcription version.
+				</p>
+				<label class="form-control">
+					<span class="label pb-1">
+						<span class="label-text text-xs">Source checkpoint</span>
+					</span>
+					<select
+						class="select select-bordered select-sm"
+						bind:value={selectedRefreshCheckpointId}
+						disabled={refreshInFlight || refreshCheckpoints.length === 0}
+					>
+						{#if refreshCheckpoints.length === 0}
+							<option value="">Loading committed checkpoints...</option>
+						{/if}
+						{#each refreshCheckpoints as checkpoint (checkpoint.id)}
+							<option value={checkpoint.id}>
+								{checkpoint.id.slice(0, 8)}... · {checkpoint.contentHash.slice(
+									0,
+									12
+								)} · {new Date(checkpoint.createdAt).toLocaleString()}
+							</option>
+						{/each}
+					</select>
+				</label>
+				<div
+					class="flex items-start gap-2 rounded-box border border-warning/40 bg-warning/10 p-3 text-xs text-base-content/80"
+				>
+					<Warning size={16} class="mt-0.5 shrink-0 text-warning" />
+					<span>
+						Alignment and readings will be rebuilt. Classified readings and stemma state
+						will be cleared. The collation will have uncommitted changes until you
+						commit it.
+					</span>
+				</div>
+				{#if refreshTargetStatus.pinnedCheckpoint && refreshTargetStatus.availableCheckpoint}
+					<div class="text-xs text-base-content/60 space-y-0.5">
+						<p>
+							Pinned:
+							<span class="font-mono text-base-content/70"
+								>{refreshTargetStatus.pinnedCheckpoint.revisionId.slice(
+									0,
+									8
+								)}...</span
+							>
+						</p>
+						<p>
+							Available:
+							<span class="font-mono text-base-content/70"
+								>{refreshTargetStatus.availableCheckpoint.revisionId.slice(
+									0,
+									8
+								)}...</span
+							>
+						</p>
+					</div>
+				{/if}
+				{#if refreshError}
+					<p class="text-sm text-error" role="alert">{refreshError}</p>
+				{/if}
+			</div>
+
+			<div class="mt-5 flex items-center justify-end gap-2">
+				<button
+					type="button"
+					class="btn btn-sm btn-ghost"
+					disabled={refreshInFlight}
+					onclick={closeRefreshDialog}
+				>
+					Cancel
+				</button>
+				<form onsubmit={handleRefreshWitness}>
+					<button
+						type="submit"
+						class="btn btn-sm btn-secondary gap-1"
+						disabled={refreshInFlight}
+					>
+						{#if refreshInFlight}
+							<span class="loading loading-spinner loading-xs"></span>
+							Refreshing...
+						{:else}
+							<ArrowsClockwise size={14} />
+							Refresh witness
+						{/if}
+					</button>
+				</form>
+			</div>
+		</div>
+	</div>
+{/if}
