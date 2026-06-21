@@ -179,11 +179,11 @@
 			if (!flushed) {
 				throw new Error('Local save failed. Commit was not created.');
 			}
-			if (!collationState.collationId) {
-				throw new Error('Collation was unloaded before commit completed.');
+			if (collationState.collationId !== id) {
+				throw new Error('Collation changed before commit completed. Commit was not created.');
 			}
 			await createCommittedCollationCheckpoint({
-				collationId: collationState.collationId,
+				collationId: id,
 				commitMessage: commitMessage.trim() || null,
 			});
 			await loadCollationVersionStatus(id);

@@ -1274,28 +1274,41 @@ function createCollationState() {
 		witnessId: string,
 		checkpointId: string
 	): Promise<boolean> {
-		if (!collationId || !selectedVerse?.identifier) return false;
+		const expectedCollationId = collationId;
+		const expectedVerseIdentifier = selectedVerse?.identifier ?? '';
+		if (!expectedCollationId || !expectedVerseIdentifier) return false;
 		const witness = witnesses.find(w => w.witnessId === witnessId);
 		if (!witness || !witness.transcriptionId) return false;
+		const expectedTranscriptionId = witness.transcriptionId;
 
 		const loaded = await loadCommittedTranscriptionCheckpointPayload(
-			witness.transcriptionId,
+			expectedTranscriptionId,
 			checkpointId
 		);
+		if (
+			collationId !== expectedCollationId ||
+			selectedVerse?.identifier !== expectedVerseIdentifier
+		) {
+			return false;
+		}
+		const currentWitness = witnesses.find(w => w.witnessId === witnessId);
+		if (!currentWitness || currentWitness.transcriptionId !== expectedTranscriptionId) {
+			return false;
+		}
 		const document = coerceTranscriptionDocument(loaded.payload.content_json);
 		if (!document) return false;
 
 		const preparedWitnesses = prepareWitnessesFromDocument({
 			document,
-			verseIdentifier: selectedVerse.identifier,
-			transcriptionId: witness.transcriptionId,
-			siglum: loaded.payload.siglum || witness.siglum,
+			verseIdentifier: expectedVerseIdentifier,
+			transcriptionId: expectedTranscriptionId,
+			siglum: loaded.payload.siglum || currentWitness.siglum,
 			sourceVersion: loaded.id,
 			options: { ignoreWordBreaks },
 		});
 
-		const witnessKind = witness.kind ?? 'firsthand';
-		const witnessHandId = witness.handId ?? 'firsthand';
+		const witnessKind = currentWitness.kind ?? 'firsthand';
+		const witnessHandId = currentWitness.handId ?? 'firsthand';
 		const matching = preparedWitnesses.find(
 			prepared =>
 				(prepared.kind ?? 'firsthand') === witnessKind &&
@@ -1304,7 +1317,7 @@ function createCollationState() {
 		if (!matching) return false;
 
 		const updated = applyWitnessTreatmentSource({
-			...witness,
+			...currentWitness,
 			siglum: matching.siglum,
 			sourceVersion: matching.sourceVersion,
 			sourceContentHash: loaded.contentHash,
