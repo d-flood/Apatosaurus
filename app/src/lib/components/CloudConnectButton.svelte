@@ -2,18 +2,20 @@
 
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { ensureLocalDbRuntime } from '$lib/client/db/runtime';
+	import { waitForBrowserIdle } from '$lib/client/defer';
 	import {
 		connectLocalFolder,
-		getDropboxConnection,
-		getLocalFolderConnection,
+		getBackupConnections,
 		handleDropboxPkceCallback,
 		isDropboxAuthConfigured,
 		isLocalFolderProviderSupported,
 		startDropboxPkceFlow,
 	} from '$lib/client/sync/cloud-auth';
 
-	type DropboxConnection = Awaited<ReturnType<typeof getDropboxConnection>>;
-	type LocalFolderConnection = Awaited<ReturnType<typeof getLocalFolderConnection>>;
+	type BackupConnections = Awaited<ReturnType<typeof getBackupConnections>>;
+	type DropboxConnection = BackupConnections['dropboxConnection'];
+	type LocalFolderConnection = BackupConnections['localFolderConnection'];
 	const initiallyConfigured = isDropboxAuthConfigured();
 	const initiallyLocalFolderSupported = isLocalFolderProviderSupported();
 
@@ -21,7 +23,7 @@
 	let localFolderSupported = $state(initiallyLocalFolderSupported);
 	let dropboxConnection = $state<DropboxConnection>(null);
 	let localFolderConnection = $state<LocalFolderConnection>(null);
-	let busy = $state(initiallyConfigured);
+	let busy = $state(false);
 	let busyProvider = $state<'dropbox' | 'local-folder' | null>(null);
 	let errorMessage = $state('');
 
@@ -55,31 +57,46 @@
 	]);
 
 	onMount(() => {
-		void initialiseDropboxConnection();
+		let cancelled = false;
+		void initialiseBackupConnections(() => cancelled);
+		return () => {
+			cancelled = true;
+		};
 	});
 
-	async function initialiseDropboxConnection() {
+	async function initialiseBackupConnections(isCancelled: () => boolean) {
 		configured = isDropboxAuthConfigured();
 		localFolderSupported = isLocalFolderProviderSupported();
-		busy = true;
 		errorMessage = '';
-		let callbackConnection: DropboxConnection | undefined;
+		let callbackConnection: DropboxConnection = null;
+
+		try {
+			await ensureLocalDbRuntime();
+			await waitForBrowserIdle();
+			if (isCancelled()) return;
+			busy = true;
+		} catch (error) {
+			if (!isCancelled()) errorMessage = messageFrom(error);
+			return;
+		}
 
 		try {
 			callbackConnection = await handleDropboxPkceCallback();
+			if (isCancelled()) return;
 		} catch (error) {
+			if (isCancelled()) return;
 			errorMessage = messageFrom(error);
 		}
 
 		try {
-			[dropboxConnection, localFolderConnection] = await Promise.all([
-				callbackConnection ? Promise.resolve(callbackConnection) : getDropboxConnection(),
-				getLocalFolderConnection(),
-			]);
+			const connections = await getBackupConnections();
+			if (isCancelled()) return;
+			dropboxConnection = callbackConnection ?? connections.dropboxConnection;
+			localFolderConnection = connections.localFolderConnection;
 		} catch (error) {
 			if (!errorMessage) errorMessage = messageFrom(error);
 		} finally {
-			busy = false;
+			if (!isCancelled()) busy = false;
 		}
 	}
 

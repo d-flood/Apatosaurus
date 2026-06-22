@@ -1,5 +1,4 @@
 import { browser } from '$app/environment';
-import { env } from '$env/dynamic/public';
 import { listCloudConnections, upsertCloudConnection } from '$lib/client/db/client';
 import type { CloudConnectionRecord } from '$lib/client/db/repositories/cloud-connections';
 import { notificationCenter } from '$lib/client/notification-center.svelte';
@@ -24,6 +23,11 @@ import { DropboxStorageProvider } from './providers/dropbox-provider';
 export const DROPBOX_PROVIDER_ID = 'dropbox';
 export { isLocalFolderProviderSupported };
 
+export interface BackupConnectionSnapshot {
+	dropboxConnection: CloudConnectionRecord | null;
+	localFolderConnection: CloudConnectionRecord | null;
+}
+
 const DROPBOX_SCOPES = [
 	'account_info.read',
 	'files.content.read',
@@ -46,8 +50,9 @@ interface DropboxAccount {
 
 export function getDropboxAuthConfig(): DropboxAuthConfig {
 	return {
-		clientId: env.PUBLIC_DROPBOX_CLIENT_ID?.trim() ?? '',
-		redirectUri: env.PUBLIC_DROPBOX_REDIRECT_URI?.trim() || defaultDropboxRedirectUri(),
+		clientId: import.meta.env.PUBLIC_DROPBOX_CLIENT_ID?.trim() ?? '',
+		redirectUri:
+			import.meta.env.PUBLIC_DROPBOX_REDIRECT_URI?.trim() || defaultDropboxRedirectUri(),
 		scopes: DROPBOX_SCOPES,
 	};
 }
@@ -113,6 +118,17 @@ export async function getDropboxConnection(): Promise<CloudConnectionRecord | nu
 	return connections.find(connection => connection.providerId === DROPBOX_PROVIDER_ID) ?? null;
 }
 
+export async function getBackupConnections(): Promise<BackupConnectionSnapshot> {
+	const connections = await listCloudConnections();
+	return {
+		dropboxConnection:
+			connections.find(connection => connection.providerId === DROPBOX_PROVIDER_ID) ?? null,
+		localFolderConnection:
+			connections.find(connection => connection.providerId === LOCAL_FOLDER_PROVIDER_ID) ??
+			null,
+	};
+}
+
 export async function connectLocalFolder(): Promise<CloudConnectionRecord> {
 	if (!browser || !isLocalFolderProviderSupported()) {
 		throw new Error('Local folder backup is not supported in this browser.');
@@ -143,7 +159,9 @@ export async function connectLocalFolder(): Promise<CloudConnectionRecord> {
 
 export async function getLocalFolderConnection(): Promise<CloudConnectionRecord | null> {
 	const connections = await listCloudConnections();
-	return connections.find(connection => connection.providerId === LOCAL_FOLDER_PROVIDER_ID) ?? null;
+	return (
+		connections.find(connection => connection.providerId === LOCAL_FOLDER_PROVIDER_ID) ?? null
+	);
 }
 
 export async function disconnectLocalFolderConnection(connectionId: string): Promise<boolean> {

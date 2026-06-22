@@ -32,8 +32,9 @@ export async function ensureLocalDbRuntime(): Promise<void> {
 		notificationCenter.remove(RUNTIME_FAILURE_NOTIFICATION_ID);
 		console.debug('[local-db] runtime ready', { elapsedMs: elapsed(startedAt) });
 	})()
-		.catch(error => {
+		.catch(async error => {
 			initialized = false;
+			await destroyLocalDbWorker();
 			reportRuntimeInitFailure(error);
 			throw error;
 		})
@@ -105,13 +106,28 @@ function reportRuntimeInitFailure(error: unknown): void {
 function sendInit(dbWorker: Worker): Promise<void> {
 	return new Promise((resolve, reject) => {
 		const id = Date.now();
+		const cleanup = () => {
+			dbWorker.removeEventListener('message', onMessage);
+			dbWorker.removeEventListener('error', onError);
+			dbWorker.removeEventListener('messageerror', onMessageError);
+		};
 		const onMessage = (event: MessageEvent<DbResponse>) => {
 			if (event.data.id !== id) return;
-			dbWorker.removeEventListener('message', onMessage);
+			cleanup();
 			if (event.data.ok) resolve();
 			else reject(new Error(event.data.error));
 		};
+		const onError = (event: ErrorEvent) => {
+			cleanup();
+			reject(new Error(event.message || 'Local database worker failed to start.'));
+		};
+		const onMessageError = () => {
+			cleanup();
+			reject(new Error('Local database worker sent an unreadable startup message.'));
+		};
 		dbWorker.addEventListener('message', onMessage);
+		dbWorker.addEventListener('error', onError);
+		dbWorker.addEventListener('messageerror', onMessageError);
 		dbWorker.postMessage({ id, type: 'init' } satisfies DbRequest);
 	});
 }

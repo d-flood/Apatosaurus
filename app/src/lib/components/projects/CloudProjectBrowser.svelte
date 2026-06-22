@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { ensureLocalDbRuntime } from '$lib/client/db/runtime';
+	import { waitForBrowserIdle } from '$lib/client/defer';
 	import CloudArrowDown from 'phosphor-svelte/lib/CloudArrowDown';
 	import LinkSimple from 'phosphor-svelte/lib/LinkSimple';
 	import WarningCircle from 'phosphor-svelte/lib/WarningCircle';
@@ -23,7 +25,7 @@
 		onProjectImported?: (projectId: string) => void | Promise<void>;
 	}
 
-	let { selectedProjectId = null, onOpenProject, onProjectImported }: Props = $props();
+	let { onOpenProject, onProjectImported }: Props = $props();
 
 	let connections = $state.raw<CloudConnectionRecord[]>([]);
 	let selectedConnectionId = $state('');
@@ -44,8 +46,24 @@
 	let canBrowse = $derived(Boolean(selectedConnection && !loadingCandidates));
 
 	onMount(() => {
-		void loadConnections();
+		let cancelled = false;
+		void loadConnectionsAfterStartup(() => cancelled);
+		return () => {
+			cancelled = true;
+		};
 	});
+
+	async function loadConnectionsAfterStartup(isCancelled: () => boolean) {
+		try {
+			await ensureLocalDbRuntime();
+			await waitForBrowserIdle();
+			if (!isCancelled()) await loadConnections();
+		} catch (err) {
+			if (!isCancelled()) {
+				error = err instanceof Error ? err.message : 'Failed to load cloud connections.';
+			}
+		}
+	}
 
 	async function loadConnections() {
 		loadingConnections = true;

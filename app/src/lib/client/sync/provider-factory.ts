@@ -1,5 +1,3 @@
-import { env } from '$env/dynamic/public';
-
 import type { CloudConnectionRecord } from '$lib/client/db/repositories/cloud-connections';
 import { loadLocalFolderHandle } from './local-folder-handles';
 import { DropboxStorageProvider } from './providers/dropbox-provider';
@@ -15,7 +13,7 @@ export async function createProviderForConnection(
 	options: ProviderFactoryOptions = {}
 ): Promise<CloudStorageProvider> {
 	if (connection.providerId === 'dropbox') {
-		const clientId = env.PUBLIC_DROPBOX_CLIENT_ID?.trim() ?? '';
+		const clientId = import.meta.env.PUBLIC_DROPBOX_CLIENT_ID?.trim() ?? '';
 		if (!clientId) throw new Error('Set PUBLIC_DROPBOX_CLIENT_ID before backing up to Dropbox.');
 		return new DropboxStorageProvider({
 			clientId,
@@ -36,5 +34,5 @@ export async function createProviderForConnection(
 }
 
 function dropboxRedirectUri(): string {
-	return env.PUBLIC_DROPBOX_REDIRECT_URI?.trim() || 'http://localhost/projects';
+	return import.meta.env.PUBLIC_DROPBOX_REDIRECT_URI?.trim() || 'http://localhost/projects';
 }

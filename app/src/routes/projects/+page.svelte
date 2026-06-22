@@ -39,6 +39,7 @@
 	import PromoteProjectTranscriptionDialog from '$lib/components/projects/PromoteProjectTranscriptionDialog.svelte';
 	import AddProjectTranscriptionFromProjectDialog from '$lib/components/projects/AddProjectTranscriptionFromProjectDialog.svelte';
 	import ProjectUserManagementStub from '$lib/components/projects/ProjectUserManagementStub.svelte';
+	import { waitForBrowserIdle } from '$lib/client/defer';
 	import { ensureLocalDbRuntime } from '$lib/client/db/runtime';
 	import {
 		deriveProjectBackupSummary,
@@ -93,6 +94,7 @@
 	let isSavingTranscriptions = $state(false);
 	let error = $state<string | null>(null);
 	let bootstrapRunId = 0;
+	let backupSummaryScheduleId = 0;
 	let backupSummaryRunId = 0;
 
 	let projectTranscriptionStatuses = $state.raw<ProjectTranscriptionStatus[]>([]);
@@ -283,6 +285,15 @@
 				])
 			);
 		}
+	}
+
+	function queueProjectListBackupSummaries(projectRows: ProjectOption[] = projects) {
+		const scheduleId = ++backupSummaryScheduleId;
+		void (async () => {
+			await waitForBrowserIdle(2_000);
+			if (scheduleId !== backupSummaryScheduleId) return;
+			await loadProjectListBackupSummaries(projectRows);
+		})();
 	}
 
 	function summarizeProjectBackup(
@@ -498,13 +509,13 @@
 				return;
 			}
 			projects = projectRows;
-			void loadProjectListBackupSummaries(projectRows);
 			logProjects('debug', 'bootstrap project list loaded', {
 				projectCount: projectRows.length,
 				preferredProjectId,
 				runId,
 			});
 			if (projectRows.length === 0) {
+				projectBackupSummaries = {};
 				selectedProjectId = null;
 				currentProject = null;
 				selectedTranscriptionIds = [];
@@ -530,6 +541,7 @@
 				return;
 			}
 			void loadTranscriptionCatalog(runId, nextProjectId);
+			queueProjectListBackupSummaries(projectRows);
 			logProjects('debug', 'bootstrap critical path completed', {
 				preferredProjectId,
 				projectId: nextProjectId,
@@ -571,7 +583,7 @@
 				event.domain === 'transcriptions' ||
 				event.domain === 'all'
 			) {
-				void loadProjectListBackupSummaries();
+				queueProjectListBackupSummaries();
 			}
 			if (
 				event.domain === 'projects' ||

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { waitForBrowserIdle } from '$lib/client/defer';
 	import CloudArrowUp from 'phosphor-svelte/lib/CloudArrowUp';
 	import LinkSimple from 'phosphor-svelte/lib/LinkSimple';
 	import WarningCircle from 'phosphor-svelte/lib/WarningCircle';
@@ -58,6 +59,7 @@
 	let lastHealthVerifiedAt = $state<string | null>(null);
 	let lastResult = $state<ProjectBackupResult | null>(null);
 	let loadRunId = 0;
+	let remoteCheckRunId = 0;
 
 	let selectedFolder = $derived(folders[0] ?? null);
 	let selectedConnection = $derived(
@@ -99,7 +101,6 @@
 	});
 
 	onMount(() => {
-		void loadBackupState(projectId);
 		const unsubscribe = subscribeLocalDbInvalidations(event => {
 			if (
 				event.domain === 'cloud-connections' ||
@@ -112,7 +113,10 @@
 				void loadBackupState(projectId);
 			}
 		});
-		return unsubscribe;
+		return () => {
+			remoteCheckRunId++;
+			unsubscribe();
+		};
 	});
 
 	$effect(() => {
@@ -146,8 +150,9 @@
 					},
 					folder
 				);
-				void checkRemoteManifest(nextProjectId, folder);
+				queueRemoteManifestCheck(nextProjectId, folder, runId);
 			} else {
+				remoteCheckRunId++;
 				summary = null;
 				remoteComparison = null;
 				backupHealth = null;
@@ -163,6 +168,24 @@
 		} finally {
 			if (runId === loadRunId) isLoading = false;
 		}
+	}
+
+	function queueRemoteManifestCheck(
+		nextProjectId: string,
+		folder: CloudProjectFolderRecord,
+		runId: number
+	) {
+		const checkRunId = ++remoteCheckRunId;
+		void (async () => {
+			await waitForBrowserIdle(3_000);
+			if (
+				checkRunId !== remoteCheckRunId ||
+				runId !== loadRunId ||
+				projectId !== nextProjectId
+			)
+				return;
+			await checkRemoteManifest(nextProjectId, folder);
+		})();
 	}
 
 	function syncContext(folder: CloudProjectFolderRecord) {
