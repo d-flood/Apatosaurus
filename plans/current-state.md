@@ -79,10 +79,16 @@ Items that exist today and need an explicit fate; agents should not build around
 - Old plan documents at repo root and `plans/` were deleted 2026-07-03; the cloud_sync session docs describe how the current sync layer was built if archaeology is needed (`git log`).
 - `ideas.md` (repo root): small backlog (punctuation handling in collation, collation undo/redo, image caching). Triaged in Phase 12.
 
-## 8. Known Bug Root Causes (for Phases 10-11)
+## 8. Known Bug and Performance Root Causes (for Phases 6, 10-11)
 
 - **Cursor jumps** (Phase 11): (a) `setContent` invoked outside initial load via repair/merge paths remaps positions; (b) canonical-document mutation races autosave (fixed by Phase 5 single-writer rule); (c) selection-reactive handlers that dispatch document changes create feedback loops.
 - **Inconsistent collation rules** (Phase 10): dual derivation paths (preview vs collation input), silent regex-compile failures, no `u` flag / Unicode normalization on Greek text, and no staleness marking when rules change after an alignment run.
+- **Slow pre-collation verse indexing** (Phase 6): four compounding causes.
+  1. No staleness check anywhere: `rebuildVerseIndexForTranscriptions` (`repositories/transcriptions.ts:248`) unconditionally re-parses (`JSON.parse` + `normalizeDocument`), re-walks, deletes and reinserts index rows for every transcription, sequentially in one transaction, even when content is unchanged. `last_indexed_at` is write-only; `current_content_hash` is never consulted.
+  2. The client wrapper (`transcription/verse-index.ts:139`) sequentially awaits a full `getTranscription(id)` RPC per transcription (shipping entire `content_json` payloads) solely to format progress labels, before issuing the single bulk rebuild RPC.
+  3. `gatherVerses` (`collation/gather-verses.ts:84`) issues one `getVerseIndexRowsForTranscription` RPC per transcription inside `Promise.all`, but `db.worker.ts`'s promise queue serializes them; there is no `IN (...)` bulk query.
+  4. Save-path double parse: `updateTranscriptionContent` serializes the in-memory document to JSON, then `replaceVerseIndexRows` immediately re-parses and re-normalizes that same string.
+  - Note also: `extractVersesFromDocument` is implemented twice (public copy in `transcription/verse-index.ts`, private copy in `repositories/transcriptions.ts`); the repository copy is the one that writes rows. Consolidate when touching this code.
 
 ## 9. Environment Notes
 

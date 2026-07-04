@@ -25,7 +25,12 @@ Make the SQLite index provably disposable. Version the index file, rebuild it fr
 4. Repair UI:
    - A "Repair database" action (settings or projects page) that runs `rebuildIndexFromStore()` and shows the report, including quarantined/orphaned files.
    - Automatic trigger: if the index fails to open or fails an integrity check (`PRAGMA integrity_check` on init), rebuild automatically and notify the user afterward.
-5. The invariant test: an integration test that populates projects through normal APIs, deletes the index database file entirely, restarts the worker, and asserts full equivalence of listings, entity loads, verse index, and collation projections after automatic rebuild.
+5. Verse index performance (fixes the known slow pre-collation rebuild; root causes in `current-state.md` section 8):
+   - Staleness skip: record the indexed `content_hash` per transcription (column on the index state or on `transcription_verse_index` metadata); `replaceVerseIndexRows` and the bulk rebuild skip any transcription whose current hash matches the recorded one. The SetupPhase "rebuild" button becomes a repair action that is near-instant when nothing changed.
+   - Remove the per-transcription `getTranscription()` RPC loop in `verse-index.ts` `rebuildVerseIndexForTranscriptions` (it fetches full `content_json` per transcription just to format progress labels); progress reporting moves into the single bulk RPC (worker posts progress messages) or uses a lightweight metadata-only query.
+   - Add a bulk verse query RPC (`WHERE transcription_id IN (...)`) and use it in `gather-verses.ts` instead of one RPC per transcription (the worker queue serializes them anyway).
+   - Single-parse rule: indexing operates on an already-parsed document when one is in hand (save path passes the document, not the JSON string); `coerceTranscriptionDocument` runs at most once per document per operation.
+6. The invariant test: an integration test that populates projects through normal APIs, deletes the index database file entirely, restarts the worker, and asserts full equivalence of listings, entity loads, verse index, and collation projections after automatic rebuild.
 
 ## Non-Goals
 
@@ -47,6 +52,7 @@ Make the SQLite index provably disposable. Version the index file, rebuild it fr
 - [ ] Content cache columns demoted per decision; reads come from files
 - [ ] Repair UI action with report display
 - [ ] Auto-rebuild on open failure/integrity failure
+- [ ] Verse indexing: hash-based staleness skip, label RPC loop removed, bulk verse query, single-parse rule; pre-collation rebuild is near-instant on unchanged transcriptions
 - [ ] Delete-the-index invariant test passing
 - [ ] `bun run check` and `bun run test:unit -- --run` pass
 
