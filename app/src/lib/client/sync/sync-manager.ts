@@ -426,7 +426,7 @@ export async function syncProjectTombstones(
 		const tombstoneId = requireId(tombstone.id, 'tombstone');
 		const file = await serializeTombstoneCloudFile(db, tombstoneId);
 		const path = projectRelativeCloudPaths().tombstones(tombstoneId);
-		await putCloudFile(provider, context, path, serializeCloudFile(file));
+		await putCloudFile(provider, context, path, await serializeCloudFile(file));
 		result.uploadedPaths.push(path);
 
 		const primary = await findRemoteMetadata(provider, context, tombstone.cloud_path);
@@ -443,7 +443,7 @@ export async function syncProjectTombstones(
 	for (const metadata of remoteTombstones.filter(entry => entry.path.endsWith('.json'))) {
 		const content = await provider.downloadFile(metadata.id);
 		result.downloadedPaths.push(relativeEntryPath(metadata.path, context));
-		const parsed = parseTombstoneCloudFile(content);
+		const parsed = await parseTombstoneCloudFile(content);
 		if (!parsed.ok) {
 			result.quarantines.push(quarantineFor(metadata.path, parsed.quarantine));
 			continue;
@@ -522,7 +522,7 @@ export async function publishProjectManifest(
 	const path = projectRelativeCloudPaths().project;
 	try {
 		const manifest = await serializeProjectCloudFile(db, context.projectId);
-		await putCloudFile(provider, context, path, serializeCloudFile(manifest));
+		await putCloudFile(provider, context, path, await serializeCloudFile(manifest));
 		result.uploadedPaths.push(path);
 		result.uiState = 'synced';
 		return result;
@@ -556,7 +556,7 @@ export async function downloadAndCompareProjectManifest(
 		if (!metadata) return { ...result, state: 'not-checked' };
 		const content = await provider.downloadFile(metadata.id);
 		result.downloadedPaths.push(manifestPath);
-		const parsed = parseProjectCloudFile(content);
+		const parsed = await parseProjectCloudFile(content);
 		if (!parsed.ok) {
 			result.quarantines.push(quarantineFor(manifestPath, parsed.quarantine));
 			return { ...result, state: 'unavailable' };
@@ -882,14 +882,14 @@ async function ensureHistoryFile(
 
 	const content =
 		local.entityType === 'project-transcription'
-			? serializeCloudFile(
+			? await serializeCloudFile(
 					await serializeProjectTranscriptionHistoryCloudFile(
 						db,
 						local.entityId,
 						local.head.revisionId
 					)
 				)
-			: serializeCloudFile(
+			: await serializeCloudFile(
 					await serializeCollationHistoryCloudFile(
 						db,
 						local.entityId,

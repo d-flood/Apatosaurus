@@ -18,6 +18,10 @@ import {
 import { hashCanonicalPayload } from './canonical-json';
 import { createTranscription } from '$lib/client/db/repositories/transcriptions';
 import {
+	parseCollationCloudFile,
+	parseHistoryCloudFile,
+	parseProjectCloudFile,
+	parseProjectTranscriptionCloudFile,
 	projectRelativeCloudPaths,
 	serializeCloudFile,
 	serializeCollationCloudFile,
@@ -26,6 +30,8 @@ import {
 	serializeProjectTranscriptionCloudFile,
 	serializeProjectTranscriptionHistoryCloudFile,
 	serializeTombstoneCloudFile,
+	type CollationHistoryCloudFile,
+	type ProjectTranscriptionHistoryCloudFile,
 } from './cloud-files';
 import {
 	compareRemoteManifestToLocalProject,
@@ -592,7 +598,7 @@ describe('linked cloud project manifest polling', () => {
 		});
 		await provider.updateFile(
 			remote.manifestFileId,
-			remoteManifestWithHead(remote, {
+			await remoteManifestWithHead(remote, {
 				transcriptionRevisionId: 'tx-cp-remote-2',
 				transcriptionContentHash: 'sha256:remote-transcription-2',
 			}),
@@ -641,16 +647,17 @@ describe('linked cloud project manifest polling', () => {
 			.where('id', '=', remote.transcriptionId)
 			.execute();
 
-		const comparison = await compareRemoteManifestToLocalProject(
-			harness.db,
-			JSON.parse(
-				remoteManifestWithHead(remote, {
-					transcriptionRevisionId: 'tx-cp-remote-2',
-					transcriptionContentHash: 'sha256:remote-transcription-2',
-				})
-			),
-			{ connectionId: 'conn-1', projectId: 'project-poll-diverged' }
+		const parsedManifest = await parseProjectCloudFile(
+			await remoteManifestWithHead(remote, {
+				transcriptionRevisionId: 'tx-cp-remote-2',
+				transcriptionContentHash: 'sha256:remote-transcription-2',
+			})
 		);
+		if (!parsedManifest.ok) throw new Error('Expected valid remote manifest.');
+		const comparison = await compareRemoteManifestToLocalProject(harness.db, parsedManifest.value, {
+			connectionId: 'conn-1',
+			projectId: 'project-poll-diverged',
+		});
 
 		expect(comparison).toMatchObject({
 			status: 'diverged',
@@ -949,12 +956,12 @@ async function createRemoteProjectBackup(
 		const manifestWrite = await provider.createFile(
 			folderId,
 			'project.json',
-			serializeCloudFile(manifest)
+			await serializeCloudFile(manifest)
 		);
 		const primaryWrite = await provider.createFile(
 			folderId,
 			projectRelativeCloudPaths().transcriptions(projectTranscriptionId),
-			serializeCloudFile(primary)
+			await serializeCloudFile(primary)
 		);
 		if (includeHistory) {
 			await provider.createFile(
@@ -963,23 +970,23 @@ async function createRemoteProjectBackup(
 					projectTranscriptionId,
 					'tx-cp-restore-1'
 				),
-				serializeCloudFile(history)
+				await serializeCloudFile(history)
 			);
 		}
 		const collationPrimaryWrite = await provider.createFile(
 			folderId,
 			projectRelativeCloudPaths().collations('col-restore-1'),
-			serializeCloudFile(collationPrimary)
+			await serializeCloudFile(collationPrimary)
 		);
 		await provider.createFile(
 			folderId,
 			projectRelativeCloudPaths().collationHistory('col-restore-1', 'col-cp-restore-1'),
-			serializeCloudFile(collationHistory)
+			await serializeCloudFile(collationHistory)
 		);
 		await provider.createFile(
 			folderId,
 			projectRelativeCloudPaths().tombstones('tombstone-restore-1'),
-			serializeCloudFile(tombstone)
+			await serializeCloudFile(tombstone)
 		);
 		return {
 			projectId,
@@ -1000,7 +1007,7 @@ async function createRemoteProjectBackup(
 	}
 }
 
-function remoteManifestWithHead(
+async function remoteManifestWithHead(
 	remote: Awaited<ReturnType<typeof createRemoteProjectBackup>>,
 	input: {
 		transcriptionRevisionId?: string;
@@ -1008,8 +1015,8 @@ function remoteManifestWithHead(
 		collationRevisionId?: string;
 		collationContentHash?: string;
 	} = {}
-): string {
-	return JSON.stringify({
+): Promise<string> {
+	return serializeCloudFile({
 		schema_version: 1,
 		id: remote.projectId,
 		name: 'Remote Restored Project',
@@ -1069,7 +1076,11 @@ async function writeRemoteHeadUpdate(
 	let transcriptionContentHash: string | undefined;
 	let collationContentHash: string | undefined;
 	if (input.transcriptionRevisionId) {
-		const primary = JSON.parse(await provider.downloadFile(remote.primaryFileId));
+		const parsedPrimary = await parseProjectTranscriptionCloudFile(
+			await provider.downloadFile(remote.primaryFileId)
+		);
+		if (!parsedPrimary.ok) throw new Error('Expected valid remote transcription primary.');
+		const primary = parsedPrimary.value;
 		primary.title = 'Remote Witness Updated';
 		primary.created_at ??= '2026-06-10T12:00:00.000Z';
 		primary.updated_at = '2026-06-10T12:15:00.000Z';
@@ -1080,8 +1091,8 @@ async function writeRemoteHeadUpdate(
 			created_at: '2026-06-10T12:15:00.000Z',
 			author_name: 'Editor',
 		};
-		await provider.updateFile(remote.primaryFileId, JSON.stringify(primary), 'rev-1');
-		const history = JSON.parse(
+		await provider.updateFile(remote.primaryFileId, await serializeCloudFile(primary), 'rev-1');
+		const parsedHistory = await parseHistoryCloudFile(
 			await provider.downloadFile(
 				await findRemoteFileId(
 					provider,
@@ -1093,6 +1104,10 @@ async function writeRemoteHeadUpdate(
 				)
 			)
 		);
+		if (!parsedHistory.ok || parsedHistory.value.entity_type !== 'project-transcription') {
+			throw new Error('Expected valid remote transcription history.');
+		}
+		const history: ProjectTranscriptionHistoryCloudFile = parsedHistory.value;
 		history.checkpoint_id = input.transcriptionRevisionId;
 		history.content_hash = transcriptionContentHash;
 		history.commit_message = 'Remote transcription update';
@@ -1104,11 +1119,15 @@ async function writeRemoteHeadUpdate(
 				remote.projectTranscriptionId,
 				input.transcriptionRevisionId
 			),
-			JSON.stringify(history)
+			await serializeCloudFile(history)
 		);
 	}
 	if (input.collationRevisionId) {
-		const primary = JSON.parse(await provider.downloadFile(remote.collationPrimaryFileId));
+		const parsedPrimary = await parseCollationCloudFile(
+			await provider.downloadFile(remote.collationPrimaryFileId)
+		);
+		if (!parsedPrimary.ok) throw new Error('Expected valid remote collation primary.');
+		const primary = parsedPrimary.value;
 		primary.title = 'Remote Collation Updated';
 		primary.created_at ??= '2026-06-10T12:06:00.000Z';
 		primary.updated_at = '2026-06-10T12:16:00.000Z';
@@ -1119,8 +1138,12 @@ async function writeRemoteHeadUpdate(
 			created_at: '2026-06-10T12:16:00.000Z',
 			author_name: 'Editor',
 		};
-		await provider.updateFile(remote.collationPrimaryFileId, JSON.stringify(primary), 'rev-1');
-		const history = JSON.parse(
+		await provider.updateFile(
+			remote.collationPrimaryFileId,
+			await serializeCloudFile(primary),
+			'rev-1'
+		);
+		const parsedHistory = await parseHistoryCloudFile(
 			await provider.downloadFile(
 				await findRemoteFileId(
 					provider,
@@ -1129,6 +1152,10 @@ async function writeRemoteHeadUpdate(
 				)
 			)
 		);
+		if (!parsedHistory.ok || parsedHistory.value.entity_type !== 'collation') {
+			throw new Error('Expected valid remote collation history.');
+		}
+		const history: CollationHistoryCloudFile = parsedHistory.value;
 		history.checkpoint_id = input.collationRevisionId;
 		history.content_hash = collationContentHash;
 		history.commit_message = 'Remote collation update';
@@ -1137,12 +1164,12 @@ async function writeRemoteHeadUpdate(
 		await provider.createFile(
 			remote.folderId,
 			projectRelativeCloudPaths().collationHistory(remote.collationId, input.collationRevisionId),
-			JSON.stringify(history)
+			await serializeCloudFile(history)
 		);
 	}
 	await provider.updateFile(
 		remote.manifestFileId,
-		remoteManifestWithHead(remote, {
+		await remoteManifestWithHead(remote, {
 			transcriptionRevisionId: input.transcriptionRevisionId,
 			transcriptionContentHash,
 			collationRevisionId: input.collationRevisionId,

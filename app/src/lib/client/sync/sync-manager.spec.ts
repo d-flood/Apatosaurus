@@ -778,24 +778,24 @@ async function pushRemoteCollationRevision(
 			'col-1',
 			checkpointId
 		);
-		await provider.createFile(context.cloudFolderId, historyPath, serializeCloudFile(history));
+		await provider.createFile(context.cloudFolderId, historyPath, await serializeCloudFile(history));
 		const primary = await remoteFile(provider, context, 'collations/col-1.json');
 		if (!primary) throw new Error('Expected remote primary file.');
 		const remotePrimary = await serializeCollationCloudFile(remoteHarness.db, 'col-1');
-		await provider.updateFile(primary.id, serializeCloudFile(remotePrimary), primary.revision);
+		await provider.updateFile(primary.id, await serializeCloudFile(remotePrimary), primary.revision);
 		const manifest = await remoteFile(provider, context, 'project.json');
 		const remoteManifest = await serializeProjectCloudFile(remoteHarness.db, 'project-1');
 		if (manifest) {
 			await provider.updateFile(
 				manifest.id,
-				serializeCloudFile(remoteManifest),
+				await serializeCloudFile(remoteManifest),
 				manifest.revision
 			);
 		} else {
 			await provider.createFile(
 				context.cloudFolderId,
 				'project.json',
-				serializeCloudFile(remoteManifest)
+				await serializeCloudFile(remoteManifest)
 			);
 		}
 	} finally {

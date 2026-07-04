@@ -77,9 +77,9 @@ describe('cloud file serialization formats', () => {
 			.execute();
 
 		const projectFile = await serializeProjectCloudFile(harness.db, 'project-1');
-		const parsedProject = parseProjectCloudFile(serializeCloudFile(projectFile));
+		const parsedProject = await parseProjectCloudFile(await serializeCloudFile(projectFile));
 		const tombstoneFile = await serializeTombstoneCloudFile(harness.db, 'tombstone-1');
-		const parsedTombstone = parseTombstoneCloudFile(serializeCloudFile(tombstoneFile));
+		const parsedTombstone = await parseTombstoneCloudFile(await serializeCloudFile(tombstoneFile));
 
 		expect(parsedProject).toEqual({ ok: true, value: projectFile });
 		expect(parsedTombstone).toEqual({ ok: true, value: tombstoneFile });
@@ -106,9 +106,9 @@ describe('cloud file serialization formats', () => {
 			id: 'tombstone-1',
 			cloud_path: 'transcriptions/pt-1.json',
 		});
-		expect(parseProjectCloudFile({ ...projectFile, schema_version: 2 })).toMatchObject({
+		expect(await parseProjectCloudFile({ ...projectFile, schema_version: 2 })).toMatchObject({
 			ok: false,
-			quarantine: { code: 'invalid_schema_version' },
+			quarantine: { code: 'invalid_shape' },
 		});
 	});
 
@@ -169,8 +169,10 @@ describe('cloud file serialization formats', () => {
 			projectTranscriptionId,
 			'tx-cp-1'
 		);
-		const parsedPrimary = await parseProjectTranscriptionCloudFile(serializeCloudFile(primary));
-		const parsedHistory = await parseHistoryCloudFile(serializeCloudFile(history));
+		const parsedPrimary = await parseProjectTranscriptionCloudFile(
+			await serializeCloudFile(primary)
+		);
+		const parsedHistory = await parseHistoryCloudFile(await serializeCloudFile(history));
 
 		expect(parsedPrimary).toEqual({ ok: true, value: primary });
 		expect(parsedHistory).toEqual({ ok: true, value: history });
@@ -212,9 +214,12 @@ describe('cloud file serialization formats', () => {
 				primary_path: `transcriptions/${projectTranscriptionId}.json`,
 			}),
 		]);
-		expect(
-			await parseProjectTranscriptionCloudFile({ ...primary, title: 'Tampered title' })
-		).toMatchObject({ ok: false, quarantine: { code: 'hash_mismatch' } });
+		const tamperedPrimary = JSON.parse(await serializeCloudFile(primary)) as Record<string, unknown>;
+		tamperedPrimary.title = 'Tampered title';
+		expect(await parseProjectTranscriptionCloudFile(tamperedPrimary)).toMatchObject({
+			ok: false,
+			quarantine: { code: 'hash_mismatch' },
+		});
 
 		await updateTranscriptionContent(harness.db, {
 			id: snapshotId,
@@ -303,8 +308,8 @@ describe('cloud file serialization formats', () => {
 
 		const primary = await serializeCollationCloudFile(harness.db, 'col-1');
 		const history = await serializeCollationHistoryCloudFile(harness.db, 'col-1', 'col-cp-1');
-		const parsedPrimary = await parseCollationCloudFile(serializeCloudFile(primary));
-		const parsedHistory = await parseHistoryCloudFile(serializeCloudFile(history));
+		const parsedPrimary = await parseCollationCloudFile(await serializeCloudFile(primary));
+		const parsedHistory = await parseHistoryCloudFile(await serializeCloudFile(history));
 
 		expect(parsedPrimary).toEqual({ ok: true, value: primary });
 		expect(parsedHistory).toEqual({ ok: true, value: history });

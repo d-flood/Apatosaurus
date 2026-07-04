@@ -3,6 +3,31 @@ import type { Kysely, Selectable, Transaction } from 'kysely';
 import type { Database, SyncTombstones } from '$lib/client/db/types.generated';
 import type { CreateProjectInput } from '$lib/client/db/repositories/projects';
 import { getProject } from '$lib/client/db/repositories/projects';
+import { openEnvelope, sealDocument, serializeSealedDocument } from '$lib/client/store/envelope';
+import {
+	COLLATION_CHECKPOINT_FORMAT,
+	COLLATION_CURRENT_VERSION,
+	COLLATION_FORMAT,
+	PROJECT_MANIFEST_CURRENT_VERSION,
+	PROJECT_MANIFEST_FORMAT,
+	PROJECT_TRANSCRIPTION_CURRENT_VERSION,
+	PROJECT_TRANSCRIPTION_FORMAT,
+	TOMBSTONE_CURRENT_VERSION,
+	TOMBSTONE_FORMAT,
+	TRANSCRIPTION_CHECKPOINT_FORMAT,
+	assertCollationCheckpointPayloadIntegrity,
+	assertCollationRevisionHash,
+	assertProjectTranscriptionRevisionHash,
+	assertTranscriptionCheckpointPayloadIntegrity,
+	readCanonicalDocument,
+	type CollationCheckpointPayload,
+	type CollationPayload,
+	type ProjectManifestPayload,
+	type ProjectTranscriptionPayload,
+	type TombstonePayload,
+	type TranscriptionCheckpointPayload,
+} from '$lib/client/store/formats';
+import { quarantineFromError as storeQuarantineFromError } from '$lib/client/store/quarantine';
 import {
 	buildCollationHashPayload,
 	buildTranscriptionHashPayload,
@@ -236,8 +261,44 @@ export type CloudFileValidationResult =
 export { projectCloudRootPath, projectRelativeCloudPaths } from './cloud-paths';
 export type { ProjectCloudPaths } from './cloud-paths';
 
-export function serializeCloudFile(file: CloudFile): string {
-	return canonicalJson(file);
+export async function serializeCloudFile(file: CloudFile): Promise<string> {
+	const document = await cloudFileToCanonicalDocument(file);
+	return serializeSealedDocument(document);
+}
+
+async function cloudFileToCanonicalDocument(file: CloudFile) {
+	if (isProjectCloudFile(file)) {
+		return sealDocument(
+			PROJECT_MANIFEST_FORMAT,
+			PROJECT_MANIFEST_CURRENT_VERSION,
+			projectCloudFileToPayload(file)
+		);
+	}
+	if (isProjectTranscriptionCloudFile(file)) {
+		return sealDocument(
+			PROJECT_TRANSCRIPTION_FORMAT,
+			PROJECT_TRANSCRIPTION_CURRENT_VERSION,
+			projectTranscriptionCloudFileToPayload(file)
+		);
+	}
+	if (isCollationCloudFile(file)) {
+		return sealDocument(COLLATION_FORMAT, COLLATION_CURRENT_VERSION, collationCloudFileToPayload(file));
+	}
+	if (isHistoryCloudFile(file)) {
+		if (file.entity_type === 'project-transcription') {
+			return sealDocument(
+				TRANSCRIPTION_CHECKPOINT_FORMAT,
+				1,
+				transcriptionHistoryCloudFileToPayload(file)
+			);
+		}
+		return sealDocument(
+			COLLATION_CHECKPOINT_FORMAT,
+			1,
+			collationHistoryCloudFileToPayload(file)
+		);
+	}
+	return sealDocument(TOMBSTONE_FORMAT, TOMBSTONE_CURRENT_VERSION, tombstoneCloudFileToPayload(file));
 }
 
 export async function serializeProjectCloudFile(
@@ -463,30 +524,13 @@ export async function serializeTombstoneCloudFile(
 	return tombstoneRowToCloudFile(row);
 }
 
-export function parseProjectCloudFile(input: unknown): CloudFileParseResult<ProjectCloudFile> {
-	try {
-		const record = readCloudObject(input);
-		readSchemaVersion(record);
-		return {
-			ok: true,
-			value: {
-				schema_version: CLOUD_FILE_SCHEMA_VERSION,
-				id: readString(record, 'id'),
-				name: readString(record, 'name'),
-				description: readString(record, 'description'),
-				charter: readString(record, 'charter'),
-				collation_settings: readJsonValue(record, 'collation_settings'),
-				manifest_content_hash: readString(record, 'manifest_content_hash'),
-				transcriptions: readProjectManifestTranscriptionHeads(record, 'transcriptions'),
-				collations: readProjectManifestCollationHeads(record, 'collations'),
-				tombstones: readProjectManifestTombstoneHeads(record, 'tombstones'),
-				created_at: readString(record, 'created_at'),
-				updated_at: readString(record, 'updated_at'),
-			},
-		};
-	} catch (error) {
-		return quarantineResult(error);
-	}
+export async function parseProjectCloudFile(
+	input: unknown
+): Promise<CloudFileParseResult<ProjectCloudFile>> {
+	const result = await readCanonicalDocument<ProjectManifestPayload>(PROJECT_MANIFEST_FORMAT, input);
+	return result.ok
+		? { ok: true, value: projectManifestPayloadToCloudFile(result.payload) }
+		: { ok: false, quarantine: result.quarantine };
 }
 
 async function listProjectManifestTranscriptionHeads(
@@ -581,41 +625,14 @@ function revisionHead(
 export async function parseProjectTranscriptionCloudFile(
 	input: unknown
 ): Promise<CloudFileParseResult<ProjectTranscriptionCloudFile>> {
+	const result = await readCanonicalDocument<ProjectTranscriptionPayload>(
+		PROJECT_TRANSCRIPTION_FORMAT,
+		input
+	);
+	if (!result.ok) return { ok: false, quarantine: result.quarantine };
 	try {
-		const record = readCloudObject(input);
-		readSchemaVersion(record);
-		const file: ProjectTranscriptionCloudFile = {
-			schema_version: CLOUD_FILE_SCHEMA_VERSION,
-			project_transcription_id: readString(record, 'project_transcription_id'),
-			id: readString(record, 'id'),
-			scope_type: readLiteral(record, 'scope_type', 'project_snapshot'),
-			canonical_transcription_id: readNullableString(record, 'canonical_transcription_id'),
-			current_revision: readCurrentRevision(record, 'current_revision'),
-			origin: readProjectTranscriptionOrigin(record, 'origin'),
-			title: readString(record, 'title'),
-			siglum: readString(record, 'siglum'),
-			description: readString(record, 'description'),
-			content_json: readJsonValue(record, 'content_json'),
-			format: readString(record, 'format'),
-			created_at: readString(record, 'created_at'),
-			updated_at: readString(record, 'updated_at'),
-			owner: readNullableString(record, 'owner'),
-			is_public: readBoolean(record, 'is_public'),
-			tags: readStringArray(record, 'tags'),
-			transcriber: readString(record, 'transcriber'),
-			repository: readString(record, 'repository'),
-			settlement: readString(record, 'settlement'),
-			language: readString(record, 'language'),
-			iiif_manifest_sources: readManifestSources(record, 'iiif_manifest_sources'),
-			page_canvas_links: readPageCanvasLinks(record, 'page_canvas_links'),
-			canvas_annotations: readCanvasAnnotations(record, 'canvas_annotations'),
-		};
-		await assertHashMatches(
-			buildTranscriptionHashPayload(file),
-			file.current_revision.content_hash,
-			`Project transcription ${file.project_transcription_id}`
-		);
-		return { ok: true, value: file };
+		await assertProjectTranscriptionRevisionHash(result.payload);
+		return { ok: true, value: projectTranscriptionPayloadToCloudFile(result.payload) };
 	} catch (error) {
 		return quarantineResult(error);
 	}
@@ -624,35 +641,11 @@ export async function parseProjectTranscriptionCloudFile(
 export async function parseCollationCloudFile(
 	input: unknown
 ): Promise<CloudFileParseResult<CollationCloudFile>> {
+	const result = await readCanonicalDocument<CollationPayload>(COLLATION_FORMAT, input);
+	if (!result.ok) return { ok: false, quarantine: result.quarantine };
 	try {
-		const record = readCloudObject(input);
-		readSchemaVersion(record);
-		const file: CollationCloudFile = {
-			schema_version: CLOUD_FILE_SCHEMA_VERSION,
-			id: readString(record, 'id'),
-			project_id: readNullableString(record, 'project_id'),
-			title: readString(record, 'title'),
-			verse_identifier: readString(record, 'verse_identifier'),
-			status: readString(record, 'status'),
-			current_revision: readCurrentRevision(record, 'current_revision'),
-			group_path: readString(record, 'group_path'),
-			notes: readString(record, 'notes'),
-			sort_key: readNumber(record, 'sort_key'),
-			created_at: readString(record, 'created_at'),
-			updated_at: readString(record, 'updated_at'),
-			witnesses: readCollationWitnesses(record, 'witnesses'),
-			tokens: readCollationTokens(record, 'tokens'),
-			variation_units: readVariationUnits(record, 'variation_units'),
-			readings: readCollationReadings(record, 'readings'),
-			reading_witnesses: readReadingWitnesses(record, 'reading_witnesses'),
-			artifacts: readCollationArtifacts(record, 'artifacts'),
-		};
-		await assertHashMatches(
-			buildCollationHashPayload(file),
-			file.current_revision.content_hash,
-			`Collation ${file.id}`
-		);
-		return { ok: true, value: file };
+		await assertCollationRevisionHash(result.payload);
+		return { ok: true, value: collationPayloadToCloudFile(result.payload) };
 	} catch (error) {
 		return quarantineResult(error);
 	}
@@ -662,76 +655,38 @@ export async function parseHistoryCloudFile(
 	input: unknown
 ): Promise<CloudFileParseResult<HistoryCloudFile>> {
 	try {
-		const record = readCloudObject(input);
-		readSchemaVersion(record);
-		const entityType = readHistoryEntityType(record, 'entity_type');
-		const payload = readJsonValue(record, 'payload');
-		const contentHash = readString(record, 'content_hash');
-		await assertHashMatches(
-			payload,
-			contentHash,
-			`Checkpoint ${readString(record, 'checkpoint_id')}`
-		);
-
-		if (entityType === 'project-transcription') {
-			const file: ProjectTranscriptionHistoryCloudFile = {
-				schema_version: CLOUD_FILE_SCHEMA_VERSION,
-				checkpoint_id: readString(record, 'checkpoint_id'),
-				entity_type: entityType,
-				entity_id: readString(record, 'entity_id'),
-				payload_transcription_id: readString(record, 'payload_transcription_id'),
-				parent_checkpoint_id: readNullableString(record, 'parent_checkpoint_id'),
-				content_hash: contentHash,
-				format: readString(record, 'format'),
-				commit_message: readNullableString(record, 'commit_message'),
-				author_name: readString(record, 'author_name'),
-				created_at: readString(record, 'created_at'),
-				payload,
-			};
-			validateTranscriptionCheckpointPayloadIdentity(file);
-			return { ok: true, value: file };
+		const format = openEnvelope(input).header.format;
+		if (format === TRANSCRIPTION_CHECKPOINT_FORMAT) {
+			const result = await readCanonicalDocument<TranscriptionCheckpointPayload>(
+				TRANSCRIPTION_CHECKPOINT_FORMAT,
+				input
+			);
+			if (!result.ok) return { ok: false, quarantine: result.quarantine };
+			await assertTranscriptionCheckpointPayloadIntegrity(result.payload);
+			return { ok: true, value: transcriptionCheckpointPayloadToCloudFile(result.payload) };
 		}
-
-		const file: CollationHistoryCloudFile = {
-			schema_version: CLOUD_FILE_SCHEMA_VERSION,
-			checkpoint_id: readString(record, 'checkpoint_id'),
-			entity_type: entityType,
-			entity_id: readString(record, 'entity_id'),
-			parent_checkpoint_id: readNullableString(record, 'parent_checkpoint_id'),
-			content_hash: contentHash,
-			commit_message: readNullableString(record, 'commit_message'),
-			author_name: readString(record, 'author_name'),
-			created_at: readString(record, 'created_at'),
-			payload,
-		};
-		validateCollationCheckpointPayloadIdentity(file);
-		return { ok: true, value: file };
+		if (format === COLLATION_CHECKPOINT_FORMAT) {
+			const result = await readCanonicalDocument<CollationCheckpointPayload>(
+				COLLATION_CHECKPOINT_FORMAT,
+				input
+			);
+			if (!result.ok) return { ok: false, quarantine: result.quarantine };
+			await assertCollationCheckpointPayloadIntegrity(result.payload);
+			return { ok: true, value: collationCheckpointPayloadToCloudFile(result.payload) };
+		}
+		throw invalidShape('History cloud file must be a transcription or collation checkpoint.');
 	} catch (error) {
 		return quarantineResult(error);
 	}
 }
 
-export function parseTombstoneCloudFile(input: unknown): CloudFileParseResult<TombstoneCloudFile> {
-	try {
-		const record = readCloudObject(input);
-		readSchemaVersion(record);
-		return {
-			ok: true,
-			value: {
-				schema_version: CLOUD_FILE_SCHEMA_VERSION,
-				id: readString(record, 'id'),
-				project_id: readNullableString(record, 'project_id'),
-				entity_type: readString(record, 'entity_type'),
-				entity_id: readString(record, 'entity_id'),
-				cloud_path: readString(record, 'cloud_path'),
-				deletion_revision_id: readString(record, 'deletion_revision_id'),
-				deleted_by: readString(record, 'deleted_by'),
-				deleted_at: readString(record, 'deleted_at'),
-			},
-		};
-	} catch (error) {
-		return quarantineResult(error);
-	}
+export async function parseTombstoneCloudFile(
+	input: unknown
+): Promise<CloudFileParseResult<TombstoneCloudFile>> {
+	const result = await readCanonicalDocument<TombstonePayload>(TOMBSTONE_FORMAT, input);
+	return result.ok
+		? { ok: true, value: tombstonePayloadToCloudFile(result.payload) }
+		: { ok: false, quarantine: result.quarantine };
 }
 
 export function validateProjectTranscriptionHeadMatchesCheckpoint(
@@ -919,6 +874,257 @@ export function tombstoneCloudFileToRow(file: TombstoneCloudFile): Selectable<Sy
 	};
 }
 
+function isProjectCloudFile(file: CloudFile): file is ProjectCloudFile {
+	return 'manifest_content_hash' in file;
+}
+
+function isProjectTranscriptionCloudFile(file: CloudFile): file is ProjectTranscriptionCloudFile {
+	return 'project_transcription_id' in file && 'current_revision' in file;
+}
+
+function isCollationCloudFile(file: CloudFile): file is CollationCloudFile {
+	return 'verse_identifier' in file && 'witnesses' in file && 'current_revision' in file;
+}
+
+function isHistoryCloudFile(file: CloudFile): file is HistoryCloudFile {
+	return 'checkpoint_id' in file;
+}
+
+function projectCloudFileToPayload(file: ProjectCloudFile): ProjectManifestPayload {
+	return {
+		id: file.id,
+		name: file.name,
+		description: file.description,
+		charter: file.charter,
+		collation_settings: file.collation_settings as ProjectManifestPayload['collation_settings'],
+		manifest_content_hash: file.manifest_content_hash,
+		transcriptions: file.transcriptions as ProjectManifestPayload['transcriptions'],
+		collations: file.collations as ProjectManifestPayload['collations'],
+		tombstones: file.tombstones as ProjectManifestPayload['tombstones'],
+		created_at: file.created_at,
+		updated_at: file.updated_at,
+	};
+}
+
+function projectManifestPayloadToCloudFile(payload: ProjectManifestPayload): ProjectCloudFile {
+	return {
+		schema_version: CLOUD_FILE_SCHEMA_VERSION,
+		id: payload.id,
+		name: payload.name,
+		description: payload.description,
+		charter: payload.charter,
+		collation_settings: payload.collation_settings,
+		manifest_content_hash: payload.manifest_content_hash,
+		transcriptions: payload.transcriptions,
+		collations: payload.collations,
+		tombstones: payload.tombstones,
+		created_at: payload.created_at,
+		updated_at: payload.updated_at,
+	};
+}
+
+function projectTranscriptionCloudFileToPayload(
+	file: ProjectTranscriptionCloudFile
+): ProjectTranscriptionPayload {
+	return {
+		project_transcription_id: file.project_transcription_id,
+		id: file.id,
+		scope_type: file.scope_type,
+		canonical_transcription_id: file.canonical_transcription_id,
+		current_revision: file.current_revision as ProjectTranscriptionPayload['current_revision'],
+		origin: file.origin as ProjectTranscriptionPayload['origin'],
+		title: file.title,
+		siglum: file.siglum,
+		description: file.description,
+		content_json: file.content_json as ProjectTranscriptionPayload['content_json'],
+		content_format: file.format,
+		created_at: file.created_at,
+		updated_at: file.updated_at,
+		owner: file.owner,
+		is_public: file.is_public,
+		tags: [...file.tags],
+		transcriber: file.transcriber,
+		repository: file.repository,
+		settlement: file.settlement,
+		language: file.language,
+		iiif_manifest_sources:
+			file.iiif_manifest_sources as ProjectTranscriptionPayload['iiif_manifest_sources'],
+		page_canvas_links: file.page_canvas_links as ProjectTranscriptionPayload['page_canvas_links'],
+		canvas_annotations: file.canvas_annotations as ProjectTranscriptionPayload['canvas_annotations'],
+	};
+}
+
+function projectTranscriptionPayloadToCloudFile(
+	payload: ProjectTranscriptionPayload
+): ProjectTranscriptionCloudFile {
+	return {
+		schema_version: CLOUD_FILE_SCHEMA_VERSION,
+		project_transcription_id: payload.project_transcription_id,
+		id: payload.id,
+		scope_type: payload.scope_type,
+		canonical_transcription_id: payload.canonical_transcription_id,
+		current_revision: payload.current_revision,
+		origin: payload.origin,
+		title: payload.title,
+		siglum: payload.siglum,
+		description: payload.description,
+		content_json: payload.content_json,
+		format: payload.content_format,
+		created_at: payload.created_at,
+		updated_at: payload.updated_at,
+		owner: payload.owner,
+		is_public: payload.is_public,
+		tags: [...payload.tags],
+		transcriber: payload.transcriber,
+		repository: payload.repository,
+		settlement: payload.settlement,
+		language: payload.language,
+		iiif_manifest_sources: payload.iiif_manifest_sources,
+		page_canvas_links: payload.page_canvas_links,
+		canvas_annotations: payload.canvas_annotations,
+	};
+}
+
+function collationCloudFileToPayload(file: CollationCloudFile): CollationPayload {
+	return {
+		id: file.id,
+		project_id: file.project_id,
+		title: file.title,
+		verse_identifier: file.verse_identifier,
+		status: file.status,
+		current_revision: file.current_revision as CollationPayload['current_revision'],
+		group_path: file.group_path,
+		notes: file.notes,
+		sort_key: file.sort_key,
+		created_at: file.created_at,
+		updated_at: file.updated_at,
+		witnesses: file.witnesses as CollationPayload['witnesses'],
+		tokens: file.tokens as CollationPayload['tokens'],
+		variation_units: file.variation_units as CollationPayload['variation_units'],
+		readings: file.readings as CollationPayload['readings'],
+		reading_witnesses: file.reading_witnesses as CollationPayload['reading_witnesses'],
+		artifacts: file.artifacts as CollationPayload['artifacts'],
+	};
+}
+
+function collationPayloadToCloudFile(payload: CollationPayload): CollationCloudFile {
+	return {
+		schema_version: CLOUD_FILE_SCHEMA_VERSION,
+		id: payload.id,
+		project_id: payload.project_id,
+		title: payload.title,
+		verse_identifier: payload.verse_identifier,
+		status: payload.status,
+		current_revision: payload.current_revision,
+		group_path: payload.group_path,
+		notes: payload.notes,
+		sort_key: payload.sort_key,
+		created_at: payload.created_at,
+		updated_at: payload.updated_at,
+		witnesses: payload.witnesses,
+		tokens: payload.tokens,
+		variation_units: payload.variation_units,
+		readings: payload.readings,
+		reading_witnesses: payload.reading_witnesses,
+		artifacts: payload.artifacts,
+	};
+}
+
+function transcriptionHistoryCloudFileToPayload(
+	file: ProjectTranscriptionHistoryCloudFile
+): TranscriptionCheckpointPayload {
+	return {
+		checkpoint_id: file.checkpoint_id,
+		entity_type: file.entity_type,
+		entity_id: file.entity_id,
+		payload_transcription_id: file.payload_transcription_id,
+		parent_checkpoint_id: file.parent_checkpoint_id,
+		payload_content_hash: file.content_hash,
+		content_format: file.format,
+		commit_message: file.commit_message,
+		author_name: file.author_name,
+		created_at: file.created_at,
+		payload: file.payload as TranscriptionCheckpointPayload['payload'],
+	};
+}
+
+function transcriptionCheckpointPayloadToCloudFile(
+	payload: TranscriptionCheckpointPayload
+): ProjectTranscriptionHistoryCloudFile {
+	return {
+		schema_version: CLOUD_FILE_SCHEMA_VERSION,
+		checkpoint_id: payload.checkpoint_id,
+		entity_type: payload.entity_type,
+		entity_id: payload.entity_id,
+		payload_transcription_id: payload.payload_transcription_id,
+		parent_checkpoint_id: payload.parent_checkpoint_id,
+		content_hash: payload.payload_content_hash,
+		format: payload.content_format,
+		commit_message: payload.commit_message,
+		author_name: payload.author_name,
+		created_at: payload.created_at,
+		payload: payload.payload,
+	};
+}
+
+function collationHistoryCloudFileToPayload(file: CollationHistoryCloudFile): CollationCheckpointPayload {
+	return {
+		checkpoint_id: file.checkpoint_id,
+		entity_type: file.entity_type,
+		entity_id: file.entity_id,
+		parent_checkpoint_id: file.parent_checkpoint_id,
+		payload_content_hash: file.content_hash,
+		commit_message: file.commit_message,
+		author_name: file.author_name,
+		created_at: file.created_at,
+		payload: file.payload as CollationCheckpointPayload['payload'],
+	};
+}
+
+function collationCheckpointPayloadToCloudFile(
+	payload: CollationCheckpointPayload
+): CollationHistoryCloudFile {
+	return {
+		schema_version: CLOUD_FILE_SCHEMA_VERSION,
+		checkpoint_id: payload.checkpoint_id,
+		entity_type: payload.entity_type,
+		entity_id: payload.entity_id,
+		parent_checkpoint_id: payload.parent_checkpoint_id,
+		content_hash: payload.payload_content_hash,
+		commit_message: payload.commit_message,
+		author_name: payload.author_name,
+		created_at: payload.created_at,
+		payload: payload.payload,
+	};
+}
+
+function tombstoneCloudFileToPayload(file: TombstoneCloudFile): TombstonePayload {
+	return {
+		id: file.id,
+		project_id: file.project_id,
+		entity_type: file.entity_type,
+		entity_id: file.entity_id,
+		cloud_path: file.cloud_path,
+		deletion_revision_id: file.deletion_revision_id,
+		deleted_by: file.deleted_by,
+		deleted_at: file.deleted_at,
+	};
+}
+
+function tombstonePayloadToCloudFile(payload: TombstonePayload): TombstoneCloudFile {
+	return {
+		schema_version: CLOUD_FILE_SCHEMA_VERSION,
+		id: payload.id,
+		project_id: payload.project_id,
+		entity_type: payload.entity_type,
+		entity_id: payload.entity_id,
+		cloud_path: payload.cloud_path,
+		deletion_revision_id: payload.deletion_revision_id,
+		deleted_by: payload.deleted_by,
+		deleted_at: payload.deleted_at,
+	};
+}
+
 async function loadProjectTranscriptionMetadata(db: DbExecutor, projectTranscriptionId: string) {
 	const row = await db
 		.selectFrom('project_transcriptions')
@@ -1065,382 +1271,6 @@ async function assertHashMatches(
 	}
 }
 
-function readCloudObject(input: unknown): Record<string, unknown> {
-	let value = input;
-	if (typeof value === 'string') {
-		try {
-			value = JSON.parse(value) as unknown;
-		} catch (error) {
-			throw new CloudFileValidationError(
-				'invalid_json',
-				`Cloud file is not valid JSON: ${errorMessage(error)}`
-			);
-		}
-	}
-	return readObjectValue(value, 'cloud file');
-}
-
-function readSchemaVersion(record: Record<string, unknown>): CloudFileSchemaVersion {
-	const version = record.schema_version;
-	if (version !== CLOUD_FILE_SCHEMA_VERSION) {
-		throw new CloudFileValidationError(
-			'invalid_schema_version',
-			`Unsupported cloud file schema_version ${String(version)}.`,
-			CLOUD_FILE_SCHEMA_VERSION,
-			version
-		);
-	}
-	return CLOUD_FILE_SCHEMA_VERSION;
-}
-
-function readProjectTranscriptionOrigin(
-	record: Record<string, unknown>,
-	key: string
-): ProjectTranscriptionOriginCloudFile {
-	const origin = readObjectField(record, key);
-	return {
-		source_type: readString(origin, 'source_type'),
-		source_project_id: readNullableString(origin, 'source_project_id'),
-		source_transcription_id: readNullableString(origin, 'source_transcription_id'),
-		source_revision_id: readNullableString(origin, 'source_revision_id'),
-		source_content_hash: readNullableString(origin, 'source_content_hash'),
-	};
-}
-
-function readCurrentRevision(record: Record<string, unknown>, key: string): CloudCurrentRevision {
-	const revision = readObjectField(record, key);
-	return {
-		id: readString(revision, 'id'),
-		content_hash: readString(revision, 'content_hash'),
-		created_at: readString(revision, 'created_at'),
-		author_name: readString(revision, 'author_name'),
-	};
-}
-
-function readProjectManifestRevisionHead(
-	record: Record<string, unknown>,
-	key: string
-): ProjectManifestRevisionHead | null {
-	const value = record[key];
-	if (value === null) return null;
-	const revision = readObjectValue(value, key);
-	return {
-		id: readString(revision, 'id'),
-		content_hash: readString(revision, 'content_hash'),
-	};
-}
-
-function readProjectManifestTranscriptionHeads(
-	record: Record<string, unknown>,
-	key: string
-): ProjectManifestTranscriptionHead[] {
-	return readArray(record, key).map((entry, index) => {
-		const row = readObjectValue(entry, `${key}[${index}]`);
-		return {
-			project_transcription_id: readString(row, 'project_transcription_id'),
-			transcription_id: readString(row, 'transcription_id'),
-			current_revision: readProjectManifestRevisionHead(row, 'current_revision'),
-			title: readString(row, 'title'),
-			siglum: readString(row, 'siglum'),
-			primary_path: readString(row, 'primary_path'),
-		};
-	});
-}
-
-function readProjectManifestCollationHeads(
-	record: Record<string, unknown>,
-	key: string
-): ProjectManifestCollationHead[] {
-	return readArray(record, key).map((entry, index) => {
-		const row = readObjectValue(entry, `${key}[${index}]`);
-		return {
-			collation_id: readString(row, 'collation_id'),
-			current_revision: readProjectManifestRevisionHead(row, 'current_revision'),
-			title: readString(row, 'title'),
-			verse_identifier: readString(row, 'verse_identifier'),
-			primary_path: readString(row, 'primary_path'),
-		};
-	});
-}
-
-function readProjectManifestTombstoneHeads(
-	record: Record<string, unknown>,
-	key: string
-): ProjectManifestTombstoneHead[] {
-	return readArray(record, key).map((entry, index) => {
-		const row = readObjectValue(entry, `${key}[${index}]`);
-		return {
-			tombstone_id: readString(row, 'tombstone_id'),
-			entity_type: readString(row, 'entity_type'),
-			entity_id: readString(row, 'entity_id'),
-			deletion_revision_id: readString(row, 'deletion_revision_id'),
-			content_hash: readString(row, 'content_hash'),
-			primary_path: readString(row, 'primary_path'),
-			deleted_at: readString(row, 'deleted_at'),
-		};
-	});
-}
-
-function readManifestSources(
-	record: Record<string, unknown>,
-	key: string
-): SerializedIiifManifestSource[] {
-	return readArray(record, key).map((entry, index) => {
-		const row = readObjectValue(entry, `${key}[${index}]`);
-		return {
-			id: readString(row, 'id'),
-			manifest_url: readString(row, 'manifest_url'),
-			label: readString(row, 'label'),
-			source_kind: readString(row, 'source_kind'),
-			default_canvas_id: readNullableString(row, 'default_canvas_id'),
-			default_image_service_url: readNullableString(row, 'default_image_service_url'),
-			metadata_json: readJsonValue(row, 'metadata_json'),
-		};
-	});
-}
-
-function readPageCanvasLinks(
-	record: Record<string, unknown>,
-	key: string
-): SerializedTranscriptionPageCanvasLink[] {
-	return readArray(record, key).map((entry, index) => {
-		const row = readObjectValue(entry, `${key}[${index}]`);
-		return {
-			id: readString(row, 'id'),
-			page_id: readString(row, 'page_id'),
-			page_name_snapshot: readString(row, 'page_name_snapshot'),
-			page_order: readNumber(row, 'page_order'),
-			manifest_source_id: readString(row, 'manifest_source_id'),
-			manifest_url_snapshot: readString(row, 'manifest_url_snapshot'),
-			canvas_id: readString(row, 'canvas_id'),
-			canvas_order: readNumber(row, 'canvas_order'),
-			canvas_label: readString(row, 'canvas_label'),
-			image_service_url: readNullableString(row, 'image_service_url'),
-			thumbnail_url: readNullableString(row, 'thumbnail_url'),
-			link_role: readString(row, 'link_role'),
-		};
-	});
-}
-
-function readCanvasAnnotations(
-	record: Record<string, unknown>,
-	key: string
-): SerializedIiifCanvasAnnotation[] {
-	return readArray(record, key).map((entry, index) => {
-		const row = readObjectValue(entry, `${key}[${index}]`);
-		return {
-			id: readString(row, 'id'),
-			manifest_source_id: readString(row, 'manifest_source_id'),
-			canvas_id: readString(row, 'canvas_id'),
-			page_id: readNullableString(row, 'page_id'),
-			annotation_id: readString(row, 'annotation_id'),
-			annotation_kind: readNullableString(row, 'annotation_kind'),
-			body_json: readJsonValue(row, 'body_json'),
-			target_json: readJsonValue(row, 'target_json'),
-			anchor_json: readJsonValue(row, 'anchor_json'),
-			motivation: readString(row, 'motivation'),
-			created_by: readNullableString(row, 'created_by'),
-		};
-	});
-}
-
-function readCollationWitnesses(
-	record: Record<string, unknown>,
-	key: string
-): SerializedCollationWitness[] {
-	return readArray(record, key).map((entry, index) => {
-		const row = readObjectValue(entry, `${key}[${index}]`);
-		return {
-			id: readString(row, 'id'),
-			witness_id: readString(row, 'witness_id'),
-			content: readString(row, 'content'),
-			position: readNumber(row, 'position'),
-			project_transcription_id: readNullableString(row, 'project_transcription_id'),
-			transcription_id: readNullableString(row, 'transcription_id'),
-			source_revision_id: readString(row, 'source_revision_id'),
-			source_content_hash: readString(row, 'source_content_hash'),
-		};
-	});
-}
-
-function readCollationTokens(
-	record: Record<string, unknown>,
-	key: string
-): SerializedCollationToken[] {
-	return readArray(record, key).map((entry, index) => {
-		const row = readObjectValue(entry, `${key}[${index}]`);
-		return {
-			id: readString(row, 'id'),
-			witness_id: readString(row, 'witness_id'),
-			token_index: readNumber(row, 'token_index'),
-			token_text: readString(row, 'token_text'),
-		};
-	});
-}
-
-function readVariationUnits(
-	record: Record<string, unknown>,
-	key: string
-): SerializedCollationVariationUnit[] {
-	return readArray(record, key).map((entry, index) => {
-		const row = readObjectValue(entry, `${key}[${index}]`);
-		return {
-			id: readString(row, 'id'),
-			start_index: readNumber(row, 'start_index'),
-			end_index: readNumber(row, 'end_index'),
-			unit_type: readString(row, 'unit_type'),
-			base_text: readString(row, 'base_text'),
-		};
-	});
-}
-
-function readCollationReadings(
-	record: Record<string, unknown>,
-	key: string
-): SerializedCollationReading[] {
-	return readArray(record, key).map((entry, index) => {
-		const row = readObjectValue(entry, `${key}[${index}]`);
-		return {
-			id: readString(row, 'id'),
-			variation_unit_id: readString(row, 'variation_unit_id'),
-			reading_order: readNumber(row, 'reading_order'),
-			reading_text: readString(row, 'reading_text'),
-			is_lacuna: readBoolean(row, 'is_lacuna'),
-			is_omission: readBoolean(row, 'is_omission'),
-		};
-	});
-}
-
-function readReadingWitnesses(
-	record: Record<string, unknown>,
-	key: string
-): SerializedCollationReadingWitness[] {
-	return readArray(record, key).map((entry, index) => {
-		const row = readObjectValue(entry, `${key}[${index}]`);
-		return {
-			reading_id: readString(row, 'reading_id'),
-			witness_id: readString(row, 'witness_id'),
-		};
-	});
-}
-
-function readCollationArtifacts(
-	record: Record<string, unknown>,
-	key: string
-): SerializedCollationArtifact[] {
-	return readArray(record, key).map((entry, index) => {
-		const row = readObjectValue(entry, `${key}[${index}]`);
-		return {
-			id: readString(row, 'id'),
-			artifact_type: readString(row, 'artifact_type'),
-			payload: readJsonValue(row, 'payload'),
-		};
-	});
-}
-
-function readHistoryEntityType(
-	record: Record<string, unknown>,
-	key: string
-): CloudHistoryEntityType {
-	const value = readString(record, key);
-	if (value === 'project-transcription' || value === 'collation') return value;
-	throw invalidShape(`${key} must be "project-transcription" or "collation".`);
-}
-
-function readLiteral<T extends string>(
-	record: Record<string, unknown>,
-	key: string,
-	expected: T
-): T {
-	const value = readString(record, key);
-	if (value !== expected) throw invalidShape(`${key} must be ${JSON.stringify(expected)}.`);
-	return expected;
-}
-
-function readObjectField(record: Record<string, unknown>, key: string): Record<string, unknown> {
-	return readObjectValue(record[key], key);
-}
-
-function readObjectValue(value: unknown, label: string): Record<string, unknown> {
-	if (!value || typeof value !== 'object' || Array.isArray(value)) {
-		throw invalidShape(`${label} must be an object.`);
-	}
-	return value as Record<string, unknown>;
-}
-
-function readArray(record: Record<string, unknown>, key: string): unknown[] {
-	const value = record[key];
-	if (!Array.isArray(value)) throw invalidShape(`${key} must be an array.`);
-	return value;
-}
-
-function readString(record: Record<string, unknown>, key: string): string {
-	const value = record[key];
-	if (typeof value !== 'string') throw invalidShape(`${key} must be a string.`);
-	return value;
-}
-
-function readNullableString(record: Record<string, unknown>, key: string): string | null {
-	const value = record[key];
-	if (value === null) return null;
-	if (typeof value !== 'string') throw invalidShape(`${key} must be a string or null.`);
-	return value;
-}
-
-function readBoolean(record: Record<string, unknown>, key: string): boolean {
-	const value = record[key];
-	if (typeof value !== 'boolean') throw invalidShape(`${key} must be a boolean.`);
-	return value;
-}
-
-function readNumber(record: Record<string, unknown>, key: string): number {
-	const value = record[key];
-	if (typeof value !== 'number' || !Number.isFinite(value)) {
-		throw invalidShape(`${key} must be a finite number.`);
-	}
-	return value;
-}
-
-function readStringArray(record: Record<string, unknown>, key: string): string[] {
-	return readArray(record, key).map((value, index) => {
-		if (typeof value !== 'string') throw invalidShape(`${key}[${index}] must be a string.`);
-		return value;
-	});
-}
-
-function readJsonValue(record: Record<string, unknown>, key: string): unknown {
-	const value = record[key];
-	try {
-		canonicalJson(value);
-	} catch (error) {
-		throw invalidShape(`${key} is not canonicalizable JSON: ${errorMessage(error)}`);
-	}
-	return value;
-}
-
-function validateTranscriptionCheckpointPayloadIdentity(
-	file: ProjectTranscriptionHistoryCloudFile
-): void {
-	const payload = readObjectValue(file.payload, 'payload');
-	if (readString(payload, 'project_transcription_id') !== file.entity_id) {
-		throw invalidShape(
-			'Transcription checkpoint payload project_transcription_id does not match entity_id.'
-		);
-	}
-	if (readString(payload, 'id') !== file.payload_transcription_id) {
-		throw invalidShape(
-			'Transcription checkpoint payload id does not match payload_transcription_id.'
-		);
-	}
-}
-
-function validateCollationCheckpointPayloadIdentity(file: CollationHistoryCloudFile): void {
-	const payload = readObjectValue(file.payload, 'payload');
-	if (readString(payload, 'id') !== file.entity_id) {
-		throw invalidShape('Collation checkpoint payload id does not match entity_id.');
-	}
-}
-
 function parseStoredJson(value: string, label: string): unknown {
 	try {
 		return JSON.parse(value) as unknown;
@@ -1466,7 +1296,7 @@ function quarantineFromError(error: unknown): CloudFileQuarantine {
 			actual: error.actual,
 		};
 	}
-	return { code: 'invalid_shape', message: errorMessage(error) };
+	return storeQuarantineFromError(error);
 }
 
 class CloudFileValidationError extends Error {

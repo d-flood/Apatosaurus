@@ -1,6 +1,6 @@
 # Phase 03: Canonical File Formats
 
-Status: Not Started
+Status: Completed
 Depends on: Phase 02
 Architecture reference: `architecture.md` section 5
 
@@ -43,14 +43,14 @@ Promote the existing cloud file formats (`app/src/lib/client/sync/cloud-files.ts
 
 ## Checklist
 
-- [ ] All eight format modules with types, validators, versions, fixtures
-- [ ] Formats registered with migrate-on-read registry
-- [ ] `cloud-files.ts` delegated to format modules; single source of parsing truth
-- [ ] IIIF data included in project-transcription format
-- [ ] `transcriptionDocumentToTei` wired and tested
-- [ ] `collationDocumentToTei` implemented and tested against fixtures
-- [ ] Round-trip + hash-stability tests pass for every format
-- [ ] `bun run check` and `bun run test:unit -- --run` pass
+- [x] All eight format modules with types, validators, versions, fixtures
+- [x] Formats registered with migrate-on-read registry
+- [x] `cloud-files.ts` delegated to format modules; single source of parsing truth
+- [x] IIIF data included in project-transcription format
+- [x] `transcriptionDocumentToTei` wired and tested
+- [x] `collationDocumentToTei` implemented and tested against fixtures
+- [x] Round-trip + hash-stability tests pass for every format
+- [x] `bun run check` and `bun run test:unit -- --run` pass
 
 ## Completion Criteria
 
@@ -64,7 +64,20 @@ bun run test:unit -- --run src/lib/client/store src/lib/client/sync/cloud-files.
 bun run check
 ```
 
+2026-07-04 results:
+
+```bash
+bun run db:generate
+bun run db:check
+bun run check
+bun run test:unit -- --run src/lib/client/store/formats/formats.spec.ts src/lib/client/sync/cloud-files.spec.ts src/lib/client/sync/project-restore.spec.ts src/lib/client/sync/sync-manager.spec.ts
+bun run test:unit -- --run
+```
+
+All passed.
+
 ## Notes
 
 | Date | Note |
 | --- | --- |
+| 2026-07-04 | Phase completed. Added canonical format modules under `app/src/lib/client/store/formats/` for project manifests, project transcriptions, collations, transcription/collation checkpoints, tombstones, and working transcription/collation state. Formats register with migrate-on-read and use strict known-field validation while ignoring unknown top-level payload fields by reconstructing validated payloads. Legacy reserved-field conflicts are resolved in canonical payloads with `content_format` and `payload_content_hash`; `sync/cloud-files.ts` now adapts existing sync-facing shapes to canonical envelopes so current sync callers stay stable. Added pure derived TEI serializers for transcription and collation apparatus output and fixture-backed format tests. |

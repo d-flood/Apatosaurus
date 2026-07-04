@@ -166,7 +166,7 @@ export async function verifyRemoteProjectBackupHealth(
 	}
 
 	const manifestContent = await provider.downloadFile(manifestMetadata.id);
-	const parsedManifest = parseProjectCloudFile(manifestContent);
+	const parsedManifest = await parseProjectCloudFile(manifestContent);
 	if (!parsedManifest.ok) {
 		const quarantine = quarantineFor(manifestMetadata.path, parsedManifest.quarantine);
 		quarantines.push(quarantine);
@@ -394,7 +394,7 @@ async function addRemoteFileChecks(
 			});
 			continue;
 		}
-		const parsed = parseTombstoneCloudFile(await provider.downloadFile(metadata.id));
+		const parsed = await parseTombstoneCloudFile(await provider.downloadFile(metadata.id));
 		if (!parsed.ok) {
 			tombstoneFailures += 1;
 			quarantines.push(quarantineFor(metadata.path, parsed.quarantine));

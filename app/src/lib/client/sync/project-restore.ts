@@ -269,7 +269,7 @@ export async function importCloudProject(
 	}
 
 	const manifestContent = await provider.downloadFile(manifestMetadata.id);
-	const parsedManifest = parseProjectCloudFile(manifestContent);
+	const parsedManifest = await parseProjectCloudFile(manifestContent);
 	if (!parsedManifest.ok) {
 		return {
 			projectId: '',
@@ -389,7 +389,7 @@ export async function pollLinkedProjectManifest(
 				providerMessage: 'Linked cloud project folder does not contain project.json.',
 			};
 		}
-		const parsed = parseProjectCloudFile(await provider.downloadFile(manifestMetadata.id));
+		const parsed = await parseProjectCloudFile(await provider.downloadFile(manifestMetadata.id));
 		if (!parsed.ok) {
 			return {
 				ok: true,
@@ -529,7 +529,7 @@ export async function pullLinkedProjectUpdates(
 			],
 		};
 	}
-	const parsedManifest = parseProjectCloudFile(await provider.downloadFile(manifestMetadata.id));
+	const parsedManifest = await parseProjectCloudFile(await provider.downloadFile(manifestMetadata.id));
 	if (!parsedManifest.ok) {
 		return {
 			projectId: context.projectId,
@@ -726,7 +726,7 @@ async function loadCloudProjectCandidate(
 ): Promise<CloudProjectCandidate> {
 	try {
 		const content = await provider.downloadFile(manifestMetadata.id);
-		const parsed = parseProjectCloudFile(content);
+		const parsed = await parseProjectCloudFile(content);
 		if (!parsed.ok) {
 			return quarantinedCandidate(connectionId, folderId, folderPath, manifestMetadata, [
 				quarantineFor(manifestMetadata.path, parsed.quarantine),
@@ -962,7 +962,7 @@ async function loadTombstoneFiles(
 			});
 			continue;
 		}
-		const parsed = parseTombstoneCloudFile(await provider.downloadFile(metadata.id));
+		const parsed = await parseTombstoneCloudFile(await provider.downloadFile(metadata.id));
 		if (!parsed.ok) {
 			quarantines.push(quarantineFor(metadata.path, parsed.quarantine));
 			continue;
