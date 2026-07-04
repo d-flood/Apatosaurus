@@ -1,18 +1,16 @@
 import {
 	CloudProviderError,
-	type CloudCredentials,
 	type CloudFileMetadata,
 	type CloudListResult,
 	type CloudProviderCapabilities,
 	type CloudProviderErrorCode,
-	type OAuthCloudStorageProvider,
+	type CloudStorageProvider,
 	type CloudWriteResult,
 } from './provider';
 
+export const MOCK_PROVIDER_ID = 'mock';
+
 export type MockProviderOperation =
-	| 'get-auth-url'
-	| 'exchange-code'
-	| 'refresh-credentials'
 	| 'create-folder'
 	| 'share-folder'
 	| 'list-files'
@@ -52,8 +50,8 @@ interface MockCloudEntry {
 
 const DEFAULT_ROOT_FOLDER_ID = 'mock-root';
 
-export class MockCloudStorageProvider implements OAuthCloudStorageProvider {
-	id = 'mock';
+export class MockCloudStorageProvider implements CloudStorageProvider {
+	id = MOCK_PROVIDER_ID;
 	name = 'Mock Cloud Storage';
 	capabilities: CloudProviderCapabilities = {
 		supportsFolderSharing: true,
@@ -61,7 +59,7 @@ export class MockCloudStorageProvider implements OAuthCloudStorageProvider {
 		supportsExpectedRevisionDelete: true,
 		requiresPathAddressing: false,
 		sharingMayBeAsync: false,
-		requiresOAuth: true,
+		requiresExternalAuthorization: false,
 		requiresUserGestureForConnection: false,
 		supportsDirectoryHandlePersistence: false,
 	};
@@ -71,7 +69,6 @@ export class MockCloudStorageProvider implements OAuthCloudStorageProvider {
 	private readonly now: () => string;
 	private entries = new Map<string, MockCloudEntry>();
 	private idCounter = 0;
-	private authCounter = 0;
 	private errorInjections: MockProviderErrorInjection[] = [];
 
 	constructor(options: MockCloudStorageProviderOptions = {}) {
@@ -92,38 +89,6 @@ export class MockCloudStorageProvider implements OAuthCloudStorageProvider {
 			version: 0,
 			createdOrder: this.idCounter,
 		});
-	}
-
-	getAuthUrl(state: string, codeChallenge: string): string {
-		this.throwInjectedError('get-auth-url');
-		const url = new URL('https://mock.apatosaurus.local/oauth/authorize');
-		url.searchParams.set('response_type', 'code');
-		url.searchParams.set('state', state);
-		url.searchParams.set('code_challenge', codeChallenge);
-		url.searchParams.set('code_challenge_method', 'S256');
-		return url.toString();
-	}
-
-	async exchangeCode(code: string, codeVerifier: string): Promise<CloudCredentials> {
-		this.throwInjectedError('exchange-code');
-		if (!code || !codeVerifier)
-			throw providerError('reauthorization-required', 'Missing OAuth code.');
-		return {
-			accessToken: `mock-access-${code}`,
-			refreshToken: `mock-refresh-${code}`,
-			expiresAt: Date.now() + 3_600_000,
-		};
-	}
-
-	async refreshCredentials(refreshToken: string): Promise<CloudCredentials> {
-		this.throwInjectedError('refresh-credentials');
-		if (!refreshToken)
-			throw providerError('reauthorization-required', 'Missing refresh token.');
-		return {
-			accessToken: `mock-access-refreshed-${this.nextAuthCounter()}`,
-			refreshToken,
-			expiresAt: Date.now() + 3_600_000,
-		};
 	}
 
 	async createFolder(folderName: string, parentFolderId = this.rootFolderId): Promise<string> {
@@ -375,10 +340,6 @@ export class MockCloudStorageProvider implements OAuthCloudStorageProvider {
 		return this.idCounter;
 	}
 
-	private nextAuthCounter(): number {
-		this.authCounter += 1;
-		return this.authCounter;
-	}
 }
 
 function normalizeRelativePath(path: string): string[] {

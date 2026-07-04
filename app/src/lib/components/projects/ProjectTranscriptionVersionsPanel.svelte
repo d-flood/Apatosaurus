@@ -3,6 +3,8 @@
 	import ArrowsLeftRight from 'phosphor-svelte/lib/ArrowsLeftRight';
 	import ArrowUp from 'phosphor-svelte/lib/ArrowUp';
 	import GitCommit from 'phosphor-svelte/lib/GitCommit';
+	import PencilSimple from 'phosphor-svelte/lib/PencilSimple';
+	import { resolve } from '$app/paths';
 	import type {
 		ProjectTranscriptionStatus,
 		ProjectTranscriptionSourceState,
@@ -139,6 +141,10 @@
 				return 'badge-ghost';
 		}
 	}
+
+	function transcriptionHref(status: ProjectTranscriptionStatus): string {
+		return resolve(`/transcription/${status.projectOwnedTranscriptionId}`);
+	}
 </script>
 
 <div class="rounded-box border border-base-300/50 bg-base-100 p-4 shadow-md">
@@ -230,6 +236,10 @@
 							{#if status.commitState === 'clean'}
 								<GitCommit size={14} class="text-base-content/40" />
 							{/if}
+							<a class="btn btn-xs btn-outline gap-1" href={transcriptionHref(status)}>
+								<PencilSimple size={12} />
+								Open
+							</a>
 							<button
 								type="button"
 								class="btn btn-xs btn-outline btn-primary gap-1"

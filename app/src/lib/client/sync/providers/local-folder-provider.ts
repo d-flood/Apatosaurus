@@ -20,7 +20,7 @@ export class LocalFolderStorageProvider implements CloudStorageProvider {
 		supportsExpectedRevisionDelete: true,
 		requiresPathAddressing: true,
 		sharingMayBeAsync: false,
-		requiresOAuth: false,
+		requiresExternalAuthorization: false,
 		requiresUserGestureForConnection: true,
 		supportsDirectoryHandlePersistence: true,
 	};

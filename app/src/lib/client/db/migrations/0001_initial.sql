@@ -218,9 +218,6 @@ CREATE TABLE IF NOT EXISTS cloud_connections (
 	provider_account_id TEXT NOT NULL DEFAULT '',
 	account_email TEXT NOT NULL,
 	scopes TEXT NOT NULL DEFAULT '[]',
-	access_token TEXT NOT NULL,
-	refresh_token TEXT,
-	expires_at INTEGER,
 	connected_at TEXT NOT NULL,
 	updated_at TEXT NOT NULL,
 	UNIQUE(provider_id, provider_account_id)

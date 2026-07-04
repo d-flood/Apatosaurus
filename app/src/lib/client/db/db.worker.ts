@@ -59,7 +59,6 @@ import {
 	getCloudConnection,
 	listCloudProjectFolders,
 	listCloudConnections,
-	updateCloudConnectionCredentials,
 	upsertCloudProjectFolder,
 	upsertCloudConnection,
 } from './repositories/cloud-connections';
@@ -159,28 +158,14 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 		const db = getKyselyDb();
 		const connection = await getCloudConnection(db, request.context.connectionId);
 		if (!connection) throw new Error('Backup connection was not found.');
-		const provider = await createProviderForConnection(connection, {
-			onCredentialsUpdated: async credentials => {
-				await updateCloudConnectionCredentials(db, {
-					connectionId: connection.id,
-					credentials,
-				});
-			},
-		});
+		const provider = await createProviderForConnection(connection);
 		return downloadAndCompareProjectManifest(db, provider, request.context);
 	}
 	if (request.type === 'projectBackup.verifyHealth') {
 		const db = getKyselyDb();
 		const connection = await getCloudConnection(db, request.context.connectionId);
 		if (!connection) throw new Error('Backup connection was not found.');
-		const provider = await createProviderForConnection(connection, {
-			onCredentialsUpdated: async credentials => {
-				await updateCloudConnectionCredentials(db, {
-					connectionId: connection.id,
-					credentials,
-				});
-			},
-		});
+		const provider = await createProviderForConnection(connection);
 		return verifyRemoteProjectBackupHealth(db, provider, request.context);
 	}
 	if (request.type === 'projectBackup.removeLocalProject') {
@@ -196,14 +181,7 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 		const db = getKyselyDb();
 		const connection = await getCloudConnection(db, request.context.connectionId);
 		if (!connection) throw new Error('Backup connection was not found.');
-		const provider = await createProviderForConnection(connection, {
-			onCredentialsUpdated: async credentials => {
-				await updateCloudConnectionCredentials(db, {
-					connectionId: connection.id,
-					credentials,
-				});
-			},
-		});
+		const provider = await createProviderForConnection(connection);
 		const result = await backupProject(db, provider, request.context, {
 			folder: request.folder ?? null,
 			strict: request.strict ?? true,
@@ -216,14 +194,7 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 		const db = getKyselyDb();
 		const connection = await getCloudConnection(db, request.context.connectionId);
 		if (!connection) throw new Error('Backup connection was not found.');
-		const provider = await createProviderForConnection(connection, {
-			onCredentialsUpdated: async credentials => {
-				await updateCloudConnectionCredentials(db, {
-					connectionId: connection.id,
-					credentials,
-				});
-			},
-		});
+		const provider = await createProviderForConnection(connection);
 		const result = await backupProjectEntity(db, provider, request.context, request.reference, {
 			folder: request.folder ?? null,
 		});
@@ -238,14 +209,7 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 		const db = getKyselyDb();
 		const connection = await getCloudConnection(db, request.connectionId);
 		if (!connection) throw new Error('Cloud connection was not found.');
-		const provider = await createProviderForConnection(connection, {
-			onCredentialsUpdated: async credentials => {
-				await updateCloudConnectionCredentials(db, {
-					connectionId: connection.id,
-					credentials,
-				});
-			},
-		});
+		const provider = await createProviderForConnection(connection);
 		return listCloudProjectCandidates(
 			db,
 			provider,
@@ -257,14 +221,7 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 		const db = getKyselyDb();
 		const connection = await getCloudConnection(db, request.input.connectionId);
 		if (!connection) throw new Error('Cloud connection was not found.');
-		const provider = await createProviderForConnection(connection, {
-			onCredentialsUpdated: async credentials => {
-				await updateCloudConnectionCredentials(db, {
-					connectionId: connection.id,
-					credentials,
-				});
-			},
-		});
+		const provider = await createProviderForConnection(connection);
 		const result = await importCloudProject(db, provider, request.input);
 		postMessage({ type: 'db:invalidate', domain: 'projects' });
 		postMessage({ type: 'db:invalidate', domain: 'transcriptions' });
@@ -277,28 +234,14 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 		const db = getKyselyDb();
 		const connection = await getCloudConnection(db, request.context.connectionId);
 		if (!connection) throw new Error('Cloud connection was not found.');
-		const provider = await createProviderForConnection(connection, {
-			onCredentialsUpdated: async credentials => {
-				await updateCloudConnectionCredentials(db, {
-					connectionId: connection.id,
-					credentials,
-				});
-			},
-		});
+		const provider = await createProviderForConnection(connection);
 		return pollLinkedProjectManifest(db, provider, request.context);
 	}
 	if (request.type === 'cloudProjects.pullLinkedUpdates') {
 		const db = getKyselyDb();
 		const connection = await getCloudConnection(db, request.context.connectionId);
 		if (!connection) throw new Error('Cloud connection was not found.');
-		const provider = await createProviderForConnection(connection, {
-			onCredentialsUpdated: async credentials => {
-				await updateCloudConnectionCredentials(db, {
-					connectionId: connection.id,
-					credentials,
-				});
-			},
-		});
+		const provider = await createProviderForConnection(connection);
 		const result = await pullLinkedProjectUpdates(db, provider, request.context);
 		postMessage({ type: 'db:invalidate', domain: 'projects' });
 		postMessage({ type: 'db:invalidate', domain: 'transcriptions' });

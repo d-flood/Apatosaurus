@@ -1,7 +1,6 @@
 import { nanoid } from 'nanoid';
 import type { Kysely, Selectable, Transaction } from 'kysely';
 
-import type { CloudCredentials } from '$lib/client/sync/providers/provider';
 import type { CloudConnections, CloudProjectFolders, Database } from '../types.generated';
 
 type DbExecutor = Kysely<Database> | Transaction<Database>;
@@ -12,7 +11,6 @@ export interface CloudConnectionRecord {
 	providerAccountId: string;
 	accountEmail: string;
 	scopes: string[];
-	credentials: CloudCredentials;
 	connectedAt: string;
 	updatedAt: string;
 }
@@ -23,14 +21,7 @@ export interface UpsertCloudConnectionInput {
 	providerAccountId?: string;
 	accountEmail: string;
 	scopes?: string[];
-	credentials: CloudCredentials;
 	connectedAt?: string;
-	updatedAt?: string;
-}
-
-export interface UpdateCloudCredentialsInput {
-	connectionId: string;
-	credentials: CloudCredentials;
 	updatedAt?: string;
 }
 
@@ -112,9 +103,6 @@ export async function upsertCloudConnection(
 			provider_account_id: providerAccountId,
 			account_email: input.accountEmail.trim(),
 			scopes: serializeScopes(input.scopes),
-			access_token: input.credentials.accessToken,
-			refresh_token: input.credentials.refreshToken ?? null,
-			expires_at: input.credentials.expiresAt ?? null,
 			connected_at: connectedAt,
 			updated_at: updatedAt,
 		})
@@ -122,9 +110,6 @@ export async function upsertCloudConnection(
 			oc.columns(['provider_id', 'provider_account_id']).doUpdateSet({
 				account_email: input.accountEmail.trim(),
 				scopes: serializeScopes(input.scopes),
-				access_token: input.credentials.accessToken,
-				refresh_token: input.credentials.refreshToken ?? null,
-				expires_at: input.credentials.expiresAt ?? null,
 				updated_at: updatedAt,
 			})
 		)
@@ -137,53 +122,6 @@ export async function upsertCloudConnection(
 		.where('provider_account_id', '=', providerAccountId)
 		.executeTakeFirstOrThrow();
 	return mapCloudConnection(row);
-}
-
-export async function updateCloudConnectionCredentials(
-	db: DbExecutor,
-	input: UpdateCloudCredentialsInput
-): Promise<CloudConnectionRecord> {
-	await db
-		.updateTable('cloud_connections')
-		.set({
-			access_token: input.credentials.accessToken,
-			refresh_token: input.credentials.refreshToken ?? null,
-			expires_at: input.credentials.expiresAt ?? null,
-			updated_at: input.updatedAt ?? new Date().toISOString(),
-		})
-		.where('id', '=', input.connectionId)
-		.executeTakeFirst();
-	const row = await db
-		.selectFrom('cloud_connections')
-		.selectAll()
-		.where('id', '=', input.connectionId)
-		.executeTakeFirst();
-	if (!row) throw new Error(`Cloud connection ${input.connectionId} was not found.`);
-	return mapCloudConnection(row);
-}
-
-export async function refreshCloudConnectionCredentials(
-	db: DbExecutor,
-	input: UpdateCloudCredentialsInput
-): Promise<CloudConnectionRecord> {
-	const current = await db
-		.selectFrom('cloud_connections')
-		.select(['id', 'refresh_token'])
-		.where('id', '=', input.connectionId)
-		.executeTakeFirst();
-	if (!current) throw new Error(`Cloud connection ${input.connectionId} was not found.`);
-
-	await db
-		.updateTable('cloud_connections')
-		.set({
-			access_token: input.credentials.accessToken,
-			refresh_token: input.credentials.refreshToken ?? current.refresh_token,
-			expires_at: input.credentials.expiresAt ?? null,
-			updated_at: input.updatedAt ?? new Date().toISOString(),
-		})
-		.where('id', '=', input.connectionId)
-		.executeTakeFirst();
-	return (await getCloudConnection(db, input.connectionId)) as CloudConnectionRecord;
 }
 
 export async function listCloudProjectFolders(
@@ -320,11 +258,6 @@ function mapCloudConnection(row: Selectable<CloudConnections>): CloudConnectionR
 		providerAccountId: row.provider_account_id,
 		accountEmail: row.account_email,
 		scopes: parseScopes(row.scopes),
-		credentials: {
-			accessToken: row.access_token,
-			refreshToken: row.refresh_token ?? undefined,
-			expiresAt: row.expires_at ?? undefined,
-		},
 		connectedAt: row.connected_at,
 		updatedAt: row.updated_at,
 	};

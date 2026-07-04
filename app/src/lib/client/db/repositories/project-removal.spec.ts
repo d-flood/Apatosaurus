@@ -89,7 +89,6 @@ async function createBackupRows(
 		providerId: 'mock',
 		providerAccountId: 'acct-1',
 		accountEmail: 'editor@example.com',
-		credentials: { accessToken: 'token' },
 	});
 	await harness.db
 		.insertInto('cloud_project_folders')

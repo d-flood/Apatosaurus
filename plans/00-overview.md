@@ -6,9 +6,9 @@ This overview is the handoff document for the storage inversion described in `ar
 
 ## Current Status
 
-Overall status: `Not Started`
+Overall status: `In Progress`
 
-Current phase: `01-remove-cloud-providers.md`
+Current phase: `02-document-store-foundation.md`
 
 Last updated: `2026-07-03`
 
@@ -39,7 +39,7 @@ Full list in `architecture.md` section 3. The short form:
 
 | Phase | Document | Status | Depends On |
 | --- | --- | --- | --- |
-| 1 | `01-remove-cloud-providers.md` | Not Started | None |
+| 1 | `01-remove-cloud-providers.md` | Completed | None |
 | 2 | `02-document-store-foundation.md` | Not Started | None |
 | 3 | `03-canonical-file-formats.md` | Not Started | Phase 2 |
 | 4 | `04-project-only-data-model.md` | Not Started | Phase 3 |
@@ -73,7 +73,7 @@ Data flows, table fates, constants, and legacy items are documented in `current-
 | Repositories | `app/src/lib/client/db/repositories/*.ts` |
 | Cloud file formats | `app/src/lib/client/sync/cloud-files.ts`, `canonical-json.ts`, `cloud-paths.ts` |
 | Sync | `app/src/lib/client/sync/sync-manager.ts`, `conflicts.ts`, `project-restore.ts`, `provider-factory.ts` |
-| Providers | `app/src/lib/client/sync/providers/*.ts`, `local-folder-handles.ts`, `cloud-auth.ts`, `auth/pkce.ts` |
+| Providers | `app/src/lib/client/sync/providers/*.ts`, `local-folder-handles.ts`, `local-folder-connections.ts` |
 | Transcription content | `app/src/lib/client/transcription/content.ts`, `packages/tei-transcription/src/*` |
 | Transcription editor | `app/src/lib/components/transcriptionEditor/TranscriptionEditor.svelte`, `app/src/lib/client/transcriptionEditorStructure.ts` |
 | Collation state | `app/src/lib/client/collation/collation-state.svelte.ts`, `collation-document.ts`, `collation-projection.ts` |
@@ -96,4 +96,7 @@ Run narrower tests during each session when possible, then run the full baseline
 
 | Date | Note |
 | --- | --- |
+| 2026-07-03 | Phase 1 completed. Manual Chromium smoke test passed after folder creation fix: connect local folder, commit project-owned transcription, back up project, and verify files in selected folder. Next phase is `02-document-store-foundation.md`. |
+| 2026-07-03 | During Phase 1 smoke testing, fixed missing local-folder default path creation. Backup now creates `Apatosaurus/Projects/<project-id>` on first backup and updates the stored folder binding. Full verification still passes. |
+| 2026-07-03 | Phase 1 code removal implemented: direct Dropbox/Google Drive providers, PKCE/OAuth plumbing, account placeholder routes, and token persistence are removed; provider factory is local-folder/mock only. Automated verification passed (`db:generate`, `db:check`, `check`, unit tests, straggler searches). Chromium manual folder smoke test remains pending, so Phase 1 is not yet marked completed. |
 | 2026-07-03 | Plans replaced following storage-inversion audit. Supersedes cloud_sync sessions (completed, formats retained and promoted) and project-only-transcriptions plan (not started, folded into Phase 4). Implementation not started. |

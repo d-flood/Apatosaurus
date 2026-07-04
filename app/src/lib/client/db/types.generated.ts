@@ -28,9 +28,6 @@ export interface CloudConnections {
 	provider_account_id: string;
 	account_email: string;
 	scopes: string;
-	access_token: string;
-	refresh_token: string | null;
-	expires_at: number | null;
 	connected_at: string;
 	updated_at: string;
 }

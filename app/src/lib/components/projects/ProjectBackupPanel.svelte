@@ -68,7 +68,7 @@
 	let backupTargetLabel = $derived.by(() => {
 		if (!selectedFolder) return 'Local only';
 		const connection = connections.find(candidate => candidate.id === selectedFolder.connectionId);
-		const provider = providerLabel(connection?.providerId ?? 'Cloud');
+		const provider = providerLabel(connection?.providerId ?? 'Backup');
 		return `${provider}: ${selectedFolder.cloudFolderPath}`;
 	});
 	let statusLabel = $derived.by(() => {
@@ -364,10 +364,8 @@
 	}
 
 	function providerLabel(providerId: string): string {
-		if (providerId === 'dropbox') return 'Dropbox';
-		if (providerId === 'google-drive') return 'Google Drive';
 		if (providerId === 'local-folder') return 'Local folder';
-		if (providerId === 'mock') return 'Mock cloud';
+		if (providerId === 'mock') return 'Mock provider';
 		return providerId;
 	}
 
@@ -629,13 +627,13 @@
 			{#if connections.length === 0}
 				<div class="flex items-start gap-2 text-sm text-base-content/60">
 					<WarningCircle size={18} class="mt-0.5 shrink-0" />
-					<span>Connect backup storage from the navigation bar before choosing a backup target.</span>
+					<span>Choose a sync folder from the navigation bar before choosing a backup target.</span>
 				</div>
 			{:else}
 				<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 					<label class="form-control flex-1">
 						<div class="label py-0 pb-1">
-							<span class="label-text text-xs text-base-content/50">Provider</span>
+							<span class="label-text text-xs text-base-content/50">Sync folder</span>
 						</div>
 						<select class="select select-bordered select-sm" bind:value={selectedConnectionId}>
 							{#each connections as connection (connection.id)}
@@ -656,7 +654,7 @@
 						{:else}
 							<LinkSimple size={14} />
 						{/if}
-						Use Default Folder
+						Use default path
 					</button>
 				</div>
 			{/if}

@@ -526,7 +526,6 @@ async function createSyncContext() {
 		providerId: 'mock',
 		providerAccountId: 'acct-1',
 		accountEmail: 'editor@example.com',
-		credentials: { accessToken: 'access-token' },
 	});
 	return {
 		connectionId: 'conn-1',

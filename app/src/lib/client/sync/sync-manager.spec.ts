@@ -466,6 +466,51 @@ describe('sync manager', () => {
 		expect(provider.calls.filter(call => call.operation === 'create-file')).toEqual([]);
 	});
 
+	it('creates a missing local default project folder before backing up', async () => {
+		await createCommittedProjectCollation('Initial notes', 'col-cp-1');
+		await upsertCloudConnection(harness.db, {
+			id: 'conn-local',
+			providerId: 'local-folder',
+			providerAccountId: 'local-root',
+			accountEmail: 'Local folder',
+		});
+		await upsertCloudProjectFolder(harness.db, {
+			projectId: 'project-1',
+			connectionId: 'conn-local',
+			cloudFolderId: 'Apatosaurus/Projects/project-1',
+			cloudFolderPath: 'Apatosaurus/Projects/project-1',
+		});
+		const provider = new LocalFolderStorageProvider(
+			new FakeDirectoryHandle('root') as unknown as FileSystemDirectoryHandle
+		);
+		const context: SyncProjectContext = {
+			connectionId: 'conn-local',
+			projectId: 'project-1',
+			cloudFolderId: 'Apatosaurus/Projects/project-1',
+			cloudFolderPath: 'Apatosaurus/Projects/project-1',
+		};
+
+		const result = await backupProject(harness.db, provider, context);
+
+		expect(result.uiState).toBe('synced');
+		await expect(provider.downloadFile('Apatosaurus/Projects/project-1/project.json')).resolves.toContain(
+			'"id":"project-1"'
+		);
+		await expect(
+			harness.db
+				.selectFrom('cloud_project_folders')
+				.select([
+					'cloud_folder_id as cloudFolderId',
+					'cloud_folder_path as cloudFolderPath',
+				])
+				.where('project_id', '=', 'project-1')
+				.executeTakeFirstOrThrow()
+		).resolves.toEqual({
+			cloudFolderId: 'Apatosaurus/Projects/project-1',
+			cloudFolderPath: 'Apatosaurus/Projects/project-1',
+		});
+	});
+
 	it('compares remote project manifests against local and last synced entity heads', async () => {
 		await createCommittedProjectCollation('Initial notes', 'col-cp-1');
 		const { provider, context } = await createConnectedProvider();
@@ -591,7 +636,6 @@ async function createConnectedProvider(): Promise<{
 		providerId: 'mock',
 		providerAccountId: 'acct-1',
 		accountEmail: 'editor@example.com',
-		credentials: { accessToken: 'access-token' },
 	});
 	const provider = new RecordingMockProvider({ now: () => '2026-06-10T12:00:00.000Z' });
 	const folderId = await provider.createFolder('Project');
@@ -622,7 +666,6 @@ async function createConnectedLocalFolderProvider(): Promise<{
 		providerId: 'local-folder',
 		providerAccountId: 'local-root',
 		accountEmail: 'Local folder',
-		credentials: { accessToken: 'local-folder' },
 	});
 	const provider = new LocalFolderStorageProvider(
 		new FakeDirectoryHandle('root') as unknown as FileSystemDirectoryHandle

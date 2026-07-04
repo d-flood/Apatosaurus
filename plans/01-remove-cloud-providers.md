@@ -1,6 +1,6 @@
 # Phase 01: Remove Direct Cloud Providers
 
-Status: Not Started
+Status: Completed
 Depends on: None
 Architecture reference: `architecture.md` sections 3 (decision 5-6), 8
 
@@ -40,12 +40,12 @@ Shrink the sync surface before the storage inversion. Delete the Dropbox and Goo
 
 ## Checklist
 
-- [ ] Dropbox provider, Drive provider, OAuth, PKCE code deleted
-- [ ] Provider factory offers local-folder and mock only
-- [ ] No reads/writes of OAuth token fields remain
-- [ ] UI shows folder-based connect only, with capability notice on unsupported browsers
-- [ ] Env/docs cleaned of provider app registration references
-- [ ] `bun run check` and `bun run test:unit -- --run` pass
+- [x] Dropbox provider, Drive provider, OAuth, PKCE code deleted
+- [x] Provider factory offers local-folder and mock only
+- [x] No reads/writes of OAuth token fields remain
+- [x] UI shows folder-based connect only, with capability notice on unsupported browsers
+- [x] Env/docs cleaned of provider app registration references
+- [x] `bun run check` and `bun run test:unit -- --run` pass
 
 ## Completion Criteria
 
@@ -60,7 +60,20 @@ bun run check
 bun run test:unit -- --run
 ```
 
+Results, 2026-07-03:
+
+- Straggler search across `app/src` for `dropbox`, `google[.-]?drive`, `google_drive`, and `pkce`: clean.
+- Straggler search across `app/` for OAuth/token config names (`OAuth`, `PKCE`, `access_token`, `refresh_token`, `accessToken`, `refreshToken`, `PUBLIC_DROPBOX`, `PUBLIC_GOOGLE`): clean.
+- `bun run db:generate`: passed.
+- `bun run db:check`: passed.
+- `bun run check`: passed with 0 errors and 0 warnings.
+- `bun run test:unit -- --run`: passed, 56 test files / 323 tests.
+- Chromium manual smoke test passed: connected a local folder, committed a project-owned transcription, backed up the project, and verified files were written to the selected local folder.
+
 ## Notes
 
 | Date | Note |
 | --- | --- |
+| 2026-07-03 | Manual Chromium smoke test passed after the default-folder creation fix: local folder connection worked, project backup wrote files to the selected folder, and no Dropbox/Google Drive/OAuth flow was involved. Phase 1 completion criteria are satisfied. |
+| 2026-07-03 | Fixed smoke-test failure where `Use default path` stored `Apatosaurus/Projects/<project-id>` before creating those directories. Backup now creates missing provider folder path segments and persists the resolved folder id before uploading. Added regression coverage; `bun run check` and full unit tests pass. |
+| 2026-07-03 | Removed Dropbox and Google Drive providers, PKCE/OAuth callback code, account placeholder routes, and token fields from the greenfield `cloud_connections` schema/types. Added folder-only connection helper, simplified provider factory to local-folder/mock, and updated backup UI copy to sync-folder wording. Renamed the OAuth-specific provider capability to `requiresExternalAuthorization` as an interface leak cleanup. Automated verification passed; manual Chromium folder smoke test is pending, so the phase remains `In Progress`. |

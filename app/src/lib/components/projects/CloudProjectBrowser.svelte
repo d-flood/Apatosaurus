@@ -60,7 +60,7 @@
 			if (!isCancelled()) await loadConnections();
 		} catch (err) {
 			if (!isCancelled()) {
-				error = err instanceof Error ? err.message : 'Failed to load cloud connections.';
+				error = err instanceof Error ? err.message : 'Failed to load sync folders.';
 			}
 		}
 	}
@@ -72,7 +72,7 @@
 			connections = await listCloudConnections();
 			selectedConnectionId = connections[0]?.id ?? '';
 		} catch (err) {
-			error = err instanceof Error ? err.message : 'Failed to load cloud connections.';
+			error = err instanceof Error ? err.message : 'Failed to load sync folders.';
 		} finally {
 			loadingConnections = false;
 		}
@@ -91,7 +91,7 @@
 				rootFolderId.trim() || undefined
 			);
 		} catch (err) {
-			error = err instanceof Error ? err.message : 'Failed to browse cloud projects.';
+			error = err instanceof Error ? err.message : 'Failed to browse sync folder projects.';
 			candidates = [];
 		} finally {
 			loadingCandidates = false;
@@ -118,7 +118,7 @@
 			await onProjectImported?.(result.projectId);
 			await browseCloudProjects();
 		} catch (err) {
-			error = err instanceof Error ? err.message : 'Failed to import cloud project.';
+			error = err instanceof Error ? err.message : 'Failed to import project.';
 		} finally {
 			actionKey = null;
 		}
@@ -201,10 +201,8 @@
 	}
 
 	function providerLabel(providerId: string): string {
-		if (providerId === 'dropbox') return 'Dropbox';
-		if (providerId === 'google-drive') return 'Google Drive';
 		if (providerId === 'local-folder') return 'Local folder';
-		if (providerId === 'mock') return 'Mock cloud';
+		if (providerId === 'mock') return 'Mock provider';
 		return providerId;
 	}
 
@@ -240,10 +238,10 @@
 <section class="rounded-box border border-base-300/50 bg-base-100 p-4 shadow-md">
 	<div class="mb-3 flex items-start justify-between gap-3">
 		<div>
-			<h2 class="font-serif text-lg font-semibold">Cloud Projects</h2>
+			<h2 class="font-serif text-lg font-semibold">Sync Folder Projects</h2>
 			<p class="mt-1 text-xs text-base-content/50">
-				Browse remote project backups, sync them locally, or pull linked updates after
-				review.
+				Browse project backups in the selected folder, sync them locally, or pull linked
+				updates after review.
 			</p>
 		</div>
 		{#if loadingConnections || loadingCandidates}
@@ -254,7 +252,7 @@
 	<div class="grid gap-2">
 		{#if connections.length > 0}
 			<label class="form-control">
-				<span class="label py-1 text-xs text-base-content/50">Connection</span>
+				<span class="label py-1 text-xs text-base-content/50">Sync folder</span>
 				<select class="select select-bordered select-sm" bind:value={selectedConnectionId}>
 					{#each connections as connection (connection.id)}
 						<option value={connection.id}>
@@ -268,7 +266,7 @@
 				<input
 					type="text"
 					class="input input-bordered input-sm"
-					placeholder="Use provider default"
+				placeholder="Use selected folder root"
 					bind:value={rootFolderId}
 				/>
 			</label>
@@ -278,11 +276,11 @@
 				disabled={!canBrowse}
 				onclick={browseCloudProjects}
 			>
-				Browse cloud projects
+				Browse sync folder projects
 			</button>
 		{:else}
 			<div class="rounded-box bg-base-200/60 p-3 text-sm text-base-content/55">
-				No cloud connections are configured yet.
+				No sync folder is configured yet.
 			</div>
 		{/if}
 	</div>
@@ -407,7 +405,7 @@
 		</div>
 	{:else if !loadingCandidates && selectedConnection && lastResult === null}
 		<div class="mt-3 rounded-box bg-base-200/50 p-3 text-sm text-base-content/45">
-			Browse to list cloud project backups.
+			Browse to list project backups.
 		</div>
 	{/if}
 </section>

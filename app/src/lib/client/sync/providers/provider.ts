@@ -23,19 +23,13 @@ export interface CloudWriteResult {
 	size: number;
 }
 
-export interface CloudCredentials {
-	accessToken: string;
-	refreshToken?: string;
-	expiresAt?: number;
-}
-
 export interface CloudProviderCapabilities {
 	supportsFolderSharing: boolean;
 	supportsStableFileIds: boolean;
 	supportsExpectedRevisionDelete: boolean;
 	requiresPathAddressing: boolean;
 	sharingMayBeAsync: boolean;
-	requiresOAuth: boolean;
+	requiresExternalAuthorization: boolean;
 	requiresUserGestureForConnection: boolean;
 	supportsDirectoryHandlePersistence: boolean;
 }
@@ -88,10 +82,4 @@ export interface CloudStorageProvider {
 		expectedRevision: string
 	): Promise<CloudWriteResult>;
 	deleteFile(fileId: string, expectedRevision?: string): Promise<void>;
-}
-
-export interface OAuthCloudStorageProvider extends CloudStorageProvider {
-	getAuthUrl(state: string, codeChallenge: string): string;
-	exchangeCode(code: string, codeVerifier: string): Promise<CloudCredentials>;
-	refreshCredentials(refreshToken: string): Promise<CloudCredentials>;
 }

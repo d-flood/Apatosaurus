@@ -29,6 +29,7 @@ import {
 	type SyncEntityHead,
 } from './conflicts';
 import {
+	upsertCloudProjectFolder,
 	updateCloudProjectFolderSyncState,
 	type CloudProjectFolderRecord,
 } from '$lib/client/db/repositories/cloud-connections';
@@ -580,10 +581,16 @@ export async function backupProject(
 	options: ProjectBackupOptions = {}
 ): Promise<ProjectBackupResult> {
 	const strict = options.strict ?? true;
-	const summary = await deriveProjectBackupSummary(db, context, options.folder ?? null);
+	const { context: backupContext, folder } = await ensureProjectBackupFolder(
+		db,
+		provider,
+		context,
+		options.folder ?? null
+	);
+	const summary = await deriveProjectBackupSummary(db, backupContext, folder);
 	const result: ProjectBackupResult = {
 		...baseResult('sync pending'),
-		projectId: context.projectId,
+		projectId: backupContext.projectId,
 		manifestUploaded: false,
 		entityResults: [],
 		skippedItems: [],
@@ -603,7 +610,7 @@ export async function backupProject(
 		const entityResult = await publishEntity(
 			db,
 			provider,
-			context,
+			backupContext,
 			{ entityType: item.itemType as SyncEntityType, entityId: item.itemId },
 			options
 		);
@@ -611,12 +618,12 @@ export async function backupProject(
 		result.entityResults.push(entityResult);
 	}
 
-	const tombstoneResult = await syncProjectTombstones(db, provider, context);
+	const tombstoneResult = await syncProjectTombstones(db, provider, backupContext);
 	mergeOperationResult(result, tombstoneResult);
 	result.entityResults.push(tombstoneResult);
 
 	if (!hasOperationFailure(result)) {
-		const manifestResult = await publishProjectManifest(db, provider, context);
+		const manifestResult = await publishProjectManifest(db, provider, backupContext);
 		mergeOperationResult(result, manifestResult);
 		result.manifestUploaded = manifestResult.uiState === 'synced';
 	}
@@ -627,8 +634,8 @@ export async function backupProject(
 		result.skippedItems.length === 0
 	) {
 		await updateCloudProjectFolderSyncState(db, {
-			projectId: context.projectId,
-			connectionId: context.connectionId,
+			projectId: backupContext.projectId,
+			connectionId: backupContext.connectionId,
 			lastFullySyncedAt: options.now?.() ?? new Date().toISOString(),
 		});
 		result.uiState = 'synced';
@@ -647,25 +654,31 @@ export async function backupProjectEntity(
 	reference: SyncEntityReference,
 	options: ProjectBackupOptions = {}
 ): Promise<ProjectBackupResult> {
+	const { context: backupContext } = await ensureProjectBackupFolder(
+		db,
+		provider,
+		context,
+		options.folder ?? null
+	);
 	const result: ProjectBackupResult = {
 		...baseResult('sync pending', reference.entityType, reference.entityId),
-		projectId: context.projectId,
+		projectId: backupContext.projectId,
 		manifestUploaded: false,
 		entityResults: [],
 		skippedItems: [],
 	};
 	const local = await loadLocalEntity(db, reference);
-	if (local.projectId !== context.projectId) {
+	if (local.projectId !== backupContext.projectId) {
 		throw new Error(`${reference.entityType} ${reference.entityId} does not belong to this project.`);
 	}
-	const item = await deriveEntityBackupItem(db, context, reference);
+	const item = await deriveEntityBackupItem(db, backupContext, reference);
 	if (isBlockingBackupItem(item)) {
 		result.uiState = item.status === 'uncommitted-local-changes' ? 'uncommitted local changes' : 'saved locally';
 		result.skippedItems = [item];
 		return result;
 	}
 
-	const entityResult = await publishEntity(db, provider, context, reference, options);
+	const entityResult = await publishEntity(db, provider, backupContext, reference, options);
 	mergeOperationResult(result, entityResult);
 	result.entityResults.push(entityResult);
 	if (entityResult.uiState !== 'synced' || hasOperationFailure(result)) {
@@ -673,7 +686,7 @@ export async function backupProjectEntity(
 		return result;
 	}
 
-	const manifestResult = await publishProjectManifest(db, provider, context);
+	const manifestResult = await publishProjectManifest(db, provider, backupContext);
 	mergeOperationResult(result, manifestResult);
 	result.manifestUploaded = manifestResult.uiState === 'synced';
 	result.uiState = result.manifestUploaded && !hasOperationFailure(result) ? 'synced' : 'sync pending';
@@ -687,6 +700,47 @@ export function backupEligibleProjectEntities(
 	options: ProjectBackupOptions = {}
 ): Promise<ProjectBackupResult> {
 	return backupProject(db, provider, context, { ...options, strict: false });
+}
+
+async function ensureProjectBackupFolder(
+	db: Kysely<Database>,
+	provider: CloudStorageProvider,
+	context: SyncProjectContext,
+	folder: CloudProjectFolderRecord | null
+): Promise<{ context: SyncProjectContext; folder: CloudProjectFolderRecord | null }> {
+	try {
+		await provider.listFiles(context.cloudFolderId, { recursive: false });
+		return { context, folder };
+	} catch (error) {
+		if (!isCloudProviderError(error, 'not-found')) throw error;
+	}
+
+	const folderPath = normalizeSlashes(context.cloudFolderPath ?? context.cloudFolderId);
+	const segments = folderPath.split('/').map(segment => segment.trim()).filter(Boolean);
+	if (segments.length === 0) throw new Error('Backup folder path is required.');
+
+	let parentFolderId = providerRootFolderId(provider);
+	for (const segment of segments) {
+		parentFolderId = await provider.createFolder(segment, parentFolderId);
+	}
+
+	const updatedFolder = await upsertCloudProjectFolder(db, {
+		projectId: context.projectId,
+		connectionId: context.connectionId,
+		cloudFolderId: parentFolderId,
+		cloudFolderPath: folderPath,
+		syncCursor: folder?.syncCursor,
+		lastFullySyncedAt: folder?.lastFullySyncedAt ?? null,
+	});
+
+	return {
+		context: {
+			...context,
+			cloudFolderId: parentFolderId,
+			cloudFolderPath: folderPath,
+		},
+		folder: updatedFolder,
+	};
 }
 
 export async function deriveLocalSyncUiState(
@@ -1718,6 +1772,16 @@ function relativeEntryPath(path: string, context: SyncProjectContext): string {
 	if (root && normalizedPath === root) return '';
 	if (root && normalizedPath.startsWith(`${root}/`)) return normalizedPath.slice(root.length + 1);
 	return normalizedPath.replace(/^\/+/, '');
+}
+
+function providerRootFolderId(provider: CloudStorageProvider): string {
+	if ('rootFolderId' in provider && typeof provider.rootFolderId === 'string') {
+		return provider.rootFolderId;
+	}
+	if ('rootPath' in provider && typeof provider.rootPath === 'string') {
+		return provider.rootPath;
+	}
+	return '';
 }
 
 function primaryPathFor(entityType: SyncEntityType, entityId: string): string {

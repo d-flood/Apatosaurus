@@ -806,7 +806,6 @@ async function createCloudConnection(
 		providerId: input.providerId ?? 'mock',
 		providerAccountId: 'acct-1',
 		accountEmail: input.accountEmail ?? 'editor@example.com',
-		credentials: { accessToken: 'access-token' },
 	});
 }
 

@@ -351,10 +351,8 @@
 	}
 
 	function providerLabel(providerId: string): string {
-		if (providerId === 'dropbox') return 'Dropbox';
-		if (providerId === 'google-drive') return 'Google Drive';
 		if (providerId === 'local-folder') return 'Local folder';
-		if (providerId === 'mock') return 'Mock cloud';
+		if (providerId === 'mock') return 'Mock provider';
 		return providerId;
 	}
 

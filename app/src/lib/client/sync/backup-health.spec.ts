@@ -107,7 +107,6 @@ async function createConnectedProvider(): Promise<{
 		providerId: 'mock',
 		providerAccountId: 'acct-1',
 		accountEmail: 'editor@example.com',
-		credentials: { accessToken: 'access-token' },
 	});
 	const provider = new MockCloudStorageProvider({ now: () => '2026-06-10T12:00:00.000Z' });
 	const folderId = await provider.createFolder('Project');

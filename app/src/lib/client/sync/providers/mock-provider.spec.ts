@@ -79,8 +79,8 @@ describe('mock cloud storage provider', () => {
 			code: 'permission-denied',
 		});
 
-		provider.failNext('reauthorization-required', 'exchange-code');
-		await expect(provider.exchangeCode('code', 'verifier')).rejects.toMatchObject({
+		provider.failNext('reauthorization-required', 'create-folder');
+		await expect(provider.createFolder('Project')).rejects.toMatchObject({
 			code: 'reauthorization-required',
 		});
 	});
