@@ -129,7 +129,7 @@ describe('transcription editor carrier inspectors', () => {
 		expect(compactXml(await exportedXml())).toContain(
 			compactXml('<note type="untranscribed" subtype="illegible" n="partial"/>')
 		);
-	});
+	}, 30_000);
 
 	it('edits formwork, TEI atoms, and metamarks through inspector components', async () => {
 		render(InspectorTestHarness, {

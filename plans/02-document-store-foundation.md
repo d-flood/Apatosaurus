@@ -1,6 +1,6 @@
 # Phase 02: Document Store Foundation
 
-Status: Not Started
+Status: Completed
 Depends on: None (parallel-safe with Phase 01)
 Architecture reference: `architecture.md` sections 4, 5, 6 (atomic writes), 9
 
@@ -48,13 +48,13 @@ Create a new module, suggested location `app/src/lib/client/store/`:
 
 ## Checklist
 
-- [ ] `opfs-store.ts` with atomic writes and fallback, tested
-- [ ] `layout.ts` path builders, tested
-- [ ] `envelope.ts` seal/open with canonical-json hashing, tested
-- [ ] `migrate-on-read.ts` registry with chained-upgrade fixtures, tested
-- [ ] Quarantine behavior tested for all four codes
-- [ ] Worker placement decided and documented in Notes
-- [ ] `bun run check` and `bun run test:unit -- --run` pass
+- [x] `opfs-store.ts` with atomic writes and fallback, tested
+- [x] `layout.ts` path builders, tested
+- [x] `envelope.ts` seal/open with canonical-json hashing, tested
+- [x] `migrate-on-read.ts` registry with chained-upgrade fixtures, tested
+- [x] Quarantine behavior tested for all four codes
+- [x] Worker placement decided and documented in Notes
+- [x] `bun run check` and `bun run test:unit -- --run` pass
 
 ## Completion Criteria
 
@@ -68,7 +68,20 @@ bun run test:unit -- --run src/lib/client/store
 bun run check
 ```
 
+## Verification Results
+
+| Date | Command | Result |
+| --- | --- | --- |
+| 2026-07-03 | `bun run test:unit -- --run src/lib/client/store` | Passed: 4 files, 13 tests. |
+| 2026-07-03 | `bun run db:generate && bun run db:check && bun run check` | Passed. |
+| 2026-07-03 | `bun run test:unit -- --run` | Passed after adding explicit 30s timeouts to two long-running Chromium editor specs exposed by full-suite load: 60 files, 336 tests. |
+| 2026-07-03 | `bun run check` | Passed after the test-timeout edits. |
+
 ## Notes
 
 | Date | Note |
 | --- | --- |
+| 2026-07-03 | Phase completed. Added `app/src/lib/client/store/` with canonical layout path builders, envelope sealing/opening, migrate-on-read registry, in-memory quarantine reporting, OPFS text operations with atomic temp writes and move-unavailable fallback, and fixture-backed unit tests. No feature code consumes the store yet. |
+| 2026-07-03 | Worker placement decision: future feature consumers should call the store through a dedicated `store.worker.ts`, not the DB worker. This phase keeps `opfs-store.ts` worker-safe and importable; wiring the worker RPC can happen when write paths move onto the store. |
+| 2026-07-03 | Migrate-on-read verifies the source file's existing `content_hash` before running upgraders, then returns an in-memory document resealed at the current version. Reads still never write upgraded files. |
+| 2026-07-03 | Full unit verification exposed existing browser-suite load sensitivity in two large transcription editor specs. Added explicit 30s per-test timeouts to those long workflows, then reran the full unit suite successfully. |

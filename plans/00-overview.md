@@ -8,7 +8,7 @@ This overview is the handoff document for the storage inversion described in `ar
 
 Overall status: `In Progress`
 
-Current phase: `02-document-store-foundation.md`
+Current phase: `03-canonical-file-formats.md`
 
 Last updated: `2026-07-03`
 
@@ -40,7 +40,7 @@ Full list in `architecture.md` section 3. The short form:
 | Phase | Document | Status | Depends On |
 | --- | --- | --- | --- |
 | 1 | `01-remove-cloud-providers.md` | Completed | None |
-| 2 | `02-document-store-foundation.md` | Not Started | None |
+| 2 | `02-document-store-foundation.md` | Completed | None |
 | 3 | `03-canonical-file-formats.md` | Not Started | Phase 2 |
 | 4 | `04-project-only-data-model.md` | Not Started | Phase 3 |
 | 5 | `05-write-path-inversion.md` | Not Started | Phase 4 |
@@ -96,6 +96,7 @@ Run narrower tests during each session when possible, then run the full baseline
 
 | Date | Note |
 | --- | --- |
+| 2026-07-03 | Phase 2 completed. Added the OPFS document store foundation under `app/src/lib/client/store/`: canonical path builders, atomic text writes with fallback, document envelopes, migrate-on-read registry, in-memory quarantine reporting, and fixture-backed tests. Verification passed: `db:generate`, `db:check`, `check`, focused store tests, and full unit suite. Next phase is `03-canonical-file-formats.md`. |
 | 2026-07-03 | Phase 1 completed. Manual Chromium smoke test passed after folder creation fix: connect local folder, commit project-owned transcription, back up project, and verify files in selected folder. Next phase is `02-document-store-foundation.md`. |
 | 2026-07-03 | During Phase 1 smoke testing, fixed missing local-folder default path creation. Backup now creates `Apatosaurus/Projects/<project-id>` on first backup and updates the stored folder binding. Full verification still passes. |
 | 2026-07-03 | Phase 1 code removal implemented: direct Dropbox/Google Drive providers, PKCE/OAuth plumbing, account placeholder routes, and token persistence are removed; provider factory is local-folder/mock only. Automated verification passed (`db:generate`, `db:check`, `check`, unit tests, straggler searches). Chromium manual folder smoke test remains pending, so Phase 1 is not yet marked completed. |

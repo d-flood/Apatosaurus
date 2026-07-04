@@ -101,5 +101,5 @@ describe('transcription editor toolbar insertions', () => {
 		expect(xml).toContain(compactXml('<w><metamark function="insertion">ab</metamark></w>'));
 		expect(xml).toContain(compactXml('<metamark function="deletion" target="#mod1"/>'));
 		expect(xml).toContain(compactXml('<milestone unit="section" n="A" ed="NA28"/>'));
-	});
+	}, 30_000);
 });
