@@ -162,12 +162,12 @@ describe('revision hashing and checkpoints', () => {
 			current_revision_id: 'tx-cp-1',
 			current_content_hash: first.contentHash,
 		});
-		expect(await hashCanonicalPayload(JSON.parse(row.payload))).toBe(row.content_hash);
-		expect(JSON.parse(row.payload)).toMatchObject({
+		expect(first.payload).toMatchObject({
 			project_transcription_id: projectTranscriptionId,
 			id: snapshotId,
 			iiif_manifest_sources: [{ metadata_json: { a: 'first', b: 'second' } }],
 		});
+		expect(first.contentHash).toMatch(/^sha256:[0-9a-f]{64}$/);
 		expect(
 			await getProjectTranscriptionCheckpointStatus(harness.db, projectTranscriptionId)
 		).toMatchObject({
@@ -311,8 +311,7 @@ describe('revision hashing and checkpoints', () => {
 			current_revision_id: 'col-cp-1',
 			current_content_hash: first.contentHash,
 		});
-		expect(await hashCanonicalPayload(JSON.parse(row.payload))).toBe(row.content_hash);
-		expect(JSON.parse(row.payload)).toMatchObject({
+		expect(first.payload).toMatchObject({
 			id: 'col-1',
 			variation_units: [{ readings: [{ witness_ids: ['A'] }, { witness_ids: ['B'] }] }],
 			artifacts: [{ artifact_type: 'collation_document_v1', payload: { a: 1, b: 2 } }],

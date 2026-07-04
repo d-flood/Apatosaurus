@@ -21,7 +21,6 @@ import {
 	loadTranscriptionContent,
 	promoteProjectTranscriptionToLibrary,
 	addProjectTranscriptionFromProject,
-	PromoteUncommittedProjectTranscriptionError,
 	AddFromProjectUncommittedSourceError,
 	AddFromProjectSameProjectError,
 	refreshProjectTranscription,
@@ -30,6 +29,7 @@ import {
 	updateProjectMetadata,
 } from './projects';
 import {
+	createCommittedCollationCheckpoint,
 	createCommittedTranscriptionCheckpoint,
 	getTranscriptionCommittedHead,
 	listCommittedTranscriptionCheckpoints,
@@ -253,7 +253,6 @@ describe('projects repository', () => {
 			.executeTakeFirstOrThrow();
 
 		expect(snapshot).toMatchObject({
-			scope_type: 'project_snapshot',
 			project_id: 'project-1',
 			origin_type: 'project_snapshot',
 			origin_project_id: source.project_id,
@@ -546,7 +545,6 @@ describe('projects repository', () => {
 		expect(refreshedVerseRows.map(row => row.verse_identifier)).toEqual(['Romans 1:2']);
 		expect(refreshedRow).toMatchObject({
 			id: snapshotBId,
-			scope_type: 'project_snapshot',
 			project_id: 'project-b',
 			origin_type: 'project_snapshot',
 			origin_project_id: 'project-a',
@@ -764,7 +762,7 @@ describe('projects repository', () => {
 		expect(refreshed.commitState).toBe('dirty');
 	});
 
-	it('promotes a committed project transcription to a new library transcription with a committed checkpoint', async () => {
+	it('rejects promote-to-library as no longer supported under project-only ownership', async () => {
 		await createTranscription(harness.db, {
 			...baseTranscription('tx-1', '01'),
 			document: documentWithVerses(['Romans 1:1']),
@@ -772,86 +770,19 @@ describe('projects repository', () => {
 		await createProject(harness.db, { id: 'project-a', name: 'Project A' });
 		const [snapshotAId] = await syncProjectTranscriptionIds(harness.db, 'project-a', ['tx-1']);
 		const projectTranscriptionAId = await getProjectTranscriptionLinkId(snapshotAId);
-
-		await updateTranscriptionContent(harness.db, {
-			id: snapshotAId,
-			document: documentWithVerses(['Romans 1:2']),
-			updatedAt: '2026-06-20T10:00:00.000Z',
-		});
-		const sourceCheckpoint = await createCommittedTranscriptionCheckpoint(harness.db, {
+		await createCommittedTranscriptionCheckpoint(harness.db, {
 			projectTranscriptionId: projectTranscriptionAId,
 			checkpointId: 'src-cp-1',
 			createdAt: '2026-06-20T11:00:00.000Z',
 		});
 
-		const libraryId = await promoteProjectTranscriptionToLibrary(harness.db, {
-			projectTranscriptionId: projectTranscriptionAId,
-			title: 'Promoted Witness',
-			siglum: 'P01',
-			description: 'Promoted from Project A',
-			createdAt: '2026-06-20T12:00:00.000Z',
-		});
-
-		const libraryRow = await harness.db
-			.selectFrom('transcriptions')
-			.selectAll()
-			.where('id', '=', libraryId)
-			.executeTakeFirstOrThrow();
-		const libraryVerseRows = await harness.db
-			.selectFrom('transcription_verse_index')
-			.select('verse_identifier')
-			.where('transcription_id', '=', libraryId)
-			.execute();
-		const libraryHead = await getTranscriptionCommittedHead(harness.db, libraryId);
-		const libraryCheckpoints = await listCommittedTranscriptionCheckpoints(
-			harness.db,
-			libraryId
-		);
-		const sourceRow = await harness.db
-			.selectFrom('transcriptions')
-			.select(['content_json', 'current_revision_id', 'current_content_hash'])
-			.where('id', '=', snapshotAId)
-			.executeTakeFirstOrThrow();
-		const sourceVerseRows = await harness.db
-			.selectFrom('transcription_verse_index')
-			.select('verse_identifier')
-			.where('transcription_id', '=', snapshotAId)
-			.execute();
-		const projectLinks = await harness.db
-			.selectFrom('project_transcriptions')
-			.selectAll()
-			.where('transcription_id', '=', libraryId)
-			.execute();
-
-		expect(libraryRow).toMatchObject({
-			id: libraryId,
-			scope_type: 'global',
-			project_id: null,
-			origin_type: 'project_snapshot',
-			origin_project_id: 'project-a',
-			origin_transcription_id: snapshotAId,
-			origin_revision_id: 'src-cp-1',
-			origin_content_hash: sourceCheckpoint.contentHash,
-			title: 'Promoted Witness',
-			siglum: 'P01',
-			description: 'Promoted from Project A',
-		});
-		expect(JSON.parse(libraryRow.content_json)).toEqual(JSON.parse(sourceRow.content_json));
-		expect(libraryVerseRows.map(row => row.verse_identifier)).toEqual(['Romans 1:2']);
-		expect(libraryHead).toEqual({
-			revisionId: libraryCheckpoints[0]!.id,
-			contentHash: sourceCheckpoint.contentHash,
-		});
-		expect(libraryCheckpoints).toHaveLength(1);
-		expect(libraryCheckpoints[0]).toMatchObject({
-			transcriptionId: libraryId,
-			contentHash: sourceCheckpoint.contentHash,
-			isCommitted: true,
-		});
-		expect(sourceRow.current_revision_id).toBe('src-cp-1');
-		expect(sourceRow.current_content_hash).toBe(sourceCheckpoint.contentHash);
-		expect(sourceVerseRows.map(row => row.verse_identifier)).toEqual(['Romans 1:2']);
-		expect(projectLinks).toHaveLength(0);
+		await expect(
+			promoteProjectTranscriptionToLibrary(harness.db, {
+				projectTranscriptionId: projectTranscriptionAId,
+				title: 'Promoted Witness',
+				siglum: 'P01',
+			})
+		).rejects.toThrow(/no longer supported/);
 	});
 
 	it('blocks promote when the project transcription has no committed version', async () => {
@@ -867,14 +798,13 @@ describe('projects repository', () => {
 			promoteProjectTranscriptionToLibrary(harness.db, {
 				projectTranscriptionId: projectTranscriptionAId,
 			})
-		).rejects.toBeInstanceOf(PromoteUncommittedProjectTranscriptionError);
+		).rejects.toThrow(/no longer supported/);
 
 		const globalRows = await harness.db
 			.selectFrom('transcriptions')
 			.selectAll()
-			.where('scope_type', '=', 'global')
 			.execute();
-		expect(globalRows).toEqual([]);
+		expect(globalRows.map(row => row.id).sort()).toEqual(['tx-1', snapshotAId].sort());
 	});
 
 	it('adds a committed transcription from another project into the current project with origin metadata', async () => {
@@ -939,7 +869,6 @@ describe('projects repository', () => {
 		expect(result.projectOwnedTranscriptionId).not.toBe(snapshotAId);
 		expect(result.projectTranscriptionId).not.toBe(projectTranscriptionAId);
 		expect(targetRow).toMatchObject({
-			scope_type: 'project_snapshot',
 			project_id: 'project-b',
 			origin_type: 'project_snapshot',
 			origin_project_id: 'project-a',
@@ -1076,25 +1005,11 @@ describe('projects repository', () => {
 				source_content_hash: sourceCheckpoint.contentHash,
 			})
 			.execute();
-		await harness.db
-			.insertInto('collation_checkpoints')
-			.values({
-				id: 'col-cp-1',
-				collation_id: 'col-a',
-				parent_checkpoint_id: null,
-				payload: JSON.stringify({ id: 'col-a' }),
-				content_hash: 'sha256:collation',
-				is_committed: 1,
-				commit_message: null,
-				author_name: '',
-				created_at: '2026-06-20T10:00:00.000Z',
-			})
-			.execute();
-		await harness.db
-			.updateTable('collations')
-			.set({ current_revision_id: 'col-cp-1', current_content_hash: 'sha256:collation' })
-			.where('id', '=', 'col-a')
-			.execute();
+		const collationCheckpoint = await createCommittedCollationCheckpoint(harness.db, {
+			collationId: 'col-a',
+			checkpointId: 'col-cp-1',
+			createdAt: '2026-06-20T10:00:00.000Z',
+		});
 
 		const fork = await forkProject(harness.db, {
 			sourceProjectId: 'project-a',
@@ -1159,7 +1074,7 @@ describe('projects repository', () => {
 		});
 		expect(forkedCollation).toMatchObject({
 			project_id: fork.projectId,
-			current_content_hash: 'sha256:collation',
+			current_content_hash: collationCheckpoint.contentHash,
 		});
 		expect(forkedCollation.current_revision_id).not.toBe('col-cp-1');
 		expect(forkedWitness).toMatchObject({

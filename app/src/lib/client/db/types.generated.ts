@@ -121,7 +121,7 @@ export interface CollationWitnesses {
 
 export interface Collations {
 	id: string | null;
-	project_id: string | null;
+	project_id: string;
 	current_revision_id: string;
 	current_content_hash: string;
 	title: string;
@@ -245,8 +245,7 @@ export interface TranscriptionVerseIndex {
 
 export interface Transcriptions {
 	id: string | null;
-	scope_type: string;
-	project_id: string | null;
+	project_id: string;
 	origin_type: string;
 	origin_project_id: string | null;
 	origin_transcription_id: string | null;

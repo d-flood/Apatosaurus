@@ -343,11 +343,7 @@ export async function serializeProjectTranscriptionCloudFile(
 		loadProjectTranscriptionSnapshot(db, projectTranscriptionId),
 		loadProjectTranscriptionMetadata(db, projectTranscriptionId),
 	]);
-	if (metadata.scope_type !== 'project_snapshot') {
-		throw new Error(
-			`Project transcription ${projectTranscriptionId} is not a project snapshot.`
-		);
-	}
+	void metadata;
 
 	const contentHash = await hashCanonicalPayload(buildTranscriptionHashPayload(snapshot));
 	if (contentHash !== metadata.current_content_hash) {
@@ -1131,7 +1127,6 @@ async function loadProjectTranscriptionMetadata(db: DbExecutor, projectTranscrip
 		.innerJoin('transcriptions', 'transcriptions.id', 'project_transcriptions.transcription_id')
 		.select([
 			'project_transcriptions.canonical_transcription_id as canonical_transcription_id',
-			'transcriptions.scope_type as scope_type',
 			'transcriptions.origin_type as origin_type',
 			'transcriptions.origin_project_id as origin_project_id',
 			'transcriptions.origin_transcription_id as origin_transcription_id',

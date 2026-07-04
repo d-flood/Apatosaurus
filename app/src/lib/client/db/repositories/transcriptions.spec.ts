@@ -190,7 +190,6 @@ describe('transcriptions repository', () => {
 		expect(versions.map(row => row.id)).toEqual([snapshotId]);
 		expect(snapshot).toMatchObject({
 			id: snapshotId,
-			scope_type: 'project_snapshot',
 			project_id: 'project-1',
 		});
 	});

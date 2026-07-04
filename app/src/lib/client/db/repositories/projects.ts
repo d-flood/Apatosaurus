@@ -57,8 +57,7 @@ export interface ProjectTranscriptionOption {
 
 export interface TranscriptionSourceSummary {
 	transcriptionId: string;
-	scopeType: string;
-	projectId: string | null;
+	projectId: string;
 	title: string;
 	siglum: string;
 	currentCheckpoint: EntityCheckpointHead | null;
@@ -323,7 +322,6 @@ export async function listProjectTranscriptionStatuses(
 			'project_transcriptions.project_id as project_id',
 			'project_transcriptions.transcription_id as transcription_id',
 			'project_transcriptions.canonical_transcription_id as canonical_transcription_id',
-			'transcriptions.scope_type as scope_type',
 			'transcriptions.project_id as transcription_project_id',
 			'transcriptions.origin_type as origin_type',
 			'transcriptions.origin_project_id as origin_project_id',
@@ -354,7 +352,6 @@ export async function getProjectTranscriptionStatus(
 			'project_transcriptions.project_id as project_id',
 			'project_transcriptions.transcription_id as transcription_id',
 			'project_transcriptions.canonical_transcription_id as canonical_transcription_id',
-			'transcriptions.scope_type as scope_type',
 			'transcriptions.project_id as transcription_project_id',
 			'transcriptions.origin_type as origin_type',
 			'transcriptions.origin_project_id as origin_project_id',
@@ -384,7 +381,6 @@ export async function getProjectTranscriptionStatusForOwnedTranscription(
 			'project_transcriptions.project_id as project_id',
 			'project_transcriptions.transcription_id as transcription_id',
 			'project_transcriptions.canonical_transcription_id as canonical_transcription_id',
-			'transcriptions.scope_type as scope_type',
 			'transcriptions.project_id as transcription_project_id',
 			'transcriptions.origin_type as origin_type',
 			'transcriptions.origin_project_id as origin_project_id',
@@ -445,7 +441,6 @@ export async function syncProjectTranscriptionIds(
 				'project_transcriptions.id as project_transcription_id',
 				'project_transcriptions.transcription_id as transcription_id',
 				'project_transcriptions.canonical_transcription_id as canonical_transcription_id',
-				'transcriptions.scope_type as scope_type',
 				'transcriptions.project_id as transcription_project_id',
 				'transcriptions.origin_transcription_id as origin_transcription_id',
 			])
@@ -492,11 +487,7 @@ export async function syncProjectTranscriptionIds(
 			requireId(row.project_transcription_id, 'project transcription')
 		);
 		const removedSnapshotIds = removedRows
-			.filter(
-				row =>
-					row.scope_type === 'project_snapshot' &&
-					row.transcription_project_id === projectId
-			)
+			.filter(row => row.transcription_project_id === projectId)
 			.map(row => requireId(row.transcription_id, 'project transcription snapshot'));
 
 		if (removedProjectTranscriptionIds.length > 0) {
@@ -509,7 +500,6 @@ export async function syncProjectTranscriptionIds(
 			await trx
 				.deleteFrom('transcriptions')
 				.where('id', 'in', removedSnapshotIds)
-				.where('scope_type', '=', 'project_snapshot')
 				.where('project_id', '=', projectId)
 				.execute();
 		}
@@ -592,7 +582,7 @@ export async function refreshProjectTranscription(
 
 		const sourceRow = await trx
 			.selectFrom('transcriptions')
-			.select(['scope_type', 'project_id'])
+			.select(['project_id'])
 			.where('id', '=', input.sourceTranscriptionId)
 			.executeTakeFirst();
 		if (!sourceRow) {
@@ -617,7 +607,7 @@ export async function refreshProjectTranscription(
 				repository: payload.repository,
 				settlement: payload.settlement,
 				language: payload.language,
-				origin_type: sourceRow.scope_type === 'global' ? 'canonical' : sourceRow.scope_type,
+				origin_type: 'project_snapshot',
 				origin_project_id: sourceRow.project_id,
 				origin_transcription_id: input.sourceTranscriptionId,
 				origin_revision_id: loaded.id,
@@ -660,7 +650,6 @@ async function forkProjectTranscriptions(
 			'project_transcriptions.transcription_id as transcription_id',
 			'project_transcriptions.canonical_transcription_id as canonical_transcription_id',
 			'transcriptions.id as source_transcription_id',
-			'transcriptions.scope_type as scope_type',
 			'transcriptions.project_id as project_id',
 			'transcriptions.origin_type as origin_type',
 			'transcriptions.origin_project_id as origin_project_id',
@@ -699,7 +688,6 @@ async function forkProjectTranscriptions(
 			.insertInto('transcriptions')
 			.values({
 				id: targetTranscriptionId,
-				scope_type: link.scope_type,
 				project_id: targetProjectId,
 				origin_type: link.origin_type || 'project_snapshot',
 				origin_project_id: sourceProjectId,
@@ -1102,120 +1090,16 @@ export interface PromoteProjectTranscriptionToLibraryInput {
 	createdAt?: string;
 }
 
-export class PromoteUncommittedProjectTranscriptionError extends Error {
-	readonly projectTranscriptionId: string;
-	constructor(projectTranscriptionId: string) {
-		super(
-			'Project transcription has no committed version. Commit it before promoting to the library.'
-		);
-		this.name = 'PromoteUncommittedProjectTranscriptionError';
-		this.projectTranscriptionId = projectTranscriptionId;
-	}
-}
-
 export async function promoteProjectTranscriptionToLibrary(
-	db: Kysely<Database>,
-	input: PromoteProjectTranscriptionToLibraryInput
+	_db: Kysely<Database>,
+	_input: PromoteProjectTranscriptionToLibraryInput
 ): Promise<string> {
-	return db.transaction().execute(async trx => {
-		const targetLink = await trx
-			.selectFrom('project_transcriptions')
-			.innerJoin(
-				'transcriptions',
-				'transcriptions.id',
-				'project_transcriptions.transcription_id'
-			)
-			.select([
-				'project_transcriptions.id as project_transcription_id',
-				'project_transcriptions.project_id as project_id',
-				'project_transcriptions.transcription_id as transcription_id',
-				'transcriptions.current_revision_id as current_revision_id',
-				'transcriptions.current_content_hash as current_content_hash',
-			])
-			.where('project_transcriptions.id', '=', input.projectTranscriptionId)
-			.executeTakeFirst();
-		if (!targetLink) {
-			throw new Error(`Project transcription ${input.projectTranscriptionId} was not found.`);
-		}
-		const projectId = requireId(targetLink.project_id, 'project transcription project');
-		const projectOwnedTranscriptionId = requireId(
-			targetLink.transcription_id,
-			'project-owned transcription'
-		);
-
-		const checkpointId = input.sourceCheckpointId ?? targetLink.current_revision_id ?? '';
-		if (!checkpointId) {
-			throw new PromoteUncommittedProjectTranscriptionError(input.projectTranscriptionId);
-		}
-
-		const loaded = await loadCommittedTranscriptionCheckpointPayload(
-			trx,
-			projectOwnedTranscriptionId,
-			checkpointId
-		);
-		const payload = loaded.payload;
-		const now = input.createdAt ?? new Date().toISOString();
-		const libraryId = createId();
-		const contentJson = JSON.stringify(payload.content_json);
-
-		const libraryRow: Selectable<Transcriptions> = {
-			id: libraryId,
-			scope_type: 'global',
-			project_id: null,
-			origin_type: 'project_snapshot',
-			origin_project_id: projectId,
-			origin_transcription_id: projectOwnedTranscriptionId,
-			origin_revision_id: loaded.id,
-			origin_content_hash: loaded.contentHash,
-			current_revision_id: '',
-			current_content_hash: '',
-			title: (input.title ?? payload.title).trim() || payload.title,
-			siglum: (input.siglum ?? payload.siglum).trim() || payload.siglum,
-			description: (input.description ?? payload.description).trim() || payload.description,
-			content_json: contentJson,
-			format: payload.format,
-			created_at: now,
-			updated_at: now,
-			owner: payload.owner,
-			is_public: payload.is_public ? 1 : 0,
-			tags: JSON.stringify(payload.tags ?? []),
-			transcriber: payload.transcriber,
-			repository: payload.repository,
-			settlement: payload.settlement,
-			language: payload.language,
-		};
-		await trx.insertInto('transcriptions').values(libraryRow).execute();
-
-		await replaceTranscriptionVerseIndexRows(trx, libraryId, contentJson, now);
-		await replaceIiifRowsFromPayload(trx, libraryId, payload, now);
-
-		const checkpointRow: Selectable<TranscriptionCheckpoints> = {
-			id: createId(),
-			transcription_id: libraryId,
-			parent_checkpoint_id: null,
-			format: payload.format,
-			payload: canonicalJson(payload),
-			content_hash: loaded.contentHash,
-			is_committed: 1,
-			commit_message: null,
-			author_name: '',
-			created_at: now,
-		};
-		await trx.insertInto('transcription_checkpoints').values(checkpointRow).execute();
-		await trx
-			.updateTable('transcriptions')
-			.set({
-				current_revision_id: requireId(
-					checkpointRow.id,
-					'library transcription checkpoint'
-				),
-				current_content_hash: loaded.contentHash,
-			})
-			.where('id', '=', libraryId)
-			.execute();
-
-		return libraryId;
-	});
+	throw new Error(
+		'Promoting a project transcription to a global library is no longer supported. ' +
+			'Transcriptions are project-owned; copy the transcription into another project via ' +
+			'addProjectTranscriptionFromProject to share it. ' +
+			'(Re-introducing library semantics is tracked for a future phase.)'
+	);
 }
 
 export interface AddProjectTranscriptionFromProjectInput {
@@ -1297,7 +1181,6 @@ export async function addProjectTranscriptionFromProject(
 
 		const targetRow: Selectable<Transcriptions> = {
 			id: targetTranscriptionId,
-			scope_type: 'project_snapshot',
 			project_id: input.targetProjectId,
 			origin_type: 'project_snapshot',
 			origin_project_id: sourceProjectId,
@@ -1435,16 +1318,9 @@ async function addProjectTranscriptionSnapshot(
 	if (!source) throw new Error(`Transcription ${sourceId} was not found.`);
 
 	const sourceTranscriptionId = requireId(source.id, 'source transcription');
-	const canonicalTranscriptionId = getCanonicalTranscriptionId(source);
-	if (source.scope_type === 'project_snapshot' && source.project_id === projectId) {
-		await insertProjectTranscriptionRow(
-			db,
-			projectId,
-			sourceTranscriptionId,
-			canonicalTranscriptionId,
-			now
-		);
-		return { transcriptionId: sourceTranscriptionId, canonicalTranscriptionId };
+	if (source.project_id === projectId) {
+		await insertProjectTranscriptionRow(db, projectId, sourceTranscriptionId, null, now);
+		return { transcriptionId: sourceTranscriptionId, canonicalTranscriptionId: null };
 	}
 
 	const snapshotId = createId();
@@ -1454,8 +1330,8 @@ async function addProjectTranscriptionSnapshot(
 		.execute();
 	await copyVerseIndexRows(db, sourceTranscriptionId, snapshotId, now);
 	await copyIiifRows(db, sourceTranscriptionId, snapshotId);
-	await insertProjectTranscriptionRow(db, projectId, snapshotId, canonicalTranscriptionId, now);
-	return { transcriptionId: snapshotId, canonicalTranscriptionId };
+	await insertProjectTranscriptionRow(db, projectId, snapshotId, null, now);
+	return { transcriptionId: snapshotId, canonicalTranscriptionId: null };
 }
 
 async function insertProjectTranscriptionRow(
@@ -1491,9 +1367,8 @@ function buildProjectSnapshotRow(
 	return {
 		...source,
 		id: snapshotId,
-		scope_type: 'project_snapshot',
 		project_id: projectId,
-		origin_type: source.scope_type === 'global' ? 'canonical' : source.scope_type,
+		origin_type: 'project_snapshot',
 		origin_project_id: source.project_id,
 		origin_transcription_id: sourceId,
 		origin_revision_id: hasCommittedSource ? source.current_revision_id : '',
@@ -1503,12 +1378,6 @@ function buildProjectSnapshotRow(
 		created_at: now,
 		updated_at: now,
 	};
-}
-
-function getCanonicalTranscriptionId(source: Selectable<Transcriptions>): string | null {
-	const sourceId = requireId(source.id, 'source transcription');
-	if (source.scope_type === 'global') return sourceId;
-	return source.origin_type === 'canonical' ? source.origin_transcription_id : null;
 }
 
 async function copyVerseIndexRows(
@@ -1603,8 +1472,7 @@ interface ProjectTranscriptionStatusQueryRow {
 	project_id: string;
 	transcription_id: string;
 	canonical_transcription_id: string | null;
-	scope_type: string;
-	transcription_project_id: string | null;
+	transcription_project_id: string;
 	origin_type: string;
 	origin_project_id: string | null;
 	origin_transcription_id: string | null;
@@ -1656,9 +1524,7 @@ async function mapProjectTranscriptionStatus(
 		siglum: row.siglum,
 		title: row.title,
 		description: row.description,
-		isProjectOwned:
-			row.scope_type === 'project_snapshot' &&
-			row.transcription_project_id === row.project_id,
+		isProjectOwned: row.transcription_project_id === row.project_id,
 		canonicalSource,
 		immediateSource,
 		currentCheckpoint: checkpointStatus.currentCheckpoint,
@@ -1683,7 +1549,6 @@ async function loadTranscriptionSourceSummary(
 		.selectFrom('transcriptions')
 		.select([
 			'id',
-			'scope_type',
 			'project_id',
 			'title',
 			'siglum',
@@ -1700,14 +1565,12 @@ async function loadTranscriptionSourceSummary(
 	);
 	return {
 		transcriptionId: sourceId,
-		scopeType: row.scope_type,
 		projectId: row.project_id,
 		title: row.title,
 		siglum: row.siglum,
 		currentCheckpoint,
 		dirtyToCheckpoint: await loadSourceDirtyToCheckpoint(db, {
 			transcriptionId: sourceId,
-			scopeType: row.scope_type,
 			projectId: row.project_id,
 			currentCheckpoint,
 		}),
@@ -1718,13 +1581,11 @@ async function loadSourceDirtyToCheckpoint(
 	db: DbExecutor,
 	source: {
 		transcriptionId: string;
-		scopeType: string;
-		projectId: string | null;
+		projectId: string;
 		currentCheckpoint: EntityCheckpointHead | null;
 	}
 ): Promise<boolean | null> {
 	if (!source.currentCheckpoint) return null;
-	if (source.scopeType !== 'project_snapshot' || !source.projectId) return null;
 	const projectTranscription = await db
 		.selectFrom('project_transcriptions')
 		.select('id')

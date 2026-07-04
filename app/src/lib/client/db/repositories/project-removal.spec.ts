@@ -20,7 +20,11 @@ afterEach(async () => {
 
 describe('project local removal repository', () => {
 	it('removes project-contained local data and leaves default-project transcriptions intact', async () => {
-		await createTranscription(harness.db, baseTranscription('library-1', 'A'));
+		await createProject(harness.db, { id: 'library-project', name: 'Library' });
+		await createTranscription(harness.db, {
+			...baseTranscription('library-1', 'A'),
+			projectId: 'library-project',
+		});
 		await createProject(harness.db, { id: 'project-1', name: 'Project' });
 		const [projectOwnedTranscriptionId] = await syncProjectTranscriptionIds(harness.db, 'project-1', [
 			'library-1',
@@ -65,15 +69,16 @@ describe('project local removal repository', () => {
 		const remainingProjects = await harness.db
 			.selectFrom('projects')
 			.select(['id', 'name'])
+			.orderBy('name')
 			.execute();
-		expect(remainingProjects).toHaveLength(1);
-		expect(remainingProjects[0]).toMatchObject({ name: 'Default' });
+		expect(remainingProjects.map(row => row.name)).toEqual(['Library']);
+		const libraryProject = remainingProjects.find(row => row.name === 'Library')!;
 		const remainingProjectTranscriptions = await harness.db
 			.selectFrom('project_transcriptions')
 			.select(['project_id', 'transcription_id'])
 			.execute();
 		expect(remainingProjectTranscriptions).toEqual([
-			{ project_id: remainingProjects[0].id, transcription_id: 'library-1' },
+			{ project_id: libraryProject.id, transcription_id: 'library-1' },
 		]);
 		await expectNoRows('collations');
 		await expectNoRows('collation_checkpoints');
@@ -83,10 +88,10 @@ describe('project local removal repository', () => {
 		await expectNoRows('sync_tombstones');
 		const remainingTranscriptions = await harness.db
 			.selectFrom('transcriptions')
-			.select(['id', 'scope_type'])
+			.select(['id', 'project_id'])
 			.orderBy('id')
 			.execute();
-		expect(remainingTranscriptions).toEqual([{ id: 'library-1', scope_type: 'project_snapshot' }]);
+		expect(remainingTranscriptions).toEqual([{ id: 'library-1', project_id: 'library-project' }]);
 	});
 });
 

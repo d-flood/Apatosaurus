@@ -1,7 +1,6 @@
 <script lang="ts">
 	import ArrowsClockwise from 'phosphor-svelte/lib/ArrowsClockwise';
 	import ArrowsLeftRight from 'phosphor-svelte/lib/ArrowsLeftRight';
-	import ArrowUp from 'phosphor-svelte/lib/ArrowUp';
 	import GitCommit from 'phosphor-svelte/lib/GitCommit';
 	import PencilSimple from 'phosphor-svelte/lib/PencilSimple';
 	import { resolve } from '$app/paths';
@@ -15,7 +14,6 @@
 		statuses: ProjectTranscriptionStatus[];
 		isLoading: boolean;
 		onRefreshTranscription: (status: ProjectTranscriptionStatus) => Promise<void> | void;
-		onPromoteTranscription: (status: ProjectTranscriptionStatus) => Promise<void> | void;
 		onAddFromProject: () => Promise<void> | void;
 	}
 
@@ -24,7 +22,6 @@
 		statuses,
 		isLoading,
 		onRefreshTranscription,
-		onPromoteTranscription,
 		onAddFromProject,
 	}: Props = $props();
 
@@ -36,11 +33,9 @@
 	function deriveSourceTypeLabel(status: ProjectTranscriptionStatus): string {
 		const canonical = status.canonicalSource;
 		const immediate = status.immediateSource;
-		if (canonical?.scopeType === 'global') return 'Library';
-		if (canonical?.scopeType === 'project_snapshot' && canonical.projectId !== projectId) {
+		if (canonical && canonical.projectId !== projectId) {
 			return 'Other project';
 		}
-		if (immediate?.sourceType === 'canonical') return 'Library';
 		if (
 			immediate?.sourceType === 'project_snapshot' &&
 			immediate.sourceProjectId !== projectId
@@ -240,18 +235,6 @@
 								<PencilSimple size={12} />
 								Open
 							</a>
-							<button
-								type="button"
-								class="btn btn-xs btn-outline btn-primary gap-1"
-								disabled={!status.currentCheckpoint}
-								title={status.currentCheckpoint
-									? 'Promote the committed project transcription into the reusable library'
-									: 'Commit this project transcription before promoting'}
-								onclick={() => onPromoteTranscription(status)}
-							>
-								<ArrowUp size={12} />
-								Promote to library
-							</button>
 							<button
 								type="button"
 								class="btn btn-xs btn-secondary gap-1"

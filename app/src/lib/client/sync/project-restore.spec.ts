@@ -360,7 +360,6 @@ describe('cloud project import', () => {
 				.select([
 					'id',
 					'project_id',
-					'scope_type',
 					'current_revision_id',
 					'current_content_hash',
 				])
@@ -369,7 +368,6 @@ describe('cloud project import', () => {
 		).resolves.toMatchObject({
 			id: remote.transcriptionId,
 			project_id: 'project-restore-1',
-			scope_type: 'project_snapshot',
 			current_revision_id: 'tx-cp-restore-1',
 			current_content_hash: remote.contentHash,
 		});

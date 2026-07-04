@@ -35,7 +35,6 @@ export async function removeLocalProject(
 			.select([
 				'project_transcriptions.id as project_transcription_id',
 				'project_transcriptions.transcription_id as transcription_id',
-				'transcriptions.scope_type as scope_type',
 				'transcriptions.project_id as transcription_project_id',
 			])
 			.where('project_transcriptions.project_id', '=', input.projectId)
@@ -44,10 +43,7 @@ export async function removeLocalProject(
 			requireId(row.project_transcription_id, 'project transcription')
 		);
 		const projectOwnedTranscriptionIds = projectTranscriptionRows
-			.filter(
-				row =>
-					row.scope_type === 'project_snapshot' && row.transcription_project_id === input.projectId
-			)
+			.filter(row => row.transcription_project_id === input.projectId)
 			.map(row => requireId(row.transcription_id, 'project-owned transcription'));
 
 		const collationRows = await trx
@@ -80,7 +76,6 @@ export async function removeLocalProject(
 			await trx
 				.deleteFrom('transcriptions')
 				.where('id', 'in', projectOwnedTranscriptionIds)
-				.where('scope_type', '=', 'project_snapshot')
 				.where('project_id', '=', input.projectId)
 				.execute();
 		}
@@ -94,7 +89,6 @@ export async function removeLocalProject(
 			trx.deleteFrom('sync_tombstones').where('project_id', '=', input.projectId)
 		);
 
-		await trx.deleteFrom('cloud_project_folders').where('project_id', '=', input.projectId).execute();
 		await trx.deleteFrom('projects').where('id', '=', input.projectId).execute();
 
 		return {

@@ -1072,7 +1072,6 @@ async function applyProjectTranscriptionPrimary(
 		.insertInto('transcriptions')
 		.values({
 			id: file.id,
-			scope_type: 'project_snapshot',
 			project_id: projectId,
 			origin_type: file.origin.source_type,
 			origin_project_id: file.origin.source_project_id,
@@ -1098,7 +1097,6 @@ async function applyProjectTranscriptionPrimary(
 		})
 		.onConflict(oc =>
 			oc.column('id').doUpdateSet({
-				scope_type: 'project_snapshot',
 				project_id: projectId,
 				origin_type: file.origin.source_type,
 				origin_project_id: file.origin.source_project_id,

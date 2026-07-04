@@ -1004,7 +1004,6 @@ async function importProjectTranscriptionPrimary(
 		.insertInto('transcriptions')
 		.values({
 			id: input.transcription_id,
-			scope_type: input.scope_type,
 			project_id: input.project_id,
 			origin_type: input.origin.source_type,
 			origin_project_id: input.origin.source_project_id,
@@ -1069,7 +1068,6 @@ async function replaceProjectTranscriptionPrimary(
 	await db
 		.updateTable('transcriptions')
 		.set({
-			scope_type: input.scope_type,
 			project_id: input.project_id,
 			origin_type: input.origin.source_type,
 			origin_project_id: input.origin.source_project_id,

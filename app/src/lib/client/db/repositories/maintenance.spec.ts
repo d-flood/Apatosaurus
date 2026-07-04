@@ -41,16 +41,16 @@ function seedDomainRows(): void {
 	harness.sqlite
 		.prepare(
 			`
-		INSERT INTO transcriptions (id, title, siglum, content_json, format, created_at, updated_at)
-		VALUES ('tx-1', 'Romans Witness', 'P46', '{}', 'json', '2024-01-01T00:00:00.000Z', '2024-01-01T00:00:00.000Z')
+		INSERT INTO projects (id, storage_slug, name, created_at, updated_at)
+		VALUES ('project-1', 'project-1-test', 'Project', '2024-01-01T00:00:00.000Z', '2024-01-01T00:00:00.000Z')
 	`
 		)
 		.run();
 	harness.sqlite
 		.prepare(
 			`
-		INSERT INTO projects (id, storage_slug, name, created_at, updated_at)
-		VALUES ('project-1', 'project-1-test', 'Project', '2024-01-01T00:00:00.000Z', '2024-01-01T00:00:00.000Z')
+		INSERT INTO transcriptions (id, project_id, title, siglum, content_json, format, created_at, updated_at)
+		VALUES ('tx-1', 'project-1', 'Romans Witness', 'P46', '{}', 'json', '2024-01-01T00:00:00.000Z', '2024-01-01T00:00:00.000Z')
 	`
 		)
 		.run();

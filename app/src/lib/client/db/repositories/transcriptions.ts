@@ -355,7 +355,6 @@ function buildTranscriptionRow(
 	const now = new Date().toISOString();
 	return {
 		id: input.id ?? createId(),
-		scope_type: 'project_snapshot',
 		project_id: projectId,
 		origin_type: '',
 		origin_project_id: null,

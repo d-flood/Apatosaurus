@@ -9,7 +9,6 @@
 		listProjectTranscriptionStatuses,
 		listTranscriptions,
 		loadTranscriptionHands,
-		promoteProjectTranscriptionToLibrary,
 		refreshProjectTranscription,
 		syncProjectTranscriptionIds,
 		updateProjectMetadata,
@@ -36,7 +35,6 @@
 	import ProjectBackupPanel from '$lib/components/projects/ProjectBackupPanel.svelte';
 	import CloudProjectBrowser from '$lib/components/projects/CloudProjectBrowser.svelte';
 	import ProjectTranscriptionRefreshDialog from '$lib/components/projects/ProjectTranscriptionRefreshDialog.svelte';
-	import PromoteProjectTranscriptionDialog from '$lib/components/projects/PromoteProjectTranscriptionDialog.svelte';
 	import AddProjectTranscriptionFromProjectDialog from '$lib/components/projects/AddProjectTranscriptionFromProjectDialog.svelte';
 	import ProjectUserManagementStub from '$lib/components/projects/ProjectUserManagementStub.svelte';
 	import { waitForBrowserIdle } from '$lib/client/defer';
@@ -103,10 +101,6 @@
 	let isRefreshing = $state(false);
 	let refreshError = $state<string | null>(null);
 	let statusLoadRunId = 0;
-
-	let promoteTarget = $state<ProjectTranscriptionStatus | null>(null);
-	let isPromoting = $state(false);
-	let promoteError = $state<string | null>(null);
 
 	let showAddFromProject = $state(false);
 	let addFromProjectCandidates = $state.raw<ProjectTranscriptionSourceCandidate[]>([]);
@@ -933,46 +927,6 @@
 		refreshTarget ? (resolveRefreshSource(refreshTarget)?.sourceCheckpointId ?? '') : ''
 	);
 
-	function handleRequestPromote(status: ProjectTranscriptionStatus) {
-		promoteTarget = status;
-		promoteError = null;
-	}
-
-	function closePromoteDialog() {
-		if (isPromoting) return;
-		promoteTarget = null;
-		promoteError = null;
-	}
-
-	async function confirmPromoteTranscription(input: {
-		title: string;
-		siglum: string;
-		description: string;
-	}) {
-		const target = promoteTarget;
-		if (!target) return;
-		isPromoting = true;
-		promoteError = null;
-		try {
-			await promoteProjectTranscriptionToLibrary({
-				projectTranscriptionId: target.projectTranscriptionId,
-				title: input.title,
-				siglum: input.siglum,
-				description: input.description,
-			});
-			promoteTarget = null;
-			if (selectedProjectId) {
-				const runId = ++bootstrapRunId;
-				await loadTranscriptionCatalog(runId, selectedProjectId);
-			}
-		} catch (err) {
-			promoteError =
-				err instanceof Error ? err.message : 'Failed to promote project transcription';
-		} finally {
-			isPromoting = false;
-		}
-	}
-
 	async function handleRequestAddFromProject() {
 		const projectId = selectedProjectId;
 		if (!projectId) return;
@@ -1284,7 +1238,6 @@
 						statuses={projectTranscriptionStatuses}
 						isLoading={isLoadingStatuses || isLoadingProject}
 						onRefreshTranscription={handleRequestRefresh}
-						onPromoteTranscription={handleRequestPromote}
 						onAddFromProject={handleRequestAddFromProject}
 					/>
 
@@ -1322,16 +1275,6 @@
 			error={refreshError}
 			onConfirm={confirmRefreshTranscription}
 			onClose={closeRefreshDialog}
-		/>
-	{/if}
-
-	{#if promoteTarget}
-		<PromoteProjectTranscriptionDialog
-			status={promoteTarget}
-			isSubmitting={isPromoting}
-			error={promoteError}
-			onConfirm={confirmPromoteTranscription}
-			onClose={closePromoteDialog}
 		/>
 	{/if}
 

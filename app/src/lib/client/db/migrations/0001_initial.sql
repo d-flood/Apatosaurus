@@ -1,3 +1,32 @@
+-- Apatosaurus local SQLite index schema.
+--
+-- This schema is intentionally a disposable index: nothing irreplaceable
+-- lives here. All canonical user content lives in OPFS document files
+-- (see architecture.md section 4). On startup, if the versioned index
+-- file is missing, the index is rebuilt from files and stale index files
+-- are deleted (see Phase 6).
+--
+-- Notes:
+--   * The `schema_migrations` table is part of the migration runner and is
+--     replaced by index versioning in Phase 6. It stays at version 1 for
+--     this phase.
+--   * `transcriptions.content_json` and `collation_artifacts.payload` are
+--     retained as working-cache columns. The canonical content is the
+--     committed project file written by Phase 5. These cache columns are
+--     slated for demotion/drop in Phase 5/6.
+--   * Checkpoint `payload` columns are retained temporarily. They are the
+--     committed history payload cache until Phase 5 writes those payloads
+--     to OPFS at commit time and Phase 6 can rebuild these listing rows
+--     from files.
+--   * `transcriptions.scope_type` (global/project_snapshot) is removed:
+--     every transcription is project-owned under the project-only
+--     ownership model (architecture.md section 3 decision 1).
+--   * `cloud_connections`, `cloud_project_folders`, and
+--     `cloud_sync_metadata` are kept for this phase (they back the
+--     existing sync layer until Phase 7 rewrites sync on top of
+--     `app/sync-targets.json` and a per-file fingerprint cache). They
+--     are slated for removal in Phase 7.
+
 PRAGMA foreign_keys = ON;
 
 CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -22,8 +51,7 @@ CREATE INDEX IF NOT EXISTS idx_projects_updated_at ON projects(updated_at DESC);
 
 CREATE TABLE IF NOT EXISTS transcriptions (
 	id TEXT PRIMARY KEY,
-	scope_type TEXT NOT NULL DEFAULT 'global',
-	project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
+	project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
 	origin_type TEXT NOT NULL DEFAULT '',
 	origin_project_id TEXT,
 	origin_transcription_id TEXT,
@@ -34,6 +62,9 @@ CREATE TABLE IF NOT EXISTS transcriptions (
 	title TEXT NOT NULL,
 	siglum TEXT NOT NULL,
 	description TEXT NOT NULL DEFAULT '',
+	-- Working cache: canonical transcription content lives in
+	-- `<storage_slug>/transcriptions/<id>.json` (Phase 5). This column is
+	-- slated for demotion/drop in Phase 5/6.
 	content_json TEXT NOT NULL,
 	format TEXT NOT NULL,
 	created_at TEXT NOT NULL,
@@ -47,8 +78,10 @@ CREATE TABLE IF NOT EXISTS transcriptions (
 	language TEXT NOT NULL DEFAULT ''
 );
 
-CREATE INDEX IF NOT EXISTS idx_transcriptions_scope ON transcriptions(scope_type, project_id, updated_at DESC);
-CREATE INDEX IF NOT EXISTS idx_transcriptions_origin ON transcriptions(origin_transcription_id, origin_revision_id);
+CREATE INDEX IF NOT EXISTS idx_transcriptions_project_updated
+	ON transcriptions(project_id, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_transcriptions_origin
+	ON transcriptions(origin_transcription_id, origin_revision_id);
 
 CREATE TABLE IF NOT EXISTS transcription_verse_index (
 	id TEXT PRIMARY KEY,
@@ -80,7 +113,7 @@ CREATE INDEX IF NOT EXISTS idx_project_transcriptions_canonical ON project_trans
 
 CREATE TABLE IF NOT EXISTS collations (
 	id TEXT PRIMARY KEY,
-	project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
+	project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
 	current_revision_id TEXT NOT NULL DEFAULT '',
 	current_content_hash TEXT NOT NULL DEFAULT '',
 	title TEXT NOT NULL,
@@ -96,6 +129,9 @@ CREATE TABLE IF NOT EXISTS collations (
 CREATE INDEX IF NOT EXISTS idx_collations_updated_at ON collations(updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_collations_project_id ON collations(project_id);
 
+-- Working cache for the legacy `collation_document_v1` payload. Canonical
+-- collation content lives in `<storage_slug>/collations/<id>.json`
+-- (Phase 5). This table is slated for demotion/drop in Phase 5/6.
 CREATE TABLE IF NOT EXISTS collation_artifacts (
 	id TEXT PRIMARY KEY,
 	collation_id TEXT NOT NULL REFERENCES collations(id) ON DELETE CASCADE,
@@ -213,6 +249,9 @@ CREATE TABLE IF NOT EXISTS iiif_canvas_annotations (
 CREATE INDEX IF NOT EXISTS idx_canvas_annotations_canvas_id ON iiif_canvas_annotations(canvas_id);
 CREATE INDEX IF NOT EXISTS idx_canvas_annotations_page_id ON iiif_canvas_annotations(page_id);
 
+-- Legacy sync-state tables. Kept in this phase to avoid breaking the
+-- existing sync layer (Phase 7 will rewrite sync on top of
+-- `app/sync-targets.json` and a per-file fingerprint cache).
 CREATE TABLE IF NOT EXISTS cloud_connections (
 	id TEXT PRIMARY KEY,
 	provider_id TEXT NOT NULL,
@@ -251,6 +290,9 @@ CREATE TABLE IF NOT EXISTS cloud_sync_metadata (
 CREATE INDEX IF NOT EXISTS idx_cloud_sync_metadata_scope ON cloud_sync_metadata(scope_type, scope_id);
 CREATE INDEX IF NOT EXISTS idx_cloud_sync_metadata_path ON cloud_sync_metadata(connection_id, cloud_path);
 
+-- Checkpoint listings plus temporary payload cache. The payload columns
+-- keep existing refresh/copy/backup flows working until Phase 5 writes
+-- history/<entity>/<checkpoint>.json files to OPFS at commit time.
 CREATE TABLE IF NOT EXISTS transcription_checkpoints (
 	id TEXT PRIMARY KEY,
 	transcription_id TEXT NOT NULL REFERENCES transcriptions(id) ON DELETE CASCADE,
@@ -282,6 +324,9 @@ CREATE TABLE IF NOT EXISTS collation_checkpoints (
 CREATE INDEX IF NOT EXISTS idx_collation_checkpoints_lookup ON collation_checkpoints(collation_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_collation_checkpoints_committed ON collation_checkpoints(collation_id, is_committed, created_at DESC);
 
+-- Tombstone listings; canonical tombstone files live in OPFS
+-- `<storage_slug>/tombstones/` (Phase 5). The index copy is rebuilt
+-- from those files on repair.
 CREATE TABLE IF NOT EXISTS sync_tombstones (
 	id TEXT PRIMARY KEY,
 	project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,

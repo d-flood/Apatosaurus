@@ -389,7 +389,6 @@ export async function createProjectTranscriptionConflictCopy(
 			.values({
 				...entity.transcription,
 				id: conflictTranscriptionId,
-				scope_type: 'project_snapshot',
 				project_id: entity.link.project_id,
 				origin_type: 'conflict_copy',
 				origin_project_id: entity.link.project_id,
@@ -612,15 +611,8 @@ async function deleteProjectTranscriptionEntity(
 	entity: ProjectTranscriptionEntity
 ): Promise<void> {
 	await db.deleteFrom('project_transcriptions').where('id', '=', entity.link.id).execute();
-	if (
-		entity.transcription.scope_type === 'project_snapshot' &&
-		entity.transcription.project_id === entity.link.project_id
-	) {
-		await db
-			.deleteFrom('transcriptions')
-			.where('id', '=', entity.transcription.id)
-			.where('scope_type', '=', 'project_snapshot')
-			.execute();
+	if (entity.transcription.project_id === entity.link.project_id) {
+		await db.deleteFrom('transcriptions').where('id', '=', entity.transcription.id).execute();
 	}
 }
 

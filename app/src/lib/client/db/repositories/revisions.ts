@@ -67,7 +67,7 @@ export interface SerializedIiifCanvasAnnotation {
 
 export interface SerializedCollation {
 	id: string;
-	project_id: string | null;
+	project_id: string;
 	title: string;
 	verse_identifier: string;
 	status: string;
