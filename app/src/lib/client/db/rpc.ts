@@ -147,6 +147,7 @@ export type TranscriptionRpcResponse<T extends TranscriptionRpcRequest['type']> 
 
 export interface ProjectRpcMap {
 	'projects.list': { request: { type: 'projects.list' }; response: ProjectOption[] };
+	'projects.ensureDefault': { request: { type: 'projects.ensureDefault' }; response: string };
 	'projects.get': {
 		request: { type: 'projects.get'; projectId: string };
 		response: ProjectRecord | null;

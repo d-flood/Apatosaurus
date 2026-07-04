@@ -42,7 +42,7 @@ Full list in `architecture.md` section 3. The short form:
 | 1 | `01-remove-cloud-providers.md` | Completed | None |
 | 2 | `02-document-store-foundation.md` | Completed | None |
 | 3 | `03-canonical-file-formats.md` | Completed | Phase 2 |
-| 4 | `04-project-only-data-model.md` | Not Started | Phase 3 |
+| 4 | `04-project-only-data-model.md` | In Progress | Phase 3 |
 | 5 | `05-write-path-inversion.md` | Not Started | Phase 4 |
 | 6 | `06-index-rebuild-and-repair.md` | Not Started | Phase 5 |
 | 7 | `07-local-folder-sync.md` | Not Started | Phases 1, 6 |
@@ -96,6 +96,7 @@ Run narrower tests during each session when possible, then run the full baseline
 
 | Date | Note |
 | --- | --- |
+| 2026-07-04 | Phase 4 started. First slice landed project storage slugs, `Default` project bootstrap, project-owned transcription creation with automatic `project_transcriptions` rows, and project selection/defaulting in new transcription, TEI, IGNTP import, and harness flows. Verification passed: `db:generate`, `db:check`, `check`, focused repository/creation tests, and full unit suite. Phase 4 remains in progress; next work is removing remaining global/promotion semantics, `scope_type`, cloud sync-state tables, and source-of-truth payload columns from the index schema. |
 | 2026-07-04 | Phase 3 completed. Added canonical `store/formats` modules and registry entries for all eight document formats, moved sync cloud-file parsing/serialization to a canonical-envelope adapter, folded IIIF into the project-transcription payload, defined working-state formats, and added derived TEI serializers for transcriptions and collations. Verification passed: `db:generate`, `db:check`, `check`, focused format/sync tests, and full unit suite. Next phase is `04-project-only-data-model.md`. |
 | 2026-07-03 | Phase 2 completed. Added the OPFS document store foundation under `app/src/lib/client/store/`: canonical path builders, atomic text writes with fallback, document envelopes, migrate-on-read registry, in-memory quarantine reporting, and fixture-backed tests. Verification passed: `db:generate`, `db:check`, `check`, focused store tests, and full unit suite. Next phase is `03-canonical-file-formats.md`. |
 | 2026-07-03 | Phase 1 completed. Manual Chromium smoke test passed after folder creation fix: connect local folder, commit project-owned transcription, back up project, and verify files in selected folder. Next phase is `02-document-store-foundation.md`. |

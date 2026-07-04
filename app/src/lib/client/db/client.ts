@@ -224,6 +224,10 @@ export async function listProjects(): Promise<ProjectOption[]> {
 	return sendProjectRequest({ type: 'projects.list' });
 }
 
+export async function ensureDefaultProject(): Promise<string> {
+	return sendProjectRequest({ type: 'projects.ensureDefault' });
+}
+
 export async function getProject(projectId: string): Promise<ProjectRecord | null> {
 	return sendProjectRequest({ type: 'projects.get', projectId });
 }

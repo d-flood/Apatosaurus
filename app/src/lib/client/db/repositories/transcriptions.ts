@@ -8,7 +8,13 @@ import {
 	TRANSCRIPTION_FORMAT,
 	type StoredTranscriptionDocument,
 } from '$lib/client/transcription/content';
-import type { Database, TranscriptionVerseIndex, Transcriptions } from '../types.generated';
+import type {
+	Database,
+	ProjectTranscriptions,
+	TranscriptionVerseIndex,
+	Transcriptions,
+} from '../types.generated';
+import { ensureDefaultProject } from './project-bootstrap';
 
 type DbExecutor = Kysely<Database> | Transaction<Database>;
 
@@ -32,6 +38,9 @@ export type VerseIndexRow = Selectable<TranscriptionVerseIndex> & { id: string }
 
 export interface CreateTranscriptionInput {
 	id?: string;
+	projectId?: string;
+	projectTranscriptionId?: string;
+	canonicalTranscriptionId?: string | null;
 	title: string;
 	siglum: string;
 	description?: string;
@@ -80,11 +89,16 @@ export async function listTranscriptionSummaries(db: DbExecutor): Promise<Transc
 	if (import.meta.env.DEV) await logSummaryQueryPlan(db);
 	const startedAt = now();
 	const rows = await db
-		.selectFrom('transcriptions')
-		.select(['id', 'title', 'siglum', 'created_at', 'updated_at'])
-		.where('scope_type', '=', 'global')
-		.where('project_id', 'is', null)
-		.orderBy('updated_at', 'desc')
+		.selectFrom('project_transcriptions')
+		.innerJoin('transcriptions', 'transcriptions.id', 'project_transcriptions.transcription_id')
+		.select([
+			'transcriptions.id as id',
+			'transcriptions.title as title',
+			'transcriptions.siglum as siglum',
+			'transcriptions.created_at as created_at',
+			'transcriptions.updated_at as updated_at',
+		])
+		.orderBy('transcriptions.updated_at', 'desc')
 		.execute();
 	console.debug('[local-db] transcriptions.listSummaries query completed', {
 		rowCount: rows.length,
@@ -102,8 +116,6 @@ export async function getTranscriptionSummary(
 		.selectFrom('transcriptions')
 		.select(['id', 'title', 'siglum', 'created_at', 'updated_at'])
 		.where('id', '=', id)
-		.where('scope_type', '=', 'global')
-		.where('project_id', 'is', null)
 		.executeTakeFirst();
 	return row ? { ...row, id: requireId(row.id, 'transcription') } : null;
 }
@@ -172,11 +184,40 @@ export async function createTranscriptions(
 ): Promise<string[]> {
 	if (inputs.length === 0) return [];
 	return db.transaction().execute(async trx => {
-		const rows = inputs.map(buildTranscriptionRow);
-		await trx.insertInto('transcriptions').values(rows).execute();
-		for (const row of rows)
+		const defaultProjectId = inputs.some(input => !input.projectId?.trim())
+			? await ensureDefaultProject(trx)
+			: null;
+		const rows = inputs.map(input => {
+			const projectId = input.projectId?.trim() || defaultProjectId;
+			if (!projectId) throw new Error('A project id is required to create a transcription.');
+			return {
+				input,
+				projectId,
+				transcription: buildTranscriptionRow(input, projectId),
+			};
+		});
+		const transcriptionRows = rows.map(row => row.transcription);
+		await trx.insertInto('transcriptions').values(transcriptionRows).execute();
+		const projectTranscriptionRows: Selectable<ProjectTranscriptions>[] = rows.map(row => ({
+			id: row.input.projectTranscriptionId ?? createId(),
+			project_id: row.projectId,
+			transcription_id: requireId(row.transcription.id, 'transcription'),
+			canonical_transcription_id: row.input.canonicalTranscriptionId ?? null,
+			added_at: row.transcription.created_at,
+			added_by_id: null,
+		}));
+		await trx.insertInto('project_transcriptions').values(projectTranscriptionRows).execute();
+		for (const row of transcriptionRows)
 			await replaceVerseIndexRows(trx, requireId(row.id, 'transcription'), row.content_json);
-		return rows.map(row => requireId(row.id, 'transcription'));
+		const touchedAt = new Date().toISOString();
+		for (const projectId of [...new Set(rows.map(row => row.projectId))]) {
+			await trx
+				.updateTable('projects')
+				.set({ updated_at: touchedAt })
+				.where('id', '=', projectId)
+				.execute();
+		}
+		return transcriptionRows.map(row => requireId(row.id, 'transcription'));
 	});
 }
 
@@ -187,6 +228,11 @@ export async function updateTranscriptionContent(
 	const contentJson = getContentJson(input);
 	const updatedAt = input.updatedAt ?? new Date().toISOString();
 	await db.transaction().execute(async trx => {
+		const projectRow = await trx
+			.selectFrom('transcriptions')
+			.select('project_id')
+			.where('id', '=', input.id)
+			.executeTakeFirst();
 		const result = await trx
 			.updateTable('transcriptions')
 			.set({
@@ -200,6 +246,13 @@ export async function updateTranscriptionContent(
 		if (Number(result.numUpdatedRows) === 0)
 			throw new Error(`Transcription ${input.id} was not found.`);
 		await replaceVerseIndexRows(trx, input.id, contentJson, updatedAt);
+		if (projectRow?.project_id) {
+			await trx
+				.updateTable('projects')
+				.set({ updated_at: updatedAt })
+				.where('id', '=', projectRow.project_id)
+				.execute();
+		}
 	});
 }
 
@@ -295,12 +348,15 @@ export async function replaceTranscriptionVerseIndexRows(
 	await replaceVerseIndexRows(db, transcriptionId, contentJson, indexedAt);
 }
 
-function buildTranscriptionRow(input: CreateTranscriptionInput): Selectable<Transcriptions> {
+function buildTranscriptionRow(
+	input: CreateTranscriptionInput,
+	projectId: string
+): Selectable<Transcriptions> {
 	const now = new Date().toISOString();
 	return {
 		id: input.id ?? createId(),
-		scope_type: 'global',
-		project_id: null,
+		scope_type: 'project_snapshot',
+		project_id: projectId,
 		origin_type: '',
 		origin_project_id: null,
 		origin_transcription_id: null,
@@ -442,11 +498,10 @@ async function logSummaryQueryPlan(db: DbExecutor): Promise<void> {
 	const startedAt = now();
 	try {
 		const result = await sql`EXPLAIN QUERY PLAN
-			SELECT id, title, siglum, created_at, updated_at
-			FROM transcriptions
-			WHERE scope_type = 'global'
-				AND project_id IS NULL
-			ORDER BY updated_at DESC`.execute(db);
+			SELECT transcriptions.id, title, siglum, created_at, updated_at
+			FROM project_transcriptions
+			INNER JOIN transcriptions ON transcriptions.id = project_transcriptions.transcription_id
+			ORDER BY transcriptions.updated_at DESC`.execute(db);
 		console.debug('[local-db] transcriptions.listSummaries query plan', {
 			rows: result.rows,
 			elapsedMs: elapsed(startedAt),

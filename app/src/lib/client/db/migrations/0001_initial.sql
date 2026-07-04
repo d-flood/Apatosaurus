@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 
 CREATE TABLE IF NOT EXISTS projects (
 	id TEXT PRIMARY KEY,
+	storage_slug TEXT NOT NULL UNIQUE,
 	name TEXT NOT NULL,
 	description TEXT NOT NULL DEFAULT '',
 	charter TEXT NOT NULL DEFAULT '',

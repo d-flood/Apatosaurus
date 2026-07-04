@@ -170,7 +170,7 @@ describe('transcriptions repository', () => {
 		expect(versions[0]).not.toHaveProperty('content_json');
 	});
 
-	it('excludes project snapshots from global library queries but loads them by direct id', async () => {
+	it('lists project-owned transcriptions and project copies', async () => {
 		await createTranscription(harness.db, {
 			...baseInput('tx-1', '01'),
 			document: documentWithVerses(['Romans 1:1']),
@@ -184,8 +184,8 @@ describe('transcriptions repository', () => {
 		const versions = await getTranscriptionVersionsByIds(harness.db, [snapshotId]);
 		const snapshot = await getTranscription(harness.db, snapshotId);
 
-		expect(summaries.map(row => row.id)).toEqual(['tx-1']);
-		expect(snapshotSummary).toBeNull();
+		expect(summaries.map(row => row.id)).toEqual([snapshotId, 'tx-1']);
+		expect(snapshotSummary).toMatchObject({ id: snapshotId, siglum: '01' });
 		expect(loadedByIds.map(row => row.id)).toEqual([snapshotId, 'tx-1']);
 		expect(versions.map(row => row.id)).toEqual([snapshotId]);
 		expect(snapshot).toMatchObject({

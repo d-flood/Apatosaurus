@@ -19,7 +19,7 @@ afterEach(async () => {
 });
 
 describe('project local removal repository', () => {
-	it('removes project-contained local data and leaves library transcriptions intact', async () => {
+	it('removes project-contained local data and leaves default-project transcriptions intact', async () => {
 		await createTranscription(harness.db, baseTranscription('library-1', 'A'));
 		await createProject(harness.db, { id: 'project-1', name: 'Project' });
 		const [projectOwnedTranscriptionId] = await syncProjectTranscriptionIds(harness.db, 'project-1', [
@@ -62,8 +62,19 @@ describe('project local removal repository', () => {
 			removedSyncMetadata: 3,
 			removedTombstones: 1,
 		});
-		await expectNoRows('projects');
-		await expectNoRows('project_transcriptions');
+		const remainingProjects = await harness.db
+			.selectFrom('projects')
+			.select(['id', 'name'])
+			.execute();
+		expect(remainingProjects).toHaveLength(1);
+		expect(remainingProjects[0]).toMatchObject({ name: 'Default' });
+		const remainingProjectTranscriptions = await harness.db
+			.selectFrom('project_transcriptions')
+			.select(['project_id', 'transcription_id'])
+			.execute();
+		expect(remainingProjectTranscriptions).toEqual([
+			{ project_id: remainingProjects[0].id, transcription_id: 'library-1' },
+		]);
 		await expectNoRows('collations');
 		await expectNoRows('collation_checkpoints');
 		await expectNoRows('transcription_checkpoints');
@@ -75,7 +86,7 @@ describe('project local removal repository', () => {
 			.select(['id', 'scope_type'])
 			.orderBy('id')
 			.execute();
-		expect(remainingTranscriptions).toEqual([{ id: 'library-1', scope_type: 'global' }]);
+		expect(remainingTranscriptions).toEqual([{ id: 'library-1', scope_type: 'project_snapshot' }]);
 	});
 });
 

@@ -7,8 +7,14 @@
 		type CreateTranscriptionInput,
 	} from '$lib/client/transcription/create-transcription';
 	import { checkpointLocalDb, ensureLocalDbRuntime } from '$lib/client/db/runtime';
-	import { listTranscriptionSummaries, subscribeLocalDbInvalidations } from '$lib/client/db/client';
+	import {
+		ensureDefaultProject,
+		listProjects,
+		listTranscriptionSummaries,
+		subscribeLocalDbInvalidations,
+	} from '$lib/client/db/client';
 	import type { TranscriptionSummary } from '$lib/client/db/repositories/transcriptions';
+	import type { ProjectOption } from '$lib/client/db/repositories/projects';
 	import { fetchAndPrepareIgntpImport } from '$lib/client/transcription/igntp-import';
 	import IgntpImportPanel from '$lib/components/IgntpImportPanel.svelte';
 	import { buildTranscriptionDuplicateKey } from '$lib/igntp/duplicate-key';
@@ -31,6 +37,8 @@
 	const IGntp_FETCH_TIMEOUT_MS = 20000;
 
 	let transcriptions = $state<TranscriptionSummary[]>([]);
+	let projects = $state<ProjectOption[]>([]);
+	let selectedProjectId = $state('');
 	let igntpImportBusy = $state(false);
 	let igntpImportResults = $state<IgntpImportResult[]>([]);
 	let igntpImportProgress = $state<IgntpImportProgress>({
@@ -68,6 +76,12 @@
 		transcriptions = await listTranscriptionSummaries();
 	}
 
+	async function loadProjects() {
+		const defaultProjectId = await ensureDefaultProject();
+		projects = await listProjects();
+		if (!selectedProjectId) selectedProjectId = defaultProjectId;
+	}
+
 	onMount(() => {
 		unsubscribe = subscribeLocalDbInvalidations(event => {
 			if (event.domain !== 'transcriptions' && event.domain !== 'all') return;
@@ -77,7 +91,10 @@
 		});
 
 		void ensureLocalDbRuntime()
-			.then(loadTranscriptionSummaries)
+			.then(async () => {
+				await loadProjects();
+				await loadTranscriptionSummaries();
+			})
 			.catch(err => {
 				console.error('Failed to load transcriptions for IGNTP duplicate detection:', err);
 			});
@@ -108,6 +125,7 @@
 
 		try {
 			await ensureLocalDbRuntime();
+			if (!selectedProjectId) selectedProjectId = await ensureDefaultProject();
 
 			for (const requestedPath of paths) {
 				const entry = igntpEntryByPath.get(requestedPath);
@@ -177,6 +195,7 @@
 					createdThisRun.push(prepared.duplicateKey);
 					pendingCreates.push({
 						input: {
+							projectId: selectedProjectId,
 							...prepared.metadata,
 							document: prepared.document,
 							description: '',
@@ -356,6 +375,17 @@
 <div
 	class="mb-6 flex min-h-0 flex-1 flex-col gap-4 overflow-hidden lg:grid {hasIgntpImportStatus ? 'lg:grid-cols-[minmax(0,1fr)_22rem]' : 'lg:grid-cols-1'}"
 >
+	<div class="rounded-box border border-base-300 bg-base-100 p-4 lg:col-span-full">
+		<label class="select w-full md:max-w-md">
+			<span class="font-bold label">Import into project</span>
+			<select bind:value={selectedProjectId} disabled={igntpImportBusy}>
+				{#each projects as project (project.id)}
+					<option value={project.id}>{project.name}</option>
+				{/each}
+			</select>
+		</label>
+	</div>
+
 	{#if hasIgntpImportStatus}
 		<div class="max-h-64 overflow-y-auto lg:hidden">
 			{@render igntpImportStatus()}

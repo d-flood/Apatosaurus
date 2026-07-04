@@ -8,6 +8,7 @@ import { ensureManifestSource, upsertCanvasAnnotation, upsertPageCanvasLink } fr
 import { createLocalDbTestHarness, type LocalDbTestHarness } from '../test-harness';
 import {
 	createProject,
+	ensureDefaultProject,
 	forkProject,
 	getProject,
 	getProjectTranscriptionIds,
@@ -45,6 +46,36 @@ afterEach(async () => {
 });
 
 describe('projects repository', () => {
+	it('ensures a default project and keeps storage slugs immutable', async () => {
+		const defaultProjectId = await ensureDefaultProject(harness.db);
+		const secondDefaultProjectId = await ensureDefaultProject(harness.db);
+		const defaultProject = await getProject(harness.db, defaultProjectId);
+		const projectId = await createProject(harness.db, {
+			id: 'project-1',
+			storageSlug: 'custom-project-slug',
+			name: 'Initial Name',
+		});
+
+		await updateProjectMetadata(harness.db, {
+			projectId,
+			name: 'Renamed Project',
+		});
+
+		const renamedProject = await getProject(harness.db, projectId);
+
+		expect(secondDefaultProjectId).toBe(defaultProjectId);
+		expect(defaultProject).toMatchObject({
+			id: defaultProjectId,
+			name: 'Default',
+			storageSlug: expect.stringMatching(/^default-[a-z0-9]{8}$/),
+		});
+		expect(renamedProject).toMatchObject({
+			id: 'project-1',
+			name: 'Renamed Project',
+			storageSlug: 'custom-project-slug',
+		});
+	});
+
 	it('creates, lists, loads, and updates project metadata/settings', async () => {
 		const projectId = await createProject(harness.db, {
 			id: 'project-1',
@@ -69,6 +100,7 @@ describe('projects repository', () => {
 		expect(projects).toEqual([
 			{
 				id: 'project-1',
+				storageSlug: expect.stringMatching(/^romans-collation-[a-z0-9]{8}$/),
 				name: 'Romans Final',
 				description: 'revised',
 				createdAt: '2024-01-01T00:00:00.000Z',
@@ -77,6 +109,7 @@ describe('projects repository', () => {
 		]);
 		expect(project).toMatchObject({
 			id: 'project-1',
+			storageSlug: expect.stringMatching(/^romans-collation-[a-z0-9]{8}$/),
 			name: 'Romans Final',
 			collationSettings: { segmentation: false },
 		});
@@ -85,8 +118,16 @@ describe('projects repository', () => {
 	it('lists transcription options without content and loads content on demand', async () => {
 		await createTranscription(harness.db, baseTranscription('tx-2', '02'));
 		await createTranscription(harness.db, baseTranscription('tx-1', '01'));
+		const defaultProjectLink = await harness.db
+			.selectFrom('project_transcriptions')
+			.select('project_id')
+			.where('transcription_id', '=', 'tx-1')
+			.executeTakeFirstOrThrow();
 
-		const options = await listProjectTranscriptionOptions(harness.db);
+		const options = await listProjectTranscriptionOptions(
+			harness.db,
+			defaultProjectLink.project_id
+		);
 		const content = await loadTranscriptionContent(harness.db, 'tx-1');
 
 		expect(options.map(option => option.id)).toEqual(['tx-1', 'tx-2']);
@@ -115,7 +156,11 @@ describe('projects repository', () => {
 		]);
 
 		const ids = await getProjectTranscriptionIds(harness.db, 'project-1');
-		const rows = await harness.db.selectFrom('project_transcriptions').selectAll().execute();
+		const projectRows = await harness.db
+			.selectFrom('project_transcriptions')
+			.selectAll()
+			.where('project_id', '=', 'project-1')
+			.execute();
 		const removedSnapshot = await harness.db
 			.selectFrom('transcriptions')
 			.selectAll()
@@ -127,11 +172,11 @@ describe('projects repository', () => {
 		expect(firstSnapshotIds).not.toContain('tx-2');
 		expect(syncedSnapshotIds).toEqual([firstSnapshotIds[1]]);
 		expect(ids).toEqual([firstSnapshotIds[1]]);
-		expect(rows).toHaveLength(1);
-		expect(rows[0]).toMatchObject({
+		expect(projectRows).toHaveLength(1);
+		expect(projectRows[0]).toMatchObject({
 			project_id: 'project-1',
 			transcription_id: firstSnapshotIds[1],
-			canonical_transcription_id: 'tx-2',
+			canonical_transcription_id: null,
 		});
 		expect(removedSnapshot).toBeUndefined();
 	});
@@ -178,6 +223,7 @@ describe('projects repository', () => {
 		const projectRows = await harness.db
 			.selectFrom('project_transcriptions')
 			.selectAll()
+			.where('project_id', '=', 'project-1')
 			.execute();
 		const verseRows = await harness.db
 			.selectFrom('transcription_verse_index')
@@ -200,12 +246,17 @@ describe('projects repository', () => {
 			.where('transcription_id', '=', snapshotId)
 			.execute();
 		const projectOptions = await listProjectTranscriptionOptions(harness.db, 'project-1');
+		const source = await harness.db
+			.selectFrom('transcriptions')
+			.select('project_id')
+			.where('id', '=', 'tx-1')
+			.executeTakeFirstOrThrow();
 
 		expect(snapshot).toMatchObject({
 			scope_type: 'project_snapshot',
 			project_id: 'project-1',
-			origin_type: 'canonical',
-			origin_project_id: null,
+			origin_type: 'project_snapshot',
+			origin_project_id: source.project_id,
 			origin_transcription_id: 'tx-1',
 			origin_revision_id: 'rev-1',
 			origin_content_hash: 'sha256:source',
@@ -215,7 +266,7 @@ describe('projects repository', () => {
 		expect(projectRows[0]).toMatchObject({
 			project_id: 'project-1',
 			transcription_id: snapshotId,
-			canonical_transcription_id: 'tx-1',
+			canonical_transcription_id: null,
 		});
 		expect(verseRows.map(row => row.verse_identifier)).toEqual(['Romans 1:1']);
 		expect(manifestRows).toHaveLength(1);
@@ -292,7 +343,10 @@ describe('projects repository', () => {
 		expect(initialStatus.workingContentHash).toMatch(/^sha256:[0-9a-f]{64}$/);
 		await expect(
 			getProjectTranscriptionStatusForOwnedTranscription(harness.db, 'tx-1')
-		).resolves.toBeNull();
+		).resolves.toMatchObject({
+			projectOwnedTranscriptionId: 'tx-1',
+			isProjectOwned: true,
+		});
 
 		const checkpoint = await createCommittedTranscriptionCheckpoint(harness.db, {
 			projectTranscriptionId,
@@ -361,11 +415,16 @@ describe('projects repository', () => {
 			...baseTranscription('tx-1', '01'),
 			document: documentWithVerses(['Romans 1:1']),
 		});
-		await harness.db
-			.updateTable('transcriptions')
-			.set({ current_revision_id: 'source-rev-1', current_content_hash: 'sha256:source-1' })
+		const sourceProjectTranscriptionId = await getProjectTranscriptionLinkId('tx-1');
+		const sourceCheckpoint = await createCommittedTranscriptionCheckpoint(harness.db, {
+			projectTranscriptionId: sourceProjectTranscriptionId,
+			checkpointId: 'source-rev-1',
+		});
+		const sourceProject = await harness.db
+			.selectFrom('transcriptions')
+			.select('project_id')
 			.where('id', '=', 'tx-1')
-			.execute();
+			.executeTakeFirstOrThrow();
 		await createProject(harness.db, { id: 'project-1', name: 'Project' });
 		const [snapshotId] = await syncProjectTranscriptionIds(harness.db, 'project-1', ['tx-1']);
 		const projectTranscriptionId = await getProjectTranscriptionLinkId(snapshotId);
@@ -375,38 +434,36 @@ describe('projects repository', () => {
 			projectTranscriptionId
 		);
 
-		expect(upToDateStatus.canonicalSource).toMatchObject({
-			transcriptionId: 'tx-1',
-			scopeType: 'global',
-			projectId: null,
-			currentCheckpoint: { revisionId: 'source-rev-1', contentHash: 'sha256:source-1' },
-			dirtyToCheckpoint: null,
-		});
+		expect(upToDateStatus.canonicalSource).toBeNull();
 		expect(upToDateStatus.immediateSource).toMatchObject({
-			sourceType: 'canonical',
+			sourceType: 'project_snapshot',
+			sourceProjectId: sourceProject.project_id,
 			sourceTranscriptionId: 'tx-1',
 			sourceRevisionId: 'source-rev-1',
-			sourceContentHash: 'sha256:source-1',
+			sourceContentHash: sourceCheckpoint.contentHash,
 		});
 		expect(upToDateStatus.sourceState).toEqual({
 			kind: 'up-to-date',
 			sourceTranscriptionId: 'tx-1',
 			sourceRevisionId: 'source-rev-1',
-			sourceContentHash: 'sha256:source-1',
+			sourceContentHash: sourceCheckpoint.contentHash,
 		});
 
-		await harness.db
-			.updateTable('transcriptions')
-			.set({ current_revision_id: 'source-rev-2', current_content_hash: 'sha256:source-2' })
-			.where('id', '=', 'tx-1')
-			.execute();
+		await updateTranscriptionContent(harness.db, {
+			id: 'tx-1',
+			document: documentWithVerses(['Romans 1:2']),
+		});
+		const newerSourceCheckpoint = await createCommittedTranscriptionCheckpoint(harness.db, {
+			projectTranscriptionId: sourceProjectTranscriptionId,
+			checkpointId: 'source-rev-2',
+		});
 		expect(
 			(await getProjectTranscriptionStatus(harness.db, projectTranscriptionId)).sourceState
 		).toEqual({
 			kind: 'newer-source-available',
 			sourceTranscriptionId: 'tx-1',
 			sourceRevisionId: 'source-rev-2',
-			sourceContentHash: 'sha256:source-2',
+			sourceContentHash: newerSourceCheckpoint.contentHash,
 		});
 
 		await harness.db.deleteFrom('transcriptions').where('id', '=', 'tx-1').execute();
@@ -817,7 +874,7 @@ describe('projects repository', () => {
 			.selectAll()
 			.where('scope_type', '=', 'global')
 			.execute();
-		expect(globalRows.map(row => row.id)).toEqual(['tx-1']);
+		expect(globalRows).toEqual([]);
 	});
 
 	it('adds a committed transcription from another project into the current project with origin metadata', async () => {
@@ -1142,24 +1199,32 @@ describe('projects repository', () => {
 			'project-a'
 		);
 
-		expect(candidatesForB).toHaveLength(1);
-		expect(candidatesForB[0]).toMatchObject({
-			projectTranscriptionId: projectTranscriptionAId,
-			projectOwnedTranscriptionId: snapshotAId,
-			projectId: 'project-a',
-			projectName: 'Project A',
-			siglum: '01',
-			currentCheckpoint: { revisionId: 'src-cp-1' },
-			dirtyToCheckpoint: false,
-		});
-		expect(candidatesForA).toHaveLength(1);
-		expect(candidatesForA[0]).toMatchObject({
-			projectTranscriptionId: projectTranscriptionBId,
-			projectId: 'project-b',
-			projectName: 'Project B',
-			currentCheckpoint: null,
-			dirtyToCheckpoint: true,
-		});
+		expect(candidatesForB).toHaveLength(2);
+		expect(candidatesForB).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					projectTranscriptionId: projectTranscriptionAId,
+					projectOwnedTranscriptionId: snapshotAId,
+					projectId: 'project-a',
+					projectName: 'Project A',
+					siglum: '01',
+					currentCheckpoint: expect.objectContaining({ revisionId: 'src-cp-1' }),
+					dirtyToCheckpoint: false,
+				}),
+			])
+		);
+		expect(candidatesForA).toHaveLength(2);
+		expect(candidatesForA).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					projectTranscriptionId: projectTranscriptionBId,
+					projectId: 'project-b',
+					projectName: 'Project B',
+					currentCheckpoint: null,
+					dirtyToCheckpoint: true,
+				}),
+			])
+		);
 	});
 });
 

@@ -175,6 +175,7 @@ export interface ProjectTranscriptions {
 
 export interface Projects {
 	id: string | null;
+	storage_slug: string;
 	name: string;
 	description: string;
 	charter: string;

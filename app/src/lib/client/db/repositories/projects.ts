@@ -25,12 +25,16 @@ import {
 	type EntityCheckpointHead,
 	type TranscriptionCheckpointPayload,
 } from './revisions';
+import { ensureDefaultProject, resolveProjectStorageSlug } from './project-bootstrap';
 import { replaceTranscriptionVerseIndexRows } from './transcriptions';
+
+export { ensureDefaultProject } from './project-bootstrap';
 
 type DbExecutor = Kysely<Database> | Transaction<Database>;
 
 export interface ProjectOption {
 	id: string;
+	storageSlug: string;
 	name: string;
 	description: string;
 	createdAt: string;
@@ -116,6 +120,7 @@ export interface ProjectTranscriptionStatusOptions {
 
 export interface CreateProjectInput {
 	id?: string;
+	storageSlug?: string;
 	name: string;
 	description?: string;
 	charter?: string;
@@ -151,7 +156,7 @@ export interface ForkProjectResult {
 export async function listProjects(db: DbExecutor): Promise<ProjectOption[]> {
 	const rows = await db
 		.selectFrom('projects')
-		.select(['id', 'name', 'description', 'created_at', 'updated_at'])
+		.select(['id', 'storage_slug', 'name', 'description', 'created_at', 'updated_at'])
 		.orderBy('updated_at', 'desc')
 		.execute();
 	return rows.map(mapProjectOption);
@@ -173,6 +178,7 @@ export async function createProject(db: DbExecutor, input: CreateProjectInput): 
 		.insertInto('projects')
 		.values({
 			id,
+			storage_slug: await resolveProjectStorageSlug(db, input.name, input.storageSlug),
 			name: input.name.trim(),
 			description: input.description?.trim() ?? '',
 			charter: input.charter ?? '',
@@ -221,12 +227,14 @@ export async function forkProject(
 
 		const now = input.createdAt ?? new Date().toISOString();
 		const targetProjectId = createId();
+		const targetName = (input.name ?? `${sourceProject.name} Fork`).trim() || `${sourceProject.name} Fork`;
 		await trx
 			.insertInto('projects')
 			.values({
 				...sourceProject,
 				id: targetProjectId,
-				name: (input.name ?? `${sourceProject.name} Fork`).trim() || `${sourceProject.name} Fork`,
+				storage_slug: await resolveProjectStorageSlug(trx, targetName),
+				name: targetName,
 				description: input.description?.trim() ?? sourceProject.description,
 				created_at: now,
 				updated_at: now,
@@ -294,22 +302,7 @@ export async function listProjectTranscriptionOptions(
 				.orderBy('project_transcriptions.added_at')
 				.execute()
 		: [];
-	const linkedSourceIds = new Set(
-		linkedRows.flatMap(row =>
-			[row.canonical_transcription_id, row.origin_transcription_id].filter(isNonEmptyString)
-		)
-	);
-
-	let globalQuery = db
-		.selectFrom('transcriptions')
-		.select(['id', 'siglum', 'title', 'description'])
-		.where('scope_type', '=', 'global')
-		.where('project_id', 'is', null);
-	if (linkedSourceIds.size > 0)
-		globalQuery = globalQuery.where('id', 'not in', [...linkedSourceIds]);
-	const globalRows = await globalQuery.orderBy('siglum').execute();
-
-	return [...linkedRows, ...globalRows].map(mapProjectTranscriptionOption).sort((a, b) =>
+	return linkedRows.map(mapProjectTranscriptionOption).sort((a, b) =>
 		a.displayLabel.localeCompare(b.displayLabel, undefined, {
 			sensitivity: 'base',
 			numeric: true,
@@ -1813,10 +1806,14 @@ function checkpointHeadFromFields(
 }
 
 function mapProjectOption(
-	row: Pick<Selectable<Projects>, 'id' | 'name' | 'description' | 'created_at' | 'updated_at'>
+	row: Pick<
+		Selectable<Projects>,
+		'id' | 'storage_slug' | 'name' | 'description' | 'created_at' | 'updated_at'
+	>
 ): ProjectOption {
 	return {
 		id: requireId(row.id, 'project'),
+		storageSlug: row.storage_slug,
 		name: row.name,
 		description: row.description,
 		createdAt: row.created_at,

@@ -22,6 +22,7 @@ import {
 	listProjectTranscriptionStatuses,
 	listProjectTranscriptionSourceCandidates,
 	loadTranscriptionContent,
+	ensureDefaultProject,
 	promoteProjectTranscriptionToLibrary,
 	addProjectTranscriptionFromProject,
 	refreshProjectTranscription,
@@ -263,11 +264,13 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 	if (request.type === 'transcriptions.create') {
 		const id = await createTranscription(getKyselyDb(), request.input);
 		postMessage({ type: 'db:invalidate', domain: 'transcriptions' });
+		postMessage({ type: 'db:invalidate', domain: 'projects' });
 		return id;
 	}
 	if (request.type === 'transcriptions.createMany') {
 		const ids = await createTranscriptions(getKyselyDb(), request.inputs);
 		postMessage({ type: 'db:invalidate', domain: 'transcriptions' });
+		postMessage({ type: 'db:invalidate', domain: 'projects' });
 		return ids;
 	}
 	if (request.type === 'transcriptions.updateContent') {
@@ -301,6 +304,11 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 		return result;
 	}
 	if (request.type === 'projects.list') return listProjects(getKyselyDb());
+	if (request.type === 'projects.ensureDefault') {
+		const id = await ensureDefaultProject(getKyselyDb());
+		postMessage({ type: 'db:invalidate', domain: 'projects' });
+		return id;
+	}
 	if (request.type === 'projects.get') return getProject(getKyselyDb(), request.projectId);
 	if (request.type === 'projects.create') {
 		const id = await createProject(getKyselyDb(), request.input);
@@ -527,6 +535,7 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 		initialized = false;
 		await init();
 		await clearDomainTables(getKyselyDb());
+		await ensureDefaultProject(getKyselyDb());
 		return null;
 	}
 	return null;
@@ -538,6 +547,7 @@ async function init(): Promise<void> {
 	await timeWorkerStep('db.open', () => db.open());
 	await timeWorkerStep('migrations', () => applyLocalDbMigrations(db));
 	kyselyDb = timeWorkerStepSync('kysely init', () => createWorkerKysely(db));
+	await timeWorkerStep('default project bootstrap', () => ensureDefaultProject(getKyselyDb()));
 	initialized = true;
 	console.debug('[local-db] worker init completed', { elapsedMs: elapsed(startedAt) });
 }

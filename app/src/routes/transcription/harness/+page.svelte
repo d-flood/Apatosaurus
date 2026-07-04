@@ -1,6 +1,7 @@
 <script lang="ts">
 	import {
 		createTranscription,
+		ensureDefaultProject,
 		getTranscription,
 		getTranscriptionSummary,
 		subscribeLocalDbInvalidations,
@@ -52,6 +53,7 @@
 		const now = new Date().toISOString();
 		const existing = await getTranscriptionSummary(HARNESS_TRANSCRIPTION_ID);
 		const payload = buildHarnessTranscriptionCreatePayload(now);
+		const projectId = await ensureDefaultProject();
 
 		if (existing) {
 			return;
@@ -59,6 +61,7 @@
 
 		await createTranscription({
 			id: HARNESS_TRANSCRIPTION_ID,
+			projectId,
 			title: payload.title,
 			siglum: payload.siglum,
 			description: payload.description,

@@ -7,6 +7,7 @@ import {
 import { createTranscription, createTranscriptions } from '$lib/client/db/client';
 
 export interface CreateTranscriptionInput {
+	projectId?: string;
 	title: string;
 	siglum: string;
 	description?: string;
@@ -50,6 +51,7 @@ function buildTranscriptionRecord(input: CreateTranscriptionInput) {
 	const now = new Date().toISOString();
 
 	return {
+		projectId: input.projectId,
 		title: input.title.trim(),
 		siglum: input.siglum.trim(),
 		description: input.description?.trim() || '',

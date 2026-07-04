@@ -1,6 +1,12 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { getTranscription, localDbExecute } from '$lib/client/db/client';
+	import {
+		ensureDefaultProject,
+		getTranscription,
+		listProjects,
+		localDbExecute,
+	} from '$lib/client/db/client';
+	import type { ProjectOption } from '$lib/client/db/repositories/projects';
 	import { checkpointLocalDb, ensureLocalDbRuntime } from '$lib/client/db/runtime';
 	import {
 		createTranscriptionRecord,
@@ -39,6 +45,8 @@
 	let importedPreview = $state<Record<string, string>>({});
 	let importedSummary = $state<ImportedTeiSummary | null>(null);
 	let importedDocument = $state<StoredTranscriptionDocument | null>(null);
+	let projects = $state<ProjectOption[]>([]);
+	let selectedProjectId = $state('');
 
 	let title = $state('');
 	let siglum = $state('');
@@ -67,6 +75,11 @@
 
 	onMount(async () => {
 		await ensureLocalDbRuntime();
+		if (!isEditMode) {
+			const defaultProjectId = await ensureDefaultProject();
+			projects = await listProjects();
+			selectedProjectId = _data?.projectId || defaultProjectId;
+		}
 	});
 
 	async function handleTeiFileChange(event: Event) {
@@ -120,6 +133,11 @@
 
 		if (!isEditMode && importMode === 'tei' && !importedDocument) {
 			error = 'Choose a TEI XML file to import';
+			loading = false;
+			return;
+		}
+		if (!isEditMode && !selectedProjectId) {
+			error = 'Choose a project for this transcription';
 			loading = false;
 			return;
 		}
@@ -177,6 +195,7 @@
 				}
 			} else {
 				const transcriptionId = await createTranscriptionRecord({
+					projectId: selectedProjectId,
 					title,
 					siglum: effectiveSiglum,
 					description,
@@ -214,6 +233,17 @@
 		<span class="font-bold label">Title*</span>
 		<input type="text" class="grow" name="title" bind:value={title} required />
 	</label>
+
+	{#if !isEditMode}
+		<label class="select w-full select-lg">
+			<span class="font-bold label">Project*</span>
+			<select bind:value={selectedProjectId} required>
+				{#each projects as project (project.id)}
+					<option value={project.id}>{project.name}</option>
+				{/each}
+			</select>
+		</label>
+	{/if}
 
 	{#if !isEditMode}
 		<div class="tabs tabs-box bg-base-200">

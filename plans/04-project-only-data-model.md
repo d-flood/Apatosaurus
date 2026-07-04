@@ -1,6 +1,6 @@
 # Phase 04: Project-Only Data Model, Index-Only Schema
 
-Status: Not Started
+Status: In Progress
 Depends on: Phase 03
 Architecture reference: `architecture.md` sections 3 (decisions 1-3), 7
 
@@ -46,15 +46,15 @@ Edit `app/src/lib/client/db/migrations/0001_initial.sql` directly (greenfield). 
 
 ## Checklist
 
-- [ ] `Default` project auto-creation, tested
-- [ ] `storage_slug` on projects, immutable, tested
+- [x] `Default` project auto-creation, tested
+- [x] `storage_slug` on projects, immutable, tested
 - [ ] No code path creates or lists an unowned transcription or collation
 - [ ] Schema rewritten; removed tables gone; types regenerated
 - [ ] Repositories/RPC updated; all existing repository tests updated and passing
-- [ ] Creation/import/collation flows require project, default to `Default`
+- [x] Creation/import/collation flows require project, default to `Default`
 - [ ] Copy-with-lineage between projects works with `origin_*` set
-- [ ] `bun run db:generate && bun run db:check` clean
-- [ ] `bun run check` and `bun run test:unit -- --run` pass
+- [x] `bun run db:generate && bun run db:check` clean
+- [x] `bun run check` and `bun run test:unit -- --run` pass
 
 ## Completion Criteria
 
@@ -69,7 +69,14 @@ bun run test:unit -- --run src/lib/client/db
 bun run check && bun run test:unit -- --run
 ```
 
+Verification results:
+
+| Date | Result |
+| --- | --- |
+| 2026-07-04 | Passed: `bun run db:generate`, `bun run db:check`, `bun run check`, focused repository/creation tests, and full `bun run test:unit -- --run`. |
+
 ## Notes
 
 | Date | Note |
 | --- | --- |
+| 2026-07-04 | Started Phase 4. Added immutable `projects.storage_slug` with slug generation, bootstrapped `Default` via worker init/reset and RPC/client API, and made transcription creation/import/harness flows resolve a project and create the `project_transcriptions` index row atomically. New transcription and IGNTP import UI now expose a project selector defaulting to `Default`; transcription summaries list project-owned rows instead of global rows. Remaining for later slices: remove or repurpose the promote-to-global-library path, remove the `scope_type` split, make schema tables strictly index-only, remove cloud sync state tables, and demote payload/cache columns. |
