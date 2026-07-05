@@ -119,7 +119,6 @@ export interface ProjectTranscriptionOriginCloudFile {
 
 export interface ProjectTranscriptionCloudFile extends ProjectTranscriptionSnapshot {
 	schema_version: CloudFileSchemaVersion;
-	scope_type: 'project_snapshot';
 	canonical_transcription_id: string | null;
 	current_revision: CloudCurrentRevision;
 	origin: ProjectTranscriptionOriginCloudFile;
@@ -183,7 +182,6 @@ export interface ProjectTranscriptionImportInput {
 	project_transcription_id: string;
 	transcription_id: string;
 	canonical_transcription_id: string | null;
-	scope_type: 'project_snapshot';
 	origin: ProjectTranscriptionOriginCloudFile;
 	current_revision_id: string;
 	current_content_hash: string;
@@ -362,7 +360,6 @@ export async function serializeProjectTranscriptionCloudFile(
 		schema_version: CLOUD_FILE_SCHEMA_VERSION,
 		project_transcription_id: snapshot.project_transcription_id,
 		id: snapshot.id,
-		scope_type: 'project_snapshot',
 		canonical_transcription_id: metadata.canonical_transcription_id,
 		current_revision: currentRevision,
 		origin: {
@@ -781,7 +778,6 @@ export function projectTranscriptionCloudFileToImportInput(
 		project_transcription_id: file.project_transcription_id,
 		transcription_id: file.id,
 		canonical_transcription_id: file.canonical_transcription_id,
-		scope_type: file.scope_type,
 		origin: { ...file.origin },
 		current_revision_id: file.current_revision.id,
 		current_content_hash: file.current_revision.content_hash,
@@ -925,7 +921,6 @@ function projectTranscriptionCloudFileToPayload(
 	return {
 		project_transcription_id: file.project_transcription_id,
 		id: file.id,
-		scope_type: file.scope_type,
 		canonical_transcription_id: file.canonical_transcription_id,
 		current_revision: file.current_revision as ProjectTranscriptionPayload['current_revision'],
 		origin: file.origin as ProjectTranscriptionPayload['origin'],
@@ -957,7 +952,6 @@ function projectTranscriptionPayloadToCloudFile(
 		schema_version: CLOUD_FILE_SCHEMA_VERSION,
 		project_transcription_id: payload.project_transcription_id,
 		id: payload.id,
-		scope_type: payload.scope_type,
 		canonical_transcription_id: payload.canonical_transcription_id,
 		current_revision: payload.current_revision,
 		origin: payload.origin,

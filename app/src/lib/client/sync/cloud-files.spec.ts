@@ -169,13 +169,14 @@ describe('cloud file serialization formats', () => {
 			projectTranscriptionId,
 			'tx-cp-1'
 		);
-		const parsedPrimary = await parseProjectTranscriptionCloudFile(
-			await serializeCloudFile(primary)
-		);
+		const serializedPrimary = await serializeCloudFile(primary);
+		const parsedPrimary = await parseProjectTranscriptionCloudFile(serializedPrimary);
 		const parsedHistory = await parseHistoryCloudFile(await serializeCloudFile(history));
 
 		expect(parsedPrimary).toEqual({ ok: true, value: primary });
 		expect(parsedHistory).toEqual({ ok: true, value: history });
+		expect(primary).not.toHaveProperty('scope_type');
+		expect(JSON.parse(serializedPrimary)).not.toHaveProperty('scope_type');
 		if (!parsedPrimary.ok || !parsedHistory.ok)
 			throw new Error('Expected valid transcription files.');
 		expect(

@@ -15,7 +15,6 @@ import {
 	readBoolean,
 	readFiniteNumber,
 	readJsonValue,
-	readLiteral,
 	readNullableString,
 	readObjectValue,
 	readString,
@@ -50,7 +49,6 @@ export type CanonicalIiifCanvasAnnotation = JsonObject &
 export type ProjectTranscriptionPayload = JsonObject & {
 	project_transcription_id: string;
 	id: string;
-	scope_type: 'project_snapshot';
 	canonical_transcription_id: string | null;
 	current_revision: CanonicalCurrentRevision;
 	origin: ProjectTranscriptionOrigin;
@@ -81,7 +79,6 @@ export type ProjectTranscriptionDocument = SealedDocument<
 export const PROJECT_TRANSCRIPTION_FIXTURE: ProjectTranscriptionPayload = {
 	project_transcription_id: 'pt-1',
 	id: 'tx-1',
-	scope_type: 'project_snapshot',
 	canonical_transcription_id: null,
 	current_revision: {
 		id: 'tx-cp-1',
@@ -179,7 +176,6 @@ export function readProjectTranscriptionPayload(
 	const base = {
 		project_transcription_id: readString(record, 'project_transcription_id'),
 		id: readString(record, 'id'),
-		scope_type: readLiteral(record, 'scope_type', 'project_snapshot'),
 		canonical_transcription_id: readNullableString(record, 'canonical_transcription_id'),
 		origin: readProjectTranscriptionOrigin(record, 'origin'),
 		title: readString(record, 'title'),
