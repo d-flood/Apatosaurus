@@ -1,14 +1,24 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+	COLLATION_CHECKPOINT_FORMAT,
+	COLLATION_FORMAT,
+	PROJECT_MANIFEST_FORMAT,
+	collationCheckpointFile,
+	collationPrimaryFile,
+	collationTeiFile,
 	collationWorkingFile,
 	joinStorePath,
 	normalizeStorePath,
+	projectManifestFile,
 	readCanonicalDocument,
 	readTextFile,
 	StoreMoveUnavailableError,
 	storePathBasename,
 	storePathDirname,
+	type CollationCheckpointPayload,
+	type CollationPayload,
+	type ProjectManifestPayload,
 	WORKING_COLLATION_FORMAT,
 	type StoreBackend,
 	type StoreBackendDirectoryEntry,
@@ -19,6 +29,7 @@ import { createProject } from './projects';
 import { createCollation, loadCollation } from './collations';
 import { createCommittedCollationCheckpoint } from './revisions';
 import {
+	createCommittedCollationCheckpointWithFiles,
 	getCollationVersionStatusWithWorkingFile,
 	loadCollationWithWorkingFile,
 	saveWorkingCollationArtifact,
@@ -173,6 +184,215 @@ describe('collation file persistence', () => {
 		expect(status.dirtyToCheckpoint).toBe(true);
 		expect(status.commitState).toBe('dirty');
 	});
+
+	it('writes committed collation files before updating the index', async () => {
+		await createFixtureCollation();
+		await saveWorkingCollationArtifact(
+			harness.db,
+			{
+				collationId: 'col-1',
+				artifactId: 'artifact-1',
+				artifactType: 'collation_document_v1',
+				payload: JSON.stringify(collationDocument('readings')),
+				now: '2026-07-04T12:00:00.000Z',
+			},
+			{ backend, nonce: () => 'working-write' }
+		);
+
+		const checkpoint = await createCommittedCollationCheckpointWithFiles(
+			harness.db,
+			{
+				collationId: 'col-1',
+				checkpointId: 'col-cp-1',
+				commitMessage: 'Initial collation commit',
+				authorName: 'Editor',
+				createdAt: '2026-07-04T13:00:00.000Z',
+			},
+			{ backend, nonce: () => 'commit-write' }
+		);
+
+		const historyRaw = await readTextFile(
+			collationCheckpointFile('project-slug', 'col-1', 'col-cp-1'),
+			{ backend }
+		);
+		const history = await readCanonicalDocument<CollationCheckpointPayload>(
+			COLLATION_CHECKPOINT_FORMAT,
+			historyRaw
+		);
+		const primaryRaw = await readTextFile(collationPrimaryFile('project-slug', 'col-1'), {
+			backend,
+		});
+		const primary = await readCanonicalDocument<CollationPayload>(COLLATION_FORMAT, primaryRaw);
+		const manifestRaw = await readTextFile(projectManifestFile('project-slug'), { backend });
+		const manifest = await readCanonicalDocument<ProjectManifestPayload>(
+			PROJECT_MANIFEST_FORMAT,
+			manifestRaw
+		);
+		const tei = await readTextFile(collationTeiFile('project-slug', 'col-1'), { backend });
+		const head = await harness.db
+			.selectFrom('collations')
+			.select(['current_revision_id', 'current_content_hash'])
+			.where('id', '=', 'col-1')
+			.executeTakeFirstOrThrow();
+
+		expect(history).toMatchObject({
+			ok: true,
+			payload: {
+				checkpoint_id: 'col-cp-1',
+				entity_id: 'col-1',
+				payload_content_hash: checkpoint.contentHash,
+				commit_message: 'Initial collation commit',
+			},
+		});
+		expect(primary).toMatchObject({
+			ok: true,
+			payload: {
+				id: 'col-1',
+				project_id: 'project-1',
+				status: 'readings',
+				current_revision: {
+					id: 'col-cp-1',
+					content_hash: checkpoint.contentHash,
+					created_at: '2026-07-04T13:00:00.000Z',
+					author_name: 'Editor',
+				},
+				artifacts: [{ id: 'artifact-1', artifact_type: 'collation_document_v1' }],
+			},
+		});
+		expect(manifest).toMatchObject({
+			ok: true,
+			payload: {
+				id: 'project-1',
+				collations: [
+					{
+						collation_id: 'col-1',
+						current_revision: { id: 'col-cp-1', content_hash: checkpoint.contentHash },
+						primary_path: 'collations/col-1.json',
+					},
+				],
+			},
+		});
+		expect(tei).toContain('<TEI');
+		expect(head).toEqual({
+			current_revision_id: 'col-cp-1',
+			current_content_hash: checkpoint.contentHash,
+		});
+		await expect(
+			harness.db.selectFrom('collation_artifacts').selectAll().execute()
+		).resolves.toEqual([]);
+
+		const status = await getCollationVersionStatusWithWorkingFile(
+			harness.db,
+			'col-1',
+			{},
+			{ backend }
+		);
+		expect(status.commitState).toBe('clean');
+	});
+
+	it('does not update the collation index when manifest writing fails after entity files', async () => {
+		await createFixtureCollation();
+		await saveWorkingCollationArtifact(
+			harness.db,
+			{
+				collationId: 'col-1',
+				artifactId: 'artifact-1',
+				artifactType: 'collation_document_v1',
+				payload: JSON.stringify(collationDocument('readings')),
+				now: '2026-07-04T12:00:00.000Z',
+			},
+			{ backend, nonce: () => 'working-write' }
+		);
+		backend.failWritePathIncludes = 'project.json.tmp-';
+
+		await expect(
+			createCommittedCollationCheckpointWithFiles(
+				harness.db,
+				{
+					collationId: 'col-1',
+					checkpointId: 'col-cp-manifest-fail',
+					createdAt: '2026-07-04T13:00:00.000Z',
+				},
+				{ backend, nonce: () => 'manifest-fail' }
+			)
+		).rejects.toThrow('simulated write failure');
+
+		await expect(
+			readTextFile(
+				collationCheckpointFile('project-slug', 'col-1', 'col-cp-manifest-fail'),
+				{ backend }
+			)
+		).resolves.toContain('col-cp-manifest-fail');
+		await expect(
+			readTextFile(collationPrimaryFile('project-slug', 'col-1'), { backend })
+		).resolves.toContain('col-cp-manifest-fail');
+		await expect(readTextFile(projectManifestFile('project-slug'), { backend })).rejects.toThrow(
+			'not found'
+		);
+		await expect(
+			harness.db
+				.selectFrom('collation_checkpoints')
+				.selectAll()
+				.where('id', '=', 'col-cp-manifest-fail')
+				.execute()
+		).resolves.toEqual([]);
+		await expect(
+			harness.db
+				.selectFrom('collations')
+				.select(['current_revision_id', 'current_content_hash'])
+				.where('id', '=', 'col-1')
+				.executeTakeFirstOrThrow()
+		).resolves.toEqual({ current_revision_id: '', current_content_hash: '' });
+	});
+
+	it('does not fail the collation commit when derived TEI writing fails', async () => {
+		await createFixtureCollation();
+		await saveWorkingCollationArtifact(
+			harness.db,
+			{
+				collationId: 'col-1',
+				artifactId: 'artifact-1',
+				artifactType: 'collation_document_v1',
+				payload: JSON.stringify(collationDocument('readings')),
+				now: '2026-07-04T12:00:00.000Z',
+			},
+			{ backend, nonce: () => 'working-write' }
+		);
+		backend.failWritePathIncludes = '.tei.xml.tmp-';
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+		try {
+			const checkpoint = await createCommittedCollationCheckpointWithFiles(
+				harness.db,
+				{
+					collationId: 'col-1',
+					checkpointId: 'col-cp-tei-fail',
+					createdAt: '2026-07-04T13:00:00.000Z',
+				},
+				{ backend, nonce: () => 'tei-fail' }
+			);
+
+			expect(checkpoint.id).toBe('col-cp-tei-fail');
+			await expect(
+				readTextFile(collationTeiFile('project-slug', 'col-1'), { backend })
+			).rejects.toThrow('not found');
+			await expect(
+				readTextFile(projectManifestFile('project-slug'), { backend })
+			).resolves.toContain('col-cp-tei-fail');
+			await expect(
+				harness.db
+					.selectFrom('collations')
+					.select(['current_revision_id', 'current_content_hash'])
+					.where('id', '=', 'col-1')
+					.executeTakeFirstOrThrow()
+			).resolves.toEqual({
+				current_revision_id: 'col-cp-tei-fail',
+				current_content_hash: checkpoint.contentHash,
+			});
+		} finally {
+			warn.mockRestore();
+		}
+	});
 });
 
 async function createFixtureCollation(): Promise<void> {
@@ -229,6 +449,7 @@ class MemoryStoreBackend implements StoreBackend {
 	readonly files = new Map<string, string>();
 	readonly directories = new Set<string>(['']);
 	failWrites = false;
+	failWritePathIncludes: string | null = null;
 
 	async readTextFile(path: string): Promise<string> {
 		const normalized = normalizeStorePath(path);
@@ -238,8 +459,13 @@ class MemoryStoreBackend implements StoreBackend {
 	}
 
 	async writeTextFile(path: string, content: string): Promise<void> {
-		if (this.failWrites) throw new Error('simulated write failure');
 		const normalized = normalizeStorePath(path);
+		if (
+			this.failWrites ||
+			(this.failWritePathIncludes && normalized.includes(this.failWritePathIncludes))
+		) {
+			throw new Error(`simulated write failure for ${path}`);
+		}
 		this.addDirectory(storePathDirname(normalized));
 		this.files.set(normalized, content);
 	}

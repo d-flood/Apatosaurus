@@ -7,6 +7,7 @@ import {
 	updateCollationMetadata,
 } from './repositories/collations';
 import {
+	createCommittedCollationCheckpointWithFiles,
 	getCollationVersionStatusWithWorkingFile,
 	listProjectCollationVersionStatusesWithWorkingFiles,
 	loadCollationWithWorkingFile,
@@ -51,7 +52,6 @@ import {
 } from './repositories/transcription-files';
 import * as iiifRepository from './repositories/iiif';
 import {
-	createCommittedCollationCheckpoint,
 	isCollationDirty,
 	isTranscriptionDirty,
 	listCommittedTranscriptionCheckpoints,
@@ -502,7 +502,10 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 		return checkpoint;
 	}
 	if (request.type === 'revisions.commitCollation') {
-		const checkpoint = await createCommittedCollationCheckpoint(getKyselyDb(), request.input);
+		const checkpoint = await createCommittedCollationCheckpointWithFiles(
+			getKyselyDb(),
+			request.input
+		);
 		postMessage({ type: 'db:invalidate', domain: 'collations' });
 		return checkpoint;
 	}

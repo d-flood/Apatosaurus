@@ -419,33 +419,51 @@ export async function createCommittedCollationCheckpoint(
 ): Promise<CollationCheckpoint> {
 	return db.transaction().execute(async trx => {
 		const collation = await loadSerializedCollation(trx, input.collationId);
-		const head = await trx
-			.selectFrom('collations')
-			.select(['current_revision_id', 'current_content_hash'])
-			.where('id', '=', collation.id)
-			.executeTakeFirstOrThrow();
-		const payload = buildCollationHashPayload(collation);
-		const contentHash = await hashCanonicalPayload(payload);
-		const checkpoint = buildCollationCheckpointRow(
-			collation.id,
-			head.current_revision_id || null,
-			payload,
-			contentHash,
-			input
-		);
-
-		await trx.insertInto('collation_checkpoints').values(checkpoint).execute();
-		await trx
-			.updateTable('collations')
-			.set({
-				current_revision_id: requireId(checkpoint.id, 'collation checkpoint'),
-				current_content_hash: contentHash,
-			})
-			.where('id', '=', collation.id)
-			.execute();
-
-		return mapCollationCheckpoint(checkpoint, payload);
+		return createCommittedCollationCheckpointFromSerializedInTransaction(trx, collation, input);
 	});
+}
+
+export async function createCommittedCollationCheckpointFromSerialized(
+	db: Kysely<Database>,
+	collation: SerializedCollation,
+	input: CommitCollationInput
+): Promise<CollationCheckpoint> {
+	return db.transaction().execute(trx =>
+		createCommittedCollationCheckpointFromSerializedInTransaction(trx, collation, input)
+	);
+}
+
+async function createCommittedCollationCheckpointFromSerializedInTransaction(
+	trx: Transaction<Database>,
+	collation: SerializedCollation,
+	input: CommitCollationInput
+): Promise<CollationCheckpoint> {
+	const head = await trx
+		.selectFrom('collations')
+		.select(['current_revision_id', 'current_content_hash'])
+		.where('id', '=', collation.id)
+		.executeTakeFirstOrThrow();
+	const payload = buildCollationHashPayload(collation);
+	const contentHash = await hashCanonicalPayload(payload);
+	const checkpoint = buildCollationCheckpointRow(
+		collation.id,
+		head.current_revision_id || null,
+		payload,
+		contentHash,
+		input
+	);
+
+	await trx.insertInto('collation_checkpoints').values(checkpoint).execute();
+	await trx
+		.updateTable('collations')
+		.set({
+			current_revision_id: requireId(checkpoint.id, 'collation checkpoint'),
+			current_content_hash: contentHash,
+		})
+		.where('id', '=', collation.id)
+		.execute();
+
+	return mapCollationCheckpoint(checkpoint, payload);
 }
 
 export async function isTranscriptionDirty(
