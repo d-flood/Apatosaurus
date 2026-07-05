@@ -1,6 +1,6 @@
 # Phase 05: Write-Path Inversion
 
-Status: Not Started
+Status: In Progress
 Depends on: Phase 04
 Architecture reference: `architecture.md` sections 6, 9
 
@@ -54,7 +54,7 @@ The current save/commit flows being replaced are documented in `current-state.md
 
 ## Checklist
 
-- [ ] Transcription autosave writes working file first; single-writer rule enforced
+- [x] Transcription autosave writes working file first; single-writer rule enforced
 - [ ] Collation autosave writes working file first; artifacts table no longer written
 - [ ] Commit sequence implemented for transcriptions, ordering-tested
 - [ ] Commit sequence implemented for collations, ordering-tested
@@ -81,3 +81,4 @@ bun run check && bun run test:unit -- --run
 
 | Date | Note |
 | --- | --- |
+| 2026-07-04 | Phase 5 started with the transcription working-file slice. DB-worker `transcriptions.updateContent` now writes an `apatosaurus.working.transcription` file under the project storage slug using the project transcription id before updating the SQLite cache/verse index; DB-worker `transcriptions.get` reads that working file through migrate-on-read when present and falls back to the index cache during the transition. The editor no longer replaces `canonicalDocument` while scheduling autosave; it only advances the in-memory canonical document after local persistence succeeds, and legacy external-folder sync enqueue failures no longer fail the local save. Verification passed: `bun run check`; focused `bun run test:unit -- --run src/lib/client/db/repositories/transcription-files.spec.ts src/lib/client/db/repositories/transcriptions.spec.ts`; full `bun run test:unit -- --run` (343 passed). |

@@ -33,7 +33,6 @@ import {
 	createTranscription,
 	createTranscriptions,
 	deleteTranscription,
-	getTranscription,
 	getTranscriptionSummary,
 	getTranscriptionVersionsByIds,
 	getTranscriptionsByIds,
@@ -42,8 +41,11 @@ import {
 	listVerseIndexRows,
 	listTranscriptionSummaries,
 	rebuildVerseIndexForTranscriptions,
-	updateTranscriptionContent,
 } from './repositories/transcriptions';
+import {
+	loadTranscriptionWithWorkingFile,
+	saveWorkingTranscriptionContent,
+} from './repositories/transcription-files';
 import * as iiifRepository from './repositories/iiif';
 import {
 	createCommittedCollationCheckpoint,
@@ -257,7 +259,7 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 	if (request.type === 'transcriptions.getVersionsByIds')
 		return getTranscriptionVersionsByIds(getKyselyDb(), request.ids);
 	if (request.type === 'transcriptions.get')
-		return getTranscription(getKyselyDb(), request.transcriptionId);
+		return loadTranscriptionWithWorkingFile(getKyselyDb(), request.transcriptionId);
 	if (request.type === 'transcriptions.getByIds')
 		return getTranscriptionsByIds(getKyselyDb(), request.ids);
 	if (request.type === 'transcriptions.create') {
@@ -273,7 +275,7 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 		return ids;
 	}
 	if (request.type === 'transcriptions.updateContent') {
-		await updateTranscriptionContent(getKyselyDb(), request.input);
+		await saveWorkingTranscriptionContent(getKyselyDb(), request.input);
 		postMessage({ type: 'db:invalidate', domain: 'transcriptions' });
 		return null;
 	}

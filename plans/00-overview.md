@@ -43,7 +43,7 @@ Full list in `architecture.md` section 3. The short form:
 | 2 | `02-document-store-foundation.md` | Completed | None |
 | 3 | `03-canonical-file-formats.md` | Completed | Phase 2 |
 | 4 | `04-project-only-data-model.md` | Completed | Phase 3 |
-| 5 | `05-write-path-inversion.md` | Not Started | Phase 4 |
+| 5 | `05-write-path-inversion.md` | In Progress | Phase 4 |
 | 6 | `06-index-rebuild-and-repair.md` | Not Started | Phase 5 |
 | 7 | `07-local-folder-sync.md` | Not Started | Phases 1, 6 |
 | 8 | `08-import-export.md` | Not Started | Phase 6 |
@@ -96,6 +96,7 @@ Run narrower tests during each session when possible, then run the full baseline
 
 | Date | Note |
 | --- | --- |
+| 2026-07-04 | Phase 5 started. First slice routed transcription autosave through OPFS working files at the DB-worker boundary before updating the SQLite cache/verse index, made `getTranscription` prefer a valid working file via migrate-on-read when present, and enforced the editor-side single-writer rule by updating `canonicalDocument` only after local persistence succeeds. Verification passed: `bun run check`; focused transcription repository tests; full `bun run test:unit -- --run` (343 passed). Remaining Phase 5 work: committed primary/history/manifest write sequence, creation/deletion, collation autosave/commit, project manifest updates, locking, and crash-ordering tests. |
 | 2026-07-04 | Phase 4 completed. Final slice removed the leftover persisted project-transcription `scope_type: project_snapshot` field from canonical project-transcription files, the cloud-file adapter, and import input, with a regression assertion that new serialized files omit it. Verification passed: `db:generate`, `db:check`, `check`, focused format/sync tests, and full `bun run test:unit -- --run` (340 passed). Temporary source/payload cache columns remain for Phase 5/6, and legacy `cloud_*` sync-state tables remain for Phase 7 as explicitly documented in `04-project-only-data-model.md`. Next phase is `05-write-path-inversion.md`. |
 | 2026-07-04 | Phase 4 promote API removal slice deleted the remaining dead promote-to-library API/RPC/client/repository surface and removed the two tests that only asserted the stub threw; cross-project copy remains via `addProjectTranscriptionFromProject`. Verification passed: `db:check`, `check`, focused rerun of a transient Chromium import failure, and full `bun run test:unit -- --run` (340 passed). Phase 4 remains in progress with temporary payload/cache columns deferred to Phase 5 and legacy cloud sync-state tables deferred to Phase 7. |
 | 2026-07-04 | Phase 4 account-column cleanup slice removed `projects.owner_id` and `project_transcriptions.added_by_id` from the greenfield index schema and all repository/sync insert paths. Verification passed: `db:generate`, `db:check`, `check`, and full `bun run test:unit -- --run` (342 passed). Phase 4 remains in progress; legacy cloud sync-state tables and temporary payload/cache columns remain deferred as documented in `04-project-only-data-model.md`. |

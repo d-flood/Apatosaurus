@@ -1057,7 +1057,12 @@ import {
 					format: TRANSCRIPTION_FORMAT,
 					updatedAt: now,
 				});
-				externalSyncService.enqueueSync(currentTranscription, document);
+				canonicalDocument = document;
+				try {
+					externalSyncService.enqueueSync(currentTranscription, document);
+				} catch (syncError) {
+					console.warn('[Autosave] External folder sync enqueue failed:', syncError);
+				}
 				return true;
 			} catch (error) {
 				console.error('[Autosave] Failed to persist transcription content:', error);
@@ -1102,7 +1107,6 @@ import {
 			const document = coerceEditorJsonToDocument(editorJson);
 			if (!document) return;
 			pendingDocument = document;
-			canonicalDocument = document;
 			if (timeoutId !== null) {
 				clearTimeout(timeoutId);
 			}
