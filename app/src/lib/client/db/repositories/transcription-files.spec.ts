@@ -1,25 +1,36 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createLocalDbTestHarness, type LocalDbTestHarness } from '../test-harness';
 import { createProject } from './projects';
 import { createTranscription, getTranscription } from './transcriptions';
 import {
+	createCommittedTranscriptionCheckpointWithFiles,
 	loadTranscriptionWithWorkingFile,
 	saveWorkingTranscriptionContent,
 } from './transcription-files';
 import type { StoredTranscriptionDocument } from '$lib/client/transcription/content';
 import {
+	PROJECT_MANIFEST_FORMAT,
+	PROJECT_TRANSCRIPTION_FORMAT,
+	TRANSCRIPTION_CHECKPOINT_FORMAT,
 	joinStorePath,
 	normalizeStorePath,
+	projectManifestFile,
 	readCanonicalDocument,
 	readTextFile,
 	StoreMoveUnavailableError,
 	storePathBasename,
 	storePathDirname,
+	transcriptionCheckpointFile,
+	transcriptionPrimaryFile,
+	transcriptionTeiFile,
 	transcriptionWorkingFile,
 	WORKING_TRANSCRIPTION_FORMAT,
+	type ProjectManifestPayload,
+	type ProjectTranscriptionPayload,
 	type StoreBackend,
 	type StoreBackendDirectoryEntry,
+	type TranscriptionCheckpointPayload,
 	type WorkingTranscriptionPayload,
 } from '$lib/client/store';
 
@@ -123,6 +134,173 @@ describe('transcription file persistence', () => {
 		expect(loaded?.content_json).toContain('"verse":"2"');
 		expect(loaded?.updated_at).toBe('2026-07-04T12:00:00.000Z');
 	});
+
+	it('writes committed transcription files before updating the index', async () => {
+		await createFixtureTranscription();
+
+		const checkpoint = await createCommittedTranscriptionCheckpointWithFiles(
+			harness.db,
+			{
+				projectTranscriptionId: 'pt-1',
+				checkpointId: 'tx-cp-1',
+				commitMessage: 'Initial commit',
+				authorName: 'Editor',
+				createdAt: '2026-07-04T13:00:00.000Z',
+			},
+			{ backend, nonce: () => 'commit-write' }
+		);
+
+		const historyRaw = await readTextFile(
+			transcriptionCheckpointFile('project-slug', 'pt-1', 'tx-cp-1'),
+			{ backend }
+		);
+		const history = await readCanonicalDocument<TranscriptionCheckpointPayload>(
+			TRANSCRIPTION_CHECKPOINT_FORMAT,
+			historyRaw
+		);
+		const primaryRaw = await readTextFile(transcriptionPrimaryFile('project-slug', 'pt-1'), {
+			backend,
+		});
+		const primary = await readCanonicalDocument<ProjectTranscriptionPayload>(
+			PROJECT_TRANSCRIPTION_FORMAT,
+			primaryRaw
+		);
+		const manifestRaw = await readTextFile(projectManifestFile('project-slug'), { backend });
+		const manifest = await readCanonicalDocument<ProjectManifestPayload>(
+			PROJECT_MANIFEST_FORMAT,
+			manifestRaw
+		);
+		const tei = await readTextFile(transcriptionTeiFile('project-slug', 'pt-1'), { backend });
+		const head = await harness.db
+			.selectFrom('transcriptions')
+			.select(['current_revision_id', 'current_content_hash'])
+			.where('id', '=', 'tx-1')
+			.executeTakeFirstOrThrow();
+
+		expect(history).toMatchObject({
+			ok: true,
+			payload: {
+				checkpoint_id: 'tx-cp-1',
+				entity_id: 'pt-1',
+				payload_transcription_id: 'tx-1',
+				payload_content_hash: checkpoint.contentHash,
+				commit_message: 'Initial commit',
+			},
+		});
+		expect(primary).toMatchObject({
+			ok: true,
+			payload: {
+				project_transcription_id: 'pt-1',
+				id: 'tx-1',
+				current_revision: {
+					id: 'tx-cp-1',
+					content_hash: checkpoint.contentHash,
+					created_at: '2026-07-04T13:00:00.000Z',
+					author_name: 'Editor',
+				},
+			},
+		});
+		expect(manifest).toMatchObject({
+			ok: true,
+			payload: {
+				id: 'project-1',
+				transcriptions: [
+					{
+						project_transcription_id: 'pt-1',
+						current_revision: { id: 'tx-cp-1', content_hash: checkpoint.contentHash },
+						primary_path: 'transcriptions/pt-1.json',
+					},
+				],
+			},
+		});
+		expect(tei).toContain('<TEI');
+		expect(head).toEqual({
+			current_revision_id: 'tx-cp-1',
+			current_content_hash: checkpoint.contentHash,
+		});
+	});
+
+	it('does not update the index when manifest writing fails after entity files', async () => {
+		await createFixtureTranscription();
+		backend.failWritePathIncludes = 'project.json.tmp-';
+
+		await expect(
+			createCommittedTranscriptionCheckpointWithFiles(
+				harness.db,
+				{
+					projectTranscriptionId: 'pt-1',
+					checkpointId: 'tx-cp-manifest-fail',
+					createdAt: '2026-07-04T13:00:00.000Z',
+				},
+				{ backend, nonce: () => 'manifest-fail' }
+			)
+		).rejects.toThrow('simulated write failure');
+
+		await expect(
+			readTextFile(
+				transcriptionCheckpointFile('project-slug', 'pt-1', 'tx-cp-manifest-fail'),
+				{ backend }
+			)
+		).resolves.toContain('tx-cp-manifest-fail');
+		await expect(
+			readTextFile(transcriptionPrimaryFile('project-slug', 'pt-1'), { backend })
+		).resolves.toContain('tx-cp-manifest-fail');
+		await expect(readTextFile(projectManifestFile('project-slug'), { backend })).rejects.toThrow(
+			'not found'
+		);
+		await expect(
+			harness.db
+				.selectFrom('transcription_checkpoints')
+				.selectAll()
+				.where('id', '=', 'tx-cp-manifest-fail')
+				.execute()
+		).resolves.toEqual([]);
+		await expect(
+			harness.db
+				.selectFrom('transcriptions')
+				.select(['current_revision_id', 'current_content_hash'])
+				.where('id', '=', 'tx-1')
+				.executeTakeFirstOrThrow()
+		).resolves.toEqual({ current_revision_id: '', current_content_hash: '' });
+	});
+
+	it('does not fail the commit when derived TEI writing fails', async () => {
+		await createFixtureTranscription();
+		backend.failWritePathIncludes = '.tei.xml.tmp-';
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+		try {
+			const checkpoint = await createCommittedTranscriptionCheckpointWithFiles(
+				harness.db,
+				{
+					projectTranscriptionId: 'pt-1',
+					checkpointId: 'tx-cp-tei-fail',
+					createdAt: '2026-07-04T13:00:00.000Z',
+				},
+				{ backend, nonce: () => 'tei-fail' }
+			);
+
+			expect(checkpoint.id).toBe('tx-cp-tei-fail');
+			await expect(
+				readTextFile(transcriptionTeiFile('project-slug', 'pt-1'), { backend })
+			).rejects.toThrow('not found');
+			await expect(
+				readTextFile(projectManifestFile('project-slug'), { backend })
+			).resolves.toContain('tx-cp-tei-fail');
+			await expect(
+				harness.db
+					.selectFrom('transcriptions')
+					.select(['current_revision_id', 'current_content_hash'])
+					.where('id', '=', 'tx-1')
+					.executeTakeFirstOrThrow()
+			).resolves.toEqual({
+				current_revision_id: 'tx-cp-tei-fail',
+				current_content_hash: checkpoint.contentHash,
+			});
+		} finally {
+			warn.mockRestore();
+		}
+	});
 });
 
 async function createFixtureTranscription(): Promise<void> {
@@ -186,6 +364,7 @@ class MemoryStoreBackend implements StoreBackend {
 	readonly files = new Map<string, string>();
 	readonly directories = new Set<string>(['']);
 	failWrites = false;
+	failWritePathIncludes: string | null = null;
 
 	async readTextFile(path: string): Promise<string> {
 		const normalized = normalizeStorePath(path);
@@ -195,8 +374,13 @@ class MemoryStoreBackend implements StoreBackend {
 	}
 
 	async writeTextFile(path: string, content: string): Promise<void> {
-		if (this.failWrites) throw new Error('simulated write failure');
 		const normalized = normalizeStorePath(path);
+		if (
+			this.failWrites ||
+			(this.failWritePathIncludes && normalized.includes(this.failWritePathIncludes))
+		) {
+			throw new Error(`simulated write failure for ${path}`);
+		}
 		this.addDirectory(storePathDirname(normalized));
 		this.files.set(normalized, content);
 	}

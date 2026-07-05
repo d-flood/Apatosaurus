@@ -45,13 +45,13 @@ import {
 	rebuildVerseIndexForTranscriptions,
 } from './repositories/transcriptions';
 import {
+	createCommittedTranscriptionCheckpointWithFiles,
 	loadTranscriptionWithWorkingFile,
 	saveWorkingTranscriptionContent,
 } from './repositories/transcription-files';
 import * as iiifRepository from './repositories/iiif';
 import {
 	createCommittedCollationCheckpoint,
-	createCommittedTranscriptionCheckpoint,
 	isCollationDirty,
 	isTranscriptionDirty,
 	listCommittedTranscriptionCheckpoints,
@@ -494,7 +494,7 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 		return null;
 	}
 	if (request.type === 'revisions.commitTranscription') {
-		const checkpoint = await createCommittedTranscriptionCheckpoint(
+		const checkpoint = await createCommittedTranscriptionCheckpointWithFiles(
 			getKyselyDb(),
 			request.input
 		);

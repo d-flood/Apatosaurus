@@ -8,21 +8,40 @@ import {
 	type StoredTranscriptionDocument,
 } from '$lib/client/transcription/content';
 import {
+	PROJECT_TRANSCRIPTION_CURRENT_VERSION,
+	PROJECT_TRANSCRIPTION_FORMAT,
+	TRANSCRIPTION_CHECKPOINT_CURRENT_VERSION,
+	TRANSCRIPTION_CHECKPOINT_FORMAT,
+	assertProjectTranscriptionRevisionHash,
 	readCanonicalDocument,
 	readTextFile,
 	sealDocument,
 	serializeSealedDocument,
+	transcriptionCheckpointFile,
+	transcriptionDocumentToTei,
+	transcriptionPrimaryFile,
+	transcriptionTeiFile,
 	transcriptionWorkingFile,
 	WORKING_TRANSCRIPTION_CURRENT_VERSION,
 	WORKING_TRANSCRIPTION_FORMAT,
 	writeTextFileAtomic,
 	type JsonValue,
+	type ProjectTranscriptionPayload,
 	type StoreOperationOptions,
+	type TranscriptionCheckpointPayload as CanonicalTranscriptionCheckpointPayload,
 	type WorkingTranscriptionPayload,
 } from '$lib/client/store';
 
 import type { Database } from '../types.generated';
-import { loadProjectTranscriptionSnapshot } from './revisions';
+import { writeProjectManifestFile } from './project-files';
+import {
+	buildTranscriptionHashPayload,
+	createCommittedTranscriptionCheckpoint,
+	hashCanonicalPayload,
+	loadProjectTranscriptionSnapshot,
+	type CommitTranscriptionInput,
+	type TranscriptionCheckpoint,
+} from './revisions';
 import {
 	getTranscription,
 	updateTranscriptionContent,
@@ -33,6 +52,7 @@ import {
 interface TranscriptionFileContext {
 	transcriptionId: string;
 	projectTranscriptionId: string;
+	projectId: string;
 	projectStorageSlug: string;
 	canonicalTranscriptionId: string | null;
 	currentRevisionId: string | null;
@@ -43,6 +63,7 @@ interface TranscriptionFileContext {
 	originRevisionId: string | null;
 	originContentHash: string | null;
 	createdAt: string;
+	updatedAt: string;
 }
 
 interface LoadedWorkingTranscriptionPayload {
@@ -107,7 +128,20 @@ export async function saveWorkingTranscriptionContent(
 			...source,
 			metadata_json: source.metadata_json as JsonValue,
 		})),
-		page_canvas_links: [...snapshot.page_canvas_links],
+		page_canvas_links: snapshot.page_canvas_links.map(link => ({
+			id: link.id,
+			page_id: link.page_id,
+			page_name_snapshot: link.page_name_snapshot,
+			page_order: link.page_order,
+			manifest_source_id: link.manifest_source_id,
+			manifest_url_snapshot: link.manifest_url_snapshot,
+			canvas_id: link.canvas_id,
+			canvas_order: link.canvas_order,
+			canvas_label: link.canvas_label,
+			image_service_url: link.image_service_url,
+			thumbnail_url: link.thumbnail_url,
+			link_role: link.link_role,
+		})),
 		canvas_annotations: snapshot.canvas_annotations.map(annotation => ({
 			...annotation,
 			body_json: annotation.body_json as JsonValue,
@@ -137,6 +171,139 @@ export async function saveWorkingTranscriptionContent(
 		contentJson,
 		format: contentFormat,
 		updatedAt,
+	});
+}
+
+export async function createCommittedTranscriptionCheckpointWithFiles(
+	db: Kysely<Database>,
+	input: CommitTranscriptionInput,
+	storeOptions: StoreOperationOptions = {}
+): Promise<TranscriptionCheckpoint> {
+	const context = await loadTranscriptionFileContextByProjectTranscriptionId(
+		db,
+		input.projectTranscriptionId
+	);
+	const snapshot = await loadProjectTranscriptionSnapshot(db, input.projectTranscriptionId);
+	const payload = buildTranscriptionHashPayload(snapshot);
+	const contentHash = await hashCanonicalPayload(payload);
+	const checkpointId = input.checkpointId ?? createId();
+	const createdAt = input.createdAt ?? new Date().toISOString();
+	const authorName = input.authorName ?? '';
+	const commitMessage = input.commitMessage ?? null;
+	const checkpointPayload: CanonicalTranscriptionCheckpointPayload = {
+		checkpoint_id: checkpointId,
+		entity_type: 'project-transcription',
+		entity_id: snapshot.project_transcription_id,
+		payload_transcription_id: snapshot.id,
+		parent_checkpoint_id: context.currentRevisionId,
+		payload_content_hash: contentHash,
+		content_format: snapshot.format,
+		commit_message: commitMessage,
+		author_name: authorName,
+		created_at: createdAt,
+		payload: payload as JsonValue,
+	};
+	const checkpointPath = transcriptionCheckpointFile(
+		context.projectStorageSlug,
+		context.projectTranscriptionId,
+		checkpointId
+	);
+	await assertFileMissing(checkpointPath, storeOptions);
+	await writeSealedJsonFile(
+		checkpointPath,
+		TRANSCRIPTION_CHECKPOINT_FORMAT,
+		TRANSCRIPTION_CHECKPOINT_CURRENT_VERSION,
+		checkpointPayload,
+		storeOptions
+	);
+
+	const primaryPayload: ProjectTranscriptionPayload = {
+		project_transcription_id: snapshot.project_transcription_id,
+		id: snapshot.id,
+		canonical_transcription_id: context.canonicalTranscriptionId,
+		current_revision: {
+			id: checkpointId,
+			content_hash: contentHash,
+			created_at: createdAt,
+			author_name: authorName,
+		},
+		origin: {
+			source_type: context.originType,
+			source_project_id: context.originProjectId,
+			source_transcription_id: context.originTranscriptionId,
+			source_revision_id: context.originRevisionId,
+			source_content_hash: context.originContentHash,
+		},
+		title: snapshot.title,
+		siglum: snapshot.siglum,
+		description: snapshot.description,
+		content_json: snapshot.content_json as JsonValue,
+		content_format: snapshot.format,
+		created_at: context.createdAt,
+		updated_at: context.updatedAt,
+		owner: snapshot.owner,
+		is_public: snapshot.is_public,
+		tags: [...snapshot.tags],
+		transcriber: snapshot.transcriber,
+		repository: snapshot.repository,
+		settlement: snapshot.settlement,
+		language: snapshot.language,
+		iiif_manifest_sources: snapshot.iiif_manifest_sources.map(source => ({
+			...source,
+			metadata_json: source.metadata_json as JsonValue,
+		})),
+		page_canvas_links: snapshot.page_canvas_links.map(link => ({
+			id: link.id,
+			page_id: link.page_id,
+			page_name_snapshot: link.page_name_snapshot,
+			page_order: link.page_order,
+			manifest_source_id: link.manifest_source_id,
+			manifest_url_snapshot: link.manifest_url_snapshot,
+			canvas_id: link.canvas_id,
+			canvas_order: link.canvas_order,
+			canvas_label: link.canvas_label,
+			image_service_url: link.image_service_url,
+			thumbnail_url: link.thumbnail_url,
+			link_role: link.link_role,
+		})),
+		canvas_annotations: snapshot.canvas_annotations.map(annotation => ({
+			...annotation,
+			body_json: annotation.body_json as JsonValue,
+			target_json: annotation.target_json as JsonValue,
+			anchor_json: annotation.anchor_json as JsonValue,
+		})),
+	};
+	await assertProjectTranscriptionRevisionHash(primaryPayload);
+	await writeSealedJsonFile(
+		transcriptionPrimaryFile(context.projectStorageSlug, context.projectTranscriptionId),
+		PROJECT_TRANSCRIPTION_FORMAT,
+		PROJECT_TRANSCRIPTION_CURRENT_VERSION,
+		primaryPayload,
+		storeOptions
+	);
+	await writeDerivedTranscriptionTei(
+		context.projectStorageSlug,
+		context.projectTranscriptionId,
+		primaryPayload,
+		storeOptions
+	);
+	await writeProjectManifestFile(
+		db,
+		context.projectId,
+		{
+			transcriptions: {
+				[context.projectTranscriptionId]: { id: checkpointId, content_hash: contentHash },
+			},
+		},
+		storeOptions
+	);
+
+	return createCommittedTranscriptionCheckpoint(db, {
+		...input,
+		checkpointId,
+		createdAt,
+		authorName,
+		commitMessage,
 	});
 }
 
@@ -236,6 +403,7 @@ async function loadTranscriptionFileContext(
 		.select([
 			'project_transcriptions.id as project_transcription_id',
 			'project_transcriptions.canonical_transcription_id as canonical_transcription_id',
+			'transcriptions.project_id as project_id',
 			'projects.storage_slug as project_storage_slug',
 			'transcriptions.current_revision_id as current_revision_id',
 			'transcriptions.current_content_hash as current_content_hash',
@@ -245,6 +413,7 @@ async function loadTranscriptionFileContext(
 			'transcriptions.origin_revision_id as origin_revision_id',
 			'transcriptions.origin_content_hash as origin_content_hash',
 			'transcriptions.created_at as created_at',
+			'transcriptions.updated_at as updated_at',
 		])
 		.where('transcriptions.id', '=', transcriptionId)
 		.executeTakeFirst();
@@ -255,6 +424,7 @@ async function loadTranscriptionFileContext(
 			row.project_transcription_id,
 			'project transcription id'
 		),
+		projectId: row.project_id,
 		projectStorageSlug: requireString(row.project_storage_slug, 'project storage slug'),
 		canonicalTranscriptionId: row.canonical_transcription_id,
 		currentRevisionId: emptyToNull(row.current_revision_id),
@@ -265,7 +435,68 @@ async function loadTranscriptionFileContext(
 		originRevisionId: emptyToNull(row.origin_revision_id),
 		originContentHash: emptyToNull(row.origin_content_hash),
 		createdAt: row.created_at,
+		updatedAt: row.updated_at,
 	};
+}
+
+async function loadTranscriptionFileContextByProjectTranscriptionId(
+	db: Kysely<Database>,
+	projectTranscriptionId: string
+): Promise<TranscriptionFileContext> {
+	const row = await db
+		.selectFrom('project_transcriptions')
+		.select(['transcription_id'])
+		.where('id', '=', projectTranscriptionId)
+		.executeTakeFirst();
+	if (!row) throw new Error(`Project transcription ${projectTranscriptionId} was not found.`);
+	return loadTranscriptionFileContext(db, row.transcription_id);
+}
+
+async function writeSealedJsonFile<
+	TPayload extends Record<string, JsonValue>,
+	TFormat extends string,
+>(
+	path: string,
+	format: TFormat,
+	schemaVersion: number,
+	payload: TPayload,
+	storeOptions: StoreOperationOptions
+): Promise<void> {
+	const document = await sealDocument(format, schemaVersion, payload);
+	await writeTextFileAtomic(path, serializeSealedDocument(document), storeOptions);
+}
+
+async function writeDerivedTranscriptionTei(
+	projectStorageSlug: string,
+	projectTranscriptionId: string,
+	payload: ProjectTranscriptionPayload,
+	storeOptions: StoreOperationOptions
+): Promise<void> {
+	try {
+		await writeTextFileAtomic(
+			transcriptionTeiFile(projectStorageSlug, projectTranscriptionId),
+			transcriptionDocumentToTei(payload),
+			storeOptions
+		);
+	} catch (error) {
+		console.warn('[document-store] Could not write derived transcription TEI.', {
+			projectTranscriptionId,
+			error: errorMessage(error),
+		});
+	}
+}
+
+async function assertFileMissing(
+	path: string,
+	storeOptions: StoreOperationOptions
+): Promise<void> {
+	try {
+		await readTextFile(path, storeOptions);
+	} catch (error) {
+		if (isMissingFileError(error)) return;
+		throw error;
+	}
+	throw new Error(`Refusing to overwrite existing history file ${path}.`);
 }
 
 function getContentJson(input: {
@@ -297,6 +528,12 @@ function emptyToNull(value: string | null): string | null {
 function requireString(value: string | null, label: string): string {
 	if (!value) throw new Error(`Missing ${label}.`);
 	return value;
+}
+
+function createId(): string {
+	return typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+		? crypto.randomUUID()
+		: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 }
 
 function isMissingFileError(error: unknown): boolean {
