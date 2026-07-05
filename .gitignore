@@ -7,3 +7,5 @@ dist/
 .env*
 
 scratch*
+.scratch*
+docs/agents

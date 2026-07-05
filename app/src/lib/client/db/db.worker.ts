@@ -2,14 +2,16 @@ import type { DbRequest, DbResponse } from './rpc';
 import {
 	createCollation,
 	deleteCollation,
-	getCollationVersionStatus,
 	listCollationsWithProjectNames,
-	listProjectCollationVersionStatuses,
-	loadCollation,
-	saveCollationArtifact,
 	saveCollationProjection,
 	updateCollationMetadata,
 } from './repositories/collations';
+import {
+	getCollationVersionStatusWithWorkingFile,
+	listProjectCollationVersionStatusesWithWorkingFiles,
+	loadCollationWithWorkingFile,
+	saveWorkingCollationArtifact,
+} from './repositories/collation-files';
 import {
 	createProject,
 	forkProject,
@@ -384,17 +386,21 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 		return id;
 	}
 	if (request.type === 'collations.load')
-		return loadCollation(getKyselyDb(), request.collationId);
+		return loadCollationWithWorkingFile(getKyselyDb(), request.collationId);
 	if (request.type === 'collations.listProjectVersionStatuses')
-		return listProjectCollationVersionStatuses(
+		return listProjectCollationVersionStatusesWithWorkingFiles(
 			getKyselyDb(),
 			request.projectId,
 			request.options
 		);
 	if (request.type === 'collations.getVersionStatus')
-		return getCollationVersionStatus(getKyselyDb(), request.collationId, request.options);
+		return getCollationVersionStatusWithWorkingFile(
+			getKyselyDb(),
+			request.collationId,
+			request.options
+		);
 	if (request.type === 'collations.saveArtifact') {
-		const artifactId = await saveCollationArtifact(getKyselyDb(), request.input);
+		const artifactId = await saveWorkingCollationArtifact(getKyselyDb(), request.input);
 		postMessage({ type: 'db:invalidate', domain: 'collations' });
 		return artifactId;
 	}

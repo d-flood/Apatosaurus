@@ -55,7 +55,7 @@ The current save/commit flows being replaced are documented in `current-state.md
 ## Checklist
 
 - [x] Transcription autosave writes working file first; single-writer rule enforced
-- [ ] Collation autosave writes working file first; artifacts table no longer written
+- [x] Collation autosave writes working file first; artifacts table no longer written
 - [ ] Commit sequence implemented for transcriptions, ordering-tested
 - [ ] Commit sequence implemented for collations, ordering-tested
 - [ ] Creation writes initial committed version through the file path
@@ -81,4 +81,5 @@ bun run check && bun run test:unit -- --run
 
 | Date | Note |
 | --- | --- |
+| 2026-07-05 | Collation autosave slice completed. DB-worker `collations.saveArtifact` now writes an `apatosaurus.working.collation` file under the project storage slug before any projection/metadata index updates, returns a stable artifact id to preserve the existing UI contract, and no longer writes `collation_artifacts` on the autosave path. DB-worker `collations.load`, `collations.getVersionStatus`, and project collation status listing prefer a valid working file via migrate-on-read and fall back to the index cache with warnings during the transition; the legacy repository artifact writer remains only for import/sync compatibility until Phase 6. Added regression tests for file-first failure ordering, canonical working-file contents, reload from a working file with an empty artifact cache, and dirty-status hashing from the working file. Verification passed: `bun run db:check`; `bun run check`; focused `bun run test:unit -- --run src/lib/client/db/repositories/collation-files.spec.ts src/lib/client/db/repositories/transcription-files.spec.ts src/lib/client/db/repositories/collations.spec.ts`; full `bun run test:unit -- --run` (347 passed). Remaining Phase 5 work: committed primary/history/manifest write sequence, creation/deletion, commit ordering/crash tests, project manifest updates, and locking. |
 | 2026-07-04 | Phase 5 started with the transcription working-file slice. DB-worker `transcriptions.updateContent` now writes an `apatosaurus.working.transcription` file under the project storage slug using the project transcription id before updating the SQLite cache/verse index; DB-worker `transcriptions.get` reads that working file through migrate-on-read when present and falls back to the index cache during the transition. The editor no longer replaces `canonicalDocument` while scheduling autosave; it only advances the in-memory canonical document after local persistence succeeds, and legacy external-folder sync enqueue failures no longer fail the local save. Verification passed: `bun run check`; focused `bun run test:unit -- --run src/lib/client/db/repositories/transcription-files.spec.ts src/lib/client/db/repositories/transcriptions.spec.ts`; full `bun run test:unit -- --run` (343 passed). |

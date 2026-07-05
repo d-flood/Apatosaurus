@@ -320,6 +320,8 @@ export async function saveCollationArtifact(
 	db: DbExecutor,
 	input: SaveCollationArtifactInput
 ): Promise<string> {
+	// Phase 5 transition: DB-worker autosave writes collation working files instead.
+	// This remains only for legacy import/sync callers until Phase 6 removes artifact storage.
 	const now = input.now ?? new Date().toISOString();
 	const artifactId = input.artifactId || crypto.randomUUID();
 	await db

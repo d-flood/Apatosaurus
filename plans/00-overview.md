@@ -10,7 +10,7 @@ Overall status: `In Progress`
 
 Current phase: `05-write-path-inversion.md`
 
-Last updated: `2026-07-04`
+Last updated: `2026-07-05`
 
 ## Continuation Instructions
 
@@ -96,6 +96,7 @@ Run narrower tests during each session when possible, then run the full baseline
 
 | Date | Note |
 | --- | --- |
+| 2026-07-05 | Phase 5 collation autosave slice completed. DB-worker collation autosave now writes `apatosaurus.working.collation` files first, keeps projection/metadata as post-file index updates, leaves `collation_artifacts` unused on the autosave path, and loads/status-checks from valid working files via migrate-on-read during the transition. Verification passed: `bun run db:check`, `bun run check`, focused collation/transcription file repository tests, and full `bun run test:unit -- --run` (347 passed). Phase 5 remains in progress; remaining work is committed primary/history/manifest write sequences, creation/deletion file paths, crash-ordering tests, project manifest updates, and locking. |
 | 2026-07-04 | Phase 5 started. First slice routed transcription autosave through OPFS working files at the DB-worker boundary before updating the SQLite cache/verse index, made `getTranscription` prefer a valid working file via migrate-on-read when present, and enforced the editor-side single-writer rule by updating `canonicalDocument` only after local persistence succeeds. Verification passed: `bun run check`; focused transcription repository tests; full `bun run test:unit -- --run` (343 passed). Remaining Phase 5 work: committed primary/history/manifest write sequence, creation/deletion, collation autosave/commit, project manifest updates, locking, and crash-ordering tests. |
 | 2026-07-04 | Phase 4 completed. Final slice removed the leftover persisted project-transcription `scope_type: project_snapshot` field from canonical project-transcription files, the cloud-file adapter, and import input, with a regression assertion that new serialized files omit it. Verification passed: `db:generate`, `db:check`, `check`, focused format/sync tests, and full `bun run test:unit -- --run` (340 passed). Temporary source/payload cache columns remain for Phase 5/6, and legacy `cloud_*` sync-state tables remain for Phase 7 as explicitly documented in `04-project-only-data-model.md`. Next phase is `05-write-path-inversion.md`. |
 | 2026-07-04 | Phase 4 promote API removal slice deleted the remaining dead promote-to-library API/RPC/client/repository surface and removed the two tests that only asserted the stub threw; cross-project copy remains via `addProjectTranscriptionFromProject`. Verification passed: `db:check`, `check`, focused rerun of a transient Chromium import failure, and full `bun run test:unit -- --run` (340 passed). Phase 4 remains in progress with temporary payload/cache columns deferred to Phase 5 and legacy cloud sync-state tables deferred to Phase 7. |
