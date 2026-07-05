@@ -42,7 +42,6 @@ CREATE TABLE IF NOT EXISTS projects (
 	description TEXT NOT NULL DEFAULT '',
 	charter TEXT NOT NULL DEFAULT '',
 	collation_settings TEXT NOT NULL DEFAULT '{}',
-	owner_id INTEGER,
 	created_at TEXT NOT NULL,
 	updated_at TEXT NOT NULL
 );
@@ -103,7 +102,6 @@ CREATE TABLE IF NOT EXISTS project_transcriptions (
 	transcription_id TEXT NOT NULL REFERENCES transcriptions(id) ON DELETE CASCADE,
 	canonical_transcription_id TEXT,
 	added_at TEXT NOT NULL,
-	added_by_id INTEGER,
 	UNIQUE(project_id, transcription_id)
 );
 

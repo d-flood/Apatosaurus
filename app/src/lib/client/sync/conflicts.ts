@@ -411,7 +411,6 @@ export async function createProjectTranscriptionConflictCopy(
 				transcription_id: conflictTranscriptionId,
 				canonical_transcription_id: entity.link.canonical_transcription_id,
 				added_at: now,
-				added_by_id: null,
 			})
 			.execute();
 		await copyTranscriptionChildRows(

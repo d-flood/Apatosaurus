@@ -171,7 +171,6 @@ describe('collationState artifact-first persistence', () => {
 				segmentation: true,
 				transcriptionWitnessTreatments: {},
 			},
-			ownerId: null,
 			createdAt: '2026-03-10T00:00:00.000Z',
 			updatedAt: '2026-03-10T00:00:00.000Z',
 		});
@@ -512,7 +511,6 @@ describe('collationState artifact-first persistence', () => {
 				segmentation: true,
 				transcriptionWitnessTreatments: {},
 			},
-			ownerId: null,
 			createdAt: '2026-03-10T00:00:00.000Z',
 			updatedAt: '2026-03-10T00:00:00.000Z',
 		});

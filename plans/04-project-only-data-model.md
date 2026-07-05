@@ -48,9 +48,10 @@ Edit `app/src/lib/client/db/migrations/0001_initial.sql` directly (greenfield). 
 
 - [x] `Default` project auto-creation, tested
 - [x] `storage_slug` on projects, immutable, tested
-- [x] No code path creates or lists an unowned transcription or collation (collation/project_id now `NOT NULL`; transcription/project_id `NOT NULL`; promote-to-library is removed from the project UI and the repository function rejects direct calls)
+- [x] No code path creates or lists an unowned transcription or collation (collation/project_id now `NOT NULL`; transcription/project_id `NOT NULL`; promote-to-library UI/RPC/client/repository API removed)
 - [ ] Schema fully rewritten; removed tables gone; types regenerated
   - Removed: `transcriptions.scope_type`. `transcriptions.project_id` and `collations.project_id` are now `NOT NULL`.
+  - Removed: account-era `projects.owner_id` and `project_transcriptions.added_by_id` columns.
   - Kept (with comments marking as legacy/slated for Phase 7): `cloud_connections`, `cloud_project_folders`, `cloud_sync_metadata` — removing them would require surgery in the existing sync layer that the user signalled to defer.
   - Marked as cache columns (slated for Phase 5/6 demotion): `transcriptions.content_json`, `collation_artifacts.payload`, `transcription_checkpoints.payload`, `collation_checkpoints.payload`.
 - [x] Repositories/RPC updated for the current schema slice; repository and restored sync tests pass
@@ -61,7 +62,6 @@ Edit `app/src/lib/client/db/migrations/0001_initial.sql` directly (greenfield). 
 
 ## Deferred to next session
 
-- `promoteProjectTranscriptionToLibrary` now throws "no longer supported" (the global library is gone under project-only ownership), and the project UI no longer renders the promote dialog/button.
 - `refreshProjectTranscription`, `addProjectTranscriptionFromProject`, collation witness refresh, and cloud history serialization still read checkpoint payloads from SQLite. This is intentional for this slice because OPFS writes from feature paths are a Phase 5 non-goal; Phase 5 should move those payloads to history files and remove the temporary DB payload columns in the same change.
 - The legacy `cloud_connections` / `cloud_project_folders` / `cloud_sync_metadata` tables remain until Phase 7. The sync-layer tests remain active so backup/restore behavior does not silently regress while those tables exist.
 
@@ -85,6 +85,8 @@ Verification results:
 | 2026-07-04 | Passed: `bun run db:generate`, `bun run db:check`, `bun run check`, focused repository/creation tests, and full `bun run test:unit -- --run`. |
 | 2026-07-04 | Superseded by the reworked second slice below. |
 | 2026-07-04 | Reworked second slice: passed `bun run db:generate`, `bun run db:check`, `bun run check`, focused repository/sync tests, and full `bun run test:unit -- --run` (342 passed) after keeping checkpoint payload columns temporary, restoring sync tests, re-enabling refresh/add-from-project tests, and removing the promote-to-library UI. |
+| 2026-07-04 | Account-column cleanup slice: passed `bun run db:generate`, `bun run db:check`, `bun run check`, and full `bun run test:unit -- --run` (342 passed). |
+| 2026-07-04 | Promote API removal slice: passed `bun run db:check`, `bun run check`, focused rerun of `src/lib/components/transcriptionEditor/inspector-carriers.svelte.spec.ts` after a transient Chromium import failure, and full `bun run test:unit -- --run` (340 passed). |
 
 ## Notes
 
@@ -92,3 +94,5 @@ Verification results:
 | --- | --- |
 | 2026-07-04 | Started Phase 4. Added immutable `projects.storage_slug` with slug generation, bootstrapped `Default` via worker init/reset and RPC/client API, and made transcription creation/import/harness flows resolve a project and create the `project_transcriptions` index row atomically. New transcription and IGNTP import UI now expose a project selector defaulting to `Default`; transcription summaries list project-owned rows instead of global rows. Remaining for later slices: remove or repurpose the promote-to-global-library path, remove the `scope_type` split, make schema tables strictly index-only, remove cloud sync state tables, and demote payload/cache columns. |
 | 2026-07-04 | Reworked the second Phase 4 slice for code quality. Removed `transcriptions.scope_type`; made `transcriptions.project_id` and `collations.project_id` `NOT NULL`; kept checkpoint `payload` columns as explicitly temporary cache/source columns until Phase 5 writes OPFS history files. `refreshProjectTranscription`, `addProjectTranscriptionFromProject`, collation witness refresh, and cloud backup/restore continue to work against the temporary payload cache. `promoteProjectTranscriptionToLibrary` rejects direct calls and the project UI no longer exposes the promote-to-library flow. Restored the 4 sync-layer spec files and re-enabled the 8 refresh/add-from-project tests. |
+| 2026-07-04 | Removed the remaining account-era ownership columns from the index schema: `projects.owner_id` and `project_transcriptions.added_by_id`. Updated project creation/bootstrap, project transcription link creation, restore/sync/conflict insert paths, collation mocks, and regenerated `types.generated.ts`. No user/account replacement was added because account management was removed in Phase 1. |
+| 2026-07-04 | Removed the dead promote-to-library API surface entirely: repository function/input type, worker RPC branch, RPC request variant, client wrapper, project-collation wrapper/type export, and the two tests that only asserted the stub threw. Cross-project copy remains through `addProjectTranscriptionFromProject`. |

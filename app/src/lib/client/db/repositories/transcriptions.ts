@@ -204,7 +204,6 @@ export async function createTranscriptions(
 			transcription_id: requireId(row.transcription.id, 'transcription'),
 			canonical_transcription_id: row.input.canonicalTranscriptionId ?? null,
 			added_at: row.transcription.created_at,
-			added_by_id: null,
 		}));
 		await trx.insertInto('project_transcriptions').values(projectTranscriptionRows).execute();
 		for (const row of transcriptionRows)

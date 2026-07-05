@@ -15,7 +15,6 @@ import {
 	listProjectTranscriptionSourceCandidates as listLocalProjectTranscriptionSourceCandidates,
 	listCommittedTranscriptionCheckpoints as listLocalCommittedTranscriptionCheckpoints,
 	loadProjectTranscriptionContent,
-	promoteProjectTranscriptionToLibrary as promoteLocalProjectTranscriptionToLibrary,
 	addProjectTranscriptionFromProject as addLocalProjectTranscriptionFromProject,
 	refreshProjectTranscription as refreshLocalProjectTranscription,
 	syncProjectTranscriptionIds as syncLocalProjectTranscriptionIds,
@@ -27,7 +26,6 @@ import type {
 	ProjectTranscriptionOption as LocalProjectTranscriptionOption,
 	ProjectTranscriptionStatusOptions,
 	ProjectTranscriptionSourceCandidate,
-	PromoteProjectTranscriptionToLibraryInput,
 	AddProjectTranscriptionFromProjectInput,
 	RefreshProjectTranscriptionInput,
 } from '$lib/client/db/repositories/projects';
@@ -49,7 +47,6 @@ export type {
 } from '$lib/client/db/repositories/projects';
 export type { RefreshProjectTranscriptionInput } from '$lib/client/db/repositories/projects';
 export type {
-	PromoteProjectTranscriptionToLibraryInput,
 	AddProjectTranscriptionFromProjectInput,
 	ProjectTranscriptionSourceCandidate,
 } from '$lib/client/db/repositories/projects';
@@ -195,7 +192,6 @@ export async function createProjectRecord(input: {
 			transcriptionWitnessTreatments: new Map(),
 			transcriptionWitnessExcludedHands: new Map(),
 		}),
-		ownerId: null,
 	});
 }
 
@@ -286,12 +282,6 @@ export async function syncProjectTranscriptionIds(
 
 export async function refreshProjectTranscription(input: RefreshProjectTranscriptionInput) {
 	return refreshLocalProjectTranscription(input);
-}
-
-export async function promoteProjectTranscriptionToLibrary(
-	input: PromoteProjectTranscriptionToLibraryInput
-): Promise<string> {
-	return promoteLocalProjectTranscriptionToLibrary(input);
 }
 
 export async function addProjectTranscriptionFromProject(

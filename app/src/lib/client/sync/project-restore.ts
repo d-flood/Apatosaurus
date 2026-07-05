@@ -1036,7 +1036,6 @@ async function importProjectTranscriptionPrimary(
 			transcription_id: input.transcription_id,
 			canonical_transcription_id: input.canonical_transcription_id,
 			added_at: input.created_at,
-			added_by_id: null,
 		})
 		.execute();
 	await replaceTranscriptionVerseIndexRows(

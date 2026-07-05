@@ -69,7 +69,6 @@ import type {
 	ProjectTranscriptionStatusOptions,
 	ProjectTranscriptionStatus,
 	ProjectTranscriptionSourceCandidate,
-	PromoteProjectTranscriptionToLibraryInput,
 	AddProjectTranscriptionFromProjectInput,
 	ForkProjectInput,
 	ForkProjectResult,
@@ -300,12 +299,6 @@ export async function refreshProjectTranscription(
 	input: RefreshProjectTranscriptionInput
 ): Promise<ProjectTranscriptionStatus> {
 	return sendProjectRequest({ type: 'projects.refreshTranscription', input });
-}
-
-export async function promoteProjectTranscriptionToLibrary(
-	input: PromoteProjectTranscriptionToLibraryInput
-): Promise<string> {
-	return sendProjectRequest({ type: 'projects.promoteTranscriptionToLibrary', input });
 }
 
 export async function addProjectTranscriptionFromProject(

@@ -25,7 +25,6 @@ export async function ensureDefaultProject(db: DbExecutor): Promise<string> {
 		description: '',
 		charter: '',
 		collation_settings: '{}',
-		owner_id: null,
 		created_at: now,
 		updated_at: now,
 	};

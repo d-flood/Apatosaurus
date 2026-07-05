@@ -29,7 +29,6 @@ import type {
 	ProjectTranscriptionStatusOptions,
 	ProjectTranscriptionStatus,
 	ProjectTranscriptionSourceCandidate,
-	PromoteProjectTranscriptionToLibraryInput,
 	AddProjectTranscriptionFromProjectInput,
 	ForkProjectInput,
 	ForkProjectResult,
@@ -207,13 +206,6 @@ export interface ProjectRpcMap {
 	'projects.refreshTranscription': {
 		request: { type: 'projects.refreshTranscription'; input: RefreshProjectTranscriptionInput };
 		response: ProjectTranscriptionStatus;
-	};
-	'projects.promoteTranscriptionToLibrary': {
-		request: {
-			type: 'projects.promoteTranscriptionToLibrary';
-			input: PromoteProjectTranscriptionToLibraryInput;
-		};
-		response: string;
 	};
 	'projects.addTranscriptionFromProject': {
 		request: {

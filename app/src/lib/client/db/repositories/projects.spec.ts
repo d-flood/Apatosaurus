@@ -19,7 +19,6 @@ import {
 	listProjectTranscriptionStatuses,
 	listProjectTranscriptionSourceCandidates,
 	loadTranscriptionContent,
-	promoteProjectTranscriptionToLibrary,
 	addProjectTranscriptionFromProject,
 	AddFromProjectUncommittedSourceError,
 	AddFromProjectSameProjectError,
@@ -760,51 +759,6 @@ describe('projects repository', () => {
 		expect(refreshed.immediateSource?.sourceRevisionId).toBe('src-cp-2');
 		expect(refreshed.currentCheckpoint?.revisionId).toBe('target-cp-1');
 		expect(refreshed.commitState).toBe('dirty');
-	});
-
-	it('rejects promote-to-library as no longer supported under project-only ownership', async () => {
-		await createTranscription(harness.db, {
-			...baseTranscription('tx-1', '01'),
-			document: documentWithVerses(['Romans 1:1']),
-		});
-		await createProject(harness.db, { id: 'project-a', name: 'Project A' });
-		const [snapshotAId] = await syncProjectTranscriptionIds(harness.db, 'project-a', ['tx-1']);
-		const projectTranscriptionAId = await getProjectTranscriptionLinkId(snapshotAId);
-		await createCommittedTranscriptionCheckpoint(harness.db, {
-			projectTranscriptionId: projectTranscriptionAId,
-			checkpointId: 'src-cp-1',
-			createdAt: '2026-06-20T11:00:00.000Z',
-		});
-
-		await expect(
-			promoteProjectTranscriptionToLibrary(harness.db, {
-				projectTranscriptionId: projectTranscriptionAId,
-				title: 'Promoted Witness',
-				siglum: 'P01',
-			})
-		).rejects.toThrow(/no longer supported/);
-	});
-
-	it('blocks promote when the project transcription has no committed version', async () => {
-		await createTranscription(harness.db, {
-			...baseTranscription('tx-1', '01'),
-			document: documentWithVerses(['Romans 1:1']),
-		});
-		await createProject(harness.db, { id: 'project-a', name: 'Project A' });
-		const [snapshotAId] = await syncProjectTranscriptionIds(harness.db, 'project-a', ['tx-1']);
-		const projectTranscriptionAId = await getProjectTranscriptionLinkId(snapshotAId);
-
-		await expect(
-			promoteProjectTranscriptionToLibrary(harness.db, {
-				projectTranscriptionId: projectTranscriptionAId,
-			})
-		).rejects.toThrow(/no longer supported/);
-
-		const globalRows = await harness.db
-			.selectFrom('transcriptions')
-			.selectAll()
-			.execute();
-		expect(globalRows.map(row => row.id).sort()).toEqual(['tx-1', snapshotAId].sort());
 	});
 
 	it('adds a committed transcription from another project into the current project with origin metadata', async () => {

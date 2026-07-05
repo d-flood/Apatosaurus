@@ -663,7 +663,6 @@ function createCollationState() {
 				transcriptionWitnessTreatments,
 				transcriptionWitnessExcludedHands,
 			}),
-			ownerId: null,
 			createdAt: now,
 			updatedAt: now,
 		});

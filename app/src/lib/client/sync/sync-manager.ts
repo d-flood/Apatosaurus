@@ -1129,7 +1129,6 @@ async function applyProjectTranscriptionPrimary(
 			transcription_id: file.id,
 			canonical_transcription_id: file.canonical_transcription_id,
 			added_at: file.created_at,
-			added_by_id: null,
 		})
 		.onConflict(oc =>
 			oc.column('id').doUpdateSet({

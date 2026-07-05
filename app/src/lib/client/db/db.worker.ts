@@ -23,7 +23,6 @@ import {
 	listProjectTranscriptionSourceCandidates,
 	loadTranscriptionContent,
 	ensureDefaultProject,
-	promoteProjectTranscriptionToLibrary,
 	addProjectTranscriptionFromProject,
 	refreshProjectTranscription,
 	syncProjectTranscriptionIds,
@@ -365,11 +364,6 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 		postMessage({ type: 'db:invalidate', domain: 'transcriptions' });
 		postMessage({ type: 'db:invalidate', domain: 'iiif' });
 		return status;
-	}
-	if (request.type === 'projects.promoteTranscriptionToLibrary') {
-		const libraryId = await promoteProjectTranscriptionToLibrary(getKyselyDb(), request.input);
-		postMessage({ type: 'db:invalidate', domain: 'transcriptions' });
-		return libraryId;
 	}
 	if (request.type === 'projects.addTranscriptionFromProject') {
 		const result = await addProjectTranscriptionFromProject(getKyselyDb(), request.input);

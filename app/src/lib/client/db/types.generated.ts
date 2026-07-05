@@ -170,7 +170,6 @@ export interface ProjectTranscriptions {
 	transcription_id: string;
 	canonical_transcription_id: string | null;
 	added_at: string;
-	added_by_id: number | null;
 }
 
 export interface Projects {
@@ -180,7 +179,6 @@ export interface Projects {
 	description: string;
 	charter: string;
 	collation_settings: string;
-	owner_id: number | null;
 	created_at: string;
 	updated_at: string;
 }

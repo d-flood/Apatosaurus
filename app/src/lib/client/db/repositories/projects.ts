@@ -44,7 +44,6 @@ export interface ProjectOption {
 export interface ProjectRecord extends ProjectOption {
 	charter: string;
 	collationSettings: unknown;
-	ownerId: number | null;
 }
 
 export interface ProjectTranscriptionOption {
@@ -124,7 +123,6 @@ export interface CreateProjectInput {
 	description?: string;
 	charter?: string;
 	collationSettings?: unknown;
-	ownerId?: number | null;
 	createdAt?: string;
 	updatedAt?: string;
 }
@@ -182,7 +180,6 @@ export async function createProject(db: DbExecutor, input: CreateProjectInput): 
 			description: input.description?.trim() ?? '',
 			charter: input.charter ?? '',
 			collation_settings: JSON.stringify(input.collationSettings ?? {}),
-			owner_id: input.ownerId ?? null,
 			created_at: input.createdAt ?? now,
 			updated_at: input.updatedAt ?? input.createdAt ?? now,
 		})
@@ -728,7 +725,6 @@ async function forkProjectTranscriptions(
 				transcription_id: targetTranscriptionId,
 				canonical_transcription_id: link.canonical_transcription_id,
 				added_at: now,
-				added_by_id: null,
 			})
 			.execute();
 		idMap.set(sourceTranscriptionId, {
@@ -1081,27 +1077,6 @@ async function replaceIiifRowsFromPayload(
 		await db.insertInto('iiif_canvas_annotations').values(annotationRows).execute();
 }
 
-export interface PromoteProjectTranscriptionToLibraryInput {
-	projectTranscriptionId: string;
-	sourceCheckpointId?: string;
-	title?: string;
-	siglum?: string;
-	description?: string;
-	createdAt?: string;
-}
-
-export async function promoteProjectTranscriptionToLibrary(
-	_db: Kysely<Database>,
-	_input: PromoteProjectTranscriptionToLibraryInput
-): Promise<string> {
-	throw new Error(
-		'Promoting a project transcription to a global library is no longer supported. ' +
-			'Transcriptions are project-owned; copy the transcription into another project via ' +
-			'addProjectTranscriptionFromProject to share it. ' +
-			'(Re-introducing library semantics is tracked for a future phase.)'
-	);
-}
-
 export interface AddProjectTranscriptionFromProjectInput {
 	targetProjectId: string;
 	sourceProjectTranscriptionId: string;
@@ -1216,7 +1191,6 @@ export async function addProjectTranscriptionFromProject(
 			transcription_id: targetTranscriptionId,
 			canonical_transcription_id: null,
 			added_at: now,
-			added_by_id: null,
 		};
 		await trx
 			.insertInto('project_transcriptions')
@@ -1347,7 +1321,6 @@ async function insertProjectTranscriptionRow(
 		transcription_id: transcriptionId,
 		canonical_transcription_id: canonicalTranscriptionId,
 		added_at: now,
-		added_by_id: null,
 	};
 	await db
 		.insertInto('project_transcriptions')
@@ -1687,7 +1660,6 @@ function mapProject(row: Selectable<Projects>): ProjectRecord {
 		...mapProjectOption(row),
 		charter: row.charter,
 		collationSettings: parseJson(row.collation_settings),
-		ownerId: row.owner_id,
 	};
 }
 
