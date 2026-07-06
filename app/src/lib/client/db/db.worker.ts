@@ -59,6 +59,7 @@ import {
 	listCommittedTranscriptionCheckpoints,
 	loadCommittedTranscriptionCheckpointPayload,
 } from './repositories/revisions';
+import { rebuildIndexFromStore } from './repositories/index-rebuild';
 import { clearDomainTables } from './repositories/maintenance';
 import {
 	disconnectCloudConnection,
@@ -86,7 +87,7 @@ import type { CloudStorageProvider } from '$lib/client/sync/providers/provider';
 import type { Database } from './types.generated';
 import { createWorkerKysely } from './worker-kysely';
 import { LocalSqliteDatabase } from './worker-sqlite';
-import { applyLocalDbMigrations } from './worker-migrator';
+import { createCurrentIndexSchema } from './worker-schema';
 import type { Kysely } from 'kysely';
 
 const db = new LocalSqliteDatabase();
@@ -553,9 +554,15 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 async function init(): Promise<void> {
 	if (initialized) return;
 	const startedAt = now();
-	await timeWorkerStep('db.open', () => db.open());
-	await timeWorkerStep('migrations', () => applyLocalDbMigrations(db));
+	const openResult = await timeWorkerStep('db.open', () => db.open());
+	if (openResult.created) {
+		await timeWorkerStep('schema create', () => createCurrentIndexSchema(db));
+	}
 	kyselyDb = timeWorkerStepSync('kysely init', () => createWorkerKysely(db));
+	if (openResult.created) {
+		const report = await timeWorkerStep('index rebuild', () => rebuildIndexFromStore(getKyselyDb()));
+		console.info('[local-db] index rebuilt from document store', report);
+	}
 	await timeWorkerStep('default project bootstrap', () => ensureDefaultProject(getKyselyDb()));
 	initialized = true;
 	console.debug('[local-db] worker init completed', { elapsedMs: elapsed(startedAt) });

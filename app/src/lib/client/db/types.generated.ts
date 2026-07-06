@@ -14,7 +14,6 @@ export interface Database {
 	iiif_manifest_sources: IiifManifestSources;
 	project_transcriptions: ProjectTranscriptions;
 	projects: Projects;
-	schema_migrations: SchemaMigrations;
 	sync_tombstones: SyncTombstones;
 	transcription_checkpoints: TranscriptionCheckpoints;
 	transcription_page_canvas_links: TranscriptionPageCanvasLinks;
@@ -181,12 +180,6 @@ export interface Projects {
 	collation_settings: string;
 	created_at: string;
 	updated_at: string;
-}
-
-export interface SchemaMigrations {
-	version: number | null;
-	name: string;
-	applied_at: string;
 }
 
 export interface SyncTombstones {

@@ -1,6 +1,6 @@
 # Phase 06: Index Versioning, Rebuild, and Repair
 
-Status: Not Started
+Status: In Progress
 Depends on: Phase 05
 Architecture reference: `architecture.md` sections 7, 9 (invariant 1)
 
@@ -45,9 +45,9 @@ Make the SQLite index provably disposable. Version the index file, rebuild it fr
 
 ## Checklist
 
-- [ ] Versioned index filename + fresh-create-or-open logic
-- [ ] Old migration machinery removed; single create-schema SQL
-- [ ] `rebuildIndexFromStore()` with report, idempotent, tested
+- [x] Versioned index filename + fresh-create-or-open logic
+- [x] Old migration machinery removed; single create-schema SQL
+- [x] `rebuildIndexFromStore()` with report, idempotent, tested
 - [ ] Stale index files and legacy DB cleaned up after successful rebuild
 - [ ] Content cache columns demoted per decision; reads come from files
 - [ ] Repair UI action with report display
@@ -72,3 +72,4 @@ bun run check && bun run test:unit -- --run
 
 | Date | Note |
 | --- | --- |
+| 2026-07-06 | Phase 6 started. Replaced runtime SQL migration bookkeeping with `INDEX_SCHEMA_VERSION = 1`, the versioned OPFS index path `apatosaurus/v1/index/apatosaurus-index-v1.db`, and a fresh-index schema creator; removed `schema_migrations` from the greenfield schema/generated types and updated reset/perf-test cleanup for both legacy root DB files and the new nested index location. Added `rebuildIndexFromStore()` for fresh versioned indexes: it scans project manifests and referenced canonical transcription/collation primaries, history checkpoints, and tombstones through migrate-on-read, repopulates listing/IIIF/verse/projection/checkpoint/tombstone index rows in one transaction, reports quarantined and orphaned files, and inserts checkpoint rows parent-first even when filenames sort out of order. Fresh worker startup now creates schema, rebuilds from files, then bootstraps the default project. Verification passed: `bun run db:generate`, `bun run db:check`, `bun run check`, focused index/schema/maintenance tests, `bun run test:unit -- --run src/lib/client/db src/lib/client/store` (96 passed), and full `bun run test:unit -- --run` (370 passed). Remaining Phase 6 work includes stale index cleanup, content-cache demotion, repair UI/RPC, auto-rebuild on open/integrity failure, verse-index performance work, and the delete-the-index invariant test. |

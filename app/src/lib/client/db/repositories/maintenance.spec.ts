@@ -14,7 +14,7 @@ afterEach(async () => {
 });
 
 describe('maintenance repository', () => {
-	it('clears local domain tables while preserving schema migration history', async () => {
+	it('clears local index tables', async () => {
 		seedDomainRows();
 
 		const clearedTables = await clearDomainTables(harness.db);
@@ -25,19 +25,10 @@ describe('maintenance repository', () => {
 		expect(countRows('transcriptions')).toBe(0);
 		expect(countRows('projects')).toBe(0);
 		expect(countRows('iiif_manifest_sources')).toBe(0);
-		expect(countRows('schema_migrations')).toBeGreaterThan(0);
 	});
 });
 
 function seedDomainRows(): void {
-	harness.sqlite
-		.prepare(
-			`
-		INSERT INTO schema_migrations (version, name, applied_at)
-		VALUES (999, 'test-migration', '2024-01-01T00:00:00.000Z')
-	`
-		)
-		.run();
 	harness.sqlite
 		.prepare(
 			`

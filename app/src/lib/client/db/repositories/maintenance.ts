@@ -9,7 +9,6 @@ export async function clearDomainTables(db: DbExecutor): Promise<string[]> {
 		FROM sqlite_master
 		WHERE type = 'table'
 			AND name NOT LIKE 'sqlite_%'
-			AND name <> 'schema_migrations'
 		ORDER BY name
 	`.execute(db);
 	const tableNames = result.rows.map(row => row.name);

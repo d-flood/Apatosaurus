@@ -1,8 +1,9 @@
 import { expect, test, type ConsoleMessage, type Page } from '@playwright/test';
 
 const RUN_PERF = process.env.RUN_IGNTP_PERF === '1';
-const LOCAL_DB_PREFIX = 'apatosaurus-local-v1';
-const LOCAL_DB_IDB_DATABASES = ['apatosaurus-local-v1-idb'];
+const LOCAL_DB_PREFIXES = ['apatosaurus-index-v', 'apatosaurus-local-v1'];
+const LOCAL_DB_IDB_DATABASES = ['apatosaurus-index-v1-idb', 'apatosaurus-local-v1-idb'];
+const LOCAL_DB_INDEX_DIRECTORY = 'apatosaurus/v1/index';
 
 type TimingLog = {
 	text: string;
@@ -89,7 +90,7 @@ async function waitForTranscriptionList(page: Page): Promise<void> {
 async function resetBrowserLocalDb(page: Page): Promise<void> {
 	await page.goto('/');
 	await page.evaluate(
-		async ({ localDbPrefix, idbDatabases }) => {
+		async ({ localDbPrefixes, idbDatabases, indexDirectory }) => {
 			localStorage.removeItem('apatosaurus:legacy-djazzkit-purged');
 
 			const indexedDbWithDatabases = indexedDB as IDBFactory & {
@@ -98,7 +99,8 @@ async function resetBrowserLocalDb(page: Page): Promise<void> {
 			const names = new Set(idbDatabases);
 			if (typeof indexedDbWithDatabases.databases === 'function') {
 				for (const database of await indexedDbWithDatabases.databases()) {
-					if (database.name?.startsWith(localDbPrefix)) names.add(database.name);
+					if (database.name && localDbPrefixes.some(prefix => database.name!.startsWith(prefix)))
+						names.add(database.name);
 				}
 			}
 			await Promise.all([...names].map(name => deleteIndexedDb(name)));
@@ -106,13 +108,40 @@ async function resetBrowserLocalDb(page: Page): Promise<void> {
 			const root = await navigator.storage?.getDirectory?.();
 			if (!root || typeof root.entries !== 'function') return;
 			for await (const [name, handle] of root.entries()) {
-				if (!name.startsWith(localDbPrefix)) continue;
+				if (!localDbPrefixes.some(prefix => name.startsWith(prefix))) continue;
 				await root
 					.removeEntry(name, { recursive: handle.kind === 'directory' })
 					.catch(() => undefined);
 			}
+			const indexDir = await getNestedDirectory(root, indexDirectory);
+			if (indexDir && typeof indexDir.entries === 'function') {
+				for await (const [name, handle] of indexDir.entries()) {
+					if (!name.startsWith('apatosaurus-index-v')) continue;
+					await indexDir
+						.removeEntry(name, { recursive: handle.kind === 'directory' })
+						.catch(() => undefined);
+				}
+			}
+
+			async function getNestedDirectory(rootHandle: FileSystemDirectoryHandle, path: string) {
+				let current = rootHandle;
+				try {
+					for (const segment of path.split('/').filter(Boolean)) {
+						current = await current.getDirectoryHandle(segment, { create: false });
+					}
+					return current as FileSystemDirectoryHandle & {
+						entries?: () => AsyncIterableIterator<[string, FileSystemHandle]>;
+					};
+				} catch {
+					return null;
+				}
+			}
 		},
-		{ localDbPrefix: LOCAL_DB_PREFIX, idbDatabases: LOCAL_DB_IDB_DATABASES }
+		{
+			localDbPrefixes: LOCAL_DB_PREFIXES,
+			idbDatabases: LOCAL_DB_IDB_DATABASES,
+			indexDirectory: LOCAL_DB_INDEX_DIRECTORY,
+		}
 	);
 }
 

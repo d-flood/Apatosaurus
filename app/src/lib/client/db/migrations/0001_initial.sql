@@ -7,9 +7,9 @@
 -- are deleted (see Phase 6).
 --
 -- Notes:
---   * The `schema_migrations` table is part of the migration runner and is
---     replaced by index versioning in Phase 6. It stays at version 1 for
---     this phase.
+--   * This is the current schema for INDEX_SCHEMA_VERSION = 1. Bumping the
+--     index version creates a fresh disposable index and rebuilds it from
+--     files instead of migrating SQL in place.
 --   * `transcriptions.content_json` and `collation_artifacts.payload` are
 --     retained as working-cache columns. The canonical content is the
 --     committed project file written by Phase 5. These cache columns are
@@ -28,12 +28,6 @@
 --     are slated for removal in Phase 7.
 
 PRAGMA foreign_keys = ON;
-
-CREATE TABLE IF NOT EXISTS schema_migrations (
-	version INTEGER PRIMARY KEY,
-	name TEXT NOT NULL,
-	applied_at TEXT NOT NULL
-);
 
 CREATE TABLE IF NOT EXISTS projects (
 	id TEXT PRIMARY KEY,

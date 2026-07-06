@@ -1,10 +1,10 @@
 import Database from 'better-sqlite3';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { applyMigrations } from './apply-migrations';
+import { applyCurrentSchema } from './apply-current-schema';
 
 const db = new Database(':memory:');
-applyMigrations(db);
+applyCurrentSchema(db);
 
 const tables = db
 	.prepare(

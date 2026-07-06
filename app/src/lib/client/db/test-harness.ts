@@ -1,7 +1,7 @@
 import BetterSqliteDatabase from 'better-sqlite3';
 import { Kysely, SqliteDialect } from 'kysely';
 
-import { applyMigrations } from '../../../../scripts/db/apply-migrations';
+import { applyCurrentSchema } from '../../../../scripts/db/apply-current-schema';
 import type { Database } from './types.generated';
 
 export interface LocalDbTestHarness {
@@ -12,7 +12,7 @@ export interface LocalDbTestHarness {
 
 export function createLocalDbTestHarness(): LocalDbTestHarness {
 	const sqlite = new BetterSqliteDatabase(':memory:');
-	applyMigrations(sqlite);
+	applyCurrentSchema(sqlite);
 	const db = new Kysely<Database>({
 		dialect: new SqliteDialect({ database: sqlite }),
 	});

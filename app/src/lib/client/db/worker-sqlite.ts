@@ -4,20 +4,23 @@ import { OPFSCoopSyncVFS } from '@journeyapps/wa-sqlite/src/examples/OPFSCoopSyn
 import * as SQLite from '@journeyapps/wa-sqlite';
 
 import type { DbRow, DbValue } from './rpc';
+import { INDEX_DATABASE_FILENAME, INDEX_DATABASE_PATH, INDEX_VFS_NAME } from './schema-version.generated';
 
 type SQLiteApi = ReturnType<typeof SQLite.Factory>;
 
-const DB_FILENAME = 'apatosaurus-local-v1.db';
-const OPFS_VFS_NAME = 'apatosaurus-local-v1-opfs';
+export interface OpenIndexDatabaseResult {
+	created: boolean;
+}
 
 export class LocalSqliteDatabase {
 	private sqlite: SQLiteApi | null = null;
 	private db: number | null = null;
 	private vfs: { close?: () => Promise<void> | void } | null = null;
 
-	async open(): Promise<void> {
-		if (this.sqlite && this.db !== null) return;
+	async open(): Promise<OpenIndexDatabaseResult> {
+		if (this.sqlite && this.db !== null) return { created: false };
 		const openStartedAt = now();
+		const existed = await indexDatabaseFileExists(INDEX_DATABASE_PATH);
 		const module = await timeSqliteStep('module load', () =>
 			SQLiteESMFactory({
 				locateFile(path: string) {
@@ -30,7 +33,9 @@ export class LocalSqliteDatabase {
 			close?: () => Promise<void> | void;
 		};
 		this.sqlite.vfs_register(this.vfs as never, true);
-		this.db = await timeSqliteStep('open_v2', () => this.sqlite!.open_v2(DB_FILENAME));
+		this.db = await timeSqliteStep('open_v2', () =>
+			this.sqlite!.open_v2(INDEX_DATABASE_PATH)
+		);
 		await timeSqliteStep('PRAGMAs', async () => {
 			await this.exec('PRAGMA foreign_keys = ON');
 			await this.exec('PRAGMA busy_timeout = 250');
@@ -39,10 +44,13 @@ export class LocalSqliteDatabase {
 		});
 		console.debug('[local-db] SQLite database opened', {
 			build: 'wa-sqlite',
-			vfs: OPFS_VFS_NAME,
-			filename: DB_FILENAME,
+			vfs: INDEX_VFS_NAME,
+			filename: INDEX_DATABASE_FILENAME,
+			path: INDEX_DATABASE_PATH,
+			created: !existed,
 			elapsedMs: elapsed(openStartedAt),
 		});
+		return { created: !existed };
 	}
 
 	async close(): Promise<void> {
@@ -121,7 +129,7 @@ export class LocalSqliteDatabase {
 			OPFSCoopSyncVFS as never as {
 				create: (name: string, module: unknown) => Promise<unknown>;
 			}
-		).create(OPFS_VFS_NAME, module);
+		).create(INDEX_VFS_NAME, module);
 	}
 
 	private bind(statement: number, params: DbValue[]) {
@@ -131,6 +139,34 @@ export class LocalSqliteDatabase {
 	private assertOpen() {
 		if (!this.sqlite || this.db === null) throw new Error('Local SQLite database is not open.');
 	}
+}
+
+async function indexDatabaseFileExists(path: string): Promise<boolean> {
+	if (typeof navigator === 'undefined' || typeof navigator.storage?.getDirectory !== 'function')
+		return false;
+	try {
+		const segments = path.split('/').filter(Boolean);
+		const filename = segments.pop();
+		if (!filename) return false;
+		let directory = await navigator.storage.getDirectory();
+		for (const segment of segments) {
+			directory = await directory.getDirectoryHandle(segment, { create: false });
+		}
+		await directory.getFileHandle(filename, { create: false });
+		return true;
+	} catch (error) {
+		if (isNotFoundError(error)) return false;
+		throw error;
+	}
+}
+
+function isNotFoundError(error: unknown): boolean {
+	return (
+		typeof error === 'object' &&
+		error !== null &&
+		'name' in error &&
+		(error as { name?: unknown }).name === 'NotFoundError'
+	);
 }
 
 function rowArrayToObject(columns: string[], values: unknown[]): DbRow {

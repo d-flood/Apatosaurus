@@ -10,7 +10,7 @@ Overall status: `In Progress`
 
 Current phase: `06-index-rebuild-and-repair.md`
 
-Last updated: `2026-07-05`
+Last updated: `2026-07-06`
 
 ## Continuation Instructions
 
@@ -44,7 +44,7 @@ Full list in `architecture.md` section 3. The short form:
 | 3 | `03-canonical-file-formats.md` | Completed | Phase 2 |
 | 4 | `04-project-only-data-model.md` | Completed | Phase 3 |
 | 5 | `05-write-path-inversion.md` | Completed | Phase 4 |
-| 6 | `06-index-rebuild-and-repair.md` | Not Started | Phase 5 |
+| 6 | `06-index-rebuild-and-repair.md` | In Progress | Phase 5 |
 | 7 | `07-local-folder-sync.md` | Not Started | Phases 1, 6 |
 | 8 | `08-import-export.md` | Not Started | Phase 6 |
 | 9 | `09-durability-and-onboarding.md` | Not Started | Phases 6-8 |
@@ -96,6 +96,7 @@ Run narrower tests during each session when possible, then run the full baseline
 
 | Date | Note |
 | --- | --- |
+| 2026-07-06 | Phase 6 started. Runtime SQL migrations are replaced by index version constants and a fresh-create schema path for `apatosaurus/v1/index/apatosaurus-index-v1.db`; `schema_migrations` is removed from the greenfield schema/generated types. Fresh versioned DB startup now rebuilds the disposable index from canonical project manifests, primaries, history checkpoints, and tombstones with quarantine/orphan reporting and parent-first checkpoint insertion. Verification passed: `db:generate`, `db:check`, `check`, focused index/schema/maintenance tests, DB/store unit slice, and full `bun run test:unit -- --run` (370 passed). Phase 6 remains in progress for stale index cleanup, cache demotion, repair UI/RPC, auto-rebuild on failed open/integrity check, verse-index performance, and delete-the-index invariant coverage. |
 | 2026-07-05 | Phase 5 completed. Automated crash-ordering coverage now exercises transcription and collation commit failures at history-write, primary-write, manifest-write, TEI, and post-manifest/pre-index boundaries, and a headless Chromium OPFS smoke test created/committed a transcription and collation through the real DB worker, hash-validated canonical manifest/primary/history/working files, verified TEI siblings, and listed the expected OPFS layout. Verification passed: focused file repository tests (25 passed), `bun run check`, full `bun run test:unit -- --run` (369 passed), `bun run db:check`, and the OPFS layout smoke test. Current phase is now `06-index-rebuild-and-repair.md`. |
 | 2026-07-05 | Phase 5 crash-ordering slice completed. Added transcription and collation commit failure tests for history-write failure, primary-write failure, and post-manifest/pre-index insertion failure, complementing existing manifest-failure and non-blocking TEI coverage. Verification passed: focused file repository tests (25 passed), `bun run check`, full `bun run test:unit -- --run` (369 passed), and `bun run db:check`. Phase 5 remains in progress; only the manual OPFS layout smoke test remains before completion. |
 | 2026-07-05 | Phase 5 load/locking slice completed. Transcription and collation loads now prefer canonical working files, then committed primary files via migrate-on-read with revision-hash validation, before falling back to SQLite cache rows with warnings. Project-scoped `navigator.locks` now guard transcription commit, collation commit, and deletion file sequences, with context reloaded after lock acquisition to preserve serialized parent/tombstone metadata. Verification passed: focused file/deletion repository tests, `bun run check`, `bun run db:check`, and full `bun run test:unit -- --run` (363 passed). Phase 5 remains in progress; remaining work is crash-ordering tests for each commit step boundary and the manual OPFS layout smoke test. |
