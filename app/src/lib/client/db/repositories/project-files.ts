@@ -165,7 +165,7 @@ async function listProjectManifestTombstoneHeads(
 					deleted_by: row.deleted_by,
 					deleted_at: row.deleted_at,
 				}),
-				primary_path: `tombstones/${tombstoneId}.json`,
+				primary_path: `tombstones/${row.entity_type}--${row.entity_id}.json`,
 				deleted_at: row.deleted_at,
 			};
 		})

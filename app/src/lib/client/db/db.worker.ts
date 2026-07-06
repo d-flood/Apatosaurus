@@ -1,11 +1,14 @@
 import type { DbRequest, DbResponse } from './rpc';
 import {
 	createCollation,
-	deleteCollation,
 	listCollationsWithProjectNames,
 	saveCollationProjection,
 	updateCollationMetadata,
 } from './repositories/collations';
+import {
+	deleteCollationWithFiles,
+	deleteTranscriptionWithFiles,
+} from './repositories/entity-deletion';
 import {
 	createCommittedCollationCheckpointWithFiles,
 	getCollationVersionStatusWithWorkingFile,
@@ -35,7 +38,6 @@ import { removeLocalProject } from './repositories/project-removal';
 import {
 	createTranscription,
 	createTranscriptions,
-	deleteTranscription,
 	getTranscriptionSummary,
 	getTranscriptionVersionsByIds,
 	getTranscriptionsByIds,
@@ -282,8 +284,9 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 		return null;
 	}
 	if (request.type === 'transcriptions.delete') {
-		await deleteTranscription(getKyselyDb(), request.transcriptionId);
+		await deleteTranscriptionWithFiles(getKyselyDb(), request.transcriptionId);
 		postMessage({ type: 'db:invalidate', domain: 'transcriptions' });
+		postMessage({ type: 'db:invalidate', domain: 'projects' });
 		return null;
 	}
 	if (request.type === 'transcriptions.getVerseIndexRowsForVerse') {
@@ -415,8 +418,9 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 		return null;
 	}
 	if (request.type === 'collations.delete') {
-		await deleteCollation(getKyselyDb(), request.collationId);
+		await deleteCollationWithFiles(getKyselyDb(), request.collationId);
 		postMessage({ type: 'db:invalidate', domain: 'collations' });
+		postMessage({ type: 'db:invalidate', domain: 'projects' });
 		return null;
 	}
 	if (request.type === 'iiif.listManifestSources')
