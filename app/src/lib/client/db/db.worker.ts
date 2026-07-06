@@ -1,6 +1,5 @@
 import type { DbRequest, DbResponse } from './rpc';
 import {
-	createCollation,
 	listCollationsWithProjectNames,
 	saveCollationProjection,
 	updateCollationMetadata,
@@ -10,6 +9,7 @@ import {
 	deleteTranscriptionWithFiles,
 } from './repositories/entity-deletion';
 import {
+	createCollationWithFiles,
 	createCommittedCollationCheckpointWithFiles,
 	getCollationVersionStatusWithWorkingFile,
 	listProjectCollationVersionStatusesWithWorkingFiles,
@@ -36,8 +36,6 @@ import {
 } from './repositories/projects';
 import { removeLocalProject } from './repositories/project-removal';
 import {
-	createTranscription,
-	createTranscriptions,
 	getTranscriptionSummary,
 	getTranscriptionVersionsByIds,
 	getTranscriptionsByIds,
@@ -48,6 +46,8 @@ import {
 	rebuildVerseIndexForTranscriptions,
 } from './repositories/transcriptions';
 import {
+	createTranscriptionWithFiles,
+	createTranscriptionsWithFiles,
 	createCommittedTranscriptionCheckpointWithFiles,
 	loadTranscriptionWithWorkingFile,
 	saveWorkingTranscriptionContent,
@@ -267,13 +267,13 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 	if (request.type === 'transcriptions.getByIds')
 		return getTranscriptionsByIds(getKyselyDb(), request.ids);
 	if (request.type === 'transcriptions.create') {
-		const id = await createTranscription(getKyselyDb(), request.input);
+		const id = await createTranscriptionWithFiles(getKyselyDb(), request.input);
 		postMessage({ type: 'db:invalidate', domain: 'transcriptions' });
 		postMessage({ type: 'db:invalidate', domain: 'projects' });
 		return id;
 	}
 	if (request.type === 'transcriptions.createMany') {
-		const ids = await createTranscriptions(getKyselyDb(), request.inputs);
+		const ids = await createTranscriptionsWithFiles(getKyselyDb(), request.inputs);
 		postMessage({ type: 'db:invalidate', domain: 'transcriptions' });
 		postMessage({ type: 'db:invalidate', domain: 'projects' });
 		return ids;
@@ -384,7 +384,7 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 	if (request.type === 'collations.listWithProjectNames')
 		return listCollationsWithProjectNames(getKyselyDb());
 	if (request.type === 'collations.create') {
-		const id = await createCollation(getKyselyDb(), request.input);
+		const id = await createCollationWithFiles(getKyselyDb(), request.input);
 		postMessage({ type: 'db:invalidate', domain: 'collations' });
 		return id;
 	}

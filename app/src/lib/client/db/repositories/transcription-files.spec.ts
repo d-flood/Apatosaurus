@@ -4,6 +4,7 @@ import { createLocalDbTestHarness, type LocalDbTestHarness } from '../test-harne
 import { createProject } from './projects';
 import { createTranscription, getTranscription } from './transcriptions';
 import {
+	createTranscriptionWithFiles,
 	createCommittedTranscriptionCheckpointWithFiles,
 	loadTranscriptionWithWorkingFile,
 	saveWorkingTranscriptionContent,
@@ -133,6 +134,99 @@ describe('transcription file persistence', () => {
 
 		expect(loaded?.content_json).toContain('"verse":"2"');
 		expect(loaded?.updated_at).toBe('2026-07-04T12:00:00.000Z');
+	});
+
+	it('creates a transcription through the initial committed file path', async () => {
+		await createProject(harness.db, {
+			id: 'project-1',
+			storageSlug: 'project-slug',
+			name: 'Project',
+			createdAt: '2026-07-04T00:00:00.000Z',
+			updatedAt: '2026-07-04T00:00:00.000Z',
+		});
+
+		const id = await createTranscriptionWithFiles(
+			harness.db,
+			{
+				id: 'tx-created',
+				projectId: 'project-1',
+				projectTranscriptionId: 'pt-created',
+				title: 'Created Witness',
+				siglum: 'C',
+				document: documentWithVerses(['Romans 1:3']),
+				createdAt: '2026-07-04T00:00:00.000Z',
+				updatedAt: '2026-07-04T00:00:00.000Z',
+				transcriber: 'Editor',
+				repository: 'Library',
+				settlement: 'City',
+				language: 'grc',
+			},
+			{ backend, nonce: () => 'create-write' }
+		);
+		const head = await harness.db
+			.selectFrom('transcriptions')
+			.select(['current_revision_id', 'current_content_hash'])
+			.where('id', '=', 'tx-created')
+			.executeTakeFirstOrThrow();
+
+		const historyRaw = await readTextFile(
+			transcriptionCheckpointFile('project-slug', 'pt-created', head.current_revision_id),
+			{ backend }
+		);
+		const primaryRaw = await readTextFile(transcriptionPrimaryFile('project-slug', 'pt-created'), {
+			backend,
+		});
+		const manifestRaw = await readTextFile(projectManifestFile('project-slug'), { backend });
+		const tei = await readTextFile(transcriptionTeiFile('project-slug', 'pt-created'), { backend });
+		const history = await readCanonicalDocument<TranscriptionCheckpointPayload>(
+			TRANSCRIPTION_CHECKPOINT_FORMAT,
+			historyRaw
+		);
+		const primary = await readCanonicalDocument<ProjectTranscriptionPayload>(
+			PROJECT_TRANSCRIPTION_FORMAT,
+			primaryRaw
+		);
+		const manifest = await readCanonicalDocument<ProjectManifestPayload>(
+			PROJECT_MANIFEST_FORMAT,
+			manifestRaw
+		);
+
+		expect(id).toBe('tx-created');
+		expect(head.current_revision_id).toBeTruthy();
+		expect(history).toMatchObject({
+			ok: true,
+			payload: {
+				checkpoint_id: head.current_revision_id,
+				entity_id: 'pt-created',
+				payload_content_hash: head.current_content_hash,
+			},
+		});
+		expect(primary).toMatchObject({
+			ok: true,
+			payload: {
+				project_transcription_id: 'pt-created',
+				id: 'tx-created',
+				current_revision: {
+					id: head.current_revision_id,
+					content_hash: head.current_content_hash,
+				},
+			},
+		});
+		expect(manifest).toMatchObject({
+			ok: true,
+			payload: {
+				transcriptions: [
+					{
+						project_transcription_id: 'pt-created',
+						current_revision: {
+							id: head.current_revision_id,
+							content_hash: head.current_content_hash,
+						},
+					},
+				],
+			},
+		});
+		expect(tei).toContain('<TEI');
 	});
 
 	it('writes committed transcription files before updating the index', async () => {

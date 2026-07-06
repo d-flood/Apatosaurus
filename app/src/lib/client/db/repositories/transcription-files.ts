@@ -43,8 +43,11 @@ import {
 	type TranscriptionCheckpoint,
 } from './revisions';
 import {
+	createTranscription,
+	createTranscriptions,
 	getTranscription,
 	updateTranscriptionContent,
+	type CreateTranscriptionInput,
 	type TranscriptionRecord,
 	type UpdateTranscriptionContentInput,
 } from './transcriptions';
@@ -172,6 +175,35 @@ export async function saveWorkingTranscriptionContent(
 		format: contentFormat,
 		updatedAt,
 	});
+}
+
+export async function createTranscriptionWithFiles(
+	db: Kysely<Database>,
+	input: CreateTranscriptionInput,
+	storeOptions: StoreOperationOptions = {}
+): Promise<string> {
+	const ids = await createTranscriptionsWithFiles(db, [input], storeOptions);
+	return ids[0];
+}
+
+export async function createTranscriptionsWithFiles(
+	db: Kysely<Database>,
+	inputs: CreateTranscriptionInput[],
+	storeOptions: StoreOperationOptions = {}
+): Promise<string[]> {
+	const ids = await createTranscriptions(db, inputs);
+	for (const id of ids) {
+		const context = await loadTranscriptionFileContext(db, id);
+		await createCommittedTranscriptionCheckpointWithFiles(
+			db,
+			{
+				projectTranscriptionId: context.projectTranscriptionId,
+				createdAt: context.createdAt,
+			},
+			storeOptions
+		);
+	}
+	return ids;
 }
 
 export async function createCommittedTranscriptionCheckpointWithFiles(

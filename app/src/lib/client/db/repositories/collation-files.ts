@@ -25,15 +25,22 @@ import {
 	type StoreOperationOptions,
 	type WorkingCollationPayload,
 } from '$lib/client/store';
-import { parseCollationDocument } from '$lib/client/collation/collation-document';
+import {
+	COLLATION_DOCUMENT_ARTIFACT_TYPE,
+	buildCollationDocument,
+	parseCollationDocument,
+	serializeCollationDocument,
+} from '$lib/client/collation/collation-document';
 import { hashCanonicalPayload } from '$lib/client/sync/canonical-json';
 import { deriveEntityCloudBackupState } from '$lib/client/sync/backup-status';
 
 import type { Database } from '../types.generated';
 import { writeProjectManifestFile } from './project-files';
 import {
+	createCollation,
 	getCollationVersionStatus,
 	loadCollation,
+	type CreateCollationInput,
 	type CollationArtifactRecord,
 	type CollationProjectionRecord,
 	type CollationVersionStatus,
@@ -126,6 +133,65 @@ export async function saveWorkingCollationArtifact(
 		storeOptions
 	);
 	return artifactId;
+}
+
+export async function createCollationWithFiles(
+	db: Kysely<Database>,
+	input: CreateCollationInput,
+	storeOptions: StoreOperationOptions = {}
+): Promise<string> {
+	const id = await createCollation(db, input);
+	const context = await loadCollationFileContext(db, id);
+	const projectName = await loadProjectName(db, context.projectId);
+	const document = buildCollationDocument({
+		collationId: id,
+		projectId: context.projectId,
+		projectName,
+		phase: 'setup',
+		furthestPhase: 'setup',
+		selectedVerse: {
+			identifier: input.verseIdentifier,
+			book: '',
+			chapter: '',
+			verse: '',
+			count: 0,
+		},
+		selectedBook: '',
+		selectedChapter: '',
+		selectedVerseNum: '',
+		witnesses: [],
+		rules: [],
+		ignoreWordBreaks: false,
+		lowercase: false,
+		ignoreTokenWhitespace: true,
+		ignorePunctuation: false,
+		suppliedTextMode: 'clear',
+		segmentation: true,
+		alignmentColumns: [],
+		witnessOrder: [],
+		classifiedReadings: new Map(),
+		stemmaEdges: new Map(),
+		alignmentDisplayMode: 'regularized',
+		alignmentLayout: 'grid',
+	});
+
+	await saveWorkingCollationArtifact(
+		db,
+		{
+			collationId: id,
+			artifactId: createId(),
+			artifactType: COLLATION_DOCUMENT_ARTIFACT_TYPE,
+			payload: serializeCollationDocument(document),
+			now: context.createdAt,
+		},
+		storeOptions
+	);
+	await createCommittedCollationCheckpointWithFiles(
+		db,
+		{ collationId: id, createdAt: context.createdAt },
+		storeOptions
+	);
+	return id;
 }
 
 export async function createCommittedCollationCheckpointWithFiles(
@@ -337,6 +403,15 @@ async function loadCollationFileContext(
 		createdAt: row.created_at,
 		updatedAt: row.updated_at,
 	};
+}
+
+async function loadProjectName(db: Kysely<Database>, projectId: string): Promise<string | null> {
+	const row = await db
+		.selectFrom('projects')
+		.select('name')
+		.where('id', '=', projectId)
+		.executeTakeFirst();
+	return row?.name ?? null;
 }
 
 async function loadCollationCommitSource(

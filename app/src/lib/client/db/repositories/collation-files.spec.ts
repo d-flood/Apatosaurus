@@ -29,6 +29,7 @@ import { createProject } from './projects';
 import { createCollation, loadCollation } from './collations';
 import { createCommittedCollationCheckpoint } from './revisions';
 import {
+	createCollationWithFiles,
 	createCommittedCollationCheckpointWithFiles,
 	getCollationVersionStatusWithWorkingFile,
 	loadCollationWithWorkingFile,
@@ -183,6 +184,101 @@ describe('collation file persistence', () => {
 		expect(status.workingContentHash).not.toBe(checkpoint.contentHash);
 		expect(status.dirtyToCheckpoint).toBe(true);
 		expect(status.commitState).toBe('dirty');
+	});
+
+	it('creates a collation through the initial committed file path', async () => {
+		await createProject(harness.db, {
+			id: 'project-1',
+			storageSlug: 'project-slug',
+			name: 'Romans',
+			createdAt: '2026-07-04T00:00:00.000Z',
+			updatedAt: '2026-07-04T00:00:00.000Z',
+		});
+
+		const id = await createCollationWithFiles(
+			harness.db,
+			{
+				id: 'col-created',
+				projectId: 'project-1',
+				title: 'Romans 1:3',
+				verseIdentifier: 'Rom 1:3',
+				now: '2026-07-04T00:00:00.000Z',
+			},
+			{ backend, nonce: () => 'create-write' }
+		);
+		const head = await harness.db
+			.selectFrom('collations')
+			.select(['current_revision_id', 'current_content_hash'])
+			.where('id', '=', 'col-created')
+			.executeTakeFirstOrThrow();
+
+		const historyRaw = await readTextFile(
+			collationCheckpointFile('project-slug', 'col-created', head.current_revision_id),
+			{ backend }
+		);
+		const primaryRaw = await readTextFile(collationPrimaryFile('project-slug', 'col-created'), {
+			backend,
+		});
+		const manifestRaw = await readTextFile(projectManifestFile('project-slug'), { backend });
+		const tei = await readTextFile(collationTeiFile('project-slug', 'col-created'), { backend });
+		const history = await readCanonicalDocument<CollationCheckpointPayload>(
+			COLLATION_CHECKPOINT_FORMAT,
+			historyRaw
+		);
+		const primary = await readCanonicalDocument<CollationPayload>(COLLATION_FORMAT, primaryRaw);
+		const manifest = await readCanonicalDocument<ProjectManifestPayload>(
+			PROJECT_MANIFEST_FORMAT,
+			manifestRaw
+		);
+
+		expect(id).toBe('col-created');
+		expect(head.current_revision_id).toBeTruthy();
+		expect(history).toMatchObject({
+			ok: true,
+			payload: {
+				checkpoint_id: head.current_revision_id,
+				entity_id: 'col-created',
+				payload_content_hash: head.current_content_hash,
+			},
+		});
+		expect(primary).toMatchObject({
+			ok: true,
+			payload: {
+				id: 'col-created',
+				project_id: 'project-1',
+				current_revision: {
+					id: head.current_revision_id,
+					content_hash: head.current_content_hash,
+				},
+				artifacts: [
+					{
+						artifact_type: 'collation_document_v1',
+						payload: {
+							flow: { phase: 'setup' },
+							meta: { projectName: 'Romans' },
+						},
+					},
+				],
+			},
+		});
+		expect(manifest).toMatchObject({
+			ok: true,
+			payload: {
+				collations: [
+					{
+						collation_id: 'col-created',
+						current_revision: {
+							id: head.current_revision_id,
+							content_hash: head.current_content_hash,
+						},
+					},
+				],
+			},
+		});
+		expect(tei).toContain('Rom 1:3');
+		await expect(
+			harness.db.selectFrom('collation_artifacts').selectAll().execute()
+		).resolves.toEqual([]);
 	});
 
 	it('writes committed collation files before updating the index', async () => {
