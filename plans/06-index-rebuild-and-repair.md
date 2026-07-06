@@ -48,7 +48,7 @@ Make the SQLite index provably disposable. Version the index file, rebuild it fr
 - [x] Versioned index filename + fresh-create-or-open logic
 - [x] Old migration machinery removed; single create-schema SQL
 - [x] `rebuildIndexFromStore()` with report, idempotent, tested
-- [ ] Stale index files and legacy DB cleaned up after successful rebuild
+- [x] Stale index files and legacy DB cleaned up after successful rebuild
 - [ ] Content cache columns demoted per decision; reads come from files
 - [ ] Repair UI action with report display
 - [ ] Auto-rebuild on open failure/integrity failure
@@ -72,4 +72,5 @@ bun run check && bun run test:unit -- --run
 
 | Date | Note |
 | --- | --- |
+| 2026-07-06 | Stale index cleanup slice completed. Fresh index startup now runs cleanup only after `rebuildIndexFromStore()` succeeds, removing old root-level `apatosaurus-index-v*` files, legacy `apatosaurus-local-v1*` files, and old nested `apatosaurus/v1/index/apatosaurus-index-v*` versions while preserving the current index and current WAL/SHM companions. Added focused cleanup coverage. Verification passed: focused `index-files` test, `bun run test:unit -- --run src/lib/client/db src/lib/client/store` (97 passed), `bun run check`, `bun run db:check`, and full `bun run test:unit -- --run` (371 passed). Phase 6 remains in progress for content-cache demotion, repair UI/RPC, auto-rebuild on failed open/integrity check, verse-index performance, and delete-the-index invariant coverage. |
 | 2026-07-06 | Phase 6 started. Replaced runtime SQL migration bookkeeping with `INDEX_SCHEMA_VERSION = 1`, the versioned OPFS index path `apatosaurus/v1/index/apatosaurus-index-v1.db`, and a fresh-index schema creator; removed `schema_migrations` from the greenfield schema/generated types and updated reset/perf-test cleanup for both legacy root DB files and the new nested index location. Added `rebuildIndexFromStore()` for fresh versioned indexes: it scans project manifests and referenced canonical transcription/collation primaries, history checkpoints, and tombstones through migrate-on-read, repopulates listing/IIIF/verse/projection/checkpoint/tombstone index rows in one transaction, reports quarantined and orphaned files, and inserts checkpoint rows parent-first even when filenames sort out of order. Fresh worker startup now creates schema, rebuilds from files, then bootstraps the default project. Verification passed: `bun run db:generate`, `bun run db:check`, `bun run check`, focused index/schema/maintenance tests, `bun run test:unit -- --run src/lib/client/db src/lib/client/store` (96 passed), and full `bun run test:unit -- --run` (370 passed). Remaining Phase 6 work includes stale index cleanup, content-cache demotion, repair UI/RPC, auto-rebuild on open/integrity failure, verse-index performance work, and the delete-the-index invariant test. |

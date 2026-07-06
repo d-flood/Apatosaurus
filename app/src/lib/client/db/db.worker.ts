@@ -84,6 +84,7 @@ import {
 } from '$lib/client/sync/project-restore';
 import { createProviderForConnection } from '$lib/client/sync/provider-factory';
 import type { CloudStorageProvider } from '$lib/client/sync/providers/provider';
+import { cleanupStaleIndexFiles } from './index-files';
 import type { Database } from './types.generated';
 import { createWorkerKysely } from './worker-kysely';
 import { LocalSqliteDatabase } from './worker-sqlite';
@@ -562,6 +563,17 @@ async function init(): Promise<void> {
 	if (openResult.created) {
 		const report = await timeWorkerStep('index rebuild', () => rebuildIndexFromStore(getKyselyDb()));
 		console.info('[local-db] index rebuilt from document store', report);
+		try {
+			const cleanupReport = await timeWorkerStep('stale index cleanup', () => cleanupStaleIndexFiles());
+			if (cleanupReport.removedPaths.length > 0) {
+				console.info('[local-db] stale index files removed', cleanupReport);
+			}
+			if (cleanupReport.failedPaths.length > 0) {
+				console.warn('[local-db] stale index file cleanup incomplete', cleanupReport);
+			}
+		} catch (error) {
+			console.warn('[local-db] stale index file cleanup failed', error);
+		}
 	}
 	await timeWorkerStep('default project bootstrap', () => ensureDefaultProject(getKyselyDb()));
 	initialized = true;
