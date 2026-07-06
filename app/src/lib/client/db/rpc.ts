@@ -556,4 +556,11 @@ export type DbInvalidationEvent = {
 	domain: string;
 };
 
-export type DbWorkerMessage = DbResponse | DbInvalidationEvent;
+export type DbIndexRebuiltEvent = {
+	type: 'db:index-rebuilt';
+	reason: 'open-failed' | 'integrity-failed';
+	details: string[];
+	report: IndexRebuildReport;
+};
+
+export type DbWorkerMessage = DbResponse | DbInvalidationEvent | DbIndexRebuiltEvent;

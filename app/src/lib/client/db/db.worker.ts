@@ -85,10 +85,10 @@ import {
 } from '$lib/client/sync/project-restore';
 import { createProviderForConnection } from '$lib/client/sync/provider-factory';
 import type { CloudStorageProvider } from '$lib/client/sync/providers/provider';
-import { cleanupStaleIndexFiles } from './index-files';
+import { cleanupStaleIndexFiles, removeCurrentIndexFiles } from './index-files';
 import type { Database } from './types.generated';
 import { createWorkerKysely } from './worker-kysely';
-import { LocalSqliteDatabase } from './worker-sqlite';
+import { LocalSqliteDatabase, type OpenIndexDatabaseResult } from './worker-sqlite';
 import { createCurrentIndexSchema } from './worker-schema';
 import type { Kysely } from 'kysely';
 
@@ -96,6 +96,13 @@ const db = new LocalSqliteDatabase();
 let kyselyDb: Kysely<Database> | null = null;
 let initialized = false;
 let requestQueue = Promise.resolve();
+
+type IndexStartupRebuildReason = 'missing' | 'open-failed' | 'integrity-failed';
+
+interface IndexStartupOpenResult extends OpenIndexDatabaseResult {
+	rebuildReason: IndexStartupRebuildReason | null;
+	rebuildDetails: string[];
+}
 
 self.onmessage = async (event: MessageEvent<DbRequest>) => {
 	const request = event.data;
@@ -564,7 +571,7 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 async function init(): Promise<void> {
 	if (initialized) return;
 	const startedAt = now();
-	const openResult = await timeWorkerStep('db.open', () => db.open());
+	const openResult = await timeWorkerStep('db.open', () => openIndexDatabaseForStartup());
 	if (openResult.created) {
 		await timeWorkerStep('schema create', () => createCurrentIndexSchema(db));
 	}
@@ -572,6 +579,14 @@ async function init(): Promise<void> {
 	if (openResult.created) {
 		const report = await rebuildIndex();
 		console.info('[local-db] index rebuilt from document store', report);
+		if (openResult.rebuildReason && openResult.rebuildReason !== 'missing') {
+			postMessage({
+				type: 'db:index-rebuilt',
+				reason: openResult.rebuildReason,
+				details: openResult.rebuildDetails,
+				report,
+			});
+		}
 		try {
 			const cleanupReport = await timeWorkerStep('stale index cleanup', () => cleanupStaleIndexFiles());
 			if (cleanupReport.removedPaths.length > 0) {
@@ -588,6 +603,55 @@ async function init(): Promise<void> {
 	}
 	initialized = true;
 	console.debug('[local-db] worker init completed', { elapsedMs: elapsed(startedAt) });
+}
+
+async function openIndexDatabaseForStartup(): Promise<IndexStartupOpenResult> {
+	let openResult: OpenIndexDatabaseResult;
+	try {
+		openResult = await db.open();
+	} catch (error) {
+		const message = errorMessage(error);
+		console.warn('[local-db] SQLite index open failed; rebuilding from files', { error: message });
+		await replaceCurrentIndexDatabase();
+		return { created: true, rebuildReason: 'open-failed', rebuildDetails: [message] };
+	}
+	if (openResult.created) return { ...openResult, rebuildReason: 'missing', rebuildDetails: [] };
+
+	const integrity = await checkIndexIntegrity();
+	if (integrity.ok) return { ...openResult, rebuildReason: null, rebuildDetails: [] };
+
+	console.warn('[local-db] SQLite index integrity check failed; rebuilding from files', {
+		details: integrity.details,
+	});
+	await replaceCurrentIndexDatabase();
+	return { created: true, rebuildReason: 'integrity-failed', rebuildDetails: integrity.details };
+}
+
+async function checkIndexIntegrity(): Promise<{ ok: true } | { ok: false; details: string[] }> {
+	try {
+		const rows = await db.query('PRAGMA integrity_check');
+		const details = rows.flatMap(row => Object.values(row).map(value => String(value)));
+		if (details.length === 1 && details[0].toLowerCase() === 'ok') return { ok: true };
+		return { ok: false, details: details.length ? details : ['integrity_check returned no rows'] };
+	} catch (error) {
+		return { ok: false, details: [errorMessage(error)] };
+	}
+}
+
+async function replaceCurrentIndexDatabase(): Promise<void> {
+	await db.close().catch(error => {
+		console.warn('[local-db] failed to close damaged index before replacement', error);
+	});
+	kyselyDb = null;
+	const removalReport = await timeWorkerStep('current index removal', () => removeCurrentIndexFiles());
+	if (removalReport.failedPaths.length > 0) {
+		throw new Error(
+			`Unable to remove damaged index files: ${removalReport.failedPaths
+				.map(failure => `${failure.path}: ${failure.error}`)
+				.join('; ')}`
+		);
+	}
+	await db.open();
 }
 
 async function rebuildIndex() {
@@ -621,6 +685,10 @@ function logWorkerTiming(request: DbRequest, queueWaitMs: number, handlerMs: num
 		queueWaitMs,
 		handlerMs,
 	});
+}
+
+function errorMessage(error: unknown): string {
+	return error instanceof Error ? error.message : String(error);
 }
 
 async function timeWorkerStep<T>(label: string, step: () => Promise<T>): Promise<T> {

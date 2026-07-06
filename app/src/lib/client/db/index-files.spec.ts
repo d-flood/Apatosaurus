@@ -5,7 +5,7 @@ import {
 	type FakeFileHandle,
 } from '$lib/client/sync/providers/fake-file-system-access.spec-support';
 
-import { cleanupStaleIndexFiles } from './index-files';
+import { cleanupStaleIndexFiles, removeCurrentIndexFiles } from './index-files';
 
 describe('cleanupStaleIndexFiles', () => {
 	it('removes legacy and old versioned index files after a successful rebuild', async () => {
@@ -35,6 +35,30 @@ describe('cleanupStaleIndexFiles', () => {
 			'apatosaurus-index-v1.db-wal',
 			'notes.txt',
 		]);
+	});
+});
+
+describe('removeCurrentIndexFiles', () => {
+	it('removes only the current nested index database and companions', async () => {
+		const root = new FakeDirectoryHandle('');
+		await root.getFileHandle('apatosaurus-index-v1.db', { create: true });
+		const indexDirectory = await nestedDirectory(root, 'apatosaurus/v1/index');
+		await indexDirectory.getFileHandle('apatosaurus-index-v1.db', { create: true });
+		await indexDirectory.getFileHandle('apatosaurus-index-v1.db-wal', { create: true });
+		await indexDirectory.getFileHandle('apatosaurus-index-v1.db-shm', { create: true });
+		await indexDirectory.getFileHandle('apatosaurus-index-v0.db', { create: true });
+		await indexDirectory.getFileHandle('notes.txt', { create: true });
+
+		const report = await removeCurrentIndexFiles(root as unknown as FileSystemDirectoryHandle);
+
+		expect(report.failedPaths).toEqual([]);
+		expect(report.removedPaths.sort()).toEqual([
+			'apatosaurus/v1/index/apatosaurus-index-v1.db',
+			'apatosaurus/v1/index/apatosaurus-index-v1.db-shm',
+			'apatosaurus/v1/index/apatosaurus-index-v1.db-wal',
+		]);
+		expect(await entryNames(root)).toEqual(['apatosaurus', 'apatosaurus-index-v1.db']);
+		expect(await entryNames(indexDirectory)).toEqual(['apatosaurus-index-v0.db', 'notes.txt']);
 	});
 });
 

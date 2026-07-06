@@ -14,6 +14,11 @@ export interface StaleIndexFileCleanupReport {
 	failedPaths: Array<{ path: string; error: string }>;
 }
 
+export interface CurrentIndexFileRemovalReport {
+	removedPaths: string[];
+	failedPaths: Array<{ path: string; error: string }>;
+}
+
 export async function cleanupStaleIndexFiles(
 	rootHandle?: FileSystemDirectoryHandle
 ): Promise<StaleIndexFileCleanupReport> {
@@ -32,6 +37,23 @@ export async function cleanupStaleIndexFiles(
 		);
 	}
 
+	return report;
+}
+
+export async function removeCurrentIndexFiles(
+	rootHandle?: FileSystemDirectoryHandle
+): Promise<CurrentIndexFileRemovalReport> {
+	const report: CurrentIndexFileRemovalReport = { removedPaths: [], failedPaths: [] };
+	const root = (rootHandle ?? (await openOriginPrivateFileSystemRoot())) as DirectoryHandleWithEntries;
+	const indexDirectory = await getNestedDirectoryIfExists(root, INDEX_DATABASE_DIRECTORY);
+	if (!indexDirectory) return report;
+
+	await removeMatchingEntries(
+		indexDirectory,
+		INDEX_DATABASE_DIRECTORY,
+		name => name.startsWith(INDEX_DATABASE_FILENAME),
+		report
+	);
 	return report;
 }
 

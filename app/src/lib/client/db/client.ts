@@ -2,6 +2,7 @@ import type {
 	DbInvalidationEvent,
 	DbRequestPayload,
 	DbResponse,
+	DbIndexRebuiltEvent,
 	DbRow,
 	DbValue,
 	CollationRpcRequest,
@@ -19,6 +20,7 @@ import type {
 	IndexRpcRequest,
 	IndexRpcResponse,
 } from './rpc';
+import { notificationCenter } from '$lib/client/notification-center.svelte';
 import type { RemoveLocalProjectInput, RemoveLocalProjectResult } from './repositories/project-removal';
 import type { W3CAnnotation } from 'triiiceratops/plugins/annotation-editor';
 import type {
@@ -663,19 +665,37 @@ export async function rebuildLocalIndex(): Promise<IndexRebuildReport> {
 }
 
 export function attachLocalDbClient(worker: Worker): void {
-	worker.addEventListener('message', (event: MessageEvent<DbResponse | DbInvalidationEvent>) => {
-		const message = event.data;
-		if ('type' in message && message.type === 'db:invalidate') {
-			for (const listener of invalidationListeners) listener(message);
-			return;
+	worker.addEventListener(
+		'message',
+		(event: MessageEvent<DbResponse | DbInvalidationEvent | DbIndexRebuiltEvent>) => {
+			const message = event.data;
+			if ('type' in message && message.type === 'db:invalidate') {
+				for (const listener of invalidationListeners) listener(message);
+				return;
+			}
+			if ('type' in message && message.type === 'db:index-rebuilt') {
+				reportAutomaticIndexRebuild(message);
+				return;
+			}
+			if (!('id' in message)) return;
+			const pendingRequest = pending.get(message.id);
+			if (!pendingRequest) return;
+			pending.delete(message.id);
+			if (pendingRequest.timeoutId) clearTimeout(pendingRequest.timeoutId);
+			if (message.ok) pendingRequest.resolve('result' in message ? message.result : undefined);
+			else pendingRequest.reject(new Error(message.error));
 		}
-		if (!('id' in message)) return;
-		const pendingRequest = pending.get(message.id);
-		if (!pendingRequest) return;
-		pending.delete(message.id);
-		if (pendingRequest.timeoutId) clearTimeout(pendingRequest.timeoutId);
-		if (message.ok) pendingRequest.resolve('result' in message ? message.result : undefined);
-		else pendingRequest.reject(new Error(message.error));
+	);
+}
+
+function reportAutomaticIndexRebuild(message: DbIndexRebuiltEvent): void {
+	const issue = message.reason === 'integrity-failed' ? 'failed an integrity check' : 'failed to open';
+	notificationCenter.upsert({
+		id: 'local-db-index-rebuilt',
+		title: 'Local database repaired',
+		message: `The local SQLite index ${issue}, so it was rebuilt from your project files. Restored ${message.report.projectsRestored} project(s), ${message.report.transcriptionsRestored} transcription(s), and ${message.report.collationsRestored} collation(s).`,
+		tone: 'warning',
+		persistent: true,
 	});
 }
 
