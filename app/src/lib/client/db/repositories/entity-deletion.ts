@@ -18,6 +18,7 @@ import {
 
 import type { Database } from '../types.generated';
 import { writeProjectManifestFile } from './project-files';
+import { withProjectWriteLock } from './project-locks';
 
 type EntityType = 'project-transcription' | 'collation';
 type DbTransaction = Transaction<Database>;
@@ -45,8 +46,15 @@ export async function deleteTranscriptionWithFiles(
 	input: DeleteEntityWithFilesInput = {},
 	storeOptions: StoreOperationOptions = {}
 ): Promise<void> {
-	const context = await loadTranscriptionDeletionContext(db, transcriptionId);
-	await deleteEntityWithFiles(db, context, input, storeOptions);
+	const lockContext = await loadTranscriptionDeletionContext(db, transcriptionId);
+	await withProjectWriteLock(lockContext.projectId, async () =>
+		deleteEntityWithFiles(
+			db,
+			await loadTranscriptionDeletionContext(db, transcriptionId),
+			input,
+			storeOptions
+		)
+	);
 }
 
 export async function deleteCollationWithFiles(
@@ -55,8 +63,15 @@ export async function deleteCollationWithFiles(
 	input: DeleteEntityWithFilesInput = {},
 	storeOptions: StoreOperationOptions = {}
 ): Promise<void> {
-	const context = await loadCollationDeletionContext(db, collationId);
-	await deleteEntityWithFiles(db, context, input, storeOptions);
+	const lockContext = await loadCollationDeletionContext(db, collationId);
+	await withProjectWriteLock(lockContext.projectId, async () =>
+		deleteEntityWithFiles(
+			db,
+			await loadCollationDeletionContext(db, collationId),
+			input,
+			storeOptions
+		)
+	);
 }
 
 async function deleteEntityWithFiles(

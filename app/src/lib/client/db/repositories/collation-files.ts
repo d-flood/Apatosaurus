@@ -36,6 +36,7 @@ import { deriveEntityCloudBackupState } from '$lib/client/sync/backup-status';
 
 import type { Database } from '../types.generated';
 import { writeProjectManifestFile } from './project-files';
+import { withProjectWriteLock } from './project-locks';
 import {
 	createCollation,
 	getCollationVersionStatus,
@@ -79,9 +80,15 @@ interface CollationCommitSource {
 	updatedAt: string;
 }
 
-type LoadedWorkingCollationArtifact = JsonObject & Omit<SerializedCollationArtifact, 'payload'> & {
-	payload: JsonValue;
-};
+type LoadedWorkingCollationArtifact = JsonObject &
+	Omit<SerializedCollationArtifact, 'payload'> & {
+		payload: JsonValue;
+	};
+
+type LoadedCollationProjectionPayload = Pick<
+	LoadedWorkingCollationPayload,
+	'witnesses' | 'tokens' | 'variation_units' | 'readings' | 'reading_witnesses'
+>;
 
 interface LoadedWorkingCollationPayload extends Omit<SerializedCollation, 'artifacts'> {
 	created_at: string;
@@ -199,102 +206,109 @@ export async function createCommittedCollationCheckpointWithFiles(
 	input: CommitCollationInput,
 	storeOptions: StoreOperationOptions = {}
 ): Promise<CollationCheckpoint> {
-	const context = await loadCollationFileContext(db, input.collationId);
-	const source = await loadCollationCommitSource(db, context, storeOptions);
-	const payload = buildCollationHashPayload(source.collation);
-	const contentHash = await hashCanonicalPayload(payload);
-	const checkpointId = input.checkpointId ?? createId();
-	const createdAt = input.createdAt ?? new Date().toISOString();
-	const authorName = input.authorName ?? '';
-	const commitMessage = input.commitMessage ?? null;
-	const checkpointPayload: CanonicalCollationCheckpointPayload = {
-		checkpoint_id: checkpointId,
-		entity_type: 'collation',
-		entity_id: source.collation.id,
-		parent_checkpoint_id: context.currentRevisionId,
-		payload_content_hash: contentHash,
-		commit_message: commitMessage,
-		author_name: authorName,
-		created_at: createdAt,
-		payload: payload as JsonValue,
-	};
-	const checkpointPath = collationCheckpointFile(
-		context.projectStorageSlug,
-		context.collationId,
-		checkpointId
-	);
-	await assertFileMissing(checkpointPath, storeOptions);
-	await writeSealedJsonFile(
-		checkpointPath,
-		COLLATION_CHECKPOINT_FORMAT,
-		COLLATION_CHECKPOINT_CURRENT_VERSION,
-		checkpointPayload,
-		storeOptions
-	);
-
-	const primaryPayload: CollationPayload = {
-		id: source.collation.id,
-		project_id: source.collation.project_id,
-		title: source.collation.title,
-		verse_identifier: source.collation.verse_identifier,
-		status: source.collation.status,
-		current_revision: {
-			id: checkpointId,
-			content_hash: contentHash,
-			created_at: createdAt,
+	const lockContext = await loadCollationFileContext(db, input.collationId);
+	return withProjectWriteLock(lockContext.projectId, async () => {
+		const context = await loadCollationFileContext(db, input.collationId);
+		const source = await loadCollationCommitSource(db, context, storeOptions);
+		const payload = buildCollationHashPayload(source.collation);
+		const contentHash = await hashCanonicalPayload(payload);
+		const checkpointId = input.checkpointId ?? createId();
+		const createdAt = input.createdAt ?? new Date().toISOString();
+		const authorName = input.authorName ?? '';
+		const commitMessage = input.commitMessage ?? null;
+		const checkpointPayload: CanonicalCollationCheckpointPayload = {
+			checkpoint_id: checkpointId,
+			entity_type: 'collation',
+			entity_id: source.collation.id,
+			parent_checkpoint_id: context.currentRevisionId,
+			payload_content_hash: contentHash,
+			commit_message: commitMessage,
 			author_name: authorName,
-		},
-		group_path: source.collation.group_path,
-		notes: source.collation.notes,
-		sort_key: source.collation.sort_key,
-		created_at: source.createdAt,
-		updated_at: source.updatedAt,
-		witnesses: source.collation.witnesses.map(row => ({ ...row })) as CollationPayload['witnesses'],
-		tokens: source.collation.tokens.map(row => ({ ...row })) as CollationPayload['tokens'],
-		variation_units: source.collation.variation_units.map(row => ({
-			...row,
-		})) as CollationPayload['variation_units'],
-		readings: source.collation.readings.map(row => ({ ...row })) as CollationPayload['readings'],
-		reading_witnesses: source.collation.reading_witnesses.map(row => ({
-			...row,
-		})) as CollationPayload['reading_witnesses'],
-		artifacts: source.collation.artifacts.map(row => ({
-			id: row.id,
-			artifact_type: row.artifact_type,
-			payload: toJsonValue(row.payload, `collation artifact ${row.id}`),
-		})) as CollationPayload['artifacts'],
-	};
-	await assertCollationRevisionHash(primaryPayload);
-	await writeSealedJsonFile(
-		collationPrimaryFile(context.projectStorageSlug, context.collationId),
-		COLLATION_FORMAT,
-		COLLATION_CURRENT_VERSION,
-		primaryPayload,
-		storeOptions
-	);
-	await writeDerivedCollationTei(
-		context.projectStorageSlug,
-		context.collationId,
-		primaryPayload,
-		storeOptions
-	);
-	await writeProjectManifestFile(
-		db,
-		context.projectId,
-		{
-			collations: {
-				[context.collationId]: { id: checkpointId, content_hash: contentHash },
-			},
-		},
-		storeOptions
-	);
+			created_at: createdAt,
+			payload: payload as JsonValue,
+		};
+		const checkpointPath = collationCheckpointFile(
+			context.projectStorageSlug,
+			context.collationId,
+			checkpointId
+		);
+		await assertFileMissing(checkpointPath, storeOptions);
+		await writeSealedJsonFile(
+			checkpointPath,
+			COLLATION_CHECKPOINT_FORMAT,
+			COLLATION_CHECKPOINT_CURRENT_VERSION,
+			checkpointPayload,
+			storeOptions
+		);
 
-	return createCommittedCollationCheckpointFromSerialized(db, source.collation, {
-		...input,
-		checkpointId,
-		createdAt,
-		authorName,
-		commitMessage,
+		const primaryPayload: CollationPayload = {
+			id: source.collation.id,
+			project_id: source.collation.project_id,
+			title: source.collation.title,
+			verse_identifier: source.collation.verse_identifier,
+			status: source.collation.status,
+			current_revision: {
+				id: checkpointId,
+				content_hash: contentHash,
+				created_at: createdAt,
+				author_name: authorName,
+			},
+			group_path: source.collation.group_path,
+			notes: source.collation.notes,
+			sort_key: source.collation.sort_key,
+			created_at: source.createdAt,
+			updated_at: source.updatedAt,
+			witnesses: source.collation.witnesses.map(row => ({
+				...row,
+			})) as CollationPayload['witnesses'],
+			tokens: source.collation.tokens.map(row => ({ ...row })) as CollationPayload['tokens'],
+			variation_units: source.collation.variation_units.map(row => ({
+				...row,
+			})) as CollationPayload['variation_units'],
+			readings: source.collation.readings.map(row => ({
+				...row,
+			})) as CollationPayload['readings'],
+			reading_witnesses: source.collation.reading_witnesses.map(row => ({
+				...row,
+			})) as CollationPayload['reading_witnesses'],
+			artifacts: source.collation.artifacts.map(row => ({
+				id: row.id,
+				artifact_type: row.artifact_type,
+				payload: toJsonValue(row.payload, `collation artifact ${row.id}`),
+			})) as CollationPayload['artifacts'],
+		};
+		await assertCollationRevisionHash(primaryPayload);
+		await writeSealedJsonFile(
+			collationPrimaryFile(context.projectStorageSlug, context.collationId),
+			COLLATION_FORMAT,
+			COLLATION_CURRENT_VERSION,
+			primaryPayload,
+			storeOptions
+		);
+		await writeDerivedCollationTei(
+			context.projectStorageSlug,
+			context.collationId,
+			primaryPayload,
+			storeOptions
+		);
+		await writeProjectManifestFile(
+			db,
+			context.projectId,
+			{
+				collations: {
+					[context.collationId]: { id: checkpointId, content_hash: contentHash },
+				},
+			},
+			storeOptions
+		);
+
+		return createCommittedCollationCheckpointFromSerialized(db, source.collation, {
+			...input,
+			checkpointId,
+			createdAt,
+			authorName,
+			commitMessage,
+		});
 	});
 }
 
@@ -306,9 +320,11 @@ export async function loadCollationWithWorkingFile(
 	const loaded = await loadCollation(db, collationId);
 	if (!loaded) return null;
 	const context = await loadCollationFileContext(db, collationId);
-	const payload = await tryReadWorkingCollationPayload(context, storeOptions);
-	if (!payload) return loaded;
-	return loadedCollationFromWorkingPayload(loaded, payload);
+	const workingPayload = await tryReadWorkingCollationPayload(context, storeOptions);
+	if (workingPayload) return loadedCollationFromWorkingPayload(loaded, workingPayload);
+	const primaryPayload = await tryReadPrimaryCollationPayload(context, storeOptions);
+	if (primaryPayload) return loadedCollationFromPrimaryPayload(primaryPayload);
+	return loaded;
 }
 
 export async function getCollationVersionStatusWithWorkingFile(
@@ -455,7 +471,9 @@ async function writeDerivedCollationTei(
 	storeOptions: StoreOperationOptions
 ): Promise<void> {
 	try {
-		const artifact = payload.artifacts.find(row => row.artifact_type === 'collation_document_v1');
+		const artifact = payload.artifacts.find(
+			row => row.artifact_type === 'collation_document_v1'
+		);
 		const document = parseCollationDocument(artifact?.payload ?? null);
 		if (!document) throw new Error('Collation document artifact is missing or invalid.');
 		await writeTextFileAtomic(
@@ -471,10 +489,7 @@ async function writeDerivedCollationTei(
 	}
 }
 
-async function assertFileMissing(
-	path: string,
-	storeOptions: StoreOperationOptions
-): Promise<void> {
+async function assertFileMissing(path: string, storeOptions: StoreOperationOptions): Promise<void> {
 	try {
 		await readTextFile(path, storeOptions);
 	} catch (error) {
@@ -512,7 +527,9 @@ function buildWorkingCollationPayload(
 		variation_units: collation.variation_units.map(row => ({
 			...row,
 		})) as WorkingCollationPayload['variation_units'],
-		readings: collation.readings.map(row => ({ ...row })) as WorkingCollationPayload['readings'],
+		readings: collation.readings.map(row => ({
+			...row,
+		})) as WorkingCollationPayload['readings'],
 		reading_witnesses: collation.reading_witnesses.map(row => ({
 			...row,
 		})) as WorkingCollationPayload['reading_witnesses'],
@@ -547,7 +564,10 @@ async function tryReadWorkingCollationPayload(
 		}
 		return null;
 	}
-	const result = await readCanonicalDocument<WorkingCollationPayload>(WORKING_COLLATION_FORMAT, raw);
+	const result = await readCanonicalDocument<WorkingCollationPayload>(
+		WORKING_COLLATION_FORMAT,
+		raw
+	);
 	if (result.ok) {
 		const payload = result.payload as unknown as LoadedWorkingCollationPayload;
 		if (payload.id !== context.collationId) {
@@ -565,6 +585,55 @@ async function tryReadWorkingCollationPayload(
 		quarantine: result.quarantine,
 	});
 	return null;
+}
+
+async function tryReadPrimaryCollationPayload(
+	context: CollationFileContext,
+	storeOptions: StoreOperationOptions
+): Promise<CollationPayload | null> {
+	const path = collationPrimaryFile(context.projectStorageSlug, context.collationId);
+	let raw: string;
+	try {
+		raw = await readTextFile(path, storeOptions);
+	} catch (error) {
+		console.warn('[document-store] Falling back to collation index cache.', {
+			path,
+			error: errorMessage(error),
+		});
+		return null;
+	}
+	const result = await readCanonicalDocument<CollationPayload>(COLLATION_FORMAT, raw);
+	if (!result.ok) {
+		console.warn('[document-store] Ignoring unreadable collation primary file.', {
+			path,
+			quarantine: result.quarantine,
+		});
+		return null;
+	}
+	const payload = result.payload;
+	if (payload.id !== context.collationId || payload.project_id !== context.projectId) {
+		console.warn('[document-store] Ignoring mismatched collation primary file.', {
+			path,
+			expectedCollationId: context.collationId,
+			actualCollationId: payload.id,
+			expectedProjectId: context.projectId,
+			actualProjectId: payload.project_id,
+		});
+		return null;
+	}
+	try {
+		await assertCollationRevisionHash(payload);
+	} catch (error) {
+		console.warn(
+			'[document-store] Ignoring collation primary file with invalid revision hash.',
+			{
+				path,
+				error: errorMessage(error),
+			}
+		);
+		return null;
+	}
+	return payload;
 }
 
 function loadedCollationFromWorkingPayload(
@@ -591,7 +660,35 @@ function loadedCollationFromWorkingPayload(
 	};
 }
 
-function serializedCollationFromWorkingPayload(payload: LoadedWorkingCollationPayload): SerializedCollation {
+function loadedCollationFromPrimaryPayload(payload: CollationPayload): LoadedCollation {
+	const artifact = payload.artifacts.find(row => row.artifact_type === 'collation_document_v1');
+	const legacyArtifact =
+		payload.artifacts.find(row => row.artifact_type === 'workspace_state_v2') ??
+		payload.artifacts.find(row => row.artifact_type === 'workspace_state_v1');
+	return {
+		row: {
+			id: payload.id,
+			projectId: payload.project_id,
+			title: payload.title,
+			verseIdentifier: payload.verse_identifier,
+			status: payload.status,
+			groupPath: payload.group_path,
+			notes: payload.notes,
+			sortKey: payload.sort_key,
+			createdAt: payload.created_at,
+			updatedAt: payload.updated_at,
+		},
+		artifact: artifact ? artifactRecordFromWorkingPayload(artifact, payload.updated_at) : null,
+		legacyArtifact: legacyArtifact
+			? artifactRecordFromWorkingPayload(legacyArtifact, payload.updated_at)
+			: null,
+		projection: projectionFromWorkingPayload(payload),
+	};
+}
+
+function serializedCollationFromWorkingPayload(
+	payload: LoadedWorkingCollationPayload
+): SerializedCollation {
 	return {
 		id: payload.id,
 		project_id: payload.project_id,
@@ -622,14 +719,17 @@ function artifactRecordFromWorkingPayload(
 	};
 }
 
-function projectionFromWorkingPayload(payload: LoadedWorkingCollationPayload): CollationProjectionRecord {
+function projectionFromWorkingPayload(
+	payload: LoadedCollationProjectionPayload
+): CollationProjectionRecord {
 	const readingsByUnitId = groupBy(payload.readings, row => row.variation_unit_id);
 	const witnessIdsByReadingId = groupBy(payload.reading_witnesses, row => row.reading_id);
 	return {
 		witnesses: [...payload.witnesses]
 			.sort(
 				(left, right) =>
-					left.position - right.position || left.witness_id.localeCompare(right.witness_id)
+					left.position - right.position ||
+					left.witness_id.localeCompare(right.witness_id)
 			)
 			.map(row => ({
 				witnessId: row.witness_id,

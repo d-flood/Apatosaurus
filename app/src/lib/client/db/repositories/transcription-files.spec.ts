@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createLocalDbTestHarness, type LocalDbTestHarness } from '../test-harness';
+import { projectWriteLockName } from './project-locks';
 import { createProject } from './projects';
 import { createTranscription, getTranscription } from './transcriptions';
 import {
@@ -44,6 +45,7 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
+	vi.unstubAllGlobals();
 	await harness.destroy();
 });
 
@@ -136,6 +138,49 @@ describe('transcription file persistence', () => {
 		expect(loaded?.updated_at).toBe('2026-07-04T12:00:00.000Z');
 	});
 
+	it('loads the committed primary file when no working file exists and the index cache is stale', async () => {
+		await createProject(harness.db, {
+			id: 'project-1',
+			storageSlug: 'project-slug',
+			name: 'Project',
+			createdAt: '2026-07-04T00:00:00.000Z',
+			updatedAt: '2026-07-04T00:00:00.000Z',
+		});
+		await createTranscriptionWithFiles(
+			harness.db,
+			{
+				id: 'tx-1',
+				projectId: 'project-1',
+				projectTranscriptionId: 'pt-1',
+				title: 'Witness 1',
+				siglum: '01',
+				document: documentWithVerses(['Romans 1:2']),
+				createdAt: '2026-07-04T00:00:00.000Z',
+				updatedAt: '2026-07-04T00:00:00.000Z',
+				transcriber: 'Editor',
+				repository: 'Library',
+				settlement: 'City',
+				language: 'grc',
+			},
+			{ backend, nonce: () => 'create-write' }
+		);
+		await harness.db
+			.updateTable('transcriptions')
+			.set({
+				title: 'Stale index title',
+				content_json: JSON.stringify(documentWithVerses(['Romans 1:1'])),
+				updated_at: '2026-07-04T12:00:00.000Z',
+			})
+			.where('id', '=', 'tx-1')
+			.execute();
+
+		const loaded = await loadTranscriptionWithWorkingFile(harness.db, 'tx-1', { backend });
+
+		expect(loaded?.title).toBe('Witness 1');
+		expect(loaded?.content_json).toContain('"verse":"2"');
+		expect(loaded?.updated_at).toBe('2026-07-04T00:00:00.000Z');
+	});
+
 	it('creates a transcription through the initial committed file path', async () => {
 		await createProject(harness.db, {
 			id: 'project-1',
@@ -173,11 +218,16 @@ describe('transcription file persistence', () => {
 			transcriptionCheckpointFile('project-slug', 'pt-created', head.current_revision_id),
 			{ backend }
 		);
-		const primaryRaw = await readTextFile(transcriptionPrimaryFile('project-slug', 'pt-created'), {
+		const primaryRaw = await readTextFile(
+			transcriptionPrimaryFile('project-slug', 'pt-created'),
+			{
+				backend,
+			}
+		);
+		const manifestRaw = await readTextFile(projectManifestFile('project-slug'), { backend });
+		const tei = await readTextFile(transcriptionTeiFile('project-slug', 'pt-created'), {
 			backend,
 		});
-		const manifestRaw = await readTextFile(projectManifestFile('project-slug'), { backend });
-		const tei = await readTextFile(transcriptionTeiFile('project-slug', 'pt-created'), { backend });
 		const history = await readCanonicalDocument<TranscriptionCheckpointPayload>(
 			TRANSCRIPTION_CHECKPOINT_FORMAT,
 			historyRaw
@@ -339,9 +389,9 @@ describe('transcription file persistence', () => {
 		await expect(
 			readTextFile(transcriptionPrimaryFile('project-slug', 'pt-1'), { backend })
 		).resolves.toContain('tx-cp-manifest-fail');
-		await expect(readTextFile(projectManifestFile('project-slug'), { backend })).rejects.toThrow(
-			'not found'
-		);
+		await expect(
+			readTextFile(projectManifestFile('project-slug'), { backend })
+		).rejects.toThrow('not found');
 		await expect(
 			harness.db
 				.selectFrom('transcription_checkpoints')
@@ -394,6 +444,29 @@ describe('transcription file persistence', () => {
 		} finally {
 			warn.mockRestore();
 		}
+	});
+
+	it('runs committed transcription file writes under the project write lock', async () => {
+		await createFixtureTranscription();
+		const request = vi.fn(async (_name: string, callback: () => Promise<unknown>) =>
+			callback()
+		);
+		vi.stubGlobal('navigator', { locks: { request } });
+
+		await createCommittedTranscriptionCheckpointWithFiles(
+			harness.db,
+			{
+				projectTranscriptionId: 'pt-1',
+				checkpointId: 'tx-cp-locked',
+				createdAt: '2026-07-04T13:00:00.000Z',
+			},
+			{ backend, nonce: () => 'locked-write' }
+		);
+
+		expect(request).toHaveBeenCalledWith(
+			projectWriteLockName('project-1'),
+			expect.any(Function)
+		);
 	});
 });
 
@@ -499,7 +572,10 @@ class MemoryStoreBackend implements StoreBackend {
 		}
 		for (const file of this.files.keys()) {
 			if (storePathDirname(file) === normalized) {
-				entries.set(storePathBasename(file), { name: storePathBasename(file), kind: 'file' });
+				entries.set(storePathBasename(file), {
+					name: storePathBasename(file),
+					kind: 'file',
+				});
 			}
 		}
 		return [...entries.values()].sort((left, right) => left.name.localeCompare(right.name));

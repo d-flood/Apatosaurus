@@ -34,6 +34,7 @@ import {
 
 import type { Database } from '../types.generated';
 import { writeProjectManifestFile } from './project-files';
+import { withProjectWriteLock } from './project-locks';
 import {
 	buildTranscriptionHashPayload,
 	createCommittedTranscriptionCheckpoint,
@@ -211,131 +212,140 @@ export async function createCommittedTranscriptionCheckpointWithFiles(
 	input: CommitTranscriptionInput,
 	storeOptions: StoreOperationOptions = {}
 ): Promise<TranscriptionCheckpoint> {
-	const context = await loadTranscriptionFileContextByProjectTranscriptionId(
+	const lockContext = await loadTranscriptionFileContextByProjectTranscriptionId(
 		db,
 		input.projectTranscriptionId
 	);
-	const snapshot = await loadProjectTranscriptionSnapshot(db, input.projectTranscriptionId);
-	const payload = buildTranscriptionHashPayload(snapshot);
-	const contentHash = await hashCanonicalPayload(payload);
-	const checkpointId = input.checkpointId ?? createId();
-	const createdAt = input.createdAt ?? new Date().toISOString();
-	const authorName = input.authorName ?? '';
-	const commitMessage = input.commitMessage ?? null;
-	const checkpointPayload: CanonicalTranscriptionCheckpointPayload = {
-		checkpoint_id: checkpointId,
-		entity_type: 'project-transcription',
-		entity_id: snapshot.project_transcription_id,
-		payload_transcription_id: snapshot.id,
-		parent_checkpoint_id: context.currentRevisionId,
-		payload_content_hash: contentHash,
-		content_format: snapshot.format,
-		commit_message: commitMessage,
-		author_name: authorName,
-		created_at: createdAt,
-		payload: payload as JsonValue,
-	};
-	const checkpointPath = transcriptionCheckpointFile(
-		context.projectStorageSlug,
-		context.projectTranscriptionId,
-		checkpointId
-	);
-	await assertFileMissing(checkpointPath, storeOptions);
-	await writeSealedJsonFile(
-		checkpointPath,
-		TRANSCRIPTION_CHECKPOINT_FORMAT,
-		TRANSCRIPTION_CHECKPOINT_CURRENT_VERSION,
-		checkpointPayload,
-		storeOptions
-	);
-
-	const primaryPayload: ProjectTranscriptionPayload = {
-		project_transcription_id: snapshot.project_transcription_id,
-		id: snapshot.id,
-		canonical_transcription_id: context.canonicalTranscriptionId,
-		current_revision: {
-			id: checkpointId,
-			content_hash: contentHash,
-			created_at: createdAt,
+	return withProjectWriteLock(lockContext.projectId, async () => {
+		const context = await loadTranscriptionFileContextByProjectTranscriptionId(
+			db,
+			input.projectTranscriptionId
+		);
+		const snapshot = await loadProjectTranscriptionSnapshot(db, input.projectTranscriptionId);
+		const payload = buildTranscriptionHashPayload(snapshot);
+		const contentHash = await hashCanonicalPayload(payload);
+		const checkpointId = input.checkpointId ?? createId();
+		const createdAt = input.createdAt ?? new Date().toISOString();
+		const authorName = input.authorName ?? '';
+		const commitMessage = input.commitMessage ?? null;
+		const checkpointPayload: CanonicalTranscriptionCheckpointPayload = {
+			checkpoint_id: checkpointId,
+			entity_type: 'project-transcription',
+			entity_id: snapshot.project_transcription_id,
+			payload_transcription_id: snapshot.id,
+			parent_checkpoint_id: context.currentRevisionId,
+			payload_content_hash: contentHash,
+			content_format: snapshot.format,
+			commit_message: commitMessage,
 			author_name: authorName,
-		},
-		origin: {
-			source_type: context.originType,
-			source_project_id: context.originProjectId,
-			source_transcription_id: context.originTranscriptionId,
-			source_revision_id: context.originRevisionId,
-			source_content_hash: context.originContentHash,
-		},
-		title: snapshot.title,
-		siglum: snapshot.siglum,
-		description: snapshot.description,
-		content_json: snapshot.content_json as JsonValue,
-		content_format: snapshot.format,
-		created_at: context.createdAt,
-		updated_at: context.updatedAt,
-		owner: snapshot.owner,
-		is_public: snapshot.is_public,
-		tags: [...snapshot.tags],
-		transcriber: snapshot.transcriber,
-		repository: snapshot.repository,
-		settlement: snapshot.settlement,
-		language: snapshot.language,
-		iiif_manifest_sources: snapshot.iiif_manifest_sources.map(source => ({
-			...source,
-			metadata_json: source.metadata_json as JsonValue,
-		})),
-		page_canvas_links: snapshot.page_canvas_links.map(link => ({
-			id: link.id,
-			page_id: link.page_id,
-			page_name_snapshot: link.page_name_snapshot,
-			page_order: link.page_order,
-			manifest_source_id: link.manifest_source_id,
-			manifest_url_snapshot: link.manifest_url_snapshot,
-			canvas_id: link.canvas_id,
-			canvas_order: link.canvas_order,
-			canvas_label: link.canvas_label,
-			image_service_url: link.image_service_url,
-			thumbnail_url: link.thumbnail_url,
-			link_role: link.link_role,
-		})),
-		canvas_annotations: snapshot.canvas_annotations.map(annotation => ({
-			...annotation,
-			body_json: annotation.body_json as JsonValue,
-			target_json: annotation.target_json as JsonValue,
-			anchor_json: annotation.anchor_json as JsonValue,
-		})),
-	};
-	await assertProjectTranscriptionRevisionHash(primaryPayload);
-	await writeSealedJsonFile(
-		transcriptionPrimaryFile(context.projectStorageSlug, context.projectTranscriptionId),
-		PROJECT_TRANSCRIPTION_FORMAT,
-		PROJECT_TRANSCRIPTION_CURRENT_VERSION,
-		primaryPayload,
-		storeOptions
-	);
-	await writeDerivedTranscriptionTei(
-		context.projectStorageSlug,
-		context.projectTranscriptionId,
-		primaryPayload,
-		storeOptions
-	);
-	await writeProjectManifestFile(
-		db,
-		context.projectId,
-		{
-			transcriptions: {
-				[context.projectTranscriptionId]: { id: checkpointId, content_hash: contentHash },
-			},
-		},
-		storeOptions
-	);
+			created_at: createdAt,
+			payload: payload as JsonValue,
+		};
+		const checkpointPath = transcriptionCheckpointFile(
+			context.projectStorageSlug,
+			context.projectTranscriptionId,
+			checkpointId
+		);
+		await assertFileMissing(checkpointPath, storeOptions);
+		await writeSealedJsonFile(
+			checkpointPath,
+			TRANSCRIPTION_CHECKPOINT_FORMAT,
+			TRANSCRIPTION_CHECKPOINT_CURRENT_VERSION,
+			checkpointPayload,
+			storeOptions
+		);
 
-	return createCommittedTranscriptionCheckpoint(db, {
-		...input,
-		checkpointId,
-		createdAt,
-		authorName,
-		commitMessage,
+		const primaryPayload: ProjectTranscriptionPayload = {
+			project_transcription_id: snapshot.project_transcription_id,
+			id: snapshot.id,
+			canonical_transcription_id: context.canonicalTranscriptionId,
+			current_revision: {
+				id: checkpointId,
+				content_hash: contentHash,
+				created_at: createdAt,
+				author_name: authorName,
+			},
+			origin: {
+				source_type: context.originType,
+				source_project_id: context.originProjectId,
+				source_transcription_id: context.originTranscriptionId,
+				source_revision_id: context.originRevisionId,
+				source_content_hash: context.originContentHash,
+			},
+			title: snapshot.title,
+			siglum: snapshot.siglum,
+			description: snapshot.description,
+			content_json: snapshot.content_json as JsonValue,
+			content_format: snapshot.format,
+			created_at: context.createdAt,
+			updated_at: context.updatedAt,
+			owner: snapshot.owner,
+			is_public: snapshot.is_public,
+			tags: [...snapshot.tags],
+			transcriber: snapshot.transcriber,
+			repository: snapshot.repository,
+			settlement: snapshot.settlement,
+			language: snapshot.language,
+			iiif_manifest_sources: snapshot.iiif_manifest_sources.map(source => ({
+				...source,
+				metadata_json: source.metadata_json as JsonValue,
+			})),
+			page_canvas_links: snapshot.page_canvas_links.map(link => ({
+				id: link.id,
+				page_id: link.page_id,
+				page_name_snapshot: link.page_name_snapshot,
+				page_order: link.page_order,
+				manifest_source_id: link.manifest_source_id,
+				manifest_url_snapshot: link.manifest_url_snapshot,
+				canvas_id: link.canvas_id,
+				canvas_order: link.canvas_order,
+				canvas_label: link.canvas_label,
+				image_service_url: link.image_service_url,
+				thumbnail_url: link.thumbnail_url,
+				link_role: link.link_role,
+			})),
+			canvas_annotations: snapshot.canvas_annotations.map(annotation => ({
+				...annotation,
+				body_json: annotation.body_json as JsonValue,
+				target_json: annotation.target_json as JsonValue,
+				anchor_json: annotation.anchor_json as JsonValue,
+			})),
+		};
+		await assertProjectTranscriptionRevisionHash(primaryPayload);
+		await writeSealedJsonFile(
+			transcriptionPrimaryFile(context.projectStorageSlug, context.projectTranscriptionId),
+			PROJECT_TRANSCRIPTION_FORMAT,
+			PROJECT_TRANSCRIPTION_CURRENT_VERSION,
+			primaryPayload,
+			storeOptions
+		);
+		await writeDerivedTranscriptionTei(
+			context.projectStorageSlug,
+			context.projectTranscriptionId,
+			primaryPayload,
+			storeOptions
+		);
+		await writeProjectManifestFile(
+			db,
+			context.projectId,
+			{
+				transcriptions: {
+					[context.projectTranscriptionId]: {
+						id: checkpointId,
+						content_hash: contentHash,
+					},
+				},
+			},
+			storeOptions
+		);
+
+		return createCommittedTranscriptionCheckpoint(db, {
+			...input,
+			checkpointId,
+			createdAt,
+			authorName,
+			commitMessage,
+		});
 	});
 }
 
@@ -347,8 +357,18 @@ export async function loadTranscriptionWithWorkingFile(
 	const record = await getTranscription(db, transcriptionId);
 	if (!record) return null;
 	const context = await loadTranscriptionFileContext(db, transcriptionId);
-	const payload = await tryReadWorkingTranscriptionPayload(context, storeOptions);
-	if (!payload) return record;
+	const workingPayload = await tryReadWorkingTranscriptionPayload(context, storeOptions);
+	if (workingPayload) return transcriptionRecordFromWorkingPayload(record, workingPayload);
+	const primaryPayload = await tryReadPrimaryTranscriptionPayload(context, storeOptions);
+	if (primaryPayload)
+		return transcriptionRecordFromPrimaryPayload(record, context, primaryPayload);
+	return record;
+}
+
+function transcriptionRecordFromWorkingPayload(
+	record: TranscriptionRecord,
+	payload: LoadedWorkingTranscriptionPayload
+): TranscriptionRecord {
 	return {
 		...record,
 		origin_type: payload.origin.source_type,
@@ -372,11 +392,105 @@ export async function loadTranscriptionWithWorkingFile(
 	};
 }
 
+function transcriptionRecordFromPrimaryPayload(
+	record: TranscriptionRecord,
+	context: TranscriptionFileContext,
+	payload: ProjectTranscriptionPayload
+): TranscriptionRecord {
+	return {
+		...record,
+		id: payload.id,
+		project_id: context.projectId,
+		current_revision_id: payload.current_revision.id,
+		current_content_hash: payload.current_revision.content_hash,
+		origin_type: payload.origin.source_type,
+		origin_project_id: payload.origin.source_project_id,
+		origin_transcription_id: payload.origin.source_transcription_id,
+		origin_revision_id: payload.origin.source_revision_id ?? '',
+		origin_content_hash: payload.origin.source_content_hash ?? '',
+		title: payload.title,
+		siglum: payload.siglum,
+		description: payload.description,
+		content_json: JSON.stringify(payload.content_json),
+		format: payload.content_format,
+		created_at: payload.created_at,
+		updated_at: payload.updated_at,
+		owner: payload.owner,
+		is_public: payload.is_public,
+		tags: [...payload.tags],
+		transcriber: payload.transcriber,
+		repository: payload.repository,
+		settlement: payload.settlement,
+		language: payload.language,
+	};
+}
+
+async function tryReadPrimaryTranscriptionPayload(
+	context: TranscriptionFileContext,
+	storeOptions: StoreOperationOptions
+): Promise<ProjectTranscriptionPayload | null> {
+	const path = transcriptionPrimaryFile(
+		context.projectStorageSlug,
+		context.projectTranscriptionId
+	);
+	let raw: string;
+	try {
+		raw = await readTextFile(path, storeOptions);
+	} catch (error) {
+		console.warn('[document-store] Falling back to transcription index cache.', {
+			path,
+			error: errorMessage(error),
+		});
+		return null;
+	}
+	const result = await readCanonicalDocument<ProjectTranscriptionPayload>(
+		PROJECT_TRANSCRIPTION_FORMAT,
+		raw
+	);
+	if (!result.ok) {
+		console.warn('[document-store] Ignoring unreadable transcription primary file.', {
+			path,
+			quarantine: result.quarantine,
+		});
+		return null;
+	}
+	const payload = result.payload;
+	if (
+		payload.id !== context.transcriptionId ||
+		payload.project_transcription_id !== context.projectTranscriptionId
+	) {
+		console.warn('[document-store] Ignoring mismatched transcription primary file.', {
+			path,
+			expectedTranscriptionId: context.transcriptionId,
+			actualTranscriptionId: payload.id,
+			expectedProjectTranscriptionId: context.projectTranscriptionId,
+			actualProjectTranscriptionId: payload.project_transcription_id,
+		});
+		return null;
+	}
+	try {
+		await assertProjectTranscriptionRevisionHash(payload);
+	} catch (error) {
+		console.warn(
+			'[document-store] Ignoring transcription primary file with invalid revision hash.',
+			{
+				path,
+				error: errorMessage(error),
+			}
+		);
+		return null;
+	}
+	return payload;
+}
+
 async function tryReadWorkingTranscriptionPayload(
 	context: TranscriptionFileContext,
 	storeOptions: StoreOperationOptions
 ): Promise<LoadedWorkingTranscriptionPayload | null> {
-	const path = transcriptionWorkingFile(context.projectStorageSlug, context.projectTranscriptionId);
+	const path = transcriptionWorkingFile(
+		context.projectStorageSlug,
+		context.projectTranscriptionId
+	);
 	let raw: string;
 	try {
 		raw = await readTextFile(path, storeOptions);
@@ -518,10 +632,7 @@ async function writeDerivedTranscriptionTei(
 	}
 }
 
-async function assertFileMissing(
-	path: string,
-	storeOptions: StoreOperationOptions
-): Promise<void> {
+async function assertFileMissing(path: string, storeOptions: StoreOperationOptions): Promise<void> {
 	try {
 		await readTextFile(path, storeOptions);
 	} catch (error) {
@@ -541,7 +652,8 @@ function getContentJson(input: {
 
 function normalizeContentJson(contentJson: string, transcriptionId: string): string {
 	const document = coerceTranscriptionDocument(contentJson);
-	if (!document) throw new Error(`Transcription ${transcriptionId} content is missing or invalid.`);
+	if (!document)
+		throw new Error(`Transcription ${transcriptionId} content is missing or invalid.`);
 	return serializeTranscriptionDocument(document);
 }
 

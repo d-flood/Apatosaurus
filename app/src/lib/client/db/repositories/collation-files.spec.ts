@@ -26,6 +26,7 @@ import {
 } from '$lib/client/store';
 import { createLocalDbTestHarness, type LocalDbTestHarness } from '../test-harness';
 import { createProject } from './projects';
+import { projectWriteLockName } from './project-locks';
 import { createCollation, loadCollation } from './collations';
 import { createCommittedCollationCheckpoint } from './revisions';
 import {
@@ -45,6 +46,7 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
+	vi.unstubAllGlobals();
 	await harness.destroy();
 });
 
@@ -152,6 +154,39 @@ describe('collation file persistence', () => {
 		expect(loaded?.row.updatedAt).toBe('2026-07-04T12:00:00.000Z');
 	});
 
+	it('loads the committed primary file when no working file exists and the index cache is stale', async () => {
+		await createProject(harness.db, {
+			id: 'project-1',
+			storageSlug: 'project-slug',
+			name: 'Romans',
+			createdAt: '2026-07-04T00:00:00.000Z',
+			updatedAt: '2026-07-04T00:00:00.000Z',
+		});
+		await createCollationWithFiles(
+			harness.db,
+			{
+				id: 'col-1',
+				projectId: 'project-1',
+				title: 'Romans 1:3',
+				verseIdentifier: 'Rom 1:3',
+				now: '2026-07-04T00:00:00.000Z',
+			},
+			{ backend, nonce: () => 'create-write' }
+		);
+		await harness.db
+			.updateTable('collations')
+			.set({ title: 'Stale index title', status: 'alignment' })
+			.where('id', '=', 'col-1')
+			.execute();
+
+		const loaded = await loadCollationWithWorkingFile(harness.db, 'col-1', { backend });
+
+		expect(loaded?.row.title).toBe('Romans 1:3');
+		expect(loaded?.row.status).toBe('setup');
+		expect(loaded?.artifact?.payload).toContain('"phase":"setup"');
+		expect(loaded?.artifact?.payload).toContain('"projectName":"Romans"');
+	});
+
 	it('uses the working file to compute dirty status', async () => {
 		await createFixtureCollation();
 		const checkpoint = await createCommittedCollationCheckpoint(harness.db, {
@@ -220,7 +255,9 @@ describe('collation file persistence', () => {
 			backend,
 		});
 		const manifestRaw = await readTextFile(projectManifestFile('project-slug'), { backend });
-		const tei = await readTextFile(collationTeiFile('project-slug', 'col-created'), { backend });
+		const tei = await readTextFile(collationTeiFile('project-slug', 'col-created'), {
+			backend,
+		});
 		const history = await readCanonicalDocument<CollationCheckpointPayload>(
 			COLLATION_CHECKPOINT_FORMAT,
 			historyRaw
@@ -414,17 +451,16 @@ describe('collation file persistence', () => {
 		).rejects.toThrow('simulated write failure');
 
 		await expect(
-			readTextFile(
-				collationCheckpointFile('project-slug', 'col-1', 'col-cp-manifest-fail'),
-				{ backend }
-			)
+			readTextFile(collationCheckpointFile('project-slug', 'col-1', 'col-cp-manifest-fail'), {
+				backend,
+			})
 		).resolves.toContain('col-cp-manifest-fail');
 		await expect(
 			readTextFile(collationPrimaryFile('project-slug', 'col-1'), { backend })
 		).resolves.toContain('col-cp-manifest-fail');
-		await expect(readTextFile(projectManifestFile('project-slug'), { backend })).rejects.toThrow(
-			'not found'
-		);
+		await expect(
+			readTextFile(projectManifestFile('project-slug'), { backend })
+		).rejects.toThrow('not found');
 		await expect(
 			harness.db
 				.selectFrom('collation_checkpoints')
@@ -488,6 +524,40 @@ describe('collation file persistence', () => {
 		} finally {
 			warn.mockRestore();
 		}
+	});
+
+	it('runs committed collation file writes under the project write lock', async () => {
+		await createFixtureCollation();
+		await saveWorkingCollationArtifact(
+			harness.db,
+			{
+				collationId: 'col-1',
+				artifactId: 'artifact-1',
+				artifactType: 'collation_document_v1',
+				payload: JSON.stringify(collationDocument('readings')),
+				now: '2026-07-04T12:00:00.000Z',
+			},
+			{ backend, nonce: () => 'working-write' }
+		);
+		const request = vi.fn(async (_name: string, callback: () => Promise<unknown>) =>
+			callback()
+		);
+		vi.stubGlobal('navigator', { locks: { request } });
+
+		await createCommittedCollationCheckpointWithFiles(
+			harness.db,
+			{
+				collationId: 'col-1',
+				checkpointId: 'col-cp-locked',
+				createdAt: '2026-07-04T13:00:00.000Z',
+			},
+			{ backend, nonce: () => 'locked-write' }
+		);
+
+		expect(request).toHaveBeenCalledWith(
+			projectWriteLockName('project-1'),
+			expect.any(Function)
+		);
 	});
 });
 
@@ -586,7 +656,10 @@ class MemoryStoreBackend implements StoreBackend {
 		}
 		for (const file of this.files.keys()) {
 			if (storePathDirname(file) === normalized) {
-				entries.set(storePathBasename(file), { name: storePathBasename(file), kind: 'file' });
+				entries.set(storePathBasename(file), {
+					name: storePathBasename(file),
+					kind: 'file',
+				});
 			}
 		}
 		return [...entries.values()].sort((left, right) => left.name.localeCompare(right.name));
