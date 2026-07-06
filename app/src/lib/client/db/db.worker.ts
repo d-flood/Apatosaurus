@@ -41,6 +41,7 @@ import {
 	getTranscriptionsByIds,
 	getVerseIndexRowsForVerse,
 	listVerseIndexRowsForTranscription,
+	listVerseIndexRowsForTranscriptions,
 	listVerseIndexRows,
 	listTranscriptionSummaries,
 	rebuildVerseIndexForTranscriptions,
@@ -302,6 +303,9 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 		return listVerseIndexRows(getKyselyDb());
 	if (request.type === 'transcriptions.listVerseIndexRowsForTranscription') {
 		return listVerseIndexRowsForTranscription(getKyselyDb(), request.transcriptionId);
+	}
+	if (request.type === 'transcriptions.listVerseIndexRowsForTranscriptions') {
+		return listVerseIndexRowsForTranscriptions(getKyselyDb(), request.transcriptionIds);
 	}
 	if (request.type === 'transcriptions.rebuildVerseIndex') {
 		const result = await rebuildVerseIndexForTranscriptions(

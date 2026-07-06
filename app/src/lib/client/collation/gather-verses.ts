@@ -1,6 +1,6 @@
 import {
 	getVerseIndexRows,
-	getVerseIndexRowsForTranscription,
+	getVerseIndexRowsForTranscriptions,
 } from '$lib/client/transcription/verse-index';
 
 export interface VerseNode {
@@ -79,11 +79,7 @@ export async function gatherVerses(transcriptionIds?: string[]): Promise<Aggrega
 		: [];
 	const rows =
 		uniqueTranscriptionIds.length > 0
-			? (
-					await Promise.all(
-						uniqueTranscriptionIds.map(id => getVerseIndexRowsForTranscription(id))
-					)
-				).flat()
+			? await getVerseIndexRowsForTranscriptions(uniqueTranscriptionIds)
 			: await getVerseIndexRows();
 	const verses = rows.map(row => ({ book: row.book, chapter: row.chapter, verse: row.verse }));
 	return sortVerses([...aggregateVerses(verses).values()]);

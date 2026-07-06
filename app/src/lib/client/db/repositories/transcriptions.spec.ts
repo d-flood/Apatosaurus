@@ -12,6 +12,7 @@ import {
 	getTranscriptionsByIds,
 	getVerseIndexRowsForVerse,
 	listVerseIndexRowsForTranscription,
+	listVerseIndexRowsForTranscriptions,
 	listTranscriptionSummaries,
 	rebuildVerseIndexForTranscriptions,
 	updateTranscriptionContent,
@@ -135,6 +136,36 @@ describe('transcriptions repository', () => {
 
 		expect(rows.map(row => row.transcription_id)).toEqual(['tx-1', 'tx-1']);
 		expect(rows.map(row => row.verse_identifier)).toEqual(['Romans 1:1', 'Romans 1:2']);
+	});
+
+	it('lists verse index rows for many transcriptions in one query', async () => {
+		await createTranscriptions(harness.db, [
+			{
+				...baseInput('tx-1', '01'),
+				document: documentWithVerses(['Romans 1:1', 'Romans 1:2']),
+			},
+			{
+				...baseInput('tx-2', '02'),
+				document: documentWithVerses(['Romans 1:3']),
+			},
+			{
+				...baseInput('tx-3', '03'),
+				document: documentWithVerses(['Romans 1:4']),
+			},
+		]);
+
+		const rows = await listVerseIndexRowsForTranscriptions(harness.db, [
+			'tx-2',
+			'tx-1',
+			'tx-1',
+			'',
+		]);
+
+		expect(rows.map(row => [row.transcription_id, row.verse_identifier])).toEqual([
+			['tx-1', 'Romans 1:1'],
+			['tx-1', 'Romans 1:2'],
+			['tx-2', 'Romans 1:3'],
+		]);
 	});
 
 	it('loads full transcriptions in caller id order', async () => {

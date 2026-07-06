@@ -133,6 +133,13 @@ export interface TranscriptionRpcMap {
 		};
 		response: VerseIndexRow[];
 	};
+	'transcriptions.listVerseIndexRowsForTranscriptions': {
+		request: {
+			type: 'transcriptions.listVerseIndexRowsForTranscriptions';
+			transcriptionIds: string[];
+		};
+		response: VerseIndexRow[];
+	};
 	'transcriptions.rebuildVerseIndex': {
 		request: { type: 'transcriptions.rebuildVerseIndex'; transcriptionIds: string[] };
 		response: VerseIndexRebuildResult;

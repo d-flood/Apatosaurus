@@ -2,12 +2,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('$lib/client/transcription/verse-index', () => ({
 	getVerseIndexRows: vi.fn(),
-	getVerseIndexRowsForTranscription: vi.fn(),
+	getVerseIndexRowsForTranscriptions: vi.fn(),
 }));
 
 import {
 	getVerseIndexRows,
-	getVerseIndexRowsForTranscription,
+	getVerseIndexRowsForTranscriptions,
 } from '$lib/client/transcription/verse-index';
 import { gatherVerses } from './gather-verses';
 
@@ -17,7 +17,7 @@ describe('gatherVerses project filtering', () => {
 	});
 
 	it('limits aggregated verses to the selected transcription ids', async () => {
-		vi.mocked(getVerseIndexRowsForTranscription).mockResolvedValue([
+		vi.mocked(getVerseIndexRowsForTranscriptions).mockResolvedValue([
 			{
 				transcription_id: 'tx-1',
 				book: 'Romans',
@@ -35,7 +35,7 @@ describe('gatherVerses project filtering', () => {
 		const verses = await gatherVerses(['tx-1']);
 
 		expect(getVerseIndexRows).not.toHaveBeenCalled();
-		expect(getVerseIndexRowsForTranscription).toHaveBeenCalledWith('tx-1');
+		expect(getVerseIndexRowsForTranscriptions).toHaveBeenCalledWith(['tx-1']);
 		expect(verses).toEqual([
 			{
 				identifier: 'Romans 1:1',

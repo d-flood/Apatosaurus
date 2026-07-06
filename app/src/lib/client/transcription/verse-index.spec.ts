@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const {
 	getTranscription,
 	listVerseIndexRowsForTranscription,
+	listVerseIndexRowsForTranscriptions,
 	listVerseIndexRows,
 	getVerseIndexRowsForVerse,
 	rebuildVerseIndexForTranscriptions,
@@ -10,6 +11,7 @@ const {
 } = vi.hoisted(() => ({
 	getTranscription: vi.fn(),
 	listVerseIndexRowsForTranscription: vi.fn(),
+	listVerseIndexRowsForTranscriptions: vi.fn(),
 	listVerseIndexRows: vi.fn(),
 	getVerseIndexRowsForVerse: vi.fn(),
 	rebuildVerseIndexForTranscriptions: vi.fn(),
@@ -19,6 +21,7 @@ const {
 vi.mock('$lib/client/db/client', () => ({
 	getTranscription,
 	listVerseIndexRowsForTranscription,
+	listVerseIndexRowsForTranscriptions,
 	listVerseIndexRows,
 	getVerseIndexRowsForVerse,
 	rebuildVerseIndexForTranscriptions,
@@ -28,6 +31,7 @@ vi.mock('$lib/client/db/client', () => ({
 import {
 	getVerseIndexRows,
 	getVerseIndexRowsForTranscription,
+	getVerseIndexRowsForTranscriptions,
 	getVerseIndexRowsForVerse as getPublicVerseIndexRowsForVerse,
 	rebuildVerseIndexForTranscriptions as rebuildPublicVerseIndexForTranscriptions,
 	syncVerseIndexFromDocument,
@@ -47,6 +51,7 @@ describe('verse-index local DB bridge', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		listVerseIndexRowsForTranscription.mockResolvedValue([verseRow]);
+		listVerseIndexRowsForTranscriptions.mockResolvedValue([verseRow]);
 		listVerseIndexRows.mockResolvedValue([verseRow]);
 		getVerseIndexRowsForVerse.mockResolvedValue([verseRow]);
 		getTranscription.mockResolvedValue({ id: 'tx-1', siglum: '01', title: 'Codex 01' });
@@ -72,6 +77,9 @@ describe('verse-index local DB bridge', () => {
 
 		await getVerseIndexRowsForTranscription('tx-1');
 		expect(listVerseIndexRowsForTranscription).toHaveBeenCalledWith('tx-1');
+
+		await getVerseIndexRowsForTranscriptions(['tx-1', 'tx-2']);
+		expect(listVerseIndexRowsForTranscriptions).toHaveBeenCalledWith(['tx-1', 'tx-2']);
 	});
 
 	it('rebuilds through one worker operation and reports label progress', async () => {

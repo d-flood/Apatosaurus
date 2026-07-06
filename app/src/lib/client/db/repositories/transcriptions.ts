@@ -288,10 +288,20 @@ export async function listVerseIndexRowsForTranscription(
 	db: DbExecutor,
 	transcriptionId: string
 ): Promise<VerseIndexRow[]> {
+	return listVerseIndexRowsForTranscriptions(db, [transcriptionId]);
+}
+
+export async function listVerseIndexRowsForTranscriptions(
+	db: DbExecutor,
+	transcriptionIds: string[]
+): Promise<VerseIndexRow[]> {
+	const uniqueIds = uniqueNonEmpty(transcriptionIds);
+	if (uniqueIds.length === 0) return [];
 	const rows = await db
 		.selectFrom('transcription_verse_index')
 		.selectAll()
-		.where('transcription_id', '=', transcriptionId)
+		.where('transcription_id', 'in', uniqueIds)
+		.orderBy('transcription_id')
 		.orderBy('verse_identifier')
 		.execute();
 	return rows.map(row => ({ ...row, id: requireId(row.id, 'verse index row') }));

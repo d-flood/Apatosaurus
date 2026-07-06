@@ -207,9 +207,15 @@ export async function listVerseIndexRows(): Promise<VerseIndexRow[]> {
 export async function listVerseIndexRowsForTranscription(
 	transcriptionId: string
 ): Promise<VerseIndexRow[]> {
+	return listVerseIndexRowsForTranscriptions([transcriptionId]);
+}
+
+export async function listVerseIndexRowsForTranscriptions(
+	transcriptionIds: string[]
+): Promise<VerseIndexRow[]> {
 	return sendTranscriptionRequest({
-		type: 'transcriptions.listVerseIndexRowsForTranscription',
-		transcriptionId,
+		type: 'transcriptions.listVerseIndexRowsForTranscriptions',
+		transcriptionIds,
 	});
 }
 
