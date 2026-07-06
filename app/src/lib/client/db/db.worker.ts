@@ -543,6 +543,11 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 		await db.exec('PRAGMA wal_checkpoint(TRUNCATE)');
 		return null;
 	}
+	if (request.type === 'index.rebuild') {
+		const report = await rebuildIndex();
+		postMessage({ type: 'db:invalidate', domain: 'all' });
+		return report;
+	}
 	if (request.type === 'reset') {
 		await kyselyDb?.destroy();
 		kyselyDb = null;
@@ -565,7 +570,7 @@ async function init(): Promise<void> {
 	}
 	kyselyDb = timeWorkerStepSync('kysely init', () => createWorkerKysely(db));
 	if (openResult.created) {
-		const report = await timeWorkerStep('index rebuild', () => rebuildIndexFromStore(getKyselyDb()));
+		const report = await rebuildIndex();
 		console.info('[local-db] index rebuilt from document store', report);
 		try {
 			const cleanupReport = await timeWorkerStep('stale index cleanup', () => cleanupStaleIndexFiles());
@@ -578,10 +583,17 @@ async function init(): Promise<void> {
 		} catch (error) {
 			console.warn('[local-db] stale index file cleanup failed', error);
 		}
+	} else {
+		await timeWorkerStep('default project bootstrap', () => ensureDefaultProject(getKyselyDb()));
 	}
-	await timeWorkerStep('default project bootstrap', () => ensureDefaultProject(getKyselyDb()));
 	initialized = true;
 	console.debug('[local-db] worker init completed', { elapsedMs: elapsed(startedAt) });
+}
+
+async function rebuildIndex() {
+	const report = await timeWorkerStep('index rebuild', () => rebuildIndexFromStore(getKyselyDb()));
+	await timeWorkerStep('default project bootstrap', () => ensureDefaultProject(getKyselyDb()));
+	return report;
 }
 
 function getKyselyDb(): Kysely<Database> {

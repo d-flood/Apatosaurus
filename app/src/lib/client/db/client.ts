@@ -16,6 +16,8 @@ import type {
 	RevisionRpcResponse,
 	CloudConnectionRpcRequest,
 	CloudConnectionRpcResponse,
+	IndexRpcRequest,
+	IndexRpcResponse,
 } from './rpc';
 import type { RemoveLocalProjectInput, RemoveLocalProjectResult } from './repositories/project-removal';
 import type { W3CAnnotation } from 'triiiceratops/plugins/annotation-editor';
@@ -84,6 +86,7 @@ import type {
 	TranscriptionCheckpoint,
 	TranscriptionCheckpointSummary,
 } from './repositories/revisions';
+import type { IndexRebuildReport } from './repositories/index-rebuild';
 import type {
 	AnnotationAnchor,
 	ManifestSourceSummary,
@@ -655,6 +658,10 @@ export async function pullLinkedProjectUpdates(
 	return sendCloudConnectionRequest({ type: 'cloudProjects.pullLinkedUpdates', context });
 }
 
+export async function rebuildLocalIndex(): Promise<IndexRebuildReport> {
+	return sendIndexRequest({ type: 'index.rebuild' });
+}
+
 export function attachLocalDbClient(worker: Worker): void {
 	worker.addEventListener('message', (event: MessageEvent<DbResponse | DbInvalidationEvent>) => {
 		const message = event.data;
@@ -755,4 +762,10 @@ async function sendCloudConnectionRequest<T extends CloudConnectionRpcRequest>(
 	payload: T
 ): Promise<CloudConnectionRpcResponse<T['type']>> {
 	return send<CloudConnectionRpcResponse<T['type']>>(payload);
+}
+
+async function sendIndexRequest<T extends IndexRpcRequest>(
+	payload: T
+): Promise<IndexRpcResponse<T['type']>> {
+	return send<IndexRpcResponse<T['type']>>(payload);
 }

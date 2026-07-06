@@ -71,6 +71,7 @@ import type {
 	TranscriptionCheckpoint,
 	TranscriptionCheckpointSummary,
 } from './repositories/revisions';
+import type { IndexRebuildReport } from './repositories/index-rebuild';
 import type { ManifestSourceSummary, PageCanvasLink, SavePageCanvasLinkInput } from '../iiif/types';
 import type { W3CAnnotation } from 'triiiceratops/plugins/annotation-editor';
 
@@ -503,6 +504,17 @@ export type CloudConnectionRpcRequest =
 export type CloudConnectionRpcResponse<T extends CloudConnectionRpcRequest['type']> =
 	CloudConnectionRpcMap[T]['response'];
 
+export interface IndexRpcMap {
+	'index.rebuild': {
+		request: { type: 'index.rebuild' };
+		response: IndexRebuildReport;
+	};
+}
+
+export type IndexRpcRequest = IndexRpcMap[keyof IndexRpcMap]['request'];
+
+export type IndexRpcResponse<T extends IndexRpcRequest['type']> = IndexRpcMap[T]['response'];
+
 export type DbRequest =
 	| { id?: number; type: 'init' }
 	| { id?: number; type: 'query'; sql: string; params?: DbValue[] }
@@ -516,7 +528,8 @@ export type DbRequest =
 	| ({ id?: number } & CollationRpcRequest)
 	| ({ id?: number } & IiifRpcRequest)
 	| ({ id?: number } & RevisionRpcRequest)
-	| ({ id?: number } & CloudConnectionRpcRequest);
+	| ({ id?: number } & CloudConnectionRpcRequest)
+	| ({ id?: number } & IndexRpcRequest);
 
 export type DbRequestPayload =
 	| { type: 'init' }
@@ -531,7 +544,8 @@ export type DbRequestPayload =
 	| CollationRpcRequest
 	| IiifRpcRequest
 	| RevisionRpcRequest
-	| CloudConnectionRpcRequest;
+	| CloudConnectionRpcRequest
+	| IndexRpcRequest;
 
 export type DbResponse =
 	| { id: number; ok: true; result?: unknown }

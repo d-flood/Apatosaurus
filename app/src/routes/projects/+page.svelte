@@ -43,8 +43,10 @@
 		deriveProjectBackupSummary,
 		listCloudConnections,
 		listCloudProjectFolders,
+		rebuildLocalIndex,
 		subscribeLocalDbInvalidations,
 	} from '$lib/client/db/client';
+	import type { IndexRebuildReport } from '$lib/client/db/repositories/index-rebuild';
 	import type { CloudConnectionRecord } from '$lib/client/db/repositories/cloud-connections';
 	import type { ProjectBackupSummary } from '$lib/client/sync/sync-manager';
 	import FolderOpen from 'phosphor-svelte/lib/FolderOpen';
@@ -90,7 +92,10 @@
 	let isSavingMetadata = $state(false);
 	let isSavingSettings = $state(false);
 	let isSavingTranscriptions = $state(false);
+	let isRepairingIndex = $state(false);
 	let error = $state<string | null>(null);
+	let indexRepairError = $state<string | null>(null);
+	let indexRepairReport = $state<IndexRebuildReport | null>(null);
 	let bootstrapRunId = 0;
 	let backupSummaryScheduleId = 0;
 	let backupSummaryRunId = 0;
@@ -145,7 +150,8 @@
 			isLoadingProject ||
 			isSavingMetadata ||
 			isSavingSettings ||
-			isSavingTranscriptions
+			isSavingTranscriptions ||
+			isRepairingIndex
 	);
 
 	function logProjects(
@@ -348,6 +354,10 @@
 		if (providerId === 'local-folder') return 'Local folder';
 		if (providerId === 'mock') return 'Mock provider';
 		return providerId;
+	}
+
+	function pluralize(count: number, singular: string): string {
+		return `${count} ${singular}${count === 1 ? '' : 's'}`;
 	}
 
 	async function loadProject(projectId: string) {
@@ -616,6 +626,22 @@
 
 	async function handleCloudProjectSelected(projectId: string) {
 		await bootstrap(projectId);
+	}
+
+	async function repairLocalIndex() {
+		if (isRepairingIndex) return;
+		const preferredProjectId = selectedProjectId;
+		isRepairingIndex = true;
+		indexRepairError = null;
+		try {
+			const report = await rebuildLocalIndex();
+			indexRepairReport = report;
+			await bootstrap(preferredProjectId);
+		} catch (err) {
+			indexRepairError = err instanceof Error ? err.message : 'Failed to repair database';
+		} finally {
+			isRepairingIndex = false;
+		}
 	}
 
 	async function saveMetadata() {
@@ -1144,6 +1170,51 @@
 						<span class="badge badge-ghost badge-sm">
 							Verify a project backup before removing its local copy
 						</span>
+					</div>
+
+					<div class="divider my-4"></div>
+
+					<div class="space-y-3">
+						<div>
+							<h3 class="font-serif text-sm font-semibold">Repair Database</h3>
+							<p class="mt-1 text-xs leading-relaxed text-base-content/55">
+								Rebuild the disposable SQLite index from project files. This does not delete
+								canonical documents.
+							</p>
+						</div>
+						<button
+							type="button"
+							class="btn btn-outline btn-sm w-full"
+							disabled={isRepairingIndex}
+							onclick={repairLocalIndex}
+						>
+							{#if isRepairingIndex}
+								<span class="loading loading-spinner loading-xs"></span>
+								Repairing...
+							{:else}
+								Repair database
+							{/if}
+						</button>
+
+						{#if indexRepairError}
+							<div class="alert alert-error py-2 text-xs">{indexRepairError}</div>
+						{/if}
+
+						{#if indexRepairReport}
+							<div class="rounded-box bg-base-200/70 p-3 text-xs text-base-content/70">
+								<div class="font-medium text-base-content">Repair complete</div>
+								<div class="mt-1">
+									Restored {pluralize(indexRepairReport.projectsRestored, 'project')}, {pluralize(
+										indexRepairReport.transcriptionsRestored,
+										'transcription'
+									)}, and {pluralize(indexRepairReport.collationsRestored, 'collation')}.
+								</div>
+								<div class="mt-1">
+									Quarantined files: {indexRepairReport.quarantinedFiles.length}. Orphaned
+									files: {indexRepairReport.orphanedFiles.length}.
+								</div>
+							</div>
+						{/if}
 					</div>
 				</div>
 			</div>
