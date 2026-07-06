@@ -8,7 +8,7 @@ This overview is the handoff document for the storage inversion described in `ar
 
 Overall status: `In Progress`
 
-Current phase: `05-write-path-inversion.md`
+Current phase: `06-index-rebuild-and-repair.md`
 
 Last updated: `2026-07-05`
 
@@ -43,7 +43,7 @@ Full list in `architecture.md` section 3. The short form:
 | 2 | `02-document-store-foundation.md` | Completed | None |
 | 3 | `03-canonical-file-formats.md` | Completed | Phase 2 |
 | 4 | `04-project-only-data-model.md` | Completed | Phase 3 |
-| 5 | `05-write-path-inversion.md` | In Progress | Phase 4 |
+| 5 | `05-write-path-inversion.md` | Completed | Phase 4 |
 | 6 | `06-index-rebuild-and-repair.md` | Not Started | Phase 5 |
 | 7 | `07-local-folder-sync.md` | Not Started | Phases 1, 6 |
 | 8 | `08-import-export.md` | Not Started | Phase 6 |
@@ -96,6 +96,8 @@ Run narrower tests during each session when possible, then run the full baseline
 
 | Date | Note |
 | --- | --- |
+| 2026-07-05 | Phase 5 completed. Automated crash-ordering coverage now exercises transcription and collation commit failures at history-write, primary-write, manifest-write, TEI, and post-manifest/pre-index boundaries, and a headless Chromium OPFS smoke test created/committed a transcription and collation through the real DB worker, hash-validated canonical manifest/primary/history/working files, verified TEI siblings, and listed the expected OPFS layout. Verification passed: focused file repository tests (25 passed), `bun run check`, full `bun run test:unit -- --run` (369 passed), `bun run db:check`, and the OPFS layout smoke test. Current phase is now `06-index-rebuild-and-repair.md`. |
+| 2026-07-05 | Phase 5 crash-ordering slice completed. Added transcription and collation commit failure tests for history-write failure, primary-write failure, and post-manifest/pre-index insertion failure, complementing existing manifest-failure and non-blocking TEI coverage. Verification passed: focused file repository tests (25 passed), `bun run check`, full `bun run test:unit -- --run` (369 passed), and `bun run db:check`. Phase 5 remains in progress; only the manual OPFS layout smoke test remains before completion. |
 | 2026-07-05 | Phase 5 load/locking slice completed. Transcription and collation loads now prefer canonical working files, then committed primary files via migrate-on-read with revision-hash validation, before falling back to SQLite cache rows with warnings. Project-scoped `navigator.locks` now guard transcription commit, collation commit, and deletion file sequences, with context reloaded after lock acquisition to preserve serialized parent/tombstone metadata. Verification passed: focused file/deletion repository tests, `bun run check`, `bun run db:check`, and full `bun run test:unit -- --run` (363 passed). Phase 5 remains in progress; remaining work is crash-ordering tests for each commit step boundary and the manual OPFS layout smoke test. |
 | 2026-07-05 | Phase 5 creation slice completed. DB-worker transcription/collation create RPCs now use file-aware wrappers: transcription creation writes initial history/primary/TEI/manifest files before publishing the initial committed head to SQLite, and collation creation seeds a setup-phase canonical working document then commits it through the same file-first sequence while leaving `collation_artifacts` empty. Verification passed: focused transcription/collation file persistence tests, `bun run db:check`, `bun run check`, and full `bun run test:unit -- --run` (359 passed). Phase 5 remains in progress; remaining work is primary-file load preference beyond working files, broader crash-boundary coverage, project manifest updates on non-commit writes, and locking. |
 | 2026-07-05 | Phase 5 deletion slice completed. DB-worker transcription/collation deletes now write canonical tombstone files, record tombstone heads in `project.json`, remove SQLite index rows, best-effort remove committed primaries, and preserve history files; manifest-failure tests assert the old index/primary remain intact with only a recoverable tombstone file written. Manifest tombstone heads now use canonical entity-scoped tombstone paths. Verification passed: `bun run db:check`, `bun run check`, focused and adjacent deletion/file persistence tests, and full `bun run test:unit -- --run` (357 passed). Phase 5 remains in progress; remaining work is creation file paths, primary-file load preference beyond working files, broader crash-boundary coverage, project manifest updates on non-commit writes, and locking. |

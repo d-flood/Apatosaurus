@@ -423,6 +423,92 @@ describe('collation file persistence', () => {
 		expect(status.commitState).toBe('clean');
 	});
 
+	it('does not write primary, manifest, or index when collation history writing fails', async () => {
+		await createFixtureCollation();
+		backend.failWritePathIncludes = 'history/collations/col-1/col-cp-history-fail.json.tmp-';
+
+		await expect(
+			createCommittedCollationCheckpointWithFiles(
+				harness.db,
+				{
+					collationId: 'col-1',
+					checkpointId: 'col-cp-history-fail',
+					createdAt: '2026-07-04T13:00:00.000Z',
+				},
+				{ backend, nonce: () => 'history-fail' }
+			)
+		).rejects.toThrow('simulated write failure');
+
+		await expect(
+			readTextFile(collationCheckpointFile('project-slug', 'col-1', 'col-cp-history-fail'), {
+				backend,
+			})
+		).rejects.toThrow('not found');
+		await expect(
+			readTextFile(collationPrimaryFile('project-slug', 'col-1'), { backend })
+		).rejects.toThrow('not found');
+		await expect(
+			readTextFile(projectManifestFile('project-slug'), { backend })
+		).rejects.toThrow('not found');
+		await expect(
+			harness.db
+				.selectFrom('collation_checkpoints')
+				.selectAll()
+				.where('id', '=', 'col-cp-history-fail')
+				.execute()
+		).resolves.toEqual([]);
+		await expect(
+			harness.db
+				.selectFrom('collations')
+				.select(['current_revision_id', 'current_content_hash'])
+				.where('id', '=', 'col-1')
+				.executeTakeFirstOrThrow()
+		).resolves.toEqual({ current_revision_id: '', current_content_hash: '' });
+	});
+
+	it('leaves only history when collation primary writing fails', async () => {
+		await createFixtureCollation();
+		backend.failWritePathIncludes = 'collations/col-1.json.tmp-';
+
+		await expect(
+			createCommittedCollationCheckpointWithFiles(
+				harness.db,
+				{
+					collationId: 'col-1',
+					checkpointId: 'col-cp-primary-fail',
+					createdAt: '2026-07-04T13:00:00.000Z',
+				},
+				{ backend, nonce: () => 'primary-fail' }
+			)
+		).rejects.toThrow('simulated write failure');
+
+		await expect(
+			readTextFile(collationCheckpointFile('project-slug', 'col-1', 'col-cp-primary-fail'), {
+				backend,
+			})
+		).resolves.toContain('col-cp-primary-fail');
+		await expect(
+			readTextFile(collationPrimaryFile('project-slug', 'col-1'), { backend })
+		).rejects.toThrow('not found');
+		await expect(
+			readTextFile(projectManifestFile('project-slug'), { backend })
+		).rejects.toThrow('not found');
+		await expect(
+			harness.db
+				.selectFrom('collation_checkpoints')
+				.selectAll()
+				.where('id', '=', 'col-cp-primary-fail')
+				.execute()
+		).resolves.toEqual([]);
+		await expect(
+			harness.db
+				.selectFrom('collations')
+				.select(['current_revision_id', 'current_content_hash'])
+				.where('id', '=', 'col-1')
+				.executeTakeFirstOrThrow()
+		).resolves.toEqual({ current_revision_id: '', current_content_hash: '' });
+	});
+
 	it('does not update the collation index when manifest writing fails after entity files', async () => {
 		await createFixtureCollation();
 		await saveWorkingCollationArtifact(
@@ -475,6 +561,73 @@ describe('collation file persistence', () => {
 				.where('id', '=', 'col-1')
 				.executeTakeFirstOrThrow()
 		).resolves.toEqual({ current_revision_id: '', current_content_hash: '' });
+	});
+
+	it('allows manifest to advance while the collation index remains old if index insertion fails', async () => {
+		await createFixtureCollation();
+		await saveWorkingCollationArtifact(
+			harness.db,
+			{
+				collationId: 'col-1',
+				artifactId: 'artifact-1',
+				artifactType: 'collation_document_v1',
+				payload: JSON.stringify(collationDocument('readings')),
+				now: '2026-07-04T12:00:00.000Z',
+			},
+			{ backend, nonce: () => 'working-write' }
+		);
+		await harness.db
+			.insertInto('collation_checkpoints')
+			.values({
+				id: 'col-cp-index-fail',
+				collation_id: 'col-1',
+				parent_checkpoint_id: null,
+				payload: '{}',
+				content_hash: 'preexisting-content-hash',
+				is_committed: 1,
+				commit_message: null,
+				author_name: 'Seed',
+				created_at: '2026-07-04T01:00:00.000Z',
+			})
+			.execute();
+
+		await expect(
+			createCommittedCollationCheckpointWithFiles(
+				harness.db,
+				{
+					collationId: 'col-1',
+					checkpointId: 'col-cp-index-fail',
+					createdAt: '2026-07-04T13:00:00.000Z',
+				},
+				{ backend, nonce: () => 'index-fail' }
+			)
+		).rejects.toThrow();
+
+		await expect(
+			readTextFile(collationCheckpointFile('project-slug', 'col-1', 'col-cp-index-fail'), {
+				backend,
+			})
+		).resolves.toContain('col-cp-index-fail');
+		await expect(
+			readTextFile(collationPrimaryFile('project-slug', 'col-1'), { backend })
+		).resolves.toContain('col-cp-index-fail');
+		await expect(
+			readTextFile(projectManifestFile('project-slug'), { backend })
+		).resolves.toContain('col-cp-index-fail');
+		await expect(
+			harness.db
+				.selectFrom('collations')
+				.select(['current_revision_id', 'current_content_hash'])
+				.where('id', '=', 'col-1')
+				.executeTakeFirstOrThrow()
+		).resolves.toEqual({ current_revision_id: '', current_content_hash: '' });
+		await expect(
+			harness.db
+				.selectFrom('collation_checkpoints')
+				.select(['content_hash'])
+				.where('id', '=', 'col-cp-index-fail')
+				.executeTakeFirstOrThrow()
+		).resolves.toEqual({ content_hash: 'preexisting-content-hash' });
 	});
 
 	it('does not fail the collation commit when derived TEI writing fails', async () => {
