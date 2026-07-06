@@ -82,7 +82,7 @@ describe('verse-index local DB bridge', () => {
 		expect(listVerseIndexRowsForTranscriptions).toHaveBeenCalledWith(['tx-1', 'tx-2']);
 	});
 
-	it('rebuilds through one worker operation and reports label progress', async () => {
+	it('rebuilds through one worker operation without fetching label records', async () => {
 		const progressUpdates: Array<{ completed: number; total: number; currentLabel: string }> =
 			[];
 
@@ -98,9 +98,10 @@ describe('verse-index local DB bridge', () => {
 
 		expect(result).toEqual({ processed: 1, succeeded: 1, failed: 0, failures: [] });
 		expect(rebuildVerseIndexForTranscriptions).toHaveBeenCalledWith(['tx-1']);
+		expect(getTranscription).not.toHaveBeenCalled();
 		expect(progressUpdates).toEqual([
-			{ completed: 0, total: 1, currentLabel: '01' },
-			{ completed: 1, total: 1, currentLabel: '01' },
+			{ completed: 0, total: 1, currentLabel: '' },
+			{ completed: 1, total: 1, currentLabel: '' },
 		]);
 	});
 

@@ -278,6 +278,42 @@ describe('transcriptions repository', () => {
 		});
 	});
 
+	it('skips unchanged verse index rebuilds by indexed content hash', async () => {
+		await createTranscription(harness.db, {
+			...baseInput('tx-1', '01'),
+			document: documentWithVerses(['Romans 1:1', 'Romans 1:2']),
+		});
+		await harness.db
+			.updateTable('transcription_verse_index')
+			.set({ last_indexed_at: '2024-01-01T00:00:00.000Z' })
+			.where('transcription_id', '=', 'tx-1')
+			.execute();
+		await harness.db
+			.updateTable('transcription_verse_index_state')
+			.set({ last_indexed_at: '2024-01-01T00:00:00.000Z' })
+			.where('transcription_id', '=', 'tx-1')
+			.execute();
+
+		const result = await rebuildVerseIndexForTranscriptions(harness.db, ['tx-1']);
+
+		const rows = await listVerseIndexRowsForTranscription(harness.db, 'tx-1');
+		const state = await harness.db
+			.selectFrom('transcription_verse_index_state')
+			.selectAll()
+			.where('transcription_id', '=', 'tx-1')
+			.executeTakeFirstOrThrow();
+		expect(result).toEqual({ processed: 1, succeeded: 1, failed: 0, failures: [] });
+		expect(rows.map(row => row.last_indexed_at)).toEqual([
+			'2024-01-01T00:00:00.000Z',
+			'2024-01-01T00:00:00.000Z',
+		]);
+		expect(state).toMatchObject({
+			transcription_id: 'tx-1',
+			verse_count: 2,
+			last_indexed_at: '2024-01-01T00:00:00.000Z',
+		});
+	});
+
 	it('hard deletes transcriptions and cascades verse index rows', async () => {
 		await createTranscription(harness.db, {
 			...baseInput('tx-1', '01'),

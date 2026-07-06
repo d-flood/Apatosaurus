@@ -175,6 +175,7 @@ export async function updateTranscriptionContent(
 			type: 'transcriptions.updateContent',
 			input: {
 				id: input.id,
+				document: input.document,
 				contentJson: input.contentJson,
 				format: input.format,
 				updatedAt: input.updatedAt,

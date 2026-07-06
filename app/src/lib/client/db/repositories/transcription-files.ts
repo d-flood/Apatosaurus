@@ -3,7 +3,6 @@ import type { Kysely } from 'kysely';
 import {
 	coerceTranscriptionDocument,
 	EMPTY_TRANSCRIPTION_DOC,
-	serializeTranscriptionDocument,
 	TRANSCRIPTION_FORMAT,
 	type StoredTranscriptionDocument,
 } from '$lib/client/transcription/content';
@@ -93,12 +92,18 @@ interface LoadedWorkingTranscriptionPayload {
 	language: string;
 }
 
+interface NormalizedWorkingTranscriptionContent {
+	contentJson: string;
+	document: StoredTranscriptionDocument;
+	jsonValue: JsonValue;
+}
+
 export async function saveWorkingTranscriptionContent(
 	db: Kysely<Database>,
 	input: UpdateTranscriptionContentInput,
 	storeOptions: StoreOperationOptions = {}
 ): Promise<void> {
-	const contentJson = normalizeContentJson(getContentJson(input), input.id);
+	const content = normalizeWorkingTranscriptionContent(input, input.id);
 	const updatedAt = input.updatedAt ?? new Date().toISOString();
 	const context = await loadTranscriptionFileContext(db, input.id);
 	const snapshot = await loadProjectTranscriptionSnapshot(db, context.projectTranscriptionId);
@@ -117,7 +122,7 @@ export async function saveWorkingTranscriptionContent(
 		title: snapshot.title,
 		siglum: snapshot.siglum,
 		description: snapshot.description,
-		content_json: parseJsonValue(contentJson, `transcription ${input.id} content_json`),
+		content_json: content.jsonValue,
 		content_format: contentFormat,
 		created_at: context.createdAt,
 		updated_at: updatedAt,
@@ -172,7 +177,8 @@ export async function saveWorkingTranscriptionContent(
 	);
 	await updateTranscriptionContent(db, {
 		id: input.id,
-		contentJson,
+		document: content.document,
+		contentJson: content.contentJson,
 		format: contentFormat,
 		updatedAt,
 	});
@@ -642,27 +648,23 @@ async function assertFileMissing(path: string, storeOptions: StoreOperationOptio
 	throw new Error(`Refusing to overwrite existing history file ${path}.`);
 }
 
-function getContentJson(input: {
-	contentJson?: string;
-	document?: StoredTranscriptionDocument | null;
-}): string {
-	if (input.contentJson) return input.contentJson;
-	return serializeTranscriptionDocument(input.document || EMPTY_TRANSCRIPTION_DOC);
-}
-
-function normalizeContentJson(contentJson: string, transcriptionId: string): string {
-	const document = coerceTranscriptionDocument(contentJson);
+function normalizeWorkingTranscriptionContent(
+	input: {
+		contentJson?: string;
+		document?: StoredTranscriptionDocument | null;
+	},
+	transcriptionId: string
+): NormalizedWorkingTranscriptionContent {
+	const document = input.document
+		? coerceTranscriptionDocument(input.document)
+		: coerceTranscriptionDocument(input.contentJson || EMPTY_TRANSCRIPTION_DOC);
 	if (!document)
 		throw new Error(`Transcription ${transcriptionId} content is missing or invalid.`);
-	return serializeTranscriptionDocument(document);
-}
-
-function parseJsonValue(value: string, label: string): JsonValue {
-	try {
-		return JSON.parse(value) as JsonValue;
-	} catch (error) {
-		throw new Error(`Invalid JSON in ${label}: ${errorMessage(error)}`);
-	}
+	return {
+		contentJson: JSON.stringify(document),
+		document,
+		jsonValue: document as unknown as JsonValue,
+	};
 }
 
 function emptyToNull(value: string | null): string | null {

@@ -104,6 +104,7 @@ const INDEX_TABLE_DELETE_ORDER = [
 	'transcription_page_canvas_links',
 	'iiif_manifest_sources',
 	'transcription_verse_index',
+	'transcription_verse_index_state',
 	'transcription_checkpoints',
 	'project_transcriptions',
 	'transcriptions',

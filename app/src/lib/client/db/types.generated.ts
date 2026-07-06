@@ -18,6 +18,7 @@ export interface Database {
 	transcription_checkpoints: TranscriptionCheckpoints;
 	transcription_page_canvas_links: TranscriptionPageCanvasLinks;
 	transcription_verse_index: TranscriptionVerseIndex;
+	transcription_verse_index_state: TranscriptionVerseIndexState;
 	transcriptions: Transcriptions;
 }
 
@@ -231,6 +232,13 @@ export interface TranscriptionVerseIndex {
 	book: string;
 	chapter: string;
 	verse: string;
+	last_indexed_at: string;
+}
+
+export interface TranscriptionVerseIndexState {
+	transcription_id: string | null;
+	indexed_content_hash: string;
+	verse_count: number;
 	last_indexed_at: string;
 }
 

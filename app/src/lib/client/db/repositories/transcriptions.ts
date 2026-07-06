@@ -4,10 +4,10 @@ import { sql, type Kysely, type Selectable, type Transaction } from 'kysely';
 import {
 	coerceTranscriptionDocument,
 	EMPTY_TRANSCRIPTION_DOC,
-	serializeTranscriptionDocument,
 	TRANSCRIPTION_FORMAT,
 	type StoredTranscriptionDocument,
 } from '$lib/client/transcription/content';
+import { hashCanonicalPayload } from '$lib/client/sync/canonical-json';
 import type {
 	Database,
 	ProjectTranscriptions,
@@ -83,6 +83,16 @@ interface VerseNode {
 	book: string;
 	chapter: string;
 	verse: string;
+}
+
+interface NormalizedTranscriptionContent {
+	contentJson: string;
+	document: StoredTranscriptionDocument;
+}
+
+interface ReplaceVerseIndexRowsInput extends NormalizedTranscriptionContent {
+	indexedAt?: string;
+	force?: boolean;
 }
 
 export async function listTranscriptionSummaries(db: DbExecutor): Promise<TranscriptionSummary[]> {
@@ -207,7 +217,9 @@ export async function createTranscriptions(
 		}));
 		await trx.insertInto('project_transcriptions').values(projectTranscriptionRows).execute();
 		for (const row of transcriptionRows)
-			await replaceVerseIndexRows(trx, requireId(row.id, 'transcription'), row.content_json);
+			await replaceVerseIndexRows(trx, requireId(row.id, 'transcription'), {
+				...normalizeTranscriptionContent({ contentJson: row.content_json }),
+			});
 		const touchedAt = new Date().toISOString();
 		for (const projectId of [...new Set(rows.map(row => row.projectId))]) {
 			await trx
@@ -224,7 +236,7 @@ export async function updateTranscriptionContent(
 	db: Kysely<Database>,
 	input: UpdateTranscriptionContentInput
 ): Promise<void> {
-	const contentJson = getContentJson(input);
+	const content = normalizeTranscriptionContent(input);
 	const updatedAt = input.updatedAt ?? new Date().toISOString();
 	await db.transaction().execute(async trx => {
 		const projectRow = await trx
@@ -235,7 +247,7 @@ export async function updateTranscriptionContent(
 		const result = await trx
 			.updateTable('transcriptions')
 			.set({
-				content_json: contentJson,
+				content_json: content.contentJson,
 				format: input.format ?? TRANSCRIPTION_FORMAT,
 				updated_at: updatedAt,
 			})
@@ -244,7 +256,7 @@ export async function updateTranscriptionContent(
 
 		if (Number(result.numUpdatedRows) === 0)
 			throw new Error(`Transcription ${input.id} was not found.`);
-		await replaceVerseIndexRows(trx, input.id, contentJson, updatedAt);
+		await replaceVerseIndexRows(trx, input.id, { ...content, indexedAt: updatedAt });
 		if (projectRow?.project_id) {
 			await trx
 				.updateTable('projects')
@@ -327,7 +339,9 @@ export async function rebuildVerseIndexForTranscriptions(
 			const label = row ? formatTranscriptionLabel(row) : id;
 			try {
 				if (!row) throw new Error('Transcription was not found');
-				await replaceVerseIndexRows(trx, id, row.content_json);
+				await replaceVerseIndexRows(trx, id, {
+					...normalizeTranscriptionContent({ contentJson: row.content_json }),
+				});
 				succeeded += 1;
 			} catch (error) {
 				failures.push({
@@ -354,7 +368,10 @@ export async function replaceTranscriptionVerseIndexRows(
 	contentJson: string,
 	indexedAt: string = new Date().toISOString()
 ): Promise<void> {
-	await replaceVerseIndexRows(db, transcriptionId, contentJson, indexedAt);
+	await replaceVerseIndexRows(db, transcriptionId, {
+		...normalizeTranscriptionContent({ contentJson }),
+		indexedAt,
+	});
 }
 
 function buildTranscriptionRow(
@@ -392,11 +409,11 @@ function buildTranscriptionRow(
 async function replaceVerseIndexRows(
 	db: DbExecutor,
 	transcriptionId: string,
-	contentJson: string,
-	indexedAt: string = new Date().toISOString()
+	input: ReplaceVerseIndexRowsInput
 ): Promise<void> {
-	const document = coerceTranscriptionDocument(contentJson);
-	if (!document) throw new Error('Transcription content is missing or invalid');
+	const indexedAt = input.indexedAt ?? new Date().toISOString();
+	const contentHash = await hashCanonicalPayload(input.document);
+	if (!input.force && (await isVerseIndexCurrent(db, transcriptionId, contentHash))) return;
 
 	await db
 		.deleteFrom('transcription_verse_index')
@@ -404,7 +421,7 @@ async function replaceVerseIndexRows(
 		.execute();
 
 	const uniqueByIdentifier = new Map<string, VerseNode>();
-	for (const verse of extractVersesFromDocument(document)) {
+	for (const verse of extractVersesFromDocument(input.document)) {
 		const identifier = normalizeVerseIdentifier(verse);
 		if (!identifier || uniqueByIdentifier.has(identifier)) continue;
 		uniqueByIdentifier.set(identifier, verse);
@@ -423,6 +440,42 @@ async function replaceVerseIndexRows(
 	);
 
 	if (rows.length > 0) await db.insertInto('transcription_verse_index').values(rows).execute();
+	await db
+		.insertInto('transcription_verse_index_state')
+		.values({
+			transcription_id: transcriptionId,
+			indexed_content_hash: contentHash,
+			verse_count: rows.length,
+			last_indexed_at: indexedAt,
+		})
+		.onConflict(oc =>
+			oc.column('transcription_id').doUpdateSet({
+				indexed_content_hash: contentHash,
+				verse_count: rows.length,
+				last_indexed_at: indexedAt,
+			})
+		)
+		.execute();
+}
+
+async function isVerseIndexCurrent(
+	db: DbExecutor,
+	transcriptionId: string,
+	contentHash: string
+): Promise<boolean> {
+	const state = await db
+		.selectFrom('transcription_verse_index_state')
+		.select(['indexed_content_hash', 'verse_count'])
+		.where('transcription_id', '=', transcriptionId)
+		.executeTakeFirst();
+	if (!state || state.indexed_content_hash !== contentHash) return false;
+
+	const count = await db
+		.selectFrom('transcription_verse_index')
+		.select(eb => eb.fn.countAll<number>().as('count'))
+		.where('transcription_id', '=', transcriptionId)
+		.executeTakeFirst();
+	return Number(count?.count ?? 0) === state.verse_count;
 }
 
 function extractVersesFromDocument(document: StoredTranscriptionDocument): VerseNode[] {
@@ -463,8 +516,17 @@ function normalizeVerseIdentifier(verse: VerseNode): string {
 }
 
 function getContentJson(input: Pick<CreateTranscriptionInput, 'contentJson' | 'document'>): string {
-	if (input.contentJson) return input.contentJson;
-	return serializeTranscriptionDocument(input.document || EMPTY_TRANSCRIPTION_DOC);
+	return normalizeTranscriptionContent(input).contentJson;
+}
+
+function normalizeTranscriptionContent(
+	input: Pick<CreateTranscriptionInput, 'contentJson' | 'document'>
+): NormalizedTranscriptionContent {
+	const document = input.document
+		? coerceTranscriptionDocument(input.document)
+		: coerceTranscriptionDocument(input.contentJson || EMPTY_TRANSCRIPTION_DOC);
+	if (!document) throw new Error('Transcription content is missing or invalid');
+	return { document, contentJson: JSON.stringify(document) };
 }
 
 function mapTranscription(row: Selectable<Transcriptions>): TranscriptionRecord {

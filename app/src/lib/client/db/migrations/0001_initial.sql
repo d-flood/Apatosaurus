@@ -90,6 +90,13 @@ CREATE TABLE IF NOT EXISTS transcription_verse_index (
 CREATE INDEX IF NOT EXISTS idx_transcription_verse_index_transcription_id ON transcription_verse_index(transcription_id);
 CREATE INDEX IF NOT EXISTS idx_transcription_verse_index_verse_identifier ON transcription_verse_index(verse_identifier, transcription_id);
 
+CREATE TABLE IF NOT EXISTS transcription_verse_index_state (
+	transcription_id TEXT PRIMARY KEY REFERENCES transcriptions(id) ON DELETE CASCADE,
+	indexed_content_hash TEXT NOT NULL,
+	verse_count INTEGER NOT NULL,
+	last_indexed_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS project_transcriptions (
 	id TEXT PRIMARY KEY,
 	project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,

@@ -1,5 +1,4 @@
 import {
-	getTranscription,
 	getVerseIndexRowsForVerse as getDbVerseIndexRowsForVerse,
 	listVerseIndexRowsForTranscription as listDbVerseIndexRowsForTranscription,
 	listVerseIndexRowsForTranscriptions as listDbVerseIndexRowsForTranscriptions,
@@ -7,10 +6,7 @@ import {
 	rebuildVerseIndexForTranscriptions as rebuildDbVerseIndexForTranscriptions,
 	updateTranscriptionContent,
 } from '$lib/client/db/client';
-import type {
-	TranscriptionRecord as DbTranscriptionRecord,
-	VerseIndexRow as DbVerseIndexRow,
-} from '$lib/client/db/repositories/transcriptions';
+import type { VerseIndexRow as DbVerseIndexRow } from '$lib/client/db/repositories/transcriptions';
 import {
 	serializeTranscriptionDocument,
 	type StoredTranscriptionDocument,
@@ -139,43 +135,23 @@ export async function rebuildVerseIndexForTranscriptions(
 		};
 	}
 
-	const failures: VerseIndexRebuildFailure[] = [];
-	let completed = 0;
 	const total = ids.length;
-
-	for (const transcriptionId of ids) {
-		const transcription = await getTranscription(transcriptionId);
-		const label = transcription ? formatTranscriptionLabel(transcription) : transcriptionId;
-		options.onProgress?.({
-			completed,
-			total,
-			currentLabel: label,
-			currentTranscriptionId: transcriptionId,
-		});
-		completed += 1;
-		options.onProgress?.({
-			completed,
-			total,
-			currentLabel: label,
-			currentTranscriptionId: transcriptionId,
-		});
-	}
+	options.onProgress?.({ completed: 0, total, currentLabel: '', currentTranscriptionId: '' });
 
 	const result = await rebuildDbVerseIndexForTranscriptions(ids);
-	failures.push(...result.failures);
+	options.onProgress?.({
+		completed: result.processed,
+		total,
+		currentLabel: '',
+		currentTranscriptionId: '',
+	});
 
 	return {
-		processed: ids.length,
+		processed: result.processed,
 		succeeded: result.succeeded,
-		failed: failures.length,
-		failures,
+		failed: result.failures.length,
+		failures: result.failures,
 	};
-}
-
-function formatTranscriptionLabel(
-	transcription: Pick<DbTranscriptionRecord, 'id' | 'siglum' | 'title'>
-): string {
-	return transcription.siglum?.trim() || transcription.title?.trim() || transcription.id;
 }
 
 function mapVerseIndexRow(row: DbVerseIndexRow): VerseIndexRow {
