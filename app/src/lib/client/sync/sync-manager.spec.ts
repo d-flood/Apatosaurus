@@ -13,6 +13,12 @@ import { createCommittedCollationCheckpointWithFiles } from '$lib/client/db/repo
 import { createTranscription } from '$lib/client/db/repositories/transcriptions';
 import { MemoryStoreBackend } from '$lib/client/store/memory-store-backend.spec-support';
 import type { StoreOperationOptions } from '$lib/client/store';
+import {
+	readTextFile,
+	transcriptionPrimaryFile,
+	transcriptionWorkingFile,
+	writeTextFileAtomic,
+} from '$lib/client/store';
 import { createCollationTombstone } from './conflicts';
 import {
 	serializeCloudFile,
@@ -446,6 +452,144 @@ describe('sync manager', () => {
 		]);
 	});
 
+	it('mirrors canonical project files byte-for-byte and excludes working files', async () => {
+		const projectTranscriptionId = await createProjectTranscription();
+		await commitProjectTranscriptionForSync(harness.db, {
+			projectTranscriptionId,
+			checkpointId: 'tx-cp-1',
+			commitMessage: 'Ready for sync',
+			authorName: 'Editor',
+			createdAt: '2026-06-10T12:00:00.000Z',
+		}, syncOptions());
+		const { provider, context } = await createConnectedProvider();
+		const projectSlug = await loadProjectStorageSlug('project-1');
+		await writeTextFileAtomic(
+			transcriptionWorkingFile(projectSlug, projectTranscriptionId),
+			'{"local":"draft"}',
+			storeOptions
+		);
+
+		const result = await backupProject(harness.db, provider, context, {
+			now: () => '2026-06-10T13:00:00.000Z',
+			storeOptions,
+		});
+
+		expect(result.uiState).toBe('synced');
+		expect(result.uploadedPaths).toContain(`transcriptions/${projectTranscriptionId}.tei.xml`);
+		expect(result.uploadedPaths).not.toContain(
+			`transcriptions/${projectTranscriptionId}.working.json`
+		);
+		const remotePrimary = await remoteFile(
+			provider,
+			context,
+			`transcriptions/${projectTranscriptionId}.json`
+		);
+		if (!remotePrimary) throw new Error('Expected remote transcription primary.');
+		await expect(provider.downloadFile(remotePrimary.id)).resolves.toBe(
+			await readTextFile(
+				transcriptionPrimaryFile(projectSlug, projectTranscriptionId),
+				storeOptions
+			)
+		);
+		expect(
+			await remoteFile(provider, context, `transcriptions/${projectTranscriptionId}.tei.xml`)
+		).not.toBeNull();
+		expect(
+			await remoteFile(provider, context, `transcriptions/${projectTranscriptionId}.working.json`)
+		).toBeNull();
+	});
+
+	it('pulls valid remote mirror changes when the local file matches the cached fingerprint', async () => {
+		await createCommittedProjectCollation('Initial notes', 'col-cp-1');
+		const { provider, context } = await createConnectedProvider();
+		await backupProject(harness.db, provider, context, {
+			now: () => '2026-06-10T13:00:00.000Z',
+			storeOptions,
+		});
+		await pushRemoteCollationRevision(
+			provider,
+			context,
+			'Remote committed notes',
+			'col-cp-remote'
+		);
+
+		const result = await backupProject(harness.db, provider, context, {
+			now: () => '2026-06-10T13:05:00.000Z',
+			storeOptions,
+		});
+
+		expect(result.uiState).toBe('synced');
+		expect(result.downloadedPaths).toContain('collations/col-1.json');
+		expect(result.downloadedPaths).toContain('history/collations/col-1/col-cp-remote.json');
+		await expect(loadCollationNotes('col-1')).resolves.toBe('Remote committed notes');
+	});
+
+	it('quarantines invalid remote mirror files before local overwrite', async () => {
+		await createCommittedProjectCollation('Initial notes', 'col-cp-1');
+		const { provider, context } = await createConnectedProvider();
+		await backupProject(harness.db, provider, context, {
+			now: () => '2026-06-10T13:00:00.000Z',
+			storeOptions,
+		});
+		const primary = await remoteFile(provider, context, 'collations/col-1.json');
+		if (!primary) throw new Error('Expected remote primary file.');
+		const original = JSON.parse(await provider.downloadFile(primary.id)) as Record<string, unknown>;
+		await provider.updateFile(
+			primary.id,
+			JSON.stringify({ ...original, notes: 'Tampered remote notes' }),
+			primary.revision
+		);
+
+		const result = await backupProject(harness.db, provider, context, {
+			now: () => '2026-06-10T13:05:00.000Z',
+			storeOptions,
+		});
+
+		expect(result.uiState).toBe('conflict requires resolution');
+		expect(result.quarantines).toMatchObject([
+			{ path: 'collations/col-1.json', code: 'hash_mismatch' },
+		]);
+		await expect(loadCollationNotes('col-1')).resolves.toBe('Initial notes');
+	});
+
+	it('creates conflict copies when local and remote mirror files both change', async () => {
+		await createCommittedProjectCollation('Initial notes', 'col-cp-1');
+		const { provider, context } = await createConnectedProvider();
+		await backupProject(harness.db, provider, context, {
+			now: () => '2026-06-10T13:00:00.000Z',
+			storeOptions,
+		});
+		await pushRemoteCollationRevision(
+			provider,
+			context,
+			'Remote committed notes',
+			'col-cp-remote'
+		);
+		await updateCollationMetadata(harness.db, {
+			id: 'col-1',
+			notes: 'Local committed notes',
+			updatedAt: '2026-06-10T13:04:00.000Z',
+		});
+		backend.files.clear();
+		await createCommittedCollationCheckpointWithFiles(harness.db, {
+			collationId: 'col-1',
+			checkpointId: 'col-cp-local',
+			createdAt: '2026-06-10T13:04:30.000Z',
+		}, storeOptions);
+
+		const result = await backupProject(harness.db, provider, context, {
+			now: () => '2026-06-10T13:05:00.000Z',
+			authorName: 'Local Editor',
+			storeOptions,
+		});
+
+		expect(result.uiState).toBe('conflict requires resolution');
+		expect(result.conflictCopyId).toBeTruthy();
+		await expect(loadCollationNotes(result.conflictCopyId ?? '')).resolves.toBe(
+			'Local committed notes'
+		);
+	});
+
 	it('backs up one project entity before updating the project manifest', async () => {
 		await createCommittedProjectCollation('Initial notes', 'col-cp-1');
 		const { provider, context } = await createConnectedProvider();
@@ -867,6 +1011,15 @@ async function loadCollationNotes(collationId: string): Promise<string | undefin
 		.where('id', '=', collationId)
 		.executeTakeFirst();
 	return row?.notes;
+}
+
+async function loadProjectStorageSlug(projectId: string): Promise<string> {
+	const row = await harness.db
+		.selectFrom('projects')
+		.select('storage_slug')
+		.where('id', '=', projectId)
+		.executeTakeFirstOrThrow();
+	return row.storage_slug;
 }
 
 function relativeEntryPath(path: string, context: SyncProjectContext): string {

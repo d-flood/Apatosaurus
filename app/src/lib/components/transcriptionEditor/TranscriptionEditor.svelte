@@ -10,13 +10,12 @@
 		TRANSCRIPTION_FORMAT,
 		type StoredTranscriptionDocument,
 	} from '$lib/client/transcription/content';
-	import { externalSyncService } from '$lib/client/transcription/external-sync-service';
 	import type { TranscriptionRecord } from '$lib/client/transcription/model';
 	import { getEditor } from '$lib/client/transcriptionEditorSchema';
-import {
-	createColumnSplitTransaction,
-	repairManuscriptStructureJson,
-} from '$lib/client/transcriptionEditorStructure';
+	import {
+		createColumnSplitTransaction,
+		repairManuscriptStructureJson,
+	} from '$lib/client/transcriptionEditorStructure';
 	import { exportTEIDocument } from '$lib/tei/tei-exporter';
 	import { Editor } from '@tiptap/core';
 	import { NodeSelection } from '@tiptap/pm/state';
@@ -597,9 +596,6 @@ import {
 			void ensureLocalDbRuntime().catch(error => {
 				console.error('[Autosave] Runtime init failed:', error);
 			});
-			void externalSyncService.init().catch(error => {
-				console.error('[External Sync] Failed to initialize:', error);
-			});
 			const editor = getEditor(transcriptionElement, bubbleMenu);
 			const initialDocument =
 				coerceTranscriptionDocument(transcription.content_json) ?? EMPTY_TRANSCRIPTION_DOC;
@@ -1058,11 +1054,6 @@ import {
 					updatedAt: now,
 				});
 				canonicalDocument = document;
-				try {
-					externalSyncService.enqueueSync(currentTranscription, document);
-				} catch (syncError) {
-					console.warn('[Autosave] External folder sync enqueue failed:', syncError);
-				}
 				return true;
 			} catch (error) {
 				console.error('[Autosave] Failed to persist transcription content:', error);

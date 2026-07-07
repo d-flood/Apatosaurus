@@ -33,7 +33,6 @@
 	import ProjectTranscriptionsEditor from '$lib/components/projects/ProjectTranscriptionsEditor.svelte';
 	import ProjectTranscriptionVersionsPanel from '$lib/components/projects/ProjectTranscriptionVersionsPanel.svelte';
 	import ProjectBackupPanel from '$lib/components/projects/ProjectBackupPanel.svelte';
-	import CloudProjectBrowser from '$lib/components/projects/CloudProjectBrowser.svelte';
 	import ProjectTranscriptionRefreshDialog from '$lib/components/projects/ProjectTranscriptionRefreshDialog.svelte';
 	import AddProjectTranscriptionFromProjectDialog from '$lib/components/projects/AddProjectTranscriptionFromProjectDialog.svelte';
 	import ProjectUserManagementStub from '$lib/components/projects/ProjectUserManagementStub.svelte';
@@ -41,14 +40,13 @@
 	import { ensureLocalDbRuntime } from '$lib/client/db/runtime';
 	import {
 		deriveProjectBackupSummary,
-		listCloudConnections,
-		listCloudProjectFolders,
 		rebuildLocalIndex,
 		subscribeLocalDbInvalidations,
 	} from '$lib/client/db/client';
 	import type { IndexRebuildReport } from '$lib/client/db/repositories/index-rebuild';
-	import type { CloudConnectionRecord } from '$lib/client/db/repositories/cloud-connections';
 	import type { ProjectBackupSummary } from '$lib/client/sync/sync-manager';
+	import { listSyncTargets } from '$lib/client/store';
+	import { LOCAL_FOLDER_ROOT_FOLDER_ID } from '$lib/client/sync/providers/local-folder-provider';
 	import FolderOpen from 'phosphor-svelte/lib/FolderOpen';
 	import Plus from 'phosphor-svelte/lib/Plus';
 	import { onMount } from 'svelte';
@@ -232,37 +230,32 @@
 			return;
 		}
 		try {
-			const connections = await listCloudConnections();
 			const nextEntries = await Promise.all(
 				projectRows.map(async project => {
-					const folders = await listCloudProjectFolders(project.id);
-					const folder = folders[0] ?? null;
-					if (!folder) {
+					const targets = await listSyncTargets(project.id);
+					const target = targets.find(candidate => candidate.enabled) ?? targets[0] ?? null;
+					if (!target) {
 						return [
 							project.id,
 							{
 								locationLabel: 'Local only',
-								statusLabel: 'No backup target',
+								statusLabel: 'No sync folder',
 								badgeClass: 'badge-ghost',
 								statusKey: 'local-only',
 							},
 						] as const;
 					}
-					const connection = connections.find(
-						candidate => candidate.id === folder.connectionId
-					);
 					const summary = await deriveProjectBackupSummary(
 						{
 							projectId: project.id,
-							connectionId: folder.connectionId,
-							cloudFolderId: folder.cloudFolderId,
-							cloudFolderPath: folder.cloudFolderPath,
-						},
-						folder
+							connectionId: target.targetId,
+							cloudFolderId: LOCAL_FOLDER_ROOT_FOLDER_ID,
+							cloudFolderPath: '',
+						}
 					);
 					return [
 						project.id,
-						summarizeProjectBackup(connection, folder.cloudFolderPath, summary),
+						summarizeProjectBackup(target.folderDisplayPath, summary),
 					] as const;
 				})
 			);
@@ -270,14 +263,14 @@
 			projectBackupSummaries = Object.fromEntries(nextEntries);
 		} catch (err) {
 			if (runId !== backupSummaryRunId) return;
-			logProjects('warn', 'project backup summary load failed', {
+			logProjects('warn', 'project folder sync summary load failed', {
 				error: err instanceof Error ? err.message : String(err),
 			});
 			projectBackupSummaries = Object.fromEntries(
 				projectRows.map(project => [
 					project.id,
 					{
-						locationLabel: 'Backup status unavailable',
+						locationLabel: 'Folder sync unavailable',
 						statusLabel: 'Provider unavailable',
 						badgeClass: 'badge-warning',
 						statusKey: 'unavailable',
@@ -297,11 +290,10 @@
 	}
 
 	function summarizeProjectBackup(
-		connection: CloudConnectionRecord | undefined,
-		cloudFolderPath: string,
+		folderDisplayPath: string,
 		summary: ProjectBackupSummary
 	): ProjectListBackupSummary {
-		const locationLabel = `${providerLabel(connection?.providerId ?? 'Cloud')}: ${cloudFolderPath}`;
+		const locationLabel = `Folder: ${folderDisplayPath}`;
 		if (summary.remoteManifestState === 'remote-update-available') {
 			return {
 				locationLabel,
@@ -329,7 +321,7 @@
 		if (summary.blockingItems.length > 0) {
 			return {
 				locationLabel,
-				statusLabel: 'Commit changes before backup',
+				statusLabel: 'Commit changes before sync',
 				badgeClass: 'badge-warning',
 				statusKey: 'blocked',
 			};
@@ -337,23 +329,17 @@
 		if (summary.pendingItems.length > 0 || summary.tombstones.length > 0) {
 			return {
 				locationLabel,
-				statusLabel: 'Pending backup',
+				statusLabel: 'Pending sync',
 				badgeClass: 'badge-info',
 				statusKey: 'pending-backup',
 			};
 		}
 		return {
 			locationLabel,
-			statusLabel: 'Backed up',
+			statusLabel: 'Synced',
 			badgeClass: 'badge-success',
 			statusKey: 'backed-up',
 		};
-	}
-
-	function providerLabel(providerId: string): string {
-		if (providerId === 'local-folder') return 'Local folder';
-		if (providerId === 'mock') return 'Mock provider';
-		return providerId;
 	}
 
 	function pluralize(count: number, singular: string): string {
@@ -578,8 +564,7 @@
 		void bootstrap();
 		const unsubscribe = subscribeLocalDbInvalidations(event => {
 			if (
-				event.domain === 'cloud-connections' ||
-				event.domain === 'cloud-project-folders' ||
+				event.domain === 'sync-targets' ||
 				event.domain === 'collations' ||
 				event.domain === 'projects' ||
 				event.domain === 'transcriptions' ||
@@ -622,10 +607,6 @@
 
 	async function handleProjectRemoved() {
 		await bootstrap(null);
-	}
-
-	async function handleCloudProjectSelected(projectId: string) {
-		await bootstrap(projectId);
 	}
 
 	async function repairLocalIndex() {
@@ -1101,13 +1082,13 @@
 												class="badge badge-xs {backupSummary?.badgeClass ??
 													'badge-ghost'}"
 											>
-												{backupSummary?.statusLabel ?? 'Checking backup'}
+												{backupSummary?.statusLabel ?? 'Checking sync'}
 											</span>
 											<span
 												class="max-w-full truncate text-[0.68rem] text-base-content/45"
 											>
 												{backupSummary?.locationLabel ??
-													'Backup status loading'}
+													'Folder sync status loading'}
 											</span>
 										</div>
 									</button>
@@ -1117,18 +1098,12 @@
 					{/if}
 				</div>
 
-				<CloudProjectBrowser
-					{selectedProjectId}
-					onOpenProject={handleCloudProjectSelected}
-					onProjectImported={handleCloudProjectSelected}
-				/>
-
 				<div class="rounded-box border border-base-300/50 bg-base-100 p-4 shadow-sm">
 					<div class="flex items-start justify-between gap-3">
 						<div>
 							<h2 class="font-serif text-base font-semibold">Local Storage</h2>
 							<p class="mt-1 text-xs text-base-content/50">
-								Project copies on this device and their backup readiness.
+								Project copies on this device and their folder sync readiness.
 							</p>
 						</div>
 						{#if storageOverview.isLoading}
@@ -1143,13 +1118,13 @@
 						</div>
 						<div class="rounded-box bg-base-200/70 p-3">
 							<div class="text-2xl font-semibold">{storageOverview.linkedCount}</div>
-							<div class="text-xs text-base-content/50">Backup targets</div>
+							<div class="text-xs text-base-content/50">Sync folders</div>
 						</div>
 						<div class="rounded-box bg-base-200/70 p-3">
 							<div class="text-2xl font-semibold text-success">
 								{storageOverview.backedUpCount}
 							</div>
-							<div class="text-xs text-base-content/50">Backed up</div>
+							<div class="text-xs text-base-content/50">Synced</div>
 						</div>
 						<div class="rounded-box bg-base-200/70 p-3">
 							<div
@@ -1168,7 +1143,7 @@
 							{storageOverview.localOnlyCount} local only
 						</span>
 						<span class="badge badge-ghost badge-sm">
-							Verify a project backup before removing its local copy
+							Folder sync mirrors committed files only
 						</span>
 					</div>
 

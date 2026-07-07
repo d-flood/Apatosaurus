@@ -95,6 +95,7 @@ interface RebuildRows {
 }
 
 const INDEX_TABLE_DELETE_ORDER = [
+	'sync_file_fingerprints',
 	'cloud_sync_metadata',
 	'cloud_project_folders',
 	'cloud_connections',

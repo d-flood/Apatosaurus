@@ -10,7 +10,7 @@ Overall status: `In Progress`
 
 Current phase: `07-local-folder-sync.md`
 
-Last updated: `2026-07-06`
+Last updated: `2026-07-07`
 
 ## Continuation Instructions
 
@@ -45,7 +45,7 @@ Full list in `architecture.md` section 3. The short form:
 | 4 | `04-project-only-data-model.md` | Completed | Phase 3 |
 | 5 | `05-write-path-inversion.md` | Completed | Phase 4 |
 | 6 | `06-index-rebuild-and-repair.md` | Completed | Phase 5 |
-| 7 | `07-local-folder-sync.md` | Not Started | Phases 1, 6 |
+| 7 | `07-local-folder-sync.md` | In Progress | Phases 1, 6 |
 | 8 | `08-import-export.md` | Not Started | Phase 6 |
 | 9 | `09-durability-and-onboarding.md` | Not Started | Phases 6-8 |
 | 10 | `10-collation-regularization-single-path.md` | Not Started | Phase 5 |
@@ -96,6 +96,7 @@ Run narrower tests during each session when possible, then run the full baseline
 
 | Date | Note |
 | --- | --- |
+| 2026-07-07 | Phase 7 implementation and automated verification completed, but the phase remains `In Progress` pending the manual Chromium multi-folder completion scenario. Added project-scoped sync targets in `app/sync-targets.json`, persisted local-folder handles, rebuildable `sync_file_fingerprints`, byte-for-byte project-folder mirroring with remote validation/quarantine/conflict copies, folder-sync UI/status, and app-level target pollers for startup, focus/online, and project-data invalidations. Removed the legacy external transcription folder sync service/worker/UI/editor integration. Verification passed: `bun run db:generate`, `bun run db:check`, `bun run check`, and full `bun run test:unit -- --run` (382 passed). |
 | 2026-07-06 | Phase 6 completed. Added the delete-the-index browser-worker invariant: normal DB worker APIs create project-owned transcription/collation data, write working transcription/collation state, delete the real OPFS index database, restart the worker, and assert equivalent project/transcription/collation listings, file-backed entity loads, verse index rows, checkpoint listings, and collation projections after automatic rebuild. `rebuildIndexFromStore()` now uses valid working transcription/collation files for rebuildable live index rows while keeping committed revision heads from primary files and quarantining malformed working files. Verification passed: focused invariant spec, DB/store unit slice (103 passed), `bun run db:generate`, `bun run db:check`, and full `bun run check && bun run test:unit -- --run` (377 passed). Current phase is now `07-local-folder-sync.md`. |
 | 2026-07-06 | Phase 6 content-cache demotion slice completed. Public worker/runtime transcription and collation reads are strict file-backed; `transcriptions.content_json` and `collation_artifacts.payload` remain only as disposable cache/legacy rows, and checkpoint payload columns were removed from the greenfield index schema. Sync history export now reads canonical history files and tests pass memory store options instead of using SQLite checkpoint payloads. Added coverage proving stale transcription cache content, stale bulk loads, strict verse-index rebuilds, and missing collation artifact cache rows do not affect restored file-backed state. Verification passed: `bun run db:generate`, `bun run db:check`, `bun run check`, DB/store unit slice (102 passed), and full `bun run test:unit -- --run` (376 passed). Phase 6 remains in progress for delete-the-index invariant coverage. |
 | 2026-07-06 | Phase 6 auto-rebuild-on-corruption slice completed. Existing index startup now verifies `PRAGMA integrity_check`; open/integrity failures replace the current nested index files, recreate schema, rebuild from canonical files, and notify the user with restored counts. Added focused current-index file removal coverage. Verification passed: focused `index-files` test, DB/store unit slice (100 passed), `bun run check`, full `bun run test:unit -- --run` (374 passed), and `bun run db:check`. Phase 6 remains in progress for content-cache demotion and delete-the-index invariant coverage. |

@@ -1,6 +1,6 @@
 # Phase 07: Local Folder Sync
 
-Status: Not Started
+Status: In Progress
 Depends on: Phases 01, 06
 Architecture reference: `architecture.md` section 8
 
@@ -43,16 +43,16 @@ Rework the sync manager as a file mirror between the OPFS project folder and a u
 
 ## Checklist
 
-- [ ] Sync targets config + handle persistence + reconnect flow
-- [ ] Mirror push/pull/conflict/tombstone paths, tested against mock provider
-- [ ] Remote validation via migrate-on-read before any pull overwrites local
-- [ ] Fingerprint cache in index, rebuild-safe
-- [ ] Sync on commit/focus/poll with per-file result reporting
-- [ ] Permission-loss state visible with one-click re-grant
-- [ ] Interleaved two-writer integration tests
-- [ ] Legacy external transcription sync removed (service, worker, library-page integration)
-- [ ] `ProjectBackupPanel` reworked
-- [ ] `bun run check` and `bun run test:unit -- --run` pass
+- [x] Sync targets config + handle persistence + reconnect flow
+- [x] Mirror push/pull/conflict/tombstone paths, tested against mock provider
+- [x] Remote validation via migrate-on-read before any pull overwrites local
+- [x] Fingerprint cache in index, rebuild-safe
+- [x] Sync on commit/focus/poll with per-file result reporting
+- [x] Permission-loss state visible with one-click re-grant
+- [x] Interleaved two-writer integration tests
+- [x] Legacy external transcription sync removed (service, worker, library-page integration)
+- [x] `ProjectBackupPanel` reworked
+- [x] `bun run check` and `bun run test:unit -- --run` pass
 
 ## Completion Criteria
 
@@ -66,7 +66,21 @@ bun run test:unit -- --run src/lib/client/sync
 bun run check && bun run test:unit -- --run
 ```
 
+Latest automated verification, 2026-07-07:
+
+```bash
+bun run db:generate
+bun run db:check
+bun run check
+bun run test:unit -- --run
+```
+
+Result: passed. Full unit suite: 68 files, 382 tests.
+
+Manual Chromium multi-folder scenario from the completion criteria remains pending before this phase should be marked `Completed`.
+
 ## Notes
 
 | Date | Note |
 | --- | --- |
+| 2026-07-07 | Phase 7 implementation landed. Project sync targets are stored in `app/sync-targets.json` with persisted local-folder handles; `sync_file_fingerprints` records per-file mirror state in the rebuildable index. Project folder sync now mirrors canonical project files byte-for-byte through the local-folder provider, excludes `*.working.json`, validates remote pulls before OPFS overwrite, rebuilds the index after pulls, preserves conflicts as copies, and surfaces quarantines/status in the reworked Folder Sync UI. App startup now starts enabled sync-target pollers, retries on focus/online, and syncs after project/transcription/collation invalidations. The legacy external transcription folder sync service, worker, library-page panel, and editor enqueue path were removed. Automated verification passed; manual Chromium multi-folder smoke remains pending for phase completion. |

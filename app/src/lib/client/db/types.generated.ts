@@ -14,6 +14,7 @@ export interface Database {
 	iiif_manifest_sources: IiifManifestSources;
 	project_transcriptions: ProjectTranscriptions;
 	projects: Projects;
+	sync_file_fingerprints: SyncFileFingerprints;
 	sync_tombstones: SyncTombstones;
 	transcription_checkpoints: TranscriptionCheckpoints;
 	transcription_page_canvas_links: TranscriptionPageCanvasLinks;
@@ -180,6 +181,25 @@ export interface Projects {
 	collation_settings: string;
 	created_at: string;
 	updated_at: string;
+}
+
+export interface SyncFileFingerprints {
+	target_id: string;
+	project_id: string;
+	file_path: string;
+	local_content_hash: string;
+	local_size: number;
+	local_modified_at: string;
+	remote_file_id: string;
+	remote_revision: string;
+	remote_content_hash: string;
+	remote_size: number;
+	remote_modified_at: string;
+	synced_at: string;
+	entity_type: string;
+	entity_id: string;
+	revision_id: string;
+	entity_content_hash: string;
 }
 
 export interface SyncTombstones {

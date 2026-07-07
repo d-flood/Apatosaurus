@@ -136,6 +136,11 @@ export function subscribeLocalDbInvalidations(
 	return () => invalidationListeners.delete(listener);
 }
 
+export function emitLocalDbInvalidation(domain: string): void {
+	const event: DbInvalidationEvent = { type: 'db:invalidate', domain };
+	for (const listener of invalidationListeners) listener(event);
+}
+
 export async function listTranscriptionSummaries(): Promise<TranscriptionSummary[]> {
 	const startedAt = now();
 	const rows = await sendTranscriptionRequest({ type: 'transcriptions.listSummaries' });
@@ -670,7 +675,7 @@ export function attachLocalDbClient(worker: Worker): void {
 		(event: MessageEvent<DbResponse | DbInvalidationEvent | DbIndexRebuiltEvent>) => {
 			const message = event.data;
 			if ('type' in message && message.type === 'db:invalidate') {
-				for (const listener of invalidationListeners) listener(message);
+				emitLocalDbInvalidation(message.domain);
 				return;
 			}
 			if ('type' in message && message.type === 'db:index-rebuilt') {

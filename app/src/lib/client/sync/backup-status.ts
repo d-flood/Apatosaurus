@@ -1,6 +1,10 @@
 import type { Kysely, Selectable, Transaction } from 'kysely';
 
-import type { CloudSyncMetadata, Database } from '$lib/client/db/types.generated';
+import type {
+	CloudSyncMetadata,
+	Database,
+	SyncFileFingerprints,
+} from '$lib/client/db/types.generated';
 import { projectRelativeCloudPaths } from './cloud-paths';
 
 type DbExecutor = Kysely<Database> | Transaction<Database>;
@@ -113,6 +117,18 @@ async function getSyncMetadata(
 	reference: SyncEntityReference
 ): Promise<CloudSyncMetadataRecord | null> {
 	const row = await db
+		.selectFrom('sync_file_fingerprints')
+		.selectAll()
+		.where('target_id', '=', context.connectionId)
+		.where('project_id', '=', context.projectId)
+		.where('entity_type', '=', reference.entityType)
+		.where('entity_id', '=', reference.entityId)
+		.where('revision_id', '!=', '')
+		.orderBy('synced_at', 'desc')
+		.executeTakeFirst();
+	if (row) return mapSyncFileFingerprint(row);
+
+	const legacyRow = await db
 		.selectFrom('cloud_sync_metadata')
 		.selectAll()
 		.where('connection_id', '=', context.connectionId)
@@ -121,7 +137,7 @@ async function getSyncMetadata(
 		.where('entity_type', '=', reference.entityType)
 		.where('entity_id', '=', reference.entityId)
 		.executeTakeFirst();
-	return row ? mapCloudSyncMetadata(row) : null;
+	return legacyRow ? mapCloudSyncMetadata(legacyRow) : null;
 }
 
 function baseBackupState(
@@ -157,6 +173,24 @@ function mapCloudSyncMetadata(row: Selectable<CloudSyncMetadata>): CloudSyncMeta
 		lastSyncedRevision: row.last_synced_revision,
 		lastSyncedHash: row.last_synced_hash,
 		lastSyncedAt: row.last_synced_at,
+	};
+}
+
+function mapSyncFileFingerprint(
+	row: Selectable<SyncFileFingerprints>
+): CloudSyncMetadataRecord {
+	return {
+		connectionId: row.target_id,
+		scopeType: PROJECT_SCOPE_TYPE,
+		scopeId: row.project_id,
+		entityType: row.entity_type,
+		entityId: row.entity_id,
+		cloudFileId: row.remote_file_id,
+		cloudFileRevision: row.remote_revision,
+		cloudPath: row.file_path,
+		lastSyncedRevision: row.revision_id,
+		lastSyncedHash: row.entity_content_hash,
+		lastSyncedAt: row.synced_at,
 	};
 }
 

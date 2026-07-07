@@ -8,22 +8,15 @@
 		subscribeLocalDbInvalidations,
 	} from '$lib/client/db/client';
 	import type { TranscriptionSummary } from '$lib/client/db/repositories/transcriptions';
-	import {
-		externalSyncService,
-		type ExternalSyncState,
-	} from '$lib/client/transcription/external-sync-service';
 
 	const TRANSCRIPTION_ROUTE_LOG_PREFIX = '[transcription-route]';
 
 	let transcriptions = $state<TranscriptionSummary[]>([]);
 	let deleting = $state<string | null>(null);
-	let externalSyncBusy = $state(false);
 	let loadError = $state<string | null>(null);
-	let externalSyncState = $state<ExternalSyncState>(externalSyncService.getState());
 	let isLoading = $state(true);
 	let renderCount = 0;
 	let unsubscribe: (() => void) | null = null;
-	let unsubscribeExternalSync: (() => void) | null = null;
 
 	function logTranscriptionRoute(
 		level: 'debug' | 'warn' | 'error',
@@ -82,17 +75,6 @@
 		});
 	}
 
-	async function initExternalSync() {
-		try {
-			await externalSyncService.init();
-			unsubscribeExternalSync = externalSyncService.subscribe(state => {
-				externalSyncState = state;
-			});
-		} catch (err) {
-			console.error('Failed to initialize external sync service:', err);
-		}
-	}
-
 	async function handleDelete(id: string, event: Event) {
 		event.preventDefault();
 		event.stopPropagation();
@@ -140,7 +122,6 @@
 					rowCount: transcriptions.length,
 					elapsedMs: Date.now() - routeStartedAt,
 				});
-				void initExternalSync();
 			})
 			.catch(err => {
 				logTranscriptionRoute('error', 'transcription list bootstrap failed', {
@@ -150,88 +131,16 @@
 				loadError =
 					err instanceof Error ? err.message : 'Failed to load transcriptions.';
 				isLoading = false;
-				void initExternalSync();
 			});
 
 		return () => {
 			unsubscribe?.();
-			unsubscribeExternalSync?.();
 			unsubscribe = null;
-			unsubscribeExternalSync = null;
 		};
 	});
-
-	async function handleChooseExternalDirectory() {
-		externalSyncBusy = true;
-		try {
-			await externalSyncService.chooseDirectory();
-		} catch (error) {
-			console.error('Failed to choose external directory:', error);
-		} finally {
-			externalSyncBusy = false;
-		}
-	}
-
-	async function handleDisableExternalDirectory() {
-		externalSyncBusy = true;
-		try {
-			await externalSyncService.clear();
-		} catch (error) {
-			console.error('Failed to clear external directory:', error);
-		} finally {
-			externalSyncBusy = false;
-		}
-	}
 </script>
 
 <div class="flex min-h-0 flex-1 flex-col">
-	<div class="rounded-box mb-6 shrink-0 space-y-3 border border-base-300 bg-base-100 p-4">
-		<h2 class="text-lg font-semibold">External Folder Sync</h2>
-		{#if !externalSyncState.supported}
-			<p class="text-sm opacity-75">This browser does not support local directory access.</p>
-		{:else}
-			<p class="text-sm opacity-75">
-				{#if externalSyncState.enabled}
-					Enabled{externalSyncState.directoryName
-						? `: ${externalSyncState.directoryName}`
-						: ''}.
-				{:else}
-					Disabled.
-				{/if}
-			</p>
-			<div class="flex flex-wrap gap-2">
-				<button
-					type="button"
-					class="btn btn-primary btn-sm"
-					disabled={externalSyncBusy}
-					onclick={handleChooseExternalDirectory}
-				>
-					{externalSyncBusy
-						? 'Selecting...'
-						: externalSyncState.enabled
-							? 'Change Folder'
-							: 'Choose Folder'}
-				</button>
-				<button
-					type="button"
-					class="btn btn-sm"
-					disabled={!externalSyncState.enabled || externalSyncBusy}
-					onclick={handleDisableExternalDirectory}
-				>
-					Disable
-				</button>
-			</div>
-			{#if externalSyncState.status === 'processing'}
-				<p class="text-sm opacity-75">Background mirror write in progress.</p>
-			{:else if externalSyncState.status === 'permission_required'}
-				<p class="text-sm text-warning">Folder permission was revoked. Choose folder again.</p>
-			{/if}
-			{#if externalSyncState.lastError}
-				<p class="text-sm text-error">{externalSyncState.lastError}</p>
-			{/if}
-		{/if}
-	</div>
-
 	{#if isLoading}
 		<div class="py-12 text-center text-gray-500">
 			<p>Loading transcriptions...</p>

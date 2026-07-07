@@ -246,9 +246,35 @@ CREATE TABLE IF NOT EXISTS iiif_canvas_annotations (
 CREATE INDEX IF NOT EXISTS idx_canvas_annotations_canvas_id ON iiif_canvas_annotations(canvas_id);
 CREATE INDEX IF NOT EXISTS idx_canvas_annotations_page_id ON iiif_canvas_annotations(page_id);
 
--- Legacy sync-state tables. Kept in this phase to avoid breaking the
--- existing sync layer (Phase 7 will rewrite sync on top of
--- `app/sync-targets.json` and a per-file fingerprint cache).
+-- Rebuildable per-file sync cache. The canonical target binding lives in
+-- `app/sync-targets.json`; this table only remembers the last successful
+-- local/remote fingerprints for cheap mirror comparisons.
+CREATE TABLE IF NOT EXISTS sync_file_fingerprints (
+	target_id TEXT NOT NULL,
+	project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+	file_path TEXT NOT NULL,
+	local_content_hash TEXT NOT NULL,
+	local_size INTEGER NOT NULL,
+	local_modified_at TEXT NOT NULL DEFAULT '',
+	remote_file_id TEXT NOT NULL,
+	remote_revision TEXT NOT NULL,
+	remote_content_hash TEXT NOT NULL,
+	remote_size INTEGER NOT NULL,
+	remote_modified_at TEXT NOT NULL DEFAULT '',
+	synced_at TEXT NOT NULL,
+	entity_type TEXT NOT NULL DEFAULT '',
+	entity_id TEXT NOT NULL DEFAULT '',
+	revision_id TEXT NOT NULL DEFAULT '',
+	entity_content_hash TEXT NOT NULL DEFAULT '',
+	PRIMARY KEY (target_id, project_id, file_path)
+);
+
+CREATE INDEX IF NOT EXISTS idx_sync_file_fingerprints_project ON sync_file_fingerprints(project_id, target_id);
+CREATE INDEX IF NOT EXISTS idx_sync_file_fingerprints_entity ON sync_file_fingerprints(project_id, entity_type, entity_id);
+
+-- Legacy sync-state tables. Kept only for Phase-8 import/project-restore
+-- compatibility while Phase 7 moves active sync to sync targets and file
+-- fingerprints.
 CREATE TABLE IF NOT EXISTS cloud_connections (
 	id TEXT PRIMARY KEY,
 	provider_id TEXT NOT NULL,

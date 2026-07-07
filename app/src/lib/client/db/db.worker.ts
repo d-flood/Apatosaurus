@@ -84,7 +84,10 @@ import {
 	pollLinkedProjectManifest,
 	pullLinkedProjectUpdates,
 } from '$lib/client/sync/project-restore';
-import { createProviderForConnection } from '$lib/client/sync/provider-factory';
+import {
+	createProviderForConnection,
+	createProviderForSyncTarget,
+} from '$lib/client/sync/provider-factory';
 import type { CloudStorageProvider } from '$lib/client/sync/providers/provider';
 import { cleanupStaleIndexFiles, removeCurrentIndexFiles } from './index-files';
 import type { Database } from './types.generated';
@@ -173,16 +176,12 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 	}
 	if (request.type === 'projectBackup.compareManifest') {
 		const db = getKyselyDb();
-		const connection = await getCloudConnection(db, request.context.connectionId);
-		if (!connection) throw new Error('Backup connection was not found.');
-		const provider = await createProviderForConnection(connection);
+		const provider = await createProviderForBackupContext(db, request.context.connectionId);
 		return downloadAndCompareProjectManifest(db, provider, request.context);
 	}
 	if (request.type === 'projectBackup.verifyHealth') {
 		const db = getKyselyDb();
-		const connection = await getCloudConnection(db, request.context.connectionId);
-		if (!connection) throw new Error('Backup connection was not found.');
-		const provider = await createProviderForConnection(connection);
+		const provider = await createProviderForBackupContext(db, request.context.connectionId);
 		return verifyRemoteProjectBackupHealth(db, provider, request.context);
 	}
 	if (request.type === 'projectBackup.removeLocalProject') {
@@ -196,22 +195,25 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 	}
 	if (request.type === 'projectBackup.backup') {
 		const db = getKyselyDb();
-		const connection = await getCloudConnection(db, request.context.connectionId);
-		if (!connection) throw new Error('Backup connection was not found.');
-		const provider = await createProviderForConnection(connection);
+		const provider = await createProviderForBackupContext(db, request.context.connectionId);
 		const result = await backupProject(db, provider, request.context, {
 			folder: request.folder ?? null,
 			strict: request.strict ?? true,
 		});
 		postMessage({ type: 'db:invalidate', domain: 'cloud-project-folders' });
 		postMessage({ type: 'db:invalidate', domain: 'cloud-connections' });
+		postMessage({ type: 'db:invalidate', domain: 'sync-targets' });
+		if (result.downloadedPaths.length > 0 || result.deletedPaths.length > 0 || result.conflictCopyId) {
+			postMessage({ type: 'db:invalidate', domain: 'projects' });
+			postMessage({ type: 'db:invalidate', domain: 'transcriptions' });
+			postMessage({ type: 'db:invalidate', domain: 'collations' });
+			postMessage({ type: 'db:invalidate', domain: 'iiif' });
+		}
 		return result;
 	}
 	if (request.type === 'projectBackup.backupEntity') {
 		const db = getKyselyDb();
-		const connection = await getCloudConnection(db, request.context.connectionId);
-		if (!connection) throw new Error('Backup connection was not found.');
-		const provider = await createProviderForConnection(connection);
+		const provider = await createProviderForBackupContext(db, request.context.connectionId);
 		const result = await backupProjectEntity(db, provider, request.context, request.reference, {
 			folder: request.folder ?? null,
 		});
@@ -746,6 +748,16 @@ function timeWorkerStepSync<T>(label: string, step: () => T): T {
 		});
 		throw error;
 	}
+}
+
+async function createProviderForBackupContext(
+	db: Kysely<Database>,
+	connectionOrTargetId: string
+): Promise<CloudStorageProvider> {
+	const connection = await getCloudConnection(db, connectionOrTargetId);
+	return connection
+		? createProviderForConnection(connection)
+		: createProviderForSyncTarget(connectionOrTargetId);
 }
 
 function providerRootFolderId(provider: CloudStorageProvider): string {

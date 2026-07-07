@@ -5,6 +5,7 @@ import type {
 	Database,
 	IiifCanvasAnnotations,
 	IiifManifestSources,
+	SyncFileFingerprints,
 	TranscriptionPageCanvasLinks,
 } from '$lib/client/db/types.generated';
 import {
@@ -17,7 +18,16 @@ import {
 } from '$lib/client/db/repositories/revisions';
 import { createCommittedCollationCheckpointWithFiles } from '$lib/client/db/repositories/collation-files';
 import { createCommittedTranscriptionCheckpointWithFiles } from '$lib/client/db/repositories/transcription-files';
-import type { StoreOperationOptions } from '$lib/client/store';
+import {
+	joinStorePath,
+	listDirectory,
+	projectFolder,
+	readTextFile,
+	writeTextFileAtomic,
+	type StoreDirectoryEntry,
+	type StoreOperationOptions,
+} from '$lib/client/store';
+import { rebuildIndexFromStore } from '$lib/client/db/repositories/index-rebuild';
 import { canonicalJson } from './canonical-json';
 import {
 	applyCollationTombstone,
@@ -239,6 +249,45 @@ interface CloudSyncMetadataRecord {
 	lastSyncedRevision: string;
 	lastSyncedHash: string;
 	lastSyncedAt: string;
+}
+
+interface FileFingerprint {
+	contentHash: string;
+	size: number;
+	modifiedAt: string;
+}
+
+interface LocalMirrorFile {
+	path: string;
+	storePath: string;
+	content: string;
+	fingerprint: FileFingerprint;
+}
+
+interface RemoteMirrorFile {
+	path: string;
+	metadata: CloudFileMetadata;
+	content: string;
+	fingerprint: FileFingerprint;
+}
+
+interface SyncFileFingerprintRecord {
+	targetId: string;
+	projectId: string;
+	filePath: string;
+	localContentHash: string;
+	localSize: number;
+	localModifiedAt: string;
+	remoteFileId: string;
+	remoteRevision: string;
+	remoteContentHash: string;
+	remoteSize: number;
+	remoteModifiedAt: string;
+	syncedAt: string;
+	entityType: string;
+	entityId: string;
+	revisionId: string;
+	entityContentHash: string;
 }
 
 const PROJECT_SCOPE_TYPE = 'project';
@@ -614,38 +663,17 @@ export async function backupProject(
 		return result;
 	}
 
-	for (const item of [...summary.transcriptions, ...summary.collations]) {
-		if (isBlockingBackupItem(item)) {
-			result.skippedItems.push(item);
-			continue;
-		}
-		const entityResult = await publishEntity(
-			db,
-			provider,
-			backupContext,
-			{ entityType: item.itemType as SyncEntityType, entityId: item.itemId },
-			options
-		);
-		mergeOperationResult(result, entityResult);
-		result.entityResults.push(entityResult);
-	}
-
-	const tombstoneResult = await syncProjectTombstones(db, provider, backupContext);
-	mergeOperationResult(result, tombstoneResult);
-	result.entityResults.push(tombstoneResult);
-
-	if (!hasOperationFailure(result)) {
-		const manifestResult = await publishProjectManifest(db, provider, backupContext);
-		mergeOperationResult(result, manifestResult);
-		result.manifestUploaded = manifestResult.uiState === 'synced';
-	}
+	const mirrorResult = await mirrorProjectFiles(db, provider, backupContext, options);
+	mergeOperationResult(result, mirrorResult);
+	result.entityResults.push(mirrorResult);
+	result.manifestUploaded = !hasOperationFailure(mirrorResult);
 
 	if (
 		result.manifestUploaded &&
 		!hasOperationFailure(result) &&
 		result.skippedItems.length === 0
 	) {
-		await updateCloudProjectFolderSyncState(db, {
+		await updateLegacyCloudProjectFolderSyncState(db, {
 			projectId: backupContext.projectId,
 			connectionId: backupContext.connectionId,
 			lastFullySyncedAt: options.now?.() ?? new Date().toISOString(),
@@ -657,6 +685,20 @@ export async function backupProject(
 	result.uiState =
 		result.quarantines.length > 0 ? 'conflict requires resolution' : 'sync pending';
 	return result;
+}
+
+async function updateLegacyCloudProjectFolderSyncState(
+	db: Kysely<Database>,
+	input: { projectId: string; connectionId: string; lastFullySyncedAt: string }
+): Promise<void> {
+	try {
+		await updateCloudProjectFolderSyncState(db, input);
+	} catch (error) {
+		if (error instanceof Error && /Cloud project folder .* was not found/.test(error.message)) {
+			return;
+		}
+		throw error;
+	}
 }
 
 export async function backupProjectEntity(
@@ -858,6 +900,433 @@ export class OpenObjectSyncPoller {
 			void this.pollNow();
 		}, delayMs);
 	}
+}
+
+async function mirrorProjectFiles(
+	db: Kysely<Database>,
+	provider: CloudStorageProvider,
+	context: SyncProjectContext,
+	options: SyncManagerOptions = {}
+): Promise<SyncOperationResult> {
+	const result = baseResult('sync pending');
+	const now = options.now?.() ?? new Date().toISOString();
+	const storeOptions = options.storeOptions ?? {};
+	try {
+		const projectRoot = await loadProjectStoreRoot(db, context.projectId);
+		const [localFiles, remoteFiles] = await Promise.all([
+			listLocalProjectMirrorFiles(db, context.projectId, storeOptions),
+			listRemoteMirrorFiles(provider, context),
+		]);
+		const localPaths = new Set(localFiles.map(file => file.path));
+		const pulledFiles: Array<{ localFile: LocalMirrorFile; remoteFile: RemoteMirrorFile }> = [];
+		for (const localFile of localFiles) {
+			const remoteFile = remoteFiles.get(localFile.path) ?? null;
+			const cached = await getFileFingerprint(db, context, localFile.path);
+			if (!remoteFile) {
+				const write = await provider.createFile(context.cloudFolderId, localFile.path, localFile.content);
+				result.uploadedPaths.push(localFile.path);
+				await upsertFileFingerprint(db, context, localFile, write, localFile.fingerprint, now);
+				continue;
+			}
+
+			if (remoteFile.fingerprint.contentHash === localFile.fingerprint.contentHash) {
+				await upsertFileFingerprint(
+					db,
+					context,
+					localFile,
+					remoteFile.metadata,
+					remoteFile.fingerprint,
+					now
+				);
+				continue;
+			}
+
+			const localUnchanged = cached
+				? cached.localContentHash === localFile.fingerprint.contentHash
+				: false;
+			const remoteUnchanged = cached
+				? cached.remoteContentHash === remoteFile.fingerprint.contentHash
+				: false;
+			if (localUnchanged && !remoteUnchanged) {
+				const validation = await validateRemoteMirrorFile(remoteFile.path, remoteFile.content, context);
+				if (validation) {
+					result.quarantines.push(validation);
+					continue;
+				}
+				const pulledLocalFile = await writePulledMirrorFile(projectRoot, remoteFile, storeOptions);
+				pulledFiles.push({ localFile: pulledLocalFile, remoteFile });
+				result.downloadedPaths.push(remoteFile.path);
+				continue;
+			}
+			if (remoteUnchanged) {
+				const write = await provider.updateFile(
+					remoteFile.metadata.id,
+					localFile.content,
+					remoteFile.metadata.revision
+				);
+				result.uploadedPaths.push(localFile.path);
+				await upsertFileFingerprint(db, context, localFile, write, localFile.fingerprint, now);
+				continue;
+			}
+
+			result.quarantines.push({
+				path: localFile.path,
+				code: 'hash_mismatch',
+				message: 'Local and remote files both differ from the last synced fingerprint.',
+				expected: cached?.remoteContentHash ?? localFile.fingerprint.contentHash,
+				actual: remoteFile.fingerprint.contentHash,
+			});
+			if (!result.conflictCopyId) {
+				const reference = primaryReferenceForMirrorPath(localFile.path);
+				if (reference) {
+					result.conflictCopyId = await createConflictCopy(
+						db,
+						await loadLocalEntity(db, reference),
+						options
+					);
+				}
+			}
+		}
+
+		if (result.quarantines.length === 0) {
+			for (const remoteFile of [...remoteFiles.values()].sort((left, right) =>
+				left.path.localeCompare(right.path)
+			)) {
+				if (localPaths.has(remoteFile.path)) continue;
+				const validation = await validateRemoteMirrorFile(remoteFile.path, remoteFile.content, context);
+				if (validation) {
+					result.quarantines.push(validation);
+					continue;
+				}
+				const pulledLocalFile = await writePulledMirrorFile(projectRoot, remoteFile, storeOptions);
+				pulledFiles.push({ localFile: pulledLocalFile, remoteFile });
+				result.downloadedPaths.push(remoteFile.path);
+			}
+		}
+
+		if (result.quarantines.length === 0 && pulledFiles.length > 0) {
+			await rebuildIndexFromStore(db, storeOptions);
+			for (const pulled of pulledFiles) {
+				await upsertFileFingerprint(
+					db,
+					context,
+					pulled.localFile,
+					pulled.remoteFile.metadata,
+					pulled.remoteFile.fingerprint,
+					now
+				);
+			}
+		}
+
+		result.uiState = result.quarantines.length > 0 ? 'conflict requires resolution' : 'synced';
+		return result;
+	} catch (error) {
+		if (isCloudProviderError(error)) {
+			result.providerError = error.code;
+			result.providerMessage = error.message;
+			result.uiState = error.code === 'conflict' ? 'conflict requires resolution' : 'sync pending';
+			return result;
+		}
+		throw error;
+	}
+}
+
+async function listLocalProjectMirrorFiles(
+	db: DbExecutor,
+	projectId: string,
+	storeOptions: StoreOperationOptions
+): Promise<LocalMirrorFile[]> {
+	const root = await loadProjectStoreRoot(db, projectId);
+	const files: LocalMirrorFile[] = [];
+	await collectLocalMirrorFiles(root, '', files, storeOptions);
+	return files.sort((left, right) => mirrorWriteOrder(left.path) - mirrorWriteOrder(right.path) || left.path.localeCompare(right.path));
+}
+
+async function loadProjectStoreRoot(db: DbExecutor, projectId: string): Promise<string> {
+	const project = await db
+		.selectFrom('projects')
+		.select('storage_slug')
+		.where('id', '=', projectId)
+		.executeTakeFirst();
+	if (!project?.storage_slug) throw new Error(`Project ${projectId} was not found.`);
+	return projectFolder(project.storage_slug);
+}
+
+async function collectLocalMirrorFiles(
+	storePath: string,
+	relativePath: string,
+	files: LocalMirrorFile[],
+	storeOptions: StoreOperationOptions
+): Promise<void> {
+	let entries: StoreDirectoryEntry[];
+	try {
+		entries = await listDirectory(storePath, storeOptions);
+	} catch (error) {
+		if (isMissingStoreEntryError(error)) return;
+		throw error;
+	}
+	for (const entry of entries) {
+		const childRelativePath = joinStorePath(relativePath, entry.name);
+		const childStorePath = joinStorePath(storePath, entry.name);
+		if (entry.kind === 'directory') {
+			await collectLocalMirrorFiles(childStorePath, childRelativePath, files, storeOptions);
+			continue;
+		}
+		if (!shouldMirrorProjectFile(childRelativePath)) continue;
+		const content = await readTextFile(childStorePath, storeOptions);
+		files.push({
+			path: childRelativePath,
+			storePath: childStorePath,
+			content,
+			fingerprint: await fingerprintText(content, ''),
+		});
+	}
+}
+
+async function listRemoteMirrorFiles(
+	provider: CloudStorageProvider,
+	context: SyncProjectContext
+): Promise<Map<string, RemoteMirrorFile>> {
+	const remoteFiles = new Map<string, RemoteMirrorFile>();
+	for (const metadata of await listRemoteMetadata(provider, context)) {
+		const path = relativeEntryPath(metadata.path, context);
+		if (!shouldMirrorProjectFile(path)) continue;
+		const content = await provider.downloadFile(metadata.id);
+		remoteFiles.set(path, {
+			path,
+			metadata,
+			content,
+			fingerprint: await fingerprintText(content, metadata.modifiedAt),
+		});
+	}
+	return remoteFiles;
+}
+
+async function writePulledMirrorFile(
+	projectRoot: string,
+	remoteFile: RemoteMirrorFile,
+	storeOptions: StoreOperationOptions
+): Promise<LocalMirrorFile> {
+	const storePath = joinStorePath(projectRoot, remoteFile.path);
+	await writeTextFileAtomic(storePath, remoteFile.content, storeOptions);
+	return {
+		path: remoteFile.path,
+		storePath,
+		content: remoteFile.content,
+		fingerprint: await fingerprintText(remoteFile.content, ''),
+	};
+}
+
+async function validateRemoteMirrorFile(
+	path: string,
+	content: string,
+	context: SyncProjectContext
+): Promise<SyncQuarantine | null> {
+	if (path === projectRelativeCloudPaths().project) {
+		const parsed = await parseProjectCloudFile(content);
+		if (!parsed.ok) return quarantineFor(path, parsed.quarantine);
+		if (parsed.value.id !== context.projectId) {
+			return {
+				path,
+				code: 'invalid_shape',
+				message: 'Remote project manifest belongs to a different project.',
+				expected: context.projectId,
+				actual: parsed.value.id,
+			};
+		}
+		return null;
+	}
+	if (/^transcriptions\/[^/]+\.json$/.test(path)) {
+		const parsed = await parseProjectTranscriptionCloudFile(content);
+		return parsed.ok ? null : quarantineFor(path, parsed.quarantine);
+	}
+	if (/^collations\/[^/]+\.json$/.test(path)) {
+		const parsed = await parseCollationCloudFile(content);
+		return parsed.ok ? null : quarantineFor(path, parsed.quarantine);
+	}
+	if (/^history\//.test(path)) {
+		const parsed = await parseHistoryCloudFile(content);
+		return parsed.ok ? null : quarantineFor(path, parsed.quarantine);
+	}
+	if (/^tombstones\/[^/]+\.json$/.test(path)) {
+		const parsed = await parseTombstoneCloudFile(content);
+		return parsed.ok ? null : quarantineFor(path, parsed.quarantine);
+	}
+	return null;
+}
+
+async function getFileFingerprint(
+	db: DbExecutor,
+	context: SyncProjectContext,
+	filePath: string
+): Promise<SyncFileFingerprintRecord | null> {
+	const row = await db
+		.selectFrom('sync_file_fingerprints')
+		.selectAll()
+		.where('target_id', '=', context.connectionId)
+		.where('project_id', '=', context.projectId)
+		.where('file_path', '=', filePath)
+		.executeTakeFirst();
+	return row ? mapSyncFileFingerprint(row) : null;
+}
+
+async function upsertFileFingerprint(
+	db: DbExecutor,
+	context: SyncProjectContext,
+	localFile: LocalMirrorFile,
+	remote: CloudFileMetadata | CloudWriteResult,
+	remoteFingerprint: FileFingerprint,
+	syncedAt: string
+): Promise<void> {
+	const entity = await mirrorPathEntityHead(db, localFile.path);
+	await db
+		.insertInto('sync_file_fingerprints')
+		.values({
+			target_id: context.connectionId,
+			project_id: context.projectId,
+			file_path: localFile.path,
+			local_content_hash: localFile.fingerprint.contentHash,
+			local_size: localFile.fingerprint.size,
+			local_modified_at: localFile.fingerprint.modifiedAt,
+			remote_file_id: remote.id,
+			remote_revision: remote.revision,
+			remote_content_hash: remoteFingerprint.contentHash,
+			remote_size: remote.size,
+			remote_modified_at: remote.modifiedAt,
+			synced_at: syncedAt,
+			entity_type: entity.entityType,
+			entity_id: entity.entityId,
+			revision_id: entity.revisionId,
+			entity_content_hash: entity.contentHash,
+		})
+		.onConflict(oc =>
+			oc.columns(['target_id', 'project_id', 'file_path']).doUpdateSet({
+				local_content_hash: localFile.fingerprint.contentHash,
+				local_size: localFile.fingerprint.size,
+				local_modified_at: localFile.fingerprint.modifiedAt,
+				remote_file_id: remote.id,
+				remote_revision: remote.revision,
+				remote_content_hash: remoteFingerprint.contentHash,
+				remote_size: remote.size,
+				remote_modified_at: remote.modifiedAt,
+				synced_at: syncedAt,
+				entity_type: entity.entityType,
+				entity_id: entity.entityId,
+				revision_id: entity.revisionId,
+				entity_content_hash: entity.contentHash,
+			})
+		)
+		.execute();
+}
+
+async function mirrorPathEntityHead(
+	db: DbExecutor,
+	path: string
+): Promise<{ entityType: string; entityId: string; revisionId: string; contentHash: string }> {
+	const transcriptionMatch = /^transcriptions\/([^/]+)\.json$/.exec(path);
+	if (transcriptionMatch) {
+		const entityId = transcriptionMatch[1];
+		const row = await db
+			.selectFrom('project_transcriptions')
+			.innerJoin('transcriptions', 'transcriptions.id', 'project_transcriptions.transcription_id')
+			.select([
+				'transcriptions.current_revision_id as revision_id',
+				'transcriptions.current_content_hash as content_hash',
+			])
+			.where('project_transcriptions.id', '=', entityId)
+			.executeTakeFirst();
+		return {
+			entityType: 'project-transcription',
+			entityId,
+			revisionId: row?.revision_id ?? '',
+			contentHash: row?.content_hash ?? '',
+		};
+	}
+	const collationMatch = /^collations\/([^/]+)\.json$/.exec(path);
+	if (collationMatch) {
+		const entityId = collationMatch[1];
+		const row = await db
+			.selectFrom('collations')
+			.select(['current_revision_id', 'current_content_hash'])
+			.where('id', '=', entityId)
+			.executeTakeFirst();
+		return {
+			entityType: 'collation',
+			entityId,
+			revisionId: row?.current_revision_id ?? '',
+			contentHash: row?.current_content_hash ?? '',
+		};
+	}
+	return { entityType: '', entityId: '', revisionId: '', contentHash: '' };
+}
+
+function mapSyncFileFingerprint(
+	row: Selectable<SyncFileFingerprints>
+): SyncFileFingerprintRecord {
+	return {
+		targetId: row.target_id,
+		projectId: row.project_id,
+		filePath: row.file_path,
+		localContentHash: row.local_content_hash,
+		localSize: row.local_size,
+		localModifiedAt: row.local_modified_at,
+		remoteFileId: row.remote_file_id,
+		remoteRevision: row.remote_revision,
+		remoteContentHash: row.remote_content_hash,
+		remoteSize: row.remote_size,
+		remoteModifiedAt: row.remote_modified_at,
+		syncedAt: row.synced_at,
+		entityType: row.entity_type,
+		entityId: row.entity_id,
+		revisionId: row.revision_id,
+		entityContentHash: row.entity_content_hash,
+	};
+}
+
+function shouldMirrorProjectFile(path: string): boolean {
+	const normalized = normalizeSlashes(path);
+	if (!normalized || normalized.includes('.tmp-') || normalized.endsWith('.working.json')) return false;
+	return normalized.endsWith('.json') || normalized.endsWith('.tei.xml');
+}
+
+function primaryReferenceForMirrorPath(path: string): SyncEntityReference | null {
+	const transcriptionMatch = /^transcriptions\/([^/]+)\.json$/.exec(path);
+	if (transcriptionMatch) {
+		return { entityType: 'project-transcription', entityId: transcriptionMatch[1] };
+	}
+	const collationMatch = /^collations\/([^/]+)\.json$/.exec(path);
+	if (collationMatch) return { entityType: 'collation', entityId: collationMatch[1] };
+	return null;
+}
+
+function mirrorWriteOrder(path: string): number {
+	if (path.startsWith('tombstones/')) return 0;
+	if (path.startsWith('history/')) return 1;
+	if (path === 'project.json') return 3;
+	return 2;
+}
+
+async function fingerprintText(content: string, modifiedAt: string): Promise<FileFingerprint> {
+	return {
+		contentHash: await hashText(content),
+		size: new TextEncoder().encode(content).byteLength,
+		modifiedAt,
+	};
+}
+
+async function hashText(content: string): Promise<string> {
+	const digest = await globalThis.crypto?.subtle?.digest('SHA-256', new TextEncoder().encode(content));
+	if (!digest) throw new Error('SHA-256 hashing is unavailable.');
+	return `sha256:${[...new Uint8Array(digest)]
+		.map(byte => byte.toString(16).padStart(2, '0'))
+		.join('')}`;
+}
+
+function isMissingStoreEntryError(error: unknown): boolean {
+	if (typeof DOMException !== 'undefined' && error instanceof DOMException) {
+		return error.name === 'NotFoundError';
+	}
+	return error instanceof Error && /not found/i.test(error.message);
 }
 
 async function ensureHistoryFile(
@@ -1568,8 +2037,10 @@ async function compareProjectManifestHeads(
 			continue;
 		}
 		if (headsEqual(local.head, remoteHead)) continue;
-		if (!metadata) return 'diverged';
-		const lastSynced = lastSyncedHead(metadata);
+		const lastSynced =
+			(await getLastSyncedEntityHead(db, context, reference)) ??
+			(metadata ? lastSyncedHead(metadata) : null);
+		if (!lastSynced) return 'diverged';
 		if (headsEqual(local.head, lastSynced) && !headsEqual(remoteHead, lastSynced)) {
 			sawRemoteOnlyChange = true;
 			continue;
@@ -1608,6 +2079,8 @@ function mergeOperationResult(target: SyncOperationResult, source: SyncOperation
 	target.downloadedPaths.push(...source.downloadedPaths);
 	target.deletedPaths.push(...source.deletedPaths);
 	target.quarantines.push(...source.quarantines);
+	if (source.conflictCopyId) target.conflictCopyId = source.conflictCopyId;
+	if (source.draftCheckpointId) target.draftCheckpointId = source.draftCheckpointId;
 	if (source.providerError) target.providerError = source.providerError;
 	if (source.providerMessage) target.providerMessage = source.providerMessage;
 }
@@ -1689,6 +2162,26 @@ async function getSyncMetadata(
 		.where('entity_id', '=', reference.entityId)
 		.executeTakeFirst();
 	return row ? mapCloudSyncMetadata(row) : null;
+}
+
+async function getLastSyncedEntityHead(
+	db: DbExecutor,
+	context: SyncProjectContext,
+	reference: SyncEntityReference
+): Promise<SyncEntityHead | null> {
+	const row = await db
+		.selectFrom('sync_file_fingerprints')
+		.select(['revision_id', 'entity_content_hash'])
+		.where('target_id', '=', context.connectionId)
+		.where('project_id', '=', context.projectId)
+		.where('entity_type', '=', reference.entityType)
+		.where('entity_id', '=', reference.entityId)
+		.where('revision_id', '!=', '')
+		.orderBy('synced_at', 'desc')
+		.executeTakeFirst();
+	return row?.revision_id && row.entity_content_hash
+		? { revisionId: row.revision_id, contentHash: row.entity_content_hash }
+		: null;
 }
 
 async function upsertSyncMetadata(

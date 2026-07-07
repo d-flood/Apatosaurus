@@ -1,4 +1,27 @@
-import type { SyncUiState } from './sync-manager';
+import { browser } from '$app/environment';
+import {
+	backupEligibleProjectEntities,
+	emitLocalDbInvalidation,
+	subscribeLocalDbInvalidations,
+} from '$lib/client/db/client';
+import {
+	listSyncTargets,
+	updateSyncTargetLastSyncedAt,
+	type SyncTargetRecord,
+} from '$lib/client/store';
+import { LOCAL_FOLDER_ROOT_FOLDER_ID } from './providers/local-folder-provider';
+import {
+	OpenObjectSyncPoller,
+	type ProjectBackupResult,
+	type SyncProjectContext,
+	type SyncUiState,
+} from './sync-manager';
+
+interface TargetPoller {
+	target: SyncTargetRecord;
+	poller: OpenObjectSyncPoller;
+	key: string;
+}
 
 class SyncService {
 	lastSyncTime = $state<string | null>(null);
@@ -6,6 +29,10 @@ class SyncService {
 	syncStatus = $state<'idle' | 'active' | 'paused' | 'error'>('idle');
 	connected = $state(false);
 	uiState = $state<SyncUiState>('saved locally');
+	private pollers = new Map<string, TargetPoller>();
+	private runningSyncs = new Map<string, Promise<ProjectBackupResult>>();
+	private unsubscribeInvalidations: (() => void) | null = null;
+	private eventsAttached = false;
 
 	async initLocalDB(_dbName: string): Promise<void> {
 		this.ready = true;
@@ -13,6 +40,10 @@ class SyncService {
 		this.connected = false;
 		this.lastSyncTime = null;
 		this.uiState = 'saved locally';
+		if (!browser) return;
+		this.attachEvents();
+		this.attachInvalidations();
+		await this.reloadTargets();
 	}
 
 	async startSync(_dbName: string, _email: string): Promise<void> {
@@ -24,6 +55,11 @@ class SyncService {
 		this.connected = false;
 		this.syncStatus = 'idle';
 		this.uiState = 'saved locally';
+		for (const entry of this.pollers.values()) entry.poller.stop();
+		this.pollers.clear();
+		this.runningSyncs.clear();
+		this.unsubscribeInvalidations?.();
+		this.unsubscribeInvalidations = null;
 	}
 
 	isRunning(): boolean {
@@ -56,6 +92,136 @@ class SyncService {
 		this.syncStatus = 'active';
 		this.lastSyncTime = new Date().toISOString();
 	}
+
+	private attachEvents(): void {
+		if (this.eventsAttached || typeof window === 'undefined') return;
+		window.addEventListener('focus', () => void this.syncAllNow());
+		window.addEventListener('online', () => void this.syncAllNow());
+		document.addEventListener('visibilitychange', () => {
+			if (document.visibilityState === 'visible') void this.syncAllNow();
+		});
+		this.eventsAttached = true;
+	}
+
+	private attachInvalidations(): void {
+		if (this.unsubscribeInvalidations) return;
+		this.unsubscribeInvalidations = subscribeLocalDbInvalidations(event => {
+			if (event.domain === 'sync-targets' || event.domain === 'all') {
+				void this.reloadTargets();
+				return;
+			}
+			if (event.domain === 'projects' || event.domain === 'transcriptions' || event.domain === 'collations') {
+				void this.syncAllNow();
+			}
+		});
+	}
+
+	private async reloadTargets(): Promise<void> {
+		if (!this.ready || !browser) return;
+		const targets = (await listSyncTargets()).filter(target => target.enabled);
+		const activeIds = new Set(targets.map(target => target.targetId));
+		for (const [targetId, entry] of this.pollers) {
+			if (!activeIds.has(targetId)) {
+				entry.poller.stop();
+				this.pollers.delete(targetId);
+			}
+		}
+
+		for (const target of targets) this.ensurePoller(target);
+		this.connected = this.pollers.size > 0;
+		this.syncStatus = this.connected ? 'active' : 'paused';
+	}
+
+	private ensurePoller(target: SyncTargetRecord): void {
+		const key = targetKey(target);
+		const existing = this.pollers.get(target.targetId);
+		if (existing?.key === key) {
+			existing.target = target;
+			return;
+		}
+
+		existing?.poller.stop();
+		const poller = new OpenObjectSyncPoller({
+			poll: () => this.runTargetSync(target),
+		});
+		this.pollers.set(target.targetId, { target, poller, key });
+		poller.start();
+	}
+
+	private async syncAllNow(): Promise<void> {
+		if (!this.ready || !browser) return;
+		if (this.pollers.size === 0) await this.reloadTargets();
+		await Promise.all([...this.pollers.values()].map(entry => entry.poller.pollNow()));
+	}
+
+	private runTargetSync(target: SyncTargetRecord): Promise<ProjectBackupResult> {
+		const existing = this.runningSyncs.get(target.targetId);
+		if (existing) return existing;
+		const run = this.performTargetSync(target).finally(() => {
+			this.runningSyncs.delete(target.targetId);
+		});
+		this.runningSyncs.set(target.targetId, run);
+		return run;
+	}
+
+	private async performTargetSync(target: SyncTargetRecord): Promise<ProjectBackupResult> {
+		try {
+			const result = await backupEligibleProjectEntities(syncContext(target));
+			this.applyResult(result);
+			if (result.uiState === 'synced') {
+				const syncedAt = new Date().toISOString();
+				await updateSyncTargetLastSyncedAt(target.targetId, syncedAt);
+				emitLocalDbInvalidation('sync-targets');
+				this.lastSyncTime = syncedAt;
+			}
+			return result;
+		} catch (error) {
+			const result = failureResult(target, error);
+			this.applyResult(result);
+			return result;
+		}
+	}
+
+	private applyResult(result: ProjectBackupResult): void {
+		this.uiState = result.uiState;
+		this.connected = this.pollers.size > 0;
+		this.syncStatus = result.providerError ? 'error' : 'active';
+		if (result.uiState === 'synced') this.lastSyncTime = new Date().toISOString();
+	}
 }
 
 export const syncService = new SyncService();
+
+function syncContext(target: SyncTargetRecord): SyncProjectContext {
+	return {
+		projectId: target.projectId,
+		connectionId: target.targetId,
+		cloudFolderId: LOCAL_FOLDER_ROOT_FOLDER_ID,
+		cloudFolderPath: '',
+	};
+}
+
+function targetKey(target: SyncTargetRecord): string {
+	return [target.projectId, target.handleRef, target.folderDisplayPath, String(target.enabled)].join(':');
+}
+
+function failureResult(target: SyncTargetRecord, error: unknown): ProjectBackupResult {
+	const message = error instanceof Error ? error.message : String(error);
+	return {
+		uiState: 'sync pending',
+		projectId: target.projectId,
+		manifestUploaded: false,
+		entityResults: [],
+		skippedItems: [],
+		providerError: isReconnectError(message) ? 'reauthorization-required' : 'provider-unavailable',
+		providerMessage: message,
+		uploadedPaths: [],
+		downloadedPaths: [],
+		deletedPaths: [],
+		quarantines: [],
+	};
+}
+
+function isReconnectError(message: string): boolean {
+	return /permission|reconnect|directory picker|folder target was not found/i.test(message);
+}
