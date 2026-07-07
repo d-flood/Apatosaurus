@@ -1,8 +1,7 @@
-# Phase 07: Local Folder Sync
+# Issue 07: Local Folder Sync
 
-Status: In Progress
-Depends on: Phases 01, 06
-Architecture reference: `architecture.md` section 8
+Blocked by: Issues 01, 06
+Architecture reference: `../architecture.md` section 8
 
 ## Goal
 
@@ -23,9 +22,9 @@ Rework the sync manager as a file mirror between the OPFS project folder and a u
 3. Scheduling: sync on commit, on window focus, and on the existing 30-60s backoff poll while a target is connected. Partial-failure tolerant: one bad file quarantines and continues; the pass reports per-file results.
 4. Permission lifecycle:
    - Request persistent permission where supported (Chromium 122+ installed PWA).
-   - On permission loss: visible "Reconnect folder" state on the project card and sync indicator with one-click re-grant. Sync must never silently stop (`architecture.md` section 8).
+   - On permission loss: visible "Reconnect folder" state on the project card and sync indicator with one-click re-grant. Sync must never silently stop (`../architecture.md` section 8).
 5. UI: simplify `ProjectBackupPanel` to: connect/disconnect folder, last-synced time, per-entity status, conflict list, quarantine list. Remove remaining cloud-provider vocabulary.
-6. Retire the legacy external transcription folder sync (`app/src/lib/client/transcription/external-sync-service.ts`, `external-sync.worker.ts`, and its integration in the transcription library page - see `current-state.md` section 7). It is superseded by project folder sync; delete it and its IndexedDB handle storage rather than maintaining two folder-sync mechanisms.
+6. Retire the legacy external transcription folder sync (`app/src/lib/client/transcription/external-sync-service.ts`, `external-sync.worker.ts`, and its integration in the transcription library page - see `../current-state.md` section 7). It is superseded by project folder sync; delete it and its IndexedDB handle storage rather than maintaining two folder-sync mechanisms.
 7. Multi-writer sanity: two app instances syncing through the same folder (the committee scenario) exercise pull/push/conflict paths; cover with mock-provider integration tests simulating interleaved writers.
 
 ## Non-Goals

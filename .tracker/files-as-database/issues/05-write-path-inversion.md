@@ -1,14 +1,13 @@
-# Phase 05: Write-Path Inversion
+# Issue 05: Write-Path Inversion
 
-Status: Completed
-Depends on: Phase 04
-Architecture reference: `architecture.md` sections 6, 9
+Blocked by: Issue 04
+Architecture reference: `../architecture.md` sections 6, 9
 
 ## Goal
 
 Make files the write target. Autosave writes working files; commit writes history + primary + derived TEI + manifest, in that order; the index is updated after files succeed. Enforce the single-writer rule for the in-memory canonical document.
 
-The current save/commit flows being replaced are documented in `current-state.md` sections 4-5 (transcription: `getJSON -> fromProseMirror -> mergeWithCanonicalDocument -> serialize -> updateTranscriptionContent`; collation: `scheduleSave -> persistDocument` writing artifact + projection). Read those first.
+The current save/commit flows being replaced are documented in `../current-state.md` sections 4-5 (transcription: `getJSON -> fromProseMirror -> mergeWithCanonicalDocument -> serialize -> updateTranscriptionContent`; collation: `scheduleSave -> persistDocument` writing artifact + projection). Read those first.
 
 ## Scope
 
@@ -24,7 +23,7 @@ The current save/commit flows being replaced are documented in `current-state.md
 
 ### Commit
 
-3. Implement the commit sequence from `architecture.md` section 6 for both entity types:
+3. Implement the commit sequence from `../architecture.md` section 6 for both entity types:
    1. flush working save
    2. build committed document, hash via canonical JSON
    3. write history checkpoint file (append-only)
@@ -48,7 +47,7 @@ The current save/commit flows being replaced are documented in `current-state.md
 ## Design Notes
 
 - Route all file writes through the store worker RPC; do not open OPFS handles from window context.
-- Crash-ordering tests matter more than happy-path tests here: simulate failure between each commit step and assert the invariant "old manifest + valid entity files" (`architecture.md` section 9.6). The store's atomic-write tests (Phase 2) cover single files; this phase covers the sequence.
+- Crash-ordering tests matter more than happy-path tests here: simulate failure between each commit step and assert the invariant "old manifest + valid entity files" (`../architecture.md` section 9.6). The store's atomic-write tests (Phase 2) cover single files; this phase covers the sequence.
 - Concurrency: a second tab must not corrupt files. `OPFSCoopSyncVFS` already coordinates the index; for the store, rely on single dedicated worker + `navigator.locks` around commit sequences (one lock per project). Document the locking choice in Notes.
 - Keep commit UX unchanged (message, author) - only the persistence target moves.
 
@@ -67,7 +66,7 @@ The current save/commit flows being replaced are documented in `current-state.md
 
 ## Completion Criteria
 
-Every save and commit lands in OPFS files before the index. Manual smoke test: create project, transcribe, commit, collate, commit, then inspect the OPFS folder (via devtools or a debug route) and confirm the full layout from `architecture.md` section 4 exists with valid, hash-verified contents.
+Every save and commit lands in OPFS files before the index. Manual smoke test: create project, transcribe, commit, collate, commit, then inspect the OPFS folder (via devtools or a debug route) and confirm the full layout from `../architecture.md` section 4 exists with valid, hash-verified contents.
 
 ## Verification
 

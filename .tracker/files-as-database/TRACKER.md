@@ -1,87 +1,53 @@
-# Files-as-Database Overview
+# Tracker for files-as-database
 
 ## Purpose
 
-This overview is the handoff document for the storage inversion described in `architecture.md`. Reading order: `architecture.md` (the target), `current-state.md` (the codebase as audited, so you do not re-audit), this overview, then the first phase document whose status is not `Completed`.
+This document tracks the status of all issues in the files-as-database epic: invert the persistence hierarchy so that a project is a folder of versioned document files in OPFS and SQLite is a disposable, rebuildable index. Reference reading order: `architecture.md` (the target), `current-state.md` (the codebase as audited 2026-07-03, so you do not re-audit), `PRD.md`, then the selected issue.
 
 ## Current Status
 
 Overall status: `In Progress`
 
-Current phase: `07-local-folder-sync.md`
+Current issue: `08-zip-export` (implementation and automated verification complete)
 
-Last updated: `2026-07-07`
+Last updated: 2026-07-07
 
-## Continuation Instructions
+## Blocking Rules
 
-1. Read `architecture.md`, `current-state.md`, then this overview.
-2. Find the first phase in the progress ledger with status `Not Started` or `In Progress`.
-3. Read that phase document before editing code.
-4. Implement the smallest correct slice for that phase.
-5. Update the phase document status, checklist, notes, and verification results as work completes.
-6. Update this overview's progress ledger, current phase, and notes before stopping.
-7. Do not mark a phase `Completed` until its completion criteria and relevant verification are done.
+- Issue 07 needs human validation only; it does not block starting 08, 11, 12, 14, 17, or 19.
+- Issues 21-23 are the hardening/documentation tail; do not start them while earlier issues are `Not Started`.
 
-## Governing Decisions
+## Ledger
 
-Full list in `architecture.md` section 3. The short form:
-
-- Files in OPFS are the source of truth; SQLite is a disposable index rebuilt from files.
-- Transcriptions and collations always belong to a project; every user has a `Default` project.
-- Cross-project sharing is copy-with-lineage; refresh-from-source is explicit; no automatic merging.
-- Committed state is the sync boundary; working state is local-only files.
-- Dropbox/Google Drive OAuth providers are removed. Sync targets a user-chosen local folder (Chromium File System Access API). The provider interface stays pluggable.
-- Zip export/import is the universal, all-browsers backup path.
-- Schema evolution is per-document migrate-on-read; the index migrates by drop-and-rebuild.
-- Greenfield: no compatibility for existing browser databases.
-
-## Progress Ledger
-
-| Phase | Document | Status | Depends On |
+| Number | Filename | Status | Depends On |
 | --- | --- | --- | --- |
-| 1 | `01-remove-cloud-providers.md` | Completed | None |
-| 2 | `02-document-store-foundation.md` | Completed | None |
-| 3 | `03-canonical-file-formats.md` | Completed | Phase 2 |
-| 4 | `04-project-only-data-model.md` | Completed | Phase 3 |
-| 5 | `05-write-path-inversion.md` | Completed | Phase 4 |
-| 6 | `06-index-rebuild-and-repair.md` | Completed | Phase 5 |
-| 7 | `07-local-folder-sync.md` | In Progress | Phases 1, 6 |
-| 8 | `08-import-export.md` | Not Started | Phase 6 |
-| 9 | `09-durability-and-onboarding.md` | Not Started | Phases 6-8 |
-| 10 | `10-collation-regularization-single-path.md` | Not Started | Phase 5 |
-| 11 | `11-editor-selection-integrity.md` | Not Started | Phase 5 |
-| 12 | `12-tests-verification-docs.md` | Not Started | Phases 1-11 |
+| 01 | `01-remove-cloud-providers.md` | Completed | None |
+| 02 | `02-document-store-foundation.md` | Completed | None |
+| 03 | `03-canonical-file-formats.md` | Completed | 02 |
+| 04 | `04-project-only-data-model.md` | Completed | 03 |
+| 05 | `05-write-path-inversion.md` | Completed | 04 |
+| 06 | `06-index-rebuild-and-repair.md` | Completed | 05 |
+| 07 | `07-local-folder-sync.md` | Needs Human Validation or Intervention | 01, 06 |
+| 08 | `08-zip-export.md` | Completed | 06 |
+| 09 | `09-zip-import-staged-ingestion.md` | Not Started | 08 |
+| 10 | `10-folder-import-unified-ingestion.md` | Not Started | 07, 09 |
+| 11 | `11-copy-with-lineage-and-refresh.md` | Not Started | 06 |
+| 12 | `12-capabilities-and-persistence.md` | Not Started | 06 |
+| 13 | `13-backup-health-and-install-nudge.md` | Not Started | 08, 12 |
+| 14 | `14-project-first-navigation.md` | Not Started | 06 |
+| 15 | `15-entity-headers-and-lineage-display.md` | Not Started | 14 |
+| 16 | `16-onboarding-and-about-content.md` | Not Started | 12, 14 |
+| 17 | `17-collation-single-derivation-path.md` | Not Started | 05 |
+| 18 | `18-collation-rule-diagnostics-and-staleness.md` | Not Started | 17 |
+| 19 | `19-editor-init-only-setcontent.md` | Not Started | 05 |
+| 20 | `20-editor-selection-side-effects-and-harness.md` | Not Started | 19 |
+| 21 | `21-invariant-test-suite.md` | Not Started | 07, 09, 10, 11 |
+| 22 | `22-e2e-scenarios-and-ci.md` | Not Started | 21 |
+| 23 | `23-docs-and-ideas-triage.md` | Not Started | 16, 21 |
 
-## Cross-Cutting Constraints
+## Verification Baseline
 
-- Preserve the data-safety invariants in `architecture.md` section 9 at every phase boundary.
-- Local save and commit must succeed even when sync writes fail; surface sync failures as status, not as failed saves.
-- Keep editor routes based on owned transcription IDs; keep sync operations based on project-scoped entity IDs.
-- Prefer editing `app/src/lib/client/db/migrations/0001_initial.sql` directly (greenfield); keep `schema-version.generated.ts` at version 1. The index-versioning mechanism from Phase 6 replaces SQL migrations entirely.
-- Reuse existing primitives (canonical JSON hashing, quarantine codes, conflict-copy semantics, provider interface) instead of building parallel ones.
-- Never store anything irreplaceable in the SQLite index.
-- Each phase leaves the app building and tests passing (`bun run check`, `bun run test:unit -- --run` from `app/`).
-
-## Key Existing Files
-
-Data flows, table fates, constants, and legacy items are documented in `current-state.md`; the table below is only a locator.
-
-| Area | Files |
-| --- | --- |
-| DB worker/runtime | `app/src/lib/client/db/db.worker.ts`, `runtime.ts`, `worker-sqlite.ts`, `worker-kysely.ts`, `worker-migrator.ts` |
-| Schema | `app/src/lib/client/db/migrations/0001_initial.sql`, `types.generated.ts` |
-| Repositories | `app/src/lib/client/db/repositories/*.ts` |
-| Cloud file formats | `app/src/lib/client/sync/cloud-files.ts`, `canonical-json.ts`, `cloud-paths.ts` |
-| Sync | `app/src/lib/client/sync/sync-manager.ts`, `conflicts.ts`, `project-restore.ts`, `provider-factory.ts` |
-| Providers | `app/src/lib/client/sync/providers/*.ts`, `local-folder-handles.ts`, `local-folder-connections.ts` |
-| Transcription content | `app/src/lib/client/transcription/content.ts`, `packages/tei-transcription/src/*` |
-| Transcription editor | `app/src/lib/components/transcriptionEditor/TranscriptionEditor.svelte`, `app/src/lib/client/transcriptionEditorStructure.ts` |
-| Collation state | `app/src/lib/client/collation/collation-state.svelte.ts`, `collation-document.ts`, `collation-projection.ts` |
-| Projects UI | `app/src/routes/projects/+page.svelte`, `app/src/lib/components/projects/*.svelte` |
-
-## Verification Commands
-
-Run from `app/` unless noted.
+Run from `app/` unless noted. Every issue leaves this green:
 
 ```bash
 bun run db:generate
@@ -90,9 +56,14 @@ bun run check
 bun run test:unit -- --run
 ```
 
-Run narrower tests during each session when possible, then run the full baseline before handing off a completed phase.
+## Notes
 
-## Progress Notes
+| Date | Note |
+| --- | --- |
+| 2026-07-07 | Issue 08 completed. Added store-only zip export for per-project and all-project backups, reusing the project mirror file enumeration so committed canonical files and TEI are included, temp/app files are excluded, and working drafts are included only behind the explicit drafts toggle. Added DB-worker/client RPCs, project backup panel export controls, whole-account export from the Projects storage card, and non-Chromium messaging that presents zip export as the backup path. Verification passed: focused zip export tests, `bun run test:unit -- --run src/lib/client/store src/lib/client/sync`, `bun run db:generate`, `bun run db:check`, `bun run check`, and full `bun run test:unit -- --run` (386 passed). |
+| 2026-07-07 | Migrated from `plans/` phase documents to this tracker. Issues 01-07 are the former phase docs converted in place (numbering unchanged). Former phases 08-12 were re-sliced into vertical issues 08-23: phase 08 -> issues 08-11, phase 09 -> issues 12-16, phase 10 -> issues 17-18, phase 11 -> issues 19-20, phase 12 -> issues 21-23. References to "Phase 8"-"Phase 12" in older docs map accordingly; phases 01-07 map 1:1 to issues 01-07. |
+
+### Carried-over progress notes (from plans/00-overview.md)
 
 | Date | Note |
 | --- | --- |

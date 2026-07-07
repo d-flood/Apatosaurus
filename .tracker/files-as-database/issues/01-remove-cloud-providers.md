@@ -1,8 +1,7 @@
-# Phase 01: Remove Direct Cloud Providers
+# Issue 01: Remove Direct Cloud Providers
 
-Status: Completed
-Depends on: None
-Architecture reference: `architecture.md` sections 3 (decision 5-6), 8
+Blocked by: None - can start immediately
+Architecture reference: `../architecture.md` sections 3 (decision 5-6), 8
 
 ## Goal
 
@@ -24,7 +23,7 @@ Shrink the sync surface before the storage inversion. Delete the Dropbox and Goo
    - `CloudConnectButton.svelte`, `ProjectBackupPanel.svelte`, `CloudProjectBrowser.svelte`, sync status components: remove provider-selection and OAuth states; the only connect action is "Choose sync folder".
    - Where a non-Chromium browser lacks `showDirectoryPicker`, show a capability notice pointing at zip export (Phase 8) rather than a broken button.
 6. Remove provider-specific tests and env config (Dropbox/Drive client IDs in `.env`, docs).
-7. Consult `current-state.md` section 7 for the OAuth-era cleanup inventory (`/accounts/*` routes and related dead code). Do not touch the legacy external transcription folder sync in this phase; it is retired in Phase 7.
+7. Consult `../current-state.md` section 7 for the OAuth-era cleanup inventory (`/accounts/*` routes and related dead code). Do not touch the legacy external transcription folder sync in this phase; it is retired in Phase 7.
 
 ## Non-Goals
 

@@ -1,8 +1,7 @@
-# Phase 06: Index Versioning, Rebuild, and Repair
+# Issue 06: Index Versioning, Rebuild, and Repair
 
-Status: Completed
-Depends on: Phase 05
-Architecture reference: `architecture.md` sections 7, 9 (invariant 1)
+Blocked by: Issue 05
+Architecture reference: `../architecture.md` sections 7, 9 (invariant 1)
 
 ## Goal
 
@@ -25,7 +24,7 @@ Make the SQLite index provably disposable. Version the index file, rebuild it fr
 4. Repair UI:
    - A "Repair database" action (settings or projects page) that runs `rebuildIndexFromStore()` and shows the report, including quarantined/orphaned files.
    - Automatic trigger: if the index fails to open or fails an integrity check (`PRAGMA integrity_check` on init), rebuild automatically and notify the user afterward.
-5. Verse index performance (fixes the known slow pre-collation rebuild; root causes in `current-state.md` section 8):
+5. Verse index performance (fixes the known slow pre-collation rebuild; root causes in `../current-state.md` section 8):
    - Staleness skip: record the indexed `content_hash` per transcription (column on the index state or on `transcription_verse_index` metadata); `replaceVerseIndexRows` and the bulk rebuild skip any transcription whose current hash matches the recorded one. The SetupPhase "rebuild" button becomes a repair action that is near-instant when nothing changed.
    - Remove the per-transcription `getTranscription()` RPC loop in `verse-index.ts` `rebuildVerseIndexForTranscriptions` (it fetches full `content_json` per transcription just to format progress labels); progress reporting moves into the single bulk RPC (worker posts progress messages) or uses a lightweight metadata-only query.
    - Add a bulk verse query RPC (`WHERE transcription_id IN (...)`) and use it in `gather-verses.ts` instead of one RPC per transcription (the worker queue serializes them anyway).

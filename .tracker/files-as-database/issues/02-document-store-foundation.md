@@ -1,8 +1,7 @@
-# Phase 02: Document Store Foundation
+# Issue 02: Document Store Foundation
 
-Status: Completed
-Depends on: None (parallel-safe with Phase 01)
-Architecture reference: `architecture.md` sections 4, 5, 6 (atomic writes), 9
+Blocked by: None - can start immediately
+Architecture reference: `../architecture.md` sections 4, 5, 6 (atomic writes), 9
 
 ## Goal
 

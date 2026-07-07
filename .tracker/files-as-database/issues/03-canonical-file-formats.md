@@ -1,8 +1,7 @@
-# Phase 03: Canonical File Formats
+# Issue 03: Canonical File Formats
 
-Status: Completed
-Depends on: Phase 02
-Architecture reference: `architecture.md` section 5
+Blocked by: Issue 02
+Architecture reference: `../architecture.md` section 5
 
 ## Goal
 
@@ -10,7 +9,7 @@ Promote the existing cloud file formats (`app/src/lib/client/sync/cloud-files.ts
 
 ## Scope
 
-1. Create `app/src/lib/client/store/formats/` with one module per format id from `architecture.md` section 5:
+1. Create `app/src/lib/client/store/formats/` with one module per format id from `../architecture.md` section 5:
    - `project-manifest.ts` (from `ProjectCloudFile`)
    - `project-transcription.ts` (from `ProjectTranscriptionCloudFile`) - now includes IIIF sources, page-canvas links, and canvas annotations as document fields, since the checkpoint payload already carries them
    - `collation.ts` (from `CollationCloudFile` / `SerializedCollation`)

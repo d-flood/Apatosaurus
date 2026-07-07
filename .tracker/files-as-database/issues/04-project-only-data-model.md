@@ -1,8 +1,7 @@
-# Phase 04: Project-Only Data Model, Index-Only Schema
+# Issue 04: Project-Only Data Model, Index-Only Schema
 
-Status: Completed
-Depends on: Phase 03
-Architecture reference: `architecture.md` sections 3 (decisions 1-3), 7
+Blocked by: Issue 03
+Architecture reference: `../architecture.md` sections 3 (decisions 1-3), 7
 
 ## Goal
 
@@ -20,7 +19,7 @@ Land the project-only ownership model (folded in from the superseded project-onl
 
 ### Index-only schema rewrite
 
-Edit `app/src/lib/client/db/migrations/0001_initial.sql` directly (greenfield). The full current table inventory with per-table fates is in `current-state.md` section 3; the summary:
+Edit `app/src/lib/client/db/migrations/0001_initial.sql` directly (greenfield). The full current table inventory with per-table fates is in `../current-state.md` section 3; the summary:
 
 6. Keep, as derived tables: `projects` (plus `storage_slug`), `transcriptions` metadata columns, `transcription_verse_index`, `project_transcriptions`, `collations`, collation projection tables (`collation_witnesses`, `collation_tokens`, `collation_variation_units`, `collation_readings`, `collation_reading_witnesses`), and checkpoint rows. Checkpoint `payload` columns remain temporary until Phase 5 writes history files to OPFS at commit time.
 7. Remove later: `cloud_connections`, `cloud_project_folders`, `cloud_sync_metadata` (sync state cache is redefined in Phase 7), `collation_artifacts` payload-as-truth role, and checkpoint `payload` columns. During this phase content still lives in `transcriptions.content_json`, `collation_artifacts`, and checkpoint `payload` columns as working caches; mark them clearly as cache columns slated for demotion in Phase 5/6. Record in Notes what remains temporarily.
@@ -40,7 +39,7 @@ Edit `app/src/lib/client/db/migrations/0001_initial.sql` directly (greenfield). 
 
 ## Design Notes
 
-- This intentionally supersedes plan documents 01-10 of the old project-only-transcriptions series; their decisions are preserved except cloud-folder specifics, which are replaced by the OPFS layout in `architecture.md` section 4.
+- This intentionally supersedes plan documents 01-10 of the old project-only-transcriptions series; their decisions are preserved except cloud-folder specifics, which are replaced by the OPFS layout in `../architecture.md` section 4.
 - Slug generation: lowercase, ASCII-fold, hyphenate, trim to ~40 chars, append short random suffix; collision-check against existing project slugs.
 - Keep `owner_id`/`added_by_id` columns only if something reads them; otherwise drop (no accounts remain after Phase 1).
 

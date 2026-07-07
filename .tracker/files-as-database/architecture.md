@@ -4,7 +4,7 @@ Status: Accepted
 Date: 2026-07-03
 Supersedes: `cloud_sync_*.md` (root, deleted), `plans/00-project-only-transcriptions-overview.md` and phases 01-10 (deleted)
 
-This document is the reference architecture for the storage inversion. Phase documents in this directory describe how to implement it in session-sized steps. Read this document before starting any phase.
+This document is the reference architecture for the storage inversion. Implementation is tracked as issues in `issues/` with status in `TRACKER.md` (converted 2026-07-07 from the former `plans/` phase documents; phases 01-07 map 1:1 to issues 01-07, phases 08-12 were re-sliced into issues 08-23). Read this document before starting any issue.
 
 ## 1. Problem Statement
 
@@ -187,6 +187,8 @@ Every phase must preserve these; the verification phase asserts them:
 - CRDTs. Rejected deliberately: the committed-file + conflict-copy model matches committee workflows and consumer-storage latency; CRDT complexity buys nothing here.
 
 ## 11. Phase Map
+
+Historical: these phase documents were converted to `issues/` on 2026-07-07 (see `TRACKER.md` for the current ledger and the phase-to-issue mapping).
 
 | Phase | Document | Theme |
 | --- | --- | --- |
