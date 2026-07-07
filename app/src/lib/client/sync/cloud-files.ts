@@ -4,6 +4,7 @@ import type { Database, SyncTombstones } from '$lib/client/db/types.generated';
 import type { CreateProjectInput } from '$lib/client/db/repositories/projects';
 import { getProject } from '$lib/client/db/repositories/projects';
 import { openEnvelope, sealDocument, serializeSealedDocument } from '$lib/client/store/envelope';
+import { collationCheckpointFile, readTextFile, type StoreOperationOptions } from '$lib/client/store';
 import {
 	COLLATION_CHECKPOINT_FORMAT,
 	COLLATION_CURRENT_VERSION,
@@ -31,6 +32,7 @@ import { quarantineFromError as storeQuarantineFromError } from '$lib/client/sto
 import {
 	buildCollationHashPayload,
 	buildTranscriptionHashPayload,
+	loadCommittedTranscriptionCheckpointPayload,
 	loadProjectTranscriptionSnapshot,
 	loadSerializedCollation,
 	type ProjectTranscriptionSnapshot,
@@ -45,7 +47,7 @@ import {
 	type SerializedIiifManifestSource,
 	type SerializedTranscriptionPageCanvasLink,
 } from '$lib/client/db/repositories/revisions';
-import { canonicalJson, hashCanonicalPayload } from './canonical-json';
+import { hashCanonicalPayload } from './canonical-json';
 import { projectRelativeCloudPaths } from './cloud-paths';
 
 type DbExecutor = Kysely<Database> | Transaction<Database>;
@@ -436,7 +438,8 @@ export async function serializeCollationCloudFile(
 export async function serializeProjectTranscriptionHistoryCloudFile(
 	db: DbExecutor,
 	projectTranscriptionId: string,
-	checkpointId: string
+	checkpointId: string,
+	storeOptions: StoreOperationOptions = {}
 ): Promise<ProjectTranscriptionHistoryCloudFile> {
 	const link = await db
 		.selectFrom('project_transcriptions')
@@ -445,50 +448,63 @@ export async function serializeProjectTranscriptionHistoryCloudFile(
 		.executeTakeFirst();
 	if (!link) throw new Error(`Project transcription ${projectTranscriptionId} was not found.`);
 
-	const row = await db
-		.selectFrom('transcription_checkpoints')
-		.selectAll()
-		.where('id', '=', checkpointId)
-		.where('transcription_id', '=', link.transcription_id)
-		.where('is_committed', '=', 1)
-		.executeTakeFirst();
-	if (!row) throw new Error(`Committed transcription checkpoint ${checkpointId} was not found.`);
-
-	const payload = parseStoredJson(row.payload, `transcription checkpoint ${checkpointId}`);
-	await assertHashMatches(payload, row.content_hash, `Transcription checkpoint ${checkpointId}`);
+	const loaded = await loadCommittedTranscriptionCheckpointPayload(
+		db,
+		requireId(link.transcription_id, 'transcription'),
+		checkpointId,
+		storeOptions
+	);
 
 	return {
 		schema_version: CLOUD_FILE_SCHEMA_VERSION,
-		checkpoint_id: requireId(row.id, 'transcription checkpoint'),
+		checkpoint_id: loaded.id,
 		entity_type: 'project-transcription',
 		entity_id: projectTranscriptionId,
-		payload_transcription_id: row.transcription_id,
-		parent_checkpoint_id: row.parent_checkpoint_id,
-		content_hash: row.content_hash,
-		format: row.format,
-		commit_message: row.commit_message,
-		author_name: row.author_name,
-		created_at: row.created_at,
-		payload,
+		payload_transcription_id: loaded.transcriptionId,
+		parent_checkpoint_id: loaded.parentCheckpointId,
+		content_hash: loaded.contentHash,
+		format: loaded.payload.format,
+		commit_message: loaded.commitMessage,
+		author_name: loaded.authorName,
+		created_at: loaded.createdAt,
+		payload: loaded.payload,
 	};
 }
 
 export async function serializeCollationHistoryCloudFile(
 	db: DbExecutor,
 	collationId: string,
-	checkpointId: string
+	checkpointId: string,
+	storeOptions: StoreOperationOptions = {}
 ): Promise<CollationHistoryCloudFile> {
 	const row = await db
 		.selectFrom('collation_checkpoints')
-		.selectAll()
-		.where('id', '=', checkpointId)
-		.where('collation_id', '=', collationId)
-		.where('is_committed', '=', 1)
+		.innerJoin('collations', 'collations.id', 'collation_checkpoints.collation_id')
+		.innerJoin('projects', 'projects.id', 'collations.project_id')
+		.select([
+			'collation_checkpoints.id as id',
+			'collation_checkpoints.collation_id as collation_id',
+			'collation_checkpoints.parent_checkpoint_id as parent_checkpoint_id',
+			'collation_checkpoints.content_hash as content_hash',
+			'collation_checkpoints.commit_message as commit_message',
+			'collation_checkpoints.author_name as author_name',
+			'collation_checkpoints.created_at as created_at',
+			'projects.storage_slug as project_storage_slug',
+		])
+		.where('collation_checkpoints.id', '=', checkpointId)
+		.where('collation_checkpoints.collation_id', '=', collationId)
+		.where('collation_checkpoints.is_committed', '=', 1)
 		.executeTakeFirst();
 	if (!row) throw new Error(`Committed collation checkpoint ${checkpointId} was not found.`);
-
-	const payload = parseStoredJson(row.payload, `collation checkpoint ${checkpointId}`);
-	await assertHashMatches(payload, row.content_hash, `Collation checkpoint ${checkpointId}`);
+	const payload = await readCollationCheckpointPayload(
+		requireId(row.project_storage_slug, 'project storage slug'),
+		row.collation_id,
+		requireId(row.id, 'collation checkpoint'),
+		storeOptions
+	);
+	if (payload.payload_content_hash !== row.content_hash) {
+		throw new Error(`Collation checkpoint ${checkpointId} does not match the index hash.`);
+	}
 
 	return {
 		schema_version: CLOUD_FILE_SCHEMA_VERSION,
@@ -500,7 +516,7 @@ export async function serializeCollationHistoryCloudFile(
 		commit_message: row.commit_message,
 		author_name: row.author_name,
 		created_at: row.created_at,
-		payload,
+		payload: payload.payload,
 	};
 }
 
@@ -1159,7 +1175,7 @@ async function loadTranscriptionRevision(
 	const row = await db
 		.selectFrom('transcription_checkpoints')
 		.selectAll()
-		.where('id', '=', checkpointId)
+		.where('transcription_checkpoints.id', '=', checkpointId)
 		.where('transcription_id', '=', transcriptionId)
 		.where('is_committed', '=', 1)
 		.executeTakeFirst();
@@ -1169,8 +1185,6 @@ async function loadTranscriptionRevision(
 			`Transcription checkpoint ${checkpointId} does not match the current revision hash.`
 		);
 	}
-	const payload = parseStoredJson(row.payload, `transcription checkpoint ${checkpointId}`);
-	await assertHashMatches(payload, row.content_hash, `Transcription checkpoint ${checkpointId}`);
 	return {
 		id: requireId(row.id, 'transcription checkpoint'),
 		content_hash: row.content_hash,
@@ -1191,7 +1205,7 @@ async function loadCollationRevision(
 	const row = await db
 		.selectFrom('collation_checkpoints')
 		.selectAll()
-		.where('id', '=', checkpointId)
+		.where('collation_checkpoints.id', '=', checkpointId)
 		.where('collation_id', '=', collationId)
 		.where('is_committed', '=', 1)
 		.executeTakeFirst();
@@ -1201,8 +1215,6 @@ async function loadCollationRevision(
 			`Collation checkpoint ${checkpointId} does not match the current revision hash.`
 		);
 	}
-	const payload = parseStoredJson(row.payload, `collation checkpoint ${checkpointId}`);
-	await assertHashMatches(payload, row.content_hash, `Collation checkpoint ${checkpointId}`);
 	return {
 		id: requireId(row.id, 'collation checkpoint'),
 		content_hash: row.content_hash,
@@ -1239,33 +1251,22 @@ function assertCollationSourcesSyncReady(collation: SerializedCollation): void {
 	);
 }
 
-async function assertHashMatches(
-	payload: unknown,
-	expectedHash: string,
-	label: string
-): Promise<void> {
-	let actualHash: string;
-	try {
-		actualHash = await hashCanonicalPayload(payload);
-	} catch (error) {
-		throw invalidShape(`${label} payload is not canonicalizable: ${errorMessage(error)}`);
+async function readCollationCheckpointPayload(
+	projectStorageSlug: string,
+	collationId: string,
+	checkpointId: string,
+	storeOptions: StoreOperationOptions
+): Promise<CollationCheckpointPayload> {
+	const path = collationCheckpointFile(projectStorageSlug, collationId, checkpointId);
+	const result = await readCanonicalDocument<CollationCheckpointPayload>(
+		COLLATION_CHECKPOINT_FORMAT,
+		await readTextFile(path, storeOptions)
+	);
+	if (!result.ok) {
+		throw new Error(`Invalid collation checkpoint file ${path}: ${result.quarantine.code}`);
 	}
-	if (actualHash !== expectedHash) {
-		throw new CloudFileValidationError(
-			'hash_mismatch',
-			`${label} content hash mismatch.`,
-			expectedHash,
-			actualHash
-		);
-	}
-}
-
-function parseStoredJson(value: string, label: string): unknown {
-	try {
-		return JSON.parse(value) as unknown;
-	} catch (error) {
-		throw new Error(`Invalid JSON in ${label}: ${errorMessage(error)}`);
-	}
+	await assertCollationCheckpointPayloadIntegrity(result.payload);
+	return result.payload;
 }
 
 function quarantineResult<T>(error: unknown): CloudFileParseResult<T> {

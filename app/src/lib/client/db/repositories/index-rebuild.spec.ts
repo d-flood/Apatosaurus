@@ -92,6 +92,16 @@ describe('rebuildIndexFromStore', () => {
 			storeOptions
 		);
 
+		await harness.db
+			.updateTable('transcriptions')
+			.set({
+				title: 'Stale cache title',
+				content_json: JSON.stringify(documentWithVerses(['Romans 9:9'])),
+			})
+			.where('id', '=', 'tx-1')
+			.execute();
+		await harness.db.deleteFrom('collation_artifacts').where('collation_id', '=', 'col-1').execute();
+
 		const report = await rebuildIndexFromStore(harness.db, { backend });
 
 			expect(report).toMatchObject({

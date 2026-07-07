@@ -17,15 +17,16 @@ import {
 	type EntityCloudBackupState,
 	type SyncProjectContext,
 } from '$lib/client/sync/backup-status';
+import type { StoreOperationOptions } from '$lib/client/store';
 import {
 	canonicalJson,
-	getProjectTranscriptionCheckpointStatus,
 	getTranscriptionCommittedHead,
 	loadCommittedTranscriptionCheckpointPayload,
 	type EntityCheckpointHead,
 	type TranscriptionCheckpointPayload,
 } from './revisions';
 import { ensureDefaultProject, resolveProjectStorageSlug } from './project-bootstrap';
+import { getProjectTranscriptionCheckpointStatusWithFiles } from './transcription-files';
 import { replaceTranscriptionVerseIndexRows } from './transcriptions';
 
 export { ensureDefaultProject } from './project-bootstrap';
@@ -114,6 +115,13 @@ export interface ProjectTranscriptionStatus {
 
 export interface ProjectTranscriptionStatusOptions {
 	syncContext?: SyncProjectContext | null;
+	requireFileBackedContent?: boolean;
+	storeOptions?: StoreOperationOptions;
+}
+
+interface ProjectContentLoadOptions {
+	requireFileBackedContent?: boolean;
+	storeOptions?: StoreOperationOptions;
 }
 
 export interface CreateProjectInput {
@@ -536,7 +544,8 @@ export class RefreshDirtyProjectTranscriptionError extends Error {
 
 export async function refreshProjectTranscription(
 	db: Kysely<Database>,
-	input: RefreshProjectTranscriptionInput
+	input: RefreshProjectTranscriptionInput,
+	options: ProjectContentLoadOptions = {}
 ): Promise<ProjectTranscriptionStatus> {
 	return db.transaction().execute(async trx => {
 		const targetLink = await trx
@@ -553,9 +562,10 @@ export async function refreshProjectTranscription(
 			'project-owned transcription'
 		);
 
-		const targetCheckpointStatus = await getProjectTranscriptionCheckpointStatus(
+		const targetCheckpointStatus = await getProjectTranscriptionCheckpointStatusWithFiles(
 			trx,
-			input.projectTranscriptionId
+			input.projectTranscriptionId,
+			fileBackedLoadOptions(options)
 		);
 		if (targetCheckpointStatus.dirtyToCheckpoint && !input.allowReplaceDirty) {
 			throw new RefreshDirtyProjectTranscriptionError(input.projectTranscriptionId);
@@ -564,7 +574,8 @@ export async function refreshProjectTranscription(
 		const loaded = await loadCommittedTranscriptionCheckpointPayload(
 			trx,
 			input.sourceTranscriptionId,
-			input.sourceCheckpointId
+			input.sourceCheckpointId,
+			options.storeOptions
 		);
 		const sourceHead = await getTranscriptionCommittedHead(trx, input.sourceTranscriptionId);
 		if (
@@ -623,7 +634,7 @@ export async function refreshProjectTranscription(
 			.where('id', '=', projectId)
 			.execute();
 
-		return getProjectTranscriptionStatus(trx, input.projectTranscriptionId);
+		return getProjectTranscriptionStatus(trx, input.projectTranscriptionId, options);
 	});
 }
 
@@ -1106,7 +1117,8 @@ export class AddFromProjectSameProjectError extends Error {
 
 export async function addProjectTranscriptionFromProject(
 	db: Kysely<Database>,
-	input: AddProjectTranscriptionFromProjectInput
+	input: AddProjectTranscriptionFromProjectInput,
+	options: ProjectContentLoadOptions = {}
 ): Promise<{ projectTranscriptionId: string; projectOwnedTranscriptionId: string }> {
 	return db.transaction().execute(async trx => {
 		const sourceLink = await trx
@@ -1147,7 +1159,8 @@ export async function addProjectTranscriptionFromProject(
 		const loaded = await loadCommittedTranscriptionCheckpointPayload(
 			trx,
 			sourceTranscriptionId,
-			checkpointId
+			checkpointId,
+			options.storeOptions
 		);
 		const payload = loaded.payload;
 		const now = input.createdAt ?? new Date().toISOString();
@@ -1225,7 +1238,8 @@ export interface ProjectTranscriptionSourceCandidate {
 
 export async function listProjectTranscriptionSourceCandidates(
 	db: DbExecutor,
-	targetProjectId: string
+	targetProjectId: string,
+	options: ProjectContentLoadOptions = {}
 ): Promise<ProjectTranscriptionSourceCandidate[]> {
 	const rows = await db
 		.selectFrom('project_transcriptions')
@@ -1262,7 +1276,11 @@ export async function listProjectTranscriptionSourceCandidates(
 			row.current_revision_id,
 			row.current_content_hash
 		);
-		const status = await getProjectTranscriptionCheckpointStatus(db, projectTranscriptionId);
+		const status = await getProjectTranscriptionCheckpointStatusWithFiles(
+			db,
+			projectTranscriptionId,
+			fileBackedLoadOptions(options)
+		);
 		candidates.push({
 			projectTranscriptionId,
 			projectOwnedTranscriptionId,
@@ -1350,6 +1368,17 @@ function buildProjectSnapshotRow(
 		current_content_hash: '',
 		created_at: now,
 		updated_at: now,
+	};
+}
+
+function fileBackedLoadOptions(options: ProjectContentLoadOptions): {
+	allowIndexFallback: boolean;
+	backend?: StoreOperationOptions['backend'];
+	nonce?: StoreOperationOptions['nonce'];
+} {
+	return {
+		...options.storeOptions,
+		allowIndexFallback: options.requireFileBackedContent !== true,
 	};
 }
 
@@ -1466,12 +1495,13 @@ async function mapProjectTranscriptionStatus(
 		row.transcription_id,
 		'project-owned transcription'
 	);
-	const checkpointStatus = await getProjectTranscriptionCheckpointStatus(
+	const checkpointStatus = await getProjectTranscriptionCheckpointStatusWithFiles(
 		db,
-		projectTranscriptionId
+		projectTranscriptionId,
+		fileBackedLoadOptions(options)
 	);
 	const canonicalSource = row.canonical_transcription_id
-		? await loadTranscriptionSourceSummary(db, row.canonical_transcription_id)
+		? await loadTranscriptionSourceSummary(db, row.canonical_transcription_id, options)
 		: null;
 	const immediateSource = mapImmediateSource(row);
 	const sourceTranscriptionId =
@@ -1480,7 +1510,7 @@ async function mapProjectTranscriptionStatus(
 		sourceTranscriptionId === row.canonical_transcription_id
 			? canonicalSource
 			: sourceTranscriptionId
-				? await loadTranscriptionSourceSummary(db, sourceTranscriptionId)
+				? await loadTranscriptionSourceSummary(db, sourceTranscriptionId, options)
 				: null;
 	const cloudBackupState = await deriveEntityCloudBackupState(
 		db,
@@ -1516,7 +1546,8 @@ async function mapProjectTranscriptionStatus(
 
 async function loadTranscriptionSourceSummary(
 	db: DbExecutor,
-	transcriptionId: string
+	transcriptionId: string,
+	options: ProjectContentLoadOptions
 ): Promise<TranscriptionSourceSummary | null> {
 	const row = await db
 		.selectFrom('transcriptions')
@@ -1542,10 +1573,11 @@ async function loadTranscriptionSourceSummary(
 		title: row.title,
 		siglum: row.siglum,
 		currentCheckpoint,
-		dirtyToCheckpoint: await loadSourceDirtyToCheckpoint(db, {
+		 dirtyToCheckpoint: await loadSourceDirtyToCheckpoint(db, {
 			transcriptionId: sourceId,
 			projectId: row.project_id,
 			currentCheckpoint,
+			options,
 		}),
 	};
 }
@@ -1556,6 +1588,7 @@ async function loadSourceDirtyToCheckpoint(
 		transcriptionId: string;
 		projectId: string;
 		currentCheckpoint: EntityCheckpointHead | null;
+		options: ProjectContentLoadOptions;
 	}
 ): Promise<boolean | null> {
 	if (!source.currentCheckpoint) return null;
@@ -1566,8 +1599,13 @@ async function loadSourceDirtyToCheckpoint(
 		.where('transcription_id', '=', source.transcriptionId)
 		.executeTakeFirst();
 	if (!projectTranscription?.id) return null;
-	return (await getProjectTranscriptionCheckpointStatus(db, projectTranscription.id))
-		.dirtyToCheckpoint;
+	return (
+		await getProjectTranscriptionCheckpointStatusWithFiles(
+			db,
+			projectTranscription.id,
+			fileBackedLoadOptions(source.options)
+		)
+	).dirtyToCheckpoint;
 }
 
 function deriveProjectTranscriptionSourceState(

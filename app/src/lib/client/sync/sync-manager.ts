@@ -8,8 +8,6 @@ import type {
 	TranscriptionPageCanvasLinks,
 } from '$lib/client/db/types.generated';
 import {
-	createCommittedCollationCheckpoint,
-	createCommittedTranscriptionCheckpoint,
 	isCollationDirty,
 	isTranscriptionDirty,
 	type CollationCheckpoint,
@@ -17,6 +15,9 @@ import {
 	type CommitTranscriptionInput,
 	type TranscriptionCheckpoint,
 } from '$lib/client/db/repositories/revisions';
+import { createCommittedCollationCheckpointWithFiles } from '$lib/client/db/repositories/collation-files';
+import { createCommittedTranscriptionCheckpointWithFiles } from '$lib/client/db/repositories/transcription-files';
+import type { StoreOperationOptions } from '$lib/client/store';
 import { canonicalJson } from './canonical-json';
 import {
 	applyCollationTombstone,
@@ -102,6 +103,7 @@ export interface SyncEntityReference {
 export interface SyncManagerOptions {
 	authorName?: string;
 	now?: () => string;
+	storeOptions?: StoreOperationOptions;
 }
 
 export interface SyncQuarantine {
@@ -243,9 +245,14 @@ const PROJECT_SCOPE_TYPE = 'project';
 
 export async function commitProjectTranscriptionForSync(
 	db: Kysely<Database>,
-	input: CommitTranscriptionInput
+	input: CommitTranscriptionInput,
+	options: SyncManagerOptions = {}
 ): Promise<SyncOperationResult & { checkpoint: TranscriptionCheckpoint }> {
-	const checkpoint = await createCommittedTranscriptionCheckpoint(db, input);
+	const checkpoint = await createCommittedTranscriptionCheckpointWithFiles(
+		db,
+		input,
+		options.storeOptions
+	);
 	return {
 		...baseResult('sync pending', 'project-transcription', input.projectTranscriptionId),
 		checkpoint,
@@ -256,9 +263,14 @@ export async function commitProjectTranscriptionForSync(
 
 export async function commitCollationForSync(
 	db: Kysely<Database>,
-	input: CommitCollationInput
+	input: CommitCollationInput,
+	options: SyncManagerOptions = {}
 ): Promise<SyncOperationResult & { checkpoint: CollationCheckpoint }> {
-	const checkpoint = await createCommittedCollationCheckpoint(db, input);
+	const checkpoint = await createCommittedCollationCheckpointWithFiles(
+		db,
+		input,
+		options.storeOptions
+	);
 	return {
 		...baseResult('sync pending', 'collation', input.collationId),
 		checkpoint,
@@ -285,7 +297,7 @@ export async function publishEntity(
 		}
 
 		const historyPath = historyPathFor(local.entityType, local.entityId, local.head.revisionId);
-		await ensureHistoryFile(db, provider, context, local, historyPath, result);
+		await ensureHistoryFile(db, provider, context, local, historyPath, result, options.storeOptions);
 		historyUploaded = true;
 
 		const primaryContent = await serializePrimaryFile(db, local);
@@ -854,7 +866,8 @@ async function ensureHistoryFile(
 	context: SyncProjectContext,
 	local: LocalEntityState,
 	historyPath: string,
-	result: SyncOperationResult
+	result: SyncOperationResult,
+	storeOptions: StoreOperationOptions = {}
 ): Promise<CloudFileMetadata | CloudWriteResult> {
 	const existing = await findRemoteMetadata(provider, context, historyPath);
 	if (existing) {
@@ -886,14 +899,16 @@ async function ensureHistoryFile(
 					await serializeProjectTranscriptionHistoryCloudFile(
 						db,
 						local.entityId,
-						local.head.revisionId
+						local.head.revisionId,
+						storeOptions
 					)
 				)
 			: await serializeCloudFile(
 					await serializeCollationHistoryCloudFile(
 						db,
 						local.entityId,
-						local.head.revisionId
+						local.head.revisionId,
+						storeOptions
 					)
 				);
 	const write = await provider.createFile(context.cloudFolderId, historyPath, content);
@@ -1034,7 +1049,6 @@ async function insertRemoteCheckpoint(db: DbExecutor, history: HistoryCloudFile)
 				transcription_id: history.payload_transcription_id,
 				parent_checkpoint_id: parentId,
 				format: history.format,
-				payload: canonicalJson(history.payload),
 				content_hash: history.content_hash,
 				is_committed: 1,
 				commit_message: history.commit_message,
@@ -1051,7 +1065,6 @@ async function insertRemoteCheckpoint(db: DbExecutor, history: HistoryCloudFile)
 			id: history.checkpoint_id,
 			collation_id: history.entity_id,
 			parent_checkpoint_id: parentId,
-			payload: canonicalJson(history.payload),
 			content_hash: history.content_hash,
 			is_committed: 1,
 			commit_message: history.commit_message,

@@ -582,7 +582,6 @@ describe('collation file persistence', () => {
 				id: 'col-cp-index-fail',
 				collation_id: 'col-1',
 				parent_checkpoint_id: null,
-				payload: '{}',
 				content_hash: 'preexisting-content-hash',
 				is_committed: 1,
 				commit_message: null,

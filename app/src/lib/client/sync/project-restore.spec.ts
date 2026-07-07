@@ -12,9 +12,10 @@ import { removeLocalProject } from '$lib/client/db/repositories/project-removal'
 import {
 	buildCollationHashPayload,
 	buildTranscriptionHashPayload,
-	createCommittedCollationCheckpoint,
-	createCommittedTranscriptionCheckpoint,
 } from '$lib/client/db/repositories/revisions';
+import { createCommittedCollationCheckpointWithFiles } from '$lib/client/db/repositories/collation-files';
+import { createCommittedTranscriptionCheckpointWithFiles } from '$lib/client/db/repositories/transcription-files';
+import { MemoryStoreBackend } from '$lib/client/store/memory-store-backend.spec-support';
 import { hashCanonicalPayload } from './canonical-json';
 import { createTranscription } from '$lib/client/db/repositories/transcriptions';
 import {
@@ -834,6 +835,7 @@ async function createRemoteProjectBackup(
 }> {
 	const includeHistory = options.includeHistory ?? true;
 	const remoteHarness = createLocalDbTestHarness();
+	const remoteStoreOptions = { backend: new MemoryStoreBackend() };
 	try {
 		await createProject(remoteHarness.db, {
 			id: projectId,
@@ -862,13 +864,13 @@ async function createRemoteProjectBackup(
 			remoteHarness,
 			transcriptionId
 		);
-		const checkpoint = await createCommittedTranscriptionCheckpoint(remoteHarness.db, {
+		const checkpoint = await createCommittedTranscriptionCheckpointWithFiles(remoteHarness.db, {
 			projectTranscriptionId,
 			checkpointId: 'tx-cp-restore-1',
 			commitMessage: 'Initial remote commit',
 			authorName: 'Editor',
 			createdAt: '2026-06-10T12:05:00.000Z',
-		});
+		}, remoteStoreOptions);
 		await createCollation(remoteHarness.db, {
 			id: 'col-restore-1',
 			projectId,
@@ -907,13 +909,13 @@ async function createRemoteProjectBackup(
 			payload: '{"text":"Remote collation"}',
 			now: '2026-06-10T12:07:00.000Z',
 		});
-		const collationCheckpoint = await createCommittedCollationCheckpoint(remoteHarness.db, {
+		const collationCheckpoint = await createCommittedCollationCheckpointWithFiles(remoteHarness.db, {
 			collationId: 'col-restore-1',
 			checkpointId: 'col-cp-restore-1',
 			commitMessage: 'Initial collation commit',
 			authorName: 'Editor',
 			createdAt: '2026-06-10T12:08:00.000Z',
-		});
+		}, remoteStoreOptions);
 		await remoteHarness.db
 			.insertInto('sync_tombstones')
 			.values({
@@ -934,13 +936,15 @@ async function createRemoteProjectBackup(
 		const history = await serializeProjectTranscriptionHistoryCloudFile(
 			remoteHarness.db,
 			projectTranscriptionId,
-			'tx-cp-restore-1'
+			'tx-cp-restore-1',
+			remoteStoreOptions
 		);
 		const collationPrimary = await serializeCollationCloudFile(remoteHarness.db, 'col-restore-1');
 		const collationHistory = await serializeCollationHistoryCloudFile(
 			remoteHarness.db,
 			'col-restore-1',
-			'col-cp-restore-1'
+			'col-cp-restore-1',
+			remoteStoreOptions
 		);
 		const tombstone = await serializeTombstoneCloudFile(
 			remoteHarness.db,

@@ -9,14 +9,14 @@ import {
 	upsertPageCanvasLink,
 } from '$lib/client/db/repositories/iiif';
 import { createProject, syncProjectTranscriptionIds } from '$lib/client/db/repositories/projects';
-import {
-	createCommittedCollationCheckpoint,
-	createCommittedTranscriptionCheckpoint,
-} from '$lib/client/db/repositories/revisions';
+import { createCommittedCollationCheckpointWithFiles } from '$lib/client/db/repositories/collation-files';
+import { createCommittedTranscriptionCheckpointWithFiles } from '$lib/client/db/repositories/transcription-files';
 import {
 	createTranscription,
 	updateTranscriptionContent,
 } from '$lib/client/db/repositories/transcriptions';
+import { MemoryStoreBackend } from '$lib/client/store/memory-store-backend.spec-support';
+import type { StoreOperationOptions } from '$lib/client/store';
 import {
 	collationCloudFileToImportInput,
 	historyCloudFileToImportInput,
@@ -42,9 +42,13 @@ import {
 } from './cloud-files';
 
 let harness: LocalDbTestHarness;
+let backend: MemoryStoreBackend;
+let storeOptions: StoreOperationOptions;
 
 beforeEach(() => {
 	harness = createLocalDbTestHarness();
+	backend = new MemoryStoreBackend();
+	storeOptions = { backend };
 });
 
 afterEach(async () => {
@@ -152,13 +156,13 @@ describe('cloud file serialization formats', () => {
 				target: { source: 'canvas-1' },
 			},
 		});
-		await createCommittedTranscriptionCheckpoint(harness.db, {
+		await createCommittedTranscriptionCheckpointWithFiles(harness.db, {
 			projectTranscriptionId,
 			checkpointId: 'tx-cp-1',
 			commitMessage: 'Initial transcription commit',
 			authorName: 'Editor',
 			createdAt: '2026-06-08T12:05:00.000Z',
-		});
+		}, storeOptions);
 
 		const primary = await serializeProjectTranscriptionCloudFile(
 			harness.db,
@@ -167,7 +171,8 @@ describe('cloud file serialization formats', () => {
 		const history = await serializeProjectTranscriptionHistoryCloudFile(
 			harness.db,
 			projectTranscriptionId,
-			'tx-cp-1'
+			'tx-cp-1',
+			storeOptions
 		);
 		const serializedPrimary = await serializeCloudFile(primary);
 		const parsedPrimary = await parseProjectTranscriptionCloudFile(serializedPrimary);
@@ -261,16 +266,16 @@ describe('cloud file serialization formats', () => {
 		);
 		const projectTranscriptionAId = await getProjectTranscriptionId(snapshotAId);
 		const projectTranscriptionBId = await getProjectTranscriptionId(snapshotBId);
-		const sourceA = await createCommittedTranscriptionCheckpoint(harness.db, {
+		const sourceA = await createCommittedTranscriptionCheckpointWithFiles(harness.db, {
 			projectTranscriptionId: projectTranscriptionAId,
 			checkpointId: 'tx-a-cp-1',
 			createdAt: '2026-06-08T12:01:00.000Z',
-		});
-		const sourceB = await createCommittedTranscriptionCheckpoint(harness.db, {
+		}, storeOptions);
+		const sourceB = await createCommittedTranscriptionCheckpointWithFiles(harness.db, {
 			projectTranscriptionId: projectTranscriptionBId,
 			checkpointId: 'tx-b-cp-1',
 			createdAt: '2026-06-08T12:02:00.000Z',
-		});
+		}, storeOptions);
 		await createCollation(harness.db, {
 			id: 'col-1',
 			projectId: 'project-1',
@@ -299,16 +304,21 @@ describe('cloud file serialization formats', () => {
 			payload: '{"b":2,"a":1}',
 			now: '2026-06-08T12:03:00.000Z',
 		});
-		await createCommittedCollationCheckpoint(harness.db, {
+		await createCommittedCollationCheckpointWithFiles(harness.db, {
 			collationId: 'col-1',
 			checkpointId: 'col-cp-1',
 			commitMessage: 'Initial collation commit',
 			authorName: 'Editor',
 			createdAt: '2026-06-08T12:10:00.000Z',
-		});
+		}, storeOptions);
 
 		const primary = await serializeCollationCloudFile(harness.db, 'col-1');
-		const history = await serializeCollationHistoryCloudFile(harness.db, 'col-1', 'col-cp-1');
+		const history = await serializeCollationHistoryCloudFile(
+			harness.db,
+			'col-1',
+			'col-cp-1',
+			storeOptions
+		);
 		const parsedPrimary = await parseCollationCloudFile(await serializeCloudFile(primary));
 		const parsedHistory = await parseHistoryCloudFile(await serializeCloudFile(history));
 

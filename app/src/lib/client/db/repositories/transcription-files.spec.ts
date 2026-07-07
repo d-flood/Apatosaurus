@@ -3,11 +3,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createLocalDbTestHarness, type LocalDbTestHarness } from '../test-harness';
 import { projectWriteLockName } from './project-locks';
 import { createProject } from './projects';
-import { createTranscription, getTranscription } from './transcriptions';
+import { createTranscription, getTranscription, listVerseIndexRowsForTranscription } from './transcriptions';
 import {
 	createTranscriptionWithFiles,
 	createCommittedTranscriptionCheckpointWithFiles,
+	getTranscriptionsWithWorkingFilesByIds,
 	loadTranscriptionWithWorkingFile,
+	rebuildVerseIndexForTranscriptionsWithFiles,
 	saveWorkingTranscriptionContent,
 } from './transcription-files';
 import type { StoredTranscriptionDocument } from '$lib/client/transcription/content';
@@ -179,6 +181,57 @@ describe('transcription file persistence', () => {
 		expect(loaded?.title).toBe('Witness 1');
 		expect(loaded?.content_json).toContain('"verse":"2"');
 		expect(loaded?.updated_at).toBe('2026-07-04T00:00:00.000Z');
+	});
+
+	it('loads many transcriptions from files once per id when the index cache is stale', async () => {
+		await createFixtureTranscription();
+		await createCommittedTranscriptionCheckpointWithFiles(
+			harness.db,
+			{ projectTranscriptionId: 'pt-1', checkpointId: 'tx-cp-1' },
+			{ backend, nonce: () => 'primary-write' }
+		);
+		await harness.db
+			.updateTable('transcriptions')
+			.set({
+				title: 'Stale index title',
+				content_json: JSON.stringify(documentWithVerses(['Romans 9:9'])),
+			})
+			.where('id', '=', 'tx-1')
+			.execute();
+
+		const loaded = await getTranscriptionsWithWorkingFilesByIds(
+			harness.db,
+			['tx-1', 'tx-1', 'missing'],
+			{ backend, allowIndexFallback: false }
+		);
+
+		expect(loaded).toHaveLength(1);
+		expect(loaded[0]).toMatchObject({ id: 'tx-1', title: 'Witness 1' });
+		expect(loaded[0].content_json).toContain('"verse":"1"');
+	});
+
+	it('rebuilds the verse index from canonical files when the index cache is stale', async () => {
+		await createFixtureTranscription();
+		await createCommittedTranscriptionCheckpointWithFiles(
+			harness.db,
+			{ projectTranscriptionId: 'pt-1', checkpointId: 'tx-cp-1' },
+			{ backend, nonce: () => 'primary-write' }
+		);
+		await harness.db
+			.updateTable('transcriptions')
+			.set({ content_json: JSON.stringify(documentWithVerses(['Romans 9:9'])) })
+			.where('id', '=', 'tx-1')
+			.execute();
+
+		const result = await rebuildVerseIndexForTranscriptionsWithFiles(
+			harness.db,
+			['tx-1'],
+			{ backend, allowIndexFallback: false }
+		);
+		const rows = await listVerseIndexRowsForTranscription(harness.db, 'tx-1');
+
+		expect(result).toMatchObject({ processed: 1, succeeded: 1, failed: 0 });
+		expect(rows.map(row => row.verse_identifier)).toEqual(['Romans 1:1']);
 	});
 
 	it('creates a transcription through the initial committed file path', async () => {
@@ -505,7 +558,6 @@ describe('transcription file persistence', () => {
 				transcription_id: 'tx-1',
 				parent_checkpoint_id: null,
 				format: 'normalized_ast_v3',
-				payload: '{}',
 				content_hash: 'preexisting-content-hash',
 				is_committed: 1,
 				commit_message: null,

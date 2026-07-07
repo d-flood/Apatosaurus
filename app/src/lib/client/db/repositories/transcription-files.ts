@@ -1,4 +1,4 @@
-import type { Kysely } from 'kysely';
+import type { Kysely, Transaction } from 'kysely';
 
 import {
 	coerceTranscriptionDocument,
@@ -37,20 +37,33 @@ import { withProjectWriteLock } from './project-locks';
 import {
 	buildTranscriptionHashPayload,
 	createCommittedTranscriptionCheckpoint,
+	deriveCheckpointStatus,
+	getTranscriptionCommittedHead,
 	hashCanonicalPayload,
 	loadProjectTranscriptionSnapshot,
 	type CommitTranscriptionInput,
+	type ProjectTranscriptionCheckpointStatus,
+	type ProjectTranscriptionSnapshot,
 	type TranscriptionCheckpoint,
 } from './revisions';
 import {
 	createTranscription,
 	createTranscriptions,
 	getTranscription,
+	replaceTranscriptionVerseIndexRows,
 	updateTranscriptionContent,
 	type CreateTranscriptionInput,
 	type TranscriptionRecord,
 	type UpdateTranscriptionContentInput,
+	type VerseIndexRebuildFailure,
+	type VerseIndexRebuildResult,
 } from './transcriptions';
+
+type DbExecutor = Kysely<Database> | Transaction<Database>;
+
+interface FileBackedLoadOptions extends StoreOperationOptions {
+	allowIndexFallback?: boolean;
+}
 
 interface TranscriptionFileContext {
 	transcriptionId: string;
@@ -70,18 +83,16 @@ interface TranscriptionFileContext {
 }
 
 interface LoadedWorkingTranscriptionPayload {
-	origin: {
-		source_type: string;
-		source_project_id: string | null;
-		source_transcription_id: string | null;
-		source_revision_id: string | null;
-		source_content_hash: string | null;
-	};
+	project_transcription_id: string;
+	id: string;
+	canonical_transcription_id: string | null;
+	origin: ProjectTranscriptionPayload['origin'];
 	title: string;
 	siglum: string;
 	description: string;
 	content_json: JsonValue;
 	content_format: string;
+	created_at: string;
 	updated_at: string;
 	owner: string | null;
 	is_public: boolean;
@@ -90,6 +101,10 @@ interface LoadedWorkingTranscriptionPayload {
 	repository: string;
 	settlement: string;
 	language: string;
+	iiif_manifest_sources: ProjectTranscriptionPayload['iiif_manifest_sources'];
+	page_canvas_links: ProjectTranscriptionPayload['page_canvas_links'];
+	canvas_annotations: ProjectTranscriptionPayload['canvas_annotations'];
+	draft: WorkingTranscriptionPayload['draft'];
 }
 
 interface NormalizedWorkingTranscriptionContent {
@@ -356,9 +371,9 @@ export async function createCommittedTranscriptionCheckpointWithFiles(
 }
 
 export async function loadTranscriptionWithWorkingFile(
-	db: Kysely<Database>,
+	db: DbExecutor,
 	transcriptionId: string,
-	storeOptions: StoreOperationOptions = {}
+	storeOptions: FileBackedLoadOptions = {}
 ): Promise<TranscriptionRecord | null> {
 	const record = await getTranscription(db, transcriptionId);
 	if (!record) return null;
@@ -368,7 +383,109 @@ export async function loadTranscriptionWithWorkingFile(
 	const primaryPayload = await tryReadPrimaryTranscriptionPayload(context, storeOptions);
 	if (primaryPayload)
 		return transcriptionRecordFromPrimaryPayload(record, context, primaryPayload);
+	if (storeOptions.allowIndexFallback === false) return null;
 	return record;
+}
+
+export async function getTranscriptionsWithWorkingFilesByIds(
+	db: DbExecutor,
+	ids: string[],
+	storeOptions: FileBackedLoadOptions = {}
+): Promise<TranscriptionRecord[]> {
+	const records: TranscriptionRecord[] = [];
+	for (const id of uniqueNonEmpty(ids)) {
+		const record = await loadTranscriptionWithWorkingFile(db, id, storeOptions);
+		if (record) records.push(record);
+	}
+	return records;
+}
+
+export async function loadTranscriptionContentWithFiles(
+	db: DbExecutor,
+	transcriptionId: string,
+	storeOptions: FileBackedLoadOptions = {}
+): Promise<string | null> {
+	return (await loadTranscriptionWithWorkingFile(db, transcriptionId, storeOptions))?.content_json ?? null;
+}
+
+export async function rebuildVerseIndexForTranscriptionsWithFiles(
+	db: Kysely<Database>,
+	transcriptionIds: string[],
+	storeOptions: FileBackedLoadOptions = {}
+): Promise<VerseIndexRebuildResult> {
+	const ids = uniqueNonEmpty(transcriptionIds);
+	if (ids.length === 0) return { processed: 0, succeeded: 0, failed: 0, failures: [] };
+
+	const failures: VerseIndexRebuildFailure[] = [];
+	let succeeded = 0;
+	for (const id of ids) {
+		const record = await loadTranscriptionWithWorkingFile(db, id, {
+			...storeOptions,
+			allowIndexFallback: false,
+		});
+		const label = record ? formatTranscriptionLabel(record) : id;
+		try {
+			if (!record) throw new Error('Canonical transcription file was not found');
+			await db.transaction().execute(trx =>
+				replaceTranscriptionVerseIndexRows(trx, id, record.content_json)
+			);
+			succeeded += 1;
+		} catch (error) {
+			failures.push({
+				transcriptionId: id,
+				label,
+				message:
+					error instanceof Error ? error.message : 'Failed to rebuild verse index',
+			});
+		}
+	}
+
+	return {
+		processed: ids.length,
+		succeeded,
+		failed: failures.length,
+		failures,
+	};
+}
+
+export async function loadProjectTranscriptionSnapshotWithFiles(
+	db: DbExecutor,
+	projectTranscriptionId: string,
+	storeOptions: FileBackedLoadOptions = {}
+): Promise<ProjectTranscriptionSnapshot> {
+	const context = await loadTranscriptionFileContextByProjectTranscriptionId(
+		db,
+		projectTranscriptionId
+	);
+	const workingPayload = await tryReadWorkingTranscriptionPayload(context, storeOptions);
+	if (workingPayload) return projectTranscriptionSnapshotFromPayload(workingPayload);
+	const primaryPayload = await tryReadPrimaryTranscriptionPayload(context, storeOptions);
+	if (primaryPayload) return projectTranscriptionSnapshotFromPayload(primaryPayload);
+	if (storeOptions.allowIndexFallback === false) {
+		throw new Error(
+			`Canonical transcription file for project transcription ${projectTranscriptionId} was not found.`
+		);
+	}
+	return loadProjectTranscriptionSnapshot(db, projectTranscriptionId);
+}
+
+export async function getProjectTranscriptionCheckpointStatusWithFiles(
+	db: DbExecutor,
+	projectTranscriptionId: string,
+	storeOptions: FileBackedLoadOptions = {}
+): Promise<ProjectTranscriptionCheckpointStatus> {
+	const snapshot = await loadProjectTranscriptionSnapshotWithFiles(
+		db,
+		projectTranscriptionId,
+		storeOptions
+	);
+	const currentCheckpoint = await getTranscriptionCommittedHead(db, snapshot.id);
+	const workingContentHash = await hashCanonicalPayload(buildTranscriptionHashPayload(snapshot));
+	return {
+		projectTranscriptionId,
+		projectOwnedTranscriptionId: snapshot.id,
+		...deriveCheckpointStatus(currentCheckpoint, workingContentHash),
+	};
 }
 
 function transcriptionRecordFromWorkingPayload(
@@ -541,7 +658,7 @@ async function tryReadWorkingTranscriptionPayload(
 }
 
 async function loadTranscriptionFileContext(
-	db: Kysely<Database>,
+	db: DbExecutor,
 	transcriptionId: string
 ): Promise<TranscriptionFileContext> {
 	const row = await db
@@ -592,7 +709,7 @@ async function loadTranscriptionFileContext(
 }
 
 async function loadTranscriptionFileContextByProjectTranscriptionId(
-	db: Kysely<Database>,
+	db: DbExecutor,
 	projectTranscriptionId: string
 ): Promise<TranscriptionFileContext> {
 	const row = await db
@@ -680,6 +797,40 @@ function createId(): string {
 	return typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
 		? crypto.randomUUID()
 		: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
+
+function projectTranscriptionSnapshotFromPayload(
+	payload: ProjectTranscriptionPayload | LoadedWorkingTranscriptionPayload
+): ProjectTranscriptionSnapshot {
+	return {
+		project_transcription_id: payload.project_transcription_id,
+		id: payload.id,
+		format: payload.content_format,
+		title: payload.title,
+		siglum: payload.siglum,
+		description: payload.description,
+		content_json: payload.content_json,
+		owner: payload.owner,
+		is_public: payload.is_public,
+		tags: [...payload.tags],
+		transcriber: payload.transcriber,
+		repository: payload.repository,
+		settlement: payload.settlement,
+		language: payload.language,
+		iiif_manifest_sources: payload.iiif_manifest_sources,
+		page_canvas_links: payload.page_canvas_links,
+		canvas_annotations: payload.canvas_annotations,
+	};
+}
+
+function uniqueNonEmpty(values: string[]): string[] {
+	return [...new Set(values.filter(Boolean))];
+}
+
+function formatTranscriptionLabel(
+	record: Pick<TranscriptionRecord, 'id' | 'siglum' | 'title'>
+): string {
+	return record.siglum?.trim() || record.title?.trim() || record.id;
 }
 
 function isMissingFileError(error: unknown): boolean {

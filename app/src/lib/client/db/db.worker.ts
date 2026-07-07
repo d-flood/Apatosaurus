@@ -27,7 +27,6 @@ import {
 	listProjectTranscriptionOptions,
 	listProjectTranscriptionStatuses,
 	listProjectTranscriptionSourceCandidates,
-	loadTranscriptionContent,
 	ensureDefaultProject,
 	addProjectTranscriptionFromProject,
 	refreshProjectTranscription,
@@ -38,19 +37,21 @@ import { removeLocalProject } from './repositories/project-removal';
 import {
 	getTranscriptionSummary,
 	getTranscriptionVersionsByIds,
-	getTranscriptionsByIds,
 	getVerseIndexRowsForVerse,
 	listVerseIndexRowsForTranscription,
 	listVerseIndexRowsForTranscriptions,
 	listVerseIndexRows,
 	listTranscriptionSummaries,
-	rebuildVerseIndexForTranscriptions,
 } from './repositories/transcriptions';
 import {
 	createTranscriptionWithFiles,
 	createTranscriptionsWithFiles,
 	createCommittedTranscriptionCheckpointWithFiles,
+	getProjectTranscriptionCheckpointStatusWithFiles,
+	getTranscriptionsWithWorkingFilesByIds,
+	loadTranscriptionContentWithFiles,
 	loadTranscriptionWithWorkingFile,
+	rebuildVerseIndexForTranscriptionsWithFiles,
 	saveWorkingTranscriptionContent,
 } from './repositories/transcription-files';
 import * as iiifRepository from './repositories/iiif';
@@ -273,9 +274,13 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 	if (request.type === 'transcriptions.getVersionsByIds')
 		return getTranscriptionVersionsByIds(getKyselyDb(), request.ids);
 	if (request.type === 'transcriptions.get')
-		return loadTranscriptionWithWorkingFile(getKyselyDb(), request.transcriptionId);
+		return loadTranscriptionWithWorkingFile(getKyselyDb(), request.transcriptionId, {
+			allowIndexFallback: false,
+		});
 	if (request.type === 'transcriptions.getByIds')
-		return getTranscriptionsByIds(getKyselyDb(), request.ids);
+		return getTranscriptionsWithWorkingFilesByIds(getKyselyDb(), request.ids, {
+			allowIndexFallback: false,
+		});
 	if (request.type === 'transcriptions.create') {
 		const id = await createTranscriptionWithFiles(getKyselyDb(), request.input);
 		postMessage({ type: 'db:invalidate', domain: 'transcriptions' });
@@ -315,9 +320,10 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 		return listVerseIndexRowsForTranscriptions(getKyselyDb(), request.transcriptionIds);
 	}
 	if (request.type === 'transcriptions.rebuildVerseIndex') {
-		const result = await rebuildVerseIndexForTranscriptions(
+		const result = await rebuildVerseIndexForTranscriptionsWithFiles(
 			getKyselyDb(),
-			request.transcriptionIds
+			request.transcriptionIds,
+			{ allowIndexFallback: false }
 		);
 		postMessage({ type: 'db:invalidate', domain: 'transcriptions' });
 		return result;
@@ -350,21 +356,26 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 	if (request.type === 'projects.listTranscriptionOptions')
 		return listProjectTranscriptionOptions(getKyselyDb(), request.projectId);
 	if (request.type === 'projects.listTranscriptionStatuses')
-		return listProjectTranscriptionStatuses(getKyselyDb(), request.projectId, request.options);
+		return listProjectTranscriptionStatuses(getKyselyDb(), request.projectId, {
+			...request.options,
+			requireFileBackedContent: true,
+		});
 	if (request.type === 'projects.getTranscriptionStatus')
 		return getProjectTranscriptionStatus(
 			getKyselyDb(),
 			request.projectTranscriptionId,
-			request.options
+			{ ...request.options, requireFileBackedContent: true }
 		);
 	if (request.type === 'projects.getTranscriptionStatusForOwnedTranscription')
 		return getProjectTranscriptionStatusForOwnedTranscription(
 			getKyselyDb(),
 			request.projectOwnedTranscriptionId,
-			request.options
+			{ ...request.options, requireFileBackedContent: true }
 		);
 	if (request.type === 'projects.loadTranscriptionContent')
-		return loadTranscriptionContent(getKyselyDb(), request.transcriptionId);
+		return loadTranscriptionContentWithFiles(getKyselyDb(), request.transcriptionId, {
+			allowIndexFallback: false,
+		});
 	if (request.type === 'projects.getTranscriptionIds')
 		return getProjectTranscriptionIds(getKyselyDb(), request.projectId);
 	if (request.type === 'projects.syncTranscriptionIds') {
@@ -379,21 +390,27 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 		return ids;
 	}
 	if (request.type === 'projects.refreshTranscription') {
-		const status = await refreshProjectTranscription(getKyselyDb(), request.input);
+		const status = await refreshProjectTranscription(getKyselyDb(), request.input, {
+			requireFileBackedContent: true,
+		});
 		postMessage({ type: 'db:invalidate', domain: 'projects' });
 		postMessage({ type: 'db:invalidate', domain: 'transcriptions' });
 		postMessage({ type: 'db:invalidate', domain: 'iiif' });
 		return status;
 	}
 	if (request.type === 'projects.addTranscriptionFromProject') {
-		const result = await addProjectTranscriptionFromProject(getKyselyDb(), request.input);
+		const result = await addProjectTranscriptionFromProject(getKyselyDb(), request.input, {
+			requireFileBackedContent: true,
+		});
 		postMessage({ type: 'db:invalidate', domain: 'projects' });
 		postMessage({ type: 'db:invalidate', domain: 'transcriptions' });
 		postMessage({ type: 'db:invalidate', domain: 'iiif' });
 		return result;
 	}
 	if (request.type === 'projects.listTranscriptionSourceCandidates')
-		return listProjectTranscriptionSourceCandidates(getKyselyDb(), request.targetProjectId);
+		return listProjectTranscriptionSourceCandidates(getKyselyDb(), request.targetProjectId, {
+			requireFileBackedContent: true,
+		});
 	if (request.type === 'collations.listWithProjectNames')
 		return listCollationsWithProjectNames(getKyselyDb());
 	if (request.type === 'collations.create') {
@@ -402,18 +419,22 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 		return id;
 	}
 	if (request.type === 'collations.load')
-		return loadCollationWithWorkingFile(getKyselyDb(), request.collationId);
+		return loadCollationWithWorkingFile(getKyselyDb(), request.collationId, {
+			allowIndexFallback: false,
+		});
 	if (request.type === 'collations.listProjectVersionStatuses')
 		return listProjectCollationVersionStatusesWithWorkingFiles(
 			getKyselyDb(),
 			request.projectId,
-			request.options
+			request.options,
+			{ allowIndexFallback: false }
 		);
 	if (request.type === 'collations.getVersionStatus')
 		return getCollationVersionStatusWithWorkingFile(
 			getKyselyDb(),
 			request.collationId,
-			request.options
+			request.options,
+			{ allowIndexFallback: false }
 		);
 	if (request.type === 'collations.saveArtifact') {
 		const artifactId = await saveWorkingCollationArtifact(getKyselyDb(), request.input);
@@ -527,7 +548,13 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 		return checkpoint;
 	}
 	if (request.type === 'revisions.isTranscriptionDirty')
-		return isTranscriptionDirty(getKyselyDb(), request.projectTranscriptionId);
+		return (
+			await getProjectTranscriptionCheckpointStatusWithFiles(
+				getKyselyDb(),
+				request.projectTranscriptionId,
+				{ allowIndexFallback: false }
+			)
+		).dirtyToCheckpoint;
 	if (request.type === 'revisions.isCollationDirty')
 		return isCollationDirty(getKyselyDb(), request.collationId);
 	if (request.type === 'revisions.listCommittedTranscriptionCheckpoints')

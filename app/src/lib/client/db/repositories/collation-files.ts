@@ -80,6 +80,10 @@ interface CollationCommitSource {
 	updatedAt: string;
 }
 
+interface FileBackedCollationLoadOptions extends StoreOperationOptions {
+	allowIndexFallback?: boolean;
+}
+
 type LoadedWorkingCollationArtifact = JsonObject &
 	Omit<SerializedCollationArtifact, 'payload'> & {
 		payload: JsonValue;
@@ -315,7 +319,7 @@ export async function createCommittedCollationCheckpointWithFiles(
 export async function loadCollationWithWorkingFile(
 	db: Kysely<Database>,
 	collationId: string,
-	storeOptions: StoreOperationOptions = {}
+	storeOptions: FileBackedCollationLoadOptions = {}
 ): Promise<LoadedCollation | null> {
 	const loaded = await loadCollation(db, collationId);
 	if (!loaded) return null;
@@ -324,23 +328,64 @@ export async function loadCollationWithWorkingFile(
 	if (workingPayload) return loadedCollationFromWorkingPayload(loaded, workingPayload);
 	const primaryPayload = await tryReadPrimaryCollationPayload(context, storeOptions);
 	if (primaryPayload) return loadedCollationFromPrimaryPayload(primaryPayload);
+	if (storeOptions.allowIndexFallback === false) return null;
 	return loaded;
+}
+
+export async function loadSerializedCollationWithFiles(
+	db: Kysely<Database>,
+	collationId: string,
+	storeOptions: FileBackedCollationLoadOptions = {}
+): Promise<SerializedCollation> {
+	const context = await loadCollationFileContext(db, collationId);
+	const workingPayload = await tryReadWorkingCollationPayload(context, storeOptions);
+	if (workingPayload) return serializedCollationFromPayload(workingPayload);
+	const primaryPayload = await tryReadPrimaryCollationPayload(context, storeOptions);
+	if (primaryPayload) return serializedCollationFromPayload(primaryPayload);
+	if (storeOptions.allowIndexFallback === false) {
+		throw new Error(`Canonical collation file for ${collationId} was not found.`);
+	}
+	return loadSerializedCollation(db, collationId);
 }
 
 export async function getCollationVersionStatusWithWorkingFile(
 	db: Kysely<Database>,
 	collationId: string,
 	options: CollationVersionStatusOptions = {},
-	storeOptions: StoreOperationOptions = {}
+	storeOptions: FileBackedCollationLoadOptions = {}
 ): Promise<CollationVersionStatus> {
 	const base = await getCollationVersionStatus(db, collationId, options);
 	const context = await loadCollationFileContext(db, collationId);
 	const payload = await tryReadWorkingCollationPayload(context, storeOptions);
-	if (!payload) return base;
+	if (payload)
+		return collationVersionStatusFromSerialized(
+			db,
+			base,
+			serializedCollationFromPayload(payload),
+			options
+		);
+	const primaryPayload = await tryReadPrimaryCollationPayload(context, storeOptions);
+	if (primaryPayload) {
+		return collationVersionStatusFromSerialized(
+			db,
+			base,
+			serializedCollationFromPayload(primaryPayload),
+			options
+		);
+	}
+	if (storeOptions.allowIndexFallback === false) {
+		throw new Error(`Canonical collation file for ${collationId} was not found.`);
+	}
+	return base;
+}
 
-	const workingContentHash = await hashCanonicalPayload(
-		buildCollationHashPayload(serializedCollationFromWorkingPayload(payload))
-	);
+async function collationVersionStatusFromSerialized(
+	db: Kysely<Database>,
+	base: CollationVersionStatus,
+	collation: SerializedCollation,
+	options: CollationVersionStatusOptions
+): Promise<CollationVersionStatus> {
+	const workingContentHash = await hashCanonicalPayload(buildCollationHashPayload(collation));
 	const dirtyToCheckpoint = base.currentCheckpoint
 		? workingContentHash !== base.currentCheckpoint.contentHash
 		: true;
@@ -353,7 +398,7 @@ export async function getCollationVersionStatusWithWorkingFile(
 		? await deriveEntityCloudBackupState(
 				db,
 				options.syncContext,
-				{ entityType: 'collation', entityId: collationId },
+				{ entityType: 'collation', entityId: collation.id },
 				base.currentCheckpoint,
 				dirtyToCheckpoint
 			)
@@ -372,7 +417,7 @@ export async function listProjectCollationVersionStatusesWithWorkingFiles(
 	db: Kysely<Database>,
 	projectId: string,
 	options: CollationVersionStatusOptions = {},
-	storeOptions: StoreOperationOptions = {}
+	storeOptions: FileBackedCollationLoadOptions = {}
 ): Promise<CollationVersionStatus[]> {
 	const rows = await db
 		.selectFrom('collations')
@@ -438,9 +483,17 @@ async function loadCollationCommitSource(
 	const workingPayload = await tryReadWorkingCollationPayload(context, storeOptions);
 	if (workingPayload) {
 		return {
-			collation: serializedCollationFromWorkingPayload(workingPayload),
+			collation: serializedCollationFromPayload(workingPayload),
 			createdAt: workingPayload.created_at,
 			updatedAt: workingPayload.updated_at,
+		};
+	}
+	const primaryPayload = await tryReadPrimaryCollationPayload(context, storeOptions);
+	if (primaryPayload) {
+		return {
+			collation: serializedCollationFromPayload(primaryPayload),
+			createdAt: primaryPayload.created_at,
+			updatedAt: primaryPayload.updated_at,
 		};
 	}
 	return {
@@ -686,8 +739,8 @@ function loadedCollationFromPrimaryPayload(payload: CollationPayload): LoadedCol
 	};
 }
 
-function serializedCollationFromWorkingPayload(
-	payload: LoadedWorkingCollationPayload
+function serializedCollationFromPayload(
+	payload: LoadedWorkingCollationPayload | CollationPayload
 ): SerializedCollation {
 	return {
 		id: payload.id,

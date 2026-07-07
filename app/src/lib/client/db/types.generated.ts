@@ -67,7 +67,6 @@ export interface CollationCheckpoints {
 	id: string | null;
 	collation_id: string;
 	parent_checkpoint_id: string | null;
-	payload: string;
 	content_hash: string;
 	is_committed: number;
 	commit_message: string | null;
@@ -199,7 +198,6 @@ export interface TranscriptionCheckpoints {
 	transcription_id: string;
 	parent_checkpoint_id: string | null;
 	format: string;
-	payload: string;
 	content_hash: string;
 	is_committed: number;
 	commit_message: string | null;

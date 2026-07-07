@@ -1,6 +1,6 @@
 # Phase 06: Index Versioning, Rebuild, and Repair
 
-Status: In Progress
+Status: Completed
 Depends on: Phase 05
 Architecture reference: `architecture.md` sections 7, 9 (invariant 1)
 
@@ -49,7 +49,7 @@ Make the SQLite index provably disposable. Version the index file, rebuild it fr
 - [x] Old migration machinery removed; single create-schema SQL
 - [x] `rebuildIndexFromStore()` with report, idempotent, tested
 - [x] Stale index files and legacy DB cleaned up after successful rebuild
-- [ ] Content cache columns demoted per decision; reads come from files
+- [x] Content cache columns demoted per decision; reads come from files
 - [x] Repair UI action with report display
 - [x] Auto-rebuild on open failure/integrity failure
 - [x] Verse indexing performance
@@ -58,8 +58,8 @@ Make the SQLite index provably disposable. Version the index file, rebuild it fr
   - [x] Bulk verse query replaces per-transcription `getVerseIndexRowsForTranscription()` loop in collation verse gathering
   - [x] Single-parse rule on save/rebuild paths
   - [x] Pre-collation rebuild is near-instant on unchanged transcriptions
-- [ ] Delete-the-index invariant test passing
-- [ ] `bun run check` and `bun run test:unit -- --run` pass
+- [x] Delete-the-index invariant test passing
+- [x] `bun run check` and `bun run test:unit -- --run` pass
 
 ## Completion Criteria
 
@@ -77,6 +77,8 @@ bun run check && bun run test:unit -- --run
 
 | Date | Note |
 | --- | --- |
+| 2026-07-06 | Phase 6 completed. Added a browser-worker delete-the-index invariant that creates project-owned transcription and collation data through normal DB worker RPCs, writes uncommitted working transcription/collation state, checkpoints the real OPFS SQLite index, deletes `apatosaurus/v1/index/apatosaurus-index-v1.db`, restarts the worker, and asserts equivalent project/transcription/collation listings, file-backed entity loads, verse index rows, transcription checkpoint listings, and collation projections after automatic rebuild. `rebuildIndexFromStore()` now treats valid working transcription/collation files as the source for rebuildable live index rows while preserving committed revision heads from primary files, and quarantines malformed working files without treating absent working files as errors. Verification passed: focused invariant spec, `bun run test:unit -- --run src/lib/client/db src/lib/client/store` (103 passed), `bun run db:generate`, `bun run db:check`, and `bun run check && bun run test:unit -- --run` (377 passed). |
+| 2026-07-06 | Content-cache demotion slice completed. Public worker/runtime transcription and collation reads are strict file-backed; `transcriptions.content_json` and `collation_artifacts.payload` remain only as disposable cache/legacy rows, while transcription/collation checkpoint payload columns were removed from the greenfield index schema. Checkpoint payloads now serialize/read from canonical history files, including sync history export; sync tests pass memory store options instead of treating SQLite payloads as authoritative. Added coverage proving stale transcription cache content, stale bulk loads, strict verse-index rebuilds, and empty collation artifact cache rows do not affect restored file-backed state. Verification passed: `bun run db:generate`, `bun run db:check`, `bun run check`, DB/store unit slice (102 passed), and full `bun run test:unit -- --run` (376 passed). Phase 6 remains in progress for delete-the-index invariant coverage. |
 | 2026-07-06 | Auto-rebuild-on-corruption slice completed. Existing index startup now runs `PRAGMA integrity_check`; an index that fails to open or fails integrity is closed, the current nested index database/WAL/SHM files are removed, the current schema is recreated, and `rebuildIndexFromStore()` repopulates from canonical project files before requests proceed. The worker emits a typed rebuild event for open/integrity repairs, and the client surfaces a persistent "Local database repaired" notification with restored counts. Added focused coverage for current-index file removal. Verification passed: focused `index-files` test, DB/store unit slice (100 passed), `bun run check`, full `bun run test:unit -- --run` (374 passed), and `bun run db:check`. Phase 6 remains in progress for content-cache demotion and delete-the-index invariant coverage. |
 | 2026-07-06 | Repair UI/RPC slice completed. Added a serialized `index.rebuild` DB-worker RPC and client helper that reruns `rebuildIndexFromStore()`, re-bootstraps the Default project, invalidates all UI domains, and returns the rebuild report. The Projects page now exposes a Local Storage "Repair database" action with success/error state and restored/quarantined/orphaned counts. Verification passed: `bun run check`, `bun run test:unit -- --run src/lib/client/db src/lib/client/store` (99 passed), full `bun run test:unit -- --run` (373 passed), and `bun run db:check`. Phase 6 remains in progress for content-cache demotion, auto-rebuild on failed open/integrity check, and delete-the-index invariant coverage. |
 | 2026-07-06 | Verse-index performance slice completed. Added disposable `transcription_verse_index_state` metadata with indexed content hashes and verse counts so unchanged rebuilds skip row deletion/reinsertion, removed the public adapter's per-transcription `getTranscription()` label-fetch loop, and routed autosave/update indexing through already-normalized documents so save/rebuild indexing coerces each document at most once. Verification passed: `bun run db:generate`, focused transcriptions/verse-index tests (14 passed), DB/store unit slice (99 passed), `bun run db:check`, `bun run check`, and full `bun run test:unit -- --run` (373 passed). Phase 6 remains in progress for content-cache demotion, repair UI/RPC, auto-rebuild on failed open/integrity check, and delete-the-index invariant coverage. |

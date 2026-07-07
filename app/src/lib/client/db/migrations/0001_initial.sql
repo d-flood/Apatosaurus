@@ -11,13 +11,12 @@
 --     index version creates a fresh disposable index and rebuilds it from
 --     files instead of migrating SQL in place.
 --   * `transcriptions.content_json` and `collation_artifacts.payload` are
---     retained as working-cache columns. The canonical content is the
---     committed project file written by Phase 5. These cache columns are
---     slated for demotion/drop in Phase 5/6.
---   * Checkpoint `payload` columns are retained temporarily. They are the
---     committed history payload cache until Phase 5 writes those payloads
---     to OPFS at commit time and Phase 6 can rebuild these listing rows
---     from files.
+--     disposable cache columns kept for legacy copy/sync code until those
+--     flows move to file-backed imports in Phases 7-8. Public worker load
+--     paths prefer working/primary OPFS files and treat these columns/tables
+--     only as repairable fallbacks.
+--   * Checkpoint tables are metadata-only listings. Payloads live exclusively
+--     in canonical history files under OPFS.
 --   * `transcriptions.scope_type` (global/project_snapshot) is removed:
 --     every transcription is project-owned under the project-only
 --     ownership model (architecture.md section 3 decision 1).
@@ -55,9 +54,8 @@ CREATE TABLE IF NOT EXISTS transcriptions (
 	title TEXT NOT NULL,
 	siglum TEXT NOT NULL,
 	description TEXT NOT NULL DEFAULT '',
-	-- Working cache: canonical transcription content lives in
-	-- `<storage_slug>/transcriptions/<id>.json` (Phase 5). This column is
-	-- slated for demotion/drop in Phase 5/6.
+	-- Disposable cache: canonical transcription content lives in
+	-- `<storage_slug>/transcriptions/<id>.json` and `.working.json`.
 	content_json TEXT NOT NULL,
 	format TEXT NOT NULL,
 	created_at TEXT NOT NULL,
@@ -128,9 +126,9 @@ CREATE TABLE IF NOT EXISTS collations (
 CREATE INDEX IF NOT EXISTS idx_collations_updated_at ON collations(updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_collations_project_id ON collations(project_id);
 
--- Working cache for the legacy `collation_document_v1` payload. Canonical
--- collation content lives in `<storage_slug>/collations/<id>.json`
--- (Phase 5). This table is slated for demotion/drop in Phase 5/6.
+-- Disposable cache for the legacy `collation_document_v1` payload. Canonical
+-- collation content lives in `<storage_slug>/collations/<id>.json` and
+-- `.working.json`.
 CREATE TABLE IF NOT EXISTS collation_artifacts (
 	id TEXT PRIMARY KEY,
 	collation_id TEXT NOT NULL REFERENCES collations(id) ON DELETE CASCADE,
@@ -289,15 +287,13 @@ CREATE TABLE IF NOT EXISTS cloud_sync_metadata (
 CREATE INDEX IF NOT EXISTS idx_cloud_sync_metadata_scope ON cloud_sync_metadata(scope_type, scope_id);
 CREATE INDEX IF NOT EXISTS idx_cloud_sync_metadata_path ON cloud_sync_metadata(connection_id, cloud_path);
 
--- Checkpoint listings plus temporary payload cache. The payload columns
--- keep existing refresh/copy/backup flows working until Phase 5 writes
--- history/<entity>/<checkpoint>.json files to OPFS at commit time.
+-- Checkpoint listings only. Canonical checkpoint payloads live in
+-- history/<entity>/<checkpoint>.json files.
 CREATE TABLE IF NOT EXISTS transcription_checkpoints (
 	id TEXT PRIMARY KEY,
 	transcription_id TEXT NOT NULL REFERENCES transcriptions(id) ON DELETE CASCADE,
 	parent_checkpoint_id TEXT REFERENCES transcription_checkpoints(id) ON DELETE SET NULL,
 	format TEXT NOT NULL,
-	payload TEXT NOT NULL,
 	content_hash TEXT NOT NULL,
 	is_committed INTEGER NOT NULL DEFAULT 0,
 	commit_message TEXT,
@@ -312,7 +308,6 @@ CREATE TABLE IF NOT EXISTS collation_checkpoints (
 	id TEXT PRIMARY KEY,
 	collation_id TEXT NOT NULL REFERENCES collations(id) ON DELETE CASCADE,
 	parent_checkpoint_id TEXT REFERENCES collation_checkpoints(id) ON DELETE SET NULL,
-	payload TEXT NOT NULL,
 	content_hash TEXT NOT NULL,
 	is_committed INTEGER NOT NULL DEFAULT 0,
 	commit_message TEXT,

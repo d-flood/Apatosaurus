@@ -7,9 +7,12 @@ import {
 	PROJECT_TRANSCRIPTION_FORMAT,
 	TOMBSTONE_FORMAT,
 	TRANSCRIPTION_CHECKPOINT_FORMAT,
+	WORKING_COLLATION_FORMAT,
+	WORKING_TRANSCRIPTION_FORMAT,
 	assertCollationCheckpointPayloadIntegrity,
 	assertCollationRevisionHash,
 	assertProjectTranscriptionRevisionHash,
+	collationWorkingFile,
 	assertTranscriptionCheckpointPayloadIntegrity,
 	collationHistoryFolder,
 	joinStorePath,
@@ -21,6 +24,7 @@ import {
 	readCanonicalDocument,
 	readTextFile,
 	transcriptionHistoryFolder,
+	transcriptionWorkingFile,
 	type CollationCheckpointPayload,
 	type CollationPayload,
 	type JsonObject,
@@ -32,6 +36,8 @@ import {
 	type StoreQuarantineRecord,
 	type TombstonePayload,
 	type TranscriptionCheckpointPayload,
+	type WorkingCollationPayload,
+	type WorkingTranscriptionPayload,
 } from '$lib/client/store';
 
 import type {
@@ -175,7 +181,14 @@ async function collectProjectRows(
 	const referencedTranscriptionPrimaries = new Set<string>();
 	for (const head of manifest.transcriptions) {
 		referencedTranscriptionPrimaries.add(head.primary_path);
-		await collectTranscriptionRows(projectSlug, manifest.id, head.primary_path, rows, report, storeOptions);
+		await collectTranscriptionRows(
+			projectSlug,
+			manifest.id,
+			head.primary_path,
+			rows,
+			report,
+			storeOptions
+		);
 	}
 	await recordOrphanedPrimaries(
 		projectSlug,
@@ -188,7 +201,14 @@ async function collectProjectRows(
 	const referencedCollationPrimaries = new Set<string>();
 	for (const head of manifest.collations) {
 		referencedCollationPrimaries.add(head.primary_path);
-		await collectCollationRows(projectSlug, manifest.id, head.primary_path, rows, report, storeOptions);
+		await collectCollationRows(
+			projectSlug,
+			manifest.id,
+			head.primary_path,
+			rows,
+			report,
+			storeOptions
+		);
 	}
 	await recordOrphanedPrimaries(
 		projectSlug,
@@ -218,35 +238,47 @@ async function collectTranscriptionRows(
 		report,
 		storeOptions
 	);
-	if (!payload || !(await validateFilePayload(primaryPath, report, () => assertProjectTranscriptionRevisionHash(payload)))) {
+	if (
+		!payload ||
+		!(await validateFilePayload(primaryPath, report, () =>
+			assertProjectTranscriptionRevisionHash(payload)
+		))
+	) {
 		return;
 	}
 
-	const contentJson = JSON.stringify(payload.content_json);
+	const workingPayload = await readWorkingTranscriptionPayload(
+		projectSlug,
+		payload,
+		report,
+		storeOptions
+	);
+	const indexPayload = workingPayload ?? payload;
+	const contentJson = JSON.stringify(indexPayload.content_json);
 	rows.transcriptions.push({
 		id: payload.id,
 		project_id: projectId,
-		origin_type: payload.origin.source_type,
-		origin_project_id: payload.origin.source_project_id,
-		origin_transcription_id: payload.origin.source_transcription_id,
-		origin_revision_id: payload.origin.source_revision_id ?? '',
-		origin_content_hash: payload.origin.source_content_hash ?? '',
+		origin_type: indexPayload.origin.source_type,
+		origin_project_id: indexPayload.origin.source_project_id,
+		origin_transcription_id: indexPayload.origin.source_transcription_id,
+		origin_revision_id: indexPayload.origin.source_revision_id ?? '',
+		origin_content_hash: indexPayload.origin.source_content_hash ?? '',
 		current_revision_id: payload.current_revision.id,
 		current_content_hash: payload.current_revision.content_hash,
-		title: payload.title,
-		siglum: payload.siglum,
-		description: payload.description,
+		title: indexPayload.title,
+		siglum: indexPayload.siglum,
+		description: indexPayload.description,
 		content_json: contentJson,
-		format: payload.content_format,
-		created_at: payload.created_at,
-		updated_at: payload.updated_at,
-		owner: payload.owner,
-		is_public: payload.is_public ? 1 : 0,
-		tags: JSON.stringify(payload.tags),
-		transcriber: payload.transcriber,
-		repository: payload.repository,
-		settlement: payload.settlement,
-		language: payload.language,
+		format: indexPayload.content_format,
+		created_at: indexPayload.created_at,
+		updated_at: indexPayload.updated_at,
+		owner: indexPayload.owner,
+		is_public: indexPayload.is_public ? 1 : 0,
+		tags: JSON.stringify(indexPayload.tags),
+		transcriber: indexPayload.transcriber,
+		repository: indexPayload.repository,
+		settlement: indexPayload.settlement,
+		language: indexPayload.language,
 	});
 	rows.projectTranscriptions.push({
 		id: payload.project_transcription_id,
@@ -257,7 +289,7 @@ async function collectTranscriptionRows(
 	});
 	rows.transcriptionVerseInputs.push({ transcriptionId: payload.id, contentJson });
 
-	for (const source of payload.iiif_manifest_sources) {
+	for (const source of indexPayload.iiif_manifest_sources) {
 		rows.iiifManifestSources.push({
 			id: source.id,
 			transcription_id: payload.id,
@@ -267,11 +299,11 @@ async function collectTranscriptionRows(
 			default_canvas_id: source.default_canvas_id,
 			default_image_service_url: source.default_image_service_url,
 			metadata_json: JSON.stringify(source.metadata_json),
-			created_at: payload.created_at,
-			updated_at: payload.updated_at,
+			created_at: indexPayload.created_at,
+			updated_at: indexPayload.updated_at,
 		});
 	}
-	for (const link of payload.page_canvas_links) {
+	for (const link of indexPayload.page_canvas_links) {
 		rows.pageCanvasLinks.push({
 			id: link.id,
 			transcription_id: payload.id,
@@ -286,11 +318,11 @@ async function collectTranscriptionRows(
 			image_service_url: link.image_service_url,
 			thumbnail_url: link.thumbnail_url,
 			link_role: link.link_role,
-			created_at: payload.created_at,
-			updated_at: payload.updated_at,
+			created_at: indexPayload.created_at,
+			updated_at: indexPayload.updated_at,
 		});
 	}
-	for (const annotation of payload.canvas_annotations) {
+	for (const annotation of indexPayload.canvas_annotations) {
 		rows.canvasAnnotations.push({
 			id: annotation.id,
 			transcription_id: payload.id,
@@ -304,8 +336,8 @@ async function collectTranscriptionRows(
 			anchor_json: JSON.stringify(annotation.anchor_json),
 			motivation: annotation.motivation,
 			created_by: annotation.created_by,
-			created_at: payload.created_at,
-			updated_at: payload.updated_at,
+			created_at: indexPayload.created_at,
+			updated_at: indexPayload.updated_at,
 		});
 	}
 
@@ -333,34 +365,47 @@ async function collectCollationRows(
 		report,
 		storeOptions
 	);
-	if (!payload || !(await validateFilePayload(primaryPath, report, () => assertCollationRevisionHash(payload)))) {
+	if (
+		!payload ||
+		!(await validateFilePayload(primaryPath, report, () =>
+			assertCollationRevisionHash(payload)
+		))
+	) {
 		return;
 	}
+
+	const workingPayload = await readWorkingCollationPayload(
+		projectSlug,
+		payload,
+		report,
+		storeOptions
+	);
+	const indexPayload = workingPayload ?? payload;
 
 	rows.collations.push({
 		id: payload.id,
 		project_id: projectId,
 		current_revision_id: payload.current_revision.id,
 		current_content_hash: payload.current_revision.content_hash,
-		title: payload.title,
-		verse_identifier: payload.verse_identifier,
-		status: payload.status,
-		group_path: payload.group_path,
-		notes: payload.notes,
-		sort_key: payload.sort_key,
-		created_at: payload.created_at,
-		updated_at: payload.updated_at,
+		title: indexPayload.title,
+		verse_identifier: indexPayload.verse_identifier,
+		status: indexPayload.status,
+		group_path: indexPayload.group_path,
+		notes: indexPayload.notes,
+		sort_key: indexPayload.sort_key,
+		created_at: indexPayload.created_at,
+		updated_at: indexPayload.updated_at,
 	});
-	for (const artifact of payload.artifacts) {
+	for (const artifact of indexPayload.artifacts) {
 		rows.collationArtifacts.push({
 			id: artifact.id,
 			collation_id: payload.id,
 			artifact_type: artifact.artifact_type,
 			payload: JSON.stringify(artifact.payload),
-			created_at: payload.created_at,
+			created_at: indexPayload.updated_at,
 		});
 	}
-	for (const witness of payload.witnesses) {
+	for (const witness of indexPayload.witnesses) {
 		rows.collationWitnesses.push({
 			id: witness.id,
 			collation_id: payload.id,
@@ -373,7 +418,7 @@ async function collectCollationRows(
 			source_content_hash: witness.source_content_hash,
 		});
 	}
-	for (const token of payload.tokens) {
+	for (const token of indexPayload.tokens) {
 		rows.collationTokens.push({
 			id: token.id,
 			collation_id: payload.id,
@@ -382,7 +427,7 @@ async function collectCollationRows(
 			token_text: token.token_text,
 		});
 	}
-	for (const unit of payload.variation_units) {
+	for (const unit of indexPayload.variation_units) {
 		rows.collationVariationUnits.push({
 			id: unit.id,
 			collation_id: payload.id,
@@ -392,7 +437,7 @@ async function collectCollationRows(
 			base_text: unit.base_text,
 		});
 	}
-	for (const reading of payload.readings) {
+	for (const reading of indexPayload.readings) {
 		rows.collationReadings.push({
 			id: reading.id,
 			variation_unit_id: reading.variation_unit_id,
@@ -402,7 +447,7 @@ async function collectCollationRows(
 			is_omission: reading.is_omission ? 1 : 0,
 		});
 	}
-	for (const [index, witness] of payload.reading_witnesses.entries()) {
+	for (const [index, witness] of indexPayload.reading_witnesses.entries()) {
 		rows.collationReadingWitnesses.push({
 			id: `${payload.id}:reading-witness:${index}`,
 			reading_id: witness.reading_id,
@@ -411,6 +456,61 @@ async function collectCollationRows(
 	}
 
 	await collectCollationCheckpointRows(projectSlug, payload.id, rows, report, storeOptions);
+}
+
+async function readWorkingTranscriptionPayload(
+	projectSlug: string,
+	primaryPayload: ProjectTranscriptionPayload,
+	report: IndexRebuildReport,
+	storeOptions: StoreOperationOptions
+): Promise<ProjectTranscriptionPayload | null> {
+	const path = transcriptionWorkingFile(projectSlug, primaryPayload.project_transcription_id);
+	const payload = await readOptionalCanonicalFile<WorkingTranscriptionPayload>(
+		WORKING_TRANSCRIPTION_FORMAT,
+		path,
+		report,
+		storeOptions
+	);
+	if (!payload) return null;
+	if (
+		payload.id !== primaryPayload.id ||
+		payload.project_transcription_id !== primaryPayload.project_transcription_id
+	) {
+		recordQuarantine(report, path, {
+			code: 'invalid_shape',
+			message: `Working transcription does not match manifest primary ${primaryPayload.id}.`,
+		});
+		return null;
+	}
+	// Working transcription payloads are primary payloads minus current_revision; rebuild only
+	// uses the live index fields from them and keeps committed revision heads from primaries.
+	return payload as unknown as ProjectTranscriptionPayload;
+}
+
+async function readWorkingCollationPayload(
+	projectSlug: string,
+	primaryPayload: CollationPayload,
+	report: IndexRebuildReport,
+	storeOptions: StoreOperationOptions
+): Promise<CollationPayload | null> {
+	const path = collationWorkingFile(projectSlug, primaryPayload.id);
+	const payload = await readOptionalCanonicalFile<WorkingCollationPayload>(
+		WORKING_COLLATION_FORMAT,
+		path,
+		report,
+		storeOptions
+	);
+	if (!payload) return null;
+	if (payload.id !== primaryPayload.id || payload.project_id !== primaryPayload.project_id) {
+		recordQuarantine(report, path, {
+			code: 'invalid_shape',
+			message: `Working collation does not match manifest primary ${primaryPayload.id}.`,
+		});
+		return null;
+	}
+	// Working collation payloads are primary payloads minus current_revision; rebuild only
+	// uses the live index fields from them and keeps committed revision heads from primaries.
+	return payload as unknown as CollationPayload;
 }
 
 async function collectTranscriptionCheckpointRows(
@@ -438,7 +538,11 @@ async function collectTranscriptionCheckpointRows(
 			});
 			continue;
 		}
-		if (!(await validateFilePayload(path, report, () => assertTranscriptionCheckpointPayloadIntegrity(payload)))) {
+		if (
+			!(await validateFilePayload(path, report, () =>
+				assertTranscriptionCheckpointPayloadIntegrity(payload)
+			))
+		) {
 			continue;
 		}
 		rows.transcriptionCheckpoints.push({
@@ -446,7 +550,6 @@ async function collectTranscriptionCheckpointRows(
 			transcription_id: payload.payload_transcription_id,
 			parent_checkpoint_id: payload.parent_checkpoint_id,
 			format: payload.content_format,
-			payload: JSON.stringify(payload.payload),
 			content_hash: payload.payload_content_hash,
 			is_committed: 1,
 			commit_message: payload.commit_message,
@@ -481,14 +584,17 @@ async function collectCollationCheckpointRows(
 			});
 			continue;
 		}
-		if (!(await validateFilePayload(path, report, () => assertCollationCheckpointPayloadIntegrity(payload)))) {
+		if (
+			!(await validateFilePayload(path, report, () =>
+				assertCollationCheckpointPayloadIntegrity(payload)
+			))
+		) {
 			continue;
 		}
 		rows.collationCheckpoints.push({
 			id: payload.checkpoint_id,
 			collation_id: payload.entity_id,
 			parent_checkpoint_id: payload.parent_checkpoint_id,
-			payload: JSON.stringify(payload.payload),
 			content_hash: payload.payload_content_hash,
 			is_committed: 1,
 			commit_message: payload.commit_message,
@@ -506,7 +612,12 @@ async function collectTombstoneRow(
 	storeOptions: StoreOperationOptions
 ): Promise<void> {
 	const path = joinStorePath(projectFolder(projectSlug), primaryRelativePath);
-	const payload = await readCanonicalFile<TombstonePayload>(TOMBSTONE_FORMAT, path, report, storeOptions);
+	const payload = await readCanonicalFile<TombstonePayload>(
+		TOMBSTONE_FORMAT,
+		path,
+		report,
+		storeOptions
+	);
 	if (!payload) return;
 	rows.tombstones.push({
 		id: payload.id,
@@ -529,7 +640,10 @@ async function insertIndexRows(trx: DbTransaction, rows: RebuildRows): Promise<v
 	if (rows.iiifManifestSources.length)
 		await trx.insertInto('iiif_manifest_sources').values(rows.iiifManifestSources).execute();
 	if (rows.pageCanvasLinks.length)
-		await trx.insertInto('transcription_page_canvas_links').values(rows.pageCanvasLinks).execute();
+		await trx
+			.insertInto('transcription_page_canvas_links')
+			.values(rows.pageCanvasLinks)
+			.execute();
 	if (rows.canvasAnnotations.length)
 		await trx.insertInto('iiif_canvas_annotations').values(rows.canvasAnnotations).execute();
 	const transcriptionCheckpoints = sortCheckpointRowsByParent(rows.transcriptionCheckpoints);
@@ -541,7 +655,8 @@ async function insertIndexRows(trx: DbTransaction, rows: RebuildRows): Promise<v
 	for (const input of rows.transcriptionVerseInputs) {
 		await replaceTranscriptionVerseIndexRows(trx, input.transcriptionId, input.contentJson);
 	}
-	if (rows.collations.length) await trx.insertInto('collations').values(rows.collations).execute();
+	if (rows.collations.length)
+		await trx.insertInto('collations').values(rows.collations).execute();
 	if (rows.collationArtifacts.length)
 		await trx.insertInto('collation_artifacts').values(rows.collationArtifacts).execute();
 	if (rows.collationWitnesses.length)
@@ -563,7 +678,8 @@ async function insertIndexRows(trx: DbTransaction, rows: RebuildRows): Promise<v
 	const collationCheckpoints = sortCheckpointRowsByParent(rows.collationCheckpoints);
 	if (collationCheckpoints.length)
 		await trx.insertInto('collation_checkpoints').values(collationCheckpoints).execute();
-	if (rows.tombstones.length) await trx.insertInto('sync_tombstones').values(rows.tombstones).execute();
+	if (rows.tombstones.length)
+		await trx.insertInto('sync_tombstones').values(rows.tombstones).execute();
 }
 
 function sortCheckpointRowsByParent<
@@ -630,6 +746,24 @@ async function readCanonicalFile<TPayload extends JsonObject>(
 	return null;
 }
 
+async function readOptionalCanonicalFile<TPayload extends JsonObject>(
+	format: string,
+	path: string,
+	report: IndexRebuildReport,
+	storeOptions: StoreOperationOptions
+): Promise<TPayload | null> {
+	try {
+		const raw = await readTextFile(path, storeOptions);
+		const result = await readCanonicalDocument<TPayload>(format, raw);
+		if (result.ok) return result.payload;
+		recordQuarantine(report, path, result.quarantine);
+	} catch (error) {
+		if (isMissingStoreEntryError(error)) return null;
+		recordQuarantine(report, path, quarantineFromError(error));
+	}
+	return null;
+}
+
 async function validateFilePayload(
 	path: string,
 	report: IndexRebuildReport,
@@ -669,7 +803,9 @@ function isJsonFile(entry: StoreDirectoryEntry): boolean {
 }
 
 function isPrimaryJsonFile(entry: StoreDirectoryEntry): boolean {
-	return isJsonFile(entry) && !entry.name.endsWith('.working.json') && !entry.name.includes('.tmp-');
+	return (
+		isJsonFile(entry) && !entry.name.endsWith('.working.json') && !entry.name.includes('.tmp-')
+	);
 }
 
 function isMissingStoreEntryError(error: unknown): boolean {

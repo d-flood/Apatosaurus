@@ -7,16 +7,22 @@ import {
 	upsertCloudProjectFolder,
 } from '$lib/client/db/repositories/cloud-connections';
 import { createProject } from '$lib/client/db/repositories/projects';
-import { createCommittedCollationCheckpoint } from '$lib/client/db/repositories/revisions';
+import { createCommittedCollationCheckpointWithFiles } from '$lib/client/db/repositories/collation-files';
+import { MemoryStoreBackend } from '$lib/client/store/memory-store-backend.spec-support';
+import type { StoreOperationOptions } from '$lib/client/store';
 import { backupProject, type SyncProjectContext } from './sync-manager';
 import { MockCloudStorageProvider } from './providers/mock-provider';
 import type { CloudFileMetadata } from './providers/provider';
 import { verifyRemoteProjectBackupHealth } from './backup-health';
 
 let harness: LocalDbTestHarness;
+let backend: MemoryStoreBackend;
+let storeOptions: StoreOperationOptions;
 
 beforeEach(() => {
 	harness = createLocalDbTestHarness();
+	backend = new MemoryStoreBackend();
+	storeOptions = { backend };
 });
 
 afterEach(async () => {
@@ -29,6 +35,7 @@ describe('project backup health', () => {
 		const { provider, context } = await createConnectedProvider();
 		await backupProject(harness.db, provider, context, {
 			now: () => '2026-06-10T12:05:00.000Z',
+			storeOptions,
 		});
 
 		const health = await verifyRemoteProjectBackupHealth(harness.db, provider, context);
@@ -43,7 +50,7 @@ describe('project backup health', () => {
 	it('blocks safe removal when local collation edits are uncommitted', async () => {
 		await createCommittedProjectCollation('Initial notes', 'col-cp-1');
 		const { provider, context } = await createConnectedProvider();
-		await backupProject(harness.db, provider, context);
+		await backupProject(harness.db, provider, context, { storeOptions });
 		await updateCollationMetadata(harness.db, {
 			id: 'col-1',
 			notes: 'Uncommitted local notes',
@@ -60,7 +67,7 @@ describe('project backup health', () => {
 	it('reports an incomplete backup when a remote primary is missing', async () => {
 		await createCommittedProjectCollation('Initial notes', 'col-cp-1');
 		const { provider, context } = await createConnectedProvider();
-		await backupProject(harness.db, provider, context);
+		await backupProject(harness.db, provider, context, { storeOptions });
 		const primary = await remoteFile(provider, context, 'collations/col-1.json');
 		if (!primary) throw new Error('Expected remote collation primary.');
 		await provider.deleteFile(primary.id, primary.revision);
@@ -78,7 +85,7 @@ describe('project backup health', () => {
 	it('reports an incomplete backup when current history is missing', async () => {
 		await createCommittedProjectCollation('Initial notes', 'col-cp-1');
 		const { provider, context } = await createConnectedProvider();
-		await backupProject(harness.db, provider, context);
+		await backupProject(harness.db, provider, context, { storeOptions });
 		const history = await remoteFile(
 			provider,
 			context,
@@ -141,11 +148,11 @@ async function createCommittedProjectCollation(notes: string, checkpointId: stri
 		notes,
 		updatedAt: '2026-06-10T12:01:00.000Z',
 	});
-	await createCommittedCollationCheckpoint(harness.db, {
+	await createCommittedCollationCheckpointWithFiles(harness.db, {
 		collationId: 'col-1',
 		checkpointId,
 		createdAt: '2026-06-10T12:02:00.000Z',
-	});
+	}, storeOptions);
 }
 
 async function remoteFile(

@@ -2,6 +2,15 @@ import { nanoid } from 'nanoid';
 import type { Kysely, Selectable, Transaction } from 'kysely';
 
 import { canonicalJson, hashCanonicalPayload } from '$lib/client/sync/canonical-json';
+import {
+	TRANSCRIPTION_CHECKPOINT_FORMAT,
+	assertTranscriptionCheckpointPayloadIntegrity,
+	readCanonicalDocument,
+	readTextFile,
+	transcriptionCheckpointFile,
+	type StoreOperationOptions,
+	type TranscriptionCheckpointPayload as CanonicalTranscriptionCheckpointPayload,
+} from '$lib/client/store';
 import type { CollationCheckpoints, Database, TranscriptionCheckpoints } from '../types.generated';
 
 type DbExecutor = Kysely<Database> | Transaction<Database>;
@@ -394,7 +403,6 @@ export async function createCommittedTranscriptionCheckpoint(
 		const checkpoint = buildTranscriptionCheckpointRow(
 			snapshot,
 			head.current_revision_id || null,
-			payload,
 			contentHash,
 			input
 		);
@@ -448,7 +456,6 @@ async function createCommittedCollationCheckpointFromSerializedInTransaction(
 	const checkpoint = buildCollationCheckpointRow(
 		collation.id,
 		head.current_revision_id || null,
-		payload,
 		contentHash,
 		input
 	);
@@ -610,47 +617,83 @@ export async function listCommittedTranscriptionCheckpoints(
 export async function loadCommittedTranscriptionCheckpointPayload(
 	db: DbExecutor,
 	transcriptionId: string,
-	checkpointId: string
+	checkpointId: string,
+	storeOptions: StoreOperationOptions = {}
 ): Promise<LoadedTranscriptionCheckpoint> {
 	const row = await db
 		.selectFrom('transcription_checkpoints')
-		.selectAll()
-		.where('id', '=', checkpointId)
-		.where('transcription_id', '=', transcriptionId)
-		.where('is_committed', '=', 1)
+		.innerJoin('project_transcriptions', join =>
+			join.onRef('project_transcriptions.transcription_id', '=', 'transcription_checkpoints.transcription_id')
+		)
+		.innerJoin('projects', 'projects.id', 'project_transcriptions.project_id')
+		.select([
+			'transcription_checkpoints.id as id',
+			'transcription_checkpoints.transcription_id as transcription_id',
+			'transcription_checkpoints.parent_checkpoint_id as parent_checkpoint_id',
+			'transcription_checkpoints.content_hash as content_hash',
+			'transcription_checkpoints.is_committed as is_committed',
+			'transcription_checkpoints.commit_message as commit_message',
+			'transcription_checkpoints.author_name as author_name',
+			'transcription_checkpoints.created_at as created_at',
+			'project_transcriptions.id as project_transcription_id',
+			'projects.storage_slug as project_storage_slug',
+		])
+		.where('transcription_checkpoints.id', '=', checkpointId)
+		.where('transcription_checkpoints.transcription_id', '=', transcriptionId)
+		.where('transcription_checkpoints.is_committed', '=', 1)
 		.executeTakeFirst();
 	if (!row) {
 		throw new Error(
 			`Committed transcription checkpoint ${checkpointId} for ${transcriptionId} was not found.`
 		);
 	}
-	const payload = parseCheckpointPayload(
-		row.payload,
+	const path = transcriptionCheckpointFile(
+		requireId(row.project_storage_slug, 'project storage slug'),
+		requireId(row.project_transcription_id, 'project transcription'),
 		requireId(row.id, 'transcription checkpoint')
 	);
-	const contentHash = await hashCanonicalPayload(payload);
-	if (contentHash !== row.content_hash) {
-		throw new Error('Transcription checkpoint payload hash does not match its content hash.');
+	const result = await readCanonicalDocument<CanonicalTranscriptionCheckpointPayload>(
+		TRANSCRIPTION_CHECKPOINT_FORMAT,
+		await readTextFile(path, storeOptions)
+	);
+	if (!result.ok) {
+		throw new Error(
+			`Invalid transcription checkpoint file ${path}: ${result.quarantine.code}`
+		);
+	}
+	const checkpointPayload = result.payload;
+	if (checkpointPayload.entity_id !== row.project_transcription_id) {
+		throw new Error('Transcription checkpoint file project transcription id does not match the index row.');
+	}
+	if (checkpointPayload.payload_transcription_id !== transcriptionId) {
+		throw new Error('Transcription checkpoint file transcription id does not match the requested transcription.');
+	}
+	await assertTranscriptionCheckpointPayloadIntegrity(checkpointPayload);
+	if (checkpointPayload.payload_content_hash !== row.content_hash) {
+		throw new Error('Transcription checkpoint file hash does not match the index row.');
 	}
 	return {
 		id: requireId(row.id, 'transcription checkpoint'),
 		transcriptionId: row.transcription_id,
-		parentCheckpointId: row.parent_checkpoint_id,
+		parentCheckpointId: checkpointPayload.parent_checkpoint_id,
 		contentHash: row.content_hash,
 		isCommitted: row.is_committed === 1,
-		commitMessage: row.commit_message,
-		authorName: row.author_name,
-		createdAt: row.created_at,
-		payload,
+		commitMessage: checkpointPayload.commit_message,
+		authorName: checkpointPayload.author_name,
+		createdAt: checkpointPayload.created_at,
+		payload: parseCheckpointPayload(
+			checkpointPayload.payload,
+			requireId(row.id, 'transcription checkpoint')
+		),
 	};
 }
 
 function parseCheckpointPayload(
-	value: string,
+	value: unknown,
 	checkpointId: string
 ): TranscriptionCheckpointPayload {
 	try {
-		const parsed = JSON.parse(value);
+		const parsed = typeof value === 'string' ? JSON.parse(value) : value;
 		if (!parsed || typeof parsed !== 'object') {
 			throw new Error('Checkpoint payload is not an object.');
 		}
@@ -688,7 +731,7 @@ async function loadManifestSources(
 	}));
 }
 
-function deriveCheckpointStatus(
+export function deriveCheckpointStatus(
 	currentCheckpoint: EntityCheckpointHead | null,
 	workingContentHash: string
 ): EntityCheckpointStatus {
@@ -913,7 +956,6 @@ async function loadCollationArtifacts(
 function buildTranscriptionCheckpointRow(
 	snapshot: ProjectTranscriptionSnapshot,
 	parentCheckpointId: string | null,
-	payload: unknown,
 	contentHash: string,
 	input: CommitTranscriptionInput
 ): Selectable<TranscriptionCheckpoints> {
@@ -922,7 +964,6 @@ function buildTranscriptionCheckpointRow(
 		transcription_id: snapshot.id,
 		parent_checkpoint_id: parentCheckpointId,
 		format: snapshot.format,
-		payload: canonicalJson(payload),
 		content_hash: contentHash,
 		is_committed: 1,
 		commit_message: input.commitMessage ?? null,
@@ -934,7 +975,6 @@ function buildTranscriptionCheckpointRow(
 function buildCollationCheckpointRow(
 	collationId: string,
 	parentCheckpointId: string | null,
-	payload: unknown,
 	contentHash: string,
 	input: CommitCollationInput
 ): Selectable<CollationCheckpoints> {
@@ -942,7 +982,6 @@ function buildCollationCheckpointRow(
 		id: input.checkpointId ?? createId(),
 		collation_id: collationId,
 		parent_checkpoint_id: parentCheckpointId,
-		payload: canonicalJson(payload),
 		content_hash: contentHash,
 		is_committed: 1,
 		commit_message: input.commitMessage ?? null,
