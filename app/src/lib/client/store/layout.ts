@@ -107,6 +107,10 @@ export function syncTargetsFile(): string {
 	return joinStorePath(appFolder(), 'sync-targets.json');
 }
 
+export function backupMetadataFile(): string {
+	return joinStorePath(appFolder(), 'backup-metadata.json');
+}
+
 export function indexFolder(): string {
 	return 'index';
 }

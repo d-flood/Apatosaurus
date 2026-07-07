@@ -538,6 +538,10 @@ export async function listCommittedTranscriptionCheckpoints(
 	});
 }
 
+export async function getLatestProjectCommitTimestamp(projectId: string): Promise<string | null> {
+	return sendRevisionRequest({ type: 'revisions.getLatestProjectCommitTimestamp', projectId });
+}
+
 export async function loadCommittedTranscriptionCheckpointPayload(
 	transcriptionId: string,
 	checkpointId: string

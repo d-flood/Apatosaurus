@@ -1,5 +1,5 @@
 import { nanoid } from 'nanoid';
-import type { Kysely, Selectable, Transaction } from 'kysely';
+import { sql, type Kysely, type Selectable, type Transaction } from 'kysely';
 
 import { canonicalJson, hashCanonicalPayload } from '$lib/client/sync/canonical-json';
 import {
@@ -612,6 +612,30 @@ export async function listCommittedTranscriptionCheckpoints(
 		authorName: row.author_name,
 		createdAt: row.created_at,
 	}));
+}
+
+export async function getLatestProjectCommitTimestamp(
+	db: DbExecutor,
+	projectId: string
+): Promise<string | null> {
+	const row = await sql<{ latest_committed_at: string | null }>`
+		select max(created_at) as latest_committed_at
+		from (
+			select transcription_checkpoints.created_at as created_at
+			from transcription_checkpoints
+			join project_transcriptions
+				on project_transcriptions.transcription_id = transcription_checkpoints.transcription_id
+			where project_transcriptions.project_id = ${projectId}
+				and transcription_checkpoints.is_committed = 1
+			union all
+			select collation_checkpoints.created_at as created_at
+			from collation_checkpoints
+			join collations on collations.id = collation_checkpoints.collation_id
+			where collations.project_id = ${projectId}
+				and collation_checkpoints.is_committed = 1
+		) committed_project_checkpoints
+	`.execute(db);
+	return row.rows[0]?.latest_committed_at ?? null;
 }
 
 export async function loadCommittedTranscriptionCheckpointPayload(

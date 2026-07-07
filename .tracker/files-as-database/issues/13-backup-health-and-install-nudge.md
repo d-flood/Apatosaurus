@@ -29,11 +29,11 @@ Architecture reference: `../architecture.md` sections 3 (decision 8), 9 (invaria
 
 ## Acceptance criteria
 
-- [ ] Health-state function tested across the matrix (fresh project, committed+synced, committed+exported-only, committed+unprotected).
-- [ ] Unprotected projects render the actionable prompt with the capability-correct action (folder vs export).
-- [ ] `backup-health.ts`/`backup-status.ts` logic is absorbed; stale duplicates deleted.
-- [ ] Install nudge conditions unit-tested (has data, not installed, supported, not recently dismissed).
-- [ ] Full baseline passes.
+- [x] Health-state function tested across the matrix (fresh project, committed+synced, committed+exported-only, committed+unprotected).
+- [x] Unprotected projects render the actionable prompt with the capability-correct action (folder vs export).
+- [x] `backup-health.ts`/`backup-status.ts` logic is absorbed; stale duplicates deleted.
+- [x] Install nudge conditions unit-tested (has data, not installed, supported, not recently dismissed).
+- [x] Full baseline passes.
 
 ```bash
 cd app
@@ -47,3 +47,8 @@ Success: full suite passes; old backup-status duplication gone.
 
 - 08 (`08-zip-export.md`) — last-exported needs export to exist.
 - 12 (`12-capabilities-and-persistence.md`) — install/capability state.
+
+## Implementation Blocker
+
+- 2026-07-07: Implementation stopped before code changes because the contract expects last-exported to come from timestamp data recorded by issue 08, and also says not to add health persistence beyond already-recorded timestamps. The current code only keeps `exportedAt` in live component state after `exportProjectZip()` / `exportAllProjectsZip()` returns; no persisted per-project or account export timestamp exists in the store or app settings. Needs a human decision before implementation: add export timestamp persistence, relax the health contract, or split that prerequisite into a separate issue.
+- 2026-07-07: Human validation resolved this blocker by approving option 1: issue 13 may persist last-export timestamps in app-local settings/store data as rebuildable health metadata, not irreplaceable user data.

@@ -56,7 +56,7 @@
 	} from '$lib/client/db/client';
 	import type { IndexRebuildReport } from '$lib/client/db/repositories/index-rebuild';
 	import type { ProjectBackupSummary } from '$lib/client/sync/sync-manager';
-	import { listSyncTargets } from '$lib/client/store';
+	import { listSyncTargets, recordProjectZipExport } from '$lib/client/store';
 	import { LOCAL_FOLDER_ROOT_FOLDER_ID } from '$lib/client/sync/providers/local-folder-provider';
 	import FolderOpen from 'phosphor-svelte/lib/FolderOpen';
 	import Plus from 'phosphor-svelte/lib/Plus';
@@ -709,6 +709,9 @@
 		try {
 			const result = await exportAllProjectsZip(false);
 			downloadZip(result.fileName, result.bytes);
+			await Promise.all(
+				projects.map(project => recordProjectZipExport(project.id, result.exportedAt))
+			);
 			lastAllProjectsExportedAt = result.exportedAt;
 		} catch (err) {
 			exportAllError = err instanceof Error ? err.message : 'Failed to export all projects.';

@@ -3,8 +3,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
 	checkStoragePersistence,
 	formatStorageBytes,
+	getInstallCapabilityReport,
 	getStorageEstimate,
+	initializeInstallPromptTracking,
 	isStorageNearQuota,
+	promptForPwaInstall,
 	requestPersistentStorageForMeaningfulWrite,
 	resetPersistenceRequestSessionForTests,
 	shouldShowDurabilityWarning,
@@ -96,6 +99,32 @@ describe('client capabilities', () => {
 		expect(isStorageNearQuota(0.79)).toBe(false);
 		expect(isStorageNearQuota(0.8)).toBe(true);
 		expect(formatStorageBytes(1_536)).toBe('1.5 KB');
+	});
+
+	it('tracks beforeinstallprompt support and consumes the install prompt once', async () => {
+		const listeners = new Map<string, EventListener>();
+		vi.stubGlobal('addEventListener', vi.fn((type: string, listener: EventListener) => {
+			listeners.set(type, listener);
+		}));
+		vi.stubGlobal('removeEventListener', vi.fn());
+		const cleanup = initializeInstallPromptTracking();
+		const event = new Event('beforeinstallprompt') as Event & {
+			prompt: () => Promise<void>;
+			userChoice: Promise<{ outcome: 'accepted'; platform: string }>;
+		};
+		event.prompt = vi.fn().mockResolvedValue(undefined);
+		event.userChoice = Promise.resolve({ outcome: 'accepted', platform: 'web' });
+
+		listeners.get('beforeinstallprompt')?.(event);
+
+		expect(getInstallCapabilityReport()).toEqual({
+			isInstalled: false,
+			installSupported: true,
+		});
+		await expect(promptForPwaInstall()).resolves.toBe(true);
+		expect(event.prompt).toHaveBeenCalledTimes(1);
+		expect(getInstallCapabilityReport().installSupported).toBe(false);
+		cleanup();
 	});
 });
 

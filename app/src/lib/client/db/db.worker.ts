@@ -58,6 +58,7 @@ import * as iiifRepository from './repositories/iiif';
 import {
 	isCollationDirty,
 	isTranscriptionDirty,
+	getLatestProjectCommitTimestamp,
 	listCommittedTranscriptionCheckpoints,
 	loadCommittedTranscriptionCheckpointPayload,
 } from './repositories/revisions';
@@ -570,6 +571,8 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 		return isCollationDirty(getKyselyDb(), request.collationId);
 	if (request.type === 'revisions.listCommittedTranscriptionCheckpoints')
 		return listCommittedTranscriptionCheckpoints(getKyselyDb(), request.transcriptionId);
+	if (request.type === 'revisions.getLatestProjectCommitTimestamp')
+		return getLatestProjectCommitTimestamp(getKyselyDb(), request.projectId);
 	if (request.type === 'revisions.loadCommittedTranscriptionCheckpointPayload')
 		return loadCommittedTranscriptionCheckpointPayload(
 			getKyselyDb(),

@@ -7,8 +7,15 @@
 		deriveProjectBackupSummary,
 		exportProjectZip,
 		forkProject,
+		getLatestProjectCommitTimestamp,
 		subscribeLocalDbInvalidations,
 	} from '$lib/client/db/client';
+	import {
+		getInstallCapabilityReport,
+		initializeInstallPromptTracking,
+		promptForPwaInstall,
+		type InstallCapabilityReport,
+	} from '$lib/client/capabilities';
 	import {
 		connectProjectSyncFolder,
 		disconnectProjectSyncFolder,
@@ -18,9 +25,15 @@
 	} from '$lib/client/sync/local-folder-connections';
 	import { LOCAL_FOLDER_ROOT_FOLDER_ID } from '$lib/client/sync/providers/local-folder-provider';
 	import {
+		getProjectBackupMetadata,
+		recordProjectZipExport,
 		updateSyncTargetLastSyncedAt,
 		type SyncTargetRecord,
 	} from '$lib/client/store';
+	import {
+		deriveProjectBackupHealthState,
+		shouldShowInstallNudge,
+	} from '$lib/client/sync/project-backup-health-state';
 	import { projectBackupCapabilityMessage } from '$lib/client/sync/project-zip-export';
 	import type {
 		BackupItemState,
@@ -48,12 +61,37 @@
 	let isForking = $state(false);
 	let includeDraftsInExport = $state(false);
 	let lastExportedAt = $state<string | null>(null);
+	let lastCommittedAt = $state<string | null>(null);
+	let installReport = $state<InstallCapabilityReport>({
+		isInstalled: false,
+		installSupported: false,
+	});
+	let dismissedInstallMilestone = $state<string | null>(readDismissedInstallMilestone());
 	let error = $state<string | null>(null);
 	let loadRunId = 0;
 
 	let selectedTarget = $derived(targets.find(target => target.enabled) ?? targets[0] ?? null);
 	let folderSupported = $derived(isLocalFolderProviderSupported());
 	let backupCapability = $derived(projectBackupCapabilityMessage(folderSupported));
+	let backupHealth = $derived(
+		deriveProjectBackupHealthState({
+			lastCommittedAt,
+			lastSyncedAt: selectedTarget?.lastSyncedAt ?? summary?.lastFullySyncedAt ?? null,
+			lastExportedAt,
+			hasEnabledSyncTarget: Boolean(selectedTarget?.enabled),
+			localFolderSupported: folderSupported,
+		})
+	);
+	let installMilestone = $derived(`${projectId}:${lastCommittedAt ?? 'no-commits'}`);
+	let showInstallNudge = $derived(
+		shouldShowInstallNudge({
+			hasData: Boolean(lastCommittedAt),
+			installSupported: installReport.installSupported,
+			isInstalled: installReport.isInstalled,
+			currentMilestone: installMilestone,
+			dismissedMilestone: dismissedInstallMilestone,
+		})
+	);
 	let statusLabel = $derived.by(() => {
 		if (!selectedTarget) return 'No sync folder connected';
 		if (lastResult?.uiState === 'conflict requires resolution') return 'Conflict requires resolution';
@@ -73,6 +111,10 @@
 	);
 
 	onMount(() => {
+		installReport = getInstallCapabilityReport();
+		const stopInstallTracking = initializeInstallPromptTracking(() => {
+			installReport = getInstallCapabilityReport();
+		});
 		const unsubscribe = subscribeLocalDbInvalidations(event => {
 			if (
 				event.domain === 'projects' ||
@@ -84,7 +126,10 @@
 				void loadSyncState(projectId);
 			}
 		});
-		return unsubscribe;
+		return () => {
+			unsubscribe();
+			stopInstallTracking();
+		};
 	});
 
 	$effect(() => {
@@ -97,9 +142,15 @@
 		isLoading = true;
 		error = null;
 		try {
-			const nextTargets = await listProjectSyncTargets(nextProjectId);
+			const [nextTargets, metadata, latestCommit] = await Promise.all([
+				listProjectSyncTargets(nextProjectId),
+				getProjectBackupMetadata(nextProjectId),
+				getLatestProjectCommitTimestamp(nextProjectId),
+			]);
 			if (runId !== loadRunId) return;
 			targets = nextTargets;
+			lastExportedAt = metadata.lastExportedAt;
+			lastCommittedAt = latestCommit;
 			const target = nextTargets.find(candidate => candidate.enabled) ?? nextTargets[0] ?? null;
 			summary = target ? await deriveProjectBackupSummary(syncContext(target)) : null;
 		} catch (err) {
@@ -196,11 +247,37 @@
 		try {
 			const result = await exportProjectZip(projectId, includeDraftsInExport);
 			downloadZip(result.fileName, result.bytes);
+			await recordProjectZipExport(projectId, result.exportedAt);
 			lastExportedAt = result.exportedAt;
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Failed to export project zip.';
 		} finally {
 			isExporting = false;
+		}
+	}
+
+	async function installApp() {
+		await promptForPwaInstall();
+		installReport = getInstallCapabilityReport();
+	}
+
+	function dismissInstallNudge() {
+		dismissedInstallMilestone = installMilestone;
+		try {
+			globalThis.localStorage?.setItem(
+				'apatosaurus:install-nudge-dismissed-milestone',
+				installMilestone
+			);
+		} catch {
+			// If localStorage is unavailable, the nudge can return next load.
+		}
+	}
+
+	function readDismissedInstallMilestone(): string | null {
+		try {
+			return globalThis.localStorage?.getItem('apatosaurus:install-nudge-dismissed-milestone') ?? null;
+		} catch {
+			return null;
 		}
 	}
 
@@ -285,6 +362,10 @@
 
 	<div class="grid gap-3 md:grid-cols-3">
 		<div class="rounded-box bg-base-200/60 p-3">
+			<div class="text-xs uppercase tracking-wide text-base-content/40">Last committed</div>
+			<div class="mt-1 text-sm font-medium">{formatDate(backupHealth.lastCommittedAt)}</div>
+		</div>
+		<div class="rounded-box bg-base-200/60 p-3">
 			<div class="text-xs uppercase tracking-wide text-base-content/40">Sync folder</div>
 			<div class="mt-1 text-sm font-medium">{selectedTarget?.folderDisplayPath ?? 'Not connected'}</div>
 		</div>
@@ -294,9 +375,49 @@
 		</div>
 		<div class="rounded-box bg-base-200/60 p-3">
 			<div class="text-xs uppercase tracking-wide text-base-content/40">Last synced</div>
-			<div class="mt-1 text-sm font-medium">{formatDate(selectedTarget?.lastSyncedAt)}</div>
+			<div class="mt-1 text-sm font-medium">{formatDate(backupHealth.lastSyncedAt)}</div>
+		</div>
+		<div class="rounded-box bg-base-200/60 p-3">
+			<div class="text-xs uppercase tracking-wide text-base-content/40">Last exported</div>
+			<div class="mt-1 text-sm font-medium">{formatDate(backupHealth.lastExportedAt)}</div>
 		</div>
 	</div>
+
+	{#if backupHealth.showBrowserOnlyPrompt}
+		<div class="alert alert-warning mt-3 text-sm">
+			<WarningCircle size={18} />
+			<div>
+				<div class="font-medium">Your committed data exists only in this browser.</div>
+				<div class="text-xs opacity-80">
+					{backupHealth.primaryAction === 'connect-folder'
+						? 'Connect a sync folder for continuous backup, or export a zip now.'
+						: 'Folder sync is unavailable here. Export a project zip for backup.'}
+				</div>
+			</div>
+			{#if backupHealth.primaryAction === 'connect-folder'}
+				<button type="button" class="btn btn-warning btn-sm" disabled={isConnecting} onclick={connectFolder}>
+					Connect folder
+				</button>
+			{:else}
+				<button type="button" class="btn btn-warning btn-sm" disabled={isExporting} onclick={runZipExport}>
+					Export zip
+				</button>
+			{/if}
+		</div>
+	{/if}
+
+	{#if showInstallNudge}
+		<div class="alert alert-info mt-3 text-sm">
+			<div>
+				<div class="font-medium">Install Apatosaurus for safer local work.</div>
+				<div class="text-xs opacity-80">
+					Installed apps retain storage and folder permissions more reliably in Chromium.
+				</div>
+			</div>
+			<button type="button" class="btn btn-info btn-sm" onclick={installApp}>Install app</button>
+			<button type="button" class="btn btn-ghost btn-sm" onclick={dismissInstallNudge}>Dismiss</button>
+		</div>
+	{/if}
 
 	<div class="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
 		{#if selectedTarget}
@@ -348,9 +469,6 @@
 				</button>
 			</div>
 		</div>
-		{#if lastExportedAt}
-			<div class="mt-2 text-xs text-base-content/50">Last exported {formatDate(lastExportedAt)}</div>
-		{/if}
 	</div>
 
 	{#if lastResult}

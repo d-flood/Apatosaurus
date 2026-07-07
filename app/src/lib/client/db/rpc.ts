@@ -394,6 +394,10 @@ export interface RevisionRpcMap {
 		};
 		response: TranscriptionCheckpointSummary[];
 	};
+	'revisions.getLatestProjectCommitTimestamp': {
+		request: { type: 'revisions.getLatestProjectCommitTimestamp'; projectId: string };
+		response: string | null;
+	};
 	'revisions.loadCommittedTranscriptionCheckpointPayload': {
 		request: {
 			type: 'revisions.loadCommittedTranscriptionCheckpointPayload';

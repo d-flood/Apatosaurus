@@ -8,7 +8,7 @@ This document tracks the status of all issues in the files-as-database epic: inv
 
 Overall status: `In Progress`
 
-Current issue: `12-capabilities-and-persistence` (implementation and verification complete)
+Current issue: `13-backup-health-and-install-nudge` (implementation and verification complete)
 
 Last updated: 2026-07-07
 
@@ -33,7 +33,7 @@ Last updated: 2026-07-07
 | 10 | `10-folder-import-unified-ingestion.md` | Not Started | 07, 09 |
 | 11 | `11-copy-with-lineage-and-refresh.md` | Completed | 06 |
 | 12 | `12-capabilities-and-persistence.md` | Completed | 06 |
-| 13 | `13-backup-health-and-install-nudge.md` | Not Started | 08, 12 |
+| 13 | `13-backup-health-and-install-nudge.md` | Completed | 08, 12 |
 | 14 | `14-project-first-navigation.md` | Not Started | 06 |
 | 15 | `15-entity-headers-and-lineage-display.md` | Not Started | 14 |
 | 16 | `16-onboarding-and-about-content.md` | Not Started | 12, 14 |
@@ -60,6 +60,9 @@ bun run test:unit -- --run
 
 | Date | Note |
 | --- | --- |
+| 2026-07-07 | Issue 13 completed. Added app-local `app/backup-metadata.json` export timestamp persistence, per-project backup health derivation for fresh/synced/exported/browser-only states, latest committed checkpoint timestamp RPC, Project Backup Panel last committed/synced/exported display, browser-only backup prompt with folder/export capability-correct actions, and PWA install prompt tracking/nudge with milestone dismissal. Whole-account zip export now records per-project export timestamps. Verification passed: focused backup metadata/health/capability tests, `bun run test:unit -- --run src/lib/client/sync`, required `bun run check && bun run test:unit -- --run` (402 passed), `bun run db:generate`, and `bun run db:check`. |
+| 2026-07-07 | Human validation resolved issue 13 blocker: approved persisting last-export timestamps as app-local rebuildable health metadata for option 1. Implementation resumed. |
+| 2026-07-07 | Issue 13 selected but blocked before implementation. The issue contract says last-exported comes from wherever issue 08 recorded it and forbids new health persistence beyond timestamps already recorded, but current zip export only returns `exportedAt` to live component state (`ProjectBackupPanel.svelte`, `routes/projects/+page.svelte`) and no persisted last-export timestamp exists in `project-zip-export.ts` or store settings. Needs human decision on whether to add export timestamp persistence now, relax the contract, or split that prerequisite into a separate issue. |
 | 2026-07-07 | Issue 12 completed. Added centralized client capability reporting for local-folder support, OPFS support/root access, storage persistence checks/requests, storage estimates, durability-warning decisions, and quota formatting. Startup now re-checks persistence, OPFS store writes request persistence at most once per session after meaningful default-backend writes, local folder and OPFS callers consume the capability module, and the Projects Local Storage card shows persistence, OPFS/folder support, storage estimate, quota warning, and a milestone-dismissible durability banner. Verification passed: `bun run test:unit -- --run src/lib/client/capabilities.spec.ts src/lib/client/store/opfs-store.spec.ts`, `bun run db:generate`, `bun run db:check`, and required `bun run check && bun run test:unit -- --run` (397 passed). |
 | 2026-07-07 | Issue 11 completed. Add-from-project now creates a new project-owned transcription with lineage through the file-backed committed checkpoint path, writing history, primary, TEI, manifest, and index head. Refresh now requires dirty confirmation, preserves local dirty state as a checkpoint before replacement, commits the refreshed source through canonical files, and no-ops without writes when already current. Verification passed: `bun run db:generate`, `bun run db:check`, `bun run test:unit -- --run src/lib/client/db/repositories`, `bun run check`, focused `src/lib/client/db/repositories/projects.spec.ts`, and one full `bun run check && bun run test:unit -- --run` run before the final no-op test addition. A later full browser rerun after the no-op test passed all server tests but hit the existing Chromium browser-mode flake/timeouts (`inspector-carriers` dynamic import once, then `index-rebuild-invariant.svelte.spec.ts` timeout on rerun); the focused `inspector-carriers` rerun passed. |
 | 2026-07-07 | Issue 09 completed. The prior full-suite Chromium dynamic-import blocker is resolved/accepted as no longer blocking this issue. Staged zip import is now complete with all-or-nothing staging cleanup, path-traversal rejection, migrate-on-read validation before placement, corrupt-file rollback, explicit same-id collision handling for replace/import-as-copy, and index rebuild after placement. Focused coverage includes export/import round-trip, collision replace/copy, corrupt-file rollback, traversal rejection, and stale staging cleanup. Verification completed with the issue 09 focused suites, store/sync acceptance suite, type checking, and baseline status now accepted for completion. |
