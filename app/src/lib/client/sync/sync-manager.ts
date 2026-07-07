@@ -229,6 +229,12 @@ interface LocalEntityState {
 	hasCommittedHead: boolean;
 }
 
+export interface ProjectArchiveFile {
+	path: string;
+	storePath: string;
+	content: string;
+}
+
 interface RemoteEntityState {
 	metadata: CloudFileMetadata;
 	primary: ProjectTranscriptionCloudFile | CollationCloudFile;
@@ -687,6 +693,17 @@ export async function backupProject(
 	return result;
 }
 
+export async function listProjectArchiveFiles(
+	db: DbExecutor,
+	projectId: string,
+	options: SyncManagerOptions & { includeDrafts?: boolean } = {}
+): Promise<ProjectArchiveFile[]> {
+	const root = await loadProjectStoreRoot(db, projectId);
+	const files: LocalMirrorFile[] = [];
+	await collectLocalMirrorFiles(root, '', files, options.storeOptions ?? {}, options.includeDrafts ?? false);
+	return files.map(file => ({ path: file.path, storePath: file.storePath, content: file.content }));
+}
+
 async function updateLegacyCloudProjectFolderSyncState(
 	db: Kysely<Database>,
 	input: { projectId: string; connectionId: string; lastFullySyncedAt: string }
@@ -1038,7 +1055,7 @@ async function listLocalProjectMirrorFiles(
 ): Promise<LocalMirrorFile[]> {
 	const root = await loadProjectStoreRoot(db, projectId);
 	const files: LocalMirrorFile[] = [];
-	await collectLocalMirrorFiles(root, '', files, storeOptions);
+	await collectLocalMirrorFiles(root, '', files, storeOptions, false);
 	return files.sort((left, right) => mirrorWriteOrder(left.path) - mirrorWriteOrder(right.path) || left.path.localeCompare(right.path));
 }
 
@@ -1056,7 +1073,8 @@ async function collectLocalMirrorFiles(
 	storePath: string,
 	relativePath: string,
 	files: LocalMirrorFile[],
-	storeOptions: StoreOperationOptions
+	storeOptions: StoreOperationOptions,
+	includeDrafts: boolean
 ): Promise<void> {
 	let entries: StoreDirectoryEntry[];
 	try {
@@ -1069,10 +1087,10 @@ async function collectLocalMirrorFiles(
 		const childRelativePath = joinStorePath(relativePath, entry.name);
 		const childStorePath = joinStorePath(storePath, entry.name);
 		if (entry.kind === 'directory') {
-			await collectLocalMirrorFiles(childStorePath, childRelativePath, files, storeOptions);
+			await collectLocalMirrorFiles(childStorePath, childRelativePath, files, storeOptions, includeDrafts);
 			continue;
 		}
-		if (!shouldMirrorProjectFile(childRelativePath)) continue;
+		if (!shouldMirrorProjectFile(childRelativePath, includeDrafts)) continue;
 		const content = await readTextFile(childStorePath, storeOptions);
 		files.push({
 			path: childRelativePath,
@@ -1283,9 +1301,10 @@ function mapSyncFileFingerprint(
 	};
 }
 
-function shouldMirrorProjectFile(path: string): boolean {
+function shouldMirrorProjectFile(path: string, includeDrafts = false): boolean {
 	const normalized = normalizeSlashes(path);
-	if (!normalized || normalized.includes('.tmp-') || normalized.endsWith('.working.json')) return false;
+	if (!normalized || normalized.includes('.tmp-')) return false;
+	if (normalized.endsWith('.working.json')) return includeDrafts;
 	return normalized.endsWith('.json') || normalized.endsWith('.tei.xml');
 }
 

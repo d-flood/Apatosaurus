@@ -5,6 +5,7 @@
 	import {
 		backupProject,
 		deriveProjectBackupSummary,
+		exportProjectZip,
 		forkProject,
 		subscribeLocalDbInvalidations,
 	} from '$lib/client/db/client';
@@ -20,6 +21,7 @@
 		updateSyncTargetLastSyncedAt,
 		type SyncTargetRecord,
 	} from '$lib/client/store';
+	import { projectBackupCapabilityMessage } from '$lib/client/sync/project-zip-export';
 	import type {
 		BackupItemState,
 		ProjectBackupResult,
@@ -42,12 +44,16 @@
 	let isConnecting = $state(false);
 	let isDisconnecting = $state(false);
 	let isSyncing = $state(false);
+	let isExporting = $state(false);
 	let isForking = $state(false);
+	let includeDraftsInExport = $state(false);
+	let lastExportedAt = $state<string | null>(null);
 	let error = $state<string | null>(null);
 	let loadRunId = 0;
 
 	let selectedTarget = $derived(targets.find(target => target.enabled) ?? targets[0] ?? null);
 	let folderSupported = $derived(isLocalFolderProviderSupported());
+	let backupCapability = $derived(projectBackupCapabilityMessage(folderSupported));
 	let statusLabel = $derived.by(() => {
 		if (!selectedTarget) return 'No sync folder connected';
 		if (lastResult?.uiState === 'conflict requires resolution') return 'Conflict requires resolution';
@@ -183,6 +189,31 @@
 		}
 	}
 
+	async function runZipExport() {
+		if (!projectId || isExporting) return;
+		isExporting = true;
+		error = null;
+		try {
+			const result = await exportProjectZip(projectId, includeDraftsInExport);
+			downloadZip(result.fileName, result.bytes);
+			lastExportedAt = result.exportedAt;
+		} catch (err) {
+			error = err instanceof Error ? err.message : 'Failed to export project zip.';
+		} finally {
+			isExporting = false;
+		}
+	}
+
+	function downloadZip(fileName: string, bytes: Uint8Array) {
+		const blob = new Blob([bytes.buffer as ArrayBuffer], { type: 'application/zip' });
+		const url = URL.createObjectURL(blob);
+		const link = document.createElement('a');
+		link.href = url;
+		link.download = fileName;
+		link.click();
+		URL.revokeObjectURL(url);
+	}
+
 	function syncContext(target: SyncTargetRecord): SyncProjectContext {
 		return {
 			projectId,
@@ -248,7 +279,7 @@
 	{#if !folderSupported}
 		<div class="alert alert-warning mb-3 text-sm">
 			<WarningCircle size={18} />
-			<span>Folder sync requires a browser with the File System Access API. Use zip export/import on this browser.</span>
+			<span>{backupCapability.message}</span>
 		</div>
 	{/if}
 
@@ -296,6 +327,30 @@
 			{#if isForking}<span class="loading loading-spinner loading-xs"></span>{/if}
 			Fork project
 		</button>
+	</div>
+
+	<div class="mt-4 rounded-box border border-base-300/60 bg-base-200/40 p-3">
+		<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+			<div>
+				<div class="text-sm font-medium">Zip export</div>
+				<div class="text-xs text-base-content/60">
+					Downloads committed project files for backup in any browser.
+				</div>
+			</div>
+			<div class="flex flex-col gap-2 sm:items-end">
+				<label class="label cursor-pointer justify-start gap-2 py-0 text-xs">
+					<input type="checkbox" class="checkbox checkbox-xs" bind:checked={includeDraftsInExport} />
+					<span>Include local drafts</span>
+				</label>
+				<button type="button" class="btn btn-outline btn-sm" disabled={isExporting} onclick={runZipExport}>
+					{#if isExporting}<span class="loading loading-spinner loading-xs"></span>{/if}
+					Export project zip
+				</button>
+			</div>
+		</div>
+		{#if lastExportedAt}
+			<div class="mt-2 text-xs text-base-content/50">Last exported {formatDate(lastExportedAt)}</div>
+		{/if}
 	</div>
 
 	{#if lastResult}

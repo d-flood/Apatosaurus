@@ -40,6 +40,7 @@
 	import { ensureLocalDbRuntime } from '$lib/client/db/runtime';
 	import {
 		deriveProjectBackupSummary,
+		exportAllProjectsZip,
 		rebuildLocalIndex,
 		subscribeLocalDbInvalidations,
 	} from '$lib/client/db/client';
@@ -91,7 +92,10 @@
 	let isSavingSettings = $state(false);
 	let isSavingTranscriptions = $state(false);
 	let isRepairingIndex = $state(false);
+	let isExportingAllProjects = $state(false);
 	let error = $state<string | null>(null);
+	let exportAllError = $state<string | null>(null);
+	let lastAllProjectsExportedAt = $state<string | null>(null);
 	let indexRepairError = $state<string | null>(null);
 	let indexRepairReport = $state<IndexRebuildReport | null>(null);
 	let bootstrapRunId = 0;
@@ -149,7 +153,8 @@
 			isSavingMetadata ||
 			isSavingSettings ||
 			isSavingTranscriptions ||
-			isRepairingIndex
+			isRepairingIndex ||
+			isExportingAllProjects
 	);
 
 	function logProjects(
@@ -623,6 +628,35 @@
 		} finally {
 			isRepairingIndex = false;
 		}
+	}
+
+	async function exportAllProjectArchives() {
+		if (isExportingAllProjects) return;
+		isExportingAllProjects = true;
+		exportAllError = null;
+		try {
+			const result = await exportAllProjectsZip(false);
+			downloadZip(result.fileName, result.bytes);
+			lastAllProjectsExportedAt = result.exportedAt;
+		} catch (err) {
+			exportAllError = err instanceof Error ? err.message : 'Failed to export all projects.';
+		} finally {
+			isExportingAllProjects = false;
+		}
+	}
+
+	function downloadZip(fileName: string, bytes: Uint8Array) {
+		const blob = new Blob([bytes.buffer as ArrayBuffer], { type: 'application/zip' });
+		const url = URL.createObjectURL(blob);
+		const link = document.createElement('a');
+		link.href = url;
+		link.download = fileName;
+		link.click();
+		URL.revokeObjectURL(url);
+	}
+
+	function formatDate(value: string): string {
+		return new Date(value).toLocaleString();
 	}
 
 	async function saveMetadata() {
@@ -1145,6 +1179,34 @@
 						<span class="badge badge-ghost badge-sm">
 							Folder sync mirrors committed files only
 						</span>
+					</div>
+
+					<div class="mt-4 rounded-box border border-base-300/60 bg-base-200/40 p-3">
+						<h3 class="font-serif text-sm font-semibold">Whole-Account Export</h3>
+						<p class="mt-1 text-xs leading-relaxed text-base-content/55">
+							Download one zip with a top-level folder for each project. Draft files stay local.
+						</p>
+						<button
+							type="button"
+							class="btn btn-outline btn-sm mt-3 w-full"
+							disabled={isExportingAllProjects || projects.length === 0}
+							onclick={exportAllProjectArchives}
+						>
+							{#if isExportingAllProjects}
+								<span class="loading loading-spinner loading-xs"></span>
+								Exporting...
+							{:else}
+								Export all projects
+							{/if}
+						</button>
+						{#if exportAllError}
+							<div class="alert alert-error mt-3 py-2 text-xs">{exportAllError}</div>
+						{/if}
+						{#if lastAllProjectsExportedAt}
+							<div class="mt-2 text-xs text-base-content/50">
+								Last exported {formatDate(lastAllProjectsExportedAt)}
+							</div>
+						{/if}
 					</div>
 
 					<div class="divider my-4"></div>

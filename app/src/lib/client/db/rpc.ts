@@ -5,6 +5,7 @@ import type {
 	UpsertCloudConnectionInput,
 } from './repositories/cloud-connections';
 import type { ProjectBackupHealth } from '../sync/backup-health';
+import type { ProjectZipExportResult } from '../sync/project-zip-export';
 import type { RemoveLocalProjectInput, RemoveLocalProjectResult } from './repositories/project-removal';
 import type {
 	ProjectManifestComparison,
@@ -472,6 +473,14 @@ export interface CloudConnectionRpcMap {
 			folder?: CloudProjectFolderRecord | null;
 		};
 		response: ProjectBackupResult;
+	};
+	'projectBackup.exportZip': {
+		request: { type: 'projectBackup.exportZip'; projectId: string; includeDrafts?: boolean };
+		response: ProjectZipExportResult;
+	};
+	'projectBackup.exportAllZip': {
+		request: { type: 'projectBackup.exportAllZip'; includeDrafts?: boolean };
+		response: ProjectZipExportResult;
 	};
 	'cloudProjects.listCandidates': {
 		request: {

@@ -78,6 +78,7 @@ import {
 	downloadAndCompareProjectManifest,
 } from '$lib/client/sync/sync-manager';
 import { verifyRemoteProjectBackupHealth } from '$lib/client/sync/backup-health';
+import { exportAllProjectsZip, exportProjectZip } from '$lib/client/sync/project-zip-export';
 import {
 	importCloudProject,
 	listCloudProjectCandidates,
@@ -223,6 +224,14 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 			domain: request.reference.entityType === 'collation' ? 'collations' : 'transcriptions',
 		});
 		return result;
+	}
+	if (request.type === 'projectBackup.exportZip') {
+		return exportProjectZip(getKyselyDb(), request.projectId, {
+			includeDrafts: request.includeDrafts ?? false,
+		});
+	}
+	if (request.type === 'projectBackup.exportAllZip') {
+		return exportAllProjectsZip(getKyselyDb(), { includeDrafts: request.includeDrafts ?? false });
 	}
 	if (request.type === 'cloudProjects.listCandidates') {
 		const db = getKyselyDb();
