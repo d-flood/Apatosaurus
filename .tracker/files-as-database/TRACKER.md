@@ -8,7 +8,7 @@ This document tracks the status of all issues in the files-as-database epic: inv
 
 Overall status: `In Progress`
 
-Current issue: `09-zip-import-staged-ingestion` (implementation and verification complete)
+Current issue: `11-copy-with-lineage-and-refresh` (implementation and verification complete)
 
 Last updated: 2026-07-07
 
@@ -31,7 +31,7 @@ Last updated: 2026-07-07
 | 08 | `08-zip-export.md` | Completed | 06 |
 | 09 | `09-zip-import-staged-ingestion.md` | Completed | 08 |
 | 10 | `10-folder-import-unified-ingestion.md` | Not Started | 07, 09 |
-| 11 | `11-copy-with-lineage-and-refresh.md` | Not Started | 06 |
+| 11 | `11-copy-with-lineage-and-refresh.md` | Completed | 06 |
 | 12 | `12-capabilities-and-persistence.md` | Not Started | 06 |
 | 13 | `13-backup-health-and-install-nudge.md` | Not Started | 08, 12 |
 | 14 | `14-project-first-navigation.md` | Not Started | 06 |
@@ -60,6 +60,7 @@ bun run test:unit -- --run
 
 | Date | Note |
 | --- | --- |
+| 2026-07-07 | Issue 11 completed. Add-from-project now creates a new project-owned transcription with lineage through the file-backed committed checkpoint path, writing history, primary, TEI, manifest, and index head. Refresh now requires dirty confirmation, preserves local dirty state as a checkpoint before replacement, commits the refreshed source through canonical files, and no-ops without writes when already current. Verification passed: `bun run db:generate`, `bun run db:check`, `bun run test:unit -- --run src/lib/client/db/repositories`, `bun run check`, focused `src/lib/client/db/repositories/projects.spec.ts`, and one full `bun run check && bun run test:unit -- --run` run before the final no-op test addition. A later full browser rerun after the no-op test passed all server tests but hit the existing Chromium browser-mode flake/timeouts (`inspector-carriers` dynamic import once, then `index-rebuild-invariant.svelte.spec.ts` timeout on rerun); the focused `inspector-carriers` rerun passed. |
 | 2026-07-07 | Issue 09 completed. The prior full-suite Chromium dynamic-import blocker is resolved/accepted as no longer blocking this issue. Staged zip import is now complete with all-or-nothing staging cleanup, path-traversal rejection, migrate-on-read validation before placement, corrupt-file rollback, explicit same-id collision handling for replace/import-as-copy, and index rebuild after placement. Focused coverage includes export/import round-trip, collision replace/copy, corrupt-file rollback, traversal rejection, and stale staging cleanup. Verification completed with the issue 09 focused suites, store/sync acceptance suite, type checking, and baseline status now accepted for completion. |
 | 2026-07-07 | Issue 09 implementation checkpoint. Added store-backed staged zip import with staging cleanup, path-traversal rejection, migrate-on-read validation before placement, all-or-nothing rollback on corrupt files, explicit same-id collision handling for replace/import-as-copy, and index rebuild after placement. Added focused import tests for export/import round-trip, collision replace/copy, corrupt-file rollback, traversal rejection, and stale staging cleanup. Verification passed: `bun run test:unit -- --run src/lib/client/sync/project-zip-import.spec.ts src/lib/client/sync/project-zip-export.spec.ts`, `bun run check`, `bun run test:unit -- --run src/lib/client/store src/lib/client/sync`, and focused rerun of `src/lib/client/db/index-rebuild-invariant.svelte.spec.ts src/lib/components/transcriptionEditor/inspector-carriers.svelte.spec.ts`. Full baseline was temporarily blocked by intermittent Chromium dynamic import failure in `inspector-carriers.svelte.spec.ts`; see the later completion note resolving that blocker. |
 | 2026-07-07 | Issue 08 completed. Added store-only zip export for per-project and all-project backups, reusing the project mirror file enumeration so committed canonical files and TEI are included, temp/app files are excluded, and working drafts are included only behind the explicit drafts toggle. Added DB-worker/client RPCs, project backup panel export controls, whole-account export from the Projects storage card, and non-Chromium messaging that presents zip export as the backup path. Verification passed: focused zip export tests, `bun run test:unit -- --run src/lib/client/store src/lib/client/sync`, `bun run db:generate`, `bun run db:check`, `bun run check`, and full `bun run test:unit -- --run` (386 passed). |

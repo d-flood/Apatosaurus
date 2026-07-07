@@ -26,7 +26,10 @@ import {
 	type TranscriptionCheckpointPayload,
 } from './revisions';
 import { ensureDefaultProject, resolveProjectStorageSlug } from './project-bootstrap';
-import { getProjectTranscriptionCheckpointStatusWithFiles } from './transcription-files';
+import {
+	createCommittedTranscriptionCheckpointWithFiles,
+	getProjectTranscriptionCheckpointStatusWithFiles,
+} from './transcription-files';
 import { replaceTranscriptionVerseIndexRows } from './transcriptions';
 
 export { ensureDefaultProject } from './project-bootstrap';
@@ -547,7 +550,68 @@ export async function refreshProjectTranscription(
 	input: RefreshProjectTranscriptionInput,
 	options: ProjectContentLoadOptions = {}
 ): Promise<ProjectTranscriptionStatus> {
-	return db.transaction().execute(async trx => {
+	const target = await db
+		.selectFrom('project_transcriptions')
+		.innerJoin('transcriptions', 'transcriptions.id', 'project_transcriptions.transcription_id')
+		.select([
+			'project_transcriptions.id as project_transcription_id',
+			'project_transcriptions.project_id as project_id',
+			'project_transcriptions.transcription_id as transcription_id',
+			'transcriptions.origin_revision_id as origin_revision_id',
+			'transcriptions.origin_content_hash as origin_content_hash',
+		])
+		.where('project_transcriptions.id', '=', input.projectTranscriptionId)
+		.executeTakeFirst();
+	if (!target) {
+		throw new Error(`Project transcription ${input.projectTranscriptionId} was not found.`);
+	}
+	const targetTranscriptionId = requireId(target.transcription_id, 'project-owned transcription');
+
+	const targetCheckpointStatus = await getProjectTranscriptionCheckpointStatusWithFiles(
+		db,
+		input.projectTranscriptionId,
+		fileBackedLoadOptions(options)
+	);
+	if (targetCheckpointStatus.dirtyToCheckpoint && !input.allowReplaceDirty) {
+		throw new RefreshDirtyProjectTranscriptionError(input.projectTranscriptionId);
+	}
+
+	const loaded = await loadCommittedTranscriptionCheckpointPayload(
+		db,
+		input.sourceTranscriptionId,
+		input.sourceCheckpointId,
+		options.storeOptions
+	);
+	const sourceHead = await getTranscriptionCommittedHead(db, input.sourceTranscriptionId);
+	if (
+		!sourceHead ||
+		sourceHead.revisionId !== loaded.id ||
+		sourceHead.contentHash !== loaded.contentHash
+	) {
+		throw new Error(
+			'Source checkpoint is not the current committed head. Only the latest committed source version is supported.'
+		);
+	}
+	if (
+		!targetCheckpointStatus.dirtyToCheckpoint &&
+		target.origin_revision_id === loaded.id &&
+		target.origin_content_hash === loaded.contentHash
+	) {
+		return getProjectTranscriptionStatus(db, input.projectTranscriptionId, options);
+	}
+	if (targetCheckpointStatus.dirtyToCheckpoint) {
+		await createCommittedTranscriptionCheckpointWithFiles(
+			db,
+			{
+				projectTranscriptionId: input.projectTranscriptionId,
+				commitMessage: 'Local state before refresh from source',
+				createdAt: input.updatedAt,
+			},
+			options.storeOptions
+		);
+	}
+
+	await db.transaction().execute(async trx => {
 		const targetLink = await trx
 			.selectFrom('project_transcriptions')
 			.select(['id', 'project_id', 'transcription_id'])
@@ -561,32 +625,6 @@ export async function refreshProjectTranscription(
 			targetLink.transcription_id,
 			'project-owned transcription'
 		);
-
-		const targetCheckpointStatus = await getProjectTranscriptionCheckpointStatusWithFiles(
-			trx,
-			input.projectTranscriptionId,
-			fileBackedLoadOptions(options)
-		);
-		if (targetCheckpointStatus.dirtyToCheckpoint && !input.allowReplaceDirty) {
-			throw new RefreshDirtyProjectTranscriptionError(input.projectTranscriptionId);
-		}
-
-		const loaded = await loadCommittedTranscriptionCheckpointPayload(
-			trx,
-			input.sourceTranscriptionId,
-			input.sourceCheckpointId,
-			options.storeOptions
-		);
-		const sourceHead = await getTranscriptionCommittedHead(trx, input.sourceTranscriptionId);
-		if (
-			!sourceHead ||
-			sourceHead.revisionId !== loaded.id ||
-			sourceHead.contentHash !== loaded.contentHash
-		) {
-			throw new Error(
-				'Source checkpoint is not the current committed head. Only the latest committed source version is supported.'
-			);
-		}
 
 		const sourceRow = await trx
 			.selectFrom('transcriptions')
@@ -633,9 +671,17 @@ export async function refreshProjectTranscription(
 			.set({ updated_at: now })
 			.where('id', '=', projectId)
 			.execute();
-
-		return getProjectTranscriptionStatus(trx, input.projectTranscriptionId, options);
 	});
+	await createCommittedTranscriptionCheckpointWithFiles(
+		db,
+		{
+			projectTranscriptionId: input.projectTranscriptionId,
+			commitMessage: 'Refresh from source',
+			createdAt: input.updatedAt,
+		},
+		options.storeOptions
+	);
+	return getProjectTranscriptionStatus(db, input.projectTranscriptionId, options);
 }
 
 interface ForkedProjectTranscriptionIds {
@@ -1120,7 +1166,7 @@ export async function addProjectTranscriptionFromProject(
 	input: AddProjectTranscriptionFromProjectInput,
 	options: ProjectContentLoadOptions = {}
 ): Promise<{ projectTranscriptionId: string; projectOwnedTranscriptionId: string }> {
-	return db.transaction().execute(async trx => {
+	const created = await db.transaction().execute(async trx => {
 		const sourceLink = await trx
 			.selectFrom('project_transcriptions')
 			.innerJoin(
@@ -1222,6 +1268,16 @@ export async function addProjectTranscriptionFromProject(
 			projectOwnedTranscriptionId: targetTranscriptionId,
 		};
 	});
+	await createCommittedTranscriptionCheckpointWithFiles(
+		db,
+		{
+			projectTranscriptionId: created.projectTranscriptionId,
+			commitMessage: 'Add from project',
+			createdAt: input.createdAt,
+		},
+		options.storeOptions
+	);
+	return created;
 }
 
 export interface ProjectTranscriptionSourceCandidate {

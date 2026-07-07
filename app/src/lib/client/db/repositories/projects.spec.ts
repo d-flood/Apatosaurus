@@ -2,12 +2,24 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import type { StoredTranscriptionDocument } from '$lib/client/transcription/content';
 import {
+	PROJECT_MANIFEST_FORMAT,
+	PROJECT_TRANSCRIPTION_FORMAT,
 	StoreMoveUnavailableError,
+	TRANSCRIPTION_CHECKPOINT_FORMAT,
 	normalizeStorePath,
+	projectManifestFile,
+	readCanonicalDocument,
+	readTextFile,
 	storePathBasename,
 	storePathDirname,
+	transcriptionCheckpointFile,
+	transcriptionPrimaryFile,
+	transcriptionTeiFile,
 	type StoreBackend,
 	type StoreBackendDirectoryEntry,
+	type ProjectManifestPayload,
+	type ProjectTranscriptionPayload,
+	type TranscriptionCheckpointPayload,
 } from '$lib/client/store';
 import { upsertCloudConnection } from './cloud-connections';
 import { createCollation } from './collations';
@@ -557,8 +569,8 @@ describe('projects repository', () => {
 		expect(committedCheckpoints.map(row => row.id)).toEqual(['src-cp-1']);
 		expect(refreshed.projectTranscriptionId).toBe(projectTranscriptionBId);
 		expect(refreshed.projectOwnedTranscriptionId).toBe(snapshotBId);
-		expect(refreshed.commitState).toBe('never-committed');
-		expect(refreshed.currentCheckpoint).toBeNull();
+		expect(refreshed.commitState).toBe('clean');
+		expect(refreshed.currentCheckpoint?.revisionId).toBeTruthy();
 		expect(refreshedVerseRows.map(row => row.verse_identifier)).toEqual(['Romans 1:2']);
 		expect(refreshedRow).toMatchObject({
 			id: snapshotBId,
@@ -568,8 +580,8 @@ describe('projects repository', () => {
 			origin_transcription_id: snapshotAId,
 			origin_revision_id: 'src-cp-1',
 			origin_content_hash: sourceCheckpoint.contentHash,
-			current_revision_id: '',
-			current_content_hash: '',
+			current_revision_id: refreshed.currentCheckpoint?.revisionId,
+			current_content_hash: refreshed.currentCheckpoint?.contentHash,
 			updated_at: '2026-06-20T12:00:00.000Z',
 		});
 		expect(refreshedRow.content_json).not.toBe('');
@@ -581,6 +593,33 @@ describe('projects repository', () => {
 			transcription_id: snapshotBId,
 		});
 		expect(sourceVerseRows.map(row => row.verse_identifier)).toEqual(['Romans 1:2']);
+		const targetProject = await getProject(harness.db, 'project-b');
+		if (!targetProject || !refreshed.currentCheckpoint) throw new Error('missing refresh files');
+		await expect(
+			readTextFile(
+				transcriptionCheckpointFile(
+					targetProject.storageSlug,
+					projectTranscriptionBId,
+					refreshed.currentCheckpoint.revisionId
+				),
+				storeOptions
+			)
+		).resolves.toContain('Refresh from source');
+		await expect(
+			readTextFile(
+				transcriptionPrimaryFile(targetProject.storageSlug, projectTranscriptionBId),
+				storeOptions
+			)
+		).resolves.toContain(refreshed.currentCheckpoint.revisionId);
+		await expect(
+			readTextFile(
+				transcriptionTeiFile(targetProject.storageSlug, projectTranscriptionBId),
+				storeOptions
+			)
+		).resolves.toContain('<TEI');
+		await expect(
+			readTextFile(projectManifestFile(targetProject.storageSlug), storeOptions)
+		).resolves.toContain(refreshed.currentCheckpoint.revisionId);
 	});
 
 	it('does not alter other project transcriptions or collation witnesses during refresh', async () => {
@@ -730,8 +769,8 @@ describe('projects repository', () => {
 			{ storeOptions }
 		);
 
-		expect(refreshedWithConfirmation.commitState).toBe('dirty');
-		expect(refreshedWithConfirmation.currentCheckpoint?.revisionId).toBe('target-cp-1');
+		expect(refreshedWithConfirmation.commitState).toBe('clean');
+		expect(refreshedWithConfirmation.currentCheckpoint?.revisionId).not.toBe('target-cp-1');
 	});
 
 	it('blocks refresh when the source checkpoint is missing or not the current committed head', async () => {
@@ -818,8 +857,64 @@ describe('projects repository', () => {
 
 		expect(refreshedVerseRows.map(row => row.verse_identifier)).toEqual(['Romans 1:3']);
 		expect(refreshed.immediateSource?.sourceRevisionId).toBe('src-cp-2');
-		expect(refreshed.currentCheckpoint?.revisionId).toBe('target-cp-1');
-		expect(refreshed.commitState).toBe('dirty');
+		expect(refreshed.currentCheckpoint?.revisionId).not.toBe('target-cp-1');
+		expect(refreshed.commitState).toBe('clean');
+	});
+
+	it('does not write files or checkpoints when refresh source is already current', async () => {
+		const backend = new MemoryStoreBackend();
+		const storeOptions = { backend };
+		await createTranscription(harness.db, {
+			...baseTranscription('tx-1', '01'),
+			document: documentWithVerses(['Romans 1:1']),
+		});
+		await createProject(harness.db, { id: 'project-a', name: 'Project A' });
+		await createProject(harness.db, { id: 'project-b', name: 'Project B' });
+
+		const [snapshotAId] = await syncProjectTranscriptionIds(harness.db, 'project-a', ['tx-1']);
+		const projectTranscriptionAId = await getProjectTranscriptionLinkId(snapshotAId);
+		await createCommittedTranscriptionCheckpointWithFiles(
+			harness.db,
+			{ projectTranscriptionId: projectTranscriptionAId, checkpointId: 'src-cp-1' },
+			storeOptions
+		);
+		const copied = await addProjectTranscriptionFromProject(
+			harness.db,
+			{
+				targetProjectId: 'project-b',
+				sourceProjectTranscriptionId: projectTranscriptionAId,
+			},
+			{ storeOptions }
+		);
+		const copiedHead = await getTranscriptionCommittedHead(
+			harness.db,
+			copied.projectOwnedTranscriptionId
+		);
+		const fileSnapshot = new Map(backend.files);
+		const checkpointRowsBefore = await harness.db
+			.selectFrom('transcription_checkpoints')
+			.select(['id'])
+			.where('transcription_id', '=', copied.projectOwnedTranscriptionId)
+			.execute();
+
+		const refreshed = await refreshProjectTranscription(
+			harness.db,
+			{
+				projectTranscriptionId: copied.projectTranscriptionId,
+				sourceTranscriptionId: snapshotAId,
+				sourceCheckpointId: 'src-cp-1',
+			},
+			{ storeOptions }
+		);
+
+		const checkpointRowsAfter = await harness.db
+			.selectFrom('transcription_checkpoints')
+			.select(['id'])
+			.where('transcription_id', '=', copied.projectOwnedTranscriptionId)
+			.execute();
+		expect(refreshed.currentCheckpoint?.revisionId).toBe(copiedHead?.revisionId);
+		expect(checkpointRowsAfter).toEqual(checkpointRowsBefore);
+		expect(backend.files).toEqual(fileSnapshot);
 	});
 
 	it('adds a committed transcription from another project into the current project with origin metadata', async () => {
@@ -899,8 +994,8 @@ describe('projects repository', () => {
 			origin_transcription_id: snapshotAId,
 			origin_revision_id: 'src-cp-1',
 			origin_content_hash: sourceCheckpoint.contentHash,
-			current_revision_id: '',
-			current_content_hash: '',
+			current_revision_id: expect.any(String),
+			current_content_hash: expect.stringMatching(/^sha256:/),
 		});
 		expect(JSON.parse(targetRow.content_json)).toEqual(JSON.parse(sourceRow.content_json));
 		expect(targetVerseRows.map(row => row.verse_identifier)).toEqual(['Romans 1:2']);
@@ -914,6 +1009,70 @@ describe('projects repository', () => {
 		expect(sourceRow.current_revision_id).toBe('src-cp-1');
 		expect(sourceVerseRows.map(row => row.verse_identifier)).toEqual(['Romans 1:2']);
 		expect(sourceLinkCount).toHaveLength(1);
+		const targetProject = await getProject(harness.db, 'project-b');
+		if (!targetProject) throw new Error('target project was not found');
+		const historyRaw = await readTextFile(
+			transcriptionCheckpointFile(
+				targetProject.storageSlug,
+				result.projectTranscriptionId,
+				targetRow.current_revision_id
+			),
+			storeOptions
+		);
+		const primaryRaw = await readTextFile(
+			transcriptionPrimaryFile(targetProject.storageSlug, result.projectTranscriptionId),
+			storeOptions
+		);
+		const manifestRaw = await readTextFile(projectManifestFile(targetProject.storageSlug), storeOptions);
+		const history = await readCanonicalDocument<TranscriptionCheckpointPayload>(
+			TRANSCRIPTION_CHECKPOINT_FORMAT,
+			historyRaw
+		);
+		const primary = await readCanonicalDocument<ProjectTranscriptionPayload>(
+			PROJECT_TRANSCRIPTION_FORMAT,
+			primaryRaw
+		);
+		const manifest = await readCanonicalDocument<ProjectManifestPayload>(
+			PROJECT_MANIFEST_FORMAT,
+			manifestRaw
+		);
+		expect(history).toMatchObject({
+			ok: true,
+			payload: { checkpoint_id: targetRow.current_revision_id, entity_id: result.projectTranscriptionId },
+		});
+		expect(primary).toMatchObject({
+			ok: true,
+			payload: {
+				project_transcription_id: result.projectTranscriptionId,
+				id: result.projectOwnedTranscriptionId,
+				origin: {
+					source_project_id: 'project-a',
+					source_transcription_id: snapshotAId,
+					source_revision_id: 'src-cp-1',
+					source_content_hash: sourceCheckpoint.contentHash,
+				},
+			},
+		});
+		expect(manifest).toMatchObject({
+			ok: true,
+			payload: {
+				transcriptions: [
+					{
+						project_transcription_id: result.projectTranscriptionId,
+						current_revision: {
+							id: targetRow.current_revision_id,
+							content_hash: targetRow.current_content_hash,
+						},
+					},
+				],
+			},
+		});
+		await expect(
+			readTextFile(
+				transcriptionTeiFile(targetProject.storageSlug, result.projectTranscriptionId),
+				storeOptions
+			)
+		).resolves.toContain('<TEI');
 	});
 
 	it('does not mutate the source project during add-from-project', async () => {
