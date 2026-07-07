@@ -8,7 +8,7 @@ This document tracks the status of all issues in the files-as-database epic: inv
 
 Overall status: `In Progress`
 
-Current issue: `13-backup-health-and-install-nudge` (implementation and verification complete)
+Current issue: `14-project-first-navigation` (implementation and verification complete)
 
 Last updated: 2026-07-07
 
@@ -34,7 +34,7 @@ Last updated: 2026-07-07
 | 11 | `11-copy-with-lineage-and-refresh.md` | Completed | 06 |
 | 12 | `12-capabilities-and-persistence.md` | Completed | 06 |
 | 13 | `13-backup-health-and-install-nudge.md` | Completed | 08, 12 |
-| 14 | `14-project-first-navigation.md` | Not Started | 06 |
+| 14 | `14-project-first-navigation.md` | Completed | 06 |
 | 15 | `15-entity-headers-and-lineage-display.md` | Not Started | 14 |
 | 16 | `16-onboarding-and-about-content.md` | Not Started | 12, 14 |
 | 17 | `17-collation-single-derivation-path.md` | Not Started | 05 |
@@ -60,6 +60,7 @@ bun run test:unit -- --run
 
 | Date | Note |
 | --- | --- |
+| 2026-07-07 | Issue 14 completed. `/projects` is now the project-first hub with Transcriptions, Collations, Settings, and Backup and Sync sections; project-scoped action links preselect the active project for new transcription, TEI/blank creation, IGNTP import, and new collation flows. Legacy unowned list routes redirect to project hub sections while editor deep links remain unchanged. Top navigation now points to project hub sections. `ProjectUserManagementStub.svelte` remains in the Settings section. Verification passed: focused `src/routes/project-first-navigation.spec.ts`, required `bun run check && bun run test:unit -- --run` (406 passed), `bun run db:generate`, and `bun run db:check`. |
 | 2026-07-07 | Issue 13 completed. Added app-local `app/backup-metadata.json` export timestamp persistence, per-project backup health derivation for fresh/synced/exported/browser-only states, latest committed checkpoint timestamp RPC, Project Backup Panel last committed/synced/exported display, browser-only backup prompt with folder/export capability-correct actions, and PWA install prompt tracking/nudge with milestone dismissal. Whole-account zip export now records per-project export timestamps. Verification passed: focused backup metadata/health/capability tests, `bun run test:unit -- --run src/lib/client/sync`, required `bun run check && bun run test:unit -- --run` (402 passed), `bun run db:generate`, and `bun run db:check`. |
 | 2026-07-07 | Human validation resolved issue 13 blocker: approved persisting last-export timestamps as app-local rebuildable health metadata for option 1. Implementation resumed. |
 | 2026-07-07 | Issue 13 selected but blocked before implementation. The issue contract says last-exported comes from wherever issue 08 recorded it and forbids new health persistence beyond timestamps already recorded, but current zip export only returns `exportedAt` to live component state (`ProjectBackupPanel.svelte`, `routes/projects/+page.svelte`) and no persisted last-export timestamp exists in `project-zip-export.ts` or store settings. Needs human decision on whether to add export timestamp persistence now, relax the contract, or split that prerequisite into a separate issue. |

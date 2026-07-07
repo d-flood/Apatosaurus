@@ -87,9 +87,9 @@
 			<ul
 				class="menu menu-sm dropdown-content bg-base-100 rounded-box z-1 mt-3 w-52 p-2 shadow-lg"
 			>
-				<li><a href={resolve('/transcription')}>Transcriptions</a></li>
+				<li><a href={resolve('/projects#transcriptions')}>Transcriptions</a></li>
 				<li><a href={resolve('/projects')}>Projects</a></li>
-				<li><a href={resolve('/collation')}>Collations</a></li>
+				<li><a href={resolve('/projects#collations')}>Collations</a></li>
 			</ul>
 		</div>
 		<a href={resolve('/')} class="hover:brightness-90">
@@ -99,9 +99,9 @@
 	</div>
 	<div class="navbar-center hidden lg:flex">
 		<ul class="menu menu-horizontal px-1">
-			<li class="text-lg"><a href={resolve('/transcription')}>Transcriptions</a></li>
+			<li class="text-lg"><a href={resolve('/projects#transcriptions')}>Transcriptions</a></li>
 			<li class="text-lg"><a href={resolve('/projects')}>Projects</a></li>
-			<li class="text-lg"><a href={resolve('/collation')}>Collations</a></li>
+			<li class="text-lg"><a href={resolve('/projects#collations')}>Collations</a></li>
 		</ul>
 	</div>
 	<div class="navbar-end gap-2">

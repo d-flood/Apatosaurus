@@ -1,9 +1,11 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import {
 		addProjectTranscriptionFromProject,
 		createProjectRecord,
 		getProject,
 		getProjectTranscriptionIds,
+		listProjectCollationVersionStatuses,
 		listProjects,
 		listProjectTranscriptionSourceCandidates,
 		listProjectTranscriptionStatuses,
@@ -54,6 +56,7 @@
 		rebuildLocalIndex,
 		subscribeLocalDbInvalidations,
 	} from '$lib/client/db/client';
+	import type { CollationVersionStatus } from '$lib/client/db/repositories/collations';
 	import type { IndexRebuildReport } from '$lib/client/db/repositories/index-rebuild';
 	import type { ProjectBackupSummary } from '$lib/client/sync/sync-manager';
 	import { listSyncTargets, recordProjectZipExport } from '$lib/client/store';
@@ -63,6 +66,7 @@
 	import { onMount } from 'svelte';
 
 	const PROJECTS_LOG_PREFIX = '[projects-route]';
+	type ProjectSection = 'transcriptions' | 'collations' | 'settings' | 'backup';
 
 	interface ProjectListBackupSummary {
 		locationLabel: string;
@@ -84,6 +88,7 @@
 	let currentProject = $state<ProjectRecord | null>(null);
 	let selectedProjectId = $state<string | null>(null);
 	let selectedTranscriptionIds = $state.raw<string[]>([]);
+	let activeSection = $state<ProjectSection>('transcriptions');
 
 	let projectRules = $state<RegularizationRule[]>([]);
 	let lowercase = $state(false);
@@ -96,6 +101,7 @@
 
 	let isBooting = $state(true);
 	let isLoadingProject = $state(false);
+	let isLoadingCollations = $state(false);
 	let isLoadingTranscriptions = $state(false);
 	let isCreating = $state(false);
 	let isSavingMetadata = $state(false);
@@ -116,6 +122,7 @@
 	let backupSummaryRunId = 0;
 
 	let projectTranscriptionStatuses = $state.raw<ProjectTranscriptionStatus[]>([]);
+	let projectCollationStatuses = $state.raw<CollationVersionStatus[]>([]);
 	let isLoadingStatuses = $state(false);
 	let refreshTarget = $state<ProjectTranscriptionStatus | null>(null);
 	let isRefreshing = $state(false);
@@ -131,6 +138,9 @@
 	let createName = $state('');
 	let nameDraft = $state('');
 	let descriptionDraft = $state('');
+	let selectedProjectActionQuery = $derived(
+		selectedProjectId ? `?projectId=${encodeURIComponent(selectedProjectId)}` : ''
+	);
 
 	let metadataDirty = $derived(
 		Boolean(
@@ -179,6 +189,7 @@
 	let isBusy = $derived(
 		isCreating ||
 			isLoadingProject ||
+			isLoadingCollations ||
 			isSavingMetadata ||
 			isSavingSettings ||
 			isSavingTranscriptions ||
@@ -452,6 +463,7 @@
 			descriptionDraft = project.description;
 			applyProjectSettings(project);
 			void loadProjectTranscriptionStatuses(projectId);
+			void loadProjectCollationStatuses(projectId);
 			logProjects('debug', 'loadProject completed', {
 				projectId,
 				transcriptionCount: transcriptionIds.length,
@@ -465,6 +477,57 @@
 		} finally {
 			isLoadingProject = false;
 		}
+	}
+
+	async function loadProjectCollationStatuses(projectId: string) {
+		isLoadingCollations = true;
+		try {
+			const statuses = await listProjectCollationVersionStatuses(projectId);
+			if (selectedProjectId !== projectId) return;
+			projectCollationStatuses = statuses;
+		} catch (err) {
+			logProjects('error', 'loadProjectCollationStatuses failed', {
+				projectId,
+				error: err instanceof Error ? err.message : String(err),
+			});
+		} finally {
+			if (selectedProjectId === projectId) {
+				isLoadingCollations = false;
+			}
+		}
+	}
+
+	function readInitialProjectSection(): ProjectSection {
+		const hash = globalThis.location?.hash.replace(/^#/, '') ?? '';
+		if (hash === 'collations' || hash === 'settings' || hash === 'backup') return hash;
+		return 'transcriptions';
+	}
+
+	function selectSection(section: ProjectSection) {
+		activeSection = section;
+		if (globalThis.history?.replaceState) {
+			globalThis.history.replaceState(null, '', `${globalThis.location.pathname}#${section}`);
+		}
+	}
+
+	function phaseLabel(status: string): string {
+		const labels: Record<string, string> = {
+			setup: 'Setup',
+			regularization: 'Alignment',
+			alignment: 'Alignment',
+			readings: 'Readings',
+			stemma: 'Stemma',
+			complete: 'Complete',
+		};
+		return labels[status] ?? status ?? 'Setup';
+	}
+
+	function phaseBadge(status: string): string {
+		if (status === 'complete') return 'badge-success';
+		if (status === 'stemma') return 'badge-info';
+		if (status === 'readings') return 'badge-secondary';
+		if (status === 'alignment') return 'badge-warning';
+		return 'badge-ghost';
 	}
 
 	async function loadProjectTranscriptionStatuses(projectId: string) {
@@ -636,6 +699,7 @@
 	}
 
 	onMount(() => {
+		activeSection = readInitialProjectSection();
 		void refreshStorageCapabilities();
 		void bootstrap();
 		const unsubscribe = subscribeLocalDbInvalidations(event => {
@@ -651,11 +715,13 @@
 			if (
 				event.domain === 'projects' ||
 				event.domain === 'transcriptions' ||
+				event.domain === 'collations' ||
 				event.domain === 'all'
 			) {
 				void refreshStorageCapabilities();
 				if (selectedProjectId) {
 					void loadProjectTranscriptionStatuses(selectedProjectId);
+					void loadProjectCollationStatuses(selectedProjectId);
 				}
 			}
 		});
@@ -1400,106 +1466,217 @@
 				</div>
 			{:else if currentProject}
 				<div class="space-y-6">
-					<ProjectBackupPanel
-						projectId={currentProject.id}
-						onForked={handleProjectForked}
-						onRemoved={handleProjectRemoved}
-					/>
-
-					<!-- Metadata -->
 					<div class="rounded-box border border-base-300/50 bg-base-100 p-4 shadow-md">
-						<div class="flex items-center justify-between mb-3">
-							<h2 class="font-serif text-lg font-semibold">Project Details</h2>
-							{#if isSavingMetadata}
-								<span class="loading loading-spinner loading-xs"></span>
-							{/if}
+						<div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+							<div>
+								<div class="text-xs font-semibold uppercase tracking-wide text-base-content/40">
+									Current Project
+								</div>
+								<h2 class="font-serif text-xl font-semibold">{currentProject.name}</h2>
+								{#if currentProject.description}
+									<p class="mt-1 text-sm text-base-content/55">{currentProject.description}</p>
+								{/if}
+							</div>
+							<div class="flex flex-wrap gap-2">
+								<a
+									href={resolve(`/transcription/new${selectedProjectActionQuery}`)}
+									class="btn btn-primary btn-sm"
+								>
+									New Transcription
+								</a>
+								<a
+									href={resolve(`/transcription/igntp${selectedProjectActionQuery}`)}
+									class="btn btn-outline btn-sm"
+								>
+									Import IGNTP
+								</a>
+								<a
+									href={resolve(`/collation/new${selectedProjectActionQuery}`)}
+									class="btn btn-outline btn-sm"
+								>
+									New Collation
+								</a>
+							</div>
 						</div>
 
-						<div class="grid gap-3">
-							<label class="form-control">
-								<div class="label pb-1">
-									<span class="label-text text-xs text-base-content/50">Name</span
-									>
-								</div>
-								<input
-									type="text"
-									class="input input-bordered w-full"
-									bind:value={nameDraft}
-								/>
-							</label>
-							<label class="form-control">
-								<div class="label pb-1">
-									<span class="label-text text-xs text-base-content/50"
-										>Description</span
-									>
-								</div>
-								<textarea
-									class="textarea textarea-bordered min-h-24 w-full"
-									placeholder="Add a description for this project."
-									bind:value={descriptionDraft}
-								></textarea>
-							</label>
-							<div class="flex items-center justify-between gap-3">
-								<span class="text-xs text-base-content/40">
-									Updated {new Date(currentProject.updatedAt).toLocaleString()}
-								</span>
-								<button
-									type="button"
-									class="btn btn-primary btn-sm"
-									disabled={isSavingMetadata || !metadataDirty}
-									onclick={saveMetadata}
-								>
-									Save Details
-								</button>
-							</div>
+						<div class="tabs tabs-box mt-4 bg-base-200">
+							<button
+								type="button"
+								class={['tab', activeSection === 'transcriptions' && 'tab-active']}
+								onclick={() => selectSection('transcriptions')}
+							>
+								Transcriptions
+							</button>
+							<button
+								type="button"
+								class={['tab', activeSection === 'collations' && 'tab-active']}
+								onclick={() => selectSection('collations')}
+							>
+								Collations
+							</button>
+							<button
+								type="button"
+								class={['tab', activeSection === 'settings' && 'tab-active']}
+								onclick={() => selectSection('settings')}
+							>
+								Settings
+							</button>
+							<button
+								type="button"
+								class={['tab', activeSection === 'backup' && 'tab-active']}
+								onclick={() => selectSection('backup')}
+							>
+								Backup and Sync
+							</button>
 						</div>
 					</div>
 
-					<!-- Transcriptions -->
-					<ProjectTranscriptionsEditor
-						{allTranscriptions}
-						{selectedTranscriptionIds}
-						isLoading={isLoadingProject || isLoadingTranscriptions}
-						isSaving={isSavingTranscriptions}
-						getTreatment={getProjectTranscriptionTreatment}
-						isHandIncluded={isProjectTranscriptionHandIncluded}
-						setTreatment={setProjectTranscriptionTreatment}
-						setHandIncluded={setProjectTranscriptionHandIncluded}
-						setAllTreatments={setAllProjectTranscriptionTreatments}
-						onToggleTranscription={toggleProjectTranscription}
-						onToggleAllTranscriptions={toggleAllProjectTranscriptions}
-					/>
+					{#if activeSection === 'backup'}
+						<ProjectBackupPanel
+							projectId={currentProject.id}
+							onForked={handleProjectForked}
+							onRemoved={handleProjectRemoved}
+						/>
+					{:else if activeSection === 'settings'}
+						<div class="rounded-box border border-base-300/50 bg-base-100 p-4 shadow-md">
+							<div class="flex items-center justify-between mb-3">
+								<h2 class="font-serif text-lg font-semibold">Project Details</h2>
+								{#if isSavingMetadata}
+									<span class="loading loading-spinner loading-xs"></span>
+								{/if}
+							</div>
 
-					<!-- Project transcription versions and refresh -->
-					<ProjectTranscriptionVersionsPanel
-						projectId={selectedProjectId ?? ''}
-						statuses={projectTranscriptionStatuses}
-						isLoading={isLoadingStatuses || isLoadingProject}
-						onRefreshTranscription={handleRequestRefresh}
-						onAddFromProject={handleRequestAddFromProject}
-					/>
+							<div class="grid gap-3">
+								<label class="form-control">
+									<div class="label pb-1">
+										<span class="label-text text-xs text-base-content/50">Name</span>
+									</div>
+									<input
+										type="text"
+										class="input input-bordered w-full"
+										bind:value={nameDraft}
+									/>
+								</label>
+								<label class="form-control">
+									<div class="label pb-1">
+										<span class="label-text text-xs text-base-content/50">Description</span>
+									</div>
+									<textarea
+										class="textarea textarea-bordered min-h-24 w-full"
+										placeholder="Add a description for this project."
+										bind:value={descriptionDraft}
+									></textarea>
+								</label>
+								<div class="flex items-center justify-between gap-3">
+									<span class="text-xs text-base-content/40">
+										Updated {new Date(currentProject.updatedAt).toLocaleString()}
+									</span>
+									<button
+										type="button"
+										class="btn btn-primary btn-sm"
+										disabled={isSavingMetadata || !metadataDirty}
+										onclick={saveMetadata}
+									>
+										Save Details
+									</button>
+								</div>
+							</div>
+						</div>
 
-					<!-- Collation Settings -->
-					<ProjectCollationSettingsEditor
-						rules={projectRules}
-						{lowercase}
-						{ignoreWordBreaks}
-						{ignorePunctuation}
-						{suppliedTextMode}
-						{segmentation}
-						onAddRule={addRule}
-						onRemoveRule={removeRule}
-						onToggleRule={toggleRule}
-						onSetRuleType={setRuleType}
-						onSetLowercase={setLowercase}
-						onSetIgnoreWordBreaks={setIgnoreWordBreaks}
-						onSetIgnorePunctuation={setIgnorePunctuation}
-						onSetSuppliedTextMode={setSuppliedTextMode}
-						onSetSegmentation={setSegmentation}
-					/>
+						<ProjectCollationSettingsEditor
+							rules={projectRules}
+							{lowercase}
+							{ignoreWordBreaks}
+							{ignorePunctuation}
+							{suppliedTextMode}
+							{segmentation}
+							onAddRule={addRule}
+							onRemoveRule={removeRule}
+							onToggleRule={toggleRule}
+							onSetRuleType={setRuleType}
+							onSetLowercase={setLowercase}
+							onSetIgnoreWordBreaks={setIgnoreWordBreaks}
+							onSetIgnorePunctuation={setIgnorePunctuation}
+							onSetSuppliedTextMode={setSuppliedTextMode}
+							onSetSegmentation={setSegmentation}
+						/>
 
-					<!-- Collaboration stub -->
-					<ProjectUserManagementStub />
+						<ProjectUserManagementStub />
+					{:else if activeSection === 'collations'}
+						<div class="rounded-box border border-base-300/50 bg-base-100 p-4 shadow-md">
+							<div class="mb-3 flex items-center justify-between gap-3">
+								<div>
+									<h2 class="font-serif text-lg font-semibold">Project Collations</h2>
+									<p class="text-xs text-base-content/50">
+										Collations owned by {currentProject.name}.
+									</p>
+								</div>
+								<a
+									href={resolve(`/collation/new${selectedProjectActionQuery}`)}
+									class="btn btn-primary btn-sm"
+								>
+									New Collation
+								</a>
+							</div>
+
+							{#if isLoadingCollations}
+								<div class="flex items-center gap-2 rounded-box bg-base-200/70 p-4 text-sm text-base-content/60">
+									<span class="loading loading-spinner loading-sm"></span>
+									Loading collations...
+								</div>
+							{:else if projectCollationStatuses.length === 0}
+								<div class="rounded-box border border-dashed border-base-300/80 p-4 text-sm text-base-content/55">
+									No collations in this project yet.
+								</div>
+							{:else}
+								<ul class="list rounded-box bg-base-100">
+									{#each projectCollationStatuses as status (status.collationId)}
+										<li class="list-row gap-4 items-center">
+											<div class="flex-1 min-w-0">
+												<div class="font-serif font-medium">{status.title}</div>
+												<div class="mt-0.5 flex items-center gap-2 text-xs text-base-content/50">
+													<span class="font-mono">{status.verseIdentifier}</span>
+													<span class="text-base-content/20">|</span>
+													<span>{status.commitState === 'dirty' ? 'Uncommitted changes' : 'Committed state current'}</span>
+												</div>
+											</div>
+											<span class="badge badge-sm {phaseBadge(status.workflowStatus)}">
+												{phaseLabel(status.workflowStatus)}
+											</span>
+											<a
+												href={resolve('/collation/[id]', { id: status.collationId })}
+												class="btn btn-ghost btn-sm"
+											>
+												Open
+											</a>
+										</li>
+									{/each}
+								</ul>
+							{/if}
+						</div>
+					{:else}
+						<ProjectTranscriptionsEditor
+							{allTranscriptions}
+							{selectedTranscriptionIds}
+							isLoading={isLoadingProject || isLoadingTranscriptions}
+							isSaving={isSavingTranscriptions}
+							getTreatment={getProjectTranscriptionTreatment}
+							isHandIncluded={isProjectTranscriptionHandIncluded}
+							setTreatment={setProjectTranscriptionTreatment}
+							setHandIncluded={setProjectTranscriptionHandIncluded}
+							setAllTreatments={setAllProjectTranscriptionTreatments}
+							onToggleTranscription={toggleProjectTranscription}
+							onToggleAllTranscriptions={toggleAllProjectTranscriptions}
+						/>
+
+						<ProjectTranscriptionVersionsPanel
+							projectId={selectedProjectId ?? ''}
+							statuses={projectTranscriptionStatuses}
+							isLoading={isLoadingStatuses || isLoadingProject}
+							onRefreshTranscription={handleRequestRefresh}
+							onAddFromProject={handleRequestAddFromProject}
+						/>
+					{/if}
 				</div>
 			{/if}
 		</div>

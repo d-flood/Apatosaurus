@@ -36,6 +36,8 @@
 
 	const IGntp_FETCH_TIMEOUT_MS = 20000;
 
+	let { data }: { data: { projectId?: string } } = $props();
+
 	let transcriptions = $state<TranscriptionSummary[]>([]);
 	let projects = $state<ProjectOption[]>([]);
 	let selectedProjectId = $state('');
@@ -79,7 +81,7 @@
 	async function loadProjects() {
 		const defaultProjectId = await ensureDefaultProject();
 		projects = await listProjects();
-		if (!selectedProjectId) selectedProjectId = defaultProjectId;
+		if (!selectedProjectId) selectedProjectId = data.projectId || defaultProjectId;
 	}
 
 	onMount(() => {
