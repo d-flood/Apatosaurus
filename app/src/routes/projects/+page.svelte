@@ -35,6 +35,7 @@
 	import ProjectTranscriptionsEditor from '$lib/components/projects/ProjectTranscriptionsEditor.svelte';
 	import ProjectTranscriptionVersionsPanel from '$lib/components/projects/ProjectTranscriptionVersionsPanel.svelte';
 	import ProjectBackupPanel from '$lib/components/projects/ProjectBackupPanel.svelte';
+	import OnboardingGuidance from '$lib/components/OnboardingGuidance.svelte';
 	import ProjectTranscriptionRefreshDialog from '$lib/components/projects/ProjectTranscriptionRefreshDialog.svelte';
 	import AddProjectTranscriptionFromProjectDialog from '$lib/components/projects/AddProjectTranscriptionFromProjectDialog.svelte';
 	import ProjectUserManagementStub from '$lib/components/projects/ProjectUserManagementStub.svelte';
@@ -43,6 +44,7 @@
 	import {
 		checkStoragePersistence,
 		formatStorageBytes,
+		getInstallCapabilityReport,
 		getStorageEstimate,
 		shouldShowDurabilityWarning,
 		type StorageEstimateReport,
@@ -116,6 +118,7 @@
 	let indexRepairReport = $state<IndexRebuildReport | null>(null);
 	let persistenceReport = $state<StoragePersistenceReport | null>(null);
 	let storageEstimateReport = $state<StorageEstimateReport | null>(null);
+	let installSupported = $state(false);
 	let dismissedDurabilityMilestone = $state<string | null>(readDismissedDurabilityMilestone());
 	let bootstrapRunId = 0;
 	let backupSummaryScheduleId = 0;
@@ -700,6 +703,7 @@
 
 	onMount(() => {
 		activeSection = readInitialProjectSection();
+		installSupported = getInstallCapabilityReport().installSupported;
 		void refreshStorageCapabilities();
 		void bootstrap();
 		const unsubscribe = subscribeLocalDbInvalidations(event => {
@@ -1177,6 +1181,14 @@
 	{#if error}
 		<div class="alert alert-error mb-4 text-sm">{error}</div>
 	{/if}
+
+	<div class="mb-6">
+		<OnboardingGuidance
+			localFolderSupported={isLocalFolderProviderSupported()}
+			persistenceStatus={persistenceReport?.status ?? 'unsupported'}
+			{installSupported}
+		/>
+	</div>
 
 	<div class="flex flex-col gap-6 lg:flex-row">
 		<!-- Sidebar: project list + create -->

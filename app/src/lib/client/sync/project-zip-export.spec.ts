@@ -4,6 +4,7 @@ import { createLocalDbTestHarness, type LocalDbTestHarness } from '$lib/client/d
 import { createProject } from '$lib/client/db/repositories/projects';
 import { MemoryStoreBackend } from '$lib/client/store/memory-store-backend.spec-support';
 import { joinStorePath, projectFolder, writeTextFileAtomic, type StoreOperationOptions } from '$lib/client/store';
+import { zipExportBackupPathMessage } from '$lib/onboarding-guidance';
 import {
 	exportAllProjectsZip,
 	exportProjectZip,
@@ -109,7 +110,7 @@ describe('project zip export', () => {
 	it('identifies zip export as the non-Chromium backup path', () => {
 		expect(projectBackupCapabilityMessage(false)).toEqual({
 			primaryAction: 'zip-export',
-			message: 'Folder sync is unavailable in this browser. Use zip export as your backup path.',
+			message: zipExportBackupPathMessage,
 		});
 		expect(projectBackupCapabilityMessage(true).primaryAction).toBe('folder-sync');
 	});

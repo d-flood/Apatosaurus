@@ -90,6 +90,7 @@
 				<li><a href={resolve('/projects#transcriptions')}>Transcriptions</a></li>
 				<li><a href={resolve('/projects')}>Projects</a></li>
 				<li><a href={resolve('/projects#collations')}>Collations</a></li>
+				<li><a href={resolve('/about')}>About</a></li>
 			</ul>
 		</div>
 		<a href={resolve('/')} class="hover:brightness-90">
@@ -102,6 +103,7 @@
 			<li class="text-lg"><a href={resolve('/projects#transcriptions')}>Transcriptions</a></li>
 			<li class="text-lg"><a href={resolve('/projects')}>Projects</a></li>
 			<li class="text-lg"><a href={resolve('/projects#collations')}>Collations</a></li>
+			<li class="text-lg"><a href={resolve('/about')}>About</a></li>
 		</ul>
 	</div>
 	<div class="navbar-end gap-2">

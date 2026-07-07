@@ -3,6 +3,7 @@ import type { Kysely, Transaction } from 'kysely';
 import type { Database } from '$lib/client/db/types.generated';
 import { listProjects } from '$lib/client/db/repositories/projects';
 import { joinStorePath, type StoreOperationOptions } from '$lib/client/store';
+import { zipExportBackupPathMessage } from '$lib/onboarding-guidance';
 import { listProjectArchiveFiles, type ProjectArchiveFile } from './sync-manager';
 
 type DbExecutor = Kysely<Database> | Transaction<Database>;
@@ -96,7 +97,7 @@ export function projectBackupCapabilityMessage(
 	}
 	return {
 		primaryAction: 'zip-export',
-		message: 'Folder sync is unavailable in this browser. Use zip export as your backup path.',
+		message: zipExportBackupPathMessage,
 	};
 }
 

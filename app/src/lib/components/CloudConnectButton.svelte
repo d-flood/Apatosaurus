@@ -9,13 +9,13 @@
 		getBackupConnections,
 		isLocalFolderProviderSupported,
 	} from '$lib/client/sync/local-folder-connections';
+	import { localFolderUnsupportedBackupMessage } from '$lib/onboarding-guidance';
 
 	type BackupConnections = Awaited<ReturnType<typeof getBackupConnections>>;
 	type LocalFolderConnection = BackupConnections['localFolderConnection'];
 
 	const initiallyLocalFolderSupported = isLocalFolderProviderSupported();
-	const unsupportedMessage =
-		'Folder sync requires a Chromium browser with directory picker support. Use zip export/import as the all-browser backup path.';
+	const unsupportedMessage = localFolderUnsupportedBackupMessage;
 
 	let localFolderSupported = $state(initiallyLocalFolderSupported);
 	let localFolderConnection = $state<LocalFolderConnection>(null);
