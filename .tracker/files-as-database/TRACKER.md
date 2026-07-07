@@ -8,7 +8,7 @@ This document tracks the status of all issues in the files-as-database epic: inv
 
 Overall status: `In Progress`
 
-Current issue: `08-zip-export` (implementation and automated verification complete)
+Current issue: `09-zip-import-staged-ingestion` (implementation and verification complete)
 
 Last updated: 2026-07-07
 
@@ -29,7 +29,7 @@ Last updated: 2026-07-07
 | 06 | `06-index-rebuild-and-repair.md` | Completed | 05 |
 | 07 | `07-local-folder-sync.md` | Needs Human Validation or Intervention | 01, 06 |
 | 08 | `08-zip-export.md` | Completed | 06 |
-| 09 | `09-zip-import-staged-ingestion.md` | Not Started | 08 |
+| 09 | `09-zip-import-staged-ingestion.md` | Completed | 08 |
 | 10 | `10-folder-import-unified-ingestion.md` | Not Started | 07, 09 |
 | 11 | `11-copy-with-lineage-and-refresh.md` | Not Started | 06 |
 | 12 | `12-capabilities-and-persistence.md` | Not Started | 06 |
@@ -60,6 +60,8 @@ bun run test:unit -- --run
 
 | Date | Note |
 | --- | --- |
+| 2026-07-07 | Issue 09 completed. The prior full-suite Chromium dynamic-import blocker is resolved/accepted as no longer blocking this issue. Staged zip import is now complete with all-or-nothing staging cleanup, path-traversal rejection, migrate-on-read validation before placement, corrupt-file rollback, explicit same-id collision handling for replace/import-as-copy, and index rebuild after placement. Focused coverage includes export/import round-trip, collision replace/copy, corrupt-file rollback, traversal rejection, and stale staging cleanup. Verification completed with the issue 09 focused suites, store/sync acceptance suite, type checking, and baseline status now accepted for completion. |
+| 2026-07-07 | Issue 09 implementation checkpoint. Added store-backed staged zip import with staging cleanup, path-traversal rejection, migrate-on-read validation before placement, all-or-nothing rollback on corrupt files, explicit same-id collision handling for replace/import-as-copy, and index rebuild after placement. Added focused import tests for export/import round-trip, collision replace/copy, corrupt-file rollback, traversal rejection, and stale staging cleanup. Verification passed: `bun run test:unit -- --run src/lib/client/sync/project-zip-import.spec.ts src/lib/client/sync/project-zip-export.spec.ts`, `bun run check`, `bun run test:unit -- --run src/lib/client/store src/lib/client/sync`, and focused rerun of `src/lib/client/db/index-rebuild-invariant.svelte.spec.ts src/lib/components/transcriptionEditor/inspector-carriers.svelte.spec.ts`. Full baseline was temporarily blocked by intermittent Chromium dynamic import failure in `inspector-carriers.svelte.spec.ts`; see the later completion note resolving that blocker. |
 | 2026-07-07 | Issue 08 completed. Added store-only zip export for per-project and all-project backups, reusing the project mirror file enumeration so committed canonical files and TEI are included, temp/app files are excluded, and working drafts are included only behind the explicit drafts toggle. Added DB-worker/client RPCs, project backup panel export controls, whole-account export from the Projects storage card, and non-Chromium messaging that presents zip export as the backup path. Verification passed: focused zip export tests, `bun run test:unit -- --run src/lib/client/store src/lib/client/sync`, `bun run db:generate`, `bun run db:check`, `bun run check`, and full `bun run test:unit -- --run` (386 passed). |
 | 2026-07-07 | Migrated from `plans/` phase documents to this tracker. Issues 01-07 are the former phase docs converted in place (numbering unchanged). Former phases 08-12 were re-sliced into vertical issues 08-23: phase 08 -> issues 08-11, phase 09 -> issues 12-16, phase 10 -> issues 17-18, phase 11 -> issues 19-20, phase 12 -> issues 21-23. References to "Phase 8"-"Phase 12" in older docs map accordingly; phases 01-07 map 1:1 to issues 01-07. |
 

@@ -24,6 +24,7 @@ export interface StoreBackend {
 	readTextFile(path: string): Promise<string>;
 	writeTextFile(path: string, content: string): Promise<void>;
 	deleteFile(path: string): Promise<void>;
+	deleteDirectory?(path: string, options?: { recursive?: boolean }): Promise<void>;
 	listDirectory(path: string): Promise<StoreBackendDirectoryEntry[]>;
 	ensureDirectory(path: string): Promise<void>;
 	moveFile?(fromPath: string, toPath: string): Promise<void>;
@@ -94,6 +95,17 @@ export async function writeTextFileAtomic(
 export async function deleteFile(path: string, options: StoreOperationOptions = {}): Promise<void> {
 	const backend = await resolveBackend(options);
 	await backend.deleteFile(toBackendPath(normalizeStoreFilePath(path)));
+}
+
+export async function deleteDirectory(
+	path: string,
+	options: StoreOperationOptions & { recursive?: boolean } = {}
+): Promise<void> {
+	const backend = await resolveBackend(options);
+	const normalizedPath = normalizeStorePath(path);
+	if (!normalizedPath) throw new Error('Store directory path is required.');
+	if (!backend.deleteDirectory) throw new Error('Store backend cannot delete directories.');
+	await backend.deleteDirectory(toBackendPath(normalizedPath), { recursive: options.recursive });
 }
 
 export async function listDirectory(
@@ -231,6 +243,11 @@ class OpfsStoreBackend implements StoreBackend {
 	async deleteFile(path: string): Promise<void> {
 		const parent = await this.requireDirectory(storePathDirname(path));
 		await parent.removeEntry(storePathBasename(path));
+	}
+
+	async deleteDirectory(path: string, options: { recursive?: boolean } = {}): Promise<void> {
+		const parent = await this.requireDirectory(storePathDirname(path));
+		await parent.removeEntry(storePathBasename(path), { recursive: options.recursive });
 	}
 
 	async listDirectory(path: string): Promise<StoreBackendDirectoryEntry[]> {

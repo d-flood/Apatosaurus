@@ -40,6 +40,23 @@ export class MemoryStoreBackend implements StoreBackend {
 		if (!this.files.delete(normalized)) throw new Error(`File ${path} was not found.`);
 	}
 
+	async deleteDirectory(path: string, options: { recursive?: boolean } = {}): Promise<void> {
+		const normalized = normalizeStorePath(path);
+		if (!this.directories.has(normalized)) throw new Error(`Directory ${path} was not found.`);
+		const hasChildren = [...this.directories, ...this.files.keys()].some(
+			entry => entry && entry !== normalized && storePathDirname(entry) === normalized
+		);
+		if (hasChildren && !options.recursive) throw new Error(`Directory ${path} is not empty.`);
+		for (const file of [...this.files.keys()]) {
+			if (file === normalized || file.startsWith(`${normalized}/`)) this.files.delete(file);
+		}
+		for (const directory of [...this.directories].sort((left, right) => right.length - left.length)) {
+			if (directory === normalized || directory.startsWith(`${normalized}/`)) {
+				this.directories.delete(directory);
+			}
+		}
+	}
+
 	async listDirectory(path: string): Promise<StoreBackendDirectoryEntry[]> {
 		const normalized = normalizeStorePath(path);
 		if (!this.directories.has(normalized)) throw new Error(`Directory ${path} was not found.`);
