@@ -1,3 +1,4 @@
+import { openOriginPrivateFileSystemRoot as openOpfsRoot } from '$lib/client/capabilities';
 import {
 	INDEX_DATABASE_DIRECTORY,
 	INDEX_DATABASE_FILENAME,
@@ -104,9 +105,7 @@ async function getNestedDirectoryIfExists(
 }
 
 async function openOriginPrivateFileSystemRoot(): Promise<FileSystemDirectoryHandle> {
-	const storage = globalThis.navigator?.storage;
-	if (!storage?.getDirectory) throw new Error('Origin private file system is unavailable.');
-	return storage.getDirectory();
+	return openOpfsRoot();
 }
 
 function formatPath(directoryPath: string, name: string): string {

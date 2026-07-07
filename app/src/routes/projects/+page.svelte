@@ -39,6 +39,16 @@
 	import { waitForBrowserIdle } from '$lib/client/defer';
 	import { ensureLocalDbRuntime } from '$lib/client/db/runtime';
 	import {
+		checkStoragePersistence,
+		formatStorageBytes,
+		getStorageEstimate,
+		shouldShowDurabilityWarning,
+		type StorageEstimateReport,
+		type StoragePersistenceReport,
+		isLocalFolderProviderSupported,
+		isOpfsSupported,
+	} from '$lib/client/capabilities';
+	import {
 		deriveProjectBackupSummary,
 		exportAllProjectsZip,
 		rebuildLocalIndex,
@@ -98,6 +108,9 @@
 	let lastAllProjectsExportedAt = $state<string | null>(null);
 	let indexRepairError = $state<string | null>(null);
 	let indexRepairReport = $state<IndexRebuildReport | null>(null);
+	let persistenceReport = $state<StoragePersistenceReport | null>(null);
+	let storageEstimateReport = $state<StorageEstimateReport | null>(null);
+	let dismissedDurabilityMilestone = $state<string | null>(readDismissedDurabilityMilestone());
 	let bootstrapRunId = 0;
 	let backupSummaryScheduleId = 0;
 	let backupSummaryRunId = 0;
@@ -147,6 +160,22 @@
 			isLoading: projects.length > 0 && summaries.length < projects.length,
 		};
 	});
+	let currentDurabilityMilestone = $derived(`projects:${projects.length}`);
+	let showDurabilityWarning = $derived(
+		shouldShowDurabilityWarning({
+			hasUserData: projects.length > 0,
+			persistenceStatus: persistenceReport?.status ?? 'unsupported',
+			dismissedMilestone: dismissedDurabilityMilestone,
+			currentMilestone: currentDurabilityMilestone,
+		})
+	);
+	let storageUsageLabel = $derived(formatStorageBytes(storageEstimateReport?.usage ?? null));
+	let storageQuotaLabel = $derived(formatStorageBytes(storageEstimateReport?.quota ?? null));
+	let storageUsagePercentLabel = $derived(
+		storageEstimateReport?.usageRatio === null || storageEstimateReport?.usageRatio === undefined
+			? 'Unavailable'
+			: `${Math.round(storageEstimateReport.usageRatio * 100)}%`
+	);
 	let isBusy = $derived(
 		isCreating ||
 			isLoadingProject ||
@@ -351,6 +380,46 @@
 		return `${count} ${singular}${count === 1 ? '' : 's'}`;
 	}
 
+	function persistenceStatusLabel(report: StoragePersistenceReport | null): string {
+		if (!report) return 'Checking';
+		if (report.status === 'granted') return 'Protected from browser eviction';
+		if (report.status === 'denied') return report.canRequest ? 'Not yet granted' : 'Not granted';
+		return 'Unsupported by this browser';
+	}
+
+	async function refreshStorageCapabilities() {
+		const [persistence, estimate] = await Promise.all([
+			checkStoragePersistence(),
+			getStorageEstimate(),
+		]);
+		persistenceReport = persistence;
+		storageEstimateReport = estimate;
+	}
+
+	function dismissDurabilityWarning() {
+		dismissedDurabilityMilestone = currentDurabilityMilestone;
+		try {
+			globalThis.localStorage?.setItem(
+				'apatosaurus:durability-warning-dismissed-milestone',
+				currentDurabilityMilestone
+			);
+		} catch {
+			// If localStorage is unavailable, the warning can return next load.
+		}
+	}
+
+	function readDismissedDurabilityMilestone(): string | null {
+		try {
+			return (
+				globalThis.localStorage?.getItem(
+					'apatosaurus:durability-warning-dismissed-milestone'
+				) ?? null
+			);
+		} catch {
+			return null;
+		}
+	}
+
 	async function loadProject(projectId: string) {
 		isLoadingProject = true;
 		error = null;
@@ -502,6 +571,7 @@
 				return;
 			}
 			projects = projectRows;
+			void refreshStorageCapabilities();
 			logProjects('debug', 'bootstrap project list loaded', {
 				projectCount: projectRows.length,
 				preferredProjectId,
@@ -566,6 +636,7 @@
 	}
 
 	onMount(() => {
+		void refreshStorageCapabilities();
 		void bootstrap();
 		const unsubscribe = subscribeLocalDbInvalidations(event => {
 			if (
@@ -582,6 +653,7 @@
 				event.domain === 'transcriptions' ||
 				event.domain === 'all'
 			) {
+				void refreshStorageCapabilities();
 				if (selectedProjectId) {
 					void loadProjectTranscriptionStatuses(selectedProjectId);
 				}
@@ -1179,6 +1251,61 @@
 						<span class="badge badge-ghost badge-sm">
 							Folder sync mirrors committed files only
 						</span>
+					</div>
+
+					{#if showDurabilityWarning}
+						<div class="alert alert-warning mt-4 items-start text-xs leading-relaxed">
+							<div>
+								<div class="font-semibold">Browser storage is not persistent yet</div>
+								<div>
+									Your browser may evict local project files under storage pressure. Install
+									the app, connect a sync folder, or export backups to protect this work.
+								</div>
+							</div>
+							<button
+								type="button"
+								class="btn btn-ghost btn-xs"
+								onclick={dismissDurabilityWarning}
+							>
+								Dismiss
+							</button>
+						</div>
+					{/if}
+
+					<div class="mt-4 rounded-box border border-base-300/60 bg-base-200/40 p-3 text-xs">
+						<div class="font-serif text-sm font-semibold">Storage Durability</div>
+						<div class="mt-2 grid gap-2 text-base-content/65">
+							<div class="flex items-center justify-between gap-3">
+								<span>Persistent storage</span>
+								<span class="font-medium text-base-content">
+									{persistenceStatusLabel(persistenceReport)}
+								</span>
+							</div>
+							<div class="flex items-center justify-between gap-3">
+								<span>Origin private file system</span>
+								<span class="font-medium text-base-content">
+									{isOpfsSupported() ? 'Supported' : 'Unsupported'}
+								</span>
+							</div>
+							<div class="flex items-center justify-between gap-3">
+								<span>Folder sync capability</span>
+								<span class="font-medium text-base-content">
+									{isLocalFolderProviderSupported() ? 'Supported' : 'Unavailable'}
+								</span>
+							</div>
+							<div class="flex items-center justify-between gap-3">
+								<span>Storage used</span>
+								<span class="font-medium text-base-content">
+									{storageUsageLabel} of {storageQuotaLabel} ({storageUsagePercentLabel})
+								</span>
+							</div>
+						</div>
+						{#if storageEstimateReport?.isNearQuota}
+							<div class="alert alert-warning mt-3 py-2">
+								Storage is near this browser's reported quota. Export a backup before
+								adding large image or transcription batches.
+							</div>
+						{/if}
 					</div>
 
 					<div class="mt-4 rounded-box border border-base-300/60 bg-base-200/40 p-3">

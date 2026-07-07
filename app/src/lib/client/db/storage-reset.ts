@@ -1,3 +1,4 @@
+import { isOpfsSupported, openOriginPrivateFileSystemRoot } from '$lib/client/capabilities';
 import {
 	INDEX_DATABASE_DIRECTORY,
 	INDEX_DATABASE_PREFIX,
@@ -51,9 +52,8 @@ function deleteIndexedDb(name: string): Promise<void> {
 }
 
 async function purgeLocalDbOpfsStorage(): Promise<void> {
-	if (typeof navigator === 'undefined' || typeof navigator.storage?.getDirectory !== 'function')
-		return;
-	const root = (await navigator.storage.getDirectory()) as DirectoryHandleWithEntries;
+	if (!isOpfsSupported()) return;
+	const root = (await openOriginPrivateFileSystemRoot()) as DirectoryHandleWithEntries;
 	if (typeof root.entries !== 'function') return;
 	await purgeDirectoryEntriesWithPrefixes(root, LOCAL_DB_OPFS_PREFIXES);
 	const indexDirectory = await getNestedDirectoryIfExists(root, INDEX_DATABASE_DIRECTORY);

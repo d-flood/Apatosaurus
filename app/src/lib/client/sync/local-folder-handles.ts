@@ -1,3 +1,5 @@
+import { getDirectoryPicker, isLocalFolderProviderSupported } from '$lib/client/capabilities';
+
 const DB_NAME = 'apatosaurus-provider-handles';
 const STORE_NAME = 'directory-handles';
 const DB_VERSION = 1;
@@ -53,20 +55,7 @@ export async function hasLocalFolderReadWritePermission(
 	return (await withPermission.requestPermission({ mode: 'readwrite' })) === 'granted';
 }
 
-export function getDirectoryPicker():
-	| ((options?: { mode?: 'read' | 'readwrite' }) => Promise<FileSystemDirectoryHandle>)
-	| null {
-	const maybeGlobal = globalThis as typeof globalThis & {
-		showDirectoryPicker?: (options?: {
-			mode?: 'read' | 'readwrite';
-		}) => Promise<FileSystemDirectoryHandle>;
-	};
-	return maybeGlobal.showDirectoryPicker ?? null;
-}
-
-export function isLocalFolderProviderSupported(): boolean {
-	return typeof indexedDB !== 'undefined' && getDirectoryPicker() !== null;
-}
+export { getDirectoryPicker, isLocalFolderProviderSupported };
 
 async function openHandleDb(): Promise<IDBDatabase> {
 	if (typeof indexedDB === 'undefined') {

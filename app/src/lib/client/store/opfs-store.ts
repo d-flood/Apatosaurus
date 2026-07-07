@@ -1,4 +1,8 @@
 import {
+	openOriginPrivateFileSystemRoot as openOpfsRoot,
+	requestPersistentStorageForMeaningfulWrite,
+} from '$lib/client/capabilities';
+import {
 	APP_STORE_ROOT,
 	joinStorePath,
 	normalizeStoreFilePath,
@@ -82,6 +86,7 @@ export async function writeTextFileAtomic(
 
 	try {
 		await moveBackendFile(backend, tempBackendPath, targetBackendPath);
+		if (!options.backend) void requestPersistentStorageForMeaningfulWrite();
 		return;
 	} catch (error) {
 		if (!(error instanceof StoreMoveUnavailableError)) throw error;
@@ -90,6 +95,7 @@ export async function writeTextFileAtomic(
 	await backend.writeTextFile(targetBackendPath, content);
 	await assertTextMatches(backend, targetBackendPath, content, `Target file ${targetPath}`);
 	await deleteTempFile(backend, tempBackendPath);
+	if (!options.backend) void requestPersistentStorageForMeaningfulWrite();
 }
 
 export async function deleteFile(path: string, options: StoreOperationOptions = {}): Promise<void> {
@@ -204,9 +210,7 @@ async function deleteTempFile(backend: StoreBackend, tempBackendPath: string): P
 }
 
 async function openOriginPrivateFileSystemRoot(): Promise<FileSystemDirectoryHandle> {
-	const storage = globalThis.navigator?.storage;
-	if (!storage?.getDirectory) throw new Error('Origin private file system is unavailable.');
-	return storage.getDirectory();
+	return openOpfsRoot();
 }
 
 async function hashText(content: string): Promise<string> {

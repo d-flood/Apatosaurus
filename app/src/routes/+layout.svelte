@@ -1,5 +1,6 @@
 <script lang="ts">
 	import favicon from '$lib/assets/favicon.ico';
+	import { checkStoragePersistence } from '$lib/client/capabilities';
 	import { ensureLocalDbRuntime } from '$lib/client/db/runtime';
 	import { syncService } from '$lib/client/sync/sync-service.svelte';
 	import { registerServiceWorker } from '$lib/client/sw-registration';
@@ -16,6 +17,7 @@
 
 	async function initializeApp() {
 		try {
+			void checkStoragePersistence();
 			await ensureLocalDbRuntime();
 			await syncService.initLocalDB('local');
 		} catch (err) {

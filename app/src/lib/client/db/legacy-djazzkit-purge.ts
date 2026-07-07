@@ -1,3 +1,5 @@
+import { isOpfsSupported, openOriginPrivateFileSystemRoot } from '$lib/client/capabilities';
+
 const LEGACY_DJAZZKIT_IDB_DATABASES = ['djazzkit-idb'];
 const LEGACY_DJAZZKIT_OPFS_PREFIX = 'djazzkit';
 const LEGACY_DJAZZKIT_PURGE_MARKER = 'apatosaurus:legacy-djazzkit-purged';
@@ -35,10 +37,7 @@ export async function purgeLegacyDjazzkitStorage(): Promise<void> {
 	}
 
 	try {
-		if (
-			typeof navigator !== 'undefined' &&
-			typeof navigator.storage?.getDirectory === 'function'
-		) {
+		if (isOpfsSupported()) {
 			const opfsStartedAt = now();
 			opfsFound = await deleteOpfsEntriesWithPrefix(LEGACY_DJAZZKIT_OPFS_PREFIX);
 			console.debug('[local-db] legacy djazzkit OPFS purge completed', {
@@ -91,7 +90,7 @@ function deleteIndexedDb(name: string): Promise<void> {
 }
 
 async function deleteOpfsEntriesWithPrefix(prefix: string): Promise<number> {
-	const root = (await navigator.storage.getDirectory()) as DirectoryHandleWithEntries;
+	const root = (await openOriginPrivateFileSystemRoot()) as DirectoryHandleWithEntries;
 	if (typeof root.entries !== 'function') return 0;
 	let deleted = 0;
 	for await (const [name, handle] of root.entries()) {

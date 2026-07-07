@@ -2,6 +2,7 @@ import SQLiteESMFactory from '@journeyapps/wa-sqlite/dist/wa-sqlite.mjs';
 import wasmUrl from '@journeyapps/wa-sqlite/dist/wa-sqlite.wasm?url';
 import { OPFSCoopSyncVFS } from '@journeyapps/wa-sqlite/src/examples/OPFSCoopSyncVFS.js';
 import * as SQLite from '@journeyapps/wa-sqlite';
+import { isOpfsSupported, openOriginPrivateFileSystemRoot } from '$lib/client/capabilities';
 
 import type { DbRow, DbValue } from './rpc';
 import { INDEX_DATABASE_FILENAME, INDEX_DATABASE_PATH, INDEX_VFS_NAME } from './schema-version.generated';
@@ -113,10 +114,7 @@ export class LocalSqliteDatabase {
 	}
 
 	private async createVfs(module: unknown) {
-		if (
-			typeof navigator === 'undefined' ||
-			typeof navigator.storage?.getDirectory !== 'function'
-		) {
+		if (!isOpfsSupported()) {
 			throw new Error(
 				'Local transcription database requires sync OPFS storage in a dedicated browser worker. This browser does not expose OPFS storage.'
 			);
@@ -142,13 +140,12 @@ export class LocalSqliteDatabase {
 }
 
 async function indexDatabaseFileExists(path: string): Promise<boolean> {
-	if (typeof navigator === 'undefined' || typeof navigator.storage?.getDirectory !== 'function')
-		return false;
+	if (!isOpfsSupported()) return false;
 	try {
 		const segments = path.split('/').filter(Boolean);
 		const filename = segments.pop();
 		if (!filename) return false;
-		let directory = await navigator.storage.getDirectory();
+		let directory = await openOriginPrivateFileSystemRoot();
 		for (const segment of segments) {
 			directory = await directory.getDirectoryHandle(segment, { create: false });
 		}

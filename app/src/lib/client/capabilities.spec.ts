@@ -1,0 +1,104 @@
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+import {
+	checkStoragePersistence,
+	formatStorageBytes,
+	getStorageEstimate,
+	isStorageNearQuota,
+	requestPersistentStorageForMeaningfulWrite,
+	resetPersistenceRequestSessionForTests,
+	shouldShowDurabilityWarning,
+} from './capabilities';
+
+describe('client capabilities', () => {
+	afterEach(() => {
+		resetPersistenceRequestSessionForTests();
+		vi.restoreAllMocks();
+	});
+
+	it('checks persistence state without requesting persistence on startup', async () => {
+		const persisted = vi.fn().mockResolvedValue(false);
+		const persist = vi.fn().mockResolvedValue(true);
+		stubStorage({ persisted, persist });
+
+		await expect(checkStoragePersistence()).resolves.toEqual({
+			status: 'denied',
+			persisted: false,
+			canRequest: true,
+		});
+		expect(persist).not.toHaveBeenCalled();
+	});
+
+	it('requests persistent storage at most once per session for meaningful writes', async () => {
+		const persisted = vi.fn().mockResolvedValue(false);
+		const persist = vi.fn().mockResolvedValue(false);
+		stubStorage({ persisted, persist });
+
+		await requestPersistentStorageForMeaningfulWrite();
+		await requestPersistentStorageForMeaningfulWrite();
+
+		expect(persist).toHaveBeenCalledTimes(1);
+		expect(persisted).toHaveBeenCalledTimes(2);
+	});
+
+	it('decides when the durability warning should recur', () => {
+		expect(
+			shouldShowDurabilityWarning({
+				hasUserData: false,
+				persistenceStatus: 'denied',
+				dismissedMilestone: null,
+				currentMilestone: 'projects:0',
+			})
+		).toBe(false);
+		expect(
+			shouldShowDurabilityWarning({
+				hasUserData: true,
+				persistenceStatus: 'granted',
+				dismissedMilestone: null,
+				currentMilestone: 'projects:1',
+			})
+		).toBe(false);
+		expect(
+			shouldShowDurabilityWarning({
+				hasUserData: true,
+				persistenceStatus: 'denied',
+				dismissedMilestone: 'projects:1',
+				currentMilestone: 'projects:1',
+			})
+		).toBe(false);
+		expect(
+			shouldShowDurabilityWarning({
+				hasUserData: true,
+				persistenceStatus: 'denied',
+				dismissedMilestone: 'projects:1',
+				currentMilestone: 'projects:2',
+			})
+		).toBe(true);
+		expect(
+			shouldShowDurabilityWarning({
+				hasUserData: true,
+				persistenceStatus: 'unsupported',
+				dismissedMilestone: null,
+				currentMilestone: 'projects:1',
+			})
+		).toBe(true);
+	});
+
+	it('reports storage estimates and warns near quota', async () => {
+		stubStorage({ estimate: vi.fn().mockResolvedValue({ usage: 850, quota: 1_000 }) });
+
+		await expect(getStorageEstimate()).resolves.toEqual({
+			usage: 850,
+			quota: 1_000,
+			usageRatio: 0.85,
+			isNearQuota: true,
+		});
+		expect(isStorageNearQuota(0.79)).toBe(false);
+		expect(isStorageNearQuota(0.8)).toBe(true);
+		expect(formatStorageBytes(1_536)).toBe('1.5 KB');
+	});
+});
+
+function stubStorage(storage: Partial<StorageManager>): void {
+	vi.stubGlobal('navigator', { storage });
+}
