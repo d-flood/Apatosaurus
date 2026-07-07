@@ -111,6 +111,7 @@ export interface CollationWitnessSourceStatus {
 
 export interface CollationVersionStatus {
 	projectId: string | null;
+	projectName: string | null;
 	collationId: string;
 	title: string;
 	verseIdentifier: string;
@@ -221,8 +222,16 @@ export async function getCollationVersionStatus(
 ): Promise<CollationVersionStatus> {
 	const row = await db
 		.selectFrom('collations')
-		.select(['id', 'project_id', 'title', 'verse_identifier', 'status'])
-		.where('id', '=', collationId)
+		.leftJoin('projects', 'projects.id', 'collations.project_id')
+		.select([
+			'collations.id as id',
+			'collations.project_id as project_id',
+			'projects.name as project_name',
+			'collations.title as title',
+			'collations.verse_identifier as verse_identifier',
+			'collations.status as status',
+		])
+		.where('collations.id', '=', collationId)
 		.executeTakeFirst();
 	if (!row) throw new Error(`Collation ${collationId} was not found.`);
 
@@ -237,6 +246,7 @@ export async function getCollationVersionStatus(
 	);
 	return {
 		projectId: row.project_id,
+		projectName: row.project_name,
 		collationId: id,
 		title: row.title,
 		verseIdentifier: row.verse_identifier,

@@ -12,6 +12,7 @@
 	} from '$lib/client/db/repositories/collations';
 	import CollationStepper from './CollationStepper.svelte';
 	import AutoSaveIndicator from './AutoSaveIndicator.svelte';
+	import EntityHeader from '$lib/components/EntityHeader.svelte';
 	import SetupPhase from './SetupPhase.svelte';
 	import AlignmentGrid from './AlignmentGrid.svelte';
 	import ReadingsPhase from './ReadingsPhase.svelte';
@@ -29,23 +30,6 @@
 	let commitSuccess = $state<string | null>(null);
 	let bulkRefreshInFlight = $state(false);
 	let bulkRefreshError = $state<string | null>(null);
-
-	const versionStateText = $derived.by(() => {
-		if (!collationVersionStatus) return '';
-		if (collationVersionStatus.commitState === 'never-committed') {
-			return 'No committed version yet';
-		}
-		if (collationVersionStatus.commitState === 'dirty') {
-			return 'Changes since commit';
-		}
-		return 'Committed';
-	});
-
-	const checkpointText = $derived.by(() => {
-		const checkpoint = collationVersionStatus?.currentCheckpoint;
-		if (!checkpoint) return '';
-		return `Version ${shortRevisionId(checkpoint.revisionId)}`;
-	});
 
 	const canCommitVersion = $derived(
 		!!collationState.collationId &&
@@ -131,10 +115,6 @@
 			witness => witness.versionState === 'newer-source-available'
 		).length ?? 0
 	);
-
-	function shortRevisionId(revisionId: string): string {
-		return revisionId.length <= 12 ? revisionId : `${revisionId.slice(0, 8)}...`;
-	}
 
 	async function loadCollationVersionStatus(
 		id: string,
@@ -284,16 +264,12 @@
 				{#if collationVersionStatus}
 					<div class="border-l border-base-300 pl-3 flex items-center gap-2">
 						<GitCommit size={14} class="text-base-content/60" />
-						<div class="flex flex-col leading-tight">
-							<span class="text-xs font-mono tracking-wide text-base-content/70">
-								{versionStateText}
-							</span>
-							{#if checkpointText}
-								<span class="text-[10px] font-mono text-base-content/50"
-									>{checkpointText}</span
-								>
-							{/if}
-						</div>
+						<EntityHeader
+							label="Collation"
+							projectName={collationVersionStatus.projectName}
+							commitState={collationVersionStatus.commitState}
+							checkpointRevisionId={collationVersionStatus.currentCheckpoint?.revisionId ?? null}
+						/>
 						<button
 							type="button"
 							class="btn btn-sm btn-secondary"

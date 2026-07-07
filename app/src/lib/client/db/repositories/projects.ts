@@ -61,6 +61,7 @@ export interface ProjectTranscriptionOption {
 export interface TranscriptionSourceSummary {
 	transcriptionId: string;
 	projectId: string;
+	projectName: string | null;
 	title: string;
 	siglum: string;
 	currentCheckpoint: EntityCheckpointHead | null;
@@ -70,6 +71,7 @@ export interface TranscriptionSourceSummary {
 export interface TranscriptionOriginSummary {
 	sourceType: string;
 	sourceProjectId: string | null;
+	sourceProjectName: string | null;
 	sourceTranscriptionId: string | null;
 	sourceRevisionId: string | null;
 	sourceContentHash: string | null;
@@ -100,6 +102,7 @@ export type ProjectTranscriptionSourceState =
 
 export interface ProjectTranscriptionStatus {
 	projectId: string;
+	projectName: string | null;
 	projectTranscriptionId: string;
 	projectOwnedTranscriptionId: string;
 	siglum: string;
@@ -325,14 +328,18 @@ export async function listProjectTranscriptionStatuses(
 	const rows = await db
 		.selectFrom('project_transcriptions')
 		.innerJoin('transcriptions', 'transcriptions.id', 'project_transcriptions.transcription_id')
+		.leftJoin('projects', 'projects.id', 'project_transcriptions.project_id')
+		.leftJoin('projects as origin_projects', 'origin_projects.id', 'transcriptions.origin_project_id')
 		.select([
 			'project_transcriptions.id as project_transcription_id',
 			'project_transcriptions.project_id as project_id',
+			'projects.name as project_name',
 			'project_transcriptions.transcription_id as transcription_id',
 			'project_transcriptions.canonical_transcription_id as canonical_transcription_id',
 			'transcriptions.project_id as transcription_project_id',
 			'transcriptions.origin_type as origin_type',
 			'transcriptions.origin_project_id as origin_project_id',
+			'origin_projects.name as origin_project_name',
 			'transcriptions.origin_transcription_id as origin_transcription_id',
 			'transcriptions.origin_revision_id as origin_revision_id',
 			'transcriptions.origin_content_hash as origin_content_hash',
@@ -355,14 +362,18 @@ export async function getProjectTranscriptionStatus(
 	const row = await db
 		.selectFrom('project_transcriptions')
 		.innerJoin('transcriptions', 'transcriptions.id', 'project_transcriptions.transcription_id')
+		.leftJoin('projects', 'projects.id', 'project_transcriptions.project_id')
+		.leftJoin('projects as origin_projects', 'origin_projects.id', 'transcriptions.origin_project_id')
 		.select([
 			'project_transcriptions.id as project_transcription_id',
 			'project_transcriptions.project_id as project_id',
+			'projects.name as project_name',
 			'project_transcriptions.transcription_id as transcription_id',
 			'project_transcriptions.canonical_transcription_id as canonical_transcription_id',
 			'transcriptions.project_id as transcription_project_id',
 			'transcriptions.origin_type as origin_type',
 			'transcriptions.origin_project_id as origin_project_id',
+			'origin_projects.name as origin_project_name',
 			'transcriptions.origin_transcription_id as origin_transcription_id',
 			'transcriptions.origin_revision_id as origin_revision_id',
 			'transcriptions.origin_content_hash as origin_content_hash',
@@ -384,14 +395,18 @@ export async function getProjectTranscriptionStatusForOwnedTranscription(
 	const row = await db
 		.selectFrom('project_transcriptions')
 		.innerJoin('transcriptions', 'transcriptions.id', 'project_transcriptions.transcription_id')
+		.leftJoin('projects', 'projects.id', 'project_transcriptions.project_id')
+		.leftJoin('projects as origin_projects', 'origin_projects.id', 'transcriptions.origin_project_id')
 		.select([
 			'project_transcriptions.id as project_transcription_id',
 			'project_transcriptions.project_id as project_id',
+			'projects.name as project_name',
 			'project_transcriptions.transcription_id as transcription_id',
 			'project_transcriptions.canonical_transcription_id as canonical_transcription_id',
 			'transcriptions.project_id as transcription_project_id',
 			'transcriptions.origin_type as origin_type',
 			'transcriptions.origin_project_id as origin_project_id',
+			'origin_projects.name as origin_project_name',
 			'transcriptions.origin_transcription_id as origin_transcription_id',
 			'transcriptions.origin_revision_id as origin_revision_id',
 			'transcriptions.origin_content_hash as origin_content_hash',
@@ -412,7 +427,7 @@ export async function loadTranscriptionContent(
 	const row = await db
 		.selectFrom('transcriptions')
 		.select('content_json')
-		.where('id', '=', transcriptionId)
+		.where('transcriptions.id', '=', transcriptionId)
 		.executeTakeFirst();
 	return row?.content_json ?? null;
 }
@@ -1528,11 +1543,13 @@ async function copyIiifRows(
 interface ProjectTranscriptionStatusQueryRow {
 	project_transcription_id: string | null;
 	project_id: string;
+	project_name: string | null;
 	transcription_id: string;
 	canonical_transcription_id: string | null;
 	transcription_project_id: string;
 	origin_type: string;
 	origin_project_id: string | null;
+	origin_project_name: string | null;
 	origin_transcription_id: string | null;
 	origin_revision_id: string;
 	origin_content_hash: string;
@@ -1578,6 +1595,7 @@ async function mapProjectTranscriptionStatus(
 
 	return {
 		projectId: row.project_id,
+		projectName: row.project_name,
 		projectTranscriptionId,
 		projectOwnedTranscriptionId,
 		siglum: row.siglum,
@@ -1607,15 +1625,17 @@ async function loadTranscriptionSourceSummary(
 ): Promise<TranscriptionSourceSummary | null> {
 	const row = await db
 		.selectFrom('transcriptions')
+		.leftJoin('projects', 'projects.id', 'transcriptions.project_id')
 		.select([
-			'id',
-			'project_id',
-			'title',
-			'siglum',
-			'current_revision_id',
-			'current_content_hash',
+			'transcriptions.id as id',
+			'transcriptions.project_id as project_id',
+			'projects.name as project_name',
+			'transcriptions.title as title',
+			'transcriptions.siglum as siglum',
+			'transcriptions.current_revision_id as current_revision_id',
+			'transcriptions.current_content_hash as current_content_hash',
 		])
-		.where('id', '=', transcriptionId)
+		.where('transcriptions.id', '=', transcriptionId)
 		.executeTakeFirst();
 	if (!row) return null;
 	const sourceId = requireId(row.id, 'source transcription');
@@ -1626,6 +1646,7 @@ async function loadTranscriptionSourceSummary(
 	return {
 		transcriptionId: sourceId,
 		projectId: row.project_id,
+		projectName: row.project_name,
 		title: row.title,
 		siglum: row.siglum,
 		currentCheckpoint,
@@ -1719,6 +1740,7 @@ function mapImmediateSource(
 	return {
 		sourceType: row.origin_type,
 		sourceProjectId: row.origin_project_id,
+		sourceProjectName: row.origin_project_name,
 		sourceTranscriptionId,
 		sourceRevisionId,
 		sourceContentHash,

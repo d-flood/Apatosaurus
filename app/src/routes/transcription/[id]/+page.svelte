@@ -16,6 +16,8 @@
 		type TranscriptionRecord,
 	} from '$lib/client/transcription/model';
 	import IiifWorkspace from '$lib/components/transcriptionEditor/IiifWorkspace.svelte';
+	import EntityHeader from '$lib/components/EntityHeader.svelte';
+	import TranscriptionLineage from '$lib/components/TranscriptionLineage.svelte';
 	import type { TranscriptionSelectionQuote } from '$lib/client/iiif/types';
 	import type { PageEditorMetadata } from '$lib/components/transcriptionEditor/pageFormwork';
 	import TranscriptionEditor from '$lib/components/transcriptionEditor/TranscriptionEditor.svelte';
@@ -206,23 +208,6 @@
 		return `Saved locally ${diffDays}d ago`;
 	});
 
-	const versionStateText = $derived.by(() => {
-		if (!transcriptionVersionStatus) return '';
-		if (transcriptionVersionStatus.commitState === 'never-committed') {
-			return 'No committed version yet';
-		}
-		if (transcriptionVersionStatus.commitState === 'dirty') {
-			return 'Changes since commit';
-		}
-		return 'Committed';
-	});
-
-	const checkpointText = $derived.by(() => {
-		const checkpoint = transcriptionVersionStatus?.currentCheckpoint;
-		if (!checkpoint) return '';
-		return `Version ${shortRevisionId(checkpoint.revisionId)}`;
-	});
-
 	const canCommitVersion = $derived.by(() => {
 		return (
 			!!transcriptionVersionStatus?.isProjectOwned &&
@@ -244,10 +229,6 @@
 		}
 		return '';
 	});
-
-	function shortRevisionId(revisionId: string): string {
-		return revisionId.length <= 12 ? revisionId : `${revisionId.slice(0, 8)}...`;
-	}
 
 	function handleSaveStateChange(saved: boolean) {
 		hasUnsavedChanges = !saved;
@@ -618,14 +599,14 @@
 						{#if transcriptionVersionStatus?.isProjectOwned}
 							<div class="mt-3 rounded-box border border-base-300/70 bg-base-200/50 p-3">
 								<div class="flex flex-wrap items-center justify-between gap-3">
-									<div>
-										<p class="text-xs font-semibold uppercase tracking-[0.14em] opacity-70">
-											Committed version
-										</p>
-										<p class="text-sm font-medium">{versionStateText}</p>
-										{#if checkpointText}
-											<p class="text-xs opacity-70">{checkpointText}</p>
-										{/if}
+									<div class="space-y-2">
+										<EntityHeader
+											label="Transcription"
+											projectName={transcriptionVersionStatus.projectName}
+											commitState={transcriptionVersionStatus.commitState}
+											checkpointRevisionId={transcriptionVersionStatus.currentCheckpoint?.revisionId ?? null}
+										/>
+										<TranscriptionLineage status={transcriptionVersionStatus} />
 									</div>
 									<button
 										type="button"
