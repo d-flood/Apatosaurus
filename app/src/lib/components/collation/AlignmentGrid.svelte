@@ -169,7 +169,7 @@
 			type: newType,
 		};
 		collationState.addRule(rule);
-		collationState.applyRegularization();
+		collationState.refreshCollationInput();
 		newPattern = '';
 		newReplacement = '';
 		newDescription = '';
@@ -542,7 +542,7 @@
 
 	$effect(() => {
 		if (collationState.rules.length >= 0) {
-			collationState.applyRegularization();
+			collationState.refreshCollationInput();
 		}
 	});
 </script>
@@ -933,7 +933,8 @@
 					Regularization Rules
 				</h3>
 				<p class="text-xs text-base-content/50 mb-3">
-					Adjust rules, run collation, review alignment, and iterate.
+					Adjust rules, run collation, review alignment, and iterate. Preprocessing runs first,
+					then project rules, then verse rules, each in list order.
 				</p>
 
 				<div class="bg-base-100 rounded-box p-3 border border-base-300/50 space-y-3 mb-3">

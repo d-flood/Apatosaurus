@@ -8,7 +8,7 @@ This document tracks the status of all issues in the files-as-database epic: inv
 
 Overall status: `In Progress`
 
-Current issue: `16-onboarding-and-about-content` (implementation and verification complete)
+Current issue: `17-collation-single-derivation-path` (implementation and verification complete)
 
 Last updated: 2026-07-07
 
@@ -37,7 +37,7 @@ Last updated: 2026-07-07
 | 14 | `14-project-first-navigation.md` | Completed | 06 |
 | 15 | `15-entity-headers-and-lineage-display.md` | Completed | 14 |
 | 16 | `16-onboarding-and-about-content.md` | Completed | 12, 14 |
-| 17 | `17-collation-single-derivation-path.md` | Not Started | 05 |
+| 17 | `17-collation-single-derivation-path.md` | Completed | 05 |
 | 18 | `18-collation-rule-diagnostics-and-staleness.md` | Not Started | 17 |
 | 19 | `19-editor-init-only-setcontent.md` | Not Started | 05 |
 | 20 | `20-editor-selection-side-effects-and-harness.md` | Not Started | 19 |
@@ -60,6 +60,7 @@ bun run test:unit -- --run
 
 | Date | Note |
 | --- | --- |
+| 2026-07-07 | Issue 17 completed. Added pure `deriveCollationInput` as the single source for regularized preview tokens and CollateX worker payloads, with fixed preprocessing-before-rules order, project rules before verse rules, Unicode `gu` regex compilation, NFC matching, and invalid/apply error diagnostics. Removed the previous state-local parallel derivation path and updated rule-management UI help text. Verification passed: `bun run test:unit -- --run src/lib/client/collation`, `bun run db:generate`, `bun run db:check`, and required `bun run check && bun run test:unit -- --run` (420 passed). |
 | 2026-07-07 | Issue 16 completed. Added shared capability-driven onboarding guidance for the recommended setup and data ownership model, rendered on the project hub and new reachable `/about` page; navbar now links to About. Consolidated folder-sync/zip fallback copy through one guidance source and replaced the remaining standalone sync-button notice. Guidance covers Chromium folder-sync path, Firefox/Safari zip backup path, OPFS file ownership, sync mirror scope, and TEI sibling/export exit paths. Verification passed: focused onboarding/zip-export specs, ad-hoc notice grep, `bun run db:generate`, `bun run db:check`, and required `bun run check && bun run test:unit -- --run` (415 passed). |
 | 2026-07-07 | Issue 15 completed. Added shared entity header display for transcription and collation workspaces showing owning project name, commit state, and current revision; added copied-transcription lineage display with origin project/revision, stale-source, current-source, uncommitted-source, no-committed-source, and missing-source states. Existing status DTOs now include owning/origin project names from index metadata only. Verification passed: focused entity header/lineage component tests, affected project/collation repository tests, `bun run db:generate`, `bun run db:check`, and required `bun run check && bun run test:unit -- --run` (412 passed). |
 | 2026-07-07 | Issue 14 completed. `/projects` is now the project-first hub with Transcriptions, Collations, Settings, and Backup and Sync sections; project-scoped action links preselect the active project for new transcription, TEI/blank creation, IGNTP import, and new collation flows. Legacy unowned list routes redirect to project hub sections while editor deep links remain unchanged. Top navigation now points to project hub sections. `ProjectUserManagementStub.svelte` remains in the Settings section. Verification passed: focused `src/routes/project-first-navigation.spec.ts`, required `bun run check && bun run test:unit -- --run` (406 passed), `bun run db:generate`, and `bun run db:check`. |

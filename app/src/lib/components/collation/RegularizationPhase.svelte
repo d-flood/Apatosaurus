@@ -40,7 +40,7 @@
 			type: newType,
 		};
 		collationState.addRule(rule);
-		collationState.applyRegularization();
+		collationState.refreshCollationInput();
 		newPattern = '';
 		newReplacement = '';
 		newDescription = '';
@@ -119,9 +119,9 @@
 	}
 
 	$effect(() => {
-		// Re-apply regularization when rules change
+		// Re-derive preview from the same tokens submitted to the collation worker.
 		if (collationState.rules.length >= 0) {
-			collationState.applyRegularization();
+			collationState.refreshCollationInput();
 		}
 	});
 </script>
@@ -224,6 +224,10 @@
 			<h2 class="text-lg font-serif font-bold text-base-content/90 tracking-tight">
 				Regularization Rules
 			</h2>
+			<p class="text-xs leading-relaxed text-base-content/60">
+				Preview and collation use the same derived tokens: preprocessing runs first, then project
+				rules, then verse rules, each in list order.
+			</p>
 
 			<!-- Add new rule form -->
 			<div class="bg-base-200 rounded-box p-4 space-y-3 border border-base-300/50">

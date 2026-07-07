@@ -575,7 +575,7 @@ describe('collationState stemma derivation', () => {
 			makeWitness('B', 'θς'),
 		]);
 		collationState.addRule(makeRule());
-		collationState.applyRegularization();
+		collationState.refreshCollationInput();
 
 		const snapshot = collateToAlignmentSnapshot({
 			witnesses: collationState.buildCollationWitnessInputs(),
@@ -917,7 +917,7 @@ describe('collationState stemma derivation', () => {
 		]);
 
 		collationState.setLowercase(true);
-		collationState.applyRegularization();
+		collationState.refreshCollationInput();
 
 		const inputs = collationState.buildCollationWitnessInputs({ forceSourceWitnesses: true });
 		expect(inputs[0]?.tokens?.[0]).toMatchObject({
@@ -928,6 +928,25 @@ describe('collationState stemma derivation', () => {
 			t: 'θεος',
 			n: 'θεος',
 		});
+	});
+
+	it('renders preview tokens from the same derivation submitted to the worker', () => {
+		collationState.setWitnesses([
+			makeWitness('A', 'θς', { isBaseText: true }),
+			makeWitness('B', 'θεος'),
+		]);
+		collationState.addRule(makeRule());
+
+		const previewTokens = collationState.regularizedTexts.get('A') ?? [];
+		const workerTokens =
+			collationState.buildCollationWitnessInputs({ forceSourceWitnesses: true })[0]?.tokens ?? [];
+
+		expect(previewTokens.map(token => token.regularized)).toEqual(
+			workerTokens.map(token => token.displayRegularized)
+		);
+		expect(previewTokens.map(token => token.alignmentValue)).toEqual(
+			workerTokens.map(token => token.n)
+		);
 	});
 
 	it('keeps punctuation as its own source token when not ignored', () => {
@@ -1003,7 +1022,7 @@ describe('collationState stemma derivation', () => {
 			makeWitness('B', 'κλητος'),
 		]);
 
-		collationState.applyRegularization();
+		collationState.refreshCollationInput();
 
 		const inputs = collationState.buildCollationWitnessInputs({ forceSourceWitnesses: true });
 		expect(inputs[0]?.tokens?.[0]).toMatchObject({
@@ -1052,7 +1071,7 @@ describe('collationState stemma derivation', () => {
 			makeWitness('B', 'αποστολος'),
 		]);
 
-		collationState.applyRegularization();
+		collationState.refreshCollationInput();
 
 		const inputs = collationState.buildCollationWitnessInputs({ forceSourceWitnesses: true });
 		expect(inputs[0]?.tokens?.[0]).toMatchObject({
@@ -1073,7 +1092,7 @@ describe('collationState stemma derivation', () => {
 			makeWitness('B', 'λογος'),
 			makeWitness('C', 'λογος'),
 		]);
-		collationState.applyRegularization();
+		collationState.refreshCollationInput();
 
 		const snapshot = collateToAlignmentSnapshot({
 			witnesses: collationState.buildCollationWitnessInputs(),

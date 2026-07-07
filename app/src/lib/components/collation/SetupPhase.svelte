@@ -509,7 +509,7 @@
 				segmentation={collationState.segmentation}
 				onAddRule={rule => {
 					collationState.addRule(rule);
-					collationState.applyRegularization();
+					collationState.refreshCollationInput();
 				}}
 				onRemoveRule={collationState.removeRule}
 				onToggleRule={collationState.toggleRule}

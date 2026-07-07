@@ -69,6 +69,12 @@ import {
 	mergeProjectRules,
 	parseProjectCollationSettings,
 } from './project-settings';
+import {
+	deriveCollationInput,
+	regularizeCollationText,
+	type CollationInputDiagnostic,
+	type DerivedCollationInput,
+} from './regularization';
 import { isPunctuationToken, joinTokenTexts, tokenizeDisplayText } from './token-text';
 
 const PHASE_ORDER: CollationPhase[] = [
@@ -162,6 +168,8 @@ function createCollationState() {
 	// Phase 2: Regularization
 	let rules = $state<RegularizationRule[]>([]);
 	let regularizedTexts = $state<Map<string, RegularizedToken[]>>(new Map());
+	let regularizationDiagnostics = $state<CollationInputDiagnostic[]>([]);
+	let derivedCollationInput: DerivedCollationInput | null = null;
 	let lowercase = $state(false);
 	let ignoreWordBreaks = $state(false);
 	let ignoreTokenWhitespace = $state(true);
@@ -217,6 +225,8 @@ function createCollationState() {
 		ignoreTokenWhitespace = true;
 		segmentation = true;
 		regularizedTexts = new Map();
+		regularizationDiagnostics = [];
+		derivedCollationInput = null;
 		selectedColumnIds = new Set();
 		selectedCells = new Set();
 		focusedColumn = -1;
@@ -256,6 +266,8 @@ function createCollationState() {
 		alignmentDisplayMode = hydrated.alignmentDisplayMode;
 		alignmentLayout = hydrated.alignmentLayout;
 		regularizedTexts = new Map();
+		regularizationDiagnostics = [];
+		derivedCollationInput = null;
 		selectedColumnIds = new Set();
 		selectedCells = new Set();
 		focusedColumn = -1;
@@ -459,6 +471,8 @@ function createCollationState() {
 		selectedChapter = '';
 		selectedVerseNum = '';
 		regularizedTexts = new Map();
+		regularizationDiagnostics = [];
+		derivedCollationInput = null;
 	}
 
 	function cloneWitnessSourceTokens(
@@ -591,14 +605,14 @@ function createCollationState() {
 		transcriptionWitnessTreatments = new Map();
 		transcriptionWitnessExcludedHands = new Map();
 		if (!nextProjectId) {
-			applyRegularization();
+			refreshCollationInput();
 			return;
 		}
 
 		const project = await getProject(nextProjectId);
 		if (!project) {
 			projectId = null;
-			applyRegularization();
+			refreshCollationInput();
 			return;
 		}
 
@@ -631,7 +645,7 @@ function createCollationState() {
 				scheduleSave();
 			}
 		}
-		applyRegularization();
+		refreshCollationInput();
 	}
 
 	async function selectProject(nextProjectId: string): Promise<void> {
@@ -675,7 +689,7 @@ function createCollationState() {
 		witnesses = ensureBaseTextSelection(
 			applyWitnessTreatmentSources(filterWitnessesByProjectSettings(configs))
 		);
-		applyRegularization();
+		refreshCollationInput();
 		markUnsaved();
 	}
 
@@ -690,7 +704,7 @@ function createCollationState() {
 				return next;
 			})
 		);
-		applyRegularization();
+		refreshCollationInput();
 		markUnsaved();
 	}
 
@@ -744,6 +758,7 @@ function createCollationState() {
 
 	function setRules(nextRules: RegularizationRule[]) {
 		rules = nextRules;
+		refreshCollationInput();
 		void persistRulesToProject(nextRules);
 		markUnsaved();
 	}
@@ -767,7 +782,7 @@ function createCollationState() {
 	function setLowercase(nextValue: boolean) {
 		lowercase = nextValue;
 		void persistRulesToProject(rules);
-		applyRegularization();
+		refreshCollationInput();
 		markUnsaved();
 	}
 
@@ -779,21 +794,21 @@ function createCollationState() {
 		if (didChange) {
 			handleWitnessSourceChange();
 		}
-		applyRegularization();
+		refreshCollationInput();
 		markUnsaved();
 	}
 
 	function setIgnorePunctuation(nextValue: boolean) {
 		ignorePunctuation = nextValue;
 		void persistRulesToProject(rules);
-		applyRegularization();
+		refreshCollationInput();
 		markUnsaved();
 	}
 
 	function setSuppliedTextMode(nextValue: SuppliedTextMode) {
 		suppliedTextMode = nextValue;
 		void persistRulesToProject(rules);
-		applyRegularization();
+		refreshCollationInput();
 		markUnsaved();
 	}
 
@@ -812,7 +827,7 @@ function createCollationState() {
 		nextMap.set(transcriptionId, normalizedTreatment);
 		transcriptionWitnessTreatments = nextMap;
 		witnesses = applyWitnessTreatmentSources(witnesses);
-		applyRegularization();
+		refreshCollationInput();
 		void persistRulesToProject(rules);
 		markUnsaved();
 	}
@@ -828,7 +843,7 @@ function createCollationState() {
 		}
 		transcriptionWitnessTreatments = nextMap;
 		witnesses = applyWitnessTreatmentSources(witnesses);
-		applyRegularization();
+		refreshCollationInput();
 		void persistRulesToProject(rules);
 		markUnsaved();
 	}
@@ -878,167 +893,19 @@ function createCollationState() {
 		markUnsaved();
 	}
 
-	function regularizeTextValue(
-		input: string,
-		activeRules = rules.filter(rule => rule.enabled)
-	): {
-		regularizedText: string;
-		ruleIds: string[];
-		types: RegularizationType[];
-	} {
-		let result = input;
-		const ruleIds: string[] = [];
-		const typeSet = new Set<RegularizationType>();
-
-		for (const rule of activeRules) {
-			try {
-				const regex = new RegExp(rule.pattern, 'g');
-				const replaced = result.replace(regex, rule.replacement);
-				if (replaced !== result) {
-					result = replaced;
-					ruleIds.push(rule.id);
-					if (rule.type !== 'none') typeSet.add(rule.type);
-				}
-			} catch {
-				// Skip invalid regex rules.
-			}
-		}
-
-		return {
-			regularizedText: result,
-			ruleIds,
-			types: [...typeSet],
-		};
+	function refreshCollationInput() {
+		derivedCollationInput = deriveCollationInput(
+			witnesses,
+			{ lowercase, ignoreTokenWhitespace, ignorePunctuation, suppliedTextMode },
+			rules
+		);
+		regularizedTexts = derivedCollationInput.perWitnessTokens;
+		regularizationDiagnostics = derivedCollationInput.diagnostics;
 	}
 
-	function buildGapPlaceholder(
-		gap: GapMetadata | null,
-		fallbackSource: GapMetadata['source']
-	): string {
-		const meta = gap ?? { source: fallbackSource, reason: '', unit: '', extent: '' };
-		return [
-			`__${meta.source}__`,
-			meta.reason || 'none',
-			meta.unit || 'none',
-			meta.extent || 'none',
-		].join(':');
-	}
-
-	function deriveRegularizedToken(
-		sourceToken: WitnessSourceToken,
-		activeRules = rules.filter(rule => rule.enabled)
-	): RegularizedToken | null {
-		if (sourceToken.kind === 'gap' || sourceToken.kind === 'untranscribed') {
-			return {
-				original: sourceToken.original,
-				originalSegments: sourceToken.segments.map(segment => ({ ...segment })),
-				regularized: null,
-				alignmentValue: buildGapPlaceholder(
-					sourceToken.gap,
-					sourceToken.gap?.source ?? sourceToken.kind
-				),
-				ruleIds: [],
-				types: [],
-				kind: sourceToken.kind,
-				gap: sourceToken.gap,
-				hasUnclear: false,
-				isPunctuation: false,
-				isSupplied: false,
-			};
-		}
-
-		const original = sourceToken.original;
-		const originalSegments = sourceToken.segments.map(segment => ({ ...segment }));
-		const hasUnclear = sourceToken.segments.some(segment => segment.hasUnclear);
-		const isPunctuationOnly =
-			sourceToken.segments.length > 0 &&
-			sourceToken.segments.every(segment => segment.isPunctuation);
-		const isSupplied = sourceToken.segments.some(segment => segment.isSupplied);
-
-		let structuralText = sourceToken.segments
-			.map(segment => {
-				if (segment.hasUnclear) return segment.text;
-				if (ignorePunctuation && segment.isPunctuation) return '';
-				if (suppliedTextMode === 'gap' && segment.isSupplied) return '';
-				return segment.text;
-			})
-			.join('')
-			.replace(/\s+/g, ' ')
-			.trim();
-
-		if (lowercase) {
-			structuralText = structuralText.toLocaleLowerCase();
-		}
-
-		if (ignoreTokenWhitespace) {
-			structuralText = structuralText.replace(/\\[ncp]/g, '');
-			structuralText = structuralText.replace(/\s+/g, '');
-		}
-
-		const suppliedOnly =
-			sourceToken.segments.length > 0 &&
-			sourceToken.segments.every(segment => segment.isSupplied);
-
-		if (suppliedTextMode === 'gap' && suppliedOnly) {
-			return {
-				original,
-				originalSegments,
-				regularized: null,
-				alignmentValue: buildGapPlaceholder(
-					{
-						source: 'supplied',
-						reason: 'supplied',
-						unit: '',
-						extent: '',
-					},
-					'supplied'
-				),
-				ruleIds: [],
-				types: [],
-				kind: 'gap',
-				gap: {
-					source: 'supplied',
-					reason: 'supplied',
-					unit: '',
-					extent: '',
-				},
-				hasUnclear,
-				isPunctuation: isPunctuationOnly,
-				isSupplied: true,
-			};
-		}
-
-		if (structuralText.length === 0) {
-			return null;
-		}
-
-		const regularizedValue = regularizeTextValue(structuralText, activeRules);
-		return {
-			original,
-			originalSegments,
-			regularized: regularizedValue.regularizedText,
-			alignmentValue: regularizedValue.regularizedText,
-			ruleIds: regularizedValue.ruleIds,
-			types: regularizedValue.types,
-			kind: 'text',
-			gap: null,
-			hasUnclear,
-			isPunctuation: isPunctuationOnly,
-			isSupplied,
-		};
-	}
-
-	function applyRegularization() {
-		const activeRules = rules.filter(r => r.enabled);
-		const newTexts = new Map<string, RegularizedToken[]>();
-
-		for (const w of witnesses.filter(w => !w.isExcluded)) {
-			const regularized = w.tokens
-				.map(token => deriveRegularizedToken(token, activeRules))
-				.filter((token): token is RegularizedToken => token !== null);
-			newTexts.set(w.witnessId, regularized);
-		}
-		regularizedTexts = newTexts;
+	function getDerivedCollationInput(): DerivedCollationInput {
+		if (!derivedCollationInput) refreshCollationInput();
+		return derivedCollationInput!;
 	}
 
 	function buildWitnessInputFromAlignment(witnessId: string): CollationWitnessInput {
@@ -1067,59 +934,6 @@ function createCollationState() {
 		};
 	}
 
-	function buildWitnessInputFromWitness(witnessId: string): CollationWitnessInput {
-		const witness = witnesses.find(item => item.witnessId === witnessId);
-		const activeRules = rules.filter(rule => rule.enabled);
-		const preparedTokens: CollationTokenInput[] = [];
-		for (const [index, sourceToken] of (witness?.tokens ?? []).entries()) {
-			const token = deriveRegularizedToken(sourceToken, activeRules);
-			if (!token) {
-				if (
-					ignorePunctuation &&
-					sourceToken.kind === 'text' &&
-					sourceToken.segments.length > 0 &&
-					sourceToken.segments.every(segment => segment.isPunctuation)
-				) {
-					preparedTokens.push({
-						t: sourceToken.original,
-						n: '',
-						sourceTokenIds: [`${witnessId}::source::${index}`],
-						kind: 'text',
-						displayRegularized: null,
-						originalSegments: sourceToken.segments.map(segment => ({ ...segment })),
-						gap: null,
-						hasUnclear: sourceToken.segments.some(segment => segment.hasUnclear),
-						isPunctuation: true,
-						isSupplied: sourceToken.segments.some(segment => segment.isSupplied),
-						ruleIds: [],
-						regularizationTypes: [],
-					});
-				}
-				continue;
-			}
-			preparedTokens.push({
-				t: token.original,
-				n: token.alignmentValue ?? '',
-				sourceTokenIds: [`${witnessId}::source::${index}`],
-				kind: token.kind === 'omission' ? 'text' : token.kind,
-				displayRegularized: token.regularized,
-				originalSegments: token.originalSegments.map(segment => ({ ...segment })),
-				gap: token.gap,
-				hasUnclear: token.hasUnclear,
-				isPunctuation: token.isPunctuation,
-				isSupplied: token.isSupplied,
-				ruleIds: token.ruleIds,
-				regularizationTypes: token.types,
-			});
-		}
-		const mergedTokens = mergeIgnoredPunctuationIntoPreviousToken(preparedTokens);
-		return {
-			id: witnessId,
-			content: joinTokenTexts(mergedTokens.map(token => tokenToJoinablePart(token))),
-			tokens: mergedTokens,
-		};
-	}
-
 	function hasCollapsedAlignmentRegression(): boolean {
 		if (alignmentColumns.length !== 1) return false;
 		const activeWitnesses = witnesses.filter(witness => !witness.isExcluded);
@@ -1138,7 +952,7 @@ function createCollationState() {
 
 	function rebuildAlignmentFromWitnessTokens() {
 		const snapshot = collateToAlignmentSnapshot({
-			witnesses: getOrderedActiveWitnessIds().map(buildWitnessInputFromWitness),
+			witnesses: buildCollationWitnessInputs({ forceSourceWitnesses: true }),
 			options: { segmentation },
 		});
 		applyAlignmentSnapshot(snapshot.snapshot);
@@ -1376,7 +1190,7 @@ function createCollationState() {
 	}
 
 	function handleWitnessSourceChange() {
-		applyRegularization();
+		refreshCollationInput();
 		if (alignmentColumns.length > 0) {
 			rebuildAlignmentFromWitnessTokens();
 		}
@@ -1403,7 +1217,12 @@ function createCollationState() {
 		) {
 			return orderedIds.map(buildWitnessInputFromAlignment);
 		}
-		return orderedIds.map(buildWitnessInputFromWitness);
+		const inputByWitnessId = new Map(
+			getDerivedCollationInput().witnessInputs.map(input => [input.id, input] as const)
+		);
+		return orderedIds
+			.map(witnessId => inputByWitnessId.get(witnessId))
+			.filter((input): input is CollationWitnessInput => Boolean(input));
 	}
 
 	// Alignment
@@ -1442,7 +1261,7 @@ function createCollationState() {
 		const regularizedValue =
 			kind !== 'text' || text === null
 				? { regularizedText: null, ruleIds: [], types: [] as RegularizationType[] }
-				: regularizeTextValue(text);
+				: regularizeCollationText(text, rules);
 		const ruleIds = options?.ruleIds ?? regularizedValue.ruleIds;
 		const regularizationTypes = options?.regularizationTypes ?? regularizedValue.types;
 		return {
@@ -2894,7 +2713,6 @@ function createCollationState() {
 		selectedChapter = '';
 		selectedVerseNum = '';
 		rules = [];
-		regularizedTexts = new Map();
 		lowercase = false;
 		ignoreWordBreaks = false;
 		ignoreTokenWhitespace = true;
@@ -2903,6 +2721,9 @@ function createCollationState() {
 		segmentation = true;
 		transcriptionWitnessTreatments = new Map();
 		alignmentColumns = [];
+		regularizedTexts = new Map();
+		regularizationDiagnostics = [];
+		derivedCollationInput = null;
 		witnessOrder = [];
 		selectedColumnIds = new Set();
 		selectedCells = new Set();
@@ -3093,6 +2914,9 @@ function createCollationState() {
 		get regularizedTexts() {
 			return regularizedTexts;
 		},
+		get regularizationDiagnostics() {
+			return regularizationDiagnostics;
+		},
 		get lowercase() {
 			return lowercase;
 		},
@@ -3188,7 +3012,7 @@ function createCollationState() {
 		setIgnorePunctuation,
 		setSuppliedTextMode,
 		setSegmentation,
-		applyRegularization,
+		refreshCollationInput,
 		buildCollationWitnessInputs,
 		refreshWitnessesFromSource,
 		refreshWitnessSource,
