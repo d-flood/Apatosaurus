@@ -1,4 +1,4 @@
-# Issue 18: Collation Rule Diagnostics and Staleness
+# Ticket 18: Collation Rule Diagnostics and Staleness
 
 Architecture reference: `../architecture.md` section 1 (audit findings)
 
@@ -7,27 +7,27 @@ Architecture reference: `../architecture.md` section 1 (audit findings)
 Make rule behavior inspectable and alignment staleness visible:
 
 1. **Edit-time validation**: invalid regexes are caught when a rule is saved or edited, with the error shown inline in the rules UI.
-2. **Run-time diagnostics**: at collation time, an invalid rule is reported from issue 17's `diagnostics` and shown to the user — never silently skipped.
+2. **Run-time diagnostics**: at collation time, an invalid rule is reported from ticket 17's `diagnostics` and shown to the user — never silently skipped.
 3. **Per-rule effect visibility**: for the current verse, show which tokens each enabled rule changed (a before/after diff captured during derivation). This turns "rules don't seem applied" into an inspectable answer.
 4. **Staleness**: any change to rules or collation settings after an alignment run marks the current alignment stale with a visible "re-run needed" state, instead of a preview that no longer matches the table. Re-run keeps the existing warning about manual alignment loss.
 
 ## Where to start
 
 - `app/src/lib/components/collation/RegularizationPhase.svelte` and `AlignmentGrid.svelte` (sidebar) — where rule editing and inline errors render.
-- Issue 17's `deriveCollationInput` `diagnostics` output — extend it with per-rule token-change records if 17 didn't already capture them (cheap: diff before/after per rule during derivation).
+- Ticket 17's `deriveCollationInput` `diagnostics` output — extend it with per-rule token-change records if 17 didn't already capture them (cheap: diff before/after per rule during derivation).
 - `app/src/lib/client/collation/collation-state.svelte.ts` — where settings/rules changes and the alignment snapshot meet; staleness is derived state there.
 
 ## Contract
 
-- Rule save/edit compiles the pattern (with `u` flag, matching issue 17) and blocks-or-flags invalid rules inline; the stored rule set may contain invalid rules, but they are always visibly marked.
-- Per-rule effects are computed during derivation, not by re-running rules in the UI (no second application path — that is the bug class issue 17 removed).
+- Rule save/edit compiles the pattern (with `u` flag, matching ticket 17) and blocks-or-flags invalid rules inline; the stored rule set may contain invalid rules, but they are always visibly marked.
+- Per-rule effects are computed during derivation, not by re-running rules in the UI (no second application path — that is the bug class ticket 17 removed).
 - Staleness is a pure predicate of (settings/rules state at last run) vs (current state); tested independent of components.
 
 ## Out of scope
 
-- Changes to derivation order or normalization (fixed in issue 17).
+- Changes to derivation order or normalization (fixed in ticket 17).
 - New rule features, rule import/export.
-- Collation undo/redo (in `ideas.md`, triaged in issue 23).
+- Collation undo/redo (in `ideas.md`, triaged in ticket 23).
 
 ## Acceptance criteria
 

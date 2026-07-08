@@ -1,4 +1,4 @@
-# Issue 20: Editor Selection Side Effects and Regression Harness
+# Ticket 20: Editor Selection Side Effects and Regression Harness
 
 Architecture reference: `../architecture.md` sections 1 (audit findings), 6
 
@@ -14,7 +14,7 @@ Close the remaining cursor-jump causes and prove the whole class fixed:
 - `app/src/lib/components/transcriptionEditor/editorInteractions.ts` — the 500ms cursor-position debounce + `selectionUpdate` handler pair is the suspected feedback loop; consider deriving cursor display state from a single subscription with no writes back to the editor.
 - `app/src/routes/transcription/harness/` — the existing harness to extend with scripted scenarios.
 - `app/src/lib/components/transcriptionEditor/CorrectionWorkspace.svelte` — workspace open/close scenario.
-- Issue 19's inventory (TRACKER.md Notes) lists the surviving mutation paths the harness must cover.
+- Ticket 19's inventory (TRACKER.md Notes) lists the surviving mutation paths the harness must cover.
 
 ## Contract
 
@@ -24,7 +24,7 @@ Close the remaining cursor-jump causes and prove the whole class fixed:
 
 ## Out of scope
 
-- The `setContent`/repair conversions (issue 19).
+- The `setContent`/repair conversions (ticket 19).
 - New editor features; IIIF viewer (`triiiceratops`) internals.
 
 ## Acceptance criteria

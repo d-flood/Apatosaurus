@@ -1,4 +1,4 @@
-# Issue 22: End-to-End Scenarios and CI
+# Ticket 22: End-to-End Scenarios and CI
 
 Architecture reference: `../architecture.md` section 9
 
@@ -18,7 +18,7 @@ CI runs the unit suites (node + browser) and the Playwright suite.
 - Playwright is already configured (see `app/` config and `../current-state.md` section 1); check for existing specs to follow as prior art.
 - `.github/workflows/app-pages.yml` — the existing workflow; extend or add a test workflow beside it.
 - The committee scenario can drive the mock provider or a shared OPFS-backed fake; reuse `fake-file-system-access.spec-support.ts` patterns from the sync tests.
-- Upgrade fixtures: the migrate-on-read registry's fixture convention from issue 02 (`app/src/lib/client/store/__fixtures__/`).
+- Upgrade fixtures: the migrate-on-read registry's fixture convention from ticket 02 (`app/src/lib/client/store/__fixtures__/`).
 
 ## Contract
 
@@ -28,8 +28,8 @@ CI runs the unit suites (node + browser) and the Playwright suite.
 
 ## Out of scope
 
-- New invariant unit tests (issue 21).
-- Documentation (issue 23).
+- New invariant unit tests (ticket 21).
+- Documentation (ticket 23).
 - Cross-browser Playwright matrix beyond Chromium if the harness cannot support it — document what runs where.
 
 ## Acceptance criteria

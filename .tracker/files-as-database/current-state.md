@@ -86,7 +86,7 @@ Items that exist today and need an explicit fate; agents should not build around
 - **Slow pre-collation verse indexing** (Phase 6): four compounding causes.
   1. No staleness check anywhere: `rebuildVerseIndexForTranscriptions` (`repositories/transcriptions.ts:248`) unconditionally re-parses (`JSON.parse` + `normalizeDocument`), re-walks, deletes and reinserts index rows for every transcription, sequentially in one transaction, even when content is unchanged. `last_indexed_at` is write-only; `current_content_hash` is never consulted.
   2. The client wrapper (`transcription/verse-index.ts:139`) sequentially awaits a full `getTranscription(id)` RPC per transcription (shipping entire `content_json` payloads) solely to format progress labels, before issuing the single bulk rebuild RPC.
-  3. `gatherVerses` (`collation/gather-verses.ts:84`) issues one `getVerseIndexRowsForTranscription` RPC per transcription inside `Promise.all`, but `db.worker.ts`'s promise queue serializes them; there is no `IN (...)` bulk query.
+  3. `gatherVerses` (`collation/gather-verses.ts:84`) tickets one `getVerseIndexRowsForTranscription` RPC per transcription inside `Promise.all`, but `db.worker.ts`'s promise queue serializes them; there is no `IN (...)` bulk query.
   4. Save-path double parse: `updateTranscriptionContent` serializes the in-memory document to JSON, then `replaceVerseIndexRows` immediately re-parses and re-normalizes that same string.
   - Note also: `extractVersesFromDocument` is implemented twice (public copy in `transcription/verse-index.ts`, private copy in `repositories/transcriptions.ts`); the repository copy is the one that writes rows. Consolidate when touching this code.
 

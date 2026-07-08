@@ -1,4 +1,4 @@
-# Issue 17: Collation Single Derivation Path
+# Ticket 17: Collation Single Derivation Path
 
 Architecture reference: `../architecture.md` sections 1 (audit findings), 5 (IR discipline); root causes in `../current-state.md` section 8
 
@@ -25,7 +25,7 @@ One pure, synchronous function — `deriveCollationInput(witnesses, settings, ru
 
 ## Out of scope
 
-- Diagnostics UI, per-rule effect display, and staleness marking (issue 18) — this issue produces the `diagnostics` data; 18 renders it.
+- Diagnostics UI, per-rule effect display, and staleness marking (ticket 18) — this ticket produces the `diagnostics` data; 18 renders it.
 - New rule features (flags UI, non-regex rules).
 - Alignment algorithm changes (`collatex-tsport` untouched).
 - Punctuation-handling redesign beyond making current behavior consistent.
@@ -48,4 +48,4 @@ Success: collation suite passes with the new derivation and preview-equals-worke
 
 ## Blocked by
 
-None - can start immediately (issue 05 is Completed).
+None - can start immediately (ticket 05 is Completed).

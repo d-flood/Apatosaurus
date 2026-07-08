@@ -1,4 +1,4 @@
-# Issue 19: Editor Init-Only setContent
+# Ticket 19: Editor Init-Only setContent
 
 Architecture reference: `../architecture.md` sections 1 (audit findings), 6 (single-writer rule); root causes in `../current-state.md` section 8
 
@@ -14,7 +14,7 @@ Start with an audit: inventory every `editor.commands.setContent(...)` call and 
 - `app/src/lib/components/transcriptionEditor/InlineCarrierWorkspace.svelte` — has its own `setContent` calls and manual selection math.
 - `app/src/lib/client/transcriptionEditorStructure.ts` — `repairManuscriptStructureJson`, line splitting, generated IDs.
 - Record the inventory and dispositions as a dated entry in `TRACKER.md`'s Notes (the reviewer checks dispositions against the diff).
-- Note: the single-writer autosave rule (canonical document replaced only after the working-file write resolves) landed in issue 05 — verify it holds; do not rebuild it.
+- Note: the single-writer autosave rule (canonical document replaced only after the working-file write resolves) landed in ticket 05 — verify it holds; do not rebuild it.
 
 ## Contract
 
@@ -23,11 +23,11 @@ Start with an audit: inventory every `editor.commands.setContent(...)` call and 
 - Enforcement: a dev-mode assertion (or lint rule) fails loudly on any `setContent` after initialization.
 - No autosave or merge path feeds a document back into the editor; differences between `mergeWithCanonicalDocument` output and editor state stay outside the editor and reconcile at commit.
 - `InlineCarrierWorkspace` may keep `setContent` for its own isolated editor instance if its selection lives entirely within the workspace — document the decision either way in the inventory.
-- Prefer deleting repair logic over converting it where it guards against states that can no longer occur post-issue-05.
+- Prefer deleting repair logic over converting it where it guards against states that can no longer occur post-ticket-05.
 
 ## Out of scope
 
-- Scroll/navigation/IIIF selection side effects and the regression harness (issue 20).
+- Scroll/navigation/IIIF selection side effects and the regression harness (ticket 20).
 - Editor feature work, schema changes, TEI mapping changes.
 
 ## Acceptance criteria
@@ -48,4 +48,4 @@ Success: editor suites pass including the new transaction-repair and enforcement
 
 ## Blocked by
 
-None - can start immediately (issue 05 is Completed).
+None - can start immediately (ticket 05 is Completed).

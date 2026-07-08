@@ -4,7 +4,7 @@ Status: Accepted
 Date: 2026-07-03
 Supersedes: `cloud_sync_*.md` (root, deleted), `plans/00-project-only-transcriptions-overview.md` and phases 01-10 (deleted)
 
-This document is the reference architecture for the storage inversion. Implementation is tracked as issues in `issues/` with status in `TRACKER.md` (converted 2026-07-07 from the former `plans/` phase documents; phases 01-07 map 1:1 to issues 01-07, phases 08-12 were re-sliced into issues 08-23). Read this document before starting any issue.
+This document is the reference architecture for the storage inversion. Implementation is tracked as tickets in `tickets/` with status in `TRACKER.md` (converted 2026-07-07 from the former `plans/` phase documents; phases 01-07 map 1:1 to tickets 01-07, phases 08-12 were re-sliced into tickets 08-23). Read this document before starting any ticket.
 
 ## 1. Problem Statement
 
@@ -188,7 +188,7 @@ Every phase must preserve these; the verification phase asserts them:
 
 ## 11. Phase Map
 
-Historical: these phase documents were converted to `issues/` on 2026-07-07 (see `TRACKER.md` for the current ledger and the phase-to-issue mapping).
+Historical: these phase documents were converted to `tickets/` on 2026-07-07 (see `TRACKER.md` for the current ledger and the phase-to-ticket mapping).
 
 | Phase | Document | Theme |
 | --- | --- | --- |

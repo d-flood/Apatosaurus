@@ -1,6 +1,6 @@
-# Issue 04: Project-Only Data Model, Index-Only Schema
+# Ticket 04: Project-Only Data Model, Index-Only Schema
 
-Blocked by: Issue 03
+Blocked by: Ticket 03
 Architecture reference: `../architecture.md` sections 3 (decisions 1-3), 7
 
 ## Goal

@@ -4,9 +4,9 @@ When adding a new dependency import in `app/` (including a new `phosphor-svelte/
 
 ## Agent skills
 
-### Issue tracker
+### Ticket tracker
 
-Issues live as markdown files under `.scratch/` in this repo. See `docs/agents/issue-tracker.md`.
+Tickets live as markdown files under `.tracker/` in this repo. See `docs/agents/ticket-tracker.md`.
 
 ### Triage labels
 
@@ -14,4 +14,4 @@ Five canonical triage states: `needs-triage`, `needs-info`, `ready-for-agent`, `
 
 ### Domain docs
 
-Single-context layout: one `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+Single-context layout: one `CONTEXT.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.

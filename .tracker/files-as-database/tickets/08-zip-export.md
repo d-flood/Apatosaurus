@@ -1,4 +1,4 @@
-# Issue 08: Zip Export
+# Ticket 08: Zip Export
 
 Architecture reference: `../architecture.md` sections 3 (decision 7), 9 (invariant 9)
 
@@ -12,7 +12,7 @@ End-to-end: an export action in the project UI reads the project folder from the
 
 - `app/src/lib/client/store/opfs-store.ts` and `layout.ts` — reading a project folder's canonical files; `layout.ts` knows which paths are local-only.
 - `app/src/lib/components/projects/ProjectBackupPanel.svelte` and `app/src/routes/projects/+page.svelte` — where the export action surfaces.
-- `app/src/lib/client/sync/sync-manager.ts` — the Issue 07 mirror already computes the "canonical files minus local-only" file set; reuse that enumeration rather than re-deriving it.
+- `app/src/lib/client/sync/sync-manager.ts` — the Ticket 07 mirror already computes the "canonical files minus local-only" file set; reuse that enumeration rather than re-deriving it.
 - Zip mechanics: a small zip library or a `CompressionStream`-based store-only zip. Store-only (uncompressed) entries are acceptable; correctness over ratio.
 
 ## Contract
@@ -20,14 +20,14 @@ End-to-end: an export action in the project UI reads the project folder from the
 - Archive contents are byte-identical to the project folder: manifest, committed primaries, `history/`, `tombstones/`, derived `*.tei.xml`.
 - `*.working.json` and `app/` are excluded by default; the drafts toggle includes working files only.
 - Entry paths inside the archive are relative to the project folder root (so import can resolve them without guessing).
-- "Export all projects" produces one archive with a top-level directory per project slug (or one zip per project — pick one, document it in the code, and keep issue 09's import compatible).
+- "Export all projects" produces one archive with a top-level directory per project slug (or one zip per project — pick one, document it in the code, and keep ticket 09's import compatible).
 - Stream entries where the approach allows; do not require buffering an entire large project in memory.
 
 ## Out of scope
 
-- Zip import and the staging/validation pipeline (issue 09).
-- Import-from-folder (issue 10).
-- The backup-health panel and export-recency tracking (issue 13) — but write the "last exported" timestamp somewhere issue 13 can read (e.g. `app/settings.json` or an index row) if trivial; otherwise leave a note in TRACKER.md.
+- Zip import and the staging/validation pipeline (ticket 09).
+- Import-from-folder (ticket 10).
+- The backup-health panel and export-recency tracking (ticket 13) — but write the "last exported" timestamp somewhere ticket 13 can read (e.g. `app/settings.json` or an index row) if trivial; otherwise leave a note in TRACKER.md.
 - Any change to sync behavior.
 
 ## Acceptance criteria
@@ -49,4 +49,4 @@ Success: focused suites and the full unit suite pass with the new export tests i
 
 ## Blocked by
 
-None - can start immediately (issue 06 is Completed).
+None - can start immediately (ticket 06 is Completed).

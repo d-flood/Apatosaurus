@@ -1,6 +1,6 @@
-# Issue 05: Write-Path Inversion
+# Ticket 05: Write-Path Inversion
 
-Blocked by: Issue 04
+Blocked by: Ticket 04
 Architecture reference: `../architecture.md` sections 6, 9
 
 ## Goal

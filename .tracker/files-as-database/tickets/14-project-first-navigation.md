@@ -1,4 +1,4 @@
-# Issue 14: Project-First Navigation
+# Ticket 14: Project-First Navigation
 
 Architecture reference: `../architecture.md` section 3 (decisions 1, 2)
 
@@ -22,9 +22,9 @@ Navigation restructure making project ownership visible: `/projects` is the hub.
 
 ## Out of scope
 
-- Entity headers and lineage display inside the editors (issue 15).
-- Onboarding/first-run content (issue 16).
-- Backup-health panel internals (issue 13) — just give it a home in the Backup and Sync section if it exists by then.
+- Entity headers and lineage display inside the editors (ticket 15).
+- Onboarding/first-run content (ticket 16).
+- Backup-health panel internals (ticket 13) — just give it a home in the Backup and Sync section if it exists by then.
 - `ProjectUserManagementStub.svelte` — leave as stub or delete; note the choice in TRACKER.md.
 
 ## Acceptance criteria
@@ -44,4 +44,4 @@ Success: full suite passes; manual click-through of hub -> project -> each secti
 
 ## Blocked by
 
-None - can start immediately (issue 06 is Completed).
+None - can start immediately (ticket 06 is Completed).

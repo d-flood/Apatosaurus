@@ -1,6 +1,6 @@
-# Issue 03: Canonical File Formats
+# Ticket 03: Canonical File Formats
 
-Blocked by: Issue 02
+Blocked by: Ticket 02
 Architecture reference: `../architecture.md` section 5
 
 ## Goal

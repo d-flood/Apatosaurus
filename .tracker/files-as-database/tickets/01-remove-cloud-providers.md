@@ -1,4 +1,4 @@
-# Issue 01: Remove Direct Cloud Providers
+# Ticket 01: Remove Direct Cloud Providers
 
 Blocked by: None - can start immediately
 Architecture reference: `../architecture.md` sections 3 (decision 5-6), 8

@@ -1,4 +1,4 @@
-# Issue 02: Document Store Foundation
+# Ticket 02: Document Store Foundation
 
 Blocked by: None - can start immediately
 Architecture reference: `../architecture.md` sections 4, 5, 6 (atomic writes), 9

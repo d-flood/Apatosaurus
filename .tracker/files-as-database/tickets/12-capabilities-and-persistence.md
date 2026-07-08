@@ -1,4 +1,4 @@
-# Issue 12: Capabilities Module and Storage Persistence
+# Ticket 12: Capabilities Module and Storage Persistence
 
 Architecture reference: `../architecture.md` sections 3 (decision 8), 9 (invariant 8)
 
@@ -16,7 +16,7 @@ Durability plumbing plus its settings surface, end-to-end:
 - Grep for existing feature detection (`showDirectoryPicker`, `getDirectory`, `storage.persist`) across `app/src/lib/client` — those call sites migrate to `capabilities.ts`.
 - `app/src/routes/+layout.svelte` — startup sequencing for the re-check.
 - The store write path (`app/src/lib/client/store/opfs-store.ts` / the repositories that call it) — hook for "first meaningful write".
-- Settings UI: the Projects page Local Storage card (added in issue 06) is the current settings-like surface; place status there or in the project Settings section once issue 14 lands (coordinate via TRACKER note, don't block).
+- Settings UI: the Projects page Local Storage card (added in ticket 06) is the current settings-like surface; place status there or in the project Settings section once ticket 14 lands (coordinate via TRACKER note, don't block).
 
 ## Contract
 
@@ -27,9 +27,9 @@ Durability plumbing plus its settings surface, end-to-end:
 
 ## Out of scope
 
-- The PWA install nudge and backup-health panel (issue 13).
-- Onboarding/first-run content (issue 16).
-- Navigation restructure (issue 14).
+- The PWA install nudge and backup-health panel (ticket 13).
+- Onboarding/first-run content (ticket 16).
+- Navigation restructure (ticket 14).
 
 ## Acceptance criteria
 
@@ -48,4 +48,4 @@ Success: full suite passes including the new capabilities/persistence tests.
 
 ## Blocked by
 
-None - can start immediately (issue 06 is Completed).
+None - can start immediately (ticket 06 is Completed).

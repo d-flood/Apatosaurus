@@ -1,4 +1,4 @@
-# Issue 16: Onboarding and About Content
+# Ticket 16: Onboarding and About Content
 
 Architecture reference: `../architecture.md` section 3 (decision 8)
 
@@ -8,13 +8,13 @@ First-run and docs/about content that makes the recommended setup and the owners
 
 1. First-run guidance: recommended setup is a Chromium-based browser, install the PWA, allow persistent storage, connect a sync folder — optionally inside a Dropbox/OneDrive/Drive-managed directory (the Obsidian/Zotero pattern). Firefox/Safari are supported with zip export/import as the backup path.
 2. About/docs page content stating where files live and how to leave the app with your data (sync folder or zip; every transcription and collation has a TEI sibling).
-3. All capability-dependent messaging flows through issue 12's `capabilities.ts` — one source of truth for what this browser supports; remove any remaining scattered notices (including the Phase 1 capability notice).
+3. All capability-dependent messaging flows through ticket 12's `capabilities.ts` — one source of truth for what this browser supports; remove any remaining scattered notices (including the Phase 1 capability notice).
 
 ## Where to start
 
-- `capabilities.ts` from issue 12 — the conditions that select which guidance renders.
-- Grep for the existing non-Chromium capability notice from issue 01 and any offline/about routes (`app/src/routes/offline/`, existing about content) — consolidate rather than add a second copy.
-- The `/projects` hub (issue 14) — the natural first-run surface when no projects beyond the empty `Default` exist.
+- `capabilities.ts` from ticket 12 — the conditions that select which guidance renders.
+- Grep for the existing non-Chromium capability notice from ticket 01 and any offline/about routes (`app/src/routes/offline/`, existing about content) — consolidate rather than add a second copy.
+- The `/projects` hub (ticket 14) — the natural first-run surface when no projects beyond the empty `Default` exist.
 
 ## Contract
 
@@ -24,8 +24,8 @@ First-run and docs/about content that makes the recommended setup and the owners
 
 ## Out of scope
 
-- README and contributor documentation (issue 23).
-- The persistence warning banner and install nudge mechanics (issues 12-13) — this issue is content and first-run flow, not those triggers.
+- README and contributor documentation (ticket 23).
+- The persistence warning banner and install nudge mechanics (tickets 12-13) — this ticket is content and first-run flow, not those triggers.
 
 ## Acceptance criteria
 

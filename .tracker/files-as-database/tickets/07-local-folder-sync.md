@@ -1,6 +1,6 @@
-# Issue 07: Local Folder Sync
+# Ticket 07: Local Folder Sync
 
-Blocked by: Issues 01, 06
+Blocked by: Tickets 01, 06
 Architecture reference: `../architecture.md` section 8
 
 ## Goal

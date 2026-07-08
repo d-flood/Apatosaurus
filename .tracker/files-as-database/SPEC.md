@@ -1,6 +1,6 @@
-# PRD: Files Are the Database
+# spec: Files Are the Database
 
-This PRD is the product framing for the storage inversion. The authoritative technical reference is `architecture.md` (accepted 2026-07-03); the pre-inversion codebase audit is `current-state.md`. Where this document and `architecture.md` disagree, `architecture.md` wins.
+This spec is the product framing for the storage inversion. The authoritative technical reference is `architecture.md` (accepted 2026-07-03); the pre-inversion codebase audit is `current-state.md`. Where this document and `architecture.md` disagree, `architecture.md` wins.
 
 ## Problem Statement
 
@@ -59,9 +59,9 @@ Full detail in `architecture.md` sections 3-8. The binding decisions:
 10. TEI is a derived interchange/archival format regenerated on commit, not the source of truth.
 11. Greenfield: no compatibility with pre-inversion browser databases.
 
-Cross-cutting constraints every issue must respect:
+Cross-cutting constraints every ticket must respect:
 
-- Preserve the data-safety invariants in `architecture.md` section 9 at every issue boundary.
+- Preserve the data-safety invariants in `architecture.md` section 9 at every ticket boundary.
 - Local save and commit must succeed even when sync writes fail; sync failures surface as status, not failed saves.
 - Nothing irreplaceable may live in the SQLite index.
 - Reuse existing primitives (canonical JSON hashing, quarantine codes, conflict-copy semantics, provider interface, staged ingestion once built) instead of building parallel ones.
@@ -71,9 +71,9 @@ Cross-cutting constraints every issue must respect:
 
 - Tests assert external behavior (files written, documents loadable, listings correct, selection stable), not implementation internals.
 - Unit tests run in vitest with a browser/node split; real-OPFS coverage uses browser mode; Playwright covers end-to-end scenarios (fresh user, disaster recovery, committee sync, upgrade).
-- The data-safety invariants (`architecture.md` section 9) get a dedicated automated suite (issue 21); invariants that browsers will not allow to be automated get a documented manual checklist.
-- Prior art: the existing store, repository, and sync spec files established during issues 02-07 (memory store backend, mock provider, fixture-backed migrate-on-read tests).
-- Every issue leaves the full baseline green: `bun run db:generate && bun run db:check && bun run check && bun run test:unit -- --run` from `app/`.
+- The data-safety invariants (`architecture.md` section 9) get a dedicated automated suite (ticket 21); invariants that browsers will not allow to be automated get a documented manual checklist.
+- Prior art: the existing store, repository, and sync spec files established during tickets 02-07 (memory store backend, mock provider, fixture-backed migrate-on-read tests).
+- Every ticket leaves the full baseline green: `bun run db:generate && bun run db:check && bun run check && bun run test:unit -- --run` from `app/`.
 
 ## Out of Scope
 
@@ -85,5 +85,5 @@ Cross-cutting constraints every issue must respect:
 
 ## Further Notes
 
-- Read `architecture.md` before implementing any issue; read `current-state.md` instead of re-auditing the pre-inversion codebase. Phase docs referenced there were converted to `issues/` — see `TRACKER.md` for the mapping and status.
-- Issues 01-07 are the completed foundation (converted phase documents, kept for their implementation notes). Issues 08-23 are the remaining vertical slices.
+- Read `architecture.md` before implementing any ticket; read `current-state.md` instead of re-auditing the pre-inversion codebase. Phase docs referenced there were converted to `tickets/` — see `TRACKER.md` for the mapping and status.
+- Tickets 01-07 are the completed foundation (converted phase documents, kept for their implementation notes). Tickets 08-23 are the remaining vertical slices.
