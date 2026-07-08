@@ -25,10 +25,32 @@ export interface CollationInputDiagnostic {
 	message: string;
 }
 
+export function validateRegularizationRule(rule: RegularizationRule): string | null {
+	try {
+		new RegExp(rule.pattern, 'gu');
+		return null;
+	} catch (error) {
+		return error instanceof Error ? error.message : String(error);
+	}
+}
+
 export interface DerivedCollationInput {
 	perWitnessTokens: Map<string, RegularizedToken[]>;
 	witnessInputs: CollationWitnessInput[];
 	diagnostics: CollationInputDiagnostic[];
+	ruleEffects: RegularizationRuleEffect[];
+}
+
+export interface RegularizationRuleEffect {
+	ruleId: string;
+	pattern: string;
+	description: string;
+	scope: RegularizationRule['scope'];
+	witnessId: string;
+	original: string;
+	before: string;
+	after: string;
+	changed: boolean;
 }
 
 interface CompiledRule {
@@ -61,6 +83,8 @@ function compileRules(
 	const compiled: CompiledRule[] = [];
 	for (const rule of orderedEnabledRules(rules)) {
 		try {
+			const error = validateRegularizationRule(rule);
+			if (error) throw new Error(error);
 			compiled.push({ rule, regex: new RegExp(rule.pattern, 'gu') });
 		} catch (error) {
 			diagnostics.push({
@@ -90,7 +114,8 @@ export function regularizeCollationText(
 function applyCompiledRules(
 	input: string,
 	compiledRules: CompiledRule[],
-	diagnostics: CollationInputDiagnostic[]
+	diagnostics: CollationInputDiagnostic[],
+	onRuleEffect?: (rule: RegularizationRule, before: string, after: string) => void
 ): {
 	regularizedText: string;
 	ruleIds: string[];
@@ -103,7 +128,9 @@ function applyCompiledRules(
 	for (const { rule, regex } of compiledRules) {
 		try {
 			regex.lastIndex = 0;
+			const before = result;
 			const replaced = result.replace(regex, rule.replacement);
+			onRuleEffect?.(rule, before, replaced.normalize('NFC'));
 			if (replaced !== result) {
 				result = replaced.normalize('NFC');
 				ruleIds.push(rule.id);
@@ -128,10 +155,12 @@ function applyCompiledRules(
 }
 
 function deriveToken(
+	witnessId: string,
 	sourceToken: WitnessSourceToken,
 	settings: CollationInputSettings,
 	compiledRules: CompiledRule[],
-	diagnostics: CollationInputDiagnostic[]
+	diagnostics: CollationInputDiagnostic[],
+	ruleEffects: RegularizationRuleEffect[]
 ): RegularizedToken | null {
 	if (sourceToken.kind === 'gap' || sourceToken.kind === 'untranscribed') {
 		return {
@@ -207,7 +236,24 @@ function deriveToken(
 
 	if (structuralText.length === 0) return null;
 
-	const regularizedValue = applyCompiledRules(structuralText, compiledRules, diagnostics);
+	const regularizedValue = applyCompiledRules(
+		structuralText,
+		compiledRules,
+		diagnostics,
+		(rule, before, after) => {
+			ruleEffects.push({
+				ruleId: rule.id,
+				pattern: rule.pattern,
+				description: rule.description,
+				scope: rule.scope,
+				witnessId,
+				original: structuralText,
+				before,
+				after,
+				changed: before !== after,
+			});
+		}
+	);
 	return {
 		original,
 		originalSegments,
@@ -325,6 +371,7 @@ export function deriveCollationInput(
 	rules: RegularizationRule[]
 ): DerivedCollationInput {
 	const diagnostics: CollationInputDiagnostic[] = [];
+	const ruleEffects: RegularizationRuleEffect[] = [];
 	const compiledRules = compileRules(rules, diagnostics);
 	const perWitnessTokens = new Map<string, RegularizedToken[]>();
 	const witnessInputs: CollationWitnessInput[] = [];
@@ -333,7 +380,14 @@ export function deriveCollationInput(
 		const regularizedTokens: RegularizedToken[] = [];
 		const inputTokens: CollationTokenInput[] = [];
 		for (const [index, sourceToken] of witness.tokens.entries()) {
-			const token = deriveToken(sourceToken, settings, compiledRules, diagnostics);
+			const token = deriveToken(
+				witness.witnessId,
+				sourceToken,
+				settings,
+				compiledRules,
+				diagnostics,
+				ruleEffects
+			);
 			if (!token) {
 				if (settings.ignorePunctuation) {
 					const punctuationToken = ignoredPunctuationInputToken(witness.witnessId, index, sourceToken);
@@ -356,5 +410,5 @@ export function deriveCollationInput(
 		});
 	}
 
-	return { perWitnessTokens, witnessInputs, diagnostics };
+	return { perWitnessTokens, witnessInputs, diagnostics, ruleEffects };
 }

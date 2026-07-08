@@ -85,4 +85,29 @@ describe('deriveCollationInput', () => {
 			expect.objectContaining({ ruleId: 'bad', code: 'invalid_regex', pattern: '(' }),
 		]);
 	});
+
+	it('records each enabled rule effect without requiring UI re-application', () => {
+		const result = deriveCollationInput([makeWitness('θς λογος')], defaultSettings, [
+			makeRule({ id: 'ns', pattern: 'θς', replacement: 'θεος', type: 'ns' }),
+			makeRule({ id: 'no-effect', pattern: 'παυλος', replacement: 'παῦλος' }),
+		]);
+
+		expect(result.ruleEffects).toEqual([
+			expect.objectContaining({
+				ruleId: 'ns',
+				witnessId: 'A',
+				original: 'θςλογος',
+				before: 'θςλογος',
+				after: 'θεοςλογος',
+				changed: true,
+			}),
+			expect.objectContaining({
+				ruleId: 'no-effect',
+				witnessId: 'A',
+				before: 'θεοςλογος',
+				after: 'θεοςλογος',
+				changed: false,
+			}),
+		]);
+	});
 });

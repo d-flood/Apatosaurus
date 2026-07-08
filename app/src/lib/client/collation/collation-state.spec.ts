@@ -949,6 +949,33 @@ describe('collationState stemma derivation', () => {
 		);
 	});
 
+	it('marks alignment stale when rules or settings change after a run and clears on rerun', () => {
+		collationState.setWitnesses([
+			makeWitness('A', 'θς', { isBaseText: true }),
+			makeWitness('B', 'θεος'),
+		]);
+		const snapshot = collateToAlignmentSnapshot({
+			witnesses: collationState.buildCollationWitnessInputs(),
+			options: { segmentation: false },
+		});
+
+		collationState.setAlignmentSnapshot(snapshot.snapshot);
+		expect(collationState.isAlignmentStale).toBe(false);
+
+		collationState.addRule(makeRule());
+		expect(collationState.isAlignmentStale).toBe(true);
+
+		const rerun = collateToAlignmentSnapshot({
+			witnesses: collationState.buildCollationWitnessInputs({ forceSourceWitnesses: true }),
+			options: { segmentation: collationState.segmentation },
+		});
+		collationState.setAlignmentSnapshot(rerun.snapshot);
+		expect(collationState.isAlignmentStale).toBe(false);
+
+		collationState.setIgnorePunctuation(true);
+		expect(collationState.isAlignmentStale).toBe(true);
+	});
+
 	it('keeps punctuation as its own source token when not ignored', () => {
 		collationState.setWitnesses([
 			{

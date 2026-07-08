@@ -25,11 +25,17 @@
 	let isCollating = $state(false);
 	let isRefreshing = $state(false);
 	let collationError = $state<string | null>(null);
+	let newPatternError = $derived(
+		newPattern.trim()
+			? collationState.validateRegularizationPattern(newPattern) ?? null
+			: null
+	);
 
 	let activeWitnesses = $derived(collationState.witnesses.filter((w) => !w.isExcluded));
 
 	function addRule() {
 		if (!newPattern.trim()) return;
+		if (newPatternError) return;
 		const rule: RegularizationRule = {
 			id: crypto.randomUUID(),
 			pattern: newPattern,
@@ -79,6 +85,14 @@
 	}
 
 	async function runCollation() {
+		collationState.refreshCollationInput();
+		const invalidDiagnostic = collationState.regularizationDiagnostics.find(
+			(diagnostic) => diagnostic.code === 'invalid_regex',
+		);
+		if (invalidDiagnostic) {
+			collationError = `Rule ${invalidDiagnostic.pattern} is invalid: ${invalidDiagnostic.message}`;
+			return;
+		}
 		if (collationState.alignmentColumns.length > 0) {
 			const shouldContinue = window.confirm(
 				'This collation already has alignment data. Running collation again may undo manual alignments. Continue?',
@@ -236,13 +250,17 @@
 				</div>
 				<label class="form-control w-full">
 					<div class="label py-0.5"><span class="label-text text-xs">Pattern (regex)</span></div>
-					<input
-						type="text"
-						class="input input-bordered input-sm w-full font-mono"
-						placeholder="e.g. ν(?=\s|$)"
-						bind:value={newPattern}
-					/>
-				</label>
+				<input
+					type="text"
+					class="input input-bordered input-sm w-full font-mono"
+					class:input-error={Boolean(newPatternError)}
+					placeholder="e.g. ν(?=\s|$)"
+					bind:value={newPattern}
+				/>
+				{#if newPatternError}
+					<div class="label py-0.5"><span class="label-text-alt text-error">{newPatternError}</span></div>
+				{/if}
+			</label>
 				<label class="form-control w-full">
 					<div class="label py-0.5"><span class="label-text text-xs">Replacement</span></div>
 					<input
@@ -271,7 +289,7 @@
 				<button
 					type="button"
 					class="btn btn-sm btn-primary w-full gap-1"
-					disabled={!newPattern.trim()}
+					disabled={!newPattern.trim() || Boolean(newPatternError)}
 					onclick={addRule}
 				>
 					<Plus size={14} />
@@ -287,8 +305,12 @@
 			{:else}
 				<div class="space-y-2">
 					{#each collationState.rules as rule (rule.id)}
+						{@const ruleError = collationState.getRuleValidationError(rule.id)}
+						{@const ruleEffects = collationState.getRuleEffects(rule.id)}
+						{@const changedEffects = ruleEffects.filter(effect => effect.changed)}
 						<div
 							class="bg-base-200/60 rounded-box px-3 py-2.5 border border-base-300/40 flex items-start gap-2 group transition-opacity"
+							class:border-error={Boolean(ruleError)}
 							class:opacity-50={!rule.enabled}
 						>
 							<button
@@ -317,6 +339,18 @@
 								<span class="badge badge-xs mt-1 {rule.scope === 'project' ? 'badge-primary' : 'badge-ghost'}">
 									{rule.scope}
 								</span>
+								{#if ruleError}
+									<div class="text-xs text-error mt-1">Invalid regex: {ruleError}</div>
+								{:else if rule.enabled}
+									<div class="text-xs text-base-content/60 mt-1">
+										{#if changedEffects.length === 0}
+											No tokens changed in this verse.
+										{:else}
+											{changedEffects.length} token{changedEffects.length === 1 ? '' : 's'} changed:
+											{changedEffects.slice(0, 3).map(effect => `${effect.before} -> ${effect.after}`).join(', ')}
+										{/if}
+									</div>
+								{/if}
 							</div>
 							<button
 								type="button"

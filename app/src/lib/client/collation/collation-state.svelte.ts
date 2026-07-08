@@ -72,8 +72,10 @@ import {
 import {
 	deriveCollationInput,
 	regularizeCollationText,
+	validateRegularizationRule,
 	type CollationInputDiagnostic,
 	type DerivedCollationInput,
+	type RegularizationRuleEffect,
 } from './regularization';
 import { isPunctuationToken, joinTokenTexts, tokenizeDisplayText } from './token-text';
 
@@ -169,7 +171,9 @@ function createCollationState() {
 	let rules = $state<RegularizationRule[]>([]);
 	let regularizedTexts = $state<Map<string, RegularizedToken[]>>(new Map());
 	let regularizationDiagnostics = $state<CollationInputDiagnostic[]>([]);
+	let regularizationRuleEffects = $state<RegularizationRuleEffect[]>([]);
 	let derivedCollationInput: DerivedCollationInput | null = null;
+	let lastAlignmentInputSignature = $state<string | null>(null);
 	let lowercase = $state(false);
 	let ignoreWordBreaks = $state(false);
 	let ignoreTokenWhitespace = $state(true);
@@ -226,7 +230,9 @@ function createCollationState() {
 		segmentation = true;
 		regularizedTexts = new Map();
 		regularizationDiagnostics = [];
+		regularizationRuleEffects = [];
 		derivedCollationInput = null;
+		lastAlignmentInputSignature = alignmentColumns.length > 0 ? buildAlignmentInputSignature() : null;
 		selectedColumnIds = new Set();
 		selectedCells = new Set();
 		focusedColumn = -1;
@@ -267,7 +273,9 @@ function createCollationState() {
 		alignmentLayout = hydrated.alignmentLayout;
 		regularizedTexts = new Map();
 		regularizationDiagnostics = [];
+		regularizationRuleEffects = [];
 		derivedCollationInput = null;
+		lastAlignmentInputSignature = alignmentColumns.length > 0 ? buildAlignmentInputSignature() : null;
 		selectedColumnIds = new Set();
 		selectedCells = new Set();
 		focusedColumn = -1;
@@ -763,6 +771,29 @@ function createCollationState() {
 		markUnsaved();
 	}
 
+	function getRuleValidationError(ruleId: string): string | null {
+		const rule = rules.find(item => item.id === ruleId);
+		return rule ? validateRegularizationRule(rule) : null;
+	}
+
+	function validateRegularizationPattern(pattern: string): string | null {
+		return validateRegularizationRule({
+			id: '__draft__',
+			pattern,
+			replacement: '',
+			scope: 'verse',
+			description: '',
+			enabled: true,
+			type: 'none',
+		});
+	}
+
+	function getRuleEffects(ruleId?: string): RegularizationRuleEffect[] {
+		return ruleId
+			? regularizationRuleEffects.filter(effect => effect.ruleId === ruleId)
+			: regularizationRuleEffects;
+	}
+
 	function addRule(rule: RegularizationRule) {
 		setRules([...rules, rule]);
 	}
@@ -901,6 +932,28 @@ function createCollationState() {
 		);
 		regularizedTexts = derivedCollationInput.perWitnessTokens;
 		regularizationDiagnostics = derivedCollationInput.diagnostics;
+		regularizationRuleEffects = derivedCollationInput.ruleEffects;
+	}
+
+	function buildAlignmentInputSignature(): string {
+		const input = getDerivedCollationInput();
+		return JSON.stringify({
+			settings: { lowercase, ignoreTokenWhitespace, ignorePunctuation, suppliedTextMode, segmentation },
+			rules: rules.map(rule => ({
+				id: rule.id,
+				pattern: rule.pattern,
+				replacement: rule.replacement,
+				scope: rule.scope,
+				enabled: rule.enabled,
+				type: rule.type,
+			})),
+			witnessInputs: input.witnessInputs,
+		});
+	}
+
+	function isAlignmentStale(): boolean {
+		if (alignmentColumns.length === 0 || !lastAlignmentInputSignature) return false;
+		return buildAlignmentInputSignature() !== lastAlignmentInputSignature;
 	}
 
 	function getDerivedCollationInput(): DerivedCollationInput {
@@ -1237,6 +1290,7 @@ function createCollationState() {
 
 	function setAlignmentSnapshot(snapshot: AlignmentSnapshot) {
 		applyAlignmentSnapshot(snapshot);
+		lastAlignmentInputSignature = buildAlignmentInputSignature();
 		selectedUnitIndex = normalizeVariationUnitIndex(selectedUnitIndex);
 		advanceFurthest('alignment');
 		classifiedReadings = new Map();
@@ -2723,7 +2777,9 @@ function createCollationState() {
 		alignmentColumns = [];
 		regularizedTexts = new Map();
 		regularizationDiagnostics = [];
+		regularizationRuleEffects = [];
 		derivedCollationInput = null;
+		lastAlignmentInputSignature = null;
 		witnessOrder = [];
 		selectedColumnIds = new Set();
 		selectedCells = new Set();
@@ -2917,6 +2973,12 @@ function createCollationState() {
 		get regularizationDiagnostics() {
 			return regularizationDiagnostics;
 		},
+		get regularizationRuleEffects() {
+			return regularizationRuleEffects;
+		},
+		get isAlignmentStale() {
+			return isAlignmentStale();
+		},
 		get lowercase() {
 			return lowercase;
 		},
@@ -3007,6 +3069,9 @@ function createCollationState() {
 		removeRule,
 		toggleRule,
 		setRuleType,
+		getRuleValidationError,
+		validateRegularizationPattern,
+		getRuleEffects,
 		setLowercase,
 		setIgnoreWordBreaks,
 		setIgnorePunctuation,
