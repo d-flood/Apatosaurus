@@ -622,43 +622,34 @@
 			}
 
 			// Performance optimization: Only track structural changes, not every edit
-				editor.on('update', ({ transaction }: { transaction: any }) => {
-					if (transaction.docChanged) {
-						onSaveStateChange?.(false);
-						// Mark pages as needing update (will recalculate when drawer opens)
-						pagesNeedUpdate = true;
-						if (iiifWorkspaceOpen || onPagesChange) {
-							rebuildPageList();
-							pagesNeedUpdate = false;
-						}
-						// Update hasPage flag to enable/disable buttons
-						hasPage = checkForPages(editor);
+			editor.on('update', ({ transaction }: { transaction: any }) => {
+				if (transaction.docChanged) {
+					onSaveStateChange?.(false);
+					// Mark pages as needing update (will recalculate when drawer opens)
+					pagesNeedUpdate = true;
+					if (iiifWorkspaceOpen || onPagesChange) {
+						rebuildPageList();
+						pagesNeedUpdate = false;
+					}
+					// Update hasPage flag to enable/disable buttons
+					hasPage = checkForPages(editor);
 					const editorJson = editor.getJSON();
 					debouncedSyncVerseIndex(editorJson);
 					debouncedAutosave(editorJson);
-					}
-					// Always update cursor position with debouncing
-					debouncedUpdateCursorPosition();
-					updateActivePageSelection(editor);
-					updateSelectedTeiNode(editor);
-					updateSelectedTextQuote(editor);
-				});
+				}
+				updateSelectionDerivedState(editor);
+			});
 
 			// Update cursor position when selection changes (for cursor movement without content changes)
-					editor.on('selectionUpdate', () => {
-					debouncedUpdateCursorPosition();
-					updateActivePageSelection(editor);
-					updateSelectedTeiNode(editor);
-					updateSelectedTextQuote(editor);
-				});
+			editor.on('selectionUpdate', () => {
+				updateSelectionDerivedState(editor);
+			});
 
 			// Initialize hasPage and pages on mount
-				hasPage = checkForPages(editor);
-				rebuildPageList();
-				debouncedSyncVerseIndex(editor.getJSON());
-				updateActivePageSelection(editor);
-				updateSelectedTeiNode(editor);
-				updateSelectedTextQuote(editor);
+			hasPage = checkForPages(editor);
+			rebuildPageList();
+			debouncedSyncVerseIndex(editor.getJSON());
+			updateSelectionDerivedState(editor);
 
 			// Add listener for modal open event
 			const modal = document.getElementById(
@@ -952,36 +943,11 @@
 		return result;
 	}
 
-	function createDebouncedGetCurrentCursorPosition(delayMs: number = 500) {
-		let timeoutId: ReturnType<typeof setTimeout> | null = null;
-		let lastRun = 0;
-
-		return () => {
-			const now = Date.now();
-			const timeSinceLastRun = now - lastRun;
-
-			// Clear existing timeout
-			if (timeoutId !== null) {
-				clearTimeout(timeoutId);
-				timeoutId = null;
-			}
-
-			// If enough time has passed, run immediately
-			if (timeSinceLastRun >= delayMs) {
-				lastRun = now;
-				const newPosition = getCurrentCursorPosition();
-				cursorPosition = newPosition;
-			} else {
-				// Otherwise, schedule for later
-				const remainingDelay = delayMs - timeSinceLastRun;
-				timeoutId = setTimeout(() => {
-					lastRun = Date.now();
-					const newPosition = getCurrentCursorPosition();
-					cursorPosition = newPosition;
-					timeoutId = null;
-				}, remainingDelay);
-			}
-		};
+	function updateSelectionDerivedState(editor: Editor | null) {
+		cursorPosition = getCurrentCursorPosition();
+		updateActivePageSelection(editor);
+		updateSelectedTeiNode(editor);
+		updateSelectedTextQuote(editor);
 	}
 
 	function coerceEditorJsonToDocument(editorJson: unknown): StoredTranscriptionDocument | null {
@@ -1120,8 +1086,6 @@
 		};
 	}
 
-	// Create debounced cursor position updater
-	let debouncedUpdateCursorPosition = createDebouncedGetCurrentCursorPosition(500);
 	let debouncedSyncVerseIndex = createDebouncedVerseIndexSync();
 	const autosave = createDebouncedAutosave();
 	const debouncedAutosave = autosave.schedule;
