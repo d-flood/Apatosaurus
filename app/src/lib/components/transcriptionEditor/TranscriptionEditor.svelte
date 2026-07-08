@@ -12,6 +12,7 @@
 	} from '$lib/client/transcription/content';
 	import type { TranscriptionRecord } from '$lib/client/transcription/model';
 	import { getEditor } from '$lib/client/transcriptionEditorSchema';
+	import { initializeEditorContent } from '$lib/client/editorContentInitialization';
 	import {
 		createColumnSplitTransaction,
 		repairManuscriptStructureJson,
@@ -609,7 +610,7 @@
 			if (repairResult.repaired && repairResult.issues.length > 0) {
 				console.warn('[Transcription] Repaired invalid manuscript content during editor init:', repairResult.issues);
 			}
-			editor.commands.setContent(repairResult.doc, { emitUpdate: false });
+			initializeEditorContent(editor, repairResult.doc, { emitUpdate: false });
 
 			// Set editor state once (not on every transaction)
 			editorState.editor = editor;

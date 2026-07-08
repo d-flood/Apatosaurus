@@ -8,7 +8,7 @@ This document tracks the status of all issues in the files-as-database epic: inv
 
 Overall status: `In Progress`
 
-Current issue: `18-collation-rule-diagnostics-and-staleness` (implementation complete; baseline has known Chromium invariant timeout)
+Current issue: `19-editor-init-only-setcontent` (implementation complete)
 
 Last updated: 2026-07-08
 
@@ -39,7 +39,7 @@ Last updated: 2026-07-08
 | 16 | `16-onboarding-and-about-content.md` | Completed | 12, 14 |
 | 17 | `17-collation-single-derivation-path.md` | Completed | 05 |
 | 18 | `18-collation-rule-diagnostics-and-staleness.md` | Completed | 17 |
-| 19 | `19-editor-init-only-setcontent.md` | Not Started | 05 |
+| 19 | `19-editor-init-only-setcontent.md` | Completed | 05 |
 | 20 | `20-editor-selection-side-effects-and-harness.md` | Not Started | 19 |
 | 21 | `21-invariant-test-suite.md` | Not Started | 07, 09, 10, 11 |
 | 22 | `22-e2e-scenarios-and-ci.md` | Not Started | 21 |
@@ -60,6 +60,7 @@ bun run test:unit -- --run
 
 | Date | Note |
 | --- | --- |
+| 2026-07-08 | Issue 19 completed. `setContent` inventory/dispositions: main `TranscriptionEditor.svelte` load path is allowed init-only after `repairManuscriptStructureJson`; `InspectorTestHarness.svelte`, `ToolbarInsertionHarness.svelte`, and test editor construction are allowed init-only harness setup; `InlineCarrierWorkspace.svelte` initial load is allowed for its isolated editor instance, while post-init normalization/structured-change/prop-sync full replacements are no longer raw `setContent` calls and instead dispatch explicit document replacement transactions marked as isolated workspace updates. Added `initializeEditorContent()` as the single init-only setContent seam with post-init full-document replacement enforcement, and covered post-init failure in browser-mode structure tests. Verified issue 05 single-writer rule remains: autosave updates `canonicalDocument` only after `updateTranscriptionContent` resolves, and merge output is not fed back into the editor. Verification passed: `bun run test:unit -- --run src/lib/client/transcriptionEditorStructure.svelte.spec.ts`, required `bun run test:unit -- --run src/lib/components/transcriptionEditor src/lib/client/transcriptionEditorStructure.spec.ts`, `bun run check`, required `bun run check && bun run test:unit -- --run` (423 passed), `bun run db:generate`, and `bun run db:check`. |
 | 2026-07-08 | Issue 18 completed. Collation derivation now exposes per-rule token effect records from the single issue-17 derivation path, invalid regex validation uses Unicode `gu` compilation for draft and persisted rules, runtime invalid-rule diagnostics block collation with a visible message, and alignment staleness is a pure signature comparison between current rules/settings/source inputs and the last run. Regularization and alignment rule sidebars show inline invalid-rule errors, per-rule changed/no-effect summaries, and visible "re-run needed" state after rule/settings edits. Verification passed: `bun run test:unit -- --run src/lib/client/collation/regularization.spec.ts src/lib/client/collation/collation-state.spec.ts`, `bun run check`, required `bun run test:unit -- --run src/lib/client/collation` (109 passed), `bun run db:generate`, `bun run db:check`, and final `bun run check`. Full `bun run check && bun run test:unit -- --run` passed check and 421/422 tests, then repeated the previously recorded Chromium browser-mode timeout in `src/lib/client/db/index-rebuild-invariant.svelte.spec.ts`; focused rerun of that spec timed out the same way. |
 | 2026-07-07 | Issue 17 completed. Added pure `deriveCollationInput` as the single source for regularized preview tokens and CollateX worker payloads, with fixed preprocessing-before-rules order, project rules before verse rules, Unicode `gu` regex compilation, NFC matching, and invalid/apply error diagnostics. Removed the previous state-local parallel derivation path and updated rule-management UI help text. Verification passed: `bun run test:unit -- --run src/lib/client/collation`, `bun run db:generate`, `bun run db:check`, and required `bun run check && bun run test:unit -- --run` (420 passed). |
 | 2026-07-07 | Issue 16 completed. Added shared capability-driven onboarding guidance for the recommended setup and data ownership model, rendered on the project hub and new reachable `/about` page; navbar now links to About. Consolidated folder-sync/zip fallback copy through one guidance source and replaced the remaining standalone sync-button notice. Guidance covers Chromium folder-sync path, Firefox/Safari zip backup path, OPFS file ownership, sync mirror scope, and TEI sibling/export exit paths. Verification passed: focused onboarding/zip-export specs, ad-hoc notice grep, `bun run db:generate`, `bun run db:check`, and required `bun run check && bun run test:unit -- --run` (415 passed). |

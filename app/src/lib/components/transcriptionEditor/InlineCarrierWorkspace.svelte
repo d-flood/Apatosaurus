@@ -4,6 +4,8 @@
 		flattenStructuredFormWorkContent,
 	} from '$lib/tei/tei-transcription';
 	import { getInlineCarrierEditor } from '$lib/client/transcriptionEditorSchema';
+	import { initializeEditorContent } from '$lib/client/editorContentInitialization';
+	import { TextSelection } from '@tiptap/pm/state';
 	import type { Editor } from '@tiptap/core';
 	import { onMount } from 'svelte';
 
@@ -174,7 +176,7 @@
 		}
 
 		lastSnapshot = JSON.stringify(serializeContent(normalizedDoc));
-		editor.commands.setContent(normalizedDoc, { emitUpdate: false });
+		replaceEditorDocument(normalizedDoc, null, false);
 		onChange(serializeContent(normalizedDoc));
 		updateSelectedNode();
 		return true;
@@ -309,9 +311,56 @@
 
 		const normalized = renumberMarginaliaDoc(result.doc);
 		lastSnapshot = JSON.stringify(serializeContent(normalized));
-		editor.commands.setContent(normalized, { emitUpdate: false });
+		replaceEditorDocument(normalized, {
+			columnIndex: result.focusColumnIndex,
+			lineIndex: result.focusLineIndex,
+		}, false);
 		onChange(serializeContent(normalized));
-		restoreSelection(result.focusColumnIndex, result.focusLineIndex);
+	}
+
+	function replaceEditorDocument(
+		nextDocJson: Record<string, any>,
+		focus: { columnIndex: number; lineIndex: number } | null,
+		emitUpdate = true
+	) {
+		if (!editor) return;
+		const nextDoc = editor.schema.nodeFromJSON(nextDocJson);
+		const tr = editor.state.tr.replaceWith(0, editor.state.doc.content.size, nextDoc.content);
+		tr.setMeta('allowFullDocumentReplacement', true);
+		if (!emitUpdate) tr.setMeta('preventUpdate', true);
+		if (focus) {
+			const mappedPos = findLineStartPositionInDoc(tr.doc, focus.columnIndex, focus.lineIndex);
+			if (mappedPos !== null) {
+				tr.setSelection(TextSelection.near(tr.doc.resolve(mappedPos)));
+			}
+		}
+		editor.view.dispatch(tr);
+	}
+
+	function findLineStartPositionInDoc(
+		doc: any,
+		targetColumnIndex: number,
+		targetLineIndex: number
+	): number | null {
+		let columnIndex = -1;
+		let lineIndex = -1;
+		let position: number | null = null;
+		doc.descendants((node: any, pos: number) => {
+			if (node.type.name === 'marginaliaColumn') {
+				columnIndex += 1;
+				lineIndex = -1;
+				return true;
+			}
+			if (node.type.name === 'marginaliaLine') {
+				lineIndex += 1;
+				if (columnIndex === targetColumnIndex && lineIndex === targetLineIndex) {
+					position = pos + 1;
+					return false;
+				}
+			}
+			return true;
+		});
+		return position;
 	}
 
 	function splitIntoNewColumn() {
@@ -528,7 +577,7 @@
 
 		editor = getInlineCarrierEditor(editorElement, bubbleMenu);
 		const nextContent = renumberMarginaliaDoc(cloneContent(initialContent));
-		editor.commands.setContent(nextContent, { emitUpdate: false });
+		initializeEditorContent(editor, nextContent, { emitUpdate: false });
 		lastSnapshot = JSON.stringify(serializeContent(nextContent));
 		updateSelectedNode();
 
@@ -551,7 +600,7 @@
 		if (!editor || snapshot === lastSnapshot) return;
 		const normalized = renumberMarginaliaDoc(cloneContent(initialContent));
 		lastSnapshot = JSON.stringify(serializeContent(normalized));
-		editor.commands.setContent(normalized, { emitUpdate: false });
+		replaceEditorDocument(normalized, null, false);
 		updateSelectedNode();
 	});
 

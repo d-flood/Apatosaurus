@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { getEditor } from './transcriptionEditorSchema';
+import { initializeEditorContent } from './editorContentInitialization';
 import {
 	createEmptyLineInsertTransaction,
 	createColumnSplitTransaction,
@@ -14,11 +15,56 @@ function createTestEditor(initialContent: Record<string, any>) {
 	const element = document.createElement('div');
 	const bubbleMenu = document.createElement('div');
 	const editor = getEditor(element, bubbleMenu);
-	editor.commands.setContent(initialContent as any, { emitUpdate: false });
+	initializeEditorContent(editor, initialContent as any, { emitUpdate: false });
 	return editor;
 }
 
 describe('transcriptionEditorStructure', () => {
+	it('throws in dev if setContent is called after editor initialization', () => {
+		const editor = createTestEditor({
+			type: 'manuscript',
+			content: [
+				{
+					type: 'page',
+					content: [
+						{
+							type: 'column',
+							attrs: { columnNumber: 1 },
+							content: [{ type: 'line', attrs: { lineNumber: 1 } }],
+						},
+					],
+				},
+			],
+		});
+		try {
+			expect(() =>
+				editor.commands.setContent({
+					type: 'manuscript',
+					content: [
+						{
+							type: 'page',
+							content: [
+								{
+									type: 'column',
+									attrs: { columnNumber: 1 },
+									content: [
+										{
+											type: 'line',
+											attrs: { lineNumber: 1 },
+											content: [{ type: 'text', text: 'replacement' }],
+										},
+									],
+								},
+							],
+						},
+					],
+				} as any)
+			).toThrow(/init-only/);
+		} finally {
+			editor.destroy();
+		}
+	});
+
 	it('repairs empty columns and wraps stray page children into valid columns and lines', () => {
 		const result = repairManuscriptStructureJson({
 			type: 'manuscript',

@@ -5,6 +5,7 @@
 	import { fromProseMirror, parseTei, serializeTei, toProseMirror } from '$lib/tei/tei-transcription';
 
 	import { getEditor } from '$lib/client/transcriptionEditorSchema';
+	import { initializeEditorContent } from '$lib/client/editorContentInitialization';
 	import {
 		syncPageFormWorkToContainingPage,
 		updateNodeAttrs,
@@ -89,7 +90,7 @@
 		if (!editorElement || !bubbleMenuElement) return;
 		const nextEditor = getEditor(editorElement, bubbleMenuElement);
 		const pm = toProseMirror(parseTei(xml)) as any;
-		nextEditor.commands.setContent(pm, { emitUpdate: false });
+		initializeEditorContent(nextEditor, pm, { emitUpdate: false });
 		if (seedNodes.length > 0) {
 			nextEditor.commands.focus('end');
 			for (const node of seedNodes) {
