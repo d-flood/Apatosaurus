@@ -28,18 +28,31 @@ import {
 
 export type ProjectZipImportCollisionMode = 'replace' | 'copy';
 
-export interface ProjectZipImportOptions {
+export interface ProjectImportOptions {
 	collisionMode?: ProjectZipImportCollisionMode;
 	storeOptions?: StoreOperationOptions;
 	nonce?: () => string;
 }
 
-export interface ProjectZipImportResult extends IndexRebuildReport {
+export type ProjectZipImportOptions = ProjectImportOptions;
+
+export interface ProjectImportResult extends IndexRebuildReport {
 	ok: boolean;
 	projectId: string;
 	storageSlug: string;
 	mode: 'created' | 'replaced' | 'copied';
 }
+
+export type ProjectZipImportResult = ProjectImportResult;
+
+export interface ReadableProjectImportFile {
+	path: string;
+	read: () => Promise<string>;
+}
+
+export type ReadableProjectFileTree =
+	| Iterable<ReadableProjectImportFile>
+	| AsyncIterable<ReadableProjectImportFile>;
 
 interface ImportEntry {
 	path: string;
@@ -60,13 +73,25 @@ export async function importProjectZip(
 	bytes: Uint8Array,
 	options: ProjectZipImportOptions = {}
 ): Promise<ProjectZipImportResult> {
+	const files = parseStoreOnlyZip(bytes).map(entry => ({
+		path: entry.path,
+		read: async () => entry.content,
+	}));
+	return importProjectFileTree(db, files, options);
+}
+
+export async function importProjectFileTree(
+	db: Kysely<Database>,
+	files: ReadableProjectFileTree,
+	options: ProjectImportOptions = {}
+): Promise<ProjectImportResult> {
 	const storeOptions = options.storeOptions ?? {};
 	const stagingPath = joinStorePath(STAGING_ROOT, (options.nonce ?? createNonce)());
 	try {
-		const entries = parseStoreOnlyZip(bytes).map(entry => ({
-			...entry,
-			path: normalizeImportEntryPath(entry.path),
-		}));
+		const entries: ImportEntry[] = [];
+		for await (const file of files) {
+			entries.push({ path: normalizeImportEntryPath(file.path), content: await file.read() });
+		}
 		for (const entry of entries) {
 			await writeTextFileAtomic(joinStorePath(stagingPath, entry.path), entry.content, storeOptions);
 		}
@@ -259,7 +284,7 @@ function isProjectTranscriptionPath(path: string): boolean {
 
 function normalizeImportEntryPath(path: string): string {
 	if (path.startsWith('/') || path.includes('..') || path.includes('\\')) {
-		throw new Error(`Invalid zip entry path ${JSON.stringify(path)}.`);
+		throw new Error(`Invalid project entry path ${JSON.stringify(path)}.`);
 	}
 	return joinStorePath(path);
 }

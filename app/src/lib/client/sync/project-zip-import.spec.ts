@@ -7,7 +7,11 @@ import { MemoryStoreBackend } from '$lib/client/store/memory-store-backend.spec-
 import { joinStorePath, projectFolder, writeTextFileAtomic, type StoreOperationOptions } from '$lib/client/store';
 import type { StoredTranscriptionDocument } from '$lib/client/transcription/content';
 import { exportProjectZip } from './project-zip-export';
-import { cleanStaleProjectImportStaging, importProjectZip } from './project-zip-import';
+import {
+	cleanStaleProjectImportStaging,
+	importProjectFileTree,
+	importProjectZip,
+} from './project-zip-import';
 
 let harness: LocalDbTestHarness;
 let backend: MemoryStoreBackend;
@@ -25,6 +29,23 @@ afterEach(async () => {
 });
 
 describe('project zip import', () => {
+	it('imports a source-neutral readable project file tree', async () => {
+		const exported = await exportedProjectZip();
+		const expected = readZipEntries(exported.bytes);
+		const imported = await importProjectFileTree(
+			harness.db,
+			Object.entries(expected).map(([path, content]) => ({
+				path,
+				read: async () => content,
+			})),
+			{ storeOptions, nonce: () => 'file-tree' }
+		);
+
+		expect(imported).toMatchObject({ ok: true, projectId: 'project-1', projectsRestored: 1 });
+		expect(projectFiles(imported.storageSlug)).toEqual(expected);
+		expect(await getProject(harness.db, 'project-1')).toMatchObject({ name: 'Romans' });
+	});
+
 	it('imports an exported project zip into an empty store byte-for-byte', async () => {
 		await createProject(harness.db, {
 			id: 'project-1',
@@ -137,7 +158,7 @@ describe('project zip import', () => {
 		});
 
 		expect(result.ok).toBe(false);
-		expect(result.quarantinedFiles[0].message).toContain('Invalid zip entry path');
+		expect(result.quarantinedFiles[0].message).toContain('Invalid project entry path');
 		expect(backend.files.size).toBe(0);
 	});
 
