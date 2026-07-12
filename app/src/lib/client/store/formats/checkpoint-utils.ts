@@ -1,8 +1,8 @@
-import type { JsonObject, JsonValue } from '../envelope';
+import type { JsonObject } from '../envelope';
 import {
-	readJsonValue,
 	readLiteral,
 	readNullableString,
+	readObjectField,
 	readString,
 } from './validation';
 
@@ -22,7 +22,7 @@ export type CheckpointBasePayload = JsonObject & {
 	commit_message: string | null;
 	author_name: string;
 	created_at: string;
-	payload: JsonValue;
+	payload: JsonObject;
 };
 
 export function readCheckpointBasePayload(
@@ -38,7 +38,7 @@ export function readCheckpointBasePayload(
 		commit_message: readNullableString(record, 'commit_message'),
 		author_name: readString(record, 'author_name'),
 		created_at: readString(record, 'created_at'),
-		payload: readJsonValue(record, 'payload'),
+		payload: readObjectField(record, 'payload') as JsonObject,
 	};
 }
 

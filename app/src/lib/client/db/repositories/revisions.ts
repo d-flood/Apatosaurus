@@ -1,4 +1,3 @@
-import { nanoid } from 'nanoid';
 import { sql, type Kysely, type Selectable, type Transaction } from 'kysely';
 
 import { canonicalJson, hashCanonicalPayload } from '$lib/client/sync/canonical-json';
@@ -12,6 +11,7 @@ import {
 	type TranscriptionCheckpointPayload as CanonicalTranscriptionCheckpointPayload,
 } from '$lib/client/store';
 import type { CollationCheckpoints, Database, TranscriptionCheckpoints } from '../types.generated';
+import { createId } from './id';
 
 type DbExecutor = Kysely<Database> | Transaction<Database>;
 
@@ -257,6 +257,22 @@ export function buildTranscriptionHashPayload(input: ProjectTranscriptionSnapsho
 }
 
 export function buildCollationHashPayload(input: SerializedCollation): unknown {
+	const document = input.artifacts.find(
+		artifact => artifact.artifact_type === 'collation_document_v1'
+	)?.payload;
+	if (document) {
+		return {
+			id: input.id,
+			project_id: input.project_id,
+			title: input.title,
+			verse_identifier: input.verse_identifier,
+			status: input.status,
+			group_path: input.group_path,
+			notes: input.notes,
+			sort_key: input.sort_key,
+			document,
+		};
+	}
 	const readingsByUnitId = groupBy(input.readings, reading => reading.variation_unit_id);
 	const witnessIdsByReadingId = groupBy(input.reading_witnesses, row => row.reading_id);
 	return {
@@ -439,6 +455,38 @@ export async function createCommittedCollationCheckpointFromSerialized(
 	return db.transaction().execute(trx =>
 		createCommittedCollationCheckpointFromSerializedInTransaction(trx, collation, input)
 	);
+}
+
+export async function recordCommittedCollationCheckpoint(
+	db: Kysely<Database>,
+	collationId: string,
+	contentHash: string,
+	payload: unknown,
+	input: CommitCollationInput
+): Promise<CollationCheckpoint> {
+	return db.transaction().execute(async trx => {
+		const head = await trx
+			.selectFrom('collations')
+			.select('current_revision_id')
+			.where('id', '=', collationId)
+			.executeTakeFirstOrThrow();
+		const checkpoint = buildCollationCheckpointRow(
+			collationId,
+			head.current_revision_id || null,
+			contentHash,
+			input
+		);
+		await trx.insertInto('collation_checkpoints').values(checkpoint).execute();
+		await trx
+			.updateTable('collations')
+			.set({
+				current_revision_id: requireId(checkpoint.id, 'collation checkpoint'),
+				current_content_hash: contentHash,
+			})
+			.where('id', '=', collationId)
+			.execute();
+		return mapCollationCheckpoint(checkpoint, payload);
+	});
 }
 
 async function createCommittedCollationCheckpointFromSerializedInTransaction(
@@ -1169,10 +1217,4 @@ function compareStrings(left: string, right: string): number {
 function requireId(value: string | null, label: string): string {
 	if (!value) throw new Error(`Missing ${label} id.`);
 	return value;
-}
-
-function createId(): string {
-	return typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-		? crypto.randomUUID()
-		: nanoid();
 }

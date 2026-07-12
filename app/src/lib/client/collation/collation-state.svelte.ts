@@ -6,7 +6,6 @@ import {
 	loadCollation,
 	loadCommittedTranscriptionCheckpointPayload,
 	saveCollationArtifact,
-	saveCollationProjection,
 	updateProjectMetadata,
 	updateCollationMetadata,
 } from '$lib/client/db/client';
@@ -31,7 +30,6 @@ import {
 	parseCollationDocument,
 	serializeCollationDocument,
 } from './collation-document';
-import { buildCollationProjection } from './collation-projection';
 import {
 	gatherWitnessesForVerse,
 	prepareWitnessesFromDocument,
@@ -317,24 +315,6 @@ function createCollationState() {
 		return phase === 'stemma';
 	}
 
-	async function syncNormalizedProjection(): Promise<void> {
-		if (!collationId) return;
-		const projection = buildCollationProjection({
-			witnesses,
-			alignmentColumns,
-			getReadingsForUnit: unitIndex =>
-				classifiedReadings.get(String(unitIndex)) ?? buildReadingsForUnit(unitIndex),
-			getBaseTextForVariationUnit,
-			getBaseWitnessId,
-		});
-		await saveCollationProjection({ collationId, ...projection });
-	}
-
-	async function materializeFinalCollationProjection(): Promise<void> {
-		if (!isFinalizedCollationPhase()) return;
-		await syncNormalizedProjection();
-	}
-
 	async function persistDocument(): Promise<boolean> {
 		if (!collationId) return false;
 		try {
@@ -347,7 +327,6 @@ function createCollationState() {
 				payload,
 				now,
 			});
-			await materializeFinalCollationProjection();
 			await updateCollationMetadata({
 				id: collationId,
 				updatedAt: now,

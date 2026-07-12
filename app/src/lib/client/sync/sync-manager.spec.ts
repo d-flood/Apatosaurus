@@ -9,10 +9,15 @@ import {
 } from '$lib/client/db/repositories/cloud-connections';
 import { createProject, syncProjectTranscriptionIds } from '$lib/client/db/repositories/projects';
 import type { CollationCheckpoint } from '$lib/client/db/repositories/revisions';
-import { createCommittedCollationCheckpointWithFiles } from '$lib/client/db/repositories/collation-files';
+import {
+	createCommittedCollationCheckpointWithFiles,
+	loadCollationWithWorkingFile,
+	saveWorkingCollationArtifact,
+} from '$lib/client/db/repositories/collation-files';
 import { createTranscription } from '$lib/client/db/repositories/transcriptions';
 import { MemoryStoreBackend } from '$lib/client/store/memory-store-backend.spec-support';
 import type { StoreOperationOptions } from '$lib/client/store';
+import { COLLATION_FIXTURE } from '$lib/client/store';
 import {
 	readTextFile,
 	transcriptionPrimaryFile,
@@ -214,7 +219,7 @@ describe('sync manager', () => {
 			notes: 'Second committed notes',
 			updatedAt: '2026-06-10T12:20:00.000Z',
 		});
-		backend.files.clear();
+		await saveCanonicalCollation(harness.db, storeOptions);
 		const second = await createCommittedCollationCheckpointWithFiles(harness.db, {
 			collationId: 'col-1',
 			checkpointId: 'col-cp-2',
@@ -296,6 +301,7 @@ describe('sync manager', () => {
 			notes: 'Unsynced local draft',
 			updatedAt: '2026-06-10T12:30:00.000Z',
 		});
+		await saveCanonicalCollation(harness.db, storeOptions);
 
 		const result = await pollOpenEntity(
 			harness.db,
@@ -338,7 +344,7 @@ describe('sync manager', () => {
 			notes: 'Local committed notes',
 			updatedAt: '2026-06-10T12:40:00.000Z',
 		});
-		backend.files.clear();
+		await saveCanonicalCollation(harness.db, storeOptions);
 		await createCommittedCollationCheckpointWithFiles(harness.db, {
 			collationId: 'col-1',
 			checkpointId: 'col-cp-local',
@@ -398,9 +404,10 @@ describe('sync manager', () => {
 
 		expect(result.uiState).toBe('synced');
 		expect(result.manifestUploaded).toBe(true);
-		expect(result.uploadedPaths).toEqual([
+			expect(result.uploadedPaths).toEqual([
 			'history/collations/col-1/col-cp-1.json',
 			'collations/col-1.json',
+			'collations/col-1.tei.xml',
 			'project.json',
 		]);
 		expect(
@@ -408,6 +415,7 @@ describe('sync manager', () => {
 		).toEqual([
 			'history/collations/col-1/col-cp-1.json',
 			'collations/col-1.json',
+			'collations/col-1.tei.xml',
 			'project.json',
 		]);
 		const manifest = await remoteFile(provider, context, 'project.json');
@@ -435,6 +443,7 @@ describe('sync manager', () => {
 		expect(result.uploadedPaths).toEqual([
 			'history/collations/col-1/col-cp-1.json',
 			'collations/col-1.json',
+			'collations/col-1.tei.xml',
 			'project.json',
 		]);
 		await expect(provider.downloadFile('Apatosaurus/Projects/project-1/project.json')).resolves.toContain(
@@ -444,6 +453,7 @@ describe('sync manager', () => {
 		expect(listing.entries.map(entry => entry.path)).toEqual([
 			'Apatosaurus/Projects/project-1/collations',
 			'Apatosaurus/Projects/project-1/collations/col-1.json',
+			'Apatosaurus/Projects/project-1/collations/col-1.tei.xml',
 			'Apatosaurus/Projects/project-1/history',
 			'Apatosaurus/Projects/project-1/history/collations',
 			'Apatosaurus/Projects/project-1/history/collations/col-1',
@@ -570,7 +580,7 @@ describe('sync manager', () => {
 			notes: 'Local committed notes',
 			updatedAt: '2026-06-10T13:04:00.000Z',
 		});
-		backend.files.clear();
+		await saveCanonicalCollation(harness.db, storeOptions);
 		await createCommittedCollationCheckpointWithFiles(harness.db, {
 			collationId: 'col-1',
 			checkpointId: 'col-cp-local',
@@ -626,6 +636,7 @@ describe('sync manager', () => {
 			notes: 'Uncommitted notes',
 			updatedAt: '2026-06-10T13:05:00.000Z',
 		});
+		await saveCanonicalCollation(harness.db, storeOptions);
 
 		const result = await backupProject(harness.db, provider, context, syncOptions());
 
@@ -688,7 +699,7 @@ describe('sync manager', () => {
 		await backupProject(harness.db, provider, context, syncOptions());
 
 		await expect(
-			downloadAndCompareProjectManifest(harness.db, provider, context)
+			downloadAndCompareProjectManifest(harness.db, provider, context, storeOptions)
 		).resolves.toMatchObject({
 			state: 'up-to-date',
 		});
@@ -701,7 +712,7 @@ describe('sync manager', () => {
 		);
 
 		await expect(
-			downloadAndCompareProjectManifest(harness.db, provider, context)
+			downloadAndCompareProjectManifest(harness.db, provider, context, storeOptions)
 		).resolves.toMatchObject({
 			state: 'remote-update-available',
 		});
@@ -878,11 +889,28 @@ async function createCommittedProjectCollation(
 		notes,
 		updatedAt: '2026-06-10T12:01:00.000Z',
 	});
+	await saveCanonicalCollation(harness.db, storeOptions);
 	return createCommittedCollationCheckpointWithFiles(harness.db, {
 		collationId: 'col-1',
 		checkpointId,
 		createdAt: '2026-06-10T12:02:00.000Z',
 	}, storeOptions);
+}
+
+async function saveCanonicalCollation(
+	db: LocalDbTestHarness['db'],
+	options: StoreOperationOptions
+): Promise<void> {
+	await saveWorkingCollationArtifact(
+		db,
+		{
+			collationId: 'col-1',
+			artifactType: 'collation_document_v1',
+			payload: JSON.stringify(COLLATION_FIXTURE.document),
+			now: '2026-06-10T12:01:00.000Z',
+		},
+		options
+	);
 }
 
 async function createProjectTranscription(): Promise<string> {
@@ -929,6 +957,7 @@ async function pushRemoteCollationRevision(
 			notes: 'Initial notes',
 			updatedAt: '2026-06-10T12:01:00.000Z',
 		});
+		await saveCanonicalCollation(remoteHarness.db, remoteStoreOptions);
 		await createCommittedCollationCheckpointWithFiles(remoteHarness.db, {
 			collationId: 'col-1',
 			checkpointId: 'col-cp-1',
@@ -939,7 +968,7 @@ async function pushRemoteCollationRevision(
 			notes,
 			updatedAt: '2026-06-10T12:25:00.000Z',
 		});
-		remoteStoreOptions.backend.files.clear();
+		await saveCanonicalCollation(remoteHarness.db, remoteStoreOptions);
 		await createCommittedCollationCheckpointWithFiles(remoteHarness.db, {
 			collationId: 'col-1',
 			checkpointId,
@@ -955,7 +984,7 @@ async function pushRemoteCollationRevision(
 		await provider.createFile(context.cloudFolderId, historyPath, await serializeCloudFile(history));
 		const primary = await remoteFile(provider, context, 'collations/col-1.json');
 		if (!primary) throw new Error('Expected remote primary file.');
-		const remotePrimary = await serializeCollationCloudFile(remoteHarness.db, 'col-1');
+		const remotePrimary = await serializeCollationCloudFile(remoteHarness.db, 'col-1', remoteStoreOptions);
 		await provider.updateFile(primary.id, await serializeCloudFile(remotePrimary), primary.revision);
 		const manifest = await remoteFile(provider, context, 'project.json');
 		const remoteManifest = await serializeProjectCloudFile(remoteHarness.db, 'project-1');
@@ -1005,12 +1034,7 @@ async function loadMetadata() {
 }
 
 async function loadCollationNotes(collationId: string): Promise<string | undefined> {
-	const row = await harness.db
-		.selectFrom('collations')
-		.select('notes')
-		.where('id', '=', collationId)
-		.executeTakeFirst();
-	return row?.notes;
+	return (await loadCollationWithWorkingFile(harness.db, collationId, storeOptions))?.row.notes;
 }
 
 async function loadProjectStorageSlug(projectId: string): Promise<string> {

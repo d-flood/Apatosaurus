@@ -1243,12 +1243,25 @@ async function importCollationPrimary(db: DbExecutor, input: CollationImportInpu
 			.execute();
 	}
 	if (input.witnesses.length > 0) {
+		const projectTranscriptions = await db
+			.selectFrom('project_transcriptions')
+			.select(['id', 'transcription_id'])
+			.where('project_id', '=', input.project_id)
+			.execute();
+		const projectTranscriptionByTranscription = new Map(
+			projectTranscriptions.map(row => [row.transcription_id, row.id])
+		);
 		await db
 			.insertInto('collation_witnesses')
 			.values(
 				input.witnesses.map(
 					(row): Selectable<CollationWitnesses> => ({
 						...row,
+						project_transcription_id:
+							row.project_transcription_id ??
+							(row.transcription_id
+								? (projectTranscriptionByTranscription.get(row.transcription_id) ?? null)
+								: null),
 						collation_id: input.id,
 					})
 				)

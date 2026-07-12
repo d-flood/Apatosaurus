@@ -17,6 +17,7 @@ import {
 } from '$lib/client/store';
 
 import type { Database } from '../types.generated';
+import { createId } from './id';
 import { writeProjectManifestFile } from './project-files';
 import { withProjectWriteLock } from './project-locks';
 
@@ -279,12 +280,6 @@ async function deletePrimaryFileBestEffort(
 function requireString(value: string | null, label: string): string {
 	if (!value) throw new Error(`Missing ${label}.`);
 	return value;
-}
-
-function createId(): string {
-	return typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-		? crypto.randomUUID()
-		: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 }
 
 function isMissingFileError(error: unknown): boolean {

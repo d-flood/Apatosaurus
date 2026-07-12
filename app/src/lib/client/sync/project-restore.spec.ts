@@ -2,20 +2,21 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import type { StoredTranscriptionDocument } from '$lib/client/transcription/content';
 import { createLocalDbTestHarness, type LocalDbTestHarness } from '$lib/client/db/test-harness';
-import { createCollation, saveCollationArtifact } from '$lib/client/db/repositories/collations';
+import { createCollation } from '$lib/client/db/repositories/collations';
 import {
 	upsertCloudConnection,
 	upsertCloudProjectFolder,
 } from '$lib/client/db/repositories/cloud-connections';
 import { createProject, syncProjectTranscriptionIds } from '$lib/client/db/repositories/projects';
 import { removeLocalProject } from '$lib/client/db/repositories/project-removal';
+import { buildTranscriptionHashPayload } from '$lib/client/db/repositories/revisions';
 import {
-	buildCollationHashPayload,
-	buildTranscriptionHashPayload,
-} from '$lib/client/db/repositories/revisions';
-import { createCommittedCollationCheckpointWithFiles } from '$lib/client/db/repositories/collation-files';
+	createCommittedCollationCheckpointWithFiles,
+	saveWorkingCollationArtifact,
+} from '$lib/client/db/repositories/collation-files';
 import { createCommittedTranscriptionCheckpointWithFiles } from '$lib/client/db/repositories/transcription-files';
 import { MemoryStoreBackend } from '$lib/client/store/memory-store-backend.spec-support';
+import { COLLATION_FIXTURE } from '$lib/client/store';
 import { hashCanonicalPayload } from './canonical-json';
 import { createTranscription } from '$lib/client/db/repositories/transcriptions';
 import {
@@ -902,13 +903,48 @@ async function createRemoteProjectBackup(
 				token_text: 'Remote',
 			})
 			.execute();
-		await saveCollationArtifact(remoteHarness.db, {
+		await saveWorkingCollationArtifact(remoteHarness.db, {
 			collationId: 'col-restore-1',
 			artifactId: 'artifact-restore-1',
 			artifactType: 'collation_document_v1',
-			payload: '{"text":"Remote collation"}',
+			payload: JSON.stringify({
+				...COLLATION_FIXTURE.document,
+				meta: {
+					collationId: 'col-restore-1',
+					projectId,
+					projectName: 'Remote Restored Project',
+				},
+				setup: {
+					...COLLATION_FIXTURE.document.setup,
+					witnesses: [
+						{
+							type: 'witness',
+							id: 'R',
+							siglum: 'R',
+							transcriptionId,
+							sourceVersion: checkpoint.id,
+							sourceContentHash: checkpoint.contentHash,
+							content: 'Remote witness text',
+							treatment: 'full',
+							isBaseText: true,
+							isExcluded: false,
+							overridesDefault: false,
+							sourceTokens: [
+								{
+									kind: 'text',
+									original: 'Remote',
+									segments: [],
+									gap: null,
+									tokenId: 'R::source::0',
+									sourceRef: { witnessId: 'R', transcriptionId, index: 0 },
+								},
+							],
+						},
+					],
+				},
+			}),
 			now: '2026-06-10T12:07:00.000Z',
-		});
+		}, remoteStoreOptions);
 		const collationCheckpoint = await createCommittedCollationCheckpointWithFiles(remoteHarness.db, {
 			collationId: 'col-restore-1',
 			checkpointId: 'col-cp-restore-1',
@@ -939,7 +975,11 @@ async function createRemoteProjectBackup(
 			'tx-cp-restore-1',
 			remoteStoreOptions
 		);
-		const collationPrimary = await serializeCollationCloudFile(remoteHarness.db, 'col-restore-1');
+		const collationPrimary = await serializeCollationCloudFile(
+			remoteHarness.db,
+			'col-restore-1',
+			remoteStoreOptions
+		);
 		const collationHistory = await serializeCollationHistoryCloudFile(
 			remoteHarness.db,
 			'col-restore-1',
@@ -1133,7 +1173,18 @@ async function writeRemoteHeadUpdate(
 		primary.title = 'Remote Collation Updated';
 		primary.created_at ??= '2026-06-10T12:06:00.000Z';
 		primary.updated_at = '2026-06-10T12:16:00.000Z';
-		collationContentHash = await hashCanonicalPayload(buildCollationHashPayload(primary));
+		const collationContent = {
+			id: primary.id,
+			project_id: primary.project_id,
+			title: primary.title,
+			verse_identifier: primary.verse_identifier,
+			status: primary.status,
+			group_path: primary.group_path,
+			notes: primary.notes,
+			sort_key: primary.sort_key,
+			document: primary.document,
+		};
+		collationContentHash = await hashCanonicalPayload(collationContent);
 		primary.current_revision = {
 			id: input.collationRevisionId,
 			content_hash: collationContentHash,
@@ -1162,7 +1213,7 @@ async function writeRemoteHeadUpdate(
 		history.content_hash = collationContentHash;
 		history.commit_message = 'Remote collation update';
 		history.created_at = '2026-06-10T12:16:00.000Z';
-		history.payload = buildCollationHashPayload(primary);
+		history.payload = collationContent;
 		await provider.createFile(
 			remote.folderId,
 			projectRelativeCloudPaths().collationHistory(remote.collationId, input.collationRevisionId),

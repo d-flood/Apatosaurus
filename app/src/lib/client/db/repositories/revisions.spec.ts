@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import type { StoredTranscriptionDocument } from '$lib/client/transcription/content';
+import { COLLATION_FIXTURE } from '$lib/client/store';
 import { ensureManifestSource, upsertCanvasAnnotation, upsertPageCanvasLink } from './iiif';
 import { createCollation, saveCollationArtifact, updateCollationMetadata } from './collations';
 import { createProject, syncProjectTranscriptionIds } from './projects';
@@ -262,7 +263,7 @@ describe('revision hashing and checkpoints', () => {
 			collationId: 'col-1',
 			artifactId: 'artifact-1',
 			artifactType: 'collation_document_v1',
-			payload: '{"b":2,"a":1}',
+			payload: JSON.stringify(COLLATION_FIXTURE.document),
 			now: '2026-06-09T09:30:00.000Z',
 		});
 
@@ -313,9 +314,14 @@ describe('revision hashing and checkpoints', () => {
 		});
 		expect(first.payload).toMatchObject({
 			id: 'col-1',
-			variation_units: [{ readings: [{ witness_ids: ['A'] }, { witness_ids: ['B'] }] }],
-			artifacts: [{ artifact_type: 'collation_document_v1', payload: { a: 1, b: 2 } }],
+			document: {
+				type: 'collationDocument',
+				version: 1,
+				meta: { collationId: 'col-1', projectId: 'project-1' },
+			},
 		});
+		expect(first.payload).not.toHaveProperty('variation_units');
+		expect(first.payload).not.toHaveProperty('artifacts');
 		expect(await getCollationCheckpointStatus(harness.db, 'col-1')).toMatchObject({
 			currentCheckpoint: { revisionId: 'col-cp-1', contentHash: first.contentHash },
 			workingContentHash: first.contentHash,

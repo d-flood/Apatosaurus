@@ -2,21 +2,24 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import type { StoredTranscriptionDocument } from '$lib/client/transcription/content';
 import { createLocalDbTestHarness, type LocalDbTestHarness } from '$lib/client/db/test-harness';
-import { createCollation, saveCollationArtifact } from '$lib/client/db/repositories/collations';
+import { createCollation } from '$lib/client/db/repositories/collations';
 import {
 	ensureManifestSource,
 	upsertCanvasAnnotation,
 	upsertPageCanvasLink,
 } from '$lib/client/db/repositories/iiif';
 import { createProject, syncProjectTranscriptionIds } from '$lib/client/db/repositories/projects';
-import { createCommittedCollationCheckpointWithFiles } from '$lib/client/db/repositories/collation-files';
+import {
+	createCommittedCollationCheckpointWithFiles,
+	saveWorkingCollationArtifact,
+} from '$lib/client/db/repositories/collation-files';
 import { createCommittedTranscriptionCheckpointWithFiles } from '$lib/client/db/repositories/transcription-files';
 import {
 	createTranscription,
 	updateTranscriptionContent,
 } from '$lib/client/db/repositories/transcriptions';
 import { MemoryStoreBackend } from '$lib/client/store/memory-store-backend.spec-support';
-import type { StoreOperationOptions } from '$lib/client/store';
+import { COLLATION_FIXTURE, type StoreOperationOptions } from '$lib/client/store';
 import {
 	collationCloudFileToImportInput,
 	historyCloudFileToImportInput,
@@ -297,13 +300,13 @@ describe('cloud file serialization formats', () => {
 				sourceContentHash: sourceB.contentHash,
 			},
 		});
-		await saveCollationArtifact(harness.db, {
+		await saveWorkingCollationArtifact(harness.db, {
 			collationId: 'col-1',
 			artifactId: 'artifact-1',
 			artifactType: 'collation_document_v1',
-			payload: '{"b":2,"a":1}',
+			payload: JSON.stringify(COLLATION_FIXTURE.document),
 			now: '2026-06-08T12:03:00.000Z',
-		});
+		}, storeOptions);
 		await createCommittedCollationCheckpointWithFiles(harness.db, {
 			collationId: 'col-1',
 			checkpointId: 'col-cp-1',
@@ -312,7 +315,7 @@ describe('cloud file serialization formats', () => {
 			createdAt: '2026-06-08T12:10:00.000Z',
 		}, storeOptions);
 
-		const primary = await serializeCollationCloudFile(harness.db, 'col-1');
+		const primary = await serializeCollationCloudFile(harness.db, 'col-1', storeOptions);
 		const history = await serializeCollationHistoryCloudFile(
 			harness.db,
 			'col-1',
@@ -333,16 +336,16 @@ describe('cloud file serialization formats', () => {
 		});
 		expect(collationCloudFileToImportInput(parsedPrimary.value)).toMatchObject({
 			id: 'col-1',
-			witnesses: [{ witness_id: 'A' }, { witness_id: 'B' }],
-			tokens: [{ witness_id: 'A' }, { witness_id: 'B' }],
-			variation_units: [{ id: 'unit-1' }],
-			readings: [{ id: 'reading-a' }, { id: 'reading-b' }],
-			reading_witnesses: [
-				{ reading_id: 'reading-a', witness_id: 'A' },
-				{ reading_id: 'reading-b', witness_id: 'B' },
-			],
-			artifacts: [{ artifact_type: 'collation_document_v1', payload: { a: 1, b: 2 } }],
+			document: { type: 'collationDocument' },
+			witnesses: [],
+			tokens: [],
+			variation_units: [],
+			readings: [],
+			reading_witnesses: [],
+			artifacts: [{ artifact_type: 'collation_document_v1' }],
 		});
+		expect(parsedPrimary.value).not.toHaveProperty('artifacts');
+		expect(parsedPrimary.value).not.toHaveProperty('variation_units');
 		expect(historyCloudFileToImportInput(parsedHistory.value)).toMatchObject({
 			checkpoint_id: 'col-cp-1',
 			collation_id: 'col-1',

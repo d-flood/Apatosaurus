@@ -79,8 +79,18 @@ describe('collation file persistence', () => {
 
 	it('stores a canonical working file and leaves collation_artifacts empty', async () => {
 		await createFixtureCollation();
+		await harness.db
+			.insertInto('collation_tokens')
+			.values({
+				id: 'stale-token',
+				collation_id: 'col-1',
+				witness_id: 'stale',
+				token_index: 0,
+				token_text: 'stale',
+			})
+			.execute();
 
-		const artifactId = await saveWorkingCollationArtifact(
+		await saveWorkingCollationArtifact(
 			harness.db,
 			{
 				collationId: 'col-1',
@@ -110,29 +120,25 @@ describe('collation file persistence', () => {
 					base_content_hash: null,
 					saved_at: '2026-07-04T12:00:00.000Z',
 				},
-				artifacts: [
-					{
-						id: artifactId,
-						artifact_type: 'collation_document_v1',
-					},
-				],
+				document: { type: 'collationDocument', flow: { phase: 'alignment' } },
 			},
 		});
 		if (!parsed.ok) throw new Error('working file did not parse');
-		const payload = parsed.payload as unknown as {
-			artifacts: Array<{ payload: unknown }>;
-		};
-		expect(payload.artifacts[0].payload).toMatchObject({
-			flow: { phase: 'alignment' },
-		});
+		expect(parsed.payload).not.toHaveProperty('artifacts');
+		expect(parsed.payload).not.toHaveProperty('witnesses');
+		expect(parsed.payload).not.toHaveProperty('tokens');
+		expect(parsed.payload).not.toHaveProperty('variation_units');
 		await expect(
 			harness.db.selectFrom('collation_artifacts').selectAll().execute()
+		).resolves.toEqual([]);
+		await expect(
+			harness.db.selectFrom('collation_tokens').selectAll().execute()
 		).resolves.toEqual([]);
 	});
 
 	it('loads a working file when the index artifact cache is empty', async () => {
 		await createFixtureCollation();
-		const artifactId = await saveWorkingCollationArtifact(
+		await saveWorkingCollationArtifact(
 			harness.db,
 			{
 				collationId: 'col-1',
@@ -146,7 +152,6 @@ describe('collation file persistence', () => {
 		const loaded = await loadCollationWithWorkingFile(harness.db, 'col-1', { backend });
 
 		expect(loaded?.artifact).toMatchObject({
-			id: artifactId,
 			artifactType: 'collation_document_v1',
 		});
 		expect(loaded?.artifact?.payload).toContain('"phase":"readings"');
@@ -278,6 +283,13 @@ describe('collation file persistence', () => {
 				payload_content_hash: head.current_content_hash,
 			},
 		});
+		if (history.ok) {
+			expect(history.payload.payload).toMatchObject({
+				document: { type: 'collationDocument', flow: { phase: 'setup' } },
+			});
+			expect(history.payload.payload).not.toHaveProperty('artifacts');
+			expect(history.payload.payload).not.toHaveProperty('variation_units');
+		}
 		expect(primary).toMatchObject({
 			ok: true,
 			payload: {
@@ -287,15 +299,11 @@ describe('collation file persistence', () => {
 					id: head.current_revision_id,
 					content_hash: head.current_content_hash,
 				},
-				artifacts: [
-					{
-						artifact_type: 'collation_document_v1',
-						payload: {
-							flow: { phase: 'setup' },
-							meta: { projectName: 'Romans' },
-						},
-					},
-				],
+				document: {
+					type: 'collationDocument',
+					flow: { phase: 'setup' },
+					meta: { projectName: 'Romans' },
+				},
 			},
 		});
 		expect(manifest).toMatchObject({
@@ -389,9 +397,14 @@ describe('collation file persistence', () => {
 					created_at: '2026-07-04T13:00:00.000Z',
 					author_name: 'Editor',
 				},
-				artifacts: [{ id: 'artifact-1', artifact_type: 'collation_document_v1' }],
+				document: { type: 'collationDocument', flow: { phase: 'readings' } },
 			},
 		});
+		if (primary.ok) {
+			expect(primary.payload).not.toHaveProperty('artifacts');
+			expect(primary.payload).not.toHaveProperty('witnesses');
+			expect(primary.payload).not.toHaveProperty('variation_units');
+		}
 		expect(manifest).toMatchObject({
 			ok: true,
 			payload: {
@@ -425,6 +438,7 @@ describe('collation file persistence', () => {
 
 	it('does not write primary, manifest, or index when collation history writing fails', async () => {
 		await createFixtureCollation();
+		await saveFixtureWorkingCollation();
 		backend.failWritePathIncludes = 'history/collations/col-1/col-cp-history-fail.json.tmp-';
 
 		await expect(
@@ -468,6 +482,7 @@ describe('collation file persistence', () => {
 
 	it('leaves only history when collation primary writing fails', async () => {
 		await createFixtureCollation();
+		await saveFixtureWorkingCollation();
 		backend.failWritePathIncludes = 'collations/col-1.json.tmp-';
 
 		await expect(
@@ -728,6 +743,19 @@ async function createFixtureCollation(): Promise<void> {
 		verseIdentifier: 'Rom 1:1',
 		now: '2026-07-04T00:00:00.000Z',
 	});
+}
+
+async function saveFixtureWorkingCollation(): Promise<void> {
+	await saveWorkingCollationArtifact(
+		harness.db,
+		{
+			collationId: 'col-1',
+			artifactType: 'collation_document_v1',
+			payload: JSON.stringify(collationDocument('setup')),
+			now: '2026-07-04T12:00:00.000Z',
+		},
+		{ backend, nonce: () => 'fixture-working' }
+	);
 }
 
 function collationDocument(phase: string) {

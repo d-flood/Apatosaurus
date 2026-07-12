@@ -1,4 +1,3 @@
-import { nanoid } from 'nanoid';
 import type { Kysely, Selectable, Transaction } from 'kysely';
 
 import type {
@@ -12,6 +11,7 @@ import type {
 	TranscriptionVerseIndex,
 	Transcriptions,
 } from '../types.generated';
+import { createId } from './id';
 import {
 	deriveEntityCloudBackupState,
 	type EntityCloudBackupState,
@@ -1816,8 +1816,4 @@ function parseJson(value: string): unknown {
 function requireId(value: string | null, label: string): string {
 	if (!value) throw new Error(`Missing ${label} id`);
 	return value;
-}
-
-function createId(): string {
-	return typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : nanoid();
 }

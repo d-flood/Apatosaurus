@@ -2,6 +2,7 @@ import { nanoid } from 'nanoid';
 import type { Insertable, Kysely, Transaction } from 'kysely';
 
 import type { Database, Projects } from '../types.generated';
+import { createId } from './id';
 
 type DbExecutor = Kysely<Database> | Transaction<Database>;
 
@@ -77,10 +78,4 @@ function createSlugSuffix(): string {
 			? crypto.randomUUID().replace(/-/g, '')
 			: nanoid(12).replace(/[^a-zA-Z0-9]/g, '');
 	return (raw || nanoid(12)).slice(0, 8).toLowerCase();
-}
-
-function createId(): string {
-	return typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-		? crypto.randomUUID()
-		: nanoid();
 }

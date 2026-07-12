@@ -1,7 +1,7 @@
-import { nanoid } from 'nanoid';
 import type { Kysely, Selectable, Transaction } from 'kysely';
 
 import type { CloudConnections, CloudProjectFolders, Database } from '../types.generated';
+import { createId } from './id';
 
 type DbExecutor = Kysely<Database> | Transaction<Database>;
 
@@ -292,10 +292,4 @@ function parseScopes(raw: string): string[] {
 function requireId(value: string | null, label: string): string {
 	if (!value) throw new Error(`Missing ${label} id.`);
 	return value;
-}
-
-function createId(): string {
-	return typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-		? crypto.randomUUID()
-		: nanoid();
 }

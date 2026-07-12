@@ -551,7 +551,7 @@ describe('collationState artifact-first persistence', () => {
 		expect(collationState.witnesses[0]?.tokens[0]?.original).toBe('κλητος');
 	});
 
-	it('skips normalized projection writes until the collation reaches stemma', async () => {
+	it('delegates projection writes to semantic document persistence', async () => {
 		const collationState = await importState();
 		collationState.reset();
 		await collationState.selectProject('proj-1');
@@ -581,7 +581,7 @@ describe('collationState artifact-first persistence', () => {
 		expect(saveCollationProjection).not.toHaveBeenCalled();
 	});
 
-	it('materializes the normalized projection when the collation is saved in stemma', async () => {
+	it('persists the semantic document when the collation is saved in stemma', async () => {
 		const collationState = await importState();
 		collationState.reset();
 		await collationState.selectProject('proj-1');
@@ -652,7 +652,10 @@ describe('collationState artifact-first persistence', () => {
 		collationState.nextPhase();
 		await vi.advanceTimersByTimeAsync(801);
 
-		expect(saveCollationProjection).toHaveBeenCalled();
+		expect(saveCollationProjection).not.toHaveBeenCalled();
+		expect(saveCollationArtifact).toHaveBeenCalledWith(
+			expect.objectContaining({ collationId, artifactType: 'collation_document_v1' })
+		);
 		expect(updateCollationMetadata).toHaveBeenCalledWith(
 			expect.objectContaining({ id: collationId, status: 'complete' })
 		);

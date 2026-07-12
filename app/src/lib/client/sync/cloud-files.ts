@@ -2,8 +2,14 @@ import type { Kysely, Selectable, Transaction } from 'kysely';
 
 import type { Database, SyncTombstones } from '$lib/client/db/types.generated';
 import type { CreateProjectInput } from '$lib/client/db/repositories/projects';
+import { loadCommittedCollationPayloadWithFiles } from '$lib/client/db/repositories/collation-files';
 import { getProject } from '$lib/client/db/repositories/projects';
-import { openEnvelope, sealDocument, serializeSealedDocument } from '$lib/client/store/envelope';
+import {
+	openEnvelope,
+	sealDocument,
+	serializeSealedDocument,
+	type JsonObject,
+} from '$lib/client/store/envelope';
 import { collationCheckpointFile, readTextFile, type StoreOperationOptions } from '$lib/client/store';
 import {
 	COLLATION_CHECKPOINT_FORMAT,
@@ -22,15 +28,22 @@ import {
 	assertTranscriptionCheckpointPayloadIntegrity,
 	readCanonicalDocument,
 	type CollationCheckpointPayload,
+	type CollationContent,
 	type CollationPayload,
 	type ProjectManifestPayload,
 	type ProjectTranscriptionPayload,
 	type TombstonePayload,
 	type TranscriptionCheckpointPayload,
 } from '$lib/client/store/formats';
-import { quarantineFromError as storeQuarantineFromError } from '$lib/client/store/quarantine';
+import { buildCollationProjectionFromDocument } from '$lib/client/collation/collation-projection';
 import {
-	buildCollationHashPayload,
+	hashMismatch,
+	invalidShape,
+	quarantineFromError,
+	type StoreQuarantineCode,
+	type StoreQuarantineReason,
+} from '$lib/client/store/quarantine';
+import {
 	buildTranscriptionHashPayload,
 	loadCommittedTranscriptionCheckpointPayload,
 	loadProjectTranscriptionSnapshot,
@@ -57,7 +70,7 @@ export const CLOUD_FILE_SCHEMA_VERSION = 1;
 export type CloudFileSchemaVersion = typeof CLOUD_FILE_SCHEMA_VERSION;
 export type CloudHistoryEntityType = 'project-transcription' | 'collation';
 
-export interface CloudCurrentRevision {
+export interface CloudCurrentRevision extends JsonObject {
 	id: string;
 	content_hash: string;
 	created_at: string;
@@ -128,7 +141,7 @@ export interface ProjectTranscriptionCloudFile extends ProjectTranscriptionSnaps
 	updated_at: string;
 }
 
-export interface CollationCloudFile extends SerializedCollation {
+export interface CollationCloudFile extends CollationContent {
 	schema_version: CloudFileSchemaVersion;
 	current_revision: CloudCurrentRevision;
 	created_at: string;
@@ -207,6 +220,7 @@ export interface ProjectTranscriptionImportInput {
 }
 
 export interface CollationImportInput extends SerializedCollation {
+	document: CollationContent['document'];
 	current_revision_id: string;
 	current_content_hash: string;
 	created_at: string;
@@ -237,18 +251,8 @@ export interface CollationCheckpointImportInput {
 	created_at: string;
 }
 
-export type CloudFileQuarantineCode =
-	| 'invalid_json'
-	| 'invalid_schema_version'
-	| 'invalid_shape'
-	| 'hash_mismatch';
-
-export interface CloudFileQuarantine {
-	code: CloudFileQuarantineCode;
-	message: string;
-	expected?: unknown;
-	actual?: unknown;
-}
+export type CloudFileQuarantineCode = StoreQuarantineCode;
+export type CloudFileQuarantine = StoreQuarantineReason;
 
 export type CloudFileParseResult<T> =
 	| { ok: true; value: T }
@@ -393,14 +397,16 @@ export async function serializeProjectTranscriptionCloudFile(
 
 export async function serializeCollationCloudFile(
 	db: DbExecutor,
-	collationId: string
+	collationId: string,
+	storeOptions: StoreOperationOptions = {}
 ): Promise<CollationCloudFile> {
 	const [collation, metadata] = await Promise.all([
-		loadSerializedCollation(db, collationId),
+		loadCommittedCollationPayloadWithFiles(db as Kysely<Database>, collationId, storeOptions),
 		loadCollationMetadata(db, collationId),
 	]);
-	assertCollationSourcesSyncReady(collation);
-	const contentHash = await hashCanonicalPayload(buildCollationHashPayload(collation));
+	assertCollationSourcesSyncReady(collationCloudFileToImportInput(collationPayloadToCloudFile(collation)));
+	const { current_revision: _revision, created_at: _createdAt, updated_at: _updatedAt, ...content } = collation;
+	const contentHash = await hashCanonicalPayload(content);
 	if (contentHash !== metadata.current_content_hash) {
 		throw new Error(
 			`Collation ${collationId} has uncommitted changes and cannot be serialized for cloud sync.`
@@ -426,12 +432,7 @@ export async function serializeCollationCloudFile(
 		sort_key: collation.sort_key,
 		created_at: metadata.created_at,
 		updated_at: metadata.updated_at,
-		witnesses: sortCollationWitnesses(collation.witnesses),
-		tokens: sortCollationTokens(collation.tokens),
-		variation_units: sortVariationUnits(collation.variation_units),
-		readings: sortCollationReadings(collation.readings),
-		reading_witnesses: sortReadingWitnesses(collation.reading_witnesses),
-		artifacts: sortCollationArtifacts(collation.artifacts),
+		document: collation.document,
 	};
 }
 
@@ -719,16 +720,14 @@ export function validateProjectTranscriptionHeadMatchesCheckpoint(
 			);
 		}
 		if (checkpoint.checkpoint_id !== primary.current_revision.id) {
-			throw new CloudFileValidationError(
-				'hash_mismatch',
+			throw hashMismatch(
 				'Project transcription current revision id does not match its checkpoint file.',
 				primary.current_revision.id,
 				checkpoint.checkpoint_id
 			);
 		}
 		if (checkpoint.content_hash !== primary.current_revision.content_hash) {
-			throw new CloudFileValidationError(
-				'hash_mismatch',
+			throw hashMismatch(
 				'Project transcription current revision hash does not match its checkpoint file.',
 				primary.current_revision.content_hash,
 				checkpoint.content_hash
@@ -752,16 +751,14 @@ export function validateCollationHeadMatchesCheckpoint(
 			throw invalidShape('Collation checkpoint entity id does not match the primary file.');
 		}
 		if (checkpoint.checkpoint_id !== primary.current_revision.id) {
-			throw new CloudFileValidationError(
-				'hash_mismatch',
+			throw hashMismatch(
 				'Collation current revision id does not match its checkpoint file.',
 				primary.current_revision.id,
 				checkpoint.checkpoint_id
 			);
 		}
 		if (checkpoint.content_hash !== primary.current_revision.content_hash) {
-			throw new CloudFileValidationError(
-				'hash_mismatch',
+			throw hashMismatch(
 				'Collation current revision hash does not match its checkpoint file.',
 				primary.current_revision.content_hash,
 				checkpoint.content_hash
@@ -818,6 +815,18 @@ export function projectTranscriptionCloudFileToImportInput(
 }
 
 export function collationCloudFileToImportInput(file: CollationCloudFile): CollationImportInput {
+	const projection = buildCollationProjectionFromDocument(file.document);
+	const units = projection.variationUnits.map((unit, index) => ({
+		id: `${file.id}:unit:${index}`,
+		...unit,
+	}));
+	const readings = units.flatMap(unit =>
+		unit.readings.map((reading, index) => ({
+			id: `${unit.id}:reading:${index}`,
+			variationUnitId: unit.id,
+			...reading,
+		}))
+	);
 	return {
 		id: file.id,
 		project_id: file.project_id,
@@ -831,12 +840,48 @@ export function collationCloudFileToImportInput(file: CollationCloudFile): Colla
 		current_content_hash: file.current_revision.content_hash,
 		created_at: file.created_at,
 		updated_at: file.updated_at,
-		witnesses: sortCollationWitnesses(file.witnesses),
-		tokens: sortCollationTokens(file.tokens),
-		variation_units: sortVariationUnits(file.variation_units),
-		readings: sortCollationReadings(file.readings),
-		reading_witnesses: sortReadingWitnesses(file.reading_witnesses),
-		artifacts: sortCollationArtifacts(file.artifacts),
+		document: file.document,
+		witnesses: projection.witnesses.map((row, index) => ({
+			id: `${file.id}:witness:${index}`,
+			witness_id: row.witnessId,
+			content: row.content,
+			position: row.position,
+			project_transcription_id: null,
+			transcription_id: row.transcriptionId,
+			source_revision_id: row.sourceVersion,
+			source_content_hash: row.sourceContentHash ?? '',
+		})),
+		tokens: projection.tokens.map((row, index) => ({
+			id: `${file.id}:token:${index}`,
+			witness_id: row.witnessId,
+			token_index: row.tokenIndex,
+			token_text: row.tokenText,
+		})),
+		variation_units: units.map(unit => ({
+			id: unit.id,
+			start_index: unit.startIndex,
+			end_index: unit.endIndex,
+			unit_type: unit.unitType,
+			base_text: unit.baseText,
+		})),
+		readings: readings.map(reading => ({
+			id: reading.id,
+			variation_unit_id: reading.variationUnitId,
+			reading_order: reading.readingOrder,
+			reading_text: reading.readingText,
+			is_lacuna: reading.isLacuna,
+			is_omission: reading.isOmission,
+		})),
+		reading_witnesses: readings.flatMap(reading =>
+			reading.witnessIds.map(witnessId => ({ reading_id: reading.id, witness_id: witnessId }))
+		),
+		artifacts: [
+			{
+				id: `${file.id}:document`,
+				artifact_type: 'collation_document_v1',
+				payload: file.document,
+			},
+		],
 	};
 }
 
@@ -891,7 +936,7 @@ function isProjectTranscriptionCloudFile(file: CloudFile): file is ProjectTransc
 }
 
 function isCollationCloudFile(file: CloudFile): file is CollationCloudFile {
-	return 'verse_identifier' in file && 'witnesses' in file && 'current_revision' in file;
+	return 'verse_identifier' in file && 'document' in file && 'current_revision' in file;
 }
 
 function isHistoryCloudFile(file: CloudFile): file is HistoryCloudFile {
@@ -1004,12 +1049,7 @@ function collationCloudFileToPayload(file: CollationCloudFile): CollationPayload
 		sort_key: file.sort_key,
 		created_at: file.created_at,
 		updated_at: file.updated_at,
-		witnesses: file.witnesses as CollationPayload['witnesses'],
-		tokens: file.tokens as CollationPayload['tokens'],
-		variation_units: file.variation_units as CollationPayload['variation_units'],
-		readings: file.readings as CollationPayload['readings'],
-		reading_witnesses: file.reading_witnesses as CollationPayload['reading_witnesses'],
-		artifacts: file.artifacts as CollationPayload['artifacts'],
+		document: file.document,
 	};
 }
 
@@ -1027,12 +1067,7 @@ function collationPayloadToCloudFile(payload: CollationPayload): CollationCloudF
 		sort_key: payload.sort_key,
 		created_at: payload.created_at,
 		updated_at: payload.updated_at,
-		witnesses: payload.witnesses,
-		tokens: payload.tokens,
-		variation_units: payload.variation_units,
-		readings: payload.readings,
-		reading_witnesses: payload.reading_witnesses,
-		artifacts: payload.artifacts,
+		document: payload.document,
 	};
 }
 
@@ -1240,7 +1275,6 @@ function tombstoneRowToCloudFile(row: Selectable<SyncTombstones>): TombstoneClou
 function assertCollationSourcesSyncReady(collation: SerializedCollation): void {
 	const missing = collation.witnesses.find(
 		witness =>
-			!witness.project_transcription_id ||
 			!witness.transcription_id ||
 			!witness.source_revision_id ||
 			!witness.source_content_hash
@@ -1275,34 +1309,6 @@ function quarantineResult<T>(error: unknown): CloudFileParseResult<T> {
 
 function validationResult(error: unknown): CloudFileValidationResult {
 	return { ok: false, quarantine: quarantineFromError(error) };
-}
-
-function quarantineFromError(error: unknown): CloudFileQuarantine {
-	if (error instanceof CloudFileValidationError) {
-		return {
-			code: error.code,
-			message: error.message,
-			expected: error.expected,
-			actual: error.actual,
-		};
-	}
-	return storeQuarantineFromError(error);
-}
-
-class CloudFileValidationError extends Error {
-	constructor(
-		readonly code: CloudFileQuarantineCode,
-		message: string,
-		readonly expected?: unknown,
-		readonly actual?: unknown
-	) {
-		super(message);
-		this.name = 'CloudFileValidationError';
-	}
-}
-
-function invalidShape(message: string): CloudFileValidationError {
-	return new CloudFileValidationError('invalid_shape', message);
 }
 
 function errorMessage(error: unknown): string {

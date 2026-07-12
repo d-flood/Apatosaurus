@@ -24,6 +24,7 @@ import {
 	WORKING_TRANSCRIPTION_CURRENT_VERSION,
 	WORKING_TRANSCRIPTION_FORMAT,
 	writeTextFileAtomic,
+	type JsonObject,
 	type JsonValue,
 	type ProjectTranscriptionPayload,
 	type StoreOperationOptions,
@@ -32,6 +33,7 @@ import {
 } from '$lib/client/store';
 
 import type { Database } from '../types.generated';
+import { createId } from './id';
 import { writeProjectManifestFile } from './project-files';
 import { withProjectWriteLock } from './project-locks';
 import {
@@ -260,7 +262,7 @@ export async function createCommittedTranscriptionCheckpointWithFiles(
 			commit_message: commitMessage,
 			author_name: authorName,
 			created_at: createdAt,
-			payload: payload as JsonValue,
+			payload: payload as JsonObject,
 		};
 		const checkpointPath = transcriptionCheckpointFile(
 			context.projectStorageSlug,
@@ -791,12 +793,6 @@ function emptyToNull(value: string | null): string | null {
 function requireString(value: string | null, label: string): string {
 	if (!value) throw new Error(`Missing ${label}.`);
 	return value;
-}
-
-function createId(): string {
-	return typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-		? crypto.randomUUID()
-		: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 }
 
 function projectTranscriptionSnapshotFromPayload(

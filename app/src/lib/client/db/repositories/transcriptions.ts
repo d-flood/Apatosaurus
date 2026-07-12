@@ -1,4 +1,3 @@
-import { nanoid } from 'nanoid';
 import { sql, type Kysely, type Selectable, type Transaction } from 'kysely';
 
 import {
@@ -15,6 +14,7 @@ import type {
 	Transcriptions,
 } from '../types.generated';
 import { ensureDefaultProject } from './project-bootstrap';
+import { createId } from './id';
 
 type DbExecutor = Kysely<Database> | Transaction<Database>;
 
@@ -590,10 +590,4 @@ function now(): number {
 
 function elapsed(startedAt: number): number {
 	return Math.round(now() - startedAt);
-}
-
-function createId(): string {
-	return typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-		? crypto.randomUUID()
-		: nanoid();
 }

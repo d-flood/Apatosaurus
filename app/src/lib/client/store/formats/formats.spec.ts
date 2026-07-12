@@ -87,6 +87,48 @@ describe('canonical store formats', () => {
 			registry.readDocument(COLLATION_CHECKPOINT_FORMAT, COLLATION_CHECKPOINT_OLD_SHAPE_FIXTURE)
 		).resolves.toMatchObject({ ok: false, quarantine: { code: 'invalid_shape' } });
 	});
+
+	it('rejects canonical collations without a project', async () => {
+		const registry = createCanonicalFormatRegistry();
+		const document = await sealDocument(COLLATION_FORMAT, 1, {
+			...COLLATION_FIXTURE,
+			project_id: null,
+		} as JsonObject);
+
+		await expect(registry.readDocument(COLLATION_FORMAT, document)).resolves.toMatchObject({
+			ok: false,
+			quarantine: { code: 'invalid_shape' },
+		});
+	});
+
+	it.each([
+		[TRANSCRIPTION_CHECKPOINT_FORMAT, TRANSCRIPTION_CHECKPOINT_FIXTURE],
+		[COLLATION_CHECKPOINT_FORMAT, COLLATION_CHECKPOINT_FIXTURE],
+	])('rejects %s documents with a null nested payload', async (format, fixture) => {
+		const registry = createCanonicalFormatRegistry();
+		const document = await sealDocument(format, 1, { ...fixture, payload: null } as JsonObject);
+
+		await expect(registry.readDocument(format, document)).resolves.toMatchObject({
+			ok: false,
+			quarantine: { code: 'invalid_shape' },
+		});
+	});
+
+	it('rejects transcription checkpoints with malformed nested snapshots', async () => {
+		const registry = createCanonicalFormatRegistry();
+		const document = await sealDocument(TRANSCRIPTION_CHECKPOINT_FORMAT, 1, {
+			...TRANSCRIPTION_CHECKPOINT_FIXTURE,
+			payload: {
+				project_transcription_id: TRANSCRIPTION_CHECKPOINT_FIXTURE.entity_id,
+				id: TRANSCRIPTION_CHECKPOINT_FIXTURE.payload_transcription_id,
+				format: TRANSCRIPTION_CHECKPOINT_FIXTURE.content_format,
+			},
+		} as JsonObject);
+
+		await expect(
+			registry.readDocument(TRANSCRIPTION_CHECKPOINT_FORMAT, document)
+		).resolves.toMatchObject({ ok: false, quarantine: { code: 'invalid_shape' } });
+	});
 });
 
 describe('derived TEI serializers', () => {

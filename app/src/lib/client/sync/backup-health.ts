@@ -1,4 +1,5 @@
 import type { Kysely } from 'kysely';
+import type { StoreOperationOptions } from '$lib/client/store';
 
 import type { Database } from '$lib/client/db/types.generated';
 import {
@@ -101,9 +102,10 @@ export async function deriveLocalProjectBackupHealth(
 export async function verifyRemoteProjectBackupHealth(
 	db: Kysely<Database>,
 	provider: CloudStorageProvider,
-	context: SyncProjectContext
+	context: SyncProjectContext,
+	storeOptions: StoreOperationOptions = {}
 ): Promise<ProjectBackupHealth> {
-	const localSummary = await deriveProjectBackupSummary(db, context);
+	const localSummary = await deriveProjectBackupSummary(db, context, null, storeOptions);
 	const checks = localSummaryChecks(localSummary.blockingItems, localSummary.pendingItems);
 	const quarantines: SyncQuarantine[] = [];
 	let filesByRelativePath: Map<string, CloudFileMetadata>;

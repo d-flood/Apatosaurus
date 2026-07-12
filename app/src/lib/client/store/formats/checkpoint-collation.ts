@@ -1,7 +1,8 @@
 import type { DocumentUpgrader, FormatRegistration } from '../migrate-on-read';
-import type { JsonObject, JsonValue, SealedDocument } from '../envelope';
+import type { JsonObject, SealedDocument } from '../envelope';
 import { invalidShape } from '../quarantine';
 import { assertContentHashMatches } from './validation';
+import { COLLATION_FIXTURE, readCollationContent, type CollationContent } from './collation';
 import {
 	COLLATION_HISTORY_ENTITY_TYPE,
 	readCheckpointBasePayload,
@@ -15,7 +16,7 @@ export const collationCheckpointUpgraders: DocumentUpgrader[] = [];
 
 export type CollationCheckpointPayload = CheckpointBasePayload & {
 	entity_type: 'collation';
-	payload: JsonValue;
+	payload: CollationContent;
 };
 
 export type CollationCheckpointDocument = SealedDocument<
@@ -32,7 +33,10 @@ export const COLLATION_CHECKPOINT_FIXTURE: CollationCheckpointPayload = {
 	commit_message: 'Initial commit',
 	author_name: 'Editor',
 	created_at: '2026-07-03T00:00:00.000Z',
-	payload: { id: 'col-1', title: 'John 1:1 Collation' },
+	payload: (() => {
+		const { current_revision: _, created_at: _createdAt, updated_at: _updatedAt, ...content } = COLLATION_FIXTURE;
+		return content;
+	})(),
 };
 
 export const COLLATION_CHECKPOINT_OLD_SHAPE_FIXTURE = {
@@ -43,9 +47,11 @@ export const COLLATION_CHECKPOINT_OLD_SHAPE_FIXTURE = {
 
 export function validateCollationCheckpointPayload(payload: JsonObject): CollationCheckpointPayload {
 	const record = payload as Record<string, unknown>;
+	const base = readCheckpointBasePayload(record, COLLATION_HISTORY_ENTITY_TYPE);
 	return {
-		...readCheckpointBasePayload(record, COLLATION_HISTORY_ENTITY_TYPE),
+		...base,
 		entity_type: readHistoryEntityType(record, 'entity_type', COLLATION_HISTORY_ENTITY_TYPE),
+		payload: readCollationContent(base.payload as Record<string, unknown>),
 	};
 }
 

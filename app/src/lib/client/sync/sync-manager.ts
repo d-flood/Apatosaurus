@@ -9,14 +9,16 @@ import type {
 	TranscriptionPageCanvasLinks,
 } from '$lib/client/db/types.generated';
 import {
-	isCollationDirty,
 	isTranscriptionDirty,
 	type CollationCheckpoint,
 	type CommitCollationInput,
 	type CommitTranscriptionInput,
 	type TranscriptionCheckpoint,
 } from '$lib/client/db/repositories/revisions';
-import { createCommittedCollationCheckpointWithFiles } from '$lib/client/db/repositories/collation-files';
+import {
+	createCommittedCollationCheckpointWithFiles,
+	getCollationVersionStatusWithWorkingFile,
+} from '$lib/client/db/repositories/collation-files';
 import { createCommittedTranscriptionCheckpointWithFiles } from '$lib/client/db/repositories/transcription-files';
 import {
 	joinStorePath,
@@ -46,6 +48,7 @@ import {
 } from '$lib/client/db/repositories/cloud-connections';
 import { deriveEntityCloudBackupState, type EntityCloudBackupState } from './backup-status';
 import {
+	collationCloudFileToImportInput,
 	parseCollationCloudFile,
 	parseHistoryCloudFile,
 	parseProjectCloudFile,
@@ -344,7 +347,7 @@ export async function publishEntity(
 	const result = baseResult('sync pending', reference.entityType, reference.entityId);
 	let historyUploaded = false;
 	try {
-		const local = await loadLocalEntity(db, reference);
+		const local = await loadLocalEntity(db, reference, options.storeOptions);
 		result.localHead = local.head;
 		if (!local.hasCommittedHead) {
 			result.uiState = local.dirty ? 'uncommitted local changes' : 'saved locally';
@@ -355,7 +358,7 @@ export async function publishEntity(
 		await ensureHistoryFile(db, provider, context, local, historyPath, result, options.storeOptions);
 		historyUploaded = true;
 
-		const primaryContent = await serializePrimaryFile(db, local);
+		const primaryContent = await serializePrimaryFile(db, local, options.storeOptions);
 		const primaryWrite = await putCloudFile(
 			provider,
 			context,
@@ -400,7 +403,7 @@ export async function pollOpenEntity(
 	options: SyncManagerOptions = {}
 ): Promise<SyncOperationResult> {
 	const result = baseResult('saved locally', reference.entityType, reference.entityId);
-	const local = await loadLocalEntity(db, reference);
+	const local = await loadLocalEntity(db, reference, options.storeOptions);
 	result.localHead = local.head;
 
 	const metadata = await getSyncMetadata(db, context, reference);
@@ -525,7 +528,8 @@ export async function syncProjectTombstones(
 export async function deriveProjectBackupSummary(
 	db: Kysely<Database>,
 	context: SyncProjectContext,
-	folder: CloudProjectFolderRecord | null = null
+	folder: CloudProjectFolderRecord | null = null,
+	storeOptions: StoreOperationOptions = {}
 ): Promise<ProjectBackupSummary> {
 	const [transcriptionReferences, collationReferences, tombstones] = await Promise.all([
 		listProjectTranscriptionReferences(db, context.projectId),
@@ -539,10 +543,10 @@ export async function deriveProjectBackupSummary(
 	]);
 	const [transcriptions, collations] = await Promise.all([
 		Promise.all(
-			transcriptionReferences.map(reference => deriveEntityBackupItem(db, context, reference))
+			transcriptionReferences.map(reference => deriveEntityBackupItem(db, context, reference, storeOptions))
 		),
 		Promise.all(
-			collationReferences.map(reference => deriveEntityBackupItem(db, context, reference))
+			collationReferences.map(reference => deriveEntityBackupItem(db, context, reference, storeOptions))
 		),
 	]);
 	const tombstoneItems = tombstones.map(row => {
@@ -608,7 +612,8 @@ export async function publishProjectManifest(
 export async function downloadAndCompareProjectManifest(
 	db: Kysely<Database>,
 	provider: CloudStorageProvider,
-	context: SyncProjectContext
+	context: SyncProjectContext,
+	storeOptions: StoreOperationOptions = {}
 ): Promise<ProjectManifestComparison> {
 	const manifestPath = projectRelativeCloudPaths().project;
 	const result: ProjectManifestComparison = {
@@ -629,7 +634,7 @@ export async function downloadAndCompareProjectManifest(
 			return { ...result, state: 'unavailable' };
 		}
 		result.manifest = parsed.value;
-		result.state = await compareProjectManifestHeads(db, context, parsed.value);
+		result.state = await compareProjectManifestHeads(db, context, parsed.value, storeOptions);
 		return result;
 	} catch (error) {
 		if (isCloudProviderError(error)) {
@@ -654,7 +659,7 @@ export async function backupProject(
 		context,
 		options.folder ?? null
 	);
-	const summary = await deriveProjectBackupSummary(db, backupContext, folder);
+	const summary = await deriveProjectBackupSummary(db, backupContext, folder, options.storeOptions);
 	const result: ProjectBackupResult = {
 		...baseResult('sync pending'),
 		projectId: backupContext.projectId,
@@ -738,11 +743,11 @@ export async function backupProjectEntity(
 		entityResults: [],
 		skippedItems: [],
 	};
-	const local = await loadLocalEntity(db, reference);
+	const local = await loadLocalEntity(db, reference, options.storeOptions);
 	if (local.projectId !== backupContext.projectId) {
 		throw new Error(`${reference.entityType} ${reference.entityId} does not belong to this project.`);
 	}
-	const item = await deriveEntityBackupItem(db, backupContext, reference);
+	const item = await deriveEntityBackupItem(db, backupContext, reference, options.storeOptions);
 	if (isBlockingBackupItem(item)) {
 		result.uiState = item.status === 'uncommitted-local-changes' ? 'uncommitted local changes' : 'saved locally';
 		result.skippedItems = [item];
@@ -998,7 +1003,7 @@ async function mirrorProjectFiles(
 				if (reference) {
 					result.conflictCopyId = await createConflictCopy(
 						db,
-						await loadLocalEntity(db, reference),
+						await loadLocalEntity(db, reference, options.storeOptions),
 						options
 					);
 				}
@@ -1406,12 +1411,13 @@ async function ensureHistoryFile(
 
 async function serializePrimaryFile(
 	db: Kysely<Database>,
-	local: LocalEntityState
+	local: LocalEntityState,
+	storeOptions: StoreOperationOptions = {}
 ): Promise<string> {
 	if (local.entityType === 'project-transcription') {
 		return serializeCloudFile(await serializeProjectTranscriptionCloudFile(db, local.entityId));
 	}
-	return serializeCloudFile(await serializeCollationCloudFile(db, local.entityId));
+	return serializeCloudFile(await serializeCollationCloudFile(db, local.entityId, storeOptions));
 }
 
 async function putCloudFile(
@@ -1716,6 +1722,7 @@ async function applyProjectTranscriptionPrimary(
 }
 
 async function applyCollationPrimary(db: DbExecutor, file: CollationCloudFile): Promise<void> {
+	const projection = collationCloudFileToImportInput(file);
 	await db
 		.insertInto('collations')
 		.values({
@@ -1748,11 +1755,11 @@ async function applyCollationPrimary(db: DbExecutor, file: CollationCloudFile): 
 		)
 		.execute();
 	await deleteCollationChildren(db, file.id);
-	if (file.artifacts.length > 0) {
+	if (projection.artifacts.length > 0) {
 		await db
 			.insertInto('collation_artifacts')
 			.values(
-				file.artifacts.map(row => ({
+				projection.artifacts.map(row => ({
 					id: row.id,
 					collation_id: file.id,
 					artifact_type: row.artifact_type,
@@ -1762,29 +1769,29 @@ async function applyCollationPrimary(db: DbExecutor, file: CollationCloudFile): 
 			)
 			.execute();
 	}
-	if (file.witnesses.length > 0) {
+	if (projection.witnesses.length > 0) {
 		await db
 			.insertInto('collation_witnesses')
-			.values(file.witnesses.map(row => ({ ...row, collation_id: file.id })))
+			.values(projection.witnesses.map(row => ({ ...row, collation_id: file.id })))
 			.execute();
 	}
-	if (file.tokens.length > 0) {
+	if (projection.tokens.length > 0) {
 		await db
 			.insertInto('collation_tokens')
-			.values(file.tokens.map(row => ({ ...row, collation_id: file.id })))
+			.values(projection.tokens.map(row => ({ ...row, collation_id: file.id })))
 			.execute();
 	}
-	if (file.variation_units.length > 0) {
+	if (projection.variation_units.length > 0) {
 		await db
 			.insertInto('collation_variation_units')
-			.values(file.variation_units.map(row => ({ ...row, collation_id: file.id })))
+			.values(projection.variation_units.map(row => ({ ...row, collation_id: file.id })))
 			.execute();
 	}
-	if (file.readings.length > 0) {
+	if (projection.readings.length > 0) {
 		await db
 			.insertInto('collation_readings')
 			.values(
-				file.readings.map(row => ({
+				projection.readings.map(row => ({
 					...row,
 					is_lacuna: row.is_lacuna ? 1 : 0,
 					is_omission: row.is_omission ? 1 : 0,
@@ -1792,11 +1799,11 @@ async function applyCollationPrimary(db: DbExecutor, file: CollationCloudFile): 
 			)
 			.execute();
 	}
-	if (file.reading_witnesses.length > 0) {
+	if (projection.reading_witnesses.length > 0) {
 		await db
 			.insertInto('collation_reading_witnesses')
 			.values(
-				file.reading_witnesses.map(row => ({
+				projection.reading_witnesses.map(row => ({
 					id: `${row.reading_id}:${row.witness_id}`,
 					reading_id: row.reading_id,
 					witness_id: row.witness_id,
@@ -1989,9 +1996,10 @@ async function listProjectCollationReferences(
 async function deriveEntityBackupItem(
 	db: Kysely<Database>,
 	context: SyncProjectContext,
-	reference: SyncEntityReference
+	reference: SyncEntityReference,
+	storeOptions: StoreOperationOptions = {}
 ): Promise<BackupItemState> {
-	const local = await loadLocalEntity(db, reference);
+	const local = await loadLocalEntity(db, reference, storeOptions);
 	const backupState = await deriveEntityCloudBackupState(
 		db,
 		context,
@@ -2034,7 +2042,8 @@ function backupStateToItem(
 async function compareProjectManifestHeads(
 	db: Kysely<Database>,
 	context: SyncProjectContext,
-	remoteManifest: ProjectCloudFile
+	remoteManifest: ProjectCloudFile,
+	storeOptions: StoreOperationOptions = {}
 ): Promise<ProjectRemoteManifestState> {
 	if (remoteManifest.id !== context.projectId) return 'diverged';
 	const references = [
@@ -2044,7 +2053,7 @@ async function compareProjectManifestHeads(
 	let sawRemoteOnlyChange = false;
 	let sawLocalOnlyChange = false;
 	for (const reference of references) {
-		const local = await loadLocalEntity(db, reference);
+		const local = await loadLocalEntity(db, reference, storeOptions);
 		const remoteHead = remoteManifestHead(remoteManifest, reference);
 		const metadata = await getSyncMetadata(db, context, reference);
 		if (!remoteHead) {
@@ -2110,7 +2119,8 @@ function hasOperationFailure(result: SyncOperationResult): boolean {
 
 async function loadLocalEntity(
 	db: Kysely<Database>,
-	reference: SyncEntityReference
+	reference: SyncEntityReference,
+	storeOptions: StoreOperationOptions = {}
 ): Promise<LocalEntityState> {
 	if (reference.entityType === 'project-transcription') {
 		const row = await db
@@ -2161,7 +2171,12 @@ async function loadLocalEntity(
 		projectId: row.project_id,
 		primaryPath: primaryPathFor(reference.entityType, reference.entityId),
 		head,
-		dirty: await isCollationDirty(db, reference.entityId),
+		dirty: (
+			await getCollationVersionStatusWithWorkingFile(db, reference.entityId, {}, {
+				...storeOptions,
+				allowIndexFallback: false,
+			})
+		).dirtyToCheckpoint,
 		hasCommittedHead: hasHead(head),
 	};
 }

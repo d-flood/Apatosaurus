@@ -1,5 +1,5 @@
 import type { DocumentUpgrader, FormatRegistration } from '../migrate-on-read';
-import type { JsonObject, JsonValue, SealedDocument } from '../envelope';
+import type { JsonObject, SealedDocument } from '../envelope';
 import { invalidShape } from '../quarantine';
 import { assertContentHashMatches, readString } from './validation';
 import {
@@ -8,6 +8,7 @@ import {
 	type CheckpointBasePayload,
 	TRANSCRIPTION_HISTORY_ENTITY_TYPE,
 } from './checkpoint-utils';
+import { readProjectTranscriptionPayload } from './project-transcription';
 
 export const TRANSCRIPTION_CHECKPOINT_FORMAT = 'apatosaurus.checkpoint.transcription';
 export const TRANSCRIPTION_CHECKPOINT_CURRENT_VERSION = 1;
@@ -17,7 +18,7 @@ export type TranscriptionCheckpointPayload = CheckpointBasePayload & {
 	entity_type: 'project-transcription';
 	payload_transcription_id: string;
 	content_format: string;
-	payload: JsonValue;
+	payload: JsonObject;
 };
 
 export type TranscriptionCheckpointDocument = SealedDocument<
@@ -69,11 +70,40 @@ export function validateTranscriptionCheckpointPayload(
 ): TranscriptionCheckpointPayload {
 	const record = payload as Record<string, unknown>;
 	const base = readCheckpointBasePayload(record, TRANSCRIPTION_HISTORY_ENTITY_TYPE);
+	const payloadTranscriptionId = readString(record, 'payload_transcription_id');
+	const contentFormat = readString(record, 'content_format');
+	const nested = base.payload as Record<string, unknown>;
+	readProjectTranscriptionPayload(
+		{
+			...nested,
+			canonical_transcription_id: null,
+			origin: {
+				source_type: 'original',
+				source_project_id: null,
+				source_transcription_id: null,
+				source_revision_id: null,
+				source_content_hash: null,
+			},
+			content_format: readString(nested, 'format'),
+			created_at: base.created_at,
+			updated_at: base.created_at,
+		},
+		false
+	);
+	if (nested.project_transcription_id !== base.entity_id) {
+		throw invalidShape('Transcription checkpoint payload project_transcription_id does not match entity_id.');
+	}
+	if (nested.id !== payloadTranscriptionId) {
+		throw invalidShape('Transcription checkpoint payload id does not match payload_transcription_id.');
+	}
+	if (nested.format !== contentFormat) {
+		throw invalidShape('Transcription checkpoint payload format does not match content_format.');
+	}
 	return {
 		...base,
 		entity_type: readHistoryEntityType(record, 'entity_type', TRANSCRIPTION_HISTORY_ENTITY_TYPE),
-		payload_transcription_id: readString(record, 'payload_transcription_id'),
-		content_format: readString(record, 'content_format'),
+		payload_transcription_id: payloadTranscriptionId,
+		content_format: contentFormat,
 	};
 }
 

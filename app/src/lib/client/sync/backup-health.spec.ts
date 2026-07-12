@@ -7,9 +7,12 @@ import {
 	upsertCloudProjectFolder,
 } from '$lib/client/db/repositories/cloud-connections';
 import { createProject } from '$lib/client/db/repositories/projects';
-import { createCommittedCollationCheckpointWithFiles } from '$lib/client/db/repositories/collation-files';
+import {
+	createCommittedCollationCheckpointWithFiles,
+	saveWorkingCollationArtifact,
+} from '$lib/client/db/repositories/collation-files';
 import { MemoryStoreBackend } from '$lib/client/store/memory-store-backend.spec-support';
-import type { StoreOperationOptions } from '$lib/client/store';
+import { COLLATION_FIXTURE, type StoreOperationOptions } from '$lib/client/store';
 import { backupProject, type SyncProjectContext } from './sync-manager';
 import { MockCloudStorageProvider } from './providers/mock-provider';
 import type { CloudFileMetadata } from './providers/provider';
@@ -38,7 +41,12 @@ describe('project backup health', () => {
 			storeOptions,
 		});
 
-		const health = await verifyRemoteProjectBackupHealth(harness.db, provider, context);
+		const health = await verifyRemoteProjectBackupHealth(
+			harness.db,
+			provider,
+			context,
+			storeOptions
+		);
 
 		expect(health.status).toBe('restorable-now');
 		expect(health.safeToRemove).toBe(true);
@@ -56,8 +64,23 @@ describe('project backup health', () => {
 			notes: 'Uncommitted local notes',
 			updatedAt: '2026-06-10T12:06:00.000Z',
 		});
+		await saveWorkingCollationArtifact(
+			harness.db,
+			{
+				collationId: 'col-1',
+				artifactType: 'collation_document_v1',
+				payload: JSON.stringify(COLLATION_FIXTURE.document),
+				now: '2026-06-10T12:06:00.000Z',
+			},
+			storeOptions
+		);
 
-		const health = await verifyRemoteProjectBackupHealth(harness.db, provider, context);
+		const health = await verifyRemoteProjectBackupHealth(
+			harness.db,
+			provider,
+			context,
+			storeOptions
+		);
 
 		expect(health.status).toBe('uncommitted-changes');
 		expect(health.safeToRemove).toBe(false);
@@ -72,7 +95,12 @@ describe('project backup health', () => {
 		if (!primary) throw new Error('Expected remote collation primary.');
 		await provider.deleteFile(primary.id, primary.revision);
 
-		const health = await verifyRemoteProjectBackupHealth(harness.db, provider, context);
+		const health = await verifyRemoteProjectBackupHealth(
+			harness.db,
+			provider,
+			context,
+			storeOptions
+		);
 
 		expect(health.status).toBe('incomplete-backup');
 		expect(health.safeToRemove).toBe(false);
@@ -94,7 +122,12 @@ describe('project backup health', () => {
 		if (!history) throw new Error('Expected remote collation history.');
 		await provider.deleteFile(history.id, history.revision);
 
-		const health = await verifyRemoteProjectBackupHealth(harness.db, provider, context);
+		const health = await verifyRemoteProjectBackupHealth(
+			harness.db,
+			provider,
+			context,
+			storeOptions
+		);
 
 		expect(health.status).toBe('incomplete-backup');
 		expect(health.safeToRemove).toBe(false);
@@ -148,6 +181,16 @@ async function createCommittedProjectCollation(notes: string, checkpointId: stri
 		notes,
 		updatedAt: '2026-06-10T12:01:00.000Z',
 	});
+	await saveWorkingCollationArtifact(
+		harness.db,
+		{
+			collationId: 'col-1',
+			artifactType: 'collation_document_v1',
+			payload: JSON.stringify(COLLATION_FIXTURE.document),
+			now: '2026-06-10T12:01:00.000Z',
+		},
+		storeOptions
+	);
 	await createCommittedCollationCheckpointWithFiles(harness.db, {
 		collationId: 'col-1',
 		checkpointId,

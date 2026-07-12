@@ -60,6 +60,7 @@ import type {
 	Transcriptions,
 } from '../types.generated';
 import { replaceTranscriptionVerseIndexRows } from './transcriptions';
+import { buildCollationProjectionFromDocument } from '$lib/client/collation/collation-projection';
 
 type DbTransaction = Transaction<Database>;
 
@@ -397,63 +398,57 @@ async function collectCollationRows(
 		created_at: indexPayload.created_at,
 		updated_at: indexPayload.updated_at,
 	});
-	for (const artifact of indexPayload.artifacts) {
-		rows.collationArtifacts.push({
-			id: artifact.id,
-			collation_id: payload.id,
-			artifact_type: artifact.artifact_type,
-			payload: JSON.stringify(artifact.payload),
-			created_at: indexPayload.updated_at,
-		});
-	}
-	for (const witness of indexPayload.witnesses) {
+	const projection = buildCollationProjectionFromDocument(indexPayload.document);
+	for (const [index, witness] of projection.witnesses.entries()) {
 		rows.collationWitnesses.push({
-			id: witness.id,
+			id: `${payload.id}:witness:${index}`,
 			collation_id: payload.id,
-			witness_id: witness.witness_id,
+			witness_id: witness.witnessId,
 			content: witness.content,
 			position: witness.position,
-			project_transcription_id: witness.project_transcription_id,
-			transcription_id: witness.transcription_id,
-			source_revision_id: witness.source_revision_id,
-			source_content_hash: witness.source_content_hash,
+			project_transcription_id: null,
+			transcription_id: witness.transcriptionId,
+			source_revision_id: witness.sourceVersion,
+			source_content_hash: witness.sourceContentHash ?? '',
 		});
 	}
-	for (const token of indexPayload.tokens) {
+	for (const [index, token] of projection.tokens.entries()) {
 		rows.collationTokens.push({
-			id: token.id,
+			id: `${payload.id}:token:${index}`,
 			collation_id: payload.id,
-			witness_id: token.witness_id,
-			token_index: token.token_index,
-			token_text: token.token_text,
+			witness_id: token.witnessId,
+			token_index: token.tokenIndex,
+			token_text: token.tokenText,
 		});
 	}
-	for (const unit of indexPayload.variation_units) {
+	for (const [unitIndex, unit] of projection.variationUnits.entries()) {
+		const unitId = `${payload.id}:unit:${unitIndex}`;
 		rows.collationVariationUnits.push({
-			id: unit.id,
+			id: unitId,
 			collation_id: payload.id,
-			start_index: unit.start_index,
-			end_index: unit.end_index,
-			unit_type: unit.unit_type,
-			base_text: unit.base_text,
+			start_index: unit.startIndex,
+			end_index: unit.endIndex,
+			unit_type: unit.unitType,
+			base_text: unit.baseText,
 		});
-	}
-	for (const reading of indexPayload.readings) {
-		rows.collationReadings.push({
-			id: reading.id,
-			variation_unit_id: reading.variation_unit_id,
-			reading_order: reading.reading_order,
-			reading_text: reading.reading_text,
-			is_lacuna: reading.is_lacuna ? 1 : 0,
-			is_omission: reading.is_omission ? 1 : 0,
-		});
-	}
-	for (const [index, witness] of indexPayload.reading_witnesses.entries()) {
-		rows.collationReadingWitnesses.push({
-			id: `${payload.id}:reading-witness:${index}`,
-			reading_id: witness.reading_id,
-			witness_id: witness.witness_id,
-		});
+		for (const [readingIndex, reading] of unit.readings.entries()) {
+			const readingId = `${unitId}:reading:${readingIndex}`;
+			rows.collationReadings.push({
+				id: readingId,
+				variation_unit_id: unitId,
+				reading_order: reading.readingOrder,
+				reading_text: reading.readingText,
+				is_lacuna: reading.isLacuna ? 1 : 0,
+				is_omission: reading.isOmission ? 1 : 0,
+			});
+			for (const [witnessIndex, witnessId] of reading.witnessIds.entries()) {
+				rows.collationReadingWitnesses.push({
+					id: `${readingId}:witness:${witnessIndex}`,
+					reading_id: readingId,
+					witness_id: witnessId,
+				});
+			}
+		}
 	}
 
 	await collectCollationCheckpointRows(projectSlug, payload.id, rows, report, storeOptions);

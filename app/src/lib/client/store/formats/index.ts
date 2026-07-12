@@ -40,7 +40,8 @@ export {
 	COLLATION_FORMAT,
 	assertCollationRevisionHash,
 	collationFormatRegistration,
-	collationPayloadToSerializedCollation,
+	collationPayloadToContent,
+	type CollationContent,
 	type CollationDocument,
 	type CollationPayload,
 } from './collation';
