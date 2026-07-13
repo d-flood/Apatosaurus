@@ -533,6 +533,10 @@ export interface IndexRpcMap {
 		request: { type: 'index.rebuild' };
 		response: IndexRebuildReport;
 	};
+	'index.restoreOrphanPrimary': {
+		request: { type: 'index.restoreOrphanPrimary'; path: string };
+		response: IndexRebuildReport;
+	};
 }
 
 export type IndexRpcRequest = IndexRpcMap[keyof IndexRpcMap]['request'];

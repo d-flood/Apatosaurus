@@ -63,7 +63,7 @@ export async function writeProjectManifestFile(
 		'forkedFrom' in overrides
 			? (overrides.forkedFrom ?? null)
 			: await readExistingForkProvenance(project.storageSlug, storeOptions);
-	return writeProjectManifestPayloadFile(
+	return writeProjectManifestFromRows(
 		project,
 		transcriptions,
 		collations,
@@ -116,10 +116,10 @@ export async function writeEmptyProjectManifestFile(
 	storeOptions: StoreOperationOptions = {},
 	forkedFrom: ProjectManifestForkProvenance | null = null
 ): Promise<ProjectManifestPayload> {
-	return writeProjectManifestPayloadFile(project, [], [], [], forkedFrom, storeOptions);
+	return writeProjectManifestFromRows(project, [], [], [], forkedFrom, storeOptions);
 }
 
-async function writeProjectManifestPayloadFile(
+async function writeProjectManifestFromRows(
 	project: ProjectManifestProjectRecord,
 	transcriptions: ProjectManifestTranscriptionHead[],
 	collations: ProjectManifestCollationHead[],
@@ -127,37 +127,48 @@ async function writeProjectManifestPayloadFile(
 	forkedFrom: ProjectManifestForkProvenance | null,
 	storeOptions: StoreOperationOptions
 ): Promise<ProjectManifestPayload> {
-	const manifestContentHash = await hashCanonicalPayload({
-		project_id: project.id,
-		transcriptions,
-		collations,
-		tombstones,
-	});
-	const payload: ProjectManifestPayload = {
+	return writeProjectManifestPayloadFile(project.storageSlug, {
 		id: project.id,
 		name: project.name,
 		description: project.description,
 		charter: project.charter,
 		collation_settings: project.collationSettings as JsonValue,
 		forked_from: forkedFrom,
-		manifest_content_hash: manifestContentHash,
+		manifest_content_hash: '',
 		transcriptions,
 		collations,
 		tombstones,
 		created_at: project.createdAt,
 		updated_at: project.updatedAt,
+	}, storeOptions);
+}
+
+export async function writeProjectManifestPayloadFile(
+	projectSlug: string,
+	payload: ProjectManifestPayload,
+	storeOptions: StoreOperationOptions = {}
+): Promise<ProjectManifestPayload> {
+	const manifestContentHash = await hashCanonicalPayload({
+		project_id: payload.id,
+		transcriptions: payload.transcriptions,
+		collations: payload.collations,
+		tombstones: payload.tombstones,
+	});
+	const updatedPayload: ProjectManifestPayload = {
+		...payload,
+		manifest_content_hash: manifestContentHash,
 	};
 	const document = await sealDocument(
 		PROJECT_MANIFEST_FORMAT,
 		PROJECT_MANIFEST_CURRENT_VERSION,
-		payload
+		updatedPayload
 	);
 	await writeTextFileAtomic(
-		projectManifestFile(project.storageSlug),
+		projectManifestFile(projectSlug),
 		serializeSealedDocument(document),
 		storeOptions
 	);
-	return payload;
+	return updatedPayload;
 }
 
 async function listProjectManifestTranscriptionHeads(

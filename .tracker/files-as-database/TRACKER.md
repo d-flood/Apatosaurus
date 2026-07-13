@@ -8,7 +8,7 @@ This document tracks the status of all tickets in the files-as-database epic: in
 
 Overall status: `In Progress`
 
-Current ticket: review remediation for ticket `06`; ticket `10` remains blocked
+Current ticket: review remediation for tickets `07`-`09`; ticket `10` remains blocked
 
 Last updated: 2026-07-13
 
@@ -26,7 +26,7 @@ Last updated: 2026-07-13
 | 03 | `03-canonical-file-formats.md` | Completed | 02 |
 | 04 | `04-project-only-data-model.md` | Completed | 03 |
 | 05 | `05-write-path-inversion.md` | Completed | 04 |
-| 06 | `06-index-rebuild-and-repair.md` | In Progress | 05 |
+| 06 | `06-index-rebuild-and-repair.md` | Completed | 05 |
 | 07 | `07-local-folder-sync.md` | In Progress | 01, 06 |
 | 08 | `08-zip-export.md` | In Progress | 06 |
 | 09 | `09-zip-import-staged-ingestion.md` | In Progress | 08 |
@@ -60,6 +60,7 @@ bun run test:unit -- --run
 
 | Date | Note |
 | --- | --- |
+| 2026-07-13 | Ticket 06 review remediation completed. Rebuild now applies the committed-vs-working revision/hash rule, reports stale drafts, and classifies unreferenced primaries, working files, histories, tombstones, TEI siblings, and missing/invalid-manifest project directories without mutation. Valid orphan primaries can be restored through a serialized worker action that validates the file, publishes the manifest first, then rebuilds. Repair UI shows path/code/message details and only safe recovery actions. The real Chromium delete-index invariant now covers empty renamed project settings, transcription metadata, IIIF state, project copy/fork, and tombstones; its index deletion tolerates only the transient OPFS handle-release condition. Legacy cloud-table removal remains correctly deferred until tickets 07/10 retire their active consumers. Verification passed: `bun run db:generate`, `bun run db:check`, focused repository/UI/invariant tests, DB/store slice (159 tests), `bun run check`, and the full unit/browser suite (484 tests). |
 | 2026-07-13 | Ticket 05 review remediation completed. Transcription and collation working files are accepted only when demonstrably ahead of their committed primaries and are removed after successful commits; refresh preserves dirty state in checkpoint history and leaves the refreshed head clean. Entity creation, project copy/fork, refresh, metadata, and IIIF mutations now publish canonical files before index state with failure-safe transactions. Commit/create/delete operations return structured non-blocking TEI or primary-cleanup warnings surfaced in the UI. Added creation, stale-working, refresh-boundary, metadata/IIIF rebuild, warning, copy, and fork regression coverage. Verification passed: `bun run db:generate`, `bun run db:check`, focused store/DB/collation suites (265 server tests; the known OPFS handle-release race passed on isolated rerun), `bun run check`, and the full unit/browser suite (480 tests). |
 | 2026-07-13 | Ticket 05 refresh-draft decision: preserve the pre-refresh dirty draft in canonical checkpoint history only, remove the old working file, and leave the refreshed head clean. Implementation resumed. |
 | 2026-07-13 | Ticket 05 remediation paused before implementation. Its completion gate requires working files to represent only current uncommitted state and successful transcription commits to remove committed working files, while completed ticket 11 requires refresh-from-source to preserve any working draft afterward. The current refresh first commits a dirty draft as `Local state before refresh from source`, then replaces the target, but the tickets do not say whether preservation means checkpoint history only or retaining/restoring an active working file after refresh. A human decision is needed before changing refresh and working-file lifecycle behavior. |

@@ -3,11 +3,22 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { StoredTranscriptionDocument } from '$lib/client/transcription/content';
 import {
 	StoreMoveUnavailableError,
+	APP_STORE_ROOT,
 	COLLATION_FIXTURE,
 	joinStorePath,
 	normalizeStorePath,
+	projectFolder,
+	projectManifestFile,
+	readCanonicalDocument,
+	hashCanonicalPayload,
+	PROJECT_MANIFEST_FORMAT,
+	serializeCanonicalDocument,
 	storePathBasename,
 	storePathDirname,
+	transcriptionWorkingFile,
+	WORKING_TRANSCRIPTION_FORMAT,
+	type ProjectManifestPayload,
+	type WorkingTranscriptionPayload,
 	type StoreBackend,
 	type StoreBackendDirectoryEntry,
 } from '$lib/client/store';
@@ -21,7 +32,7 @@ import {
 } from './collation-files';
 import { ensureManifestSourceWithFiles } from './iiif-files';
 import { listManifestSources } from './iiif';
-import { rebuildIndexFromStore } from './index-rebuild';
+import { rebuildIndexFromStore, restoreOrphanPrimaryToProject } from './index-rebuild';
 import {
 	createProject,
 	ensureDefaultProject,
@@ -362,6 +373,223 @@ describe('rebuildIndexFromStore', () => {
 				.where('collation_id', '=', 'col-1')
 				.executeTakeFirstOrThrow()
 		).resolves.toEqual({ transcription_id: 'tx-1', project_transcription_id: 'pt-1' });
+	});
+
+	it('ignores a stale working transcription when rebuilding the live index', async () => {
+		const backend = new MemoryStoreBackend();
+		const storeOptions = { backend, nonce: () => 'stale-working' };
+		await createProject(
+			harness.db,
+			{ id: 'project-1', storageSlug: 'project-slug', name: 'Project' },
+			storeOptions
+		);
+		await createTranscription(harness.db, {
+			id: 'tx-1',
+			projectId: 'project-1',
+			projectTranscriptionId: 'pt-1',
+			title: 'Committed title',
+			siglum: '01',
+			document: documentWithVerses(['Romans 1:1']),
+			transcriber: '',
+			repository: '',
+			settlement: '',
+			language: 'grc',
+		});
+		await createCommittedTranscriptionCheckpointWithFiles(
+			harness.db,
+			{ projectTranscriptionId: 'pt-1' },
+			storeOptions
+		);
+		await saveWorkingTranscriptionMetadata(
+			harness.db,
+			{
+				id: 'tx-1',
+				title: 'Stale draft title',
+				siglum: '01',
+				description: '',
+				tags: [],
+				transcriber: '',
+				repository: '',
+				settlement: '',
+				language: 'grc',
+			},
+			storeOptions
+		);
+		const workingPath = transcriptionWorkingFile('project-slug', 'pt-1');
+		const workingRead = await readCanonicalDocument<WorkingTranscriptionPayload>(
+			WORKING_TRANSCRIPTION_FORMAT,
+			await backend.readTextFile(joinStorePath(APP_STORE_ROOT, workingPath))
+		);
+		if (!workingRead.ok) throw new Error(workingRead.quarantine.message);
+		const staleWorking = {
+			...workingRead.payload,
+			draft: {
+				...workingRead.payload.draft,
+				base_revision_id: 'superseded',
+				base_content_hash: 'sha256:superseded',
+			},
+		};
+		await backend.writeTextFile(
+			joinStorePath(APP_STORE_ROOT, workingPath),
+			await serializeCanonicalDocument(
+				WORKING_TRANSCRIPTION_FORMAT,
+				staleWorking as never
+			)
+		);
+
+		const report = await rebuildIndexFromStore(harness.db, storeOptions);
+
+		expect(await loadTranscriptionWithWorkingFile(harness.db, 'tx-1', storeOptions)).toMatchObject({
+			title: 'Committed title',
+		});
+		expect(report.orphanedFiles).toContainEqual(
+			expect.objectContaining({ path: workingPath, code: 'stale_working', recoverable: false })
+		);
+	});
+
+	it('reports every unsupported project file individually without mutating files', async () => {
+		const backend = new MemoryStoreBackend();
+		const storeOptions = { backend, nonce: () => 'orphans' };
+		await createProject(
+			harness.db,
+			{ id: 'project-1', storageSlug: 'project-slug', name: 'Project' },
+			storeOptions
+		);
+		await backend.writeTextFile(
+			joinStorePath(APP_STORE_ROOT, 'projects/project-slug/transcriptions/orphan.json'),
+			'{}'
+		);
+		await backend.writeTextFile(
+			joinStorePath(APP_STORE_ROOT, 'projects/project-slug/transcriptions/orphan.working.json'),
+			'{}'
+		);
+		await backend.writeTextFile(
+			joinStorePath(APP_STORE_ROOT, 'projects/project-slug/transcriptions/orphan.tei.xml'),
+			'<TEI/>'
+		);
+		await backend.writeTextFile(
+			joinStorePath(APP_STORE_ROOT, 'projects/project-slug/history/transcriptions/orphan/cp.json'),
+			'{}'
+		);
+		await backend.writeTextFile(
+			joinStorePath(APP_STORE_ROOT, 'projects/project-slug/tombstones/transcription--orphan.json'),
+			'{}'
+		);
+		await backend.writeTextFile(
+			joinStorePath(APP_STORE_ROOT, 'projects/no-manifest/transcriptions/lost.json'),
+			'{}'
+		);
+		const filesBefore = new Map(backend.files);
+
+		const report = await rebuildIndexFromStore(harness.db, storeOptions);
+
+		expect(report.orphanedFiles).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					path: 'projects/project-slug/transcriptions/orphan.json',
+					code: 'unreferenced_primary',
+					recoverable: false,
+				}),
+				expect.objectContaining({
+					path: 'projects/project-slug/transcriptions/orphan.working.json',
+					code: 'unreferenced_working',
+				}),
+				expect.objectContaining({
+					path: 'projects/project-slug/history/transcriptions/orphan/cp.json',
+					code: 'unreferenced_history',
+				}),
+				expect.objectContaining({
+					path: 'projects/project-slug/tombstones/transcription--orphan.json',
+					code: 'unreferenced_tombstone',
+				}),
+				expect.objectContaining({
+					path: 'projects/project-slug/transcriptions/orphan.tei.xml',
+					code: 'unreferenced_tei',
+				}),
+				expect.objectContaining({
+					path: projectFolder('no-manifest'),
+					code: 'missing_project_manifest',
+				}),
+				expect.objectContaining({
+					path: 'projects/no-manifest/transcriptions/lost.json',
+					code: 'unreferenced_primary',
+				}),
+			])
+		);
+		expect(report.orphanedFiles).toHaveLength(7);
+		expect(backend.files).toEqual(filesBefore);
+		expect(
+			backend.files.has(joinStorePath(APP_STORE_ROOT, projectManifestFile('project-slug')))
+		).toBe(true);
+	});
+
+	it('restores a validated orphan primary through the manifest before rebuilding', async () => {
+		const backend = new MemoryStoreBackend();
+		const storeOptions = { backend, nonce: () => 'restore-orphan' };
+		await createProject(
+			harness.db,
+			{ id: 'project-1', storageSlug: 'project-slug', name: 'Project' },
+			storeOptions
+		);
+		await createTranscription(harness.db, {
+			id: 'tx-1',
+			projectId: 'project-1',
+			projectTranscriptionId: 'pt-1',
+			title: 'Recovered witness',
+			siglum: 'R',
+			document: documentWithVerses(['Romans 1:1']),
+			transcriber: '',
+			repository: '',
+			settlement: '',
+			language: 'grc',
+		});
+		await createCommittedTranscriptionCheckpointWithFiles(
+			harness.db,
+			{ projectTranscriptionId: 'pt-1' },
+			storeOptions
+		);
+		const manifestPath = projectManifestFile('project-slug');
+		const manifestRead = await readCanonicalDocument<ProjectManifestPayload>(
+			PROJECT_MANIFEST_FORMAT,
+			await backend.readTextFile(joinStorePath(APP_STORE_ROOT, manifestPath))
+		);
+		if (!manifestRead.ok) throw new Error(manifestRead.quarantine.message);
+		const orphanedManifest = {
+			...manifestRead.payload,
+			transcriptions: [],
+			manifest_content_hash: await hashCanonicalPayload({
+				project_id: 'project-1',
+				transcriptions: [],
+				collations: manifestRead.payload.collations,
+				tombstones: manifestRead.payload.tombstones,
+			}),
+		};
+		await backend.writeTextFile(
+			joinStorePath(APP_STORE_ROOT, manifestPath),
+			await serializeCanonicalDocument(PROJECT_MANIFEST_FORMAT, orphanedManifest as never)
+		);
+
+		const orphanReport = await rebuildIndexFromStore(harness.db, storeOptions);
+		const orphan = orphanReport.orphanedFiles.find(file => file.path.endsWith('/pt-1.json'));
+		expect(orphan).toMatchObject({ recoverable: true, entityType: 'transcription' });
+		expect(await loadTranscriptionWithWorkingFile(harness.db, 'tx-1', storeOptions)).toBeNull();
+
+		const restored = await restoreOrphanPrimaryToProject(
+			harness.db,
+			orphan?.path ?? '',
+			storeOptions
+		);
+		expect(restored.orphanedFiles).not.toContainEqual(
+			expect.objectContaining({ path: orphan?.path })
+		);
+		expect(await loadTranscriptionWithWorkingFile(harness.db, 'tx-1', storeOptions)).toMatchObject({
+			title: 'Recovered witness',
+		});
+
+		await rebuildIndexFromStore(harness.db, storeOptions);
+		expect(await loadTranscriptionWithWorkingFile(harness.db, 'tx-1', storeOptions)).toMatchObject({
+			title: 'Recovered witness',
+		});
 	});
 });
 

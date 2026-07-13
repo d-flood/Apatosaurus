@@ -39,6 +39,7 @@
 	import ProjectTranscriptionRefreshDialog from '$lib/components/projects/ProjectTranscriptionRefreshDialog.svelte';
 	import AddProjectTranscriptionFromProjectDialog from '$lib/components/projects/AddProjectTranscriptionFromProjectDialog.svelte';
 	import ProjectUserManagementStub from '$lib/components/projects/ProjectUserManagementStub.svelte';
+	import IndexRepairReport from '$lib/components/projects/IndexRepairReport.svelte';
 	import { waitForBrowserIdle } from '$lib/client/defer';
 	import { ensureLocalDbRuntime } from '$lib/client/db/runtime';
 	import {
@@ -56,6 +57,7 @@
 		deriveProjectBackupSummary,
 		exportAllProjectsZip,
 		rebuildLocalIndex,
+		restoreOrphanPrimary,
 		subscribeLocalDbInvalidations,
 	} from '$lib/client/db/client';
 	import type { CollationVersionStatus } from '$lib/client/db/repositories/collations';
@@ -116,6 +118,7 @@
 	let lastAllProjectsExportedAt = $state<string | null>(null);
 	let indexRepairError = $state<string | null>(null);
 	let indexRepairReport = $state<IndexRebuildReport | null>(null);
+	let restoringOrphanPath = $state<string | null>(null);
 	let persistenceReport = $state<StoragePersistenceReport | null>(null);
 	let storageEstimateReport = $state<StorageEstimateReport | null>(null);
 	let installSupported = $state(false);
@@ -769,6 +772,21 @@
 			indexRepairError = err instanceof Error ? err.message : 'Failed to repair database';
 		} finally {
 			isRepairingIndex = false;
+		}
+	}
+
+	async function restoreIndexOrphan(path: string) {
+		if (restoringOrphanPath) return;
+		const preferredProjectId = selectedProjectId;
+		restoringOrphanPath = path;
+		indexRepairError = null;
+		try {
+			indexRepairReport = await restoreOrphanPrimary(path);
+			await bootstrap(preferredProjectId);
+		} catch (err) {
+			indexRepairError = err instanceof Error ? err.message : 'Failed to restore orphaned file';
+		} finally {
+			restoringOrphanPath = null;
 		}
 	}
 
@@ -1446,19 +1464,11 @@
 						{/if}
 
 						{#if indexRepairReport}
-							<div class="rounded-box bg-base-200/70 p-3 text-xs text-base-content/70">
-								<div class="font-medium text-base-content">Repair complete</div>
-								<div class="mt-1">
-									Restored {pluralize(indexRepairReport.projectsRestored, 'project')}, {pluralize(
-										indexRepairReport.transcriptionsRestored,
-										'transcription'
-									)}, and {pluralize(indexRepairReport.collationsRestored, 'collation')}.
-								</div>
-								<div class="mt-1">
-									Quarantined files: {indexRepairReport.quarantinedFiles.length}. Orphaned
-									files: {indexRepairReport.orphanedFiles.length}.
-								</div>
-							</div>
+							<IndexRepairReport
+								report={indexRepairReport}
+								restoringPath={restoringOrphanPath}
+								onRestore={restoreIndexOrphan}
+							/>
 						{/if}
 					</div>
 				</div>

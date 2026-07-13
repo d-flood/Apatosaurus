@@ -11,15 +11,20 @@ import {
 	WORKING_TRANSCRIPTION_FORMAT,
 	collationWorkingFile,
 	collationHistoryFolder,
+	collationPayloadToContent,
+	collationTeiFile,
+	hashCanonicalPayload,
 	joinStorePath,
 	listDirectory,
 	projectFolder,
 	projectManifestFile,
+	projectTranscriptionPayloadToSnapshot,
 	projectsFolder,
 	quarantineFromError,
 	readCanonicalDocument,
 	readTextFile,
 	transcriptionHistoryFolder,
+	transcriptionTeiFile,
 	transcriptionWorkingFile,
 	type CollationCheckpointPayload,
 	type CollationPayload,
@@ -57,6 +62,7 @@ import type {
 } from '../types.generated';
 import { replaceTranscriptionVerseIndexRows } from './transcriptions';
 import { buildSerializedCollationProjectionRows } from '$lib/client/collation/collation-projection';
+import { writeProjectManifestPayloadFile } from './project-files';
 
 type DbTransaction = Transaction<Database>;
 
@@ -68,7 +74,27 @@ export interface IndexRebuildReport {
 	collationCheckpointsRestored: number;
 	tombstonesRestored: number;
 	quarantinedFiles: StoreQuarantineRecord[];
-	orphanedFiles: string[];
+	orphanedFiles: OrphanedFileRecord[];
+}
+
+export type OrphanedFileCode =
+	| 'missing_project_manifest'
+	| 'invalid_project_manifest'
+	| 'unreferenced_primary'
+	| 'unreferenced_working'
+	| 'unreferenced_history'
+	| 'unreferenced_tombstone'
+	| 'unreferenced_tei'
+	| 'stale_working';
+
+export interface OrphanedFileRecord {
+	path: string;
+	code: OrphanedFileCode;
+	message: string;
+	recoverable: boolean;
+	projectSlug: string;
+	entityType?: 'transcription' | 'collation';
+	entityId?: string;
 }
 
 interface RebuildRows {
@@ -137,6 +163,80 @@ export async function rebuildIndexFromStore(
 	return report;
 }
 
+export async function restoreOrphanPrimaryToProject(
+	db: Kysely<Database>,
+	path: string,
+	storeOptions: StoreOperationOptions = {}
+): Promise<IndexRebuildReport> {
+	const match = /^projects\/([^/]+)\/(transcriptions|collations)\/([^/]+)\.json$/.exec(path);
+	if (!match) throw new Error('Only canonical orphan primary paths can be restored.');
+	const [, projectSlug, folderName, fileId] = match;
+	const manifestRead = await readCanonicalDocument<ProjectManifestPayload>(
+		PROJECT_MANIFEST_FORMAT,
+		await readTextFile(projectManifestFile(projectSlug), storeOptions)
+	);
+	if (!manifestRead.ok) throw new Error(`Project manifest is invalid: ${manifestRead.quarantine.message}`);
+	const manifest = manifestRead.payload;
+
+	if (folderName === 'transcriptions') {
+		const primaryRead = await readCanonicalDocument<ProjectTranscriptionPayload>(
+			PROJECT_TRANSCRIPTION_FORMAT,
+			await readTextFile(path, storeOptions)
+		);
+		if (!primaryRead.ok) throw new Error(`Orphan primary is invalid: ${primaryRead.quarantine.message}`);
+		const payload = primaryRead.payload;
+		if (payload.project_transcription_id !== fileId) {
+			throw new Error('Orphan transcription identity does not match its canonical path.');
+		}
+		if (manifest.transcriptions.some(head => head.project_transcription_id === fileId)) {
+			throw new Error(`Transcription ${fileId} is already present in the project manifest.`);
+		}
+		manifest.transcriptions = [
+			...manifest.transcriptions,
+			{
+				project_transcription_id: payload.project_transcription_id,
+				transcription_id: payload.id,
+				current_revision: {
+					id: payload.current_revision.id,
+					content_hash: payload.current_revision.content_hash,
+				},
+				title: payload.title,
+				siglum: payload.siglum,
+				primary_path: `transcriptions/${fileId}.json`,
+			},
+		].sort((left, right) => left.project_transcription_id.localeCompare(right.project_transcription_id));
+	} else {
+		const primaryRead = await readCanonicalDocument<CollationPayload>(
+			COLLATION_FORMAT,
+			await readTextFile(path, storeOptions)
+		);
+		if (!primaryRead.ok) throw new Error(`Orphan primary is invalid: ${primaryRead.quarantine.message}`);
+		const payload = primaryRead.payload;
+		if (payload.id !== fileId || payload.project_id !== manifest.id) {
+			throw new Error('Orphan collation identity does not match its project and canonical path.');
+		}
+		if (manifest.collations.some(head => head.collation_id === fileId)) {
+			throw new Error(`Collation ${fileId} is already present in the project manifest.`);
+		}
+		manifest.collations = [
+			...manifest.collations,
+			{
+				collation_id: payload.id,
+				current_revision: {
+					id: payload.current_revision.id,
+					content_hash: payload.current_revision.content_hash,
+				},
+				title: payload.title,
+				verse_identifier: payload.verse_identifier,
+				primary_path: `collations/${fileId}.json`,
+			},
+		].sort((left, right) => left.collation_id.localeCompare(right.collation_id));
+	}
+
+	await writeProjectManifestPayloadFile(projectSlug, manifest, storeOptions);
+	return rebuildIndexFromStore(db, storeOptions);
+}
+
 async function collectIndexRowsFromStore(
 	report: IndexRebuildReport,
 	storeOptions: StoreOperationOptions
@@ -157,13 +257,26 @@ async function collectProjectRows(
 	storeOptions: StoreOperationOptions
 ): Promise<void> {
 	const manifestPath = projectManifestFile(projectSlug);
+	const manifestExists = await storeFileExists(manifestPath, storeOptions);
 	const manifest = await readCanonicalFile<ProjectManifestPayload>(
 		PROJECT_MANIFEST_FORMAT,
 		manifestPath,
 		report,
 		storeOptions
 	);
-	if (!manifest) return;
+	if (!manifest) {
+		report.orphanedFiles.push({
+			path: projectFolder(projectSlug),
+			code: manifestExists ? 'invalid_project_manifest' : 'missing_project_manifest',
+			message: manifestExists
+				? 'Project directory has an invalid manifest. Repair the manifest before restoring its files.'
+				: 'Project directory has no project.json manifest. Its files were left unchanged.',
+			recoverable: false,
+			projectSlug,
+		});
+		await recordProjectOrphans(projectSlug, null, report, storeOptions);
+		return;
+	}
 
 	rows.projects.push({
 		id: manifest.id,
@@ -176,9 +289,7 @@ async function collectProjectRows(
 		updated_at: manifest.updated_at,
 	});
 
-	const referencedTranscriptionPrimaries = new Set<string>();
 	for (const head of manifest.transcriptions) {
-		referencedTranscriptionPrimaries.add(head.primary_path);
 		await collectTranscriptionRows(
 			projectSlug,
 			manifest.id,
@@ -188,17 +299,8 @@ async function collectProjectRows(
 			storeOptions
 		);
 	}
-	await recordOrphanedPrimaries(
-		projectSlug,
-		'transcriptions',
-		referencedTranscriptionPrimaries,
-		report,
-		storeOptions
-	);
 
-	const referencedCollationPrimaries = new Set<string>();
 	for (const head of manifest.collations) {
-		referencedCollationPrimaries.add(head.primary_path);
 		await collectCollationRows(
 			projectSlug,
 			manifest.id,
@@ -208,17 +310,11 @@ async function collectProjectRows(
 			storeOptions
 		);
 	}
-	await recordOrphanedPrimaries(
-		projectSlug,
-		'collations',
-		referencedCollationPrimaries,
-		report,
-		storeOptions
-	);
 
 	for (const head of manifest.tombstones) {
 		await collectTombstoneRow(projectSlug, head.primary_path, rows, report, storeOptions);
 	}
+	await recordProjectOrphans(projectSlug, manifest, report, storeOptions);
 }
 
 async function collectTranscriptionRows(
@@ -452,6 +548,24 @@ async function readWorkingTranscriptionPayload(
 		});
 		return null;
 	}
+	if (
+		payload.draft.base_revision_id !== primaryPayload.current_revision.id ||
+		payload.draft.base_content_hash !== primaryPayload.current_revision.content_hash
+	) {
+		report.orphanedFiles.push(
+			orphanRecord(
+				path,
+				projectSlug,
+				'stale_working',
+				'Working transcription is based on a superseded committed revision and was not indexed.'
+			)
+		);
+		return null;
+	}
+	const workingHash = await hashCanonicalPayload(
+		projectTranscriptionPayloadToSnapshot(payload as unknown as ProjectTranscriptionPayload)
+	);
+	if (workingHash === primaryPayload.current_revision.content_hash) return null;
 	// Working transcription payloads are primary payloads minus current_revision; rebuild only
 	// uses the live index fields from them and keeps committed revision heads from primaries.
 	return payload as unknown as ProjectTranscriptionPayload;
@@ -478,6 +592,24 @@ async function readWorkingCollationPayload(
 		});
 		return null;
 	}
+	if (
+		payload.draft.base_revision_id !== primaryPayload.current_revision.id ||
+		payload.draft.base_content_hash !== primaryPayload.current_revision.content_hash
+	) {
+		report.orphanedFiles.push(
+			orphanRecord(
+				path,
+				projectSlug,
+				'stale_working',
+				'Working collation is based on a superseded committed revision and was not indexed.'
+			)
+		);
+		return null;
+	}
+	const workingHash = await hashCanonicalPayload(
+		collationPayloadToContent(payload as unknown as CollationPayload)
+	);
+	if (workingHash === primaryPayload.current_revision.content_hash) return null;
 	// Working collation payloads are primary payloads minus current_revision; rebuild only
 	// uses the live index fields from them and keeps committed revision heads from primaries.
 	return payload as unknown as CollationPayload;
@@ -668,20 +800,140 @@ async function clearIndexTables(trx: DbTransaction): Promise<void> {
 	}
 }
 
-async function recordOrphanedPrimaries(
+async function recordProjectOrphans(
 	projectSlug: string,
-	folderName: 'transcriptions' | 'collations',
-	referencedRelativePaths: Set<string>,
+	manifest: ProjectManifestPayload | null,
 	report: IndexRebuildReport,
 	storeOptions: StoreOperationOptions
 ): Promise<void> {
-	const folder = joinStorePath(projectFolder(projectSlug), folderName);
-	for (const entry of await listDirectoryIfExists(folder, storeOptions)) {
-		if (!isPrimaryJsonFile(entry)) continue;
-		const relativePath = joinStorePath(folderName, entry.name);
-		if (!referencedRelativePaths.has(relativePath)) {
-			report.orphanedFiles.push(joinStorePath(projectFolder(projectSlug), relativePath));
+	const referencedFiles = new Set<string>([projectManifestFile(projectSlug)]);
+	const referencedHistoryFolders = new Set<string>();
+	for (const head of manifest?.transcriptions ?? []) {
+		referencedFiles.add(joinStorePath(projectFolder(projectSlug), head.primary_path));
+		referencedFiles.add(transcriptionWorkingFile(projectSlug, head.project_transcription_id));
+		referencedFiles.add(transcriptionTeiFile(projectSlug, head.project_transcription_id));
+		referencedHistoryFolders.add(
+			transcriptionHistoryFolder(projectSlug, head.project_transcription_id)
+		);
+	}
+	for (const head of manifest?.collations ?? []) {
+		referencedFiles.add(joinStorePath(projectFolder(projectSlug), head.primary_path));
+		referencedFiles.add(collationWorkingFile(projectSlug, head.collation_id));
+		referencedFiles.add(collationTeiFile(projectSlug, head.collation_id));
+		referencedHistoryFolders.add(collationHistoryFolder(projectSlug, head.collation_id));
+	}
+	for (const head of manifest?.tombstones ?? []) {
+		referencedFiles.add(joinStorePath(projectFolder(projectSlug), head.primary_path));
+	}
+
+	for (const path of await listFilesRecursively(projectFolder(projectSlug), storeOptions)) {
+		if (referencedFiles.has(path)) continue;
+		if ([...referencedHistoryFolders].some(folder => path.startsWith(`${folder}/`))) continue;
+		const orphan = await classifyOrphan(path, projectSlug, manifest, report, storeOptions);
+		if (orphan) report.orphanedFiles.push(orphan);
+	}
+}
+
+async function classifyOrphan(
+	path: string,
+	projectSlug: string,
+	manifest: ProjectManifestPayload | null,
+	report: IndexRebuildReport,
+	storeOptions: StoreOperationOptions
+): Promise<OrphanedFileRecord | null> {
+	const relativePath = path.slice(`${projectFolder(projectSlug)}/`.length);
+	if (/^(transcriptions|collations)\/[^/]+\.working\.json$/.test(relativePath)) {
+		return orphanRecord(path, projectSlug, 'unreferenced_working', 'Working file has no manifest entity.');
+	}
+	if (/^(transcriptions|collations)\/[^/]+\.json$/.test(relativePath)) {
+		const entityType = relativePath.startsWith('transcriptions/')
+			? 'transcription'
+			: 'collation';
+		const format = entityType === 'transcription' ? PROJECT_TRANSCRIPTION_FORMAT : COLLATION_FORMAT;
+		let entityId: string | undefined;
+		let recoverable = false;
+		let validationMessage = '';
+		try {
+			const result = await readCanonicalDocument<ProjectTranscriptionPayload | CollationPayload>(
+				format,
+				await readTextFile(path, storeOptions)
+			);
+			if (!result.ok) {
+				recordQuarantine(report, path, result.quarantine);
+				validationMessage = ` ${result.quarantine.message}`;
+			} else {
+				entityId =
+					entityType === 'transcription'
+						? (result.payload as ProjectTranscriptionPayload).project_transcription_id
+						: (result.payload as CollationPayload).id;
+				const expectedPath = `${entityId}.json`;
+				const ownsProject =
+					entityType === 'transcription' ||
+					(result.payload as CollationPayload).project_id === manifest?.id;
+				recoverable = Boolean(manifest && path.endsWith(`/${expectedPath}`) && ownsProject);
+				if (!recoverable) validationMessage = ' The file identity does not match this project path.';
+			}
+		} catch (error) {
+			const quarantine = quarantineFromError(error);
+			recordQuarantine(report, path, quarantine);
+			validationMessage = ` ${quarantine.message}`;
 		}
+		return {
+			path,
+			code: 'unreferenced_primary',
+			message: recoverable
+				? 'Valid canonical primary is not referenced by the project manifest.'
+				: `Unreferenced primary cannot be restored automatically.${validationMessage}`,
+			recoverable,
+			projectSlug,
+			entityType,
+			entityId,
+		};
+	}
+	if (/^history\/(transcriptions|collations)\/.+\.json$/.test(relativePath)) {
+		return orphanRecord(path, projectSlug, 'unreferenced_history', 'History file has no manifest entity.');
+	}
+	if (/^tombstones\/.+\.json$/.test(relativePath)) {
+		return orphanRecord(path, projectSlug, 'unreferenced_tombstone', 'Tombstone is not referenced by the project manifest.');
+	}
+	if (/^(transcriptions|collations)\/[^/]+\.tei\.xml$/.test(relativePath)) {
+		return orphanRecord(path, projectSlug, 'unreferenced_tei', 'TEI sibling has no manifest entity.');
+	}
+	return null;
+}
+
+function orphanRecord(
+	path: string,
+	projectSlug: string,
+	code: OrphanedFileCode,
+	message: string
+): OrphanedFileRecord {
+	return { path, code, message, recoverable: false, projectSlug };
+}
+
+async function listFilesRecursively(
+	folder: string,
+	storeOptions: StoreOperationOptions
+): Promise<string[]> {
+	const files: string[] = [];
+	for (const entry of await listDirectoryIfExists(folder, storeOptions)) {
+		const path = joinStorePath(folder, entry.name);
+		if (entry.kind === 'file') files.push(path);
+		else files.push(...(await listFilesRecursively(path, storeOptions)));
+	}
+	return files;
+}
+
+async function storeFileExists(
+	path: string,
+	storeOptions: StoreOperationOptions
+): Promise<boolean> {
+	try {
+		await readTextFile(path, storeOptions);
+		return true;
+	} catch (error) {
+		if (isMissingStoreEntryError(error)) return false;
+		throw error;
 	}
 }
 
@@ -742,12 +994,6 @@ function recordQuarantine(
 
 function isJsonFile(entry: StoreDirectoryEntry): boolean {
 	return entry.kind === 'file' && entry.name.endsWith('.json');
-}
-
-function isPrimaryJsonFile(entry: StoreDirectoryEntry): boolean {
-	return (
-		isJsonFile(entry) && !entry.name.endsWith('.working.json') && !entry.name.includes('.tmp-')
-	);
 }
 
 function isMissingStoreEntryError(error: unknown): boolean {

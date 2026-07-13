@@ -64,7 +64,10 @@ import {
 	listCommittedTranscriptionCheckpoints,
 	loadCommittedTranscriptionCheckpointPayload,
 } from './repositories/revisions';
-import { rebuildIndexFromStore } from './repositories/index-rebuild';
+import {
+	rebuildIndexFromStore,
+	restoreOrphanPrimaryToProject,
+} from './repositories/index-rebuild';
 import { clearDomainTables } from './repositories/maintenance';
 import {
 	disconnectCloudConnection,
@@ -600,6 +603,11 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 	}
 	if (request.type === 'index.rebuild') {
 		const report = await rebuildIndex();
+		postMessage({ type: 'db:invalidate', domain: 'all' });
+		return report;
+	}
+	if (request.type === 'index.restoreOrphanPrimary') {
+		const report = await restoreOrphanPrimaryToProject(getKyselyDb(), request.path);
 		postMessage({ type: 'db:invalidate', domain: 'all' });
 		return report;
 	}

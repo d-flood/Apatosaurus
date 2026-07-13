@@ -725,6 +725,10 @@ export async function rebuildLocalIndex(): Promise<IndexRebuildReport> {
 	return sendIndexRequest({ type: 'index.rebuild' });
 }
 
+export async function restoreOrphanPrimary(path: string): Promise<IndexRebuildReport> {
+	return sendIndexRequest({ type: 'index.restoreOrphanPrimary', path });
+}
+
 export function attachLocalDbClient(worker: Worker): void {
 	worker.addEventListener(
 		'message',

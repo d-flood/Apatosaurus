@@ -11,6 +11,9 @@ const PROJECT_SLUG = 'project-delete-index-invariant';
 const TRANSCRIPTION_ID = 'tx-delete-index-invariant';
 const PROJECT_TRANSCRIPTION_ID = 'pt-delete-index-invariant';
 const COLLATION_ID = 'col-delete-index-invariant';
+const EMPTY_PROJECT_ID = 'empty-delete-index-invariant';
+const COPY_PROJECT_ID = 'copy-delete-index-invariant';
+const DELETED_TRANSCRIPTION_ID = 'tx-deleted-index-invariant';
 
 let client: WorkerClient | null = null;
 
@@ -34,7 +37,7 @@ describe('delete-the-index invariant', () => {
 		await client.request({ type: 'checkpoint' });
 		client.terminate();
 		client = null;
-		const removalReport = await removeCurrentIndexFiles();
+		const removalReport = await removeIndexFilesAfterWorkerRelease();
 		expect(removalReport.failedPaths).toEqual([]);
 		expect(removalReport.removedPaths).toContain(
 			'apatosaurus/v1/index/apatosaurus-index-v1.db'
@@ -51,12 +54,34 @@ describe('delete-the-index invariant', () => {
 				storageSlug: PROJECT_SLUG,
 				name: 'Delete Index Invariant',
 			},
+			emptyProject: {
+				id: EMPTY_PROJECT_ID,
+				name: 'Renamed Empty Project',
+				description: 'Durable empty project',
+				charter: 'Keep every witness',
+				collationSettings: { segmentation: false },
+			},
 			transcriptionSummaries: [
 				{
 					id: TRANSCRIPTION_ID,
-					title: 'Witness A',
+					title: 'Witness A Updated',
 					siglum: 'A',
 				},
+			],
+			iiifSources: [
+				expect.objectContaining({
+					manifestUrl: 'https://example.test/manifest',
+					label: 'Durable manuscript',
+				}),
+			],
+			iiifLinks: [
+				expect.objectContaining({
+					pageId: 'page-1',
+					canvasId: 'https://example.test/canvas/1',
+				}),
+			],
+			deletedTombstones: [
+				expect.objectContaining({ entity_id: 'pt-deleted-index-invariant' }),
 			],
 			transcriptionContent: expect.stringContaining('"verse":"2"'),
 			verseIdentifiers: ['Romans 1:2'],
@@ -110,6 +135,25 @@ describe('delete-the-index invariant', () => {
 	}, 60_000);
 });
 
+async function removeIndexFilesAfterWorkerRelease() {
+	const removedPaths = new Set<string>();
+	let lastReport = await removeCurrentIndexFiles();
+	for (const path of lastReport.removedPaths) removedPaths.add(path);
+	for (let attempt = 0; attempt < 10 && hasHandleReleaseFailure(lastReport); attempt += 1) {
+		await new Promise(resolve => setTimeout(resolve, 50));
+		lastReport = await removeCurrentIndexFiles();
+		for (const path of lastReport.removedPaths) removedPaths.add(path);
+	}
+	return { ...lastReport, removedPaths: [...removedPaths] };
+}
+
+function hasHandleReleaseFailure(report: Awaited<ReturnType<typeof removeCurrentIndexFiles>>): boolean {
+	return (
+		report.failedPaths.length > 0 &&
+		report.failedPaths.every(failure => /modifications are not allowed/i.test(failure.error))
+	);
+}
+
 async function createProjectTranscriptionAndCollation(db: WorkerClient): Promise<void> {
 	await db.request({
 		type: 'projects.create',
@@ -119,6 +163,27 @@ async function createProjectTranscriptionAndCollation(db: WorkerClient): Promise
 			name: 'Delete Index Invariant',
 			createdAt: '2026-07-06T10:00:00.000Z',
 			updatedAt: '2026-07-06T10:00:00.000Z',
+		},
+	});
+	await db.request({
+		type: 'projects.create',
+		input: {
+			id: EMPTY_PROJECT_ID,
+			storageSlug: EMPTY_PROJECT_ID,
+			name: 'Empty Project',
+			createdAt: '2026-07-06T10:00:10.000Z',
+			updatedAt: '2026-07-06T10:00:10.000Z',
+		},
+	});
+	await db.request({
+		type: 'projects.updateMetadata',
+		input: {
+			projectId: EMPTY_PROJECT_ID,
+			name: 'Renamed Empty Project',
+			description: 'Durable empty project',
+			charter: 'Keep every witness',
+			collationSettings: { segmentation: false },
+			updatedAt: '2026-07-06T10:00:20.000Z',
 		},
 	});
 	await db.request({
@@ -146,6 +211,45 @@ async function createProjectTranscriptionAndCollation(db: WorkerClient): Promise
 			commitMessage: 'Initial witness',
 			authorName: 'Editor',
 			createdAt: '2026-07-06T10:02:00.000Z',
+		},
+	});
+	await db.request({
+		type: 'transcriptions.updateMetadata',
+		input: {
+			id: TRANSCRIPTION_ID,
+			title: 'Witness A Updated',
+			siglum: 'A',
+			description: 'Durable metadata',
+			tags: ['invariant'],
+			transcriber: 'Editor Updated',
+			repository: 'Library',
+			settlement: 'City',
+			language: 'grc',
+			updatedAt: '2026-07-06T10:02:10.000Z',
+		},
+	});
+	const manifestSource = await db.request<{ id: string }>({
+		type: 'iiif.ensureManifestSource',
+		input: {
+			transcriptionId: TRANSCRIPTION_ID,
+			manifestUrl: 'https://example.test/manifest',
+			label: 'Durable manuscript',
+		},
+	});
+	await db.request({
+		type: 'iiif.upsertPageCanvasLink',
+		input: {
+			transcriptionId: TRANSCRIPTION_ID,
+			pageId: 'page-1',
+			pageNameSnapshot: 'Page 1',
+			pageOrder: 0,
+			manifestSourceId: manifestSource.id,
+			manifestUrlSnapshot: 'https://example.test/manifest',
+			canvasId: 'https://example.test/canvas/1',
+			canvasOrder: 0,
+			canvasLabel: 'Canvas 1',
+			imageServiceUrl: null,
+			thumbnailUrl: null,
 		},
 	});
 	await db.request({
@@ -269,6 +373,51 @@ async function createProjectTranscriptionAndCollation(db: WorkerClient): Promise
 			updatedAt: '2026-07-06T10:05:00.000Z',
 		},
 	});
+	await db.request({
+		type: 'projects.create',
+		input: { id: COPY_PROJECT_ID, storageSlug: COPY_PROJECT_ID, name: 'Copy Target' },
+	});
+	await db.request({
+		type: 'projects.addTranscriptionFromProject',
+		input: {
+			targetProjectId: COPY_PROJECT_ID,
+			sourceProjectTranscriptionId: PROJECT_TRANSCRIPTION_ID,
+			createdAt: '2026-07-06T10:06:00.000Z',
+		},
+	});
+	await db.request({
+		type: 'projects.fork',
+		input: {
+			sourceProjectId: PROJECT_ID,
+			name: 'Invariant Fork',
+			createdAt: '2026-07-06T10:07:00.000Z',
+		},
+	});
+	await db.request({
+		type: 'transcriptions.create',
+		input: {
+			id: DELETED_TRANSCRIPTION_ID,
+			projectId: PROJECT_ID,
+			projectTranscriptionId: 'pt-deleted-index-invariant',
+			title: 'Deleted witness',
+			siglum: 'D',
+			document: documentWithVerse('Romans 1:3'),
+			transcriber: '',
+			repository: '',
+			settlement: '',
+			language: 'grc',
+		},
+	});
+	await db.request({
+		type: 'revisions.commitTranscription',
+		input: {
+			projectTranscriptionId: 'pt-deleted-index-invariant',
+			checkpointId: 'deleted-checkpoint',
+			commitMessage: 'Before deletion',
+			createdAt: '2026-07-06T10:08:00.000Z',
+		},
+	});
+	await db.request({ type: 'transcriptions.delete', transcriptionId: DELETED_TRANSCRIPTION_ID });
 }
 
 function alignmentCell(text: string, sourceTokenId: string) {
@@ -316,6 +465,10 @@ async function loadObservedState(db: WorkerClient) {
 		checkpoints,
 		collationListings,
 		collation,
+		emptyProject,
+		iiifSources,
+		iiifLinks,
+		deletedTombstones,
 	] = await Promise.all([
 		db.request<Array<Record<string, unknown>>>({ type: 'projects.list' }),
 		db.request<Array<Record<string, unknown>>>({ type: 'transcriptions.listSummaries' }),
@@ -336,6 +489,19 @@ async function loadObservedState(db: WorkerClient) {
 			type: 'collations.load',
 			collationId: COLLATION_ID,
 		}),
+		db.request<Record<string, unknown> | null>({ type: 'projects.get', projectId: EMPTY_PROJECT_ID }),
+		db.request<Array<Record<string, unknown>>>({
+			type: 'iiif.listManifestSources',
+			transcriptionId: TRANSCRIPTION_ID,
+		}),
+		db.request<Array<Record<string, unknown>>>({
+			type: 'iiif.listPageCanvasLinks',
+			transcriptionId: TRANSCRIPTION_ID,
+		}),
+		db.request<Array<Record<string, unknown>>>({
+			type: 'query',
+			sql: 'SELECT entity_id, entity_type, deletion_revision_id FROM sync_tombstones ORDER BY entity_id',
+		}),
 	]);
 	if (!transcription) throw new Error('Expected transcription to load.');
 	if (!collation) throw new Error('Expected collation to load.');
@@ -346,10 +512,42 @@ async function loadObservedState(db: WorkerClient) {
 
 	return {
 		project: projects.find(row => row.id === PROJECT_ID),
+		emptyProject,
+		allProjects: projects,
 		transcriptionSummaries: transcriptionSummaries
 			.filter(row => row.id === TRANSCRIPTION_ID)
 			.map(row => pick(row, ['id', 'title', 'siglum', 'created_at', 'updated_at'])),
 		transcriptionContent: transcription.content_json,
+		iiifSources: iiifSources.map(row =>
+			pick(row, [
+				'id',
+				'transcriptionId',
+				'manifestUrl',
+				'label',
+				'sourceKind',
+				'defaultCanvasId',
+				'defaultImageServiceUrl',
+				'metadata',
+			])
+		),
+		iiifLinks: iiifLinks.map(row =>
+			pick(row, [
+				'id',
+				'transcriptionId',
+				'pageId',
+				'pageNameSnapshot',
+				'pageOrder',
+				'manifestSourceId',
+				'manifestUrlSnapshot',
+				'canvasId',
+				'canvasOrder',
+				'canvasLabel',
+				'imageServiceUrl',
+				'thumbnailUrl',
+				'linkRole',
+			])
+		),
+		deletedTombstones,
 		verseIdentifiers: verseRows.map(row => row.verse_identifier).sort(),
 		transcriptionCheckpoints: checkpoints.map(row =>
 			pick(row, [
