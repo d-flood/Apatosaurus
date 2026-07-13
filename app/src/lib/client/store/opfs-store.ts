@@ -27,6 +27,7 @@ export interface StoreBackendDirectoryEntry {
 
 export interface StoreBackend {
 	readTextFile(path: string): Promise<string>;
+	readFileBytes?(path: string): Promise<Uint8Array>;
 	writeTextFile(path: string, content: string): Promise<void>;
 	replaceTextFile?(path: string, content: string): Promise<void>;
 	deleteFile(path: string): Promise<void>;
@@ -74,6 +75,16 @@ export async function readTextFile(
 ): Promise<string> {
 	const backend = await resolveBackend(options);
 	return backend.readTextFile(toBackendPath(normalizeStoreFilePath(path)));
+}
+
+export async function readFileBytes(
+	path: string,
+	options: StoreOperationOptions = {}
+): Promise<Uint8Array> {
+	const backend = await resolveBackend(options);
+	const backendPath = toBackendPath(normalizeStoreFilePath(path));
+	if (backend.readFileBytes) return backend.readFileBytes(backendPath);
+	return new TextEncoder().encode(await backend.readTextFile(backendPath));
 }
 
 export async function writeTextFileAtomic(
@@ -300,6 +311,11 @@ class OpfsStoreBackend implements StoreBackend {
 	async readTextFile(path: string): Promise<string> {
 		const handle = await this.requireFileHandle(path);
 		return (await handle.getFile()).text();
+	}
+
+	async readFileBytes(path: string): Promise<Uint8Array> {
+		const handle = await this.requireFileHandle(path);
+		return new Uint8Array(await (await handle.getFile()).arrayBuffer());
 	}
 
 	async writeTextFile(path: string, content: string): Promise<void> {

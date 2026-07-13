@@ -65,6 +65,7 @@
 	import type { ProjectBackupSummary } from '$lib/client/sync/sync-manager';
 	import { listSyncTargets, recordProjectZipExport } from '$lib/client/store';
 	import { LOCAL_FOLDER_ROOT_FOLDER_ID } from '$lib/client/sync/providers/local-folder-provider';
+	import { downloadZipArchive } from '$lib/client/download-blob';
 	import FolderOpen from 'phosphor-svelte/lib/FolderOpen';
 	import Plus from 'phosphor-svelte/lib/Plus';
 	import { onMount } from 'svelte';
@@ -796,26 +797,27 @@
 		exportAllError = null;
 		try {
 			const result = await exportAllProjectsZip(false);
-			downloadZip(result.fileName, result.bytes);
+			for (const archive of result.archives) {
+				downloadZipArchive(archive.fileName, archive.bytes);
+			}
 			await Promise.all(
-				projects.map(project => recordProjectZipExport(project.id, result.exportedAt))
+				projects
+					.filter(project =>
+						result.archives.some(archive => archive.storageSlug === project.storageSlug)
+					)
+					.map(project => recordProjectZipExport(project.id, result.exportedAt))
 			);
 			lastAllProjectsExportedAt = result.exportedAt;
+			if (result.invalidProjects.length > 0) {
+				exportAllError = result.invalidProjects
+					.map(project => `${project.storageSlug}: ${project.message}`)
+					.join(' ');
+			}
 		} catch (err) {
 			exportAllError = err instanceof Error ? err.message : 'Failed to export all projects.';
 		} finally {
 			isExportingAllProjects = false;
 		}
-	}
-
-	function downloadZip(fileName: string, bytes: Uint8Array) {
-		const blob = new Blob([bytes.buffer as ArrayBuffer], { type: 'application/zip' });
-		const url = URL.createObjectURL(blob);
-		const link = document.createElement('a');
-		link.href = url;
-		link.download = fileName;
-		link.click();
-		URL.revokeObjectURL(url);
 	}
 
 	function formatDate(value: string): string {
@@ -1410,7 +1412,7 @@
 					<div class="mt-4 rounded-box border border-base-300/60 bg-base-200/40 p-3">
 						<h3 class="font-serif text-sm font-semibold">Whole-Account Export</h3>
 						<p class="mt-1 text-xs leading-relaxed text-base-content/55">
-							Download one zip with a top-level folder for each project. Draft files stay local.
+							Download one independently restorable zip per project. Draft files stay local.
 						</p>
 						<button
 							type="button"

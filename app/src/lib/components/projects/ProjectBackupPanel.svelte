@@ -24,6 +24,7 @@
 		reconnectProjectSyncFolder,
 	} from '$lib/client/sync/local-folder-connections';
 	import { LOCAL_FOLDER_ROOT_FOLDER_ID } from '$lib/client/sync/providers/local-folder-provider';
+	import { downloadZipArchive } from '$lib/client/download-blob';
 	import {
 		getProjectBackupMetadata,
 		recordProjectZipExport,
@@ -248,7 +249,7 @@
 		error = null;
 		try {
 			const result = await exportProjectZip(projectId, includeDraftsInExport);
-			downloadZip(result.fileName, result.bytes);
+			downloadZipArchive(result.fileName, result.bytes);
 			await recordProjectZipExport(projectId, result.exportedAt);
 			lastExportedAt = result.exportedAt;
 		} catch (err) {
@@ -281,16 +282,6 @@
 		} catch {
 			return null;
 		}
-	}
-
-	function downloadZip(fileName: string, bytes: Uint8Array) {
-		const blob = new Blob([bytes.buffer as ArrayBuffer], { type: 'application/zip' });
-		const url = URL.createObjectURL(blob);
-		const link = document.createElement('a');
-		link.href = url;
-		link.download = fileName;
-		link.click();
-		URL.revokeObjectURL(url);
 	}
 
 	function syncContext(target: SyncTargetRecord): SyncProjectContext {

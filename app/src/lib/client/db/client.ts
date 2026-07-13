@@ -30,7 +30,10 @@ import type {
 	UpsertCloudConnectionInput,
 } from './repositories/cloud-connections';
 import type { ProjectBackupHealth } from '../sync/backup-health';
-import type { ProjectZipExportResult } from '../sync/project-zip-export';
+import type {
+	AllProjectsZipExportResult,
+	ProjectZipExportResult,
+} from '../sync/project-zip-export';
 import type {
 	ProjectManifestComparison,
 	ProjectBackupResult,
@@ -688,7 +691,9 @@ export async function exportProjectZip(
 	return sendCloudConnectionRequest({ type: 'projectBackup.exportZip', projectId, includeDrafts });
 }
 
-export async function exportAllProjectsZip(includeDrafts = false): Promise<ProjectZipExportResult> {
+export async function exportAllProjectsZip(
+	includeDrafts = false
+): Promise<AllProjectsZipExportResult> {
 	return sendCloudConnectionRequest({ type: 'projectBackup.exportAllZip', includeDrafts });
 }
 

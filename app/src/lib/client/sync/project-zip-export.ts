@@ -1,10 +1,19 @@
 import type { Kysely, Transaction } from 'kysely';
 
 import type { Database } from '$lib/client/db/types.generated';
-import { listProjects } from '$lib/client/db/repositories/projects';
-import { joinStorePath, type StoreOperationOptions } from '$lib/client/store';
+import {
+	PROJECT_MANIFEST_FORMAT,
+	listDirectory,
+	projectFolder,
+	projectsFolder,
+	readCanonicalDocument,
+	readFileBytes,
+	readTextFile,
+	type ProjectManifestPayload,
+	type StoreOperationOptions,
+} from '$lib/client/store';
 import { zipExportBackupPathMessage } from '$lib/onboarding-guidance';
-import { listProjectArchiveFiles, type ProjectArchiveFile } from './sync-manager';
+import { listProjectArchiveFilePaths } from './sync-manager';
 
 type DbExecutor = Kysely<Database> | Transaction<Database>;
 
@@ -12,12 +21,27 @@ export interface ProjectZipExportOptions {
 	includeDrafts?: boolean;
 	storeOptions?: StoreOperationOptions;
 	now?: () => Date;
+	zipLimits?: Partial<ZipLimits>;
 }
 
 export interface ProjectZipExportResult {
+	storageSlug: string;
 	fileName: string;
 	bytes: Uint8Array;
 	entryPaths: string[];
+	exportedAt: string;
+}
+
+export interface InvalidProjectExport {
+	storageSlug: string;
+	path: string;
+	code: string;
+	message: string;
+}
+
+export interface AllProjectsZipExportResult {
+	archives: ProjectZipExportResult[];
+	invalidProjects: InvalidProjectExport[];
 	exportedAt: string;
 }
 
@@ -28,8 +52,23 @@ export interface ProjectBackupCapabilityMessage {
 
 interface ZipEntryInput {
 	path: string;
-	content: string;
+	bytes: Uint8Array;
 }
+
+interface ZipLimits {
+	maxEntries: number;
+	maxEntryBytes: number;
+	maxArchiveBytes: number;
+}
+
+const ZIP32_MAX_ENTRIES = 0xffff;
+const ZIP32_MAX_VALUE = 0xffffffff;
+const DEFAULT_ZIP_LIMITS: ZipLimits = {
+	maxEntries: ZIP32_MAX_ENTRIES,
+	maxEntryBytes: ZIP32_MAX_VALUE,
+	// The worker RPC returns one Uint8Array, so fail clearly before a browser-hostile allocation.
+	maxArchiveBytes: 512 * 1024 * 1024,
+};
 
 const ZIP_EPOCH = new Date('1980-01-01T00:00:00.000Z');
 
@@ -45,45 +84,61 @@ export async function exportProjectZip(
 		.executeTakeFirst();
 	if (!project) throw new Error(`Project ${projectId} was not found.`);
 
-	const archiveOptions = {
-		includeDrafts: options.includeDrafts,
-		storeOptions: options.storeOptions,
-	};
-	const files = await listProjectArchiveFiles(db, projectId, archiveOptions);
+	const root = projectFolder(project.storage_slug);
+	const manifestValidation = await validateProjectManifest(project.storage_slug, options.storeOptions);
+	if (manifestValidation) throw new Error(manifestValidation.message);
+	const entries = await readProjectArchiveEntries(root, options);
 	const exportedAt = (options.now?.() ?? new Date()).toISOString();
 	return {
+		storageSlug: project.storage_slug,
 		fileName: zipFileName(project.storage_slug, exportedAt),
-		bytes: createStoreOnlyZip(files.map(file => ({ path: file.path, content: file.content }))),
-		entryPaths: files.map(file => file.path),
+		bytes: createStoreOnlyZip(entries, options.zipLimits),
+		entryPaths: entries.map(entry => entry.path),
 		exportedAt,
 	};
 }
 
 export async function exportAllProjectsZip(
-	db: DbExecutor,
+	_db: DbExecutor,
 	options: ProjectZipExportOptions = {}
-): Promise<ProjectZipExportResult> {
-	const projects = await listProjects(db);
-	const entries: ZipEntryInput[] = [];
-	for (const project of projects.sort((left, right) => left.storageSlug.localeCompare(right.storageSlug))) {
-		const files = await listProjectArchiveFiles(db, project.id, {
-			includeDrafts: options.includeDrafts,
-			storeOptions: options.storeOptions,
-		});
-		entries.push(
-			...files.map(file => ({
-				path: joinStorePath(project.storageSlug, file.path),
-				content: file.content,
-			}))
-		);
-	}
+): Promise<AllProjectsZipExportResult> {
 	const exportedAt = (options.now?.() ?? new Date()).toISOString();
-	return {
-		fileName: zipFileName('apatosaurus-projects', exportedAt),
-		bytes: createStoreOnlyZip(entries),
-		entryPaths: entries.map(entry => entry.path),
-		exportedAt,
-	};
+	const archives: ProjectZipExportResult[] = [];
+	const invalidProjects: InvalidProjectExport[] = [];
+	let totalArchiveBytes = 0;
+	let projectDirectories;
+	try {
+		projectDirectories = (await listDirectory(projectsFolder(), options.storeOptions)).filter(
+			entry => entry.kind === 'directory'
+		);
+	} catch (error) {
+		if (isMissingStoreEntryError(error)) return { archives, invalidProjects, exportedAt };
+		throw error;
+	}
+	for (const directory of projectDirectories) {
+		const invalid = await validateProjectManifest(directory.name, options.storeOptions);
+		if (invalid) {
+			invalidProjects.push(invalid);
+			continue;
+		}
+		const entries = await readProjectArchiveEntries(directory.path, options);
+		const bytes = createStoreOnlyZip(entries, options.zipLimits);
+		totalArchiveBytes += bytes.length;
+		const totalLimit = options.zipLimits?.maxArchiveBytes ?? DEFAULT_ZIP_LIMITS.maxArchiveBytes;
+		if (totalArchiveBytes > totalLimit) {
+			throw new Error(
+				`Whole-account ZIP archive size ${totalArchiveBytes} exceeds the supported limit ${totalLimit}.`
+			);
+		}
+		archives.push({
+			storageSlug: directory.name,
+			fileName: zipFileName(directory.name, exportedAt),
+			bytes,
+			entryPaths: entries.map(entry => entry.path),
+			exportedAt,
+		});
+	}
+	return { archives, invalidProjects, exportedAt };
 }
 
 export function projectBackupCapabilityMessage(
@@ -105,35 +160,107 @@ function zipFileName(slug: string, exportedAt: string): string {
 	return `${slug}-${exportedAt.slice(0, 10)}.zip`;
 }
 
-function createStoreOnlyZip(entries: ZipEntryInput[]): Uint8Array {
+async function readProjectArchiveEntries(
+	root: string,
+	options: ProjectZipExportOptions
+): Promise<ZipEntryInput[]> {
+	const files = await listProjectArchiveFilePaths(root, {
+		includeDrafts: options.includeDrafts,
+		storeOptions: options.storeOptions,
+	});
+	const entries: ZipEntryInput[] = [];
+	for (const file of files) {
+		entries.push({ path: file.path, bytes: await readFileBytes(file.storePath, options.storeOptions) });
+	}
+	return entries;
+}
+
+async function validateProjectManifest(
+	storageSlug: string,
+	storeOptions: StoreOperationOptions = {}
+): Promise<InvalidProjectExport | null> {
+	const path = 'project.json';
+	try {
+		const raw = await readTextFile(`${projectFolder(storageSlug)}/${path}`, storeOptions);
+		const parsed = await readCanonicalDocument<ProjectManifestPayload>(PROJECT_MANIFEST_FORMAT, raw, {
+			projectPath: path,
+		});
+		if (parsed.ok) return null;
+		return {
+			storageSlug,
+			path,
+			code: parsed.quarantine.code,
+			message: parsed.quarantine.message,
+		};
+	} catch (error) {
+		return {
+			storageSlug,
+			path,
+			code: 'missing_manifest',
+			message: error instanceof Error ? error.message : String(error),
+		};
+	}
+}
+
+function createStoreOnlyZip(
+	entries: ZipEntryInput[],
+	configuredLimits: Partial<ZipLimits> = {}
+): Uint8Array {
 	const encoder = new TextEncoder();
+	const limits = { ...DEFAULT_ZIP_LIMITS, ...configuredLimits };
+	if (entries.length > Math.min(limits.maxEntries, ZIP32_MAX_ENTRIES)) {
+		throw new Error(`ZIP entry count ${entries.length} exceeds the supported limit ${limits.maxEntries}.`);
+	}
 	const fileRecords = entries.map(entry => {
 		const pathBytes = encoder.encode(entry.path);
-		const contentBytes = encoder.encode(entry.content);
+		if (pathBytes.length > 0xffff) throw new Error(`ZIP entry path is too long: ${entry.path}.`);
+		if (entry.bytes.length > Math.min(limits.maxEntryBytes, ZIP32_MAX_VALUE)) {
+			throw new Error(
+				`ZIP entry ${entry.path} size ${entry.bytes.length} exceeds the supported limit ${limits.maxEntryBytes}.`
+			);
+		}
 		return {
 			...entry,
 			pathBytes,
-			contentBytes,
-			crc32: crc32(contentBytes),
+			crc32: crc32(entry.bytes),
 		};
 	});
 
-	const chunks: Uint8Array[] = [];
-	const centralDirectory: Uint8Array[] = [];
-	let offset = 0;
+	let localSize = 0;
+	let centralDirectorySize = 0;
 	for (const entry of fileRecords) {
-		const localHeader = localFileHeader(entry.pathBytes, entry.contentBytes, entry.crc32);
-		chunks.push(localHeader, entry.pathBytes, entry.contentBytes);
-		centralDirectory.push(
-			centralDirectoryHeader(entry.pathBytes, entry.contentBytes, entry.crc32, offset)
-		);
-		offset += localHeader.length + entry.pathBytes.length + entry.contentBytes.length;
+		localSize += 30 + entry.pathBytes.length + entry.bytes.length;
+		centralDirectorySize += 46 + entry.pathBytes.length;
+	}
+	const totalSize = localSize + centralDirectorySize + 22;
+	if (localSize > ZIP32_MAX_VALUE || centralDirectorySize > ZIP32_MAX_VALUE) {
+		throw new Error('ZIP32 offset or central directory size limit exceeded.');
+	}
+	if (totalSize > limits.maxArchiveBytes) {
+		throw new Error(`ZIP archive size ${totalSize} exceeds the supported limit ${limits.maxArchiveBytes}.`);
 	}
 
+	const result = new Uint8Array(totalSize);
+	const localOffsets: number[] = [];
+	let offset = 0;
+	for (const entry of fileRecords) {
+		localOffsets.push(offset);
+		const header = localFileHeader(entry.pathBytes, entry.bytes, entry.crc32);
+		result.set(header, offset);
+		offset += header.length;
+		result.set(entry.pathBytes, offset);
+		offset += entry.pathBytes.length;
+		result.set(entry.bytes, offset);
+		offset += entry.bytes.length;
+	}
 	const centralDirectoryOffset = offset;
-	const centralDirectorySize = centralDirectory.reduce((size, chunk) => size + chunk.length, 0);
-	const end = endOfCentralDirectory(fileRecords.length, centralDirectorySize, centralDirectoryOffset);
-	return concatUint8Arrays([...chunks, ...centralDirectory, end]);
+	for (const [index, entry] of fileRecords.entries()) {
+		const header = centralDirectoryHeader(entry.pathBytes, entry.bytes, entry.crc32, localOffsets[index]!);
+		result.set(header, offset);
+		offset += header.length;
+	}
+	result.set(endOfCentralDirectory(fileRecords.length, centralDirectorySize, centralDirectoryOffset), offset);
+	return result;
 }
 
 function localFileHeader(pathBytes: Uint8Array, contentBytes: Uint8Array, crc: number): Uint8Array {
@@ -208,13 +335,9 @@ function crc32(bytes: Uint8Array): number {
 	return (crc ^ 0xffffffff) >>> 0;
 }
 
-function concatUint8Arrays(chunks: Uint8Array[]): Uint8Array {
-	const totalLength = chunks.reduce((total, chunk) => total + chunk.length, 0);
-	const result = new Uint8Array(totalLength);
-	let offset = 0;
-	for (const chunk of chunks) {
-		result.set(chunk, offset);
-		offset += chunk.length;
+function isMissingStoreEntryError(error: unknown): boolean {
+	if (typeof DOMException !== 'undefined' && error instanceof DOMException) {
+		return error.name === 'NotFoundError';
 	}
-	return result;
+	return error instanceof Error && /not found/i.test(error.message);
 }

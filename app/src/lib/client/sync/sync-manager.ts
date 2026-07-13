@@ -245,6 +245,11 @@ export interface ProjectArchiveFile {
 	content: string;
 }
 
+export interface ProjectArchiveFilePath {
+	path: string;
+	storePath: string;
+}
+
 interface RemoteEntityState {
 	metadata: CloudFileMetadata;
 	primary: ProjectTranscriptionCloudFile | CollationCloudFile;
@@ -683,19 +688,27 @@ export async function listProjectArchiveFiles(
 	options: SyncManagerOptions & { includeDrafts?: boolean } = {}
 ): Promise<ProjectArchiveFile[]> {
 	const root = await loadProjectStoreRoot(db, projectId);
-	const files: LocalMirrorFile[] = [];
-	await collectLocalMirrorFiles(
-		root,
+	const files = await listProjectArchiveFilePaths(root, options);
+	return Promise.all(files.map(async file => ({
+		path: file.path,
+		storePath: file.storePath,
+		content: await readTextFile(file.storePath, options.storeOptions),
+	})));
+}
+
+export async function listProjectArchiveFilePaths(
+	projectRoot: string,
+	options: Pick<SyncManagerOptions, 'storeOptions'> & { includeDrafts?: boolean } = {}
+): Promise<ProjectArchiveFilePath[]> {
+	const files: ProjectArchiveFilePath[] = [];
+	await collectProjectArchiveFilePaths(
+		projectRoot,
 		'',
 		files,
 		options.storeOptions ?? {},
 		options.includeDrafts ?? false
 	);
-	return files.map(file => ({
-		path: file.path,
-		storePath: file.storePath,
-		content: file.content,
-	}));
+	return files.sort((left, right) => left.path.localeCompare(right.path));
 }
 
 async function updateLegacyCloudProjectFolderSyncState(
@@ -1320,6 +1333,38 @@ async function collectLocalMirrorFiles(
 			content,
 			fingerprint: await fingerprintText(content, ''),
 		});
+	}
+}
+
+async function collectProjectArchiveFilePaths(
+	storePath: string,
+	relativePath: string,
+	files: ProjectArchiveFilePath[],
+	storeOptions: StoreOperationOptions,
+	includeDrafts: boolean
+): Promise<void> {
+	let entries: StoreDirectoryEntry[];
+	try {
+		entries = await listDirectory(storePath, storeOptions);
+	} catch (error) {
+		if (isMissingStoreEntryError(error)) return;
+		throw error;
+	}
+	for (const entry of entries) {
+		const childRelativePath = joinStorePath(relativePath, entry.name);
+		const childStorePath = joinStorePath(storePath, entry.name);
+		if (entry.kind === 'directory') {
+			await collectProjectArchiveFilePaths(
+				childStorePath,
+				childRelativePath,
+				files,
+				storeOptions,
+				includeDrafts
+			);
+			continue;
+		}
+		if (!shouldMirrorProjectFile(childRelativePath, includeDrafts)) continue;
+		files.push({ path: childRelativePath, storePath: childStorePath });
 	}
 }
 

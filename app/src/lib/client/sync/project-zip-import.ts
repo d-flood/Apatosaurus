@@ -38,6 +38,7 @@ export interface ProjectImportResult extends IndexRebuildReport {
 	projectId: string;
 	storageSlug: string;
 	mode: 'created' | 'replaced' | 'copied';
+	draftFilesRestored: string[];
 }
 
 export type ProjectZipImportResult = ProjectImportResult;
@@ -107,6 +108,10 @@ export async function importProjectFileTree(
 			projectId: prepared.manifest.id,
 			storageSlug: prepared.storageSlug,
 			mode: prepared.mode,
+			draftFilesRestored: prepared.entries
+				.filter(entry => entry.path.endsWith('.working.json'))
+				.map(entry => entry.path)
+				.sort(),
 			...report,
 		};
 	} catch (error) {
@@ -283,6 +288,7 @@ function failedImport(quarantinedFiles: StoreQuarantineRecord[]): ProjectZipImpo
 		projectId: '',
 		storageSlug: '',
 		mode: 'created',
+		draftFilesRestored: [],
 		projectsRestored: 0,
 		transcriptionsRestored: 0,
 		collationsRestored: 0,
