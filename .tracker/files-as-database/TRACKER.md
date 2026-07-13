@@ -8,7 +8,7 @@ This document tracks the status of all tickets in the files-as-database epic: in
 
 Overall status: `In Progress`
 
-Current ticket: review remediation for tickets `02`-`09`; ticket `10` remains blocked
+Current ticket: review remediation for tickets `03`-`09`; ticket `10` remains blocked
 
 Last updated: 2026-07-13
 
@@ -22,7 +22,7 @@ Last updated: 2026-07-13
 | Number | Filename | Status | Depends On |
 | --- | --- | --- | --- |
 | 01 | `01-remove-cloud-providers.md` | Completed | None |
-| 02 | `02-document-store-foundation.md` | In Progress | None |
+| 02 | `02-document-store-foundation.md` | Completed | None |
 | 03 | `03-canonical-file-formats.md` | In Progress | 02 |
 | 04 | `04-project-only-data-model.md` | In Progress | 03 |
 | 05 | `05-write-path-inversion.md` | In Progress | 04 |
@@ -60,6 +60,7 @@ bun run test:unit -- --run
 
 | Date | Note |
 | --- | --- |
+| 2026-07-13 | Ticket 02 review remediation completed. No-move atomic replacement now uses `createWritable()` transactional close semantics, treats `NotSupportedError` as fallback while preserving permission/I/O failures, and retains the verified temp plus old target when replacement aborts. All canonical store mutations share the `apatosaurus:document-store-writer` Web Lock (with an in-realm queue fallback), providing the documented serialized writer boundary across UI and worker contexts without a second RPC worker. Added real Chromium OPFS replacement/fallback/interruption/recovery coverage, centralized project-relative canonical paths including entity-scoped tombstones, and routed normal transcription/collation read failures to an injectable production quarantine report. Verification passed: store suite 33 tests, focused sync suite 19 tests, `bun run db:generate`, `bun run db:check`, `bun run check`, and full unit suite 441 tests. |
 | 2026-07-13 | Independent implementation reviews of tickets 01-09 found that ticket 01's direct-provider removal remains complete, but tickets 02-09 have unmet acceptance or cross-ticket contracts. The ticket files now contain specific remediation requirements and tests. The most important gaps are SQLite-only project/IIIF/copy mutations that do not survive index rebuild, inactive production tombstone semantics, unsafe zip replacement, incomplete staged validation, and no user-facing zip import. Tickets 02-09 are reopened; ticket 10 remains blocked until those contracts are restored and its lower-level staged-validation seam is specified. Current verification: `bun run db:check` and `bun run check` passed; the full unit run passed 430/431 tests with the known index-rebuild browser timeout, and the focused invariant rerun passed. |
 | 2026-07-13 | Ticket 10 selected but blocked before implementation because its starting-point description no longer matches production. `pullLinkedProjectUpdates()` in `project-restore.ts` is an unused legacy RPC path, while Ticket 07 production pulls happen in `sync-manager.ts`'s per-file mirror path. The ticket 09 `importProjectFileTree()` primitive performs whole-project collision handling and placement (including delete-and-replace), so routing the production sync pull through it would change fingerprint, conflict-copy, and per-file mirror semantics. The ticket must clarify the shared lower-level staged validation/placement interface, or explicitly limit unification to retiring the legacy restore RPCs plus folder/zip import, before implementation can proceed. |
 | 2026-07-11 | Ticket 09 reopened and completed to supply the source-neutral ingestion seam required by its contract and ticket 10. Added exported `importProjectFileTree()` over sync/async iterables of relative-path files with asynchronous readers; `importProjectZip()` is now only a zip transport adapter into that primitive, so staging, path hygiene, migrate-on-read validation, collision handling, placement, cleanup, and index rebuild are shared. Added a readable-file-tree round-trip test; existing zip corruption and traversal tests now exercise the same shared path. Verification passed: focused import spec (7 passed), required store/sync slice (88 passed), required `bun run check && bun run test:unit -- --run` (425 passed), `bun run db:generate`, and `bun run db:check`. Ticket 10's recorded blocker is resolved and it is ready to start. |

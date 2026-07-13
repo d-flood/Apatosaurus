@@ -504,7 +504,10 @@ export async function syncProjectTombstones(
 	for (const tombstone of tombstones) {
 		const tombstoneId = requireId(tombstone.id, 'tombstone');
 		const file = await serializeTombstoneCloudFile(db, tombstoneId);
-		const path = projectRelativeCloudPaths().tombstones(tombstoneId);
+		const path = projectRelativeCloudPaths().tombstones(
+			tombstone.entity_type,
+			tombstone.entity_id
+		);
 		await putCloudFile(provider, context, path, await serializeCloudFile(file));
 		result.uploadedPaths.push(path);
 
@@ -545,7 +548,7 @@ export async function deriveProjectBackupSummary(
 		listProjectCollationReferences(db, context.projectId),
 		db
 			.selectFrom('sync_tombstones')
-			.select(['id'])
+			.select(['id', 'entity_type', 'entity_id'])
 			.where('project_id', '=', context.projectId)
 			.orderBy('id', 'asc')
 			.execute(),
@@ -567,7 +570,7 @@ export async function deriveProjectBackupSummary(
 		return {
 			itemType: 'tombstone' as const,
 			itemId: id,
-			path: projectRelativeCloudPaths().tombstones(id),
+			path: projectRelativeCloudPaths().tombstones(row.entity_type, row.entity_id),
 			status: 'committed-pending-backup' as const,
 		};
 	});

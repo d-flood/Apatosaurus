@@ -385,11 +385,11 @@ describe('sync manager', () => {
 
 		const result = await syncProjectTombstones(harness.db, provider, context);
 
-		expect(result.uploadedPaths).toContain('tombstones/tombstone-col-1.json');
+		expect(result.uploadedPaths).toContain('tombstones/collation--col-1.json');
 		expect(result.deletedPaths).toContain('collations/col-1.json');
 		expect(await remoteFile(provider, context, 'collations/col-1.json')).toBeNull();
 		expect(
-			await remoteFile(provider, context, 'tombstones/tombstone-col-1.json')
+			await remoteFile(provider, context, 'tombstones/collation--col-1.json')
 		).not.toBeNull();
 	});
 

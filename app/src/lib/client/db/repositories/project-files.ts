@@ -4,6 +4,9 @@ import {
 	PROJECT_MANIFEST_CURRENT_VERSION,
 	PROJECT_MANIFEST_FORMAT,
 	projectManifestFile,
+	transcriptionPrimaryRelativeFile,
+	collationPrimaryRelativeFile,
+	tombstoneRelativeFile,
 	sealDocument,
 	serializeSealedDocument,
 	writeTextFileAtomic,
@@ -106,7 +109,7 @@ async function listProjectManifestTranscriptionHeads(
 					: revisionHead(row.current_revision_id, row.current_content_hash),
 			title: row.title,
 			siglum: row.siglum,
-			primary_path: `transcriptions/${projectTranscriptionId}.json`,
+			primary_path: transcriptionPrimaryRelativeFile(projectTranscriptionId),
 		};
 	});
 }
@@ -132,7 +135,7 @@ async function listProjectManifestCollationHeads(
 					: revisionHead(row.current_revision_id, row.current_content_hash),
 			title: row.title,
 			verse_identifier: row.verse_identifier,
-			primary_path: `collations/${collationId}.json`,
+			primary_path: collationPrimaryRelativeFile(collationId),
 		};
 	});
 }
@@ -165,7 +168,7 @@ async function listProjectManifestTombstoneHeads(
 					deleted_by: row.deleted_by,
 					deleted_at: row.deleted_at,
 				}),
-				primary_path: `tombstones/${row.entity_type}--${row.entity_id}.json`,
+				primary_path: tombstoneRelativeFile(row.entity_type, row.entity_id),
 				deleted_at: row.deleted_at,
 			};
 		})

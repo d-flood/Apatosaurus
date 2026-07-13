@@ -630,7 +630,7 @@ async function listProjectManifestTombstoneHeads(
 				entity_id: tombstone.entity_id,
 				deletion_revision_id: tombstone.deletion_revision_id,
 				content_hash: await hashCanonicalPayload(tombstone),
-				primary_path: paths.tombstones(tombstone.id),
+				primary_path: paths.tombstones(tombstone.entity_type, tombstone.entity_id),
 				deleted_at: tombstone.deleted_at,
 			};
 		})

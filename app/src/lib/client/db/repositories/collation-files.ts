@@ -14,6 +14,7 @@ import {
 	deleteFile,
 	readCanonicalDocument,
 	readTextFile,
+	recordStoreQuarantine,
 	sealDocument,
 	serializeSealedDocument,
 	WORKING_COLLATION_CURRENT_VERSION,
@@ -26,6 +27,9 @@ import {
 	type CollationPayload,
 	type StoreOperationOptions,
 	type WorkingCollationPayload,
+	hashMismatch,
+	invalidShape,
+	quarantineFromError,
 } from '$lib/client/store';
 import {
 	COLLATION_DOCUMENT_ARTIFACT_TYPE,
@@ -549,6 +553,7 @@ async function tryReadWorkingCollationPayload(
 		raw = await readTextFile(path, storeOptions);
 	} catch (error) {
 		if (!isMissingFileError(error)) {
+			recordStoreQuarantine(storeOptions.quarantineSink, path, quarantineFromError(error));
 			console.warn('[document-store] Falling back to collation index cache.', {
 				path,
 				error: errorMessage(error),
@@ -563,6 +568,13 @@ async function tryReadWorkingCollationPayload(
 	if (result.ok) {
 		const payload = result.payload as unknown as LoadedWorkingCollationPayload;
 		if (payload.id !== context.collationId) {
+			recordStoreQuarantine(
+				storeOptions.quarantineSink,
+				path,
+				quarantineFromError(
+					invalidShape('Collation working identity does not match its index context.')
+				)
+			);
 			console.warn('[document-store] Ignoring mismatched collation working file.', {
 				path,
 				expectedCollationId: context.collationId,
@@ -572,6 +584,7 @@ async function tryReadWorkingCollationPayload(
 		}
 		return payload;
 	}
+	recordStoreQuarantine(storeOptions.quarantineSink, path, result.quarantine);
 	console.warn('[document-store] Ignoring unreadable collation working file.', {
 		path,
 		quarantine: result.quarantine,
@@ -588,6 +601,7 @@ async function tryReadPrimaryCollationPayload(
 	try {
 		raw = await readTextFile(path, storeOptions);
 	} catch (error) {
+		recordStoreQuarantine(storeOptions.quarantineSink, path, quarantineFromError(error));
 		console.warn('[document-store] Falling back to collation index cache.', {
 			path,
 			error: errorMessage(error),
@@ -596,6 +610,7 @@ async function tryReadPrimaryCollationPayload(
 	}
 	const result = await readCanonicalDocument<CollationPayload>(COLLATION_FORMAT, raw);
 	if (!result.ok) {
+		recordStoreQuarantine(storeOptions.quarantineSink, path, result.quarantine);
 		console.warn('[document-store] Ignoring unreadable collation primary file.', {
 			path,
 			quarantine: result.quarantine,
@@ -604,6 +619,13 @@ async function tryReadPrimaryCollationPayload(
 	}
 	const payload = result.payload;
 	if (payload.id !== context.collationId || payload.project_id !== context.projectId) {
+		recordStoreQuarantine(
+			storeOptions.quarantineSink,
+			path,
+			quarantineFromError(
+				invalidShape('Collation primary identity does not match its index context.')
+			)
+		);
 		console.warn('[document-store] Ignoring mismatched collation primary file.', {
 			path,
 			expectedCollationId: context.collationId,
@@ -616,6 +638,11 @@ async function tryReadPrimaryCollationPayload(
 	try {
 		await assertCollationRevisionHash(payload, result.originalVersion);
 	} catch (error) {
+		recordStoreQuarantine(
+			storeOptions.quarantineSink,
+			path,
+			quarantineFromError(hashMismatch(errorMessage(error)))
+		);
 		console.warn(
 			'[document-store] Ignoring collation primary file with invalid revision hash.',
 			{

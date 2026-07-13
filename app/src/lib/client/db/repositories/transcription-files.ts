@@ -14,6 +14,7 @@ import {
 	assertProjectTranscriptionRevisionHash,
 	readCanonicalDocument,
 	readTextFile,
+	recordStoreQuarantine,
 	sealDocument,
 	serializeSealedDocument,
 	transcriptionCheckpointFile,
@@ -30,6 +31,9 @@ import {
 	type StoreOperationOptions,
 	type TranscriptionCheckpointPayload as CanonicalTranscriptionCheckpointPayload,
 	type WorkingTranscriptionPayload,
+	hashMismatch,
+	invalidShape,
+	quarantineFromError,
 } from '$lib/client/store';
 
 import type { Database } from '../types.generated';
@@ -407,7 +411,10 @@ export async function loadTranscriptionContentWithFiles(
 	transcriptionId: string,
 	storeOptions: FileBackedLoadOptions = {}
 ): Promise<string | null> {
-	return (await loadTranscriptionWithWorkingFile(db, transcriptionId, storeOptions))?.content_json ?? null;
+	return (
+		(await loadTranscriptionWithWorkingFile(db, transcriptionId, storeOptions))?.content_json ??
+		null
+	);
 }
 
 export async function rebuildVerseIndexForTranscriptionsWithFiles(
@@ -428,16 +435,15 @@ export async function rebuildVerseIndexForTranscriptionsWithFiles(
 		const label = record ? formatTranscriptionLabel(record) : id;
 		try {
 			if (!record) throw new Error('Canonical transcription file was not found');
-			await db.transaction().execute(trx =>
-				replaceTranscriptionVerseIndexRows(trx, id, record.content_json)
-			);
+			await db
+				.transaction()
+				.execute(trx => replaceTranscriptionVerseIndexRows(trx, id, record.content_json));
 			succeeded += 1;
 		} catch (error) {
 			failures.push({
 				transcriptionId: id,
 				label,
-				message:
-					error instanceof Error ? error.message : 'Failed to rebuild verse index',
+				message: error instanceof Error ? error.message : 'Failed to rebuild verse index',
 			});
 		}
 	}
@@ -562,6 +568,7 @@ async function tryReadPrimaryTranscriptionPayload(
 	try {
 		raw = await readTextFile(path, storeOptions);
 	} catch (error) {
+		recordStoreQuarantine(storeOptions.quarantineSink, path, quarantineFromError(error));
 		console.warn('[document-store] Falling back to transcription index cache.', {
 			path,
 			error: errorMessage(error),
@@ -573,6 +580,7 @@ async function tryReadPrimaryTranscriptionPayload(
 		raw
 	);
 	if (!result.ok) {
+		recordStoreQuarantine(storeOptions.quarantineSink, path, result.quarantine);
 		console.warn('[document-store] Ignoring unreadable transcription primary file.', {
 			path,
 			quarantine: result.quarantine,
@@ -584,6 +592,23 @@ async function tryReadPrimaryTranscriptionPayload(
 		payload.id !== context.transcriptionId ||
 		payload.project_transcription_id !== context.projectTranscriptionId
 	) {
+		recordStoreQuarantine(
+			storeOptions.quarantineSink,
+			path,
+			quarantineFromError(
+				invalidShape(
+					'Transcription primary identity does not match its index context.',
+					{
+						transcriptionId: context.transcriptionId,
+						projectTranscriptionId: context.projectTranscriptionId,
+					},
+					{
+						transcriptionId: payload.id,
+						projectTranscriptionId: payload.project_transcription_id,
+					}
+				)
+			)
+		);
 		console.warn('[document-store] Ignoring mismatched transcription primary file.', {
 			path,
 			expectedTranscriptionId: context.transcriptionId,
@@ -596,6 +621,11 @@ async function tryReadPrimaryTranscriptionPayload(
 	try {
 		await assertProjectTranscriptionRevisionHash(payload);
 	} catch (error) {
+		recordStoreQuarantine(
+			storeOptions.quarantineSink,
+			path,
+			quarantineFromError(hashMismatch(errorMessage(error)))
+		);
 		console.warn(
 			'[document-store] Ignoring transcription primary file with invalid revision hash.',
 			{
@@ -621,6 +651,7 @@ async function tryReadWorkingTranscriptionPayload(
 		raw = await readTextFile(path, storeOptions);
 	} catch (error) {
 		if (!isMissingFileError(error)) {
+			recordStoreQuarantine(storeOptions.quarantineSink, path, quarantineFromError(error));
 			console.warn('[document-store] Falling back to transcription index cache.', {
 				path,
 				error: errorMessage(error),
@@ -641,6 +672,13 @@ async function tryReadWorkingTranscriptionPayload(
 			payload.id !== context.transcriptionId ||
 			payload.project_transcription_id !== context.projectTranscriptionId
 		) {
+			recordStoreQuarantine(
+				storeOptions.quarantineSink,
+				path,
+				quarantineFromError(
+					invalidShape('Transcription working identity does not match its index context.')
+				)
+			);
 			console.warn('[document-store] Ignoring mismatched transcription working file.', {
 				path,
 				expectedTranscriptionId: context.transcriptionId,
@@ -652,6 +690,7 @@ async function tryReadWorkingTranscriptionPayload(
 		}
 		return payload;
 	}
+	recordStoreQuarantine(storeOptions.quarantineSink, path, result.quarantine);
 	console.warn('[document-store] Ignoring unreadable transcription working file.', {
 		path,
 		quarantine: result.quarantine,

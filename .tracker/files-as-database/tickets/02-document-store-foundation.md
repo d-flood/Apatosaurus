@@ -75,6 +75,8 @@ bun run check
 | 2026-07-03 | `bun run db:generate && bun run db:check && bun run check` | Passed. |
 | 2026-07-03 | `bun run test:unit -- --run` | Passed after adding explicit 30s timeouts to two long-running Chromium editor specs exposed by full-suite load: 60 files, 336 tests. |
 | 2026-07-03 | `bun run check` | Passed after the test-timeout edits. |
+| 2026-07-13 | `bun run test:unit -- --run src/lib/client/store` | Passed: 8 files, 33 tests, including real Chromium OPFS coverage. |
+| 2026-07-13 | `bun run db:generate && bun run db:check && bun run check && bun run test:unit -- --run` | Passed: type generation/check, Svelte check, 80 files and 441 tests. |
 
 ## Notes
 
@@ -84,6 +86,9 @@ bun run check
 | 2026-07-03 | Worker placement decision: future feature consumers should call the store through a dedicated `store.worker.ts`, not the DB worker. This phase keeps `opfs-store.ts` worker-safe and importable; wiring the worker RPC can happen when write paths move onto the store. |
 | 2026-07-03 | Migrate-on-read verifies the source file's existing `content_hash` before running upgraders, then returns an in-memory document resealed at the current version. Reads still never write upgraded files. |
 | 2026-07-03 | Full unit verification exposed existing browser-suite load sensitivity in two large transcription editor specs. Added explicit 30s per-test timeouts to those long workflows, then reran the full unit suite successfully. |
+| 2026-07-13 | Review remediation completed. Atomic fallback replacement now commits through `FileSystemWritableFileStream.close()` instead of truncating the live target, unsupported `move()` operations fall back without swallowing permission/I/O errors, and interrupted replacement preserves the old target and verified temp candidate. Real Chromium OPFS tests cover native move, missing/unsupported move, aborted replacement, and retry recovery. |
+| 2026-07-13 | Worker placement contract resolved with an equivalent single-writer boundary rather than a dedicated RPC worker: every public canonical mutation in `opfs-store.ts` runs under the shared `apatosaurus:document-store-writer` Web Lock across UI and worker contexts, with a serialized in-realm queue where Web Locks are unavailable. Production code has no direct backend writes outside this boundary. |
+| 2026-07-13 | Project-relative paths now come from `layout.ts`; manifest, cloud sync, and zip paths share those helpers, including canonical entity-scoped tombstone names. Normal transcription and collation read failures record structured path/code/message entries in the production quarantine report (or a caller-supplied sink) before fallback, with tests for all four validation codes and source immutability. |
 
 ## Review Remediation (2026-07-13)
 

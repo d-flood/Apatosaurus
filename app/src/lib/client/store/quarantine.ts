@@ -16,7 +16,13 @@ export interface StoreQuarantineRecord extends StoreQuarantineReason {
 	timestamp: string;
 }
 
-export type StoreQuarantineableResult = { ok: true } | { ok: false; quarantine: StoreQuarantineReason };
+export interface StoreQuarantineSink {
+	record(path: string, quarantine: StoreQuarantineReason, timestamp?: string): void;
+}
+
+export type StoreQuarantineableResult =
+	| { ok: true }
+	| { ok: false; quarantine: StoreQuarantineReason };
 
 export class StoreValidationError extends Error {
 	constructor(
@@ -30,10 +36,14 @@ export class StoreValidationError extends Error {
 	}
 }
 
-export class InMemoryQuarantineReport {
+export class InMemoryQuarantineReport implements StoreQuarantineSink {
 	private readonly records: StoreQuarantineRecord[] = [];
 
-	record(path: string, quarantine: StoreQuarantineReason, timestamp = new Date().toISOString()): void {
+	record(
+		path: string,
+		quarantine: StoreQuarantineReason,
+		timestamp = new Date().toISOString()
+	): void {
 		this.records.push({ path, timestamp, ...quarantine });
 	}
 
@@ -44,6 +54,16 @@ export class InMemoryQuarantineReport {
 	clear(): void {
 		this.records.length = 0;
 	}
+}
+
+export const productionQuarantineReport = createQuarantineReport();
+
+export function recordStoreQuarantine(
+	sink: StoreQuarantineSink | undefined,
+	path: string,
+	quarantine: StoreQuarantineReason
+): void {
+	(sink ?? productionQuarantineReport).record(path, quarantine);
 }
 
 export function createQuarantineReport(): InMemoryQuarantineReport {
@@ -61,7 +81,11 @@ export function recordQuarantineResult(
 	return true;
 }
 
-export function invalidJson(message: string, expected?: unknown, actual?: unknown): StoreValidationError {
+export function invalidJson(
+	message: string,
+	expected?: unknown,
+	actual?: unknown
+): StoreValidationError {
 	return new StoreValidationError('invalid_json', message, expected, actual);
 }
 
@@ -73,11 +97,19 @@ export function invalidSchemaVersion(
 	return new StoreValidationError('invalid_schema_version', message, expected, actual);
 }
 
-export function invalidShape(message: string, expected?: unknown, actual?: unknown): StoreValidationError {
+export function invalidShape(
+	message: string,
+	expected?: unknown,
+	actual?: unknown
+): StoreValidationError {
 	return new StoreValidationError('invalid_shape', message, expected, actual);
 }
 
-export function hashMismatch(message: string, expected?: unknown, actual?: unknown): StoreValidationError {
+export function hashMismatch(
+	message: string,
+	expected?: unknown,
+	actual?: unknown
+): StoreValidationError {
 	return new StoreValidationError('hash_mismatch', message, expected, actual);
 }
 
@@ -90,5 +122,8 @@ export function quarantineFromError(error: unknown): StoreQuarantineReason {
 			actual: error.actual,
 		};
 	}
-	return { code: 'invalid_shape', message: error instanceof Error ? error.message : String(error) };
+	return {
+		code: 'invalid_shape',
+		message: error instanceof Error ? error.message : String(error),
+	};
 }

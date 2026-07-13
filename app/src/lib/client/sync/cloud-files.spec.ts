@@ -86,7 +86,9 @@ describe('cloud file serialization formats', () => {
 		const projectFile = await serializeProjectCloudFile(harness.db, 'project-1');
 		const parsedProject = await parseProjectCloudFile(await serializeCloudFile(projectFile));
 		const tombstoneFile = await serializeTombstoneCloudFile(harness.db, 'tombstone-1');
-		const parsedTombstone = await parseTombstoneCloudFile(await serializeCloudFile(tombstoneFile));
+		const parsedTombstone = await parseTombstoneCloudFile(
+			await serializeCloudFile(tombstoneFile)
+		);
 
 		expect(parsedProject).toEqual({ ok: true, value: projectFile });
 		expect(parsedTombstone).toEqual({ ok: true, value: tombstoneFile });
@@ -105,7 +107,7 @@ describe('cloud file serialization formats', () => {
 				tombstone_id: 'tombstone-1',
 				entity_type: 'project-transcription',
 				entity_id: 'pt-1',
-				primary_path: 'tombstones/tombstone-1.json',
+				primary_path: 'tombstones/project-transcription--pt-1.json',
 				content_hash: expect.stringMatching(/^sha256:/),
 			}),
 		]);
@@ -159,13 +161,17 @@ describe('cloud file serialization formats', () => {
 				target: { source: 'canvas-1' },
 			},
 		});
-		await createCommittedTranscriptionCheckpointWithFiles(harness.db, {
-			projectTranscriptionId,
-			checkpointId: 'tx-cp-1',
-			commitMessage: 'Initial transcription commit',
-			authorName: 'Editor',
-			createdAt: '2026-06-08T12:05:00.000Z',
-		}, storeOptions);
+		await createCommittedTranscriptionCheckpointWithFiles(
+			harness.db,
+			{
+				projectTranscriptionId,
+				checkpointId: 'tx-cp-1',
+				commitMessage: 'Initial transcription commit',
+				authorName: 'Editor',
+				createdAt: '2026-06-08T12:05:00.000Z',
+			},
+			storeOptions
+		);
 
 		const primary = await serializeProjectTranscriptionCloudFile(
 			harness.db,
@@ -223,7 +229,10 @@ describe('cloud file serialization formats', () => {
 				primary_path: `transcriptions/${projectTranscriptionId}.json`,
 			}),
 		]);
-		const tamperedPrimary = JSON.parse(await serializeCloudFile(primary)) as Record<string, unknown>;
+		const tamperedPrimary = JSON.parse(await serializeCloudFile(primary)) as Record<
+			string,
+			unknown
+		>;
 		tamperedPrimary.title = 'Tampered title';
 		expect(await parseProjectTranscriptionCloudFile(tamperedPrimary)).toMatchObject({
 			ok: false,
@@ -269,16 +278,24 @@ describe('cloud file serialization formats', () => {
 		);
 		const projectTranscriptionAId = await getProjectTranscriptionId(snapshotAId);
 		const projectTranscriptionBId = await getProjectTranscriptionId(snapshotBId);
-		const sourceA = await createCommittedTranscriptionCheckpointWithFiles(harness.db, {
-			projectTranscriptionId: projectTranscriptionAId,
-			checkpointId: 'tx-a-cp-1',
-			createdAt: '2026-06-08T12:01:00.000Z',
-		}, storeOptions);
-		const sourceB = await createCommittedTranscriptionCheckpointWithFiles(harness.db, {
-			projectTranscriptionId: projectTranscriptionBId,
-			checkpointId: 'tx-b-cp-1',
-			createdAt: '2026-06-08T12:02:00.000Z',
-		}, storeOptions);
+		const sourceA = await createCommittedTranscriptionCheckpointWithFiles(
+			harness.db,
+			{
+				projectTranscriptionId: projectTranscriptionAId,
+				checkpointId: 'tx-a-cp-1',
+				createdAt: '2026-06-08T12:01:00.000Z',
+			},
+			storeOptions
+		);
+		const sourceB = await createCommittedTranscriptionCheckpointWithFiles(
+			harness.db,
+			{
+				projectTranscriptionId: projectTranscriptionBId,
+				checkpointId: 'tx-b-cp-1',
+				createdAt: '2026-06-08T12:02:00.000Z',
+			},
+			storeOptions
+		);
 		await createCollation(harness.db, {
 			id: 'col-1',
 			projectId: 'project-1',
@@ -300,20 +317,28 @@ describe('cloud file serialization formats', () => {
 				sourceContentHash: sourceB.contentHash,
 			},
 		});
-		await saveWorkingCollationArtifact(harness.db, {
-			collationId: 'col-1',
-			artifactId: 'artifact-1',
-			artifactType: 'collation_document_v1',
-			payload: JSON.stringify(COLLATION_FIXTURE.document),
-			now: '2026-06-08T12:03:00.000Z',
-		}, storeOptions);
-		await createCommittedCollationCheckpointWithFiles(harness.db, {
-			collationId: 'col-1',
-			checkpointId: 'col-cp-1',
-			commitMessage: 'Initial collation commit',
-			authorName: 'Editor',
-			createdAt: '2026-06-08T12:10:00.000Z',
-		}, storeOptions);
+		await saveWorkingCollationArtifact(
+			harness.db,
+			{
+				collationId: 'col-1',
+				artifactId: 'artifact-1',
+				artifactType: 'collation_document_v1',
+				payload: JSON.stringify(COLLATION_FIXTURE.document),
+				now: '2026-06-08T12:03:00.000Z',
+			},
+			storeOptions
+		);
+		await createCommittedCollationCheckpointWithFiles(
+			harness.db,
+			{
+				collationId: 'col-1',
+				checkpointId: 'col-cp-1',
+				commitMessage: 'Initial collation commit',
+				authorName: 'Editor',
+				createdAt: '2026-06-08T12:10:00.000Z',
+			},
+			storeOptions
+		);
 
 		const primary = await serializeCollationCloudFile(harness.db, 'col-1', storeOptions);
 		const history = await serializeCollationHistoryCloudFile(

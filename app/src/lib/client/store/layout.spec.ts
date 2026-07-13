@@ -3,7 +3,9 @@ import { describe, expect, it } from 'vitest';
 import {
 	APP_STORE_ROOT,
 	appSettingsFile,
+	collationCheckpointRelativeFile,
 	collationCheckpointFile,
+	collationPrimaryRelativeFile,
 	collationPrimaryFile,
 	collationTeiFile,
 	collationWorkingFile,
@@ -11,9 +13,13 @@ import {
 	joinStorePath,
 	normalizeStorePath,
 	projectManifestFile,
+	projectManifestRelativeFile,
 	syncTargetsFile,
 	tombstoneFile,
+	tombstoneRelativeFile,
+	transcriptionCheckpointRelativeFile,
 	transcriptionCheckpointFile,
+	transcriptionPrimaryRelativeFile,
 	transcriptionPrimaryFile,
 	transcriptionTeiFile,
 	transcriptionWorkingFile,
@@ -56,6 +62,27 @@ describe('store layout path builders', () => {
 		expect(appSettingsFile()).toBe('app/settings.json');
 		expect(syncTargetsFile()).toBe('app/sync-targets.json');
 		expect(indexDatabaseFile(7)).toBe('index/apatosaurus-index-v7.db');
+	});
+
+	it('uses the same project-relative paths for manifests, sync mirrors, and archives', () => {
+		expect(projectManifestRelativeFile()).toBe('project.json');
+		expect(transcriptionPrimaryRelativeFile('tx-1')).toBe('transcriptions/tx-1.json');
+		expect(collationPrimaryRelativeFile('col-1')).toBe('collations/col-1.json');
+		expect(transcriptionCheckpointRelativeFile('tx-1', 'cp-1')).toBe(
+			'history/transcriptions/tx-1/cp-1.json'
+		);
+		expect(collationCheckpointRelativeFile('col-1', 'cp-2')).toBe(
+			'history/collations/col-1/cp-2.json'
+		);
+		expect(tombstoneRelativeFile('project-transcription', 'tx-1')).toBe(
+			'tombstones/project-transcription--tx-1.json'
+		);
+		expect(projectManifestFile('default-a1')).toBe(
+			joinStorePath('projects/default-a1', projectManifestRelativeFile())
+		);
+		expect(transcriptionPrimaryFile('default-a1', 'tx-1')).toBe(
+			joinStorePath('projects/default-a1', transcriptionPrimaryRelativeFile('tx-1'))
+		);
 	});
 
 	it('normalizes paths and rejects traversal segments', () => {

@@ -3,7 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createLocalDbTestHarness, type LocalDbTestHarness } from '../test-harness';
 import { projectWriteLockName } from './project-locks';
 import { createProject } from './projects';
-import { createTranscription, getTranscription, listVerseIndexRowsForTranscription } from './transcriptions';
+import {
+	createTranscription,
+	getTranscription,
+	listVerseIndexRowsForTranscription,
+} from './transcriptions';
 import {
 	createTranscriptionWithFiles,
 	createCommittedTranscriptionCheckpointWithFiles,
@@ -17,11 +21,14 @@ import {
 	PROJECT_MANIFEST_FORMAT,
 	PROJECT_TRANSCRIPTION_FORMAT,
 	TRANSCRIPTION_CHECKPOINT_FORMAT,
+	createQuarantineReport,
 	joinStorePath,
 	normalizeStorePath,
 	projectManifestFile,
 	readCanonicalDocument,
 	readTextFile,
+	sealDocument,
+	serializeSealedDocument,
 	StoreMoveUnavailableError,
 	storePathBasename,
 	storePathDirname,
@@ -36,6 +43,7 @@ import {
 	type StoreBackendDirectoryEntry,
 	type TranscriptionCheckpointPayload,
 	type WorkingTranscriptionPayload,
+	writeTextFileAtomic,
 } from '$lib/client/store';
 
 let harness: LocalDbTestHarness;
@@ -183,6 +191,63 @@ describe('transcription file persistence', () => {
 		expect(loaded?.updated_at).toBe('2026-07-04T00:00:00.000Z');
 	});
 
+	it('records every canonical validation failure without mutating the transcription primary', async () => {
+		await createProject(harness.db, {
+			id: 'project-1',
+			storageSlug: 'project-slug',
+			name: 'Project',
+			createdAt: '2026-07-04T00:00:00.000Z',
+			updatedAt: '2026-07-04T00:00:00.000Z',
+		});
+		await createTranscriptionWithFiles(
+			harness.db,
+			{
+				id: 'tx-1',
+				projectId: 'project-1',
+				projectTranscriptionId: 'pt-1',
+				title: 'Witness 1',
+				siglum: '01',
+				document: documentWithVerses(['Romans 1:2']),
+				createdAt: '2026-07-04T00:00:00.000Z',
+				updatedAt: '2026-07-04T00:00:00.000Z',
+				transcriber: '',
+				repository: '',
+				settlement: '',
+				language: 'grc',
+			},
+			{ backend }
+		);
+		const path = transcriptionPrimaryFile('project-slug', 'pt-1');
+		const validRaw = await readTextFile(path, { backend });
+		const validDocument = JSON.parse(validRaw) as Record<string, unknown>;
+		const failures = [
+			{ code: 'invalid_json', raw: '{' },
+			{
+				code: 'invalid_schema_version',
+				raw: JSON.stringify({ ...validDocument, schema_version: 99 }),
+			},
+			{
+				code: 'invalid_shape',
+				raw: serializeSealedDocument(
+					await sealDocument(PROJECT_TRANSCRIPTION_FORMAT, 1, {})
+				),
+			},
+			{ code: 'hash_mismatch', raw: JSON.stringify({ ...validDocument, title: 'tampered' }) },
+		] as const;
+
+		for (const failure of failures) {
+			await writeTextFileAtomic(path, failure.raw, { backend });
+			const quarantineSink = createQuarantineReport();
+
+			await loadTranscriptionWithWorkingFile(harness.db, 'tx-1', { backend, quarantineSink });
+
+			expect(quarantineSink.list()).toEqual([
+				expect.objectContaining({ path, code: failure.code, message: expect.any(String) }),
+			]);
+			expect(await readTextFile(path, { backend })).toBe(failure.raw);
+		}
+	});
+
 	it('loads many transcriptions from files once per id when the index cache is stale', async () => {
 		await createFixtureTranscription();
 		await createCommittedTranscriptionCheckpointWithFiles(
@@ -223,11 +288,10 @@ describe('transcription file persistence', () => {
 			.where('id', '=', 'tx-1')
 			.execute();
 
-		const result = await rebuildVerseIndexForTranscriptionsWithFiles(
-			harness.db,
-			['tx-1'],
-			{ backend, allowIndexFallback: false }
-		);
+		const result = await rebuildVerseIndexForTranscriptionsWithFiles(harness.db, ['tx-1'], {
+			backend,
+			allowIndexFallback: false,
+		});
 		const rows = await listVerseIndexRowsForTranscription(harness.db, 'tx-1');
 
 		expect(result).toMatchObject({ processed: 1, succeeded: 1, failed: 0 });
@@ -579,10 +643,9 @@ describe('transcription file persistence', () => {
 		).rejects.toThrow();
 
 		await expect(
-			readTextFile(
-				transcriptionCheckpointFile('project-slug', 'pt-1', 'tx-cp-index-fail'),
-				{ backend }
-			)
+			readTextFile(transcriptionCheckpointFile('project-slug', 'pt-1', 'tx-cp-index-fail'), {
+				backend,
+			})
 		).resolves.toContain('tx-cp-index-fail');
 		await expect(
 			readTextFile(transcriptionPrimaryFile('project-slug', 'pt-1'), { backend })

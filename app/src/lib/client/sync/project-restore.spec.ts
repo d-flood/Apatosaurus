@@ -359,12 +359,7 @@ describe('cloud project import', () => {
 		await expect(
 			harness.db
 				.selectFrom('transcriptions')
-				.select([
-					'id',
-					'project_id',
-					'current_revision_id',
-					'current_content_hash',
-				])
+				.select(['id', 'project_id', 'current_revision_id', 'current_content_hash'])
 				.where('id', '=', remote.transcriptionId)
 				.executeTakeFirst()
 		).resolves.toMatchObject({
@@ -409,7 +404,12 @@ describe('cloud project import', () => {
 		await expect(
 			harness.db
 				.selectFrom('collation_witnesses')
-				.select(['collation_id', 'project_transcription_id', 'transcription_id', 'source_revision_id'])
+				.select([
+					'collation_id',
+					'project_transcription_id',
+					'transcription_id',
+					'source_revision_id',
+				])
 				.where('collation_id', '=', remote.collationId)
 				.execute()
 		).resolves.toEqual([
@@ -572,9 +572,18 @@ describe('linked cloud project manifest polling', () => {
 						entityType: 'project-transcription',
 						entityId: remote.projectTranscriptionId,
 						status: 'up-to-date',
-						localHead: { revisionId: 'tx-cp-restore-1', contentHash: remote.contentHash },
-						remoteHead: { revisionId: 'tx-cp-restore-1', contentHash: remote.contentHash },
-						lastSyncedHead: { revisionId: 'tx-cp-restore-1', contentHash: remote.contentHash },
+						localHead: {
+							revisionId: 'tx-cp-restore-1',
+							contentHash: remote.contentHash,
+						},
+						remoteHead: {
+							revisionId: 'tx-cp-restore-1',
+							contentHash: remote.contentHash,
+						},
+						lastSyncedHead: {
+							revisionId: 'tx-cp-restore-1',
+							contentHash: remote.contentHash,
+						},
 					}),
 					expect.objectContaining({
 						entityType: 'collation',
@@ -654,10 +663,14 @@ describe('linked cloud project manifest polling', () => {
 			})
 		);
 		if (!parsedManifest.ok) throw new Error('Expected valid remote manifest.');
-		const comparison = await compareRemoteManifestToLocalProject(harness.db, parsedManifest.value, {
-			connectionId: 'conn-1',
-			projectId: 'project-poll-diverged',
-		});
+		const comparison = await compareRemoteManifestToLocalProject(
+			harness.db,
+			parsedManifest.value,
+			{
+				connectionId: 'conn-1',
+				projectId: 'project-poll-diverged',
+			}
+		);
 
 		expect(comparison).toMatchObject({
 			status: 'diverged',
@@ -667,7 +680,10 @@ describe('linked cloud project manifest polling', () => {
 					entityId: remote.projectTranscriptionId,
 					status: 'diverged',
 					localHead: { revisionId: 'tx-cp-local-2', contentHash: remote.contentHash },
-					lastSyncedHead: { revisionId: 'tx-cp-restore-1', contentHash: remote.contentHash },
+					lastSyncedHead: {
+						revisionId: 'tx-cp-restore-1',
+						contentHash: remote.contentHash,
+					},
 				}),
 			]),
 		});
@@ -733,18 +749,20 @@ describe('linked cloud project pull', () => {
 				.where('entity_id', 'in', [remote.projectTranscriptionId, remote.collationId])
 				.orderBy('entity_id')
 				.execute()
-		).resolves.toEqual(expect.arrayContaining([
-			{
-				entity_id: remote.collationId,
-				last_synced_revision: 'col-cp-remote-2',
-				last_synced_hash: remoteUpdate.collationContentHash,
-			},
-			{
-				entity_id: remote.projectTranscriptionId,
-				last_synced_revision: 'tx-cp-remote-2',
-				last_synced_hash: remoteUpdate.transcriptionContentHash,
-			},
-		]));
+		).resolves.toEqual(
+			expect.arrayContaining([
+				{
+					entity_id: remote.collationId,
+					last_synced_revision: 'col-cp-remote-2',
+					last_synced_hash: remoteUpdate.collationContentHash,
+				},
+				{
+					entity_id: remote.projectTranscriptionId,
+					last_synced_revision: 'tx-cp-remote-2',
+					last_synced_hash: remoteUpdate.transcriptionContentHash,
+				},
+			])
+		);
 	});
 
 	it('blocks pull when local and remote heads have diverged', async () => {
@@ -865,13 +883,17 @@ async function createRemoteProjectBackup(
 			remoteHarness,
 			transcriptionId
 		);
-		const checkpoint = await createCommittedTranscriptionCheckpointWithFiles(remoteHarness.db, {
-			projectTranscriptionId,
-			checkpointId: 'tx-cp-restore-1',
-			commitMessage: 'Initial remote commit',
-			authorName: 'Editor',
-			createdAt: '2026-06-10T12:05:00.000Z',
-		}, remoteStoreOptions);
+		const checkpoint = await createCommittedTranscriptionCheckpointWithFiles(
+			remoteHarness.db,
+			{
+				projectTranscriptionId,
+				checkpointId: 'tx-cp-restore-1',
+				commitMessage: 'Initial remote commit',
+				authorName: 'Editor',
+				createdAt: '2026-06-10T12:05:00.000Z',
+			},
+			remoteStoreOptions
+		);
 		await createCollation(remoteHarness.db, {
 			id: 'col-restore-1',
 			projectId,
@@ -903,55 +925,63 @@ async function createRemoteProjectBackup(
 				token_text: 'Remote',
 			})
 			.execute();
-		await saveWorkingCollationArtifact(remoteHarness.db, {
-			collationId: 'col-restore-1',
-			artifactId: 'artifact-restore-1',
-			artifactType: 'collation_document_v1',
-			payload: JSON.stringify({
-				...COLLATION_FIXTURE.document,
-				meta: {
-					collationId: 'col-restore-1',
-					projectId,
-					projectName: 'Remote Restored Project',
-				},
-				setup: {
-					...COLLATION_FIXTURE.document.setup,
-					witnesses: [
-						{
-							type: 'witness',
-							id: 'R',
-							siglum: 'R',
-							transcriptionId,
-							sourceVersion: checkpoint.id,
-							sourceContentHash: checkpoint.contentHash,
-							content: 'Remote witness text',
-							treatment: 'full',
-							isBaseText: true,
-							isExcluded: false,
-							overridesDefault: false,
-							sourceTokens: [
-								{
-									kind: 'text',
-									original: 'Remote',
-									segments: [],
-									gap: null,
-									tokenId: 'R::source::0',
-									sourceRef: { witnessId: 'R', transcriptionId, index: 0 },
-								},
-							],
-						},
-					],
-				},
-			}),
-			now: '2026-06-10T12:07:00.000Z',
-		}, remoteStoreOptions);
-		const collationCheckpoint = await createCommittedCollationCheckpointWithFiles(remoteHarness.db, {
-			collationId: 'col-restore-1',
-			checkpointId: 'col-cp-restore-1',
-			commitMessage: 'Initial collation commit',
-			authorName: 'Editor',
-			createdAt: '2026-06-10T12:08:00.000Z',
-		}, remoteStoreOptions);
+		await saveWorkingCollationArtifact(
+			remoteHarness.db,
+			{
+				collationId: 'col-restore-1',
+				artifactId: 'artifact-restore-1',
+				artifactType: 'collation_document_v1',
+				payload: JSON.stringify({
+					...COLLATION_FIXTURE.document,
+					meta: {
+						collationId: 'col-restore-1',
+						projectId,
+						projectName: 'Remote Restored Project',
+					},
+					setup: {
+						...COLLATION_FIXTURE.document.setup,
+						witnesses: [
+							{
+								type: 'witness',
+								id: 'R',
+								siglum: 'R',
+								transcriptionId,
+								sourceVersion: checkpoint.id,
+								sourceContentHash: checkpoint.contentHash,
+								content: 'Remote witness text',
+								treatment: 'full',
+								isBaseText: true,
+								isExcluded: false,
+								overridesDefault: false,
+								sourceTokens: [
+									{
+										kind: 'text',
+										original: 'Remote',
+										segments: [],
+										gap: null,
+										tokenId: 'R::source::0',
+										sourceRef: { witnessId: 'R', transcriptionId, index: 0 },
+									},
+								],
+							},
+						],
+					},
+				}),
+				now: '2026-06-10T12:07:00.000Z',
+			},
+			remoteStoreOptions
+		);
+		const collationCheckpoint = await createCommittedCollationCheckpointWithFiles(
+			remoteHarness.db,
+			{
+				collationId: 'col-restore-1',
+				checkpointId: 'col-cp-restore-1',
+				commitMessage: 'Initial collation commit',
+				authorName: 'Editor',
+				createdAt: '2026-06-10T12:08:00.000Z',
+			},
+			remoteStoreOptions
+		);
 		await remoteHarness.db
 			.insertInto('sync_tombstones')
 			.values({
@@ -1027,7 +1057,7 @@ async function createRemoteProjectBackup(
 		);
 		await provider.createFile(
 			folderId,
-			projectRelativeCloudPaths().tombstones('tombstone-restore-1'),
+			projectRelativeCloudPaths().tombstones('project-transcription', 'deleted-pt-restore-1'),
 			await serializeCloudFile(tombstone)
 		);
 		return {
@@ -1076,7 +1106,9 @@ async function remoteManifestWithHead(
 				},
 				title: 'Remote Witness',
 				siglum: 'R',
-				primary_path: projectRelativeCloudPaths().transcriptions(remote.projectTranscriptionId),
+				primary_path: projectRelativeCloudPaths().transcriptions(
+					remote.projectTranscriptionId
+				),
 			},
 		],
 		collations: [
@@ -1098,7 +1130,10 @@ async function remoteManifestWithHead(
 				entity_id: 'deleted-pt-restore-1',
 				deletion_revision_id: 'deleted-cp-restore-1',
 				content_hash: remote.tombstoneContentHash,
-				primary_path: projectRelativeCloudPaths().tombstones(remote.tombstoneId),
+				primary_path: projectRelativeCloudPaths().tombstones(
+					'project-transcription',
+					'deleted-pt-restore-1'
+				),
 				deleted_at: '2026-06-10T12:09:00.000Z',
 			},
 		],
@@ -1126,7 +1161,9 @@ async function writeRemoteHeadUpdate(
 		primary.title = 'Remote Witness Updated';
 		primary.created_at ??= '2026-06-10T12:00:00.000Z';
 		primary.updated_at = '2026-06-10T12:15:00.000Z';
-		transcriptionContentHash = await hashCanonicalPayload(buildTranscriptionHashPayload(primary));
+		transcriptionContentHash = await hashCanonicalPayload(
+			buildTranscriptionHashPayload(primary)
+		);
 		primary.current_revision = {
 			id: input.transcriptionRevisionId,
 			content_hash: transcriptionContentHash,
@@ -1201,7 +1238,10 @@ async function writeRemoteHeadUpdate(
 				await findRemoteFileId(
 					provider,
 					remote.folderId,
-					projectRelativeCloudPaths().collationHistory(remote.collationId, 'col-cp-restore-1')
+					projectRelativeCloudPaths().collationHistory(
+						remote.collationId,
+						'col-cp-restore-1'
+					)
 				)
 			)
 		);
@@ -1216,7 +1256,10 @@ async function writeRemoteHeadUpdate(
 		history.payload = collationContent;
 		await provider.createFile(
 			remote.folderId,
-			projectRelativeCloudPaths().collationHistory(remote.collationId, input.collationRevisionId),
+			projectRelativeCloudPaths().collationHistory(
+				remote.collationId,
+				input.collationRevisionId
+			),
 			await serializeCloudFile(history)
 		);
 	}

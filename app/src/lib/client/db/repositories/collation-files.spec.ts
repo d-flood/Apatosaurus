@@ -4,6 +4,7 @@ import {
 	COLLATION_CHECKPOINT_FORMAT,
 	COLLATION_FORMAT,
 	PROJECT_MANIFEST_FORMAT,
+	createQuarantineReport,
 	collationCheckpointFile,
 	collationPrimaryFile,
 	collationTeiFile,
@@ -13,6 +14,8 @@ import {
 	projectManifestFile,
 	readCanonicalDocument,
 	readTextFile,
+	sealDocument,
+	serializeSealedDocument,
 	StoreMoveUnavailableError,
 	storePathBasename,
 	storePathDirname,
@@ -23,6 +26,7 @@ import {
 	type StoreBackend,
 	type StoreBackendDirectoryEntry,
 	type WorkingCollationPayload,
+	writeTextFileAtomic,
 } from '$lib/client/store';
 import { createLocalDbTestHarness, type LocalDbTestHarness } from '../test-harness';
 import { createProject } from './projects';
@@ -190,6 +194,54 @@ describe('collation file persistence', () => {
 		expect(loaded?.row.status).toBe('setup');
 		expect(loaded?.artifact?.payload).toContain('"phase":"setup"');
 		expect(loaded?.artifact?.payload).toContain('"projectName":"Romans"');
+	});
+
+	it('records every canonical validation failure without mutating the collation primary', async () => {
+		await createProject(harness.db, {
+			id: 'project-1',
+			storageSlug: 'project-slug',
+			name: 'Romans',
+			createdAt: '2026-07-04T00:00:00.000Z',
+			updatedAt: '2026-07-04T00:00:00.000Z',
+		});
+		await createCollationWithFiles(
+			harness.db,
+			{
+				id: 'col-1',
+				projectId: 'project-1',
+				title: 'Romans 1:3',
+				verseIdentifier: 'Rom 1:3',
+				now: '2026-07-04T00:00:00.000Z',
+			},
+			{ backend }
+		);
+		const path = collationPrimaryFile('project-slug', 'col-1');
+		const validRaw = await readTextFile(path, { backend });
+		const validDocument = JSON.parse(validRaw) as Record<string, unknown>;
+		const failures = [
+			{ code: 'invalid_json', raw: '{' },
+			{
+				code: 'invalid_schema_version',
+				raw: JSON.stringify({ ...validDocument, schema_version: 99 }),
+			},
+			{
+				code: 'invalid_shape',
+				raw: serializeSealedDocument(await sealDocument(COLLATION_FORMAT, 1, {})),
+			},
+			{ code: 'hash_mismatch', raw: JSON.stringify({ ...validDocument, title: 'tampered' }) },
+		] as const;
+
+		for (const failure of failures) {
+			await writeTextFileAtomic(path, failure.raw, { backend });
+			const quarantineSink = createQuarantineReport();
+
+			await loadCollationWithWorkingFile(harness.db, 'col-1', { backend, quarantineSink });
+
+			expect(quarantineSink.list()).toEqual([
+				expect.objectContaining({ path, code: failure.code, message: expect.any(String) }),
+			]);
+			expect(await readTextFile(path, { backend })).toBe(failure.raw);
+		}
 	});
 
 	it('uses the working file to compute dirty status', async () => {

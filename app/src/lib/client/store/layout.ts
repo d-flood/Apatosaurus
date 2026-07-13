@@ -9,7 +9,11 @@ export function projectFolder(projectSlug: string): string {
 }
 
 export function projectManifestFile(projectSlug: string): string {
-	return joinStorePath(projectFolder(projectSlug), 'project.json');
+	return joinStorePath(projectFolder(projectSlug), projectManifestRelativeFile());
+}
+
+export function projectManifestRelativeFile(): string {
+	return 'project.json';
 }
 
 export function projectTranscriptionsFolder(projectSlug: string): string {
@@ -17,18 +21,33 @@ export function projectTranscriptionsFolder(projectSlug: string): string {
 }
 
 export function transcriptionPrimaryFile(projectSlug: string, transcriptionId: string): string {
-	return joinStorePath(projectTranscriptionsFolder(projectSlug), `${validateFileStem(transcriptionId)}.json`);
+	return joinStorePath(
+		projectFolder(projectSlug),
+		transcriptionPrimaryRelativeFile(transcriptionId)
+	);
+}
+
+export function transcriptionPrimaryRelativeFile(transcriptionId: string): string {
+	return joinStorePath('transcriptions', `${validateFileStem(transcriptionId)}.json`);
 }
 
 export function transcriptionWorkingFile(projectSlug: string, transcriptionId: string): string {
 	return joinStorePath(
-		projectTranscriptionsFolder(projectSlug),
-		`${validateFileStem(transcriptionId)}.working.json`
+		projectFolder(projectSlug),
+		transcriptionWorkingRelativeFile(transcriptionId)
 	);
 }
 
+export function transcriptionWorkingRelativeFile(transcriptionId: string): string {
+	return joinStorePath('transcriptions', `${validateFileStem(transcriptionId)}.working.json`);
+}
+
 export function transcriptionTeiFile(projectSlug: string, transcriptionId: string): string {
-	return joinStorePath(projectTranscriptionsFolder(projectSlug), `${validateFileStem(transcriptionId)}.tei.xml`);
+	return joinStorePath(projectFolder(projectSlug), transcriptionTeiRelativeFile(transcriptionId));
+}
+
+export function transcriptionTeiRelativeFile(transcriptionId: string): string {
+	return joinStorePath('transcriptions', `${validateFileStem(transcriptionId)}.tei.xml`);
 }
 
 export function projectCollationsFolder(projectSlug: string): string {
@@ -36,18 +55,27 @@ export function projectCollationsFolder(projectSlug: string): string {
 }
 
 export function collationPrimaryFile(projectSlug: string, collationId: string): string {
-	return joinStorePath(projectCollationsFolder(projectSlug), `${validateFileStem(collationId)}.json`);
+	return joinStorePath(projectFolder(projectSlug), collationPrimaryRelativeFile(collationId));
+}
+
+export function collationPrimaryRelativeFile(collationId: string): string {
+	return joinStorePath('collations', `${validateFileStem(collationId)}.json`);
 }
 
 export function collationWorkingFile(projectSlug: string, collationId: string): string {
-	return joinStorePath(
-		projectCollationsFolder(projectSlug),
-		`${validateFileStem(collationId)}.working.json`
-	);
+	return joinStorePath(projectFolder(projectSlug), collationWorkingRelativeFile(collationId));
+}
+
+export function collationWorkingRelativeFile(collationId: string): string {
+	return joinStorePath('collations', `${validateFileStem(collationId)}.working.json`);
 }
 
 export function collationTeiFile(projectSlug: string, collationId: string): string {
-	return joinStorePath(projectCollationsFolder(projectSlug), `${validateFileStem(collationId)}.tei.xml`);
+	return joinStorePath(projectFolder(projectSlug), collationTeiRelativeFile(collationId));
+}
+
+export function collationTeiRelativeFile(collationId: string): string {
+	return joinStorePath('collations', `${validateFileStem(collationId)}.tei.xml`);
 }
 
 export function projectHistoryFolder(projectSlug: string): string {
@@ -64,7 +92,19 @@ export function transcriptionCheckpointFile(
 	checkpointId: string
 ): string {
 	return joinStorePath(
-		transcriptionHistoryFolder(projectSlug, transcriptionId),
+		projectFolder(projectSlug),
+		transcriptionCheckpointRelativeFile(transcriptionId, checkpointId)
+	);
+}
+
+export function transcriptionCheckpointRelativeFile(
+	transcriptionId: string,
+	checkpointId: string
+): string {
+	return joinStorePath(
+		'history',
+		'transcriptions',
+		validateFileStem(transcriptionId),
 		`${validateFileStem(checkpointId)}.json`
 	);
 }
@@ -79,7 +119,16 @@ export function collationCheckpointFile(
 	checkpointId: string
 ): string {
 	return joinStorePath(
-		collationHistoryFolder(projectSlug, collationId),
+		projectFolder(projectSlug),
+		collationCheckpointRelativeFile(collationId, checkpointId)
+	);
+}
+
+export function collationCheckpointRelativeFile(collationId: string, checkpointId: string): string {
+	return joinStorePath(
+		'history',
+		'collations',
+		validateFileStem(collationId),
 		`${validateFileStem(checkpointId)}.json`
 	);
 }
@@ -89,8 +138,12 @@ export function projectTombstonesFolder(projectSlug: string): string {
 }
 
 export function tombstoneFile(projectSlug: string, entityType: string, entityId: string): string {
+	return joinStorePath(projectFolder(projectSlug), tombstoneRelativeFile(entityType, entityId));
+}
+
+export function tombstoneRelativeFile(entityType: string, entityId: string): string {
 	return joinStorePath(
-		projectTombstonesFolder(projectSlug),
+		'tombstones',
 		`${validateFileStem(entityType)}--${validateFileStem(entityId)}.json`
 	);
 }
@@ -163,7 +216,13 @@ function validateFileStem(value: string): string {
 }
 
 function validatePathSegment(segment: string): void {
-	if (!segment || segment === '.' || segment === '..' || segment.includes('/') || segment.includes('\\')) {
+	if (
+		!segment ||
+		segment === '.' ||
+		segment === '..' ||
+		segment.includes('/') ||
+		segment.includes('\\')
+	) {
 		throw new Error(`Invalid store path segment ${JSON.stringify(segment)}.`);
 	}
 }

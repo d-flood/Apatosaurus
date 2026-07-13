@@ -4,6 +4,7 @@ import {
 	TOMBSTONE_CURRENT_VERSION,
 	TOMBSTONE_FORMAT,
 	collationPrimaryFile,
+	collationPrimaryRelativeFile,
 	deleteFile,
 	readCanonicalDocument,
 	readTextFile,
@@ -11,6 +12,7 @@ import {
 	serializeSealedDocument,
 	tombstoneFile,
 	transcriptionPrimaryFile,
+	transcriptionPrimaryRelativeFile,
 	writeTextFileAtomic,
 	type StoreOperationOptions,
 	type TombstonePayload,
@@ -127,7 +129,7 @@ async function loadTranscriptionDeletionContext(
 		indexEntityId: transcriptionId,
 		projectId: row.project_id,
 		currentRevisionId: row.current_revision_id || '',
-		cloudPath: `transcriptions/${projectTranscriptionId}.json`,
+		cloudPath: transcriptionPrimaryRelativeFile(projectTranscriptionId),
 		primaryPath: transcriptionPrimaryFile(projectStorageSlug, projectTranscriptionId),
 		tombstonePath: tombstoneFile(
 			projectStorageSlug,
@@ -159,7 +161,7 @@ async function loadCollationDeletionContext(
 		indexEntityId: collationId,
 		projectId: row.project_id,
 		currentRevisionId: row.current_revision_id || '',
-		cloudPath: `collations/${collationId}.json`,
+		cloudPath: collationPrimaryRelativeFile(collationId),
 		primaryPath: collationPrimaryFile(projectStorageSlug, collationId),
 		tombstonePath: tombstoneFile(projectStorageSlug, 'collation', collationId),
 	};

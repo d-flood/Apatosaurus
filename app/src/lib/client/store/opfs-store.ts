@@ -10,6 +10,7 @@ import {
 	storePathBasename,
 	storePathDirname,
 } from './layout';
+import type { StoreQuarantineSink } from './quarantine';
 
 export type StoreEntryKind = 'file' | 'directory';
 
@@ -27,6 +28,7 @@ export interface StoreBackendDirectoryEntry {
 export interface StoreBackend {
 	readTextFile(path: string): Promise<string>;
 	writeTextFile(path: string, content: string): Promise<void>;
+	replaceTextFile?(path: string, content: string): Promise<void>;
 	deleteFile(path: string): Promise<void>;
 	deleteDirectory?(path: string, options?: { recursive?: boolean }): Promise<void>;
 	listDirectory(path: string): Promise<StoreBackendDirectoryEntry[]>;
@@ -37,6 +39,7 @@ export interface StoreBackend {
 export interface StoreOperationOptions {
 	backend?: StoreBackend;
 	nonce?: () => string;
+	quarantineSink?: StoreQuarantineSink;
 }
 
 interface SyncAccessHandle {
@@ -61,8 +64,14 @@ export class StoreMoveUnavailableError extends Error {
 }
 
 let defaultBackendPromise: Promise<StoreBackend> | null = null;
+let storeMutationQueue: Promise<void> = Promise.resolve();
 
-export async function readTextFile(path: string, options: StoreOperationOptions = {}): Promise<string> {
+export const STORE_WRITER_LOCK_NAME = 'apatosaurus:document-store-writer';
+
+export async function readTextFile(
+	path: string,
+	options: StoreOperationOptions = {}
+): Promise<string> {
 	const backend = await resolveBackend(options);
 	return backend.readTextFile(toBackendPath(normalizeStoreFilePath(path)));
 }
@@ -72,11 +81,22 @@ export async function writeTextFileAtomic(
 	content: string,
 	options: StoreOperationOptions = {}
 ): Promise<void> {
+	return runStoreMutation(() => writeTextFileAtomicUnlocked(path, content, options));
+}
+
+async function writeTextFileAtomicUnlocked(
+	path: string,
+	content: string,
+	options: StoreOperationOptions
+): Promise<void> {
 	const backend = await resolveBackend(options);
 	const targetPath = normalizeStoreFilePath(path);
 	const parentPath = storePathDirname(targetPath);
 	const fileName = storePathBasename(targetPath);
-	const tempPath = joinStorePath(parentPath, `${fileName}.tmp-${(options.nonce ?? createNonce)()}`);
+	const tempPath = joinStorePath(
+		parentPath,
+		`${fileName}.tmp-${(options.nonce ?? createNonce)()}`
+	);
 	const targetBackendPath = toBackendPath(targetPath);
 	const tempBackendPath = toBackendPath(tempPath);
 
@@ -89,29 +109,39 @@ export async function writeTextFileAtomic(
 		if (!options.backend) void requestPersistentStorageForMeaningfulWrite();
 		return;
 	} catch (error) {
-		if (!(error instanceof StoreMoveUnavailableError)) throw error;
+		if (!(error instanceof StoreMoveUnavailableError) && !isUnsupportedMoveError(error))
+			throw error;
 	}
 
-	await backend.writeTextFile(targetBackendPath, content);
+	if (!backend.replaceTextFile) {
+		throw new Error('Store backend cannot transactionally replace files without move().');
+	}
+	await backend.replaceTextFile(targetBackendPath, content);
 	await assertTextMatches(backend, targetBackendPath, content, `Target file ${targetPath}`);
 	await deleteTempFile(backend, tempBackendPath);
 	if (!options.backend) void requestPersistentStorageForMeaningfulWrite();
 }
 
 export async function deleteFile(path: string, options: StoreOperationOptions = {}): Promise<void> {
-	const backend = await resolveBackend(options);
-	await backend.deleteFile(toBackendPath(normalizeStoreFilePath(path)));
+	await runStoreMutation(async () => {
+		const backend = await resolveBackend(options);
+		await backend.deleteFile(toBackendPath(normalizeStoreFilePath(path)));
+	});
 }
 
 export async function deleteDirectory(
 	path: string,
 	options: StoreOperationOptions & { recursive?: boolean } = {}
 ): Promise<void> {
-	const backend = await resolveBackend(options);
-	const normalizedPath = normalizeStorePath(path);
-	if (!normalizedPath) throw new Error('Store directory path is required.');
-	if (!backend.deleteDirectory) throw new Error('Store backend cannot delete directories.');
-	await backend.deleteDirectory(toBackendPath(normalizedPath), { recursive: options.recursive });
+	await runStoreMutation(async () => {
+		const backend = await resolveBackend(options);
+		const normalizedPath = normalizeStorePath(path);
+		if (!normalizedPath) throw new Error('Store directory path is required.');
+		if (!backend.deleteDirectory) throw new Error('Store backend cannot delete directories.');
+		await backend.deleteDirectory(toBackendPath(normalizedPath), {
+			recursive: options.recursive,
+		});
+	});
 }
 
 export async function listDirectory(
@@ -129,7 +159,10 @@ export async function listDirectory(
 		.sort((left, right) => left.path.localeCompare(right.path));
 }
 
-export async function ensureDirectory(path = '', options: StoreOperationOptions = {}): Promise<void> {
+export async function ensureDirectory(
+	path = '',
+	options: StoreOperationOptions = {}
+): Promise<void> {
 	const backend = await resolveBackend(options);
 	await backend.ensureDirectory(toBackendPath(normalizeStorePath(path)));
 }
@@ -139,6 +172,14 @@ export async function moveFile(
 	toPath: string,
 	options: StoreOperationOptions = {}
 ): Promise<void> {
+	return runStoreMutation(() => moveFileUnlocked(fromPath, toPath, options));
+}
+
+async function moveFileUnlocked(
+	fromPath: string,
+	toPath: string,
+	options: StoreOperationOptions
+): Promise<void> {
 	const backend = await resolveBackend(options);
 	const fromBackendPath = toBackendPath(normalizeStoreFilePath(fromPath));
 	const toBackendPathValue = toBackendPath(normalizeStoreFilePath(toPath));
@@ -146,11 +187,15 @@ export async function moveFile(
 		await moveBackendFile(backend, fromBackendPath, toBackendPathValue);
 		return;
 	} catch (error) {
-		if (!(error instanceof StoreMoveUnavailableError)) throw error;
+		if (!(error instanceof StoreMoveUnavailableError) && !isUnsupportedMoveError(error))
+			throw error;
 	}
 	const content = await backend.readTextFile(fromBackendPath);
 	await backend.ensureDirectory(storePathDirname(toBackendPathValue));
-	await backend.writeTextFile(toBackendPathValue, content);
+	if (!backend.replaceTextFile) {
+		throw new Error('Store backend cannot transactionally replace files without move().');
+	}
+	await backend.replaceTextFile(toBackendPathValue, content);
 	await assertTextMatches(backend, toBackendPathValue, content, `Moved file ${toPath}`);
 	await backend.deleteFile(fromBackendPath);
 }
@@ -170,6 +215,18 @@ function toBackendPath(path: string): string {
 	return joinStorePath(APP_STORE_ROOT, path);
 }
 
+async function runStoreMutation<T>(operation: () => Promise<T>): Promise<T> {
+	const locks = globalThis.navigator?.locks;
+	if (locks) return locks.request(STORE_WRITER_LOCK_NAME, operation);
+
+	const result = storeMutationQueue.then(operation, operation);
+	storeMutationQueue = result.then(
+		() => undefined,
+		() => undefined
+	);
+	return result;
+}
+
 async function resolveBackend(options: StoreOperationOptions): Promise<StoreBackend> {
 	if (options.backend) return options.backend;
 	if (!defaultBackendPromise) defaultBackendPromise = createOpfsStoreBackend();
@@ -184,6 +241,10 @@ async function moveBackendFile(
 	if (!backend.moveFile) throw new StoreMoveUnavailableError();
 	await backend.ensureDirectory(storePathDirname(toBackendPathValue));
 	await backend.moveFile(fromBackendPath, toBackendPathValue);
+}
+
+function isUnsupportedMoveError(error: unknown): boolean {
+	return error instanceof DOMException && error.name === 'NotSupportedError';
 }
 
 async function assertTextMatches(
@@ -214,7 +275,10 @@ async function openOriginPrivateFileSystemRoot(): Promise<FileSystemDirectoryHan
 }
 
 async function hashText(content: string): Promise<string> {
-	const digest = await globalThis.crypto?.subtle?.digest('SHA-256', new TextEncoder().encode(content));
+	const digest = await globalThis.crypto?.subtle?.digest(
+		'SHA-256',
+		new TextEncoder().encode(content)
+	);
 	if (!digest) throw new Error('SHA-256 hashing requires Web Crypto support.');
 	return `sha256:${[...new Uint8Array(digest)]
 		.map(byte => byte.toString(16).padStart(2, '0'))
@@ -242,6 +306,12 @@ class OpfsStoreBackend implements StoreBackend {
 		const parent = await this.ensureParentDirectory(path);
 		const handle = await parent.getFileHandle(storePathBasename(path), { create: true });
 		await writeFileHandle(handle, content);
+	}
+
+	async replaceTextFile(path: string, content: string): Promise<void> {
+		const parent = await this.ensureParentDirectory(path);
+		const handle = await parent.getFileHandle(storePathBasename(path), { create: true });
+		await replaceFileHandle(handle, content);
 	}
 
 	async deleteFile(path: string): Promise<void> {
@@ -327,6 +397,17 @@ async function writeFileHandle(handle: FileSystemFileHandle, content: string): P
 	}
 
 	const writable = await handle.createWritable();
+	try {
+		await writable.write(content);
+		await writable.close();
+	} catch (error) {
+		await writable.abort().catch(() => undefined);
+		throw error;
+	}
+}
+
+async function replaceFileHandle(handle: FileSystemFileHandle, content: string): Promise<void> {
+	const writable = await handle.createWritable({ keepExistingData: false });
 	try {
 		await writable.write(content);
 		await writable.close();
