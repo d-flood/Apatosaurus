@@ -15,6 +15,24 @@ import {
 
 type DbExecutor = Kysely<Database> | Transaction<Database>;
 
+export async function loadProjectTranscriptionIds(
+	db: DbExecutor,
+	projectId: string,
+	transcriptionIds: Iterable<string | null>
+): Promise<Map<string, string>> {
+	const ids = [...new Set([...transcriptionIds].filter(isNonEmptyString))];
+	if (ids.length === 0) return new Map();
+	const rows = await db
+		.selectFrom('project_transcriptions')
+		.select(['id', 'transcription_id'])
+		.where('project_id', '=', projectId)
+		.where('transcription_id', 'in', ids)
+		.execute();
+	return new Map(
+		rows.map(row => [row.transcription_id, requireId(row.id, 'project transcription')])
+	);
+}
+
 export interface CollationListItem {
 	id: string;
 	projectId: string;
@@ -659,20 +677,9 @@ async function loadWitnessSourceMetadata(
 		.select(['id', 'current_revision_id', 'current_content_hash'])
 		.where('id', 'in', transcriptionIds)
 		.execute();
-	const projectTranscriptionRows = projectId
-		? await db
-				.selectFrom('project_transcriptions')
-				.select(['id', 'transcription_id'])
-				.where('project_id', '=', projectId)
-				.where('transcription_id', 'in', transcriptionIds)
-				.execute()
-		: [];
-	const projectTranscriptionIdByTranscriptionId = new Map(
-		projectTranscriptionRows.map(row => [
-			row.transcription_id,
-			requireId(row.id, 'project transcription'),
-		])
-	);
+	const projectTranscriptionIdByTranscriptionId = projectId
+		? await loadProjectTranscriptionIds(db, projectId, transcriptionIds)
+		: new Map<string, string>();
 
 	return new Map(
 		transcriptionRows.map(row => {

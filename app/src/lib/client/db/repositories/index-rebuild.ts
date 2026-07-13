@@ -30,6 +30,7 @@ import {
 	type JsonObject,
 	type ProjectManifestPayload,
 	type ProjectTranscriptionPayload,
+	type ReadDocumentResult,
 	type StoreDirectoryEntry,
 	type StoreOperationOptions,
 	type StoreQuarantineReason,
@@ -60,7 +61,7 @@ import type {
 	Transcriptions,
 } from '../types.generated';
 import { replaceTranscriptionVerseIndexRows } from './transcriptions';
-import { buildCollationProjectionFromDocument } from '$lib/client/collation/collation-projection';
+import { buildSerializedCollationProjectionRows } from '$lib/client/collation/collation-projection';
 
 type DbTransaction = Transaction<Database>;
 
@@ -361,16 +362,17 @@ async function collectCollationRows(
 	storeOptions: StoreOperationOptions
 ): Promise<void> {
 	const primaryPath = joinStorePath(projectFolder(projectSlug), primaryRelativePath);
-	const payload = await readCanonicalFile<CollationPayload>(
+	const primaryResult = await readCanonicalFileResult<CollationPayload>(
 		COLLATION_FORMAT,
 		primaryPath,
 		report,
 		storeOptions
 	);
+	const payload = primaryResult?.payload;
 	if (
 		!payload ||
 		!(await validateFilePayload(primaryPath, report, () =>
-			assertCollationRevisionHash(payload)
+			assertCollationRevisionHash(payload, primaryResult.originalVersion)
 		))
 	) {
 		return;
@@ -398,57 +400,49 @@ async function collectCollationRows(
 		created_at: indexPayload.created_at,
 		updated_at: indexPayload.updated_at,
 	});
-	const projection = buildCollationProjectionFromDocument(indexPayload.document);
-	for (const [index, witness] of projection.witnesses.entries()) {
+	const projectTranscriptionIds = new Map(
+		rows.projectTranscriptions
+			.filter(row => row.project_id === projectId)
+			.flatMap(row => (row.id ? [[row.transcription_id, row.id] as const] : []))
+	);
+	const projection = buildSerializedCollationProjectionRows(
+		payload.id,
+		indexPayload.document,
+		projectTranscriptionIds
+	);
+	for (const witness of projection.witnesses) {
 		rows.collationWitnesses.push({
-			id: `${payload.id}:witness:${index}`,
+			...witness,
 			collation_id: payload.id,
-			witness_id: witness.witnessId,
-			content: witness.content,
-			position: witness.position,
-			project_transcription_id: null,
-			transcription_id: witness.transcriptionId,
-			source_revision_id: witness.sourceVersion,
-			source_content_hash: witness.sourceContentHash ?? '',
 		});
 	}
-	for (const [index, token] of projection.tokens.entries()) {
+	for (const token of projection.tokens) {
 		rows.collationTokens.push({
-			id: `${payload.id}:token:${index}`,
+			...token,
 			collation_id: payload.id,
-			witness_id: token.witnessId,
-			token_index: token.tokenIndex,
-			token_text: token.tokenText,
 		});
 	}
-	for (const [unitIndex, unit] of projection.variationUnits.entries()) {
-		const unitId = `${payload.id}:unit:${unitIndex}`;
+	for (const unit of projection.variation_units) {
 		rows.collationVariationUnits.push({
-			id: unitId,
+			...unit,
 			collation_id: payload.id,
-			start_index: unit.startIndex,
-			end_index: unit.endIndex,
-			unit_type: unit.unitType,
-			base_text: unit.baseText,
 		});
-		for (const [readingIndex, reading] of unit.readings.entries()) {
-			const readingId = `${unitId}:reading:${readingIndex}`;
-			rows.collationReadings.push({
-				id: readingId,
-				variation_unit_id: unitId,
-				reading_order: reading.readingOrder,
-				reading_text: reading.readingText,
-				is_lacuna: reading.isLacuna ? 1 : 0,
-				is_omission: reading.isOmission ? 1 : 0,
-			});
-			for (const [witnessIndex, witnessId] of reading.witnessIds.entries()) {
-				rows.collationReadingWitnesses.push({
-					id: `${readingId}:witness:${witnessIndex}`,
-					reading_id: readingId,
-					witness_id: witnessId,
-				});
-			}
-		}
+	}
+	for (const reading of projection.readings) {
+		rows.collationReadings.push({
+			...reading,
+			is_lacuna: reading.is_lacuna ? 1 : 0,
+			is_omission: reading.is_omission ? 1 : 0,
+		});
+	}
+	const witnessIndexByReading = new Map<string, number>();
+	for (const witness of projection.reading_witnesses) {
+		const index = witnessIndexByReading.get(witness.reading_id) ?? 0;
+		witnessIndexByReading.set(witness.reading_id, index + 1);
+		rows.collationReadingWitnesses.push({
+			id: `${witness.reading_id}:witness:${index}`,
+			...witness,
+		});
 	}
 
 	await collectCollationCheckpointRows(projectSlug, payload.id, rows, report, storeOptions);
@@ -566,12 +560,13 @@ async function collectCollationCheckpointRows(
 	for (const entry of await listDirectoryIfExists(folder, storeOptions)) {
 		if (!isJsonFile(entry)) continue;
 		const path = joinStorePath(folder, entry.name);
-		const payload = await readCanonicalFile<CollationCheckpointPayload>(
+		const checkpointResult = await readCanonicalFileResult<CollationCheckpointPayload>(
 			COLLATION_CHECKPOINT_FORMAT,
 			path,
 			report,
 			storeOptions
 		);
+		const payload = checkpointResult?.payload;
 		if (!payload) continue;
 		if (payload.entity_id !== collationId) {
 			recordQuarantine(report, path, {
@@ -582,7 +577,7 @@ async function collectCollationCheckpointRows(
 		}
 		if (
 			!(await validateFilePayload(path, report, () =>
-				assertCollationCheckpointPayloadIntegrity(payload)
+				assertCollationCheckpointPayloadIntegrity(payload, checkpointResult.originalVersion)
 			))
 		) {
 			continue;
@@ -735,6 +730,30 @@ async function readCanonicalFile<TPayload extends JsonObject>(
 		const raw = await readTextFile(path, storeOptions);
 		const result = await readCanonicalDocument<TPayload>(format, raw);
 		if (result.ok) return result.payload;
+		recordQuarantine(report, path, result.quarantine);
+	} catch (error) {
+		recordQuarantine(report, path, quarantineFromError(error));
+	}
+	return null;
+}
+
+type SuccessfulRead<TPayload extends JsonObject> = Extract<
+	ReadDocumentResult<TPayload>,
+	{ ok: true }
+>;
+
+async function readCanonicalFileResult<TPayload extends JsonObject>(
+	format: string,
+	path: string,
+	report: IndexRebuildReport,
+	storeOptions: StoreOperationOptions
+): Promise<SuccessfulRead<TPayload> | null> {
+	try {
+		const result = await readCanonicalDocument<TPayload>(
+			format,
+			await readTextFile(path, storeOptions)
+		);
+		if (result.ok) return result;
 		recordQuarantine(report, path, result.quarantine);
 	} catch (error) {
 		recordQuarantine(report, path, quarantineFromError(error));

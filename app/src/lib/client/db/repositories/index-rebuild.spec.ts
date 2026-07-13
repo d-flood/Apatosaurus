@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { StoredTranscriptionDocument } from '$lib/client/transcription/content';
 import {
 	StoreMoveUnavailableError,
+	COLLATION_FIXTURE,
 	joinStorePath,
 	normalizeStorePath,
 	storePathBasename,
@@ -12,7 +13,11 @@ import {
 } from '$lib/client/store';
 
 import { createLocalDbTestHarness, type LocalDbTestHarness } from '../test-harness';
-import { createCollationWithFiles, loadCollationWithWorkingFile } from './collation-files';
+import {
+	createCollationWithFiles,
+	loadCollationWithWorkingFile,
+	saveWorkingCollationArtifact,
+} from './collation-files';
 import { rebuildIndexFromStore } from './index-rebuild';
 import { createProject, listProjects } from './projects';
 import { listCommittedTranscriptionCheckpoints } from './revisions';
@@ -45,23 +50,20 @@ describe('rebuildIndexFromStore', () => {
 			createdAt: '2026-07-06T00:00:00.000Z',
 			updatedAt: '2026-07-06T00:00:00.000Z',
 		});
-		await createTranscription(
-			harness.db,
-			{
-				id: 'tx-1',
-				projectId: 'project-1',
-				projectTranscriptionId: 'pt-1',
-				title: 'Witness 1',
-				siglum: '01',
-				document: documentWithVerses(['Romans 1:1']),
-				createdAt: '2026-07-06T00:01:00.000Z',
-				updatedAt: '2026-07-06T00:01:00.000Z',
-				transcriber: 'Editor',
-				repository: 'Library',
-				settlement: 'City',
-				language: 'grc',
-			}
-		);
+		await createTranscription(harness.db, {
+			id: 'tx-1',
+			projectId: 'project-1',
+			projectTranscriptionId: 'pt-1',
+			title: 'Witness 1',
+			siglum: '01',
+			document: documentWithVerses(['Romans 1:1']),
+			createdAt: '2026-07-06T00:01:00.000Z',
+			updatedAt: '2026-07-06T00:01:00.000Z',
+			transcriber: 'Editor',
+			repository: 'Library',
+			settlement: 'City',
+			language: 'grc',
+		});
 		await createCommittedTranscriptionCheckpointWithFiles(
 			harness.db,
 			{
@@ -91,6 +93,38 @@ describe('rebuildIndexFromStore', () => {
 			},
 			storeOptions
 		);
+		await saveWorkingCollationArtifact(
+			harness.db,
+			{
+				collationId: 'col-1',
+				artifactType: 'collation_document_v1',
+				payload: JSON.stringify({
+					...COLLATION_FIXTURE.document,
+					meta: { collationId: 'col-1', projectId: 'project-1', projectName: 'Project' },
+					setup: {
+						...COLLATION_FIXTURE.document.setup,
+						witnesses: [
+							{
+								type: 'witness',
+								id: '01',
+								siglum: '01',
+								transcriptionId: 'tx-1',
+								sourceVersion: 'a-child',
+								sourceContentHash: 'sha256:tx-1',
+								content: 'in principio',
+								treatment: 'full',
+								isBaseText: true,
+								isExcluded: false,
+								overridesDefault: false,
+								sourceTokens: [],
+							},
+						],
+					},
+				}),
+				now: '2026-07-06T00:02:30.000Z',
+			},
+			storeOptions
+		);
 
 		await harness.db
 			.updateTable('transcriptions')
@@ -100,11 +134,14 @@ describe('rebuildIndexFromStore', () => {
 			})
 			.where('id', '=', 'tx-1')
 			.execute();
-		await harness.db.deleteFrom('collation_artifacts').where('collation_id', '=', 'col-1').execute();
+		await harness.db
+			.deleteFrom('collation_artifacts')
+			.where('collation_id', '=', 'col-1')
+			.execute();
 
 		const report = await rebuildIndexFromStore(harness.db, { backend });
 
-			expect(report).toMatchObject({
+		expect(report).toMatchObject({
 			projectsRestored: 1,
 			transcriptionsRestored: 1,
 			collationsRestored: 1,
@@ -115,9 +152,15 @@ describe('rebuildIndexFromStore', () => {
 			orphanedFiles: [],
 		});
 		expect(await listProjects(harness.db)).toEqual([
-			expect.objectContaining({ id: 'project-1', storageSlug: 'project-slug', name: 'Project' }),
+			expect.objectContaining({
+				id: 'project-1',
+				storageSlug: 'project-slug',
+				name: 'Project',
+			}),
 		]);
-		expect(await loadTranscriptionWithWorkingFile(harness.db, 'tx-1', { backend })).toMatchObject({
+		expect(
+			await loadTranscriptionWithWorkingFile(harness.db, 'tx-1', { backend })
+		).toMatchObject({
 			id: 'tx-1',
 			project_id: 'project-1',
 			title: 'Witness 1',
@@ -132,11 +175,22 @@ describe('rebuildIndexFromStore', () => {
 				parentCheckpointId: 'z-parent',
 				isCommitted: true,
 			}),
-			expect.objectContaining({ id: 'z-parent', parentCheckpointId: null, isCommitted: true }),
+			expect.objectContaining({
+				id: 'z-parent',
+				parentCheckpointId: null,
+				isCommitted: true,
+			}),
 		]);
 		expect(await loadCollationWithWorkingFile(harness.db, 'col-1', { backend })).toMatchObject({
 			row: expect.objectContaining({ id: 'col-1', projectId: 'project-1' }),
 		});
+		await expect(
+			harness.db
+				.selectFrom('collation_witnesses')
+				.select(['transcription_id', 'project_transcription_id'])
+				.where('collation_id', '=', 'col-1')
+				.executeTakeFirstOrThrow()
+		).resolves.toEqual({ transcription_id: 'tx-1', project_transcription_id: 'pt-1' });
 	});
 });
 
@@ -210,7 +264,10 @@ class MemoryStoreBackend implements StoreBackend {
 		}
 		for (const file of this.files.keys()) {
 			if (storePathDirname(file) === normalized) {
-				entries.set(storePathBasename(file), { name: storePathBasename(file), kind: 'file' });
+				entries.set(storePathBasename(file), {
+					name: storePathBasename(file),
+					kind: 'file',
+				});
 			}
 		}
 		return [...entries.values()].sort((left, right) => left.name.localeCompare(right.name));

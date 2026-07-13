@@ -2,7 +2,12 @@ import type { DocumentUpgrader, FormatRegistration } from '../migrate-on-read';
 import type { JsonObject, SealedDocument } from '../envelope';
 import { invalidShape } from '../quarantine';
 import { assertContentHashMatches } from './validation';
-import { COLLATION_FIXTURE, readCollationContent, type CollationContent } from './collation';
+import {
+	COLLATION_FIXTURE,
+	readCollationContent,
+	upgradeLegacyCollationContent,
+	type CollationContent,
+} from './collation';
 import {
 	COLLATION_HISTORY_ENTITY_TYPE,
 	readCheckpointBasePayload,
@@ -11,8 +16,27 @@ import {
 } from './checkpoint-utils';
 
 export const COLLATION_CHECKPOINT_FORMAT = 'apatosaurus.checkpoint.collation';
-export const COLLATION_CHECKPOINT_CURRENT_VERSION = 1;
-export const collationCheckpointUpgraders: DocumentUpgrader[] = [];
+export const COLLATION_CHECKPOINT_CURRENT_VERSION = 2;
+export const collationCheckpointUpgraders: DocumentUpgrader[] = [
+	async payload => {
+		const record = payload as Record<string, unknown>;
+		const base = readCheckpointBasePayload(record, COLLATION_HISTORY_ENTITY_TYPE);
+		await assertContentHashMatches(
+			base.payload,
+			base.payload_content_hash,
+			`Checkpoint ${base.checkpoint_id}`
+		);
+		return {
+			...base,
+			entity_type: readHistoryEntityType(
+				record,
+				'entity_type',
+				COLLATION_HISTORY_ENTITY_TYPE
+			),
+			payload: upgradeLegacyCollationContent(base.payload as Record<string, unknown>),
+		};
+	},
+];
 
 export type CollationCheckpointPayload = CheckpointBasePayload & {
 	entity_type: 'collation';
@@ -34,7 +58,12 @@ export const COLLATION_CHECKPOINT_FIXTURE: CollationCheckpointPayload = {
 	author_name: 'Editor',
 	created_at: '2026-07-03T00:00:00.000Z',
 	payload: (() => {
-		const { current_revision: _, created_at: _createdAt, updated_at: _updatedAt, ...content } = COLLATION_FIXTURE;
+		const {
+			current_revision: _,
+			created_at: _createdAt,
+			updated_at: _updatedAt,
+			...content
+		} = COLLATION_FIXTURE;
 		return content;
 	})(),
 };
@@ -45,7 +74,9 @@ export const COLLATION_CHECKPOINT_OLD_SHAPE_FIXTURE = {
 	content_hash: COLLATION_CHECKPOINT_FIXTURE.payload_content_hash,
 };
 
-export function validateCollationCheckpointPayload(payload: JsonObject): CollationCheckpointPayload {
+export function validateCollationCheckpointPayload(
+	payload: JsonObject
+): CollationCheckpointPayload {
 	const record = payload as Record<string, unknown>;
 	const base = readCheckpointBasePayload(record, COLLATION_HISTORY_ENTITY_TYPE);
 	return {
@@ -56,13 +87,16 @@ export function validateCollationCheckpointPayload(payload: JsonObject): Collati
 }
 
 export async function assertCollationCheckpointPayloadIntegrity(
-	payload: CollationCheckpointPayload
+	payload: CollationCheckpointPayload,
+	originalVersion = COLLATION_CHECKPOINT_CURRENT_VERSION
 ): Promise<void> {
-	await assertContentHashMatches(
-		payload.payload,
-		payload.payload_content_hash,
-		`Checkpoint ${payload.checkpoint_id}`
-	);
+	if (originalVersion >= COLLATION_CHECKPOINT_CURRENT_VERSION) {
+		await assertContentHashMatches(
+			payload.payload,
+			payload.payload_content_hash,
+			`Checkpoint ${payload.checkpoint_id}`
+		);
+	}
 	const nestedPayload = payload.payload;
 	if (!nestedPayload || typeof nestedPayload !== 'object' || Array.isArray(nestedPayload)) {
 		throw invalidShape('Collation checkpoint payload must be an object.');
@@ -72,9 +106,10 @@ export async function assertCollationCheckpointPayloadIntegrity(
 	}
 }
 
-export const collationCheckpointFormatRegistration: FormatRegistration<CollationCheckpointPayload> = {
-	format: COLLATION_CHECKPOINT_FORMAT,
-	currentVersion: COLLATION_CHECKPOINT_CURRENT_VERSION,
-	upgraders: collationCheckpointUpgraders,
-	validate: validateCollationCheckpointPayload,
-};
+export const collationCheckpointFormatRegistration: FormatRegistration<CollationCheckpointPayload> =
+	{
+		format: COLLATION_CHECKPOINT_FORMAT,
+		currentVersion: COLLATION_CHECKPOINT_CURRENT_VERSION,
+		upgraders: collationCheckpointUpgraders,
+		validate: validateCollationCheckpointPayload,
+	};

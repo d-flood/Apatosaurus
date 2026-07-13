@@ -34,7 +34,10 @@ import {
 	serializeCollationDocument,
 	type CollationDocument as SemanticCollationDocument,
 } from '$lib/client/collation/collation-document';
-import { buildCollationProjectionFromDocument } from '$lib/client/collation/collation-projection';
+import {
+	buildCollationProjectionFromDocument,
+	buildSerializedCollationProjectionRows,
+} from '$lib/client/collation/collation-projection';
 import { hashCanonicalPayload } from '$lib/client/sync/canonical-json';
 import { deriveEntityCloudBackupState } from '$lib/client/sync/backup-status';
 
@@ -255,15 +258,24 @@ export async function createCommittedCollationCheckpointWithFiles(
 			storeOptions
 		);
 
-		const checkpoint = await recordCommittedCollationCheckpoint(db, source.content.id, contentHash, payload, {
-			...input,
-			checkpointId,
-			createdAt,
-			authorName,
-			commitMessage,
-		});
+		const checkpoint = await recordCommittedCollationCheckpoint(
+			db,
+			source.content.id,
+			contentHash,
+			payload,
+			{
+				...input,
+				checkpointId,
+				createdAt,
+				authorName,
+				commitMessage,
+			}
+		);
 		try {
-			await deleteFile(collationWorkingFile(context.projectStorageSlug, context.collationId), storeOptions);
+			await deleteFile(
+				collationWorkingFile(context.projectStorageSlug, context.collationId),
+				storeOptions
+			);
 		} catch (error) {
 			if (!isMissingFileError(error)) throw error;
 		}
@@ -310,7 +322,8 @@ export async function loadCommittedCollationPayloadWithFiles(
 ): Promise<CollationPayload> {
 	const context = await loadCollationFileContext(db, collationId);
 	const payload = await tryReadPrimaryCollationPayload(context, storeOptions);
-	if (!payload) throw new Error(`Canonical committed collation file for ${collationId} was not found.`);
+	if (!payload)
+		throw new Error(`Canonical committed collation file for ${collationId} was not found.`);
 	return payload;
 }
 
@@ -323,21 +336,10 @@ export async function getCollationVersionStatusWithWorkingFile(
 	const base = await getCollationVersionStatus(db, collationId, options);
 	const context = await loadCollationFileContext(db, collationId);
 	const payload = await tryReadWorkingCollationPayload(context, storeOptions);
-	if (payload)
-		return collationVersionStatusFromSerialized(
-			db,
-			base,
-			payload,
-			options
-		);
+	if (payload) return collationVersionStatusFromSerialized(db, base, payload, options);
 	const primaryPayload = await tryReadPrimaryCollationPayload(context, storeOptions);
 	if (primaryPayload) {
-		return collationVersionStatusFromSerialized(
-			db,
-			base,
-			primaryPayload,
-			options
-		);
+		return collationVersionStatusFromSerialized(db, base, primaryPayload, options);
 	}
 	if (storeOptions.allowIndexFallback === false) {
 		throw new Error(`Canonical collation file for ${collationId} was not found.`);
@@ -612,7 +614,7 @@ async function tryReadPrimaryCollationPayload(
 		return null;
 	}
 	try {
-		await assertCollationRevisionHash(payload);
+		await assertCollationRevisionHash(payload, result.originalVersion);
 	} catch (error) {
 		console.warn(
 			'[document-store] Ignoring collation primary file with invalid revision hash.',
@@ -672,18 +674,7 @@ function loadedCollationFromPrimaryPayload(payload: CollationPayload): LoadedCol
 function serializedCollationFromPayload(
 	payload: LoadedWorkingCollationPayload | CollationPayload
 ): SerializedCollation {
-	const projection = buildCollationProjectionFromDocument(payload.document);
-	const variationUnits = projection.variationUnits.map((unit, unitIndex) => ({
-		id: `${payload.id}:unit:${unitIndex}`,
-		...unit,
-	}));
-	const readings = variationUnits.flatMap(unit =>
-		unit.readings.map((reading, readingIndex) => ({
-			id: `${unit.id}:reading:${readingIndex}`,
-			variationUnitId: unit.id,
-			...reading,
-		}))
-	);
+	const projection = buildSerializedCollationProjectionRows(payload.id, payload.document);
 	return {
 		id: payload.id,
 		project_id: payload.project_id,
@@ -693,40 +684,7 @@ function serializedCollationFromPayload(
 		group_path: payload.group_path,
 		notes: payload.notes,
 		sort_key: payload.sort_key,
-		witnesses: projection.witnesses.map((row, index) => ({
-			id: `${payload.id}:witness:${index}`,
-			witness_id: row.witnessId,
-			content: row.content,
-			position: row.position,
-			project_transcription_id: null,
-			transcription_id: row.transcriptionId,
-			source_revision_id: row.sourceVersion,
-			source_content_hash: row.sourceContentHash ?? '',
-		})),
-		tokens: projection.tokens.map((row, index) => ({
-			id: `${payload.id}:token:${index}`,
-			witness_id: row.witnessId,
-			token_index: row.tokenIndex,
-			token_text: row.tokenText,
-		})),
-		variation_units: variationUnits.map(unit => ({
-			id: unit.id,
-			start_index: unit.startIndex,
-			end_index: unit.endIndex,
-			unit_type: unit.unitType,
-			base_text: unit.baseText,
-		})),
-		readings: readings.map(reading => ({
-			id: reading.id,
-			variation_unit_id: reading.variationUnitId,
-			reading_order: reading.readingOrder,
-			reading_text: reading.readingText,
-			is_lacuna: reading.isLacuna,
-			is_omission: reading.isOmission,
-		})),
-		reading_witnesses: readings.flatMap(reading =>
-			reading.witnessIds.map(witnessId => ({ reading_id: reading.id, witness_id: witnessId }))
-		),
+		...projection,
 		artifacts: [
 			{
 				id: `${payload.id}:document`,
@@ -765,7 +723,9 @@ function artifactRecordFromDocument(
 	};
 }
 
-function projectionRecordFromDocument(document: SemanticCollationDocument): CollationProjectionRecord {
+function projectionRecordFromDocument(
+	document: SemanticCollationDocument
+): CollationProjectionRecord {
 	const projection = buildCollationProjectionFromDocument(document);
 	return {
 		witnesses: projection.witnesses,

@@ -30,6 +30,7 @@ import {
 	type StoreOperationOptions,
 } from '$lib/client/store';
 import { rebuildIndexFromStore } from '$lib/client/db/repositories/index-rebuild';
+import { loadProjectTranscriptionIds } from '$lib/client/db/repositories/collations';
 import { canonicalJson } from './canonical-json';
 import {
 	applyCollationTombstone,
@@ -355,7 +356,15 @@ export async function publishEntity(
 		}
 
 		const historyPath = historyPathFor(local.entityType, local.entityId, local.head.revisionId);
-		await ensureHistoryFile(db, provider, context, local, historyPath, result, options.storeOptions);
+		await ensureHistoryFile(
+			db,
+			provider,
+			context,
+			local,
+			historyPath,
+			result,
+			options.storeOptions
+		);
 		historyUploaded = true;
 
 		const primaryContent = await serializePrimaryFile(db, local, options.storeOptions);
@@ -543,10 +552,14 @@ export async function deriveProjectBackupSummary(
 	]);
 	const [transcriptions, collations] = await Promise.all([
 		Promise.all(
-			transcriptionReferences.map(reference => deriveEntityBackupItem(db, context, reference, storeOptions))
+			transcriptionReferences.map(reference =>
+				deriveEntityBackupItem(db, context, reference, storeOptions)
+			)
 		),
 		Promise.all(
-			collationReferences.map(reference => deriveEntityBackupItem(db, context, reference, storeOptions))
+			collationReferences.map(reference =>
+				deriveEntityBackupItem(db, context, reference, storeOptions)
+			)
 		),
 	]);
 	const tombstoneItems = tombstones.map(row => {
@@ -659,7 +672,12 @@ export async function backupProject(
 		context,
 		options.folder ?? null
 	);
-	const summary = await deriveProjectBackupSummary(db, backupContext, folder, options.storeOptions);
+	const summary = await deriveProjectBackupSummary(
+		db,
+		backupContext,
+		folder,
+		options.storeOptions
+	);
 	const result: ProjectBackupResult = {
 		...baseResult('sync pending'),
 		projectId: backupContext.projectId,
@@ -705,8 +723,18 @@ export async function listProjectArchiveFiles(
 ): Promise<ProjectArchiveFile[]> {
 	const root = await loadProjectStoreRoot(db, projectId);
 	const files: LocalMirrorFile[] = [];
-	await collectLocalMirrorFiles(root, '', files, options.storeOptions ?? {}, options.includeDrafts ?? false);
-	return files.map(file => ({ path: file.path, storePath: file.storePath, content: file.content }));
+	await collectLocalMirrorFiles(
+		root,
+		'',
+		files,
+		options.storeOptions ?? {},
+		options.includeDrafts ?? false
+	);
+	return files.map(file => ({
+		path: file.path,
+		storePath: file.storePath,
+		content: file.content,
+	}));
 }
 
 async function updateLegacyCloudProjectFolderSyncState(
@@ -745,11 +773,16 @@ export async function backupProjectEntity(
 	};
 	const local = await loadLocalEntity(db, reference, options.storeOptions);
 	if (local.projectId !== backupContext.projectId) {
-		throw new Error(`${reference.entityType} ${reference.entityId} does not belong to this project.`);
+		throw new Error(
+			`${reference.entityType} ${reference.entityId} does not belong to this project.`
+		);
 	}
 	const item = await deriveEntityBackupItem(db, backupContext, reference, options.storeOptions);
 	if (isBlockingBackupItem(item)) {
-		result.uiState = item.status === 'uncommitted-local-changes' ? 'uncommitted local changes' : 'saved locally';
+		result.uiState =
+			item.status === 'uncommitted-local-changes'
+				? 'uncommitted local changes'
+				: 'saved locally';
 		result.skippedItems = [item];
 		return result;
 	}
@@ -758,14 +791,16 @@ export async function backupProjectEntity(
 	mergeOperationResult(result, entityResult);
 	result.entityResults.push(entityResult);
 	if (entityResult.uiState !== 'synced' || hasOperationFailure(result)) {
-		result.uiState = result.quarantines.length > 0 ? 'conflict requires resolution' : 'sync pending';
+		result.uiState =
+			result.quarantines.length > 0 ? 'conflict requires resolution' : 'sync pending';
 		return result;
 	}
 
 	const manifestResult = await publishProjectManifest(db, provider, backupContext);
 	mergeOperationResult(result, manifestResult);
 	result.manifestUploaded = manifestResult.uiState === 'synced';
-	result.uiState = result.manifestUploaded && !hasOperationFailure(result) ? 'synced' : 'sync pending';
+	result.uiState =
+		result.manifestUploaded && !hasOperationFailure(result) ? 'synced' : 'sync pending';
 	return result;
 }
 
@@ -792,7 +827,10 @@ async function ensureProjectBackupFolder(
 	}
 
 	const folderPath = normalizeSlashes(context.cloudFolderPath ?? context.cloudFolderId);
-	const segments = folderPath.split('/').map(segment => segment.trim()).filter(Boolean);
+	const segments = folderPath
+		.split('/')
+		.map(segment => segment.trim())
+		.filter(Boolean);
 	if (segments.length === 0) throw new Error('Backup folder path is required.');
 
 	let parentFolderId = providerRootFolderId(provider);
@@ -945,9 +983,20 @@ async function mirrorProjectFiles(
 			const remoteFile = remoteFiles.get(localFile.path) ?? null;
 			const cached = await getFileFingerprint(db, context, localFile.path);
 			if (!remoteFile) {
-				const write = await provider.createFile(context.cloudFolderId, localFile.path, localFile.content);
+				const write = await provider.createFile(
+					context.cloudFolderId,
+					localFile.path,
+					localFile.content
+				);
 				result.uploadedPaths.push(localFile.path);
-				await upsertFileFingerprint(db, context, localFile, write, localFile.fingerprint, now);
+				await upsertFileFingerprint(
+					db,
+					context,
+					localFile,
+					write,
+					localFile.fingerprint,
+					now
+				);
 				continue;
 			}
 
@@ -970,12 +1019,20 @@ async function mirrorProjectFiles(
 				? cached.remoteContentHash === remoteFile.fingerprint.contentHash
 				: false;
 			if (localUnchanged && !remoteUnchanged) {
-				const validation = await validateRemoteMirrorFile(remoteFile.path, remoteFile.content, context);
+				const validation = await validateRemoteMirrorFile(
+					remoteFile.path,
+					remoteFile.content,
+					context
+				);
 				if (validation) {
 					result.quarantines.push(validation);
 					continue;
 				}
-				const pulledLocalFile = await writePulledMirrorFile(projectRoot, remoteFile, storeOptions);
+				const pulledLocalFile = await writePulledMirrorFile(
+					projectRoot,
+					remoteFile,
+					storeOptions
+				);
 				pulledFiles.push({ localFile: pulledLocalFile, remoteFile });
 				result.downloadedPaths.push(remoteFile.path);
 				continue;
@@ -987,7 +1044,14 @@ async function mirrorProjectFiles(
 					remoteFile.metadata.revision
 				);
 				result.uploadedPaths.push(localFile.path);
-				await upsertFileFingerprint(db, context, localFile, write, localFile.fingerprint, now);
+				await upsertFileFingerprint(
+					db,
+					context,
+					localFile,
+					write,
+					localFile.fingerprint,
+					now
+				);
 				continue;
 			}
 
@@ -1015,12 +1079,20 @@ async function mirrorProjectFiles(
 				left.path.localeCompare(right.path)
 			)) {
 				if (localPaths.has(remoteFile.path)) continue;
-				const validation = await validateRemoteMirrorFile(remoteFile.path, remoteFile.content, context);
+				const validation = await validateRemoteMirrorFile(
+					remoteFile.path,
+					remoteFile.content,
+					context
+				);
 				if (validation) {
 					result.quarantines.push(validation);
 					continue;
 				}
-				const pulledLocalFile = await writePulledMirrorFile(projectRoot, remoteFile, storeOptions);
+				const pulledLocalFile = await writePulledMirrorFile(
+					projectRoot,
+					remoteFile,
+					storeOptions
+				);
 				pulledFiles.push({ localFile: pulledLocalFile, remoteFile });
 				result.downloadedPaths.push(remoteFile.path);
 			}
@@ -1046,7 +1118,8 @@ async function mirrorProjectFiles(
 		if (isCloudProviderError(error)) {
 			result.providerError = error.code;
 			result.providerMessage = error.message;
-			result.uiState = error.code === 'conflict' ? 'conflict requires resolution' : 'sync pending';
+			result.uiState =
+				error.code === 'conflict' ? 'conflict requires resolution' : 'sync pending';
 			return result;
 		}
 		throw error;
@@ -1061,7 +1134,11 @@ async function listLocalProjectMirrorFiles(
 	const root = await loadProjectStoreRoot(db, projectId);
 	const files: LocalMirrorFile[] = [];
 	await collectLocalMirrorFiles(root, '', files, storeOptions, false);
-	return files.sort((left, right) => mirrorWriteOrder(left.path) - mirrorWriteOrder(right.path) || left.path.localeCompare(right.path));
+	return files.sort(
+		(left, right) =>
+			mirrorWriteOrder(left.path) - mirrorWriteOrder(right.path) ||
+			left.path.localeCompare(right.path)
+	);
 }
 
 async function loadProjectStoreRoot(db: DbExecutor, projectId: string): Promise<string> {
@@ -1092,7 +1169,13 @@ async function collectLocalMirrorFiles(
 		const childRelativePath = joinStorePath(relativePath, entry.name);
 		const childStorePath = joinStorePath(storePath, entry.name);
 		if (entry.kind === 'directory') {
-			await collectLocalMirrorFiles(childStorePath, childRelativePath, files, storeOptions, includeDrafts);
+			await collectLocalMirrorFiles(
+				childStorePath,
+				childRelativePath,
+				files,
+				storeOptions,
+				includeDrafts
+			);
 			continue;
 		}
 		if (!shouldMirrorProjectFile(childRelativePath, includeDrafts)) continue;
@@ -1251,7 +1334,11 @@ async function mirrorPathEntityHead(
 		const entityId = transcriptionMatch[1];
 		const row = await db
 			.selectFrom('project_transcriptions')
-			.innerJoin('transcriptions', 'transcriptions.id', 'project_transcriptions.transcription_id')
+			.innerJoin(
+				'transcriptions',
+				'transcriptions.id',
+				'project_transcriptions.transcription_id'
+			)
 			.select([
 				'transcriptions.current_revision_id as revision_id',
 				'transcriptions.current_content_hash as content_hash',
@@ -1283,9 +1370,7 @@ async function mirrorPathEntityHead(
 	return { entityType: '', entityId: '', revisionId: '', contentHash: '' };
 }
 
-function mapSyncFileFingerprint(
-	row: Selectable<SyncFileFingerprints>
-): SyncFileFingerprintRecord {
+function mapSyncFileFingerprint(row: Selectable<SyncFileFingerprints>): SyncFileFingerprintRecord {
 	return {
 		targetId: row.target_id,
 		projectId: row.project_id,
@@ -1339,7 +1424,10 @@ async function fingerprintText(content: string, modifiedAt: string): Promise<Fil
 }
 
 async function hashText(content: string): Promise<string> {
-	const digest = await globalThis.crypto?.subtle?.digest('SHA-256', new TextEncoder().encode(content));
+	const digest = await globalThis.crypto?.subtle?.digest(
+		'SHA-256',
+		new TextEncoder().encode(content)
+	);
 	if (!digest) throw new Error('SHA-256 hashing is unavailable.');
 	return `sha256:${[...new Uint8Array(digest)]
 		.map(byte => byte.toString(16).padStart(2, '0'))
@@ -1770,9 +1858,22 @@ async function applyCollationPrimary(db: DbExecutor, file: CollationCloudFile): 
 			.execute();
 	}
 	if (projection.witnesses.length > 0) {
+		const projectTranscriptionByTranscription = await loadProjectTranscriptionIds(
+			db,
+			file.project_id,
+			projection.witnesses.map(row => row.transcription_id)
+		);
 		await db
 			.insertInto('collation_witnesses')
-			.values(projection.witnesses.map(row => ({ ...row, collation_id: file.id })))
+			.values(
+				projection.witnesses.map(row => ({
+					...row,
+					project_transcription_id: row.transcription_id
+						? (projectTranscriptionByTranscription.get(row.transcription_id) ?? null)
+						: null,
+					collation_id: file.id,
+				}))
+			)
 			.execute();
 	}
 	if (projection.tokens.length > 0) {
@@ -2172,10 +2273,15 @@ async function loadLocalEntity(
 		primaryPath: primaryPathFor(reference.entityType, reference.entityId),
 		head,
 		dirty: (
-			await getCollationVersionStatusWithWorkingFile(db, reference.entityId, {}, {
-				...storeOptions,
-				allowIndexFallback: false,
-			})
+			await getCollationVersionStatusWithWorkingFile(
+				db,
+				reference.entityId,
+				{},
+				{
+					...storeOptions,
+					allowIndexFallback: false,
+				}
+			)
 		).dirtyToCheckpoint,
 		hasCommittedHead: hasHead(head),
 	};

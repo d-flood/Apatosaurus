@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
+import { COLLATION_FIXTURE } from '$lib/client/store';
 import { deserializeAlignmentColumns } from './alignment-snapshot';
-import { buildCollationProjection } from './collation-projection';
+import {
+	buildCollationProjection,
+	buildSerializedCollationProjectionRows,
+} from './collation-projection';
+import type { CollationDocument } from './collation-document';
 import type { WitnessConfig } from './collation-types';
 
 function makeWitness(
@@ -33,6 +38,47 @@ function makeWitness(
 }
 
 describe('buildCollationProjection', () => {
+	it('serializes deterministic rows with project-scoped transcription links', () => {
+		const document = {
+			...COLLATION_FIXTURE.document,
+			setup: {
+				...COLLATION_FIXTURE.document.setup,
+				witnesses: [
+					{
+						type: 'witness',
+						id: 'A',
+						siglum: 'A',
+						transcriptionId: 'tx-1',
+						sourceVersion: 'cp-1',
+						sourceContentHash: 'sha256:tx-1',
+						content: 'in principio',
+						treatment: 'full',
+						isBaseText: true,
+						isExcluded: false,
+						overridesDefault: false,
+						sourceTokens: [],
+					},
+				],
+			},
+		} as CollationDocument;
+
+		const rows = buildSerializedCollationProjectionRows(
+			'col-1',
+			document,
+			new Map([['tx-1', 'pt-1']])
+		);
+
+		expect(rows.witnesses).toEqual([
+			expect.objectContaining({
+				id: 'col-1:witness:0',
+				transcription_id: 'tx-1',
+				project_transcription_id: 'pt-1',
+				source_revision_id: 'cp-1',
+				source_content_hash: 'sha256:tx-1',
+			}),
+		]);
+	});
+
 	it('projects active witnesses, source tokens, and variation units only', () => {
 		const witnesses = [
 			makeWitness('A', 'και θεος', { isBaseText: true }),

@@ -40,6 +40,41 @@ export interface CollationProjection {
 	variationUnits: ProjectedVariationUnitRow[];
 }
 
+export interface SerializedCollationProjectionRows {
+	witnesses: Array<{
+		id: string;
+		witness_id: string;
+		content: string;
+		position: number;
+		project_transcription_id: string | null;
+		transcription_id: string | null;
+		source_revision_id: string;
+		source_content_hash: string;
+	}>;
+	tokens: Array<{
+		id: string;
+		witness_id: string;
+		token_index: number;
+		token_text: string;
+	}>;
+	variation_units: Array<{
+		id: string;
+		start_index: number;
+		end_index: number;
+		unit_type: string;
+		base_text: string;
+	}>;
+	readings: Array<{
+		id: string;
+		variation_unit_id: string;
+		reading_order: number;
+		reading_text: string;
+		is_lacuna: boolean;
+		is_omission: boolean;
+	}>;
+	reading_witnesses: Array<{ reading_id: string; witness_id: string }>;
+}
+
 export function buildCollationProjection(input: {
 	witnesses: WitnessConfig[];
 	alignmentColumns: AlignmentColumn[];
@@ -114,9 +149,69 @@ export function buildCollationProjectionFromDocument(
 			return (
 				(baseWitnessId
 					? readings.find(reading => reading.witnessIds.includes(baseWitnessId))?.text
-					: undefined) ?? readings[0]?.text ?? ''
+					: undefined) ??
+				readings[0]?.text ??
+				''
 			);
 		},
 		getBaseWitnessId: () => baseWitnessId,
 	});
+}
+
+export function buildSerializedCollationProjectionRows(
+	collationId: string,
+	document: CollationDocument,
+	projectTranscriptionIdByTranscriptionId: ReadonlyMap<string, string> = new Map()
+): SerializedCollationProjectionRows {
+	const projection = buildCollationProjectionFromDocument(document);
+	const variationUnits = projection.variationUnits.map((unit, index) => ({
+		id: `${collationId}:unit:${index}`,
+		...unit,
+	}));
+	const readings = variationUnits.flatMap(unit =>
+		unit.readings.map((reading, index) => ({
+			id: `${unit.id}:reading:${index}`,
+			variationUnitId: unit.id,
+			...reading,
+		}))
+	);
+
+	return {
+		witnesses: projection.witnesses.map((row, index) => ({
+			id: `${collationId}:witness:${index}`,
+			witness_id: row.witnessId,
+			content: row.content,
+			position: row.position,
+			project_transcription_id: row.transcriptionId
+				? (projectTranscriptionIdByTranscriptionId.get(row.transcriptionId) ?? null)
+				: null,
+			transcription_id: row.transcriptionId,
+			source_revision_id: row.sourceVersion,
+			source_content_hash: row.sourceContentHash ?? '',
+		})),
+		tokens: projection.tokens.map((row, index) => ({
+			id: `${collationId}:token:${index}`,
+			witness_id: row.witnessId,
+			token_index: row.tokenIndex,
+			token_text: row.tokenText,
+		})),
+		variation_units: variationUnits.map(unit => ({
+			id: unit.id,
+			start_index: unit.startIndex,
+			end_index: unit.endIndex,
+			unit_type: unit.unitType,
+			base_text: unit.baseText,
+		})),
+		readings: readings.map(reading => ({
+			id: reading.id,
+			variation_unit_id: reading.variationUnitId,
+			reading_order: reading.readingOrder,
+			reading_text: reading.readingText,
+			is_lacuna: reading.isLacuna,
+			is_omission: reading.isOmission,
+		})),
+		reading_witnesses: readings.flatMap(reading =>
+			reading.witnessIds.map(witnessId => ({ reading_id: reading.id, witness_id: witnessId }))
+		),
+	};
 }

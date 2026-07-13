@@ -1,11 +1,27 @@
 import type { DocumentUpgrader, FormatRegistration } from '../migrate-on-read';
 import type { JsonObject, SealedDocument } from '../envelope';
 import { readDraftMetadata, type CanonicalDraftMetadata } from './common';
-import { COLLATION_FIXTURE, readCollationPayload, type CollationContent } from './collation';
+import {
+	COLLATION_FIXTURE,
+	readCollationPayload,
+	upgradeLegacyCollationContent,
+	type CollationContent,
+} from './collation';
+import { readString } from './validation';
 
 export const WORKING_COLLATION_FORMAT = 'apatosaurus.working.collation';
-export const WORKING_COLLATION_CURRENT_VERSION = 1;
-export const workingCollationUpgraders: DocumentUpgrader[] = [];
+export const WORKING_COLLATION_CURRENT_VERSION = 2;
+export const workingCollationUpgraders: DocumentUpgrader[] = [
+	payload => {
+		const record = payload as Record<string, unknown>;
+		return {
+			...upgradeLegacyCollationContent(record),
+			created_at: readString(record, 'created_at'),
+			updated_at: readString(record, 'updated_at'),
+			draft: record.draft as JsonObject,
+		};
+	},
+];
 
 export type WorkingCollationPayload = CollationContent &
 	JsonObject & {

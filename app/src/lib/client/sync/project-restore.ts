@@ -25,6 +25,7 @@ import {
 	type EntityCheckpointHead,
 } from '$lib/client/db/repositories/revisions';
 import { replaceTranscriptionVerseIndexRows } from '$lib/client/db/repositories/transcriptions';
+import { loadProjectTranscriptionIds } from '$lib/client/db/repositories/collations';
 import {
 	getCloudProjectFolder,
 	upsertCloudProjectFolder,
@@ -389,7 +390,9 @@ export async function pollLinkedProjectManifest(
 				providerMessage: 'Linked cloud project folder does not contain project.json.',
 			};
 		}
-		const parsed = await parseProjectCloudFile(await provider.downloadFile(manifestMetadata.id));
+		const parsed = await parseProjectCloudFile(
+			await provider.downloadFile(manifestMetadata.id)
+		);
 		if (!parsed.ok) {
 			return {
 				ok: true,
@@ -442,7 +445,10 @@ export async function compareRemoteManifestToLocalProject(
 
 	const entities: RemoteProjectEntityComparison[] = [];
 	for (const head of manifest.transcriptions) {
-		const local = await loadLocalProjectTranscriptionComparisonHead(db, head.project_transcription_id);
+		const local = await loadLocalProjectTranscriptionComparisonHead(
+			db,
+			head.project_transcription_id
+		);
 		const metadata = await getPrimarySyncMetadata(db, context, {
 			entityType: 'project-transcription',
 			entityId: head.project_transcription_id,
@@ -485,7 +491,10 @@ export async function compareRemoteManifestToLocalProject(
 	}
 	for (const head of manifest.tombstones) {
 		const localExists = await localTombstoneExists(db, head.tombstone_id);
-		const remoteHead = { revisionId: head.deletion_revision_id, contentHash: head.content_hash };
+		const remoteHead = {
+			revisionId: head.deletion_revision_id,
+			contentHash: head.content_hash,
+		};
 		entities.push({
 			entityType: 'tombstone',
 			entityId: head.tombstone_id,
@@ -529,7 +538,9 @@ export async function pullLinkedProjectUpdates(
 			],
 		};
 	}
-	const parsedManifest = await parseProjectCloudFile(await provider.downloadFile(manifestMetadata.id));
+	const parsedManifest = await parseProjectCloudFile(
+		await provider.downloadFile(manifestMetadata.id)
+	);
 	if (!parsedManifest.ok) {
 		return {
 			projectId: context.projectId,
@@ -571,12 +582,18 @@ export async function pullLinkedProjectUpdates(
 	);
 	const changedCollationIds = new Set(
 		comparison.entities
-			.filter(entity => entity.entityType === 'collation' && entity.status === 'remote-update-available')
+			.filter(
+				entity =>
+					entity.entityType === 'collation' && entity.status === 'remote-update-available'
+			)
 			.map(entity => entity.entityId)
 	);
 	const changedTombstoneIds = new Set(
 		comparison.entities
-			.filter(entity => entity.entityType === 'tombstone' && entity.status === 'remote-update-available')
+			.filter(
+				entity =>
+					entity.entityType === 'tombstone' && entity.status === 'remote-update-available'
+			)
 			.map(entity => entity.entityId)
 	);
 	if (
@@ -616,8 +633,16 @@ export async function pullLinkedProjectUpdates(
 		filesByRelativePath,
 		changedManifest
 	);
-	const loadedCollations = await loadCollationFiles(provider, filesByRelativePath, changedManifest);
-	const loadedTombstones = await loadTombstoneFiles(provider, filesByRelativePath, changedManifest);
+	const loadedCollations = await loadCollationFiles(
+		provider,
+		filesByRelativePath,
+		changedManifest
+	);
+	const loadedTombstones = await loadTombstoneFiles(
+		provider,
+		filesByRelativePath,
+		changedManifest
+	);
 	const quarantines = [
 		...loadedTranscriptions.quarantines,
 		...loadedCollations.quarantines,
@@ -1243,13 +1268,10 @@ async function importCollationPrimary(db: DbExecutor, input: CollationImportInpu
 			.execute();
 	}
 	if (input.witnesses.length > 0) {
-		const projectTranscriptions = await db
-			.selectFrom('project_transcriptions')
-			.select(['id', 'transcription_id'])
-			.where('project_id', '=', input.project_id)
-			.execute();
-		const projectTranscriptionByTranscription = new Map(
-			projectTranscriptions.map(row => [row.transcription_id, row.id])
+		const projectTranscriptionByTranscription = await loadProjectTranscriptionIds(
+			db,
+			input.project_id,
+			input.witnesses.map(row => row.transcription_id)
 		);
 		await db
 			.insertInto('collation_witnesses')
@@ -1260,7 +1282,8 @@ async function importCollationPrimary(db: DbExecutor, input: CollationImportInpu
 						project_transcription_id:
 							row.project_transcription_id ??
 							(row.transcription_id
-								? (projectTranscriptionByTranscription.get(row.transcription_id) ?? null)
+								? (projectTranscriptionByTranscription.get(row.transcription_id) ??
+									null)
 								: null),
 						collation_id: input.id,
 					})
@@ -1389,32 +1412,61 @@ async function replaceCollationPrimary(db: DbExecutor, input: CollationImportInp
 			.execute();
 	}
 	if (input.witnesses.length > 0) {
+		const projectTranscriptionByTranscription = await loadProjectTranscriptionIds(
+			db,
+			input.project_id,
+			input.witnesses.map(row => row.transcription_id)
+		);
 		await db
 			.insertInto('collation_witnesses')
-			.values(input.witnesses.map((row): Selectable<CollationWitnesses> => ({ ...row, collation_id: input.id })))
+			.values(
+				input.witnesses.map(
+					(row): Selectable<CollationWitnesses> => ({
+						...row,
+						project_transcription_id: row.transcription_id
+							? (projectTranscriptionByTranscription.get(row.transcription_id) ??
+								null)
+							: null,
+						collation_id: input.id,
+					})
+				)
+			)
 			.execute();
 	}
 	if (input.tokens.length > 0) {
 		await db
 			.insertInto('collation_tokens')
-			.values(input.tokens.map((row): Selectable<CollationTokens> => ({ ...row, collation_id: input.id })))
+			.values(
+				input.tokens.map(
+					(row): Selectable<CollationTokens> => ({ ...row, collation_id: input.id })
+				)
+			)
 			.execute();
 	}
 	if (input.variation_units.length > 0) {
 		await db
 			.insertInto('collation_variation_units')
-			.values(input.variation_units.map((row): Selectable<CollationVariationUnits> => ({ ...row, collation_id: input.id })))
+			.values(
+				input.variation_units.map(
+					(row): Selectable<CollationVariationUnits> => ({
+						...row,
+						collation_id: input.id,
+					})
+				)
+			)
 			.execute();
 	}
 	if (input.readings.length > 0) {
 		await db
 			.insertInto('collation_readings')
 			.values(
-				input.readings.map((row): Selectable<CollationReadings> => ({
-					...row,
-					is_lacuna: row.is_lacuna ? 1 : 0,
-					is_omission: row.is_omission ? 1 : 0,
-				}))
+				input.readings.map(
+					(row): Selectable<CollationReadings> => ({
+						...row,
+						is_lacuna: row.is_lacuna ? 1 : 0,
+						is_omission: row.is_omission ? 1 : 0,
+					})
+				)
 			)
 			.execute();
 	}
@@ -1422,11 +1474,13 @@ async function replaceCollationPrimary(db: DbExecutor, input: CollationImportInp
 		await db
 			.insertInto('collation_reading_witnesses')
 			.values(
-				input.reading_witnesses.map((row): Selectable<CollationReadingWitnesses> => ({
-					id: `${row.reading_id}:${row.witness_id}`,
-					reading_id: row.reading_id,
-					witness_id: row.witness_id,
-				}))
+				input.reading_witnesses.map(
+					(row): Selectable<CollationReadingWitnesses> => ({
+						id: `${row.reading_id}:${row.witness_id}`,
+						reading_id: row.reading_id,
+						witness_id: row.witness_id,
+					})
+				)
 			)
 			.execute();
 	}
@@ -1491,14 +1545,16 @@ async function upsertPrimarySyncMetadata(
 			last_synced_at: input.lastSyncedAt,
 		})
 		.onConflict(oc =>
-			oc.columns(['connection_id', 'scope_type', 'scope_id', 'entity_type', 'entity_id']).doUpdateSet({
-				cloud_file_id: input.cloudFileId,
-				cloud_file_revision: input.cloudFileRevision,
-				cloud_path: input.cloudPath,
-				last_synced_revision: input.lastSyncedRevision,
-				last_synced_hash: input.lastSyncedHash,
-				last_synced_at: input.lastSyncedAt,
-			})
+			oc
+				.columns(['connection_id', 'scope_type', 'scope_id', 'entity_type', 'entity_id'])
+				.doUpdateSet({
+					cloud_file_id: input.cloudFileId,
+					cloud_file_revision: input.cloudFileRevision,
+					cloud_path: input.cloudPath,
+					last_synced_revision: input.lastSyncedRevision,
+					last_synced_hash: input.lastSyncedHash,
+					last_synced_at: input.lastSyncedAt,
+				})
 		)
 		.execute();
 }
@@ -1618,9 +1674,7 @@ function manifestHead(
 }
 
 function syncMetadataHead(row: Selectable<CloudSyncMetadata> | null): EntityCheckpointHead | null {
-	return row
-		? { revisionId: row.last_synced_revision, contentHash: row.last_synced_hash }
-		: null;
+	return row ? { revisionId: row.last_synced_revision, contentHash: row.last_synced_hash } : null;
 }
 
 function headsEqual(left: EntityCheckpointHead, right: EntityCheckpointHead): boolean {

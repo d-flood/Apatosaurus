@@ -10,9 +10,14 @@ import {
 	serializeSealedDocument,
 	type JsonObject,
 } from '$lib/client/store/envelope';
-import { collationCheckpointFile, readTextFile, type StoreOperationOptions } from '$lib/client/store';
+import {
+	collationCheckpointFile,
+	readTextFile,
+	type StoreOperationOptions,
+} from '$lib/client/store';
 import {
 	COLLATION_CHECKPOINT_FORMAT,
+	COLLATION_CHECKPOINT_CURRENT_VERSION,
 	COLLATION_CURRENT_VERSION,
 	COLLATION_FORMAT,
 	PROJECT_MANIFEST_CURRENT_VERSION,
@@ -35,7 +40,7 @@ import {
 	type TombstonePayload,
 	type TranscriptionCheckpointPayload,
 } from '$lib/client/store/formats';
-import { buildCollationProjectionFromDocument } from '$lib/client/collation/collation-projection';
+import { buildSerializedCollationProjectionRows } from '$lib/client/collation/collation-projection';
 import {
 	hashMismatch,
 	invalidShape,
@@ -47,15 +52,8 @@ import {
 	buildTranscriptionHashPayload,
 	loadCommittedTranscriptionCheckpointPayload,
 	loadProjectTranscriptionSnapshot,
-	loadSerializedCollation,
 	type ProjectTranscriptionSnapshot,
 	type SerializedCollation,
-	type SerializedCollationArtifact,
-	type SerializedCollationReading,
-	type SerializedCollationReadingWitness,
-	type SerializedCollationToken,
-	type SerializedCollationVariationUnit,
-	type SerializedCollationWitness,
 	type SerializedIiifCanvasAnnotation,
 	type SerializedIiifManifestSource,
 	type SerializedTranscriptionPageCanvasLink,
@@ -142,14 +140,14 @@ export interface ProjectTranscriptionCloudFile extends ProjectTranscriptionSnaps
 }
 
 export interface CollationCloudFile extends CollationContent {
-	schema_version: CloudFileSchemaVersion;
+	schema_version: typeof COLLATION_CURRENT_VERSION;
 	current_revision: CloudCurrentRevision;
 	created_at: string;
 	updated_at: string;
 }
 
 interface BaseHistoryCloudFile {
-	schema_version: CloudFileSchemaVersion;
+	schema_version: number;
 	checkpoint_id: string;
 	entity_type: CloudHistoryEntityType;
 	entity_id: string;
@@ -286,7 +284,11 @@ async function cloudFileToCanonicalDocument(file: CloudFile) {
 		);
 	}
 	if (isCollationCloudFile(file)) {
-		return sealDocument(COLLATION_FORMAT, COLLATION_CURRENT_VERSION, collationCloudFileToPayload(file));
+		return sealDocument(
+			COLLATION_FORMAT,
+			COLLATION_CURRENT_VERSION,
+			collationCloudFileToPayload(file)
+		);
 	}
 	if (isHistoryCloudFile(file)) {
 		if (file.entity_type === 'project-transcription') {
@@ -298,11 +300,15 @@ async function cloudFileToCanonicalDocument(file: CloudFile) {
 		}
 		return sealDocument(
 			COLLATION_CHECKPOINT_FORMAT,
-			1,
+			COLLATION_CHECKPOINT_CURRENT_VERSION,
 			collationHistoryCloudFileToPayload(file)
 		);
 	}
-	return sealDocument(TOMBSTONE_FORMAT, TOMBSTONE_CURRENT_VERSION, tombstoneCloudFileToPayload(file));
+	return sealDocument(
+		TOMBSTONE_FORMAT,
+		TOMBSTONE_CURRENT_VERSION,
+		tombstoneCloudFileToPayload(file)
+	);
 }
 
 export async function serializeProjectCloudFile(
@@ -404,8 +410,15 @@ export async function serializeCollationCloudFile(
 		loadCommittedCollationPayloadWithFiles(db as Kysely<Database>, collationId, storeOptions),
 		loadCollationMetadata(db, collationId),
 	]);
-	assertCollationSourcesSyncReady(collationCloudFileToImportInput(collationPayloadToCloudFile(collation)));
-	const { current_revision: _revision, created_at: _createdAt, updated_at: _updatedAt, ...content } = collation;
+	assertCollationSourcesSyncReady(
+		collationCloudFileToImportInput(collationPayloadToCloudFile(collation))
+	);
+	const {
+		current_revision: _revision,
+		created_at: _createdAt,
+		updated_at: _updatedAt,
+		...content
+	} = collation;
 	const contentHash = await hashCanonicalPayload(content);
 	if (contentHash !== metadata.current_content_hash) {
 		throw new Error(
@@ -420,7 +433,7 @@ export async function serializeCollationCloudFile(
 	);
 
 	return {
-		schema_version: CLOUD_FILE_SCHEMA_VERSION,
+		schema_version: COLLATION_CURRENT_VERSION,
 		id: collation.id,
 		project_id: collation.project_id,
 		title: collation.title,
@@ -508,7 +521,7 @@ export async function serializeCollationHistoryCloudFile(
 	}
 
 	return {
-		schema_version: CLOUD_FILE_SCHEMA_VERSION,
+		schema_version: COLLATION_CHECKPOINT_CURRENT_VERSION,
 		checkpoint_id: requireId(row.id, 'collation checkpoint'),
 		entity_type: 'collation',
 		entity_id: row.collation_id,
@@ -537,7 +550,10 @@ export async function serializeTombstoneCloudFile(
 export async function parseProjectCloudFile(
 	input: unknown
 ): Promise<CloudFileParseResult<ProjectCloudFile>> {
-	const result = await readCanonicalDocument<ProjectManifestPayload>(PROJECT_MANIFEST_FORMAT, input);
+	const result = await readCanonicalDocument<ProjectManifestPayload>(
+		PROJECT_MANIFEST_FORMAT,
+		input
+	);
 	return result.ok
 		? { ok: true, value: projectManifestPayloadToCloudFile(result.payload) }
 		: { ok: false, quarantine: result.quarantine };
@@ -568,7 +584,9 @@ async function listProjectManifestTranscriptionHeads(
 		current_revision: revisionHead(row.current_revision_id, row.current_content_hash),
 		title: row.title,
 		siglum: row.siglum,
-		primary_path: paths.transcriptions(requireId(row.project_transcription_id, 'project transcription')),
+		primary_path: paths.transcriptions(
+			requireId(row.project_transcription_id, 'project transcription')
+		),
 	}));
 }
 
@@ -579,13 +597,7 @@ async function listProjectManifestCollationHeads(
 	const paths = projectRelativeCloudPaths();
 	const rows = await db
 		.selectFrom('collations')
-		.select([
-			'id',
-			'current_revision_id',
-			'current_content_hash',
-			'title',
-			'verse_identifier',
-		])
+		.select(['id', 'current_revision_id', 'current_content_hash', 'title', 'verse_identifier'])
 		.where('project_id', '=', projectId)
 		.orderBy('id', 'asc')
 		.execute();
@@ -654,7 +666,7 @@ export async function parseCollationCloudFile(
 	const result = await readCanonicalDocument<CollationPayload>(COLLATION_FORMAT, input);
 	if (!result.ok) return { ok: false, quarantine: result.quarantine };
 	try {
-		await assertCollationRevisionHash(result.payload);
+		await assertCollationRevisionHash(result.payload, result.originalVersion);
 		return { ok: true, value: collationPayloadToCloudFile(result.payload) };
 	} catch (error) {
 		return quarantineResult(error);
@@ -681,7 +693,7 @@ export async function parseHistoryCloudFile(
 				input
 			);
 			if (!result.ok) return { ok: false, quarantine: result.quarantine };
-			await assertCollationCheckpointPayloadIntegrity(result.payload);
+			await assertCollationCheckpointPayloadIntegrity(result.payload, result.originalVersion);
 			return { ok: true, value: collationCheckpointPayloadToCloudFile(result.payload) };
 		}
 		throw invalidShape('History cloud file must be a transcription or collation checkpoint.');
@@ -815,18 +827,7 @@ export function projectTranscriptionCloudFileToImportInput(
 }
 
 export function collationCloudFileToImportInput(file: CollationCloudFile): CollationImportInput {
-	const projection = buildCollationProjectionFromDocument(file.document);
-	const units = projection.variationUnits.map((unit, index) => ({
-		id: `${file.id}:unit:${index}`,
-		...unit,
-	}));
-	const readings = units.flatMap(unit =>
-		unit.readings.map((reading, index) => ({
-			id: `${unit.id}:reading:${index}`,
-			variationUnitId: unit.id,
-			...reading,
-		}))
-	);
+	const projection = buildSerializedCollationProjectionRows(file.id, file.document);
 	return {
 		id: file.id,
 		project_id: file.project_id,
@@ -841,40 +842,7 @@ export function collationCloudFileToImportInput(file: CollationCloudFile): Colla
 		created_at: file.created_at,
 		updated_at: file.updated_at,
 		document: file.document,
-		witnesses: projection.witnesses.map((row, index) => ({
-			id: `${file.id}:witness:${index}`,
-			witness_id: row.witnessId,
-			content: row.content,
-			position: row.position,
-			project_transcription_id: null,
-			transcription_id: row.transcriptionId,
-			source_revision_id: row.sourceVersion,
-			source_content_hash: row.sourceContentHash ?? '',
-		})),
-		tokens: projection.tokens.map((row, index) => ({
-			id: `${file.id}:token:${index}`,
-			witness_id: row.witnessId,
-			token_index: row.tokenIndex,
-			token_text: row.tokenText,
-		})),
-		variation_units: units.map(unit => ({
-			id: unit.id,
-			start_index: unit.startIndex,
-			end_index: unit.endIndex,
-			unit_type: unit.unitType,
-			base_text: unit.baseText,
-		})),
-		readings: readings.map(reading => ({
-			id: reading.id,
-			variation_unit_id: reading.variationUnitId,
-			reading_order: reading.readingOrder,
-			reading_text: reading.readingText,
-			is_lacuna: reading.isLacuna,
-			is_omission: reading.isOmission,
-		})),
-		reading_witnesses: readings.flatMap(reading =>
-			reading.witnessIds.map(witnessId => ({ reading_id: reading.id, witness_id: witnessId }))
-		),
+		...projection,
 		artifacts: [
 			{
 				id: `${file.id}:document`,
@@ -1001,8 +969,10 @@ function projectTranscriptionCloudFileToPayload(
 		language: file.language,
 		iiif_manifest_sources:
 			file.iiif_manifest_sources as ProjectTranscriptionPayload['iiif_manifest_sources'],
-		page_canvas_links: file.page_canvas_links as ProjectTranscriptionPayload['page_canvas_links'],
-		canvas_annotations: file.canvas_annotations as ProjectTranscriptionPayload['canvas_annotations'],
+		page_canvas_links:
+			file.page_canvas_links as ProjectTranscriptionPayload['page_canvas_links'],
+		canvas_annotations:
+			file.canvas_annotations as ProjectTranscriptionPayload['canvas_annotations'],
 	};
 }
 
@@ -1055,7 +1025,7 @@ function collationCloudFileToPayload(file: CollationCloudFile): CollationPayload
 
 function collationPayloadToCloudFile(payload: CollationPayload): CollationCloudFile {
 	return {
-		schema_version: CLOUD_FILE_SCHEMA_VERSION,
+		schema_version: COLLATION_CURRENT_VERSION,
 		id: payload.id,
 		project_id: payload.project_id,
 		title: payload.title,
@@ -1108,7 +1078,9 @@ function transcriptionCheckpointPayloadToCloudFile(
 	};
 }
 
-function collationHistoryCloudFileToPayload(file: CollationHistoryCloudFile): CollationCheckpointPayload {
+function collationHistoryCloudFileToPayload(
+	file: CollationHistoryCloudFile
+): CollationCheckpointPayload {
 	return {
 		checkpoint_id: file.checkpoint_id,
 		entity_type: file.entity_type,
@@ -1126,7 +1098,7 @@ function collationCheckpointPayloadToCloudFile(
 	payload: CollationCheckpointPayload
 ): CollationHistoryCloudFile {
 	return {
-		schema_version: CLOUD_FILE_SCHEMA_VERSION,
+		schema_version: COLLATION_CHECKPOINT_CURRENT_VERSION,
 		checkpoint_id: payload.checkpoint_id,
 		entity_type: payload.entity_type,
 		entity_id: payload.entity_id,
@@ -1275,9 +1247,7 @@ function tombstoneRowToCloudFile(row: Selectable<SyncTombstones>): TombstoneClou
 function assertCollationSourcesSyncReady(collation: SerializedCollation): void {
 	const missing = collation.witnesses.find(
 		witness =>
-			!witness.transcription_id ||
-			!witness.source_revision_id ||
-			!witness.source_content_hash
+			!witness.transcription_id || !witness.source_revision_id || !witness.source_content_hash
 	);
 	if (!missing) return;
 	throw new Error(
@@ -1299,7 +1269,7 @@ async function readCollationCheckpointPayload(
 	if (!result.ok) {
 		throw new Error(`Invalid collation checkpoint file ${path}: ${result.quarantine.code}`);
 	}
-	await assertCollationCheckpointPayloadIntegrity(result.payload);
+	await assertCollationCheckpointPayloadIntegrity(result.payload, result.originalVersion);
 	return result.payload;
 }
 
@@ -1309,10 +1279,6 @@ function quarantineResult<T>(error: unknown): CloudFileParseResult<T> {
 
 function validationResult(error: unknown): CloudFileValidationResult {
 	return { ok: false, quarantine: quarantineFromError(error) };
-}
-
-function errorMessage(error: unknown): string {
-	return error instanceof Error ? error.message : String(error);
 }
 
 function emptyToNull(value: string | null): string | null {
@@ -1340,36 +1306,6 @@ function sortCanvasAnnotations(
 	return [...rows].sort(compareCanvasAnnotations);
 }
 
-function sortCollationWitnesses(rows: SerializedCollationWitness[]): SerializedCollationWitness[] {
-	return [...rows].sort(compareCollationWitnesses);
-}
-
-function sortCollationTokens(rows: SerializedCollationToken[]): SerializedCollationToken[] {
-	return [...rows].sort(compareCollationTokens);
-}
-
-function sortVariationUnits(
-	rows: SerializedCollationVariationUnit[]
-): SerializedCollationVariationUnit[] {
-	return [...rows].sort(compareVariationUnits);
-}
-
-function sortCollationReadings(rows: SerializedCollationReading[]): SerializedCollationReading[] {
-	return [...rows].sort(compareCollationReadings);
-}
-
-function sortReadingWitnesses(
-	rows: SerializedCollationReadingWitness[]
-): SerializedCollationReadingWitness[] {
-	return [...rows].sort(compareReadingWitnesses);
-}
-
-function sortCollationArtifacts(
-	rows: SerializedCollationArtifact[]
-): SerializedCollationArtifact[] {
-	return [...rows].sort(compareCollationArtifacts);
-}
-
 function compareById(left: { id: string }, right: { id: string }): number {
 	return compareStrings(left.id, right.id);
 }
@@ -1391,65 +1327,6 @@ function compareCanvasAnnotations(
 ): number {
 	return (
 		compareStrings(left.annotation_id, right.annotation_id) || compareStrings(left.id, right.id)
-	);
-}
-
-function compareCollationWitnesses(
-	left: SerializedCollationWitness,
-	right: SerializedCollationWitness
-): number {
-	return compareNumbers(left.position, right.position) || compareStrings(left.id, right.id);
-}
-
-function compareCollationTokens(
-	left: SerializedCollationToken,
-	right: SerializedCollationToken
-): number {
-	return (
-		compareStrings(left.witness_id, right.witness_id) ||
-		compareNumbers(left.token_index, right.token_index) ||
-		compareStrings(left.id, right.id)
-	);
-}
-
-function compareVariationUnits(
-	left: SerializedCollationVariationUnit,
-	right: SerializedCollationVariationUnit
-): number {
-	return (
-		compareNumbers(left.start_index, right.start_index) ||
-		compareNumbers(left.end_index, right.end_index) ||
-		compareStrings(left.id, right.id)
-	);
-}
-
-function compareCollationReadings(
-	left: SerializedCollationReading,
-	right: SerializedCollationReading
-): number {
-	return (
-		compareStrings(left.variation_unit_id, right.variation_unit_id) ||
-		compareNumbers(left.reading_order, right.reading_order) ||
-		compareStrings(left.id, right.id)
-	);
-}
-
-function compareReadingWitnesses(
-	left: SerializedCollationReadingWitness,
-	right: SerializedCollationReadingWitness
-): number {
-	return (
-		compareStrings(left.reading_id, right.reading_id) ||
-		compareStrings(left.witness_id, right.witness_id)
-	);
-}
-
-function compareCollationArtifacts(
-	left: SerializedCollationArtifact,
-	right: SerializedCollationArtifact
-): number {
-	return (
-		compareStrings(left.artifact_type, right.artifact_type) || compareStrings(left.id, right.id)
 	);
 }
 
