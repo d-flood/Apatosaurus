@@ -3,11 +3,16 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { StoredTranscriptionDocument } from '$lib/client/transcription/content';
 import {
 	PROJECT_MANIFEST_FORMAT,
+	COLLATION_FORMAT,
+	COLLATION_FIXTURE,
 	PROJECT_TRANSCRIPTION_FORMAT,
 	StoreMoveUnavailableError,
+	TOMBSTONE_FORMAT,
 	TRANSCRIPTION_CHECKPOINT_FORMAT,
 	normalizeStorePath,
 	projectManifestFile,
+	collationPrimaryFile,
+	collationTeiFile,
 	readCanonicalDocument,
 	readTextFile,
 	storePathBasename,
@@ -15,19 +20,29 @@ import {
 	transcriptionCheckpointFile,
 	transcriptionPrimaryFile,
 	transcriptionTeiFile,
+	tombstoneFile,
 	type StoreBackend,
 	type StoreBackendDirectoryEntry,
 	type ProjectManifestPayload,
 	type ProjectTranscriptionPayload,
 	type TranscriptionCheckpointPayload,
+	type TombstonePayload,
 } from '$lib/client/store';
 import { upsertCloudConnection } from './cloud-connections';
 import { createCollation } from './collations';
-import { createTranscription, updateTranscriptionContent } from './transcriptions';
+import {
+	createCollationWithFiles,
+	createCommittedCollationCheckpointWithFiles,
+	saveWorkingCollationArtifact,
+} from './collation-files';
+import {
+	createTranscription as createTranscriptionRepository,
+	updateTranscriptionContent,
+} from './transcriptions';
 import { ensureManifestSource, upsertCanvasAnnotation, upsertPageCanvasLink } from './iiif';
 import { createLocalDbTestHarness, type LocalDbTestHarness } from '../test-harness';
 import {
-	createProject,
+	createProject as createProjectRepository,
 	ensureDefaultProject,
 	forkProject,
 	getProject,
@@ -44,7 +59,7 @@ import {
 	AddFromProjectSameProjectError,
 	refreshProjectTranscription,
 	RefreshDirtyProjectTranscriptionError,
-	syncProjectTranscriptionIds,
+	syncProjectTranscriptionIds as syncProjectTranscriptionIdsRepository,
 	updateProjectMetadata,
 } from './projects';
 import {
@@ -53,33 +68,105 @@ import {
 	getTranscriptionCommittedHead,
 	listCommittedTranscriptionCheckpoints,
 } from './revisions';
-import { createCommittedTranscriptionCheckpointWithFiles } from './transcription-files';
+import {
+	createCommittedTranscriptionCheckpointWithFiles,
+	createTranscriptionWithFiles,
+	saveWorkingTranscriptionContent,
+} from './transcription-files';
+import { rebuildIndexFromStore } from './index-rebuild';
 
 let harness: LocalDbTestHarness;
+let projectBackend: MemoryStoreBackend;
 
 beforeEach(() => {
 	harness = createLocalDbTestHarness();
+	projectBackend = new MemoryStoreBackend();
 });
 
 afterEach(async () => {
 	await harness.destroy();
 });
 
+function createProject(
+	db: Parameters<typeof createProjectRepository>[0],
+	input: Parameters<typeof createProjectRepository>[1],
+	storeOptions: Parameters<typeof createProjectRepository>[2] = { backend: projectBackend }
+) {
+	return createProjectRepository(db, input, storeOptions);
+}
+
+async function createTranscription(
+	db: Parameters<typeof createTranscriptionRepository>[0],
+	input: Parameters<typeof createTranscriptionRepository>[1]
+) {
+	if (!input.projectId?.trim()) await ensureDefaultProject(db, { backend: projectBackend });
+	return createTranscriptionRepository(db, input);
+}
+
+function syncProjectTranscriptionIds(
+	db: Parameters<typeof syncProjectTranscriptionIdsRepository>[0],
+	projectId: Parameters<typeof syncProjectTranscriptionIdsRepository>[1],
+	nextIds: Parameters<typeof syncProjectTranscriptionIdsRepository>[2],
+	storeOptions: Parameters<typeof syncProjectTranscriptionIdsRepository>[3] = {
+		backend: projectBackend,
+	}
+) {
+	return syncProjectTranscriptionIdsRepository(db, projectId, nextIds, storeOptions);
+}
+
+async function createCommittedSourceProject(
+	storeOptions: Parameters<typeof createProjectRepository>[2] = { backend: projectBackend },
+	input: {
+		projectId?: string;
+		projectName?: string;
+		transcriptionId?: string;
+		projectTranscriptionId?: string;
+		checkpointId?: string;
+	} = {}
+) {
+	const projectId = input.projectId ?? 'project-a';
+	const transcriptionId = input.transcriptionId ?? 'tx-1';
+	const projectTranscriptionId = input.projectTranscriptionId ?? 'pt-a';
+	await createProject(
+		harness.db,
+		{ id: projectId, storageSlug: projectId, name: input.projectName ?? 'Project A' },
+		storeOptions
+	);
+	await createTranscription(harness.db, {
+		...baseTranscription(transcriptionId, '01'),
+		projectId,
+		projectTranscriptionId,
+		document: documentWithVerses(['Romans 1:1']),
+	});
+	const checkpoint = await createCommittedTranscriptionCheckpointWithFiles(
+		harness.db,
+		{ projectTranscriptionId, checkpointId: input.checkpointId ?? 'src-base' },
+		storeOptions
+	);
+	return { projectId, transcriptionId, projectTranscriptionId, checkpoint };
+}
+
 describe('projects repository', () => {
 	it('ensures a default project and keeps storage slugs immutable', async () => {
-		const defaultProjectId = await ensureDefaultProject(harness.db);
-		const secondDefaultProjectId = await ensureDefaultProject(harness.db);
+		const storeOptions = { backend: projectBackend };
+		const defaultProjectId = await ensureDefaultProject(harness.db, storeOptions);
+		const secondDefaultProjectId = await ensureDefaultProject(harness.db, storeOptions);
 		const defaultProject = await getProject(harness.db, defaultProjectId);
-		const projectId = await createProject(harness.db, {
-			id: 'project-1',
-			storageSlug: 'custom-project-slug',
-			name: 'Initial Name',
-		});
+		const projectId = await createProject(
+			harness.db,
+			{
+				id: 'project-1',
+				storageSlug: 'custom-project-slug',
+				name: 'Initial Name',
+			},
+			storeOptions
+		);
 
-		await updateProjectMetadata(harness.db, {
-			projectId,
-			name: 'Renamed Project',
-		});
+		await updateProjectMetadata(
+			harness.db,
+			{ projectId, name: 'Renamed Project' },
+			storeOptions
+		);
 
 		const renamedProject = await getProject(harness.db, projectId);
 
@@ -97,22 +184,31 @@ describe('projects repository', () => {
 	});
 
 	it('creates, lists, loads, and updates project metadata/settings', async () => {
-		const projectId = await createProject(harness.db, {
-			id: 'project-1',
-			name: '  Romans Collation  ',
-			description: ' first pass ',
-			collationSettings: { lowercase: true },
-			createdAt: '2024-01-01T00:00:00.000Z',
-			updatedAt: '2024-01-01T00:00:00.000Z',
-		});
+		const storeOptions = { backend: projectBackend };
+		const projectId = await createProject(
+			harness.db,
+			{
+				id: 'project-1',
+				name: '  Romans Collation  ',
+				description: ' first pass ',
+				collationSettings: { lowercase: true },
+				createdAt: '2024-01-01T00:00:00.000Z',
+				updatedAt: '2024-01-01T00:00:00.000Z',
+			},
+			storeOptions
+		);
 
-		await updateProjectMetadata(harness.db, {
-			projectId,
-			name: 'Romans Final',
-			description: ' revised ',
-			collationSettings: { segmentation: false },
-			updatedAt: '2024-02-01T00:00:00.000Z',
-		});
+		await updateProjectMetadata(
+			harness.db,
+			{
+				projectId,
+				name: 'Romans Final',
+				description: ' revised ',
+				collationSettings: { segmentation: false },
+				updatedAt: '2024-02-01T00:00:00.000Z',
+			},
+			storeOptions
+		);
 
 		const projects = await listProjects(harness.db);
 		const project = await getProject(harness.db, projectId);
@@ -155,62 +251,150 @@ describe('projects repository', () => {
 		expect(content).toContain('transcriptionDocument');
 	});
 
-	it('syncs project transcription ids with hard deletes and conflict-safe inserts', async () => {
-		await createTranscription(harness.db, {
-			...baseTranscription('tx-1', '01'),
-			document: documentWithVerses(['Romans 1:1']),
-		});
-		await createTranscription(harness.db, {
-			...baseTranscription('tx-2', '02'),
-			document: documentWithVerses(['Romans 1:2']),
-		});
-		await createProject(harness.db, { id: 'project-1', name: 'Project' });
+	it('canonically copies and tombstones synced project transcriptions across index rebuilds', async () => {
+		const backend = projectBackend;
+		const storeOptions = { backend };
+		await createProject(
+			harness.db,
+			{ id: 'source-project', storageSlug: 'source-project', name: 'Source' },
+			storeOptions
+		);
+		await createProject(
+			harness.db,
+			{ id: 'target-project', storageSlug: 'target-project', name: 'Target' },
+			storeOptions
+		);
+		await createTranscriptionWithFiles(
+			harness.db,
+			{
+				...baseTranscription('tx-1', '01'),
+				projectId: 'source-project',
+				projectTranscriptionId: 'source-pt',
+				document: documentWithVerses(['Romans 1:1']),
+			},
+			storeOptions
+		);
 
-		const firstSnapshotIds = await syncProjectTranscriptionIds(harness.db, 'project-1', [
-			'tx-1',
-			'tx-2',
-			'tx-1',
-		]);
-		const syncedSnapshotIds = await syncProjectTranscriptionIds(harness.db, 'project-1', [
-			firstSnapshotIds[1],
-		]);
-
-		const ids = await getProjectTranscriptionIds(harness.db, 'project-1');
-		const projectRows = await harness.db
-			.selectFrom('project_transcriptions')
-			.selectAll()
-			.where('project_id', '=', 'project-1')
-			.execute();
-		const removedSnapshot = await harness.db
+		const [copiedId] = await syncProjectTranscriptionIds(
+			harness.db,
+			'target-project',
+			['tx-1', 'tx-1'],
+			storeOptions
+		);
+		const copiedLinkId = await getProjectTranscriptionLinkId(copiedId);
+		const copied = await harness.db
 			.selectFrom('transcriptions')
 			.selectAll()
-			.where('id', '=', firstSnapshotIds[0])
-			.executeTakeFirst();
+			.where('id', '=', copiedId)
+			.executeTakeFirstOrThrow();
+		const primary = await readCanonicalDocument<ProjectTranscriptionPayload>(
+			PROJECT_TRANSCRIPTION_FORMAT,
+			await readTextFile(
+				transcriptionPrimaryFile('target-project', copiedLinkId),
+				storeOptions
+			)
+		);
+		const manifest = await readCanonicalDocument<ProjectManifestPayload>(
+			PROJECT_MANIFEST_FORMAT,
+			await readTextFile(projectManifestFile('target-project'), storeOptions)
+		);
 
-		expect(firstSnapshotIds).toHaveLength(2);
-		expect(firstSnapshotIds).not.toContain('tx-1');
-		expect(firstSnapshotIds).not.toContain('tx-2');
-		expect(syncedSnapshotIds).toEqual([firstSnapshotIds[1]]);
-		expect(ids).toEqual([firstSnapshotIds[1]]);
-		expect(projectRows).toHaveLength(1);
-		expect(projectRows[0]).toMatchObject({
-			project_id: 'project-1',
-			transcription_id: firstSnapshotIds[1],
-			canonical_transcription_id: null,
+		expect(copied).toMatchObject({
+			project_id: 'target-project',
+			origin_project_id: 'source-project',
+			origin_transcription_id: 'tx-1',
+			current_revision_id: expect.any(String),
+			current_content_hash: expect.stringMatching(/^sha256:/),
 		});
-		expect(removedSnapshot).toBeUndefined();
+		expect(primary).toMatchObject({
+			ok: true,
+			payload: {
+				id: copiedId,
+				project_transcription_id: copiedLinkId,
+				origin: {
+					source_project_id: 'source-project',
+					source_transcription_id: 'tx-1',
+				},
+			},
+		});
+		expect(manifest).toMatchObject({
+			ok: true,
+			payload: { transcriptions: [{ project_transcription_id: copiedLinkId }] },
+		});
+		await expect(
+			readTextFile(
+				transcriptionCheckpointFile(
+					'target-project',
+					copiedLinkId,
+					copied.current_revision_id
+				),
+				storeOptions
+			)
+		).resolves.toContain(copied.current_revision_id);
+		await expect(
+			readTextFile(transcriptionTeiFile('target-project', copiedLinkId), storeOptions)
+		).resolves.toContain('<TEI');
+		await rebuildIndexFromStore(harness.db, storeOptions);
+		await expect(
+			harness.db
+				.selectFrom('transcriptions')
+				.select([
+					'project_id',
+					'origin_project_id',
+					'origin_transcription_id',
+					'current_revision_id',
+					'current_content_hash',
+				])
+				.where('id', '=', copiedId)
+				.executeTakeFirst()
+		).resolves.toEqual({
+			project_id: 'target-project',
+			origin_project_id: 'source-project',
+			origin_transcription_id: 'tx-1',
+			current_revision_id: copied.current_revision_id,
+			current_content_hash: copied.current_content_hash,
+		});
+		expect(await getProjectTranscriptionIds(harness.db, 'target-project')).toEqual([copiedId]);
+
+		await expect(
+			syncProjectTranscriptionIds(harness.db, 'target-project', [], storeOptions)
+		).resolves.toEqual([]);
+		const tombstone = await readCanonicalDocument<TombstonePayload>(
+			TOMBSTONE_FORMAT,
+			await readTextFile(
+				tombstoneFile('target-project', 'project-transcription', copiedLinkId),
+				storeOptions
+			)
+		);
+		expect(tombstone).toMatchObject({
+			ok: true,
+			payload: { project_id: 'target-project', entity_id: copiedLinkId },
+		});
+
+		await rebuildIndexFromStore(harness.db, storeOptions);
+		expect(await getProjectTranscriptionIds(harness.db, 'source-project')).toEqual(['tx-1']);
+		expect(await getProjectTranscriptionIds(harness.db, 'target-project')).toEqual([]);
+		await expect(
+			harness.db
+				.selectFrom('sync_tombstones')
+				.select('entity_id')
+				.where('entity_id', '=', copiedLinkId)
+				.executeTakeFirst()
+		).resolves.toEqual({ entity_id: copiedLinkId });
 	});
 
 	it('clones transcription provenance, verse indexes, and IIIF rows into project snapshots', async () => {
+		await createProject(harness.db, {
+			id: 'source-project',
+			storageSlug: 'source-project',
+			name: 'Source',
+		});
 		await createTranscription(harness.db, {
 			...baseTranscription('tx-1', '01'),
+			projectId: 'source-project',
+			projectTranscriptionId: 'source-pt',
 			document: documentWithVerses(['Romans 1:1']),
 		});
-		await harness.db
-			.updateTable('transcriptions')
-			.set({ current_revision_id: 'rev-1', current_content_hash: 'sha256:source' })
-			.where('id', '=', 'tx-1')
-			.execute();
 		const manifest = await ensureManifestSource(harness.db, {
 			transcriptionId: 'tx-1',
 			manifestUrl: 'https://example.org/manifest.json',
@@ -231,6 +415,11 @@ describe('projects repository', () => {
 				target: { source: 'canvas-1' },
 			},
 		});
+		const sourceCheckpoint = await createCommittedTranscriptionCheckpointWithFiles(
+			harness.db,
+			{ projectTranscriptionId: 'source-pt', checkpointId: 'rev-1' },
+			{ backend: projectBackend }
+		);
 		await createProject(harness.db, { id: 'project-1', name: 'Project' });
 
 		const [snapshotId] = await syncProjectTranscriptionIds(harness.db, 'project-1', ['tx-1']);
@@ -278,9 +467,9 @@ describe('projects repository', () => {
 			origin_project_id: source.project_id,
 			origin_transcription_id: 'tx-1',
 			origin_revision_id: 'rev-1',
-			origin_content_hash: 'sha256:source',
-			current_revision_id: '',
-			current_content_hash: '',
+			origin_content_hash: sourceCheckpoint.contentHash,
+			current_revision_id: expect.any(String),
+			current_content_hash: expect.stringMatching(/^sha256:/),
 		});
 		expect(projectRows[0]).toMatchObject({
 			project_id: 'project-1',
@@ -298,10 +487,7 @@ describe('projects repository', () => {
 	});
 
 	it('edits project snapshots without mutating the canonical transcription', async () => {
-		await createTranscription(harness.db, {
-			...baseTranscription('tx-1', '01'),
-			document: documentWithVerses(['Romans 1:1']),
-		});
+		await createCommittedSourceProject();
 		await createProject(harness.db, { id: 'project-1', name: 'Project' });
 		const [snapshotId] = await syncProjectTranscriptionIds(harness.db, 'project-1', ['tx-1']);
 
@@ -330,13 +516,15 @@ describe('projects repository', () => {
 	});
 
 	it('reports project transcription status identities and dirty checkpoint state', async () => {
+		await createProject(harness.db, { id: 'project-1', name: 'Project' });
 		await createTranscription(harness.db, {
 			...baseTranscription('tx-1', '01'),
+			projectId: 'project-1',
+			projectTranscriptionId: 'pt-1',
 			document: documentWithVerses(['Romans 1:1']),
 		});
-		await createProject(harness.db, { id: 'project-1', name: 'Project' });
-		const [snapshotId] = await syncProjectTranscriptionIds(harness.db, 'project-1', ['tx-1']);
-		const projectTranscriptionId = await getProjectTranscriptionLinkId(snapshotId);
+		const snapshotId = 'tx-1';
+		const projectTranscriptionId = 'pt-1';
 
 		const [initialStatus] = await listProjectTranscriptionStatuses(harness.db, 'project-1');
 		const statusByOwnedTranscriptionId =
@@ -352,7 +540,7 @@ describe('projects repository', () => {
 			currentCheckpoint: null,
 			dirtyToCheckpoint: true,
 			commitState: 'never-committed',
-			sourceState: { kind: 'source-has-no-committed-version', sourceTranscriptionId: 'tx-1' },
+			sourceState: { kind: 'no-source' },
 		});
 		expect(statusByOwnedTranscriptionId).toMatchObject({
 			projectId: 'project-1',
@@ -435,10 +623,14 @@ describe('projects repository', () => {
 			document: documentWithVerses(['Romans 1:1']),
 		});
 		const sourceProjectTranscriptionId = await getProjectTranscriptionLinkId('tx-1');
-		const sourceCheckpoint = await createCommittedTranscriptionCheckpoint(harness.db, {
-			projectTranscriptionId: sourceProjectTranscriptionId,
-			checkpointId: 'source-rev-1',
-		});
+		const sourceCheckpoint = await createCommittedTranscriptionCheckpointWithFiles(
+			harness.db,
+			{
+				projectTranscriptionId: sourceProjectTranscriptionId,
+				checkpointId: 'source-rev-1',
+			},
+			{ backend: projectBackend }
+		);
 		const sourceProject = await harness.db
 			.selectFrom('transcriptions')
 			.select('project_id')
@@ -472,10 +664,14 @@ describe('projects repository', () => {
 			id: 'tx-1',
 			document: documentWithVerses(['Romans 1:2']),
 		});
-		const newerSourceCheckpoint = await createCommittedTranscriptionCheckpoint(harness.db, {
-			projectTranscriptionId: sourceProjectTranscriptionId,
-			checkpointId: 'source-rev-2',
-		});
+		const newerSourceCheckpoint = await createCommittedTranscriptionCheckpointWithFiles(
+			harness.db,
+			{
+				projectTranscriptionId: sourceProjectTranscriptionId,
+				checkpointId: 'source-rev-2',
+			},
+			{ backend: projectBackend }
+		);
 		expect(
 			(await getProjectTranscriptionStatus(harness.db, projectTranscriptionId)).sourceState
 		).toEqual({
@@ -495,17 +691,18 @@ describe('projects repository', () => {
 	});
 
 	it('refreshes a project transcription from a committed source checkpoint while preserving the link id', async () => {
-		const storeOptions = { backend: new MemoryStoreBackend() };
-		await createTranscription(harness.db, {
-			...baseTranscription('tx-1', '01'),
-			document: documentWithVerses(['Romans 1:1']),
-		});
-		await createProject(harness.db, { id: 'project-a', name: 'Project A' });
+		const storeOptions = { backend: projectBackend };
+		await createCommittedSourceProject(storeOptions);
 		await createProject(harness.db, { id: 'project-b', name: 'Project B' });
 
-		const [snapshotAId] = await syncProjectTranscriptionIds(harness.db, 'project-a', ['tx-1']);
-		const [snapshotBId] = await syncProjectTranscriptionIds(harness.db, 'project-b', ['tx-1']);
-		const projectTranscriptionAId = await getProjectTranscriptionLinkId(snapshotAId);
+		const snapshotAId = 'tx-1';
+		const projectTranscriptionAId = 'pt-a';
+		const [snapshotBId] = await syncProjectTranscriptionIds(
+			harness.db,
+			'project-b',
+			['tx-1'],
+			storeOptions
+		);
 		const projectTranscriptionBId = await getProjectTranscriptionLinkId(snapshotBId);
 
 		await updateTranscriptionContent(harness.db, {
@@ -566,7 +763,7 @@ describe('projects repository', () => {
 			.where('id', '=', projectTranscriptionBId)
 			.execute();
 
-		expect(committedCheckpoints.map(row => row.id)).toEqual(['src-cp-1']);
+		expect(committedCheckpoints.map(row => row.id)).toEqual(['src-base', 'src-cp-1']);
 		expect(refreshed.projectTranscriptionId).toBe(projectTranscriptionBId);
 		expect(refreshed.projectOwnedTranscriptionId).toBe(snapshotBId);
 		expect(refreshed.commitState).toBe('clean');
@@ -594,7 +791,8 @@ describe('projects repository', () => {
 		});
 		expect(sourceVerseRows.map(row => row.verse_identifier)).toEqual(['Romans 1:2']);
 		const targetProject = await getProject(harness.db, 'project-b');
-		if (!targetProject || !refreshed.currentCheckpoint) throw new Error('missing refresh files');
+		if (!targetProject || !refreshed.currentCheckpoint)
+			throw new Error('missing refresh files');
 		await expect(
 			readTextFile(
 				transcriptionCheckpointFile(
@@ -623,17 +821,18 @@ describe('projects repository', () => {
 	});
 
 	it('does not alter other project transcriptions or collation witnesses during refresh', async () => {
-		const storeOptions = { backend: new MemoryStoreBackend() };
-		await createTranscription(harness.db, {
-			...baseTranscription('tx-1', '01'),
-			document: documentWithVerses(['Romans 1:1']),
-		});
-		await createProject(harness.db, { id: 'project-a', name: 'Project A' });
+		const storeOptions = { backend: projectBackend };
+		await createCommittedSourceProject(storeOptions);
 		await createProject(harness.db, { id: 'project-b', name: 'Project B' });
 
-		const [snapshotAId] = await syncProjectTranscriptionIds(harness.db, 'project-a', ['tx-1']);
-		const [snapshotBId] = await syncProjectTranscriptionIds(harness.db, 'project-b', ['tx-1']);
-		const projectTranscriptionAId = await getProjectTranscriptionLinkId(snapshotAId);
+		const snapshotAId = 'tx-1';
+		const projectTranscriptionAId = 'pt-a';
+		const [snapshotBId] = await syncProjectTranscriptionIds(
+			harness.db,
+			'project-b',
+			['tx-1'],
+			storeOptions
+		);
 		const projectTranscriptionBId = await getProjectTranscriptionLinkId(snapshotBId);
 
 		await updateTranscriptionContent(harness.db, {
@@ -712,17 +911,18 @@ describe('projects repository', () => {
 	});
 
 	it('blocks refresh when the target project transcription is dirty without confirmation', async () => {
-		const storeOptions = { backend: new MemoryStoreBackend() };
-		await createTranscription(harness.db, {
-			...baseTranscription('tx-1', '01'),
-			document: documentWithVerses(['Romans 1:1']),
-		});
-		await createProject(harness.db, { id: 'project-a', name: 'Project A' });
+		const storeOptions = { backend: projectBackend };
+		await createCommittedSourceProject(storeOptions);
 		await createProject(harness.db, { id: 'project-b', name: 'Project B' });
 
-		const [snapshotAId] = await syncProjectTranscriptionIds(harness.db, 'project-a', ['tx-1']);
-		const [snapshotBId] = await syncProjectTranscriptionIds(harness.db, 'project-b', ['tx-1']);
-		const projectTranscriptionAId = await getProjectTranscriptionLinkId(snapshotAId);
+		const snapshotAId = 'tx-1';
+		const projectTranscriptionAId = 'pt-a';
+		const [snapshotBId] = await syncProjectTranscriptionIds(
+			harness.db,
+			'project-b',
+			['tx-1'],
+			storeOptions
+		);
 		const projectTranscriptionBId = await getProjectTranscriptionLinkId(snapshotBId);
 
 		await updateTranscriptionContent(harness.db, {
@@ -737,14 +937,14 @@ describe('projects repository', () => {
 			},
 			storeOptions
 		);
-		await createCommittedTranscriptionCheckpoint(harness.db, {
-			projectTranscriptionId: projectTranscriptionBId,
-			checkpointId: 'target-cp-1',
-		});
-		await updateTranscriptionContent(harness.db, {
-			id: snapshotBId,
-			document: documentWithVerses(['Romans 1:9']),
-		});
+		await saveWorkingTranscriptionContent(
+			harness.db,
+			{
+				id: snapshotBId,
+				document: documentWithVerses(['Romans 1:9']),
+			},
+			storeOptions
+		);
 
 		await expect(
 			refreshProjectTranscription(
@@ -769,22 +969,24 @@ describe('projects repository', () => {
 			{ storeOptions }
 		);
 
-		expect(refreshedWithConfirmation.commitState).toBe('clean');
-		expect(refreshedWithConfirmation.currentCheckpoint?.revisionId).not.toBe('target-cp-1');
+		expect(refreshedWithConfirmation.commitState).toBe('dirty');
+		expect(refreshedWithConfirmation.currentCheckpoint?.revisionId).toBeTruthy();
+		expect(refreshedWithConfirmation.sourceState.kind).toBe('up-to-date');
 	});
 
 	it('blocks refresh when the source checkpoint is missing or not the current committed head', async () => {
-		const storeOptions = { backend: new MemoryStoreBackend() };
-		await createTranscription(harness.db, {
-			...baseTranscription('tx-1', '01'),
-			document: documentWithVerses(['Romans 1:1']),
-		});
-		await createProject(harness.db, { id: 'project-a', name: 'Project A' });
+		const storeOptions = { backend: projectBackend };
+		await createCommittedSourceProject(storeOptions);
 		await createProject(harness.db, { id: 'project-b', name: 'Project B' });
 
-		const [snapshotAId] = await syncProjectTranscriptionIds(harness.db, 'project-a', ['tx-1']);
-		const [snapshotBId] = await syncProjectTranscriptionIds(harness.db, 'project-b', ['tx-1']);
-		const projectTranscriptionAId = await getProjectTranscriptionLinkId(snapshotAId);
+		const snapshotAId = 'tx-1';
+		const projectTranscriptionAId = 'pt-a';
+		const [snapshotBId] = await syncProjectTranscriptionIds(
+			harness.db,
+			'project-b',
+			['tx-1'],
+			storeOptions
+		);
 		const projectTranscriptionBId = await getProjectTranscriptionLinkId(snapshotBId);
 
 		await createCommittedTranscriptionCheckpointWithFiles(
@@ -862,22 +1064,13 @@ describe('projects repository', () => {
 	});
 
 	it('does not write files or checkpoints when refresh source is already current', async () => {
-		const backend = new MemoryStoreBackend();
+		const backend = projectBackend;
 		const storeOptions = { backend };
-		await createTranscription(harness.db, {
-			...baseTranscription('tx-1', '01'),
-			document: documentWithVerses(['Romans 1:1']),
-		});
-		await createProject(harness.db, { id: 'project-a', name: 'Project A' });
+		await createCommittedSourceProject(storeOptions, { checkpointId: 'src-cp-1' });
 		await createProject(harness.db, { id: 'project-b', name: 'Project B' });
 
-		const [snapshotAId] = await syncProjectTranscriptionIds(harness.db, 'project-a', ['tx-1']);
-		const projectTranscriptionAId = await getProjectTranscriptionLinkId(snapshotAId);
-		await createCommittedTranscriptionCheckpointWithFiles(
-			harness.db,
-			{ projectTranscriptionId: projectTranscriptionAId, checkpointId: 'src-cp-1' },
-			storeOptions
-		);
+		const snapshotAId = 'tx-1';
+		const projectTranscriptionAId = 'pt-a';
 		const copied = await addProjectTranscriptionFromProject(
 			harness.db,
 			{
@@ -918,16 +1111,12 @@ describe('projects repository', () => {
 	});
 
 	it('adds a committed transcription from another project into the current project with origin metadata', async () => {
-		const storeOptions = { backend: new MemoryStoreBackend() };
-		await createTranscription(harness.db, {
-			...baseTranscription('tx-1', '01'),
-			document: documentWithVerses(['Romans 1:1']),
-		});
-		await createProject(harness.db, { id: 'project-a', name: 'Project A' });
+		const storeOptions = { backend: projectBackend };
+		await createCommittedSourceProject(storeOptions);
 		await createProject(harness.db, { id: 'project-b', name: 'Project B' });
 
-		const [snapshotAId] = await syncProjectTranscriptionIds(harness.db, 'project-a', ['tx-1']);
-		const projectTranscriptionAId = await getProjectTranscriptionLinkId(snapshotAId);
+		const snapshotAId = 'tx-1';
+		const projectTranscriptionAId = 'pt-a';
 
 		await updateTranscriptionContent(harness.db, {
 			id: snapshotAId,
@@ -1023,7 +1212,10 @@ describe('projects repository', () => {
 			transcriptionPrimaryFile(targetProject.storageSlug, result.projectTranscriptionId),
 			storeOptions
 		);
-		const manifestRaw = await readTextFile(projectManifestFile(targetProject.storageSlug), storeOptions);
+		const manifestRaw = await readTextFile(
+			projectManifestFile(targetProject.storageSlug),
+			storeOptions
+		);
 		const history = await readCanonicalDocument<TranscriptionCheckpointPayload>(
 			TRANSCRIPTION_CHECKPOINT_FORMAT,
 			historyRaw
@@ -1038,7 +1230,10 @@ describe('projects repository', () => {
 		);
 		expect(history).toMatchObject({
 			ok: true,
-			payload: { checkpoint_id: targetRow.current_revision_id, entity_id: result.projectTranscriptionId },
+			payload: {
+				checkpoint_id: targetRow.current_revision_id,
+				entity_id: result.projectTranscriptionId,
+			},
 		});
 		expect(primary).toMatchObject({
 			ok: true,
@@ -1076,24 +1271,12 @@ describe('projects repository', () => {
 	});
 
 	it('does not mutate the source project during add-from-project', async () => {
-		const storeOptions = { backend: new MemoryStoreBackend() };
-		await createTranscription(harness.db, {
-			...baseTranscription('tx-1', '01'),
-			document: documentWithVerses(['Romans 1:1']),
-		});
-		await createProject(harness.db, { id: 'project-a', name: 'Project A' });
+		const storeOptions = { backend: projectBackend };
+		await createCommittedSourceProject(storeOptions, { checkpointId: 'src-cp-1' });
 		await createProject(harness.db, { id: 'project-b', name: 'Project B' });
 
-		const [snapshotAId] = await syncProjectTranscriptionIds(harness.db, 'project-a', ['tx-1']);
-		const projectTranscriptionAId = await getProjectTranscriptionLinkId(snapshotAId);
-		await createCommittedTranscriptionCheckpointWithFiles(
-			harness.db,
-			{
-				projectTranscriptionId: projectTranscriptionAId,
-				checkpointId: 'src-cp-1',
-			},
-			storeOptions
-		);
+		const snapshotAId = 'tx-1';
+		const projectTranscriptionAId = 'pt-a';
 
 		await addProjectTranscriptionFromProject(
 			harness.db,
@@ -1119,94 +1302,142 @@ describe('projects repository', () => {
 	});
 
 	it('blocks add-from-project when the source is uncommitted', async () => {
+		const storeOptions = { backend: projectBackend };
+		await createProject(harness.db, { id: 'project-a', name: 'Project A' });
 		await createTranscription(harness.db, {
 			...baseTranscription('tx-1', '01'),
+			projectId: 'project-a',
+			projectTranscriptionId: 'pt-a',
 			document: documentWithVerses(['Romans 1:1']),
 		});
-		await createProject(harness.db, { id: 'project-a', name: 'Project A' });
 		await createProject(harness.db, { id: 'project-b', name: 'Project B' });
 
-		const [snapshotAId] = await syncProjectTranscriptionIds(harness.db, 'project-a', ['tx-1']);
-		const projectTranscriptionAId = await getProjectTranscriptionLinkId(snapshotAId);
-
 		await expect(
-			addProjectTranscriptionFromProject(harness.db, {
-				targetProjectId: 'project-b',
-				sourceProjectTranscriptionId: projectTranscriptionAId,
-			})
+			addProjectTranscriptionFromProject(
+				harness.db,
+				{
+					targetProjectId: 'project-b',
+					sourceProjectTranscriptionId: 'pt-a',
+				},
+				{ storeOptions }
+			)
 		).rejects.toBeInstanceOf(AddFromProjectUncommittedSourceError);
 
 		expect(await getProjectTranscriptionIds(harness.db, 'project-b')).toEqual([]);
 	});
 
 	it('blocks add-from-project when the source is in the same project', async () => {
+		const storeOptions = { backend: projectBackend };
+		await createProject(harness.db, { id: 'project-a', name: 'Project A' });
 		await createTranscription(harness.db, {
 			...baseTranscription('tx-1', '01'),
+			projectId: 'project-a',
+			projectTranscriptionId: 'pt-a',
 			document: documentWithVerses(['Romans 1:1']),
-		});
-		await createProject(harness.db, { id: 'project-a', name: 'Project A' });
-
-		const [snapshotAId] = await syncProjectTranscriptionIds(harness.db, 'project-a', ['tx-1']);
-		const projectTranscriptionAId = await getProjectTranscriptionLinkId(snapshotAId);
-		await createCommittedTranscriptionCheckpoint(harness.db, {
-			projectTranscriptionId: projectTranscriptionAId,
-			checkpointId: 'src-cp-1',
 		});
 
 		await expect(
-			addProjectTranscriptionFromProject(harness.db, {
-				targetProjectId: 'project-a',
-				sourceProjectTranscriptionId: projectTranscriptionAId,
-			})
+			addProjectTranscriptionFromProject(
+				harness.db,
+				{
+					targetProjectId: 'project-a',
+					sourceProjectTranscriptionId: 'pt-a',
+				},
+				{ storeOptions }
+			)
 		).rejects.toBeInstanceOf(AddFromProjectSameProjectError);
 	});
 
 	it('forks a project into a new independent project with project data', async () => {
+		const backend = projectBackend;
+		const storeOptions = { backend, nonce: () => crypto.randomUUID() };
+		await createProject(
+			harness.db,
+			{
+				id: 'project-a',
+				storageSlug: 'project-a',
+				name: 'Project A',
+				description: 'Source project',
+			},
+			storeOptions
+		);
 		await createTranscription(harness.db, {
 			...baseTranscription('tx-1', '01'),
+			projectId: 'project-a',
+			projectTranscriptionId: 'pt-a',
 			document: documentWithVerses(['Romans 1:1']),
 		});
-		await createProject(harness.db, {
-			id: 'project-a',
-			name: 'Project A',
-			description: 'Source project',
-		});
-		const [snapshotAId] = await syncProjectTranscriptionIds(harness.db, 'project-a', ['tx-1']);
-		const projectTranscriptionAId = await getProjectTranscriptionLinkId(snapshotAId);
-		const sourceCheckpoint = await createCommittedTranscriptionCheckpoint(harness.db, {
-			projectTranscriptionId: projectTranscriptionAId,
-			checkpointId: 'src-cp-1',
-		});
-		await createCollation(harness.db, {
-			id: 'col-a',
-			projectId: 'project-a',
-			title: 'Romans 1:1',
-			verseIdentifier: 'Romans 1:1',
-		});
-		await harness.db
-			.insertInto('collation_witnesses')
-			.values({
-				id: 'wit-a',
-				collation_id: 'col-a',
-				witness_id: 'A',
-				content: 'in principio',
-				position: 0,
-				project_transcription_id: projectTranscriptionAId,
-				transcription_id: snapshotAId,
-				source_revision_id: 'src-cp-1',
-				source_content_hash: sourceCheckpoint.contentHash,
-			})
-			.execute();
-		const collationCheckpoint = await createCommittedCollationCheckpoint(harness.db, {
-			collationId: 'col-a',
-			checkpointId: 'col-cp-1',
-			createdAt: '2026-06-20T10:00:00.000Z',
-		});
+		const snapshotAId = 'tx-1';
+		const projectTranscriptionAId = 'pt-a';
+		const sourceCheckpoint = await createCommittedTranscriptionCheckpointWithFiles(
+			harness.db,
+			{ projectTranscriptionId: projectTranscriptionAId, checkpointId: 'src-cp-1' },
+			storeOptions
+		);
+		await createCollationWithFiles(
+			harness.db,
+			{
+				id: 'col-a',
+				projectId: 'project-a',
+				title: 'Romans 1:1',
+				verseIdentifier: 'Romans 1:1',
+			},
+			storeOptions
+		);
+		await saveWorkingCollationArtifact(
+			harness.db,
+			{
+				collationId: 'col-a',
+				artifactType: 'collation_document_v1',
+				payload: JSON.stringify({
+					...COLLATION_FIXTURE.document,
+					meta: {
+						collationId: 'col-a',
+						projectId: 'project-a',
+						projectName: 'Project A',
+					},
+					setup: {
+						...COLLATION_FIXTURE.document.setup,
+						witnesses: [
+							{
+								type: 'witness',
+								id: 'A',
+								siglum: 'A',
+								transcriptionId: snapshotAId,
+								sourceVersion: 'src-cp-1',
+								sourceContentHash: sourceCheckpoint.contentHash,
+								content: 'in principio',
+								treatment: 'full',
+								isBaseText: true,
+								isExcluded: false,
+								overridesDefault: false,
+								sourceTokens: [],
+							},
+						],
+					},
+				}),
+				now: '2026-06-20T10:00:00.000Z',
+			},
+			storeOptions
+		);
+		const collationCheckpoint = await createCommittedCollationCheckpointWithFiles(
+			harness.db,
+			{
+				collationId: 'col-a',
+				checkpointId: 'col-cp-1',
+				createdAt: '2026-06-20T10:00:00.000Z',
+			},
+			storeOptions
+		);
 
-		const fork = await forkProject(harness.db, {
-			sourceProjectId: 'project-a',
-			createdAt: '2026-06-20T12:00:00.000Z',
-		});
+		const fork = await forkProject(
+			harness.db,
+			{
+				sourceProjectId: 'project-a',
+				createdAt: '2026-06-20T12:00:00.000Z',
+			},
+			storeOptions
+		);
 
 		const forkedProject = await getProject(harness.db, fork.projectId);
 		const forkedTranscription = await harness.db
@@ -1250,10 +1481,12 @@ describe('projects repository', () => {
 		expect(fork.collationIds).toHaveLength(1);
 		expect(forkedTranscription).toMatchObject({
 			project_id: fork.projectId,
-			origin_project_id: 'project-a',
-			origin_transcription_id: snapshotAId,
-			current_content_hash: sourceCheckpoint.contentHash,
+			origin_type: '',
+			origin_project_id: null,
+			origin_transcription_id: null,
+			current_content_hash: expect.stringMatching(/^sha256:/),
 		});
+		expect(forkedTranscription.current_content_hash).not.toBe(sourceCheckpoint.contentHash);
 		expect(forkedTranscription.current_revision_id).not.toBe('src-cp-1');
 		expect(forkedLink).toMatchObject({
 			project_id: fork.projectId,
@@ -1261,52 +1494,130 @@ describe('projects repository', () => {
 		});
 		expect(forkedTranscriptionCheckpoints).toHaveLength(1);
 		expect(forkedTranscriptionCheckpoints[0]).toMatchObject({
-			content_hash: sourceCheckpoint.contentHash,
+			content_hash: forkedTranscription.current_content_hash,
 			is_committed: 1,
 		});
 		expect(forkedCollation).toMatchObject({
 			project_id: fork.projectId,
-			current_content_hash: collationCheckpoint.contentHash,
+			current_content_hash: expect.stringMatching(/^sha256:/),
 		});
+		expect(forkedCollation.current_content_hash).not.toBe(collationCheckpoint.contentHash);
 		expect(forkedCollation.current_revision_id).not.toBe('col-cp-1');
 		expect(forkedWitness).toMatchObject({
 			project_transcription_id: fork.projectTranscriptionIds[0],
 			transcription_id: fork.projectOwnedTranscriptionIds[0],
-			source_content_hash: sourceCheckpoint.contentHash,
+			source_content_hash: forkedTranscription.current_content_hash,
 		});
 		expect(forkedWitness.source_revision_id).not.toBe('src-cp-1');
 		expect(forkedWitness.source_revision_id).toBe(forkedTranscription.current_revision_id);
 		expect(sourceFolderLinks).toHaveLength(0);
+
+		const forkManifest = await readCanonicalDocument<ProjectManifestPayload>(
+			PROJECT_MANIFEST_FORMAT,
+			await readTextFile(projectManifestFile(forkedProject!.storageSlug), storeOptions)
+		);
+		expect(forkManifest).toMatchObject({
+			ok: true,
+			payload: {
+				id: fork.projectId,
+				forked_from: {
+					source_project_id: 'project-a',
+					source_manifest_content_hash: expect.stringMatching(/^sha256:/),
+					source_manifest_schema_version: 2,
+				},
+			},
+		});
+		const forkCollation = await readCanonicalDocument(
+			COLLATION_FORMAT,
+			await readTextFile(
+				collationPrimaryFile(forkedProject!.storageSlug, fork.collationIds[0]!),
+				storeOptions
+			)
+		);
+		expect(forkCollation).toMatchObject({
+			ok: true,
+			payload: {
+				id: fork.collationIds[0],
+				project_id: fork.projectId,
+				document: {
+					meta: { collationId: fork.collationIds[0], projectId: fork.projectId },
+				},
+			},
+		});
+		const forkTranscription = await readCanonicalDocument<ProjectTranscriptionPayload>(
+			PROJECT_TRANSCRIPTION_FORMAT,
+			await readTextFile(
+				transcriptionPrimaryFile(
+					forkedProject!.storageSlug,
+					fork.projectTranscriptionIds[0]!
+				),
+				storeOptions
+			)
+		);
+		expect(forkTranscription).toMatchObject({
+			ok: true,
+			payload: {
+				id: fork.projectOwnedTranscriptionIds[0],
+				project_transcription_id: fork.projectTranscriptionIds[0],
+				origin: {
+					source_type: '',
+					source_project_id: null,
+					source_transcription_id: null,
+				},
+			},
+		});
+		await expect(
+			readTextFile(
+				transcriptionTeiFile(forkedProject!.storageSlug, fork.projectTranscriptionIds[0]!),
+				storeOptions
+			)
+		).resolves.toContain('<TEI');
+		await expect(
+			readTextFile(
+				collationTeiFile(forkedProject!.storageSlug, fork.collationIds[0]!),
+				storeOptions
+			)
+		).resolves.toContain('<TEI');
+
+		await rebuildIndexFromStore(harness.db, storeOptions);
+		expect(await getProject(harness.db, fork.projectId)).toMatchObject({
+			id: fork.projectId,
+			storageSlug: forkedProject!.storageSlug,
+			name: 'Project A Fork',
+		});
+		expect(await getProjectTranscriptionIds(harness.db, fork.projectId)).toEqual(
+			fork.projectOwnedTranscriptionIds
+		);
 	});
 
 	it('lists project transcription source candidates from other projects with committed status', async () => {
-		await createTranscription(harness.db, {
-			...baseTranscription('tx-1', '01'),
-			document: documentWithVerses(['Romans 1:1']),
-		});
-		await createProject(harness.db, { id: 'project-a', name: 'Project A' });
+		const storeOptions = { backend: projectBackend };
+		await createCommittedSourceProject(storeOptions, { checkpointId: 'src-cp-1' });
 		await createProject(harness.db, { id: 'project-b', name: 'Project B' });
 
-		const [snapshotAId] = await syncProjectTranscriptionIds(harness.db, 'project-a', ['tx-1']);
-		const projectTranscriptionAId = await getProjectTranscriptionLinkId(snapshotAId);
-		await createCommittedTranscriptionCheckpoint(harness.db, {
-			projectTranscriptionId: projectTranscriptionAId,
-			checkpointId: 'src-cp-1',
-		});
+		const snapshotAId = 'tx-1';
+		const projectTranscriptionAId = 'pt-a';
 
-		const [snapshotBId] = await syncProjectTranscriptionIds(harness.db, 'project-b', ['tx-1']);
+		const [snapshotBId] = await syncProjectTranscriptionIds(
+			harness.db,
+			'project-b',
+			['tx-1'],
+			storeOptions
+		);
 		const projectTranscriptionBId = await getProjectTranscriptionLinkId(snapshotBId);
 
 		const candidatesForB = await listProjectTranscriptionSourceCandidates(
 			harness.db,
-			'project-b'
+			'project-b',
+			{ storeOptions }
 		);
 		const candidatesForA = await listProjectTranscriptionSourceCandidates(
 			harness.db,
-			'project-a'
+			'project-a',
+			{ storeOptions }
 		);
 
-		expect(candidatesForB).toHaveLength(2);
+		expect(candidatesForB).toHaveLength(1);
 		expect(candidatesForB).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({
@@ -1320,15 +1631,17 @@ describe('projects repository', () => {
 				}),
 			])
 		);
-		expect(candidatesForA).toHaveLength(2);
+		expect(candidatesForA).toHaveLength(1);
 		expect(candidatesForA).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({
 					projectTranscriptionId: projectTranscriptionBId,
 					projectId: 'project-b',
 					projectName: 'Project B',
-					currentCheckpoint: null,
-					dirtyToCheckpoint: true,
+					currentCheckpoint: expect.objectContaining({
+						revisionId: expect.any(String),
+					}),
+					dirtyToCheckpoint: false,
 				}),
 			])
 		);
@@ -1458,7 +1771,10 @@ class MemoryStoreBackend implements StoreBackend {
 		}
 		for (const file of this.files.keys()) {
 			if (storePathDirname(file) === normalized) {
-				entries.set(storePathBasename(file), { name: storePathBasename(file), kind: 'file' });
+				entries.set(storePathBasename(file), {
+					name: storePathBasename(file),
+					kind: 'file',
+				});
 			}
 		}
 		return [...entries.values()].sort((left, right) => left.name.localeCompare(right.name));

@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import type { StoredTranscriptionDocument } from '$lib/client/transcription/content';
+import { MemoryStoreBackend } from '$lib/client/store/memory-store-backend.spec-support';
 import { upsertCloudConnection } from './cloud-connections';
-import { createProject, syncProjectTranscriptionIds } from './projects';
+import { createProject as createProjectRepository, syncProjectTranscriptionIds } from './projects';
 import {
 	createCommittedCollationCheckpoint,
 	createCommittedTranscriptionCheckpoint,
@@ -22,14 +23,28 @@ import {
 } from './collations';
 
 let harness: LocalDbTestHarness;
+let backend: MemoryStoreBackend;
 
-beforeEach(() => {
+beforeEach(async () => {
 	harness = createLocalDbTestHarness();
+	backend = new MemoryStoreBackend();
+	await createProject(harness.db, {
+		id: 'default-project',
+		storageSlug: 'default-project',
+		name: 'Default',
+	});
 });
 
 afterEach(async () => {
 	await harness.destroy();
 });
+
+function createProject(
+	db: Parameters<typeof createProjectRepository>[0],
+	input: Parameters<typeof createProjectRepository>[1]
+) {
+	return createProjectRepository(db, input, { backend });
+}
 
 describe('collations repository', () => {
 	it('lists collations with project names without loading artifact/projection rows', async () => {
@@ -193,6 +208,8 @@ describe('collations repository', () => {
 		await createProject(harness.db, { id: 'project-1', name: 'Romans' });
 		await createTranscription(harness.db, {
 			id: 'tx-1',
+			projectId: 'project-1',
+			projectTranscriptionId: 'pt-1',
 			title: 'Witness 01',
 			siglum: '01',
 			transcriber: 'Editor',
@@ -200,8 +217,8 @@ describe('collations repository', () => {
 			settlement: 'City',
 			language: 'grc',
 		});
-		const [snapshotId] = await syncProjectTranscriptionIds(harness.db, 'project-1', ['tx-1']);
-		const projectTranscriptionId = await getProjectTranscriptionId(snapshotId);
+		const snapshotId = 'tx-1';
+		const projectTranscriptionId = 'pt-1';
 		const checkpoint = await createCommittedTranscriptionCheckpoint(harness.db, {
 			projectTranscriptionId,
 			checkpointId: 'tx-cp-1',
@@ -265,17 +282,84 @@ describe('collations repository', () => {
 		});
 	});
 
+	it('rejects witnesses owned by another project', async () => {
+		await insertProject('project-1', 'Romans');
+		await insertProject('project-2', 'Galatians');
+		await createTranscription(harness.db, {
+			...sourceTranscription('tx-foreign', 'F'),
+			projectId: 'project-2',
+			projectTranscriptionId: 'pt-foreign',
+		});
+		await insertCollation('col-1', 'Romans 1:1', '2024-01-02T00:00:00.000Z');
+
+		await expect(
+			saveCollationProjection(harness.db, {
+				collationId: 'col-1',
+				witnesses: [
+					{
+						witnessId: 'F',
+						transcriptionId: 'tx-foreign',
+						projectTranscriptionId: 'pt-foreign',
+						sourceVersion: 'v1',
+						content: 'foreign',
+						position: 0,
+					},
+				],
+				tokens: [],
+				variationUnits: [],
+			})
+		).rejects.toThrow('does not belong to collation project project-1');
+	});
+
+	it('rejects a project transcription id that does not match its witness transcription', async () => {
+		await insertProject('project-1', 'Romans');
+		await createTranscription(harness.db, {
+			...sourceTranscription('tx-1', '01'),
+			projectId: 'project-1',
+			projectTranscriptionId: 'pt-1',
+		});
+		await createTranscription(harness.db, {
+			...sourceTranscription('tx-2', '02'),
+			projectId: 'project-1',
+			projectTranscriptionId: 'pt-2',
+		});
+		await insertCollation('col-1', 'Romans 1:1', '2024-01-02T00:00:00.000Z');
+
+		await expect(
+			saveCollationProjection(harness.db, {
+				collationId: 'col-1',
+				witnesses: [
+					{
+						witnessId: '01',
+						transcriptionId: 'tx-1',
+						projectTranscriptionId: 'pt-2',
+						sourceVersion: 'v1',
+						content: 'local',
+						position: 0,
+					},
+				],
+				tokens: [],
+				variationUnits: [],
+			})
+		).rejects.toThrow('does not match transcription tx-1');
+	});
+
 	it('reports collation version status and witness source states', async () => {
 		await createProject(harness.db, { id: 'project-1', name: 'Romans' });
-		await createTranscription(harness.db, sourceTranscription('tx-1', '01'));
-		await createTranscription(harness.db, sourceTranscription('tx-2', '02'));
-		const [snapshotAId, snapshotBId] = await syncProjectTranscriptionIds(
-			harness.db,
-			'project-1',
-			['tx-1', 'tx-2']
-		);
-		const projectTranscriptionAId = await getProjectTranscriptionId(snapshotAId);
-		const projectTranscriptionBId = await getProjectTranscriptionId(snapshotBId);
+		await createTranscription(harness.db, {
+			...sourceTranscription('tx-1', '01'),
+			projectId: 'project-1',
+			projectTranscriptionId: 'pt-1',
+		});
+		await createTranscription(harness.db, {
+			...sourceTranscription('tx-2', '02'),
+			projectId: 'project-1',
+			projectTranscriptionId: 'pt-2',
+		});
+		const snapshotAId = 'tx-1';
+		const snapshotBId = 'tx-2';
+		const projectTranscriptionAId = 'pt-1';
+		const projectTranscriptionBId = 'pt-2';
 		const sourceCheckpoint = await createCommittedTranscriptionCheckpoint(harness.db, {
 			projectTranscriptionId: projectTranscriptionAId,
 			checkpointId: 'tx-cp-1',
@@ -436,9 +520,13 @@ describe('collations repository', () => {
 
 	it('reports dirty and newer witness source versions separately from collation dirty state', async () => {
 		await createProject(harness.db, { id: 'project-1', name: 'Romans' });
-		await createTranscription(harness.db, sourceTranscription('tx-1', '01'));
-		const [snapshotId] = await syncProjectTranscriptionIds(harness.db, 'project-1', ['tx-1']);
-		const projectTranscriptionId = await getProjectTranscriptionId(snapshotId);
+		await createTranscription(harness.db, {
+			...sourceTranscription('tx-1', '01'),
+			projectId: 'project-1',
+			projectTranscriptionId: 'pt-1',
+		});
+		const snapshotId = 'tx-1';
+		const projectTranscriptionId = 'pt-1';
 		const firstSourceCheckpoint = await createCommittedTranscriptionCheckpoint(harness.db, {
 			projectTranscriptionId,
 			checkpointId: 'tx-cp-1',
@@ -551,6 +639,22 @@ async function insertCollation(id: string, title: string, updatedAt: string): Pr
 			sort_key: 0,
 			created_at: '2024-01-01T00:00:00.000Z',
 			updated_at: updatedAt,
+		})
+		.execute();
+}
+
+async function insertProject(id: string, name: string): Promise<void> {
+	await harness.db
+		.insertInto('projects')
+		.values({
+			id,
+			storage_slug: `${id}-slug`,
+			name,
+			description: '',
+			charter: '',
+			collation_settings: '{}',
+			created_at: '2024-01-01T00:00:00.000Z',
+			updated_at: '2024-01-01T00:00:00.000Z',
 		})
 		.execute();
 }

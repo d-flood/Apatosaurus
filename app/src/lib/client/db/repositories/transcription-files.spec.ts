@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createLocalDbTestHarness, type LocalDbTestHarness } from '../test-harness';
 import { projectWriteLockName } from './project-locks';
-import { createProject } from './projects';
+import { createProject as createProjectRepository } from './projects';
 import {
 	createTranscription,
 	getTranscription,
@@ -15,6 +15,7 @@ import {
 	loadTranscriptionWithWorkingFile,
 	rebuildVerseIndexForTranscriptionsWithFiles,
 	saveWorkingTranscriptionContent,
+	saveWorkingTranscriptionMetadata,
 } from './transcription-files';
 import type { StoredTranscriptionDocument } from '$lib/client/transcription/content';
 import {
@@ -59,7 +60,93 @@ afterEach(async () => {
 	await harness.destroy();
 });
 
+function createProject(
+	db: Parameters<typeof createProjectRepository>[0],
+	input: Parameters<typeof createProjectRepository>[1]
+) {
+	return createProjectRepository(db, input, { backend });
+}
+
 describe('transcription file persistence', () => {
+	it('writes metadata to the canonical working file before updating the index', async () => {
+		await createFixtureTranscription();
+		backend.failWrites = true;
+
+		await expect(
+			saveWorkingTranscriptionMetadata(
+				harness.db,
+				{
+					id: 'tx-1',
+					title: 'Edited title',
+					siglum: '02',
+					description: 'Edited description',
+					tags: ['edited'],
+					transcriber: 'New editor',
+					repository: 'New library',
+					settlement: 'New city',
+					language: 'lat',
+					updatedAt: '2026-07-04T12:00:00.000Z',
+				},
+				{ backend, nonce: () => 'failed-metadata-write' }
+			)
+		).rejects.toThrow('simulated write failure');
+
+		expect(await getTranscription(harness.db, 'tx-1')).toMatchObject({
+			title: 'Witness 1',
+			siglum: '01',
+			updated_at: '2026-07-04T00:00:00.000Z',
+		});
+	});
+
+	it('derives edited transcription metadata from the canonical working file', async () => {
+		await createFixtureTranscription();
+
+		await saveWorkingTranscriptionMetadata(
+			harness.db,
+			{
+				id: 'tx-1',
+				title: 'Edited title',
+				siglum: '02',
+				description: 'Edited description',
+				tags: ['edited'],
+				transcriber: 'New editor',
+				repository: 'New library',
+				settlement: 'New city',
+				language: 'lat',
+				updatedAt: '2026-07-04T12:00:00.000Z',
+			},
+			{ backend, nonce: () => 'metadata-write' }
+		);
+
+		const raw = await readTextFile(transcriptionWorkingFile('project-slug', 'pt-1'), {
+			backend,
+		});
+		const parsed = await readCanonicalDocument<WorkingTranscriptionPayload>(
+			WORKING_TRANSCRIPTION_FORMAT,
+			raw
+		);
+		expect(parsed).toMatchObject({
+			ok: true,
+			payload: {
+				title: 'Edited title',
+				siglum: '02',
+				description: 'Edited description',
+				tags: ['edited'],
+				transcriber: 'New editor',
+				repository: 'New library',
+				settlement: 'New city',
+				language: 'lat',
+				updated_at: '2026-07-04T12:00:00.000Z',
+			},
+		});
+		expect(await getTranscription(harness.db, 'tx-1')).toMatchObject({
+			title: 'Edited title',
+			siglum: '02',
+			tags: ['edited'],
+			updated_at: '2026-07-04T12:00:00.000Z',
+		});
+	});
+
 	it('writes the working transcription file before updating the index cache', async () => {
 		await createFixtureTranscription();
 		backend.failWrites = true;
@@ -483,6 +570,9 @@ describe('transcription file persistence', () => {
 
 	it('does not write primary, manifest, or index when transcription history writing fails', async () => {
 		await createFixtureTranscription();
+		const initialManifest = await readTextFile(projectManifestFile('project-slug'), {
+			backend,
+		});
 		backend.failWritePathIncludes = 'history/transcriptions/pt-1/tx-cp-history-fail.json.tmp-';
 
 		await expect(
@@ -506,9 +596,9 @@ describe('transcription file persistence', () => {
 		await expect(
 			readTextFile(transcriptionPrimaryFile('project-slug', 'pt-1'), { backend })
 		).rejects.toThrow('not found');
-		await expect(
-			readTextFile(projectManifestFile('project-slug'), { backend })
-		).rejects.toThrow('not found');
+		await expect(readTextFile(projectManifestFile('project-slug'), { backend })).resolves.toBe(
+			initialManifest
+		);
 		await expect(
 			harness.db
 				.selectFrom('transcription_checkpoints')
@@ -527,6 +617,9 @@ describe('transcription file persistence', () => {
 
 	it('leaves only history when transcription primary writing fails', async () => {
 		await createFixtureTranscription();
+		const initialManifest = await readTextFile(projectManifestFile('project-slug'), {
+			backend,
+		});
 		backend.failWritePathIncludes = 'transcriptions/pt-1.json.tmp-';
 
 		await expect(
@@ -550,9 +643,9 @@ describe('transcription file persistence', () => {
 		await expect(
 			readTextFile(transcriptionPrimaryFile('project-slug', 'pt-1'), { backend })
 		).rejects.toThrow('not found');
-		await expect(
-			readTextFile(projectManifestFile('project-slug'), { backend })
-		).rejects.toThrow('not found');
+		await expect(readTextFile(projectManifestFile('project-slug'), { backend })).resolves.toBe(
+			initialManifest
+		);
 		await expect(
 			harness.db
 				.selectFrom('transcription_checkpoints')
@@ -571,6 +664,9 @@ describe('transcription file persistence', () => {
 
 	it('does not update the index when manifest writing fails after entity files', async () => {
 		await createFixtureTranscription();
+		const initialManifest = await readTextFile(projectManifestFile('project-slug'), {
+			backend,
+		});
 		backend.failWritePathIncludes = 'project.json.tmp-';
 
 		await expect(
@@ -594,9 +690,9 @@ describe('transcription file persistence', () => {
 		await expect(
 			readTextFile(transcriptionPrimaryFile('project-slug', 'pt-1'), { backend })
 		).resolves.toContain('tx-cp-manifest-fail');
-		await expect(
-			readTextFile(projectManifestFile('project-slug'), { backend })
-		).rejects.toThrow('not found');
+		await expect(readTextFile(projectManifestFile('project-slug'), { backend })).resolves.toBe(
+			initialManifest
+		);
 		await expect(
 			harness.db
 				.selectFrom('transcription_checkpoints')

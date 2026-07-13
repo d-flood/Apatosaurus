@@ -123,3 +123,20 @@ Ticket 04 is reopened because project ownership exists in the schema, but active
 - Create a collation without a project query parameter and assert it belongs to Default.
 
 Completion gate: no ownership, copy, fork, metadata, or creation flow can create state that disappears when SQLite is deleted.
+
+### Implementation blocker (2026-07-13)
+
+Remediation paused before code changes because the canonical fork provenance contract is not defined. `apatosaurus.project-manifest` has no source/fork lineage field, collation documents have no lineage fields, and only transcription documents support `origin_*`. The requirement that a canonical project fork have "explicit provenance" therefore needs a human decision: provenance may be project-level, limited to the existing copied-transcription lineage, or added to each forked entity. Each option changes the persisted schema and rebuild behavior differently, so the implementation must not select one implicitly.
+
+Decision: record source project id and source manifest hash/revision metadata in the forked `project.json`. Forked transcriptions also retain their existing `origin_*` lineage; collation documents do not gain a separate lineage contract.
+
+### Remediation result (2026-07-13)
+
+- Project creation, Default bootstrap, metadata/settings updates, transcription metadata edits, witness copy/removal, and project forks now write canonical files before publishing index state.
+- Project manifest schema v2 records project-fork provenance and includes a checked-in v1-to-v2 migration fixture.
+- Canonical project forks rewrite project, entity, checkpoint, revision, witness, and embedded document identities; regenerate valid history, primary, TEI, and manifest files; and preserve transcription lineage.
+- Collation witness persistence rejects foreign-project transcriptions and mismatched project-transcription links. Collation project contracts are non-null and do not support reassignment.
+- `/collation/new` selects Default when no project query parameter is supplied.
+- Required rebuild coverage exercises empty project metadata, canonical copy/tombstone behavior, forked entities and provenance, transcription metadata edits, and witness ownership.
+
+Verification passed: `bun run db:generate`, `bun run db:check`, `bun run check`, repository suite (91 tests), focused sync suite (42 tests), and full `bun run test:unit -- --run` (464 tests).

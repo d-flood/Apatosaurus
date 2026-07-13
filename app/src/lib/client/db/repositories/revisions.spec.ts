@@ -2,9 +2,10 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import type { StoredTranscriptionDocument } from '$lib/client/transcription/content';
 import { COLLATION_FIXTURE } from '$lib/client/store';
+import { MemoryStoreBackend } from '$lib/client/store/memory-store-backend.spec-support';
 import { ensureManifestSource, upsertCanvasAnnotation, upsertPageCanvasLink } from './iiif';
 import { createCollation, saveCollationArtifact, updateCollationMetadata } from './collations';
-import { createProject, syncProjectTranscriptionIds } from './projects';
+import { createProject as createProjectRepository, syncProjectTranscriptionIds } from './projects';
 import { createTranscription, updateTranscriptionContent } from './transcriptions';
 import { createLocalDbTestHarness, type LocalDbTestHarness } from '../test-harness';
 import {
@@ -22,14 +23,28 @@ import {
 } from './revisions';
 
 let harness: LocalDbTestHarness;
+let backend: MemoryStoreBackend;
 
-beforeEach(() => {
+beforeEach(async () => {
 	harness = createLocalDbTestHarness();
+	backend = new MemoryStoreBackend();
+	await createProject(harness.db, {
+		id: 'default-project',
+		storageSlug: 'default-project',
+		name: 'Default',
+	});
 });
 
 afterEach(async () => {
 	await harness.destroy();
 });
+
+function createProject(
+	db: Parameters<typeof createProjectRepository>[0],
+	input: Parameters<typeof createProjectRepository>[1]
+) {
+	return createProjectRepository(db, input, { backend });
+}
 
 describe('revision hashing and checkpoints', () => {
 	it('canonicalizes JSON before hashing semantic payloads', async () => {
@@ -75,8 +90,11 @@ describe('revision hashing and checkpoints', () => {
 	});
 
 	it('creates committed transcription checkpoints and tracks dirty working snapshots', async () => {
+		await createProject(harness.db, { id: 'project-1', name: 'Project' });
 		await createTranscription(harness.db, {
 			id: 'tx-1',
+			projectId: 'project-1',
+			projectTranscriptionId: 'pt-1',
 			title: 'Witness 01',
 			siglum: '01',
 			document: documentWithVerses(['Romans 1:1']),
@@ -86,9 +104,8 @@ describe('revision hashing and checkpoints', () => {
 			settlement: 'City',
 			language: 'grc',
 		});
-		await createProject(harness.db, { id: 'project-1', name: 'Project' });
-		const [snapshotId] = await syncProjectTranscriptionIds(harness.db, 'project-1', ['tx-1']);
-		const projectTranscriptionId = await getProjectTranscriptionId(snapshotId);
+		const snapshotId = 'tx-1';
+		const projectTranscriptionId = 'pt-1';
 		const manifest = await ensureManifestSource(harness.db, {
 			transcriptionId: snapshotId,
 			manifestUrl: 'https://example.org/manifest.json',
@@ -209,8 +226,11 @@ describe('revision hashing and checkpoints', () => {
 	});
 
 	it('lists committed transcription checkpoints newest-first and omits uncommitted rows', async () => {
+		await createProject(harness.db, { id: 'project-1', name: 'Project' });
 		await createTranscription(harness.db, {
 			id: 'tx-1',
+			projectId: 'project-1',
+			projectTranscriptionId: 'pt-1',
 			title: 'Witness 01',
 			siglum: '01',
 			document: documentWithVerses(['Romans 1:1']),
@@ -219,9 +239,8 @@ describe('revision hashing and checkpoints', () => {
 			settlement: 'City',
 			language: 'grc',
 		});
-		await createProject(harness.db, { id: 'project-1', name: 'Project' });
-		const [snapshotId] = await syncProjectTranscriptionIds(harness.db, 'project-1', ['tx-1']);
-		const projectTranscriptionId = await getProjectTranscriptionId(snapshotId);
+		const snapshotId = 'tx-1';
+		const projectTranscriptionId = 'pt-1';
 
 		await createCommittedTranscriptionCheckpoint(harness.db, {
 			projectTranscriptionId,

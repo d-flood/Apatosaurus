@@ -63,6 +63,7 @@ import type {
 	TranscriptionSummary,
 	TranscriptionVersion,
 	UpdateTranscriptionContentInput,
+	UpdateTranscriptionMetadataInput,
 	VerseIndexRebuildResult,
 	VerseIndexRow,
 } from './repositories/transcriptions';
@@ -195,6 +196,12 @@ export async function updateTranscriptionContent(
 		return;
 	}
 	await sendTranscriptionRequest({ type: 'transcriptions.updateContent', input });
+}
+
+export async function updateTranscriptionMetadata(
+	input: UpdateTranscriptionMetadataInput
+): Promise<void> {
+	await sendTranscriptionRequest({ type: 'transcriptions.updateMetadata', input });
 }
 
 export async function deleteTranscription(id: string): Promise<void> {

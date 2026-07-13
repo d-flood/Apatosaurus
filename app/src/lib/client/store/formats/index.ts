@@ -47,6 +47,7 @@ export {
 	PROJECT_MANIFEST_FORMAT,
 	projectManifestFormatRegistration,
 	type ProjectManifestDocument,
+	type ProjectManifestForkProvenance,
 	type ProjectManifestPayload,
 	type ProjectManifestCollationHead,
 	type ProjectManifestRevisionHead,

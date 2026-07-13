@@ -4,6 +4,8 @@ import {
 	PROJECT_MANIFEST_CURRENT_VERSION,
 	PROJECT_MANIFEST_FORMAT,
 	projectManifestFile,
+	readCanonicalDocument,
+	readTextFile,
 	transcriptionPrimaryRelativeFile,
 	collationPrimaryRelativeFile,
 	tombstoneRelativeFile,
@@ -12,6 +14,7 @@ import {
 	writeTextFileAtomic,
 	type JsonValue,
 	type ProjectManifestCollationHead,
+	type ProjectManifestForkProvenance,
 	type ProjectManifestPayload,
 	type ProjectManifestRevisionHead,
 	type ProjectManifestTombstoneHead,
@@ -21,22 +24,34 @@ import {
 import { hashCanonicalPayload } from '$lib/client/sync/canonical-json';
 
 import type { Database } from '../types.generated';
-import { getProject } from './projects';
 
 type DbExecutor = Kysely<Database> | Transaction<Database>;
 
 export interface ProjectManifestHeadOverrides {
 	transcriptions?: Record<string, ProjectManifestRevisionHead | null>;
 	collations?: Record<string, ProjectManifestRevisionHead | null>;
+	forkedFrom?: ProjectManifestForkProvenance | null;
+}
+
+export interface ProjectManifestProjectRecord {
+	id: string;
+	storageSlug: string;
+	name: string;
+	description: string;
+	charter: string;
+	collationSettings: unknown;
+	createdAt: string;
+	updatedAt: string;
 }
 
 export async function writeProjectManifestFile(
 	db: DbExecutor,
 	projectId: string,
 	overrides: ProjectManifestHeadOverrides = {},
-	storeOptions: StoreOperationOptions = {}
+	storeOptions: StoreOperationOptions = {},
+	projectOverride?: ProjectManifestProjectRecord
 ): Promise<ProjectManifestPayload> {
-	const project = await getProject(db, projectId);
+	const project = projectOverride ?? (await loadProjectManifestRecord(db, projectId));
 	if (!project) throw new Error(`Project ${projectId} was not found.`);
 
 	const [transcriptions, collations, tombstones] = await Promise.all([
@@ -44,6 +59,74 @@ export async function writeProjectManifestFile(
 		listProjectManifestCollationHeads(db, projectId, overrides.collations ?? {}),
 		listProjectManifestTombstoneHeads(db, projectId),
 	]);
+	const forkedFrom =
+		'forkedFrom' in overrides
+			? (overrides.forkedFrom ?? null)
+			: await readExistingForkProvenance(project.storageSlug, storeOptions);
+	return writeProjectManifestPayloadFile(
+		project,
+		transcriptions,
+		collations,
+		tombstones,
+		forkedFrom,
+		storeOptions
+	);
+}
+
+async function readExistingForkProvenance(
+	storageSlug: string,
+	storeOptions: StoreOperationOptions
+): Promise<ProjectManifestForkProvenance | null> {
+	try {
+		const read = await readCanonicalDocument<ProjectManifestPayload>(
+			PROJECT_MANIFEST_FORMAT,
+			await readTextFile(projectManifestFile(storageSlug), storeOptions)
+		);
+		return read.ok ? read.payload.forked_from : null;
+	} catch {
+		return null;
+	}
+}
+
+async function loadProjectManifestRecord(
+	db: DbExecutor,
+	projectId: string
+): Promise<ProjectManifestProjectRecord | null> {
+	const row = await db
+		.selectFrom('projects')
+		.selectAll()
+		.where('id', '=', projectId)
+		.executeTakeFirst();
+	return row
+		? {
+				id: requireId(row.id, 'project'),
+				storageSlug: requireId(row.storage_slug, 'project storage slug'),
+				name: row.name,
+				description: row.description,
+				charter: row.charter,
+				collationSettings: JSON.parse(row.collation_settings),
+				createdAt: row.created_at,
+				updatedAt: row.updated_at,
+			}
+		: null;
+}
+
+export async function writeEmptyProjectManifestFile(
+	project: ProjectManifestProjectRecord,
+	storeOptions: StoreOperationOptions = {},
+	forkedFrom: ProjectManifestForkProvenance | null = null
+): Promise<ProjectManifestPayload> {
+	return writeProjectManifestPayloadFile(project, [], [], [], forkedFrom, storeOptions);
+}
+
+async function writeProjectManifestPayloadFile(
+	project: ProjectManifestProjectRecord,
+	transcriptions: ProjectManifestTranscriptionHead[],
+	collations: ProjectManifestCollationHead[],
+	tombstones: ProjectManifestTombstoneHead[],
+	forkedFrom: ProjectManifestForkProvenance | null,
+	storeOptions: StoreOperationOptions
+): Promise<ProjectManifestPayload> {
 	const manifestContentHash = await hashCanonicalPayload({
 		project_id: project.id,
 		transcriptions,
@@ -56,6 +139,7 @@ export async function writeProjectManifestFile(
 		description: project.description,
 		charter: project.charter,
 		collation_settings: project.collationSettings as JsonValue,
+		forked_from: forkedFrom,
 		manifest_content_hash: manifestContentHash,
 		transcriptions,
 		collations,

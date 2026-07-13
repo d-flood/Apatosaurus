@@ -230,8 +230,6 @@
 							<dd class="mb-2">
 								{new Date(transcription?.updated_at || '').toLocaleString()}
 							</dd>
-							<dt class="font-bold">Public?</dt>
-							<dd class="mb-2">{transcription?.is_public ? 'Yes' : 'No'}</dd>
 							{#if transcription?.owner}
 								<dt class="font-bold">Owned by</dt>
 								<dd>{transcription?.owner}</dd>

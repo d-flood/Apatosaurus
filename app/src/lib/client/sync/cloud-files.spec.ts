@@ -8,7 +8,7 @@ import {
 	upsertCanvasAnnotation,
 	upsertPageCanvasLink,
 } from '$lib/client/db/repositories/iiif';
-import { createProject, syncProjectTranscriptionIds } from '$lib/client/db/repositories/projects';
+import { createProject as createProjectRepository } from '$lib/client/db/repositories/projects';
 import {
 	createCommittedCollationCheckpointWithFiles,
 	saveWorkingCollationArtifact,
@@ -65,6 +65,13 @@ afterEach(async () => {
 	await harness.destroy();
 });
 
+function createProject(
+	db: Parameters<typeof createProjectRepository>[0],
+	input: Parameters<typeof createProjectRepository>[1]
+) {
+	return createProjectRepository(db, input, storeOptions);
+}
+
 describe('cloud file serialization formats', () => {
 	it('round-trips project metadata and tombstones through deterministic JSON', async () => {
 		await createProject(harness.db, {
@@ -98,9 +105,15 @@ describe('cloud file serialization formats', () => {
 			await serializeCloudFile(tombstoneFile)
 		);
 
-		expect(parsedProject).toEqual({ ok: true, value: projectFile });
+		expect(parsedProject).toEqual({
+			ok: true,
+			value: { ...projectFile, forked_from: null },
+		});
 		expect(parsedTombstone).toEqual({ ok: true, value: tombstoneFile });
-		const { schema_version: _schemaVersion, ...canonicalManifest } = projectFile;
+		const { schema_version: _schemaVersion, ...canonicalManifest } = {
+			...projectFile,
+			forked_from: null,
+		};
 		expect(projectBytes).toBe(
 			await serializeCanonicalDocument(
 				PROJECT_MANIFEST_FORMAT,
@@ -145,8 +158,11 @@ describe('cloud file serialization formats', () => {
 	});
 
 	it('round-trips project transcription snapshots, IIIF records, and history files', async () => {
+		await createProject(harness.db, { id: 'project-1', name: 'Project' });
 		await createTranscription(harness.db, {
 			id: 'tx-1',
+			projectId: 'project-1',
+			projectTranscriptionId: 'pt-1',
 			title: 'Codex Vaticanus - John 18',
 			siglum: '03',
 			description: 'Transcription from IIIF images',
@@ -159,9 +175,8 @@ describe('cloud file serialization formats', () => {
 			createdAt: '2026-06-08T12:00:00.000Z',
 			updatedAt: '2026-06-08T12:00:00.000Z',
 		});
-		await createProject(harness.db, { id: 'project-1', name: 'Project' });
-		const [snapshotId] = await syncProjectTranscriptionIds(harness.db, 'project-1', ['tx-1']);
-		const projectTranscriptionId = await getProjectTranscriptionId(snapshotId);
+		const snapshotId = 'tx-1';
+		const projectTranscriptionId = 'pt-1';
 		const manifest = await ensureManifestSource(harness.db, {
 			transcriptionId: snapshotId,
 			manifestUrl: 'https://example.org/manifest.json',
@@ -276,6 +291,8 @@ describe('cloud file serialization formats', () => {
 		await createProject(harness.db, { id: 'project-1', name: 'Project' });
 		await createTranscription(harness.db, {
 			id: 'tx-a',
+			projectId: 'project-1',
+			projectTranscriptionId: 'pt-a',
 			title: 'Witness A',
 			siglum: 'A',
 			document: documentWithVerses(['John 18:1']),
@@ -286,6 +303,8 @@ describe('cloud file serialization formats', () => {
 		});
 		await createTranscription(harness.db, {
 			id: 'tx-b',
+			projectId: 'project-1',
+			projectTranscriptionId: 'pt-b',
 			title: 'Witness B',
 			siglum: 'B',
 			document: documentWithVerses(['John 18:1']),
@@ -294,13 +313,10 @@ describe('cloud file serialization formats', () => {
 			settlement: 'City',
 			language: 'grc',
 		});
-		const [snapshotAId, snapshotBId] = await syncProjectTranscriptionIds(
-			harness.db,
-			'project-1',
-			['tx-a', 'tx-b']
-		);
-		const projectTranscriptionAId = await getProjectTranscriptionId(snapshotAId);
-		const projectTranscriptionBId = await getProjectTranscriptionId(snapshotBId);
+		const snapshotAId = 'tx-a';
+		const snapshotBId = 'tx-b';
+		const projectTranscriptionAId = 'pt-a';
+		const projectTranscriptionBId = 'pt-b';
 		const sourceA = await createCommittedTranscriptionCheckpointWithFiles(
 			harness.db,
 			{
@@ -456,16 +472,6 @@ function pageCanvasLinkInput(transcriptionId: string, manifestSourceId: string) 
 		thumbnailUrl: null,
 		linkRole: 'primary',
 	};
-}
-
-async function getProjectTranscriptionId(transcriptionId: string): Promise<string> {
-	const row = await harness.db
-		.selectFrom('project_transcriptions')
-		.select('id')
-		.where('transcription_id', '=', transcriptionId)
-		.executeTakeFirstOrThrow();
-	if (!row.id) throw new Error('Missing project transcription id.');
-	return row.id;
 }
 
 async function insertCollationChildRows(sources: {

@@ -29,7 +29,7 @@ import {
 	writeTextFileAtomic,
 } from '$lib/client/store';
 import { createLocalDbTestHarness, type LocalDbTestHarness } from '../test-harness';
-import { createProject } from './projects';
+import { createProject as createProjectRepository } from './projects';
 import { projectWriteLockName } from './project-locks';
 import { createCollation, loadCollation } from './collations';
 import { createCommittedCollationCheckpoint } from './revisions';
@@ -53,6 +53,13 @@ afterEach(async () => {
 	vi.unstubAllGlobals();
 	await harness.destroy();
 });
+
+function createProject(
+	db: Parameters<typeof createProjectRepository>[0],
+	input: Parameters<typeof createProjectRepository>[1]
+) {
+	return createProjectRepository(db, input, { backend });
+}
 
 describe('collation file persistence', () => {
 	it('writes the working collation file before updating artifact storage', async () => {
@@ -491,6 +498,9 @@ describe('collation file persistence', () => {
 	it('does not write primary, manifest, or index when collation history writing fails', async () => {
 		await createFixtureCollation();
 		await saveFixtureWorkingCollation();
+		const initialManifest = await readTextFile(projectManifestFile('project-slug'), {
+			backend,
+		});
 		backend.failWritePathIncludes = 'history/collations/col-1/col-cp-history-fail.json.tmp-';
 
 		await expect(
@@ -513,9 +523,9 @@ describe('collation file persistence', () => {
 		await expect(
 			readTextFile(collationPrimaryFile('project-slug', 'col-1'), { backend })
 		).rejects.toThrow('not found');
-		await expect(
-			readTextFile(projectManifestFile('project-slug'), { backend })
-		).rejects.toThrow('not found');
+		await expect(readTextFile(projectManifestFile('project-slug'), { backend })).resolves.toBe(
+			initialManifest
+		);
 		await expect(
 			harness.db
 				.selectFrom('collation_checkpoints')
@@ -535,6 +545,9 @@ describe('collation file persistence', () => {
 	it('leaves only history when collation primary writing fails', async () => {
 		await createFixtureCollation();
 		await saveFixtureWorkingCollation();
+		const initialManifest = await readTextFile(projectManifestFile('project-slug'), {
+			backend,
+		});
 		backend.failWritePathIncludes = 'collations/col-1.json.tmp-';
 
 		await expect(
@@ -557,9 +570,9 @@ describe('collation file persistence', () => {
 		await expect(
 			readTextFile(collationPrimaryFile('project-slug', 'col-1'), { backend })
 		).rejects.toThrow('not found');
-		await expect(
-			readTextFile(projectManifestFile('project-slug'), { backend })
-		).rejects.toThrow('not found');
+		await expect(readTextFile(projectManifestFile('project-slug'), { backend })).resolves.toBe(
+			initialManifest
+		);
 		await expect(
 			harness.db
 				.selectFrom('collation_checkpoints')
@@ -589,6 +602,9 @@ describe('collation file persistence', () => {
 			},
 			{ backend, nonce: () => 'working-write' }
 		);
+		const initialManifest = await readTextFile(projectManifestFile('project-slug'), {
+			backend,
+		});
 		backend.failWritePathIncludes = 'project.json.tmp-';
 
 		await expect(
@@ -611,9 +627,9 @@ describe('collation file persistence', () => {
 		await expect(
 			readTextFile(collationPrimaryFile('project-slug', 'col-1'), { backend })
 		).resolves.toContain('col-cp-manifest-fail');
-		await expect(
-			readTextFile(projectManifestFile('project-slug'), { backend })
-		).rejects.toThrow('not found');
+		await expect(readTextFile(projectManifestFile('project-slug'), { backend })).resolves.toBe(
+			initialManifest
+		);
 		await expect(
 			harness.db
 				.selectFrom('collation_checkpoints')

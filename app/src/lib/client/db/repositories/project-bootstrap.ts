@@ -2,13 +2,18 @@ import { nanoid } from 'nanoid';
 import type { Insertable, Kysely, Transaction } from 'kysely';
 
 import type { Database, Projects } from '../types.generated';
+import type { StoreOperationOptions } from '$lib/client/store';
 import { createId } from './id';
+import { writeEmptyProjectManifestFile } from './project-files';
 
 type DbExecutor = Kysely<Database> | Transaction<Database>;
 
 export const DEFAULT_PROJECT_NAME = 'Default';
 
-export async function ensureDefaultProject(db: DbExecutor): Promise<string> {
+export async function ensureDefaultProject(
+	db: DbExecutor,
+	storeOptions: StoreOperationOptions = {}
+): Promise<string> {
 	const existing = await db
 		.selectFrom('projects')
 		.select(['id'])
@@ -29,6 +34,19 @@ export async function ensureDefaultProject(db: DbExecutor): Promise<string> {
 		created_at: now,
 		updated_at: now,
 	};
+	await writeEmptyProjectManifestFile(
+		{
+			id,
+			storageSlug: row.storage_slug,
+			name: row.name,
+			description: row.description,
+			charter: row.charter,
+			collationSettings: {},
+			createdAt: row.created_at,
+			updatedAt: row.updated_at,
+		},
+		storeOptions
+	);
 	await db.insertInto('projects').values(row).execute();
 	return id;
 }

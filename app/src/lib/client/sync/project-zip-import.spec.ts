@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createLocalDbTestHarness, type LocalDbTestHarness } from '$lib/client/db/test-harness';
-import { createProject, getProject } from '$lib/client/db/repositories/projects';
+import {
+	createProject as createProjectRepository,
+	getProject,
+} from '$lib/client/db/repositories/projects';
 import { createTranscriptionWithFiles } from '$lib/client/db/repositories/transcription-files';
 import { MemoryStoreBackend } from '$lib/client/store/memory-store-backend.spec-support';
 import {
@@ -38,6 +41,13 @@ afterEach(async () => {
 	vi.unstubAllGlobals();
 	await harness.destroy();
 });
+
+function createProject(
+	db: Parameters<typeof createProjectRepository>[0],
+	input: Parameters<typeof createProjectRepository>[1]
+) {
+	return createProjectRepository(db, input, storeOptions);
+}
 
 describe('project zip import', () => {
 	it('imports a source-neutral readable project file tree', async () => {
@@ -131,7 +141,11 @@ describe('project zip import', () => {
 
 	it('imports a same-id project as a copy with source lineage', async () => {
 		const exported = await exportedProjectZip();
-		await createProject(harness.db, { id: 'project-1', storageSlug: 'local-project', name: 'Local' });
+		await createProject(harness.db, {
+			id: 'project-1',
+			storageSlug: 'local-project',
+			name: 'Local',
+		});
 
 		const copied = await importProjectZip(harness.db, exported.bytes, {
 			storeOptions,
@@ -151,13 +165,20 @@ describe('project zip import', () => {
 	});
 
 	it('rejects a corrupt file without writing outside staging', async () => {
-		const result = await importProjectZip(harness.db, zipEntries({ 'project.json': '{not-json' }), {
-			storeOptions,
-			nonce: () => 'corrupt',
-		});
+		const result = await importProjectZip(
+			harness.db,
+			zipEntries({ 'project.json': '{not-json' }),
+			{
+				storeOptions,
+				nonce: () => 'corrupt',
+			}
+		);
 
 		expect(result.ok).toBe(false);
-		expect(result.quarantinedFiles[0]).toMatchObject({ path: 'project.json', code: 'invalid_json' });
+		expect(result.quarantinedFiles[0]).toMatchObject({
+			path: 'project.json',
+			code: 'invalid_json',
+		});
 		expect([...backend.files.keys()].filter(path => path.includes('/projects/'))).toEqual([]);
 		expect([...backend.files.keys()].filter(path => path.includes('/staging/'))).toEqual([]);
 	});

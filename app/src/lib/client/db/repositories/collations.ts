@@ -54,7 +54,6 @@ export interface CreateCollationInput {
 export interface UpdateCollationMetadataInput {
 	id: string;
 	title?: string;
-	projectId?: string | null;
 	status?: string;
 	notes?: string;
 	groupPath?: string;
@@ -71,7 +70,7 @@ export interface CollationArtifactRecord {
 
 export interface CollationRecord {
 	id: string;
-	projectId: string | null;
+	projectId: string;
 	title: string;
 	verseIdentifier: string;
 	status: string;
@@ -128,8 +127,8 @@ export interface CollationWitnessSourceStatus {
 }
 
 export interface CollationVersionStatus {
-	projectId: string | null;
-	projectName: string | null;
+	projectId: string;
+	projectName: string;
 	collationId: string;
 	title: string;
 	verseIdentifier: string;
@@ -240,7 +239,7 @@ export async function getCollationVersionStatus(
 ): Promise<CollationVersionStatus> {
 	const row = await db
 		.selectFrom('collations')
-		.leftJoin('projects', 'projects.id', 'collations.project_id')
+		.innerJoin('projects', 'projects.id', 'collations.project_id')
 		.select([
 			'collations.id as id',
 			'collations.project_id as project_id',
@@ -485,7 +484,6 @@ export async function updateCollationMetadata(
 		updated_at: input.updatedAt ?? new Date().toISOString(),
 	};
 	if (input.title !== undefined) update.title = input.title;
-	if (input.projectId !== undefined) update.project_id = input.projectId;
 	if (input.status !== undefined) update.status = input.status;
 	if (input.notes !== undefined) update.notes = input.notes;
 	if (input.groupPath !== undefined) update.group_path = input.groupPath;
@@ -517,7 +515,7 @@ function requireId(value: string | null, label: string): string {
 }
 
 interface WitnessSourceMetadata {
-	projectTranscriptionId: string | null;
+	projectTranscriptionId: string;
 	revisionId: string;
 	contentHash: string;
 }
@@ -664,7 +662,7 @@ function checkpointHeadFromFields(
 
 async function loadWitnessSourceMetadata(
 	db: DbExecutor,
-	projectId: string | null,
+	projectId: string,
 	witnesses: SaveCollationProjectionWitnessInput[]
 ): Promise<Map<string, WitnessSourceMetadata>> {
 	const transcriptionIds = [
@@ -673,28 +671,51 @@ async function loadWitnessSourceMetadata(
 	if (transcriptionIds.length === 0) return new Map();
 
 	const transcriptionRows = await db
-		.selectFrom('transcriptions')
-		.select(['id', 'current_revision_id', 'current_content_hash'])
-		.where('id', 'in', transcriptionIds)
+		.selectFrom('project_transcriptions')
+		.innerJoin('transcriptions', 'transcriptions.id', 'project_transcriptions.transcription_id')
+		.select([
+			'transcriptions.id as id',
+			'transcriptions.current_revision_id as current_revision_id',
+			'transcriptions.current_content_hash as current_content_hash',
+			'project_transcriptions.id as project_transcription_id',
+		])
+		.where('project_transcriptions.project_id', '=', projectId)
+		.where('transcriptions.id', 'in', transcriptionIds)
 		.execute();
-	const projectTranscriptionIdByTranscriptionId = projectId
-		? await loadProjectTranscriptionIds(db, projectId, transcriptionIds)
-		: new Map<string, string>();
-
-	return new Map(
+	const metadata = new Map(
 		transcriptionRows.map(row => {
 			const transcriptionId = requireId(row.id, 'transcription');
 			return [
 				transcriptionId,
 				{
-					projectTranscriptionId:
-						projectTranscriptionIdByTranscriptionId.get(transcriptionId) ?? null,
+					projectTranscriptionId: requireId(
+						row.project_transcription_id,
+						'project transcription'
+					),
 					revisionId: row.current_revision_id,
 					contentHash: row.current_content_hash,
 				},
 			] as const;
 		})
 	);
+	for (const witness of witnesses) {
+		if (!witness.transcriptionId) continue;
+		const source = metadata.get(witness.transcriptionId);
+		if (!source) {
+			throw new Error(
+				`Witness transcription ${witness.transcriptionId} does not belong to collation project ${projectId}.`
+			);
+		}
+		if (
+			witness.projectTranscriptionId &&
+			witness.projectTranscriptionId !== source.projectTranscriptionId
+		) {
+			throw new Error(
+				`Project transcription ${witness.projectTranscriptionId} does not match transcription ${witness.transcriptionId}.`
+			);
+		}
+	}
+	return metadata;
 }
 
 function sourceMetadataForWitness(
@@ -709,8 +730,7 @@ function sourceMetadataForWitness(
 		: undefined;
 	const explicitPinnedSource = Boolean(witness.sourceVersion && witness.sourceContentHash);
 	return {
-		project_transcription_id:
-			witness.projectTranscriptionId ?? source?.projectTranscriptionId ?? null,
+		project_transcription_id: source?.projectTranscriptionId ?? null,
 		transcription_id: witness.transcriptionId,
 		source_revision_id: explicitPinnedSource
 			? witness.sourceVersion
@@ -847,7 +867,7 @@ function mapArtifact(
 function mapCollationRecord(row: Selectable<Collations>): CollationRecord {
 	return {
 		id: requireId(row.id, 'collation'),
-		projectId: row.project_id,
+		projectId: requireId(row.project_id, 'collation project'),
 		title: row.title,
 		verseIdentifier: row.verse_identifier,
 		status: row.status,

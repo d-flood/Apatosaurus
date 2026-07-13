@@ -66,6 +66,19 @@ export interface UpdateTranscriptionContentInput {
 	updatedAt?: string;
 }
 
+export interface UpdateTranscriptionMetadataInput {
+	id: string;
+	title: string;
+	siglum: string;
+	description: string;
+	tags: string[];
+	transcriber: string;
+	repository: string;
+	settlement: string;
+	language: string;
+	updatedAt?: string;
+}
+
 export interface VerseIndexRebuildFailure {
 	transcriptionId: string;
 	label: string;
@@ -265,6 +278,29 @@ export async function updateTranscriptionContent(
 				.execute();
 		}
 	});
+}
+
+export async function updateTranscriptionMetadata(
+	db: DbExecutor,
+	input: UpdateTranscriptionMetadataInput
+): Promise<void> {
+	const result = await db
+		.updateTable('transcriptions')
+		.set({
+			title: input.title.trim(),
+			siglum: input.siglum.trim(),
+			description: input.description.trim(),
+			tags: JSON.stringify(input.tags),
+			transcriber: input.transcriber.trim(),
+			repository: input.repository.trim(),
+			settlement: input.settlement.trim(),
+			language: input.language.trim(),
+			updated_at: input.updatedAt ?? new Date().toISOString(),
+		})
+		.where('id', '=', input.id)
+		.executeTakeFirst();
+	if (Number(result.numUpdatedRows) === 0)
+		throw new Error(`Transcription ${input.id} was not found.`);
 }
 
 export async function deleteTranscription(db: DbExecutor, id: string): Promise<void> {

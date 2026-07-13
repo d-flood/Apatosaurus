@@ -52,6 +52,7 @@ import type {
 	TranscriptionSummary,
 	TranscriptionVersion,
 	UpdateTranscriptionContentInput,
+	UpdateTranscriptionMetadataInput,
 	VerseIndexRebuildResult,
 	VerseIndexRow,
 } from './repositories/transcriptions';
@@ -110,6 +111,10 @@ export interface TranscriptionRpcMap {
 	};
 	'transcriptions.updateContent': {
 		request: { type: 'transcriptions.updateContent'; input: UpdateTranscriptionContentInput };
+		response: null;
+	};
+	'transcriptions.updateMetadata': {
+		request: { type: 'transcriptions.updateMetadata'; input: UpdateTranscriptionMetadataInput };
 		response: null;
 	};
 	'transcriptions.delete': {

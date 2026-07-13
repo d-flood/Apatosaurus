@@ -1,22 +1,36 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { createLocalDbTestHarness, type LocalDbTestHarness } from '../test-harness';
+import { MemoryStoreBackend } from '$lib/client/store/memory-store-backend.spec-support';
 import { upsertCloudConnection } from './cloud-connections';
 import { createCollation } from './collations';
-import { createProject, syncProjectTranscriptionIds } from './projects';
+import { createProject as createProjectRepository, syncProjectTranscriptionIds } from './projects';
 import { removeLocalProject } from './project-removal';
-import { createCommittedCollationCheckpoint, createCommittedTranscriptionCheckpoint } from './revisions';
+import {
+	createCommittedCollationCheckpoint,
+	createCommittedTranscriptionCheckpoint,
+} from './revisions';
+import { createCommittedTranscriptionCheckpointWithFiles } from './transcription-files';
 import { createTranscription } from './transcriptions';
 
 let harness: LocalDbTestHarness;
+let backend: MemoryStoreBackend;
 
 beforeEach(() => {
 	harness = createLocalDbTestHarness();
+	backend = new MemoryStoreBackend();
 });
 
 afterEach(async () => {
 	await harness.destroy();
 });
+
+function createProject(
+	db: Parameters<typeof createProjectRepository>[0],
+	input: Parameters<typeof createProjectRepository>[1]
+) {
+	return createProjectRepository(db, input, { backend });
+}
 
 describe('project local removal repository', () => {
 	it('removes project-contained local data and leaves default-project transcriptions intact', async () => {
@@ -24,11 +38,20 @@ describe('project local removal repository', () => {
 		await createTranscription(harness.db, {
 			...baseTranscription('library-1', 'A'),
 			projectId: 'library-project',
+			projectTranscriptionId: 'library-pt-1',
 		});
+		await createCommittedTranscriptionCheckpointWithFiles(
+			harness.db,
+			{ projectTranscriptionId: 'library-pt-1', checkpointId: 'library-cp-1' },
+			{ backend }
+		);
 		await createProject(harness.db, { id: 'project-1', name: 'Project' });
-		const [projectOwnedTranscriptionId] = await syncProjectTranscriptionIds(harness.db, 'project-1', [
-			'library-1',
-		]);
+		const [projectOwnedTranscriptionId] = await syncProjectTranscriptionIds(
+			harness.db,
+			'project-1',
+			['library-1'],
+			{ backend }
+		);
 		const projectTranscription = await harness.db
 			.selectFrom('project_transcriptions')
 			.select('id')
@@ -62,7 +85,7 @@ describe('project local removal repository', () => {
 			removedProjectTranscriptions: 1,
 			removedProjectOwnedTranscriptions: 1,
 			removedCollations: 1,
-			removedCheckpoints: 2,
+			removedCheckpoints: 3,
 			removedSyncMetadata: 3,
 			removedTombstones: 1,
 		});
@@ -82,7 +105,12 @@ describe('project local removal repository', () => {
 		]);
 		await expectNoRows('collations');
 		await expectNoRows('collation_checkpoints');
-		await expectNoRows('transcription_checkpoints');
+		await expect(
+			harness.db
+				.selectFrom('transcription_checkpoints')
+				.select(['id', 'transcription_id'])
+				.execute()
+		).resolves.toEqual([{ id: 'library-cp-1', transcription_id: 'library-1' }]);
 		await expectNoRows('cloud_sync_metadata');
 		await expectNoRows('cloud_project_folders');
 		await expectNoRows('sync_tombstones');
@@ -91,7 +119,9 @@ describe('project local removal repository', () => {
 			.select(['id', 'project_id'])
 			.orderBy('id')
 			.execute();
-		expect(remainingTranscriptions).toEqual([{ id: 'library-1', project_id: 'library-project' }]);
+		expect(remainingTranscriptions).toEqual([
+			{ id: 'library-1', project_id: 'library-project' },
+		]);
 	});
 });
 
@@ -128,7 +158,13 @@ async function createBackupRows(
 				projectOwnedTranscriptionId,
 				'transcriptions/pt.json'
 			),
-			metadataRow('project', projectId, 'collation', collationId, 'collations/collation.json'),
+			metadataRow(
+				'project',
+				projectId,
+				'collation',
+				collationId,
+				'collations/collation.json'
+			),
 		])
 		.execute();
 	await harness.db

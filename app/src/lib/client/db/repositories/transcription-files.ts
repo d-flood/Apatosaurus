@@ -57,9 +57,11 @@ import {
 	getTranscription,
 	replaceTranscriptionVerseIndexRows,
 	updateTranscriptionContent,
+	updateTranscriptionMetadata,
 	type CreateTranscriptionInput,
 	type TranscriptionRecord,
 	type UpdateTranscriptionContentInput,
+	type UpdateTranscriptionMetadataInput,
 	type VerseIndexRebuildFailure,
 	type VerseIndexRebuildResult,
 } from './transcriptions';
@@ -202,6 +204,74 @@ export async function saveWorkingTranscriptionContent(
 		format: contentFormat,
 		updatedAt,
 	});
+}
+
+export async function saveWorkingTranscriptionMetadata(
+	db: Kysely<Database>,
+	input: UpdateTranscriptionMetadataInput,
+	storeOptions: StoreOperationOptions = {}
+): Promise<void> {
+	const updatedAt = input.updatedAt ?? new Date().toISOString();
+	const context = await loadTranscriptionFileContext(db, input.id);
+	const snapshot = await loadProjectTranscriptionSnapshotWithFiles(
+		db,
+		context.projectTranscriptionId,
+		storeOptions
+	);
+	const payload: WorkingTranscriptionPayload = {
+		project_transcription_id: snapshot.project_transcription_id,
+		id: snapshot.id,
+		canonical_transcription_id: context.canonicalTranscriptionId,
+		origin: {
+			source_type: context.originType,
+			source_project_id: context.originProjectId,
+			source_transcription_id: context.originTranscriptionId,
+			source_revision_id: context.originRevisionId,
+			source_content_hash: context.originContentHash,
+		},
+		title: input.title.trim(),
+		siglum: input.siglum.trim(),
+		description: input.description.trim(),
+		content_json: snapshot.content_json as JsonValue,
+		content_format: snapshot.format,
+		created_at: context.createdAt,
+		updated_at: updatedAt,
+		owner: snapshot.owner,
+		is_public: snapshot.is_public,
+		tags: [...input.tags],
+		transcriber: input.transcriber.trim(),
+		repository: input.repository.trim(),
+		settlement: input.settlement.trim(),
+		language: input.language.trim(),
+		iiif_manifest_sources: snapshot.iiif_manifest_sources.map(source => ({
+			...source,
+			metadata_json: source.metadata_json as JsonValue,
+		})),
+		page_canvas_links: snapshot.page_canvas_links.map(link => ({ ...link })),
+		canvas_annotations: snapshot.canvas_annotations.map(annotation => ({
+			...annotation,
+			body_json: annotation.body_json as JsonValue,
+			target_json: annotation.target_json as JsonValue,
+			anchor_json: annotation.anchor_json as JsonValue,
+		})),
+		draft: {
+			base_revision_id: context.currentRevisionId,
+			base_content_hash: context.currentContentHash,
+			saved_at: updatedAt,
+			author_name: null,
+		},
+	};
+	const document = await sealDocument(
+		WORKING_TRANSCRIPTION_FORMAT,
+		WORKING_TRANSCRIPTION_CURRENT_VERSION,
+		payload
+	);
+	await writeTextFileAtomic(
+		transcriptionWorkingFile(context.projectStorageSlug, context.projectTranscriptionId),
+		serializeSealedDocument(document),
+		storeOptions
+	);
+	await updateTranscriptionMetadata(db, { ...input, updatedAt });
 }
 
 export async function createTranscriptionWithFiles(

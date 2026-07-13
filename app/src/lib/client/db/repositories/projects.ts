@@ -8,7 +8,6 @@ import type {
 	ProjectTranscriptions,
 	TranscriptionCheckpoints,
 	TranscriptionPageCanvasLinks,
-	TranscriptionVerseIndex,
 	Transcriptions,
 } from '../types.generated';
 import { createId } from './id';
@@ -31,6 +30,26 @@ import {
 	getProjectTranscriptionCheckpointStatusWithFiles,
 } from './transcription-files';
 import { replaceTranscriptionVerseIndexRows } from './transcriptions';
+import { writeEmptyProjectManifestFile, writeProjectManifestFile } from './project-files';
+import {
+	createCommittedCollationCheckpointWithFiles,
+	saveWorkingCollationArtifact,
+} from './collation-files';
+import { deleteTranscriptionWithFiles } from './entity-deletion';
+import {
+	PROJECT_MANIFEST_CURRENT_VERSION,
+	PROJECT_MANIFEST_FORMAT,
+	COLLATION_FORMAT,
+	PROJECT_TRANSCRIPTION_FORMAT,
+	collationPrimaryFile,
+	transcriptionPrimaryFile,
+	projectManifestFile,
+	readCanonicalDocument,
+	readTextFile,
+	type CollationPayload,
+	type ProjectManifestPayload,
+	type ProjectTranscriptionPayload,
+} from '$lib/client/store';
 
 export { ensureDefaultProject } from './project-bootstrap';
 
@@ -182,20 +201,36 @@ export async function getProject(db: DbExecutor, projectId: string): Promise<Pro
 	return row ? mapProject(row) : null;
 }
 
-export async function createProject(db: DbExecutor, input: CreateProjectInput): Promise<string> {
+export async function createProject(
+	db: DbExecutor,
+	input: CreateProjectInput,
+	storeOptions: StoreOperationOptions = {}
+): Promise<string> {
 	const now = new Date().toISOString();
 	const id = input.id ?? createId();
+	const storageSlug = await resolveProjectStorageSlug(db, input.name, input.storageSlug);
+	const project = {
+		id,
+		storageSlug,
+		name: input.name.trim(),
+		description: input.description?.trim() ?? '',
+		charter: input.charter ?? '',
+		collationSettings: input.collationSettings ?? {},
+		createdAt: input.createdAt ?? now,
+		updatedAt: input.updatedAt ?? input.createdAt ?? now,
+	};
+	await writeEmptyProjectManifestFile(project, storeOptions);
 	await db
 		.insertInto('projects')
 		.values({
 			id,
-			storage_slug: await resolveProjectStorageSlug(db, input.name, input.storageSlug),
-			name: input.name.trim(),
-			description: input.description?.trim() ?? '',
-			charter: input.charter ?? '',
-			collation_settings: JSON.stringify(input.collationSettings ?? {}),
-			created_at: input.createdAt ?? now,
-			updated_at: input.updatedAt ?? input.createdAt ?? now,
+			storage_slug: project.storageSlug,
+			name: project.name,
+			description: project.description,
+			charter: project.charter,
+			collation_settings: JSON.stringify(project.collationSettings),
+			created_at: project.createdAt,
+			updated_at: project.updatedAt,
 		})
 		.execute();
 	return id;
@@ -203,8 +238,11 @@ export async function createProject(db: DbExecutor, input: CreateProjectInput): 
 
 export async function updateProjectMetadata(
 	db: DbExecutor,
-	input: UpdateProjectMetadataInput
+	input: UpdateProjectMetadataInput,
+	storeOptions: StoreOperationOptions = {}
 ): Promise<void> {
+	const project = await getProject(db, input.projectId);
+	if (!project) throw new Error(`Project ${input.projectId} was not found.`);
 	const updates: Partial<Selectable<Projects>> = {
 		updated_at: input.updatedAt ?? new Date().toISOString(),
 	};
@@ -213,6 +251,17 @@ export async function updateProjectMetadata(
 	if (input.charter !== undefined) updates.charter = input.charter;
 	if (input.collationSettings !== undefined)
 		updates.collation_settings = JSON.stringify(input.collationSettings);
+	await writeProjectManifestFile(db, input.projectId, {}, storeOptions, {
+		...project,
+		name: updates.name ?? project.name,
+		description: updates.description ?? project.description,
+		charter: updates.charter ?? project.charter,
+		collationSettings:
+			input.collationSettings === undefined
+				? project.collationSettings
+				: input.collationSettings,
+		updatedAt: updates.updated_at ?? project.updatedAt,
+	});
 
 	const result = await db
 		.updateTable('projects')
@@ -225,54 +274,135 @@ export async function updateProjectMetadata(
 
 export async function forkProject(
 	db: Kysely<Database>,
-	input: ForkProjectInput
+	input: ForkProjectInput,
+	storeOptions: StoreOperationOptions = {}
 ): Promise<ForkProjectResult> {
-	return db.transaction().execute(async trx => {
-		const sourceProject = await trx
-			.selectFrom('projects')
-			.selectAll()
-			.where('id', '=', input.sourceProjectId)
-			.executeTakeFirst();
-		if (!sourceProject) throw new Error(`Project ${input.sourceProjectId} was not found.`);
-
+	const sourceProject = await getProject(db, input.sourceProjectId);
+	if (!sourceProject) throw new Error(`Project ${input.sourceProjectId} was not found.`);
+	const sourceManifestRead = await readCanonicalDocument<ProjectManifestPayload>(
+		PROJECT_MANIFEST_FORMAT,
+		await readTextFile(projectManifestFile(sourceProject.storageSlug), storeOptions)
+	);
+	if (!sourceManifestRead.ok) {
+		throw new Error(`Canonical manifest for project ${input.sourceProjectId} is invalid.`);
+	}
+	const sourceCollations = new Map<string, CollationPayload>();
+	const sourceTranscriptionPayloads = new Map<string, ProjectTranscriptionPayload>();
+	for (const head of sourceManifestRead.payload.transcriptions) {
+		const read = await readCanonicalDocument<ProjectTranscriptionPayload>(
+			PROJECT_TRANSCRIPTION_FORMAT,
+			await readTextFile(
+				transcriptionPrimaryFile(sourceProject.storageSlug, head.project_transcription_id),
+				storeOptions
+			)
+		);
+		if (!read.ok) {
+			throw new Error(`Canonical transcription ${head.project_transcription_id} is invalid.`);
+		}
+		sourceTranscriptionPayloads.set(head.project_transcription_id, read.payload);
+		sourceTranscriptionPayloads.set(head.transcription_id, read.payload);
+	}
+	for (const head of sourceManifestRead.payload.collations) {
+		const read = await readCanonicalDocument<CollationPayload>(
+			COLLATION_FORMAT,
+			await readTextFile(
+				collationPrimaryFile(sourceProject.storageSlug, head.collation_id),
+				storeOptions
+			)
+		);
+		if (!read.ok) throw new Error(`Canonical collation ${head.collation_id} is invalid.`);
+		sourceCollations.set(head.collation_id, read.payload);
+	}
+	{
+		const trx = db;
 		const now = input.createdAt ?? new Date().toISOString();
 		const targetProjectId = createId();
-		const targetName = (input.name ?? `${sourceProject.name} Fork`).trim() || `${sourceProject.name} Fork`;
-		await trx
-			.insertInto('projects')
-			.values({
-				...sourceProject,
+		const targetName =
+			(input.name ?? `${sourceProject.name} Fork`).trim() || `${sourceProject.name} Fork`;
+		await createProject(
+			trx,
+			{
 				id: targetProjectId,
-				storage_slug: await resolveProjectStorageSlug(trx, targetName),
 				name: targetName,
 				description: input.description?.trim() ?? sourceProject.description,
-				created_at: now,
-				updated_at: now,
-			})
-			.execute();
+				charter: sourceProject.charter,
+				collationSettings: sourceProject.collationSettings,
+				createdAt: now,
+				updatedAt: now,
+			},
+			storeOptions
+		);
 
 		const transcriptionMap = await forkProjectTranscriptions(
 			trx,
 			input.sourceProjectId,
 			targetProjectId,
-			now
+			now,
+			sourceTranscriptionPayloads
 		);
+		const forkedTranscriptions = uniqueForkedProjectTranscriptions(transcriptionMap);
+		for (const transcription of forkedTranscriptions) {
+			const checkpoint = await createCommittedTranscriptionCheckpointWithFiles(
+				trx,
+				{
+					projectTranscriptionId: transcription.projectTranscriptionId,
+					checkpointId: transcription.checkpointId,
+					createdAt: now,
+					commitMessage: 'Fork project',
+				},
+				storeOptions
+			);
+			transcription.contentHash = checkpoint.contentHash;
+		}
 		const collationIds = await forkProjectCollations(
 			trx,
 			input.sourceProjectId,
 			targetProjectId,
 			transcriptionMap,
-			now
+			now,
+			sourceCollations
 		);
-
-		const forkedTranscriptions = uniqueForkedProjectTranscriptions(transcriptionMap);
+		for (const collation of collationIds) {
+			await saveWorkingCollationArtifact(
+				trx,
+				{
+					collationId: collation.id,
+					artifactType: 'collation_document_v1',
+					payload: JSON.stringify(collation.document),
+					now,
+				},
+				storeOptions
+			);
+			await createCommittedCollationCheckpointWithFiles(
+				trx,
+				{
+					collationId: collation.id,
+					checkpointId: collation.checkpointId,
+					createdAt: now,
+					commitMessage: 'Fork project',
+				},
+				storeOptions
+			);
+		}
+		await writeProjectManifestFile(
+			trx,
+			targetProjectId,
+			{
+				forkedFrom: {
+					source_project_id: input.sourceProjectId,
+					source_manifest_content_hash: sourceManifestRead.document.content_hash,
+					source_manifest_schema_version: PROJECT_MANIFEST_CURRENT_VERSION,
+				},
+			},
+			storeOptions
+		);
 		return {
 			projectId: targetProjectId,
 			projectTranscriptionIds: forkedTranscriptions.map(row => row.projectTranscriptionId),
 			projectOwnedTranscriptionIds: forkedTranscriptions.map(row => row.transcriptionId),
-			collationIds,
+			collationIds: collationIds.map(collation => collation.id),
 		};
-	});
+	}
 }
 
 function uniqueForkedProjectTranscriptions(
@@ -329,7 +459,11 @@ export async function listProjectTranscriptionStatuses(
 		.selectFrom('project_transcriptions')
 		.innerJoin('transcriptions', 'transcriptions.id', 'project_transcriptions.transcription_id')
 		.leftJoin('projects', 'projects.id', 'project_transcriptions.project_id')
-		.leftJoin('projects as origin_projects', 'origin_projects.id', 'transcriptions.origin_project_id')
+		.leftJoin(
+			'projects as origin_projects',
+			'origin_projects.id',
+			'transcriptions.origin_project_id'
+		)
 		.select([
 			'project_transcriptions.id as project_transcription_id',
 			'project_transcriptions.project_id as project_id',
@@ -363,7 +497,11 @@ export async function getProjectTranscriptionStatus(
 		.selectFrom('project_transcriptions')
 		.innerJoin('transcriptions', 'transcriptions.id', 'project_transcriptions.transcription_id')
 		.leftJoin('projects', 'projects.id', 'project_transcriptions.project_id')
-		.leftJoin('projects as origin_projects', 'origin_projects.id', 'transcriptions.origin_project_id')
+		.leftJoin(
+			'projects as origin_projects',
+			'origin_projects.id',
+			'transcriptions.origin_project_id'
+		)
 		.select([
 			'project_transcriptions.id as project_transcription_id',
 			'project_transcriptions.project_id as project_id',
@@ -396,7 +534,11 @@ export async function getProjectTranscriptionStatusForOwnedTranscription(
 		.selectFrom('project_transcriptions')
 		.innerJoin('transcriptions', 'transcriptions.id', 'project_transcriptions.transcription_id')
 		.leftJoin('projects', 'projects.id', 'project_transcriptions.project_id')
-		.leftJoin('projects as origin_projects', 'origin_projects.id', 'transcriptions.origin_project_id')
+		.leftJoin(
+			'projects as origin_projects',
+			'origin_projects.id',
+			'transcriptions.origin_project_id'
+		)
 		.select([
 			'project_transcriptions.id as project_transcription_id',
 			'project_transcriptions.project_id as project_id',
@@ -448,12 +590,44 @@ export async function getProjectTranscriptionIds(
 export async function syncProjectTranscriptionIds(
 	db: Kysely<Database>,
 	projectId: string,
-	nextIds: string[]
+	nextIds: string[],
+	storeOptions: StoreOperationOptions = {}
 ): Promise<string[]> {
 	const uniqueIds = [...new Set(nextIds.map(id => id.trim()).filter(Boolean))];
-	const now = new Date().toISOString();
-	return db.transaction().execute(async trx => {
-		const currentRows = await trx
+	const currentRows = await db
+		.selectFrom('project_transcriptions')
+		.innerJoin('transcriptions', 'transcriptions.id', 'project_transcriptions.transcription_id')
+		.select([
+			'project_transcriptions.id as project_transcription_id',
+			'project_transcriptions.transcription_id as transcription_id',
+			'project_transcriptions.canonical_transcription_id as canonical_transcription_id',
+			'transcriptions.origin_transcription_id as origin_transcription_id',
+		])
+		.where('project_transcriptions.project_id', '=', projectId)
+		.orderBy('project_transcriptions.added_at')
+		.execute();
+
+	const currentByRequestedId = new Map<string, (typeof currentRows)[number]>();
+	for (const row of currentRows) {
+		currentByRequestedId.set(requireId(row.transcription_id, 'project transcription'), row);
+		if (row.canonical_transcription_id)
+			currentByRequestedId.set(row.canonical_transcription_id, row);
+		if (row.origin_transcription_id) currentByRequestedId.set(row.origin_transcription_id, row);
+	}
+
+	const keptProjectTranscriptionIds = new Set<string>();
+	const syncedIds: string[] = [];
+	for (const requestedId of uniqueIds) {
+		const current = currentByRequestedId.get(requestedId);
+		if (current) {
+			keptProjectTranscriptionIds.add(
+				requireId(current.project_transcription_id, 'project transcription')
+			);
+			syncedIds.push(requireId(current.transcription_id, 'project transcription'));
+			continue;
+		}
+
+		const source = await db
 			.selectFrom('project_transcriptions')
 			.innerJoin(
 				'transcriptions',
@@ -462,83 +636,45 @@ export async function syncProjectTranscriptionIds(
 			)
 			.select([
 				'project_transcriptions.id as project_transcription_id',
-				'project_transcriptions.transcription_id as transcription_id',
-				'project_transcriptions.canonical_transcription_id as canonical_transcription_id',
-				'transcriptions.project_id as transcription_project_id',
-				'transcriptions.origin_transcription_id as origin_transcription_id',
+				'project_transcriptions.project_id as source_project_id',
 			])
-			.where('project_transcriptions.project_id', '=', projectId)
-			.orderBy('project_transcriptions.added_at')
-			.execute();
-
-		const currentBySnapshotId = new Map<string, (typeof currentRows)[number]>();
-		const currentBySourceId = new Map<string, (typeof currentRows)[number]>();
-		for (const row of currentRows) {
-			const snapshotId = requireId(row.transcription_id, 'project transcription snapshot');
-			currentBySnapshotId.set(snapshotId, row);
-			if (row.canonical_transcription_id)
-				currentBySourceId.set(row.canonical_transcription_id, row);
-			if (row.origin_transcription_id)
-				currentBySourceId.set(row.origin_transcription_id, row);
+			.where('project_transcriptions.transcription_id', '=', requestedId)
+			.executeTakeFirst();
+		if (!source) throw new Error(`Transcription ${requestedId} was not found.`);
+		if (source.source_project_id === projectId) {
+			throw new Error(`Project transcription ${requestedId} is missing its ownership link.`);
 		}
-
-		const keptProjectTranscriptionIds = new Set<string>();
-		const snapshotIds: string[] = [];
-		const sourceIdsToClone: string[] = [];
-		for (const requestedId of uniqueIds) {
-			const current =
-				currentBySnapshotId.get(requestedId) ?? currentBySourceId.get(requestedId);
-			if (current) {
-				keptProjectTranscriptionIds.add(
-					requireId(current.project_transcription_id, 'project transcription')
-				);
-				snapshotIds.push(
-					requireId(current.transcription_id, 'project transcription snapshot')
-				);
-				continue;
-			}
-			sourceIdsToClone.push(requestedId);
-		}
-
-		const removedRows = currentRows.filter(
-			row =>
-				!keptProjectTranscriptionIds.has(
-					requireId(row.project_transcription_id, 'project transcription')
-				)
+		const copied = await addProjectTranscriptionFromProject(
+			db,
+			{
+				targetProjectId: projectId,
+				sourceProjectTranscriptionId: requireId(
+					source.project_transcription_id,
+					'source project transcription'
+				),
+			},
+			{ storeOptions }
 		);
-		const removedProjectTranscriptionIds = removedRows.map(row =>
-			requireId(row.project_transcription_id, 'project transcription')
-		);
-		const removedSnapshotIds = removedRows
-			.filter(row => row.transcription_project_id === projectId)
-			.map(row => requireId(row.transcription_id, 'project transcription snapshot'));
+		keptProjectTranscriptionIds.add(copied.projectTranscriptionId);
+		syncedIds.push(copied.projectOwnedTranscriptionId);
+	}
 
-		if (removedProjectTranscriptionIds.length > 0) {
-			await trx
-				.deleteFrom('project_transcriptions')
-				.where('id', 'in', removedProjectTranscriptionIds)
-				.execute();
+	for (const row of currentRows) {
+		if (
+			!keptProjectTranscriptionIds.has(
+				requireId(row.project_transcription_id, 'project transcription')
+			)
+		) {
+			await deleteTranscriptionWithFiles(
+				db,
+				requireId(row.transcription_id, 'project transcription'),
+				{},
+				storeOptions
+			);
 		}
-		if (removedSnapshotIds.length > 0) {
-			await trx
-				.deleteFrom('transcriptions')
-				.where('id', 'in', removedSnapshotIds)
-				.where('project_id', '=', projectId)
-				.execute();
-		}
+	}
 
-		for (const sourceId of sourceIdsToClone) {
-			const snapshot = await addProjectTranscriptionSnapshot(trx, projectId, sourceId, now);
-			snapshotIds.push(snapshot.transcriptionId);
-		}
-
-		await trx
-			.updateTable('projects')
-			.set({ updated_at: now })
-			.where('id', '=', projectId)
-			.execute();
-		return snapshotIds;
-	});
+	return syncedIds;
 }
 
 export interface RefreshProjectTranscriptionInput {
@@ -703,13 +839,17 @@ interface ForkedProjectTranscriptionIds {
 	projectTranscriptionId: string;
 	transcriptionId: string;
 	checkpointIds: Map<string, string>;
+	checkpointId: string;
+	sourceContentHash: string;
+	contentHash: string;
 }
 
 async function forkProjectTranscriptions(
 	db: DbExecutor,
 	sourceProjectId: string,
 	targetProjectId: string,
-	now: string
+	now: string,
+	sourceTranscriptionPayloads: Map<string, ProjectTranscriptionPayload>
 ): Promise<Map<string, ForkedProjectTranscriptionIds>> {
 	const links = await db
 		.selectFrom('project_transcriptions')
@@ -746,56 +886,76 @@ async function forkProjectTranscriptions(
 
 	const idMap = new Map<string, ForkedProjectTranscriptionIds>();
 	for (const link of links) {
-		const sourceTranscriptionId = requireId(link.source_transcription_id, 'source transcription');
+		const sourceTranscriptionId = requireId(
+			link.source_transcription_id,
+			'source transcription'
+		);
+		const sourceProjectTranscriptionId = requireId(
+			link.project_transcription_id,
+			'source project transcription'
+		);
+		const sourcePayload =
+			sourceTranscriptionPayloads.get(sourceProjectTranscriptionId) ??
+			sourceTranscriptionPayloads.get(sourceTranscriptionId);
+		if (!sourcePayload) {
+			throw new Error(
+				`Canonical transcription ${sourceProjectTranscriptionId} was not found.`
+			);
+		}
 		const targetTranscriptionId = createId();
 		const targetProjectTranscriptionId = createId();
-		const checkpointIdMap = await buildTranscriptionCheckpointIdMap(
-			db,
-			sourceTranscriptionId
-		);
+		const checkpointId = createId();
+		const checkpointIdMap = new Map<string, string>();
+		checkpointIdMap.set(sourcePayload.current_revision.id, checkpointId);
+		const embeddedIdMap = new Map([
+			[sourceProjectId, targetProjectId],
+			[sourceTranscriptionId, targetTranscriptionId],
+			[sourceProjectTranscriptionId, targetProjectTranscriptionId],
+		]);
 		await db
 			.insertInto('transcriptions')
 			.values({
 				id: targetTranscriptionId,
 				project_id: targetProjectId,
-				origin_type: link.origin_type || 'project_snapshot',
-				origin_project_id: sourceProjectId,
-				origin_transcription_id: sourceTranscriptionId,
-				origin_revision_id: link.current_revision_id || link.origin_revision_id,
-				origin_content_hash: link.current_content_hash || link.origin_content_hash,
-				current_revision_id: mappedId(checkpointIdMap, link.current_revision_id),
-				current_content_hash: link.current_content_hash,
-				title: link.title,
-				siglum: link.siglum,
-				description: link.description,
-				content_json: link.content_json,
-				format: link.format,
+				origin_type: sourcePayload.origin.source_type,
+				origin_project_id: sourcePayload.origin.source_project_id,
+				origin_transcription_id: sourcePayload.origin.source_transcription_id,
+				origin_revision_id: sourcePayload.origin.source_revision_id ?? '',
+				origin_content_hash: sourcePayload.origin.source_content_hash ?? '',
+				current_revision_id: '',
+				current_content_hash: '',
+				title: sourcePayload.title,
+				siglum: sourcePayload.siglum,
+				description: sourcePayload.description,
+				content_json: JSON.stringify(
+					rewriteForkIdentifiers(sourcePayload.content_json, embeddedIdMap)
+				),
+				format: sourcePayload.content_format,
 				created_at: now,
 				updated_at: now,
-				owner: link.owner,
-				is_public: link.is_public,
-				tags: link.tags,
-				transcriber: link.transcriber,
-				repository: link.repository,
-				settlement: link.settlement,
-				language: link.language,
+				owner: sourcePayload.owner,
+				is_public: sourcePayload.is_public ? 1 : 0,
+				tags: JSON.stringify(sourcePayload.tags),
+				transcriber: sourcePayload.transcriber,
+				repository: sourcePayload.repository,
+				settlement: sourcePayload.settlement,
+				language: sourcePayload.language,
 			})
 			.execute();
-		await copyTranscriptionCheckpoints(
+		await replaceTranscriptionVerseIndexRows(
 			db,
-			sourceTranscriptionId,
 			targetTranscriptionId,
-			checkpointIdMap
+			JSON.stringify(rewriteForkIdentifiers(sourcePayload.content_json, embeddedIdMap)),
+			now
 		);
-		await copyVerseIndexRows(db, sourceTranscriptionId, targetTranscriptionId, now);
-		await copyIiifRows(db, sourceTranscriptionId, targetTranscriptionId);
+		await replaceIiifRowsFromPayload(db, targetTranscriptionId, sourcePayload, now);
 		await db
 			.insertInto('project_transcriptions')
 			.values({
 				id: targetProjectTranscriptionId,
 				project_id: targetProjectId,
 				transcription_id: targetTranscriptionId,
-				canonical_transcription_id: link.canonical_transcription_id,
+				canonical_transcription_id: sourcePayload.canonical_transcription_id,
 				added_at: now,
 			})
 			.execute();
@@ -803,11 +963,17 @@ async function forkProjectTranscriptions(
 			projectTranscriptionId: targetProjectTranscriptionId,
 			transcriptionId: targetTranscriptionId,
 			checkpointIds: checkpointIdMap,
+			checkpointId,
+			sourceContentHash: sourcePayload.current_revision.content_hash,
+			contentHash: '',
 		});
-		idMap.set(requireId(link.project_transcription_id, 'source project transcription'), {
+		idMap.set(sourceProjectTranscriptionId, {
 			projectTranscriptionId: targetProjectTranscriptionId,
 			transcriptionId: targetTranscriptionId,
 			checkpointIds: checkpointIdMap,
+			checkpointId,
+			sourceContentHash: sourcePayload.current_revision.content_hash,
+			contentHash: '',
 		});
 	}
 	return idMap;
@@ -859,36 +1025,49 @@ async function forkProjectCollations(
 	sourceProjectId: string,
 	targetProjectId: string,
 	transcriptionMap: Map<string, ForkedProjectTranscriptionIds>,
-	now: string
-): Promise<string[]> {
-	const sourceCollations = await db
-		.selectFrom('collations')
-		.selectAll()
-		.where('project_id', '=', sourceProjectId)
-		.orderBy('updated_at')
-		.execute();
-	const targetIds: string[] = [];
-	for (const source of sourceCollations) {
-		const sourceCollationId = requireId(source.id, 'source collation');
+	now: string,
+	sourceCollations: Map<string, CollationPayload>
+): Promise<Array<{ id: string; checkpointId: string; document: unknown }>> {
+	const targets: Array<{ id: string; checkpointId: string; document: unknown }> = [];
+	for (const [sourceCollationId, source] of sourceCollations) {
 		const targetCollationId = createId();
-		const checkpointIdMap = await buildCollationCheckpointIdMap(db, sourceCollationId);
+		const checkpointId = createId();
 		await db
 			.insertInto('collations')
 			.values({
-				...source,
 				id: targetCollationId,
 				project_id: targetProjectId,
-				current_revision_id: mappedId(checkpointIdMap, source.current_revision_id),
+				title: source.title,
+				verse_identifier: source.verse_identifier,
+				status: source.status,
+				current_revision_id: '',
+				current_content_hash: '',
+				group_path: source.group_path,
+				notes: source.notes,
+				sort_key: source.sort_key,
 				created_at: now,
 				updated_at: now,
 			})
 			.execute();
-		await copyCollationCheckpoints(db, sourceCollationId, targetCollationId, checkpointIdMap);
-		await copyCollationArtifacts(db, sourceCollationId, targetCollationId);
-		await copyCollationProjection(db, sourceCollationId, targetCollationId, transcriptionMap);
-		targetIds.push(targetCollationId);
+		const document = rewriteForkIdentifiers(
+			source.document,
+			new Map<string, string>([
+				[sourceProjectId, targetProjectId],
+				[sourceCollationId, targetCollationId],
+				...[...transcriptionMap.entries()].map(
+					([sourceId, target]) => [sourceId, target.transcriptionId] as const
+				),
+				...[...transcriptionMap.values()].flatMap(target => [
+					...target.checkpointIds.entries(),
+				]),
+				...[...transcriptionMap.values()]
+					.filter(target => target.sourceContentHash && target.contentHash)
+					.map(target => [target.sourceContentHash, target.contentHash] as const),
+			])
+		);
+		targets.push({ id: targetCollationId, checkpointId, document });
 	}
-	return targetIds;
+	return targets;
 }
 
 async function buildCollationCheckpointIdMap(
@@ -932,21 +1111,13 @@ async function copyCollationCheckpoints(
 	}
 }
 
-async function copyCollationArtifacts(
-	db: DbExecutor,
-	sourceCollationId: string,
-	targetCollationId: string
-): Promise<void> {
-	const rows = await db
-		.selectFrom('collation_artifacts')
-		.selectAll()
-		.where('collation_id', '=', sourceCollationId)
-		.execute();
-	if (rows.length === 0) return;
-	await db
-		.insertInto('collation_artifacts')
-		.values(rows.map(row => ({ ...row, id: createId(), collation_id: targetCollationId })))
-		.execute();
+function rewriteForkIdentifiers(value: unknown, idMap: Map<string, string>): unknown {
+	if (typeof value === 'string') return idMap.get(value) ?? value;
+	if (Array.isArray(value)) return value.map(entry => rewriteForkIdentifiers(entry, idMap));
+	if (!value || typeof value !== 'object') return value;
+	return Object.fromEntries(
+		Object.entries(value).map(([key, entry]) => [key, rewriteForkIdentifiers(entry, idMap)])
+	);
 }
 
 async function copyCollationProjection(
@@ -993,7 +1164,9 @@ async function copyCollationProjection(
 	if (tokens.length > 0) {
 		await db
 			.insertInto('collation_tokens')
-			.values(tokens.map(row => ({ ...row, id: createId(), collation_id: targetCollationId })))
+			.values(
+				tokens.map(row => ({ ...row, id: createId(), collation_id: targetCollationId }))
+			)
 			.execute();
 	}
 
@@ -1068,7 +1241,7 @@ function mappedId(idMap: Map<string, string>, id: string | null): string {
 async function replaceIiifRowsFromPayload(
 	db: DbExecutor,
 	targetTranscriptionId: string,
-	payload: TranscriptionCheckpointPayload,
+	payload: TranscriptionCheckpointPayload | ProjectTranscriptionPayload,
 	now: string
 ): Promise<void> {
 	await db
@@ -1367,81 +1540,6 @@ export async function listProjectTranscriptionSourceCandidates(
 	return candidates;
 }
 
-async function addProjectTranscriptionSnapshot(
-	db: DbExecutor,
-	projectId: string,
-	sourceId: string,
-	now: string
-): Promise<{ transcriptionId: string; canonicalTranscriptionId: string | null }> {
-	const source = await db
-		.selectFrom('transcriptions')
-		.selectAll()
-		.where('id', '=', sourceId)
-		.executeTakeFirst();
-	if (!source) throw new Error(`Transcription ${sourceId} was not found.`);
-
-	const sourceTranscriptionId = requireId(source.id, 'source transcription');
-	if (source.project_id === projectId) {
-		await insertProjectTranscriptionRow(db, projectId, sourceTranscriptionId, null, now);
-		return { transcriptionId: sourceTranscriptionId, canonicalTranscriptionId: null };
-	}
-
-	const snapshotId = createId();
-	await db
-		.insertInto('transcriptions')
-		.values(buildProjectSnapshotRow(source, projectId, snapshotId, now))
-		.execute();
-	await copyVerseIndexRows(db, sourceTranscriptionId, snapshotId, now);
-	await copyIiifRows(db, sourceTranscriptionId, snapshotId);
-	await insertProjectTranscriptionRow(db, projectId, snapshotId, null, now);
-	return { transcriptionId: snapshotId, canonicalTranscriptionId: null };
-}
-
-async function insertProjectTranscriptionRow(
-	db: DbExecutor,
-	projectId: string,
-	transcriptionId: string,
-	canonicalTranscriptionId: string | null,
-	now: string
-): Promise<void> {
-	const row: Selectable<ProjectTranscriptions> = {
-		id: createId(),
-		project_id: projectId,
-		transcription_id: transcriptionId,
-		canonical_transcription_id: canonicalTranscriptionId,
-		added_at: now,
-	};
-	await db
-		.insertInto('project_transcriptions')
-		.values(row)
-		.onConflict(oc => oc.columns(['project_id', 'transcription_id']).doNothing())
-		.execute();
-}
-
-function buildProjectSnapshotRow(
-	source: Selectable<Transcriptions>,
-	projectId: string,
-	snapshotId: string,
-	now: string
-): Selectable<Transcriptions> {
-	const sourceId = requireId(source.id, 'source transcription');
-	const hasCommittedSource = Boolean(source.current_revision_id && source.current_content_hash);
-	return {
-		...source,
-		id: snapshotId,
-		project_id: projectId,
-		origin_type: 'project_snapshot',
-		origin_project_id: source.project_id,
-		origin_transcription_id: sourceId,
-		origin_revision_id: hasCommittedSource ? source.current_revision_id : '',
-		origin_content_hash: hasCommittedSource ? source.current_content_hash : '',
-		current_revision_id: '',
-		current_content_hash: '',
-		created_at: now,
-		updated_at: now,
-	};
-}
-
 function fileBackedLoadOptions(options: ProjectContentLoadOptions): {
 	allowIndexFallback: boolean;
 	backend?: StoreOperationOptions['backend'];
@@ -1451,93 +1549,6 @@ function fileBackedLoadOptions(options: ProjectContentLoadOptions): {
 		...options.storeOptions,
 		allowIndexFallback: options.requireFileBackedContent !== true,
 	};
-}
-
-async function copyVerseIndexRows(
-	db: DbExecutor,
-	sourceTranscriptionId: string,
-	snapshotId: string,
-	now: string
-): Promise<void> {
-	const rows = await db
-		.selectFrom('transcription_verse_index')
-		.selectAll()
-		.where('transcription_id', '=', sourceTranscriptionId)
-		.execute();
-	if (rows.length === 0) return;
-	const copiedRows: Selectable<TranscriptionVerseIndex>[] = rows.map(row => ({
-		...row,
-		id: createId(),
-		transcription_id: snapshotId,
-		last_indexed_at: now,
-	}));
-	await db.insertInto('transcription_verse_index').values(copiedRows).execute();
-}
-
-async function copyIiifRows(
-	db: DbExecutor,
-	sourceTranscriptionId: string,
-	snapshotId: string
-): Promise<void> {
-	const manifestRows = await db
-		.selectFrom('iiif_manifest_sources')
-		.selectAll()
-		.where('transcription_id', '=', sourceTranscriptionId)
-		.execute();
-	const manifestIdMap = new Map<string, string>();
-	const copiedManifestRows: Selectable<IiifManifestSources>[] = manifestRows.map(row => {
-		const nextId = createId();
-		manifestIdMap.set(requireId(row.id, 'manifest source'), nextId);
-		return { ...row, id: nextId, transcription_id: snapshotId };
-	});
-	if (copiedManifestRows.length > 0)
-		await db.insertInto('iiif_manifest_sources').values(copiedManifestRows).execute();
-
-	const pageLinkRows = await db
-		.selectFrom('transcription_page_canvas_links')
-		.selectAll()
-		.where('transcription_id', '=', sourceTranscriptionId)
-		.execute();
-	const copiedPageLinkRows: Selectable<TranscriptionPageCanvasLinks>[] = pageLinkRows.flatMap(
-		row => {
-			const manifestSourceId = manifestIdMap.get(row.manifest_source_id);
-			return manifestSourceId
-				? [
-						{
-							...row,
-							id: createId(),
-							transcription_id: snapshotId,
-							manifest_source_id: manifestSourceId,
-						},
-					]
-				: [];
-		}
-	);
-	if (copiedPageLinkRows.length > 0)
-		await db.insertInto('transcription_page_canvas_links').values(copiedPageLinkRows).execute();
-
-	const annotationRows = await db
-		.selectFrom('iiif_canvas_annotations')
-		.selectAll()
-		.where('transcription_id', '=', sourceTranscriptionId)
-		.execute();
-	const copiedAnnotationRows: Selectable<IiifCanvasAnnotations>[] = annotationRows.flatMap(
-		row => {
-			const manifestSourceId = manifestIdMap.get(row.manifest_source_id);
-			return manifestSourceId
-				? [
-						{
-							...row,
-							id: createId(),
-							transcription_id: snapshotId,
-							manifest_source_id: manifestSourceId,
-						},
-					]
-				: [];
-		}
-	);
-	if (copiedAnnotationRows.length > 0)
-		await db.insertInto('iiif_canvas_annotations').values(copiedAnnotationRows).execute();
 }
 
 interface ProjectTranscriptionStatusQueryRow {
@@ -1650,7 +1661,7 @@ async function loadTranscriptionSourceSummary(
 		title: row.title,
 		siglum: row.siglum,
 		currentCheckpoint,
-		 dirtyToCheckpoint: await loadSourceDirtyToCheckpoint(db, {
+		dirtyToCheckpoint: await loadSourceDirtyToCheckpoint(db, {
 			transcriptionId: sourceId,
 			projectId: row.project_id,
 			currentCheckpoint,

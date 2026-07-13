@@ -61,6 +61,7 @@ import {
 	type CloudStorageProvider,
 } from './providers/provider';
 import type { SyncQuarantine } from './sync-manager';
+import type { StoreOperationOptions } from '$lib/client/store';
 
 type DbExecutor = Kysely<Database> | Transaction<Database>;
 
@@ -225,7 +226,8 @@ export async function classifyCloudProjectCandidate(
 export async function importCloudProject(
 	db: Kysely<Database>,
 	provider: CloudStorageProvider,
-	input: ImportCloudProjectInput
+	input: ImportCloudProjectInput,
+	storeOptions: StoreOperationOptions = {}
 ): Promise<ImportCloudProjectResult> {
 	if (input.mode !== 'create-local')
 		throw new Error(`Unsupported cloud project import mode ${input.mode}.`);
@@ -308,7 +310,7 @@ export async function importCloudProject(
 	}
 
 	await db.transaction().execute(async trx => {
-		await createProject(trx, projectCloudFileToRepositoryInput(manifest));
+		await createProject(trx, projectCloudFileToRepositoryInput(manifest), storeOptions);
 		for (const item of loadedTranscriptions.items) {
 			await importProjectTranscriptionPrimary(
 				trx,

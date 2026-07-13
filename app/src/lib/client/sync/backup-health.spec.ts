@@ -6,7 +6,7 @@ import {
 	upsertCloudConnection,
 	upsertCloudProjectFolder,
 } from '$lib/client/db/repositories/cloud-connections';
-import { createProject } from '$lib/client/db/repositories/projects';
+import { createProject as createProjectRepository } from '$lib/client/db/repositories/projects';
 import {
 	createCommittedCollationCheckpointWithFiles,
 	saveWorkingCollationArtifact,
@@ -31,6 +31,13 @@ beforeEach(() => {
 afterEach(async () => {
 	await harness.destroy();
 });
+
+function createProject(
+	db: Parameters<typeof createProjectRepository>[0],
+	input: Parameters<typeof createProjectRepository>[1]
+) {
+	return createProjectRepository(db, input, storeOptions);
+}
 
 describe('project backup health', () => {
 	it('reports a fully backed up project as restorable now', async () => {
@@ -191,11 +198,15 @@ async function createCommittedProjectCollation(notes: string, checkpointId: stri
 		},
 		storeOptions
 	);
-	await createCommittedCollationCheckpointWithFiles(harness.db, {
-		collationId: 'col-1',
-		checkpointId,
-		createdAt: '2026-06-10T12:02:00.000Z',
-	}, storeOptions);
+	await createCommittedCollationCheckpointWithFiles(
+		harness.db,
+		{
+			collationId: 'col-1',
+			checkpointId,
+			createdAt: '2026-06-10T12:02:00.000Z',
+		},
+		storeOptions
+	);
 }
 
 async function remoteFile(

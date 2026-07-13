@@ -7,7 +7,7 @@ import {
 	upsertCloudConnection,
 	upsertCloudProjectFolder,
 } from '$lib/client/db/repositories/cloud-connections';
-import { createProject, syncProjectTranscriptionIds } from '$lib/client/db/repositories/projects';
+import { createProject as createProjectRepository } from '$lib/client/db/repositories/projects';
 import type { CollationCheckpoint } from '$lib/client/db/repositories/revisions';
 import {
 	createCommittedCollationCheckpointWithFiles,
@@ -68,17 +68,29 @@ afterEach(async () => {
 	await harness.destroy();
 });
 
+function createProject(
+	db: Parameters<typeof createProjectRepository>[0],
+	input: Parameters<typeof createProjectRepository>[1],
+	options: StoreOperationOptions = storeOptions
+) {
+	return createProjectRepository(db, input, options);
+}
+
 describe('sync manager', () => {
 	it('creates a committed checkpoint and marks manual commits sync pending', async () => {
 		const projectTranscriptionId = await createProjectTranscription();
 
-		const result = await commitProjectTranscriptionForSync(harness.db, {
-			projectTranscriptionId,
-			checkpointId: 'tx-cp-1',
-			commitMessage: 'Ready for sync',
-			authorName: 'Editor',
-			createdAt: '2026-06-10T12:00:00.000Z',
-		}, syncOptions());
+		const result = await commitProjectTranscriptionForSync(
+			harness.db,
+			{
+				projectTranscriptionId,
+				checkpointId: 'tx-cp-1',
+				commitMessage: 'Ready for sync',
+				authorName: 'Editor',
+				createdAt: '2026-06-10T12:00:00.000Z',
+			},
+			syncOptions()
+		);
 
 		expect(result.uiState).toBe('sync pending');
 		expect(result.checkpoint).toMatchObject({
@@ -122,10 +134,16 @@ describe('sync manager', () => {
 		});
 
 		provider.calls = [];
-		const unchangedPoll = await pollOpenEntity(harness.db, provider, context, {
-			entityType: 'collation',
-			entityId: 'col-1',
-		}, syncOptions());
+		const unchangedPoll = await pollOpenEntity(
+			harness.db,
+			provider,
+			context,
+			{
+				entityType: 'collation',
+				entityId: 'col-1',
+			},
+			syncOptions()
+		);
 
 		expect(unchangedPoll.uiState).toBe('synced');
 		expect(provider.calls.some(call => call.operation === 'download-file')).toBe(false);
@@ -220,11 +238,15 @@ describe('sync manager', () => {
 			updatedAt: '2026-06-10T12:20:00.000Z',
 		});
 		await saveCanonicalCollation(harness.db, storeOptions);
-		const second = await createCommittedCollationCheckpointWithFiles(harness.db, {
-			collationId: 'col-1',
-			checkpointId: 'col-cp-2',
-			createdAt: '2026-06-10T12:21:00.000Z',
-		}, storeOptions);
+		const second = await createCommittedCollationCheckpointWithFiles(
+			harness.db,
+			{
+				collationId: 'col-1',
+				checkpointId: 'col-cp-2',
+				createdAt: '2026-06-10T12:21:00.000Z',
+			},
+			storeOptions
+		);
 		provider.failNext('conflict', 'update-file', 'Primary changed remotely.');
 
 		const result = await publishEntity(
@@ -268,10 +290,16 @@ describe('sync manager', () => {
 			primary.revision
 		);
 
-		const result = await pollOpenEntity(harness.db, provider, context, {
-			entityType: 'collation',
-			entityId: 'col-1',
-		}, syncOptions());
+		const result = await pollOpenEntity(
+			harness.db,
+			provider,
+			context,
+			{
+				entityType: 'collation',
+				entityId: 'col-1',
+			},
+			syncOptions()
+		);
 
 		expect(result.uiState).toBe('conflict requires resolution');
 		expect(result.quarantines).toMatchObject([
@@ -345,11 +373,15 @@ describe('sync manager', () => {
 			updatedAt: '2026-06-10T12:40:00.000Z',
 		});
 		await saveCanonicalCollation(harness.db, storeOptions);
-		await createCommittedCollationCheckpointWithFiles(harness.db, {
-			collationId: 'col-1',
-			checkpointId: 'col-cp-local',
-			createdAt: '2026-06-10T12:41:00.000Z',
-		}, storeOptions);
+		await createCommittedCollationCheckpointWithFiles(
+			harness.db,
+			{
+				collationId: 'col-1',
+				checkpointId: 'col-cp-local',
+				createdAt: '2026-06-10T12:41:00.000Z',
+			},
+			storeOptions
+		);
 
 		const result = await pollOpenEntity(
 			harness.db,
@@ -404,7 +436,7 @@ describe('sync manager', () => {
 
 		expect(result.uiState).toBe('synced');
 		expect(result.manifestUploaded).toBe(true);
-			expect(result.uploadedPaths).toEqual([
+		expect(result.uploadedPaths).toEqual([
 			'history/collations/col-1/col-cp-1.json',
 			'collations/col-1.json',
 			'collations/col-1.tei.xml',
@@ -446,10 +478,12 @@ describe('sync manager', () => {
 			'collations/col-1.tei.xml',
 			'project.json',
 		]);
-		await expect(provider.downloadFile('Apatosaurus/Projects/project-1/project.json')).resolves.toContain(
-			'"id":"project-1"'
-		);
-		const listing = await provider.listFiles('Apatosaurus/Projects/project-1', { recursive: true });
+		await expect(
+			provider.downloadFile('Apatosaurus/Projects/project-1/project.json')
+		).resolves.toContain('"id":"project-1"');
+		const listing = await provider.listFiles('Apatosaurus/Projects/project-1', {
+			recursive: true,
+		});
 		expect(listing.entries.map(entry => entry.path)).toEqual([
 			'Apatosaurus/Projects/project-1/collations',
 			'Apatosaurus/Projects/project-1/collations/col-1.json',
@@ -464,13 +498,17 @@ describe('sync manager', () => {
 
 	it('mirrors canonical project files byte-for-byte and excludes working files', async () => {
 		const projectTranscriptionId = await createProjectTranscription();
-		await commitProjectTranscriptionForSync(harness.db, {
-			projectTranscriptionId,
-			checkpointId: 'tx-cp-1',
-			commitMessage: 'Ready for sync',
-			authorName: 'Editor',
-			createdAt: '2026-06-10T12:00:00.000Z',
-		}, syncOptions());
+		await commitProjectTranscriptionForSync(
+			harness.db,
+			{
+				projectTranscriptionId,
+				checkpointId: 'tx-cp-1',
+				commitMessage: 'Ready for sync',
+				authorName: 'Editor',
+				createdAt: '2026-06-10T12:00:00.000Z',
+			},
+			syncOptions()
+		);
 		const { provider, context } = await createConnectedProvider();
 		const projectSlug = await loadProjectStorageSlug('project-1');
 		await writeTextFileAtomic(
@@ -505,7 +543,11 @@ describe('sync manager', () => {
 			await remoteFile(provider, context, `transcriptions/${projectTranscriptionId}.tei.xml`)
 		).not.toBeNull();
 		expect(
-			await remoteFile(provider, context, `transcriptions/${projectTranscriptionId}.working.json`)
+			await remoteFile(
+				provider,
+				context,
+				`transcriptions/${projectTranscriptionId}.working.json`
+			)
 		).toBeNull();
 	});
 
@@ -543,7 +585,10 @@ describe('sync manager', () => {
 		});
 		const primary = await remoteFile(provider, context, 'collations/col-1.json');
 		if (!primary) throw new Error('Expected remote primary file.');
-		const original = JSON.parse(await provider.downloadFile(primary.id)) as Record<string, unknown>;
+		const original = JSON.parse(await provider.downloadFile(primary.id)) as Record<
+			string,
+			unknown
+		>;
 		await provider.updateFile(
 			primary.id,
 			JSON.stringify({ ...original, notes: 'Tampered remote notes' }),
@@ -581,11 +626,15 @@ describe('sync manager', () => {
 			updatedAt: '2026-06-10T13:04:00.000Z',
 		});
 		await saveCanonicalCollation(harness.db, storeOptions);
-		await createCommittedCollationCheckpointWithFiles(harness.db, {
-			collationId: 'col-1',
-			checkpointId: 'col-cp-local',
-			createdAt: '2026-06-10T13:04:30.000Z',
-		}, storeOptions);
+		await createCommittedCollationCheckpointWithFiles(
+			harness.db,
+			{
+				collationId: 'col-1',
+				checkpointId: 'col-cp-local',
+				createdAt: '2026-06-10T13:04:30.000Z',
+			},
+			storeOptions
+		);
 
 		const result = await backupProject(harness.db, provider, context, {
 			now: () => '2026-06-10T13:05:00.000Z',
@@ -675,9 +724,9 @@ describe('sync manager', () => {
 		const result = await backupProject(harness.db, provider, context, syncOptions());
 
 		expect(result.uiState).toBe('synced');
-		await expect(provider.downloadFile('Apatosaurus/Projects/project-1/project.json')).resolves.toContain(
-			'"id":"project-1"'
-		);
+		await expect(
+			provider.downloadFile('Apatosaurus/Projects/project-1/project.json')
+		).resolves.toContain('"id":"project-1"');
 		await expect(
 			harness.db
 				.selectFrom('cloud_project_folders')
@@ -890,11 +939,15 @@ async function createCommittedProjectCollation(
 		updatedAt: '2026-06-10T12:01:00.000Z',
 	});
 	await saveCanonicalCollation(harness.db, storeOptions);
-	return createCommittedCollationCheckpointWithFiles(harness.db, {
-		collationId: 'col-1',
-		checkpointId,
-		createdAt: '2026-06-10T12:02:00.000Z',
-	}, storeOptions);
+	return createCommittedCollationCheckpointWithFiles(
+		harness.db,
+		{
+			collationId: 'col-1',
+			checkpointId,
+			createdAt: '2026-06-10T12:02:00.000Z',
+		},
+		storeOptions
+	);
 }
 
 async function saveCanonicalCollation(
@@ -917,6 +970,8 @@ async function createProjectTranscription(): Promise<string> {
 	await createProject(harness.db, { id: 'project-1', name: 'Project' });
 	await createTranscription(harness.db, {
 		id: 'tx-1',
+		projectId: 'project-1',
+		projectTranscriptionId: 'pt-1',
 		title: 'Witness 01',
 		siglum: '01',
 		document: documentWithVerses(['Romans 1:1']),
@@ -925,14 +980,7 @@ async function createProjectTranscription(): Promise<string> {
 		settlement: 'City',
 		language: 'grc',
 	});
-	const [snapshotId] = await syncProjectTranscriptionIds(harness.db, 'project-1', ['tx-1']);
-	const row = await harness.db
-		.selectFrom('project_transcriptions')
-		.select('id')
-		.where('transcription_id', '=', snapshotId)
-		.executeTakeFirstOrThrow();
-	if (!row.id) throw new Error('Missing project transcription id.');
-	return row.id;
+	return 'pt-1';
 }
 
 async function pushRemoteCollationRevision(
@@ -944,7 +992,11 @@ async function pushRemoteCollationRevision(
 	const remoteHarness = createLocalDbTestHarness();
 	const remoteStoreOptions = { backend: new MemoryStoreBackend() };
 	try {
-		await createProject(remoteHarness.db, { id: 'project-1', name: 'Project' });
+		await createProject(
+			remoteHarness.db,
+			{ id: 'project-1', name: 'Project' },
+			remoteStoreOptions
+		);
 		await createCollation(remoteHarness.db, {
 			id: 'col-1',
 			projectId: 'project-1',
@@ -958,22 +1010,30 @@ async function pushRemoteCollationRevision(
 			updatedAt: '2026-06-10T12:01:00.000Z',
 		});
 		await saveCanonicalCollation(remoteHarness.db, remoteStoreOptions);
-		await createCommittedCollationCheckpointWithFiles(remoteHarness.db, {
-			collationId: 'col-1',
-			checkpointId: 'col-cp-1',
-			createdAt: '2026-06-10T12:02:00.000Z',
-		}, remoteStoreOptions);
+		await createCommittedCollationCheckpointWithFiles(
+			remoteHarness.db,
+			{
+				collationId: 'col-1',
+				checkpointId: 'col-cp-1',
+				createdAt: '2026-06-10T12:02:00.000Z',
+			},
+			remoteStoreOptions
+		);
 		await updateCollationMetadata(remoteHarness.db, {
 			id: 'col-1',
 			notes,
 			updatedAt: '2026-06-10T12:25:00.000Z',
 		});
 		await saveCanonicalCollation(remoteHarness.db, remoteStoreOptions);
-		await createCommittedCollationCheckpointWithFiles(remoteHarness.db, {
-			collationId: 'col-1',
-			checkpointId,
-			createdAt: '2026-06-10T12:26:00.000Z',
-		}, remoteStoreOptions);
+		await createCommittedCollationCheckpointWithFiles(
+			remoteHarness.db,
+			{
+				collationId: 'col-1',
+				checkpointId,
+				createdAt: '2026-06-10T12:26:00.000Z',
+			},
+			remoteStoreOptions
+		);
 		const historyPath = `history/collations/col-1/${checkpointId}.json`;
 		const history = await serializeCollationHistoryCloudFile(
 			remoteHarness.db,
@@ -981,11 +1041,23 @@ async function pushRemoteCollationRevision(
 			checkpointId,
 			remoteStoreOptions
 		);
-		await provider.createFile(context.cloudFolderId, historyPath, await serializeCloudFile(history));
+		await provider.createFile(
+			context.cloudFolderId,
+			historyPath,
+			await serializeCloudFile(history)
+		);
 		const primary = await remoteFile(provider, context, 'collations/col-1.json');
 		if (!primary) throw new Error('Expected remote primary file.');
-		const remotePrimary = await serializeCollationCloudFile(remoteHarness.db, 'col-1', remoteStoreOptions);
-		await provider.updateFile(primary.id, await serializeCloudFile(remotePrimary), primary.revision);
+		const remotePrimary = await serializeCollationCloudFile(
+			remoteHarness.db,
+			'col-1',
+			remoteStoreOptions
+		);
+		await provider.updateFile(
+			primary.id,
+			await serializeCloudFile(remotePrimary),
+			primary.revision
+		);
 		const manifest = await remoteFile(provider, context, 'project.json');
 		const remoteManifest = await serializeProjectCloudFile(remoteHarness.db, 'project-1');
 		if (manifest) {

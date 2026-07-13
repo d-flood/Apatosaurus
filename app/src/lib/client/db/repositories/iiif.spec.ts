@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import { MemoryStoreBackend } from '$lib/client/store/memory-store-backend.spec-support';
+import { createProject } from './projects';
 import { createTranscription } from './transcriptions';
 import { createLocalDbTestHarness, type LocalDbTestHarness } from '../test-harness';
 import {
@@ -18,6 +20,11 @@ let harness: LocalDbTestHarness;
 
 beforeEach(async () => {
 	harness = createLocalDbTestHarness();
+	await createProject(
+		harness.db,
+		{ id: 'default-project', storageSlug: 'default-project', name: 'Default' },
+		{ backend: new MemoryStoreBackend() }
+	);
 	await createTranscription(harness.db, {
 		id: 'tx-1',
 		title: 'Romans',

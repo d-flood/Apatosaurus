@@ -33,7 +33,7 @@ import {
 	saveWorkingCollationArtifact,
 } from './collation-files';
 import { deleteCollationWithFiles, deleteTranscriptionWithFiles } from './entity-deletion';
-import { createProject } from './projects';
+import { createProject as createProjectRepository } from './projects';
 import { createTranscription } from './transcriptions';
 import { createCommittedTranscriptionCheckpointWithFiles } from './transcription-files';
 
@@ -48,6 +48,13 @@ beforeEach(() => {
 afterEach(async () => {
 	await harness.destroy();
 });
+
+function createProject(
+	db: Parameters<typeof createProjectRepository>[0],
+	input: Parameters<typeof createProjectRepository>[1]
+) {
+	return createProjectRepository(db, input, { backend });
+}
 
 describe('entity deletion file persistence', () => {
 	it('writes a transcription tombstone, updates the manifest, removes the primary, and preserves history', async () => {

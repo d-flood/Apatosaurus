@@ -53,6 +53,7 @@ import {
 	loadTranscriptionWithWorkingFile,
 	rebuildVerseIndexForTranscriptionsWithFiles,
 	saveWorkingTranscriptionContent,
+	saveWorkingTranscriptionMetadata,
 } from './repositories/transcription-files';
 import * as iiifRepository from './repositories/iiif';
 import {
@@ -307,6 +308,11 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 	}
 	if (request.type === 'transcriptions.updateContent') {
 		await saveWorkingTranscriptionContent(getKyselyDb(), request.input);
+		postMessage({ type: 'db:invalidate', domain: 'transcriptions' });
+		return null;
+	}
+	if (request.type === 'transcriptions.updateMetadata') {
+		await saveWorkingTranscriptionMetadata(getKyselyDb(), request.input);
 		postMessage({ type: 'db:invalidate', domain: 'transcriptions' });
 		return null;
 	}

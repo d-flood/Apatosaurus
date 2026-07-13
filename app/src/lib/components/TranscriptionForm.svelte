@@ -4,7 +4,7 @@
 		ensureDefaultProject,
 		getTranscription,
 		listProjects,
-		localDbExecute,
+		updateTranscriptionMetadata,
 	} from '$lib/client/db/client';
 	import type { ProjectOption } from '$lib/client/db/repositories/projects';
 	import { checkpointLocalDb, ensureLocalDbRuntime } from '$lib/client/db/runtime';
@@ -22,7 +22,6 @@
 	import {
 		mapLocalTranscriptionRecord,
 		parseTranscriptionTags,
-		serializeTranscriptionTags,
 		type TranscriptionRecord,
 	} from '$lib/client/transcription/model';
 	import {
@@ -52,7 +51,6 @@
 	let siglum = $state('');
 	let description = $state('');
 	let tagsInput = $state('');
-	let isPublic = $state(false);
 	let transcriber = $state('');
 	let repository = $state('');
 	let settlement = $state('');
@@ -66,7 +64,6 @@
 		siglum = transcription.siglum || '';
 		description = transcription.description || '';
 		tagsInput = parseTranscriptionTags(transcription.tags).join(', ');
-		isPublic = transcription.is_public || false;
 		transcriber = transcription.transcriber || '';
 		repository = transcription.repository || '';
 		settlement = transcription.settlement || '';
@@ -169,25 +166,17 @@
 
 		try {
 			if (isEditMode && transcription) {
-				const now = new Date().toISOString();
-				await localDbExecute(
-					`UPDATE transcriptions
-					SET title = ?, siglum = ?, description = ?, updated_at = ?, is_public = ?, tags = ?, transcriber = ?, repository = ?, settlement = ?, language = ?
-					WHERE id = ?`,
-					[
-						title.trim(),
-						siglum.trim(),
-						description.trim(),
-						now,
-						isPublic ? 1 : 0,
-						serializeTranscriptionTags(tags),
-						transcriber?.trim() || '',
-						repository?.trim() || '',
-						settlement?.trim() || '',
-						language?.trim() || '',
-						transcription.id,
-					]
-				);
+				await updateTranscriptionMetadata({
+					id: transcription.id,
+					title,
+					siglum,
+					description,
+					tags,
+					transcriber,
+					repository,
+					settlement,
+					language,
+				});
 
 				const updatedTranscription = await getTranscription(transcription.id);
 				if (onSave) {
@@ -200,7 +189,6 @@
 					siglum: effectiveSiglum,
 					description,
 					document: importedDocument || EMPTY_TRANSCRIPTION_DOC,
-					isPublic,
 					tags,
 					transcriber: effectiveTranscriber,
 					repository: effectiveRepository,
@@ -430,16 +418,6 @@
 			bind:value={tagsInput}
 			placeholder="E.g., Romans, Minuscule"
 		/>
-	</label>
-
-	<label class="label block">
-		<input
-			type="checkbox"
-			name="is_public"
-			class="checkbox checkbox-neutral"
-			bind:checked={isPublic}
-		/>
-		Make Public
 	</label>
 
 	<fieldset class="fieldset">

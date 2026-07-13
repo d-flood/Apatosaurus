@@ -1,13 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import type { StoredTranscriptionDocument } from '$lib/client/transcription/content';
+import { MemoryStoreBackend } from '$lib/client/store/memory-store-backend.spec-support';
 import { createLocalDbTestHarness, type LocalDbTestHarness } from '$lib/client/db/test-harness';
 import { createCollation, updateCollationMetadata } from '$lib/client/db/repositories/collations';
-import { createProject, syncProjectTranscriptionIds } from '$lib/client/db/repositories/projects';
-import {
-	createCommittedCollationCheckpoint,
-	createCommittedTranscriptionCheckpoint,
-} from '$lib/client/db/repositories/revisions';
+import { createProject as createProjectRepository } from '$lib/client/db/repositories/projects';
+import { createCommittedCollationCheckpoint } from '$lib/client/db/repositories/revisions';
+import { createCommittedTranscriptionCheckpointWithFiles } from '$lib/client/db/repositories/transcription-files';
 import {
 	createTranscription,
 	updateTranscriptionContent,
@@ -24,14 +23,23 @@ import {
 } from './conflicts';
 
 let harness: LocalDbTestHarness;
+let backend: MemoryStoreBackend;
 
 beforeEach(() => {
 	harness = createLocalDbTestHarness();
+	backend = new MemoryStoreBackend();
 });
 
 afterEach(async () => {
 	await harness.destroy();
 });
+
+function createProject(
+	db: Parameters<typeof createProjectRepository>[0],
+	input: Parameters<typeof createProjectRepository>[1]
+) {
+	return createProjectRepository(db, input, { backend });
+}
 
 describe('local sync conflicts and tombstones', () => {
 	it('classifies committed local and remote head divergence without merging', () => {
@@ -294,6 +302,8 @@ async function createCommittedProjectTranscription(): Promise<string> {
 	await createProject(harness.db, { id: 'project-1', name: 'Project' });
 	await createTranscription(harness.db, {
 		id: 'tx-1',
+		projectId: 'project-1',
+		projectTranscriptionId: 'pt-1',
 		title: 'Witness 01',
 		siglum: '01',
 		document: documentWithVerses(['Romans 1:1']),
@@ -302,24 +312,16 @@ async function createCommittedProjectTranscription(): Promise<string> {
 		settlement: 'City',
 		language: 'grc',
 	});
-	const [snapshotId] = await syncProjectTranscriptionIds(harness.db, 'project-1', ['tx-1']);
-	const projectTranscriptionId = await getProjectTranscriptionId(snapshotId);
-	await createCommittedTranscriptionCheckpoint(harness.db, {
-		projectTranscriptionId,
-		checkpointId: 'tx-cp-1',
-		createdAt: '2026-06-09T10:00:00.000Z',
-	});
-	return projectTranscriptionId;
-}
-
-async function getProjectTranscriptionId(transcriptionId: string): Promise<string> {
-	const row = await harness.db
-		.selectFrom('project_transcriptions')
-		.select('id')
-		.where('transcription_id', '=', transcriptionId)
-		.executeTakeFirstOrThrow();
-	if (!row.id) throw new Error('Missing project transcription id.');
-	return row.id;
+	await createCommittedTranscriptionCheckpointWithFiles(
+		harness.db,
+		{
+			projectTranscriptionId: 'pt-1',
+			checkpointId: 'tx-cp-1',
+			createdAt: '2026-06-09T10:00:00.000Z',
+		},
+		{ backend }
+	);
+	return 'pt-1';
 }
 
 async function getSnapshotId(projectTranscriptionId: string): Promise<string> {

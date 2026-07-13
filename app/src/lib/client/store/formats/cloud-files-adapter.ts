@@ -74,6 +74,7 @@ export interface ProjectCloudFile {
 	description: string;
 	charter: string;
 	collation_settings: unknown;
+	forked_from?: ProjectManifestPayload['forked_from'];
 	manifest_content_hash: string;
 	transcriptions: ProjectManifestTranscriptionHead[];
 	collations: ProjectManifestCollationHead[];
@@ -885,6 +886,7 @@ function projectCloudFileToPayload(file: ProjectCloudFile): ProjectManifestPaylo
 		description: file.description,
 		charter: file.charter,
 		collation_settings: file.collation_settings as ProjectManifestPayload['collation_settings'],
+		forked_from: file.forked_from ?? null,
 		manifest_content_hash: file.manifest_content_hash,
 		transcriptions: file.transcriptions as ProjectManifestPayload['transcriptions'],
 		collations: file.collations as ProjectManifestPayload['collations'],
@@ -902,6 +904,7 @@ function projectManifestPayloadToCloudFile(payload: ProjectManifestPayload): Pro
 		description: payload.description,
 		charter: payload.charter,
 		collation_settings: payload.collation_settings,
+		forked_from: payload.forked_from,
 		manifest_content_hash: payload.manifest_content_hash,
 		transcriptions: payload.transcriptions,
 		collations: payload.collations,

@@ -19,7 +19,13 @@ import {
 	saveWorkingCollationArtifact,
 } from './collation-files';
 import { rebuildIndexFromStore } from './index-rebuild';
-import { createProject, listProjects } from './projects';
+import {
+	createProject,
+	ensureDefaultProject,
+	getProject,
+	listProjects,
+	updateProjectMetadata,
+} from './projects';
 import { listCommittedTranscriptionCheckpoints } from './revisions';
 import {
 	createCommittedTranscriptionCheckpointWithFiles,
@@ -38,18 +44,103 @@ afterEach(async () => {
 });
 
 describe('rebuildIndexFromStore', () => {
+	it('restores an empty bootstrapped Default project', async () => {
+		const backend = new MemoryStoreBackend();
+		const storeOptions = { backend, nonce: () => 'default-project' };
+		const projectId = await ensureDefaultProject(harness.db, storeOptions);
+		const before = await getProject(harness.db, projectId);
+
+		await rebuildIndexFromStore(harness.db, storeOptions);
+
+		expect(await getProject(harness.db, projectId)).toEqual(before);
+	});
+
+	it('restores an empty project with exact metadata and immutable storage slug', async () => {
+		const backend = new MemoryStoreBackend();
+		const storeOptions = { backend, nonce: () => 'empty-project' };
+		await createProject(
+			harness.db,
+			{
+				id: 'empty-project',
+				storageSlug: 'immutable-folder',
+				name: 'Initial',
+				createdAt: '2026-07-13T10:00:00.000Z',
+				updatedAt: '2026-07-13T10:00:00.000Z',
+			},
+			storeOptions
+		);
+		await updateProjectMetadata(
+			harness.db,
+			{
+				projectId: 'empty-project',
+				name: 'Renamed',
+				description: 'Description',
+				charter: 'Charter',
+				collationSettings: { segmentation: false },
+				updatedAt: '2026-07-13T11:00:00.000Z',
+			},
+			storeOptions
+		);
+
+		await rebuildIndexFromStore(harness.db, storeOptions);
+
+		expect(await getProject(harness.db, 'empty-project')).toEqual({
+			id: 'empty-project',
+			storageSlug: 'immutable-folder',
+			name: 'Renamed',
+			description: 'Description',
+			charter: 'Charter',
+			collationSettings: { segmentation: false },
+			createdAt: '2026-07-13T10:00:00.000Z',
+			updatedAt: '2026-07-13T11:00:00.000Z',
+		});
+	});
+
+	it('does not publish project create or metadata changes when the manifest write fails', async () => {
+		const backend = new ManifestWriteFailureBackend();
+		backend.failWrites = true;
+		await expect(
+			createProject(
+				harness.db,
+				{ id: 'failed-project', name: 'Failed' },
+				{ backend }
+			)
+		).rejects.toThrow('manifest write failed');
+		expect(await getProject(harness.db, 'failed-project')).toBeNull();
+
+		backend.failWrites = false;
+		await createProject(
+			harness.db,
+			{ id: 'project-1', storageSlug: 'project-1', name: 'Original' },
+			{ backend }
+		);
+		backend.failWrites = true;
+		await expect(
+			updateProjectMetadata(
+				harness.db,
+				{ projectId: 'project-1', name: 'Unpublished' },
+				{ backend }
+			)
+		).rejects.toThrow('manifest write failed');
+		expect(await getProject(harness.db, 'project-1')).toMatchObject({ name: 'Original' });
+	});
+
 	it('restores index rows from canonical project files', async () => {
 		const backend = new MemoryStoreBackend();
 		let nonce = 0;
 		const storeOptions = { backend, nonce: () => `rebuild-${++nonce}` };
 
-		await createProject(harness.db, {
-			id: 'project-1',
-			storageSlug: 'project-slug',
-			name: 'Project',
-			createdAt: '2026-07-06T00:00:00.000Z',
-			updatedAt: '2026-07-06T00:00:00.000Z',
-		});
+		await createProject(
+			harness.db,
+			{
+				id: 'project-1',
+				storageSlug: 'project-slug',
+				name: 'Project',
+				createdAt: '2026-07-06T00:00:00.000Z',
+				updatedAt: '2026-07-06T00:00:00.000Z',
+			},
+			storeOptions
+		);
 		await createTranscription(harness.db, {
 			id: 'tx-1',
 			projectId: 'project-1',
@@ -295,5 +386,14 @@ class MemoryStoreBackend implements StoreBackend {
 			current = joinStorePath(current, segment);
 			this.directories.add(current);
 		}
+	}
+}
+
+class ManifestWriteFailureBackend extends MemoryStoreBackend {
+	failWrites = false;
+
+	override async writeTextFile(path: string, content: string): Promise<void> {
+		if (this.failWrites && path.includes('project.json')) throw new Error('manifest write failed');
+		await super.writeTextFile(path, content);
 	}
 }

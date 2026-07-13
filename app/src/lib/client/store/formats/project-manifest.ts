@@ -16,8 +16,14 @@ import {
 } from './validation';
 
 export const PROJECT_MANIFEST_FORMAT = 'apatosaurus.project-manifest';
-export const PROJECT_MANIFEST_CURRENT_VERSION = 1;
-export const projectManifestUpgraders: DocumentUpgrader[] = [];
+export const PROJECT_MANIFEST_CURRENT_VERSION = 2;
+export const projectManifestUpgraders: DocumentUpgrader[] = [upgradeProjectManifestV1];
+
+export type ProjectManifestForkProvenance = JsonObject & {
+	source_project_id: string;
+	source_manifest_content_hash: string;
+	source_manifest_schema_version: number;
+};
 
 export type ProjectManifestRevisionHead = JsonObject & {
 	id: string;
@@ -57,6 +63,7 @@ export type ProjectManifestPayload = JsonObject & {
 	description: string;
 	charter: string;
 	collation_settings: JsonValue;
+	forked_from: ProjectManifestForkProvenance | null;
 	manifest_content_hash: string;
 	transcriptions: ProjectManifestTranscriptionHead[];
 	collations: ProjectManifestCollationHead[];
@@ -76,6 +83,7 @@ export const PROJECT_MANIFEST_FIXTURE: ProjectManifestPayload = {
 	description: 'Fixture project',
 	charter: '',
 	collation_settings: { regularize: false },
+	forked_from: null,
 	manifest_content_hash: 'sha256:e08119724306ed74a77e9748563d84ef8ac69d6064c0ee9a83859a6ff2b78e67',
 	transcriptions: [
 		{
@@ -109,12 +117,35 @@ export function validateProjectManifestPayload(payload: JsonObject): ProjectMani
 		description: readString(record, 'description'),
 		charter: readString(record, 'charter'),
 		collation_settings: readJsonValue(record, 'collation_settings'),
+		forked_from: readProjectManifestForkProvenance(record, 'forked_from'),
 		manifest_content_hash: readString(record, 'manifest_content_hash'),
 		transcriptions: readProjectManifestTranscriptionHeads(record, 'transcriptions'),
 		collations: readProjectManifestCollationHeads(record, 'collations'),
 		tombstones: readProjectManifestTombstoneHeads(record, 'tombstones'),
 		created_at: readString(record, 'created_at'),
 		updated_at: readString(record, 'updated_at'),
+	};
+}
+
+function upgradeProjectManifestV1(payload: JsonObject): JsonObject {
+	return { ...payload, forked_from: null };
+}
+
+function readProjectManifestForkProvenance(
+	record: Record<string, unknown>,
+	key: string
+): ProjectManifestForkProvenance | null {
+	const value = record[key];
+	if (value === null) return null;
+	const provenance = readObjectValue(value, key);
+	const schemaVersion = provenance.source_manifest_schema_version;
+	if (!Number.isInteger(schemaVersion) || Number(schemaVersion) < 1) {
+		throw invalidShape(`${key}.source_manifest_schema_version must be a positive integer.`);
+	}
+	return {
+		source_project_id: readString(provenance, 'source_project_id'),
+		source_manifest_content_hash: readString(provenance, 'source_manifest_content_hash'),
+		source_manifest_schema_version: Number(schemaVersion),
 	};
 }
 

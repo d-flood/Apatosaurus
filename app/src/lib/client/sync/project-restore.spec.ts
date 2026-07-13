@@ -7,7 +7,7 @@ import {
 	upsertCloudConnection,
 	upsertCloudProjectFolder,
 } from '$lib/client/db/repositories/cloud-connections';
-import { createProject, syncProjectTranscriptionIds } from '$lib/client/db/repositories/projects';
+import { createProject as createProjectRepository } from '$lib/client/db/repositories/projects';
 import { removeLocalProject } from '$lib/client/db/repositories/project-removal';
 import { buildTranscriptionHashPayload } from '$lib/client/db/repositories/revisions';
 import {
@@ -37,7 +37,7 @@ import {
 } from './cloud-files';
 import {
 	compareRemoteManifestToLocalProject,
-	importCloudProject,
+	importCloudProject as importCloudProjectRepository,
 	listCloudProjectCandidates,
 	pollLinkedProjectManifest,
 	pullLinkedProjectUpdates,
@@ -48,14 +48,32 @@ import { MockCloudStorageProvider } from './providers/mock-provider';
 import type { CloudStorageProvider } from './providers/provider';
 
 let harness: LocalDbTestHarness;
+let backend: MemoryStoreBackend;
 
 beforeEach(() => {
 	harness = createLocalDbTestHarness();
+	backend = new MemoryStoreBackend();
 });
 
 afterEach(async () => {
 	await harness.destroy();
 });
+
+function createProject(
+	db: Parameters<typeof createProjectRepository>[0],
+	input: Parameters<typeof createProjectRepository>[1],
+	storeOptions: Parameters<typeof createProjectRepository>[2] = { backend }
+) {
+	return createProjectRepository(db, input, storeOptions);
+}
+
+function importCloudProject(
+	db: Parameters<typeof importCloudProjectRepository>[0],
+	provider: Parameters<typeof importCloudProjectRepository>[1],
+	input: Parameters<typeof importCloudProjectRepository>[2]
+) {
+	return importCloudProjectRepository(db, provider, input, { backend });
+}
 
 describe('cloud project browser restore candidates', () => {
 	it('finds valid cloud project manifests under the provider root', async () => {
@@ -809,14 +827,19 @@ describe('linked cloud project pull', () => {
 
 async function projectManifest(projectId: string): Promise<string> {
 	const remoteHarness = createLocalDbTestHarness();
+	const remoteStoreOptions = { backend: new MemoryStoreBackend() };
 	try {
-		await createProject(remoteHarness.db, {
-			id: projectId,
-			name: `Project ${projectId}`,
-			description: `Description for ${projectId}`,
-			createdAt: '2026-06-10T12:00:00.000Z',
-			updatedAt: '2026-06-10T12:05:00.000Z',
-		});
+		await createProject(
+			remoteHarness.db,
+			{
+				id: projectId,
+				name: `Project ${projectId}`,
+				description: `Description for ${projectId}`,
+				createdAt: '2026-06-10T12:00:00.000Z',
+				updatedAt: '2026-06-10T12:05:00.000Z',
+			},
+			remoteStoreOptions
+		);
 		return serializeCloudFile(await serializeProjectCloudFile(remoteHarness.db, projectId));
 	} finally {
 		await remoteHarness.destroy();
@@ -856,15 +879,21 @@ async function createRemoteProjectBackup(
 	const remoteHarness = createLocalDbTestHarness();
 	const remoteStoreOptions = { backend: new MemoryStoreBackend() };
 	try {
-		await createProject(remoteHarness.db, {
-			id: projectId,
-			name: 'Remote Restored Project',
-			description: 'Backed up project.',
-			createdAt: '2026-06-10T12:00:00.000Z',
-			updatedAt: '2026-06-10T12:10:00.000Z',
-		});
+		await createProject(
+			remoteHarness.db,
+			{
+				id: projectId,
+				name: 'Remote Restored Project',
+				description: 'Backed up project.',
+				createdAt: '2026-06-10T12:00:00.000Z',
+				updatedAt: '2026-06-10T12:10:00.000Z',
+			},
+			remoteStoreOptions
+		);
 		await createTranscription(remoteHarness.db, {
 			id: 'library-source-restore-1',
+			projectId,
+			projectTranscriptionId: 'pt-restore-1',
 			title: 'Remote Witness',
 			siglum: 'R',
 			description: 'Remote witness transcription.',
@@ -876,13 +905,8 @@ async function createRemoteProjectBackup(
 			settlement: 'City',
 			language: 'grc',
 		});
-		const [transcriptionId] = await syncProjectTranscriptionIds(remoteHarness.db, projectId, [
-			'library-source-restore-1',
-		]);
-		const projectTranscriptionId = await getRemoteProjectTranscriptionId(
-			remoteHarness,
-			transcriptionId
-		);
+		const transcriptionId = 'library-source-restore-1';
+		const projectTranscriptionId = 'pt-restore-1';
 		const checkpoint = await createCommittedTranscriptionCheckpointWithFiles(
 			remoteHarness.db,
 			{
@@ -1291,19 +1315,6 @@ async function findRemoteFileId(
 	const file = page.entries.find(entry => entry.path.endsWith(relativePath));
 	if (!file) throw new Error(`Missing remote file ${relativePath}.`);
 	return file.id;
-}
-
-async function getRemoteProjectTranscriptionId(
-	remoteHarness: LocalDbTestHarness,
-	transcriptionId: string
-): Promise<string> {
-	const row = await remoteHarness.db
-		.selectFrom('project_transcriptions')
-		.select('id')
-		.where('transcription_id', '=', transcriptionId)
-		.executeTakeFirstOrThrow();
-	if (!row.id) throw new Error('Missing project transcription id.');
-	return row.id;
 }
 
 function documentWithVerses(verses: string[]): StoredTranscriptionDocument {

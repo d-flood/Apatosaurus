@@ -1,9 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { createLocalDbTestHarness, type LocalDbTestHarness } from '$lib/client/db/test-harness';
-import { createProject } from '$lib/client/db/repositories/projects';
+import { createProject as createProjectRepository } from '$lib/client/db/repositories/projects';
 import { MemoryStoreBackend } from '$lib/client/store/memory-store-backend.spec-support';
-import { joinStorePath, projectFolder, writeTextFileAtomic, type StoreOperationOptions } from '$lib/client/store';
+import {
+	joinStorePath,
+	projectFolder,
+	writeTextFileAtomic,
+	type StoreOperationOptions,
+} from '$lib/client/store';
 import { zipExportBackupPathMessage } from '$lib/onboarding-guidance';
 import {
 	exportAllProjectsZip,
@@ -24,6 +29,13 @@ beforeEach(() => {
 afterEach(async () => {
 	await harness.destroy();
 });
+
+function createProject(
+	db: Parameters<typeof createProjectRepository>[0],
+	input: Parameters<typeof createProjectRepository>[1]
+) {
+	return createProjectRepository(db, input, storeOptions);
+}
 
 describe('project zip export', () => {
 	it('exports committed project files byte-for-byte without working files by default', async () => {
@@ -117,7 +129,11 @@ describe('project zip export', () => {
 });
 
 async function writeProjectFile(projectSlug: string, path: string, content: string): Promise<void> {
-	await writeTextFileAtomic(joinStorePath(projectFolder(projectSlug), path), content, storeOptions);
+	await writeTextFileAtomic(
+		joinStorePath(projectFolder(projectSlug), path),
+		content,
+		storeOptions
+	);
 }
 
 function readZipEntries(bytes: Uint8Array): Record<string, string> {

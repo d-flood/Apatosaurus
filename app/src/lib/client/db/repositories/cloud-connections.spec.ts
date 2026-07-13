@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { createProject } from './projects';
+import { MemoryStoreBackend } from '$lib/client/store/memory-store-backend.spec-support';
+import { createProject as createProjectRepository } from './projects';
 import { createLocalDbTestHarness, type LocalDbTestHarness } from '../test-harness';
 import {
 	disconnectCloudConnection,
@@ -17,14 +18,23 @@ import {
 } from './cloud-connections';
 
 let harness: LocalDbTestHarness;
+let backend: MemoryStoreBackend;
 
 beforeEach(() => {
 	harness = createLocalDbTestHarness();
+	backend = new MemoryStoreBackend();
 });
 
 afterEach(async () => {
 	await harness.destroy();
 });
+
+function createProject(
+	db: Parameters<typeof createProjectRepository>[0],
+	input: Parameters<typeof createProjectRepository>[1]
+) {
+	return createProjectRepository(db, input, { backend });
+}
 
 describe('cloud connection metadata persistence', () => {
 	it('stores and updates connection metadata in the local database', async () => {
@@ -97,7 +107,9 @@ describe('cloud connection metadata persistence', () => {
 			syncCursor: 'cursor-1',
 			lastFullySyncedAt: '2026-06-10T12:00:00.000Z',
 		});
-		await expect(getCloudProjectFolder(harness.db, 'project-1', 'conn-1')).resolves.toMatchObject({
+		await expect(
+			getCloudProjectFolder(harness.db, 'project-1', 'conn-1')
+		).resolves.toMatchObject({
 			cloudFolderId: 'folder-2',
 			cloudFolderPath: 'Apatosaurus/Projects/project-1-renamed',
 			syncCursor: 'cursor-1',
@@ -110,7 +122,9 @@ describe('cloud connection metadata persistence', () => {
 			syncCursor: 'cursor-2',
 			lastFullySyncedAt: '2026-06-10T12:05:00.000Z',
 		});
-		await expect(getCloudProjectFolder(harness.db, 'project-1', 'conn-1')).resolves.toMatchObject({
+		await expect(
+			getCloudProjectFolder(harness.db, 'project-1', 'conn-1')
+		).resolves.toMatchObject({
 			syncCursor: 'cursor-2',
 			lastFullySyncedAt: '2026-06-10T12:05:00.000Z',
 		});

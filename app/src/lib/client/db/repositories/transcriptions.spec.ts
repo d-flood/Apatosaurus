@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { createProject, syncProjectTranscriptionIds } from './projects';
+import { MemoryStoreBackend } from '$lib/client/store/memory-store-backend.spec-support';
+import { createProject as createProjectRepository, syncProjectTranscriptionIds } from './projects';
 import { createLocalDbTestHarness, type LocalDbTestHarness } from '../test-harness';
 import {
 	createTranscription,
@@ -17,17 +18,32 @@ import {
 	rebuildVerseIndexForTranscriptions,
 	updateTranscriptionContent,
 } from './transcriptions';
+import { createCommittedTranscriptionCheckpointWithFiles } from './transcription-files';
 import type { StoredTranscriptionDocument } from '$lib/client/transcription/content';
 
 let harness: LocalDbTestHarness;
+let backend: MemoryStoreBackend;
 
-beforeEach(() => {
+beforeEach(async () => {
 	harness = createLocalDbTestHarness();
+	backend = new MemoryStoreBackend();
+	await createProject(harness.db, {
+		id: 'default-project',
+		storageSlug: 'default-project',
+		name: 'Default',
+	});
 });
 
 afterEach(async () => {
 	await harness.destroy();
 });
+
+function createProject(
+	db: Parameters<typeof createProjectRepository>[0],
+	input: Parameters<typeof createProjectRepository>[1]
+) {
+	return createProjectRepository(db, input, { backend });
+}
 
 describe('transcriptions repository', () => {
 	it('creates transcriptions, lists summaries without blobs, and loads full records by id', async () => {
@@ -206,8 +222,20 @@ describe('transcriptions repository', () => {
 			...baseInput('tx-1', '01'),
 			document: documentWithVerses(['Romans 1:1']),
 		});
+		const sourceLink = await harness.db
+			.selectFrom('project_transcriptions')
+			.select('id')
+			.where('transcription_id', '=', 'tx-1')
+			.executeTakeFirstOrThrow();
+		await createCommittedTranscriptionCheckpointWithFiles(
+			harness.db,
+			{ projectTranscriptionId: sourceLink.id!, checkpointId: 'source-cp-1' },
+			{ backend }
+		);
 		await createProject(harness.db, { id: 'project-1', name: 'Project' });
-		const [snapshotId] = await syncProjectTranscriptionIds(harness.db, 'project-1', ['tx-1']);
+		const [snapshotId] = await syncProjectTranscriptionIds(harness.db, 'project-1', ['tx-1'], {
+			backend,
+		});
 
 		const summaries = await listTranscriptionSummaries(harness.db);
 		const snapshotSummary = await getTranscriptionSummary(harness.db, snapshotId);

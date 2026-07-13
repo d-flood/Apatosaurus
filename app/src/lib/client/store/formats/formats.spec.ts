@@ -15,6 +15,7 @@ import {
 	COLLATION_CURRENT_VERSION,
 	COLLATION_FORMAT,
 	PROJECT_MANIFEST_FIXTURE,
+	PROJECT_MANIFEST_CURRENT_VERSION,
 	PROJECT_MANIFEST_FORMAT,
 	PROJECT_TRANSCRIPTION_FIXTURE,
 	PROJECT_TRANSCRIPTION_FORMAT,
@@ -43,9 +44,15 @@ import workingCollationV1Input from './fixtures/working-collation-v1.input.json'
 import workingCollationV2Expected from './fixtures/working-collation-v2.expected.json';
 import checkpointCollationV1Input from './fixtures/checkpoint-collation-v1.input.json';
 import checkpointCollationV2Expected from './fixtures/checkpoint-collation-v2.expected.json';
+import projectManifestV1Input from './fixtures/project-manifest-v1.input.json';
+import projectManifestV2Expected from './fixtures/project-manifest-v2.expected.json';
 
 const FORMAT_FIXTURES = [
-	{ format: PROJECT_MANIFEST_FORMAT, version: 1, payload: PROJECT_MANIFEST_FIXTURE },
+	{
+		format: PROJECT_MANIFEST_FORMAT,
+		version: PROJECT_MANIFEST_CURRENT_VERSION,
+		payload: PROJECT_MANIFEST_FIXTURE,
+	},
 	{ format: PROJECT_TRANSCRIPTION_FORMAT, version: 1, payload: PROJECT_TRANSCRIPTION_FIXTURE },
 	{ format: COLLATION_FORMAT, version: COLLATION_CURRENT_VERSION, payload: COLLATION_FIXTURE },
 	{
@@ -94,6 +101,18 @@ describe('canonical store formats', () => {
 			expect(read.payload).toEqual(payload);
 			expect(resealed.content_hash).toBe(sealed.content_hash);
 		}
+	});
+
+	it('migrates project manifests from v1 with no fork provenance', async () => {
+		const legacy = await sealDocument(PROJECT_MANIFEST_FORMAT, 1, projectManifestV1Input);
+		const read = await readCanonicalDocument(
+			PROJECT_MANIFEST_FORMAT,
+			serializeSealedDocument(legacy)
+		);
+
+		expect(read).toMatchObject({ ok: true, upgraded: true, originalVersion: 1 });
+		if (!read.ok) throw new Error('Expected project manifest v1 fixture to migrate.');
+		expect(read.payload).toEqual(projectManifestV2Expected);
 	});
 
 	it('round-trips a complete project file set through the canonical API', async () => {
