@@ -49,13 +49,23 @@ describe('local folder storage provider', () => {
 		await expect(provider.downloadFile(created.id)).rejects.toMatchObject({ code: 'not-found' });
 	});
 
-	it('throws permission errors when handle access is denied', async () => {
+	it('requires reconnection when persistent handle access is denied', async () => {
 		const root = new FakeDirectoryHandle('root');
 		const provider = new LocalFolderStorageProvider(root as unknown as FileSystemDirectoryHandle);
 		root.failWith = domException('NotAllowedError');
 
 		await expect(provider.createFolder('Project')).rejects.toMatchObject({
-			code: 'permission-denied',
+			code: 'reauthorization-required',
+		});
+	});
+
+	it('requires reconnection when persistent handle access is blocked by security policy', async () => {
+		const root = new FakeDirectoryHandle('root');
+		const provider = new LocalFolderStorageProvider(root as unknown as FileSystemDirectoryHandle);
+		root.failWith = domException('SecurityError');
+
+		await expect(provider.listFiles('.')).rejects.toMatchObject({
+			code: 'reauthorization-required',
 		});
 	});
 

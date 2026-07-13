@@ -15,16 +15,23 @@ import {
 	saveWorkingCollationArtifact,
 } from '$lib/client/db/repositories/collation-files';
 import { createTranscription } from '$lib/client/db/repositories/transcriptions';
+import { deleteCollationWithFiles } from '$lib/client/db/repositories/entity-deletion';
 import { MemoryStoreBackend } from '$lib/client/store/memory-store-backend.spec-support';
 import type { StoreOperationOptions } from '$lib/client/store';
 import { COLLATION_FIXTURE } from '$lib/client/store';
 import {
 	readTextFile,
+	collationTeiFile,
+	collationPrimaryFile,
+	collationCheckpointFile,
+	sealDocument,
+	serializeSealedDocument,
+	TOMBSTONE_CURRENT_VERSION,
+	TOMBSTONE_FORMAT,
 	transcriptionPrimaryFile,
 	transcriptionWorkingFile,
 	writeTextFileAtomic,
 } from '$lib/client/store';
-import { createCollationTombstone } from './conflicts';
 import {
 	serializeCloudFile,
 	serializeCollationCloudFile,
@@ -44,10 +51,11 @@ import {
 	downloadAndCompareProjectManifest,
 	pollOpenEntity,
 	publishEntity,
-	syncProjectTombstones,
+	listProjectArchiveFiles,
 	type SyncManagerOptions,
 	type SyncProjectContext,
 } from './sync-manager';
+import { importProjectFileTree } from './project-zip-import';
 
 interface ProviderCall {
 	operation: MockProviderOperation;
@@ -398,31 +406,66 @@ describe('sync manager', () => {
 		);
 	});
 
-	it('uploads local tombstones and deletes guarded remote primary files', async () => {
+	it('publishes a canonical tombstone before deleting the remote primary in the production mirror', async () => {
 		await createCommittedProjectCollation('Initial notes', 'col-cp-1');
 		const { provider, context } = await createConnectedProvider();
-		await publishEntity(
+		await backupProject(harness.db, provider, context, syncOptions());
+		await deleteCollationWithFiles(
 			harness.db,
-			provider,
-			context,
-			{ entityType: 'collation', entityId: 'col-1' },
-			syncOptions()
+			'col-1',
+			{ tombstoneId: 'tombstone-col-1', deletedAt: '2026-06-10T12:50:00.000Z' },
+			storeOptions
 		);
-		await createCollationTombstone(harness.db, {
-			id: 'tombstone-col-1',
-			entityId: 'col-1',
-			deletedBy: 'editor@example.com',
-			deletedAt: '2026-06-10T12:50:00.000Z',
-		});
+		provider.calls = [];
 
-		const result = await syncProjectTombstones(harness.db, provider, context);
+		const result = await backupProject(harness.db, provider, context, syncOptions());
 
-		expect(result.uploadedPaths).toContain('tombstones/collation--col-1.json');
+		const tombstoneWrite = provider.calls.findIndex(
+			call => call.operation === 'create-file' && call.path === 'tombstones/collation--col-1.json'
+		);
+		const primaryDelete = provider.calls.findIndex(
+			call => call.operation === 'delete-file'
+		);
+		expect(tombstoneWrite).toBeGreaterThanOrEqual(0);
+		expect(primaryDelete).toBeGreaterThan(tombstoneWrite);
 		expect(result.deletedPaths).toContain('collations/col-1.json');
 		expect(await remoteFile(provider, context, 'collations/col-1.json')).toBeNull();
-		expect(
-			await remoteFile(provider, context, 'tombstones/collation--col-1.json')
-		).not.toBeNull();
+		expect(await remoteFile(provider, context, 'history/collations/col-1/col-cp-1.json')).not.toBeNull();
+	});
+
+	it('applies a remote tombstone, retains history, and heals an interrupted remote primary deletion', async () => {
+		await createCommittedProjectCollation('Initial notes', 'col-cp-1');
+		const { provider, context } = await createConnectedProvider();
+		await backupProject(harness.db, provider, context, syncOptions());
+		const tombstone = await sealDocument(TOMBSTONE_FORMAT, TOMBSTONE_CURRENT_VERSION, {
+			id: 'remote-tombstone-col-1',
+			project_id: 'project-1',
+			entity_type: 'collation',
+			entity_id: 'col-1',
+			cloud_path: 'collations/col-1.json',
+			deletion_revision_id: 'col-cp-1',
+			deleted_by: 'Remote editor',
+			deleted_at: '2026-06-10T13:01:00.000Z',
+		});
+		await provider.createFile(
+			context.cloudFolderId,
+			'tombstones/collation--col-1.json',
+			serializeSealedDocument(tombstone)
+		);
+
+		const result = await backupProject(harness.db, provider, context, syncOptions());
+
+		expect(result.downloadedPaths).toContain('tombstones/collation--col-1.json');
+		expect(result.deletedPaths).toContain('collations/col-1.json');
+		const projectSlug = await loadProjectStorageSlug('project-1');
+		await expect(readTextFile(collationPrimaryFile(projectSlug, 'col-1'), storeOptions)).rejects.toThrow();
+		await expect(
+			readTextFile(collationCheckpointFile(projectSlug, 'col-1', 'col-cp-1'), storeOptions)
+		).resolves.toContain('col-cp-1');
+		await expect(
+			harness.db.selectFrom('collations').select('id').where('id', '=', 'col-1').executeTakeFirst()
+		).resolves.toBeUndefined();
+		expect(await remoteFile(provider, context, 'collations/col-1.json')).toBeNull();
 	});
 
 	it('backs up project entities before uploading the project manifest', async () => {
@@ -564,6 +607,9 @@ describe('sync manager', () => {
 			'Remote committed notes',
 			'col-cp-remote'
 		);
+		const remoteTei = await remoteFile(provider, context, 'collations/col-1.tei.xml');
+		if (!remoteTei) throw new Error('Expected remote TEI file.');
+		await provider.updateFile(remoteTei.id, '<TEI>remote is not authoritative</TEI>', remoteTei.revision);
 
 		const result = await backupProject(harness.db, provider, context, {
 			now: () => '2026-06-10T13:05:00.000Z',
@@ -574,6 +620,104 @@ describe('sync manager', () => {
 		expect(result.downloadedPaths).toContain('collations/col-1.json');
 		expect(result.downloadedPaths).toContain('history/collations/col-1/col-cp-remote.json');
 		await expect(loadCollationNotes('col-1')).resolves.toBe('Remote committed notes');
+		const projectSlug = await loadProjectStorageSlug('project-1');
+		const regeneratedTei = await readTextFile(collationTeiFile(projectSlug, 'col-1'), storeOptions);
+		expect(regeneratedTei).toContain('<TEI');
+		expect(regeneratedTei).not.toContain('remote is not authoritative');
+		const mirroredTei = await remoteFile(provider, context, 'collations/col-1.tei.xml');
+		if (!mirroredTei) throw new Error('Expected regenerated remote TEI file.');
+		await expect(provider.downloadFile(mirroredTei.id)).resolves.toBe(regeneratedTei);
+	});
+
+	it('completes independent changed and remote-only paths beside corrupt and conflicting primaries', async () => {
+		await createCommittedProjectCollation('Initial notes', 'col-cp-1');
+		await createCollation(harness.db, {
+			id: 'col-2',
+			projectId: 'project-1',
+			title: 'Romans 1:2',
+			verseIdentifier: 'Romans 1:2',
+			now: '2026-06-10T12:00:00.000Z',
+		});
+		await updateCollationMetadata(harness.db, {
+			id: 'col-2',
+			notes: 'Second initial notes',
+			updatedAt: '2026-06-10T12:01:00.000Z',
+		});
+		await saveCanonicalCollation(harness.db, storeOptions, 'Project', 'col-2');
+		await createCommittedCollationCheckpointWithFiles(
+			harness.db,
+			{ collationId: 'col-2', checkpointId: 'col-2-cp-1', createdAt: '2026-06-10T12:02:00.000Z' },
+			storeOptions
+		);
+		const { provider, context } = await createConnectedProvider();
+		await backupProject(harness.db, provider, context, syncOptions());
+		await pushRemoteCollationRevision(provider, context, 'Accepted remote notes', 'col-cp-remote');
+		await pushRemoteCollationRevision(
+			provider,
+			context,
+			'Remote conflicting notes',
+			'col-2-cp-remote',
+			'Remote Conflict',
+			'col-2',
+			'col-2-cp-1'
+		);
+		await updateCollationMetadata(harness.db, {
+			id: 'col-2',
+			notes: 'Local conflicting notes',
+			updatedAt: '2026-06-10T13:04:00.000Z',
+		});
+		await saveCanonicalCollation(harness.db, storeOptions, 'Project', 'col-2');
+		await createCommittedCollationCheckpointWithFiles(
+			harness.db,
+			{ collationId: 'col-2', checkpointId: 'col-2-cp-local', createdAt: '2026-06-10T13:04:30.000Z' },
+			storeOptions
+		);
+		await harness.db
+			.deleteFrom('sync_file_fingerprints')
+			.where('target_id', '=', context.connectionId)
+			.where('file_path', '=', 'collations/col-2.json')
+			.execute();
+		await provider.createFile(context.cloudFolderId, 'collations/corrupt.json', '{not-json');
+
+		const result = await backupProject(harness.db, provider, context, syncOptions());
+
+		expect(result.uiState).toBe('conflict requires resolution');
+		expect(result.quarantines).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ path: 'collations/corrupt.json', code: 'invalid_json' }),
+				expect.objectContaining({ path: 'collations/col-2.json', code: 'hash_mismatch' }),
+			])
+		);
+		await expect(loadCollationNotes('col-1')).resolves.toBe('Accepted remote notes');
+		expect(result.downloadedPaths).toEqual(
+			expect.arrayContaining([
+				'collations/col-1.json',
+				'history/collations/col-1/col-cp-remote.json',
+			])
+		);
+		expect(result.conflictCopyId).toBeTruthy();
+		await expect(loadCollationNotes(result.conflictCopyId ?? '')).resolves.toBe(
+			'Local conflicting notes'
+		);
+		const completedPaths = await harness.db
+			.selectFrom('sync_file_fingerprints')
+			.select('file_path')
+			.where('target_id', '=', context.connectionId)
+			.where('file_path', 'in', [
+				'collations/col-1.json',
+				'history/collations/col-1/col-cp-remote.json',
+				'collations/col-2.json',
+				'collations/corrupt.json',
+			])
+			.orderBy('file_path')
+			.execute();
+		expect(completedPaths).toEqual([
+			{ file_path: 'collations/col-1.json' },
+			{ file_path: 'history/collations/col-1/col-cp-remote.json' },
+		]);
+		await expect(
+			harness.db.selectFrom('collations').select(({ fn }) => fn.countAll<number>().as('count')).executeTakeFirstOrThrow()
+		).resolves.toEqual({ count: 3 });
 	});
 
 	it('quarantines invalid remote mirror files before local overwrite', async () => {
@@ -618,7 +762,15 @@ describe('sync manager', () => {
 			provider,
 			context,
 			'Remote committed notes',
-			'col-cp-remote'
+			'col-cp-remote',
+			'Remote Primary'
+		);
+		const divergentRemoteTei = await remoteFile(provider, context, 'collations/col-1.tei.xml');
+		if (!divergentRemoteTei) throw new Error('Expected remote TEI file.');
+		await provider.updateFile(
+			divergentRemoteTei.id,
+			'<TEI>untrusted divergent bytes</TEI>',
+			divergentRemoteTei.revision
 		);
 		await updateCollationMetadata(harness.db, {
 			id: 'col-1',
@@ -647,6 +799,93 @@ describe('sync manager', () => {
 		await expect(loadCollationNotes(result.conflictCopyId ?? '')).resolves.toBe(
 			'Local committed notes'
 		);
+		const projectSlug = await loadProjectStorageSlug('project-1');
+		const localTei = await readTextFile(collationTeiFile(projectSlug, 'col-1'), storeOptions);
+		expect(localTei).toContain('<title>Project Collation</title>');
+		expect(localTei).not.toContain('Remote Primary');
+		const remoteTei = await remoteFile(provider, context, 'collations/col-1.tei.xml');
+		if (!remoteTei) throw new Error('Expected regenerated remote TEI file.');
+		const remoteTeiContent = await provider.downloadFile(remoteTei.id);
+		expect(remoteTeiContent).toContain('<title>Remote Primary Collation</title>');
+		expect(remoteTeiContent).not.toContain('untrusted divergent bytes');
+	});
+
+	it('syncs two independent stores through push, pull, no-op, cache rebuild, and divergence', async () => {
+		await createCommittedProjectCollation('Initial notes', 'col-cp-1');
+		const { provider, context: contextA } = await createConnectedProvider();
+		const storeB = createLocalDbTestHarness();
+		const storeOptionsB = { backend: new MemoryStoreBackend() };
+		const contextB: SyncProjectContext = { ...contextA, connectionId: 'target-b' };
+		try {
+			const archive = await listProjectArchiveFiles(harness.db, 'project-1', { storeOptions });
+			const imported = await importProjectFileTree(
+				storeB.db,
+				archive.map(file => ({ path: file.path, read: async () => file.content })),
+				{ storeOptions: storeOptionsB }
+			);
+			expect(imported.ok).toBe(true);
+			await backupProject(harness.db, provider, contextA, syncOptions());
+			const initialB = await backupProject(storeB.db, provider, contextB, {
+				storeOptions: storeOptionsB,
+			});
+			expect(initialB.uiState).toBe('synced');
+
+			await updateCollationMetadata(harness.db, {
+				id: 'col-1', notes: 'A pushed notes', updatedAt: '2026-06-10T14:00:00.000Z',
+			});
+			await saveCanonicalCollation(harness.db, storeOptions);
+			await createCommittedCollationCheckpointWithFiles(
+				harness.db,
+				{ collationId: 'col-1', checkpointId: 'col-cp-a2', createdAt: '2026-06-10T14:01:00.000Z' },
+				storeOptions
+			);
+			await backupProject(harness.db, provider, contextA, syncOptions());
+			const pullB = await backupProject(storeB.db, provider, contextB, { storeOptions: storeOptionsB });
+			expect(pullB.downloadedPaths).toContain('collations/col-1.json');
+			expect((await loadCollationWithWorkingFile(storeB.db, 'col-1', storeOptionsB))?.row.notes).toBe(
+				'A pushed notes'
+			);
+
+			const noOp = await backupProject(storeB.db, provider, contextB, { storeOptions: storeOptionsB });
+			expect(noOp.uploadedPaths).toEqual([]);
+			expect(noOp.downloadedPaths).toEqual([]);
+			await storeB.db.deleteFrom('sync_file_fingerprints').where('target_id', '=', 'target-b').execute();
+			const rebuiltCache = await backupProject(storeB.db, provider, contextB, { storeOptions: storeOptionsB });
+			expect(rebuiltCache.uiState).toBe('synced');
+			expect(rebuiltCache.uploadedPaths).toEqual([]);
+			expect(rebuiltCache.downloadedPaths).toEqual([]);
+
+			await updateCollationMetadata(harness.db, {
+				id: 'col-1', notes: 'A divergent notes', updatedAt: '2026-06-10T14:10:00.000Z',
+			});
+			await saveCanonicalCollation(harness.db, storeOptions);
+			await createCommittedCollationCheckpointWithFiles(
+				harness.db,
+				{ collationId: 'col-1', checkpointId: 'col-cp-a3', createdAt: '2026-06-10T14:11:00.000Z' },
+				storeOptions
+			);
+			await updateCollationMetadata(storeB.db, {
+				id: 'col-1', notes: 'B divergent notes', updatedAt: '2026-06-10T14:10:30.000Z',
+			});
+			await saveCanonicalCollation(storeB.db, storeOptionsB);
+			await createCommittedCollationCheckpointWithFiles(
+				storeB.db,
+				{ collationId: 'col-1', checkpointId: 'col-cp-b3', createdAt: '2026-06-10T14:11:30.000Z' },
+				storeOptionsB
+			);
+			await backupProject(harness.db, provider, contextA, syncOptions());
+			const conflictB = await backupProject(storeB.db, provider, contextB, {
+				storeOptions: storeOptionsB,
+				authorName: 'B editor',
+			});
+			expect(conflictB.uiState).toBe('conflict requires resolution');
+			expect(conflictB.conflictCopyId).toBeTruthy();
+			expect(
+				(await loadCollationWithWorkingFile(storeB.db, conflictB.conflictCopyId ?? '', storeOptionsB))?.row.notes
+			).toBe('B divergent notes');
+		} finally {
+			await storeB.destroy();
+		}
 	});
 
 	it('backs up one project entity before updating the project manifest', async () => {
@@ -820,6 +1059,37 @@ describe('sync manager', () => {
 		await poller.pollNow();
 		expect(poller.connectionState).toBe('reconnect-required');
 	});
+
+	it('resumes polling after folder permission is re-granted', async () => {
+		let granted = false;
+		let polls = 0;
+		const poller = new OpenObjectSyncPoller({
+			setTimeout: ((callback: () => void) => 1 as unknown as ReturnType<typeof setTimeout>) as typeof setTimeout,
+			clearTimeout: (() => undefined) as typeof clearTimeout,
+			poll: async () => {
+				polls += 1;
+				return {
+					uiState: granted ? 'synced' : 'sync pending',
+					providerError: granted ? undefined : 'reauthorization-required',
+					uploadedPaths: [],
+					downloadedPaths: [],
+					deletedPaths: [],
+					quarantines: [],
+				};
+			},
+		});
+		poller.start();
+		await poller.pollNow();
+		expect(poller.connectionState).toBe('reconnect-required');
+
+		granted = true;
+		poller.resumeAfterReconnect();
+		await poller.pollNow();
+
+		expect(polls).toBe(2);
+		expect(poller.connectionState).toBe('idle');
+		expect(poller.uiState).toBe('synced');
+	});
 });
 
 class RecordingMockProvider extends MockCloudStorageProvider {
@@ -853,7 +1123,7 @@ class RecordingMockProvider extends MockCloudStorageProvider {
 	}
 
 	async deleteFile(fileId: string, expectedRevision?: string): Promise<void> {
-		this.calls.push({ operation: 'delete-file' });
+		this.calls.push({ operation: 'delete-file', path: fileId });
 		return super.deleteFile(fileId, expectedRevision);
 	}
 }
@@ -952,14 +1222,18 @@ async function createCommittedProjectCollation(
 
 async function saveCanonicalCollation(
 	db: LocalDbTestHarness['db'],
-	options: StoreOperationOptions
+	options: StoreOperationOptions,
+	projectName = 'Project',
+	collationId = 'col-1'
 ): Promise<void> {
+	const document = structuredClone(COLLATION_FIXTURE.document);
+	document.meta.projectName = projectName;
 	await saveWorkingCollationArtifact(
 		db,
 		{
-			collationId: 'col-1',
+			collationId,
 			artifactType: 'collation_document_v1',
-			payload: JSON.stringify(COLLATION_FIXTURE.document),
+			payload: JSON.stringify(document),
 			now: '2026-06-10T12:01:00.000Z',
 		},
 		options
@@ -987,7 +1261,10 @@ async function pushRemoteCollationRevision(
 	provider: RecordingMockProvider,
 	context: SyncProjectContext,
 	notes: string,
-	checkpointId: string
+	checkpointId: string,
+	documentProjectName = 'Project',
+	collationId = 'col-1',
+	initialCheckpointId = 'col-cp-1'
 ): Promise<void> {
 	const remoteHarness = createLocalDbTestHarness();
 	const remoteStoreOptions = { backend: new MemoryStoreBackend() };
@@ -998,46 +1275,51 @@ async function pushRemoteCollationRevision(
 			remoteStoreOptions
 		);
 		await createCollation(remoteHarness.db, {
-			id: 'col-1',
+			id: collationId,
 			projectId: 'project-1',
 			title: 'Romans 1:1',
 			verseIdentifier: 'Romans 1:1',
 			now: '2026-06-10T12:00:00.000Z',
 		});
 		await updateCollationMetadata(remoteHarness.db, {
-			id: 'col-1',
+			id: collationId,
 			notes: 'Initial notes',
 			updatedAt: '2026-06-10T12:01:00.000Z',
 		});
-		await saveCanonicalCollation(remoteHarness.db, remoteStoreOptions);
+		await saveCanonicalCollation(remoteHarness.db, remoteStoreOptions, 'Project', collationId);
 		await createCommittedCollationCheckpointWithFiles(
 			remoteHarness.db,
 			{
-				collationId: 'col-1',
-				checkpointId: 'col-cp-1',
+				collationId,
+				checkpointId: initialCheckpointId,
 				createdAt: '2026-06-10T12:02:00.000Z',
 			},
 			remoteStoreOptions
 		);
 		await updateCollationMetadata(remoteHarness.db, {
-			id: 'col-1',
+			id: collationId,
 			notes,
 			updatedAt: '2026-06-10T12:25:00.000Z',
 		});
-		await saveCanonicalCollation(remoteHarness.db, remoteStoreOptions);
+		await saveCanonicalCollation(
+			remoteHarness.db,
+			remoteStoreOptions,
+			documentProjectName,
+			collationId
+		);
 		await createCommittedCollationCheckpointWithFiles(
 			remoteHarness.db,
 			{
-				collationId: 'col-1',
+				collationId,
 				checkpointId,
 				createdAt: '2026-06-10T12:26:00.000Z',
 			},
 			remoteStoreOptions
 		);
-		const historyPath = `history/collations/col-1/${checkpointId}.json`;
+		const historyPath = `history/collations/${collationId}/${checkpointId}.json`;
 		const history = await serializeCollationHistoryCloudFile(
 			remoteHarness.db,
-			'col-1',
+			collationId,
 			checkpointId,
 			remoteStoreOptions
 		);
@@ -1046,11 +1328,11 @@ async function pushRemoteCollationRevision(
 			historyPath,
 			await serializeCloudFile(history)
 		);
-		const primary = await remoteFile(provider, context, 'collations/col-1.json');
+		const primary = await remoteFile(provider, context, `collations/${collationId}.json`);
 		if (!primary) throw new Error('Expected remote primary file.');
 		const remotePrimary = await serializeCollationCloudFile(
 			remoteHarness.db,
-			'col-1',
+			collationId,
 			remoteStoreOptions
 		);
 		await provider.updateFile(

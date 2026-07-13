@@ -3,7 +3,6 @@
 	import { asset, resolve } from '$app/paths';
 	import { resetLocalDb } from '$lib/client/db/runtime';
 	import { notificationCenter } from '$lib/client/notification-center.svelte';
-	import CloudConnectButton from '$lib/components/CloudConnectButton.svelte';
 	import SyncStatusIndicator from '$lib/components/SyncStatusIndicator.svelte';
 	import Bell from 'phosphor-svelte/lib/Bell';
 	import Moon from 'phosphor-svelte/lib/Moon';
@@ -108,7 +107,6 @@
 	</div>
 	<div class="navbar-end gap-2">
 		<SyncStatusIndicator />
-		<CloudConnectButton />
 		<button
 			type="button"
 			class="btn btn-xs btn-outline btn-error"

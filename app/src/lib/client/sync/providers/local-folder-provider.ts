@@ -305,7 +305,7 @@ function mapHandleError(error: unknown, fallbackMessage: string): CloudProviderE
 	if (error instanceof CloudProviderError) return error;
 	if (isDomError(error, 'NotFoundError')) return providerError('not-found', fallbackMessage, error);
 	if (isDomError(error, 'NotAllowedError') || isDomError(error, 'SecurityError')) {
-		return providerError('permission-denied', fallbackMessage, error);
+		return providerError('reauthorization-required', fallbackMessage, error);
 	}
 	return providerError('provider-unavailable', fallbackMessage, error);
 }

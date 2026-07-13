@@ -28,6 +28,8 @@ class SyncService {
 	ready = $state(false);
 	syncStatus = $state<'idle' | 'active' | 'paused' | 'error'>('idle');
 	connected = $state(false);
+	reconnectRequired = $state(false);
+	reconnectProjectIds = $state<string[]>([]);
 	uiState = $state<SyncUiState>('saved locally');
 	private pollers = new Map<string, TargetPoller>();
 	private runningSyncs = new Map<string, Promise<ProjectBackupResult>>();
@@ -38,6 +40,8 @@ class SyncService {
 		this.ready = true;
 		this.syncStatus = 'paused';
 		this.connected = false;
+		this.reconnectRequired = false;
+		this.reconnectProjectIds = [];
 		this.lastSyncTime = null;
 		this.uiState = 'saved locally';
 		if (!browser) return;
@@ -53,6 +57,8 @@ class SyncService {
 	stopSync(): void {
 		this.ready = false;
 		this.connected = false;
+		this.reconnectRequired = false;
+		this.reconnectProjectIds = [];
 		this.syncStatus = 'idle';
 		this.uiState = 'saved locally';
 		for (const entry of this.pollers.values()) entry.poller.stop();
@@ -137,6 +143,7 @@ class SyncService {
 		const existing = this.pollers.get(target.targetId);
 		if (existing?.key === key) {
 			existing.target = target;
+			existing.poller.resumeAfterReconnect();
 			return;
 		}
 
@@ -167,7 +174,7 @@ class SyncService {
 	private async performTargetSync(target: SyncTargetRecord): Promise<ProjectBackupResult> {
 		try {
 			const result = await backupEligibleProjectEntities(syncContext(target));
-			this.applyResult(result);
+			this.applyResult(result, target);
 			if (result.uiState === 'synced') {
 				const syncedAt = new Date().toISOString();
 				await updateSyncTargetLastSyncedAt(target.targetId, syncedAt);
@@ -177,15 +184,20 @@ class SyncService {
 			return result;
 		} catch (error) {
 			const result = failureResult(target, error);
-			this.applyResult(result);
+			this.applyResult(result, target);
 			return result;
 		}
 	}
 
-	private applyResult(result: ProjectBackupResult): void {
+	private applyResult(result: ProjectBackupResult, target: SyncTargetRecord): void {
 		this.uiState = result.uiState;
-		this.connected = this.pollers.size > 0;
-		this.syncStatus = result.providerError ? 'error' : 'active';
+		const reconnect = result.providerError === 'reauthorization-required';
+		this.reconnectProjectIds = reconnect
+			? [...new Set([...this.reconnectProjectIds, target.projectId])]
+			: this.reconnectProjectIds.filter(projectId => projectId !== target.projectId);
+		this.reconnectRequired = this.reconnectProjectIds.length > 0;
+		this.connected = this.pollers.size > 0 && !this.reconnectRequired;
+		this.syncStatus = reconnect ? 'paused' : result.providerError ? 'error' : 'active';
 		if (result.uiState === 'synced') this.lastSyncTime = new Date().toISOString();
 	}
 }

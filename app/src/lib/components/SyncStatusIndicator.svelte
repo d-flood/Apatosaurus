@@ -19,22 +19,26 @@
 	let offline = $derived(!networkStatus.online);
 	let connectionLabel = $derived.by(() => {
 		if (offline) return 'Offline';
+		if (syncService.reconnectRequired) return 'Reconnect folder';
 		if (syncService.connected) return 'Connected';
 		if (syncService.ready) return 'Sync not connected';
 		return 'Local-first mode';
 	});
 	let tooltip = $derived(`${connectionLabel} · ${displayState}`);
-	let badgeClass = $derived(`badge gap-1 whitespace-nowrap ${stateBadgeClass[displayState]}`);
+	let visibleState = $derived(syncService.reconnectRequired ? 'Reconnect folder' : displayState);
+	let badgeClass = $derived(
+		`badge gap-1 whitespace-nowrap ${syncService.reconnectRequired ? 'badge-warning' : stateBadgeClass[displayState]}`
+	);
 </script>
 
 <div class="tooltip tooltip-bottom z-10" role="tooltip" data-tip={tooltip}>
 	<span class={badgeClass}>
-		<span class="sr-only">{displayState}</span>
+		<span class="sr-only">{visibleState}</span>
 		{#if offline}
 			<WifiSlash size="24" weight="fill" aria-hidden="true" />
 		{:else}
 			<HardDrives size="24" weight="fill" aria-hidden="true" />
 		{/if}
-		<span class="hidden text-xs font-medium normal-case xl:inline">{displayState}</span>
+		<span class="hidden text-xs font-medium normal-case xl:inline">{visibleState}</span>
 	</span>
 </div>

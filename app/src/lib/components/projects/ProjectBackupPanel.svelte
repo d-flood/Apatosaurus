@@ -35,6 +35,7 @@
 		shouldShowInstallNudge,
 	} from '$lib/client/sync/project-backup-health-state';
 	import { projectBackupCapabilityMessage } from '$lib/client/sync/project-zip-export';
+	import { syncService } from '$lib/client/sync/sync-service.svelte';
 	import type {
 		BackupItemState,
 		ProjectBackupResult,
@@ -94,6 +95,7 @@
 	);
 	let statusLabel = $derived.by(() => {
 		if (!selectedTarget) return 'No sync folder connected';
+		if (syncService.reconnectProjectIds.includes(projectId)) return 'Reconnect folder';
 		if (lastResult?.uiState === 'conflict requires resolution') return 'Conflict requires resolution';
 		if (lastResult?.providerError === 'reauthorization-required') return 'Reconnect folder';
 		if (!summary) return 'Sync status unknown';

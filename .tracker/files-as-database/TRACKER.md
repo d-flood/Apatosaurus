@@ -8,7 +8,7 @@ This document tracks the status of all tickets in the files-as-database epic: in
 
 Overall status: `In Progress`
 
-Current ticket: review remediation for tickets `07`-`09`; ticket `10` remains blocked
+Current ticket: review remediation for tickets `08`-`09`; ticket `10` remains blocked
 
 Last updated: 2026-07-13
 
@@ -27,7 +27,7 @@ Last updated: 2026-07-13
 | 04 | `04-project-only-data-model.md` | Completed | 03 |
 | 05 | `05-write-path-inversion.md` | Completed | 04 |
 | 06 | `06-index-rebuild-and-repair.md` | Completed | 05 |
-| 07 | `07-local-folder-sync.md` | In Progress | 01, 06 |
+| 07 | `07-local-folder-sync.md` | Completed | 01, 06 |
 | 08 | `08-zip-export.md` | In Progress | 06 |
 | 09 | `09-zip-import-staged-ingestion.md` | In Progress | 08 |
 | 10 | `10-folder-import-unified-ingestion.md` | Needs Human Validation or Intervention | 07, 09 |
@@ -60,6 +60,7 @@ bun run test:unit -- --run
 
 | Date | Note |
 | --- | --- |
+| 2026-07-13 | Ticket 07 review remediation completed. The production project mirror now stages and canonically validates remote candidates through a shared lower-level seam, applies independent valid paths despite corrupt or conflicting neighbors, and advances fingerprints only for completed paths. Tombstones are published before remote primary deletion and pulled tombstones remove local primaries while retaining history and rebuilding the manifest/index. TEI is regenerated from the preserved winning primary on pull and on each side of a conflict. Persistent folder permission failures stop polling in a visible reconnect state and resume after project-scoped re-grant; the navbar/global cloud-folder connector was removed. Two independent stores now cover push/pull, divergence, repeated no-op sync, cache rebuild, interruption recovery, and conflict preservation. Verification passed: focused sync/store suites (120 tests), `bun run db:generate`, `bun run db:check`, `bun run check`, and the full unit/browser suite (489 tests). |
 | 2026-07-13 | Ticket 06 review remediation completed. Rebuild now applies the committed-vs-working revision/hash rule, reports stale drafts, and classifies unreferenced primaries, working files, histories, tombstones, TEI siblings, and missing/invalid-manifest project directories without mutation. Valid orphan primaries can be restored through a serialized worker action that validates the file, publishes the manifest first, then rebuilds. Repair UI shows path/code/message details and only safe recovery actions. The real Chromium delete-index invariant now covers empty renamed project settings, transcription metadata, IIIF state, project copy/fork, and tombstones; its index deletion tolerates only the transient OPFS handle-release condition. Legacy cloud-table removal remains correctly deferred until tickets 07/10 retire their active consumers. Verification passed: `bun run db:generate`, `bun run db:check`, focused repository/UI/invariant tests, DB/store slice (159 tests), `bun run check`, and the full unit/browser suite (484 tests). |
 | 2026-07-13 | Ticket 05 review remediation completed. Transcription and collation working files are accepted only when demonstrably ahead of their committed primaries and are removed after successful commits; refresh preserves dirty state in checkpoint history and leaves the refreshed head clean. Entity creation, project copy/fork, refresh, metadata, and IIIF mutations now publish canonical files before index state with failure-safe transactions. Commit/create/delete operations return structured non-blocking TEI or primary-cleanup warnings surfaced in the UI. Added creation, stale-working, refresh-boundary, metadata/IIIF rebuild, warning, copy, and fork regression coverage. Verification passed: `bun run db:generate`, `bun run db:check`, focused store/DB/collation suites (265 server tests; the known OPFS handle-release race passed on isolated rerun), `bun run check`, and the full unit/browser suite (480 tests). |
 | 2026-07-13 | Ticket 05 refresh-draft decision: preserve the pre-refresh dirty draft in canonical checkpoint history only, remove the old working file, and leave the refreshed head clean. Implementation resumed. |

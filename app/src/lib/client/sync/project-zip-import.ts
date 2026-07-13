@@ -4,7 +4,6 @@ import { rebuildIndexFromStore, type IndexRebuildReport } from '$lib/client/db/r
 import type { Database } from '$lib/client/db/types.generated';
 import { hashCanonicalPayload } from '$lib/client/sync/canonical-json';
 import {
-	canonicalFormatForProjectPath,
 	PROJECT_MANIFEST_FORMAT,
 	PROJECT_TRANSCRIPTION_FORMAT,
 	deleteDirectory,
@@ -22,6 +21,7 @@ import {
 	type StoreOperationOptions,
 	type StoreQuarantineRecord,
 } from '$lib/client/store';
+import { normalizeProjectEntryPath, stageAndValidateProjectFiles } from './project-file-staging';
 
 export type ProjectZipImportCollisionMode = 'replace' | 'copy';
 
@@ -87,14 +87,17 @@ export async function importProjectFileTree(
 	try {
 		const entries: ImportEntry[] = [];
 		for await (const file of files) {
-			entries.push({ path: normalizeImportEntryPath(file.path), content: await file.read() });
+			entries.push({ path: normalizeProjectEntryPath(file.path), content: await file.read() });
 		}
 		for (const entry of entries) {
 			await writeTextFileAtomic(joinStorePath(stagingPath, entry.path), entry.content, storeOptions);
 		}
 
-		const validation = await validateStagedEntries(stagingPath, entries, storeOptions);
-		if (validation.length) return failedImport(validation);
+		const validation = await stageAndValidateProjectFiles(entries, {
+			requireManifest: true,
+			storeOptions,
+		});
+		if (validation.quarantinedFiles.length) return failedImport(validation.quarantinedFiles);
 
 		const prepared = await prepareImport(db, stagingPath, entries, options);
 		await placeStagedEntries(stagingPath, prepared, storeOptions);
@@ -237,55 +240,6 @@ async function placeStagedEntries(
 	}
 }
 
-async function validateStagedEntries(
-	stagingPath: string,
-	entries: ImportEntry[],
-	storeOptions: StoreOperationOptions
-): Promise<StoreQuarantineRecord[]> {
-	const quarantines: StoreQuarantineRecord[] = [];
-	let projectId: string | undefined;
-	const manifestEntry = entries.find(entry => entry.path === 'project.json');
-	if (manifestEntry) {
-		const manifest = await readCanonicalDocument<ProjectManifestPayload>(
-			PROJECT_MANIFEST_FORMAT,
-			await readTextFile(joinStorePath(stagingPath, manifestEntry.path), storeOptions),
-			{ projectPath: manifestEntry.path }
-		);
-		if (manifest.ok) projectId = manifest.payload.id;
-	}
-	for (const entry of entries) {
-		const format = canonicalFormatForProjectPath(entry.path);
-		if (!format) {
-			if (!entry.path.endsWith('.tei.xml')) {
-				quarantines.push({
-					path: entry.path,
-					code: 'invalid_shape',
-					message: `Unsupported project file ${entry.path}.`,
-					timestamp: new Date().toISOString(),
-				});
-			}
-			continue;
-		}
-		const raw = await readTextFile(joinStorePath(stagingPath, entry.path), storeOptions);
-		const result = await readCanonicalDocument(format, raw, {
-			projectPath: entry.path,
-			projectId,
-		});
-		if (!result.ok) {
-			quarantines.push({ path: entry.path, timestamp: new Date().toISOString(), ...result.quarantine });
-		}
-	}
-	if (!entries.some(entry => entry.path === 'project.json')) {
-		quarantines.push({
-			path: 'project.json',
-			code: 'invalid_shape',
-			message: 'Project zip does not contain project.json.',
-			timestamp: new Date().toISOString(),
-		});
-	}
-	return quarantines;
-}
-
 async function readStagedManifest(
 	stagingPath: string,
 	storeOptions: StoreOperationOptions
@@ -298,13 +252,6 @@ async function readStagedManifest(
 
 function isProjectTranscriptionPath(path: string): boolean {
 	return /^transcriptions\/[^/]+\.json$/.test(path) && !path.endsWith('.working.json');
-}
-
-function normalizeImportEntryPath(path: string): string {
-	if (path.startsWith('/') || path.includes('..') || path.includes('\\')) {
-		throw new Error(`Invalid project entry path ${JSON.stringify(path)}.`);
-	}
-	return joinStorePath(path);
 }
 
 function parseStoreOnlyZip(bytes: Uint8Array): ImportEntry[] {
