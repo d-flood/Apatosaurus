@@ -82,7 +82,7 @@ export const PROJECT_TRANSCRIPTION_FIXTURE: ProjectTranscriptionPayload = {
 	canonical_transcription_id: null,
 	current_revision: {
 		id: 'tx-cp-1',
-		content_hash: 'sha256:revision-placeholder',
+		content_hash: 'sha256:de6dbef56033da96f56e1514fb53181cfa4128829f94c214bc1ee29d75c42e4c',
 		created_at: '2026-07-03T00:00:00.000Z',
 		author_name: 'Editor',
 	},
@@ -240,6 +240,7 @@ export const projectTranscriptionFormatRegistration: FormatRegistration<ProjectT
 	currentVersion: PROJECT_TRANSCRIPTION_CURRENT_VERSION,
 	upgraders: projectTranscriptionUpgraders,
 	validate: validateProjectTranscriptionPayload,
+	validateIntegrity: assertProjectTranscriptionRevisionHash,
 };
 
 function readProjectTranscriptionOrigin(

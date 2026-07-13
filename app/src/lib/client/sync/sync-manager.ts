@@ -21,10 +21,12 @@ import {
 } from '$lib/client/db/repositories/collation-files';
 import { createCommittedTranscriptionCheckpointWithFiles } from '$lib/client/db/repositories/transcription-files';
 import {
+	canonicalFormatForProjectPath,
 	joinStorePath,
 	listDirectory,
 	projectFolder,
 	readTextFile,
+	readCanonicalDocument,
 	writeTextFileAtomic,
 	type StoreDirectoryEntry,
 	type StoreOperationOptions,
@@ -1231,37 +1233,13 @@ async function validateRemoteMirrorFile(
 	content: string,
 	context: SyncProjectContext
 ): Promise<SyncQuarantine | null> {
-	if (path === projectRelativeCloudPaths().project) {
-		const parsed = await parseProjectCloudFile(content);
-		if (!parsed.ok) return quarantineFor(path, parsed.quarantine);
-		if (parsed.value.id !== context.projectId) {
-			return {
-				path,
-				code: 'invalid_shape',
-				message: 'Remote project manifest belongs to a different project.',
-				expected: context.projectId,
-				actual: parsed.value.id,
-			};
-		}
-		return null;
-	}
-	if (/^transcriptions\/[^/]+\.json$/.test(path)) {
-		const parsed = await parseProjectTranscriptionCloudFile(content);
-		return parsed.ok ? null : quarantineFor(path, parsed.quarantine);
-	}
-	if (/^collations\/[^/]+\.json$/.test(path)) {
-		const parsed = await parseCollationCloudFile(content);
-		return parsed.ok ? null : quarantineFor(path, parsed.quarantine);
-	}
-	if (/^history\//.test(path)) {
-		const parsed = await parseHistoryCloudFile(content);
-		return parsed.ok ? null : quarantineFor(path, parsed.quarantine);
-	}
-	if (/^tombstones\/[^/]+\.json$/.test(path)) {
-		const parsed = await parseTombstoneCloudFile(content);
-		return parsed.ok ? null : quarantineFor(path, parsed.quarantine);
-	}
-	return null;
+	const format = canonicalFormatForProjectPath(path);
+	if (!format) return null;
+	const result = await readCanonicalDocument(format, content, {
+		projectPath: path,
+		projectId: context.projectId,
+	});
+	return result.ok ? null : quarantineFor(path, result.quarantine);
 }
 
 async function getFileFingerprint(

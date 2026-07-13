@@ -4,7 +4,18 @@ import { createLocalDbTestHarness, type LocalDbTestHarness } from '$lib/client/d
 import { createProject, getProject } from '$lib/client/db/repositories/projects';
 import { createTranscriptionWithFiles } from '$lib/client/db/repositories/transcription-files';
 import { MemoryStoreBackend } from '$lib/client/store/memory-store-backend.spec-support';
-import { joinStorePath, projectFolder, writeTextFileAtomic, type StoreOperationOptions } from '$lib/client/store';
+import {
+	COLLATION_CHECKPOINT_CURRENT_VERSION,
+	COLLATION_CHECKPOINT_FIXTURE,
+	COLLATION_CHECKPOINT_FORMAT,
+	joinStorePath,
+	projectFolder,
+	sealDocument,
+	serializeSealedDocument,
+	writeTextFileAtomic,
+	type JsonObject,
+	type StoreOperationOptions,
+} from '$lib/client/store';
 import type { StoredTranscriptionDocument } from '$lib/client/transcription/content';
 import { exportProjectZip } from './project-zip-export';
 import {
@@ -149,6 +160,52 @@ describe('project zip import', () => {
 		expect(result.quarantinedFiles[0]).toMatchObject({ path: 'project.json', code: 'invalid_json' });
 		expect([...backend.files.keys()].filter(path => path.includes('/projects/'))).toEqual([]);
 		expect([...backend.files.keys()].filter(path => path.includes('/staging/'))).toEqual([]);
+	});
+
+	it('rejects a resealed collation checkpoint with a corrupt nested hash', async () => {
+		const exported = await exportedProjectZip();
+		const entries = readZipEntries(exported.bytes);
+		entries['history/collations/col-1/cp-1.json'] = serializeSealedDocument(
+			await sealDocument(COLLATION_CHECKPOINT_FORMAT, COLLATION_CHECKPOINT_CURRENT_VERSION, {
+				...COLLATION_CHECKPOINT_FIXTURE,
+				payload_content_hash: 'sha256:wrong',
+			} as JsonObject)
+		);
+
+		const result = await importProjectFileTree(
+			harness.db,
+			Object.entries(entries).map(([path, content]) => ({ path, read: async () => content })),
+			{ storeOptions, nonce: () => 'nested-hash' }
+		);
+
+		expect(result.ok).toBe(false);
+		expect(result.quarantinedFiles).toContainEqual(
+			expect.objectContaining({
+				path: 'history/collations/col-1/cp-1.json',
+				code: 'hash_mismatch',
+			})
+		);
+		expect([...backend.files.keys()].filter(path => path.includes('/projects/'))).toEqual([]);
+	});
+
+	it('rejects the alternate tombstone-id path before placement', async () => {
+		const exported = await exportedProjectZip();
+		const entries = readZipEntries(exported.bytes);
+		entries['tombstones/tombstone-1.json'] = '{}';
+
+		const result = await importProjectFileTree(
+			harness.db,
+			Object.entries(entries).map(([path, content]) => ({ path, read: async () => content })),
+			{ storeOptions, nonce: () => 'alternate-tombstone' }
+		);
+
+		expect(result.quarantinedFiles).toContainEqual(
+			expect.objectContaining({
+				path: 'tombstones/tombstone-1.json',
+				message: 'Unsupported project file tombstones/tombstone-1.json.',
+			})
+		);
+		expect([...backend.files.keys()].filter(path => path.includes('/projects/'))).toEqual([]);
 	});
 
 	it('rejects path traversal entries without writes', async () => {

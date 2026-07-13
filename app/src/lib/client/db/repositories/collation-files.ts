@@ -27,7 +27,6 @@ import {
 	type CollationPayload,
 	type StoreOperationOptions,
 	type WorkingCollationPayload,
-	hashMismatch,
 	invalidShape,
 	quarantineFromError,
 } from '$lib/client/store';
@@ -633,23 +632,6 @@ async function tryReadPrimaryCollationPayload(
 			expectedProjectId: context.projectId,
 			actualProjectId: payload.project_id,
 		});
-		return null;
-	}
-	try {
-		await assertCollationRevisionHash(payload, result.originalVersion);
-	} catch (error) {
-		recordStoreQuarantine(
-			storeOptions.quarantineSink,
-			path,
-			quarantineFromError(hashMismatch(errorMessage(error)))
-		);
-		console.warn(
-			'[document-store] Ignoring collation primary file with invalid revision hash.',
-			{
-				path,
-				error: errorMessage(error),
-			}
-		);
 		return null;
 	}
 	return payload;

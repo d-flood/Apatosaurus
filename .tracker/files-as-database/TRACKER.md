@@ -8,7 +8,7 @@ This document tracks the status of all tickets in the files-as-database epic: in
 
 Overall status: `In Progress`
 
-Current ticket: review remediation for tickets `03`-`09`; ticket `10` remains blocked
+Current ticket: review remediation for tickets `04`-`09`; ticket `10` remains blocked
 
 Last updated: 2026-07-13
 
@@ -23,7 +23,7 @@ Last updated: 2026-07-13
 | --- | --- | --- | --- |
 | 01 | `01-remove-cloud-providers.md` | Completed | None |
 | 02 | `02-document-store-foundation.md` | Completed | None |
-| 03 | `03-canonical-file-formats.md` | In Progress | 02 |
+| 03 | `03-canonical-file-formats.md` | Completed | 02 |
 | 04 | `04-project-only-data-model.md` | In Progress | 03 |
 | 05 | `05-write-path-inversion.md` | In Progress | 04 |
 | 06 | `06-index-rebuild-and-repair.md` | In Progress | 05 |
@@ -60,6 +60,7 @@ bun run test:unit -- --run
 
 | Date | Note |
 | --- | --- |
+| 2026-07-13 | Ticket 03 review remediation completed. Canonical reads now share envelope, migration, shape, semantic-hash, entity-identity, and canonical-path validation across file repositories, index rebuild, folder sync, restore, and staged import. `sync/cloud-files.ts` is a compatibility re-export over the canonical format adapter; layout helpers exclusively define primary, working, checkpoint, and entity-scoped tombstone paths. Added checked-in committed/working/checkpoint collation v1-to-v2 fixtures and documentation, complete-project and adapter-equivalence coverage, resealed nested-integrity rejection, and XML-safe TEI identifiers. Verification passed: focused store/cloud format suite (47 tests), `bun run db:generate`, `bun run db:check`, `bun run check`, and full unit suite (454 tests). |
 | 2026-07-13 | Ticket 02 review remediation completed. No-move atomic replacement now uses `createWritable()` transactional close semantics, treats `NotSupportedError` as fallback while preserving permission/I/O failures, and retains the verified temp plus old target when replacement aborts. All canonical store mutations share the `apatosaurus:document-store-writer` Web Lock (with an in-realm queue fallback), providing the documented serialized writer boundary across UI and worker contexts without a second RPC worker. Added real Chromium OPFS replacement/fallback/interruption/recovery coverage, centralized project-relative canonical paths including entity-scoped tombstones, and routed normal transcription/collation read failures to an injectable production quarantine report. Verification passed: store suite 33 tests, focused sync suite 19 tests, `bun run db:generate`, `bun run db:check`, `bun run check`, and full unit suite 441 tests. |
 | 2026-07-13 | Independent implementation reviews of tickets 01-09 found that ticket 01's direct-provider removal remains complete, but tickets 02-09 have unmet acceptance or cross-ticket contracts. The ticket files now contain specific remediation requirements and tests. The most important gaps are SQLite-only project/IIIF/copy mutations that do not survive index rebuild, inactive production tombstone semantics, unsafe zip replacement, incomplete staged validation, and no user-facing zip import. Tickets 02-09 are reopened; ticket 10 remains blocked until those contracts are restored and its lower-level staged-validation seam is specified. Current verification: `bun run db:check` and `bun run check` passed; the full unit run passed 430/431 tests with the known index-rebuild browser timeout, and the focused invariant rerun passed. |
 | 2026-07-13 | Ticket 10 selected but blocked before implementation because its starting-point description no longer matches production. `pullLinkedProjectUpdates()` in `project-restore.ts` is an unused legacy RPC path, while Ticket 07 production pulls happen in `sync-manager.ts`'s per-file mirror path. The ticket 09 `importProjectFileTree()` primitive performs whole-project collision handling and placement (including delete-and-replace), so routing the production sync pull through it would change fingerprint, conflict-copy, and per-file mirror semantics. The ticket must clarify the shared lower-level staged validation/placement interface, or explicitly limit unification to retiring the legacy restore RPCs plus folder/zip import, before implementation can proceed. |

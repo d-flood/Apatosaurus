@@ -9,11 +9,7 @@ import {
 	TRANSCRIPTION_CHECKPOINT_FORMAT,
 	WORKING_COLLATION_FORMAT,
 	WORKING_TRANSCRIPTION_FORMAT,
-	assertCollationCheckpointPayloadIntegrity,
-	assertCollationRevisionHash,
-	assertProjectTranscriptionRevisionHash,
 	collationWorkingFile,
-	assertTranscriptionCheckpointPayloadIntegrity,
 	collationHistoryFolder,
 	joinStorePath,
 	listDirectory,
@@ -30,7 +26,6 @@ import {
 	type JsonObject,
 	type ProjectManifestPayload,
 	type ProjectTranscriptionPayload,
-	type ReadDocumentResult,
 	type StoreDirectoryEntry,
 	type StoreOperationOptions,
 	type StoreQuarantineReason,
@@ -241,14 +236,7 @@ async function collectTranscriptionRows(
 		report,
 		storeOptions
 	);
-	if (
-		!payload ||
-		!(await validateFilePayload(primaryPath, report, () =>
-			assertProjectTranscriptionRevisionHash(payload)
-		))
-	) {
-		return;
-	}
+	if (!payload) return;
 
 	const workingPayload = await readWorkingTranscriptionPayload(
 		projectSlug,
@@ -362,21 +350,13 @@ async function collectCollationRows(
 	storeOptions: StoreOperationOptions
 ): Promise<void> {
 	const primaryPath = joinStorePath(projectFolder(projectSlug), primaryRelativePath);
-	const primaryResult = await readCanonicalFileResult<CollationPayload>(
+	const payload = await readCanonicalFile<CollationPayload>(
 		COLLATION_FORMAT,
 		primaryPath,
 		report,
 		storeOptions
 	);
-	const payload = primaryResult?.payload;
-	if (
-		!payload ||
-		!(await validateFilePayload(primaryPath, report, () =>
-			assertCollationRevisionHash(payload, primaryResult.originalVersion)
-		))
-	) {
-		return;
-	}
+	if (!payload) return;
 
 	const workingPayload = await readWorkingCollationPayload(
 		projectSlug,
@@ -528,13 +508,6 @@ async function collectTranscriptionCheckpointRows(
 			});
 			continue;
 		}
-		if (
-			!(await validateFilePayload(path, report, () =>
-				assertTranscriptionCheckpointPayloadIntegrity(payload)
-			))
-		) {
-			continue;
-		}
 		rows.transcriptionCheckpoints.push({
 			id: payload.checkpoint_id,
 			transcription_id: payload.payload_transcription_id,
@@ -560,26 +533,18 @@ async function collectCollationCheckpointRows(
 	for (const entry of await listDirectoryIfExists(folder, storeOptions)) {
 		if (!isJsonFile(entry)) continue;
 		const path = joinStorePath(folder, entry.name);
-		const checkpointResult = await readCanonicalFileResult<CollationCheckpointPayload>(
+		const payload = await readCanonicalFile<CollationCheckpointPayload>(
 			COLLATION_CHECKPOINT_FORMAT,
 			path,
 			report,
 			storeOptions
 		);
-		const payload = checkpointResult?.payload;
 		if (!payload) continue;
 		if (payload.entity_id !== collationId) {
 			recordQuarantine(report, path, {
 				code: 'invalid_shape',
 				message: `Checkpoint entity_id ${payload.entity_id} does not match ${collationId}.`,
 			});
-			continue;
-		}
-		if (
-			!(await validateFilePayload(path, report, () =>
-				assertCollationCheckpointPayloadIntegrity(payload, checkpointResult.originalVersion)
-			))
-		) {
 			continue;
 		}
 		rows.collationCheckpoints.push({
@@ -737,30 +702,6 @@ async function readCanonicalFile<TPayload extends JsonObject>(
 	return null;
 }
 
-type SuccessfulRead<TPayload extends JsonObject> = Extract<
-	ReadDocumentResult<TPayload>,
-	{ ok: true }
->;
-
-async function readCanonicalFileResult<TPayload extends JsonObject>(
-	format: string,
-	path: string,
-	report: IndexRebuildReport,
-	storeOptions: StoreOperationOptions
-): Promise<SuccessfulRead<TPayload> | null> {
-	try {
-		const result = await readCanonicalDocument<TPayload>(
-			format,
-			await readTextFile(path, storeOptions)
-		);
-		if (result.ok) return result;
-		recordQuarantine(report, path, result.quarantine);
-	} catch (error) {
-		recordQuarantine(report, path, quarantineFromError(error));
-	}
-	return null;
-}
-
 async function readOptionalCanonicalFile<TPayload extends JsonObject>(
 	format: string,
 	path: string,
@@ -777,20 +718,6 @@ async function readOptionalCanonicalFile<TPayload extends JsonObject>(
 		recordQuarantine(report, path, quarantineFromError(error));
 	}
 	return null;
-}
-
-async function validateFilePayload(
-	path: string,
-	report: IndexRebuildReport,
-	validate: () => Promise<void>
-): Promise<boolean> {
-	try {
-		await validate();
-		return true;
-	} catch (error) {
-		recordQuarantine(report, path, quarantineFromError(error));
-		return false;
-	}
 }
 
 async function listDirectoryIfExists(

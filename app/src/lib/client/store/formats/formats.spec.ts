@@ -3,7 +3,7 @@ import type { Document as XmlDocument } from '@xmldom/xmldom';
 import { describe, expect, it } from 'vitest';
 
 import type { CollationDocument as SemanticCollationDocument } from '$lib/client/collation/collation-document';
-import { hashCanonicalPayload } from '$lib/client/sync/canonical-json';
+import { hashCanonicalPayload } from '../canonical-json';
 
 import { sealDocument, serializeSealedDocument, type JsonObject } from '../envelope';
 import {
@@ -32,9 +32,17 @@ import {
 	canonicalFormatRegistrations,
 	collationDocumentToTei,
 	createCanonicalFormatRegistry,
+	readCanonicalDocument,
+	serializeCanonicalDocument,
 	transcriptionDocumentToTei,
 } from './index';
 import { buildLegacyCollationHashPayload } from './collation';
+import collationV1Input from './fixtures/collation-v1.input.json';
+import collationV2Expected from './fixtures/collation-v2.expected.json';
+import workingCollationV1Input from './fixtures/working-collation-v1.input.json';
+import workingCollationV2Expected from './fixtures/working-collation-v2.expected.json';
+import checkpointCollationV1Input from './fixtures/checkpoint-collation-v1.input.json';
+import checkpointCollationV2Expected from './fixtures/checkpoint-collation-v2.expected.json';
 
 const FORMAT_FIXTURES = [
 	{ format: PROJECT_MANIFEST_FORMAT, version: 1, payload: PROJECT_MANIFEST_FIXTURE },
@@ -85,6 +93,76 @@ describe('canonical store formats', () => {
 			if (!read.ok) throw new Error(`Expected ${format} fixture to read.`);
 			expect(read.payload).toEqual(payload);
 			expect(resealed.content_hash).toBe(sealed.content_hash);
+		}
+	});
+
+	it('round-trips a complete project file set through the canonical API', async () => {
+		const transcription = {
+			...PROJECT_TRANSCRIPTION_FIXTURE,
+			origin: {
+				source_type: 'copied',
+				source_project_id: 'source-project',
+				source_transcription_id: 'source-tx',
+				source_revision_id: 'source-cp',
+				source_content_hash: 'sha256:source',
+			},
+		};
+		const tombstoneHash = await hashCanonicalPayload(TOMBSTONE_FIXTURE);
+		const manifest = {
+			...PROJECT_MANIFEST_FIXTURE,
+			transcriptions: [
+				{
+					...PROJECT_MANIFEST_FIXTURE.transcriptions[0],
+					current_revision: {
+						id: transcription.current_revision.id,
+						content_hash: transcription.current_revision.content_hash,
+					},
+				},
+			],
+			collations: [
+				{
+					...PROJECT_MANIFEST_FIXTURE.collations[0],
+					current_revision: {
+						id: COLLATION_FIXTURE.current_revision.id,
+						content_hash: COLLATION_FIXTURE.current_revision.content_hash,
+					},
+				},
+			],
+			tombstones: [
+				{
+					tombstone_id: TOMBSTONE_FIXTURE.id,
+					entity_type: TOMBSTONE_FIXTURE.entity_type,
+					entity_id: TOMBSTONE_FIXTURE.entity_id,
+					deletion_revision_id: TOMBSTONE_FIXTURE.deletion_revision_id,
+					content_hash: tombstoneHash,
+					primary_path: `tombstones/${TOMBSTONE_FIXTURE.entity_type}--${TOMBSTONE_FIXTURE.entity_id}.json`,
+					deleted_at: TOMBSTONE_FIXTURE.deleted_at,
+				},
+			],
+		};
+		manifest.manifest_content_hash = await hashCanonicalPayload({
+			project_id: manifest.id,
+			transcriptions: manifest.transcriptions,
+			collations: manifest.collations,
+			tombstones: manifest.tombstones,
+		});
+		const completeProject = [
+			[PROJECT_MANIFEST_FORMAT, manifest],
+			[PROJECT_TRANSCRIPTION_FORMAT, transcription],
+			[COLLATION_FORMAT, COLLATION_FIXTURE],
+			[WORKING_TRANSCRIPTION_FORMAT, WORKING_TRANSCRIPTION_FIXTURE],
+			[WORKING_COLLATION_FORMAT, WORKING_COLLATION_FIXTURE],
+			[TRANSCRIPTION_CHECKPOINT_FORMAT, TRANSCRIPTION_CHECKPOINT_FIXTURE],
+			[COLLATION_CHECKPOINT_FORMAT, COLLATION_CHECKPOINT_FIXTURE],
+			[TOMBSTONE_FORMAT, TOMBSTONE_FIXTURE],
+		] as const;
+
+		for (const [format, payload] of completeProject) {
+			const bytes = await serializeCanonicalDocument(format, payload as JsonObject);
+			const result = await readCanonicalDocument(format, bytes);
+			expect(result).toMatchObject({ ok: true });
+			if (!result.ok) throw new Error(`Expected ${format} to round-trip.`);
+			expect(result.payload).toEqual(payload);
 		}
 	});
 
@@ -202,6 +280,18 @@ describe('canonical store formats', () => {
 	});
 
 	it.each([
+		[COLLATION_FORMAT, collationV1Input, collationV2Expected],
+		[WORKING_COLLATION_FORMAT, workingCollationV1Input, workingCollationV2Expected],
+		[COLLATION_CHECKPOINT_FORMAT, checkpointCollationV1Input, checkpointCollationV2Expected],
+	] as const)('upgrades checked-in %s v1 fixtures through the public read API', async (format, input, expected) => {
+		const result = await readCanonicalDocument(format, input);
+
+		expect(result).toMatchObject({ ok: true, upgraded: true, originalVersion: 1 });
+		if (!result.ok) throw new Error(`Expected ${format} fixture to upgrade.`);
+		expect(result.payload).toEqual(expected);
+	});
+
+	it.each([
 		[TRANSCRIPTION_CHECKPOINT_FORMAT, TRANSCRIPTION_CHECKPOINT_FIXTURE],
 		[COLLATION_CHECKPOINT_FORMAT, COLLATION_CHECKPOINT_FIXTURE],
 	])('rejects %s documents with a null nested payload', async (format, fixture) => {
@@ -229,6 +319,63 @@ describe('canonical store formats', () => {
 			registry.readDocument(TRANSCRIPTION_CHECKPOINT_FORMAT, document)
 		).resolves.toMatchObject({ ok: false, quarantine: { code: 'invalid_shape' } });
 	});
+
+	it.each([
+		[PROJECT_TRANSCRIPTION_FORMAT, PROJECT_TRANSCRIPTION_FIXTURE],
+		[COLLATION_FORMAT, COLLATION_FIXTURE],
+		[TRANSCRIPTION_CHECKPOINT_FORMAT, TRANSCRIPTION_CHECKPOINT_FIXTURE],
+		[COLLATION_CHECKPOINT_FORMAT, COLLATION_CHECKPOINT_FIXTURE],
+	] as const)('rejects resealed %s documents with invalid nested hashes', async (format, fixture) => {
+		const document = await sealDocument(format, format.includes('collation') ? 2 : 1, {
+			...fixture,
+			...(format.includes('checkpoint')
+				? { payload_content_hash: 'sha256:wrong' }
+				: {
+						current_revision: {
+							...('current_revision' in fixture
+								? (fixture.current_revision as Record<string, unknown>)
+								: {}),
+							content_hash: 'sha256:wrong',
+						},
+					}),
+		} as JsonObject);
+
+		await expect(readCanonicalDocument(format, document)).resolves.toMatchObject({
+			ok: false,
+			quarantine: { code: 'hash_mismatch' },
+		});
+	});
+
+	it('rejects a resealed manifest whose head path is not canonical', async () => {
+		const payload = {
+			...PROJECT_MANIFEST_FIXTURE,
+			transcriptions: [
+				{ ...PROJECT_MANIFEST_FIXTURE.transcriptions[0], primary_path: 'transcriptions/wrong.json' },
+			],
+		};
+		payload.manifest_content_hash = await hashCanonicalPayload({
+			project_id: payload.id,
+			transcriptions: payload.transcriptions,
+			collations: payload.collations,
+			tombstones: payload.tombstones,
+		});
+		const document = await sealDocument(PROJECT_MANIFEST_FORMAT, 1, payload);
+
+		await expect(readCanonicalDocument(PROJECT_MANIFEST_FORMAT, document)).resolves.toMatchObject({
+			ok: false,
+			quarantine: { code: 'invalid_shape' },
+		});
+	});
+
+	it('rejects a canonical tombstone read from the alternate tombstone-id path', async () => {
+		const bytes = await serializeCanonicalDocument(TOMBSTONE_FORMAT, TOMBSTONE_FIXTURE);
+
+		await expect(
+			readCanonicalDocument(TOMBSTONE_FORMAT, bytes, {
+				projectPath: `tombstones/${TOMBSTONE_FIXTURE.id}.json`,
+			})
+		).resolves.toMatchObject({ ok: false, quarantine: { code: 'invalid_shape' } });
+	});
 });
 
 describe('derived TEI serializers', () => {
@@ -250,6 +397,19 @@ describe('derived TEI serializers', () => {
 		expect(doc.getElementsByTagName('app')).toHaveLength(1);
 		expect(doc.getElementsByTagName('lem')[0]?.textContent).toBe('in');
 		expect(doc.getElementsByTagName('rdg')[0]?.getAttribute('wit')).toBe('#wit-B');
+	});
+
+	it('emits valid xml:id values for numeric and punctuation-heavy identifiers', () => {
+		const fixture = collationDocumentFixture();
+		fixture.setup.selectedVerse = { ...fixture.setup.selectedVerse!, identifier: '123:1?!' };
+		fixture.setup.witnesses[0].id = '123?!';
+		const doc = parseXml(collationDocumentToTei(fixture));
+		const ids = Array.from(doc.getElementsByTagName('*'))
+			.map(node => node.getAttribute('xml:id'))
+			.filter((id): id is string => id !== '');
+
+		expect(ids.length).toBeGreaterThan(0);
+		expect(ids.every(id => /^[A-Za-z_][A-Za-z0-9_.-]*$/.test(id))).toBe(true);
 	});
 });
 

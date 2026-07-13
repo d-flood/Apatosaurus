@@ -46,7 +46,7 @@ export const COLLATION_FIXTURE: CollationPayload = {
 	status: 'draft',
 	current_revision: {
 		id: 'col-cp-1',
-		content_hash: 'sha256:revision-placeholder',
+		content_hash: 'sha256:25fd8eab0e9b7b24db53c77d25619d850f3bea255352728adf0b541bf542a6f4',
 		created_at: '2026-07-03T00:00:00.000Z',
 		author_name: 'Editor',
 	},
@@ -172,6 +172,7 @@ export const collationFormatRegistration: FormatRegistration<CollationPayload> =
 	currentVersion: COLLATION_CURRENT_VERSION,
 	upgraders: collationUpgraders,
 	validate: validateCollationPayload,
+	validateIntegrity: assertCollationRevisionHash,
 };
 
 function readSemanticDocument(

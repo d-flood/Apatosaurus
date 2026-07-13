@@ -1,6 +1,13 @@
 import type { DocumentUpgrader, FormatRegistration } from '../migrate-on-read';
 import type { JsonObject, JsonValue, SealedDocument } from '../envelope';
+import { invalidShape } from '../quarantine';
 import {
+	collationPrimaryRelativeFile,
+	tombstoneRelativeFile,
+	transcriptionPrimaryRelativeFile,
+} from '../layout';
+import {
+	assertContentHashMatches,
 	readArray,
 	readJsonValue,
 	readNullableString,
@@ -69,7 +76,7 @@ export const PROJECT_MANIFEST_FIXTURE: ProjectManifestPayload = {
 	description: 'Fixture project',
 	charter: '',
 	collation_settings: { regularize: false },
-	manifest_content_hash: 'sha256:manifest-fixture',
+	manifest_content_hash: 'sha256:e08119724306ed74a77e9748563d84ef8ac69d6064c0ee9a83859a6ff2b78e67',
 	transcriptions: [
 		{
 			project_transcription_id: 'pt-1',
@@ -116,7 +123,48 @@ export const projectManifestFormatRegistration: FormatRegistration<ProjectManife
 	currentVersion: PROJECT_MANIFEST_CURRENT_VERSION,
 	upgraders: projectManifestUpgraders,
 	validate: validateProjectManifestPayload,
+	validateIntegrity: assertProjectManifestIntegrity,
 };
+
+export async function assertProjectManifestIntegrity(payload: ProjectManifestPayload): Promise<void> {
+	for (const head of payload.transcriptions) {
+		assertCanonicalPath(
+			head.primary_path,
+			transcriptionPrimaryRelativeFile(head.project_transcription_id),
+			`Transcription ${head.project_transcription_id}`
+		);
+	}
+	for (const head of payload.collations) {
+		assertCanonicalPath(
+			head.primary_path,
+			collationPrimaryRelativeFile(head.collation_id),
+			`Collation ${head.collation_id}`
+		);
+	}
+	for (const head of payload.tombstones) {
+		assertCanonicalPath(
+			head.primary_path,
+			tombstoneRelativeFile(head.entity_type, head.entity_id),
+			`Tombstone ${head.tombstone_id}`
+		);
+	}
+	await assertContentHashMatches(
+		{
+			project_id: payload.id,
+			transcriptions: payload.transcriptions,
+			collations: payload.collations,
+			tombstones: payload.tombstones,
+		},
+		payload.manifest_content_hash,
+		`Project manifest ${payload.id}`
+	);
+}
+
+function assertCanonicalPath(actual: string, expected: string, label: string): void {
+	if (actual !== expected) {
+		throw invalidShape(`${label} primary_path must be ${expected}.`, expected, actual);
+	}
+}
 
 function readProjectManifestRevisionHead(
 	record: Record<string, unknown>,

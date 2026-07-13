@@ -5,4 +5,5 @@ export * from './migrate-on-read';
 export * from './opfs-store';
 export * from './quarantine';
 export * from './backup-metadata';
+export * from './canonical-json';
 export * from './sync-targets';

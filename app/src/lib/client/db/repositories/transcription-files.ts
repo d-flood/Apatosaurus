@@ -31,7 +31,6 @@ import {
 	type StoreOperationOptions,
 	type TranscriptionCheckpointPayload as CanonicalTranscriptionCheckpointPayload,
 	type WorkingTranscriptionPayload,
-	hashMismatch,
 	invalidShape,
 	quarantineFromError,
 } from '$lib/client/store';
@@ -616,23 +615,6 @@ async function tryReadPrimaryTranscriptionPayload(
 			expectedProjectTranscriptionId: context.projectTranscriptionId,
 			actualProjectTranscriptionId: payload.project_transcription_id,
 		});
-		return null;
-	}
-	try {
-		await assertProjectTranscriptionRevisionHash(payload);
-	} catch (error) {
-		recordStoreQuarantine(
-			storeOptions.quarantineSink,
-			path,
-			quarantineFromError(hashMismatch(errorMessage(error)))
-		);
-		console.warn(
-			'[document-store] Ignoring transcription primary file with invalid revision hash.',
-			{
-				path,
-				error: errorMessage(error),
-			}
-		);
 		return null;
 	}
 	return payload;

@@ -101,3 +101,14 @@ Ticket 03 is reopened because canonical definitions exist, but parsing/serializa
 - Parse TEI generated from numeric and punctuation-heavy identifiers and assert valid `xml:id` values.
 
 Completion gate: one format module owns each shape and integrity rule, with no parallel sync/import serializer or path grammar.
+
+### Remediation completion (2026-07-13)
+
+- Added one integrity-aware canonical read API used by file repositories, index rebuild, folder sync, restore, and staged import.
+- Centralized canonical path recognition and rejected the legacy tombstone-id path.
+- Reduced `sync/cloud-files.ts` to a compatibility re-export over the canonical format adapter.
+- Added checked-in committed, working, and checkpoint collation v1-to-v2 fixture pairs and format-evolution documentation.
+- Made generated TEI `xml:id` values safe for numeric and punctuation-leading identifiers.
+- Added complete-project round-trip, byte/path equivalence, nested-integrity rejection, and TEI identifier coverage.
+
+Verification passed: `bun run test:unit -- --run src/lib/client/store src/lib/client/sync/cloud-files.spec.ts` (47 tests), `bun run db:generate`, `bun run db:check`, `bun run check`, and `bun run test:unit -- --run` (454 tests).

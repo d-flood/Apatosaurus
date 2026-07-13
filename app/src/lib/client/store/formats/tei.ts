@@ -130,7 +130,8 @@ function witnessXmlId(value: string): string {
 
 function xmlId(value: string): string {
 	const normalized = value.trim().replace(/[^A-Za-z0-9_.-]+/g, '-');
-	return normalized ? normalized : 'generated-id';
+	if (!normalized) return 'generated-id';
+	return /^[A-Za-z_]/.test(normalized) ? normalized : `id-${normalized}`;
 }
 
 function escapeText(value: string): string {

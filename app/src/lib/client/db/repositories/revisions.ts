@@ -3,7 +3,6 @@ import { sql, type Kysely, type Selectable, type Transaction } from 'kysely';
 import { canonicalJson, hashCanonicalPayload } from '$lib/client/sync/canonical-json';
 import {
 	TRANSCRIPTION_CHECKPOINT_FORMAT,
-	assertTranscriptionCheckpointPayloadIntegrity,
 	readCanonicalDocument,
 	readTextFile,
 	transcriptionCheckpointFile,
@@ -740,7 +739,6 @@ export async function loadCommittedTranscriptionCheckpointPayload(
 	if (checkpointPayload.payload_transcription_id !== transcriptionId) {
 		throw new Error('Transcription checkpoint file transcription id does not match the requested transcription.');
 	}
-	await assertTranscriptionCheckpointPayloadIntegrity(checkpointPayload);
 	if (checkpointPayload.payload_content_hash !== row.content_hash) {
 		throw new Error('Transcription checkpoint file hash does not match the index row.');
 	}

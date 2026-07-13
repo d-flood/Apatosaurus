@@ -1,4 +1,4 @@
-import { canonicalJson, hashCanonicalPayload } from '$lib/client/sync/canonical-json';
+import { canonicalJson, hashCanonicalPayload } from '../canonical-json';
 
 import type { JsonObject, JsonValue } from '../envelope';
 import { hashMismatch, invalidShape } from '../quarantine';

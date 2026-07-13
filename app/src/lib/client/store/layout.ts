@@ -148,6 +148,26 @@ export function tombstoneRelativeFile(entityType: string, entityId: string): str
 	);
 }
 
+export interface ProjectRelativePaths {
+	project: string;
+	transcriptions: (projectTranscriptionId: string) => string;
+	collations: (collationId: string) => string;
+	transcriptionHistory: (projectTranscriptionId: string, checkpointId: string) => string;
+	collationHistory: (collationId: string, checkpointId: string) => string;
+	tombstones: (entityType: string, entityId: string) => string;
+}
+
+export function projectRelativePaths(): ProjectRelativePaths {
+	return {
+		project: projectManifestRelativeFile(),
+		transcriptions: transcriptionPrimaryRelativeFile,
+		collations: collationPrimaryRelativeFile,
+		transcriptionHistory: transcriptionCheckpointRelativeFile,
+		collationHistory: collationCheckpointRelativeFile,
+		tombstones: tombstoneRelativeFile,
+	};
+}
+
 export function appFolder(): string {
 	return 'app';
 }

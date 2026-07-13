@@ -14,12 +14,17 @@ import {
 
 export type DocumentUpgrader = (payload: JsonObject) => JsonObject | Promise<JsonObject>;
 export type DocumentValidator<TPayload extends JsonObject> = (payload: JsonObject) => TPayload;
+export type DocumentIntegrityValidator<TPayload extends JsonObject> = (
+	payload: TPayload,
+	originalVersion: number
+) => void | Promise<void>;
 
 export interface FormatRegistration<TPayload extends JsonObject = JsonObject> {
 	format: string;
 	currentVersion: number;
 	upgraders: DocumentUpgrader[];
 	validate: DocumentValidator<TPayload>;
+	validateIntegrity?: DocumentIntegrityValidator<TPayload>;
 }
 
 export type ReadDocumentResult<TPayload extends JsonObject = JsonObject> =
@@ -39,7 +44,8 @@ export class MigrationRegistry {
 		format: string,
 		currentVersion: number,
 		upgraders: DocumentUpgrader[],
-		validate: DocumentValidator<TPayload>
+		validate: DocumentValidator<TPayload>,
+		validateIntegrity?: DocumentIntegrityValidator<TPayload>
 	): void {
 		if (!format.trim()) throw new Error('format is required.');
 		if (!Number.isInteger(currentVersion) || currentVersion < 1) {
@@ -51,7 +57,13 @@ export class MigrationRegistry {
 			);
 		}
 		if (this.formats.has(format)) throw new Error(`Format ${format} is already registered.`);
-		this.formats.set(format, { format, currentVersion, upgraders, validate });
+		this.formats.set(format, {
+			format,
+			currentVersion,
+			upgraders,
+			validate,
+			validateIntegrity: validateIntegrity as DocumentIntegrityValidator<JsonObject> | undefined,
+		});
 	}
 
 	async readDocument<TPayload extends JsonObject = JsonObject>(
@@ -94,6 +106,7 @@ export class MigrationRegistry {
 			}
 
 			const validatedPayload = registration.validate(payload) as TPayload;
+			await registration.validateIntegrity?.(validatedPayload, originalVersion);
 			const document = await sealDocument(format, registration.currentVersion, validatedPayload);
 			return {
 				ok: true,
@@ -122,9 +135,10 @@ export function registerFormat<TPayload extends JsonObject>(
 	format: string,
 	currentVersion: number,
 	upgraders: DocumentUpgrader[],
-	validate: DocumentValidator<TPayload>
+	validate: DocumentValidator<TPayload>,
+	validateIntegrity?: DocumentIntegrityValidator<TPayload>
 ): void {
-	defaultRegistry.registerFormat(format, currentVersion, upgraders, validate);
+	defaultRegistry.registerFormat(format, currentVersion, upgraders, validate, validateIntegrity);
 }
 
 export function readDocument<TPayload extends JsonObject = JsonObject>(

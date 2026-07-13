@@ -32,7 +32,7 @@ export const TRANSCRIPTION_CHECKPOINT_FIXTURE: TranscriptionCheckpointPayload = 
 	entity_id: 'pt-1',
 	payload_transcription_id: 'tx-1',
 	parent_checkpoint_id: null,
-	payload_content_hash: 'sha256:payload-placeholder',
+	payload_content_hash: 'sha256:b88064113fd452747b0723b27847c5ecf9efada27c6a9d5eaeee8b2eae57f4bb',
 	content_format: 'normalized_ast_v3',
 	commit_message: 'Initial commit',
 	author_name: 'Editor',
@@ -138,4 +138,5 @@ export const transcriptionCheckpointFormatRegistration: FormatRegistration<Trans
 		currentVersion: TRANSCRIPTION_CHECKPOINT_CURRENT_VERSION,
 		upgraders: transcriptionCheckpointUpgraders,
 		validate: validateTranscriptionCheckpointPayload,
+		validateIntegrity: assertTranscriptionCheckpointPayloadIntegrity,
 	};

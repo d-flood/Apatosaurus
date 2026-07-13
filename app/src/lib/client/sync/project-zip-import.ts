@@ -2,14 +2,11 @@ import type { Kysely } from 'kysely';
 
 import { rebuildIndexFromStore, type IndexRebuildReport } from '$lib/client/db/repositories/index-rebuild';
 import type { Database } from '$lib/client/db/types.generated';
+import { hashCanonicalPayload } from '$lib/client/sync/canonical-json';
 import {
-	COLLATION_FORMAT,
+	canonicalFormatForProjectPath,
 	PROJECT_MANIFEST_FORMAT,
 	PROJECT_TRANSCRIPTION_FORMAT,
-	TOMBSTONE_FORMAT,
-	TRANSCRIPTION_CHECKPOINT_FORMAT,
-	WORKING_COLLATION_FORMAT,
-	WORKING_TRANSCRIPTION_FORMAT,
 	deleteDirectory,
 	joinStorePath,
 	moveFile,
@@ -169,10 +166,19 @@ async function copyProjectEntries(
 	const updatedEntries: ImportEntry[] = [];
 	for (const entry of entries) {
 		if (entry.path === 'project.json') {
-			const payload: ProjectManifestPayload = {
+			const payloadWithoutHash = {
 				...sourceManifest,
 				id: copyId,
 				name: `${sourceManifest.name} Copy`,
+			};
+			const payload: ProjectManifestPayload = {
+				...payloadWithoutHash,
+				manifest_content_hash: await hashCanonicalPayload({
+					project_id: copyId,
+					transcriptions: payloadWithoutHash.transcriptions,
+					collations: payloadWithoutHash.collations,
+					tombstones: payloadWithoutHash.tombstones,
+				}),
 			};
 			updatedEntries.push({
 				path: entry.path,
@@ -237,11 +243,34 @@ async function validateStagedEntries(
 	storeOptions: StoreOperationOptions
 ): Promise<StoreQuarantineRecord[]> {
 	const quarantines: StoreQuarantineRecord[] = [];
+	let projectId: string | undefined;
+	const manifestEntry = entries.find(entry => entry.path === 'project.json');
+	if (manifestEntry) {
+		const manifest = await readCanonicalDocument<ProjectManifestPayload>(
+			PROJECT_MANIFEST_FORMAT,
+			await readTextFile(joinStorePath(stagingPath, manifestEntry.path), storeOptions),
+			{ projectPath: manifestEntry.path }
+		);
+		if (manifest.ok) projectId = manifest.payload.id;
+	}
 	for (const entry of entries) {
-		const format = formatForImportPath(entry.path);
-		if (!format) continue;
+		const format = canonicalFormatForProjectPath(entry.path);
+		if (!format) {
+			if (!entry.path.endsWith('.tei.xml')) {
+				quarantines.push({
+					path: entry.path,
+					code: 'invalid_shape',
+					message: `Unsupported project file ${entry.path}.`,
+					timestamp: new Date().toISOString(),
+				});
+			}
+			continue;
+		}
 		const raw = await readTextFile(joinStorePath(stagingPath, entry.path), storeOptions);
-		const result = await readCanonicalDocument(format, raw);
+		const result = await readCanonicalDocument(format, raw, {
+			projectPath: entry.path,
+			projectId,
+		});
 		if (!result.ok) {
 			quarantines.push({ path: entry.path, timestamp: new Date().toISOString(), ...result.quarantine });
 		}
@@ -265,17 +294,6 @@ async function readStagedManifest(
 	const result = await readCanonicalDocument<ProjectManifestPayload>(PROJECT_MANIFEST_FORMAT, raw);
 	if (!result.ok) throw new Error(result.quarantine.message);
 	return result.payload;
-}
-
-function formatForImportPath(path: string): string | null {
-	if (path === 'project.json') return PROJECT_MANIFEST_FORMAT;
-	if (isProjectTranscriptionPath(path)) return PROJECT_TRANSCRIPTION_FORMAT;
-	if (/^transcriptions\/[^/]+\.working\.json$/.test(path)) return WORKING_TRANSCRIPTION_FORMAT;
-	if (/^collations\/[^/]+\.json$/.test(path)) return COLLATION_FORMAT;
-	if (/^collations\/[^/]+\.working\.json$/.test(path)) return WORKING_COLLATION_FORMAT;
-	if (/^history\/transcriptions\/[^/]+\/[^/]+\.json$/.test(path)) return TRANSCRIPTION_CHECKPOINT_FORMAT;
-	if (/^tombstones\/[^/]+\.json$/.test(path)) return TOMBSTONE_FORMAT;
-	return null;
 }
 
 function isProjectTranscriptionPath(path: string): boolean {

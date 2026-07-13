@@ -138,7 +138,7 @@ async function createBackupRows(
 			project_id: projectId,
 			entity_type: 'collation',
 			entity_id: 'removed-collation',
-			cloud_path: 'tombstones/tombstone-1.json',
+			cloud_path: 'collations/removed-collation.json',
 			deletion_revision_id: 'delete-1',
 			deleted_by: 'Editor',
 			deleted_at: '2024-01-01T00:00:00.000Z',

@@ -1088,6 +1088,45 @@ async function remoteManifestWithHead(
 		collationContentHash?: string;
 	} = {}
 ): Promise<string> {
+	const transcriptions = [
+		{
+			project_transcription_id: remote.projectTranscriptionId,
+			transcription_id: remote.transcriptionId,
+			current_revision: {
+				id: input.transcriptionRevisionId ?? 'tx-cp-restore-1',
+				content_hash: input.transcriptionContentHash ?? remote.contentHash,
+			},
+			title: 'Remote Witness',
+			siglum: 'R',
+			primary_path: projectRelativeCloudPaths().transcriptions(remote.projectTranscriptionId),
+		},
+	];
+	const collations = [
+		{
+			collation_id: remote.collationId,
+			current_revision: {
+				id: input.collationRevisionId ?? 'col-cp-restore-1',
+				content_hash: input.collationContentHash ?? remote.collationContentHash,
+			},
+			title: 'Remote Collation',
+			verse_identifier: 'John 18:1',
+			primary_path: projectRelativeCloudPaths().collations(remote.collationId),
+		},
+	];
+	const tombstones = [
+		{
+			tombstone_id: remote.tombstoneId,
+			entity_type: 'project-transcription',
+			entity_id: 'deleted-pt-restore-1',
+			deletion_revision_id: 'deleted-cp-restore-1',
+			content_hash: remote.tombstoneContentHash,
+			primary_path: projectRelativeCloudPaths().tombstones(
+				'project-transcription',
+				'deleted-pt-restore-1'
+			),
+			deleted_at: '2026-06-10T12:09:00.000Z',
+		},
+	];
 	return serializeCloudFile({
 		schema_version: 1,
 		id: remote.projectId,
@@ -1095,48 +1134,15 @@ async function remoteManifestWithHead(
 		description: 'Backed up project.',
 		charter: '',
 		collation_settings: {},
-		manifest_content_hash: 'sha256:changed-manifest',
-		transcriptions: [
-			{
-				project_transcription_id: remote.projectTranscriptionId,
-				transcription_id: remote.transcriptionId,
-				current_revision: {
-					id: input.transcriptionRevisionId ?? 'tx-cp-restore-1',
-					content_hash: input.transcriptionContentHash ?? remote.contentHash,
-				},
-				title: 'Remote Witness',
-				siglum: 'R',
-				primary_path: projectRelativeCloudPaths().transcriptions(
-					remote.projectTranscriptionId
-				),
-			},
-		],
-		collations: [
-			{
-				collation_id: remote.collationId,
-				current_revision: {
-					id: input.collationRevisionId ?? 'col-cp-restore-1',
-					content_hash: input.collationContentHash ?? remote.collationContentHash,
-				},
-				title: 'Remote Collation',
-				verse_identifier: 'John 18:1',
-				primary_path: projectRelativeCloudPaths().collations(remote.collationId),
-			},
-		],
-		tombstones: [
-			{
-				tombstone_id: remote.tombstoneId,
-				entity_type: 'project-transcription',
-				entity_id: 'deleted-pt-restore-1',
-				deletion_revision_id: 'deleted-cp-restore-1',
-				content_hash: remote.tombstoneContentHash,
-				primary_path: projectRelativeCloudPaths().tombstones(
-					'project-transcription',
-					'deleted-pt-restore-1'
-				),
-				deleted_at: '2026-06-10T12:09:00.000Z',
-			},
-		],
+		manifest_content_hash: await hashCanonicalPayload({
+			project_id: remote.projectId,
+			transcriptions,
+			collations,
+			tombstones,
+		}),
+		transcriptions,
+		collations,
+		tombstones,
 		created_at: '2026-06-10T12:00:00.000Z',
 		updated_at: '2026-06-10T12:10:00.000Z',
 	});

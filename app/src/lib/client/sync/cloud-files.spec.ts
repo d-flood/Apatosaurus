@@ -19,7 +19,14 @@ import {
 	updateTranscriptionContent,
 } from '$lib/client/db/repositories/transcriptions';
 import { MemoryStoreBackend } from '$lib/client/store/memory-store-backend.spec-support';
-import { COLLATION_FIXTURE, type StoreOperationOptions } from '$lib/client/store';
+import {
+	COLLATION_FIXTURE,
+	PROJECT_MANIFEST_FORMAT,
+	projectRelativePaths,
+	serializeCanonicalDocument,
+	type ProjectManifestPayload,
+	type StoreOperationOptions,
+} from '$lib/client/store';
 import {
 	collationCloudFileToImportInput,
 	historyCloudFileToImportInput,
@@ -84,7 +91,8 @@ describe('cloud file serialization formats', () => {
 			.execute();
 
 		const projectFile = await serializeProjectCloudFile(harness.db, 'project-1');
-		const parsedProject = await parseProjectCloudFile(await serializeCloudFile(projectFile));
+		const projectBytes = await serializeCloudFile(projectFile);
+		const parsedProject = await parseProjectCloudFile(projectBytes);
 		const tombstoneFile = await serializeTombstoneCloudFile(harness.db, 'tombstone-1');
 		const parsedTombstone = await parseTombstoneCloudFile(
 			await serializeCloudFile(tombstoneFile)
@@ -92,6 +100,21 @@ describe('cloud file serialization formats', () => {
 
 		expect(parsedProject).toEqual({ ok: true, value: projectFile });
 		expect(parsedTombstone).toEqual({ ok: true, value: tombstoneFile });
+		const { schema_version: _schemaVersion, ...canonicalManifest } = projectFile;
+		expect(projectBytes).toBe(
+			await serializeCanonicalDocument(
+				PROJECT_MANIFEST_FORMAT,
+				canonicalManifest as ProjectManifestPayload
+			)
+		);
+		const canonicalPaths = projectRelativePaths();
+		expect(projectRelativeCloudPaths().project).toBe(canonicalPaths.project);
+		expect(projectRelativeCloudPaths().transcriptions('pt-1')).toBe(
+			canonicalPaths.transcriptions('pt-1')
+		);
+		expect(projectRelativeCloudPaths().tombstones('collation', 'col-1')).toBe(
+			canonicalPaths.tombstones('collation', 'col-1')
+		);
 		if (!parsedProject.ok || !parsedTombstone.ok)
 			throw new Error('Expected valid cloud files.');
 		expect(projectCloudFileToRepositoryInput(parsedProject.value)).toMatchObject({
