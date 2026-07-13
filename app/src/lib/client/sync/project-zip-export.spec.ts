@@ -1,19 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { createLocalDbTestHarness, type LocalDbTestHarness } from '$lib/client/db/test-harness';
+import {
+	createCollationWithFiles,
+	saveWorkingCollationMetadata,
+} from '$lib/client/db/repositories/collation-files';
 import { createProject as createProjectRepository } from '$lib/client/db/repositories/projects';
+import {
+	createTranscriptionWithFiles,
+	saveWorkingTranscriptionMetadata,
+} from '$lib/client/db/repositories/transcription-files';
 import { MemoryStoreBackend } from '$lib/client/store/memory-store-backend.spec-support';
 import {
-	WORKING_COLLATION_CURRENT_VERSION,
-	WORKING_COLLATION_FIXTURE,
-	WORKING_COLLATION_FORMAT,
-	WORKING_TRANSCRIPTION_CURRENT_VERSION,
-	WORKING_TRANSCRIPTION_FIXTURE,
-	WORKING_TRANSCRIPTION_FORMAT,
 	joinStorePath,
 	projectFolder,
-	sealDocument,
-	serializeSealedDocument,
 	writeTextFileAtomic,
 	type StoreOperationOptions,
 } from '$lib/client/store';
@@ -162,27 +162,51 @@ describe('project zip export', () => {
 			storageSlug: 'romans-a1b2',
 			name: 'Romans',
 		});
-		await writeProjectFile(
-			'romans-a1b2',
-			'transcriptions/pt-1.working.json',
-			serializeSealedDocument(
-				await sealDocument(
-					WORKING_TRANSCRIPTION_FORMAT,
-					WORKING_TRANSCRIPTION_CURRENT_VERSION,
-					WORKING_TRANSCRIPTION_FIXTURE
-				)
-			)
+		await createTranscriptionWithFiles(
+			harness.db,
+			{
+				id: 'tx-1',
+				projectId: 'project-1',
+				projectTranscriptionId: 'pt-1',
+				title: 'Witness 1',
+				siglum: '01',
+				document: { type: 'transcriptionDocument', pages: [] },
+				transcriber: 'Editor',
+				repository: 'Library',
+				settlement: 'City',
+				language: 'grc',
+			},
+			storeOptions
 		);
-		await writeProjectFile(
-			'romans-a1b2',
-			'collations/col-1.working.json',
-			serializeSealedDocument(
-				await sealDocument(
-					WORKING_COLLATION_FORMAT,
-					WORKING_COLLATION_CURRENT_VERSION,
-					WORKING_COLLATION_FIXTURE
-				)
-			)
+		await saveWorkingTranscriptionMetadata(
+			harness.db,
+			{
+				id: 'tx-1',
+				title: 'Witness 1',
+				siglum: '01',
+				description: '',
+				tags: [],
+				transcriber: 'Editor',
+				repository: 'Library',
+				settlement: 'City',
+				language: 'grc',
+			},
+			storeOptions
+		);
+		await createCollationWithFiles(
+			harness.db,
+			{
+				id: 'col-1',
+				projectId: 'project-1',
+				title: 'Romans 1:1',
+				verseIdentifier: 'Romans 1:1',
+			},
+			storeOptions
+		);
+		await saveWorkingCollationMetadata(
+			harness.db,
+			{ id: 'col-1', notes: 'Draft notes' },
+			storeOptions
 		);
 		const exported = await exportProjectZip(harness.db, 'project-1', {
 			includeDrafts: true,
@@ -195,6 +219,7 @@ describe('project zip export', () => {
 			const imported = await importProjectZip(targetHarness.db, exported.bytes, {
 				storeOptions: { backend: targetBackend },
 			});
+			expect(imported.ok, JSON.stringify(imported.quarantinedFiles)).toBe(true);
 			expect(imported.draftFilesRestored).toEqual([
 				'collations/col-1.working.json',
 				'transcriptions/pt-1.working.json',

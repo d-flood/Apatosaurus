@@ -1,9 +1,4 @@
-import {
-	joinStorePath,
-	normalizeStorePath,
-	storePathBasename,
-	storePathDirname,
-} from './layout';
+import { joinStorePath, normalizeStorePath, storePathBasename, storePathDirname } from './layout';
 import {
 	StoreMoveUnavailableError,
 	type StoreBackend,
@@ -15,9 +10,26 @@ export class MemoryStoreBackend implements StoreBackend {
 	readonly directories = new Set<string>(['']);
 	failWrites = false;
 	failWritePathIncludes: string | null = null;
+	failWritePathIncludesOnce: string | null = null;
+	failReadPathIncludesOnce: string | null = null;
+	failReadPathIncludesAfter: { path: string; successfulReads: number } | null = null;
 
 	async readTextFile(path: string): Promise<string> {
 		const normalized = normalizeStorePath(path);
+		if (this.failReadPathIncludesOnce && normalized.includes(this.failReadPathIncludesOnce)) {
+			this.failReadPathIncludesOnce = null;
+			throw new Error(`simulated read failure for ${path}`);
+		}
+		if (
+			this.failReadPathIncludesAfter &&
+			normalized.includes(this.failReadPathIncludesAfter.path)
+		) {
+			if (this.failReadPathIncludesAfter.successfulReads === 0) {
+				this.failReadPathIncludesAfter = null;
+				throw new Error(`simulated read failure for ${path}`);
+			}
+			this.failReadPathIncludesAfter.successfulReads -= 1;
+		}
 		const content = this.files.get(normalized);
 		if (content === undefined) throw new Error(`File ${path} was not found.`);
 		return content;
@@ -27,8 +39,15 @@ export class MemoryStoreBackend implements StoreBackend {
 		const normalized = normalizeStorePath(path);
 		if (
 			this.failWrites ||
-			(this.failWritePathIncludes && normalized.includes(this.failWritePathIncludes))
+			(this.failWritePathIncludes && normalized.includes(this.failWritePathIncludes)) ||
+			(this.failWritePathIncludesOnce && normalized.includes(this.failWritePathIncludesOnce))
 		) {
+			if (
+				this.failWritePathIncludesOnce &&
+				normalized.includes(this.failWritePathIncludesOnce)
+			) {
+				this.failWritePathIncludesOnce = null;
+			}
 			throw new Error(`simulated write failure for ${path}`);
 		}
 		this.addDirectory(storePathDirname(normalized));
@@ -50,7 +69,9 @@ export class MemoryStoreBackend implements StoreBackend {
 		for (const file of [...this.files.keys()]) {
 			if (file === normalized || file.startsWith(`${normalized}/`)) this.files.delete(file);
 		}
-		for (const directory of [...this.directories].sort((left, right) => right.length - left.length)) {
+		for (const directory of [...this.directories].sort(
+			(left, right) => right.length - left.length
+		)) {
 			if (directory === normalized || directory.startsWith(`${normalized}/`)) {
 				this.directories.delete(directory);
 			}

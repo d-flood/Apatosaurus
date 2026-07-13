@@ -1,8 +1,5 @@
 import type { DbRequest, DbResponse } from './rpc';
-import {
-	listCollationsWithProjectNames,
-	saveCollationProjection,
-} from './repositories/collations';
+import { listCollationsWithProjectNames, saveCollationProjection } from './repositories/collations';
 import {
 	deleteCollationWithFiles,
 	deleteTranscriptionWithFiles,
@@ -64,10 +61,7 @@ import {
 	listCommittedTranscriptionCheckpoints,
 	loadCommittedTranscriptionCheckpointPayload,
 } from './repositories/revisions';
-import {
-	rebuildIndexFromStore,
-	restoreOrphanPrimaryToProject,
-} from './repositories/index-rebuild';
+import { rebuildIndexFromStore, restoreOrphanPrimaryToProject } from './repositories/index-rebuild';
 import { clearDomainTables } from './repositories/maintenance';
 import {
 	disconnectCloudConnection,
@@ -85,6 +79,10 @@ import {
 } from '$lib/client/sync/sync-manager';
 import { verifyRemoteProjectBackupHealth } from '$lib/client/sync/backup-health';
 import { exportAllProjectsZip, exportProjectZip } from '$lib/client/sync/project-zip-export';
+import {
+	cleanStaleProjectImportStaging,
+	importProjectZip,
+} from '$lib/client/sync/project-zip-import';
 import {
 	importCloudProject,
 	listCloudProjectCandidates,
@@ -210,7 +208,11 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 		postMessage({ type: 'db:invalidate', domain: 'cloud-project-folders' });
 		postMessage({ type: 'db:invalidate', domain: 'cloud-connections' });
 		postMessage({ type: 'db:invalidate', domain: 'sync-targets' });
-		if (result.downloadedPaths.length > 0 || result.deletedPaths.length > 0 || result.conflictCopyId) {
+		if (
+			result.downloadedPaths.length > 0 ||
+			result.deletedPaths.length > 0 ||
+			result.conflictCopyId
+		) {
 			postMessage({ type: 'db:invalidate', domain: 'projects' });
 			postMessage({ type: 'db:invalidate', domain: 'transcriptions' });
 			postMessage({ type: 'db:invalidate', domain: 'collations' });
@@ -237,7 +239,21 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 		});
 	}
 	if (request.type === 'projectBackup.exportAllZip') {
-		return exportAllProjectsZip(getKyselyDb(), { includeDrafts: request.includeDrafts ?? false });
+		return exportAllProjectsZip(getKyselyDb(), {
+			includeDrafts: request.includeDrafts ?? false,
+		});
+	}
+	if (request.type === 'projectBackup.importZip') {
+		const result = await importProjectZip(getKyselyDb(), request.bytes, {
+			collisionMode: request.collisionMode,
+		});
+		if (result.ok) {
+			postMessage({ type: 'db:invalidate', domain: 'projects' });
+			postMessage({ type: 'db:invalidate', domain: 'transcriptions' });
+			postMessage({ type: 'db:invalidate', domain: 'collations' });
+			postMessage({ type: 'db:invalidate', domain: 'iiif' });
+		}
+		return result;
 	}
 	if (request.type === 'cloudProjects.listCandidates') {
 		const db = getKyselyDb();
@@ -383,11 +399,10 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 			requireFileBackedContent: true,
 		});
 	if (request.type === 'projects.getTranscriptionStatus')
-		return getProjectTranscriptionStatus(
-			getKyselyDb(),
-			request.projectTranscriptionId,
-			{ ...request.options, requireFileBackedContent: true }
-		);
+		return getProjectTranscriptionStatus(getKyselyDb(), request.projectTranscriptionId, {
+			...request.options,
+			requireFileBackedContent: true,
+		});
 	if (request.type === 'projects.getTranscriptionStatusForOwnedTranscription')
 		return getProjectTranscriptionStatusForOwnedTranscription(
 			getKyselyDb(),
@@ -533,7 +548,10 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 		return deleted;
 	}
 	if (request.type === 'iiif.deleteManifestSourceLinks') {
-		const count = await iiifFiles.deleteManifestSourceLinksWithFiles(getKyselyDb(), request.input);
+		const count = await iiifFiles.deleteManifestSourceLinksWithFiles(
+			getKyselyDb(),
+			request.input
+		);
 		postMessage({ type: 'db:invalidate', domain: 'iiif' });
 		return count;
 	}
@@ -627,6 +645,7 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 async function init(): Promise<void> {
 	if (initialized) return;
 	const startedAt = now();
+	await timeWorkerStep('stale import cleanup', () => cleanStaleProjectImportStaging());
 	const openResult = await timeWorkerStep('db.open', () => openIndexDatabaseForStartup());
 	if (openResult.created) {
 		await timeWorkerStep('schema create', () => createCurrentIndexSchema(db));
@@ -644,7 +663,9 @@ async function init(): Promise<void> {
 			});
 		}
 		try {
-			const cleanupReport = await timeWorkerStep('stale index cleanup', () => cleanupStaleIndexFiles());
+			const cleanupReport = await timeWorkerStep('stale index cleanup', () =>
+				cleanupStaleIndexFiles()
+			);
 			if (cleanupReport.removedPaths.length > 0) {
 				console.info('[local-db] stale index files removed', cleanupReport);
 			}
@@ -655,7 +676,9 @@ async function init(): Promise<void> {
 			console.warn('[local-db] stale index file cleanup failed', error);
 		}
 	} else {
-		await timeWorkerStep('default project bootstrap', () => ensureDefaultProject(getKyselyDb()));
+		await timeWorkerStep('default project bootstrap', () =>
+			ensureDefaultProject(getKyselyDb())
+		);
 	}
 	initialized = true;
 	console.debug('[local-db] worker init completed', { elapsedMs: elapsed(startedAt) });
@@ -667,7 +690,9 @@ async function openIndexDatabaseForStartup(): Promise<IndexStartupOpenResult> {
 		openResult = await db.open();
 	} catch (error) {
 		const message = errorMessage(error);
-		console.warn('[local-db] SQLite index open failed; rebuilding from files', { error: message });
+		console.warn('[local-db] SQLite index open failed; rebuilding from files', {
+			error: message,
+		});
 		await replaceCurrentIndexDatabase();
 		return { created: true, rebuildReason: 'open-failed', rebuildDetails: [message] };
 	}
@@ -688,7 +713,10 @@ async function checkIndexIntegrity(): Promise<{ ok: true } | { ok: false; detail
 		const rows = await db.query('PRAGMA integrity_check');
 		const details = rows.flatMap(row => Object.values(row).map(value => String(value)));
 		if (details.length === 1 && details[0].toLowerCase() === 'ok') return { ok: true };
-		return { ok: false, details: details.length ? details : ['integrity_check returned no rows'] };
+		return {
+			ok: false,
+			details: details.length ? details : ['integrity_check returned no rows'],
+		};
 	} catch (error) {
 		return { ok: false, details: [errorMessage(error)] };
 	}
@@ -699,7 +727,9 @@ async function replaceCurrentIndexDatabase(): Promise<void> {
 		console.warn('[local-db] failed to close damaged index before replacement', error);
 	});
 	kyselyDb = null;
-	const removalReport = await timeWorkerStep('current index removal', () => removeCurrentIndexFiles());
+	const removalReport = await timeWorkerStep('current index removal', () =>
+		removeCurrentIndexFiles()
+	);
 	if (removalReport.failedPaths.length > 0) {
 		throw new Error(
 			`Unable to remove damaged index files: ${removalReport.failedPaths
@@ -711,7 +741,9 @@ async function replaceCurrentIndexDatabase(): Promise<void> {
 }
 
 async function rebuildIndex() {
-	const report = await timeWorkerStep('index rebuild', () => rebuildIndexFromStore(getKyselyDb()));
+	const report = await timeWorkerStep('index rebuild', () =>
+		rebuildIndexFromStore(getKyselyDb())
+	);
 	await timeWorkerStep('default project bootstrap', () => ensureDefaultProject(getKyselyDb()));
 	return report;
 }

@@ -41,6 +41,8 @@ export interface StoreOperationOptions {
 	backend?: StoreBackend;
 	nonce?: () => string;
 	quarantineSink?: StoreQuarantineSink;
+	/** Set only by withDocumentStoreWriterLock callbacks to avoid reacquiring the same Web Lock. */
+	writerLockHeld?: boolean;
 }
 
 interface SyncAccessHandle {
@@ -92,7 +94,9 @@ export async function writeTextFileAtomic(
 	content: string,
 	options: StoreOperationOptions = {}
 ): Promise<void> {
-	return runStoreMutation(() => writeTextFileAtomicUnlocked(path, content, options));
+	return options.writerLockHeld
+		? writeTextFileAtomicUnlocked(path, content, options)
+		: runStoreMutation(() => writeTextFileAtomicUnlocked(path, content, options));
 }
 
 async function writeTextFileAtomicUnlocked(
@@ -134,17 +138,18 @@ async function writeTextFileAtomicUnlocked(
 }
 
 export async function deleteFile(path: string, options: StoreOperationOptions = {}): Promise<void> {
-	await runStoreMutation(async () => {
+	const operation = async () => {
 		const backend = await resolveBackend(options);
 		await backend.deleteFile(toBackendPath(normalizeStoreFilePath(path)));
-	});
+	};
+	await (options.writerLockHeld ? operation() : runStoreMutation(operation));
 }
 
 export async function deleteDirectory(
 	path: string,
 	options: StoreOperationOptions & { recursive?: boolean } = {}
 ): Promise<void> {
-	await runStoreMutation(async () => {
+	const operation = async () => {
 		const backend = await resolveBackend(options);
 		const normalizedPath = normalizeStorePath(path);
 		if (!normalizedPath) throw new Error('Store directory path is required.');
@@ -152,7 +157,8 @@ export async function deleteDirectory(
 		await backend.deleteDirectory(toBackendPath(normalizedPath), {
 			recursive: options.recursive,
 		});
-	});
+	};
+	await (options.writerLockHeld ? operation() : runStoreMutation(operation));
 }
 
 export async function listDirectory(
@@ -183,7 +189,16 @@ export async function moveFile(
 	toPath: string,
 	options: StoreOperationOptions = {}
 ): Promise<void> {
-	return runStoreMutation(() => moveFileUnlocked(fromPath, toPath, options));
+	return options.writerLockHeld
+		? moveFileUnlocked(fromPath, toPath, options)
+		: runStoreMutation(() => moveFileUnlocked(fromPath, toPath, options));
+}
+
+export async function withDocumentStoreWriterLock<T>(
+	operation: (options: StoreOperationOptions) => Promise<T>,
+	options: StoreOperationOptions = {}
+): Promise<T> {
+	return runStoreMutation(() => operation({ ...options, writerLockHeld: true }));
 }
 
 async function moveFileUnlocked(

@@ -85,7 +85,7 @@ import {
 	type CloudStorageProvider,
 	type CloudWriteResult,
 } from './providers/provider';
-import { stageAndValidateProjectFiles } from './project-file-staging';
+import { validateProjectFilesWithTemporaryStaging } from './project-file-staging';
 
 export {
 	cloudPathForEntity,
@@ -1004,7 +1004,7 @@ async function mirrorProjectFiles(
 
 		for (const remoteFile of [...remoteFiles.values()].filter(file => file.path.startsWith('tombstones/'))) {
 			if (localFiles.some(file => file.path === remoteFile.path)) continue;
-			const validation = await stageAndValidateProjectFiles(
+			const validation = await validateProjectFilesWithTemporaryStaging(
 				[{ path: remoteFile.path, content: remoteFile.content }],
 				{ projectId: context.projectId, storeOptions }
 			);
@@ -1092,7 +1092,7 @@ async function mirrorProjectFiles(
 				? cached.remoteContentHash === remoteFile.fingerprint.contentHash
 				: false;
 			if (localUnchanged && !remoteUnchanged) {
-				const validation = await stageAndValidateProjectFiles(
+				const validation = await validateProjectFilesWithTemporaryStaging(
 					[{ path: remoteFile.path, content: remoteFile.content }],
 					{ projectId: context.projectId, storeOptions }
 				);
@@ -1127,7 +1127,7 @@ async function mirrorProjectFiles(
 				continue;
 			}
 
-			const validation = await stageAndValidateProjectFiles(
+			const validation = await validateProjectFilesWithTemporaryStaging(
 				[{ path: remoteFile.path, content: remoteFile.content }],
 				{ projectId: context.projectId, storeOptions }
 			);
@@ -1162,7 +1162,7 @@ async function mirrorProjectFiles(
 					remoteFile.path.endsWith('.tei.xml') ||
 					tombstonedPrimaryPaths.has(remoteFile.path)
 				) continue;
-				const validation = await stageAndValidateProjectFiles(
+				const validation = await validateProjectFilesWithTemporaryStaging(
 					[{ path: remoteFile.path, content: remoteFile.content }],
 					{ projectId: context.projectId, storeOptions }
 				);

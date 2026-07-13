@@ -84,6 +84,12 @@ function createProject(
 	return createProjectRepository(db, input, options);
 }
 
+function syncStagingEntries(): string[] {
+	return [...backend.directories, ...backend.files.keys()]
+		.filter(path => path.includes('/staging/'))
+		.sort();
+}
+
 describe('sync manager', () => {
 	it('creates a committed checkpoint and marks manual commits sync pending', async () => {
 		const projectTranscriptionId = await createProjectTranscription();
@@ -594,7 +600,7 @@ describe('sync manager', () => {
 		).toBeNull();
 	});
 
-	it('pulls valid remote mirror changes when the local file matches the cached fingerprint', async () => {
+	it('pulls valid remote mirror changes without leaving per-file validation staging', async () => {
 		await createCommittedProjectCollation('Initial notes', 'col-cp-1');
 		const { provider, context } = await createConnectedProvider();
 		await backupProject(harness.db, provider, context, {
@@ -627,6 +633,7 @@ describe('sync manager', () => {
 		const mirroredTei = await remoteFile(provider, context, 'collations/col-1.tei.xml');
 		if (!mirroredTei) throw new Error('Expected regenerated remote TEI file.');
 		await expect(provider.downloadFile(mirroredTei.id)).resolves.toBe(regeneratedTei);
+		expect(syncStagingEntries()).toEqual([]);
 	});
 
 	it('completes independent changed and remote-only paths beside corrupt and conflicting primaries', async () => {
@@ -720,7 +727,7 @@ describe('sync manager', () => {
 		).resolves.toEqual({ count: 3 });
 	});
 
-	it('quarantines invalid remote mirror files before local overwrite', async () => {
+	it('quarantines invalid remote mirror files without leaving per-file validation staging', async () => {
 		await createCommittedProjectCollation('Initial notes', 'col-cp-1');
 		const { provider, context } = await createConnectedProvider();
 		await backupProject(harness.db, provider, context, {
@@ -749,6 +756,7 @@ describe('sync manager', () => {
 			{ path: 'collations/col-1.json', code: 'hash_mismatch' },
 		]);
 		await expect(loadCollationNotes('col-1')).resolves.toBe('Initial notes');
+		expect(syncStagingEntries()).toEqual([]);
 	});
 
 	it('creates conflict copies when local and remote mirror files both change', async () => {

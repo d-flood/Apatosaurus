@@ -78,3 +78,23 @@ Ticket 09 is reopened because the readable-tree seam exists, but the user flow, 
 - Restore an all-project export with independent create/replace/copy outcomes.
 
 Completion gate: users can import ticket 08 backups through the UI, every accepted canonical file is fully validated before live writes, and every failure preserves the exact pre-import store.
+
+## Implementation Note (2026-07-13)
+
+Implementation paused before code changes because two required contracts are not defined by this ticket or the epic spec:
+
+- Import-as-copy must rewrite the manifest `slug`, but `apatosaurus.project-manifest` has no slug field. The existing `projects.storage_slug` belongs to the disposable index and is derived from project name/id. A human decision is needed on whether to add a canonical immutable slug to the manifest or to keep deriving it and remove the manifest-slug requirement.
+- Startup cleanup must preserve active imports from other live sessions, but no staging ownership lease, heartbeat, or expiry rule is specified. A human decision is needed on the lease owner identity and the age/heartbeat threshold after which staging may be removed.
+
+Ticket 08 already documents whole-account export as separate independently importable project zips, and its tests cover independent create/replace/copy outcomes. That documented switch satisfies the alternative in the all-project remediation requirement; it is not an additional blocker.
+
+### Decisions (2026-07-13)
+
+- Keep project storage slugs out of the canonical manifest. Import-as-copy derives a new immutable `storage_slug` from the copied project name/id during index rebuild; the remediation's manifest-slug wording does not add a persisted field.
+- Hold a per-import Web Lock and maintain heartbeat metadata while staging is active. Startup cleanup may remove an unlocked staging directory after one hour without a heartbeat.
+
+## Completion Note (2026-07-13)
+
+Review remediation is implemented. The readable-tree staging seam is durable and policy-free, zip placement is recoverable and manifest-last, copy rewriting covers project-scoped canonical data while preserving historical entity/revision/checkpoint identities, stale staging cleanup is lease-aware and runs at worker startup, and users can import backups through the Projects UI with explicit timestamped collision choices and detailed validation reports.
+
+Verification passed with schema generation/checking, the required 138-test store/sync slice, type checking, focused import/export/sync/UI coverage, and the full 512-test unit/browser suite.

@@ -9,7 +9,14 @@ import type {
 	AllProjectsZipExportResult,
 	ProjectZipExportResult,
 } from '../sync/project-zip-export';
-import type { RemoveLocalProjectInput, RemoveLocalProjectResult } from './repositories/project-removal';
+import type {
+	ProjectZipImportCollisionMode,
+	ProjectZipImportResult,
+} from '../sync/project-zip-import';
+import type {
+	RemoveLocalProjectInput,
+	RemoveLocalProjectResult,
+} from './repositories/project-removal';
 import type {
 	ProjectManifestComparison,
 	ProjectBackupResult,
@@ -499,6 +506,14 @@ export interface CloudConnectionRpcMap {
 	'projectBackup.exportAllZip': {
 		request: { type: 'projectBackup.exportAllZip'; includeDrafts?: boolean };
 		response: AllProjectsZipExportResult;
+	};
+	'projectBackup.importZip': {
+		request: {
+			type: 'projectBackup.importZip';
+			bytes: Uint8Array;
+			collisionMode?: ProjectZipImportCollisionMode;
+		};
+		response: ProjectZipImportResult;
 	};
 	'cloudProjects.listCandidates': {
 		request: {

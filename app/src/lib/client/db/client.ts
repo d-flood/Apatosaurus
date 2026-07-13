@@ -21,7 +21,10 @@ import type {
 	IndexRpcResponse,
 } from './rpc';
 import { notificationCenter } from '$lib/client/notification-center.svelte';
-import type { RemoveLocalProjectInput, RemoveLocalProjectResult } from './repositories/project-removal';
+import type {
+	RemoveLocalProjectInput,
+	RemoveLocalProjectResult,
+} from './repositories/project-removal';
 import type { W3CAnnotation } from 'triiiceratops/plugins/annotation-editor';
 import type {
 	CloudConnectionRecord,
@@ -34,6 +37,10 @@ import type {
 	AllProjectsZipExportResult,
 	ProjectZipExportResult,
 } from '../sync/project-zip-export';
+import type {
+	ProjectZipImportCollisionMode,
+	ProjectZipImportResult,
+} from '../sync/project-zip-import';
 import type {
 	ProjectManifestComparison,
 	ProjectBackupResult,
@@ -347,7 +354,10 @@ export async function addProjectTranscriptionFromProject(
 	projectOwnedTranscriptionId: string;
 	warnings: PersistenceWarning[];
 }> {
-	const result = await sendProjectRequest({ type: 'projects.addTranscriptionFromProject', input });
+	const result = await sendProjectRequest({
+		type: 'projects.addTranscriptionFromProject',
+		input,
+	});
 	reportPersistenceWarnings(result.warnings);
 	return result;
 }
@@ -688,13 +698,24 @@ export async function exportProjectZip(
 	projectId: string,
 	includeDrafts = false
 ): Promise<ProjectZipExportResult> {
-	return sendCloudConnectionRequest({ type: 'projectBackup.exportZip', projectId, includeDrafts });
+	return sendCloudConnectionRequest({
+		type: 'projectBackup.exportZip',
+		projectId,
+		includeDrafts,
+	});
 }
 
 export async function exportAllProjectsZip(
 	includeDrafts = false
 ): Promise<AllProjectsZipExportResult> {
 	return sendCloudConnectionRequest({ type: 'projectBackup.exportAllZip', includeDrafts });
+}
+
+export async function importProjectZip(
+	bytes: Uint8Array,
+	collisionMode?: ProjectZipImportCollisionMode
+): Promise<ProjectZipImportResult> {
+	return sendCloudConnectionRequest({ type: 'projectBackup.importZip', bytes, collisionMode });
 }
 
 export async function listCloudProjectCandidates(
@@ -752,14 +773,16 @@ export function attachLocalDbClient(worker: Worker): void {
 			if (!pendingRequest) return;
 			pending.delete(message.id);
 			if (pendingRequest.timeoutId) clearTimeout(pendingRequest.timeoutId);
-			if (message.ok) pendingRequest.resolve('result' in message ? message.result : undefined);
+			if (message.ok)
+				pendingRequest.resolve('result' in message ? message.result : undefined);
 			else pendingRequest.reject(new Error(message.error));
 		}
 	);
 }
 
 function reportAutomaticIndexRebuild(message: DbIndexRebuiltEvent): void {
-	const issue = message.reason === 'integrity-failed' ? 'failed an integrity check' : 'failed to open';
+	const issue =
+		message.reason === 'integrity-failed' ? 'failed an integrity check' : 'failed to open';
 	notificationCenter.upsert({
 		id: 'local-db-index-rebuilt',
 		title: 'Local database repaired',

@@ -35,6 +35,7 @@
 	import ProjectTranscriptionsEditor from '$lib/components/projects/ProjectTranscriptionsEditor.svelte';
 	import ProjectTranscriptionVersionsPanel from '$lib/components/projects/ProjectTranscriptionVersionsPanel.svelte';
 	import ProjectBackupPanel from '$lib/components/projects/ProjectBackupPanel.svelte';
+	import ProjectZipImportPanel from '$lib/components/projects/ProjectZipImportPanel.svelte';
 	import OnboardingGuidance from '$lib/components/OnboardingGuidance.svelte';
 	import ProjectTranscriptionRefreshDialog from '$lib/components/projects/ProjectTranscriptionRefreshDialog.svelte';
 	import AddProjectTranscriptionFromProjectDialog from '$lib/components/projects/AddProjectTranscriptionFromProjectDialog.svelte';
@@ -160,7 +161,9 @@
 		`${projects.length} project${projects.length === 1 ? '' : 's'}`
 	);
 	let storageOverview = $derived.by(() => {
-		const summaries = projects.map(project => projectBackupSummaries[project.id]).filter(Boolean);
+		const summaries = projects
+			.map(project => projectBackupSummaries[project.id])
+			.filter(Boolean);
 		const linkedCount = summaries.filter(summary => summary.statusKey !== 'local-only').length;
 		const backedUpCount = summaries.filter(summary => summary.statusKey === 'backed-up').length;
 		const attentionCount = summaries.filter(summary =>
@@ -189,7 +192,8 @@
 	let storageUsageLabel = $derived(formatStorageBytes(storageEstimateReport?.usage ?? null));
 	let storageQuotaLabel = $derived(formatStorageBytes(storageEstimateReport?.quota ?? null));
 	let storageUsagePercentLabel = $derived(
-		storageEstimateReport?.usageRatio === null || storageEstimateReport?.usageRatio === undefined
+		storageEstimateReport?.usageRatio === null ||
+			storageEstimateReport?.usageRatio === undefined
 			? 'Unavailable'
 			: `${Math.round(storageEstimateReport.usageRatio * 100)}%`
 	);
@@ -285,7 +289,8 @@
 			const nextEntries = await Promise.all(
 				projectRows.map(async project => {
 					const targets = await listSyncTargets(project.id);
-					const target = targets.find(candidate => candidate.enabled) ?? targets[0] ?? null;
+					const target =
+						targets.find(candidate => candidate.enabled) ?? targets[0] ?? null;
 					if (!target) {
 						return [
 							project.id,
@@ -297,14 +302,12 @@
 							},
 						] as const;
 					}
-					const summary = await deriveProjectBackupSummary(
-						{
-							projectId: project.id,
-							connectionId: target.targetId,
-							cloudFolderId: LOCAL_FOLDER_ROOT_FOLDER_ID,
-							cloudFolderPath: '',
-						}
-					);
+					const summary = await deriveProjectBackupSummary({
+						projectId: project.id,
+						connectionId: target.targetId,
+						cloudFolderId: LOCAL_FOLDER_ROOT_FOLDER_ID,
+						cloudFolderPath: '',
+					});
 					return [
 						project.id,
 						summarizeProjectBackup(target.folderDisplayPath, summary),
@@ -401,7 +404,8 @@
 	function persistenceStatusLabel(report: StoragePersistenceReport | null): string {
 		if (!report) return 'Checking';
 		if (report.status === 'granted') return 'Protected from browser eviction';
-		if (report.status === 'denied') return report.canRequest ? 'Not yet granted' : 'Not granted';
+		if (report.status === 'denied')
+			return report.canRequest ? 'Not yet granted' : 'Not granted';
 		return 'Unsupported by this browser';
 	}
 
@@ -785,7 +789,8 @@
 			indexRepairReport = await restoreOrphanPrimary(path);
 			await bootstrap(preferredProjectId);
 		} catch (err) {
-			indexRepairError = err instanceof Error ? err.message : 'Failed to restore orphaned file';
+			indexRepairError =
+				err instanceof Error ? err.message : 'Failed to restore orphaned file';
 		} finally {
 			restoringOrphanPath = null;
 		}
@@ -1320,7 +1325,9 @@
 
 					<div class="mt-4 grid grid-cols-2 gap-2 text-sm">
 						<div class="rounded-box bg-base-200/70 p-3">
-							<div class="text-2xl font-semibold">{storageOverview.localProjectCount}</div>
+							<div class="text-2xl font-semibold">
+								{storageOverview.localProjectCount}
+							</div>
 							<div class="text-xs text-base-content/50">Local projects</div>
 						</div>
 						<div class="rounded-box bg-base-200/70 p-3">
@@ -1357,10 +1364,13 @@
 					{#if showDurabilityWarning}
 						<div class="alert alert-warning mt-4 items-start text-xs leading-relaxed">
 							<div>
-								<div class="font-semibold">Browser storage is not persistent yet</div>
+								<div class="font-semibold">
+									Browser storage is not persistent yet
+								</div>
 								<div>
-									Your browser may evict local project files under storage pressure. Install
-									the app, connect a sync folder, or export backups to protect this work.
+									Your browser may evict local project files under storage
+									pressure. Install the app, connect a sync folder, or export
+									backups to protect this work.
 								</div>
 							</div>
 							<button
@@ -1373,7 +1383,9 @@
 						</div>
 					{/if}
 
-					<div class="mt-4 rounded-box border border-base-300/60 bg-base-200/40 p-3 text-xs">
+					<div
+						class="mt-4 rounded-box border border-base-300/60 bg-base-200/40 p-3 text-xs"
+					>
 						<div class="font-serif text-sm font-semibold">Storage Durability</div>
 						<div class="mt-2 grid gap-2 text-base-content/65">
 							<div class="flex items-center justify-between gap-3">
@@ -1403,8 +1415,8 @@
 						</div>
 						{#if storageEstimateReport?.isNearQuota}
 							<div class="alert alert-warning mt-3 py-2">
-								Storage is near this browser's reported quota. Export a backup before
-								adding large image or transcription batches.
+								Storage is near this browser's reported quota. Export a backup
+								before adding large image or transcription batches.
 							</div>
 						{/if}
 					</div>
@@ -1412,7 +1424,8 @@
 					<div class="mt-4 rounded-box border border-base-300/60 bg-base-200/40 p-3">
 						<h3 class="font-serif text-sm font-semibold">Whole-Account Export</h3>
 						<p class="mt-1 text-xs leading-relaxed text-base-content/55">
-							Download one independently restorable zip per project. Draft files stay local.
+							Download one independently restorable zip per project. Draft files stay
+							local.
 						</p>
 						<button
 							type="button"
@@ -1437,14 +1450,18 @@
 						{/if}
 					</div>
 
+					<div class="mt-4">
+						<ProjectZipImportPanel />
+					</div>
+
 					<div class="divider my-4"></div>
 
 					<div class="space-y-3">
 						<div>
 							<h3 class="font-serif text-sm font-semibold">Repair Database</h3>
 							<p class="mt-1 text-xs leading-relaxed text-base-content/55">
-								Rebuild the disposable SQLite index from project files. This does not delete
-								canonical documents.
+								Rebuild the disposable SQLite index from project files. This does
+								not delete canonical documents.
 							</p>
 						</div>
 						<button
@@ -1491,25 +1508,37 @@
 			{:else if currentProject}
 				<div class="space-y-6">
 					<div class="rounded-box border border-base-300/50 bg-base-100 p-4 shadow-md">
-						<div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+						<div
+							class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"
+						>
 							<div>
-								<div class="text-xs font-semibold uppercase tracking-wide text-base-content/40">
+								<div
+									class="text-xs font-semibold uppercase tracking-wide text-base-content/40"
+								>
 									Current Project
 								</div>
-								<h2 class="font-serif text-xl font-semibold">{currentProject.name}</h2>
+								<h2 class="font-serif text-xl font-semibold">
+									{currentProject.name}
+								</h2>
 								{#if currentProject.description}
-									<p class="mt-1 text-sm text-base-content/55">{currentProject.description}</p>
+									<p class="mt-1 text-sm text-base-content/55">
+										{currentProject.description}
+									</p>
 								{/if}
 							</div>
 							<div class="flex flex-wrap gap-2">
 								<a
-									href={resolve(`/transcription/new${selectedProjectActionQuery}`)}
+									href={resolve(
+										`/transcription/new${selectedProjectActionQuery}`
+									)}
 									class="btn btn-primary btn-sm"
 								>
 									New Transcription
 								</a>
 								<a
-									href={resolve(`/transcription/igntp${selectedProjectActionQuery}`)}
+									href={resolve(
+										`/transcription/igntp${selectedProjectActionQuery}`
+									)}
 									class="btn btn-outline btn-sm"
 								>
 									Import IGNTP
@@ -1562,7 +1591,9 @@
 							onRemoved={handleProjectRemoved}
 						/>
 					{:else if activeSection === 'settings'}
-						<div class="rounded-box border border-base-300/50 bg-base-100 p-4 shadow-md">
+						<div
+							class="rounded-box border border-base-300/50 bg-base-100 p-4 shadow-md"
+						>
 							<div class="flex items-center justify-between mb-3">
 								<h2 class="font-serif text-lg font-semibold">Project Details</h2>
 								{#if isSavingMetadata}
@@ -1573,7 +1604,9 @@
 							<div class="grid gap-3">
 								<label class="form-control">
 									<div class="label pb-1">
-										<span class="label-text text-xs text-base-content/50">Name</span>
+										<span class="label-text text-xs text-base-content/50"
+											>Name</span
+										>
 									</div>
 									<input
 										type="text"
@@ -1583,7 +1616,9 @@
 								</label>
 								<label class="form-control">
 									<div class="label pb-1">
-										<span class="label-text text-xs text-base-content/50">Description</span>
+										<span class="label-text text-xs text-base-content/50"
+											>Description</span
+										>
 									</div>
 									<textarea
 										class="textarea textarea-bordered min-h-24 w-full"
@@ -1593,7 +1628,9 @@
 								</label>
 								<div class="flex items-center justify-between gap-3">
 									<span class="text-xs text-base-content/40">
-										Updated {new Date(currentProject.updatedAt).toLocaleString()}
+										Updated {new Date(
+											currentProject.updatedAt
+										).toLocaleString()}
 									</span>
 									<button
 										type="button"
@@ -1627,10 +1664,14 @@
 
 						<ProjectUserManagementStub />
 					{:else if activeSection === 'collations'}
-						<div class="rounded-box border border-base-300/50 bg-base-100 p-4 shadow-md">
+						<div
+							class="rounded-box border border-base-300/50 bg-base-100 p-4 shadow-md"
+						>
 							<div class="mb-3 flex items-center justify-between gap-3">
 								<div>
-									<h2 class="font-serif text-lg font-semibold">Project Collations</h2>
+									<h2 class="font-serif text-lg font-semibold">
+										Project Collations
+									</h2>
 									<p class="text-xs text-base-content/50">
 										Collations owned by {currentProject.name}.
 									</p>
@@ -1644,12 +1685,16 @@
 							</div>
 
 							{#if isLoadingCollations}
-								<div class="flex items-center gap-2 rounded-box bg-base-200/70 p-4 text-sm text-base-content/60">
+								<div
+									class="flex items-center gap-2 rounded-box bg-base-200/70 p-4 text-sm text-base-content/60"
+								>
 									<span class="loading loading-spinner loading-sm"></span>
 									Loading collations...
 								</div>
 							{:else if projectCollationStatuses.length === 0}
-								<div class="rounded-box border border-dashed border-base-300/80 p-4 text-sm text-base-content/55">
+								<div
+									class="rounded-box border border-dashed border-base-300/80 p-4 text-sm text-base-content/55"
+								>
 									No collations in this project yet.
 								</div>
 							{:else}
@@ -1657,18 +1702,34 @@
 									{#each projectCollationStatuses as status (status.collationId)}
 										<li class="list-row gap-4 items-center">
 											<div class="flex-1 min-w-0">
-												<div class="font-serif font-medium">{status.title}</div>
-												<div class="mt-0.5 flex items-center gap-2 text-xs text-base-content/50">
-													<span class="font-mono">{status.verseIdentifier}</span>
+												<div class="font-serif font-medium">
+													{status.title}
+												</div>
+												<div
+													class="mt-0.5 flex items-center gap-2 text-xs text-base-content/50"
+												>
+													<span class="font-mono"
+														>{status.verseIdentifier}</span
+													>
 													<span class="text-base-content/20">|</span>
-													<span>{status.commitState === 'dirty' ? 'Uncommitted changes' : 'Committed state current'}</span>
+													<span
+														>{status.commitState === 'dirty'
+															? 'Uncommitted changes'
+															: 'Committed state current'}</span
+													>
 												</div>
 											</div>
-											<span class="badge badge-sm {phaseBadge(status.workflowStatus)}">
+											<span
+												class="badge badge-sm {phaseBadge(
+													status.workflowStatus
+												)}"
+											>
 												{phaseLabel(status.workflowStatus)}
 											</span>
 											<a
-												href={resolve('/collation/[id]', { id: status.collationId })}
+												href={resolve('/collation/[id]', {
+													id: status.collationId,
+												})}
 												class="btn btn-ghost btn-sm"
 											>
 												Open
