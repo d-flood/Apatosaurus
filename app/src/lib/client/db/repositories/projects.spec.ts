@@ -20,6 +20,7 @@ import {
 	transcriptionCheckpointFile,
 	transcriptionPrimaryFile,
 	transcriptionTeiFile,
+	transcriptionWorkingFile,
 	tombstoneFile,
 	type StoreBackend,
 	type StoreBackendDirectoryEntry,
@@ -910,6 +911,81 @@ describe('projects repository', () => {
 		});
 	});
 
+	it.each([
+		['history', 'history/transcriptions/'],
+		['primary', '/transcriptions/', '.json.tmp-'],
+		['manifest', 'project.json.tmp-'],
+	])('keeps refresh index state old when the replacement %s write fails', async (_step, ...parts) => {
+		const storeOptions = { backend: projectBackend };
+		await createCommittedSourceProject(storeOptions);
+		await createProject(harness.db, { id: 'project-b', name: 'Project B' });
+		const [targetId] = await syncProjectTranscriptionIds(
+			harness.db,
+			'project-b',
+			['tx-1'],
+			storeOptions
+		);
+		const targetLinkId = await getProjectTranscriptionLinkId(targetId);
+		const oldHead = await getTranscriptionCommittedHead(harness.db, targetId);
+		await updateTranscriptionContent(harness.db, {
+			id: 'tx-1',
+			document: documentWithVerses(['Romans 1:2']),
+		});
+		await createCommittedTranscriptionCheckpointWithFiles(
+			harness.db,
+			{ projectTranscriptionId: 'pt-a', checkpointId: 'src-cp-refresh' },
+			storeOptions
+		);
+		projectBackend.failWritePathParts = parts;
+
+		await expect(
+			refreshProjectTranscription(
+				harness.db,
+				{
+					projectTranscriptionId: targetLinkId,
+					sourceTranscriptionId: 'tx-1',
+					sourceCheckpointId: 'src-cp-refresh',
+				},
+				{ storeOptions }
+			)
+		).rejects.toThrow('simulated write failure');
+		expect(await getTranscriptionCommittedHead(harness.db, targetId)).toEqual(oldHead);
+		const row = await harness.db
+			.selectFrom('transcriptions')
+			.select(['origin_revision_id', 'content_json'])
+			.where('id', '=', targetId)
+			.executeTakeFirstOrThrow();
+		expect(row.origin_revision_id).not.toBe('src-cp-refresh');
+		expect(row.content_json).toContain('"verse":"1"');
+	});
+
+	it('does not publish an add-from-project copy when canonical creation fails', async () => {
+		const storeOptions = { backend: projectBackend };
+		await createCommittedSourceProject(storeOptions);
+		await createProject(harness.db, { id: 'project-b', name: 'Project B' });
+		projectBackend.failWritePathParts = ['/transcriptions/', '.json.tmp-'];
+
+		await expect(
+			addProjectTranscriptionFromProject(
+				harness.db,
+				{ targetProjectId: 'project-b', sourceProjectTranscriptionId: 'pt-a' },
+				{ storeOptions }
+			)
+		).rejects.toThrow('simulated write failure');
+		await expect(getProjectTranscriptionIds(harness.db, 'project-b')).resolves.toEqual([]);
+	});
+
+	it('does not publish a fork project when canonical entity creation fails', async () => {
+		const storeOptions = { backend: projectBackend };
+		await createCommittedSourceProject(storeOptions);
+		projectBackend.failWritePathParts = ['/transcriptions/', '.json.tmp-'];
+
+		await expect(
+			forkProject(harness.db, { sourceProjectId: 'project-a', name: 'Broken Fork' }, storeOptions)
+		).rejects.toThrow('simulated write failure');
+		expect((await listProjects(harness.db)).map(project => project.id)).toEqual(['project-a']);
+	});
+
 	it('blocks refresh when the target project transcription is dirty without confirmation', async () => {
 		const storeOptions = { backend: projectBackend };
 		await createCommittedSourceProject(storeOptions);
@@ -969,9 +1045,17 @@ describe('projects repository', () => {
 			{ storeOptions }
 		);
 
-		expect(refreshedWithConfirmation.commitState).toBe('dirty');
+		expect(refreshedWithConfirmation.commitState).toBe('clean');
 		expect(refreshedWithConfirmation.currentCheckpoint?.revisionId).toBeTruthy();
 		expect(refreshedWithConfirmation.sourceState.kind).toBe('up-to-date');
+		const targetProject = await getProject(harness.db, 'project-b');
+		if (!targetProject) throw new Error('missing target project');
+		await expect(
+			readTextFile(
+				transcriptionWorkingFile(targetProject.storageSlug, projectTranscriptionBId),
+				storeOptions
+			)
+		).rejects.toThrow('not found');
 	});
 
 	it('blocks refresh when the source checkpoint is missing or not the current committed head', async () => {
@@ -1737,6 +1821,7 @@ function pageCanvasLinkInput(transcriptionId: string, manifestSourceId: string) 
 class MemoryStoreBackend implements StoreBackend {
 	readonly files = new Map<string, string>();
 	readonly directories = new Set<string>(['']);
+	failWritePathParts: string[] | null = null;
 
 	async readTextFile(path: string): Promise<string> {
 		const normalized = normalizeStorePath(path);
@@ -1747,6 +1832,9 @@ class MemoryStoreBackend implements StoreBackend {
 
 	async writeTextFile(path: string, content: string): Promise<void> {
 		const normalized = normalizeStorePath(path);
+		if (this.failWritePathParts?.every(part => normalized.includes(part))) {
+			throw new Error('simulated write failure');
+		}
 		this.addDirectory(storePathDirname(normalized));
 		this.files.set(normalized, content);
 	}

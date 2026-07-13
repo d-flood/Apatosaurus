@@ -194,7 +194,7 @@ export async function getTranscriptionsByIds(
 }
 
 export async function createTranscription(
-	db: Kysely<Database>,
+	db: DbExecutor,
 	input: CreateTranscriptionInput
 ): Promise<string> {
 	const ids = await createTranscriptions(db, [input]);
@@ -202,11 +202,11 @@ export async function createTranscription(
 }
 
 export async function createTranscriptions(
-	db: Kysely<Database>,
+	db: DbExecutor,
 	inputs: CreateTranscriptionInput[]
 ): Promise<string[]> {
 	if (inputs.length === 0) return [];
-	return db.transaction().execute(async trx => {
+	const create = async (trx: DbExecutor) => {
 		const defaultProjectId = inputs.some(input => !input.projectId?.trim())
 			? await ensureDefaultProject(trx)
 			: null;
@@ -242,7 +242,10 @@ export async function createTranscriptions(
 				.execute();
 		}
 		return transcriptionRows.map(row => requireId(row.id, 'transcription'));
-	});
+	};
+	return 'isTransaction' in db && db.isTransaction === true
+		? create(db)
+		: db.transaction().execute(create);
 }
 
 export async function updateTranscriptionContent(

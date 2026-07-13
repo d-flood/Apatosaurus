@@ -230,7 +230,7 @@ describe('entity deletion file persistence', () => {
 		const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
 		try {
-			await deleteCollationWithFiles(
+			const warnings = await deleteCollationWithFiles(
 				harness.db,
 				'col-1',
 				{
@@ -239,6 +239,13 @@ describe('entity deletion file persistence', () => {
 				},
 				{ backend, nonce: () => 'delete-write' }
 			);
+			expect(warnings).toEqual([
+				expect.objectContaining({
+					code: 'primary_cleanup_failed',
+					entityType: 'collation',
+					recoverable: true,
+				}),
+			]);
 
 			await expect(
 				readTextFile(collationPrimaryFile('project-slug', 'col-1'), { backend })

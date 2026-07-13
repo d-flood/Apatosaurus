@@ -10,6 +10,7 @@ import {
 } from './transcriptions';
 import {
 	createTranscriptionWithFiles,
+	createTranscriptionWithFilesResult,
 	createCommittedTranscriptionCheckpointWithFiles,
 	getTranscriptionsWithWorkingFilesByIds,
 	loadTranscriptionWithWorkingFile,
@@ -233,6 +234,43 @@ describe('transcription file persistence', () => {
 
 		expect(loaded?.content_json).toContain('"verse":"2"');
 		expect(loaded?.updated_at).toBe('2026-07-04T12:00:00.000Z');
+	});
+
+	it('does not let an old working file mask a newer committed primary', async () => {
+		await createFixtureTranscription();
+		await saveWorkingTranscriptionContent(
+			harness.db,
+			{ id: 'tx-1', document: documentWithVerses(['Romans 1:2']) },
+			{ backend }
+		);
+		const staleWorking = await readTextFile(
+			transcriptionWorkingFile('project-slug', 'pt-1'),
+			{ backend }
+		);
+		await createCommittedTranscriptionCheckpointWithFiles(
+			harness.db,
+			{ projectTranscriptionId: 'pt-1', checkpointId: 'tx-cp-1' },
+			{ backend }
+		);
+		await saveWorkingTranscriptionContent(
+			harness.db,
+			{ id: 'tx-1', document: documentWithVerses(['Romans 1:3']) },
+			{ backend }
+		);
+		await createCommittedTranscriptionCheckpointWithFiles(
+			harness.db,
+			{ projectTranscriptionId: 'pt-1', checkpointId: 'tx-cp-2' },
+			{ backend }
+		);
+		await writeTextFileAtomic(
+			transcriptionWorkingFile('project-slug', 'pt-1'),
+			staleWorking,
+			{ backend }
+		);
+
+		const loaded = await loadTranscriptionWithWorkingFile(harness.db, 'tx-1', { backend });
+
+		expect(loaded?.content_json).toContain('"verse":"3"');
 	});
 
 	it('loads the committed primary file when no working file exists and the index cache is stale', async () => {
@@ -481,6 +519,73 @@ describe('transcription file persistence', () => {
 			},
 		});
 		expect(tei).toContain('<TEI');
+	});
+
+	it.each([
+		['history', 'history/transcriptions/pt-created/'],
+		['primary', 'transcriptions/pt-created.json.tmp-'],
+		['manifest', 'project.json.tmp-'],
+	])('does not publish a transcription when the initial %s write fails', async (_step, path) => {
+		await createProject(harness.db, {
+			id: 'project-1',
+			storageSlug: 'project-slug',
+			name: 'Project',
+		});
+		backend.failWritePathIncludes = path;
+
+		await expect(
+			createTranscriptionWithFiles(
+				harness.db,
+				{
+					id: 'tx-created',
+					projectId: 'project-1',
+					projectTranscriptionId: 'pt-created',
+					title: 'Created Witness',
+					siglum: 'C',
+					document: documentWithVerses(['Romans 1:3']),
+					transcriber: '',
+					repository: '',
+					settlement: '',
+					language: 'grc',
+				},
+				{ backend, nonce: () => 'create-failure' }
+			)
+		).rejects.toThrow('simulated write failure');
+		await expect(
+			harness.db.selectFrom('transcriptions').selectAll().where('id', '=', 'tx-created').execute()
+		).resolves.toEqual([]);
+	});
+
+	it('returns a TEI warning while transcription creation succeeds', async () => {
+		await createProject(harness.db, {
+			id: 'project-1',
+			storageSlug: 'project-slug',
+			name: 'Project',
+		});
+		backend.failWritePathIncludes = '.tei.xml.tmp-';
+
+		const result = await createTranscriptionWithFilesResult(
+			harness.db,
+			{
+				id: 'tx-created',
+				projectId: 'project-1',
+				projectTranscriptionId: 'pt-created',
+				title: 'Witness',
+				siglum: 'C',
+				document: documentWithVerses(['Romans 1:3']),
+				transcriber: '',
+				repository: '',
+				settlement: '',
+				language: 'grc',
+			},
+			{ backend }
+		);
+
+		expect(result.value).toBe('tx-created');
+		expect(result.warnings).toEqual([
+			expect.objectContaining({ code: 'tei_write_failed', entityType: 'transcription' }),
+		]);
+		await expect(getTranscription(harness.db, 'tx-created')).resolves.not.toBeNull();
 	});
 
 	it('writes committed transcription files before updating the index', async () => {
@@ -765,7 +870,7 @@ describe('transcription file persistence', () => {
 		).resolves.toEqual({ content_hash: 'preexisting-content-hash' });
 	});
 
-	it('does not fail the commit when derived TEI writing fails', async () => {
+	it('returns a warning without failing the commit when derived TEI writing fails', async () => {
 		await createFixtureTranscription();
 		backend.failWritePathIncludes = '.tei.xml.tmp-';
 		const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
@@ -782,6 +887,9 @@ describe('transcription file persistence', () => {
 			);
 
 			expect(checkpoint.id).toBe('tx-cp-tei-fail');
+			expect(checkpoint.warnings).toEqual([
+				expect.objectContaining({ code: 'tei_write_failed', entityType: 'transcription' }),
+			]);
 			await expect(
 				readTextFile(transcriptionTeiFile('project-slug', 'pt-1'), { backend })
 			).rejects.toThrow('not found');
@@ -801,6 +909,25 @@ describe('transcription file persistence', () => {
 		} finally {
 			warn.mockRestore();
 		}
+	});
+
+	it('removes the working file after a successful transcription commit', async () => {
+		await createFixtureTranscription();
+		await saveWorkingTranscriptionContent(
+			harness.db,
+			{ id: 'tx-1', document: documentWithVerses(['Romans 1:2']) },
+			{ backend }
+		);
+
+		await createCommittedTranscriptionCheckpointWithFiles(
+			harness.db,
+			{ projectTranscriptionId: 'pt-1', checkpointId: 'tx-cp-clean' },
+			{ backend }
+		);
+
+		await expect(
+			readTextFile(transcriptionWorkingFile('project-slug', 'pt-1'), { backend })
+		).rejects.toThrow('not found');
 	});
 
 	it('runs committed transcription file writes under the project write lock', async () => {

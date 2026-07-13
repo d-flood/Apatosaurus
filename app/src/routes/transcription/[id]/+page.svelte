@@ -306,14 +306,16 @@
 			if (!flushed) {
 				throw new Error('Local save failed. Commit was not created.');
 			}
-			await createCommittedTranscriptionCheckpoint({
+			const checkpoint = await createCommittedTranscriptionCheckpoint({
 				projectTranscriptionId: transcriptionVersionStatus.projectTranscriptionId,
 				commitMessage: commitMessage.trim() || null,
 			});
 			await Promise.all([loadTranscription(), loadTranscriptionVersionStatus()]);
 			isCommitFormOpen = false;
 			commitMessage = '';
-			commitSuccess = 'Committed locally';
+			commitSuccess = checkpoint.warnings?.length
+				? `Committed locally. ${checkpoint.warnings.map(warning => warning.message).join(' ')}`
+				: 'Committed locally';
 		} catch (err) {
 			commitError = err instanceof Error ? err.message : 'Failed to commit version';
 		} finally {

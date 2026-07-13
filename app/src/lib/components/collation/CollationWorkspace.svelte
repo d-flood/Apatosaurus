@@ -162,14 +162,16 @@
 			if (collationState.collationId !== id) {
 				throw new Error('Collation changed before commit completed. Commit was not created.');
 			}
-			await createCommittedCollationCheckpoint({
+			const checkpoint = await createCommittedCollationCheckpoint({
 				collationId: id,
 				commitMessage: commitMessage.trim() || null,
 			});
 			await loadCollationVersionStatus(id);
 			isCommitFormOpen = false;
 			commitMessage = '';
-			commitSuccess = 'Committed locally';
+			commitSuccess = checkpoint.warnings?.length
+				? `Committed locally. ${checkpoint.warnings.map(warning => warning.message).join(' ')}`
+				: 'Committed locally';
 		} catch (err) {
 			commitError = err instanceof Error ? err.message : 'Failed to commit version';
 		} finally {

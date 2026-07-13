@@ -32,7 +32,7 @@ The current save/commit flows being replaced are documented in `../current-state
    6. update `project.json` manifest heads (always last)
    7. update index rows (`current_revision_id`, `current_content_hash`, checkpoint listing)
 4. Creation flows write the initial committed version through the same sequence (per Phase 04 decision).
-5. Deletion writes a tombstone file and removes the primary (history is retained), then updates manifest and index.
+5. Deletion writes a tombstone, durably updates the manifest and index, then best-effort removes the primary (history is retained). A cleanup failure is surfaced as recoverable state; keeping the old primary until the tombstone manifest is durable preserves crash readability.
 
 ### Reads
 
@@ -80,6 +80,7 @@ bun run check && bun run test:unit -- --run
 
 | Date | Note |
 | --- | --- |
+| 2026-07-13 | Review remediation completed. Working files are now selected only when their base matches the committed primary and their payload is actually dirty, successful commits remove working files, and refresh checkpoints dirty state before publishing a clean replacement. Initial transcription/collation creation, copy/fork, refresh, metadata, and IIIF changes use failure-safe file-first publication. Structured TEI and primary-cleanup warnings propagate through RPCs and surface in the UI. Added regression coverage for stale working files, creation boundaries, refresh failures, metadata/IIIF rebuild survival, copy/fork failure cleanup, and non-blocking warnings. Verification passed: `bun run db:generate`, `bun run db:check`, focused store/DB/collation suites, `bun run check`, and full unit/browser suite (480 tests). |
 | 2026-07-05 | Phase 5 completed. A temporary headless Chromium smoke script exercised the real app DB worker and browser OPFS store: create project, create/update/commit transcription, create/update/commit collation, read the OPFS project folder, hash-validate manifest/primary/history/working JSON files, verify committed manifest heads, verify TEI siblings, and list the expected `project.json`, `transcriptions/`, `collations/`, and `history/` layout. Verification passed: focused file repository tests (25 passed), `bun run check`, full `bun run test:unit -- --run` (369 passed), `bun run db:check`, and the headless OPFS layout smoke test. Next phase is `06-index-rebuild-and-repair.md`. |
 | 2026-07-05 | Phase 5 crash-ordering slice completed. Added transcription and collation commit failure coverage at the history-write, primary-write, and post-manifest/pre-index boundaries, alongside the existing manifest-failure and non-blocking TEI assertions. The tests assert that failed history writes leave no primary/manifest/index state, failed primary writes leave only append-only history files, and index insertion failures can leave manifest + entity files ahead of the rebuildable SQLite heads. Verification passed: focused `bun run test:unit -- --run src/lib/client/db/repositories/transcription-files.spec.ts src/lib/client/db/repositories/collation-files.spec.ts` (25 passed); `bun run check`; full `bun run test:unit -- --run` (369 passed); `bun run db:check`. Phase 5 remains in progress pending the manual OPFS layout smoke test. |
 | 2026-07-05 | Phase 5 load/locking slice completed. DB-worker transcription and collation load wrappers now prefer valid working files, then committed primary files read through migrate-on-read with revision-hash validation, before falling back to SQLite cache rows with warnings. Added project-scoped write locks via `navigator.locks` around transcription commit, collation commit, and deletion file sequences, with an unavailable-API fallback and locked-context reloads so parent revisions/tombstone metadata reflect serialized write order. Verification passed: focused `bun run test:unit -- --run src/lib/client/db/repositories/transcription-files.spec.ts src/lib/client/db/repositories/collation-files.spec.ts src/lib/client/db/repositories/entity-deletion.spec.ts`; `bun run check`; `bun run db:check`; full `bun run test:unit -- --run` (363 passed). Phase 5 remains in progress; remaining work is crash-ordering tests for each commit step boundary and the manual OPFS layout smoke test. |
@@ -112,3 +113,16 @@ Ticket 05 is reopened because the main commit sequences are file-first, but acti
 - Assert TEI failure returns a warning while canonical commit succeeds.
 
 Completion gate: every durable mutation writes canonical files first, and working files represent only actual uncommitted state.
+
+### Blocker (2026-07-13)
+
+Remediation is paused pending a decision on refresh-from-source draft preservation. Ticket 11's contract says a checkpoint of the pre-refresh committed state **and preservation of any working draft** must exist afterward. This ticket requires successful transcription commits to remove committed working files and permits working files only for demonstrably uncommitted state. The current refresh commits a dirty draft as `Local state before refresh from source` before replacing the target.
+
+Clarify whether the refreshed transcription should:
+
+1. preserve the old draft only as that canonical checkpoint, leaving the refreshed head clean with no working file; or
+2. restore the old draft as active uncommitted working state on top of the refreshed head, in addition to preserving its checkpoint.
+
+The choice changes load behavior, dirty status, and what the user sees immediately after refresh, so implementation cannot infer it safely.
+
+Decision: preserve the old draft in canonical checkpoint history only. Remove its working file and leave the refreshed head clean after refresh.

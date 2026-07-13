@@ -371,10 +371,10 @@ export async function saveCollationArtifact(
 }
 
 export async function saveCollationProjection(
-	db: Kysely<Database>,
+	db: DbExecutor,
 	input: SaveCollationProjectionInput
 ): Promise<void> {
-	await db.transaction().execute(async trx => {
+	const save = async (trx: DbExecutor) => {
 		const collation = await trx
 			.selectFrom('collations')
 			.select(['project_id'])
@@ -473,7 +473,9 @@ export async function saveCollationProjection(
 				}
 			}
 		}
-	});
+	};
+	if ('isTransaction' in db && db.isTransaction === true) await save(db);
+	else await db.transaction().execute(save);
 }
 
 export async function updateCollationMetadata(

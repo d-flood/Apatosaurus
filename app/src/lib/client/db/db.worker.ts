@@ -2,19 +2,19 @@ import type { DbRequest, DbResponse } from './rpc';
 import {
 	listCollationsWithProjectNames,
 	saveCollationProjection,
-	updateCollationMetadata,
 } from './repositories/collations';
 import {
 	deleteCollationWithFiles,
 	deleteTranscriptionWithFiles,
 } from './repositories/entity-deletion';
 import {
-	createCollationWithFiles,
+	createCollationWithFilesResult,
 	createCommittedCollationCheckpointWithFiles,
 	getCollationVersionStatusWithWorkingFile,
 	listProjectCollationVersionStatusesWithWorkingFiles,
 	loadCollationWithWorkingFile,
 	saveWorkingCollationArtifact,
+	saveWorkingCollationMetadata,
 } from './repositories/collation-files';
 import {
 	createProject,
@@ -44,8 +44,8 @@ import {
 	listTranscriptionSummaries,
 } from './repositories/transcriptions';
 import {
-	createTranscriptionWithFiles,
-	createTranscriptionsWithFiles,
+	createTranscriptionWithFilesResult,
+	createTranscriptionsWithFilesResult,
 	createCommittedTranscriptionCheckpointWithFiles,
 	getProjectTranscriptionCheckpointStatusWithFiles,
 	getTranscriptionsWithWorkingFilesByIds,
@@ -56,6 +56,7 @@ import {
 	saveWorkingTranscriptionMetadata,
 } from './repositories/transcription-files';
 import * as iiifRepository from './repositories/iiif';
+import * as iiifFiles from './repositories/iiif-files';
 import {
 	isCollationDirty,
 	isTranscriptionDirty,
@@ -295,16 +296,16 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 			allowIndexFallback: false,
 		});
 	if (request.type === 'transcriptions.create') {
-		const id = await createTranscriptionWithFiles(getKyselyDb(), request.input);
+		const result = await createTranscriptionWithFilesResult(getKyselyDb(), request.input);
 		postMessage({ type: 'db:invalidate', domain: 'transcriptions' });
 		postMessage({ type: 'db:invalidate', domain: 'projects' });
-		return id;
+		return result;
 	}
 	if (request.type === 'transcriptions.createMany') {
-		const ids = await createTranscriptionsWithFiles(getKyselyDb(), request.inputs);
+		const result = await createTranscriptionsWithFilesResult(getKyselyDb(), request.inputs);
 		postMessage({ type: 'db:invalidate', domain: 'transcriptions' });
 		postMessage({ type: 'db:invalidate', domain: 'projects' });
-		return ids;
+		return result;
 	}
 	if (request.type === 'transcriptions.updateContent') {
 		await saveWorkingTranscriptionContent(getKyselyDb(), request.input);
@@ -317,10 +318,10 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 		return null;
 	}
 	if (request.type === 'transcriptions.delete') {
-		await deleteTranscriptionWithFiles(getKyselyDb(), request.transcriptionId);
+		const warnings = await deleteTranscriptionWithFiles(getKyselyDb(), request.transcriptionId);
 		postMessage({ type: 'db:invalidate', domain: 'transcriptions' });
 		postMessage({ type: 'db:invalidate', domain: 'projects' });
-		return null;
+		return warnings;
 	}
 	if (request.type === 'transcriptions.getVerseIndexRowsForVerse') {
 		return getVerseIndexRowsForVerse(
@@ -432,9 +433,9 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 	if (request.type === 'collations.listWithProjectNames')
 		return listCollationsWithProjectNames(getKyselyDb());
 	if (request.type === 'collations.create') {
-		const id = await createCollationWithFiles(getKyselyDb(), request.input);
+		const result = await createCollationWithFilesResult(getKyselyDb(), request.input);
 		postMessage({ type: 'db:invalidate', domain: 'collations' });
-		return id;
+		return result;
 	}
 	if (request.type === 'collations.load')
 		return loadCollationWithWorkingFile(getKyselyDb(), request.collationId, {
@@ -465,15 +466,15 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 		return null;
 	}
 	if (request.type === 'collations.updateMetadata') {
-		await updateCollationMetadata(getKyselyDb(), request.input);
+		await saveWorkingCollationMetadata(getKyselyDb(), request.input);
 		postMessage({ type: 'db:invalidate', domain: 'collations' });
 		return null;
 	}
 	if (request.type === 'collations.delete') {
-		await deleteCollationWithFiles(getKyselyDb(), request.collationId);
+		const warnings = await deleteCollationWithFiles(getKyselyDb(), request.collationId);
 		postMessage({ type: 'db:invalidate', domain: 'collations' });
 		postMessage({ type: 'db:invalidate', domain: 'projects' });
-		return null;
+		return warnings;
 	}
 	if (request.type === 'iiif.listManifestSources')
 		return iiifRepository.listManifestSources(getKyselyDb(), request.transcriptionId);
@@ -484,7 +485,7 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 			request.manifestUrl
 		);
 	if (request.type === 'iiif.ensureManifestSource') {
-		const row = await iiifRepository.ensureManifestSource(getKyselyDb(), request.input);
+		const row = await iiifFiles.ensureManifestSourceWithFiles(getKyselyDb(), request.input);
 		postMessage({ type: 'db:invalidate', domain: 'iiif' });
 		return row;
 	}
@@ -493,22 +494,22 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 	if (request.type === 'iiif.listPageCanvasLinks')
 		return iiifRepository.listPageCanvasLinks(getKyselyDb(), request.transcriptionId);
 	if (request.type === 'iiif.upsertPageCanvasLink') {
-		const row = await iiifRepository.upsertPageCanvasLink(getKyselyDb(), request.input);
+		const row = await iiifFiles.upsertPageCanvasLinkWithFiles(getKyselyDb(), request.input);
 		postMessage({ type: 'db:invalidate', domain: 'iiif' });
 		return row;
 	}
 	if (request.type === 'iiif.savePageCanvasLinks') {
-		const rows = await iiifRepository.savePageCanvasLinks(getKyselyDb(), request.inputs);
+		const rows = await iiifFiles.savePageCanvasLinksWithFiles(getKyselyDb(), request.inputs);
 		postMessage({ type: 'db:invalidate', domain: 'iiif' });
 		return rows;
 	}
 	if (request.type === 'iiif.deletePageCanvasLink') {
-		const count = await iiifRepository.deletePageCanvasLink(getKyselyDb(), request.input);
+		const count = await iiifFiles.deletePageCanvasLinkWithFiles(getKyselyDb(), request.input);
 		postMessage({ type: 'db:invalidate', domain: 'iiif' });
 		return count;
 	}
 	if (request.type === 'iiif.deletePageCanvasLinksForPage') {
-		const count = await iiifRepository.deletePageCanvasLinksForPage(
+		const count = await iiifFiles.deletePageCanvasLinksForPageWithFiles(
 			getKyselyDb(),
 			request.input
 		);
@@ -516,7 +517,7 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 		return count;
 	}
 	if (request.type === 'iiif.deleteAllPageCanvasLinks') {
-		const count = await iiifRepository.deleteAllPageCanvasLinks(
+		const count = await iiifFiles.deleteAllPageCanvasLinksWithFiles(
 			getKyselyDb(),
 			request.transcriptionId
 		);
@@ -524,12 +525,12 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 		return count;
 	}
 	if (request.type === 'iiif.deleteManifestSource') {
-		const deleted = await iiifRepository.deleteManifestSource(getKyselyDb(), request.input);
+		const deleted = await iiifFiles.deleteManifestSourceWithFiles(getKyselyDb(), request.input);
 		postMessage({ type: 'db:invalidate', domain: 'iiif' });
 		return deleted;
 	}
 	if (request.type === 'iiif.deleteManifestSourceLinks') {
-		const count = await iiifRepository.deleteManifestSourceLinks(getKyselyDb(), request.input);
+		const count = await iiifFiles.deleteManifestSourceLinksWithFiles(getKyselyDb(), request.input);
 		postMessage({ type: 'db:invalidate', domain: 'iiif' });
 		return count;
 	}
@@ -540,12 +541,12 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 	if (request.type === 'iiif.getCanvasAnnotation')
 		return iiifRepository.getCanvasAnnotation(getKyselyDb(), request.input);
 	if (request.type === 'iiif.upsertCanvasAnnotation') {
-		await iiifRepository.upsertCanvasAnnotation(getKyselyDb(), request.input);
+		await iiifFiles.upsertCanvasAnnotationWithFiles(getKyselyDb(), request.input);
 		postMessage({ type: 'db:invalidate', domain: 'iiif' });
 		return null;
 	}
 	if (request.type === 'iiif.deleteCanvasAnnotation') {
-		await iiifRepository.deleteCanvasAnnotation(getKyselyDb(), request.input);
+		await iiifFiles.deleteCanvasAnnotationWithFiles(getKyselyDb(), request.input);
 		postMessage({ type: 'db:invalidate', domain: 'iiif' });
 		return null;
 	}

@@ -1,4 +1,4 @@
-import type { Kysely } from 'kysely';
+import type { Kysely, Transaction } from 'kysely';
 
 import {
 	COLLATION_CHECKPOINT_CURRENT_VERSION,
@@ -53,6 +53,7 @@ import {
 	getCollationVersionStatus,
 	loadCollation,
 	saveCollationProjection,
+	updateCollationMetadata,
 	type CreateCollationInput,
 	type CollationArtifactRecord,
 	type CollationProjectionRecord,
@@ -60,12 +61,15 @@ import {
 	type CollationVersionStatusOptions,
 	type LoadedCollation,
 	type SaveCollationArtifactInput,
+	type UpdateCollationMetadataInput,
 } from './collations';
 import {
 	recordCommittedCollationCheckpoint,
 	loadSerializedCollation,
 	type CollationCheckpoint,
 	type CommitCollationInput,
+	type PersistenceWarning,
+	type PersistenceResult,
 	type SerializedCollation,
 } from './revisions';
 
@@ -78,6 +82,8 @@ interface CollationFileContext {
 	createdAt: string;
 	updatedAt: string;
 }
+
+type DbExecutor = Kysely<Database> | Transaction<Database>;
 
 interface CollationCommitSource {
 	content: CollationContent;
@@ -92,7 +98,7 @@ interface FileBackedCollationLoadOptions extends StoreOperationOptions {
 type LoadedWorkingCollationPayload = WorkingCollationPayload;
 
 export async function saveWorkingCollationArtifact(
-	db: Kysely<Database>,
+	db: DbExecutor,
 	input: SaveCollationArtifactInput,
 	storeOptions: StoreOperationOptions = {}
 ): Promise<string> {
@@ -126,15 +132,64 @@ export async function saveWorkingCollationArtifact(
 	return artifactId;
 }
 
+export async function saveWorkingCollationMetadata(
+	db: Kysely<Database>,
+	input: UpdateCollationMetadataInput,
+	storeOptions: StoreOperationOptions = {}
+): Promise<void> {
+	const context = await loadCollationFileContext(db, input.id);
+	const primary = await tryReadPrimaryCollationPayload(context, storeOptions);
+	const working = await tryReadEligibleWorkingCollationPayload(context, primary, storeOptions);
+	const source = working ?? primary;
+	if (!source) throw new Error(`Canonical collation file for ${input.id} was not found.`);
+	const updatedAt = input.updatedAt ?? new Date().toISOString();
+	const payload: WorkingCollationPayload = {
+		...collationContentFromPayload(source),
+		title: input.title ?? source.title,
+		status: input.status ?? source.status,
+		notes: input.notes ?? source.notes,
+		group_path: input.groupPath ?? source.group_path,
+		sort_key: input.sortKey ?? source.sort_key,
+		created_at: source.created_at,
+		updated_at: updatedAt,
+		draft: {
+			base_revision_id: primary?.current_revision.id ?? context.currentRevisionId,
+			base_content_hash: primary?.current_revision.content_hash ?? context.currentContentHash,
+			saved_at: updatedAt,
+			author_name: null,
+		},
+	};
+	const document = await sealDocument(
+		WORKING_COLLATION_FORMAT,
+		WORKING_COLLATION_CURRENT_VERSION,
+		payload
+	);
+	await writeTextFileAtomic(
+		collationWorkingFile(context.projectStorageSlug, input.id),
+		serializeSealedDocument(document),
+		storeOptions
+	);
+	await updateCollationMetadata(db, input);
+}
+
 export async function createCollationWithFiles(
 	db: Kysely<Database>,
 	input: CreateCollationInput,
 	storeOptions: StoreOperationOptions = {}
 ): Promise<string> {
-	const id = await createCollation(db, input);
-	const context = await loadCollationFileContext(db, id);
-	const projectName = await loadProjectName(db, context.projectId);
-	const document = buildCollationDocument({
+	return (await createCollationWithFilesResult(db, input, storeOptions)).value;
+}
+
+export async function createCollationWithFilesResult(
+	db: Kysely<Database>,
+	input: CreateCollationInput,
+	storeOptions: StoreOperationOptions = {}
+): Promise<PersistenceResult<string>> {
+	return db.transaction().execute(async trx => {
+		const id = await createCollation(trx, input);
+		const context = await loadCollationFileContext(trx, id);
+		const projectName = await loadProjectName(trx, context.projectId);
+		const document = buildCollationDocument({
 		collationId: id,
 		projectId: context.projectId,
 		projectName,
@@ -164,29 +219,30 @@ export async function createCollationWithFiles(
 		stemmaEdges: new Map(),
 		alignmentDisplayMode: 'regularized',
 		alignmentLayout: 'grid',
-	});
+		});
 
-	await saveWorkingCollationArtifact(
-		db,
-		{
-			collationId: id,
-			artifactId: createId(),
-			artifactType: COLLATION_DOCUMENT_ARTIFACT_TYPE,
-			payload: serializeCollationDocument(document),
-			now: context.createdAt,
-		},
-		storeOptions
-	);
-	await createCommittedCollationCheckpointWithFiles(
-		db,
-		{ collationId: id, createdAt: context.createdAt },
-		storeOptions
-	);
-	return id;
+		await saveWorkingCollationArtifact(
+			trx,
+			{
+				collationId: id,
+				artifactId: createId(),
+				artifactType: COLLATION_DOCUMENT_ARTIFACT_TYPE,
+				payload: serializeCollationDocument(document),
+				now: context.createdAt,
+			},
+			storeOptions
+		);
+		const checkpoint = await createCommittedCollationCheckpointWithFiles(
+			trx,
+			{ collationId: id, createdAt: context.createdAt },
+			storeOptions
+		);
+		return { value: id, warnings: checkpoint.warnings ?? [] };
+	});
 }
 
 export async function createCommittedCollationCheckpointWithFiles(
-	db: Kysely<Database>,
+	db: DbExecutor,
 	input: CommitCollationInput,
 	storeOptions: StoreOperationOptions = {}
 ): Promise<CollationCheckpoint> {
@@ -244,7 +300,7 @@ export async function createCommittedCollationCheckpointWithFiles(
 			primaryPayload,
 			storeOptions
 		);
-		await writeDerivedCollationTei(
+		const teiWarning = await writeDerivedCollationTei(
 			context.projectStorageSlug,
 			context.collationId,
 			primaryPayload,
@@ -282,7 +338,7 @@ export async function createCommittedCollationCheckpointWithFiles(
 		} catch (error) {
 			if (!isMissingFileError(error)) throw error;
 		}
-		return checkpoint;
+		return { ...checkpoint, warnings: teiWarning ? [teiWarning] : [] };
 	});
 }
 
@@ -294,9 +350,9 @@ export async function loadCollationWithWorkingFile(
 	const loaded = await loadCollation(db, collationId);
 	if (!loaded) return null;
 	const context = await loadCollationFileContext(db, collationId);
-	const workingPayload = await tryReadWorkingCollationPayload(context, storeOptions);
-	if (workingPayload) return loadedCollationFromWorkingPayload(loaded, workingPayload);
 	const primaryPayload = await tryReadPrimaryCollationPayload(context, storeOptions);
+	const workingPayload = await tryReadEligibleWorkingCollationPayload(context, primaryPayload, storeOptions);
+	if (workingPayload) return loadedCollationFromWorkingPayload(loaded, workingPayload);
 	if (primaryPayload) return loadedCollationFromPrimaryPayload(primaryPayload);
 	if (storeOptions.allowIndexFallback === false) return null;
 	return loaded;
@@ -308,9 +364,9 @@ export async function loadSerializedCollationWithFiles(
 	storeOptions: FileBackedCollationLoadOptions = {}
 ): Promise<SerializedCollation> {
 	const context = await loadCollationFileContext(db, collationId);
-	const workingPayload = await tryReadWorkingCollationPayload(context, storeOptions);
-	if (workingPayload) return serializedCollationFromPayload(workingPayload);
 	const primaryPayload = await tryReadPrimaryCollationPayload(context, storeOptions);
+	const workingPayload = await tryReadEligibleWorkingCollationPayload(context, primaryPayload, storeOptions);
+	if (workingPayload) return serializedCollationFromPayload(workingPayload);
 	if (primaryPayload) return serializedCollationFromPayload(primaryPayload);
 	if (storeOptions.allowIndexFallback === false) {
 		throw new Error(`Canonical collation file for ${collationId} was not found.`);
@@ -338,9 +394,9 @@ export async function getCollationVersionStatusWithWorkingFile(
 ): Promise<CollationVersionStatus> {
 	const base = await getCollationVersionStatus(db, collationId, options);
 	const context = await loadCollationFileContext(db, collationId);
-	const payload = await tryReadWorkingCollationPayload(context, storeOptions);
-	if (payload) return collationVersionStatusFromSerialized(db, base, payload, options);
 	const primaryPayload = await tryReadPrimaryCollationPayload(context, storeOptions);
+	const payload = await tryReadEligibleWorkingCollationPayload(context, primaryPayload, storeOptions);
+	if (payload) return collationVersionStatusFromSerialized(db, base, payload, options);
 	if (primaryPayload) {
 		return collationVersionStatusFromSerialized(db, base, primaryPayload, options);
 	}
@@ -410,7 +466,7 @@ export async function listProjectCollationVersionStatusesWithWorkingFiles(
 }
 
 async function loadCollationFileContext(
-	db: Kysely<Database>,
+	db: DbExecutor,
 	collationId: string
 ): Promise<CollationFileContext> {
 	const row = await db
@@ -438,7 +494,7 @@ async function loadCollationFileContext(
 	};
 }
 
-async function loadProjectName(db: Kysely<Database>, projectId: string): Promise<string | null> {
+async function loadProjectName(db: DbExecutor, projectId: string): Promise<string | null> {
 	const row = await db
 		.selectFrom('projects')
 		.select('name')
@@ -452,7 +508,8 @@ async function loadCollationCommitSource(
 	context: CollationFileContext,
 	storeOptions: StoreOperationOptions
 ): Promise<CollationCommitSource> {
-	const workingPayload = await tryReadWorkingCollationPayload(context, storeOptions);
+	const primaryPayload = await tryReadPrimaryCollationPayload(context, storeOptions);
+	const workingPayload = await tryReadEligibleWorkingCollationPayload(context, primaryPayload, storeOptions);
 	if (workingPayload) {
 		return {
 			content: collationContentFromPayload(workingPayload),
@@ -460,7 +517,6 @@ async function loadCollationCommitSource(
 			updatedAt: workingPayload.updated_at,
 		};
 	}
-	const primaryPayload = await tryReadPrimaryCollationPayload(context, storeOptions);
 	if (primaryPayload) {
 		return {
 			content: collationContentFromPayload(primaryPayload),
@@ -490,18 +546,27 @@ async function writeDerivedCollationTei(
 	collationId: string,
 	payload: CollationPayload,
 	storeOptions: StoreOperationOptions
-): Promise<void> {
+): Promise<PersistenceWarning | null> {
 	try {
 		await writeTextFileAtomic(
 			collationTeiFile(projectStorageSlug, collationId),
 			collationDocumentToTei(payload.document),
 			storeOptions
 		);
+		return null;
 	} catch (error) {
+		const message = errorMessage(error);
 		console.warn('[document-store] Could not write derived collation TEI.', {
 			collationId,
-			error: errorMessage(error),
+			error: message,
 		});
+		return {
+			code: 'tei_write_failed',
+			entityType: 'collation',
+			entityId: collationId,
+			message,
+			recoverable: true,
+		};
 	}
 }
 
@@ -589,6 +654,26 @@ async function tryReadWorkingCollationPayload(
 		quarantine: result.quarantine,
 	});
 	return null;
+}
+
+async function tryReadEligibleWorkingCollationPayload(
+	context: CollationFileContext,
+	primary: CollationPayload | null,
+	storeOptions: StoreOperationOptions
+): Promise<LoadedWorkingCollationPayload | null> {
+	const working = await tryReadWorkingCollationPayload(context, storeOptions);
+	if (!working || !primary) return working;
+	if (
+		working.draft.base_revision_id !== primary.current_revision.id ||
+		working.draft.base_content_hash !== primary.current_revision.content_hash
+	) {
+		console.warn('[document-store] Ignoring stale collation working file.', {
+			collationId: context.collationId,
+		});
+		return null;
+	}
+	const workingHash = await hashCanonicalPayload(collationContentFromPayload(working));
+	return workingHash === primary.current_revision.content_hash ? null : working;
 }
 
 async function tryReadPrimaryCollationPayload(

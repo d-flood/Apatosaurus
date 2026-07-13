@@ -35,6 +35,7 @@ import { createCollation, loadCollation } from './collations';
 import { createCommittedCollationCheckpoint } from './revisions';
 import {
 	createCollationWithFiles,
+	createCollationWithFilesResult,
 	createCommittedCollationCheckpointWithFiles,
 	getCollationVersionStatusWithWorkingFile,
 	loadCollationWithWorkingFile,
@@ -385,6 +386,61 @@ describe('collation file persistence', () => {
 		).resolves.toEqual([]);
 	});
 
+	it.each([
+		['history', 'history/collations/col-created/'],
+		['primary', 'collations/col-created.json.tmp-'],
+		['manifest', 'project.json.tmp-'],
+	])('does not publish a collation when the initial %s write fails', async (_step, path) => {
+		await createProject(harness.db, {
+			id: 'project-1',
+			storageSlug: 'project-slug',
+			name: 'Romans',
+		});
+		backend.failWritePathIncludes = path;
+
+		await expect(
+			createCollationWithFiles(
+				harness.db,
+				{
+					id: 'col-created',
+					projectId: 'project-1',
+					title: 'Romans 1:3',
+					verseIdentifier: 'Rom 1:3',
+				},
+				{ backend, nonce: () => 'create-failure' }
+			)
+		).rejects.toThrow('simulated write failure');
+		await expect(
+			harness.db.selectFrom('collations').selectAll().where('id', '=', 'col-created').execute()
+		).resolves.toEqual([]);
+	});
+
+	it('returns a TEI warning while collation creation succeeds', async () => {
+		await createProject(harness.db, {
+			id: 'project-1',
+			storageSlug: 'project-slug',
+			name: 'Romans',
+		});
+		backend.failWritePathIncludes = '.tei.xml.tmp-';
+
+		const result = await createCollationWithFilesResult(
+			harness.db,
+			{
+				id: 'col-created',
+				projectId: 'project-1',
+				title: 'Romans 1:3',
+				verseIdentifier: 'Rom 1:3',
+			},
+			{ backend }
+		);
+
+		expect(result.value).toBe('col-created');
+		expect(result.warnings).toEqual([
+			expect.objectContaining({ code: 'tei_write_failed', entityType: 'collation' }),
+		]);
+		await expect(loadCollation(harness.db, 'col-created')).resolves.not.toBeNull();
+	});
+
 	it('writes committed collation files before updating the index', async () => {
 		await createFixtureCollation();
 		await saveWorkingCollationArtifact(
@@ -712,7 +768,7 @@ describe('collation file persistence', () => {
 		).resolves.toEqual({ content_hash: 'preexisting-content-hash' });
 	});
 
-	it('does not fail the collation commit when derived TEI writing fails', async () => {
+	it('returns a warning without failing the collation commit when derived TEI writing fails', async () => {
 		await createFixtureCollation();
 		await saveWorkingCollationArtifact(
 			harness.db,
@@ -740,6 +796,9 @@ describe('collation file persistence', () => {
 			);
 
 			expect(checkpoint.id).toBe('col-cp-tei-fail');
+			expect(checkpoint.warnings).toEqual([
+				expect.objectContaining({ code: 'tei_write_failed', entityType: 'collation' }),
+			]);
 			await expect(
 				readTextFile(collationTeiFile('project-slug', 'col-1'), { backend })
 			).rejects.toThrow('not found');

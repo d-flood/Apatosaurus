@@ -17,7 +17,10 @@ import {
 	createCollationWithFiles,
 	loadCollationWithWorkingFile,
 	saveWorkingCollationArtifact,
+	saveWorkingCollationMetadata,
 } from './collation-files';
+import { ensureManifestSourceWithFiles } from './iiif-files';
+import { listManifestSources } from './iiif';
 import { rebuildIndexFromStore } from './index-rebuild';
 import {
 	createProject,
@@ -30,6 +33,7 @@ import { listCommittedTranscriptionCheckpoints } from './revisions';
 import {
 	createCommittedTranscriptionCheckpointWithFiles,
 	loadTranscriptionWithWorkingFile,
+	saveWorkingTranscriptionMetadata,
 } from './transcription-files';
 import { createTranscription, listVerseIndexRows } from './transcriptions';
 
@@ -44,6 +48,43 @@ afterEach(async () => {
 });
 
 describe('rebuildIndexFromStore', () => {
+	it('does not publish IIIF index changes when the canonical working write fails', async () => {
+		const backend = new MemoryStoreBackend();
+		const storeOptions = { backend };
+		await createProject(
+			harness.db,
+			{ id: 'project-1', storageSlug: 'project-slug', name: 'Project' },
+			storeOptions
+		);
+		await createTranscription(harness.db, {
+			id: 'tx-1',
+			projectId: 'project-1',
+			projectTranscriptionId: 'pt-1',
+			title: 'Witness',
+			siglum: '01',
+			document: documentWithVerses(['Romans 1:1']),
+			transcriber: '',
+			repository: '',
+			settlement: '',
+			language: 'grc',
+		});
+		await createCommittedTranscriptionCheckpointWithFiles(
+			harness.db,
+			{ projectTranscriptionId: 'pt-1' },
+			storeOptions
+		);
+		backend.failWrites = true;
+
+		await expect(
+			ensureManifestSourceWithFiles(
+				harness.db,
+				{ transcriptionId: 'tx-1', manifestUrl: 'https://example.test/failed' },
+				storeOptions
+			)
+		).rejects.toThrow('simulated write failure');
+		await expect(listManifestSources(harness.db, 'tx-1')).resolves.toEqual([]);
+	});
+
 	it('restores an empty bootstrapped Default project', async () => {
 		const backend = new MemoryStoreBackend();
 		const storeOptions = { backend, nonce: () => 'default-project' };
@@ -216,6 +257,36 @@ describe('rebuildIndexFromStore', () => {
 			},
 			storeOptions
 		);
+		await updateProjectMetadata(
+			harness.db,
+			{ projectId: 'project-1', name: 'Updated Project' },
+			storeOptions
+		);
+		await saveWorkingTranscriptionMetadata(
+			harness.db,
+			{
+				id: 'tx-1',
+				title: 'Updated Witness',
+				siglum: '01',
+				description: 'Durable metadata',
+				tags: ['durable'],
+				transcriber: 'Editor',
+				repository: 'Library',
+				settlement: 'City',
+				language: 'grc',
+			},
+			storeOptions
+		);
+		await saveWorkingCollationMetadata(
+			harness.db,
+			{ id: 'col-1', title: 'Updated Collation', notes: 'Durable notes' },
+			storeOptions
+		);
+		await ensureManifestSourceWithFiles(
+			harness.db,
+			{ transcriptionId: 'tx-1', manifestUrl: 'https://example.test/manifest', label: 'MS' },
+			storeOptions
+		);
 
 		await harness.db
 			.updateTable('transcriptions')
@@ -246,7 +317,7 @@ describe('rebuildIndexFromStore', () => {
 			expect.objectContaining({
 				id: 'project-1',
 				storageSlug: 'project-slug',
-				name: 'Project',
+				name: 'Updated Project',
 			}),
 		]);
 		expect(
@@ -254,8 +325,9 @@ describe('rebuildIndexFromStore', () => {
 		).toMatchObject({
 			id: 'tx-1',
 			project_id: 'project-1',
-			title: 'Witness 1',
+			title: 'Updated Witness',
 			siglum: '01',
+			description: 'Durable metadata',
 		});
 		expect(await listVerseIndexRows(harness.db)).toEqual([
 			expect.objectContaining({ transcription_id: 'tx-1', verse_identifier: 'Romans 1:1' }),
@@ -273,8 +345,16 @@ describe('rebuildIndexFromStore', () => {
 			}),
 		]);
 		expect(await loadCollationWithWorkingFile(harness.db, 'col-1', { backend })).toMatchObject({
-			row: expect.objectContaining({ id: 'col-1', projectId: 'project-1' }),
+			row: expect.objectContaining({
+				id: 'col-1',
+				projectId: 'project-1',
+				title: 'Updated Collation',
+				notes: 'Durable notes',
+			}),
 		});
+		expect(await listManifestSources(harness.db, 'tx-1')).toEqual([
+			expect.objectContaining({ manifestUrl: 'https://example.test/manifest', label: 'MS' }),
+		]);
 		await expect(
 			harness.db
 				.selectFrom('collation_witnesses')
@@ -321,6 +401,7 @@ function documentWithVerses(verses: string[]): StoredTranscriptionDocument {
 class MemoryStoreBackend implements StoreBackend {
 	readonly files = new Map<string, string>();
 	readonly directories = new Set<string>(['']);
+	failWrites = false;
 
 	async readTextFile(path: string): Promise<string> {
 		const normalized = normalizeStorePath(path);
@@ -330,6 +411,7 @@ class MemoryStoreBackend implements StoreBackend {
 	}
 
 	async writeTextFile(path: string, content: string): Promise<void> {
+		if (this.failWrites) throw new Error('simulated write failure');
 		const normalized = normalizeStorePath(path);
 		this.addDirectory(storePathDirname(normalized));
 		this.files.set(normalized, content);

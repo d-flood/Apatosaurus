@@ -72,6 +72,8 @@ import type {
 	LoadedTranscriptionCheckpoint,
 	TranscriptionCheckpoint,
 	TranscriptionCheckpointSummary,
+	PersistenceWarning,
+	PersistenceResult,
 } from './repositories/revisions';
 import type { IndexRebuildReport } from './repositories/index-rebuild';
 import type { ManifestSourceSummary, PageCanvasLink, SavePageCanvasLinkInput } from '../iiif/types';
@@ -103,11 +105,11 @@ export interface TranscriptionRpcMap {
 	};
 	'transcriptions.create': {
 		request: { type: 'transcriptions.create'; input: CreateTranscriptionInput };
-		response: string;
+		response: PersistenceResult<string>;
 	};
 	'transcriptions.createMany': {
 		request: { type: 'transcriptions.createMany'; inputs: CreateTranscriptionInput[] };
-		response: string[];
+		response: PersistenceResult<string[]>;
 	};
 	'transcriptions.updateContent': {
 		request: { type: 'transcriptions.updateContent'; input: UpdateTranscriptionContentInput };
@@ -119,7 +121,7 @@ export interface TranscriptionRpcMap {
 	};
 	'transcriptions.delete': {
 		request: { type: 'transcriptions.delete'; transcriptionId: string };
-		response: null;
+		response: PersistenceWarning[];
 	};
 	'transcriptions.getVerseIndexRowsForVerse': {
 		request: {
@@ -226,7 +228,11 @@ export interface ProjectRpcMap {
 			type: 'projects.addTranscriptionFromProject';
 			input: AddProjectTranscriptionFromProjectInput;
 		};
-		response: { projectTranscriptionId: string; projectOwnedTranscriptionId: string };
+		response: {
+			projectTranscriptionId: string;
+			projectOwnedTranscriptionId: string;
+			warnings: PersistenceWarning[];
+		};
 	};
 	'projects.listTranscriptionSourceCandidates': {
 		request: {
@@ -248,7 +254,7 @@ export interface CollationRpcMap {
 	};
 	'collations.create': {
 		request: { type: 'collations.create'; input: CreateCollationInput };
-		response: string;
+		response: PersistenceResult<string>;
 	};
 	'collations.load': {
 		request: { type: 'collations.load'; collationId: string };
@@ -284,7 +290,7 @@ export interface CollationRpcMap {
 	};
 	'collations.delete': {
 		request: { type: 'collations.delete'; collationId: string };
-		response: null;
+		response: PersistenceWarning[];
 	};
 }
 

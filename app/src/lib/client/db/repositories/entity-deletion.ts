@@ -22,6 +22,7 @@ import type { Database } from '../types.generated';
 import { createId } from './id';
 import { writeProjectManifestFile } from './project-files';
 import { withProjectWriteLock } from './project-locks';
+import type { PersistenceWarning } from './revisions';
 
 type EntityType = 'project-transcription' | 'collation';
 type DbTransaction = Transaction<Database>;
@@ -48,9 +49,9 @@ export async function deleteTranscriptionWithFiles(
 	transcriptionId: string,
 	input: DeleteEntityWithFilesInput = {},
 	storeOptions: StoreOperationOptions = {}
-): Promise<void> {
+): Promise<PersistenceWarning[]> {
 	const lockContext = await loadTranscriptionDeletionContext(db, transcriptionId);
-	await withProjectWriteLock(lockContext.projectId, async () =>
+	return withProjectWriteLock(lockContext.projectId, async () =>
 		deleteEntityWithFiles(
 			db,
 			await loadTranscriptionDeletionContext(db, transcriptionId),
@@ -65,9 +66,9 @@ export async function deleteCollationWithFiles(
 	collationId: string,
 	input: DeleteEntityWithFilesInput = {},
 	storeOptions: StoreOperationOptions = {}
-): Promise<void> {
+): Promise<PersistenceWarning[]> {
 	const lockContext = await loadCollationDeletionContext(db, collationId);
-	await withProjectWriteLock(lockContext.projectId, async () =>
+	return withProjectWriteLock(lockContext.projectId, async () =>
 		deleteEntityWithFiles(
 			db,
 			await loadCollationDeletionContext(db, collationId),
@@ -82,7 +83,7 @@ async function deleteEntityWithFiles(
 	context: EntityDeletionContext,
 	input: DeleteEntityWithFilesInput,
 	storeOptions: StoreOperationOptions
-): Promise<void> {
+): Promise<PersistenceWarning[]> {
 	const tombstone = await ensureTombstoneFile(context, input, storeOptions);
 	await db.transaction().execute(async trx => {
 		await upsertTombstoneRow(trx, tombstone);
@@ -94,7 +95,8 @@ async function deleteEntityWithFiles(
 			.execute();
 		await writeProjectManifestFile(trx, context.projectId, {}, storeOptions);
 	});
-	await deletePrimaryFileBestEffort(context, storeOptions);
+	const warning = await deletePrimaryFileBestEffort(context, storeOptions);
+	return warning ? [warning] : [];
 }
 
 async function loadTranscriptionDeletionContext(
@@ -265,17 +267,26 @@ async function deleteEntityIndexRows(
 async function deletePrimaryFileBestEffort(
 	context: EntityDeletionContext,
 	storeOptions: StoreOperationOptions
-): Promise<void> {
+): Promise<PersistenceWarning | null> {
 	try {
 		await deleteFile(context.primaryPath, storeOptions);
+		return null;
 	} catch (error) {
-		if (isMissingFileError(error)) return;
+		if (isMissingFileError(error)) return null;
+		const message = errorMessage(error);
 		console.warn('[document-store] Could not remove deleted entity primary file.', {
 			entityType: context.entityType,
 			entityId: context.entityId,
 			path: context.primaryPath,
-			error: errorMessage(error),
+			error: message,
 		});
+		return {
+			code: 'primary_cleanup_failed',
+			entityType: context.entityType === 'collation' ? 'collation' : 'transcription',
+			entityId: context.entityId,
+			message: `Deletion was recorded, but the old primary file could not be removed: ${message}`,
+			recoverable: true,
+		};
 	}
 }
 

@@ -22,6 +22,7 @@ import {
 	transcriptionPrimaryFile,
 	transcriptionTeiFile,
 	transcriptionWorkingFile,
+	deleteFile,
 	WORKING_TRANSCRIPTION_CURRENT_VERSION,
 	WORKING_TRANSCRIPTION_FORMAT,
 	writeTextFileAtomic,
@@ -50,6 +51,8 @@ import {
 	type ProjectTranscriptionCheckpointStatus,
 	type ProjectTranscriptionSnapshot,
 	type TranscriptionCheckpoint,
+	type PersistenceWarning,
+	type PersistenceResult,
 } from './revisions';
 import {
 	createTranscription,
@@ -274,13 +277,84 @@ export async function saveWorkingTranscriptionMetadata(
 	await updateTranscriptionMetadata(db, { ...input, updatedAt });
 }
 
+export async function writeWorkingTranscriptionSnapshot(
+	db: DbExecutor,
+	transcriptionId: string,
+	updatedAt: string,
+	storeOptions: StoreOperationOptions = {}
+): Promise<void> {
+	const context = await loadTranscriptionFileContext(db, transcriptionId);
+	const snapshot = await loadProjectTranscriptionSnapshot(db, context.projectTranscriptionId);
+	const payload: WorkingTranscriptionPayload = {
+		project_transcription_id: snapshot.project_transcription_id,
+		id: snapshot.id,
+		canonical_transcription_id: context.canonicalTranscriptionId,
+		origin: {
+			source_type: context.originType,
+			source_project_id: context.originProjectId,
+			source_transcription_id: context.originTranscriptionId,
+			source_revision_id: context.originRevisionId,
+			source_content_hash: context.originContentHash,
+		},
+		title: snapshot.title,
+		siglum: snapshot.siglum,
+		description: snapshot.description,
+		content_json: snapshot.content_json as JsonValue,
+		content_format: snapshot.format,
+		created_at: context.createdAt,
+		updated_at: updatedAt,
+		owner: snapshot.owner,
+		is_public: snapshot.is_public,
+		tags: [...snapshot.tags],
+		transcriber: snapshot.transcriber,
+		repository: snapshot.repository,
+		settlement: snapshot.settlement,
+		language: snapshot.language,
+		iiif_manifest_sources: snapshot.iiif_manifest_sources.map(source => ({
+			...source,
+			metadata_json: source.metadata_json as JsonValue,
+		})),
+		page_canvas_links: snapshot.page_canvas_links.map(link => ({ ...link })),
+		canvas_annotations: snapshot.canvas_annotations.map(annotation => ({
+			...annotation,
+			body_json: annotation.body_json as JsonValue,
+			target_json: annotation.target_json as JsonValue,
+			anchor_json: annotation.anchor_json as JsonValue,
+		})),
+		draft: {
+			base_revision_id: context.currentRevisionId,
+			base_content_hash: context.currentContentHash,
+			saved_at: updatedAt,
+			author_name: null,
+		},
+	};
+	const document = await sealDocument(
+		WORKING_TRANSCRIPTION_FORMAT,
+		WORKING_TRANSCRIPTION_CURRENT_VERSION,
+		payload
+	);
+	await writeTextFileAtomic(
+		transcriptionWorkingFile(context.projectStorageSlug, context.projectTranscriptionId),
+		serializeSealedDocument(document),
+		storeOptions
+	);
+}
+
 export async function createTranscriptionWithFiles(
 	db: Kysely<Database>,
 	input: CreateTranscriptionInput,
 	storeOptions: StoreOperationOptions = {}
 ): Promise<string> {
-	const ids = await createTranscriptionsWithFiles(db, [input], storeOptions);
-	return ids[0];
+	return (await createTranscriptionWithFilesResult(db, input, storeOptions)).value;
+}
+
+export async function createTranscriptionWithFilesResult(
+	db: Kysely<Database>,
+	input: CreateTranscriptionInput,
+	storeOptions: StoreOperationOptions = {}
+): Promise<PersistenceResult<string>> {
+	const result = await createTranscriptionsWithFilesResult(db, [input], storeOptions);
+	return { value: result.value[0], warnings: result.warnings };
 }
 
 export async function createTranscriptionsWithFiles(
@@ -288,23 +362,35 @@ export async function createTranscriptionsWithFiles(
 	inputs: CreateTranscriptionInput[],
 	storeOptions: StoreOperationOptions = {}
 ): Promise<string[]> {
-	const ids = await createTranscriptions(db, inputs);
-	for (const id of ids) {
-		const context = await loadTranscriptionFileContext(db, id);
-		await createCommittedTranscriptionCheckpointWithFiles(
-			db,
-			{
-				projectTranscriptionId: context.projectTranscriptionId,
-				createdAt: context.createdAt,
-			},
-			storeOptions
-		);
-	}
-	return ids;
+	return (await createTranscriptionsWithFilesResult(db, inputs, storeOptions)).value;
+}
+
+export async function createTranscriptionsWithFilesResult(
+	db: Kysely<Database>,
+	inputs: CreateTranscriptionInput[],
+	storeOptions: StoreOperationOptions = {}
+): Promise<PersistenceResult<string[]>> {
+	return db.transaction().execute(async trx => {
+		const ids = await createTranscriptions(trx, inputs);
+		const warnings: PersistenceWarning[] = [];
+		for (const id of ids) {
+			const context = await loadTranscriptionFileContext(trx, id);
+			const checkpoint = await createCommittedTranscriptionCheckpointWithFiles(
+				trx,
+				{
+					projectTranscriptionId: context.projectTranscriptionId,
+					createdAt: context.createdAt,
+				},
+				storeOptions
+			);
+			warnings.push(...(checkpoint.warnings ?? []));
+		}
+		return { value: ids, warnings };
+	});
 }
 
 export async function createCommittedTranscriptionCheckpointWithFiles(
-	db: Kysely<Database>,
+	db: DbExecutor,
 	input: CommitTranscriptionInput,
 	storeOptions: StoreOperationOptions = {}
 ): Promise<TranscriptionCheckpoint> {
@@ -415,7 +501,7 @@ export async function createCommittedTranscriptionCheckpointWithFiles(
 			primaryPayload,
 			storeOptions
 		);
-		await writeDerivedTranscriptionTei(
+		const teiWarning = await writeDerivedTranscriptionTei(
 			context.projectStorageSlug,
 			context.projectTranscriptionId,
 			primaryPayload,
@@ -435,13 +521,22 @@ export async function createCommittedTranscriptionCheckpointWithFiles(
 			storeOptions
 		);
 
-		return createCommittedTranscriptionCheckpoint(db, {
+		const checkpoint = await createCommittedTranscriptionCheckpoint(db, {
 			...input,
 			checkpointId,
 			createdAt,
 			authorName,
 			commitMessage,
 		});
+		try {
+			await deleteFile(
+				transcriptionWorkingFile(context.projectStorageSlug, context.projectTranscriptionId),
+				storeOptions
+			);
+		} catch (error) {
+			if (!isMissingFileError(error)) throw error;
+		}
+		return { ...checkpoint, warnings: teiWarning ? [teiWarning] : [] };
 	});
 }
 
@@ -453,9 +548,9 @@ export async function loadTranscriptionWithWorkingFile(
 	const record = await getTranscription(db, transcriptionId);
 	if (!record) return null;
 	const context = await loadTranscriptionFileContext(db, transcriptionId);
-	const workingPayload = await tryReadWorkingTranscriptionPayload(context, storeOptions);
-	if (workingPayload) return transcriptionRecordFromWorkingPayload(record, workingPayload);
 	const primaryPayload = await tryReadPrimaryTranscriptionPayload(context, storeOptions);
+	const workingPayload = await tryReadEligibleWorkingTranscriptionPayload(context, primaryPayload, storeOptions);
+	if (workingPayload) return transcriptionRecordFromWorkingPayload(record, workingPayload);
 	if (primaryPayload)
 		return transcriptionRecordFromPrimaryPayload(record, context, primaryPayload);
 	if (storeOptions.allowIndexFallback === false) return null;
@@ -534,9 +629,9 @@ export async function loadProjectTranscriptionSnapshotWithFiles(
 		db,
 		projectTranscriptionId
 	);
-	const workingPayload = await tryReadWorkingTranscriptionPayload(context, storeOptions);
-	if (workingPayload) return projectTranscriptionSnapshotFromPayload(workingPayload);
 	const primaryPayload = await tryReadPrimaryTranscriptionPayload(context, storeOptions);
+	const workingPayload = await tryReadEligibleWorkingTranscriptionPayload(context, primaryPayload, storeOptions);
+	if (workingPayload) return projectTranscriptionSnapshotFromPayload(workingPayload);
 	if (primaryPayload) return projectTranscriptionSnapshotFromPayload(primaryPayload);
 	if (storeOptions.allowIndexFallback === false) {
 		throw new Error(
@@ -750,6 +845,28 @@ async function tryReadWorkingTranscriptionPayload(
 	return null;
 }
 
+async function tryReadEligibleWorkingTranscriptionPayload(
+	context: TranscriptionFileContext,
+	primary: ProjectTranscriptionPayload | null,
+	storeOptions: StoreOperationOptions
+): Promise<LoadedWorkingTranscriptionPayload | null> {
+	const working = await tryReadWorkingTranscriptionPayload(context, storeOptions);
+	if (!working || !primary) return working;
+	if (
+		working.draft.base_revision_id !== primary.current_revision.id ||
+		working.draft.base_content_hash !== primary.current_revision.content_hash
+	) {
+		console.warn('[document-store] Ignoring stale transcription working file.', {
+			projectTranscriptionId: context.projectTranscriptionId,
+		});
+		return null;
+	}
+	const workingHash = await hashCanonicalPayload(
+		buildTranscriptionHashPayload(projectTranscriptionSnapshotFromPayload(working))
+	);
+	return workingHash === primary.current_revision.content_hash ? null : working;
+}
+
 async function loadTranscriptionFileContext(
 	db: DbExecutor,
 	transcriptionId: string
@@ -833,18 +950,27 @@ async function writeDerivedTranscriptionTei(
 	projectTranscriptionId: string,
 	payload: ProjectTranscriptionPayload,
 	storeOptions: StoreOperationOptions
-): Promise<void> {
+): Promise<PersistenceWarning | null> {
 	try {
 		await writeTextFileAtomic(
 			transcriptionTeiFile(projectStorageSlug, projectTranscriptionId),
 			transcriptionDocumentToTei(payload),
 			storeOptions
 		);
+		return null;
 	} catch (error) {
+		const message = errorMessage(error);
 		console.warn('[document-store] Could not write derived transcription TEI.', {
 			projectTranscriptionId,
-			error: errorMessage(error),
+			error: message,
 		});
+		return {
+			code: 'tei_write_failed',
+			entityType: 'transcription',
+			entityId: projectTranscriptionId,
+			message,
+			recoverable: true,
+		};
 	}
 }
 

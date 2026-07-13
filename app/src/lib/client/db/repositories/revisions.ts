@@ -161,6 +161,20 @@ export interface Checkpoint {
 	commitMessage: string | null;
 	authorName: string;
 	createdAt: string;
+	warnings?: PersistenceWarning[];
+}
+
+export interface PersistenceWarning {
+	code: 'tei_write_failed' | 'primary_cleanup_failed';
+	entityType: 'transcription' | 'collation';
+	entityId: string;
+	message: string;
+	recoverable: true;
+}
+
+export interface PersistenceResult<T> {
+	value: T;
+	warnings: PersistenceWarning[];
 }
 
 export interface EntityCheckpointHead {
@@ -403,10 +417,10 @@ export async function loadSerializedCollation(
 }
 
 export async function createCommittedTranscriptionCheckpoint(
-	db: Kysely<Database>,
+	db: DbExecutor,
 	input: CommitTranscriptionInput
 ): Promise<TranscriptionCheckpoint> {
-	return db.transaction().execute(async trx => {
+	const record = async (trx: DbExecutor) => {
 		const snapshot = await loadProjectTranscriptionSnapshot(trx, input.projectTranscriptionId);
 		const head = await trx
 			.selectFrom('transcriptions')
@@ -433,7 +447,12 @@ export async function createCommittedTranscriptionCheckpoint(
 			.execute();
 
 		return mapTranscriptionCheckpoint(checkpoint, input.projectTranscriptionId, payload);
-	});
+	};
+	return isTransaction(db) ? record(db) : db.transaction().execute(record);
+}
+
+function isTransaction(db: DbExecutor): db is Transaction<Database> {
+	return 'isTransaction' in db && db.isTransaction === true;
 }
 
 export async function createCommittedCollationCheckpoint(
@@ -457,13 +476,13 @@ export async function createCommittedCollationCheckpointFromSerialized(
 }
 
 export async function recordCommittedCollationCheckpoint(
-	db: Kysely<Database>,
+	db: DbExecutor,
 	collationId: string,
 	contentHash: string,
 	payload: unknown,
 	input: CommitCollationInput
 ): Promise<CollationCheckpoint> {
-	return db.transaction().execute(async trx => {
+	const record = async (trx: DbExecutor) => {
 		const head = await trx
 			.selectFrom('collations')
 			.select('current_revision_id')
@@ -485,7 +504,8 @@ export async function recordCommittedCollationCheckpoint(
 			.where('id', '=', collationId)
 			.execute();
 		return mapCollationCheckpoint(checkpoint, payload);
-	});
+	};
+	return isTransaction(db) ? record(db) : db.transaction().execute(record);
 }
 
 async function createCommittedCollationCheckpointFromSerializedInTransaction(

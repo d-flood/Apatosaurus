@@ -89,6 +89,7 @@ import type {
 	LoadedTranscriptionCheckpoint,
 	TranscriptionCheckpoint,
 	TranscriptionCheckpointSummary,
+	PersistenceWarning,
 } from './repositories/revisions';
 import type { IndexRebuildReport } from './repositories/index-rebuild';
 import type {
@@ -172,11 +173,15 @@ export async function getTranscriptionsByIds(ids: string[]): Promise<Transcripti
 }
 
 export async function createTranscription(input: CreateTranscriptionInput): Promise<string> {
-	return sendTranscriptionRequest({ type: 'transcriptions.create', input });
+	const result = await sendTranscriptionRequest({ type: 'transcriptions.create', input });
+	reportPersistenceWarnings(result.warnings);
+	return result.value;
 }
 
 export async function createTranscriptions(inputs: CreateTranscriptionInput[]): Promise<string[]> {
-	return sendTranscriptionRequest({ type: 'transcriptions.createMany', inputs });
+	const result = await sendTranscriptionRequest({ type: 'transcriptions.createMany', inputs });
+	reportPersistenceWarnings(result.warnings);
+	return result.value;
 }
 
 export async function updateTranscriptionContent(
@@ -205,7 +210,9 @@ export async function updateTranscriptionMetadata(
 }
 
 export async function deleteTranscription(id: string): Promise<void> {
-	await sendTranscriptionRequest({ type: 'transcriptions.delete', transcriptionId: id });
+	reportPersistenceWarnings(
+		await sendTranscriptionRequest({ type: 'transcriptions.delete', transcriptionId: id })
+	);
 }
 
 export async function getVerseIndexRowsForVerse(
@@ -261,7 +268,9 @@ export async function createProject(input: CreateProjectInput): Promise<string> 
 }
 
 export async function forkProject(input: ForkProjectInput): Promise<ForkProjectResult> {
-	return sendProjectRequest({ type: 'projects.fork', input });
+	const result = await sendProjectRequest({ type: 'projects.fork', input });
+	reportPersistenceWarnings(result.warnings);
+	return result;
 }
 
 export async function updateProjectMetadata(input: UpdateProjectMetadataInput): Promise<void> {
@@ -323,13 +332,21 @@ export async function syncProjectTranscriptionIds(
 export async function refreshProjectTranscription(
 	input: RefreshProjectTranscriptionInput
 ): Promise<ProjectTranscriptionStatus> {
-	return sendProjectRequest({ type: 'projects.refreshTranscription', input });
+	const result = await sendProjectRequest({ type: 'projects.refreshTranscription', input });
+	reportPersistenceWarnings(result.warnings ?? []);
+	return result;
 }
 
 export async function addProjectTranscriptionFromProject(
 	input: AddProjectTranscriptionFromProjectInput
-): Promise<{ projectTranscriptionId: string; projectOwnedTranscriptionId: string }> {
-	return sendProjectRequest({ type: 'projects.addTranscriptionFromProject', input });
+): Promise<{
+	projectTranscriptionId: string;
+	projectOwnedTranscriptionId: string;
+	warnings: PersistenceWarning[];
+}> {
+	const result = await sendProjectRequest({ type: 'projects.addTranscriptionFromProject', input });
+	reportPersistenceWarnings(result.warnings);
+	return result;
 }
 
 export async function listProjectTranscriptionSourceCandidates(
@@ -346,7 +363,9 @@ export async function listCollationsWithProjectNames(): Promise<CollationListIte
 }
 
 export async function createCollation(input: CreateCollationInput): Promise<string> {
-	return sendCollationRequest({ type: 'collations.create', input });
+	const result = await sendCollationRequest({ type: 'collations.create', input });
+	reportPersistenceWarnings(result.warnings);
+	return result.value;
 }
 
 export async function loadCollation(id: string): Promise<LoadedCollation | null> {
@@ -384,7 +403,21 @@ export async function updateCollationMetadata(input: UpdateCollationMetadataInpu
 }
 
 export async function deleteCollation(id: string): Promise<void> {
-	await sendCollationRequest({ type: 'collations.delete', collationId: id });
+	reportPersistenceWarnings(
+		await sendCollationRequest({ type: 'collations.delete', collationId: id })
+	);
+}
+
+function reportPersistenceWarnings(warnings: PersistenceWarning[]): void {
+	for (const warning of warnings) {
+		notificationCenter.upsert({
+			id: `persistence-warning:${warning.code}:${warning.entityType}:${warning.entityId}`,
+			title: 'Local file needs attention',
+			message: warning.message,
+			tone: 'warning',
+			persistent: true,
+		});
+	}
 }
 
 export async function listManifestSources(

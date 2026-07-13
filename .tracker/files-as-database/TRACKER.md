@@ -8,7 +8,7 @@ This document tracks the status of all tickets in the files-as-database epic: in
 
 Overall status: `In Progress`
 
-Current ticket: review remediation for tickets `05`-`09`; ticket `10` remains blocked
+Current ticket: review remediation for ticket `06`; ticket `10` remains blocked
 
 Last updated: 2026-07-13
 
@@ -25,7 +25,7 @@ Last updated: 2026-07-13
 | 02 | `02-document-store-foundation.md` | Completed | None |
 | 03 | `03-canonical-file-formats.md` | Completed | 02 |
 | 04 | `04-project-only-data-model.md` | Completed | 03 |
-| 05 | `05-write-path-inversion.md` | In Progress | 04 |
+| 05 | `05-write-path-inversion.md` | Completed | 04 |
 | 06 | `06-index-rebuild-and-repair.md` | In Progress | 05 |
 | 07 | `07-local-folder-sync.md` | In Progress | 01, 06 |
 | 08 | `08-zip-export.md` | In Progress | 06 |
@@ -60,6 +60,9 @@ bun run test:unit -- --run
 
 | Date | Note |
 | --- | --- |
+| 2026-07-13 | Ticket 05 review remediation completed. Transcription and collation working files are accepted only when demonstrably ahead of their committed primaries and are removed after successful commits; refresh preserves dirty state in checkpoint history and leaves the refreshed head clean. Entity creation, project copy/fork, refresh, metadata, and IIIF mutations now publish canonical files before index state with failure-safe transactions. Commit/create/delete operations return structured non-blocking TEI or primary-cleanup warnings surfaced in the UI. Added creation, stale-working, refresh-boundary, metadata/IIIF rebuild, warning, copy, and fork regression coverage. Verification passed: `bun run db:generate`, `bun run db:check`, focused store/DB/collation suites (265 server tests; the known OPFS handle-release race passed on isolated rerun), `bun run check`, and the full unit/browser suite (480 tests). |
+| 2026-07-13 | Ticket 05 refresh-draft decision: preserve the pre-refresh dirty draft in canonical checkpoint history only, remove the old working file, and leave the refreshed head clean. Implementation resumed. |
+| 2026-07-13 | Ticket 05 remediation paused before implementation. Its completion gate requires working files to represent only current uncommitted state and successful transcription commits to remove committed working files, while completed ticket 11 requires refresh-from-source to preserve any working draft afterward. The current refresh first commits a dirty draft as `Local state before refresh from source`, then replaces the target, but the tickets do not say whether preservation means checkpoint history only or retaining/restoring an active working file after refresh. A human decision is needed before changing refresh and working-file lifecycle behavior. |
 | 2026-07-13 | Ticket 04 review remediation completed. Project creation, Default bootstrap, metadata/settings updates, transcription metadata edits, witness copy/removal, and project forks now write canonical files before index publication; empty projects and all exercised mutations survive index rebuild. Project manifest v2 adds migrate-on-read fork provenance, canonical forks rewrite project/entity/revision identities while preserving transcription lineage, and witness projection rejects foreign-project ownership. Removed public-transcription UI semantics, made collation project contracts non-null/non-reassignable, and made `/collation/new` select Default without a query parameter. Verification passed: repository suite (91 tests), focused sync suite (42 tests), `bun run db:generate`, `bun run db:check`, `bun run check`, and full unit/browser suite (464 tests). |
 | 2026-07-13 | Ticket 04 fork-provenance decision: canonical project forks record their source project id and source manifest hash/revision metadata in `project.json`; copied transcriptions also retain their existing `origin_*` lineage. Implementation resumed. |
 | 2026-07-13 | Ticket 04 remediation paused before implementation. The required canonical project fork calls for "explicit provenance," but no project-fork provenance field exists in `apatosaurus.project-manifest`, collation documents have no lineage contract, and only transcription documents define `origin_*`. A human decision is needed on whether fork provenance is project-level, transcription-only, or added to every forked entity; implementing any choice would otherwise invent a persisted schema contract. |

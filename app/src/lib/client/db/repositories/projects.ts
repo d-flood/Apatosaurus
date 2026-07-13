@@ -23,6 +23,7 @@ import {
 	loadCommittedTranscriptionCheckpointPayload,
 	type EntityCheckpointHead,
 	type TranscriptionCheckpointPayload,
+	type PersistenceWarning,
 } from './revisions';
 import { ensureDefaultProject, resolveProjectStorageSlug } from './project-bootstrap';
 import {
@@ -136,6 +137,7 @@ export interface ProjectTranscriptionStatus {
 	commitState: 'never-committed' | 'clean' | 'dirty';
 	sourceState: ProjectTranscriptionSourceState;
 	cloudBackupState?: EntityCloudBackupState;
+	warnings?: PersistenceWarning[];
 }
 
 export interface ProjectTranscriptionStatusOptions {
@@ -181,6 +183,7 @@ export interface ForkProjectResult {
 	projectTranscriptionIds: string[];
 	projectOwnedTranscriptionIds: string[];
 	collationIds: string[];
+	warnings: PersistenceWarning[];
 }
 
 export async function listProjects(db: DbExecutor): Promise<ProjectOption[]> {
@@ -313,8 +316,7 @@ export async function forkProject(
 		if (!read.ok) throw new Error(`Canonical collation ${head.collation_id} is invalid.`);
 		sourceCollations.set(head.collation_id, read.payload);
 	}
-	{
-		const trx = db;
+	return db.transaction().execute(async trx => {
 		const now = input.createdAt ?? new Date().toISOString();
 		const targetProjectId = createId();
 		const targetName =
@@ -341,6 +343,7 @@ export async function forkProject(
 			sourceTranscriptionPayloads
 		);
 		const forkedTranscriptions = uniqueForkedProjectTranscriptions(transcriptionMap);
+		const warnings: PersistenceWarning[] = [];
 		for (const transcription of forkedTranscriptions) {
 			const checkpoint = await createCommittedTranscriptionCheckpointWithFiles(
 				trx,
@@ -353,6 +356,7 @@ export async function forkProject(
 				storeOptions
 			);
 			transcription.contentHash = checkpoint.contentHash;
+			warnings.push(...(checkpoint.warnings ?? []));
 		}
 		const collationIds = await forkProjectCollations(
 			trx,
@@ -373,7 +377,7 @@ export async function forkProject(
 				},
 				storeOptions
 			);
-			await createCommittedCollationCheckpointWithFiles(
+			const checkpoint = await createCommittedCollationCheckpointWithFiles(
 				trx,
 				{
 					collationId: collation.id,
@@ -383,6 +387,7 @@ export async function forkProject(
 				},
 				storeOptions
 			);
+			warnings.push(...(checkpoint.warnings ?? []));
 		}
 		await writeProjectManifestFile(
 			trx,
@@ -401,8 +406,9 @@ export async function forkProject(
 			projectTranscriptionIds: forkedTranscriptions.map(row => row.projectTranscriptionId),
 			projectOwnedTranscriptionIds: forkedTranscriptions.map(row => row.transcriptionId),
 			collationIds: collationIds.map(collation => collation.id),
+			warnings,
 		};
-	}
+	});
 }
 
 function uniqueForkedProjectTranscriptions(
@@ -701,6 +707,7 @@ export async function refreshProjectTranscription(
 	input: RefreshProjectTranscriptionInput,
 	options: ProjectContentLoadOptions = {}
 ): Promise<ProjectTranscriptionStatus> {
+	const warnings: PersistenceWarning[] = [];
 	const target = await db
 		.selectFrom('project_transcriptions')
 		.innerJoin('transcriptions', 'transcriptions.id', 'project_transcriptions.transcription_id')
@@ -751,7 +758,7 @@ export async function refreshProjectTranscription(
 		return getProjectTranscriptionStatus(db, input.projectTranscriptionId, options);
 	}
 	if (targetCheckpointStatus.dirtyToCheckpoint) {
-		await createCommittedTranscriptionCheckpointWithFiles(
+		const checkpoint = await createCommittedTranscriptionCheckpointWithFiles(
 			db,
 			{
 				projectTranscriptionId: input.projectTranscriptionId,
@@ -760,6 +767,7 @@ export async function refreshProjectTranscription(
 			},
 			options.storeOptions
 		);
+		warnings.push(...(checkpoint.warnings ?? []));
 	}
 
 	await db.transaction().execute(async trx => {
@@ -822,17 +830,21 @@ export async function refreshProjectTranscription(
 			.set({ updated_at: now })
 			.where('id', '=', projectId)
 			.execute();
+		const checkpoint = await createCommittedTranscriptionCheckpointWithFiles(
+			trx,
+			{
+				projectTranscriptionId: input.projectTranscriptionId,
+				commitMessage: 'Refresh from source',
+				createdAt: input.updatedAt,
+			},
+			options.storeOptions
+		);
+		warnings.push(...(checkpoint.warnings ?? []));
 	});
-	await createCommittedTranscriptionCheckpointWithFiles(
-		db,
-		{
-			projectTranscriptionId: input.projectTranscriptionId,
-			commitMessage: 'Refresh from source',
-			createdAt: input.updatedAt,
-		},
-		options.storeOptions
-	);
-	return getProjectTranscriptionStatus(db, input.projectTranscriptionId, options);
+	return {
+		...(await getProjectTranscriptionStatus(db, input.projectTranscriptionId, options)),
+		warnings,
+	};
 }
 
 interface ForkedProjectTranscriptionIds {
@@ -1353,8 +1365,12 @@ export async function addProjectTranscriptionFromProject(
 	db: Kysely<Database>,
 	input: AddProjectTranscriptionFromProjectInput,
 	options: ProjectContentLoadOptions = {}
-): Promise<{ projectTranscriptionId: string; projectOwnedTranscriptionId: string }> {
-	const created = await db.transaction().execute(async trx => {
+): Promise<{
+	projectTranscriptionId: string;
+	projectOwnedTranscriptionId: string;
+	warnings: PersistenceWarning[];
+}> {
+	return db.transaction().execute(async trx => {
 		const sourceLink = await trx
 			.selectFrom('project_transcriptions')
 			.innerJoin(
@@ -1451,21 +1467,21 @@ export async function addProjectTranscriptionFromProject(
 			.where('id', '=', input.targetProjectId)
 			.execute();
 
-		return {
+		const created = {
 			projectTranscriptionId,
 			projectOwnedTranscriptionId: targetTranscriptionId,
 		};
+		const checkpoint = await createCommittedTranscriptionCheckpointWithFiles(
+			trx,
+			{
+				projectTranscriptionId: created.projectTranscriptionId,
+				commitMessage: 'Add from project',
+				createdAt: input.createdAt,
+			},
+			options.storeOptions
+		);
+		return { ...created, warnings: checkpoint.warnings ?? [] };
 	});
-	await createCommittedTranscriptionCheckpointWithFiles(
-		db,
-		{
-			projectTranscriptionId: created.projectTranscriptionId,
-			commitMessage: 'Add from project',
-			createdAt: input.createdAt,
-		},
-		options.storeOptions
-	);
-	return created;
 }
 
 export interface ProjectTranscriptionSourceCandidate {
