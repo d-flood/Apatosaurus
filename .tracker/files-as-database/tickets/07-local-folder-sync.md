@@ -83,3 +83,26 @@ Manual Chromium multi-folder scenario from the completion criteria remains pendi
 | Date | Note |
 | --- | --- |
 | 2026-07-07 | Phase 7 implementation landed. Project sync targets are stored in `app/sync-targets.json` with persisted local-folder handles; `sync_file_fingerprints` records per-file mirror state in the rebuildable index. Project folder sync now mirrors canonical project files byte-for-byte through the local-folder provider, excludes `*.working.json`, validates remote pulls before OPFS overwrite, rebuilds the index after pulls, preserves conflicts as copies, and surfaces quarantines/status in the reworked Folder Sync UI. App startup now starts enabled sync-target pollers, retries on focus/online, and syncs after project/transcription/collation invalidations. The legacy external transcription folder sync service, worker, library-page panel, and editor enqueue path were removed. Automated verification passed; manual Chromium multi-folder smoke remains pending for phase completion. |
+
+## Review Remediation (2026-07-13)
+
+Ticket 07 is reopened because required mirror semantics exist only in unused helpers or are absent from the production mirror.
+
+### Required fixes
+
+- Integrate tombstones into `mirrorProjectFiles()`. Push publishes the tombstone before deleting the matching remote primary; pull validates/applies it, removes local primary, retains history, updates manifest/index, and never re-pulls the tombstoned primary as remote-only. Remove or fold in uncalled `syncProjectTombstones()`.
+- Resolve TEI from the winning primary. Do not accept divergent or remote-only TEI as authoritative; regenerate it after primary pull/conflict resolution.
+- Preserve per-file partial failure. Stage/validate candidate remote changes before live writes, continue unrelated paths where possible, rebuild successfully applied pulls, and persist fingerprints only for completed paths.
+- Map persistent-handle `NotAllowedError`/`SecurityError` to reconnect-required. Display automatic-sync reconnect state, stop futile polling, support one-click re-grant, and resume polling afterward.
+- Remove navbar/global `cloud_connections` folder state. Production sync starts only from project-scoped `sync-targets.json` targets.
+- Define ticket 10's shared boundary as staging plus canonical validation, not whole-project replacement. Fingerprints, conflict copies, tombstones, TEI regeneration, and per-file result policy remain above that boundary in this ticket.
+
+### Required tests
+
+- Run two independent local stores/fingerprint caches against one mock provider: A push/B pull, divergent commits, conflict preservation, repeated no-op sync, and recovery after fingerprint-cache rebuild.
+- Test local deletion through remote primary removal and remote tombstone through local deletion/history retention, including interruption between tombstone and primary deletion.
+- Test one pass with valid, corrupt, conflicting, and remote-only files; valid independent files must complete and receive fingerprints.
+- Test automatic permission loss, visible reconnect, re-grant, and resumed polling.
+- Test that primary conflict/pull regenerates TEI instead of accepting conflicting TEI bytes.
+
+Completion gate: the production mirror, not a test-only helper, satisfies every push/pull/conflict/tombstone/TEI/permission rule and the two-instance scenario.

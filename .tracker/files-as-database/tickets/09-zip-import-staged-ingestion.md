@@ -50,3 +50,31 @@ Success: focused suites include round-trip, collision, corruption, and traversal
 ## Blocked by
 
 - 08 (`08-zip-export.md`) — the archive format and round-trip test need export.
+
+## Review Remediation (2026-07-13)
+
+Ticket 09 is reopened because the readable-tree seam exists, but the user flow, validation, copy semantics, and all-or-nothing placement contract are incomplete.
+
+### Required fixes
+
+- Expose zip import through a DB/store-worker RPC and client API, then add a reachable file-picker/import action. Show validation reports and require explicit replace/copy choice naming local/imported timestamps; replace is never default.
+- Split staging/validation from placement. The lower-level result contains validated staged entries and a report but performs no collision decision, deletion, conflict resolution, or rebuild. Ticket 10 and sync consume this seam with their own policies.
+- Define an allowlist/path-to-format registry for manifest, both primaries, both working formats, both checkpoint trees, canonical tombstones, and TEI. Reject unknown files unless explicitly tolerated. Match working collations before committed collations.
+- Run envelope migrate-on-read plus format-specific semantic checks before placement: current revision hashes, checkpoint payload hashes/entity ids, manifest heads/paths/project ids, entity identities, and tombstone identity.
+- Validate path segments; reject absolute/backslash/empty/`.`/`..` paths, duplicate normalized paths, and multiple project roots in a single-project import.
+- Make placement recoverable and manifest-last. Do not delete the live project before replacement is durable. Preserve rollback state or use an atomic/recoverable swap; move/write/rebuild failure restores the exact old project and leaves no partial live replacement.
+- Complete import-as-copy rewriting: manifest id/name/slug, collation `project_id`, embedded document project metadata, working files, project-scoped checkpoint data, tombstones, and other project ids. Record provenance, revalidate rewritten files, regenerate TEI, and document intentionally stable entity/revision ids.
+- Run stale staging cleanup during startup. Do not delete an active import from another live session; use ownership/age data to identify stale work.
+- Support ticket 08's all-project archive or coordinate a documented switch to separate project zips.
+
+### Required tests
+
+- Add UI/RPC coverage for empty-store import and explicit collisions.
+- Round-trip a complete project with both entity/working/history types, tombstones, TEI, IIIF, and lineage; assert byte equivalence modulo documented rewrites/exclusions.
+- Reject corrupt collation history, semantic hash mismatch, unknown JSON, duplicate normalized paths, and all traversal forms before live writes.
+- Inject every placement move/write, manifest, and rebuild failure; assert the previous project is byte-identical and no partial replacement is live.
+- Validate every import-as-copy rewrite and rebuild twice to prove stable identity/lineage.
+- Preseed stale and active staging directories; startup removes only stale directories.
+- Restore an all-project export with independent create/replace/copy outcomes.
+
+Completion gate: users can import ticket 08 backups through the UI, every accepted canonical file is fully validated before live writes, and every failure preserves the exact pre-import store.

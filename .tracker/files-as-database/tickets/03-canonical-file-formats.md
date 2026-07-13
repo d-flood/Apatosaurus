@@ -80,3 +80,24 @@ All passed.
 | Date | Note |
 | --- | --- |
 | 2026-07-04 | Phase completed. Added canonical format modules under `app/src/lib/client/store/formats/` for project manifests, project transcriptions, collations, transcription/collation checkpoints, tombstones, and working transcription/collation state. Formats register with migrate-on-read and use strict known-field validation while ignoring unknown top-level payload fields by reconstructing validated payloads. Legacy reserved-field conflicts are resolved in canonical payloads with `content_format` and `payload_content_hash`; `sync/cloud-files.ts` now adapts existing sync-facing shapes to canonical envelopes so current sync callers stay stable. Added pure derived TEI serializers for transcription and collation apparatus output and fixture-backed format tests. |
+
+## Review Remediation (2026-07-13)
+
+Ticket 03 is reopened because canonical definitions exist, but parsing/serialization and path semantics remain duplicated.
+
+### Required fixes
+
+- Reduce `sync/cloud-files.ts` to a thin adapter over `store/formats`. It must not independently own canonical validation, hashing, serialization, restore payloads, or database-derived file shapes.
+- Remove the alternate cloud tombstone path. Every producer and consumer must use `tombstones/<entity-type>--<entity-id>.json` from `layout.ts`; delete tests that bless `tombstones/<tombstone-id>.json`.
+- Put semantic integrity validation beside each format and expose one canonical read operation that can run envelope/shape validation plus format checks. Cover transcription/collation current-revision hashes, checkpoint payload hashes/entity ids, and manifest head/path consistency. Tickets 06, 07, and 09 must call the same checks.
+- Document collation v1-to-v2 evolution and add checked-in input/expected-output fixtures for committed collation, working collation, and collation checkpoint upgrades.
+- Make TEI `xml:id` generation valid for numeric or punctuation-leading identifiers.
+
+### Required tests
+
+- Round-trip a complete project containing both entity types, both working formats, both checkpoint formats, tombstones, IIIF fields, lineage, and derived TEI through the canonical format API.
+- Prove sync/restore adapters serialize byte-equivalent canonical envelopes and paths.
+- Reject a resealed document whose nested revision or checkpoint payload hash is wrong.
+- Parse TEI generated from numeric and punctuation-heavy identifiers and assert valid `xml:id` values.
+
+Completion gate: one format module owns each shape and integrity rule, with no parallel sync/import serializer or path grammar.

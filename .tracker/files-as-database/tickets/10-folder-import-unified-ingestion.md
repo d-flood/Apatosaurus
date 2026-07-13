@@ -48,3 +48,16 @@ Success: focused suites pass with folder-source ingestion tests; no references t
 
 - 07 (`07-local-folder-sync.md`) — sync-pull path must exist to be unified.
 - 09 (`09-zip-import-staged-ingestion.md`) — the ingestion primitive.
+
+## Implementation Notes
+
+### 2026-07-13: Contract clarification required
+
+The stated starting point no longer matches production: `pullLinkedProjectUpdates()` is an unused legacy RPC path, while Ticket 07 production pulls occur in `sync-manager.ts`'s per-file mirror path. That path preserves per-file fingerprints, conflict copies, and tombstone behavior.
+
+Ticket 09's `importProjectFileTree()` is a whole-project import primitive. Its same-id modes either reject, copy, or delete and replace the complete project folder. Calling it from the production mirror path would therefore change Ticket 07 sync semantics, contrary to this ticket's contract and out-of-scope rules.
+
+Implementation needs one of these decisions recorded in the contract before continuing:
+
+1. Define the lower-level staged validation/patch-placement interface that both whole-project import and the existing per-file mirror must use while preserving Ticket 07 semantics.
+2. Limit this ticket's unification requirement to folder/zip import and retirement of the unused legacy restore RPCs, leaving production per-file sync validation unchanged.

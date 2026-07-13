@@ -84,3 +84,25 @@ bun run check && bun run test:unit -- --run
 | 2026-07-06 | Bulk verse query slice completed. Added `listVerseIndexRowsForTranscriptions()` through the repository, worker RPC, client bridge, and public verse-index adapter, and changed collation verse gathering to ticket one bulk verse-index request for selected transcriptions instead of one serialized worker request per transcription. Verification passed: focused verse-index/gather/transcriptions tests (14 passed), `bun run check`, `bun run db:check`, and full `bun run test:unit -- --run` (372 passed). Phase 6 remains in progress for content-cache demotion, repair UI/RPC, auto-rebuild on failed open/integrity check, hash-based verse-index staleness skip, rebuild label RPC loop removal, single-parse indexing, and delete-the-index invariant coverage. |
 | 2026-07-06 | Stale index cleanup slice completed. Fresh index startup now runs cleanup only after `rebuildIndexFromStore()` succeeds, removing old root-level `apatosaurus-index-v*` files, legacy `apatosaurus-local-v1*` files, and old nested `apatosaurus/v1/index/apatosaurus-index-v*` versions while preserving the current index and current WAL/SHM companions. Added focused cleanup coverage. Verification passed: focused `index-files` test, `bun run test:unit -- --run src/lib/client/db src/lib/client/store` (97 passed), `bun run check`, `bun run db:check`, and full `bun run test:unit -- --run` (371 passed). Phase 6 remains in progress for content-cache demotion, repair UI/RPC, auto-rebuild on failed open/integrity check, verse-index performance, and delete-the-index invariant coverage. |
 | 2026-07-06 | Phase 6 started. Replaced runtime SQL migration bookkeeping with `INDEX_SCHEMA_VERSION = 1`, the versioned OPFS index path `apatosaurus/v1/index/apatosaurus-index-v1.db`, and a fresh-index schema creator; removed `schema_migrations` from the greenfield schema/generated types and updated reset/perf-test cleanup for both legacy root DB files and the new nested index location. Added `rebuildIndexFromStore()` for fresh versioned indexes: it scans project manifests and referenced canonical transcription/collation primaries, history checkpoints, and tombstones through migrate-on-read, repopulates listing/IIIF/verse/projection/checkpoint/tombstone index rows in one transaction, reports quarantined and orphaned files, and inserts checkpoint rows parent-first even when filenames sort out of order. Fresh worker startup now creates schema, rebuilds from files, then bootstraps the default project. Verification passed: `bun run db:generate`, `bun run db:check`, `bun run check`, focused index/schema/maintenance tests, `bun run test:unit -- --run src/lib/client/db src/lib/client/store` (96 passed), and full `bun run test:unit -- --run` (370 passed). Remaining Phase 6 work includes stale index cleanup, content-cache demotion, repair UI/RPC, auto-rebuild on open/integrity failure, verse-index performance work, and the delete-the-index invariant test. |
+
+## Review Remediation (2026-07-13)
+
+Ticket 06 is reopened because the rebuild engine works for covered paths, but supported durable state still exists outside its canonical inputs.
+
+### Required fixes
+
+- After ticket 04/05 remediation, restore empty projects, project metadata/settings, transcription metadata, IIIF CRUD, canonical project copies/forks, and working state solely from files.
+- Expand orphan detection beyond unreferenced primaries. Report unreferenced tombstones, histories, working files, TEI siblings, and project directories with missing/invalid manifests without deleting them.
+- Implement restore-into-project for recoverable orphan primaries. Validate semantic integrity, update the manifest first, then rebuild the index.
+- Show quarantine/orphan path, code, and message in Repair UI, not only counts. Include safe recovery actions.
+- Remove legacy `cloud_connections`, `cloud_project_folders`, and `cloud_sync_metadata` dependencies after tickets 07/10 retire consumers. Only rebuildable fingerprints remain in SQLite; targets live in `app/sync-targets.json` plus handle storage.
+- Do not use a stale working transcription during rebuild merely because the file exists; apply ticket 05's committed-vs-working rule.
+
+### Required tests
+
+- Extend the browser delete-index invariant with an empty renamed project, changed settings, transcription metadata, IIIF CRUD, project copy/fork, and deletion/tombstone cases.
+- Seed unreferenced primary, working, history, tombstone, TEI, and missing-manifest files and assert classification without mutation.
+- Exercise restore-into-project, then delete/rebuild again.
+- Assert Repair UI renders actionable file-level details.
+
+Completion gate: deleting SQLite after any supported durable operation restores equivalent state, with every non-restorable file surfaced individually.

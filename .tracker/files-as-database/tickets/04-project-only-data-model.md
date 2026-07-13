@@ -100,3 +100,26 @@ Verification results:
 | 2026-07-04 | Removed the remaining account-era ownership columns from the index schema: `projects.owner_id` and `project_transcriptions.added_by_id`. Updated project creation/bootstrap, project transcription link creation, restore/sync/conflict insert paths, collation mocks, and regenerated `types.generated.ts`. No user/account replacement was added because account management was removed in Phase 1. |
 | 2026-07-04 | Removed the dead promote-to-library API surface entirely: repository function/input type, worker RPC branch, RPC request variant, client wrapper, project-collation wrapper/type export, and the two tests that only asserted the stub threw. Cross-project copy remains through `addProjectTranscriptionFromProject`. |
 | 2026-07-04 | Completed Phase 4 by removing the leftover persisted project-transcription `scope_type: project_snapshot` field from the canonical format, sync cloud-file adapter, and import input. Added a regression assertion that newly serialized project-transcription files omit `scope_type`. Remaining `scope_type` references are only in the legacy `cloud_sync_metadata` cache, deferred to Phase 7. Temporary source/payload cache columns remain deferred to Phase 5/6 as documented above. |
+
+## Review Remediation (2026-07-13)
+
+Ticket 04 is reopened because project ownership exists in the schema, but active product paths still create project state only in the disposable index.
+
+### Required fixes
+
+- Make project creation, Default bootstrap, rename, description, charter, and collation-settings updates write `project.json` before publishing the index change. An empty project must have a canonical folder/manifest and survive index deletion.
+- Replace `syncProjectTranscriptionIds()` DB-only cloning/deletion. Adding a witness from another project must use canonical copy-with-lineage; removing an owned transcription must use canonical deletion/tombstones or remove only an explicitly modeled non-owning selection relation.
+- Replace `forkProject()` DB-only copying with a canonical folder/file operation. The fork needs a new project id/slug, rewritten project ids in collations and embedded documents, valid manifests/history/TEI, and explicit provenance.
+- Replace `TranscriptionForm.svelte` raw SQL metadata updates with a worker/repository operation that updates canonical working or committed state first and derives the index. Remove leftover `is_public`/"Make Public" semantics unless a current requirement explicitly retains them.
+- Enforce project-local collation witnesses at the repository/RPC boundary. Reject witnesses not owned or linked by the collation project.
+- Remove nullable/project-reassignment contracts for collations where exactly one project is required.
+- Make `/collation/new` select Default when no project query parameter is supplied.
+
+### Required tests
+
+- Create and rename an empty project, change settings, delete/rebuild the index, and assert exact metadata/slug restoration.
+- Exercise witness add/remove, project fork, and transcription metadata editing, then delete/rebuild and assert equivalent entities and lineage.
+- Reject a foreign-project witness at the repository/RPC boundary.
+- Create a collation without a project query parameter and assert it belongs to Default.
+
+Completion gate: no ownership, copy, fork, metadata, or creation flow can create state that disappears when SQLite is deleted.

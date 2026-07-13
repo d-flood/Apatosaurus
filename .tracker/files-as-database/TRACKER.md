@@ -8,13 +8,13 @@ This document tracks the status of all tickets in the files-as-database epic: in
 
 Overall status: `In Progress`
 
-Current ticket: `09-zip-import-staged-ingestion` (implementation complete)
+Current ticket: review remediation for tickets `02`-`09`; ticket `10` remains blocked
 
-Last updated: 2026-07-11
+Last updated: 2026-07-13
 
 ## Blocking Rules
 
-- Ticket 07 needs human validation only; it does not block starting 08, 11, 12, 14, 17, or 19.
+- Ticket 07's 2026-07-13 remediation is implementation work and blocks ticket 10; the earlier validation-only exception no longer applies.
 - Tickets 21-23 are the hardening/documentation tail; do not start them while earlier tickets are `Not Started`.
 
 ## Ledger
@@ -22,15 +22,15 @@ Last updated: 2026-07-11
 | Number | Filename | Status | Depends On |
 | --- | --- | --- | --- |
 | 01 | `01-remove-cloud-providers.md` | Completed | None |
-| 02 | `02-document-store-foundation.md` | Completed | None |
-| 03 | `03-canonical-file-formats.md` | Completed | 02 |
-| 04 | `04-project-only-data-model.md` | Completed | 03 |
-| 05 | `05-write-path-inversion.md` | Completed | 04 |
-| 06 | `06-index-rebuild-and-repair.md` | Completed | 05 |
-| 07 | `07-local-folder-sync.md` | Completed | 01, 06 |
-| 08 | `08-zip-export.md` | Completed | 06 |
-| 09 | `09-zip-import-staged-ingestion.md` | Completed | 08 |
-| 10 | `10-folder-import-unified-ingestion.md` | Not Started | 07, 09 |
+| 02 | `02-document-store-foundation.md` | In Progress | None |
+| 03 | `03-canonical-file-formats.md` | In Progress | 02 |
+| 04 | `04-project-only-data-model.md` | In Progress | 03 |
+| 05 | `05-write-path-inversion.md` | In Progress | 04 |
+| 06 | `06-index-rebuild-and-repair.md` | In Progress | 05 |
+| 07 | `07-local-folder-sync.md` | In Progress | 01, 06 |
+| 08 | `08-zip-export.md` | In Progress | 06 |
+| 09 | `09-zip-import-staged-ingestion.md` | In Progress | 08 |
+| 10 | `10-folder-import-unified-ingestion.md` | Needs Human Validation or Intervention | 07, 09 |
 | 11 | `11-copy-with-lineage-and-refresh.md` | Completed | 06 |
 | 12 | `12-capabilities-and-persistence.md` | Completed | 06 |
 | 13 | `13-backup-health-and-install-nudge.md` | Completed | 08, 12 |
@@ -60,6 +60,8 @@ bun run test:unit -- --run
 
 | Date | Note |
 | --- | --- |
+| 2026-07-13 | Independent implementation reviews of tickets 01-09 found that ticket 01's direct-provider removal remains complete, but tickets 02-09 have unmet acceptance or cross-ticket contracts. The ticket files now contain specific remediation requirements and tests. The most important gaps are SQLite-only project/IIIF/copy mutations that do not survive index rebuild, inactive production tombstone semantics, unsafe zip replacement, incomplete staged validation, and no user-facing zip import. Tickets 02-09 are reopened; ticket 10 remains blocked until those contracts are restored and its lower-level staged-validation seam is specified. Current verification: `bun run db:check` and `bun run check` passed; the full unit run passed 430/431 tests with the known index-rebuild browser timeout, and the focused invariant rerun passed. |
+| 2026-07-13 | Ticket 10 selected but blocked before implementation because its starting-point description no longer matches production. `pullLinkedProjectUpdates()` in `project-restore.ts` is an unused legacy RPC path, while Ticket 07 production pulls happen in `sync-manager.ts`'s per-file mirror path. The ticket 09 `importProjectFileTree()` primitive performs whole-project collision handling and placement (including delete-and-replace), so routing the production sync pull through it would change fingerprint, conflict-copy, and per-file mirror semantics. The ticket must clarify the shared lower-level staged validation/placement interface, or explicitly limit unification to retiring the legacy restore RPCs plus folder/zip import, before implementation can proceed. |
 | 2026-07-11 | Ticket 09 reopened and completed to supply the source-neutral ingestion seam required by its contract and ticket 10. Added exported `importProjectFileTree()` over sync/async iterables of relative-path files with asynchronous readers; `importProjectZip()` is now only a zip transport adapter into that primitive, so staging, path hygiene, migrate-on-read validation, collision handling, placement, cleanup, and index rebuild are shared. Added a readable-file-tree round-trip test; existing zip corruption and traversal tests now exercise the same shared path. Verification passed: focused import spec (7 passed), required store/sync slice (88 passed), required `bun run check && bun run test:unit -- --run` (425 passed), `bun run db:generate`, and `bun run db:check`. Ticket 10's recorded blocker is resolved and it is ready to start. |
 | 2026-07-11 | Ticket 10 selected but blocked before implementation. Its starting point and contract require ticket 09's staged-ingestion entry point to accept a readable file tree, but the implemented `importProjectZip()` keeps zip parsing, staging, migrate-on-read validation, placement, and index rebuild coupled in one function and exports no source-neutral ingestion primitive. Folder import and sync-pull therefore cannot consume the specified shared seam without first deciding and introducing the missing ticket 09 interface. Per the implementation hard rule, no replacement interface was invented. |
 | 2026-07-11 | Ticket 07 marked complete by user decision. Its two-instance manual scenario is deferred because the folder-import bootstrap flow belongs to ticket 10; ticket 10 is now unblocked. |

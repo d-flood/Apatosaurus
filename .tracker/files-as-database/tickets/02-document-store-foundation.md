@@ -84,3 +84,25 @@ bun run check
 | 2026-07-03 | Worker placement decision: future feature consumers should call the store through a dedicated `store.worker.ts`, not the DB worker. This phase keeps `opfs-store.ts` worker-safe and importable; wiring the worker RPC can happen when write paths move onto the store. |
 | 2026-07-03 | Migrate-on-read verifies the source file's existing `content_hash` before running upgraders, then returns an in-memory document resealed at the current version. Reads still never write upgraded files. |
 | 2026-07-03 | Full unit verification exposed existing browser-suite load sensitivity in two large transcription editor specs. Added explicit 30s per-test timeouts to those long workflows, then reran the full unit suite successfully. |
+
+## Review Remediation (2026-07-13)
+
+Ticket 02 is reopened because production consumers now depend on guarantees that the foundation does not fully provide.
+
+### Required fixes
+
+- Make the no-`move()` replacement path crash-safe. The current fallback verifies the temporary file and then truncates/writes the live target directly. Use a replacement whose changes become visible only after successful close, or retain enough verified old/temp state for startup/read recovery. A failed fallback must never leave an empty or partial canonical target as the only readable version.
+- Treat an operationally unsupported `FileSystemFileHandle.move()` as a fallback condition, not only a missing `move` function. Preserve genuine permission and I/O errors.
+- Add real browser OPFS coverage for replacing an existing target with `move()`, no-`move()` fallback, interruption while copying the target, and temporary-file recovery. Memory-backend behavior is not sufficient evidence.
+- Finish the worker-placement contract from the notes. Canonical feature writes must execute through one serialized store worker or an equivalently documented single-writer boundary.
+- Replace remaining canonical path literals in manifest/cloud adapters with `layout.ts` helpers that can return project-relative paths.
+- Define one production quarantine sink for normal file reads. Callers may choose presentation, but every failed canonical read must produce a structured path/code/message record rather than only `console.warn` and fallback.
+
+### Required tests
+
+- Inject failure after live-target replacement begins and prove the previous valid document or a verified recovery candidate remains available.
+- Exercise a browser backend where `move` is missing or rejects as unsupported.
+- Assert normal transcription/collation read failures record all four quarantine codes and never mutate source files.
+- Add canonical-path consistency coverage for manifest, sync, export, and store layout paths.
+
+Completion gate: atomic replacement holds for both browser paths, canonical writers share a serialization boundary, and failed canonical reads can always be surfaced as structured quarantine data.

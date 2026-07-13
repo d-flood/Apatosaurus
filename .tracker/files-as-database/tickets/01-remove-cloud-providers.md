@@ -76,3 +76,14 @@ Results, 2026-07-03:
 | 2026-07-03 | Manual Chromium smoke test passed after the default-folder creation fix: local folder connection worked, project backup wrote files to the selected folder, and no Dropbox/Google Drive/OAuth flow was involved. Phase 1 completion criteria are satisfied. |
 | 2026-07-03 | Fixed smoke-test failure where `Use default path` stored `Apatosaurus/Projects/<project-id>` before creating those directories. Backup now creates missing provider folder path segments and persists the resolved folder id before uploading. Added regression coverage; `bun run check` and full unit tests pass. |
 | 2026-07-03 | Removed Dropbox and Google Drive providers, PKCE/OAuth callback code, account placeholder routes, and token fields from the greenfield `cloud_connections` schema/types. Added folder-only connection helper, simplified provider factory to local-folder/mock, and updated backup UI copy to sync-folder wording. Renamed the OAuth-specific provider capability to `requiresExternalAuthorization` as an interface leak cleanup. Automated verification passed; manual Chromium folder smoke test is pending, so the phase remains `In Progress`. |
+
+## Review Follow-up (2026-07-13)
+
+The direct Dropbox/Google Drive/OAuth removal remains complete. Clean up these later regressions without reintroducing provider-specific behavior:
+
+- Remove the navbar `CloudConnectButton` flow that calls global `connectLocalFolder()` and writes a legacy `cloud_connections` row. A folder connection must be created for a selected project through `connectProjectSyncFolder()` and `app/sync-targets.json`, or the navbar must link to the project-scoped Folder Sync UI instead of claiming a global folder is connected.
+- Remove the obsolete global local-folder handle with that flow. Do not implicitly assign it to a project because there is no unambiguous owner.
+- Keep the provider factory limited to local-folder and mock. Add a regression test that supported provider ids resolve and removed Dropbox/Drive ids are rejected.
+- Add a source/config straggler check for OAuth, PKCE, token fields, and direct Dropbox/Drive API identifiers. Product copy about choosing a desktop-managed Dropbox/Drive/OneDrive folder is allowed.
+
+Completion gate: no control creates an unscoped sync connection, no OAuth/provider-registration surface exists, and folder sync connects through ticket 07's project target model. This follow-up does not reopen ticket 01 because its original removal contract remains satisfied; project-scoping cleanup is also tracked in tickets 07 and 10.

@@ -49,4 +49,26 @@ Success: focused suites and the full unit suite pass with the new export tests i
 
 ## Blocked by
 
-None - can start immediately (ticket 06 is Completed).
+- 06 (`06-index-rebuild-and-repair.md`) - export-all must enumerate and report canonical projects independently of a stale/rebuilt index.
+
+## Review Remediation (2026-07-13)
+
+Ticket 08 is reopened because project export works, but the complete backup contract is not restorable or safe for large projects.
+
+### Required fixes
+
+- Make export-all import-compatible. Either teach ticket 09 to import the current top-level `<project-slug>/...` multi-project archive with independent project collisions, or export separately downloadable project zips. Document and test the choice end to end.
+- Enumerate canonical project folders from the store, not only rows from a possibly stale index. Validate each `project.json`; report invalid/missing manifests rather than silently omitting folders.
+- Avoid simultaneously retaining every file as strings, encoded copies, ZIP chunks, and a final buffer. Use streaming ZIP generation where possible or a bounded-memory implementation. Detect/report ZIP32 count, size, and offset limits instead of wrapping fields.
+- Preserve exact entry bytes. Stop decoding/re-encoding through strings when the ZIP layer can accept bytes, so future non-text files remain intact.
+- Ensure draft inclusion/restoration covers both transcription and collation working files and appears clearly in import reports.
+
+### Required tests
+
+- Export a complete project with both primaries, both history trees, tombstones, both TEI siblings, and both working formats; compare every entry byte-for-byte.
+- Export all projects and restore each through ticket 09, including independent collisions.
+- Stale or rebuild the index before export-all and prove canonical folders remain covered.
+- Exercise ZIP size/count boundaries and assert a clear error instead of corruption.
+- Add browser download coverage for compatible Chromium, Firefox, and Safari blob-URL lifecycle behavior.
+
+Completion gate: every advertised project/all-project backup can be imported by the product, with explicit bounded behavior for realistic large corpora.
