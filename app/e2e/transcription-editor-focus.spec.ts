@@ -62,6 +62,7 @@ async function seedHarnessTranscription(page: Parameters<typeof test>[0]['page']
 async function createBlankTranscription(page: Parameters<typeof test>[0]['page']) {
 	const suffix = Date.now().toString(36);
 	await page.goto('/transcription/new');
+	await expect(page.locator('select')).not.toHaveValue('');
 	await page.locator('input[name="title"]').fill(`Focus Harness ${suffix}`);
 	await page.locator('input[name="siglum"]').fill(`FH-${suffix}`);
 	await page.locator('input[name="transcriber"]').fill('OpenCode');

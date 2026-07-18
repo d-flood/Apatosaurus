@@ -8,9 +8,9 @@ This document tracks the status of all tickets in the files-as-database epic: in
 
 Overall status: `In Progress`
 
-Current ticket: ticket `21` completed; ticket `22` is ready to start
+Current ticket: ticket `22` completed; ticket `23` is ready to start
 
-Last updated: 2026-07-17
+Last updated: 2026-07-18
 
 ## Blocking Rules
 
@@ -42,7 +42,7 @@ Last updated: 2026-07-17
 | 19 | `19-editor-init-only-setcontent.md` | Completed | 05 |
 | 20 | `20-editor-selection-side-effects-and-harness.md` | Completed | 19 |
 | 21 | `21-invariant-test-suite.md` | Completed | 07, 09, 10, 11 |
-| 22 | `22-e2e-scenarios-and-ci.md` | Not Started | 21 |
+| 22 | `22-e2e-scenarios-and-ci.md` | Completed | 21 |
 | 23 | `23-docs-and-ideas-triage.md` | Not Started | 16, 21 |
 
 ## Verification Baseline
@@ -60,6 +60,7 @@ bun run test:unit -- --run
 
 | Date | Note |
 | --- | --- |
+| 2026-07-18 | Ticket 22 completed. Added Chromium Playwright scenarios for fresh project/transcription/collation/zip creation, destructive site-data recovery through zip import, two isolated committee contexts sharing a test-only folder transport with update and conflict-copy propagation, and a checked-in synthetic v1 manifest/v0 index upgrade fixture. The scenarios exposed and fixed Svelte-proxy autosave RPC cloning, SQLite-only conflict copies, and remote-only primary orphaning. Added push/PR CI for schema checks, Svelte checks, node/browser Vitest, and Playwright; removed stale registration E2E coverage for routes retired in ticket 01 and aligned prior navigation/editor harnesses with completed project-first and hydration behavior. Verification passed: `bun run db:generate && bun run db:check`, `bun run check`, the full unit/browser suite (518 tests), and the full Playwright suite (17 passed, 1 opt-in performance benchmark skipped). |
 | 2026-07-17 | Ticket 21 completed. Added a dedicated nine-invariant suite covering real browser-worker index deletion, disposable sync fingerprints, quarantine preservation for every canonical format, atomic replacement instrumentation, production history append-only enforcement, read immutability, transcription/collation crash ordering, working-draft recovery, persistence request/warning behavior, and folder-equivalent zip round trips. Donor index, crash, persistence, and zip tests now have one authoritative home, with a real-browser persistence checklist beside the suite. Verification passed: `bun run db:generate`, `bun run db:check`, required store suite (60 tests), `bun run check`, and the full unit/browser suite (518 tests). |
 | 2026-07-17 | Ticket 10 marked complete after the user confirmed its human validation was sufficient to continue. Ticket 21 is now unblocked. |
 | 2026-07-13 | Ticket 09 review remediation completed. Zip import is now reachable through a typed worker/client RPC and Projects file-picker UI with structured validation reports and explicit timestamped replace/copy decisions. A source-neutral durable staging seam strictly validates paths, duplicates, roots, the canonical format allowlist, envelopes, semantic hashes, identities, manifest heads, working files, histories, tombstones, and TEI ownership before placement; sync retains a temporary auto-cleaned per-file validation seam. Active staging uses per-import Web Locks and heartbeat leases, while startup removes only unlocked work stale for over one hour. Placement runs under the shared document-store writer lock, writes manifests last, and restores exact prior files plus index state on failure. Import-as-copy rewrites project-scoped canonical data, records fork/transcription provenance, preserves entity/revision/checkpoint identities intentionally, reseals documents, and regenerates TEI. Verification passed: `bun run db:generate`, `bun run db:check`, focused import/export/sync/UI suites, required store/sync slice (138 tests), `bun run check`, and the full unit/browser suite (512 tests). |

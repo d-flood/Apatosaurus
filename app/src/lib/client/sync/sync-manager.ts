@@ -18,6 +18,7 @@ import {
 import {
 	createCommittedCollationCheckpointWithFiles,
 	getCollationVersionStatusWithWorkingFile,
+	saveWorkingCollationArtifact,
 } from '$lib/client/db/repositories/collation-files';
 import { createCommittedTranscriptionCheckpointWithFiles } from '$lib/client/db/repositories/transcription-files';
 import {
@@ -37,7 +38,10 @@ import {
 	type StoreOperationOptions,
 	type StoreQuarantineRecord,
 } from '$lib/client/store';
-import { rebuildIndexFromStore } from '$lib/client/db/repositories/index-rebuild';
+import {
+	rebuildIndexFromStore,
+	restoreOrphanPrimaryToProject,
+} from '$lib/client/db/repositories/index-rebuild';
 import { writeProjectManifestFile } from '$lib/client/db/repositories/project-files';
 import { loadProjectTranscriptionIds } from '$lib/client/db/repositories/collations';
 import { canonicalJson } from './canonical-json';
@@ -960,6 +964,7 @@ async function mirrorProjectFiles(
 			listRemoteMirrorFiles(provider, context),
 		]);
 		const pulledFiles: Array<{ localFile: LocalMirrorFile; remoteFile: RemoteMirrorFile }> = [];
+		const remoteOnlyPrimaryPaths: string[] = [];
 		const tombstonedPrimaryPaths = new Set<string>();
 		const conflictReferences: SyncEntityReference[] = [];
 		const conflictingRemotePrimaries = new Map<string, RemoteMirrorFile>();
@@ -1176,11 +1181,17 @@ async function mirrorProjectFiles(
 					storeOptions
 				);
 				pulledFiles.push({ localFile: pulledLocalFile, remoteFile });
+				if (primaryReferenceForMirrorPath(remoteFile.path)) {
+					remoteOnlyPrimaryPaths.push(joinStorePath(projectRoot, remoteFile.path));
+				}
 				result.downloadedPaths.push(remoteFile.path);
 			}
 
 		if (pulledFiles.length > 0) {
 			await rebuildIndexFromStore(db, storeOptions);
+			for (const path of remoteOnlyPrimaryPaths) {
+				await restoreOrphanPrimaryToProject(db, path, storeOptions);
+			}
 			for (const pulled of pulledFiles) {
 				await upsertFileFingerprint(
 					db,
@@ -1193,12 +1204,21 @@ async function mirrorProjectFiles(
 			}
 		}
 		for (const reference of conflictReferences) {
-			const copyId = await createConflictCopy(
-				db,
-				await loadLocalEntity(db, reference, options.storeOptions),
-				options
-			);
+			const local = await loadLocalEntity(db, reference, options.storeOptions);
+			const copyId = await createConflictCopy(db, local, options);
 			result.conflictCopyId ??= copyId;
+			const copyFiles = (
+				await listLocalProjectMirrorFiles(db, context.projectId, storeOptions)
+			).filter(file => isConflictCopyFile(file.path, reference.entityType, copyId));
+			for (const file of copyFiles) {
+				const write = await provider.createFile(
+					context.cloudFolderId,
+					file.path,
+					file.content
+				);
+				result.uploadedPaths.push(file.path);
+				await upsertFileFingerprint(db, context, file, write, file.fingerprint, now);
+			}
 		}
 
 		const derivedTeiFiles = await regenerateDerivedTeiFiles(projectRoot, storeOptions);
@@ -1611,6 +1631,15 @@ function primaryReferenceForMirrorPath(path: string): SyncEntityReference | null
 	const collationMatch = /^collations\/([^/]+)\.json$/.exec(path);
 	if (collationMatch) return { entityType: 'collation', entityId: collationMatch[1] };
 	return null;
+}
+
+function isConflictCopyFile(path: string, entityType: SyncEntityType, entityId: string): boolean {
+	const primary = primaryPathFor(entityType, entityId);
+	const historyFolder =
+		entityType === 'project-transcription'
+			? `history/transcriptions/${entityId}/`
+			: `history/collations/${entityId}/`;
+	return path === primary || path.startsWith(historyFolder);
 }
 
 function mirrorWriteOrder(path: string): number {
@@ -2229,12 +2258,72 @@ async function createConflictCopy(
 			actorName: options.authorName,
 			now: options.now?.(),
 		});
+		await db.transaction().execute(async trx => {
+			await trx
+				.deleteFrom('transcription_checkpoints')
+				.where('id', '=', copy.currentRevisionId)
+				.execute();
+			await trx
+				.updateTable('transcriptions')
+				.set({ current_revision_id: '', current_content_hash: '' })
+				.where('id', '=', copy.transcriptionId)
+				.execute();
+			await createCommittedTranscriptionCheckpointWithFiles(
+				trx,
+				{
+					projectTranscriptionId: copy.projectTranscriptionId,
+					checkpointId: copy.currentRevisionId,
+					commitMessage: 'Conflicted copy',
+					authorName: options.authorName,
+					createdAt: options.now?.(),
+				},
+				options.storeOptions
+			);
+		});
 		return copy.projectTranscriptionId;
+	}
+	const sourceFile = await parseCollationCloudFile(
+		await serializePrimaryFile(db, local, options.storeOptions)
+	);
+	if (!sourceFile.ok) {
+		throw new Error(`Cannot preserve collation conflict: ${sourceFile.quarantine.message}`);
 	}
 	const copy = await createCollationConflictCopy(db, {
 		collationId: local.entityId,
 		actorName: options.authorName,
 		now: options.now?.(),
+	});
+	await db.transaction().execute(async trx => {
+		await trx
+			.deleteFrom('collation_checkpoints')
+			.where('id', '=', copy.currentRevisionId)
+			.execute();
+		await trx
+			.updateTable('collations')
+			.set({ current_revision_id: '', current_content_hash: '' })
+			.where('id', '=', copy.collationId)
+			.execute();
+		await saveWorkingCollationArtifact(
+			trx,
+			{
+				collationId: copy.collationId,
+				artifactType: 'collation_document_v1',
+				payload: JSON.stringify(sourceFile.value.document),
+				now: options.now?.(),
+			},
+			options.storeOptions
+		);
+		await createCommittedCollationCheckpointWithFiles(
+			trx,
+			{
+				collationId: copy.collationId,
+				checkpointId: copy.currentRevisionId,
+				commitMessage: 'Conflicted copy',
+				authorName: options.authorName,
+				createdAt: options.now?.(),
+			},
+			options.storeOptions
+		);
 	});
 	return copy.collationId;
 }

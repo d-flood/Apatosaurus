@@ -3,11 +3,13 @@ import { getDirectoryPicker, isLocalFolderProviderSupported } from '$lib/client/
 const DB_NAME = 'apatosaurus-provider-handles';
 const STORE_NAME = 'directory-handles';
 const DB_VERSION = 1;
+const useE2eSharedFolder = import.meta.env.VITE_E2E_SHARED_FOLDER === '1';
 
 export async function persistLocalFolderHandle(
 	connectionId: string,
 	handle: FileSystemDirectoryHandle
 ): Promise<void> {
+	if (useE2eSharedFolder) return;
 	const db = await openHandleDb();
 	try {
 		await writeStore(db, store => store.put(handle, connectionId));
@@ -19,6 +21,7 @@ export async function persistLocalFolderHandle(
 export async function loadLocalFolderHandle(
 	connectionId: string
 ): Promise<FileSystemDirectoryHandle | null> {
+	if (useE2eSharedFolder) return {} as FileSystemDirectoryHandle;
 	const db = await openHandleDb();
 	try {
 		return await readStore<FileSystemDirectoryHandle | null>(db, store => {
@@ -32,6 +35,7 @@ export async function loadLocalFolderHandle(
 }
 
 export async function deleteLocalFolderHandle(connectionId: string): Promise<void> {
+	if (useE2eSharedFolder) return;
 	const db = await openHandleDb();
 	try {
 		await writeStore(db, store => store.delete(connectionId));
