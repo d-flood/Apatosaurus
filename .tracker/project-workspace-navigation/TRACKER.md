@@ -18,7 +18,7 @@ Last updated: 2026-07-18
 
 | Number | Filename | Status | Depends On |
 | --- | --- | --- | --- |
-| 01 | `01-last-opened-resolution-module.md` | Not Started | None |
+| 01 | `01-last-opened-resolution-module.md` | Completed | None |
 | 02 | `02-project-workspace-routes.md` | Not Started | 01 |
 | 03 | `03-clean-libraries.md` | Not Started | 02 |
 | 04 | `04-picker-and-data-page.md` | Not Started | 02 |
