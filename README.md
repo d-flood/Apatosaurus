@@ -17,13 +17,14 @@ Copyright (C) 2023  David Flood
 
 Apatosaurus is live at [apatosaurus.io](https://www.apatosaurus.io)
 
-See the ["About"](https://www.apatosaurus.io/about/introduction/) pages for details about use, the tech stack, tutorials, and more.
+See [About your data](https://www.apatosaurus.io/about) for the recommended setup and data-ownership model.
 
 ![screenshot of apatosaurus.io homepage](_static/media/home_page_20230329.png)
 
 This is the open source rewrite of [Apparatus Explorer](https://www.apparatusexplorer.com/).
 
 This new version is more than an explorer. Its features include
+
 - visualization
 - editing
 - publishing
@@ -31,10 +32,14 @@ This new version is more than an explorer. Its features include
 - CBGM via `open-cbgm`
 - and as many modules from [Criticus](https://github.com/d-flood/criticus/) as make sense to bring to a web app.
 
-
 ## Development
 
 Apatosaurus is now a frontend-only SvelteKit app. The legacy Django backend and bundled reverse-proxy deployment have been removed.
+
+The persistence architecture is documented in
+[`.tracker/files-as-database/architecture.md`](.tracker/files-as-database/architecture.md). A project is a
+folder of versioned, hash-validated documents in the browser's Origin Private File System (OPFS); SQLite is
+only a disposable index rebuilt from those files.
 
 Install dependencies from the repository root or from `app/` with the full monorepo checked out:
 
@@ -49,6 +54,11 @@ bun run dev
 ```
 
 See `app/README.md` for app-specific setup and quality gates.
+
+When the derived SQLite schema changes, edit the current schema, regenerate its types, and increment
+`INDEX_SCHEMA_VERSION` in `app/src/lib/client/db/schema-version.generated.ts`. Do not add a migration that
+deletes the user's current database: the new versioned index is rebuilt from canonical project files, and
+the old index is removed only after rebuild.
 
 ## Production
 

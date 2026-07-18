@@ -6,9 +6,9 @@ This document tracks the status of all tickets in the files-as-database epic: in
 
 ## Current Status
 
-Overall status: `In Progress`
+Overall status: `Completed`
 
-Current ticket: ticket `22` completed; ticket `23` is ready to start
+Current ticket: ticket `23` completed; epic complete
 
 Last updated: 2026-07-18
 
@@ -43,7 +43,7 @@ Last updated: 2026-07-18
 | 20 | `20-editor-selection-side-effects-and-harness.md` | Completed | 19 |
 | 21 | `21-invariant-test-suite.md` | Completed | 07, 09, 10, 11 |
 | 22 | `22-e2e-scenarios-and-ci.md` | Completed | 21 |
-| 23 | `23-docs-and-ideas-triage.md` | Not Started | 16, 21 |
+| 23 | `23-docs-and-ideas-triage.md` | Completed | 16, 21 |
 
 ## Verification Baseline
 
@@ -60,6 +60,7 @@ bun run test:unit -- --run
 
 | Date | Note |
 | --- | --- |
+| 2026-07-18 | Ticket 23 completed, closing the files-as-database epic. Updated both READMEs with the accepted architecture and index-version workflow; documented executable format-version and storage-provider extension procedures against the real registry, fixture, factory, and provider seams; finalized About-page data ownership and exit-path content; and reduced `ideas.md` to punctuation handling, collation undo/redo, and image caching. Verification passed: `bun run db:generate`, `bun run db:check`, `bun run check`, the full unit/browser suite (518 tests), the focused format suite (22 tests), and the documented upgrade Playwright scenario. |
 | 2026-07-18 | Ticket 22 completed. Added Chromium Playwright scenarios for fresh project/transcription/collation/zip creation, destructive site-data recovery through zip import, two isolated committee contexts sharing a test-only folder transport with update and conflict-copy propagation, and a checked-in synthetic v1 manifest/v0 index upgrade fixture. The scenarios exposed and fixed Svelte-proxy autosave RPC cloning, SQLite-only conflict copies, and remote-only primary orphaning. Added push/PR CI for schema checks, Svelte checks, node/browser Vitest, and Playwright; removed stale registration E2E coverage for routes retired in ticket 01 and aligned prior navigation/editor harnesses with completed project-first and hydration behavior. Verification passed: `bun run db:generate && bun run db:check`, `bun run check`, the full unit/browser suite (518 tests), and the full Playwright suite (17 passed, 1 opt-in performance benchmark skipped). |
 | 2026-07-17 | Ticket 21 completed. Added a dedicated nine-invariant suite covering real browser-worker index deletion, disposable sync fingerprints, quarantine preservation for every canonical format, atomic replacement instrumentation, production history append-only enforcement, read immutability, transcription/collation crash ordering, working-draft recovery, persistence request/warning behavior, and folder-equivalent zip round trips. Donor index, crash, persistence, and zip tests now have one authoritative home, with a real-browser persistence checklist beside the suite. Verification passed: `bun run db:generate`, `bun run db:check`, required store suite (60 tests), `bun run check`, and the full unit/browser suite (518 tests). |
 | 2026-07-17 | Ticket 10 marked complete after the user confirmed its human validation was sufficient to continue. Ticket 21 is now unblocked. |
