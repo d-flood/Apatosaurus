@@ -8,9 +8,9 @@ Tickets are vertical slices; the mega-page decomposition is expand–contract (0
 
 ## Current Status
 
-Overall status: `Not Started`
+Overall status: `In Progress`
 
-Current ticket: None
+Current ticket: 06
 
 Last updated: 2026-07-18
 
@@ -19,10 +19,10 @@ Last updated: 2026-07-18
 | Number | Filename | Status | Depends On |
 | --- | --- | --- | --- |
 | 01 | `01-last-opened-resolution-module.md` | Completed | None |
-| 02 | `02-project-workspace-routes.md` | Not Started | 01 |
+| 02 | `02-project-workspace-routes.md` | Completed | 01 |
 | 03 | `03-clean-libraries.md` | Not Started | 02 |
 | 04 | `04-picker-and-data-page.md` | Not Started | 02 |
 | 05 | `05-navigation-cutover.md` | Not Started | 01, 02, 04 |
-| 06 | `06-creation-project-selector.md` | Not Started | 01 |
+| 06 | `06-creation-project-selector.md` | In Progress | 01 |
 | 07 | `07-backup-list-titles.md` | Not Started | None |
 | 08 | `08-dashboard.md` | Not Started | 04, 05 |
