@@ -8,9 +8,9 @@ This document tracks the status of all tickets in the files-as-database epic: in
 
 Overall status: `In Progress`
 
-Current ticket: ticket `09` completed; ticket `10` still needs human validation or intervention
+Current ticket: ticket `21` completed; ticket `22` is ready to start
 
-Last updated: 2026-07-13
+Last updated: 2026-07-17
 
 ## Blocking Rules
 
@@ -30,7 +30,7 @@ Last updated: 2026-07-13
 | 07 | `07-local-folder-sync.md` | Completed | 01, 06 |
 | 08 | `08-zip-export.md` | Completed | 06 |
 | 09 | `09-zip-import-staged-ingestion.md` | Completed | 08 |
-| 10 | `10-folder-import-unified-ingestion.md` | Needs Human Validation or Intervention | 07, 09 |
+| 10 | `10-folder-import-unified-ingestion.md` | Completed | 07, 09 |
 | 11 | `11-copy-with-lineage-and-refresh.md` | Completed | 06 |
 | 12 | `12-capabilities-and-persistence.md` | Completed | 06 |
 | 13 | `13-backup-health-and-install-nudge.md` | Completed | 08, 12 |
@@ -41,7 +41,7 @@ Last updated: 2026-07-13
 | 18 | `18-collation-rule-diagnostics-and-staleness.md` | Completed | 17 |
 | 19 | `19-editor-init-only-setcontent.md` | Completed | 05 |
 | 20 | `20-editor-selection-side-effects-and-harness.md` | Completed | 19 |
-| 21 | `21-invariant-test-suite.md` | Not Started | 07, 09, 10, 11 |
+| 21 | `21-invariant-test-suite.md` | Completed | 07, 09, 10, 11 |
 | 22 | `22-e2e-scenarios-and-ci.md` | Not Started | 21 |
 | 23 | `23-docs-and-ideas-triage.md` | Not Started | 16, 21 |
 
@@ -60,6 +60,8 @@ bun run test:unit -- --run
 
 | Date | Note |
 | --- | --- |
+| 2026-07-17 | Ticket 21 completed. Added a dedicated nine-invariant suite covering real browser-worker index deletion, disposable sync fingerprints, quarantine preservation for every canonical format, atomic replacement instrumentation, production history append-only enforcement, read immutability, transcription/collation crash ordering, working-draft recovery, persistence request/warning behavior, and folder-equivalent zip round trips. Donor index, crash, persistence, and zip tests now have one authoritative home, with a real-browser persistence checklist beside the suite. Verification passed: `bun run db:generate`, `bun run db:check`, required store suite (60 tests), `bun run check`, and the full unit/browser suite (518 tests). |
+| 2026-07-17 | Ticket 10 marked complete after the user confirmed its human validation was sufficient to continue. Ticket 21 is now unblocked. |
 | 2026-07-13 | Ticket 09 review remediation completed. Zip import is now reachable through a typed worker/client RPC and Projects file-picker UI with structured validation reports and explicit timestamped replace/copy decisions. A source-neutral durable staging seam strictly validates paths, duplicates, roots, the canonical format allowlist, envelopes, semantic hashes, identities, manifest heads, working files, histories, tombstones, and TEI ownership before placement; sync retains a temporary auto-cleaned per-file validation seam. Active staging uses per-import Web Locks and heartbeat leases, while startup removes only unlocked work stale for over one hour. Placement runs under the shared document-store writer lock, writes manifests last, and restores exact prior files plus index state on failure. Import-as-copy rewrites project-scoped canonical data, records fork/transcription provenance, preserves entity/revision/checkpoint identities intentionally, reseals documents, and regenerates TEI. Verification passed: `bun run db:generate`, `bun run db:check`, focused import/export/sync/UI suites, required store/sync slice (138 tests), `bun run check`, and the full unit/browser suite (512 tests). |
 | 2026-07-13 | Ticket 09 remediation decisions resolved. Import-as-copy keeps the canonical manifest unchanged with respect to slug: the new immutable storage slug remains disposable-index data derived from the copied project name/id during rebuild. Staging ownership uses a per-import Web Lock plus heartbeat metadata; unlocked staging is stale after one hour without a heartbeat. Implementation resumed. |
 | 2026-07-13 | Ticket 09 review remediation paused before implementation. The remediation requires import-as-copy to rewrite a manifest slug, but `apatosaurus.project-manifest` has no slug field; `projects.storage_slug` is currently disposable index data derived from project name/id. Adding a canonical slug or omitting the required rewrite would each invent or violate a persisted contract. The remediation also requires startup cleanup to distinguish active imports from stale staging, but defines no ownership lease or expiry policy. Human decisions are needed on canonical slug semantics and the staging lease/expiry rule. Ticket 08's whole-account export is already documented as separate independently importable project zips, so no single multi-project archive decision is outstanding. |

@@ -159,49 +159,6 @@ describe('project zip import', () => {
 		expect(await getProject(harness.db, 'project-1')).toMatchObject({ name: 'Romans' });
 	});
 
-	it('imports an exported project zip into an empty store byte-for-byte', async () => {
-		await createProject(harness.db, {
-			id: 'project-1',
-			storageSlug: 'romans-project-',
-			name: 'Romans',
-			createdAt: '2026-07-07T00:00:00.000Z',
-			updatedAt: '2026-07-07T00:00:00.000Z',
-		});
-		await createTranscriptionWithFiles(
-			harness.db,
-			{
-				id: 'tx-1',
-				projectId: 'project-1',
-				projectTranscriptionId: 'pt-1',
-				title: 'Witness 1',
-				siglum: '01',
-				document: documentWithVerses(['Romans 1:1']),
-				createdAt: '2026-07-07T00:01:00.000Z',
-				updatedAt: '2026-07-07T00:01:00.000Z',
-				transcriber: 'Editor',
-				repository: 'Library',
-				settlement: 'City',
-				language: 'grc',
-			},
-			storeOptions
-		);
-		const exported = await exportProjectZip(harness.db, 'project-1', { storeOptions });
-		const expected = readZipEntries(exported.bytes);
-
-		await harness.destroy();
-		harness = createLocalDbTestHarness();
-		backend = new MemoryStoreBackend();
-		storeOptions = { backend };
-		const imported = await importProjectZip(harness.db, exported.bytes, {
-			storeOptions,
-			nonce: () => 'round-trip',
-		});
-
-		expect(imported).toMatchObject({ ok: true, projectId: 'project-1', projectsRestored: 1 });
-		expect(projectFiles(imported.storageSlug)).toEqual(expected);
-		expect(await getProject(harness.db, 'project-1')).toMatchObject({ name: 'Romans' });
-	});
-
 	it('requires an explicit collision choice and can replace the local project', async () => {
 		const exported = await exportedProjectZip();
 		await createProject(harness.db, {

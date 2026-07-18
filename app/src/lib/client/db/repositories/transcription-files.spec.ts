@@ -243,10 +243,9 @@ describe('transcription file persistence', () => {
 			{ id: 'tx-1', document: documentWithVerses(['Romans 1:2']) },
 			{ backend }
 		);
-		const staleWorking = await readTextFile(
-			transcriptionWorkingFile('project-slug', 'pt-1'),
-			{ backend }
-		);
+		const staleWorking = await readTextFile(transcriptionWorkingFile('project-slug', 'pt-1'), {
+			backend,
+		});
 		await createCommittedTranscriptionCheckpointWithFiles(
 			harness.db,
 			{ projectTranscriptionId: 'pt-1', checkpointId: 'tx-cp-1' },
@@ -262,11 +261,9 @@ describe('transcription file persistence', () => {
 			{ projectTranscriptionId: 'pt-1', checkpointId: 'tx-cp-2' },
 			{ backend }
 		);
-		await writeTextFileAtomic(
-			transcriptionWorkingFile('project-slug', 'pt-1'),
-			staleWorking,
-			{ backend }
-		);
+		await writeTextFileAtomic(transcriptionWorkingFile('project-slug', 'pt-1'), staleWorking, {
+			backend,
+		});
 
 		const loaded = await loadTranscriptionWithWorkingFile(harness.db, 'tx-1', { backend });
 
@@ -552,7 +549,11 @@ describe('transcription file persistence', () => {
 			)
 		).rejects.toThrow('simulated write failure');
 		await expect(
-			harness.db.selectFrom('transcriptions').selectAll().where('id', '=', 'tx-created').execute()
+			harness.db
+				.selectFrom('transcriptions')
+				.selectAll()
+				.where('id', '=', 'tx-created')
+				.execute()
 		).resolves.toEqual([]);
 	});
 
@@ -671,147 +672,6 @@ describe('transcription file persistence', () => {
 			current_revision_id: 'tx-cp-1',
 			current_content_hash: checkpoint.contentHash,
 		});
-	});
-
-	it('does not write primary, manifest, or index when transcription history writing fails', async () => {
-		await createFixtureTranscription();
-		const initialManifest = await readTextFile(projectManifestFile('project-slug'), {
-			backend,
-		});
-		backend.failWritePathIncludes = 'history/transcriptions/pt-1/tx-cp-history-fail.json.tmp-';
-
-		await expect(
-			createCommittedTranscriptionCheckpointWithFiles(
-				harness.db,
-				{
-					projectTranscriptionId: 'pt-1',
-					checkpointId: 'tx-cp-history-fail',
-					createdAt: '2026-07-04T13:00:00.000Z',
-				},
-				{ backend, nonce: () => 'history-fail' }
-			)
-		).rejects.toThrow('simulated write failure');
-
-		await expect(
-			readTextFile(
-				transcriptionCheckpointFile('project-slug', 'pt-1', 'tx-cp-history-fail'),
-				{ backend }
-			)
-		).rejects.toThrow('not found');
-		await expect(
-			readTextFile(transcriptionPrimaryFile('project-slug', 'pt-1'), { backend })
-		).rejects.toThrow('not found');
-		await expect(readTextFile(projectManifestFile('project-slug'), { backend })).resolves.toBe(
-			initialManifest
-		);
-		await expect(
-			harness.db
-				.selectFrom('transcription_checkpoints')
-				.selectAll()
-				.where('id', '=', 'tx-cp-history-fail')
-				.execute()
-		).resolves.toEqual([]);
-		await expect(
-			harness.db
-				.selectFrom('transcriptions')
-				.select(['current_revision_id', 'current_content_hash'])
-				.where('id', '=', 'tx-1')
-				.executeTakeFirstOrThrow()
-		).resolves.toEqual({ current_revision_id: '', current_content_hash: '' });
-	});
-
-	it('leaves only history when transcription primary writing fails', async () => {
-		await createFixtureTranscription();
-		const initialManifest = await readTextFile(projectManifestFile('project-slug'), {
-			backend,
-		});
-		backend.failWritePathIncludes = 'transcriptions/pt-1.json.tmp-';
-
-		await expect(
-			createCommittedTranscriptionCheckpointWithFiles(
-				harness.db,
-				{
-					projectTranscriptionId: 'pt-1',
-					checkpointId: 'tx-cp-primary-fail',
-					createdAt: '2026-07-04T13:00:00.000Z',
-				},
-				{ backend, nonce: () => 'primary-fail' }
-			)
-		).rejects.toThrow('simulated write failure');
-
-		await expect(
-			readTextFile(
-				transcriptionCheckpointFile('project-slug', 'pt-1', 'tx-cp-primary-fail'),
-				{ backend }
-			)
-		).resolves.toContain('tx-cp-primary-fail');
-		await expect(
-			readTextFile(transcriptionPrimaryFile('project-slug', 'pt-1'), { backend })
-		).rejects.toThrow('not found');
-		await expect(readTextFile(projectManifestFile('project-slug'), { backend })).resolves.toBe(
-			initialManifest
-		);
-		await expect(
-			harness.db
-				.selectFrom('transcription_checkpoints')
-				.selectAll()
-				.where('id', '=', 'tx-cp-primary-fail')
-				.execute()
-		).resolves.toEqual([]);
-		await expect(
-			harness.db
-				.selectFrom('transcriptions')
-				.select(['current_revision_id', 'current_content_hash'])
-				.where('id', '=', 'tx-1')
-				.executeTakeFirstOrThrow()
-		).resolves.toEqual({ current_revision_id: '', current_content_hash: '' });
-	});
-
-	it('does not update the index when manifest writing fails after entity files', async () => {
-		await createFixtureTranscription();
-		const initialManifest = await readTextFile(projectManifestFile('project-slug'), {
-			backend,
-		});
-		backend.failWritePathIncludes = 'project.json.tmp-';
-
-		await expect(
-			createCommittedTranscriptionCheckpointWithFiles(
-				harness.db,
-				{
-					projectTranscriptionId: 'pt-1',
-					checkpointId: 'tx-cp-manifest-fail',
-					createdAt: '2026-07-04T13:00:00.000Z',
-				},
-				{ backend, nonce: () => 'manifest-fail' }
-			)
-		).rejects.toThrow('simulated write failure');
-
-		await expect(
-			readTextFile(
-				transcriptionCheckpointFile('project-slug', 'pt-1', 'tx-cp-manifest-fail'),
-				{ backend }
-			)
-		).resolves.toContain('tx-cp-manifest-fail');
-		await expect(
-			readTextFile(transcriptionPrimaryFile('project-slug', 'pt-1'), { backend })
-		).resolves.toContain('tx-cp-manifest-fail');
-		await expect(readTextFile(projectManifestFile('project-slug'), { backend })).resolves.toBe(
-			initialManifest
-		);
-		await expect(
-			harness.db
-				.selectFrom('transcription_checkpoints')
-				.selectAll()
-				.where('id', '=', 'tx-cp-manifest-fail')
-				.execute()
-		).resolves.toEqual([]);
-		await expect(
-			harness.db
-				.selectFrom('transcriptions')
-				.select(['current_revision_id', 'current_content_hash'])
-				.where('id', '=', 'tx-1')
-				.executeTakeFirstOrThrow()
-		).resolves.toEqual({ current_revision_id: '', current_content_hash: '' });
 	});
 
 	it('allows manifest to advance while the transcription index remains old if index insertion fails', async () => {

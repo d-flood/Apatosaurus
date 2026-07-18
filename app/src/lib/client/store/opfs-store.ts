@@ -106,6 +106,7 @@ async function writeTextFileAtomicUnlocked(
 ): Promise<void> {
 	const backend = await resolveBackend(options);
 	const targetPath = normalizeStoreFilePath(path);
+	if (!(await assertAppendOnlyHistoryWrite(backend, targetPath, content))) return;
 	const parentPath = storePathDirname(targetPath);
 	const fileName = storePathBasename(targetPath);
 	const tempPath = joinStorePath(
@@ -207,8 +208,17 @@ async function moveFileUnlocked(
 	options: StoreOperationOptions
 ): Promise<void> {
 	const backend = await resolveBackend(options);
-	const fromBackendPath = toBackendPath(normalizeStoreFilePath(fromPath));
-	const toBackendPathValue = toBackendPath(normalizeStoreFilePath(toPath));
+	const normalizedFromPath = normalizeStoreFilePath(fromPath);
+	const normalizedToPath = normalizeStoreFilePath(toPath);
+	const fromBackendPath = toBackendPath(normalizedFromPath);
+	const toBackendPathValue = toBackendPath(normalizedToPath);
+	if (isCanonicalHistoryPath(normalizedToPath)) {
+		const content = await backend.readTextFile(fromBackendPath);
+		if (!(await assertAppendOnlyHistoryWrite(backend, normalizedToPath, content))) {
+			await backend.deleteFile(fromBackendPath);
+			return;
+		}
+	}
 	try {
 		await moveBackendFile(backend, fromBackendPath, toBackendPathValue);
 		return;
@@ -271,6 +281,37 @@ async function moveBackendFile(
 
 function isUnsupportedMoveError(error: unknown): boolean {
 	return error instanceof DOMException && error.name === 'NotSupportedError';
+}
+
+async function assertAppendOnlyHistoryWrite(
+	backend: StoreBackend,
+	targetPath: string,
+	content: string
+): Promise<boolean> {
+	if (!isCanonicalHistoryPath(targetPath)) return true;
+	const targetBackendPath = toBackendPath(targetPath);
+	let existing: string;
+	try {
+		existing = await backend.readTextFile(targetBackendPath);
+	} catch (error) {
+		if (isMissingStoreEntryError(error)) return true;
+		throw error;
+	}
+	if (existing === content) return false;
+	throw new Error(`History file ${targetPath} is append-only and cannot be rewritten.`);
+}
+
+function isCanonicalHistoryPath(path: string): boolean {
+	return /^projects\/[^/]+\/history\/(?:transcriptions|collations)\/[^/]+\/[^/]+\.json$/.test(
+		path
+	);
+}
+
+function isMissingStoreEntryError(error: unknown): boolean {
+	if (typeof DOMException !== 'undefined' && error instanceof DOMException) {
+		return error.name === 'NotFoundError';
+	}
+	return error instanceof Error && /not found/i.test(error.message);
 }
 
 async function assertTextMatches(

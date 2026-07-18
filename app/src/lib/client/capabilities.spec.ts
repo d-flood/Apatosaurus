@@ -8,7 +8,6 @@ import {
 	initializeInstallPromptTracking,
 	isStorageNearQuota,
 	promptForPwaInstall,
-	requestPersistentStorageForMeaningfulWrite,
 	resetPersistenceRequestSessionForTests,
 	shouldShowDurabilityWarning,
 } from './capabilities';
@@ -30,18 +29,6 @@ describe('client capabilities', () => {
 			canRequest: true,
 		});
 		expect(persist).not.toHaveBeenCalled();
-	});
-
-	it('requests persistent storage at most once per session for meaningful writes', async () => {
-		const persisted = vi.fn().mockResolvedValue(false);
-		const persist = vi.fn().mockResolvedValue(false);
-		stubStorage({ persisted, persist });
-
-		await requestPersistentStorageForMeaningfulWrite();
-		await requestPersistentStorageForMeaningfulWrite();
-
-		expect(persist).toHaveBeenCalledTimes(1);
-		expect(persisted).toHaveBeenCalledTimes(2);
 	});
 
 	it('decides when the durability warning should recur', () => {
@@ -103,9 +90,12 @@ describe('client capabilities', () => {
 
 	it('tracks beforeinstallprompt support and consumes the install prompt once', async () => {
 		const listeners = new Map<string, EventListener>();
-		vi.stubGlobal('addEventListener', vi.fn((type: string, listener: EventListener) => {
-			listeners.set(type, listener);
-		}));
+		vi.stubGlobal(
+			'addEventListener',
+			vi.fn((type: string, listener: EventListener) => {
+				listeners.set(type, listener);
+			})
+		);
 		vi.stubGlobal('removeEventListener', vi.fn());
 		const cleanup = initializeInstallPromptTracking();
 		const event = new Event('beforeinstallprompt') as Event & {

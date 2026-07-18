@@ -1,10 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import type { StoredTranscriptionDocument } from '$lib/client/transcription/content';
+import { readTextFile, writeTextFileAtomic } from './opfs-store';
 
-import { removeCurrentIndexFiles } from './index-files';
-import type { DbRequest, DbRequestPayload, DbWorkerMessage } from './rpc';
-import { purgeLocalDbStorage } from './storage-reset';
+import { removeCurrentIndexFiles } from '../db/index-files';
+import type { DbRequest, DbRequestPayload, DbWorkerMessage } from '../db/rpc';
+import { purgeLocalDbStorage } from '../db/storage-reset';
 
 const PROJECT_ID = 'project-delete-index-invariant';
 const PROJECT_SLUG = 'project-delete-index-invariant';
@@ -27,12 +28,18 @@ afterEach(async () => {
 	await cleanupOpfs();
 });
 
-describe('delete-the-index invariant', () => {
-	it('rebuilds listings, loads, verse index, and collation projections after the index files are deleted', async () => {
+describe('data-safety invariants in browser storage', () => {
+	it('Invariant 1: deleting the index restores canonical state and reports disposable sync and quarantine state', async () => {
 		client = new WorkerClient();
 		await client.request({ type: 'init' });
 		await createProjectTranscriptionAndCollation(client);
 		const beforeDeletion = await loadObservedState(client);
+		await insertDisposableSyncFingerprint(client);
+		await writeTextFileAtomic(
+			`projects/${PROJECT_SLUG}/transcriptions/corrupt.json`,
+			'{not-json'
+		);
+		expect(await countSyncFingerprints(client)).toBe(1);
 
 		await client.request({ type: 'checkpoint' });
 		client.terminate();
@@ -46,8 +53,21 @@ describe('delete-the-index invariant', () => {
 		client = new WorkerClient();
 		await client.request({ type: 'init' });
 		const afterRebuild = await loadObservedState(client);
+		const rebuildReport = await client.request<{
+			quarantinedFiles: Array<{ path: string; code: string }>;
+		}>({ type: 'index.rebuild' });
 
 		expect(afterRebuild).toEqual(beforeDeletion);
+		expect(await countSyncFingerprints(client)).toBe(0);
+		expect(rebuildReport.quarantinedFiles).toContainEqual(
+			expect.objectContaining({
+				path: `projects/${PROJECT_SLUG}/transcriptions/corrupt.json`,
+				code: 'invalid_json',
+			})
+		);
+		expect(await readTextFile(`projects/${PROJECT_SLUG}/transcriptions/corrupt.json`)).toBe(
+			'{not-json'
+		);
 		expect(afterRebuild).toMatchObject({
 			project: {
 				id: PROJECT_ID,
@@ -135,6 +155,36 @@ describe('delete-the-index invariant', () => {
 	}, 60_000);
 });
 
+async function insertDisposableSyncFingerprint(db: WorkerClient): Promise<void> {
+	await db.request({
+		type: 'execute',
+		sql: `INSERT INTO sync_file_fingerprints (
+			target_id, project_id, file_path, local_content_hash, local_size,
+			remote_file_id, remote_revision, remote_content_hash, remote_size, synced_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		params: [
+			'target-invariant',
+			PROJECT_ID,
+			'project.json',
+			'local-hash',
+			1,
+			'remote-file',
+			'remote-revision',
+			'remote-hash',
+			1,
+			'2026-07-17T00:00:00.000Z',
+		],
+	});
+}
+
+async function countSyncFingerprints(db: WorkerClient): Promise<number> {
+	const rows = await db.request<Array<{ count: number }>>({
+		type: 'query',
+		sql: 'SELECT COUNT(*) AS count FROM sync_file_fingerprints',
+	});
+	return Number(rows[0]?.count ?? 0);
+}
+
 async function removeIndexFilesAfterWorkerRelease() {
 	const removedPaths = new Set<string>();
 	let lastReport = await removeCurrentIndexFiles();
@@ -147,7 +197,9 @@ async function removeIndexFilesAfterWorkerRelease() {
 	return { ...lastReport, removedPaths: [...removedPaths] };
 }
 
-function hasHandleReleaseFailure(report: Awaited<ReturnType<typeof removeCurrentIndexFiles>>): boolean {
+function hasHandleReleaseFailure(
+	report: Awaited<ReturnType<typeof removeCurrentIndexFiles>>
+): boolean {
 	return (
 		report.failedPaths.length > 0 &&
 		report.failedPaths.every(failure => /modifications are not allowed/i.test(failure.error))
@@ -489,7 +541,10 @@ async function loadObservedState(db: WorkerClient) {
 			type: 'collations.load',
 			collationId: COLLATION_ID,
 		}),
-		db.request<Record<string, unknown> | null>({ type: 'projects.get', projectId: EMPTY_PROJECT_ID }),
+		db.request<Record<string, unknown> | null>({
+			type: 'projects.get',
+			projectId: EMPTY_PROJECT_ID,
+		}),
 		db.request<Array<Record<string, unknown>>>({
 			type: 'iiif.listManifestSources',
 			transcriptionId: TRANSCRIPTION_ID,
@@ -644,7 +699,7 @@ function isNotFoundError(error: unknown): boolean {
 }
 
 class WorkerClient {
-	private readonly worker = new Worker(new URL('./db.worker.ts', import.meta.url), {
+	private readonly worker = new Worker(new URL('../db/db.worker.ts', import.meta.url), {
 		type: 'module',
 	});
 	private nextId = 1;

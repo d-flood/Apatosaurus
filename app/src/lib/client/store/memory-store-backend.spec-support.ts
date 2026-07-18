@@ -8,11 +8,14 @@ import {
 export class MemoryStoreBackend implements StoreBackend {
 	readonly files = new Map<string, string>();
 	readonly directories = new Set<string>(['']);
+	readonly writeOperations: MemoryStoreWriteOperation[] = [];
 	failWrites = false;
 	failWritePathIncludes: string | null = null;
 	failWritePathIncludesOnce: string | null = null;
 	failReadPathIncludesOnce: string | null = null;
 	failReadPathIncludesAfter: { path: string; successfulReads: number } | null = null;
+	failMovePathIncludesOnce: string | null = null;
+	failReplacementPathIncludesOnce: string | null = null;
 
 	async readTextFile(path: string): Promise<string> {
 		const normalized = normalizeStorePath(path);
@@ -52,6 +55,21 @@ export class MemoryStoreBackend implements StoreBackend {
 		}
 		this.addDirectory(storePathDirname(normalized));
 		this.files.set(normalized, content);
+		this.writeOperations.push({ type: 'write', path: normalized, content });
+	}
+
+	async replaceTextFile(path: string, content: string): Promise<void> {
+		const normalized = normalizeStorePath(path);
+		if (
+			this.failReplacementPathIncludesOnce &&
+			normalized.includes(this.failReplacementPathIncludesOnce)
+		) {
+			this.failReplacementPathIncludesOnce = null;
+			throw new Error(`simulated replacement failure for ${path}`);
+		}
+		this.addDirectory(storePathDirname(normalized));
+		this.files.set(normalized, content);
+		this.writeOperations.push({ type: 'replace', path: normalized, content });
 	}
 
 	async deleteFile(path: string): Promise<void> {
@@ -109,11 +127,21 @@ export class MemoryStoreBackend implements StoreBackend {
 	async moveFile(fromPath: string, toPath: string): Promise<void> {
 		const normalizedFrom = normalizeStorePath(fromPath);
 		const normalizedTo = normalizeStorePath(toPath);
+		if (this.failMovePathIncludesOnce && normalizedTo.includes(this.failMovePathIncludesOnce)) {
+			this.failMovePathIncludesOnce = null;
+			throw new Error(`simulated move failure for ${toPath}`);
+		}
 		const content = this.files.get(normalizedFrom);
 		if (content === undefined) throw new StoreMoveUnavailableError();
 		this.addDirectory(storePathDirname(normalizedTo));
 		this.files.delete(normalizedFrom);
 		this.files.set(normalizedTo, content);
+		this.writeOperations.push({
+			type: 'move',
+			fromPath: normalizedFrom,
+			path: normalizedTo,
+			content,
+		});
 	}
 
 	private addDirectory(path: string): void {
@@ -126,3 +154,7 @@ export class MemoryStoreBackend implements StoreBackend {
 		}
 	}
 }
+
+export type MemoryStoreWriteOperation =
+	| { type: 'write' | 'replace'; path: string; content: string }
+	| { type: 'move'; fromPath: string; path: string; content: string };
