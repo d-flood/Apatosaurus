@@ -639,7 +639,6 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 		initialized = false;
 		await init();
 		await clearDomainTables(getKyselyDb());
-		await ensureDefaultProject(getKyselyDb());
 		return null;
 	}
 	return null;
@@ -678,10 +677,6 @@ async function init(): Promise<void> {
 		} catch (error) {
 			console.warn('[local-db] stale index file cleanup failed', error);
 		}
-	} else {
-		await timeWorkerStep('default project bootstrap', () =>
-			ensureDefaultProject(getKyselyDb())
-		);
 	}
 	initialized = true;
 	console.debug('[local-db] worker init completed', { elapsedMs: elapsed(startedAt) });
@@ -744,11 +739,7 @@ async function replaceCurrentIndexDatabase(): Promise<void> {
 }
 
 async function rebuildIndex() {
-	const report = await timeWorkerStep('index rebuild', () =>
-		rebuildIndexFromStore(getKyselyDb())
-	);
-	await timeWorkerStep('default project bootstrap', () => ensureDefaultProject(getKyselyDb()));
-	return report;
+	return timeWorkerStep('index rebuild', () => rebuildIndexFromStore(getKyselyDb()));
 }
 
 function getKyselyDb(): Kysely<Database> {
