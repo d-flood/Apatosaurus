@@ -36,6 +36,7 @@ import type {
 	CreateProjectInput,
 	ProjectOption,
 	ProjectRecord,
+	ProjectDocumentTitle,
 	ProjectTranscriptionOption,
 	ProjectTranscriptionStatusOptions,
 	ProjectTranscriptionStatus,
@@ -200,6 +201,10 @@ export interface ProjectRpcMap {
 			options?: ProjectTranscriptionStatusOptions;
 		};
 		response: ProjectTranscriptionStatus[];
+	};
+	'projects.listDocumentTitles': {
+		request: { type: 'projects.listDocumentTitles'; projectId: string };
+		response: ProjectDocumentTitle[];
 	};
 	'projects.getTranscriptionStatus': {
 		request: {

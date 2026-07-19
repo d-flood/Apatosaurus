@@ -81,6 +81,7 @@ import type {
 	CreateProjectInput,
 	ProjectOption,
 	ProjectRecord,
+	ProjectDocumentTitle,
 	ProjectTranscriptionOption,
 	ProjectTranscriptionStatusOptions,
 	ProjectTranscriptionStatus,
@@ -297,6 +298,12 @@ export async function listProjectTranscriptionStatuses(
 	options?: ProjectTranscriptionStatusOptions
 ): Promise<ProjectTranscriptionStatus[]> {
 	return sendProjectRequest({ type: 'projects.listTranscriptionStatuses', projectId, options });
+}
+
+export async function listProjectDocumentTitles(
+	projectId: string
+): Promise<ProjectDocumentTitle[]> {
+	return sendProjectRequest({ type: 'projects.listDocumentTitles', projectId });
 }
 
 export async function getProjectTranscriptionStatus(

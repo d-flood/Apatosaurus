@@ -50,6 +50,7 @@ import {
 	getProjectTranscriptionIds,
 	getProjectTranscriptionStatus,
 	getProjectTranscriptionStatusForOwnedTranscription,
+	listProjectDocumentTitles,
 	listProjects,
 	listProjectTranscriptionOptions,
 	listProjectTranscriptionStatuses,
@@ -250,6 +251,37 @@ describe('projects repository', () => {
 		expect(options.map(option => option.id)).toEqual(['tx-1', 'tx-2']);
 		expect(options[0]).not.toHaveProperty('content_json');
 		expect(content).toContain('transcriptionDocument');
+	});
+
+	it('lists project document titles by backup file identity', async () => {
+		await createProject(harness.db, { id: 'project-1', name: 'Project' });
+		await createProject(harness.db, { id: 'empty-project', name: 'Empty Project' });
+		await createTranscription(harness.db, {
+			...baseTranscription('owned-transcription-1', '01'),
+			projectId: 'project-1',
+			projectTranscriptionId: 'project-transcription-1',
+			document: documentWithVerses(['Romans 1:1']),
+		});
+		await createCollation(harness.db, {
+			id: 'collation-1',
+			projectId: 'project-1',
+			title: 'Romans Collation',
+			verseIdentifier: 'Romans 1:1',
+		});
+
+		expect(await listProjectDocumentTitles(harness.db, 'project-1')).toEqual([
+			{
+				entityType: 'project-transcription',
+				entityId: 'project-transcription-1',
+				title: 'Witness 01',
+			},
+			{
+				entityType: 'collation',
+				entityId: 'collation-1',
+				title: 'Romans Collation',
+			},
+		]);
+		await expect(listProjectDocumentTitles(harness.db, 'empty-project')).resolves.toEqual([]);
 	});
 
 	it('canonically copies and tombstones synced project transcriptions across index rebuilds', async () => {

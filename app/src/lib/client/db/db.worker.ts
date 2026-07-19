@@ -21,6 +21,7 @@ import {
 	getProjectTranscriptionStatus,
 	getProjectTranscriptionStatusForOwnedTranscription,
 	listProjects,
+	listProjectDocumentTitles,
 	listProjectTranscriptionOptions,
 	listProjectTranscriptionStatuses,
 	listProjectTranscriptionSourceCandidates,
@@ -398,6 +399,8 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 			...request.options,
 			requireFileBackedContent: true,
 		});
+	if (request.type === 'projects.listDocumentTitles')
+		return listProjectDocumentTitles(getKyselyDb(), request.projectId);
 	if (request.type === 'projects.getTranscriptionStatus')
 		return getProjectTranscriptionStatus(getKyselyDb(), request.projectTranscriptionId, {
 			...request.options,

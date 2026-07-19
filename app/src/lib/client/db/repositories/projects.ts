@@ -146,6 +146,12 @@ export interface ProjectTranscriptionStatusOptions {
 	storeOptions?: StoreOperationOptions;
 }
 
+export interface ProjectDocumentTitle {
+	entityType: 'project-transcription' | 'collation';
+	entityId: string;
+	title: string;
+}
+
 interface ProjectContentLoadOptions {
 	requireFileBackedContent?: boolean;
 	storeOptions?: StoreOperationOptions;
@@ -492,6 +498,40 @@ export async function listProjectTranscriptionStatuses(
 		.execute();
 
 	return Promise.all(rows.map(row => mapProjectTranscriptionStatus(db, row, options)));
+}
+
+export async function listProjectDocumentTitles(
+	db: DbExecutor,
+	projectId: string
+): Promise<ProjectDocumentTitle[]> {
+	const [transcriptions, collations] = await Promise.all([
+		db
+			.selectFrom('project_transcriptions')
+			.innerJoin('transcriptions', 'transcriptions.id', 'project_transcriptions.transcription_id')
+			.select(['project_transcriptions.id as entityId', 'transcriptions.title as title'])
+			.where('project_transcriptions.project_id', '=', projectId)
+			.orderBy('project_transcriptions.added_at')
+			.execute(),
+		db
+			.selectFrom('collations')
+			.select(['collations.id as entityId', 'collations.title as title'])
+			.where('collations.project_id', '=', projectId)
+			.orderBy('collations.created_at')
+			.execute(),
+	]);
+
+	return [
+		...transcriptions.map(row => ({
+			entityType: 'project-transcription' as const,
+			entityId: requireId(row.entityId, 'project transcription'),
+			title: row.title,
+		})),
+		...collations.map(row => ({
+			entityType: 'collation' as const,
+			entityId: requireId(row.entityId, 'collation'),
+			title: row.title,
+		})),
+	];
 }
 
 export async function getProjectTranscriptionStatus(

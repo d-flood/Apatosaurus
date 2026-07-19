@@ -12,7 +12,7 @@ Overall status: `In Progress`
 
 Current ticket: None
 
-Last updated: 2026-07-18
+Last updated: 2026-07-19
 
 ## Ledger
 
@@ -24,5 +24,5 @@ Last updated: 2026-07-18
 | 04 | `04-picker-and-data-page.md` | Completed | 02 |
 | 05 | `05-navigation-cutover.md` | Not Started | 01, 02, 04 |
 | 06 | `06-creation-project-selector.md` | Completed | 01 |
-| 07 | `07-backup-list-titles.md` | Not Started | None |
+| 07 | `07-backup-list-titles.md` | Completed | None |
 | 08 | `08-dashboard.md` | Not Started | 04, 05 |

@@ -8,6 +8,7 @@
 		exportProjectZip,
 		forkProject,
 		getLatestProjectCommitTimestamp,
+		listProjectDocumentTitles,
 		subscribeLocalDbInvalidations,
 	} from '$lib/client/db/client';
 	import {
@@ -54,6 +55,7 @@
 
 	let targets = $state.raw<SyncTargetRecord[]>([]);
 	let summary = $state<ProjectBackupSummary | null>(null);
+	let documentTitles = $state.raw(new Map<string, string>());
 	let lastResult = $state<ProjectBackupResult | null>(null);
 	let isLoading = $state(false);
 	let isConnecting = $state(false);
@@ -145,21 +147,29 @@
 		isLoading = true;
 		error = null;
 		try {
-			const [nextTargets, metadata, latestCommit] = await Promise.all([
+			const [nextTargets, metadata, latestCommit, nextDocumentTitles] = await Promise.all([
 				listProjectSyncTargets(nextProjectId),
 				getProjectBackupMetadata(nextProjectId),
 				getLatestProjectCommitTimestamp(nextProjectId),
+				listProjectDocumentTitles(nextProjectId),
 			]);
 			if (runId !== loadRunId) return;
 			targets = nextTargets;
 			lastExportedAt = metadata.lastExportedAt;
 			lastCommittedAt = latestCommit;
+			documentTitles = new Map(
+				nextDocumentTitles.map(document => [
+					`${document.entityType}:${document.entityId}`,
+					document.title,
+				])
+			);
 			const target = nextTargets.find(candidate => candidate.enabled) ?? nextTargets[0] ?? null;
 			summary = target ? await deriveProjectBackupSummary(syncContext(target)) : null;
 		} catch (err) {
 			if (runId !== loadRunId) return;
 			error = err instanceof Error ? err.message : 'Failed to load folder sync status.';
 			summary = null;
+			documentTitles = new Map();
 		} finally {
 			if (runId === loadRunId) isLoading = false;
 		}
@@ -306,6 +316,10 @@
 		if (item.itemType === 'project-transcription') return 'Transcription';
 		if (item.itemType === 'collation') return 'Collation';
 		return item.itemType;
+	}
+
+	function itemHeading(item: BackupItemState): string {
+		return documentTitles.get(itemKey(item))?.trim() || `${itemLabel(item)} ${item.itemId}`;
 	}
 
 	function statusLabelForItem(item: BackupItemState): string {
@@ -505,7 +519,7 @@
 				{#each allItems as item (itemKey(item))}
 					<li class="flex flex-col gap-2 py-2 sm:flex-row sm:items-center sm:justify-between">
 						<div class="min-w-0">
-							<div class="truncate text-sm font-medium">{itemLabel(item)} {item.itemId}</div>
+							<div class="truncate text-sm font-medium">{itemHeading(item)}</div>
 							<div class="text-xs text-base-content/50">{item.path}</div>
 						</div>
 						<span class={`badge badge-outline ${itemBadgeClass(item)}`}>{statusLabelForItem(item)}</span>
