@@ -10,7 +10,7 @@ Tickets are vertical slices; the mega-page decomposition is expand–contract (0
 
 Overall status: `In Progress`
 
-Current ticket: 06
+Current ticket: None
 
 Last updated: 2026-07-18
 
@@ -23,6 +23,6 @@ Last updated: 2026-07-18
 | 03 | `03-clean-libraries.md` | Not Started | 02 |
 | 04 | `04-picker-and-data-page.md` | Not Started | 02 |
 | 05 | `05-navigation-cutover.md` | Not Started | 01, 02, 04 |
-| 06 | `06-creation-project-selector.md` | In Progress | 01 |
+| 06 | `06-creation-project-selector.md` | Completed | 01 |
 | 07 | `07-backup-list-titles.md` | Not Started | None |
 | 08 | `08-dashboard.md` | Not Started | 04, 05 |

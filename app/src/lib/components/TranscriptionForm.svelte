@@ -28,6 +28,10 @@
 		EMPTY_TRANSCRIPTION_DOC,
 		type StoredTranscriptionDocument,
 	} from '$lib/client/transcription/content';
+	import {
+		readLastOpenedProjectId,
+		resolveLastOpenedProjectId,
+	} from '$lib/client/navigation/last-opened-project';
 	import { onMount } from 'svelte';
 
 	interface Props {
@@ -75,7 +79,10 @@
 		if (!isEditMode) {
 			const defaultProjectId = await ensureDefaultProject();
 			projects = await listProjects();
-			selectedProjectId = _data?.projectId || defaultProjectId;
+			selectedProjectId =
+				_data?.projectId ||
+				resolveLastOpenedProjectId(readLastOpenedProjectId(), projects) ||
+				defaultProjectId;
 		}
 	});
 
