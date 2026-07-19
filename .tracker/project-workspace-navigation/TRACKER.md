@@ -20,7 +20,7 @@ Last updated: 2026-07-18
 | --- | --- | --- | --- |
 | 01 | `01-last-opened-resolution-module.md` | Completed | None |
 | 02 | `02-project-workspace-routes.md` | Completed | 01 |
-| 03 | `03-clean-libraries.md` | Not Started | 02 |
+| 03 | `03-clean-libraries.md` | Completed | 02 |
 | 04 | `04-picker-and-data-page.md` | Completed | 02 |
 | 05 | `05-navigation-cutover.md` | Not Started | 01, 02, 04 |
 | 06 | `06-creation-project-selector.md` | Completed | 01 |

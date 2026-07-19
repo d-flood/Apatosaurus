@@ -62,8 +62,8 @@ test('disaster recovery restores an equivalent project after site data is wiped'
 	await expect(page.getByText(/Collation Rom 15:/).first()).toBeVisible();
 
 	await page.locator('.tabs').getByRole('link', { name: 'Transcriptions' }).click();
-	const alphaCard = page.locator('div.rounded-box', { hasText: TRANSCRIPTION_TITLES[0] }).last();
-	await alphaCard.getByRole('link', { name: 'Open' }).click();
+	const alphaRow = page.getByRole('listitem').filter({ hasText: TRANSCRIPTION_TITLES[0] });
+	await alphaRow.getByRole('link', { name: 'Open' }).click();
 	await expect(
 		page.locator('.line-content').filter({ hasText: 'alpha-e2e' }).first()
 	).toBeVisible();

@@ -1,68 +1,31 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import {
-		addProjectTranscriptionFromProject,
-		getProjectTranscriptionIds,
-		listProjectTranscriptionSourceCandidates,
 		listProjectTranscriptionStatuses,
-		listTranscriptions,
-		loadTranscriptionHands,
-		refreshProjectTranscription,
-		syncProjectTranscriptionIds,
-		updateProjectMetadata,
 		type ProjectRecord,
-		type ProjectTranscriptionOption,
-		type ProjectTranscriptionSourceCandidate,
-		type ProjectTranscriptionSourceState,
 		type ProjectTranscriptionStatus,
 	} from '$lib/client/collation/project-collation';
-	import type { WitnessTreatment } from '$lib/client/collation/collation-types';
 	import {
-		createProjectCollationSettings,
-		parseProjectCollationSettings,
-	} from '$lib/client/collation/project-settings';
-	import { subscribeLocalDbInvalidations } from '$lib/client/db/client';
-	import AddProjectTranscriptionFromProjectDialog from '$lib/components/projects/AddProjectTranscriptionFromProjectDialog.svelte';
-	import ProjectTranscriptionRefreshDialog from '$lib/components/projects/ProjectTranscriptionRefreshDialog.svelte';
-	import ProjectTranscriptionsEditor from '$lib/components/projects/ProjectTranscriptionsEditor.svelte';
-	import ProjectTranscriptionVersionsPanel from '$lib/components/projects/ProjectTranscriptionVersionsPanel.svelte';
+		deleteTranscription,
+		listTranscriptionSummaries,
+		subscribeLocalDbInvalidations,
+	} from '$lib/client/db/client';
 	import { onMount } from 'svelte';
 
-	const PROJECTS_LOG_PREFIX = '[projects-route]';
+	interface TranscriptionLibraryRow extends ProjectTranscriptionStatus {
+		updatedAt: string;
+	}
 
 	let { data } = $props<{ data: { project: ProjectRecord } }>();
 
-	let currentProject = $derived(data.project);
-	let projectCollationSettings = $state<unknown>(null);
-	let allTranscriptions = $state.raw<ProjectTranscriptionOption[]>([]);
-	let selectedTranscriptionIds = $state.raw<string[]>([]);
-	let transcriptionWitnessTreatments = $state<Map<string, WitnessTreatment>>(new Map());
-	let transcriptionWitnessExcludedHands = $state<Map<string, string[]>>(new Map());
-	let isLoadingProject = $state(true);
-	let isLoadingTranscriptions = $state(false);
-	let isSavingSettings = $state(false);
-	let isSavingTranscriptions = $state(false);
+	let rows = $state.raw<TranscriptionLibraryRow[]>([]);
+	let isLoading = $state(true);
+	let deletingId = $state<string | null>(null);
 	let error = $state<string | null>(null);
-	let bootstrapRunId = 0;
-
-	let projectTranscriptionStatuses = $state.raw<ProjectTranscriptionStatus[]>([]);
-	let isLoadingStatuses = $state(false);
-	let refreshTarget = $state<ProjectTranscriptionStatus | null>(null);
-	let isRefreshing = $state(false);
-	let refreshError = $state<string | null>(null);
-	let statusLoadRunId = 0;
-
-	let showAddFromProject = $state(false);
-	let addFromProjectCandidates = $state.raw<ProjectTranscriptionSourceCandidate[]>([]);
-	let isLoadingCandidates = $state(false);
-	let isAddingFromProject = $state(false);
-	let addFromProjectError = $state<string | null>(null);
-
-	let refreshSourceCheckpointId = $derived(
-		refreshTarget ? (resolveRefreshSource(refreshTarget)?.sourceCheckpointId ?? '') : ''
-	);
+	let loadRunId = 0;
 
 	$effect(() => {
-		void bootstrap(data.project);
+		void loadRows(data.project.id);
 	});
 
 	onMount(() =>
@@ -70,444 +33,149 @@
 			if (
 				event.domain === 'projects' ||
 				event.domain === 'transcriptions' ||
-				event.domain === 'collations' ||
 				event.domain === 'all'
 			) {
-				void loadProjectTranscriptionStatuses(currentProject.id);
+				void loadRows(data.project.id);
 			}
 		})
 	);
 
-	function logProjects(
-		level: 'debug' | 'warn' | 'error',
-		message: string,
-		details?: Record<string, unknown>
-	) {
-		const logger =
-			level === 'error' ? console.error : level === 'warn' ? console.warn : console.debug;
-		if (details && Object.keys(details).length > 0) {
-			logger(`${PROJECTS_LOG_PREFIX} ${message}`, details);
-			return;
-		}
-		logger(`${PROJECTS_LOG_PREFIX} ${message}`);
-	}
-
-	async function runLoggedStep<T>(
-		label: string,
-		step: () => Promise<T>,
-		details?: Record<string, unknown>
-	): Promise<T> {
-		const startedAt = Date.now();
-		logProjects('debug', `${label} start`, details);
+	async function loadRows(projectId: string) {
+		const runId = ++loadRunId;
+		isLoading = true;
 		try {
-			const result = await step();
-			logProjects('debug', `${label} completed`, {
-				...details,
-				elapsedMs: Date.now() - startedAt,
+			const [statuses, summaries] = await Promise.all([
+				listProjectTranscriptionStatuses(projectId),
+				listTranscriptionSummaries(),
+			]);
+			if (runId !== loadRunId || data.project.id !== projectId) return;
+			const summariesById = new Map(summaries.map(summary => [summary.id, summary]));
+			rows = statuses.map(status => ({
+				...status,
+				updatedAt: summariesById.get(status.projectOwnedTranscriptionId)?.updated_at ?? '',
+			}));
+			error = null;
+		} catch (err) {
+			if (runId !== loadRunId) return;
+			error = err instanceof Error ? err.message : 'Failed to load project transcriptions';
+			console.error('[projects-route] loadProjectTranscriptionLibrary failed', {
+				projectId,
+				error,
 			});
-			return result;
-		} catch (error) {
-			logProjects('error', `${label} failed`, {
-				...details,
-				elapsedMs: Date.now() - startedAt,
-				error: error instanceof Error ? error.message : String(error),
-			});
-			throw error;
+		} finally {
+			if (runId === loadRunId) isLoading = false;
 		}
 	}
 
-	function applyProjectSettings(record: ProjectRecord) {
-		projectCollationSettings = record.collationSettings;
-		const settings = parseProjectCollationSettings(record.collationSettings);
-		transcriptionWitnessTreatments = new Map(
-			Object.entries(settings.transcriptionWitnessTreatments ?? {})
-		);
-		transcriptionWitnessExcludedHands = new Map(
-			Object.entries(settings.transcriptionWitnessExcludedHands ?? {}).map(
-				([transcriptionId, handIds]) => [transcriptionId, [...handIds]]
+	async function handleDelete(row: TranscriptionLibraryRow) {
+		if (
+			!confirm(
+				`Are you sure you want to delete "${row.title}"? This action cannot be undone.`
 			)
-		);
-	}
-
-	async function bootstrap(project: ProjectRecord) {
-		const runId = ++bootstrapRunId;
-		const projectId = project.id;
-		isLoadingProject = true;
-		error = null;
-		applyProjectSettings(project);
-		try {
-			selectedTranscriptionIds = await runLoggedStep(
-				'getProjectTranscriptionIds',
-				() => getProjectTranscriptionIds(projectId),
-				{ projectId, runId }
-			);
-			if (runId !== bootstrapRunId || currentProject.id !== projectId) return;
-			void loadProjectTranscriptionStatuses(projectId);
-			void loadTranscriptionCatalog(runId, projectId);
-		} catch (err) {
-			if (runId !== bootstrapRunId) return;
-			error = err instanceof Error ? err.message : 'Failed to load project';
-			logProjects('error', 'project transcription workspace failed', {
-				projectId,
-				runId,
-				error,
-			});
-		} finally {
-			if (runId === bootstrapRunId) isLoadingProject = false;
-		}
-	}
-
-	async function loadProjectTranscriptionStatuses(projectId: string) {
-		const runId = ++statusLoadRunId;
-		isLoadingStatuses = true;
-		try {
-			const statuses = await runLoggedStep(
-				'listProjectTranscriptionStatuses',
-				() => listProjectTranscriptionStatuses(projectId),
-				{ projectId, runId }
-			);
-			if (runId !== statusLoadRunId || currentProject.id !== projectId) return;
-			projectTranscriptionStatuses = statuses;
-		} catch (err) {
-			if (runId !== statusLoadRunId) return;
-			logProjects('error', 'loadProjectTranscriptionStatuses failed', {
-				projectId,
-				error: err instanceof Error ? err.message : String(err),
-			});
-		} finally {
-			if (runId === statusLoadRunId) isLoadingStatuses = false;
-		}
-	}
-
-	async function loadTranscriptionCatalog(runId: number, projectId: string) {
-		isLoadingTranscriptions = true;
-		try {
-			const transcriptionRows = await runLoggedStep(
-				'listTranscriptions',
-				() => listTranscriptions(projectId),
-				{ projectId, runId }
-			);
-			if (runId !== bootstrapRunId || currentProject.id !== projectId) {
-				logProjects('warn', 'discarded stale transcription catalog load', {
-					projectId,
-					runId,
-					activeRunId: bootstrapRunId,
-				});
-				return;
-			}
-			allTranscriptions = transcriptionRows;
-			logProjects('debug', 'transcription catalog loaded', {
-				projectId,
-				runId,
-				transcriptionCount: transcriptionRows.length,
-			});
-			void loadHandsForSelectedTranscriptions();
-		} catch (err) {
-			if (runId !== bootstrapRunId) return;
-			error = err instanceof Error ? err.message : 'Failed to load transcriptions';
-			logProjects('error', 'transcription catalog failed', {
-				projectId,
-				runId,
-				error,
-			});
-		} finally {
-			if (runId === bootstrapRunId) isLoadingTranscriptions = false;
-		}
-	}
-
-	async function persistProjectSettings(nextState?: {
-		transcriptionWitnessTreatments?: Map<string, WitnessTreatment>;
-		transcriptionWitnessExcludedHands?: Map<string, string[]>;
-	}) {
-		const settings = parseProjectCollationSettings(projectCollationSettings);
-		const nextTreatments =
-			nextState?.transcriptionWitnessTreatments ?? transcriptionWitnessTreatments;
-		const nextExcludedHands =
-			nextState?.transcriptionWitnessExcludedHands ?? transcriptionWitnessExcludedHands;
-		const now = new Date().toISOString();
-		isSavingSettings = true;
-		error = null;
-		try {
-			const collationSettings = createProjectCollationSettings(
-				settings.regularizationRules ?? [],
-				{
-					ignoreWordBreaks: settings.ignoreWordBreaks ?? false,
-					lowercase: settings.lowercase ?? false,
-					ignoreTokenWhitespace: true,
-					ignorePunctuation: settings.ignorePunctuation ?? false,
-					suppliedTextMode: settings.suppliedTextMode ?? 'clear',
-					segmentation: settings.segmentation ?? true,
-					transcriptionWitnessTreatments: nextTreatments,
-					transcriptionWitnessExcludedHands: nextExcludedHands,
-				}
-			);
-			await updateProjectMetadata(currentProject.id, {
-				collationSettings,
-				updatedAt: now,
-			});
-			projectCollationSettings = collationSettings;
-		} catch (err) {
-			error = err instanceof Error ? err.message : 'Failed to save project settings';
-		} finally {
-			isSavingSettings = false;
-		}
-	}
-
-	function getProjectTranscriptionTreatment(transcriptionId: string): WitnessTreatment {
-		return transcriptionWitnessTreatments.get(transcriptionId) ?? 'fragmentary';
-	}
-
-	function setProjectTranscriptionTreatment(
-		transcriptionId: string,
-		treatment: WitnessTreatment
-	) {
-		const nextTreatments = new Map(transcriptionWitnessTreatments);
-		nextTreatments.set(transcriptionId, treatment === 'full' ? 'full' : 'fragmentary');
-		transcriptionWitnessTreatments = nextTreatments;
-		void persistProjectSettings({ transcriptionWitnessTreatments: nextTreatments });
-	}
-
-	function setAllProjectTranscriptionTreatments(
-		transcriptionIds: string[],
-		treatment: WitnessTreatment
-	) {
-		const normalized = treatment === 'full' ? 'full' : 'fragmentary';
-		const nextTreatments = new Map(transcriptionWitnessTreatments);
-		for (const transcriptionId of transcriptionIds) {
-			nextTreatments.set(transcriptionId, normalized);
-		}
-		transcriptionWitnessTreatments = nextTreatments;
-		void persistProjectSettings({ transcriptionWitnessTreatments: nextTreatments });
-	}
-
-	function getExcludedHandsForTranscription(transcriptionId: string): string[] {
-		return transcriptionWitnessExcludedHands.get(transcriptionId) ?? [];
-	}
-
-	function isProjectTranscriptionHandIncluded(transcriptionId: string, handId: string): boolean {
-		return !getExcludedHandsForTranscription(transcriptionId).includes(handId);
-	}
-
-	function setProjectTranscriptionHandIncluded(
-		transcriptionId: string,
-		handId: string,
-		included: boolean
-	) {
-		const normalizedHandId = handId.trim();
-		if (!normalizedHandId) return;
-		const nextExcludedHands = new Map(transcriptionWitnessExcludedHands);
-		const handIds = new Set(getExcludedHandsForTranscription(transcriptionId));
-		if (included) handIds.delete(normalizedHandId);
-		else handIds.add(normalizedHandId);
-		if (handIds.size === 0) nextExcludedHands.delete(transcriptionId);
-		else nextExcludedHands.set(transcriptionId, [...handIds].sort());
-		transcriptionWitnessExcludedHands = nextExcludedHands;
-		void persistProjectSettings({ transcriptionWitnessExcludedHands: nextExcludedHands });
-	}
-
-	async function toggleAllProjectTranscriptions(checked: boolean) {
-		const projectId = currentProject.id;
-		isSavingTranscriptions = true;
-		error = null;
-		try {
-			const nextIds = checked ? allTranscriptions.map(transcription => transcription.id) : [];
-			const syncedIds = await syncProjectTranscriptionIds(projectId, nextIds);
-			if (currentProject.id !== projectId) return;
-			const runId = ++bootstrapRunId;
-			selectedTranscriptionIds = syncedIds;
-			await loadTranscriptionCatalog(runId, projectId);
-		} catch (err) {
-			error = err instanceof Error ? err.message : 'Failed to update project transcriptions';
-		} finally {
-			isSavingTranscriptions = false;
-		}
-	}
-
-	async function ensureTranscriptionHands(transcriptionId: string) {
-		const index = allTranscriptions.findIndex(
-			transcription => transcription.id === transcriptionId
-		);
-		if (index === -1 || allTranscriptions[index]!.hands.length > 0) return;
-		const hands = await loadTranscriptionHands(transcriptionId);
-		allTranscriptions = allTranscriptions.map(transcription =>
-			transcription.id === transcriptionId ? { ...transcription, hands } : transcription
-		);
-	}
-
-	async function loadHandsForSelectedTranscriptions() {
-		const idsNeedingHands = selectedTranscriptionIds.filter(id => {
-			const transcription = allTranscriptions.find(candidate => candidate.id === id);
-			return transcription && transcription.hands.length === 0;
-		});
-		for (const id of idsNeedingHands) await ensureTranscriptionHands(id);
-	}
-
-	async function toggleProjectTranscription(transcriptionId: string) {
-		const projectId = currentProject.id;
-		isSavingTranscriptions = true;
-		error = null;
-		try {
-			const nextIds = selectedTranscriptionIds.includes(transcriptionId)
-				? selectedTranscriptionIds.filter(id => id !== transcriptionId)
-				: [...selectedTranscriptionIds, transcriptionId];
-			const syncedIds = await syncProjectTranscriptionIds(projectId, nextIds);
-			if (currentProject.id !== projectId) return;
-			const runId = ++bootstrapRunId;
-			selectedTranscriptionIds = syncedIds;
-			await loadTranscriptionCatalog(runId, projectId);
-		} catch (err) {
-			error = err instanceof Error ? err.message : 'Failed to update project transcriptions';
-		} finally {
-			isSavingTranscriptions = false;
-		}
-	}
-
-	function resolveRefreshSource(status: ProjectTranscriptionStatus) {
-		const state: ProjectTranscriptionSourceState = status.sourceState;
-		if (state.kind === 'up-to-date' || state.kind === 'newer-source-available') {
-			return {
-				sourceTranscriptionId: state.sourceTranscriptionId,
-				sourceCheckpointId: state.sourceRevisionId,
-			};
-		}
-		if (state.kind === 'source-has-uncommitted-changes' && state.sourceRevisionId) {
-			return {
-				sourceTranscriptionId: state.sourceTranscriptionId,
-				sourceCheckpointId: state.sourceRevisionId,
-			};
-		}
-		return null;
-	}
-
-	function handleRequestRefresh(status: ProjectTranscriptionStatus) {
-		refreshTarget = status;
-		refreshError = null;
-	}
-
-	function closeRefreshDialog() {
-		if (isRefreshing) return;
-		refreshTarget = null;
-		refreshError = null;
-	}
-
-	async function confirmRefreshTranscription(allowReplaceDirty: boolean) {
-		const target = refreshTarget;
-		if (!target) return;
-		const source = resolveRefreshSource(target);
-		if (!source) {
-			refreshError = 'No committed source version available for this project transcription.';
+		) {
 			return;
 		}
-		isRefreshing = true;
-		refreshError = null;
+		deletingId = row.projectOwnedTranscriptionId;
+		error = null;
 		try {
-			await refreshProjectTranscription({
-				projectTranscriptionId: target.projectTranscriptionId,
-				sourceTranscriptionId: source.sourceTranscriptionId,
-				sourceCheckpointId: source.sourceCheckpointId,
-				allowReplaceDirty,
-			});
-			refreshTarget = null;
-			await loadProjectTranscriptionStatuses(currentProject.id);
+			await deleteTranscription(row.projectOwnedTranscriptionId);
+			await loadRows(data.project.id);
 		} catch (err) {
-			refreshError =
-				err instanceof Error ? err.message : 'Failed to refresh project transcription';
+			error = err instanceof Error ? err.message : 'Failed to delete transcription';
 		} finally {
-			isRefreshing = false;
+			deletingId = null;
 		}
 	}
 
-	async function handleRequestAddFromProject() {
-		showAddFromProject = true;
-		addFromProjectError = null;
-		isLoadingCandidates = true;
-		try {
-			addFromProjectCandidates = await listProjectTranscriptionSourceCandidates(
-				currentProject.id
-			);
-		} catch (err) {
-			addFromProjectError =
-				err instanceof Error ? err.message : 'Failed to load source candidates';
-			addFromProjectCandidates = [];
-		} finally {
-			isLoadingCandidates = false;
-		}
+	function commitStateLabel(state: ProjectTranscriptionStatus['commitState']): string {
+		if (state === 'never-committed') return 'No committed version yet';
+		if (state === 'dirty') return 'Uncommitted changes';
+		return 'Committed';
 	}
 
-	function closeAddFromProjectDialog() {
-		if (isAddingFromProject) return;
-		showAddFromProject = false;
-		addFromProjectError = null;
-		addFromProjectCandidates = [];
+	function commitStateBadge(state: ProjectTranscriptionStatus['commitState']): string {
+		if (state === 'dirty') return 'badge-warning';
+		if (state === 'clean') return 'badge-success';
+		return 'badge-ghost';
 	}
 
-	async function confirmAddFromProject(candidate: ProjectTranscriptionSourceCandidate) {
-		const projectId = currentProject.id;
-		isAddingFromProject = true;
-		addFromProjectError = null;
-		try {
-			await addProjectTranscriptionFromProject({
-				targetProjectId: projectId,
-				sourceProjectTranscriptionId: candidate.projectTranscriptionId,
-			});
-			showAddFromProject = false;
-			addFromProjectCandidates = [];
-			await loadProjectTranscriptionStatuses(projectId);
-			const runId = ++bootstrapRunId;
-			await loadTranscriptionCatalog(runId, projectId);
-		} catch (err) {
-			addFromProjectError =
-				err instanceof Error ? err.message : 'Failed to add project transcription';
-		} finally {
-			isAddingFromProject = false;
-		}
+	function formatDate(iso: string): string {
+		return iso ? new Date(iso).toLocaleDateString() : 'Unknown';
 	}
 </script>
 
-{#if error}
-	<div class="alert alert-error text-sm">{error}</div>
-{/if}
+<div class="rounded-box border border-base-300/50 bg-base-100 p-4 shadow-md">
+	<div class="mb-3">
+		<h2 class="font-serif text-lg font-semibold">Project Transcriptions</h2>
+		<p class="text-xs text-base-content/50">Transcriptions owned by {data.project.name}.</p>
+	</div>
 
-<ProjectTranscriptionsEditor
-	{allTranscriptions}
-	{selectedTranscriptionIds}
-	isLoading={isLoadingProject || isLoadingTranscriptions}
-	isSaving={isSavingTranscriptions || isSavingSettings}
-	getTreatment={getProjectTranscriptionTreatment}
-	isHandIncluded={isProjectTranscriptionHandIncluded}
-	setTreatment={setProjectTranscriptionTreatment}
-	setHandIncluded={setProjectTranscriptionHandIncluded}
-	setAllTreatments={setAllProjectTranscriptionTreatments}
-	onToggleTranscription={toggleProjectTranscription}
-	onToggleAllTranscriptions={toggleAllProjectTranscriptions}
-/>
+	{#if error}
+		<div class="alert alert-error mb-3 text-sm">{error}</div>
+	{/if}
 
-<ProjectTranscriptionVersionsPanel
-	projectId={currentProject.id}
-	statuses={projectTranscriptionStatuses}
-	isLoading={isLoadingStatuses || isLoadingProject}
-	onRefreshTranscription={handleRequestRefresh}
-	onAddFromProject={handleRequestAddFromProject}
-/>
-
-{#if refreshTarget}
-	<ProjectTranscriptionRefreshDialog
-		status={refreshTarget}
-		sourceCheckpointId={refreshSourceCheckpointId}
-		isSubmitting={isRefreshing}
-		error={refreshError}
-		onConfirm={confirmRefreshTranscription}
-		onClose={closeRefreshDialog}
-	/>
-{/if}
-
-{#if showAddFromProject}
-	<AddProjectTranscriptionFromProjectDialog
-		candidates={addFromProjectCandidates}
-		{isLoadingCandidates}
-		isSubmitting={isAddingFromProject}
-		error={addFromProjectError}
-		onConfirm={confirmAddFromProject}
-		onClose={closeAddFromProjectDialog}
-	/>
-{/if}
+	{#if isLoading}
+		<div
+			class="flex items-center gap-2 rounded-box bg-base-200/70 p-4 text-sm text-base-content/60"
+		>
+			<span class="loading loading-spinner loading-sm"></span>
+			Loading transcriptions...
+		</div>
+	{:else if rows.length === 0}
+		<div
+			class="rounded-box border border-dashed border-base-300/80 p-4 text-sm text-base-content/55"
+		>
+			No transcriptions in this project yet.
+		</div>
+	{:else}
+		<ul class="list rounded-box bg-base-100" aria-label="Transcriptions">
+			{#each rows as row (row.projectTranscriptionId)}
+				<li class="list-row items-center gap-4">
+					<div class="min-w-0 flex-1">
+						<div class="font-serif font-medium">{row.title}</div>
+						<div
+							class="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-base-content/50"
+						>
+							<span class="font-mono">{row.siglum}</span>
+							<span class="text-base-content/20">|</span>
+							<span>Updated {formatDate(row.updatedAt)}</span>
+						</div>
+					</div>
+					<span class="badge badge-sm {commitStateBadge(row.commitState)}">
+						{commitStateLabel(row.commitState)}
+					</span>
+					<a
+						href={resolve('/transcription/[id]', {
+							id: row.projectOwnedTranscriptionId,
+						})}
+						class="btn btn-ghost btn-sm"
+					>
+						Open
+					</a>
+					<details class="dropdown dropdown-end">
+						<summary
+							class="btn btn-ghost btn-sm btn-circle list-none text-lg"
+							aria-label={`More actions for ${row.title}`}
+						>
+							...
+						</summary>
+						<div
+							class="dropdown-content z-20 mt-1 w-36 rounded-box bg-base-100 p-2 shadow-lg"
+						>
+							<button
+								type="button"
+								class="btn btn-ghost btn-sm w-full justify-start text-error"
+								disabled={deletingId === row.projectOwnedTranscriptionId}
+								onclick={() => handleDelete(row)}
+							>
+								{deletingId === row.projectOwnedTranscriptionId
+									? 'Deleting...'
+									: 'Delete'}
+							</button>
+						</div>
+					</details>
+				</li>
+			{/each}
+		</ul>
+	{/if}
+</div>

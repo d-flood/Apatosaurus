@@ -5,13 +5,15 @@
 		type CollationVersionStatus,
 		type ProjectRecord,
 	} from '$lib/client/collation/project-collation';
-	import { subscribeLocalDbInvalidations } from '$lib/client/db/client';
+	import { deleteCollation, subscribeLocalDbInvalidations } from '$lib/client/db/client';
 	import { onMount } from 'svelte';
 
 	let { data } = $props<{ data: { project: ProjectRecord } }>();
 
 	let projectCollationStatuses = $state.raw<CollationVersionStatus[]>([]);
 	let isLoadingCollations = $state(false);
+	let deletingId = $state<string | null>(null);
+	let error = $state<string | null>(null);
 	let loadRunId = 0;
 
 	$effect(() => {
@@ -37,13 +39,29 @@
 			const statuses = await listProjectCollationVersionStatuses(projectId);
 			if (runId !== loadRunId || data.project.id !== projectId) return;
 			projectCollationStatuses = statuses;
+			error = null;
 		} catch (err) {
+			error = err instanceof Error ? err.message : 'Failed to load project collations';
 			console.error('[projects-route] loadProjectCollationStatuses failed', {
 				projectId,
 				error: err instanceof Error ? err.message : String(err),
 			});
 		} finally {
 			if (runId === loadRunId) isLoadingCollations = false;
+		}
+	}
+
+	async function handleDelete(status: CollationVersionStatus) {
+		if (!confirm(`Delete "${status.title}"?`)) return;
+		deletingId = status.collationId;
+		error = null;
+		try {
+			await deleteCollation(status.collationId);
+			await loadProjectCollationStatuses(data.project.id);
+		} catch (err) {
+			error = err instanceof Error ? err.message : 'Failed to delete collation';
+		} finally {
+			deletingId = null;
 		}
 	}
 
@@ -81,6 +99,10 @@
 			New Collation
 		</a>
 	</div>
+
+	{#if error}
+		<div class="alert alert-error mb-3 text-sm">{error}</div>
+	{/if}
 
 	{#if isLoadingCollations}
 		<div
@@ -120,6 +142,26 @@
 					>
 						Open
 					</a>
+					<details class="dropdown dropdown-end">
+						<summary
+							class="btn btn-ghost btn-sm btn-circle list-none text-lg"
+							aria-label={`More actions for ${status.title}`}
+						>
+							...
+						</summary>
+						<div
+							class="dropdown-content z-20 mt-1 w-36 rounded-box bg-base-100 p-2 shadow-lg"
+						>
+							<button
+								type="button"
+								class="btn btn-ghost btn-sm w-full justify-start text-error"
+								disabled={deletingId === status.collationId}
+								onclick={() => handleDelete(status)}
+							>
+								{deletingId === status.collationId ? 'Deleting...' : 'Delete'}
+							</button>
+						</div>
+					</details>
 				</li>
 			{/each}
 		</ul>
