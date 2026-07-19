@@ -5,6 +5,8 @@
 		ProjectZipImportResult,
 	} from '$lib/client/sync/project-zip-import';
 
+	let { onImported }: { onImported?: (projectId: string) => void | Promise<void> } = $props();
+
 	let bytes = $state<Uint8Array | null>(null);
 	let fileName = $state('');
 	let result = $state<ProjectZipImportResult | null>(null);
@@ -27,6 +29,7 @@
 		error = null;
 		try {
 			result = await importProjectZip(bytes, collisionMode);
+			if (result.ok) await onImported?.(result.projectId);
 		} catch (cause) {
 			error = cause instanceof Error ? cause.message : 'Project import failed.';
 		} finally {

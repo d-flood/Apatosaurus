@@ -81,4 +81,26 @@ describe('ProjectZipImportPanel', () => {
 			.element(page.getByText('invalid_shape: Unsupported project file.'))
 			.toBeInTheDocument();
 	});
+
+	it('reports the imported project so its owner can open it', async () => {
+		const onImported = vi.fn();
+		importProjectZip.mockResolvedValueOnce({
+			ok: true,
+			projectId: 'project-imported',
+			mode: 'created',
+			quarantinedFiles: [],
+		});
+		render(ProjectZipImportPanel, { onImported });
+		const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+		Object.defineProperty(input, 'files', {
+			configurable: true,
+			value: [new File(['zip'], 'project.zip', { type: 'application/zip' })],
+		});
+		input.dispatchEvent(new Event('change', { bubbles: true }));
+
+		await expect
+			.element(page.getByText('Imported the project successfully.'))
+			.toBeInTheDocument();
+		expect(onImported).toHaveBeenCalledWith('project-imported');
+	});
 });

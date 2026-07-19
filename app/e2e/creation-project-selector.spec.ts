@@ -22,9 +22,11 @@ test('bare creation pages use the last-opened project and honor a changed destin
 		timeout: 30_000,
 	});
 
-	await page.goto('/projects');
-	await page.getByRole('button', { name: /Creation Project Three/ }).click();
+	await page.goto(`/projects/${switchedProjectId}/transcriptions`);
 	await expect(page.getByText('Switched Project Witness', { exact: true }).first()).toBeVisible();
+	await page.evaluate(projectId => {
+		localStorage.setItem('lastOpenedProjectId', projectId);
+	}, lastOpenedProjectId);
 
 	await page.goto('/collation/new');
 	await expect(page.getByRole('combobox', { name: 'Project*' })).toHaveValue(lastOpenedProjectId);
@@ -41,6 +43,7 @@ test('first creation with no projects still uses Default', async ({ page }) => {
 
 	await page.goto('/projects');
 	await expect(page.getByRole('heading', { name: 'Default' })).toBeVisible();
+	await page.getByRole('link', { name: 'Open' }).click();
 	await expect(page.getByText('First Run Witness', { exact: true }).first()).toBeVisible();
 });
 

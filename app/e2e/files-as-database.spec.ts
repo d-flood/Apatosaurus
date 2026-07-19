@@ -51,16 +51,17 @@ test('disaster recovery restores an equivalent project after site data is wiped'
 	await wipeSiteData(context, page);
 	await page.goto('/projects');
 	await importProjectArchive(page, archivePath);
-	await page.reload();
+	await page.goto('/projects');
+	await expect(page.getByRole('heading', { name: PROJECT_NAME })).toBeVisible();
 	await selectProject(page, PROJECT_NAME);
 
 	for (const title of TRANSCRIPTION_TITLES) {
 		await expect(page.getByText(title, { exact: true }).first()).toBeVisible();
 	}
-	await page.getByRole('button', { name: 'Collations' }).click();
+	await page.locator('.tabs').getByRole('link', { name: 'Collations' }).click();
 	await expect(page.getByText(/Collation Rom 15:/).first()).toBeVisible();
 
-	await page.getByRole('button', { name: 'Transcriptions' }).click();
+	await page.locator('.tabs').getByRole('link', { name: 'Transcriptions' }).click();
 	const alphaCard = page.locator('div.rounded-box', { hasText: TRANSCRIPTION_TITLES[0] }).last();
 	await alphaCard.getByRole('link', { name: 'Open' }).click();
 	await expect(
@@ -100,11 +101,11 @@ test('committee contexts propagate updates and preserve divergent commits as con
 		await editAndCommitOpenTranscription(pageA, 'update-from-a', 'Committee update from A');
 		await pageA.goto('/projects');
 		await selectProject(pageA, 'Committee Romans');
-		await pageA.getByRole('button', { name: 'Backup and Sync' }).click();
+		await pageA.getByRole('link', { name: 'Backup and Sync' }).click();
 		await syncNow(pageA);
 		await pageB.goto('/projects');
 		await selectProject(pageB, 'Committee Romans');
-		await pageB.getByRole('button', { name: 'Backup and Sync' }).click();
+		await pageB.getByRole('link', { name: 'Backup and Sync' }).click();
 		await syncNow(pageB);
 		await openTranscription(pageB, 'Committee Romans', 'Committee Witness');
 		await expect(
@@ -119,11 +120,11 @@ test('committee contexts propagate updates and preserve divergent commits as con
 
 		await pageA.goto('/projects');
 		await selectProject(pageA, 'Committee Romans');
-		await pageA.getByRole('button', { name: 'Backup and Sync' }).click();
+		await pageA.getByRole('link', { name: 'Backup and Sync' }).click();
 		await syncNow(pageA);
 		await pageB.goto('/projects');
 		await selectProject(pageB, 'Committee Romans');
-		await pageB.getByRole('button', { name: 'Backup and Sync' }).click();
+		await pageB.getByRole('link', { name: 'Backup and Sync' }).click();
 		await syncNow(pageB);
 		await pageB.goto('/projects');
 		await selectProject(pageB, 'Committee Romans');
@@ -150,18 +151,16 @@ test('upgrade fixture migrates on save and rebuilds after an index version bump'
 	await seedUpgradeStore(page, fixture);
 
 	await page.goto('/projects');
-	await expect(page.getByRole('heading', { name: 'Projects' })).toBeVisible();
-	await page.getByRole('button', { name: /Upgrade Fixture/ }).click();
-	await expect(page.getByRole('heading', { name: 'Upgrade Fixture' })).toBeVisible();
+	await selectProject(page, 'Upgrade Fixture');
 
-	await page.getByRole('button', { name: 'Settings' }).click();
+	await page.getByRole('link', { name: 'Settings' }).click();
 	await page
 		.getByPlaceholder('Add a description for this project.')
 		.fill('Synthetic v1 fixture saved as v2');
 	await page.getByRole('button', { name: 'Save Details' }).click();
 	await expect(page.getByRole('button', { name: 'Save Details' })).toBeDisabled();
 
-	await page.getByRole('button', { name: 'Backup and Sync' }).click();
+	await page.getByRole('link', { name: 'Backup and Sync' }).click();
 	const downloadPromise = page.waitForEvent('download');
 	await page.getByRole('button', { name: 'Export project zip' }).click();
 	const download = await downloadPromise;
@@ -296,7 +295,8 @@ async function createProject(page: Page, name: string): Promise<void> {
 
 async function selectProject(page: Page, name: string): Promise<void> {
 	await expect(page.getByRole('heading', { name: 'Projects' })).toBeVisible();
-	await page.getByRole('button', { name: new RegExp(name) }).click();
+	const card = page.locator('article', { has: page.getByRole('heading', { name }) });
+	await card.getByRole('link', { name: 'Open' }).click();
 	await expect(page.getByRole('heading', { name })).toBeVisible();
 }
 
@@ -409,15 +409,13 @@ async function importProjectArchive(page: Page, archivePath: string): Promise<vo
 		has: page.getByRole('heading', { name: 'Import Project Backup' }),
 	});
 	await panel.locator('input[type="file"]').setInputFiles(archivePath);
-	await expect(panel.getByText('Imported the project successfully.')).toBeVisible({
-		timeout: 30_000,
-	});
+	await expect(page).toHaveURL(/\/projects\/[^/]+\/transcriptions$/, { timeout: 30_000 });
 }
 
 async function exportProject(page: Page, projectName: string, archivePath: string): Promise<void> {
 	await page.goto('/projects');
 	await selectProject(page, projectName);
-	await page.getByRole('button', { name: 'Backup and Sync' }).click();
+	await page.getByRole('link', { name: 'Backup and Sync' }).click();
 	const downloadPromise = page.waitForEvent('download');
 	await page.getByRole('button', { name: 'Export project zip' }).click();
 	const download = await downloadPromise;
@@ -435,7 +433,7 @@ async function openTranscription(page: Page, projectName: string, title: string)
 async function connectSyncFolder(page: Page, projectName: string): Promise<void> {
 	await page.goto('/projects');
 	await selectProject(page, projectName);
-	await page.getByRole('button', { name: 'Backup and Sync' }).click();
+	await page.getByRole('link', { name: 'Backup and Sync' }).click();
 	await page.getByRole('button', { name: 'Connect sync folder' }).click();
 	await expect(page.getByRole('button', { name: 'Sync now' })).toBeVisible();
 }
