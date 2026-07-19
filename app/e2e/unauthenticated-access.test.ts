@@ -8,8 +8,8 @@ test.describe('Unauthenticated Access', () => {
 		await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
 	});
 
-	test('allows access to the project transcription hub without authentication', async ({ page }) => {
-		await page.goto('/projects#transcriptions');
+	test('allows access to the project picker without authentication', async ({ page }) => {
+		await page.goto('/projects');
 
 		await expect(page).not.toHaveURL(/\/accounts\/login/);
 		await expect(page.getByRole('heading', { name: 'Projects' })).toBeVisible();
@@ -23,10 +23,15 @@ test.describe('Unauthenticated Access', () => {
 
 	test('shows public navigation links instead of a login button', async ({ page }) => {
 		await page.goto('/');
+		const navbar = page.getByRole('navigation', { name: 'Primary' });
 
-		await expect(page.locator('a[href="/projects#transcriptions"]').last()).toBeVisible();
-		await expect(page.locator('a[href="/projects"]').last()).toBeVisible();
-		await expect(page.locator('a[href="/projects#collations"]').last()).toBeVisible();
+		await expect(
+			navbar.getByRole('link', { name: 'Transcriptions', exact: true })
+		).toHaveAttribute('href', '/projects');
+		await expect(navbar.getByRole('link', { name: 'Collations', exact: true })).toHaveAttribute(
+			'href',
+			'/projects'
+		);
 		await expect(page.locator('a[href="/accounts/login"]')).toHaveCount(0);
 	});
 });

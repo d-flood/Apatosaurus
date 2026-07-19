@@ -1,7 +1,17 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
 	import { asset, resolve } from '$app/paths';
+	import { page } from '$app/state';
+	import { listProjects, type ProjectOption } from '$lib/client/collation/project-collation';
+	import { subscribeLocalDbInvalidations } from '$lib/client/db/client';
 	import { resetLocalDb } from '$lib/client/db/runtime';
+	import {
+		buildNavbarProjectTargets,
+		buildProjectSwitcherTarget,
+		readLastOpenedProjectId,
+		resolveLastOpenedProjectId,
+		type ProjectSection,
+	} from '$lib/client/navigation/last-opened-project';
 	import { notificationCenter } from '$lib/client/notification-center.svelte';
 	import SyncStatusIndicator from '$lib/components/SyncStatusIndicator.svelte';
 	import Bell from 'phosphor-svelte/lib/Bell';
@@ -11,6 +21,14 @@
 
 	let theme = $state('');
 	let resettingLocalDb = $state(false);
+	let projects = $state.raw<ProjectOption[]>([]);
+	let projectTargets = $derived.by(() => {
+		return buildNavbarProjectTargets(navigationProjectId(), projects);
+	});
+	let openProjectName = $derived.by(() => {
+		const projectId = resolveLastOpenedProjectId(navigationProjectId(), projects);
+		return projects.find(project => project.id === projectId)?.name ?? 'Projects';
+	});
 
 	function toggleTheme() {
 		if (browser) {
@@ -26,7 +44,41 @@
 		if (browser) {
 			theme = localStorage.getItem('theme') || 'light';
 		}
+		void loadProjects();
+		return subscribeLocalDbInvalidations(event => {
+			if (event.domain === 'projects' || event.domain === 'all') void loadProjects();
+		});
 	});
+
+	async function loadProjects() {
+		try {
+			projects = await listProjects();
+		} catch (error) {
+			console.error('Failed to load projects for navigation', error);
+		}
+	}
+
+	function navigationProjectId(): string | null {
+		const projectId = page.url.pathname.match(
+			/^\/projects\/([^/]+)\/(?:transcriptions|collations|settings|backup)(?:\/|$)/
+		)?.[1];
+		return projectId ? decodeURIComponent(projectId) : readLastOpenedProjectId();
+	}
+
+	function currentProjectSection(): ProjectSection {
+		const section = page.url.pathname.match(
+			/^\/projects\/[^/]+\/(transcriptions|collations|settings|backup)(?:\/|$)/
+		)?.[1];
+		if (
+			section === 'collations' ||
+			section === 'settings' ||
+			section === 'backup' ||
+			section === 'transcriptions'
+		) {
+			return section;
+		}
+		return 'transcriptions';
+	}
 
 	function badgeClass(tone?: 'neutral' | 'warning' | 'error' | 'success'): string {
 		if (tone === 'warning') return 'badge-warning';
@@ -47,11 +99,7 @@
 
 	async function resetDevelopmentDb() {
 		if (resettingLocalDb) return;
-		if (
-			!window.confirm(
-				'Reset the local database? This clears local data and reloads.'
-			)
-		)
+		if (!window.confirm('Reset the local database? This clears local data and reloads.'))
 			return;
 
 		resettingLocalDb = true;
@@ -64,10 +112,46 @@
 	}
 </script>
 
-<div class="navbar bg-base-200 font-serif shadow-sm">
-	<div class="navbar-start space-x-4">
-		<div class="dropdown">
-			<div tabindex="0" role="button" class="btn btn-ghost lg:hidden">
+<nav class="navbar bg-base-200 font-serif shadow-sm" aria-label="Primary">
+	<div class="navbar-start flex-1 gap-2 lg:gap-4">
+		<a href={resolve('/')} class="shrink-0 hover:brightness-90">
+			<span class="sr-only">Apatosaurus - Home</span>
+			<img src={asset('/icons/icon-96x96.png')} alt="Apatosaurus Logo" class="w-12 h-12" />
+		</a>
+
+		<div class="dropdown hidden lg:block">
+			<button
+				type="button"
+				tabindex="0"
+				class="btn btn-ghost max-w-56"
+				aria-label={`Open project switcher: ${openProjectName}`}
+			>
+				<span class="truncate">{openProjectName}</span>
+				<span aria-hidden="true">v</span>
+			</button>
+			<ul
+				tabindex="-1"
+				class="menu dropdown-content bg-base-100 rounded-box z-30 mt-3 w-64 p-2 shadow-lg"
+			>
+				{#each projects as project (project.id)}
+					<li>
+						<a href={buildProjectSwitcherTarget(currentProjectSection(), project.id)}>
+							{project.name}
+						</a>
+					</li>
+				{/each}
+				{#if projects.length > 0}<li class="my-1 border-t border-base-300"></li>{/if}
+				<li><a href={resolve('/projects')}>Manage projects…</a></li>
+			</ul>
+		</div>
+
+		<div class="dropdown lg:hidden">
+			<button
+				type="button"
+				tabindex="0"
+				aria-label="Open navigation menu"
+				class="btn btn-ghost btn-square"
+			>
 				<svg
 					xmlns="http://www.w3.org/2000/svg"
 					class="h-5 w-5"
@@ -82,39 +166,44 @@
 						d="M4 6h16M4 12h8m-8 6h16"
 					/>
 				</svg>
-			</div>
+			</button>
 			<ul
-				class="menu menu-sm dropdown-content bg-base-100 rounded-box z-1 mt-3 w-52 p-2 shadow-lg"
+				tabindex="-1"
+				class="menu menu-sm dropdown-content bg-base-100 rounded-box z-30 mt-3 w-64 p-2 shadow-lg"
 			>
-				<li><a href={resolve('/projects#transcriptions')}>Transcriptions</a></li>
-				<li><a href={resolve('/projects')}>Projects</a></li>
-				<li><a href={resolve('/projects#collations')}>Collations</a></li>
-				<li><a href={resolve('/about')}>About</a></li>
+				<li><a href={projectTargets.transcriptions}>Transcriptions</a></li>
+				<li><a href={projectTargets.collations}>Collations</a></li>
+				<li class="menu-title">Switch project</li>
+				{#each projects as project (project.id)}
+					<li>
+						<a href={buildProjectSwitcherTarget(currentProjectSection(), project.id)}>
+							{project.name}
+						</a>
+					</li>
+				{/each}
+				<li><a href={resolve('/projects')}>Manage projects…</a></li>
 			</ul>
 		</div>
-		<a href={resolve('/')} class="hover:brightness-90">
-			<span class="sr-only">Apatosaurus - Home</span>
-			<img src={asset('/icons/icon-96x96.png')} alt="Apatosaurus Logo" class="w-12 h-12" />
-		</a>
-	</div>
-	<div class="navbar-center hidden lg:flex">
-		<ul class="menu menu-horizontal px-1">
-			<li class="text-lg"><a href={resolve('/projects#transcriptions')}>Transcriptions</a></li>
-			<li class="text-lg"><a href={resolve('/projects')}>Projects</a></li>
-			<li class="text-lg"><a href={resolve('/projects#collations')}>Collations</a></li>
-			<li class="text-lg"><a href={resolve('/about')}>About</a></li>
+
+		<ul class="menu menu-horizontal hidden px-1 lg:flex">
+			<li class="text-lg"><a href={projectTargets.transcriptions}>Transcriptions</a></li>
+			<li class="text-lg"><a href={projectTargets.collations}>Collations</a></li>
 		</ul>
 	</div>
 	<div class="navbar-end gap-2">
-		<SyncStatusIndicator />
-		<button
-			type="button"
-			class="btn btn-xs btn-outline btn-error"
-			onclick={resetDevelopmentDb}
-			disabled={resettingLocalDb}
-		>
-			{resettingLocalDb ? 'Resetting...' : 'Reset DB'}
-		</button>
+		<a href={resolve('/data')} aria-label="Data & Storage" class="rounded-field">
+			<SyncStatusIndicator />
+		</a>
+		{#if import.meta.env.DEV}
+			<button
+				type="button"
+				class="btn btn-xs btn-outline btn-error"
+				onclick={resetDevelopmentDb}
+				disabled={resettingLocalDb}
+			>
+				{resettingLocalDb ? 'Resetting...' : 'Reset DB'}
+			</button>
+		{/if}
 		<div class="dropdown dropdown-end">
 			<div tabindex="0" role="button" class="btn btn-ghost btn-circle">
 				<div class="indicator">
@@ -180,4 +269,4 @@
 			<Moon class="swap-off h-10 w-10 fill-current" />
 		</label>
 	</div>
-</div>
+</nav>

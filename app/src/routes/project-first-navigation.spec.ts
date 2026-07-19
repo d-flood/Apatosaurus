@@ -37,17 +37,23 @@ beforeEach(() => {
 
 describe('project-first navigation redirects', () => {
 	it('redirects the legacy transcription library to the project transcriptions section', async () => {
+		stubLastOpenedProject('project-a');
+		vi.mocked(listProjects).mockResolvedValue([projectOption('project-a')]);
+
 		await expectRedirect(
 			loadTranscriptionList as TestLoad,
-			'/projects#transcriptions',
+			'/projects/project-a/transcriptions',
 			'/transcription'
 		);
 	});
 
 	it('redirects the legacy IGNTP import route without a project to the project transcriptions section', async () => {
+		stubLastOpenedProject('project-a');
+		vi.mocked(listProjects).mockResolvedValue([projectOption('project-a')]);
+
 		await expectRedirect(
 			loadTranscriptionIgntp as unknown as TestLoad,
-			'/projects#transcriptions',
+			'/projects/project-a/transcriptions',
 			'/transcription/igntp'
 		);
 	});
@@ -61,8 +67,28 @@ describe('project-first navigation redirects', () => {
 	});
 
 	it('redirects the legacy collation list to the project collations section', async () => {
-		await expectRedirect(loadCollationList as TestLoad, '/projects#collations', '/collation');
+		stubLastOpenedProject('project-a');
+		vi.mocked(listProjects).mockResolvedValue([projectOption('project-a')]);
+
+		await expectRedirect(
+			loadCollationList as TestLoad,
+			'/projects/project-a/collations',
+			'/collation'
+		);
 	});
+
+	it.each([
+		['transcription', loadTranscriptionList],
+		['collation', loadCollationList],
+	] as const)(
+		'redirects the legacy %s list to the picker when no projects exist',
+		async (route, load) => {
+			stubLastOpenedProject('deleted-project');
+			vi.mocked(listProjects).mockResolvedValue([]);
+
+			await expectRedirect(load as TestLoad, '/projects', `/${route}`);
+		}
+	);
 
 	it('redirects a project root to its transcription library', async () => {
 		await expectRedirect(
@@ -174,3 +200,21 @@ describe('project-first navigation redirects', () => {
 		);
 	});
 });
+
+function stubLastOpenedProject(projectId: string): void {
+	vi.stubGlobal('localStorage', {
+		getItem: () => projectId,
+		setItem: vi.fn(),
+	});
+}
+
+function projectOption(id: string) {
+	return {
+		id,
+		storageSlug: id,
+		name: id,
+		description: '',
+		createdAt: '2026-01-01T00:00:00.000Z',
+		updatedAt: '2026-01-01T00:00:00.000Z',
+	};
+}

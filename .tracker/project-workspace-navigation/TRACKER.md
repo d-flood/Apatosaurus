@@ -22,7 +22,7 @@ Last updated: 2026-07-19
 | 02 | `02-project-workspace-routes.md` | Completed | 01 |
 | 03 | `03-clean-libraries.md` | Completed | 02 |
 | 04 | `04-picker-and-data-page.md` | Completed | 02 |
-| 05 | `05-navigation-cutover.md` | Not Started | 01, 02, 04 |
+| 05 | `05-navigation-cutover.md` | Completed | 01, 02, 04 |
 | 06 | `06-creation-project-selector.md` | Completed | 01 |
 | 07 | `07-backup-list-titles.md` | Completed | None |
 | 08 | `08-dashboard.md` | Not Started | 04, 05 |
