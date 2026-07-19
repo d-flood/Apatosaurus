@@ -414,6 +414,7 @@ function createCollationState() {
 		const normalized = normalizeLegacyPhase(p);
 		phase = normalized;
 		advanceFurthest(normalized);
+		markUnsaved();
 	}
 
 	function advanceFurthest(p: CollationPhase) {

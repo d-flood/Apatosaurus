@@ -60,7 +60,8 @@ async function createProject(page: Page, name: string): Promise<string> {
 	const input = page.getByPlaceholder('New project name');
 	await input.fill(name);
 	await input.press('Enter');
-	await expect(page.getByRole('heading', { name })).toBeVisible();
+	await expect(page).toHaveURL(/\/projects\/[^/]+\/transcriptions$/);
+	await expect(page.getByRole('heading', { level: 1, name })).toBeVisible();
 	const match = new URL(page.url()).pathname.match(/^\/projects\/([^/]+)\/transcriptions$/);
 	if (!match?.[1]) throw new Error(`Project URL did not identify ${name}`);
 	return match[1];

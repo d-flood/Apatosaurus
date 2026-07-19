@@ -896,6 +896,7 @@
 								);
 							}
 							collationState.setPhase('alignment');
+							await collationState.flushPendingSave();
 							if (targetId) {
 								await goto(
 									resolve('/collation/[id]/[phase]', {
