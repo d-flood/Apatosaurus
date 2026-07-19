@@ -38,7 +38,7 @@
 		| { type: 'Collation'; id: string; updatedAt: string; summary: CollationListItem };
 
 	let projects = $state.raw<ProjectOption[]>([]);
-	let targetProject = $state<ProjectOption | null>(null);
+	let lastOpenedProject = $state<ProjectOption | null>(null);
 	let recentDocuments = $state.raw<DashboardDocument[]>([]);
 	let attentionItems = $state.raw<DashboardAttentionItem[]>([]);
 	let isLoading = $state(true);
@@ -68,7 +68,7 @@
 
 			projects = projectRows;
 			const targetId = resolveLastOpenedProjectId(readLastOpenedProjectId(), projectRows);
-			targetProject = projectRows.find(project => project.id === targetId) ?? null;
+			lastOpenedProject = projectRows.find(project => project.id === targetId) ?? null;
 			recentDocuments = documents;
 			attentionItems = warnings;
 			error = null;
@@ -280,7 +280,7 @@
 
 <Dashboard
 	{projects}
-	{targetProject}
+	{lastOpenedProject}
 	{recentDocuments}
 	{attentionItems}
 	{isLoading}

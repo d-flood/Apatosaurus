@@ -16,10 +16,7 @@
 	import type { TranscriptionSummary } from '$lib/client/db/repositories/transcriptions';
 	import type { ProjectOption } from '$lib/client/db/repositories/projects';
 	import { fetchAndPrepareIgntpImport } from '$lib/client/transcription/igntp-import';
-	import {
-		readLastOpenedProjectId,
-		resolveLastOpenedProjectId,
-	} from '$lib/client/navigation/last-opened-project';
+	import { resolveCreationTargetProjectId } from '$lib/client/navigation/last-opened-project';
 	import IgntpImportPanel from '$lib/components/IgntpImportPanel.svelte';
 	import { buildTranscriptionDuplicateKey } from '$lib/igntp/duplicate-key';
 	import { flattenIgntpCatalogEntries, igntpCatalog } from '$lib/igntp/catalog';
@@ -86,10 +83,11 @@
 		const defaultProjectId = await ensureDefaultProject();
 		projects = await listProjects();
 		if (!selectedProjectId) {
-			selectedProjectId =
-				data.projectId ||
-				resolveLastOpenedProjectId(readLastOpenedProjectId(), projects) ||
-				defaultProjectId;
+			selectedProjectId = resolveCreationTargetProjectId(
+				data.projectId,
+				projects,
+				defaultProjectId
+			);
 		}
 	}
 

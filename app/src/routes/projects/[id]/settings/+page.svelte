@@ -37,7 +37,7 @@
 
 	let { data } = $props<{ data: { project: ProjectRecord } }>();
 
-	let currentProject = $derived(data.project);
+	let openProject = $derived(data.project);
 	let nameDraft = $state('');
 	let descriptionDraft = $state('');
 	let projectRules = $state<RegularizationRule[]>([]);
@@ -74,8 +74,8 @@
 	);
 
 	let metadataDirty = $derived(
-		nameDraft.trim() !== currentProject.name ||
-			descriptionDraft.trim() !== currentProject.description
+		nameDraft.trim() !== openProject.name ||
+			descriptionDraft.trim() !== openProject.description
 	);
 
 	$effect(() => {
@@ -94,7 +94,7 @@
 				event.domain === 'collations' ||
 				event.domain === 'all'
 			) {
-				void loadProjectTranscriptionStatuses(currentProject.id);
+				void loadProjectTranscriptionStatuses(openProject.id);
 			}
 		})
 	);
@@ -164,7 +164,7 @@
 				() => getProjectTranscriptionIds(projectId),
 				{ projectId, runId }
 			);
-			if (runId !== bootstrapRunId || currentProject.id !== projectId) return;
+			if (runId !== bootstrapRunId || openProject.id !== projectId) return;
 			void loadProjectTranscriptionStatuses(projectId);
 			void loadTranscriptionCatalog(runId, projectId);
 		} catch (err) {
@@ -189,7 +189,7 @@
 				() => listProjectTranscriptionStatuses(projectId),
 				{ projectId, runId }
 			);
-			if (runId !== statusLoadRunId || currentProject.id !== projectId) return;
+			if (runId !== statusLoadRunId || openProject.id !== projectId) return;
 			projectTranscriptionStatuses = statuses;
 		} catch (err) {
 			if (runId !== statusLoadRunId) return;
@@ -210,7 +210,7 @@
 				() => listTranscriptions(projectId),
 				{ projectId, runId }
 			);
-			if (runId !== bootstrapRunId || currentProject.id !== projectId) {
+			if (runId !== bootstrapRunId || openProject.id !== projectId) {
 				logProjects('warn', 'discarded stale transcription catalog load', {
 					projectId,
 					runId,
@@ -235,7 +235,7 @@
 	}
 
 	async function saveMetadata() {
-		const projectId = currentProject.id;
+		const projectId = openProject.id;
 		const name = nameDraft.trim();
 		if (!name) {
 			error = 'Project name is required';
@@ -291,7 +291,7 @@
 				transcriptionWitnessTreatments: nextTreatments,
 				transcriptionWitnessExcludedHands: nextExcludedHands,
 			});
-			await updateProjectMetadata(currentProject.id, {
+			await updateProjectMetadata(openProject.id, {
 				collationSettings,
 				updatedAt: now,
 			});
@@ -406,13 +406,13 @@
 	}
 
 	async function toggleAllProjectTranscriptions(checked: boolean) {
-		const projectId = currentProject.id;
+		const projectId = openProject.id;
 		isSavingTranscriptions = true;
 		error = null;
 		try {
 			const nextIds = checked ? allTranscriptions.map(transcription => transcription.id) : [];
 			const syncedIds = await syncProjectTranscriptionIds(projectId, nextIds);
-			if (currentProject.id !== projectId) return;
+			if (openProject.id !== projectId) return;
 			const runId = ++bootstrapRunId;
 			selectedTranscriptionIds = syncedIds;
 			await loadTranscriptionCatalog(runId, projectId);
@@ -443,7 +443,7 @@
 	}
 
 	async function toggleProjectTranscription(transcriptionId: string) {
-		const projectId = currentProject.id;
+		const projectId = openProject.id;
 		isSavingTranscriptions = true;
 		error = null;
 		try {
@@ -451,7 +451,7 @@
 				? selectedTranscriptionIds.filter(id => id !== transcriptionId)
 				: [...selectedTranscriptionIds, transcriptionId];
 			const syncedIds = await syncProjectTranscriptionIds(projectId, nextIds);
-			if (currentProject.id !== projectId) return;
+			if (openProject.id !== projectId) return;
 			const runId = ++bootstrapRunId;
 			selectedTranscriptionIds = syncedIds;
 			await loadTranscriptionCatalog(runId, projectId);
@@ -508,7 +508,7 @@
 				allowReplaceDirty,
 			});
 			refreshTarget = null;
-			await loadProjectTranscriptionStatuses(currentProject.id);
+			await loadProjectTranscriptionStatuses(openProject.id);
 		} catch (err) {
 			refreshError =
 				err instanceof Error ? err.message : 'Failed to refresh project transcription';
@@ -523,7 +523,7 @@
 		isLoadingCandidates = true;
 		try {
 			addFromProjectCandidates = await listProjectTranscriptionSourceCandidates(
-				currentProject.id
+				openProject.id
 			);
 		} catch (err) {
 			addFromProjectError =
@@ -542,7 +542,7 @@
 	}
 
 	async function confirmAddFromProject(candidate: ProjectTranscriptionSourceCandidate) {
-		const projectId = currentProject.id;
+		const projectId = openProject.id;
 		isAddingFromProject = true;
 		addFromProjectError = null;
 		try {
@@ -595,7 +595,7 @@
 		</label>
 		<div class="flex items-center justify-between gap-3">
 			<span class="text-xs text-base-content/40">
-				Updated {new Date(currentProject.updatedAt).toLocaleString()}
+				Updated {new Date(openProject.updatedAt).toLocaleString()}
 			</span>
 			<button
 				type="button"
@@ -642,7 +642,7 @@
 />
 
 <ProjectTranscriptionVersionsPanel
-	projectId={currentProject.id}
+	projectId={openProject.id}
 	statuses={projectTranscriptionStatuses}
 	isLoading={isLoadingStatuses || isLoadingProjectTranscriptions}
 	onRefreshTranscription={handleRequestRefresh}

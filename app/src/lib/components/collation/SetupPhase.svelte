@@ -217,13 +217,13 @@
 	}
 
 	onMount(() => {
-		const currentProjectId = collationState.projectId;
-		if (!currentProjectId) {
+		const projectId = collationState.projectId;
+		if (!projectId) {
 			clearSetupProjectLoad();
 			return;
 		}
 		const loadToken = ++setupLoadToken;
-		void loadSetupForProject(currentProjectId, loadToken);
+		void loadSetupForProject(projectId, loadToken);
 
 		return () => {
 			setupLoadToken += 1;

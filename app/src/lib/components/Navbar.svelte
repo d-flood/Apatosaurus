@@ -25,7 +25,7 @@
 	let projectTargets = $derived.by(() => {
 		return buildNavbarProjectTargets(navigationProjectId(), projects);
 	});
-	let openProjectName = $derived.by(() => {
+	let lastOpenedProjectName = $derived.by(() => {
 		const projectId = resolveLastOpenedProjectId(navigationProjectId(), projects);
 		return projects.find(project => project.id === projectId)?.name ?? 'Projects';
 	});
@@ -65,7 +65,7 @@
 		return projectId ? decodeURIComponent(projectId) : readLastOpenedProjectId();
 	}
 
-	function currentProjectSection(): ProjectSection {
+	function openProjectSection(): ProjectSection {
 		const section = page.url.pathname.match(
 			/^\/projects\/[^/]+\/(transcriptions|collations|settings|backup)(?:\/|$)/
 		)?.[1];
@@ -124,9 +124,9 @@
 				type="button"
 				tabindex="0"
 				class="btn btn-ghost max-w-56"
-				aria-label={`Open project switcher: ${openProjectName}`}
+				aria-label={`Open project switcher: ${lastOpenedProjectName}`}
 			>
-				<span class="truncate">{openProjectName}</span>
+				<span class="truncate">{lastOpenedProjectName}</span>
 				<span aria-hidden="true">v</span>
 			</button>
 			<ul
@@ -135,7 +135,7 @@
 			>
 				{#each projects as project (project.id)}
 					<li>
-						<a href={buildProjectSwitcherTarget(currentProjectSection(), project.id)}>
+						<a href={buildProjectSwitcherTarget(openProjectSection(), project.id)}>
 							{project.name}
 						</a>
 					</li>
@@ -176,7 +176,7 @@
 				<li class="menu-title">Switch project</li>
 				{#each projects as project (project.id)}
 					<li>
-						<a href={buildProjectSwitcherTarget(currentProjectSection(), project.id)}>
+						<a href={buildProjectSwitcherTarget(openProjectSection(), project.id)}>
 							{project.name}
 						</a>
 					</li>

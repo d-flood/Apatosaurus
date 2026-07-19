@@ -22,7 +22,7 @@
 
 	export interface DashboardProps {
 		projects: ProjectOption[];
-		targetProject: ProjectOption | null;
+		lastOpenedProject: ProjectOption | null;
 		recentDocuments: DashboardDocument[];
 		attentionItems: DashboardAttentionItem[];
 		isLoading?: boolean;
@@ -36,7 +36,7 @@
 
 	let {
 		projects,
-		targetProject,
+		lastOpenedProject,
 		recentDocuments,
 		attentionItems,
 		isLoading = false,
@@ -108,7 +108,7 @@
 			</p>
 			<h1 class="mt-1 font-serif text-4xl font-bold tracking-tight">Dashboard</h1>
 			<p class="mt-2 max-w-2xl text-sm leading-relaxed text-base-content/60">
-				Return to recent scholarship or begin something new in {targetProject?.name ??
+				Return to recent scholarship or begin something new in {lastOpenedProject?.name ??
 					'a project'}.
 			</p>
 		</header>
@@ -210,34 +210,34 @@
 	<section class="mb-8 rounded-box bg-base-200/55 p-5" data-testid="dashboard-start">
 		<p class="text-xs font-semibold uppercase tracking-wide text-base-content/45">Create</p>
 		<h2 class="font-serif text-2xl font-semibold">Start something</h2>
-		{#if targetProject}
+		{#if lastOpenedProject}
 			<p class="mt-1 text-sm text-base-content/55">
-				New work will belong to {targetProject.name}.
+				New work will belong to {lastOpenedProject.name}.
 			</p>
 			<div class="mt-4 flex flex-wrap gap-2">
 				<a
 					href={resolve(
-						`/transcription/new?projectId=${encodeURIComponent(targetProject.id)}`
+						`/transcription/new?projectId=${encodeURIComponent(lastOpenedProject.id)}`
 					)}
 					class="btn btn-primary btn-sm"
 				>
-					New Transcription in {targetProject.name}
+					New Transcription in {lastOpenedProject.name}
 				</a>
 				<a
 					href={resolve(
-						`/transcription/igntp?projectId=${encodeURIComponent(targetProject.id)}`
+						`/transcription/igntp?projectId=${encodeURIComponent(lastOpenedProject.id)}`
 					)}
 					class="btn btn-outline btn-sm"
 				>
-					Import IGNTP in {targetProject.name}
+					Import IGNTP in {lastOpenedProject.name}
 				</a>
 				<a
 					href={resolve(
-						`/collation/new?projectId=${encodeURIComponent(targetProject.id)}`
+						`/collation/new?projectId=${encodeURIComponent(lastOpenedProject.id)}`
 					)}
 					class="btn btn-outline btn-sm"
 				>
-					New Collation in {targetProject.name}
+					New Collation in {lastOpenedProject.name}
 				</a>
 			</div>
 		{:else}

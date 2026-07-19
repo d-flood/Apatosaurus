@@ -6,10 +6,7 @@
 		type ProjectOption,
 	} from '$lib/client/collation/project-collation';
 	import { ensureDefaultProject } from '$lib/client/db/client';
-	import {
-		readLastOpenedProjectId,
-		resolveLastOpenedProjectId,
-	} from '$lib/client/navigation/last-opened-project';
+	import { resolveCreationTargetProjectId } from '$lib/client/navigation/last-opened-project';
 	import CollationWorkspace from '$lib/components/collation/CollationWorkspace.svelte';
 	import { selectInitialCollationProject } from './new-collation-project';
 	import { onMount } from 'svelte';
@@ -26,8 +23,7 @@
 			showProjectSelector = true;
 			const defaultProjectId = await ensureDefaultProject();
 			projects = await listProjects();
-			selectedProjectId =
-				resolveLastOpenedProjectId(readLastOpenedProjectId(), projects) || defaultProjectId;
+			selectedProjectId = resolveCreationTargetProjectId(projectId, projects, defaultProjectId);
 		}
 		await selectInitialCollationProject(projectId, {
 			ensureDefaultProject: async () => selectedProjectId || ensureDefaultProject(),

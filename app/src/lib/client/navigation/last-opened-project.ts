@@ -32,6 +32,18 @@ export function resolveLastOpenedProjectId(
 	return mostRecentProject?.id ?? null;
 }
 
+export function resolveCreationTargetProjectId(
+	queryProjectId: string | null | undefined,
+	projects: readonly ProjectRecency[],
+	defaultProjectId: string
+): string {
+	return (
+		queryProjectId ||
+		resolveLastOpenedProjectId(readLastOpenedProjectId(), projects) ||
+		defaultProjectId
+	);
+}
+
 export function buildLastOpenedProjectSectionTarget(
 	storedId: string | null,
 	projects: readonly ProjectRecency[],

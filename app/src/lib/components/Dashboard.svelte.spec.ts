@@ -19,7 +19,7 @@ describe('Dashboard', () => {
 
 		const view = render(Dashboard, {
 			projects,
-			targetProject: projects[0],
+			lastOpenedProject: projects[0],
 			recentDocuments: [
 				{
 					id: 'collation-1',
@@ -44,7 +44,7 @@ describe('Dashboard', () => {
 		view.unmount();
 		render(Dashboard, {
 			projects,
-			targetProject: projects[0],
+			lastOpenedProject: projects[0],
 			recentDocuments: [],
 			attentionItems: [],
 		});
@@ -67,7 +67,7 @@ describe('Dashboard', () => {
 		];
 		const view = render(Dashboard, {
 			projects,
-			targetProject: projects[0],
+			lastOpenedProject: projects[0],
 			recentDocuments: [],
 			attentionItems: [],
 		});
@@ -79,7 +79,7 @@ describe('Dashboard', () => {
 		view.unmount();
 		render(Dashboard, {
 			projects,
-			targetProject: projects[0],
+			lastOpenedProject: projects[0],
 			recentDocuments: [],
 			attentionItems: [
 				{
@@ -103,7 +103,7 @@ describe('Dashboard', () => {
 	it('shows only first-project guidance when there are no projects', async () => {
 		render(Dashboard, {
 			projects: [],
-			targetProject: null,
+			lastOpenedProject: null,
 			recentDocuments: [],
 			attentionItems: [],
 		});
@@ -135,7 +135,7 @@ describe('Dashboard', () => {
 		];
 		render(Dashboard, {
 			projects,
-			targetProject: projects[0],
+			lastOpenedProject: projects[0],
 			recentDocuments: [],
 			attentionItems: [],
 		});
