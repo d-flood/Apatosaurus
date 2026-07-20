@@ -38,3 +38,7 @@ Commands (run from `app/`): `bun run check`, `bun run test:unit -- --run`, `bun 
 ## Blocked by
 
 - 02 — project workspace routes (sections must exist before the mega-page loses its tabs).
+
+## Sign-off (2026-07-19)
+
+The `onImported` prop added to `ProjectZipImportPanel` is accepted as the minimal implementation of the "importing a project navigates into `projects/{newId}/transcriptions`" contract; the "internals untouched" fence is amended accordingly.

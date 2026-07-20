@@ -47,3 +47,7 @@ Commands (run from `app/`): `bun run check`, `bun run test:unit -- --run`, `bun 
 2026-07-19: Browser verification found that the required fresh-profile state cannot occur with the current bootstrap behavior. A newly created index calls `rebuildIndex()`, which calls `ensureDefaultProject()` in `app/src/lib/client/db/db.worker.ts:746-750`, so `/` sees an empty Default project rather than zero projects. Rendering the first-project welcome card for that state would contradict the separate "projects but zero documents" contract; removing the startup bootstrap would contradict ticket 06's requirement that bootstrap semantics and `ensureDefaultProject` remain untouched. Human validation is needed to choose which state the dashboard should render for a pristine Default project or to authorize a bootstrap change.
 
 Human decision: make Default lazy by removing eager worker startup creation while preserving `ensureDefaultProject` as the creation-flow fallback.
+
+## Sign-off (2026-07-19)
+
+Removing eager Default creation from the dev Reset-DB handler (in addition to worker startup) is accepted as consistent with the authorized lazy-Default deviation.
