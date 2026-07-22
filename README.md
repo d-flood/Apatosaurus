@@ -44,13 +44,13 @@ only a disposable index rebuilt from those files.
 Install dependencies from the repository root or from `app/` with the full monorepo checked out:
 
 ```sh
-bun install
+pnpm install
 ```
 
 Start the development server from `app/`:
 
 ```sh
-bun run dev
+pnpm run dev
 ```
 
 See `app/README.md` for app-specific setup and quality gates.

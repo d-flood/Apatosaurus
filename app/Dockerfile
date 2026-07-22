@@ -1,4 +1,4 @@
-FROM oven/bun:1-alpine
+FROM node:24-alpine
 
 WORKDIR /workspace
 
@@ -6,6 +6,6 @@ WORKDIR /workspace
 COPY . .
 COPY app/.npmrc.docker app/.npmrc
 
-RUN bun install
+RUN corepack enable && pnpm install --frozen-lockfile
 
 WORKDIR /workspace/app

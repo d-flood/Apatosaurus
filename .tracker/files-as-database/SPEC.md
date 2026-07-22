@@ -73,7 +73,7 @@ Cross-cutting constraints every ticket must respect:
 - Unit tests run in vitest with a browser/node split; real-OPFS coverage uses browser mode; Playwright covers end-to-end scenarios (fresh user, disaster recovery, committee sync, upgrade).
 - The data-safety invariants (`architecture.md` section 9) get a dedicated automated suite (ticket 21); invariants that browsers will not allow to be automated get a documented manual checklist.
 - Prior art: the existing store, repository, and sync spec files established during tickets 02-07 (memory store backend, mock provider, fixture-backed migrate-on-read tests).
-- Every ticket leaves the full baseline green: `bun run db:generate && bun run db:check && bun run check && bun run test:unit -- --run` from `app/`.
+- Every ticket leaves the full baseline green: `pnpm run db:generate && pnpm run db:check && pnpm run check && pnpm run test:unit -- --run` from `app/`.
 
 ## Out of Scope
 

@@ -4,11 +4,11 @@ This document captures the codebase audit that produced `architecture.md`. It ex
 
 ## 1. Repository Layout
 
-- Bun workspace rooted at the repo. Workspaces: `app/` (the SvelteKit app), `triiiceratops/` (IIIF/OpenSeadragon viewer, git submodule, used by the transcription editor's IIIF workspace), `packages/tei-transcription/` (TEI data model + conversions), `collatex/collatex-tsport/` (TypeScript CollateX port, git submodule, the alignment engine).
+- pnpm workspace rooted at the repo. Workspaces: `app/` (the SvelteKit app), `triiiceratops/` (IIIF/OpenSeadragon viewer, git submodule, used by the transcription editor's IIIF workspace), `packages/tei-transcription/` (TEI data model + conversions), `collatex/collatex-tsport/` (TypeScript CollateX port, git submodule, the alignment engine).
 - `app/svelte.config.js` and `app/vite.config.ts` alias `triiiceratops` and `collatex-tsport` directly to submodule **source** files, and `$generated` to `src/generated`.
 - SvelteKit 2 / Svelte 5, static adapter (`fallback: '404.html'`), Tailwind + DaisyUI, TipTap for the editor. Deployed via GitHub Pages workflow `.github/workflows/app-pages.yml`.
 - Custom service worker `app/src/service-worker.ts` (network-first navigations, cache-first assets, `/offline` fallback); manual registration in `+layout.svelte` (`serviceWorker.register: false` in svelte config).
-- Tests: vitest split into browser mode (Svelte/client) and node (server) in `vite.config.ts`; Playwright configured. Run everything with `bun` from `app/`.
+- Tests: vitest split into browser mode (Svelte/client) and node (server) in `vite.config.ts`; Playwright configured. Run everything with `pnpm` from `app/`.
 
 ## 2. Runtime Architecture
 
@@ -20,7 +20,7 @@ This document captures the codebase audit that produced `architecture.md`. It ex
 ## 3. Database (SQLite in OPFS)
 
 - `@journeyapps/wa-sqlite` + `OPFSCoopSyncVFS` in `worker-sqlite.ts`. Constants: `DB_FILENAME = 'apatosaurus-local-v1.db'`, `OPFS_VFS_NAME = 'apatosaurus-local-v1-opfs'`. Pragmas: `foreign_keys ON`, `busy_timeout 250`, `journal_mode WAL`, `synchronous NORMAL`.
-- Kysely over a custom adapter (`worker-kysely.ts`); generated types in `types.generated.ts` via `bun run db:generate` (uses `better-sqlite3` + `kysely-codegen` in `app/scripts/db/`); `db:check` verifies.
+- Kysely over a custom adapter (`worker-kysely.ts`); generated types in `types.generated.ts` via `pnpm run db:generate` (uses `better-sqlite3` + `kysely-codegen` in `app/scripts/db/`); `db:check` verifies.
 - Migrations: single `migrations/0001_initial.sql`, applied transactionally by `worker-migrator.ts` (BEGIN/COMMIT, ROLLBACK on failure, rethrow). No backup-before-migrate. `schema-version.generated.ts` pins version 1.
 
 ### Table inventory and fate under the new architecture
@@ -92,7 +92,7 @@ Items that exist today and need an explicit fate; agents should not build around
 
 ## 9. Environment Notes
 
-- Use `bun` for all JS commands (from `app/` unless noted). Use `uv` for any Python (repo `AGENTS.md`).
+- Use `pnpm` for all JS commands (from `app/` unless noted). Use `uv` for any Python (repo `AGENTS.md`).
 - OPFS sync access handles require a dedicated worker; `@vitest/browser` is available for tests needing real OPFS.
 - `FileSystemFileHandle.move()` and `showDirectoryPicker()` are Chromium-only; OPFS itself works in Safari 16.4+/Firefox 111+. Feature-detect, never assume.
-- Dev server: `bun run dev` (port 3160). Full baseline: `bun run db:generate && bun run db:check && bun run check && bun run test:unit -- --run`.
+- Dev server: `pnpm run dev` (port 3160). Full baseline: `pnpm run db:generate && pnpm run db:check && pnpm run check && pnpm run test:unit -- --run`.

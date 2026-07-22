@@ -23,12 +23,12 @@ For an index schema change:
 2. Increment `INDEX_SCHEMA_VERSION` in `src/lib/client/db/schema-version.generated.ts` so the app opens a new
    versioned index and rebuilds it from project files. Do not write a runtime SQL migration or delete the
    current database in application code.
-3. Run `bun run db:generate` and commit the updated `src/lib/client/db/types.generated.ts`.
-4. Run `bun run db:check`, `bun run check`, and the index-rebuild tests before the full test suite.
+3. Run `pnpm run db:generate` and commit the updated `src/lib/client/db/types.generated.ts`.
+4. Run `pnpm run db:check`, `pnpm run check`, and the index-rebuild tests before the full test suite.
 
 ## Prerequisites
 
-- Bun 1.x
+- pnpm 9.x
 - Playwright browser dependencies for browser-based Vitest and e2e tests
 
 ## Development
@@ -36,23 +36,23 @@ For an index schema change:
 Install from the repository root or from `app/` with the full monorepo checked out:
 
 ```sh
-bun install
+pnpm install
 ```
 
 Start the app:
 
 ```sh
-bun run dev
+pnpm run dev
 ```
 
 ## Quality Gates
 
 ```sh
-bun run lint
-bun run check
-bun run test:unit -- --run
-bun run build
-bun run test:e2e
+pnpm run lint
+pnpm run check
+pnpm run test:unit -- --run
+pnpm run build
+pnpm run test:e2e
 ```
 
 ## Docker

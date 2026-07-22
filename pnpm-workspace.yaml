@@ -1,0 +1,8 @@
+packages:
+  - app
+  - triiiceratops
+  - packages/tei-transcription
+  - collatex/collatex-tsport
+
+overrides:
+  daisyui: 5.5.8
