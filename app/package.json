@@ -17,6 +17,7 @@
 		"test:unit": "vitest",
 		"test": "pnpm run test:unit -- --run && pnpm run test:e2e",
 		"test:e2e": "playwright test",
+		"test:hmr": "playwright test --config playwright.hmr.config.ts",
 		"db:generate": "tsx scripts/db/generate-types.ts",
 		"db:check": "tsx scripts/db/check-types.ts"
 	},

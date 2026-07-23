@@ -10,12 +10,52 @@ function workspacePath(...segments: string[]) {
 	return path.resolve(repoRoot, ...segments);
 }
 
+type DevelopmentEnvironment = Readonly<Record<string, string | undefined>>;
+
+export function developmentServer(environment: DevelopmentEnvironment = process.env) {
+	const portText = environment.DEV_PORT ?? '3160';
+	if (!/^\d+$/.test(portText)) {
+		throw new Error(`DEV_PORT must be an integer between 1 and 65535, received ${portText}`);
+	}
+	const port = Number(portText);
+	if (port < 1 || port > 65535) {
+		throw new Error(`DEV_PORT must be an integer between 1 and 65535, received ${portText}`);
+	}
+
+	const originText = environment.DEV_PUBLIC_ORIGIN ?? `http://localhost:${port}`;
+	let origin: URL;
+	try {
+		origin = new URL(originText);
+	} catch {
+		throw new Error(
+			`DEV_PUBLIC_ORIGIN must be an HTTP or HTTPS origin, received ${originText}`
+		);
+	}
+	if (
+		(origin.protocol !== 'http:' && origin.protocol !== 'https:') ||
+		origin.username !== '' ||
+		origin.password !== '' ||
+		origin.pathname !== '/' ||
+		origin.search !== '' ||
+		origin.hash !== ''
+	) {
+		throw new Error(
+			`DEV_PUBLIC_ORIGIN must be an HTTP or HTTPS origin, received ${originText}`
+		);
+	}
+
+	return {
+		host: environment.DEV_BIND_HOST || '127.0.0.1',
+		port,
+		strictPort: true,
+		allowedHosts: [origin.hostname],
+	};
+}
+
 export default defineConfig({
 	plugins: [tailwindcss(), sveltekit(), devtoolsJson()],
 	server: {
-		host: '0.0.0.0',
-		port: 3160,
-		allowedHosts: ['df-laptop-wsl'],
+		...developmentServer(),
 		fs: {
 			allow: [repoRoot],
 		},
@@ -200,7 +240,7 @@ export default defineConfig({
 				test: {
 					name: 'server',
 					environment: 'node',
-					include: ['src/**/*.{test,spec}.{js,ts}'],
+					include: ['src/**/*.{test,spec}.{js,ts}', 'vite.config.spec.ts'],
 					exclude: ['src/**/*.svelte.{test,spec}.{js,ts}'],
 				},
 			},

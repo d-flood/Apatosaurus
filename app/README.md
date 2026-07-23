@@ -48,6 +48,7 @@ pnpm run dev
 ## Quality Gates
 
 ```sh
+pnpm run test:hmr
 pnpm run lint
 pnpm run check
 pnpm run test:unit -- --run
