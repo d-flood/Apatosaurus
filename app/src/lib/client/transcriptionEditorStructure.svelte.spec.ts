@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { getEditor } from './transcriptionEditorSchema';
-import { initializeEditorContent } from './editorContentInitialization';
+import {
+	editorColumn,
+	editorDocument,
+	editorLine,
+	editorPlainPage,
+} from './testing/editorFixtures';
+import { createTestEditor } from './testing/editorHarnesses.svelte';
 import {
 	createEmptyLineInsertTransaction,
 	createColumnSplitTransaction,
@@ -10,14 +15,6 @@ import {
 	LINE_SPLIT_TARGET_LINE_ID_META,
 	repairManuscriptStructureJson,
 } from './transcriptionEditorStructure';
-
-function createTestEditor(initialContent: Record<string, any>) {
-	const element = document.createElement('div');
-	const bubbleMenu = document.createElement('div');
-	const editor = getEditor(element, bubbleMenu);
-	initializeEditorContent(editor, initialContent as any, { emitUpdate: false });
-	return editor;
-}
 
 describe('transcriptionEditorStructure', () => {
 	it('throws in dev if setContent is called after editor initialization', () => {
@@ -476,29 +473,25 @@ describe('transcriptionEditorStructure', () => {
 		}
 	});
 
-	it('splits the current line in place and keeps selection in the same column', () => {
-		const editor = createTestEditor({
-			type: 'manuscript',
-			content: [
-				{
-					type: 'page',
-					attrs: { pageId: 'page-1' },
-					content: [
-						{
-							type: 'column',
-							attrs: { columnNumber: 1, zone: 'right', columnId: 'col-right' },
-							content: [
-								{
-									type: 'line',
-									attrs: { lineNumber: 1, lineId: 'line-1' },
-									content: [{ type: 'text', text: 'alpha beta' }],
-								},
-							],
-						},
-					],
-				},
-			],
-		});
+	it('keeps selection in the same column in the single-line split case', () => {
+		// Non-degenerate split behavior is characterized as DEFECT F1 in
+		// transcriptionEditorStructuralCommands.svelte.spec.ts.
+		const editor = createTestEditor(
+			editorDocument({
+				pages: [
+					editorPlainPage({
+						pageId: 'page-1',
+						columns: [
+							editorColumn({
+								columnId: 'col-right',
+								attrs: { zone: 'right' },
+								lines: [editorLine({ text: 'alpha beta', lineId: 'line-1' })],
+							}),
+						],
+					}),
+				],
+			})
+		);
 
 		try {
 			let firstTextPos: number | null = null;
@@ -569,8 +562,7 @@ describe('transcriptionEditorStructure', () => {
 			editor.view.dispatch(first!);
 
 			const secondLineId = first!.getMeta(LINE_SPLIT_TARGET_LINE_ID_META) as
-				| string
-				| undefined;
+				string | undefined;
 			expect(secondLineId).toEqual(expect.any(String));
 			const secondLinePos = findLineStartPositionById(editor.state.doc, secondLineId);
 			expect(secondLinePos).not.toBeNull();
