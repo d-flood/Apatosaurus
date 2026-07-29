@@ -10,8 +10,8 @@
 
 	interface CursorPosition {
 		pageName?: string;
-		columnNumber?: number;
-		lineNumber?: number;
+		column?: number;
+		line?: number;
 		book?: string;
 		chapter?: string;
 		verse?: string;
@@ -59,16 +59,16 @@
 					{cursorPosition.pageName}
 				</span>
 			{/if}
-			{#if cursorPosition?.columnNumber}
+			{#if cursorPosition?.column}
 				<span class="text-nowrap inline-flex items-center gap-1">
 					<Columns2 size={14} />
-					Col {cursorPosition.columnNumber}
+					Col {cursorPosition.column}
 				</span>
 			{/if}
-			{#if cursorPosition?.lineNumber}
+			{#if cursorPosition?.line}
 				<span class="text-nowrap inline-flex items-center gap-1">
 					<Hash size={14} />
-					Line {cursorPosition.lineNumber}
+					Line {cursorPosition.line}
 				</span>
 			{/if}
 			{#if cursorPosition?.book || cursorPosition?.chapter || cursorPosition?.verse}

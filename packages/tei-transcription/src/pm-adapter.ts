@@ -32,7 +32,6 @@ export function toProseMirror(document: TranscriptionDocument): ProseMirrorJSON 
 			content: page.columns.map(column => ({
 				type: 'column',
 				attrs: {
-					columnNumber: column.number,
 					...(column.wrapped ? { wrapped: true } : {}),
 					...(column.zone ? { zone: column.zone } : {}),
 					...(column.teiAttrs ? { teiAttrs: column.teiAttrs } : {}),
@@ -40,7 +39,6 @@ export function toProseMirror(document: TranscriptionDocument): ProseMirrorJSON 
 				content: column.lines.map(line => ({
 					type: 'line',
 					attrs: {
-						lineNumber: line.number,
 						...(line.wrapped ? { wrapped: true } : {}),
 						...(line.paragraphStart ? { 'paragraph-start': true } : {}),
 						...(line.teiAttrs ? { teiAttrs: line.teiAttrs } : {}),
@@ -401,22 +399,22 @@ export function fromProseMirror(pm: ProseMirrorJSON): TranscriptionDocument {
 			columns: [],
 		};
 
-			for (const columnNode of pageNode.content || []) {
+			for (const [columnIndex, columnNode] of (pageNode.content || []).entries()) {
 				if (columnNode.type !== 'column') continue;
 				const column: TranscriptionColumn = {
 					type: 'column' as const,
-					number: columnNode.attrs?.columnNumber || 1,
+					number: columnIndex + 1,
 					wrapped: columnNode.attrs?.wrapped || undefined,
 					zone: (columnNode.attrs?.zone as FrameZone) || undefined,
 					teiAttrs: extractOptionalTeiAttrs(columnNode.attrs),
 					lines: [],
 				};
 
-				for (const lineNode of columnNode.content || []) {
+				for (const [lineIndex, lineNode] of (columnNode.content || []).entries()) {
 					if (lineNode.type !== 'line') continue;
 					const line: TranscriptionLine = {
 						type: 'line',
-						number: lineNode.attrs?.lineNumber || 1,
+						number: lineIndex + 1,
 						wrapped: lineNode.attrs?.wrapped || undefined,
 						paragraphStart: lineNode.attrs?.['paragraph-start'] || undefined,
 						teiAttrs: extractOptionalTeiAttrs(lineNode.attrs),

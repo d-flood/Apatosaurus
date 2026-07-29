@@ -183,3 +183,60 @@ describe('page layout at a constrained viewport width', () => {
 		}
 	});
 });
+
+describe('presentational numbering', () => {
+	it('renders plain-page column and line ordinals with CSS counters', async () => {
+		const harness = await mountTranscriptionEditor({
+			document: transcriptionDocument({
+				pages: [
+					transcriptionPlainPage({
+						texts: [
+							['a1', 'a2', 'a3'],
+							['b1', 'b2', 'b3'],
+						],
+					}),
+				],
+			}),
+			id: 'numbering-plain',
+		});
+		await nextAnimationFrame();
+		try {
+			const page = harness.container.querySelector<HTMLElement>('.page')!;
+			const columns = page.querySelectorAll<HTMLElement>('.column');
+			const lines = columns[1].querySelectorAll<HTMLElement>('.line');
+			const columnLabel = columns[1].querySelector<HTMLElement>('.column-number')!;
+			const lineLabel = lines[2].querySelector<HTMLElement>('.line-number')!;
+
+			expect(getComputedStyle(page).counterReset).toContain('transcription-column');
+			expect(getComputedStyle(columns[1]).counterIncrement).toContain('transcription-column');
+			expect(getComputedStyle(columns[1]).counterReset).toContain('transcription-line');
+			expect(getComputedStyle(lines[2]).counterIncrement).toContain('transcription-line');
+			expect(getComputedStyle(columnLabel, '::before').content).toContain(
+				'counter(transcription-column)'
+			);
+			expect(getComputedStyle(lineLabel, '::before').content).toContain(
+				'counter(transcription-line)'
+			);
+		} finally {
+			harness.dispose();
+		}
+	});
+
+	it('resets line ordinals independently in every framed-page zone', async () => {
+		const harness = await mountTranscriptionEditor({
+			document: FRAMED_PAGE_DOCUMENT,
+			id: 'numbering-framed',
+		});
+		await nextAnimationFrame();
+		try {
+			const columns = harness.container.querySelectorAll<HTMLElement>('.column[data-zone]');
+			expect(columns).toHaveLength(5);
+			for (const column of columns) {
+				expect(getComputedStyle(column).counterReset).toContain('transcription-line');
+				expect(column.querySelectorAll('.line')).toHaveLength(4);
+			}
+		} finally {
+			harness.dispose();
+		}
+	});
+});

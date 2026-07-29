@@ -25,11 +25,11 @@ import {
 	tick,
 } from '$lib/client/testing/editorHarnesses.svelte';
 
-/** column/line numbers as stored in the document the workspace emitted. */
-function emittedNumbers(content: any): Array<{ column: number; lines: number[] }> {
+/** Structural identities stored in the document the workspace emitted. */
+function emittedIdentities(content: any) {
 	return (content.content ?? []).map((column: any) => ({
-		column: column.attrs?.columnNumber,
-		lines: (column.content ?? []).map((line: any) => line.attrs?.lineNumber),
+		columnId: column.attrs?.columnId,
+		lineIds: (column.content ?? []).map((line: any) => line.attrs?.lineId),
 	}));
 }
 
@@ -106,17 +106,16 @@ describe('InlineCarrierWorkspace document plumbing', () => {
 			expect(harness.emitted.length).toBeGreaterThan(0);
 			const latest = harness.emitted.at(-1) as any;
 			expect(latest.type).toBe('doc');
-			expect(emittedNumbers(latest)).toEqual([
-				{ column: 1, lines: [1, 2, 3, 4] },
-				{ column: 2, lines: [1, 2, 3, 4] },
-			]);
+			const identities = emittedIdentities(latest);
+			expect(identities).toHaveLength(2);
+			expect(identities.every((column: any) => column.lineIds.length === 4)).toBe(true);
 			expect(domShape(harness.container)[1][1]).toContain('b2');
 		} finally {
 			harness.dispose();
 		}
 	});
 
-	it('replaceEditorDocument splits a column and renumbers both halves', async () => {
+	it('replaceEditorDocument splits a column and assigns identities to both halves', async () => {
 		const harness = await mountWorkspace();
 		try {
 			placeCaretAtEndOf(
@@ -136,11 +135,9 @@ describe('InlineCarrierWorkspace document plumbing', () => {
 			]);
 
 			const latest = harness.emitted.at(-1) as any;
-			expect(emittedNumbers(latest)).toEqual([
-				{ column: 1, lines: [1, 2] },
-				{ column: 2, lines: [1, 2, 3] },
-				{ column: 3, lines: [1, 2, 3, 4] },
-			]);
+			const identities = emittedIdentities(latest);
+			expect(identities.map((column: any) => column.lineIds.length)).toEqual([2, 3, 4]);
+			expect(identities.every((column: any) => Boolean(column.columnId))).toBe(true);
 		} finally {
 			harness.dispose();
 		}
@@ -171,35 +168,28 @@ describe('InlineCarrierWorkspace document plumbing', () => {
 		}
 	});
 
-	it('syncNormalizedEditorDoc renumbers a document that arrives with wrong numbers', async () => {
+	it('syncNormalizedEditorDoc assigns identities to structural nodes', async () => {
 		const harness = await mountWorkspace({
 			initialContent: {
 				type: 'doc',
 				content: [
 					marginaliaColumn({
-						columnNumber: 9,
+						columnId: '',
 						lines: [
-							marginaliaLine({ text: 'a1', lineNumber: 40 }),
-							marginaliaLine({ text: 'a2', lineNumber: 41 }),
+							marginaliaLine({ text: 'a1', lineId: '' }),
+							marginaliaLine({ text: 'a2', lineId: '' }),
 						],
 					}),
 					marginaliaColumn({
-						columnNumber: 12,
-						lines: [marginaliaLine({ text: 'b1', lineNumber: 7 })],
+						columnId: '',
+						lines: [marginaliaLine({ text: 'b1', lineId: '' })],
 					}),
 				],
 			},
 			toolbarIdPrefix: 'carrier-normalization-spec',
 		});
 		try {
-			// The workspace renumbers on mount, before the editor is created, so the
-			// rendered gutter already reads 1, 2 / 1.
-			const gutters = Array.from(harness.container.querySelectorAll('.marginalia-line')).map(
-				element => element.firstElementChild?.textContent
-			);
-			expect(gutters).toEqual(['1.', '2.', '1.']);
-
-			// A change makes it emit the renumbered document.
+			// A change makes it emit the prepared document.
 			placeCaretAtEndOf(
 				lineElementAt(harness.container, 0, 0).querySelector('.line-content') as HTMLElement
 			);
@@ -208,10 +198,13 @@ describe('InlineCarrierWorkspace document plumbing', () => {
 			await tick();
 
 			const latest = harness.emitted.at(-1) as any;
-			expect(emittedNumbers(latest)).toEqual([
-				{ column: 1, lines: [1, 2] },
-				{ column: 2, lines: [1] },
-			]);
+			const identities = emittedIdentities(latest);
+			expect(identities.every((column: any) => Boolean(column.columnId))).toBe(true);
+			expect(
+				identities.every((column: any) =>
+					column.lineIds.every((lineId: unknown) => Boolean(lineId))
+				)
+			).toBe(true);
 		} finally {
 			harness.dispose();
 		}
@@ -228,7 +221,7 @@ describe('InlineCarrierWorkspace drawer targets', () => {
 						lines: [
 							{
 								type: 'marginaliaLine',
-								attrs: { lineNumber: 1, lineId: 'line-1' },
+								attrs: { lineId: 'line-1' },
 								content: [
 									{
 										type: 'text',
@@ -300,7 +293,7 @@ describe('InlineCarrierWorkspace drawer targets', () => {
 						lines: [
 							{
 								type: 'marginaliaLine',
-								attrs: { lineNumber: 1, lineId: 'line-1' },
+								attrs: { lineId: 'line-1' },
 								content: [
 									{
 										type: 'text',

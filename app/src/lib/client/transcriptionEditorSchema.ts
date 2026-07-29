@@ -4,7 +4,6 @@ import {
 	createLineSplitTransaction,
 	getChangedRanges,
 	repairPastedManuscriptSlice,
-	type ChangedRange,
 } from '$lib/client/transcriptionEditorStructure';
 import { classifyFormWork } from '$lib/components/transcriptionEditor/formworkConcepts';
 import {
@@ -15,7 +14,6 @@ import { Editor, Extension, Mark, Node, generateHTML, markInputRule } from '@tip
 import { BubbleMenu } from '@tiptap/extension-bubble-menu';
 import { History } from '@tiptap/extension-history';
 import { Text } from '@tiptap/extension-text';
-import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
 import { NodeSelection, Plugin, PluginKey } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 
@@ -522,8 +520,7 @@ const Correction = Mark.create({
 			id: {
 				default: null,
 				parseHTML: element => element.getAttribute('data-mark-id'),
-				renderHTML: attributes =>
-					attributes.id ? { 'data-mark-id': attributes.id } : {},
+				renderHTML: attributes => (attributes.id ? { 'data-mark-id': attributes.id } : {}),
 			},
 			corrections: {
 				default: [],
@@ -609,8 +606,7 @@ const CorrectionNode = Node.create({
 			id: {
 				default: null,
 				parseHTML: element => element.getAttribute('data-node-id'),
-				renderHTML: attributes =>
-					attributes.id ? { 'data-node-id': attributes.id } : {},
+				renderHTML: attributes => (attributes.id ? { 'data-node-id': attributes.id } : {}),
 			},
 			corrections: {
 				default: [],
@@ -687,8 +683,7 @@ const Abbreviation = Mark.create({
 			id: {
 				default: null,
 				parseHTML: element => element.getAttribute('data-mark-id'),
-				renderHTML: attributes =>
-					attributes.id ? { 'data-mark-id': attributes.id } : {},
+				renderHTML: attributes => (attributes.id ? { 'data-mark-id': attributes.id } : {}),
 			},
 			type: {
 				default: 'nomSac',
@@ -985,8 +980,7 @@ const Page = Node.create({
 			wrapped: {
 				default: false,
 				parseHTML: element => element.getAttribute('data-wrapped') === 'true',
-				renderHTML: attributes =>
-					attributes.wrapped ? { 'data-wrapped': 'true' } : {},
+				renderHTML: attributes => (attributes.wrapped ? { 'data-wrapped': 'true' } : {}),
 			},
 			pageId: {
 				default: null,
@@ -1038,12 +1032,9 @@ const Column = Node.create({
 		return [{ tag: 'div.column' }];
 	},
 	renderHTML({ node, HTMLAttributes }) {
-		const columnNumber = (node as any).attrs.columnNumber;
 		const zone = (node as any).attrs.zone;
 		const zoneClass = zone ? ` frame-zone-${zone}` : '';
-		const label = zone
-			? FRAME_ZONE_LABELS[zone] || `Column ${columnNumber || 1}`
-			: `Column ${columnNumber || 1}`;
+		const label = zone ? FRAME_ZONE_LABELS[zone] || 'Column' : '';
 		const borderClass =
 			zone === 'center'
 				? 'border-2 border-primary'
@@ -1059,7 +1050,7 @@ const Column = Node.create({
 			[
 				'div',
 				{
-					class: 'text-sm font-bold text-base-content mb-1 select-none',
+					class: 'column-number text-sm font-bold text-base-content mb-1 select-none',
 					contenteditable: 'false',
 				},
 				label,
@@ -1072,23 +1063,13 @@ const Column = Node.create({
 			wrapped: {
 				default: false,
 				parseHTML: element => element.getAttribute('data-wrapped') === 'true',
-				renderHTML: attributes =>
-					attributes.wrapped ? { 'data-wrapped': 'true' } : {},
+				renderHTML: attributes => (attributes.wrapped ? { 'data-wrapped': 'true' } : {}),
 			},
 			columnId: {
 				default: null,
 				parseHTML: element => element.getAttribute('data-column-id'),
 				renderHTML: attributes =>
 					attributes.columnId ? { 'data-column-id': attributes.columnId } : {},
-			},
-			columnNumber: {
-				default: 1,
-				parseHTML: element => parseInt(element.getAttribute('data-column-number') || '1'),
-				renderHTML: attributes => {
-					return {
-						'data-column-number': attributes.columnNumber,
-					};
-				},
 			},
 			zone: {
 				default: null,
@@ -1146,112 +1127,6 @@ function buildContentExpression(content: readonly string[]): string {
 	return `(${content.join(' | ')})*`;
 }
 
-function createStableEditorNodeId(prefix: string): string {
-	if (typeof crypto?.randomUUID === 'function') {
-		return `${prefix}-${crypto.randomUUID()}`;
-	}
-	return `${prefix}-${Math.random().toString(36).slice(2, 12)}`;
-}
-
-const lineNumberNormalizerKey = new PluginKey('lineNumberNormalizer');
-
-function createLineNumberNormalizationTransaction(
-	state: Editor['state'],
-	ranges: readonly ChangedRange[]
-) {
-	const tr = state.tr;
-	let changed = false;
-	const columns = new Map<number, ProseMirrorNode>();
-
-	for (const range of ranges) {
-		state.doc.nodesBetween(range.from, range.to, (node, pos) => {
-			if (node.type.name === 'column' || node.type.name === 'marginaliaColumn') {
-				columns.set(pos, node);
-				return false;
-			}
-			return true;
-		});
-	}
-
-	for (const [pos, node] of columns) {
-		if (node.type.name !== 'column' && node.type.name !== 'marginaliaColumn') {
-			continue;
-		}
-
-		if (!node.type.validContent(node.content)) {
-			console.warn(
-				`[Transcription] Skipping line number normalization for invalid ${node.type.name} node at ${pos}`
-			);
-			continue;
-		}
-
-		if (!node.attrs.columnId) {
-			tr.setNodeMarkup(pos, undefined, {
-				...node.attrs,
-				columnId: createStableEditorNodeId(node.type.name === 'column' ? 'col' : 'mcol'),
-			});
-			changed = true;
-		}
-
-		const expectedLineType = node.type.name === 'column' ? 'line' : 'marginaliaLine';
-		node.forEach((child, offset, index) => {
-			if (child.type.name !== expectedLineType) return;
-			const expectedLineNumber = index + 1;
-			const nextAttrs = {
-				...child.attrs,
-				lineNumber: expectedLineNumber,
-				lineId:
-					child.attrs.lineId ||
-					createStableEditorNodeId(child.type.name === 'line' ? 'line' : 'mline'),
-			};
-			if (
-				child.attrs.lineNumber === expectedLineNumber &&
-				child.attrs.lineId === nextAttrs.lineId
-			) {
-				return;
-			}
-
-			tr.setNodeMarkup(pos + 1 + offset, undefined, nextAttrs);
-			changed = true;
-		});
-	}
-
-	return changed ? tr : null;
-}
-
-const LineNumberNormalizer = Extension.create({
-	name: 'lineNumberNormalizer',
-
-	addProseMirrorPlugins() {
-		return [
-			new Plugin({
-				key: lineNumberNormalizerKey,
-				appendTransaction: (transactions, _oldState, newState) => {
-					if (!transactions.some(transaction => transaction.docChanged)) {
-						return null;
-					}
-
-					if (
-						transactions.some(transaction =>
-							transaction.getMeta(lineNumberNormalizerKey)
-						)
-					) {
-						return null;
-					}
-
-					const tr = createLineNumberNormalizationTransaction(
-						newState,
-						getChangedRanges(transactions, newState.doc.content.size)
-					);
-					if (!tr) return null;
-
-					tr.setMeta(lineNumberNormalizerKey, true);
-					return tr;
-				},
-			}),
-		];
-	},
-});
 const Line = Node.create({
 	name: 'line',
 	content: buildContentExpression(MAIN_LINE_CONTENT_NODES),
@@ -1274,10 +1149,11 @@ const Line = Node.create({
 			[
 				'span',
 				{
-					class: 'text-sm text-primary/60 font-mono min-w-8 select-none',
+					class: 'line-number text-sm text-primary/60 font-mono min-w-8 select-none',
 					contenteditable: 'false',
+					style: 'display: inline-block; min-width: 2rem; min-height: 1.5rem; text-align: right',
 				},
-				`${node.attrs.lineNumber || 1}.`,
+				'.',
 			],
 			[
 				'span',
@@ -1307,15 +1183,6 @@ const Line = Node.create({
 				parseHTML: element => element.getAttribute('data-line-id'),
 				renderHTML: attributes =>
 					attributes.lineId ? { 'data-line-id': attributes.lineId } : {},
-			},
-			lineNumber: {
-				default: 1,
-				parseHTML: element => parseInt(element.getAttribute('data-line-number') || '1'),
-				renderHTML: attributes => {
-					return {
-						'data-line-number': attributes.lineNumber,
-					};
-				},
 			},
 			wrapped: {
 				default: false,
@@ -2134,7 +2001,7 @@ const MarginaliaColumn = Node.create({
 	},
 	renderHTML({ node, HTMLAttributes }) {
 		const breakAttrs = node.attrs.breakAttrs || {};
-		const label = breakAttrs.n || node.attrs.columnNumber || 1;
+		const label = breakAttrs.n ? `Column ${breakAttrs.n}` : '';
 		return [
 			'div',
 			{
@@ -2144,10 +2011,10 @@ const MarginaliaColumn = Node.create({
 			[
 				'div',
 				{
-					class: 'text-sm font-bold text-base-content mb-2 select-none',
+					class: 'column-number text-sm font-bold text-base-content mb-2 select-none',
 					contenteditable: 'false',
 				},
-				`Column ${label}`,
+				label,
 			],
 			['div', { class: 'space-y-1' }, 0],
 		];
@@ -2159,11 +2026,6 @@ const MarginaliaColumn = Node.create({
 				parseHTML: element => element.getAttribute('data-column-id'),
 				renderHTML: attributes =>
 					attributes.columnId ? { 'data-column-id': attributes.columnId } : {},
-			},
-			columnNumber: {
-				default: 1,
-				parseHTML: element => parseInt(element.getAttribute('data-column-number') || '1'),
-				renderHTML: attributes => ({ 'data-column-number': attributes.columnNumber || 1 }),
 			},
 			breakAttrs: {
 				default: {},
@@ -2186,7 +2048,6 @@ const MarginaliaLine = Node.create({
 	renderHTML({ node, HTMLAttributes }) {
 		const breakAttrs = node.attrs.breakAttrs || {};
 		const isWrapped = node.attrs.wrapped || breakAttrs.break === 'no';
-		const label = node.attrs.lineNumber || 1;
 
 		return [
 			'p',
@@ -2197,10 +2058,11 @@ const MarginaliaLine = Node.create({
 			[
 				'span',
 				{
-					class: 'text-sm text-primary/60 font-mono min-w-8 select-none',
+					class: 'line-number text-sm text-primary/60 font-mono min-w-8 select-none',
 					contenteditable: 'false',
+					style: 'display: inline-block; min-width: 2rem; min-height: 1.5rem; text-align: right',
 				},
-				`${label}.`,
+				'.',
 			],
 			[
 				'span',
@@ -2228,11 +2090,6 @@ const MarginaliaLine = Node.create({
 				parseHTML: element => element.getAttribute('data-line-id'),
 				renderHTML: attributes =>
 					attributes.lineId ? { 'data-line-id': attributes.lineId } : {},
-			},
-			lineNumber: {
-				default: 1,
-				parseHTML: element => parseInt(element.getAttribute('data-line-number') || '1'),
-				renderHTML: attributes => ({ 'data-line-number': attributes.lineNumber || 1 }),
 			},
 			wrapped: {
 				default: false,
@@ -2315,7 +2172,6 @@ function getSharedInlineExtensions() {
 	return [
 		...SHARED_MARK_EXTENSIONS,
 		...SHARED_SELECTION_EXTENSIONS,
-		LineNumberNormalizer,
 		...SHARED_INLINE_NODE_EXTENSIONS,
 		Text,
 	];

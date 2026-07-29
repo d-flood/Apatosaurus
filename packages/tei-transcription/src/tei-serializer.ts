@@ -133,7 +133,7 @@ function exportNode(node: ProseMirrorJSON, context: ExportContext): void {
 		case 'column':
 			closeAllDivs(context);
 			context.xml.push(`<cb${serializeAttrs(mergeTeiAttrs(node.attrs, {
-				n: node.attrs?.teiAttrs?.n || String(node.attrs?.columnNumber || 1),
+				n: node.attrs?.teiAttrs?.n,
 				break: node.attrs?.wrapped ? 'no' : undefined,
 				type: node.attrs?.zone ? 'frame' : undefined,
 				subtype: node.attrs?.zone || undefined,

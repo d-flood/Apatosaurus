@@ -40,8 +40,8 @@
 
 	interface CursorPosition {
 		pageName?: string;
-		columnNumber?: number;
-		lineNumber?: number;
+		column?: number;
+		line?: number;
 		book?: string;
 		chapter?: string;
 		verse?: string;

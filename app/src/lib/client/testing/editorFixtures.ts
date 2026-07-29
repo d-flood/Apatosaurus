@@ -9,16 +9,15 @@ export interface EditorLineOptions {
 	text?: string;
 	content?: EditorJson[];
 	lineId?: string;
-	lineNumber?: number;
 	attrs?: EditorJson;
 }
 
 export function editorLine(options: EditorLineOptions = {}): EditorJson {
-	const { text = '', content, lineId = 'line-1', lineNumber = 1, attrs = {} } = options;
+	const { text = '', content, lineId = 'line-1', attrs = {} } = options;
 	const lineContent = content ?? (text ? [{ type: 'text', text }] : []);
 	return {
 		type: 'line',
-		attrs: { lineNumber, lineId, ...attrs },
+		attrs: { lineId, ...attrs },
 		...(lineContent.length ? { content: lineContent } : {}),
 	};
 }
@@ -27,7 +26,6 @@ export interface EditorColumnOptions {
 	texts?: string[];
 	lines?: EditorJson[];
 	columnId?: string;
-	columnNumber?: number;
 	lineIdStart?: number;
 	attrs?: EditorJson;
 }
@@ -37,18 +35,15 @@ export function editorColumn(options: EditorColumnOptions = {}): EditorJson {
 		texts = DEFAULT_TEXTS,
 		lines,
 		columnId = 'col-1',
-		columnNumber = 1,
 		lineIdStart = 1,
 		attrs = {},
 	} = options;
 	return {
 		type: 'column',
-		attrs: { columnNumber, columnId, ...attrs },
+		attrs: { columnId, ...attrs },
 		content:
 			lines ??
-			texts.map((text, index) =>
-				editorLine({ text, lineNumber: index + 1, lineId: `line-${lineIdStart + index}` })
-			),
+			texts.map((text, index) => editorLine({ text, lineId: `line-${lineIdStart + index}` })),
 	};
 }
 
@@ -81,7 +76,6 @@ export function editorPlainPage(options: EditorPlainPageOptions = {}): EditorJso
 			texts.map((columnTexts, index) => {
 				const column = editorColumn({
 					texts: columnTexts,
-					columnNumber: index + 1,
 					columnId: `col-${columnIdStart + index}`,
 					lineIdStart: nextLineId,
 				});
@@ -117,7 +111,6 @@ export function editorFramedPage(options: EditorFramedPageOptions = {}): EditorJ
 			const columnTexts = texts[index] ?? DEFAULT_TEXTS.map(text => `${zone}-${text}`);
 			const column = editorColumn({
 				texts: columnTexts,
-				columnNumber: index + 1,
 				columnId: `col-${columnIdStart + index}`,
 				lineIdStart: nextLineId,
 				attrs: { zone, teiAttrs: { rend: zone } },
@@ -171,7 +164,6 @@ export function editorDocument(options: EditorDocumentOptions = {}): EditorJson 
 				delete column.attrs.columnId;
 				for (const line of column.content) {
 					delete line.attrs.lineId;
-					delete line.attrs.lineNumber;
 				}
 			}
 		}
@@ -311,15 +303,14 @@ export function transcriptionDocument(
 export interface MarginaliaLineOptions {
 	text?: string;
 	lineId?: string;
-	lineNumber?: number;
 	attrs?: EditorJson;
 }
 
 export function marginaliaLine(options: MarginaliaLineOptions = {}): EditorJson {
-	const { text = '', lineId = 'line-1', lineNumber = 1, attrs = {} } = options;
+	const { text = '', lineId = 'line-1', attrs = {} } = options;
 	return {
 		type: 'marginaliaLine',
-		attrs: { lineNumber, lineId, ...attrs },
+		attrs: { lineId, ...attrs },
 		...(text ? { content: [{ type: 'text', text }] } : {}),
 	};
 }
@@ -328,7 +319,6 @@ export interface MarginaliaColumnOptions {
 	texts?: string[];
 	lines?: EditorJson[];
 	columnId?: string;
-	columnNumber?: number;
 	lineIdStart?: number;
 	attrs?: EditorJson;
 }
@@ -338,19 +328,17 @@ export function marginaliaColumn(options: MarginaliaColumnOptions = {}): EditorJ
 		texts = DEFAULT_TEXTS,
 		lines,
 		columnId = 'col-1',
-		columnNumber = 1,
 		lineIdStart = 1,
 		attrs = {},
 	} = options;
 	return {
 		type: 'marginaliaColumn',
-		attrs: { columnNumber, columnId, ...attrs },
+		attrs: { columnId, ...attrs },
 		content:
 			lines ??
 			texts.map((text, index) =>
 				marginaliaLine({
 					text,
-					lineNumber: index + 1,
 					lineId: `line-${lineIdStart + index}`,
 				})
 			),
@@ -368,13 +356,11 @@ export function marginaliaDocument(options: MarginaliaDocumentOptions = {}): Edi
 			marginaliaColumn({
 				texts: ['a1', 'a2', 'a3', 'a4'],
 				columnId: 'col-1',
-				columnNumber: 1,
 				lineIdStart: 1,
 			}),
 			marginaliaColumn({
 				texts: ['b1', 'b2', 'b3', 'b4'],
 				columnId: 'col-2',
-				columnNumber: 2,
 				lineIdStart: 5,
 			}),
 		],

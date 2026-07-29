@@ -124,8 +124,8 @@
 
 	interface CursorPosition {
 		pageName?: string;
-		columnNumber?: number;
-		lineNumber?: number;
+		column?: number;
+		line?: number;
 		book?: string;
 		chapter?: string;
 		verse?: string;
@@ -854,11 +854,11 @@
 			content: [
 				{
 					type: 'column',
-					attrs: { columnNumber: 1, columnId: createEditorNodeId('col') },
+					attrs: { columnId: createEditorNodeId('col') },
 					content: [
 						{
 							type: 'line',
-							attrs: { lineNumber: 1, lineId: createEditorNodeId('line') },
+							attrs: { lineId: createEditorNodeId('line') },
 						},
 					],
 				},
@@ -871,11 +871,11 @@
 		if (!editor || pageNameExists(pageName)) return;
 
 		const zones = ['top', 'left', 'right', 'bottom', 'center'] as const;
-		const columns = zones.map((zone, i) => ({
+		const columns = zones.map(zone => ({
 			type: 'column',
-			attrs: { columnNumber: i + 1, zone, columnId: createEditorNodeId('col') },
+			attrs: { zone, columnId: createEditorNodeId('col') },
 			content: [
-				{ type: 'line', attrs: { lineNumber: 1, lineId: createEditorNodeId('line') } },
+				{ type: 'line', attrs: { lineId: createEditorNodeId('line') } },
 			],
 		}));
 
@@ -905,16 +905,20 @@
 		const resolvedFrom = state.selection.$from;
 
 		let lineDepth = -1;
+		let columnDepth = -1;
 		for (let depth = resolvedFrom.depth; depth >= 0; depth--) {
 			const node = resolvedFrom.node(depth);
 			if (node.type.name === 'page') result.pageName = node.attrs.pageName || undefined;
-			if (node.type.name === 'column') result.columnNumber = node.attrs.columnNumber;
+			if (columnDepth === -1 && node.type.name === 'column') columnDepth = depth;
 			if (lineDepth === -1 && node.type.name === 'line') {
 				lineDepth = depth;
 			}
 		}
 		if (lineDepth !== -1) {
-			result.lineNumber = resolvedFrom.index(lineDepth - 1) + 1;
+			result.line = resolvedFrom.index(lineDepth - 1) + 1;
+		}
+		if (columnDepth !== -1) {
+			result.column = resolvedFrom.index(columnDepth - 1) + 1;
 		}
 
 		// Get milestone values (book, chapter, verse)

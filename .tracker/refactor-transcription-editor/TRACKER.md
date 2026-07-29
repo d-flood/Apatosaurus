@@ -14,7 +14,7 @@ Two things to know before writing a ticket from it. `F35`–`F46` have **no comm
 
 Overall status: `In Progress`
 
-Current ticket: none — ticket `20` is complete.
+Current ticket: none — ticket `28` is complete.
 
 Last updated: 2026-07-29
 
@@ -72,7 +72,7 @@ Success is not "every ticket cleared". Some findings should end in a documented 
 | 25 | `25-seg-survives-the-round-trip.md` | Completed | None |
 | 26 | `26-element-only-original-readings-are-preserved.md` | Completed | None |
 | 27 | `27-carriers-keep-arbitrary-tei-attributes.md` | Completed | None |
-| 28 | `28-line-and-column-numbers-become-presentation.md` | Not Started | 04, 12 |
+| 28 | `28-line-and-column-numbers-become-presentation.md` | Completed | 04, 12 |
 | 29 | `29-editorial-chrome-leaves-renderhtml.md` | Not Started | 03, 28 |
 | 30 | `30-nodeviews-where-rendering-must-be-incremental.md` | Not Started | 14, 22 |
 
@@ -98,6 +98,7 @@ pnpm vitest run --project client src/lib/client/transcriptionEditorStructure.sve
 
 ## Notes
 
+- **2026-07-29** — **Ticket `28` complete; structural ordinals are presentation.** Main and nested editor schemas no longer store line or column ordinals, the normalization plugin and split-time renumbering are gone, and CSS counters render plain and framed-page labels while canonical conversion derives model numbers positionally. Entry preparation and structural commands retain stable line/column identities, and TEI export emits only source-carried `teiAttrs.n`. A 300-line middle split fell from **754 created / 750 destroyed** DOM elements to **4 created / 0 destroyed**. The focused client suite passes **11 files / 70 tests**, the component suite passes **12 files / 88 tests**, `check` reports 0 errors (one pre-existing warning), and the app baseline passes **107 files / 718 tests**. Package typecheck and all **109 runnable tests** pass; the full package command retains its documented **7 missing-fixture failures**.
 - **2026-07-29** — **Ticket `20` complete; pending verse-index sync is dropped on unmount.** The debounce now exposes schedule, cancel, and flush operations, and both editor teardown branches cancel it before destroying the editor. Dropping is deliberate: the next mount derives the index again, while flushing would preserve the stale whole-document write window this ticket removes. Autosave does not share the timer leak: its existing teardown flush clears the timeout and intentionally persists pending edits, so its semantics remain unchanged. Mounted browser coverage waits past the 1.2-second interval for both teardown branches and observes no sync, while normal editing still syncs on that interval. The component suite passes **12 files / 86 tests**, `check` reports 0 errors (one pre-existing warning), and the full baseline passes **106 files / 714 tests**.
 - **2026-07-29** — **Ticket `26` complete; inline atoms may carry correction marks.** Element-only and mixed original readings now remain in one apparatus through parsing, both ProseMirror adapter directions, mounted editing, and serialization. Gap named fields and ticket `27`'s arbitrary `teiAttrs` survive unchanged; empty and whitespace-only originals still use `correctionOnly`. The focused package suite passes **65/65**, all runnable package suites pass **108/108**, package typecheck and app `check` pass, and the app baseline passes **105 files / 711 tests**. The package full run retains its documented **109 pass / 7 missing-fixture failures**.
 - **2026-07-28** — **Ticket `04` complete.** Whole-document repair no longer runs from `appendTransaction`; load, TEI import, and structural paste use the shared document-entry repair, and F7 identities exist before the first edit. Punctuation scans changed ranges, line normalization visits touched columns, cursor context uses selection ancestors, and autosave/verse serialization now occurs inside the existing timers. Chromium per-keystroke measurements fell from **7.5 / 19.3 / 30.3 ms** to **0.20 / 0.32 / 0.77 ms** at **100 / 250 / 500 lines**; 20 characters dispatch 20 transactions. The focused component suite passes **11 files / 83 tests**, `check` reports 0 errors, and the full baseline passes **105 files / 710 tests**. The acceptance diff is a net reduction: **204 insertions / 210 deletions** across the two named files.

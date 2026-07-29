@@ -63,9 +63,9 @@ const EDITOR_COMMAND_FIXTURE = editorDocument({
 								{ type: 'text', text: 'alpha' },
 							],
 						}),
-						editorLine({ text: 'beta', lineId: 'line-2', lineNumber: 2 }),
-						editorLine({ text: 'gamma', lineId: 'line-3', lineNumber: 3 }),
-						editorLine({ text: 'delta', lineId: 'line-4', lineNumber: 4 }),
+						editorLine({ text: 'beta', lineId: 'line-2' }),
+						editorLine({ text: 'gamma', lineId: 'line-3' }),
+						editorLine({ text: 'delta', lineId: 'line-4' }),
 					],
 				}),
 			],
@@ -361,7 +361,10 @@ describe('editorCommands against a multi-page fixture', () => {
 									editorLine({
 										content: [
 											{ type: 'book', attrs: { book: 'Mark' } },
-											{ type: 'chapter', attrs: { book: 'Mark', chapter: '1' } },
+											{
+												type: 'chapter',
+												attrs: { book: 'Mark', chapter: '1' },
+											},
 											{
 												type: 'verse',
 												attrs: { book: 'Mark', chapter: '1', verse: '1' },

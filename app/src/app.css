@@ -120,6 +120,31 @@
 	@apply underline decoration-dotted decoration-2 underline-offset-6;
 }
 
+.page,
+.ProseMirror:has(> .marginalia-column) {
+	counter-reset: transcription-column;
+}
+
+.column,
+.marginalia-column {
+	counter-increment: transcription-column;
+	counter-reset: transcription-line;
+}
+
+.line,
+.marginalia-line {
+	counter-increment: transcription-line;
+}
+
+.column:not([data-zone]) > .column-number:empty::before,
+.marginalia-column > .column-number:empty::before {
+	content: 'Column ' counter(transcription-column);
+}
+
+.line-number::before {
+	content: counter(transcription-line);
+}
+
 .show-correction .correction {
 	text-decoration-line: underline;
 	text-decoration-style: wavy;

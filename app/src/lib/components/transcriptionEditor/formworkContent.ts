@@ -23,11 +23,11 @@ export function buildMarginaliaDocFromText(text: string): Record<string, any> {
 		content: [
 			{
 				type: 'marginaliaColumn',
-				attrs: { columnNumber: 1 },
+				attrs: { columnId: createFormWorkNodeId('mcol') },
 				content: [
 					{
 						type: 'marginaliaLine',
-						attrs: { lineNumber: 1 },
+						attrs: { lineId: createFormWorkNodeId('mline') },
 						content: buildPlainTextFormWorkContent(text),
 					},
 				],
@@ -38,7 +38,7 @@ export function buildMarginaliaDocFromText(text: string): Record<string, any> {
 
 export function normalizeMarginaliaContent(content: unknown): Record<string, any> {
 	if (isStructuredFormWorkContent(content)) {
-		return JSON.parse(JSON.stringify(content));
+		return ensureFormWorkNodeIds(JSON.parse(JSON.stringify(content)));
 	}
 
 	if (Array.isArray(content)) {
@@ -47,11 +47,11 @@ export function normalizeMarginaliaContent(content: unknown): Record<string, any
 			content: [
 				{
 					type: 'marginaliaColumn',
-					attrs: { columnNumber: 1 },
+					attrs: { columnId: createFormWorkNodeId('mcol') },
 					content: [
 						{
 							type: 'marginaliaLine',
-							attrs: { lineNumber: 1 },
+							attrs: { lineId: createFormWorkNodeId('mline') },
 							content: JSON.parse(JSON.stringify(content)),
 						},
 					],
@@ -61,6 +61,27 @@ export function normalizeMarginaliaContent(content: unknown): Record<string, any
 	}
 
 	return buildMarginaliaDocFromText('');
+}
+
+function createFormWorkNodeId(prefix: string): string {
+	if (typeof crypto?.randomUUID === 'function') return `${prefix}-${crypto.randomUUID()}`;
+	return `${prefix}-${Math.random().toString(36).slice(2, 12)}`;
+}
+
+function ensureFormWorkNodeIds(document_: Record<string, any>): Record<string, any> {
+	for (const column of document_.content ?? []) {
+		column.attrs = {
+			...(column.attrs ?? {}),
+			columnId: column.attrs?.columnId || createFormWorkNodeId('mcol'),
+		};
+		for (const line of column.content ?? []) {
+			line.attrs = {
+				...(line.attrs ?? {}),
+				lineId: line.attrs?.lineId || createFormWorkNodeId('mline'),
+			};
+		}
+	}
+	return document_;
 }
 
 function isStructuredFormWorkContent(content: unknown): content is Record<string, any> {

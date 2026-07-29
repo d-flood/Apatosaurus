@@ -152,11 +152,8 @@ export interface AnnotationAnchor {
 	pageOrder?: number;
 	role?: 'page' | 'column' | 'line' | 'line-range' | 'marginalia' | 'note' | 'word-region';
 	columnId?: string | null;
-	columnNumber?: number | null;
 	lineId?: string | null;
-	lineNumber?: number | null;
 	lineEndId?: string | null;
-	lineEndNumber?: number | null;
 	marginaliaId?: string | null;
 	quote?: string | null;
 	canvasId?: string;

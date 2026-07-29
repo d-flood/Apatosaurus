@@ -14,11 +14,11 @@ function buildPmDocument(lineContent: ProseMirrorJSON[]): ProseMirrorJSON {
 				content: [
 					{
 						type: 'column',
-						attrs: { columnNumber: 1 },
+						attrs: {},
 						content: [
 							{
 								type: 'line',
-								attrs: { lineNumber: 1 },
+								attrs: {},
 								content: [
 									{
 										type: 'verse',
@@ -630,12 +630,17 @@ describe('extractWitnessTokensForVerse', () => {
 			},
 		]);
 
-		const tokens = extractWitnessTokensForVerse(document, 'John 1:1', {}, {
-			kind: 'corrector',
-			baseHand: 'firsthand',
-			handId: 'corrector',
-			treatment: 'full',
-		});
+		const tokens = extractWitnessTokensForVerse(
+			document,
+			'John 1:1',
+			{},
+			{
+				kind: 'corrector',
+				baseHand: 'firsthand',
+				handId: 'corrector',
+				treatment: 'full',
+			}
+		);
 
 		expect(tokens.map(token => token.original)).toEqual(['gamma', 'delta']);
 	});

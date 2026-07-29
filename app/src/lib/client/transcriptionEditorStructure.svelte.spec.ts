@@ -26,8 +26,8 @@ describe('transcriptionEditorStructure', () => {
 					content: [
 						{
 							type: 'column',
-							attrs: { columnNumber: 1 },
-							content: [{ type: 'line', attrs: { lineNumber: 1 } }],
+							attrs: {},
+							content: [{ type: 'line', attrs: {} }],
 						},
 					],
 				},
@@ -43,11 +43,11 @@ describe('transcriptionEditorStructure', () => {
 							content: [
 								{
 									type: 'column',
-									attrs: { columnNumber: 1 },
+									attrs: {},
 									content: [
 										{
 											type: 'line',
-											attrs: { lineNumber: 1 },
+											attrs: {},
 											content: [{ type: 'text', text: 'replacement' }],
 										},
 									],
@@ -70,15 +70,15 @@ describe('transcriptionEditorStructure', () => {
 					type: 'page',
 					attrs: { pageId: 'page-1' },
 					content: [
-						{ type: 'column', attrs: { columnNumber: 9 }, content: [] },
+						{ type: 'column', attrs: {}, content: [] },
 						{
 							type: 'line',
-							attrs: { lineNumber: 11 },
+							attrs: {},
 							content: [{ type: 'text', text: 'orphan line' }],
 						},
 						{
 							type: 'column',
-							attrs: { columnNumber: 12 },
+							attrs: {},
 							content: [{ type: 'text', text: 'wrapped text' }],
 						},
 					],
@@ -91,11 +91,11 @@ describe('transcriptionEditorStructure', () => {
 
 		const page = result.doc.content[0];
 		expect(page.content).toHaveLength(3);
-		expect(page.content[0].attrs.columnNumber).toBe(1);
-		expect(page.content[0].content).toEqual([{ type: 'line', attrs: { lineNumber: 1 } }]);
-		expect(page.content[1].attrs.columnNumber).toBe(2);
+		expect(page.content[0].attrs).toEqual({});
+		expect(page.content[0].content).toEqual([{ type: 'line', attrs: {} }]);
+		expect(page.content[1].attrs).toEqual({});
 		expect(page.content[1].content[0].content[0].text).toBe('orphan line');
-		expect(page.content[2].attrs.columnNumber).toBe(3);
+		expect(page.content[2].attrs).toEqual({});
 		expect(page.content[2].content[0].content[0].text).toBe('wrapped text');
 	});
 
@@ -109,12 +109,11 @@ describe('transcriptionEditorStructure', () => {
 					content: [
 						{
 							type: 'column',
-							attrs: { columnNumber: 1 },
+							attrs: {},
 							content: [
 								{
 									type: 'line',
 									attrs: {
-										lineNumber: 1,
 										lineId: 'line-1',
 										'paragraph-start': true,
 									},
@@ -122,7 +121,7 @@ describe('transcriptionEditorStructure', () => {
 								},
 								{
 									type: 'line',
-									attrs: { lineNumber: 2, lineId: 'line-2' },
+									attrs: { lineId: 'line-2' },
 									content: [{ type: 'text', text: 'gamma' }],
 								},
 							],
@@ -168,11 +167,11 @@ describe('transcriptionEditorStructure', () => {
 					content: [
 						{
 							type: 'column',
-							attrs: { columnNumber: 1, zone: 'center' },
+							attrs: { zone: 'center' },
 							content: [
 								{
 									type: 'line',
-									attrs: { lineNumber: 1 },
+									attrs: {},
 									content: [{ type: 'text', text: 'abcd' }],
 								},
 							],
@@ -214,28 +213,28 @@ describe('transcriptionEditorStructure', () => {
 					content: [
 						{
 							type: 'column',
-							attrs: { columnNumber: 1, zone: 'center' },
-							content: [{ type: 'line', attrs: { lineNumber: 1 }, content: [] }],
+							attrs: { zone: 'center' },
+							content: [{ type: 'line', attrs: {}, content: [] }],
 						},
 						{
 							type: 'column',
-							attrs: { columnNumber: 2, zone: 'top' },
-							content: [{ type: 'line', attrs: { lineNumber: 1 }, content: [] }],
+							attrs: { zone: 'top' },
+							content: [{ type: 'line', attrs: {}, content: [] }],
 						},
 						{
 							type: 'column',
-							attrs: { columnNumber: 3, zone: 'right' },
-							content: [{ type: 'line', attrs: { lineNumber: 1 }, content: [] }],
+							attrs: { zone: 'right' },
+							content: [{ type: 'line', attrs: {}, content: [] }],
 						},
 						{
 							type: 'column',
-							attrs: { columnNumber: 4, zone: 'bottom' },
-							content: [{ type: 'line', attrs: { lineNumber: 1 }, content: [] }],
+							attrs: { zone: 'bottom' },
+							content: [{ type: 'line', attrs: {}, content: [] }],
 						},
 						{
 							type: 'column',
-							attrs: { columnNumber: 5, zone: 'left' },
-							content: [{ type: 'line', attrs: { lineNumber: 1 }, content: [] }],
+							attrs: { zone: 'left' },
+							content: [{ type: 'line', attrs: {}, content: [] }],
 						},
 					],
 				},
@@ -265,28 +264,28 @@ describe('transcriptionEditorStructure', () => {
 						content: [
 							{
 								type: 'column',
-								attrs: { columnNumber: 1, zone: 'center' },
-								content: [{ type: 'line', attrs: { lineNumber: 1 }, content: [] }],
+								attrs: { zone: 'center' },
+								content: [{ type: 'line', attrs: {}, content: [] }],
 							},
 							{
 								type: 'column',
-								attrs: { columnNumber: 2, zone: 'top' },
-								content: [{ type: 'line', attrs: { lineNumber: 1 }, content: [] }],
+								attrs: { zone: 'top' },
+								content: [{ type: 'line', attrs: {}, content: [] }],
 							},
 							{
 								type: 'column',
-								attrs: { columnNumber: 3, zone: 'right' },
-								content: [{ type: 'line', attrs: { lineNumber: 1 }, content: [] }],
+								attrs: { zone: 'right' },
+								content: [{ type: 'line', attrs: {}, content: [] }],
 							},
 							{
 								type: 'column',
-								attrs: { columnNumber: 4, zone: 'bottom' },
-								content: [{ type: 'line', attrs: { lineNumber: 1 }, content: [] }],
+								attrs: { zone: 'bottom' },
+								content: [{ type: 'line', attrs: {}, content: [] }],
 							},
 							{
 								type: 'column',
-								attrs: { columnNumber: 5, zone: 'left' },
-								content: [{ type: 'line', attrs: { lineNumber: 1 }, content: [] }],
+								attrs: { zone: 'left' },
+								content: [{ type: 'line', attrs: {}, content: [] }],
 							},
 						],
 					},
@@ -321,33 +320,33 @@ describe('transcriptionEditorStructure', () => {
 					content: [
 						{
 							type: 'column',
-							attrs: { columnNumber: 1, zone: 'top', columnId: 'col-top' },
+							attrs: { zone: 'top', columnId: 'col-top' },
 							content: [
 								{
 									type: 'line',
-									attrs: { lineNumber: 1, lineId: 'line-top' },
+									attrs: { lineId: 'line-top' },
 									content: [{ type: 'text', text: 'top text' }],
 								},
 							],
 						},
 						{
 							type: 'column',
-							attrs: { columnNumber: 2, zone: 'center', columnId: 'col-center' },
+							attrs: { zone: 'center', columnId: 'col-center' },
 							content: [
 								{
 									type: 'line',
-									attrs: { lineNumber: 1, lineId: 'line-center' },
+									attrs: { lineId: 'line-center' },
 									content: [{ type: 'text', text: 'center text' }],
 								},
 							],
 						},
 						{
 							type: 'column',
-							attrs: { columnNumber: 3, zone: 'bottom', columnId: 'col-bottom' },
+							attrs: { zone: 'bottom', columnId: 'col-bottom' },
 							content: [
 								{
 									type: 'line',
-									attrs: { lineNumber: 1, lineId: 'line-bottom' },
+									attrs: { lineId: 'line-bottom' },
 									content: [{ type: 'text', text: 'bottom text' }],
 								},
 							],
@@ -401,11 +400,11 @@ describe('transcriptionEditorStructure', () => {
 					content: [
 						{
 							type: 'column',
-							attrs: { columnNumber: 1, zone: 'top' },
+							attrs: { zone: 'top' },
 							content: [
 								{
 									type: 'line',
-									attrs: { lineNumber: 1 },
+									attrs: {},
 									content: [{ type: 'text', text: 'alpha' }],
 								},
 							],
@@ -418,11 +417,11 @@ describe('transcriptionEditorStructure', () => {
 					content: [
 						{
 							type: 'column',
-							attrs: { columnNumber: 1, zone: 'bottom' },
+							attrs: { zone: 'bottom' },
 							content: [
 								{
 									type: 'line',
-									attrs: { lineNumber: 1 },
+									attrs: {},
 									content: [{ type: 'text', text: 'omega' }],
 								},
 							],
@@ -543,8 +542,8 @@ describe('transcriptionEditorStructure', () => {
 					content: [
 						{
 							type: 'column',
-							attrs: { columnNumber: 1, zone: 'top', columnId: 'col-top' },
-							content: [{ type: 'line', attrs: { lineNumber: 1, lineId: 'line-1' } }],
+							attrs: { zone: 'top', columnId: 'col-top' },
+							content: [{ type: 'line', attrs: { lineId: 'line-1' } }],
 						},
 					],
 				},
@@ -575,7 +574,7 @@ describe('transcriptionEditorStructure', () => {
 
 			const lines = nextState.doc.toJSON().content[0].content[0].content;
 			expect(lines).toHaveLength(3);
-			expect(lines.map((line: any) => line.attrs.lineNumber)).toEqual([1, 2, 3]);
+			expect(new Set(lines.map((line: any) => line.attrs.lineId)).size).toBe(3);
 		} finally {
 			editor.destroy();
 		}

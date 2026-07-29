@@ -37,11 +37,11 @@ function selectedText(editor: any): string {
 	);
 }
 
-function selectedLineNumber(editor: any): number | null {
+function selectedLineIndex(editor: any): number | null {
 	const position = editor.state.selection.$from;
 	for (let depth = position.depth; depth > 0; depth -= 1) {
 		if (position.node(depth).type.name === 'line') {
-			return position.node(depth).attrs.lineNumber;
+			return position.index(depth - 1) + 1;
 		}
 	}
 	return null;
@@ -125,7 +125,7 @@ describe('native selection and drop behaviour', () => {
 		}
 	});
 
-	it('does not move the caret to another line when its number gutter is clicked', async () => {
+	it('places the caret in the line whose number gutter is clicked', async () => {
 		const harness = await mountTranscriptionEditor({
 			document: transcriptionDocument({
 				pages: [transcriptionPlainPage({ texts: [['alpha', 'beta']] })],
@@ -142,7 +142,7 @@ describe('native selection and drop behaviour', () => {
 			await clickElement(gutter);
 			await tick();
 
-			expect(selectedLineNumber(editor)).toBe(2);
+			expect(selectedLineIndex(editor)).toBe(1);
 		} finally {
 			harness.dispose();
 		}
@@ -162,7 +162,7 @@ describe('native selection and drop behaviour', () => {
 			await clickElement(emptyLine, 0.9);
 			await tick();
 
-			expect(selectedLineNumber(editor)).toBe(2);
+			expect(selectedLineIndex(editor)).toBe(2);
 		} finally {
 			harness.dispose();
 		}
@@ -260,7 +260,6 @@ describe('typing the first character into an empty line', () => {
 										editorLine({
 											text,
 											lineId: `line-${index + 1}`,
-											lineNumber: index + 1,
 										})
 									),
 								}),

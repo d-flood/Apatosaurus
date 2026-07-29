@@ -32,7 +32,6 @@ export function createStructuredFormWorkContent(nodes: ProseMirrorJSON[]): FormW
 		currentColumn = {
 			type: 'marginaliaColumn',
 			attrs: {
-				columnNumber: columns.length + 1,
 				...(currentColumnBreakAttrs && Object.keys(currentColumnBreakAttrs).length > 0
 					? { breakAttrs: currentColumnBreakAttrs }
 					: {}),
@@ -49,7 +48,6 @@ export function createStructuredFormWorkContent(nodes: ProseMirrorJSON[]): FormW
 		column.content.push({
 			type: 'marginaliaLine',
 			attrs: {
-				lineNumber: column.content.length + 1,
 				...(currentLineBreakAttrs && Object.keys(currentLineBreakAttrs).length > 0
 					? {
 						breakAttrs: currentLineBreakAttrs,
@@ -84,7 +82,7 @@ export function createStructuredFormWorkContent(nodes: ProseMirrorJSON[]): FormW
 
 	return {
 		type: 'doc',
-		content: columns.length > 0 ? columns : [createEmptyColumn(1)],
+		content: columns.length > 0 ? columns : [createEmptyColumn()],
 	};
 }
 
@@ -128,18 +126,16 @@ export function isStructuredFormWorkContent(content: unknown): content is FormWo
 export function createEmptyStructuredFormWorkContent(): FormWorkDoc {
 	return {
 		type: 'doc',
-		content: [createEmptyColumn(1)],
+		content: [createEmptyColumn()],
 	};
 }
 
-function createEmptyColumn(columnNumber: number): FormWorkColumnNode {
+function createEmptyColumn(): FormWorkColumnNode {
 	return {
 		type: 'marginaliaColumn',
-		attrs: { columnNumber },
 		content: [
 			{
 				type: 'marginaliaLine',
-				attrs: { lineNumber: 1 },
 				content: [],
 			},
 		],

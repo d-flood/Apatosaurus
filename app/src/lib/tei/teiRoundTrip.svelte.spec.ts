@@ -1,6 +1,6 @@
 /**
  * TEI round-trip fidelity, for ticket 01 of the `refactor-transcription-editor`
- * epic (inventory question 4, and question 1's "does export read lineNumber?").
+ * epic (inventory questions 1 and 4).
  *
  * The export path the app actually uses is
  * `exportTEIDocument(fromProseMirror(editor.getJSON()))`, i.e.
@@ -104,14 +104,14 @@ describe('TEI round trip through the ProseMirror adapter', () => {
 	});
 
 	describe('question 1 — line and column numbers', () => {
-		it('never writes lineNumber to TEI; @n is absent from every <lb>', () => {
+		it('does not synthesize @n on line breaks', () => {
 			const xml = exportFromProseMirror(editorJson(SAMPLE_TEI));
 			const lineBreaks = xml.match(/<lb[^>]*\/>/g) ?? [];
 			expect(lineBreaks.length).toBeGreaterThan(0);
 			expect(lineBreaks.every(tag => !/\sn=/.test(tag))).toBe(true);
 		});
 
-		it('recomputes lineNumber positionally on import, ignoring any @n on <lb>', () => {
+		it('derives line ordinals positionally on import, ignoring any @n on <lb>', () => {
 			const document_ = parseTei(`<?xml version="1.0" encoding="UTF-8"?>
 <TEI xmlns="http://www.tei-c.org/ns/1.0"><teiHeader></teiHeader><text><body>
   <pb n="1r"/><cb n="C1"/>
@@ -123,22 +123,23 @@ describe('TEI round trip through the ProseMirror adapter', () => {
 			expect(document_.pages[0].columns[0].lines[0].teiAttrs?.n).toBe('97');
 		});
 
-		it('writes columnNumber to @n on <cb>, but re-derives it positionally on import', () => {
+		it('does not synthesize @n on <cb> from its display position', () => {
 			const pm = editorJson(SAMPLE_TEI);
-			// Renumber page 1's columns to values that do not match their positions.
-			columnNode(pm, 0, 0).attrs.columnNumber = 40;
-			columnNode(pm, 0, 1).attrs.columnNumber = 41;
 			delete columnNode(pm, 0, 0).attrs.teiAttrs;
 			delete columnNode(pm, 0, 1).attrs.teiAttrs;
 
 			const xml = exportFromProseMirror(pm);
-			expect(xml).toContain('<cb n="40"');
-			expect(xml).toContain('<cb n="41"');
+			const columnBreaks = xml.match(/<cb[^>]*\/>/g) ?? [];
+			expect(columnBreaks.slice(0, 2).every(tag => !/\sn=/.test(tag))).toBe(true);
+		});
 
-			// The parser only trusts @n when it looks like "C<digits>", so a plain
-			// number is discarded and the column is numbered by position instead.
-			const reparsed = parseTei(xml);
-			expect(reparsed.pages[0].columns.map(column => column.number)).toEqual([1, 2]);
+		it('preserves a source @n carried in teiAttrs', () => {
+			const pm = editorJson(SAMPLE_TEI);
+			columnNode(pm, 0, 0).attrs.teiAttrs = { n: 'scribe-column-alpha' };
+
+			const xml = exportFromProseMirror(pm);
+
+			expect(xml).toContain('<cb n="scribe-column-alpha"');
 		});
 	});
 
@@ -256,8 +257,8 @@ describe('TEI round trip through the ProseMirror adapter', () => {
 						content: [
 							{
 								type: 'column',
-								attrs: { columnNumber: 1 },
-								content: [{ type: 'line', attrs: { lineNumber: 1 }, content }],
+								attrs: {},
+								content: [{ type: 'line', attrs: {}, content }],
 							},
 						],
 					},
@@ -315,7 +316,14 @@ describe('TEI round trip through the ProseMirror adapter', () => {
 
 		it('leaves an unmarked neighbouring word alone', () => {
 			const xml = exportFromProseMirror(
-				pmLine([plain('before'), plain(' '), plain('alp'), marked('ha'), plain(' '), plain('after')])
+				pmLine([
+					plain('before'),
+					plain(' '),
+					plain('alp'),
+					marked('ha'),
+					plain(' '),
+					plain('after'),
+				])
 			);
 			expect(body(xml)).toBe(
 				'<w>before</w>' +

@@ -97,8 +97,8 @@ describe('real TEI wrapper integration', () => {
 
 		expect(page59r).toBeTruthy();
 		expect(page59r?.content).toHaveLength(1);
-		expect(page59r?.content?.[0].attrs?.columnNumber).toBe(1);
-		expect(page59r?.content?.[0].content?.[0].attrs?.lineNumber).toBe(1);
+		expect(page59r?.content?.[0].attrs).not.toHaveProperty('n');
+		expect(page59r?.content?.[0].content?.[0].attrs).not.toHaveProperty('n');
 		expect(page59r?.content?.[0].content?.[0].content?.[0]).toMatchObject({
 			type: 'text',
 			text: 'ρεαν',

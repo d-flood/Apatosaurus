@@ -69,9 +69,7 @@ export interface ManuscriptStructureRepairResult {
 	issues: string[];
 }
 
-export function prepareManuscriptDocumentEntry(
-	input: unknown
-): ManuscriptStructureRepairResult {
+export function prepareManuscriptDocumentEntry(input: unknown): ManuscriptStructureRepairResult {
 	return repairManuscriptStructureJson(input, {
 		framedPageZoneOrder: 'visual',
 		ensureNodeIds: true,
@@ -117,24 +115,22 @@ function isAllowedMainLineContentNode(node: unknown): node is JsonNode {
 	);
 }
 
-function buildEmptyLine(lineNumber: number, ensureNodeIds = false): JsonNode {
+function buildEmptyLine(ensureNodeIds = false): JsonNode {
 	return {
 		type: 'line',
 		attrs: {
-			lineNumber,
 			...(ensureNodeIds ? { lineId: createStableEditorNodeId('line') } : {}),
 		},
 	};
 }
 
-function buildEmptyColumn(columnNumber: number, ensureNodeIds = false): JsonNode {
+function buildEmptyColumn(ensureNodeIds = false): JsonNode {
 	return {
 		type: 'column',
 		attrs: {
-			columnNumber,
 			...(ensureNodeIds ? { columnId: createStableEditorNodeId('col') } : {}),
 		},
-		content: [buildEmptyLine(1, ensureNodeIds)],
+		content: [buildEmptyLine(ensureNodeIds)],
 	};
 }
 
@@ -199,23 +195,16 @@ function sanitizeLineNode(node: JsonNode, issues: string[], path: string): JsonN
 	};
 }
 
-function wrapRecoveredLineContent(
-	content: JsonNode[],
-	columnNumber: number,
-	lineNumber: number,
-	ensureNodeIds = false
-): JsonNode {
+function wrapRecoveredLineContent(content: JsonNode[], ensureNodeIds = false): JsonNode {
 	return {
 		type: 'column',
 		attrs: {
-			columnNumber,
 			...(ensureNodeIds ? { columnId: createStableEditorNodeId('col') } : {}),
 		},
 		content: [
 			{
 				type: 'line',
 				attrs: {
-					lineNumber,
 					...(ensureNodeIds ? { lineId: createStableEditorNodeId('line') } : {}),
 				},
 				content,
@@ -226,7 +215,6 @@ function wrapRecoveredLineContent(
 
 function repairColumnNode(
 	node: JsonNode,
-	columnNumber: number,
 	issues: string[],
 	path: string,
 	options: ManuscriptRepairOptions
@@ -240,7 +228,6 @@ function repairColumnNode(
 		lines.push({
 			type: 'line',
 			attrs: {
-				lineNumber: lines.length + 1,
 				...(options.ensureNodeIds ? { lineId: createStableEditorNodeId('line') } : {}),
 			},
 			content: recoveredLineContent,
@@ -272,7 +259,7 @@ function repairColumnNode(
 	flushRecoveredLineContent();
 
 	if (lines.length === 0) {
-		lines.push(buildEmptyLine(1, options.ensureNodeIds));
+		lines.push(buildEmptyLine(options.ensureNodeIds));
 		issues.push(`${path}: inserted empty line into column with no valid line children`);
 	}
 
@@ -281,16 +268,14 @@ function repairColumnNode(
 		type: 'column',
 		attrs: {
 			...(isRecord(node.attrs) ? cloneJsonNode(node.attrs) : {}),
-			columnNumber,
 			...(options.ensureNodeIds && !node.attrs?.columnId
 				? { columnId: createStableEditorNodeId('col') }
 				: {}),
 		},
-		content: lines.map((line, lineIndex) => ({
+		content: lines.map(line => ({
 			...line,
 			attrs: {
 				...(isRecord(line.attrs) ? cloneJsonNode(line.attrs) : {}),
-				lineNumber: lineIndex + 1,
 				...(options.ensureNodeIds && !line.attrs?.lineId
 					? { lineId: createStableEditorNodeId('line') }
 					: {}),
@@ -311,14 +296,7 @@ function repairPageNode(
 
 	const flushRecoveredColumn = () => {
 		if (recoveredLineContent.length === 0) return;
-		columns.push(
-			wrapRecoveredLineContent(
-				recoveredLineContent,
-				columns.length + 1,
-				1,
-				options.ensureNodeIds
-			)
-		);
+		columns.push(wrapRecoveredLineContent(recoveredLineContent, options.ensureNodeIds));
 		recoveredLineContent = [];
 	};
 
@@ -326,13 +304,7 @@ function repairPageNode(
 		if (isRecord(child) && child.type === 'column') {
 			flushRecoveredColumn();
 			columns.push(
-				repairColumnNode(
-					child,
-					columns.length + 1,
-					issues,
-					`${path}.column[${columns.length}]`,
-					options
-				)
+				repairColumnNode(child, issues, `${path}.column[${columns.length}]`, options)
 			);
 			continue;
 		}
@@ -342,7 +314,6 @@ function repairPageNode(
 			columns.push({
 				type: 'column',
 				attrs: {
-					columnNumber: columns.length + 1,
 					...(options.ensureNodeIds ? { columnId: createStableEditorNodeId('col') } : {}),
 				},
 				content: [sanitizeLineNode(child, issues, `${path}.syntheticColumn.line[0]`)],
@@ -370,7 +341,7 @@ function repairPageNode(
 	flushRecoveredColumn();
 
 	if (columns.length === 0) {
-		columns.push(buildEmptyColumn(1, options.ensureNodeIds));
+		columns.push(buildEmptyColumn(options.ensureNodeIds));
 		issues.push(`${path}: inserted empty column into page with no valid columns`);
 	}
 
@@ -383,13 +354,7 @@ function repairPageNode(
 		...cloneJsonNode(node),
 		type: 'page',
 		content: orderedColumns.map((column, columnIndex) =>
-			repairColumnNode(
-				column,
-				columnIndex + 1,
-				issues,
-				`${path}.column[${columnIndex}]`,
-				options
-			)
+			repairColumnNode(column, issues, `${path}.column[${columnIndex}]`, options)
 		),
 	};
 }
@@ -426,12 +391,7 @@ export function repairManuscriptStructureJson(
 			type: 'page',
 			attrs: {},
 			content: [
-				wrapRecoveredLineContent(
-					recoveredLineContent,
-					1,
-					1,
-					normalizedOptions.ensureNodeIds
-				),
+				wrapRecoveredLineContent(recoveredLineContent, normalizedOptions.ensureNodeIds),
 			],
 		});
 		recoveredLineContent = [];
@@ -452,7 +412,6 @@ export function repairManuscriptStructureJson(
 				content: [
 					repairColumnNode(
 						child,
-						1,
 						issues,
 						`page[${pages.length}].column[0]`,
 						normalizedOptions
@@ -472,7 +431,6 @@ export function repairManuscriptStructureJson(
 					{
 						type: 'column',
 						attrs: {
-							columnNumber: 1,
 							...(normalizedOptions.ensureNodeIds
 								? { columnId: createStableEditorNodeId('col') }
 								: {}),
@@ -486,7 +444,6 @@ export function repairManuscriptStructureJson(
 								),
 								attrs: {
 									...(isRecord(child.attrs) ? cloneJsonNode(child.attrs) : {}),
-									lineNumber: 1,
 									...(normalizedOptions.ensureNodeIds
 										? { lineId: createStableEditorNodeId('line') }
 										: {}),
@@ -564,11 +521,8 @@ export function createColumnSplitTransaction(state: EditorState): Transaction | 
 	}
 
 	const columnNode = resolvedFrom.node(columnDepth);
-	const pageDepth = columnDepth - 1;
 	const currentLine = resolvedFrom.node(lineDepth);
 	const columnPos = resolvedFrom.before(columnDepth);
-	const pagePos = resolvedFrom.before(pageDepth);
-	const currentColumnIndex = resolvedFrom.index(pageDepth);
 	const currentLineIndex = resolvedFrom.index(lineDepth - 1);
 	const beforeOffset = selection.from - lineStart;
 	const afterOffset = selection.to - lineStart;
@@ -593,24 +547,15 @@ export function createColumnSplitTransaction(state: EditorState): Transaction | 
 	const secondLine = currentLine.type.create(
 		{
 			...currentLine.attrs,
-			lineId: null,
+			lineId: createStableEditorNodeId('line'),
 			'paragraph-start': false,
 		},
 		currentLine.content.cut(afterOffset, currentLine.content.size)
 	);
 
 	const firstColumnLines = [...linesBefore, firstLine];
-	const secondColumnLines = [secondLine, ...linesAfter].map((line, index) =>
-		line.type.create(
-			{
-				...line.attrs,
-				lineNumber: index + 1,
-			},
-			line.content
-		)
-	);
+	const secondColumnLines = [secondLine, ...linesAfter];
 
-	const nextColumnNumber = currentColumnIndex + 2;
 	const secondColumnTeiAttrs = { ...(columnNode.attrs.teiAttrs || {}) };
 	delete secondColumnTeiAttrs['xml:id'];
 
@@ -618,34 +563,24 @@ export function createColumnSplitTransaction(state: EditorState): Transaction | 
 		{ ...columnNode.attrs },
 		firstColumnLines.length > 0
 			? firstColumnLines
-			: [state.schema.nodes.line.create({ lineNumber: 1 })]
+			: [state.schema.nodes.line.create({ lineId: createStableEditorNodeId('line') })]
 	);
 	const newSecondColumn = state.schema.nodes.column.create(
 		{
 			...columnNode.attrs,
-			columnNumber: nextColumnNumber,
-			columnId: null,
+			columnId: createStableEditorNodeId('col'),
 			zone: null,
 			teiAttrs: secondColumnTeiAttrs,
 		},
 		secondColumnLines.length > 0
 			? secondColumnLines
-			: [state.schema.nodes.line.create({ lineNumber: 1 })]
+			: [state.schema.nodes.line.create({ lineId: createStableEditorNodeId('line') })]
 	);
 
 	const tr = state.tr.replaceWith(columnPos, columnPos + columnNode.nodeSize, [
 		newFirstColumn,
 		newSecondColumn,
 	]);
-
-	const pageNode = tr.doc.nodeAt(pagePos);
-	pageNode?.forEach((child, offset, index) => {
-		if (child.type.name !== 'column' || child.attrs.columnNumber === index + 1) return;
-		tr.setNodeMarkup(pagePos + 1 + offset, undefined, {
-			...child.attrs,
-			columnNumber: index + 1,
-		});
-	});
 
 	const secondLinePos = columnPos + newFirstColumn.nodeSize + 1;
 	tr.setSelection(TextSelection.near(tr.doc.resolve(secondLinePos + 1)));

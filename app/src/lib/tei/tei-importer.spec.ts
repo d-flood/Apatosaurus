@@ -77,11 +77,11 @@ describe('TEI importer wrapper', () => {
 		});
 		expect(result.content![0].content![0]).toMatchObject({
 			type: 'column',
-			attrs: { columnNumber: 1 },
+			attrs: {},
 		});
 		expect(result.content![0].content![0].content![0]).toMatchObject({
 			type: 'line',
-			attrs: { lineNumber: 1 },
+			attrs: {},
 		});
 	});
 

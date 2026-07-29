@@ -98,21 +98,21 @@ describe('editor test fixtures', () => {
 				attrs: { pageId: 'page-x', pageName: '1r' },
 				columns: [
 					{
-						attrs: { columnId: 'col-1', columnNumber: 1 },
+						attrs: { columnId: 'col-1' },
 						lines: [
-							{ lineId: 'line-1', lineNumber: 1 },
-							{ lineId: 'line-2', lineNumber: 2 },
-							{ lineId: 'line-3', lineNumber: 3 },
-							{ lineId: 'line-4', lineNumber: 4 },
+							{ lineId: 'line-1' },
+							{ lineId: 'line-2' },
+							{ lineId: 'line-3' },
+							{ lineId: 'line-4' },
 						],
 					},
 					{
-						attrs: { columnId: 'col-2', columnNumber: 2 },
+						attrs: { columnId: 'col-2' },
 						lines: [
-							{ lineId: 'line-5', lineNumber: 1 },
-							{ lineId: 'line-6', lineNumber: 2 },
-							{ lineId: 'line-7', lineNumber: 3 },
-							{ lineId: 'line-8', lineNumber: 4 },
+							{ lineId: 'line-5' },
+							{ lineId: 'line-6' },
+							{ lineId: 'line-7' },
+							{ lineId: 'line-8' },
 						],
 					},
 				],

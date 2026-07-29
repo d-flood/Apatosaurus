@@ -27,6 +27,7 @@ import {
 	createEmptyLineInsertTransaction,
 	createLineSplitTransaction,
 	findLineStartPositionById,
+	prepareManuscriptDocumentEntry,
 	repairManuscriptStructureJson,
 } from './transcriptionEditorStructure';
 import { findFirstDescendantPosition } from './proseMirrorNodeLookup';
@@ -176,7 +177,7 @@ describe('structural transactions against a multi-line, multi-column, multi-page
 			}
 		});
 
-		it('numbers the new column within its page', () => {
+		it('derives the new column position without storing an ordinal', () => {
 			const editor = createTestEditor(multiPageFixture());
 			try {
 				// Split page 1's only column. Page 2 already has columns 1 and 2.
@@ -184,16 +185,12 @@ describe('structural transactions against a multi-line, multi-column, multi-page
 				const tr = createColumnSplitTransaction(editor.state);
 				expect(tr).not.toBeNull();
 
-				const raw: number[] = [];
-				tr!.doc
-					.child(0)
-					.forEach((columnNode: any) => raw.push(columnNode.attrs.columnNumber));
-				expect(raw).toEqual([1, 2]);
+				expect(tr!.doc.child(0).childCount).toBe(2);
 
 				editor.view.dispatch(tr!);
 
-				const settled = columnAttrs(editor.state.doc, 0).map(attrs => attrs.columnNumber);
-				expect(settled).toEqual([1, 2]);
+				expect(editor.state.doc.child(0).childCount).toBe(2);
+				expect(columnAttrs(editor.state.doc, 0).every(attrs => attrs.columnId)).toBe(true);
 			} finally {
 				editor.destroy();
 			}
@@ -216,6 +213,11 @@ describe('structural transactions against a multi-line, multi-column, multi-page
 				expect(attrs[3].zone).toBeNull();
 				expect(attrs[3].columnId).not.toBe(attrs[2].columnId);
 				expect(attrs[3].teiAttrs).toEqual({ rend: 'center' });
+				const splitLines = editor.state.doc.child(0).child(3);
+				const splitLineIds: string[] = [];
+				splitLines.forEach(line => splitLineIds.push(line.attrs.lineId));
+				expect(splitLineIds.every(Boolean)).toBe(true);
+				expect(new Set(splitLineIds).size).toBe(splitLineIds.length);
 			} finally {
 				editor.destroy();
 			}
@@ -242,7 +244,8 @@ describe('structural transactions against a multi-line, multi-column, multi-page
 
 	describe('findLineStartPositionById', () => {
 		it('F7: line ids are assigned when the document enters the editor', () => {
-			const editor = createTestEditor(editorDocument({ nodeIds: false }));
+			const prepared = prepareManuscriptDocumentEntry(editorDocument({ nodeIds: false }));
+			const editor = createTestEditor(prepared.doc);
 			try {
 				const ids: unknown[] = [];
 				editor.state.doc.descendants((node: any) => {
@@ -251,9 +254,7 @@ describe('structural transactions against a multi-line, multi-column, multi-page
 					return false;
 				});
 				expect(ids).toHaveLength(16);
-				expect(ids.every(id => typeof id === 'string' && id.length > 0)).toBe(
-					true
-				);
+				expect(ids.every(id => typeof id === 'string' && id.length > 0)).toBe(true);
 			} finally {
 				editor.destroy();
 			}
@@ -262,7 +263,6 @@ describe('structural transactions against a multi-line, multi-column, multi-page
 		it('resolves a line id in the middle of a multi-page document', () => {
 			const editor = createTestEditor(multiPageFixture());
 			try {
-				// Force the normalizer to assign ids.
 				editor.commands.setTextSelection(lineStart(editor.state.doc, 0, 0, 0));
 				editor.commands.insertContent('x');
 
@@ -306,9 +306,9 @@ describe('structural transactions against a multi-line, multi-column, multi-page
 							editorColumn({
 								columnId: 'col-dup',
 								lines: [
-									editorLine({ text: 'dup-a', lineId: 'shared', lineNumber: 1 }),
-									editorLine({ text: 'mid', lineId: 'unique', lineNumber: 2 }),
-									editorLine({ text: 'dup-b', lineId: 'shared', lineNumber: 3 }),
+									editorLine({ text: 'dup-a', lineId: 'shared' }),
+									editorLine({ text: 'mid', lineId: 'unique' }),
+									editorLine({ text: 'dup-b', lineId: 'shared' }),
 								],
 							}),
 						],

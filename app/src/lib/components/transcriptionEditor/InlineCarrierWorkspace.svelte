@@ -84,6 +84,7 @@
 	let bubbleMenu = $state<HTMLElement | null>(null);
 	let selectedNode = $state<SelectedCarrierNode | null>(null);
 	let lastSnapshot = $state('');
+	let lastInputSnapshot = $state('');
 	let drawerMode = $state<DrawerMode>('inspector');
 	let inspectorPanelOpen = $state(false);
 	let lastInspectorSelectionKey = $state('');
@@ -96,8 +97,8 @@
 	let abbreviationTarget = $state<TextMarkTarget | null>(null);
 	let currentPositionLabel = $state('Column 1, Line 1');
 	let toolbarCursorPosition = $state<{
-		columnNumber?: number;
-		lineNumber?: number;
+		column?: number;
+		line?: number;
 		book?: string;
 		chapter?: string;
 		verse?: string;
@@ -141,8 +142,8 @@
 		if (location) {
 			currentPositionLabel = `Column ${location.columnIndex + 1}, Line ${location.lineIndex + 1}`;
 			toolbarCursorPosition = {
-				columnNumber: location.columnIndex + 1,
-				lineNumber: location.lineIndex + 1,
+				column: location.columnIndex + 1,
+				line: location.lineIndex + 1,
 				...getCurrentMilestoneValues(editor),
 			};
 		} else {
@@ -171,7 +172,7 @@
 	function syncNormalizedEditorDoc() {
 		if (!editor) return false;
 		const currentDoc = cloneContent(editor.getJSON());
-		const normalizedDoc = renumberMarginaliaDoc(currentDoc);
+		const normalizedDoc = currentDoc;
 		const currentSnapshot = JSON.stringify(currentDoc);
 		const normalizedSnapshot = JSON.stringify(normalizedDoc);
 
@@ -193,29 +194,6 @@
 			nodes.push(node.toJSON());
 		});
 		return nodes;
-	}
-
-	function renumberMarginaliaDoc(doc: Record<string, any>): Record<string, any> {
-		const columns = Array.isArray(doc.content) ? doc.content : [];
-		return {
-			...doc,
-			content: columns.map((column: Record<string, any>, columnIndex: number) => ({
-				...column,
-				attrs: {
-					...(column.attrs || {}),
-					columnNumber: columnIndex + 1,
-				},
-				content: (Array.isArray(column.content) ? column.content : []).map(
-					(line: Record<string, any>, lineIndex: number) => ({
-						...line,
-						attrs: {
-							...(line.attrs || {}),
-							lineNumber: lineIndex + 1,
-						},
-					})
-				),
-			})),
-		};
 	}
 
 	function getCurrentLineLocation(): MarginaliaLocation | null {
@@ -277,7 +255,7 @@
 		const result = mutate(nextDoc, location);
 		if (!result) return;
 
-		const normalized = renumberMarginaliaDoc(result.doc);
+		const normalized = normalizeMarginaliaContent(result.doc);
 		lastSnapshot = JSON.stringify(serializeContent(normalized));
 		replaceEditorDocument(normalized, {
 			columnIndex: result.focusColumnIndex,
@@ -349,11 +327,11 @@
 			line.content = beforeContent;
 			columns.splice(location.columnIndex + 1, 0, {
 				type: 'marginaliaColumn',
-				attrs: { columnNumber: 0, breakAttrs: {} },
+				attrs: { breakAttrs: {} },
 				content: [
 					{
 						type: 'marginaliaLine',
-						attrs: { lineNumber: 0, breakAttrs: {}, wrapped: false },
+						attrs: { breakAttrs: {}, wrapped: false },
 						content: afterContent,
 					},
 					...trailingLines,
@@ -554,7 +532,8 @@
 		}
 
 		editor = getInlineCarrierEditor(editorElement, bubbleMenu);
-		const nextContent = renumberMarginaliaDoc(cloneContent(initialContent));
+		lastInputSnapshot = JSON.stringify(initialContent);
+		const nextContent = cloneContent(initialContent);
 		initializeEditorContent(editor, nextContent, { emitUpdate: false });
 		lastSnapshot = JSON.stringify(serializeContent(nextContent));
 		updateSelectedNode();
@@ -574,9 +553,11 @@
 	});
 
 	$effect(() => {
-		const snapshot = JSON.stringify(serializeContent(cloneContent(initialContent)));
-		if (!editor || snapshot === lastSnapshot) return;
-		const normalized = renumberMarginaliaDoc(cloneContent(initialContent));
+		const snapshot = JSON.stringify(initialContent);
+		if (!editor || snapshot === lastInputSnapshot) return;
+		lastInputSnapshot = snapshot;
+		const normalized = cloneContent(initialContent);
+		if (JSON.stringify(serializeContent(normalized)) === lastSnapshot) return;
 		lastSnapshot = JSON.stringify(serializeContent(normalized));
 		replaceEditorDocument(normalized, null, false);
 		updateSelectedNode();

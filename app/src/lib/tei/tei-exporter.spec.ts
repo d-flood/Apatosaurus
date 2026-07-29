@@ -44,11 +44,11 @@ describe('TEI exporter wrapper', () => {
 					content: [
 						{
 							type: 'column',
-							attrs: { columnNumber: 1 },
+							attrs: {},
 							content: [
 								{
 									type: 'line',
-									attrs: { lineNumber: 1 },
+									attrs: {},
 									content: [
 										{ type: 'text', text: 'hello' },
 										{ type: 'text', text: ' ' },
@@ -79,11 +79,11 @@ describe('TEI exporter wrapper', () => {
 					content: [
 						{
 							type: 'column',
-							attrs: { columnNumber: 1 },
+							attrs: {},
 							content: [
 								{
 									type: 'line',
-									attrs: { lineNumber: 1 },
+									attrs: {},
 									content: [
 										{
 											type: 'text',
@@ -386,11 +386,11 @@ describe('TEI exporter wrapper', () => {
 					content: [
 						{
 							type: 'column',
-							attrs: { columnNumber: 1 },
+							attrs: {},
 							content: [
 								{
 									type: 'line',
-									attrs: { lineNumber: 1 },
+									attrs: {},
 									content: [
 										{
 											type: 'text',
@@ -451,11 +451,11 @@ describe('TEI exporter wrapper', () => {
 					content: [
 						{
 							type: 'column',
-							attrs: { columnNumber: 1 },
+							attrs: {},
 							content: [
 								{
 									type: 'line',
-									attrs: { lineNumber: 1 },
+									attrs: {},
 									content: [
 										{
 											type: 'text',
@@ -553,11 +553,11 @@ describe('TEI exporter wrapper', () => {
 					content: [
 						{
 							type: 'column',
-							attrs: { columnNumber: 1 },
+							attrs: {},
 							content: [
 								{
 									type: 'line',
-									attrs: { lineNumber: 1 },
+									attrs: {},
 									content: [
 										{
 											type: 'text',
@@ -609,11 +609,11 @@ describe('TEI exporter wrapper', () => {
 					content: [
 						{
 							type: 'column',
-							attrs: { columnNumber: 1 },
+							attrs: {},
 							content: [
 								{
 									type: 'line',
-									attrs: { lineNumber: 1 },
+									attrs: {},
 									content: [
 										{
 											type: 'teiWrapper',
@@ -661,11 +661,11 @@ describe('TEI exporter wrapper', () => {
 					content: [
 						{
 							type: 'column',
-							attrs: { columnNumber: 1 },
+							attrs: {},
 							content: [
 								{
 									type: 'line',
-									attrs: { lineNumber: 1 },
+									attrs: {},
 									content: [
 										{
 											type: 'text',
@@ -788,11 +788,11 @@ describe('TEI exporter wrapper', () => {
 					content: [
 						{
 							type: 'column',
-							attrs: { columnNumber: 1 },
+							attrs: {},
 							content: [
 								{
 									type: 'line',
-									attrs: { lineNumber: 1 },
+									attrs: {},
 									content: [
 										{
 											type: 'teiAtom',
@@ -871,11 +871,11 @@ describe('TEI exporter wrapper', () => {
 					content: [
 						{
 							type: 'column',
-							attrs: { columnNumber: 1 },
+							attrs: {},
 							content: [
 								{
 									type: 'line',
-									attrs: { lineNumber: 1 },
+									attrs: {},
 									content: [
 										{ type: 'text', text: 'a' },
 										{
@@ -928,11 +928,11 @@ describe('TEI exporter wrapper', () => {
 					content: [
 						{
 							type: 'column',
-							attrs: { columnNumber: 1 },
+							attrs: {},
 							content: [
 								{
 									type: 'line',
-									attrs: { lineNumber: 1 },
+									attrs: {},
 									content: [
 										{
 											type: 'metamark',
