@@ -1,0 +1,167 @@
+/**
+ * TEI round-trip fidelity, for ticket 01 of the `refactor-transcription-editor`
+ * epic (inventory question 4, and question 1's "does export read lineNumber?").
+ *
+ * The export path the app actually uses is
+ * `exportTEIDocument(fromProseMirror(editor.getJSON()))`, i.e.
+ * ProseMirror JSON -> TranscriptionDocument -> toProseMirror -> XML. Everything
+ * below drives that path. Assertions tagged DEFECT record losses the inventory
+ * marks as wrong. See `.tracker/refactor-transcription-editor/INVENTORY.md`.
+ */
+import { describe, expect, it } from 'vitest';
+
+import { fromProseMirror, parseTei, serializeTei, toProseMirror } from './tei-transcription';
+
+const SAMPLE_TEI = `<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0">
+  <teiHeader></teiHeader>
+  <text><body>
+    <pb n="1r" xml:id="p1"/>
+    <cb n="C1"/>
+    <lb rend="hang"/><w>alpha</w><w>beta</w>
+    <lb/><w>gamma</w>
+    <cb n="C2"/>
+    <lb/><w>delta</w>
+    <pb n="1v"/>
+    <cb n="C1"/>
+    <lb/><w>epsilon</w>
+  </body></text>
+</TEI>`;
+
+/** The full app export path, minus metadata. */
+function exportFromProseMirror(pm: any): string {
+	return serializeTei(fromProseMirror(pm));
+}
+
+/** `toProseMirror` typed loosely, so a fixture can be poked at any depth. */
+function editorJson(tei: string): any {
+	return toProseMirror(parseTei(tei)) as any;
+}
+
+function columnNode(pm: any, pageIndex: number, columnIndex: number): any {
+	return pm.content[pageIndex].content[columnIndex];
+}
+
+function lineNode(pm: any, pageIndex: number, columnIndex: number, lineIndex: number): any {
+	return columnNode(pm, pageIndex, columnIndex).content[lineIndex];
+}
+
+describe('TEI round trip through the ProseMirror adapter', () => {
+	it('preserves page, column and line structure and word text', () => {
+		const roundTripped = parseTei(exportFromProseMirror(editorJson(SAMPLE_TEI)));
+
+		expect(roundTripped.pages).toHaveLength(2);
+		expect(roundTripped.pages[0].columns).toHaveLength(2);
+		expect(roundTripped.pages[0].columns[0].lines).toHaveLength(2);
+		expect(roundTripped.pages[1].columns[0].lines).toHaveLength(1);
+
+		const text = (page: number, column: number, line: number) =>
+			roundTripped.pages[page].columns[column].lines[line].items
+				.map((item: any) => (item.type === 'text' ? item.text : ''))
+				.join('');
+		expect(text(0, 0, 0)).toBe('alphabeta');
+		expect(text(0, 0, 1)).toBe('gamma');
+		expect(text(0, 1, 0)).toBe('delta');
+		expect(text(1, 0, 0)).toBe('epsilon');
+	});
+
+	it('is stable across a second round trip', () => {
+		const once = exportFromProseMirror(editorJson(SAMPLE_TEI));
+		const twice = exportFromProseMirror(editorJson(once));
+		expect(twice).toBe(once);
+	});
+
+	describe('question 1 — line and column numbers', () => {
+		it('never writes lineNumber to TEI; @n is absent from every <lb>', () => {
+			const xml = exportFromProseMirror(editorJson(SAMPLE_TEI));
+			const lineBreaks = xml.match(/<lb[^>]*\/>/g) ?? [];
+			expect(lineBreaks.length).toBeGreaterThan(0);
+			expect(lineBreaks.every(tag => !/\sn=/.test(tag))).toBe(true);
+		});
+
+		it('recomputes lineNumber positionally on import, ignoring any @n on <lb>', () => {
+			const document_ = parseTei(`<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0"><teiHeader></teiHeader><text><body>
+  <pb n="1r"/><cb n="C1"/>
+  <lb n="97"/><w>one</w>
+  <lb n="98"/><w>two</w>
+</body></text></TEI>`);
+			expect(document_.pages[0].columns[0].lines.map(line => line.number)).toEqual([1, 2]);
+			// The scribe's own numbering survives only as an opaque TEI attribute.
+			expect(document_.pages[0].columns[0].lines[0].teiAttrs?.n).toBe('97');
+		});
+
+		it('writes columnNumber to @n on <cb>, but re-derives it positionally on import', () => {
+			const pm = editorJson(SAMPLE_TEI);
+			// Renumber page 1's columns to values that do not match their positions.
+			columnNode(pm, 0, 0).attrs.columnNumber = 40;
+			columnNode(pm, 0, 1).attrs.columnNumber = 41;
+			delete columnNode(pm, 0, 0).attrs.teiAttrs;
+			delete columnNode(pm, 0, 1).attrs.teiAttrs;
+
+			const xml = exportFromProseMirror(pm);
+			expect(xml).toContain('<cb n="40"');
+			expect(xml).toContain('<cb n="41"');
+
+			// The parser only trusts @n when it looks like "C<digits>", so a plain
+			// number is discarded and the column is numbered by position instead.
+			const reparsed = parseTei(xml);
+			expect(reparsed.pages[0].columns.map(column => column.number)).toEqual([1, 2]);
+		});
+	});
+
+	describe('question 4 — attributes parsed but never rendered', () => {
+		it('DEFECT F12: an editor-set paragraph start never reaches the TEI', () => {
+			const pm = editorJson(SAMPLE_TEI);
+			// This is exactly what `toggleParagraphStart` writes.
+			lineNode(pm, 0, 0, 1).attrs['paragraph-start'] = true;
+
+			const xml = exportFromProseMirror(pm);
+			const lineBreaks = xml.match(/<lb[^>]*\/>/g) ?? [];
+			// The first line keeps rend="hang" only because the original parse put it
+			// in teiAttrs. The second line, flagged in the editor, gets nothing: the
+			// serializer reads `attrs.paragraphStart` while the schema and the
+			// adapter both write `attrs['paragraph-start']`.
+			expect(lineBreaks[0]).toContain('rend="hang"');
+			expect(lineBreaks[1]).not.toContain('rend');
+
+			expect(parseTei(xml).pages[0].columns[0].lines[1].paragraphStart).toBeUndefined();
+		});
+
+		it('DEFECT F13: page-level and column-level `wrapped` cannot survive the editor schema', () => {
+			// A word continuing across a page or column boundary is `break="no"`.
+			const wrappedTei = `<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0"><teiHeader></teiHeader><text><body>
+  <pb n="1r"/><cb n="C1"/><lb/><w>alpha<cb n="C2" break="no"/>beta</w>
+</body></text></TEI>`;
+			const document_ = parseTei(wrappedTei);
+			expect(document_.pages[0].columns[1].wrapped).toBe(true);
+
+			// `toProseMirror` emits it...
+			const pm = toProseMirror(document_) as any;
+			expect(columnNode(pm, 0, 1).attrs.wrapped).toBe(true);
+
+			// ...but `column` and `page` declare no `wrapped` attribute in
+			// `transcriptionEditorSchema.ts`, so ProseMirror drops it the moment the
+			// JSON is loaded into the editor. Simulate that by removing the attribute
+			// the schema does not know about.
+			delete columnNode(pm, 0, 1).attrs.wrapped;
+			expect(parseTei(exportFromProseMirror(pm)).pages[0].columns[1].wrapped).toBeUndefined();
+
+			// The line-level flag, which the schema does declare, survives.
+			expect(document_.pages[0].columns[1].lines[0].wrapped).toBe(true);
+		});
+
+		it('preserves unknown TEI attributes on pb/cb/lb through teiAttrs', () => {
+			const xml = exportFromProseMirror(
+				editorJson(`<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0"><teiHeader></teiHeader><text><body>
+  <pb n="1r" facs="#zone1"/><cb n="C1" style="ruled"/><lb corresp="#x"/><w>alpha</w>
+</body></text></TEI>`)
+			);
+			expect(xml).toContain('facs="#zone1"');
+			expect(xml).toContain('style="ruled"');
+			expect(xml).toContain('corresp="#x"');
+		});
+	});
+});

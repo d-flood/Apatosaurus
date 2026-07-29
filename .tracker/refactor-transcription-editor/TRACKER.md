@@ -6,13 +6,15 @@ This document tracks the status of all tickets in the refactor-transcription-edi
 
 Read `SPEC.md` first. It carries the investigation findings and measurements so they are not re-derived, and its § "Provisional Work Breakdown" holds the analysis for work not yet ticketed.
 
-Then read `INVENTORY.md`. It is ticket `01`'s deliverable: 34 identified findings (`F1`–`F34`), the answers to the five questions tickets `03`–`05` were blocked on, and a coverage statement saying what was and was not read. Remaining tickets are to be written from it. It also corrects four claims in `SPEC.md`; those corrections are listed at its end.
+Then read `INVENTORY.md`. It is ticket `01`'s deliverable, extended by a second audit pass: 46 identified findings (`F1`–`F46`), four TEI-layer findings referred out of the epic (`R1`–`R4`), the answers to the five questions tickets `03`–`05` were blocked on, and a coverage statement saying what was and was not read. Remaining tickets are to be written from it.
+
+Two things to know before writing a ticket from it. `F35`–`F46` have **no committed specs** — unlike `F1`–`F34`, whose evidence is pinned by tagged assertions — so each needs its spec written before it is fixed. And findings labelled **read** rather than **executed** have not been reproduced at all; this project has a track record of carefully-read code turning out to destroy documents once run.
 
 ## Current Status
 
 Overall status: `In Progress`
 
-Current ticket: none — `06` completed; downstream structural work is unblocked
+Current ticket: none — `06` completed; tickets `07`–`30` written and the frontier is wide (19 of them have no blockers)
 
 Last updated: 2026-07-28
 
@@ -28,12 +30,14 @@ Last updated: 2026-07-28
 Ordered so that each stage is verified by the one before it, and the widest blast radius comes last.
 
 1. **`06` — non-degenerate fixtures.** No production code. Everything downstream is verified against it. Expect it to surface findings; append them to `INVENTORY.md`.
+1b. **The four raise-immediately defects** (F6, F14, F35, F36). Each destroys a scholar's work through an ordinary single action, and each is independent of the epic's architecture work. F14 is one flag. F35 and F36 arrived in the second audit pass and need their specs committed first. Do not let these wait on the sequencing below — the ordering principle here is confidence, and these are not refactors.
 2. **Dead code** (F28, F29, F30, F31, F34). Cannot change behaviour by definition — the code is unreachable or uncalled. Landing it early shrinks the surface before anything hard, and a green suite afterwards is a cheap check that `06`'s net is wired up. Two caveats: F31 and F9 are "nothing depends on this", *not* "we know why it was added" — establish what each compensated for first, or keep them and record that they are unexplained.
 3. **Localized correctness fixes**, each independent and each already carrying a tagged assertion to flip: F5 + F10 (one bug, two sites — a `descendants` callback returning `false` stops the descent, not the walk), F12, F19, F20 (identifier and purity bugs, one line each), F3, F2, F18, F14, F6. Small diffs, no architectural change.
 4. **Reproduce D2** before any performance work — see `INVENTORY.md` § "What this inventory does not establish", point 1. An input-rate test that outruns the repair, asserting the caret. If the caret does not jump, the theory is wrong and stage 5 changes.
 5. **The performance path**: repair off the keystroke path (ticket `04`), then F23, F24, F26, F27. Hot paths change; the document model does not.
 6. **Structural work**: line and column numbers become presentation (ticket `03` region, unblocked by `01`'s Q1), editorial chrome leaves `renderHTML`, then the layout model (ticket `05`, where F15/F16 land). Widest blast radius, deepest net underneath by this point.
-7. **Decision point, not a ticket**: whether to move rich content out of node attributes (`SPEC.md` § D). `SPEC.md` already says to "re-evaluate whether it is worth doing at all… decide deliberately rather than by momentum". Give it a date and a written answer, either way.
+7. **Rich content leaves node attributes** — now ticket `22`, no longer an open decision. `SPEC.md` § D said to "re-evaluate whether it is worth doing at all"; that re-evaluation happened on 2026-07-28 and the answer was yes. What changed it: three confirmed content-destroying inspector write paths (F40, F41, F42), which are not a rendering-cost argument but a data-loss one. The cheap alternative — make each inspector merge rather than replace — was explicitly rejected for `fw`, because it fixes the symptom at every surface separately and leaves the cause. Ticket `21` still applies it to the two surfaces ticket `22` does not cover.
+8. **TEI fidelity** (`24`–`27`). Independent of the editor architecture and of each other. `24` should be reproduced before it is scheduled — if it confirms, it is a one-keystroke data loss and belongs in stage 1b.
 
 Success is not "every ticket cleared". Some findings should end in a documented *no*.
 
@@ -47,6 +51,34 @@ Success is not "every ticket cleared". Some findings should end in a documented 
 | 04 | `04-structure-repair-leaves-the-keystroke-path.md` | Not Started | 01 |
 | 05 | `05-page-and-column-layout-model.md` | Not Started | 01, 06 |
 | 06 | `06-non-degenerate-test-fixtures.md` | Completed | 01 |
+| 07 | `07-opening-a-transcription-cannot-destroy-it.md` | Not Started | None |
+| 08 | `08-empty-lines-survive-the-save-path.md` | Not Started | None |
+| 09 | `09-punctuation-stops-deleting-the-word-beside-it.md` | Not Started | None |
+| 10 | `10-delete-the-uncalled-editor-code.md` | Not Started | None |
+| 11 | `11-explain-or-remove-the-unexplained-workarounds.md` | Not Started | None |
+| 12 | `12-column-split-preserves-attributes-and-caret.md` | Not Started | None |
+| 13 | `13-node-lookups-stop-at-the-first-match.md` | Not Started | 02 |
+| 14 | `14-renderhtml-becomes-pure-and-inline-valid.md` | Not Started | None |
+| 15 | `15-two-identifier-mismatches.md` | Not Started | None |
+| 16 | `16-page-and-column-keep-wrapped.md` | Not Started | None |
+| 17 | `17-commands-address-nodes-by-identity.md` | Not Started | None |
+| 18 | `18-milestone-context-respects-book-boundaries.md` | Not Started | None |
+| 19 | `19-page-chrome-derives-from-its-fw-children.md` | Not Started | None |
+| 20 | `20-verse-index-sync-is-cancellable.md` | Not Started | 04 |
+| 21 | `21-inspector-apply-merges-instead-of-replacing.md` | Not Started | None |
+| 22 | `22-formwork-content-lives-in-the-document.md` | Not Started | 04 |
+| 23 | `23-drafts-and-drawers-target-what-they-opened.md` | Not Started | None |
+| 24 | `24-corrections-on-partial-and-multi-word-selections.md` | Not Started | None |
+| 25 | `25-seg-survives-the-round-trip.md` | Not Started | None |
+| 26 | `26-element-only-original-readings-are-preserved.md` | Not Started | None |
+| 27 | `27-carriers-keep-arbitrary-tei-attributes.md` | Not Started | None |
+| 28 | `28-line-and-column-numbers-become-presentation.md` | Not Started | 04, 12 |
+| 29 | `29-editorial-chrome-leaves-renderhtml.md` | Not Started | 03, 28 |
+| 30 | `30-nodeviews-where-rendering-must-be-incremental.md` | Not Started | 14, 22 |
+
+Twenty-four tickets (`07`–`30`) were written from `INVENTORY.md` on 2026-07-28. Nineteen have no blockers, so the frontier is wide — pick by value, not by number. `07`, `08`, `09` and `24` are the data-loss ones.
+
+Three findings were deliberately **not** ticketed, and the reasons are in `INVENTORY.md`: **F17** (one control, two metamark representations) is a feature gap and `SPEC.md` scopes new features out; **F32** (six inspectors comparing JSON snapshots) is downstream of the ticket `22` decision and should be re-evaluated after it; **F7** (ids absent until first edit) is already owned by ticket `04`'s document-entry boundary.
 
 ## Verification Baseline
 
@@ -66,13 +98,14 @@ pnpm vitest run --project client src/lib/client/transcriptionEditorStructure.sve
 
 ## Notes
 
+- **2026-07-28** — Second audit pass folded into `SPEC.md` and `INVENTORY.md`; the pass's own `AUDIT.md` was deleted once its items were incorporated or referred. Net effect: two new confirmed defects in `SPEC.md` (**D5** typing punctuation next to a word deletes that word from the exported TEI; **D6** autosave permanently removes intentional empty lines), twelve new findings (`F35`–`F46`), a definition for `F4`, corrections to `F3`, `F5` and `Q4`, and four TEI-layer findings referred out as `R1`–`R4`. `SPEC.md` § Scope was rewritten: the conversion package is in scope where *editor behaviour* reaches the defect, which is why D5 and D6 are this epic's and R1–R4 are not. `SPEC.md` § D now carries a fifth cost of rich-content-in-attributes — three confirmed content-destroying inspector write paths — which raises the stakes on the stage-7 decision below.
 - **2026-07-28** — Ticket `06` complete. Shared deterministic builders, model/DOM/attribute snapshots, and direct/mounted editor harnesses now live under `app/src/lib/client/testing/`; editor characterization specs use the layer and retain all 26 `DEFECT F<n>` tags. No new defect surfaced. Baseline increased from 97 files / 630 tests to 98 files / 637 tests.
 - **2026-07-28** — Ticket `06` deleted `selection-stability.svelte.spec.ts`: its `simulatePageTracking` and `simulateIiifPageChange` helpers copied editor behavior into the test, while the correction-workspace scenario asserted a test-local boolean. It therefore tested its own simulation rather than a production path; the real initialization, editing, carrier insertion, mounted editor, and mounted correction/carrier paths remain covered by their focused specs.
 - **2026-07-28** — Epic opened from a diagnosis session covering three reported bugs: click-to-position, cursor jump while typing, and framed-page horizontal scroll. A fourth defect was found during that session — `createLineSplitTransaction` duplicates every other line in a multi-line column on every Enter (ticket 02). It was found by **measurement, not reading**: the same code had already been read past without the defect being noticed.
 - **2026-07-28** — The measurement harness is the `client` vitest project (Playwright/Chromium). A spec under `app/src/**/*.svelte.spec.ts` can mount a real editor and measure real layout, hit-testing and timing. Every number in `SPEC.md` came from it. Prefer executing over reasoning for anything touching transactions, geometry, or cost.
 - **2026-07-28** — The audit behind `SPEC.md` covered roughly 2,500–3,000 of ~15,000 lines. § "What Was Not Investigated" lists the rest. Do not treat the anti-pattern inventory as closed; that is what ticket 01 is for.
 - **2026-07-28** — Supersedes `.tracker/files-as-database/tickets/20-editor-selection-side-effects-and-harness.md`, whose stated cause (a debounce feedback loop in `editorInteractions.ts`) is not supported by measurement. Do not spend time there.
-- **2026-07-28** — Ticket `01` complete. `INVENTORY.md` carries 34 findings (`F1`–`F34`) with location, evidence type, verdict and kind, plus a coverage statement. Summary follows.
+- **2026-07-28** — Ticket `01` complete. `INVENTORY.md` carried 34 findings (`F1`–`F34`) with location, evidence type, verdict and kind, plus a coverage statement. Summary follows. **Superseded in part by the second audit pass noted above** — it now carries 46. Where this summary and `INVENTORY.md` disagree, `INVENTORY.md` is current.
 
 ### Ticket 01 findings summary
 
@@ -86,7 +119,7 @@ pnpm vitest run --project client src/lib/client/transcriptionEditorStructure.sve
 1. *Do `lineNumber`/`columnNumber` reach TEI?* No, in the sense that matters. `lineNumber` is never written to TEI at all and is recomputed positionally on import. `columnNumber` is written to `@n` but the parser discards any `@n` that is not `C<digits>` — which is exactly what the serializer emits — and renumbers by position. **Both attributes can be removed**, sequenced after F2.
 2. *Do the `handleDOMEvents` suppressions serve `IiifWorkspace` or the inspector?* No. `IiifWorkspace` holds no editor/view/ProseMirror reference at all — props and callbacks only — which also closes the "IIIF write path into the editor" blind spot: there is none. No component in the directory registers any of the six events. **Delete all six.**
 3. *Is `forcePageRender` dead?* Fully. `contentVisibility` appears only inside `forcePageRender` itself, which saves `''`, writes `visible`, restores `''`. **Delete.**
-4. *Does the TEI round trip lose data?* Structure, text and unknown TEI attributes survive, and export is idempotent. Three losses: **F12** editor-set paragraph start never exported (the serializer reads `paragraphStart`, everything else writes `'paragraph-start'`); **F13** page- and column-level `wrapped` dropped because the schema declares it only on `line`; **F19** `lacunose`/`unclear` lose `teiAttrs` on render, affecting clipboard and correction previews.
+4. *Does the TEI round trip lose data?* **This answer was corrected by the second pass — see `INVENTORY.md` Q4.** What holds: a TEI→TEI round trip preserves structure, text and unknown TEI attributes, and export is idempotent. What that cannot show, and what turned out to be false, is that *editing* preserves them. Losses in scope: **F12** editor-set paragraph start never exported; **F13** page- and column-level `wrapped` dropped because the schema declares it only on `line`; **F19** `lacunose`/`unclear` lose `teiAttrs` on render; **F35** typing punctuation deletes the adjacent word on export; **F36** autosave deletes empty lines; **F40**–**F42** three inspector Apply paths that destroy content or attributes. Out of scope: **R1**–**R4**.
 5. *Undo/redo under appended transactions?* Sound. Appended repair/renumber transactions fold into the same history event; a typed character, a column split and an Enter each undo in one step. This narrows `SPEC.md` § D2 — repair's full-document replace moves the cursor but does **not** poison history. The load does (F14).
 
 **Other correctness defects:** F2 (column split numbers the new column from the document-wide max, so every split provokes a whole-document repair replace), F3 (the split drops `zone`/`teiAttrs`, breaking framed pages), F5 and F10 (two `descendants` callbacks that `return false` after a match — which stops the descent, not the walk — so both return the *last* hit; F10 puts page labels and running titles into the page's bottom line), F7 (line/column ids do not exist until the first edit), F11 (Enter's uncancellable microtask selection write), F18 (`updateNodeAttrs` throws rather than fails on a stale position), F20–F22 (`renderHTML` mints ids on every render, emits a block `<div>` inside `<p>`, and computes a stale `hasFrameZones`).
