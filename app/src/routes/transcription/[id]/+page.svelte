@@ -89,10 +89,6 @@
 	let scrollToPageRequest = $state<{ pageId: string; token: number } | null>(null);
 	let toolbarHost = $state<HTMLElement | null>(null);
 	let statusBarHost = $state<HTMLElement | null>(null);
-	let scrollContainer = $state<HTMLElement | null>(null);
-	let topScrollbar = $state<HTMLElement | null>(null);
-	let topScrollInner = $state<HTMLElement | null>(null);
-	let syncingScroll = false;
 	let iiifPopupWindow: Window | null = null;
 	let iiifPopupSessionId = $state<string | null>(null);
 	let lastPostedIiifStateKey = $state('');
@@ -157,34 +153,6 @@
 			candidate.message !== null
 		);
 	}
-
-	function syncTopToContent() {
-		if (syncingScroll || !scrollContainer || !topScrollbar) return;
-		syncingScroll = true;
-		topScrollbar.scrollLeft = scrollContainer.scrollLeft;
-		syncingScroll = false;
-	}
-
-	function syncContentToTop() {
-		if (syncingScroll || !scrollContainer || !topScrollbar) return;
-		syncingScroll = true;
-		scrollContainer.scrollLeft = topScrollbar.scrollLeft;
-		syncingScroll = false;
-	}
-
-	$effect(() => {
-		if (!scrollContainer || !topScrollInner) return;
-		const observer = new ResizeObserver(() => {
-			if (topScrollInner && scrollContainer) {
-				topScrollInner.style.width = `${scrollContainer.scrollWidth}px`;
-			}
-		});
-		observer.observe(scrollContainer);
-		for (const child of scrollContainer.children) {
-			observer.observe(child);
-		}
-		return () => observer.disconnect();
-	});
 
 	const iiifLayoutStorageKey = `transcription:${transcriptionId}:iiif-layout`;
 
@@ -690,21 +658,7 @@
 							</button>
 						</form>
 					</div>
-					<div
-						bind:this={topScrollbar}
-					class="sticky top-12 z-10 overflow-x-auto"
-					style="overflow-y: clip;"
-					onscroll={syncContentToTop}
-				>
-					<div bind:this={topScrollInner} class="h-px"></div>
-				</div>
-				<div
-					bind:this={scrollContainer}
-					class="overflow-x-auto"
-					style="overflow-y: clip;"
-					onscroll={syncTopToContent}
-					data-transcription-scroll-container
-				>
+				<div data-transcription-scroll-container>
 					<TranscriptionEditor
 						bind:this={transcriptionEditorRef}
 						{transcription}

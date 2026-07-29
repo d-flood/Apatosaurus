@@ -1356,7 +1356,7 @@
 
 </script>
 
-	<div class="relative flex min-w-max flex-col items-center">
+	<div class="relative flex flex-col items-center">
 		{#if editorState.editor}
 			<div use:portal={toolbarTarget} class="w-full">
 				<EditorToolbar
@@ -1508,17 +1508,19 @@
 
 	:global(.page) {
 		overflow: visible;
-		min-width: fit-content;
+		width: 100%;
+		min-width: 0;
+		container-type: inline-size;
 	}
 
 	:global(.column) {
 		overflow: visible;
 		position: relative;
-		min-width: 20rem;
+		min-width: 0;
 	}
 
 	:global(.line) {
-		overflow: visible;
+		overflow-x: auto;
 		position: relative;
 	}
 
@@ -1675,42 +1677,40 @@
 	}
 
 	:global(.frame-grid:has(> .column[data-zone])) {
-		flex-wrap: wrap;
+		display: grid;
+		grid-template-areas:
+			'top top top'
+			'left center right'
+			'bottom bottom bottom';
+		grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) minmax(0, 1fr);
 		align-items: flex-start;
 		gap: 0.5rem;
 	}
 
-	:global(.frame-grid:has(> .column[data-zone]) > .column[data-zone="top"]),
-	:global(.frame-grid:has(> .column[data-zone]) > .column[data-zone="bottom"]) {
-		flex: 0 0 100%;
-	}
-
 	:global(.frame-grid:has(> .column[data-zone]) > .column[data-zone="top"]) {
-		order: 1;
+		grid-area: top;
 	}
 
 	:global(.frame-grid:has(> .column[data-zone]) > .column[data-zone="left"]) {
-		order: 2;
+		grid-area: left;
 	}
 
 	:global(.frame-grid:has(> .column[data-zone]) > .column[data-zone="center"]) {
-		order: 3;
+		grid-area: center;
 	}
 
 	:global(.frame-grid:has(> .column[data-zone]) > .column[data-zone="right"]) {
-		order: 4;
+		grid-area: right;
 	}
 
 	:global(.frame-grid:has(> .column[data-zone]) > .column[data-zone="bottom"]) {
-		order: 5;
+		grid-area: bottom;
 	}
 
-	:global(.frame-grid:has(> .column[data-zone]) > .column[data-zone="left"]),
-	:global(.frame-grid:has(> .column[data-zone]) > .column[data-zone="right"]) {
-		flex: 1 1 16rem;
-	}
-
-	:global(.frame-grid:has(> .column[data-zone]) > .column[data-zone="center"]) {
-		flex: 2 1 24rem;
+	@container (max-width: 44rem) {
+		:global(.frame-grid:has(> .column[data-zone])) {
+			grid-template-areas: 'top' 'left' 'center' 'right' 'bottom';
+			grid-template-columns: minmax(0, 1fr);
+		}
 	}
 </style>
