@@ -15,7 +15,7 @@
 	import { initializeEditorContent } from '$lib/client/editorContentInitialization';
 	import {
 		createColumnSplitTransaction,
-		repairManuscriptStructureJson,
+		prepareManuscriptDocumentEntry,
 	} from '$lib/client/transcriptionEditorStructure';
 	import { exportTEIDocument } from '$lib/tei/tei-exporter';
 	import { Editor } from '@tiptap/core';
@@ -225,15 +225,7 @@
 	const pageNameDuplicate = $derived(pageNameExists(pageName));
 	// Helper function to check if document has pages
 	function checkForPages(editor: Editor | null): boolean {
-		if (!editor) return false;
-		let found = false;
-		editor.state.doc.descendants(node => {
-			if (node.type.name === 'page') {
-				found = true;
-				return false;
-			}
-		});
-		return found;
+		return (editor?.state.doc.childCount ?? 0) > 0;
 	}
 
 	// Helper function to rebuild page list
@@ -604,10 +596,7 @@
 				coerceTranscriptionDocument(transcription.content_json) ?? EMPTY_TRANSCRIPTION_DOC;
 			canonicalDocument = initialDocument;
 			const initialPm = toProseMirror(initialDocument) as any;
-			const repairResult = repairManuscriptStructureJson(initialPm, {
-				framedPageZoneOrder: 'visual',
-				ensureNodeIds: true,
-			});
+			const repairResult = prepareManuscriptDocumentEntry(initialPm);
 			if (repairResult.repaired && repairResult.issues.length > 0) {
 				console.warn('[Transcription] Repaired invalid manuscript content during editor init:', repairResult.issues);
 			}
@@ -616,30 +605,24 @@
 			// Set editor state once (not on every transaction)
 			editorState.editor = editor;
 			if (repairResult.repaired) {
-				const repairedJson = editor.getJSON();
 				onSaveStateChange?.(false);
-				debouncedSyncVerseIndex(repairedJson);
-				debouncedAutosave(repairedJson);
+				debouncedSyncVerseIndex();
+				debouncedAutosave();
 			}
 
 			// Performance optimization: Only track structural changes, not every edit
 			editor.on('update', ({ transaction }: { transaction: any }) => {
 				if (transaction.docChanged) {
 					onSaveStateChange?.(false);
-					// Mark pages as needing update (will recalculate when drawer opens)
+					const pageCountChanged = transaction.before.childCount !== transaction.doc.childCount;
 					pagesNeedUpdate = true;
-					const changedSelectedFormWork =
-						transaction.before.selection instanceof NodeSelection &&
-						transaction.before.selection.node.type.name === 'fw';
-					if (iiifWorkspaceOpen || onPagesChange || changedSelectedFormWork) {
+					if (pageCountChanged) {
 						rebuildPageList();
 						pagesNeedUpdate = false;
 					}
-					// Update hasPage flag to enable/disable buttons
-					hasPage = checkForPages(editor);
-					const editorJson = editor.getJSON();
-					debouncedSyncVerseIndex(editorJson);
-					debouncedAutosave(editorJson);
+					if (pageCountChanged) hasPage = checkForPages(editor);
+					debouncedSyncVerseIndex();
+					debouncedAutosave();
 				}
 				updateSelectionDerivedState(editor);
 			});
@@ -652,7 +635,7 @@
 			// Initialize hasPage and pages on mount
 			hasPage = checkForPages(editor);
 			rebuildPageList();
-			debouncedSyncVerseIndex(editor.getJSON());
+			debouncedSyncVerseIndex();
 			updateSelectionDerivedState(editor);
 
 			// Add listener for modal open event
@@ -917,36 +900,15 @@
 
 		const result: CursorPosition = {};
 		const { state } = editor;
-		const from = state.selection.from;
 		const resolvedFrom = state.selection.$from;
-
-		// Find nearest page node
-		let foundPageNode: any = null;
-		state.doc.nodesBetween(0, from, (node: any) => {
-			if (node.type.name === 'page') {
-				foundPageNode = node;
-			}
-		});
-		if (foundPageNode) {
-			result.pageName = foundPageNode.attrs.pageName || undefined;
-		}
-
-		// Find nearest column node
-		let foundColumnNode: any = null;
-		state.doc.nodesBetween(0, from, (node: any) => {
-			if (node.type.name === 'column') {
-				foundColumnNode = node;
-			}
-		});
-		if (foundColumnNode) {
-			result.columnNumber = foundColumnNode.attrs.columnNumber;
-		}
 
 		let lineDepth = -1;
 		for (let depth = resolvedFrom.depth; depth >= 0; depth--) {
-			if (resolvedFrom.node(depth).type.name === 'line') {
+			const node = resolvedFrom.node(depth);
+			if (node.type.name === 'page') result.pageName = node.attrs.pageName || undefined;
+			if (node.type.name === 'column') result.columnNumber = node.attrs.columnNumber;
+			if (lineDepth === -1 && node.type.name === 'line') {
 				lineDepth = depth;
-				break;
 			}
 		}
 		if (lineDepth !== -1) {
@@ -1005,15 +967,17 @@
 
 	function createDebouncedVerseIndexSync(delayMs: number = 1200) {
 		let timeoutId: ReturnType<typeof setTimeout> | null = null;
-		return (editorJson: unknown) => {
-			const document = coerceEditorJsonToDocument(editorJson);
-			if (!document) return;
+		return () => {
 			if (timeoutId !== null) {
 				clearTimeout(timeoutId);
 			}
 			timeoutId = setTimeout(() => {
 				timeoutId = null;
 				if (!transcription?.id) return;
+				const editorJson = editorState.editor?.getJSON();
+				if (!editorJson) return;
+				const document = coerceEditorJsonToDocument(editorJson);
+				if (!document) return;
 				syncVerseIndexFromDocument(transcription.id, document).catch((error: unknown) => {
 					console.error('[Verse Index] Failed to sync verse index:', error);
 				});
@@ -1023,7 +987,7 @@
 
 	function createDebouncedAutosave(delayMs: number = 1000) {
 		let timeoutId: ReturnType<typeof setTimeout> | null = null;
-		let pendingDocument: StoredTranscriptionDocument | null = null;
+		let pendingSave = false;
 		let saveInFlight: Promise<boolean> | null = null;
 
 		const persist = async (document: StoredTranscriptionDocument) => {
@@ -1061,29 +1025,36 @@
 			if (saveInFlight) {
 				saved = await saveInFlight;
 			}
-			while (pendingDocument) {
-				const nextDocument = pendingDocument;
-				pendingDocument = null;
+			while (pendingSave) {
+				pendingSave = false;
+				const editorJson = editorState.editor?.getJSON();
+				if (!editorJson) {
+					saved = false;
+					break;
+				}
+				const nextDocument = coerceEditorJsonToDocument(editorJson);
+				if (!nextDocument) {
+					saved = false;
+					break;
+				}
 				const nextDocumentSaved = await persistNextDocument(nextDocument);
 				saved = nextDocumentSaved;
 				if (!nextDocumentSaved) {
-					pendingDocument ??= nextDocument;
+					pendingSave = true;
 					break;
 				}
 				if (saveInFlight) {
 					saved = await saveInFlight;
 				}
 			}
-			if (saved && !pendingDocument && !saveInFlight) {
+			if (saved && !pendingSave && !saveInFlight) {
 				onSaveStateChange?.(true);
 			}
-			return saved && !pendingDocument && !saveInFlight;
+			return saved && !pendingSave && !saveInFlight;
 		};
 
-		const schedule = (editorJson: unknown) => {
-			const document = coerceEditorJsonToDocument(editorJson);
-			if (!document) return;
-			pendingDocument = document;
+		const schedule = () => {
+			pendingSave = true;
 			if (timeoutId !== null) {
 				clearTimeout(timeoutId);
 			}

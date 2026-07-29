@@ -4,11 +4,14 @@ import {
 	type ProseMirrorJSON,
 	type TranscriptionDocument,
 } from './tei-transcription';
+import { prepareManuscriptDocumentEntry } from '$lib/client/transcriptionEditorStructure';
 
 export function importTEI(xmlString: string): ProseMirrorJSON {
-	return toProseMirror(parseTei(xmlString));
+	return prepareManuscriptDocumentEntry(toProseMirror(parseTei(xmlString))).doc as ProseMirrorJSON;
 }
 
 export function importTEIDocument(xmlString: string): TranscriptionDocument {
-	return parseTei(xmlString);
+	const document = parseTei(xmlString);
+	prepareManuscriptDocumentEntry(toProseMirror(document));
+	return document;
 }

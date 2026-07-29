@@ -2,7 +2,9 @@ import { badgeIconSpec, type BadgeIconName } from '$lib/client/transcriptionEdit
 import {
 	createEmptyLineInsertTransaction,
 	createLineSplitTransaction,
-	repairManuscriptStructureJson,
+	getChangedRanges,
+	repairPastedManuscriptSlice,
+	type ChangedRange,
 } from '$lib/client/transcriptionEditorStructure';
 import { classifyFormWork } from '$lib/components/transcriptionEditor/formworkConcepts';
 import {
@@ -13,6 +15,7 @@ import { Editor, Extension, Mark, Node, generateHTML, markInputRule } from '@tip
 import { BubbleMenu } from '@tiptap/extension-bubble-menu';
 import { History } from '@tiptap/extension-history';
 import { Text } from '@tiptap/extension-text';
+import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
 import { NodeSelection, Plugin, PluginKey } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 
@@ -772,32 +775,26 @@ const PunctuationHighlighter = Extension.create({
 						// Comprehensive regex for Latin and Greek punctuation
 						const punctuationRegex = /[.,;:!?"'«»()\[\]{}\-–—/\\·⸄⸃´`†‡]/g;
 
-						// Iterate through all text nodes in the document
-						newState.doc.descendants((node, pos) => {
-							if (!node.isText || !node.text) {
-								return;
-							}
-
-							let match;
-							// Reset regex for each node
-							const regex = new RegExp(punctuationRegex.source, 'g');
-							while ((match = regex.exec(node.text)) !== null) {
-								const from = pos + match.index;
-								const to = from + 1; // Mark a single character
-
-								// Ask whether the character range about to be marked already
-								// carries the mark. Asking whether the containing text node
-								// carries it answers a different question, and is only
-								// accidentally right for as long as ProseMirror keeps every
-								// text node's mark set uniform.
-								if (newState.doc.rangeHasMark(from, to, punctuationType)) {
-									continue;
+						for (const range of getChangedRanges(
+							transactions,
+							newState.doc.content.size
+						)) {
+							newState.doc.nodesBetween(range.from, range.to, (node, pos) => {
+								if (!node.isText || !node.text) return;
+								const start = Math.max(range.from - pos, 0);
+								const end = Math.min(range.to - pos, node.nodeSize);
+								const regex = new RegExp(punctuationRegex.source, 'g');
+								let match;
+								while ((match = regex.exec(node.text.slice(start, end))) !== null) {
+									const from = pos + start + match.index;
+									const to = from + 1;
+									if (newState.doc.rangeHasMark(from, to, punctuationType))
+										continue;
+									tr.addMark(from, to, punctuationType.create());
+									changed = true;
 								}
-
-								tr.addMark(from, to, punctuationType.create());
-								changed = true;
-							}
-						});
+							});
+						}
 
 						if (!changed) {
 							return null;
@@ -1156,39 +1153,36 @@ function createStableEditorNodeId(prefix: string): string {
 	return `${prefix}-${Math.random().toString(36).slice(2, 12)}`;
 }
 
-const manuscriptStructureRepairKey = new PluginKey('manuscriptStructureRepair');
 const lineNumberNormalizerKey = new PluginKey('lineNumberNormalizer');
 
-function createManuscriptStructureRepairTransaction(state: Editor['state']) {
-	if (state.doc.type.name !== 'manuscript') {
-		return null;
-	}
-
-	const repairResult = repairManuscriptStructureJson(state.doc.toJSON());
-	if (!repairResult.repaired) return null;
-
-	if (repairResult.issues.length > 0) {
-		console.warn('[Transcription] Repaired invalid manuscript structure:', repairResult.issues);
-	}
-
-	const repairedDoc = state.schema.nodeFromJSON(repairResult.doc);
-	return state.tr.replaceWith(0, state.doc.content.size, repairedDoc.content);
-}
-
-function createLineNumberNormalizationTransaction(state: Editor['state']) {
+function createLineNumberNormalizationTransaction(
+	state: Editor['state'],
+	ranges: readonly ChangedRange[]
+) {
 	const tr = state.tr;
 	let changed = false;
+	const columns = new Map<number, ProseMirrorNode>();
 
-	state.doc.descendants((node, pos) => {
-		if (node.type.name !== 'column' && node.type.name !== 'marginaliaColumn') {
+	for (const range of ranges) {
+		state.doc.nodesBetween(range.from, range.to, (node, pos) => {
+			if (node.type.name === 'column' || node.type.name === 'marginaliaColumn') {
+				columns.set(pos, node);
+				return false;
+			}
 			return true;
+		});
+	}
+
+	for (const [pos, node] of columns) {
+		if (node.type.name !== 'column' && node.type.name !== 'marginaliaColumn') {
+			continue;
 		}
 
 		if (!node.type.validContent(node.content)) {
 			console.warn(
 				`[Transcription] Skipping line number normalization for invalid ${node.type.name} node at ${pos}`
 			);
-			return false;
+			continue;
 		}
 
 		if (!node.attrs.columnId) {
@@ -1220,9 +1214,7 @@ function createLineNumberNormalizationTransaction(state: Editor['state']) {
 			tr.setNodeMarkup(pos + 1 + offset, undefined, nextAttrs);
 			changed = true;
 		});
-
-		return false;
-	});
+	}
 
 	return changed ? tr : null;
 }
@@ -1247,13 +1239,10 @@ const LineNumberNormalizer = Extension.create({
 						return null;
 					}
 
-					const repairTr = createManuscriptStructureRepairTransaction(newState);
-					if (repairTr) {
-						repairTr.setMeta(manuscriptStructureRepairKey, true);
-						return repairTr;
-					}
-
-					const tr = createLineNumberNormalizationTransaction(newState);
+					const tr = createLineNumberNormalizationTransaction(
+						newState,
+						getChangedRanges(transactions, newState.doc.content.size)
+					);
 					if (!tr) return null;
 
 					tr.setMeta(lineNumberNormalizerKey, true);
@@ -2383,6 +2372,8 @@ function createEditorForProfile(profile: EditorProfile, options: BaseEditorOptio
 							right: 0,
 						},
 						transformPastedText: text => text,
+						transformPasted: (slice, view) =>
+							repairPastedManuscriptSlice(slice, view.state.schema),
 					}
 				: {}),
 		},

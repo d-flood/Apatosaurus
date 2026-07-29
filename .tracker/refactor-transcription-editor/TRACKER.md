@@ -14,7 +14,7 @@ Two things to know before writing a ticket from it. `F35`–`F46` have **no comm
 
 Overall status: `In Progress`
 
-Current ticket: none — ticket `03` is complete.
+Current ticket: none — ticket `04` is complete.
 
 Last updated: 2026-07-28
 
@@ -48,7 +48,7 @@ Success is not "every ticket cleared". Some findings should end in a documented 
 | 01 | `01-editor-code-quality-inventory.md` | Completed | None |
 | 02 | `02-enter-no-longer-duplicates-the-column.md` | Not Started | None |
 | 03 | `03-prosemirror-owns-cursor-placement.md` | Completed | 01 |
-| 04 | `04-structure-repair-leaves-the-keystroke-path.md` | Not Started | 01 |
+| 04 | `04-structure-repair-leaves-the-keystroke-path.md` | Completed | 01 |
 | 05 | `05-page-and-column-layout-model.md` | Not Started | 01, 06 |
 | 06 | `06-non-degenerate-test-fixtures.md` | Completed | 01 |
 | 07 | `07-opening-a-transcription-cannot-destroy-it.md` | Completed | None |
@@ -98,6 +98,8 @@ pnpm vitest run --project client src/lib/client/transcriptionEditorStructure.sve
 
 ## Notes
 
+- **2026-07-28** — **Ticket `04` complete.** Whole-document repair no longer runs from `appendTransaction`; load, TEI import, and structural paste use the shared document-entry repair, and F7 identities exist before the first edit. Punctuation scans changed ranges, line normalization visits touched columns, cursor context uses selection ancestors, and autosave/verse serialization now occurs inside the existing timers. Chromium per-keystroke measurements fell from **7.5 / 19.3 / 30.3 ms** to **0.20 / 0.32 / 0.77 ms** at **100 / 250 / 500 lines**; 20 characters dispatch 20 transactions. The focused component suite passes **11 files / 83 tests**, `check` reports 0 errors, and the full baseline passes **105 files / 710 tests**. The acceptance diff is a net reduction: **204 insertions / 210 deletions** across the two named files.
+- **2026-07-28** — **Ticket `04` scope decision accepted.** Reference-edition seeding is removed from ticket `04`'s contract and acceptance criteria because no such application entry point exists. Implementation covers the real load, TEI import, and paste boundaries; adding reference-edition seeding remains a separate future feature.
 - **2026-07-28** — **Ticket `27` complete.** Gap and untranscribed carriers now retain every non-modelled TEI attribute in `teiAttrs` through parsing, ProseMirror, the editor schema, and serialization. Named fields serialize first in pinned IGNTP order without duplication: gaps use `reason`/`unit`/`extent`, while schema-valid untranscribed notes map internal `reason`/`extent` to `subtype`/`n`. The package seam and XSD suites pass **63/63**, the mounted editor round trip passes **19/19**, package typecheck and app `check` pass, and the package full run retains its documented **100 pass / 7 missing-fixture failures**. The app full run reached **103 passing files / 707 passing tests**; its three failures are concurrent ticket `04`'s now-stale pre-entry-repair ID assertion and two unrelated page-metadata synchronization assertions.
 - **2026-07-28** — **Ticket `27` convention resolved from the authoritative IGNTP inputs.** `document.xsd` defines `<gap>` with `reason` and `att.dimensions` (`extent`), while `<note>` has `att.typed` (`type`, `subtype`) and global `n` but no `reason` or `extent`. The Romans corpus consistently uses `<gap reason="…" unit="…" extent="…"/>` and contains no `note[@type="untranscribed"]` counterexample. Therefore gap fields remain `reason`/`unit`/`extent`; the untranscribed model's internal `reason`/`extent` fields serialize as schema-valid `subtype`/`n`. Ticket `27`'s contradictory note fixture is corrected to that convention.
 - **2026-07-28** — **Ticket `21` complete.** Correction Apply now merges content and its Type/Position fields into the existing reading, preserving `rend`, arbitrary reading attributes and `<seg>` carriers for correction marks and `correctionNode`; Type writes `rdg/@type` and Position writes `seg/@subtype`. Break, space, `handShift` and `teiMilestone` inspectors update only their owned TEI attributes. The focused inspector and inline-workspace suites pass, `check` reports 0 errors, the component suite passes **10 files / 79 tests**, and the full baseline passes **104 files / 703 tests**.

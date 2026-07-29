@@ -241,7 +241,7 @@ describe('structural transactions against a multi-line, multi-column, multi-page
 	});
 
 	describe('findLineStartPositionById', () => {
-		it('DEFECT F7: line ids are absent until the first document change', () => {
+		it('F7: line ids are assigned when the document enters the editor', () => {
 			const editor = createTestEditor(editorDocument({ nodeIds: false }));
 			try {
 				const ids: unknown[] = [];
@@ -251,21 +251,7 @@ describe('structural transactions against a multi-line, multi-column, multi-page
 					return false;
 				});
 				expect(ids).toHaveLength(16);
-				// `LineNumberNormalizer` only runs from `appendTransaction`, so a
-				// document that is loaded and never edited has no line identity at
-				// all and `findLineStartPositionById` cannot address any of it.
-				expect(ids).toEqual(Array(16).fill(null));
-
-				editor.commands.setTextSelection(lineStart(editor.state.doc, 0, 0, 0));
-				editor.commands.insertContent('x');
-
-				const idsAfterEdit: unknown[] = [];
-				editor.state.doc.descendants((node: any) => {
-					if (node.type.name !== 'line') return true;
-					idsAfterEdit.push(node.attrs.lineId);
-					return false;
-				});
-				expect(idsAfterEdit.every(id => typeof id === 'string' && id.length > 0)).toBe(
+				expect(ids.every(id => typeof id === 'string' && id.length > 0)).toBe(
 					true
 				);
 			} finally {

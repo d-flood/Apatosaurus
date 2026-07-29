@@ -26,7 +26,7 @@ At 500 lines that is a ~33 keystroke/second ceiling, synchronous, inside the tra
 
 **Four changes**, in `app/src/lib/client/transcriptionEditorSchema.ts` unless noted:
 
-1. **Repair leaves `appendTransaction`.** Structure repair is a document-entry concern. Keep `repairManuscriptStructureJson` in `app/src/lib/client/transcriptionEditorStructure.ts`; move its call sites to load (already present in `TranscriptionEditor.svelte`'s init), import, paste, and reference-edition seeding. Delete `createManuscriptStructureRepairTransaction` and its full-document `tr.replaceWith(0, doc.content.size, …)` recovery — a selection mapped through a full-document replace does not come back where it started, and the step poisons undo history. If a mid-session defence is still wanted, it must be O(change) and must fail loudly rather than silently rewriting the document under the cursor.
+1. **Repair leaves `appendTransaction`.** Structure repair is a document-entry concern. Keep `repairManuscriptStructureJson` in `app/src/lib/client/transcriptionEditorStructure.ts`; move its call sites to load (already present in `TranscriptionEditor.svelte`'s init), import, and paste. Delete `createManuscriptStructureRepairTransaction` and its full-document `tr.replaceWith(0, doc.content.size, …)` recovery — a selection mapped through a full-document replace does not come back where it started, and the step poisons undo history. If a mid-session defence is still wanted, it must be O(change) and must fail loudly rather than silently rewriting the document under the cursor.
 
 2. **`PunctuationHighlighter` scans only changed ranges.** It currently walks every text node per keystroke. Restrict it to the transaction's step map. Note its de-duplication test is also wrong in kind — `node.marks.some(m => m.type.name === 'punctuation')` asks whether the *whole text node* carries the mark rather than the specific character — but leave that to the inventory's verdict; this ticket is about cost. If the inventory recommends moving punctuation highlighting to a decoration plugin, that is a later ticket.
 
@@ -39,7 +39,7 @@ Measurement harness for the acceptance criteria: mount an editor in a `client`-p
 ## Contract
 
 - Per-keystroke cost does not grow with document size.
-- Structure repair runs at document-entry boundaries only — load, import, paste, seeding — and each is covered by a test.
+- Structure repair runs at document-entry boundaries only — load, import, and paste — and each is covered by a test.
 - No plugin returns an `appendTransaction` for an ordinary text insertion.
 - Autosave and verse-index sync still fire on their existing debounce intervals, and still receive equivalent documents.
 - Undo after typing does not step through appended repair transactions.
@@ -53,13 +53,13 @@ Measurement harness for the acceptance criteria: mount an editor in a `client`-p
 
 ## Acceptance criteria
 
-- [ ] Measured per-keystroke cost at 100, 250 and 500 lines is flat within noise, and the 500-line figure is under 2 ms.
-- [ ] The measurement spec is committed under `app/src/`, and the before/after numbers are recorded in `TRACKER.md` Notes beside the baseline table above.
-- [ ] Typing 20 characters produces exactly 20 transactions.
-- [ ] `createManuscriptStructureRepairTransaction` no longer exists.
-- [ ] Repair still fires on load, import and paste, each covered by a test.
-- [ ] Net change across the touched files is a reduction in lines.
-- [ ] Baseline passes.
+- [x] Measured per-keystroke cost at 100, 250 and 500 lines is flat within noise, and the 500-line figure is under 2 ms.
+- [x] The measurement spec is committed under `app/src/`, and the before/after numbers are recorded in `TRACKER.md` Notes beside the baseline table above.
+- [x] Typing 20 characters produces exactly 20 transactions.
+- [x] `createManuscriptStructureRepairTransaction` no longer exists.
+- [x] Repair still fires on load, import and paste, each covered by a test.
+- [x] Net change across the touched files is a reduction in lines.
+- [x] Baseline passes.
 
 ```bash
 cd app
@@ -74,3 +74,7 @@ Success: the editor specs pass including the timing spec; `check` and the unit s
 ## Blocked by
 
 - Ticket 01 (`01-editor-code-quality-inventory.md`) — its read of `editorCommands.ts` and `packages/tei-transcription` establishes which callers depend on repair running mid-session, and its undo/redo answer (question 5) bears on removing the appended transactions.
+
+## Implementation note
+
+**2026-07-28 — Accepted decision.** Reference-edition seeding is removed from this ticket's contract because no application entry point exists. Ticket `04` covers the real load, import, and paste boundaries only; adding seeding remains a separate future feature.

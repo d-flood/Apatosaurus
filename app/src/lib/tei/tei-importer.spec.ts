@@ -54,6 +54,18 @@ function getFormWorkInlineContent(fwNode: any): any[] {
 }
 
 describe('TEI importer wrapper', () => {
+	it('prepares imported TEI for entry into the editor', () => {
+		const xml = wrapInTEI('<pb n="1r"/><cb n="1"/><lb/><w>hello</w>');
+		const canonical = importTEIDocument(xml);
+		const editorDocument = importTEI(xml);
+		const column = editorDocument.content![0].content![0];
+		const line = column.content![0];
+
+		expect(canonical.pages[0].columns[0].lines[0].items).toHaveLength(1);
+		expect(column.attrs?.columnId).toEqual(expect.any(String));
+		expect(line.attrs?.lineId).toEqual(expect.any(String));
+	});
+
 	it('imports structural page, column, and line nodes', () => {
 		const result = importTEI(wrapInTEI('<pb n="1r"/><cb n="1"/><lb/><w>hello</w>'));
 

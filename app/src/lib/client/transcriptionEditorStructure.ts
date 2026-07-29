@@ -1,3 +1,4 @@
+import { Slice, type Schema } from '@tiptap/pm/model';
 import { TextSelection, type EditorState, type Transaction } from '@tiptap/pm/state';
 
 import { findFirstDescendantPosition } from './proseMirrorNodeLookup';
@@ -31,6 +32,30 @@ interface ManuscriptRepairOptions {
 
 export const LINE_SPLIT_TARGET_LINE_ID_META = 'lineSplitTargetLineId';
 
+export interface ChangedRange {
+	from: number;
+	to: number;
+}
+
+export function getChangedRanges(
+	transactions: readonly Transaction[],
+	docSize: number
+): ChangedRange[] {
+	const ranges: ChangedRange[] = [];
+	transactions.at(-1)?.mapping.maps.forEach(stepMap => {
+		stepMap.forEach((_oldFrom, _oldTo, newFrom, newTo) => {
+			if (newFrom === newTo) {
+				newFrom -= 1;
+				newTo += 1;
+			}
+			newFrom = Math.max(0, Math.min(newFrom, docSize));
+			newTo = Math.max(0, Math.min(newTo, docSize));
+			ranges.push({ from: Math.min(newFrom, newTo), to: Math.max(newFrom, newTo) });
+		});
+	});
+	return ranges;
+}
+
 function createStableEditorNodeId(prefix: string): string {
 	if (typeof crypto?.randomUUID === 'function') {
 		return `${prefix}-${crypto.randomUUID()}`;
@@ -42,6 +67,31 @@ export interface ManuscriptStructureRepairResult {
 	doc: JsonNode;
 	repaired: boolean;
 	issues: string[];
+}
+
+export function prepareManuscriptDocumentEntry(
+	input: unknown
+): ManuscriptStructureRepairResult {
+	return repairManuscriptStructureJson(input, {
+		framedPageZoneOrder: 'visual',
+		ensureNodeIds: true,
+	});
+}
+
+export function repairPastedManuscriptSlice(slice: Slice, schema: Schema): Slice {
+	if (
+		slice.openStart !== 0 ||
+		slice.openEnd !== 0 ||
+		slice.content.childCount === 0 ||
+		slice.content.content.some(node => node.type.name !== 'page')
+	) {
+		return slice;
+	}
+	const repair = prepareManuscriptDocumentEntry({
+		type: 'manuscript',
+		content: slice.content.toJSON(),
+	});
+	return repair.repaired ? new Slice(schema.nodeFromJSON(repair.doc).content, 0, 0) : slice;
 }
 
 function cloneJsonNode<T>(value: T): T {
