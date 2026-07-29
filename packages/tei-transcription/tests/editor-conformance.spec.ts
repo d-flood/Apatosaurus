@@ -224,7 +224,7 @@ describe('editor-path conformance', () => {
 			toProseMirror(
 				parseTei(
 					wrapInTei(
-						'<pb n="1r"/><cb n="1"/><lb/><gap reason="lost-folio" unit="chars" extent="2"/><space extent="1" unit="chars"/><note type="untranscribed" reason="damage" extent="partial"/>'
+						'<pb n="1r"/><cb n="1"/><lb/><gap reason="lost-folio" unit="chars" extent="2" cert="low" xml:id="g1"/><space extent="1" unit="chars"/><note type="untranscribed" subtype="damage" n="partial" resp="#ed" cert="low" xml:id="u1"/>'
 					)
 				)
 			)
@@ -241,9 +241,9 @@ describe('editor-path conformance', () => {
 		untranscribed!.attrs = { ...(untranscribed!.attrs || {}), reason: 'illegible' };
 
 		const exported = serializeTei(fromProseMirror(pm));
-		expect(exported).toContain('<gap reason="lost-folio" unit="chars" extent="3"/>');
+		expect(exported).toContain('<gap reason="lost-folio" unit="chars" extent="3" cert="low" xml:id="g1"/>');
 		expect(exported).toContain('<space extent="2" unit="chars"/>');
-		expect(exported).toContain('<note type="untranscribed" subtype="illegible" n="partial"/>');
+		expect(exported).toContain('<note type="untranscribed" subtype="illegible" n="partial" resp="#ed" cert="low" xml:id="u1"/>');
 		expect(() => validateIgntpXsd(exported)).not.toThrow();
 	});
 });

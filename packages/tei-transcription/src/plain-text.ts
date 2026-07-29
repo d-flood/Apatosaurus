@@ -56,7 +56,7 @@ function serializeLineItems(items: LineItem[]): string {
 				case 'teiMilestone':
 					return `<milestone${serializeAttrs(item.attrs)}/>`;
 				case 'gap':
-					return `<gap${serializeAttrs(item.attrs)}/>`;
+					return `<gap${serializeAttrs(gapAttrs(item.attrs))}/>`;
 				case 'space':
 					return `<space${serializeAttrs(item.attrs)}/>`;
 				case 'handShift':
@@ -144,7 +144,7 @@ function serializeInlineItems(items: InlineItem[]): string {
 			if (item.type === 'pageBreak') return '<pb/>';
 			if (item.type === 'lineBreak') return '<lb/>';
 			if (item.type === 'columnBreak') return '<cb/>';
-			if (item.type === 'gap') return `<gap${serializeAttrs(item.attrs)}/>`;
+			if (item.type === 'gap') return `<gap${serializeAttrs(gapAttrs(item.attrs))}/>`;
 			if (item.type === 'space') return `<space${serializeAttrs(item.attrs)}/>`;
 			if (item.type === 'handShift') return `<handShift${serializeAttrs(item.attrs)}/>`;
 			if (item.type === 'metamark') return `<metamark:${item.summary}>`;
@@ -158,6 +158,15 @@ function serializeInlineItems(items: InlineItem[]): string {
 			return serializeText(item);
 		})
 		.join('');
+}
+
+function gapAttrs(attrs: Extract<InlineItem, { type: 'gap' }>['attrs']): Record<string, string | undefined> {
+	return {
+		reason: attrs.reason,
+		unit: attrs.unit,
+		extent: attrs.extent,
+		...attrs.teiAttrs,
+	};
 }
 
 function serializeAttrs(attrs: Record<string, string | undefined>): string {

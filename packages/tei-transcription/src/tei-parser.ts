@@ -1413,6 +1413,7 @@ function createGapItem(gapElement: Element): GapItem {
 			reason: gapElement.getAttribute('reason') || '',
 			unit: gapElement.getAttribute('unit') || '',
 			extent: gapElement.getAttribute('extent') || '',
+			teiAttrs: collectAttributes(gapElement, new Set(['reason', 'unit', 'extent'])),
 		},
 	};
 }
@@ -1520,6 +1521,10 @@ function createUntranscribedItem(noteElement: Element): UntranscribedItem {
 				noteElement.getAttribute('extent') ||
 				noteElement.getAttribute('n') ||
 				'partial',
+			teiAttrs: collectAttributes(
+				noteElement,
+				new Set(['type', 'subtype', 'n', 'reason', 'extent'])
+			),
 		},
 	};
 }

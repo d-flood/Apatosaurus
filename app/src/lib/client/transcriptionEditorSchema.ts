@@ -381,6 +381,7 @@ const UntranscribedNode = Node.create({
 				class: inlineBadgeClass('untranscribed-milestone'),
 				'data-reason': reason,
 				'data-extent': extent,
+				'data-tei-attrs': JSON.stringify(node.attrs.teiAttrs || {}),
 				title: label,
 				contenteditable: 'false',
 			},
@@ -401,6 +402,13 @@ const UntranscribedNode = Node.create({
 				parseHTML: element => element.getAttribute('data-extent'),
 				renderHTML: attributes => ({
 					'data-extent': attributes.extent,
+				}),
+			},
+			teiAttrs: {
+				default: {},
+				parseHTML: element => parseJsonAttr(element.getAttribute('data-tei-attrs')),
+				renderHTML: attributes => ({
+					'data-tei-attrs': JSON.stringify(attributes.teiAttrs || {}),
 				}),
 			},
 		};
@@ -1414,6 +1422,7 @@ const GapNode = Node.create({
 				'data-reason': reason,
 				'data-unit': unit,
 				'data-extent': extent,
+				'data-tei-attrs': JSON.stringify(node.attrs.teiAttrs || {}),
 				title: `${label}`,
 				contenteditable: 'false',
 			},
@@ -1441,6 +1450,13 @@ const GapNode = Node.create({
 				parseHTML: element => element.getAttribute('data-extent'),
 				renderHTML: attributes => ({
 					'data-extent': attributes.extent,
+				}),
+			},
+			teiAttrs: {
+				default: {},
+				parseHTML: element => parseJsonAttr(element.getAttribute('data-tei-attrs')),
+				renderHTML: attributes => ({
+					'data-tei-attrs': JSON.stringify(attributes.teiAttrs || {}),
 				}),
 			},
 		};

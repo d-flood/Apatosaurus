@@ -185,6 +185,26 @@ describe('TEI round trip through the ProseMirror adapter', () => {
 			expect(xml).toContain('style="ruled"');
 			expect(xml).toContain('corresp="#x"');
 		});
+
+		it.each([
+			['gap', '<gap reason="lost" unit="chars" extent="2" cert="low" xml:id="g1"/>'],
+			[
+				'untranscribed note',
+				'<note type="untranscribed" subtype="damage" n="partial" resp="#ed" cert="low" xml:id="u1"/>',
+			],
+		])('preserves all attributes on a %s through a mounted editor', (_label, carrier) => {
+			const source = `<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0"><teiHeader></teiHeader><text><body>
+  <pb n="1r"/><cb n="C1"/><lb/>${carrier}
+</body></text></TEI>`;
+			const editor = createTestEditor({ content: editorJson(source) });
+
+			try {
+				expect(exportFromProseMirror(editor.getJSON())).toContain(carrier);
+			} finally {
+				editor.destroy();
+			}
+		});
 	});
 
 	/**

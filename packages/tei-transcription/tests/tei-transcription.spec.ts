@@ -465,6 +465,41 @@ describe('tei-transcription package', () => {
 		expect(space.getAttribute('dim')).toBe('horizontal');
 	});
 
+	it('round-trips a gap with arbitrary TEI attributes byte-identically', () => {
+		const gap = '<gap reason="lost" unit="chars" extent="2" cert="low" xml:id="g1"/>';
+		const xml = wrapInTei(`<pb n="1r"/><cb n="1"/><lb/>${gap}`);
+		const pm = toProseMirror(parseTei(xml));
+
+		expect(pm.content![0].content![0].content![0].content![0].attrs).toEqual({
+			reason: 'lost',
+			unit: 'chars',
+			extent: '2',
+			teiAttrs: { cert: 'low', 'xml:id': 'g1' },
+		});
+
+		const exported = serializeTei(fromProseMirror(pm));
+
+		expect(exported).toContain(gap);
+	});
+
+	it('round-trips a schema-valid untranscribed note with arbitrary TEI attributes byte-identically', () => {
+		const note = '<note type="untranscribed" subtype="damage" n="partial" resp="#ed" cert="low" xml:id="u1"/>';
+		const xml = wrapInTei(`<pb n="1r"/><cb n="1"/><lb/>${note}`);
+		const pm = toProseMirror(parseTei(xml));
+		const untranscribed = pm.content![0].content![0].content![0].content![0];
+
+		expect(untranscribed.attrs).toEqual({
+			reason: 'damage',
+			extent: 'partial',
+			teiAttrs: { resp: '#ed', cert: 'low', 'xml:id': 'u1' },
+		});
+
+		const exported = serializeTei(fromProseMirror(pm));
+		expect(exported).toContain(note);
+		const exportedNote = exported.match(/<note[^>]*\/>/)?.[0] || '';
+		expect(exportedNote.match(/\b(?:type|subtype|n|resp|cert|xml:id)=/g)).toHaveLength(6);
+	});
+
 	it('preserves structural break attrs and plain hi markup on round-trip', () => {
 		const xml = wrapInTei(`
 			<pb n="P261r" type="folio"/>

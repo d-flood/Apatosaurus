@@ -107,6 +107,7 @@ export interface GapItem {
 		reason?: string;
 		unit?: string;
 		extent?: string;
+		teiAttrs?: Record<string, string>;
 	};
 }
 
@@ -183,6 +184,7 @@ export interface UntranscribedItem {
 	attrs: {
 		reason?: string;
 		extent?: string;
+		teiAttrs?: Record<string, string>;
 	};
 }
 

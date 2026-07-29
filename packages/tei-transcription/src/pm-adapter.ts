@@ -532,7 +532,12 @@ function fromProseMirrorLineContent(nodes: ProseMirrorJSON[]): LineItem[] {
 		if (node.type === 'gap') {
 			items.push({
 				type: 'gap',
-				attrs: node.attrs || {},
+				attrs: {
+					reason: node.attrs?.reason,
+					unit: node.attrs?.unit,
+					extent: node.attrs?.extent,
+					teiAttrs: extractOptionalTeiAttrs(node.attrs) || {},
+				},
 			});
 			continue;
 		}
@@ -616,7 +621,11 @@ function fromProseMirrorLineContent(nodes: ProseMirrorJSON[]): LineItem[] {
 		if (node.type === 'untranscribed') {
 			items.push({
 				type: 'untranscribed',
-				attrs: node.attrs || {},
+				attrs: {
+					reason: node.attrs?.reason,
+					extent: node.attrs?.extent,
+					teiAttrs: extractOptionalTeiAttrs(node.attrs) || {},
+				},
 			});
 			continue;
 		}

@@ -181,11 +181,11 @@ function exportLineContent(nodes: ProseMirrorJSON[] | undefined, context: Export
 		if (word.type === 'gap') {
 			ensureAnonymousAb(context);
 			const attrs = word.attrs || {};
-			let tagAttrs = '';
-			if (attrs.reason) tagAttrs += ` reason="${escapeXml(attrs.reason)}"`;
-			if (attrs.unit) tagAttrs += ` unit="${escapeXml(attrs.unit)}"`;
-			if (attrs.extent) tagAttrs += ` extent="${escapeXml(attrs.extent)}"`;
-			context.xml.push(`<gap${tagAttrs}/>`);
+			context.xml.push(`<gap${serializeAttrs(mergeCarrierAttrs(attrs, {
+				reason: attrs.reason,
+				unit: attrs.unit,
+				extent: attrs.extent,
+			}))}/>`);
 			continue;
 		}
 
@@ -234,7 +234,11 @@ function exportLineContent(nodes: ProseMirrorJSON[] | undefined, context: Export
 			ensureAnonymousAb(context);
 			const attrs = word.attrs || {};
 			context.xml.push(
-				`<note type="untranscribed" subtype="${escapeXml(attrs.reason || 'Untranscribed')}" n="${escapeXml(attrs.extent || 'partial')}"/>`
+				`<note${serializeAttrs(mergeCarrierAttrs(attrs, {
+					type: 'untranscribed',
+					subtype: attrs.reason || 'Untranscribed',
+					n: attrs.extent || 'partial',
+				}))}/>`
 			);
 			continue;
 		}
@@ -646,11 +650,11 @@ function exportInlineContent(content: ProseMirrorJSON[], context: ExportContext)
 		if (node.type === 'gap') {
 			currentWord = flushInlineWord(currentWord, context);
 			const attrs = node.attrs || {};
-			let tagAttrs = '';
-			if (attrs.reason) tagAttrs += ` reason="${escapeXml(attrs.reason)}"`;
-			if (attrs.unit) tagAttrs += ` unit="${escapeXml(attrs.unit)}"`;
-			if (attrs.extent) tagAttrs += ` extent="${escapeXml(attrs.extent)}"`;
-			context.xml.push(`<gap${tagAttrs}/>`);
+			context.xml.push(`<gap${serializeAttrs(mergeCarrierAttrs(attrs, {
+				reason: attrs.reason,
+				unit: attrs.unit,
+				extent: attrs.extent,
+			}))}/>`);
 			continue;
 		}
 
@@ -1187,6 +1191,19 @@ function mergeTeiAttrs(
 	};
 	for (const [key, value] of Object.entries(overrides)) {
 		if (value !== undefined) {
+			merged[key] = value;
+		}
+	}
+	return merged;
+}
+
+function mergeCarrierAttrs(
+	attrs: Record<string, any>,
+	namedAttrs: Record<string, string | undefined>
+): Record<string, string | undefined> {
+	const merged = { ...namedAttrs };
+	for (const [key, value] of Object.entries(extractEmbeddedTeiAttrs(attrs))) {
+		if (!(key in namedAttrs)) {
 			merged[key] = value;
 		}
 	}
