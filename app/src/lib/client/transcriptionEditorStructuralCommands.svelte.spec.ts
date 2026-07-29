@@ -153,15 +153,19 @@ describe('structural transactions against a multi-line, multi-column, multi-page
 		it('splits the current column in two without disturbing other pages', () => {
 			const editor = createTestEditor(multiPageFixture());
 			try {
+				const firstPageBefore = editor.state.doc.child(0).toJSON();
+				const thirdPageBefore = editor.state.doc.child(2).toJSON();
 				// Cursor inside "b3" — third of four lines, page 2 column 1.
 				selectAt(editor, lineStart(editor.state.doc, 1, 0, 2) + 1);
 				const tr = createColumnSplitTransaction(editor.state);
 				expect(tr).not.toBeNull();
+				expect(tr!.selection.from).toBe(lineStart(tr!.doc, 1, 1, 0));
 				editor.view.dispatch(tr!);
+				expect(editor.state.selection.from).toBe(lineStart(editor.state.doc, 1, 1, 0));
 
 				const snapshot = snapshotLines(editor.state.doc);
-				expect(snapshot[0]).toEqual([['a1', 'a2', 'a3', 'a4']]);
-				expect(snapshot[2]).toEqual([['d1', 'd2', 'd3', 'd4']]);
+				expect(editor.state.doc.child(0).toJSON()).toEqual(firstPageBefore);
+				expect(editor.state.doc.child(2).toJSON()).toEqual(thirdPageBefore);
 				expect(snapshot[1]).toEqual([
 					['b1', 'b2', 'b'],
 					['3', 'b4'],
@@ -172,12 +176,10 @@ describe('structural transactions against a multi-line, multi-column, multi-page
 			}
 		});
 
-		it('DEFECT F2: numbers the new column from the document-wide maximum, so every split triggers a whole-document repair', () => {
+		it('numbers the new column within its page', () => {
 			const editor = createTestEditor(multiPageFixture());
 			try {
-				// Split page 1's only column. Page 2 already has columns 1 and 2, so
-				// the document-wide maximum is 2 and the new column is numbered 3
-				// even though it is the second column of page 1.
+				// Split page 1's only column. Page 2 already has columns 1 and 2.
 				selectAt(editor, lineStart(editor.state.doc, 0, 0, 1) + 1);
 				const tr = createColumnSplitTransaction(editor.state);
 				expect(tr).not.toBeNull();
@@ -186,15 +188,10 @@ describe('structural transactions against a multi-line, multi-column, multi-page
 				tr!.doc
 					.child(0)
 					.forEach((columnNode: any) => raw.push(columnNode.attrs.columnNumber));
-				// What the command itself produces. Wanted: [1, 2].
-				expect(raw).toEqual([1, 3]);
+				expect(raw).toEqual([1, 2]);
 
 				editor.view.dispatch(tr!);
 
-				// `LineNumberNormalizer.appendTransaction` notices that repair would
-				// change the document and answers with `replaceWith(0, doc.size, …)`.
-				// The number comes out right, at the cost of replacing the entire
-				// document on every column split.
 				const settled = columnAttrs(editor.state.doc, 0).map(attrs => attrs.columnNumber);
 				expect(settled).toEqual([1, 2]);
 			} finally {
@@ -202,8 +199,10 @@ describe('structural transactions against a multi-line, multi-column, multi-page
 			}
 		});
 
-		it('DEFECT F3: drops zone and teiAttrs from the second half of a framed-page column', () => {
-			const editor = createTestEditor(framedPageFixture());
+		it('preserves TEI attributes without duplicating identities or frame zones', () => {
+			const fixture = framedPageFixture();
+			fixture.content[0].content[2].attrs.teiAttrs['xml:id'] = 'center-column';
+			const editor = createTestEditor(fixture);
 			try {
 				// Split the "center" zone column (index 2).
 				selectAt(editor, lineStart(editor.state.doc, 0, 2, 0) + 1);
@@ -213,29 +212,25 @@ describe('structural transactions against a multi-line, multi-column, multi-page
 
 				const attrs = columnAttrs(editor.state.doc, 0);
 				expect(attrs[2].zone).toBe('center');
-				expect(attrs[2].teiAttrs).toEqual({ rend: 'center' });
-				// The new column loses both, so it stops being a frame zone at all.
+				expect(attrs[2].teiAttrs).toEqual({ rend: 'center', 'xml:id': 'center-column' });
 				expect(attrs[3].zone).toBeNull();
-				expect(attrs[3].teiAttrs).toEqual({});
+				expect(attrs[3].columnId).not.toBe(attrs[2].columnId);
+				expect(attrs[3].teiAttrs).toEqual({ rend: 'center' });
 			} finally {
 				editor.destroy();
 			}
 		});
 
-		it('DEFECT F4: the raw split output is what repair rejects; the settled document is clean', () => {
+		it('produces a document that does not need structural repair', () => {
 			const editor = createTestEditor(multiPageFixture());
 			try {
 				selectAt(editor, lineStart(editor.state.doc, 0, 0, 1) + 1);
 				const tr = createColumnSplitTransaction(editor.state)!;
 
-				// Repair renumbers columns positionally, so the split's own output is
-				// always "invalid" by repair's standard.
-				expect(repairManuscriptStructureJson(tr.doc.toJSON()).repaired).toBe(true);
+				expect(repairManuscriptStructureJson(tr.doc.toJSON()).repaired).toBe(false);
 
 				editor.view.dispatch(tr);
 
-				// After the appended repair transaction there is nothing left to fix —
-				// evidence that the repair really did run on the keystroke path.
 				expect(repairManuscriptStructureJson(editor.state.doc.toJSON()).repaired).toBe(
 					false
 				);

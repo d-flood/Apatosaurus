@@ -514,8 +514,11 @@ export function createColumnSplitTransaction(state: EditorState): Transaction | 
 	}
 
 	const columnNode = resolvedFrom.node(columnDepth);
+	const pageDepth = columnDepth - 1;
 	const currentLine = resolvedFrom.node(lineDepth);
 	const columnPos = resolvedFrom.before(columnDepth);
+	const pagePos = resolvedFrom.before(pageDepth);
+	const currentColumnIndex = resolvedFrom.index(pageDepth);
 	const currentLineIndex = resolvedFrom.index(lineDepth - 1);
 	const beforeOffset = selection.from - lineStart;
 	const afterOffset = selection.to - lineStart;
@@ -547,19 +550,19 @@ export function createColumnSplitTransaction(state: EditorState): Transaction | 
 	);
 
 	const firstColumnLines = [...linesBefore, firstLine];
-	const secondColumnLines = [secondLine, ...linesAfter];
+	const secondColumnLines = [secondLine, ...linesAfter].map((line, index) =>
+		line.type.create(
+			{
+				...line.attrs,
+				lineNumber: index + 1,
+			},
+			line.content
+		)
+	);
 
-	const nextColumnNumber =
-		Math.max(
-			0,
-			...state.doc.content.content.flatMap(pageNode =>
-				pageNode.type.name === 'page'
-					? pageNode.content.content
-							.filter(columnNode => columnNode.type.name === 'column')
-							.map(columnNode => Number(columnNode.attrs?.columnNumber) || 0)
-					: []
-			)
-		) + 1;
+	const nextColumnNumber = currentColumnIndex + 2;
+	const secondColumnTeiAttrs = { ...(columnNode.attrs.teiAttrs || {}) };
+	delete secondColumnTeiAttrs['xml:id'];
 
 	const newFirstColumn = state.schema.nodes.column.create(
 		{ ...columnNode.attrs },
@@ -568,16 +571,35 @@ export function createColumnSplitTransaction(state: EditorState): Transaction | 
 			: [state.schema.nodes.line.create({ lineNumber: 1 })]
 	);
 	const newSecondColumn = state.schema.nodes.column.create(
-		{ columnNumber: nextColumnNumber, columnId: null },
+		{
+			...columnNode.attrs,
+			columnNumber: nextColumnNumber,
+			columnId: null,
+			zone: null,
+			teiAttrs: secondColumnTeiAttrs,
+		},
 		secondColumnLines.length > 0
 			? secondColumnLines
 			: [state.schema.nodes.line.create({ lineNumber: 1 })]
 	);
 
-	return state.tr.replaceWith(columnPos, columnPos + columnNode.nodeSize, [
+	const tr = state.tr.replaceWith(columnPos, columnPos + columnNode.nodeSize, [
 		newFirstColumn,
 		newSecondColumn,
 	]);
+
+	const pageNode = tr.doc.nodeAt(pagePos);
+	pageNode?.forEach((child, offset, index) => {
+		if (child.type.name !== 'column' || child.attrs.columnNumber === index + 1) return;
+		tr.setNodeMarkup(pagePos + 1 + offset, undefined, {
+			...child.attrs,
+			columnNumber: index + 1,
+		});
+	});
+
+	const secondLinePos = columnPos + newFirstColumn.nodeSize + 1;
+	tr.setSelection(TextSelection.near(tr.doc.resolve(secondLinePos + 1)));
+	return tr;
 }
 
 export function createLineSplitTransaction(state: EditorState): Transaction | null {
