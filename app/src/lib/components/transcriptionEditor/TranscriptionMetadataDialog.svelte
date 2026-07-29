@@ -17,10 +17,10 @@
 		transcription: TranscriptionRecord | undefined | null;
 		canonicalDocument: StoredTranscriptionDocument;
 		pages: PageEditorMetadata[];
-		onUpdatePageName: (pos: number, newName: string) => boolean;
-		onDeletePage: (pos: number) => void;
+		onUpdatePageName: (pageId: string, newName: string) => boolean;
+		onDeletePage: (pageId: string) => void;
 		onUpdatePageFormWork: (
-			pagePos: number,
+			pageId: string,
 			kind: 'pageLabel' | 'runningTitle' | 'catchword' | 'quireSignature',
 			newText: string
 		) => void;
@@ -121,7 +121,7 @@
 			return;
 		}
 
-		onDeletePage(page.pos);
+		onDeletePage(page.pageId);
 	}
 
 	function normalizePageName(name: string | null | undefined): string {
@@ -145,7 +145,7 @@
 
 	function handlePageNameInput(page: PageEditorMetadata, value: string) {
 		pageNameDrafts[page.pageId] = value;
-		const updated = onUpdatePageName(page.pos, value);
+		const updated = onUpdatePageName(page.pageId, value);
 		pageNameErrors[page.pageId] = updated ? '' : 'Page names must be unique.';
 		if (updated) {
 			delete pageNameDrafts[page.pageId];
@@ -372,7 +372,7 @@
 										type="text"
 										use:valueFromMetadata={page.pageLabel?.text || ''}
 										oninput={e =>
-											onUpdatePageFormWork(page.pos, 'pageLabel', e.currentTarget.value)}
+											onUpdatePageFormWork(page.pageId, 'pageLabel', e.currentTarget.value)}
 										placeholder="Visible page number / folio label"
 										class="rounded px-3 py-1 border border-gray-300 flex-1"
 									/>
@@ -385,7 +385,7 @@
 										type="text"
 										use:valueFromMetadata={page.runningTitle?.text || ''}
 										oninput={e =>
-											onUpdatePageFormWork(page.pos, 'runningTitle', e.currentTarget.value)}
+											onUpdatePageFormWork(page.pageId, 'runningTitle', e.currentTarget.value)}
 										placeholder="Running title / page header"
 										class="rounded px-3 py-1 border border-gray-300 flex-1"
 									/>
@@ -398,7 +398,7 @@
 										type="text"
 										use:valueFromMetadata={page.catchword?.text || ''}
 										oninput={e =>
-											onUpdatePageFormWork(page.pos, 'catchword', e.currentTarget.value)}
+											onUpdatePageFormWork(page.pageId, 'catchword', e.currentTarget.value)}
 										placeholder="Catchword at page boundary"
 										class="rounded px-3 py-1 border border-gray-300 flex-1"
 									/>
@@ -411,7 +411,7 @@
 										type="text"
 										use:valueFromMetadata={page.quireSignature?.text || ''}
 										oninput={e =>
-											onUpdatePageFormWork(page.pos, 'quireSignature', e.currentTarget.value)}
+											onUpdatePageFormWork(page.pageId, 'quireSignature', e.currentTarget.value)}
 										placeholder="Quire signature / codicological mark"
 										class="rounded px-3 py-1 border border-gray-300 flex-1"
 									/>

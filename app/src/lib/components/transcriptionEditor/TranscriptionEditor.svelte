@@ -178,20 +178,31 @@
 		return name?.trim().toLowerCase() ?? '';
 	}
 
-	function pageNameExists(name: string, excludedPagePos?: number): boolean {
+	function findPageById(doc: any, pageId: string): { node: any; pos: number } | null {
+		let found: { node: any; pos: number } | null = null;
+		doc.forEach((node: any, pos: number) => {
+			if (!found && node.type.name === 'page' && node.attrs.pageId === pageId) {
+				found = { node, pos };
+			}
+		});
+		return found;
+	}
+
+	function pageNameExists(name: string, excludedPageId?: string): boolean {
 		const normalizedName = normalizePageName(name);
 		if (!normalizedName) return false;
 
 		const editor = editorState.editor;
 		if (!editor) {
 			return pages.some(
-				page => page.pos !== excludedPagePos && normalizePageName(page.pageName) === normalizedName
+				page =>
+					page.pageId !== excludedPageId && normalizePageName(page.pageName) === normalizedName
 			);
 		}
 
 		let duplicateFound = false;
-		editor.state.doc.descendants((node, pos) => {
-			if (node.type.name !== 'page' || pos === excludedPagePos) {
+		editor.state.doc.descendants(node => {
+			if (node.type.name !== 'page' || node.attrs.pageId === excludedPageId) {
 				return true;
 			}
 
@@ -432,20 +443,19 @@
 		}
 	});
 
-	function updatePageName(pos: number, newName: string): boolean {
+	function updatePageName(pageId: string, newName: string): boolean {
 		if (!editorState.editor) return false;
-		if (pageNameExists(newName, pos)) return false;
+		if (pageNameExists(newName, pageId)) return false;
 
 		editorState.editor
 			.chain()
 			.command(({ tr, state }) => {
-				const node = state.doc.nodeAt(pos);
-				if (node && node.type.name === 'page') {
-					tr.setNodeMarkup(pos, undefined, {
-						...node.attrs,
-						pageName: newName.trim() || null,
-					});
-				}
+				const page = findPageById(state.doc, pageId);
+				if (!page) return false;
+				tr.setNodeMarkup(page.pos, undefined, {
+					...page.node.attrs,
+					pageName: newName.trim() || null,
+				});
 				return true;
 			})
 			.run();
@@ -453,45 +463,45 @@
 		return true;
 	}
 
-	function deletePage(pagePos: number) {
+	function deletePage(pageId: string) {
 		const editor = editorState.editor;
 		if (!editor) return;
 
 		editor
 			.chain()
 			.command(({ tr, state }) => {
-				const pageNode = state.doc.nodeAt(pagePos);
-				if (!pageNode || pageNode.type.name !== 'page') {
-					return false;
-				}
+				const page = findPageById(state.doc, pageId);
+				if (!page) return false;
 
-				tr.delete(pagePos, pagePos + pageNode.nodeSize);
+				tr.delete(page.pos, page.pos + page.node.nodeSize);
 				return true;
 			})
 			.run();
 	}
 
 	function updatePageFormWork(
-		pagePos: number,
+		pageId: string,
 		kind: 'pageLabel' | 'runningTitle' | 'catchword' | 'quireSignature',
 		newText: string
 	) {
 		if (!editorState.editor) return;
 
-		const pageMetadata = pages.find(page => page.pos === pagePos) || null;
-		const existing =
-			kind === 'pageLabel'
-				? pageMetadata?.pageLabel
-				: kind === 'runningTitle'
-					? pageMetadata?.runningTitle
-					: kind === 'catchword'
-						? pageMetadata?.catchword
-						: pageMetadata?.quireSignature;
 		const nextContent = buildPlainTextFormWorkContent(newText);
 
 		editorState.editor
 			.chain()
 			.command(({ tr, state }) => {
+				const page = findPageById(state.doc, pageId);
+				if (!page) return false;
+				const pageMetadata = extractPageMetadata(page.node, page.pos);
+				const existing =
+					kind === 'pageLabel'
+						? pageMetadata.pageLabel
+						: kind === 'runningTitle'
+							? pageMetadata.runningTitle
+							: kind === 'catchword'
+								? pageMetadata.catchword
+								: pageMetadata.quireSignature;
 				if (existing?.pos) {
 					if (nextContent.length === 0) {
 						const node = state.doc.nodeAt(existing.pos);
@@ -515,12 +525,9 @@
 					return true;
 				}
 
-				const pageNode = state.doc.nodeAt(pagePos);
-				if (!pageNode || pageNode.type.name !== 'page') {
-					return false;
-				}
+				const pageNode = page.node;
 
-				const insertPos = findFirstLineInsertPos(pageNode, pagePos);
+				const insertPos = findFirstLineInsertPos(pageNode, page.pos);
 				if (insertPos === null) {
 					return false;
 				}

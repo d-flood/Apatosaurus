@@ -14,7 +14,7 @@ Two things to know before writing a ticket from it. `F35`–`F46` have **no comm
 
 Overall status: `In Progress`
 
-Current ticket: none — ticket `14` is complete.
+Current ticket: none — ticket `17` is complete.
 
 Last updated: 2026-07-28
 
@@ -61,7 +61,7 @@ Success is not "every ticket cleared". Some findings should end in a documented 
 | 14 | `14-renderhtml-becomes-pure-and-inline-valid.md` | Completed | None |
 | 15 | `15-two-identifier-mismatches.md` | Not Started | None |
 | 16 | `16-page-and-column-keep-wrapped.md` | Completed | None |
-| 17 | `17-commands-address-nodes-by-identity.md` | Not Started | None |
+| 17 | `17-commands-address-nodes-by-identity.md` | Completed | None |
 | 18 | `18-milestone-context-respects-book-boundaries.md` | Completed | None |
 | 19 | `19-page-chrome-derives-from-its-fw-children.md` | Completed | None |
 | 20 | `20-verse-index-sync-is-cancellable.md` | Not Started | 04 |
@@ -98,6 +98,7 @@ pnpm vitest run --project client src/lib/client/transcriptionEditorStructure.sve
 
 ## Notes
 
+- **2026-07-28** — **Ticket `17` complete.** Page metadata commands now accept stable page ids and resolve current positions inside each transaction; formwork metadata is likewise re-derived from the current page. A mounted regression shifts page positions before renaming the original target. Out-of-range inspector positions return `false`; this guard landed with ticket `19` from the shared worktree. Ticket `19` superseded F26 by removing page-chrome synchronization entirely. Focused suites pass 16 and 21 tests, `check` reports 0 errors, and the full baseline passes **103 files / 689 tests**.
 - **2026-07-28** — **Ticket `14` complete.** `lacunose` and `unclear` now preserve TEI attributes through HTML; correction and abbreviation render paths are deterministic, inline-valid, and round-trip through parsing; authoring commands persist ids at creation; and frame layout reacts to zoned columns through CSS `:has()` rather than stale parent-derived state. Focused rendering, interaction, layout, and page-command suites pass; `check` reports 0 errors and the full baseline passes **103 files / 689 tests**.
 
 - **2026-07-28** — **Ticket `19` complete.** Removed the four mirrored page-chrome attributes, load-time annotation, inspector synchronization callback, metadata-command writes, and duplicate `Page.renderHTML` chrome. The editor, page list, and metadata dialog now derive labels, running titles, catchwords, and quire signatures directly from `fw` children; selected-`fw` changes refresh the page list, and metadata inputs follow reclassification and deletion. The focused command suite passes 21 tests, the TEI round-trip suite passes 17, `check` reports 0 errors, and the full baseline passes **102 files / 688 tests**.

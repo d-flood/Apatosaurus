@@ -507,36 +507,27 @@ describe('TranscriptionEditor page metadata commands (mounted, multi-page fixtur
 		}
 	});
 
-	it('addresses pages by absolute position, which survives only because the dialog is modal', async () => {
+	it('updates the addressed page after a transaction shifts its document position', async () => {
 		const harness = await mountEditor();
-		const originalConfirm = window.confirm;
-		window.confirm = () => true;
 		try {
-			const details = await openMetadataDialog(harness);
-
-			// `pages` caches absolute document positions and is rebuilt only on the
-			// dialog's `toggle` event (or when the IIIF workspace is open). Nothing
-			// remaps those positions through intervening transactions. The reason
-			// that is not a live defect is that the dialog is a true modal: while it
-			// is open the editor is inert and no transaction can shift the positions.
-			const dialog = document.getElementById(
-				'transcription-metadata-modal'
-			) as HTMLDialogElement;
-			expect(dialog.open).toBe(true);
-			expect(dialog.matches(':modal')).toBe(true);
-
-			const removeButtons = Array.from(details.querySelectorAll('button')).filter(candidate =>
-				(candidate.textContent || '').includes('Remove page')
+			placeCaretAtEndOf(
+				lineElement(harness.container, 0, 0, 1).querySelector('.line-content') as HTMLElement
 			);
-			removeButtons[2].click();
+			await tick();
+			const details = await openMetadataDialog(harness);
+			const nameInputs = Array.from(
+				details.querySelectorAll<HTMLInputElement>('input[placeholder^="Page name"]')
+			);
+
+			await insertPage(harness, '1r-bis', 'Standard');
+			setInput(nameInputs[2], 'renamed-after-shift');
 			await tick();
 
-			const remaining = Array.from(
+			const names = Array.from(
 				harness.container.querySelectorAll<HTMLElement>('.ProseMirror .page')
 			).map(element => element.dataset.pageName);
-			expect(remaining).toEqual(['1r', '1v']);
+			expect(names).toEqual(['1r', '1r-bis', '1v', 'renamed-after-shift']);
 		} finally {
-			window.confirm = originalConfirm;
 			harness.dispose();
 		}
 	});
