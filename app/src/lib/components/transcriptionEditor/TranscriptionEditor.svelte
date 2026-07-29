@@ -55,6 +55,8 @@
 	import {
 		applyAbbreviationMark,
 		applyCorrectionMark,
+		captureAbbreviationTarget,
+		captureCorrectionTarget,
 		DEFAULT_INSPECTOR_CARRIER_TYPES,
 		getSelectedTranscriptionQuote,
 		getSelectedInspectorNode,
@@ -63,6 +65,7 @@
 		readCorrectionDraft,
 		removeAbbreviationMark,
 		removeCorrectionMark,
+		type TextMarkTarget,
 	} from './editorInteractions';
 	import type { TranscriptionSelectionQuote } from '$lib/client/iiif/types';
 
@@ -154,11 +157,13 @@
 
 	// Correction mark editing state
 	let correctionDraftCorrections = $state<Correction[]>([]);
+	let correctionTarget = $state<TextMarkTarget | null>(null);
 
 	// Abbreviation mark editing state
 	let abbrType = $state('nomSac');
 	let abbrExpansion = $state('');
 	let abbrRend = $state('\u00AF');
+	let abbreviationTarget = $state<TextMarkTarget | null>(null);
 
 	function createEditorPageId(): string {
 		if (typeof crypto?.randomUUID === 'function') {
@@ -296,47 +301,57 @@
 
 	function openCorrectionDrawer() {
 		const draft = readCorrectionDraft(editorState.editor);
-		if (draft === null) return;
+		const target = captureCorrectionTarget(editorState.editor);
+		if (draft === null || !target) return;
 		correctionDraftCorrections = draft;
+		correctionTarget = target;
 
 		drawerMode = 'correction';
 	}
 
 	function applyCorrectionFromDrawer(corrections: Correction[]) {
-		if (!applyCorrectionMark(editorState.editor, corrections)) return;
+		applyCorrectionMark(editorState.editor, correctionTarget, corrections);
+		correctionTarget = null;
 		drawerMode = 'inspector';
 	}
 
 	function removeCorrectionFromDrawer() {
-		if (!removeCorrectionMark(editorState.editor)) return;
+		removeCorrectionMark(editorState.editor, correctionTarget);
+		correctionTarget = null;
 		drawerMode = 'inspector';
 	}
 
 	function openAbbreviationDrawer() {
 		const draft = readAbbreviationDraft(editorState.editor);
-		if (!draft) return;
+		const target = captureAbbreviationTarget(editorState.editor);
+		if (!draft || !target) return;
 		abbrType = draft.type;
 		abbrExpansion = draft.expansion;
 		abbrRend = draft.rend;
+		abbreviationTarget = target;
 
 		drawerMode = 'abbreviation';
 	}
 
 	function applyAbbreviationFromDrawer() {
 		if (
-			!applyAbbreviationMark(editorState.editor, {
+			!applyAbbreviationMark(editorState.editor, abbreviationTarget, {
 				type: abbrType,
 				expansion: abbrExpansion,
 				rend: abbrRend,
 			})
 		) {
+			abbreviationTarget = null;
+			drawerMode = 'inspector';
 			return;
 		}
+		abbreviationTarget = null;
 		drawerMode = 'inspector';
 	}
 
 	function removeAbbreviationFromDrawer() {
-		if (!removeAbbreviationMark(editorState.editor)) return;
+		removeAbbreviationMark(editorState.editor, abbreviationTarget);
+		abbreviationTarget = null;
 		drawerMode = 'inspector';
 	}
 

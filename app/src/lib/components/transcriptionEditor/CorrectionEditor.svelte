@@ -1,8 +1,13 @@
 <script lang="ts">
 	import CorrectionWorkspace from './CorrectionWorkspace.svelte';
 	import type { Editor } from '@tiptap/core';
-	import { nanoid } from 'nanoid';
 	import type { Correction } from './types';
+	import {
+		applyCorrectionMark,
+		captureCorrectionTarget,
+		removeCorrectionMark,
+		type TextMarkTarget,
+	} from './editorInteractions';
 
 	interface Props {
 		id: string;
@@ -11,11 +16,13 @@
 
 	let { id, editor }: Props = $props();
 	let tempCorrections = $state<Correction[]>([]);
+	let target = $state<TextMarkTarget | null>(null);
 
 	function handlePopoverToggle(event: Event) {
 		const toggleEvent = event as ToggleEvent;
 
 		if (toggleEvent.newState === 'open') {
+			target = captureCorrectionTarget(editor);
 			if (editor) {
 				const { state } = editor;
 				const { from, to } = state.selection;
@@ -44,13 +51,14 @@
 			}
 		} else if (toggleEvent.newState === 'closed') {
 			tempCorrections = [];
+			target = null;
 		}
 	}
 
 	function handleRemove() {
 		if (!editor) return;
 
-		editor.chain().focus().unsetMark('correction').run();
+		removeCorrectionMark(editor, target);
 
 		const popoverEl = document.getElementById(id) as HTMLElement & { hidePopover: () => void };
 		if (popoverEl?.hidePopover) popoverEl.hidePopover();
@@ -72,9 +80,10 @@
 		applyLabel="Apply"
 		variant="popover"
 		onApply={corrections => {
-			if (!editor || corrections.length === 0) return;
-			editor.chain().focus().setMark('correction', { corrections, id: nanoid(8) }).run();
-			const popoverEl = document.getElementById(id) as HTMLElement & { hidePopover: () => void };
+			if (!applyCorrectionMark(editor, target, corrections)) return;
+			const popoverEl = document.getElementById(id) as HTMLElement & {
+				hidePopover: () => void;
+			};
 			if (popoverEl?.hidePopover) popoverEl.hidePopover();
 		}}
 		onRemoveAll={handleRemove}

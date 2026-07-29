@@ -31,8 +31,10 @@
 	}: Props = $props();
 
 	let tempCorrections = $state<Correction[]>([]);
+	let correctionKeys = $state<string[]>([]);
 	let draftContent = $state<unknown>([]);
-	let editingIndex = $state<number | null>(null);
+	let editingKey = $state<string | null>(null);
+	let nextCorrectionKey = 0;
 	let hand = $state('');
 	let type = $state('');
 	let position = $state('');
@@ -71,8 +73,14 @@
 		if (snapshot === lastSnapshot) return;
 		lastSnapshot = snapshot;
 		tempCorrections = cloneCorrections(initialCorrections);
+		correctionKeys = tempCorrections.map(() => createCorrectionKey());
 		resetDraft();
 	});
+
+	function createCorrectionKey(): string {
+		nextCorrectionKey += 1;
+		return `${idPrefix}-reading-${nextCorrectionKey}`;
+	}
 
 	function cloneCorrections(corrections: Correction[] | undefined): Correction[] {
 		if (!Array.isArray(corrections)) return [];
@@ -80,7 +88,7 @@
 	}
 
 	function resetDraft() {
-		editingIndex = null;
+		editingKey = null;
 		hand = '';
 		type = '';
 		position = '';
@@ -90,7 +98,7 @@
 	function loadCorrection(index: number) {
 		const correction = tempCorrections[index];
 		if (!correction) return;
-		editingIndex = index;
+		editingKey = correctionKeys[index];
 		hand = correction.hand || '';
 		type = correction.type || '';
 		position = correction.position || '';
@@ -109,9 +117,15 @@
 			...(position.trim() ? { position: position.trim() } : {}),
 		};
 
-		if (editingIndex === null) {
+		if (editingKey === null) {
 			tempCorrections = [...tempCorrections, nextCorrection];
+			correctionKeys = [...correctionKeys, createCorrectionKey()];
 		} else {
+			const editingIndex = correctionKeys.indexOf(editingKey);
+			if (editingIndex === -1) {
+				resetDraft();
+				return;
+			}
 			tempCorrections = tempCorrections.map((item, index) =>
 				index === editingIndex ? nextCorrection : item
 			);
@@ -121,8 +135,10 @@
 	}
 
 	function removeCorrection(index: number) {
+		const removedKey = correctionKeys[index];
 		tempCorrections = tempCorrections.filter((_, currentIndex) => currentIndex !== index);
-		if (editingIndex === index) {
+		correctionKeys = correctionKeys.filter((_, currentIndex) => currentIndex !== index);
+		if (editingKey === removedKey) {
 			resetDraft();
 		}
 	}
@@ -190,7 +206,7 @@
 
 		<div class="mt-3 flex justify-end gap-2">
 			<button type="button" class="btn btn-sm btn-secondary" onclick={upsertCorrection}>
-				{#if editingIndex === null}
+				{#if editingKey === null}
 					<Plus size={16} />
 					Add Reading
 				{:else}

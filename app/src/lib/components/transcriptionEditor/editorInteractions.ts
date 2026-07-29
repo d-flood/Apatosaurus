@@ -17,6 +17,15 @@ export interface AbbreviationDraft {
 	rend: string;
 }
 
+export interface TextMarkTarget {
+	from: number;
+	to: number;
+	text: string;
+	markType: 'correction' | 'abbreviation';
+	markId: string | null;
+	markAttrs: Record<string, any> | null;
+}
+
 interface PageSelectionContext {
 	pageId: string;
 	pageName: string | null;
@@ -57,6 +66,69 @@ function getSelectionRange(editor: Editor | null): { from: number; to: number } 
 	return { from, to };
 }
 
+function captureMarkTarget(
+	editor: Editor,
+	range: { from: number; to: number },
+	markType: TextMarkTarget['markType']
+): TextMarkTarget {
+	let markAttrs: Record<string, any> | null = null;
+	editor.state.doc.nodesBetween(range.from, range.to, node => {
+		const mark = node.marks?.find(current => current.type.name === markType);
+		if (!mark) return true;
+		markAttrs = mark.attrs;
+		return false;
+	});
+	const capturedAttrs = markAttrs as Record<string, any> | null;
+
+	return {
+		...range,
+		text: editor.state.doc.textBetween(range.from, range.to),
+		markType,
+		markId: typeof capturedAttrs?.id === 'string' ? capturedAttrs.id : null,
+		markAttrs: capturedAttrs,
+	};
+}
+
+function resolveMarkTarget(
+	editor: Editor,
+	target: TextMarkTarget | null,
+	requireMark: boolean
+): { from: number; to: number } | null {
+	if (!target) return null;
+	if (target.markId) {
+		let from: number | null = null;
+		let to: number | null = null;
+		editor.state.doc.descendants((node, pos) => {
+			if (!node.isText) return true;
+			const matches = node.marks.some(
+				mark => mark.type.name === target.markType && mark.attrs.id === target.markId
+			);
+			if (!matches) return true;
+			from = from === null ? pos : Math.min(from, pos);
+			to = to === null ? pos + node.nodeSize : Math.max(to, pos + node.nodeSize);
+			return true;
+		});
+		return from === null || to === null ? null : { from, to };
+	}
+
+	if (target.to > editor.state.doc.content.size) return null;
+	if (editor.state.doc.textBetween(target.from, target.to) !== target.text) return null;
+	if (requireMark) {
+		if (!target.markAttrs) return null;
+		let matchingMark = false;
+		editor.state.doc.nodesBetween(target.from, target.to, node => {
+			matchingMark ||= node.marks?.some(
+				mark =>
+					mark.type.name === target.markType &&
+					JSON.stringify(mark.attrs) === JSON.stringify(target.markAttrs)
+			);
+			return !matchingMark;
+		});
+		if (!matchingMark) return null;
+	}
+	return { from: target.from, to: target.to };
+}
+
 function getPageContextForPosition(editor: Editor, position: number): PageSelectionContext | null {
 	let pageOrder = 0;
 	let resolved: PageSelectionContext | null = null;
@@ -74,7 +146,8 @@ function getPageContextForPosition(editor: Editor, position: number): PageSelect
 			? {
 					pageId,
 					pageName:
-						typeof node.attrs.pageName === 'string' && node.attrs.pageName.trim().length > 0
+						typeof node.attrs.pageName === 'string' &&
+						node.attrs.pageName.trim().length > 0
 							? node.attrs.pageName.trim()
 							: null,
 					pageOrder,
@@ -183,9 +256,25 @@ function getCorrectionWordRange(editor: Editor): { from: number; to: number } | 
 	return { from, to };
 }
 
-export function applyCorrectionMark(editor: Editor | null, corrections: Correction[]): boolean {
-	if (!editor || corrections.length === 0) return false;
+export function captureCorrectionTarget(editor: Editor | null): TextMarkTarget | null {
+	if (!editor) return null;
 	const range = getCorrectionWordRange(editor);
+	return range ? captureMarkTarget(editor, range, 'correction') : null;
+}
+
+export function captureAbbreviationTarget(editor: Editor | null): TextMarkTarget | null {
+	if (!editor) return null;
+	const range = getSelectionRange(editor);
+	return range ? captureMarkTarget(editor, range, 'abbreviation') : null;
+}
+
+export function applyCorrectionMark(
+	editor: Editor | null,
+	target: TextMarkTarget | null,
+	corrections: Correction[]
+): boolean {
+	if (!editor || corrections.length === 0) return false;
+	const range = resolveMarkTarget(editor, target, false);
 	if (!range) return false;
 	editor
 		.chain()
@@ -196,9 +285,12 @@ export function applyCorrectionMark(editor: Editor | null, corrections: Correcti
 	return true;
 }
 
-export function removeCorrectionMark(editor: Editor | null): boolean {
+export function removeCorrectionMark(
+	editor: Editor | null,
+	target: TextMarkTarget | null
+): boolean {
 	if (!editor) return false;
-	const range = getCorrectionWordRange(editor);
+	const range = resolveMarkTarget(editor, target, true);
 	if (!range) return false;
 	editor.chain().focus().setTextSelection(range).unsetMark('correction').run();
 	return true;
@@ -233,8 +325,14 @@ export function readAbbreviationDraft(editor: Editor | null): AbbreviationDraft 
 	return existing;
 }
 
-export function applyAbbreviationMark(editor: Editor | null, draft: AbbreviationDraft): boolean {
+export function applyAbbreviationMark(
+	editor: Editor | null,
+	target: TextMarkTarget | null,
+	draft: AbbreviationDraft
+): boolean {
 	if (!editor) return false;
+	const range = resolveMarkTarget(editor, target, false);
+	if (!range) return false;
 	const attrs: Record<string, any> = {
 		id: nanoid(8),
 		type: draft.type,
@@ -243,12 +341,17 @@ export function applyAbbreviationMark(editor: Editor | null, draft: Abbreviation
 	if (draft.type === 'ligature') {
 		attrs.rend = draft.rend;
 	}
-	editor.chain().focus().setMark('abbreviation', attrs).run();
+	editor.chain().focus().setTextSelection(range).setMark('abbreviation', attrs).run();
 	return true;
 }
 
-export function removeAbbreviationMark(editor: Editor | null): boolean {
+export function removeAbbreviationMark(
+	editor: Editor | null,
+	target: TextMarkTarget | null
+): boolean {
 	if (!editor) return false;
-	editor.chain().focus().unsetMark('abbreviation').run();
+	const range = resolveMarkTarget(editor, target, true);
+	if (!range) return false;
+	editor.chain().focus().setTextSelection(range).unsetMark('abbreviation').run();
 	return true;
 }

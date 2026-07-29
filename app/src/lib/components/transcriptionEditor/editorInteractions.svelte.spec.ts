@@ -11,6 +11,8 @@ import { createTestEditor } from '$lib/client/testing/editorHarnesses.svelte';
 import {
 	applyAbbreviationMark,
 	applyCorrectionMark,
+	captureAbbreviationTarget,
+	captureCorrectionTarget,
 	removeCorrectionMark,
 } from './editorInteractions';
 
@@ -68,10 +70,17 @@ describe('word-level correction interactions', () => {
 		const editor = createEditor([{ type: 'text', text: 'alpha' }]);
 		selectSubstring(editor, 'alpha', 'alpha');
 
-		expect(applyCorrectionMark(editor, CORRECTIONS)).toBe(true);
-		expect(applyAbbreviationMark(editor, { type: 'nomSac', expansion: 'alpha', rend: '¯' })).toBe(
+		expect(applyCorrectionMark(editor, captureCorrectionTarget(editor), CORRECTIONS)).toBe(
 			true
 		);
+		selectSubstring(editor, 'alpha', 'alpha');
+		expect(
+			applyAbbreviationMark(editor, captureAbbreviationTarget(editor), {
+				type: 'nomSac',
+				expansion: 'alpha',
+				rend: '¯',
+			})
+		).toBe(true);
 
 		const text = editor.state.doc.textBetween(0, editor.state.doc.content.size, ' ');
 		expect(text).toContain('alpha');
@@ -90,7 +99,9 @@ describe('word-level correction interactions', () => {
 		const editor = createEditor([{ type: 'text', text: 'before alpha after' }]);
 		selectSubstring(editor, 'before alpha after', 'ph');
 
-		expect(applyCorrectionMark(editor, CORRECTIONS)).toBe(true);
+		expect(applyCorrectionMark(editor, captureCorrectionTarget(editor), CORRECTIONS)).toBe(
+			true
+		);
 		expect(textMarks(editor)).toContainEqual({
 			text: 'alpha',
 			correction: true,
@@ -106,7 +117,9 @@ describe('word-level correction interactions', () => {
 		]);
 		selectSubstring(editor, 'alpha', 'ph');
 
-		expect(applyCorrectionMark(editor, CORRECTIONS)).toBe(true);
+		expect(applyCorrectionMark(editor, captureCorrectionTarget(editor), CORRECTIONS)).toBe(
+			true
+		);
 		expect(textMarks(editor)).toEqual([
 			{ text: 'alpha', correction: true, punctuation: false },
 			{ text: '.', correction: false, punctuation: true },
@@ -117,7 +130,9 @@ describe('word-level correction interactions', () => {
 		const editor = createEditor([{ type: 'text', text: 'before alpha beta after' }]);
 		selectSubstring(editor, 'before alpha beta after', 'pha be');
 
-		expect(applyCorrectionMark(editor, CORRECTIONS)).toBe(true);
+		expect(applyCorrectionMark(editor, captureCorrectionTarget(editor), CORRECTIONS)).toBe(
+			true
+		);
 		expect(
 			textMarks(editor)
 				.filter(node => node.correction)
@@ -136,9 +151,53 @@ describe('word-level correction interactions', () => {
 		]);
 		selectSubstring(editor, 'alpha', 'ph');
 
-		expect(removeCorrectionMark(editor)).toBe(true);
+		expect(removeCorrectionMark(editor, captureCorrectionTarget(editor))).toBe(true);
 		expect(textMarks(editor)).toEqual([
 			{ text: 'alpha', correction: false, punctuation: false },
 		]);
+	});
+
+	it('applies a correction to the range captured when the drawer opened', () => {
+		const editor = createEditor([{ type: 'text', text: 'alpha beta' }]);
+		selectSubstring(editor, 'alpha beta', 'alpha');
+		const target = captureCorrectionTarget(editor);
+		selectSubstring(editor, 'alpha beta', 'beta');
+
+		expect(applyCorrectionMark(editor, target, CORRECTIONS)).toBe(true);
+		expect(
+			textMarks(editor)
+				.filter(node => node.correction)
+				.map(node => node.text)
+		).toEqual(['alpha']);
+	});
+
+	it('removes the correction captured when the drawer opened, not one under the new selection', () => {
+		const editor = createEditor([
+			{
+				type: 'text',
+				text: 'alpha',
+				marks: [
+					{ type: 'correction', attrs: { id: 'alpha-mark', corrections: CORRECTIONS } },
+				],
+			},
+			{ type: 'text', text: ' ' },
+			{
+				type: 'text',
+				text: 'beta',
+				marks: [
+					{ type: 'correction', attrs: { id: 'beta-mark', corrections: CORRECTIONS } },
+				],
+			},
+		]);
+		selectSubstring(editor, 'alpha', 'alpha');
+		const target = captureCorrectionTarget(editor);
+		selectSubstring(editor, 'beta', 'beta');
+
+		expect(removeCorrectionMark(editor, target)).toBe(true);
+		expect(
+			textMarks(editor)
+				.filter(node => node.correction)
+				.map(node => node.text)
+		).toEqual(['beta']);
 	});
 });

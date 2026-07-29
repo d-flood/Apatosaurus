@@ -14,6 +14,7 @@ import { describe, expect, it } from 'vitest';
 import {
 	domMarginaliaSnapshot as domShape,
 	marginaliaColumn,
+	marginaliaDocument,
 	marginaliaLine,
 } from '$lib/client/testing/editorFixtures';
 import {
@@ -30,6 +31,42 @@ function emittedNumbers(content: any): Array<{ column: number; lines: number[] }
 		column: column.attrs?.columnNumber,
 		lines: (column.content ?? []).map((line: any) => line.attrs?.lineNumber),
 	}));
+}
+
+function mountedEditor(container: ParentNode) {
+	const element = container.querySelector<HTMLElement>(
+		'[data-testid="inline-carrier-editor"] .ProseMirror'
+	);
+	if (!element) throw new Error('no mounted nested editor');
+	return (element as any).editor;
+}
+
+function selectText(editor: any, text: string) {
+	let position = -1;
+	editor.state.doc.descendants((node: any, pos: number) => {
+		if (position === -1 && node.isText && node.text === text) position = pos;
+		return position === -1;
+	});
+	if (position === -1) throw new Error(`no text node "${text}"`);
+	editor.commands.setTextSelection({ from: position, to: position + text.length });
+}
+
+function markedText(editor: any, markType: string): string[] {
+	const result: string[] = [];
+	editor.state.doc.descendants((node: any) => {
+		if (node.isText && node.marks.some((mark: any) => mark.type.name === markType)) {
+			result.push(node.text);
+		}
+	});
+	return result;
+}
+
+function textButton(container: ParentNode, label: string): HTMLButtonElement {
+	const result = Array.from(container.querySelectorAll('button')).find(
+		button => button.textContent?.trim() === label
+	);
+	if (!result) throw new Error(`no ${label} button`);
+	return result;
 }
 
 describe('InlineCarrierWorkspace document plumbing', () => {
@@ -175,6 +212,134 @@ describe('InlineCarrierWorkspace document plumbing', () => {
 				{ column: 1, lines: [1, 2] },
 				{ column: 2, lines: [1] },
 			]);
+		} finally {
+			harness.dispose();
+		}
+	});
+});
+
+describe('InlineCarrierWorkspace drawer targets', () => {
+	it('applies a correction to the selection the drawer opened for', async () => {
+		const corrections = [{ hand: 'corrector', content: [{ type: 'text', text: 'alfa' }] }];
+		const harness = await mountWorkspace({
+			initialContent: marginaliaDocument({
+				columns: [
+					marginaliaColumn({
+						lines: [
+							{
+								type: 'marginaliaLine',
+								attrs: { lineNumber: 1, lineId: 'line-1' },
+								content: [
+									{
+										type: 'text',
+										text: 'alpha',
+										marks: [
+											{
+												type: 'correction',
+												attrs: { id: 'alpha-mark', corrections },
+											},
+										],
+									},
+									{ type: 'text', text: ' beta' },
+								],
+							},
+						],
+					}),
+				],
+			}),
+		});
+		try {
+			const editor = mountedEditor(harness.container);
+			selectText(editor, 'alpha');
+			control(harness.container, 'Mark Selection as Corrected').click();
+			await tick();
+			selectText(editor, ' beta');
+			textButton(harness.container, 'Apply to Selection').click();
+			await tick();
+
+			expect(markedText(editor, 'correction')).toEqual(['alpha']);
+		} finally {
+			harness.dispose();
+		}
+	});
+
+	it('applies an abbreviation to the selection the drawer opened for', async () => {
+		const harness = await mountWorkspace({
+			initialContent: marginaliaDocument({
+				columns: [marginaliaColumn({ texts: ['alpha beta'] })],
+			}),
+		});
+		try {
+			const editor = mountedEditor(harness.container);
+			selectText(editor, 'alpha beta');
+			editor.commands.setTextSelection({
+				from: editor.state.selection.from,
+				to: editor.state.selection.from + 5,
+			});
+			control(harness.container, 'Mark Selection as Abbreviation').click();
+			await tick();
+			editor.commands.setTextSelection({
+				from: editor.state.selection.to + 1,
+				to: editor.state.selection.to + 5,
+			});
+			textButton(harness.container, 'Apply').click();
+			await tick();
+
+			expect(markedText(editor, 'abbreviation')).toEqual(['alpha']);
+		} finally {
+			harness.dispose();
+		}
+	});
+
+	it('removes the correction the drawer opened for after the selection moves', async () => {
+		const corrections = [{ hand: 'corrector', content: [{ type: 'text', text: 'fixed' }] }];
+		const harness = await mountWorkspace({
+			initialContent: marginaliaDocument({
+				columns: [
+					marginaliaColumn({
+						lines: [
+							{
+								type: 'marginaliaLine',
+								attrs: { lineNumber: 1, lineId: 'line-1' },
+								content: [
+									{
+										type: 'text',
+										text: 'alpha',
+										marks: [
+											{
+												type: 'correction',
+												attrs: { id: 'alpha-mark', corrections },
+											},
+										],
+									},
+									{ type: 'text', text: ' ' },
+									{
+										type: 'text',
+										text: 'beta',
+										marks: [
+											{
+												type: 'correction',
+												attrs: { id: 'beta-mark', corrections },
+											},
+										],
+									},
+								],
+							},
+						],
+					}),
+				],
+			}),
+		});
+		try {
+			const editor = mountedEditor(harness.container);
+			selectText(editor, 'alpha');
+			control(harness.container, 'Mark Selection as Corrected').click();
+			await tick();
+			selectText(editor, 'beta');
+			textButton(harness.container, 'Remove All').click();
+			await tick();
+
+			expect(markedText(editor, 'correction')).toEqual(['beta']);
 		} finally {
 			harness.dispose();
 		}

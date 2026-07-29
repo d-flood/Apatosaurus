@@ -34,6 +34,8 @@
 	import {
 		applyAbbreviationMark as applyAbbreviationSelectionMark,
 		applyCorrectionMark as applyCorrectionSelectionMark,
+		captureAbbreviationTarget,
+		captureCorrectionTarget,
 		getSelectedInspectorNode,
 		inspectorSelectionKey,
 		NESTED_INSPECTOR_CARRIER_TYPES,
@@ -41,6 +43,7 @@
 		readCorrectionDraft,
 		removeAbbreviationMark as removeAbbreviationSelectionMark,
 		removeCorrectionMark as removeCorrectionSelectionMark,
+		type TextMarkTarget,
 	} from './editorInteractions';
 	import { normalizeMarginaliaContent } from './formworkContent';
 	import type { Correction } from './types';
@@ -86,9 +89,11 @@
 	let lastInspectorSelectionKey = $state('');
 	let dismissedInspectorSelectionKey = $state('');
 	let correctionDraftCorrections = $state<Correction[]>([]);
+	let correctionTarget = $state<TextMarkTarget | null>(null);
 	let abbrType = $state('nomSac');
 	let abbrExpansion = $state('');
 	let abbrRend = $state('¯');
+	let abbreviationTarget = $state<TextMarkTarget | null>(null);
 	let currentPositionLabel = $state('Column 1, Line 1');
 	let toolbarCursorPosition = $state<{
 		columnNumber?: number;
@@ -406,47 +411,57 @@
 
 	function openCorrectionPanel() {
 		const draft = readCorrectionDraft(editor);
-		if (draft === null) return;
+		const target = captureCorrectionTarget(editor);
+		if (draft === null || !target) return;
 		correctionDraftCorrections = draft;
+		correctionTarget = target;
 
 		drawerMode = 'correction';
 	}
 
 	function applyCorrectionMark(corrections: Correction[]) {
-		if (!applyCorrectionSelectionMark(editor, corrections)) return;
+		applyCorrectionSelectionMark(editor, correctionTarget, corrections);
+		correctionTarget = null;
 		drawerMode = 'inspector';
 	}
 
 	function removeCorrectionMark() {
-		if (!removeCorrectionSelectionMark(editor)) return;
+		removeCorrectionSelectionMark(editor, correctionTarget);
+		correctionTarget = null;
 		drawerMode = 'inspector';
 	}
 
 	function openAbbreviationPanel() {
 		const draft = readAbbreviationDraft(editor);
-		if (!draft) return;
+		const target = captureAbbreviationTarget(editor);
+		if (!draft || !target) return;
 		abbrType = draft.type;
 		abbrExpansion = draft.expansion;
 		abbrRend = draft.rend;
+		abbreviationTarget = target;
 
 		drawerMode = 'abbreviation';
 	}
 
 	function applyAbbreviationMark() {
 		if (
-			!applyAbbreviationSelectionMark(editor, {
+			!applyAbbreviationSelectionMark(editor, abbreviationTarget, {
 				type: abbrType,
 				expansion: abbrExpansion,
 				rend: abbrRend,
 			})
 		) {
+			abbreviationTarget = null;
+			drawerMode = 'inspector';
 			return;
 		}
+		abbreviationTarget = null;
 		drawerMode = 'inspector';
 	}
 
 	function removeAbbreviationMark() {
-		if (!removeAbbreviationSelectionMark(editor)) return;
+		removeAbbreviationSelectionMark(editor, abbreviationTarget);
+		abbreviationTarget = null;
 		drawerMode = 'inspector';
 	}
 

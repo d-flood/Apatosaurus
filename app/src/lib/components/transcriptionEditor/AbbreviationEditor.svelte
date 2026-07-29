@@ -3,9 +3,11 @@
 	import { COMMON_ABBREVIATION_TYPES } from './editorCommands';
 	import {
 		applyAbbreviationMark,
+		captureAbbreviationTarget,
 		DEFAULT_ABBREVIATION_DRAFT,
 		readAbbreviationDraft,
 		removeAbbreviationMark,
+		type TextMarkTarget,
 	} from './editorInteractions';
 
 	interface Props {
@@ -18,13 +20,15 @@
 	let type = $state('nomSac');
 	let expansion = $state('');
 	let rend = $state('¯');
+	let target = $state<TextMarkTarget | null>(null);
 
 	function handlePopoverToggle(event: Event) {
 		const toggleEvent = event as ToggleEvent;
 
 		if (toggleEvent.newState === 'open') {
 			const draft = readAbbreviationDraft(editor);
-			if (!draft) return;
+			target = captureAbbreviationTarget(editor);
+			if (!draft || !target) return;
 			type = draft.type;
 			expansion = draft.expansion;
 			rend = draft.rend;
@@ -32,18 +36,19 @@
 			type = DEFAULT_ABBREVIATION_DRAFT.type;
 			expansion = DEFAULT_ABBREVIATION_DRAFT.expansion;
 			rend = DEFAULT_ABBREVIATION_DRAFT.rend;
+			target = null;
 		}
 	}
 
 	function handleApply() {
-		if (!applyAbbreviationMark(editor, { type, expansion, rend })) return;
+		if (!applyAbbreviationMark(editor, target, { type, expansion, rend })) return;
 
 		const popoverEl = document.getElementById(id) as HTMLElement & { hidePopover: () => void };
 		if (popoverEl?.hidePopover) popoverEl.hidePopover();
 	}
 
 	function handleRemove() {
-		if (!removeAbbreviationMark(editor)) return;
+		if (!removeAbbreviationMark(editor, target)) return;
 
 		const popoverEl = document.getElementById(id) as HTMLElement & { hidePopover: () => void };
 		if (popoverEl?.hidePopover) popoverEl.hidePopover();
