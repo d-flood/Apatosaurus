@@ -73,8 +73,8 @@ function getPageContextForPosition(editor: Editor, position: number): PageSelect
 			? {
 					pageId,
 					pageName:
-						typeof node.attrs.n === 'string' && node.attrs.n.trim().length > 0
-							? node.attrs.n.trim()
+						typeof node.attrs.pageName === 'string' && node.attrs.pageName.trim().length > 0
+							? node.attrs.pageName.trim()
 							: null,
 					pageOrder,
 				}

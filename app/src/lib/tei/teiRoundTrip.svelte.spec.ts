@@ -113,21 +113,18 @@ describe('TEI round trip through the ProseMirror adapter', () => {
 	});
 
 	describe('question 4 — attributes parsed but never rendered', () => {
-		it('DEFECT F12: an editor-set paragraph start never reaches the TEI', () => {
+		it('exports an editor-set paragraph start to TEI', () => {
 			const pm = editorJson(SAMPLE_TEI);
 			// This is exactly what `toggleParagraphStart` writes.
 			lineNode(pm, 0, 0, 1).attrs['paragraph-start'] = true;
 
 			const xml = exportFromProseMirror(pm);
 			const lineBreaks = xml.match(/<lb[^>]*\/>/g) ?? [];
-			// The first line keeps rend="hang" only because the original parse put it
-			// in teiAttrs. The second line, flagged in the editor, gets nothing: the
-			// serializer reads `attrs.paragraphStart` while the schema and the
-			// adapter both write `attrs['paragraph-start']`.
+			// The first line came from TEI; the second was flagged in the editor.
 			expect(lineBreaks[0]).toContain('rend="hang"');
-			expect(lineBreaks[1]).not.toContain('rend');
+			expect(lineBreaks[1]).toContain('rend="hang"');
 
-			expect(parseTei(xml).pages[0].columns[0].lines[1].paragraphStart).toBeUndefined();
+			expect(parseTei(xml).pages[0].columns[0].lines[1].paragraphStart).toBe(true);
 		});
 
 		it('DEFECT F13: preserves a word continuing across page and column boundaries', () => {
