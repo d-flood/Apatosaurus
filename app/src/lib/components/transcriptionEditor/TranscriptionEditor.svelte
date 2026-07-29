@@ -520,10 +520,11 @@
 
 					const node = state.doc.nodeAt(existing.pos);
 					if (node?.type.name === 'fw') {
-						tr.setNodeMarkup(existing.pos, undefined, {
-							...node.attrs,
-							content: nextContent,
-						});
+						tr.replaceWith(
+							existing.pos + 1,
+							existing.pos + node.nodeSize - 1,
+							nextContent.map(child => state.schema.nodeFromJSON(child))
+						);
 					}
 					return true;
 				}
@@ -540,7 +541,8 @@
 				}
 
 				const formWorkNode = state.schema.nodes.fw?.create(
-					createDefaultFormWorkAttrs(kind, newText)
+					createDefaultFormWorkAttrs(kind),
+					nextContent.map(child => state.schema.nodeFromJSON(child))
 				);
 				if (!formWorkNode) {
 					return false;
@@ -555,7 +557,7 @@
 	function insertMarginalia() {
 		if (!editorState.editor) return;
 
-		const attrs = createDefaultMarginaliaAttrs('Marginal', []);
+		const attrs = createDefaultMarginaliaAttrs('Marginal');
 		insertSelectableCarrierNode(editorState.editor, 'fw', attrs);
 	}
 
@@ -768,6 +770,32 @@
 		if (!editor) return;
 		const { state, view } = editor;
 		const from = state.selection.$from;
+		for (let depth = from.depth; depth > 0; depth -= 1) {
+			const formWork = from.node(depth);
+			if (formWork.type.name !== 'fw') continue;
+			let offset = 0;
+			let lineBreakPos: number | null = null;
+			for (let index = 0; index < from.index(depth); index += 1) {
+				const child = formWork.child(index);
+				if (child.type.name === 'lineBreak') {
+					lineBreakPos = from.before(depth) + 1 + offset;
+				}
+				offset += child.nodeSize;
+			}
+			if (lineBreakPos !== null) {
+				const lineBreak = state.doc.nodeAt(lineBreakPos);
+				const teiAttrs = { ...(lineBreak?.attrs.teiAttrs || {}) };
+				if (teiAttrs.break === 'no') delete teiAttrs.break;
+				else teiAttrs.break = 'no';
+				view.dispatch(
+					state.tr.setNodeMarkup(lineBreakPos, undefined, {
+						...lineBreak?.attrs,
+						teiAttrs,
+					})
+				);
+			}
+			return;
+		}
 		let lineNode: any = null;
 		let linePos = null;
 		state.doc.nodesBetween(from.pos, from.pos, (node, pos) => {
@@ -887,8 +915,15 @@
 	}
 
 	function insertColumn() {
-		const { state, view } = editorState.editor || {};
+		const editor = editorState.editor;
+		const { state, view } = editor || {};
 		if (!state || !view) return;
+		for (let depth = state.selection.$from.depth; depth > 0; depth -= 1) {
+			if (state.selection.$from.node(depth).type.name === 'fw') {
+				insertSelectableCarrierNode(editor, 'columnBreak', { teiAttrs: {} });
+				return;
+			}
+		}
 
 		const tr = createColumnSplitTransaction(state);
 		if (!tr) return;

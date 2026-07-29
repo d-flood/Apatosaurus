@@ -2,7 +2,12 @@
 	import { onMount } from 'svelte';
 	import type { Editor } from '@tiptap/core';
 	import { NodeSelection, TextSelection } from '@tiptap/pm/state';
-	import { fromProseMirror, parseTei, serializeTei, toProseMirror } from '$lib/tei/tei-transcription';
+	import {
+		fromProseMirror,
+		parseTei,
+		serializeTei,
+		toProseMirror,
+	} from '$lib/tei/tei-transcription';
 
 	import { getEditor } from '$lib/client/transcriptionEditorSchema';
 	import { initializeEditorContent } from '$lib/client/editorContentInitialization';
@@ -59,7 +64,8 @@
 	}
 
 	function insertGap(reason: string, unit: string, extent: string) {
-		if (!insertSelectableCarrierNode(editor, 'gap', buildGapAttrs(reason, unit, extent))) return;
+		if (!insertSelectableCarrierNode(editor, 'gap', buildGapAttrs(reason, unit, extent)))
+			return;
 		updateSelectedNode();
 		refreshExport();
 	}
@@ -85,7 +91,8 @@
 	}
 
 	function insertMarginalia() {
-		if (!insertSelectableCarrierNode(editor, 'fw', createDefaultMarginaliaAttrs('Marginal', []))) return;
+		if (!insertSelectableCarrierNode(editor, 'fw', createDefaultMarginaliaAttrs('Marginal')))
+			return;
 		updateSelectedNode();
 		refreshExport();
 	}
@@ -137,7 +144,8 @@
 	}
 
 	function insertCorrectionNode() {
-		if (!insertSelectableCarrierNode(editor, 'correctionNode', buildCorrectionNodeAttrs())) return;
+		if (!insertSelectableCarrierNode(editor, 'correctionNode', buildCorrectionNodeAttrs()))
+			return;
 		updateSelectedNode();
 		refreshExport();
 	}
@@ -184,7 +192,7 @@
 <div class="space-y-4">
 	{#if editor}
 		<EditorToolbar
-			editor={editor}
+			{editor}
 			{pageName}
 			{hasPage}
 			exportLoading={false}
@@ -201,7 +209,8 @@
 			onInsertMarginalia={insertMarginalia}
 			onInsertMetamark={insertStandaloneMetamark}
 			onInsertCorrectionNode={insertCorrectionNode}
-			onInsertGenericTeiMilestone={(unit, value, ed) => insertGenericTeiMilestone(unit, value, ed)}
+			onInsertGenericTeiMilestone={(unit, value, ed) =>
+				insertGenericTeiMilestone(unit, value, ed)}
 			onInsertMilestoneNode={() => {}}
 			onTEIExport={refreshExport}
 		/>
@@ -210,7 +219,12 @@
 	<div bind:this={bubbleMenuElement} class="hidden"></div>
 	<div bind:this={editorElement}></div>
 	<div class="flex gap-2">
-		<button type="button" class="btn btn-xs btn-outline" data-testid="select-sample-text" onclick={selectSampleText}>
+		<button
+			type="button"
+			class="btn btn-xs btn-outline"
+			data-testid="select-sample-text"
+			onclick={selectSampleText}
+		>
 			Select sample text
 		</button>
 		<button
@@ -223,9 +237,8 @@
 		</button>
 	</div>
 	<div data-testid="selected-carrier">{selectedNode?.type || 'none'}</div>
-	<TeiNodeInspector selectedNode={selectedNode} onUpdateNodeAttrs={updateCarrierNodeAttrs} />
+	<TeiNodeInspector {selectedNode} onUpdateNodeAttrs={updateCarrierNodeAttrs} />
 	<pre
 		data-testid="exported-xml"
-		class="whitespace-pre-wrap break-all rounded border border-base-300 bg-base-100 p-3 text-xs"
-	>{exportedXml}</pre>
+		class="whitespace-pre-wrap break-all rounded border border-base-300 bg-base-100 p-3 text-xs">{exportedXml}</pre>
 </div>

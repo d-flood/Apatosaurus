@@ -1,6 +1,8 @@
 import { Slice, type Schema } from '@tiptap/pm/model';
 import { TextSelection, type EditorState, type Transaction } from '@tiptap/pm/state';
 
+import { flattenStructuredFormWorkContent } from '$lib/tei/tei-transcription';
+
 import { findFirstDescendantPosition } from './proseMirrorNodeLookup';
 
 const MAIN_LINE_CONTENT_NODE_NAMES = new Set([
@@ -113,6 +115,26 @@ function isAllowedMainLineContentNode(node: unknown): node is JsonNode {
 		typeof node.type === 'string' &&
 		MAIN_LINE_CONTENT_NODE_NAMES.has(node.type)
 	);
+}
+
+function migrateLegacyFormWorkContent(node: JsonNode, issues: string[]): boolean {
+	let migrated = false;
+	if (node.type === 'fw' && isRecord(node.attrs) && 'content' in node.attrs) {
+		const { content: legacyContent, ...attrs } = node.attrs;
+		node.attrs = attrs;
+		if (!Array.isArray(node.content)) {
+			node.content = flattenStructuredFormWorkContent(legacyContent);
+		}
+		issues.push('migrated legacy fw content into the document');
+		migrated = true;
+	}
+
+	for (const child of Array.isArray(node.content) ? node.content : []) {
+		if (isRecord(child)) {
+			migrated = migrateLegacyFormWorkContent(child, issues) || migrated;
+		}
+	}
+	return migrated;
 }
 
 function buildEmptyLine(ensureNodeIds = false): JsonNode {
@@ -380,6 +402,7 @@ export function repairManuscriptStructureJson(
 			issues,
 		};
 	}
+	const migrated = migrateLegacyFormWorkContent(doc, issues);
 
 	const rawPages = Array.isArray(doc.content) ? doc.content : [];
 	const pages: JsonNode[] = [];
@@ -482,7 +505,7 @@ export function repairManuscriptStructureJson(
 
 	return {
 		doc: repairedDoc,
-		repaired: JSON.stringify(doc) !== JSON.stringify(repairedDoc),
+		repaired: migrated || JSON.stringify(doc) !== JSON.stringify(repairedDoc),
 		issues,
 	};
 }

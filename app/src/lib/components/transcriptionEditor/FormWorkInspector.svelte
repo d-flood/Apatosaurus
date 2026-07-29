@@ -1,12 +1,6 @@
 <script lang="ts">
 	import Check from 'phosphor-svelte/lib/Check';
-	import {
-		buildPlainTextFormWorkContent,
-		formWorkContentToPlainText,
-		normalizeMarginaliaContent,
-	} from './formworkContent';
 	import { classifyFormWork, type MarginaliaCategory } from './formworkConcepts';
-	import InlineCarrierWorkspace from './InlineCarrierWorkspace.svelte';
 	import {
 		MARGINALIA_CATEGORIES,
 		MARGINALIA_PLACEMENTS,
@@ -22,7 +16,6 @@
 	let { attrs, onApply }: Props = $props();
 
 	const classification = $derived(classifyFormWork(attrs));
-	let textValue = $state('');
 	let categoryValue = $state<Exclude<MarginaliaCategory, null>>('Other');
 	let placementValue = $state('unknown');
 	let typeValue = $state('');
@@ -32,11 +25,9 @@
 	let segTypeValue = $state('');
 	let segSubtypeValue = $state('');
 	let segPlaceValue = $state('');
-	let contentValue = $state<Record<string, any>>(normalizeMarginaliaContent([]));
 	const contentTypeOptions = ['runTitle', 'pageNum', 'quireSig', 'chapTitle', 'lectTitle'];
 
 	$effect(() => {
-		textValue = formWorkContentToPlainText(attrs?.content || []);
 		categoryValue = classification.marginaliaCategory || 'Other';
 		placementValue = derivePlacementValue(classification);
 		typeValue = attrs?.type || '';
@@ -46,7 +37,6 @@
 		segTypeValue = attrs?.segType || '';
 		segSubtypeValue = attrs?.segSubtype || '';
 		segPlaceValue = attrs?.segPlace || '';
-		contentValue = normalizeMarginaliaContent(attrs?.content);
 	});
 
 	function applyChanges() {
@@ -71,10 +61,6 @@
 			segType: nextSegType,
 			segSubtype: nextSegSubtype,
 			segPlace: nextSegPlace,
-			content:
-				classification.entryPoint === 'marginalia'
-					? contentValue
-					: buildPlainTextFormWorkContent(textValue),
 			teiAttrs: {
 				...(attrs?.teiAttrs || {}),
 				type: typeValue || undefined,
@@ -96,7 +82,9 @@
 		placementValue = defaultPlacementForCategory(categoryValue);
 	}
 
-	function derivePlacementValue(currentClassification: ReturnType<typeof classifyFormWork>): string {
+	function derivePlacementValue(
+		currentClassification: ReturnType<typeof classifyFormWork>
+	): string {
 		if (currentClassification.entryPoint !== 'marginalia') {
 			return 'unknown';
 		}
@@ -127,13 +115,6 @@
 			{classification.marginaliaCategory || 'Other'} &middot; {classification.placementLabel}
 		</div>
 
-		<InlineCarrierWorkspace
-			title="Marginalia Content"
-			description="Use the inline editor for multi-line content or nested corrections."
-			initialContent={contentValue}
-			onChange={nextContent => (contentValue = normalizeMarginaliaContent(nextContent))}
-		/>
-
 		<div class="grid gap-2 md:grid-cols-2">
 			<label class="form-control">
 				<span class="label-text text-xs font-semibold">Category</span>
@@ -149,10 +130,7 @@
 			</label>
 			<label class="form-control">
 				<span class="label-text text-xs font-semibold">Placement</span>
-				<select
-					bind:value={placementValue}
-					class="select select-bordered select-sm"
-				>
+				<select bind:value={placementValue} class="select select-bordered select-sm">
 					{#each MARGINALIA_PLACEMENTS[categoryValue] as placement}
 						<option value={placement.value}>{placement.label}</option>
 					{/each}
@@ -160,14 +138,14 @@
 			</label>
 		</div>
 	{:else}
-		<label class="form-control">
-			<span class="label-text text-xs font-semibold">Text</span>
-			<input bind:value={textValue} class="input input-bordered input-sm" />
-		</label>
 		<div class="grid gap-2 md:grid-cols-2">
 			<label class="form-control">
 				<span class="label-text text-xs font-semibold">Content Type</span>
-				<input bind:value={typeValue} class="input input-bordered input-sm" list="fw-content-types" />
+				<input
+					bind:value={typeValue}
+					class="input input-bordered input-sm"
+					list="fw-content-types"
+				/>
 				<datalist id="fw-content-types">
 					{#each contentTypeOptions as opt}
 						<option value={opt}></option>
@@ -185,11 +163,14 @@
 		</div>
 	{/if}
 
+	<p class="text-xs text-base-content/65">
+		Edit this formwork's text directly in the transcription.
+	</p>
+
 	<div class="flex justify-end">
 		<button class="btn btn-sm btn-primary" onclick={applyChanges}>
 			<Check size={16} />
 			Apply
 		</button>
 	</div>
-
 </div>

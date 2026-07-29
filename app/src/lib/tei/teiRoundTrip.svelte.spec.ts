@@ -103,6 +103,27 @@ describe('TEI round trip through the ProseMirror adapter', () => {
 		]);
 	});
 
+	it('keeps rich fw children in the mounted editor document', () => {
+		const source = `<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0"><teiHeader></teiHeader><text><body>
+  <pb n="1r"/><cb n="C1"/><lb/>
+  <fw type="header"><foreign xml:lang="la"><w>ab<lb break="no"/>cd</w></foreign><app><rdg type="orig"><w>alpha</w></rdg><rdg type="corr" hand="c2"><w>beta</w></rdg></app></fw>
+</body></text></TEI>`;
+		const editor = createTestEditor({ content: editorJson(source) });
+
+		try {
+			const fw = lineNode(editor.getJSON(), 0, 0, 0).content[0];
+			expect(fw.attrs).not.toHaveProperty('content');
+			expect(fw.content.map((node: any) => node.type)).toEqual(['teiWrapper', 'text']);
+			expect(fw.content[1].marks).toEqual([expect.objectContaining({ type: 'correction' })]);
+			expect(exportFromProseMirror(editor.getJSON()).replace(/\s+/g, '')).toContain(
+				'<fwtype="header"><foreignxml:lang="la"><w>ab<lbbreak="no"/>cd</w></foreign><app><rdgtype="orig"><w>alpha</w></rdg><rdgtype="corr"hand="c2"><w>beta</w></rdg></app></fw>'
+			);
+		} finally {
+			editor.destroy();
+		}
+	});
+
 	describe('question 1 — line and column numbers', () => {
 		it('does not synthesize @n on line breaks', () => {
 			const xml = exportFromProseMirror(editorJson(SAMPLE_TEI));

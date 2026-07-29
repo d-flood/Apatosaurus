@@ -1,11 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { domDocumentSnapshot, domMarginaliaSnapshot } from './editorFixtures';
-import {
-	createTestEditor,
-	mountInlineCarrierWorkspace,
-	mountTranscriptionEditor,
-} from './editorHarnesses.svelte';
+import { domDocumentSnapshot } from './editorFixtures';
+import { createTestEditor, mountTranscriptionEditor } from './editorHarnesses.svelte';
 
 describe('editor test harnesses', () => {
 	it('creates a direct editor with a non-degenerate fixture', () => {
@@ -28,21 +24,6 @@ describe('editor test harnesses', () => {
 				],
 				[['d1', 'd2', 'd3', 'd4']],
 			]);
-		} finally {
-			harness.dispose();
-		}
-	});
-
-	it('mounts InlineCarrierWorkspace as a controlled component', async () => {
-		const harness = await mountInlineCarrierWorkspace({
-			toolbarIdPrefix: 'carrier-harness-spec',
-		});
-		try {
-			expect(domMarginaliaSnapshot(harness.container)).toEqual([
-				['a1', 'a2', 'a3', 'a4'],
-				['b1', 'b2', 'b3', 'b4'],
-			]);
-			expect(harness.emitted).toHaveLength(0);
 		} finally {
 			harness.dispose();
 		}

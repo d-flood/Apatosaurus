@@ -122,7 +122,13 @@ describe('page layout at a constrained pane width', () => {
 			document: transcriptionDocument({
 				pages: [
 					transcriptionFramedPage({
-						texts: [BLANK_LINES, BLANK_LINES, ['x'.repeat(200)], BLANK_LINES, BLANK_LINES],
+						texts: [
+							BLANK_LINES,
+							BLANK_LINES,
+							['x'.repeat(200)],
+							BLANK_LINES,
+							BLANK_LINES,
+						],
 					}),
 				],
 			}),
@@ -133,7 +139,9 @@ describe('page layout at a constrained pane width', () => {
 		await nextAnimationFrame();
 		try {
 			const page = harness.container.querySelector<HTMLElement>('.page')!;
-			const center = harness.container.querySelector<HTMLElement>('.column[data-zone="center"]')!;
+			const center = harness.container.querySelector<HTMLElement>(
+				'.column[data-zone="center"]'
+			)!;
 			const line = center.querySelector<HTMLElement>('.line')!;
 			expect(page.offsetWidth).toBe(harness.viewport.clientWidth);
 			expect(harness.viewport.scrollWidth).toBe(harness.viewport.clientWidth);
@@ -203,8 +211,11 @@ describe('presentational numbering', () => {
 			kind: 'pageLabel' | 'runningTitle' | 'catchword' | 'quireSignature',
 			text: string
 		) => {
-			const { content, ...attrs } = createDefaultFormWorkAttrs(kind, text);
-			return { type: 'fw', attrs, content };
+			return {
+				type: 'fw',
+				attrs: createDefaultFormWorkAttrs(kind),
+				content: [{ type: 'text', text }],
+			};
 		};
 		const harness = await mountTranscriptionEditor({
 			document: transcriptionDocument({
@@ -251,12 +262,9 @@ describe('presentational numbering', () => {
 				'counter(transcription-line)'
 			);
 			expect(getComputedStyle(line, '::after').content).toContain('↪');
-			expect(Array.from(line.querySelectorAll('.fw-node')).map(node => node.textContent)).toEqual([
-				'Label I',
-				'Romans',
-				'logos',
-				'XII',
-			]);
+			expect(
+				Array.from(line.querySelectorAll('.fw-node')).map(node => node.textContent)
+			).toEqual(['Label I', 'Romans', 'logos', 'XII']);
 		} finally {
 			harness.dispose();
 		}

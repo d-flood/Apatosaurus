@@ -33,6 +33,9 @@ function wrapInTEI(bodyContent: string): string {
 }
 
 function getFormWorkInlineContent(fwNode: any): any[] {
+	if (Array.isArray(fwNode?.content)) {
+		return fwNode.content;
+	}
 	const content = fwNode?.attrs?.content;
 	if (Array.isArray(content)) {
 		return content;

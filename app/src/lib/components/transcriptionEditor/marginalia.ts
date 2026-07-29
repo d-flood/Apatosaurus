@@ -1,5 +1,4 @@
 import type { MarginaliaCategory } from './formworkConcepts';
-import { buildMarginaliaDocFromText } from './formworkContent';
 
 export const MARGINALIA_CATEGORIES: Exclude<MarginaliaCategory, null>[] = [
 	'Marginal',
@@ -38,10 +37,7 @@ export const MARGINALIA_PLACEMENTS: Record<
 	],
 };
 
-export function createDefaultMarginaliaAttrs(
-	category: MarginaliaCategory,
-	content: string | Array<Record<string, any>>
-): Record<string, any> {
+export function createDefaultMarginaliaAttrs(category: MarginaliaCategory): Record<string, any> {
 	const marginaliaId =
 		typeof crypto?.randomUUID === 'function'
 			? `marginalia-${crypto.randomUUID()}`
@@ -56,10 +52,6 @@ export function createDefaultMarginaliaAttrs(
 		segType: '',
 		segSubtype: '',
 		segPlace: '',
-		content:
-			typeof content === 'string'
-				? buildMarginaliaDocFromText(content)
-				: JSON.parse(JSON.stringify(content || [])),
 	};
 
 	return {

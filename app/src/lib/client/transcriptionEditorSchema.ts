@@ -6,10 +6,6 @@ import {
 	repairPastedManuscriptSlice,
 } from '$lib/client/transcriptionEditorStructure';
 import { classifyFormWork } from '$lib/components/transcriptionEditor/formworkConcepts';
-import {
-	formWorkContentToPlainText,
-	normalizeMarginaliaContent,
-} from '$lib/components/transcriptionEditor/formworkContent';
 import { Editor, Extension, Mark, Node, generateHTML, markInputRule } from '@tiptap/core';
 import { BubbleMenu } from '@tiptap/extension-bubble-menu';
 import { History } from '@tiptap/extension-history';
@@ -24,6 +20,10 @@ function parseJsonAttr<T>(value: string | null, fallback: T = {} as T): T {
 	} catch {
 		return fallback;
 	}
+}
+
+function serializeJsonAttr(value: unknown): string {
+	return JSON.stringify(value || {});
 }
 
 function iconLabelSpec(label: string, icon: BadgeIconName) {
@@ -1635,22 +1635,37 @@ const TeiWrapperNode = Node.create({
 
 const FormWorkNode = Node.create({
 	name: 'fw',
+	priority: 1000,
 	group: 'inline',
 	inline: true,
-	atom: true,
+	content: 'inline*',
 	selectable: true,
 	parseHTML() {
 		return [{ tag: 'span.fw-node' }];
 	},
+	addKeyboardShortcuts() {
+		return {
+			Enter: () => {
+				const { $from } = this.editor.state.selection;
+				for (let depth = $from.depth; depth > 0; depth -= 1) {
+					if ($from.node(depth).type.name === 'fw') {
+						return this.editor.commands.insertContent({
+							type: 'lineBreak',
+							attrs: { teiAttrs: {} },
+						});
+					}
+				}
+				return false;
+			},
+		};
+	},
 	renderHTML({ node, HTMLAttributes }) {
-		const content = node.attrs.content || [];
-		const text = formWorkContentToPlainText(content);
 		const classification = classifyFormWork(node.attrs || {});
 		const category =
 			classification.entryPoint === 'marginalia'
 				? classification.marginaliaCategory || 'Other'
 				: classification.label;
-		const label = text || String(category).toLowerCase();
+		const label = node.textContent.trim() || String(category).toLowerCase();
 		const placement = classification.placementConcept;
 		const categoryClass =
 			classification.entryPoint !== 'marginalia'
@@ -1696,13 +1711,14 @@ const FormWorkNode = Node.create({
 				'data-seg-hand': node.attrs.segHand || '',
 				'data-seg-rend': node.attrs.segRend || '',
 				'data-seg-n': node.attrs.segN || '',
-				'data-tei-attrs': JSON.stringify(node.attrs.teiAttrs || {}),
-				'data-seg-attrs': JSON.stringify(node.attrs.segAttrs || {}),
-				'data-content': JSON.stringify(content),
 				title: label,
-				contenteditable: 'false',
 			},
-			...iconLabelSpec(label, iconName),
+			[
+				'span',
+				{ class: 'tei-inline-badge-icon', contenteditable: 'false' },
+				badgeIconSpec(iconName),
+			],
+			['span', { class: 'fw-content' }, 0],
 		];
 	},
 	addAttributes() {
@@ -1756,7 +1772,7 @@ const FormWorkNode = Node.create({
 				default: {},
 				parseHTML: element => parseJsonAttr(element.getAttribute('data-tei-attrs'), {}),
 				renderHTML: attributes => ({
-					'data-tei-attrs': JSON.stringify(attributes.teiAttrs || {}),
+					'data-tei-attrs': serializeJsonAttr(attributes.teiAttrs),
 				}),
 			},
 			segType: {
@@ -1795,22 +1811,7 @@ const FormWorkNode = Node.create({
 				default: {},
 				parseHTML: element => parseJsonAttr(element.getAttribute('data-seg-attrs'), {}),
 				renderHTML: attributes => ({
-					'data-seg-attrs': JSON.stringify(attributes.segAttrs || {}),
-				}),
-			},
-			content: {
-				default: normalizeMarginaliaContent([]),
-				parseHTML: element => {
-					const value = element.getAttribute('data-content');
-					if (!value) return normalizeMarginaliaContent([]);
-					try {
-						return JSON.parse(value);
-					} catch {
-						return normalizeMarginaliaContent([]);
-					}
-				},
-				renderHTML: attributes => ({
-					'data-content': JSON.stringify(attributes.content || []),
+					'data-seg-attrs': serializeJsonAttr(attributes.segAttrs),
 				}),
 			},
 		};

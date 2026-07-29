@@ -191,15 +191,26 @@ export function getSelectedInspectorNode(
 	if (!editor) return null;
 
 	const selectionNode = (editor.state.selection as any).node;
-	if (!selectionNode || !carrierTypes.includes(selectionNode.type.name)) {
-		return null;
+	if (selectionNode && carrierTypes.includes(selectionNode.type.name)) {
+		return {
+			pos: editor.state.selection.from,
+			type: selectionNode.type.name,
+			attrs: selectionNode.attrs || {},
+		};
 	}
 
-	return {
-		pos: editor.state.selection.from,
-		type: selectionNode.type.name,
-		attrs: selectionNode.attrs || {},
-	};
+	const { $from } = editor.state.selection;
+	for (let depth = $from.depth; depth > 0; depth -= 1) {
+		const node = $from.node(depth);
+		if (node.type.name === 'fw' && carrierTypes.includes('fw')) {
+			return {
+				pos: $from.before(depth),
+				type: 'fw',
+				attrs: node.attrs || {},
+			};
+		}
+	}
+	return null;
 }
 
 export function inspectorSelectionKey(node: SelectedCarrierNode | null): string {

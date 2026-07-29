@@ -121,33 +121,47 @@ function exportNode(node: ProseMirrorJSON, context: ExportContext): void {
 	switch (node.type) {
 		case 'page':
 			closeAllDivs(context);
-			context.xml.push(`<pb${serializeAttrs(mergeTeiAttrs(node.attrs, {
-				'xml:id': node.attrs?.pageId || node.attrs?.teiAttrs?.['xml:id'],
-				n: node.attrs?.teiAttrs?.n || node.attrs?.pageName || '',
-				type: node.attrs?.teiAttrs?.type || 'folio',
-				break: node.attrs?.wrapped ? 'no' : undefined,
-			}))}/>`);
+			context.xml.push(
+				`<pb${serializeAttrs(
+					mergeTeiAttrs(node.attrs, {
+						'xml:id': node.attrs?.pageId || node.attrs?.teiAttrs?.['xml:id'],
+						n: node.attrs?.teiAttrs?.n || node.attrs?.pageName || '',
+						type: node.attrs?.teiAttrs?.type || 'folio',
+						break: node.attrs?.wrapped ? 'no' : undefined,
+					})
+				)}/>`
+			);
 			exportNodes(node.content, context);
 			break;
 
 		case 'column':
 			closeAllDivs(context);
-			context.xml.push(`<cb${serializeAttrs(mergeTeiAttrs(node.attrs, {
-				n: node.attrs?.teiAttrs?.n,
-				break: node.attrs?.wrapped ? 'no' : undefined,
-				type: node.attrs?.zone ? 'frame' : undefined,
-				subtype: node.attrs?.zone || undefined,
-			}))}/>`);
+			context.xml.push(
+				`<cb${serializeAttrs(
+					mergeTeiAttrs(node.attrs, {
+						n: node.attrs?.teiAttrs?.n,
+						break: node.attrs?.wrapped ? 'no' : undefined,
+						type: node.attrs?.zone ? 'frame' : undefined,
+						subtype: node.attrs?.zone || undefined,
+					})
+				)}/>`
+			);
 			exportNodes(node.content, context);
 			break;
 
 		case 'line':
 			// TranscriptionDocument paragraphStart maps to ProseMirror `paragraph-start`
 			// and TEI rend="hang"; keep this reader aligned with the ProseMirror spelling.
-			context.xml.push(`<lb${serializeAttrs(mergeTeiAttrs(node.attrs, {
-				break: node.attrs?.wrapped ? 'no' : undefined,
-				rend: node.attrs?.['paragraph-start'] ? (node.attrs?.teiAttrs?.rend || 'hang') : undefined,
-			}))}/>`);
+			context.xml.push(
+				`<lb${serializeAttrs(
+					mergeTeiAttrs(node.attrs, {
+						break: node.attrs?.wrapped ? 'no' : undefined,
+						rend: node.attrs?.['paragraph-start']
+							? node.attrs?.teiAttrs?.rend || 'hang'
+							: undefined,
+					})
+				)}/>`
+			);
 			exportLineContent(node.content, context);
 			break;
 
@@ -202,11 +216,15 @@ function exportLineContent(nodes: ProseMirrorJSON[] | undefined, context: Export
 		if (word.type === 'gap') {
 			ensureAnonymousAb(context);
 			const attrs = word.attrs || {};
-			context.xml.push(`<gap${serializeAttrs(mergeCarrierAttrs(attrs, {
-				reason: attrs.reason,
-				unit: attrs.unit,
-				extent: attrs.extent,
-			}))}/>`);
+			context.xml.push(
+				`<gap${serializeAttrs(
+					mergeCarrierAttrs(attrs, {
+						reason: attrs.reason,
+						unit: attrs.unit,
+						extent: attrs.extent,
+					})
+				)}/>`
+			);
 			continue;
 		}
 
@@ -255,11 +273,13 @@ function exportLineContent(nodes: ProseMirrorJSON[] | undefined, context: Export
 			ensureAnonymousAb(context);
 			const attrs = word.attrs || {};
 			context.xml.push(
-				`<note${serializeAttrs(mergeCarrierAttrs(attrs, {
-					type: 'untranscribed',
-					subtype: attrs.reason || 'Untranscribed',
-					n: attrs.extent || 'partial',
-				}))}/>`
+				`<note${serializeAttrs(
+					mergeCarrierAttrs(attrs, {
+						type: 'untranscribed',
+						subtype: attrs.reason || 'Untranscribed',
+						n: attrs.extent || 'partial',
+					})
+				)}/>`
 			);
 			continue;
 		}
@@ -289,7 +309,7 @@ function exportLineContent(nodes: ProseMirrorJSON[] | undefined, context: Export
 				context.xml.push(`<${tag}${serializeAttrs(segmentWrapper.attrs?.teiAttrs || {})}>`);
 				for (const group of segmentGroups) {
 					if (group.type === 'fw') {
-						exportFormWork(group.attrs || {}, context, false);
+						exportFormWork(group.attrs || {}, group.node?.content, context, false);
 					} else if (group.content) {
 						exportWord(removeWrapperMark(group.content, segmentWrapper), context);
 					}
@@ -301,7 +321,7 @@ function exportLineContent(nodes: ProseMirrorJSON[] | undefined, context: Export
 
 		if (word.type === 'fw') {
 			ensureAnonymousAb(context);
-			exportFormWork(word.attrs || {}, context);
+			exportFormWork(word.attrs || {}, word.node?.content, context);
 			continue;
 		}
 
@@ -364,7 +384,11 @@ function groupIntoWords(nodes: ProseMirrorJSON[]): WordGroup[] {
 				words.push({ type: 'word', content: currentWord });
 				currentWord = [];
 			}
-			words.push({ type: node.type as WordGroup['type'], attrs: node.attrs, node });
+			words.push({
+				type: node.type as WordGroup['type'],
+				attrs: node.attrs,
+				node,
+			});
 			continue;
 		}
 
@@ -511,11 +535,7 @@ function buildWrappedWordSequenceXml(
 		innerWords.every(word => hasMatchingWholeWordWrapper(word.content || [], innerWrapper))
 			? buildWrappedWordSequenceXml(innerWords, innerWrapper)
 			: innerWords.map(word => buildWordXml(word.content || [])).join('');
-	return [
-		`<${tag}${attrs}>`,
-		inner,
-		`</${tag}>`,
-	].join('');
+	return [`<${tag}${attrs}>`, inner, `</${tag}>`].join('');
 }
 
 function removeWrapperMark(
@@ -590,7 +610,10 @@ function exportCorrection(
 		bookDivOpen: false,
 		chapterDivOpen: false,
 	};
-	exportInlineContent(stripMarks(flattenCorrectionGroups(groups), ['correction']), originalContext);
+	exportInlineContent(
+		stripMarks(flattenCorrectionGroups(groups), ['correction']),
+		originalContext
+	);
 	context.xml.push(`<rdg type="orig">${originalContext.xml.join('')}</rdg>`);
 
 	for (const correction of corrections) {
@@ -684,11 +707,15 @@ function exportInlineContent(content: ProseMirrorJSON[], context: ExportContext)
 
 		if (group.type === 'gap') {
 			const attrs = node.attrs || {};
-			context.xml.push(`<gap${serializeAttrs(mergeCarrierAttrs(attrs, {
-				reason: attrs.reason,
-				unit: attrs.unit,
-				extent: attrs.extent,
-			}))}/>`);
+			context.xml.push(
+				`<gap${serializeAttrs(
+					mergeCarrierAttrs(attrs, {
+						reason: attrs.reason,
+						unit: attrs.unit,
+						extent: attrs.extent,
+					})
+				)}/>`
+			);
 			continue;
 		}
 
@@ -723,7 +750,7 @@ function exportInlineContent(content: ProseMirrorJSON[], context: ExportContext)
 		}
 
 		if (group.type === 'fw') {
-			exportFormWork(node.attrs || {}, context);
+			exportFormWork(node.attrs || {}, node.content, context);
 			continue;
 		}
 
@@ -869,7 +896,9 @@ function inlineItemsToProseMirror(items: InlineItem[]): ProseMirrorJSON[] {
 				type: 'fw',
 				attrs: {
 					...item.attrs,
-					content: createStructuredFormWorkContent(inlineItemsToProseMirror(item.content)),
+					content: createStructuredFormWorkContent(
+						inlineItemsToProseMirror(item.content)
+					),
 				},
 			});
 			continue;
@@ -922,10 +951,7 @@ function inlineMarksToProseMirror(marks: TextMark[] | undefined): ProseMirrorJSO
 	}));
 }
 
-function exportCorrectionReading(
-	correction: Record<string, any>,
-	context: ExportContext
-): void {
+function exportCorrectionReading(correction: Record<string, any>, context: ExportContext): void {
 	const rdgAttrs = {
 		type: correction.readingAttrs?.type || 'corr',
 		hand: correction.hand || 'unknown',
@@ -944,10 +970,7 @@ function exportCorrectionReading(
 	context.xml.push('</rdg>');
 }
 
-function exportTextWithMarksInline(
-	node: ProseMirrorJSON,
-	skipMarks: string[] = []
-): string {
+function exportTextWithMarksInline(node: ProseMirrorJSON, skipMarks: string[] = []): string {
 	const text = node.text || '';
 	const marks = (node.marks || []).filter(mark => !skipMarks.includes(mark.type));
 	if (marks.length === 0) {
@@ -1037,9 +1060,7 @@ function getWholeWordWrapperMark(
 	const signature = JSON.stringify(firstMark.attrs || {});
 	for (const node of textNodes) {
 		const matchingMark = node.marks?.find(
-			mark =>
-				mark.type === 'teiSpan' &&
-				JSON.stringify(mark.attrs || {}) === signature
+			mark => mark.type === 'teiSpan' && JSON.stringify(mark.attrs || {}) === signature
 		);
 		if (!matchingMark) return null;
 	}
@@ -1052,7 +1073,9 @@ function hasMatchingWholeWordWrapper(
 	wrapper: { type: 'teiSpan'; attrs?: Record<string, any> }
 ): boolean {
 	const candidate = getWholeWordWrapperMark(nodes);
-	return !!candidate && JSON.stringify(candidate.attrs || {}) === JSON.stringify(wrapper.attrs || {});
+	return (
+		!!candidate && JSON.stringify(candidate.attrs || {}) === JSON.stringify(wrapper.attrs || {})
+	);
 }
 
 function getWordGroupSegmentWrapper(
@@ -1073,25 +1096,28 @@ function hasSameWrapper(
 	candidate: { type: 'teiSpan'; attrs?: Record<string, any> } | null,
 	wrapper: { type: 'teiSpan'; attrs?: Record<string, any> }
 ): boolean {
-	return !!candidate && JSON.stringify(candidate.attrs || {}) === JSON.stringify(wrapper.attrs || {});
+	return (
+		!!candidate && JSON.stringify(candidate.attrs || {}) === JSON.stringify(wrapper.attrs || {})
+	);
 }
 
 function getFormWorkSegmentAttrs(attrs: Record<string, any>): Record<string, any> {
 	return Object.fromEntries(
 		Object.entries({
-		...(attrs.segAttrs || {}),
-		type: attrs.segType || attrs.segAttrs?.type || undefined,
-		subtype: attrs.segSubtype || attrs.segAttrs?.subtype || undefined,
-		place: attrs.segPlace || attrs.segAttrs?.place || undefined,
-		hand: attrs.segHand || attrs.segAttrs?.hand || undefined,
-		rend: attrs.segRend || attrs.segAttrs?.rend || undefined,
-		n: attrs.segN || attrs.segAttrs?.n || undefined,
+			...(attrs.segAttrs || {}),
+			type: attrs.segType || attrs.segAttrs?.type || undefined,
+			subtype: attrs.segSubtype || attrs.segAttrs?.subtype || undefined,
+			place: attrs.segPlace || attrs.segAttrs?.place || undefined,
+			hand: attrs.segHand || attrs.segAttrs?.hand || undefined,
+			rend: attrs.segRend || attrs.segAttrs?.rend || undefined,
+			n: attrs.segN || attrs.segAttrs?.n || undefined,
 		}).filter(([, value]) => value !== undefined && value !== '')
 	);
 }
 
 function exportFormWork(
 	attrs: Record<string, any>,
+	content: ProseMirrorJSON[] | undefined,
 	context: ExportContext,
 	includeSegment = true
 ): void {
@@ -1111,7 +1137,10 @@ function exportFormWork(
 	}
 
 	context.xml.push(`<fw${serializeAttrs(fwAttrs)}>`);
-	exportInlineContent(flattenStructuredFormWorkContent(attrs.content), context);
+	exportInlineContent(
+		Array.isArray(content) ? content : flattenStructuredFormWorkContent(attrs.content),
+		context
+	);
 	context.xml.push('</fw>');
 
 	if (includeSegment && Object.keys(segAttrs).length > 0) {
@@ -1187,7 +1216,9 @@ function buildVerseId(attrs?: Record<string, any>): string {
 	return attrs.verse || '';
 }
 
-function extractTeiAttrs(attrs: Record<string, any> | undefined): Record<string, string | undefined> {
+function extractTeiAttrs(
+	attrs: Record<string, any> | undefined
+): Record<string, string | undefined> {
 	if (!attrs) return {};
 	if (attrs.teiAttrs && typeof attrs.teiAttrs === 'object') {
 		return attrs.teiAttrs as Record<string, string | undefined>;
@@ -1303,10 +1334,5 @@ function escapeXml(text: string): string {
 function serializeAttrs(attrs: Record<string, string | undefined>): string {
 	const pairs = Object.entries(attrs).filter(([, value]) => value);
 	if (pairs.length === 0) return '';
-	return (
-		' ' +
-		pairs
-			.map(([key, value]) => `${key}="${escapeXml(String(value))}"`)
-			.join(' ')
-	);
+	return ' ' + pairs.map(([key, value]) => `${key}="${escapeXml(String(value))}"`).join(' ');
 }

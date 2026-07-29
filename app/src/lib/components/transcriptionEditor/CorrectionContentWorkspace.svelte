@@ -62,7 +62,6 @@
 		onChange: (content: unknown) => void;
 		title?: string;
 		description?: string;
-		storageMode?: 'structured' | 'flattened';
 		footerNote?: string;
 		toolbarIdPrefix?: string;
 	}
@@ -72,9 +71,8 @@
 	let {
 		initialContent,
 		onChange,
-		title = 'Nested Content',
+		title = 'Correction Text',
 		description = '',
-		storageMode = 'structured',
 		footerNote: _footerNote = '',
 		toolbarIdPrefix = 'inline-carrier-toolbar',
 	}: Props = $props();
@@ -110,19 +108,14 @@
 	);
 
 	function cloneContent(content: unknown): Record<string, any> {
-		if (storageMode === 'flattened') {
-			if (Array.isArray(content)) {
-				return createStructuredFormWorkContent(JSON.parse(JSON.stringify(content)));
-			}
+		if (Array.isArray(content)) {
+			return createStructuredFormWorkContent(JSON.parse(JSON.stringify(content)));
 		}
 		return normalizeMarginaliaContent(content);
 	}
 
 	function serializeContent(content: Record<string, any>): unknown {
-		if (storageMode === 'flattened') {
-			return flattenStructuredFormWorkContent(content);
-		}
-		return content;
+		return flattenStructuredFormWorkContent(content);
 	}
 
 	function getEditorContent(): Record<string, any> {

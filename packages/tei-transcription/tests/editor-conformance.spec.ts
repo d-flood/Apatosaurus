@@ -49,11 +49,18 @@ describe('editor-path conformance', () => {
 	it('round-trips flat wrappers through PM edits and XSD validation', () => {
 		const pm = clonePm(
 			toProseMirror(
-				parseTei(wrapInTei('<pb n="1r"/><cb n="1"/><lb/><foreign xml:lang="la"><w>ab</w><w>cd</w></foreign>'))
+				parseTei(
+					wrapInTei(
+						'<pb n="1r"/><cb n="1"/><lb/><foreign xml:lang="la"><w>ab</w><w>cd</w></foreign>'
+					)
+				)
 			)
 		);
 		const target = lineContent(pm).find(
-			node => node.type === 'text' && node.text === 'ab' && node.marks?.some(mark => mark.type === 'teiSpan')
+			node =>
+				node.type === 'text' &&
+				node.text === 'ab' &&
+				node.marks?.some(mark => mark.type === 'teiSpan')
 		);
 		expect(target).toBeTruthy();
 		target!.text = 'ave';
@@ -67,7 +74,9 @@ describe('editor-path conformance', () => {
 		const pm = clonePm(
 			toProseMirror(
 				parseTei(
-					wrapInTei('<pb n="1r"/><cb n="1"/><lb/><foreign xml:lang="la"><w>ab<lb break="no"/>cd</w></foreign>')
+					wrapInTei(
+						'<pb n="1r"/><cb n="1"/><lb/><foreign xml:lang="la"><w>ab<lb break="no"/>cd</w></foreign>'
+					)
 				)
 			)
 		);
@@ -82,7 +91,9 @@ describe('editor-path conformance', () => {
 		};
 
 		const exported = serializeTei(fromProseMirror(pm));
-		expect(exported).toContain('<foreign xml:lang="la" cert="medium"><w>ab<lb break="no"/>cd</w></foreign>');
+		expect(exported).toContain(
+			'<foreign xml:lang="la" cert="medium"><w>ab<lb break="no"/>cd</w></foreign>'
+		);
 		expect(() => validateIgntpXsd(exported)).not.toThrow();
 	});
 
@@ -126,7 +137,9 @@ describe('editor-path conformance', () => {
 		const pm = clonePm(
 			toProseMirror(
 				parseTei(
-					wrapInTei('<pb n="1r"/><cb n="1"/><lb/><w>alpha</w><handShift new="#h2"/><milestone unit="section" n="A"/><w>beta</w>')
+					wrapInTei(
+						'<pb n="1r"/><cb n="1"/><lb/><w>alpha</w><handShift new="#h2"/><milestone unit="section" n="A"/><w>beta</w>'
+					)
 				)
 			)
 		);
@@ -134,8 +147,12 @@ describe('editor-path conformance', () => {
 		const milestone = lineContent(pm).find(node => node.type === 'teiMilestone');
 		expect(handShift).toBeTruthy();
 		expect(milestone).toBeTruthy();
-		handShift!.attrs = { teiAttrs: { ...(handShift!.attrs?.teiAttrs || {}), medium: 'ink' } };
-		milestone!.attrs = { teiAttrs: { ...(milestone!.attrs?.teiAttrs || {}), ed: 'NA28' } };
+		handShift!.attrs = {
+			teiAttrs: { ...(handShift!.attrs?.teiAttrs || {}), medium: 'ink' },
+		};
+		milestone!.attrs = {
+			teiAttrs: { ...(milestone!.attrs?.teiAttrs || {}), ed: 'NA28' },
+		};
 
 		const exported = serializeTei(fromProseMirror(pm));
 		expect(exported).toContain('<handShift new="#h2" medium="ink"/>');
@@ -147,36 +164,37 @@ describe('editor-path conformance', () => {
 		const pm = clonePm(
 			toProseMirror(
 				parseTei(
-					wrapInTei('<pb n="1r"/><cb n="1"/><lb/><seg type="marginalia" subtype="commentary"><fw place="left">note</fw></seg>')
+					wrapInTei(
+						'<pb n="1r"/><cb n="1"/><lb/><seg type="marginalia" subtype="commentary"><fw place="left">note</fw></seg>'
+					)
 				)
 			)
 		);
 		const fw = lineContent(pm).find(node => node.type === 'fw');
 		expect(fw).toBeTruthy();
-		fw!.attrs = {
-			...fw!.attrs,
-			content: [
-				{ type: 'text', text: 'updated note' },
-				{
-					type: 'correctionNode',
-					attrs: {
-						corrections: [
-							{
-								hand: 'corrector2',
-								content: [{ type: 'text', text: 'gamma' }],
-							},
-						],
-					},
+		fw!.content = [
+			{ type: 'text', text: 'updated note' },
+			{
+				type: 'correctionNode',
+				attrs: {
+					corrections: [
+						{
+							hand: 'corrector2',
+							content: [{ type: 'text', text: 'gamma' }],
+						},
+					],
 				},
-			],
-		};
+			},
+		];
 
 		const exported = serializeTei(fromProseMirror(pm));
 		expect(exported).toContain('<seg type="marginalia" subtype="commentary">');
 		expect(exported).toContain('<fw place="left">');
 		expect(compactXml(exported)).toContain(compactXml('<w>updated</w><w>note</w>'));
 		expect(compactXml(exported)).toContain(
-			compactXml('<app><rdg type="orig" hand="firsthand"/><rdg type="corr" hand="corrector2"><w>gamma</w></rdg></app>')
+			compactXml(
+				'<app><rdg type="orig" hand="firsthand"/><rdg type="corr" hand="corrector2"><w>gamma</w></rdg></app>'
+			)
 		);
 		expect(() => validateIgntpXsd(exported)).not.toThrow();
 	});
@@ -185,36 +203,42 @@ describe('editor-path conformance', () => {
 		const pm = clonePm(
 			toProseMirror(
 				parseTei(
-					wrapInTei('<pb n="1r"/><cb n="1"/><lb/><seg type="marginalia" subtype="commentary"><fw place="left"><w>note</w></fw></seg>')
+					wrapInTei(
+						'<pb n="1r"/><cb n="1"/><lb/><seg type="marginalia" subtype="commentary"><fw place="left"><w>note</w></fw></seg>'
+					)
 				)
 			)
 		);
 		const fw = lineContent(pm).find(node => node.type === 'fw');
 		expect(fw).toBeTruthy();
-		fw!.attrs = {
-			...fw!.attrs,
-			content: [
-				{
-					type: 'text',
-					text: 'alpha',
-					marks: [
-						{
-							type: 'correction',
-							attrs: {
-								corrections: [{ hand: 'corrector2', content: [{ type: 'text', text: 'beta' }] }],
-							},
+		fw!.content = [
+			{
+				type: 'text',
+				text: 'alpha',
+				marks: [
+					{
+						type: 'correction',
+						attrs: {
+							corrections: [
+								{
+									hand: 'corrector2',
+									content: [{ type: 'text', text: 'beta' }],
+								},
+							],
 						},
-					],
-				},
-				{ type: 'columnBreak', attrs: { teiAttrs: { n: '2' } } },
-				{ type: 'lineBreak', attrs: { teiAttrs: { n: '1', break: 'no' } } },
-				{ type: 'text', text: 'gamma' },
-			],
-		};
+					},
+				],
+			},
+			{ type: 'columnBreak', attrs: { teiAttrs: { n: '2' } } },
+			{ type: 'lineBreak', attrs: { teiAttrs: { n: '1', break: 'no' } } },
+			{ type: 'text', text: 'gamma' },
+		];
 
 		const exported = serializeTei(fromProseMirror(pm));
 		expect(compactXml(exported)).toContain(
-			compactXml('<fw place="left"><app><rdg type="orig"><w>alpha</w></rdg><rdg type="corr" hand="corrector2"><w>beta</w></rdg></app><cb n="2"/><lb n="1" break="no"/><w>gamma</w></fw>')
+			compactXml(
+				'<fw place="left"><app><rdg type="orig"><w>alpha</w></rdg><rdg type="corr" hand="corrector2"><w>beta</w></rdg></app><cb n="2"/><lb n="1" break="no"/><w>gamma</w></fw>'
+			)
 		);
 		expect(() => validateIgntpXsd(exported)).not.toThrow();
 	});
@@ -237,13 +261,22 @@ describe('editor-path conformance', () => {
 		expect(untranscribed).toBeTruthy();
 
 		gap!.attrs = { ...(gap!.attrs || {}), extent: '3' };
-		space!.attrs = { teiAttrs: { ...(space!.attrs?.teiAttrs || {}), extent: '2' } };
-		untranscribed!.attrs = { ...(untranscribed!.attrs || {}), reason: 'illegible' };
+		space!.attrs = {
+			teiAttrs: { ...(space!.attrs?.teiAttrs || {}), extent: '2' },
+		};
+		untranscribed!.attrs = {
+			...(untranscribed!.attrs || {}),
+			reason: 'illegible',
+		};
 
 		const exported = serializeTei(fromProseMirror(pm));
-		expect(exported).toContain('<gap reason="lost-folio" unit="chars" extent="3" cert="low" xml:id="g1"/>');
+		expect(exported).toContain(
+			'<gap reason="lost-folio" unit="chars" extent="3" cert="low" xml:id="g1"/>'
+		);
 		expect(exported).toContain('<space extent="2" unit="chars"/>');
-		expect(exported).toContain('<note type="untranscribed" subtype="illegible" n="partial" resp="#ed" cert="low" xml:id="u1"/>');
+		expect(exported).toContain(
+			'<note type="untranscribed" subtype="illegible" n="partial" resp="#ed" cert="low" xml:id="u1"/>'
+		);
 		expect(() => validateIgntpXsd(exported)).not.toThrow();
 	});
 });

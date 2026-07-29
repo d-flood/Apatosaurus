@@ -1,8 +1,5 @@
 import { normalizeDocument } from './normalize';
-import {
-	createStructuredFormWorkContent,
-	flattenStructuredFormWorkContent,
-} from './formwork-pm';
+import { flattenStructuredFormWorkContent } from './formwork-pm';
 import type {
 	BoundaryItem,
 	CorrectionReading,
@@ -215,10 +212,8 @@ function toProseMirrorLineContent(line: TranscriptionLine): ProseMirrorJSON[] {
 		if (item.type === 'fw') {
 			content.push({
 				type: 'fw',
-				attrs: {
-					...item.attrs,
-					content: createStructuredFormWorkContent(inlineItemsToProseMirror(item.content)),
-				},
+				attrs: item.attrs,
+				content: inlineItemsToProseMirror(item.content),
 			});
 		}
 	}
@@ -352,10 +347,8 @@ export function inlineItemsToProseMirror(items: InlineItem[]): ProseMirrorJSON[]
 		if (item.type === 'fw') {
 			content.push({
 				type: 'fw',
-				attrs: {
-					...item.attrs,
-					content: createStructuredFormWorkContent(inlineItemsToProseMirror(item.content)),
-				},
+				attrs: item.attrs,
+				content: inlineItemsToProseMirror(item.content),
 			});
 			continue;
 		}
@@ -399,29 +392,29 @@ export function fromProseMirror(pm: ProseMirrorJSON): TranscriptionDocument {
 			columns: [],
 		};
 
-			for (const [columnIndex, columnNode] of (pageNode.content || []).entries()) {
-				if (columnNode.type !== 'column') continue;
-				const column: TranscriptionColumn = {
-					type: 'column' as const,
-					number: columnIndex + 1,
-					wrapped: columnNode.attrs?.wrapped || undefined,
-					zone: (columnNode.attrs?.zone as FrameZone) || undefined,
-					teiAttrs: extractOptionalTeiAttrs(columnNode.attrs),
-					lines: [],
-				};
+		for (const [columnIndex, columnNode] of (pageNode.content || []).entries()) {
+			if (columnNode.type !== 'column') continue;
+			const column: TranscriptionColumn = {
+				type: 'column' as const,
+				number: columnIndex + 1,
+				wrapped: columnNode.attrs?.wrapped || undefined,
+				zone: (columnNode.attrs?.zone as FrameZone) || undefined,
+				teiAttrs: extractOptionalTeiAttrs(columnNode.attrs),
+				lines: [],
+			};
 
-				for (const [lineIndex, lineNode] of (columnNode.content || []).entries()) {
-					if (lineNode.type !== 'line') continue;
-					const line: TranscriptionLine = {
-						type: 'line',
-						number: lineIndex + 1,
-						wrapped: lineNode.attrs?.wrapped || undefined,
-						paragraphStart: lineNode.attrs?.['paragraph-start'] || undefined,
-						teiAttrs: extractOptionalTeiAttrs(lineNode.attrs),
-						items: fromProseMirrorLineContent(lineNode.content || []),
-					};
-					column.lines.push(line);
-				}
+			for (const [lineIndex, lineNode] of (columnNode.content || []).entries()) {
+				if (lineNode.type !== 'line') continue;
+				const line: TranscriptionLine = {
+					type: 'line',
+					number: lineIndex + 1,
+					wrapped: lineNode.attrs?.wrapped || undefined,
+					paragraphStart: lineNode.attrs?.['paragraph-start'] || undefined,
+					teiAttrs: extractOptionalTeiAttrs(lineNode.attrs),
+					items: fromProseMirrorLineContent(lineNode.content || []),
+				};
+				column.lines.push(line);
+			}
 
 			page.columns.push(column);
 		}
@@ -542,8 +535,8 @@ function fromProseMirrorLineContent(nodes: ProseMirrorJSON[]): LineItem[] {
 			items.push({
 				type: 'editorialAction',
 				tag:
-					(node.attrs?.tag as 'undo' | 'redo' | 'substJoin' | 'transpose' | 'listTranspose') ||
-					'undo',
+					(node.attrs?.tag as
+						'undo' | 'redo' | 'substJoin' | 'transpose' | 'listTranspose') || 'undo',
 				summary: String(node.attrs?.summary || ''),
 				attrs: extractOptionalTeiAttrs(node.attrs),
 				structure:
@@ -617,7 +610,7 @@ function fromProseMirrorLineContent(nodes: ProseMirrorJSON[]): LineItem[] {
 		}
 
 		if (node.type === 'fw') {
-			const rawContent = flattenStructuredFormWorkContent(node.attrs?.content);
+			const rawContent = formWorkProseMirrorContent(node);
 			items.push({
 				type: 'fw',
 				attrs: {
@@ -758,7 +751,7 @@ export function proseMirrorToInlineItems(nodes: ProseMirrorJSON[]): InlineItem[]
 		}
 
 		if (node.type === 'fw') {
-			const rawContent = flattenStructuredFormWorkContent(node.attrs?.content);
+			const rawContent = formWorkProseMirrorContent(node);
 			items.push({
 				type: 'fw',
 				attrs: {
@@ -797,6 +790,12 @@ export function proseMirrorToInlineItems(nodes: ProseMirrorJSON[]): InlineItem[]
 	return items;
 }
 
+function formWorkProseMirrorContent(node: ProseMirrorJSON): ProseMirrorJSON[] {
+	return Array.isArray(node.content)
+		? node.content
+		: flattenStructuredFormWorkContent(node.attrs?.content);
+}
+
 function convertMark(mark: { type: string; attrs?: Record<string, any> }): TextMark {
 	if (mark.type === 'abbreviation') {
 		return { type: 'abbreviation', attrs: mark.attrs || {} };
@@ -832,10 +831,12 @@ function convertMark(mark: { type: string; attrs?: Record<string, any> }): TextM
 		return {
 			type: 'correction',
 			attrs: {
-				corrections: ((mark.attrs?.corrections as CorrectionReading[]) || []).map(correction => ({
-					...correction,
-					content: proseMirrorToInlineItems((correction as any).content || []),
-				})),
+				corrections: ((mark.attrs?.corrections as CorrectionReading[]) || []).map(
+					correction => ({
+						...correction,
+						content: proseMirrorToInlineItems((correction as any).content || []),
+					})
+				),
 			},
 		};
 	}

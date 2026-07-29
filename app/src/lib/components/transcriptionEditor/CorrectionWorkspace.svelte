@@ -5,7 +5,7 @@
 	import PencilSimple from 'phosphor-svelte/lib/PencilSimple';
 	import Plus from 'phosphor-svelte/lib/Plus';
 	import Trash from 'phosphor-svelte/lib/Trash';
-	import InlineCarrierWorkspace from './InlineCarrierWorkspace.svelte';
+	import CorrectionContentWorkspace from './CorrectionContentWorkspace.svelte';
 	import type { Correction } from './types';
 
 	interface Props {
@@ -218,11 +218,10 @@
 			{/each}
 		</datalist>
 
-		<InlineCarrierWorkspace
+		<CorrectionContentWorkspace
 			title="Correction Text"
 			description="Enter the complete corrected word or words, even if only one letter changed. Line and column edits flatten back to TEI break markers when you save the reading."
 			initialContent={draftContent}
-			storageMode="flattened"
 			footerNote=""
 			toolbarIdPrefix={`${idPrefix}-nested-toolbar`}
 			onChange={nextContent => (draftContent = nextContent)}

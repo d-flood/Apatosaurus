@@ -14,7 +14,7 @@ Two things to know before writing a ticket from it. `F35`–`F46` have **no comm
 
 Overall status: `In Progress`
 
-Current ticket: none — ticket `05` is complete.
+Current ticket: none — ticket `22` is complete.
 
 Last updated: 2026-07-29
 
@@ -66,7 +66,7 @@ Success is not "every ticket cleared". Some findings should end in a documented 
 | 19 | `19-page-chrome-derives-from-its-fw-children.md` | Completed | None |
 | 20 | `20-verse-index-sync-is-cancellable.md` | Completed | 04 |
 | 21 | `21-inspector-apply-merges-instead-of-replacing.md` | Completed | None |
-| 22 | `22-formwork-content-lives-in-the-document.md` | Not Started | 04 |
+| 22 | `22-formwork-content-lives-in-the-document.md` | Completed | 04 |
 | 23 | `23-drafts-and-drawers-target-what-they-opened.md` | Completed | None |
 | 24 | `24-corrections-on-partial-and-multi-word-selections.md` | Completed | None |
 | 25 | `25-seg-survives-the-round-trip.md` | Completed | None |
@@ -98,6 +98,7 @@ pnpm vitest run --project client src/lib/client/transcriptionEditorStructure.sve
 
 ## Notes
 
+- **2026-07-29** — **Ticket `22` complete; formwork content is ordinary document content.** `fw` now owns editable inline children instead of an atom-level JSON `content` attribute; marks, search, grouped undo, main-toolbar line/column breaks, and save/reload operate through the main editor. The inspector updates attributes only, and legacy attribute content migrates idempotently at document entry. `InlineCarrierWorkspace` is gone; the remaining nested editor is correction-specific because correction payloads are explicitly deferred. Two real IGNTP witnesses pin byte-identical exports at **282593** and **9572** bytes. Schema `JSON.stringify` sites fell from the current pre-ticket **55** (the ticket recorded 51 before later carrier work) to **50**. The component suite passes **12 files / 81 tests**, the app baseline passes **107 files / 713 tests**, `check` reports 0 errors (one pre-existing warning), package typecheck and all **113 runnable tests** pass, and the full package command retains its documented **7 missing-fixture failures**.
 - **2026-07-29** — **Ticket `05` complete; page width no longer follows document content.** The reported blank framed-page overflow reproduced without IIIF in a fixed 1000 px pane: the editor root's `min-w-max` exposed the frame's 1664 px max-content demand. The root constraint and page/column minimums are gone; zoned pages now use a named CSS grid with top / left+center+right / bottom rows through 900 px and a five-row container-responsive stack at 700 px and below. A 200-character center line scrolls inside its line without widening its column, page, or pane. The obsolete route-level mirrored scrollbar was deleted. Layout coverage passes **7/7** at 1400, 1200, 1000, 900, 700, and 600 px with IIIF open and closed; the editor suite passes **12 files / 88 tests**, `check` reports 0 errors (one pre-existing warning), and the full baseline passes **107 files / 719 tests**. The two named production files remove 46 net lines.
 - **2026-07-29** — **Ticket `29` complete; editorial chrome is no longer contentDOM structure.** Page headings, column labels, line ordinals, and wrapped arrows now render from CSS pseudo-elements driven by node `data-*` attributes and ticket `28`'s counters. The line contentDOM is the line's only child and covers more than 95% of its box; real Chromium hit-testing agrees with the resulting far-right caret position, while a raw gutter click leaves the caret unchanged. Page furniture remains visible as document-owned `fw` carriers, and cross-line drag selection remains native. Render-output and layout suites pass **7/7** and **8/8**, the editor component suite passes **12 files / 89 tests**, `check` reports 0 errors (one pre-existing warning), and the full baseline passes **107 files / 720 tests**.
 - **2026-07-29** — **Ticket `28` complete; structural ordinals are presentation.** Main and nested editor schemas no longer store line or column ordinals, the normalization plugin and split-time renumbering are gone, and CSS counters render plain and framed-page labels while canonical conversion derives model numbers positionally. Entry preparation and structural commands retain stable line/column identities, and TEI export emits only source-carried `teiAttrs.n`. A 300-line middle split fell from **754 created / 750 destroyed** DOM elements to **4 created / 0 destroyed**. The focused client suite passes **11 files / 70 tests**, the component suite passes **12 files / 88 tests**, `check` reports 0 errors (one pre-existing warning), and the app baseline passes **107 files / 718 tests**. Package typecheck and all **109 runnable tests** pass; the full package command retains its documented **7 missing-fixture failures**.

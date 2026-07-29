@@ -13,6 +13,7 @@ import {
 	createLineSplitTransaction,
 	findLineStartPositionById,
 	LINE_SPLIT_TARGET_LINE_ID_META,
+	prepareManuscriptDocumentEntry,
 	repairManuscriptStructureJson,
 } from './transcriptionEditorStructure';
 
@@ -308,6 +309,71 @@ describe('transcriptionEditorStructure', () => {
 			expect(column.attrs.columnId).toEqual(expect.any(String));
 			expect(column.content[0].attrs.lineId).toEqual(expect.any(String));
 		}
+	});
+
+	it('migrates legacy fw attribute content once at document entry', () => {
+		const legacy = editorDocument({
+			pages: [
+				editorPlainPage({
+					columns: [
+						editorColumn({
+							lines: [
+								editorLine({
+									content: [
+										{
+											type: 'fw',
+											attrs: {
+												type: 'header',
+												content: {
+													type: 'doc',
+													content: [
+														{
+															type: 'marginaliaColumn',
+															content: [
+																{
+																	type: 'marginaliaLine',
+																	content: [
+																		{
+																			type: 'text',
+																			text: 'alpha',
+																		},
+																		{
+																			type: 'lineBreak',
+																			attrs: {
+																				teiAttrs: {
+																					break: 'no',
+																				},
+																			},
+																		},
+																	],
+																},
+															],
+														},
+													],
+												},
+											},
+										},
+									],
+								}),
+							],
+						}),
+					],
+				}),
+			],
+		});
+
+		const first = prepareManuscriptDocumentEntry(legacy);
+		const fw = first.doc.content[0].content[0].content[0].content[0];
+		expect(fw.attrs).not.toHaveProperty('content');
+		expect(fw.content).toEqual([
+			{ type: 'text', text: 'alpha' },
+			{ type: 'lineBreak', attrs: { teiAttrs: { break: 'no' } } },
+		]);
+		expect(first.issues).toContain('migrated legacy fw content into the document');
+
+		const second = prepareManuscriptDocumentEntry(first.doc);
+		expect(second.doc).toEqual(first.doc);
+		expect(second.repaired).toBe(false);
 	});
 
 	it('keeps selection in the active framed-page column after a text edit', () => {

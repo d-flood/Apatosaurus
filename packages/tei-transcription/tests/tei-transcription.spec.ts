@@ -70,6 +70,9 @@ function buildPmDocument(lineContent: ProseMirrorJSON[]): ProseMirrorJSON {
 }
 
 function getFormWorkInlineContent(fwNode: any): any[] {
+	if (Array.isArray(fwNode?.content)) {
+		return fwNode.content;
+	}
 	const content = fwNode?.attrs?.content;
 	if (Array.isArray(content)) {
 		return content;
@@ -78,9 +81,23 @@ function getFormWorkInlineContent(fwNode: any): any[] {
 		return [];
 	}
 	return content.content.flatMap((column: any, columnIndex: number) => [
-		...(columnIndex > 0 ? [{ type: 'columnBreak', attrs: { teiAttrs: column.attrs?.breakAttrs || {} } }] : []),
+		...(columnIndex > 0
+			? [
+					{
+						type: 'columnBreak',
+						attrs: { teiAttrs: column.attrs?.breakAttrs || {} },
+					},
+				]
+			: []),
 		...((column.content || []) as any[]).flatMap((line: any, lineIndex: number) => [
-			...(lineIndex > 0 ? [{ type: 'lineBreak', attrs: { teiAttrs: line.attrs?.breakAttrs || {} } }] : []),
+			...(lineIndex > 0
+				? [
+						{
+							type: 'lineBreak',
+							attrs: { teiAttrs: line.attrs?.breakAttrs || {} },
+						},
+					]
+				: []),
 			...((line.content || []) as any[]),
 		]),
 	]);
@@ -94,7 +111,7 @@ describe('tei-transcription package', () => {
 					type: 'text',
 					text: 'The  cat sat',
 				},
-			]),
+			])
 		);
 
 		expect(doc.pages[0].columns[0].lines[0].items).toEqual([
@@ -113,7 +130,7 @@ describe('tei-transcription package', () => {
 					type: 'text',
 					text: '  The cat  ',
 				},
-			]),
+			])
 		);
 
 		expect(doc.pages[0].columns[0].lines[0].items).toEqual([
@@ -131,7 +148,7 @@ describe('tei-transcription package', () => {
 					text: 'κύριος θεος',
 					marks: [{ type: 'unclear' }],
 				},
-			]),
+			])
 		);
 
 		expect(doc.pages[0].columns[0].lines[0].items).toEqual([
@@ -166,7 +183,7 @@ describe('tei-transcription package', () => {
 						},
 					],
 				},
-			]),
+			])
 		);
 
 		const correctionMark = doc.pages[0].columns[0].lines[0].items[0];
@@ -243,7 +260,9 @@ describe('tei-transcription package', () => {
 		`);
 
 		const text = serializePlainText(parseTei(xml));
-		expect(text).toContain('++ word1 => corrector: fixed ++ ++ word2 => corrector: fixed ++ after');
+		expect(text).toContain(
+			'++ word1 => corrector: fixed ++ ++ word2 => corrector: fixed ++ after'
+		);
 		expect(text).not.toContain('  after');
 	});
 
@@ -290,7 +309,7 @@ describe('tei-transcription package', () => {
 		const exported = serializeTei(fromProseMirror(toProseMirror(parseTei(xml))));
 		const doc = new DOMParser().parseFromString(exported, 'application/xml');
 		const corr = Array.from(doc.getElementsByTagName('rdg')).find(
-			rdg => rdg.getAttribute('type') === 'corr',
+			rdg => rdg.getAttribute('type') === 'corr'
 		)!;
 		const seg = corr.getElementsByTagName('seg')[0];
 
@@ -436,9 +455,7 @@ describe('tei-transcription package', () => {
 
 		const exported = serializeTei(fromProseMirror(pm));
 
-		expect(compactXml(exported)).toContain(
-			'<segtype="rubric"cert="high"><w>alpha</w></seg>'
-		);
+		expect(compactXml(exported)).toContain('<segtype="rubric"cert="high"><w>alpha</w></seg>');
 	});
 
 	it('round-trips nested seg elements', () => {
@@ -533,12 +550,15 @@ describe('tei-transcription package', () => {
 
 		const pm = toProseMirror(parseTei(xml));
 		const lineContent = pm.content![0].content![0].content![0].content!;
-		const damageNode = lineContent.find(
-			node => node.type === 'text' && node.text === 'b',
-		);
+		const damageNode = lineContent.find(node => node.type === 'text' && node.text === 'b');
 		const spaceNode = lineContent.find(node => node.type === 'space');
 
-		expect(damageNode?.marks).toEqual([{ type: 'damage', attrs: { teiAttrs: { agent: 'smudge', degree: 'low' } } }]);
+		expect(damageNode?.marks).toEqual([
+			{
+				type: 'damage',
+				attrs: { teiAttrs: { agent: 'smudge', degree: 'low' } },
+			},
+		]);
 		expect(spaceNode?.attrs).toEqual({
 			teiAttrs: { extent: '2', unit: 'chars', dim: 'horizontal' },
 		});
@@ -580,7 +600,8 @@ describe('tei-transcription package', () => {
 	});
 
 	it('round-trips a schema-valid untranscribed note with arbitrary TEI attributes byte-identically', () => {
-		const note = '<note type="untranscribed" subtype="damage" n="partial" resp="#ed" cert="low" xml:id="u1"/>';
+		const note =
+			'<note type="untranscribed" subtype="damage" n="partial" resp="#ed" cert="low" xml:id="u1"/>';
 		const xml = wrapInTei(`<pb n="1r"/><cb n="1"/><lb/>${note}`);
 		const pm = toProseMirror(parseTei(xml));
 		const untranscribed = pm.content![0].content![0].content![0].content![0];
@@ -616,13 +637,24 @@ describe('tei-transcription package', () => {
 
 		expect(page.teiAttrs).toMatchObject({ n: 'P261r', type: 'folio' });
 		expect(column.teiAttrs).toMatchObject({ n: 'P261rC1' });
-		expect(firstLine.teiAttrs).toMatchObject({ n: 'P261rC1L-01', rend: 'hang' });
-		expect(secondLine.teiAttrs).toMatchObject({ n: 'P261rC1L-02', break: 'no' });
+		expect(firstLine.teiAttrs).toMatchObject({
+			n: 'P261rC1L-01',
+			rend: 'hang',
+		});
+		expect(secondLine.teiAttrs).toMatchObject({
+			n: 'P261rC1L-02',
+			break: 'no',
+		});
 		expect(firstLine.paragraphStart).toBe(true);
 		expect(firstText).toEqual({
 			type: 'text',
 			text: 'abc',
-			marks: [{ type: 'hi', attrs: { rend: 'overline', height: '2', hand: 'corrector' } }],
+			marks: [
+				{
+					type: 'hi',
+					attrs: { rend: 'overline', height: '2', hand: 'corrector' },
+				},
+			],
 		});
 
 		const exported = serializeTei(fromProseMirror(toProseMirror(parsed)));
@@ -708,7 +740,9 @@ describe('tei-transcription package', () => {
 		const handShift = lineContent.find(node => node.type === 'handShift');
 		const milestone = lineContent.find(node => node.type === 'teiMilestone');
 
-		expect(handShift?.attrs).toEqual({ teiAttrs: { new: 's2', medium: 'ink' } });
+		expect(handShift?.attrs).toEqual({
+			teiAttrs: { new: 's2', medium: 'ink' },
+		});
 		expect(milestone?.attrs).toEqual({
 			teiAttrs: { unit: 'section', n: 'A', ed: 'NA28' },
 		});
@@ -740,7 +774,9 @@ describe('tei-transcription package', () => {
 
 		expect(suppliedNode?.marks).toContainEqual({
 			type: 'lacunose',
-			attrs: { teiAttrs: { source: '#ed1', reason: 'lost-folio', cert: 'low' } },
+			attrs: {
+				teiAttrs: { source: '#ed1', reason: 'lost-folio', cert: 'low' },
+			},
 		});
 		expect(unclearNode?.marks).toContainEqual({
 			type: 'unclear',
@@ -896,7 +932,9 @@ describe('tei-transcription package', () => {
 
 		const pm = toProseMirror(parseTei(xml));
 		const lineContent = pm.content![0].content![0].content![0].content!;
-		const correctedText = lineContent.find(node => node.type === 'text' && node.text === 'alpha');
+		const correctedText = lineContent.find(
+			node => node.type === 'text' && node.text === 'alpha'
+		);
 		const correctionContent = correctedText?.marks?.[0]?.attrs?.corrections?.[0]?.content || [];
 		const wrapperNode = correctionContent.find((node: any) => node.type === 'teiWrapper');
 
@@ -929,7 +967,9 @@ describe('tei-transcription package', () => {
 		const pm = toProseMirror(parseTei(xml));
 		const lineContent = pm.content![0].content![0].content![0].content!;
 		const fwNode = lineContent.find(node => node.type === 'fw');
-		const wrapperNode = getFormWorkInlineContent(fwNode).find((node: any) => node.type === 'teiWrapper');
+		const wrapperNode = getFormWorkInlineContent(fwNode).find(
+			(node: any) => node.type === 'teiWrapper'
+		);
 
 		expect(wrapperNode).toMatchObject({
 			type: 'teiWrapper',
@@ -965,7 +1005,9 @@ describe('tei-transcription package', () => {
 		const pm = toProseMirror(parseTei(xml));
 		const lineContent = pm.content![0].content![0].content![0].content!;
 		const fwNode = lineContent.find(node => node.type === 'fw');
-		const correctionNode = getFormWorkInlineContent(fwNode).find((node: any) => node.type === 'correctionNode');
+		const correctionNode = getFormWorkInlineContent(fwNode).find(
+			(node: any) => node.type === 'correctionNode'
+		);
 
 		expect(correctionNode?.attrs?.corrections).toMatchObject([
 			{
@@ -1020,8 +1062,12 @@ describe('tei-transcription package', () => {
 		const pm = toProseMirror(parseTei(xml));
 		const lineContent = pm.content![0].content![0].content![0].content!;
 		const fwNode = lineContent.find(node => node.type === 'fw');
-		const nestedColumnBreak = getFormWorkInlineContent(fwNode).find((node: any) => node.type === 'columnBreak');
-		const nestedLineBreak = getFormWorkInlineContent(fwNode).find((node: any) => node.type === 'lineBreak');
+		const nestedColumnBreak = getFormWorkInlineContent(fwNode).find(
+			(node: any) => node.type === 'columnBreak'
+		);
+		const nestedLineBreak = getFormWorkInlineContent(fwNode).find(
+			(node: any) => node.type === 'lineBreak'
+		);
 
 		expect(nestedColumnBreak?.attrs?.teiAttrs).toEqual({ n: '2' });
 		expect(nestedLineBreak?.attrs?.teiAttrs).toEqual({ n: '1', break: 'no' });
@@ -1052,7 +1098,9 @@ describe('tei-transcription package', () => {
 		const pm = toProseMirror(parseTei(xml));
 		const lineContent = pm.content![0].content![0].content![0].content!;
 		const fwNode = lineContent.find(node => node.type === 'fw');
-		const correctedText = getFormWorkInlineContent(fwNode).find((node: any) => node.type === 'text' && node.text === 'alpha');
+		const correctedText = getFormWorkInlineContent(fwNode).find(
+			(node: any) => node.type === 'text' && node.text === 'alpha'
+		);
 
 		expect(correctedText?.marks?.[0]?.type).toBe('correction');
 		expect(correctedText?.marks?.[0]?.attrs?.corrections).toMatchObject([
@@ -1087,7 +1135,9 @@ describe('tei-transcription package', () => {
 		const pm = toProseMirror(parseTei(xml));
 		const lineContent = pm.content![0].content![0].content![0].content!;
 		const correctionNode = lineContent.find(node => node.type === 'correctionNode');
-		const fwNode = correctionNode?.attrs?.corrections?.[0]?.content?.find((node: any) => node.type === 'fw');
+		const fwNode = correctionNode?.attrs?.corrections?.[0]?.content?.find(
+			(node: any) => node.type === 'fw'
+		);
 
 		expect(correctionNode?.attrs?.corrections?.[0]).toMatchObject({
 			position: 'pagetop',
@@ -1136,7 +1186,9 @@ describe('tei-transcription package', () => {
 		const exported = serializeTei(document);
 		expect(compactXml(exported)).toContain(compactXml('<surplus reason="repetition">'));
 		expect(compactXml(exported)).toContain(
-			compactXml('<rdg type="corr" hand="corrector"><w><surplus reason="repetition">beta</surplus></w></rdg>')
+			compactXml(
+				'<rdg type="corr" hand="corrector"><w><surplus reason="repetition">beta</surplus></w></rdg>'
+			)
 		);
 	});
 
@@ -1153,7 +1205,13 @@ describe('tei-transcription package', () => {
 									{ type: 'text', text: 'alpha' },
 									{
 										type: 'pageBreak',
-										attrs: { teiAttrs: { n: '165v', type: 'folio', 'xml:id': 'P165v-1319' } },
+										attrs: {
+											teiAttrs: {
+												n: '165v',
+												type: 'folio',
+												'xml:id': 'P165v-1319',
+											},
+										},
 									},
 									{ type: 'text', text: 'beta' },
 								],
@@ -1161,7 +1219,7 @@ describe('tei-transcription package', () => {
 						],
 					},
 				},
-			]),
+			])
 		);
 
 		const exported = serializeTei(document);
@@ -1180,7 +1238,9 @@ describe('tei-transcription package', () => {
 			{ type: 'text', text: ' ' },
 			{
 				type: 'pageBreak',
-				attrs: { teiAttrs: { n: '165v', type: 'folio', 'xml:id': 'P165v-1319' } },
+				attrs: {
+					teiAttrs: { n: '165v', type: 'folio', 'xml:id': 'P165v-1319' },
+				},
 			},
 			{ type: 'text', text: 'beta', marks: [] },
 		]);
@@ -1223,9 +1283,18 @@ describe('tei-transcription package', () => {
 		const lineContent = pm.content![0].content![0].content![0].content!;
 		const atoms = lineContent.filter(node => node.type === 'teiAtom');
 
-		expect(atoms.map(node => node.attrs?.tag)).toEqual(['gb', 'ptr', 'media', 'note', 'ellipsis']);
+		expect(atoms.map(node => node.attrs?.tag)).toEqual([
+			'gb',
+			'ptr',
+			'media',
+			'note',
+			'ellipsis',
+		]);
 		expect(atoms[0]?.attrs?.teiAttrs).toEqual({ n: 'g1' });
-		expect(atoms[1]?.attrs?.teiAttrs).toEqual({ target: '#target1', type: 'crossref' });
+		expect(atoms[1]?.attrs?.teiAttrs).toEqual({
+			target: '#target1',
+			type: 'crossref',
+		});
 		expect(atoms[2]?.attrs?.teiAttrs).toEqual({
 			mimeType: 'image/png',
 			url: 'https://example.com/image.png',
@@ -1237,9 +1306,13 @@ describe('tei-transcription package', () => {
 		const exported = serializeTei(fromProseMirror(pm));
 		expect(exported).toContain('<gb n="g1"/>');
 		expect(exported).toContain('<ptr target="#target1" type="crossref"/>');
-		expect(exported).toContain('<media mimeType="image/png" url="https://example.com/image.png"/>');
+		expect(exported).toContain(
+			'<media mimeType="image/png" url="https://example.com/image.png"/>'
+		);
 		expect(exported).toContain('<note place="margin">see note</note>');
-		expect(exported).toContain('<ellipsis unit="chars" quantity="2"><metamark function="omission"/><supplied reason="lost-folio">ab</supplied></ellipsis>');
+		expect(exported).toContain(
+			'<ellipsis unit="chars" quantity="2"><metamark function="omission"/><supplied reason="lost-folio">ab</supplied></ellipsis>'
+		);
 	});
 
 	it('rejects unsupported nested inline TEI inside words', () => {
@@ -1390,8 +1463,14 @@ describe('tei-transcription package', () => {
 				condition: 'fair',
 				layouts: [{ columns: '2', writtenLines: '45', text: 'double column' }],
 				hands: [
-					{ attrs: { 'xml:id': 'firsthand', script: 'majuscule' }, text: 'first hand' },
-					{ attrs: { 'xml:id': 'corrector1', script: 'minuscule' }, text: 'corrector hand' },
+					{
+						attrs: { 'xml:id': 'firsthand', script: 'majuscule' },
+						text: 'first hand',
+					},
+					{
+						attrs: { 'xml:id': 'corrector1', script: 'minuscule' },
+						text: 'corrector hand',
+					},
 				],
 				contents: [
 					{
@@ -1469,7 +1548,12 @@ describe('tei-transcription package', () => {
 				foliation: 'ff. 1-10',
 				condition: 'good',
 				layouts: [{ columns: '2', writtenLines: '40', text: 'double column' }],
-				hands: [{ attrs: { 'xml:id': 'h1', script: 'majuscule' }, text: 'first hand' }],
+				hands: [
+					{
+						attrs: { 'xml:id': 'h1', script: 'majuscule' },
+						text: 'first hand',
+					},
+				],
 				contents: [
 					{
 						locus: 'Rom 1',
@@ -1502,7 +1586,9 @@ describe('tei-transcription package', () => {
 		expect(doc.getElementsByTagName('idno')[0].textContent).toBe('MS 1');
 		expect(doc.getElementsByTagName('msName')[0].textContent).toBe('Codex Test');
 		expect(doc.getElementsByTagName('objectDesc')[0].getAttribute('form')).toBe('codex');
-		expect(doc.getElementsByTagName('supportDesc')[0].getAttribute('material')).toBe('parchment');
+		expect(doc.getElementsByTagName('supportDesc')[0].getAttribute('material')).toBe(
+			'parchment'
+		);
 		expect(doc.getElementsByTagName('support')[0].textContent).toBe('parchment');
 		expect(doc.getElementsByTagName('origDate')[0].textContent).toBe('4th c.');
 		expect(doc.getElementsByTagName('origPlace')[0].textContent).toBe('Alexandria');
@@ -1517,10 +1603,9 @@ describe('tei-transcription package', () => {
 		expect(doc.getElementsByTagName('surrogates')[0].textContent).toBe('digital facsimile');
 		expect(doc.getElementsByTagName('language')[0].getAttribute('ident')).toBe('la');
 		expect(doc.getElementsByTagName('encodingDesc')[0].getAttribute('n')).toBe('1.6');
-		expect(Array.from(doc.getElementsByTagName('witness')).map(node => node.getAttribute('xml:id'))).toEqual([
-			'firsthand',
-			'corrector',
-		]);
+		expect(
+			Array.from(doc.getElementsByTagName('witness')).map(node => node.getAttribute('xml:id'))
+		).toEqual(['firsthand', 'corrector']);
 		expect(doc.getElementsByTagName('change')[0].textContent).toBe('Initial import.');
 	});
 
@@ -1537,7 +1622,9 @@ describe('tei-transcription package', () => {
 			</app>
 		`);
 
-		expect(() => parseTei(xml)).toThrow(/Only single-witness correction-style app\/rdg structures are supported/);
+		expect(() => parseTei(xml)).toThrow(
+			/Only single-witness correction-style app\/rdg structures are supported/
+		);
 	});
 
 	it('rejects listApp and noteGrp apparatus structures as out of scope', () => {
@@ -1573,7 +1660,7 @@ describe('tei-transcription package', () => {
 		const pm = toProseMirror(parseTei(xml));
 		const lineContent = pm.content![0].content![0].content![0].content!;
 		const correctedText = lineContent.find(
-			node => node.type === 'text' && node.marks?.some(mark => mark.type === 'correction'),
+			node => node.type === 'text' && node.marks?.some(mark => mark.type === 'correction')
 		);
 
 		expect(correctedText).toBeTruthy();
@@ -1588,13 +1675,13 @@ describe('tei-transcription package', () => {
 
 		const exported = serializeTei(parseTei(xml));
 		expect(compactXml(exported)).toContain(
-			compactXml('<rdg type="alt" hand="corrector"></rdg>'),
+			compactXml('<rdg type="alt" hand="corrector"></rdg>')
 		);
 		// Ticket 24 / INVENTORY R1: a two-word orig reading is one apparatus, not
 		// one per word. This previously asserted 2, locking in the duplication.
 		expect(exported.match(/<rdg type="alt" hand="corrector">/g)).toHaveLength(1);
 		expect(compactXml(exported)).toContain(
-			compactXml('<rdg type="orig"><w>εν</w><w>ρωμη</w></rdg>'),
+			compactXml('<rdg type="orig"><w>εν</w><w>ρωμη</w></rdg>')
 		);
 	});
 
@@ -1612,16 +1699,16 @@ describe('tei-transcription package', () => {
 
 		const exported = serializeTei(parseTei(xml));
 		expect(compactXml(exported)).toContain(
-			compactXml('<rdg type="corr" hand="corrector"><w>και</w><w>υπομενει</w></rdg>'),
+			compactXml('<rdg type="corr" hand="corrector"><w>και</w><w>υπομενει</w></rdg>')
 		);
 		expect(compactXml(exported)).toContain(
-			compactXml('<rdg type="alt" hand="corrector"><w>ελπιζει</w></rdg>'),
+			compactXml('<rdg type="alt" hand="corrector"><w>ελπιζει</w></rdg>')
 		);
 		// Ticket 24 / INVENTORY R1: the source has one <app> spanning two words, so
 		// the export must have one too. This previously asserted 2.
 		expect(exported.match(/<app>/g)).toHaveLength(1);
 		expect(compactXml(exported)).toContain(
-			compactXml('<rdg type="orig"><w>και</w><w>ελπιζει</w></rdg>'),
+			compactXml('<rdg type="orig"><w>και</w><w>ελπιζει</w></rdg>')
 		);
 	});
 
@@ -1649,19 +1736,22 @@ describe('tei-transcription package', () => {
 
 		const parsed = parseTei(xml);
 		expect(parsed.teiAttrs).toMatchObject({ version: '5.0', 'xml:id': 'doc1' });
-		expect(parsed.textAttrs).toMatchObject({ type: 'transcription', 'xml:lang': 'grc' });
+		expect(parsed.textAttrs).toMatchObject({
+			type: 'transcription',
+			'xml:lang': 'grc',
+		});
 		expect(parsed.bodyAttrs).toMatchObject({ ana: '#body-1' });
 		expect(parsed.resourceNodes?.[0]?.tag).toBe('facsimile');
-		expect(serializeTeiNodes(parsed.textLeading)).toEqual(['<milestone unit="preface" n="p0"/>']);
+		expect(serializeTeiNodes(parsed.textLeading)).toEqual([
+			'<milestone unit="preface" n="p0"/>',
+		]);
 		expect(serializeTeiNodes(parsed.textBetweenFrontBody)).toEqual([
 			'<milestone unit="preface" n="p1"/>',
 		]);
 		expect(serializeTeiNodes(parsed.textBetweenBodyBack)).toEqual([
 			'<milestone unit="appendix" n="p2"/>',
 		]);
-		expect(serializeTeiNodes(parsed.textTrailing)).toEqual([
-			'<milestone unit="tail" n="p3"/>',
-		]);
+		expect(serializeTeiNodes(parsed.textTrailing)).toEqual(['<milestone unit="tail" n="p3"/>']);
 		expect(serializeTeiNode(parsed.front!)).toContain('<front xml:id="front1">');
 		expect(serializeTeiNode(parsed.back!)).toContain('<back xml:id="back1">');
 
@@ -1771,9 +1861,7 @@ describe('tei-transcription package', () => {
 		const pm = toProseMirror(parseTei(xml));
 		const lineContent = pm.content![0].content![0].content![0].content!;
 		const metamarkNode = lineContent.find(
-			node =>
-				node.type === 'metamark' &&
-				node.attrs?.teiAttrs?.function === 'insertion'
+			node => node.type === 'metamark' && node.attrs?.teiAttrs?.function === 'insertion'
 		);
 
 		expect(metamarkNode).toBeTruthy();
@@ -1797,9 +1885,7 @@ describe('tei-transcription package', () => {
 		const pm = toProseMirror(parseTei(xml));
 		const lineContent = pm.content![0].content![0].content![0].content!;
 		const metamarkNode = lineContent.find(
-			node =>
-				node.type === 'metamark' &&
-				node.attrs?.wordInline === true
+			node => node.type === 'metamark' && node.attrs?.wordInline === true
 		);
 
 		expect(metamarkNode).toBeTruthy();

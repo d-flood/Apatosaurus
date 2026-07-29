@@ -105,9 +105,9 @@ describe('TranscriptionEditor structural commands (mounted, multi-page fixture)'
 			// No caret placed. `insertContent` used to fit a block `page` node into
 			// whatever the default selection was, and ProseMirror's fitter resolved
 			// the mismatch by replacing everything.
-			const before = Array.from(
-				harness.container.querySelectorAll('.ProseMirror .page')
-			).map(element => element.outerHTML);
+			const before = Array.from(harness.container.querySelectorAll('.ProseMirror .page')).map(
+				element => element.outerHTML
+			);
 			await insertPage(harness, '2v', 'Standard');
 
 			// The three original pages are byte-identical, not merely same-shaped.
@@ -157,7 +157,9 @@ describe('TranscriptionEditor structural commands (mounted, multi-page fixture)'
 		try {
 			// Caret in the FIRST page, which is not the end of the document.
 			placeCaretAtEndOf(
-				lineElement(harness.container, 0, 0, 1).querySelector('.line-content') as HTMLElement
+				lineElement(harness.container, 0, 0, 1).querySelector(
+					'.line-content'
+				) as HTMLElement
 			);
 			await tick();
 			await insertPage(harness, '1r-bis', 'Standard');
@@ -386,7 +388,8 @@ describe('TranscriptionEditor page metadata commands (mounted, multi-page fixtur
 			closeMetadataDialog();
 			await tick();
 
-			const thirdPage = harness.container.querySelectorAll<HTMLElement>('.ProseMirror .page')[2];
+			const thirdPage =
+				harness.container.querySelectorAll<HTMLElement>('.ProseMirror .page')[2];
 			const formWork = thirdPage.querySelector<HTMLElement>('.fw-node')!;
 			await userEvent.click(formWork);
 			await tick();
@@ -414,22 +417,17 @@ describe('TranscriptionEditor page metadata commands (mounted, multi-page fixtur
 	it('removes page chrome when its fw child is deleted', async () => {
 		const harness = await mountEditor();
 		try {
-			let details = await openMetadataDialog(harness);
+			const details = await openMetadataDialog(harness);
 			setInput(pageMetadataInputs(details, 'Visible page number')[2], 'fol. 2r');
 			await tick();
-			closeMetadataDialog();
-			await tick();
 
-			const thirdPage = harness.container.querySelectorAll<HTMLElement>('.ProseMirror .page')[2];
-			const formWork = thirdPage.querySelector<HTMLElement>('.fw-node')!;
-			await userEvent.click(formWork);
-			await tick();
-			expect(formWork.classList.contains('ProseMirror-selectednode')).toBe(true);
-			await userEvent.keyboard('{Delete}');
+			const thirdPage =
+				harness.container.querySelectorAll<HTMLElement>('.ProseMirror .page')[2];
+			expect(thirdPage.querySelector('.fw-node')).not.toBeNull();
+			setInput(pageMetadataInputs(details, 'Visible page number')[2], '');
 			await tick();
 
 			expect(thirdPage.querySelector('.fw-node')).toBeNull();
-			details = await openMetadataDialog(harness);
 			expect(details.textContent).not.toContain('pageLabel:');
 			expect(pageMetadataInputs(details, 'Visible page number')[2].value).toBe('');
 		} finally {
@@ -461,28 +459,33 @@ describe('TranscriptionEditor page metadata commands (mounted, multi-page fixtur
 		['Running title', 'Gospel of John'],
 		['Catchword', 'logos'],
 		['Quire signature', 'A iii'],
-	])('F10: updatePageFormWork inserts %s into the page’s first line', async (placeholder, value) => {
-		const harness = await mountEditor();
-		try {
-			const details = await openMetadataDialog(harness);
-			const inputs = Array.from(
-				details.querySelectorAll<HTMLInputElement>(
-					`input[placeholder^="${placeholder}"]`
-				)
-			);
-			expect(inputs).toHaveLength(3);
-			setInput(inputs[2], value);
-			await tick();
+	])(
+		'F10: updatePageFormWork inserts %s into the page’s first line',
+		async (placeholder, value) => {
+			const harness = await mountEditor();
+			try {
+				const details = await openMetadataDialog(harness);
+				const inputs = Array.from(
+					details.querySelectorAll<HTMLInputElement>(
+						`input[placeholder^="${placeholder}"]`
+					)
+				);
+				expect(inputs).toHaveLength(3);
+				setInput(inputs[2], value);
+				await tick();
 
-			const thirdPage = harness.container.querySelectorAll('.ProseMirror .page')[2];
-			expect(thirdPage.querySelectorAll('.fw-node')).toHaveLength(1);
-			const lines = Array.from(thirdPage.querySelectorAll('.line'));
-			expect(lines[0].querySelector('.fw-node')?.textContent).toBe(value);
-			expect(lines.slice(1).every(line => line.querySelector('.fw-node') === null)).toBe(true);
-		} finally {
-			harness.dispose();
+				const thirdPage = harness.container.querySelectorAll('.ProseMirror .page')[2];
+				expect(thirdPage.querySelectorAll('.fw-node')).toHaveLength(1);
+				const lines = Array.from(thirdPage.querySelectorAll('.line'));
+				expect(lines[0].querySelector('.fw-node')?.textContent).toBe(value);
+				expect(lines.slice(1).every(line => line.querySelector('.fw-node') === null)).toBe(
+					true
+				);
+			} finally {
+				harness.dispose();
+			}
 		}
-	});
+	);
 
 	it('deletePage removes the addressed page only', async () => {
 		const harness = await mountEditor();
@@ -511,7 +514,9 @@ describe('TranscriptionEditor page metadata commands (mounted, multi-page fixtur
 		const harness = await mountEditor();
 		try {
 			placeCaretAtEndOf(
-				lineElement(harness.container, 0, 0, 1).querySelector('.line-content') as HTMLElement
+				lineElement(harness.container, 0, 0, 1).querySelector(
+					'.line-content'
+				) as HTMLElement
 			);
 			await tick();
 			const details = await openMetadataDialog(harness);

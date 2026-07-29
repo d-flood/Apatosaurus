@@ -3,14 +3,8 @@ import { mount, unmount } from 'svelte';
 
 import { initializeEditorContent } from '../editorContentInitialization';
 import { getEditor } from '../transcriptionEditorSchema';
-import InlineCarrierWorkspace from '../../components/transcriptionEditor/InlineCarrierWorkspace.svelte';
 import TranscriptionEditor from '../../components/transcriptionEditor/TranscriptionEditor.svelte';
-import {
-	editorDocument,
-	marginaliaDocument,
-	transcriptionDocument,
-	type EditorJson,
-} from './editorFixtures';
+import { editorDocument, transcriptionDocument, type EditorJson } from './editorFixtures';
 
 export interface CreateTestEditorOptions {
 	content?: EditorJson;
@@ -139,51 +133,6 @@ export async function mountTranscriptionEditor(
 			disposed = true;
 			void unmount(component as any);
 			viewport.remove();
-		},
-	};
-}
-
-export interface InlineCarrierWorkspaceHarness {
-	container: HTMLElement;
-	emitted: unknown[];
-	component: Record<string, any>;
-	dispose: () => void;
-}
-
-export interface MountInlineCarrierWorkspaceOptions {
-	initialContent?: EditorJson;
-	toolbarIdPrefix?: string;
-}
-
-export async function mountInlineCarrierWorkspace(
-	options: MountInlineCarrierWorkspaceOptions = {}
-): Promise<InlineCarrierWorkspaceHarness> {
-	const container = document.createElement('div');
-	document.body.appendChild(container);
-	const emitted: unknown[] = [];
-	const props = $state({
-		initialContent: (options.initialContent ?? marginaliaDocument({})) as unknown,
-		onChange: (content: unknown) => {
-			emitted.push(content);
-			props.initialContent = content;
-		},
-		toolbarIdPrefix: options.toolbarIdPrefix ?? 'inline-carrier-spec',
-	});
-	const component = mount(InlineCarrierWorkspace, { target: container, props }) as Record<
-		string,
-		any
-	>;
-	await waitFor(() => container.querySelector('.marginalia-column'));
-	let disposed = false;
-	return {
-		container,
-		emitted,
-		component,
-		dispose: () => {
-			if (disposed) return;
-			disposed = true;
-			void unmount(component as any);
-			container.remove();
 		},
 	};
 }

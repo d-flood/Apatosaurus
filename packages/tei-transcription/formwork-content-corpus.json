@@ -1,0 +1,17 @@
+{
+	"description": "Real IGNTP witnesses pinning TEI export across the formwork content model migration.",
+	"entries": [
+		{
+			"id": "01-romans",
+			"path": "app/src/lib/tei/NT_GRC_01_Rom.xml",
+			"exportBytes": 282593,
+			"exportSha256": "bf2a38280fbf1e8ec6f4fc2714544f39038b2bf41a7d0ce95eac5d74325d1cdc"
+		},
+		{
+			"id": "p118-romans",
+			"path": "app/src/lib/tei/NT_GRC_P118_Rom.xml",
+			"exportBytes": 9572,
+			"exportSha256": "1c486ca28997e9e353c4feea67da3ec86cb6aaf7f85aab6ca816f148c4918158"
+		}
+	]
+}
