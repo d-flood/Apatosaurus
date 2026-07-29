@@ -3,7 +3,7 @@
 	import { checkStoragePersistence } from '$lib/client/capabilities';
 	import { ensureLocalDbRuntime } from '$lib/client/db/runtime';
 	import { syncService } from '$lib/client/sync/sync-service.svelte';
-	import { registerServiceWorker } from '$lib/client/sw-registration';
+	import { registerServiceWorker, scheduleCacheWarm } from '$lib/client/sw-registration';
 	import Navbar from '$lib/components/Navbar.svelte';
 	import { onMount } from 'svelte';
 	import '../app.css';
@@ -12,7 +12,9 @@
 
 	onMount(() => {
 		void initializeApp();
-		registerServiceWorker();
+		void registerServiceWorker().then(registration => {
+			if (registration) scheduleCacheWarm(registration, 'routes');
+		});
 	});
 
 	async function initializeApp() {

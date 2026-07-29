@@ -8,7 +8,7 @@
 
 Make the app boot with the network off. Today it cannot: the build emits no `index.html` (nothing is prerendered), so GitHub Pages serves the adapter-static fallback `404.html` with an HTTP **404 status**. The service worker precaches `/` and `/offline` with `cache.add()`, which rejects on any non-2xx response, and both failures are swallowed by a `console.warn`. The navigation handler only writes to the cache when `networkResponse.ok`. Net effect: **no HTML ever enters the cache**, and an offline reload falls all the way through to a plain-text `503 Offline` response.
 
-This slice extracts every caching *decision* into a new pure module, reduces the service worker to a thin adapter over that module, precaches a small **shell tier** at install, and serves the cached shell for **every** navigation request (cache-first, revalidate in background) so the SvelteKit client router resolves the actual route. The `/offline` route is retired — a working shell makes a second, worse shell pointless.
+This slice extracts every caching *decision* into a new pure module, reduces the service worker to a thin adapter over that module, and precaches a small **shell tier** at install. Navigation requests use the network first so SvelteKit preserves document-level deep links, revalidate the canonical shell in the background, and fall back to that cached shell when the network is unavailable. The `/offline` route is retired — a working shell makes a second, worse shell pointless.
 
 Route chunks continue to be precached during `install` exactly as they are today. Do not change that in this slice; moving them to a background warm is ticket 02. The observable win here is that the app boots offline at all.
 
@@ -64,7 +64,7 @@ Cache names are version-scoped **per tier** so tiers can be evicted independentl
 
 Fetch handling in the adapter:
 
-- `navigation` → serve the cached shell HTML, cache-first, revalidating in the background. Never key the shell on the request URL — one shell entry serves all routes.
+- `navigation` → fetch the requested navigation from the network first and revalidate the canonical shell in the background; on a network failure, serve the cached shell HTML. Never key the shell on the request URL — one shell entry serves all routes. This validated deviation from the parent spec preserves SvelteKit document-level deep-link hydration while guaranteeing offline boot.
 - `asset` → the existing cache-first-with-background-update behavior, unchanged.
 - `bypass` → do not call `event.respondWith` at all.
 
@@ -109,3 +109,7 @@ To verify by hand: `pnpm run preview`, load `http://localhost:4173`, then in Dev
 ## Blocked by
 
 None - can start immediately.
+
+## Implementation note
+
+2026-07-29: Returning the cached `/` response first for document-level deep-link navigations made SvelteKit bootstrap the root route even though the browser URL remained the requested deep URL. This also regressed existing Playwright tests that use `page.goto()` after the worker takes control. The validated adapter therefore fetches online navigation requests first and falls back to the guaranteed cached shell on network failure; the shell is still revalidated in the background, and offline reload plus navigation to an unvisited route pass against the built output. Human validation accepted this deviation from the parent spec's cache-first navigation strategy.

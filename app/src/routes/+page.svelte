@@ -27,6 +27,8 @@
 	import { listSyncTargets, type SyncTargetRecord } from '$lib/client/store';
 	import { LOCAL_FOLDER_ROOT_FOLDER_ID } from '$lib/client/sync/providers/local-folder-provider';
 	import type { ProjectBackupSummary } from '$lib/client/sync/sync-manager';
+	import type { WarmProgress } from '$lib/client/offline-cache-policy';
+	import { onCacheWarmProgress } from '$lib/client/sw-registration';
 	import Dashboard, {
 		type DashboardAttentionItem,
 		type DashboardDocument,
@@ -41,6 +43,13 @@
 	let lastOpenedProject = $state<ProjectOption | null>(null);
 	let recentDocuments = $state.raw<DashboardDocument[]>([]);
 	let attentionItems = $state.raw<DashboardAttentionItem[]>([]);
+	let routesWarmProgress = $state<WarmProgress | null>(null);
+	let displayedAttentionItems = $derived([
+		...attentionItems,
+		...(offlineAttentionItem(routesWarmProgress)
+			? [offlineAttentionItem(routesWarmProgress)!]
+			: []),
+	]);
 	let isLoading = $state(true);
 	let error = $state<string | null>(null);
 	let loadRunId = 0;
@@ -256,6 +265,24 @@
 		};
 	}
 
+	function offlineAttentionItem(progress: WarmProgress | null): DashboardAttentionItem | null {
+		if (!progress || progress.tier !== 'routes') return null;
+		if (progress.state !== 'failed' && progress.reason !== 'quota') return null;
+		return {
+			id: 'offline-readiness',
+			title:
+				progress.reason === 'quota'
+					? 'Offline preparation needs storage'
+					: 'Offline preparation failed',
+			description:
+				progress.reason === 'quota'
+					? 'The browser does not currently have enough storage headroom to cache every app page.'
+					: 'Some application pages may be unavailable without a network connection.',
+			href: '/data',
+			linkLabel: 'Review offline readiness',
+		};
+	}
+
 	function readDismissedDurabilityMilestone(): string | null {
 		try {
 			return localStorage.getItem('apatosaurus:durability-warning-dismissed-milestone');
@@ -266,7 +293,10 @@
 
 	onMount(() => {
 		void loadDashboard();
-		return subscribeLocalDbInvalidations(event => {
+		const unsubscribeWarmProgress = onCacheWarmProgress(progress => {
+			if (progress.tier === 'routes') routesWarmProgress = progress;
+		});
+		const unsubscribeDb = subscribeLocalDbInvalidations(event => {
 			if (
 				['projects', 'transcriptions', 'collations', 'sync-targets', 'all'].includes(
 					event.domain
@@ -275,6 +305,10 @@
 				void loadDashboard();
 			}
 		});
+		return () => {
+			unsubscribeWarmProgress();
+			unsubscribeDb();
+		};
 	});
 </script>
 
@@ -282,7 +316,7 @@
 	{projects}
 	{lastOpenedProject}
 	{recentDocuments}
-	{attentionItems}
+	attentionItems={displayedAttentionItems}
 	{isLoading}
 	{error}
 	appVersion={version}

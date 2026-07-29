@@ -8,7 +8,7 @@ Every caching decision moves into a pure `offline-cache-policy` module tested in
 
 ## Current Status
 
-Overall status: `Not Started`
+Overall status: `Completed`
 
 Current ticket: None
 
@@ -20,8 +20,8 @@ Ticket 01 is the tracer bullet and the entire fix for the bug that exists today.
 
 | Number | Filename | Status | Depends On |
 | --- | --- | --- | --- |
-| 01 | `01-shell-tier-and-offline-boot.md` | Not Started | None |
-| 02 | `02-background-warm-routes-tier.md` | Not Started | 01 |
-| 03 | `03-offline-readiness-on-data-page.md` | Not Started | 02 |
-| 04 | `04-opt-in-reference-corpus-tier.md` | Not Started | 03 |
-| 05 | `05-non-destructive-updates.md` | Not Started | 01 |
+| 01 | `01-shell-tier-and-offline-boot.md` | Completed | None |
+| 02 | `02-background-warm-routes-tier.md` | Completed | 01 |
+| 03 | `03-offline-readiness-on-data-page.md` | Completed | 02 |
+| 04 | `04-opt-in-reference-corpus-tier.md` | Completed | 03 |
+| 05 | `05-non-destructive-updates.md` | Completed | 01 |

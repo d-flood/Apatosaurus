@@ -25,6 +25,18 @@
 	import { listSyncTargets, recordProjectZipExport } from '$lib/client/store';
 	import { LOCAL_FOLDER_ROOT_FOLDER_ID } from '$lib/client/sync/providers/local-folder-provider';
 	import type { ProjectBackupSummary } from '$lib/client/sync/sync-manager';
+	import {
+		CORPUS_APPROXIMATE_BYTES,
+		hasCorpusStorageHeadroom,
+		type WarmProgress,
+	} from '$lib/client/offline-cache-policy';
+	import {
+		getCorpusCacheEntryCount,
+		getOfflineCacheSize,
+		onCacheWarmProgress,
+		releaseCorpusCache,
+		requestCacheWarmNow,
+	} from '$lib/client/sw-registration';
 	import IndexRepairReport from '$lib/components/projects/IndexRepairReport.svelte';
 	import OnboardingGuidance from '$lib/components/OnboardingGuidance.svelte';
 	import type { IndexRebuildReport } from '$lib/client/db/repositories/index-rebuild';
@@ -64,6 +76,24 @@
 	let restoringOrphanPath = $state<string | null>(null);
 	let dismissedDurabilityMilestone = $state<string | null>(readDismissedDurabilityMilestone());
 	let backupSummaryRunId = 0;
+	let routesWarmProgress = $state<WarmProgress>({
+		tier: 'routes',
+		state: 'idle',
+		completed: 0,
+		total: 0,
+		bytesCached: null,
+	});
+	let offlineCacheBytes = $state<number | null>(null);
+	let corpusCacheEntryCount = $state(0);
+	let corpusWarmProgress = $state<WarmProgress>({
+		tier: 'corpus',
+		state: 'idle',
+		completed: 0,
+		total: 0,
+		bytesCached: null,
+	});
+	let corpusMessage = $state<string | null>(null);
+	let isReleasingCorpus = $state(false);
 
 	let storageOverview = $derived.by(() => {
 		const summaries = projects
@@ -95,6 +125,9 @@
 			? 'Unavailable'
 			: `${Math.round(storageEstimateReport.usageRatio * 100)}%`
 	);
+	let offlineCacheSizeLabel = $derived(formatStorageBytes(offlineCacheBytes));
+	let corpusApproximateSizeLabel = $derived(formatStorageBytes(CORPUS_APPROXIMATE_BYTES));
+	let corpusCached = $derived(corpusCacheEntryCount > 0);
 
 	async function bootstrap() {
 		isLoading = true;
@@ -112,6 +145,80 @@
 			checkStoragePersistence(),
 			getStorageEstimate(),
 		]);
+	}
+
+	async function refreshOfflineCacheSize() {
+		offlineCacheBytes = await getOfflineCacheSize();
+	}
+
+	async function refreshCorpusCacheState() {
+		corpusCacheEntryCount = await getCorpusCacheEntryCount();
+	}
+
+	async function prepareForOffline() {
+		await requestCacheWarmNow('routes');
+	}
+
+	async function prepareCorpusForOffline() {
+		corpusMessage = null;
+		const estimate = await getStorageEstimate();
+		if (!hasCorpusStorageHeadroom(estimate)) {
+			corpusMessage = `There is not enough browser storage for the approximately ${corpusApproximateSizeLabel} reference edition download.`;
+			return;
+		}
+		await requestCacheWarmNow('corpus');
+	}
+
+	async function releaseReferenceEditions() {
+		isReleasingCorpus = true;
+		try {
+			await releaseCorpusCache();
+			corpusWarmProgress = {
+				tier: 'corpus',
+				state: 'idle',
+				completed: 0,
+				total: 0,
+				bytesCached: null,
+			};
+			corpusMessage = null;
+			await Promise.all([refreshCorpusCacheState(), refreshOfflineCacheSize()]);
+		} finally {
+			isReleasingCorpus = false;
+		}
+	}
+
+	function corpusWarmStatus(): string {
+		if (corpusWarmProgress.state === 'warming') {
+			return `Downloading: ${corpusWarmProgress.completed} of ${corpusWarmProgress.total}`;
+		}
+		if (corpusWarmProgress.state === 'ready') return 'Available offline';
+		if (corpusWarmProgress.state === 'partial') {
+			return `Download incomplete: ${corpusWarmProgress.completed} of ${corpusWarmProgress.total}`;
+		}
+		if (corpusWarmProgress.state === 'failed') return 'Download failed';
+		if (corpusWarmProgress.state === 'skipped')
+			return warmSkipReason(corpusWarmProgress.reason);
+		return corpusCached ? 'Cached for offline use' : 'Not downloaded';
+	}
+
+	function routeWarmStatus(progress: WarmProgress): string {
+		if (progress.state === 'warming') {
+			return `Warming now: ${progress.completed} of ${progress.total}`;
+		}
+		if (progress.state === 'ready') return 'Fully warmed';
+		if (progress.state === 'partial') {
+			return `Offline preparation incomplete: ${progress.completed} of ${progress.total}`;
+		}
+		if (progress.state === 'failed') return 'Offline preparation failed';
+		if (progress.state === 'skipped') return `Shell only; ${warmSkipReason(progress.reason)}`;
+		return 'Shell only';
+	}
+
+	function warmSkipReason(reason: WarmProgress['reason']): string {
+		if (reason === 'save-data') return 'skipped on a metered connection';
+		if (reason === 'slow-network') return 'skipped on a slow connection';
+		if (reason === 'quota') return 'skipped because browser storage is nearly full';
+		return 'background preparation was skipped';
 	}
 
 	async function requestPersistentStorage() {
@@ -318,10 +425,30 @@
 	onMount(() => {
 		installSupported = getInstallCapabilityReport().installSupported;
 		void bootstrap();
-		return subscribeLocalDbInvalidations(event => {
+		void refreshOfflineCacheSize();
+		void refreshCorpusCacheState();
+		const refreshCacheState = () => {
+			void refreshCorpusCacheState();
+			void refreshOfflineCacheSize();
+		};
+		window.addEventListener('focus', refreshCacheState);
+		const unsubscribeWarmProgress = onCacheWarmProgress(progress => {
+			if (progress.tier === 'routes') routesWarmProgress = progress;
+			if (progress.tier === 'corpus') {
+				corpusWarmProgress = progress;
+				corpusCacheEntryCount = progress.completed;
+			}
+			if (progress.state !== 'warming') void refreshOfflineCacheSize();
+		});
+		const unsubscribeDb = subscribeLocalDbInvalidations(event => {
 			if (event.domain === 'projects' || event.domain === 'all') void bootstrap();
 			else if (event.domain === 'sync-targets') void loadProjectBackupSummaries();
 		});
+		return () => {
+			window.removeEventListener('focus', refreshCacheState);
+			unsubscribeWarmProgress();
+			unsubscribeDb();
+		};
 	});
 </script>
 
@@ -359,6 +486,109 @@
 
 	<div class="mt-6 grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
 		<div class="space-y-6">
+			<section class="rounded-box border border-base-300/60 bg-base-100 p-5 shadow-sm">
+				<h2 class="font-serif text-xl font-semibold">Offline Readiness</h2>
+				<p class="mt-1 text-sm text-base-content/55">
+					Prepare the application itself for use without a network connection. Project
+					data is stored separately.
+				</p>
+				<div class="mt-4 grid gap-3 text-sm sm:grid-cols-2">
+					<div class="rounded-box bg-base-200/60 p-3">
+						<div class="text-base-content/55">App shell</div>
+						<div class="mt-1 font-medium text-success">Ready for offline startup</div>
+					</div>
+					<div class="rounded-box bg-base-200/60 p-3" aria-live="polite">
+						<div class="text-base-content/55">All app pages</div>
+						<div
+							class="mt-1 font-medium"
+							class:text-error={routesWarmProgress.state === 'failed'}
+							class:text-warning={routesWarmProgress.state === 'partial' ||
+								routesWarmProgress.reason === 'quota'}
+							class:text-success={routesWarmProgress.state === 'ready'}
+						>
+							{routeWarmStatus(routesWarmProgress)}
+						</div>
+					</div>
+				</div>
+				<div class="mt-3 flex items-center justify-between gap-3 text-sm">
+					<span class="text-base-content/55">Offline cache size</span>
+					<span class="font-medium">{offlineCacheSizeLabel}</span>
+				</div>
+				<button
+					type="button"
+					class="btn btn-outline btn-sm mt-4 w-full"
+					disabled={routesWarmProgress.state === 'warming'}
+					onclick={prepareForOffline}
+				>
+					{routesWarmProgress.state === 'warming'
+						? 'Preparing for offline...'
+						: 'Prepare for offline now'}
+				</button>
+
+				<div class="divider my-4"></div>
+				<div class="rounded-box bg-base-200/60 p-4 text-sm" aria-live="polite">
+					<div class="flex items-start justify-between gap-4">
+						<div>
+							<h3 class="font-semibold">Reference editions</h3>
+							<p class="mt-1 text-base-content/55">
+								Opt in to use the bundled reference corpus without a network
+								connection. Approximately {corpusApproximateSizeLabel}.
+							</p>
+						</div>
+						<span class="badge badge-ghost shrink-0">Optional</span>
+					</div>
+					<div
+						class="mt-3 font-medium"
+						class:text-success={corpusWarmProgress.state === 'ready'}
+						class:text-warning={corpusWarmProgress.state === 'partial' ||
+							corpusWarmProgress.reason === 'quota'}
+						class:text-error={corpusWarmProgress.state === 'failed'}
+					>
+						{corpusWarmStatus()}
+					</div>
+					{#if corpusWarmProgress.total > 0 && corpusWarmProgress.state === 'warming'}
+						<progress
+							class="progress progress-primary mt-2 w-full"
+							value={corpusWarmProgress.completed}
+							max={corpusWarmProgress.total}
+						></progress>
+					{/if}
+					{#if corpusMessage}
+						<div class="alert alert-warning mt-3 py-2 text-sm" role="status">
+							{corpusMessage}
+						</div>
+					{/if}
+					<div class="mt-3 flex flex-wrap gap-2">
+						{#if !corpusCached || corpusWarmProgress.state === 'partial' || corpusWarmProgress.state === 'failed'}
+							<button
+								type="button"
+								class="btn btn-primary btn-sm"
+								disabled={corpusWarmProgress.state === 'warming'}
+								onclick={prepareCorpusForOffline}
+							>
+								{corpusWarmProgress.state === 'partial' ||
+								corpusWarmProgress.state === 'failed'
+									? 'Retry reference edition download'
+									: corpusWarmProgress.state === 'warming'
+										? 'Downloading reference editions...'
+										: 'Download reference editions'}
+							</button>
+						{/if}
+						{#if corpusCached}
+							<button
+								type="button"
+								class="btn btn-ghost btn-sm"
+								disabled={isReleasingCorpus ||
+									corpusWarmProgress.state === 'warming'}
+								onclick={releaseReferenceEditions}
+							>
+								{isReleasingCorpus ? 'Releasing...' : 'Release reference editions'}
+							</button>
+						{/if}
+					</div>
+				</div>
+			</section>
+
 			<section class="rounded-box border border-base-300/60 bg-base-100 p-5 shadow-sm">
 				<h2 class="font-serif text-xl font-semibold">Storage Durability</h2>
 				<div class="mt-4 grid gap-3 text-sm sm:grid-cols-2">

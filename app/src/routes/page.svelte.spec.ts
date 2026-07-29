@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
 	listProjects: vi.fn(),
 	listTranscriptionSummaries: vi.fn(),
 	listCollationsWithProjectNames: vi.fn(),
+	warmListeners: [] as Array<(progress: unknown) => void>,
 }));
 
 vi.mock('$lib/client/capabilities', () => ({
@@ -41,6 +42,13 @@ vi.mock('$lib/client/store', () => ({
 	listSyncTargets: vi.fn(async () => []),
 }));
 
+vi.mock('$lib/client/sw-registration', () => ({
+	onCacheWarmProgress: vi.fn((listener: (progress: unknown) => void) => {
+		mocks.warmListeners.push(listener);
+		return vi.fn();
+	}),
+}));
+
 import Page from './+page.svelte';
 
 describe('/+page.svelte dashboard', () => {
@@ -64,5 +72,58 @@ describe('/+page.svelte dashboard', () => {
 		await expect
 			.element(page.getByRole('link', { name: 'New Transcription in Romans' }))
 			.toHaveAttribute('href', '/transcription/new?projectId=project-1');
+	});
+
+	it('raises offline attention only for failure or quota exhaustion', async () => {
+		mocks.listProjects.mockResolvedValue([
+			{
+				id: 'project-1',
+				storageSlug: 'project-1',
+				name: 'Romans',
+				description: '',
+				createdAt: '2026-07-01T00:00:00.000Z',
+				updatedAt: '2026-07-18T00:00:00.000Z',
+			},
+		]);
+		mocks.listTranscriptionSummaries.mockResolvedValue([]);
+		mocks.listCollationsWithProjectNames.mockResolvedValue([]);
+		render(Page);
+		const listener = mocks.warmListeners.at(-1);
+
+		listener?.({
+			tier: 'routes',
+			state: 'skipped',
+			completed: 0,
+			total: 30,
+			bytesCached: null,
+			reason: 'save-data',
+		});
+		await expect
+			.element(page.getByRole('link', { name: 'Review offline readiness' }))
+			.not.toBeInTheDocument();
+
+		listener?.({
+			tier: 'routes',
+			state: 'failed',
+			completed: 0,
+			total: 30,
+			bytesCached: null,
+			reason: 'network-error',
+		});
+		await expect
+			.element(page.getByRole('link', { name: 'Review offline readiness' }))
+			.toHaveAttribute('href', '/data');
+
+		listener?.({
+			tier: 'routes',
+			state: 'skipped',
+			completed: 0,
+			total: 30,
+			bytesCached: null,
+			reason: 'quota',
+		});
+		await expect
+			.element(page.getByRole('heading', { name: 'Offline preparation needs storage' }))
+			.toBeInTheDocument();
 	});
 });
