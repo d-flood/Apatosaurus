@@ -31,7 +31,6 @@ import {
 	buildSpaceAttrs,
 	buildTeiMilestoneAttrs,
 	describeMetamarkTarget,
-	findPrecedingMilestoneNode,
 	getCurrentMilestoneValues,
 	getMetamarkInsertContext,
 	insertContentNode,
@@ -366,19 +365,70 @@ describe('editorCommands against a multi-page fixture', () => {
 		}
 	});
 
-	it('findPrecedingMilestoneNode and getCurrentMilestoneValues read the nearest preceding milestones', () => {
+	it('getCurrentMilestoneValues reads the nearest preceding milestones', () => {
 		const editor = createTestEditor({ content: EDITOR_COMMAND_FIXTURE });
 		try {
 			caretAfter(editor, 'c3');
-			expect(findPrecedingMilestoneNode(editor, 'book')?.node.attrs.book).toBe('Mark');
-			expect(findPrecedingMilestoneNode(editor, 'chapter')?.node.attrs.chapter).toBe('1');
 			expect(getCurrentMilestoneValues(editor)).toEqual({
 				book: 'Mark',
 				chapter: '1',
 				verse: '1',
 			});
 			expect(getCurrentMilestoneValues(null)).toEqual({});
-			expect(findPrecedingMilestoneNode(null, 'book')).toBeNull();
+		} finally {
+			editor.destroy();
+		}
+	});
+
+	it('does not carry chapter or verse context across a book boundary', () => {
+		const editor = createTestEditor({
+			content: editorDocument({
+				pages: [
+					editorPlainPage({
+						columns: [
+							editorColumn({
+								lines: [
+									editorLine({
+										content: [
+											{ type: 'book', attrs: { book: 'Mark' } },
+											{ type: 'chapter', attrs: { book: 'Mark', chapter: '1' } },
+											{
+												type: 'verse',
+												attrs: { book: 'Mark', chapter: '1', verse: '1' },
+											},
+											{ type: 'book', attrs: { book: 'Luke' } },
+											{ type: 'text', text: 'alpha' },
+										],
+									}),
+								],
+							}),
+						],
+					}),
+				],
+			}),
+		});
+		try {
+			caretAfter(editor, 'alpha');
+			expect(getCurrentMilestoneValues(editor)).toEqual({ book: 'Luke' });
+			expect(insertMilestoneNode(editor, 'verse', '1')).toBe('missing-chapter');
+			expect(countNodes(editor, 'verse')).toBe(1);
+
+			expect(insertMilestoneNode(editor, 'chapter', '2')).toBe('ok');
+			expect(insertMilestoneNode(editor, 'verse', '1')).toBe('ok');
+			expect(getCurrentMilestoneValues(editor)).toEqual({
+				book: 'Luke',
+				chapter: '2',
+				verse: '1',
+			});
+			const verseBooks: string[] = [];
+			editor.state.doc.descendants((node: any) => {
+				if (node.type.name === 'verse') verseBooks.push(node.attrs.book);
+				return true;
+			});
+			expect(verseBooks).toEqual(['Mark', 'Luke']);
+
+			expect(insertMilestoneNode(editor, 'chapter', '3')).toBe('ok');
+			expect(getCurrentMilestoneValues(editor)).toEqual({ book: 'Luke', chapter: '3' });
 		} finally {
 			editor.destroy();
 		}

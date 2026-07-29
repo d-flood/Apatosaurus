@@ -137,9 +137,11 @@ function exportNode(node: ProseMirrorJSON, context: ExportContext): void {
 			break;
 
 		case 'line':
+			// TranscriptionDocument paragraphStart maps to ProseMirror `paragraph-start`
+			// and TEI rend="hang"; keep this reader aligned with the ProseMirror spelling.
 			context.xml.push(`<lb${serializeAttrs(mergeTeiAttrs(node.attrs, {
 				break: node.attrs?.wrapped ? 'no' : undefined,
-				rend: node.attrs?.paragraphStart ? (node.attrs?.teiAttrs?.rend || 'hang') : undefined,
+				rend: node.attrs?.['paragraph-start'] ? (node.attrs?.teiAttrs?.rend || 'hang') : undefined,
 			}))}/>`);
 			exportLineContent(node.content, context);
 			break;

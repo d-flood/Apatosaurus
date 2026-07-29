@@ -337,32 +337,7 @@ export function buildTeiMilestoneAttrs(
 
 export type MilestoneNodeType = 'book' | 'chapter' | 'verse';
 
-interface LocatedMilestoneNode {
-	node: any;
-	pos: number;
-}
-
-export function findPrecedingMilestoneNode(
-	editor: Editor | null,
-	nodeType: 'book' | 'chapter'
-): LocatedMilestoneNode | null {
-	if (!editor) return null;
-	const { state } = editor;
-	const { from } = state.selection;
-	let foundNode: LocatedMilestoneNode | null = null;
-
-	state.doc.nodesBetween(0, from, (node: any, pos: number) => {
-		if (node.type.name === nodeType) {
-			if (!foundNode || pos > foundNode.pos) {
-				foundNode = { node, pos };
-			}
-		}
-	});
-
-	return foundNode;
-}
-
-export function getCurrentMilestoneValues(editor: Editor | null): {
+export function resolveMilestoneContext(editor: Editor | null): {
 	book?: string;
 	chapter?: string;
 	verse?: string;
@@ -370,39 +345,55 @@ export function getCurrentMilestoneValues(editor: Editor | null): {
 	if (!editor) return {};
 
 	const result: { book?: string; chapter?: string; verse?: string } = {};
+	let fallbackBook: string | undefined;
+	let fallbackChapter: string | undefined;
+	let seekChapter = true;
+	let seekVerse = true;
 
-	const bookNode = findPrecedingMilestoneNode(editor, 'book');
-	if (bookNode) {
-		result.book = bookNode.node.attrs.book;
+	function walkBackwards(node: any, contentStart: number, before: number): boolean {
+		let offset = node.content.size;
+		for (let index = node.childCount - 1; index >= 0; index -= 1) {
+			const child = node.child(index);
+			offset -= child.nodeSize;
+			const pos = contentStart + offset;
+			if (pos >= before) continue;
+
+			if (child.childCount && walkBackwards(child, pos + 1, before)) return true;
+
+			if (child.type.name === 'book') {
+				result.book = child.attrs.book;
+				return true;
+			}
+			if (child.type.name === 'chapter') {
+				if (seekChapter) {
+					result.chapter = child.attrs.chapter;
+					fallbackBook = child.attrs.book;
+				}
+				seekChapter = false;
+				seekVerse = false;
+			} else if (child.type.name === 'verse' && seekVerse) {
+				result.verse = child.attrs.verse;
+				fallbackBook = child.attrs.book;
+				fallbackChapter = child.attrs.chapter;
+				seekVerse = false;
+			}
+		}
+		return false;
 	}
 
-	const chapterNode = findPrecedingMilestoneNode(editor, 'chapter');
-	if (chapterNode) {
-		result.chapter = chapterNode.node.attrs.chapter;
-		if (!result.book) {
-			result.book = chapterNode.node.attrs.book;
-		}
-	}
-
-	const { from } = editor.state.selection;
-	let foundVerseNode: any = null;
-	editor.state.doc.nodesBetween(0, from, (node: any) => {
-		if (node.type.name === 'verse') {
-			foundVerseNode = node;
-		}
-	});
-
-	if (foundVerseNode) {
-		result.verse = foundVerseNode.attrs.verse;
-		if (!result.book) {
-			result.book = foundVerseNode.attrs.book;
-		}
-		if (!result.chapter) {
-			result.chapter = foundVerseNode.attrs.chapter;
-		}
-	}
+	walkBackwards(editor.state.doc, 0, editor.state.selection.from);
+	result.book ??= fallbackBook;
+	result.chapter ??= fallbackChapter;
 
 	return result;
+}
+
+export function getCurrentMilestoneValues(editor: Editor | null): {
+	book?: string;
+	chapter?: string;
+	verse?: string;
+} {
+	return resolveMilestoneContext(editor);
 }
 
 export function insertMilestoneNode(
@@ -417,15 +408,15 @@ export function insertMilestoneNode(
 	if (type === 'book') {
 		attrs.book = value;
 	} else if (type === 'chapter') {
-		const bookNode = findPrecedingMilestoneNode(editor, 'book');
-		if (!bookNode) return 'missing-book';
-		attrs.book = bookNode.node.attrs.book;
+		const context = resolveMilestoneContext(editor);
+		if (!context.book) return 'missing-book';
+		attrs.book = context.book;
 		attrs.chapter = value;
 	} else {
-		const chapterNode = findPrecedingMilestoneNode(editor, 'chapter');
-		if (!chapterNode) return 'missing-chapter';
-		attrs.book = chapterNode.node.attrs.book;
-		attrs.chapter = chapterNode.node.attrs.chapter;
+		const context = resolveMilestoneContext(editor);
+		if (!context.book || !context.chapter) return 'missing-chapter';
+		attrs.book = context.book;
+		attrs.chapter = context.chapter;
 		attrs.verse = value;
 	}
 
