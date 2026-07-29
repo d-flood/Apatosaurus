@@ -55,7 +55,7 @@ Success is not "every ticket cleared". Some findings should end in a documented 
 | 08 | `08-empty-lines-survive-the-save-path.md` | Completed | None |
 | 09 | `09-punctuation-stops-deleting-the-word-beside-it.md` | Completed | None |
 | 10 | `10-delete-the-uncalled-editor-code.md` | Not Started | None |
-| 11 | `11-explain-or-remove-the-unexplained-workarounds.md` | Not Started | None |
+| 11 | `11-explain-or-remove-the-unexplained-workarounds.md` | Completed | None |
 | 12 | `12-column-split-preserves-attributes-and-caret.md` | Not Started | None |
 | 13 | `13-node-lookups-stop-at-the-first-match.md` | Not Started | 02 |
 | 14 | `14-renderhtml-becomes-pure-and-inline-valid.md` | Not Started | None |
@@ -97,6 +97,7 @@ pnpm vitest run --project client src/lib/client/transcriptionEditorStructure.sve
 ```
 
 ## Notes
+- **2026-07-28** — **Ticket `11` complete; both unexplained workarounds were removed.** F31 characterization showed that the six `handleDOMEvents` suppressions did not enable click-drag selection, cross-line selection, the bubble menu, or internal text moves, all of which worked with them present; they instead blocked a real external text drop, which succeeds after removal. F9 characterization showed that ProseMirror natively inserts the first character into both a sole empty line and a middle empty line, leaves the caret at offset 1, and produces no appended transaction, identically after removing `EmptyLineTextInputStabilizer`. `check` reports 0 errors; the focused suites pass 58 and 67 tests, and the full baseline passes **102 files / 681 tests**.
 
 - **2026-07-28** — **Ticket `24` semantics confirmed and enforced end to end.** A partial selection is an authoring gesture, while the apparatus comparison locus remains one or more complete words. Apply/remove now expands to word boundaries without absorbing punctuation, the correction workspace asks for complete corrected words, and corrector extraction emits a consecutive multi-word apparatus once rather than once per original word. The IGNTP XSD does permit nested sub-word `<app>`, but that is deliberately not this application's model: collation consumes word tokens, and a word-level locus does not claim every character changed. App baseline is now **101 files / 677 tests, all passing**; `check` remains 0 errors.
 - **2026-07-28** — **First implementation batch complete: `07`, `08`, `09`, `24`**, run as four parallel agents partitioned by file ownership. All four defects were reproduced by execution before being fixed. App suite went from 98 files / 637 tests to **100 files / 672 tests, all passing**; `check` 0 errors. Three new findings appended to `INVENTORY.md` as **F47**, **F48**, **F49** — see below. One open item needs a human decision, flagged in `INVENTORY.md`:

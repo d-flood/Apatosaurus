@@ -1346,49 +1346,6 @@ function createLineNumberNormalizationTransaction(state: Editor['state']) {
 	return changed ? tr : null;
 }
 
-function findAncestorDepthByTypeName($pos: any, typeNames: string[]): number {
-	for (let depth = $pos.depth; depth >= 0; depth--) {
-		if (typeNames.includes($pos.node(depth).type.name)) {
-			return depth;
-		}
-	}
-
-	return -1;
-}
-
-const EmptyLineTextInputStabilizer = Extension.create({
-	name: 'emptyLineTextInputStabilizer',
-
-	addProseMirrorPlugins() {
-		return [
-			new Plugin({
-				key: new PluginKey('emptyLineTextInputStabilizer'),
-				props: {
-					handleTextInput(view, from, to, text) {
-						const { state } = view;
-						const $from = state.doc.resolve(from);
-						const lineDepth = findAncestorDepthByTypeName($from, [
-							'line',
-							'marginaliaLine',
-						]);
-						if (lineDepth === -1) return false;
-
-						const lineNode = $from.node(lineDepth);
-						if (lineNode.content.size > 0) {
-							return false;
-						}
-
-						const tr = state.tr.insertText(text, from, to);
-						tr.setSelection(TextSelection.create(tr.doc, from + text.length));
-						view.dispatch(tr);
-						return true;
-					},
-				},
-			}),
-		];
-	},
-});
-
 const LineNumberNormalizer = Extension.create({
 	name: 'lineNumberNormalizer',
 
@@ -2488,7 +2445,6 @@ function getSharedInlineExtensions() {
 	return [
 		...SHARED_MARK_EXTENSIONS,
 		...SHARED_SELECTION_EXTENSIONS,
-		EmptyLineTextInputStabilizer,
 		LineNumberNormalizer,
 		...SHARED_INLINE_NODE_EXTENSIONS,
 		Text,
@@ -2558,14 +2514,6 @@ function createEditorForProfile(profile: EditorProfile, options: BaseEditorOptio
 							);
 							view.focus();
 							return true;
-						},
-						handleDOMEvents: {
-							mousemove: () => true,
-							mouseenter: () => true,
-							mouseleave: () => true,
-							dragover: () => true,
-							dragenter: () => true,
-							dragleave: () => true,
 						},
 						scrollThreshold: 80,
 						scrollMargin: {
