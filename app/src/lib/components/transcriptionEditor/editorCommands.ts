@@ -335,13 +335,6 @@ export function buildTeiMilestoneAttrs(
 	};
 }
 
-export function insertBreakNode(
-	editor: Editor | null,
-	nodeTypeName: 'pageBreak' | 'lineBreak' | 'columnBreak'
-): boolean {
-	return insertContentNode(editor, nodeTypeName, { teiAttrs: {} });
-}
-
 export type MilestoneNodeType = 'book' | 'chapter' | 'verse';
 
 interface LocatedMilestoneNode {

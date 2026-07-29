@@ -1173,20 +1173,6 @@
 		updateSelectedTeiNode(editorState.editor);
 	}
 
-	function forcePageRender(pageNode: HTMLElement | null): () => void {
-		if (!pageNode) return () => {};
-
-		const previousContentVisibility = pageNode.style.contentVisibility;
-		const previousContainIntrinsicSize = pageNode.style.containIntrinsicSize;
-		pageNode.style.contentVisibility = 'visible';
-		pageNode.style.containIntrinsicSize = 'auto';
-
-		return () => {
-			pageNode.style.contentVisibility = previousContentVisibility;
-			pageNode.style.containIntrinsicSize = previousContainIntrinsicSize;
-		};
-	}
-
 	function getVerticalScrollHost(node: HTMLElement | null): HTMLElement | Window {
 		let current = node?.parentElement ?? null;
 		while (current) {
@@ -1326,7 +1312,6 @@
 			const target = findVerseContentAnchor(milestoneTarget);
 
 			const targetPage = target.closest<HTMLElement>('[data-page-id]');
-			const restorePageRender = forcePageRender(targetPage);
 			const scrollHost = getVerticalScrollHost(targetPage ?? target);
 			if (targetPage) {
 				scrollNodeWithinHost(targetPage, scrollHost, {
@@ -1359,7 +1344,6 @@
 								offset: 120,
 							});
 						}
-						restorePageRender();
 					}, 150);
 				});
 			});

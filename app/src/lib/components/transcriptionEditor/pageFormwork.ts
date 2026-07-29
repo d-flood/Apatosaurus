@@ -80,7 +80,7 @@ export function extractPageMetadata(
 	return metadata;
 }
 
-export function getPageChromeAttrs(
+function getPageChromeAttrs(
 	metadata: Pick<
 		PageEditorMetadata,
 		'pageLabel' | 'runningTitle' | 'catchword' | 'quireSignature'

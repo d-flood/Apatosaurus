@@ -1,22 +1,3 @@
-export function parseJsonObject(value: string, label: string): Record<string, any> {
-	let parsed: unknown;
-	try {
-		parsed = JSON.parse(value);
-	} catch (error) {
-		throw new Error(error instanceof Error ? error.message : `Invalid ${label} JSON`, {
-			cause: error,
-		});
-	}
-	if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-		throw new Error(`${label} must be a JSON object.`);
-	}
-	return parsed as Record<string, any>;
-}
-
-export function prettyJson(value: Record<string, any> | null | undefined): string {
-	return JSON.stringify(value || {}, null, 2);
-}
-
 export function omitKeys(
 	source: Record<string, any> | null | undefined,
 	keys: string[]
@@ -56,7 +37,7 @@ export function extractTextChildren(
 	return extractTextChildrenFromNodes(Array.isArray(teiNode.children) ? teiNode.children : []);
 }
 
-export function extractTextChildrenFromNodes(
+function extractTextChildrenFromNodes(
 	children: Array<Record<string, any>> | null | undefined
 ): string | null {
 	const normalizedChildren = Array.isArray(children) ? children : [];
@@ -172,26 +153,6 @@ const EDITORIAL_ACTION_LABELS: Record<string, string> = {
 	listTranspose: 'List Transposition',
 };
 
-const ATTR_KEY_LABELS: Record<string, string> = {
-	reason: 'Reason',
-	unit: 'Unit',
-	extent: 'Extent',
-	dim: 'Dimension',
-	'xml:lang': 'Language',
-	cert: 'Certainty',
-	place: 'Position',
-	rend: 'Appearance',
-	resp: 'Responsibility',
-	hand: 'Hand',
-	medium: 'Medium',
-	function: 'Function',
-	target: 'Target',
-	n: 'Value',
-	ed: 'Edition',
-	type: 'Content Type',
-	subtype: 'Subtype',
-};
-
 export function tagToConceptLabel(tag: string): string {
 	return TAG_TO_CONCEPT[tag] || tag;
 }
@@ -203,10 +164,6 @@ export function noteTypeLabel(attrs: Record<string, any> | null | undefined): st
 
 export function editorialActionLabel(kind: string | undefined): string {
 	return EDITORIAL_ACTION_LABELS[kind || ''] || 'Editorial Action';
-}
-
-export function humanizeAttrKey(key: string): string {
-	return ATTR_KEY_LABELS[key] || key;
 }
 
 function collapseText(children: Array<Record<string, any>> | null | undefined): string {

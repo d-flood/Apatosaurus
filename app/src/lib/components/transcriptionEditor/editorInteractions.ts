@@ -49,7 +49,7 @@ export const DEFAULT_ABBREVIATION_DRAFT: AbbreviationDraft = {
 	rend: '¯',
 };
 
-export function getSelectionRange(editor: Editor | null): { from: number; to: number } | null {
+function getSelectionRange(editor: Editor | null): { from: number; to: number } | null {
 	if (!editor) return null;
 	const { from, to } = editor.state.selection;
 	if (from === to) return null;

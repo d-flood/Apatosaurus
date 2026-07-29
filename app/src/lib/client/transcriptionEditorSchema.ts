@@ -2243,8 +2243,8 @@ const PageBreakInline = Node.create({
 });
 
 // Inline carrier document for nested inspector-backed content such as marginalia.
-const InlineCarrierDocument = Node.create({
-	name: 'doc',
+const CorrectionRenderDocument = Node.create({
+	name: 'correctionDoc',
 	topNode: true,
 	content: buildContentExpression(CORRECTION_INLINE_CONTENT_NODES),
 });
@@ -2451,7 +2451,7 @@ function getSharedInlineExtensions() {
 	];
 }
 
-function getProfileExtensions(profile: EditorProfile, bubbleMenu?: HTMLElement | null) {
+export function getProfileExtensions(profile: string, bubbleMenu?: HTMLElement | null) {
 	const bubbleMenuExtension = createBubbleMenuExtension(bubbleMenu);
 	const sharedInlineExtensions = getSharedInlineExtensions();
 
@@ -2477,6 +2477,8 @@ function getProfileExtensions(profile: EditorProfile, bubbleMenu?: HTMLElement |
 			...sharedInlineExtensions,
 		];
 	}
+
+	throw new Error(`Unknown editor profile: ${profile}`);
 }
 
 function createEditorForProfile(profile: EditorProfile, options: BaseEditorOptions) {
@@ -2565,7 +2567,7 @@ export function renderCorrectionContent(content: any): string {
 	try {
 		// generateHTML expects a full document structure
 		const docContent = {
-			type: 'doc',
+			type: 'correctionDoc',
 			content: Array.isArray(content) ? content : [content],
 		};
 
@@ -2580,7 +2582,7 @@ export function getCorrectionRenderExtensions() {
 	// Use the broader inline-carrier schema so previews can render correction nodes
 	// inside marginalia/formwork as well as plain correction content.
 	return [
-		InlineCarrierDocument,
+		CorrectionRenderDocument,
 		...SHARED_MARK_EXTENSIONS,
 		...SHARED_INLINE_NODE_EXTENSIONS,
 		Text,

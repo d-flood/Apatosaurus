@@ -34,7 +34,6 @@ import {
 	findPrecedingMilestoneNode,
 	getCurrentMilestoneValues,
 	getMetamarkInsertContext,
-	insertBreakNode,
 	insertContentNode,
 	insertMetamarkForSelection,
 	insertMilestoneNode,
@@ -274,25 +273,6 @@ describe('editorCommands against a multi-page fixture', () => {
 				'd4',
 			]);
 			expect(insertContentNode(null, 'gap', {})).toBe(false);
-		} finally {
-			editor.destroy();
-		}
-	});
-
-	it('DEFECT F34: insertBreakNode reports success but inserts nothing in the manuscript profile', () => {
-		const editor = createTestEditor({ content: EDITOR_COMMAND_FIXTURE });
-		try {
-			caretAfter(editor, 'c1');
-			for (const nodeType of ['pageBreak', 'lineBreak', 'columnBreak'] as const) {
-				// `pageBreak`, `lineBreak` and `columnBreak` are in the schema, but
-				// `line`'s content expression (MAIN_LINE_CONTENT_NODES) does not admit
-				// them — only the inline-carrier profile does. `insertContent` drops
-				// the node silently and the command still returns true.
-				expect(insertBreakNode(editor, nodeType)).toBe(true);
-				expect(countNodes(editor, nodeType)).toBe(0);
-			}
-			expect(documentText(editor)).toHaveLength(16);
-			expect(insertBreakNode(null, 'pageBreak')).toBe(false);
 		} finally {
 			editor.destroy();
 		}

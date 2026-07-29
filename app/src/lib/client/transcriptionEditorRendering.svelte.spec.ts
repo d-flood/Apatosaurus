@@ -80,11 +80,11 @@ describe('renderHTML round trip', () => {
 			}),
 		];
 		const first = generateHTML(
-			{ type: 'doc', content },
+			{ type: 'correctionDoc', content },
 			getCorrectionRenderExtensions() as any
 		);
 		const second = generateHTML(
-			{ type: 'doc', content },
+			{ type: 'correctionDoc', content },
 			getCorrectionRenderExtensions() as any
 		);
 

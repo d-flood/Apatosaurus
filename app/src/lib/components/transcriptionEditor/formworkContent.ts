@@ -63,7 +63,7 @@ export function normalizeMarginaliaContent(content: unknown): Record<string, any
 	return buildMarginaliaDocFromText('');
 }
 
-export function isStructuredFormWorkContent(content: unknown): content is Record<string, any> {
+function isStructuredFormWorkContent(content: unknown): content is Record<string, any> {
 	return (
 		!!content && typeof content === 'object' && (content as Record<string, any>).type === 'doc'
 	);

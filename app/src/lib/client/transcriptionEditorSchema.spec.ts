@@ -3,9 +3,16 @@ import { describe, expect, it } from 'vitest';
 import {
 	formatCorrectionTooltipText,
 	getCorrectionRenderExtensions,
+	getProfileExtensions,
 } from './transcriptionEditorSchema';
 
 describe('transcriptionEditorSchema correction rendering', () => {
+	it('rejects an unrecognized editor profile at the extension boundary', () => {
+		expect(() => getProfileExtensions('unknown-profile')).toThrow(
+			'Unknown editor profile: unknown-profile'
+		);
+	});
+
 	it('preserves unclear markup in correction tooltip text', () => {
 		const tooltipText = formatCorrectionTooltipText([
 			{

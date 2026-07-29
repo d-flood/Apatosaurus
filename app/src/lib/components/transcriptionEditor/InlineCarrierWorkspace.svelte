@@ -257,43 +257,6 @@
 		};
 	}
 
-	function findLineStartPosition(targetColumnIndex: number, targetLineIndex: number): number | null {
-		if (!editor) return null;
-		let columnIndex = -1;
-		let lineIndex = -1;
-		let position: number | null = null;
-
-		editor.state.doc.descendants((node, pos) => {
-			if (node.type.name === 'marginaliaColumn') {
-				columnIndex += 1;
-				lineIndex = -1;
-				return true;
-			}
-
-			if (node.type.name === 'marginaliaLine') {
-				lineIndex += 1;
-				if (columnIndex === targetColumnIndex && lineIndex === targetLineIndex) {
-					position = pos + 1;
-					return false;
-				}
-			}
-
-			return true;
-		});
-
-		return position;
-	}
-
-	function restoreSelection(columnIndex: number, lineIndex: number) {
-		queueMicrotask(() => {
-			if (!editor) return;
-			const pos = findLineStartPosition(columnIndex, lineIndex);
-			if (pos === null) return;
-			editor.chain().focus().setTextSelection(pos).run();
-			updateSelectedNode();
-		});
-	}
-
 	function applyStructuredChange(
 		mutate: (doc: Record<string, any>, location: MarginaliaLocation) => {
 			doc: Record<string, any>;
