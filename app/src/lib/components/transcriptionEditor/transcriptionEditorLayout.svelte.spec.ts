@@ -275,6 +275,70 @@ describe('presentational numbering', () => {
 		}
 	});
 
+	it('shows mark and node tooltips outside the line clipping boundary', async () => {
+		const corrections = [{ hand: 'm2', content: [{ type: 'text', text: 'beta' }] }];
+		const harness = await mountTranscriptionEditor({
+			document: transcriptionDocument({
+				pages: [
+					transcriptionPlainPage({
+						columns: [
+							transcriptionColumn({
+								lines: [
+									transcriptionLine({
+										items: [
+											{ type: 'text', text: 'before ' },
+											{
+												type: 'text',
+												text: 'alpha',
+												marks: [
+													{ type: 'correction', attrs: { corrections } },
+												],
+											},
+											{ type: 'text', text: ' between ' },
+											{ type: 'correctionOnly', corrections },
+										],
+									}),
+								],
+							}),
+						],
+					}),
+				],
+			}),
+			id: 'tooltip-clipping',
+		});
+		try {
+			const triggers = harness.container.querySelectorAll<HTMLElement>(
+				'.correction.tooltip, .tei-inline-badge-shell.tooltip'
+			);
+			expect(triggers).toHaveLength(2);
+			for (const trigger of triggers) {
+				for (let pass = 0; pass < 2; pass += 1) {
+					trigger.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+					await nextAnimationFrame();
+
+					const tooltip = document.body.querySelector<HTMLElement>(
+						'[data-transcription-tooltip]:not([hidden])'
+					);
+					expect(tooltip?.textContent).toBe(trigger.dataset.tip);
+					expect(tooltip?.closest('.line')).toBeNull();
+					expect(
+						document.body.querySelectorAll('[data-transcription-tooltip]')
+					).toHaveLength(1);
+
+					trigger.dispatchEvent(
+						new MouseEvent('mouseout', { bubbles: true, relatedTarget: document.body })
+					);
+					await nextAnimationFrame();
+					expect(
+						document.body.querySelector('[data-transcription-tooltip]:not([hidden])')
+					).toBeNull();
+				}
+			}
+		} finally {
+			harness.dispose();
+		}
+	});
+
 	it('resets line ordinals independently in every framed-page zone', async () => {
 		const harness = await mountTranscriptionEditor({
 			document: FRAMED_PAGE_DOCUMENT,

@@ -20,6 +20,13 @@
 	import { exportTEIDocument } from '$lib/tei/tei-exporter';
 	import { Editor } from '@tiptap/core';
 	import { NodeSelection, TextSelection, type EditorState } from '@tiptap/pm/state';
+	import {
+		autoUpdate,
+		computePosition,
+		flip,
+		offset as floatingOffset,
+		shift,
+	} from '@floating-ui/dom';
 	import { onMount } from 'svelte';
 	import AbbreviationPanel from './AbbreviationPanel.svelte';
 	import BubbleMenu from './BubbleMenu.svelte';
@@ -414,6 +421,70 @@
 					placeholder.parentNode.insertBefore(node, placeholder);
 					placeholder.remove();
 				}
+			},
+		};
+	}
+
+	function editorTooltips(node: HTMLElement) {
+		const tooltip = document.createElement('div');
+		tooltip.dataset.transcriptionTooltip = '';
+		tooltip.role = 'tooltip';
+		tooltip.hidden = true;
+		tooltip.className =
+			'pointer-events-none fixed z-[100] max-w-xs rounded-sm bg-neutral px-2 py-1 text-xs font-medium text-neutral-content shadow-lg';
+		document.body.appendChild(tooltip);
+
+		let activeTrigger: HTMLElement | null = null;
+		let stopPositioning: (() => void) | null = null;
+
+		const hide = (event?: MouseEvent | FocusEvent) => {
+			if (!activeTrigger) return;
+			const nextTarget = event?.relatedTarget;
+			if (nextTarget instanceof Node && activeTrigger.contains(nextTarget)) return;
+
+			activeTrigger = null;
+			stopPositioning?.();
+			stopPositioning = null;
+			tooltip.hidden = true;
+			tooltip.style.visibility = 'hidden';
+		};
+		const show = (event: MouseEvent | FocusEvent) => {
+			if (!(event.target instanceof Element)) return;
+			const trigger = event.target.closest<HTMLElement>('.tooltip[data-tip]');
+			const text = trigger?.dataset.tip;
+			if (!trigger || !text || !node.contains(trigger) || trigger === activeTrigger) return;
+
+			stopPositioning?.();
+			activeTrigger = trigger;
+			tooltip.textContent = text;
+			tooltip.hidden = false;
+			tooltip.style.visibility = 'hidden';
+			stopPositioning = autoUpdate(trigger, tooltip, () => {
+				void computePosition(trigger, tooltip, {
+					placement: 'top',
+					strategy: 'fixed',
+					middleware: [floatingOffset(8), flip(), shift({ padding: 8 })],
+				}).then(({ x, y }) => {
+					if (activeTrigger !== trigger || !tooltip.isConnected) return;
+					tooltip.style.left = `${x}px`;
+					tooltip.style.top = `${y}px`;
+					tooltip.style.visibility = 'visible';
+				});
+			});
+		};
+		node.addEventListener('mouseover', show);
+		node.addEventListener('mouseout', hide);
+		node.addEventListener('focusin', show);
+		node.addEventListener('focusout', hide);
+
+		return {
+			destroy() {
+				node.removeEventListener('mouseover', show);
+				node.removeEventListener('mouseout', hide);
+				node.removeEventListener('focusin', show);
+				node.removeEventListener('focusout', hide);
+				stopPositioning?.();
+				tooltip.remove();
 			},
 		};
 	}
@@ -1464,6 +1535,7 @@
 	/>
 
 	<div
+		use:editorTooltips
 		bind:this={transcriptionElement}
 		class="prose max-w-none w-full overflow-visible"
 		class:show-lacunose={markVisibility.lacunose}
@@ -1604,6 +1676,11 @@
 		overflow: visible;
 		flex: 1 1 0%;
 		min-width: 0;
+	}
+
+	:global(.ProseMirror .tooltip[data-tip]::before),
+	:global(.ProseMirror .tooltip[data-tip]::after) {
+		display: none;
 	}
 
 	:global(.tei-inline-badge) {

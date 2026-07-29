@@ -93,6 +93,7 @@ export default defineConfig({
 		// node_modules/.vite/vitest/*/deps/_metadata.json if a new dep flakes.
 		include: [
 			'@annotorious/openseadragon',
+			'@floating-ui/dom',
 			'@journeyapps/wa-sqlite',
 			'@journeyapps/wa-sqlite/dist/wa-sqlite.mjs',
 			'@journeyapps/wa-sqlite/src/examples/OPFSCoopSyncVFS.js',
