@@ -94,7 +94,12 @@
 		toolbarTarget?: HTMLElement | null;
 		statusBarTarget?: HTMLElement | null;
 		scrollToPageRequest?: { pageId: string; token: number } | null;
-		scrollToVerseRequest?: { book: string; chapter: string; verse: string; token: string } | null;
+		scrollToVerseRequest?: {
+			book: string;
+			chapter: string;
+			verse: string;
+			token: string;
+		} | null;
 	} = $props();
 
 	let transcriptionElement = $state<HTMLElement | null>(null);
@@ -201,7 +206,8 @@
 		if (!editor) {
 			return pages.some(
 				page =>
-					page.pageId !== excludedPageId && normalizePageName(page.pageName) === normalizedName
+					page.pageId !== excludedPageId &&
+					normalizePageName(page.pageName) === normalizedName
 			);
 		}
 
@@ -351,9 +357,8 @@
 		if (!editorState.editor) return;
 		const { view } = editorState.editor;
 		const domAtPos = view.domAtPos(view.state.selection.from);
-		const selectedElement = domAtPos.node instanceof HTMLElement
-			? domAtPos.node
-			: domAtPos.node.parentElement;
+		const selectedElement =
+			domAtPos.node instanceof HTMLElement ? domAtPos.node : domAtPos.node.parentElement;
 		if (!selectedElement) return;
 
 		// Wait a frame so the drawer transition has started and we can measure
@@ -600,7 +605,10 @@
 			const initialPm = toProseMirror(initialDocument) as any;
 			const repairResult = prepareManuscriptDocumentEntry(initialPm);
 			if (repairResult.repaired && repairResult.issues.length > 0) {
-				console.warn('[Transcription] Repaired invalid manuscript content during editor init:', repairResult.issues);
+				console.warn(
+					'[Transcription] Repaired invalid manuscript content during editor init:',
+					repairResult.issues
+				);
 			}
 			initializeEditorContent(editor, repairResult.doc, { emitUpdate: false });
 
@@ -616,7 +624,8 @@
 			editor.on('update', ({ transaction }: { transaction: any }) => {
 				if (transaction.docChanged) {
 					onSaveStateChange?.(false);
-					const pageCountChanged = transaction.before.childCount !== transaction.doc.childCount;
+					const pageCountChanged =
+						transaction.before.childCount !== transaction.doc.childCount;
 					pagesNeedUpdate = true;
 					if (pageCountChanged) {
 						rebuildPageList();
@@ -733,7 +742,10 @@
 				view.dispatch(tr);
 			}
 		} else {
-			insertSelectableCarrierNode(editorState.editor, 'untranscribed', { reason, extent: 'partial' });
+			insertSelectableCarrierNode(editorState.editor, 'untranscribed', {
+				reason,
+				extent: 'partial',
+			});
 		}
 	}
 
@@ -762,7 +774,11 @@
 	}
 
 	function insertCorrectionNode() {
-		insertSelectableCarrierNode(editorState.editor, 'correctionNode', buildCorrectionNodeAttrs());
+		insertSelectableCarrierNode(
+			editorState.editor,
+			'correctionNode',
+			buildCorrectionNodeAttrs()
+		);
 	}
 
 	function toggleWordWrapped() {
@@ -902,9 +918,7 @@
 		const columns = zones.map(zone => ({
 			type: 'column',
 			attrs: { zone, columnId: createEditorNodeId('col') },
-			content: [
-				{ type: 'line', attrs: { lineId: createEditorNodeId('line') } },
-			],
+			content: [{ type: 'line', attrs: { lineId: createEditorNodeId('line') } }],
 		}));
 
 		insertPageNode(editor, {
@@ -1073,7 +1087,9 @@
 			}
 		};
 
-		async function persistNextDocument(document: StoredTranscriptionDocument): Promise<boolean> {
+		async function persistNextDocument(
+			document: StoredTranscriptionDocument
+		): Promise<boolean> {
 			saveInFlight = persist(document);
 			try {
 				return await saveInFlight;
@@ -1185,7 +1201,9 @@
 		try {
 			const exportDocument = coerceEditorJsonToDocument(editorState.editor.getJSON());
 			if (!exportDocument) {
-				throw new Error('Failed to convert editor content to canonical transcription document');
+				throw new Error(
+					'Failed to convert editor content to canonical transcription document'
+				);
 			}
 			const metadata = buildTEIMetadataFromTranscription(transcription);
 			const teiXml = exportTEIDocument(exportDocument, metadata);
@@ -1217,7 +1235,9 @@
 		while (current) {
 			const style = window.getComputedStyle(current);
 			if (
-				(style.overflowY === 'auto' || style.overflowY === 'scroll' || style.overflowY === 'overlay') &&
+				(style.overflowY === 'auto' ||
+					style.overflowY === 'scroll' ||
+					style.overflowY === 'overlay') &&
 				current.scrollHeight > current.clientHeight + 1
 			) {
 				return current;
@@ -1245,7 +1265,10 @@
 			const top =
 				options.block === 'start'
 					? rect.top + window.scrollY - offset
-					: rect.top + window.scrollY - Math.max((viewportHeight - rect.height) / 2, 0) - offset;
+					: rect.top +
+						window.scrollY -
+						Math.max((viewportHeight - rect.height) / 2, 0) -
+						offset;
 			window.scrollTo({ top: Math.max(0, top), behavior: options.behavior });
 			return;
 		}
@@ -1254,7 +1277,10 @@
 		const top =
 			options.block === 'start'
 				? host.scrollTop + (rect.top - hostRect.top) - offset
-				: host.scrollTop + (rect.top - hostRect.top) - Math.max((host.clientHeight - rect.height) / 2, 0) - offset;
+				: host.scrollTop +
+					(rect.top - hostRect.top) -
+					Math.max((host.clientHeight - rect.height) / 2, 0) -
+					offset;
 		host.scrollTo({ top: Math.max(0, top), behavior: options.behavior });
 	}
 
@@ -1304,7 +1330,10 @@
 			current = walker.nextNode();
 		}
 
-		return milestoneNode.closest<HTMLElement>('.line, .marginalia-line, .line-content') ?? milestoneNode;
+		return (
+			milestoneNode.closest<HTMLElement>('.line, .marginalia-line, .line-content') ??
+			milestoneNode
+		);
 	}
 
 	$effect(() => {
@@ -1313,7 +1342,8 @@
 		}
 		lastScrollToPageToken = scrollToPageRequest.token;
 		requestAnimationFrame(() => {
-			const pageNodes = transcriptionElement?.querySelectorAll<HTMLElement>('[data-page-id]') || [];
+			const pageNodes =
+				transcriptionElement?.querySelectorAll<HTMLElement>('[data-page-id]') || [];
 			const target = Array.from(pageNodes).find(
 				node => node.dataset.pageId === scrollToPageRequest.pageId
 			);
@@ -1339,7 +1369,8 @@
 		}
 
 		requestAnimationFrame(() => {
-			const verseNodes = transcriptionElement?.querySelectorAll<HTMLElement>('[data-verse]') || [];
+			const verseNodes =
+				transcriptionElement?.querySelectorAll<HTMLElement>('[data-verse]') || [];
 			const milestoneTarget = Array.from(verseNodes).find(
 				node =>
 					node.dataset.book === scrollToVerseRequest.book &&
@@ -1388,43 +1419,42 @@
 			});
 		});
 	});
-
 </script>
 
-	<div class="relative flex flex-col items-center">
-		{#if editorState.editor}
-			<div use:portal={toolbarTarget} class="w-full">
-				<EditorToolbar
-					editor={editorState.editor}
-					idPrefix="main-editor-toolbar"
-					{pageName}
-					{pageNameDuplicate}
-					{hasPage}
-					{exportLoading}
-					{cursorPosition}
-					iiifWorkspaceOpen={iiifWorkspaceOpen}
-					sticky={!toolbarTarget}
-					onPageNameChange={name => (pageName = name)}
-					onToggleIiifWorkspace={onToggleIiifWorkspace}
-					onInsertPage={insertPage}
-					onInsertFramedPage={insertFramedPage}
-					onInsertColumn={insertColumn}
-					onToggleWordWrapped={toggleWordWrapped}
-					onToggleParagraphStart={toggleParagraphStart}
-					onInsertUntranscribed={insertUntranscribed}
-					onInsertGap={insertGap}
-					onInsertSpace={insertSpace}
-					onInsertHandShift={insertHandShift}
-					onInsertEditorNote={insertEditorNote}
-					onInsertMarginalia={insertMarginalia}
-					onInsertMetamark={insertMetamark}
-					onInsertCorrectionNode={insertCorrectionNode}
-					onInsertGenericTeiMilestone={insertGenericTeiMilestone}
-					onInsertMilestoneNode={insertMilestoneNode}
-					onTEIExport={handleTEIExport}
-				/>
-			</div>
-		{/if}
+<div class="relative flex flex-col items-center">
+	{#if editorState.editor}
+		<div use:portal={toolbarTarget} class="w-full">
+			<EditorToolbar
+				editor={editorState.editor}
+				idPrefix="main-editor-toolbar"
+				{pageName}
+				{pageNameDuplicate}
+				{hasPage}
+				{exportLoading}
+				{cursorPosition}
+				{iiifWorkspaceOpen}
+				sticky={!toolbarTarget}
+				onPageNameChange={name => (pageName = name)}
+				{onToggleIiifWorkspace}
+				onInsertPage={insertPage}
+				onInsertFramedPage={insertFramedPage}
+				onInsertColumn={insertColumn}
+				onToggleWordWrapped={toggleWordWrapped}
+				onToggleParagraphStart={toggleParagraphStart}
+				onInsertUntranscribed={insertUntranscribed}
+				onInsertGap={insertGap}
+				onInsertSpace={insertSpace}
+				onInsertHandShift={insertHandShift}
+				onInsertEditorNote={insertEditorNote}
+				onInsertMarginalia={insertMarginalia}
+				onInsertMetamark={insertMetamark}
+				onInsertCorrectionNode={insertCorrectionNode}
+				onInsertGenericTeiMilestone={insertGenericTeiMilestone}
+				onInsertMilestoneNode={insertMilestoneNode}
+				onTEIExport={handleTEIExport}
+			/>
+		</div>
+	{/if}
 
 	<BubbleMenu
 		bind:editor={editorState.editor}
@@ -1454,17 +1484,18 @@
 <InspectorHost
 	variant="fixed"
 	open={inspectorDrawerOpen}
-	title={
-		drawerMode === 'inspector' && selectedTeiNode
-			? getNodeLabel(selectedTeiNode)
-			: drawerMode === 'correction'
-				? 'Scribal Corrections'
-				: 'Abbreviation'
-	}
+	title={drawerMode === 'inspector' && selectedTeiNode
+		? getNodeLabel(selectedTeiNode)
+		: drawerMode === 'correction'
+			? 'Scribal Corrections'
+			: 'Abbreviation'}
 	onClose={dismissInspectorPanel}
 >
 	{#if drawerMode === 'inspector' && selectedTeiNode && inspectorPanelOpen}
-		<TeiNodeInspector selectedNode={selectedTeiNode} onUpdateNodeAttrs={updateCarrierNodeAttrs} />
+		<TeiNodeInspector
+			selectedNode={selectedTeiNode}
+			onUpdateNodeAttrs={updateCarrierNodeAttrs}
+		/>
 	{:else if drawerMode === 'correction'}
 		<CorrectionWorkspace
 			idPrefix="drawer-correction"
@@ -1583,7 +1614,7 @@
 		flex: none;
 	}
 
-	:global(.tei-atom-node[data-tag="note"]) {
+	:global(.tei-atom-node[data-tag='note']) {
 		width: auto;
 		height: auto;
 		min-width: 0;
@@ -1644,53 +1675,53 @@
 		line-height: 1;
 	}
 
-	:global(.line:has(.marginalia-margin[data-placement="lineLeft"])) {
+	:global(.line:has(.marginalia-margin[data-placement='lineLeft'])) {
 		padding-left: 7rem;
 	}
 
-	:global(.line:has(.marginalia-margin[data-placement="lineRight"])),
-	:global(.line:has(.marginalia-margin[data-placement="margin"])) {
+	:global(.line:has(.marginalia-margin[data-placement='lineRight'])),
+	:global(.line:has(.marginalia-margin[data-placement='margin'])) {
 		padding-right: 7rem;
 	}
 
-	:global(.line:has(.marginalia-interlinear[data-placement="lineAbove"])),
-	:global(.line:has(.marginalia-column[data-placement="columnTop"])) {
+	:global(.line:has(.marginalia-interlinear[data-placement='lineAbove'])),
+	:global(.line:has(.marginalia-column[data-placement='columnTop'])) {
 		padding-top: 2rem;
 	}
 
-	:global(.line:has(.marginalia-interlinear[data-placement="lineBelow"])),
-	:global(.line:has(.marginalia-column[data-placement="columnBottom"])) {
+	:global(.line:has(.marginalia-interlinear[data-placement='lineBelow'])),
+	:global(.line:has(.marginalia-column[data-placement='columnBottom'])) {
 		padding-bottom: 2.25rem;
 	}
 
-	:global(.marginalia-margin[data-placement="lineLeft"]) {
+	:global(.marginalia-margin[data-placement='lineLeft']) {
 		position: absolute;
 		left: 0.5rem;
 		top: 50%;
 		transform: translateY(-50%);
 	}
 
-	:global(.marginalia-margin[data-placement="lineRight"]),
-	:global(.marginalia-margin[data-placement="margin"]) {
+	:global(.marginalia-margin[data-placement='lineRight']),
+	:global(.marginalia-margin[data-placement='margin']) {
 		position: absolute;
 		right: 0.5rem;
 		top: 50%;
 		transform: translateY(-50%);
 	}
 
-	:global(.marginalia-interlinear[data-placement="lineAbove"]) {
+	:global(.marginalia-interlinear[data-placement='lineAbove']) {
 		position: absolute;
 		left: 3.25rem;
 		top: 0.25rem;
 	}
 
-	:global(.marginalia-interlinear[data-placement="lineBelow"]) {
+	:global(.marginalia-interlinear[data-placement='lineBelow']) {
 		position: absolute;
 		left: 3.25rem;
 		bottom: 0.25rem;
 	}
 
-	:global(.marginalia-column[data-placement="columnTop"]) {
+	:global(.marginalia-column[data-placement='columnTop']) {
 		position: absolute;
 		left: 50%;
 		top: 0.25rem;
@@ -1698,7 +1729,7 @@
 		border-style: dashed;
 	}
 
-	:global(.marginalia-column[data-placement="columnBottom"]) {
+	:global(.marginalia-column[data-placement='columnBottom']) {
 		position: absolute;
 		left: 50%;
 		bottom: 0.25rem;
@@ -1706,8 +1737,8 @@
 		border-style: dashed;
 	}
 
-	:global(.marginalia-inline[data-placement="inline"]),
-	:global(.marginalia-inline[data-placement="inSpace"]) {
+	:global(.marginalia-inline[data-placement='inline']),
+	:global(.marginalia-inline[data-placement='inSpace']) {
 		opacity: 0.9;
 	}
 
@@ -1722,23 +1753,23 @@
 		gap: 0.5rem;
 	}
 
-	:global(.frame-grid:has(> .column[data-zone]) > .column[data-zone="top"]) {
+	:global(.frame-grid:has(> .column[data-zone]) > .column[data-zone='top']) {
 		grid-area: top;
 	}
 
-	:global(.frame-grid:has(> .column[data-zone]) > .column[data-zone="left"]) {
+	:global(.frame-grid:has(> .column[data-zone]) > .column[data-zone='left']) {
 		grid-area: left;
 	}
 
-	:global(.frame-grid:has(> .column[data-zone]) > .column[data-zone="center"]) {
+	:global(.frame-grid:has(> .column[data-zone]) > .column[data-zone='center']) {
 		grid-area: center;
 	}
 
-	:global(.frame-grid:has(> .column[data-zone]) > .column[data-zone="right"]) {
+	:global(.frame-grid:has(> .column[data-zone]) > .column[data-zone='right']) {
 		grid-area: right;
 	}
 
-	:global(.frame-grid:has(> .column[data-zone]) > .column[data-zone="bottom"]) {
+	:global(.frame-grid:has(> .column[data-zone]) > .column[data-zone='bottom']) {
 		grid-area: bottom;
 	}
 

@@ -234,7 +234,10 @@
 	}
 
 	function applyStructuredChange(
-		mutate: (doc: Record<string, any>, location: MarginaliaLocation) => {
+		mutate: (
+			doc: Record<string, any>,
+			location: MarginaliaLocation
+		) => {
 			doc: Record<string, any>;
 			focusColumnIndex: number;
 			focusLineIndex: number;
@@ -250,10 +253,14 @@
 
 		const normalized = normalizeMarginaliaContent(result.doc);
 		lastSnapshot = JSON.stringify(serializeContent(normalized));
-		replaceEditorDocument(normalized, {
-			columnIndex: result.focusColumnIndex,
-			lineIndex: result.focusLineIndex,
-		}, false);
+		replaceEditorDocument(
+			normalized,
+			{
+				columnIndex: result.focusColumnIndex,
+				lineIndex: result.focusLineIndex,
+			},
+			false
+		);
 		onChange(serializeContent(normalized));
 	}
 
@@ -268,7 +275,11 @@
 		tr.setMeta('allowFullDocumentReplacement', true);
 		if (!emitUpdate) tr.setMeta('preventUpdate', true);
 		if (focus) {
-			const mappedPos = findLineStartPositionInDoc(tr.doc, focus.columnIndex, focus.lineIndex);
+			const mappedPos = findLineStartPositionInDoc(
+				tr.doc,
+				focus.columnIndex,
+				focus.lineIndex
+			);
 			if (mappedPos !== null) {
 				tr.setSelection(TextSelection.near(tr.doc.resolve(mappedPos)));
 			}
@@ -311,7 +322,9 @@
 			const line = lines[location.lineIndex];
 			if (!line) return null;
 
-			const beforeContent = fragmentToJsonArray(location.lineNode.content.cut(0, location.fromOffset));
+			const beforeContent = fragmentToJsonArray(
+				location.lineNode.content.cut(0, location.fromOffset)
+			);
 			const afterContent = fragmentToJsonArray(
 				location.lineNode.content.cut(location.toOffset, location.lineNode.content.size)
 			);
@@ -340,7 +353,8 @@
 	}
 
 	function insertCorrectionNode() {
-		if (!insertSelectableCarrierNode(editor, 'correctionNode', buildCorrectionNodeAttrs())) return;
+		if (!insertSelectableCarrierNode(editor, 'correctionNode', buildCorrectionNodeAttrs()))
+			return;
 		updateSelectedNode();
 		emitContent();
 	}
@@ -368,7 +382,8 @@
 			return;
 		}
 
-		if (!insertSelectableCarrierNode(editor, 'untranscribed', { reason, extent: 'partial' })) return;
+		if (!insertSelectableCarrierNode(editor, 'untranscribed', { reason, extent: 'partial' }))
+			return;
 		updateSelectedNode();
 		emitContent();
 	}
@@ -437,7 +452,8 @@
 	}
 
 	function insertGap(reason: string, unit: string, extent: string) {
-		if (!insertSelectableCarrierNode(editor, 'gap', buildGapAttrs(reason, unit, extent))) return;
+		if (!insertSelectableCarrierNode(editor, 'gap', buildGapAttrs(reason, unit, extent)))
+			return;
 		updateSelectedNode();
 		emitContent();
 	}
@@ -584,18 +600,22 @@
 <div class="rounded border border-base-300 bg-base-100 p-3 space-y-3">
 	<div class="flex items-start justify-between gap-3">
 		<div>
-			<div class="text-xs font-semibold uppercase tracking-[0.14em] text-base-content/55">{title}</div>
+			<div class="text-xs font-semibold uppercase tracking-[0.14em] text-base-content/55">
+				{title}
+			</div>
 			{#if description}
 				<p class="mt-1 text-xs text-base-content/70">{description}</p>
 			{/if}
 		</div>
-		<div class="rounded bg-base-200 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-base-content/60">
+		<div
+			class="rounded bg-base-200 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-base-content/60"
+		>
 			{currentPositionLabel}
 		</div>
 	</div>
 
 	<EditorToolbar
-		editor={editor}
+		{editor}
 		idPrefix={toolbarIdPrefix}
 		pageName=""
 		hasPage={!!editor}
@@ -643,17 +663,15 @@
 		<InspectorHost
 			variant="embedded"
 			open={inspectorDrawerOpen}
-			title={
-				drawerMode === 'inspector' && selectedNode
-					? getNodeLabel(selectedNode)
-					: drawerMode === 'correction'
-						? 'Scribal Corrections'
-						: 'Abbreviation'
-			}
+			title={drawerMode === 'inspector' && selectedNode
+				? getNodeLabel(selectedNode)
+				: drawerMode === 'correction'
+					? 'Scribal Corrections'
+					: 'Abbreviation'}
 			onClose={dismissInspectorPanel}
 		>
 			{#if drawerMode === 'inspector' && selectedNode && inspectorPanelOpen}
-				<TeiNodeInspector selectedNode={selectedNode} onUpdateNodeAttrs={updateNestedNodeAttrs} />
+				<TeiNodeInspector {selectedNode} onUpdateNodeAttrs={updateNestedNodeAttrs} />
 			{:else if drawerMode === 'correction'}
 				<CorrectionWorkspace
 					idPrefix="inline-carrier-correction"

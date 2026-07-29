@@ -185,7 +185,11 @@
 		<div class="grid gap-3 md:grid-cols-3">
 			<label class="form-control">
 				<span class="label-text text-xs font-semibold">Hand</span>
-				<input class="input input-bordered input-sm" bind:value={hand} placeholder="corrector" />
+				<input
+					class="input input-bordered input-sm"
+					bind:value={hand}
+					placeholder="corrector"
+				/>
 			</label>
 			<label class="form-control">
 				<span class="label-text text-xs font-semibold">Type</span>
@@ -248,15 +252,25 @@
 						<div>
 							<div class="text-sm font-semibold">{correction.hand}</div>
 							<div class="text-xs text-base-content/65">
-								{[correction.type, correction.position].filter(Boolean).join(' | ') || 'No extra metadata'}
+								{[correction.type, correction.position]
+									.filter(Boolean)
+									.join(' | ') || 'No extra metadata'}
 							</div>
 						</div>
 						<div class="flex gap-2">
-							<button type="button" class="btn btn-xs btn-outline" onclick={() => loadCorrection(index)}>
+							<button
+								type="button"
+								class="btn btn-xs btn-outline"
+								onclick={() => loadCorrection(index)}
+							>
 								<PencilSimple size={14} />
 								Edit
 							</button>
-							<button type="button" class="btn btn-xs btn-error btn-outline" onclick={() => removeCorrection(index)}>
+							<button
+								type="button"
+								class="btn btn-xs btn-error btn-outline"
+								onclick={() => removeCorrection(index)}
+							>
 								<Trash size={14} />
 							</button>
 						</div>
@@ -269,12 +283,20 @@
 		</div>
 
 		<div class="flex justify-end gap-2">
-			<button type="button" class="btn btn-primary btn-sm" onclick={() => onApply(tempCorrections)}>
+			<button
+				type="button"
+				class="btn btn-primary btn-sm"
+				onclick={() => onApply(tempCorrections)}
+			>
 				<Check size={16} />
 				{applyLabel}
 			</button>
 			{#if onRemoveAll}
-				<button type="button" class="btn btn-error btn-outline btn-sm" onclick={onRemoveAll}>
+				<button
+					type="button"
+					class="btn btn-error btn-outline btn-sm"
+					onclick={onRemoveAll}
+				>
 					<Trash size={16} />
 					Remove All
 				</button>
