@@ -6,10 +6,7 @@
 
 	import { getEditor } from '$lib/client/transcriptionEditorSchema';
 	import { initializeEditorContent } from '$lib/client/editorContentInitialization';
-	import {
-		syncPageFormWorkToContainingPage,
-		updateNodeAttrs,
-	} from './editorCommands';
+	import { updateNodeAttrs } from './editorCommands';
 	import {
 		DEFAULT_INSPECTOR_CARRIER_TYPES,
 		getSelectedInspectorNode,
@@ -79,7 +76,7 @@
 	}
 
 	function updateCarrierNodeAttrs(pos: number, attrs: Record<string, any>) {
-		if (!updateNodeAttrs(editor, pos, attrs, syncPageFormWorkToContainingPage)) return;
+		if (!updateNodeAttrs(editor, pos, attrs)) return;
 
 		updateSelectedNode();
 		refreshExport();

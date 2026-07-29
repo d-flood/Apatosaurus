@@ -22,13 +22,6 @@ export interface PageEditorMetadata {
 	quireSignature: PageFormWorkField | null;
 }
 
-export interface PageChromeAttrs {
-	pageLabel: string | null;
-	runningTitle: string | null;
-	catchword: string | null;
-	quireSignature: string | null;
-}
-
 export function extractPageMetadata(
 	pageNode: ProseMirrorNode,
 	pagePos: number
@@ -82,20 +75,6 @@ export function extractPageMetadata(
 	return metadata;
 }
 
-function getPageChromeAttrs(
-	metadata: Pick<
-		PageEditorMetadata,
-		'pageLabel' | 'runningTitle' | 'catchword' | 'quireSignature'
-	>
-): PageChromeAttrs {
-	return {
-		pageLabel: metadata.pageLabel?.text || null,
-		runningTitle: metadata.runningTitle?.text || null,
-		catchword: metadata.catchword?.text || null,
-		quireSignature: metadata.quireSignature?.text || null,
-	};
-}
-
 export function getPageLabelCandidates(
 	metadata: Pick<PageEditorMetadata, 'pageName' | 'pageLabel'>
 ): string[] {
@@ -106,19 +85,6 @@ export function getPageLabelCandidates(
 		if (!trimmed) return false;
 		return all.findIndex(candidate => candidate?.trim() === trimmed) === index;
 	});
-}
-
-export function annotatePageChromeInJson(document: Record<string, any> | null | undefined): void {
-	if (!document || !Array.isArray(document.content)) return;
-
-	for (const pageNode of document.content) {
-		if (pageNode?.type !== 'page') continue;
-		const metadata = extractPageMetadataFromJson(pageNode);
-		pageNode.attrs = {
-			...(pageNode.attrs || {}),
-			...getPageChromeAttrs(metadata),
-		};
-	}
 }
 
 export function createDefaultFormWorkAttrs(
@@ -175,62 +141,4 @@ export function findFirstLineInsertPos(pageNode: ProseMirrorNode, pagePos: numbe
 		node => node.type.name === 'line'
 	);
 	return relativePos === null ? null : pagePos + relativePos + 2;
-}
-
-function extractPageMetadataFromJson(pageNode: Record<string, any>): PageEditorMetadata {
-	const metadata: PageEditorMetadata = {
-		pos: 0,
-		pageId: pageNode?.attrs?.pageId || 'page-0',
-		pageOrder: 0,
-		pageName: pageNode?.attrs?.pageName || null,
-		pageLabel: null,
-		runningTitle: null,
-		catchword: null,
-		quireSignature: null,
-	};
-
-	visitJsonNodes(pageNode, node => {
-		if (node?.type !== 'fw') return;
-
-		const classification = classifyFormWork(node.attrs || {});
-		const field: PageFormWorkField = {
-			pos: 0,
-			text: formWorkContentToPlainText(node.attrs?.content || []),
-			attrs: node.attrs || {},
-		};
-
-		if (classification.contentConcept === 'pageLabel' && !metadata.pageLabel) {
-			metadata.pageLabel = field;
-		}
-
-		if (classification.contentConcept === 'runningTitle' && !metadata.runningTitle) {
-			metadata.runningTitle = field;
-			return;
-		}
-
-		if (classification.contentConcept === 'catchword' && !metadata.catchword) {
-			metadata.catchword = field;
-			return;
-		}
-
-		if (classification.contentConcept === 'quireSignature' && !metadata.quireSignature) {
-			metadata.quireSignature = field;
-		}
-	});
-
-	return metadata;
-}
-
-function visitJsonNodes(
-	node: Record<string, any> | null | undefined,
-	visit: (node: Record<string, any>) => void
-): void {
-	if (!node || typeof node !== 'object') return;
-
-	visit(node);
-
-	if (!Array.isArray(node.content)) return;
-	for (const child of node.content) {
-		visitJsonNodes(child, visit);
-	}
 }

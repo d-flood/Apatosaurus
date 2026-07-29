@@ -1,8 +1,6 @@
 import type { Editor } from '@tiptap/core';
 import { NodeSelection } from '@tiptap/pm/state';
-
-import { classifyFormWork } from './formworkConcepts';
-import { formWorkContentToPlainText } from './formworkContent';
+import { nanoid } from 'nanoid';
 
 export const COMMON_ABBREVIATION_TYPES = [
 	'nomSac',
@@ -17,14 +15,6 @@ export interface MetamarkInsertContext {
 	kind: 'text-selection' | 'editorial-action';
 	targetValue?: string;
 	targetLabel: string;
-}
-
-interface UpdateNodeAttrsContext {
-	tr: any;
-	state: any;
-	node: any;
-	pos: number;
-	nextAttrs: Record<string, any>;
 }
 
 export function toggleEditorMark(
@@ -75,8 +65,7 @@ export function insertSelectableCarrierNode(
 export function updateNodeAttrs(
 	editor: Editor | null,
 	pos: number,
-	attrs: Record<string, any>,
-	afterUpdate?: (context: UpdateNodeAttrsContext) => void | boolean
+	attrs: Record<string, any>
 ): boolean {
 	if (!editor) return false;
 
@@ -84,6 +73,7 @@ export function updateNodeAttrs(
 	editor
 		.chain()
 		.command(({ tr, state }) => {
+			if (!Number.isInteger(pos) || pos < 0 || pos > state.doc.content.size) return false;
 			const node = state.doc.nodeAt(pos);
 			if (!node) return false;
 			const nextAttrs = {
@@ -91,52 +81,12 @@ export function updateNodeAttrs(
 				...attrs,
 			};
 			tr.setNodeMarkup(pos, undefined, nextAttrs);
-			if (afterUpdate) {
-				const result = afterUpdate({ tr, state, node, pos, nextAttrs });
-				if (result === false) return false;
-			}
 			succeeded = true;
 			return true;
 		})
 		.run();
 
 	return succeeded;
-}
-
-export function syncPageFormWorkToContainingPage(context: UpdateNodeAttrsContext): void {
-	const { tr, state, node, pos, nextAttrs } = context;
-	if (node.type.name !== 'fw') return;
-
-	const classification = classifyFormWork(nextAttrs);
-	const kind =
-		classification.contentConcept === 'pageLabel'
-			? 'pageLabel'
-			: classification.contentConcept === 'runningTitle'
-				? 'runningTitle'
-				: classification.contentConcept === 'catchword'
-					? 'catchword'
-					: classification.contentConcept === 'quireSignature'
-						? 'quireSignature'
-						: null;
-
-	if (!kind) return;
-
-	let pagePos: number | null = null;
-	state.doc.nodesBetween(0, pos, (candidateNode: any, candidatePos: number) => {
-		if (candidateNode.type.name === 'page') {
-			pagePos = candidatePos;
-		}
-	});
-
-	if (pagePos === null) return;
-
-	const pageNode = state.doc.nodeAt(pagePos);
-	if (pageNode?.type.name !== 'page') return;
-
-	tr.setNodeMarkup(pagePos, undefined, {
-		...pageNode.attrs,
-		[kind]: formWorkContentToPlainText(nextAttrs.content || []),
-	});
 }
 
 export function buildGapAttrs(reason: string, unit: string, extent: string): Record<string, any> {
@@ -317,7 +267,7 @@ export function describeMetamarkTarget(attrs: Record<string, any> | null | undef
 }
 
 export function buildCorrectionNodeAttrs(): Record<string, any> {
-	return { corrections: [] };
+	return { corrections: [], id: nanoid(8) };
 }
 
 export function buildTeiMilestoneAttrs(

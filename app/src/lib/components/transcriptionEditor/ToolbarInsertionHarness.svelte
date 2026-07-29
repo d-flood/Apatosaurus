@@ -15,7 +15,6 @@
 		buildTeiMilestoneAttrs,
 		insertMetamarkForSelection,
 		insertSelectableCarrierNode,
-		syncPageFormWorkToContainingPage,
 		updateNodeAttrs,
 	} from './editorCommands';
 	import {
@@ -53,7 +52,7 @@
 	}
 
 	function updateCarrierNodeAttrs(pos: number, attrs: Record<string, any>) {
-		if (!updateNodeAttrs(editor, pos, attrs, syncPageFormWorkToContainingPage)) return;
+		if (!updateNodeAttrs(editor, pos, attrs)) return;
 
 		updateSelectedNode();
 		refreshExport();

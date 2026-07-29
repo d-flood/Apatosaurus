@@ -38,7 +38,6 @@ import {
 	insertMilestoneNode,
 	insertSelectableCarrierNode,
 	summarizeTeiAtomAttrs,
-	syncPageFormWorkToContainingPage,
 	toggleEditorMark,
 	updateNodeAttrs,
 } from './editorCommands';
@@ -196,8 +195,11 @@ describe('editorCommands pure builders', () => {
 		expect(describeMetamarkTarget(null)).toBe('Text-bearing mark');
 	});
 
-	it('buildCorrectionNodeAttrs starts empty', () => {
-		expect(buildCorrectionNodeAttrs()).toEqual({ corrections: [] });
+	it('buildCorrectionNodeAttrs assigns identity to a new empty correction', () => {
+		expect(buildCorrectionNodeAttrs()).toEqual({
+			corrections: [],
+			id: expect.stringMatching(/^[\w-]{8}$/),
+		});
 	});
 
 	it('COMMON_ABBREVIATION_TYPES lists the abbreviation kinds the mark accepts', () => {
@@ -325,41 +327,9 @@ describe('editorCommands against a multi-page fixture', () => {
 			expect(updateNodeAttrs(editor, pos + 1, { reason: 'x' })).toBe(false);
 			expect(updateNodeAttrs(null, pos, {})).toBe(false);
 
-			// DEFECT F18: a position past the end of the document throws instead.
-			// The inspector caches `selectedTeiNode.pos` and passes it back here, so
-			// a stale position taken before a deletion crashes the command.
-			expect(() =>
-				updateNodeAttrs(editor, editor.state.doc.content.size + 5, { reason: 'x' })
-			).toThrow(/outside of fragment/);
-		} finally {
-			editor.destroy();
-		}
-	});
-
-	it('syncPageFormWorkToContainingPage copies a page label onto the page that contains it', () => {
-		const editor = createTestEditor({ content: EDITOR_COMMAND_FIXTURE });
-		try {
-			// Put the fw node on page 3 so a page-scan bug would be visible.
-			caretAfter(editor, 'd1');
-			insertSelectableCarrierNode(editor, 'fw', {
-				type: 'pageNum',
-				place: 'top-centre',
-				content: [{ type: 'text', text: 'fol. 2r' }],
-			});
-			const { pos } = firstNodeOfType(editor, 'fw');
-
 			expect(
-				updateNodeAttrs(
-					editor,
-					pos,
-					{ content: [{ type: 'text', text: 'fol. 2r' }] },
-					syncPageFormWorkToContainingPage
-				)
-			).toBe(true);
-
-			const pageLabels: unknown[] = [];
-			editor.state.doc.forEach((pageNode: any) => pageLabels.push(pageNode.attrs.pageLabel));
-			expect(pageLabels).toEqual([null, null, 'fol. 2r']);
+				updateNodeAttrs(editor, editor.state.doc.content.size + 5, { reason: 'x' })
+			).toBe(false);
 		} finally {
 			editor.destroy();
 		}
