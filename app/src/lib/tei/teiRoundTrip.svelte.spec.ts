@@ -10,6 +10,8 @@
  */
 import { describe, expect, it } from 'vitest';
 
+import { createTestEditor } from '$lib/client/testing/editorHarnesses.svelte';
+
 import { fromProseMirror, parseTei, serializeTei, toProseMirror } from './tei-transcription';
 
 const SAMPLE_TEI = `<?xml version="1.0" encoding="UTF-8"?>
@@ -128,28 +130,21 @@ describe('TEI round trip through the ProseMirror adapter', () => {
 			expect(parseTei(xml).pages[0].columns[0].lines[1].paragraphStart).toBeUndefined();
 		});
 
-		it('DEFECT F13: page-level and column-level `wrapped` cannot survive the editor schema', () => {
-			// A word continuing across a page or column boundary is `break="no"`.
+		it('DEFECT F13: preserves a word continuing across page and column boundaries', () => {
 			const wrappedTei = `<?xml version="1.0" encoding="UTF-8"?>
 <TEI xmlns="http://www.tei-c.org/ns/1.0"><teiHeader></teiHeader><text><body>
-  <pb n="1r"/><cb n="C1"/><lb/><w>alpha<cb n="C2" break="no"/>beta</w>
+	  <pb n="1r"/><cb n="C1"/><lb/><w>alpha<pb n="1v" break="no"/><cb n="C1" break="no"/><lb/>beta</w>
 </body></text></TEI>`;
-			const document_ = parseTei(wrappedTei);
-			expect(document_.pages[0].columns[1].wrapped).toBe(true);
+			const editor = createTestEditor({ content: editorJson(wrappedTei) });
 
-			// `toProseMirror` emits it...
-			const pm = toProseMirror(document_) as any;
-			expect(columnNode(pm, 0, 1).attrs.wrapped).toBe(true);
-
-			// ...but `column` and `page` declare no `wrapped` attribute in
-			// `transcriptionEditorSchema.ts`, so ProseMirror drops it the moment the
-			// JSON is loaded into the editor. Simulate that by removing the attribute
-			// the schema does not know about.
-			delete columnNode(pm, 0, 1).attrs.wrapped;
-			expect(parseTei(exportFromProseMirror(pm)).pages[0].columns[1].wrapped).toBeUndefined();
-
-			// The line-level flag, which the schema does declare, survives.
-			expect(document_.pages[0].columns[1].lines[0].wrapped).toBe(true);
+			try {
+				const xml = exportFromProseMirror(editor.getJSON());
+				expect(xml).toMatch(/<pb(?=[^>]*n="1v")(?=[^>]*break="no")[^>]*\/>/);
+				expect(xml).toMatch(/<cb(?=[^>]*n="C1")(?=[^>]*break="no")[^>]*\/>/);
+				expect(xml).toMatch(/<lb(?=[^>]*break="no")[^>]*\/>/);
+			} finally {
+				editor.destroy();
+			}
 		});
 
 		it('preserves unknown TEI attributes on pb/cb/lb through teiAttrs', () => {

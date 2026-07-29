@@ -60,7 +60,7 @@ Success is not "every ticket cleared". Some findings should end in a documented 
 | 13 | `13-node-lookups-stop-at-the-first-match.md` | Completed | 02 |
 | 14 | `14-renderhtml-becomes-pure-and-inline-valid.md` | Not Started | None |
 | 15 | `15-two-identifier-mismatches.md` | Not Started | None |
-| 16 | `16-page-and-column-keep-wrapped.md` | Not Started | None |
+| 16 | `16-page-and-column-keep-wrapped.md` | Completed | None |
 | 17 | `17-commands-address-nodes-by-identity.md` | Not Started | None |
 | 18 | `18-milestone-context-respects-book-boundaries.md` | Not Started | None |
 | 19 | `19-page-chrome-derives-from-its-fw-children.md` | Not Started | None |
@@ -97,6 +97,7 @@ pnpm vitest run --project client src/lib/client/transcriptionEditorStructure.sve
 ```
 
 ## Notes
+- **2026-07-28** — **Ticket `16` complete; Option A was chosen.** `<pb>` and `<cb>` identify distinct physical boundaries, so when page, column and line boundaries coincide, a line-level flag cannot preserve which boundary was unbroken; page- and column-level `wrapped` are real manuscript data rather than derived duplicates. The focused round-trip file passes 17/17 and `check` has 0 errors; the app baseline reaches 101/102 files with only ticket `19`'s two in-progress assertions failing, while the package baseline remains at its documented 95/102 because the six fixture files are absent.
 - **2026-07-28** — **Ticket `12` complete.** Column splits now number within their page, renumber moved lines and following same-page columns in the command transaction, preserve non-identity TEI attributes while clearing `columnId`, `xml:id`, and `zone`, and place the caret at the start of the moved text. The raw split no longer needs whole-document repair; sibling pages remain byte-identical. Both focused acceptance files pass. The full baseline was attempted during concurrent ticket `19` work and reached 100 passing files / 669 passing tests, with its two in-progress page-chrome tests failing; `check` likewise reached ticket `19`'s two in-progress errors.
 
 - **2026-07-28** — **Ticket `13` complete.** Both line lookups now use one pre-order helper that truly stops at the first matching descendant. Duplicate line ids resolve to the first line, and page labels, running titles, catchwords and quire signatures insert into line 1. The five ticket-specific assertions pass. The acceptance files and baseline were also run, but concurrent tickets `12` and `19` had already inverted their assertions before their production changes landed, leaving unrelated failures; `check` likewise reports one concurrent test type error.

@@ -1062,6 +1062,12 @@ const Page = Node.create({
 	},
 	addAttributes() {
 		return {
+			wrapped: {
+				default: false,
+				parseHTML: element => element.getAttribute('data-wrapped') === 'true',
+				renderHTML: attributes =>
+					attributes.wrapped ? { 'data-wrapped': 'true' } : {},
+			},
 			pageId: {
 				default: null,
 				parseHTML: element => element.getAttribute('data-page-id'),
@@ -1171,6 +1177,12 @@ const Column = Node.create({
 	},
 	addAttributes() {
 		return {
+			wrapped: {
+				default: false,
+				parseHTML: element => element.getAttribute('data-wrapped') === 'true',
+				renderHTML: attributes =>
+					attributes.wrapped ? { 'data-wrapped': 'true' } : {},
+			},
 			columnId: {
 				default: null,
 				parseHTML: element => element.getAttribute('data-column-id'),
