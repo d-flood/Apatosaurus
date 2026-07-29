@@ -99,6 +99,7 @@ export interface MilestoneItem {
 export interface TeiMilestoneItem {
 	type: 'teiMilestone';
 	attrs: Record<string, string>;
+	marks?: TextMark[];
 }
 
 export interface GapItem {
@@ -109,16 +110,19 @@ export interface GapItem {
 		extent?: string;
 		teiAttrs?: Record<string, string>;
 	};
+	marks?: TextMark[];
 }
 
 export interface SpaceItem {
 	type: 'space';
 	attrs: Record<string, string>;
+	marks?: TextMark[];
 }
 
 export interface HandShiftItem {
 	type: 'handShift';
 	attrs: Record<string, string>;
+	marks?: TextMark[];
 }
 
 export interface MetamarkItem {
@@ -126,6 +130,7 @@ export interface MetamarkItem {
 	attrs: Record<string, string>;
 	summary: string;
 	wordInline?: boolean;
+	marks?: TextMark[];
 }
 
 export interface TeiAtomItem {
@@ -136,6 +141,7 @@ export interface TeiAtomItem {
 	node: TeiElementNode;
 	wordInline?: boolean;
 	text?: string;
+	marks?: TextMark[];
 }
 
 export interface TeiWrapperItem {
@@ -146,6 +152,7 @@ export interface TeiWrapperItem {
 	children: TeiNode[];
 	wordInline?: boolean;
 	text?: string;
+	marks?: TextMark[];
 }
 
 export interface EditorialActionItem {

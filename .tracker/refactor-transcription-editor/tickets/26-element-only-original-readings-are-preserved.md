@@ -46,13 +46,13 @@ The bug is the emptiness test, not the `correctionOnly` representation — that 
 
 ## Acceptance criteria
 
-- [ ] An `<app>` whose original is a lone `<gap>` round-trips with that gap intact.
-- [ ] The same for `<space>` and `<milestone>`.
-- [ ] A genuinely empty original still produces `<rdg type="orig" hand="firsthand"/>`.
-- [ ] A whitespace-only original is still treated as empty.
-- [ ] An original mixing an atom and text round-trips with both.
-- [ ] Existing correction fixtures pass unchanged.
-- [ ] Both baselines pass.
+- [x] An `<app>` whose original is a lone `<gap>` round-trips with that gap intact.
+- [x] The same for `<space>` and `<milestone>`.
+- [x] A genuinely empty original still produces `<rdg type="orig" hand="firsthand"/>`.
+- [x] A whitespace-only original is still treated as empty.
+- [x] An original mixing an atom and text round-trips with both.
+- [x] Existing correction fixtures pass unchanged.
+- [x] Both baselines pass.
 
 ```bash
 cd packages/tei-transcription && pnpm test
@@ -67,3 +67,39 @@ Success: element-only originals survive, genuinely empty ones still collapse, ex
 ## Blocked by
 
 None - can start immediately.
+
+## Implementation note — 2026-07-28
+
+The code does not match the ticket's implementation premise. Changing
+`hasReadingContent` to recognize element children prevents an element-only
+original from becoming `correctionOnly`, but it does not preserve the
+apparatus: `processContainerContent` applies the correction mark only to text.
+`GapItem`, `SpaceItem`, and `TeiMilestoneItem` cannot carry marks in `LineItem`,
+and both ProseMirror adapter directions serialize those atoms without marks.
+The atom would become standalone and the corrector readings would disappear.
+
+Implementing the contract therefore requires a representation decision that
+the ticket does not make and its out-of-scope section appears to forbid. For
+example, either atom items and their ProseMirror nodes must gain correction
+marks, or the correction-only representation must become an apparatus node
+that can also hold original content. Status set to `Needs Human Validation or
+Intervention`; no production code or tests were changed.
+
+## Accepted decision — 2026-07-28
+
+Inline atom items and their ProseMirror nodes may carry correction marks. The
+serializer treats consecutive words and atoms carrying the same correction
+mark as one apparatus locus, so element-only and mixed original readings stay
+attached to their correction readings. `correctionOnly` remains the
+representation for a genuinely absent original. Carrier attributes continue
+through the ticket `27` named-field plus `teiAttrs` representation.
+
+## Verification — 2026-07-29
+
+- `pnpm vitest run tests/tei-transcription.spec.ts`: 65/65 passed.
+- Runnable package suites: 108/108 passed; package typecheck passed.
+- `pnpm test`: 109 passed and the same seven documented infrastructure
+  failures remain (six absent kitchen-sink fixtures and their corpus audit).
+- Mounted app round trip: 20/20 passed.
+- App `check`: 0 errors, one existing triiiceratops accessibility warning.
+- App baseline: 105 files / 711 tests passed.

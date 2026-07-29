@@ -539,13 +539,13 @@ function processWordElement(
 			} else {
 				if (tagName === 'metamark') {
 					ensureLineItems(context);
-					context.currentLineItems!.push(createMetamarkLineItem(element, true));
+					context.currentLineItems!.push(createMetamarkLineItem(element, true, activeMarks));
 				} else if (isRecognizedTeiAtomTag(tagName)) {
 					ensureLineItems(context);
-					context.currentLineItems!.push(createTeiAtomInlineItem(element, true));
+					context.currentLineItems!.push(createTeiAtomInlineItem(element, true, activeMarks));
 				} else if (handling === 'structured') {
 					ensureLineItems(context);
-					context.currentLineItems!.push(createTeiWrapperItem(element, true));
+					context.currentLineItems!.push(createTeiWrapperItem(element, true, activeMarks));
 				} else {
 					throw unsupportedElementError(
 						element,
@@ -558,25 +558,25 @@ function processWordElement(
 
 		if (tagName === 'space') {
 			ensureLineItems(context);
-			context.currentLineItems!.push(createSpaceItem(element));
+			context.currentLineItems!.push(createSpaceItem(element, activeMarks));
 			continue;
 		}
 
 		if (tagName === 'gap') {
 			ensureLineItems(context);
-			context.currentLineItems!.push(createGapItem(element));
+			context.currentLineItems!.push(createGapItem(element, activeMarks));
 			continue;
 		}
 
 		if (tagName === 'handshift') {
 			ensureLineItems(context);
-			context.currentLineItems!.push(createHandShiftItem(element));
+			context.currentLineItems!.push(createHandShiftItem(element, activeMarks));
 			continue;
 		}
 
 		if (tagName === 'milestone') {
 			ensureLineItems(context);
-			context.currentLineItems!.push(createTeiMilestoneItem(element));
+			context.currentLineItems!.push(createTeiMilestoneItem(element, activeMarks));
 			continue;
 		}
 
@@ -607,7 +607,7 @@ function processWordElement(
 
 		ensureLineItems(context);
 		if (isRecognizedTeiAtomTag(tagName)) {
-			context.currentLineItems!.push(createTeiAtomInlineItem(element, true));
+			context.currentLineItems!.push(createTeiAtomInlineItem(element, true, activeMarks));
 		} else {
 			throw unsupportedElementError(element);
 		}
@@ -690,25 +690,25 @@ function processContainerContent(
 
 		if (tagName === 'space') {
 			ensureLineItems(context);
-			context.currentLineItems!.push(createSpaceItem(element));
+			context.currentLineItems!.push(createSpaceItem(element, marks));
 			continue;
 		}
 
 		if (tagName === 'gap') {
 			ensureLineItems(context);
-			context.currentLineItems!.push(createGapItem(element));
+			context.currentLineItems!.push(createGapItem(element, marks));
 			continue;
 		}
 
 		if (tagName === 'handshift') {
 			ensureLineItems(context);
-			context.currentLineItems!.push(createHandShiftItem(element));
+			context.currentLineItems!.push(createHandShiftItem(element, marks));
 			continue;
 		}
 
 		if (tagName === 'milestone') {
 			ensureLineItems(context);
-			context.currentLineItems!.push(createTeiMilestoneItem(element));
+			context.currentLineItems!.push(createTeiMilestoneItem(element, marks));
 			continue;
 		}
 
@@ -805,13 +805,13 @@ function processContainerContent(
 			} else {
 				if (tagName === 'metamark') {
 					ensureLineItems(context);
-					context.currentLineItems!.push(createMetamarkLineItem(element));
+					context.currentLineItems!.push(createMetamarkLineItem(element, false, marks));
 				} else if (isRecognizedTeiAtomTag(tagName)) {
 					ensureLineItems(context);
-					context.currentLineItems!.push(createTeiAtomLineItem(element));
+					context.currentLineItems!.push(createTeiAtomLineItem(element, false, marks));
 				} else if (handling === 'structured') {
 					ensureLineItems(context);
-					context.currentLineItems!.push(createTeiWrapperItem(element));
+					context.currentLineItems!.push(createTeiWrapperItem(element, false, marks));
 				} else {
 					throw unsupportedElementError(
 						element,
@@ -858,7 +858,7 @@ function processContainerContent(
 
 		ensureLineItems(context);
 		if (isRecognizedTeiAtomTag(tagName)) {
-			context.currentLineItems!.push(createTeiAtomLineItem(element));
+			context.currentLineItems!.push(createTeiAtomLineItem(element, false, marks));
 		} else {
 			throw unsupportedElementError(element);
 		}
@@ -909,22 +909,22 @@ function processInlineElementToInlineContent(
 	}
 
 	if (tagName === 'space') {
-		content.push(createSpaceItem(element));
+		content.push(createSpaceItem(element, activeMarks));
 		return content;
 	}
 
 	if (tagName === 'gap') {
-		content.push(createGapItem(element));
+		content.push(createGapItem(element, activeMarks));
 		return content;
 	}
 
 	if (tagName === 'handshift') {
-		content.push(createHandShiftItem(element));
+		content.push(createHandShiftItem(element, activeMarks));
 		return content;
 	}
 
 	if (tagName === 'milestone') {
-		content.push(createTeiMilestoneItem(element));
+		content.push(createTeiMilestoneItem(element, activeMarks));
 		return content;
 	}
 
@@ -1029,13 +1029,13 @@ function processInlineElementToInlineContent(
 			]);
 		}
 		if (tagName === 'metamark') {
-			return [createMetamarkInlineItem(element)];
+			return [createMetamarkInlineItem(element, false, activeMarks)];
 		}
 		if (isRecognizedTeiAtomTag(tagName)) {
-			return [createTeiAtomInlineItem(element)];
+			return [createTeiAtomInlineItem(element, false, activeMarks)];
 		}
 		if (handling === 'structured') {
-			return [createTeiWrapperItem(element)];
+			return [createTeiWrapperItem(element, false, activeMarks)];
 		}
 		throw unsupportedElementError(
 			element,
@@ -1044,7 +1044,7 @@ function processInlineElementToInlineContent(
 	}
 
 	if (isRecognizedTeiAtomTag(tagName)) {
-		return [createTeiAtomInlineItem(element)];
+		return [createTeiAtomInlineItem(element, false, activeMarks)];
 	}
 
 	throw unsupportedElementError(element);
@@ -1264,11 +1264,11 @@ function processWordForInlineContent(wordElement: Element, activeMarks: TextMark
 				);
 			} else {
 				if (tagName === 'metamark') {
-					content.push(createMetamarkInlineItem(el, true));
+					content.push(createMetamarkInlineItem(el, true, activeMarks));
 				} else if (isRecognizedTeiAtomTag(tagName)) {
-					content.push(createTeiAtomInlineItem(el, true));
+					content.push(createTeiAtomInlineItem(el, true, activeMarks));
 				} else if (handling === 'structured') {
-					content.push(createTeiWrapperItem(el, true));
+					content.push(createTeiWrapperItem(el, true, activeMarks));
 				} else {
 					throw unsupportedElementError(
 						el,
@@ -1280,22 +1280,22 @@ function processWordForInlineContent(wordElement: Element, activeMarks: TextMark
 		}
 
 		if (tagName === 'space') {
-			content.push(createSpaceItem(el));
+			content.push(createSpaceItem(el, activeMarks));
 			continue;
 		}
 
 		if (tagName === 'gap') {
-			content.push(createGapItem(el));
+			content.push(createGapItem(el, activeMarks));
 			continue;
 		}
 
 		if (tagName === 'handshift') {
-			content.push(createHandShiftItem(el));
+			content.push(createHandShiftItem(el, activeMarks));
 			continue;
 		}
 
 		if (tagName === 'milestone') {
-			content.push(createTeiMilestoneItem(el));
+			content.push(createTeiMilestoneItem(el, activeMarks));
 			continue;
 		}
 
@@ -1322,7 +1322,7 @@ function processWordForInlineContent(wordElement: Element, activeMarks: TextMark
 		}
 
 		if (isRecognizedTeiAtomTag(tagName)) {
-			content.push(createTeiAtomInlineItem(el, true));
+			content.push(createTeiAtomInlineItem(el, true, activeMarks));
 		} else {
 			throw unsupportedElementError(el);
 		}
@@ -1332,7 +1332,10 @@ function processWordForInlineContent(wordElement: Element, activeMarks: TextMark
 }
 
 function hasReadingContent(rdgElement: Element): boolean {
-	return !!rdgElement.textContent?.trim();
+	return Array.from(rdgElement.childNodes).some(child => {
+		if (child.nodeType === Node.ELEMENT_NODE) return true;
+		return child.nodeType === Node.TEXT_NODE && !!child.textContent?.trim();
+	});
 }
 
 function processInlineContainerToInlineContent(
@@ -1406,7 +1409,7 @@ function withWordAttrs(wordElement: Element, marks: TextMark[]): TextMark[] {
 	return [...marks, { type: 'word', attrs }];
 }
 
-function createGapItem(gapElement: Element): GapItem {
+function createGapItem(gapElement: Element, marks: TextMark[] = []): GapItem {
 	return {
 		type: 'gap',
 		attrs: {
@@ -1415,6 +1418,7 @@ function createGapItem(gapElement: Element): GapItem {
 			extent: gapElement.getAttribute('extent') || '',
 			teiAttrs: collectAttributes(gapElement, new Set(['reason', 'unit', 'extent'])),
 		},
+		...(marks.length > 0 ? { marks } : {}),
 	};
 }
 
@@ -1425,24 +1429,30 @@ function createColumnBreakItem(columnBreakElement: Element): InlineItem {
 	};
 }
 
-function createSpaceItem(spaceElement: Element): SpaceItem {
+function createSpaceItem(spaceElement: Element, marks: TextMark[] = []): SpaceItem {
 	return {
 		type: 'space',
 		attrs: collectAttributes(spaceElement),
+		...(marks.length > 0 ? { marks } : {}),
 	};
 }
 
-function createHandShiftItem(handShiftElement: Element): HandShiftItem {
+function createHandShiftItem(handShiftElement: Element, marks: TextMark[] = []): HandShiftItem {
 	return {
 		type: 'handShift',
 		attrs: collectAttributes(handShiftElement),
+		...(marks.length > 0 ? { marks } : {}),
 	};
 }
 
-function createTeiMilestoneItem(milestoneElement: Element): TeiMilestoneItem {
+function createTeiMilestoneItem(
+	milestoneElement: Element,
+	marks: TextMark[] = []
+): TeiMilestoneItem {
 	return {
 		type: 'teiMilestone',
 		attrs: collectAttributes(milestoneElement),
+		...(marks.length > 0 ? { marks } : {}),
 	};
 }
 
@@ -1450,23 +1460,35 @@ function createEditorialActionLineItem(element: Element): EditorialActionItem {
 	return createEditorialActionItem(element);
 }
 
-function createMetamarkLineItem(element: Element, wordInline = false): MetamarkItem {
-	return createMetamarkItem(element, wordInline);
+function createMetamarkLineItem(
+	element: Element,
+	wordInline = false,
+	marks: TextMark[] = []
+): MetamarkItem {
+	return { ...createMetamarkItem(element, wordInline), ...(marks.length > 0 ? { marks } : {}) };
 }
 
-function createMetamarkInlineItem(element: Element, wordInline = false): MetamarkItem {
-	return createMetamarkItem(element, wordInline);
+function createMetamarkInlineItem(
+	element: Element,
+	wordInline = false,
+	marks: TextMark[] = []
+): MetamarkItem {
+	return { ...createMetamarkItem(element, wordInline), ...(marks.length > 0 ? { marks } : {}) };
 }
 
-function createTeiAtomLineItem(element: Element, wordInline = false) {
-	return createTeiAtomItem(element, wordInline);
+function createTeiAtomLineItem(element: Element, wordInline = false, marks: TextMark[] = []) {
+	return { ...createTeiAtomItem(element, wordInline), ...(marks.length > 0 ? { marks } : {}) };
 }
 
-function createTeiAtomInlineItem(element: Element, wordInline = false) {
-	return createTeiAtomItem(element, wordInline);
+function createTeiAtomInlineItem(element: Element, wordInline = false, marks: TextMark[] = []) {
+	return { ...createTeiAtomItem(element, wordInline), ...(marks.length > 0 ? { marks } : {}) };
 }
 
-function createTeiWrapperItem(element: Element, wordInline = false): TeiWrapperItem {
+function createTeiWrapperItem(
+	element: Element,
+	wordInline = false,
+	marks: TextMark[] = []
+): TeiWrapperItem {
 	const text = normalizeTeiWrapperText(element.textContent || '') || undefined;
 	return {
 		type: 'teiWrapper',
@@ -1476,6 +1498,7 @@ function createTeiWrapperItem(element: Element, wordInline = false): TeiWrapperI
 		children: parseChildNodes(element.childNodes),
 		wordInline,
 		...(text ? { text } : {}),
+		...(marks.length > 0 ? { marks } : {}),
 	};
 }
 
@@ -1687,7 +1710,16 @@ function applyCorrectionMarkToInlineItems(
 	corrections: CorrectionReading[]
 ): InlineItem[] {
 	return items.map(item => {
-		if (item.type !== 'text') {
+		if (
+			item.type !== 'text' &&
+			item.type !== 'gap' &&
+			item.type !== 'space' &&
+			item.type !== 'teiMilestone' &&
+			item.type !== 'handShift' &&
+			item.type !== 'metamark' &&
+			item.type !== 'teiAtom' &&
+			item.type !== 'teiWrapper'
+		) {
 			return item;
 		}
 

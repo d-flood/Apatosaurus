@@ -207,6 +207,32 @@ describe('TEI round trip through the ProseMirror adapter', () => {
 		});
 	});
 
+	it('keeps an element-only original attached to its apparatus through a mounted editor', () => {
+		const source = `<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0"><teiHeader></teiHeader><text><body>
+  <pb n="1r"/><cb n="C1"/><lb/>
+  <app>
+    <rdg type="orig"><gap reason="lost" unit="chars" extent="3" cert="low" xml:id="g1"/></rdg>
+    <rdg type="corr" hand="corrector"><w>abc</w></rdg>
+  </app>
+</body></text></TEI>`;
+		const editor = createTestEditor({ content: editorJson(source) });
+
+		try {
+			const gap = lineNode(editor.getJSON(), 0, 0, 0).content[0];
+			expect(gap.type).toBe('gap');
+			expect(gap.marks).toEqual([expect.objectContaining({ type: 'correction' })]);
+
+			const xml = exportFromProseMirror(editor.getJSON());
+			expect(xml.match(/<app>/g)).toHaveLength(1);
+			expect(xml).toContain(
+				'<gap reason="lost" unit="chars" extent="3" cert="low" xml:id="g1"/>'
+			);
+		} finally {
+			editor.destroy();
+		}
+	});
+
 	/**
 	 * Ticket 24 / INVENTORY R1. The selection UI permits a correction over part of
 	 * a word and over several words; the fixtures only ever covered a whole single

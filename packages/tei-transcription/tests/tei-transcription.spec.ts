@@ -301,6 +301,103 @@ describe('tei-transcription package', () => {
 		expect(seg.textContent).toContain('beta');
 	});
 
+	it('preserves a gap-only original reading with all carrier attributes', () => {
+		const xml = wrapInTei(`
+			<pb n="1r"/><cb n="1"/><lb/>
+			<app>
+				<rdg type="orig"><gap reason="lost" unit="chars" extent="3" cert="low" xml:id="g1"/></rdg>
+				<rdg type="corr" hand="corrector"><w>abc</w></rdg>
+			</app>
+		`);
+
+		const pm = toProseMirror(parseTei(xml));
+		const gap = pm.content![0].content![0].content![0].content![0];
+		expect(gap).toMatchObject({
+			type: 'gap',
+			attrs: {
+				reason: 'lost',
+				unit: 'chars',
+				extent: '3',
+				teiAttrs: { cert: 'low', 'xml:id': 'g1' },
+			},
+			marks: [expect.objectContaining({ type: 'correction' })],
+		});
+
+		const exported = serializeTei(fromProseMirror(pm));
+		expect(compactXml(exported)).toContain(
+			compactXml(
+				'<app><rdg type="orig"><gap reason="lost" unit="chars" extent="3" cert="low" xml:id="g1"/></rdg><rdg type="corr" hand="corrector"><w>abc</w></rdg></app>'
+			)
+		);
+	});
+
+	it.each([
+		['space', '<space extent="2" unit="chars" dim="horizontal"/>'],
+		['milestone', '<milestone unit="section" n="A" ed="NA28"/>'],
+		['hand shift', '<handShift new="#h2" medium="ink"/>'],
+		['generic pointer', '<ptr target="#anchor" type="reference"/>'],
+	])('preserves a %s-only original reading', (_label, carrier) => {
+		const xml = wrapInTei(`
+			<pb n="1r"/><cb n="1"/><lb/>
+			<app>
+				<rdg type="orig">${carrier}</rdg>
+				<rdg type="corr" hand="corrector"><w>abc</w></rdg>
+			</app>
+		`);
+
+		const pm = toProseMirror(parseTei(xml));
+		const atom = pm.content![0].content![0].content![0].content![0];
+		expect(atom.marks).toEqual([expect.objectContaining({ type: 'correction' })]);
+
+		const exported = serializeTei(fromProseMirror(pm));
+		expect(compactXml(exported)).toContain(
+			compactXml(
+				`<app><rdg type="orig">${carrier}</rdg><rdg type="corr" hand="corrector"><w>abc</w></rdg></app>`
+			)
+		);
+	});
+
+	it.each([
+		['empty', ''],
+		['whitespace-only', '  \n  '],
+	])('keeps a %s original reading in the correction-only representation', (_label, original) => {
+		const xml = wrapInTei(`
+			<pb n="1r"/><cb n="1"/><lb/>
+			<app>
+				<rdg type="orig">${original}</rdg>
+				<rdg type="corr" hand="corrector"><w>abc</w></rdg>
+			</app>
+		`);
+
+		const pm = toProseMirror(parseTei(xml));
+		expect(pm.content![0].content![0].content![0].content![0].type).toBe('correctionNode');
+
+		const exported = serializeTei(fromProseMirror(pm));
+		expect(compactXml(exported)).toContain(
+			compactXml(
+				'<app><rdg type="orig" hand="firsthand"/><rdg type="corr" hand="corrector"><w>abc</w></rdg></app>'
+			)
+		);
+	});
+
+	it('keeps an atom and text together in one original reading', () => {
+		const xml = wrapInTei(`
+			<pb n="1r"/><cb n="1"/><lb/>
+			<app>
+				<rdg type="orig"><gap reason="lost" unit="chars" extent="3"/><w>alpha</w></rdg>
+				<rdg type="corr" hand="corrector"><w>abc</w></rdg>
+			</app>
+		`);
+
+		const exported = serializeTei(fromProseMirror(toProseMirror(parseTei(xml))));
+		expect(exported.match(/<app>/g)).toHaveLength(1);
+		expect(compactXml(exported)).toContain(
+			compactXml(
+				'<app><rdg type="orig"><gap reason="lost" unit="chars" extent="3"/><w>alpha</w></rdg><rdg type="corr" hand="corrector"><w>abc</w></rdg></app>'
+			)
+		);
+	});
+
 	it('preserves marginal seg/fw structures on round-trip', () => {
 		const xml = wrapInTei(`
 			<pb n="1r"/>
@@ -880,6 +977,32 @@ describe('tei-transcription package', () => {
 		expect(compactXml(exported)).toContain(
 			compactXml(
 				'<fw place="margin right"><app><rdg type="orig" hand="firsthand"/><rdg type="corr" hand="corrector2"><w>gamma</w></rdg></app></fw>'
+			)
+		);
+	});
+
+	it('preserves a gap-only original reading inside formwork content', () => {
+		const xml = wrapInTei(`
+			<pb n="1r"/><cb n="1"/><lb/>
+			<fw place="margin right">
+				<app>
+					<rdg type="orig"><gap reason="lost" unit="chars" extent="3" cert="low"/></rdg>
+					<rdg type="corr" hand="corrector2"><w>gamma</w></rdg>
+				</app>
+			</fw>
+		`);
+
+		const pm = toProseMirror(parseTei(xml));
+		const fwNode = pm.content![0].content![0].content![0].content!.find(
+			node => node.type === 'fw'
+		);
+		const gap = getFormWorkInlineContent(fwNode).find((node: any) => node.type === 'gap');
+		expect(gap?.marks).toEqual([expect.objectContaining({ type: 'correction' })]);
+
+		const exported = serializeTei(fromProseMirror(pm));
+		expect(compactXml(exported)).toContain(
+			compactXml(
+				'<fw place="margin right"><app><rdg type="orig"><gap reason="lost" unit="chars" extent="3" cert="low"/></rdg><rdg type="corr" hand="corrector2"><w>gamma</w></rdg></app></fw>'
 			)
 		);
 	});

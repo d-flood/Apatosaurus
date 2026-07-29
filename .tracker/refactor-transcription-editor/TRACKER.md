@@ -14,9 +14,9 @@ Two things to know before writing a ticket from it. `F35`–`F46` have **no comm
 
 Overall status: `In Progress`
 
-Current ticket: none — ticket `04` is complete.
+Current ticket: none — ticket `26` is complete.
 
-Last updated: 2026-07-28
+Last updated: 2026-07-29
 
 ## Blocking Rules
 
@@ -70,7 +70,7 @@ Success is not "every ticket cleared". Some findings should end in a documented 
 | 23 | `23-drafts-and-drawers-target-what-they-opened.md` | Completed | None |
 | 24 | `24-corrections-on-partial-and-multi-word-selections.md` | Completed | None |
 | 25 | `25-seg-survives-the-round-trip.md` | Completed | None |
-| 26 | `26-element-only-original-readings-are-preserved.md` | Not Started | None |
+| 26 | `26-element-only-original-readings-are-preserved.md` | Completed | None |
 | 27 | `27-carriers-keep-arbitrary-tei-attributes.md` | Completed | None |
 | 28 | `28-line-and-column-numbers-become-presentation.md` | Not Started | 04, 12 |
 | 29 | `29-editorial-chrome-leaves-renderhtml.md` | Not Started | 03, 28 |
@@ -98,6 +98,7 @@ pnpm vitest run --project client src/lib/client/transcriptionEditorStructure.sve
 
 ## Notes
 
+- **2026-07-29** — **Ticket `26` complete; inline atoms may carry correction marks.** Element-only and mixed original readings now remain in one apparatus through parsing, both ProseMirror adapter directions, mounted editing, and serialization. Gap named fields and ticket `27`'s arbitrary `teiAttrs` survive unchanged; empty and whitespace-only originals still use `correctionOnly`. The focused package suite passes **65/65**, all runnable package suites pass **108/108**, package typecheck and app `check` pass, and the app baseline passes **105 files / 711 tests**. The package full run retains its documented **109 pass / 7 missing-fixture failures**.
 - **2026-07-28** — **Ticket `04` complete.** Whole-document repair no longer runs from `appendTransaction`; load, TEI import, and structural paste use the shared document-entry repair, and F7 identities exist before the first edit. Punctuation scans changed ranges, line normalization visits touched columns, cursor context uses selection ancestors, and autosave/verse serialization now occurs inside the existing timers. Chromium per-keystroke measurements fell from **7.5 / 19.3 / 30.3 ms** to **0.20 / 0.32 / 0.77 ms** at **100 / 250 / 500 lines**; 20 characters dispatch 20 transactions. The focused component suite passes **11 files / 83 tests**, `check` reports 0 errors, and the full baseline passes **105 files / 710 tests**. The acceptance diff is a net reduction: **204 insertions / 210 deletions** across the two named files.
 - **2026-07-28** — **Ticket `04` scope decision accepted.** Reference-edition seeding is removed from ticket `04`'s contract and acceptance criteria because no such application entry point exists. Implementation covers the real load, TEI import, and paste boundaries; adding reference-edition seeding remains a separate future feature.
 - **2026-07-28** — **Ticket `27` complete.** Gap and untranscribed carriers now retain every non-modelled TEI attribute in `teiAttrs` through parsing, ProseMirror, the editor schema, and serialization. Named fields serialize first in pinned IGNTP order without duplication: gaps use `reason`/`unit`/`extent`, while schema-valid untranscribed notes map internal `reason`/`extent` to `subtype`/`n`. The package seam and XSD suites pass **63/63**, the mounted editor round trip passes **19/19**, package typecheck and app `check` pass, and the package full run retains its documented **100 pass / 7 missing-fixture failures**. The app full run reached **103 passing files / 707 passing tests**; its three failures are concurrent ticket `04`'s now-stale pre-entry-repair ID assertion and two unrelated page-metadata synchronization assertions.

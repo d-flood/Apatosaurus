@@ -60,33 +60,7 @@ function toProseMirrorLineContent(line: TranscriptionLine): ProseMirrorJSON[] {
 			content.push({
 				type: 'text',
 				text: item.text,
-				marks: item.marks?.map(mark => ({
-					type: mark.type,
-					...(mark.type === 'abbreviation' ? { attrs: mark.attrs } : {}),
-					...(mark.type === 'correction'
-						? {
-								attrs: {
-									corrections: mark.attrs.corrections.map(correction => ({
-										...correction,
-										content: inlineItemsToProseMirror(correction.content),
-									})),
-								},
-							}
-						: {}),
-					...(mark.type === 'word' ||
-					mark.type === 'lacunose' ||
-					mark.type === 'unclear' ||
-					mark.type === 'punctuation' ||
-					mark.type === 'hi' ||
-					mark.type === 'damage' ||
-					mark.type === 'surplus' ||
-					mark.type === 'secl'
-						? { attrs: { teiAttrs: mark.attrs || {} } }
-						: {}),
-					...(mark.type === 'teiSpan'
-						? { attrs: { tag: mark.attrs.tag, teiAttrs: mark.attrs.teiAttrs || {} } }
-						: {}),
-				})),
+				marks: marksToProseMirror(item.marks),
 			});
 			continue;
 		}
@@ -129,6 +103,7 @@ function toProseMirrorLineContent(line: TranscriptionLine): ProseMirrorJSON[] {
 			content.push({
 				type: 'teiMilestone',
 				attrs: { teiAttrs: item.attrs },
+				marks: marksToProseMirror(item.marks),
 			});
 			continue;
 		}
@@ -154,6 +129,7 @@ function toProseMirrorLineContent(line: TranscriptionLine): ProseMirrorJSON[] {
 					teiAttrs: item.attrs,
 					wordInline: item.wordInline || false,
 				},
+				marks: marksToProseMirror(item.marks),
 			});
 			continue;
 		}
@@ -169,6 +145,7 @@ function toProseMirrorLineContent(line: TranscriptionLine): ProseMirrorJSON[] {
 					wordInline: item.wordInline || false,
 					text: item.text || '',
 				},
+				marks: marksToProseMirror(item.marks),
 			});
 			continue;
 		}
@@ -184,6 +161,7 @@ function toProseMirrorLineContent(line: TranscriptionLine): ProseMirrorJSON[] {
 					wordInline: item.wordInline || false,
 					text: item.text || '',
 				},
+				marks: marksToProseMirror(item.marks),
 			});
 			continue;
 		}
@@ -192,6 +170,7 @@ function toProseMirrorLineContent(line: TranscriptionLine): ProseMirrorJSON[] {
 			content.push({
 				type: 'gap',
 				attrs: item.attrs,
+				marks: marksToProseMirror(item.marks),
 			});
 			continue;
 		}
@@ -200,6 +179,7 @@ function toProseMirrorLineContent(line: TranscriptionLine): ProseMirrorJSON[] {
 			content.push({
 				type: 'space',
 				attrs: { teiAttrs: item.attrs },
+				marks: marksToProseMirror(item.marks),
 			});
 			continue;
 		}
@@ -208,6 +188,7 @@ function toProseMirrorLineContent(line: TranscriptionLine): ProseMirrorJSON[] {
 			content.push({
 				type: 'handShift',
 				attrs: { teiAttrs: item.attrs },
+				marks: marksToProseMirror(item.marks),
 			});
 			continue;
 		}
@@ -255,33 +236,7 @@ export function inlineItemsToProseMirror(items: InlineItem[]): ProseMirrorJSON[]
 			content.push({
 				type: 'text',
 				text: item.text,
-				marks: item.marks?.map(mark => ({
-					type: mark.type,
-					...(mark.type === 'abbreviation' ? { attrs: mark.attrs } : {}),
-					...(mark.type === 'correction'
-						? {
-								attrs: {
-									corrections: mark.attrs.corrections.map(correction => ({
-										...correction,
-										content: inlineItemsToProseMirror(correction.content),
-									})),
-								},
-							}
-						: {}),
-					...(mark.type === 'word' ||
-					mark.type === 'lacunose' ||
-					mark.type === 'unclear' ||
-					mark.type === 'punctuation' ||
-					mark.type === 'hi' ||
-					mark.type === 'damage' ||
-					mark.type === 'surplus' ||
-					mark.type === 'secl'
-						? { attrs: { teiAttrs: mark.attrs || {} } }
-						: {}),
-					...(mark.type === 'teiSpan'
-						? { attrs: { tag: mark.attrs.tag, teiAttrs: mark.attrs.teiAttrs || {} } }
-						: {}),
-				})),
+				marks: marksToProseMirror(item.marks),
 			});
 			continue;
 		}
@@ -315,10 +270,20 @@ export function inlineItemsToProseMirror(items: InlineItem[]): ProseMirrorJSON[]
 			continue;
 		}
 
+		if (item.type === 'gap') {
+			content.push({
+				type: 'gap',
+				attrs: item.attrs,
+				marks: marksToProseMirror(item.marks),
+			});
+			continue;
+		}
+
 		if (item.type === 'space') {
 			content.push({
 				type: 'space',
 				attrs: { teiAttrs: item.attrs },
+				marks: marksToProseMirror(item.marks),
 			});
 			continue;
 		}
@@ -327,6 +292,7 @@ export function inlineItemsToProseMirror(items: InlineItem[]): ProseMirrorJSON[]
 			content.push({
 				type: 'handShift',
 				attrs: { teiAttrs: item.attrs },
+				marks: marksToProseMirror(item.marks),
 			});
 			continue;
 		}
@@ -339,6 +305,7 @@ export function inlineItemsToProseMirror(items: InlineItem[]): ProseMirrorJSON[]
 					teiAttrs: item.attrs,
 					wordInline: item.wordInline || false,
 				},
+				marks: marksToProseMirror(item.marks),
 			});
 			continue;
 		}
@@ -347,6 +314,7 @@ export function inlineItemsToProseMirror(items: InlineItem[]): ProseMirrorJSON[]
 			content.push({
 				type: 'teiMilestone',
 				attrs: { teiAttrs: item.attrs },
+				marks: marksToProseMirror(item.marks),
 			});
 			continue;
 		}
@@ -362,6 +330,7 @@ export function inlineItemsToProseMirror(items: InlineItem[]): ProseMirrorJSON[]
 					wordInline: item.wordInline || false,
 					text: item.text || '',
 				},
+				marks: marksToProseMirror(item.marks),
 			});
 			continue;
 		}
@@ -377,6 +346,7 @@ export function inlineItemsToProseMirror(items: InlineItem[]): ProseMirrorJSON[]
 					wordInline: item.wordInline || false,
 					text: item.text || '',
 				},
+				marks: marksToProseMirror(item.marks),
 			});
 			continue;
 		}
@@ -538,6 +508,7 @@ function fromProseMirrorLineContent(nodes: ProseMirrorJSON[]): LineItem[] {
 					extent: node.attrs?.extent,
 					teiAttrs: extractOptionalTeiAttrs(node.attrs) || {},
 				},
+				...marksFromProseMirror(node),
 			});
 			continue;
 		}
@@ -546,6 +517,7 @@ function fromProseMirrorLineContent(nodes: ProseMirrorJSON[]): LineItem[] {
 			items.push({
 				type: 'space',
 				attrs: extractTeiAttrs(node.attrs),
+				...marksFromProseMirror(node),
 			});
 			continue;
 		}
@@ -554,6 +526,7 @@ function fromProseMirrorLineContent(nodes: ProseMirrorJSON[]): LineItem[] {
 			items.push({
 				type: 'handShift',
 				attrs: extractTeiAttrs(node.attrs),
+				...marksFromProseMirror(node),
 			});
 			continue;
 		}
@@ -562,6 +535,7 @@ function fromProseMirrorLineContent(nodes: ProseMirrorJSON[]): LineItem[] {
 			items.push({
 				type: 'teiMilestone',
 				attrs: extractTeiAttrs(node.attrs),
+				...marksFromProseMirror(node),
 			});
 			continue;
 		}
@@ -588,6 +562,7 @@ function fromProseMirrorLineContent(nodes: ProseMirrorJSON[]): LineItem[] {
 				summary: String(node.attrs?.summary || 'metamark'),
 				attrs: extractTeiAttrs(node.attrs),
 				wordInline: !!node.attrs?.wordInline,
+				...marksFromProseMirror(node),
 			});
 			continue;
 		}
@@ -601,6 +576,7 @@ function fromProseMirrorLineContent(nodes: ProseMirrorJSON[]): LineItem[] {
 				node: node.attrs?.teiNode,
 				wordInline: !!node.attrs?.wordInline,
 				text: String(node.attrs?.text || ''),
+				...marksFromProseMirror(node),
 			});
 			continue;
 		}
@@ -614,6 +590,7 @@ function fromProseMirrorLineContent(nodes: ProseMirrorJSON[]): LineItem[] {
 				children: Array.isArray(node.attrs?.children) ? node.attrs.children : [],
 				wordInline: !!node.attrs?.wordInline,
 				text: String(node.attrs?.text || ''),
+				...marksFromProseMirror(node),
 			});
 			continue;
 		}
@@ -702,10 +679,25 @@ export function proseMirrorToInlineItems(nodes: ProseMirrorJSON[]): InlineItem[]
 			continue;
 		}
 
+		if (node.type === 'gap') {
+			items.push({
+				type: 'gap',
+				attrs: {
+					reason: node.attrs?.reason,
+					unit: node.attrs?.unit,
+					extent: node.attrs?.extent,
+					teiAttrs: extractOptionalTeiAttrs(node.attrs) || {},
+				},
+				...marksFromProseMirror(node),
+			});
+			continue;
+		}
+
 		if (node.type === 'space') {
 			items.push({
 				type: 'space',
 				attrs: extractTeiAttrs(node.attrs),
+				...marksFromProseMirror(node),
 			});
 			continue;
 		}
@@ -714,6 +706,7 @@ export function proseMirrorToInlineItems(nodes: ProseMirrorJSON[]): InlineItem[]
 			items.push({
 				type: 'handShift',
 				attrs: extractTeiAttrs(node.attrs),
+				...marksFromProseMirror(node),
 			});
 			continue;
 		}
@@ -724,6 +717,7 @@ export function proseMirrorToInlineItems(nodes: ProseMirrorJSON[]): InlineItem[]
 				summary: String(node.attrs?.summary || 'metamark'),
 				attrs: extractTeiAttrs(node.attrs),
 				wordInline: !!node.attrs?.wordInline,
+				...marksFromProseMirror(node),
 			});
 			continue;
 		}
@@ -732,6 +726,7 @@ export function proseMirrorToInlineItems(nodes: ProseMirrorJSON[]): InlineItem[]
 			items.push({
 				type: 'teiMilestone',
 				attrs: extractTeiAttrs(node.attrs),
+				...marksFromProseMirror(node),
 			});
 			continue;
 		}
@@ -745,6 +740,7 @@ export function proseMirrorToInlineItems(nodes: ProseMirrorJSON[]): InlineItem[]
 				node: node.attrs?.teiNode,
 				wordInline: !!node.attrs?.wordInline,
 				text: String(node.attrs?.text || ''),
+				...marksFromProseMirror(node),
 			});
 			continue;
 		}
@@ -758,6 +754,7 @@ export function proseMirrorToInlineItems(nodes: ProseMirrorJSON[]): InlineItem[]
 				children: Array.isArray(node.attrs?.children) ? node.attrs.children : [],
 				wordInline: !!node.attrs?.wordInline,
 				text: String(node.attrs?.text || ''),
+				...marksFromProseMirror(node),
 			});
 			continue;
 		}
@@ -846,6 +843,41 @@ function convertMark(mark: { type: string; attrs?: Record<string, any> }): TextM
 	}
 
 	return { type: mark.type as TextMark['type'] } as TextMark;
+}
+
+function marksToProseMirror(marks: TextMark[] | undefined): ProseMirrorJSON['marks'] {
+	return marks?.map(mark => ({
+		type: mark.type,
+		...(mark.type === 'abbreviation' ? { attrs: mark.attrs } : {}),
+		...(mark.type === 'correction'
+			? {
+					attrs: {
+						corrections: mark.attrs.corrections.map(correction => ({
+							...correction,
+							content: inlineItemsToProseMirror(correction.content),
+						})),
+					},
+				}
+			: {}),
+		...(mark.type === 'word' ||
+		mark.type === 'lacunose' ||
+		mark.type === 'unclear' ||
+		mark.type === 'punctuation' ||
+		mark.type === 'hi' ||
+		mark.type === 'damage' ||
+		mark.type === 'surplus' ||
+		mark.type === 'secl'
+			? { attrs: { teiAttrs: mark.attrs || {} } }
+			: {}),
+		...(mark.type === 'teiSpan'
+			? { attrs: { tag: mark.attrs.tag, teiAttrs: mark.attrs.teiAttrs || {} } }
+			: {}),
+	}));
+}
+
+function marksFromProseMirror(node: ProseMirrorJSON): { marks: TextMark[] } | object {
+	const marks = (node.marks || []).map(convertMark);
+	return marks.length > 0 ? { marks } : {};
 }
 
 function extractTeiAttrs(attrs: Record<string, any> | undefined): Record<string, string> {
