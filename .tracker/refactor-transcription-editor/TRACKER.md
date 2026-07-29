@@ -12,9 +12,9 @@ Two things to know before writing a ticket from it. `F35`–`F46` have **no comm
 
 ## Current Status
 
-Overall status: `In Progress`
+Overall status: `Completed`
 
-Current ticket: none — ticket `22` is complete.
+Current ticket: none — ticket `30` is complete.
 
 Last updated: 2026-07-29
 
@@ -74,7 +74,7 @@ Success is not "every ticket cleared". Some findings should end in a documented 
 | 27 | `27-carriers-keep-arbitrary-tei-attributes.md` | Completed | None |
 | 28 | `28-line-and-column-numbers-become-presentation.md` | Completed | 04, 12 |
 | 29 | `29-editorial-chrome-leaves-renderhtml.md` | Completed | 03, 28 |
-| 30 | `30-nodeviews-where-rendering-must-be-incremental.md` | Not Started | 14, 22 |
+| 30 | `30-nodeviews-where-rendering-must-be-incremental.md` | Completed | 14, 22 |
 
 Twenty-four tickets (`07`–`30`) were written from `INVENTORY.md` on 2026-07-28. Nineteen have no blockers, so the frontier is wide — pick by value, not by number. `07`, `08`, `09` and `24` are the data-loss ones.
 
@@ -98,6 +98,8 @@ pnpm vitest run --project client src/lib/client/transcriptionEditorStructure.sve
 
 ## Notes
 
+- **2026-07-29 — Ticket `30` complete; inspector-edited carriers render incrementally.** Fourteen scoped carriers now share their DOM spec between `renderHTML` and a NodeView whose `update(node)` patches renderer-owned attributes and visible content in place while retaining DOM identity, editable `fw` content, and ProseMirror-owned classes and attributes. Type and rendered-shape changes return `false` for a native rebuild; NodeViews dispatch no selection transaction. Browser coverage pins all fourteen NodeViews against `renderHTML`, all affected `parseHTML` round trips, clipboard serialization, correction preview generation, identity retention, and fallback rebuilds. The focused rendering suite passes **13/13**, the component suite passes **12 files / 81 tests**, `check` reports 0 errors (one pre-existing warning), and the full baseline passes **107 files / 719 tests**.
+- **2026-07-29 — Ticket `30` node inventory.** **In:** `correctionNode`, `editorialAction`, `metamark`, `teiAtom`, `teiWrapper`, `handShift`, `teiMilestone`, `gap`, `space`, `untranscribed`, `lineBreak`, `columnBreak`, and `pageBreak` are inline leaf carriers whose visible badges are changed by ordinary inspector Apply actions; each needs an incremental NodeView. **In:** `fw` is no longer an atom after ticket `22`, but its inspector changes the badge surrounding editable child content, so rebuilding it would tear down a richer subtree and it needs an incremental NodeView too. **Out:** `book`, `chapter`, and `verse` are insertion-time milestone leaves with no inspector or other ordinary attribute-editing path. **Out:** `Page`, `Column`, `Line`, `marginaliaColumn`, and `marginaliaLine` are structural content nodes covered by ticket `29`'s CSS/presentation approach, and ticket `30` explicitly excludes structural NodeViews. **Out:** correction and abbreviation are marks rather than nodes; their ordinary edits continue through mark rendering. No other inline node changes rendering attributes through an ordinary editing path.
 - **2026-07-29** — **Ticket `22` complete; formwork content is ordinary document content.** `fw` now owns editable inline children instead of an atom-level JSON `content` attribute; marks, search, grouped undo, main-toolbar line/column breaks, and save/reload operate through the main editor. The inspector updates attributes only, and legacy attribute content migrates idempotently at document entry. `InlineCarrierWorkspace` is gone; the remaining nested editor is correction-specific because correction payloads are explicitly deferred. Two real IGNTP witnesses pin byte-identical exports at **282593** and **9572** bytes. Schema `JSON.stringify` sites fell from the current pre-ticket **55** (the ticket recorded 51 before later carrier work) to **50**. The component suite passes **12 files / 81 tests**, the app baseline passes **107 files / 713 tests**, `check` reports 0 errors (one pre-existing warning), package typecheck and all **113 runnable tests** pass, and the full package command retains its documented **7 missing-fixture failures**.
 - **2026-07-29** — **Ticket `05` complete; page width no longer follows document content.** The reported blank framed-page overflow reproduced without IIIF in a fixed 1000 px pane: the editor root's `min-w-max` exposed the frame's 1664 px max-content demand. The root constraint and page/column minimums are gone; zoned pages now use a named CSS grid with top / left+center+right / bottom rows through 900 px and a five-row container-responsive stack at 700 px and below. A 200-character center line scrolls inside its line without widening its column, page, or pane. The obsolete route-level mirrored scrollbar was deleted. Layout coverage passes **7/7** at 1400, 1200, 1000, 900, 700, and 600 px with IIIF open and closed; the editor suite passes **12 files / 88 tests**, `check` reports 0 errors (one pre-existing warning), and the full baseline passes **107 files / 719 tests**. The two named production files remove 46 net lines.
 - **2026-07-29** — **Ticket `29` complete; editorial chrome is no longer contentDOM structure.** Page headings, column labels, line ordinals, and wrapped arrows now render from CSS pseudo-elements driven by node `data-*` attributes and ticket `28`'s counters. The line contentDOM is the line's only child and covers more than 95% of its box; real Chromium hit-testing agrees with the resulting far-right caret position, while a raw gutter click leaves the caret unchanged. Page furniture remains visible as document-owned `fw` carriers, and cross-line drag selection remains native. Render-output and layout suites pass **7/7** and **8/8**, the editor component suite passes **12 files / 89 tests**, `check` reports 0 errors (one pre-existing warning), and the full baseline passes **107 files / 720 tests**.

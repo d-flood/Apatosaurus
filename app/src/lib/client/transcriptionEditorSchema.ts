@@ -10,6 +10,7 @@ import { Editor, Extension, Mark, Node, generateHTML, markInputRule } from '@tip
 import { BubbleMenu } from '@tiptap/extension-bubble-menu';
 import { History } from '@tiptap/extension-history';
 import { Text } from '@tiptap/extension-text';
+import { DOMSerializer, type DOMOutputSpec, type Node as ProseMirrorNode } from '@tiptap/pm/model';
 import { NodeSelection, Plugin, PluginKey } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 
@@ -32,6 +33,115 @@ function iconLabelSpec(label: string, icon: BadgeIconName) {
 
 function inlineBadgeClass(className: string, extraClass: string = '') {
 	return `${className} tei-inline-badge badge badge-sm inline-flex items-center gap-1.5 ${extraClass}`.trim();
+}
+
+type NodeRenderer = (node: ProseMirrorNode, HTMLAttributes: Record<string, any>) => DOMOutputSpec;
+
+function domShapesAgree(
+	current: globalThis.Node,
+	next: globalThis.Node,
+	currentContentDOM?: HTMLElement,
+	nextContentDOM?: HTMLElement
+): boolean {
+	if (current === currentContentDOM) return next === nextContentDOM;
+	if (current.nodeType !== next.nodeType) return false;
+	if (current instanceof Element && next instanceof Element) {
+		if (
+			current.tagName !== next.tagName ||
+			current.childNodes.length !== next.childNodes.length
+		) {
+			return false;
+		}
+		return Array.from(current.childNodes).every((child, index) =>
+			domShapesAgree(child, next.childNodes[index], currentContentDOM, nextContentDOM)
+		);
+	}
+	return current.childNodes.length === next.childNodes.length;
+}
+
+function patchRenderedDom(
+	current: globalThis.Node,
+	previous: globalThis.Node,
+	next: globalThis.Node,
+	contentDOM?: HTMLElement
+) {
+	if (current === contentDOM) return;
+	if (current instanceof Element && previous instanceof Element && next instanceof Element) {
+		const previousClasses = new Set(Array.from(previous.classList));
+		const nextClasses = Array.from(next.classList);
+		const extraClasses = Array.from(current.classList).filter(
+			name => !previousClasses.has(name)
+		);
+		const classes = [
+			...nextClasses,
+			...extraClasses.filter(name => !next.classList.contains(name)),
+		];
+		if (classes.length > 0) {
+			current.setAttribute('class', classes.join(' '));
+		} else {
+			current.removeAttribute('class');
+		}
+
+		for (const attribute of Array.from(previous.attributes)) {
+			if (
+				attribute.name !== 'class' &&
+				!next.hasAttribute(attribute.name) &&
+				current.getAttribute(attribute.name) === attribute.value
+			) {
+				current.removeAttribute(attribute.name);
+			}
+		}
+		for (const attribute of Array.from(next.attributes)) {
+			if (attribute.name === 'class') continue;
+			current.setAttribute(attribute.name, attribute.value);
+		}
+		Array.from(current.childNodes).forEach((child, index) =>
+			patchRenderedDom(child, previous.childNodes[index], next.childNodes[index], contentDOM)
+		);
+		return;
+	}
+	if (current.nodeValue !== next.nodeValue) current.nodeValue = next.nodeValue;
+}
+
+function createIncrementalNodeView(renderNode: NodeRenderer) {
+	return ({
+		node,
+		HTMLAttributes,
+	}: {
+		node: ProseMirrorNode;
+		HTMLAttributes: Record<string, any>;
+	}) => {
+		let currentNode = node;
+		const rendered = DOMSerializer.renderSpec(document, renderNode(node, HTMLAttributes));
+		let renderedTemplate = rendered.dom.cloneNode(true);
+		return {
+			dom: rendered.dom,
+			contentDOM: rendered.contentDOM,
+			update(nextNode: ProseMirrorNode) {
+				if (nextNode.type !== currentNode.type) return false;
+				const nextRendered = DOMSerializer.renderSpec(document, renderNode(nextNode, {}));
+				if (
+					!domShapesAgree(
+						rendered.dom,
+						nextRendered.dom,
+						rendered.contentDOM,
+						nextRendered.contentDOM
+					)
+				) {
+					return false;
+				}
+				patchRenderedDom(
+					rendered.dom,
+					renderedTemplate,
+					nextRendered.dom,
+					rendered.contentDOM
+				);
+				renderedTemplate = nextRendered.dom.cloneNode(true);
+				currentNode = nextNode;
+				return true;
+			},
+		};
+	};
 }
 
 interface PreviewNodeLike {
@@ -173,6 +283,20 @@ function createTeiAttrAtomNode(
 	label: string,
 	icon: BadgeIconName
 ) {
+	const renderNode: NodeRenderer = (node, HTMLAttributes) => {
+		const teiAttrs = node.attrs.teiAttrs || {};
+		return [
+			'span',
+			{
+				...HTMLAttributes,
+				class: inlineBadgeClass(className),
+				'data-tei-attrs': JSON.stringify(teiAttrs),
+				title: label,
+				contenteditable: 'false',
+			},
+			...iconLabelSpec(label, icon),
+		];
+	};
 	return Node.create({
 		name,
 		group: 'inline',
@@ -183,18 +307,10 @@ function createTeiAttrAtomNode(
 			return [{ tag: `span.${className}` }];
 		},
 		renderHTML({ node, HTMLAttributes }) {
-			const teiAttrs = node.attrs.teiAttrs || {};
-			return [
-				'span',
-				{
-					...HTMLAttributes,
-					class: inlineBadgeClass(className),
-					'data-tei-attrs': JSON.stringify(teiAttrs),
-					title: label,
-					contenteditable: 'false',
-				},
-				...iconLabelSpec(label, icon),
-			];
+			return renderNode(node, HTMLAttributes);
+		},
+		addNodeView() {
+			return createIncrementalNodeView(renderNode);
 		},
 		addAttributes() {
 			return {
@@ -357,6 +473,29 @@ const TeiSpan = Mark.create({
 	},
 });
 
+const renderUntranscribedNode: NodeRenderer = (node, HTMLAttributes) => {
+	const reason = node.attrs.reason || 'Untranscribed';
+	const extent = node.attrs.extent || 'partial';
+	const label =
+		extent === 'partial'
+			? `Partial Line Untranscribed (${reason})`
+			: `Line Untranscribed (${reason})`;
+
+	return [
+		'span',
+		{
+			...HTMLAttributes,
+			class: inlineBadgeClass('untranscribed-milestone'),
+			'data-reason': reason,
+			'data-extent': extent,
+			'data-tei-attrs': JSON.stringify(node.attrs.teiAttrs || {}),
+			title: label,
+			contenteditable: 'false',
+		},
+		...iconLabelSpec('untranscribed', 'untranscribed'),
+	];
+};
+
 const UntranscribedNode = Node.create({
 	name: 'untranscribed',
 	group: 'inline',
@@ -367,27 +506,10 @@ const UntranscribedNode = Node.create({
 		return [{ tag: 'span.untranscribed-milestone' }];
 	},
 	renderHTML({ node, HTMLAttributes }) {
-		const reason = node.attrs.reason || 'Untranscribed';
-		const extent = node.attrs.extent || 'partial';
-
-		const label =
-			extent === 'partial'
-				? `Partial Line Untranscribed (${reason})`
-				: `Line Untranscribed (${reason})`;
-
-		return [
-			'span',
-			{
-				...HTMLAttributes,
-				class: inlineBadgeClass('untranscribed-milestone'),
-				'data-reason': reason,
-				'data-extent': extent,
-				'data-tei-attrs': JSON.stringify(node.attrs.teiAttrs || {}),
-				title: label,
-				contenteditable: 'false',
-			},
-			...iconLabelSpec('untranscribed', 'untranscribed'),
-		];
+		return renderUntranscribedNode(node, HTMLAttributes);
+	},
+	addNodeView() {
+		return createIncrementalNodeView(renderUntranscribedNode);
 	},
 	addAttributes() {
 		return {
@@ -566,6 +688,32 @@ const Correction = Mark.create({
 	},
 });
 
+const renderCorrectionNode: NodeRenderer = (node, HTMLAttributes) => {
+	const corrections = node.attrs.corrections || [];
+	const tooltipText = formatCorrectionTooltipText(corrections);
+
+	return [
+		'span',
+		{
+			class: 'tooltip tei-inline-badge-shell',
+			'data-tip': tooltipText,
+			...(node.attrs.id ? { 'data-node-id': node.attrs.id } : {}),
+			'data-corrections': JSON.stringify(corrections),
+		},
+		[
+			'span',
+			{
+				...HTMLAttributes,
+				class: inlineBadgeClass('correction-node', 'badge-warning'),
+				contenteditable: 'false',
+				...(node.attrs.id ? { 'data-node-id': node.attrs.id } : {}),
+				'data-corrections': JSON.stringify(corrections),
+			},
+			...iconLabelSpec('Added', 'correctionNode'),
+		],
+	];
+};
+
 const CorrectionNode = Node.create({
 	name: 'correctionNode',
 	group: 'inline',
@@ -576,30 +724,10 @@ const CorrectionNode = Node.create({
 		return [{ tag: 'span.correction-node' }];
 	},
 	renderHTML({ node, HTMLAttributes }) {
-		const corrections = node.attrs.corrections || [];
-		const tooltipText = formatCorrectionTooltipText(corrections);
-
-		// Render as a badge showing [Added] with tooltip showing details
-		return [
-			'span',
-			{
-				class: 'tooltip tei-inline-badge-shell',
-				'data-tip': tooltipText,
-				...(node.attrs.id ? { 'data-node-id': node.attrs.id } : {}),
-				'data-corrections': JSON.stringify(corrections),
-			},
-			[
-				'span',
-				{
-					...HTMLAttributes,
-					class: inlineBadgeClass('correction-node', 'badge-warning'),
-					contenteditable: 'false',
-					...(node.attrs.id ? { 'data-node-id': node.attrs.id } : {}),
-					'data-corrections': JSON.stringify(corrections),
-				},
-				...iconLabelSpec('Added', 'correctionNode'),
-			],
-		];
+		return renderCorrectionNode(node, HTMLAttributes);
+	},
+	addNodeView() {
+		return createIncrementalNodeView(renderCorrectionNode);
 	},
 	addAttributes() {
 		return {
@@ -1212,6 +1340,31 @@ const Line = Node.create({
 	},
 });
 
+const renderGapNode: NodeRenderer = (node, HTMLAttributes) => {
+	const reason = node.attrs.reason || 'gap';
+	const unit = node.attrs.unit || '';
+	const extent = node.attrs.extent || '';
+	let label = reason;
+	if (unit) label += ` (${unit}`;
+	if (extent) label += `, ${extent}`;
+	if (unit || extent) label += ')';
+
+	return [
+		'span',
+		{
+			...HTMLAttributes,
+			class: inlineBadgeClass('gap-milestone'),
+			'data-reason': reason,
+			'data-unit': unit,
+			'data-extent': extent,
+			'data-tei-attrs': JSON.stringify(node.attrs.teiAttrs || {}),
+			title: `${label}`,
+			contenteditable: 'false',
+		},
+		...iconLabelSpec([extent, unit].filter(Boolean).join(' ') || 'gap', 'lacuna'),
+	];
+};
+
 const GapNode = Node.create({
 	name: 'gap',
 	group: 'inline',
@@ -1221,28 +1374,10 @@ const GapNode = Node.create({
 		return [{ tag: 'span.gap-milestone' }];
 	},
 	renderHTML({ node, HTMLAttributes }) {
-		const reason = node.attrs.reason || 'gap';
-		const unit = node.attrs.unit || '';
-		const extent = node.attrs.extent || '';
-		let label = reason;
-		if (unit) label += ` (${unit}`;
-		if (extent) label += `, ${extent}`;
-		if (unit || extent) label += ')';
-
-		return [
-			'span',
-			{
-				...HTMLAttributes,
-				class: inlineBadgeClass('gap-milestone'),
-				'data-reason': reason,
-				'data-unit': unit,
-				'data-extent': extent,
-				'data-tei-attrs': JSON.stringify(node.attrs.teiAttrs || {}),
-				title: `${label}`,
-				contenteditable: 'false',
-			},
-			...iconLabelSpec([extent, unit].filter(Boolean).join(' ') || 'gap', 'lacuna'),
-		];
+		return renderGapNode(node, HTMLAttributes);
+	},
+	addNodeView() {
+		return createIncrementalNodeView(renderGapNode);
 	},
 	addAttributes() {
 		return {
@@ -1278,6 +1413,26 @@ const GapNode = Node.create({
 	},
 });
 
+const renderSpaceNode: NodeRenderer = (node, HTMLAttributes) => {
+	const teiAttrs = node.attrs.teiAttrs || {};
+	const extent = teiAttrs.extent || teiAttrs.quantity || '';
+	const unit = teiAttrs.unit || '';
+	const dim = teiAttrs.dim || '';
+	const labelParts = ['space', extent, unit, dim].filter(Boolean);
+
+	return [
+		'span',
+		{
+			...HTMLAttributes,
+			class: inlineBadgeClass('space-milestone'),
+			'data-tei-attrs': JSON.stringify(teiAttrs),
+			title: labelParts.join(' '),
+			contenteditable: 'false',
+		},
+		...iconLabelSpec([extent, unit].filter(Boolean).join(' ') || 'space', 'blankSpace'),
+	];
+};
+
 const SpaceNode = Node.create({
 	name: 'space',
 	group: 'inline',
@@ -1288,23 +1443,10 @@ const SpaceNode = Node.create({
 		return [{ tag: 'span.space-milestone' }];
 	},
 	renderHTML({ node, HTMLAttributes }) {
-		const teiAttrs = node.attrs.teiAttrs || {};
-		const extent = teiAttrs.extent || teiAttrs.quantity || '';
-		const unit = teiAttrs.unit || '';
-		const dim = teiAttrs.dim || '';
-		const labelParts = ['space', extent, unit, dim].filter(Boolean);
-
-		return [
-			'span',
-			{
-				...HTMLAttributes,
-				class: inlineBadgeClass('space-milestone'),
-				'data-tei-attrs': JSON.stringify(teiAttrs),
-				title: labelParts.join(' '),
-				contenteditable: 'false',
-			},
-			...iconLabelSpec([extent, unit].filter(Boolean).join(' ') || 'space', 'blankSpace'),
-		];
+		return renderSpaceNode(node, HTMLAttributes);
+	},
+	addNodeView() {
+		return createIncrementalNodeView(renderSpaceNode);
 	},
 	addAttributes() {
 		return {
@@ -1319,6 +1461,32 @@ const SpaceNode = Node.create({
 	},
 });
 
+const renderHandShiftNode: NodeRenderer = (node, HTMLAttributes) => {
+	const teiAttrs = node.attrs.teiAttrs || {};
+	const tooltipText = formatHandShiftTooltipText(teiAttrs);
+	const ariaLabel = formatHandShiftAriaLabel(teiAttrs);
+	return [
+		'span',
+		{
+			class: 'tooltip tei-inline-badge-shell',
+			'data-tip': tooltipText,
+		},
+		[
+			'span',
+			{
+				...HTMLAttributes,
+				class: inlineBadgeClass('hand-shift-node hand-shift-badge'),
+				'aria-label': ariaLabel,
+				role: 'img',
+				'data-tei-attrs': JSON.stringify(teiAttrs),
+				title: '',
+				contenteditable: 'false',
+			},
+			['span', { class: 'hand-shift-badge-glyph', 'aria-hidden': 'true' }],
+		],
+	];
+};
+
 const HandShiftNode = Node.create({
 	name: 'handShift',
 	group: 'inline',
@@ -1329,29 +1497,10 @@ const HandShiftNode = Node.create({
 		return [{ tag: 'span.hand-shift-node' }];
 	},
 	renderHTML({ node, HTMLAttributes }) {
-		const teiAttrs = node.attrs.teiAttrs || {};
-		const tooltipText = formatHandShiftTooltipText(teiAttrs);
-		const ariaLabel = formatHandShiftAriaLabel(teiAttrs);
-		return [
-			'span',
-			{
-				class: 'tooltip tei-inline-badge-shell',
-				'data-tip': tooltipText,
-			},
-			[
-				'span',
-				{
-					...HTMLAttributes,
-					class: inlineBadgeClass('hand-shift-node hand-shift-badge'),
-					'aria-label': ariaLabel,
-					role: 'img',
-					'data-tei-attrs': JSON.stringify(teiAttrs),
-					title: '',
-					contenteditable: 'false',
-				},
-				['span', { class: 'hand-shift-badge-glyph', 'aria-hidden': 'true' }],
-			],
-		];
+		return renderHandShiftNode(node, HTMLAttributes);
+	},
+	addNodeView() {
+		return createIncrementalNodeView(renderHandShiftNode);
 	},
 	addAttributes() {
 		return {
@@ -1371,6 +1520,26 @@ const TeiMilestoneNode = createTeiAttrAtomNode(
 	'milestone',
 	'milestone'
 );
+const renderEditorialActionNode: NodeRenderer = (node, HTMLAttributes) => {
+	const tag = node.attrs.tag || 'editorial';
+	const summary = node.attrs.summary || tag;
+	return [
+		'span',
+		{
+			...HTMLAttributes,
+			class: inlineBadgeClass('editorial-action-node', 'badge-secondary'),
+			'data-tag': tag,
+			'data-summary': summary,
+			'data-xml': node.attrs.xml || '',
+			'data-tei-attrs': JSON.stringify(node.attrs.teiAttrs || {}),
+			'data-structure': JSON.stringify(node.attrs.structure || null),
+			title: summary,
+			contenteditable: 'false',
+		},
+		...iconLabelSpec(summary, 'teiAtom'),
+	];
+};
+
 const EditorialActionNode = Node.create({
 	name: 'editorialAction',
 	group: 'inline',
@@ -1381,23 +1550,10 @@ const EditorialActionNode = Node.create({
 		return [{ tag: 'span.editorial-action-node' }];
 	},
 	renderHTML({ node, HTMLAttributes }) {
-		const tag = node.attrs.tag || 'editorial';
-		const summary = node.attrs.summary || tag;
-		return [
-			'span',
-			{
-				...HTMLAttributes,
-				class: inlineBadgeClass('editorial-action-node', 'badge-secondary'),
-				'data-tag': tag,
-				'data-summary': summary,
-				'data-xml': node.attrs.xml || '',
-				'data-tei-attrs': JSON.stringify(node.attrs.teiAttrs || {}),
-				'data-structure': JSON.stringify(node.attrs.structure || null),
-				title: summary,
-				contenteditable: 'false',
-			},
-			...iconLabelSpec(summary, 'teiAtom'),
-		];
+		return renderEditorialActionNode(node, HTMLAttributes);
+	},
+	addNodeView() {
+		return createIncrementalNodeView(renderEditorialActionNode);
 	},
 	addAttributes() {
 		return {
@@ -1433,6 +1589,24 @@ const EditorialActionNode = Node.create({
 		};
 	},
 });
+const renderMetamarkNode: NodeRenderer = (node, HTMLAttributes) => {
+	const summary = node.attrs.summary || 'metamark';
+	return [
+		'span',
+		{
+			...HTMLAttributes,
+			class: inlineBadgeClass('metamark-node', 'badge-accent'),
+			'data-summary': summary,
+			'data-xml': node.attrs.xml || '',
+			'data-tei-attrs': JSON.stringify(node.attrs.teiAttrs || {}),
+			'data-word-inline': node.attrs.wordInline ? 'true' : 'false',
+			title: summary,
+			contenteditable: 'false',
+		},
+		...iconLabelSpec(summary, 'metamark'),
+	];
+};
+
 const MetamarkNode = Node.create({
 	name: 'metamark',
 	group: 'inline',
@@ -1443,21 +1617,10 @@ const MetamarkNode = Node.create({
 		return [{ tag: 'span.metamark-node' }];
 	},
 	renderHTML({ node, HTMLAttributes }) {
-		const summary = node.attrs.summary || 'metamark';
-		return [
-			'span',
-			{
-				...HTMLAttributes,
-				class: inlineBadgeClass('metamark-node', 'badge-accent'),
-				'data-summary': summary,
-				'data-xml': node.attrs.xml || '',
-				'data-tei-attrs': JSON.stringify(node.attrs.teiAttrs || {}),
-				'data-word-inline': node.attrs.wordInline ? 'true' : 'false',
-				title: summary,
-				contenteditable: 'false',
-			},
-			...iconLabelSpec(summary, 'metamark'),
-		];
+		return renderMetamarkNode(node, HTMLAttributes);
+	},
+	addNodeView() {
+		return createIncrementalNodeView(renderMetamarkNode);
 	},
 	addAttributes() {
 		return {
@@ -1483,6 +1646,34 @@ const MetamarkNode = Node.create({
 		};
 	},
 });
+const renderTeiAtomNode: NodeRenderer = (node, HTMLAttributes) => {
+	const tag = node.attrs.tag || 'tei';
+	const summary = node.attrs.summary || tag;
+	const isNote = tag === 'note';
+	const noteText = node.attrs.text || summary;
+	return [
+		'span',
+		{
+			...HTMLAttributes,
+			class: isNote
+				? `${inlineBadgeClass('tei-atom-node tei-note-badge', 'badge-info')} tooltip tooltip-info`
+				: inlineBadgeClass('tei-atom-node', 'badge-info'),
+			'data-tag': tag,
+			'data-summary': summary,
+			'data-tei-node': JSON.stringify(node.attrs.teiNode || null),
+			'data-tei-attrs': JSON.stringify(node.attrs.teiAttrs || {}),
+			'data-word-inline': node.attrs.wordInline ? 'true' : 'false',
+			'data-text': node.attrs.text || '',
+			...(isNote ? { 'data-tip': noteText } : {}),
+			title: isNote ? '' : summary,
+			contenteditable: 'false',
+		},
+		...(isNote
+			? [['span', { class: 'tei-note-badge-glyph', 'aria-hidden': 'true' }]]
+			: iconLabelSpec(summary, 'teiAtom')),
+	];
+};
+
 const TeiAtomNode = Node.create({
 	name: 'teiAtom',
 	group: 'inline',
@@ -1493,31 +1684,10 @@ const TeiAtomNode = Node.create({
 		return [{ tag: 'span.tei-atom-node' }];
 	},
 	renderHTML({ node, HTMLAttributes }) {
-		const tag = node.attrs.tag || 'tei';
-		const summary = node.attrs.summary || tag;
-		const isNote = tag === 'note';
-		const noteText = node.attrs.text || summary;
-		return [
-			'span',
-			{
-				...HTMLAttributes,
-				class: isNote
-					? `${inlineBadgeClass('tei-atom-node tei-note-badge', 'badge-info')} tooltip tooltip-info`
-					: inlineBadgeClass('tei-atom-node', 'badge-info'),
-				'data-tag': tag,
-				'data-summary': summary,
-				'data-tei-node': JSON.stringify(node.attrs.teiNode || null),
-				'data-tei-attrs': JSON.stringify(node.attrs.teiAttrs || {}),
-				'data-word-inline': node.attrs.wordInline ? 'true' : 'false',
-				'data-text': node.attrs.text || '',
-				...(isNote ? { 'data-tip': noteText } : {}),
-				title: isNote ? '' : summary,
-				contenteditable: 'false',
-			},
-			...(isNote
-				? [['span', { class: 'tei-note-badge-glyph', 'aria-hidden': 'true' }]]
-				: iconLabelSpec(summary, 'teiAtom')),
-		];
+		return renderTeiAtomNode(node, HTMLAttributes);
+	},
+	addNodeView() {
+		return createIncrementalNodeView(renderTeiAtomNode);
 	},
 	addAttributes() {
 		return {
@@ -1561,6 +1731,28 @@ const TeiAtomNode = Node.create({
 	},
 });
 
+const renderTeiWrapperNode: NodeRenderer = (node, HTMLAttributes) => {
+	const tag = node.attrs.tag || 'seg';
+	const summary = node.attrs.summary || `<${tag}>`;
+	const preview = summary.startsWith(`<${tag}>`) ? summary : `<${tag}> ${summary}`;
+	return [
+		'span',
+		{
+			...HTMLAttributes,
+			class: inlineBadgeClass('tei-wrapper-node', 'badge-outline badge-secondary'),
+			'data-tag': tag,
+			'data-summary': summary,
+			'data-tei-attrs': JSON.stringify(node.attrs.teiAttrs || {}),
+			'data-children': JSON.stringify(node.attrs.children || []),
+			'data-word-inline': node.attrs.wordInline ? 'true' : 'false',
+			'data-text': node.attrs.text || '',
+			title: preview,
+			contenteditable: 'false',
+		},
+		...iconLabelSpec(preview, 'teiWrapper'),
+	];
+};
+
 const TeiWrapperNode = Node.create({
 	name: 'teiWrapper',
 	group: 'inline',
@@ -1571,25 +1763,10 @@ const TeiWrapperNode = Node.create({
 		return [{ tag: 'span.tei-wrapper-node' }];
 	},
 	renderHTML({ node, HTMLAttributes }) {
-		const tag = node.attrs.tag || 'seg';
-		const summary = node.attrs.summary || `<${tag}>`;
-		const preview = summary.startsWith(`<${tag}>`) ? summary : `<${tag}> ${summary}`;
-		return [
-			'span',
-			{
-				...HTMLAttributes,
-				class: inlineBadgeClass('tei-wrapper-node', 'badge-outline badge-secondary'),
-				'data-tag': tag,
-				'data-summary': summary,
-				'data-tei-attrs': JSON.stringify(node.attrs.teiAttrs || {}),
-				'data-children': JSON.stringify(node.attrs.children || []),
-				'data-word-inline': node.attrs.wordInline ? 'true' : 'false',
-				'data-text': node.attrs.text || '',
-				title: preview,
-				contenteditable: 'false',
-			},
-			...iconLabelSpec(preview, 'teiWrapper'),
-		];
+		return renderTeiWrapperNode(node, HTMLAttributes);
+	},
+	addNodeView() {
+		return createIncrementalNodeView(renderTeiWrapperNode);
 	},
 	addAttributes() {
 		return {
@@ -1633,6 +1810,71 @@ const TeiWrapperNode = Node.create({
 	},
 });
 
+const renderFormWorkNode: NodeRenderer = (node, HTMLAttributes) => {
+	const classification = classifyFormWork(node.attrs || {});
+	const category =
+		classification.entryPoint === 'marginalia'
+			? classification.marginaliaCategory || 'Other'
+			: classification.label;
+	const label = node.textContent.trim() || String(category).toLowerCase();
+	const placement = classification.placementConcept;
+	const categoryClass =
+		classification.entryPoint !== 'marginalia'
+			? 'badge-info'
+			: category === 'Marginal'
+				? 'badge-warning marginalia-margin'
+				: category === 'Interlinear'
+					? 'badge-success marginalia-interlinear'
+					: category === 'Column'
+						? 'badge-secondary marginalia-column'
+						: category === 'Inline'
+							? 'badge-accent marginalia-inline'
+							: 'badge-outline marginalia-other';
+	const iconName =
+		classification.entryPoint !== 'marginalia'
+			? ('pageFurniture' as const)
+			: category === 'Marginal'
+				? ('marginal' as const)
+				: category === 'Interlinear'
+					? ('interlinear' as const)
+					: category === 'Column'
+						? ('column' as const)
+						: category === 'Inline'
+							? ('inline' as const)
+							: ('pageFurniture' as const);
+	return [
+		'span',
+		{
+			...HTMLAttributes,
+			class: `fw-node marginalia-node ${inlineBadgeClass('', categoryClass)}`,
+			'data-entry-point': classification.entryPoint,
+			'data-category': String(category),
+			'data-placement': placement,
+			'data-type': node.attrs.type || '',
+			'data-subtype': node.attrs.subtype || '',
+			'data-place': node.attrs.place || '',
+			'data-hand': node.attrs.hand || '',
+			'data-n': node.attrs.n || '',
+			'data-rend': node.attrs.rend || '',
+			'data-tei-attrs': serializeJsonAttr(node.attrs.teiAttrs),
+			'data-seg-type': node.attrs.segType || '',
+			'data-seg-subtype': node.attrs.segSubtype || '',
+			'data-seg-place': node.attrs.segPlace || '',
+			'data-seg-hand': node.attrs.segHand || '',
+			'data-seg-rend': node.attrs.segRend || '',
+			'data-seg-n': node.attrs.segN || '',
+			'data-seg-attrs': serializeJsonAttr(node.attrs.segAttrs),
+			title: label,
+		},
+		[
+			'span',
+			{ class: 'tei-inline-badge-icon', contenteditable: 'false' },
+			badgeIconSpec(iconName),
+		],
+		['span', { class: 'fw-content' }, 0],
+	];
+};
+
 const FormWorkNode = Node.create({
 	name: 'fw',
 	priority: 1000,
@@ -1660,66 +1902,10 @@ const FormWorkNode = Node.create({
 		};
 	},
 	renderHTML({ node, HTMLAttributes }) {
-		const classification = classifyFormWork(node.attrs || {});
-		const category =
-			classification.entryPoint === 'marginalia'
-				? classification.marginaliaCategory || 'Other'
-				: classification.label;
-		const label = node.textContent.trim() || String(category).toLowerCase();
-		const placement = classification.placementConcept;
-		const categoryClass =
-			classification.entryPoint !== 'marginalia'
-				? 'badge-info'
-				: category === 'Marginal'
-					? 'badge-warning marginalia-margin'
-					: category === 'Interlinear'
-						? 'badge-success marginalia-interlinear'
-						: category === 'Column'
-							? 'badge-secondary marginalia-column'
-							: category === 'Inline'
-								? 'badge-accent marginalia-inline'
-								: 'badge-outline marginalia-other';
-		const iconName =
-			classification.entryPoint !== 'marginalia'
-				? ('pageFurniture' as const)
-				: category === 'Marginal'
-					? ('marginal' as const)
-					: category === 'Interlinear'
-						? ('interlinear' as const)
-						: category === 'Column'
-							? ('column' as const)
-							: category === 'Inline'
-								? ('inline' as const)
-								: ('pageFurniture' as const);
-		return [
-			'span',
-			{
-				...HTMLAttributes,
-				class: `fw-node marginalia-node ${inlineBadgeClass('', categoryClass)}`,
-				'data-entry-point': classification.entryPoint,
-				'data-category': String(category),
-				'data-placement': placement,
-				'data-type': node.attrs.type || '',
-				'data-subtype': node.attrs.subtype || '',
-				'data-place': node.attrs.place || '',
-				'data-hand': node.attrs.hand || '',
-				'data-n': node.attrs.n || '',
-				'data-rend': node.attrs.rend || '',
-				'data-seg-type': node.attrs.segType || '',
-				'data-seg-subtype': node.attrs.segSubtype || '',
-				'data-seg-place': node.attrs.segPlace || '',
-				'data-seg-hand': node.attrs.segHand || '',
-				'data-seg-rend': node.attrs.segRend || '',
-				'data-seg-n': node.attrs.segN || '',
-				title: label,
-			},
-			[
-				'span',
-				{ class: 'tei-inline-badge-icon', contenteditable: 'false' },
-				badgeIconSpec(iconName),
-			],
-			['span', { class: 'fw-content' }, 0],
-		];
+		return renderFormWorkNode(node, HTMLAttributes);
+	},
+	addNodeView() {
+		return createIncrementalNodeView(renderFormWorkNode);
 	},
 	addAttributes() {
 		return {
@@ -1818,6 +2004,63 @@ const FormWorkNode = Node.create({
 	},
 });
 
+function renderBreakNode(
+	node: ProseMirrorNode,
+	HTMLAttributes: Record<string, any>,
+	options: {
+		className: string;
+		colorClass: string;
+		label: string;
+		icon: 'lineBreak' | 'columnBreak' | 'pageBreak';
+	}
+): DOMOutputSpec {
+	const teiAttrs = node.attrs.teiAttrs || {};
+	const title =
+		teiAttrs.break === 'no'
+			? `${options.label} break (word continues)`
+			: `${options.label} break`;
+	return [
+		'span',
+		{
+			...HTMLAttributes,
+			class: `${options.className} badge badge-outline badge-xs mx-1 ${options.colorClass} font-bold inline-flex items-center gap-1`,
+			'data-tei-attrs': JSON.stringify(teiAttrs),
+			contenteditable: 'false',
+			title,
+		},
+		badgeIconSpec(options.icon, 12),
+		[
+			'span',
+			{ class: 'tei-inline-badge-label' },
+			teiAttrs.n
+				? `${options.label.toLowerCase()[0]}b ${teiAttrs.n}`
+				: `${options.label.toLowerCase()[0]}b`,
+		],
+	];
+}
+
+const renderLineBreakNode: NodeRenderer = (node, HTMLAttributes) =>
+	renderBreakNode(node, HTMLAttributes, {
+		className: 'line-break-marker',
+		colorClass: 'text-secondary',
+		label: 'Line',
+		icon: 'lineBreak',
+	});
+const renderColumnBreakNode: NodeRenderer = (node, HTMLAttributes) =>
+	renderBreakNode(node, HTMLAttributes, {
+		className: 'column-break-marker',
+		colorClass: 'text-accent',
+		label: 'Column',
+		icon: 'columnBreak',
+	});
+const renderPageBreakNode: NodeRenderer = (node, HTMLAttributes) =>
+	renderBreakNode(node, HTMLAttributes, {
+		className: 'page-break-marker',
+		colorClass: 'text-info',
+		label: 'Page',
+		icon: 'pageBreak',
+	});
+
 // Line break node for use in correction mini-editor
 const LineBreakInline = Node.create({
 	name: 'lineBreak',
@@ -1829,22 +2072,10 @@ const LineBreakInline = Node.create({
 		return [{ tag: 'span.line-break-marker' }];
 	},
 	renderHTML({ node, HTMLAttributes }) {
-		const teiAttrs = node.attrs.teiAttrs || {};
-		const breakAttr = teiAttrs.break;
-		const label = teiAttrs.n ? `lb ${teiAttrs.n}` : 'lb';
-		const title = breakAttr === 'no' ? 'Line break (word continues)' : 'Line break';
-		return [
-			'span',
-			{
-				...HTMLAttributes,
-				class: 'line-break-marker badge badge-outline badge-xs mx-1 text-secondary font-bold inline-flex items-center gap-1',
-				'data-tei-attrs': JSON.stringify(teiAttrs),
-				contenteditable: 'false',
-				title,
-			},
-			badgeIconSpec('lineBreak', 12),
-			['span', { class: 'tei-inline-badge-label' }, label],
-		];
+		return renderLineBreakNode(node, HTMLAttributes);
+	},
+	addNodeView() {
+		return createIncrementalNodeView(renderLineBreakNode);
 	},
 	addAttributes() {
 		return {
@@ -1869,22 +2100,10 @@ const ColumnBreakInline = Node.create({
 		return [{ tag: 'span.column-break-marker' }];
 	},
 	renderHTML({ node, HTMLAttributes }) {
-		const teiAttrs = node.attrs.teiAttrs || {};
-		const breakAttr = teiAttrs.break;
-		const label = teiAttrs.n ? `cb ${teiAttrs.n}` : 'cb';
-		const title = breakAttr === 'no' ? 'Column break (word continues)' : 'Column break';
-		return [
-			'span',
-			{
-				...HTMLAttributes,
-				class: 'column-break-marker badge badge-outline badge-xs mx-1 text-accent font-bold inline-flex items-center gap-1',
-				'data-tei-attrs': JSON.stringify(teiAttrs),
-				contenteditable: 'false',
-				title,
-			},
-			badgeIconSpec('columnBreak', 12),
-			['span', { class: 'tei-inline-badge-label' }, label],
-		];
+		return renderColumnBreakNode(node, HTMLAttributes);
+	},
+	addNodeView() {
+		return createIncrementalNodeView(renderColumnBreakNode);
 	},
 	addAttributes() {
 		return {
@@ -1909,22 +2128,10 @@ const PageBreakInline = Node.create({
 		return [{ tag: 'span.page-break-marker' }];
 	},
 	renderHTML({ node, HTMLAttributes }) {
-		const teiAttrs = node.attrs.teiAttrs || {};
-		const breakAttr = teiAttrs.break;
-		const label = teiAttrs.n ? `pb ${teiAttrs.n}` : 'pb';
-		const title = breakAttr === 'no' ? 'Page break (word continues)' : 'Page break';
-		return [
-			'span',
-			{
-				...HTMLAttributes,
-				class: 'page-break-marker badge badge-outline badge-xs mx-1 text-info font-bold inline-flex items-center gap-1',
-				'data-tei-attrs': JSON.stringify(teiAttrs),
-				contenteditable: 'false',
-				title,
-			},
-			badgeIconSpec('pageBreak', 12),
-			['span', { class: 'tei-inline-badge-label' }, label],
-		];
+		return renderPageBreakNode(node, HTMLAttributes);
+	},
+	addNodeView() {
+		return createIncrementalNodeView(renderPageBreakNode);
 	},
 	addAttributes() {
 		return {

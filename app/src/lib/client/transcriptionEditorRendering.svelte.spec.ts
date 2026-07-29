@@ -10,6 +10,7 @@
  * See `.tracker/refactor-transcription-editor/INVENTORY.md`.
  */
 import { Editor, generateHTML } from '@tiptap/core';
+import { NodeSelection } from '@tiptap/pm/state';
 import { beforeAll, describe, expect, it } from 'vitest';
 
 import { editorDocument } from './testing/editorFixtures';
@@ -29,7 +30,328 @@ function markedText(text: string, markType: string, attrs: Json): Json {
 	return { type: 'text', text, marks: [{ type: markType, attrs }] };
 }
 
+const incrementalCarrierCases = [
+	{
+		type: 'correctionNode',
+		selector: '.tei-inline-badge-shell',
+		attrs: { corrections: [{ hand: 'm1', content: [{ type: 'text', text: 'alpha' }] }] },
+		nextAttrs: { corrections: [{ hand: 'm2', content: [{ type: 'text', text: 'beta' }] }] },
+	},
+	{
+		type: 'editorialAction',
+		selector: '.editorial-action-node',
+		attrs: { summary: 'transpose', structure: { kind: 'transpose', targets: ['#a'] } },
+		nextAttrs: { summary: 'transpose #b', structure: { kind: 'transpose', targets: ['#b'] } },
+	},
+	{
+		type: 'metamark',
+		selector: '.metamark-node',
+		attrs: { summary: 'metamark:addition', teiAttrs: { function: 'addition' } },
+		nextAttrs: { summary: 'metamark:deletion', teiAttrs: { function: 'deletion' } },
+	},
+	{
+		type: 'teiAtom',
+		selector: '.tei-atom-node',
+		attrs: {
+			tag: 'note',
+			summary: 'note:local:alpha',
+			text: 'alpha',
+			teiAttrs: { type: 'local' },
+		},
+		nextAttrs: {
+			tag: 'note',
+			summary: 'note:editorial:beta',
+			text: 'beta',
+			teiAttrs: { type: 'editorial' },
+		},
+	},
+	{
+		type: 'teiWrapper',
+		selector: '.tei-wrapper-node',
+		attrs: { tag: 'foreign', summary: 'alpha', teiAttrs: { 'xml:lang': 'la' } },
+		nextAttrs: { tag: 'foreign', summary: 'beta', teiAttrs: { 'xml:lang': 'grc' } },
+	},
+	{
+		type: 'handShift',
+		selector: '.tei-inline-badge-shell',
+		attrs: { teiAttrs: { new: '#m1', medium: 'ink' } },
+		nextAttrs: { teiAttrs: { new: '#m2', medium: 'pencil' } },
+	},
+	{
+		type: 'teiMilestone',
+		selector: '.tei-milestone-node',
+		attrs: { teiAttrs: { unit: 'section', n: 'A' } },
+		nextAttrs: { teiAttrs: { unit: 'section', n: 'B' } },
+	},
+	{
+		type: 'gap',
+		selector: '.gap-milestone',
+		attrs: { reason: 'lost', unit: 'chars', extent: '2' },
+		nextAttrs: { reason: 'illegible', unit: 'words', extent: '3' },
+	},
+	{
+		type: 'space',
+		selector: '.space-milestone',
+		attrs: { teiAttrs: { unit: 'chars', extent: '1' } },
+		nextAttrs: { teiAttrs: { unit: 'words', extent: '2' } },
+	},
+	{
+		type: 'untranscribed',
+		selector: '.untranscribed-milestone',
+		attrs: { reason: 'damage', extent: 'partial' },
+		nextAttrs: { reason: 'illegible', extent: 'full' },
+	},
+	...(['lineBreak', 'columnBreak', 'pageBreak'] as const).map(type => ({
+		type,
+		selector: `.${type.replace('Break', '-break')}-marker`,
+		attrs: { teiAttrs: { n: '1', break: 'no' } },
+		nextAttrs: { teiAttrs: { n: '2', ed: 'NA28' } },
+	})),
+	{
+		type: 'fw',
+		selector: '.fw-node',
+		attrs: {
+			type: 'header',
+			entryPoint: 'page',
+			category: 'Page Header',
+			placementConcept: 'unknown',
+		},
+		nextAttrs: {
+			type: 'runningTitle',
+			entryPoint: 'page',
+			category: 'Running Title',
+			placementConcept: 'unknown',
+		},
+		content: [{ type: 'text', text: 'Alpha' }],
+	},
+] as const;
+
+function createCarrierEditor(carrier: (typeof incrementalCarrierCases)[number]) {
+	if (['lineBreak', 'columnBreak', 'pageBreak'].includes(carrier.type)) {
+		return new Editor({
+			extensions: getCorrectionRenderExtensions() as any,
+			content: {
+				type: 'correctionDoc',
+				content: [{ type: carrier.type, attrs: carrier.attrs }],
+			},
+		});
+	}
+	return createTestEditor({
+		content: editorDocument({
+			interestingLineContent: [
+				{
+					type: carrier.type,
+					attrs: carrier.attrs,
+					content: 'content' in carrier ? carrier.content : undefined,
+				},
+			],
+		}),
+	});
+}
+
+function renderingSignature(root: HTMLElement) {
+	return [root, ...Array.from(root.querySelectorAll<HTMLElement>('*'))].map(element => ({
+		tag: element.tagName.toLowerCase(),
+		attributes: Array.from(element.attributes)
+			.filter(attribute => attribute.name !== 'contenteditable')
+			.map(attribute => [attribute.name.toLowerCase(), attribute.value])
+			.sort(([left], [right]) => left.localeCompare(right)),
+		text: element.childElementCount === 0 ? element.textContent : null,
+	}));
+}
+
 describe('renderHTML round trip', () => {
+	it('updates an inspector-edited carrier badge without replacing its DOM', () => {
+		const editor = createTestEditor({
+			content: editorDocument({
+				interestingLineContent: [
+					{ type: 'gap', attrs: { reason: 'lost', unit: 'chars', extent: '2' } },
+				],
+			}),
+		});
+		try {
+			const badge = editor.view.dom.querySelector<HTMLElement>('.gap-milestone')!;
+			let gapPos = -1;
+			editor.state.doc.descendants((node: any, pos: number) => {
+				if (node.type.name === 'gap') gapPos = pos;
+			});
+
+			editor.view.dispatch(
+				editor.state.tr.setNodeMarkup(gapPos, undefined, {
+					reason: 'illegible',
+					unit: 'words',
+					extent: '3',
+				})
+			);
+
+			expect(editor.view.dom.querySelector('.gap-milestone')).toBe(badge);
+			expect(badge.dataset.reason).toBe('illegible');
+			expect(badge.title).toBe('illegible (words, 3)');
+		} finally {
+			editor.destroy();
+		}
+	});
+
+	it('keeps every inspector-edited carrier DOM aligned with renderHTML while updating in place', () => {
+		for (const carrier of incrementalCarrierCases) {
+			const editor = createCarrierEditor(carrier);
+			try {
+				let position = -1;
+				editor.state.doc.descendants((node: any, pos: number) => {
+					if (node.type.name === carrier.type && position === -1) position = pos;
+				});
+				const nodeDom = editor.view.nodeDOM(position) as HTMLElement;
+
+				editor.view.dispatch(
+					editor.state.tr.setNodeMarkup(position, undefined, {
+						...editor.state.doc.nodeAt(position)!.attrs,
+						...carrier.nextAttrs,
+					})
+				);
+
+				expect(editor.view.nodeDOM(position), carrier.type).toBe(nodeDom);
+				const serialized = new DOMParser()
+					.parseFromString(editor.getHTML(), 'text/html')
+					.querySelector<HTMLElement>(carrier.selector)!;
+				expect(renderingSignature(nodeDom), carrier.type).toEqual(
+					renderingSignature(serialized)
+				);
+			} finally {
+				editor.destroy();
+			}
+		}
+	});
+
+	it('round-trips every incremental carrier through renderHTML and parseHTML', () => {
+		for (const carrier of incrementalCarrierCases) {
+			const editor = createCarrierEditor(carrier);
+			const html = editor.getHTML();
+			const parsedEditor = ['lineBreak', 'columnBreak', 'pageBreak'].includes(carrier.type)
+				? new Editor({ extensions: getCorrectionRenderExtensions() as any, content: html })
+				: createTestEditor({ content: html as any });
+			try {
+				let original: Json | null = null;
+				let parsed: Json | null = null;
+				editor.state.doc.descendants(node => {
+					if (node.type.name === carrier.type && original === null)
+						original = node.toJSON();
+				});
+				parsedEditor.state.doc.descendants(node => {
+					if (node.type.name === carrier.type && parsed === null) parsed = node.toJSON();
+				});
+				expect(parsed, carrier.type).toEqual(original);
+			} finally {
+				parsedEditor.destroy();
+				editor.destroy();
+			}
+		}
+	});
+
+	it('copies a NodeView carrier through its renderHTML clipboard form', () => {
+		const carrier = incrementalCarrierCases.find(candidate => candidate.type === 'gap')!;
+		const editor = createCarrierEditor(carrier);
+		try {
+			let position = -1;
+			editor.state.doc.descendants((node, pos) => {
+				if (node.type.name === 'gap') position = pos;
+			});
+			editor.view.dispatch(
+				editor.state.tr.setSelection(NodeSelection.create(editor.state.doc, position))
+			);
+			const clipboardData = new DataTransfer();
+			const event = new ClipboardEvent('copy', {
+				bubbles: true,
+				cancelable: true,
+				clipboardData,
+			});
+
+			editor.view.dom.dispatchEvent(event);
+
+			expect(event.defaultPrevented).toBe(true);
+			expect(clipboardData.getData('text/html')).toContain(
+				'<span data-reason="lost" data-unit="chars" data-extent="2"'
+			);
+			expect(clipboardData.getData('text/html')).toContain('class="gap-milestone');
+		} finally {
+			editor.destroy();
+		}
+	});
+
+	it('does not dispatch a selection write while incrementally updating a carrier', () => {
+		const carrier = incrementalCarrierCases.find(candidate => candidate.type === 'gap')!;
+		const editor = createCarrierEditor(carrier);
+		try {
+			let position = -1;
+			editor.state.doc.descendants((node, pos) => {
+				if (node.type.name === 'gap') position = pos;
+			});
+			editor.view.dispatch(
+				editor.state.tr.setSelection(NodeSelection.create(editor.state.doc, position))
+			);
+			let transactions = 0;
+			editor.on('transaction', () => {
+				transactions += 1;
+			});
+			const transaction = editor.state.tr.setNodeMarkup(
+				position,
+				undefined,
+				carrier.nextAttrs
+			);
+			const expectedSelection = transaction.selection.toJSON();
+
+			editor.view.dispatch(transaction);
+
+			expect(transactions).toBe(1);
+			expect(editor.state.selection.toJSON()).toEqual(expectedSelection);
+		} finally {
+			editor.destroy();
+		}
+	});
+
+	it('lets ProseMirror rebuild a NodeView for a different type or rendered shape', () => {
+		const carrier = incrementalCarrierCases.find(candidate => candidate.type === 'gap')!;
+		const typeEditor = createCarrierEditor(carrier);
+		try {
+			let position = -1;
+			typeEditor.state.doc.descendants((node, pos) => {
+				if (node.type.name === 'gap') position = pos;
+			});
+			const gapDom = typeEditor.view.nodeDOM(position);
+			typeEditor.view.dispatch(
+				typeEditor.state.tr.setNodeMarkup(position, typeEditor.schema.nodes.space, {
+					teiAttrs: { extent: '1' },
+				})
+			);
+			expect(typeEditor.view.nodeDOM(position)).not.toBe(gapDom);
+			expect(typeEditor.view.nodeDOM(position)).toHaveClass('space-milestone');
+		} finally {
+			typeEditor.destroy();
+		}
+
+		const shapeCarrier = incrementalCarrierCases.find(
+			candidate => candidate.type === 'teiAtom'
+		)!;
+		const shapeEditor = createCarrierEditor(shapeCarrier);
+		try {
+			let position = -1;
+			shapeEditor.state.doc.descendants((node, pos) => {
+				if (node.type.name === 'teiAtom') position = pos;
+			});
+			const noteDom = shapeEditor.view.nodeDOM(position);
+			shapeEditor.view.dispatch(
+				shapeEditor.state.tr.setNodeMarkup(position, undefined, {
+					tag: 'gb',
+					summary: 'gb:1',
+					teiAttrs: { n: '1' },
+				})
+			);
+			expect(shapeEditor.view.nodeDOM(position)).not.toBe(noteDom);
+			expect(shapeEditor.view.nodeDOM(position)).toHaveAttribute('data-tag', 'gb');
+		} finally {
+			shapeEditor.destroy();
+		}
+	});
+
 	it('keeps page, column, and line chrome outside their content DOM structure', () => {
 		const editor = createTestEditor({
 			content: editorDocument({
@@ -110,7 +432,9 @@ describe('renderHTML round trip', () => {
 				const parsedEditor = createTestEditor({ content: html as any });
 				let stored: unknown = null;
 				parsedEditor.state.doc.descendants((node: any) => {
-					const mark = node.marks.find((candidate: any) => candidate.type.name === markType);
+					const mark = node.marks.find(
+						(candidate: any) => candidate.type.name === markType
+					);
 					if (mark) stored = mark.attrs.teiAttrs;
 				});
 				expect(stored).toEqual({ reason: 'lost', cert: 'low' });
@@ -134,7 +458,9 @@ describe('renderHTML round trip', () => {
 			},
 			{
 				type: 'correctionDoc',
-				content: [markedText('alpha', 'abbreviation', { type: 'nomSac', expansion: 'alpha' })],
+				content: [
+					markedText('alpha', 'abbreviation', { type: 'nomSac', expansion: 'alpha' }),
+				],
 			},
 		];
 
