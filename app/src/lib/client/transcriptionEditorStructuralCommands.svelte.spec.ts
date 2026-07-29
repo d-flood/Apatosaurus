@@ -29,6 +29,7 @@ import {
 	findLineStartPositionById,
 	repairManuscriptStructureJson,
 } from './transcriptionEditorStructure';
+import { findFirstDescendantPosition } from './proseMirrorNodeLookup';
 
 type Json = EditorJson;
 
@@ -314,7 +315,7 @@ describe('structural transactions against a multi-line, multi-column, multi-page
 			}
 		});
 
-		it('DEFECT F5: returns the LAST match when ids are duplicated, and never stops early', () => {
+		it('F5: returns the first match when ids are duplicated and stops the walk there', () => {
 			const editor = createTestEditor({
 				type: 'manuscript',
 				content: [
@@ -342,8 +343,16 @@ describe('structural transactions against a multi-line, multi-column, multi-page
 					return false;
 				});
 				expect(positions).toHaveLength(2);
-				// A search that stopped at the first hit would return positions[0].
-				expect(findLineStartPositionById(doc, 'shared')).toBe(positions[1]);
+				expect(findLineStartPositionById(doc, 'shared')).toBe(positions[0]);
+
+				const visited: string[] = [];
+				expect(
+					findFirstDescendantPosition(doc, node => {
+						visited.push(node.type.name);
+						return node.type.name === 'line' && node.attrs.lineId === 'shared';
+					})
+				).toBe(positions[0] - 1);
+				expect(visited).toEqual(['page', 'column', 'line']);
 			} finally {
 				editor.destroy();
 			}

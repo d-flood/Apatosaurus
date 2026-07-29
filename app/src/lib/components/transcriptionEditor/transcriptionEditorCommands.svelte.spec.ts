@@ -383,26 +383,29 @@ describe('TranscriptionEditor page metadata commands (mounted, multi-page fixtur
 		}
 	});
 
-	it('DEFECT F10: updatePageFormWork inserts the fw node into the page’s LAST line, not its first', async () => {
+	it.each([
+		['Visible page number', 'fol. 2r'],
+		['Running title', 'Gospel of John'],
+		['Catchword', 'logos'],
+		['Quire signature', 'A iii'],
+	])('F10: updatePageFormWork inserts %s into the page’s first line', async (placeholder, value) => {
 		const harness = await mountEditor();
 		try {
 			const details = await openMetadataDialog(harness);
-			const labelInputs = Array.from(
+			const inputs = Array.from(
 				details.querySelectorAll<HTMLInputElement>(
-					'input[placeholder^="Visible page number"]'
+					`input[placeholder^="${placeholder}"]`
 				)
 			);
-			expect(labelInputs).toHaveLength(3);
-			setInput(labelInputs[2], 'fol. 2r');
+			expect(inputs).toHaveLength(3);
+			setInput(inputs[2], value);
 			await tick();
 
 			const thirdPage = harness.container.querySelectorAll('.ProseMirror .page')[2];
-			expect((thirdPage as HTMLElement).dataset.pageLabel).toBe('fol. 2r');
 			expect(thirdPage.querySelectorAll('.fw-node')).toHaveLength(1);
-			// `findFirstLineInsertPos` overwrites its result on every subsequent line
-			// because returning `false` from a `descendants` callback only stops the
-			// descent, not the walk. Wanted: ['d1fol. 2r', 'd2', 'd3', 'd4'].
-			expect(domShape(harness.container)[2][0]).toEqual(['d1', 'd2', 'd3', 'fol. 2rd4']);
+			const lines = Array.from(thirdPage.querySelectorAll('.line'));
+			expect(lines[0].querySelector('.fw-node')?.textContent).toBe(value);
+			expect(lines.slice(1).every(line => line.querySelector('.fw-node') === null)).toBe(true);
 		} finally {
 			harness.dispose();
 		}

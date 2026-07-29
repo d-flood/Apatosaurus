@@ -57,7 +57,7 @@ Success is not "every ticket cleared". Some findings should end in a documented 
 | 10 | `10-delete-the-uncalled-editor-code.md` | Completed | None |
 | 11 | `11-explain-or-remove-the-unexplained-workarounds.md` | Completed | None |
 | 12 | `12-column-split-preserves-attributes-and-caret.md` | Not Started | None |
-| 13 | `13-node-lookups-stop-at-the-first-match.md` | Not Started | 02 |
+| 13 | `13-node-lookups-stop-at-the-first-match.md` | Completed | 02 |
 | 14 | `14-renderhtml-becomes-pure-and-inline-valid.md` | Not Started | None |
 | 15 | `15-two-identifier-mismatches.md` | Not Started | None |
 | 16 | `16-page-and-column-keep-wrapped.md` | Not Started | None |
@@ -97,6 +97,8 @@ pnpm vitest run --project client src/lib/client/transcriptionEditorStructure.sve
 ```
 
 ## Notes
+
+- **2026-07-28** — **Ticket `13` complete.** Both line lookups now use one pre-order helper that truly stops at the first matching descendant. Duplicate line ids resolve to the first line, and page labels, running titles, catchwords and quire signatures insert into line 1. The five ticket-specific assertions pass. The acceptance files and baseline were also run, but concurrent tickets `12` and `19` had already inverted their assertions before their production changes landed, leaving unrelated failures; `check` likewise reports one concurrent test type error.
 - **2026-07-28** — **Ticket `11` complete; both unexplained workarounds were removed.** F31 characterization showed that the six `handleDOMEvents` suppressions did not enable click-drag selection, cross-line selection, the bubble menu, or internal text moves, all of which worked with them present; they instead blocked a real external text drop, which succeeds after removal. F9 characterization showed that ProseMirror natively inserts the first character into both a sole empty line and a middle empty line, leaves the caret at offset 1, and produces no appended transaction, identically after removing `EmptyLineTextInputStabilizer`. `check` reports 0 errors; the focused suites pass 58 and 67 tests, and the full baseline passes **102 files / 681 tests**.
 
 - **2026-07-28** — **Ticket `10` complete.** Removed the five uncalled/no-op paths, narrowed four internal-only exports, made unknown editor profiles fail at the extension boundary, and gave the correction-rendering and persisted marginalia top nodes distinct names without migrating stored `doc` content. The ticket removes 114 net lines. `check` reports 0 errors; all focused tests pass, and the full baseline passes **102 files / 681 tests**.

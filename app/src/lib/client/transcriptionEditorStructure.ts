@@ -1,5 +1,7 @@
 import { TextSelection, type EditorState, type Transaction } from '@tiptap/pm/state';
 
+import { findFirstDescendantPosition } from './proseMirrorNodeLookup';
+
 const MAIN_LINE_CONTENT_NODE_NAMES = new Set([
 	'text',
 	'book',
@@ -713,19 +715,9 @@ export function findLineStartPositionById(
 ): number | null {
 	if (!lineId) return null;
 
-	let position: number | null = null;
-	doc.descendants((node: any, pos: number) => {
-		if (node.type.name !== 'line') {
-			return true;
-		}
-
-		if (node.attrs?.lineId === lineId) {
-			position = pos + 1;
-			return false;
-		}
-
-		return false;
-	});
-
-	return position;
+	const position = findFirstDescendantPosition(
+		doc,
+		node => node.type.name === 'line' && node.attrs?.lineId === lineId
+	);
+	return position === null ? null : position + 1;
 }

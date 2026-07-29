@@ -1,5 +1,7 @@
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
 
+import { findFirstDescendantPosition } from '$lib/client/proseMirrorNodeLookup';
+
 import { classifyFormWork } from './formworkConcepts';
 import { buildPlainTextFormWorkContent, formWorkContentToPlainText } from './formworkContent';
 
@@ -168,17 +170,11 @@ export function createDefaultFormWorkAttrs(
 }
 
 export function findFirstLineInsertPos(pageNode: ProseMirrorNode, pagePos: number): number | null {
-	let linePos: number | null = null;
-
-	pageNode.descendants((node, relativePos) => {
-		if (node.type.name === 'line') {
-			linePos = pagePos + 1 + relativePos;
-			return false;
-		}
-		return true;
-	});
-
-	return linePos === null ? null : linePos + 1;
+	const relativePos = findFirstDescendantPosition(
+		pageNode,
+		node => node.type.name === 'line'
+	);
+	return relativePos === null ? null : pagePos + relativePos + 2;
 }
 
 function extractPageMetadataFromJson(pageNode: Record<string, any>): PageEditorMetadata {
