@@ -30,6 +30,50 @@ function markedText(text: string, markType: string, attrs: Json): Json {
 }
 
 describe('renderHTML round trip', () => {
+	it('keeps page, column, and line chrome outside their content DOM structure', () => {
+		const editor = createTestEditor({
+			content: editorDocument({
+				pages: [
+					{
+						type: 'page',
+						attrs: { pageId: 'page-1', pageName: '1r' },
+						content: [
+							{
+								type: 'column',
+								attrs: { columnId: 'column-1', zone: 'left' },
+								content: [
+									{
+										type: 'line',
+										attrs: { lineId: 'line-1', wrapped: true },
+										content: [{ type: 'text', text: 'Alpha' }],
+									},
+								],
+							},
+						],
+					},
+				],
+			}),
+		});
+		try {
+			const page = editor.view.dom.querySelector<HTMLElement>('.page')!;
+			const column = page.querySelector<HTMLElement>('.column')!;
+			const line = column.querySelector<HTMLElement>('.line')!;
+
+			expect(page.querySelector(':scope > [contenteditable="false"]')).toBeNull();
+			expect(column.querySelector(':scope > [contenteditable="false"]')).toBeNull();
+			expect(line.querySelector(':scope > [contenteditable="false"]')).toBeNull();
+			expect(page.children).toHaveLength(1);
+			expect(column.children).toHaveLength(1);
+			expect(line.children).toHaveLength(1);
+			expect(line.firstElementChild).toHaveClass('line-content');
+			expect(page.dataset.pageName).toBe('1r');
+			expect(column.dataset.columnLabel).toBe('Left Commentary');
+			expect(line.dataset.wrapped).toBe('true');
+		} finally {
+			editor.destroy();
+		}
+	});
+
 	it('keeps teiAttrs on marks that read them from the mark, not from HTMLAttributes', () => {
 		const editor = createTestEditor({
 			content: editorDocument({

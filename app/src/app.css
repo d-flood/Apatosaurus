@@ -136,13 +136,54 @@
 	counter-increment: transcription-line;
 }
 
-.column:not([data-zone]) > .column-number:empty::before,
+.column:not([data-zone])::before,
 .marginalia-column > .column-number:empty::before {
 	content: 'Column ' counter(transcription-column);
 }
 
-.line-number::before {
+.column[data-zone]::before {
+	content: attr(data-column-label);
+}
+
+.page::before {
+	content: attr(data-page-label);
+}
+
+.line::before {
 	content: counter(transcription-line);
+}
+
+.page::before,
+.column::before {
+	@apply mb-3 block select-none font-bold text-base-content;
+}
+
+.column::before {
+	@apply mb-1 text-sm;
+}
+
+.line::before {
+	position: absolute;
+	left: 0.5rem;
+	width: 2rem;
+	min-height: 1.5rem;
+	text-align: right;
+	pointer-events: none;
+	@apply select-none font-mono text-sm text-primary/60;
+}
+
+.line::after {
+	display: none;
+	content: '↪';
+	position: absolute;
+	left: 2.75rem;
+	pointer-events: none;
+	@apply select-none text-sm font-semibold text-secondary;
+}
+
+.line-content {
+	margin-left: 1rem;
+	padding-left: 1rem;
 }
 
 .show-correction .correction {
@@ -227,16 +268,12 @@
 	@apply inline-flex select-none text-warning-content bg-warning text-sm font-normal;
 }
 
-.wrapped-arrow {
-	@apply hidden text-sm;
+.show-wrappedArrow .line[data-wrapped='true']::after {
+	display: block;
 }
 
-.wrapped-arrow {
-	@apply hidden text-sm;
-}
-
-.show-wrappedArrow .wrapped-arrow.is-wrapped {
-	@apply inline-block;
+.show-wrappedArrow .line[data-wrapped='true'] > .line-content {
+	padding-left: 2.5rem;
 }
 
 /* Styles for correction editor display */

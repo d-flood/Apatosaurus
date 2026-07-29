@@ -11,7 +11,9 @@ import { beforeAll, describe, expect, it } from 'vitest';
 
 import {
 	transcriptionDocument,
+	transcriptionColumn,
 	transcriptionFramedPage,
+	transcriptionLine,
 	transcriptionPlainPage,
 } from '$lib/client/testing/editorFixtures';
 import {
@@ -19,6 +21,7 @@ import {
 	nextAnimationFrame,
 	type TranscriptionEditorHarness as Harness,
 } from '$lib/client/testing/editorHarnesses.svelte';
+import { createDefaultFormWorkAttrs } from './pageFormwork';
 
 // The measurements below are only meaningful with the app's real utility CSS
 // applied; without it `.page`, `.column` and `.line` have no padding, and the
@@ -204,19 +207,80 @@ describe('presentational numbering', () => {
 			const page = harness.container.querySelector<HTMLElement>('.page')!;
 			const columns = page.querySelectorAll<HTMLElement>('.column');
 			const lines = columns[1].querySelectorAll<HTMLElement>('.line');
-			const columnLabel = columns[1].querySelector<HTMLElement>('.column-number')!;
-			const lineLabel = lines[2].querySelector<HTMLElement>('.line-number')!;
 
 			expect(getComputedStyle(page).counterReset).toContain('transcription-column');
 			expect(getComputedStyle(columns[1]).counterIncrement).toContain('transcription-column');
 			expect(getComputedStyle(columns[1]).counterReset).toContain('transcription-line');
 			expect(getComputedStyle(lines[2]).counterIncrement).toContain('transcription-line');
-			expect(getComputedStyle(columnLabel, '::before').content).toContain(
+			expect(getComputedStyle(columns[1], '::before').content).toContain(
 				'counter(transcription-column)'
 			);
-			expect(getComputedStyle(lineLabel, '::before').content).toContain(
+			expect(getComputedStyle(lines[2], '::before').content).toContain(
 				'counter(transcription-line)'
 			);
+		} finally {
+			harness.dispose();
+		}
+	});
+
+	it('fills a short line with editable content and renders all editorial chrome', async () => {
+		const formWork = (
+			kind: 'pageLabel' | 'runningTitle' | 'catchword' | 'quireSignature',
+			text: string
+		) => {
+			const { content, ...attrs } = createDefaultFormWorkAttrs(kind, text);
+			return { type: 'fw', attrs, content };
+		};
+		const harness = await mountTranscriptionEditor({
+			document: transcriptionDocument({
+				pages: [
+					transcriptionPlainPage({
+						id: 'folio 1r',
+						columns: [
+							transcriptionColumn({
+								lines: [
+									transcriptionLine({
+										items: [
+											{ type: 'text', text: 'Alpha ' },
+											formWork('pageLabel', 'Label I'),
+											formWork('runningTitle', 'Romans'),
+											formWork('catchword', 'logos'),
+											formWork('quireSignature', 'XII'),
+										],
+										attrs: { wrapped: true },
+									}),
+								],
+							}),
+						],
+					}),
+				],
+			}),
+			id: 'editorial-chrome',
+		});
+		await nextAnimationFrame();
+		try {
+			const page = harness.container.querySelector<HTMLElement>('.page')!;
+			const column = page.querySelector<HTMLElement>('.column')!;
+			const line = column.querySelector<HTMLElement>('.line')!;
+			const content = line.querySelector<HTMLElement>('.line-content')!;
+			const lineWidth = line.getBoundingClientRect().width;
+			const deadZoneRatio = (lineWidth - content.getBoundingClientRect().width) / lineWidth;
+
+			expect(deadZoneRatio).toBeLessThan(0.05);
+			expect(getComputedStyle(page, '::before').content).toBe('"Page: folio 1r"');
+			expect(getComputedStyle(column, '::before').content).toContain(
+				'counter(transcription-column)'
+			);
+			expect(getComputedStyle(line, '::before').content).toContain(
+				'counter(transcription-line)'
+			);
+			expect(getComputedStyle(line, '::after').content).toContain('↪');
+			expect(Array.from(line.querySelectorAll('.fw-node')).map(node => node.textContent)).toEqual([
+				'Label I',
+				'Romans',
+				'logos',
+				'XII',
+			]);
 		} finally {
 			harness.dispose();
 		}

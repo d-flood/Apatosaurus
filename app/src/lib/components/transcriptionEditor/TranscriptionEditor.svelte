@@ -1534,6 +1534,8 @@
 
 	:global(.line-content) {
 		overflow: visible;
+		flex: 1 1 0%;
+		min-width: 0;
 	}
 
 	:global(.tei-inline-badge) {

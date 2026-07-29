@@ -957,21 +957,9 @@ const Page = Node.create({
 				...HTMLAttributes,
 				class: 'page drop-shadow-lg bg-base-200 rounded-lg p-4 mb-4',
 				'data-page-id': pageId || '',
+				'data-page-name': pageName || '',
+				'data-page-label': pageName ? `Page: ${pageName}` : 'Page',
 			},
-			[
-				'div',
-				{
-					class: 'mb-3 select-none',
-					contenteditable: 'false',
-				},
-				[
-					'div',
-					{
-						class: 'flex items-center justify-between gap-3 font-bold text-base-content',
-					},
-					['span', pageName ? `Page: ${pageName}` : 'Page'],
-				],
-			],
 			['div', { class: 'frame-grid flex gap-4' }, 0],
 		];
 	},
@@ -1046,15 +1034,8 @@ const Column = Node.create({
 			{
 				...HTMLAttributes,
 				class: `column ${borderClass}${zoneClass} rounded-lg p-3 bg-transparent flex-1`,
+				'data-column-label': label,
 			},
-			[
-				'div',
-				{
-					class: 'column-number text-sm font-bold text-base-content mb-1 select-none',
-					contenteditable: 'false',
-				},
-				label,
-			],
 			['div', {}, 0],
 		];
 	},
@@ -1135,7 +1116,6 @@ const Line = Node.create({
 		return [{ tag: 'p.line' }];
 	},
 	renderHTML({ node, HTMLAttributes }) {
-		const isWrapped = node.attrs.wrapped;
 		const isParagraphStart = node.attrs['paragraph-start'];
 
 		return [
@@ -1149,28 +1129,7 @@ const Line = Node.create({
 			[
 				'span',
 				{
-					class: 'line-number text-sm text-primary/60 font-mono min-w-8 select-none',
-					contenteditable: 'false',
-					style: 'display: inline-block; min-width: 2rem; min-height: 1.5rem; text-align: right',
-				},
-				'.',
-			],
-			[
-				'span',
-				{
-					class: `wrapped-arrow font-semibold text-secondary select-none pointer-events-none -mb-2 mr-1 ${
-						isWrapped ? 'is-wrapped' : ''
-					}`.trim(),
-					contenteditable: 'false',
-					title: 'Word continues from previous line/column/page (wrapped)',
-				},
-				'↪',
-			],
-			[
-				'span',
-				{
-					class: 'line-content inline-block min-h-6 whitespace-nowrap',
-					style: 'min-width: 1px',
+					class: 'line-content min-h-6 min-w-0 flex-1 whitespace-nowrap',
 				},
 				0,
 			],

@@ -66,6 +66,20 @@ function textPoint(element: HTMLElement, offset: number): { x: number; y: number
 	return { x, y };
 }
 
+function elementPoint(element: HTMLElement, xOffset: number, yOffset: number) {
+	const rect = element.getBoundingClientRect();
+	let x = rect.left + xOffset;
+	let y = rect.top + yOffset;
+	let currentWindow: Window = window;
+	while (currentWindow.frameElement) {
+		const frameRect = currentWindow.frameElement.getBoundingClientRect();
+		x += frameRect.left;
+		y += frameRect.top;
+		currentWindow = currentWindow.parent;
+	}
+	return { x, y };
+}
+
 async function clickElement(element: HTMLElement, horizontalRatio = 0.5) {
 	await userEvent.click(element, {
 		position: {
@@ -102,6 +116,27 @@ async function dragPointer(from: { x: number; y: number }, to: { x: number; y: n
 	});
 }
 
+async function clickPointer(at: { x: number; y: number }) {
+	const session = cdp() as {
+		send(method: string, params: Record<string, unknown>): Promise<unknown>;
+	};
+	await session.send('Input.dispatchMouseEvent', { type: 'mouseMoved', ...at });
+	await session.send('Input.dispatchMouseEvent', {
+		type: 'mousePressed',
+		button: 'left',
+		buttons: 1,
+		clickCount: 1,
+		...at,
+	});
+	await session.send('Input.dispatchMouseEvent', {
+		type: 'mouseReleased',
+		button: 'left',
+		buttons: 0,
+		clickCount: 1,
+		...at,
+	});
+}
+
 describe('native selection and drop behaviour', () => {
 	it('places the caret at the end of a line when its trailing area is clicked', async () => {
 		const harness = await mountTranscriptionEditor({
@@ -115,17 +150,24 @@ describe('native selection and drop behaviour', () => {
 			const content = contentOf(line);
 			const editor = editorFrom(harness.container);
 			const expectedPosition = editor.view.posAtDOM(content, content.childNodes.length);
+			const lineRect = line.getBoundingClientRect();
+			const clickCoordinates = {
+				left: lineRect.left + line.clientWidth * 0.9,
+				top: lineRect.top + line.clientHeight / 2,
+			};
+			const hitTestPosition = editor.view.posAtCoords(clickCoordinates)?.pos;
 
 			await clickElement(line, 0.9);
 			await tick();
 
 			expect(editor.state.selection.from).toBe(expectedPosition);
+			expect(editor.state.selection.from).toBe(hitTestPosition);
 		} finally {
 			harness.dispose();
 		}
 	});
 
-	it('places the caret in the line whose number gutter is clicked', async () => {
+	it('leaves the caret unchanged when the line-number gutter is clicked', async () => {
 		const harness = await mountTranscriptionEditor({
 			document: transcriptionDocument({
 				pages: [transcriptionPlainPage({ texts: [['alpha', 'beta']] })],
@@ -135,14 +177,14 @@ describe('native selection and drop behaviour', () => {
 		try {
 			const firstLine = lineElement(harness.container, 0, 0, 0);
 			const secondContent = contentOf(lineElement(harness.container, 0, 0, 1));
-			const gutter = firstLine.firstElementChild as HTMLElement;
 			const editor = editorFrom(harness.container);
-			editor.commands.setTextSelection(editor.view.posAtDOM(secondContent, 0));
+			const originalPosition = editor.view.posAtDOM(secondContent, 0);
+			editor.commands.setTextSelection(originalPosition);
 
-			await clickElement(gutter);
+			await clickPointer(elementPoint(firstLine, 8, firstLine.clientHeight / 2));
 			await tick();
 
-			expect(selectedLineIndex(editor)).toBe(1);
+			expect(editor.state.selection.from).toBe(originalPosition);
 		} finally {
 			harness.dispose();
 		}
