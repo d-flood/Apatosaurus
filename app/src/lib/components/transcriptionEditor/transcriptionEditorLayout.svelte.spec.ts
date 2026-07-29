@@ -261,6 +261,11 @@ describe('presentational numbering', () => {
 			expect(getComputedStyle(line, '::before').content).toContain(
 				'counter(transcription-line)'
 			);
+			const lineNumberStyle = getComputedStyle(line, '::before');
+			expect(lineNumberStyle.textAlign).toBe('left');
+			expect(Number.parseFloat(lineNumberStyle.top)).toBeCloseTo(line.clientHeight / 2, 0);
+			expect(lineNumberStyle.alignItems).toBe('center');
+			expect(lineNumberStyle.transform).not.toBe('none');
 			expect(getComputedStyle(line, '::after').content).toContain('↪');
 			expect(
 				Array.from(line.querySelectorAll('.fw-node')).map(node => node.textContent)

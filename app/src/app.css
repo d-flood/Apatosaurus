@@ -164,10 +164,14 @@
 
 .line::before {
 	position: absolute;
+	top: 50%;
 	left: 0.5rem;
+	display: flex;
+	align-items: center;
 	width: 2rem;
 	min-height: 1.5rem;
-	text-align: right;
+	text-align: left;
+	transform: translateY(-50%);
 	pointer-events: none;
 	@apply select-none font-mono text-sm text-primary/60;
 }
