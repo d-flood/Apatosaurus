@@ -473,51 +473,51 @@ describe('transcriptionEditorStructure', () => {
 		}
 	});
 
-	it('keeps selection in the same column in the single-line split case', () => {
-		// Non-degenerate split behavior is characterized as DEFECT F1 in
-		// transcriptionEditorStructuralCommands.svelte.spec.ts.
-		const editor = createTestEditor(
-			editorDocument({
-				pages: [
-					editorPlainPage({
-						pageId: 'page-1',
-						columns: [
-							editorColumn({
-								columnId: 'col-right',
-								attrs: { zone: 'right' },
-								lines: [editorLine({ text: 'alpha beta', lineId: 'line-1' })],
-							}),
-						],
-					}),
-				],
-			})
-		);
+	it('splits a middle line in place and keeps surrounding document structure intact', () => {
+		const editor = createTestEditor(editorDocument({}));
 
 		try {
-			let firstTextPos: number | null = null;
+			const before = editor.state.doc.toJSON();
+			let splitTextPos: number | null = null;
 			editor.state.doc.descendants((node, pos) => {
-				if (!node.isText || firstTextPos !== null) return true;
-				firstTextPos = pos;
-				return false;
+				if (node.isText && node.text === 'b2') splitTextPos = pos;
+				return true;
 			});
-			expect(firstTextPos).not.toBeNull();
-			if (firstTextPos === null) throw new Error('first text position not found');
+			expect(splitTextPos).not.toBeNull();
+			if (splitTextPos === null) throw new Error('split line text not found');
 
-			editor.commands.setTextSelection(firstTextPos + 6);
+			editor.commands.setTextSelection(splitTextPos + 1);
 			const tr = createLineSplitTransaction(editor.state);
 			expect(tr).not.toBeNull();
 
 			const nextState = editor.state.apply(tr!);
-			const column = nextState.doc.toJSON().content[0].content[0];
+			const after = nextState.doc.toJSON();
+			const column = after.content[1].content[0];
 			const targetLineId = tr!.getMeta(LINE_SPLIT_TARGET_LINE_ID_META) as string | undefined;
-			expect(column.attrs.zone).toBe('right');
-			expect(column.content).toHaveLength(2);
-			expect(column.content[0].content[0].text).toBe('alpha ');
-			expect(column.content[1].content[0].text).toBe('beta');
-			expect(targetLineId).toBe(column.content[1].attrs.lineId);
-			expect(findLineStartPositionById(nextState.doc, targetLineId)).not.toBeNull();
+			expect(column.attrs).toEqual(before.content[1].content[0].attrs);
+			expect(column.content.map((line: any) => line.content?.[0]?.text ?? '')).toEqual([
+				'b1',
+				'b',
+				'2',
+				'b3',
+				'b4',
+			]);
+			expect(column.content.map((line: any) => line.attrs.lineId)).toEqual([
+				'line-5',
+				'line-6',
+				targetLineId,
+				'line-7',
+				'line-8',
+			]);
+			expect(after.content[0]).toEqual(before.content[0]);
+			expect(after.content[1].content[1]).toEqual(before.content[1].content[1]);
+			expect(after.content[2]).toEqual(before.content[2]);
+			expect(tr!.selection.$from.parent.type.name).toBe('line');
+			expect(tr!.selection.$from.parent.attrs.lineId).toBe(targetLineId);
+			expect(tr!.selection.$from.parent.textContent).toBe('2');
+			expect(tr!.selection.$from.parentOffset).toBe(0);
 
-			const resolved = nextState.selection.$from;
+			const resolved = tr!.selection.$from;
 			let selectedColumnDepth = -1;
 			for (let depth = resolved.depth; depth >= 0; depth--) {
 				if (resolved.node(depth).type.name === 'column') {
@@ -527,7 +527,7 @@ describe('transcriptionEditorStructure', () => {
 			}
 
 			expect(selectedColumnDepth).toBeGreaterThan(-1);
-			expect(resolved.node(selectedColumnDepth).attrs.zone).toBe('right');
+			expect(resolved.node(selectedColumnDepth).attrs.columnId).toBe('col-2');
 		} finally {
 			editor.destroy();
 		}

@@ -612,24 +612,9 @@ export function createLineSplitTransaction(state: EditorState): Transaction | nu
 	}
 
 	const currentLine = resolvedFrom.node(lineDepth);
-	const columnNode = resolvedFrom.node(columnDepth);
 	const linePos = resolvedFrom.before(lineDepth);
-	const currentLineIndex = resolvedFrom.index(lineDepth - 1);
 	const beforeOffset = selection.from - lineStart;
 	const afterOffset = selection.to - lineStart;
-
-	const linesBefore: any[] = [];
-	const linesAfter: any[] = [];
-	columnNode.forEach((child, _offset, index) => {
-		if (child.type.name !== 'line') return;
-		if (index < currentLineIndex) {
-			linesBefore.push(child);
-			return;
-		}
-		if (index > currentLineIndex) {
-			linesAfter.push(child);
-		}
-	});
 
 	const firstLine = currentLine.type.create(
 		{ ...currentLine.attrs },
@@ -645,17 +630,10 @@ export function createLineSplitTransaction(state: EditorState): Transaction | nu
 		currentLine.content.cut(afterOffset, currentLine.content.size)
 	);
 
-	const replacement = [...linesBefore, firstLine, secondLine, ...linesAfter].map((line, index) =>
-		line.type.create(
-			{
-				...line.attrs,
-				lineNumber: index + 1,
-				lineId: line.attrs.lineId || createStableEditorNodeId('line'),
-			},
-			line.content
-		)
-	);
-	const tr = state.tr.replaceWith(linePos, linePos + currentLine.nodeSize, replacement);
+	const tr = state.tr.replaceWith(linePos, linePos + currentLine.nodeSize, [
+		firstLine,
+		secondLine,
+	]);
 	const secondLinePos = linePos + firstLine.nodeSize;
 	tr.setMeta(LINE_SPLIT_TARGET_LINE_ID_META, secondLine.attrs.lineId);
 	tr.setSelection(TextSelection.near(tr.doc.resolve(secondLinePos + 1)));

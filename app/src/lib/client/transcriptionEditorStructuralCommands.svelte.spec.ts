@@ -74,7 +74,7 @@ function selectAt(editor: any, position: number) {
 
 describe('structural transactions against a multi-line, multi-column, multi-page fixture', () => {
 	describe('createLineSplitTransaction', () => {
-		it('DEFECT F1: replaces one line with the whole column, duplicating every other line', () => {
+		it('replaces only the split line in a multi-line column', () => {
 			const editor = createTestEditor(multiPageFixture());
 			try {
 				// Cursor inside "b2", the second of four lines in page 2 column 1.
@@ -85,23 +85,13 @@ describe('structural transactions against a multi-line, multi-column, multi-page
 				expect(tr).not.toBeNull();
 				editor.view.dispatch(tr!);
 
-				// Wanted: ['b1', 'b', '2', 'b3', 'b4'].
-				expect(snapshotLines(editor.state.doc)[1][0]).toEqual([
-					'b1',
-					'b1',
-					'b',
-					'2',
-					'b3',
-					'b4',
-					'b3',
-					'b4',
-				]);
+				expect(snapshotLines(editor.state.doc)[1][0]).toEqual(['b1', 'b', '2', 'b3', 'b4']);
 			} finally {
 				editor.destroy();
 			}
 		});
 
-		it('is correct only when the column holds a single line', () => {
+		it('splits the only line in a single-line column', () => {
 			const editor = createTestEditor({
 				type: 'manuscript',
 				content: [
@@ -367,7 +357,7 @@ describe('structural transactions against a multi-line, multi-column, multi-page
 			);
 		}
 
-		it('DEFECT F1: pressing Enter mid-line in a four-line column duplicates lines', async () => {
+		it('pressing Enter mid-line in a four-line column splits only that line', async () => {
 			const editor = createTestEditor(multiPageFixture());
 			try {
 				selectAt(editor, lineStart(editor.state.doc, 0, 0, 1) + 1);
@@ -376,17 +366,7 @@ describe('structural transactions against a multi-line, multi-column, multi-page
 				expect(pressEnter(editor)).toBe(true);
 				await Promise.resolve();
 
-				// Wanted: ['a1', 'a', '2', 'a3', 'a4'].
-				expect(snapshotLines(editor.state.doc)[0][0]).toEqual([
-					'a1',
-					'a1',
-					'a',
-					'2',
-					'a3',
-					'a4',
-					'a3',
-					'a4',
-				]);
+				expect(snapshotLines(editor.state.doc)[0][0]).toEqual(['a1', 'a', '2', 'a3', 'a4']);
 			} finally {
 				editor.destroy();
 			}
