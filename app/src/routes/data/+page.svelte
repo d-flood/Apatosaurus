@@ -52,6 +52,9 @@
 	let installSupported = $state(false);
 	let isLoading = $state(true);
 	let isRequestingPersistence = $state(false);
+	let persistenceRequestMessage = $state<string | null>(null);
+	let persistenceRequestFailed = $state(false);
+	let hasRequestedPersistence = $state(false);
 	let isRepairingIndex = $state(false);
 	let isExportingAllProjects = $state(false);
 	let exportAllError = $state<string | null>(null);
@@ -113,8 +116,21 @@
 
 	async function requestPersistentStorage() {
 		isRequestingPersistence = true;
+		persistenceRequestMessage = null;
+		persistenceRequestFailed = false;
 		try {
 			persistenceReport = await requestPersistentStorageForMeaningfulWrite();
+			hasRequestedPersistence = true;
+			persistenceRequestMessage =
+				persistenceReport.status === 'granted'
+					? 'Persistent storage granted. Local project files are protected from automatic browser eviction.'
+					: 'This browser did not grant persistent storage. Installing the app and using it regularly may improve eligibility; keep external backups in the meantime.';
+		} catch (cause) {
+			persistenceRequestFailed = true;
+			persistenceRequestMessage =
+				cause instanceof Error
+					? `Persistent storage could not be requested: ${cause.message}`
+					: 'Persistent storage could not be requested.';
 		} finally {
 			isRequestingPersistence = false;
 		}
@@ -371,7 +387,7 @@
 						</div>
 					</div>
 				</div>
-				{#if persistenceReport?.status === 'denied' && persistenceReport.canRequest}
+				{#if persistenceReport?.status === 'denied' && persistenceReport.canRequest && !hasRequestedPersistence}
 					<button
 						type="button"
 						class="btn btn-outline btn-sm mt-4"
@@ -380,6 +396,17 @@
 					>
 						{isRequestingPersistence ? 'Requesting...' : 'Request persistent storage'}
 					</button>
+				{/if}
+				{#if persistenceRequestMessage}
+					<div
+						class="alert mt-4 text-sm {persistenceRequestFailed ||
+						persistenceReport?.status !== 'granted'
+							? 'alert-warning'
+							: 'alert-success'}"
+						role="status"
+					>
+						{persistenceRequestMessage}
+					</div>
 				{/if}
 				{#if storageEstimateReport?.isNearQuota}
 					<div class="alert alert-warning mt-4 text-sm">

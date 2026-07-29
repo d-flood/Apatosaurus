@@ -15,6 +15,7 @@
 	import { notificationCenter } from '$lib/client/notification-center.svelte';
 	import SyncStatusIndicator from '$lib/components/SyncStatusIndicator.svelte';
 	import Bell from 'phosphor-svelte/lib/Bell';
+	import CaretDown from 'phosphor-svelte/lib/CaretDown';
 	import Moon from 'phosphor-svelte/lib/Moon';
 	import Sun from 'phosphor-svelte/lib/Sun';
 	import { onMount } from 'svelte';
@@ -127,7 +128,7 @@
 				aria-label={`Open project switcher: ${lastOpenedProjectName}`}
 			>
 				<span class="truncate">{lastOpenedProjectName}</span>
-				<span aria-hidden="true">v</span>
+				<CaretDown aria-hidden="true" size={16} />
 			</button>
 			<ul
 				tabindex="-1"
