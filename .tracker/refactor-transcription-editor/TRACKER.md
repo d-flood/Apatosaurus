@@ -14,7 +14,7 @@ Two things to know before writing a ticket from it. `F35`–`F46` have **no comm
 
 Overall status: `In Progress`
 
-Current ticket: none — ticket `26` is complete.
+Current ticket: none — ticket `20` is complete.
 
 Last updated: 2026-07-29
 
@@ -64,7 +64,7 @@ Success is not "every ticket cleared". Some findings should end in a documented 
 | 17 | `17-commands-address-nodes-by-identity.md` | Completed | None |
 | 18 | `18-milestone-context-respects-book-boundaries.md` | Completed | None |
 | 19 | `19-page-chrome-derives-from-its-fw-children.md` | Completed | None |
-| 20 | `20-verse-index-sync-is-cancellable.md` | Not Started | 04 |
+| 20 | `20-verse-index-sync-is-cancellable.md` | Completed | 04 |
 | 21 | `21-inspector-apply-merges-instead-of-replacing.md` | Completed | None |
 | 22 | `22-formwork-content-lives-in-the-document.md` | Not Started | 04 |
 | 23 | `23-drafts-and-drawers-target-what-they-opened.md` | Completed | None |
@@ -98,6 +98,7 @@ pnpm vitest run --project client src/lib/client/transcriptionEditorStructure.sve
 
 ## Notes
 
+- **2026-07-29** — **Ticket `20` complete; pending verse-index sync is dropped on unmount.** The debounce now exposes schedule, cancel, and flush operations, and both editor teardown branches cancel it before destroying the editor. Dropping is deliberate: the next mount derives the index again, while flushing would preserve the stale whole-document write window this ticket removes. Autosave does not share the timer leak: its existing teardown flush clears the timeout and intentionally persists pending edits, so its semantics remain unchanged. Mounted browser coverage waits past the 1.2-second interval for both teardown branches and observes no sync, while normal editing still syncs on that interval. The component suite passes **12 files / 86 tests**, `check` reports 0 errors (one pre-existing warning), and the full baseline passes **106 files / 714 tests**.
 - **2026-07-29** — **Ticket `26` complete; inline atoms may carry correction marks.** Element-only and mixed original readings now remain in one apparatus through parsing, both ProseMirror adapter directions, mounted editing, and serialization. Gap named fields and ticket `27`'s arbitrary `teiAttrs` survive unchanged; empty and whitespace-only originals still use `correctionOnly`. The focused package suite passes **65/65**, all runnable package suites pass **108/108**, package typecheck and app `check` pass, and the app baseline passes **105 files / 711 tests**. The package full run retains its documented **109 pass / 7 missing-fixture failures**.
 - **2026-07-28** — **Ticket `04` complete.** Whole-document repair no longer runs from `appendTransaction`; load, TEI import, and structural paste use the shared document-entry repair, and F7 identities exist before the first edit. Punctuation scans changed ranges, line normalization visits touched columns, cursor context uses selection ancestors, and autosave/verse serialization now occurs inside the existing timers. Chromium per-keystroke measurements fell from **7.5 / 19.3 / 30.3 ms** to **0.20 / 0.32 / 0.77 ms** at **100 / 250 / 500 lines**; 20 characters dispatch 20 transactions. The focused component suite passes **11 files / 83 tests**, `check` reports 0 errors, and the full baseline passes **105 files / 710 tests**. The acceptance diff is a net reduction: **204 insertions / 210 deletions** across the two named files.
 - **2026-07-28** — **Ticket `04` scope decision accepted.** Reference-edition seeding is removed from ticket `04`'s contract and acceptance criteria because no such application entry point exists. Implementation covers the real load, TEI import, and paste boundaries; adding reference-edition seeding remains a separate future feature.

@@ -664,6 +664,7 @@
 				modal.addEventListener('toggle', handleModalToggle);
 
 				return () => {
+					cancelVerseIndexSync();
 					void flushAutosave();
 					editor.destroy();
 					modal.removeEventListener('toggle', handleModalToggle);
@@ -673,6 +674,7 @@
 			}
 
 			return () => {
+				cancelVerseIndexSync();
 				void flushAutosave();
 				editor.destroy();
 				document.removeEventListener('visibilitychange', handleVisibilityChange);
@@ -967,21 +969,42 @@
 
 	function createDebouncedVerseIndexSync(delayMs: number = 1200) {
 		let timeoutId: ReturnType<typeof setTimeout> | null = null;
-		return () => {
+
+		const sync = () => {
+			if (!transcription?.id) return;
+			const editorJson = editorState.editor?.getJSON();
+			if (!editorJson) return;
+			const document = coerceEditorJsonToDocument(editorJson);
+			if (!document) return;
+			syncVerseIndexFromDocument(transcription.id, document).catch((error: unknown) => {
+				console.error('[Verse Index] Failed to sync verse index:', error);
+			});
+		};
+
+		const cancel = () => {
+			if (timeoutId === null) return;
+			clearTimeout(timeoutId);
+			timeoutId = null;
+		};
+
+		const schedule = () => {
 			if (timeoutId !== null) {
 				clearTimeout(timeoutId);
 			}
 			timeoutId = setTimeout(() => {
 				timeoutId = null;
-				if (!transcription?.id) return;
-				const editorJson = editorState.editor?.getJSON();
-				if (!editorJson) return;
-				const document = coerceEditorJsonToDocument(editorJson);
-				if (!document) return;
-				syncVerseIndexFromDocument(transcription.id, document).catch((error: unknown) => {
-					console.error('[Verse Index] Failed to sync verse index:', error);
-				});
+				sync();
 			}, delayMs);
+		};
+
+		return {
+			schedule,
+			cancel,
+			flush: () => {
+				if (timeoutId === null) return;
+				cancel();
+				sync();
+			},
 		};
 	}
 
@@ -1076,7 +1099,9 @@
 		};
 	}
 
-	let debouncedSyncVerseIndex = createDebouncedVerseIndexSync();
+	const verseIndexSync = createDebouncedVerseIndexSync();
+	const debouncedSyncVerseIndex = verseIndexSync.schedule;
+	const cancelVerseIndexSync = verseIndexSync.cancel;
 	const autosave = createDebouncedAutosave();
 	const debouncedAutosave = autosave.schedule;
 	const flushAutosave = autosave.flush;
