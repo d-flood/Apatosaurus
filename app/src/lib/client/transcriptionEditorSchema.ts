@@ -2,8 +2,6 @@ import { badgeIconSpec, type BadgeIconName } from '$lib/client/transcriptionEdit
 import {
 	createEmptyLineInsertTransaction,
 	createLineSplitTransaction,
-	findLineStartPositionById,
-	LINE_SPLIT_TARGET_LINE_ID_META,
 	repairManuscriptStructureJson,
 } from '$lib/client/transcriptionEditorStructure';
 import { classifyFormWork } from '$lib/components/transcriptionEditor/formworkConcepts';
@@ -15,7 +13,7 @@ import { Editor, Extension, Mark, Node, generateHTML, markInputRule } from '@tip
 import { BubbleMenu } from '@tiptap/extension-bubble-menu';
 import { History } from '@tiptap/extension-history';
 import { Text } from '@tiptap/extension-text';
-import { NodeSelection, Plugin, PluginKey, TextSelection } from '@tiptap/pm/state';
+import { NodeSelection, Plugin, PluginKey } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 
 function parseJsonAttr<T>(value: string | null, fallback: T = {} as T): T {
@@ -797,10 +795,6 @@ const PunctuationHighlighter = Extension.create({
 							return null;
 						}
 
-						const mappedFrom = tr.mapping.map(newState.selection.from);
-						const clampedFrom = Math.min(Math.max(0, mappedFrom), tr.doc.content.size);
-						tr.setSelection(TextSelection.near(tr.doc.resolve(clampedFrom)));
-
 						// Return the transaction with our new marks
 						return tr;
 					}
@@ -1157,26 +1151,6 @@ function createStableEditorNodeId(prefix: string): string {
 const manuscriptStructureRepairKey = new PluginKey('manuscriptStructureRepair');
 const lineNumberNormalizerKey = new PluginKey('lineNumberNormalizer');
 
-function restoreMappedSelection(tr: any, selection: any) {
-	if (selection instanceof NodeSelection) {
-		const mappedFrom = Math.min(
-			Math.max(0, tr.mapping.map(selection.from)),
-			tr.doc.content.size
-		);
-		tr.setSelection(NodeSelection.create(tr.doc, mappedFrom));
-		return;
-	}
-
-	const mappedFrom = Math.min(Math.max(0, tr.mapping.map(selection.from)), tr.doc.content.size);
-	const mappedTo = Math.min(Math.max(0, tr.mapping.map(selection.to)), tr.doc.content.size);
-	if (mappedFrom !== mappedTo) {
-		tr.setSelection(TextSelection.create(tr.doc, mappedFrom, mappedTo));
-		return;
-	}
-
-	tr.setSelection(TextSelection.near(tr.doc.resolve(mappedFrom)));
-}
-
 function createManuscriptStructureRepairTransaction(state: Editor['state']) {
 	if (state.doc.type.name !== 'manuscript') {
 		return null;
@@ -1190,9 +1164,7 @@ function createManuscriptStructureRepairTransaction(state: Editor['state']) {
 	}
 
 	const repairedDoc = state.schema.nodeFromJSON(repairResult.doc);
-	const tr = state.tr.replaceWith(0, state.doc.content.size, repairedDoc.content);
-	restoreMappedSelection(tr, state.selection);
-	return tr;
+	return state.tr.replaceWith(0, state.doc.content.size, repairedDoc.content);
 }
 
 function createLineNumberNormalizationTransaction(state: Editor['state']) {
@@ -1243,10 +1215,6 @@ function createLineNumberNormalizationTransaction(state: Editor['state']) {
 
 		return false;
 	});
-
-	if (changed) {
-		restoreMappedSelection(tr, state.selection);
-	}
 
 	return changed ? tr : null;
 }
@@ -1395,15 +1363,7 @@ const Line = Node.create({
 					return editor.chain().splitBlock().run();
 				}
 
-				const targetLineId = tr.getMeta(LINE_SPLIT_TARGET_LINE_ID_META) as
-					| string
-					| undefined;
 				editor.view.dispatch(tr);
-				queueMicrotask(() => {
-					const pos = findLineStartPositionById(editor.state.doc, targetLineId);
-					if (pos === null) return;
-					editor.chain().focus().setTextSelection(pos).run();
-				});
 				return true;
 			},
 			'Mod-Shift-b': ({ editor }) => {
@@ -2399,29 +2359,6 @@ function createEditorForProfile(profile: EditorProfile, options: BaseEditorOptio
 			},
 			...(profile === 'main-manuscript'
 				? {
-						handleClick: (view, _pos, event) => {
-							const target = event.target instanceof Element ? event.target : null;
-							const line = target?.closest<HTMLElement>('.line');
-							if (!line) return false;
-
-							const lineContent = line.querySelector<HTMLElement>('.line-content');
-							if (!lineContent) return false;
-							if (
-								target?.closest('.line-content') &&
-								lineContent.textContent !== ''
-							) {
-								return false;
-							}
-
-							const lineStart = view.posAtDOM(lineContent, 0);
-							view.dispatch(
-								view.state.tr.setSelection(
-									TextSelection.near(view.state.doc.resolve(lineStart))
-								)
-							);
-							view.focus();
-							return true;
-						},
 						scrollThreshold: 80,
 						scrollMargin: {
 							top: 50,

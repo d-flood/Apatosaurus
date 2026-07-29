@@ -376,7 +376,7 @@ describe('structural transactions against a multi-line, multi-column, multi-page
 			}
 		});
 
-		it('DEFECT F11: the Enter handler writes the selection a second time, asynchronously', async () => {
+		it('keeps the transaction selection authoritative after Enter', async () => {
 			const editor = createTestEditor(multiPageFixture());
 			try {
 				selectAt(editor, lineStart(editor.state.doc, 0, 0, 1) + 1);
@@ -388,18 +388,9 @@ describe('structural transactions against a multi-line, multi-column, multi-page
 				await Promise.resolve();
 				const afterMicrotask = editor.state.selection.from;
 
-				// A second, unrelated selection write lands one microtask later, from
-				// outside any transaction. Anything that reads the selection in
-				// between — a `selectionUpdate` subscriber, the status bar, the
-				// inspector — sees a position that is about to move.
-				expect(afterMicrotask).not.toBe(synchronous);
-
-				// Nothing cancels the microtask, so tearing the editor down between
-				// the dispatch and the callback throws inside `editor.chain()`.
-				expect(typeof (editor as any).chain).toBe('function');
+				expect(afterMicrotask).toBe(synchronous);
 			} finally {
 				editor.destroy();
-				await Promise.resolve();
 			}
 		});
 	});

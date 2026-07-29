@@ -16,6 +16,7 @@
  * survives, and that a typed period and an imported one export identically.
  */
 import { userEvent } from '@vitest/browser/context';
+import { NodeSelection } from '@tiptap/pm/state';
 import { describe, expect, it } from 'vitest';
 
 import { exportTEI } from '../tei/tei-exporter';
@@ -98,6 +99,28 @@ const TYPED_PERIOD_SHAPE = [
 ];
 
 describe('PunctuationHighlighter', () => {
+	it('preserves a carrier node selection when punctuation is added elsewhere', () => {
+		const editor = createTestEditor(
+			documentWithLineContent([
+				{ type: 'gap' },
+				{ type: 'text', text: ' alpha' },
+			])
+		);
+		let gapPosition = -1;
+		editor.state.doc.descendants((node, position) => {
+			if (gapPosition === -1 && node.type.name === 'gap') gapPosition = position;
+		});
+		try {
+			editor.commands.setNodeSelection(gapPosition);
+			editor.view.dispatch(editor.state.tr.insertText('.', endOfFirstLine(editor)));
+
+			expect(editor.state.selection).toBeInstanceOf(NodeSelection);
+			expect((editor.state.selection as NodeSelection).node.type.name).toBe('gap');
+		} finally {
+			editor.destroy();
+		}
+	});
+
 	it('marks a period typed after a word, leaving the word unmarked', () => {
 		const editor = createTestEditor(documentWithLineContent([{ type: 'text', text: 'alpha' }]));
 		editor.commands.focus('end');

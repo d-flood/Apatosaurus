@@ -14,7 +14,7 @@ Two things to know before writing a ticket from it. `F35`–`F46` have **no comm
 
 Overall status: `In Progress`
 
-Current ticket: none — ticket `17` is complete.
+Current ticket: none — ticket `03` is complete.
 
 Last updated: 2026-07-28
 
@@ -47,7 +47,7 @@ Success is not "every ticket cleared". Some findings should end in a documented 
 | --- | --- | --- | --- |
 | 01 | `01-editor-code-quality-inventory.md` | Completed | None |
 | 02 | `02-enter-no-longer-duplicates-the-column.md` | Not Started | None |
-| 03 | `03-prosemirror-owns-cursor-placement.md` | Not Started | 01 |
+| 03 | `03-prosemirror-owns-cursor-placement.md` | Completed | 01 |
 | 04 | `04-structure-repair-leaves-the-keystroke-path.md` | Not Started | 01 |
 | 05 | `05-page-and-column-layout-model.md` | Not Started | 01, 06 |
 | 06 | `06-non-degenerate-test-fixtures.md` | Completed | 01 |
@@ -98,6 +98,7 @@ pnpm vitest run --project client src/lib/client/transcriptionEditorStructure.sve
 
 ## Notes
 
+- **2026-07-28** — **Ticket `03` complete.** Removed the main-editor click override, the punctuation plugin's selection rewrite, Enter's asynchronous second selection write, and explicit selection restoration from repair/normalization transactions. Real browser clicks now use ProseMirror hit-testing across trailing line space, line chrome, and empty lines; carrier node selections survive unrelated punctuation edits. The component suite passes 69 tests, `check` reports 0 errors, and the full baseline passes **103 files / 693 tests**. The schema change removes 63 net lines.
 - **2026-07-28** — **Ticket `17` complete.** Page metadata commands now accept stable page ids and resolve current positions inside each transaction; formwork metadata is likewise re-derived from the current page. A mounted regression shifts page positions before renaming the original target. Out-of-range inspector positions return `false`; this guard landed with ticket `19` from the shared worktree. Ticket `19` superseded F26 by removing page-chrome synchronization entirely. Focused suites pass 16 and 21 tests, `check` reports 0 errors, and the full baseline passes **103 files / 689 tests**.
 - **2026-07-28** — **Ticket `14` complete.** `lacunose` and `unclear` now preserve TEI attributes through HTML; correction and abbreviation render paths are deterministic, inline-valid, and round-trip through parsing; authoring commands persist ids at creation; and frame layout reacts to zoned columns through CSS `:has()` rather than stale parent-derived state. Focused rendering, interaction, layout, and page-command suites pass; `check` reports 0 errors and the full baseline passes **103 files / 689 tests**.
 

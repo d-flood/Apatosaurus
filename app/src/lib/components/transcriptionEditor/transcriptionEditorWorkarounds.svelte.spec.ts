@@ -37,6 +37,16 @@ function selectedText(editor: any): string {
 	);
 }
 
+function selectedLineNumber(editor: any): number | null {
+	const position = editor.state.selection.$from;
+	for (let depth = position.depth; depth > 0; depth -= 1) {
+		if (position.node(depth).type.name === 'line') {
+			return position.node(depth).attrs.lineNumber;
+		}
+	}
+	return null;
+}
+
 function textPoint(element: HTMLElement, offset: number): { x: number; y: number } {
 	const text = element.firstChild;
 	if (!(text instanceof Text)) throw new Error('editable content does not start with text');
@@ -54,6 +64,15 @@ function textPoint(element: HTMLElement, offset: number): { x: number; y: number
 		currentWindow = currentWindow.parent;
 	}
 	return { x, y };
+}
+
+async function clickElement(element: HTMLElement, horizontalRatio = 0.5) {
+	await userEvent.click(element, {
+		position: {
+			x: element.clientWidth * horizontalRatio,
+			y: element.clientHeight / 2,
+		},
+	});
 }
 
 async function dragPointer(from: { x: number; y: number }, to: { x: number; y: number }) {
@@ -84,6 +103,71 @@ async function dragPointer(from: { x: number; y: number }, to: { x: number; y: n
 }
 
 describe('native selection and drop behaviour', () => {
+	it('places the caret at the end of a line when its trailing area is clicked', async () => {
+		const harness = await mountTranscriptionEditor({
+			document: transcriptionDocument({
+				pages: [transcriptionPlainPage({ texts: [['alpha', 'beta']] })],
+			}),
+			id: 'native-click-trailing-area',
+		});
+		try {
+			const line = lineElement(harness.container, 0, 0, 0);
+			const content = contentOf(line);
+			const editor = editorFrom(harness.container);
+			const expectedPosition = editor.view.posAtDOM(content, content.childNodes.length);
+
+			await clickElement(line, 0.9);
+			await tick();
+
+			expect(editor.state.selection.from).toBe(expectedPosition);
+		} finally {
+			harness.dispose();
+		}
+	});
+
+	it('does not move the caret to another line when its number gutter is clicked', async () => {
+		const harness = await mountTranscriptionEditor({
+			document: transcriptionDocument({
+				pages: [transcriptionPlainPage({ texts: [['alpha', 'beta']] })],
+			}),
+			id: 'native-click-gutter',
+		});
+		try {
+			const firstLine = lineElement(harness.container, 0, 0, 0);
+			const secondContent = contentOf(lineElement(harness.container, 0, 0, 1));
+			const gutter = firstLine.firstElementChild as HTMLElement;
+			const editor = editorFrom(harness.container);
+			editor.commands.setTextSelection(editor.view.posAtDOM(secondContent, 0));
+
+			await clickElement(gutter);
+			await tick();
+
+			expect(selectedLineNumber(editor)).toBe(2);
+		} finally {
+			harness.dispose();
+		}
+	});
+
+	it('places the caret in an empty line when it is clicked', async () => {
+		const harness = await mountTranscriptionEditor({
+			document: transcriptionDocument({
+				pages: [transcriptionPlainPage({ texts: [['alpha', '', 'beta']] })],
+			}),
+			id: 'native-click-empty-line',
+		});
+		try {
+			const emptyLine = lineElement(harness.container, 0, 0, 1);
+			const editor = editorFrom(harness.container);
+
+			await clickElement(emptyLine, 0.9);
+			await tick();
+
+			expect(selectedLineNumber(editor)).toBe(2);
+		} finally {
+			harness.dispose();
+		}
+	});
+
 	it('drag-selects within and across lines and opens the selection toolbar', async () => {
 		const harness = await mountTranscriptionEditor({
 			document: transcriptionDocument({
