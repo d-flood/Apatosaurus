@@ -100,32 +100,56 @@
 		if (!correction) return;
 		editingKey = correctionKeys[index];
 		hand = correction.hand || '';
-		type = correction.type || '';
-		position = correction.position || '';
+		type = correction.readingAttrs?.type || correction.type || '';
+		position = correction.segmentAttrs?.subtype || correction.position || '';
 		draftContent = JSON.parse(JSON.stringify(correction.content || []));
+	}
+
+	function mergeOwnedAttribute(
+		attrs: Record<string, string> | undefined,
+		key: string,
+		value: string
+	): Record<string, string> | undefined {
+		const next = { ...(attrs || {}) };
+		if (value) {
+			next[key] = value;
+		} else {
+			delete next[key];
+		}
+		return Object.keys(next).length > 0 ? next : undefined;
 	}
 
 	function upsertCorrection() {
 		if (!hand.trim()) return;
 		const content = Array.isArray(draftContent) ? draftContent : [];
 		if (content.length === 0) return;
+		const editingIndex = editingKey === null ? -1 : correctionKeys.indexOf(editingKey);
+		if (editingKey !== null && editingIndex === -1) {
+			resetDraft();
+			return;
+		}
+		const existing = editingIndex >= 0 ? tempCorrections[editingIndex] : undefined;
 
 		const nextCorrection: Correction = {
+			...(existing || {}),
 			hand: hand.trim(),
 			content,
-			...(type.trim() ? { type: type.trim() } : {}),
-			...(position.trim() ? { position: position.trim() } : {}),
 		};
+		const readingAttrs = mergeOwnedAttribute(existing?.readingAttrs, 'type', type.trim());
+		const segmentAttrs = mergeOwnedAttribute(
+			existing?.segmentAttrs,
+			'subtype',
+			position.trim()
+		);
+		if (readingAttrs) nextCorrection.readingAttrs = readingAttrs;
+		else delete nextCorrection.readingAttrs;
+		if (segmentAttrs) nextCorrection.segmentAttrs = segmentAttrs;
+		else delete nextCorrection.segmentAttrs;
 
 		if (editingKey === null) {
 			tempCorrections = [...tempCorrections, nextCorrection];
 			correctionKeys = [...correctionKeys, createCorrectionKey()];
 		} else {
-			const editingIndex = correctionKeys.indexOf(editingKey);
-			if (editingIndex === -1) {
-				resetDraft();
-				return;
-			}
 			tempCorrections = tempCorrections.map((item, index) =>
 				index === editingIndex ? nextCorrection : item
 			);

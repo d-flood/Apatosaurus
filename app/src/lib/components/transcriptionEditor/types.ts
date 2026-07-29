@@ -5,6 +5,9 @@ export interface Correction {
 	content: any[];
 	type?: string;
 	position?: string;
+	rend?: string;
+	readingAttrs?: Record<string, string>;
+	segmentAttrs?: Record<string, string>;
 }
 
 export interface PageMetadata {

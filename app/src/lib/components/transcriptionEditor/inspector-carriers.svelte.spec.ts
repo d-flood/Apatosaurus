@@ -2,7 +2,12 @@ import { page } from '@vitest/browser/context';
 import { describe, expect, it } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 
+import { editorColumn, editorLine, editorPlainPage } from '$lib/client/testing/editorFixtures';
+import { fromProseMirror, serializeTei } from '$lib/tei/tei-transcription';
+
+import CorrectionWorkspace from './CorrectionWorkspace.svelte';
 import InspectorTestHarness from './InspectorTestHarness.svelte';
+import SimpleCarrierInspector from './SimpleCarrierInspector.svelte';
 
 const browserPage = page as any;
 
@@ -76,11 +81,11 @@ describe('transcription editor carrier inspectors', () => {
 		render(InspectorTestHarness, {
 			xml: wrapInTei(
 				'<pb n="1r"/><cb n="1"/><lb/>' +
-					'<foreign xml:lang="la"><w>ab<lb break="no"/>cd</w></foreign>' +
+					'<foreign xml:lang="la"><w>ab<lb break="no" facs="#break-zone" xml:id="break1"/>cd</w></foreign>' +
 					'<gap reason="lost-folio" unit="chars" extent="2"/>' +
-					'<space extent="1" unit="chars"/>' +
-					'<handShift new="#h2"/>' +
-					'<milestone unit="section" n="A"/>' +
+					'<space extent="1" unit="chars" facs="#space-zone" xml:id="space1"/>' +
+					'<handShift new="#h2" facs="#hand-zone" resp="#editor"/>' +
+					'<milestone unit="section" n="A" facs="#milestone-zone" resp="#editor"/>' +
 					'<note type="untranscribed" reason="damage" extent="partial"/>'
 			),
 		});
@@ -89,7 +94,9 @@ describe('transcription editor carrier inspectors', () => {
 		await replaceTextarea('Text 1', 'ave');
 		await browserPage.getByRole('button', { name: 'Apply' }).click();
 		expect(compactXml(await exportedXml())).toContain(
-			compactXml('<foreign xml:lang="la"><w>ave<lb break="no"/>cd</w></foreign>')
+			compactXml(
+				'<foreign xml:lang="la"><w>ave<lb break="no" facs="#break-zone" xml:id="break1"/>cd</w></foreign>'
+			)
 		);
 
 		await selectCarrier('gap');
@@ -104,7 +111,9 @@ describe('transcription editor carrier inspectors', () => {
 		await browserPage.getByLabelText('Dimension').fill('horizontal');
 		await browserPage.getByRole('button', { name: 'Apply' }).click();
 		expect(compactXml(await exportedXml())).toContain(
-			compactXml('<space unit="chars" extent="2" dim="horizontal"/>')
+			compactXml(
+				'<space extent="2" unit="chars" facs="#space-zone" xml:id="space1" dim="horizontal"/>'
+			)
 		);
 
 		await selectCarrier('handShift');
@@ -112,7 +121,7 @@ describe('transcription editor carrier inspectors', () => {
 		await browserPage.getByLabelText('Medium').fill('ink');
 		await browserPage.getByRole('button', { name: 'Apply' }).click();
 		expect(compactXml(await exportedXml())).toContain(
-			compactXml('<handShift new="#h3" medium="ink"/>')
+			compactXml('<handShift new="#h3" facs="#hand-zone" resp="#editor" medium="ink"/>')
 		);
 
 		await selectCarrier('teiMilestone');
@@ -120,7 +129,9 @@ describe('transcription editor carrier inspectors', () => {
 		await browserPage.getByLabelText('Edition').fill('NA28');
 		await browserPage.getByRole('button', { name: 'Apply' }).click();
 		expect(compactXml(await exportedXml())).toContain(
-			compactXml('<milestone unit="section" n="B" ed="NA28"/>')
+			compactXml(
+				'<milestone unit="section" n="B" facs="#milestone-zone" resp="#editor" ed="NA28"/>'
+			)
 		);
 
 		await selectCarrier('untranscribed');
@@ -130,6 +141,129 @@ describe('transcription editor carrier inspectors', () => {
 			compactXml('<note type="untranscribed" subtype="illegible" n="partial"/>')
 		);
 	}, 30_000);
+
+	it('preserves unexposed break attributes when applying a displayed field', async () => {
+		let appliedAttrs: Record<string, any> | undefined;
+		const rendered = render(SimpleCarrierInspector, {
+			type: 'lineBreak',
+			attrs: { teiAttrs: { facs: '#break-zone', 'xml:id': 'break1' } },
+			onApply: attrs => (appliedAttrs = attrs),
+		});
+
+		await browserPage.getByLabelText('Edition').fill('NA28');
+		await browserPage.getByRole('button', { name: 'Apply' }).click();
+
+		const pm = {
+			type: 'manuscript',
+			content: [
+				editorPlainPage({
+					columns: [
+						editorColumn({
+							lines: [
+								editorLine({
+									content: [
+										{
+											type: 'correctionNode',
+											attrs: {
+												corrections: [
+													{
+														hand: 'c1',
+														content: [
+															{
+																type: 'lineBreak',
+																attrs: appliedAttrs,
+															},
+														],
+													},
+												],
+											},
+										},
+									],
+								}),
+							],
+						}),
+					],
+				}),
+			],
+		};
+		expect(compactXml(serializeTei(fromProseMirror(pm as any)))).toContain(
+			compactXml('<lb facs="#break-zone" xml:id="break1" ed="NA28"/>')
+		);
+
+		rendered.unmount();
+	});
+
+	it('preserves marked correction metadata and its segment when editing content', async () => {
+		let appliedCorrections: any[] = [];
+		const rendered = render(CorrectionWorkspace, {
+			idPrefix: 'marked-correction-spec',
+			title: 'Correction readings',
+			initialCorrections: [
+				{
+					hand: 'c2',
+					content: [{ type: 'text', text: 'alpha' }],
+					rend: 'superscript',
+					readingAttrs: {
+						type: 'alt',
+						rend: 'superscript',
+						source: '#src1',
+						resp: '#editor',
+					},
+					type: 'margin',
+					position: 'pagetop',
+					segmentAttrs: {
+						type: 'margin',
+						subtype: 'pagetop',
+						n: '@P1',
+						'xml:id': 'seg1',
+					},
+				},
+			],
+			onApply: corrections => (appliedCorrections = corrections),
+		});
+
+		await browserPage.getByRole('button', { name: 'Edit', exact: true }).click();
+		const correctionEditorElement = latestInlineEditor();
+		expect(correctionEditorElement).toBeTruthy();
+		const correctionEditor = browserPage.elementLocator(correctionEditorElement!);
+		await correctionEditor.click();
+		await correctionEditor.fill('beta');
+		await browserPage.getByRole('button', { name: 'Save Reading' }).click();
+		await browserPage.getByRole('button', { name: 'Apply', exact: true }).click();
+
+		const pm = {
+			type: 'manuscript',
+			content: [
+				editorPlainPage({
+					columns: [
+						editorColumn({
+							lines: [
+								editorLine({
+									content: [
+										{
+											type: 'text',
+											text: 'alpha',
+											marks: [
+												{
+													type: 'correction',
+													attrs: { corrections: appliedCorrections },
+												},
+											],
+										},
+									],
+								}),
+							],
+						}),
+					],
+				}),
+			],
+		};
+		expect(compactXml(serializeTei(fromProseMirror(pm as any)))).toMatch(
+			/<rdgtype="alt"hand="c2"rend="superscript"source="#src1"resp="#editor"><segtype="margin"subtype="pagetop"n="@P1"xml:id="seg1"><w>[^<]*beta[^<]*<\/w><\/seg><\/rdg>/
+		);
+
+		rendered.unmount();
+	});
 
 	it('edits formwork, TEI atoms, and metamarks through inspector components', async () => {
 		render(InspectorTestHarness, {
@@ -164,23 +298,50 @@ describe('transcription editor carrier inspectors', () => {
 		);
 	});
 
-	it('edits correctionNode through the correction workspace inspector', async () => {
+	it('preserves correctionNode reading metadata and its segment when editing content', async () => {
 		render(InspectorTestHarness, {
 			xml: wrapInTei('<pb n="1r"/><cb n="1"/><lb/>'),
-			seedNodes: [{ type: 'correctionNode', attrs: { corrections: [] } }],
+			seedNodes: [
+				{
+					type: 'correctionNode',
+					attrs: {
+						corrections: [
+							{
+								hand: 'c2',
+								content: [{ type: 'text', text: 'alpha' }],
+								rend: 'superscript',
+								readingAttrs: {
+									type: 'alt',
+									rend: 'superscript',
+									source: '#src1',
+									resp: '#editor',
+								},
+								type: 'margin',
+								position: 'pagetop',
+								segmentAttrs: {
+									type: 'margin',
+									subtype: 'pagetop',
+									n: '@P1',
+									'xml:id': 'seg1',
+								},
+							},
+						],
+					},
+				},
+			],
 		});
 
 		await selectCarrier('correctionNode');
-		await browserPage.getByRole('textbox', { name: 'Hand', exact: true }).fill('corrector2');
+		await browserPage.getByRole('button', { name: 'Edit', exact: true }).click();
 		const correctionEditorElement = latestInlineEditor();
 		expect(correctionEditorElement).toBeTruthy();
 		const correctionEditor = browserPage.elementLocator(correctionEditorElement!);
 		await correctionEditor.click();
-		await correctionEditor.fill('gamma');
-		await browserPage.getByRole('button', { name: 'Add Reading' }).click();
+		await correctionEditor.fill('beta');
+		await browserPage.getByRole('button', { name: 'Save Reading' }).click();
 		await browserPage.getByRole('button', { name: 'Apply to Node' }).click();
-		expect(compactXml(await exportedXml())).toContain(
-			compactXml('<rdg type="corr" hand="corrector2"><w>gamma</w></rdg>')
+		expect(compactXml(await exportedXml())).toMatch(
+			/<rdgtype="alt"hand="c2"rend="superscript"source="#src1"resp="#editor"><segtype="margin"subtype="pagetop"n="@P1"xml:id="seg1"><w>[^<]*beta[^<]*<\/w><\/seg><\/rdg>/
 		);
 	});
 
@@ -198,6 +359,12 @@ describe('transcription editor carrier inspectors', () => {
 			.click();
 		await expect.element(browserPage.getByText('Scribal Corrections')).toBeInTheDocument();
 		await browserPage.getByRole('textbox', { name: 'Hand', exact: true }).fill('corrector2');
+		await browserPage
+			.elementLocator(document.querySelector('input[placeholder="correction"]')!)
+			.fill('substitution');
+		await browserPage
+			.elementLocator(document.querySelector('input[placeholder="above"]')!)
+			.fill('above');
 		const correctionEditorElement = latestInlineEditor();
 		expect(correctionEditorElement).toBeTruthy();
 		const correctionEditor = browserPage.elementLocator(correctionEditorElement!);
@@ -209,7 +376,7 @@ describe('transcription editor carrier inspectors', () => {
 
 		expect(compactXml(await exportedXml())).toContain(
 			compactXml(
-				'<seg type="margin" subtype="lineright" n="@P1"><fw place="margin right"><app><rdg type="orig" hand="firsthand"/><rdg type="corr" hand="corrector2"><w>gamma</w></rdg></app></fw></seg>'
+				'<seg type="margin" subtype="lineright" n="@P1"><fw place="margin right"><app><rdg type="orig" hand="firsthand"/><rdg type="substitution" hand="corrector2"><seg subtype="above"><w>gamma</w></seg></rdg></app></fw></seg>'
 			)
 		);
 	});

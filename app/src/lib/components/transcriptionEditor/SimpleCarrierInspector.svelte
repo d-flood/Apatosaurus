@@ -63,6 +63,18 @@
 		}
 	});
 
+	function mergeTeiAttrs(updates: Record<string, string | undefined>) {
+		const next = { ...editedAttrs };
+		for (const [key, value] of Object.entries(updates)) {
+			if (value === undefined) {
+				delete next[key];
+			} else {
+				next[key] = value;
+			}
+		}
+		return next;
+	}
+
 	function apply() {
 		if (type === 'gap') {
 			onApply({
@@ -74,37 +86,37 @@
 		} else if (type === 'pageBreak' || type === 'lineBreak' || type === 'columnBreak') {
 			onApply({
 				...attrs,
-				teiAttrs: {
-					...(milestoneN.trim() ? { n: milestoneN.trim() } : {}),
-					...(milestoneEd.trim() ? { ed: milestoneEd.trim() } : {}),
-					...(breakValue === 'no' ? { break: 'no' } : {}),
-				},
+				teiAttrs: mergeTeiAttrs({
+					n: milestoneN.trim() || undefined,
+					ed: milestoneEd.trim() || undefined,
+					break: breakValue === 'no' ? 'no' : undefined,
+				}),
 			});
 		} else if (type === 'space') {
 			onApply({
 				...attrs,
-				teiAttrs: {
-					...(unit.trim() ? { unit: unit.trim() } : {}),
-					...(extent.trim() ? { extent: extent.trim() } : {}),
-					...(dim.trim() ? { dim: dim.trim() } : {}),
-				},
+				teiAttrs: mergeTeiAttrs({
+					unit: unit.trim() || undefined,
+					extent: extent.trim() || undefined,
+					dim: dim.trim() || undefined,
+				}),
 			});
 		} else if (type === 'handShift') {
 			onApply({
 				...attrs,
-				teiAttrs: {
-					...(hand.trim() ? { new: hand.trim() } : {}),
-					...(medium.trim() ? { medium: medium.trim() } : {}),
-				},
+				teiAttrs: mergeTeiAttrs({
+					new: hand.trim() || undefined,
+					medium: medium.trim() || undefined,
+				}),
 			});
 		} else if (type === 'teiMilestone') {
 			onApply({
 				...attrs,
-				teiAttrs: {
-					...(milestoneUnit.trim() ? { unit: milestoneUnit.trim() } : {}),
-					...(milestoneN.trim() ? { n: milestoneN.trim() } : {}),
-					...(milestoneEd.trim() ? { ed: milestoneEd.trim() } : {}),
-				},
+				teiAttrs: mergeTeiAttrs({
+					unit: milestoneUnit.trim() || undefined,
+					n: milestoneN.trim() || undefined,
+					ed: milestoneEd.trim() || undefined,
+				}),
 			});
 		} else if (type === 'untranscribed') {
 			onApply({
