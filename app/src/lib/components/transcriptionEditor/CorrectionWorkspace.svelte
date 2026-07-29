@@ -180,7 +180,7 @@
 
 		<InlineCarrierWorkspace
 			title="Correction Text"
-			description="Use the same structured sub editor as marginalia; line and column edits flatten back to TEI break markers when you save the reading."
+			description="Enter the complete corrected word or words, even if only one letter changed. Line and column edits flatten back to TEI break markers when you save the reading."
 			initialContent={draftContent}
 			storageMode="flattened"
 			footerNote=""

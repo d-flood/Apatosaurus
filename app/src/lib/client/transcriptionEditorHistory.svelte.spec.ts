@@ -4,13 +4,15 @@
  * Answers inventory question 5 for ticket 01 of the
  * `refactor-transcription-editor` epic. `LineNumberNormalizer` appends a repair
  * or renumber transaction after most edits; the question was whether those
- * appended transactions fragment or poison the undo stack. They do not — but
- * the initial `setContent` does sit in the history, which is worse.
+ * appended transactions fragment or poison the undo stack. They do not — the
+ * initial `setContent` did sit in the history, which was worse, and ticket 07
+ * of the same epic took it out (F14).
  *
  * See `.tracker/refactor-transcription-editor/INVENTORY.md`.
  */
 import { describe, expect, it } from 'vitest';
 
+import { initializeEditorContent } from './editorContentInitialization';
 import { editorDocument, modelDocumentSnapshot } from './testing/editorFixtures';
 import { createTestEditor } from './testing/editorHarnesses.svelte';
 import { createColumnSplitTransaction } from './transcriptionEditorStructure';
@@ -104,18 +106,20 @@ describe('undo/redo under appended repair and renumber transactions', () => {
 		}
 	});
 
-	it('DEFECT F14: the load itself is undoable — one undo past the first edit empties the manuscript', async () => {
+	// The three assertions below were written as `DEFECT F14` and are inverted in
+	// place by ticket 07: `initializeEditorContent` now dispatches the load with
+	// `addToHistory: false`, so the load is not an undoable event at all.
+
+	it('F14: the load is not undoable — a freshly opened transcription has an empty history', async () => {
 		const editor = createTestEditor({ content: HISTORY_FIXTURE });
 		try {
 			expect(shape(editor)).toEqual(LOADED);
-			// Nothing has been edited, yet there is something to undo.
-			expect((editor as any).can().undo()).toBe(true);
+			// Nothing has been edited, so there is nothing to undo.
+			expect((editor as any).can().undo()).toBe(false);
 
 			editor.commands.undo();
-			expect(shape(editor)).toEqual([]);
+			expect(shape(editor)).toEqual(LOADED);
 
-			// Redo brings it back, so the loss is recoverable until the next edit
-			// clears the redo stack.
 			editor.commands.redo();
 			expect(shape(editor)).toEqual(LOADED);
 		} finally {
@@ -123,24 +127,24 @@ describe('undo/redo under appended repair and renumber transactions', () => {
 		}
 	});
 
-	it('DEFECT F14: the first edit is grouped with the load, so one undo wipes the manuscript', async () => {
+	it('F14: the first edit is its own history event even inside the grouping window', async () => {
 		const editor = createTestEditor({ content: HISTORY_FIXTURE });
 		try {
 			// A user who starts typing within `newGroupDelay` of the document
-			// appearing gets their first keystroke merged into the same history
-			// event as the load.
+			// appearing used to get their first keystroke merged into the same
+			// history event as the load.
 			editor.commands.setTextSelection(4);
 			editor.commands.insertContent('X');
 			expect(shape(editor)[0][0][0]).toBe('aX1');
 
 			editor.commands.undo();
-			expect(shape(editor)).toEqual([]);
+			expect(shape(editor)).toEqual(LOADED);
 		} finally {
 			editor.destroy();
 		}
 	});
 
-	it('DEFECT F14: after the grouping window the load is still one undo away', async () => {
+	it('F14: after the grouping window one undo removes the edit and there is nothing behind it', async () => {
 		const editor = createTestEditor({ content: HISTORY_FIXTURE });
 		try {
 			await newHistoryGroup();
@@ -150,8 +154,29 @@ describe('undo/redo under appended repair and renumber transactions', () => {
 
 			editor.commands.undo();
 			expect(shape(editor)).toEqual(LOADED);
+			expect((editor as any).can().undo()).toBe(false);
 			editor.commands.undo();
-			expect(shape(editor)).toEqual([]);
+			expect(shape(editor)).toEqual(LOADED);
+		} finally {
+			editor.destroy();
+		}
+	});
+});
+
+/**
+ * The load transaction now carries `addToHistory: false` (F14). That must not
+ * weaken the init-only invariant established by `files-as-database` ticket 19.
+ * The post-load `setContent` half of that invariant is covered by
+ * `transcriptionEditorStructure.svelte.spec.ts`; only the re-entry guard is here.
+ */
+describe('initializeEditorContent init-only invariant', () => {
+	it('still refuses a second initialization of the same editor', () => {
+		const editor = createTestEditor({ content: HISTORY_FIXTURE });
+		try {
+			expect(() => initializeEditorContent(editor, HISTORY_FIXTURE as any)).toThrow(
+				/init-only/
+			);
+			expect(shape(editor)).toEqual(LOADED);
 		} finally {
 			editor.destroy();
 		}

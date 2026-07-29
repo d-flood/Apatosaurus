@@ -154,15 +154,47 @@ export function readCorrectionDraft(editor: Editor | null): Correction[] | null 
 	return [...existing];
 }
 
+function getCorrectionWordRange(editor: Editor): { from: number; to: number } | null {
+	const range = getSelectionRange(editor);
+	if (!range) return null;
+
+	const { $from, $to } = editor.state.selection;
+	const beforeSelection = $from.parent.textBetween(0, $from.parentOffset, '', '\ufffc');
+	const afterSelection = $to.parent.textBetween(
+		$to.parentOffset,
+		$to.parent.content.size,
+		'',
+		'\ufffc'
+	);
+	const wordCharacters = /[^\s\p{P}\p{S}]/u;
+	let from = range.from;
+	let to = range.to;
+
+	for (let index = beforeSelection.length - 1; index >= 0; index -= 1) {
+		if (!wordCharacters.test(beforeSelection[index])) break;
+		from -= 1;
+	}
+	for (let index = 0; index < afterSelection.length; index += 1) {
+		if (!wordCharacters.test(afterSelection[index])) break;
+		to += 1;
+	}
+
+	return { from, to };
+}
+
 export function applyCorrectionMark(editor: Editor | null, corrections: Correction[]): boolean {
 	if (!editor || corrections.length === 0) return false;
-	editor.chain().focus().setMark('correction', { corrections }).run();
+	const range = getCorrectionWordRange(editor);
+	if (!range) return false;
+	editor.chain().focus().setTextSelection(range).setMark('correction', { corrections }).run();
 	return true;
 }
 
 export function removeCorrectionMark(editor: Editor | null): boolean {
 	if (!editor) return false;
-	editor.chain().focus().unsetMark('correction').run();
+	const range = getCorrectionWordRange(editor);
+	if (!range) return false;
+	editor.chain().focus().setTextSelection(range).unsetMark('correction').run();
 	return true;
 }
 

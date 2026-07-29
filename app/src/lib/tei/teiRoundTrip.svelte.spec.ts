@@ -164,4 +164,107 @@ describe('TEI round trip through the ProseMirror adapter', () => {
 			expect(xml).toContain('corresp="#x"');
 		});
 	});
+
+	/**
+	 * Ticket 24 / INVENTORY R1. The selection UI permits a correction over part of
+	 * a word and over several words; the fixtures only ever covered a whole single
+	 * word. These build the shapes directly as ProseMirror JSON and export them.
+	 */
+	describe('R1 — corrections on partial and multi-word selections', () => {
+		const CORRECTION = {
+			type: 'correction',
+			attrs: {
+				corrections: [{ hand: 'corrector', content: [{ type: 'text', text: 'fixed' }] }],
+			},
+		};
+
+		function pmLine(content: any[]): any {
+			return {
+				type: 'manuscript',
+				content: [
+					{
+						type: 'page',
+						attrs: { pageName: '1r' },
+						content: [
+							{
+								type: 'column',
+								attrs: { columnNumber: 1 },
+								content: [{ type: 'line', attrs: { lineNumber: 1 }, content }],
+							},
+						],
+					},
+				],
+			};
+		}
+
+		/** The line's exported content, with boilerplate and pretty-printing removed. */
+		function body(xml: string): string {
+			return xml
+				.replace(/^[\s\S]*<lb\/>\n/, '')
+				.replace(/<\/ab>[\s\S]*$/, '')
+				.replace(/<ab>\n?/, '')
+				.replace(/\n/g, '');
+		}
+
+		const marked = (text: string) => ({ type: 'text', text, marks: [CORRECTION] });
+		const plain = (text: string) => ({ type: 'text', text });
+
+		it('exports a whole-word correction (the case that already worked)', () => {
+			const xml = exportFromProseMirror(pmLine([marked('alpha')]));
+			expect(body(xml)).toBe(
+				'<app><rdg type="orig"><w>alpha</w></rdg>' +
+					'<rdg type="corr" hand="corrector"><w>fixed</w></rdg></app>'
+			);
+		});
+
+		it('exports a word whose suffix carries the correction', () => {
+			const xml = exportFromProseMirror(pmLine([plain('alp'), marked('ha')]));
+			expect(xml).toContain('alp');
+			expect(body(xml)).toBe(
+				'<app><rdg type="orig"><w>alpha</w></rdg>' +
+					'<rdg type="corr" hand="corrector"><w>fixed</w></rdg></app>'
+			);
+		});
+
+		it('exports a word whose middle span carries the correction', () => {
+			const xml = exportFromProseMirror(pmLine([plain('al'), marked('ph'), plain('a')]));
+			expect(body(xml)).toBe(
+				'<app><rdg type="orig"><w>alpha</w></rdg>' +
+					'<rdg type="corr" hand="corrector"><w>fixed</w></rdg></app>'
+			);
+		});
+
+		it('emits exactly one <app> for a correction spanning two words', () => {
+			const xml = exportFromProseMirror(
+				pmLine([marked('alpha'), plain(' '), marked('beta')])
+			);
+			expect((xml.match(/<app>/g) ?? []).length).toBe(1);
+			expect(body(xml)).toBe(
+				'<app><rdg type="orig"><w>alpha</w><w>beta</w></rdg>' +
+					'<rdg type="corr" hand="corrector"><w>fixed</w></rdg></app>'
+			);
+		});
+
+		it('leaves an unmarked neighbouring word alone', () => {
+			const xml = exportFromProseMirror(
+				pmLine([plain('before'), plain(' '), plain('alp'), marked('ha'), plain(' '), plain('after')])
+			);
+			expect(body(xml)).toBe(
+				'<w>before</w>' +
+					'<app><rdg type="orig"><w>alpha</w></rdg>' +
+					'<rdg type="corr" hand="corrector"><w>fixed</w></rdg></app>' +
+					'<w>after</w>'
+			);
+		});
+
+		it.each([
+			['suffix', [plain('alp'), marked('ha')]],
+			['middle', [plain('al'), marked('ph'), plain('a')]],
+			['two words', [marked('alpha'), plain(' '), marked('beta')]],
+		])('round-trips a %s correction: export, re-import, re-export', (_label, content) => {
+			const once = exportFromProseMirror(pmLine(content as any[]));
+			const twice = exportFromProseMirror(editorJson(once));
+			expect(twice).toBe(once);
+		});
+	});
 });

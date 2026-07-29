@@ -227,6 +227,7 @@ export function extractWitnessTokensForVerse(
 	let pendingSegments: WitnessTextSegment[] = [];
 	let pendingContinuationMarker: '\\n' | '\\c' | '\\p' | null = null;
 	let awaitingNoBreakContinuation = false;
+	let activeCorrectionSignature: string | null = null;
 	const state: MilestoneState = { book: '', chapter: '', verse: '' };
 	const baseHand = target?.baseHand || inferBaseHand(document);
 	let currentHand: string;
@@ -368,12 +369,21 @@ export function extractWitnessTokensForVerse(
 			if (item.type === 'text') {
 				const correction = target ? getCorrectionForHand(item, target.handId) : null;
 				if (correction) {
+					// Consecutive words with the same reading are one apparatus; this is
+					// the same grouping rule used by the TEI serializer.
+					const correctionSignature = JSON.stringify(correction);
+					if (correctionSignature === activeCorrectionSignature) {
+						continue;
+					}
+					activeCorrectionSignature = correctionSignature;
 					const previousHand = currentHand;
 					currentHand = target?.handId || previousHand;
 					processInlineItems(correction.content);
 					currentHand = previousHand;
+					activeCorrectionSignature = correctionSignature;
 					continue;
 				}
+				activeCorrectionSignature = null;
 
 				if (!shouldUseOriginalText(item)) {
 					appendPlaceholderTokens(item.text || '');
@@ -396,6 +406,7 @@ export function extractWitnessTokensForVerse(
 				flushPendingSegments();
 				continue;
 			}
+			activeCorrectionSignature = null;
 
 			if (item.type === 'handShift') {
 				currentHand = normalizeHandRef(item.attrs.new || item.attrs.hand || '') || baseHand;
@@ -464,6 +475,7 @@ export function extractWitnessTokensForVerse(
 			}
 			return;
 		}
+		activeCorrectionSignature = null;
 		if (currentVerseIdentifier(state) === targetVerseIdentifier) {
 			flushPendingSegments();
 		}
@@ -478,6 +490,7 @@ export function extractWitnessTokensForVerse(
 				currentHand = baseHand;
 				for (const item of line.items) {
 					if (item.type === 'milestone') {
+						activeCorrectionSignature = null;
 						const previousVerseIdentifier = currentVerseIdentifier(state);
 						if (item.kind === 'book') {
 							state.book = item.attrs.book || state.book;

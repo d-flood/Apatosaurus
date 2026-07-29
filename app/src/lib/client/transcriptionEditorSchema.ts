@@ -785,6 +785,10 @@ const PunctuationHighlighter = Extension.create({
 				appendTransaction: (transactions, oldState, newState) => {
 					// If the document didn't change, we don't need to do anything
 					if (!newState.doc.eq(oldState.doc)) {
+						const punctuationType = newState.schema.marks.punctuation;
+						if (!punctuationType) {
+							return null;
+						}
 						const tr = newState.tr;
 						let changed = false;
 						// Comprehensive regex for Latin and Greek punctuation
@@ -803,16 +807,17 @@ const PunctuationHighlighter = Extension.create({
 								const from = pos + match.index;
 								const to = from + 1; // Mark a single character
 
-								// Check if the mark is already applied to avoid duplicating marks
-								if (!node.marks.some(m => m.type.name === 'punctuation')) {
-									// Add the mark to the transaction
-									tr.addMark(
-										from,
-										to,
-										newState.schema.marks.punctuation.create()
-									);
-									changed = true;
+								// Ask whether the character range about to be marked already
+								// carries the mark. Asking whether the containing text node
+								// carries it answers a different question, and is only
+								// accidentally right for as long as ProseMirror keeps every
+								// text node's mark set uniform.
+								if (newState.doc.rangeHasMark(from, to, punctuationType)) {
+									continue;
 								}
+
+								tr.addMark(from, to, punctuationType.create());
+								changed = true;
 							}
 						});
 

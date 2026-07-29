@@ -52,6 +52,30 @@ export function developmentServer(environment: DevelopmentEnvironment = process.
 	};
 }
 
+// The browser test project binds a TCP port for its Chromium runner. Vitest
+// defaults to 63315 with strict binding, so two concurrent `--project client`
+// runs collide and the loser reports "no tests" rather than a real failure.
+// Unpinned runs therefore fall back to the next free port; set
+// VITEST_BROWSER_PORT to pin one and fail loudly if it is taken.
+export function browserTestServer(environment: DevelopmentEnvironment = process.env) {
+	const portText = environment.VITEST_BROWSER_PORT;
+	if (portText === undefined || portText === '') {
+		return { port: 63315, strictPort: false };
+	}
+	if (!/^\d+$/.test(portText)) {
+		throw new Error(
+			`VITEST_BROWSER_PORT must be an integer between 1 and 65535, received ${portText}`
+		);
+	}
+	const port = Number(portText);
+	if (port < 1 || port > 65535) {
+		throw new Error(
+			`VITEST_BROWSER_PORT must be an integer between 1 and 65535, received ${portText}`
+		);
+	}
+	return { port, strictPort: true };
+}
+
 export default defineConfig({
 	plugins: [tailwindcss(), sveltekit(), devtoolsJson()],
 	server: {
@@ -229,6 +253,7 @@ export default defineConfig({
 						enabled: true,
 						provider: 'playwright',
 						instances: [{ browser: 'chromium' }],
+						api: browserTestServer(),
 					},
 					include: ['src/**/*.svelte.{test,spec}.{js,ts}'],
 					exclude: ['src/lib/server/**'],

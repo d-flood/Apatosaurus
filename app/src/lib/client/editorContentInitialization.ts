@@ -10,7 +10,11 @@ export function initializeEditorContent(
 	if (initializedEditors.has(editor)) {
 		throw new Error('setContent is init-only for editor documents; use a transaction after load');
 	}
-	editor.commands.setContent(content, options);
+	// `addToHistory: false` keeps the load out of the undo stack entirely (F14).
+	// `emitUpdate: false` only suppresses the update *event*; without this meta
+	// the load is an undoable event, the user's first keystroke groups with it
+	// inside `newGroupDelay`, and one early Ctrl+Z empties the manuscript.
+	editor.chain().setMeta('addToHistory', false).setContent(content, options).run();
 	initializedEditors.add(editor);
 	const originalDispatchTransaction = editor.view.dispatch;
 	editor.view.dispatch = transaction => {

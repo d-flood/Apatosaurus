@@ -70,6 +70,14 @@ habit — click into the editor first, do not undo immediately after opening.
 F35 is not: typing a full stop after a word is not an edge case, and the loss
 is silent, deferred to export, and unnoticeable in the editor.
 
+> **All four are now fixed — 2026-07-28.** F6 and F14 by ticket `07`, F35 by
+> ticket `09`, F36 by ticket `08`. All four were reproduced by execution before
+> being fixed, and each fix is locked in by a spec. Two claims in the text below
+> did not survive contact and are corrected in place: F35's "the plugin re-marks
+> endlessly" (it does not — see the correction under F35) and the severity
+> classification of ticket `24`, which reproduced as a one-action data loss and
+> belongs in this section rather than in stage 8. See F47.
+
 ### F6 — "Insert Page" destroys the whole manuscript if the editor has not been clicked into
 
 `TranscriptionEditor.svelte:822` `insertPage`, `:861` `insertFramedPage`.
@@ -155,6 +163,19 @@ with no boundary is what made the serializer's assumption wrong in the first
 place. **Both halves are needed** — B2 alone leaves existing documents broken,
 and the serializer alone leaves the schema producing a shape nothing else in the
 pipeline expects.
+
+**Correction — 2026-07-28, ticket `09`.** The claim that `PunctuationHighlighter`
+"re-marks endlessly" **did not reproduce**. ProseMirror keeps a text node's mark
+set uniform, so the old `node.marks.some(...)` test and a per-character test are
+behaviourally equivalent on a normalized document: the plugin was already
+idempotent, measured directly via
+`state.applyTransaction(tr).transactions.length`, which appends no second
+transaction over already-marked punctuation. The plugin half was therefore a
+correctness-of-kind fix (`rangeHasMark` asks about the range being marked, not
+the whole text node), **not** a data-loss or performance fix. "Both halves are
+needed" is right about the code but wrong about the impact: only the serializer
+half moves the data loss. B2 remains open purely as ticket `04`'s performance
+item.
 
 ### F36 — autosave permanently deletes intentional empty lines
 
@@ -895,6 +916,108 @@ text, page id and order, and a null name.
 Verdict: read `pageName`. One identifier — the same class of bug as F12, and the
 second time in this inventory that a field has been read under a name nothing
 writes.
+
+---
+
+## Findings from the first implementation batch
+
+Three findings surfaced while fixing tickets `07`, `08`, `09` and `24` on
+2026-07-28. All three were found by execution. None was predicted by the audit,
+which is further evidence for "the finding list is not proven complete" below.
+
+### F47 — a multi-word `<app>` in existing TEI multiplies on every open-and-save
+
+`tei-serializer.ts` `exportLineContent`. **Evidence: executed** (ticket `24`).
+**Kind: correctness / corpus-wide data corruption.** **Verdict: fixed.**
+
+Ticket `24` was filed as an editor-shape defect and scheduled in stage 8. It is
+neither. Reproducing it showed the same cause reached from a second, worse
+direction: ordinary TEI *already on disk* hits it. An IGNTP/1739-style
+apparatus —
+
+```xml
+<app><rdg type="orig"><w>και</w><w>ελπιζει</w></rdg>…</app>
+```
+
+— parsed and re-serialized to **two** `<app>` elements, each carrying a full copy
+of every corrector reading. Opening and saving any manuscript containing a
+multi-word variant multiplies its apparatus. Two existing tests asserted the
+duplication as correct and were flipped.
+
+The editor-side half was worse than filed: a correction on part of a word
+(`before alp[ha] after`) exported as `<w>before</w><w>after</w>` — the corrected
+word absent entirely, from one selection and one click.
+
+**Severity reclassification:** ticket `24` belongs in "Raise immediately"
+alongside F35 and F36, not in stage 8. It is a one-action loss and it is not
+confined to editor-authored documents.
+
+**Semantics decision confirmed by a human — 2026-07-28.** A correction covering
+any part of a word uses the *whole word* as its apparatus locus: `<app>` wraps
+one or more complete `<w>` elements, `<rdg type="orig">` holds the complete
+original word sequence, and every corrector reading holds the complete corrected
+word sequence. A scholar may select one letter as the authoring gesture; the
+editor expands the mark to the containing word before storing it.
+
+This is a modelling decision, not an XSD limitation. The repo's IGNTP schema
+(`NT_Manuscripts_TEI_Schema/document.xsd`, via `validateIgntpXsd`) also permits a
+nested, sub-word `<app>`:
+
+| Shape | XSD verdict |
+| --- | --- |
+| `<w>κα<app><rdg type="orig">ι</rdg>…</app></w>` | **valid** |
+| `<w>κα<unclear>ι</unclear></w>` | valid |
+| `<app><rdg type="orig"><w>και</w></rdg>…</app>` (current output) | valid |
+| `<w>κα<subst><del>ι</del><add>ις</add></subst></w>` | **rejected** |
+| `<w>κα<add hand="#h2">ις</add></w>` | **rejected** |
+| `<w>κα<del>ι</del></w>` | **rejected** |
+
+Schema permission does not determine the application's comparison unit. The
+collation pipeline consumes word tokens and corrector extraction must produce
+complete words, so the application deliberately uses the valid whole-word form.
+An apparatus around a word says that the word is the comparison locus; it does
+not assert that every character was physically altered. A one-letter correction
+remains explicit in the difference between the complete orig and corr readings.
+`<unclear>` remains sub-word because it describes the exact characters whose
+reading is uncertain rather than defining a collation unit.
+
+The first implementation only widened during serialization, leaving a partial
+mark in local editor state. That made collation differ before and after a TEI
+round trip, and a multi-word mark caused the corrector reading to be extracted
+once per original word. The follow-up now expands apply/remove operations to
+word boundaries, tells the scholar to enter complete corrected words, and emits
+one corrector reading per consecutive multi-word apparatus. Focused editor,
+round-trip and collation specs pin all three paths.
+
+### F48 — a blank line survives local save but not a TEI round trip
+
+`tei-serializer.ts` versus `tei-parser.ts`. **Evidence: executed** (ticket `08`).
+**Kind: correctness / asymmetry.** **Verdict: open — needs a scholarly decision.**
+
+Consequence of fixing F36, and not reachable before it. Now that blank lines
+persist, the serializer emits a bare `<lb/>` for one (it emits `<lb/>` per line
+unconditionally), but the parser drops empty lines on import — `flushCurrentLine`
+returns early with no items and `handleLineBreak` does not advance the counter.
+So a blank line survives save-and-reload locally and is lost through
+export→import.
+
+Closing it needs a parser-side opt-in for a genuinely empty `<lb/>` sequence,
+which is exactly the question `SPEC.md` § D6 says has never been decided: does an
+empty line mean anything in the transcription, or is it editing whitespace? Do
+not fix this without answering that first. Not ticketed.
+
+### F49 — the initialization guard's emptiness check is trivially satisfied
+
+`editorContentInitialization.ts`. **Evidence: executed** (ticket `07`).
+**Kind: maintainability / latent.** **Verdict: ticket `04` should absorb this.**
+
+On an *empty* document the `dispatch` monkey-patch guard's
+`firstStep.from === 0 && firstStep.to === transaction.before.content.size` is
+satisfied by any insert at position 0, because `before.content.size` is also 0.
+The only thing stopping a legitimate first-page insert from throwing is the
+`selectionSet === false` clause — so `insertPageNode`'s `tr.setSelection` is now
+load-bearing for a reason unrelated to caret placement. Whatever replaces the
+monkey-patch in ticket `04` must not key on something this incidental.
 
 ---
 

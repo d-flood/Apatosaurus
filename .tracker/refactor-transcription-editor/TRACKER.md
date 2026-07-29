@@ -6,7 +6,7 @@ This document tracks the status of all tickets in the refactor-transcription-edi
 
 Read `SPEC.md` first. It carries the investigation findings and measurements so they are not re-derived, and its § "Provisional Work Breakdown" holds the analysis for work not yet ticketed.
 
-Then read `INVENTORY.md`. It is ticket `01`'s deliverable, extended by a second audit pass: 46 identified findings (`F1`–`F46`), four TEI-layer findings referred out of the epic (`R1`–`R4`), the answers to the five questions tickets `03`–`05` were blocked on, and a coverage statement saying what was and was not read. Remaining tickets are to be written from it.
+Then read `INVENTORY.md`. It is ticket `01`'s deliverable, extended by a second audit pass and by the first implementation batch: 49 identified findings (`F1`–`F49`), four TEI-layer findings referred out of the epic (`R1`–`R4`), the answers to the five questions tickets `03`–`05` were blocked on, and a coverage statement saying what was and was not read. Remaining tickets are to be written from it.
 
 Two things to know before writing a ticket from it. `F35`–`F46` have **no committed specs** — unlike `F1`–`F34`, whose evidence is pinned by tagged assertions — so each needs its spec written before it is fixed. And findings labelled **read** rather than **executed** have not been reproduced at all; this project has a track record of carefully-read code turning out to destroy documents once run.
 
@@ -14,7 +14,7 @@ Two things to know before writing a ticket from it. `F35`–`F46` have **no comm
 
 Overall status: `In Progress`
 
-Current ticket: none — `06` completed; tickets `07`–`30` written and the frontier is wide (19 of them have no blockers)
+Current ticket: none — the stage-1b data-loss batch (`07`, `08`, `09`, `24`) is complete. Frontier is 18 unblocked tickets; `02`, `10`, `11` and the stage-3 localized fixes are next.
 
 Last updated: 2026-07-28
 
@@ -30,14 +30,14 @@ Last updated: 2026-07-28
 Ordered so that each stage is verified by the one before it, and the widest blast radius comes last.
 
 1. **`06` — non-degenerate fixtures.** No production code. Everything downstream is verified against it. Expect it to surface findings; append them to `INVENTORY.md`.
-1b. **The four raise-immediately defects** (F6, F14, F35, F36). Each destroys a scholar's work through an ordinary single action, and each is independent of the epic's architecture work. F14 is one flag. F35 and F36 arrived in the second audit pass and need their specs committed first. Do not let these wait on the sequencing below — the ordering principle here is confidence, and these are not refactors.
+1b. ~~**The four raise-immediately defects** (F6, F14, F35, F36).~~ **Done 2026-07-28** as tickets `07`, `08`, `09` — plus `24`, which was pulled forward from stage 8 when it reproduced as a one-action loss (F47). Each destroyed a scholar's work through an ordinary single action, and each was independent of the epic's architecture work.
 2. **Dead code** (F28, F29, F30, F31, F34). Cannot change behaviour by definition — the code is unreachable or uncalled. Landing it early shrinks the surface before anything hard, and a green suite afterwards is a cheap check that `06`'s net is wired up. Two caveats: F31 and F9 are "nothing depends on this", *not* "we know why it was added" — establish what each compensated for first, or keep them and record that they are unexplained.
 3. **Localized correctness fixes**, each independent and each already carrying a tagged assertion to flip: F5 + F10 (one bug, two sites — a `descendants` callback returning `false` stops the descent, not the walk), F12, F19, F20 (identifier and purity bugs, one line each), F3, F2, F18, F14, F6. Small diffs, no architectural change.
 4. **Reproduce D2** before any performance work — see `INVENTORY.md` § "What this inventory does not establish", point 1. An input-rate test that outruns the repair, asserting the caret. If the caret does not jump, the theory is wrong and stage 5 changes.
 5. **The performance path**: repair off the keystroke path (ticket `04`), then F23, F24, F26, F27. Hot paths change; the document model does not.
 6. **Structural work**: line and column numbers become presentation (ticket `03` region, unblocked by `01`'s Q1), editorial chrome leaves `renderHTML`, then the layout model (ticket `05`, where F15/F16 land). Widest blast radius, deepest net underneath by this point.
 7. **Rich content leaves node attributes** — now ticket `22`, no longer an open decision. `SPEC.md` § D said to "re-evaluate whether it is worth doing at all"; that re-evaluation happened on 2026-07-28 and the answer was yes. What changed it: three confirmed content-destroying inspector write paths (F40, F41, F42), which are not a rendering-cost argument but a data-loss one. The cheap alternative — make each inspector merge rather than replace — was explicitly rejected for `fw`, because it fixes the symptom at every surface separately and leaves the cause. Ticket `21` still applies it to the two surfaces ticket `22` does not cover.
-8. **TEI fidelity** (`24`–`27`). Independent of the editor architecture and of each other. `24` should be reproduced before it is scheduled — if it confirms, it is a one-keystroke data loss and belongs in stage 1b.
+8. **TEI fidelity** (`25`–`27`). Independent of the editor architecture and of each other. `24` was reproduced first as this stage instructed, confirmed, and moved to stage 1b — see F47. That instruction earned its keep; apply the same test to `25`–`27` before scheduling them.
 
 Success is not "every ticket cleared". Some findings should end in a documented *no*.
 
@@ -51,9 +51,9 @@ Success is not "every ticket cleared". Some findings should end in a documented 
 | 04 | `04-structure-repair-leaves-the-keystroke-path.md` | Not Started | 01 |
 | 05 | `05-page-and-column-layout-model.md` | Not Started | 01, 06 |
 | 06 | `06-non-degenerate-test-fixtures.md` | Completed | 01 |
-| 07 | `07-opening-a-transcription-cannot-destroy-it.md` | Not Started | None |
-| 08 | `08-empty-lines-survive-the-save-path.md` | Not Started | None |
-| 09 | `09-punctuation-stops-deleting-the-word-beside-it.md` | Not Started | None |
+| 07 | `07-opening-a-transcription-cannot-destroy-it.md` | Completed | None |
+| 08 | `08-empty-lines-survive-the-save-path.md` | Completed | None |
+| 09 | `09-punctuation-stops-deleting-the-word-beside-it.md` | Completed | None |
 | 10 | `10-delete-the-uncalled-editor-code.md` | Not Started | None |
 | 11 | `11-explain-or-remove-the-unexplained-workarounds.md` | Not Started | None |
 | 12 | `12-column-split-preserves-attributes-and-caret.md` | Not Started | None |
@@ -68,7 +68,7 @@ Success is not "every ticket cleared". Some findings should end in a documented 
 | 21 | `21-inspector-apply-merges-instead-of-replacing.md` | Not Started | None |
 | 22 | `22-formwork-content-lives-in-the-document.md` | Not Started | 04 |
 | 23 | `23-drafts-and-drawers-target-what-they-opened.md` | Not Started | None |
-| 24 | `24-corrections-on-partial-and-multi-word-selections.md` | Not Started | None |
+| 24 | `24-corrections-on-partial-and-multi-word-selections.md` | Completed | None |
 | 25 | `25-seg-survives-the-round-trip.md` | Not Started | None |
 | 26 | `26-element-only-original-readings-are-preserved.md` | Not Started | None |
 | 27 | `27-carriers-keep-arbitrary-tei-attributes.md` | Not Started | None |
@@ -98,6 +98,12 @@ pnpm vitest run --project client src/lib/client/transcriptionEditorStructure.sve
 
 ## Notes
 
+- **2026-07-28** — **Ticket `24` semantics confirmed and enforced end to end.** A partial selection is an authoring gesture, while the apparatus comparison locus remains one or more complete words. Apply/remove now expands to word boundaries without absorbing punctuation, the correction workspace asks for complete corrected words, and corrector extraction emits a consecutive multi-word apparatus once rather than once per original word. The IGNTP XSD does permit nested sub-word `<app>`, but that is deliberately not this application's model: collation consumes word tokens, and a word-level locus does not claim every character changed. App baseline is now **101 files / 677 tests, all passing**; `check` remains 0 errors.
+- **2026-07-28** — **First implementation batch complete: `07`, `08`, `09`, `24`**, run as four parallel agents partitioned by file ownership. All four defects were reproduced by execution before being fixed. App suite went from 98 files / 637 tests to **100 files / 672 tests, all passing**; `check` 0 errors. Three new findings appended to `INVENTORY.md` as **F47**, **F48**, **F49** — see below. One open item needs a human decision, flagged in `INVENTORY.md`:
+  - **F47 — ticket `24` was misclassified and is worse than filed.** It reproduced as a one-action data loss (a correction on part of a word exported the word away entirely) *and* as corpus-wide corruption independent of the editor: ordinary existing TEI with a multi-word `<app>` duplicates its apparatus on every open-and-save. It belongs in stage 1b, not stage 8. The modelling decision is now human-confirmed: `<app>` uses complete `<w>` elements as its comparison locus because collation and corrector extraction operate on whole words. Partial selections expand to word boundaries, correction readings contain complete corrected words, and a multi-word apparatus is extracted once. A word-level locus does not claim every character changed; the changed letter remains visible by comparing the complete orig and corr readings.
+  - **F48 — fixing F36 exposed an export/import asymmetry.** Blank lines now survive local save/reload but are still dropped on TEI import. Closing it requires answering the question `SPEC.md` § D6 says has never been decided: does an empty line mean anything in the transcription? **Deliberately not ticketed** pending that answer.
+- **2026-07-28** — **The verification baseline has a hole.** `pnpm run test:unit` does not cover `packages/tei-transcription`, where `pnpm test` fails 7 tests (6 in `tei-fixtures.spec.ts`, 1 in `igntp-corpus-audit.spec.ts`). Cause: `packages/tei-transcription/tests/fixtures/` does not exist and **was never committed** — not gitignored, simply absent from history. This is pre-existing and unrelated to the batch, but three tickets in this epic touch the serializer and their acceptance steps name that command. Either restore the fixtures or amend the baseline.
+- **2026-07-28** — **Infrastructure:** the `client` vitest project bound port 63315 with strict binding, so concurrent agents collided and the loser reported "no tests" rather than a real failure — hit by three of four agents. `app/vite.config.ts` now exports `browserTestServer()` (mirroring `developmentServer()`): unpinned runs use 63315 without strict binding and fall back to a free port; `VITEST_BROWSER_PORT` pins one strictly. Verified by running two client suites concurrently — both green. Note that a *passing* concurrent run still prints `transport was disconnected` stack traces after its summary; that is teardown noise, and the `Test Files` line is the real signal.
 - **2026-07-28** — Second audit pass folded into `SPEC.md` and `INVENTORY.md`; the pass's own `AUDIT.md` was deleted once its items were incorporated or referred. Net effect: two new confirmed defects in `SPEC.md` (**D5** typing punctuation next to a word deletes that word from the exported TEI; **D6** autosave permanently removes intentional empty lines), twelve new findings (`F35`–`F46`), a definition for `F4`, corrections to `F3`, `F5` and `Q4`, and four TEI-layer findings referred out as `R1`–`R4`. `SPEC.md` § Scope was rewritten: the conversion package is in scope where *editor behaviour* reaches the defect, which is why D5 and D6 are this epic's and R1–R4 are not. `SPEC.md` § D now carries a fifth cost of rich-content-in-attributes — three confirmed content-destroying inspector write paths — which raises the stakes on the stage-7 decision below.
 - **2026-07-28** — Ticket `06` complete. Shared deterministic builders, model/DOM/attribute snapshots, and direct/mounted editor harnesses now live under `app/src/lib/client/testing/`; editor characterization specs use the layer and retain all 26 `DEFECT F<n>` tags. No new defect surfaced. Baseline increased from 97 files / 630 tests to 98 files / 637 tests.
 - **2026-07-28** — Ticket `06` deleted `selection-stability.svelte.spec.ts`: its `simulatePageTracking` and `simulateIiifPageChange` helpers copied editor behavior into the test, while the correction-workspace scenario asserted a test-local boolean. It therefore tested its own simulation rather than a production path; the real initialization, editing, carrier insertion, mounted editor, and mounted correction/carrier paths remain covered by their focused specs.

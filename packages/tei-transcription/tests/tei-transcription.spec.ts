@@ -1389,7 +1389,12 @@ describe('tei-transcription package', () => {
 		expect(compactXml(exported)).toContain(
 			compactXml('<rdg type="alt" hand="corrector"></rdg>'),
 		);
-		expect(exported.match(/<rdg type="alt" hand="corrector">/g)).toHaveLength(2);
+		// Ticket 24 / INVENTORY R1: a two-word orig reading is one apparatus, not
+		// one per word. This previously asserted 2, locking in the duplication.
+		expect(exported.match(/<rdg type="alt" hand="corrector">/g)).toHaveLength(1);
+		expect(compactXml(exported)).toContain(
+			compactXml('<rdg type="orig"><w>εν</w><w>ρωμη</w></rdg>'),
+		);
 	});
 
 	it('round-trips mixed corr and alt readings from 1739-style apparatus', () => {
@@ -1411,7 +1416,12 @@ describe('tei-transcription package', () => {
 		expect(compactXml(exported)).toContain(
 			compactXml('<rdg type="alt" hand="corrector"><w>ελπιζει</w></rdg>'),
 		);
-		expect(exported.match(/<app>/g)).toHaveLength(2);
+		// Ticket 24 / INVENTORY R1: the source has one <app> spanning two words, so
+		// the export must have one too. This previously asserted 2.
+		expect(exported.match(/<app>/g)).toHaveLength(1);
+		expect(compactXml(exported)).toContain(
+			compactXml('<rdg type="orig"><w>και</w><w>ελπιζει</w></rdg>'),
+		);
 	});
 
 	it('preserves TEI, text, and body attrs plus ordered text-level resources and globals', () => {

@@ -593,4 +593,50 @@ describe('extractWitnessTokensForVerse', () => {
 
 		expect(tokens.map(token => token.original)).toEqual(['part1', 'part2']);
 	});
+
+	it('emits a multi-word correction reading once for its whole apparatus', () => {
+		const correction = {
+			hand: 'corrector',
+			content: [
+				{ type: 'text', text: 'gamma' },
+				{ type: 'boundary', kind: 'word' },
+				{ type: 'text', text: 'delta' },
+			],
+		};
+		const correctionMark = {
+			type: 'correction',
+			attrs: { corrections: [correction] },
+		};
+		const document = buildAstDocument([
+			{
+				columns: [
+					{
+						lines: [
+							{
+								items: [
+									{
+										type: 'milestone',
+										kind: 'verse',
+										attrs: { book: 'John', chapter: '1', verse: '1' },
+									},
+									{ type: 'text', text: 'alpha', marks: [correctionMark] },
+									{ type: 'boundary', kind: 'word' },
+									{ type: 'text', text: 'beta', marks: [correctionMark] },
+								],
+							},
+						],
+					},
+				],
+			},
+		]);
+
+		const tokens = extractWitnessTokensForVerse(document, 'John 1:1', {}, {
+			kind: 'corrector',
+			baseHand: 'firsthand',
+			handId: 'corrector',
+			treatment: 'full',
+		});
+
+		expect(tokens.map(token => token.original)).toEqual(['gamma', 'delta']);
+	});
 });

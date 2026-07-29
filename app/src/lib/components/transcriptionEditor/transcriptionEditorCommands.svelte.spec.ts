@@ -93,24 +93,83 @@ describe('TranscriptionEditor structural commands (mounted, multi-page fixture)'
 		}
 	});
 
-	it('DEFECT F6: insertPage destroys the whole document when the editor has never been focused', async () => {
+	// The two assertions below were written as `DEFECT F6` and are inverted in
+	// place by ticket 07: the insert position is now derived from the document
+	// rather than from `state.selection`, so an unfocused editor is not a special
+	// case at all.
+
+	it('F6: insertPage appends without touching the document when the editor has never been focused', async () => {
 		const harness = await mountEditor();
 		try {
-			// No caret placed. `insertContent` fits a block `page` node into whatever
-			// the default selection is, and ProseMirror's fitter resolves the
-			// mismatch by replacing everything.
+			// No caret placed. `insertContent` used to fit a block `page` node into
+			// whatever the default selection was, and ProseMirror's fitter resolved
+			// the mismatch by replacing everything.
+			const before = Array.from(
+				harness.container.querySelectorAll('.ProseMirror .page')
+			).map(element => element.outerHTML);
 			await insertPage(harness, '2v', 'Standard');
-			expect(domShape(harness.container)).toEqual([[['']]]);
+
+			// The three original pages are byte-identical, not merely same-shaped.
+			const after = Array.from(harness.container.querySelectorAll('.ProseMirror .page')).map(
+				element => element.outerHTML
+			);
+			expect(after.slice(0, 3)).toEqual(before);
+
+			expect(domShape(harness.container)).toEqual([
+				[['a1', 'a2', 'a3', 'a4']],
+				[
+					['b1', 'b2', 'b3', 'b4'],
+					['c1', 'c2', 'c3', 'c4'],
+				],
+				[['d1', 'd2', 'd3', 'd4']],
+				[['']],
+			]);
 		} finally {
 			harness.dispose();
 		}
 	});
 
-	it('DEFECT F6: insertFramedPage destroys the whole document when the editor has never been focused', async () => {
+	it('F6: insertFramedPage appends without touching the document when the editor has never been focused', async () => {
 		const harness = await mountEditor();
 		try {
 			await insertPage(harness, '2v', 'Framed');
-			expect(domShape(harness.container)).toEqual([[[''], [''], [''], [''], ['']]]);
+			expect(domShape(harness.container)).toEqual([
+				[['a1', 'a2', 'a3', 'a4']],
+				[
+					['b1', 'b2', 'b3', 'b4'],
+					['c1', 'c2', 'c3', 'c4'],
+				],
+				[['d1', 'd2', 'd3', 'd4']],
+				[[''], [''], [''], [''], ['']],
+			]);
+			const zones = Array.from(
+				harness.container.querySelectorAll('.page')[3].querySelectorAll('.column')
+			).map(element => (element as HTMLElement).dataset.zone);
+			expect(zones).toEqual(['top', 'left', 'right', 'bottom', 'center']);
+		} finally {
+			harness.dispose();
+		}
+	});
+
+	it('F6: insertPage lands the new page after the page containing the caret', async () => {
+		const harness = await mountEditor();
+		try {
+			// Caret in the FIRST page, which is not the end of the document.
+			placeCaretAtEndOf(
+				lineElement(harness.container, 0, 0, 1).querySelector('.line-content') as HTMLElement
+			);
+			await tick();
+			await insertPage(harness, '1r-bis', 'Standard');
+
+			expect(domShape(harness.container)).toEqual([
+				[['a1', 'a2', 'a3', 'a4']],
+				[['']],
+				[
+					['b1', 'b2', 'b3', 'b4'],
+					['c1', 'c2', 'c3', 'c4'],
+				],
+				[['d1', 'd2', 'd3', 'd4']],
+			]);
 		} finally {
 			harness.dispose();
 		}

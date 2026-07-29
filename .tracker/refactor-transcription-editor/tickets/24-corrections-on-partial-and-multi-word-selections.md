@@ -46,6 +46,20 @@ Step one is a spec that builds the three shapes directly as ProseMirror JSON —
 - Correction *content* storage — ticket 22.
 - The correction workspace's metadata handling — ticket 21.
 
+## Resolution
+
+The human-confirmed comparison unit is one or more complete words. A scholar may
+select a single letter, but applying or removing a correction expands the range
+to the containing word boundaries. Every correction reading therefore contains
+the complete corrected word sequence. `<app>` records the word-level comparison
+locus; it does not claim that every character in the word changed.
+
+The IGNTP XSD permits nested sub-word `<app>`, but the application deliberately
+uses the whole-word form because collation and corrector extraction consume word
+tokens. The correction workspace now states the complete-reading requirement,
+and consecutive words carrying the same correction emit that reading once during
+corrector extraction.
+
 ## Acceptance criteria
 
 - [ ] A correction mark on the suffix of a word exports the word with its apparatus.

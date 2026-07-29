@@ -19,7 +19,7 @@
 	} from '$lib/client/transcriptionEditorStructure';
 	import { exportTEIDocument } from '$lib/tei/tei-exporter';
 	import { Editor } from '@tiptap/core';
-	import { NodeSelection } from '@tiptap/pm/state';
+	import { NodeSelection, TextSelection, type EditorState } from '@tiptap/pm/state';
 	import { onMount } from 'svelte';
 	import AbbreviationPanel from './AbbreviationPanel.svelte';
 	import BubbleMenu from './BubbleMenu.svelte';
@@ -819,11 +819,47 @@
 		}
 	}
 
+	/**
+	 * Where a new top-level `page` node belongs.
+	 *
+	 * A page is a top-level node, so its insert point is a property of the
+	 * document, never of the selection: the end of the page containing the caret,
+	 * or the end of the document when the caret is not inside a page — which is
+	 * the case for an editor that has not yet been clicked into. Deriving it from
+	 * `state.selection` (what `insertContent` does) let ProseMirror's fitter
+	 * resolve the block/inline mismatch by replacing the entire manuscript. See
+	 * `.tracker/refactor-transcription-editor/INVENTORY.md` F6.
+	 */
+	function pageInsertPosition(state: EditorState): number {
+		const resolvedFrom = state.selection.$from;
+		for (let depth = resolvedFrom.depth; depth > 0; depth--) {
+			if (resolvedFrom.node(depth).type.name === 'page') return resolvedFrom.after(depth);
+		}
+		return state.doc.content.size;
+	}
+
+	/** Insert a page built from `pageJson` at a document-derived position. */
+	function insertPageNode(editor: Editor, pageJson: Record<string, any>) {
+		const { state, view } = editor;
+		const insertAt = pageInsertPosition(state);
+		const pageNode = state.schema.nodeFromJSON(pageJson);
+		const tr = state.tr.insert(insertAt, pageNode);
+		// Put the caret in the new page's first line rather than at the end of the
+		// document — the two differ whenever the caret was in a middle page.
+		tr.setSelection(TextSelection.near(tr.doc.resolve(insertAt + 3)));
+		view.dispatch(tr);
+
+		// Performance optimization: set hasPage instead of checking the whole document
+		hasPage = true;
+		editor.commands.focus();
+		pageName = '';
+	}
+
 	function insertPage() {
 		const editor = editorState.editor;
 		if (!editor || pageNameExists(pageName)) return;
 
-		editor.commands.insertContent({
+		insertPageNode(editor, {
 			type: 'page',
 			attrs: { pageId: createEditorPageId(), pageName: pageName || null },
 			content: [
@@ -839,23 +875,6 @@
 				},
 			],
 		});
-
-		// Performance optimization: Set hasPage flag instead of checking entire document
-		hasPage = true;
-
-		const { state } = editor;
-		let linePosFound: number | null = null;
-		state.doc.descendants((node, pos) => {
-			if (node.type.name === 'line' && linePosFound === null) {
-				linePosFound = pos;
-			}
-		});
-
-		if (linePosFound !== null) {
-			editor.commands.focus('end');
-		}
-
-		pageName = '';
 	}
 
 	function insertFramedPage() {
@@ -871,15 +890,11 @@
 			],
 		}));
 
-		editor.commands.insertContent({
+		insertPageNode(editor, {
 			type: 'page',
 			attrs: { pageId: createEditorPageId(), pageName: pageName || null },
 			content: columns,
 		});
-
-		hasPage = true;
-		editor.commands.focus('end');
-		pageName = '';
 	}
 
 	function insertColumn() {
