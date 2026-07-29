@@ -14,7 +14,7 @@ Two things to know before writing a ticket from it. `F35`–`F46` have **no comm
 
 Overall status: `In Progress`
 
-Current ticket: none — tickets `10` and `11` are complete.
+Current ticket: none — ticket `14` is complete.
 
 Last updated: 2026-07-28
 
@@ -58,7 +58,7 @@ Success is not "every ticket cleared". Some findings should end in a documented 
 | 11 | `11-explain-or-remove-the-unexplained-workarounds.md` | Completed | None |
 | 12 | `12-column-split-preserves-attributes-and-caret.md` | Completed | None |
 | 13 | `13-node-lookups-stop-at-the-first-match.md` | Completed | 02 |
-| 14 | `14-renderhtml-becomes-pure-and-inline-valid.md` | Not Started | None |
+| 14 | `14-renderhtml-becomes-pure-and-inline-valid.md` | Completed | None |
 | 15 | `15-two-identifier-mismatches.md` | Not Started | None |
 | 16 | `16-page-and-column-keep-wrapped.md` | Completed | None |
 | 17 | `17-commands-address-nodes-by-identity.md` | Not Started | None |
@@ -97,6 +97,8 @@ pnpm vitest run --project client src/lib/client/transcriptionEditorStructure.sve
 ```
 
 ## Notes
+
+- **2026-07-28** — **Ticket `14` complete.** `lacunose` and `unclear` now preserve TEI attributes through HTML; correction and abbreviation render paths are deterministic, inline-valid, and round-trip through parsing; authoring commands persist ids at creation; and frame layout reacts to zoned columns through CSS `:has()` rather than stale parent-derived state. Focused rendering, interaction, layout, and page-command suites pass; `check` reports 0 errors and the full baseline passes **103 files / 689 tests**.
 
 - **2026-07-28** — **Ticket `19` complete.** Removed the four mirrored page-chrome attributes, load-time annotation, inspector synchronization callback, metadata-command writes, and duplicate `Page.renderHTML` chrome. The editor, page list, and metadata dialog now derive labels, running titles, catchwords, and quire signatures directly from `fw` children; selected-`fw` changes refresh the page list, and metadata inputs follow reclassification and deletion. The focused command suite passes 21 tests, the TEI round-trip suite passes 17, `check` reports 0 errors, and the full baseline passes **102 files / 688 tests**.
 - **2026-07-28** — **Ticket `18` complete.** Milestone context now resolves through one reverse walk shared by status display and structured insertion. Book and chapter boundaries clear preceding narrower context; the focused 16-test command suite and `check` pass. The full baseline reached 100 passing files / 679 passing tests, with two concurrent ticket `19` page-chrome assertions failing and one browser module-fetch collision.

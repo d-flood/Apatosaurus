@@ -1,6 +1,7 @@
 <script lang="ts">
 	import CorrectionWorkspace from './CorrectionWorkspace.svelte';
 	import type { Editor } from '@tiptap/core';
+	import { nanoid } from 'nanoid';
 	import type { Correction } from './types';
 
 	interface Props {
@@ -72,7 +73,7 @@
 		variant="popover"
 		onApply={corrections => {
 			if (!editor || corrections.length === 0) return;
-			editor.chain().focus().setMark('correction', { corrections }).run();
+			editor.chain().focus().setMark('correction', { corrections, id: nanoid(8) }).run();
 			const popoverEl = document.getElementById(id) as HTMLElement & { hidePopover: () => void };
 			if (popoverEl?.hidePopover) popoverEl.hidePopover();
 		}}

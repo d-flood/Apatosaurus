@@ -17,7 +17,6 @@ import { History } from '@tiptap/extension-history';
 import { Text } from '@tiptap/extension-text';
 import { NodeSelection, Plugin, PluginKey, TextSelection } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
-import { nanoid } from 'nanoid';
 
 function parseJsonAttr<T>(value: string | null, fallback: T = {} as T): T {
 	if (!value) return fallback;
@@ -240,13 +239,13 @@ const Lacunose = Mark.create({
 			},
 		];
 	},
-	renderHTML({ HTMLAttributes }) {
+	renderHTML({ mark, HTMLAttributes }) {
 		return [
 			'span',
 			{
 				...HTMLAttributes,
 				class: 'lacunose',
-				'data-tei-attrs': JSON.stringify(HTMLAttributes.teiAttrs || {}),
+				'data-tei-attrs': JSON.stringify(mark.attrs.teiAttrs || {}),
 				title: 'Lacunose text',
 			},
 			0,
@@ -283,13 +282,13 @@ const Unclear = Mark.create({
 	parseHTML() {
 		return [{ tag: 'span.unclear' }];
 	},
-	renderHTML({ HTMLAttributes }) {
+	renderHTML({ mark, HTMLAttributes }) {
 		return [
 			'span',
 			{
 				...HTMLAttributes,
 				class: 'unclear',
-				'data-tei-attrs': JSON.stringify(HTMLAttributes.teiAttrs || {}),
+				'data-tei-attrs': JSON.stringify(mark.attrs.teiAttrs || {}),
 				title: 'Unclear text',
 			},
 			0,
@@ -495,26 +494,18 @@ const Correction = Mark.create({
 	},
 	renderHTML({ mark, HTMLAttributes }) {
 		const corrections = mark.attrs.corrections || [];
-		const id = mark.attrs.id || nanoid(8);
 		const tooltipText = formatCorrectionTooltipText(corrections);
 
-		// Wrap corrected text in DaisyUI tooltip div
 		return [
-			'div',
+			'span',
 			{
-				class: 'tooltip',
+				...HTMLAttributes,
+				class: 'correction tooltip inline',
 				'data-tip': tooltipText,
-				'data-mark-id': id,
+				...(mark.attrs.id ? { 'data-mark-id': mark.attrs.id } : {}),
 				'data-corrections': JSON.stringify(corrections),
 			},
-			[
-				'span',
-				{
-					...HTMLAttributes,
-					class: 'correction',
-				},
-				0,
-			],
+			0,
 		];
 	},
 	addAttributes() {
@@ -522,9 +513,8 @@ const Correction = Mark.create({
 			id: {
 				default: null,
 				parseHTML: element => element.getAttribute('data-mark-id'),
-				renderHTML: attributes => ({
-					'data-mark-id': attributes.id || nanoid(8),
-				}),
+				renderHTML: attributes =>
+					attributes.id ? { 'data-mark-id': attributes.id } : {},
 			},
 			corrections: {
 				default: [],
@@ -581,7 +571,6 @@ const CorrectionNode = Node.create({
 	},
 	renderHTML({ node, HTMLAttributes }) {
 		const corrections = node.attrs.corrections || [];
-		const id = node.attrs.id || nanoid(8);
 		const tooltipText = formatCorrectionTooltipText(corrections);
 
 		// Render as a badge showing [Added] with tooltip showing details
@@ -590,7 +579,7 @@ const CorrectionNode = Node.create({
 			{
 				class: 'tooltip tei-inline-badge-shell',
 				'data-tip': tooltipText,
-				'data-node-id': id,
+				...(node.attrs.id ? { 'data-node-id': node.attrs.id } : {}),
 				'data-corrections': JSON.stringify(corrections),
 			},
 			[
@@ -599,7 +588,7 @@ const CorrectionNode = Node.create({
 					...HTMLAttributes,
 					class: inlineBadgeClass('correction-node', 'badge-warning'),
 					contenteditable: 'false',
-					'data-node-id': id,
+					...(node.attrs.id ? { 'data-node-id': node.attrs.id } : {}),
 					'data-corrections': JSON.stringify(corrections),
 				},
 				...iconLabelSpec('Added', 'correctionNode'),
@@ -611,9 +600,8 @@ const CorrectionNode = Node.create({
 			id: {
 				default: null,
 				parseHTML: element => element.getAttribute('data-node-id'),
-				renderHTML: attributes => ({
-					'data-node-id': attributes.id || nanoid(8),
-				}),
+				renderHTML: attributes =>
+					attributes.id ? { 'data-node-id': attributes.id } : {},
 			},
 			corrections: {
 				default: [],
@@ -645,7 +633,6 @@ const Abbreviation = Mark.create({
 		const type = mark.attrs.type || 'nomSac';
 		const expansion = mark.attrs.expansion || '';
 		const rend = mark.attrs.rend || '¯';
-		const id = mark.attrs.id || nanoid(8);
 
 		// Build tooltip text based on type
 		const tooltipText = (() => {
@@ -660,43 +647,29 @@ const Abbreviation = Mark.create({
 
 		// Render differently based on type
 		if (type === 'nomSac') {
-			// nomSac: render the abbreviated text with overline
 			return [
-				'div',
+				'span',
 				{
-					class: 'tooltip',
+					...HTMLAttributes,
+					class: 'abbreviation nomSac tooltip inline',
 					'data-tip': tooltipText,
-					'data-mark-id': id,
+					...(mark.attrs.id ? { 'data-mark-id': mark.attrs.id } : {}),
 					'data-abbr-type': type,
 				},
-				[
-					'span',
-					{
-						...HTMLAttributes,
-						class: 'abbreviation nomSac',
-					},
-					0, // Content is the original text
-				],
+				0,
 			];
 		} else {
-			// Ligature and other types: render the rend character
 			return [
-				'div',
+				'span',
 				{
-					class: 'tooltip',
+					...HTMLAttributes,
+					class: 'abbreviation other tooltip inline',
 					'data-tip': tooltipText,
-					'data-mark-id': id,
+					...(mark.attrs.id ? { 'data-mark-id': mark.attrs.id } : {}),
 					'data-abbr-type': type,
+					'data-rend': rend,
 				},
-				[
-					'span',
-					{
-						...HTMLAttributes,
-						class: 'abbreviation other',
-						'data-rend': rend,
-					},
-					0,
-				],
+				0,
 			];
 		}
 	},
@@ -705,9 +678,8 @@ const Abbreviation = Mark.create({
 			id: {
 				default: null,
 				parseHTML: element => element.getAttribute('data-mark-id'),
-				renderHTML: attributes => ({
-					'data-mark-id': attributes.id || nanoid(8),
-				}),
+				renderHTML: attributes =>
+					attributes.id ? { 'data-mark-id': attributes.id } : {},
 			},
 			type: {
 				default: 'nomSac',
@@ -985,13 +957,6 @@ const Page = Node.create({
 		const pageName = node.attrs.pageName;
 		const pageId = node.attrs.pageId;
 
-		let hasFrameZones = false;
-		node.content.forEach((child: any) => {
-			if (child.attrs?.zone) hasFrameZones = true;
-		});
-
-		const columnContainerClass = hasFrameZones ? 'frame-grid' : 'flex gap-4';
-
 		return [
 			'div',
 			{
@@ -1013,7 +978,7 @@ const Page = Node.create({
 					['span', pageName ? `Page: ${pageName}` : 'Page'],
 				],
 			],
-			['div', { class: columnContainerClass }, 0],
+			['div', { class: 'frame-grid flex gap-4' }, 0],
 		];
 	},
 	addAttributes() {

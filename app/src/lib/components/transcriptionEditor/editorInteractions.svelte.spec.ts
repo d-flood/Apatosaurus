@@ -8,7 +8,11 @@ import {
 } from '$lib/client/testing/editorFixtures';
 import { createTestEditor } from '$lib/client/testing/editorHarnesses.svelte';
 
-import { applyCorrectionMark, removeCorrectionMark } from './editorInteractions';
+import {
+	applyAbbreviationMark,
+	applyCorrectionMark,
+	removeCorrectionMark,
+} from './editorInteractions';
 
 const CORRECTIONS = [
 	{
@@ -60,6 +64,28 @@ function textMarks(editor: any) {
 }
 
 describe('word-level correction interactions', () => {
+	it('assigns identity when creating correction and abbreviation marks', () => {
+		const editor = createEditor([{ type: 'text', text: 'alpha' }]);
+		selectSubstring(editor, 'alpha', 'alpha');
+
+		expect(applyCorrectionMark(editor, CORRECTIONS)).toBe(true);
+		expect(applyAbbreviationMark(editor, { type: 'nomSac', expansion: 'alpha', rend: '¯' })).toBe(
+			true
+		);
+
+		const text = editor.state.doc.textBetween(0, editor.state.doc.content.size, ' ');
+		expect(text).toContain('alpha');
+		let ids: string[] = [];
+		editor.state.doc.descendants((node: any) => {
+			if (!node.isText) return;
+			ids = node.marks
+				.filter((mark: any) => ['correction', 'abbreviation'].includes(mark.type.name))
+				.map((mark: any) => mark.attrs.id);
+		});
+		expect(ids).toHaveLength(2);
+		expect(ids.every(id => typeof id === 'string' && id.length === 8)).toBe(true);
+	});
+
 	it('expands a partial-word selection to the complete word', () => {
 		const editor = createEditor([{ type: 'text', text: 'before alpha after' }]);
 		selectSubstring(editor, 'before alpha after', 'ph');

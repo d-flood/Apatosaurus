@@ -9,14 +9,21 @@
  *
  * See `.tracker/refactor-transcription-editor/INVENTORY.md`.
  */
-import { generateHTML } from '@tiptap/core';
-import { describe, expect, it } from 'vitest';
+import { Editor, generateHTML } from '@tiptap/core';
+import { beforeAll, describe, expect, it } from 'vitest';
 
 import { editorDocument } from './testing/editorFixtures';
 import { createTestEditor } from './testing/editorHarnesses.svelte';
 import { getCorrectionRenderExtensions } from './transcriptionEditorSchema';
 
 type Json = Record<string, any>;
+
+beforeAll(async () => {
+	const css = (await import('../../app.css?inline')).default as string;
+	const style = document.createElement('style');
+	style.textContent = css;
+	document.head.appendChild(style);
+});
 
 function markedText(text: string, markType: string, attrs: Json): Json {
 	return { type: 'text', text, marks: [{ type: markType, attrs }] };
@@ -39,7 +46,7 @@ describe('renderHTML round trip', () => {
 		}
 	});
 
-	it('DEFECT F19: `lacunose` and `unclear` drop their teiAttrs on render', () => {
+	it('keeps `lacunose` and `unclear` teiAttrs through HTML serialization and parsing', () => {
 		for (const markType of ['lacunose', 'unclear']) {
 			const editor = createTestEditor({
 				content: editorDocument({
@@ -51,86 +58,136 @@ describe('renderHTML round trip', () => {
 				}),
 			});
 			try {
-				// The node still holds them...
+				const html = editor.getHTML();
+				expect(html).toContain(
+					'data-tei-attrs="{&quot;reason&quot;:&quot;lost&quot;,&quot;cert&quot;:&quot;low&quot;}"'
+				);
+
+				const parsedEditor = createTestEditor({ content: html as any });
 				let stored: unknown = null;
-				editor.state.doc.descendants((node: any) => {
-					for (const mark of node.marks || []) {
-						if (mark.type.name === markType) stored = mark.attrs.teiAttrs;
-					}
-					return true;
+				parsedEditor.state.doc.descendants((node: any) => {
+					const mark = node.marks.find((candidate: any) => candidate.type.name === markType);
+					if (mark) stored = mark.attrs.teiAttrs;
 				});
 				expect(stored).toEqual({ reason: 'lost', cert: 'low' });
-
-				// ...but `renderHTML` reads `HTMLAttributes.teiAttrs`, which never
-				// exists — the rendered attribute is `data-tei-attrs`. The explicit
-				// key is written after the spread, so it overwrites the correct value
-				// with `{}`. Anything that goes out through HTML (clipboard, the
-				// correction preview) loses the attributes.
-				expect(editor.getHTML()).toContain('data-tei-attrs="{}"');
+				parsedEditor.destroy();
 			} finally {
 				editor.destroy();
 			}
 		}
 	});
 
-	it('DEFECT F20: correction, correctionNode and abbreviation mint a new id on every render', () => {
-		const content = [
-			markedText('alpha', 'correction', {
-				corrections: [{ hand: 'm2', content: [{ type: 'text', text: 'beta' }] }],
-			}),
+	it('renders correction, correctionNode and abbreviation deterministically', () => {
+		const corrections = [{ hand: 'm2', content: [{ type: 'text', text: 'beta' }] }];
+		const documents = [
+			{
+				type: 'correctionDoc',
+				content: [markedText('alpha', 'correction', { corrections })],
+			},
+			{
+				type: 'correctionDoc',
+				content: [{ type: 'correctionNode', attrs: { corrections } }],
+			},
+			{
+				type: 'correctionDoc',
+				content: [markedText('alpha', 'abbreviation', { type: 'nomSac', expansion: 'alpha' })],
+			},
 		];
-		const first = generateHTML(
-			{ type: 'correctionDoc', content },
-			getCorrectionRenderExtensions() as any
-		);
-		const second = generateHTML(
-			{ type: 'correctionDoc', content },
-			getCorrectionRenderExtensions() as any
-		);
 
-		const idOf = (html: string) => html.match(/data-mark-id="([^"]+)"/)?.[1];
-		expect(idOf(first)).toBeTruthy();
-		// `renderHTML` falls back to `nanoid(8)` when the id attribute is null, so
-		// it is not a pure function of the node. Two renders of identical content
-		// produce different HTML, which defeats any diffing or caching downstream.
-		expect(idOf(second)).not.toBe(idOf(first));
-	});
-
-	it('DEFECT F21: the correction and abbreviation marks render a block <div> inside a <p class="line">', () => {
-		const editor = createTestEditor({
-			content: editorDocument({
-				interestingLineContent: [
-					markedText('alpha', 'correction', {
-						id: 'fixed',
-						corrections: [{ hand: 'm2', content: [{ type: 'text', text: 'beta' }] }],
-					}),
-				],
-			}),
-		});
-		try {
-			// An inline mark must render an inline element. `<div>` is not valid
-			// inside `<p>`; it survives only because ProseMirror builds the tree with
-			// createElement rather than by parsing markup. It also means the mark
-			// cannot participate in the line's inline layout.
-			const tooltip = editor.view.dom.querySelector('div.tooltip')!;
-			const line = tooltip.closest('p.line');
-			expect(line).not.toBeNull();
-			expect(getComputedStyle(tooltip).display).not.toBe('inline');
-		} finally {
-			editor.destroy();
+		for (const document of documents) {
+			const first = generateHTML(document, getCorrectionRenderExtensions() as any);
+			const second = generateHTML(document, getCorrectionRenderExtensions() as any);
+			expect(second).toBe(first);
+			expect(first).not.toMatch(/data-(?:mark|node)-id=/);
 		}
 	});
 
-	it('DEFECT F22: Page.renderHTML computes hasFrameZones once and never re-runs it', () => {
+	it('parses the rendered correction, correctionNode and abbreviation forms without changing them', () => {
+		const corrections = [{ hand: 'm2', content: [{ type: 'text', text: 'beta' }] }];
+		const documents = [
+			{
+				type: 'correctionDoc',
+				content: [markedText('alpha', 'correction', { id: 'correction-1', corrections })],
+			},
+			{
+				type: 'correctionDoc',
+				content: [{ type: 'correctionNode', attrs: { id: 'node-1', corrections } }],
+			},
+			{
+				type: 'correctionDoc',
+				content: [
+					markedText('alpha', 'abbreviation', {
+						id: 'abbreviation-1',
+						type: 'nomSac',
+						expansion: 'alpha',
+					}),
+				],
+			},
+		];
+
+		for (const document of documents) {
+			const html = generateHTML(document, getCorrectionRenderExtensions() as any);
+			const editor = new Editor({
+				extensions: getCorrectionRenderExtensions() as any,
+				content: html,
+			});
+			try {
+				expect(editor.getHTML()).toBe(html);
+			} finally {
+				editor.destroy();
+			}
+		}
+	});
+
+	it('renders correction and abbreviation tooltips inline with neighbouring words', () => {
+		for (const [markType, attrs] of [
+			[
+				'correction',
+				{
+					id: 'correction-id',
+					corrections: [{ hand: 'm2', content: [{ type: 'text', text: 'beta' }] }],
+				},
+			],
+			['abbreviation', { id: 'abbreviation-id', type: 'nomSac', expansion: 'alpha' }],
+		] as const) {
+			const editor = createTestEditor({
+				content: editorDocument({
+					interestingLineContent: [
+						{ type: 'text', text: 'before ' },
+						markedText('alpha', markType, attrs),
+						{ type: 'text', text: ' after' },
+					],
+				}),
+			});
+			document.body.appendChild(editor.view.dom);
+			try {
+				const tooltip = editor.view.dom.querySelector<HTMLElement>(`.${markType}.tooltip`)!;
+				expect(tooltip.tagName).toBe('SPAN');
+				expect(getComputedStyle(tooltip).display).toBe('inline');
+
+				const lineContent = tooltip.closest('.line-content')!;
+				const neighbour = lineContent.firstChild!;
+				const range = document.createRange();
+				range.selectNode(neighbour);
+				expect(Math.round(tooltip.getBoundingClientRect().top)).toBe(
+					Math.round(range.getBoundingClientRect().top)
+				);
+			} finally {
+				editor.view.dom.remove();
+				editor.destroy();
+			}
+		}
+	});
+
+	it('lets CSS activate frame layout when a rendered column gains a zone', () => {
 		const editor = createTestEditor({
 			content: editorDocument({ interestingLineContent: [{ type: 'text', text: 'alpha' }] }),
 		});
 		try {
 			const page = editor.view.dom.querySelector('.page')!;
-			expect(page.querySelector('.frame-grid')).toBeNull();
+			expect(page.querySelector('.frame-grid')).not.toBeNull();
+			expect(page.querySelector('.frame-grid:has(> .column[data-zone])')).toBeNull();
 
-			// Give the page's only column a zone. `renderHTML` is not re-run when a
-			// child changes, so the container class stays `flex gap-4`.
 			let columnPos = -1;
 			editor.state.doc.descendants((node: any, pos: number) => {
 				if (node.type.name === 'column' && columnPos === -1) columnPos = pos;
@@ -144,7 +201,7 @@ describe('renderHTML round trip', () => {
 			);
 
 			expect(editor.view.dom.querySelector('.column[data-zone="center"]')).not.toBeNull();
-			expect(editor.view.dom.querySelector('.frame-grid')).toBeNull();
+			expect(page.querySelector('.frame-grid:has(> .column[data-zone])')).not.toBeNull();
 		} finally {
 			editor.destroy();
 		}

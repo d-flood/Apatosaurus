@@ -1,4 +1,5 @@
 import type { Editor } from '@tiptap/core';
+import { nanoid } from 'nanoid';
 
 import type { TranscriptionSelectionQuote } from '$lib/client/iiif/types';
 
@@ -186,7 +187,12 @@ export function applyCorrectionMark(editor: Editor | null, corrections: Correcti
 	if (!editor || corrections.length === 0) return false;
 	const range = getCorrectionWordRange(editor);
 	if (!range) return false;
-	editor.chain().focus().setTextSelection(range).setMark('correction', { corrections }).run();
+	editor
+		.chain()
+		.focus()
+		.setTextSelection(range)
+		.setMark('correction', { corrections, id: nanoid(8) })
+		.run();
 	return true;
 }
 
@@ -230,6 +236,7 @@ export function readAbbreviationDraft(editor: Editor | null): AbbreviationDraft 
 export function applyAbbreviationMark(editor: Editor | null, draft: AbbreviationDraft): boolean {
 	if (!editor) return false;
 	const attrs: Record<string, any> = {
+		id: nanoid(8),
 		type: draft.type,
 		expansion: draft.expansion,
 	};
