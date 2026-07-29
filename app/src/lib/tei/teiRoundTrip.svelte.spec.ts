@@ -73,6 +73,36 @@ describe('TEI round trip through the ProseMirror adapter', () => {
 		expect(twice).toBe(once);
 	});
 
+	it('preserves all four page-chrome fw kinds without page attribute mirrors', () => {
+		const source = `<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0"><teiHeader></teiHeader><text><body>
+  <pb n="1r"/><cb n="C1"/><lb/>
+  <fw type="pageNum"><w>12</w></fw>
+  <fw type="runTitle"><w>Romans</w></fw>
+  <fw type="catchword"><w>grace</w></fw>
+  <fw type="sig"><w>A iii</w></fw>
+</body></text></TEI>`;
+		const pm = editorJson(source);
+
+		expect(pm.content[0].attrs).not.toHaveProperty('pageLabel');
+		expect(pm.content[0].attrs).not.toHaveProperty('runningTitle');
+		expect(pm.content[0].attrs).not.toHaveProperty('catchword');
+		expect(pm.content[0].attrs).not.toHaveProperty('quireSignature');
+
+		const once = exportFromProseMirror(pm);
+		expect(exportFromProseMirror(editorJson(once))).toBe(once);
+		const exported = parseTei(once);
+		const formWork = exported.pages[0].columns[0].lines[0].items.filter(
+			(item: any) => item.type === 'fw'
+		);
+		expect(formWork.map((item: any) => item.attrs.type)).toEqual([
+			'pageNum',
+			'runTitle',
+			'catchword',
+			'sig',
+		]);
+	});
+
 	describe('question 1 — line and column numbers', () => {
 		it('never writes lineNumber to TEI; @n is absent from every <lb>', () => {
 			const xml = exportFromProseMirror(editorJson(SAMPLE_TEI));

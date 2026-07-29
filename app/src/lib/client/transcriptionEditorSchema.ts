@@ -984,10 +984,6 @@ const Page = Node.create({
 	renderHTML({ node, HTMLAttributes }) {
 		const pageName = node.attrs.pageName;
 		const pageId = node.attrs.pageId;
-		const pageLabel = node.attrs.pageLabel;
-		const runningTitle = node.attrs.runningTitle;
-		const catchword = node.attrs.catchword;
-		const quireSignature = node.attrs.quireSignature;
 
 		let hasFrameZones = false;
 		node.content.forEach((child: any) => {
@@ -1015,49 +1011,9 @@ const Page = Node.create({
 						class: 'flex items-center justify-between gap-3 font-bold text-base-content',
 					},
 					['span', pageName ? `Page: ${pageName}` : 'Page'],
-					...(pageLabel
-						? [
-								[
-									'span',
-									{
-										class: 'badge badge-outline badge-sm inline-flex items-center gap-1.5',
-									},
-									badgeIconSpec('pageFurniture'),
-									['span', { class: 'tei-inline-badge-label' }, pageLabel],
-								],
-							]
-						: []),
 				],
-				...(runningTitle
-					? [
-							[
-								'div',
-								{
-									class: 'text-xs uppercase tracking-[0.18em] text-base-content/60 mt-1',
-								},
-								runningTitle,
-							],
-						]
-					: []),
 			],
 			['div', { class: columnContainerClass }, 0],
-			...(catchword || quireSignature
-				? [
-						[
-							'div',
-							{
-								class: 'mt-3 flex items-center justify-between gap-3 text-[11px] text-base-content/55 select-none',
-								contenteditable: 'false',
-							},
-							[
-								'span',
-								{ class: 'uppercase tracking-[0.16em]' },
-								quireSignature || '',
-							],
-							['span', { class: 'italic tracking-[0.04em]' }, catchword || ''],
-						],
-					]
-				: []),
 		];
 	},
 	addAttributes() {
@@ -1091,34 +1047,6 @@ const Page = Node.create({
 						'data-page-name': attributes.pageName,
 					};
 				},
-			},
-			pageLabel: {
-				default: null,
-				parseHTML: element => element.getAttribute('data-page-label'),
-				renderHTML: attributes =>
-					attributes.pageLabel ? { 'data-page-label': attributes.pageLabel } : {},
-			},
-			runningTitle: {
-				default: null,
-				parseHTML: element => element.getAttribute('data-running-title'),
-				renderHTML: attributes =>
-					attributes.runningTitle
-						? { 'data-running-title': attributes.runningTitle }
-						: {},
-			},
-			catchword: {
-				default: null,
-				parseHTML: element => element.getAttribute('data-catchword'),
-				renderHTML: attributes =>
-					attributes.catchword ? { 'data-catchword': attributes.catchword } : {},
-			},
-			quireSignature: {
-				default: null,
-				parseHTML: element => element.getAttribute('data-quire-signature'),
-				renderHTML: attributes =>
-					attributes.quireSignature
-						? { 'data-quire-signature': attributes.quireSignature }
-						: {},
 			},
 			teiAttrs: {
 				default: {},

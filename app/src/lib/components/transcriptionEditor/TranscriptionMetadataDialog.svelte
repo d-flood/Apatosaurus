@@ -41,6 +41,15 @@
 	let pageNameDrafts = $state<Record<string, string>>({});
 	let pageNameErrors = $state<Record<string, string>>({});
 
+	function valueFromMetadata(node: HTMLInputElement, value: string) {
+		node.value = value;
+		return {
+			update(nextValue: string) {
+				if (node.value !== nextValue) node.value = nextValue;
+			},
+		};
+	}
+
 	const tags = $derived(parseTranscriptionTags(transcription?.tags));
 	const teiHeader = $derived(canonicalDocument.header);
 	const preservedSections = $derived(buildPreservedSections(canonicalDocument));
@@ -358,47 +367,55 @@
 								{/if}
 								<div class="flex gap-2 items-center">
 									<span class="text-sm text-gray-600 w-28">Page label</span>
+									{#key page.pageLabel?.pos ?? 'none'}
 									<input
 										type="text"
-										value={page.pageLabel?.text || ''}
+										use:valueFromMetadata={page.pageLabel?.text || ''}
 										oninput={e =>
 											onUpdatePageFormWork(page.pos, 'pageLabel', e.currentTarget.value)}
 										placeholder="Visible page number / folio label"
 										class="rounded px-3 py-1 border border-gray-300 flex-1"
 									/>
+									{/key}
 								</div>
 								<div class="flex gap-2 items-center">
 									<span class="text-sm text-gray-600 w-28">Running title</span>
+									{#key page.runningTitle?.pos ?? 'none'}
 									<input
 										type="text"
-										value={page.runningTitle?.text || ''}
+										use:valueFromMetadata={page.runningTitle?.text || ''}
 										oninput={e =>
 											onUpdatePageFormWork(page.pos, 'runningTitle', e.currentTarget.value)}
 										placeholder="Running title / page header"
 										class="rounded px-3 py-1 border border-gray-300 flex-1"
 									/>
+									{/key}
 								</div>
 								<div class="flex gap-2 items-center">
 									<span class="text-sm text-gray-600 w-28">Catchword</span>
+									{#key page.catchword?.pos ?? 'none'}
 									<input
 										type="text"
-										value={page.catchword?.text || ''}
+										use:valueFromMetadata={page.catchword?.text || ''}
 										oninput={e =>
 											onUpdatePageFormWork(page.pos, 'catchword', e.currentTarget.value)}
 										placeholder="Catchword at page boundary"
 										class="rounded px-3 py-1 border border-gray-300 flex-1"
 									/>
+									{/key}
 								</div>
 								<div class="flex gap-2 items-center">
 									<span class="text-sm text-gray-600 w-28">Quire signature</span>
+									{#key page.quireSignature?.pos ?? 'none'}
 									<input
 										type="text"
-										value={page.quireSignature?.text || ''}
+										use:valueFromMetadata={page.quireSignature?.text || ''}
 										oninput={e =>
 											onUpdatePageFormWork(page.pos, 'quireSignature', e.currentTarget.value)}
 										placeholder="Quire signature / codicological mark"
 										class="rounded px-3 py-1 border border-gray-300 flex-1"
 									/>
+									{/key}
 								</div>
 								{#if page.pageLabel || page.runningTitle || page.catchword || page.quireSignature}
 									<div class="flex flex-wrap gap-2 text-xs text-base-content/70">

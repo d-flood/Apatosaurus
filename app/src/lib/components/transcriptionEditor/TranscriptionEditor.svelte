@@ -36,11 +36,9 @@
 		insertMetamarkForSelection,
 		insertSelectableCarrierNode,
 		insertMilestoneNode as insertStructuredMilestoneNode,
-		syncPageFormWorkToContainingPage,
 		updateNodeAttrs,
 	} from './editorCommands';
 	import {
-		annotatePageChromeInJson,
 		createDefaultFormWorkAttrs,
 		extractPageMetadata,
 		findFirstLineInsertPos,
@@ -500,13 +498,6 @@
 						if (node) {
 							tr.delete(existing.pos, existing.pos + node.nodeSize);
 						}
-						const pageNode = state.doc.nodeAt(pagePos);
-						if (pageNode?.type.name === 'page') {
-							tr.setNodeMarkup(pagePos, undefined, {
-								...pageNode.attrs,
-								[kind]: null,
-							});
-						}
 						return true;
 					}
 
@@ -515,13 +506,6 @@
 						tr.setNodeMarkup(existing.pos, undefined, {
 							...node.attrs,
 							content: nextContent,
-						});
-					}
-					const pageNode = state.doc.nodeAt(pagePos);
-					if (pageNode?.type.name === 'page') {
-						tr.setNodeMarkup(pagePos, undefined, {
-							...pageNode.attrs,
-							[kind]: newText.trim() || null,
 						});
 					}
 					return true;
@@ -549,10 +533,6 @@
 				}
 
 				tr.insert(insertPos, formWorkNode);
-				tr.setNodeMarkup(pagePos, undefined, {
-					...pageNode.attrs,
-					[kind]: newText.trim() || null,
-				});
 				return true;
 			})
 			.run();
@@ -602,7 +582,6 @@
 				coerceTranscriptionDocument(transcription.content_json) ?? EMPTY_TRANSCRIPTION_DOC;
 			canonicalDocument = initialDocument;
 			const initialPm = toProseMirror(initialDocument) as any;
-			annotatePageChromeInJson(initialPm);
 			const repairResult = repairManuscriptStructureJson(initialPm, {
 				framedPageZoneOrder: 'visual',
 				ensureNodeIds: true,
@@ -627,7 +606,10 @@
 					onSaveStateChange?.(false);
 					// Mark pages as needing update (will recalculate when drawer opens)
 					pagesNeedUpdate = true;
-					if (iiifWorkspaceOpen || onPagesChange) {
+					const changedSelectedFormWork =
+						transaction.before.selection instanceof NodeSelection &&
+						transaction.before.selection.node.type.name === 'fw';
+					if (iiifWorkspaceOpen || onPagesChange || changedSelectedFormWork) {
 						rebuildPageList();
 						pagesNeedUpdate = false;
 					}
@@ -1168,7 +1150,7 @@
 	}
 
 	function updateCarrierNodeAttrs(pos: number, attrs: Record<string, any>) {
-		if (!updateNodeAttrs(editorState.editor, pos, attrs, syncPageFormWorkToContainingPage)) return;
+		if (!updateNodeAttrs(editorState.editor, pos, attrs)) return;
 
 		updateSelectedTeiNode(editorState.editor);
 	}

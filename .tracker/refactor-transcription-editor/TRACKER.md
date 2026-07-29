@@ -63,7 +63,7 @@ Success is not "every ticket cleared". Some findings should end in a documented 
 | 16 | `16-page-and-column-keep-wrapped.md` | Completed | None |
 | 17 | `17-commands-address-nodes-by-identity.md` | Not Started | None |
 | 18 | `18-milestone-context-respects-book-boundaries.md` | Completed | None |
-| 19 | `19-page-chrome-derives-from-its-fw-children.md` | Not Started | None |
+| 19 | `19-page-chrome-derives-from-its-fw-children.md` | Completed | None |
 | 20 | `20-verse-index-sync-is-cancellable.md` | Not Started | 04 |
 | 21 | `21-inspector-apply-merges-instead-of-replacing.md` | Not Started | None |
 | 22 | `22-formwork-content-lives-in-the-document.md` | Not Started | 04 |
@@ -97,6 +97,8 @@ pnpm vitest run --project client src/lib/client/transcriptionEditorStructure.sve
 ```
 
 ## Notes
+
+- **2026-07-28** — **Ticket `19` complete.** Removed the four mirrored page-chrome attributes, load-time annotation, inspector synchronization callback, metadata-command writes, and duplicate `Page.renderHTML` chrome. The editor, page list, and metadata dialog now derive labels, running titles, catchwords, and quire signatures directly from `fw` children; selected-`fw` changes refresh the page list, and metadata inputs follow reclassification and deletion. The focused command suite passes 21 tests, the TEI round-trip suite passes 17, `check` reports 0 errors, and the full baseline passes **102 files / 688 tests**.
 - **2026-07-28** — **Ticket `18` complete.** Milestone context now resolves through one reverse walk shared by status display and structured insertion. Book and chapter boundaries clear preceding narrower context; the focused 16-test command suite and `check` pass. The full baseline reached 100 passing files / 679 passing tests, with two concurrent ticket `19` page-chrome assertions failing and one browser module-fetch collision.
 - **2026-07-28** — **Ticket `18` decision:** a verse cannot be inserted into an unchaptered book. This preserves the command's existing `missing-chapter` contract and both editor surfaces' instruction to insert a chapter first; a newer book therefore clears chapter and verse context until its own chapter milestone appears.
 - **2026-07-28** — **Ticket `16` complete; Option A was chosen.** `<pb>` and `<cb>` identify distinct physical boundaries, so when page, column and line boundaries coincide, a line-level flag cannot preserve which boundary was unbroken; page- and column-level `wrapped` are real manuscript data rather than derived duplicates. The focused round-trip file passes 17/17 and `check` has 0 errors; the app baseline reaches 101/102 files with only ticket `19`'s two in-progress assertions failing, while the package baseline remains at its documented 95/102 because the six fixture files are absent.

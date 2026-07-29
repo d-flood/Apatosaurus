@@ -9,6 +9,7 @@
  * marks as wrong. See `.tracker/refactor-transcription-editor/INVENTORY.md`.
  */
 import { describe, expect, it } from 'vitest';
+import { userEvent } from '@vitest/browser/context';
 
 import { domDocumentSnapshot as domShape } from '$lib/client/testing/editorFixtures';
 import {
@@ -344,6 +345,18 @@ describe('TranscriptionEditor page metadata commands (mounted, multi-page fixtur
 		return details;
 	}
 
+	function closeMetadataDialog() {
+		const dialog = document.getElementById('transcription-metadata-modal') as HTMLDialogElement;
+		dialog.close();
+		dialog.dispatchEvent(new Event('toggle'));
+	}
+
+	function pageMetadataInputs(details: HTMLElement, placeholder: string): HTMLInputElement[] {
+		return Array.from(
+			details.querySelectorAll<HTMLInputElement>(`input[placeholder^="${placeholder}"]`)
+		);
+	}
+
 	it('updatePageName renames the addressed page only', async () => {
 		const harness = await mountEditor();
 		try {
@@ -359,6 +372,66 @@ describe('TranscriptionEditor page metadata commands (mounted, multi-page fixtur
 				harness.container.querySelectorAll<HTMLElement>('.ProseMirror .page')
 			).map(element => element.dataset.pageName);
 			expect(names).toEqual(['1r', 'renamed', '2r']);
+		} finally {
+			harness.dispose();
+		}
+	});
+
+	it('reclassifies page chrome from its fw child without retaining the old kind', async () => {
+		const harness = await mountEditor();
+		try {
+			let details = await openMetadataDialog(harness);
+			setInput(pageMetadataInputs(details, 'Visible page number')[2], 'fol. 2r');
+			await tick();
+			closeMetadataDialog();
+			await tick();
+
+			const thirdPage = harness.container.querySelectorAll<HTMLElement>('.ProseMirror .page')[2];
+			const formWork = thirdPage.querySelector<HTMLElement>('.fw-node')!;
+			await userEvent.click(formWork);
+			await tick();
+
+			const contentType = Array.from(document.querySelectorAll('input')).find(input =>
+				(input.previousElementSibling?.textContent || '').includes('Content Type')
+			) as HTMLInputElement;
+			setInput(contentType, 'runTitle');
+			buttonWithText(document, 'Apply').click();
+			await tick();
+
+			expect(thirdPage.querySelector<HTMLElement>('.fw-node')?.dataset.category).toBe(
+				'Running Title'
+			);
+			details = await openMetadataDialog(harness);
+			expect(details.textContent).not.toContain('pageLabel:');
+			expect(details.textContent).toContain('runningTitle: runTitle');
+			expect(pageMetadataInputs(details, 'Visible page number')[2].value).toBe('');
+			expect(pageMetadataInputs(details, 'Running title')[2].value).toBe('fol. 2r');
+		} finally {
+			harness.dispose();
+		}
+	});
+
+	it('removes page chrome when its fw child is deleted', async () => {
+		const harness = await mountEditor();
+		try {
+			let details = await openMetadataDialog(harness);
+			setInput(pageMetadataInputs(details, 'Visible page number')[2], 'fol. 2r');
+			await tick();
+			closeMetadataDialog();
+			await tick();
+
+			const thirdPage = harness.container.querySelectorAll<HTMLElement>('.ProseMirror .page')[2];
+			const formWork = thirdPage.querySelector<HTMLElement>('.fw-node')!;
+			await userEvent.click(formWork);
+			await tick();
+			expect(formWork.classList.contains('ProseMirror-selectednode')).toBe(true);
+			await userEvent.keyboard('{Delete}');
+			await tick();
+
+			expect(thirdPage.querySelector('.fw-node')).toBeNull();
+			details = await openMetadataDialog(harness);
+			expect(details.textContent).not.toContain('pageLabel:');
+			expect(pageMetadataInputs(details, 'Visible page number')[2].value).toBe('');
 		} finally {
 			harness.dispose();
 		}
