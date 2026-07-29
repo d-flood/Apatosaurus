@@ -245,6 +245,35 @@ function exportLineContent(nodes: ProseMirrorJSON[] | undefined, context: Export
 			continue;
 		}
 
+		const segmentWrapper = getWordGroupSegmentWrapper(word);
+		if (segmentWrapper) {
+			const segmentGroups = [word];
+			let segmentEnd = index;
+			while (
+				segmentEnd + 1 < words.length &&
+				hasSameWrapper(getWordGroupSegmentWrapper(words[segmentEnd + 1]), segmentWrapper)
+			) {
+				segmentEnd += 1;
+				segmentGroups.push(words[segmentEnd]);
+			}
+
+			if (segmentGroups.some(group => group.type === 'fw')) {
+				index = segmentEnd;
+				ensureAnonymousAb(context);
+				const tag = escapeXml(String(segmentWrapper.attrs?.tag || 'seg'));
+				context.xml.push(`<${tag}${serializeAttrs(segmentWrapper.attrs?.teiAttrs || {})}>`);
+				for (const group of segmentGroups) {
+					if (group.type === 'fw') {
+						exportFormWork(group.attrs || {}, context, false);
+					} else if (group.content) {
+						exportWord(removeWrapperMark(group.content, segmentWrapper), context);
+					}
+				}
+				context.xml.push(`</${tag}>`);
+				continue;
+			}
+		}
+
 		if (word.type === 'fw') {
 			ensureAnonymousAb(context);
 			exportFormWork(word.attrs || {}, context);
@@ -410,9 +439,8 @@ function exportWord(nodes: ProseMirrorJSON[], context: ExportContext): void {
 
 	const wholeWordWrapper = getWholeWordWrapperMark(nodes);
 	if (wholeWordWrapper) {
-		const innerWord = buildWordXml(nodes, [wholeWordWrapper.type]);
 		context.xml.push(
-			`<${escapeXml(String(wholeWordWrapper.attrs?.tag || 'seg'))}${serializeAttrs(wholeWordWrapper.attrs?.teiAttrs || {})}>${innerWord}</${escapeXml(String(wholeWordWrapper.attrs?.tag || 'seg'))}>`
+			buildWrappedWordSequenceXml([{ type: 'word', content: nodes }], wholeWordWrapper)
 		);
 		return;
 	}
@@ -440,7 +468,7 @@ function splitOnPunctuation(
 	return runs;
 }
 
-function buildWordXml(nodes: ProseMirrorJSON[], skipMarks: string[] = []): string {
+function buildWordXml(nodes: ProseMirrorJSON[]): string {
 	let wordContent = `<w${serializeAttrs(extractWordAttrs(nodes))}>`;
 	for (const node of nodes) {
 		if (node.type === 'metamark') {
@@ -455,7 +483,7 @@ function buildWordXml(nodes: ProseMirrorJSON[], skipMarks: string[] = []): strin
 			wordContent += serializeStructuredWrapper(node.attrs || {});
 			continue;
 		}
-		wordContent += exportTextWithMarksInline(node, ['correction', 'word', 'punctuation', ...skipMarks]);
+		wordContent += exportTextWithMarksInline(node, ['correction', 'word', 'punctuation']);
 	}
 	wordContent += '</w>';
 	return wordContent;
@@ -467,11 +495,34 @@ function buildWrappedWordSequenceXml(
 ): string {
 	const tag = escapeXml(String(wrapper.attrs?.tag || 'seg'));
 	const attrs = serializeAttrs(wrapper.attrs?.teiAttrs || {});
+	const innerWords = words.map(word => ({
+		...word,
+		content: removeWrapperMark(word.content || [], wrapper),
+	}));
+	const innerWrapper = getWholeWordWrapperMark(innerWords[0]?.content || []);
+	const inner =
+		innerWrapper &&
+		innerWords.every(word => hasMatchingWholeWordWrapper(word.content || [], innerWrapper))
+			? buildWrappedWordSequenceXml(innerWords, innerWrapper)
+			: innerWords.map(word => buildWordXml(word.content || [])).join('');
 	return [
 		`<${tag}${attrs}>`,
-		...words.map(word => buildWordXml(word.content || [], [wrapper.type])),
+		inner,
 		`</${tag}>`,
 	].join('');
+}
+
+function removeWrapperMark(
+	nodes: ProseMirrorJSON[],
+	wrapper: { type: 'teiSpan'; attrs?: Record<string, any> }
+): ProseMirrorJSON[] {
+	const signature = JSON.stringify(wrapper.attrs || {});
+	return nodes.map(node => ({
+		...node,
+		marks: node.marks?.filter(
+			mark => mark.type !== wrapper.type || JSON.stringify(mark.attrs || {}) !== signature
+		),
+	}));
 }
 
 /**
@@ -987,8 +1038,30 @@ function hasMatchingWholeWordWrapper(
 	return !!candidate && JSON.stringify(candidate.attrs || {}) === JSON.stringify(wrapper.attrs || {});
 }
 
-function exportFormWork(attrs: Record<string, any>, context: ExportContext): void {
-	const segAttrs = {
+function getWordGroupSegmentWrapper(
+	group: WordGroup
+): { type: 'teiSpan'; attrs?: Record<string, any> } | null {
+	if (group.type === 'word') {
+		const wrapper = getWholeWordWrapperMark(group.content || []);
+		return wrapper?.attrs?.tag === 'seg' ? wrapper : null;
+	}
+	if (group.type !== 'fw') return null;
+	const teiAttrs = getFormWorkSegmentAttrs(group.attrs || {});
+	return Object.keys(teiAttrs).length > 0
+		? { type: 'teiSpan', attrs: { tag: 'seg', teiAttrs } }
+		: null;
+}
+
+function hasSameWrapper(
+	candidate: { type: 'teiSpan'; attrs?: Record<string, any> } | null,
+	wrapper: { type: 'teiSpan'; attrs?: Record<string, any> }
+): boolean {
+	return !!candidate && JSON.stringify(candidate.attrs || {}) === JSON.stringify(wrapper.attrs || {});
+}
+
+function getFormWorkSegmentAttrs(attrs: Record<string, any>): Record<string, any> {
+	return Object.fromEntries(
+		Object.entries({
 		...(attrs.segAttrs || {}),
 		type: attrs.segType || attrs.segAttrs?.type || undefined,
 		subtype: attrs.segSubtype || attrs.segAttrs?.subtype || undefined,
@@ -996,7 +1069,16 @@ function exportFormWork(attrs: Record<string, any>, context: ExportContext): voi
 		hand: attrs.segHand || attrs.segAttrs?.hand || undefined,
 		rend: attrs.segRend || attrs.segAttrs?.rend || undefined,
 		n: attrs.segN || attrs.segAttrs?.n || undefined,
-	};
+		}).filter(([, value]) => value !== undefined && value !== '')
+	);
+}
+
+function exportFormWork(
+	attrs: Record<string, any>,
+	context: ExportContext,
+	includeSegment = true
+): void {
+	const segAttrs = getFormWorkSegmentAttrs(attrs);
 	const fwAttrs = {
 		...(attrs.teiAttrs || {}),
 		type: attrs.type || attrs.teiAttrs?.type || undefined,
@@ -1007,7 +1089,7 @@ function exportFormWork(attrs: Record<string, any>, context: ExportContext): voi
 		rend: attrs.rend || attrs.teiAttrs?.rend || undefined,
 	};
 
-	if (Object.values(segAttrs).some(value => value !== undefined && value !== '')) {
+	if (includeSegment && Object.keys(segAttrs).length > 0) {
 		context.xml.push(`<seg${serializeAttrs(segAttrs)}>`);
 	}
 
@@ -1015,7 +1097,7 @@ function exportFormWork(attrs: Record<string, any>, context: ExportContext): voi
 	exportInlineContent(flattenStructuredFormWorkContent(attrs.content), context);
 	context.xml.push('</fw>');
 
-	if (Object.values(segAttrs).some(value => value !== undefined && value !== '')) {
+	if (includeSegment && Object.keys(segAttrs).length > 0) {
 		context.xml.push('</seg>');
 	}
 }

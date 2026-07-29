@@ -18,6 +18,7 @@ const FLAT_INLINE_SPAN_TAGS = new Set([
 ].map(tag => tag.toLowerCase()));
 
 const WHOLE_WORD_WRAPPER_TAGS = new Set([
+	'seg',
 	'foreign',
 	'term',
 	'name',

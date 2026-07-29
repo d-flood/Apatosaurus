@@ -665,7 +665,8 @@ function processApparatusElementWithMarks(
 function processContainerContent(
 	element: Element,
 	context: ParseContext,
-	marks: TextMark[]
+	marks: TextMark[],
+	enclosingSeg?: Element
 ): void {
 	for (const child of Array.from(element.childNodes)) {
 		if (child.nodeType === Node.TEXT_NODE) {
@@ -732,13 +733,20 @@ function processContainerContent(
 		}
 
 		if (tagName === 'seg') {
-			processContainerContent(element, context, marks);
+			processContainerContent(
+				element,
+				context,
+				[...marks, createTeiSpanMark(element)],
+				element
+			);
 			continue;
 		}
 
 		if (tagName === 'fw') {
 			ensureLineItems(context);
-			context.currentLineItems!.push(createFormWorkItem(element, null, marks));
+			context.currentLineItems!.push(
+				createFormWorkItem(element, enclosingSeg, enclosingSeg ? [] : marks)
+			);
 			continue;
 		}
 
@@ -934,15 +942,11 @@ function processInlineElementToInlineContent(
 	}
 
 	if (tagName === 'seg') {
-		const fwChildren = Array.from(element.childNodes).filter(
-			child =>
-				child.nodeType === Node.ELEMENT_NODE &&
-				(child as Element).tagName.toLowerCase() === 'fw'
-		) as Element[];
-		if (fwChildren.length > 0) {
-			return fwChildren.map(fwChild => createFormWorkItem(fwChild, element, activeMarks));
-		}
-		return processReadingToInlineContent(element, activeMarks);
+		return processReadingToInlineContent(
+			element,
+			[...activeMarks, createTeiSpanMark(element)],
+			element
+		);
 	}
 
 	if (tagName === 'fw') {
@@ -1048,7 +1052,8 @@ function processInlineElementToInlineContent(
 
 function processReadingToInlineContent(
 	element: Element,
-	activeMarks: TextMark[] = []
+	activeMarks: TextMark[] = [],
+	enclosingSeg?: Element
 ): InlineItem[] {
 	const content: InlineItem[] = [];
 
@@ -1067,7 +1072,9 @@ function processReadingToInlineContent(
 			childElement.tagName.toLowerCase() === 'fw' &&
 			element.tagName.toLowerCase() === 'seg'
 		) {
-			content.push(createFormWorkItem(childElement, null, activeMarks));
+			content.push(
+				createFormWorkItem(childElement, enclosingSeg, enclosingSeg ? [] : activeMarks)
+			);
 			continue;
 		}
 		content.push(...processInlineElementToInlineContent(childElement, activeMarks));
@@ -1706,21 +1713,7 @@ function sameMarks(a?: TextMark[], b?: TextMark[]): boolean {
 }
 
 function handleSegmentElement(element: Element, context: ParseContext): void {
-	const fwChildren = Array.from(element.childNodes).filter(
-		child =>
-			child.nodeType === Node.ELEMENT_NODE &&
-			(child as Element).tagName.toLowerCase() === 'fw'
-	) as Element[];
-
-	if (fwChildren.length > 0) {
-		ensureLineItems(context);
-		for (const fwChild of fwChildren) {
-			context.currentLineItems!.push(createFormWorkItem(fwChild, element));
-		}
-		return;
-	}
-
-	processNode(element, context);
+	processContainerContent(element, context, [createTeiSpanMark(element)], element);
 }
 
 function collectAttributes(

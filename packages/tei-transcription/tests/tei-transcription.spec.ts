@@ -325,6 +325,49 @@ describe('tei-transcription package', () => {
 		expect(fw.textContent?.replace(/\s+/g, ' ').trim()).toBe('προς ρωμαιους');
 	});
 
+	it('round-trips a generic seg with all attributes intact', () => {
+		const xml = wrapInTei(
+			'<pb n="1r"/><cb n="1"/><lb/><seg type="rubric" cert="high"><w>alpha</w></seg>'
+		);
+
+		const pm = toProseMirror(parseTei(xml));
+		const alpha = pm.content![0].content![0].content![0].content![0];
+		expect(alpha.marks).toContainEqual({
+			type: 'teiSpan',
+			attrs: { tag: 'seg', teiAttrs: { type: 'rubric', cert: 'high' } },
+		});
+
+		const exported = serializeTei(fromProseMirror(pm));
+
+		expect(compactXml(exported)).toContain(
+			'<segtype="rubric"cert="high"><w>alpha</w></seg>'
+		);
+	});
+
+	it('round-trips nested seg elements', () => {
+		const xml = wrapInTei(
+			'<pb n="1r"/><cb n="1"/><lb/><seg type="outer"><seg type="inner"><w>alpha</w></seg></seg>'
+		);
+
+		const exported = serializeTei(fromProseMirror(toProseMirror(parseTei(xml))));
+
+		expect(compactXml(exported)).toContain(
+			'<segtype="outer"><segtype="inner"><w>alpha</w></seg></seg>'
+		);
+	});
+
+	it('round-trips all children of a seg mixing fw and words in source order', () => {
+		const xml = wrapInTei(
+			'<pb n="1r"/><cb n="1"/><lb/><seg type="margin"><fw place="left"><w>note</w></fw><w>alpha</w></seg>'
+		);
+
+		const exported = serializeTei(fromProseMirror(toProseMirror(parseTei(xml))));
+
+		expect(compactXml(exported)).toContain(
+			'<segtype="margin"><fwplace="left"><w>note</w></fw><w>alpha</w></seg>'
+		);
+	});
+
 	it('preserves schema-level fw attrs and wrapping seg attrs on round-trip', () => {
 		const xml = wrapInTei(`
 			<pb n="1r"/>

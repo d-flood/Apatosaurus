@@ -69,7 +69,7 @@ Success is not "every ticket cleared". Some findings should end in a documented 
 | 22 | `22-formwork-content-lives-in-the-document.md` | Not Started | 04 |
 | 23 | `23-drafts-and-drawers-target-what-they-opened.md` | Not Started | None |
 | 24 | `24-corrections-on-partial-and-multi-word-selections.md` | Completed | None |
-| 25 | `25-seg-survives-the-round-trip.md` | Not Started | None |
+| 25 | `25-seg-survives-the-round-trip.md` | Completed | None |
 | 26 | `26-element-only-original-readings-are-preserved.md` | Not Started | None |
 | 27 | `27-carriers-keep-arbitrary-tei-attributes.md` | Not Started | None |
 | 28 | `28-line-and-column-numbers-become-presentation.md` | Not Started | 04, 12 |
