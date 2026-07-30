@@ -153,7 +153,7 @@ async function readSyncTargets(options: StoreOperationOptions): Promise<SyncTarg
 		return validateTargetsPayload(opened.payload);
 	} catch (error) {
 		const quarantine = quarantineFromError(error);
-		throw new Error(`Could not read sync targets: ${quarantine.message}`);
+		throw new Error(`Could not read sync targets: ${quarantine.message}`, { cause: error });
 	}
 }
 

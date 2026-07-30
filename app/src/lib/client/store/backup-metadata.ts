@@ -69,7 +69,7 @@ async function readBackupMetadata(options: StoreOperationOptions): Promise<Proje
 		return validateBackupMetadataPayload(opened.payload);
 	} catch (error) {
 		const quarantine = quarantineFromError(error);
-		throw new Error(`Could not read backup metadata: ${quarantine.message}`);
+		throw new Error(`Could not read backup metadata: ${quarantine.message}`, { cause: error });
 	}
 }
 

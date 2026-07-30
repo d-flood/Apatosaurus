@@ -45,6 +45,9 @@ jobs:
           submodules: recursive
           token: ${{ secrets.DJAZZKIT_ACCESS_TOKEN || github.token }}
 
+      # Required by test-support/validate-igntp-xsd.ts, which shells out to `uv run`.
+      - uses: astral-sh/setup-uv@v6
+
       - uses: actions/setup-node@v4
         with:
           node-version: 24

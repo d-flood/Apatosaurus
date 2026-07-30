@@ -792,7 +792,8 @@ function parseCheckpointPayload(
 		throw new Error(
 			`Invalid transcription checkpoint payload for ${checkpointId}: ${
 				error instanceof Error ? error.message : String(error)
-			}`
+			}`,
+			{ cause: error }
 		);
 	}
 }
@@ -1122,7 +1123,8 @@ function parseJson(value: string, label: string): unknown {
 		return JSON.parse(value);
 	} catch (error) {
 		throw new Error(
-			`Invalid JSON in ${label}: ${error instanceof Error ? error.message : String(error)}`
+			`Invalid JSON in ${label}: ${error instanceof Error ? error.message : String(error)}`,
+			{ cause: error }
 		);
 	}
 }
