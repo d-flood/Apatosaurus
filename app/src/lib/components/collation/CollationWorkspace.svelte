@@ -342,18 +342,18 @@
 						</button>
 					</div>
 				</div>
-				<label class="form-control">
-					<span class="label pb-1">
-						<span class="label-text text-xs">Optional note for this local version.</span
-						>
-					</span>
+				<fieldset class="fieldset p-0">
+					<legend class="fieldset-legend text-xs uppercase tracking-[0.14em] opacity-70">
+						Version note
+					</legend>
 					<textarea
 						bind:value={commitMessage}
-						class="textarea textarea-bordered textarea-sm min-h-20"
+						class="textarea textarea-sm min-h-20 w-full"
 						placeholder="Describe this version"
 						disabled={commitInFlight}
 					></textarea>
-				</label>
+					<p class="label text-xs">Optional note for this local version.</p>
+				</fieldset>
 				{#if commitError}
 					<p class="text-sm text-error" role="alert">{commitError}</p>
 				{/if}

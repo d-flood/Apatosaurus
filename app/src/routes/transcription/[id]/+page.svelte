@@ -590,19 +590,23 @@
 								</div>
 
 								{#if isCommitFormOpen}
-									<form class="mt-3 space-y-2" onsubmit={handleCommitVersion}>
-										<label class="form-control">
-											<span class="label pb-1">
-												<span class="label-text text-xs">Optional note for this local version.</span>
-											</span>
+									<form
+										class="mt-3 border-t border-base-300/70 pt-3"
+										onsubmit={handleCommitVersion}
+									>
+										<fieldset class="fieldset p-0">
+											<legend class="fieldset-legend text-xs uppercase tracking-[0.14em] opacity-70">
+												Version note
+											</legend>
 											<textarea
 												bind:value={commitMessage}
-												class="textarea textarea-bordered textarea-sm min-h-20"
+												class="textarea textarea-sm min-h-20 w-full"
 												placeholder="Describe this version"
 												disabled={commitInFlight}
 											></textarea>
-										</label>
-										<div class="flex flex-wrap justify-end gap-2">
+											<p class="label text-xs">Optional note for this local version.</p>
+										</fieldset>
+										<div class="mt-2 flex flex-wrap justify-end gap-2">
 											<button
 												type="button"
 												class="btn btn-sm btn-ghost"
