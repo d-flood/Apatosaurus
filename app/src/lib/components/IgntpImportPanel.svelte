@@ -143,6 +143,22 @@
 		/>
 	</label>
 
+	<div
+		class="flex flex-col gap-3 border-b border-base-300/80 pb-4 md:flex-row md:items-center md:justify-between shrink-0"
+	>
+		<p class="text-sm text-base-content/65">
+			Already imported and unsupported witnesses stay visible but cannot be selected.
+		</p>
+		<button
+			type="button"
+			class="btn btn-primary rounded-full px-6"
+			disabled={isImporting || selectedPaths.length === 0}
+			onclick={handleImport}
+		>
+			{isImporting ? 'Importing…' : `Import Selected (${selectedPaths.length})`}
+		</button>
+	</div>
+
 	{#if filteredGroups.length === 0}
 		<div
 			class="rounded-2xl border border-dashed border-base-300 bg-base-100 px-4 py-8 text-center text-sm text-base-content/60 flex-1 min-h-0"
@@ -248,20 +264,4 @@
 			{/each}
 		</div>
 	{/if}
-
-	<div
-		class="flex flex-col gap-3 border-t border-base-300/80 pt-4 md:flex-row md:items-center md:justify-between shrink-0"
-	>
-		<p class="text-sm text-base-content/65">
-			Already imported and unsupported witnesses stay visible but cannot be selected.
-		</p>
-		<button
-			type="button"
-			class="btn btn-primary rounded-full px-6"
-			disabled={isImporting || selectedPaths.length === 0}
-			onclick={handleImport}
-		>
-			{isImporting ? 'Importing…' : `Import Selected (${selectedPaths.length})`}
-		</button>
-	</div>
 </section>

@@ -4,7 +4,6 @@
 	import { page } from '$app/state';
 	import { listProjects, type ProjectOption } from '$lib/client/collation/project-collation';
 	import { subscribeLocalDbInvalidations } from '$lib/client/db/client';
-	import { resetLocalDb } from '$lib/client/db/runtime';
 	import {
 		buildNavbarProjectTargets,
 		buildProjectSwitcherTarget,
@@ -21,7 +20,6 @@
 	import { onMount } from 'svelte';
 
 	let theme = $state('');
-	let resettingLocalDb = $state(false);
 	let projects = $state.raw<ProjectOption[]>([]);
 	let projectTargets = $derived.by(() => {
 		return buildNavbarProjectTargets(navigationProjectId(), projects);
@@ -96,20 +94,6 @@
 		if (variant === 'neutral') return 'btn btn-xs btn-neutral';
 		if (variant === 'error') return 'btn btn-xs btn-error';
 		return 'btn btn-xs btn-ghost';
-	}
-
-	async function resetDevelopmentDb() {
-		if (resettingLocalDb) return;
-		if (!window.confirm('Reset the local database? This clears local data and reloads.'))
-			return;
-
-		resettingLocalDb = true;
-		try {
-			await resetLocalDb();
-		} catch (error) {
-			resettingLocalDb = false;
-			console.error('Failed to reset local DB', error);
-		}
 	}
 </script>
 
@@ -195,16 +179,6 @@
 		<a href={resolve('/data')} aria-label="Data & Storage" class="rounded-field">
 			<SyncStatusIndicator />
 		</a>
-		{#if import.meta.env.DEV}
-			<button
-				type="button"
-				class="btn btn-xs btn-outline btn-error"
-				onclick={resetDevelopmentDb}
-				disabled={resettingLocalDb}
-			>
-				{resettingLocalDb ? 'Resetting...' : 'Reset DB'}
-			</button>
-		{/if}
 		<div class="dropdown dropdown-end">
 			<div tabindex="0" role="button" class="btn btn-ghost btn-circle">
 				<div class="indicator">
