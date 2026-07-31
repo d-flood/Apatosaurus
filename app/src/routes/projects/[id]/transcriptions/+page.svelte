@@ -5,20 +5,12 @@
 		type ProjectRecord,
 		type ProjectTranscriptionStatus,
 	} from '$lib/client/collation/project-collation';
-	import {
-		deleteTranscription,
-		listTranscriptionSummaries,
-		subscribeLocalDbInvalidations,
-	} from '$lib/client/db/client';
+	import { deleteTranscription, subscribeLocalDbInvalidations } from '$lib/client/db/client';
 	import { onMount } from 'svelte';
-
-	interface TranscriptionLibraryRow extends ProjectTranscriptionStatus {
-		updatedAt: string;
-	}
 
 	let { data } = $props<{ data: { project: ProjectRecord } }>();
 
-	let rows = $state.raw<TranscriptionLibraryRow[]>([]);
+	let rows = $state.raw<ProjectTranscriptionStatus[]>([]);
 	let isLoading = $state(true);
 	let deletingId = $state<string | null>(null);
 	let error = $state<string | null>(null);
@@ -44,16 +36,9 @@
 		const runId = ++loadRunId;
 		isLoading = true;
 		try {
-			const [statuses, summaries] = await Promise.all([
-				listProjectTranscriptionStatuses(projectId),
-				listTranscriptionSummaries(),
-			]);
+			const statuses = await listProjectTranscriptionStatuses(projectId);
 			if (runId !== loadRunId || data.project.id !== projectId) return;
-			const summariesById = new Map(summaries.map(summary => [summary.id, summary]));
-			rows = statuses.map(status => ({
-				...status,
-				updatedAt: summariesById.get(status.projectOwnedTranscriptionId)?.updated_at ?? '',
-			}));
+			rows = statuses;
 			error = null;
 		} catch (err) {
 			if (runId !== loadRunId) return;
@@ -67,7 +52,7 @@
 		}
 	}
 
-	async function handleDelete(row: TranscriptionLibraryRow) {
+	async function handleDelete(row: ProjectTranscriptionStatus) {
 		if (
 			!confirm(
 				`Are you sure you want to delete "${row.title}"? This action cannot be undone.`

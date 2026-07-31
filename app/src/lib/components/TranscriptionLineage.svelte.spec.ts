@@ -19,6 +19,7 @@ function statusWithSource(
 		siglum: 'B',
 		title: 'Copied witness',
 		description: '',
+		updatedAt: '2026-01-01T00:00:00.000Z',
 		isProjectOwned: true,
 		canonicalSource: {
 			transcriptionId: 'tx-source',

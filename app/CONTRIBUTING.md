@@ -7,11 +7,11 @@ project files are the database; SQLite is a disposable index.
 ## Setup
 
 1. Clone the full repository. The app currently depends on sibling packages in this monorepo.
-2. Install dependencies with `bun install`.
+2. Install dependencies with `pnpm install` from the repository root.
 3. Install Playwright browsers if needed:
 
 ```sh
-bunx playwright install --with-deps chromium
+pnpm exec playwright install --with-deps chromium
 ```
 
 ## Before Opening a PR
@@ -19,11 +19,11 @@ bunx playwright install --with-deps chromium
 Run the app quality gates from `app/`:
 
 ```sh
-bun run lint
-bun run check
-bun run test:unit -- --run
-bun run build
-bun run test:e2e
+pnpm run lint
+pnpm run check
+pnpm run test:unit -- --run
+pnpm run build
+pnpm run test:e2e
 ```
 
 ## Scope and Style
@@ -65,8 +65,8 @@ To add version `N + 1` to an existing format:
 Run the focused checks before the full quality gates:
 
 ```sh
-bun run test:unit -- --run src/lib/client/store/formats/formats.spec.ts
-bun run test:e2e -- -g "upgrade fixture"
+pnpm run test:unit -- --run src/lib/client/store/formats/formats.spec.ts
+pnpm run test:e2e -- -g "upgrade fixture"
 ```
 
 Do not change `INDEX_SCHEMA_VERSION` for a document-format-only change. Document versions migrate on read;

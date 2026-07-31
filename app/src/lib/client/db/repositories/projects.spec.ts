@@ -569,6 +569,7 @@ describe('projects repository', () => {
 			projectOwnedTranscriptionId: snapshotId,
 			siglum: '01',
 			title: 'Witness 01',
+			updatedAt: expect.any(String),
 			isProjectOwned: true,
 			currentCheckpoint: null,
 			dirtyToCheckpoint: true,

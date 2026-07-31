@@ -128,6 +128,7 @@ export interface ProjectTranscriptionStatus {
 	siglum: string;
 	title: string;
 	description: string;
+	updatedAt: string;
 	isProjectOwned: boolean;
 	canonicalSource: TranscriptionSourceSummary | null;
 	immediateSource: TranscriptionOriginSummary | null;
@@ -492,6 +493,7 @@ export async function listProjectTranscriptionStatuses(
 			'transcriptions.siglum as siglum',
 			'transcriptions.title as title',
 			'transcriptions.description as description',
+			'transcriptions.updated_at as updated_at',
 		])
 		.where('project_transcriptions.project_id', '=', projectId)
 		.orderBy('project_transcriptions.added_at')
@@ -564,6 +566,7 @@ export async function getProjectTranscriptionStatus(
 			'transcriptions.siglum as siglum',
 			'transcriptions.title as title',
 			'transcriptions.description as description',
+			'transcriptions.updated_at as updated_at',
 		])
 		.where('project_transcriptions.id', '=', projectTranscriptionId)
 		.executeTakeFirst();
@@ -601,6 +604,7 @@ export async function getProjectTranscriptionStatusForOwnedTranscription(
 			'transcriptions.siglum as siglum',
 			'transcriptions.title as title',
 			'transcriptions.description as description',
+			'transcriptions.updated_at as updated_at',
 		])
 		.where('project_transcriptions.transcription_id', '=', projectOwnedTranscriptionId)
 		.executeTakeFirst();
@@ -1623,6 +1627,7 @@ interface ProjectTranscriptionStatusQueryRow {
 	siglum: string;
 	title: string;
 	description: string;
+	updated_at: string;
 }
 
 async function mapProjectTranscriptionStatus(
@@ -1668,6 +1673,7 @@ async function mapProjectTranscriptionStatus(
 		siglum: row.siglum,
 		title: row.title,
 		description: row.description,
+		updatedAt: row.updated_at,
 		isProjectOwned: row.transcription_project_id === row.project_id,
 		canonicalSource,
 		immediateSource,

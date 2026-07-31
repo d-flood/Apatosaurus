@@ -4,7 +4,9 @@ const HARNESS_TRANSCRIPTION_ID = '11111111-1111-4111-8111-111111111111';
 
 type SelectionSnapshot = {
 	activeElementTag: string | null;
-	lineNumber: string | null;
+	// Line numbers are presentational (CSS counters), so report the caret line's
+	// 1-based position within its column instead of reading an attribute.
+	linePosition: number | null;
 	lineText: string | null;
 	pageId: string | null;
 	zone: string | null;
@@ -26,7 +28,11 @@ async function readSelectionSnapshot(
 
 		return {
 			activeElementTag: activeElement?.tagName ?? null,
-			lineNumber: line?.getAttribute('data-line-number') ?? null,
+			linePosition: line
+				? Array.from(
+						line.parentElement?.querySelectorAll<HTMLElement>(':scope > .line') ?? []
+					).indexOf(line) + 1
+				: null,
 			lineText:
 				line?.querySelector<HTMLElement>('.line-content')?.textContent?.trim() ?? null,
 			pageId: pageNode?.getAttribute('data-page-id') ?? null,
@@ -152,7 +158,7 @@ test('enter then typing continues in the newly created line', async ({ page }) =
 
 	expect(selection.pageId).toBe('harness-page-1');
 	expect(selection.zone).toBe('center');
-	expect(selection.lineNumber).toBe('2');
+	expect(selection.linePosition).toBe(2);
 	expect(selection.lineText).toBe('xyz');
 	await expect(
 		page.locator('[data-page-id="harness-page-1"] .column[data-zone="center"] .line').nth(1)
