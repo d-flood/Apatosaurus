@@ -4,8 +4,8 @@ This document captures the codebase audit that produced `architecture.md`. It ex
 
 ## 1. Repository Layout
 
-- pnpm workspace rooted at the repo. Workspaces: `app/` (the SvelteKit app), `triiiceratops/` (IIIF/OpenSeadragon viewer, git submodule, used by the transcription editor's IIIF workspace), `packages/tei-transcription/` (TEI data model + conversions), `collatex/collatex-tsport/` (TypeScript CollateX port, git submodule, the alignment engine).
-- `app/svelte.config.js` and `app/vite.config.ts` alias `triiiceratops` and `collatex-tsport` directly to submodule **source** files, and `$generated` to `src/generated`.
+- pnpm workspace rooted at the repo. Workspaces: `app/` (the SvelteKit app), `packages/tei-transcription/` (TEI data model + conversions), `collatex/collatex-tsport/` (TypeScript CollateX port, git submodule, the alignment engine). Triiiceratops is consumed from npm by the app.
+- `app/vite.config.ts` aliases `collatex-tsport` directly to submodule **source** files, and `$generated` to `src/generated`.
 - SvelteKit 2 / Svelte 5, static adapter (`fallback: '404.html'`), Tailwind + DaisyUI, TipTap for the editor. Deployed via GitHub Pages workflow `.github/workflows/app-pages.yml`.
 - Custom service worker `app/src/service-worker.ts` (network-first navigations, cache-first assets, `/offline` fallback); manual registration in `+layout.svelte` (`serviceWorker.register: false` in svelte config).
 - Tests: vitest split into browser mode (Svelte/client) and node (server) in `vite.config.ts`; Playwright configured. Run everything with `pnpm` from `app/`.

@@ -8,7 +8,7 @@ This app is active work in progress. The codebase is intended to be readable and
 
 Current workspace constraint:
 
-- the app currently lives inside this monorepo and depends on sibling packages under `../triiiceratops`, `../collatex`, and `../packages/tei-transcription`
+- the app currently lives inside this monorepo and depends on sibling packages under `../collatex` and `../packages/tei-transcription`; Triiiceratops is installed from npm
 
 ## Persistence Architecture
 

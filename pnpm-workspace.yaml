@@ -1,6 +1,5 @@
 packages:
   - app
-  - triiiceratops
   - packages/tei-transcription
   - collatex/collatex-tsport
 

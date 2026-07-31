@@ -6,8 +6,6 @@ on:
       - "app/**"
       - "collatex"
       - "collatex/collatex-tsport/**"
-      - "triiiceratops"
-      - "triiiceratops/**"
       - "packages/tei-transcription/**"
       - "package.json"
       - "pnpm-lock.yaml"
@@ -18,8 +16,6 @@ on:
       - "app/**"
       - "collatex"
       - "collatex/collatex-tsport/**"
-      - "triiiceratops"
-      - "triiiceratops/**"
       - "packages/tei-transcription/**"
       - "package.json"
       - "pnpm-lock.yaml"
@@ -58,13 +54,6 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-
-      - name: Build triiiceratops library prerequisites
-        run: pnpm install --frozen-lockfile && pnpm run build:all
-        working-directory: triiiceratops
-
-      - name: Refresh built viewer dependencies
-        run: pnpm install --offline --frozen-lockfile
 
       - name: Install Chromium
         run: pnpm exec playwright install --with-deps chromium
