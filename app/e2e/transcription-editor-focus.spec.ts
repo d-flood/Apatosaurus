@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { placeCaretAtLineEnd } from './editor-helpers';
 
 const HARNESS_TRANSCRIPTION_ID = '11111111-1111-4111-8111-111111111111';
 
@@ -96,12 +97,7 @@ test('typing in a framed-page line keeps focus in the active page and column', a
 	);
 	await expect(topLine).toBeVisible();
 
-	const box = await topLine.boundingBox();
-	if (!box) {
-		throw new Error('top line bounding box not available');
-	}
-
-	await page.mouse.click(box.x + box.width - 2, box.y + box.height / 2);
+	await placeCaretAtLineEnd(topLine);
 	await page.keyboard.type('ab', { delay: 100 });
 	await page.waitForTimeout(100);
 
@@ -144,12 +140,7 @@ test('enter then typing continues in the newly created line', async ({ page }) =
 	);
 	await expect(centerLine).toBeVisible();
 
-	const box = await centerLine.boundingBox();
-	if (!box) {
-		throw new Error('center line bounding box not available');
-	}
-
-	await page.mouse.click(box.x + box.width - 2, box.y + box.height / 2);
+	await placeCaretAtLineEnd(centerLine);
 	await page.keyboard.press('Enter');
 	await page.keyboard.type('xyz', { delay: 100 });
 	await page.waitForTimeout(100);
@@ -199,8 +190,7 @@ test('typing in the full transcription page keeps focus in the active page and c
 	);
 	await expect(topLine).toBeVisible();
 
-	await topLine.click();
-	await page.keyboard.press('End');
+	await placeCaretAtLineEnd(topLine);
 	await expect
 		.poll(async () => {
 			const selection = await readSelectionSnapshot(page);

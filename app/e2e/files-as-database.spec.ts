@@ -8,6 +8,7 @@ import {
 } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
+import { placeCaretAtLineEnd } from './editor-helpers';
 
 const TEI_FIXTURE_PATH = fileURLToPath(
 	new URL('../src/lib/tei/NT_GRC_P118_Rom.xml', import.meta.url)
@@ -323,8 +324,7 @@ async function createAndCommitTeiTranscription(
 	await expect(page.getByRole('heading', { name: title })).toBeVisible({ timeout: 30_000 });
 
 	const line = page.locator('.line-content').filter({ hasText: /\S/ }).first();
-	await line.click();
-	await page.keyboard.press('End');
+	await placeCaretAtLineEnd(line);
 	await page.keyboard.type(` ${marker}`);
 	await expect(page.getByText('Unsaved local edits')).toBeVisible();
 	const commitButton = page.getByRole('button', { name: 'Commit version' }).first();
@@ -344,8 +344,7 @@ async function editAndCommitOpenTranscription(
 	commitMessage: string
 ): Promise<void> {
 	const line = page.locator('.line-content').filter({ hasText: /\S/ }).first();
-	await line.click();
-	await page.keyboard.press('End');
+	await placeCaretAtLineEnd(line);
 	await page.keyboard.type(` ${marker}`);
 	await expect(page.getByText('Unsaved local edits')).toBeVisible();
 	const commitButton = page.getByRole('button', { name: 'Commit version' }).first();
