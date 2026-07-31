@@ -1660,6 +1660,17 @@
 	:global(.line) {
 		overflow-x: auto;
 		position: relative;
+		scrollbar-width: thin;
+	}
+
+	:global(.line::-webkit-scrollbar) {
+		height: 4px;
+	}
+
+	:global(.line::-webkit-scrollbar-button) {
+		display: none;
+		width: 0;
+		height: 0;
 	}
 
 	:global(.marginalia-node) {
