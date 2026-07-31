@@ -130,6 +130,7 @@
 		paragraphStart: true,
 	});
 	let bubbleMenu = $state<HTMLElement | null>(null);
+	let stackColumns = $state(false);
 
 	let hasPage = $state(false);
 	let canonicalDocument = $state<StoredTranscriptionDocument>(EMPTY_TRANSCRIPTION_DOC);
@@ -1538,6 +1539,7 @@
 		use:editorTooltips
 		bind:this={transcriptionElement}
 		class="prose max-w-none w-full overflow-visible"
+		class:stack-columns={stackColumns}
 		class:show-lacunose={markVisibility.lacunose}
 		class:show-unclear={markVisibility.unclear}
 		class:show-correction={markVisibility.correction}
@@ -1604,6 +1606,7 @@
 		bind:markVisibility
 		bind:transcriptionMetadataDialog
 		{cursorPosition}
+		bind:stackColumns
 		sticky={!statusBarTarget}
 	/>
 </div>
@@ -1859,6 +1862,18 @@
 
 	:global(.frame-grid:has(> .column[data-zone]) > .column[data-zone='bottom']) {
 		grid-area: bottom;
+	}
+
+	:global(.stack-columns .frame-grid),
+	:global(.stack-columns .frame-grid:has(> .column[data-zone])) {
+		display: flex;
+		flex-direction: column;
+		align-items: stretch;
+	}
+
+	:global(.stack-columns .frame-grid > .column) {
+		width: 100%;
+		flex: none;
 	}
 
 	@container (max-width: 44rem) {

@@ -17,6 +17,7 @@ import {
 	transcriptionPlainPage,
 } from '$lib/client/testing/editorFixtures';
 import {
+	control,
 	mountTranscriptionEditor,
 	nextAnimationFrame,
 	type TranscriptionEditorHarness as Harness,
@@ -166,6 +167,60 @@ describe('page layout at a constrained pane width', () => {
 			}
 		} finally {
 			harness.dispose();
+		}
+	});
+
+	it('can stack and unstack all columns from the status bar', async () => {
+		const harness = await mountTranscriptionEditor({
+			document: PLAIN_PAGE_DOCUMENT,
+			widthPx: 1200,
+			id: 'layout-column-toggle',
+		});
+		try {
+			const frameGrid = harness.container.querySelector<HTMLElement>('.frame-grid')!;
+			const columns = frameGrid.querySelectorAll<HTMLElement>(':scope > .column');
+			const toggle = control(harness.container, 'Stack transcription columns');
+
+			expect(getComputedStyle(frameGrid).flexDirection).toBe('row');
+			expect(toggle.getAttribute('aria-pressed')).toBe('false');
+
+			toggle.click();
+			await nextAnimationFrame();
+
+			expect(getComputedStyle(frameGrid).flexDirection).toBe('column');
+			expect(columns[1].getBoundingClientRect().top).toBeGreaterThan(
+				columns[0].getBoundingClientRect().top
+			);
+			expect(toggle.getAttribute('aria-pressed')).toBe('true');
+
+			control(harness.container, 'Show columns inline').click();
+			await nextAnimationFrame();
+			expect(getComputedStyle(frameGrid).flexDirection).toBe('row');
+		} finally {
+			harness.dispose();
+		}
+
+		const framedHarness = await mountTranscriptionEditor({
+			document: FRAMED_PAGE_DOCUMENT,
+			widthPx: 1200,
+			id: 'layout-framed-column-toggle',
+		});
+		try {
+			const frameGrid = framedHarness.container.querySelector<HTMLElement>('.frame-grid')!;
+			const toggle = control(framedHarness.container, 'Stack transcription columns');
+
+			expect(getComputedStyle(frameGrid).display).toBe('grid');
+			toggle.click();
+			await nextAnimationFrame();
+
+			expect(getComputedStyle(frameGrid).display).toBe('flex');
+			expect(getComputedStyle(frameGrid).flexDirection).toBe('column');
+
+			control(framedHarness.container, 'Show columns inline').click();
+			await nextAnimationFrame();
+			expect(getComputedStyle(frameGrid).display).toBe('grid');
+		} finally {
+			framedHarness.dispose();
 		}
 	});
 });
