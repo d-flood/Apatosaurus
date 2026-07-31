@@ -25,7 +25,7 @@ import type {
 	RemoveLocalProjectInput,
 	RemoveLocalProjectResult,
 } from './repositories/project-removal';
-import type { W3CAnnotation } from 'triiiceratops/plugins/annotation-editor';
+import type { W3CAnnotation } from '@triiiceratops/plugin-annotation-editor';
 import type {
 	CloudConnectionRecord,
 	CloudProjectFolderRecord,

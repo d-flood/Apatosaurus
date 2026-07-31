@@ -19,15 +19,6 @@ const config = {
 		adapter: staticAdapter({ fallback: '404.html' }),
 		alias: {
 			'collatex-tsport': workspacePath('collatex', 'collatex-tsport', 'src', 'index.ts'),
-			'triiiceratops/plugins/annotation-editor': workspacePath(
-				'triiiceratops',
-				'src',
-				'lib',
-				'plugins',
-				'annotation-editor',
-				'index.ts'
-			),
-			triiiceratops: workspacePath('triiiceratops', 'src', 'lib', 'index.ts'),
 			$generated: 'src/generated',
 		},
 		prerender: {

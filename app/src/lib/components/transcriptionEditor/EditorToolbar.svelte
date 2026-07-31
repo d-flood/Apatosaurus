@@ -36,7 +36,7 @@
 
 	type GroupPosition = 'only' | 'first' | 'middle' | 'last';
 
-	const TOOLBAR_BUTTON_WIDTH_PX = 48;
+	const FALLBACK_TOOLBAR_ITEM_WIDTH_PX = 48;
 
 	interface CursorPosition {
 		pageName?: string;
@@ -263,11 +263,16 @@
 
 		const availableWidth = toolbarRoot.clientWidth;
 		if (availableWidth <= 0) return;
+		const renderedItemWidths = Array.from(
+			toolbarRoot.querySelectorAll<HTMLElement>('[data-toolbar-item-key]')
+		)
+			.map(item => item.getBoundingClientRect().width)
+			.filter(width => width > 0);
+		const toolbarItemWidth = renderedItemWidths.length
+			? Math.max(...renderedItemWidths)
+			: FALLBACK_TOOLBAR_ITEM_WIDTH_PX;
 
-		const buttonsPerRow = Math.max(
-			1,
-			Math.floor((availableWidth + 1) / TOOLBAR_BUTTON_WIDTH_PX)
-		);
+		const buttonsPerRow = Math.max(1, Math.floor((availableWidth + 1) / toolbarItemWidth));
 		const maxRows = Math.min(4, orderedToolbarItems.length);
 		const nextRowCount = Math.min(
 			maxRows,

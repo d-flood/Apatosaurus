@@ -1,10 +1,10 @@
 <script lang="ts">
-	import { onDestroy, onMount } from 'svelte';
-	import { TriiiceratopsViewer, type ViewerState } from 'triiiceratops';
+	import { onMount } from 'svelte';
+	import { TriiiceratopsViewer, type ThemeConfig, type ViewerState } from 'triiiceratops';
 	import {
 		createAnnotationEditorPlugin,
 		type AnnotationEditorExtension,
-	} from 'triiiceratops/plugins/annotation-editor';
+	} from '@triiiceratops/plugin-annotation-editor';
 
 	import { AppAnnotationAdapter } from '$lib/client/iiif/AppAnnotationAdapter';
 	import { canvasToRef } from '$lib/client/iiif/canvas';
@@ -243,11 +243,15 @@
 			};
 		}
 	);
-	const annotationExtension = createCompositeTranscriptionAnnotationExtension(() => ({
-		isCompositeSelected,
-		persistenceContext: currentCanvasPersistenceContext,
-		selectionQuote,
-	})) as AnnotationEditorExtension;
+	const annotationExtension = createCompositeTranscriptionAnnotationExtension(
+		() => ({
+			isCompositeSelected,
+			isAnnotationEditorOpen: viewerState?.isPluginOpen('annotation-editor') ?? false,
+			persistenceContext: currentCanvasPersistenceContext,
+			selectionQuote,
+		}),
+		invalidate => viewerState?.subscribe(invalidate) || (() => {})
+	) as AnnotationEditorExtension;
 	const compositeAnnotationPlugin = createAnnotationEditorPlugin({
 		adapter: annotationAdapter,
 		user: annotationUser,
@@ -257,18 +261,12 @@
 	});
 	const compositeAnnotationPlugins = [compositeAnnotationPlugin];
 
-	onDestroy(() => {
-		annotationAdapter.destroy();
-	});
-
 	const pageRefs: PageRef[] = $derived(
-		pages.map(
-			(page: PageEditorMetadata): PageRef => ({
-				pageId: page.pageId,
-				pageName: page.pageName,
-				pageOrder: page.pageOrder,
-			})
-		)
+		pages.map((page: PageEditorMetadata): PageRef => ({
+			pageId: page.pageId,
+			pageName: page.pageName,
+			pageOrder: page.pageOrder,
+		}))
 	);
 
 	const currentManifestSource: ManifestSourceSummary | null = $derived(
@@ -511,7 +509,7 @@
 		})
 	);
 
-	const annotationPlugins = $derived(isCompositeSelected ? compositeAnnotationPlugins : []);
+	const annotationPlugins = compositeAnnotationPlugins;
 	const externalViewerState: IiifWorkspaceSyncState = $derived.by(() => ({
 		selection: currentSelection,
 		canvasId: currentCanvasId,
@@ -530,12 +528,46 @@
 	);
 
 	const viewerConfig = {
+		controls: 'unified',
 		toolbarOpen: true,
-		toolbarPosition: 'left',
-		toolbar: { showSearch: false },
+		toolbar: { showSearch: false, side: 'left', anchor: 'top' },
 		gallery: { open: true, dockPosition: 'bottom', fixedHeight: 92 },
+		search: { position: 'right' },
 		annotations: { open: false, visible: true, position: 'right', width: '20rem' },
+		information: { position: 'right' },
+		plugins: {
+			'annotation-editor': { visible: true, open: true, position: 'right' },
+		},
 	} as const;
+	const viewerTheme: ThemeConfig = {
+		primary: 'oklch(55% 0.195 38.402)',
+		primaryContent: 'oklch(95% 0.038 75.164)',
+		neutral: 'oklch(90% 0.076 70.697)',
+		neutralContent: 'oklch(47% 0.157 37.304)',
+		success: 'oklch(55% 0.12 145)',
+		successContent: 'oklch(95% 0.03 145)',
+		warning: 'oklch(68% 0.155 75)',
+		warningContent: 'oklch(30% 0.07 75)',
+		error: 'oklch(50% 0.213 27.518)',
+		errorContent: 'oklch(93% 0.04 27)',
+		viewerBg: 'oklch(98% 0.016 73.684)',
+		toolbarBg: 'oklch(100% 0 0)',
+		panelBg: 'oklch(100% 0 0)',
+		inputBg: 'oklch(98% 0.016 73.684)',
+		surfaceBorder: 'oklch(95% 0.038 75.164)',
+		content: 'oklch(40% 0.123 38.172)',
+		radiusBox: '0.5rem',
+		radiusButtons: '0.5rem',
+		radiusSelector: '0.5rem',
+		border: '1.5px',
+		depth: 1,
+		colorScheme: 'light',
+	};
+
+	function reportPluginError(error: { pluginName: string; phase: string; error: unknown }) {
+		const detail = error.error instanceof Error ? ` ${error.error.message}` : '';
+		statusMessage = `Could not load ${error.pluginName} (${error.phase}).${detail}`;
+	}
 
 	onMount(() => {
 		void refreshStoredData();
@@ -1118,7 +1150,9 @@
 				manifestJson={viewerManifestJson || undefined}
 				canvasId={viewerCanvasPropId || undefined}
 				config={viewerConfig}
+				themeConfig={viewerTheme}
 				plugins={annotationPlugins}
+				onpluginerror={reportPluginError}
 				bind:viewerState
 			/>
 		{:else}

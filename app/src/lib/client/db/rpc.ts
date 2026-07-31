@@ -88,7 +88,7 @@ import type {
 } from './repositories/revisions';
 import type { IndexRebuildReport } from './repositories/index-rebuild';
 import type { ManifestSourceSummary, PageCanvasLink, SavePageCanvasLinkInput } from '../iiif/types';
-import type { W3CAnnotation } from 'triiiceratops/plugins/annotation-editor';
+import type { W3CAnnotation } from '@triiiceratops/plugin-annotation-editor';
 
 export type DbValue = string | number | boolean | null | Uint8Array;
 export type DbRow = Record<string, unknown>;
@@ -599,8 +599,7 @@ export type DbRequestPayload =
 	| IndexRpcRequest;
 
 export type DbResponse =
-	| { id: number; ok: true; result?: unknown }
-	| { id: number; ok: false; error: string };
+	{ id: number; ok: true; result?: unknown } | { id: number; ok: false; error: string };
 
 export type DbInvalidationEvent = {
 	type: 'db:invalidate';

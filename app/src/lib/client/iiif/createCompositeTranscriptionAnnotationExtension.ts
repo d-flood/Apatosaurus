@@ -3,7 +3,7 @@ import type {
 	AnnotationEditorRuntimeContext,
 	W3CAnnotation,
 	W3CAnnotationBody,
-} from 'triiiceratops/plugins/annotation-editor';
+} from '@triiiceratops/plugin-annotation-editor';
 
 import type { TranscriptionSelectionQuote } from './types';
 
@@ -18,6 +18,7 @@ export interface CompositeAnnotationPersistenceContext {
 
 export interface CompositeTranscriptionAnnotationHostContext {
 	isCompositeSelected: boolean;
+	isAnnotationEditorOpen: boolean;
 	persistenceContext: CompositeAnnotationPersistenceContext | null;
 	selectionQuote: TranscriptionSelectionQuote | null;
 }
@@ -34,10 +35,11 @@ function buildTextBody(text: string): W3CAnnotationBody {
 function canCreateFromContext(
 	hostContext: CompositeTranscriptionAnnotationHostContext | null
 ): boolean {
-	return !!(
-		hostContext?.isCompositeSelected &&
-		hostContext.persistenceContext &&
-		hostContext.selectionQuote?.text &&
+	if (!hostContext) return false;
+	if (!hostContext.isAnnotationEditorOpen) return false;
+	if (!hostContext.persistenceContext) return false;
+	return (
+		!hostContext.selectionQuote?.text ||
 		hostContext.selectionQuote.pageId === hostContext.persistenceContext.pageId
 	);
 }
@@ -45,11 +47,11 @@ function canCreateFromContext(
 function getDisabledReason(
 	hostContext: CompositeTranscriptionAnnotationHostContext | null
 ): string | null {
-	if (!hostContext?.isCompositeSelected) {
-		return 'Annotations are available only in the composite local manifest.';
+	if (!hostContext?.persistenceContext) {
+		return 'Link this canvas to a transcription page before annotating it.';
 	}
-	if (!hostContext.persistenceContext) {
-		return 'Link this composite canvas to a transcription page before annotating it.';
+	if (!hostContext.isAnnotationEditorOpen) {
+		return 'Open the annotation editor to create annotations.';
 	}
 	if (!hostContext.selectionQuote?.text) {
 		return null;
@@ -61,10 +63,12 @@ function getDisabledReason(
 }
 
 export function createCompositeTranscriptionAnnotationExtension(
-	getHostContext: () => CompositeTranscriptionAnnotationHostContext
+	getHostContext: () => CompositeTranscriptionAnnotationHostContext,
+	subscribeHostContext?: (invalidate: () => void) => () => void
 ): AnnotationEditorExtension<CompositeTranscriptionAnnotationHostContext> {
 	return {
 		getContext: getHostContext,
+		subscribe: subscribeHostContext,
 		canCreate: ({
 			hostContext,
 		}: AnnotationEditorRuntimeContext<CompositeTranscriptionAnnotationHostContext>) =>

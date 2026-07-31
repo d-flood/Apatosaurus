@@ -93,6 +93,8 @@ export default defineConfig({
 		// node_modules/.vite/vitest/*/deps/_metadata.json if a new dep flakes.
 		include: [
 			'@annotorious/openseadragon',
+			'@triiiceratops/plugin-annotation-editor',
+			'@triiiceratops/plugin-sdk',
 			'@floating-ui/dom',
 			'@journeyapps/wa-sqlite',
 			'@journeyapps/wa-sqlite/dist/wa-sqlite.mjs',
@@ -208,21 +210,6 @@ export default defineConfig({
 			{
 				find: 'collatex-tsport',
 				replacement: workspacePath('collatex', 'collatex-tsport', 'src', 'index.ts'),
-			},
-			{
-				find: 'triiiceratops/plugins/annotation-editor',
-				replacement: workspacePath(
-					'triiiceratops',
-					'src',
-					'lib',
-					'plugins',
-					'annotation-editor',
-					'index.ts'
-				),
-			},
-			{
-				find: 'triiiceratops',
-				replacement: workspacePath('triiiceratops', 'src', 'lib', 'index.ts'),
 			},
 		],
 	},

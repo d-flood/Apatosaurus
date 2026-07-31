@@ -50,8 +50,11 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build triiiceratops
-        run: pnpm run build:lib
+        run: pnpm install --frozen-lockfile && pnpm run build:all
         working-directory: triiiceratops
+
+      - name: Refresh built viewer dependencies
+        run: pnpm install --offline --frozen-lockfile
 
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps chromium

@@ -6,6 +6,7 @@
 	import { registerServiceWorker, scheduleCacheWarm } from '$lib/client/sw-registration';
 	import Navbar from '$lib/components/Navbar.svelte';
 	import { onMount } from 'svelte';
+	import 'triiiceratops/style.css';
 	import '../app.css';
 
 	let { children } = $props();

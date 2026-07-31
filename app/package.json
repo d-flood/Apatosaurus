@@ -59,6 +59,8 @@
 	},
 	"dependencies": {
 		"@journeyapps/wa-sqlite": "^1.2.1",
+		"@triiiceratops/plugin-annotation-editor": "file:../triiiceratops/packages/plugin-annotation-editor",
+		"@triiiceratops/plugin-sdk": "file:../triiiceratops/packages/plugin-sdk",
 		"@floating-ui/dom": "^1.7.6",
 		"@tiptap/core": "^3.22.5",
 		"@tiptap/extension-bubble-menu": "^3.22.5",
@@ -74,6 +76,6 @@
 		"lucide-svelte": "^1.0.1",
 		"nanoid": "^5.1.11",
 		"sqlite-wasm-kysely": "^0.3.0",
-		"triiiceratops": "file:../triiiceratops"
+		"triiiceratops": "file:../triiiceratops/packages/core"
 	}
 }

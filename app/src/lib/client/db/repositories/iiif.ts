@@ -1,5 +1,5 @@
 import type { Kysely, Selectable, Transaction } from 'kysely';
-import type { W3CAnnotation, W3CAnnotationBody } from 'triiiceratops/plugins/annotation-editor';
+import type { W3CAnnotation, W3CAnnotationBody } from '@triiiceratops/plugin-annotation-editor';
 
 import type {
 	AnnotationAnchor,
@@ -347,6 +347,12 @@ export async function upsertCanvasAnnotation(
 	const firstBody = Array.isArray(input.annotation.body)
 		? input.annotation.body[0] || {}
 		: input.annotation.body || {};
+	const annotationTarget = Array.isArray(input.annotation.target)
+		? input.annotation.target[0]
+		: input.annotation.target;
+	const annotationSelector = Array.isArray(annotationTarget?.selector)
+		? annotationTarget.selector[0]
+		: annotationTarget?.selector;
 	const id = existing?.id || crypto.randomUUID();
 	await db
 		.insertInto('iiif_canvas_annotations')
@@ -360,7 +366,7 @@ export async function upsertCanvasAnnotation(
 			target_json: JSON.stringify(input.annotation.target || { source: input.canvasId }),
 			body_json: JSON.stringify(input.annotation.body || []),
 			motivation: String((firstBody as Record<string, unknown>).purpose || 'commenting'),
-			annotation_kind: String(input.annotation.target?.selector?.type || 'annotation'),
+			annotation_kind: String(annotationSelector?.type || 'annotation'),
 			anchor_json: JSON.stringify(input.anchor),
 			created_by:
 				input.createdBy ||
@@ -377,7 +383,7 @@ export async function upsertCanvasAnnotation(
 				target_json: JSON.stringify(input.annotation.target || { source: input.canvasId }),
 				body_json: JSON.stringify(input.annotation.body || []),
 				motivation: String((firstBody as Record<string, unknown>).purpose || 'commenting'),
-				annotation_kind: String(input.annotation.target?.selector?.type || 'annotation'),
+				annotation_kind: String(annotationSelector?.type || 'annotation'),
 				anchor_json: JSON.stringify(input.anchor),
 				created_by:
 					input.createdBy ||
