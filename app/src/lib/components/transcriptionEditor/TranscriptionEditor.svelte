@@ -1145,6 +1145,9 @@
 
 		const sync = () => {
 			if (!transcription?.id) return;
+			// The index sync is a second write path. Never let it persist a seed
+			// before the canonical autosave has accepted its provenance.
+			if (pendingReferenceEditionsUsed) return;
 			const editorJson = editorState.editor?.getJSON();
 			if (!editorJson) return;
 			const document = coerceEditorJsonToDocument(editorJson);

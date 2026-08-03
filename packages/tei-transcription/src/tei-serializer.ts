@@ -18,6 +18,8 @@ interface ExportContext {
 	currentVerse?: string;
 	currentBook?: string;
 	currentChapter?: string;
+	currentBookSourceLabel?: string;
+	currentChapterSourceLabel?: string;
 	insideVerse: boolean;
 	anonymousAbOpen: boolean;
 	bookDivOpen: boolean;
@@ -179,7 +181,7 @@ function exportLineContent(nodes: ProseMirrorJSON[] | undefined, context: Export
 		const word = words[index];
 		if (word.type === 'verse') {
 			closeAnonymousAb(context);
-			const verseId = buildVerseId(word.attrs);
+			const verseId = getSourceLabel(word.attrs) ?? buildVerseId(word.attrs);
 			if (context.insideVerse && context.currentVerse !== verseId) {
 				closeVerse(context);
 			}
@@ -189,11 +191,13 @@ function exportLineContent(nodes: ProseMirrorJSON[] | undefined, context: Export
 
 		if (word.type === 'book') {
 			context.currentBook = word.attrs?.book || '';
+			context.currentBookSourceLabel = getSourceLabel(word.attrs);
 			continue;
 		}
 
 		if (word.type === 'chapter') {
 			context.currentChapter = word.attrs?.chapter || '';
+			context.currentChapterSourceLabel = getSourceLabel(word.attrs);
 			continue;
 		}
 
@@ -1204,15 +1208,17 @@ function closeAllDivs(context: ExportContext): void {
 
 function ensureCurrentDivs(context: ExportContext): void {
 	if (context.currentBook && !context.bookDivOpen) {
-		context.xml.push(`<div type="book" n="${escapeXml(context.currentBook)}">`);
+		const bookId = context.currentBookSourceLabel ?? context.currentBook;
+		context.xml.push(`<div type="book" n="${escapeXml(bookId)}">`);
 		context.bookDivOpen = true;
 	}
 
 	if (context.currentChapter && !context.chapterDivOpen) {
 		const chapterId =
-			context.currentBook && !context.currentChapter.startsWith(`${context.currentBook}.`)
+			context.currentChapterSourceLabel ??
+			(context.currentBook && !context.currentChapter.startsWith(`${context.currentBook}.`)
 				? `${context.currentBook}.${context.currentChapter}`
-				: context.currentChapter;
+				: context.currentChapter);
 		context.xml.push(`<div type="chapter" n="${escapeXml(chapterId)}">`);
 		context.chapterDivOpen = true;
 	}
@@ -1222,6 +1228,10 @@ function buildVerseId(attrs?: Record<string, any>): string {
 	if (!attrs) return '';
 	if (attrs.chapter && attrs.verse) return `${attrs.chapter}.${attrs.verse}`;
 	return attrs.verse || '';
+}
+
+function getSourceLabel(attrs?: Record<string, any>): string | undefined {
+	return typeof attrs?.sourceLabel === 'string' ? attrs.sourceLabel : undefined;
 }
 
 function extractTeiAttrs(

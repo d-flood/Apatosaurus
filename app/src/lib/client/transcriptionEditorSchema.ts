@@ -556,15 +556,19 @@ const BookNode = Node.create({
 	},
 	renderHTML({ node, HTMLAttributes }) {
 		const book = node.attrs.book || '';
+		const sourceLabel = node.attrs.sourceLabel;
 		return [
 			'span',
 			{
 				...HTMLAttributes,
 				class: inlineBadgeClass('book-milestone', 'select-none mx-1'),
 				'data-book': book,
+				...(sourceLabel !== null && sourceLabel !== undefined
+					? { 'data-source-label': sourceLabel }
+					: {}),
 				contenteditable: 'false',
 			},
-			...iconLabelSpec(`${book}`, 'milestone'),
+			...iconLabelSpec(`${sourceLabel ?? book}`, 'milestone'),
 		];
 	},
 	addAttributes() {
@@ -575,6 +579,14 @@ const BookNode = Node.create({
 				renderHTML: attributes => ({
 					'data-book': attributes.book,
 				}),
+			},
+			sourceLabel: {
+				default: null,
+				parseHTML: element => element.getAttribute('data-source-label'),
+				renderHTML: attributes =>
+					attributes.sourceLabel === null || attributes.sourceLabel === undefined
+						? {}
+						: { 'data-source-label': attributes.sourceLabel },
 			},
 		};
 	},
@@ -591,7 +603,8 @@ const ChapterNode = Node.create({
 	renderHTML({ node, HTMLAttributes }) {
 		const book = node.attrs.book || '';
 		const chapter = node.attrs.chapter || '';
-		const display = chapter;
+		const sourceLabel = node.attrs.sourceLabel;
+		const display = sourceLabel ?? chapter;
 		return [
 			'span',
 			{
@@ -599,6 +612,9 @@ const ChapterNode = Node.create({
 				class: inlineBadgeClass('chapter-milestone', 'select-none mx-1'),
 				'data-book': book,
 				'data-chapter': chapter,
+				...(sourceLabel !== null && sourceLabel !== undefined
+					? { 'data-source-label': sourceLabel }
+					: {}),
 				contenteditable: 'false',
 			},
 			...iconLabelSpec(`${display}`, 'milestone'),
@@ -619,6 +635,14 @@ const ChapterNode = Node.create({
 				renderHTML: attributes => ({
 					'data-chapter': attributes.chapter,
 				}),
+			},
+			sourceLabel: {
+				default: null,
+				parseHTML: element => element.getAttribute('data-source-label'),
+				renderHTML: attributes =>
+					attributes.sourceLabel === null || attributes.sourceLabel === undefined
+						? {}
+						: { 'data-source-label': attributes.sourceLabel },
 			},
 		};
 	},
@@ -943,9 +967,15 @@ const Unconfirmed = Mark.create({
 				appendTransaction: (transactions, _oldState, newState) => {
 					if (
 						!transactions.some(transaction => transaction.docChanged) ||
-						transactions.some(transaction => transaction.getMeta('uiEvent') === 'paste') ||
-						transactions.some(transaction => transaction.getMeta('referenceEditionSeed') === true) ||
-						transactions.some(transaction => transaction.getMeta('addToHistory') === false)
+						transactions.some(
+							transaction => transaction.getMeta('uiEvent') === 'paste'
+						) ||
+						transactions.some(
+							transaction => transaction.getMeta('referenceEditionSeed') === true
+						) ||
+						transactions.some(
+							transaction => transaction.getMeta('addToHistory') === false
+						)
 					) {
 						return null;
 					}
@@ -1096,6 +1126,7 @@ const VerseNode = Node.create({
 		const book = node.attrs.book || '';
 		const chapter = node.attrs.chapter || '';
 		const verse = node.attrs.verse || '';
+		const sourceLabel = node.attrs.sourceLabel;
 		let display = verse;
 		if (chapter) {
 			display = `${chapter}:${verse}`;
@@ -1108,9 +1139,12 @@ const VerseNode = Node.create({
 				'data-book': book,
 				'data-chapter': chapter,
 				'data-verse': verse,
+				...(sourceLabel !== null && sourceLabel !== undefined
+					? { 'data-source-label': sourceLabel }
+					: {}),
 				contenteditable: 'false',
 			},
-			...iconLabelSpec(`${display}`, 'milestone'),
+			...iconLabelSpec(`${sourceLabel ?? display}`, 'milestone'),
 		];
 	},
 	addAttributes() {
@@ -1135,6 +1169,14 @@ const VerseNode = Node.create({
 				renderHTML: attributes => ({
 					'data-verse': attributes.verse,
 				}),
+			},
+			sourceLabel: {
+				default: null,
+				parseHTML: element => element.getAttribute('data-source-label'),
+				renderHTML: attributes =>
+					attributes.sourceLabel === null || attributes.sourceLabel === undefined
+						? {}
+						: { 'data-source-label': attributes.sourceLabel },
 			},
 		};
 	},

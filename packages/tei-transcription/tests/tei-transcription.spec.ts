@@ -490,11 +490,17 @@ describe('tei-transcription package', () => {
 		const milestones = items.filter(item => item.type === 'milestone');
 
 		expect(milestones).toEqual([
-			{ type: 'milestone', kind: 'book', attrs: { book: 'book.opaque' } },
+			{
+				type: 'milestone',
+				kind: 'book',
+				attrs: { book: 'book.opaque' },
+				sourceLabel: 'book.opaque',
+			},
 			{
 				type: 'milestone',
 				kind: 'chapter',
 				attrs: { book: 'book.opaque', chapter: '9' },
+				sourceLabel: 'book.opaque.chapter.9',
 			},
 			{
 				type: 'milestone',
@@ -504,13 +510,47 @@ describe('tei-transcription package', () => {
 					chapter: '9',
 					verse: '10',
 				},
+				sourceLabel: 'chapter.9.verse.10',
 			},
 		]);
-		expect(milestones[1]?.sourceLabel).toBe('book.opaque.chapter.9');
-		expect(milestones[2]?.sourceLabel).toBe('chapter.9.verse.10');
 
-		const roundTripped = parseTei(serializeTei(document));
+		const seededDocument = {
+			...document,
+			referenceEditionsUsed: ['fixture-edition'],
+		};
+		const pm = toProseMirror(seededDocument);
+		expect(pm.content?.[0]?.content?.[0]?.content?.[0]?.content).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					type: 'book',
+					attrs: { book: 'book.opaque', sourceLabel: 'book.opaque' },
+				}),
+				expect.objectContaining({
+					type: 'chapter',
+					attrs: {
+						book: 'book.opaque',
+						chapter: '9',
+						sourceLabel: 'book.opaque.chapter.9',
+					},
+				}),
+				expect.objectContaining({
+					type: 'verse',
+					attrs: {
+						book: 'book.opaque',
+						chapter: '9',
+						verse: '10',
+						sourceLabel: 'chapter.9.verse.10',
+					},
+				}),
+			])
+		);
+
+		const roundTripped = parseTei(serializeTei(seededDocument));
 		expect(roundTripped.pages[0]?.columns[0]?.lines[0]?.items).toEqual(items);
+		expect(serializeTei(seededDocument)).toContain(
+			'<div type="chapter" n="book.opaque.chapter.9">'
+		);
+		expect(serializeTei(seededDocument)).toContain('<ab n="chapter.9.verse.10">');
 	});
 
 	it('round-trips nested seg elements', () => {

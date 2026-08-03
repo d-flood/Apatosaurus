@@ -24,25 +24,32 @@
   <teiHeader>
     <fileDesc><titleStmt><title type="document">Fixture transcription</title></titleStmt></fileDesc>
   </teiHeader>
-  <text><body><pb n="1r"/><cb n="1"/><lb/><w>existing</w></body></text>
+  <text><body><pb n="1r"/><cb n="1"/><lb/><w>existing</w><lb/><w>second</w><pb n="2r"/><cb n="1"/><lb/><w>third</w></body></text>
 </TEI>`;
 
 	const FIXTURE_SOURCE: ParsedReferenceEdition = {
 		units: [
 			{
 				position: 0,
-				label: { book: 'opaque-book', chapter: 'opaque-chapter', verse: 'first' },
+				label: { book: 'B01', chapter: 'B01K1', verse: 'B01K1V1' },
 				content: [
-					{ type: 'milestone', kind: 'book', attrs: { book: 'opaque-book' } },
+					{
+						type: 'milestone',
+						kind: 'book',
+						attrs: { book: 'B01' },
+						sourceLabel: 'B01',
+					},
 					{
 						type: 'milestone',
 						kind: 'chapter',
-						attrs: { book: 'opaque-book', chapter: 'opaque-chapter' },
+						attrs: { book: 'B01', chapter: 'B01K1' },
+						sourceLabel: 'B01K1',
 					},
 					{
 						type: 'milestone',
 						kind: 'verse',
-						attrs: { book: 'opaque-book', chapter: 'opaque-chapter', verse: 'first' },
+						attrs: { book: 'B01', chapter: 'B01K1', verse: 'B01K1V1' },
+						sourceLabel: 'B01K1V1',
 					},
 					{ type: 'text', text: 'alpha', marks: [] },
 					{ type: 'boundary', kind: 'word' },
@@ -87,12 +94,13 @@
 			},
 			{
 				position: 1,
-				label: { book: 'opaque-book', chapter: 'opaque-chapter', verse: 'second' },
+				label: { book: 'B01', chapter: 'B01K1', verse: 'B01K1V2' },
 				content: [
 					{
 						type: 'milestone',
 						kind: 'verse',
-						attrs: { book: 'opaque-book', chapter: 'opaque-chapter', verse: 'second' },
+						attrs: { book: 'B01', chapter: 'B01K1', verse: 'B01K1V2' },
+						sourceLabel: 'B01K1V2',
 					},
 					{ type: 'text', text: 'gamma', marks: [] },
 				],
@@ -111,11 +119,12 @@
 	function refresh() {
 		if (!editor) return;
 		const editorDocument = fromProseMirror(editor.getJSON() as any);
-		canonicalDocument = {
+		const nextDocument = {
 			...canonicalDocument,
 			pages: editorDocument.pages,
 		};
-		exportedXml = serializeTei(editorDocument);
+		canonicalDocument = nextDocument;
+		exportedXml = serializeTei(nextDocument);
 		let pages = 0;
 		let columns = 0;
 		let lines = 0;
@@ -151,6 +160,24 @@
 		editor.commands.focus();
 	}
 
+	function selectStructureSpan() {
+		if (!editor) return;
+		let firstTextPosition: number | null = null;
+		let lastTextEnd: number | null = null;
+		editor.state.doc.descendants((node, pos) => {
+			if (!node.isText || !node.text) return;
+			if (firstTextPosition === null) firstTextPosition = pos;
+			lastTextEnd = pos + node.nodeSize;
+		});
+		if (firstTextPosition === null || lastTextEnd === null) return;
+		editor.view.dispatch(
+			editor.state.tr.setSelection(
+				TextSelection.create(editor.state.doc, firstTextPosition, lastTextEnd)
+			)
+		);
+		editor.commands.focus();
+	}
+
 	onMount(() => {
 		if (!editorElement || !bubbleMenuElement) return;
 		const nextEditor = getEditor(editorElement, bubbleMenuElement);
@@ -174,6 +201,9 @@
 		>
 		<button type="button" data-testid="select-seeded-text" onclick={selectSeededText}
 			>Select seeded text</button
+		>
+		<button type="button" data-testid="select-structure-span" onclick={selectStructureSpan}
+			>Select structure span</button
 		>
 	</div>
 	<ReferenceEditionPicker

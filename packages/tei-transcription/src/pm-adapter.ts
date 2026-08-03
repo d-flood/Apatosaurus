@@ -40,14 +40,20 @@ export function toProseMirror(document: TranscriptionDocument): ProseMirrorJSON 
 						...(line.paragraphStart ? { 'paragraph-start': true } : {}),
 						...(line.teiAttrs ? { teiAttrs: line.teiAttrs } : {}),
 					},
-					content: toProseMirrorLineContent(line),
+					content: toProseMirrorLineContent(
+						line,
+						(document.referenceEditionsUsed?.length ?? 0) > 0
+					),
 				})),
 			})),
 		})),
 	};
 }
 
-function toProseMirrorLineContent(line: TranscriptionLine): ProseMirrorJSON[] {
+function toProseMirrorLineContent(
+	line: TranscriptionLine,
+	preserveSourceLabels = false
+): ProseMirrorJSON[] {
 	const content: ProseMirrorJSON[] = [];
 
 	for (const item of line.items) {
@@ -69,7 +75,12 @@ function toProseMirrorLineContent(line: TranscriptionLine): ProseMirrorJSON[] {
 			if (item.kind === 'book') {
 				content.push({
 					type: 'book',
-					attrs: { book: item.attrs.book || '' },
+					attrs: {
+						book: item.attrs.book || '',
+						...(preserveSourceLabels && item.sourceLabel !== undefined
+							? { sourceLabel: item.sourceLabel }
+							: {}),
+					},
 				});
 			}
 			if (item.kind === 'chapter') {
@@ -78,6 +89,9 @@ function toProseMirrorLineContent(line: TranscriptionLine): ProseMirrorJSON[] {
 					attrs: {
 						book: item.attrs.book || '',
 						chapter: item.attrs.chapter || '',
+						...(preserveSourceLabels && item.sourceLabel !== undefined
+							? { sourceLabel: item.sourceLabel }
+							: {}),
 					},
 				});
 			}
@@ -88,6 +102,9 @@ function toProseMirrorLineContent(line: TranscriptionLine): ProseMirrorJSON[] {
 						book: item.attrs.book || '',
 						chapter: item.attrs.chapter || '',
 						verse: item.attrs.verse || '',
+						...(preserveSourceLabels && item.sourceLabel !== undefined
+							? { sourceLabel: item.sourceLabel }
+							: {}),
 					},
 				});
 			}
@@ -222,7 +239,7 @@ function toProseMirrorLineContent(line: TranscriptionLine): ProseMirrorJSON[] {
 }
 
 export function lineItemsToProseMirror(items: LineItem[]): ProseMirrorJSON[] {
-	return toProseMirrorLineContent({ type: 'line', number: 1, items });
+	return toProseMirrorLineContent({ type: 'line', number: 1, items }, true);
 }
 
 export function inlineItemsToProseMirror(items: InlineItem[]): ProseMirrorJSON[] {
@@ -465,6 +482,7 @@ function fromProseMirrorLineContent(nodes: ProseMirrorJSON[]): LineItem[] {
 				type: 'milestone',
 				kind: 'book',
 				attrs: { book: node.attrs?.book || '' },
+				...sourceLabelFromProseMirror(node),
 			});
 			continue;
 		}
@@ -477,6 +495,7 @@ function fromProseMirrorLineContent(nodes: ProseMirrorJSON[]): LineItem[] {
 					book: node.attrs?.book || '',
 					chapter: node.attrs?.chapter || '',
 				},
+				...sourceLabelFromProseMirror(node),
 			});
 			continue;
 		}
@@ -490,6 +509,7 @@ function fromProseMirrorLineContent(nodes: ProseMirrorJSON[]): LineItem[] {
 					chapter: node.attrs?.chapter || '',
 					verse: node.attrs?.verse || '',
 				},
+				...sourceLabelFromProseMirror(node),
 			});
 			continue;
 		}
@@ -901,4 +921,12 @@ function extractOptionalTeiAttrs(
 			? (attrs.teiAttrs as Record<string, string>)
 			: {};
 	return Object.keys(teiAttrs).length > 0 ? teiAttrs : undefined;
+}
+
+function sourceLabelFromProseMirror(node: ProseMirrorJSON): {
+	sourceLabel?: string;
+} {
+	return typeof node.attrs?.sourceLabel === 'string'
+		? { sourceLabel: node.attrs.sourceLabel }
+		: {};
 }

@@ -19,8 +19,17 @@ export function insertReferenceEditionRange(
 
 	const { state, view } = editor;
 	const { selection } = state;
+	if (selection.from !== selection.to) return false;
+	let insideLine = false;
+	for (let depth = selection.$from.depth; depth > 0; depth -= 1) {
+		if (selection.$from.node(depth).type.name === 'line') {
+			insideLine = true;
+			break;
+		}
+	}
+	if (!insideLine) return false;
 	const transaction = state.tr
-		.replaceWith(selection.from, selection.to, nodes)
+		.replaceWith(selection.from, selection.from, nodes)
 		.setMeta(REFERENCE_EDITION_SEED_META, true)
 		.scrollIntoView();
 	view.dispatch(transaction);

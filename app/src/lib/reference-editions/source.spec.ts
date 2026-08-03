@@ -42,6 +42,13 @@ describe('reference edition source', () => {
 			{ book: 'book.opaque', chapter: 'book.opaque.chapter.9', verse: 'chapter.9.verse.1' },
 			{ book: 'book.opaque', chapter: 'book.opaque.chapter.9', verse: 'chapter.9.verse.2' },
 		]);
+		expect(extractRange(source, 0, 0).filter(item => item.type === 'milestone')).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ sourceLabel: 'book.opaque' }),
+				expect.objectContaining({ sourceLabel: 'book.opaque.chapter.9' }),
+				expect.objectContaining({ sourceLabel: 'chapter.9.verse.1' }),
+			])
+		);
 	});
 
 	it('extracts an equal start and end as exactly one unit', () => {

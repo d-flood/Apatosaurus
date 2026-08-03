@@ -28,7 +28,9 @@ export function coerceTranscriptionDocument(value: unknown): StoredTranscription
 
 	try {
 		const parsed = JSON.parse(value);
-		return isTranscriptionDocument(parsed) ? normalizeStoredTranscriptionDocument(parsed) : null;
+		return isTranscriptionDocument(parsed)
+			? normalizeStoredTranscriptionDocument(parsed)
+			: null;
 	} catch {
 		return null;
 	}

@@ -60,12 +60,12 @@ export function createReferenceEditionSource(
 		}
 
 		if (item.kind === 'book') {
-			currentBook = item.sourceLabel || item.attrs.book || undefined;
+			currentBook = item.sourceLabel ?? item.attrs.book ?? undefined;
 			currentChapter = undefined;
 		}
 		if (item.kind === 'chapter') {
 			currentBook = item.attrs.book || currentBook;
-			currentChapter = item.sourceLabel || item.attrs.chapter || undefined;
+			currentChapter = item.sourceLabel ?? item.attrs.chapter ?? undefined;
 		}
 
 		if (item.kind !== addressableKind) {
@@ -122,17 +122,17 @@ function buildStandardLabel(
 	currentBook: string | undefined,
 	currentChapter: string | undefined
 ): ReferenceEditionUnitLabel {
-	if (item.kind === 'book') return { book: item.sourceLabel || item.attrs.book };
+	if (item.kind === 'book') return { book: item.sourceLabel ?? item.attrs.book };
 	if (item.kind === 'chapter') {
 		return {
 			book: currentBook || item.attrs.book,
-			chapter: item.sourceLabel || item.attrs.chapter,
+			chapter: item.sourceLabel ?? item.attrs.chapter,
 		};
 	}
 	return {
 		book: currentBook || item.attrs.book,
 		chapter: currentChapter || item.attrs.chapter,
-		verse: item.sourceLabel || item.attrs.verse,
+		verse: item.sourceLabel ?? item.attrs.verse,
 	};
 }
 
@@ -290,15 +290,7 @@ function withPosition(
 }
 
 function cloneLineItem(item: LineItem): LineItem {
-	const clone = cloneValue(item);
-	if (item.type === 'milestone' && item.sourceLabel !== undefined) {
-		Object.defineProperty(clone, 'sourceLabel', {
-			configurable: true,
-			value: item.sourceLabel,
-			writable: false,
-		});
-	}
-	return clone;
+	return cloneValue(item);
 }
 
 function cloneValue<T>(value: T): T {

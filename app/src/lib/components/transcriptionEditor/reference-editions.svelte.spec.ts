@@ -119,6 +119,9 @@ describe('reference edition seeding', () => {
 		render(ReferenceEditionHarness);
 		await browserPage.getByTestId('open-seed-picker').click();
 		await expect.element(browserPage.getByTestId('reference-edition-picker')).toBeVisible();
+		expect(browserPage.getByTestId('reference-edition-unit-0').element().textContent).toContain(
+			'B01 / B01K1 / B01K1V1'
+		);
 		await browserPage.getByTestId('reference-edition-unit-0').click();
 		await browserPage.getByTestId('reference-edition-unit-1').click();
 		await browserPage.getByTestId('insert-reference-edition').click();
@@ -127,10 +130,10 @@ describe('reference edition seeding', () => {
 		expect(xml).toContain('<segtype="unconfirmed">alpha</seg>');
 		expect(xml).toContain('<segtype="unconfirmed">beta</seg>');
 		expect(xml).toContain('<segtype="unconfirmed">gamma</seg>');
-		expect(xml).toContain('<divtype="book"n="opaque-book">');
-		expect(xml).toContain('<divtype="chapter"n="opaque-book.opaque-chapter">');
-		expect(xml).toContain('<abn="opaque-chapter.first">');
-		expect(xml).toContain('<abn="opaque-chapter.second">');
+		expect(xml).toContain('<divtype="book"n="B01">');
+		expect(xml).toContain('<divtype="chapter"n="B01K1">');
+		expect(xml).toContain('<abn="B01K1V1">');
+		expect(xml).toContain('<abn="B01K1V2">');
 	});
 
 	it('keeps nested structured source content unconfirmed with its attributes', async () => {
@@ -173,6 +176,21 @@ describe('reference edition seeding', () => {
 		expect(compactXml(await exportedXml())).not.toContain(
 			'<segtype="unconfirmed">edited</seg>'
 		);
+	});
+
+	it('rejects a structure-spanning selection without changing structure', async () => {
+		render(ReferenceEditionHarness);
+		const initialCounts = browserPage.getByTestId('structure-counts').element().textContent;
+
+		await browserPage.getByTestId('select-structure-span').click();
+		await browserPage.getByTestId('open-seed-picker').click();
+		await browserPage.getByTestId('reference-edition-unit-0').click();
+		await browserPage.getByTestId('insert-reference-edition').click();
+
+		expect(browserPage.getByTestId('structure-counts').element().textContent).toBe(
+			initialCounts
+		);
+		expect(browserPage.getByTestId('editions-used').element().textContent).toBe('[]');
 	});
 
 	it('uses the production seed callback and persists provenance with metadata intact', async () => {
@@ -231,6 +249,9 @@ describe('reference edition seeding', () => {
 			await seedThroughProductionEditor(harness.container);
 			expect(await harness.component.flushPendingAutosave()).toBe(false);
 			expect(callbackValues).toEqual([]);
+			syncVerseIndexFromDocument.mockClear();
+			await tick(45);
+			expect(syncVerseIndexFromDocument).not.toHaveBeenCalled();
 
 			updateTranscriptionContent.mockResolvedValue(undefined);
 			expect(await harness.component.flushPendingAutosave()).toBe(true);

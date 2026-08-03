@@ -37,7 +37,7 @@ Last updated: 2026-08-03
 
 ## Prerequisite status
 
-**Satisfied (2026-08-03).** `app/static/robinson-pierpont/byz.xml` is now present. It is a TEI edition with book/chapter divisions and 7,953 addressable `<ab n="...">` units, and its availability statement identifies the file as public domain. Ticket 04 is no longer externally blocked; its catalog, parsing, picker, insertion, and acceptance criteria are still outstanding. The filename on disk is lowercase `byz.xml`.
+**Satisfied (2026-08-03).** `app/static/robinson-pierpont/byz.xml` is now present. It is a TEI edition with book/chapter divisions and 7,953 addressable `<ab n="...">` units, and its availability statement identifies the file as public domain. Ticket 04 is no longer externally blocked; its catalog, parsing, picker, insertion, and acceptance criteria are complete. The filename on disk is lowercase `byz.xml`.
 
 ## Deferred
 
