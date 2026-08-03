@@ -8,6 +8,7 @@ export interface ReferenceEditionCatalogEntry {
 	attribution: string;
 	source: ReferenceEditionSource;
 	assetPath?: string;
+	storePath?: string;
 }
 
 interface ReferenceEditionCatalogManifest {
@@ -21,12 +22,16 @@ export function listBundledReferenceEditions(): ReferenceEditionCatalogEntry[] {
 	return bundledReferenceEditionManifest.entries.map(entry => ({ ...entry }));
 }
 
-export function listUserReferenceEditions(): ReferenceEditionCatalogEntry[] {
-	return [];
+export function listUserReferenceEditions(
+	entries: ReferenceEditionCatalogEntry[] = []
+): ReferenceEditionCatalogEntry[] {
+	return entries.filter(entry => entry.source === 'user').map(entry => ({ ...entry }));
 }
 
-export function listReferenceEditions(): ReferenceEditionCatalogEntry[] {
-	return [...listBundledReferenceEditions(), ...listUserReferenceEditions()];
+export function listReferenceEditions(
+	userEntries: ReferenceEditionCatalogEntry[] = []
+): ReferenceEditionCatalogEntry[] {
+	return [...listBundledReferenceEditions(), ...listUserReferenceEditions(userEntries)];
 }
 
 export const referenceEditionCatalog = listReferenceEditions();

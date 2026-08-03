@@ -2,6 +2,7 @@ import type { ReferenceEditionCatalogEntry } from '$lib/reference-editions/catal
 import type { ParsedReferenceEdition } from '$lib/reference-editions/source';
 
 import type {
+	ParsedReferenceEditionResult,
 	ReferenceEditionWorkerRequest,
 	ReferenceEditionWorkerResponse,
 } from './reference-edition-worker-types';
@@ -11,7 +12,7 @@ let nextRequestId = 1;
 const pending = new Map<
 	number,
 	{
-		resolve: (source: ParsedReferenceEdition) => void;
+		resolve: (result: ParsedReferenceEditionResult) => void;
 		reject: (error: Error) => void;
 	}
 >();
@@ -19,13 +20,22 @@ const pending = new Map<
 export function loadReferenceEdition(
 	entry: ReferenceEditionCatalogEntry
 ): Promise<ParsedReferenceEdition> {
-	return parseReferenceEditionInWorker({ assetPath: entry.assetPath });
+	return parseReferenceEditionWithMetadataInWorker({ assetPath: entry.assetPath }).then(
+		result => result.source
+	);
 }
 
 export function parseReferenceEditionInWorker(input: {
 	assetPath?: string;
 	xml?: string;
 }): Promise<ParsedReferenceEdition> {
+	return parseReferenceEditionWithMetadataInWorker(input).then(result => result.source);
+}
+
+export function parseReferenceEditionWithMetadataInWorker(input: {
+	assetPath?: string;
+	xml?: string;
+}): Promise<ParsedReferenceEditionResult> {
 	const referenceWorker = getWorker();
 	const requestId = nextRequestId++;
 
@@ -55,7 +65,9 @@ function handleWorkerMessage(event: MessageEvent<ReferenceEditionWorkerResponse>
 	const request = pending.get(message.requestId);
 	if (!request) return;
 	pending.delete(message.requestId);
-	if (message.type === 'parsed') request.resolve(message.source);
+	if (message.type === 'parsed') {
+		request.resolve({ source: message.source, metadata: message.metadata });
+	}
 	else request.reject(new Error(message.error));
 }
 

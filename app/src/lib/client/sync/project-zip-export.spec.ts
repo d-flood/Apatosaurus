@@ -11,6 +11,7 @@ import {
 	saveWorkingTranscriptionMetadata,
 } from '$lib/client/db/repositories/transcription-files';
 import { MemoryStoreBackend } from '$lib/client/store/memory-store-backend.spec-support';
+import { registerUserReferenceEdition } from '$lib/client/store/user-reference-editions';
 import {
 	joinStorePath,
 	projectFolder,
@@ -106,6 +107,36 @@ describe('project zip export', () => {
 			'collations/col-1.working.json': '{"draft":true}',
 			'project.json': backend.files.get('apatosaurus/v1/projects/romans-a1b2/project.json'),
 		});
+	});
+
+	it('excludes app-level user reference editions from a project archive', async () => {
+		await createProject(harness.db, {
+			id: 'project-1',
+			storageSlug: 'romans-a1b2',
+			name: 'Romans',
+		});
+		await writeProjectFile(
+			'romans-a1b2',
+			'transcriptions/tx-1.json',
+			'{"referenceEditionsUsed":["user-licensed"]}'
+		);
+		await registerUserReferenceEdition(
+			{ xml: '<TEI><ab n="1"/></TEI>', fileName: 'licensed.xml' },
+			{
+				...storeOptions,
+				parse: async () => ({
+					source: { units: [{ position: 0, label: { verse: '1' }, content: [] }] },
+					metadata: { title: 'Licensed edition', attribution: 'Private licence' },
+				}),
+			}
+		);
+
+		const result = await exportProjectZip(harness.db, 'project-1', { storeOptions });
+
+		expect(result.entryPaths).toEqual(['project.json', 'transcriptions/tx-1.json']);
+		expect([...backend.files.keys()]).toContainEqual(
+			expect.stringMatching(/\/app\/reference-editions\/.+\.json$/)
+		);
 	});
 
 	it('preserves every complete-project entry as exact bytes and includes both draft formats on request', async () => {

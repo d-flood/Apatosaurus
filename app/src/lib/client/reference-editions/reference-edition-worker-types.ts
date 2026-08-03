@@ -1,5 +1,15 @@
 import type { ParsedReferenceEdition } from '$lib/reference-editions/source';
 
+export interface ParsedReferenceEditionMetadata {
+	title?: string;
+	attribution?: string;
+}
+
+export interface ParsedReferenceEditionResult {
+	source: ParsedReferenceEdition;
+	metadata: ParsedReferenceEditionMetadata;
+}
+
 export type ReferenceEditionWorkerRequest = {
 	type: 'parse';
 	requestId: number;
@@ -12,6 +22,7 @@ export type ReferenceEditionWorkerResponse =
 			type: 'parsed';
 			requestId: number;
 			source: ParsedReferenceEdition;
+			metadata: ParsedReferenceEditionMetadata;
 	  }
 	| {
 			type: 'error';

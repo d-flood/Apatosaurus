@@ -184,6 +184,14 @@ export function backupMetadataFile(): string {
 	return joinStorePath(appFolder(), 'backup-metadata.json');
 }
 
+export function userReferenceEditionsFolder(): string {
+	return joinStorePath(appFolder(), 'reference-editions');
+}
+
+export function userReferenceEditionFile(editionId: string): string {
+	return joinStorePath(userReferenceEditionsFolder(), `${validateFileStem(editionId)}.json`);
+}
+
 export function indexFolder(): string {
 	return 'index';
 }

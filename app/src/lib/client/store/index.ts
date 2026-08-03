@@ -7,3 +7,4 @@ export * from './quarantine';
 export * from './backup-metadata';
 export * from './canonical-json';
 export * from './sync-targets';
+export * from './user-reference-editions';

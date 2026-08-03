@@ -28,10 +28,21 @@ async function handleMessage(message: ReferenceEditionWorkerRequest): Promise<vo
 		const xml = message.xml ?? (await loadAsset(message.assetPath));
 		const document = importTEIDocument(xml, { opaqueMilestoneLabels: true });
 		const source = createReferenceEditionSource(document);
+		const title =
+			document.header?.titles?.find(item => item.type === 'document')?.text ||
+			document.header?.titles?.find(item => item.type === 'short')?.text ||
+			document.header?.titles?.[0]?.text ||
+			document.metadata?.title;
 		postMessage({
 			type: 'parsed',
 			requestId: message.requestId,
 			source,
+			metadata: {
+				...(title ? { title } : {}),
+				...(document.header?.publication?.availability
+					? { attribution: document.header.publication.availability }
+					: {}),
+			},
 		} satisfies ReferenceEditionWorkerResponse);
 	} catch (error) {
 		postMessage({
