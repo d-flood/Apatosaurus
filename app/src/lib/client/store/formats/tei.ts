@@ -1,14 +1,26 @@
 import { coerceTranscriptionDocument } from '$lib/client/transcription/content';
 import type { CollationDocument as SemanticCollationDocument } from '$lib/client/collation/collation-document';
+import { resolveReferenceEditionAttributions } from '$lib/reference-editions/attribution';
+import {
+	listReferenceEditions,
+	type ReferenceEditionCatalogEntry,
+} from '$lib/reference-editions/catalog';
 import { exportTEIDocument } from '$lib/tei/tei-exporter';
 
 import type { ProjectTranscriptionPayload } from './project-transcription';
 
-export function transcriptionDocumentToTei(document: ProjectTranscriptionPayload): string {
+export function transcriptionDocumentToTei(
+	document: ProjectTranscriptionPayload,
+	referenceEditions: ReferenceEditionCatalogEntry[] = listReferenceEditions()
+): string {
 	const transcription = coerceTranscriptionDocument(document.content_json);
 	if (!transcription) {
 		throw new Error(`Project transcription ${document.project_transcription_id} has invalid content.`);
 	}
+	const sourceAttributions = resolveReferenceEditionAttributions(
+		transcription.referenceEditionsUsed || [],
+		referenceEditions
+	);
 	return exportTEIDocument(transcription, {
 		title: document.title,
 		transcriber: document.transcriber,
@@ -16,6 +28,7 @@ export function transcriptionDocumentToTei(document: ProjectTranscriptionPayload
 		settlement: document.settlement,
 		idno: document.siglum,
 		language: document.language,
+		...(sourceAttributions.length > 0 ? { sourceAttributions } : {}),
 	});
 }
 

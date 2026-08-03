@@ -27,6 +27,7 @@ export function generateTeiHeaderXml(
 		effectiveMetadata?.settlement || header?.msIdentifier?.settlement || 'Unknown';
 	const idno = effectiveMetadata?.idno || header?.msIdentifier?.idno || 'Unknown Manuscript';
 	const language = effectiveMetadata?.language || header?.language || 'grc';
+	const sourceAttributions = effectiveMetadata?.sourceAttributions || [];
 	const titles = header?.titles || [{ text: title }];
 	const responsibilities =
 		header?.responsibilities && header.responsibilities.length > 0
@@ -93,6 +94,15 @@ export function generateTeiHeaderXml(
 		'</publicationStmt>',
 		'<sourceDesc>',
 		msDescXml,
+		sourceAttributions.length > 0
+			? [
+				'<listBibl>',
+				...sourceAttributions.map(
+					attribution => `<bibl type="referenceEdition">${escapeXml(attribution)}</bibl>`
+				),
+				'</listBibl>',
+			].join('')
+			: '',
 		'</sourceDesc>',
 		'</fileDesc>',
 		'<profileDesc>',

@@ -286,6 +286,7 @@ export interface TeiMetadata {
 	settlement?: string;
 	idno?: string;
 	language?: string;
+	sourceAttributions?: string[];
 }
 
 export interface TeiHeaderInfo {

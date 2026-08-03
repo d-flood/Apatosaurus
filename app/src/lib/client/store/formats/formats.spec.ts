@@ -3,6 +3,7 @@ import type { Document as XmlDocument } from '@xmldom/xmldom';
 import { describe, expect, it } from 'vitest';
 
 import type { CollationDocument as SemanticCollationDocument } from '$lib/client/collation/collation-document';
+import type { ReferenceEditionCatalogEntry } from '$lib/reference-editions/catalog';
 import { hashCanonicalPayload } from '../canonical-json';
 
 import { sealDocument, serializeSealedDocument, type JsonObject } from '../envelope';
@@ -406,6 +407,46 @@ describe('derived TEI serializers', () => {
 		expect(doc.getElementsByTagName('title')[0]?.textContent).toBe('Witness A');
 	});
 
+	it('names a used reference edition in the source description', () => {
+		const fixture = transcriptionWithEditions(['edition-one']);
+		const doc = parseXml(transcriptionDocumentToTei(fixture, referenceEditionCatalog));
+
+		expect(referenceEditionEntries(doc).map(node => node.textContent)).toEqual([
+			'Edition One attribution',
+		]);
+	});
+
+	it('names every used reference edition in the source description', () => {
+		const fixture = transcriptionWithEditions(['edition-one', 'edition-two']);
+		const doc = parseXml(transcriptionDocumentToTei(fixture, referenceEditionCatalog));
+
+		expect(referenceEditionEntries(doc).map(node => node.textContent)).toEqual([
+			'Edition One attribution',
+			'Edition Two attribution',
+		]);
+	});
+
+	it('leaves export unchanged when no reference editions were used', () => {
+		const withoutSet = transcriptionDocumentToTei(PROJECT_TRANSCRIPTION_FIXTURE);
+		const withEmptySet = transcriptionDocumentToTei(transcriptionWithEditions([]));
+
+		expect(withEmptySet).toBe(withoutSet);
+	});
+
+	it('keeps attribution after seeded text has been edited away', () => {
+		const fixture = transcriptionWithEditions(['edition-one']);
+		fixture.content_json = {
+			type: 'transcriptionDocument',
+			pages: [],
+			referenceEditionsUsed: ['edition-one'],
+		};
+		const doc = parseXml(transcriptionDocumentToTei(fixture, referenceEditionCatalog));
+
+		expect(referenceEditionEntries(doc).map(node => node.textContent)).toEqual([
+			'Edition One attribution',
+		]);
+	});
+
 	it('serializes collation documents as a TEI parallel-segmentation apparatus', () => {
 		const xml = collationDocumentToTei(collationDocumentFixture());
 		const doc = parseXml(xml);
@@ -436,6 +477,38 @@ function parseXml(xml: string): XmlDocument {
 	const doc = new DOMParser().parseFromString(xml, 'application/xml');
 	expect(doc.getElementsByTagName('parsererror')).toHaveLength(0);
 	return doc;
+}
+
+const referenceEditionCatalog: ReferenceEditionCatalogEntry[] = [
+	{
+		id: 'edition-one',
+		title: 'Edition One',
+		attribution: 'Edition One attribution',
+		source: 'bundled',
+	},
+	{
+		id: 'edition-two',
+		title: 'Edition Two',
+		attribution: 'Edition Two attribution',
+		source: 'user',
+	},
+];
+
+function transcriptionWithEditions(referenceEditionsUsed: string[]) {
+	return {
+		...PROJECT_TRANSCRIPTION_FIXTURE,
+		content_json: {
+			type: 'transcriptionDocument',
+			pages: [],
+			...(referenceEditionsUsed.length > 0 ? { referenceEditionsUsed } : {}),
+		},
+	};
+}
+
+function referenceEditionEntries(doc: XmlDocument) {
+	return Array.from(doc.getElementsByTagName('bibl')).filter(
+		node => node.getAttribute('type') === 'referenceEdition'
+	);
 }
 
 function collationDocumentFixture(): SemanticCollationDocument {

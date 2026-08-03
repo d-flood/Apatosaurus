@@ -80,7 +80,12 @@
 		type TextMarkTarget,
 	} from './editorInteractions';
 	import type { TranscriptionSelectionQuote } from '$lib/client/iiif/types';
-	import type { ReferenceEditionCatalogEntry } from '$lib/reference-editions/catalog';
+	import {
+		listReferenceEditions,
+		type ReferenceEditionCatalogEntry,
+	} from '$lib/reference-editions/catalog';
+	import { resolveReferenceEditionAttributions } from '$lib/reference-editions/attribution';
+	import { listUserReferenceEditions } from '$lib/client/store/user-reference-editions';
 	import type { ParsedReferenceEdition } from '$lib/reference-editions/source';
 	import { insertReferenceEditionRange } from '$lib/reference-editions/insertion';
 	import ReferenceEditionPicker from './ReferenceEditionPicker.svelte';
@@ -1342,7 +1347,14 @@
 					'Failed to convert editor content to canonical transcription document'
 				);
 			}
-			const metadata = buildTEIMetadataFromTranscription(transcription);
+			const sourceAttributions = resolveReferenceEditionAttributions(
+				getReferenceEditionsUsed(exportDocument),
+				listReferenceEditions(await listUserReferenceEditions())
+			);
+			const metadata = {
+				...buildTEIMetadataFromTranscription(transcription),
+				...(sourceAttributions.length > 0 ? { sourceAttributions } : {}),
+			};
 			const teiXml = exportTEIDocument(exportDocument, metadata);
 			if (hasUnconfirmedText(editorState.editor)) {
 				const count = unconfirmedVerseCount;

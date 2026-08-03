@@ -32,7 +32,7 @@ Last updated: 2026-08-03
 | 04 | `04-seed-from-bundled-reference-edition.md` | Completed | 02 |
 | 05 | `05-hierarchical-picker-with-preview.md` | Not Started | 04 |
 | 06 | `06-bring-your-own-reference-edition.md` | Not Started | 04 |
-| 07 | `07-attribution-in-exported-tei.md` | Not Started | 04 |
+| 07 | `07-attribution-in-exported-tei.md` | Completed | 04 |
 | 08 | `08-whole-account-export-includes-editions.md` | Not Started | 06 |
 
 ## Prerequisite status
