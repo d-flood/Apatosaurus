@@ -18,11 +18,14 @@ beforeAll(() => {
 
 function parseEdition(body: string) {
 	return createReferenceEditionSource(
-		importTEIDocument(`<?xml version="1.0" encoding="UTF-8"?>
+		importTEIDocument(
+			`<?xml version="1.0" encoding="UTF-8"?>
 			<TEI xmlns="http://www.tei-c.org/ns/1.0">
 				<teiHeader></teiHeader>
 				<text><body>${body}</body></text>
-			</TEI>`)
+			</TEI>`,
+			{ opaqueMilestoneLabels: true }
+		)
 	);
 }
 
@@ -45,8 +48,18 @@ describe('reference edition source', () => {
 		expect(extractRange(source, 0, 0).filter(item => item.type === 'milestone')).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({ sourceLabel: 'book.opaque' }),
-				expect.objectContaining({ sourceLabel: 'book.opaque.chapter.9' }),
-				expect.objectContaining({ sourceLabel: 'chapter.9.verse.1' }),
+				expect.objectContaining({
+					attrs: { book: 'book.opaque', chapter: 'book.opaque.chapter.9' },
+					sourceLabel: 'book.opaque.chapter.9',
+				}),
+				expect.objectContaining({
+					attrs: {
+						book: 'book.opaque',
+						chapter: 'book.opaque.chapter.9',
+						verse: 'chapter.9.verse.1',
+					},
+					sourceLabel: 'chapter.9.verse.1',
+				}),
 			])
 		);
 	});

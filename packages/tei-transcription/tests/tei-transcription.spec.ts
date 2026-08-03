@@ -476,6 +476,31 @@ describe('tei-transcription package', () => {
 		expect(alpha.marks?.some(mark => mark.type === 'teiSpan')).toBe(false);
 	});
 
+	it('exports unconfirmed punctuation inside a schema-valid segment', () => {
+		const pm = buildPmDocument([
+			{ type: 'text', text: 'alpha' },
+			{
+				type: 'text',
+				text: '.',
+				marks: [{ type: 'punctuation' }, { type: 'unconfirmed' }],
+			},
+		]);
+
+		const exported = serializeTei(fromProseMirror(pm));
+		expect(compactXml(exported)).toContain('<segtype="unconfirmed"><pc>.</pc></seg>');
+
+		const roundTripped = toProseMirror(parseTei(exported));
+		const punctuation = roundTripped.content?.[0]?.content?.[0]?.content?.[0]?.content?.find(
+			node => node.text === '.'
+		);
+		expect(punctuation?.marks).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ type: 'punctuation' }),
+				expect.objectContaining({ type: 'unconfirmed' }),
+			])
+		);
+	});
+
 	it('keeps dotted milestone labels opaque for ordinary and seeded documents', () => {
 		const xml = wrapInTei(`
 			<div type="book" n="book.opaque">
@@ -555,6 +580,45 @@ describe('tei-transcription package', () => {
 			expect(exported).toContain('<div type="chapter" n="book.opaque.chapter.9">');
 			expect(exported).toContain('<ab n="chapter.9.verse.10">');
 		}
+	});
+
+	it('preserves dotted milestone values in opaque-label mode', () => {
+		const document = parseTei(
+			wrapInTei(`
+				<div type="book" n="book.opaque">
+					<div type="chapter" n="book.opaque.chapter.9">
+						<ab n="chapter.9.verse.10"><w>alpha</w></ab>
+					</div>
+				</div>
+			`),
+			{ opaqueMilestoneLabels: true }
+		);
+		const items = document.pages[0]?.columns[0]?.lines[0]?.items || [];
+
+		expect(items.filter(item => item.type === 'milestone')).toEqual([
+			{
+				type: 'milestone',
+				kind: 'book',
+				attrs: { book: 'book.opaque' },
+				sourceLabel: 'book.opaque',
+			},
+			{
+				type: 'milestone',
+				kind: 'chapter',
+				attrs: { book: 'book.opaque', chapter: 'book.opaque.chapter.9' },
+				sourceLabel: 'book.opaque.chapter.9',
+			},
+			{
+				type: 'milestone',
+				kind: 'verse',
+				attrs: {
+					book: 'book.opaque',
+					chapter: 'book.opaque.chapter.9',
+					verse: 'chapter.9.verse.10',
+				},
+				sourceLabel: 'chapter.9.verse.10',
+			},
+		]);
 	});
 
 	it('round-trips nested seg elements', () => {

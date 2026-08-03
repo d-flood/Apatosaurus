@@ -26,7 +26,7 @@ async function handleMessage(message: ReferenceEditionWorkerRequest): Promise<vo
 	try {
 		if (message.type !== 'parse') return;
 		const xml = message.xml ?? (await loadAsset(message.assetPath));
-		const document = importTEIDocument(xml);
+		const document = importTEIDocument(xml, { opaqueMilestoneLabels: true });
 		const source = createReferenceEditionSource(document);
 		postMessage({
 			type: 'parsed',

@@ -1,4 +1,5 @@
 export { parseTei } from './tei-parser';
+export type { TeiParseOptions } from './tei-parser';
 export { serializeTei, serializeProseMirrorToTei } from './tei-serializer';
 export { serializePlainText } from './plain-text';
 export { parseElementTree, parseChildNodes, serializeTeiNode, serializeTeiNodes } from './tei-tree';

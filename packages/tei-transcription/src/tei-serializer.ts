@@ -457,8 +457,12 @@ function exportWord(nodes: ProseMirrorJSON[], context: ExportContext): void {
 			}
 			for (const node of run.nodes) {
 				const punctuationMark = node.marks?.find(mark => mark.type === 'punctuation');
+				const punctuation = `<pc${serializeAttrs(extractTeiAttrs(punctuationMark?.attrs))}>${escapeXml(node.text || '')}</pc>`;
+				const unconfirmedMark = node.marks?.find(mark => mark.type === 'unconfirmed');
 				context.xml.push(
-					`<pc${serializeAttrs(extractTeiAttrs(punctuationMark?.attrs))}>${escapeXml(node.text || '')}</pc>`
+					unconfirmedMark
+						? `<seg${serializeAttrs({ ...extractTeiAttrs(unconfirmedMark.attrs), type: 'unconfirmed' })}>${punctuation}</seg>`
+						: punctuation
 				);
 			}
 		}

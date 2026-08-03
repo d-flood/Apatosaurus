@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import type { Editor } from '@tiptap/core';
 	import { TextSelection } from '@tiptap/pm/state';
+	import type { TranscriptionDocument } from '$lib/tei/tei-transcription';
 
 	import {
 		addReferenceEditionUsed,
@@ -18,6 +19,12 @@
 	import ReferenceEditionPicker from './ReferenceEditionPicker.svelte';
 	import { getEditor } from '$lib/client/transcriptionEditorSchema';
 	import { initializeEditorContent } from '$lib/client/editorContentInitialization';
+
+	interface Props {
+		empty?: boolean;
+	}
+
+	let { empty = false }: Props = $props();
 
 	const INITIAL_XML = `<?xml version="1.0" encoding="UTF-8"?>
 <TEI xmlns="http://www.tei-c.org/ns/1.0">
@@ -54,6 +61,11 @@
 					{ type: 'text', text: 'alpha', marks: [] },
 					{ type: 'boundary', kind: 'word' },
 					{ type: 'text', text: 'beta', marks: [] },
+					{
+						type: 'text',
+						text: '.',
+						marks: [{ type: 'punctuation', attrs: {} }],
+					},
 					{
 						type: 'fw',
 						attrs: { type: 'header', teiAttrs: { type: 'header' } },
@@ -112,7 +124,10 @@
 	let bubbleMenuElement = $state<HTMLElement | null>(null);
 	let editor = $state<Editor | null>(null);
 	let pickerOpen = $state(false);
-	let canonicalDocument = $state(parseTei(INITIAL_XML));
+	let canonicalDocument = $state<TranscriptionDocument>({
+		type: 'transcriptionDocument',
+		pages: [],
+	});
 	let exportedXml = $state('');
 	let structureCounts = $state('0/0/0');
 
@@ -181,6 +196,9 @@
 	onMount(() => {
 		if (!editorElement || !bubbleMenuElement) return;
 		const nextEditor = getEditor(editorElement, bubbleMenuElement);
+		canonicalDocument = empty
+			? { type: 'transcriptionDocument', pages: [] }
+			: parseTei(INITIAL_XML);
 		initializeEditorContent(nextEditor, toProseMirror(canonicalDocument) as any, {
 			emitUpdate: false,
 		});

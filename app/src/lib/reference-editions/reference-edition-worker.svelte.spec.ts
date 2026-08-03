@@ -26,9 +26,18 @@ describe('bundled reference edition worker', () => {
 				expect.objectContaining({ type: 'milestone', sourceLabel: 'book.opaque' }),
 				expect.objectContaining({
 					type: 'milestone',
+					attrs: { book: 'book.opaque', chapter: 'book.opaque.chapter.9' },
 					sourceLabel: 'book.opaque.chapter.9',
 				}),
-				expect.objectContaining({ type: 'milestone', sourceLabel: 'chapter.9.verse.10' }),
+				expect.objectContaining({
+					type: 'milestone',
+					attrs: {
+						book: 'book.opaque',
+						chapter: 'book.opaque.chapter.9',
+						verse: 'chapter.9.verse.10',
+					},
+					sourceLabel: 'chapter.9.verse.10',
+				}),
 			])
 		);
 	});

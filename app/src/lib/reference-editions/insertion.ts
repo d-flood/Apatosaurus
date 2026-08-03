@@ -1,4 +1,5 @@
 import type { Editor } from '@tiptap/core';
+import { TextSelection } from '@tiptap/pm/state';
 import { lineItemsToProseMirror, type LineItem, type TextMark } from '$lib/tei/tei-transcription';
 
 import { extractRange, type ParsedReferenceEdition } from './source';
@@ -27,11 +28,30 @@ export function insertReferenceEditionRange(
 			break;
 		}
 	}
-	if (!insideLine) return false;
-	const transaction = state.tr
-		.replaceWith(selection.from, selection.from, nodes)
-		.setMeta(REFERENCE_EDITION_SEED_META, true)
-		.scrollIntoView();
+
+	let transaction = state.tr;
+	if (!insideLine) {
+		if (state.doc.childCount !== 0) return false;
+
+		const line = state.schema.nodes.line.create(null, nodes);
+		const column = state.schema.nodes.column.create(null, [line]);
+		const page = state.schema.nodes.page.create(null, [column]);
+		transaction = state.tr.replaceWith(0, state.doc.content.size, page);
+
+		let lineEnd: number | null = null;
+		transaction.doc.descendants((node, position) => {
+			if (lineEnd !== null || node.type.name !== 'line') return;
+			lineEnd = position + node.nodeSize - 1;
+			return false;
+		});
+		if (lineEnd !== null) {
+			transaction.setSelection(TextSelection.near(transaction.doc.resolve(lineEnd)));
+		}
+	} else {
+		transaction = state.tr.replaceWith(selection.from, selection.from, nodes);
+	}
+
+	transaction.setMeta(REFERENCE_EDITION_SEED_META, true).scrollIntoView();
 	view.dispatch(transaction);
 	editor.commands.focus();
 	return true;

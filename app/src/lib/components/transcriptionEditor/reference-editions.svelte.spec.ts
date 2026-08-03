@@ -136,6 +136,29 @@ describe('reference edition seeding', () => {
 		expect(xml).toContain('<abn="B01K1V2">');
 	});
 
+	it('seeds punctuation as unconfirmed content', async () => {
+		render(ReferenceEditionHarness);
+		await browserPage.getByTestId('open-seed-picker').click();
+		await browserPage.getByTestId('reference-edition-unit-0').click();
+		await browserPage.getByTestId('insert-reference-edition').click();
+
+		expect(compactXml(await exportedXml())).toContain(
+			'<segtype="unconfirmed"><pc>.</pc></seg>'
+		);
+	});
+
+	it('creates the minimal structure when seeding an empty document', async () => {
+		render(ReferenceEditionHarness, { empty: true });
+		expect(browserPage.getByTestId('structure-counts').element().textContent).toBe('0/0/0');
+
+		await browserPage.getByTestId('open-seed-picker').click();
+		await browserPage.getByTestId('reference-edition-unit-0').click();
+		await browserPage.getByTestId('insert-reference-edition').click();
+
+		expect(browserPage.getByTestId('structure-counts').element().textContent).toBe('1/1/1');
+		expect(compactXml(await exportedXml())).toContain('<segtype="unconfirmed">alpha</seg>');
+	});
+
 	it('keeps nested structured source content unconfirmed with its attributes', async () => {
 		render(ReferenceEditionHarness);
 		await browserPage.getByTestId('open-seed-picker').click();

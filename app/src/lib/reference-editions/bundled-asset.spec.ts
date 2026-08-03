@@ -24,7 +24,9 @@ describe('bundled Robinson-Pierpont reference edition', () => {
 			new URL('../../../static/robinson-pierpont/byz.xml', import.meta.url),
 			'utf8'
 		);
-		const source = createReferenceEditionSource(importTEIDocument(xml));
+		const source = createReferenceEditionSource(
+			importTEIDocument(xml, { opaqueMilestoneLabels: true })
+		);
 		const units = listUnits(source);
 
 		expect(units).toHaveLength(7953);

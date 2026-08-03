@@ -34,6 +34,7 @@ import type {
 } from './types';
 
 interface ParseContext {
+	opaqueMilestoneLabels: boolean;
 	currentBook?: string;
 	currentChapter?: string;
 	currentVerse?: string;
@@ -58,7 +59,11 @@ interface ParseContext {
 	currentLineItems?: LineItem[];
 }
 
-export function parseTei(xmlString: string): TranscriptionDocument {
+export interface TeiParseOptions {
+	opaqueMilestoneLabels?: boolean;
+}
+
+export function parseTei(xmlString: string, options: TeiParseOptions = {}): TranscriptionDocument {
 	const parser = new DOMParser();
 	const doc = parser.parseFromString(xmlString, 'application/xml');
 
@@ -67,6 +72,7 @@ export function parseTei(xmlString: string): TranscriptionDocument {
 	}
 
 	const context: ParseContext = {
+		opaqueMilestoneLabels: options.opaqueMilestoneLabels === true,
 		pages: [],
 		currentColumn: 1,
 		currentLine: 1,
@@ -358,7 +364,9 @@ function handleDiv(element: Element, context: ParseContext): void {
 	}
 
 	if (divType === 'chapter') {
-		context.currentChapter = divN.split('.').pop() || divN;
+		context.currentChapter = context.opaqueMilestoneLabels
+			? divN
+			: divN.split('.').pop() || divN;
 		if (context.currentChapter !== context.chapterMilestoneEmitted) {
 			context.pendingChapterMilestone = {
 				type: 'milestone',
@@ -381,7 +389,14 @@ function handleVerseBlock(element: Element, context: ParseContext): void {
 		context.currentVerse = abN;
 		ensureLineItems(context);
 		emitPendingMilestones(context);
-		context.currentLineItems!.push(createVerseMilestone(abN, context.currentBook, context.currentChapter));
+		context.currentLineItems!.push(
+			createVerseMilestone(
+				abN,
+				context.currentBook,
+				context.currentChapter,
+				context.opaqueMilestoneLabels
+			)
+		);
 	}
 	processNode(element, context);
 }
@@ -1414,7 +1429,8 @@ function emitPendingMilestones(context: ParseContext): void {
 function createVerseMilestone(
 	verseId: string,
 	book?: string,
-	chapter?: string
+	chapter?: string,
+	opaqueMilestoneLabels = false
 ): MilestoneItem {
 	return {
 		type: 'milestone',
@@ -1422,7 +1438,7 @@ function createVerseMilestone(
 		attrs: {
 			book: book || '',
 			chapter: chapter || '',
-			verse: verseId.split('.').pop() || verseId,
+			verse: opaqueMilestoneLabels ? verseId : verseId.split('.').pop() || verseId,
 		},
 		sourceLabel: verseId,
 	};
