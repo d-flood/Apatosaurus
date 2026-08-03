@@ -1,5 +1,5 @@
 {
-	"generatedAt": "2026-03-23T16:43:28.881Z",
+	"generatedAt": "2026-08-03T14:46:05.971Z",
 	"groups": [
 		{
 			"name": "Romans_Greek_transcriptions",
@@ -1271,15 +1271,6 @@
 					"title": "A transcription of Romans in 915",
 					"siglum": "T. III. 12",
 					"duplicateKey": "t. iii. 12",
-					"isSupported": true
-				},
-				{
-					"directory": "Romans_Greek_transcriptions",
-					"fileName": "NT_GRC_basetext_Rom.xml",
-					"path": "Romans_Greek_transcriptions/NT_GRC_basetext_Rom.xml",
-					"title": "The Greek Bible text of the Nestle-Aland, Novum Testamentum Graece, 28th revised edition, \n          © 2012 Deutsche Bibelgesellschaft, Stuttgart.",
-					"siglum": "",
-					"duplicateKey": "the greek bible text of the nestle-aland, novum testamentum graece, 28th revised edition, \n          © 2012 deutsche bibelgesellschaft, stuttgart.",
 					"isSupported": true
 				},
 				{

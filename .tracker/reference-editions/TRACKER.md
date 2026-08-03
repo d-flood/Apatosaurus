@@ -16,7 +16,7 @@ Ticket 04 is the widest slice. If it will not fit a single context window, split
 
 ## Current Status
 
-Overall status: `Not Started`
+Overall status: `In Progress`
 
 Current ticket: None
 
@@ -26,7 +26,7 @@ Last updated: 2026-07-22
 
 | Number | Filename | Status | Depends On |
 | --- | --- | --- | --- |
-| 01 | `01-remove-encumbered-base-text.md` | Not Started | None |
+| 01 | `01-remove-encumbered-base-text.md` | Completed | None |
 | 02 | `02-paste-creates-unconfirmed-text.md` | Not Started | None |
 | 03 | `03-review-reveal-and-warn.md` | Not Started | 02 |
 | 04 | `04-seed-from-bundled-reference-edition.md` | Not Started | 02 |
