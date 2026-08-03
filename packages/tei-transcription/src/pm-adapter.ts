@@ -40,20 +40,14 @@ export function toProseMirror(document: TranscriptionDocument): ProseMirrorJSON 
 						...(line.paragraphStart ? { 'paragraph-start': true } : {}),
 						...(line.teiAttrs ? { teiAttrs: line.teiAttrs } : {}),
 					},
-					content: toProseMirrorLineContent(
-						line,
-						(document.referenceEditionsUsed?.length ?? 0) > 0
-					),
+					content: toProseMirrorLineContent(line),
 				})),
 			})),
 		})),
 	};
 }
 
-function toProseMirrorLineContent(
-	line: TranscriptionLine,
-	preserveSourceLabels = false
-): ProseMirrorJSON[] {
+function toProseMirrorLineContent(line: TranscriptionLine): ProseMirrorJSON[] {
 	const content: ProseMirrorJSON[] = [];
 
 	for (const item of line.items) {
@@ -77,7 +71,7 @@ function toProseMirrorLineContent(
 					type: 'book',
 					attrs: {
 						book: item.attrs.book || '',
-						...(preserveSourceLabels && item.sourceLabel !== undefined
+						...(item.sourceLabel !== undefined
 							? { sourceLabel: item.sourceLabel }
 							: {}),
 					},
@@ -89,7 +83,7 @@ function toProseMirrorLineContent(
 					attrs: {
 						book: item.attrs.book || '',
 						chapter: item.attrs.chapter || '',
-						...(preserveSourceLabels && item.sourceLabel !== undefined
+						...(item.sourceLabel !== undefined
 							? { sourceLabel: item.sourceLabel }
 							: {}),
 					},
@@ -102,7 +96,7 @@ function toProseMirrorLineContent(
 						book: item.attrs.book || '',
 						chapter: item.attrs.chapter || '',
 						verse: item.attrs.verse || '',
-						...(preserveSourceLabels && item.sourceLabel !== undefined
+						...(item.sourceLabel !== undefined
 							? { sourceLabel: item.sourceLabel }
 							: {}),
 					},
@@ -239,7 +233,7 @@ function toProseMirrorLineContent(
 }
 
 export function lineItemsToProseMirror(items: LineItem[]): ProseMirrorJSON[] {
-	return toProseMirrorLineContent({ type: 'line', number: 1, items }, true);
+	return toProseMirrorLineContent({ type: 'line', number: 1, items });
 }
 
 export function inlineItemsToProseMirror(items: InlineItem[]): ProseMirrorJSON[] {

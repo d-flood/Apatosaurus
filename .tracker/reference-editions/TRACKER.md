@@ -18,7 +18,7 @@ Ticket 04 is the widest slice. If it will not fit a single context window, split
 
 Overall status: `In Progress`
 
-Current ticket: None
+Current ticket: 04 (final spec remediation)
 
 Last updated: 2026-08-03
 

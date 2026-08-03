@@ -4,14 +4,14 @@
 		{
 			"id": "01-romans",
 			"path": "app/src/lib/tei/NT_GRC_01_Rom.xml",
-			"exportBytes": 282593,
-			"exportSha256": "bf2a38280fbf1e8ec6f4fc2714544f39038b2bf41a7d0ce95eac5d74325d1cdc"
+			"exportBytes": 284354,
+			"exportSha256": "6f7d3e976cc66d1ef35b26c88c0e415e5f918ceaed83b8b47604d173a4d94e9a"
 		},
 		{
 			"id": "p118-romans",
 			"path": "app/src/lib/tei/NT_GRC_P118_Rom.xml",
-			"exportBytes": 9572,
-			"exportSha256": "1c486ca28997e9e353c4feea67da3ec86cb6aaf7f85aab6ca816f148c4918158"
+			"exportBytes": 9616,
+			"exportSha256": "4cbf03d2e31bab339ec936c27e38ef18eb7ba0bc5b71bedbf18ed673033cb56a"
 		}
 	]
 }

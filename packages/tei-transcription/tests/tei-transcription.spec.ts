@@ -476,7 +476,7 @@ describe('tei-transcription package', () => {
 		expect(alpha.marks?.some(mark => mark.type === 'teiSpan')).toBe(false);
 	});
 
-	it('keeps dotted chapter and verse milestone labels opaque', () => {
+	it('keeps dotted milestone labels opaque for ordinary and seeded documents', () => {
 		const xml = wrapInTei(`
 			<div type="book" n="book.opaque">
 				<div type="chapter" n="book.opaque.chapter.9">
@@ -518,39 +518,43 @@ describe('tei-transcription package', () => {
 			...document,
 			referenceEditionsUsed: ['fixture-edition'],
 		};
-		const pm = toProseMirror(seededDocument);
-		expect(pm.content?.[0]?.content?.[0]?.content?.[0]?.content).toEqual(
-			expect.arrayContaining([
-				expect.objectContaining({
-					type: 'book',
-					attrs: { book: 'book.opaque', sourceLabel: 'book.opaque' },
-				}),
-				expect.objectContaining({
-					type: 'chapter',
-					attrs: {
-						book: 'book.opaque',
-						chapter: '9',
-						sourceLabel: 'book.opaque.chapter.9',
-					},
-				}),
-				expect.objectContaining({
-					type: 'verse',
-					attrs: {
-						book: 'book.opaque',
-						chapter: '9',
-						verse: '10',
-						sourceLabel: 'chapter.9.verse.10',
-					},
-				}),
-			])
-		);
+		const expectedMilestoneNodes = [
+			expect.objectContaining({
+				type: 'book',
+				attrs: { book: 'book.opaque', sourceLabel: 'book.opaque' },
+			}),
+			expect.objectContaining({
+				type: 'chapter',
+				attrs: {
+					book: 'book.opaque',
+					chapter: '9',
+					sourceLabel: 'book.opaque.chapter.9',
+				},
+			}),
+			expect.objectContaining({
+				type: 'verse',
+				attrs: {
+					book: 'book.opaque',
+					chapter: '9',
+					verse: '10',
+					sourceLabel: 'chapter.9.verse.10',
+				},
+			}),
+		];
 
-		const roundTripped = parseTei(serializeTei(seededDocument));
-		expect(roundTripped.pages[0]?.columns[0]?.lines[0]?.items).toEqual(items);
-		expect(serializeTei(seededDocument)).toContain(
-			'<div type="chapter" n="book.opaque.chapter.9">'
-		);
-		expect(serializeTei(seededDocument)).toContain('<ab n="chapter.9.verse.10">');
+		for (const candidate of [document, seededDocument]) {
+			const pm = toProseMirror(candidate);
+			expect(pm.content?.[0]?.content?.[0]?.content?.[0]?.content).toEqual(
+				expect.arrayContaining(expectedMilestoneNodes)
+			);
+			expect(fromProseMirror(pm).pages[0]?.columns[0]?.lines[0]?.items).toEqual(items);
+
+			const exported = serializeTei(candidate);
+			const roundTripped = parseTei(exported);
+			expect(roundTripped.pages[0]?.columns[0]?.lines[0]?.items).toEqual(items);
+			expect(exported).toContain('<div type="chapter" n="book.opaque.chapter.9">');
+			expect(exported).toContain('<ab n="chapter.9.verse.10">');
+		}
 	});
 
 	it('round-trips nested seg elements', () => {
