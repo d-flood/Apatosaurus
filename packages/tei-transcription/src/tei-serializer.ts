@@ -248,7 +248,7 @@ function exportLineContent(nodes: ProseMirrorJSON[] | undefined, context: Export
 
 		if (word.type === 'teiAtom') {
 			ensureAnonymousAb(context);
-			context.xml.push(serializeStructuredAtom(word.attrs || {}));
+			context.xml.push(serializeStructuredAtom(word.attrs || {}, word.node?.marks));
 			continue;
 		}
 
@@ -327,7 +327,7 @@ function exportLineContent(nodes: ProseMirrorJSON[] | undefined, context: Export
 
 		if (word.type === 'teiWrapper') {
 			ensureAnonymousAb(context);
-			context.xml.push(serializeStructuredWrapper(word.attrs || {}));
+			context.xml.push(serializeStructuredWrapper(word.attrs || {}, word.node?.marks));
 			continue;
 		}
 
@@ -506,11 +506,11 @@ function buildWordXml(nodes: ProseMirrorJSON[]): string {
 			continue;
 		}
 		if (node.type === 'teiAtom') {
-			wordContent += serializeStructuredAtom(node.attrs || {});
+			wordContent += serializeStructuredAtom(node.attrs || {}, node.marks);
 			continue;
 		}
 		if (node.type === 'teiWrapper') {
-			wordContent += serializeStructuredWrapper(node.attrs || {});
+			wordContent += serializeStructuredWrapper(node.attrs || {}, node.marks);
 			continue;
 		}
 		wordContent += exportTextWithMarksInline(node, ['correction', 'word', 'punctuation']);
@@ -740,12 +740,12 @@ function exportInlineContent(content: ProseMirrorJSON[], context: ExportContext)
 		}
 
 		if (group.type === 'teiAtom') {
-			context.xml.push(serializeStructuredAtom(node.attrs || {}));
+			context.xml.push(serializeStructuredAtom(node.attrs || {}, node.marks));
 			continue;
 		}
 
 		if (group.type === 'teiWrapper') {
-			context.xml.push(serializeStructuredWrapper(node.attrs || {}));
+			context.xml.push(serializeStructuredWrapper(node.attrs || {}, node.marks));
 			continue;
 		}
 
@@ -1292,38 +1292,57 @@ function serializeMetamarkAttrs(attrs: Record<string, string | undefined>): stri
 	return `<metamark${serializeAttrs(attrs)}/>`;
 }
 
-function serializeStructuredAtom(attrs: Record<string, any>): string {
+function serializeStructuredAtom(
+	attrs: Record<string, any>,
+	marks?: ProseMirrorJSON['marks']
+): string {
+	let xml: string;
 	if (attrs.teiNode && typeof attrs.teiNode === 'object') {
-		return serializeTeiNode(attrs.teiNode);
-	}
-	if (attrs.node && typeof attrs.node === 'object') {
-		return serializeTeiNode(attrs.node);
+		xml = serializeTeiNode(attrs.teiNode);
+	} else if (attrs.node && typeof attrs.node === 'object') {
+		xml = serializeTeiNode(attrs.node);
+	} else {
+		const tag = String(attrs.tag || 'note');
+		const teiAttrs = (attrs.teiAttrs as Record<string, string>) || {};
+		const text = attrs.text ? escapeXml(String(attrs.text)) : '';
+		xml = !text
+			? `<${tag}${serializeAttrs(teiAttrs)}/>`
+			: `<${tag}${serializeAttrs(teiAttrs)}>${text}</${tag}>`;
 	}
 
-	const tag = String(attrs.tag || 'note');
-	const teiAttrs = (attrs.teiAttrs as Record<string, string>) || {};
-	const text = attrs.text ? escapeXml(String(attrs.text)) : '';
-	if (!text) {
-		return `<${tag}${serializeAttrs(teiAttrs)}/>`;
-	}
-	return `<${tag}${serializeAttrs(teiAttrs)}>${text}</${tag}>`;
+	return wrapStructuredContentWithMarks(xml, marks);
 }
 
-function serializeStructuredWrapper(attrs: Record<string, any>): string {
+function serializeStructuredWrapper(
+	attrs: Record<string, any>,
+	marks?: ProseMirrorJSON['marks']
+): string {
+	let xml: string;
 	if (attrs.teiNode && typeof attrs.teiNode === 'object') {
-		return serializeTeiNode(attrs.teiNode);
+		xml = serializeTeiNode(attrs.teiNode);
+	} else {
+		const node: TeiElementNode = {
+			type: 'element',
+			tag: String(attrs.tag || 'seg'),
+			attrs:
+				attrs.teiAttrs && typeof attrs.teiAttrs === 'object'
+					? (attrs.teiAttrs as Record<string, string>)
+					: undefined,
+			children: Array.isArray(attrs.children) ? attrs.children : [],
+		};
+		xml = serializeTeiNode(node);
 	}
 
-	const node: TeiElementNode = {
-		type: 'element',
-		tag: String(attrs.tag || 'seg'),
-		attrs:
-			attrs.teiAttrs && typeof attrs.teiAttrs === 'object'
-				? (attrs.teiAttrs as Record<string, string>)
-				: undefined,
-		children: Array.isArray(attrs.children) ? attrs.children : [],
-	};
-	return serializeTeiNode(node);
+	return wrapStructuredContentWithMarks(xml, marks);
+}
+
+function wrapStructuredContentWithMarks(
+	xml: string,
+	marks?: ProseMirrorJSON['marks']
+): string {
+	const unconfirmed = marks?.find(mark => mark.type === 'unconfirmed');
+	if (!unconfirmed) return xml;
+	return `<seg${serializeAttrs({ ...extractTeiAttrs(unconfirmed.attrs), type: 'unconfirmed' })}>${xml}</seg>`;
 }
 
 function createTeiRootOpenTag(document?: TranscriptionDocument): string {

@@ -476,6 +476,43 @@ describe('tei-transcription package', () => {
 		expect(alpha.marks?.some(mark => mark.type === 'teiSpan')).toBe(false);
 	});
 
+	it('keeps dotted chapter and verse milestone labels opaque', () => {
+		const xml = wrapInTei(`
+			<div type="book" n="book.opaque">
+				<div type="chapter" n="book.opaque.chapter.9">
+					<ab n="chapter.9.verse.10"><w>alpha</w></ab>
+				</div>
+			</div>
+		`);
+
+		const document = parseTei(xml);
+		const items = document.pages[0]?.columns[0]?.lines[0]?.items || [];
+		const milestones = items.filter(item => item.type === 'milestone');
+
+		expect(milestones).toEqual([
+			{ type: 'milestone', kind: 'book', attrs: { book: 'book.opaque' } },
+			{
+				type: 'milestone',
+				kind: 'chapter',
+				attrs: { book: 'book.opaque', chapter: '9' },
+			},
+			{
+				type: 'milestone',
+				kind: 'verse',
+				attrs: {
+					book: 'book.opaque',
+					chapter: '9',
+					verse: '10',
+				},
+			},
+		]);
+		expect(milestones[1]?.sourceLabel).toBe('book.opaque.chapter.9');
+		expect(milestones[2]?.sourceLabel).toBe('chapter.9.verse.10');
+
+		const roundTripped = parseTei(serializeTei(document));
+		expect(roundTripped.pages[0]?.columns[0]?.lines[0]?.items).toEqual(items);
+	});
+
 	it('round-trips nested seg elements', () => {
 		const xml = wrapInTei(
 			'<pb n="1r"/><cb n="1"/><lb/><seg type="outer"><seg type="inner"><w>alpha</w></seg></seg>'
@@ -1331,6 +1368,69 @@ describe('tei-transcription package', () => {
 		expect(exported).toContain(
 			'<ellipsis unit="chars" quantity="2"><metamark function="omission"/><supplied reason="lost-folio">ab</supplied></ellipsis>'
 		);
+	});
+
+	it('exports unconfirmed marks on textual structured wrappers and atoms', () => {
+		const unconfirmed = { type: 'unconfirmed' as const };
+		const pm = buildPmDocument([
+			{
+				type: 'teiWrapper',
+				attrs: {
+					tag: 'foreign',
+					summary: 'foreign',
+					teiAttrs: { 'xml:lang': 'la' },
+					children: [
+						{
+							type: 'element',
+							tag: 'w',
+							children: [
+								{ type: 'text', text: 'ab' },
+								{ type: 'element', tag: 'lb', attrs: { break: 'no' } },
+								{ type: 'text', text: 'cd' },
+							],
+						},
+					],
+					wordInline: false,
+				},
+				marks: [unconfirmed],
+			},
+			{
+				type: 'teiAtom',
+				attrs: {
+					tag: 'note',
+					summary: 'note:source',
+					teiAttrs: { place: 'margin' },
+					text: 'source',
+					teiNode: {
+						type: 'element',
+						tag: 'note',
+						attrs: { place: 'margin' },
+						children: [{ type: 'text', text: 'source' }],
+					},
+					wordInline: false,
+				},
+				marks: [unconfirmed],
+			},
+		]);
+
+		const exported = serializeTei(fromProseMirror(pm));
+		expect(compactXml(exported)).toContain(
+			compactXml(
+				'<seg type="unconfirmed"><foreign xml:lang="la"><w>ab<lb break="no"/>cd</w></foreign></seg>'
+			)
+		);
+		expect(compactXml(exported)).toContain(
+			compactXml('<seg type="unconfirmed"><note place="margin">source</note></seg>')
+		);
+
+		const roundTripped = toProseMirror(parseTei(exported));
+		const lineContent = roundTripped.content![0].content![0].content![0].content!;
+		expect(
+			lineContent.find(node => node.type === 'teiWrapper')?.marks?.some(mark => mark.type === 'unconfirmed')
+		).toBe(true);
+		expect(
+			lineContent.find(node => node.type === 'teiAtom')?.marks?.some(mark => mark.type === 'unconfirmed')
+		).toBe(true);
 	});
 
 	it('rejects unsupported nested inline TEI inside words', () => {

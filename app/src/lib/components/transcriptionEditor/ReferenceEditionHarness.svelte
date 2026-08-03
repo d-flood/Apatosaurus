@@ -47,6 +47,42 @@
 					{ type: 'text', text: 'alpha', marks: [] },
 					{ type: 'boundary', kind: 'word' },
 					{ type: 'text', text: 'beta', marks: [] },
+					{
+						type: 'fw',
+						attrs: { type: 'header', teiAttrs: { type: 'header' } },
+						content: [
+							{
+								type: 'teiWrapper',
+								tag: 'foreign',
+								summary: 'foreign',
+								attrs: { 'xml:lang': 'la' },
+								children: [
+									{
+										type: 'element',
+										tag: 'w',
+										children: [{ type: 'text', text: 'locus' }],
+									},
+								],
+								wordInline: false,
+								text: 'locus',
+							},
+							{ type: 'boundary', kind: 'word' },
+							{
+								type: 'teiAtom',
+								tag: 'note',
+								summary: 'note:source',
+								attrs: { place: 'margin' },
+								node: {
+									type: 'element',
+									tag: 'note',
+									attrs: { place: 'margin' },
+									children: [{ type: 'text', text: 'source' }],
+								},
+								wordInline: false,
+								text: 'source',
+							},
+						],
+					},
 				],
 			},
 			{

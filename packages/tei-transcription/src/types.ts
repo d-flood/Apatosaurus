@@ -95,6 +95,7 @@ export interface MilestoneItem {
 	type: 'milestone';
 	kind: 'book' | 'chapter' | 'verse';
 	attrs: Record<string, string>;
+	sourceLabel?: string;
 }
 
 export interface TeiMilestoneItem {

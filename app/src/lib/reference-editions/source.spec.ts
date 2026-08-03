@@ -30,17 +30,17 @@ describe('reference edition source', () => {
 	it('lists addressable units in document order with opaque milestone labels', () => {
 		const source = parseEdition(`
 			<pb n="one"/><cb n="A"/><lb/>
-			<div type="book" n="book-opaque">
-				<div type="chapter" n="chapter-opaque">
-					<ab n="verse-opaque-1"><w>alpha</w></ab>
-					<ab n="verse-opaque-2"><w>beta</w></ab>
+			<div type="book" n="book.opaque">
+				<div type="chapter" n="book.opaque.chapter.9">
+					<ab n="chapter.9.verse.1"><w>alpha</w></ab>
+					<ab n="chapter.9.verse.2"><w>beta</w></ab>
 				</div>
 			</div>
 		`);
 
 		expect(listUnits(source).map(unit => unit.label)).toEqual([
-			{ book: 'book-opaque', chapter: 'chapter-opaque', verse: 'verse-opaque-1' },
-			{ book: 'book-opaque', chapter: 'chapter-opaque', verse: 'verse-opaque-2' },
+			{ book: 'book.opaque', chapter: 'book.opaque.chapter.9', verse: 'chapter.9.verse.1' },
+			{ book: 'book.opaque', chapter: 'book.opaque.chapter.9', verse: 'chapter.9.verse.2' },
 		]);
 	});
 
@@ -77,6 +77,34 @@ describe('reference edition source', () => {
 			'alpha',
 			'beta',
 		]);
+	});
+
+	it('removes breaks recursively from nested formwork atom and wrapper content', () => {
+		const source = parseEdition(`
+			<pb n="one"/><div type="book" n="b"><div type="chapter" n="c">
+				<ab n="v1">
+					<fw type="header">
+						<note place="margin"><pb n="nested"/><cb n="nested"/><lb/>atom text</note>
+						<foreign xml:lang="la"><w>wrapped<lb break="no"/>text</w></foreign>
+					</fw>
+				</ab>
+			</div></div>
+		`);
+
+		const content = extractRange(source, 0, 0);
+		const formwork = content.find(item => item.type === 'fw');
+
+		expect(formwork).toEqual(
+			expect.objectContaining({
+				type: 'fw',
+				content: expect.arrayContaining([
+					expect.objectContaining({ type: 'teiAtom' }),
+					expect.objectContaining({ type: 'teiWrapper' }),
+				]),
+			})
+		);
+		expect(JSON.stringify(content)).not.toMatch(/"tag":"(?:pb|cb|lb)"/);
+		expect(JSON.stringify(content)).not.toMatch(/"type":"(?:pageBreak|columnBreak|lineBreak)"/);
 	});
 
 	it('rejects sources without milestones and accepts repeated references positionally', () => {

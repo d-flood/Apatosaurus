@@ -7,6 +7,7 @@
 		addReferenceEditionUsed,
 		coerceTranscriptionDocument,
 		EMPTY_TRANSCRIPTION_DOC,
+		getReferenceEditionsUsed,
 		serializeTranscriptionDocument,
 		TRANSCRIPTION_FORMAT,
 		type StoredTranscriptionDocument,
@@ -148,6 +149,7 @@
 	let canonicalDocument = $state<StoredTranscriptionDocument>(EMPTY_TRANSCRIPTION_DOC);
 	let unconfirmedVerseCount = $state(0);
 	let referenceEditionPickerOpen = $state(false);
+	let pendingReferenceEditionsUsed: string[] | null = null;
 
 	interface CursorPosition {
 		pageName?: string;
@@ -879,10 +881,14 @@
 		startPosition: number,
 		endPosition: number
 	) {
-		if (!insertReferenceEditionRange(editorState.editor, source, startPosition, endPosition)) return;
-		const nextDocument = addReferenceEditionUsed(canonicalDocument, entry.id);
-		canonicalDocument = nextDocument;
-		onReferenceEditionsUsedChange?.(nextDocument.referenceEditionsUsed || []);
+		if (!insertReferenceEditionRange(editorState.editor, source, startPosition, endPosition))
+			return;
+		const pendingDocument = pendingReferenceEditionsUsed
+			? { ...canonicalDocument, referenceEditionsUsed: pendingReferenceEditionsUsed }
+			: canonicalDocument;
+		pendingReferenceEditionsUsed = getReferenceEditionsUsed(
+			addReferenceEditionUsed(pendingDocument, entry.id)
+		);
 	}
 
 	function toggleWordWrapped() {
@@ -1097,7 +1103,10 @@
 	function coerceEditorJsonToDocument(editorJson: unknown): StoredTranscriptionDocument | null {
 		try {
 			const editorDocument = fromProseMirror(editorJson as any);
-			return mergeWithCanonicalDocument(canonicalDocument, editorDocument);
+			const mergedDocument = mergeWithCanonicalDocument(canonicalDocument, editorDocument);
+			return pendingReferenceEditionsUsed
+				? { ...mergedDocument, referenceEditionsUsed: [...pendingReferenceEditionsUsed] }
+				: mergedDocument;
 		} catch (error) {
 			console.error('[Transcription] Failed to convert editor state to AST:', error);
 			return null;
@@ -1110,6 +1119,8 @@
 	): StoredTranscriptionDocument {
 		return {
 			...editorDocument,
+			metadata: baseDocument.metadata,
+			header: baseDocument.header,
 			teiAttrs: baseDocument.teiAttrs,
 			textAttrs: baseDocument.textAttrs,
 			bodyAttrs: baseDocument.bodyAttrs,
@@ -1188,7 +1199,21 @@
 					format: TRANSCRIPTION_FORMAT,
 					updatedAt: now,
 				});
+				const previousReferenceEditions = getReferenceEditionsUsed(canonicalDocument);
 				canonicalDocument = document;
+				if (
+					pendingReferenceEditionsUsed &&
+					JSON.stringify(pendingReferenceEditionsUsed) ===
+						JSON.stringify(getReferenceEditionsUsed(document))
+				) {
+					pendingReferenceEditionsUsed = null;
+				}
+				if (
+					JSON.stringify(previousReferenceEditions) !==
+					JSON.stringify(getReferenceEditionsUsed(document))
+				) {
+					onReferenceEditionsUsedChange?.(getReferenceEditionsUsed(document));
+				}
 				return true;
 			} catch (error) {
 				console.error('[Autosave] Failed to persist transcription content:', error);

@@ -60,12 +60,12 @@ export function createReferenceEditionSource(
 		}
 
 		if (item.kind === 'book') {
-			currentBook = item.attrs.book || undefined;
+			currentBook = item.sourceLabel || item.attrs.book || undefined;
 			currentChapter = undefined;
 		}
 		if (item.kind === 'chapter') {
 			currentBook = item.attrs.book || currentBook;
-			currentChapter = item.attrs.chapter || undefined;
+			currentChapter = item.sourceLabel || item.attrs.chapter || undefined;
 		}
 
 		if (item.kind !== addressableKind) {
@@ -122,17 +122,17 @@ function buildStandardLabel(
 	currentBook: string | undefined,
 	currentChapter: string | undefined
 ): ReferenceEditionUnitLabel {
-	if (item.kind === 'book') return { book: item.attrs.book };
+	if (item.kind === 'book') return { book: item.sourceLabel || item.attrs.book };
 	if (item.kind === 'chapter') {
 		return {
-			book: item.attrs.book || currentBook,
-			chapter: item.attrs.chapter,
+			book: currentBook || item.attrs.book,
+			chapter: item.sourceLabel || item.attrs.chapter,
 		};
 	}
 	return {
-		book: item.attrs.book || currentBook,
-		chapter: item.attrs.chapter || currentChapter,
-		verse: item.attrs.verse,
+		book: currentBook || item.attrs.book,
+		chapter: currentChapter || item.attrs.chapter,
+		verse: item.sourceLabel || item.attrs.verse,
 	};
 }
 
@@ -249,6 +249,14 @@ function stripInlineStructuralBreaks(items: InlineItem[]): InlineItem[] {
 		if (item.type === 'teiWrapper') {
 			return [{ ...item, children: stripTeiStructuralBreaks(item.children) }];
 		}
+		if (item.type === 'teiAtom') {
+			return [
+				{
+					...item,
+					node: stripTeiElementStructuralBreaks(item.node),
+				},
+			];
+		}
 		return [cloneValue(item) as InlineItem];
 	});
 }
@@ -282,7 +290,15 @@ function withPosition(
 }
 
 function cloneLineItem(item: LineItem): LineItem {
-	return cloneValue(item);
+	const clone = cloneValue(item);
+	if (item.type === 'milestone' && item.sourceLabel !== undefined) {
+		Object.defineProperty(clone, 'sourceLabel', {
+			configurable: true,
+			value: item.sourceLabel,
+			writable: false,
+		});
+	}
+	return clone;
 }
 
 function cloneValue<T>(value: T): T {

@@ -348,25 +348,31 @@ function handleDiv(element: Element, context: ParseContext): void {
 	if (divType === 'book') {
 		context.currentBook = divN;
 		if (context.currentBook !== context.bookMilestoneEmitted) {
-			context.pendingBookMilestone = {
-				type: 'milestone',
-				kind: 'book',
-				attrs: { book: divN },
-			};
+			context.pendingBookMilestone = preserveMilestoneLabel(
+				{
+					type: 'milestone',
+					kind: 'book',
+					attrs: { book: divN },
+				},
+				divN
+			);
 		}
 	}
 
 	if (divType === 'chapter') {
 		context.currentChapter = divN.split('.').pop() || divN;
 		if (context.currentChapter !== context.chapterMilestoneEmitted) {
-			context.pendingChapterMilestone = {
-				type: 'milestone',
-				kind: 'chapter',
-				attrs: {
-					book: context.currentBook || '',
-					chapter: context.currentChapter,
+			context.pendingChapterMilestone = preserveMilestoneLabel(
+				{
+					type: 'milestone',
+					kind: 'chapter',
+					attrs: {
+						book: context.currentBook || '',
+						chapter: context.currentChapter,
+					},
 				},
-			};
+				divN
+			);
 		}
 	}
 
@@ -1414,16 +1420,27 @@ function createVerseMilestone(
 	book?: string,
 	chapter?: string
 ): MilestoneItem {
-	const parts = verseId.split('.');
-	return {
-		type: 'milestone',
-		kind: 'verse',
-		attrs: {
-			book: book || '',
-			chapter: chapter || '',
-			verse: parts[parts.length - 1] || '',
+	return preserveMilestoneLabel(
+		{
+			type: 'milestone',
+			kind: 'verse',
+			attrs: {
+				book: book || '',
+				chapter: chapter || '',
+				verse: verseId.split('.').pop() || verseId,
+			},
 		},
-	};
+		verseId
+	);
+}
+
+function preserveMilestoneLabel(item: MilestoneItem, sourceLabel: string): MilestoneItem {
+	Object.defineProperty(item, 'sourceLabel', {
+		configurable: true,
+		value: sourceLabel,
+		writable: false,
+	});
+	return item;
 }
 
 function withWordAttrs(wordElement: Element, marks: TextMark[]): TextMark[] {

@@ -51,6 +51,12 @@ function markReferenceEditionItems(items: LineItem[]): LineItem[] {
 				})),
 			};
 		}
+		if (item.type === 'teiAtom' || item.type === 'teiWrapper') {
+			return {
+				...item,
+				marks: addUnconfirmedMark(item.marks),
+			};
+		}
 		return item;
 	});
 }
@@ -71,6 +77,9 @@ function markInlineItems<T extends Array<any>>(items: T): T {
 					content: markInlineItems(correction.content),
 				})),
 			};
+		}
+		if (item.type === 'teiAtom' || item.type === 'teiWrapper') {
+			return { ...item, marks: addUnconfirmedMark(item.marks) };
 		}
 		return item;
 	}) as T;
