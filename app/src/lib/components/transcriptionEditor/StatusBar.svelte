@@ -21,6 +21,8 @@
 
 	interface Props {
 		markVisibility: MarkVisibility;
+		unconfirmedVerseCount?: number;
+		exportWarning?: string | null;
 		transcriptionMetadataDialog?: any;
 		cursorPosition?: CursorPosition;
 		stackColumns: boolean;
@@ -29,6 +31,8 @@
 
 	let {
 		markVisibility = $bindable(),
+		unconfirmedVerseCount = 0,
+		exportWarning = null,
 		transcriptionMetadataDialog = $bindable(),
 		cursorPosition,
 		stackColumns = $bindable(),
@@ -53,7 +57,14 @@
 >
 	<div class="flex flex-row items-center justify-between">
 		<div class="flex flex-wrap gap-2 items-center">
-			<LayerToggles {markVisibility}></LayerToggles>
+			<LayerToggles bind:markVisibility></LayerToggles>
+			<span
+				data-testid="unconfirmed-verse-count"
+				role="status"
+				class="text-xs font-semibold text-warning"
+			>
+				{unconfirmedVerseCount} {unconfirmedVerseCount === 1 ? 'verse' : 'verses'} unconfirmed
+			</span>
 			<div
 				class="tooltip tooltip-top"
 				data-tip={stackColumns ? 'Show columns inline' : 'Stack transcription columns'}
@@ -121,4 +132,13 @@
 			</button>
 		</div>
 	</div>
+	{#if exportWarning}
+		<div
+			data-testid="unconfirmed-export-warning"
+			role="status"
+			class="alert alert-warning mt-2 py-2 text-xs"
+		>
+			{exportWarning}
+		</div>
+	{/if}
 </div>

@@ -5,6 +5,7 @@
 	import ArrowUDownRight from 'phosphor-svelte/lib/ArrowUDownRight';
 	import BookOpenText from 'phosphor-svelte/lib/BookOpenText';
 	import CaretDown from 'phosphor-svelte/lib/CaretDown';
+	import CheckCircle from 'phosphor-svelte/lib/CheckCircle';
 	import FileArrowDownIcon from 'phosphor-svelte/lib/FileArrowDownIcon';
 	import Image from 'phosphor-svelte/lib/Image';
 	import ListNumbers from 'phosphor-svelte/lib/ListNumbers';
@@ -32,6 +33,7 @@
 		| 'word-wrap'
 		| 'paragraph-start'
 		| 'milestone'
+		| 'review-verse'
 		| 'export';
 
 	type GroupPosition = 'only' | 'first' | 'middle' | 'last';
@@ -97,6 +99,7 @@
 			value: string,
 			event: Event
 		) => void;
+		onReviewVerse?: () => void;
 		onTEIExport: () => void;
 	}
 
@@ -141,6 +144,7 @@
 		onInsertCorrectionNode,
 		onInsertGenericTeiMilestone,
 		onInsertMilestoneNode,
+		onReviewVerse,
 		onTEIExport,
 	}: Props = $props();
 
@@ -228,6 +232,8 @@
 		if (onToggleParagraphStart) items.push('paragraph-start');
 
 		items.push('milestone');
+
+		if (onReviewVerse) items.push('review-verse');
 
 		if (showExportButton) items.push('export');
 
@@ -1041,6 +1047,24 @@
 						Insert Reference Marker
 					</button>
 				</div>
+			</div>
+		{:else if item === 'review-verse'}
+			<div
+				data-toolbar-item-key={item}
+				data-group-position={position}
+				class="tooltip tooltip-neutral tooltip-bottom join-item"
+				data-tip="Review current verse"
+			>
+				<button
+					type="button"
+					onclick={onReviewVerse}
+					disabled={!cursorPosition?.verse}
+					class="btn btn-primary"
+					title="Review current verse"
+					aria-label="Review current verse"
+				>
+					<CheckCircle class="inline-block" size={24} />
+				</button>
 			</div>
 		{:else if item === 'export'}
 			<div

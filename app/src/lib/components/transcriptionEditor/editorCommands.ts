@@ -346,6 +346,94 @@ export function getCurrentMilestoneValues(editor: Editor | null): {
 	return resolveMilestoneContext(editor);
 }
 
+interface VerseRange {
+	from: number;
+	to: number;
+}
+
+function getCurrentVerseRange(editor: Editor): VerseRange | null {
+	if (!getCurrentMilestoneValues(editor).verse) return null;
+
+	const selectionFrom = editor.state.selection.from;
+	let currentVerseEnd: number | null = null;
+	let nextVerseStart: number | null = null;
+
+	editor.state.doc.descendants((node, pos) => {
+		if (node.type.name !== 'verse') return undefined;
+
+		if (pos < selectionFrom) {
+			currentVerseEnd = pos + node.nodeSize;
+			return undefined;
+		}
+
+		if (currentVerseEnd !== null && nextVerseStart === null) {
+			nextVerseStart = pos;
+			return false;
+		}
+
+		return undefined;
+	});
+
+	if (currentVerseEnd === null) return null;
+	return {
+		from: currentVerseEnd,
+		to: nextVerseStart ?? editor.state.doc.content.size,
+	};
+}
+
+function nodeHasUnconfirmedMark(node: any, editor: Editor): boolean {
+	const markType = editor.state.schema.marks.unconfirmed;
+	return !!markType && node.marks?.some((mark: any) => mark.type === markType);
+}
+
+export function reviewCurrentVerse(editor: Editor | null): boolean {
+	if (!editor) return false;
+
+	editor.commands.focus();
+	const range = getCurrentVerseRange(editor);
+	const markType = editor.state.schema.marks.unconfirmed;
+	if (!range || !markType) return false;
+
+	const transaction = editor.state.tr.removeMark(range.from, range.to, markType);
+	if (!transaction.docChanged) return false;
+	editor.view.dispatch(transaction.scrollIntoView());
+	return true;
+}
+
+export function countUnconfirmedVerses(editor: Editor | null): number {
+	if (!editor || !editor.state.schema.marks.unconfirmed) return 0;
+
+	let verseIndex = -1;
+	const unconfirmedVerseIndexes = new Set<number>();
+	editor.state.doc.descendants((node, _pos) => {
+		if (node.type.name === 'verse') {
+			verseIndex += 1;
+			return false;
+		}
+
+		if (verseIndex >= 0 && nodeHasUnconfirmedMark(node, editor)) {
+			unconfirmedVerseIndexes.add(verseIndex);
+		}
+		return undefined;
+	});
+
+	return unconfirmedVerseIndexes.size;
+}
+
+export function hasUnconfirmedText(editor: Editor | null): boolean {
+	if (!editor || !editor.state.schema.marks.unconfirmed) return false;
+
+	let found = false;
+	editor.state.doc.descendants(node => {
+		if (nodeHasUnconfirmedMark(node, editor)) {
+			found = true;
+			return false;
+		}
+		return undefined;
+	});
+	return found;
+}
+
 export function insertMilestoneNode(
 	editor: Editor | null,
 	type: MilestoneNodeType,

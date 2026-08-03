@@ -39,10 +39,13 @@
 		buildHandShiftAttrs,
 		buildSpaceAttrs,
 		buildTeiMilestoneAttrs,
+		countUnconfirmedVerses,
 		getCurrentMilestoneValues,
+		hasUnconfirmedText,
 		insertMetamarkForSelection,
 		insertSelectableCarrierNode,
 		insertMilestoneNode as insertStructuredMilestoneNode,
+		reviewCurrentVerse as reviewCurrentVerseCommand,
 		updateNodeAttrs,
 	} from './editorCommands';
 	import {
@@ -115,9 +118,11 @@
 	let pageName = $state('');
 	let drawerOpen = $state(false);
 	let exportLoading = $state(false);
+	let exportWarning = $state<string | null>(null);
 	let markVisibility = $state({
 		lacunose: true,
 		unclear: true,
+		unconfirmed: true,
 		correction: true,
 		abbreviation: true,
 		punctuation: true,
@@ -134,6 +139,7 @@
 
 	let hasPage = $state(false);
 	let canonicalDocument = $state<StoredTranscriptionDocument>(EMPTY_TRANSCRIPTION_DOC);
+	let unconfirmedVerseCount = $state(0);
 
 	interface CursorPosition {
 		pageName?: string;
@@ -642,7 +648,10 @@
 		const savedVisibility = localStorage.getItem('markVisibility');
 		if (savedVisibility) {
 			try {
-				markVisibility = JSON.parse(savedVisibility);
+				const saved = JSON.parse(savedVisibility);
+				if (saved && typeof saved === 'object') {
+					markVisibility = { ...markVisibility, ...saved };
+				}
 			} catch (e) {
 				console.warn('Failed to parse saved mark visibility:', e);
 			}
@@ -695,6 +704,8 @@
 			// Performance optimization: Only track structural changes, not every edit
 			editor.on('update', ({ transaction }: { transaction: any }) => {
 				if (transaction.docChanged) {
+					unconfirmedVerseCount = countUnconfirmedVerses(editor);
+					exportWarning = null;
 					onSaveStateChange?.(false);
 					const pageCountChanged =
 						transaction.before.childCount !== transaction.doc.childCount;
@@ -717,6 +728,7 @@
 
 			// Initialize hasPage and pages on mount
 			hasPage = checkForPages(editor);
+			unconfirmedVerseCount = countUnconfirmedVerses(editor);
 			rebuildPageList();
 			debouncedSyncVerseIndex();
 			updateSelectionDerivedState(editor);
@@ -1058,6 +1070,10 @@
 		updateSelectedTextQuote(editor);
 	}
 
+	function reviewCurrentVerse() {
+		reviewCurrentVerseCommand(editorState.editor);
+	}
+
 	function coerceEditorJsonToDocument(editorJson: unknown): StoredTranscriptionDocument | null {
 		try {
 			const editorDocument = fromProseMirror(editorJson as any);
@@ -1279,6 +1295,12 @@
 			}
 			const metadata = buildTEIMetadataFromTranscription(transcription);
 			const teiXml = exportTEIDocument(exportDocument, metadata);
+			if (hasUnconfirmedText(editorState.editor)) {
+				const count = unconfirmedVerseCount;
+				exportWarning = `${count} ${count === 1 ? 'verse' : 'verses'} unconfirmed. Exported anyway.`;
+			} else {
+				exportWarning = null;
+			}
 
 			const blob = new Blob([teiXml], { type: 'application/xml' });
 			const url = URL.createObjectURL(blob);
@@ -1504,6 +1526,7 @@
 				{hasPage}
 				{exportLoading}
 				{cursorPosition}
+				onReviewVerse={reviewCurrentVerse}
 				{iiifWorkspaceOpen}
 				sticky={!toolbarTarget}
 				onPageNameChange={name => (pageName = name)}
@@ -1542,6 +1565,8 @@
 		class:stack-columns={stackColumns}
 		class:show-lacunose={markVisibility.lacunose}
 		class:show-unclear={markVisibility.unclear}
+		class:show-unconfirmed={markVisibility.unconfirmed}
+		class:hide-unconfirmed={!markVisibility.unconfirmed}
 		class:show-correction={markVisibility.correction}
 		class:show-abbreviation={markVisibility.abbreviation}
 		class:show-punctuation={markVisibility.punctuation}
@@ -1604,6 +1629,8 @@
 <div use:portal={statusBarTarget} class="w-full">
 	<StatusBar
 		bind:markVisibility
+		{unconfirmedVerseCount}
+		{exportWarning}
 		bind:transcriptionMetadataDialog
 		{cursorPosition}
 		bind:stackColumns

@@ -6,6 +6,7 @@
 	import Paragraph from 'phosphor-svelte/lib/Paragraph';
 	import Quotes from 'phosphor-svelte/lib/Quotes';
 	import Stack from 'phosphor-svelte/lib/Stack';
+	import Warning from 'phosphor-svelte/lib/Warning';
 	import { FilePenLine, FileQuestionMark } from 'lucide-svelte';
 	import { Lacuna, Uncertain } from '$lib/icons';
 	import type { MarkVisibility } from './types';
@@ -48,6 +49,16 @@
 		<input type="checkbox" bind:checked={markVisibility.unclear} class="checkbox checkbox-xs" />
 		<Uncertain size={14} />
 		<span class="text-xs">Uncertain Readings</span>
+	</label>
+
+	<label class="flex items-center gap-1 cursor-pointer">
+		<input
+			type="checkbox"
+			bind:checked={markVisibility.unconfirmed}
+			class="checkbox checkbox-xs"
+		/>
+		<Warning size={14} />
+		<span class="text-xs">Unconfirmed Text</span>
 	</label>
 
 	<label class="flex items-center gap-1 cursor-pointer">

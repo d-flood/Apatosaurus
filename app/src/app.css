@@ -124,6 +124,11 @@
 	@apply bg-warning/30 underline decoration-wavy decoration-warning underline-offset-4;
 }
 
+.hide-unconfirmed .unconfirmed {
+	background-color: transparent;
+	text-decoration-line: none;
+}
+
 .page,
 .ProseMirror:has(> .marginalia-column) {
 	counter-reset: transcription-column;

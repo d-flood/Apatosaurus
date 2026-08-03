@@ -18,6 +18,7 @@ export interface PageMetadata {
 export interface MarkVisibility {
 	lacunose: boolean;
 	unclear: boolean;
+	unconfirmed: boolean;
 	correction: boolean;
 	abbreviation: boolean;
 	punctuation: boolean;
