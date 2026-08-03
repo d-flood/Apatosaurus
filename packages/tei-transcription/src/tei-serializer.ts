@@ -942,7 +942,8 @@ function inlineMarksToProseMirror(marks: TextMark[] | undefined): ProseMirrorJSO
 		mark.type === 'hi' ||
 		mark.type === 'damage' ||
 		mark.type === 'surplus' ||
-		mark.type === 'secl'
+		mark.type === 'secl' ||
+		mark.type === 'unconfirmed'
 			? { attrs: { teiAttrs: mark.attrs || {} } }
 			: {}),
 		...(mark.type === 'teiSpan'
@@ -1011,6 +1012,13 @@ function exportTextWithMarksInline(node: ProseMirrorJSON, skipMarks: string[] = 
 			case 'secl':
 				openTags.push(`<secl${serializeAttrs(extractTeiAttrs(mark.attrs))}>`);
 				closeTags.unshift('</secl>');
+				break;
+
+			case 'unconfirmed':
+				openTags.push(
+					`<seg${serializeAttrs({ ...extractTeiAttrs(mark.attrs), type: 'unconfirmed' })}>`
+				);
+				closeTags.unshift('</seg>');
 				break;
 
 			case 'teiSpan':

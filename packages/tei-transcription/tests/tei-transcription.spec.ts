@@ -458,6 +458,24 @@ describe('tei-transcription package', () => {
 		expect(compactXml(exported)).toContain('<segtype="rubric"cert="high"><w>alpha</w></seg>');
 	});
 
+	it('round-trips the unconfirmed mark as a semantic mark, not a generic seg', () => {
+		const pm = buildPmDocument([
+			{
+				type: 'text',
+				text: 'alpha',
+				marks: [{ type: 'unconfirmed' }],
+			},
+		]);
+
+		const exported = serializeTei(fromProseMirror(pm));
+		expect(compactXml(exported)).toContain('<w><segtype="unconfirmed">alpha</seg></w>');
+
+		const roundTripped = toProseMirror(parseTei(exported));
+		const alpha = roundTripped.content![0].content![0].content![0].content![0];
+		expect(alpha.marks?.some(mark => mark.type === 'unconfirmed')).toBe(true);
+		expect(alpha.marks?.some(mark => mark.type === 'teiSpan')).toBe(false);
+	});
+
 	it('round-trips nested seg elements', () => {
 		const xml = wrapInTei(
 			'<pb n="1r"/><cb n="1"/><lb/><seg type="outer"><seg type="inner"><w>alpha</w></seg></seg>'

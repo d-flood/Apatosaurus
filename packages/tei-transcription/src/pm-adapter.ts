@@ -809,7 +809,8 @@ function convertMark(mark: { type: string; attrs?: Record<string, any> }): TextM
 		mark.type === 'hi' ||
 		mark.type === 'damage' ||
 		mark.type === 'surplus' ||
-		mark.type === 'secl'
+		mark.type === 'secl' ||
+		mark.type === 'unconfirmed'
 	) {
 		return {
 			type: mark.type,
@@ -865,7 +866,8 @@ function marksToProseMirror(marks: TextMark[] | undefined): ProseMirrorJSON['mar
 		mark.type === 'hi' ||
 		mark.type === 'damage' ||
 		mark.type === 'surplus' ||
-		mark.type === 'secl'
+		mark.type === 'secl' ||
+		mark.type === 'unconfirmed'
 			? { attrs: { teiAttrs: mark.attrs || {} } }
 			: {}),
 		...(mark.type === 'teiSpan'

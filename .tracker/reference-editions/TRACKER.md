@@ -20,14 +20,14 @@ Overall status: `In Progress`
 
 Current ticket: None
 
-Last updated: 2026-07-22
+Last updated: 2026-08-03
 
 ## Ledger
 
 | Number | Filename | Status | Depends On |
 | --- | --- | --- | --- |
 | 01 | `01-remove-encumbered-base-text.md` | Completed | None |
-| 02 | `02-paste-creates-unconfirmed-text.md` | Not Started | None |
+| 02 | `02-paste-creates-unconfirmed-text.md` | Completed | None |
 | 03 | `03-review-reveal-and-warn.md` | Not Started | 02 |
 | 04 | `04-seed-from-bundled-reference-edition.md` | Not Started | 02 |
 | 05 | `05-hierarchical-picker-with-preview.md` | Not Started | 04 |
@@ -35,9 +35,9 @@ Last updated: 2026-07-22
 | 07 | `07-attribution-in-exported-tei.md` | Not Started | 04 |
 | 08 | `08-whole-account-export-includes-editions.md` | Not Started | 06 |
 
-## Prerequisite outside this epic
+## Prerequisite status
 
-Ticket 04 requires a Robinson-Pierpont TEI edition file to bundle. The maintainer is sourcing it. It must be structured so that `listUnits` finds addressable units — divisions with references, in the shape the TEI parser already reads. Ticket 04 cannot complete without it, though its source-contract and insertion work can proceed against fixtures.
+**Satisfied (2026-08-03).** `app/static/robinson-pierpont/byz.xml` is now present. It is a TEI edition with book/chapter divisions and 7,953 addressable `<ab n="...">` units, and its availability statement identifies the file as public domain. Ticket 04 is no longer externally blocked; its catalog, parsing, picker, insertion, and acceptance criteria are still outstanding. The filename on disk is lowercase `byz.xml`.
 
 ## Deferred
 

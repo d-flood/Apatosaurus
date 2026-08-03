@@ -120,6 +120,10 @@
 	@apply underline decoration-dotted decoration-2 underline-offset-6;
 }
 
+.unconfirmed {
+	@apply bg-warning/30 underline decoration-wavy decoration-warning underline-offset-4;
+}
+
 .page,
 .ProseMirror:has(> .marginalia-column) {
 	counter-reset: transcription-column;

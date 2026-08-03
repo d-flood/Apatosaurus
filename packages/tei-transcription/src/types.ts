@@ -262,6 +262,7 @@ export type TextMark =
 	| { type: 'damage'; attrs: Record<string, string> }
 	| { type: 'surplus'; attrs: Record<string, string> }
 	| { type: 'secl'; attrs: Record<string, string> }
+	| { type: 'unconfirmed'; attrs?: Record<string, string> }
 	| { type: 'teiSpan'; attrs: { tag: string; teiAttrs: Record<string, string> } }
 	| { type: 'correction'; attrs: { corrections: CorrectionReading[] } };
 

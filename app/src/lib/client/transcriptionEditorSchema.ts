@@ -10,7 +10,15 @@ import { Editor, Extension, Mark, Node, generateHTML, markInputRule } from '@tip
 import { BubbleMenu } from '@tiptap/extension-bubble-menu';
 import { History } from '@tiptap/extension-history';
 import { Text } from '@tiptap/extension-text';
-import { DOMSerializer, type DOMOutputSpec, type Node as ProseMirrorNode } from '@tiptap/pm/model';
+import {
+	DOMSerializer,
+	Fragment,
+	Slice,
+	type DOMOutputSpec,
+	type Mark as ProseMirrorMark,
+	type MarkType,
+	type Node as ProseMirrorNode,
+} from '@tiptap/pm/model';
 import { NodeSelection, Plugin, PluginKey } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 
@@ -874,6 +882,83 @@ const Punctuation = Mark.create({
 				}),
 			},
 		};
+	},
+});
+
+function markPastedText(fragment: Fragment, mark: ProseMirrorMark): Fragment {
+	const children: ProseMirrorNode[] = [];
+	fragment.forEach(node => {
+		if (node.isText) {
+			children.push(node.mark(mark.addToSet(node.marks)));
+			return;
+		}
+		children.push(
+			node.copy(node.content.size > 0 ? markPastedText(node.content, mark) : node.content)
+		);
+	});
+	return Fragment.fromArray(children);
+}
+
+function markPastedSlice(slice: Slice, markType: MarkType): Slice {
+	return new Slice(
+		markPastedText(slice.content, markType.create()),
+		slice.openStart,
+		slice.openEnd
+	);
+}
+
+const Unconfirmed = Mark.create({
+	name: 'unconfirmed',
+	inclusive: false,
+	parseHTML() {
+		return [{ tag: 'span.unconfirmed' }];
+	},
+	renderHTML({ mark, HTMLAttributes }) {
+		return [
+			'span',
+			{
+				...HTMLAttributes,
+				class: 'unconfirmed',
+				'data-tei-attrs': JSON.stringify(mark.attrs.teiAttrs || {}),
+				title: 'Unconfirmed text',
+			},
+			0,
+		];
+	},
+	addAttributes() {
+		return {
+			teiAttrs: {
+				default: {},
+				parseHTML: element => parseJsonAttr(element.getAttribute('data-tei-attrs')),
+				renderHTML: attributes => ({
+					'data-tei-attrs': JSON.stringify(attributes.teiAttrs || {}),
+				}),
+			},
+		};
+	},
+	addProseMirrorPlugins() {
+		return [
+			new Plugin({
+				key: new PluginKey('unconfirmedTextInvalidator'),
+				appendTransaction: (transactions, _oldState, newState) => {
+					if (
+						!transactions.some(transaction => transaction.docChanged) ||
+						transactions.some(transaction => transaction.getMeta('uiEvent') === 'paste')
+					) {
+						return null;
+					}
+
+					const markType = newState.schema.marks.unconfirmed;
+					if (!markType) return null;
+					const transaction = newState.tr;
+					for (const range of getChangedRanges(transactions, newState.doc.content.size)) {
+						if (range.from < range.to)
+							transaction.removeMark(range.from, range.to, markType);
+					}
+					return transaction.docChanged ? transaction : null;
+				},
+			}),
+		];
 	},
 });
 
@@ -2282,6 +2367,7 @@ const SHARED_MARK_EXTENSIONS = [
 	WordAttrs,
 	Highlight,
 	TeiSpan,
+	Unconfirmed,
 	Damage,
 	Surplus,
 	Secluded,
@@ -2395,8 +2481,10 @@ function createEditorForProfile(profile: EditorProfile, options: BaseEditorOptio
 							right: 0,
 						},
 						transformPastedText: text => text,
-						transformPasted: (slice, view) =>
-							repairPastedManuscriptSlice(slice, view.state.schema),
+						transformPasted: (slice, view) => {
+							const repaired = repairPastedManuscriptSlice(slice, view.state.schema);
+							return markPastedSlice(repaired, view.state.schema.marks.unconfirmed);
+						},
 					}
 				: {}),
 		},

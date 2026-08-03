@@ -106,6 +106,21 @@ describe('IGNTP XSD validation', () => {
 		expect(() => validateIgntpXsd(xml)).not.toThrow();
 	});
 
+	it('validates exported TEI containing an unconfirmed segment', () => {
+		const document = fromProseMirror(
+			buildPmDocument([
+				{
+					type: 'text',
+					text: 'alpha',
+					marks: [{ type: 'unconfirmed' }],
+				},
+			]),
+		);
+		const xml = serializeTei(document);
+
+		expect(() => validateIgntpXsd(xml)).not.toThrow();
+	});
+
 	it('validates exported TEI with structural break attrs and generic hi marks', () => {
 		const document = fromProseMirror({
 			type: 'manuscript',

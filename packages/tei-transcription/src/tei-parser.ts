@@ -529,6 +529,11 @@ function processWordElement(
 			continue;
 		}
 
+		if (tagName === 'seg') {
+			processWordElement(element, context, [...activeMarks, createSegmentMark(element)]);
+			continue;
+		}
+
 		if (isFlatInlineSpanTag(tagName)) {
 			const handling = getInlineSpanHandling(element);
 			if (handling === 'flat') {
@@ -736,7 +741,7 @@ function processContainerContent(
 			processContainerContent(
 				element,
 				context,
-				[...marks, createTeiSpanMark(element)],
+				[...marks, createSegmentMark(element)],
 				element
 			);
 			continue;
@@ -944,7 +949,7 @@ function processInlineElementToInlineContent(
 	if (tagName === 'seg') {
 		return processReadingToInlineContent(
 			element,
-			[...activeMarks, createTeiSpanMark(element)],
+			[...activeMarks, createSegmentMark(element)],
 			element
 		);
 	}
@@ -1249,6 +1254,13 @@ function processWordForInlineContent(wordElement: Element, activeMarks: TextMark
 					...activeMarks,
 					{ type: 'hi', attrs: collectAttributes(el) },
 				])
+			);
+			continue;
+		}
+
+		if (tagName === 'seg') {
+			content.push(
+				...processWordForInlineContent(el, [...activeMarks, createSegmentMark(el)])
 			);
 			continue;
 		}
@@ -1562,6 +1574,16 @@ function createTeiSpanMark(element: Element): TextMark {
 	};
 }
 
+function createSegmentMark(element: Element): TextMark {
+	if (element.getAttribute('type') === 'unconfirmed') {
+		return {
+			type: 'unconfirmed',
+			attrs: collectAttributes(element, new Set(['type'])),
+		};
+	}
+	return createTeiSpanMark(element);
+}
+
 function hasMeaningfulChildContent(element: Element): boolean {
 	return Array.from(element.childNodes).some(child => {
 		if (child.nodeType === Node.ELEMENT_NODE) return true;
@@ -1750,7 +1772,7 @@ function sameMarks(a?: TextMark[], b?: TextMark[]): boolean {
 }
 
 function handleSegmentElement(element: Element, context: ParseContext): void {
-	processContainerContent(element, context, [createTeiSpanMark(element)], element);
+	processContainerContent(element, context, [createSegmentMark(element)], element);
 }
 
 function collectAttributes(
