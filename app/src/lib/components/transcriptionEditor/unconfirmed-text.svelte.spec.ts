@@ -19,6 +19,12 @@ async function pasteSample() {
 	await expect.element(browserPage.getByTestId('exported-xml')).toHaveTextContent('alpha');
 }
 
+const MARKED_INITIAL_XML = `<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0">
+  <teiHeader></teiHeader>
+  <text><body><pb n="1r"/><cb n="1"/><lb/><w><seg type="unconfirmed">alpha beta gamma</seg></w></body></text>
+</TEI>`;
+
 describe('unconfirmed text', () => {
 	it('marks pasted plain text in exported TEI', async () => {
 		render(UnconfirmedTextHarness);
@@ -29,6 +35,25 @@ describe('unconfirmed text', () => {
 				'<w><seg type="unconfirmed">alpha</seg></w><w><seg type="unconfirmed">beta</seg></w><w><seg type="unconfirmed">gamma</seg></w>'
 			)
 		);
+	});
+
+	it('preserves initialized unconfirmed text and clears only the edited run', async () => {
+		render(UnconfirmedTextHarness, { initialXml: MARKED_INITIAL_XML });
+		await expect.element(browserPage.getByTestId('exported-xml')).toHaveTextContent('alpha');
+
+		expect(compactXml(await exportedXml())).toContain(
+			compactXml(
+				'<w><seg type="unconfirmed">alpha</seg></w><w><seg type="unconfirmed">beta</seg></w><w><seg type="unconfirmed">gamma</seg></w>'
+			)
+		);
+
+		await browserPage.getByTestId('select-middle-word').click();
+		await userEvent.keyboard('edited');
+
+		const xml = compactXml(await exportedXml());
+		expect(xml).toContain('<w><segtype="unconfirmed">alpha</seg></w>');
+		expect(xml).toContain('<w>edited</w>');
+		expect(xml).toContain('<w><segtype="unconfirmed">gamma</seg></w>');
 	});
 
 	it('clears only the edited word and keeps neighbouring words unconfirmed', async () => {

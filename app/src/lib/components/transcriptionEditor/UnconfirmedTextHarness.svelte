@@ -12,11 +12,17 @@
 	import { getEditor } from '$lib/client/transcriptionEditorSchema';
 	import { initializeEditorContent } from '$lib/client/editorContentInitialization';
 
+	interface Props {
+		initialXml?: string;
+	}
+
 	const INITIAL_XML = `<?xml version="1.0" encoding="UTF-8"?>
 <TEI xmlns="http://www.tei-c.org/ns/1.0">
   <teiHeader></teiHeader>
   <text><body><pb n="1r"/><cb n="1"/><lb/></body></text>
 </TEI>`;
+
+	let { initialXml = INITIAL_XML }: Props = $props();
 
 	let editorElement = $state<HTMLElement | null>(null);
 	let bubbleMenuElement = $state<HTMLElement | null>(null);
@@ -56,7 +62,7 @@
 	onMount(() => {
 		if (!editorElement || !bubbleMenuElement) return;
 		const nextEditor = getEditor(editorElement, bubbleMenuElement);
-		initializeEditorContent(nextEditor, toProseMirror(parseTei(INITIAL_XML)) as any, {
+		initializeEditorContent(nextEditor, toProseMirror(parseTei(initialXml)) as any, {
 			emitUpdate: false,
 		});
 		nextEditor.on('update', refreshExport);

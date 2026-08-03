@@ -943,7 +943,8 @@ const Unconfirmed = Mark.create({
 				appendTransaction: (transactions, _oldState, newState) => {
 					if (
 						!transactions.some(transaction => transaction.docChanged) ||
-						transactions.some(transaction => transaction.getMeta('uiEvent') === 'paste')
+						transactions.some(transaction => transaction.getMeta('uiEvent') === 'paste') ||
+						transactions.some(transaction => transaction.getMeta('addToHistory') === false)
 					) {
 						return null;
 					}
