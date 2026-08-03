@@ -93,6 +93,7 @@ export default defineConfig({
 		// node_modules/.vite/vitest/*/deps/_metadata.json if a new dep flakes.
 		include: [
 			'@annotorious/openseadragon',
+			'@xmldom/xmldom',
 			'@triiiceratops/plugin-annotation-editor',
 			'@triiiceratops/plugin-sdk',
 			'@floating-ui/dom',

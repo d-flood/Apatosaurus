@@ -34,6 +34,7 @@
 		| 'paragraph-start'
 		| 'milestone'
 		| 'review-verse'
+		| 'seed'
 		| 'export';
 
 	type GroupPosition = 'only' | 'first' | 'middle' | 'last';
@@ -100,6 +101,7 @@
 			event: Event
 		) => void;
 		onReviewVerse?: () => void;
+		onOpenSeedPicker?: () => void;
 		onTEIExport: () => void;
 	}
 
@@ -145,6 +147,7 @@
 		onInsertGenericTeiMilestone,
 		onInsertMilestoneNode,
 		onReviewVerse,
+		onOpenSeedPicker,
 		onTEIExport,
 	}: Props = $props();
 
@@ -234,6 +237,8 @@
 		items.push('milestone');
 
 		if (onReviewVerse) items.push('review-verse');
+
+		if (onOpenSeedPicker) items.push('seed');
 
 		if (showExportButton) items.push('export');
 
@@ -1064,6 +1069,23 @@
 					aria-label="Review current verse"
 				>
 					<CheckCircle class="inline-block" size={24} />
+				</button>
+			</div>
+		{:else if item === 'seed'}
+			<div
+				data-toolbar-item-key={item}
+				data-group-position={position}
+				class="tooltip tooltip-neutral tooltip-bottom join-item"
+				data-tip="Seed from a reference edition"
+			>
+				<button
+					type="button"
+					onclick={onOpenSeedPicker}
+					class="btn btn-primary"
+					title="Seed from a reference edition"
+					aria-label="Seed"
+				>
+					<BookOpenText class="inline-block" size={24} />
 				</button>
 			</div>
 		{:else if item === 'export'}

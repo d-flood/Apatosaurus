@@ -1,9 +1,19 @@
 import type { TranscriptionRecord as DbTranscriptionRecord } from '$lib/client/db/repositories/transcriptions';
+import {
+	coerceTranscriptionDocument,
+	getReferenceEditionsUsed,
+} from '$lib/client/transcription/content';
 
-export type TranscriptionRecord = DbTranscriptionRecord;
+export type TranscriptionRecord = DbTranscriptionRecord & {
+	referenceEditionsUsed?: string[];
+};
 
 export function mapLocalTranscriptionRecord(record: DbTranscriptionRecord): TranscriptionRecord {
-	return record;
+	const document = coerceTranscriptionDocument(record.content_json);
+	return {
+		...record,
+		referenceEditionsUsed: document ? getReferenceEditionsUsed(document) : [],
+	};
 }
 
 export function parseTranscriptionTags(tags: unknown): string[] {

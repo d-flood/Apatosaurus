@@ -80,6 +80,9 @@ export function parseTei(xmlString: string): TranscriptionDocument {
 		processNode(body, context);
 	}
 
+	if (context.currentPage === undefined && hasPendingPageContent(context)) {
+		context.currentPage = '1';
+	}
 	flushCurrentLine(context);
 	flushCurrentColumn(context);
 	flushCurrentPage(context);
@@ -122,6 +125,14 @@ export function parseTei(xmlString: string): TranscriptionDocument {
 		standOff: getImmediateChildrenTrees(teiRoot, 'standoff'),
 		sourceDoc: getImmediateChildrenTrees(teiRoot, 'sourcedoc'),
 	});
+}
+
+function hasPendingPageContent(context: ParseContext): boolean {
+	return Boolean(
+		context.currentLineItems?.length ||
+		context.currentColumnLines?.length ||
+		context.currentPageColumns?.length
+	);
 }
 
 function processNode(node: Node, context: ParseContext): void {

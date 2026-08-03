@@ -221,6 +221,10 @@ function toProseMirrorLineContent(line: TranscriptionLine): ProseMirrorJSON[] {
 	return content;
 }
 
+export function lineItemsToProseMirror(items: LineItem[]): ProseMirrorJSON[] {
+	return toProseMirrorLineContent({ type: 'line', number: 1, items });
+}
+
 export function inlineItemsToProseMirror(items: InlineItem[]): ProseMirrorJSON[] {
 	const content: ProseMirrorJSON[] = [];
 

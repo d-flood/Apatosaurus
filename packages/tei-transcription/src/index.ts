@@ -5,6 +5,7 @@ export { parseElementTree, parseChildNodes, serializeTeiNode, serializeTeiNodes 
 export {
 	toProseMirror,
 	fromProseMirror,
+	lineItemsToProseMirror,
 	inlineItemsToProseMirror,
 	proseMirrorToInlineItems,
 } from './pm-adapter';
@@ -17,6 +18,7 @@ export {
 } from './formwork-pm';
 export type {
 	CorrectionReading,
+	CorrectionOnlyItem,
 	EditorialActionItem,
 	FrameZone,
 	EditorialActionStructure,
@@ -27,6 +29,7 @@ export type {
 	InlineItem,
 	LineItem,
 	MetamarkItem,
+	MilestoneItem,
 	PlainTextOptions,
 	ProseMirrorJSON,
 	TeiAtomItem,

@@ -4,6 +4,7 @@
 	import { fromProseMirror, toProseMirror } from '$lib/tei/tei-transcription';
 	import { syncVerseIndexFromDocument } from '$lib/client/transcription/verse-index';
 	import {
+		addReferenceEditionUsed,
 		coerceTranscriptionDocument,
 		EMPTY_TRANSCRIPTION_DOC,
 		serializeTranscriptionDocument,
@@ -78,6 +79,10 @@
 		type TextMarkTarget,
 	} from './editorInteractions';
 	import type { TranscriptionSelectionQuote } from '$lib/client/iiif/types';
+	import type { ReferenceEditionCatalogEntry } from '$lib/reference-editions/catalog';
+	import type { ParsedReferenceEdition } from '$lib/reference-editions/source';
+	import { insertReferenceEditionRange } from '$lib/reference-editions/insertion';
+	import ReferenceEditionPicker from './ReferenceEditionPicker.svelte';
 
 	let {
 		transcription,
@@ -86,6 +91,7 @@
 		onPagesChange,
 		onActivePageChange,
 		onTextSelectionChange,
+		onReferenceEditionsUsedChange,
 		onToggleIiifWorkspace,
 		iiifWorkspaceOpen = false,
 		toolbarTarget = null,
@@ -99,6 +105,7 @@
 		onPagesChange?: (pages: PageEditorMetadata[]) => void;
 		onActivePageChange?: (page: PageEditorMetadata | null) => void;
 		onTextSelectionChange?: (selection: TranscriptionSelectionQuote | null) => void;
+		onReferenceEditionsUsedChange?: (editionIds: string[]) => void;
 		onToggleIiifWorkspace?: () => void;
 		iiifWorkspaceOpen?: boolean;
 		toolbarTarget?: HTMLElement | null;
@@ -140,6 +147,7 @@
 	let hasPage = $state(false);
 	let canonicalDocument = $state<StoredTranscriptionDocument>(EMPTY_TRANSCRIPTION_DOC);
 	let unconfirmedVerseCount = $state(0);
+	let referenceEditionPickerOpen = $state(false);
 
 	interface CursorPosition {
 		pageName?: string;
@@ -865,6 +873,18 @@
 		);
 	}
 
+	function insertReferenceEdition(
+		entry: ReferenceEditionCatalogEntry,
+		source: ParsedReferenceEdition,
+		startPosition: number,
+		endPosition: number
+	) {
+		if (!insertReferenceEditionRange(editorState.editor, source, startPosition, endPosition)) return;
+		const nextDocument = addReferenceEditionUsed(canonicalDocument, entry.id);
+		canonicalDocument = nextDocument;
+		onReferenceEditionsUsedChange?.(nextDocument.referenceEditionsUsed || []);
+	}
+
 	function toggleWordWrapped() {
 		const editor = editorState.editor;
 		if (!editor) return;
@@ -1105,6 +1125,7 @@
 			facsimile: baseDocument.facsimile,
 			standOff: baseDocument.standOff,
 			sourceDoc: baseDocument.sourceDoc,
+			referenceEditionsUsed: baseDocument.referenceEditionsUsed,
 		};
 	}
 
@@ -1527,6 +1548,7 @@
 				{exportLoading}
 				{cursorPosition}
 				onReviewVerse={reviewCurrentVerse}
+				onOpenSeedPicker={() => (referenceEditionPickerOpen = true)}
 				{iiifWorkspaceOpen}
 				sticky={!toolbarTarget}
 				onPageNameChange={name => (pageName = name)}
@@ -1550,6 +1572,12 @@
 			/>
 		</div>
 	{/if}
+
+	<ReferenceEditionPicker
+		open={referenceEditionPickerOpen}
+		onClose={() => (referenceEditionPickerOpen = false)}
+		onInsert={insertReferenceEdition}
+	/>
 
 	<BubbleMenu
 		bind:editor={editorState.editor}

@@ -671,6 +671,9 @@
 						onPagesChange={pages => (editorPages = pages)}
 						onActivePageChange={page => (activePageId = page?.pageId || null)}
 						onTextSelectionChange={selection => (selectedTranscriptionQuote = selection)}
+						onReferenceEditionsUsedChange={editionIds => {
+							if (transcription) transcription = { ...transcription, referenceEditionsUsed: editionIds };
+						}}
 						onToggleIiifWorkspace={toggleInlineIiifWorkspace}
 						{iiifWorkspaceOpen}
 						toolbarTarget={toolbarHost}

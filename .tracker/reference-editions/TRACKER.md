@@ -18,7 +18,7 @@ Ticket 04 is the widest slice. If it will not fit a single context window, split
 
 Overall status: `In Progress`
 
-Current ticket: None
+Current ticket: 03, 04
 
 Last updated: 2026-08-03
 
@@ -28,8 +28,8 @@ Last updated: 2026-08-03
 | --- | --- | --- | --- |
 | 01 | `01-remove-encumbered-base-text.md` | Completed | None |
 | 02 | `02-paste-creates-unconfirmed-text.md` | Completed | None |
-| 03 | `03-review-reveal-and-warn.md` | Not Started | 02 |
-| 04 | `04-seed-from-bundled-reference-edition.md` | Not Started | 02 |
+| 03 | `03-review-reveal-and-warn.md` | In Progress | 02 |
+| 04 | `04-seed-from-bundled-reference-edition.md` | In Progress | 02 |
 | 05 | `05-hierarchical-picker-with-preview.md` | Not Started | 04 |
 | 06 | `06-bring-your-own-reference-edition.md` | Not Started | 04 |
 | 07 | `07-attribution-in-exported-tei.md` | Not Started | 04 |
