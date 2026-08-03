@@ -179,6 +179,7 @@ export default defineConfig({
 			'phosphor-svelte/lib/Polygon',
 			'phosphor-svelte/lib/Quotes',
 			'phosphor-svelte/lib/Rectangle',
+			'phosphor-svelte/lib/Rows',
 			'phosphor-svelte/lib/Scroll',
 			'phosphor-svelte/lib/Sidebar',
 			'phosphor-svelte/lib/Slideshow',

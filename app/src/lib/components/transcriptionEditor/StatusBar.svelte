@@ -5,6 +5,8 @@
 	import Paragraph from 'phosphor-svelte/lib/Paragraph';
 	import Hash from 'phosphor-svelte/lib/Hash';
 	import Scroll from 'phosphor-svelte/lib/Scroll';
+	import Rows from 'phosphor-svelte/lib/Rows';
+	import TextColumns from 'phosphor-svelte/lib/TextColumns';
 	import { Columns2 } from 'lucide-svelte';
 	import type { MarkVisibility } from './types';
 
@@ -21,6 +23,7 @@
 		markVisibility: MarkVisibility;
 		transcriptionMetadataDialog?: any;
 		cursorPosition?: CursorPosition;
+		stackColumns: boolean;
 		sticky?: boolean;
 	}
 
@@ -28,6 +31,7 @@
 		markVisibility = $bindable(),
 		transcriptionMetadataDialog = $bindable(),
 		cursorPosition,
+		stackColumns = $bindable(),
 		sticky = true,
 	}: Props = $props();
 
@@ -50,6 +54,27 @@
 	<div class="flex flex-row items-center justify-between">
 		<div class="flex flex-wrap gap-2 items-center">
 			<LayerToggles {markVisibility}></LayerToggles>
+			<div
+				class="tooltip tooltip-top"
+				data-tip={stackColumns ? 'Show columns inline' : 'Stack transcription columns'}
+			>
+				<button
+					type="button"
+					class="btn"
+					class:btn-active={stackColumns}
+					onclick={() => (stackColumns = !stackColumns)}
+					aria-label={stackColumns
+						? 'Show columns inline'
+						: 'Stack transcription columns'}
+					aria-pressed={stackColumns}
+				>
+					{#if stackColumns}
+						<TextColumns size={16} />
+					{:else}
+						<Rows size={16} />
+					{/if}
+				</button>
+			</div>
 		</div>
 
 		<div class="flex items-center flex-nowrap gap-2 text-xs font-semibold mr-2">
