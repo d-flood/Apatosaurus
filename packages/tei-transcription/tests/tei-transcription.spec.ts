@@ -1466,10 +1466,14 @@ describe('tei-transcription package', () => {
 		const roundTripped = toProseMirror(parseTei(exported));
 		const lineContent = roundTripped.content![0].content![0].content![0].content!;
 		expect(
-			lineContent.find(node => node.type === 'teiWrapper')?.marks?.some(mark => mark.type === 'unconfirmed')
+			lineContent
+				.find(node => node.type === 'teiWrapper')
+				?.marks?.some(mark => mark.type === 'unconfirmed')
 		).toBe(true);
 		expect(
-			lineContent.find(node => node.type === 'teiAtom')?.marks?.some(mark => mark.type === 'unconfirmed')
+			lineContent
+				.find(node => node.type === 'teiAtom')
+				?.marks?.some(mark => mark.type === 'unconfirmed')
 		).toBe(true);
 	});
 

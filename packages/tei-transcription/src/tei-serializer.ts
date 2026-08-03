@@ -1346,10 +1346,7 @@ function serializeStructuredWrapper(
 	return wrapStructuredContentWithMarks(xml, marks);
 }
 
-function wrapStructuredContentWithMarks(
-	xml: string,
-	marks?: ProseMirrorJSON['marks']
-): string {
+function wrapStructuredContentWithMarks(xml: string, marks?: ProseMirrorJSON['marks']): string {
 	const unconfirmed = marks?.find(mark => mark.type === 'unconfirmed');
 	if (!unconfirmed) return xml;
 	return `<seg${serializeAttrs({ ...extractTeiAttrs(unconfirmed.attrs), type: 'unconfirmed' })}>${xml}</seg>`;

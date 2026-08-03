@@ -1,3 +1,4 @@
+
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
@@ -9,10 +10,7 @@
 	} from '$lib/client/db/client';
 	import { ensureLocalDbRuntime } from '$lib/client/db/runtime';
 	import type { ProjectTranscriptionStatus } from '$lib/client/db/repositories/projects';
-	import {
-		getVerseIndexRowsForTranscription,
-		type VerseIndexRow,
-	} from '$lib/client/transcription/verse-index';
+	import { getVerseIndexRowsForTranscription, type VerseIndexRow } from '$lib/client/transcription/verse-index';
 	import {
 		mapLocalTranscriptionRecord,
 		type TranscriptionRecord,
@@ -124,9 +122,7 @@
 	});
 
 	const normalizedVerseIndexLookup = $derived.by(() => {
-		const entries = verseIndexOptions.map(
-			row => [row.verse_identifier.trim().toLowerCase(), row] as const
-		);
+		const entries = verseIndexOptions.map(row => [row.verse_identifier.trim().toLowerCase(), row] as const);
 		return new Map(entries);
 	});
 
@@ -230,16 +226,14 @@
 	async function loadTranscriptionVersionStatus(isCancelled: () => boolean = () => false) {
 		await ensureLocalDbRuntime();
 		try {
-			const nextStatus =
-				await getProjectTranscriptionStatusForOwnedTranscription(transcriptionId);
+			const nextStatus = await getProjectTranscriptionStatusForOwnedTranscription(transcriptionId);
 			if (isCancelled()) return;
 			transcriptionVersionStatus = nextStatus;
 			versionStatusError = null;
 		} catch (err) {
 			if (isCancelled()) return;
 			transcriptionVersionStatus = null;
-			versionStatusError =
-				err instanceof Error ? err.message : 'Failed to load version status';
+			versionStatusError = err instanceof Error ? err.message : 'Failed to load version status';
 			console.error('Failed to load transcription version status:', err);
 		}
 	}
@@ -308,9 +302,7 @@
 	async function handleGoToVerse(event: SubmitEvent) {
 		event.preventDefault();
 
-		const selectedVerse = normalizedVerseIndexLookup.get(
-			goToVerseIdentifier.trim().toLowerCase()
-		);
+		const selectedVerse = normalizedVerseIndexLookup.get(goToVerseIdentifier.trim().toLowerCase());
 		if (!selectedVerse) return;
 
 		const { book, chapter, verse } = selectedVerse;
@@ -328,8 +320,7 @@
 	}
 
 	function postMainIiifState(message: Extract<IiifSyncMessage, { type: 'main-state' }>) {
-		if (!iiifPopupOpen || !iiifPopupWindow || iiifPopupWindow.closed || !iiifPopupSessionId)
-			return;
+		if (!iiifPopupOpen || !iiifPopupWindow || iiifPopupWindow.closed || !iiifPopupSessionId) return;
 		const sessionId = iiifPopupSessionId;
 		const envelope: IiifSyncEnvelope = {
 			source: 'apatopwa-iiif-sync',
@@ -476,11 +467,12 @@
 		commitError = null;
 		commitSuccess = null;
 
-		void loadTranscription(() => cancelled).catch(err => {
-			if (cancelled) return;
-			loadError = err instanceof Error ? err.message : 'Failed to load transcription';
-			console.error('Failed to load transcription:', err);
-		});
+		void loadTranscription(() => cancelled)
+			.catch(err => {
+				if (cancelled) return;
+				loadError = err instanceof Error ? err.message : 'Failed to load transcription';
+				console.error('Failed to load transcription:', err);
+			});
 		void loadTranscriptionVersionStatus(() => cancelled);
 
 		unsubscribeInvalidations = subscribeLocalDbInvalidations(event => {
@@ -493,10 +485,11 @@
 			}
 		});
 
-		void loadVerseIndex(() => cancelled).catch(err => {
-			if (cancelled) return;
-			console.error('Failed to load verse index:', err);
-		});
+		void loadVerseIndex(() => cancelled)
+			.catch(err => {
+				if (cancelled) return;
+				console.error('Failed to load verse index:', err);
+			});
 
 		return () => {
 			cancelled = true;
@@ -567,122 +560,108 @@
 			</div>
 		</div>
 
-		<div class={['gap-4', iiifWorkspaceOpen ? 'flex items-start' : '']}>
-			<div class={['min-w-0', iiifWorkspaceOpen ? 'flex-1' : '']}>
-				<div
-					class="sticky top-0 z-20 mb-4 rounded-box border border-base-300 bg-base-100/95 p-3 shadow-sm backdrop-blur"
-				>
-					<div bind:this={toolbarHost}></div>
-					{#if transcriptionVersionStatus?.isProjectOwned}
-						<div class="mt-3 rounded-box border border-base-300/70 bg-base-200/50 p-3">
-							<div class="flex flex-wrap items-center justify-between gap-3">
-								<div class="space-y-2">
-									<EntityHeader
-										label="Transcription"
-										projectName={transcriptionVersionStatus.projectName}
-										commitState={transcriptionVersionStatus.commitState}
-										checkpointRevisionId={transcriptionVersionStatus
-											.currentCheckpoint?.revisionId ?? null}
-									/>
-									<TranscriptionLineage status={transcriptionVersionStatus} />
-								</div>
-								<button
-									type="button"
-									class="btn btn-sm btn-secondary"
-									disabled={!canCommitVersion}
-									title={commitDisabledReason}
-									onclick={openCommitForm}
-								>
-									{commitInFlight ? 'Committing...' : 'Commit version'}
-								</button>
-							</div>
-
-							{#if isCommitFormOpen}
-								<form
-									class="mt-3 border-t border-base-300/70 pt-3"
-									onsubmit={handleCommitVersion}
-								>
-									<fieldset class="fieldset p-0">
-										<legend
-											class="fieldset-legend text-xs uppercase tracking-[0.14em] opacity-70"
-										>
-											Version note
-										</legend>
-										<textarea
-											bind:value={commitMessage}
-											class="textarea textarea-sm min-h-20 w-full"
-											placeholder="Describe this version"
-											disabled={commitInFlight}
-										></textarea>
-										<p class="label text-xs">
-											Optional note for this local version.
-										</p>
-									</fieldset>
-									<div class="mt-2 flex flex-wrap justify-end gap-2">
-										<button
-											type="button"
-											class="btn btn-sm btn-ghost"
-											disabled={commitInFlight}
-											onclick={closeCommitForm}
-										>
-											Cancel
-										</button>
-										<button
-											type="submit"
-											class="btn btn-sm btn-primary"
-											disabled={commitInFlight}
-										>
-											{commitInFlight ? 'Committing...' : 'Commit version'}
-										</button>
-									</div>
-								</form>
-							{/if}
-
-							{#if commitError}
-								<p class="mt-2 text-sm text-error" role="alert">{commitError}</p>
-							{:else if commitSuccess}
-								<p class="mt-2 text-sm text-success">{commitSuccess}</p>
-							{/if}
-						</div>
-					{:else if versionStatusError}
-						<p class="mt-3 text-right text-xs text-warning" role="status">
-							Version status unavailable: {versionStatusError}
-						</p>
-					{/if}
-					<form
-						class="mt-3 flex flex-wrap items-end justify-end gap-2 border-t border-base-300/70 pt-3"
-						onsubmit={handleGoToVerse}
+			<div class={['gap-4', iiifWorkspaceOpen ? 'flex items-start' : '']}>
+				<div class={['min-w-0', iiifWorkspaceOpen ? 'flex-1' : '']}>
+					<div
+						class="sticky top-0 z-20 mb-4 rounded-box border border-base-300 bg-base-100/95 p-3 shadow-sm backdrop-blur"
 					>
-						<label class="form-control min-w-72 flex-1">
-							<span class="label pb-1">
-								<span
-									class="label-text text-xs uppercase tracking-[0.14em] opacity-70"
-									>Go To Verse</span
-								>
-							</span>
-							<input
-								bind:value={goToVerseIdentifier}
-								class="input input-sm w-full"
-								list="transcription-verse-index"
-								placeholder="Select or type a verse"
-							/>
-							<datalist id="transcription-verse-index">
-								{#each verseIndexOptions as row (row.id)}
-									<option value={row.verse_identifier}></option>
-								{/each}
-							</datalist>
-						</label>
-						<button
-							type="submit"
-							class="btn btn-sm btn-primary"
-							disabled={!normalizedVerseIndexLookup.has(
-								goToVerseIdentifier.trim().toLowerCase()
-							)}
+						<div bind:this={toolbarHost}></div>
+						{#if transcriptionVersionStatus?.isProjectOwned}
+							<div class="mt-3 rounded-box border border-base-300/70 bg-base-200/50 p-3">
+								<div class="flex flex-wrap items-center justify-between gap-3">
+									<div class="space-y-2">
+										<EntityHeader
+											label="Transcription"
+											projectName={transcriptionVersionStatus.projectName}
+											commitState={transcriptionVersionStatus.commitState}
+											checkpointRevisionId={transcriptionVersionStatus.currentCheckpoint?.revisionId ?? null}
+										/>
+										<TranscriptionLineage status={transcriptionVersionStatus} />
+									</div>
+									<button
+										type="button"
+										class="btn btn-sm btn-secondary"
+										disabled={!canCommitVersion}
+										title={commitDisabledReason}
+										onclick={openCommitForm}
+									>
+										{commitInFlight ? 'Committing...' : 'Commit version'}
+									</button>
+								</div>
+
+								{#if isCommitFormOpen}
+									<form
+										class="mt-3 border-t border-base-300/70 pt-3"
+										onsubmit={handleCommitVersion}
+									>
+										<fieldset class="fieldset p-0">
+											<legend class="fieldset-legend text-xs uppercase tracking-[0.14em] opacity-70">
+												Version note
+											</legend>
+											<textarea
+												bind:value={commitMessage}
+												class="textarea textarea-sm min-h-20 w-full"
+												placeholder="Describe this version"
+												disabled={commitInFlight}
+											></textarea>
+											<p class="label text-xs">Optional note for this local version.</p>
+										</fieldset>
+										<div class="mt-2 flex flex-wrap justify-end gap-2">
+											<button
+												type="button"
+												class="btn btn-sm btn-ghost"
+												disabled={commitInFlight}
+												onclick={closeCommitForm}
+											>
+												Cancel
+											</button>
+											<button type="submit" class="btn btn-sm btn-primary" disabled={commitInFlight}>
+												{commitInFlight ? 'Committing...' : 'Commit version'}
+											</button>
+										</div>
+									</form>
+								{/if}
+
+								{#if commitError}
+									<p class="mt-2 text-sm text-error" role="alert">{commitError}</p>
+								{:else if commitSuccess}
+									<p class="mt-2 text-sm text-success">{commitSuccess}</p>
+								{/if}
+							</div>
+						{:else if versionStatusError}
+							<p class="mt-3 text-right text-xs text-warning" role="status">
+								Version status unavailable: {versionStatusError}
+							</p>
+						{/if}
+						<form
+							class="mt-3 flex flex-wrap items-end justify-end gap-2 border-t border-base-300/70 pt-3"
+							onsubmit={handleGoToVerse}
 						>
-							Go To
-						</button>
-					</form>
-				</div>
+							<label class="form-control min-w-72 flex-1">
+								<span class="label pb-1">
+									<span class="label-text text-xs uppercase tracking-[0.14em] opacity-70">Go To Verse</span>
+								</span>
+								<input
+									bind:value={goToVerseIdentifier}
+									class="input input-sm w-full"
+									list="transcription-verse-index"
+									placeholder="Select or type a verse"
+								/>
+								<datalist id="transcription-verse-index">
+							{#each verseIndexOptions as row (row.id)}
+										<option value={row.verse_identifier}></option>
+									{/each}
+								</datalist>
+							</label>
+							<button
+								type="submit"
+								class="btn btn-sm btn-primary"
+								disabled={!normalizedVerseIndexLookup.has(goToVerseIdentifier.trim().toLowerCase())}
+							>
+								Go To
+							</button>
+						</form>
+					</div>
 				<div data-transcription-scroll-container>
 					<TranscriptionEditor
 						bind:this={transcriptionEditorRef}
@@ -691,8 +670,7 @@
 						onSaveStateChange={handleSaveStateChange}
 						onPagesChange={pages => (editorPages = pages)}
 						onActivePageChange={page => (activePageId = page?.pageId || null)}
-						onTextSelectionChange={selection =>
-							(selectedTranscriptionQuote = selection)}
+						onTextSelectionChange={selection => (selectedTranscriptionQuote = selection)}
 						onReferenceEditionsUsedChange={editionIds => {
 							if (transcription)
 								transcription = {
