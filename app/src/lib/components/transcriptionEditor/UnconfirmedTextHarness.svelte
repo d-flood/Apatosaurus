@@ -59,6 +59,18 @@
 		editor.commands.focus();
 	}
 
+	function placeCursorAfterFirstWord() {
+		if (!editor) return;
+		let selection: TextSelection | null = null;
+		editor.state.doc.descendants((node, pos) => {
+			if (selection || !node.isText || node.text !== 'alpha beta gamma') return;
+			selection = TextSelection.create(editor!.state.doc, pos + 5);
+		});
+		if (!selection) return;
+		editor.view.dispatch(editor.state.tr.setSelection(selection));
+		editor.commands.focus();
+	}
+
 	onMount(() => {
 		if (!editorElement || !bubbleMenuElement) return;
 		const nextEditor = getEditor(editorElement, bubbleMenuElement);
@@ -83,6 +95,13 @@
 		>
 		<button type="button" data-testid="select-middle-word" onclick={selectMiddleWord}>
 			Select middle word
+		</button>
+		<button
+			type="button"
+			data-testid="place-cursor-after-first-word"
+			onclick={placeCursorAfterFirstWord}
+		>
+			Place cursor after first word
 		</button>
 	</div>
 	<pre data-testid="exported-xml">{exportedXml}</pre>

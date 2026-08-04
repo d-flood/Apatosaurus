@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0">
+  <teiHeader>
+    <fileDesc>
+      <titleStmt><title type="document">E2E Reference Edition</title></titleStmt>
+      <publicationStmt><availability>Test fixture, freely reusable.</availability></publicationStmt>
+      <sourceDesc><p>End-to-end backup fixture.</p></sourceDesc>
+    </fileDesc>
+  </teiHeader>
+  <text>
+    <body>
+      <div type="book" n="Romans">
+        <div type="chapter" n="1">
+          <ab n="1"><w>alpha</w></ab>
+        </div>
+      </div>
+    </body>
+  </text>
+</TEI>

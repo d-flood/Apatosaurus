@@ -22,9 +22,19 @@
 
 	interface Props {
 		empty?: boolean;
+		transcriptionId?: string;
+		sourceVariant?: 'full' | 'flat' | 'missing-chapter';
+		missingEditionId?: string;
+		useAvailableSource?: boolean;
 	}
 
-	let { empty = false }: Props = $props();
+	let {
+		empty = false,
+		transcriptionId = 'fixture-transcription',
+		sourceVariant = 'full',
+		missingEditionId,
+		useAvailableSource = false,
+	}: Props = $props();
 
 	const INITIAL_XML = `<?xml version="1.0" encoding="UTF-8"?>
 <TEI xmlns="http://www.tei-c.org/ns/1.0">
@@ -117,8 +127,74 @@
 					{ type: 'text', text: 'gamma', marks: [] },
 				],
 			},
+			{
+				position: 2,
+				label: { book: 'B01', chapter: 'B01K2', verse: 'B01K2V1' },
+				content: [
+					{
+						type: 'milestone',
+						kind: 'chapter',
+						attrs: { book: 'B01', chapter: 'B01K2' },
+						sourceLabel: 'B01K2',
+					},
+					{
+						type: 'milestone',
+						kind: 'verse',
+						attrs: { book: 'B01', chapter: 'B01K2', verse: 'B01K2V1' },
+						sourceLabel: 'B01K2V1',
+					},
+					{ type: 'text', text: 'chapter two', marks: [] },
+				],
+			},
+			{
+				position: 3,
+				label: { book: 'B02', chapter: 'B02K1', verse: 'B02K1V1' },
+				content: [
+					{
+						type: 'milestone',
+						kind: 'book',
+						attrs: { book: 'B02' },
+						sourceLabel: 'B02',
+					},
+					{
+						type: 'milestone',
+						kind: 'chapter',
+						attrs: { book: 'B02', chapter: 'B02K1' },
+						sourceLabel: 'B02K1',
+					},
+					{
+						type: 'milestone',
+						kind: 'verse',
+						attrs: { book: 'B02', chapter: 'B02K1', verse: 'B02K1V1' },
+						sourceLabel: 'B02K1V1',
+					},
+					{ type: 'text', text: 'delta', marks: [] },
+				],
+			},
 		],
 	};
+
+	const FLAT_FIXTURE_SOURCE: ParsedReferenceEdition = {
+		units: FIXTURE_SOURCE.units.map(unit => ({
+			...unit,
+			label: { unit: 'section', value: `U${unit.position + 1}` },
+		})),
+	};
+
+	const MISSING_CHAPTER_FIXTURE_SOURCE: ParsedReferenceEdition = {
+		units: FIXTURE_SOURCE.units.map(unit => ({
+			...unit,
+			label: { book: unit.label.book, verse: unit.label.verse },
+		})),
+	};
+
+	const fixtureSource = $derived(
+		sourceVariant === 'flat'
+			? FLAT_FIXTURE_SOURCE
+			: sourceVariant === 'missing-chapter'
+				? MISSING_CHAPTER_FIXTURE_SOURCE
+				: FIXTURE_SOURCE
+	);
 
 	let editorElement = $state<HTMLElement | null>(null);
 	let bubbleMenuElement = $state<HTMLElement | null>(null);
@@ -152,14 +228,14 @@
 	}
 
 	function insertSeed(
-		_entry: { id: string },
+		entry: { id: string; attribution: string },
 		source: ParsedReferenceEdition,
 		startPosition: number,
 		endPosition: number
 	) {
 		if (!editor || !insertReferenceEditionRange(editor, source, startPosition, endPosition))
 			return;
-		canonicalDocument = addReferenceEditionUsed(canonicalDocument, 'robinson-pierpont');
+		canonicalDocument = addReferenceEditionUsed(canonicalDocument, entry.id, entry.attribution);
 		refresh();
 	}
 
@@ -199,6 +275,9 @@
 		canonicalDocument = empty
 			? { type: 'transcriptionDocument', pages: [] }
 			: parseTei(INITIAL_XML);
+		if (missingEditionId) {
+			canonicalDocument = addReferenceEditionUsed(canonicalDocument, missingEditionId);
+		}
 		initializeEditorContent(nextEditor, toProseMirror(canonicalDocument) as any, {
 			emitUpdate: false,
 		});
@@ -226,9 +305,11 @@
 	</div>
 	<ReferenceEditionPicker
 		open={pickerOpen}
+		{transcriptionId}
+		requiredEditionIds={getReferenceEditionsUsed(canonicalDocument)}
 		onClose={() => (pickerOpen = false)}
 		onInsert={insertSeed}
-		loadSource={async () => FIXTURE_SOURCE}
+		loadSource={useAvailableSource ? undefined : async () => fixtureSource}
 	/>
 	<pre data-testid="exported-xml">{exportedXml}</pre>
 	<pre data-testid="structure-counts">{structureCounts}</pre>

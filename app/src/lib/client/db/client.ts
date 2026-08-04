@@ -40,6 +40,7 @@ import type {
 import type {
 	ProjectZipImportCollisionMode,
 	ProjectZipImportResult,
+	ReferenceEditionsRestoreResult,
 } from '../sync/project-zip-import';
 import type {
 	ProjectManifestComparison,
@@ -722,6 +723,15 @@ export async function importProjectZip(
 	collisionMode?: ProjectZipImportCollisionMode
 ): Promise<ProjectZipImportResult> {
 	return sendCloudConnectionRequest({ type: 'projectBackup.importZip', bytes, collisionMode });
+}
+
+export async function restoreReferenceEditionsArchive(
+	bytes: Uint8Array
+): Promise<ReferenceEditionsRestoreResult> {
+	return sendCloudConnectionRequest({
+		type: 'accountBackup.restoreReferenceEditions',
+		bytes,
+	});
 }
 
 export async function listCloudProjectCandidates(

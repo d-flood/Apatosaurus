@@ -192,6 +192,14 @@ export function userReferenceEditionFile(editionId: string): string {
 	return joinStorePath(userReferenceEditionsFolder(), `${validateFileStem(editionId)}.json`);
 }
 
+export function userReferenceEditionQuarantineFile(editionId: string, nonce: string): string {
+	return joinStorePath(
+		userReferenceEditionsFolder(),
+		'quarantine',
+		`${validateFileStem(editionId)}-corrupt-${validateFileStem(nonce)}.json`
+	);
+}
+
 export function indexFolder(): string {
 	return 'index';
 }

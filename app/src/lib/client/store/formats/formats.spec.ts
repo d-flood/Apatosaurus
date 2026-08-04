@@ -5,6 +5,8 @@ import { describe, expect, it } from 'vitest';
 import type { CollationDocument as SemanticCollationDocument } from '$lib/client/collation/collation-document';
 import type { ReferenceEditionCatalogEntry } from '$lib/reference-editions/catalog';
 import { hashCanonicalPayload } from '../canonical-json';
+import { MemoryStoreBackend } from '../memory-store-backend.spec-support';
+import { registerUserReferenceEdition } from '../user-reference-editions';
 
 import { sealDocument, serializeSealedDocument, type JsonObject } from '../envelope';
 import {
@@ -37,6 +39,7 @@ import {
 	readCanonicalDocument,
 	serializeCanonicalDocument,
 	transcriptionDocumentToTei,
+	transcriptionDocumentToTeiFromStore,
 } from './index';
 import { buildLegacyCollationHashPayload } from './collation';
 import collationV1Input from './fixtures/collation-v1.input.json';
@@ -303,13 +306,16 @@ describe('canonical store formats', () => {
 		[COLLATION_FORMAT, collationV1Input, collationV2Expected],
 		[WORKING_COLLATION_FORMAT, workingCollationV1Input, workingCollationV2Expected],
 		[COLLATION_CHECKPOINT_FORMAT, checkpointCollationV1Input, checkpointCollationV2Expected],
-	] as const)('upgrades checked-in %s v1 fixtures through the public read API', async (format, input, expected) => {
-		const result = await readCanonicalDocument(format, input);
+	] as const)(
+		'upgrades checked-in %s v1 fixtures through the public read API',
+		async (format, input, expected) => {
+			const result = await readCanonicalDocument(format, input);
 
-		expect(result).toMatchObject({ ok: true, upgraded: true, originalVersion: 1 });
-		if (!result.ok) throw new Error(`Expected ${format} fixture to upgrade.`);
-		expect(result.payload).toEqual(expected);
-	});
+			expect(result).toMatchObject({ ok: true, upgraded: true, originalVersion: 1 });
+			if (!result.ok) throw new Error(`Expected ${format} fixture to upgrade.`);
+			expect(result.payload).toEqual(expected);
+		}
+	);
 
 	it.each([
 		[TRANSCRIPTION_CHECKPOINT_FORMAT, TRANSCRIPTION_CHECKPOINT_FIXTURE],
@@ -345,32 +351,38 @@ describe('canonical store formats', () => {
 		[COLLATION_FORMAT, COLLATION_FIXTURE],
 		[TRANSCRIPTION_CHECKPOINT_FORMAT, TRANSCRIPTION_CHECKPOINT_FIXTURE],
 		[COLLATION_CHECKPOINT_FORMAT, COLLATION_CHECKPOINT_FIXTURE],
-	] as const)('rejects resealed %s documents with invalid nested hashes', async (format, fixture) => {
-		const document = await sealDocument(format, format.includes('collation') ? 2 : 1, {
-			...fixture,
-			...(format.includes('checkpoint')
-				? { payload_content_hash: 'sha256:wrong' }
-				: {
-						current_revision: {
-							...('current_revision' in fixture
-								? (fixture.current_revision as Record<string, unknown>)
-								: {}),
-							content_hash: 'sha256:wrong',
-						},
-					}),
-		} as JsonObject);
+	] as const)(
+		'rejects resealed %s documents with invalid nested hashes',
+		async (format, fixture) => {
+			const document = await sealDocument(format, format.includes('collation') ? 2 : 1, {
+				...fixture,
+				...(format.includes('checkpoint')
+					? { payload_content_hash: 'sha256:wrong' }
+					: {
+							current_revision: {
+								...('current_revision' in fixture
+									? (fixture.current_revision as Record<string, unknown>)
+									: {}),
+								content_hash: 'sha256:wrong',
+							},
+						}),
+			} as JsonObject);
 
-		await expect(readCanonicalDocument(format, document)).resolves.toMatchObject({
-			ok: false,
-			quarantine: { code: 'hash_mismatch' },
-		});
-	});
+			await expect(readCanonicalDocument(format, document)).resolves.toMatchObject({
+				ok: false,
+				quarantine: { code: 'hash_mismatch' },
+			});
+		}
+	);
 
 	it('rejects a resealed manifest whose head path is not canonical', async () => {
 		const payload = {
 			...PROJECT_MANIFEST_FIXTURE,
 			transcriptions: [
-				{ ...PROJECT_MANIFEST_FIXTURE.transcriptions[0], primary_path: 'transcriptions/wrong.json' },
+				{
+					...PROJECT_MANIFEST_FIXTURE.transcriptions[0],
+					primary_path: 'transcriptions/wrong.json',
+				},
 			],
 		};
 		payload.manifest_content_hash = await hashCanonicalPayload({
@@ -381,7 +393,9 @@ describe('canonical store formats', () => {
 		});
 		const document = await sealDocument(PROJECT_MANIFEST_FORMAT, 1, payload);
 
-		await expect(readCanonicalDocument(PROJECT_MANIFEST_FORMAT, document)).resolves.toMatchObject({
+		await expect(
+			readCanonicalDocument(PROJECT_MANIFEST_FORMAT, document)
+		).resolves.toMatchObject({
 			ok: false,
 			quarantine: { code: 'invalid_shape' },
 		});
@@ -407,13 +421,62 @@ describe('derived TEI serializers', () => {
 		expect(doc.getElementsByTagName('title')[0]?.textContent).toBe('Witness A');
 	});
 
-	it('names a used reference edition in the source description', () => {
-		const fixture = transcriptionWithEditions(['edition-one']);
-		const doc = parseXml(transcriptionDocumentToTei(fixture, referenceEditionCatalog));
+	it('resolves a locally present user edition for a legacy record through the store serializer', async () => {
+		const backend = new MemoryStoreBackend();
+		const edition = await registerUserReferenceEdition(
+			{
+				xml: '<TEI xmlns="http://www.tei-c.org/ns/1.0"><teiHeader/><text><body><div type="book" n="book"><ab n="1"/></div></body></text></TEI>',
+				fileName: 'legacy.xml',
+			},
+			{
+				backend,
+				parse: async () => ({
+					source: { units: [{ position: 0, label: { verse: '1' }, content: [] }] },
+					metadata: { title: 'Legacy edition', attribution: 'Legacy user attribution' },
+				}),
+			}
+		);
+		const fixture = transcriptionWithEditions([edition.id]);
+		const doc = parseXml(await transcriptionDocumentToTeiFromStore(fixture, { backend }));
 
 		expect(referenceEditionEntries(doc).map(node => node.textContent)).toEqual([
-			'Edition One attribution',
+			'Legacy user attribution',
 		]);
+	});
+
+	it('prefers a legacy record snapshot when its user edition is absent from the store', async () => {
+		const fixture = transcriptionWithEditions(['edition-two'], {
+			'edition-two': 'Persisted edition attribution',
+		});
+		const doc = parseXml(
+			await transcriptionDocumentToTeiFromStore(fixture, {
+				backend: new MemoryStoreBackend(),
+			})
+		);
+
+		expect(referenceEditionEntries(doc).map(node => node.textContent)).toEqual([
+			'Persisted edition attribution',
+		]);
+	});
+
+	it('keeps user-edition attribution when the edition is absent on this device', () => {
+		const fixture = transcriptionWithEditions(['user-missing-device'], {
+			'user-missing-device': 'Missing-device edition attribution',
+		});
+
+		const doc = parseXml(transcriptionDocumentToTei(fixture, []));
+
+		expect(referenceEditionEntries(doc).map(node => node.textContent)).toEqual([
+			'Missing-device edition attribution',
+		]);
+	});
+
+	it('refuses to silently omit an edition whose attribution cannot be resolved', () => {
+		const fixture = transcriptionWithEditions(['user-missing-attribution']);
+
+		expect(() => transcriptionDocumentToTei(fixture, [])).toThrow(
+			'Attribution for required reference edition user-missing-attribution is unavailable.'
+		);
 	});
 
 	it('names every used reference edition in the source description', () => {
@@ -494,13 +557,17 @@ const referenceEditionCatalog: ReferenceEditionCatalogEntry[] = [
 	},
 ];
 
-function transcriptionWithEditions(referenceEditionsUsed: string[]) {
+function transcriptionWithEditions(
+	referenceEditionsUsed: string[],
+	referenceEditionAttributions?: Record<string, string>
+) {
 	return {
 		...PROJECT_TRANSCRIPTION_FIXTURE,
 		content_json: {
 			type: 'transcriptionDocument',
 			pages: [],
 			...(referenceEditionsUsed.length > 0 ? { referenceEditionsUsed } : {}),
+			...(referenceEditionAttributions ? { referenceEditionAttributions } : {}),
 		},
 	};
 }

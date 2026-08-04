@@ -30,7 +30,7 @@ import {
 	projectFolder,
 	readTextFile,
 	readCanonicalDocument,
-	transcriptionDocumentToTei,
+	transcriptionDocumentToTeiFromStore,
 	writeTextFileAtomic,
 	type CollationPayload,
 	type ProjectTranscriptionPayload,
@@ -1229,7 +1229,8 @@ async function mirrorProjectFiles(
 				? await deriveTeiFromCanonicalPrimary(
 						conflictingPrimary.path,
 						conflictingPrimary.content,
-						context.projectId
+						context.projectId,
+						storeOptions
 					)
 				: localFile.content;
 			const remoteFingerprint = await fingerprintText(remoteContent, remoteFile?.metadata.modifiedAt ?? '');
@@ -1434,7 +1435,12 @@ async function regenerateDerivedTeiFiles(
 		const collationMatch = /^collations\/([^/]+)\.json$/.exec(primary.path);
 		if (!transcriptionMatch && !collationMatch) continue;
 		const path = primary.path.replace(/\.json$/, '.tei.xml');
-		const content = await deriveTeiFromCanonicalPrimary(primary.path, primary.content);
+		const content = await deriveTeiFromCanonicalPrimary(
+			primary.path,
+			primary.content,
+			undefined,
+			storeOptions
+		);
 		const storePath = joinStorePath(projectRoot, path);
 		await writeTextFileAtomic(storePath, content, storeOptions);
 		derived.push({
@@ -1450,7 +1456,8 @@ async function regenerateDerivedTeiFiles(
 async function deriveTeiFromCanonicalPrimary(
 	path: string,
 	content: string,
-	projectId?: string
+	projectId?: string,
+	storeOptions: StoreOperationOptions = {}
 ): Promise<string> {
 	const format = canonicalFormatForProjectPath(path);
 	if (!format) throw new Error(`No canonical format is registered for ${path}.`);
@@ -1461,7 +1468,10 @@ async function deriveTeiFromCanonicalPrimary(
 	);
 	if (!parsed.ok) throw new Error(`Could not derive TEI from ${path}: ${parsed.quarantine.message}`);
 	return path.startsWith('transcriptions/')
-		? transcriptionDocumentToTei(parsed.payload as ProjectTranscriptionPayload)
+		? transcriptionDocumentToTeiFromStore(
+				parsed.payload as ProjectTranscriptionPayload,
+				storeOptions
+			)
 		: collationDocumentToTei((parsed.payload as CollationPayload).document);
 }
 

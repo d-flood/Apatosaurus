@@ -81,4 +81,16 @@ describe('unconfirmed text', () => {
 		expect(xml).toContain('<w>delta</w>');
 		expect(xml).not.toContain('<w><segtype="unconfirmed">delta</seg></w>');
 	});
+
+	it('keeps imported text unconfirmed when Enter splits its line', async () => {
+		render(UnconfirmedTextHarness, { initialXml: MARKED_INITIAL_XML });
+		await expect.element(browserPage.getByTestId('exported-xml')).toHaveTextContent('alpha');
+		await browserPage.getByTestId('place-cursor-after-first-word').click();
+		await userEvent.keyboard('{Enter}');
+
+		const xml = compactXml(await exportedXml());
+		expect(xml).toContain('<segtype="unconfirmed">alpha</seg>');
+		expect(xml).toContain('<segtype="unconfirmed">beta</seg>');
+		expect(xml).toContain('<segtype="unconfirmed">gamma</seg>');
+	});
 });

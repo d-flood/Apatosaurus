@@ -18,7 +18,7 @@ import {
 	sealDocument,
 	serializeSealedDocument,
 	transcriptionCheckpointFile,
-	transcriptionDocumentToTei,
+	transcriptionDocumentToTeiFromStore,
 	transcriptionPrimaryFile,
 	transcriptionTeiFile,
 	transcriptionWorkingFile,
@@ -954,7 +954,7 @@ async function writeDerivedTranscriptionTei(
 	try {
 		await writeTextFileAtomic(
 			transcriptionTeiFile(projectStorageSlug, projectTranscriptionId),
-			transcriptionDocumentToTei(payload),
+			await transcriptionDocumentToTeiFromStore(payload, storeOptions),
 			storeOptions
 		);
 		return null;

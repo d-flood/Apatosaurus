@@ -17,12 +17,17 @@
 		deriveProjectBackupSummary,
 		exportAllProjectsZip,
 		rebuildLocalIndex,
+		restoreReferenceEditionsArchive,
 		restoreOrphanPrimary,
 		subscribeLocalDbInvalidations,
 	} from '$lib/client/db/client';
 	import { ensureLocalDbRuntime } from '$lib/client/db/runtime';
 	import { downloadZipArchive } from '$lib/client/download-blob';
-	import { listSyncTargets, recordProjectZipExport } from '$lib/client/store';
+	import {
+		listSyncTargets,
+		inspectUserReferenceEditions,
+		recordProjectZipExport,
+	} from '$lib/client/store';
 	import { LOCAL_FOLDER_ROOT_FOLDER_ID } from '$lib/client/sync/providers/local-folder-provider';
 	import type { ProjectBackupSummary } from '$lib/client/sync/sync-manager';
 	import {
@@ -58,11 +63,13 @@
 	}
 
 	let projects = $state.raw<ProjectOption[]>([]);
+	let userReferenceEditionCount = $state(0);
 	let projectBackupSummaries = $state.raw<Record<string, ProjectListBackupSummary>>({});
 	let persistenceReport = $state<StoragePersistenceReport | null>(null);
 	let storageEstimateReport = $state<StorageEstimateReport | null>(null);
 	let installSupported = $state(false);
 	let isLoading = $state(true);
+	let initialDataError = $state<string | null>(null);
 	let isRequestingPersistence = $state(false);
 	let persistenceRequestMessage = $state<string | null>(null);
 	let persistenceRequestFailed = $state(false);
@@ -70,6 +77,9 @@
 	let isRepairingIndex = $state(false);
 	let isExportingAllProjects = $state(false);
 	let exportAllError = $state<string | null>(null);
+	let isRestoringReferenceEditions = $state(false);
+	let restoreReferenceEditionsMessage = $state<string | null>(null);
+	let restoreReferenceEditionsError = $state<string | null>(null);
 	let lastAllProjectsExportedAt = $state<string | null>(null);
 	let indexRepairError = $state<string | null>(null);
 	let indexRepairReport = $state<IndexRebuildReport | null>(null);
@@ -131,10 +141,21 @@
 
 	async function bootstrap() {
 		isLoading = true;
+		initialDataError = null;
 		try {
 			await ensureLocalDbRuntime();
 			projects = await listProjects();
+			const inspection = await inspectUserReferenceEditions();
+			userReferenceEditionCount = inspection.editions.length;
+			if (inspection.invalidPaths.length > 0) {
+				initialDataError = `${inspection.invalidPaths.length} stored reference edition${inspection.invalidPaths.length === 1 ? ' is' : 's are'} corrupt and cannot be used or backed up. Restore them from a reference-edition backup or remove the affected local files.`;
+			}
 			await Promise.all([refreshStorageCapabilities(), loadProjectBackupSummaries(projects)]);
+		} catch (cause) {
+			initialDataError =
+				cause instanceof Error
+					? cause.message
+					: 'Local storage status could not be loaded.';
 		} finally {
 			isLoading = false;
 		}
@@ -336,6 +357,12 @@
 			const result = await exportAllProjectsZip(false);
 			for (const archive of result.archives)
 				downloadZipArchive(archive.fileName, archive.bytes);
+			if (result.referenceEditionsArchive) {
+				downloadZipArchive(
+					result.referenceEditionsArchive.fileName,
+					result.referenceEditionsArchive.bytes
+				);
+			}
 			await Promise.all(
 				projects
 					.filter(project =>
@@ -354,6 +381,28 @@
 				cause instanceof Error ? cause.message : 'Failed to export all projects.';
 		} finally {
 			isExportingAllProjects = false;
+		}
+	}
+
+	async function restoreReferenceEditions(event: Event) {
+		const input = event.currentTarget as HTMLInputElement;
+		const file = input.files?.[0];
+		if (!file || isRestoringReferenceEditions) return;
+		isRestoringReferenceEditions = true;
+		restoreReferenceEditionsMessage = null;
+		restoreReferenceEditionsError = null;
+		try {
+			const result = await restoreReferenceEditionsArchive(
+				new Uint8Array(await file.arrayBuffer())
+			);
+			userReferenceEditionCount = (await inspectUserReferenceEditions()).editions.length;
+			restoreReferenceEditionsMessage = `Restored ${result.restored} reference edition${result.restored === 1 ? '' : 's'}; skipped ${result.skipped} already present. ${userReferenceEditionCount} available in the catalog.`;
+		} catch (cause) {
+			restoreReferenceEditionsError =
+				cause instanceof Error ? cause.message : 'Failed to restore reference editions.';
+		} finally {
+			isRestoringReferenceEditions = false;
+			input.value = '';
 		}
 	}
 
@@ -465,6 +514,9 @@
 			index.
 		</p>
 	</header>
+	{#if initialDataError}
+		<div class="alert alert-error mb-6 text-sm" role="alert">{initialDataError}</div>
+	{/if}
 
 	<OnboardingGuidance
 		localFolderSupported={isLocalFolderProviderSupported()}
@@ -713,21 +765,42 @@
 			<section class="rounded-box border border-base-300/60 bg-base-100 p-5 shadow-sm">
 				<h2 class="font-serif text-xl font-semibold">Whole-Account Export</h2>
 				<p class="mt-1 text-sm text-base-content/55">
-					Download one independently restorable zip per project. Draft files stay local.
+					Download one independently restorable zip per project, plus your user-supplied
+					reference editions. Draft files stay local.
 				</p>
 				<button
 					type="button"
 					class="btn btn-outline btn-sm mt-4 w-full"
-					disabled={isExportingAllProjects || projects.length === 0}
+					disabled={isExportingAllProjects ||
+						(projects.length === 0 && userReferenceEditionCount === 0)}
 					onclick={exportAllProjectArchives}
 				>
 					{isExportingAllProjects ? 'Exporting...' : 'Export all projects'}
 				</button>
+				<label class="btn btn-outline btn-sm mt-2 w-full">
+					{isRestoringReferenceEditions ? 'Restoring...' : 'Restore reference editions'}
+					<input
+						type="file"
+						accept=".zip,application/zip"
+						class="sr-only"
+						disabled={isRestoringReferenceEditions}
+						onchange={restoreReferenceEditions}
+					/>
+				</label>
 				{#if exportAllError}<div class="alert alert-error mt-3 py-2 text-xs">
 						{exportAllError}
 					</div>{/if}
 				{#if lastAllProjectsExportedAt}<p class="mt-2 text-xs text-base-content/50">
 						Last exported {formatDate(lastAllProjectsExportedAt)}
+					</p>{/if}
+				{#if restoreReferenceEditionsError}<div class="alert alert-error mt-3 py-2 text-xs">
+						{restoreReferenceEditionsError}
+					</div>{/if}
+				{#if restoreReferenceEditionsMessage}<p
+						class="mt-2 text-xs text-success"
+						role="status"
+					>
+						{restoreReferenceEditionsMessage}
 					</p>{/if}
 			</section>
 

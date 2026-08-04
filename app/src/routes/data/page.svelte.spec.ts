@@ -8,6 +8,13 @@ const mocks = vi.hoisted(() => ({
 	getOfflineCacheSize: vi.fn(async () => 1536),
 	getCorpusCacheEntryCount: vi.fn(async () => 0),
 	releaseCorpusCache: vi.fn(async () => undefined),
+	exportAllProjectsZip: vi.fn(),
+	restoreReferenceEditionsArchive: vi.fn(),
+	downloadZipArchive: vi.fn(),
+	inspectUserReferenceEditions: vi.fn(async () => ({
+		editions: [] as Array<{ id: string }>,
+		invalidPaths: [] as string[],
+	})),
 	getStorageEstimate: vi.fn(async () => ({
 		usage: null as number | null,
 		quota: null as number | null,
@@ -53,16 +60,18 @@ vi.mock('$lib/client/collation/project-collation', () => ({
 
 vi.mock('$lib/client/db/client', () => ({
 	deriveProjectBackupSummary: vi.fn(),
-	exportAllProjectsZip: vi.fn(),
+	exportAllProjectsZip: mocks.exportAllProjectsZip,
+	restoreReferenceEditionsArchive: mocks.restoreReferenceEditionsArchive,
 	rebuildLocalIndex: vi.fn(),
 	restoreOrphanPrimary: vi.fn(),
 	subscribeLocalDbInvalidations: vi.fn(() => vi.fn()),
 }));
 
 vi.mock('$lib/client/db/runtime', () => ({ ensureLocalDbRuntime: vi.fn() }));
-vi.mock('$lib/client/download-blob', () => ({ downloadZipArchive: vi.fn() }));
+vi.mock('$lib/client/download-blob', () => ({ downloadZipArchive: mocks.downloadZipArchive }));
 vi.mock('$lib/client/store', () => ({
 	listSyncTargets: vi.fn(async () => []),
+	inspectUserReferenceEditions: mocks.inspectUserReferenceEditions,
 	recordProjectZipExport: vi.fn(),
 }));
 vi.mock('$lib/client/sync/providers/local-folder-provider', () => ({
@@ -74,6 +83,7 @@ import Page from './+page.svelte';
 describe('/data persistence request', () => {
 	beforeEach(() => {
 		mocks.getCorpusCacheEntryCount.mockResolvedValue(0);
+		mocks.inspectUserReferenceEditions.mockResolvedValue({ editions: [], invalidPaths: [] });
 		mocks.getStorageEstimate.mockResolvedValue({
 			usage: null,
 			quota: null,
@@ -208,5 +218,63 @@ describe('/data persistence request', () => {
 		await expect
 			.element(page.getByRole('button', { name: 'Download reference editions' }))
 			.toBeInTheDocument();
+	});
+
+	it('downloads the reference-edition sidecar from the existing whole-account export control', async () => {
+		mocks.inspectUserReferenceEditions.mockResolvedValue({
+			editions: [{ id: 'user-one' }],
+			invalidPaths: [],
+		});
+		mocks.exportAllProjectsZip.mockResolvedValue({
+			archives: [],
+			invalidProjects: [],
+			exportedAt: '2026-08-03T12:00:00.000Z',
+			referenceEditionsArchive: {
+				fileName: 'reference-editions-2026-08-03.zip',
+				bytes: new Uint8Array([1, 2, 3]),
+				entryPaths: ['reference-editions/user-one.json'],
+			},
+		});
+		render(Page);
+
+		await page.getByRole('button', { name: 'Export all projects' }).click();
+
+		expect(mocks.downloadZipArchive).toHaveBeenCalledWith(
+			'reference-editions-2026-08-03.zip',
+			new Uint8Array([1, 2, 3])
+		);
+	});
+
+	it('restores a reference-edition archive through the account UI and refreshes the catalog', async () => {
+		mocks.restoreReferenceEditionsArchive.mockResolvedValue({ restored: 1, skipped: 0 });
+		mocks.inspectUserReferenceEditions
+			.mockResolvedValueOnce({ editions: [], invalidPaths: [] })
+			.mockResolvedValueOnce({ editions: [{ id: 'user-restored' }], invalidPaths: [] });
+		render(Page);
+
+		await page
+			.getByLabelText('Restore reference editions')
+			.upload(new File([new Uint8Array([1, 2, 3])], 'reference-editions.zip'));
+
+		expect(mocks.restoreReferenceEditionsArchive).toHaveBeenCalledOnce();
+		expect(mocks.restoreReferenceEditionsArchive.mock.calls[0]?.[0]).toBeInstanceOf(Uint8Array);
+		await expect
+			.element(page.getByRole('status'))
+			.toHaveTextContent('1 available in the catalog');
+	});
+
+	it('surfaces corrupt editions without hiding usable page data', async () => {
+		mocks.inspectUserReferenceEditions.mockResolvedValue({
+			editions: [{ id: 'user-valid' }],
+			invalidPaths: ['app/reference-editions/user-corrupt.json'],
+		});
+		render(Page);
+
+		await expect
+			.element(page.getByRole('alert'))
+			.toHaveTextContent('1 stored reference edition is corrupt');
+		await expect
+			.element(page.getByRole('button', { name: 'Export all projects' }))
+			.toBeEnabled();
 	});
 });

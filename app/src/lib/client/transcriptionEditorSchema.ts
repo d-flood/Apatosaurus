@@ -3,6 +3,7 @@ import {
 	createEmptyLineInsertTransaction,
 	createLineSplitTransaction,
 	getChangedRanges,
+	LINE_SPLIT_TARGET_LINE_ID_META,
 	repairPastedManuscriptSlice,
 } from '$lib/client/transcriptionEditorStructure';
 import { classifyFormWork } from '$lib/components/transcriptionEditor/formworkConcepts';
@@ -972,6 +973,9 @@ const Unconfirmed = Mark.create({
 						) ||
 						transactions.some(
 							transaction => transaction.getMeta('referenceEditionSeed') === true
+						) ||
+						transactions.some(transaction =>
+							Boolean(transaction.getMeta(LINE_SPLIT_TARGET_LINE_ID_META))
 						) ||
 						transactions.some(
 							transaction => transaction.getMeta('addToHistory') === false

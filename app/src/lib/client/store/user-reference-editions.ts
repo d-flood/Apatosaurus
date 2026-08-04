@@ -1,6 +1,7 @@
 import { parseReferenceEditionWithMetadataInWorker } from '$lib/client/reference-editions/reference-edition-worker';
 import type { ParsedReferenceEditionResult } from '$lib/client/reference-editions/reference-edition-worker-types';
 import type { ReferenceEditionCatalogEntry } from '$lib/reference-editions/catalog';
+import { parseReferenceEditionXml } from '$lib/reference-editions/parse';
 
 import {
 	assertEnvelopeHash,
@@ -11,15 +12,19 @@ import {
 } from './envelope';
 import {
 	userReferenceEditionFile,
+	userReferenceEditionQuarantineFile,
 	userReferenceEditionsFolder,
 } from './layout';
 import {
 	deleteFile,
 	listDirectory,
+	moveFile,
 	readTextFile,
+	withDocumentStoreWriterLock,
 	writeTextFileAtomic,
 	type StoreOperationOptions,
 } from './opfs-store';
+import { quarantineFromError, recordStoreQuarantine } from './quarantine';
 
 interface StoredUserReferenceEdition {
 	id: string;
@@ -51,22 +56,53 @@ type UserReferenceEditionOptions = StoreOperationOptions & { parse?: ParseRefere
 export async function listUserReferenceEditions(
 	options: StoreOperationOptions = {}
 ): Promise<ReferenceEditionCatalogEntry[]> {
+	return (await inspectUserReferenceEditions(options)).editions;
+}
+
+export interface UserReferenceEditionInspection {
+	editions: ReferenceEditionCatalogEntry[];
+	invalidPaths: string[];
+}
+
+export async function inspectUserReferenceEditions(
+	options: StoreOperationOptions = {}
+): Promise<UserReferenceEditionInspection> {
 	let files;
 	try {
 		files = (await listDirectory(userReferenceEditionsFolder(), options)).filter(
 			entry => entry.kind === 'file' && entry.name.endsWith('.json')
 		);
 	} catch (error) {
-		if (isMissingEntryError(error)) return [];
+		if (isMissingEntryError(error)) return { editions: [], invalidPaths: [] };
 		throw error;
 	}
 
 	const records = await Promise.all(
-		files.map(async file => readStoredEdition(await readTextFile(file.path, options)))
+		files.map(async file => {
+			try {
+				return {
+					file,
+					record: await validateStoredUserReferenceEdition(
+						await readTextFile(file.path, options),
+						file.name.slice(0, -'.json'.length)
+					),
+				};
+			} catch (error) {
+				recordStoreQuarantine(
+					options.quarantineSink,
+					file.path,
+					quarantineFromError(error)
+				);
+				return { file, record: null };
+			}
+		})
 	);
-	return records
-		.map(record => toCatalogEntry(record))
-		.sort((left, right) => left.title.localeCompare(right.title));
+	return {
+		editions: records
+			.flatMap(result => (result.record ? [toCatalogEntry(result.record)] : []))
+			.sort((left, right) => left.title.localeCompare(right.title)),
+		invalidPaths: records.flatMap(result => (result.record ? [] : [result.file.path])),
+	};
 }
 
 export async function registerUserReferenceEdition(
@@ -94,12 +130,16 @@ export async function registerUserReferenceEdition(
 		attribution,
 		xml,
 	};
-	const sealed = await sealDocument(USER_REFERENCE_EDITION_FORMAT, USER_REFERENCE_EDITION_VERSION, {
-		edition_id: record.id,
-		title: record.title,
-		attribution: record.attribution,
-		xml: record.xml,
-	} satisfies UserReferenceEditionPayload);
+	const sealed = await sealDocument(
+		USER_REFERENCE_EDITION_FORMAT,
+		USER_REFERENCE_EDITION_VERSION,
+		{
+			edition_id: record.id,
+			title: record.title,
+			attribution: record.attribution,
+			xml: record.xml,
+		} satisfies UserReferenceEditionPayload
+	);
 	await writeTextFileAtomic(path, serializeSealedDocument(sealed), options);
 	return toCatalogEntry(record);
 }
@@ -120,6 +160,104 @@ export async function removeUserReferenceEdition(
 ): Promise<void> {
 	if (entry.source !== 'user' || !entry.storePath) return;
 	await deleteFile(entry.storePath, options);
+}
+
+export async function restoreUserReferenceEdition(
+	raw: string,
+	options: StoreOperationOptions = {}
+): Promise<'restored' | 'already-present'> {
+	const result = await restoreUserReferenceEditions([raw], options);
+	return result.restored === 1 ? 'restored' : 'already-present';
+}
+
+export async function restoreUserReferenceEditions(
+	raws: string[],
+	options: StoreOperationOptions = {}
+): Promise<{ restored: number; skipped: number }> {
+	const records = await Promise.all(raws.map(raw => validateStoredUserReferenceEdition(raw)));
+	return withDocumentStoreWriterLock(async lockedOptions => {
+		const changes: Array<{
+			path: string;
+			quarantinePath?: string;
+			quarantineError?: unknown;
+		}> = [];
+		let skipped = 0;
+		try {
+			for (const [index, record] of records.entries()) {
+				const path = userReferenceEditionFile(record.id);
+				let quarantineError: unknown;
+				try {
+					const localRaw = await readTextFile(path, lockedOptions);
+					try {
+						await validateStoredUserReferenceEdition(localRaw, record.id);
+						skipped += 1;
+						continue;
+					} catch (error) {
+						quarantineError = error;
+					}
+				} catch (error) {
+					if (!isMissingEntryError(error)) throw error;
+				}
+
+				const change: (typeof changes)[number] = { path };
+				if (quarantineError !== undefined) {
+					change.quarantinePath = userReferenceEditionQuarantineFile(
+						record.id,
+						(options.nonce ?? createNonce)()
+					);
+					change.quarantineError = quarantineError;
+					await moveFile(path, change.quarantinePath, lockedOptions);
+				}
+				changes.push(change);
+				await writeTextFileAtomic(path, raws[index]!, lockedOptions);
+			}
+		} catch (error) {
+			for (const change of changes.reverse()) {
+				try {
+					await deleteFile(change.path, lockedOptions);
+				} catch (deleteError) {
+					if (!isMissingEntryError(deleteError)) throw deleteError;
+				}
+				if (change.quarantinePath) {
+					await moveFile(change.quarantinePath, change.path, lockedOptions);
+				}
+			}
+			throw error;
+		}
+
+		for (const change of changes) {
+			if (change.quarantineError !== undefined) {
+				recordStoreQuarantine(
+					lockedOptions.quarantineSink,
+					change.path,
+					quarantineFromError(change.quarantineError)
+				);
+			}
+		}
+		return { restored: changes.length, skipped };
+	}, options);
+}
+
+export async function validateStoredUserReferenceEdition(
+	raw: string,
+	expectedId?: string
+): Promise<StoredUserReferenceEdition> {
+	const record = await readStoredEdition(raw);
+	const canonicalId = `user-${await hashText(record.xml)}`;
+	if (record.id !== canonicalId || (expectedId !== undefined && record.id !== expectedId)) {
+		throw new Error('Stored reference edition has an invalid identity.');
+	}
+	const parsed = parseReferenceEditionXml(record.xml);
+	if (parsed.source.units.length === 0) {
+		throw new Error('Reference edition must contain at least one milestone.');
+	}
+	return record;
+}
+
+function createNonce(): string {
+	return (
+		globalThis.crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`
+	);
 }
 
 function toCatalogEntry(record: StoredUserReferenceEdition): ReferenceEditionCatalogEntry {
@@ -162,10 +300,11 @@ async function readStoredEdition(raw: string): Promise<StoredUserReferenceEditio
 }
 
 async function hashText(value: string): Promise<string> {
-	const digest = await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
-	return [...new Uint8Array(digest)]
-		.map(byte => byte.toString(16).padStart(2, '0'))
-		.join('');
+	const digest = await globalThis.crypto.subtle.digest(
+		'SHA-256',
+		new TextEncoder().encode(value)
+	);
+	return [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, '0')).join('');
 }
 
 function fileStem(fileName: string): string {

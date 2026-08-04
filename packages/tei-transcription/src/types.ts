@@ -2,6 +2,7 @@ export interface TranscriptionDocument {
 	type: 'transcriptionDocument';
 	pages: TranscriptionPage[];
 	referenceEditionsUsed?: string[];
+	referenceEditionAttributions?: Record<string, string>;
 	metadata?: TeiMetadata;
 	header?: TeiHeaderInfo;
 	teiAttrs?: Record<string, string>;

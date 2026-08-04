@@ -29,6 +29,7 @@ import {
 	projectManifestFile,
 	readCanonicalDocument,
 	readTextFile,
+	registerUserReferenceEdition,
 	sealDocument,
 	serializeSealedDocument,
 	StoreMoveUnavailableError,
@@ -587,6 +588,50 @@ describe('transcription file persistence', () => {
 			expect.objectContaining({ code: 'tei_write_failed', entityType: 'transcription' }),
 		]);
 		await expect(getTranscription(harness.db, 'tx-created')).resolves.not.toBeNull();
+	});
+
+	it('writes legacy user-edition attribution from the local store into derived TEI', async () => {
+		await createProject(harness.db, {
+			id: 'project-1',
+			storageSlug: 'project-slug',
+			name: 'Project',
+		});
+		const edition = await registerUserReferenceEdition(
+			{
+				xml: '<TEI xmlns="http://www.tei-c.org/ns/1.0"><teiHeader/><text><body><div type="book" n="book"><ab n="1"/></div></body></text></TEI>',
+				fileName: 'legacy.xml',
+			},
+			{
+				backend,
+				parse: async () => ({
+					source: { units: [{ position: 0, label: { verse: '1' }, content: [] }] },
+					metadata: { title: 'Legacy edition', attribution: 'Legacy local attribution' },
+				}),
+			}
+		);
+		const document = documentWithVerses(['Romans 1:3']);
+		document.referenceEditionsUsed = [edition.id];
+
+		await createTranscriptionWithFiles(
+			harness.db,
+			{
+				id: 'tx-created',
+				projectId: 'project-1',
+				projectTranscriptionId: 'pt-created',
+				title: 'Witness',
+				siglum: 'C',
+				document,
+				transcriber: '',
+				repository: '',
+				settlement: '',
+				language: 'grc',
+			},
+			{ backend }
+		);
+
+		await expect(
+			readTextFile(transcriptionTeiFile('project-slug', 'pt-created'), { backend })
+		).resolves.toContain('Legacy local attribution');
 	});
 
 	it('writes committed transcription files before updating the index', async () => {

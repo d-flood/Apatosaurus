@@ -12,6 +12,7 @@ import type {
 import type {
 	ProjectZipImportCollisionMode,
 	ProjectZipImportResult,
+	ReferenceEditionsRestoreResult,
 } from '../sync/project-zip-import';
 import type {
 	RemoveLocalProjectInput,
@@ -519,6 +520,10 @@ export interface CloudConnectionRpcMap {
 			collisionMode?: ProjectZipImportCollisionMode;
 		};
 		response: ProjectZipImportResult;
+	};
+	'accountBackup.restoreReferenceEditions': {
+		request: { type: 'accountBackup.restoreReferenceEditions'; bytes: Uint8Array };
+		response: ReferenceEditionsRestoreResult;
 	};
 	'cloudProjects.listCandidates': {
 		request: {

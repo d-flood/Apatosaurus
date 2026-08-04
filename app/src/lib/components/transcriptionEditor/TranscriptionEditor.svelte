@@ -7,6 +7,7 @@
 		addReferenceEditionUsed,
 		coerceTranscriptionDocument,
 		EMPTY_TRANSCRIPTION_DOC,
+		getReferenceEditionAttributions,
 		getReferenceEditionsUsed,
 		serializeTranscriptionDocument,
 		TRANSCRIPTION_FORMAT,
@@ -20,6 +21,7 @@
 		prepareManuscriptDocumentEntry,
 	} from '$lib/client/transcriptionEditorStructure';
 	import { exportTEIDocument } from '$lib/tei/tei-exporter';
+	import { listUserReferenceEditions } from '$lib/client/store/user-reference-editions';
 	import { Editor } from '@tiptap/core';
 	import { NodeSelection, TextSelection, type EditorState } from '@tiptap/pm/state';
 	import {
@@ -85,7 +87,6 @@
 		type ReferenceEditionCatalogEntry,
 	} from '$lib/reference-editions/catalog';
 	import { resolveReferenceEditionAttributions } from '$lib/reference-editions/attribution';
-	import { listUserReferenceEditions } from '$lib/client/store/user-reference-editions';
 	import type { ParsedReferenceEdition } from '$lib/reference-editions/source';
 	import { insertReferenceEditionRange } from '$lib/reference-editions/insertion';
 	import ReferenceEditionPicker from './ReferenceEditionPicker.svelte';
@@ -155,6 +156,7 @@
 	let unconfirmedVerseCount = $state(0);
 	let referenceEditionPickerOpen = $state(false);
 	let pendingReferenceEditionsUsed: string[] | null = null;
+	let pendingReferenceEditionAttributions: Record<string, string> | null = null;
 
 	interface CursorPosition {
 		pageName?: string;
@@ -889,11 +891,16 @@
 		if (!insertReferenceEditionRange(editorState.editor, source, startPosition, endPosition))
 			return;
 		const pendingDocument = pendingReferenceEditionsUsed
-			? { ...canonicalDocument, referenceEditionsUsed: pendingReferenceEditionsUsed }
+			? {
+					...canonicalDocument,
+					referenceEditionsUsed: pendingReferenceEditionsUsed,
+					referenceEditionAttributions:
+						pendingReferenceEditionAttributions || canonicalDocument.referenceEditionAttributions,
+				}
 			: canonicalDocument;
-		pendingReferenceEditionsUsed = getReferenceEditionsUsed(
-			addReferenceEditionUsed(pendingDocument, entry.id)
-		);
+		const updatedDocument = addReferenceEditionUsed(pendingDocument, entry.id, entry.attribution);
+		pendingReferenceEditionsUsed = getReferenceEditionsUsed(updatedDocument);
+		pendingReferenceEditionAttributions = getReferenceEditionAttributions(updatedDocument);
 	}
 
 	function toggleWordWrapped() {
@@ -1110,7 +1117,13 @@
 			const editorDocument = fromProseMirror(editorJson as any);
 			const mergedDocument = mergeWithCanonicalDocument(canonicalDocument, editorDocument);
 			return pendingReferenceEditionsUsed
-				? { ...mergedDocument, referenceEditionsUsed: [...pendingReferenceEditionsUsed] }
+				? {
+						...mergedDocument,
+						referenceEditionsUsed: [...pendingReferenceEditionsUsed],
+						referenceEditionAttributions: {
+							...(pendingReferenceEditionAttributions || {}),
+						},
+					}
 				: mergedDocument;
 		} catch (error) {
 			console.error('[Transcription] Failed to convert editor state to AST:', error);
@@ -1142,6 +1155,7 @@
 			standOff: baseDocument.standOff,
 			sourceDoc: baseDocument.sourceDoc,
 			referenceEditionsUsed: baseDocument.referenceEditionsUsed,
+			referenceEditionAttributions: baseDocument.referenceEditionAttributions,
 		};
 	}
 
@@ -1215,6 +1229,7 @@
 						JSON.stringify(getReferenceEditionsUsed(document))
 				) {
 					pendingReferenceEditionsUsed = null;
+					pendingReferenceEditionAttributions = null;
 				}
 				if (
 					JSON.stringify(previousReferenceEditions) !==
@@ -1341,6 +1356,7 @@
 		exportLoading = true;
 
 		try {
+			exportWarning = null;
 			const exportDocument = coerceEditorJsonToDocument(editorState.editor.getJSON());
 			if (!exportDocument) {
 				throw new Error(
@@ -1349,7 +1365,8 @@
 			}
 			const sourceAttributions = resolveReferenceEditionAttributions(
 				getReferenceEditionsUsed(exportDocument),
-				listReferenceEditions(await listUserReferenceEditions())
+				listReferenceEditions(await listUserReferenceEditions()),
+				getReferenceEditionAttributions(exportDocument)
 			);
 			const metadata = {
 				...buildTEIMetadataFromTranscription(transcription),
@@ -1374,6 +1391,7 @@
 			URL.revokeObjectURL(url);
 		} catch (error) {
 			console.error('TEI export error:', error);
+			exportWarning = `Export failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
 		} finally {
 			exportLoading = false;
 		}
@@ -1615,6 +1633,8 @@
 
 	<ReferenceEditionPicker
 		open={referenceEditionPickerOpen}
+		transcriptionId={transcription?.id || ''}
+		requiredEditionIds={getReferenceEditionsUsed(canonicalDocument)}
 		onClose={() => (referenceEditionPickerOpen = false)}
 		onInsert={insertReferenceEdition}
 	/>

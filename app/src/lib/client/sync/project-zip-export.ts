@@ -9,6 +9,8 @@ import {
 	readCanonicalDocument,
 	readFileBytes,
 	readTextFile,
+	userReferenceEditionsFolder,
+	validateStoredUserReferenceEdition,
 	type ProjectManifestPayload,
 	type StoreOperationOptions,
 } from '$lib/client/store';
@@ -41,8 +43,15 @@ export interface InvalidProjectExport {
 
 export interface AllProjectsZipExportResult {
 	archives: ProjectZipExportResult[];
+	referenceEditionsArchive: ReferenceEditionsZipExportResult | null;
 	invalidProjects: InvalidProjectExport[];
 	exportedAt: string;
+}
+
+export interface ReferenceEditionsZipExportResult {
+	fileName: string;
+	bytes: Uint8Array;
+	entryPaths: string[];
 }
 
 export interface ProjectBackupCapabilityMessage {
@@ -85,7 +94,10 @@ export async function exportProjectZip(
 	if (!project) throw new Error(`Project ${projectId} was not found.`);
 
 	const root = projectFolder(project.storage_slug);
-	const manifestValidation = await validateProjectManifest(project.storage_slug, options.storeOptions);
+	const manifestValidation = await validateProjectManifest(
+		project.storage_slug,
+		options.storeOptions
+	);
 	if (manifestValidation) throw new Error(manifestValidation.message);
 	const entries = await readProjectArchiveEntries(root, options);
 	const exportedAt = (options.now?.() ?? new Date()).toISOString();
@@ -106,13 +118,17 @@ export async function exportAllProjectsZip(
 	const archives: ProjectZipExportResult[] = [];
 	const invalidProjects: InvalidProjectExport[] = [];
 	let totalArchiveBytes = 0;
+	const referenceEditionsArchive = await exportReferenceEditionsZip(exportedAt, options);
+	if (referenceEditionsArchive) totalArchiveBytes += referenceEditionsArchive.bytes.length;
 	let projectDirectories;
 	try {
 		projectDirectories = (await listDirectory(projectsFolder(), options.storeOptions)).filter(
 			entry => entry.kind === 'directory'
 		);
 	} catch (error) {
-		if (isMissingStoreEntryError(error)) return { archives, invalidProjects, exportedAt };
+		if (isMissingStoreEntryError(error)) {
+			return { archives, referenceEditionsArchive, invalidProjects, exportedAt };
+		}
 		throw error;
 	}
 	for (const directory of projectDirectories) {
@@ -138,7 +154,7 @@ export async function exportAllProjectsZip(
 			exportedAt,
 		});
 	}
-	return { archives, invalidProjects, exportedAt };
+	return { archives, referenceEditionsArchive, invalidProjects, exportedAt };
 }
 
 export function projectBackupCapabilityMessage(
@@ -147,7 +163,8 @@ export function projectBackupCapabilityMessage(
 	if (folderSyncSupported) {
 		return {
 			primaryAction: 'folder-sync',
-			message: 'Folder sync can mirror committed files continuously; zip export is also available.',
+			message:
+				'Folder sync can mirror committed files continuously; zip export is also available.',
 		};
 	}
 	return {
@@ -170,9 +187,44 @@ async function readProjectArchiveEntries(
 	});
 	const entries: ZipEntryInput[] = [];
 	for (const file of files) {
-		entries.push({ path: file.path, bytes: await readFileBytes(file.storePath, options.storeOptions) });
+		entries.push({
+			path: file.path,
+			bytes: await readFileBytes(file.storePath, options.storeOptions),
+		});
 	}
 	return entries;
+}
+
+async function exportReferenceEditionsZip(
+	exportedAt: string,
+	options: ProjectZipExportOptions
+): Promise<ReferenceEditionsZipExportResult | null> {
+	let files;
+	try {
+		files = (await listDirectory(userReferenceEditionsFolder(), options.storeOptions)).filter(
+			entry => entry.kind === 'file' && entry.name.endsWith('.json')
+		);
+	} catch (error) {
+		if (isMissingStoreEntryError(error)) return null;
+		throw error;
+	}
+	if (files.length === 0) return null;
+	const entries: ZipEntryInput[] = [];
+	for (const file of files) {
+		const bytes = await readFileBytes(file.path, options.storeOptions);
+		const expectedId = file.name.slice(0, -'.json'.length);
+		await validateStoredUserReferenceEdition(new TextDecoder().decode(bytes), expectedId);
+		entries.push({
+			path: `reference-editions/${file.name}`,
+			bytes,
+		});
+	}
+	entries.sort((left, right) => left.path.localeCompare(right.path));
+	return {
+		fileName: `reference-editions-${exportedAt.slice(0, 10)}.zip`,
+		bytes: createStoreOnlyZip(entries, options.zipLimits),
+		entryPaths: entries.map(entry => entry.path),
+	};
 }
 
 async function validateProjectManifest(
@@ -182,9 +234,13 @@ async function validateProjectManifest(
 	const path = 'project.json';
 	try {
 		const raw = await readTextFile(`${projectFolder(storageSlug)}/${path}`, storeOptions);
-		const parsed = await readCanonicalDocument<ProjectManifestPayload>(PROJECT_MANIFEST_FORMAT, raw, {
-			projectPath: path,
-		});
+		const parsed = await readCanonicalDocument<ProjectManifestPayload>(
+			PROJECT_MANIFEST_FORMAT,
+			raw,
+			{
+				projectPath: path,
+			}
+		);
 		if (parsed.ok) return null;
 		return {
 			storageSlug,
@@ -202,18 +258,21 @@ async function validateProjectManifest(
 	}
 }
 
-function createStoreOnlyZip(
+export function createStoreOnlyZip(
 	entries: ZipEntryInput[],
 	configuredLimits: Partial<ZipLimits> = {}
 ): Uint8Array {
 	const encoder = new TextEncoder();
 	const limits = { ...DEFAULT_ZIP_LIMITS, ...configuredLimits };
 	if (entries.length > Math.min(limits.maxEntries, ZIP32_MAX_ENTRIES)) {
-		throw new Error(`ZIP entry count ${entries.length} exceeds the supported limit ${limits.maxEntries}.`);
+		throw new Error(
+			`ZIP entry count ${entries.length} exceeds the supported limit ${limits.maxEntries}.`
+		);
 	}
 	const fileRecords = entries.map(entry => {
 		const pathBytes = encoder.encode(entry.path);
-		if (pathBytes.length > 0xffff) throw new Error(`ZIP entry path is too long: ${entry.path}.`);
+		if (pathBytes.length > 0xffff)
+			throw new Error(`ZIP entry path is too long: ${entry.path}.`);
 		if (entry.bytes.length > Math.min(limits.maxEntryBytes, ZIP32_MAX_VALUE)) {
 			throw new Error(
 				`ZIP entry ${entry.path} size ${entry.bytes.length} exceeds the supported limit ${limits.maxEntryBytes}.`
@@ -237,7 +296,9 @@ function createStoreOnlyZip(
 		throw new Error('ZIP32 offset or central directory size limit exceeded.');
 	}
 	if (totalSize > limits.maxArchiveBytes) {
-		throw new Error(`ZIP archive size ${totalSize} exceeds the supported limit ${limits.maxArchiveBytes}.`);
+		throw new Error(
+			`ZIP archive size ${totalSize} exceeds the supported limit ${limits.maxArchiveBytes}.`
+		);
 	}
 
 	const result = new Uint8Array(totalSize);
@@ -255,11 +316,19 @@ function createStoreOnlyZip(
 	}
 	const centralDirectoryOffset = offset;
 	for (const [index, entry] of fileRecords.entries()) {
-		const header = centralDirectoryHeader(entry.pathBytes, entry.bytes, entry.crc32, localOffsets[index]!);
+		const header = centralDirectoryHeader(
+			entry.pathBytes,
+			entry.bytes,
+			entry.crc32,
+			localOffsets[index]!
+		);
 		result.set(header, offset);
 		offset += header.length;
 	}
-	result.set(endOfCentralDirectory(fileRecords.length, centralDirectorySize, centralDirectoryOffset), offset);
+	result.set(
+		endOfCentralDirectory(fileRecords.length, centralDirectorySize, centralDirectoryOffset),
+		offset
+	);
 	return result;
 }
 
@@ -319,7 +388,8 @@ function endOfCentralDirectory(
 function writeDosDateTime(view: DataView, offset: number): void {
 	const year = Math.max(ZIP_EPOCH.getUTCFullYear(), 1980);
 	const dosTime = 0;
-	const dosDate = ((year - 1980) << 9) | ((ZIP_EPOCH.getUTCMonth() + 1) << 5) | ZIP_EPOCH.getUTCDate();
+	const dosDate =
+		((year - 1980) << 9) | ((ZIP_EPOCH.getUTCMonth() + 1) << 5) | ZIP_EPOCH.getUTCDate();
 	view.setUint16(offset, dosTime, true);
 	view.setUint16(offset + 2, dosDate, true);
 }

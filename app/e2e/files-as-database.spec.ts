@@ -16,6 +16,9 @@ const TEI_FIXTURE_PATH = fileURLToPath(
 const UPGRADE_FIXTURE_PATH = fileURLToPath(
 	new URL('./fixtures/upgrade-store/project.json', import.meta.url)
 );
+const REFERENCE_EDITION_FIXTURE_PATH = fileURLToPath(
+	new URL('./fixtures/reference-edition.xml', import.meta.url)
+);
 const UPGRADE_PROJECT_FOLDER = 'upgrade-fixture-22222222';
 const PROJECT_NAME = 'End-to-End Romans';
 const TRANSCRIPTION_TITLES = ['Witness Alpha', 'Witness Beta'] as const;
@@ -68,6 +71,57 @@ test('disaster recovery restores an equivalent project after site data is wiped'
 	await expect(
 		page.locator('.line-content').filter({ hasText: 'alpha-e2e' }).first()
 	).toBeVisible();
+});
+
+test('reference-edition backup restores through the client, RPC worker, and OPFS', async ({
+	context,
+	page,
+}, testInfo) => {
+	await createProject(page, 'Reference Backup Project');
+	await createAndCommitTeiTranscription(
+		page,
+		'Reference Backup Project',
+		'Reference Host',
+		'REF',
+		'reference-host'
+	);
+	await page.getByTitle('Seed from a reference edition').click();
+	await expect(page.getByRole('heading', { name: 'Seed at cursor' })).toBeVisible();
+	await page
+		.getByTestId('reference-edition-picker')
+		.locator('input[type="file"]')
+		.setInputFiles(REFERENCE_EDITION_FIXTURE_PATH);
+	await expect(page.getByText('E2E Reference Edition', { exact: true })).toBeVisible();
+
+	await page.goto('/data');
+	const downloads: import('@playwright/test').Download[] = [];
+	page.on('download', download => downloads.push(download));
+	await page.getByRole('button', { name: 'Export all projects' }).click();
+	await expect
+		.poll(() =>
+			downloads.some(download =>
+				download.suggestedFilename().startsWith('reference-editions-')
+			)
+		)
+		.toBe(true);
+	const editionDownload = downloads.find(download =>
+		download.suggestedFilename().startsWith('reference-editions-')
+	);
+	expect(editionDownload).toBeDefined();
+	const archivePath = testInfo.outputPath('reference-editions.zip');
+	await editionDownload!.saveAs(archivePath);
+
+	await wipeSiteData(context, page);
+	await page.goto('/data');
+	await page.getByLabel('Restore reference editions').setInputFiles(archivePath);
+	await expect(page.getByRole('status')).toContainText('1 available in the catalog', {
+		timeout: 30_000,
+	});
+
+	await page.getByLabel('Restore reference editions').setInputFiles(archivePath);
+	await expect(page.getByRole('status')).toContainText('skipped 1 already present', {
+		timeout: 30_000,
+	});
 });
 
 test('committee contexts propagate updates and preserve divergent commits as conflict copies', async ({

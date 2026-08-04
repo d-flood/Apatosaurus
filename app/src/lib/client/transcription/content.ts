@@ -44,17 +44,33 @@ export function getReferenceEditionsUsed(document: StoredTranscriptionDocument):
 	return [...(document.referenceEditionsUsed || [])];
 }
 
+export function getReferenceEditionAttributions(
+	document: StoredTranscriptionDocument
+): Record<string, string> {
+	return { ...(document.referenceEditionAttributions || {}) };
+}
+
 export function addReferenceEditionUsed(
 	document: StoredTranscriptionDocument,
-	editionId: string
+	editionId: string,
+	attribution?: string
 ): StoredTranscriptionDocument {
 	const normalizedId = editionId.trim();
 	if (!normalizedId) return document;
+	const normalizedAttribution = attribution?.trim();
 	return {
 		...document,
 		referenceEditionsUsed: [
 			...new Set([...(document.referenceEditionsUsed || []), normalizedId]),
 		],
+		...(normalizedAttribution
+			? {
+					referenceEditionAttributions: {
+						...(document.referenceEditionAttributions || {}),
+						[normalizedId]: normalizedAttribution,
+					},
+				}
+			: {}),
 	};
 }
 
@@ -66,11 +82,27 @@ function normalizeStoredTranscriptionDocument(
 		?.filter((editionId): editionId is string => typeof editionId === 'string')
 		.map(editionId => editionId.trim())
 		.filter(Boolean);
+	const usedEditionIds = new Set(referenceEditionsUsed);
+	const referenceEditionAttributions = Object.fromEntries(
+		Object.entries(normalized.referenceEditionAttributions || {}).flatMap(
+			([editionId, attribution]) => {
+				const normalizedId = editionId.trim();
+				const normalizedAttribution =
+					typeof attribution === 'string' ? attribution.trim() : '';
+				return normalizedId && normalizedAttribution && usedEditionIds.has(normalizedId)
+					? [[normalizedId, normalizedAttribution]]
+					: [];
+			}
+		)
+	);
 
 	return {
 		...normalized,
 		...(referenceEditionsUsed && referenceEditionsUsed.length > 0
 			? { referenceEditionsUsed: [...new Set(referenceEditionsUsed)] }
+			: {}),
+		...(Object.keys(referenceEditionAttributions).length > 0
+			? { referenceEditionAttributions }
 			: {}),
 	};
 }

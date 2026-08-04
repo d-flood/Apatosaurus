@@ -83,6 +83,7 @@ import { exportAllProjectsZip, exportProjectZip } from '$lib/client/sync/project
 import {
 	cleanStaleProjectImportStaging,
 	importProjectZip,
+	restoreReferenceEditionsZip,
 } from '$lib/client/sync/project-zip-import';
 import {
 	importCloudProject,
@@ -254,6 +255,11 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 			postMessage({ type: 'db:invalidate', domain: 'collations' });
 			postMessage({ type: 'db:invalidate', domain: 'iiif' });
 		}
+		return result;
+	}
+	if (request.type === 'accountBackup.restoreReferenceEditions') {
+		const result = await restoreReferenceEditionsZip(request.bytes);
+		postMessage({ type: 'db:invalidate', domain: 'reference-editions' });
 		return result;
 	}
 	if (request.type === 'cloudProjects.listCandidates') {

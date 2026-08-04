@@ -121,7 +121,11 @@ export {
 	type WorkingCollationDocument,
 	type WorkingCollationPayload,
 } from './working-collation';
-export { transcriptionDocumentToTei, collationDocumentToTei } from './tei';
+export {
+	transcriptionDocumentToTei,
+	transcriptionDocumentToTeiFromStore,
+	collationDocumentToTei,
+} from './tei';
 
 export const canonicalFormatRegistrations: FormatRegistration<JsonObject>[] = [
 	projectManifestFormatRegistration as unknown as FormatRegistration<JsonObject>,

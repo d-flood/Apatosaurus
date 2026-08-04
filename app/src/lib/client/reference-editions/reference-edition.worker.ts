@@ -1,22 +1,9 @@
-import { importTEIDocument } from '$lib/tei/tei-importer';
-import { createReferenceEditionSource } from '$lib/reference-editions/source';
-import { DOMParser } from '@xmldom/xmldom';
+import { parseReferenceEditionXml } from '$lib/reference-editions/parse';
 
 import type {
 	ReferenceEditionWorkerRequest,
 	ReferenceEditionWorkerResponse,
 } from './reference-edition-worker-types';
-
-if (typeof globalThis.DOMParser === 'undefined') {
-	globalThis.DOMParser = DOMParser as typeof globalThis.DOMParser;
-}
-
-if (typeof globalThis.Node === 'undefined') {
-	globalThis.Node = {
-		ELEMENT_NODE: 1,
-		TEXT_NODE: 3,
-	} as typeof globalThis.Node;
-}
 
 self.onmessage = (event: MessageEvent<ReferenceEditionWorkerRequest>) => {
 	void handleMessage(event.data);
@@ -26,23 +13,12 @@ async function handleMessage(message: ReferenceEditionWorkerRequest): Promise<vo
 	try {
 		if (message.type !== 'parse') return;
 		const xml = message.xml ?? (await loadAsset(message.assetPath));
-		const document = importTEIDocument(xml, { opaqueMilestoneLabels: true });
-		const source = createReferenceEditionSource(document);
-		const title =
-			document.header?.titles?.find(item => item.type === 'document')?.text ||
-			document.header?.titles?.find(item => item.type === 'short')?.text ||
-			document.header?.titles?.[0]?.text ||
-			document.metadata?.title;
+		const { source, metadata } = parseReferenceEditionXml(xml);
 		postMessage({
 			type: 'parsed',
 			requestId: message.requestId,
 			source,
-			metadata: {
-				...(title ? { title } : {}),
-				...(document.header?.publication?.availability
-					? { attribution: document.header.publication.availability }
-					: {}),
-			},
+			metadata,
 		} satisfies ReferenceEditionWorkerResponse);
 	} catch (error) {
 		postMessage({

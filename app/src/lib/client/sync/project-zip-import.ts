@@ -20,8 +20,10 @@ import {
 	listDirectory,
 	projectFolder,
 	readTextFile,
+	restoreUserReferenceEditions,
+	validateStoredUserReferenceEdition,
 	serializeCanonicalDocument,
-	transcriptionDocumentToTei,
+	transcriptionDocumentToTeiFromStore,
 	withDocumentStoreWriterLock,
 	writeTextFileAtomic,
 	type CollationCheckpointPayload,
@@ -82,14 +84,18 @@ export interface ProjectImportResult extends IndexRebuildReport {
 
 export type ProjectZipImportResult = ProjectImportResult;
 
+export interface ReferenceEditionsRestoreResult {
+	restored: number;
+	skipped: number;
+}
+
 export interface ReadableProjectImportFile {
 	path: string;
 	read: () => Promise<string>;
 }
 
 export type ReadableProjectFileTree =
-	| Iterable<ReadableProjectImportFile>
-	| AsyncIterable<ReadableProjectImportFile>;
+	Iterable<ReadableProjectImportFile> | AsyncIterable<ReadableProjectImportFile>;
 
 export interface StagedProjectValidation {
 	stagingPath: string;
@@ -123,6 +129,36 @@ export async function importProjectZip(
 	} catch (error) {
 		return failedImport([quarantine('', errorMessage(error), options.now)]);
 	}
+}
+
+export async function restoreReferenceEditionsZip(
+	bytes: Uint8Array,
+	storeOptions: StoreOperationOptions = {}
+): Promise<ReferenceEditionsRestoreResult> {
+	const entries = parseStoreOnlyZip(bytes);
+	if (entries.length === 0) {
+		throw new Error('Reference edition archive must contain at least one edition.');
+	}
+	const paths = new Set<string>();
+	for (const entry of entries) {
+		if (!/^reference-editions\/user-[a-f0-9]{64}\.json$/.test(entry.path)) {
+			throw new Error(`Unexpected reference edition archive entry: ${entry.path}.`);
+		}
+		if (paths.has(entry.path)) throw new Error(`Duplicate archive path: ${entry.path}.`);
+		paths.add(entry.path);
+	}
+	await Promise.all(
+		entries.map(entry =>
+			validateStoredUserReferenceEdition(
+				entry.content,
+				entry.path.slice('reference-editions/'.length, -'.json'.length)
+			)
+		)
+	);
+	return restoreUserReferenceEditions(
+		entries.map(entry => entry.content),
+		storeOptions
+	);
 }
 
 export async function stageAndValidateProjectFileTree(
@@ -256,12 +292,13 @@ async function prepareImport(
 			storageSlug: existing.storage_slug,
 			mode: 'replaced',
 		};
-	return copyProjectEntries(staged.entries, manifest);
+	return copyProjectEntries(staged.entries, manifest, options.storeOptions ?? {});
 }
 
 async function copyProjectEntries(
 	entries: ValidatedStagedProjectEntry[],
-	sourceManifest: ProjectManifestPayload
+	sourceManifest: ProjectManifestPayload,
+	storeOptions: StoreOperationOptions
 ): Promise<PreparedImport> {
 	const copyId = createId();
 	const copyName = `${sourceManifest.name} Copy`;
@@ -374,7 +411,7 @@ async function copyProjectEntries(
 		const payload = entry.payload as ProjectTranscriptionPayload;
 		rewritten.push({
 			path: `transcriptions/${payload.project_transcription_id}.tei.xml`,
-			content: transcriptionDocumentToTei(payload),
+			content: await transcriptionDocumentToTeiFromStore(payload, storeOptions),
 			format: null,
 		});
 	}
@@ -541,12 +578,34 @@ function collationContent(payload: CollationPayload): JsonObject {
 }
 
 function parseStoreOnlyZip(bytes: Uint8Array): Array<{ path: string; content: string }> {
+	if (bytes.length < 22) throw new Error('Input is not a ZIP archive.');
 	const decoder = new TextDecoder();
-	const entries = [];
+	const entries: Array<{ path: string; content: string; size: number; localOffset: number }> = [];
+	const endOffset = bytes.length - 22;
+	const endView = new DataView(bytes.buffer, bytes.byteOffset + endOffset, 22);
+	if (endView.getUint32(0, true) !== 0x06054b50 || endView.getUint16(20, true) !== 0) {
+		throw new Error('ZIP archive has a missing end record or trailing data.');
+	}
+	if (endView.getUint16(4, true) !== 0 || endView.getUint16(6, true) !== 0) {
+		throw new Error('Multi-disk ZIP archives are not supported.');
+	}
+	const entryCount = endView.getUint16(10, true);
+	if (endView.getUint16(8, true) !== entryCount) {
+		throw new Error('ZIP archive entry count is inconsistent.');
+	}
+	const centralSize = endView.getUint32(12, true);
+	const centralOffset = endView.getUint32(16, true);
+	if (centralOffset + centralSize !== endOffset) {
+		throw new Error('ZIP archive central directory is invalid.');
+	}
 	let offset = 0;
-	while (offset + 30 <= bytes.length) {
+	while (offset < centralOffset) {
+		const localOffset = offset;
+		if (offset + 30 > centralOffset) throw new Error('ZIP local entry is truncated.');
 		const view = new DataView(bytes.buffer, bytes.byteOffset + offset);
-		if (view.getUint32(0, true) !== 0x04034b50) break;
+		if (view.getUint32(0, true) !== 0x04034b50) {
+			throw new Error('ZIP local entry is invalid.');
+		}
 		if (view.getUint16(8, true) !== 0)
 			throw new Error('Only stored zip entries are supported.');
 		const size = view.getUint32(18, true);
@@ -554,15 +613,42 @@ function parseStoreOnlyZip(bytes: Uint8Array): Array<{ path: string; content: st
 		const extraLength = view.getUint16(28, true);
 		const pathStart = offset + 30;
 		const contentStart = pathStart + pathLength + extraLength;
-		if (contentStart + size > bytes.length)
+		if (contentStart + size > centralOffset)
 			throw new Error('ZIP entry extends beyond the archive.');
 		entries.push({
 			path: decoder.decode(bytes.slice(pathStart, pathStart + pathLength)),
 			content: decoder.decode(bytes.slice(contentStart, contentStart + size)),
+			size,
+			localOffset,
 		});
 		offset = contentStart + size;
 	}
-	return entries;
+	if (entries.length !== entryCount) throw new Error('ZIP archive entry count is inconsistent.');
+	offset = centralOffset;
+	for (const entry of entries) {
+		if (offset + 46 > endOffset) throw new Error('ZIP central directory is truncated.');
+		const view = new DataView(bytes.buffer, bytes.byteOffset + offset);
+		if (view.getUint32(0, true) !== 0x02014b50 || view.getUint16(10, true) !== 0) {
+			throw new Error('ZIP central directory entry is invalid.');
+		}
+		const pathLength = view.getUint16(28, true);
+		const extraLength = view.getUint16(30, true);
+		const commentLength = view.getUint16(32, true);
+		const nextOffset = offset + 46 + pathLength + extraLength + commentLength;
+		if (nextOffset > endOffset) throw new Error('ZIP central directory entry is truncated.');
+		const path = decoder.decode(bytes.slice(offset + 46, offset + 46 + pathLength));
+		if (
+			path !== entry.path ||
+			view.getUint32(20, true) !== entry.size ||
+			view.getUint32(24, true) !== entry.size ||
+			view.getUint32(42, true) !== entry.localOffset
+		) {
+			throw new Error('ZIP central directory does not match its local entries.');
+		}
+		offset = nextOffset;
+	}
+	if (offset !== endOffset) throw new Error('ZIP central directory size is inconsistent.');
+	return entries.map(({ path, content }) => ({ path, content }));
 }
 
 function collisionImport(collision: ProjectImportCollision): ProjectImportResult {

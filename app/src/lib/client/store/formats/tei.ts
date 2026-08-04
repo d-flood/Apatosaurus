@@ -7,6 +7,9 @@ import {
 } from '$lib/reference-editions/catalog';
 import { exportTEIDocument } from '$lib/tei/tei-exporter';
 
+import { listUserReferenceEditions } from '../user-reference-editions';
+import type { StoreOperationOptions } from '../opfs-store';
+
 import type { ProjectTranscriptionPayload } from './project-transcription';
 
 export function transcriptionDocumentToTei(
@@ -19,7 +22,8 @@ export function transcriptionDocumentToTei(
 	}
 	const sourceAttributions = resolveReferenceEditionAttributions(
 		transcription.referenceEditionsUsed || [],
-		referenceEditions
+		referenceEditions,
+		transcription.referenceEditionAttributions
 	);
 	return exportTEIDocument(transcription, {
 		title: document.title,
@@ -30,6 +34,14 @@ export function transcriptionDocumentToTei(
 		language: document.language,
 		...(sourceAttributions.length > 0 ? { sourceAttributions } : {}),
 	});
+}
+
+export async function transcriptionDocumentToTeiFromStore(
+	document: ProjectTranscriptionPayload,
+	storeOptions: StoreOperationOptions = {}
+): Promise<string> {
+	const referenceEditions = listReferenceEditions(await listUserReferenceEditions(storeOptions));
+	return transcriptionDocumentToTei(document, referenceEditions);
 }
 
 export function collationDocumentToTei(document: SemanticCollationDocument): string {

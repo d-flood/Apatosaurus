@@ -13,7 +13,11 @@ import { fromProseMirror, type TranscriptionDocument } from '$lib/tei/tei-transc
 
 import { editorPlainPage, modelDocumentSnapshot } from '../testing/editorFixtures';
 import { createTestEditor } from '../testing/editorHarnesses.svelte';
-import { coerceTranscriptionDocument, serializeTranscriptionDocument } from './content';
+import {
+	addReferenceEditionUsed,
+	coerceTranscriptionDocument,
+	serializeTranscriptionDocument,
+} from './content';
 
 function blankLineFixture() {
 	return {
@@ -51,6 +55,21 @@ function storedLineTexts(document_: TranscriptionDocument): string[] {
 }
 
 describe('the transcription save path', () => {
+	it('persists a reference edition attribution with its identity', () => {
+		const document = addReferenceEditionUsed(
+			{ type: 'transcriptionDocument', pages: [] },
+			'user-edition',
+			'User edition attribution'
+		);
+
+		expect(coerceTranscriptionDocument(serializeTranscriptionDocument(document))).toMatchObject(
+			{
+				referenceEditionsUsed: ['user-edition'],
+				referenceEditionAttributions: { 'user-edition': 'User edition attribution' },
+			}
+		);
+	});
+
 	it('keeps blank lines the user typed, wherever they sit in the column', () => {
 		const editor = createTestEditor({ content: blankLineFixture() as any, attach: true });
 		try {

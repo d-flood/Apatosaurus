@@ -11,10 +11,16 @@ import {
 	saveWorkingTranscriptionMetadata,
 } from '$lib/client/db/repositories/transcription-files';
 import { MemoryStoreBackend } from '$lib/client/store/memory-store-backend.spec-support';
-import { registerUserReferenceEdition } from '$lib/client/store/user-reference-editions';
 import {
+	listUserReferenceEditions,
+	loadUserReferenceEditionXml,
+	registerUserReferenceEdition,
+} from '$lib/client/store/user-reference-editions';
+import {
+	InMemoryQuarantineReport,
 	joinStorePath,
 	projectFolder,
+	readTextFile,
 	writeTextFileAtomic,
 	type StoreOperationOptions,
 } from '$lib/client/store';
@@ -22,19 +28,26 @@ import { zipExportBackupPathMessage } from '$lib/onboarding-guidance';
 import {
 	exportAllProjectsZip,
 	exportProjectZip,
+	createStoreOnlyZip,
 	projectBackupCapabilityMessage,
 } from './project-zip-export';
-import { importProjectZip } from './project-zip-import';
+import { importProjectZip, restoreReferenceEditionsZip } from './project-zip-import';
 
 let harness: LocalDbTestHarness;
 let backend: MemoryStoreBackend;
 let storeOptions: StoreOperationOptions;
 
+function editionXml(word = ''): string {
+	return `<TEI xmlns="http://www.tei-c.org/ns/1.0"><teiHeader/><text><body><div type="book" n="book"><ab n="1"><w>${word}</w></ab></div></body></text></TEI>`;
+}
+
 class ByteReadingMemoryStoreBackend extends MemoryStoreBackend {
 	readonly byteOverrides = new Map<string, Uint8Array>();
 
 	async readFileBytes(path: string): Promise<Uint8Array> {
-		return this.byteOverrides.get(path) ?? new TextEncoder().encode(await this.readTextFile(path));
+		return (
+			this.byteOverrides.get(path) ?? new TextEncoder().encode(await this.readTextFile(path))
+		);
 	}
 }
 
@@ -121,7 +134,7 @@ describe('project zip export', () => {
 			'{"referenceEditionsUsed":["user-licensed"]}'
 		);
 		await registerUserReferenceEdition(
-			{ xml: '<TEI><ab n="1"/></TEI>', fileName: 'licensed.xml' },
+			{ xml: editionXml(), fileName: 'licensed.xml' },
 			{
 				...storeOptions,
 				parse: async () => ({
@@ -296,7 +309,9 @@ describe('project zip export', () => {
 			for (const archive of result.archives) {
 				const imported = await importProjectZip(targetHarness.db, archive.bytes, {
 					storeOptions: { backend: targetBackend },
-					collisionMode: archive.fileName.startsWith('romans-a1b2-') ? 'replace' : undefined,
+					collisionMode: archive.fileName.startsWith('romans-a1b2-')
+						? 'replace'
+						: undefined,
 				});
 				expect(imported.ok).toBe(true);
 				modes.push(imported.mode);
@@ -329,6 +344,287 @@ describe('project zip export', () => {
 		expect(result.invalidProjects).toEqual([
 			expect.objectContaining({ storageSlug: 'broken-project', path: 'project.json' }),
 		]);
+	});
+
+	it('exports and restores user editions while excluding bundled editions and project archives', async () => {
+		await createProject(harness.db, {
+			id: 'project-1',
+			storageSlug: 'romans-a1b2',
+			name: 'Romans',
+		});
+		const editions = [
+			{ xml: editionXml('alpha'), title: 'Alpha edition' },
+			{ xml: editionXml('beta'), title: 'Beta edition' },
+		];
+		for (const edition of editions) {
+			await registerUserReferenceEdition(
+				{ xml: edition.xml, fileName: `${edition.title}.xml` },
+				{
+					...storeOptions,
+					parse: async () => ({
+						source: { units: [{ position: 0, label: { verse: '1' }, content: [] }] },
+						metadata: { title: edition.title, attribution: 'Private licence' },
+					}),
+				}
+			);
+		}
+
+		const exported = await exportAllProjectsZip(harness.db, { storeOptions });
+
+		expect(exported.referenceEditionsArchive?.entryPaths).toHaveLength(2);
+		expect(exported.referenceEditionsArchive?.entryPaths).toEqual([
+			expect.stringMatching(/^reference-editions\/user-.+\.json$/),
+			expect.stringMatching(/^reference-editions\/user-.+\.json$/),
+		]);
+		expect(exported.archives[0]?.entryPaths).toEqual(['project.json']);
+
+		const targetBackend = new MemoryStoreBackend();
+		const archive = exported.referenceEditionsArchive!;
+		await expect(
+			restoreReferenceEditionsZip(archive.bytes, { backend: targetBackend })
+		).resolves.toEqual({ restored: 2, skipped: 0 });
+		const restored = await listUserReferenceEditions({ backend: targetBackend });
+		expect(restored.map(edition => edition.title)).toEqual(['Alpha edition', 'Beta edition']);
+		await expect(
+			loadUserReferenceEditionXml(restored[0]!, { backend: targetBackend })
+		).resolves.toBe(editions[0]!.xml);
+		await expect(
+			restoreReferenceEditionsZip(archive.bytes, { backend: targetBackend })
+		).resolves.toEqual({ restored: 0, skipped: 2 });
+		await expect(listUserReferenceEditions({ backend: targetBackend })).resolves.toHaveLength(
+			2
+		);
+	});
+
+	it('does not overwrite a local edition with the same identity during restore', async () => {
+		const xml = editionXml('same');
+		await registerUserReferenceEdition(
+			{ xml, fileName: 'remote.xml' },
+			{
+				...storeOptions,
+				parse: async () => ({
+					source: { units: [{ position: 0, label: { verse: '1' }, content: [] }] },
+					metadata: { title: 'Remote title', attribution: 'Remote licence' },
+				}),
+			}
+		);
+		const exported = await exportAllProjectsZip(harness.db, { storeOptions });
+		const targetBackend = new MemoryStoreBackend();
+		await registerUserReferenceEdition(
+			{ xml, fileName: 'local.xml' },
+			{
+				backend: targetBackend,
+				parse: async () => ({
+					source: { units: [{ position: 0, label: { verse: '1' }, content: [] }] },
+					metadata: { title: 'Local title', attribution: 'Local licence' },
+				}),
+			}
+		);
+
+		await expect(
+			restoreReferenceEditionsZip(exported.referenceEditionsArchive!.bytes, {
+				backend: targetBackend,
+			})
+		).resolves.toEqual({ restored: 0, skipped: 1 });
+		await expect(listUserReferenceEditions({ backend: targetBackend })).resolves.toEqual([
+			expect.objectContaining({ title: 'Local title', attribution: 'Local licence' }),
+		]);
+	});
+
+	it('validates every edition archive entry before restoring any files', async () => {
+		for (const [title, word] of [
+			['Alpha edition', 'alpha'],
+			['Beta edition', 'beta'],
+		] as const) {
+			await registerUserReferenceEdition(
+				{ xml: editionXml(word), fileName: `${word}.xml` },
+				{
+					...storeOptions,
+					parse: async () => ({
+						source: { units: [{ position: 0, label: { verse: '1' }, content: [] }] },
+						metadata: { title, attribution: 'Private licence' },
+					}),
+				}
+			);
+		}
+		const exported = await exportAllProjectsZip(harness.db, { storeOptions });
+		const bytes = exported.referenceEditionsArchive!.bytes.slice();
+		corruptZipEntry(bytes, exported.referenceEditionsArchive!.entryPaths[1]!);
+		const targetBackend = new MemoryStoreBackend();
+
+		await expect(
+			restoreReferenceEditionsZip(bytes, { backend: targetBackend })
+		).rejects.toThrow();
+		await expect(listUserReferenceEditions({ backend: targetBackend })).resolves.toEqual([]);
+	});
+
+	it.each([
+		['empty input', new Uint8Array()],
+		['non-ZIP input', new TextEncoder().encode('not a zip')],
+	])('rejects %s as a reference-edition archive', async (_label, bytes) => {
+		await expect(restoreReferenceEditionsZip(bytes, { backend })).rejects.toThrow(/ZIP/i);
+		await expect(listUserReferenceEditions({ backend })).resolves.toEqual([]);
+	});
+
+	it('rejects an empty ZIP and trailing archive garbage', async () => {
+		await expect(
+			restoreReferenceEditionsZip(createStoreOnlyZip([]), { backend })
+		).rejects.toThrow('at least one edition');
+
+		await registerUserReferenceEdition(
+			{ xml: editionXml('alpha'), fileName: 'alpha.xml' },
+			{
+				...storeOptions,
+				parse: async () => ({
+					source: { units: [{ position: 0, label: { verse: '1' }, content: [] }] },
+					metadata: { title: 'Alpha', attribution: 'Private licence' },
+				}),
+			}
+		);
+		const archive = (await exportAllProjectsZip(harness.db, { storeOptions }))
+			.referenceEditionsArchive!;
+		const withGarbage = new Uint8Array(archive.bytes.length + 1);
+		withGarbage.set(archive.bytes);
+		withGarbage[withGarbage.length - 1] = 1;
+
+		await expect(
+			restoreReferenceEditionsZip(withGarbage, { backend: new MemoryStoreBackend() })
+		).rejects.toThrow('trailing data');
+	});
+
+	it('rejects a self-consistent stored edition whose TEI has no milestones', async () => {
+		const edition = await registerUserReferenceEdition(
+			{
+				xml: '<TEI xmlns="http://www.tei-c.org/ns/1.0"><teiHeader/><text><body><pb n="1"/><cb n="1"/><lb n="1"/><w>text</w></body></text></TEI>',
+				fileName: 'invalid.xml',
+			},
+			{
+				...storeOptions,
+				parse: async () => ({
+					source: { units: [{ position: 0, label: { verse: 'fake' }, content: [] }] },
+					metadata: { title: 'Invalid', attribution: 'Private licence' },
+				}),
+			}
+		);
+		const raw = await readTextFile(edition.storePath!, storeOptions);
+		const archive = createStoreOnlyZip([
+			{
+				path: `reference-editions/${edition.id}.json`,
+				bytes: new TextEncoder().encode(raw),
+			},
+		]);
+		const targetBackend = new MemoryStoreBackend();
+
+		await expect(
+			restoreReferenceEditionsZip(archive, { backend: targetBackend })
+		).rejects.toThrow('at least one milestone');
+		await expect(listUserReferenceEditions({ backend: targetBackend })).resolves.toEqual([]);
+	});
+
+	it('rolls back every edition after a deterministic mid-write failure', async () => {
+		for (const word of ['alpha', 'beta']) {
+			await registerUserReferenceEdition(
+				{ xml: editionXml(word), fileName: `${word}.xml` },
+				{
+					...storeOptions,
+					parse: async () => ({
+						source: { units: [{ position: 0, label: { verse: '1' }, content: [] }] },
+						metadata: { title: word, attribution: 'Private licence' },
+					}),
+				}
+			);
+		}
+		const archive = (await exportAllProjectsZip(harness.db, { storeOptions }))
+			.referenceEditionsArchive!;
+		const targetBackend = new MemoryStoreBackend();
+		targetBackend.failWritePathIncludesOnce = archive.entryPaths[1]!.split('/').at(-1)!;
+
+		await expect(
+			restoreReferenceEditionsZip(archive.bytes, { backend: targetBackend })
+		).rejects.toThrow('simulated write failure');
+		await expect(listUserReferenceEditions({ backend: targetBackend })).resolves.toEqual([]);
+		expect(
+			[...targetBackend.files.keys()].filter(path =>
+				/reference-editions\/user-.+\.json$/.test(path)
+			)
+		).toEqual([]);
+	});
+
+	it('refuses to export a corrupt canonical edition envelope', async () => {
+		const edition = await registerUserReferenceEdition(
+			{ xml: editionXml('alpha'), fileName: 'alpha.xml' },
+			{
+				...storeOptions,
+				parse: async () => ({
+					source: { units: [{ position: 0, label: { verse: '1' }, content: [] }] },
+					metadata: { title: 'Alpha edition', attribution: 'Private licence' },
+				}),
+			}
+		);
+		await writeTextFileAtomic(edition.storePath!, '{"corrupt":true}', storeOptions);
+
+		await expect(exportAllProjectsZip(harness.db, { storeOptions })).rejects.toThrow();
+	});
+
+	it('quarantines and replaces a corrupt local edition from a valid backup', async () => {
+		const source = await registerUserReferenceEdition(
+			{ xml: editionXml('alpha'), fileName: 'alpha.xml' },
+			{
+				...storeOptions,
+				parse: async () => ({
+					source: { units: [{ position: 0, label: { verse: '1' }, content: [] }] },
+					metadata: { title: 'Alpha edition', attribution: 'Private licence' },
+				}),
+			}
+		);
+		const exported = await exportAllProjectsZip(harness.db, { storeOptions });
+		const targetBackend = new MemoryStoreBackend();
+		const quarantineSink = new InMemoryQuarantineReport();
+		await writeTextFileAtomic(source.storePath!, '{"corrupt":true}', {
+			backend: targetBackend,
+		});
+
+		await expect(
+			restoreReferenceEditionsZip(exported.referenceEditionsArchive!.bytes, {
+				backend: targetBackend,
+				quarantineSink,
+			})
+		).resolves.toEqual({ restored: 1, skipped: 0 });
+		await expect(listUserReferenceEditions({ backend: targetBackend })).resolves.toEqual([
+			expect.objectContaining({ id: source.id, title: 'Alpha edition' }),
+		]);
+		expect(quarantineSink.list()).toEqual([
+			expect.objectContaining({ path: source.storePath, code: 'invalid_shape' }),
+		]);
+		const quarantined = [...targetBackend.files.entries()].filter(([path]) =>
+			path.includes('/reference-editions/quarantine/')
+		);
+		expect(quarantined).toHaveLength(1);
+		expect(quarantined[0]?.[1]).toBe('{"corrupt":true}');
+	});
+
+	it('keeps the whole-account output unchanged when there are no user editions', async () => {
+		await createProject(harness.db, {
+			id: 'project-1',
+			storageSlug: 'romans-a1b2',
+			name: 'Romans',
+		});
+
+		const direct = await exportProjectZip(harness.db, 'project-1', { storeOptions });
+		const wholeAccount = await exportAllProjectsZip(harness.db, { storeOptions });
+
+		expect(wholeAccount.referenceEditionsArchive).toBeNull();
+		expect(wholeAccount.archives[0]?.entryPaths).toEqual(direct.entryPaths);
+		expect(wholeAccount.archives[0]?.bytes).toEqual(direct.bytes);
+	});
+
+	it('exports an empty account without adding an edition archive', async () => {
+		await expect(exportAllProjectsZip(harness.db, { storeOptions })).resolves.toEqual({
+			archives: [],
+			referenceEditionsArchive: null,
+			invalidProjects: [],
+			exportedAt: expect.any(String),
+		});
 	});
 
 	it('rejects configured ZIP count and size limits instead of wrapping ZIP32 fields', async () => {
@@ -407,4 +703,25 @@ function readZipEntryBytes(bytes: Uint8Array): Record<string, Uint8Array> {
 		offset = contentStart + size;
 	}
 	return entries;
+}
+
+function corruptZipEntry(bytes: Uint8Array, targetPath: string): void {
+	const decoder = new TextDecoder();
+	let offset = 0;
+	while (offset + 30 <= bytes.length) {
+		const view = new DataView(bytes.buffer, bytes.byteOffset + offset);
+		if (view.getUint32(0, true) !== 0x04034b50) break;
+		const size = view.getUint32(18, true);
+		const pathLength = view.getUint16(26, true);
+		const extraLength = view.getUint16(28, true);
+		const pathStart = offset + 30;
+		const contentStart = pathStart + pathLength + extraLength;
+		const path = decoder.decode(bytes.slice(pathStart, pathStart + pathLength));
+		if (path === targetPath) {
+			bytes[contentStart] = 'x'.charCodeAt(0);
+			return;
+		}
+		offset = contentStart + size;
+	}
+	throw new Error(`ZIP entry not found: ${targetPath}`);
 }

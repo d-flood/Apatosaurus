@@ -16,7 +16,7 @@ Ticket 04 is the widest slice. If it will not fit a single context window, split
 
 ## Current Status
 
-Overall status: `In Progress`
+Overall status: `Completed`
 
 Current ticket: None
 
@@ -30,10 +30,10 @@ Last updated: 2026-08-03
 | 02 | `02-paste-creates-unconfirmed-text.md` | Completed | None |
 | 03 | `03-review-reveal-and-warn.md` | Completed | 02 |
 | 04 | `04-seed-from-bundled-reference-edition.md` | Completed | 02 |
-| 05 | `05-hierarchical-picker-with-preview.md` | Not Started | 04 |
+| 05 | `05-hierarchical-picker-with-preview.md` | Completed | 04 |
 | 06 | `06-bring-your-own-reference-edition.md` | Completed | 04 |
 | 07 | `07-attribution-in-exported-tei.md` | Completed | 04 |
-| 08 | `08-whole-account-export-includes-editions.md` | Not Started | 06 |
+| 08 | `08-whole-account-export-includes-editions.md` | Completed | 06 |
 
 ## Prerequisite status
 
