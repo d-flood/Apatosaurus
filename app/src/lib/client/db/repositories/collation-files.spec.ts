@@ -186,6 +186,7 @@ describe('collation file persistence', () => {
 				projectId: 'project-1',
 				title: 'Romans 1:3',
 				verseIdentifier: 'Rom 1:3',
+				segment: { id: 'segment-1', name: 'Romans 1:3', members: ['Rom 1:3'] },
 				now: '2026-07-04T00:00:00.000Z',
 			},
 			{ backend, nonce: () => 'create-write' }
@@ -219,6 +220,7 @@ describe('collation file persistence', () => {
 				projectId: 'project-1',
 				title: 'Romans 1:3',
 				verseIdentifier: 'Rom 1:3',
+				segment: { id: 'segment-1', name: 'Romans 1:3', members: ['Rom 1:3'] },
 				now: '2026-07-04T00:00:00.000Z',
 			},
 			{ backend }
@@ -302,6 +304,7 @@ describe('collation file persistence', () => {
 				projectId: 'project-1',
 				title: 'Romans 1:3',
 				verseIdentifier: 'Rom 1:3',
+				segment: { id: 'segment-1', name: 'Romans 1:3', members: ['Rom 1:3'] },
 				now: '2026-07-04T00:00:00.000Z',
 			},
 			{ backend, nonce: () => 'create-write' }
@@ -380,7 +383,8 @@ describe('collation file persistence', () => {
 				],
 			},
 		});
-		expect(tei).toContain('Rom 1:3');
+		expect(tei).toContain('Romans 1:3');
+		expect(tei).not.toContain('Rom 1:3');
 		await expect(
 			harness.db.selectFrom('collation_artifacts').selectAll().execute()
 		).resolves.toEqual([]);
@@ -406,6 +410,7 @@ describe('collation file persistence', () => {
 					projectId: 'project-1',
 					title: 'Romans 1:3',
 					verseIdentifier: 'Rom 1:3',
+					segment: { id: 'segment-1', name: 'Romans 1:3', members: ['Rom 1:3'] },
 				},
 				{ backend, nonce: () => 'create-failure' }
 			)
@@ -434,6 +439,7 @@ describe('collation file persistence', () => {
 				projectId: 'project-1',
 				title: 'Romans 1:3',
 				verseIdentifier: 'Rom 1:3',
+				segment: { id: 'segment-1', name: 'Romans 1:3', members: ['Rom 1:3'] },
 			},
 			{ backend }
 		);
@@ -750,10 +756,7 @@ function collationDocument(phase: string) {
 			alignmentLayout: 'grid',
 		},
 		setup: {
-			selectedVerse: null,
-			selectedBook: 'Romans',
-			selectedChapter: '1',
-			selectedVerseNum: '1',
+			segment: { id: 'segment-1', name: 'Romans 1:1', members: ['Romans 1:1'] },
 			witnesses: [],
 		},
 		settings: {

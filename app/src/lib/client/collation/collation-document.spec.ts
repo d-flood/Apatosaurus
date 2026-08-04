@@ -46,16 +46,7 @@ describe('collation document', () => {
 			projectName: 'Project One',
 			phase: 'readings',
 			furthestPhase: 'stemma',
-			selectedVerse: {
-				identifier: 'John 1:1',
-				book: 'John',
-				chapter: '1',
-				verse: '1',
-				count: 2,
-			},
-			selectedBook: 'John',
-			selectedChapter: '1',
-			selectedVerseNum: '1',
+			segment: { id: 'segment-1', name: 'John 1:1', members: ['John 1:1'] },
 			witnesses: [makeWitness('A', 'θεος', true), makeWitness('B', 'θς')],
 			rules: [
 				{
@@ -179,6 +170,11 @@ describe('collation document', () => {
 
 		const hydrated = hydrateCollationDocument(parsed!);
 		expect(hydrated.projectId).toBe('proj-1');
+		expect(hydrated.segment).toEqual({
+			id: 'segment-1',
+			name: 'John 1:1',
+			members: ['John 1:1'],
+		});
 		expect(hydrated.phase).toBe('readings');
 		expect(hydrated.furthestPhase).toBe('stemma');
 		expect(hydrated.ignoreWordBreaks).toBe(true);
@@ -217,10 +213,7 @@ describe('collation document', () => {
 				projectName: 'Project One',
 				phase: 'setup',
 				furthestPhase: 'setup',
-				selectedVerse: null,
-				selectedBook: '',
-				selectedChapter: '',
-				selectedVerseNum: '',
+				segment: { id: 'segment-1', name: 'John 1:1', members: ['John 1:1'] },
 				witnesses: [corrector],
 				rules: [],
 				ignoreWordBreaks: false,
@@ -248,5 +241,32 @@ describe('collation document', () => {
 		expect(hydrated.witnesses[0]?.fragmentaryTokens?.map(token => token.original)).toEqual([
 			'θς',
 		]);
+	});
+
+	it('rejects a segment without a scholar-supplied name', () => {
+		expect(() =>
+			buildCollationDocument({
+				collationId: null,
+				projectId: null,
+				projectName: null,
+				phase: 'setup',
+				furthestPhase: 'setup',
+				segment: { id: 'segment-1', name: '  ', members: ['John 1:1'] },
+				witnesses: [],
+				rules: [],
+				ignoreWordBreaks: false,
+				lowercase: false,
+				ignoreTokenWhitespace: true,
+				ignorePunctuation: false,
+				suppliedTextMode: 'clear',
+				segmentation: true,
+				alignmentColumns: [],
+				witnessOrder: [],
+				classifiedReadings: new Map(),
+				stemmaEdges: new Map(),
+				alignmentDisplayMode: 'regularized',
+				alignmentLayout: 'grid',
+			})
+		).toThrow('Collation segment name is required.');
 	});
 });

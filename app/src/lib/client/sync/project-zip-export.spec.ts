@@ -244,6 +244,7 @@ describe('project zip export', () => {
 				projectId: 'project-1',
 				title: 'Romans 1:1',
 				verseIdentifier: 'Romans 1:1',
+				segment: { id: 'segment-1', name: 'Romans 1:1', members: ['Romans 1:1'] },
 			},
 			storeOptions
 		);

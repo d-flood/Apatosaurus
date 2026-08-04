@@ -390,6 +390,7 @@ async function seedCompleteProject(): Promise<void> {
 			projectId: 'project-1',
 			title: 'Romans 1:1',
 			verseIdentifier: 'Romans 1:1',
+			segment: { id: 'segment-1', name: 'Romans 1:1', members: ['Romans 1:1'] },
 		},
 		{ backend }
 	);
@@ -504,10 +505,7 @@ function collationDocument(phase: string) {
 			alignmentLayout: 'grid',
 		},
 		setup: {
-			selectedVerse: null,
-			selectedBook: 'Romans',
-			selectedChapter: '1',
-			selectedVerseNum: '1',
+			segment: { id: 'segment-1', name: 'Romans 1:1', members: ['Romans 1:1'] },
 			witnesses: [],
 		},
 		settings: {

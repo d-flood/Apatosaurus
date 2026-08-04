@@ -319,6 +319,7 @@ async function createProjectTranscriptionAndCollation(db: WorkerClient): Promise
 			projectId: PROJECT_ID,
 			title: 'Romans 1:2 Collation',
 			verseIdentifier: 'Romans 1:2',
+			segment: { id: 'segment-1', name: 'Romans 1:2', members: ['Romans 1:2'] },
 			now: '2026-07-06T10:04:00.000Z',
 		},
 	});
@@ -343,10 +344,7 @@ async function createProjectTranscriptionAndCollation(db: WorkerClient): Promise
 					alignmentLayout: 'grid',
 				},
 				setup: {
-					selectedVerse: null,
-					selectedBook: 'Romans',
-					selectedChapter: '1',
-					selectedVerseNum: '2',
+					segment: { id: 'segment-1', name: 'Romans 1:2', members: ['Romans 1:2'] },
 					witnesses: [
 						{
 							type: 'witness',

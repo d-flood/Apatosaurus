@@ -407,10 +407,7 @@ function collationDocument() {
 			alignmentLayout: 'grid',
 		},
 		setup: {
-			selectedVerse: null,
-			selectedBook: 'Romans',
-			selectedChapter: '1',
-			selectedVerseNum: '1',
+			segment: { id: 'segment-1', name: 'Romans 1:1', members: ['Romans 1:1'] },
 			witnesses: [],
 		},
 		settings: {

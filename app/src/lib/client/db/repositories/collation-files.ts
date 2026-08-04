@@ -185,6 +185,8 @@ export async function createCollationWithFilesResult(
 	input: CreateCollationInput,
 	storeOptions: StoreOperationOptions = {}
 ): Promise<PersistenceResult<string>> {
+	const segment = input.segment;
+	if (!segment) throw new Error('Collation segment is required.');
 	return db.transaction().execute(async trx => {
 		const id = await createCollation(trx, input);
 		const context = await loadCollationFileContext(trx, id);
@@ -195,16 +197,7 @@ export async function createCollationWithFilesResult(
 		projectName,
 		phase: 'setup',
 		furthestPhase: 'setup',
-		selectedVerse: {
-			identifier: input.verseIdentifier,
-			book: '',
-			chapter: '',
-			verse: '',
-			count: 0,
-		},
-		selectedBook: '',
-		selectedChapter: '',
-		selectedVerseNum: '',
+		segment,
 		witnesses: [],
 		rules: [],
 		ignoreWordBreaks: false,

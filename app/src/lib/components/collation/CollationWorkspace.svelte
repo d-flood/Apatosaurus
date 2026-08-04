@@ -252,9 +252,9 @@
 				<h1 class="text-xl font-serif font-bold tracking-tight text-base-content/90">
 					Collation
 				</h1>
-				{#if collationState.selectedVerse}
+				{#if collationState.segment}
 					<span class="text-sm text-base-content/50 font-mono">
-						{collationState.selectedVerse.identifier}
+						{collationState.segment.name}
 					</span>
 				{/if}
 			</div>

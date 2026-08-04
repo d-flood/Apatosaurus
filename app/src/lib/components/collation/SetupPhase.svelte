@@ -63,12 +63,7 @@
 	};
 
 	let matchingVerse = $derived(
-		verses.find(
-			v =>
-				v.book === collationState.selectedBook &&
-				v.chapter === collationState.selectedChapter &&
-				v.verse === collationState.selectedVerseNum
-		) ?? null
+		verses.find(v => v.identifier === collationState.segment?.members[0]) ?? null
 	);
 	let normalizedVerseFilter = $derived(verseFilter.trim().toLowerCase());
 	let filteredVerses = $derived(
@@ -146,9 +141,7 @@
 	function isCurrentWitnessLoad(request: WitnessLoadRequest) {
 		return (
 			activeWitnessLoadKey === request.key &&
-			collationState.selectedBook === request.verse.book &&
-			collationState.selectedChapter === request.verse.chapter &&
-			collationState.selectedVerseNum === request.verse.verse &&
+			collationState.segment?.members[0] === request.verse.identifier &&
 			buildWitnessLoadKey(
 				request.verse.identifier,
 				selectedTranscriptionIds,
@@ -245,6 +238,7 @@
 			selectedTranscriptionIds = syncedIds;
 			allTranscriptions = await listTranscriptions(projectId);
 			collationState.setWitnesses([]);
+			collationState.clearSegment();
 			collationState.selectedVerse = null;
 			collationState.selectedBook = '';
 			collationState.selectedChapter = '';
@@ -443,6 +437,7 @@
 	}
 
 	function selectVerse(verse: AggregatedVerse) {
+		collationState.setSegmentMember(verse.identifier);
 		collationState.selectedBook = verse.book;
 		collationState.selectedChapter = verse.chapter;
 		collationState.selectedVerseNum = verse.verse;
@@ -712,6 +707,24 @@
 								</div>
 							</div>
 						{/if}
+
+						<label class="form-control mt-4 w-full">
+							<div class="label">
+								<span class="label-text font-medium">Segment name*</span>
+							</div>
+							<input
+								type="text"
+								class="input input-bordered w-full"
+								placeholder="Name this passage"
+								value={collationState.segment?.name ?? ''}
+								disabled={!collationState.segment}
+								required
+								oninput={event => collationState.setSegmentName(event.currentTarget.value)}
+							/>
+							<p class="mt-1 text-xs text-base-content/50">
+								Required. This is the only passage reference shown in the collation output.
+							</p>
+						</label>
 					</div>
 				{/if}
 			</section>
@@ -889,9 +902,10 @@
 						disabled={!collationState.canAdvance()}
 						onclick={async () => {
 							let targetId = collationState.collationId;
-							if (!targetId && matchingVerse) {
+							if (!targetId && matchingVerse && collationState.segment) {
 								targetId = await collationState.createNewCollation(
-									`Collation ${matchingVerse.identifier}`,
+									`Collation ${collationState.segment.name}`,
+									collationState.segment.name,
 									matchingVerse.identifier
 								);
 							}

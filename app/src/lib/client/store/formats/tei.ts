@@ -48,7 +48,7 @@ export function collationDocumentToTei(document: SemanticCollationDocument): str
 	const title = document.meta.projectName
 		? `${document.meta.projectName} Collation`
 		: 'Apatosaurus Collation';
-	const verseIdentifier = selectedVerseIdentifier(document);
+	const segmentName = document.setup.segment.name;
 	const witnesses = document.setup.witnesses;
 	const witnessIds = new Map(witnesses.map(witness => [witness.id, witnessXmlId(witness.id)]));
 	const witnessList = witnesses
@@ -58,7 +58,7 @@ export function collationDocumentToTei(document: SemanticCollationDocument): str
 		)
 		.join('\n');
 	const apparatus = (document.apparatus?.units ?? [])
-		.map(unit => serializeVariationUnit(unit, verseIdentifier, witnessIds))
+		.map(unit => serializeVariationUnit(unit, segmentName, witnessIds))
 		.join('\n');
 	return `<?xml version="1.0" encoding="UTF-8"?>
 <TEI xmlns="http://www.tei-c.org/ns/1.0">
@@ -79,8 +79,8 @@ ${witnessList}
   </teiHeader>
   <text xml:lang="grc">
     <body>
-      <div type="collation" n="${escapeAttribute(verseIdentifier)}">
-        <ab xml:id="${escapeAttribute(xmlId(`${verseIdentifier}-APP`))}">
+      <div type="collation" n="${escapeAttribute(segmentName)}">
+        <ab xml:id="${escapeAttribute(xmlId(`${segmentName}-APP`))}">
 ${apparatus}
         </ab>
       </div>
@@ -139,14 +139,6 @@ function readingTypeAttribute(
 function witnessAttribute(witnesses: string[], witnessIds: Map<string, string>): string {
 	const refs = witnesses.map(witness => `#${witnessIds.get(witness) ?? witnessXmlId(witness)}`);
 	return refs.length > 0 ? `wit="${escapeAttribute(refs.join(' '))}"` : '';
-}
-
-function selectedVerseIdentifier(document: SemanticCollationDocument): string {
-	const selected = document.setup.selectedVerse;
-	if (selected?.identifier) return selected.identifier;
-	return [document.setup.selectedBook, document.setup.selectedChapter, document.setup.selectedVerseNum]
-		.filter(Boolean)
-		.join(' ') || 'collation';
 }
 
 function witnessXmlId(value: string): string {

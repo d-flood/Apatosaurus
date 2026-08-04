@@ -3,7 +3,6 @@ import {
 	type AlignmentColumn,
 	type SerializedAlignmentColumn,
 } from './alignment-snapshot';
-import type { AggregatedVerse } from './gather-verses';
 import type {
 	AlignmentLayout,
 	AlignmentDisplayMode,
@@ -17,6 +16,12 @@ import type {
 } from './collation-types';
 
 export const COLLATION_DOCUMENT_ARTIFACT_TYPE = 'collation_document_v1';
+
+export interface CollationSegment {
+	id: string;
+	name: string;
+	members: string[];
+}
 
 export interface CollationWitnessNode {
 	type: 'witness';
@@ -113,10 +118,7 @@ export interface CollationDocument {
 		alignmentLayout: AlignmentLayout;
 	};
 	setup: {
-		selectedVerse: AggregatedVerse | null;
-		selectedBook: string;
-		selectedChapter: string;
-		selectedVerseNum: string;
+		segment: CollationSegment;
 		witnesses: CollationWitnessNode[];
 	};
 	settings: {
@@ -139,10 +141,7 @@ export interface CollationDocumentSeed {
 	projectName: string | null;
 	phase: CollationPhase;
 	furthestPhase: CollationPhase;
-	selectedVerse: AggregatedVerse | null;
-	selectedBook: string;
-	selectedChapter: string;
-	selectedVerseNum: string;
+	segment: CollationSegment;
 	witnesses: WitnessConfig[];
 	rules: RegularizationRule[];
 	ignoreWordBreaks: boolean;
@@ -165,10 +164,7 @@ export interface HydratedCollationDocument {
 	projectName: string | null;
 	phase: CollationPhase;
 	furthestPhase: CollationPhase;
-	selectedVerse: AggregatedVerse | null;
-	selectedBook: string;
-	selectedChapter: string;
-	selectedVerseNum: string;
+	segment: CollationSegment;
 	witnesses: WitnessConfig[];
 	rules: RegularizationRule[];
 	ignoreWordBreaks: boolean;
@@ -208,6 +204,31 @@ function normalizeAlignmentLayout(value: unknown): AlignmentLayout {
 
 function normalizeSuppliedTextMode(value: unknown): SuppliedTextMode {
 	return value === 'gap' ? 'gap' : 'clear';
+}
+
+function assertCollationSegment(value: unknown): CollationSegment {
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		throw new Error('Collation segment is required.');
+	}
+	const candidate = value as Record<string, unknown>;
+	if (typeof candidate.id !== 'string' || !candidate.id.trim()) {
+		throw new Error('Collation segment id is required.');
+	}
+	if (typeof candidate.name !== 'string' || !candidate.name.trim()) {
+		throw new Error('Collation segment name is required.');
+	}
+	if (
+		!Array.isArray(candidate.members) ||
+		candidate.members.length !== 1 ||
+		candidate.members.some(member => typeof member !== 'string' || member.length === 0)
+	) {
+		throw new Error('A collation segment must contain exactly one member.');
+	}
+	return {
+		id: candidate.id,
+		name: candidate.name,
+		members: [...candidate.members],
+	};
 }
 
 function normalizeWitnesses(witnesses: WitnessConfig[]): CollationWitnessNode[] {
@@ -439,10 +460,7 @@ export function buildCollationDocument(seed: CollationDocumentSeed): CollationDo
 			alignmentLayout: seed.alignmentLayout,
 		},
 		setup: {
-			selectedVerse: seed.selectedVerse,
-			selectedBook: seed.selectedBook,
-			selectedChapter: seed.selectedChapter,
-			selectedVerseNum: seed.selectedVerseNum,
+			segment: assertCollationSegment(seed.segment),
 			witnesses: normalizeWitnesses(seed.witnesses),
 		},
 		settings: {
@@ -474,10 +492,7 @@ export function hydrateCollationDocument(document: CollationDocument): HydratedC
 		projectName: document.meta.projectName ?? null,
 		phase: normalizePhase(document.flow?.phase),
 		furthestPhase: normalizePhase(document.flow?.furthestPhase),
-		selectedVerse: document.setup?.selectedVerse ?? null,
-		selectedBook: document.setup?.selectedBook ?? '',
-		selectedChapter: document.setup?.selectedChapter ?? '',
-		selectedVerseNum: document.setup?.selectedVerseNum ?? '',
+		segment: assertCollationSegment(document.setup?.segment),
 		witnesses: parseWitnesses(document.setup?.witnesses),
 		rules: Array.isArray(document.settings?.regularizationRules)
 			? document.settings.regularizationRules
@@ -525,9 +540,15 @@ export function parseCollationDocument(value: unknown): CollationDocument | null
 	if (!raw || typeof raw !== 'object') return null;
 	const candidate = raw as Record<string, unknown>;
 	if (candidate.type !== 'collationDocument' || candidate.version !== 1) return null;
+	try {
+		assertCollationSegment((candidate.setup as Record<string, unknown> | undefined)?.segment);
+	} catch {
+		return null;
+	}
 	return candidate as unknown as CollationDocument;
 }
 
 export function serializeCollationDocument(document: CollationDocument): string {
+	assertCollationSegment(document.setup.segment);
 	return JSON.stringify(document);
 }

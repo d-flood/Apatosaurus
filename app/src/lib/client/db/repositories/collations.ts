@@ -1,6 +1,7 @@
 import type { Kysely, Selectable, Transaction } from 'kysely';
 
 import type { Collations, Database } from '../types.generated';
+import type { CollationSegment } from '$lib/client/collation/collation-document';
 import {
 	deriveEntityCloudBackupState,
 	type EntityCloudBackupState,
@@ -48,6 +49,7 @@ export interface CreateCollationInput {
 	projectId: string;
 	title: string;
 	verseIdentifier: string;
+	segment?: CollationSegment;
 	now?: string;
 }
 

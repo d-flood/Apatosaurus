@@ -53,7 +53,7 @@ export const COLLATION_CHECKPOINT_FIXTURE: CollationCheckpointPayload = {
 	entity_type: 'collation',
 	entity_id: 'col-1',
 	parent_checkpoint_id: null,
-	payload_content_hash: 'sha256:25fd8eab0e9b7b24db53c77d25619d850f3bea255352728adf0b541bf542a6f4',
+	payload_content_hash: 'sha256:6e6c4bd5976253ef8b50af08425b3bece4e5ea7cc604724c229ae90c2c85802a',
 	commit_message: 'Initial commit',
 	author_name: 'Editor',
 	created_at: '2026-07-03T00:00:00.000Z',

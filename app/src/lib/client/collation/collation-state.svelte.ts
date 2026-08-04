@@ -29,6 +29,7 @@ import {
 	hydrateCollationDocument,
 	parseCollationDocument,
 	serializeCollationDocument,
+	type CollationSegment,
 } from './collation-document';
 import {
 	gatherWitnessesForVerse,
@@ -159,6 +160,7 @@ function createCollationState() {
 	let isLoading = $state(false);
 
 	// Phase 1: Setup
+	let segment = $state<CollationSegment | null>(null);
 	let selectedVerse = $state<AggregatedVerse | null>(null);
 	let witnesses = $state<WitnessConfig[]>([]);
 	let selectedBook = $state('');
@@ -205,6 +207,10 @@ function createCollationState() {
 		return p === 'regularization' ? 'alignment' : p;
 	}
 
+	function segmentMember(): string {
+		return segment?.members[0] ?? '';
+	}
+
 	function applyLegacySnapshot(snap: WorkspaceSnapshot) {
 		phase = normalizeLegacyPhase(snap.phase);
 		furthestPhase = normalizeLegacyPhase(snap.furthestPhase);
@@ -246,10 +252,11 @@ function createCollationState() {
 		const hydrated = hydrateCollationDocument(document);
 		phase = normalizeLegacyPhase(hydrated.phase);
 		furthestPhase = normalizeLegacyPhase(hydrated.furthestPhase);
-		selectedVerse = hydrated.selectedVerse;
-		selectedBook = hydrated.selectedBook;
-		selectedChapter = hydrated.selectedChapter;
-		selectedVerseNum = hydrated.selectedVerseNum;
+		segment = hydrated.segment;
+		selectedVerse = null;
+		selectedBook = '';
+		selectedChapter = '';
+		selectedVerseNum = '';
 		witnesses = hydrated.witnesses;
 		rules = hydrated.rules.map(rule => ({
 			...rule,
@@ -284,16 +291,14 @@ function createCollationState() {
 	}
 
 	function buildCollationDocumentPayload() {
+		if (!segment) throw new Error('Collation segment is required.');
 		return buildCollationDocument({
 			collationId,
 			projectId,
 			projectName,
 			phase,
 			furthestPhase,
-			selectedVerse,
-			selectedBook,
-			selectedChapter,
-			selectedVerseNum,
+			segment,
 			witnesses,
 			rules,
 			ignoreWordBreaks,
@@ -428,7 +433,13 @@ function createCollationState() {
 	}
 
 	function canAdvance(): boolean {
-		if (phase === 'setup') return selectedVerse !== null && witnesses.some(w => !w.isExcluded);
+		if (phase === 'setup') {
+			return (
+				Boolean(segment?.name.trim()) &&
+				segment?.members.length === 1 &&
+				witnesses.some(w => !w.isExcluded)
+			);
+		}
 		if (phase === 'regularization') return witnesses.some(w => !w.isExcluded);
 		if (phase === 'alignment') return alignmentColumns.length > 0;
 		if (phase === 'readings') return alignmentColumns.length > 0;
@@ -453,6 +464,7 @@ function createCollationState() {
 	}
 
 	function resetSetupSelections() {
+		segment = null;
 		selectedVerse = null;
 		witnesses = [];
 		selectedBook = '';
@@ -623,7 +635,7 @@ function createCollationState() {
 		rules = mergeProjectRules(rules, settings.regularizationRules ?? []);
 		if (
 			previousIgnoreWordBreaks !== ignoreWordBreaks &&
-			selectedVerse?.identifier &&
+			segmentMember() &&
 			witnesses.length > 0
 		) {
 			const didChange = await refreshWitnessesFromTranscriptionSource();
@@ -884,7 +896,7 @@ function createCollationState() {
 		}
 		transcriptionWitnessExcludedHands = nextMap;
 		void persistRulesToProject(rules);
-		if (selectedVerse?.identifier) {
+		if (segmentMember()) {
 			void refreshWitnessesFromSource([transcriptionId]);
 		}
 		markUnsaved();
@@ -1018,7 +1030,8 @@ function createCollationState() {
 		transcriptionIds?: string[],
 		options?: { expectedCollationId?: string }
 	): Promise<boolean> {
-		if (!selectedVerse?.identifier) return false;
+		const member = segmentMember();
+		if (!member) return false;
 		const scopedTranscriptionIds =
 			transcriptionIds ??
 			witnesses
@@ -1027,7 +1040,7 @@ function createCollationState() {
 		if (scopedTranscriptionIds.length === 0) return false;
 
 		const preparedWitnesses = await gatherWitnessesForVerse(
-			selectedVerse.identifier,
+			member,
 			scopedTranscriptionIds,
 			{ ignoreWordBreaks }
 		);
@@ -1121,7 +1134,7 @@ function createCollationState() {
 		checkpointId: string
 	): Promise<boolean> {
 		const expectedCollationId = collationId;
-		const expectedVerseIdentifier = selectedVerse?.identifier ?? '';
+		const expectedVerseIdentifier = segmentMember();
 		if (!expectedCollationId || !expectedVerseIdentifier) return false;
 		const witness = witnesses.find(w => w.witnessId === witnessId);
 		if (!witness || !witness.transcriptionId) return false;
@@ -1133,7 +1146,7 @@ function createCollationState() {
 		);
 		if (
 			collationId !== expectedCollationId ||
-			selectedVerse?.identifier !== expectedVerseIdentifier
+			segmentMember() !== expectedVerseIdentifier
 		) {
 			return false;
 		}
@@ -2741,6 +2754,7 @@ function createCollationState() {
 		projectName = null;
 		workspaceArtifactId = null;
 		isLoading = false;
+		segment = null;
 		selectedVerse = null;
 		witnesses = [];
 		selectedBook = '';
@@ -2776,16 +2790,49 @@ function createCollationState() {
 		if (saveTimeout) clearTimeout(saveTimeout);
 	}
 
-	async function createNewCollation(title: string, verseIdentifier: string): Promise<string> {
+	function setSegmentName(name: string) {
+		if (!segment) return;
+		segment = { ...segment, name };
+		markUnsaved();
+	}
+
+	function setSegmentMember(member: string) {
+		segment = {
+			id: segment?.id ?? crypto.randomUUID(),
+			name: segment?.name ?? '',
+			members: [member],
+		};
+		markUnsaved();
+	}
+
+	function clearSegment() {
+		segment = null;
+		markUnsaved();
+	}
+
+	async function createNewCollation(
+		title: string,
+		segmentName: string,
+		memberIdentifier = segmentMember()
+	): Promise<string> {
 		if (!projectId) {
 			throw new Error('A project must be selected before creating a collation.');
 		}
+		if (!segmentName.trim()) throw new Error('Collation segment name is required.');
+		if (!memberIdentifier) throw new Error('Collation segment member is required.');
+		const nextSegment: CollationSegment = {
+			id: segment?.id ?? crypto.randomUUID(),
+			name: segmentName,
+			members: [memberIdentifier],
+		};
+		segment = nextSegment;
 		const now = new Date().toISOString();
 		const id = await createCollation({
 			id: crypto.randomUUID(),
 			projectId,
 			title,
-			verseIdentifier,
+			verseIdentifier: segmentName,
+			segment: nextSegment,
 			now,
 		});
 		collationId = id;
@@ -2915,6 +2962,13 @@ function createCollationState() {
 		},
 		get isLoading() {
 			return isLoading;
+		},
+		get segment() {
+			return segment;
+		},
+		set segment(value) {
+			segment = value;
+			markUnsaved();
 		},
 		get selectedVerse() {
 			return selectedVerse;
@@ -3057,6 +3111,9 @@ function createCollationState() {
 		setIgnorePunctuation,
 		setSuppliedTextMode,
 		setSegmentation,
+		setSegmentName,
+		setSegmentMember,
+		clearSegment,
 		refreshCollationInput,
 		buildCollationWitnessInputs,
 		refreshWitnessesFromSource,

@@ -524,7 +524,11 @@ describe('derived TEI serializers', () => {
 
 	it('emits valid xml:id values for numeric and punctuation-heavy identifiers', () => {
 		const fixture = collationDocumentFixture();
-		fixture.setup.selectedVerse = { ...fixture.setup.selectedVerse!, identifier: '123:1?!' };
+		fixture.setup.segment = {
+			...fixture.setup.segment,
+			name: '123:1?!',
+			members: ['123:1?!'],
+		};
 		fixture.setup.witnesses[0].id = '123?!';
 		const doc = parseXml(collationDocumentToTei(fixture));
 		const ids = Array.from(doc.getElementsByTagName('*'))
@@ -590,16 +594,7 @@ function collationDocumentFixture(): SemanticCollationDocument {
 			alignmentLayout: 'grid',
 		},
 		setup: {
-			selectedVerse: {
-				identifier: 'John 1:1',
-				book: 'John',
-				chapter: '1',
-				verse: '1',
-				count: 2,
-			},
-			selectedBook: 'John',
-			selectedChapter: '1',
-			selectedVerseNum: '1',
+			segment: { id: 'segment-1', name: 'John 1:1', members: ['John 1:1'] },
 			witnesses: [witnessNode('A', 'A', 'in'), witnessNode('B', 'B', 'en')],
 		},
 		settings: {

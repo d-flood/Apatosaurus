@@ -42,6 +42,9 @@ _Avoid_: Unreviewed, provisional, draft
 
 ### Collation
 
+**Collation segment** — a named set of verse identifiers a collation treats as one unit of text, so that witnesses using different reference conventions can be collated together. The scholar asserts the equivalence and supplies the name; the app never infers either. Its name is the only reference that appears in output.
+_Avoid_: Collation unit (a variation unit is a place within a segment), verse group, alias.
+
 **Base text**:
 The witness of a collation against which variants are cited. Unrelated to a reference edition.
 

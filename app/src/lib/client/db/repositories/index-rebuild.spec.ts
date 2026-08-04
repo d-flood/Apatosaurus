@@ -232,6 +232,7 @@ describe('rebuildIndexFromStore', () => {
 				projectId: 'project-1',
 				title: 'Romans 1:1',
 				verseIdentifier: 'Romans 1:1',
+				segment: { id: 'segment-1', name: 'Romans 1:1', members: ['Romans 1:1'] },
 				now: '2026-07-06T00:02:00.000Z',
 			},
 			storeOptions

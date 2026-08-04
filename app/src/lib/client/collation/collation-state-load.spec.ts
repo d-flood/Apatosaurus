@@ -91,16 +91,7 @@ function makeDocumentPayload() {
 			projectName: 'Project 1',
 			phase: 'alignment',
 			furthestPhase: 'alignment',
-			selectedVerse: {
-				identifier: 'Romans 1:1',
-				book: 'Romans',
-				chapter: '1',
-				verse: '1',
-				count: 2,
-			},
-			selectedBook: 'Romans',
-			selectedChapter: '1',
-			selectedVerseNum: '1',
+			segment: { id: 'segment-1', name: 'Romans 1:1', members: ['Romans 1:1'] },
 			witnesses: [makeWitness('A', 'και θεος', true), makeWitness('B', 'και λογος')],
 			rules: [],
 			ignoreWordBreaks: false,
@@ -192,7 +183,11 @@ describe('collationState artifact-first persistence', () => {
 		const loaded = await collationState.loadCollationById('col-1');
 
 		expect(loaded).toBe(true);
-		expect(collationState.selectedVerse?.identifier).toBe('Romans 1:1');
+		expect(collationState.segment).toEqual({
+			id: 'segment-1',
+			name: 'Romans 1:1',
+			members: ['Romans 1:1'],
+		});
 		expect(collationState.alignmentLayout).toBe('variation-units');
 		expect(collationState.ignoreWordBreaks).toBe(false);
 		expect(gatherWitnessesForVerse).not.toHaveBeenCalled();
@@ -558,7 +553,11 @@ describe('collationState artifact-first persistence', () => {
 		await vi.advanceTimersByTimeAsync(801);
 		vi.clearAllMocks();
 
-		const collationId = await collationState.createNewCollation('Romans 1:1', 'Romans 1:1');
+		const collationId = await collationState.createNewCollation(
+			'Romans 1:1',
+			'Romans 1:1',
+			'Romans 1:1'
+		);
 		vi.clearAllMocks();
 
 		collationState.selectedVerse = {
@@ -588,7 +587,11 @@ describe('collationState artifact-first persistence', () => {
 		await vi.advanceTimersByTimeAsync(801);
 		vi.clearAllMocks();
 
-		const collationId = await collationState.createNewCollation('Romans 1:1', 'Romans 1:1');
+		const collationId = await collationState.createNewCollation(
+			'Romans 1:1',
+			'Romans 1:1',
+			'Romans 1:1'
+		);
 		vi.clearAllMocks();
 
 		collationState.selectedVerse = {
