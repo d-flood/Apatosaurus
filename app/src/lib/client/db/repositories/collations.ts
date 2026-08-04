@@ -56,6 +56,7 @@ export interface CreateCollationInput {
 export interface UpdateCollationMetadataInput {
 	id: string;
 	title?: string;
+	verseIdentifier?: string;
 	status?: string;
 	notes?: string;
 	groupPath?: string;
@@ -488,6 +489,7 @@ export async function updateCollationMetadata(
 		updated_at: input.updatedAt ?? new Date().toISOString(),
 	};
 	if (input.title !== undefined) update.title = input.title;
+	if (input.verseIdentifier !== undefined) update.verse_identifier = input.verseIdentifier;
 	if (input.status !== undefined) update.status = input.status;
 	if (input.notes !== undefined) update.notes = input.notes;
 	if (input.groupPath !== undefined) update.group_path = input.groupPath;

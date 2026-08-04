@@ -40,6 +40,7 @@ import {
 	getCollationVersionStatusWithWorkingFile,
 	loadCollationWithWorkingFile,
 	saveWorkingCollationArtifact,
+	saveWorkingCollationMetadata,
 } from './collation-files';
 
 let harness: LocalDbTestHarness;
@@ -146,6 +147,52 @@ describe('collation file persistence', () => {
 		await expect(
 			harness.db.selectFrom('collation_tokens').selectAll().execute()
 		).resolves.toEqual([]);
+	});
+
+	it('synchronizes renamed display metadata in the DB and working file', async () => {
+		await createProject(harness.db, {
+			id: 'project-1',
+			storageSlug: 'project-slug',
+			name: 'Project',
+			createdAt: '2026-07-04T00:00:00.000Z',
+			updatedAt: '2026-07-04T00:00:00.000Z',
+		});
+		await createCollationWithFiles(
+			harness.db,
+			{
+				id: 'col-1',
+				projectId: 'project-1',
+				title: 'Romans 1:1',
+				verseIdentifier: 'Romans 1:1',
+				segment: { id: 'segment-1', name: 'Romans 1:1', members: ['Romans 1:1'] },
+				now: '2026-07-04T00:00:00.000Z',
+			},
+			{ backend, nonce: () => 'create-renamed-collation' }
+		);
+
+		await saveWorkingCollationMetadata(
+			harness.db,
+			{
+				id: 'col-1',
+				verseIdentifier: 'Romans 1:1 (critical text)',
+				updatedAt: '2026-07-04T13:00:00.000Z',
+			},
+			{ backend, nonce: () => 'renamed-working-write' }
+		);
+
+		await expect(loadCollation(harness.db, 'col-1')).resolves.toMatchObject({
+			row: { verseIdentifier: 'Romans 1:1 (critical text)' },
+		});
+		const raw = await readTextFile(collationWorkingFile('project-slug', 'col-1'), { backend });
+		const parsed = await readCanonicalDocument<WorkingCollationPayload>(
+			WORKING_COLLATION_FORMAT,
+			raw
+		);
+
+		expect(parsed).toMatchObject({
+			ok: true,
+			payload: { verse_identifier: 'Romans 1:1 (critical text)' },
+		});
 	});
 
 	it('loads a working file when the index artifact cache is empty', async () => {

@@ -8,6 +8,8 @@ const {
 	saveCollationProjection,
 	updateCollationMetadata,
 	getProject,
+	getProjectTranscriptionIds,
+	listVerseIndexRowsForTranscriptions,
 	createProject,
 	updateProjectMetadata,
 	getCollationVersionStatus,
@@ -22,6 +24,8 @@ const {
 	saveCollationProjection: vi.fn(),
 	updateCollationMetadata: vi.fn(),
 	getProject: vi.fn(),
+	getProjectTranscriptionIds: vi.fn(),
+	listVerseIndexRowsForTranscriptions: vi.fn(),
 	createProject: vi.fn(),
 	updateProjectMetadata: vi.fn(),
 	getCollationVersionStatus: vi.fn(),
@@ -38,6 +42,8 @@ vi.mock('$lib/client/db/client', () => ({
 	saveCollationProjection,
 	updateCollationMetadata,
 	getProject,
+	getProjectTranscriptionIds,
+	listVerseIndexRowsForTranscriptions,
 	createProject,
 	updateProjectMetadata,
 	getCollationVersionStatus,
@@ -165,6 +171,27 @@ describe('collationState artifact-first persistence', () => {
 			createdAt: '2026-03-10T00:00:00.000Z',
 			updatedAt: '2026-03-10T00:00:00.000Z',
 		});
+		getProjectTranscriptionIds.mockResolvedValue(['A-tx', 'B-tx']);
+		listVerseIndexRowsForTranscriptions.mockResolvedValue([
+			{
+				id: 'verse-row-a',
+				transcription_id: 'A-tx',
+				verse_identifier: 'Romans 1:1',
+				book: 'Romans',
+				chapter: '1',
+				verse: '1',
+				last_indexed_at: '2026-03-10T00:00:00.000Z',
+			},
+			{
+				id: 'verse-row-b',
+				transcription_id: 'B-tx',
+				verse_identifier: 'Romans 1:1',
+				book: 'Romans',
+				chapter: '1',
+				verse: '1',
+				last_indexed_at: '2026-03-10T00:00:00.000Z',
+			},
+		]);
 		gatherWitnessesForVerse.mockResolvedValue([]);
 		prepareWitnessesFromDocument.mockReturnValue([]);
 		coerceTranscriptionDocument.mockReturnValue(null);
@@ -188,9 +215,30 @@ describe('collationState artifact-first persistence', () => {
 			name: 'Romans 1:1',
 			members: ['Romans 1:1'],
 		});
+		expect(collationState.selectedVerse).toEqual({
+			identifier: 'Romans 1:1',
+			book: 'Romans',
+			chapter: '1',
+			verse: '1',
+			count: 2,
+		});
 		expect(collationState.alignmentLayout).toBe('variation-units');
 		expect(collationState.ignoreWordBreaks).toBe(false);
 		expect(gatherWitnessesForVerse).not.toHaveBeenCalled();
+	}, 30000);
+
+	it('leaves the selected verse orphaned when its member is absent from the project index', async () => {
+		listVerseIndexRowsForTranscriptions.mockResolvedValue([]);
+		const collationState = await importState();
+		collationState.reset();
+
+		const loaded = await collationState.loadCollationById('col-1');
+
+		expect(loaded).toBe(true);
+		expect(collationState.selectedVerse).toBeNull();
+		expect(collationState.selectedBook).toBe('');
+		expect(collationState.selectedChapter).toBe('');
+		expect(collationState.selectedVerseNum).toBe('');
 	}, 30000);
 
 	it('does not automatically refresh changed witnesses on load (pinned witness model)', async () => {
@@ -578,6 +626,23 @@ describe('collationState artifact-first persistence', () => {
 			expect.objectContaining({ id: collationId, status: 'regularization' })
 		);
 		expect(saveCollationProjection).not.toHaveBeenCalled();
+	});
+
+	it('persists a renamed segment as the collation display metadata', async () => {
+		const collationState = await importState();
+		collationState.reset();
+		await collationState.loadCollationById('col-1');
+		vi.clearAllMocks();
+
+		collationState.setSegmentName('Romans 1:1 (critical text)');
+		await collationState.flushPendingSave();
+
+		expect(updateCollationMetadata).toHaveBeenCalledWith(
+			expect.objectContaining({
+				id: 'col-1',
+				verseIdentifier: 'Romans 1:1 (critical text)',
+			})
+		);
 	});
 
 	it('persists the semantic document when the collation is saved in stemma', async () => {

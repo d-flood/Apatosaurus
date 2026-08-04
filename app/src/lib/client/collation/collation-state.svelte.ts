@@ -3,8 +3,10 @@ import {
 	createProject as createLocalProject,
 	getCollationVersionStatus,
 	getProject,
+	getProjectTranscriptionIds,
 	loadCollation,
 	loadCommittedTranscriptionCheckpointPayload,
+	listVerseIndexRowsForTranscriptions,
 	saveCollationArtifact,
 	updateProjectMetadata,
 	updateCollationMetadata,
@@ -323,6 +325,7 @@ function createCollationState() {
 	async function persistDocument(): Promise<boolean> {
 		if (!collationId) return false;
 		try {
+			if (!segment) throw new Error('Collation segment is required.');
 			const now = new Date().toISOString();
 			const payload = serializeCollationDocument(buildCollationDocumentPayload());
 			workspaceArtifactId = await saveCollationArtifact({
@@ -334,6 +337,7 @@ function createCollationState() {
 			});
 			await updateCollationMetadata({
 				id: collationId,
+				verseIdentifier: segment.name,
 				updatedAt: now,
 				status: isFinalizedCollationPhase() ? 'complete' : phase,
 			});
@@ -646,6 +650,41 @@ function createCollationState() {
 			}
 		}
 		refreshCollationInput();
+	}
+
+	function clearSelectedVerse() {
+		selectedVerse = null;
+		selectedBook = '';
+		selectedChapter = '';
+		selectedVerseNum = '';
+	}
+
+	async function restoreSelectedVerseFromProjectIndex(): Promise<void> {
+		const member = segmentMember();
+		if (!projectId || !member) {
+			clearSelectedVerse();
+			return;
+		}
+
+		const transcriptionIds = await getProjectTranscriptionIds(projectId);
+		const rows = await listVerseIndexRowsForTranscriptions(transcriptionIds);
+		const matchingRows = rows.filter(row => row.verse_identifier === member);
+		const row = matchingRows[0];
+		if (!row) {
+			clearSelectedVerse();
+			return;
+		}
+
+		selectedVerse = {
+			identifier: row.verse_identifier,
+			book: row.book,
+			chapter: row.chapter,
+			verse: row.verse,
+			count: matchingRows.length,
+		};
+		selectedBook = row.book;
+		selectedChapter = row.chapter;
+		selectedVerseNum = row.verse;
 	}
 
 	async function selectProject(nextProjectId: string): Promise<void> {
@@ -2872,6 +2911,7 @@ function createCollationState() {
 				}
 			}
 			await hydrateProjectContext(loaded.row.projectId);
+			if (segment) await restoreSelectedVerseFromProjectIndex();
 			const repairedCollapsedAlignment = hasCollapsedAlignmentRegression();
 			if (repairedCollapsedAlignment) {
 				rebuildAlignmentFromWitnessTokens();

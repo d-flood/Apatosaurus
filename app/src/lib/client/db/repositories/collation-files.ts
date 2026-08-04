@@ -146,6 +146,7 @@ export async function saveWorkingCollationMetadata(
 	const payload: WorkingCollationPayload = {
 		...collationContentFromPayload(source),
 		title: input.title ?? source.title,
+		verse_identifier: input.verseIdentifier ?? source.verse_identifier,
 		status: input.status ?? source.status,
 		notes: input.notes ?? source.notes,
 		group_path: input.groupPath ?? source.group_path,
