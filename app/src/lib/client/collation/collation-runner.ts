@@ -49,6 +49,7 @@ export interface SegmentGatherError {
 
 export interface SegmentGatherResult {
 	witnesses: PreparedWitness[];
+	orphanedMembers: string[];
 	error: SegmentGatherError | null;
 }
 
@@ -787,6 +788,9 @@ export async function gatherWitnessesForSegment(
 	const gatheredByMember = await Promise.all(
 		members.map(member => gatherWitnessesForVerse(member, transcriptionIds, options))
 	);
+	const orphanedMembers = members.filter(
+		(_, memberIndex) => (gatheredByMember[memberIndex] ?? []).length === 0
+	);
 	const memberByTranscription = new Map<string, string>();
 	const witnesses: PreparedWitness[] = [];
 
@@ -797,6 +801,7 @@ export async function gatherWitnessesForSegment(
 			if (previousMember !== undefined && previousMember !== member) {
 				return {
 					witnesses: [],
+					orphanedMembers,
 					error: {
 						code: 'transcription-matches-multiple-members',
 						transcriptionId: witness.transcriptionUid,
@@ -815,6 +820,7 @@ export async function gatherWitnessesForSegment(
 			members.length === 1
 				? (gatheredByMember[0] ?? [])
 				: ensureUniqueSegmentWitnessIds(witnesses),
+		orphanedMembers,
 		error: null,
 	};
 }

@@ -18,7 +18,7 @@ The most likely way this epic goes wrong is not a bug but a helpful addition: ha
 
 ## Current Status
 
-Overall status: `In Progress`
+Overall status: `Completed`
 
 Current ticket: None
 
@@ -30,4 +30,4 @@ Last updated: 2026-08-04
 | --- | --- | --- | --- |
 | 01 | `01-collate-under-a-scholar-supplied-name.md` | Completed | None |
 | 02 | `02-group-several-identifiers.md` | Completed | 01 |
-| 03 | `03-report-orphaned-members.md` | Not Started | 02 |
+| 03 | `03-report-orphaned-members.md` | Completed | 02 |

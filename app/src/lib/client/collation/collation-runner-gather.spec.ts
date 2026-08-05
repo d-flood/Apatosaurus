@@ -593,6 +593,38 @@ describe('gatherWitnessesForVerse', () => {
 		);
 	});
 
+	it('reports an orphaned member while gathering witnesses from resolved members', async () => {
+		const resolvedWitness = makeTranscription('tx-resolved', 'Resolved 01', [
+			{ book: 'A', chapter: '1', verse: '1', text: 'λογος' },
+		]);
+		const segment = { members: ['A 1:1', 'B 1:1'] };
+		getVerseIndexRowsForVerse.mockImplementation(async (identifier: string) =>
+			identifier === 'A 1:1' ? [{ transcription_id: 'tx-resolved' }] : []
+		);
+		getTranscriptionsByIds.mockResolvedValue([resolvedWitness]);
+
+		const result = await gatherWitnessesForSegment(segment, ['tx-resolved']);
+
+		expect(result.error).toBeNull();
+		expect(result.orphanedMembers).toEqual(['B 1:1']);
+		expect(result.witnesses.map(witness => witness.transcriptionUid)).toEqual(['tx-resolved']);
+		expect(segment.members).toEqual(['A 1:1', 'B 1:1']);
+		expect(result.witnesses[0]?.tokens.map(token => token.kind)).toEqual(['text']);
+	});
+
+	it('reports every member when all segment members are orphaned', async () => {
+		const segment = { members: ['Missing A 1:1', 'Missing B 1:1'] };
+		getVerseIndexRowsForVerse.mockResolvedValue([]);
+		getTranscriptionsByIds.mockResolvedValue([]);
+
+		const result = await gatherWitnessesForSegment(segment, ['tx-1']);
+
+		expect(result.error).toBeNull();
+		expect(result.orphanedMembers).toEqual(['Missing A 1:1', 'Missing B 1:1']);
+		expect(result.witnesses).toEqual([]);
+		expect(segment.members).toEqual(['Missing A 1:1', 'Missing B 1:1']);
+	});
+
 	it('keeps internal witness ids unique when distinct transcriptions share a siglum', async () => {
 		const firstWitness = makeTranscription('tx-first', 'Shared 01', [
 			{ book: 'A', chapter: '1', verse: '1', text: 'λογος' },
