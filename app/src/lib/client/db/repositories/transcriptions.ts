@@ -319,8 +319,11 @@ export async function getVerseIndexRowsForVerse(
 		.selectFrom('transcription_verse_index')
 		.selectAll()
 		.where('verse_identifier', '=', verseIdentifier);
-	const uniqueIds = uniqueNonEmpty(transcriptionIds ?? []);
-	if (uniqueIds.length > 0) query = query.where('transcription_id', 'in', uniqueIds);
+	if (transcriptionIds !== undefined) {
+		const uniqueIds = uniqueNonEmpty(transcriptionIds);
+		if (uniqueIds.length === 0) return [];
+		query = query.where('transcription_id', 'in', uniqueIds);
+	}
 	const rows = await query.orderBy('transcription_id').execute();
 	return rows.map(row => ({ ...row, id: requireId(row.id, 'verse index row') }));
 }

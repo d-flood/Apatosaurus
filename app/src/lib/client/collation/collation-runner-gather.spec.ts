@@ -612,6 +612,17 @@ describe('gatherWitnessesForVerse', () => {
 		expect(result.witnesses[0]?.tokens.map(token => token.kind)).toEqual(['text']);
 	});
 
+	it('reports every member as orphaned for an explicitly empty transcription scope', async () => {
+		getVerseIndexRowsForVerse.mockResolvedValue([]);
+		getTranscriptionsByIds.mockResolvedValue([]);
+
+		const result = await gatherWitnessesForSegment({ members: ['A 1:1', 'B 1:1'] }, []);
+
+		expect(result.error).toBeNull();
+		expect(result.orphanedMembers).toEqual(['A 1:1', 'B 1:1']);
+		expect(result.witnesses).toEqual([]);
+	});
+
 	it('does not report a resolved member with no prepared content as orphaned', async () => {
 		const emptyWitness = makeTranscription('tx-empty', 'Empty 01', []);
 		const resolvedWitness = makeTranscription('tx-resolved', 'Resolved 01', [
@@ -632,6 +643,14 @@ describe('gatherWitnessesForVerse', () => {
 		expect(result.error).toBeNull();
 		expect(result.orphanedMembers).toEqual([]);
 		expect(result.witnesses.map(witness => witness.transcriptionUid)).toEqual(['tx-resolved']);
+		expect(result.witnesses).not.toContainEqual(
+			expect.objectContaining({ transcriptionUid: 'tx-empty' })
+		);
+		expect(
+			result.witnesses
+				.flatMap(witness => witness.tokens)
+				.some(token => token.kind === 'untranscribed')
+		).toBe(false);
 		expect(segment.members).toEqual(['A 1:1', 'B 1:1']);
 	});
 
@@ -720,6 +739,29 @@ describe('gatherWitnessesForVerse', () => {
 			members: ['A 1:1', 'B 1:1'],
 		});
 		expect(result.error?.message).toContain('Shared 01');
+	});
+
+	it('preserves orphaned members alongside a fatal double-match error', async () => {
+		const transcription = makeTranscription('tx-shared', 'Shared 01', [
+			{ book: 'A', chapter: '1', verse: '1', text: 'λογος' },
+			{ book: 'B', chapter: '1', verse: '1', text: 'θεος' },
+		]);
+		getVerseIndexRowsForVerse.mockImplementation(async (identifier: string) =>
+			identifier === 'Missing 1:1' ? [] : [{ transcription_id: 'tx-shared' }]
+		);
+		getTranscriptionsByIds.mockResolvedValue([transcription]);
+
+		const result = await gatherWitnessesForSegment(
+			{ members: ['A 1:1', 'B 1:1', 'Missing 1:1'] },
+			['tx-shared']
+		);
+
+		expect(result.witnesses).toEqual([]);
+		expect(result.orphanedMembers).toEqual(['Missing 1:1']);
+		expect(result.error).toMatchObject({
+			code: 'transcription-matches-multiple-members',
+			transcriptionId: 'tx-shared',
+		});
 	});
 
 	it('preserves single-member sigla and corrector hands', async () => {

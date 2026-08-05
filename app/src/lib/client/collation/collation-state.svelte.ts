@@ -1113,7 +1113,7 @@ function createCollationState() {
 			witnesses
 				.map(witness => witness.transcriptionId)
 				.filter((id): id is string => typeof id === 'string' && id.length > 0);
-		if (scopedTranscriptionIds.length === 0) return false;
+		if (scopedTranscriptionIds.length === 0 && transcriptionIds === undefined) return false;
 
 		const gathered = await gatherWitnessesForSegment(
 			{ members: [...segment!.members] },

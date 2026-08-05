@@ -184,7 +184,7 @@
 			if (result.error) {
 				collationState.setWitnesses([]);
 				collationState.selectedVerse = request.verse;
-				collationState.setOrphanedMembers([]);
+				collationState.setOrphanedMembers(result.orphanedMembers);
 				error = result.error.message;
 				return;
 			}

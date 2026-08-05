@@ -136,6 +136,22 @@ describe('transcriptions repository', () => {
 		expect(rows.map(row => row.transcription_id)).toEqual(['tx-1', 'tx-2']);
 	});
 
+	it('treats an explicitly empty transcription scope as no rows', async () => {
+		await createTranscriptions(harness.db, [
+			{
+				...baseInput('tx-1', '01'),
+				document: documentWithVerses(['Romans 1:1']),
+			},
+		]);
+
+		expect(await getVerseIndexRowsForVerse(harness.db, 'Romans 1:1', [])).toEqual([]);
+		expect(
+			(await getVerseIndexRowsForVerse(harness.db, 'Romans 1:1')).map(
+				row => row.transcription_id
+			)
+		).toEqual(['tx-1']);
+	});
+
 	it('lists verse index rows for one transcription', async () => {
 		await createTranscriptions(harness.db, [
 			{
