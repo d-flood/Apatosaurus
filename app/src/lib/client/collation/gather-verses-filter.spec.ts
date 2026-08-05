@@ -46,4 +46,19 @@ describe('gatherVerses project filtering', () => {
 			},
 		]);
 	});
+
+	it('returns no verses for an empty project scope', async () => {
+		vi.mocked(getVerseIndexRows).mockResolvedValue([
+			{
+				transcription_id: 'tx-global',
+				book: 'Romans',
+				chapter: '1',
+				verse: '1',
+			},
+		] as Awaited<ReturnType<typeof getVerseIndexRows>>);
+
+		const verses = await gatherVerses([]);
+
+		expect(verses).toEqual([]);
+	});
 });

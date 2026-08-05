@@ -78,9 +78,11 @@ export async function gatherVerses(transcriptionIds?: string[]): Promise<Aggrega
 		? [...new Set(transcriptionIds.map(id => id.trim()).filter(Boolean))]
 		: [];
 	const rows =
-		uniqueTranscriptionIds.length > 0
-			? await getVerseIndexRowsForTranscriptions(uniqueTranscriptionIds)
-			: await getVerseIndexRows();
+		transcriptionIds === undefined
+			? await getVerseIndexRows()
+			: uniqueTranscriptionIds.length > 0
+				? await getVerseIndexRowsForTranscriptions(uniqueTranscriptionIds)
+				: [];
 	const verses = rows.map(row => ({ book: row.book, chapter: row.chapter, verse: row.verse }));
 	return sortVerses([...aggregateVerses(verses).values()]);
 }
