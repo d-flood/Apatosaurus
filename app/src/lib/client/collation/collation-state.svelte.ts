@@ -1122,7 +1122,6 @@ function createCollationState() {
 		);
 		if (options?.expectedCollationId && collationId !== options.expectedCollationId)
 			return false;
-		orphanedMembers = [...(gathered.orphanedMembers ?? [])];
 		if (gathered.error) return false;
 		const preparedWitnesses = gathered.witnesses;
 		const scopedIds = new Set(scopedTranscriptionIds);
@@ -1196,6 +1195,7 @@ function createCollationState() {
 			nextWitnesses.push(buildWitnessConfigFromPrepared(prepared));
 		}
 		witnesses = ensureBaseTextSelection(applyWitnessTreatmentSources(nextWitnesses));
+		await refreshOrphanedMembersFromProjectIndex();
 		return didChange;
 	}
 

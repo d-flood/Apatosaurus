@@ -643,14 +643,15 @@ describe('gatherWitnessesForVerse', () => {
 		expect(result.error).toBeNull();
 		expect(result.orphanedMembers).toEqual([]);
 		expect(result.witnesses.map(witness => witness.transcriptionUid)).toEqual(['tx-resolved']);
-		expect(result.witnesses).not.toContainEqual(
-			expect.objectContaining({ transcriptionUid: 'tx-empty' })
+		const preparedWitnesses = result.witnesses;
+		expect(preparedWitnesses.some(witness => witness.transcriptionUid === 'tx-empty')).toBe(
+			false
 		);
 		expect(
-			result.witnesses
+			preparedWitnesses
 				.flatMap(witness => witness.tokens)
-				.some(token => token.kind === 'untranscribed')
-		).toBe(false);
+				.filter(token => token.kind === 'untranscribed')
+		).toEqual([]);
 		expect(segment.members).toEqual(['A 1:1', 'B 1:1']);
 	});
 

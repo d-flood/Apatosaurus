@@ -344,6 +344,40 @@ describe('collationState artifact-first persistence', () => {
 		expect(collationState.orphanedMembers).toEqual(['Romans 1:1']);
 	}, 30000);
 
+	it('recomputes orphaned members across the project after a partial source refresh', async () => {
+		const collationState = await importState();
+		collationState.reset();
+		await collationState.loadCollationById('col-1');
+		collationState.setSegmentMembers(['A 1:1', 'B 1:1']);
+		collationState.setOrphanedMembers(['A 1:1']);
+		vi.clearAllMocks();
+
+		gatherWitnessesForSegment.mockImplementation(
+			async (_segment: { members: string[] }, transcriptionIds: string[]) => {
+				if (transcriptionIds.length === 1) {
+					return {
+						witnesses: [makePreparedWitness('A-tx', 'refreshed A', 'source-a')],
+						orphanedMembers: ['B 1:1'],
+						error: null,
+					};
+				}
+				return { witnesses: [], orphanedMembers: [], error: null };
+			}
+		);
+
+		const changed = await collationState.refreshWitnessesFromSource(['A-tx']);
+
+		expect(changed).toBe(true);
+		expect(collationState.witnesses[0]?.content).toBe('refreshed A');
+		expect(collationState.orphanedMembers).toEqual([]);
+		expect(getProjectTranscriptionIds).toHaveBeenCalledWith('proj-1');
+		expect(gatherWitnessesForSegment).toHaveBeenLastCalledWith(
+			{ members: ['A 1:1', 'B 1:1'] },
+			['A-tx', 'B-tx'],
+			{ ignoreWordBreaks: false }
+		);
+	}, 30000);
+
 	it('reports all members as orphaned when source refresh receives an empty scope', async () => {
 		gatherWitnessesForSegment.mockResolvedValue({
 			witnesses: [],
