@@ -223,7 +223,11 @@ describe('collationState artifact-first persistence', () => {
 				last_indexed_at: '2026-03-10T00:00:00.000Z',
 			},
 		]);
-		gatherWitnessesForSegment.mockResolvedValue({ witnesses: [], error: null });
+		gatherWitnessesForSegment.mockResolvedValue({
+			witnesses: [],
+			orphanedMembers: [],
+			error: null,
+		});
 		prepareWitnessesFromDocument.mockReturnValue([]);
 		coerceTranscriptionDocument.mockReturnValue(null);
 		getCollationVersionStatus.mockResolvedValue(null);
@@ -259,6 +263,11 @@ describe('collationState artifact-first persistence', () => {
 
 	it('leaves the selected verse orphaned when its member is absent from the project index', async () => {
 		listVerseIndexRowsForTranscriptions.mockResolvedValue([]);
+		gatherWitnessesForSegment.mockResolvedValue({
+			witnesses: [],
+			orphanedMembers: ['Romans 1:1'],
+			error: null,
+		});
 		const collationState = await importState();
 		collationState.reset();
 
@@ -269,6 +278,8 @@ describe('collationState artifact-first persistence', () => {
 		expect(collationState.selectedBook).toBe('');
 		expect(collationState.selectedChapter).toBe('');
 		expect(collationState.selectedVerseNum).toBe('');
+		expect(collationState.orphanedMembers).toEqual(['Romans 1:1']);
+		expect(collationState.saveStatus).toBe('saved');
 	}, 30000);
 
 	it('does not automatically refresh changed witnesses on load (pinned witness model)', async () => {
@@ -308,6 +319,7 @@ describe('collationState artifact-first persistence', () => {
 					sourceVersion: '2026-03-10T00:00:00.000Z',
 				},
 			],
+			orphanedMembers: ['Romans 1:1'],
 			error: null,
 		});
 		const collationState = await importState();
@@ -325,6 +337,7 @@ describe('collationState artifact-first persistence', () => {
 			}
 		);
 		expect(collationState.witnesses[0]?.tokens[0]?.original).toBe('κλη\\nτος');
+		expect(collationState.orphanedMembers).toEqual(['Romans 1:1']);
 	}, 30000);
 
 	it('refreshWitnessSource replaces witness content from a committed checkpoint and marks dirty', async () => {

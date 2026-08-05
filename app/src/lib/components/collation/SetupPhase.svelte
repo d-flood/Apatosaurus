@@ -51,7 +51,6 @@
 	let isRebuildingVerseIndex = $state(false);
 	let error = $state<string | null>(null);
 	let statusMessage = $state<string | null>(null);
-	let orphanedMembers = $state<string[]>([]);
 	let setupLoadToken = 0;
 	let verseFilter = $state('');
 	let rebuildProgress = $state<VerseIndexRebuildProgress | null>(null);
@@ -172,7 +171,7 @@
 		activeWitnessLoadKey = request.key;
 		isLoadingWitnesses = true;
 		error = null;
-		orphanedMembers = [];
+		collationState.setOrphanedMembers([]);
 		try {
 			const result = await gatherWitnessesForSegment(
 				{ members: request.members },
@@ -185,12 +184,12 @@
 			if (result.error) {
 				collationState.setWitnesses([]);
 				collationState.selectedVerse = request.verse;
-				orphanedMembers = [];
+				collationState.setOrphanedMembers([]);
 				error = result.error.message;
 				return;
 			}
 
-			orphanedMembers = [...result.orphanedMembers];
+			collationState.setOrphanedMembers(result.orphanedMembers);
 			const configs: WitnessConfig[] = result.witnesses.map((witness, index) => ({
 				witnessId: witness.id,
 				siglum: witness.siglum,
@@ -214,7 +213,7 @@
 		} catch (err) {
 			console.error('Failed to load witnesses for segment', request.members, err);
 			if (!isCurrentWitnessLoad(request)) return;
-			orphanedMembers = [];
+			collationState.setOrphanedMembers([]);
 			error = err instanceof Error ? err.message : 'Failed to load witnesses';
 		} finally {
 			if (activeWitnessLoadKey === request.key) {
@@ -453,7 +452,6 @@
 
 	function updateSegmentMembers(members: string[]) {
 		error = null;
-		orphanedMembers = [];
 		collationState.setSegmentMembers(members);
 		const primaryVerse = verses.find(verse => members.includes(verse.identifier)) ?? null;
 		if (primaryVerse) {
@@ -586,31 +584,6 @@
 
 		{#if statusMessage}
 			<div class="alert alert-info mb-4 text-sm">{statusMessage}</div>
-		{/if}
-
-		{#if orphanedMembers.length > 0}
-			<div
-				class="alert alert-warning mb-4 items-start text-sm"
-				data-testid="orphaned-segment-members"
-				role="status"
-			>
-				<Warning size={18} class="mt-0.5 shrink-0" />
-				<div>
-					<div class="font-semibold">
-						Orphaned segment member{orphanedMembers.length === 1 ? '' : 's'}
-					</div>
-					<p class="mt-1">
-						These members no longer resolve to a transcription and were not gathered.
-						Witnesses from other members continue to collate. This is distinct from
-						non-attestation.
-					</p>
-					<ul class="mt-2 list-inside list-disc font-mono text-xs">
-						{#each orphanedMembers as member (member)}
-							<li>{member}</li>
-						{/each}
-					</ul>
-				</div>
-			</div>
 		{/if}
 
 		{#if selectedTranscriptionIds.length === 0}
@@ -834,7 +807,7 @@
 						<span class="loading loading-spinner loading-md"></span>
 						<span>Loading witnesses...</span>
 					</div>
-				{:else if !matchingVerse && orphanedMembers.length > 0}
+				{:else if !matchingVerse && collationState.orphanedMembers.length > 0}
 					<div class="alert alert-warning">
 						No witnesses were gathered: every selected segment member is orphaned.
 					</div>

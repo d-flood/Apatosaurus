@@ -786,17 +786,23 @@ export async function gatherWitnessesForSegment(
 ): Promise<SegmentGatherResult> {
 	const members = [...new Set(segment.members)];
 	const gatheredByMember = await Promise.all(
-		members.map(member => gatherWitnessesForVerse(member, transcriptionIds, options))
+		members.map(async member => {
+			const [indexRows, witnesses] = await Promise.all([
+				getVerseIndexRowsForVerse(member, transcriptionIds),
+				gatherWitnessesForVerse(member, transcriptionIds, options),
+			]);
+			return { indexRows, witnesses };
+		})
 	);
 	const orphanedMembers = members.filter(
-		(_, memberIndex) => (gatheredByMember[memberIndex] ?? []).length === 0
+		(_, memberIndex) => (gatheredByMember[memberIndex]?.indexRows.length ?? 0) === 0
 	);
 	const memberByTranscription = new Map<string, string>();
 	const witnesses: PreparedWitness[] = [];
 
 	for (let memberIndex = 0; memberIndex < members.length; memberIndex++) {
 		const member = members[memberIndex];
-		for (const witness of gatheredByMember[memberIndex] ?? []) {
+		for (const witness of gatheredByMember[memberIndex]?.witnesses ?? []) {
 			const previousMember = memberByTranscription.get(witness.transcriptionUid);
 			if (previousMember !== undefined && previousMember !== member) {
 				return {
@@ -818,7 +824,7 @@ export async function gatherWitnessesForSegment(
 	return {
 		witnesses:
 			members.length === 1
-				? (gatheredByMember[0] ?? [])
+				? (gatheredByMember[0]?.witnesses ?? [])
 				: ensureUniqueSegmentWitnessIds(witnesses),
 		orphanedMembers,
 		error: null,

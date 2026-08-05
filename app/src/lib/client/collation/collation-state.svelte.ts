@@ -163,6 +163,7 @@ function createCollationState() {
 
 	// Phase 1: Setup
 	let segment = $state<CollationSegment | null>(null);
+	let orphanedMembers = $state<string[]>([]);
 	let selectedVerse = $state<AggregatedVerse | null>(null);
 	let witnesses = $state<WitnessConfig[]>([]);
 	let selectedBook = $state('');
@@ -216,6 +217,7 @@ function createCollationState() {
 	function applyLegacySnapshot(snap: WorkspaceSnapshot) {
 		phase = normalizeLegacyPhase(snap.phase);
 		furthestPhase = normalizeLegacyPhase(snap.furthestPhase);
+		orphanedMembers = [];
 		selectedVerse = snap.selectedVerse;
 		selectedBook = snap.selectedBook ?? '';
 		selectedChapter = snap.selectedChapter ?? '';
@@ -256,6 +258,7 @@ function createCollationState() {
 		phase = normalizeLegacyPhase(hydrated.phase);
 		furthestPhase = normalizeLegacyPhase(hydrated.furthestPhase);
 		segment = hydrated.segment;
+		orphanedMembers = [];
 		selectedVerse = null;
 		selectedBook = '';
 		selectedChapter = '';
@@ -471,6 +474,7 @@ function createCollationState() {
 
 	function resetSetupSelections() {
 		segment = null;
+		orphanedMembers = [];
 		selectedVerse = null;
 		witnesses = [];
 		selectedBook = '';
@@ -687,6 +691,31 @@ function createCollationState() {
 		selectedBook = row.book;
 		selectedChapter = row.chapter;
 		selectedVerseNum = row.verse;
+	}
+
+	async function refreshOrphanedMembersFromProjectIndex(): Promise<void> {
+		const expectedCollationId = collationId;
+		const expectedProjectId = projectId;
+		const expectedSegment = segment;
+		if (!expectedProjectId || !expectedSegment?.members.length) {
+			orphanedMembers = [];
+			return;
+		}
+
+		const transcriptionIds = await getProjectTranscriptionIds(expectedProjectId);
+		const gathered = await gatherWitnessesForSegment(
+			{ members: [...expectedSegment.members] },
+			transcriptionIds,
+			{ ignoreWordBreaks }
+		);
+		if (
+			collationId !== expectedCollationId ||
+			projectId !== expectedProjectId ||
+			segment !== expectedSegment
+		) {
+			return;
+		}
+		orphanedMembers = [...(gathered.orphanedMembers ?? [])];
 	}
 
 	async function selectProject(nextProjectId: string): Promise<void> {
@@ -1091,10 +1120,11 @@ function createCollationState() {
 			scopedTranscriptionIds,
 			{ ignoreWordBreaks }
 		);
-		if (gathered.error) return false;
-		const preparedWitnesses = gathered.witnesses;
 		if (options?.expectedCollationId && collationId !== options.expectedCollationId)
 			return false;
+		orphanedMembers = [...(gathered.orphanedMembers ?? [])];
+		if (gathered.error) return false;
+		const preparedWitnesses = gathered.witnesses;
 		const scopedIds = new Set(scopedTranscriptionIds);
 		const preparedByKey = new Map(
 			preparedWitnesses.map(
@@ -2850,6 +2880,7 @@ function createCollationState() {
 		classifiedReadings = new Map();
 		stemmaEdges = new Map();
 		stemmaNodes = new Map();
+		orphanedMembers = [];
 		commandHistory = [];
 		commandIndex = -1;
 		if (saveTimeout) clearTimeout(saveTimeout);
@@ -2861,12 +2892,17 @@ function createCollationState() {
 		markUnsaved();
 	}
 
+	function setOrphanedMembers(members: string[]) {
+		orphanedMembers = [...new Set(members)];
+	}
+
 	function setSegmentMembers(members: string[]) {
 		segment = {
 			id: segment?.id ?? crypto.randomUUID(),
 			name: segment?.name ?? '',
 			members: [...new Set(members)],
 		};
+		orphanedMembers = [];
 		markUnsaved();
 	}
 
@@ -2876,6 +2912,7 @@ function createCollationState() {
 
 	function clearSegment() {
 		segment = null;
+		orphanedMembers = [];
 		markUnsaved();
 	}
 
@@ -2948,6 +2985,7 @@ function createCollationState() {
 			}
 			await hydrateProjectContext(loaded.row.projectId);
 			if (segment) await restoreSelectedVerseFromProjectIndex();
+			await refreshOrphanedMembersFromProjectIndex();
 			const repairedCollapsedAlignment = hasCollapsedAlignmentRegression();
 			if (repairedCollapsedAlignment) {
 				rebuildAlignmentFromWitnessTokens();
@@ -3011,6 +3049,7 @@ function createCollationState() {
 			isExcluded: false,
 			overridesDefault: false,
 		}));
+		orphanedMembers = [];
 		witnessOrder = projection.witnesses.map(row => row.witnessId);
 		alignmentColumns = [];
 		furthestPhase = 'setup';
@@ -3044,7 +3083,11 @@ function createCollationState() {
 		},
 		set segment(value) {
 			segment = value ? { ...value, members: [...new Set(value.members)] } : null;
+			orphanedMembers = [];
 			markUnsaved();
+		},
+		get orphanedMembers() {
+			return orphanedMembers;
 		},
 		get selectedVerse() {
 			return selectedVerse;
@@ -3190,6 +3233,7 @@ function createCollationState() {
 		setSegmentName,
 		setSegmentMembers,
 		setSegmentMember,
+		setOrphanedMembers,
 		clearSegment,
 		refreshCollationInput,
 		buildCollationWitnessInputs,

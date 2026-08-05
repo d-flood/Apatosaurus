@@ -20,6 +20,7 @@
 	import ProjectCollationGate from './ProjectCollationGate.svelte';
 	import ArrowLeft from 'phosphor-svelte/lib/ArrowLeft';
 	import GitCommit from 'phosphor-svelte/lib/GitCommit';
+	import Warning from 'phosphor-svelte/lib/Warning';
 
 	let collationVersionStatus = $state<CollationVersionStatus | null>(null);
 	let versionStatusError = $state<string | null>(null);
@@ -364,6 +365,32 @@
 	<!-- Phase Content -->
 	<div class="flex-1 min-h-0 overflow-hidden">
 		<div class="h-full w-full px-3 py-4 md:px-4">
+			{#if collationState.orphanedMembers.length > 0}
+				<div class="mx-auto mb-4 max-w-7xl">
+					<div
+						class="alert alert-warning items-start text-sm"
+						data-testid="orphaned-segment-members"
+						role="status"
+					>
+						<Warning size={18} class="mt-0.5 shrink-0" />
+						<div>
+							<div class="font-semibold">
+								Orphaned segment member{collationState.orphanedMembers.length === 1 ? '' : 's'}
+							</div>
+							<p class="mt-1">
+								These members no longer resolve to a transcription and were not gathered.
+								Witnesses from other members continue to collate. This is distinct from
+								non-attestation.
+							</p>
+							<ul class="mt-2 list-inside list-disc font-mono text-xs">
+								{#each collationState.orphanedMembers as member (member)}
+									<li>{member}</li>
+								{/each}
+							</ul>
+						</div>
+					</div>
+				</div>
+			{/if}
 			{#if collationState.phase === 'setup' && !collationState.collationId && !collationState.projectId}
 				<ProjectCollationGate />
 			{:else if collationState.phase === 'setup'}

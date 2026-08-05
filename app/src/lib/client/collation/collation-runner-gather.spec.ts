@@ -612,6 +612,29 @@ describe('gatherWitnessesForVerse', () => {
 		expect(result.witnesses[0]?.tokens.map(token => token.kind)).toEqual(['text']);
 	});
 
+	it('does not report a resolved member with no prepared content as orphaned', async () => {
+		const emptyWitness = makeTranscription('tx-empty', 'Empty 01', []);
+		const resolvedWitness = makeTranscription('tx-resolved', 'Resolved 01', [
+			{ book: 'B', chapter: '1', verse: '1', text: 'θεος' },
+		]);
+		const segment = { members: ['A 1:1', 'B 1:1'] };
+		getVerseIndexRowsForVerse.mockImplementation(async (identifier: string) =>
+			identifier === 'A 1:1'
+				? [{ transcription_id: 'tx-empty' }]
+				: [{ transcription_id: 'tx-resolved' }]
+		);
+		getTranscriptionsByIds.mockImplementation(async (ids: string[]) =>
+			[emptyWitness, resolvedWitness].filter(transcription => ids.includes(transcription.id))
+		);
+
+		const result = await gatherWitnessesForSegment(segment, ['tx-empty', 'tx-resolved']);
+
+		expect(result.error).toBeNull();
+		expect(result.orphanedMembers).toEqual([]);
+		expect(result.witnesses.map(witness => witness.transcriptionUid)).toEqual(['tx-resolved']);
+		expect(segment.members).toEqual(['A 1:1', 'B 1:1']);
+	});
+
 	it('reports every member when all segment members are orphaned', async () => {
 		const segment = { members: ['Missing A 1:1', 'Missing B 1:1'] };
 		getVerseIndexRowsForVerse.mockResolvedValue([]);
