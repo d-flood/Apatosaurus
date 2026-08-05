@@ -623,6 +623,25 @@ function buildWitnessId(base: string, seen: Map<string, number>): string {
 	return count === 1 ? normalized : `${normalized}#${count}`;
 }
 
+function ensureUniqueSegmentWitnessIds(witnesses: PreparedWitness[]): PreparedWitness[] {
+	const usedIds = new Set<string>();
+	return witnesses.map(witness => {
+		if (!usedIds.has(witness.id)) {
+			usedIds.add(witness.id);
+			return witness;
+		}
+
+		let suffix = 2;
+		let id = `${witness.id}#${suffix}`;
+		while (usedIds.has(id)) {
+			suffix++;
+			id = `${witness.id}#${suffix}`;
+		}
+		usedIds.add(id);
+		return { ...witness, id };
+	});
+}
+
 export interface PrepareWitnessesFromDocumentInput {
 	document: StoredTranscriptionDocument;
 	verseIdentifier: string;
@@ -791,5 +810,11 @@ export async function gatherWitnessesForSegment(
 		}
 	}
 
-	return { witnesses, error: null };
+	return {
+		witnesses:
+			members.length === 1
+				? (gatheredByMember[0] ?? [])
+				: ensureUniqueSegmentWitnessIds(witnesses),
+		error: null,
+	};
 }

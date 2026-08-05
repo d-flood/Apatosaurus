@@ -89,6 +89,37 @@ function makeWitness(witnessId: string, content: string, isBaseText: boolean = f
 	};
 }
 
+function makePreparedWitness(transcriptionId: string, content: string, sourceVersion: string) {
+	const tokens = content
+		.split(/\s+/)
+		.filter(Boolean)
+		.map(token => ({
+			kind: 'text' as const,
+			original: token,
+			segments: [
+				{
+					text: token,
+					hasUnclear: false,
+					isPunctuation: false,
+					isSupplied: false,
+				},
+			],
+			gap: null,
+		}));
+	return {
+		id: 'A',
+		siglum: 'A',
+		kind: 'firsthand' as const,
+		handId: 'firsthand',
+		content,
+		tokens,
+		fullContent: content,
+		fullTokens: tokens,
+		transcriptionUid: transcriptionId,
+		sourceVersion,
+	};
+}
+
 function makeDocumentPayload() {
 	return serializeCollationDocument(
 		buildCollationDocument({
@@ -414,6 +445,86 @@ describe('collationState artifact-first persistence', () => {
 			})
 		);
 	}, 30000);
+
+	it('refreshes a checkpoint witness from a later segment member', async () => {
+		const checkpointDocument = { type: 'transcriptionDocument', pages: [] };
+		const prepared = makePreparedWitness('A-tx', 'later refreshed', 'cp-later');
+		const collationState = await importState();
+		collationState.reset();
+		await collationState.loadCollationById('col-1');
+		collationState.setSegmentMembers(['Romans 1:1', 'Later 1:1']);
+		vi.clearAllMocks();
+		coerceTranscriptionDocument.mockReturnValue(checkpointDocument);
+		prepareWitnessesFromDocument.mockImplementation(input =>
+			input.verseIdentifier === 'Later 1:1' ? [prepared] : []
+		);
+		loadCommittedTranscriptionCheckpointPayload.mockResolvedValue({
+			id: 'cp-later',
+			contentHash: 'sha256:later',
+			payload: { siglum: 'A', content_json: checkpointDocument },
+		});
+
+		const refreshed = await collationState.refreshWitnessSource('A', 'cp-later');
+
+		expect(refreshed).toBe(true);
+		expect(prepareWitnessesFromDocument).toHaveBeenCalledWith(
+			expect.objectContaining({ verseIdentifier: 'Romans 1:1' })
+		);
+		expect(prepareWitnessesFromDocument).toHaveBeenCalledWith(
+			expect.objectContaining({ verseIdentifier: 'Later 1:1' })
+		);
+		expect(collationState.witnesses[0]?.content).toBe('later refreshed');
+	});
+
+	it('refuses a checkpoint refresh when one transcription matches distinct segment members', async () => {
+		const checkpointDocument = { type: 'transcriptionDocument', pages: [] };
+		const prepared = makePreparedWitness('A-tx', 'ambiguous', 'cp-ambiguous');
+		const collationState = await importState();
+		collationState.reset();
+		await collationState.loadCollationById('col-1');
+		collationState.setSegmentMembers(['Romans 1:1', 'Later 1:1']);
+		vi.clearAllMocks();
+		coerceTranscriptionDocument.mockReturnValue(checkpointDocument);
+		prepareWitnessesFromDocument.mockReturnValue([prepared]);
+		loadCommittedTranscriptionCheckpointPayload.mockResolvedValue({
+			id: 'cp-ambiguous',
+			contentHash: 'sha256:ambiguous',
+			payload: { siglum: 'A', content_json: checkpointDocument },
+		});
+
+		const refreshed = await collationState.refreshWitnessSource('A', 'cp-ambiguous');
+
+		expect(refreshed).toBe(false);
+		expect(collationState.witnesses[0]?.content).toBe('και θεος');
+	});
+
+	it('does not apply a checkpoint after any captured segment member changes', async () => {
+		const collationState = await importState();
+		collationState.reset();
+		await collationState.loadCollationById('col-1');
+		collationState.setSegmentMembers(['Romans 1:1', 'Later 1:1']);
+		vi.clearAllMocks();
+
+		let resolveLoaded!: (value: unknown) => void;
+		loadCommittedTranscriptionCheckpointPayload.mockReturnValue(
+			new Promise(resolve => {
+				resolveLoaded = resolve;
+			})
+		);
+
+		const refreshPromise = collationState.refreshWitnessSource('A', 'cp-delayed');
+		await Promise.resolve();
+		collationState.setSegmentMembers(['Romans 1:1', 'Later 1:1', 'Changed 1:1']);
+		resolveLoaded({
+			id: 'cp-delayed',
+			contentHash: 'sha256:delayed',
+			payload: { siglum: 'A', content_json: {} },
+		});
+
+		expect(await refreshPromise).toBe(false);
+		expect(prepareWitnessesFromDocument).not.toHaveBeenCalled();
+		expect(collationState.witnesses[0]?.content).toBe('και θεος');
+	});
 
 	it('refreshAllStaleWitnessSources refreshes all stale witnesses before one dirty mark', async () => {
 		const checkpointDocument = { type: 'transcriptionDocument', pages: [] };

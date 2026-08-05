@@ -593,6 +593,45 @@ describe('gatherWitnessesForVerse', () => {
 		);
 	});
 
+	it('keeps internal witness ids unique when distinct transcriptions share a siglum', async () => {
+		const firstWitness = makeTranscription('tx-first', 'Shared 01', [
+			{ book: 'A', chapter: '1', verse: '1', text: 'λογος' },
+		]);
+		const secondWitness = makeTranscription('tx-second', 'Shared 01', [
+			{ book: 'B', chapter: '1', verse: '1', text: 'θεος' },
+		]);
+		const transcriptions = [firstWitness, secondWitness];
+		getVerseIndexRowsForVerse.mockImplementation(async (identifier: string) =>
+			identifier === 'A 1:1'
+				? [{ transcription_id: 'tx-first' }]
+				: [{ transcription_id: 'tx-second' }]
+		);
+		getTranscriptionsByIds.mockImplementation(async (ids: string[]) =>
+			transcriptions.filter(transcription => ids.includes(transcription.id))
+		);
+
+		const result = await gatherWitnessesForSegment({ members: ['A 1:1', 'B 1:1'] }, [
+			'tx-first',
+			'tx-second',
+		]);
+
+		expect(result.error).toBeNull();
+		expect(result.witnesses.map(witness => witness.id)).toEqual(['Shared 01', 'Shared 01#2']);
+		expect(
+			result.witnesses.map(witness => [
+				witness.siglum,
+				witness.kind,
+				witness.handId,
+				witness.transcriptionUid,
+				witness.sourceVersion,
+				witness.content,
+			])
+		).toEqual([
+			['Shared 01', 'firsthand', 'firsthand', 'tx-first', 'tx-first-revision', 'λογος'],
+			['Shared 01', 'firsthand', 'firsthand', 'tx-second', 'tx-second-revision', 'θεος'],
+		]);
+	});
+
 	it('returns one witness for an exact duplicate member', async () => {
 		const transcription = makeTranscription('tx-1', 'Witness 01', [
 			{ book: 'A', chapter: '1', verse: '1', text: 'λογος' },

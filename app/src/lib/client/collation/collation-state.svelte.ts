@@ -1183,8 +1183,10 @@ function createCollationState() {
 		checkpointId: string
 	): Promise<boolean> {
 		const expectedCollationId = collationId;
-		const expectedVerseIdentifier = segmentMember();
-		if (!expectedCollationId || !expectedVerseIdentifier) return false;
+		const expectedSegmentId = segment?.id;
+		const expectedMembers = segment ? [...segment.members] : [];
+		if (!expectedCollationId || !expectedSegmentId || expectedMembers.length === 0)
+			return false;
 		const witness = witnesses.find(w => w.witnessId === witnessId);
 		if (!witness || !witness.transcriptionId) return false;
 		const expectedTranscriptionId = witness.transcriptionId;
@@ -1193,7 +1195,14 @@ function createCollationState() {
 			expectedTranscriptionId,
 			checkpointId
 		);
-		if (collationId !== expectedCollationId || segmentMember() !== expectedVerseIdentifier) {
+		const currentSegment = segment;
+		if (
+			collationId !== expectedCollationId ||
+			!currentSegment ||
+			currentSegment.id !== expectedSegmentId ||
+			currentSegment.members.length !== expectedMembers.length ||
+			currentSegment.members.some((member, index) => member !== expectedMembers[index])
+		) {
 			return false;
 		}
 		const currentWitness = witnesses.find(w => w.witnessId === witnessId);
@@ -1203,14 +1212,24 @@ function createCollationState() {
 		const document = coerceTranscriptionDocument(loaded.payload.content_json);
 		if (!document) return false;
 
-		const preparedWitnesses = prepareWitnessesFromDocument({
-			document,
-			verseIdentifier: expectedVerseIdentifier,
-			transcriptionId: expectedTranscriptionId,
-			siglum: loaded.payload.siglum || currentWitness.siglum,
-			sourceVersion: loaded.id,
-			options: { ignoreWordBreaks },
-		});
+		const preparedWitnesses: PreparedWitness[] = [];
+		const memberByTranscription = new Map<string, string>();
+		for (const member of new Set(expectedMembers)) {
+			const preparedForMember = prepareWitnessesFromDocument({
+				document,
+				verseIdentifier: member,
+				transcriptionId: expectedTranscriptionId,
+				siglum: loaded.payload.siglum || currentWitness.siglum,
+				sourceVersion: loaded.id,
+				options: { ignoreWordBreaks },
+			});
+			for (const prepared of preparedForMember) {
+				const previousMember = memberByTranscription.get(prepared.transcriptionUid);
+				if (previousMember !== undefined && previousMember !== member) return false;
+				memberByTranscription.set(prepared.transcriptionUid, member);
+				preparedWitnesses.push(prepared);
+			}
+		}
 
 		const witnessKind = currentWitness.kind ?? 'firsthand';
 		const witnessHandId = currentWitness.handId ?? 'firsthand';
