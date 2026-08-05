@@ -219,15 +219,18 @@ function assertCollationSegment(value: unknown): CollationSegment {
 	}
 	if (
 		!Array.isArray(candidate.members) ||
-		candidate.members.length !== 1 ||
 		candidate.members.some(member => typeof member !== 'string' || member.length === 0)
 	) {
-		throw new Error('A collation segment must contain exactly one member.');
+		throw new Error('A collation segment must contain at least one member.');
+	}
+	const members = [...new Set(candidate.members as string[])];
+	if (members.length === 0) {
+		throw new Error('A collation segment must contain at least one member.');
 	}
 	return {
 		id: candidate.id,
 		name: candidate.name,
-		members: [...candidate.members],
+		members,
 	};
 }
 

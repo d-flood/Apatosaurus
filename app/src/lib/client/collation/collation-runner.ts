@@ -10,6 +10,7 @@ import {
 	normalizeVerseIdentifier,
 } from '$lib/client/transcription/verse-index';
 import type { TranscriptionRecord } from '$lib/client/db/repositories/transcriptions';
+import type { CollationSegment } from './collation-document';
 import type {
 	GapMetadata,
 	WitnessKind,
@@ -37,6 +38,18 @@ export interface PreparedWitness {
 	fragmentaryTokens?: WitnessSourceToken[];
 	transcriptionUid: string;
 	sourceVersion: string;
+}
+
+export interface SegmentGatherError {
+	code: 'transcription-matches-multiple-members';
+	transcriptionId: string;
+	members: [string, string];
+	message: string;
+}
+
+export interface SegmentGatherResult {
+	witnesses: PreparedWitness[];
+	error: SegmentGatherError | null;
 }
 
 interface WitnessExtractionOptions {
@@ -744,4 +757,39 @@ export async function gatherWitnessesForVerse(
 	}
 
 	return witnesses;
+}
+
+export async function gatherWitnessesForSegment(
+	segment: Pick<CollationSegment, 'members'>,
+	transcriptionIds?: string[],
+	options: WitnessExtractionOptions = {}
+): Promise<SegmentGatherResult> {
+	const members = [...new Set(segment.members)];
+	const gatheredByMember = await Promise.all(
+		members.map(member => gatherWitnessesForVerse(member, transcriptionIds, options))
+	);
+	const memberByTranscription = new Map<string, string>();
+	const witnesses: PreparedWitness[] = [];
+
+	for (let memberIndex = 0; memberIndex < members.length; memberIndex++) {
+		const member = members[memberIndex];
+		for (const witness of gatheredByMember[memberIndex] ?? []) {
+			const previousMember = memberByTranscription.get(witness.transcriptionUid);
+			if (previousMember !== undefined && previousMember !== member) {
+				return {
+					witnesses: [],
+					error: {
+						code: 'transcription-matches-multiple-members',
+						transcriptionId: witness.transcriptionUid,
+						members: [previousMember, member],
+						message: `Transcription ${witness.siglum} matches multiple members of the collation segment: ${previousMember}; ${member}.`,
+					},
+				};
+			}
+			memberByTranscription.set(witness.transcriptionUid, member);
+			witnesses.push(witness);
+		}
+	}
+
+	return { witnesses, error: null };
 }

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import { gatherWitnessesForVerse } from '$lib/client/collation/collation-runner';
+	import { gatherWitnessesForSegment } from '$lib/client/collation/collation-runner';
 	import {
 		collationState,
 		type WitnessConfig,
@@ -57,6 +57,7 @@
 	let activeWitnessLoadKey: string | null = null;
 	type WitnessLoadRequest = {
 		verse: AggregatedVerse;
+		members: string[];
 		transcriptionIds: string[];
 		ignoreWordBreaks: boolean;
 		key: string;
@@ -65,6 +66,7 @@
 	let matchingVerse = $derived(
 		verses.find(v => v.identifier === collationState.segment?.members[0]) ?? null
 	);
+	let selectedMemberIdentifiers = $derived(collationState.segment?.members ?? []);
 	let normalizedVerseFilter = $derived(verseFilter.trim().toLowerCase());
 	let filteredVerses = $derived(
 		normalizedVerseFilter.length === 0
@@ -92,12 +94,12 @@
 	}
 
 	function buildWitnessLoadKey(
-		verseIdentifier: string,
+		members: string[],
 		transcriptionIds: string[],
 		ignoreWordBreaks: boolean
 	) {
 		return JSON.stringify({
-			verseIdentifier,
+			members,
 			transcriptionIds,
 			ignoreWordBreaks,
 		});
@@ -141,9 +143,9 @@
 	function isCurrentWitnessLoad(request: WitnessLoadRequest) {
 		return (
 			activeWitnessLoadKey === request.key &&
-			collationState.segment?.members[0] === request.verse.identifier &&
+			JSON.stringify(collationState.segment?.members ?? []) === JSON.stringify(request.members) &&
 			buildWitnessLoadKey(
-				request.verse.identifier,
+				request.members,
 				selectedTranscriptionIds,
 				collationState.ignoreWordBreaks
 			) === request.key
@@ -151,15 +153,17 @@
 	}
 
 	function createWitnessLoadRequest(verse: AggregatedVerse): WitnessLoadRequest | null {
-		if (selectedTranscriptionIds.length === 0) return null;
+		const members = [...(collationState.segment?.members ?? [])];
+		if (members.length === 0 || selectedTranscriptionIds.length === 0) return null;
 
 		const transcriptionIds = [...selectedTranscriptionIds];
 		const ignoreWordBreaks = collationState.ignoreWordBreaks;
 		return {
 			verse,
+			members,
 			transcriptionIds,
 			ignoreWordBreaks,
-			key: buildWitnessLoadKey(verse.identifier, transcriptionIds, ignoreWordBreaks),
+			key: buildWitnessLoadKey(members, transcriptionIds, ignoreWordBreaks),
 		};
 	}
 
@@ -168,16 +172,22 @@
 		isLoadingWitnesses = true;
 		error = null;
 		try {
-			const prepared = await gatherWitnessesForVerse(
-				request.verse.identifier,
+			const result = await gatherWitnessesForSegment(
+				{ members: request.members },
 				request.transcriptionIds,
 				{
 					ignoreWordBreaks: request.ignoreWordBreaks,
 				}
 			);
 			if (!isCurrentWitnessLoad(request)) return;
+			if (result.error) {
+				collationState.setWitnesses([]);
+				collationState.selectedVerse = request.verse;
+				error = result.error.message;
+				return;
+			}
 
-			const configs: WitnessConfig[] = prepared.map((witness, index) => ({
+			const configs: WitnessConfig[] = result.witnesses.map((witness, index) => ({
 				witnessId: witness.id,
 				siglum: witness.siglum,
 				transcriptionId: witness.transcriptionUid,
@@ -436,18 +446,41 @@
 		await goto(resolve('/collation/new'), { replaceState: true });
 	}
 
-	function selectVerse(verse: AggregatedVerse) {
-		collationState.setSegmentMember(verse.identifier);
-		collationState.selectedBook = verse.book;
-		collationState.selectedChapter = verse.chapter;
-		collationState.selectedVerseNum = verse.verse;
+	function updateSegmentMembers(members: string[]) {
+		error = null;
+		collationState.setSegmentMembers(members);
+		const primaryVerse =
+			verses.find(verse => verse.identifier === members[0]) ?? null;
+		if (primaryVerse) {
+			collationState.selectedBook = primaryVerse.book;
+			collationState.selectedChapter = primaryVerse.chapter;
+			collationState.selectedVerseNum = primaryVerse.verse;
+		} else {
+			collationState.selectedBook = '';
+			collationState.selectedChapter = '';
+			collationState.selectedVerseNum = '';
+		}
 		collationState.setWitnesses([]);
-		collationState.selectedVerse = null;
+		collationState.selectedVerse = primaryVerse;
 
-		const request = createWitnessLoadRequest(verse);
+		const request = primaryVerse ? createWitnessLoadRequest(primaryVerse) : null;
 		if (request) {
 			void loadWitnessesForRequest(request);
 		}
+	}
+
+	function selectVerse(verse: AggregatedVerse) {
+		const currentMembers = collationState.segment?.members ?? [];
+		const nextMembers = currentMembers.includes(verse.identifier)
+			? currentMembers.filter(member => member !== verse.identifier)
+			: [...currentMembers, verse.identifier];
+		updateSegmentMembers(nextMembers);
+	}
+
+	function removeSegmentMember(member: string) {
+		updateSegmentMembers(
+			(collationState.segment?.members ?? []).filter(candidate => candidate !== member)
+		);
 	}
 </script>
 
@@ -660,6 +693,28 @@
 									<span class="font-mono">{matchingVerse.identifier}</span>
 								{/if}
 							</div>
+							{#if selectedMemberIdentifiers.length > 0}
+								<div class="mb-2 rounded-box border border-primary/20 bg-primary/5 p-2">
+									<div class="mb-1 text-xs font-medium text-base-content/60">
+										Selected segment members
+									</div>
+									<div class="space-y-1">
+										{#each selectedMemberIdentifiers as member (member)}
+											<div class="flex items-center justify-between gap-2 text-xs">
+												<span class="min-w-0 truncate font-mono">{member}</span>
+												<button
+													type="button"
+													class="btn btn-ghost btn-xs"
+													aria-label={`Remove ${member} from segment`}
+													onclick={() => removeSegmentMember(member)}
+												>
+													Remove
+												</button>
+											</div>
+										{/each}
+									</div>
+								</div>
+							{/if}
 							<div class="max-h-88 space-y-1 overflow-y-auto pr-1">
 								{#if filteredVerses.length === 0}
 									<div
@@ -672,10 +727,11 @@
 										<button
 											type="button"
 											class={`w-full rounded-box border px-3 py-2 text-left transition-colors ${
-												matchingVerse?.identifier === verse.identifier
-													? 'border-primary/40 bg-primary/10'
-													: 'border-base-300/40 bg-base-100'
+													collationState.segment?.members.includes(verse.identifier)
+														? 'border-primary/40 bg-primary/10'
+														: 'border-base-300/40 bg-base-100'
 											}`}
+											aria-pressed={collationState.segment?.members.includes(verse.identifier)}
 											onclick={() => selectVerse(verse)}
 										>
 											<div class="flex items-center justify-between gap-3">
@@ -902,11 +958,10 @@
 						disabled={!collationState.canAdvance()}
 						onclick={async () => {
 							let targetId = collationState.collationId;
-							if (!targetId && matchingVerse && collationState.segment) {
+							if (!targetId && collationState.segment?.members.length) {
 								targetId = await collationState.createNewCollation(
 									`Collation ${collationState.segment.name}`,
-									collationState.segment.name,
-									matchingVerse.identifier
+									collationState.segment.name
 								);
 							}
 							collationState.setPhase('alignment');

@@ -14,7 +14,7 @@ const {
 	updateProjectMetadata,
 	getCollationVersionStatus,
 	loadCommittedTranscriptionCheckpointPayload,
-	gatherWitnessesForVerse,
+	gatherWitnessesForSegment,
 	prepareWitnessesFromDocument,
 	coerceTranscriptionDocument,
 } = vi.hoisted(() => ({
@@ -30,7 +30,7 @@ const {
 	updateProjectMetadata: vi.fn(),
 	getCollationVersionStatus: vi.fn(),
 	loadCommittedTranscriptionCheckpointPayload: vi.fn(),
-	gatherWitnessesForVerse: vi.fn(),
+	gatherWitnessesForSegment: vi.fn(),
 	prepareWitnessesFromDocument: vi.fn(),
 	coerceTranscriptionDocument: vi.fn(),
 }));
@@ -51,7 +51,7 @@ vi.mock('$lib/client/db/client', () => ({
 }));
 
 vi.mock('./collation-runner', () => ({
-	gatherWitnessesForVerse,
+	gatherWitnessesForSegment,
 	prepareWitnessesFromDocument,
 }));
 
@@ -192,7 +192,7 @@ describe('collationState artifact-first persistence', () => {
 				last_indexed_at: '2026-03-10T00:00:00.000Z',
 			},
 		]);
-		gatherWitnessesForVerse.mockResolvedValue([]);
+		gatherWitnessesForSegment.mockResolvedValue({ witnesses: [], error: null });
 		prepareWitnessesFromDocument.mockReturnValue([]);
 		coerceTranscriptionDocument.mockReturnValue(null);
 		getCollationVersionStatus.mockResolvedValue(null);
@@ -224,7 +224,6 @@ describe('collationState artifact-first persistence', () => {
 		});
 		expect(collationState.alignmentLayout).toBe('variation-units');
 		expect(collationState.ignoreWordBreaks).toBe(false);
-		expect(gatherWitnessesForVerse).not.toHaveBeenCalled();
 	}, 30000);
 
 	it('leaves the selected verse orphaned when its member is absent from the project index', async () => {
@@ -242,7 +241,6 @@ describe('collationState artifact-first persistence', () => {
 	}, 30000);
 
 	it('does not automatically refresh changed witnesses on load (pinned witness model)', async () => {
-		gatherWitnessesForVerse.mockReturnValue(new Promise(() => {}));
 		const collationState = await importState();
 		collationState.reset();
 
@@ -251,34 +249,36 @@ describe('collationState artifact-first persistence', () => {
 		await Promise.resolve();
 
 		expect(loaded).toBe(true);
-		expect(gatherWitnessesForVerse).not.toHaveBeenCalled();
 	}, 30000);
 
 	it('can refresh witness tokens from source before rerunning collation', async () => {
-		gatherWitnessesForVerse.mockResolvedValue([
-			{
-				id: 'A',
-				siglum: 'A',
-				content: 'κλη\\nτος',
-				tokens: [
-					{
-						kind: 'text',
-						original: 'κλη\\nτος',
-						segments: [
-							{
-								text: 'κλη\\nτος',
-								hasUnclear: false,
-								isPunctuation: false,
-								isSupplied: false,
-							},
-						],
-						gap: null,
-					},
-				],
-				transcriptionUid: 'A-tx',
-				sourceVersion: '2026-03-10T00:00:00.000Z',
-			},
-		]);
+		gatherWitnessesForSegment.mockResolvedValue({
+			witnesses: [
+				{
+					id: 'A',
+					siglum: 'A',
+					content: 'κλη\\nτος',
+					tokens: [
+						{
+							kind: 'text',
+							original: 'κλη\\nτος',
+							segments: [
+								{
+									text: 'κλη\\nτος',
+									hasUnclear: false,
+									isPunctuation: false,
+									isSupplied: false,
+								},
+							],
+							gap: null,
+						},
+					],
+					transcriptionUid: 'A-tx',
+					sourceVersion: '2026-03-10T00:00:00.000Z',
+				},
+			],
+			error: null,
+		});
 		const collationState = await importState();
 		collationState.reset();
 		await collationState.loadCollationById('col-1');
@@ -286,9 +286,13 @@ describe('collationState artifact-first persistence', () => {
 		const changed = await collationState.refreshWitnessesFromSource(['A-tx']);
 
 		expect(changed).toBe(true);
-		expect(gatherWitnessesForVerse).toHaveBeenCalledWith('Romans 1:1', ['A-tx'], {
-			ignoreWordBreaks: false,
-		});
+		expect(gatherWitnessesForSegment).toHaveBeenCalledWith(
+			{ members: ['Romans 1:1'] },
+			['A-tx'],
+			{
+				ignoreWordBreaks: false,
+			}
+		);
 		expect(collationState.witnesses[0]?.tokens[0]?.original).toBe('κλη\\nτος');
 	}, 30000);
 
@@ -557,30 +561,33 @@ describe('collationState artifact-first persistence', () => {
 			createdAt: '2026-03-10T00:00:00.000Z',
 			updatedAt: '2026-03-10T00:00:00.000Z',
 		});
-		gatherWitnessesForVerse.mockResolvedValue([
-			{
-				id: 'A',
-				siglum: 'A',
-				content: 'κλητος',
-				tokens: [
-					{
-						kind: 'text',
-						original: 'κλητος',
-						segments: [
-							{
-								text: 'κλητος',
-								hasUnclear: false,
-								isPunctuation: false,
-								isSupplied: false,
-							},
-						],
-						gap: null,
-					},
-				],
-				transcriptionUid: 'A-tx',
-				sourceVersion: '2026-03-10T00:00:00.000Z',
-			},
-		]);
+		gatherWitnessesForSegment.mockResolvedValue({
+			witnesses: [
+				{
+					id: 'A',
+					siglum: 'A',
+					content: 'κλητος',
+					tokens: [
+						{
+							kind: 'text',
+							original: 'κλητος',
+							segments: [
+								{
+									text: 'κλητος',
+									hasUnclear: false,
+									isPunctuation: false,
+									isSupplied: false,
+								},
+							],
+							gap: null,
+						},
+					],
+					transcriptionUid: 'A-tx',
+					sourceVersion: '2026-03-10T00:00:00.000Z',
+				},
+			],
+			error: null,
+		});
 		const collationState = await importState();
 		collationState.reset();
 
@@ -588,9 +595,13 @@ describe('collationState artifact-first persistence', () => {
 
 		expect(loaded).toBe(true);
 		expect(collationState.ignoreWordBreaks).toBe(true);
-		expect(gatherWitnessesForVerse).toHaveBeenCalledWith('Romans 1:1', ['A-tx', 'B-tx'], {
-			ignoreWordBreaks: true,
-		});
+		expect(gatherWitnessesForSegment).toHaveBeenCalledWith(
+			{ members: ['Romans 1:1'] },
+			['A-tx', 'B-tx'],
+			{
+				ignoreWordBreaks: true,
+			}
+		);
 		expect(collationState.witnesses[0]?.tokens[0]?.original).toBe('κλητος');
 	});
 

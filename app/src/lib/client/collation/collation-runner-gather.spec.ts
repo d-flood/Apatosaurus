@@ -15,7 +15,49 @@ vi.mock('$lib/client/transcription/verse-index', () => ({
 		`${verse.book} ${verse.chapter}:${verse.verse}`,
 }));
 
-import { gatherWitnessesForVerse } from './collation-runner';
+import { gatherWitnessesForSegment, gatherWitnessesForVerse } from './collation-runner';
+
+interface Passage {
+	book: string;
+	chapter: string;
+	verse: string;
+	text: string;
+}
+
+function makeTranscription(id: string, siglum: string, passages: Passage[]) {
+	return {
+		id,
+		siglum,
+		current_revision_id: `${id}-revision`,
+		content_json: JSON.stringify({
+			type: 'transcriptionDocument',
+			pages: [
+				{
+					columns: [
+						{
+							lines: [
+								{
+									items: passages.flatMap(passage => [
+										{
+											type: 'milestone',
+											kind: 'verse',
+											attrs: {
+												book: passage.book,
+												chapter: passage.chapter,
+												verse: passage.verse,
+											},
+										},
+										{ type: 'text', text: passage.text },
+									]),
+								},
+							],
+						},
+					],
+				},
+			],
+		}),
+	};
+}
 
 describe('gatherWitnessesForVerse', () => {
 	beforeEach(() => {
@@ -518,5 +560,115 @@ describe('gatherWitnessesForVerse', () => {
 			'text',
 		]);
 		expect(witnesses[1]?.fragmentaryContent).toBe('ρημα ⊘ κυριος');
+	});
+
+	it('gathers witnesses from members using different reference conventions', async () => {
+		const ignptWitness = makeTranscription('tx-ignpt', 'IGNTP 01', [
+			{ book: 'IGNTP', chapter: '1', verse: '1', text: 'λογος' },
+		]);
+		const rpWitness = makeTranscription('tx-rp', 'RP 01', [
+			{ book: 'RP', chapter: 'K1', verse: 'V1', text: 'θεος' },
+		]);
+		const transcriptions = [ignptWitness, rpWitness];
+		getVerseIndexRowsForVerse.mockImplementation(async (identifier: string) =>
+			identifier === 'IGNTP 1:1'
+				? [{ transcription_id: 'tx-ignpt' }]
+				: [{ transcription_id: 'tx-rp' }]
+		);
+		getTranscriptionsByIds.mockImplementation(async (ids: string[]) =>
+			transcriptions.filter(transcription => ids.includes(transcription.id))
+		);
+
+		const result = await gatherWitnessesForSegment({ members: ['IGNTP 1:1', 'RP K1:V1'] }, [
+			'tx-ignpt',
+			'tx-rp',
+		]);
+
+		expect(result.error).toBeNull();
+		expect(result.witnesses.map(witness => [witness.transcriptionUid, witness.siglum])).toEqual(
+			[
+				['tx-ignpt', 'IGNTP 01'],
+				['tx-rp', 'RP 01'],
+			]
+		);
+	});
+
+	it('returns one witness for an exact duplicate member', async () => {
+		const transcription = makeTranscription('tx-1', 'Witness 01', [
+			{ book: 'A', chapter: '1', verse: '1', text: 'λογος' },
+		]);
+		getVerseIndexRowsForVerse.mockResolvedValue([{ transcription_id: 'tx-1' }]);
+		getTranscriptionsByIds.mockResolvedValue([transcription]);
+
+		const result = await gatherWitnessesForSegment({ members: ['A 1:1', 'A 1:1'] }, ['tx-1']);
+
+		expect(result.error).toBeNull();
+		expect(result.witnesses).toHaveLength(1);
+		expect(result.witnesses[0]?.transcriptionUid).toBe('tx-1');
+	});
+
+	it('rejects a transcription that matches two distinct members without witnesses', async () => {
+		const transcription = makeTranscription('tx-shared', 'Shared 01', [
+			{ book: 'A', chapter: '1', verse: '1', text: 'λογος' },
+			{ book: 'B', chapter: '1', verse: '1', text: 'θεος' },
+		]);
+		getVerseIndexRowsForVerse.mockResolvedValue([{ transcription_id: 'tx-shared' }]);
+		getTranscriptionsByIds.mockResolvedValue([transcription]);
+
+		const result = await gatherWitnessesForSegment({ members: ['A 1:1', 'B 1:1'] }, [
+			'tx-shared',
+		]);
+
+		expect(result.witnesses).toEqual([]);
+		expect(result.error).toMatchObject({
+			code: 'transcription-matches-multiple-members',
+			transcriptionId: 'tx-shared',
+			members: ['A 1:1', 'B 1:1'],
+		});
+		expect(result.error?.message).toContain('Shared 01');
+	});
+
+	it('preserves single-member sigla and corrector hands', async () => {
+		getVerseIndexRowsForVerse.mockResolvedValue([{ transcription_id: 'tx-1' }]);
+		const transcription = makeTranscription('tx-1', 'Corrected 01', [
+			{ book: 'Romans', chapter: '1', verse: '1', text: 'λογος' },
+		]);
+		const document = JSON.parse(transcription.content_json) as {
+			header?: { witnessIds: string[] };
+			pages: Array<{
+				columns: Array<{
+					lines: Array<{ items: Array<{ marks?: unknown[] }> }>;
+				}>;
+			}>;
+		};
+		document.header = { witnessIds: ['firsthand', 'corrector1'] };
+		document.pages[0].columns[0].lines[0].items[1].marks = [
+			{
+				type: 'correction',
+				attrs: {
+					corrections: [
+						{
+							hand: '#corrector1',
+							content: [{ type: 'text', text: 'ρημα' }],
+						},
+					],
+				},
+			},
+		];
+		transcription.content_json = JSON.stringify(document);
+		getTranscriptionsByIds.mockResolvedValue([transcription]);
+
+		const perIdentifier = await gatherWitnessesForVerse('Romans 1:1', ['tx-1']);
+		const segmentResult = await gatherWitnessesForSegment({ members: ['Romans 1:1'] }, [
+			'tx-1',
+		]);
+
+		expect(segmentResult.error).toBeNull();
+		expect(segmentResult.witnesses).toEqual(perIdentifier);
+		expect(segmentResult.witnesses.map(witness => witness.siglum)).toEqual([
+			'Corrected 01',
+			'Corrected 01 corrector1',
+		]);
+		expect(segmentResult.witnesses[1]?.handId).toBe('corrector1');
 	});
 });

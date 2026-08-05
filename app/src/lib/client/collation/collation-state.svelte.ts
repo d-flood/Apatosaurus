@@ -34,7 +34,7 @@ import {
 	type CollationSegment,
 } from './collation-document';
 import {
-	gatherWitnessesForVerse,
+	gatherWitnessesForSegment,
 	prepareWitnessesFromDocument,
 	type PreparedWitness,
 } from './collation-runner';
@@ -238,7 +238,8 @@ function createCollationState() {
 		regularizationDiagnostics = [];
 		regularizationRuleEffects = [];
 		derivedCollationInput = null;
-		lastAlignmentInputSignature = alignmentColumns.length > 0 ? buildAlignmentInputSignature() : null;
+		lastAlignmentInputSignature =
+			alignmentColumns.length > 0 ? buildAlignmentInputSignature() : null;
 		selectedColumnIds = new Set();
 		selectedCells = new Set();
 		focusedColumn = -1;
@@ -282,7 +283,8 @@ function createCollationState() {
 		regularizationDiagnostics = [];
 		regularizationRuleEffects = [];
 		derivedCollationInput = null;
-		lastAlignmentInputSignature = alignmentColumns.length > 0 ? buildAlignmentInputSignature() : null;
+		lastAlignmentInputSignature =
+			alignmentColumns.length > 0 ? buildAlignmentInputSignature() : null;
 		selectedColumnIds = new Set();
 		selectedCells = new Set();
 		focusedColumn = -1;
@@ -440,7 +442,7 @@ function createCollationState() {
 		if (phase === 'setup') {
 			return (
 				Boolean(segment?.name.trim()) &&
-				segment?.members.length === 1 &&
+				Boolean(segment?.members.length) &&
 				witnesses.some(w => !w.isExcluded)
 			);
 		}
@@ -969,7 +971,13 @@ function createCollationState() {
 	function buildAlignmentInputSignature(): string {
 		const input = getDerivedCollationInput();
 		return JSON.stringify({
-			settings: { lowercase, ignoreTokenWhitespace, ignorePunctuation, suppliedTextMode, segmentation },
+			settings: {
+				lowercase,
+				ignoreTokenWhitespace,
+				ignorePunctuation,
+				suppliedTextMode,
+				segmentation,
+			},
 			rules: rules.map(rule => ({
 				id: rule.id,
 				pattern: rule.pattern,
@@ -1078,11 +1086,13 @@ function createCollationState() {
 				.filter((id): id is string => typeof id === 'string' && id.length > 0);
 		if (scopedTranscriptionIds.length === 0) return false;
 
-		const preparedWitnesses = await gatherWitnessesForVerse(
-			member,
+		const gathered = await gatherWitnessesForSegment(
+			{ members: [...segment!.members] },
 			scopedTranscriptionIds,
 			{ ignoreWordBreaks }
 		);
+		if (gathered.error) return false;
+		const preparedWitnesses = gathered.witnesses;
 		if (options?.expectedCollationId && collationId !== options.expectedCollationId)
 			return false;
 		const scopedIds = new Set(scopedTranscriptionIds);
@@ -1183,10 +1193,7 @@ function createCollationState() {
 			expectedTranscriptionId,
 			checkpointId
 		);
-		if (
-			collationId !== expectedCollationId ||
-			segmentMember() !== expectedVerseIdentifier
-		) {
+		if (collationId !== expectedCollationId || segmentMember() !== expectedVerseIdentifier) {
 			return false;
 		}
 		const currentWitness = witnesses.find(w => w.witnessId === witnessId);
@@ -2835,13 +2842,17 @@ function createCollationState() {
 		markUnsaved();
 	}
 
-	function setSegmentMember(member: string) {
+	function setSegmentMembers(members: string[]) {
 		segment = {
 			id: segment?.id ?? crypto.randomUUID(),
 			name: segment?.name ?? '',
-			members: [member],
+			members: [...new Set(members)],
 		};
 		markUnsaved();
+	}
+
+	function setSegmentMember(member: string) {
+		setSegmentMembers([member]);
 	}
 
 	function clearSegment() {
@@ -2858,11 +2869,17 @@ function createCollationState() {
 			throw new Error('A project must be selected before creating a collation.');
 		}
 		if (!segmentName.trim()) throw new Error('Collation segment name is required.');
-		if (!memberIdentifier) throw new Error('Collation segment member is required.');
+		const memberIdentifiers = segment?.members.length
+			? [...new Set(segment.members)]
+			: memberIdentifier
+				? [memberIdentifier]
+				: [];
+		if (memberIdentifiers.length === 0)
+			throw new Error('Collation segment member is required.');
 		const nextSegment: CollationSegment = {
 			id: segment?.id ?? crypto.randomUUID(),
 			name: segmentName,
-			members: [memberIdentifier],
+			members: memberIdentifiers,
 		};
 		segment = nextSegment;
 		const now = new Date().toISOString();
@@ -3007,7 +3024,7 @@ function createCollationState() {
 			return segment;
 		},
 		set segment(value) {
-			segment = value;
+			segment = value ? { ...value, members: [...new Set(value.members)] } : null;
 			markUnsaved();
 		},
 		get selectedVerse() {
@@ -3152,6 +3169,7 @@ function createCollationState() {
 		setSuppliedTextMode,
 		setSegmentation,
 		setSegmentName,
+		setSegmentMembers,
 		setSegmentMember,
 		clearSegment,
 		refreshCollationInput,

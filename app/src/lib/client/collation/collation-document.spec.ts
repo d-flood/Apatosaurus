@@ -269,4 +269,40 @@ describe('collation document', () => {
 			})
 		).toThrow('Collation segment name is required.');
 	});
+
+	it('keeps member identifiers opaque while collapsing only exact duplicates', () => {
+		const document = buildCollationDocument({
+			collationId: null,
+			projectId: null,
+			projectName: null,
+			phase: 'setup',
+			furthestPhase: 'setup',
+			segment: {
+				id: 'segment-1',
+				name: 'Romans 1:1',
+				members: ['Rom 1:1', 'Rom 1:1', 'rom 1:1', 'Rom 1:1 ', 'Rom 1:1.'],
+			},
+			witnesses: [],
+			rules: [],
+			ignoreWordBreaks: false,
+			lowercase: false,
+			ignoreTokenWhitespace: true,
+			ignorePunctuation: false,
+			suppliedTextMode: 'clear',
+			segmentation: true,
+			alignmentColumns: [],
+			witnessOrder: [],
+			classifiedReadings: new Map(),
+			stemmaEdges: new Map(),
+			alignmentDisplayMode: 'regularized',
+			alignmentLayout: 'grid',
+		});
+
+		expect(document.setup.segment.members).toEqual([
+			'Rom 1:1',
+			'rom 1:1',
+			'Rom 1:1 ',
+			'Rom 1:1.',
+		]);
+	});
 });
