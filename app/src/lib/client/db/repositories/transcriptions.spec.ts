@@ -270,6 +270,7 @@ describe('transcriptions repository', () => {
 	});
 
 	it('replaces verse indexes when content is updated', async () => {
+		const updatedDocument = documentWithVerses(['Romans 1:2']);
 		await createTranscription(harness.db, {
 			...baseInput('tx-1', '01'),
 			document: documentWithVerses(['Romans 1:1']),
@@ -277,7 +278,7 @@ describe('transcriptions repository', () => {
 
 		await updateTranscriptionContent(harness.db, {
 			id: 'tx-1',
-			document: documentWithVerses(['Romans 1:2']),
+			document: updatedDocument,
 			updatedAt: '2024-02-01T00:00:00.000Z',
 		});
 
@@ -287,6 +288,7 @@ describe('transcriptions repository', () => {
 
 		expect(oldRows).toEqual([]);
 		expect(newRows).toHaveLength(1);
+		expect(JSON.parse(updated?.content_json ?? '')).toMatchObject(updatedDocument);
 		expect(updated?.updated_at).toBe('2024-02-01T00:00:00.000Z');
 	});
 

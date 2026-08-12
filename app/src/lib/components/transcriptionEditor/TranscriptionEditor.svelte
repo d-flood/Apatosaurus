@@ -2,7 +2,6 @@
 	import { updateTranscriptionContent } from '$lib/client/db/client';
 	import { ensureLocalDbRuntime } from '$lib/client/db/runtime';
 	import { fromProseMirror, toProseMirror } from '$lib/tei/tei-transcription';
-	import { syncVerseIndexFromDocument } from '$lib/client/transcription/verse-index';
 	import {
 		addReferenceEditionUsed,
 		coerceTranscriptionDocument,
@@ -712,9 +711,8 @@
 
 			// Set editor state once (not on every transaction)
 			editorState.editor = editor;
-			if (repairResult.repaired) {
+			if (repairResult.repaired && repairResult.issues.length > 0) {
 				onSaveStateChange?.(false);
-				debouncedSyncVerseIndex();
 				debouncedAutosave();
 			}
 
@@ -732,7 +730,6 @@
 						pagesNeedUpdate = false;
 					}
 					if (pageCountChanged) hasPage = checkForPages(editor);
-					debouncedSyncVerseIndex();
 					debouncedAutosave();
 				}
 				updateSelectionDerivedState(editor);
@@ -747,7 +744,6 @@
 			hasPage = checkForPages(editor);
 			unconfirmedVerseCount = countUnconfirmedVerses(editor);
 			rebuildPageList();
-			debouncedSyncVerseIndex();
 			updateSelectionDerivedState(editor);
 
 			// Add listener for modal open event
@@ -776,7 +772,6 @@
 				modal.addEventListener('toggle', handleModalToggle);
 
 				return () => {
-					cancelVerseIndexSync();
 					void flushAutosave();
 					editor.destroy();
 					modal.removeEventListener('toggle', handleModalToggle);
@@ -786,7 +781,6 @@
 			}
 
 			return () => {
-				cancelVerseIndexSync();
 				void flushAutosave();
 				editor.destroy();
 				document.removeEventListener('visibilitychange', handleVisibilityChange);
@@ -1159,50 +1153,6 @@
 		};
 	}
 
-	function createDebouncedVerseIndexSync(delayMs: number = 1200) {
-		let timeoutId: ReturnType<typeof setTimeout> | null = null;
-
-		const sync = () => {
-			if (!transcription?.id) return;
-			// The index sync is a second write path. Never let it persist a seed
-			// before the canonical autosave has accepted its provenance.
-			if (pendingReferenceEditionsUsed) return;
-			const editorJson = editorState.editor?.getJSON();
-			if (!editorJson) return;
-			const document = coerceEditorJsonToDocument(editorJson);
-			if (!document) return;
-			syncVerseIndexFromDocument(transcription.id, document).catch((error: unknown) => {
-				console.error('[Verse Index] Failed to sync verse index:', error);
-			});
-		};
-
-		const cancel = () => {
-			if (timeoutId === null) return;
-			clearTimeout(timeoutId);
-			timeoutId = null;
-		};
-
-		const schedule = () => {
-			if (timeoutId !== null) {
-				clearTimeout(timeoutId);
-			}
-			timeoutId = setTimeout(() => {
-				timeoutId = null;
-				sync();
-			}, delayMs);
-		};
-
-		return {
-			schedule,
-			cancel,
-			flush: () => {
-				if (timeoutId === null) return;
-				cancel();
-				sync();
-			},
-		};
-	}
-
 	function createDebouncedAutosave(delayMs: number = 1000) {
 		let timeoutId: ReturnType<typeof setTimeout> | null = null;
 		let pendingSave = false;
@@ -1311,9 +1261,6 @@
 		};
 	}
 
-	const verseIndexSync = createDebouncedVerseIndexSync();
-	const debouncedSyncVerseIndex = verseIndexSync.schedule;
-	const cancelVerseIndexSync = verseIndexSync.cancel;
 	const autosave = createDebouncedAutosave();
 	const debouncedAutosave = autosave.schedule;
 	const flushAutosave = autosave.flush;

@@ -3,15 +3,28 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { transcriptionDocument } from '$lib/client/testing/editorFixtures';
 
-const { syncVerseIndexFromDocument } = vi.hoisted(() => ({
-	syncVerseIndexFromDocument: vi.fn(async () => undefined),
+const { ensureLocalDbRuntime, updateTranscriptionContent } = vi.hoisted(() => ({
+	ensureLocalDbRuntime: vi.fn(async () => undefined),
+	updateTranscriptionContent: vi.fn(async () => undefined),
 }));
 
-vi.mock('$lib/client/transcription/verse-index', () => ({ syncVerseIndexFromDocument }));
+vi.mock('$lib/client/db/client', () => ({
+	createTranscription: vi.fn(),
+	createTranscriptions: vi.fn(),
+	ensureDefaultProject: vi.fn(),
+	getTranscription: vi.fn(),
+	listProjects: vi.fn(),
+	updateTranscriptionMetadata: vi.fn(),
+	updateTranscriptionContent,
+}));
+vi.mock('$lib/client/db/runtime', () => ({
+	checkpointLocalDb: vi.fn(),
+	ensureLocalDbRuntime,
+}));
 
 import TranscriptionEditor from './TranscriptionEditor.svelte';
 
-const VERSE_INDEX_SYNC_DELAY_MS = 1200;
+const AUTOSAVE_DELAY_MS = 1000;
 
 function wait(delayMs: number): Promise<void> {
 	return new Promise(resolve => setTimeout(resolve, delayMs));
@@ -25,73 +38,91 @@ async function waitForEditor(target: ParentNode): Promise<void> {
 	}
 }
 
-async function mountEditor(attached: boolean) {
+async function mountEditor() {
 	const target = document.createElement('div');
-	if (attached) document.body.appendChild(target);
+	document.body.appendChild(target);
 	const component = mount(TranscriptionEditor, {
 		target,
 		props: {
 			transcription: {
-				id: 'debounce-spec',
-				title: 'debounce spec',
+				id: 'autosave-spec',
+				title: 'autosave spec',
 				content_json: transcriptionDocument({}),
 				format: 'normalized_ast_v3',
 			} as any,
 			data: {},
 		},
-	});
+	}) as Record<string, any>;
 	await waitForEditor(target);
 	return { component, target };
 }
 
-describe('transcription editor verse-index sync lifecycle', () => {
+function editMountedDocument(target: ParentNode): void {
+	const editorElement = target.querySelector<HTMLElement>('.ProseMirror');
+	if (!editorElement) throw new Error('no mounted editor');
+	const editor = (editorElement as any).editor;
+	editor.view.dispatch(editor.state.tr.insertText('x'));
+}
+
+describe('transcription editor autosave', () => {
 	beforeEach(() => {
-		syncVerseIndexFromDocument.mockClear();
+		vi.clearAllMocks();
+		updateTranscriptionContent.mockResolvedValue(undefined);
 	});
 
-	it('drops a pending sync when unmounted through the modal cleanup path', async () => {
-		const { component, target } = await mountEditor(true);
-		expect(document.getElementById('transcription-metadata-modal')).not.toBeNull();
-
-		await unmount(component);
-		target.remove();
-		await wait(VERSE_INDEX_SYNC_DELAY_MS + 100);
-
-		expect(syncVerseIndexFromDocument).not.toHaveBeenCalled();
-	});
-
-	it('drops a pending sync when unmounted through the cleanup path without a modal', async () => {
-		const { component } = await mountEditor(false);
-		expect(document.getElementById('transcription-metadata-modal')).toBeNull();
-
-		await unmount(component);
-		await wait(VERSE_INDEX_SYNC_DELAY_MS + 100);
-
-		expect(syncVerseIndexFromDocument).not.toHaveBeenCalled();
-	});
-
-	it('syncs an edited document on the existing interval', async () => {
-		const { component, target } = await mountEditor(true);
+	it('does not save a clean document after mount', async () => {
+		const { component, target } = await mountEditor();
 		try {
-			await wait(VERSE_INDEX_SYNC_DELAY_MS + 100);
-			syncVerseIndexFromDocument.mockClear();
+			await wait(AUTOSAVE_DELAY_MS + 250);
+			expect(updateTranscriptionContent).not.toHaveBeenCalled();
+		} finally {
+			await unmount(component);
+			target.remove();
+		}
+	});
 
-			const editorElement = target.querySelector<HTMLElement>('.ProseMirror');
-			if (!editorElement) throw new Error('no mounted editor');
-			const editor = (editorElement as any).editor;
-			editor.view.dispatch(editor.state.tr.insertText('x'));
-
-			await wait(VERSE_INDEX_SYNC_DELAY_MS - 100);
-			expect(syncVerseIndexFromDocument).not.toHaveBeenCalled();
+	it('saves one canonical document after an edit and the autosave delay', async () => {
+		const { component, target } = await mountEditor();
+		try {
+			editMountedDocument(target);
+			await wait(AUTOSAVE_DELAY_MS - 100);
+			expect(updateTranscriptionContent).not.toHaveBeenCalled();
 			await wait(200);
-			expect(syncVerseIndexFromDocument).toHaveBeenCalledOnce();
-			expect(syncVerseIndexFromDocument).toHaveBeenCalledWith(
-				'debounce-spec',
-				expect.objectContaining({ type: 'transcriptionDocument' })
+
+			expect(updateTranscriptionContent).toHaveBeenCalledOnce();
+			expect(updateTranscriptionContent).toHaveBeenCalledWith(
+				expect.objectContaining({
+					id: 'autosave-spec',
+					document: expect.objectContaining({ type: 'transcriptionDocument' }),
+				})
 			);
 		} finally {
 			await unmount(component);
 			target.remove();
 		}
+	});
+
+	it('flushes a pending edit through the public autosave interface', async () => {
+		const { component, target } = await mountEditor();
+		try {
+			editMountedDocument(target);
+
+			await expect(component.flushPendingAutosave()).resolves.toBe(true);
+			expect(updateTranscriptionContent).toHaveBeenCalledOnce();
+		} finally {
+			await unmount(component);
+			target.remove();
+		}
+	});
+
+	it('flushes a pending edit when unmounted', async () => {
+		const { component, target } = await mountEditor();
+		editMountedDocument(target);
+
+		await unmount(component);
+		target.remove();
+		await wait(0);
+
+		expect(updateTranscriptionContent).toHaveBeenCalledOnce();
 	});
 });

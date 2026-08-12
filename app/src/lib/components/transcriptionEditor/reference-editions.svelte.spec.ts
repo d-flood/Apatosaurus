@@ -11,7 +11,6 @@ const {
 	removeUserReferenceEdition,
 	userEntries,
 	userXml,
-	syncVerseIndexFromDocument,
 	updateTranscriptionContent,
 } = vi.hoisted(() => ({
 	ensureLocalDbRuntime: vi.fn(async () => undefined),
@@ -43,7 +42,6 @@ const {
 	loadUserReferenceEditionXml: vi.fn(),
 	registerUserReferenceEdition: vi.fn(),
 	removeUserReferenceEdition: vi.fn(),
-	syncVerseIndexFromDocument: vi.fn(async () => undefined),
 	updateTranscriptionContent: vi.fn(async (_input: Record<string, any>) => undefined),
 }));
 
@@ -71,8 +69,6 @@ vi.mock('$lib/client/store/user-reference-editions', () => ({
 	registerUserReferenceEdition,
 	removeUserReferenceEdition,
 }));
-vi.mock('$lib/client/transcription/verse-index', () => ({ syncVerseIndexFromDocument }));
-
 import { transcriptionDocument } from '$lib/client/testing/editorFixtures';
 import {
 	mountTranscriptionEditor,
@@ -158,7 +154,6 @@ describe('reference edition seeding', () => {
 			}
 		);
 		removeUserReferenceEdition.mockReset();
-		syncVerseIndexFromDocument.mockClear();
 	});
 
 	it('registers and loads user XML from the picker before seeding it as unconfirmed', async () => {
@@ -562,9 +557,6 @@ describe('reference edition seeding', () => {
 			await seedThroughProductionEditor(harness.container);
 			expect(await harness.component.flushPendingAutosave()).toBe(false);
 			expect(callbackValues).toEqual([]);
-			syncVerseIndexFromDocument.mockClear();
-			await tick(45);
-			expect(syncVerseIndexFromDocument).not.toHaveBeenCalled();
 
 			updateTranscriptionContent.mockResolvedValue(undefined);
 			expect(await harness.component.flushPendingAutosave()).toBe(true);
