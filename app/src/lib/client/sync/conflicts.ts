@@ -8,12 +8,10 @@ import type {
 	CollationTokens,
 	CollationVariationUnits,
 	CollationWitnesses,
-	Collations,
 	Database,
 	IiifCanvasAnnotations,
 	IiifManifestSources,
 	ProjectTranscriptions,
-	SyncTombstones,
 	TranscriptionPageCanvasLinks,
 	Transcriptions,
 	TranscriptionVerseIndex,
@@ -21,12 +19,10 @@ import type {
 import {
 	buildCollationHashPayload,
 	buildTranscriptionHashPayload,
-	canonicalJson,
 	hashCanonicalPayload,
 	loadProjectTranscriptionSnapshot,
 	loadSerializedCollation,
 } from '$lib/client/db/repositories/revisions';
-import { projectRelativeCloudPaths } from './cloud-files';
 
 type DbExecutor = Kysely<Database> | Transaction<Database>;
 
@@ -34,73 +30,6 @@ export type SyncEntityType = 'project-transcription' | 'collation';
 
 export interface SyncEntityHead {
 	revisionId: string;
-	contentHash: string;
-}
-
-export type CommittedHeadSyncClassification =
-	| 'in_sync'
-	| 'local_only_change'
-	| 'remote_only_change'
-	| 'local_remote_conflict';
-
-export interface ClassifyCommittedHeadSyncInput {
-	localHead: SyncEntityHead;
-	remoteHead: SyncEntityHead;
-	lastSyncedHead: SyncEntityHead;
-}
-
-export type TombstoneResolution = 'tombstone_wins' | 'delete_edit_conflict';
-
-export type TombstoneApplicationOutcome =
-	| 'entity_missing'
-	| 'tombstone_wins'
-	| 'delete_edit_conflict';
-
-export interface TombstoneData {
-	id: string;
-	project_id: string | null;
-	entity_type: string;
-	entity_id: string;
-	cloud_path: string;
-	deletion_revision_id: string;
-	deleted_by: string;
-	deleted_at: string;
-}
-
-export interface CreateTombstoneInput {
-	id?: string;
-	projectId?: string | null;
-	entityId: string;
-	cloudPath?: string;
-	deletionRevisionId?: string;
-	deletedBy?: string;
-	deletedAt?: string;
-}
-
-export interface TombstoneApplicationResult {
-	outcome: TombstoneApplicationOutcome;
-	tombstone: TombstoneData;
-	entityRevisionId: string;
-}
-
-export interface PreserveDraftCheckpointInput {
-	checkpointId?: string;
-	authorName?: string;
-	commitMessage?: string | null;
-	createdAt?: string;
-}
-
-export interface PreserveProjectTranscriptionDraftInput extends PreserveDraftCheckpointInput {
-	projectTranscriptionId: string;
-}
-
-export interface PreserveCollationDraftInput extends PreserveDraftCheckpointInput {
-	collationId: string;
-}
-
-export interface DraftCheckpointResult {
-	checkpointId: string;
-	parentCheckpointId: string | null;
 	contentHash: string;
 }
 
@@ -135,233 +64,6 @@ export interface CollationConflictCopyResult {
 	currentRevisionId: string;
 	currentContentHash: string;
 	title: string;
-}
-
-export function classifyCommittedHeadSync(
-	input: ClassifyCommittedHeadSyncInput
-): CommittedHeadSyncClassification {
-	if (headsEqual(input.localHead, input.remoteHead)) return 'in_sync';
-	const localChanged = !headsEqual(input.localHead, input.lastSyncedHead);
-	const remoteChanged = !headsEqual(input.remoteHead, input.lastSyncedHead);
-	if (localChanged && remoteChanged) return 'local_remote_conflict';
-	if (localChanged) return 'local_only_change';
-	if (remoteChanged) return 'remote_only_change';
-	return 'in_sync';
-}
-
-export async function createProjectTranscriptionTombstone(
-	db: Kysely<Database>,
-	input: CreateTombstoneInput
-): Promise<TombstoneData> {
-	return db.transaction().execute(async trx => {
-		const entity = await loadProjectTranscriptionEntity(trx, input.entityId);
-		const projectId = entity?.link.project_id ?? input.projectId ?? null;
-		if (!projectId) throw new Error(`Project transcription ${input.entityId} was not found.`);
-		const tombstone = await upsertTombstone(trx, {
-			id: input.id ?? createId(),
-			project_id: projectId,
-			entity_type: 'project-transcription',
-			entity_id: input.entityId,
-			cloud_path:
-				input.cloudPath ?? projectRelativeCloudPaths().transcriptions(input.entityId),
-			deletion_revision_id:
-				input.deletionRevisionId ?? entity?.transcription.current_revision_id ?? '',
-			deleted_by: input.deletedBy ?? '',
-			deleted_at: input.deletedAt ?? new Date().toISOString(),
-		});
-		if (entity) await deleteProjectTranscriptionEntity(trx, entity);
-		return tombstone;
-	});
-}
-
-export async function createCollationTombstone(
-	db: Kysely<Database>,
-	input: CreateTombstoneInput
-): Promise<TombstoneData> {
-	return db.transaction().execute(async trx => {
-		const collation = await trx
-			.selectFrom('collations')
-			.selectAll()
-			.where('id', '=', input.entityId)
-			.executeTakeFirst();
-		const projectId = collation?.project_id ?? input.projectId ?? null;
-		const tombstone = await upsertTombstone(trx, {
-			id: input.id ?? createId(),
-			project_id: projectId,
-			entity_type: 'collation',
-			entity_id: input.entityId,
-			cloud_path: input.cloudPath ?? projectRelativeCloudPaths().collations(input.entityId),
-			deletion_revision_id: input.deletionRevisionId ?? collation?.current_revision_id ?? '',
-			deleted_by: input.deletedBy ?? '',
-			deleted_at: input.deletedAt ?? new Date().toISOString(),
-		});
-		if (collation)
-			await trx.deleteFrom('collations').where('id', '=', input.entityId).execute();
-		return tombstone;
-	});
-}
-
-export async function classifyTombstoneAgainstProjectTranscription(
-	db: DbExecutor,
-	tombstone: TombstoneData
-): Promise<TombstoneResolution | 'entity_missing'> {
-	const entity = await loadProjectTranscriptionEntity(db, tombstone.entity_id);
-	if (!entity) return 'entity_missing';
-	return classifyTombstoneRevision(
-		db,
-		'project-transcription',
-		entity.transcription.id,
-		entity.transcription.current_revision_id,
-		tombstone.deletion_revision_id
-	);
-}
-
-export async function classifyTombstoneAgainstCollation(
-	db: DbExecutor,
-	tombstone: TombstoneData
-): Promise<TombstoneResolution | 'entity_missing'> {
-	const collation = await db
-		.selectFrom('collations')
-		.select(['id', 'current_revision_id'])
-		.where('id', '=', tombstone.entity_id)
-		.executeTakeFirst();
-	if (!collation) return 'entity_missing';
-	return classifyTombstoneRevision(
-		db,
-		'collation',
-		requireId(collation.id, 'collation'),
-		collation.current_revision_id,
-		tombstone.deletion_revision_id
-	);
-}
-
-export async function applyProjectTranscriptionTombstone(
-	db: Kysely<Database>,
-	tombstone: TombstoneData
-): Promise<TombstoneApplicationResult> {
-	return db.transaction().execute(async trx => {
-		const saved = await upsertTombstone(trx, tombstone);
-		const entity = await loadProjectTranscriptionEntity(trx, tombstone.entity_id);
-		if (!entity) return { outcome: 'entity_missing', tombstone: saved, entityRevisionId: '' };
-		const resolution = await classifyTombstoneRevision(
-			trx,
-			'project-transcription',
-			entity.transcription.id,
-			entity.transcription.current_revision_id,
-			tombstone.deletion_revision_id
-		);
-		if (resolution === 'delete_edit_conflict') {
-			return {
-				outcome: 'delete_edit_conflict',
-				tombstone: saved,
-				entityRevisionId: entity.transcription.current_revision_id,
-			};
-		}
-		await deleteProjectTranscriptionEntity(trx, entity);
-		return {
-			outcome: 'tombstone_wins',
-			tombstone: saved,
-			entityRevisionId: entity.transcription.current_revision_id,
-		};
-	});
-}
-
-export async function applyCollationTombstone(
-	db: Kysely<Database>,
-	tombstone: TombstoneData
-): Promise<TombstoneApplicationResult> {
-	return db.transaction().execute(async trx => {
-		const saved = await upsertTombstone(trx, tombstone);
-		const collation = await trx
-			.selectFrom('collations')
-			.select(['id', 'current_revision_id'])
-			.where('id', '=', tombstone.entity_id)
-			.executeTakeFirst();
-		if (!collation)
-			return { outcome: 'entity_missing', tombstone: saved, entityRevisionId: '' };
-		const entityRevisionId = collation.current_revision_id;
-		const resolution = await classifyTombstoneRevision(
-			trx,
-			'collation',
-			requireId(collation.id, 'collation'),
-			entityRevisionId,
-			tombstone.deletion_revision_id
-		);
-		if (resolution === 'delete_edit_conflict') {
-			return { outcome: 'delete_edit_conflict', tombstone: saved, entityRevisionId };
-		}
-		await trx.deleteFrom('collations').where('id', '=', tombstone.entity_id).execute();
-		return { outcome: 'tombstone_wins', tombstone: saved, entityRevisionId };
-	});
-}
-
-export async function preserveProjectTranscriptionDraftCheckpoint(
-	db: Kysely<Database>,
-	input: PreserveProjectTranscriptionDraftInput
-): Promise<DraftCheckpointResult | null> {
-	return db.transaction().execute(async trx => {
-		const snapshot = await loadProjectTranscriptionSnapshot(trx, input.projectTranscriptionId);
-		const head = await trx
-			.selectFrom('transcriptions')
-			.select(['current_revision_id', 'current_content_hash'])
-			.where('id', '=', snapshot.id)
-			.executeTakeFirstOrThrow();
-		const payload = buildTranscriptionHashPayload(snapshot);
-		const contentHash = await hashCanonicalPayload(payload);
-		if (head.current_content_hash && contentHash === head.current_content_hash) return null;
-
-		const checkpointId = input.checkpointId ?? createId();
-		const parentCheckpointId = head.current_revision_id || null;
-		await trx
-			.insertInto('transcription_checkpoints')
-			.values({
-				id: checkpointId,
-				transcription_id: snapshot.id,
-				parent_checkpoint_id: parentCheckpointId,
-				format: snapshot.format,
-				content_hash: contentHash,
-				is_committed: 0,
-				commit_message: input.commitMessage ?? 'Local draft before remote replacement',
-				author_name: input.authorName ?? '',
-				created_at: input.createdAt ?? new Date().toISOString(),
-			})
-			.execute();
-		return { checkpointId, parentCheckpointId, contentHash };
-	});
-}
-
-export async function preserveCollationDraftCheckpoint(
-	db: Kysely<Database>,
-	input: PreserveCollationDraftInput
-): Promise<DraftCheckpointResult | null> {
-	return db.transaction().execute(async trx => {
-		const collation = await loadSerializedCollation(trx, input.collationId);
-		const head = await trx
-			.selectFrom('collations')
-			.select(['current_revision_id', 'current_content_hash'])
-			.where('id', '=', collation.id)
-			.executeTakeFirstOrThrow();
-		const payload = buildCollationHashPayload(collation);
-		const contentHash = await hashCanonicalPayload(payload);
-		if (head.current_content_hash && contentHash === head.current_content_hash) return null;
-
-		const checkpointId = input.checkpointId ?? createId();
-		const parentCheckpointId = head.current_revision_id || null;
-		await trx
-			.insertInto('collation_checkpoints')
-			.values({
-				id: checkpointId,
-				collation_id: collation.id,
-				parent_checkpoint_id: parentCheckpointId,
-				content_hash: contentHash,
-				is_committed: 0,
-				commit_message: input.commitMessage ?? 'Local draft before remote replacement',
-				author_name: input.authorName ?? '',
-				created_at: input.createdAt ?? new Date().toISOString(),
-			})
-			.execute();
-		return { checkpointId, parentCheckpointId, contentHash };
-	});
 }
 
 export async function createProjectTranscriptionConflictCopy(
@@ -484,98 +186,6 @@ export async function createCollationConflictCopy(
 	});
 }
 
-function headsEqual(left: SyncEntityHead, right: SyncEntityHead): boolean {
-	return left.revisionId === right.revisionId && left.contentHash === right.contentHash;
-}
-
-async function classifyTombstoneRevision(
-	db: DbExecutor,
-	entityType: SyncEntityType,
-	entityId: string,
-	entityRevisionId: string,
-	deletionRevisionId: string
-): Promise<TombstoneResolution> {
-	if (!entityRevisionId) return 'tombstone_wins';
-	if (!deletionRevisionId) return 'delete_edit_conflict';
-	if (entityRevisionId === deletionRevisionId) return 'tombstone_wins';
-	if (await isRevisionAncestor(db, entityType, entityId, entityRevisionId, deletionRevisionId)) {
-		return 'tombstone_wins';
-	}
-	return 'delete_edit_conflict';
-}
-
-async function isRevisionAncestor(
-	db: DbExecutor,
-	entityType: SyncEntityType,
-	entityId: string,
-	ancestorRevisionId: string,
-	descendantRevisionId: string
-): Promise<boolean> {
-	if (ancestorRevisionId === descendantRevisionId) return true;
-	let current: string | null = descendantRevisionId;
-	const seen = new Set<string>();
-	while (current && !seen.has(current)) {
-		seen.add(current);
-		const parent: string | null =
-			entityType === 'project-transcription'
-				? await loadTranscriptionCheckpointParent(db, entityId, current)
-				: await loadCollationCheckpointParent(db, entityId, current);
-		if (parent === ancestorRevisionId) return true;
-		current = parent;
-	}
-	return false;
-}
-
-async function loadTranscriptionCheckpointParent(
-	db: DbExecutor,
-	transcriptionId: string,
-	checkpointId: string
-): Promise<string | null> {
-	const row = await db
-		.selectFrom('transcription_checkpoints')
-		.select('parent_checkpoint_id')
-		.where('id', '=', checkpointId)
-		.where('transcription_id', '=', transcriptionId)
-		.executeTakeFirst();
-	return row?.parent_checkpoint_id ?? null;
-}
-
-async function loadCollationCheckpointParent(
-	db: DbExecutor,
-	collationId: string,
-	checkpointId: string
-): Promise<string | null> {
-	const row = await db
-		.selectFrom('collation_checkpoints')
-		.select('parent_checkpoint_id')
-		.where('id', '=', checkpointId)
-		.where('collation_id', '=', collationId)
-		.executeTakeFirst();
-	return row?.parent_checkpoint_id ?? null;
-}
-
-async function upsertTombstone(db: DbExecutor, tombstone: TombstoneData): Promise<TombstoneData> {
-	await db
-		.insertInto('sync_tombstones')
-		.values(tombstone)
-		.onConflict(oc =>
-			oc.columns(['project_id', 'entity_type', 'entity_id']).doUpdateSet({
-				id: tombstone.id,
-				cloud_path: tombstone.cloud_path,
-				deletion_revision_id: tombstone.deletion_revision_id,
-				deleted_by: tombstone.deleted_by,
-				deleted_at: tombstone.deleted_at,
-			})
-		)
-		.execute();
-	const row = await db
-		.selectFrom('sync_tombstones')
-		.selectAll()
-		.where('id', '=', tombstone.id)
-		.executeTakeFirstOrThrow();
-	return mapTombstone(row);
-}
-
 interface ProjectTranscriptionEntity {
 	link: Selectable<ProjectTranscriptions> & { id: string };
 	transcription: Selectable<Transcriptions> & { id: string };
@@ -601,16 +211,6 @@ async function loadProjectTranscriptionEntity(
 		link: { ...link, id: requireId(link.id, 'project transcription') },
 		transcription: { ...transcription, id: requireId(transcription.id, 'transcription') },
 	};
-}
-
-async function deleteProjectTranscriptionEntity(
-	db: DbExecutor,
-	entity: ProjectTranscriptionEntity
-): Promise<void> {
-	await db.deleteFrom('project_transcriptions').where('id', '=', entity.link.id).execute();
-	if (entity.transcription.project_id === entity.link.project_id) {
-		await db.deleteFrom('transcriptions').where('id', '=', entity.transcription.id).execute();
-	}
 }
 
 async function copyTranscriptionChildRows(
@@ -859,19 +459,6 @@ async function createCommittedCheckpointForCollationCopy(
 		.where('id', '=', collation.id)
 		.execute();
 	return { checkpointId, contentHash };
-}
-
-function mapTombstone(row: Selectable<SyncTombstones>): TombstoneData {
-	return {
-		id: requireId(row.id, 'tombstone'),
-		project_id: row.project_id,
-		entity_type: row.entity_type,
-		entity_id: row.entity_id,
-		cloud_path: row.cloud_path,
-		deletion_revision_id: row.deletion_revision_id,
-		deleted_by: row.deleted_by,
-		deleted_at: row.deleted_at,
-	};
 }
 
 function appendConflictSuffix(value: string, suffix: string): string {

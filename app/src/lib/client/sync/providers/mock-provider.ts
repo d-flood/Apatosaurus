@@ -12,7 +12,6 @@ export const MOCK_PROVIDER_ID = 'mock';
 
 export type MockProviderOperation =
 	| 'create-folder'
-	| 'share-folder'
 	| 'list-files'
 	| 'download-file'
 	| 'create-file'
@@ -54,14 +53,7 @@ export class MockCloudStorageProvider implements CloudStorageProvider {
 	id = MOCK_PROVIDER_ID;
 	name = 'Mock Cloud Storage';
 	capabilities: CloudProviderCapabilities = {
-		supportsFolderSharing: true,
-		supportsStableFileIds: true,
 		supportsExpectedRevisionDelete: true,
-		requiresPathAddressing: false,
-		sharingMayBeAsync: false,
-		requiresExternalAuthorization: false,
-		requiresUserGestureForConnection: false,
-		supportsDirectoryHandlePersistence: false,
 	};
 
 	readonly rootFolderId: string;
@@ -102,17 +94,6 @@ export class MockCloudStorageProvider implements CloudStorageProvider {
 			return existing.id;
 		}
 		return this.createFolderEntry(parent, name).id;
-	}
-
-	async shareFolder(
-		folderId: string,
-		inviteeEmail: string,
-		_role: 'viewer' | 'editor'
-	): Promise<void> {
-		this.throwInjectedError('share-folder');
-		this.requireFolder(folderId);
-		if (!inviteeEmail.trim())
-			throw providerError('permission-denied', 'Invitee email is required.');
 	}
 
 	async listFiles(

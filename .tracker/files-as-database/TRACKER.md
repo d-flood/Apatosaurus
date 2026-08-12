@@ -6,9 +6,9 @@ This document tracks the status of all tickets in the files-as-database epic: in
 
 ## Current Status
 
-Overall status: `Reopened`
+Overall status: `Completed`
 
-Current ticket: `24` — ticket 10's retirement half, never completed
+Current ticket: None
 
 Last updated: 2026-08-11
 
@@ -44,7 +44,7 @@ Last updated: 2026-08-11
 | 21 | `21-invariant-test-suite.md` | Completed | 07, 09, 10, 11 |
 | 22 | `22-e2e-scenarios-and-ci.md` | Completed | 21 |
 | 23 | `23-docs-and-ideas-triage.md` | Completed | 16, 21 |
-| 24 | `24-retire-the-legacy-restore-engine.md` | Not Started | None |
+| 24 | `24-retire-the-legacy-restore-engine.md` | Completed | None |
 
 ## Verification Baseline
 
@@ -61,6 +61,9 @@ bun run test:unit -- --run
 
 | Date | Note |
 | --- | --- |
+| 2026-08-12 | Ticket `24` completed under the revised live/dead contract. Deleted the independently unreachable restore module, its RPC/client/worker plumbing, dead entity publish/poll paths, dead tombstone helpers, and unused provider capability surface while retaining every helper reached by live file mirroring, conflict copies, backup health, and manifest summaries. Production `app/src/lib/client/sync` fell from 9,366 to 5,932 lines. Restore-symbol searches are empty; `INDEX_SCHEMA_VERSION` remains `1`; focused sync tests, full server and browser unit suites, database checks, typecheck, and the two-context sync Playwright scenario pass. Full lint remains blocked by the unrelated existing `no-useless-assignment` error in `reference-editions/insertion.ts`; full Playwright reached an unrelated dashboard setup failure while the dedicated sync scenario passed. |
+| 2026-08-12 | Human validation resolved ticket `24`: revise the deletion scope to retain every helper reached by live file mirroring, conflict-copy, backup-health, and manifest-summary paths, while deleting the independently unreachable restore module, its RPC plumbing, and only branches proven dead by current production callers. |
+| 2026-08-12 | Ticket `24` paused before deletion because its point-in-time dead-symbol list no longer matches the live mirror call graph. `serializePrimaryFile` is reached by `mirrorProjectFiles` through conflict-copy creation; `listRemoteMetadata` is reached through remote mirror enumeration; and the `*CloudFile` translation path is reached by live mirror, backup-health, and manifest-summary behavior. Deleting those named paths while leaving `mirrorProjectFiles` and everything it reaches untouched is impossible. No production or test files were changed. Human validation is needed to revise the ticket to retain live helpers and delete only the independently unreachable restore RPC/module and remaining dead branches. |
 | 2026-08-11 | Epic reopened for ticket `24`. An architecture review found ticket 10's success criterion unmet under a `Completed` row: `grep -r importCloudProject app/src` still returns `sync/project-restore.ts` plus its RPC plumbing in `db/client.ts` and `db/db.worker.ts`. Ticket 10's unification half landed; its retirement half did not, and the 2026-07-13 note asking for that contract decision was never resolved. The consequence is that both sync engines are still resident and interleaved in the same files — roughly 3,900 of 9,366 production lines in `sync/` are the pre-inversion entity/row engine, certified by ~5,700 lines of tests, and `project-restore.ts` performs zero OPFS writes while writing 18 index tables, which is the inverse of Invariant 1. Ticket 24 is deletion only: the legacy restore RPCs, the dead half of `sync-manager.ts`, the spec-only `conflicts.ts` exports, the `*CloudFile` translation vocabulary, and the provider methods no implementation implements. `mirrorProjectFiles` and the cloud tables are explicitly untouched, so `INDEX_SCHEMA_VERSION` does not move. |
 | 2026-07-18 | Ticket 23 completed, closing the files-as-database epic. Updated both READMEs with the accepted architecture and index-version workflow; documented executable format-version and storage-provider extension procedures against the real registry, fixture, factory, and provider seams; finalized About-page data ownership and exit-path content; and reduced `ideas.md` to punctuation handling, collation undo/redo, and image caching. Verification passed: `bun run db:generate`, `bun run db:check`, `bun run check`, the full unit/browser suite (518 tests), the focused format suite (22 tests), and the documented upgrade Playwright scenario. |
 | 2026-07-18 | Ticket 22 completed. Added Chromium Playwright scenarios for fresh project/transcription/collation/zip creation, destructive site-data recovery through zip import, two isolated committee contexts sharing a test-only folder transport with update and conflict-copy propagation, and a checked-in synthetic v1 manifest/v0 index upgrade fixture. The scenarios exposed and fixed Svelte-proxy autosave RPC cloning, SQLite-only conflict copies, and remote-only primary orphaning. Added push/PR CI for schema checks, Svelte checks, node/browser Vitest, and Playwright; removed stale registration E2E coverage for routes retired in ticket 01 and aligned prior navigation/editor harnesses with completed project-first and hydration behavior. Verification passed: `bun run db:generate && bun run db:check`, `bun run check`, the full unit/browser suite (518 tests), and the full Playwright suite (17 passed, 1 opt-in performance benchmark skipped). |

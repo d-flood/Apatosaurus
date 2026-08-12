@@ -1,9 +1,5 @@
 import { notificationCenter } from '$lib/client/notification-center.svelte';
 import { attachLocalDbClient } from './client';
-import {
-	clearLegacyDjazzkitPurgeMarker,
-	purgeLegacyDjazzkitStorage,
-} from './legacy-djazzkit-purge';
 import { purgeLocalDbStorage } from './storage-reset';
 import type { DbRequest, DbResponse } from './rpc';
 
@@ -19,7 +15,6 @@ export async function ensureLocalDbRuntime(): Promise<void> {
 	if (initPromise) return initPromise;
 	initPromise = (async () => {
 		const startedAt = now();
-		await timeRuntimeStep('legacy djazzkit purge', () => purgeLegacyDjazzkitStorage());
 		const dbWorker = timeRuntimeStepSync('worker init', () => getLocalDbWorker());
 		await timeRuntimeStep('worker startup', () =>
 			withTimeout(
@@ -59,7 +54,6 @@ export async function checkpointLocalDb(): Promise<void> {
 
 export async function resetLocalDb(): Promise<void> {
 	await destroyLocalDbWorker();
-	clearLegacyDjazzkitPurgeMarker();
 	await purgeLocalDbStorage();
 	if (typeof window !== 'undefined') window.location.reload();
 }

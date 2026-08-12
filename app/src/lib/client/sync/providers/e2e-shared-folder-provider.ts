@@ -1,6 +1,5 @@
 import {
 	CloudProviderError,
-	type CloudFileMetadata,
 	type CloudListResult,
 	type CloudProviderCapabilities,
 	type CloudProviderErrorCode,
@@ -14,14 +13,7 @@ export class E2eSharedFolderStorageProvider implements CloudStorageProvider {
 	name = 'E2E shared folder';
 	readonly rootFolderId = '.';
 	capabilities: CloudProviderCapabilities = {
-		supportsFolderSharing: false,
-		supportsStableFileIds: true,
 		supportsExpectedRevisionDelete: true,
-		requiresPathAddressing: true,
-		sharingMayBeAsync: false,
-		requiresExternalAuthorization: false,
-		requiresUserGestureForConnection: true,
-		supportsDirectoryHandlePersistence: true,
 	};
 
 	async createFolder(folderName: string, parentFolderId = this.rootFolderId): Promise<string> {
@@ -31,13 +23,6 @@ export class E2eSharedFolderStorageProvider implements CloudStorageProvider {
 			parentId: parentFolderId,
 		});
 		return result.id;
-	}
-
-	async shareFolder(): Promise<void> {
-		throw new CloudProviderError(
-			'permission-denied',
-			'E2E shared folders do not support sharing.'
-		);
 	}
 
 	async listFiles(

@@ -24,14 +24,7 @@ export interface CloudWriteResult {
 }
 
 export interface CloudProviderCapabilities {
-	supportsFolderSharing: boolean;
-	supportsStableFileIds: boolean;
 	supportsExpectedRevisionDelete: boolean;
-	requiresPathAddressing: boolean;
-	sharingMayBeAsync: boolean;
-	requiresExternalAuthorization: boolean;
-	requiresUserGestureForConnection: boolean;
-	supportsDirectoryHandlePersistence: boolean;
 }
 
 export type CloudProviderErrorCode =
@@ -68,7 +61,6 @@ export interface CloudStorageProvider {
 	capabilities: CloudProviderCapabilities;
 
 	createFolder(folderName: string, parentFolderId?: string): Promise<string>;
-	shareFolder(folderId: string, inviteeEmail: string, role: 'viewer' | 'editor'): Promise<void>;
 
 	listFiles(
 		folderId: string,

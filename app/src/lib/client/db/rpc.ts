@@ -19,20 +19,10 @@ import type {
 	RemoveLocalProjectResult,
 } from './repositories/project-removal';
 import type {
-	ProjectManifestComparison,
 	ProjectBackupResult,
 	ProjectBackupSummary,
-	SyncEntityReference,
 	SyncProjectContext,
 } from '../sync/sync-manager';
-import type {
-	CloudProjectCandidate,
-	ImportCloudProjectInput,
-	ImportCloudProjectResult,
-	LinkedProjectManifestContext,
-	PollLinkedProjectManifestResult,
-	PullLinkedProjectUpdatesResult,
-} from '../sync/project-restore';
 import type {
 	CreateProjectInput,
 	ProjectOption,
@@ -469,13 +459,6 @@ export interface CloudConnectionRpcMap {
 		};
 		response: ProjectBackupSummary;
 	};
-	'projectBackup.compareManifest': {
-		request: {
-			type: 'projectBackup.compareManifest';
-			context: SyncProjectContext;
-		};
-		response: ProjectManifestComparison;
-	};
 	'projectBackup.verifyHealth': {
 		request: {
 			type: 'projectBackup.verifyHealth';
@@ -493,15 +476,6 @@ export interface CloudConnectionRpcMap {
 			context: SyncProjectContext;
 			folder?: CloudProjectFolderRecord | null;
 			strict?: boolean;
-		};
-		response: ProjectBackupResult;
-	};
-	'projectBackup.backupEntity': {
-		request: {
-			type: 'projectBackup.backupEntity';
-			context: SyncProjectContext;
-			reference: SyncEntityReference;
-			folder?: CloudProjectFolderRecord | null;
 		};
 		response: ProjectBackupResult;
 	};
@@ -524,29 +498,6 @@ export interface CloudConnectionRpcMap {
 	'accountBackup.restoreReferenceEditions': {
 		request: { type: 'accountBackup.restoreReferenceEditions'; bytes: Uint8Array };
 		response: ReferenceEditionsRestoreResult;
-	};
-	'cloudProjects.listCandidates': {
-		request: {
-			type: 'cloudProjects.listCandidates';
-			connectionId: string;
-			rootFolderId?: string;
-		};
-		response: CloudProjectCandidate[];
-	};
-	'cloudProjects.import': {
-		request: { type: 'cloudProjects.import'; input: ImportCloudProjectInput };
-		response: ImportCloudProjectResult;
-	};
-	'cloudProjects.pollLinkedManifest': {
-		request: {
-			type: 'cloudProjects.pollLinkedManifest';
-			context: LinkedProjectManifestContext;
-		};
-		response: PollLinkedProjectManifestResult;
-	};
-	'cloudProjects.pullLinkedUpdates': {
-		request: { type: 'cloudProjects.pullLinkedUpdates'; context: LinkedProjectManifestContext };
-		response: PullLinkedProjectUpdatesResult;
 	};
 }
 

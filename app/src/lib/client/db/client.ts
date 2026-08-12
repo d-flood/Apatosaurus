@@ -43,20 +43,10 @@ import type {
 	ReferenceEditionsRestoreResult,
 } from '../sync/project-zip-import';
 import type {
-	ProjectManifestComparison,
 	ProjectBackupResult,
 	ProjectBackupSummary,
-	SyncEntityReference,
 	SyncProjectContext,
 } from '../sync/sync-manager';
-import type {
-	CloudProjectCandidate,
-	ImportCloudProjectInput,
-	ImportCloudProjectResult,
-	LinkedProjectManifestContext,
-	PollLinkedProjectManifestResult,
-	PullLinkedProjectUpdatesResult,
-} from '../sync/project-restore';
 import type {
 	CollationListItem,
 	CollationVersionStatusOptions,
@@ -646,12 +636,6 @@ export async function deriveProjectBackupSummary(
 	return sendCloudConnectionRequest({ type: 'projectBackup.summary', context, folder });
 }
 
-export async function compareProjectBackupManifest(
-	context: SyncProjectContext
-): Promise<ProjectManifestComparison> {
-	return sendCloudConnectionRequest({ type: 'projectBackup.compareManifest', context });
-}
-
 export async function verifyProjectBackupHealth(
 	context: SyncProjectContext
 ): Promise<ProjectBackupHealth> {
@@ -688,19 +672,6 @@ export async function backupEligibleProjectEntities(
 	});
 }
 
-export async function backupProjectEntity(
-	context: SyncProjectContext,
-	reference: SyncEntityReference,
-	folder?: CloudProjectFolderRecord | null
-): Promise<ProjectBackupResult> {
-	return sendCloudConnectionRequest({
-		type: 'projectBackup.backupEntity',
-		context,
-		reference,
-		folder,
-	});
-}
-
 export async function exportProjectZip(
 	projectId: string,
 	includeDrafts = false
@@ -732,35 +703,6 @@ export async function restoreReferenceEditionsArchive(
 		type: 'accountBackup.restoreReferenceEditions',
 		bytes,
 	});
-}
-
-export async function listCloudProjectCandidates(
-	connectionId: string,
-	rootFolderId?: string
-): Promise<CloudProjectCandidate[]> {
-	return sendCloudConnectionRequest({
-		type: 'cloudProjects.listCandidates',
-		connectionId,
-		rootFolderId,
-	});
-}
-
-export async function importCloudProject(
-	input: ImportCloudProjectInput
-): Promise<ImportCloudProjectResult> {
-	return sendCloudConnectionRequest({ type: 'cloudProjects.import', input });
-}
-
-export async function pollLinkedProjectManifest(
-	context: LinkedProjectManifestContext
-): Promise<PollLinkedProjectManifestResult> {
-	return sendCloudConnectionRequest({ type: 'cloudProjects.pollLinkedManifest', context });
-}
-
-export async function pullLinkedProjectUpdates(
-	context: LinkedProjectManifestContext
-): Promise<PullLinkedProjectUpdatesResult> {
-	return sendCloudConnectionRequest({ type: 'cloudProjects.pullLinkedUpdates', context });
 }
 
 export async function rebuildLocalIndex(): Promise<IndexRebuildReport> {

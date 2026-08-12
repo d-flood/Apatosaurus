@@ -115,8 +115,6 @@ async function resetBrowserLocalDb(page: Page): Promise<void> {
 				});
 			}
 
-			localStorage.removeItem('apatosaurus:legacy-djazzkit-purged');
-
 			const indexedDbWithDatabases = indexedDB as IDBFactory & {
 				databases?: () => Promise<Array<{ name?: string }>>;
 			};

@@ -69,12 +69,4 @@ describe('local folder storage provider', () => {
 		});
 	});
 
-	it('rejects unsupported folder sharing', async () => {
-		const root = new FakeDirectoryHandle('root');
-		const provider = new LocalFolderStorageProvider(root as unknown as FileSystemDirectoryHandle);
-
-		await expect(provider.shareFolder('.', 'reader@example.com', 'viewer')).rejects.toMatchObject({
-			code: 'permission-denied',
-		});
-	});
 });

@@ -15,14 +15,7 @@ export class LocalFolderStorageProvider implements CloudStorageProvider {
 	id = LOCAL_FOLDER_PROVIDER_ID;
 	name = 'Local folder';
 	capabilities: CloudProviderCapabilities = {
-		supportsFolderSharing: false,
-		supportsStableFileIds: true,
 		supportsExpectedRevisionDelete: true,
-		requiresPathAddressing: true,
-		sharingMayBeAsync: false,
-		requiresExternalAuthorization: false,
-		requiresUserGestureForConnection: true,
-		supportsDirectoryHandlePersistence: true,
 	};
 
 	readonly rootFolderId = LOCAL_FOLDER_ROOT_FOLDER_ID;
@@ -38,10 +31,6 @@ export class LocalFolderStorageProvider implements CloudStorageProvider {
 		} catch (error) {
 			throw mapHandleError(error, `Could not create local folder ${name}.`);
 		}
-	}
-
-	async shareFolder(_folderId: string, _inviteeEmail: string, _role: 'viewer' | 'editor'): Promise<void> {
-		throw providerError('permission-denied', 'Local folder backup does not support sharing.');
 	}
 
 	async listFiles(
