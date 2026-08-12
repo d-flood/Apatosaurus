@@ -109,7 +109,7 @@ describe('collation document', () => {
 			witnessOrder: ['A', 'B'],
 			classifiedReadings: new Map([
 				[
-					'0',
+					'unit:col-1',
 					[
 						{
 							id: 'r-a',
@@ -148,9 +148,10 @@ describe('collation document', () => {
 					],
 				],
 			]),
+			unitDecisions: new Map([['unit:col-1', { subreadingOf: { 'r-b': 'r-a' } }]]),
 			stemmaEdges: new Map([
 				[
-					'0',
+					'unit:col-1',
 					[
 						{
 							id: 'edge-1',
@@ -167,6 +168,19 @@ describe('collation document', () => {
 
 		const parsed = parseCollationDocument(serializeCollationDocument(document));
 		expect(parsed).not.toBeNull();
+		expect(document.apparatus?.units[0]).toMatchObject({
+			unitId: 'unit:col-1',
+			columnId: 'col-1',
+			decisions: { subreadingOf: { 'r-b': 'r-a' } },
+		});
+		expect(document.apparatus?.units[0]).not.toHaveProperty('unitIndex');
+		expect(document.stemma?.units[0]).toMatchObject({
+			unitId: 'unit:col-1',
+			columnId: 'col-1',
+		});
+		expect(document.stemma?.units[0]).not.toHaveProperty('unitIndex');
+		expect(document).not.toHaveProperty('undoHistory');
+		expect(document).not.toHaveProperty('commandHistory');
 
 		const hydrated = hydrateCollationDocument(parsed!);
 		expect(hydrated.projectId).toBe('proj-1');
@@ -188,8 +202,48 @@ describe('collation document', () => {
 		expect(hydrated.alignmentColumns[0]?.cells[1]?.[1].sourceTokenIds).toEqual([
 			'B::source::0',
 		]);
-		expect(hydrated.classifiedReadings[0]?.[1][1]?.readingType).toBe('ns');
+		expect(hydrated.classifiedReadings).toEqual([]);
+		expect(hydrated.unitDecisions).toEqual([
+			['unit:col-1', { subreadingOf: { 'r-b': 'r-a' } }],
+		]);
 		expect(hydrated.stemmaEdges[0]?.[1][0]?.targetReadingId).toBe('r-b');
+	});
+
+	it('persists orphaned unit decisions without inventing a positional column id', () => {
+		const document = buildCollationDocument({
+			collationId: null,
+			projectId: null,
+			projectName: null,
+			phase: 'readings',
+			furthestPhase: 'readings',
+			segment: { id: 'segment-1', name: 'John 1:1', members: ['John 1:1'] },
+			witnesses: [],
+			rules: [],
+			ignoreWordBreaks: false,
+			lowercase: false,
+			ignoreTokenWhitespace: true,
+			ignorePunctuation: false,
+			suppliedTextMode: 'clear',
+			segmentation: true,
+			alignmentColumns: [],
+			witnessOrder: [],
+			classifiedReadings: new Map(),
+			unitDecisions: new Map([['unit:gone-column', { subreadingOf: { 'r-b': 'r-a' } }]]),
+			stemmaEdges: new Map(),
+			alignmentDisplayMode: 'regularized',
+			alignmentLayout: 'grid',
+		});
+
+		expect(document.apparatus?.units).toEqual([
+			{
+				type: 'variationUnit',
+				id: 'unit:gone-column',
+				unitId: 'unit:gone-column',
+				columnId: null,
+				readings: [],
+				decisions: { subreadingOf: { 'r-b': 'r-a' } },
+			},
+		]);
 	});
 
 	it('round-trips hand-level corrector witness source variants', () => {
@@ -225,6 +279,7 @@ describe('collation document', () => {
 				alignmentColumns: [],
 				witnessOrder: [],
 				classifiedReadings: new Map(),
+				unitDecisions: new Map(),
 				stemmaEdges: new Map(),
 				alignmentDisplayMode: 'regularized',
 				alignmentLayout: 'grid',
@@ -263,6 +318,7 @@ describe('collation document', () => {
 				alignmentColumns: [],
 				witnessOrder: [],
 				classifiedReadings: new Map(),
+				unitDecisions: new Map(),
 				stemmaEdges: new Map(),
 				alignmentDisplayMode: 'regularized',
 				alignmentLayout: 'grid',
@@ -293,6 +349,7 @@ describe('collation document', () => {
 			alignmentColumns: [],
 			witnessOrder: [],
 			classifiedReadings: new Map(),
+			unitDecisions: new Map(),
 			stemmaEdges: new Map(),
 			alignmentDisplayMode: 'regularized',
 			alignmentLayout: 'grid',

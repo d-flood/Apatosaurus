@@ -56,11 +56,23 @@ import type {
 	WitnessTreatment,
 } from './collation-types';
 import {
+	buildReadingProposal,
+	compareReadingsForOrder,
+	getReadingFamilyKey,
+	relabelReadings,
+} from './collation-reading-proposal';
+import {
+	applyDecisions,
+	cloneUnitDecisions,
+	findOrphanedUnitDecisions,
+	type OrphanedDecision,
+	type UnitDecisions,
+} from './collation-decisions';
+import { variationUnitId } from './collation-unit-id';
+import {
 	buildReadingFamilyGroups,
 	buildVariationUnitSpans,
-	indexToReadingLabel,
 	readingText,
-	type ReadingFamilyGroup,
 	type VariationUnitSpan,
 } from './collation-variation-units';
 import type { CollationTokenInput, CollationWitnessInput } from './collation-worker-types';
@@ -126,7 +138,10 @@ interface CommandEntry {
 	undo: () => void;
 	redo: () => void;
 	description: string;
+	phase: CollationPhase;
 }
+
+type PendingCommandEntry = Omit<CommandEntry, 'phase'>;
 
 interface WorkspaceSnapshot {
 	version: 2;
@@ -199,6 +214,7 @@ function createCollationState() {
 	// Phase 4: Stemma
 	let selectedUnitIndex = $state<number>(0);
 	let classifiedReadings = $state<Map<string, ClassifiedReading[]>>(new Map());
+	let unitDecisions = $state<Map<string, UnitDecisions>>(new Map());
 	let stemmaEdges = $state<Map<string, StemmaEdge[]>>(new Map());
 	let stemmaNodes = $state<Map<string, StemmaNode[]>>(new Map());
 
@@ -231,6 +247,7 @@ function createCollationState() {
 		witnessOrder = snap.witnessOrder ?? [];
 		selectedUnitIndex = normalizeVariationUnitIndex(snap.selectedUnitIndex ?? 0);
 		classifiedReadings = new Map(snap.classifiedReadings ?? []);
+		unitDecisions = new Map();
 		stemmaEdges = new Map(snap.stemmaEdges ?? []);
 		alignmentDisplayMode = snap.alignmentDisplayMode ?? 'regularized';
 		alignmentLayout = snap.alignmentLayout ?? 'grid';
@@ -279,6 +296,7 @@ function createCollationState() {
 		witnessOrder = hydrated.witnessOrder;
 		selectedUnitIndex = normalizeVariationUnitIndex(0);
 		classifiedReadings = new Map(hydrated.classifiedReadings);
+		unitDecisions = new Map(hydrated.unitDecisions);
 		stemmaEdges = new Map(hydrated.stemmaEdges);
 		alignmentDisplayMode = hydrated.alignmentDisplayMode;
 		alignmentLayout = hydrated.alignmentLayout;
@@ -317,6 +335,7 @@ function createCollationState() {
 			alignmentColumns,
 			witnessOrder,
 			classifiedReadings,
+			unitDecisions,
 			stemmaEdges,
 			alignmentDisplayMode,
 			alignmentLayout,
@@ -403,16 +422,19 @@ function createCollationState() {
 		return true;
 	}
 
-	function pushCommand(cmd: CommandEntry) {
+	function pushCommand(cmd: PendingCommandEntry) {
 		commandHistory = commandHistory.slice(0, commandIndex + 1);
-		commandHistory.push(cmd);
+		commandHistory.push({ ...cmd, phase });
+		if (commandHistory.length > 100) commandHistory.shift();
 		commandIndex = commandHistory.length - 1;
 		markUnsaved();
 	}
 
 	function undo() {
 		if (commandIndex < 0) return;
-		commandHistory[commandIndex].undo();
+		const command = commandHistory[commandIndex];
+		phase = command.phase;
+		command.undo();
 		commandIndex--;
 		markUnsaved();
 	}
@@ -420,7 +442,9 @@ function createCollationState() {
 	function redo() {
 		if (commandIndex >= commandHistory.length - 1) return;
 		commandIndex++;
-		commandHistory[commandIndex].redo();
+		const command = commandHistory[commandIndex];
+		phase = command.phase;
+		command.redo();
 		markUnsaved();
 	}
 
@@ -2048,8 +2072,9 @@ function createCollationState() {
 			.filter((cell): cell is AlignmentCell => Boolean(cell));
 	}
 
-	function getReadingUnitKey(unitIndex: number): string {
-		return String(normalizeVariationUnitIndex(unitIndex));
+	function getReadingUnitKey(unitIndex: number): string | null {
+		const columnId = getVariationUnitSpan(unitIndex)?.columnIds[0];
+		return columnId ? variationUnitId(columnId) : null;
 	}
 
 	function makeWitnessGroups(witnessIds: string[]) {
@@ -2095,243 +2120,49 @@ function createCollationState() {
 		return collected;
 	}
 
-	function getReadingFamilyKey(
-		reading: Pick<ClassifiedReading, 'normalizedText' | 'text' | 'isOmission' | 'isLacuna'>
-	): string {
-		if (reading.isOmission) return '__OMISSION__';
-		if (reading.isLacuna) return '__LACUNA__';
-		return reading.normalizedText ?? reading.text ?? '__EMPTY__';
-	}
-
-	function compareReadingsForPriority(
-		a: Pick<ClassifiedReading, 'text' | 'witnessIds'>,
-		b: Pick<ClassifiedReading, 'text' | 'witnessIds'>,
-		baseWitnessId: string | null
-	): number {
-		const aHasBase = baseWitnessId ? a.witnessIds.includes(baseWitnessId) : false;
-		const bHasBase = baseWitnessId ? b.witnessIds.includes(baseWitnessId) : false;
-		if (aHasBase !== bHasBase) return aHasBase ? -1 : 1;
-		if (a.witnessIds.length !== b.witnessIds.length)
-			return b.witnessIds.length - a.witnessIds.length;
-		return (a.text ?? '').localeCompare(b.text ?? '');
-	}
-
-	function compareReadingsForOrder(
-		a: Pick<ClassifiedReading, 'order' | 'text' | 'witnessIds'>,
-		b: Pick<ClassifiedReading, 'order' | 'text' | 'witnessIds'>,
-		baseWitnessId: string | null
-	): number {
-		if (a.order !== b.order) return a.order - b.order;
-		return compareReadingsForPriority(a, b, baseWitnessId);
-	}
-
-	function buildClassifiedReadingsFromFamilyGroups(
-		groups: ReadingFamilyGroup[]
-	): ClassifiedReading[] {
-		const readings: ClassifiedReading[] = [];
-		for (const [groupIndex, group] of groups.entries()) {
-			const members = [group.parent, ...group.children];
-			for (const [memberIndex, member] of members.entries()) {
-				const parentId = memberIndex === 0 ? null : group.parent.id;
-				readings.push({
-					id: member.id,
-					order: memberIndex === 0 ? groupIndex : memberIndex - 1,
-					label: '',
-					text: member.originalText,
-					normalizedText: member.normalizedText,
-					witnessIds: [...member.witnessIds],
-					witnessGroups: makeWitnessGroups(member.witnessIds),
-					classification: 'unclassified',
-					isOmission: member.isOmission,
-					isLacuna: member.isLacuna,
-					readingType: parentId ? ('ns' as const) : null,
-					parentReadingId: parentId,
-					isSubreading: parentId !== null,
-					autoGenerated: parentId !== null,
-					derivedFromRuleIds: [...member.ruleIds],
-				});
-			}
-		}
-		return readings;
-	}
-
-	function canonicalizeReadings(readings: ClassifiedReading[]): ClassifiedReading[] {
-		const byId = new Map(readings.map(reading => [reading.id, reading] as const));
-		const normalized = readings.map(reading => {
-			const parentExists =
-				reading.parentReadingId !== null &&
-				reading.parentReadingId !== reading.id &&
-				byId.has(reading.parentReadingId);
-			return {
-				...reading,
-				parentReadingId: parentExists ? reading.parentReadingId : null,
-				isSubreading: parentExists,
-				witnessGroups: makeWitnessGroups(reading.witnessIds),
-			};
-		});
-
-		const readingsByFamilyKey = new Map<string, ClassifiedReading[]>();
-		for (const reading of normalized) {
-			const key = getReadingFamilyKey(reading);
-			const existing = readingsByFamilyKey.get(key) ?? [];
-			existing.push(reading);
-			readingsByFamilyKey.set(key, existing);
-		}
-
-		const updates = new Map<string, ClassifiedReading>();
-		for (const family of readingsByFamilyKey.values()) {
-			const sortedFamily = [...family].sort((a, b) =>
-				compareReadingsForOrder(a, b, getBaseWitnessId())
-			);
-			const explicitParent =
-				sortedFamily.find(candidate =>
-					sortedFamily.some(reading => reading.parentReadingId === candidate.id)
-				) ?? null;
-			const preferredParent = explicitParent ?? sortedFamily[0] ?? null;
-			if (!preferredParent) continue;
-
-			updates.set(preferredParent.id, {
-				...preferredParent,
-				parentReadingId: null,
-				isSubreading: false,
-				readingType: preferredParent.isOmission || preferredParent.isLacuna ? null : null,
-				autoGenerated: preferredParent.autoGenerated && family.length > 1,
-			});
-
-			let childOrder = 0;
-			for (const reading of sortedFamily) {
-				if (reading.id === preferredParent.id) continue;
-				const shouldBeSubreading = !reading.isOmission && !reading.isLacuna;
-				updates.set(reading.id, {
-					...reading,
-					order: childOrder,
-					parentReadingId: shouldBeSubreading ? preferredParent.id : null,
-					isSubreading: shouldBeSubreading,
-					readingType: shouldBeSubreading ? ('ns' as const) : null,
-					autoGenerated: shouldBeSubreading
-						? reading.autoGenerated || family.length > 1
-						: false,
-				});
-				childOrder += 1;
-			}
-		}
-
-		return relabelReadings(normalized.map(reading => updates.get(reading.id) ?? reading));
-	}
-
-	function normalizeReadingOrders(readings: ClassifiedReading[]): ClassifiedReading[] {
-		const baseWitnessId = getBaseWitnessId();
-		const primaryReadings = readings.filter(reading => reading.parentReadingId === null);
-		const sortedPrimary = [...primaryReadings].sort((a, b) =>
-			compareReadingsForOrder(a, b, baseWitnessId)
-		);
-
-		const normalizedById = new Map<string, ClassifiedReading>();
-		sortedPrimary.forEach((reading, index) => {
-			normalizedById.set(reading.id, { ...reading, order: index });
-		});
-
-		for (const parent of sortedPrimary) {
-			const children = readings
-				.filter(reading => reading.parentReadingId === parent.id)
-				.sort((a, b) => compareReadingsForOrder(a, b, baseWitnessId));
-			children.forEach((reading, index) => {
-				normalizedById.set(reading.id, { ...reading, order: index });
-			});
-		}
-
-		for (const reading of readings) {
-			if (!normalizedById.has(reading.id)) {
-				normalizedById.set(reading.id, { ...reading, order: reading.order ?? 0 });
-			}
-		}
-
-		return readings.map(reading => normalizedById.get(reading.id) ?? reading);
-	}
-
-	function relabelReadings(readings: ClassifiedReading[]): ClassifiedReading[] {
-		const baseWitnessId = getBaseWitnessId();
-		const normalized = normalizeReadingOrders(readings);
-		const primaryReadings = normalized.filter(reading => reading.parentReadingId === null);
-		const sortedPrimary = [...primaryReadings].sort((a, b) =>
-			compareReadingsForOrder(a, b, baseWitnessId)
-		);
-
-		const primaryLabelById = new Map<string, string>();
-		for (const [index, reading] of sortedPrimary.entries()) {
-			primaryLabelById.set(reading.id, indexToReadingLabel(index));
-		}
-
-		const subreadingsByParent = new Map<string, ClassifiedReading[]>();
-		for (const reading of normalized) {
-			if (!reading.parentReadingId) continue;
-			const existing = subreadingsByParent.get(reading.parentReadingId) ?? [];
-			existing.push(reading);
-			subreadingsByParent.set(reading.parentReadingId, existing);
-		}
-
-		const subLabelById = new Map<string, string>();
-		for (const [parentId, children] of subreadingsByParent.entries()) {
-			const parentLabel = primaryLabelById.get(parentId);
-			if (!parentLabel) continue;
-			children
-				.sort((a, b) => compareReadingsForOrder(a, b, baseWitnessId))
-				.forEach((child, index) => {
-					subLabelById.set(child.id, `${parentLabel}${index + 1}`);
-				});
-		}
-
-		return normalized
-			.map(reading => ({
-				...reading,
-				witnessGroups: makeWitnessGroups(reading.witnessIds),
-				label:
-					reading.parentReadingId === null
-						? (primaryLabelById.get(reading.id) ?? '?')
-						: (subLabelById.get(reading.id) ?? '?'),
-			}))
-			.sort((a, b) => {
-				if ((a.parentReadingId ?? '') !== (b.parentReadingId ?? '')) {
-					if (a.parentReadingId === null && b.parentReadingId !== null) return -1;
-					if (a.parentReadingId !== null && b.parentReadingId === null) return 1;
-					return (a.parentReadingId ?? '').localeCompare(b.parentReadingId ?? '');
-				}
-				return a.order - b.order;
-			});
-	}
-
 	function buildReadingsForUnit(unitIndex: number): ClassifiedReading[] {
 		const span = getVariationUnitSpan(unitIndex);
 		if (!span) return [];
 		const columns = getColumnsForUnit(span.startIndex);
 		const baseWitnessId = getBaseWitnessId();
 		const sourceWitnessIds = getSourceWitnessIdsForColumns(columns);
-
-		const groups = buildReadingFamilyGroups({
-			entries: sourceWitnessIds.map(witnessId => ({
-				witnessId,
-				cells: columns.map(column => column.cells.get(witnessId)),
-			})),
+		return buildReadingProposal({
+			columns,
+			spanColumnIds: span.columnIds,
+			sourceWitnessIds,
 			baseWitnessId,
-			columnId: span.columnIds.join('+'),
 		});
-
-		return canonicalizeReadings(buildClassifiedReadingsFromFamilyGroups(groups));
 	}
 
 	function ensureReadingsForUnit(unitIndex: number): ClassifiedReading[] {
 		const key = getReadingUnitKey(unitIndex);
+		if (!key) return [];
 		const existing = classifiedReadings.get(key);
-		if (existing) return existing;
+		if (existing) return applyDecisions(existing, unitDecisions.get(key) ?? {}).readings;
 		const built = buildReadingsForUnit(unitIndex);
 		classifiedReadings = new Map(classifiedReadings).set(key, built);
-		return built;
+		return applyDecisions(built, unitDecisions.get(key) ?? {}).readings;
 	}
 
 	function peekReadingsForUnit(unitIndex: number): ClassifiedReading[] {
-		return (
-			classifiedReadings.get(getReadingUnitKey(unitIndex)) ?? buildReadingsForUnit(unitIndex)
+		const key = getReadingUnitKey(unitIndex);
+		if (!key) return [];
+		const proposal = classifiedReadings.get(key) ?? buildReadingsForUnit(unitIndex);
+		return applyDecisions(proposal, unitDecisions.get(key) ?? {}).readings;
+	}
+
+	function getOrphanedDecisionsForUnit(unitIndex: number): OrphanedDecision[] {
+		const key = getReadingUnitKey(unitIndex);
+		if (!key) return [];
+		const proposal = classifiedReadings.get(key) ?? buildReadingsForUnit(unitIndex);
+		return applyDecisions(proposal, unitDecisions.get(key) ?? {}).orphanedDecisions;
+	}
+
+	function getOrphanedUnitDecisions() {
+		const liveUnitIds = new Set(
+			getVariationUnitSpans().map(span => variationUnitId(span.columnIds[0]))
 		);
+		return findOrphanedUnitDecisions(unitDecisions, liveUnitIds);
 	}
 
 	function getReadingFamiliesForUnit(unitIndex: number): ReadingFamilyView[] {
@@ -2424,7 +2255,27 @@ function createCollationState() {
 
 	function setReadingsForUnit(unitIndex: number, readings: ClassifiedReading[]) {
 		const key = getReadingUnitKey(unitIndex);
-		classifiedReadings = new Map(classifiedReadings).set(key, canonicalizeReadings(readings));
+		if (!key) return;
+		const proposalById = new Map(
+			(classifiedReadings.get(key) ?? []).map(reading => [reading.id, reading] as const)
+		);
+		const attachments = unitDecisions.get(key)?.subreadingOf ?? {};
+		const proposal = readings.map(reading => {
+			if (!Object.hasOwn(attachments, reading.id)) return reading;
+			const existing = proposalById.get(reading.id);
+			return existing
+				? {
+						...reading,
+						parentReadingId: existing.parentReadingId,
+						isSubreading: existing.isSubreading,
+						autoGenerated: existing.autoGenerated,
+					}
+				: reading;
+		});
+		classifiedReadings = new Map(classifiedReadings).set(
+			key,
+			relabelReadings(proposal, getBaseWitnessId())
+		);
 		markUnsaved();
 	}
 
@@ -2477,35 +2328,43 @@ function createCollationState() {
 		unitIndex: number,
 		readingId: string,
 		parentReadingId: string | null
-	) {
+	): { ok: true } | { ok: false; error: 'reading-not-found' | 'self-attachment' | 'cycle' } {
+		const key = getReadingUnitKey(unitIndex);
+		if (!key) return { ok: false, error: 'reading-not-found' };
 		const readings = ensureReadingsForUnit(unitIndex);
 		const target = readings.find(reading => reading.id === readingId);
 		const parent = parentReadingId
 			? (readings.find(reading => reading.id === parentReadingId) ?? null)
 			: null;
-		if (!target) return;
-		if (parent && getReadingFamilyKey(parent) !== getReadingFamilyKey(target)) return;
-		const nextOrder =
-			Math.max(
-				-1,
-				...readings
-					.filter(
-						reading =>
-							reading.parentReadingId === parentReadingId && reading.id !== readingId
-					)
-					.map(reading => reading.order)
-			) + 1;
-		const updated = readings.map(reading => {
-			if (reading.id !== readingId) return reading;
-			return {
-				...reading,
-				order: nextOrder,
-				parentReadingId,
-				isSubreading: parentReadingId !== null,
-				autoGenerated: false,
-			};
+		if (!target || (parentReadingId !== null && !parent)) {
+			return { ok: false, error: 'reading-not-found' };
+		}
+		if (parentReadingId === readingId) return { ok: false, error: 'self-attachment' };
+
+		let ancestor = parent;
+		while (ancestor) {
+			if (ancestor.id === readingId) return { ok: false, error: 'cycle' };
+			ancestor = ancestor.parentReadingId
+				? (readings.find(reading => reading.id === ancestor?.parentReadingId) ?? null)
+				: null;
+		}
+
+		const previous = new Map(unitDecisions);
+		const next = cloneUnitDecisions(previous.get(key));
+		next.subreadingOf = { ...next.subreadingOf, [readingId]: parentReadingId };
+		const updated = new Map(previous).set(key, next);
+		unitDecisions = updated;
+		pushCommand({
+			type: 'set-subreading-attachment',
+			description: parentReadingId ? 'Attach subreading' : 'Detach subreading',
+			undo: () => {
+				unitDecisions = new Map(previous);
+			},
+			redo: () => {
+				unitDecisions = new Map(updated);
+			},
 		});
-		setReadingsForUnit(unitIndex, updated);
+		return { ok: true };
 	}
 
 	function promoteReadingAsFamilyParent(unitIndex: number, readingId: string) {
@@ -2763,6 +2622,7 @@ function createCollationState() {
 
 	function addStemmaEdge(unitIndex: number, edge: StemmaEdge) {
 		const key = getReadingUnitKey(unitIndex);
+		if (!key) return;
 		const existing = stemmaEdges.get(key) ?? [];
 		const map = new Map(stemmaEdges);
 		map.set(key, [...existing, edge]);
@@ -2772,6 +2632,7 @@ function createCollationState() {
 
 	function removeStemmaEdge(unitIndex: number, edgeId: string) {
 		const key = getReadingUnitKey(unitIndex);
+		if (!key) return;
 		const existing = stemmaEdges.get(key) ?? [];
 		const map = new Map(stemmaEdges);
 		map.set(
@@ -2783,6 +2644,8 @@ function createCollationState() {
 	}
 
 	function suggestStemma(unitIndex: number) {
+		const key = getReadingUnitKey(unitIndex);
+		if (!key) return;
 		const readings = getReadingsForUnit(unitIndex);
 		if (readings.length < 2) return;
 
@@ -2797,7 +2660,7 @@ function createCollationState() {
 		}));
 
 		const map = new Map(stemmaEdges);
-		map.set(getReadingUnitKey(unitIndex), edges);
+		map.set(key, edges);
 		stemmaEdges = map;
 		markUnsaved();
 	}
@@ -2878,6 +2741,7 @@ function createCollationState() {
 		alignmentLayout = 'grid';
 		selectedUnitIndex = 0;
 		classifiedReadings = new Map();
+		unitDecisions = new Map();
 		stemmaEdges = new Map();
 		stemmaNodes = new Map();
 		orphanedMembers = [];
@@ -3195,6 +3059,9 @@ function createCollationState() {
 		get classifiedReadings() {
 			return classifiedReadings;
 		},
+		get unitDecisions() {
+			return unitDecisions;
+		},
 		get stemmaEdges() {
 			return stemmaEdges;
 		},
@@ -3265,6 +3132,8 @@ function createCollationState() {
 		getReadingDisplayValuesForUnit,
 		primeReadingsForUnit,
 		getReadingsForUnit,
+		getOrphanedDecisionsForUnit,
+		getOrphanedUnitDecisions,
 		getVariationUnitSpans,
 		getVariationUnitSpan,
 		getBaseTextForVariationUnit,

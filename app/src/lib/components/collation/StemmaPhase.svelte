@@ -128,12 +128,6 @@
 		return nodes.find(n => n.id === readingId) ?? null;
 	}
 
-	function getParentOptions(readingId: string): ClassifiedReading[] {
-		return readings.filter(
-			reading => reading.parentReadingId === null && reading.id !== readingId
-		);
-	}
-
 	function handleNodeClick(readingId: string) {
 		if (connectingFrom === null) {
 			connectingFrom = readingId;
@@ -205,9 +199,7 @@
 		>
 			<span class="font-semibold uppercase tracking-[0.18em]">Stemma View</span>
 			<span class="badge badge-ghost badge-sm">Original Readings</span>
-			<span
-				>Witnesses aligned together can now be detached and reattached as subreadings.</span
-			>
+			<span>Subreading attachments are edited in Readings.</span>
 		</div>
 
 		<div class="overflow-x-auto rounded-box border border-base-300/50 bg-base-100">
@@ -336,30 +328,6 @@
 									<option value={cls}>{cls}</option>
 								{/each}
 							</select>
-							<label class="form-control">
-								<div class="label py-0.5">
-									<span class="label-text text-[11px]"
-										>Attach as subreading of</span
-									>
-								</div>
-								<select
-									class="select select-bordered select-xs w-full"
-									value={reading.parentReadingId ?? ''}
-									onchange={e =>
-										collationState.setReadingParent(
-											collationState.selectedUnitIndex,
-											reading.id,
-											(e.currentTarget as HTMLSelectElement).value || null
-										)}
-								>
-									<option value="">Independent reading</option>
-									{#each getParentOptions(reading.id) as option}
-										<option value={option.id}
-											>{option.label} {option.text ?? 'om.'}</option
-										>
-									{/each}
-								</select>
-							</label>
 						</div>
 					{/each}
 				</div>

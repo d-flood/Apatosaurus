@@ -404,9 +404,10 @@ async function createProjectTranscriptionAndCollation(db: WorkerClient): Promise
 						{
 							type: 'variationUnit',
 							id: 'unit:alignment-column-1',
-							unitIndex: 0,
+							unitId: 'unit:alignment-column-1',
 							columnId: 'alignment-column-1',
 							readings: [classifiedReading('reading-a', 'εν', ['A'])],
+							decisions: {},
 						},
 					],
 				},

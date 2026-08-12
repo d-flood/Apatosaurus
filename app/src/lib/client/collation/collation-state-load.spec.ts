@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { deserializeAlignmentColumns } from './alignment-snapshot';
 import { buildCollationDocument, serializeCollationDocument } from './collation-document';
 
 const {
@@ -89,6 +90,22 @@ function makeWitness(witnessId: string, content: string, isBaseText: boolean = f
 	};
 }
 
+function makeTextCell(text: string) {
+	return {
+		text,
+		regularizedText: text,
+		alignmentValue: text,
+		sourceTokenIds: [],
+		kind: 'text' as const,
+		gap: null,
+		isOmission: false,
+		isLacuna: false,
+		isRegularized: false,
+		ruleIds: [],
+		regularizationTypes: [],
+	};
+}
+
 function makePreparedWitness(transcriptionId: string, content: string, sourceVersion: string) {
 	const tokens = content
 		.split(/\s+/)
@@ -140,11 +157,61 @@ function makeDocumentPayload() {
 			alignmentColumns: [],
 			witnessOrder: ['A', 'B'],
 			classifiedReadings: new Map(),
+			unitDecisions: new Map(),
 			stemmaEdges: new Map(),
 			alignmentDisplayMode: 'regularized',
 			alignmentLayout: 'variation-units',
 		})
 	);
+}
+
+function makeDecisionDocumentPayload(corruptPersistedReadings = false) {
+	const document = buildCollationDocument({
+		collationId: 'col-1',
+		projectId: 'proj-1',
+		projectName: 'Project 1',
+		phase: 'readings',
+		furthestPhase: 'readings',
+		segment: { id: 'segment-1', name: 'Romans 1:1', members: ['Romans 1:1'] },
+		witnesses: [makeWitness('A', 'alpha', true), makeWitness('B', 'beta')],
+		rules: [],
+		ignoreWordBreaks: false,
+		lowercase: false,
+		ignoreTokenWhitespace: true,
+		ignorePunctuation: false,
+		suppliedTextMode: 'clear',
+		segmentation: true,
+		alignmentColumns: deserializeAlignmentColumns([
+			{
+				id: 'col-1',
+				index: 0,
+				merged: false,
+				cells: [
+					['A', makeTextCell('alpha')],
+					['B', makeTextCell('beta')],
+				],
+			},
+		]),
+		witnessOrder: ['A', 'B'],
+		classifiedReadings: new Map(),
+		unitDecisions: new Map([
+			[
+				'unit:col-1',
+				{
+					subreadingOf: {
+						'col-1::beta::original': 'col-1::alpha::original',
+					},
+				},
+			],
+		]),
+		stemmaEdges: new Map(),
+		alignmentDisplayMode: 'regularized',
+		alignmentLayout: 'variation-units',
+	});
+	if (corruptPersistedReadings && document.apparatus?.units[0]) {
+		document.apparatus.units[0].readings = [];
+	}
+	return serializeCollationDocument(document);
 }
 
 async function importState() {
@@ -259,6 +326,30 @@ describe('collationState artifact-first persistence', () => {
 		});
 		expect(collationState.alignmentLayout).toBe('variation-units');
 		expect(collationState.ignoreWordBreaks).toBe(false);
+	}, 30000);
+
+	it('recomputes readings from alignment and decisions instead of loading persisted readings', async () => {
+		const loadedValue = await loadCollation();
+		loadCollation.mockResolvedValue({
+			...loadedValue,
+			artifact: {
+				...loadedValue.artifact,
+				payload: makeDecisionDocumentPayload(true),
+			},
+		});
+		const collationState = await importState();
+		collationState.reset();
+
+		expect(await collationState.loadCollationById('col-1')).toBe(true);
+		expect(
+			collationState.getReadingsForUnit(0).map(reading => ({
+				text: reading.text,
+				parentReadingId: reading.parentReadingId,
+			}))
+		).toEqual([
+			{ text: 'alpha', parentReadingId: null },
+			{ text: 'beta', parentReadingId: 'col-1::alpha::original' },
+		]);
 	}, 30000);
 
 	it('leaves the selected verse orphaned when its member is absent from the project index', async () => {

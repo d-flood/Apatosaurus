@@ -273,8 +273,10 @@
 		requestAnimationFrame(() => node.focus());
 	}
 
-	function getFamilyParentChoices(family: ReadingFamilyView): ClassifiedReading[] {
-		return family.members;
+	function getAttachmentOptions(readingId: string): ClassifiedReading[] {
+		return readings.filter(
+			reading => reading.parentReadingId === null && reading.id !== readingId
+		);
 	}
 
 	function getSelectedUnitLabel(): string {
@@ -563,21 +565,20 @@
 											sub
 										</button>
 									{/if}
-									<label
-										class="flex items-center gap-1 text-xs text-base-content/35"
-									>
-										<span>family parent:</span>
+									<label class="flex items-center gap-1 text-xs text-base-content/35">
+										<span>Attach as subreading of:</span>
 										<select
 											class="select select-ghost select-xs"
-											value={row.family.parent.id}
+											value={row.reading.parentReadingId ?? ''}
 											onchange={event =>
-												collationState.promoteReadingAsFamilyParent(
+												collationState.setReadingParent(
 													selectedSpan.startIndex,
-													(event.currentTarget as HTMLSelectElement)
-														.value
+													row.reading.id,
+													(event.currentTarget as HTMLSelectElement).value || null
 												)}
 										>
-											{#each getFamilyParentChoices(row.family) as candidate (candidate.id)}
+											<option value="">Independent reading</option>
+											{#each getAttachmentOptions(row.reading.id) as candidate (candidate.id)}
 												<option value={candidate.id}
 													>{candidate.label}: {describeReading(candidate)}</option
 												>

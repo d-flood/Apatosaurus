@@ -19,7 +19,8 @@
 		"test:e2e": "playwright test",
 		"test:hmr": "playwright test --config playwright.hmr.config.ts",
 		"db:generate": "tsx scripts/db/generate-types.ts",
-		"db:check": "tsx scripts/db/check-types.ts"
+		"db:check": "tsx scripts/db/check-types.ts",
+		"fixture:collation-hash": "tsx scripts/regenerate-collation-fixture-hash.ts"
 	},
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",

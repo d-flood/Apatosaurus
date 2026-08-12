@@ -15,7 +15,7 @@ import {
 } from './validation';
 
 export const COLLATION_FORMAT = 'apatosaurus.collation';
-export const COLLATION_CURRENT_VERSION = 2;
+export const COLLATION_CURRENT_VERSION = 3;
 export const collationUpgraders: DocumentUpgrader[] = [upgradeCollationV1];
 
 export type CollationContent = JsonObject & {

@@ -58,7 +58,7 @@ export function collationDocumentToTei(document: SemanticCollationDocument): str
 		)
 		.join('\n');
 	const apparatus = (document.apparatus?.units ?? [])
-		.map(unit => serializeVariationUnit(unit, segmentName, witnessIds))
+		.map((unit, index) => serializeVariationUnit(unit, index, segmentName, witnessIds))
 		.join('\n');
 	return `<?xml version="1.0" encoding="UTF-8"?>
 <TEI xmlns="http://www.tei-c.org/ns/1.0">
@@ -91,12 +91,13 @@ ${apparatus}
 
 function serializeVariationUnit(
 	unit: NonNullable<SemanticCollationDocument['apparatus']>['units'][number],
+	unitIndex: number,
 	verseIdentifier: string,
 	witnessIds: Map<string, string>
 ): string {
 	const readings = [...unit.readings].sort((left, right) => left.order - right.order);
 	const [lemma, ...variantReadings] = readings;
-	const position = String(unit.unitIndex + 1);
+	const position = String(unitIndex + 1);
 	const serializedLemma = lemma
 		? serializeReading('lem', lemma, 0, witnessIds)
 		: '          <lem type="om"/>';

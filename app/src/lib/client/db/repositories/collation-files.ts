@@ -210,6 +210,7 @@ export async function createCollationWithFilesResult(
 		alignmentColumns: [],
 		witnessOrder: [],
 		classifiedReadings: new Map(),
+		unitDecisions: new Map(),
 		stemmaEdges: new Map(),
 		alignmentDisplayMode: 'regularized',
 		alignmentLayout: 'grid',

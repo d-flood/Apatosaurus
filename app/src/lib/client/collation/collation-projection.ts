@@ -1,6 +1,7 @@
 import { deserializeAlignmentColumns, type AlignmentColumn } from './alignment-snapshot';
 import { hydrateCollationDocument, type CollationDocument } from './collation-document';
 import { buildVariationUnitSpans } from './collation-variation-units';
+import { variationUnitId } from './collation-unit-id';
 import type { ClassifiedReading, WitnessConfig } from './collation-types';
 
 export interface ProjectedWitnessRow {
@@ -138,14 +139,20 @@ export function buildCollationProjectionFromDocument(
 ): CollationProjection {
 	const hydrated = hydrateCollationDocument(document);
 	const alignmentColumns = deserializeAlignmentColumns(hydrated.alignmentColumns);
-	const readingsByUnit = new Map(hydrated.classifiedReadings);
+	const readingsByUnit = new Map(
+		document.apparatus?.units.map(unit => [unit.unitId, unit.readings] as const) ?? []
+	);
 	const baseWitnessId = hydrated.witnesses.find(witness => witness.isBaseText)?.witnessId ?? null;
 	return buildCollationProjection({
 		witnesses: hydrated.witnesses,
 		alignmentColumns,
-		getReadingsForUnit: unitIndex => readingsByUnit.get(String(unitIndex)) ?? [],
+		getReadingsForUnit: unitIndex => {
+			const columnId = alignmentColumns[unitIndex]?.id;
+			return columnId ? (readingsByUnit.get(variationUnitId(columnId)) ?? []) : [];
+		},
 		getBaseTextForVariationUnit: unitIndex => {
-			const readings = readingsByUnit.get(String(unitIndex)) ?? [];
+			const columnId = alignmentColumns[unitIndex]?.id;
+			const readings = columnId ? (readingsByUnit.get(variationUnitId(columnId)) ?? []) : [];
 			return (
 				(baseWitnessId
 					? readings.find(reading => reading.witnessIds.includes(baseWitnessId))?.text

@@ -43,7 +43,6 @@ import {
 } from './index';
 import { buildLegacyCollationHashPayload } from './collation';
 import collationV1Input from './fixtures/collation-v1.input.json';
-import collationV2Expected from './fixtures/collation-v2.expected.json';
 import workingCollationV1Input from './fixtures/working-collation-v1.input.json';
 import workingCollationV2Expected from './fixtures/working-collation-v2.expected.json';
 import checkpointCollationV1Input from './fixtures/checkpoint-collation-v1.input.json';
@@ -280,8 +279,12 @@ describe('canonical store formats', () => {
 			payload: legacyHashPayload,
 		} as JsonObject);
 
+		await expect(registry.readDocument(COLLATION_FORMAT, primary)).resolves.toMatchObject({
+			ok: false,
+			quarantine: { code: 'invalid_schema_version' },
+		});
+
 		for (const [format, document] of [
-			[COLLATION_FORMAT, primary],
 			[WORKING_COLLATION_FORMAT, working],
 			[COLLATION_CHECKPOINT_FORMAT, checkpoint],
 		] as const) {
@@ -303,7 +306,6 @@ describe('canonical store formats', () => {
 	});
 
 	it.each([
-		[COLLATION_FORMAT, collationV1Input, collationV2Expected],
 		[WORKING_COLLATION_FORMAT, workingCollationV1Input, workingCollationV2Expected],
 		[COLLATION_CHECKPOINT_FORMAT, checkpointCollationV1Input, checkpointCollationV2Expected],
 	] as const)(
@@ -316,6 +318,15 @@ describe('canonical store formats', () => {
 			expect(result.payload).toEqual(expected);
 		}
 	);
+
+	it('rejects checked-in apatosaurus.collation v1 fixtures without an upgrader to v3', async () => {
+		await expect(
+			readCanonicalDocument(COLLATION_FORMAT, collationV1Input)
+		).resolves.toMatchObject({
+			ok: false,
+			quarantine: { code: 'invalid_schema_version' },
+		});
+	});
 
 	it.each([
 		[TRANSCRIPTION_CHECKPOINT_FORMAT, TRANSCRIPTION_CHECKPOINT_FIXTURE],
@@ -354,7 +365,13 @@ describe('canonical store formats', () => {
 	] as const)(
 		'rejects resealed %s documents with invalid nested hashes',
 		async (format, fixture) => {
-			const document = await sealDocument(format, format.includes('collation') ? 2 : 1, {
+			const version =
+				format === COLLATION_FORMAT
+					? COLLATION_CURRENT_VERSION
+					: format.includes('collation')
+						? 2
+						: 1;
+			const document = await sealDocument(format, version, {
 				...fixture,
 				...(format.includes('checkpoint')
 					? { payload_content_hash: 'sha256:wrong' }
@@ -613,8 +630,9 @@ function collationDocumentFixture(): SemanticCollationDocument {
 				{
 					type: 'variationUnit',
 					id: 'unit-1',
-					unitIndex: 0,
+					unitId: 'unit-1',
 					columnId: null,
+					decisions: {},
 					readings: [
 						reading('r-a', 0, 'a', 'in', ['A']),
 						reading('r-b', 1, 'b', 'en', ['B']),

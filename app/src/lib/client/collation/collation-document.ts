@@ -14,6 +14,8 @@ import type {
 	WitnessConfig,
 	WitnessSourceToken,
 } from './collation-types';
+import { applyDecisions, type UnitDecisions } from './collation-decisions';
+import { variationUnitId } from './collation-unit-id';
 
 export const COLLATION_DOCUMENT_ARTIFACT_TYPE = 'collation_document_v1';
 
@@ -80,9 +82,10 @@ export interface CollationAlignmentNode {
 export interface CollationVariationUnitNode {
 	type: 'variationUnit';
 	id: string;
-	unitIndex: number;
+	unitId: string;
 	columnId: string | null;
 	readings: ClassifiedReading[];
+	decisions: UnitDecisions;
 }
 
 export interface CollationApparatusNode {
@@ -93,7 +96,7 @@ export interface CollationApparatusNode {
 export interface CollationStemmaUnitNode {
 	type: 'stemmaUnit';
 	id: string;
-	unitIndex: number;
+	unitId: string;
 	columnId: string | null;
 	edges: StemmaEdge[];
 }
@@ -153,6 +156,7 @@ export interface CollationDocumentSeed {
 	alignmentColumns: AlignmentColumn[];
 	witnessOrder: string[];
 	classifiedReadings: Map<string, ClassifiedReading[]>;
+	unitDecisions: Map<string, UnitDecisions>;
 	stemmaEdges: Map<string, StemmaEdge[]>;
 	alignmentDisplayMode: AlignmentDisplayMode;
 	alignmentLayout: AlignmentLayout;
@@ -176,6 +180,7 @@ export interface HydratedCollationDocument {
 	alignmentColumns: SerializedAlignmentColumn[];
 	witnessOrder: string[];
 	classifiedReadings: Array<[string, ClassifiedReading[]]>;
+	unitDecisions: Array<[string, UnitDecisions]>;
 	stemmaEdges: Array<[string, StemmaEdge[]]>;
 	alignmentDisplayMode: AlignmentDisplayMode;
 	alignmentLayout: AlignmentLayout;
@@ -397,30 +402,34 @@ function parseWitnesses(nodes: unknown): WitnessConfig[] {
 	return parsed;
 }
 
-function buildVariationUnitId(columnId: string | null, unitIndex: number): string {
-	return columnId ? `unit:${columnId}` : `unit:index:${unitIndex}`;
-}
-
 function buildApparatus(
 	classifiedReadings: Map<string, ClassifiedReading[]>,
+	unitDecisions: Map<string, UnitDecisions>,
 	alignmentColumns: AlignmentColumn[]
 ): CollationApparatusNode | null {
-	if (classifiedReadings.size === 0) return null;
-	const units = [...classifiedReadings.entries()]
-		.map(([key, readings]) => {
-			const unitIndex = Number.parseInt(key, 10);
-			const columnId = Number.isFinite(unitIndex)
-				? (alignmentColumns[unitIndex]?.id ?? null)
-				: null;
+	if (classifiedReadings.size === 0 && unitDecisions.size === 0) return null;
+	const unitIds = new Set([...classifiedReadings.keys(), ...unitDecisions.keys()]);
+	const units = [...unitIds]
+		.map(unitId => {
+			const columnId =
+				alignmentColumns.find(column => variationUnitId(column.id) === unitId)?.id ?? null;
 			return {
 				type: 'variationUnit' as const,
-				id: buildVariationUnitId(columnId, Number.isFinite(unitIndex) ? unitIndex : 0),
-				unitIndex: Number.isFinite(unitIndex) ? unitIndex : 0,
+				id: unitId,
+				unitId,
 				columnId,
-				readings,
+				readings: applyDecisions(
+					classifiedReadings.get(unitId) ?? [],
+					unitDecisions.get(unitId) ?? {}
+				).readings,
+				decisions: unitDecisions.get(unitId) ?? {},
 			};
 		})
-		.sort((a, b) => a.unitIndex - b.unitIndex);
+		.sort(
+			(a, b) =>
+				alignmentColumns.findIndex(column => column.id === a.columnId) -
+				alignmentColumns.findIndex(column => column.id === b.columnId)
+		);
 	return { type: 'apparatus', units };
 }
 
@@ -430,20 +439,22 @@ function buildStemma(
 ): CollationStemmaNode | null {
 	if (stemmaEdges.size === 0) return null;
 	const units = [...stemmaEdges.entries()]
-		.map(([key, edges]) => {
-			const unitIndex = Number.parseInt(key, 10);
-			const columnId = Number.isFinite(unitIndex)
-				? (alignmentColumns[unitIndex]?.id ?? null)
-				: null;
+		.map(([unitId, edges]) => {
+			const columnId =
+				alignmentColumns.find(column => variationUnitId(column.id) === unitId)?.id ?? null;
 			return {
 				type: 'stemmaUnit' as const,
-				id: buildVariationUnitId(columnId, Number.isFinite(unitIndex) ? unitIndex : 0),
-				unitIndex: Number.isFinite(unitIndex) ? unitIndex : 0,
+				id: unitId,
+				unitId,
 				columnId,
 				edges,
 			};
 		})
-		.sort((a, b) => a.unitIndex - b.unitIndex);
+		.sort(
+			(a, b) =>
+				alignmentColumns.findIndex(column => column.id === a.columnId) -
+				alignmentColumns.findIndex(column => column.id === b.columnId)
+		);
 	return { type: 'stemma', units };
 }
 
@@ -483,7 +494,11 @@ export function buildCollationDocument(seed: CollationDocumentSeed): CollationDo
 						columns: serializeAlignmentColumns(seed.alignmentColumns),
 					}
 				: null,
-		apparatus: buildApparatus(seed.classifiedReadings, seed.alignmentColumns),
+		apparatus: buildApparatus(
+			seed.classifiedReadings,
+			seed.unitDecisions,
+			seed.alignmentColumns
+		),
 		stemma: buildStemma(seed.stemmaEdges, seed.alignmentColumns),
 	};
 }
@@ -516,16 +531,15 @@ export function hydrateCollationDocument(document: CollationDocument): HydratedC
 						(id): id is string => typeof id === 'string'
 					)
 				: [],
-		classifiedReadings:
+		classifiedReadings: [],
+		unitDecisions:
 			document.apparatus?.units
-				?.filter(unit => Number.isFinite(unit.unitIndex) && Array.isArray(unit.readings))
-				.map(
-					unit => [String(unit.unitIndex), unit.readings] as [string, ClassifiedReading[]]
-				) ?? [],
+				?.filter(unit => typeof unit.unitId === 'string')
+				.map(unit => [unit.unitId, unit.decisions ?? {}] as [string, UnitDecisions]) ?? [],
 		stemmaEdges:
 			document.stemma?.units
-				?.filter(unit => Number.isFinite(unit.unitIndex) && Array.isArray(unit.edges))
-				.map(unit => [String(unit.unitIndex), unit.edges] as [string, StemmaEdge[]]) ?? [],
+				?.filter(unit => typeof unit.unitId === 'string' && Array.isArray(unit.edges))
+				.map(unit => [unit.unitId, unit.edges] as [string, StemmaEdge[]]) ?? [],
 		alignmentDisplayMode: normalizeDisplayMode(document.flow?.alignmentDisplayMode),
 		alignmentLayout: normalizeAlignmentLayout(document.flow?.alignmentLayout),
 	};

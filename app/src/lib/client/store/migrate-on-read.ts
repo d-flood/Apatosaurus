@@ -51,9 +51,9 @@ export class MigrationRegistry {
 		if (!Number.isInteger(currentVersion) || currentVersion < 1) {
 			throw new Error('currentVersion must be a positive integer.');
 		}
-		if (upgraders.length !== currentVersion - 1) {
+		if (upgraders.length > currentVersion - 1) {
 			throw new Error(
-				`Format ${format} expected ${currentVersion - 1} upgrader(s), received ${upgraders.length}.`
+				`Format ${format} accepts at most ${currentVersion - 1} upgrader(s), received ${upgraders.length}.`
 			);
 		}
 		if (this.formats.has(format)) throw new Error(`Format ${format} is already registered.`);
