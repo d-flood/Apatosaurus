@@ -14,7 +14,6 @@
 	} from '$lib/client/capabilities';
 	import { listProjects, type ProjectOption } from '$lib/client/collation/project-collation';
 	import {
-		deriveProjectBackupSummary,
 		exportAllProjectsZip,
 		rebuildLocalIndex,
 		restoreReferenceEditionsArchive,
@@ -24,12 +23,14 @@
 	import { ensureLocalDbRuntime } from '$lib/client/db/runtime';
 	import { downloadZipArchive } from '$lib/client/download-blob';
 	import {
-		listSyncTargets,
 		inspectUserReferenceEditions,
 		recordProjectZipExport,
 	} from '$lib/client/store';
-	import { LOCAL_FOLDER_ROOT_FOLDER_ID } from '$lib/client/sync/providers/local-folder-provider';
-	import type { ProjectBackupSummary } from '$lib/client/sync/sync-manager';
+	import {
+		loadProjectBackupOverviews,
+		type ProjectBackupOverview,
+		type ProjectBackupOverviewStatus,
+	} from '$lib/client/sync/project-backup-overview';
 	import {
 		CORPUS_APPROXIMATE_BYTES,
 		hasCorpusStorageHeadroom,
@@ -47,24 +48,9 @@
 	import type { IndexRebuildReport } from '$lib/client/db/repositories/index-rebuild';
 	import { onMount } from 'svelte';
 
-	type BackupStatusKey =
-		| 'local-only'
-		| 'backed-up'
-		| 'pending-backup'
-		| 'blocked'
-		| 'remote-update'
-		| 'conflict'
-		| 'unavailable';
-
-	interface ProjectListBackupSummary {
-		statusLabel: string;
-		badgeClass: string;
-		statusKey: BackupStatusKey;
-	}
-
 	let projects = $state.raw<ProjectOption[]>([]);
 	let userReferenceEditionCount = $state(0);
-	let projectBackupSummaries = $state.raw<Record<string, ProjectListBackupSummary>>({});
+	let projectBackupOverviews = $state.raw<Record<string, ProjectBackupOverview>>({});
 	let persistenceReport = $state<StoragePersistenceReport | null>(null);
 	let storageEstimateReport = $state<StorageEstimateReport | null>(null);
 	let installSupported = $state(false);
@@ -107,15 +93,13 @@
 
 	let storageOverview = $derived.by(() => {
 		const summaries = projects
-			.map(project => projectBackupSummaries[project.id])
+			.map(project => projectBackupOverviews[project.id])
 			.filter(Boolean);
 		return {
-			linkedCount: summaries.filter(summary => summary.statusKey !== 'local-only').length,
-			backedUpCount: summaries.filter(summary => summary.statusKey === 'backed-up').length,
+			linkedCount: summaries.filter(summary => summary.status !== 'local-only').length,
+			backedUpCount: summaries.filter(summary => summary.status === 'backed-up').length,
 			attentionCount: summaries.filter(summary =>
-				['pending-backup', 'blocked', 'remote-update', 'conflict', 'unavailable'].includes(
-					summary.statusKey
-				)
+				['pending', 'blocked', 'unavailable'].includes(summary.status)
 			).length,
 		};
 	});
@@ -267,86 +251,30 @@
 	async function loadProjectBackupSummaries(projectRows: ProjectOption[] = projects) {
 		const runId = ++backupSummaryRunId;
 		try {
-			const entries = await Promise.all(
-				projectRows.map(async project => {
-					const targets = await listSyncTargets(project.id);
-					const target =
-						targets.find(candidate => candidate.enabled) ?? targets[0] ?? null;
-					if (!target) {
-						return [
-							project.id,
-							{
-								statusLabel: 'Local only',
-								badgeClass: 'badge-ghost',
-								statusKey: 'local-only',
-							},
-						] as const;
-					}
-					const summary = await deriveProjectBackupSummary({
-						projectId: project.id,
-						connectionId: target.targetId,
-						cloudFolderId: LOCAL_FOLDER_ROOT_FOLDER_ID,
-						cloudFolderPath: '',
-					});
-					return [project.id, summarizeProjectBackup(summary)] as const;
-				})
-			);
-			if (runId === backupSummaryRunId) projectBackupSummaries = Object.fromEntries(entries);
+			const overviews = await loadProjectBackupOverviews(projectRows.map(project => project.id));
+			if (runId === backupSummaryRunId) projectBackupOverviews = overviews;
 		} catch (cause) {
 			if (runId !== backupSummaryRunId) return;
 			console.warn('[data-route] project backup summary load failed', {
 				error: cause instanceof Error ? cause.message : String(cause),
 			});
-			projectBackupSummaries = Object.fromEntries(
-				projectRows.map(project => [
-					project.id,
-					{
-						statusLabel: 'Sync unavailable',
-						badgeClass: 'badge-warning',
-						statusKey: 'unavailable',
-					},
-				])
-			);
+			projectBackupOverviews = {};
 		}
 	}
 
-	function summarizeProjectBackup(summary: ProjectBackupSummary): ProjectListBackupSummary {
-		if (summary.remoteManifestState === 'remote-update-available') {
-			return {
-				statusLabel: 'Remote update available',
-				badgeClass: 'badge-warning',
-				statusKey: 'remote-update',
-			};
-		}
-		if (summary.remoteManifestState === 'diverged') {
-			return {
-				statusLabel: 'Sync conflict',
-				badgeClass: 'badge-error',
-				statusKey: 'conflict',
-			};
-		}
-		if (summary.remoteManifestState === 'unavailable') {
-			return {
-				statusLabel: 'Sync unavailable',
-				badgeClass: 'badge-warning',
-				statusKey: 'unavailable',
-			};
-		}
-		if (summary.blockingItems.length > 0) {
-			return {
-				statusLabel: 'Commit before sync',
-				badgeClass: 'badge-warning',
-				statusKey: 'blocked',
-			};
-		}
-		if (summary.pendingItems.length > 0 || summary.tombstones.length > 0) {
-			return {
-				statusLabel: 'Pending sync',
-				badgeClass: 'badge-info',
-				statusKey: 'pending-backup',
-			};
-		}
-		return { statusLabel: 'Synced', badgeClass: 'badge-success', statusKey: 'backed-up' };
+	function backupStatusLabel(status: ProjectBackupOverviewStatus): string {
+		if (status === 'local-only') return 'Local only';
+		if (status === 'blocked') return 'Commit before sync';
+		if (status === 'pending') return 'Pending sync';
+		if (status === 'backed-up') return 'Synced';
+		return 'Sync unavailable';
+	}
+
+	function backupBadgeClass(status: ProjectBackupOverviewStatus): string {
+		if (status === 'blocked' || status === 'unavailable') return 'badge-warning';
+		if (status === 'pending') return 'badge-info';
+		if (status === 'backed-up') return 'badge-success';
+		return 'badge-ghost';
 	}
 
 	async function exportAllProjectArchives() {
@@ -712,7 +640,7 @@
 				{:else}
 					<ul class="mt-4 divide-y divide-base-300/60">
 						{#each projects as project (project.id)}
-							{@const summary = projectBackupSummaries[project.id]}
+							{@const overview = projectBackupOverviews[project.id]}
 							<li>
 								<a
 									href={resolve('/projects/[id]/backup', { id: project.id })}
@@ -720,9 +648,10 @@
 								>
 									<span class="font-medium">{project.name}</span>
 									<span
-										class="badge badge-sm {summary?.badgeClass ??
-											'badge-ghost'}"
-										>{summary?.statusLabel ?? 'Checking sync'}</span
+									class="badge badge-sm {overview
+										? backupBadgeClass(overview.status)
+										: 'badge-ghost'}"
+										>{overview ? backupStatusLabel(overview.status) : 'Checking sync'}</span
 									>
 								</a>
 							</li>

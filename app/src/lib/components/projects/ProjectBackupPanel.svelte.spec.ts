@@ -3,15 +3,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 
 const mocks = vi.hoisted(() => ({
-	deriveProjectBackupSummary: vi.fn(),
 	getLatestProjectCommitTimestamp: vi.fn(),
+	loadProjectBackupOverviews: vi.fn(),
 	listProjectDocumentTitles: vi.fn(),
-	listProjectSyncTargets: vi.fn(),
 }));
 
 vi.mock('$lib/client/db/client', () => ({
 	backupProject: vi.fn(),
-	deriveProjectBackupSummary: mocks.deriveProjectBackupSummary,
 	exportProjectZip: vi.fn(),
 	forkProject: vi.fn(),
 	getLatestProjectCommitTimestamp: mocks.getLatestProjectCommitTimestamp,
@@ -29,8 +27,11 @@ vi.mock('$lib/client/sync/local-folder-connections', () => ({
 	connectProjectSyncFolder: vi.fn(),
 	disconnectProjectSyncFolder: vi.fn(),
 	isLocalFolderProviderSupported: vi.fn(() => true),
-	listProjectSyncTargets: mocks.listProjectSyncTargets,
 	reconnectProjectSyncFolder: vi.fn(),
+}));
+
+vi.mock('$lib/client/sync/project-backup-overview', () => ({
+	loadProjectBackupOverviews: mocks.loadProjectBackupOverviews,
 }));
 
 vi.mock('$lib/client/download-blob', () => ({ downloadZipArchive: vi.fn() }));
@@ -54,14 +55,6 @@ import ProjectBackupPanel from './ProjectBackupPanel.svelte';
 describe('ProjectBackupPanel', () => {
 	beforeEach(() => {
 		mocks.getLatestProjectCommitTimestamp.mockResolvedValue('2026-07-18T12:00:00.000Z');
-		mocks.listProjectSyncTargets.mockResolvedValue([
-			{
-				targetId: 'target-1',
-				enabled: true,
-				folderDisplayPath: 'Apatosaurus/Project',
-				lastSyncedAt: null,
-			},
-		]);
 		mocks.listProjectDocumentTitles.mockResolvedValue([
 			{
 				entityType: 'project-transcription',
@@ -70,33 +63,55 @@ describe('ProjectBackupPanel', () => {
 			},
 			{ entityType: 'collation', entityId: 'collation-1', title: 'Romans 1:1 Collation' },
 		]);
-		mocks.deriveProjectBackupSummary.mockResolvedValue({
-			transcriptions: [
-				{
-					itemType: 'project-transcription',
-					itemId: 'project-transcription-1',
-					path: 'transcriptions/project-transcription-1.json',
-					status: 'backed-up',
+		const selectedTarget = {
+			targetId: 'target-1',
+			projectId: 'project-1',
+			enabled: true,
+			folderDisplayPath: 'Apatosaurus/Project',
+			lastSyncedAt: null,
+		};
+		mocks.loadProjectBackupOverviews.mockResolvedValue({
+			'project-1': {
+				projectId: 'project-1',
+				status: 'backed-up',
+				targets: [selectedTarget],
+				selectedTarget,
+				context: {
+					projectId: 'project-1',
+					connectionId: 'target-1',
+					cloudFolderId: '.',
+					cloudFolderPath: '',
 				},
-				{
-					itemType: 'project-transcription',
-					itemId: 'orphaned-transcription',
-					path: 'transcriptions/orphaned-transcription.json',
-					status: 'backed-up',
+				summary: {
+					transcriptions: [
+						{
+							itemType: 'project-transcription',
+							itemId: 'project-transcription-1',
+							path: 'transcriptions/project-transcription-1.json',
+							status: 'backed-up',
+						},
+						{
+							itemType: 'project-transcription',
+							itemId: 'orphaned-transcription',
+							path: 'transcriptions/orphaned-transcription.json',
+							status: 'backed-up',
+						},
+					],
+					collations: [
+						{
+							itemType: 'collation',
+							itemId: 'collation-1',
+							path: 'collations/collation-1.json',
+							status: 'backed-up',
+						},
+					],
+					blockingItems: [],
+					pendingItems: [],
+					tombstones: [],
+					lastFullySyncedAt: null,
 				},
-			],
-			collations: [
-				{
-					itemType: 'collation',
-					itemId: 'collation-1',
-					path: 'collations/collation-1.json',
-					status: 'backed-up',
-				},
-			],
-			blockingItems: [],
-			pendingItems: [],
-			tombstones: [],
-			lastFullySyncedAt: null,
+				error: null,
+			},
 		});
 	});
 
@@ -112,6 +127,7 @@ describe('ProjectBackupPanel', () => {
 			.element(page.getByText('transcriptions/project-transcription-1.json'))
 			.toBeInTheDocument();
 		await expect.element(page.getByText('collations/collation-1.json')).toBeInTheDocument();
+		expect(mocks.loadProjectBackupOverviews).toHaveBeenCalledWith(['project-1']);
 		expect(mocks.listProjectDocumentTitles).toHaveBeenCalledOnce();
 		expect(mocks.listProjectDocumentTitles).toHaveBeenCalledWith('project-1');
 	});

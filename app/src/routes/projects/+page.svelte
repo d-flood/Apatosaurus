@@ -7,14 +7,13 @@
 		type ProjectOption,
 	} from '$lib/client/collation/project-collation';
 	import { waitForBrowserIdle } from '$lib/client/defer';
-	import {
-		deriveProjectBackupSummary,
-		subscribeLocalDbInvalidations,
-	} from '$lib/client/db/client';
+	import { subscribeLocalDbInvalidations } from '$lib/client/db/client';
 	import { ensureLocalDbRuntime } from '$lib/client/db/runtime';
-	import { listSyncTargets } from '$lib/client/store';
-	import { LOCAL_FOLDER_ROOT_FOLDER_ID } from '$lib/client/sync/providers/local-folder-provider';
-	import type { ProjectBackupSummary } from '$lib/client/sync/sync-manager';
+	import {
+		loadProjectBackupOverviews,
+		type ProjectBackupOverview,
+		type ProjectBackupOverviewStatus,
+	} from '$lib/client/sync/project-backup-overview';
 	import ProjectZipImportPanel from '$lib/components/projects/ProjectZipImportPanel.svelte';
 	import FolderOpen from 'phosphor-svelte/lib/FolderOpen';
 	import Plus from 'phosphor-svelte/lib/Plus';
@@ -22,13 +21,8 @@
 
 	const PROJECTS_LOG_PREFIX = '[projects-route]';
 
-	interface ProjectListBackupSummary {
-		statusLabel: string;
-		badgeClass: string;
-	}
-
 	let projects = $state.raw<ProjectOption[]>([]);
-	let projectBackupSummaries = $state.raw<Record<string, ProjectListBackupSummary>>({});
+	let projectBackupOverviews = $state.raw<Record<string, ProjectBackupOverview>>({});
 	let createName = $state('');
 	let isBooting = $state(true);
 	let isCreating = $state(false);
@@ -87,42 +81,18 @@
 	async function loadProjectBackupSummaries(projectRows: ProjectOption[] = projects) {
 		const runId = ++backupSummaryRunId;
 		if (projectRows.length === 0) {
-			projectBackupSummaries = {};
+			projectBackupOverviews = {};
 			return;
 		}
 		try {
-			const entries = await Promise.all(
-				projectRows.map(async project => {
-					const targets = await listSyncTargets(project.id);
-					const target =
-						targets.find(candidate => candidate.enabled) ?? targets[0] ?? null;
-					if (!target) {
-						return [
-							project.id,
-							{ statusLabel: 'Local only', badgeClass: 'badge-ghost' },
-						] as const;
-					}
-					const summary = await deriveProjectBackupSummary({
-						projectId: project.id,
-						connectionId: target.targetId,
-						cloudFolderId: LOCAL_FOLDER_ROOT_FOLDER_ID,
-						cloudFolderPath: '',
-					});
-					return [project.id, summarizeProjectBackup(summary)] as const;
-				})
-			);
-			if (runId === backupSummaryRunId) projectBackupSummaries = Object.fromEntries(entries);
+			const overviews = await loadProjectBackupOverviews(projectRows.map(project => project.id));
+			if (runId === backupSummaryRunId) projectBackupOverviews = overviews;
 		} catch (cause) {
 			if (runId !== backupSummaryRunId) return;
 			logProjects('warn', 'project backup summary load failed', {
 				error: cause instanceof Error ? cause.message : String(cause),
 			});
-			projectBackupSummaries = Object.fromEntries(
-				projectRows.map(project => [
-					project.id,
-					{ statusLabel: 'Sync unavailable', badgeClass: 'badge-warning' },
-				])
-			);
+			projectBackupOverviews = {};
 		}
 	}
 
@@ -135,23 +105,19 @@
 		})();
 	}
 
-	function summarizeProjectBackup(summary: ProjectBackupSummary): ProjectListBackupSummary {
-		if (summary.remoteManifestState === 'remote-update-available') {
-			return { statusLabel: 'Remote update available', badgeClass: 'badge-warning' };
-		}
-		if (summary.remoteManifestState === 'diverged') {
-			return { statusLabel: 'Sync conflict', badgeClass: 'badge-error' };
-		}
-		if (summary.remoteManifestState === 'unavailable') {
-			return { statusLabel: 'Sync unavailable', badgeClass: 'badge-warning' };
-		}
-		if (summary.blockingItems.length > 0) {
-			return { statusLabel: 'Commit before sync', badgeClass: 'badge-warning' };
-		}
-		if (summary.pendingItems.length > 0 || summary.tombstones.length > 0) {
-			return { statusLabel: 'Pending sync', badgeClass: 'badge-info' };
-		}
-		return { statusLabel: 'Synced', badgeClass: 'badge-success' };
+	function backupStatusLabel(status: ProjectBackupOverviewStatus): string {
+		if (status === 'local-only') return 'Local only';
+		if (status === 'blocked') return 'Commit before sync';
+		if (status === 'pending') return 'Pending sync';
+		if (status === 'backed-up') return 'Synced';
+		return 'Sync unavailable';
+	}
+
+	function backupBadgeClass(status: ProjectBackupOverviewStatus): string {
+		if (status === 'blocked' || status === 'unavailable') return 'badge-warning';
+		if (status === 'pending') return 'badge-info';
+		if (status === 'backed-up') return 'badge-success';
+		return 'badge-ghost';
 	}
 
 	onMount(() => {
@@ -226,7 +192,7 @@
 		{:else}
 			<div class="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
 				{#each projects as project (project.id)}
-					{@const backupSummary = projectBackupSummaries[project.id]}
+					{@const backupOverview = projectBackupOverviews[project.id]}
 					<article
 						class="rounded-box border border-base-300/60 bg-base-100 p-5 shadow-sm"
 					>
@@ -236,9 +202,11 @@
 						</p>
 						<div class="mt-4 flex items-center justify-between gap-3">
 							<span
-								class="badge badge-sm {backupSummary?.badgeClass ?? 'badge-ghost'}"
+								class="badge badge-sm {backupOverview
+									? backupBadgeClass(backupOverview.status)
+									: 'badge-ghost'}"
 							>
-								{backupSummary?.statusLabel ?? 'Checking sync'}
+								{backupOverview ? backupStatusLabel(backupOverview.status) : 'Checking sync'}
 							</span>
 							<a
 								href={resolve('/projects/[id]/transcriptions', { id: project.id })}

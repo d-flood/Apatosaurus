@@ -8,7 +8,6 @@
 		type StoragePersistenceReport,
 	} from '$lib/client/capabilities';
 	import {
-		deriveProjectBackupSummary,
 		getCollationVersionStatus,
 		getProjectTranscriptionStatusForOwnedTranscription,
 		listCollationsWithProjectNames,
@@ -24,9 +23,10 @@
 		readLastOpenedProjectId,
 		resolveLastOpenedProjectId,
 	} from '$lib/client/navigation/last-opened-project';
-	import { listSyncTargets, type SyncTargetRecord } from '$lib/client/store';
-	import { LOCAL_FOLDER_ROOT_FOLDER_ID } from '$lib/client/sync/providers/local-folder-provider';
-	import type { ProjectBackupSummary } from '$lib/client/sync/sync-manager';
+	import {
+		loadProjectBackupOverviews,
+		type ProjectBackupOverview,
+	} from '$lib/client/sync/project-backup-overview';
 	import type { WarmProgress } from '$lib/client/offline-cache-policy';
 	import { onCacheWarmProgress } from '$lib/client/sw-registration';
 	import Dashboard, {
@@ -59,19 +59,18 @@
 		isLoading = true;
 		try {
 			await ensureLocalDbRuntime();
-			const [projectRows, transcriptionRows, collationRows, persistence, estimate, targets] =
+			const [projectRows, transcriptionRows, collationRows, persistence, estimate] =
 				await Promise.all([
 					listProjects(),
 					listTranscriptionSummaries(),
 					listCollationsWithProjectNames(),
 					checkStoragePersistence(),
 					getStorageEstimate(),
-					listSyncTargets(),
 				]);
 			const recentRows = mergeRecentSummaries(transcriptionRows, collationRows);
 			const [documents, warnings] = await Promise.all([
 				enrichRecentDocuments(recentRows),
-				buildAttentionItems(projectRows, targets, persistence, estimate),
+				buildAttentionItems(projectRows, persistence, estimate),
 			]);
 			if (runId !== loadRunId) return;
 
@@ -146,43 +145,24 @@
 
 	async function buildAttentionItems(
 		projectRows: ProjectOption[],
-		targets: SyncTargetRecord[],
 		persistence: StoragePersistenceReport,
 		estimate: StorageEstimateReport
 	): Promise<DashboardAttentionItem[]> {
 		if (projectRows.length === 0) return [];
 		const items: DashboardAttentionItem[] = [];
-		const targetsByProject = new Map<string, SyncTargetRecord>();
-		for (const target of targets) {
-			const current = targetsByProject.get(target.projectId);
-			if (!current || (!current.enabled && target.enabled))
-				targetsByProject.set(target.projectId, target);
+		const overviews = await loadProjectBackupOverviews(projectRows.map(project => project.id));
+		for (const project of projectRows) {
+			const overview = overviews[project.id];
+			if (overview.error) {
+				console.warn('[dashboard-route] project backup summary load failed', {
+					projectId: project.id,
+					error:
+						overview.error instanceof Error ? overview.error.message : String(overview.error),
+				});
+			}
+			const problem = summarizeBackupProblem(project, overview);
+			if (problem) items.push(problem);
 		}
-
-		await Promise.all(
-			projectRows.map(async project => {
-				const target = targetsByProject.get(project.id);
-				if (!target) return;
-				try {
-					const summary = await deriveProjectBackupSummary({
-						projectId: project.id,
-						connectionId: target.targetId,
-						cloudFolderId: LOCAL_FOLDER_ROOT_FOLDER_ID,
-						cloudFolderPath: '',
-					});
-					const problem = summarizeBackupProblem(project, summary);
-					if (problem) items.push(problem);
-				} catch (cause) {
-					console.warn('[dashboard-route] project backup summary load failed', {
-						projectId: project.id,
-						error: cause instanceof Error ? cause.message : String(cause),
-					});
-					items.push(
-						projectBackupAttention(project, 'Backup status is currently unavailable.')
-					);
-				}
-			})
-		);
 
 		if (
 			shouldShowDurabilityWarning({
@@ -212,7 +192,7 @@
 			});
 		}
 
-		if (projectRows.some(project => !targetsByProject.has(project.id))) {
+		if (projectRows.some(project => overviews[project.id].status === 'local-only')) {
 			items.push({
 				id: 'storage-setup',
 				title: 'Set up a backup path',
@@ -228,23 +208,16 @@
 
 	function summarizeBackupProblem(
 		project: ProjectOption,
-		summary: ProjectBackupSummary
+		overview: ProjectBackupOverview
 	): DashboardAttentionItem | null {
-		if (summary.remoteManifestState === 'remote-update-available')
-			return projectBackupAttention(project, 'The backup contains newer project changes.');
-		if (summary.remoteManifestState === 'diverged')
-			return projectBackupAttention(
-				project,
-				'Local and backed-up project history have diverged.'
-			);
-		if (summary.remoteManifestState === 'unavailable')
-			return projectBackupAttention(project, 'The backup provider is currently unavailable.');
-		if (summary.blockingItems.length > 0)
+		if (overview.status === 'unavailable')
+			return projectBackupAttention(project, 'Backup status is currently unavailable.');
+		if (overview.status === 'blocked')
 			return projectBackupAttention(
 				project,
 				'Commit local changes before this project can be backed up.'
 			);
-		if (summary.pendingItems.length > 0 || summary.tombstones.length > 0)
+		if (overview.status === 'pending')
 			return projectBackupAttention(
 				project,
 				'Committed project changes are waiting to be backed up.'

@@ -4,7 +4,6 @@
 	import WarningCircle from 'phosphor-svelte/lib/WarningCircle';
 	import {
 		backupProject,
-		deriveProjectBackupSummary,
 		exportProjectZip,
 		forkProject,
 		getLatestProjectCommitTimestamp,
@@ -21,17 +20,18 @@
 		connectProjectSyncFolder,
 		disconnectProjectSyncFolder,
 		isLocalFolderProviderSupported,
-		listProjectSyncTargets,
 		reconnectProjectSyncFolder,
 	} from '$lib/client/sync/local-folder-connections';
-	import { LOCAL_FOLDER_ROOT_FOLDER_ID } from '$lib/client/sync/providers/local-folder-provider';
 	import { downloadZipArchive } from '$lib/client/download-blob';
 	import {
 		getProjectBackupMetadata,
 		recordProjectZipExport,
 		updateSyncTargetLastSyncedAt,
-		type SyncTargetRecord,
 	} from '$lib/client/store';
+	import {
+		loadProjectBackupOverviews,
+		type ProjectBackupOverview,
+	} from '$lib/client/sync/project-backup-overview';
 	import {
 		deriveProjectBackupHealthState,
 		shouldShowInstallNudge,
@@ -41,8 +41,6 @@
 	import type {
 		BackupItemState,
 		ProjectBackupResult,
-		ProjectBackupSummary,
-		SyncProjectContext,
 	} from '$lib/client/sync/sync-manager';
 
 	interface Props {
@@ -53,8 +51,7 @@
 
 	let { projectId, onForked }: Props = $props();
 
-	let targets = $state.raw<SyncTargetRecord[]>([]);
-	let summary = $state<ProjectBackupSummary | null>(null);
+	let backupOverview = $state<ProjectBackupOverview | null>(null);
 	let documentTitles = $state.raw(new Map<string, string>());
 	let lastResult = $state<ProjectBackupResult | null>(null);
 	let isLoading = $state(false);
@@ -74,7 +71,8 @@
 	let error = $state<string | null>(null);
 	let loadRunId = 0;
 
-	let selectedTarget = $derived(targets.find(target => target.enabled) ?? targets[0] ?? null);
+	let selectedTarget = $derived(backupOverview?.selectedTarget ?? null);
+	let summary = $derived(backupOverview?.summary ?? null);
 	let folderSupported = $derived(isLocalFolderProviderSupported());
 	let backupCapability = $derived(projectBackupCapabilityMessage(folderSupported));
 	let backupHealth = $derived(
@@ -101,9 +99,9 @@
 		if (syncService.reconnectProjectIds.includes(projectId)) return 'Reconnect folder';
 		if (lastResult?.uiState === 'conflict requires resolution') return 'Conflict requires resolution';
 		if (lastResult?.providerError === 'reauthorization-required') return 'Reconnect folder';
-		if (!summary) return 'Sync status unknown';
-		if (summary.blockingItems.length > 0) return 'Commit local changes before sync';
-		if (summary.pendingItems.length > 0 || summary.tombstones.length > 0) return 'Sync pending';
+		if (!backupOverview || backupOverview.status === 'unavailable') return 'Sync status unknown';
+		if (backupOverview.status === 'blocked') return 'Commit local changes before sync';
+		if (backupOverview.status === 'pending') return 'Sync pending';
 		return 'Synced';
 	});
 	let allItems = $derived.by(() =>
@@ -147,14 +145,14 @@
 		isLoading = true;
 		error = null;
 		try {
-			const [nextTargets, metadata, latestCommit, nextDocumentTitles] = await Promise.all([
-				listProjectSyncTargets(nextProjectId),
+			const [overviews, metadata, latestCommit, nextDocumentTitles] = await Promise.all([
+				loadProjectBackupOverviews([nextProjectId]),
 				getProjectBackupMetadata(nextProjectId),
 				getLatestProjectCommitTimestamp(nextProjectId),
 				listProjectDocumentTitles(nextProjectId),
 			]);
 			if (runId !== loadRunId) return;
-			targets = nextTargets;
+			backupOverview = overviews[nextProjectId];
 			lastExportedAt = metadata.lastExportedAt;
 			lastCommittedAt = latestCommit;
 			documentTitles = new Map(
@@ -163,12 +161,16 @@
 					document.title,
 				])
 			);
-			const target = nextTargets.find(candidate => candidate.enabled) ?? nextTargets[0] ?? null;
-			summary = target ? await deriveProjectBackupSummary(syncContext(target)) : null;
+			if (backupOverview.error) {
+				error =
+					backupOverview.error instanceof Error
+						? backupOverview.error.message
+						: 'Failed to load folder sync status.';
+			}
 		} catch (err) {
 			if (runId !== loadRunId) return;
 			error = err instanceof Error ? err.message : 'Failed to load folder sync status.';
-			summary = null;
+			backupOverview = null;
 			documentTitles = new Map();
 		} finally {
 			if (runId === loadRunId) isLoading = false;
@@ -223,11 +225,12 @@
 
 	async function runSync() {
 		const target = selectedTarget;
-		if (!target || isSyncing) return;
+		const context = backupOverview?.context;
+		if (!target || !context || isSyncing) return;
 		isSyncing = true;
 		error = null;
 		try {
-			lastResult = await backupProject(syncContext(target));
+			lastResult = await backupProject(context);
 			if (lastResult.uiState === 'synced') {
 				await updateSyncTargetLastSyncedAt(target.targetId, new Date().toISOString());
 			}
@@ -294,15 +297,6 @@
 		}
 	}
 
-	function syncContext(target: SyncTargetRecord): SyncProjectContext {
-		return {
-			projectId,
-			connectionId: target.targetId,
-			cloudFolderId: LOCAL_FOLDER_ROOT_FOLDER_ID,
-			cloudFolderPath: '',
-		};
-	}
-
 	function formatDate(value: string | null | undefined): string {
 		if (!value) return 'Never';
 		return new Date(value).toLocaleString();
@@ -327,15 +321,12 @@
 		if (item.status === 'committed-pending-backup') return 'Pending sync';
 		if (item.status === 'uncommitted-local-changes') return 'Commit before sync';
 		if (item.status === 'never-committed') return 'Commit before sync';
-		if (item.status === 'remote-update-available') return 'Remote update available';
-		if (item.status === 'diverged') return 'Conflict';
 		return 'Unknown';
 	}
 
 	function itemBadgeClass(item: BackupItemState): string {
 		if (item.status === 'backed-up') return 'badge-success';
 		if (item.status === 'committed-pending-backup') return 'badge-info';
-		if (item.status === 'diverged') return 'badge-error';
 		if (item.status === 'uncommitted-local-changes' || item.status === 'never-committed') {
 			return 'badge-warning';
 		}
