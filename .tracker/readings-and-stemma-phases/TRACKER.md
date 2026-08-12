@@ -34,3 +34,9 @@ The critical path is 01 → 02 → 05 → 08 → 10 → 11.
 | 10 | `10-lemma-root-coupling-and-connectivity.md` | Not Started | 08 |
 | 11 | `11-review-phase-and-tei-apparatus-export.md` | Not Started | 06, 10 |
 | 12 | `12-research-connectivity-absolute-value.md` | Not Started | None |
+
+## Notes
+
+| Date | Note |
+| --- | --- |
+| 2026-08-11 | Ticket `02` rewritten after an architecture review, and `SPEC.md` corrected. Two findings. First, an **editorial decision** had no durable address as well as no durable identity: decisions and stemma edges are keyed by `getReadingUnitKey`, which returns a position in `alignmentColumns`, while `mergeColumns`, `splitColumn`, and `shiftToken` all reindex that array and touch neither map. Splitting proposal from decision without fixing the key would have produced decisions that persist faithfully under the wrong **variation unit** — worse than ones that vanish. The identity is already computed and discarded: `collation-document.ts` builds `unit:${columnId}` on write and re-keys by `unitIndex` on read. Ticket 02 now carries the key change; the blast radius is one function and its six call sites, and `stemmaEdges` follows for free because the stemma functions call the same helper. Second, `SPEC.md` claimed re-running an alignment stops destroying editorial work. It cannot: `collation-adapter.ts` assigns every column a fresh `crypto.randomUUID()` per run, so nothing column-derived survives a re-collation and reattaching needs a content-derived anchor nobody has designed. The SPEC now scopes the claim to hand edits and states the re-collation gap explicitly, and ticket 02 forbids inventing an anchor. `CONTEXT.md` gained a **Variation unit** entry. |

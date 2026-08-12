@@ -6,11 +6,11 @@ This document tracks the status of all tickets in the files-as-database epic: in
 
 ## Current Status
 
-Overall status: `Completed`
+Overall status: `Reopened`
 
-Current ticket: ticket `23` completed; epic complete
+Current ticket: `24` — ticket 10's retirement half, never completed
 
-Last updated: 2026-07-18
+Last updated: 2026-08-11
 
 ## Blocking Rules
 
@@ -44,6 +44,7 @@ Last updated: 2026-07-18
 | 21 | `21-invariant-test-suite.md` | Completed | 07, 09, 10, 11 |
 | 22 | `22-e2e-scenarios-and-ci.md` | Completed | 21 |
 | 23 | `23-docs-and-ideas-triage.md` | Completed | 16, 21 |
+| 24 | `24-retire-the-legacy-restore-engine.md` | Not Started | None |
 
 ## Verification Baseline
 
@@ -60,6 +61,7 @@ bun run test:unit -- --run
 
 | Date | Note |
 | --- | --- |
+| 2026-08-11 | Epic reopened for ticket `24`. An architecture review found ticket 10's success criterion unmet under a `Completed` row: `grep -r importCloudProject app/src` still returns `sync/project-restore.ts` plus its RPC plumbing in `db/client.ts` and `db/db.worker.ts`. Ticket 10's unification half landed; its retirement half did not, and the 2026-07-13 note asking for that contract decision was never resolved. The consequence is that both sync engines are still resident and interleaved in the same files — roughly 3,900 of 9,366 production lines in `sync/` are the pre-inversion entity/row engine, certified by ~5,700 lines of tests, and `project-restore.ts` performs zero OPFS writes while writing 18 index tables, which is the inverse of Invariant 1. Ticket 24 is deletion only: the legacy restore RPCs, the dead half of `sync-manager.ts`, the spec-only `conflicts.ts` exports, the `*CloudFile` translation vocabulary, and the provider methods no implementation implements. `mirrorProjectFiles` and the cloud tables are explicitly untouched, so `INDEX_SCHEMA_VERSION` does not move. |
 | 2026-07-18 | Ticket 23 completed, closing the files-as-database epic. Updated both READMEs with the accepted architecture and index-version workflow; documented executable format-version and storage-provider extension procedures against the real registry, fixture, factory, and provider seams; finalized About-page data ownership and exit-path content; and reduced `ideas.md` to punctuation handling, collation undo/redo, and image caching. Verification passed: `bun run db:generate`, `bun run db:check`, `bun run check`, the full unit/browser suite (518 tests), the focused format suite (22 tests), and the documented upgrade Playwright scenario. |
 | 2026-07-18 | Ticket 22 completed. Added Chromium Playwright scenarios for fresh project/transcription/collation/zip creation, destructive site-data recovery through zip import, two isolated committee contexts sharing a test-only folder transport with update and conflict-copy propagation, and a checked-in synthetic v1 manifest/v0 index upgrade fixture. The scenarios exposed and fixed Svelte-proxy autosave RPC cloning, SQLite-only conflict copies, and remote-only primary orphaning. Added push/PR CI for schema checks, Svelte checks, node/browser Vitest, and Playwright; removed stale registration E2E coverage for routes retired in ticket 01 and aligned prior navigation/editor harnesses with completed project-first and hydration behavior. Verification passed: `bun run db:generate && bun run db:check`, `bun run check`, the full unit/browser suite (518 tests), and the full Playwright suite (17 passed, 1 opt-in performance benchmark skipped). |
 | 2026-07-17 | Ticket 21 completed. Added a dedicated nine-invariant suite covering real browser-worker index deletion, disposable sync fingerprints, quarantine preservation for every canonical format, atomic replacement instrumentation, production history append-only enforcement, read immutability, transcription/collation crash ordering, working-draft recovery, persistence request/warning behavior, and folder-equivalent zip round trips. Donor index, crash, persistence, and zip tests now have one authoritative home, with a real-browser persistence checklist beside the suite. Verification passed: `bun run db:generate`, `bun run db:check`, required store suite (60 tests), `bun run check`, and the full unit/browser suite (518 tests). |

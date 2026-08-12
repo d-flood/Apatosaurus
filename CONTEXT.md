@@ -54,6 +54,10 @@ Project-owned configuration for how collation interprets the project's witnesses
 **Project transcription library**:
 The project-scoped list of transcriptions a scholar works from — open, create, delete. Carries no collation configuration.
 
+**Variation unit**:
+A place within a collation segment where the witnesses differ, and the scope everything editorial hangs from — its readings, its local stemma, its connectivity. Identified by the alignment column it covers, never by its position among the units: reshaping the alignment elsewhere must not change which unit a scholar's decision belongs to. A unit whose column is gone does not move; it orphans.
+_Avoid_: Variant unit, unit (unqualified), alignment column (the column is the mechanism, the unit is the concept)
+
 **Main reading**:
 A reading cited in its own right at a variation unit, labelled with a letter (`a`, `b`, `c`). Carries any subreadings of it.
 _Avoid_: Parent reading, primary reading
