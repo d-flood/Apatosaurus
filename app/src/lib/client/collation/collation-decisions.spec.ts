@@ -26,6 +26,15 @@ function reading(
 	};
 }
 
+/** A main reading with the given witnesses, left unordered so priority decides its place. */
+function attested(id: string, witnessIds: string[]): ClassifiedReading {
+	return {
+		...reading(id, 0),
+		witnessIds,
+		witnessGroups: [{ id: `group-${id}`, witnessIds }],
+	};
+}
+
 describe('decision overlay', () => {
 	it('applies a recorded cross-text attachment over the proposal and relabels readings', () => {
 		const result = applyDecisions(
@@ -69,6 +78,124 @@ describe('decision overlay', () => {
 		expect(decisions).toEqual({
 			subreadingOf: { absent: 'alpha', alpha: 'missing-main' },
 		});
+	});
+
+	it('derives the lemma from the base text when nothing is recorded', () => {
+		const result = applyDecisions(
+			[attested('alpha', ['base']), attested('beta', ['w1', 'w2'])],
+			{},
+			{ baseWitnessId: 'base' }
+		);
+
+		expect(result.lemmaReadingId).toBe('alpha');
+		expect(result.baseTextReadingId).toBe('alpha');
+		expect(result.needsLemmaDecision).toBe(false);
+		expect(result.readings.map(entry => [entry.id, entry.label])).toEqual([
+			['alpha', 'a'],
+			['beta', 'b'],
+		]);
+	});
+
+	it('elevates a designated reading to a and keeps the base-text reading ahead of the rest', () => {
+		const result = applyDecisions(
+			[
+				attested('alpha', ['base']),
+				attested('beta', ['w1']),
+				attested('gamma', ['w2', 'w3']),
+			],
+			{ lemmaReadingId: 'gamma' },
+			{ baseWitnessId: 'base' }
+		);
+
+		expect(result.lemmaReadingId).toBe('gamma');
+		expect(result.baseTextReadingId).toBe('alpha');
+		expect(result.readings.map(entry => [entry.id, entry.label])).toEqual([
+			['gamma', 'a'],
+			['alpha', 'b'],
+			['beta', 'c'],
+		]);
+	});
+
+	it('gives elevated readings an order that agrees with their labels', () => {
+		const result = applyDecisions(
+			[
+				attested('alpha', ['base']),
+				attested('beta', ['w1']),
+				attested('gamma', ['w2', 'w3']),
+			],
+			{ lemmaReadingId: 'gamma' },
+			{ baseWitnessId: 'base' }
+		);
+
+		expect(result.readings.map(entry => [entry.id, entry.label, entry.order])).toEqual([
+			['gamma', 'a', 0],
+			['alpha', 'b', 1],
+			['beta', 'c', 2],
+		]);
+		expect([...result.readings].sort((a, b) => a.order - b.order)).toEqual(result.readings);
+	});
+
+	it('never promotes the majority reading where the base text does not attest', () => {
+		const result = applyDecisions(
+			[
+				{ ...attested('alpha', ['base']), isLacuna: true },
+				attested('beta', ['w1']),
+				attested('gamma', ['w2', 'w3']),
+			],
+			{},
+			{ baseWitnessId: 'base' }
+		);
+
+		expect(result.lemmaReadingId).toBeNull();
+		expect(result.needsLemmaDecision).toBe(true);
+		// `gamma` leads the provisional witness-count order but is not thereby the lemma.
+		expect(result.readings[0]?.id).toBe('gamma');
+	});
+
+	it('reports a unit as needing a lemma decision when the base text does not attest', () => {
+		const result = applyDecisions(
+			[
+				{ ...attested('alpha', ['base']), isLacuna: true },
+				attested('beta', ['w1']),
+				attested('gamma', ['w2', 'w3']),
+			],
+			{},
+			{ baseWitnessId: 'base' }
+		);
+
+		expect(result.lemmaReadingId).toBeNull();
+		expect(result.baseTextReadingId).toBeNull();
+		expect(result.needsLemmaDecision).toBe(true);
+		expect(result.readings.map(entry => entry.label).sort()).toEqual(['a', 'b', 'c']);
+	});
+
+	it('clears the report once a lemma is designated at such a unit', () => {
+		const proposal = [
+			{ ...attested('alpha', ['base']), isLacuna: true },
+			attested('beta', ['w1']),
+		];
+
+		const result = applyDecisions(
+			proposal,
+			{ lemmaReadingId: 'beta' },
+			{ baseWitnessId: 'base' }
+		);
+
+		expect(result.needsLemmaDecision).toBe(false);
+		expect(result.readings.find(entry => entry.id === 'beta')?.label).toBe('a');
+	});
+
+	it('reports a lemma decision naming an absent reading and falls back to the base text', () => {
+		const result = applyDecisions(
+			[attested('alpha', ['base'])],
+			{ lemmaReadingId: 'gone' },
+			{ baseWitnessId: 'base' }
+		);
+
+		expect(result.orphanedDecisions).toEqual([
+			{ kind: 'lemma', readingId: 'gone', missingReadingIds: ['gone'] },
+		]);
+		expect(result.lemmaReadingId).toBe('alpha');
 	});
 
 	it('reports decisions belonging to absent units', () => {

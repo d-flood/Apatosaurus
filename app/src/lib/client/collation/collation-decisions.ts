@@ -3,28 +3,50 @@ import type { ClassifiedReading } from './collation-types';
 
 export interface UnitDecisions {
 	subreadingOf?: Record<string, string | null>;
+	lemmaReadingId?: string | null;
 }
 
-export interface OrphanedDecision {
-	kind: 'subreadingOf';
-	readingId: string;
-	mainReadingId: string | null;
-	missingReadingIds: string[];
-}
+export type OrphanedDecision =
+	| {
+			kind: 'subreadingOf';
+			readingId: string;
+			mainReadingId: string | null;
+			missingReadingIds: string[];
+	  }
+	| {
+			kind: 'lemma';
+			readingId: string;
+			missingReadingIds: string[];
+	  };
 
 export interface OrphanedUnitDecision {
 	unitId: string;
 	decisions: UnitDecisions;
 }
 
+export interface UnitView {
+	readings: ClassifiedReading[];
+	orphanedDecisions: OrphanedDecision[];
+	/** The reading established as `a`, or null where none can be derived or was designated. */
+	lemmaReadingId: string | null;
+	/** The main reading the base text attests, or null where it does not testify. */
+	baseTextReadingId: string | null;
+	needsLemmaDecision: boolean;
+}
+
 export function cloneUnitDecisions(decisions: UnitDecisions | undefined): UnitDecisions {
-	return decisions?.subreadingOf ? { subreadingOf: { ...decisions.subreadingOf } } : {};
+	const clone: UnitDecisions = {};
+	if (decisions?.subreadingOf) clone.subreadingOf = { ...decisions.subreadingOf };
+	if (decisions?.lemmaReadingId !== undefined) clone.lemmaReadingId = decisions.lemmaReadingId;
+	return clone;
 }
 
 export function applyDecisions(
 	proposal: ClassifiedReading[],
-	decisions: UnitDecisions
-): { readings: ClassifiedReading[]; orphanedDecisions: OrphanedDecision[] } {
+	decisions: UnitDecisions,
+	options?: { baseWitnessId?: string | null }
+): UnitView {
+	const baseWitnessId = options?.baseWitnessId ?? null;
 	const readingIds = new Set(proposal.map(reading => reading.id));
 	const orphanedDecisions: OrphanedDecision[] = [];
 	const applicable = new Map<string, string | null>();
@@ -55,9 +77,55 @@ export function applyDecisions(
 		};
 	});
 
+	const byId = new Map(readings.map(reading => [reading.id, reading] as const));
+	const mainReadingIdOf = (readingId: string): string | null => {
+		let current = byId.get(readingId);
+		const seen = new Set<string>();
+		while (current && current.parentReadingId !== null && !seen.has(current.id)) {
+			seen.add(current.id);
+			current = byId.get(current.parentReadingId);
+		}
+		return current?.id ?? null;
+	};
+
+	const baseTextReading = baseWitnessId
+		? readings.find(reading => reading.witnessIds.includes(baseWitnessId))
+		: undefined;
+	// A lacunose base witness testifies to nothing, so it establishes no default lemma.
+	const baseTextReadingId =
+		baseTextReading && !baseTextReading.isLacuna ? mainReadingIdOf(baseTextReading.id) : null;
+
+	let lemmaReadingId: string | null = null;
+	const designatedLemmaId = decisions.lemmaReadingId ?? null;
+	if (designatedLemmaId !== null) {
+		if (readingIds.has(designatedLemmaId)) {
+			// A designated subreading is cited under its main reading, which is what takes `a`.
+			lemmaReadingId = mainReadingIdOf(designatedLemmaId);
+		} else {
+			orphanedDecisions.push({
+				kind: 'lemma',
+				readingId: designatedLemmaId,
+				missingReadingIds: [designatedLemmaId],
+			});
+		}
+	}
+	if (lemmaReadingId === null) lemmaReadingId = baseTextReadingId;
+
+	const needsLemmaDecision =
+		lemmaReadingId === null && readings.some(reading => reading.parentReadingId === null);
+
 	return {
-		readings: relabelReadings(readings, null),
+		// Without a base-text reading the base witness cannot anchor the order, so the
+		// remaining readings fall back to witness count — a provisional order, not a lemma.
+		readings: relabelReadings(
+			readings,
+			baseTextReadingId ? baseWitnessId : null,
+			lemmaReadingId
+		),
 		orphanedDecisions,
+		lemmaReadingId,
+		baseTextReadingId,
+		needsLemmaDecision,
 	};
 }
 

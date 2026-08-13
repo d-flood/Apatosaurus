@@ -1321,3 +1321,231 @@ describe('collationState stemma derivation', () => {
 		expect(updated.map(reading => reading.witnessIds)).toEqual([['A', 'B'], ['C']]);
 	});
 });
+
+describe('collationState lemma establishment', () => {
+	beforeEach(() => {
+		collationState.reset();
+	});
+
+	function makeLacunaCell() {
+		return { ...makeTextCell(''), kind: 'gap' as const, isLacuna: true };
+	}
+
+	function setUpUnit(
+		cells: Record<string, ReturnType<typeof makeTextCell> | ReturnType<typeof makeLacunaCell>>,
+		options?: { excludeBase?: boolean }
+	) {
+		collationState.setWitnesses([
+			makeWitness('A', 'alpha', { isBaseText: true, isExcluded: options?.excludeBase }),
+			...Object.keys(cells)
+				.filter(id => id !== 'A')
+				.map(id => makeWitness(id, 'other')),
+		]);
+		collationState.setAlignmentSnapshot({
+			witnessOrder: Object.keys(cells),
+			columns: [{ id: 'col-1', index: 0, merged: false, cells: Object.entries(cells) }],
+		});
+	}
+
+	it('derives the lemma from the base text and labels that reading a', () => {
+		setUpUnit({
+			A: makeTextCell('alpha'),
+			B: makeTextCell('beta'),
+			C: makeTextCell('beta'),
+		});
+
+		const readings = collationState.getReadingsForUnit(0);
+		const alpha = readings.find(reading => reading.text === 'alpha')!;
+
+		expect(collationState.getLemmaReadingId(0)).toBe(alpha.id);
+		expect(alpha.label).toBe('a');
+		expect(collationState.unitNeedsLemmaDecision(0)).toBe(false);
+	});
+
+	it('elevates a reading to a while the base-text reading keeps a letter ahead of the rest', () => {
+		setUpUnit({
+			A: makeTextCell('alpha'),
+			B: makeTextCell('beta'),
+			C: makeTextCell('gamma'),
+			D: makeTextCell('gamma'),
+		});
+		const initial = collationState.getReadingsForUnit(0);
+		const beta = initial.find(reading => reading.text === 'beta')!;
+
+		expect(collationState.setLemmaReading(0, beta.id)).toEqual({ ok: true });
+
+		expect(
+			collationState.getReadingsForUnit(0).map(reading => [reading.text, reading.label])
+		).toEqual([
+			['beta', 'a'],
+			['alpha', 'b'],
+			['gamma', 'c'],
+		]);
+	});
+
+	it('keeps the lemma decision through an unrelated edit and undoes it in one step', () => {
+		setUpUnit({ A: makeTextCell('alpha'), B: makeTextCell('beta'), C: makeTextCell('gamma') });
+		const initial = collationState.getReadingsForUnit(0);
+		const beta = initial.find(reading => reading.text === 'beta')!;
+		const gamma = initial.find(reading => reading.text === 'gamma')!;
+
+		collationState.setLemmaReading(0, beta.id);
+		collationState.updateReadingText(0, gamma.id, 'delta');
+		expect(collationState.getLemmaReadingId(0)).toBe(beta.id);
+
+		collationState.undo();
+
+		const afterUndo = collationState.getReadingsForUnit(0);
+		expect(collationState.getLemmaReadingId(0)).toBe(
+			afterUndo.find(reading => reading.text === 'alpha')!.id
+		);
+		expect(afterUndo.find(reading => reading.id === gamma.id)?.text).toBe('delta');
+	});
+
+	it('needs a lemma decision where the base text does not attest, and clears it once designated', () => {
+		setUpUnit({ A: makeLacunaCell(), B: makeTextCell('beta'), C: makeTextCell('gamma') });
+
+		expect(collationState.unitNeedsLemmaDecision(0)).toBe(true);
+		expect(collationState.getLemmaReadingId(0)).toBeNull();
+		const readings = collationState.getReadingsForUnit(0);
+		expect(readings.length).toBeGreaterThan(1);
+		expect(readings.every(reading => reading.label.length > 0)).toBe(true);
+		expect(collationState.getUnitsNeedingLemmaDecision()).toEqual([
+			{ unitIndex: 0, unitId: 'unit:col-1' },
+		]);
+
+		const beta = readings.find(reading => reading.text === 'beta')!;
+		collationState.setLemmaReading(0, beta.id);
+
+		expect(collationState.unitNeedsLemmaDecision(0)).toBe(false);
+		expect(collationState.getUnitsNeedingLemmaDecision()).toEqual([]);
+		expect(
+			collationState.getReadingsForUnit(0).find(reading => reading.id === beta.id)?.label
+		).toBe('a');
+	});
+
+	it('treats an excluded base text like non-attestation', () => {
+		setUpUnit(
+			{ A: makeTextCell('alpha'), B: makeTextCell('beta'), C: makeTextCell('gamma') },
+			{ excludeBase: true }
+		);
+
+		expect(collationState.unitNeedsLemmaDecision(0)).toBe(true);
+		expect(collationState.getLemmaReadingId(0)).toBeNull();
+		expect(collationState.getReadingsForUnit(0).length).toBeGreaterThan(1);
+	});
+
+	it('reports divergence for exactly the units whose lemma is not the base text reading', () => {
+		collationState.setWitnesses([
+			makeWitness('A', 'alpha zeta', { isBaseText: true }),
+			makeWitness('B', 'beta eta'),
+		]);
+		collationState.setAlignmentSnapshot({
+			witnessOrder: ['A', 'B'],
+			columns: [
+				{
+					id: 'col-1',
+					index: 0,
+					merged: false,
+					cells: [
+						['A', makeTextCell('alpha')],
+						['B', makeTextCell('beta')],
+					],
+				},
+				{
+					id: 'col-2',
+					index: 1,
+					merged: false,
+					cells: [
+						['A', makeTextCell('zeta')],
+						['B', makeTextCell('eta')],
+					],
+				},
+			],
+		});
+		expect(collationState.getLemmaDivergence()).toEqual([]);
+
+		const second = collationState.getReadingsForUnit(1);
+		const eta = second.find(reading => reading.text === 'eta')!;
+		const zeta = second.find(reading => reading.text === 'zeta')!;
+		collationState.setLemmaReading(1, eta.id);
+
+		expect(collationState.getLemmaDivergence()).toEqual([
+			{
+				unitIndex: 1,
+				unitId: 'unit:col-2',
+				lemmaReadingId: eta.id,
+				baseTextReadingId: zeta.id,
+			},
+		]);
+
+		collationState.setLemmaReading(1, zeta.id);
+		expect(collationState.getLemmaDivergence()).toEqual([]);
+	});
+
+	it('leaves existing arcs untouched when the lemma is elevated', () => {
+		setUpUnit({ A: makeTextCell('alpha'), B: makeTextCell('beta'), C: makeTextCell('gamma') });
+		const readings = collationState.getReadingsForUnit(0);
+		const alpha = readings.find(reading => reading.text === 'alpha')!;
+		const beta = readings.find(reading => reading.text === 'beta')!;
+		collationState.addStemmaEdge(0, {
+			id: 'edge-1',
+			sourceReadingId: alpha.id,
+			targetReadingId: beta.id,
+			directed: true,
+		});
+		const before = structuredClone(collationState.stemmaEdges.get('unit:col-1'));
+
+		collationState.setLemmaReading(0, beta.id);
+
+		expect(collationState.stemmaEdges.get('unit:col-1')).toEqual(before);
+	});
+
+	it('reports a refused reorder instead of returning silently', () => {
+		setUpUnit({ A: makeTextCell('alpha'), B: makeTextCell('beta'), C: makeTextCell('gamma') });
+		const readings = collationState.getReadingsForUnit(0);
+		const alpha = readings.find(reading => reading.text === 'alpha')!;
+		const beta = readings.find(reading => reading.text === 'beta')!;
+		const subreading = collationState.addReading(0, { parentReadingId: alpha.id });
+
+		expect(collationState.moveReadingBefore(0, subreading, beta.id)).toEqual({
+			ok: false,
+			error: 'different-group',
+		});
+		expect(collationState.moveReadingBefore(0, 'missing', beta.id)).toEqual({
+			ok: false,
+			error: 'reading-not-found',
+		});
+		expect(collationState.moveReadingByOffset(0, alpha.id, -1)).toEqual({
+			ok: false,
+			error: 'at-boundary',
+		});
+		expect(collationState.moveReadingByOffset(0, alpha.id, 1)).toEqual({ ok: true });
+	});
+
+	it('reorders the rows the readings phase displays once a lemma is elevated', () => {
+		setUpUnit({
+			A: makeTextCell('alpha'),
+			B: makeTextCell('beta'),
+			C: makeTextCell('gamma'),
+			D: makeTextCell('gamma'),
+		});
+		const initial = collationState.getReadingsForUnit(0);
+		const beta = initial.find(reading => reading.text === 'beta')!;
+		const gamma = initial.find(reading => reading.text === 'gamma')!;
+		collationState.setLemmaReading(0, gamma.id);
+
+		const displayed = () =>
+			collationState.getReadingFamiliesForUnit(0).map(family => family.parent.text);
+		expect(displayed()).toEqual(['gamma', 'alpha', 'beta']);
+
+		// `gamma` heads the displayed sequence, so there is no row above it to swap with.
+		expect(collationState.moveReadingByOffset(0, gamma.id, -1)).toEqual({
+			ok: false,
+			error: 'at-boundary',
+		});
+
+		expect(collationState.moveReadingByOffset(0, beta.id, -1)).toEqual({ ok: true });
+		expect(displayed()).toEqual(['gamma', 'beta', 'alpha']);
+	});
+});

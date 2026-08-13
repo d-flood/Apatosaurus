@@ -6,6 +6,7 @@
 		type DisplayedColumnSlot,
 		type ReadingEditorType,
 		type ReadingFamilyView,
+		type ReorderResult,
 	} from '$lib/client/collation/collation-state.svelte';
 	import type { ClassifiedReading } from '$lib/client/collation/collation-types';
 	import type { VariationUnitSpan } from '$lib/client/collation/collation-variation-units';
@@ -32,6 +33,8 @@
 				span: VariationUnitSpan;
 				ordinal: number;
 		  };
+
+	type ReorderRefusal = Extract<ReorderResult, { ok: false }>['error'];
 
 	type DisplayRow = {
 		family: ReadingFamilyView;
@@ -84,6 +87,16 @@
 	);
 
 	let baseWitnessId = $derived(collationState.getBaseWitnessId());
+
+	let baseTextWitnessId = $derived(collationState.getBaseTextWitnessId());
+
+	let lemmaReadingId = $derived(
+		selectedSpan ? collationState.getLemmaReadingId(selectedSpan.startIndex) : null
+	);
+
+	let needsLemmaDecision = $derived(
+		selectedSpan ? collationState.unitNeedsLemmaDecision(selectedSpan.startIndex) : false
+	);
 
 	let displayRows = $derived.by(() => {
 		const rows: DisplayRow[] = [];
@@ -233,15 +246,25 @@
 		return sourceReading.parentReadingId === targetReading.parentReadingId;
 	}
 
+	function describeReorderRefusal(error: ReorderRefusal, label: string): string {
+		if (error === 'different-group')
+			return `${label} can only be reordered within its own reading group.`;
+		if (error === 'at-boundary') return `${label} is already at the edge of its group.`;
+		return `${label} is no longer available to reorder.`;
+	}
+
 	function handleDrop(targetReading: ClassifiedReading) {
-		if (!selectedSpan || !draggedReadingId || !canDropOnTarget(targetReading)) return;
+		if (!selectedSpan || !draggedReadingId) return;
 		const draggedReading = readings.find(reading => reading.id === draggedReadingId);
-		collationState.moveReadingBefore(
+		const label = draggedReading?.label ?? 'reading';
+		const result = collationState.moveReadingBefore(
 			selectedSpan.startIndex,
 			draggedReadingId,
 			targetReading.id
 		);
-		liveMessage = `Moved ${draggedReading?.label ?? 'reading'} before ${targetReading.label}.`;
+		liveMessage = result.ok
+			? `Moved ${label} before ${targetReading.label}.`
+			: describeReorderRefusal(result.error, label);
 		draggedReadingId = null;
 		dropTargetId = null;
 	}
@@ -252,16 +275,26 @@
 			.sort((a, b) => a.siglum.localeCompare(b.siglum));
 	}
 
-	function moveReadingUp(reading: ClassifiedReading) {
+	function moveReading(reading: ClassifiedReading, offset: -1 | 1) {
 		if (!selectedSpan) return;
-		collationState.moveReadingByOffset(selectedSpan.startIndex, reading.id, -1);
-		liveMessage = `Moved ${reading.label} up.`;
+		const result = collationState.moveReadingByOffset(
+			selectedSpan.startIndex,
+			reading.id,
+			offset
+		);
+		liveMessage = result.ok
+			? `Moved ${reading.label} ${offset === -1 ? 'up' : 'down'}.`
+			: result.error === 'at-boundary'
+				? `${reading.label} is already ${offset === -1 ? 'first' : 'last'} in its group.`
+				: describeReorderRefusal(result.error, reading.label);
 	}
 
-	function moveReadingDown(reading: ClassifiedReading) {
+	function establishLemma(reading: ClassifiedReading) {
 		if (!selectedSpan) return;
-		collationState.moveReadingByOffset(selectedSpan.startIndex, reading.id, 1);
-		liveMessage = `Moved ${reading.label} down.`;
+		const result = collationState.setLemmaReading(selectedSpan.startIndex, reading.id);
+		liveMessage = result.ok
+			? `${describeReading(reading)} is now the lemma reading.`
+			: 'Only a main reading can be the lemma.';
 	}
 
 	function toggleWitnessExpand(readingId: string) {
@@ -415,6 +448,15 @@
 
 	<div class="sr-only" aria-live="polite">{liveMessage}</div>
 
+	{#if needsLemmaDecision}
+		<div
+			class="rounded-lg border border-warning/40 bg-warning/10 px-4 py-2 text-sm text-base-content/70"
+		>
+			The base text does not testify here, so this unit has no lemma. Choose the reading to
+			establish as <span class="font-mono">a</span>.
+		</div>
+	{/if}
+
 	<!-- Readings table -->
 	<div class="min-h-0 flex-1 overflow-auto rounded-xl border border-base-300/50 bg-base-100">
 		{#if !selectedSpan}
@@ -460,9 +502,11 @@
 								dropTargetId === row.reading.id ? 'ring-2 ring-inset ring-primary/40' : '',
 							]}
 							ondragover={event => {
-								if (!canDropOnTarget(row.reading)) return;
+								if (!draggedReadingId || draggedReadingId === row.reading.id) return;
+								// Accept the drop even where it will be refused, so the refusal
+								// is explained rather than the drag silently doing nothing.
 								event.preventDefault();
-								dropTargetId = row.reading.id;
+								dropTargetId = canDropOnTarget(row.reading) ? row.reading.id : null;
 							}}
 							ondragleave={() => {
 								if (dropTargetId === row.reading.id) dropTargetId = null;
@@ -484,7 +528,7 @@
 												type="button"
 												class="rounded p-0.5 text-base-content/20 hover:bg-base-200 hover:text-base-content/60"
 												title="Move up"
-												onclick={() => moveReadingUp(row.reading)}
+												onclick={() => moveReading(row.reading, -1)}
 											>
 												<CaretUp size={12} />
 											</button>
@@ -492,7 +536,7 @@
 												type="button"
 												class="rounded p-0.5 text-base-content/20 hover:bg-base-200 hover:text-base-content/60"
 												title="Move down"
-												onclick={() => moveReadingDown(row.reading)}
+												onclick={() => moveReading(row.reading, 1)}
 											>
 												<CaretDown size={12} />
 											</button>
@@ -503,6 +547,15 @@
 											class="whitespace-nowrap font-mono text-sm font-medium text-base-content"
 											>{row.reading.label}</span
 										>
+										{#if row.reading.id === lemmaReadingId}
+											<div class="text-[0.6rem] font-medium text-primary">
+												lemma
+											</div>
+										{:else if baseTextWitnessId && row.reading.witnessIds.includes(baseTextWitnessId)}
+											<div class="text-[0.6rem] text-base-content/35">
+												base text
+											</div>
+										{/if}
 										{#if row.parent}
 											<div class="text-[0.6rem] text-base-content/35">
 												↳ {row.parent.label}
@@ -688,6 +741,16 @@
 
 							<!-- Actions -->
 							<td class="px-3 py-3 text-right">
+								{#if row.depth === 0 && row.reading.id !== lemmaReadingId}
+									<button
+										type="button"
+										class="btn btn-ghost btn-xs text-xs text-base-content/40 hover:text-primary"
+										title="Establish this reading as the lemma"
+										onclick={() => establishLemma(row.reading)}
+									>
+										lemma
+									</button>
+								{/if}
 								<button
 									type="button"
 									class="btn btn-ghost btn-sm text-base-content/30 hover:text-error"

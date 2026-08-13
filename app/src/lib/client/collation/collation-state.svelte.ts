@@ -28,6 +28,7 @@ import { collateToAlignmentSnapshot } from './collation-adapter';
 import {
 	COLLATION_DOCUMENT_ARTIFACT_TYPE,
 	buildCollationDocument,
+	findBaseTextWitnessId,
 	hydrateCollationDocument,
 	parseCollationDocument,
 	serializeCollationDocument,
@@ -57,7 +58,6 @@ import type {
 } from './collation-types';
 import {
 	buildReadingProposal,
-	compareReadingsForOrder,
 	getReadingFamilyKey,
 	relabelReadings,
 } from './collation-reading-proposal';
@@ -67,6 +67,7 @@ import {
 	findOrphanedUnitDecisions,
 	type OrphanedDecision,
 	type UnitDecisions,
+	type UnitView,
 } from './collation-decisions';
 import { variationUnitId } from './collation-unit-id';
 import {
@@ -123,6 +124,9 @@ export interface ReadingFamilyView {
 	children: ClassifiedReading[];
 	members: ClassifiedReading[];
 }
+
+export type ReorderResult =
+	{ ok: true } | { ok: false; error: 'reading-not-found' | 'different-group' | 'at-boundary' };
 
 export interface ReadingDisplayValue {
 	sourceOriginalText: string | null;
@@ -1993,6 +1997,16 @@ function createCollationState() {
 		return active.find(w => w.isBaseText)?.witnessId ?? active[0].witnessId;
 	}
 
+	/**
+	 * The witness a scholar designated as the base text, or null when none is designated or the
+	 * designated one is excluded and so testifies nowhere. Unlike `getBaseWitnessId`, which
+	 * anchors display order and falls back to any active witness, this never stands another
+	 * witness in for the base text.
+	 */
+	function getBaseTextWitnessId(): string | null {
+		return findBaseTextWitnessId(witnesses);
+	}
+
 	function getOrderedActiveWitnessIds(): string[] {
 		const activeIds = new Set(witnesses.filter(w => !w.isExcluded).map(w => w.witnessId));
 		const baseId = getBaseWitnessId();
@@ -2124,7 +2138,7 @@ function createCollationState() {
 		const span = getVariationUnitSpan(unitIndex);
 		if (!span) return [];
 		const columns = getColumnsForUnit(span.startIndex);
-		const baseWitnessId = getBaseWitnessId();
+		const baseWitnessId = getBaseTextWitnessId();
 		const sourceWitnessIds = getSourceWitnessIdsForColumns(columns);
 		return buildReadingProposal({
 			columns,
@@ -2134,28 +2148,42 @@ function createCollationState() {
 		});
 	}
 
+	const EMPTY_UNIT_VIEW: UnitView = {
+		readings: [],
+		orphanedDecisions: [],
+		lemmaReadingId: null,
+		baseTextReadingId: null,
+		needsLemmaDecision: false,
+	};
+
+	function viewUnit(key: string, proposal: ClassifiedReading[]): UnitView {
+		return applyDecisions(proposal, unitDecisions.get(key) ?? {}, {
+			baseWitnessId: getBaseTextWitnessId(),
+		});
+	}
+
 	function ensureReadingsForUnit(unitIndex: number): ClassifiedReading[] {
 		const key = getReadingUnitKey(unitIndex);
 		if (!key) return [];
 		const existing = classifiedReadings.get(key);
-		if (existing) return applyDecisions(existing, unitDecisions.get(key) ?? {}).readings;
+		if (existing) return viewUnit(key, existing).readings;
 		const built = buildReadingsForUnit(unitIndex);
 		classifiedReadings = new Map(classifiedReadings).set(key, built);
-		return applyDecisions(built, unitDecisions.get(key) ?? {}).readings;
+		return viewUnit(key, built).readings;
+	}
+
+	function peekUnitView(unitIndex: number): UnitView {
+		const key = getReadingUnitKey(unitIndex);
+		if (!key) return EMPTY_UNIT_VIEW;
+		return viewUnit(key, classifiedReadings.get(key) ?? buildReadingsForUnit(unitIndex));
 	}
 
 	function peekReadingsForUnit(unitIndex: number): ClassifiedReading[] {
-		const key = getReadingUnitKey(unitIndex);
-		if (!key) return [];
-		const proposal = classifiedReadings.get(key) ?? buildReadingsForUnit(unitIndex);
-		return applyDecisions(proposal, unitDecisions.get(key) ?? {}).readings;
+		return peekUnitView(unitIndex).readings;
 	}
 
 	function getOrphanedDecisionsForUnit(unitIndex: number): OrphanedDecision[] {
-		const key = getReadingUnitKey(unitIndex);
-		if (!key) return [];
-		const proposal = classifiedReadings.get(key) ?? buildReadingsForUnit(unitIndex);
-		return applyDecisions(proposal, unitDecisions.get(key) ?? {}).orphanedDecisions;
+		return peekUnitView(unitIndex).orphanedDecisions;
 	}
 
 	function getOrphanedUnitDecisions() {
@@ -2166,15 +2194,13 @@ function createCollationState() {
 	}
 
 	function getReadingFamiliesForUnit(unitIndex: number): ReadingFamilyView[] {
+		// `peekReadingsForUnit` already returns lemma-first display order; re-sorting here
+		// would discard the lemma decision.
 		const readings = peekReadingsForUnit(unitIndex);
 		const byId = new Map(readings.map(reading => [reading.id, reading] as const));
-		const primaries = readings
-			.filter(reading => reading.parentReadingId === null)
-			.sort((a, b) => compareReadingsForOrder(a, b, getBaseWitnessId()));
+		const primaries = readings.filter(reading => reading.parentReadingId === null);
 		return primaries.map(parent => {
-			const children = readings
-				.filter(reading => reading.parentReadingId === parent.id)
-				.sort((a, b) => compareReadingsForOrder(a, b, getBaseWitnessId()));
+			const children = readings.filter(reading => reading.parentReadingId === parent.id);
 			const members = [parent, ...children];
 			return {
 				id: parent.id,
@@ -2225,7 +2251,7 @@ function createCollationState() {
 				witnessId,
 				cells: columns.map(column => column.cells.get(witnessId)),
 			})),
-			baseWitnessId: getBaseWitnessId(),
+			baseWitnessId: getBaseTextWitnessId(),
 			columnId: span.columnIds.join('+'),
 		});
 		const displayValues = new Map<string, ReadingDisplayValue>();
@@ -2274,7 +2300,7 @@ function createCollationState() {
 		});
 		classifiedReadings = new Map(classifiedReadings).set(
 			key,
-			relabelReadings(proposal, getBaseWitnessId())
+			relabelReadings(proposal, getBaseTextWitnessId())
 		);
 		markUnsaved();
 	}
@@ -2365,6 +2391,89 @@ function createCollationState() {
 			},
 		});
 		return { ok: true };
+	}
+
+	function getLemmaReadingId(unitIndex: number): string | null {
+		return peekUnitView(unitIndex).lemmaReadingId;
+	}
+
+	function unitNeedsLemmaDecision(unitIndex: number): boolean {
+		return peekUnitView(unitIndex).needsLemmaDecision;
+	}
+
+	/**
+	 * Establish which reading is `a`. Passing null returns the unit to the lemma derived from
+	 * the base text. Purely a labelling decision: any local stemma for the unit is untouched.
+	 */
+	function setLemmaReading(
+		unitIndex: number,
+		readingId: string | null
+	): { ok: true } | { ok: false; error: 'reading-not-found' | 'not-a-main-reading' } {
+		const key = getReadingUnitKey(unitIndex);
+		if (!key) return { ok: false, error: 'reading-not-found' };
+		const readings = ensureReadingsForUnit(unitIndex);
+		if (readingId !== null) {
+			const target = readings.find(reading => reading.id === readingId);
+			if (!target) return { ok: false, error: 'reading-not-found' };
+			if (target.parentReadingId !== null) return { ok: false, error: 'not-a-main-reading' };
+		}
+
+		const previous = new Map(unitDecisions);
+		const next = cloneUnitDecisions(previous.get(key));
+		if ((next.lemmaReadingId ?? null) === readingId) return { ok: true };
+		next.lemmaReadingId = readingId;
+		const updated = new Map(previous).set(key, next);
+		unitDecisions = updated;
+		pushCommand({
+			type: 'set-lemma-reading',
+			description: readingId ? 'Establish lemma reading' : 'Clear lemma reading',
+			undo: () => {
+				unitDecisions = new Map(previous);
+			},
+			redo: () => {
+				unitDecisions = new Map(updated);
+			},
+		});
+		return { ok: true };
+	}
+
+	function forEachUnitView<T>(map: (view: UnitView, span: VariationUnitSpan) => T | null): T[] {
+		const results: T[] = [];
+		for (const span of getVariationUnitSpans()) {
+			const mapped = map(peekUnitView(span.startIndex), span);
+			if (mapped !== null) results.push(mapped);
+		}
+		return results;
+	}
+
+	/** Units with no base-text testimony and no designated lemma, so nothing is `a` yet. */
+	function getUnitsNeedingLemmaDecision(): { unitIndex: number; unitId: string }[] {
+		return forEachUnitView((view, span) =>
+			view.needsLemmaDecision
+				? { unitIndex: span.startIndex, unitId: variationUnitId(span.columnIds[0]) }
+				: null
+		);
+	}
+
+	/** Where the established lemma departs from the reading the base text attests. */
+	function getLemmaDivergence(): {
+		unitIndex: number;
+		unitId: string;
+		lemmaReadingId: string;
+		baseTextReadingId: string;
+	}[] {
+		return forEachUnitView((view, span) =>
+			view.lemmaReadingId &&
+			view.baseTextReadingId &&
+			view.lemmaReadingId !== view.baseTextReadingId
+				? {
+						unitIndex: span.startIndex,
+						unitId: variationUnitId(span.columnIds[0]),
+						lemmaReadingId: view.lemmaReadingId,
+						baseTextReadingId: view.baseTextReadingId,
+					}
+				: null
+		);
 	}
 
 	function promoteReadingAsFamilyParent(unitIndex: number, readingId: string) {
@@ -2581,36 +2690,54 @@ function createCollationState() {
 		);
 	}
 
-	function moveReadingByOffset(unitIndex: number, readingId: string, offset: number) {
+	function moveReadingByOffset(
+		unitIndex: number,
+		readingId: string,
+		offset: number
+	): ReorderResult {
 		const readings = ensureReadingsForUnit(unitIndex);
 		const reading = readings.find(entry => entry.id === readingId);
-		if (!reading) return;
+		if (!reading) return { ok: false, error: 'reading-not-found' };
 		const siblings = readings
 			.filter(entry => entry.parentReadingId === reading.parentReadingId)
 			.sort((a, b) => a.order - b.order);
 		const currentIndex = siblings.findIndex(entry => entry.id === readingId);
-		if (currentIndex === -1) return;
+		if (currentIndex === -1) return { ok: false, error: 'reading-not-found' };
+		const targetIndex = currentIndex + offset;
+		if (targetIndex < 0 || targetIndex > siblings.length - 1) {
+			return { ok: false, error: 'at-boundary' };
+		}
 		const updated = reorderReadingGroup(
 			readings,
 			reading.parentReadingId,
 			readingId,
-			currentIndex + offset
+			targetIndex
 		);
 		setReadingsForUnit(unitIndex, updated);
+		return { ok: true };
 	}
 
-	function moveReadingBefore(unitIndex: number, readingId: string, targetReadingId: string) {
+	function moveReadingBefore(
+		unitIndex: number,
+		readingId: string,
+		targetReadingId: string
+	): ReorderResult {
 		const readings = ensureReadingsForUnit(unitIndex);
 		const reading = readings.find(entry => entry.id === readingId);
 		const target = readings.find(entry => entry.id === targetReadingId);
-		if (!reading || !target) return;
-		if (reading.parentReadingId !== target.parentReadingId) return;
+		if (!reading || !target) return { ok: false, error: 'reading-not-found' };
+		// A subreading orders within its main reading; moving it across groups would be an
+		// attachment change, which is `setReadingParent`'s decision to make.
+		if (reading.parentReadingId !== target.parentReadingId) {
+			return { ok: false, error: 'different-group' };
+		}
 		const siblings = readings
 			.filter(entry => entry.parentReadingId === reading.parentReadingId)
 			.sort((a, b) => a.order - b.order);
 		const sourceIndex = siblings.findIndex(entry => entry.id === readingId);
 		const targetIndex = siblings.findIndex(entry => entry.id === targetReadingId);
-		if (sourceIndex === -1 || targetIndex === -1) return;
+		if (sourceIndex === -1 || targetIndex === -1)
+			return { ok: false, error: 'reading-not-found' };
 		const updated = reorderReadingGroup(
 			readings,
 			reading.parentReadingId,
@@ -2618,6 +2745,7 @@ function createCollationState() {
 			sourceIndex < targetIndex ? targetIndex - 1 : targetIndex
 		);
 		setReadingsForUnit(unitIndex, updated);
+		return { ok: true };
 	}
 
 	function addStemmaEdge(unitIndex: number, edge: StemmaEdge) {
@@ -3123,6 +3251,7 @@ function createCollationState() {
 		canMergeSelectedCells,
 		mergeSelectedCells,
 		getBaseWitnessId,
+		getBaseTextWitnessId,
 		getOrderedActiveWitnessIds,
 		getWitnessTokensFromAlignment,
 		getDisplayedColumnSlots,
@@ -3140,6 +3269,11 @@ function createCollationState() {
 		classifyReading,
 		splitWitnessFromReading,
 		setReadingParent,
+		getLemmaReadingId,
+		unitNeedsLemmaDecision,
+		setLemmaReading,
+		getUnitsNeedingLemmaDecision,
+		getLemmaDivergence,
 		promoteReadingAsFamilyParent,
 		updateReadingText,
 		updateReadingTextForDisplayMode,

@@ -402,10 +402,23 @@ function parseWitnesses(nodes: unknown): WitnessConfig[] {
 	return parsed;
 }
 
+/**
+ * The witness a scholar designated as the base text, or null when none is designated or the
+ * designated one is excluded and so testifies nowhere. Never stands another witness in.
+ */
+export function findBaseTextWitnessId(
+	witnesses: Pick<WitnessConfig, 'witnessId' | 'isBaseText' | 'isExcluded'>[]
+): string | null {
+	const designated = witnesses.find(witness => witness.isBaseText);
+	if (!designated || designated.isExcluded) return null;
+	return designated.witnessId;
+}
+
 function buildApparatus(
 	classifiedReadings: Map<string, ClassifiedReading[]>,
 	unitDecisions: Map<string, UnitDecisions>,
-	alignmentColumns: AlignmentColumn[]
+	alignmentColumns: AlignmentColumn[],
+	baseWitnessId: string | null
 ): CollationApparatusNode | null {
 	if (classifiedReadings.size === 0 && unitDecisions.size === 0) return null;
 	const unitIds = new Set([...classifiedReadings.keys(), ...unitDecisions.keys()]);
@@ -420,7 +433,8 @@ function buildApparatus(
 				columnId,
 				readings: applyDecisions(
 					classifiedReadings.get(unitId) ?? [],
-					unitDecisions.get(unitId) ?? {}
+					unitDecisions.get(unitId) ?? {},
+					{ baseWitnessId }
 				).readings,
 				decisions: unitDecisions.get(unitId) ?? {},
 			};
@@ -497,7 +511,8 @@ export function buildCollationDocument(seed: CollationDocumentSeed): CollationDo
 		apparatus: buildApparatus(
 			seed.classifiedReadings,
 			seed.unitDecisions,
-			seed.alignmentColumns
+			seed.alignmentColumns,
+			findBaseTextWitnessId(seed.witnesses)
 		),
 		stemma: buildStemma(seed.stemmaEdges, seed.alignmentColumns),
 	};

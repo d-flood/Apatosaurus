@@ -177,17 +177,25 @@ export function normalizeReadingOrders(
 
 export function relabelReadings(
 	readings: ClassifiedReading[],
-	baseWitnessId: string | null
+	baseWitnessId: string | null,
+	lemmaReadingId: string | null = null
 ): ClassifiedReading[] {
 	const normalized = normalizeReadingOrders(readings, baseWitnessId);
 	const primaryReadings = normalized.filter(reading => reading.parentReadingId === null);
-	const sortedPrimary = [...primaryReadings].sort((a, b) =>
-		compareReadingsForOrder(a, b, baseWitnessId)
-	);
+	// The lemma takes `a`; everything else keeps the base-text-first order, so the reading
+	// the scholar compares against stays prominent even when it is not the lemma.
+	const sortedPrimary = [...primaryReadings].sort((a, b) => {
+		if (a.id === b.id) return 0;
+		if (a.id === lemmaReadingId) return -1;
+		if (b.id === lemmaReadingId) return 1;
+		return compareReadingsForOrder(a, b, baseWitnessId);
+	});
 
 	const primaryLabelById = new Map<string, string>();
+	const primaryRankById = new Map<string, number>();
 	for (const [index, reading] of sortedPrimary.entries()) {
 		primaryLabelById.set(reading.id, indexToReadingLabel(index));
+		primaryRankById.set(reading.id, index);
 	}
 
 	const subreadingsByParent = new Map<string, ClassifiedReading[]>();
@@ -199,6 +207,7 @@ export function relabelReadings(
 	}
 
 	const subLabelById = new Map<string, string>();
+	const subRankById = new Map<string, number>();
 	for (const [parentId, children] of subreadingsByParent.entries()) {
 		const parentLabel = primaryLabelById.get(parentId);
 		if (!parentLabel) continue;
@@ -206,6 +215,7 @@ export function relabelReadings(
 			.sort((a, b) => compareReadingsForOrder(a, b, baseWitnessId))
 			.forEach((child, index) => {
 				subLabelById.set(child.id, `${parentLabel}${index + 1}`);
+				subRankById.set(child.id, index);
 			});
 	}
 
@@ -213,12 +223,21 @@ export function relabelReadings(
 		.map(reading => ({
 			...reading,
 			witnessGroups: makeWitnessGroups(reading.witnessIds),
+			// `order` is the position this labelling implies, so consumers that sort by it
+			// agree with the letters. Elevation is not written back to the stored proposal.
+			order:
+				reading.parentReadingId === null
+					? (primaryRankById.get(reading.id) ?? reading.order)
+					: (subRankById.get(reading.id) ?? reading.order),
 			label:
 				reading.parentReadingId === null
 					? (primaryLabelById.get(reading.id) ?? '?')
 					: (subLabelById.get(reading.id) ?? '?'),
 		}))
 		.sort((a, b) => {
+			if (a.parentReadingId === null && b.parentReadingId === null) {
+				return (primaryRankById.get(a.id) ?? 0) - (primaryRankById.get(b.id) ?? 0);
+			}
 			if ((a.parentReadingId ?? '') !== (b.parentReadingId ?? '')) {
 				if (a.parentReadingId === null && b.parentReadingId !== null) return -1;
 				if (a.parentReadingId !== null && b.parentReadingId === null) return 1;
