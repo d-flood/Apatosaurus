@@ -1,6 +1,6 @@
 import { deserializeAlignmentColumns, type AlignmentColumn } from './alignment-snapshot';
 import { hydrateCollationDocument, type CollationDocument } from './collation-document';
-import { buildVariationUnitSpans } from './collation-variation-units';
+import { buildVariationUnitSpans, classifyWitnessAttestation } from './collation-variation-units';
 import { variationUnitId } from './collation-unit-id';
 import type { ClassifiedReading, WitnessConfig } from './collation-types';
 
@@ -102,20 +102,31 @@ export function buildCollationProjection(input: {
 	);
 
 	const baseWitnessId = input.getBaseWitnessId();
+	const baseWitnessAttestsAt = (startIndex: number, endIndex: number): boolean => {
+		if (!baseWitnessId) return false;
+		const cells = input.alignmentColumns
+			.slice(startIndex, endIndex + 1)
+			.map(column => column.cells.get(baseWitnessId));
+		return classifyWitnessAttestation(cells) === 'attesting';
+	};
 	const variationUnits = buildVariationUnitSpans(input.alignmentColumns).map(
 		({ startIndex, endIndex }) => {
 			const readings = [...input.getReadingsForUnit(startIndex)].sort(
 				(a, b) => a.order - b.order
 			);
-			const baseReading =
-				(baseWitnessId
-					? readings.find(reading => reading.witnessIds.includes(baseWitnessId))
-					: undefined) ?? readings[0];
+			// A base witness that does not testify has no base text. Falling back to another
+			// reading here would claim base-text content the manuscript does not carry.
+			const baseTestifies = !baseWitnessId || baseWitnessAttestsAt(startIndex, endIndex);
+			const baseReading = baseWitnessId
+				? readings.find(reading => reading.witnessIds.includes(baseWitnessId))
+				: readings[0];
 			return {
 				startIndex,
 				endIndex,
 				unitType: 'variation',
-				baseText: input.getBaseTextForVariationUnit(startIndex) || baseReading?.text || '',
+				baseText: baseTestifies
+					? input.getBaseTextForVariationUnit(startIndex) || baseReading?.text || ''
+					: '',
 				readings: readings.map((reading, readingOrder) => ({
 					readingOrder,
 					readingText: reading.text ?? '',
@@ -153,13 +164,10 @@ export function buildCollationProjectionFromDocument(
 		getBaseTextForVariationUnit: unitIndex => {
 			const columnId = alignmentColumns[unitIndex]?.id;
 			const readings = columnId ? (readingsByUnit.get(variationUnitId(columnId)) ?? []) : [];
-			return (
-				(baseWitnessId
-					? readings.find(reading => reading.witnessIds.includes(baseWitnessId))?.text
-					: undefined) ??
-				readings[0]?.text ??
-				''
-			);
+			const baseReading = baseWitnessId
+				? readings.find(reading => reading.witnessIds.includes(baseWitnessId))
+				: readings[0];
+			return baseReading?.text ?? '';
 		},
 		getBaseWitnessId: () => baseWitnessId,
 	});

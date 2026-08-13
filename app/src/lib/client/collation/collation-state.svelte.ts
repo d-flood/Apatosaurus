@@ -60,6 +60,7 @@ import {
 	buildReadingProposal,
 	getReadingFamilyKey,
 	relabelReadings,
+	type NonAttestation,
 } from './collation-reading-proposal';
 import {
 	applyDecisions,
@@ -2134,18 +2135,33 @@ function createCollationState() {
 		return collected;
 	}
 
-	function buildReadingsForUnit(unitIndex: number): ClassifiedReading[] {
+	function buildProposalForUnit(unitIndex: number) {
 		const span = getVariationUnitSpan(unitIndex);
-		if (!span) return [];
+		if (!span) return null;
 		const columns = getColumnsForUnit(span.startIndex);
-		const baseWitnessId = getBaseTextWitnessId();
-		const sourceWitnessIds = getSourceWitnessIdsForColumns(columns);
 		return buildReadingProposal({
 			columns,
 			spanColumnIds: span.columnIds,
-			sourceWitnessIds,
-			baseWitnessId,
+			sourceWitnessIds: getSourceWitnessIdsForColumns(columns),
+			baseWitnessId: getBaseTextWitnessId(),
 		});
+	}
+
+	function buildReadingsForUnit(unitIndex: number): ClassifiedReading[] {
+		return buildProposalForUnit(unitIndex)?.readings ?? [];
+	}
+
+	/**
+	 * The witnesses absent from a unit. Derived from the alignment on every read rather than
+	 * stored, because absence is a fact about the witnesses, never an editorial decision.
+	 */
+	function getNonAttestationForUnit(unitIndex: number): NonAttestation {
+		return (
+			buildProposalForUnit(unitIndex)?.nonAttestation ?? {
+				witnessIds: [],
+				untranscribedWitnessIds: [],
+			}
+		);
 	}
 
 	const EMPTY_UNIT_VIEW: UnitView = {
@@ -3261,6 +3277,7 @@ function createCollationState() {
 		getReadingDisplayValuesForUnit,
 		primeReadingsForUnit,
 		getReadingsForUnit,
+		getNonAttestationForUnit,
 		getOrphanedDecisionsForUnit,
 		getOrphanedUnitDecisions,
 		getVariationUnitSpans,

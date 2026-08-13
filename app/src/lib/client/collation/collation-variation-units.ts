@@ -228,6 +228,58 @@ export function indexToReadingLabel(index: number): string {
 	return label;
 }
 
+/**
+ * Whether a cell carries no testimony. Decided from the cell's kind and damage flag, never from
+ * whether text is present: a gap cell carries the `⊘` placeholder as its text, and a supplied-only
+ * token collated as a gap carries the editor's restored letters.
+ */
+function cellIsAbsentTestimony(cell: AlignmentCell | undefined): boolean {
+	if (!cell) return false;
+	if (cell.kind === 'gap' || cell.kind === 'untranscribed') return true;
+	// Reshaping the alignment (shifting a token, merging cells) empties a slot while keeping the
+	// damage flag. An empty slot left by damage is absence, not an omission the witness attests.
+	return cell.isLacuna && !cell.text?.trim();
+}
+
+function cellAttestsText(cell: AlignmentCell | undefined): boolean {
+	if (!cell || cellIsAbsentTestimony(cell) || cell.isOmission) return false;
+	return Boolean(cell.text?.trim());
+}
+
+function cellsAreOmission(cells: Array<AlignmentCell | undefined>): boolean {
+	return (
+		cells.length === 0 ||
+		cells.every(
+			cell =>
+				!cell || (!cellIsAbsentTestimony(cell) && (cell.isOmission || cell.text === null))
+		)
+	);
+}
+
+function cellsAreLacunose(cells: Array<AlignmentCell | undefined>): boolean {
+	return cells.some(cellIsAbsentTestimony) && !cells.some(cellAttestsText);
+}
+
+export type WitnessAttestation = 'attesting' | 'non-attesting' | 'untranscribed';
+
+/**
+ * Whether a witness testifies at a variation unit, and if not, why. An omission is testimony —
+ * the witness attests the absence of text — so a span with any surviving cell is attesting.
+ * Untranscribed material is a fact about project progress and must never be reported as damage
+ * to the manuscript.
+ */
+export function classifyWitnessAttestation(
+	cells: Array<AlignmentCell | undefined>
+): WitnessAttestation {
+	if (!cellsAreLacunose(cells)) return 'attesting';
+	// Genuine damage anywhere in the span outweighs untranscribed material, because the
+	// witness really is absent; only a wholly untranscribed span is unfinished work.
+	const damaged = cells.some(
+		cell => cellIsAbsentTestimony(cell) && cell?.kind !== 'untranscribed'
+	);
+	return damaged ? 'non-attesting' : 'untranscribed';
+}
+
 function buildReadingBucketId(columnId: string, originalKey: string): string {
 	return `${columnId}::${originalKey}`;
 }
@@ -300,13 +352,8 @@ function buildReadingBuckets(
 			continue;
 		}
 
-		const isOmission =
-			entry.cells.length === 0 ||
-			entry.cells.every(cell => !cell || cell.isOmission || cell.text === null);
-		const isLacuna =
-			!isOmission &&
-			entry.cells.some(cell => Boolean(cell?.isLacuna)) &&
-			!entry.cells.some(cell => Boolean(cell?.text?.trim()));
+		const isOmission = cellsAreOmission(entry.cells);
+		const isLacuna = !isOmission && cellsAreLacunose(entry.cells);
 		const segments = getCellsSegments(entry.cells, 'original');
 		buckets.set(originalKey, {
 			id: buildReadingBucketId(columnId, originalKey),

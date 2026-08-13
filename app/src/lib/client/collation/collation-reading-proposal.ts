@@ -1,7 +1,8 @@
-import type { AlignmentColumn } from './alignment-snapshot';
+import type { AlignmentCell, AlignmentColumn } from './alignment-snapshot';
 import type { ClassifiedReading } from './collation-types';
 import {
 	buildReadingFamilyGroups,
+	classifyWitnessAttestation,
 	indexToReadingLabel,
 	type ReadingFamilyGroup,
 } from './collation-variation-units';
@@ -247,6 +248,21 @@ export function relabelReadings(
 		});
 }
 
+/**
+ * Witnesses that do not testify at a variation unit. Not a reading: they take no letter and
+ * never enter ordering. Untranscribed witnesses are held apart because reporting them as
+ * non-attestation would assert damage to a manuscript that may be perfectly intact.
+ */
+export interface NonAttestation {
+	witnessIds: string[];
+	untranscribedWitnessIds: string[];
+}
+
+export interface ReadingProposal {
+	readings: ClassifiedReading[];
+	nonAttestation: NonAttestation;
+}
+
 export function buildReadingProposal({
 	columns,
 	spanColumnIds,
@@ -257,15 +273,35 @@ export function buildReadingProposal({
 	spanColumnIds: string[];
 	sourceWitnessIds: string[];
 	baseWitnessId: string | null;
-}): ClassifiedReading[] {
+}): ReadingProposal {
+	const entries: Array<{ witnessId: string; cells: Array<AlignmentCell | undefined> }> = [];
+	const nonAttestation: NonAttestation = { witnessIds: [], untranscribedWitnessIds: [] };
+
+	for (const witnessId of sourceWitnessIds) {
+		const cells = columns.map(column => column.cells.get(witnessId));
+		switch (classifyWitnessAttestation(cells)) {
+			case 'non-attesting':
+				nonAttestation.witnessIds.push(witnessId);
+				break;
+			case 'untranscribed':
+				nonAttestation.untranscribedWitnessIds.push(witnessId);
+				break;
+			default:
+				entries.push({ witnessId, cells });
+		}
+	}
+
 	const groups = buildReadingFamilyGroups({
-		entries: sourceWitnessIds.map(witnessId => ({
-			witnessId,
-			cells: columns.map(column => column.cells.get(witnessId)),
-		})),
+		entries,
 		baseWitnessId,
 		columnId: spanColumnIds.join('+'),
 	});
 
-	return canonicalizeReadings(buildClassifiedReadingsFromFamilyGroups(groups), baseWitnessId);
+	return {
+		readings: canonicalizeReadings(
+			buildClassifiedReadingsFromFamilyGroups(groups),
+			baseWitnessId
+		),
+		nonAttestation,
+	};
 }

@@ -86,6 +86,16 @@
 		selectedSpan ? collationState.getReadingDisplayValuesForUnit(selectedSpan.startIndex) : new Map()
 	);
 
+	let nonAttestation = $derived(
+		selectedSpan
+			? collationState.getNonAttestationForUnit(selectedSpan.startIndex)
+			: { witnessIds: [], untranscribedWitnessIds: [] }
+	);
+
+	let hasNonAttestation = $derived(
+		nonAttestation.witnessIds.length > 0 || nonAttestation.untranscribedWitnessIds.length > 0
+	);
+
 	let baseWitnessId = $derived(collationState.getBaseWitnessId());
 
 	let baseTextWitnessId = $derived(collationState.getBaseTextWitnessId());
@@ -769,6 +779,43 @@
 							</td>
 						</tr>
 					{/each}
+
+					<!-- Non-attestation is not a reading: pinned last, unlettered, and its sigla are
+					     plain text because there is nothing to move or merge them into. -->
+					{#if hasNonAttestation}
+						<tr class="border-t-2 border-base-300 bg-base-200/40 align-top">
+							<td class="px-4 py-3">
+								<span class="font-mono text-sm text-base-content/40">—</span>
+							</td>
+							<td colspan="2" class="px-3 py-3">
+								<div class="text-sm font-medium text-base-content/60">
+									Does not testify
+								</div>
+								<div class="mt-0.5 text-xs text-base-content/40">
+									Damaged, lost, or illegible. Takes no letter and no place in the
+									local stemma.
+								</div>
+							</td>
+							<td class="px-3 py-3 text-sm leading-relaxed">
+								{#if nonAttestation.witnessIds.length > 0}
+									<div class="text-base-content/60">
+										{getSortedWitnesses(nonAttestation.witnessIds)
+											.map(witness => witness.siglum)
+											.join('. ')}
+									</div>
+								{/if}
+								{#if nonAttestation.untranscribedWitnessIds.length > 0}
+									<div class="mt-1 text-xs text-base-content/40">
+										<span class="uppercase tracking-wide">Not yet transcribed</span>:
+										{getSortedWitnesses(nonAttestation.untranscribedWitnessIds)
+											.map(witness => witness.siglum)
+											.join('. ')}
+									</div>
+								{/if}
+							</td>
+							<td class="px-3 py-3"></td>
+						</tr>
+					{/if}
 				</tbody>
 			</table>
 		{/if}

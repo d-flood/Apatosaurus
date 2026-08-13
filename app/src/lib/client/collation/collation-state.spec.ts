@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { deserializeAlignmentColumns } from './alignment-snapshot';
+import { deserializeAlignmentColumns, type AlignmentCell } from './alignment-snapshot';
 import { collateToAlignmentSnapshot } from './collation-adapter';
 import { collationState, type WitnessConfig } from './collation-state.svelte';
 import type { RegularizationRule, WitnessSourceToken } from './collation-types';
@@ -1547,5 +1547,195 @@ describe('collationState lemma establishment', () => {
 
 		expect(collationState.moveReadingByOffset(0, beta.id, -1)).toEqual({ ok: true });
 		expect(displayed()).toEqual(['gamma', 'beta', 'alpha']);
+	});
+});
+
+describe('collationState non-attestation', () => {
+	beforeEach(() => {
+		collationState.reset();
+	});
+
+	/**
+	 * A gap cell as the collation pipeline emits one: the tokenizer gives gap and untranscribed
+	 * milestones the `⊘` placeholder as their text, so the cell is never empty and attestation
+	 * cannot be decided from text presence.
+	 */
+	function makeGapCell(kind: 'gap' | 'untranscribed' = 'gap'): AlignmentCell {
+		return {
+			...makeTextCell('⊘'),
+			regularizedText: null,
+			alignmentValue: `__${kind}__:none:none:none`,
+			kind,
+			gap: { source: kind, reason: '', unit: '', extent: '' },
+			isLacuna: true,
+		};
+	}
+
+	function makeGapToken(): WitnessSourceToken {
+		return {
+			kind: 'gap',
+			original: '⊘',
+			segments: [],
+			gap: { source: 'gap', reason: 'lacuna', unit: 'char', extent: '5' },
+		};
+	}
+
+	function makeSuppliedToken(text: string): WitnessSourceToken {
+		return {
+			kind: 'text',
+			original: text,
+			segments: [{ text, hasUnclear: false, isPunctuation: false, isSupplied: true }],
+			gap: null,
+		};
+	}
+
+	function collateWitnesses() {
+		collationState.refreshCollationInput();
+		const snapshot = collateToAlignmentSnapshot({
+			witnesses: collationState.buildCollationWitnessInputs(),
+			options: { segmentation: false },
+		});
+		collationState.setAlignmentSnapshot(snapshot.snapshot);
+	}
+
+	function setUpUnit(cells: Record<string, AlignmentCell>) {
+		collationState.setWitnesses([
+			makeWitness('A', 'alpha', { isBaseText: true }),
+			...Object.keys(cells)
+				.filter(id => id !== 'A')
+				.map(id => makeWitness(id, 'other')),
+		]);
+		collationState.setAlignmentSnapshot({
+			witnessOrder: Object.keys(cells),
+			columns: [{ id: 'col-1', index: 0, merged: false, cells: Object.entries(cells) }],
+		});
+	}
+
+	it('leaves reading order untouched when a lacunose witness joins the unit', () => {
+		setUpUnit({
+			A: makeTextCell('alpha'),
+			B: makeTextCell('beta'),
+			C: makeTextCell('beta'),
+		});
+		const before = collationState
+			.getReadingsForUnit(0)
+			.map(reading => [reading.label, reading.text, reading.witnessIds]);
+
+		collationState.reset();
+		setUpUnit({
+			A: makeTextCell('alpha'),
+			B: makeTextCell('beta'),
+			C: makeTextCell('beta'),
+			D: makeGapCell(),
+			E: makeGapCell(),
+		});
+
+		const after = collationState
+			.getReadingsForUnit(0)
+			.map(reading => [reading.label, reading.text, reading.witnessIds]);
+		expect(after).toEqual(before);
+		expect(collationState.getReadingsForUnit(0).some(reading => reading.isLacuna)).toBe(false);
+	});
+
+	it('surfaces damaged and untranscribed witnesses separately', () => {
+		setUpUnit({
+			A: makeTextCell('alpha'),
+			B: makeTextCell('beta'),
+			C: makeGapCell(),
+			D: makeGapCell('untranscribed'),
+		});
+
+		expect(collationState.getNonAttestationForUnit(0)).toEqual({
+			witnessIds: ['C'],
+			untranscribedWitnessIds: ['D'],
+		});
+	});
+
+	it('refuses to attach a non-attesting witness as a subreading in either direction', () => {
+		setUpUnit({
+			A: makeTextCell('alpha'),
+			B: makeTextCell('beta'),
+			C: makeGapCell(),
+		});
+		const readings = collationState.getReadingsForUnit(0);
+		const alpha = readings.find(reading => reading.text === 'alpha')!;
+		// Non-attestation holds no reading id, so the only address a caller could reach for
+		// is the absent witness itself.
+		expect(collationState.setReadingParent(0, 'C', alpha.id)).toEqual({
+			ok: false,
+			error: 'reading-not-found',
+		});
+		expect(collationState.setReadingParent(0, alpha.id, 'C')).toEqual({
+			ok: false,
+			error: 'reading-not-found',
+		});
+	});
+
+	it('keeps an omission a lettered reading alongside non-attestation', () => {
+		setUpUnit({
+			A: makeTextCell('alpha'),
+			B: makeOmissionCell(),
+			C: makeGapCell(),
+		});
+
+		expect(
+			collationState.getReadingsForUnit(0).map(reading => [reading.label, reading.witnessIds])
+		).toEqual([
+			['a', ['A']],
+			['b', ['B']],
+		]);
+		expect(collationState.getNonAttestationForUnit(0).witnessIds).toEqual(['C']);
+	});
+
+	it('excludes a witness transcribed as a real gap from lettering, ordering, and readings', () => {
+		collationState.setWitnesses([
+			makeWitness('A', 'λογος', { isBaseText: true }),
+			makeWitness('B', 'λογος'),
+			{ ...makeWitness('C', 'λογος'), tokens: [makeGapToken()] },
+		]);
+		collateWitnesses();
+
+		const readings = collationState.getReadingsForUnit(0);
+		expect(readings.map(reading => [reading.label, reading.text, reading.witnessIds])).toEqual([
+			['a', 'λογος', ['A', 'B']],
+		]);
+		expect(collationState.getNonAttestationForUnit(0)).toEqual({
+			witnessIds: ['C'],
+			untranscribedWitnessIds: [],
+		});
+	});
+
+	it('treats a supplied-only witness collated as a gap as absent, not as its restored letters', () => {
+		collationState.setSuppliedTextMode('gap');
+		collationState.setWitnesses([
+			makeWitness('A', 'λογος', { isBaseText: true }),
+			makeWitness('B', 'λογος'),
+			{ ...makeWitness('C', 'λογος'), tokens: [makeSuppliedToken('λογος')] },
+		]);
+		collateWitnesses();
+
+		const readings = collationState.getReadingsForUnit(0);
+		expect(readings.flatMap(reading => reading.witnessIds)).not.toContain('C');
+		expect(collationState.getNonAttestationForUnit(0).witnessIds).toEqual(['C']);
+	});
+
+	it('keeps a damaged witness absent after its token is shifted out of the unit', () => {
+		collationState.setWitnesses([
+			makeWitness('A', 'λογος θεος', { isBaseText: true }),
+			makeWitness('B', 'λογος θεος'),
+			{ ...makeWitness('C', 'λογος θεος'), tokens: [makeGapToken(), makeGapToken()] },
+		]);
+		collateWitnesses();
+
+		const columnId = collationState.alignmentColumns[0]?.id;
+		expect(columnId).toBeTruthy();
+		collationState.shiftToken(columnId!, 'C', 'right');
+
+		// The shifted-from slot is empty but still damaged, so C attests nothing there — it must
+		// never be reported as positively attesting an omission.
+		expect(collationState.getNonAttestationForUnit(0).witnessIds).toContain('C');
+		expect(
+			collationState.getReadingsForUnit(0).flatMap(reading => reading.witnessIds)
+		).not.toContain('C');
 	});
 });
