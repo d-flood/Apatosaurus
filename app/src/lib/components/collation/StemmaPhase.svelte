@@ -1,12 +1,23 @@
 <script lang="ts">
-	import { collationState, type StemmaEdge } from '$lib/client/collation/collation-state.svelte';
-	import type { ClassifiedReading } from '$lib/client/collation/collation-types';
+	import { collationState } from '$lib/client/collation/collation-state.svelte';
+	import { layoutLocalStemma } from '$lib/client/collation/collation-stemma-layout';
+	import type { SourceDecision, StemmaTreeNode } from '$lib/client/collation/collation-stemma';
 	import ArrowLeft from 'phosphor-svelte/lib/ArrowLeft';
-	import Lightning from 'phosphor-svelte/lib/Lightning';
 	import { onDestroy, onMount } from 'svelte';
 
-	let connectingFrom = $state<string | null>(null);
-	let svgEl = $state<SVGSVGElement | null>(null);
+	/**
+	 * A refusal belongs beside the control that produced it, not at the top of a scrolling panel,
+	 * and it must re-announce when the same refusal repeats. `seq` remounts the alert; the unit
+	 * and reading it names keep it from outliving the control it refers to.
+	 */
+	let refusal = $state<{
+		unitIndex: number;
+		readingId: string;
+		message: string;
+		seq: number;
+	} | null>(null);
+	let refusalCount = 0;
+
 	let unitSpans = $derived(collationState.getVariationUnitSpans());
 	let selectedSpan = $derived(
 		unitSpans.find(span => span.startIndex === collationState.selectedUnitIndex) ??
@@ -23,111 +34,139 @@
 		}
 	});
 
-	let readings = $derived(collationState.peekReadingsForUnit(collationState.selectedUnitIndex));
-	let edges = $derived(
-		collationState.stemmaEdges.get(String(collationState.selectedUnitIndex)) ?? []
-	);
+	let stemma = $derived(collationState.getLocalStemma(collationState.selectedUnitIndex));
+	let layout = $derived(layoutLocalStemma(stemma.nodes));
+	let nodeById = $derived(new Map(stemma.nodes.map(node => [node.readingId, node] as const)));
+	let labelById = $derived(new Map(stemma.nodes.map(node => [node.readingId, node.label])));
 
-	// One neutral node colour: node colour encodes source-decision state once that exists.
-	const NODE_COLOR = '#9ca3af';
+	/**
+	 * Node colour encodes the source decision and nothing else. Being the lemma is an orthogonal
+	 * fact, marked separately, so an unconsidered lemma still reads as unconsidered.
+	 */
+	const SOURCE_STATES = {
+		derived: {
+			label: 'Derived',
+			classes: 'border-base-content/40 bg-base-content/10 text-base-content',
+			stroke: 'text-base-content/50',
+		},
+		unclear: {
+			label: 'Unclear',
+			classes: 'border-warning bg-warning/15 text-warning',
+			stroke: 'text-warning',
+		},
+		undecided: {
+			label: 'Undecided',
+			classes: 'border-dashed border-base-content/30 bg-base-100 text-base-content/50',
+			stroke: 'text-base-content/30',
+		},
+		violation: {
+			label: 'Conflicting sources',
+			classes: 'border-error bg-error/15 text-error',
+			stroke: 'text-error',
+		},
+	} as const;
 
-	// Simple deterministic layout (Dagre-like)
-	function layoutNodes(
-		readings: ClassifiedReading[],
-		_edges: StemmaEdge[]
-	): Array<{ id: string; x: number; y: number; reading: ClassifiedReading }> {
-		if (readings.length === 0) return [];
-		const width = 600;
-		const primary = readings.filter(reading => reading.parentReadingId === null);
-		const subreadings = readings.filter(reading => reading.parentReadingId !== null);
-		const nodes: Array<{
-			id: string;
-			x: number;
-			y: number;
-			reading: ClassifiedReading;
-		}> = [];
+	type SourceState = keyof typeof SOURCE_STATES;
 
-		const primarySpacing = Math.max(120, width / (primary.length + 1));
-		primary.forEach((reading, index) => {
-			nodes.push({
-				id: reading.id,
-				x: primarySpacing * (index + 1),
-				y: 48,
-				reading,
-			});
-		});
+	function stateOf(node: StemmaTreeNode): SourceState {
+		if (node.violation) return 'violation';
+		if (node.sourceDecision.kind === 'derived') return 'derived';
+		if (node.sourceDecision.kind === 'unclear') return 'unclear';
+		return 'undecided';
+	}
 
-		const primaryNodeById = new Map(nodes.map(node => [node.id, node]));
-		const detached = subreadings.filter(
-			reading => !reading.parentReadingId || !primaryNodeById.has(reading.parentReadingId)
+	/** The value the select shows. A conflict is no judgement, so it takes its own placeholder. */
+	const CONFLICT_VALUE = '__conflict__';
+
+	function selectValueOf(node: StemmaTreeNode): string {
+		if (node.violation) return CONFLICT_VALUE;
+		if (node.sourceDecision.kind === 'derived') return `derived:${node.sourceDecision.from}`;
+		return node.sourceDecision.kind;
+	}
+
+	function decisionFromValue(value: string): SourceDecision {
+		if (value === 'unclear') return { kind: 'unclear' };
+		if (value.startsWith('derived:')) return { kind: 'derived', from: value.slice(8) };
+		return { kind: 'undecided' };
+	}
+
+	const REFUSALS: Record<string, string> = {
+		cycle: 'That source already derives from this reading, so the two would form a cycle. No change was made.',
+		'self-source': 'A reading cannot derive from itself. No change was made.',
+		'not-a-main-reading': 'Only main readings carry a source. No change was made.',
+		'reading-not-found': 'That reading no longer exists. No change was made.',
+	};
+
+	function chooseSource(node: StemmaTreeNode, control: HTMLSelectElement) {
+		if (control.value === CONFLICT_VALUE) return;
+		const result = collationState.setReadingSource(
+			collationState.selectedUnitIndex,
+			node.readingId,
+			decisionFromValue(control.value)
 		);
-		const attached = subreadings.filter(
-			reading => reading.parentReadingId && primaryNodeById.has(reading.parentReadingId)
-		);
-
-		for (const reading of attached) {
-			const parent = primaryNodeById.get(reading.parentReadingId!);
-			const siblings = attached.filter(
-				candidate => candidate.parentReadingId === reading.parentReadingId
-			);
-			const siblingIndex = siblings.findIndex(candidate => candidate.id === reading.id);
-			const offset = (siblingIndex - (siblings.length - 1) / 2) * 120;
-			nodes.push({
-				id: reading.id,
-				x: (parent?.x ?? width / 2) + offset,
-				y: 150,
-				reading,
-			});
+		if (result.ok) {
+			refusal = null;
+			return;
 		}
-
-		if (detached.length > 0) {
-			const detachedSpacing = Math.max(120, width / (detached.length + 1));
-			detached.forEach((reading, index) => {
-				nodes.push({
-					id: reading.id,
-					x: detachedSpacing * (index + 1),
-					y: 150,
-					reading,
-				});
-			});
-		}
-
-		return nodes;
+		refusalCount += 1;
+		refusal = {
+			unitIndex: collationState.selectedUnitIndex,
+			readingId: node.readingId,
+			message: REFUSALS[result.error] ?? 'That source was refused.',
+			seq: refusalCount,
+		};
+		// Nothing was recorded, so the control must not go on showing the refused choice.
+		control.value = selectValueOf(node);
 	}
 
-	let nodes = $derived(layoutNodes(readings, edges));
-
-	function getNodePos(readingId: string): { x: number; y: number } | null {
-		return nodes.find(n => n.id === readingId) ?? null;
+	function refusalFor(node: StemmaTreeNode) {
+		if (!refusal) return null;
+		if (refusal.readingId !== node.readingId) return null;
+		return refusal.unitIndex === collationState.selectedUnitIndex ? refusal : null;
 	}
 
-	function handleNodeClick(readingId: string) {
-		if (connectingFrom === null) {
-			connectingFrom = readingId;
-		} else if (connectingFrom !== readingId) {
-			// Prompt for edge type — use directed by default
-			const edge: StemmaEdge = {
-				id: crypto.randomUUID(),
-				sourceReadingId: connectingFrom,
-				targetReadingId: readingId,
-				directed: true,
-			};
-			collationState.addStemmaEdge(collationState.selectedUnitIndex, edge);
-			connectingFrom = null;
-		} else {
-			connectingFrom = null;
-		}
+	function readingSummary(node: StemmaTreeNode): string {
+		if (node.isOmission) return 'om.';
+		return node.text ?? '';
 	}
+
+	function truncate(value: string, max: number): string {
+		return value.length > max ? `${value.slice(0, max)}\u2026` : value;
+	}
+
+	/** What a screen reader gets from the diagram until ticket 09 makes the nodes controls. */
+	function describeNode(node: StemmaTreeNode): string {
+		const source = node.violation
+			? `conflicting sources (${node.violation.priorReadingIds
+					.map(id => labelById.get(id) ?? id)
+					.join(', ')})`
+			: node.sourceDecision.kind === 'derived'
+				? `derived from ${labelById.get(node.sourceDecision.from) ?? node.sourceDecision.from}`
+				: node.sourceDecision.kind === 'unclear'
+					? 'origin undeterminable'
+					: 'origin not yet considered';
+		return `${node.label}${node.isLemma ? ' (lemma)' : ''}: ${readingSummary(node)} \u2014 ${source}.`;
+	}
+
+	let diagramDescription = $derived(stemma.nodes.map(describeNode).join(' '));
 
 	function handleKeydown(e: KeyboardEvent) {
+		const target = e.target as HTMLElement | null;
+		if (
+			target &&
+			(target.tagName === 'SELECT' ||
+				target.tagName === 'INPUT' ||
+				target.tagName === 'TEXTAREA' ||
+				target.isContentEditable)
+		) {
+			return;
+		}
 		if (e.key === 'ArrowLeft') {
 			e.preventDefault();
 			collationState.moveFocus('left');
 		} else if (e.key === 'ArrowRight') {
 			e.preventDefault();
 			collationState.moveFocus('right');
-		} else if (e.key === 'Escape') {
-			connectingFrom = null;
 		}
 	}
 
@@ -139,13 +178,16 @@
 		document.removeEventListener('keydown', handleKeydown);
 	});
 
-	function getSpanLabel(startIndex: number): number {
-		return unitSpans.findIndex(span => span.startIndex === startIndex) + 1;
+	/** The unit's ordinal, or null when it is not one of the current spans. */
+	function getSpanLabel(startIndex: number): number | null {
+		const index = unitSpans.findIndex(span => span.startIndex === startIndex);
+		return index === -1 ? null : index + 1;
 	}
+
+	let selectedUnitLabel = $derived(selectedSpan ? getSpanLabel(selectedSpan.startIndex) : null);
 </script>
 
 <div class="flex flex-col h-full">
-	<!-- Top Half: Read-only mini alignment grid -->
 	<div class="shrink-0 mb-4">
 		<div class="flex items-center gap-2 mb-2">
 			<a
@@ -163,7 +205,7 @@
 				Back
 			</a>
 			<h2 class="text-lg font-serif font-bold text-base-content/90 tracking-tight">
-				Readings & Local Stemma
+				Readings &amp; Local Stemma
 			</h2>
 		</div>
 
@@ -171,18 +213,20 @@
 			class="mb-3 inline-flex items-center gap-2 rounded-full border border-base-300/60 bg-base-200/60 px-3 py-1 text-xs text-base-content/60"
 		>
 			<span class="font-semibold uppercase tracking-[0.18em]">Stemma View</span>
-			<span class="badge badge-ghost badge-sm">Original Readings</span>
-			<span>Subreading attachments are edited in Readings.</span>
+			<span
+				>Each reading takes one source. Subreadings are cited with their main reading.</span
+			>
 		</div>
 
 		<div class="overflow-x-auto rounded-box border border-base-300/50 bg-base-100">
 			<div class="flex">
 				{#each unitSpans as span (span.startIndex)}
+					{@const isSelected = collationState.selectedUnitIndex === span.startIndex}
 					<button
 						type="button"
-						class="shrink-0 border-r border-base-300/40 px-3 py-2 text-center text-xs font-mono transition-all duration-100 min-w-22 {collationState.selectedUnitIndex ===
-						span.startIndex
-							? 'bg-primary text-primary-content'
+						aria-current={isSelected ? 'true' : undefined}
+						class="shrink-0 border-r border-base-300/40 px-3 py-2 text-center text-xs font-mono transition-all duration-100 min-w-22 {isSelected
+							? 'bg-primary text-primary-content font-bold underline underline-offset-4'
 							: 'bg-base-200 text-base-content/60'}"
 						onclick={() => (collationState.selectedUnitIndex = span.startIndex)}
 					>
@@ -197,137 +241,143 @@
 	</div>
 
 	<div class="flex-1 flex gap-4 min-h-0">
-		<div class="w-80 shrink-0 overflow-y-auto">
+		<div class="w-96 shrink-0 overflow-y-auto">
 			<h3 class="text-sm font-bold uppercase tracking-wider text-base-content/50 mb-3">
-				Readings &mdash; Unit {selectedSpan ? getSpanLabel(selectedSpan.startIndex) : 0}
+				Sources{selectedUnitLabel === null ? '' : ` — Unit ${selectedUnitLabel}`}
 			</h3>
 
-			{#if readings.length === 0}
+			{#if stemma.nodes.length === 0}
 				<div class="text-sm text-base-content/40 text-center py-8">
-					No distinct readings for this unit.
+					No readings for this unit.
 				</div>
 			{:else}
-				<div class="space-y-2">
-					{#each readings as reading (reading.id)}
-						<div
+				<ul class="space-y-2">
+					{#each stemma.nodes as node (node.readingId)}
+						{@const state = stateOf(node)}
+						<li
 							class="bg-base-200/60 rounded-box p-3 border border-base-300/40 space-y-2"
 						>
-							<div class="flex items-start justify-between gap-2">
-								<div class="min-w-0 flex-1">
-									<div class="mb-1 flex items-center gap-2">
-										<span class="badge badge-outline badge-sm font-mono"
-											>{reading.label}</span
-										>
-										{#if reading.readingType}
-											<span class="badge badge-info badge-sm"
-												>{reading.readingType}</span
-											>
-										{/if}
-										{#if reading.isSubreading}
-											<span class="badge badge-ghost badge-sm"
-												>subreading</span
-											>
-										{/if}
-									</div>
-									<div class="font-greek text-sm font-medium">
-										{#if reading.isOmission}
-											<span class="italic text-base-content/40"
-												>[omission]</span
-											>
-										{:else if reading.isLacuna}
-											<span class="italic text-base-content/50"
-												>[gap / lacuna]</span
-											>
-										{:else}
-											{reading.text}
-										{/if}
-									</div>
-									{#if reading.normalizedText && reading.normalizedText !== reading.text}
-										<div class="mt-1 text-[11px] text-base-content/45">
-											aligned as <span class="font-mono"
-												>{reading.normalizedText}</span
-											>
-										</div>
+							<div class="flex items-center gap-2">
+								<span class="badge badge-outline badge-sm font-mono"
+									>{node.label}</span
+								>
+								<span class="font-greek text-sm font-medium">
+									{#if node.isOmission}
+										<span class="italic text-base-content/40">[omission]</span>
+									{:else}
+										{node.text}
 									{/if}
-								</div>
+								</span>
+								{#if node.isLemma}
+									<span class="badge badge-primary badge-sm">lemma</span>
+								{/if}
 							</div>
-							<div class="flex flex-wrap gap-1.5">
-								{#each reading.witnessGroups as group (group.id)}
-									<div
-										class="rounded-box border border-base-300/50 bg-base-100/80 px-2 py-1"
+							<div class="text-[11px] font-mono text-base-content/50">
+								{node.witnessIds.join(', ')}
+							</div>
+
+							{#if node.violation}
+								<p class="text-xs text-error">
+									{node.violation.priorReadingIds.length} recorded sources ({node.violation.priorReadingIds
+										.map(id => labelById.get(id) ?? id)
+										.join(', ')}). Choose one below to resolve it.
+								</p>
+							{/if}
+
+							<label class="block">
+								<span
+									class="text-[11px] uppercase tracking-wider text-base-content/50"
+								>
+									Source of reading {node.label}
+								</span>
+								<select
+									class="select select-sm select-bordered w-full mt-1 font-mono"
+									value={selectValueOf(node)}
+									onchange={e => chooseSource(node, e.currentTarget)}
+								>
+									<option value="undecided"
+										>Undecided &mdash; not yet considered</option
 									>
-										<div class="flex flex-wrap items-center gap-1">
-											{#each group.witnessIds as witnessId}
-												<span class="badge badge-ghost badge-sm font-mono"
-													>{witnessId}</span
-												>
-												{#if reading.witnessIds.length > 1}
-													<button
-														type="button"
-														class="btn btn-ghost btn-xs px-1"
-														title={`Detach ${witnessId}`}
-														onclick={() =>
-															collationState.splitWitnessFromReading(
-																collationState.selectedUnitIndex,
-																reading.id,
-																witnessId
-															)}
-													>
-														split
-													</button>
-												{/if}
-											{/each}
-										</div>
+									<option value="unclear"
+										>Unclear &mdash; origin undeterminable</option
+									>
+									{#if node.violation}
+										<option value={CONFLICT_VALUE} disabled>
+											Conflicting sources &mdash; choose one below
+										</option>
+									{/if}
+									{#each stemma.nodes.filter(other => other.readingId !== node.readingId) as other (other.readingId)}
+										<option value={`derived:${other.readingId}`}>
+											Derived from {other.label}
+											{truncate(readingSummary(other), 18)}
+										</option>
+									{/each}
+								</select>
+							</label>
+
+							{#if refusalFor(node)}
+								{#key refusal?.seq}
+									<div class="alert alert-error py-2 text-xs" role="alert">
+										{refusal?.message}
 									</div>
-								{/each}
-							</div>
-						</div>
+								{/key}
+							{/if}
+
+							<p
+								class="inline-block rounded border px-1.5 py-0.5 text-[11px] {SOURCE_STATES[
+									state
+								].classes}"
+							>
+								{SOURCE_STATES[state].label}
+							</p>
+						</li>
 					{/each}
-				</div>
+				</ul>
 			{/if}
 		</div>
 
-		<!-- Right: Stemma Graph Canvas -->
 		<div class="flex-1 min-w-0 flex flex-col">
 			<div class="flex items-center justify-between mb-2">
 				<h3 class="text-sm font-bold uppercase tracking-wider text-base-content/50">
 					Local Stemma
 				</h3>
-				<div class="flex items-center gap-2">
-					{#if connectingFrom}
-						<span class="text-xs text-info animate-pulse"> Click target node... </span>
-					{/if}
-					<button
-						type="button"
-						class="btn btn-ghost btn-xs gap-1"
-						onclick={() =>
-							collationState.suggestStemma(collationState.selectedUnitIndex)}
-					>
-						<Lightning size={14} weight="fill" />
-						Suggest Stemma
-					</button>
-				</div>
+				{#if stemma.violations.length > 0}
+					<span class="text-xs text-error">
+						{stemma.violations.length} reading(s) with more than one recorded source
+					</span>
+				{/if}
 			</div>
 
 			<div
-				class="flex-1 bg-base-200/30 rounded-box border border-base-300/40 relative overflow-hidden"
+				class="flex-1 bg-base-200/30 rounded-box border border-base-300/40 relative overflow-auto"
 			>
-				{#if nodes.length === 0}
+				{#if layout.nodes.length === 0}
 					<div
 						class="flex items-center justify-center h-full text-sm text-base-content/30"
 					>
 						Select a variation unit to view its stemma
 					</div>
 				{:else}
+					<!-- Natural size: scaling to fit crushes reading text to a few pixels, so the
+					     container scrolls instead. -->
 					<svg
-						bind:this={svgEl}
-						class="w-full h-full"
-						viewBox="0 0 600 200"
-						preserveAspectRatio="xMidYMid meet"
+						width={layout.bounds.width}
+						height={layout.bounds.height}
+						viewBox="0 0 {layout.bounds.width} {layout.bounds.height}"
+						class="block"
+						role="img"
+						aria-labelledby="stemma-diagram-title"
+						aria-describedby="stemma-diagram-desc"
 					>
+						<title id="stemma-diagram-title"
+							>Local stemma{selectedUnitLabel === null
+								? ''
+								: ` for unit ${selectedUnitLabel}`}</title
+						>
+						<desc id="stemma-diagram-desc">{diagramDescription}</desc>
 						<defs>
 							<marker
-								id="arrowhead"
+								id="stemma-arrowhead"
 								markerWidth="10"
 								markerHeight="7"
 								refX="10"
@@ -340,130 +390,138 @@
 							</marker>
 						</defs>
 
-						<!-- Edges -->
-						{#each edges as edge (edge.id)}
-							{@const src = getNodePos(edge.sourceReadingId)}
-							{@const tgt = getNodePos(edge.targetReadingId)}
-							{#if src && tgt}
-								<g class="group">
-									<line
-										x1={src.x}
-										y1={src.y + 20}
-										x2={tgt.x}
-										y2={tgt.y - 20}
-										stroke="currentColor"
-										class="text-base-content/30"
-										stroke-width="2"
-										marker-end={edge.directed ? 'url(#arrowhead)' : undefined}
-									/>
-									<!-- Delete edge hitbox -->
-									<!-- svelte-ignore a11y_click_events_have_key_events -->
-									<!-- svelte-ignore a11y_no_static_element_interactions -->
-									<line
-										x1={src.x}
-										y1={src.y + 20}
-										x2={tgt.x}
-										y2={tgt.y - 20}
-										stroke="transparent"
-										stroke-width="12"
-										class="cursor-pointer"
-										onclick={() =>
-											collationState.removeStemmaEdge(
-												collationState.selectedUnitIndex,
-												edge.id
-											)}
-									/>
-									{#if !edge.directed}
-										<circle
-											cx={(src.x + tgt.x) / 2}
-											cy={(src.y + tgt.y) / 2 + 4}
-											r="3"
-											fill="currentColor"
-											class="text-base-content/20"
-										/>
-									{/if}
-								</g>
-							{/if}
+						{#each layout.arcs as arc (arc.id)}
+							<path
+								d={arc.path}
+								fill="none"
+								stroke="currentColor"
+								class="text-base-content/30"
+								stroke-width="2"
+								marker-end="url(#stemma-arrowhead)"
+							/>
 						{/each}
 
-						<!-- Nodes -->
-						{#each nodes as node (node.id)}
-							{@const color = NODE_COLOR}
-							{@const isConnecting = connectingFrom === node.id}
-							<!-- svelte-ignore a11y_click_events_have_key_events -->
-							<!-- svelte-ignore a11y_no_static_element_interactions -->
-							<g
-								class="cursor-pointer"
-								onclick={() => handleNodeClick(node.id)}
-								transform="translate({node.x}, {node.y})"
-							>
-								<rect
-									x="-58"
-									y="-22"
-									width="116"
-									height="48"
-									rx="6"
-									fill={color}
-									fill-opacity="0.15"
-									stroke={color}
-									stroke-width={isConnecting ? 3 : 1.5}
-									stroke-opacity={isConnecting ? 1 : 0.5}
-								/>
-								<text
-									text-anchor="middle"
-									dominant-baseline="middle"
-									y="-6"
-									font-size="9"
-									font-family="monospace"
-									fill="currentColor"
-									class="text-base-content/60"
-								>
-									{node.reading.label}{node.reading.readingType
-										? ` · ${node.reading.readingType}`
-										: ''}
-								</text>
-								<text
-									text-anchor="middle"
-									dominant-baseline="middle"
-									y="8"
-									font-size="11"
-									font-family="var(--font-greek, serif)"
-									fill="currentColor"
-									class="text-base-content"
-								>
-									{#if node.reading.isOmission}
-										om.
-									{:else if node.reading.isLacuna}
-										gap
-									{:else}
-										{(node.reading.text ?? '').slice(0, 12)}{(
-											node.reading.text ?? ''
-										).length > 12
-											? '...'
-											: ''}
+						{#each layout.nodes as placed (placed.id)}
+							{@const node = nodeById.get(placed.id)}
+							{#if node}
+								{@const state = stateOf(node)}
+								<g transform="translate({placed.x}, {placed.y})">
+									<rect
+										width={placed.width}
+										height={placed.height}
+										rx="6"
+										class="fill-base-100"
+									/>
+									<rect
+										width={placed.width}
+										height={placed.height}
+										rx="6"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="1.5"
+										stroke-dasharray={state === 'undecided' ? '4 3' : undefined}
+										class={SOURCE_STATES[state].stroke}
+									/>
+									{#if node.isLemma}
+										<!-- Lemma is a separate axis from the source decision, so it
+										     is marked without touching the outline's colour. -->
+										<rect
+											x="3"
+											y="3"
+											width={placed.width - 6}
+											height={placed.height - 6}
+											rx="4"
+											fill="none"
+											stroke="currentColor"
+											stroke-width="1"
+											class="text-primary"
+										/>
+										<text
+											x={placed.width - 5}
+											y="12"
+											text-anchor="end"
+											font-size="8"
+											font-family="monospace"
+											fill="currentColor"
+											class="text-primary"
+										>
+											lemma
+										</text>
 									{/if}
-								</text>
-								<text
-									text-anchor="middle"
-									dominant-baseline="middle"
-									y="34"
-									font-size="8"
-									font-family="monospace"
-									fill="currentColor"
-									class="text-base-content/50"
-								>
-									{node.reading.witnessIds.join(', ')}
-								</text>
-							</g>
+									<text
+										x={placed.width / 2}
+										y="16"
+										text-anchor="middle"
+										font-size="10"
+										font-family="monospace"
+										fill="currentColor"
+										class="text-base-content/60"
+									>
+										{node.label}
+										{state === 'undecided'
+											? '· ?'
+											: state === 'unclear'
+												? '· unclear'
+												: state === 'violation'
+													? '· conflict'
+													: '· derived'}
+									</text>
+									<text
+										x={placed.width / 2}
+										y="32"
+										text-anchor="middle"
+										font-size="12"
+										font-family="var(--font-greek, serif)"
+										fill="currentColor"
+										class="text-base-content"
+									>
+										{node.isOmission ? 'om.' : truncate(node.text ?? '', 14)}
+									</text>
+									<text
+										x={placed.width / 2}
+										y="47"
+										text-anchor="middle"
+										font-size="9"
+										font-family="monospace"
+										fill="currentColor"
+										class="text-base-content/50"
+									>
+										{truncate(node.witnessIds.join(', '), 20)}
+									</text>
+								</g>
+							{/if}
 						{/each}
 					</svg>
 				{/if}
 			</div>
 
-			<div class="mt-2 flex items-center gap-3 text-xs text-base-content/40">
-				<span>Click node to start connecting</span>
-				<span class="text-base-content/20">|</span>
-				<span>Click edge to remove</span>
+			<div class="mt-2 flex flex-wrap items-center gap-3 text-xs text-base-content/50">
+				<span class="inline-flex items-center gap-1">
+					<span
+						class="inline-block h-3 w-3 rounded border border-dashed border-base-content/40"
+					></span>
+					Undecided &mdash; not yet considered
+				</span>
+				<span class="inline-flex items-center gap-1">
+					<span class="inline-block h-3 w-3 rounded border border-warning bg-warning/20"
+					></span>
+					Unclear &mdash; origin undeterminable
+				</span>
+				<span class="inline-flex items-center gap-1">
+					<span
+						class="inline-block h-3 w-3 rounded border border-base-content/50 bg-base-content/10"
+					></span>
+					Derived &mdash; from a named prior reading
+				</span>
+				<span class="inline-flex items-center gap-1">
+					<span class="inline-block h-3 w-3 rounded border border-error bg-error/20"
+					></span>
+					Conflicting sources
+				</span>
+				<span class="inline-flex items-center gap-1">
+					<span class="inline-block h-3 w-3 rounded border border-primary"></span>
+					Lemma &mdash; marked independently of its source
+				</span>
 				<span class="text-base-content/20">|</span>
 				<span>Arrow keys to navigate units</span>
 			</div>

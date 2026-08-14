@@ -158,7 +158,7 @@ function makeDocumentPayload() {
 			witnessOrder: ['A', 'B'],
 			classifiedReadings: new Map(),
 			unitDecisions: new Map(),
-			stemmaEdges: new Map(),
+			readingArcs: new Map(),
 			alignmentDisplayMode: 'regularized',
 			alignmentLayout: 'variation-units',
 		})
@@ -204,7 +204,7 @@ function makeDecisionDocumentPayload(corruptPersistedReadings = false) {
 				},
 			],
 		]),
-		stemmaEdges: new Map(),
+		readingArcs: new Map(),
 		alignmentDisplayMode: 'regularized',
 		alignmentLayout: 'variation-units',
 	});
@@ -253,7 +253,7 @@ function makeReadingTypeDocumentPayload() {
 					},
 				],
 			]),
-			stemmaEdges: new Map(),
+			readingArcs: new Map(),
 			alignmentDisplayMode: 'regularized',
 			alignmentLayout: 'variation-units',
 		})

@@ -9,7 +9,7 @@ import type {
 	ClassifiedReading,
 	CollationPhase,
 	RegularizationRule,
-	StemmaEdge,
+	ReadingArc,
 	SuppliedTextMode,
 	WitnessConfig,
 	WitnessSourceToken,
@@ -98,7 +98,7 @@ export interface CollationStemmaUnitNode {
 	id: string;
 	unitId: string;
 	columnId: string | null;
-	edges: StemmaEdge[];
+	arcs: ReadingArc[];
 }
 
 export interface CollationStemmaNode {
@@ -157,7 +157,7 @@ export interface CollationDocumentSeed {
 	witnessOrder: string[];
 	classifiedReadings: Map<string, ClassifiedReading[]>;
 	unitDecisions: Map<string, UnitDecisions>;
-	stemmaEdges: Map<string, StemmaEdge[]>;
+	readingArcs: Map<string, ReadingArc[]>;
 	alignmentDisplayMode: AlignmentDisplayMode;
 	alignmentLayout: AlignmentLayout;
 }
@@ -181,7 +181,7 @@ export interface HydratedCollationDocument {
 	witnessOrder: string[];
 	classifiedReadings: Array<[string, ClassifiedReading[]]>;
 	unitDecisions: Array<[string, UnitDecisions]>;
-	stemmaEdges: Array<[string, StemmaEdge[]]>;
+	readingArcs: Array<[string, ReadingArc[]]>;
 	alignmentDisplayMode: AlignmentDisplayMode;
 	alignmentLayout: AlignmentLayout;
 }
@@ -448,12 +448,12 @@ function buildApparatus(
 }
 
 function buildStemma(
-	stemmaEdges: Map<string, StemmaEdge[]>,
+	readingArcs: Map<string, ReadingArc[]>,
 	alignmentColumns: AlignmentColumn[]
 ): CollationStemmaNode | null {
-	if (stemmaEdges.size === 0) return null;
-	const units = [...stemmaEdges.entries()]
-		.map(([unitId, edges]) => {
+	if (readingArcs.size === 0) return null;
+	const units = [...readingArcs.entries()]
+		.map(([unitId, arcs]) => {
 			const columnId =
 				alignmentColumns.find(column => variationUnitId(column.id) === unitId)?.id ?? null;
 			return {
@@ -461,7 +461,7 @@ function buildStemma(
 				id: unitId,
 				unitId,
 				columnId,
-				edges,
+				arcs,
 			};
 		})
 		.sort(
@@ -514,7 +514,7 @@ export function buildCollationDocument(seed: CollationDocumentSeed): CollationDo
 			seed.alignmentColumns,
 			findBaseTextWitnessId(seed.witnesses)
 		),
-		stemma: buildStemma(seed.stemmaEdges, seed.alignmentColumns),
+		stemma: buildStemma(seed.readingArcs, seed.alignmentColumns),
 	};
 }
 
@@ -551,10 +551,10 @@ export function hydrateCollationDocument(document: CollationDocument): HydratedC
 			document.apparatus?.units
 				?.filter(unit => typeof unit.unitId === 'string')
 				.map(unit => [unit.unitId, unit.decisions ?? {}] as [string, UnitDecisions]) ?? [],
-		stemmaEdges:
+		readingArcs:
 			document.stemma?.units
-				?.filter(unit => typeof unit.unitId === 'string' && Array.isArray(unit.edges))
-				.map(unit => [unit.unitId, unit.edges] as [string, StemmaEdge[]]) ?? [],
+				?.filter(unit => typeof unit.unitId === 'string' && Array.isArray(unit.arcs))
+				.map(unit => [unit.unitId, unit.arcs] as [string, ReadingArc[]]) ?? [],
 		alignmentDisplayMode: normalizeDisplayMode(document.flow?.alignmentDisplayMode),
 		alignmentLayout: normalizeAlignmentLayout(document.flow?.alignmentLayout),
 	};

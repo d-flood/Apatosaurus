@@ -198,6 +198,21 @@ describe('decision overlay', () => {
 		expect(result.lemmaReadingId).toBe('alpha');
 	});
 
+	it('reports a source decision naming an absent reading rather than dropping it', () => {
+		const result = applyDecisions([reading('alpha', 0)], {
+			sourceDecision: { alpha: { kind: 'unclear' }, gone: { kind: 'unclear' } },
+		});
+
+		expect(result.orphanedDecisions).toEqual([
+			{
+				kind: 'sourceDecision',
+				readingId: 'gone',
+				sourceDecision: { kind: 'unclear' },
+				missingReadingIds: ['gone'],
+			},
+		]);
+	});
+
 	it('reports decisions belonging to absent units', () => {
 		const decisions = new Map<string, import('./collation-decisions').UnitDecisions>([
 			['unit:col-1', { subreadingOf: { alpha: 'beta' } }],

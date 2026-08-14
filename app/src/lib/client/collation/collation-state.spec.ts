@@ -1490,17 +1490,13 @@ describe('collationState lemma establishment', () => {
 		const readings = collationState.getReadingsForUnit(0);
 		const alpha = readings.find(reading => reading.text === 'alpha')!;
 		const beta = readings.find(reading => reading.text === 'beta')!;
-		collationState.addStemmaEdge(0, {
-			id: 'edge-1',
-			sourceReadingId: alpha.id,
-			targetReadingId: beta.id,
-			directed: true,
-		});
-		const before = structuredClone(collationState.stemmaEdges.get('unit:col-1'));
+		collationState.setReadingSource(0, beta.id, { kind: 'derived', from: alpha.id });
+		const before = structuredClone(collationState.readingArcs.get('unit:col-1'));
+		expect(before).toHaveLength(1);
 
 		collationState.setLemmaReading(0, beta.id);
 
-		expect(collationState.stemmaEdges.get('unit:col-1')).toEqual(before);
+		expect(collationState.readingArcs.get('unit:col-1')).toEqual(before);
 	});
 
 	it('reports a refused reorder instead of returning silently', () => {
@@ -1970,5 +1966,239 @@ describe('collationState reading types and certainty', () => {
 
 		collationState.setReadingType(0, gamma.id, 'orthographic');
 		expect(collationState.getSubreadingsMissingReadingType()).toEqual([]);
+	});
+});
+
+describe('collationState local stemma source decisions', () => {
+	beforeEach(() => {
+		collationState.reset();
+	});
+
+	/** The alignment the real collation pipeline produces, never a hand-built one. */
+	function collateReadings(texts: Record<string, string>) {
+		collationState.setWitnesses(
+			Object.entries(texts).map(([witnessId, text], index) =>
+				makeWitness(witnessId, text, { isBaseText: index === 0 })
+			)
+		);
+		collationState.refreshCollationInput();
+		const snapshot = collateToAlignmentSnapshot({
+			witnesses: collationState.buildCollationWitnessInputs(),
+			options: { segmentation: false },
+		});
+		collationState.setAlignmentSnapshot(snapshot.snapshot);
+		return collationState.getReadingsForUnit(0);
+	}
+
+	function labelled(label: string) {
+		const reading = collationState.getReadingsForUnit(0).find(entry => entry.label === label);
+		if (!reading) throw new Error(`no reading labelled ${label}`);
+		return reading;
+	}
+
+	function arcsForUnit() {
+		return [...collationState.readingArcs.values()].flat();
+	}
+
+	function sourceOf(readingId: string) {
+		return collationState.getLocalStemma(0).nodes.find(node => node.readingId === readingId)
+			?.sourceDecision;
+	}
+
+	it('records derived, unclear, and undecided as three distinguishable answers', () => {
+		collateReadings({ A: 'λογος', B: 'θεος', C: 'πνευμα' });
+		const a = labelled('a');
+		const b = labelled('b');
+		const c = labelled('c');
+
+		expect(collationState.setReadingSource(0, b.id, { kind: 'derived', from: a.id })).toEqual({
+			ok: true,
+		});
+		expect(collationState.setReadingSource(0, c.id, { kind: 'unclear' })).toEqual({ ok: true });
+
+		expect(sourceOf(b.id)).toEqual({ kind: 'derived', from: a.id });
+		expect(sourceOf(c.id)).toEqual({ kind: 'unclear' });
+		expect(sourceOf(a.id)).toEqual({ kind: 'undecided' });
+
+		expect(collationState.setReadingSource(0, c.id, { kind: 'undecided' })).toEqual({
+			ok: true,
+		});
+		expect(sourceOf(c.id)).toEqual({ kind: 'undecided' });
+	});
+
+	it('replaces the previous source rather than recording a second one', () => {
+		collateReadings({ A: 'λογος', B: 'θεος', C: 'πνευμα' });
+		const a = labelled('a');
+		const b = labelled('b');
+		const c = labelled('c');
+
+		collationState.setReadingSource(0, c.id, { kind: 'derived', from: a.id });
+		collationState.setReadingSource(0, c.id, { kind: 'derived', from: b.id });
+
+		expect(arcsForUnit()).toHaveLength(1);
+		expect(sourceOf(c.id)).toEqual({ kind: 'derived', from: b.id });
+		expect(collationState.getLocalStemma(0).violations).toEqual([]);
+	});
+
+	it('refuses a source that would close a cycle, and changes nothing', () => {
+		collateReadings({ A: 'λογος', B: 'θεος', C: 'πνευμα' });
+		const a = labelled('a');
+		const b = labelled('b');
+		const c = labelled('c');
+		collationState.setReadingSource(0, b.id, { kind: 'derived', from: a.id });
+		collationState.setReadingSource(0, c.id, { kind: 'derived', from: b.id });
+		const before = structuredClone(arcsForUnit());
+		expect(before).toHaveLength(2);
+
+		expect(collationState.setReadingSource(0, a.id, { kind: 'derived', from: c.id })).toEqual({
+			ok: false,
+			error: 'cycle',
+		});
+		expect(collationState.setReadingSource(0, a.id, { kind: 'derived', from: a.id })).toEqual({
+			ok: false,
+			error: 'self-source',
+		});
+		expect(arcsForUnit()).toEqual(before);
+	});
+
+	it('refuses a subreading at either end, because subreadings hold no genealogy', () => {
+		collateReadings({ A: 'λογος', B: 'θεος', C: 'πνευμα' });
+		const a = labelled('a');
+		const b = labelled('b');
+		const c = labelled('c');
+		collationState.setReadingParent(0, c.id, b.id);
+
+		expect(collationState.setReadingSource(0, c.id, { kind: 'derived', from: a.id })).toEqual({
+			ok: false,
+			error: 'not-a-main-reading',
+		});
+		expect(collationState.setReadingSource(0, b.id, { kind: 'derived', from: c.id })).toEqual({
+			ok: false,
+			error: 'not-a-main-reading',
+		});
+	});
+
+	it('undoes one source decision per gesture', () => {
+		collateReadings({ A: 'λογος', B: 'θεος', C: 'πνευμα' });
+		const a = labelled('a');
+		const b = labelled('b');
+		const c = labelled('c');
+		collationState.setReadingSource(0, b.id, { kind: 'derived', from: a.id });
+		collationState.setReadingSource(0, c.id, { kind: 'unclear' });
+
+		collationState.undo();
+		expect(sourceOf(c.id)).toEqual({ kind: 'undecided' });
+		expect(sourceOf(b.id)).toEqual({ kind: 'derived', from: a.id });
+
+		collationState.undo();
+		expect(sourceOf(b.id)).toEqual({ kind: 'undecided' });
+
+		collationState.redo();
+		expect(sourceOf(b.id)).toEqual({ kind: 'derived', from: a.id });
+	});
+
+	it('keeps source decisions through an unrelated edit to the same unit', () => {
+		collateReadings({ A: 'λογος', B: 'θεος', C: 'θεος', D: 'πνευμα' });
+		const a = labelled('a');
+		const b = labelled('b');
+		const c = labelled('c');
+		collationState.setReadingSource(0, b.id, { kind: 'derived', from: a.id });
+		collationState.setReadingSource(0, c.id, { kind: 'unclear' });
+
+		collationState.setReadingType(0, c.id, 'nonsense');
+		collationState.setLemmaReading(0, b.id);
+		collationState.splitWitnessFromReading(0, b.id, 'C');
+
+		expect(sourceOf(b.id)).toEqual({ kind: 'derived', from: a.id });
+		expect(sourceOf(c.id)).toEqual({ kind: 'unclear' });
+	});
+
+	it('reports a derived decision whose prior reading the unit no longer has', () => {
+		collateReadings({ A: 'λογος', B: 'θεος', C: 'πνευμα' });
+		const b = labelled('b');
+		const c = labelled('c');
+		collationState.setReadingSource(0, b.id, { kind: 'derived', from: c.id });
+
+		// The reading `b` derives from is emptied and removed, the way a merge would remove it.
+		collationState.moveWitnessToReading(0, 'C', b.id);
+		collationState.deleteReading(0, c.id);
+
+		expect(collationState.getOrphanedDecisionsForUnit(0)).toEqual([
+			{
+				kind: 'sourceArc',
+				readingId: b.id,
+				priorReadingId: c.id,
+				missingReadingIds: [c.id],
+			},
+		]);
+	});
+
+	it('reports the arcs of a unit that is no longer a variation unit', () => {
+		collateReadings({ A: 'λογος θεος', B: 'λογος πνευμα' });
+		const readings = collationState.getReadingsForUnit(1);
+		const a = readings.find(reading => reading.label === 'a')!;
+		const b = readings.find(reading => reading.label === 'b')!;
+		collationState.setReadingSource(1, b.id, { kind: 'derived', from: a.id });
+		const unitId = [...collationState.readingArcs.keys()][0];
+
+		collationState.mergeColumns(collationState.alignmentColumns.map(column => column.id));
+
+		expect(collationState.getOrphanedUnitDecisions()).toEqual([
+			{
+				unitId,
+				decisions: {},
+				arcs: [{ id: expect.any(String), priorReadingId: a.id, posteriorReadingId: b.id }],
+			},
+		]);
+	});
+
+	it('records nothing when a reading is set to the answer it already carries', () => {
+		collateReadings({ A: 'λογος', B: 'θεος', C: 'πνευμα' });
+		const a = labelled('a');
+		const b = labelled('b');
+		const c = labelled('c');
+		collationState.setReadingSource(0, b.id, { kind: 'derived', from: a.id });
+
+		// Undecided is what `c` already is, so there is no judgement here to record.
+		expect(collationState.setReadingSource(0, c.id, { kind: 'undecided' })).toEqual({
+			ok: true,
+		});
+		expect(collationState.setReadingSource(0, b.id, { kind: 'derived', from: a.id })).toEqual({
+			ok: true,
+		});
+		expect([...collationState.unitDecisions.values()].some(entry => entry.sourceDecision)).toBe(
+			false
+		);
+		expect(arcsForUnit()).toHaveLength(1);
+
+		// One undo returns to before the only decision made, rather than spending itself on a no-op.
+		collationState.undo();
+		expect(sourceOf(b.id)).toEqual({ kind: 'undecided' });
+	});
+
+	it('leaves an untouched unit out of the record entirely when nothing is decided', () => {
+		collateReadings({ A: 'λογος', B: 'θεος' });
+		const b = labelled('b');
+
+		expect(collationState.setReadingSource(0, b.id, { kind: 'undecided' })).toEqual({
+			ok: true,
+		});
+
+		expect(collationState.readingArcs.size).toBe(0);
+		expect(collationState.unitDecisions.size).toBe(0);
+	});
+
+	it('roots a newly-built stemma on the lemma, never on the reading with most witnesses', () => {
+		collateReadings({ A: 'λογος', B: 'θεος', C: 'θεος', D: 'θεος' });
+		const stemma = collationState.getLocalStemma(0);
+
+		expect(stemma.nodes.filter(node => node.isLemma).map(node => node.witnessIds)).toEqual([
+			['A'],
+		]);
+		expect(stemma.nodes.map(node => node.sourceDecision)).toEqual([
+			{ kind: 'undecided' },
+			{ kind: 'undecided' },
+		]);
+		expect(arcsForUnit()).toEqual([]);
 	});
 });

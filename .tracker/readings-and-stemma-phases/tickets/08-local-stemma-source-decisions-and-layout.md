@@ -85,18 +85,18 @@ layoutLocalStemma(nodes: StemmaTreeNode[]): {
 
 ## Acceptance criteria
 
-- [ ] A reading's source decision is settable to derived, unclear, or undecided from a labelled control in a list, without a pointer.
-- [ ] `undecided` and `unclear` are visually and programmatically distinguishable, in both the list and the diagram.
-- [ ] A pure projection module folds subreadings into their main reading's node and emits one node per main reading.
-- [ ] A reading with two incoming arcs appears in `violations` and is not silently mis-rendered.
-- [ ] Setting a source that would create a cycle is refused, observably.
-- [ ] A pure layout module returns positions, arc paths, and computed bounds, with no DOM or store imports, and is deterministic for equal input.
-- [ ] A spec asserts a stemma four generations deep produces non-overlapping node positions.
-- [ ] The rendered diagram fits its computed bounds; no hardcoded viewBox dimensions remain.
-- [ ] A newly-built stemma roots on the lemma reading with all others undecided; no code roots on witness count.
-- [ ] Non-attestation and subreadings never appear as nodes.
-- [ ] Source decisions persist and survive an unrelated edit to the same unit; each is one undo step.
-- [ ] `pnpm lint` and `pnpm check` pass.
+- [x] A reading's source decision is settable to derived, unclear, or undecided from a labelled control in a list, without a pointer.
+- [ ] `undecided` and `unclear` are visually and programmatically distinguishable, in both the list and the diagram. **Deviation, deliberate.** Both surfaces distinguish them visually (dashed outline and `· ?` versus a warning outline and `· unclear`), and the list is fully programmatic: each reading's state is a labelled `<select>` value plus a text state chip. The diagram is `role="img"` and exposes per-node state only through its `<title>`/`<desc>` — a whole-diagram summary sentence per node, not a per-node programmatic control. Making each node a focusable, individually-labelled control is ticket 09, so the criterion is left unchecked rather than claimed.
+- [x] A pure projection module folds subreadings into their main reading's node and emits one node per main reading.
+- [x] A reading with two incoming arcs appears in `violations` and is not silently mis-rendered.
+- [x] Setting a source that would create a cycle is refused, observably.
+- [x] A pure layout module returns positions, arc paths, and computed bounds, with no DOM or store imports, and is deterministic for equal input.
+- [x] A spec asserts a stemma four generations deep produces non-overlapping node positions.
+- [x] The rendered diagram fits its computed bounds; no hardcoded viewBox dimensions remain.
+- [x] A newly-built stemma roots on the lemma reading with all others undecided; no code roots on witness count.
+- [x] Non-attestation and subreadings never appear as nodes.
+- [x] Source decisions persist and survive an unrelated edit to the same unit; each is one undo step.
+- [x] `pnpm lint` and `pnpm check` pass.
 
 Commands, runnable as written from `app/`:
 

@@ -1,5 +1,6 @@
 import { relabelReadings } from './collation-reading-proposal';
-import type { ClassifiedReading } from './collation-types';
+import type { SourceDecision } from './collation-stemma';
+import type { ClassifiedReading, ReadingArc } from './collation-types';
 import type { Certainty, ReadingTypeId } from './reading-types';
 
 export interface UnitDecisions {
@@ -8,6 +9,12 @@ export interface UnitDecisions {
 	/** A recorded type outranks the proposal; a recorded null means "no type", not "undecided". */
 	readingType?: Record<string, ReadingTypeId | null>;
 	certainty?: Record<string, Certainty | null>;
+	/**
+	 * Only the source decisions no arc can express. A `derived` decision is stored as an arc,
+	 * which is the persisted form and the only one able to hold more than one source; `undecided`
+	 * is the absence of both. So in practice this holds `unclear`.
+	 */
+	sourceDecision?: Record<string, SourceDecision>;
 }
 
 export type OrphanedDecision =
@@ -33,11 +40,26 @@ export type OrphanedDecision =
 			readingId: string;
 			certainty: Certainty | null;
 			missingReadingIds: string[];
+	  }
+	| {
+			kind: 'sourceDecision';
+			readingId: string;
+			sourceDecision: SourceDecision;
+			missingReadingIds: string[];
+	  }
+	/** A `derived` decision, which lives in an arc rather than in the overlay. */
+	| {
+			kind: 'sourceArc';
+			readingId: string;
+			priorReadingId: string;
+			missingReadingIds: string[];
 	  };
 
 export interface OrphanedUnitDecision {
 	unitId: string;
 	decisions: UnitDecisions;
+	/** Present only where the dead unit also holds arcs, which carry its `derived` decisions. */
+	arcs?: ReadingArc[];
 }
 
 export interface UnitView {
@@ -56,6 +78,7 @@ export function cloneUnitDecisions(decisions: UnitDecisions | undefined): UnitDe
 	if (decisions?.lemmaReadingId !== undefined) clone.lemmaReadingId = decisions.lemmaReadingId;
 	if (decisions?.readingType) clone.readingType = { ...decisions.readingType };
 	if (decisions?.certainty) clone.certainty = { ...decisions.certainty };
+	if (decisions?.sourceDecision) clone.sourceDecision = { ...decisions.sourceDecision };
 	return clone;
 }
 
@@ -109,6 +132,19 @@ export function applyDecisions(
 			readingId,
 			certainty,
 			missingReadingIds: [readingId],
+		});
+	}
+
+	for (const [readingId, sourceDecision] of Object.entries(decisions.sourceDecision ?? {})) {
+		const named =
+			sourceDecision.kind === 'derived' ? [readingId, sourceDecision.from] : [readingId];
+		const missingReadingIds = named.filter(id => !readingIds.has(id));
+		if (missingReadingIds.length === 0) continue;
+		orphanedDecisions.push({
+			kind: 'sourceDecision',
+			readingId,
+			sourceDecision,
+			missingReadingIds,
 		});
 	}
 
@@ -184,14 +220,29 @@ export function applyDecisions(
 	};
 }
 
+/**
+ * Editorial work recorded against units that no longer exist. Arcs are walked alongside the
+ * overlay because a `derived` decision is stored only as an arc, so a report built from the
+ * overlay alone would omit exactly the decisions the diagram is made of.
+ */
 export function findOrphanedUnitDecisions(
 	decisions: ReadonlyMap<string, UnitDecisions>,
-	liveUnitIds: ReadonlySet<string>
+	liveUnitIds: ReadonlySet<string>,
+	readingArcs: ReadonlyMap<string, ReadingArc[]> = new Map()
 ): OrphanedUnitDecision[] {
-	return [...decisions.entries()]
-		.filter(([unitId]) => !liveUnitIds.has(unitId))
-		.map(([unitId, unitDecisions]) => ({
-			unitId,
-			decisions: cloneUnitDecisions(unitDecisions),
-		}));
+	const unitIds = [
+		...decisions.keys(),
+		...[...readingArcs.keys()].filter(unitId => !decisions.has(unitId)),
+	];
+	return unitIds
+		.filter(unitId => !liveUnitIds.has(unitId))
+		.map(unitId => {
+			const orphan: OrphanedUnitDecision = {
+				unitId,
+				decisions: cloneUnitDecisions(decisions.get(unitId)),
+			};
+			const arcs = readingArcs.get(unitId) ?? [];
+			if (arcs.length > 0) orphan.arcs = arcs.map(arc => ({ ...arc }));
+			return orphan;
+		});
 }

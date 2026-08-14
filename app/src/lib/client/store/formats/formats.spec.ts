@@ -41,7 +41,11 @@ import {
 	transcriptionDocumentToTei,
 	transcriptionDocumentToTeiFromStore,
 } from './index';
-import { buildLegacyCollationHashPayload } from './collation';
+import {
+	buildLegacyCollationHashPayload,
+	collationPayloadToContent,
+	type CollationPayload,
+} from './collation';
 import collationV1Input from './fixtures/collation-v1.input.json';
 import workingCollationV1Input from './fixtures/working-collation-v1.input.json';
 import workingCollationV2Expected from './fixtures/working-collation-v2.expected.json';
@@ -319,7 +323,51 @@ describe('canonical store formats', () => {
 		}
 	);
 
-	it('rejects checked-in apatosaurus.collation v1 fixtures without an upgrader to v3', async () => {
+	it('refuses a v3 collation rather than loading its stemma arcs away', async () => {
+		const registry = createCanonicalFormatRegistry();
+		// v3 held the stemma under `edges` with `sourceReadingId`/`targetReadingId`. The current
+		// parser reads `arcs`, so loading this would hydrate to no arcs and save the loss back.
+		const payload = {
+			...COLLATION_FIXTURE,
+			document: {
+				...COLLATION_FIXTURE.document,
+				stemma: {
+					type: 'stemma',
+					units: [
+						{
+							type: 'stemmaUnit',
+							id: 'unit:col-1',
+							unitId: 'unit:col-1',
+							columnId: 'col-1',
+							edges: [
+								{
+									id: 'edge-1',
+									sourceReadingId: 'reading-a',
+									targetReadingId: 'reading-b',
+									directed: true,
+								},
+							],
+						},
+					],
+				},
+			},
+		} as unknown as CollationPayload;
+		// A correct revision hash, so the version is the only thing that can refuse this document.
+		const sealed = await sealDocument(COLLATION_FORMAT, 3, {
+			...payload,
+			current_revision: {
+				...payload.current_revision,
+				content_hash: await hashCanonicalPayload(collationPayloadToContent(payload)),
+			},
+		} as unknown as JsonObject);
+
+		await expect(registry.readDocument(COLLATION_FORMAT, sealed)).resolves.toMatchObject({
+			ok: false,
+			quarantine: { code: 'invalid_schema_version' },
+		});
+	});
+
+	it('rejects checked-in apatosaurus.collation v1 fixtures without an upgrader to the current version', async () => {
 		await expect(
 			readCanonicalDocument(COLLATION_FORMAT, collationV1Input)
 		).resolves.toMatchObject({

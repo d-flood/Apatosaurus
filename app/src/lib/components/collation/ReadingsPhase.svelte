@@ -40,6 +40,8 @@
 	let reassigningWitnessId = $state<string | null>(null);
 
 	const WITNESS_DISPLAY_LIMIT = 12;
+	/** No reading id can collide with this, so the reassign menu can also offer a split. */
+	const SPLIT_WITNESS_VALUE = '__split__';
 
 	let segments = $derived(collationState.getSegmentSequence());
 	let unitSegments = $derived(segments.filter(segment => segment.kind === 'unit'));
@@ -696,13 +698,22 @@
 														value={row.reading.id}
 														use:autoFocusSelect
 														onchange={event => {
-															collationState.moveWitnessToReading(
-																selectedSpan.startIndex,
-																witness.id,
-																(
-																	event.currentTarget as HTMLSelectElement
-																).value
-															);
+															const target = (
+																event.currentTarget as HTMLSelectElement
+															).value;
+															if (target === SPLIT_WITNESS_VALUE) {
+																collationState.splitWitnessFromReading(
+																	selectedSpan.startIndex,
+																	row.reading.id,
+																	witness.id
+																);
+															} else {
+																collationState.moveWitnessToReading(
+																	selectedSpan.startIndex,
+																	witness.id,
+																	target
+																);
+															}
 															reassigningWitnessId = null;
 														}}
 														onkeydown={event => {
@@ -719,6 +730,11 @@
 																)}
 															</option>
 														{/each}
+														{#if row.reading.witnessIds.length > 1}
+															<option value={SPLIT_WITNESS_VALUE}>
+																Split into a new reading
+															</option>
+														{/if}
 													</select>
 													<button
 														type="button"

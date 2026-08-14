@@ -49,7 +49,7 @@ import type {
 	RegularizationRule,
 	RegularizationType,
 	RegularizedToken,
-	StemmaEdge,
+	ReadingArc,
 	SuppliedTextMode,
 	WitnessConfig,
 	WitnessSourceToken,
@@ -81,6 +81,12 @@ import {
 	type DisplayedColumnSlot,
 	type Segment,
 } from './collation-apparatus';
+import {
+	projectLocalStemma,
+	wouldCreateCycle,
+	type LocalStemma,
+	type SourceDecision,
+} from './collation-stemma';
 import { variationUnitId } from './collation-unit-id';
 import {
 	buildReadingFamilyGroups,
@@ -112,13 +118,7 @@ const PHASE_ORDER: CollationPhase[] = [
 	'readings',
 	'stemma',
 ];
-export type { CollationPhase, StemmaEdge, WitnessConfig, WitnessTreatment };
-
-export interface StemmaNode {
-	readingId: string;
-	x: number;
-	y: number;
-}
+export type { CollationPhase, ReadingArc, WitnessConfig, WitnessTreatment };
 
 export type { DisplayedColumnSlot };
 
@@ -166,7 +166,6 @@ interface WorkspaceSnapshot {
 	witnessOrder: string[];
 	selectedUnitIndex: number;
 	classifiedReadings: Array<[string, ClassifiedReading[]]>;
-	stemmaEdges: Array<[string, StemmaEdge[]]>;
 	alignmentDisplayMode: AlignmentDisplayMode;
 	alignmentLayout: AlignmentLayout;
 }
@@ -225,8 +224,7 @@ function createCollationState() {
 	let selectedUnitIndex = $state<number>(0);
 	let classifiedReadings = $state<Map<string, ClassifiedReading[]>>(new Map());
 	let unitDecisions = $state<Map<string, UnitDecisions>>(new Map());
-	let stemmaEdges = $state<Map<string, StemmaEdge[]>>(new Map());
-	let stemmaNodes = $state<Map<string, StemmaNode[]>>(new Map());
+	let readingArcs = $state<Map<string, ReadingArc[]>>(new Map());
 
 	// Command stack for undo/redo
 	let commandHistory: CommandEntry[] = [];
@@ -258,7 +256,10 @@ function createCollationState() {
 		selectedUnitIndex = normalizeVariationUnitIndex(snap.selectedUnitIndex ?? 0);
 		classifiedReadings = new Map(snap.classifiedReadings ?? []);
 		unitDecisions = new Map();
-		stemmaEdges = new Map(snap.stemmaEdges ?? []);
+		// A legacy snapshot's arcs name real reading ids under the previous field names, so they
+		// are dropped rather than lost silently: the document format version was bumped so a
+		// pre-change document is refused on read instead of being reloaded empty and saved over.
+		readingArcs = new Map();
 		alignmentDisplayMode = snap.alignmentDisplayMode ?? 'regularized';
 		alignmentLayout = snap.alignmentLayout ?? 'grid';
 		ignoreTokenWhitespace = true;
@@ -273,7 +274,6 @@ function createCollationState() {
 		selectedCells = new Set();
 		focusedColumn = -1;
 		focusedRow = -1;
-		stemmaNodes = new Map();
 		commandHistory = [];
 		commandIndex = -1;
 	}
@@ -307,7 +307,7 @@ function createCollationState() {
 		selectedUnitIndex = normalizeVariationUnitIndex(0);
 		classifiedReadings = new Map(hydrated.classifiedReadings);
 		unitDecisions = new Map(hydrated.unitDecisions);
-		stemmaEdges = new Map(hydrated.stemmaEdges);
+		readingArcs = new Map(hydrated.readingArcs);
 		alignmentDisplayMode = hydrated.alignmentDisplayMode;
 		alignmentLayout = hydrated.alignmentLayout;
 		regularizedTexts = new Map();
@@ -320,7 +320,6 @@ function createCollationState() {
 		selectedCells = new Set();
 		focusedColumn = -1;
 		focusedRow = -1;
-		stemmaNodes = new Map();
 		commandHistory = [];
 		commandIndex = -1;
 	}
@@ -346,7 +345,7 @@ function createCollationState() {
 			witnessOrder,
 			classifiedReadings,
 			unitDecisions,
-			stemmaEdges,
+			readingArcs,
 			alignmentDisplayMode,
 			alignmentLayout,
 		});
@@ -1374,8 +1373,7 @@ function createCollationState() {
 			rebuildAlignmentFromWitnessTokens();
 		}
 		classifiedReadings = new Map();
-		stemmaEdges = new Map();
-		stemmaNodes = new Map();
+		readingArcs = new Map();
 		selectedUnitIndex = 0;
 		if (furthestPhase === 'stemma') {
 			furthestPhase = 'alignment';
@@ -1420,7 +1418,7 @@ function createCollationState() {
 		selectedUnitIndex = normalizeVariationUnitIndex(selectedUnitIndex);
 		advanceFurthest('alignment');
 		classifiedReadings = new Map();
-		stemmaEdges = new Map();
+		readingArcs = new Map();
 		markUnsaved();
 	}
 
@@ -2193,14 +2191,24 @@ function createCollationState() {
 	}
 
 	function getOrphanedDecisionsForUnit(unitIndex: number): OrphanedDecision[] {
-		return peekUnitView(unitIndex).orphanedDecisions;
+		// A `derived` decision lives in an arc, not in the overlay, so the projection is the only
+		// place that can tell whether one still names readings the unit has.
+		const arcOrphans: OrphanedDecision[] = getLocalStemma(unitIndex).orphanedArcs.map(
+			orphan => ({
+				kind: 'sourceArc',
+				readingId: orphan.arc.posteriorReadingId,
+				priorReadingId: orphan.arc.priorReadingId,
+				missingReadingIds: orphan.missingReadingIds,
+			})
+		);
+		return [...peekUnitView(unitIndex).orphanedDecisions, ...arcOrphans];
 	}
 
 	function getOrphanedUnitDecisions() {
 		const liveUnitIds = new Set(
 			getVariationUnitSpans().map(span => variationUnitId(span.columnIds[0]))
 		);
-		return findOrphanedUnitDecisions(unitDecisions, liveUnitIds);
+		return findOrphanedUnitDecisions(unitDecisions, liveUnitIds, readingArcs);
 	}
 
 	function getReadingFamiliesForUnit(unitIndex: number): ReadingFamilyView[] {
@@ -2807,49 +2815,124 @@ function createCollationState() {
 		return { ok: true };
 	}
 
-	function addStemmaEdge(unitIndex: number, edge: StemmaEdge) {
+	/**
+	 * The local stemma a unit's readings and arcs imply. The single derivation: every surface
+	 * reads the tree from here rather than pairing readings with arcs itself.
+	 */
+	function getLocalStemma(unitIndex: number): LocalStemma {
 		const key = getReadingUnitKey(unitIndex);
-		if (!key) return;
-		const existing = stemmaEdges.get(key) ?? [];
-		const map = new Map(stemmaEdges);
-		map.set(key, [...existing, edge]);
-		stemmaEdges = map;
-		markUnsaved();
-	}
-
-	function removeStemmaEdge(unitIndex: number, edgeId: string) {
-		const key = getReadingUnitKey(unitIndex);
-		if (!key) return;
-		const existing = stemmaEdges.get(key) ?? [];
-		const map = new Map(stemmaEdges);
-		map.set(
-			key,
-			existing.filter(e => e.id !== edgeId)
+		if (!key) return { nodes: [], violations: [], orphanedArcs: [] };
+		const view = peekUnitView(unitIndex);
+		return projectLocalStemma(
+			view.readings,
+			readingArcs.get(key) ?? [],
+			view.lemmaReadingId,
+			unitDecisions.get(key)?.sourceDecision ?? {}
 		);
-		stemmaEdges = map;
-		markUnsaved();
 	}
 
-	function suggestStemma(unitIndex: number) {
+	type SourceDecisionError = 'reading-not-found' | 'not-a-main-reading' | 'self-source' | 'cycle';
+
+	/**
+	 * Record where a reading came from. The only mutation the local stemma accepts: it replaces
+	 * every arc into that reading with at most one, so the interface can express one source even
+	 * though the storage can hold more.
+	 */
+	function setReadingSource(
+		unitIndex: number,
+		readingId: string,
+		decision: SourceDecision
+	): { ok: true } | { ok: false; error: SourceDecisionError } {
 		const key = getReadingUnitKey(unitIndex);
-		if (!key) return;
-		const readings = getReadingsForUnit(unitIndex);
-		if (readings.length < 2) return;
+		if (!key) return { ok: false, error: 'reading-not-found' };
+		const readings = ensureReadingsForUnit(unitIndex);
+		const stemma = getLocalStemma(unitIndex);
+		const nodeFor = (id: string) => stemma.nodes.find(node => node.readingId === id) ?? null;
+		const reject = (id: string): { ok: false; error: SourceDecisionError } => ({
+			ok: false,
+			error: readings.some(reading => reading.id === id)
+				? 'not-a-main-reading'
+				: 'reading-not-found',
+		});
 
-		// Heuristic: majority text = root, other readings derive from it
-		const sorted = [...readings].sort((a, b) => b.witnessIds.length - a.witnessIds.length);
-		const root = sorted[0];
-		const edges: StemmaEdge[] = sorted.slice(1).map(r => ({
-			id: crypto.randomUUID(),
-			sourceReadingId: root.id,
-			targetReadingId: r.id,
-			directed: true,
-		}));
+		const node = nodeFor(readingId);
+		if (!node) return reject(readingId);
+		if (decision.kind === 'derived') {
+			if (decision.from === readingId) return { ok: false, error: 'self-source' };
+			if (!nodeFor(decision.from)) return reject(decision.from);
+			if (wouldCreateCycle(stemma.nodes, readingId, decision.from)) {
+				return { ok: false, error: 'cycle' };
+			}
+		}
 
-		const map = new Map(stemmaEdges);
-		map.set(key, edges);
-		stemmaEdges = map;
-		markUnsaved();
+		const previousArcs = new Map(readingArcs);
+		const previousDecisions = new Map(unitDecisions);
+
+		const posteriorIds = new Set([readingId, ...node.subreadingIds]);
+		const keptArcs = (readingArcs.get(key) ?? []).filter(
+			arc => !posteriorIds.has(arc.posteriorReadingId)
+		);
+		const nextArcs =
+			decision.kind === 'derived'
+				? [
+						...keptArcs,
+						{
+							id: crypto.randomUUID(),
+							priorReadingId: decision.from,
+							posteriorReadingId: readingId,
+						},
+					]
+				: keptArcs;
+
+		const nextDecisions = cloneUnitDecisions(previousDecisions.get(key));
+		const sourceDecisions = { ...nextDecisions.sourceDecision };
+		if (decision.kind === 'unclear') sourceDecisions[readingId] = { kind: 'unclear' };
+		else delete sourceDecisions[readingId];
+		if (Object.keys(sourceDecisions).length > 0) nextDecisions.sourceDecision = sourceDecisions;
+		else delete nextDecisions.sourceDecision;
+
+		// Recording the answer a reading already carries is not a judgement: writing it would add
+		// an undo step for nothing and leave an empty entry in the orphaned-decision worklist.
+		const currentArcs = readingArcs.get(key) ?? [];
+		const currentSourceDecisions = unitDecisions.get(key)?.sourceDecision ?? {};
+		const arcsUnchanged =
+			nextArcs.length === currentArcs.length &&
+			nextArcs.every(next =>
+				currentArcs.some(
+					current =>
+						current.priorReadingId === next.priorReadingId &&
+						current.posteriorReadingId === next.posteriorReadingId
+				)
+			);
+		const overlayUnchanged =
+			Object.keys(currentSourceDecisions).length === Object.keys(sourceDecisions).length &&
+			Object.keys(sourceDecisions).every(
+				id => currentSourceDecisions[id]?.kind === sourceDecisions[id].kind
+			);
+		if (arcsUnchanged && overlayUnchanged) return { ok: true };
+
+		const updatedArcs = new Map(previousArcs).set(key, nextArcs);
+		const updatedDecisions = new Map(previousDecisions).set(key, nextDecisions);
+		readingArcs = updatedArcs;
+		unitDecisions = updatedDecisions;
+		pushCommand({
+			type: 'set-reading-source',
+			description:
+				decision.kind === 'derived'
+					? 'Set reading source'
+					: decision.kind === 'unclear'
+						? 'Record unclear source'
+						: 'Clear source decision',
+			undo: () => {
+				readingArcs = new Map(previousArcs);
+				unitDecisions = new Map(previousDecisions);
+			},
+			redo: () => {
+				readingArcs = new Map(updatedArcs);
+				unitDecisions = new Map(updatedDecisions);
+			},
+		});
+		return { ok: true };
 	}
 
 	// Keyboard navigation
@@ -2930,8 +3013,7 @@ function createCollationState() {
 		selectedUnitIndex = 0;
 		classifiedReadings = new Map();
 		unitDecisions = new Map();
-		stemmaEdges = new Map();
-		stemmaNodes = new Map();
+		readingArcs = new Map();
 		orphanedMembers = [];
 		commandHistory = [];
 		commandIndex = -1;
@@ -3250,11 +3332,8 @@ function createCollationState() {
 		get unitDecisions() {
 			return unitDecisions;
 		},
-		get stemmaEdges() {
-			return stemmaEdges;
-		},
-		get stemmaNodes() {
-			return stemmaNodes;
+		get readingArcs() {
+			return readingArcs;
 		},
 		canAdvance,
 		canNavigateTo,
@@ -3348,9 +3427,8 @@ function createCollationState() {
 		moveWitnessToReading,
 		moveReadingByOffset,
 		moveReadingBefore,
-		addStemmaEdge,
-		removeStemmaEdge,
-		suggestStemma,
+		getLocalStemma,
+		setReadingSource,
 		moveFocus,
 		undo,
 		redo,

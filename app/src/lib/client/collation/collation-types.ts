@@ -55,11 +55,14 @@ export interface WitnessConfig {
 	overridesDefault: boolean;
 }
 
-export interface StemmaEdge {
+/**
+ * One hypothesis that a prior reading gave rise to a posterior reading. Direction is a property
+ * of the graph in the target format, so no arc carries a directedness flag of its own.
+ */
+export interface ReadingArc {
 	id: string;
-	sourceReadingId: string;
-	targetReadingId: string;
-	directed: boolean;
+	priorReadingId: string;
+	posteriorReadingId: string;
 }
 
 export interface RegularizationRule {

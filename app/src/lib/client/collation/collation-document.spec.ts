@@ -173,16 +173,23 @@ describe('collation document', () => {
 					],
 				],
 			]),
-			unitDecisions: new Map([['unit:col-1', { subreadingOf: { 'r-b': 'r-a' } }]]),
-			stemmaEdges: new Map([
+			unitDecisions: new Map([
+				[
+					'unit:col-1',
+					{
+						subreadingOf: { 'r-b': 'r-a' },
+						sourceDecision: { 'r-c': { kind: 'unclear' as const } },
+					},
+				],
+			]),
+			readingArcs: new Map([
 				[
 					'unit:col-1',
 					[
 						{
-							id: 'edge-1',
-							sourceReadingId: 'r-a',
-							targetReadingId: 'r-b',
-							directed: true,
+							id: 'arc-1',
+							priorReadingId: 'r-a',
+							posteriorReadingId: 'r-b',
 						},
 					],
 				],
@@ -196,7 +203,10 @@ describe('collation document', () => {
 		expect(document.apparatus?.units[0]).toMatchObject({
 			unitId: 'unit:col-1',
 			columnId: 'col-1',
-			decisions: { subreadingOf: { 'r-b': 'r-a' } },
+			decisions: {
+				subreadingOf: { 'r-b': 'r-a' },
+				sourceDecision: { 'r-c': { kind: 'unclear' } },
+			},
 		});
 		expect(document.apparatus?.units[0]).not.toHaveProperty('unitIndex');
 		expect(document.stemma?.units[0]).toMatchObject({
@@ -229,9 +239,15 @@ describe('collation document', () => {
 		]);
 		expect(hydrated.classifiedReadings).toEqual([]);
 		expect(hydrated.unitDecisions).toEqual([
-			['unit:col-1', { subreadingOf: { 'r-b': 'r-a' } }],
+			[
+				'unit:col-1',
+				{
+					subreadingOf: { 'r-b': 'r-a' },
+					sourceDecision: { 'r-c': { kind: 'unclear' } },
+				},
+			],
 		]);
-		expect(hydrated.stemmaEdges[0]?.[1][0]?.targetReadingId).toBe('r-b');
+		expect(hydrated.readingArcs[0]?.[1][0]?.posteriorReadingId).toBe('r-b');
 	});
 
 	it('persists orphaned unit decisions without inventing a positional column id', () => {
@@ -254,7 +270,7 @@ describe('collation document', () => {
 			witnessOrder: [],
 			classifiedReadings: new Map(),
 			unitDecisions: new Map([['unit:gone-column', { subreadingOf: { 'r-b': 'r-a' } }]]),
-			stemmaEdges: new Map(),
+			readingArcs: new Map(),
 			alignmentDisplayMode: 'regularized',
 			alignmentLayout: 'grid',
 		});
@@ -305,7 +321,7 @@ describe('collation document', () => {
 				witnessOrder: [],
 				classifiedReadings: new Map(),
 				unitDecisions: new Map(),
-				stemmaEdges: new Map(),
+				readingArcs: new Map(),
 				alignmentDisplayMode: 'regularized',
 				alignmentLayout: 'grid',
 			})
@@ -344,7 +360,7 @@ describe('collation document', () => {
 				witnessOrder: [],
 				classifiedReadings: new Map(),
 				unitDecisions: new Map(),
-				stemmaEdges: new Map(),
+				readingArcs: new Map(),
 				alignmentDisplayMode: 'regularized',
 				alignmentLayout: 'grid',
 			})
@@ -379,7 +395,7 @@ describe('collation document', () => {
 				],
 			]),
 			unitDecisions: new Map(),
-			stemmaEdges: new Map(),
+			readingArcs: new Map(),
 			alignmentDisplayMode: 'regularized',
 			alignmentLayout: 'grid',
 		});
@@ -420,7 +436,7 @@ describe('collation document', () => {
 			witnessOrder: [],
 			classifiedReadings: new Map(),
 			unitDecisions: new Map(),
-			stemmaEdges: new Map(),
+			readingArcs: new Map(),
 			alignmentDisplayMode: 'regularized',
 			alignmentLayout: 'grid',
 		});

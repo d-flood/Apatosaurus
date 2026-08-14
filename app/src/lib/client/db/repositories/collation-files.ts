@@ -211,7 +211,7 @@ export async function createCollationWithFilesResult(
 		witnessOrder: [],
 		classifiedReadings: new Map(),
 		unitDecisions: new Map(),
-		stemmaEdges: new Map(),
+		readingArcs: new Map(),
 		alignmentDisplayMode: 'regularized',
 		alignmentLayout: 'grid',
 		});
