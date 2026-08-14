@@ -198,12 +198,28 @@ export function relabelReadings(
 		primaryRankById.set(reading.id, index);
 	}
 
+	const readingById = new Map(normalized.map(reading => [reading.id, reading] as const));
+	// Subreadings are labelled flat from their main reading, so a subreading attached to another
+	// subreading belongs to the main at the head of that chain rather than going unlabelled.
+	const mainReadingIdOf = (reading: ClassifiedReading): string | null => {
+		const seen = new Set<string>();
+		let current: ClassifiedReading | undefined = reading;
+		while (current && current.parentReadingId !== null) {
+			if (seen.has(current.id)) return null;
+			seen.add(current.id);
+			current = readingById.get(current.parentReadingId);
+		}
+		return current ? current.id : null;
+	};
+
 	const subreadingsByParent = new Map<string, ClassifiedReading[]>();
 	for (const reading of normalized) {
 		if (!reading.parentReadingId) continue;
-		const existing = subreadingsByParent.get(reading.parentReadingId) ?? [];
+		const mainReadingId = mainReadingIdOf(reading);
+		if (!mainReadingId) continue;
+		const existing = subreadingsByParent.get(mainReadingId) ?? [];
 		existing.push(reading);
-		subreadingsByParent.set(reading.parentReadingId, existing);
+		subreadingsByParent.set(mainReadingId, existing);
 	}
 
 	const subLabelById = new Map<string, string>();

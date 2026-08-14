@@ -3,13 +3,14 @@
 	import { resolve } from '$app/paths';
 	import {
 		collationState,
-		type DisplayedColumnSlot,
 		type ReadingFamilyView,
 		type ReorderResult,
 	} from '$lib/client/collation/collation-state.svelte';
+	import { renderApparatusUnit } from '$lib/client/collation/collation-apparatus';
 	import type { ClassifiedReading } from '$lib/client/collation/collation-types';
 	import {
 		CERTAINTY_LEVELS,
+		findReadingTypeDefinition,
 		type Certainty,
 		type ReadingTypeDefinition,
 	} from '$lib/client/collation/reading-types';
@@ -21,22 +22,6 @@
 	import Plus from 'phosphor-svelte/lib/Plus';
 	import Trash from 'phosphor-svelte/lib/Trash';
 	import { SvelteSet } from 'svelte/reactivity';
-
-	type BasetextSegment =
-		| {
-				kind: 'plain';
-				id: string;
-				text: string;
-				label: string;
-		  }
-		| {
-				kind: 'unit';
-				id: string;
-				text: string;
-				label: string;
-				span: VariationUnitSpan;
-				ordinal: number;
-		  };
 
 	type ReorderRefusal = Extract<ReorderResult, { ok: false }>['error'];
 
@@ -56,7 +41,9 @@
 
 	const WITNESS_DISPLAY_LIMIT = 12;
 
-	let spans = $derived(collationState.getVariationUnitSpans());
+	let segments = $derived(collationState.getSegmentSequence());
+	let unitSegments = $derived(segments.filter(segment => segment.kind === 'unit'));
+	let spans = $derived(unitSegments.map(segment => segment.span));
 	let selectedSpan = $derived(
 		spans.find(span => span.startIndex === collationState.selectedUnitIndex) ?? spans[0] ?? null
 	);
@@ -99,8 +86,6 @@
 	let hasNonAttestation = $derived(
 		nonAttestation.witnessIds.length > 0 || nonAttestation.untranscribedWitnessIds.length > 0
 	);
-
-	let baseWitnessId = $derived(collationState.getBaseWitnessId());
 
 	let baseTextWitnessId = $derived(collationState.getBaseTextWitnessId());
 
@@ -155,7 +140,9 @@
 	}
 
 	function getUnitOrdinal(startIndex: number): number {
-		return spans.findIndex(span => span.startIndex === startIndex) + 1;
+		return (
+			unitSegments.find(segment => segment.span.startIndex === startIndex)?.ordinal ?? 0
+		);
 	}
 
 	function getBaseTextForSpan(span: VariationUnitSpan): string {
@@ -193,60 +180,20 @@
 		return Number.isFinite(numeric) ? numeric : null;
 	}
 
-	function formatSlotLabel(start: number, end: number): string {
-		return start === end ? String(start) : `${start}-${end}`;
-	}
+	let selectedUnitSegment = $derived(
+		unitSegments.find(segment => segment.span.startIndex === selectedSpan?.startIndex) ?? null
+	);
 
-	function getSpanLabel(span: VariationUnitSpan, slots: DisplayedColumnSlot[]): string {
-		const start = slots[span.startIndex];
-		const end = slots[span.endIndex];
-		if (!start || !end) return String(span.startIndex + 1);
-		return formatSlotLabel(start.start, end.end);
-	}
-
-	function buildBasetextSegments(): BasetextSegment[] {
-		const segments: BasetextSegment[] = [];
-		const spanByStart = new Map(
-			spans.map((span, index) => [span.startIndex, { span, ordinal: index + 1 }] as const)
-		);
-		const columns = collationState.alignmentColumns;
-		const slots = collationState.getDisplayedColumnSlots();
-		let columnIndex = 0;
-
-		while (columnIndex < columns.length) {
-			const variationEntry = spanByStart.get(columnIndex);
-			const slot = slots[columnIndex];
-			if (variationEntry) {
-				segments.push({
-					kind: 'unit',
-					id: `unit-${variationEntry.span.startIndex}`,
-					text: getBaseTextForSpan(variationEntry.span),
-					label: getSpanLabel(variationEntry.span, slots),
-					span: variationEntry.span,
-					ordinal: variationEntry.ordinal,
-				});
-				columnIndex = variationEntry.span.endIndex + 1;
-				continue;
-			}
-
-			const column = columns[columnIndex];
-			const cell = baseWitnessId ? column?.cells.get(baseWitnessId) : null;
-			const text = cell?.text?.trim() ?? '';
-			if (text.length > 0) {
-				segments.push({
-					kind: 'plain',
-					id: column?.id ?? `plain-${columnIndex}`,
-					text,
-					label: slot ? formatSlotLabel(slot.start, slot.end) : String(columnIndex + 1),
-				});
-			}
-			columnIndex += 1;
-		}
-
-		return segments;
-	}
-
-	let basetextSegments = $derived(buildBasetextSegments());
+	let apparatusNotation = $derived.by(() => {
+		if (!selectedSpan || !selectedUnitSegment) return '';
+		return renderApparatusUnit(collationState.peekUnitView(selectedSpan.startIndex), {
+			label: selectedUnitSegment.label,
+			siglumOf: getWitnessSiglum,
+			nonAttestation,
+			readingTypeLabelOf: readingType =>
+				findReadingTypeDefinition(readingTypeVocabulary, readingType)?.label ?? readingType,
+		});
+	});
 
 	function describeReading(reading: ClassifiedReading): string {
 		if (reading.isOmission) return 'om.';
@@ -351,8 +298,7 @@
 	}
 
 	function getSelectedUnitLabel(): string {
-		if (!selectedSpan) return '';
-		return getSpanLabel(selectedSpan, collationState.getDisplayedColumnSlots());
+		return selectedUnitSegment?.label ?? '';
 	}
 
 	async function goToStemma() {
@@ -389,14 +335,16 @@
 		</div>
 		<div class="pb-1">
 			<div class="flex flex-wrap items-baseline gap-1.5">
-				{#each basetextSegments as segment (segment.id)}
-					{#if segment.kind === 'plain'}
-						<span class="inline-flex items-baseline gap-1 text-base-content/30">
-							<span class="text-[0.65rem] font-medium text-base-content/20">
-								{segment.label}
+				{#each segments as segment (segment.kind === 'unit' ? `unit-${segment.span.startIndex}` : segment.columnIds.join('+'))}
+					{#if segment.kind === 'agreed'}
+						{#if segment.text.length > 0}
+							<span class="inline-flex items-baseline gap-1 text-base-content/30">
+								<span class="text-[0.65rem] font-medium text-base-content/20">
+									{segment.label}
+								</span>
+								<span class="font-greek text-base">{segment.text}</span>
 							</span>
-							<span class="font-greek text-base">{segment.text}</span>
-						</span>
+						{/if}
 					{:else}
 						{@const isSelected = selectedSpan?.startIndex === segment.span.startIndex}
 						<button
@@ -410,7 +358,9 @@
 							onclick={() =>
 								(collationState.selectedUnitIndex = segment.span.startIndex)}
 						>
-							<span class="font-greek text-base leading-tight">{segment.text}</span>
+							<span class="font-greek text-base leading-tight"
+								>{getBaseTextForSpan(segment.span)}</span
+							>
 							<span
 								class={[
 									'font-sans text-[0.65rem] font-medium',
@@ -425,6 +375,19 @@
 			</div>
 		</div>
 	</div>
+
+	<!-- Live apparatus notation for the selected unit: real text, so it can be read out,
+	     selected, and copied. -->
+	{#if apparatusNotation}
+		<section
+			class="rounded-xl border border-base-300/50 bg-base-100 px-4 py-2"
+			aria-label="Apparatus notation for the selected variation unit"
+		>
+			<p class="select-text font-greek text-sm leading-relaxed text-base-content/80">
+				{apparatusNotation}
+			</p>
+		</section>
+	{/if}
 
 	<!-- Toolbar -->
 	<div class="flex items-center justify-between gap-2">

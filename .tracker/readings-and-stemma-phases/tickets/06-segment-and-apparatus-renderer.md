@@ -64,15 +64,15 @@ Rules:
 
 ## Acceptance criteria
 
-- [ ] A pure module exports `buildSegmentSequence` and `renderApparatusUnit`, importing no store, no runes, and no DOM.
-- [ ] `ReadingsPhase` no longer contains its own `buildBasetextSegments`; the basetext strip renders from the shared module.
-- [ ] A spec asserts the segment sequence alternates agreed and unit segments and covers every column exactly once — exhaustive and non-overlapping.
-- [ ] A spec asserts an agreed stretch does **not** fragment when a witness is non-attesting across it.
-- [ ] A spec asserts rendered notation includes the unit range, the lemma text, and every reading label with its attesting sigla, with non-attestation last.
-- [ ] The readings pane shows live apparatus notation for the selected unit, updating when a decision changes.
-- [ ] The preview is selectable text reachable by a screen reader.
-- [ ] The basetext strip renders identically to before this ticket for a collation with no non-attestation — a visual regression check by eye is acceptable, stated in the PR.
-- [ ] `pnpm lint` and `pnpm check` pass.
+- [x] A pure module exports `buildSegmentSequence` and `renderApparatusUnit`, importing no store, no runes, and no DOM.
+- [x] `ReadingsPhase` no longer contains its own `buildBasetextSegments`; the basetext strip renders from the shared module.
+- [x] A spec asserts the segment sequence alternates agreed and unit segments and covers every column exactly once — exhaustive and non-overlapping.
+- [x] A spec asserts an agreed stretch does **not** fragment when a witness is non-attesting across it.
+- [x] A spec asserts rendered notation includes the unit range, the lemma text, and every reading label with its attesting sigla, with non-attestation last.
+- [x] The readings pane shows live apparatus notation for the selected unit, updating when a decision changes.
+- [x] The preview is selectable text reachable by a screen reader.
+- [ ] The basetext strip renders identically to before this ticket for a collation with no non-attestation — a visual regression check by eye is acceptable, stated in the PR. **Not met, deliberate and approved:** an agreed run renders as one segment with one word-index range label (`2-8 εν χριστω ιησου τω`) rather than one label per word, which is what makes the sequence alternate and what ticket 11 needs to emit contiguous agreed text. Unit chips are unchanged.
+- [x] `pnpm lint` and `pnpm check` pass.
 
 Commands, runnable as written from `app/`:
 

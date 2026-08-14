@@ -75,6 +75,12 @@ import {
 	type ReadingTypeDefinition,
 	type ReadingTypeId,
 } from './reading-types';
+import {
+	buildDisplayedColumnSlots,
+	buildSegmentSequence,
+	type DisplayedColumnSlot,
+	type Segment,
+} from './collation-apparatus';
 import { variationUnitId } from './collation-unit-id';
 import {
 	buildReadingFamilyGroups,
@@ -114,12 +120,7 @@ export interface StemmaNode {
 	y: number;
 }
 
-export interface DisplayedColumnSlot {
-	columnId: string;
-	columnIndex: number;
-	start: number;
-	end: number;
-}
+export type { DisplayedColumnSlot };
 
 export interface ReadingFamilyView {
 	id: string;
@@ -1783,37 +1784,10 @@ function createCollationState() {
 		);
 	}
 
-	function countWords(text: string): number {
-		return tokenizeDisplayText(text).length;
-	}
-
 	function getDisplayedColumnSlots(
 		columns: AlignmentColumn[] = alignmentColumns
 	): DisplayedColumnSlot[] {
-		const baseId = getBaseWitnessId();
-		if (!baseId) {
-			return columns.map((column, index) => ({
-				columnId: column.id,
-				columnIndex: index,
-				start: index + 1,
-				end: index + 1,
-			}));
-		}
-
-		let lastEvenIndex = 0;
-		return columns.map((column, index) => {
-			const cell = column.cells.get(baseId);
-			if (cell && !cell.isOmission && cell.text && cell.text.trim().length > 0) {
-				const words = Math.max(1, countWords(cell.text));
-				const start = lastEvenIndex + 2;
-				const end = start + (words - 1) * 2;
-				lastEvenIndex = end;
-				return { columnId: column.id, columnIndex: index, start, end };
-			}
-
-			const position = lastEvenIndex + 1;
-			return { columnId: column.id, columnIndex: index, start: position, end: position };
-		});
+		return buildDisplayedColumnSlots(columns, getBaseWitnessId());
 	}
 
 	function findDisplayedColumnSlotById(
@@ -2057,6 +2031,18 @@ function createCollationState() {
 	// Phase 4: Stemma
 	function getVariationUnitSpans() {
 		return buildVariationUnitSpans(alignmentColumns);
+	}
+
+	/**
+	 * The verse as agreed stretches and variation units. Every surface that shows the verse's
+	 * shape reads it from here, so none of them can drift from the others.
+	 */
+	function getSegmentSequence(): Segment[] {
+		return buildSegmentSequence({
+			columns: alignmentColumns,
+			spans: getVariationUnitSpans(),
+			baseWitnessId: getBaseWitnessId(),
+		});
 	}
 
 	function getVariationUnitSpan(unitIndex: number): VariationUnitSpan | null {
@@ -3329,6 +3315,8 @@ function createCollationState() {
 		getOrderedActiveWitnessIds,
 		getWitnessTokensFromAlignment,
 		getDisplayedColumnSlots,
+		getSegmentSequence,
+		peekUnitView,
 		peekReadingsForUnit,
 		getReadingFamiliesForUnit,
 		getDisplayedWitnessIdsForReading,

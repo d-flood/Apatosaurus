@@ -620,11 +620,17 @@ export function buildCollapsedReadingGroups({
 	});
 }
 
+/**
+ * Whether the witnesses that testify at a column actually differ. A witness that does not testify
+ * is not evidence: on its own it can never open a variation unit, or every column a damaged or
+ * untranscribed witness covers would become one and agreed stretches would fragment around it.
+ */
 export function isVariationColumn(column: AlignmentColumn): boolean {
 	const normalizedBucket = new Set<string>();
 	const originalBucket = new Set<string>();
 	let hasOmission = false;
 	for (const [, cell] of column.cells) {
+		if (classifyWitnessAttestation([cell]) !== 'attesting') continue;
 		if (cell.isOmission || cell.text === null) {
 			hasOmission = true;
 			continue;
