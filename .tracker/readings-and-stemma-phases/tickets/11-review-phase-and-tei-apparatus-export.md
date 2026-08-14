@@ -45,6 +45,8 @@ Contracts settled during design — carry them exactly:
 - **`<lem>`** carries the witnesses that actually attest it. `basetext` appears in `@wit` only when the base text genuinely attests the lemma — never mechanically.
 - Reading type serialises as `@type`; certainty as `@cert`.
 
+**Carried over from ticket 04.** The legacy exporter (`app/src/lib/client/store/formats/tei.ts`, ~122, ~132–137) already writes `readingType` out as `@type`, and it does so from the decision-applied view without distinguishing a scholar's recorded type from the *proposal* the evidence implies. The new exporter must decide explicitly whether an unconfirmed proposal may leave the app as an editorial claim — the honest default being that it may not, and that an undecided reading type is a gating condition alongside the others above. Whatever it decides, the legacy path must stop emitting proposed types once this ticket replaces it.
+
 ### Export gating
 
 Export **refuses** rather than guessing:

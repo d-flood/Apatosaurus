@@ -4,11 +4,15 @@
 	import {
 		collationState,
 		type DisplayedColumnSlot,
-		type ReadingEditorType,
 		type ReadingFamilyView,
 		type ReorderResult,
 	} from '$lib/client/collation/collation-state.svelte';
 	import type { ClassifiedReading } from '$lib/client/collation/collation-types';
+	import {
+		CERTAINTY_LEVELS,
+		type Certainty,
+		type ReadingTypeDefinition,
+	} from '$lib/client/collation/reading-types';
 	import type { VariationUnitSpan } from '$lib/client/collation/collation-variation-units';
 	import ArrowLeft from 'phosphor-svelte/lib/ArrowLeft';
 	import ArrowRight from 'phosphor-svelte/lib/ArrowRight';
@@ -133,6 +137,7 @@
 	});
 
 	let displayMode = $derived(collationState.alignmentDisplayMode);
+	let readingTypeVocabulary = $derived(collationState.getReadingTypeVocabulary());
 
 	let visibleDestinationReadings = $derived(
 		displayMode === 'regularized'
@@ -157,12 +162,35 @@
 		return collationState.getBaseTextForVariationUnit(span.startIndex) || 'om.';
 	}
 
-	function readingEditorType(reading: ClassifiedReading): ReadingEditorType {
-		if (reading.isOmission) return 'om';
-		if (reading.isLacuna) return 'lac';
-		if (reading.parentReadingId !== null) return 'ns';
-		if (reading.readingType === 'ns') return 'ns';
-		return 'none';
+	/**
+	 * The options the type control offers, plus whatever the reading already carries. A type the
+	 * aligner determined, or a project value dropped from the vocabulary, is reported but not
+	 * selectable, so the control never misstates what is recorded.
+	 */
+	function readingTypeOptions(reading: ClassifiedReading): ReadingTypeDefinition[] {
+		const options = readingTypeVocabulary.filter(type => type.selectable);
+		const current = reading.readingType;
+		if (current !== null && !options.some(type => type.id === current)) {
+			const known = readingTypeVocabulary.find(type => type.id === current);
+			options.unshift(
+				known ?? { id: current, label: current, description: '', selectable: false }
+			);
+		}
+		return options;
+	}
+
+	function certaintyOptions(reading: ClassifiedReading): string[] {
+		const levels: string[] = [...CERTAINTY_LEVELS];
+		return typeof reading.certainty === 'number'
+			? [...levels, String(reading.certainty)]
+			: levels;
+	}
+
+	function parseCertainty(value: string): Certainty | null {
+		if (value === '') return null;
+		if ((CERTAINTY_LEVELS as readonly string[]).includes(value)) return value as Certainty;
+		const numeric = Number(value);
+		return Number.isFinite(numeric) ? numeric : null;
 	}
 
 	function formatSlotLabel(start: number, end: number): string {
@@ -480,7 +508,7 @@
 						class="sticky top-0 z-10 border-b-2 border-primary bg-base-200 text-left text-sm font-semibold text-base-content"
 					>
 						<th class="w-12 px-4 py-3">ID</th>
-						<th class="w-16 px-3 py-3">Type</th>
+						<th class="w-40 px-3 py-3">Type</th>
 						<th class="w-72 px-3 py-3">Reading</th>
 						<th class="px-3 py-3">Witnesses</th>
 						<th class="w-20 px-3 py-3"></th>
@@ -576,22 +604,46 @@
 							</td>
 
 							<!-- Type -->
-							<td class="px-3 py-3">
+							<td class="space-y-1 px-3 py-3">
 								<select
 									class="select select-bordered select-sm w-full"
-									value={readingEditorType(row.reading)}
+									aria-label="Reading type"
+									value={row.reading.readingType ?? ''}
 									onchange={event =>
-										collationState.setReadingEditorType(
+										collationState.setReadingType(
 											selectedSpan.startIndex,
 											row.reading.id,
-											(event.currentTarget as HTMLSelectElement)
-												.value as ReadingEditorType
+											(event.currentTarget as HTMLSelectElement).value || null
 										)}
 								>
-									<option value="none">-</option>
-									<option value="om">om</option>
-									<option value="lac">lac</option>
-									<option value="ns">ns</option>
+									<option value="">-</option>
+									{#each readingTypeOptions(row.reading) as type (type.id)}
+										<option
+											value={type.id}
+											disabled={!type.selectable}
+											title={type.description}>{type.label}</option
+										>
+									{/each}
+								</select>
+								<select
+									class="select select-bordered select-xs w-full"
+									aria-label="Certainty"
+									value={row.reading.certainty === null
+										? ''
+										: String(row.reading.certainty)}
+									onchange={event =>
+										collationState.setReadingCertainty(
+											selectedSpan.startIndex,
+											row.reading.id,
+											parseCertainty(
+												(event.currentTarget as HTMLSelectElement).value
+											)
+										)}
+								>
+									<option value="">certainty -</option>
+									{#each certaintyOptions(row.reading) as level (level)}
+										<option value={level}>{level}</option>
+									{/each}
 								</select>
 							</td>
 

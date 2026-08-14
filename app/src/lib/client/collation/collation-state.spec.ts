@@ -569,7 +569,7 @@ describe('collationState stemma derivation', () => {
 		expect(collationState.witnesses.map(witness => witness.witnessId)).toEqual(['A']);
 	});
 
-	it('creates an ns subreading for a regularized match to the base reading', () => {
+	it('proposes a nonsense type for a subreading a ns-typed rule produced', () => {
 		collationState.setWitnesses([
 			makeWitness('A', 'θεος', { isBaseText: true }),
 			makeWitness('B', 'θς'),
@@ -592,7 +592,7 @@ describe('collationState stemma derivation', () => {
 
 		expect(base?.label).toBe('a');
 		expect(sub?.label).toBe('a1');
-		expect(sub?.readingType).toBe('ns');
+		expect(sub?.readingType).toBe('nonsense');
 		expect(sub?.parentReadingId).toBe(base?.id);
 		expect(sub?.isSubreading).toBe(true);
 	});
@@ -865,9 +865,9 @@ describe('collationState stemma derivation', () => {
 		expect(parent?.parentReadingId).toBeNull();
 		expect(parent?.isSubreading).toBe(false);
 		expect(alpha?.parentReadingId).toBe(parent?.id);
-		expect(alpha?.readingType).toBe('ns');
+		expect(alpha?.readingType).toBe('nonsense');
 		expect(gamma?.parentReadingId).toBe(parent?.id);
-		expect(gamma?.readingType).toBe('ns');
+		expect(gamma?.readingType).toBe('nonsense');
 	});
 
 	it('can promote a different member of a regularized family as the parent', () => {
@@ -946,11 +946,13 @@ describe('collationState stemma derivation', () => {
 
 		expect(nextParent?.parentReadingId).toBeNull();
 		expect(nextParent?.isSubreading).toBe(false);
-		expect(nextParent?.readingType).toBeNull();
+		// The type describes the reading's own evidence, so promotion does not move it around
+		// the family: only the witness whose ns rule fired keeps a nonsense type.
+		expect(nextParent?.readingType).toBe('nonsense');
 		expect(previousParent?.parentReadingId).toBe(nextParent?.id);
-		expect(previousParent?.readingType).toBe('ns');
+		expect(previousParent?.readingType).toBeNull();
 		expect(sibling?.parentReadingId).toBe(nextParent?.id);
-		expect(sibling?.readingType).toBe('ns');
+		expect(sibling?.readingType).toBeNull();
 	});
 
 	it('uses shared displayed column slots for base word and space ids', () => {
@@ -1737,5 +1739,236 @@ describe('collationState non-attestation', () => {
 		expect(
 			collationState.getReadingsForUnit(0).flatMap(reading => reading.witnessIds)
 		).not.toContain('C');
+	});
+});
+
+describe('collationState reading types and certainty', () => {
+	beforeEach(() => {
+		collationState.reset();
+	});
+
+	function setUpUnit(cells: Record<string, ReturnType<typeof makeTextCell>>) {
+		collationState.setWitnesses([
+			makeWitness('A', 'alpha', { isBaseText: true }),
+			...Object.keys(cells)
+				.filter(id => id !== 'A')
+				.map(id => makeWitness(id, 'other')),
+		]);
+		collationState.setAlignmentSnapshot({
+			witnessOrder: Object.keys(cells),
+			columns: [{ id: 'col-1', index: 0, merged: false, cells: Object.entries(cells) }],
+		});
+	}
+
+	function makeUnclearToken(text: string): WitnessSourceToken {
+		return {
+			kind: 'text',
+			original: text,
+			segments: [{ text, hasUnclear: true, isPunctuation: false, isSupplied: false }],
+			gap: null,
+		};
+	}
+
+	function makeSuppliedToken(text: string): WitnessSourceToken {
+		return {
+			kind: 'text',
+			original: text,
+			segments: [{ text, hasUnclear: false, isPunctuation: false, isSupplied: true }],
+			gap: null,
+		};
+	}
+
+	function collateWitnesses() {
+		collationState.refreshCollationInput();
+		const snapshot = collateToAlignmentSnapshot({
+			witnesses: collationState.buildCollationWitnessInputs(),
+			options: { segmentation: false },
+		});
+		collationState.setAlignmentSnapshot(snapshot.snapshot);
+	}
+
+	it('reports back exactly the type it was given, for every value in the vocabulary', () => {
+		setUpUnit({ A: makeTextCell('alpha'), B: makeTextCell('beta') });
+		const beta = collationState.getReadingsForUnit(0).find(reading => reading.text === 'beta')!;
+		const values = [
+			...collationState
+				.getReadingTypeVocabulary()
+				.filter(type => type.selectable)
+				.map(type => type.id),
+			'itacism',
+			null,
+		];
+
+		for (const value of values) {
+			expect(collationState.setReadingType(0, beta.id, value)).toEqual({ ok: true });
+			expect(
+				collationState.getReadingsForUnit(0).find(reading => reading.id === beta.id)
+					?.readingType
+			).toBe(value);
+		}
+	});
+
+	it('never touches reading text when the type changes', () => {
+		setUpUnit({ A: makeTextCell('alpha'), B: makeTextCell('beta') });
+		const beta = collationState.getReadingsForUnit(0).find(reading => reading.text === 'beta')!;
+
+		for (const type of collationState.getReadingTypeVocabulary()) {
+			collationState.setReadingType(0, beta.id, type.id);
+			const after = collationState
+				.getReadingsForUnit(0)
+				.find(reading => reading.id === beta.id);
+			expect(after?.text).toBe('beta');
+			expect(after?.normalizedText).toBe('beta');
+			expect(after?.isOmission).toBe(false);
+			expect(after?.isLacuna).toBe(false);
+		}
+	});
+
+	it('records certainty separately from the type and undoes each in one step', () => {
+		setUpUnit({ A: makeTextCell('alpha'), B: makeTextCell('beta') });
+		const beta = collationState.getReadingsForUnit(0).find(reading => reading.text === 'beta')!;
+
+		collationState.setReadingType(0, beta.id, 'apparent');
+		collationState.setReadingCertainty(0, beta.id, 'low');
+
+		const decided = collationState
+			.getReadingsForUnit(0)
+			.find(reading => reading.id === beta.id);
+		expect([decided?.readingType, decided?.certainty]).toEqual(['apparent', 'low']);
+
+		collationState.undo();
+
+		const afterUndo = collationState
+			.getReadingsForUnit(0)
+			.find(reading => reading.id === beta.id);
+		expect([afterUndo?.readingType, afterUndo?.certainty]).toEqual(['apparent', null]);
+	});
+
+	it('keeps a recorded type through an unrelated edit to the same unit', () => {
+		collationState.setWitnesses([
+			makeWitness('A', 'alpha', { isBaseText: true }),
+			makeWitness('B', 'beta'),
+			makeWitness('C', 'gamma'),
+		]);
+		collateWitnesses();
+		const initial = collationState.getReadingsForUnit(0);
+		const beta = initial.find(reading => reading.text === 'beta')!;
+		const gamma = initial.find(reading => reading.text === 'gamma')!;
+
+		collationState.setReadingType(0, beta.id, 'apparent');
+		collationState.setReadingCertainty(0, beta.id, 'low');
+		collationState.updateReadingText(0, gamma.id, 'delta');
+		collationState.setReadingParent(0, gamma.id, beta.id);
+
+		const decided = collationState
+			.getReadingsForUnit(0)
+			.find(reading => reading.id === beta.id);
+		expect([decided?.readingType, decided?.certainty]).toEqual(['apparent', 'low']);
+
+		// Type and certainty are decisions, never part of the proposal underneath them: undoing
+		// back past the attachment, the certainty, and the type must leave nothing behind.
+		collationState.undo();
+		collationState.undo();
+		collationState.undo();
+
+		const undone = collationState.getReadingsForUnit(0).find(reading => reading.id === beta.id);
+		expect([undone?.readingType, undone?.certainty]).toEqual([null, null]);
+	});
+
+	it('refuses a type for a reading the unit does not hold', () => {
+		setUpUnit({ A: makeTextCell('alpha'), B: makeTextCell('beta') });
+
+		expect(collationState.setReadingType(0, 'missing', 'apparent')).toEqual({
+			ok: false,
+			error: 'reading-not-found',
+		});
+	});
+
+	it('proposes a deficient type for a reading whose text is unclear', () => {
+		collationState.setWitnesses([
+			makeWitness('A', 'λογος', { isBaseText: true }),
+			{ ...makeWitness('B', 'λογος'), tokens: [makeUnclearToken('λογος')] },
+		]);
+		collateWitnesses();
+
+		const readings = collationState.getReadingsForUnit(0);
+		expect(readings.map(reading => [reading.witnessIds, reading.readingType])).toEqual([
+			[['A'], null],
+			[['B'], 'deficient'],
+		]);
+	});
+
+	it('proposes a deficient type for a reading restored from supplied text', () => {
+		collationState.setWitnesses([
+			makeWitness('A', 'λογος', { isBaseText: true }),
+			{ ...makeWitness('B', 'λογος'), tokens: [makeSuppliedToken('λογος')] },
+		]);
+		collateWitnesses();
+
+		const supplied = collationState
+			.getReadingsForUnit(0)
+			.find(reading => reading.witnessIds.includes('B'));
+		expect(supplied?.readingType).toBe('deficient');
+	});
+
+	it('never proposes a deficient type for witnesses that read the text intact', () => {
+		collationState.setWitnesses([
+			makeWitness('A', 'λογος', { isBaseText: true }),
+			makeWitness('B', 'λογος'),
+			{ ...makeWitness('C', 'λογος'), tokens: [makeSuppliedToken('λογος')] },
+		]);
+		collateWitnesses();
+
+		const readings = collationState.getReadingsForUnit(0);
+		const intact = readings.find(reading => reading.witnessIds.includes('A'));
+		expect(intact?.witnessIds).toEqual(['A', 'B']);
+		expect(intact?.readingType).toBe(null);
+		expect(readings.find(reading => reading.witnessIds.includes('C'))?.readingType).toBe(
+			'deficient'
+		);
+	});
+
+	it('lets a recorded type outrank the proposal without discarding the evidence', () => {
+		collationState.setWitnesses([
+			makeWitness('A', 'λογος', { isBaseText: true }),
+			{ ...makeWitness('B', 'λογος'), tokens: [makeUnclearToken('λογος')] },
+		]);
+		collateWitnesses();
+		const proposed = collationState
+			.getReadingsForUnit(0)
+			.find(reading => reading.witnessIds.includes('B'))!;
+		expect(proposed.readingType).toBe('deficient');
+
+		collationState.setReadingType(0, proposed.id, 'nonsense');
+		expect(
+			collationState.getReadingsForUnit(0).find(reading => reading.id === proposed.id)
+				?.readingType
+		).toBe('nonsense');
+
+		collationState.undo();
+		expect(
+			collationState.getReadingsForUnit(0).find(reading => reading.id === proposed.id)
+				?.readingType
+		).toBe('deficient');
+	});
+
+	it('records subreadings carrying no type as a review nudge rather than an error', () => {
+		setUpUnit({
+			A: makeTextCell('alpha'),
+			B: makeTextCell('beta'),
+			C: makeTextCell('gamma'),
+		});
+		const initial = collationState.getReadingsForUnit(0);
+		const beta = initial.find(reading => reading.text === 'beta')!;
+		const gamma = initial.find(reading => reading.text === 'gamma')!;
+
+		collationState.setReadingParent(0, gamma.id, beta.id);
+
+		expect(collationState.getSubreadingsMissingReadingType()).toEqual([
+			{ unitIndex: 0, unitId: 'unit:col-1', readingIds: [gamma.id] },
+		]);
+
+		collationState.setReadingType(0, gamma.id, 'orthographic');
+		expect(collationState.getSubreadingsMissingReadingType()).toEqual([]);
 	});
 });

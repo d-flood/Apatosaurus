@@ -5,6 +5,7 @@ import type {
 	SuppliedTextMode,
 	WitnessTreatment,
 } from './collation-types';
+import { coerceReadingTypeDefinitions, type ReadingTypeDefinition } from './reading-types';
 
 function coerceRegularizationType(value: unknown): RegularizationType {
 	return value === 'ns' ? 'ns' : 'none';
@@ -82,6 +83,7 @@ export function parseProjectCollationSettings(value: unknown): ProjectCollationS
 			: undefined;
 	return {
 		regularizationRules,
+		readingTypes: coerceReadingTypeDefinitions(settings.readingTypes),
 		ignoreWordBreaks: settings.ignoreWordBreaks === true,
 		lowercase: settings.lowercase === true,
 		ignoreTokenWhitespace: settings.ignoreTokenWhitespace !== false,
@@ -104,10 +106,12 @@ export function createProjectCollationSettings(
 		segmentation: boolean;
 		transcriptionWitnessTreatments: Map<string, WitnessTreatment>;
 		transcriptionWitnessExcludedHands: Map<string, string[]>;
+		readingTypes: ReadingTypeDefinition[];
 	}
 ): ProjectCollationSettings {
 	return {
 		regularizationRules: rules.filter(rule => rule.scope === 'project'),
+		readingTypes: options.readingTypes,
 		ignoreWordBreaks: options.ignoreWordBreaks,
 		lowercase: options.lowercase,
 		ignoreTokenWhitespace: options.ignoreTokenWhitespace,

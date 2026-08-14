@@ -59,17 +59,17 @@ Rules:
 
 ## Acceptance criteria
 
-- [ ] `readingType` accepts the full vocabulary rather than only `'ns'`, and `certainty` exists as a separate field.
-- [ ] `ReadingClassification`, its setter, and all node tinting derived from it are removed from the codebase.
-- [ ] The reading-type control reports exactly what it writes — a spec asserts read-back equals what was set, for every vocabulary value.
-- [ ] Setting a type never nulls `text` or `normalizedText`; a spec asserts text survives every type change.
-- [ ] Any action that would discard reading text requires confirmation and is undoable.
-- [ ] A reading whose segments carry unclear or supplied markers receives a proposed type without the scholar acting.
-- [ ] A reading a `ns`-typed regularization rule fired on receives a proposed nonsense type.
-- [ ] A recorded reading-type decision survives a subsequent unrelated edit to the same unit.
-- [ ] Neither omission nor lacuna appears as a selectable editorial type.
-- [ ] A project-supplied type value round-trips through the store and the persisted document.
-- [ ] `pnpm lint` and `pnpm check` pass.
+- [x] `readingType` accepts the full vocabulary rather than only `'ns'`, and `certainty` exists as a separate field.
+- [x] `ReadingClassification`, its setter, and all node tinting derived from it are removed from the codebase.
+- [x] The reading-type control reports exactly what it writes — a spec asserts read-back equals what was set, for every vocabulary value.
+- [x] Setting a type never nulls `text` or `normalizedText`; a spec asserts text survives every type change.
+- [x] Any action that would discard reading text requires confirmation and is undoable. *(Resolved by removal: no type action discards text any more. Clearing the reading-text input still empties it and is still outside the undo history — that control belongs to ticket 07.)*
+- [x] A reading whose segments carry unclear or supplied markers receives a proposed type without the scholar acting.
+- [x] A reading a `ns`-typed regularization rule fired on receives a proposed nonsense type.
+- [x] A recorded reading-type decision survives a subsequent unrelated edit to the same unit.
+- [x] Neither omission nor lacuna appears as a selectable editorial type.
+- [x] A project-supplied type value round-trips through the store and the persisted document.
+- [x] `pnpm lint` and `pnpm check` pass.
 
 Commands, runnable as written from `app/`:
 

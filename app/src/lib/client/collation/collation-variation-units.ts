@@ -13,6 +13,11 @@ export interface DisplaySegment {
 	hasUnclear: boolean;
 }
 
+/** A run of text in a reading key, kept apart by the damage markers over it. */
+interface KeySegment extends DisplaySegment {
+	isSupplied: boolean;
+}
+
 export interface CollapsedReadingDisplay {
 	id: string;
 	label: string;
@@ -45,6 +50,8 @@ interface ReadingBucket {
 	isBase: boolean;
 	isOmission: boolean;
 	isLacuna: boolean;
+	hasUnclear: boolean;
+	hasSupplied: boolean;
 	hasRegularization: boolean;
 	allCellsRegularized: boolean;
 	regularizationTypes: Set<string>;
@@ -62,6 +69,9 @@ export interface ReadingFamilyBucket {
 	isBase: boolean;
 	isOmission: boolean;
 	isLacuna: boolean;
+	/** Any segment the transcriber marked unclear, or restored as supplied text. */
+	hasUnclear: boolean;
+	hasSupplied: boolean;
 	hasRegularization: boolean;
 	allCellsRegularized: boolean;
 	regularizationTypes: string[];
@@ -108,20 +118,33 @@ export function getOriginalReadingKey(cell: AlignmentCell | undefined): string {
 	}
 
 	if (Array.isArray(cell.originalSegments) && cell.originalSegments.length > 0) {
-		const normalizedSegments = getCellSegments(cell, 'original').reduce<DisplaySegment[]>(
-			(acc, segment) => {
+		// Damage markers belong in the key, not only in the text: under `suppliedTextMode: 'clear'`
+		// a restored reading carries the same letters as one read intact, and bucketing the two
+		// together would report the intact witnesses as only partly identifiable.
+		const normalizedSegments = cell.originalSegments
+			.filter(segment => segment.text.length > 0)
+			.reduce<KeySegment[]>((acc, segment) => {
 				const previous = acc[acc.length - 1];
-				if (previous && previous.hasUnclear === segment.hasUnclear) {
+				if (
+					previous &&
+					previous.hasUnclear === segment.hasUnclear &&
+					previous.isSupplied === segment.isSupplied
+				) {
 					previous.text += segment.text;
 					return acc;
 				}
-				acc.push({ ...segment });
+				acc.push({
+					text: segment.text,
+					hasUnclear: segment.hasUnclear,
+					isSupplied: segment.isSupplied,
+				});
 				return acc;
-			},
-			[]
-		);
+			}, []);
 		return normalizedSegments
-			.map(segment => `${segment.text}::${segment.hasUnclear ? '1' : '0'}`)
+			.map(
+				segment =>
+					`${segment.text}::${segment.hasUnclear ? '1' : '0'}${segment.isSupplied ? '1' : '0'}`
+			)
 			.join('\u0001');
 	}
 
@@ -280,6 +303,14 @@ export function classifyWitnessAttestation(
 	return damaged ? 'non-attesting' : 'untranscribed';
 }
 
+function cellsHaveUnclear(cells: Array<AlignmentCell | undefined>): boolean {
+	return cells.some(cell => cell?.originalSegments?.some(segment => segment.hasUnclear) ?? false);
+}
+
+function cellsHaveSupplied(cells: Array<AlignmentCell | undefined>): boolean {
+	return cells.some(cell => cell?.originalSegments?.some(segment => segment.isSupplied) ?? false);
+}
+
 function buildReadingBucketId(columnId: string, originalKey: string): string {
 	return `${columnId}::${originalKey}`;
 }
@@ -316,6 +347,8 @@ function toFamilyBucket(reading: ReadingBucket): ReadingFamilyBucket {
 		isBase: reading.isBase,
 		isOmission: reading.isOmission,
 		isLacuna: reading.isLacuna,
+		hasUnclear: reading.hasUnclear,
+		hasSupplied: reading.hasSupplied,
 		hasRegularization: reading.hasRegularization,
 		allCellsRegularized: reading.allCellsRegularized,
 		regularizationTypes: [...reading.regularizationTypes],
@@ -340,6 +373,8 @@ function buildReadingBuckets(
 			existing.hasRegularization =
 				existing.hasRegularization ||
 				entry.cells.some(cell => Boolean(cell?.isRegularized));
+			existing.hasUnclear = existing.hasUnclear || cellsHaveUnclear(entry.cells);
+			existing.hasSupplied = existing.hasSupplied || cellsHaveSupplied(entry.cells);
 			existing.allCellsRegularized =
 				existing.allCellsRegularized &&
 				entry.cells.every(cell => !cell || Boolean(cell.isRegularized));
@@ -367,6 +402,8 @@ function buildReadingBuckets(
 			isBase: Boolean(baseWitnessId && entry.witnessId === baseWitnessId),
 			isOmission,
 			isLacuna,
+			hasUnclear: cellsHaveUnclear(entry.cells),
+			hasSupplied: cellsHaveSupplied(entry.cells),
 			hasRegularization: entry.cells.some(cell => Boolean(cell?.isRegularized)),
 			allCellsRegularized:
 				entry.cells.length > 0 &&
@@ -494,6 +531,8 @@ export function buildCollapsedReadingGroups({
 					isBase: group.parent.isBase,
 					isOmission: group.parent.isOmission,
 					isLacuna: group.parent.isLacuna,
+					hasUnclear: group.parent.hasUnclear,
+					hasSupplied: group.parent.hasSupplied,
 					hasRegularization: [group.parent, ...group.children].some(
 						reading => reading.hasRegularization
 					),
@@ -536,6 +575,8 @@ export function buildCollapsedReadingGroups({
 					isBase: group.parent.isBase,
 					isOmission: group.parent.isOmission,
 					isLacuna: group.parent.isLacuna,
+					hasUnclear: group.parent.hasUnclear,
+					hasSupplied: group.parent.hasSupplied,
 					hasRegularization: group.parent.hasRegularization,
 					allCellsRegularized: group.parent.allCellsRegularized,
 					regularizationTypes: new Set(group.parent.regularizationTypes),
@@ -565,6 +606,8 @@ export function buildCollapsedReadingGroups({
 						isBase: child.isBase,
 						isOmission: child.isOmission,
 						isLacuna: child.isLacuna,
+						hasUnclear: child.hasUnclear,
+						hasSupplied: child.hasSupplied,
 						hasRegularization: child.hasRegularization,
 						allCellsRegularized: child.allCellsRegularized,
 						regularizationTypes: new Set(child.regularizationTypes),

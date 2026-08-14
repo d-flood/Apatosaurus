@@ -26,6 +26,7 @@
 		SuppliedTextMode,
 		WitnessTreatment,
 	} from '$lib/client/collation/collation-types';
+	import type { ReadingTypeDefinition } from '$lib/client/collation/reading-types';
 	import { subscribeLocalDbInvalidations } from '$lib/client/db/client';
 	import AddProjectTranscriptionFromProjectDialog from '$lib/components/projects/AddProjectTranscriptionFromProjectDialog.svelte';
 	import ProjectCollationSettingsEditor from '$lib/components/projects/ProjectCollationSettingsEditor.svelte';
@@ -41,6 +42,8 @@
 	let nameDraft = $state('');
 	let descriptionDraft = $state('');
 	let projectRules = $state<RegularizationRule[]>([]);
+	// Carried through saves untouched: this epic ships no editor for project reading types.
+	let projectReadingTypes = $state<ReadingTypeDefinition[]>([]);
 	let lowercase = $state(false);
 	let ignoreWordBreaks = $state(false);
 	let ignorePunctuation = $state(false);
@@ -102,6 +105,7 @@
 	function applyProjectSettings(project: ProjectRecord) {
 		const settings = parseProjectCollationSettings(project.collationSettings);
 		projectRules = settings.regularizationRules ?? [];
+		projectReadingTypes = settings.readingTypes ?? [];
 		lowercase = settings.lowercase ?? false;
 		ignoreWordBreaks = settings.ignoreWordBreaks ?? false;
 		ignorePunctuation = settings.ignorePunctuation ?? false;
@@ -290,6 +294,7 @@
 				segmentation: nextSegmentation,
 				transcriptionWitnessTreatments: nextTreatments,
 				transcriptionWitnessExcludedHands: nextExcludedHands,
+				readingTypes: projectReadingTypes,
 			});
 			await updateProjectMetadata(openProject.id, {
 				collationSettings,

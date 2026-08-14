@@ -191,6 +191,7 @@ export async function createProjectRecord(input: {
 			segmentation: true,
 			transcriptionWitnessTreatments: new Map(),
 			transcriptionWitnessExcludedHands: new Map(),
+			readingTypes: [],
 		}),
 	});
 }

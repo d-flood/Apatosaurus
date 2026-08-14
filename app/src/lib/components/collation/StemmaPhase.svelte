@@ -1,9 +1,6 @@
 <script lang="ts">
 	import { collationState, type StemmaEdge } from '$lib/client/collation/collation-state.svelte';
-	import type {
-		ClassifiedReading,
-		ReadingClassification,
-	} from '$lib/client/collation/collation-types';
+	import type { ClassifiedReading } from '$lib/client/collation/collation-types';
 	import ArrowLeft from 'phosphor-svelte/lib/ArrowLeft';
 	import Lightning from 'phosphor-svelte/lib/Lightning';
 	import { onDestroy, onMount } from 'svelte';
@@ -31,32 +28,8 @@
 		collationState.stemmaEdges.get(String(collationState.selectedUnitIndex)) ?? []
 	);
 
-	const classifications: ReadingClassification[] = [
-		'unclassified',
-		'omit',
-		'add',
-		'substitute',
-		'transpose',
-		'orthographic',
-	];
-
-	const classColors: Record<ReadingClassification, string> = {
-		unclassified: 'badge-ghost',
-		omit: 'badge-error',
-		add: 'badge-success',
-		substitute: 'badge-warning',
-		transpose: 'badge-info',
-		orthographic: 'badge-neutral',
-	};
-
-	const classNodeColors: Record<ReadingClassification, string> = {
-		unclassified: '#9ca3af',
-		omit: '#ef4444',
-		add: '#22c55e',
-		substitute: '#f59e0b',
-		transpose: '#3b82f6',
-		orthographic: '#6b7280',
-	};
+	// One neutral node colour: node colour encodes source-decision state once that exists.
+	const NODE_COLOR = '#9ca3af';
 
 	// Simple deterministic layout (Dagre-like)
 	function layoutNodes(
@@ -190,7 +163,7 @@
 				Back
 			</a>
 			<h2 class="text-lg font-serif font-bold text-base-content/90 tracking-tight">
-				Reading Classification & Stemma
+				Readings & Local Stemma
 			</h2>
 		</div>
 
@@ -223,9 +196,7 @@
 		</div>
 	</div>
 
-	<!-- Bottom Half: Classification + Stemma -->
 	<div class="flex-1 flex gap-4 min-h-0">
-		<!-- Left: Reading Classification -->
 		<div class="w-80 shrink-0 overflow-y-auto">
 			<h3 class="text-sm font-bold uppercase tracking-wider text-base-content/50 mb-3">
 				Readings &mdash; Unit {selectedSpan ? getSpanLabel(selectedSpan.startIndex) : 0}
@@ -279,9 +250,6 @@
 										</div>
 									{/if}
 								</div>
-								<span class="badge badge-xs {classColors[reading.classification]}">
-									{reading.classification}
-								</span>
 							</div>
 							<div class="flex flex-wrap gap-1.5">
 								{#each reading.witnessGroups as group (group.id)}
@@ -313,21 +281,6 @@
 									</div>
 								{/each}
 							</div>
-							<select
-								class="select select-bordered select-xs w-full"
-								value={reading.classification}
-								onchange={e =>
-									collationState.classifyReading(
-										collationState.selectedUnitIndex,
-										reading.id,
-										(e.target as HTMLSelectElement)
-											.value as ReadingClassification
-									)}
-							>
-								{#each classifications as cls}
-									<option value={cls}>{cls}</option>
-								{/each}
-							</select>
 						</div>
 					{/each}
 				</div>
@@ -435,7 +388,7 @@
 
 						<!-- Nodes -->
 						{#each nodes as node (node.id)}
-							{@const color = classNodeColors[node.reading.classification]}
+							{@const color = NODE_COLOR}
 							{@const isConnecting = connectingFrom === node.id}
 							<!-- svelte-ignore a11y_click_events_have_key_events -->
 							<!-- svelte-ignore a11y_no_static_element_interactions -->

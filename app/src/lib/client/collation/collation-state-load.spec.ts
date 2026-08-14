@@ -214,6 +214,52 @@ function makeDecisionDocumentPayload(corruptPersistedReadings = false) {
 	return serializeCollationDocument(document);
 }
 
+function makeReadingTypeDocumentPayload() {
+	return serializeCollationDocument(
+		buildCollationDocument({
+			collationId: 'col-1',
+			projectId: 'proj-1',
+			projectName: 'Project 1',
+			phase: 'readings',
+			furthestPhase: 'readings',
+			segment: { id: 'segment-1', name: 'Romans 1:1', members: ['Romans 1:1'] },
+			witnesses: [makeWitness('A', 'alpha', true), makeWitness('B', 'beta')],
+			rules: [],
+			ignoreWordBreaks: false,
+			lowercase: false,
+			ignoreTokenWhitespace: true,
+			ignorePunctuation: false,
+			suppliedTextMode: 'clear',
+			segmentation: true,
+			alignmentColumns: deserializeAlignmentColumns([
+				{
+					id: 'col-1',
+					index: 0,
+					merged: false,
+					cells: [
+						['A', makeTextCell('alpha')],
+						['B', makeTextCell('beta')],
+					],
+				},
+			]),
+			witnessOrder: ['A', 'B'],
+			classifiedReadings: new Map(),
+			unitDecisions: new Map([
+				[
+					'unit:col-1',
+					{
+						readingType: { 'col-1::beta::original': 'itacism' },
+						certainty: { 'col-1::beta::original': 'low' as const },
+					},
+				],
+			]),
+			stemmaEdges: new Map(),
+			alignmentDisplayMode: 'regularized',
+			alignmentLayout: 'variation-units',
+		})
+	);
+}
+
 async function importState() {
 	const mod = await import('./collation-state.svelte');
 	return mod.collationState;
@@ -350,6 +396,60 @@ describe('collationState artifact-first persistence', () => {
 			{ text: 'alpha', parentReadingId: null },
 			{ text: 'beta', parentReadingId: 'col-1::alpha::original' },
 		]);
+	}, 30000);
+
+	it('round-trips a project-supplied reading type through the store and the document', async () => {
+		const loadedValue = await loadCollation();
+		loadCollation.mockResolvedValue({
+			...loadedValue,
+			artifact: { ...loadedValue.artifact, payload: makeReadingTypeDocumentPayload() },
+		});
+		const collationState = await importState();
+		collationState.reset();
+		expect(await collationState.loadCollationById('col-1')).toBe(true);
+
+		const beta = collationState.getReadingsForUnit(0).find(reading => reading.text === 'beta')!;
+		expect([beta.readingType, beta.certainty]).toEqual(['itacism', 'low']);
+
+		collationState.setReadingType(0, beta.id, 'scribal-leap');
+		expect(await collationState.flushPendingSave()).toBe(true);
+		expect(saveCollationArtifact).toHaveBeenCalledWith(
+			expect.objectContaining({ payload: expect.stringContaining('scribal-leap') })
+		);
+	}, 30000);
+
+	it('drops a project reading-type vocabulary on reset', async () => {
+		getProject.mockResolvedValue({
+			id: 'proj-1',
+			name: 'Project 1',
+			description: '',
+			charter: '',
+			collationSettings: {
+				regularizationRules: [],
+				ignoreWordBreaks: false,
+				lowercase: false,
+				ignoreTokenWhitespace: true,
+				ignorePunctuation: false,
+				suppliedTextMode: 'clear',
+				segmentation: true,
+				transcriptionWitnessTreatments: {},
+				readingTypes: [
+					{ id: 'itacism', label: 'Itacism', description: '', selectable: true },
+				],
+			},
+			createdAt: '2026-03-10T00:00:00.000Z',
+			updatedAt: '2026-03-10T00:00:00.000Z',
+		});
+		const collationState = await importState();
+		collationState.reset();
+		expect(await collationState.loadCollationById('col-1')).toBe(true);
+		expect(collationState.getReadingTypeVocabulary().map(type => type.id)).toContain('itacism');
+
+		// A vocabulary left behind by reset would be copied into the next project created.
+		collationState.reset();
+		expect(collationState.getReadingTypeVocabulary().map(type => type.id)).not.toContain(
+			'itacism'
+		);
 	}, 30000);
 
 	it('leaves the selected verse orphaned when its member is absent from the project index', async () => {
