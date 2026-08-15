@@ -1,4 +1,4 @@
-import { relabelReadings } from './collation-reading-proposal';
+import { makeMainReadingIdOf, relabelReadings } from './collation-reading-proposal';
 import type { SourceDecision } from './collation-stemma';
 import type { ClassifiedReading, ReadingArc } from './collation-types';
 import type { Certainty, ReadingTypeId } from './reading-types';
@@ -168,16 +168,7 @@ export function applyDecisions(
 		};
 	});
 
-	const byId = new Map(readings.map(reading => [reading.id, reading] as const));
-	const mainReadingIdOf = (readingId: string): string | null => {
-		let current = byId.get(readingId);
-		const seen = new Set<string>();
-		while (current && current.parentReadingId !== null && !seen.has(current.id)) {
-			seen.add(current.id);
-			current = byId.get(current.parentReadingId);
-		}
-		return current?.id ?? null;
-	};
+	const mainReadingIdOf = makeMainReadingIdOf(readings);
 
 	const baseTextReading = baseWitnessId
 		? readings.find(reading => reading.witnessIds.includes(baseWitnessId))

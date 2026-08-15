@@ -627,8 +627,19 @@ describe('collationState stemma derivation', () => {
 				?.parentReadingId
 		).toBe(alpha.id);
 
+		// The text edit is its own gesture, so the first undo reverts it and leaves the
+		// attachment standing; the attachment goes back on the undo that belongs to it.
 		collationState.undo();
 		expect(collationState.phase).toBe('readings');
+		expect(collationState.getReadingsForUnit(0).find(reading => reading.id === gamma.id)?.text).toBe(
+			'gamma'
+		);
+		expect(
+			collationState.getReadingsForUnit(0).find(reading => reading.id === beta.id)
+				?.parentReadingId
+		).toBe(alpha.id);
+
+		collationState.undo();
 		expect(
 			collationState.getReadingsForUnit(0).find(reading => reading.id === beta.id)
 				?.parentReadingId
@@ -1316,7 +1327,7 @@ describe('collationState stemma derivation', () => {
 		expect(initial).toHaveLength(1);
 		expect(initial[0]?.witnessIds).toEqual(['A', 'B', 'C']);
 
-		collationState.splitWitnessFromReading(0, initial[0]!.id, 'C');
+		collationState.splitWitnessesIntoNewReading(0, ['C']);
 
 		const updated = collationState.getReadingsForUnit(0);
 		expect(updated).toHaveLength(2);
@@ -1385,7 +1396,7 @@ describe('collationState lemma establishment', () => {
 		]);
 	});
 
-	it('keeps the lemma decision through an unrelated edit and undoes it in one step', () => {
+	it('keeps the lemma decision through an unrelated edit and undoes each gesture in one step', () => {
 		setUpUnit({ A: makeTextCell('alpha'), B: makeTextCell('beta'), C: makeTextCell('gamma') });
 		const initial = collationState.getReadingsForUnit(0);
 		const beta = initial.find(reading => reading.text === 'beta')!;
@@ -1395,13 +1406,24 @@ describe('collationState lemma establishment', () => {
 		collationState.updateReadingText(0, gamma.id, 'delta');
 		expect(collationState.getLemmaReadingId(0)).toBe(beta.id);
 
+		// Two gestures, two steps: the last one reverses first, and the lemma decision beneath it
+		// is untouched until its own undo.
 		collationState.undo();
+		const afterTextUndo = collationState.getReadingsForUnit(0);
+		expect(afterTextUndo.find(reading => reading.id === gamma.id)?.text).toBe('gamma');
+		expect(collationState.getLemmaReadingId(0)).toBe(beta.id);
 
-		const afterUndo = collationState.getReadingsForUnit(0);
+		collationState.undo();
 		expect(collationState.getLemmaReadingId(0)).toBe(
-			afterUndo.find(reading => reading.text === 'alpha')!.id
+			collationState.getReadingsForUnit(0).find(reading => reading.text === 'alpha')!.id
 		);
-		expect(afterUndo.find(reading => reading.id === gamma.id)?.text).toBe('delta');
+
+		collationState.redo();
+		collationState.redo();
+		expect(collationState.getReadingsForUnit(0).find(reading => reading.id === gamma.id)?.text).toBe(
+			'delta'
+		);
+		expect(collationState.getLemmaReadingId(0)).toBe(beta.id);
 	});
 
 	it('needs a lemma decision where the base text does not attest, and clears it once designated', () => {
@@ -1862,7 +1884,9 @@ describe('collationState reading types and certainty', () => {
 		expect([decided?.readingType, decided?.certainty]).toEqual(['apparent', 'low']);
 
 		// Type and certainty are decisions, never part of the proposal underneath them: undoing
-		// back past the attachment, the certainty, and the type must leave nothing behind.
+		// back past the attachment, the text edit, the certainty, and the type — one step each —
+		// must leave nothing behind.
+		collationState.undo();
 		collationState.undo();
 		collationState.undo();
 		collationState.undo();
@@ -2107,7 +2131,7 @@ describe('collationState local stemma source decisions', () => {
 
 		collationState.setReadingType(0, c.id, 'nonsense');
 		collationState.setLemmaReading(0, b.id);
-		collationState.splitWitnessFromReading(0, b.id, 'C');
+		collationState.splitWitnessesIntoNewReading(0, ['C']);
 
 		expect(sourceOf(b.id)).toEqual({ kind: 'derived', from: a.id });
 		expect(sourceOf(c.id)).toEqual({ kind: 'unclear' });
@@ -2120,7 +2144,7 @@ describe('collationState local stemma source decisions', () => {
 		collationState.setReadingSource(0, b.id, { kind: 'derived', from: c.id });
 
 		// The reading `b` derives from is emptied and removed, the way a merge would remove it.
-		collationState.moveWitnessToReading(0, 'C', b.id);
+		collationState.moveWitnessesToReading(0, ['C'], b.id);
 		collationState.deleteReading(0, c.id);
 
 		expect(collationState.getOrphanedDecisionsForUnit(0)).toEqual([
@@ -2200,5 +2224,358 @@ describe('collationState local stemma source decisions', () => {
 			{ kind: 'undecided' },
 		]);
 		expect(arcsForUnit()).toEqual([]);
+	});
+});
+
+describe('collationState bulk witness partitioning', () => {
+	beforeEach(() => {
+		collationState.reset();
+	});
+
+	/** The alignment the real collation pipeline produces, never a hand-built one. */
+	function collateUnit(witnesses: WitnessConfig[]) {
+		collationState.setWitnesses(witnesses);
+		collationState.refreshCollationInput();
+		const snapshot = collateToAlignmentSnapshot({
+			witnesses: collationState.buildCollationWitnessInputs(),
+			options: { segmentation: false },
+		});
+		collationState.setAlignmentSnapshot(snapshot.snapshot);
+		return collationState.getReadingsForUnit(0);
+	}
+
+	function collateTexts(texts: Record<string, string>) {
+		return collateUnit(
+			Object.entries(texts).map(([witnessId, text], index) =>
+				makeWitness(witnessId, text, { isBaseText: index === 0 })
+			)
+		);
+	}
+
+	function witnessesByLabel() {
+		return Object.fromEntries(
+			collationState
+				.getReadingsForUnit(0)
+				.map(reading => [reading.label, reading.witnessIds] as const)
+		);
+	}
+
+	function labelled(label: string) {
+		const reading = collationState.getReadingsForUnit(0).find(entry => entry.label === label);
+		if (!reading) throw new Error(`no reading labelled ${label}`);
+		return reading;
+	}
+
+	it('moves a selection spanning two readings to a third in one action and one undo step', () => {
+		collateTexts({
+			A: 'λογος',
+			B: 'θεος',
+			C: 'θεος',
+			D: 'πνευμα',
+			E: 'πνευμα',
+			F: 'πνευμα',
+		});
+		const before = witnessesByLabel();
+		const target = labelled('a');
+
+		expect(collationState.moveWitnessesToReading(0, ['B', 'D', 'E'], target.id)).toEqual({
+			ok: true,
+			moved: 3,
+			movedWitnessIds: ['B', 'D', 'E'],
+		});
+
+		expect(witnessesByLabel()).toMatchObject({ a: ['A', 'B', 'D', 'E'] });
+		expect(
+			collationState
+				.getReadingsForUnit(0)
+				.flatMap(reading => reading.witnessIds)
+				.filter(witnessId => ['B', 'D', 'E'].includes(witnessId))
+		).toEqual(['B', 'D', 'E']);
+
+		collationState.undo();
+		expect(witnessesByLabel()).toEqual(before);
+	});
+
+	it('refuses to move a witness that does not testify at the unit', () => {
+		collateUnit([
+			makeWitness('A', 'λογος', { isBaseText: true }),
+			makeWitness('B', 'θεος'),
+			{
+				...makeWitness('C', 'λογος'),
+				tokens: [{ kind: 'gap', original: '⊘', segments: [], gap: { source: 'gap', reason: '', unit: '', extent: '' } }],
+			},
+		]);
+		expect(collationState.getNonAttestationForUnit(0).witnessIds).toEqual(['C']);
+		const before = witnessesByLabel();
+
+		expect(collationState.moveWitnessesToReading(0, ['C'], labelled('a').id)).toEqual({
+			ok: false,
+			error: 'no-attesting-witnesses',
+		});
+		expect(witnessesByLabel()).toEqual(before);
+	});
+
+	it('splits a selection spanning two readings into one new reading', () => {
+		collateTexts({ A: 'λογος', B: 'λογος', C: 'θεος', D: 'θεος' });
+		const before = witnessesByLabel();
+
+		const result = collationState.splitWitnessesIntoNewReading(0, ['B', 'C']);
+		expect(result).toEqual({ ok: true, readingId: expect.any(String) });
+
+		const split = collationState
+			.getReadingsForUnit(0)
+			.find(reading => result.ok && reading.id === result.readingId);
+		expect(split?.witnessIds).toEqual(['B', 'C']);
+		expect(witnessesByLabel()).toMatchObject({ a: ['A'] });
+
+		collationState.undo();
+		expect(witnessesByLabel()).toEqual(before);
+	});
+
+	it('refuses a split that takes every witness of the only reading involved', () => {
+		collateTexts({ A: 'λογος', B: 'λογος', C: 'θεος' });
+		const before = witnessesByLabel();
+
+		expect(collationState.splitWitnessesIntoNewReading(0, ['A', 'B'])).toEqual({
+			ok: false,
+			error: 'whole-reading',
+		});
+		expect(witnessesByLabel()).toEqual(before);
+	});
+
+	it('splits a selection into a subreading of a named main reading', () => {
+		collateTexts({ A: 'λογος', B: 'λογος', C: 'θεος' });
+		const main = labelled('b');
+
+		const result = collationState.splitWitnessesIntoNewReading(0, ['B'], {
+			subreadingOf: main.id,
+		});
+		expect(result).toEqual({ ok: true, readingId: expect.any(String) });
+
+		const split = collationState
+			.getReadingsForUnit(0)
+			.find(reading => result.ok && reading.id === result.readingId);
+		expect(split?.parentReadingId).toBe(main.id);
+		expect(split?.label).toBe('b1');
+		expect(split?.witnessIds).toEqual(['B']);
+	});
+
+	it('merges readings so the survivor holds the union of their witnesses, in one undo step', () => {
+		collateTexts({ A: 'λογος', B: 'θεος', C: 'θεος', D: 'πνευμα' });
+		const before = witnessesByLabel();
+		const target = labelled('b');
+		const other = labelled('c');
+
+		expect(collationState.mergeReadings(0, [other.id], target.id)).toEqual({ ok: true });
+
+		expect(collationState.getReadingsForUnit(0).map(reading => reading.witnessIds)).toEqual([
+			['A'],
+			['B', 'C', 'D'],
+		]);
+
+		collationState.undo();
+		expect(witnessesByLabel()).toEqual(before);
+	});
+
+	it('takes a hand-attached subreading of a merged-away reading into the survivor', () => {
+		collateTexts({ A: 'λογος', B: 'θεος', C: 'κυριος', D: 'πνευμα' });
+		const target = labelled('b');
+		const merged = labelled('c');
+		const subreading = labelled('d');
+		// The attachment is made the way a scholar makes one: a decision, across differing text.
+		expect(collationState.setReadingParent(0, subreading.id, merged.id)).toEqual({ ok: true });
+
+		expect(collationState.mergeReadings(0, [merged.id], target.id)).toEqual({ ok: true });
+
+		expect(
+			collationState.getReadingsForUnit(0).find(reading => reading.id === subreading.id)
+				?.parentReadingId
+		).toBe(target.id);
+		expect(
+			collationState.getReadingFamiliesForUnit(0).find(family => family.id === target.id)
+				?.children.length
+		).toBe(1);
+		// The attachment moved rather than being left naming a reading the merge removed.
+		expect(collationState.getOrphanedDecisionsForUnit(0)).toEqual([]);
+
+		// The merge and the attachment it carried undo as the one gesture the scholar made.
+		collationState.undo();
+		expect(
+			collationState.getReadingsForUnit(0).find(reading => reading.id === subreading.id)
+				?.parentReadingId
+		).toBe(merged.id);
+	});
+
+	it('drops a reading a move empties rather than leaving a lettered husk', () => {
+		collateTexts({ A: 'λογος', B: 'θεος', C: 'θεος' });
+		const target = labelled('a');
+
+		expect(collationState.moveWitnessesToReading(0, ['B', 'C'], target.id)).toMatchObject({
+			ok: true,
+			moved: 2,
+		});
+
+		expect(witnessesByLabel()).toEqual({ a: ['A', 'B', 'C'] });
+
+		collationState.undo();
+		expect(witnessesByLabel()).toEqual({ a: ['A'], b: ['B', 'C'] });
+	});
+
+	it('drops every reading a split empties, not only the single-source case', () => {
+		collateTexts({ A: 'λογος', B: 'θεος', C: 'θεος', D: 'πνευμα', E: 'πνευμα' });
+		const before = witnessesByLabel();
+
+		const result = collationState.splitWitnessesIntoNewReading(0, ['B', 'C', 'D', 'E']);
+		expect(result).toEqual({ ok: true, readingId: expect.any(String) });
+
+		expect(witnessesByLabel()).toEqual({ a: ['A'], b: ['B', 'C', 'D', 'E'] });
+
+		collationState.undo();
+		expect(witnessesByLabel()).toEqual(before);
+	});
+
+	it('keeps a reading a scholar added with no witnesses when a verb empties another', () => {
+		collateTexts({ A: 'λογος', B: 'θεος', C: 'θεος' });
+		const conjecture = collationState.addReading(0);
+
+		expect(collationState.moveWitnessesToReading(0, ['B', 'C'], labelled('a').id)).toMatchObject({
+			ok: true,
+		});
+
+		expect(
+			collationState.getReadingsForUnit(0).some(reading => reading.id === conjecture)
+		).toBe(true);
+	});
+
+	it('keeps an emptied main reading that still carries an attesting subreading', () => {
+		collateTexts({ A: 'λογος', B: 'θεος', C: 'πνευμα' });
+		const main = labelled('b');
+		const subreading = labelled('c');
+		collationState.setReadingParent(0, subreading.id, main.id);
+
+		expect(collationState.moveWitnessesToReading(0, ['B'], labelled('a').id)).toMatchObject({
+			ok: true,
+		});
+
+		const readings = collationState.getReadingsForUnit(0);
+		expect(readings.find(reading => reading.id === main.id)?.witnessIds).toEqual([]);
+		expect(readings.find(reading => reading.id === subreading.id)?.parentReadingId).toBe(main.id);
+	});
+
+	it('refuses to delete a reading whose subreading still holds witnesses', () => {
+		collateTexts({ A: 'λογος', B: 'θεος', C: 'πνευμα' });
+		const main = labelled('b');
+		const subreading = labelled('c');
+		collationState.setReadingParent(0, subreading.id, main.id);
+		collationState.moveWitnessesToReading(0, ['B'], labelled('a').id);
+
+		expect(collationState.getAttestingWitnessIdsForReading(0, main.id)).toEqual(['C']);
+		collationState.deleteReading(0, main.id);
+		expect(
+			collationState.getReadingsForUnit(0).some(reading => reading.id === main.id)
+		).toBe(true);
+	});
+
+	it('refuses to merge a reading into its own subreading', () => {
+		collateTexts({ A: 'λογος', B: 'θεος', C: 'πνευμα' });
+		const main = labelled('b');
+		const other = labelled('c');
+		collationState.setReadingParent(0, other.id, main.id);
+		const before = witnessesByLabel();
+
+		expect(collationState.mergeReadings(0, [main.id], other.id)).toEqual({
+			ok: false,
+			error: 'target-under-source',
+		});
+		expect(witnessesByLabel()).toEqual(before);
+	});
+
+	it('gives every proposal edit its own undo entry, so no gesture is invisible to the history', () => {
+		collateTexts({ A: 'λογος', B: 'θεος', C: 'πνευμα' });
+		const b = labelled('b');
+		const c = labelled('c');
+
+		collationState.updateReadingText(0, c.id, 'δελτα');
+		expect(collationState.getReadingsForUnit(0).find(reading => reading.id === c.id)?.text).toBe(
+			'δελτα'
+		);
+		collationState.undo();
+		expect(collationState.getReadingsForUnit(0).find(reading => reading.id === c.id)?.text).toBe(
+			'πνευμα'
+		);
+		collationState.redo();
+		expect(collationState.getReadingsForUnit(0).find(reading => reading.id === c.id)?.text).toBe(
+			'δελτα'
+		);
+
+		const added = collationState.addReading(0);
+		collationState.undo();
+		expect(collationState.getReadingsForUnit(0).some(reading => reading.id === added)).toBe(false);
+
+		collationState.deleteReading(0, collationState.addReading(0));
+		collationState.undo();
+		expect(collationState.getReadingsForUnit(0).length).toBe(4);
+
+		expect(collationState.moveReadingByOffset(0, c.id, -1)).toEqual({ ok: true });
+		expect(collationState.getReadingsForUnit(0).findIndex(reading => reading.id === c.id)).toBe(
+			1
+		);
+		collationState.undo();
+		expect(collationState.getReadingsForUnit(0).findIndex(reading => reading.id === b.id)).toBe(
+			1
+		);
+	});
+
+	it('undoes a proposal edit in one unit without reverting work in another', () => {
+		collateUnit([
+			makeWitness('A', 'λογος αλφα', { isBaseText: true }),
+			makeWitness('B', 'θεος βητα'),
+			makeWitness('C', 'θεος γαμμα'),
+		]);
+		const [first, second] = collationState.getVariationUnitSpans().map(span => span.startIndex);
+		expect(second).toBeGreaterThan(first);
+
+		const target = collationState
+			.getReadingsForUnit(first)
+			.find(reading => reading.label === 'a')!;
+		expect(collationState.moveWitnessesToReading(first, ['B'], target.id)).toMatchObject({
+			ok: true,
+			moved: 1,
+		});
+		const movedWitnessIds = collationState
+			.getReadingsForUnit(first)
+			.map(reading => reading.witnessIds);
+
+		const edited = collationState.getReadingsForUnit(second).find(reading => reading.label === 'b')!;
+		collationState.updateReadingText(second, edited.id, 'δελτα');
+
+		// One undo reverses the text edit — the gesture that was made last — and the move made in
+		// the other unit is not touched by it.
+		collationState.undo();
+		expect(
+			collationState.getReadingsForUnit(second).find(reading => reading.id === edited.id)?.text
+		).not.toBe('δελτα');
+		expect(collationState.getReadingsForUnit(first).map(reading => reading.witnessIds)).toEqual(
+			movedWitnessIds
+		);
+
+		collationState.redo();
+		expect(
+			collationState.getReadingsForUnit(second).find(reading => reading.id === edited.id)?.text
+		).toBe('δελτα');
+	});
+
+	it('counts a subreading of a subreading as part of its main reading family', () => {
+		collateTexts({ A: 'λογος', B: 'θεος', C: 'πνευμα', D: 'κυριος' });
+		const main = labelled('b');
+		const middle = labelled('c');
+		const deepest = labelled('d');
+		collationState.setReadingParent(0, middle.id, main.id);
+		collationState.setReadingParent(0, deepest.id, middle.id);
+
+		const family = collationState
+			.getReadingFamiliesForUnit(0)
+			.find(entry => entry.id === main.id);
+		expect(family?.members.map(member => member.id)).toEqual([main.id, middle.id, deepest.id]);
 	});
 });

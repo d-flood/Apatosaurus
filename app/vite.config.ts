@@ -147,6 +147,7 @@ export default defineConfig({
 			'phosphor-svelte/lib/CornersIn',
 			'phosphor-svelte/lib/CornersOut',
 			'phosphor-svelte/lib/Crosshair',
+			'phosphor-svelte/lib/DotsThreeVertical',
 			'phosphor-svelte/lib/Eye',
 			'phosphor-svelte/lib/EyeSlash',
 			'phosphor-svelte/lib/File',

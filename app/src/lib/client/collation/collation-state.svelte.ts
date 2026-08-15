@@ -58,6 +58,7 @@ import type {
 import {
 	buildReadingProposal,
 	getReadingFamilyKey,
+	makeMainReadingIdOf,
 	relabelReadings,
 	type NonAttestation,
 } from './collation-reading-proposal';
@@ -132,6 +133,23 @@ export interface ReadingFamilyView {
 
 export type ReorderResult =
 	{ ok: true } | { ok: false; error: 'reading-not-found' | 'different-group' | 'at-boundary' };
+
+/**
+ * `moved` is 0 where every selected witness already attested the target. `movedWitnessIds` is
+ * exactly the witnesses that changed reading, so a caller announces what happened rather than
+ * what was asked for.
+ */
+export type MoveWitnessesResult =
+	| { ok: true; moved: number; movedWitnessIds: string[] }
+	| { ok: false; error: 'reading-not-found' | 'no-attesting-witnesses' };
+
+export type SplitWitnessesResult =
+	| { ok: true; readingId: string }
+	| { ok: false; error: 'reading-not-found' | 'no-attesting-witnesses' | 'whole-reading' };
+
+export type MergeReadingsResult =
+	| { ok: true }
+	| { ok: false; error: 'reading-not-found' | 'nothing-to-merge' | 'target-under-source' };
 
 export interface ReadingDisplayValue {
 	sourceOriginalText: string | null;
@@ -2215,17 +2233,20 @@ function createCollationState() {
 		// `peekReadingsForUnit` already returns lemma-first display order; re-sorting here
 		// would discard the lemma decision.
 		const readings = peekReadingsForUnit(unitIndex);
-		const byId = new Map(readings.map(reading => [reading.id, reading] as const));
+		// A subreading can be attached to another subreading, so a family is the whole chain
+		// below a main reading rather than its direct children only.
+		const mainReadingIdOf = makeMainReadingIdOf(readings);
 		const primaries = readings.filter(reading => reading.parentReadingId === null);
 		return primaries.map(parent => {
-			const children = readings.filter(reading => reading.parentReadingId === parent.id);
-			const members = [parent, ...children];
+			const children = readings.filter(
+				reading => reading.parentReadingId !== null && mainReadingIdOf(reading.id) === parent.id
+			);
 			return {
 				id: parent.id,
 				familyKey: getReadingFamilyKey(parent),
 				parent,
 				children,
-				members: members.filter(reading => byId.has(reading.id)),
+				members: [parent, ...children],
 			};
 		});
 	}
@@ -2337,38 +2358,272 @@ function createCollationState() {
 		markUnsaved();
 	}
 
-	function splitWitnessFromReading(unitIndex: number, readingId: string, witnessId: string) {
+	function restoreUnitState(
+		key: string,
+		readings: ClassifiedReading[] | undefined,
+		decisions: UnitDecisions | undefined
+	) {
+		const nextReadings = new Map(classifiedReadings);
+		if (readings) nextReadings.set(key, readings);
+		else nextReadings.delete(key);
+		classifiedReadings = nextReadings;
+		const nextDecisions = new Map(unitDecisions);
+		if (decisions) nextDecisions.set(key, decisions);
+		else nextDecisions.delete(key);
+		unitDecisions = nextDecisions;
+	}
+
+	/**
+	 * Store a proposal edit as one undoable gesture. Every mutator of the proposal goes through
+	 * here, so no edit is invisible to the history, and the snapshot covers only the unit edited,
+	 * so undoing a gesture in one unit cannot revert work done in another.
+	 *
+	 * A gesture that also settles an editorial decision — merging carries a hand-made attachment
+	 * to the surviving reading — passes the whole overlay for its unit, so the proposal edit and
+	 * the decision it implies undo together as the one gesture they are.
+	 */
+	function commitReadingsForUnit(
+		unitIndex: number,
+		readings: ClassifiedReading[],
+		command: { type: string; description: string },
+		decisions?: UnitDecisions
+	) {
+		const key = getReadingUnitKey(unitIndex);
+		if (!key) return;
+		const previousReadings = classifiedReadings.get(key);
+		const previousDecisions = unitDecisions.get(key);
+		setReadingsForUnit(unitIndex, readings);
+		if (decisions) unitDecisions = new Map(unitDecisions).set(key, decisions);
+		const updatedReadings = classifiedReadings.get(key);
+		const updatedDecisions = unitDecisions.get(key);
+		pushCommand({
+			...command,
+			undo: () => restoreUnitState(key, previousReadings, previousDecisions),
+			redo: () => restoreUnitState(key, updatedReadings, updatedDecisions),
+		});
+	}
+
+	/**
+	 * Readings a verb emptied go with their last witness. An empty lettered reading would keep
+	 * its letter, its place in the ordering, its citation in the apparatus, and a node in the
+	 * local stemma while attesting nothing. A reading that still carries subreadings stays,
+	 * because its family still attests; one that was already empty stays, because a scholar added
+	 * it deliberately.
+	 */
+	function dropEmptiedReadings(
+		before: ClassifiedReading[],
+		after: ClassifiedReading[],
+		keepReadingId: string
+	): ClassifiedReading[] {
+		const hadWitnesses = new Set(
+			before.filter(reading => reading.witnessIds.length > 0).map(reading => reading.id)
+		);
+		const parentIds = new Set(
+			after
+				.map(reading => reading.parentReadingId)
+				.filter((id): id is string => id !== null)
+		);
+		return after.filter(
+			reading =>
+				reading.id === keepReadingId ||
+				reading.witnessIds.length > 0 ||
+				!hadWitnesses.has(reading.id) ||
+				parentIds.has(reading.id)
+		);
+	}
+
+	/**
+	 * The witnesses of a selection that actually attest a reading here, deduplicated and in the
+	 * order given. Non-attestation holds no reading id, so such a witness can never be moved,
+	 * split, or merged.
+	 */
+	function attestingSelection(
+		readings: ClassifiedReading[],
+		witnessIds: string[]
+	): string[] {
+		const seen = new Set<string>();
+		return witnessIds.filter(witnessId => {
+			if (seen.has(witnessId)) return false;
+			seen.add(witnessId);
+			return readings.some(reading => reading.witnessIds.includes(witnessId));
+		});
+	}
+
+	function countLabel(count: number, noun: string): string {
+		return `${count} ${noun}${count === 1 ? '' : 'es'}`;
+	}
+
+	/** Reassign a whole selection of witnesses in one gesture, spanning any number of readings. */
+	function moveWitnessesToReading(
+		unitIndex: number,
+		witnessIds: string[],
+		targetReadingId: string
+	): MoveWitnessesResult {
 		const readings = ensureReadingsForUnit(unitIndex);
-		const source = readings.find(reading => reading.id === readingId);
-		if (!source || source.witnessIds.length < 2 || !source.witnessIds.includes(witnessId))
-			return;
+		const target = readings.find(reading => reading.id === targetReadingId);
+		if (!target) return { ok: false, error: 'reading-not-found' };
+		const selected = attestingSelection(readings, witnessIds);
+		if (selected.length === 0) return { ok: false, error: 'no-attesting-witnesses' };
+
+		const moving = selected.filter(witnessId => !target.witnessIds.includes(witnessId));
+		if (moving.length === 0) return { ok: true, moved: 0, movedWitnessIds: [] };
+		const movingSet = new Set(moving);
+
+		const updated = readings.map(reading => {
+			if (reading.id === target.id) {
+				return { ...reading, witnessIds: [...reading.witnessIds, ...moving] };
+			}
+			const kept = reading.witnessIds.filter(witnessId => !movingSet.has(witnessId));
+			return kept.length === reading.witnessIds.length ? reading : { ...reading, witnessIds: kept };
+		});
+
+		commitReadingsForUnit(unitIndex, dropEmptiedReadings(readings, updated, target.id), {
+			type: 'move-witnesses-to-reading',
+			description: `Move ${countLabel(moving.length, 'witness')} to a reading`,
+		});
+		return { ok: true, moved: moving.length, movedWitnessIds: moving };
+	}
+
+	/**
+	 * Separate a selection of witnesses into a reading of its own. The new reading takes its text
+	 * from the reading the first selected witness left, so a distinction the alignment missed is
+	 * recorded against real text rather than against a blank.
+	 */
+	function splitWitnessesIntoNewReading(
+		unitIndex: number,
+		witnessIds: string[],
+		options?: { subreadingOf?: string }
+	): SplitWitnessesResult {
+		const readings = ensureReadingsForUnit(unitIndex);
+		const selected = attestingSelection(readings, witnessIds);
+		if (selected.length === 0) return { ok: false, error: 'no-attesting-witnesses' };
+		const parentReadingId = options?.subreadingOf ?? null;
+		if (parentReadingId !== null && !readings.some(reading => reading.id === parentReadingId)) {
+			return { ok: false, error: 'reading-not-found' };
+		}
+
+		const selectedSet = new Set(selected);
+		const sources = readings.filter(reading =>
+			reading.witnessIds.some(witnessId => selectedSet.has(witnessId))
+		);
+		// Taking every witness of the only reading involved leaves an empty husk beside an
+		// identical new reading, which records no distinction at all.
+		if (
+			sources.length === 1 &&
+			sources[0].witnessIds.every(witnessId => selectedSet.has(witnessId))
+		) {
+			return { ok: false, error: 'whole-reading' };
+		}
+
+		const template = sources[0];
 		const nextOrder =
 			Math.max(
 				-1,
 				...readings
-					.filter(reading => reading.parentReadingId === source.parentReadingId)
+					.filter(reading => reading.parentReadingId === parentReadingId)
 					.map(reading => reading.order)
 			) + 1;
 
-		const updated = readings.map(reading => {
-			if (reading.id !== readingId) return reading;
-			return {
-				...reading,
-				witnessIds: reading.witnessIds.filter(id => id !== witnessId),
-			};
+		const updated: ClassifiedReading[] = readings.map(reading => {
+			const kept = reading.witnessIds.filter(witnessId => !selectedSet.has(witnessId));
+			return kept.length === reading.witnessIds.length ? reading : { ...reading, witnessIds: kept };
 		});
-
+		const readingId = crypto.randomUUID();
 		updated.push({
-			...source,
-			id: crypto.randomUUID(),
+			...template,
+			id: readingId,
 			order: nextOrder,
 			label: '',
-			witnessIds: [witnessId],
-			witnessGroups: makeWitnessGroups([witnessId]),
+			witnessIds: selected,
+			witnessGroups: makeWitnessGroups(selected),
+			parentReadingId,
+			isSubreading: parentReadingId !== null,
 			autoGenerated: false,
 		});
 
-		setReadingsForUnit(unitIndex, updated);
+		commitReadingsForUnit(unitIndex, dropEmptiedReadings(readings, updated, readingId), {
+			type: 'split-witnesses-into-reading',
+			description: `Split ${countLabel(selected.length, 'witness')} into a new reading`,
+		});
+		return { ok: true, readingId };
+	}
+
+	/**
+	 * Collapse a distinction the alignment over-drew: the target keeps its text and takes the
+	 * union of every source reading's witnesses. A subreading of a merged-away reading follows
+	 * its witnesses into the survivor.
+	 */
+	function mergeReadings(
+		unitIndex: number,
+		sourceReadingIds: string[],
+		targetReadingId: string
+	): MergeReadingsResult {
+		const key = getReadingUnitKey(unitIndex);
+		if (!key) return { ok: false, error: 'reading-not-found' };
+		const readings = ensureReadingsForUnit(unitIndex);
+		const target = readings.find(reading => reading.id === targetReadingId);
+		if (!target) return { ok: false, error: 'reading-not-found' };
+
+		const sourceIds = new Set(sourceReadingIds.filter(id => id !== targetReadingId));
+		if (sourceIds.size === 0) return { ok: false, error: 'nothing-to-merge' };
+		if ([...sourceIds].some(id => !readings.some(reading => reading.id === id))) {
+			return { ok: false, error: 'reading-not-found' };
+		}
+		// Merging a reading into its own subreading would leave the survivor attached to a
+		// reading that no longer exists.
+		let ancestorId = target.parentReadingId;
+		while (ancestorId) {
+			if (sourceIds.has(ancestorId)) return { ok: false, error: 'target-under-source' };
+			ancestorId =
+				readings.find(reading => reading.id === ancestorId)?.parentReadingId ?? null;
+		}
+
+		const witnessIds = [...target.witnessIds];
+		for (const reading of readings) {
+			if (!sourceIds.has(reading.id)) continue;
+			for (const witnessId of reading.witnessIds) {
+				if (!witnessIds.includes(witnessId)) witnessIds.push(witnessId);
+			}
+		}
+
+		const updated = readings
+			.filter(reading => !sourceIds.has(reading.id))
+			.map(reading => {
+				if (reading.id === target.id) return { ...reading, witnessIds };
+				if (reading.parentReadingId && sourceIds.has(reading.parentReadingId)) {
+					return { ...reading, parentReadingId: target.id, isSubreading: true };
+				}
+				return reading;
+			});
+
+		// An attachment a scholar established is a decision, not a proposal, so reparenting the
+		// proposal alone would be discarded on read. The decision follows the witnesses into the
+		// survivor, which is what keeps a hand-attached subreading attached across a merge.
+		const attachments = unitDecisions.get(key)?.subreadingOf ?? {};
+		const reattached = Object.entries(attachments).some(
+			([, mainReadingId]) => mainReadingId !== null && sourceIds.has(mainReadingId)
+		);
+		let decisions: UnitDecisions | undefined;
+		if (reattached) {
+			decisions = cloneUnitDecisions(unitDecisions.get(key));
+			decisions.subreadingOf = Object.fromEntries(
+				Object.entries(attachments).map(([readingId, mainReadingId]) => [
+					readingId,
+					mainReadingId !== null && sourceIds.has(mainReadingId) ? target.id : mainReadingId,
+				])
+			);
+		}
+
+		commitReadingsForUnit(
+			unitIndex,
+			updated,
+			{
+				type: 'merge-readings',
+				description: `Merge ${sourceIds.size + 1} readings`,
+			},
+			decisions
+		);
+		return { ok: true };
 	}
 
 	function setReadingParent(
@@ -2521,7 +2776,10 @@ function createCollationState() {
 				isSubreading: !reading.isOmission && !reading.isLacuna,
 			};
 		});
-		setReadingsForUnit(unitIndex, updated);
+		commitReadingsForUnit(unitIndex, updated, {
+			type: 'promote-reading-as-family-parent',
+			description: 'Promote reading to main reading',
+		});
 	}
 
 	function updateReadingText(unitIndex: number, readingId: string, text: string) {
@@ -2537,7 +2795,10 @@ function createCollationState() {
 				isLacuna: false,
 			};
 		});
-		setReadingsForUnit(unitIndex, updated);
+		commitReadingsForUnit(unitIndex, updated, {
+			type: 'update-reading-text',
+			description: 'Edit reading text',
+		});
 	}
 
 	function updateReadingTextForDisplayMode(
@@ -2566,7 +2827,10 @@ function createCollationState() {
 				isLacuna: false,
 			};
 		});
-		setReadingsForUnit(unitIndex, updated);
+		commitReadingsForUnit(unitIndex, updated, {
+			type: 'update-reading-text',
+			description: 'Edit reading text',
+		});
 	}
 
 	/**
@@ -2682,14 +2946,47 @@ function createCollationState() {
 			autoGenerated: false,
 			derivedFromRuleIds: [],
 		};
-		setReadingsForUnit(unitIndex, [...readings, reading]);
+		commitReadingsForUnit(unitIndex, [...readings, reading], {
+			type: 'add-reading',
+			description: parentReadingId ? 'Add subreading' : 'Add reading',
+		});
 		return reading.id;
+	}
+
+	/**
+	 * The witnesses that attest a reading as the card shows it: its own, plus those of every
+	 * subreading in its chain, which are counted with it. The one set the deletion guard and the
+	 * displayed witnesses both read, so a reading can never be deletable while sigla are on it.
+	 */
+	function getAttestingWitnessIdsForReading(unitIndex: number, readingId: string): string[] {
+		const readings = peekReadingsForUnit(unitIndex);
+		const chain = new Set<string>([readingId]);
+		for (let grew = true; grew; ) {
+			grew = false;
+			for (const reading of readings) {
+				if (chain.has(reading.id)) continue;
+				if (reading.parentReadingId === null || !chain.has(reading.parentReadingId)) continue;
+				chain.add(reading.id);
+				grew = true;
+			}
+		}
+		const witnessIds: string[] = [];
+		const seen = new Set<string>();
+		for (const reading of readings) {
+			if (!chain.has(reading.id)) continue;
+			for (const witnessId of reading.witnessIds) {
+				if (seen.has(witnessId)) continue;
+				seen.add(witnessId);
+				witnessIds.push(witnessId);
+			}
+		}
+		return witnessIds;
 	}
 
 	function deleteReading(unitIndex: number, readingId: string) {
 		const readings = ensureReadingsForUnit(unitIndex);
 		const target = readings.find(reading => reading.id === readingId);
-		if (!target || target.witnessIds.length > 0) return;
+		if (!target || getAttestingWitnessIdsForReading(unitIndex, readingId).length > 0) return;
 		const updated = readings
 			.filter(reading => reading.id !== readingId)
 			.map(reading =>
@@ -2701,33 +2998,10 @@ function createCollationState() {
 						}
 					: reading
 			);
-		setReadingsForUnit(unitIndex, updated);
-	}
-
-	function moveWitnessToReading(unitIndex: number, witnessId: string, targetReadingId: string) {
-		const readings = ensureReadingsForUnit(unitIndex);
-		const sourceReading = readings.find(reading => reading.witnessIds.includes(witnessId));
-		const targetReading = readings.find(reading => reading.id === targetReadingId);
-		if (!sourceReading || !targetReading || sourceReading.id === targetReading.id) return;
-
-		const updated = readings.map(reading => {
-			if (reading.id === sourceReading.id) {
-				return {
-					...reading,
-					witnessIds: reading.witnessIds.filter(id => id !== witnessId),
-				};
-			}
-			if (reading.id === targetReading.id) {
-				return {
-					...reading,
-					witnessIds: reading.witnessIds.includes(witnessId)
-						? reading.witnessIds
-						: [...reading.witnessIds, witnessId],
-				};
-			}
-			return reading;
+		commitReadingsForUnit(unitIndex, updated, {
+			type: 'delete-reading',
+			description: 'Delete reading',
 		});
-		setReadingsForUnit(unitIndex, updated);
 	}
 
 	function reorderReadingGroup(
@@ -2780,7 +3054,10 @@ function createCollationState() {
 			readingId,
 			targetIndex
 		);
-		setReadingsForUnit(unitIndex, updated);
+		commitReadingsForUnit(unitIndex, updated, {
+			type: 'reorder-reading',
+			description: 'Reorder reading',
+		});
 		return { ok: true };
 	}
 
@@ -2811,7 +3088,10 @@ function createCollationState() {
 			readingId,
 			sourceIndex < targetIndex ? targetIndex - 1 : targetIndex
 		);
-		setReadingsForUnit(unitIndex, updated);
+		commitReadingsForUnit(unitIndex, updated, {
+			type: 'reorder-reading',
+			description: 'Reorder reading',
+		});
 		return { ok: true };
 	}
 
@@ -3399,6 +3679,7 @@ function createCollationState() {
 		peekReadingsForUnit,
 		getReadingFamiliesForUnit,
 		getDisplayedWitnessIdsForReading,
+		getAttestingWitnessIdsForReading,
 		getReadingDisplayValuesForUnit,
 		primeReadingsForUnit,
 		getReadingsForUnit,
@@ -3408,7 +3689,9 @@ function createCollationState() {
 		getVariationUnitSpans,
 		getVariationUnitSpan,
 		getBaseTextForVariationUnit,
-		splitWitnessFromReading,
+		moveWitnessesToReading,
+		splitWitnessesIntoNewReading,
+		mergeReadings,
 		setReadingParent,
 		getLemmaReadingId,
 		unitNeedsLemmaDecision,
@@ -3424,7 +3707,6 @@ function createCollationState() {
 		getSubreadingsMissingReadingType,
 		addReading,
 		deleteReading,
-		moveWitnessToReading,
 		moveReadingByOffset,
 		moveReadingBefore,
 		getLocalStemma,

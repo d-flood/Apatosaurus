@@ -23,6 +23,28 @@ export function getReadingFamilyKey(
 	return reading.normalizedText ?? reading.text ?? '__EMPTY__';
 }
 
+/**
+ * The main reading at the head of a subreading chain — the single definition every surface uses,
+ * because citation, labelling, and the local stemma must agree on which reading a subreading
+ * belongs to. A chain that cycles has no head, so the walk answers null rather than naming an
+ * arbitrary reading inside the cycle.
+ */
+export function makeMainReadingIdOf(
+	readings: ClassifiedReading[]
+): (readingId: string) => string | null {
+	const byId = new Map(readings.map(reading => [reading.id, reading] as const));
+	return (readingId: string) => {
+		const seen = new Set<string>();
+		let current = byId.get(readingId);
+		while (current && current.parentReadingId !== null) {
+			if (seen.has(current.id)) return null;
+			seen.add(current.id);
+			current = byId.get(current.parentReadingId);
+		}
+		return current?.id ?? null;
+	};
+}
+
 export function compareReadingsForPriority(
 	a: Pick<ClassifiedReading, 'text' | 'witnessIds'>,
 	b: Pick<ClassifiedReading, 'text' | 'witnessIds'>,
@@ -198,24 +220,14 @@ export function relabelReadings(
 		primaryRankById.set(reading.id, index);
 	}
 
-	const readingById = new Map(normalized.map(reading => [reading.id, reading] as const));
 	// Subreadings are labelled flat from their main reading, so a subreading attached to another
 	// subreading belongs to the main at the head of that chain rather than going unlabelled.
-	const mainReadingIdOf = (reading: ClassifiedReading): string | null => {
-		const seen = new Set<string>();
-		let current: ClassifiedReading | undefined = reading;
-		while (current && current.parentReadingId !== null) {
-			if (seen.has(current.id)) return null;
-			seen.add(current.id);
-			current = readingById.get(current.parentReadingId);
-		}
-		return current ? current.id : null;
-	};
+	const mainReadingIdOf = makeMainReadingIdOf(normalized);
 
 	const subreadingsByParent = new Map<string, ClassifiedReading[]>();
 	for (const reading of normalized) {
 		if (!reading.parentReadingId) continue;
-		const mainReadingId = mainReadingIdOf(reading);
+		const mainReadingId = mainReadingIdOf(reading.id);
 		if (!mainReadingId) continue;
 		const existing = subreadingsByParent.get(mainReadingId) ?? [];
 		existing.push(reading);

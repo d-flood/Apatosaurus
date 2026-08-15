@@ -58,20 +58,54 @@ Presentation:
 
 ## Acceptance criteria
 
-- [ ] Readings render as cards with the label as the primary anchor; subreadings render nested inside their main reading's card.
-- [ ] Reading text is edited in place and commits on blur.
-- [ ] Witness chips are selectable, and a selection can span more than one card.
-- [ ] Selecting witnesses across two readings and moving them to a third succeeds in one action and one undo step.
-- [ ] Splitting a multi-witness selection into a new reading succeeds in one action.
-- [ ] Merging two readings succeeds in one action, and the merged reading holds the union of their witnesses.
-- [ ] The chip group is a single tabstop; `Tab` from before the group lands once and arrow keys move within it.
-- [ ] `Space` toggles a chip, `Shift`+arrow extends, `Escape` clears — all without a pointer.
-- [ ] Every bulk verb is invocable from the keyboard and announces its result.
-- [ ] Non-attestation witnesses cannot be selected.
-- [ ] Selection changes do not create undo entries.
-- [ ] Rare operations are present in a per-card menu and absent from the card's primary surface.
-- [ ] Any newly imported icon is registered in `optimizeDeps.include`.
-- [ ] `pnpm lint` and `pnpm check` pass.
+- [x] Readings render as cards with the label as the primary anchor; subreadings render nested inside their main reading's card.
+- [x] Reading text is edited in place and commits on blur.
+- [x] Witness chips are selectable, and a selection can span more than one card.
+- [x] Selecting witnesses across two readings and moving them to a third succeeds in one action and one undo step.
+- [x] Splitting a multi-witness selection into a new reading succeeds in one action.
+- [x] Merging two readings succeeds in one action, and the merged reading holds the union of their witnesses.
+- [x] The chip group is a single tabstop; `Tab` from before the group lands once and arrow keys move within it.
+- [x] `Space` toggles a chip, `Shift`+arrow extends, `Escape` clears — all without a pointer.
+- [x] Every bulk verb is invocable from the keyboard and announces its result.
+- [x] Non-attestation witnesses cannot be selected.
+- [x] Selection changes do not create undo entries.
+- [x] Rare operations are present in a per-card menu and absent from the card's primary surface.
+- [x] Any newly imported icon is registered in `optimizeDeps.include`.
+- [x] `pnpm lint` and `pnpm check` pass. (`pnpm check` is clean; `pnpm lint` is unchanged from
+      baseline — the pre-existing `no-useless-assignment` error in `reference-editions/insertion.ts`
+      and 21 pre-existing unused-var warnings, none of them in files this ticket touched.)
+
+**Deviation, recorded rather than checked off — the Playwright spec.** The ticket asks for a new
+`e2e/collation-editorial-phases.spec.ts` (not an extension of an existing one), and it was **not**
+written. This is a **cost decision, not an impossibility**: reaching the readings phase in a real
+browser session needs a transcription-to-alignment flow driven end to end, which is a ticket's worth
+of fixture work, and that work was spent on the store and component seams instead. The substitute is
+`src/lib/components/collation/ReadingsPhase.svelte.spec.ts` in the client (real-chromium) project:
+real focus, real key events, the real store, the real adapter. What it **cannot** see, because it
+mounts one component with nothing else on the page: where focus goes when a control unmounts and
+nothing else in the app is competing for it, whether the live region is actually announced by a
+screen reader in page context, whether `Tab` order into and out of the chip group is right when the
+workspace shell, stepper, and autosave indicator surround it, and whether the phase transition
+carries focus. The review's finding 5 — focus dropped to `<body>` after every verb — is exactly that
+blind spot: it survived the first cut because no assertion looked at `document.activeElement` after a
+verb. The component spec now asserts it, which closes this instance but not the class. Ticket 11
+still owns the epic's Playwright spec and should fold these assertions into it.
+
+**Undo granularity — resolved here, not deferred.** The first cut gave the three bulk verbs undo
+entries but left `updateReadingText`, `addReading`, `deleteReading`, `moveReadingByOffset`,
+`moveReadingBefore`, and `promoteReadingAsFamilyParent` writing `classifiedReadings` with no command.
+That was recorded as a scope call; it was a data-loss bug. Because the snapshot covered the whole
+map, an un-commanded edit sat in neither the before nor the after copy, so undoing any bulk verb
+reverted every such edit made after it — across variation units, since the map is global. On the repo
+owner's ruling, every proposal mutator now goes through `commitReadingsForUnit` and takes its own
+undo entry: one user gesture, one history entry (User Stories 6 and 9). The snapshot is also
+unit-scoped now, so a gesture in one unit can never restore another unit's readings — completeness
+and blast radius were separate defects and both are fixed.
+
+**Noted, not wired:** `splitWitnessesIntoNewReading`'s `subreadingOf` option is part of the ticket's
+contract and is covered by a spec, but no production caller passes it — splitting into a subreading
+has no route on the card yet. Attaching after the split, through the per-card menu, is the current
+path.
 
 Commands, runnable as written from `app/`:
 

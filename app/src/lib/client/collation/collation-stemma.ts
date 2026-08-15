@@ -1,3 +1,4 @@
+import { makeMainReadingIdOf } from './collation-reading-proposal';
 import type { ClassifiedReading, ReadingArc } from './collation-types';
 
 /**
@@ -55,16 +56,7 @@ export function projectLocalStemma(
 	lemmaReadingId: string | null,
 	sourceDecisions: Record<string, SourceDecision> = {}
 ): LocalStemma {
-	const byId = new Map(readings.map(reading => [reading.id, reading] as const));
-	const mainReadingIdOf = (readingId: string): string | null => {
-		let current = byId.get(readingId);
-		const seen = new Set<string>();
-		while (current && current.parentReadingId !== null && !seen.has(current.id)) {
-			seen.add(current.id);
-			current = byId.get(current.parentReadingId);
-		}
-		return current?.id ?? null;
-	};
+	const mainReadingIdOf = makeMainReadingIdOf(readings);
 
 	// Non-attestation is not a reading and holds no place in a local stemma.
 	const mains = readings.filter(reading => reading.parentReadingId === null && !reading.isLacuna);
