@@ -99,6 +99,8 @@ export interface CollationStemmaUnitNode {
 	unitId: string;
 	columnId: string | null;
 	arcs: ReadingArc[];
+	/** Omitted until a scholar establishes a value; the in-memory default is 10. */
+	connectivity?: number;
 }
 
 export interface CollationStemmaNode {
@@ -426,6 +428,7 @@ function buildApparatus(
 		.map(unitId => {
 			const columnId =
 				alignmentColumns.find(column => variationUnitId(column.id) === unitId)?.id ?? null;
+			const { connectivity: _, ...decisions } = unitDecisions.get(unitId) ?? {};
 			return {
 				type: 'variationUnit' as const,
 				id: unitId,
@@ -436,7 +439,7 @@ function buildApparatus(
 					unitDecisions.get(unitId) ?? {},
 					{ baseWitnessId }
 				).readings,
-				decisions: unitDecisions.get(unitId) ?? {},
+				decisions,
 			};
 		})
 		.sort(
@@ -449,19 +452,28 @@ function buildApparatus(
 
 function buildStemma(
 	readingArcs: Map<string, ReadingArc[]>,
+	unitDecisions: Map<string, UnitDecisions>,
 	alignmentColumns: AlignmentColumn[]
 ): CollationStemmaNode | null {
-	if (readingArcs.size === 0) return null;
-	const units = [...readingArcs.entries()]
-		.map(([unitId, arcs]) => {
+	const unitIds = new Set([
+		...readingArcs.keys(),
+		...[...unitDecisions.entries()]
+			.filter(([, decisions]) => decisions.connectivity !== undefined)
+			.map(([unitId]) => unitId),
+	]);
+	if (unitIds.size === 0) return null;
+	const units = [...unitIds]
+		.map(unitId => {
 			const columnId =
 				alignmentColumns.find(column => variationUnitId(column.id) === unitId)?.id ?? null;
+			const connectivity = unitDecisions.get(unitId)?.connectivity;
 			return {
 				type: 'stemmaUnit' as const,
 				id: unitId,
 				unitId,
 				columnId,
-				arcs,
+				arcs: readingArcs.get(unitId) ?? [],
+				...(connectivity === undefined ? {} : { connectivity }),
 			};
 		})
 		.sort(
@@ -514,11 +526,30 @@ export function buildCollationDocument(seed: CollationDocumentSeed): CollationDo
 			seed.alignmentColumns,
 			findBaseTextWitnessId(seed.witnesses)
 		),
-		stemma: buildStemma(seed.readingArcs, seed.alignmentColumns),
+		stemma: buildStemma(seed.readingArcs, seed.unitDecisions, seed.alignmentColumns),
 	};
 }
 
 export function hydrateCollationDocument(document: CollationDocument): HydratedCollationDocument {
+	const decisionsByUnit = new Map(
+		document.apparatus?.units
+			?.filter(unit => typeof unit.unitId === 'string')
+			.map(unit => [unit.unitId, unit.decisions ?? {}] as [string, UnitDecisions]) ?? []
+	);
+	for (const unit of document.stemma?.units ?? []) {
+		if (
+			typeof unit.unitId !== 'string' ||
+			typeof unit.connectivity !== 'number' ||
+			!Number.isInteger(unit.connectivity) ||
+			unit.connectivity <= 0
+		) {
+			continue;
+		}
+		decisionsByUnit.set(unit.unitId, {
+			...decisionsByUnit.get(unit.unitId),
+			connectivity: unit.connectivity,
+		});
+	}
 	return {
 		collationId: document.meta.collationId ?? null,
 		projectId: document.meta.projectId ?? null,
@@ -547,10 +578,7 @@ export function hydrateCollationDocument(document: CollationDocument): HydratedC
 					)
 				: [],
 		classifiedReadings: [],
-		unitDecisions:
-			document.apparatus?.units
-				?.filter(unit => typeof unit.unitId === 'string')
-				.map(unit => [unit.unitId, unit.decisions ?? {}] as [string, UnitDecisions]) ?? [],
+		unitDecisions: [...decisionsByUnit],
 		readingArcs:
 			document.stemma?.units
 				?.filter(unit => typeof unit.unitId === 'string' && Array.isArray(unit.arcs))

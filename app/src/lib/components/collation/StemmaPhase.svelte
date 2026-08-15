@@ -35,6 +35,7 @@
 	});
 
 	let stemma = $derived(collationState.getLocalStemma(collationState.selectedUnitIndex));
+	let connectivity = $derived(collationState.getConnectivity(collationState.selectedUnitIndex));
 	let layout = $derived(layoutLocalStemma(stemma.nodes));
 	let nodeById = $derived(new Map(stemma.nodes.map(node => [node.readingId, node] as const)));
 	let labelById = $derived(new Map(stemma.nodes.map(node => [node.readingId, node.label])));
@@ -44,6 +45,12 @@
 	let draggedReadingId = $state<string | null>(null);
 	let dropTargetReadingId = $state<string | null>(null);
 	let liveMessage = $state('');
+	let connectivityRefusal = $state<{
+		unitIndex: number;
+		message: string;
+		seq: number;
+	} | null>(null);
+	let connectivityRefusalCount = 0;
 	const nodeButtons = new Map<string, HTMLButtonElement>();
 
 	$effect(() => {
@@ -138,6 +145,36 @@
 			return null;
 		}
 		return recordSourceRefusal(node, result.error);
+	}
+
+	function setConnectivity(value: number) {
+		const result = collationState.setConnectivity(collationState.selectedUnitIndex, value);
+		if (result.ok) {
+			connectivityRefusal = null;
+			return;
+		}
+		connectivityRefusalCount += 1;
+		connectivityRefusal = {
+			unitIndex: collationState.selectedUnitIndex,
+			message:
+				result.error === 'invalid-connectivity'
+					? 'Connectivity must be a positive whole number. No change was made.'
+					: 'This variation unit is no longer available. No change was made.',
+			seq: connectivityRefusalCount,
+		};
+	}
+
+	function setCustomConnectivity(control: HTMLInputElement) {
+		setConnectivity(control.valueAsNumber);
+	}
+
+	function rerootOnLemma() {
+		const result = collationState.rerootStemmaOnLemma(collationState.selectedUnitIndex);
+		if (!result.ok) {
+			liveMessage = 'The stemma could not be rerooted on the lemma.';
+			return;
+		}
+		liveMessage = `Removed ${result.removed} arc${result.removed === 1 ? '' : 's'} into the lemma.`;
 	}
 
 	function chooseSource(node: StemmaTreeNode, control: HTMLSelectElement) {
@@ -479,6 +516,50 @@
 			>
 		</div>
 
+		<fieldset
+			data-testid="connectivity-control"
+			class="mb-3 flex flex-wrap items-center gap-2 rounded-box border border-base-300/60 bg-base-100 px-3 py-2"
+			aria-label="Connectivity for this variation unit"
+		>
+			<legend class="sr-only">Connectivity</legend>
+			<span class="text-xs font-semibold uppercase tracking-[0.18em] text-base-content/60"
+				>Connectivity</span
+			>
+			<div class="join" aria-label="Common connectivity values">
+				{#each [1, 2, 3, 5, 10] as value}
+					<button
+						type="button"
+						class="btn btn-xs join-item {connectivity === value
+							? 'btn-primary'
+							: 'btn-ghost'}"
+						aria-pressed={connectivity === value}
+						disabled={selectedSpan === null}
+						onclick={() => setConnectivity(value)}
+					>
+						{value}
+					</button>
+				{/each}
+			</div>
+			<label class="flex items-center gap-1 text-xs text-base-content/60">
+				<span>Custom</span>
+				<input
+					class="input input-bordered input-xs w-18 font-mono"
+					aria-label="Custom connectivity"
+					type="number"
+					min="1"
+					step="1"
+					value={connectivity}
+					disabled={selectedSpan === null}
+					onchange={event => setCustomConnectivity(event.currentTarget)}
+				/>
+			</label>
+			{#if connectivityRefusal && connectivityRefusal.unitIndex === collationState.selectedUnitIndex}
+				{#key connectivityRefusal.seq}
+					<p class="text-xs text-error" role="alert">{connectivityRefusal.message}</p>
+				{/key}
+			{/if}
+		</fieldset>
+
 		<div class="overflow-x-auto rounded-box border border-base-300/50 bg-base-100">
 			<div class="flex">
 				{#each unitSpans as span (span.startIndex)}
@@ -598,16 +679,28 @@
 		</div>
 
 		<div class="flex-1 min-w-0 flex flex-col">
-			<div class="flex items-center justify-between mb-2">
+			<div class="mb-2 flex flex-wrap items-center justify-between gap-2">
 				<h3 class="text-sm font-bold uppercase tracking-wider text-base-content/50">
 					Local Stemma
 				</h3>
 				{#if stemma.violations.length > 0}
-					<span class="text-xs text-error">
-						{stemma.violations.length} reading(s) with more than one recorded source
-					</span>
+					<span class="text-xs text-error"
+						>{stemma.violations.length} stemma warning(s)</span
+					>
 				{/if}
 			</div>
+			{#each stemma.violations.filter(violation => violation.kind === 'lemma-is-posterior') as violation (violation.readingId)}
+				<div class="alert alert-warning mb-2 py-2 text-xs" role="alert">
+					<span>
+						The lemma has a recorded prior reading ({violation.priorReadingIds
+							.map(id => labelById.get(id) ?? id)
+							.join(', ')}). Its incoming arc is preserved until you repair it.
+					</span>
+					<button type="button" class="btn btn-warning btn-xs" onclick={rerootOnLemma}
+						>Reroot on lemma</button
+					>
+				</div>
+			{/each}
 
 			<div class="flex-1 bg-base-200/30 rounded-box border border-base-300/40 relative overflow-auto">
 				{#if layout.nodes.length === 0}

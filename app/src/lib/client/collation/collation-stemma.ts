@@ -8,12 +8,20 @@ import type { ClassifiedReading, ReadingArc } from './collation-types';
 export type SourceDecision =
 	{ kind: 'undecided' } | { kind: 'unclear' } | { kind: 'derived'; from: string };
 
-/** A reading with more than one recorded prior reading. Reported, never drawn as a guess. */
-export interface StemmaViolation {
-	kind: 'multiple-sources';
-	readingId: string;
-	priorReadingIds: string[];
-}
+/** A projected local stemma state the scholar needs to resolve, never an automatic rewrite. */
+export type StemmaViolation =
+	| {
+			/** A reading with more than one recorded prior reading is never drawn as a guess. */
+			kind: 'multiple-sources';
+			readingId: string;
+			priorReadingIds: string[];
+	  }
+	| {
+			/** The established lemma must not derive from another reading in a rooted stemma. */
+			kind: 'lemma-is-posterior';
+			readingId: string;
+			priorReadingIds: string[];
+	  };
 
 export interface StemmaTreeNode {
 	readingId: string;
@@ -133,6 +141,18 @@ export function projectLocalStemma(
 			violation,
 		};
 	});
+
+	const lemmaMainReadingId = lemmaReadingId ? resolve(lemmaReadingId) : null;
+	if (lemmaMainReadingId) {
+		const priorReadingIds = priorsOf.get(lemmaMainReadingId) ?? [];
+		if (priorReadingIds.length > 0) {
+			violations.push({
+				kind: 'lemma-is-posterior',
+				readingId: lemmaMainReadingId,
+				priorReadingIds,
+			});
+		}
+	}
 
 	return { nodes, violations, orphanedArcs };
 }

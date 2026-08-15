@@ -9,6 +9,8 @@ export interface UnitDecisions {
 	/** A recorded type outranks the proposal; a recorded null means "no type", not "undecided". */
 	readingType?: Record<string, ReadingTypeId | null>;
 	certainty?: Record<string, Certainty | null>;
+	/** Per-variation-unit relationship threshold. Absent means the editorial default of 10. */
+	connectivity?: number;
 	/**
 	 * Only the source decisions no arc can express. A `derived` decision is stored as an arc,
 	 * which is the persisted form and the only one able to hold more than one source; `undecided`
@@ -78,6 +80,7 @@ export function cloneUnitDecisions(decisions: UnitDecisions | undefined): UnitDe
 	if (decisions?.lemmaReadingId !== undefined) clone.lemmaReadingId = decisions.lemmaReadingId;
 	if (decisions?.readingType) clone.readingType = { ...decisions.readingType };
 	if (decisions?.certainty) clone.certainty = { ...decisions.certainty };
+	if (decisions?.connectivity !== undefined) clone.connectivity = decisions.connectivity;
 	if (decisions?.sourceDecision) clone.sourceDecision = { ...decisions.sourceDecision };
 	return clone;
 }

@@ -196,6 +196,33 @@ describe('projectLocalStemma', () => {
 		expect(conflicted.violation?.priorReadingIds).toEqual([a.id, b.id]);
 	});
 
+	it('reports an arc into the lemma without suppressing the recorded derivation', () => {
+		const readings = readingsFor([
+			makeWitness('A', textTokens('λογος'), true),
+			makeWitness('B', textTokens('θεος')),
+		]);
+		const lemma = labelled(readings, 'a');
+		const other = labelled(readings, 'b');
+
+		const { nodes, violations } = projectLocalStemma(
+			readings,
+			[arc(other.id, lemma.id)],
+			lemma.id
+		);
+
+		expect(violations).toEqual([
+			{
+				kind: 'lemma-is-posterior',
+				readingId: lemma.id,
+				priorReadingIds: [other.id],
+			},
+		]);
+		expect(nodes.find(node => node.readingId === lemma.id)?.sourceDecision).toEqual({
+			kind: 'derived',
+			from: other.id,
+		});
+	});
+
 	it('reports an arc that names a reading the unit no longer has', () => {
 		const readings = readingsFor([
 			makeWitness('A', textTokens('λογος'), true),

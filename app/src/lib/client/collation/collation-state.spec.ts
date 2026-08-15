@@ -2225,6 +2225,91 @@ describe('collationState local stemma source decisions', () => {
 		]);
 		expect(arcsForUnit()).toEqual([]);
 	});
+
+	it('defaults connectivity to 10 and records a changed value as one sparse decision', () => {
+		collateReadings({ A: 'λογος', B: 'θεος' });
+		const b = labelled('b');
+
+		expect(collationState.getConnectivity(0)).toBe(10);
+		expect(collationState.unitDecisions).toEqual(new Map());
+		expect(collationState.setConnectivity(0, 0)).toEqual({
+			ok: false,
+			error: 'invalid-connectivity',
+		});
+		expect(collationState.setConnectivity(0, 1.5)).toEqual({
+			ok: false,
+			error: 'invalid-connectivity',
+		});
+		expect(collationState.setConnectivity(0, 3)).toEqual({ ok: true });
+		expect(collationState.getConnectivity(0)).toBe(3);
+		expect([...collationState.unitDecisions.values()]).toEqual([{ connectivity: 3 }]);
+		collationState.setReadingType(0, b.id, 'nonsense');
+		expect(collationState.getConnectivity(0)).toBe(3);
+
+		collationState.undo();
+		expect(collationState.getConnectivity(0)).toBe(3);
+
+		collationState.undo();
+		expect(collationState.getConnectivity(0)).toBe(10);
+		expect(collationState.unitDecisions).toEqual(new Map());
+	});
+
+	it('reports an accepted arc into an elevated lemma for the Review worklist', () => {
+		collateReadings({ A: 'λογος', B: 'θεος', C: 'πνευμα' });
+		const a = labelled('a');
+		const b = labelled('b');
+		const c = labelled('c');
+
+		expect(collationState.setReadingSource(0, b.id, { kind: 'derived', from: a.id })).toEqual({
+			ok: true,
+		});
+		const arcsBeforeElevation = structuredClone(arcsForUnit());
+		expect(collationState.setLemmaReading(0, b.id)).toEqual({ ok: true });
+
+		expect(arcsForUnit()).toEqual(arcsBeforeElevation);
+		expect(collationState.getLocalStemma(0).violations).toEqual([
+			{
+				kind: 'lemma-is-posterior',
+				readingId: b.id,
+				priorReadingIds: [a.id],
+			},
+		]);
+		expect(collationState.getStemmaViolations()).toEqual([
+			{
+				unitIndex: 0,
+				unitId: expect.stringMatching(/^unit:/),
+				violations: [
+					{
+						kind: 'lemma-is-posterior',
+						readingId: b.id,
+						priorReadingIds: [a.id],
+					},
+				],
+			},
+		]);
+		expect(collationState.setReadingSource(0, c.id, { kind: 'derived', from: b.id })).toEqual({
+			ok: true,
+		});
+	});
+
+	it('reroots on the lemma by removing only its incoming arcs in one undoable action', () => {
+		collateReadings({ A: 'λογος', B: 'θεος', C: 'πνευμα', D: 'χαρις' });
+		const a = labelled('a');
+		const b = labelled('b');
+		const c = labelled('c');
+		const d = labelled('d');
+		collationState.setReadingSource(0, b.id, { kind: 'derived', from: a.id });
+		collationState.setReadingSource(0, c.id, { kind: 'derived', from: b.id });
+		collationState.setReadingSource(0, d.id, { kind: 'derived', from: a.id });
+		collationState.setLemmaReading(0, b.id);
+		const beforeReroot = structuredClone(arcsForUnit());
+
+		expect(collationState.rerootStemmaOnLemma(0)).toEqual({ ok: true, removed: 1 });
+		expect(arcsForUnit()).toEqual(beforeReroot.filter(arc => arc.posteriorReadingId !== b.id));
+
+		collationState.undo();
+		expect(arcsForUnit()).toEqual(beforeReroot);
+	});
 });
 
 describe('collationState bulk witness partitioning', () => {

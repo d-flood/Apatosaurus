@@ -179,6 +179,7 @@ describe('collation document', () => {
 					{
 						subreadingOf: { 'r-b': 'r-a' },
 						sourceDecision: { 'r-c': { kind: 'unclear' as const } },
+						connectivity: 3,
 					},
 				],
 			]),
@@ -209,9 +210,11 @@ describe('collation document', () => {
 			},
 		});
 		expect(document.apparatus?.units[0]).not.toHaveProperty('unitIndex');
+		expect(document.apparatus?.units[0]?.decisions).not.toHaveProperty('connectivity');
 		expect(document.stemma?.units[0]).toMatchObject({
 			unitId: 'unit:col-1',
 			columnId: 'col-1',
+			connectivity: 3,
 		});
 		expect(document.stemma?.units[0]).not.toHaveProperty('unitIndex');
 		expect(document).not.toHaveProperty('undoHistory');
@@ -244,6 +247,7 @@ describe('collation document', () => {
 				{
 					subreadingOf: { 'r-b': 'r-a' },
 					sourceDecision: { 'r-c': { kind: 'unclear' } },
+					connectivity: 3,
 				},
 			],
 		]);

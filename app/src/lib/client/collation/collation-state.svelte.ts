@@ -87,6 +87,7 @@ import {
 	wouldCreateCycle,
 	type LocalStemma,
 	type SourceDecision,
+	type StemmaViolation,
 } from './collation-stemma';
 import { variationUnitId } from './collation-unit-id';
 import {
@@ -3111,6 +3112,61 @@ function createCollationState() {
 		);
 	}
 
+	/** The per-unit connectivity threshold, with the editorial default applied only on read. */
+	function getConnectivity(unitIndex: number): number {
+		const key = getReadingUnitKey(unitIndex);
+		return key ? (unitDecisions.get(key)?.connectivity ?? 10) : 10;
+	}
+
+	type ConnectivityError = 'unit-not-found' | 'invalid-connectivity';
+
+	function setConnectivity(
+		unitIndex: number,
+		connectivity: number
+	): { ok: true } | { ok: false; error: ConnectivityError } {
+		if (!Number.isInteger(connectivity) || connectivity <= 0) {
+			return { ok: false, error: 'invalid-connectivity' };
+		}
+		const key = getReadingUnitKey(unitIndex);
+		if (!key) return { ok: false, error: 'unit-not-found' };
+
+		const previous = new Map(unitDecisions);
+		if (previous.get(key)?.connectivity === connectivity) return { ok: true };
+		const next = cloneUnitDecisions(previous.get(key));
+		next.connectivity = connectivity;
+		const updated = new Map(previous).set(key, next);
+		unitDecisions = updated;
+		pushCommand({
+			type: 'set-connectivity',
+			description: 'Set connectivity',
+			undo: () => {
+				unitDecisions = new Map(previous);
+			},
+			redo: () => {
+				unitDecisions = new Map(updated);
+			},
+		});
+		return { ok: true };
+	}
+
+	/** Projection warnings ready for the Review worklist, grouped by the variation unit they name. */
+	function getStemmaViolations(): {
+		unitIndex: number;
+		unitId: string;
+		violations: StemmaViolation[];
+	}[] {
+		return forEachUnitView((_, span) => {
+			const violations = getLocalStemma(span.startIndex).violations;
+			return violations.length > 0
+				? {
+						unitIndex: span.startIndex,
+						unitId: variationUnitId(span.columnIds[0]),
+						violations,
+					}
+				: null;
+		});
+	}
+
 	type SourceDecisionError = 'reading-not-found' | 'not-a-main-reading' | 'self-source' | 'cycle';
 
 	/**
@@ -3213,6 +3269,36 @@ function createCollationState() {
 			},
 		});
 		return { ok: true };
+	}
+
+	function rerootStemmaOnLemma(
+		unitIndex: number
+	): { ok: true; removed: number } | { ok: false; error: 'unit-not-found' | 'no-lemma' } {
+		const key = getReadingUnitKey(unitIndex);
+		if (!key) return { ok: false, error: 'unit-not-found' };
+		const stemma = getLocalStemma(unitIndex);
+		const lemma = stemma.nodes.find(node => node.isLemma);
+		if (!lemma) return { ok: false, error: 'no-lemma' };
+
+		const posteriorIds = new Set([lemma.readingId, ...lemma.subreadingIds]);
+		const previous = new Map(readingArcs);
+		const arcs = previous.get(key) ?? [];
+		const nextArcs = arcs.filter(arc => !posteriorIds.has(arc.posteriorReadingId));
+		const removed = arcs.length - nextArcs.length;
+		if (removed === 0) return { ok: true, removed };
+		const updated = new Map(previous).set(key, nextArcs);
+		readingArcs = updated;
+		pushCommand({
+			type: 'reroot-stemma-on-lemma',
+			description: 'Reroot stemma on lemma',
+			undo: () => {
+				readingArcs = new Map(previous);
+			},
+			redo: () => {
+				readingArcs = new Map(updated);
+			},
+		});
+		return { ok: true, removed };
 	}
 
 	// Keyboard navigation
@@ -3710,7 +3796,11 @@ function createCollationState() {
 		moveReadingByOffset,
 		moveReadingBefore,
 		getLocalStemma,
+		getConnectivity,
+		setConnectivity,
+		getStemmaViolations,
 		setReadingSource,
+		rerootStemmaOnLemma,
 		moveFocus,
 		undo,
 		redo,
