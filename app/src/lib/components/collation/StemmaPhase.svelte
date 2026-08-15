@@ -3,7 +3,7 @@
 	import { layoutLocalStemma } from '$lib/client/collation/collation-stemma-layout';
 	import type { SourceDecision, StemmaTreeNode } from '$lib/client/collation/collation-stemma';
 	import ArrowLeft from 'phosphor-svelte/lib/ArrowLeft';
-	import { onDestroy, onMount } from 'svelte';
+	import { onDestroy, onMount, tick } from 'svelte';
 
 	/**
 	 * A refusal belongs beside the control that produced it, not at the top of a scrolling panel,
@@ -38,6 +38,24 @@
 	let layout = $derived(layoutLocalStemma(stemma.nodes));
 	let nodeById = $derived(new Map(stemma.nodes.map(node => [node.readingId, node] as const)));
 	let labelById = $derived(new Map(stemma.nodes.map(node => [node.readingId, node.label])));
+	let focusedNodeId = $state<string | null>(null);
+	let liftedReadingId = $state<string | null>(null);
+	let liftTargetReadingId = $state<string | null>(null);
+	let draggedReadingId = $state<string | null>(null);
+	let dropTargetReadingId = $state<string | null>(null);
+	let liveMessage = $state('');
+	const nodeButtons = new Map<string, HTMLButtonElement>();
+
+	$effect(() => {
+		const nodeIds = new Set(stemma.nodes.map(node => node.readingId));
+		if (!focusedNodeId || !nodeIds.has(focusedNodeId)) {
+			focusedNodeId = stemma.nodes[0]?.readingId ?? null;
+		}
+		if (liftedReadingId && !nodeIds.has(liftedReadingId)) liftedReadingId = null;
+		if (liftTargetReadingId && !nodeIds.has(liftTargetReadingId)) liftTargetReadingId = null;
+		if (draggedReadingId && !nodeIds.has(draggedReadingId)) draggedReadingId = null;
+		if (dropTargetReadingId && !nodeIds.has(dropTargetReadingId)) dropTargetReadingId = null;
+	});
 
 	/**
 	 * Node colour encodes the source decision and nothing else. Being the lemma is an orthogonal
@@ -97,24 +115,35 @@
 		'reading-not-found': 'That reading no longer exists. No change was made.',
 	};
 
-	function chooseSource(node: StemmaTreeNode, control: HTMLSelectElement) {
-		if (control.value === CONFLICT_VALUE) return;
-		const result = collationState.setReadingSource(
-			collationState.selectedUnitIndex,
-			node.readingId,
-			decisionFromValue(control.value)
-		);
-		if (result.ok) {
-			refusal = null;
-			return;
-		}
+	function recordSourceRefusal(node: StemmaTreeNode, error: keyof typeof REFUSALS) {
+		const message = REFUSALS[error] ?? 'That source was refused.';
 		refusalCount += 1;
 		refusal = {
 			unitIndex: collationState.selectedUnitIndex,
 			readingId: node.readingId,
-			message: REFUSALS[result.error] ?? 'That source was refused.',
+			message,
 			seq: refusalCount,
 		};
+		return message;
+	}
+
+	function setSourceDecision(node: StemmaTreeNode, decision: SourceDecision): string | null {
+		const result = collationState.setReadingSource(
+			collationState.selectedUnitIndex,
+			node.readingId,
+			decision
+		);
+		if (result.ok) {
+			refusal = null;
+			return null;
+		}
+		return recordSourceRefusal(node, result.error);
+	}
+
+	function chooseSource(node: StemmaTreeNode, control: HTMLSelectElement) {
+		if (control.value === CONFLICT_VALUE) return;
+		const message = setSourceDecision(node, decisionFromValue(control.value));
+		if (!message) return;
 		// Nothing was recorded, so the control must not go on showing the refused choice.
 		control.value = selectValueOf(node);
 	}
@@ -134,7 +163,6 @@
 		return value.length > max ? `${value.slice(0, max)}\u2026` : value;
 	}
 
-	/** What a screen reader gets from the diagram until ticket 09 makes the nodes controls. */
 	function describeNode(node: StemmaTreeNode): string {
 		const source = node.violation
 			? `conflicting sources (${node.violation.priorReadingIds
@@ -148,9 +176,242 @@
 		return `${node.label}${node.isLemma ? ' (lemma)' : ''}: ${readingSummary(node)} \u2014 ${source}.`;
 	}
 
-	let diagramDescription = $derived(stemma.nodes.map(describeNode).join(' '));
+	function registerNodeButton(button: HTMLButtonElement, readingId: string) {
+		nodeButtons.set(readingId, button);
+		return {
+			update(nextReadingId: string) {
+				nodeButtons.delete(readingId);
+				readingId = nextReadingId;
+				nodeButtons.set(readingId, button);
+			},
+			destroy() {
+				nodeButtons.delete(readingId);
+			},
+		};
+	}
+
+	async function focusNode(readingId: string) {
+		focusedNodeId = readingId;
+		await tick();
+		nodeButtons.get(readingId)?.focus();
+	}
+
+	function sourceIdOf(node: StemmaTreeNode): string | null {
+		return node.sourceDecision.kind === 'derived' ? node.sourceDecision.from : null;
+	}
+
+	function navigationTarget(node: StemmaTreeNode, key: string): string | null {
+		if (key === 'ArrowUp') return sourceIdOf(node);
+		if (key === 'ArrowDown') {
+			return (
+				stemma.nodes.find(other => sourceIdOf(other) === node.readingId)?.readingId ?? null
+			);
+		}
+		const source = sourceIdOf(node);
+		const siblings = stemma.nodes.filter(other => sourceIdOf(other) === source);
+		const index = siblings.findIndex(other => other.readingId === node.readingId);
+		if (index === -1) return null;
+		if (key === 'ArrowLeft') return siblings[index - 1]?.readingId ?? null;
+		if (key === 'ArrowRight') return siblings[index + 1]?.readingId ?? null;
+		return null;
+	}
+
+	function describeLiftTarget(lifted: StemmaTreeNode, target: StemmaTreeNode) {
+		return `Reading ${target.label} is selected as the prior reading for lifted reading ${lifted.label}.`;
+	}
+
+	function moveDiagramFocus(node: StemmaTreeNode, key: string) {
+		const targetId = navigationTarget(node, key);
+		if (!targetId) return;
+		const target = nodeById.get(targetId);
+		if (!target) return;
+		void focusNode(targetId);
+		if (!liftedReadingId) return;
+		const lifted = nodeById.get(liftedReadingId);
+		if (lifted) {
+			liftTargetReadingId = target.readingId;
+			liveMessage = describeLiftTarget(lifted, target);
+		}
+	}
+
+	function liftOrPlace(node: StemmaTreeNode) {
+		if (!liftedReadingId) {
+			liftedReadingId = node.readingId;
+			liftTargetReadingId = null;
+			liveMessage = `Lifted reading ${node.label}. Choose its prior reading with the arrow keys.`;
+			return;
+		}
+
+		const lifted = nodeById.get(liftedReadingId);
+		if (!lifted) {
+			liftedReadingId = null;
+			liftTargetReadingId = null;
+			return;
+		}
+		if (lifted.readingId === node.readingId) {
+			liveMessage = `Reading ${lifted.label} cannot be its own prior reading. Choose another reading.`;
+			return;
+		}
+
+		const refusalMessage = setSourceDecision(lifted, { kind: 'derived', from: node.readingId });
+		if (refusalMessage) {
+			liveMessage = `Cannot make reading ${lifted.label} derive from reading ${node.label}. ${refusalMessage}`;
+			return;
+		}
+		liftedReadingId = null;
+		liftTargetReadingId = null;
+		liveMessage = `Reading ${lifted.label} now derives from reading ${node.label}.`;
+	}
+
+	function cancelLift() {
+		if (!liftedReadingId) return;
+		const lifted = nodeById.get(liftedReadingId);
+		const target = liftTargetReadingId ? nodeById.get(liftTargetReadingId) : null;
+		if (lifted) {
+			liveMessage = target
+				? `Cancelled placing reading ${lifted.label} on reading ${target.label}. Focus returned to reading ${lifted.label}.`
+				: `Cancelled placing reading ${lifted.label}. Focus returned to reading ${lifted.label}.`;
+		}
+		liftedReadingId = null;
+		liftTargetReadingId = null;
+		if (!lifted) return;
+		void focusNode(lifted.readingId);
+	}
+
+	function setNodeState(node: StemmaTreeNode, decision: SourceDecision, action: string) {
+		const formerSourceId = sourceIdOf(node);
+		const formerSource = formerSourceId ? nodeById.get(formerSourceId) : null;
+		const refusalMessage = setSourceDecision(node, decision);
+		if (refusalMessage) {
+			liveMessage = `Could not ${action} for reading ${node.label}. ${refusalMessage}`;
+			return;
+		}
+		if (decision.kind === 'unclear') {
+			liveMessage = `Reading ${node.label} is marked unclear; its origin cannot be determined.`;
+			return;
+		}
+		liveMessage = formerSource
+			? `Reading ${node.label} is detached from reading ${formerSource.label} and is now a root.`
+			: `Reading ${node.label} is now a root.`;
+	}
+
+	function handleNodeKeydown(event: KeyboardEvent, node: StemmaTreeNode) {
+		if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
+			event.preventDefault();
+			event.stopPropagation();
+			moveDiagramFocus(node, event.key);
+			return;
+		}
+		if (event.key === 'Enter') {
+			event.preventDefault();
+			event.stopPropagation();
+			liftOrPlace(node);
+			return;
+		}
+		if (event.key === 'Escape' && liftedReadingId) {
+			event.preventDefault();
+			event.stopPropagation();
+			cancelLift();
+			return;
+		}
+		if (liftedReadingId) return;
+		if (event.key.toLowerCase() === 'u') {
+			event.preventDefault();
+			setNodeState(node, { kind: 'unclear' }, 'mark the source unclear');
+		} else if (event.key.toLowerCase() === 'r') {
+			event.preventDefault();
+			setNodeState(node, { kind: 'undecided' }, 'make it a root');
+		} else if (event.key.toLowerCase() === 'd') {
+			event.preventDefault();
+			setNodeState(node, { kind: 'undecided' }, 'detach it');
+		}
+	}
+
+	function handleDragStart(event: DragEvent, node: StemmaTreeNode) {
+		event.dataTransfer?.setData('text/plain', node.readingId);
+		if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
+		draggedReadingId = node.readingId;
+		dropTargetReadingId = null;
+		liveMessage = `Lifted reading ${node.label}. Drag it onto its prior reading or drop it on the canvas to make it a root.`;
+	}
+
+	function handleDragOverNode(event: DragEvent, node: StemmaTreeNode) {
+		if (!draggedReadingId) return;
+		event.preventDefault();
+		event.stopPropagation();
+		if (draggedReadingId === node.readingId || dropTargetReadingId === node.readingId) return;
+		dropTargetReadingId = node.readingId;
+		const dragged = nodeById.get(draggedReadingId);
+		if (dragged) liveMessage = `Drop reading ${dragged.label} on reading ${node.label} to record that relationship.`;
+	}
+
+	function handleDragLeaveNode(event: DragEvent, node: StemmaTreeNode) {
+		if (dropTargetReadingId !== node.readingId) return;
+		const nextTarget = event.relatedTarget;
+		if (nextTarget instanceof Node && (event.currentTarget as HTMLElement).contains(nextTarget)) {
+			return;
+		}
+		dropTargetReadingId = null;
+		const dragged = draggedReadingId ? nodeById.get(draggedReadingId) : null;
+		if (dragged) {
+			liveMessage = `Reading ${dragged.label} is no longer targeting a prior reading. Drop it on the canvas to make it a root.`;
+		}
+	}
+
+	function handleDropOnNode(event: DragEvent, target: StemmaTreeNode) {
+		event.preventDefault();
+		event.stopPropagation();
+		const dragged = draggedReadingId ? nodeById.get(draggedReadingId) : null;
+		draggedReadingId = null;
+		dropTargetReadingId = null;
+		if (!dragged) return;
+		if (dragged.readingId === target.readingId) {
+			liveMessage = `Reading ${dragged.label} was dropped on itself. No change was made.`;
+			void focusNode(dragged.readingId);
+			return;
+		}
+		const refusalMessage = setSourceDecision(dragged, {
+			kind: 'derived',
+			from: target.readingId,
+		});
+		if (refusalMessage) {
+			liveMessage = `Cannot make reading ${dragged.label} derive from reading ${target.label}. ${refusalMessage}`;
+			void focusNode(dragged.readingId);
+			return;
+		}
+		liveMessage = `Reading ${dragged.label} now derives from reading ${target.label}.`;
+		void focusNode(dragged.readingId);
+	}
+
+	function handleCanvasDrop(event: DragEvent) {
+		event.preventDefault();
+		const dragged = draggedReadingId ? nodeById.get(draggedReadingId) : null;
+		draggedReadingId = null;
+		dropTargetReadingId = null;
+		if (!dragged) return;
+		const formerSourceId = sourceIdOf(dragged);
+		const formerSource = formerSourceId ? nodeById.get(formerSourceId) : null;
+		const refusalMessage = setSourceDecision(dragged, { kind: 'undecided' });
+		if (refusalMessage) {
+			liveMessage = `Could not make reading ${dragged.label} a root. ${refusalMessage}`;
+		} else if (formerSource) {
+			liveMessage = `Reading ${dragged.label} is detached from reading ${formerSource.label} and is now a root.`;
+		} else {
+			liveMessage = `Reading ${dragged.label} remains a root.`;
+		}
+		void focusNode(dragged.readingId);
+	}
+
+	function handleDragEnd() {
+		if (!draggedReadingId) return;
+		const dragged = nodeById.get(draggedReadingId);
+		draggedReadingId = null;
+		dropTargetReadingId = null;
+		if (dragged) liveMessage = `Cancelled dragging reading ${dragged.label}.`;
+	}
 
 	function handleKeydown(e: KeyboardEvent) {
+		if (e.defaultPrevented) return;
 		const target = e.target as HTMLElement | null;
 		if (
 			target &&
@@ -348,9 +609,7 @@
 				{/if}
 			</div>
 
-			<div
-				class="flex-1 bg-base-200/30 rounded-box border border-base-300/40 relative overflow-auto"
-			>
+			<div class="flex-1 bg-base-200/30 rounded-box border border-base-300/40 relative overflow-auto">
 				{#if layout.nodes.length === 0}
 					<div
 						class="flex items-center justify-center h-full text-sm text-base-content/30"
@@ -358,142 +617,114 @@
 						Select a variation unit to view its stemma
 					</div>
 				{:else}
-					<!-- Natural size: scaling to fit crushes reading text to a few pixels, so the
-					     container scrolls instead. -->
-					<svg
-						width={layout.bounds.width}
-						height={layout.bounds.height}
-						viewBox="0 0 {layout.bounds.width} {layout.bounds.height}"
-						class="block"
-						role="img"
-						aria-labelledby="stemma-diagram-title"
-						aria-describedby="stemma-diagram-desc"
+					<div
+						class="relative"
+						role="group"
+						aria-label="Local stemma{selectedUnitLabel === null
+							? ''
+							: ` for unit ${selectedUnitLabel}`}"
+						aria-describedby="stemma-diagram-instructions"
+						style="width: {layout.bounds.width}px; height: {layout.bounds.height}px;"
+						ondragover={event => event.preventDefault()}
+						ondrop={handleCanvasDrop}
 					>
-						<title id="stemma-diagram-title"
-							>Local stemma{selectedUnitLabel === null
-								? ''
-								: ` for unit ${selectedUnitLabel}`}</title
+						<!-- Geometry is wholly in the layout module; this surface only renders arcs. -->
+						<svg
+							width={layout.bounds.width}
+							height={layout.bounds.height}
+							viewBox="0 0 {layout.bounds.width} {layout.bounds.height}"
+							class="pointer-events-none absolute inset-0 block"
+							aria-hidden="true"
 						>
-						<desc id="stemma-diagram-desc">{diagramDescription}</desc>
-						<defs>
-							<marker
-								id="stemma-arrowhead"
-								markerWidth="10"
-								markerHeight="7"
-								refX="10"
-								refY="3.5"
-								orient="auto"
-								fill="currentColor"
-								class="text-base-content/40"
-							>
-								<polygon points="0 0, 10 3.5, 0 7" />
-							</marker>
-						</defs>
+							<defs>
+								<marker
+									id="stemma-arrowhead"
+									markerWidth="10"
+									markerHeight="7"
+									refX="10"
+									refY="3.5"
+									orient="auto"
+									fill="currentColor"
+									class="text-base-content/40"
+								>
+									<polygon points="0 0, 10 3.5, 0 7" />
+								</marker>
+							</defs>
 
-						{#each layout.arcs as arc (arc.id)}
-							<path
-								d={arc.path}
-								fill="none"
-								stroke="currentColor"
-								class="text-base-content/30"
-								stroke-width="2"
-								marker-end="url(#stemma-arrowhead)"
-							/>
-						{/each}
+							{#each layout.arcs as arc (arc.id)}
+								<path
+									d={arc.path}
+									fill="none"
+									stroke="currentColor"
+									class="text-base-content/30"
+									stroke-width="2"
+									marker-end="url(#stemma-arrowhead)"
+								/>
+							{/each}
+						</svg>
 
 						{#each layout.nodes as placed (placed.id)}
 							{@const node = nodeById.get(placed.id)}
 							{#if node}
 								{@const state = stateOf(node)}
-								<g transform="translate({placed.x}, {placed.y})">
-									<rect
-										width={placed.width}
-										height={placed.height}
-										rx="6"
-										class="fill-base-100"
-									/>
-									<rect
-										width={placed.width}
-										height={placed.height}
-										rx="6"
-										fill="none"
-										stroke="currentColor"
-										stroke-width="1.5"
-										stroke-dasharray={state === 'undecided' ? '4 3' : undefined}
-										class={SOURCE_STATES[state].stroke}
-									/>
-									{#if node.isLemma}
-										<!-- Lemma is a separate axis from the source decision, so it
-										     is marked without touching the outline's colour. -->
-										<rect
-											x="3"
-											y="3"
-											width={placed.width - 6}
-											height={placed.height - 6}
-											rx="4"
-											fill="none"
-											stroke="currentColor"
-											stroke-width="1"
-											class="text-primary"
-										/>
-										<text
-											x={placed.width - 5}
-											y="12"
-											text-anchor="end"
-											font-size="8"
-											font-family="monospace"
-											fill="currentColor"
-											class="text-primary"
-										>
-											lemma
-										</text>
-									{/if}
-									<text
-										x={placed.width / 2}
-										y="16"
-										text-anchor="middle"
-										font-size="10"
-										font-family="monospace"
-										fill="currentColor"
-										class="text-base-content/60"
-									>
+								{@const isDropTarget = dropTargetReadingId === node.readingId}
+								<button
+									use:registerNodeButton={node.readingId}
+									type="button"
+									draggable="true"
+									tabindex={focusedNodeId === node.readingId ? 0 : -1}
+									aria-label={describeNode(node)}
+									class="absolute overflow-hidden rounded-md border bg-base-100 px-2 py-1 text-center shadow-sm outline-offset-2 transition-colors cursor-grab active:cursor-grabbing focus-visible:outline-2 focus-visible:outline-primary {SOURCE_STATES[
+										state
+									].classes} {node.isLemma ? 'ring-1 ring-primary ring-inset' : ''} {isDropTarget
+										? 'ring-2 ring-success ring-offset-2 ring-offset-base-200'
+										: ''} {liftedReadingId === node.readingId ? 'opacity-60 ring-2 ring-primary' : ''}"
+									style="left: {placed.x}px; top: {placed.y}px; width: {placed.width}px; height: {placed.height}px;"
+									onfocus={() => (focusedNodeId = node.readingId)}
+									onkeydown={event => handleNodeKeydown(event, node)}
+									ondragstart={event => handleDragStart(event, node)}
+									ondragover={event => handleDragOverNode(event, node)}
+									ondragleave={event => handleDragLeaveNode(event, node)}
+									ondrop={event => handleDropOnNode(event, node)}
+									ondragend={handleDragEnd}
+								>
+									<span class="block truncate font-mono text-[10px] text-base-content/60">
 										{node.label}
 										{state === 'undecided'
-											? '· ?'
+											? ' · ?'
 											: state === 'unclear'
-												? '· unclear'
+												? ' · unclear'
 												: state === 'violation'
-													? '· conflict'
-													: '· derived'}
-									</text>
-									<text
-										x={placed.width / 2}
-										y="32"
-										text-anchor="middle"
-										font-size="12"
-										font-family="var(--font-greek, serif)"
-										fill="currentColor"
-										class="text-base-content"
-									>
+													? ' · conflict'
+													: ' · derived'}
+									</span>
+									<span class="block truncate font-greek text-xs text-base-content">
 										{node.isOmission ? 'om.' : truncate(node.text ?? '', 14)}
-									</text>
-									<text
-										x={placed.width / 2}
-										y="47"
-										text-anchor="middle"
-										font-size="9"
-										font-family="monospace"
-										fill="currentColor"
-										class="text-base-content/50"
-									>
+									</span>
+									<span class="block truncate font-mono text-[9px] text-base-content/50">
 										{truncate(node.witnessIds.join(', '), 20)}
-									</text>
-								</g>
+									</span>
+									{#if node.isLemma}
+										<span class="absolute right-1 top-0.5 font-mono text-[8px] text-primary">lemma</span>
+									{/if}
+								</button>
 							{/if}
 						{/each}
-					</svg>
+					</div>
 				{/if}
 			</div>
+
+			<p id="stemma-diagram-instructions" class="sr-only">
+				Use the arrow keys to move between readings. Press Enter to lift a reading and Enter
+				again on its prior reading to place it. Press Escape to cancel. Press U to mark a
+				reading unclear, R to make it a root, or D to detach it.
+			</p>
+			<div class="sr-only" aria-live="polite" data-testid="stemma-announcer">{liveMessage}</div>
+			{#if refusal && refusal.unitIndex === collationState.selectedUnitIndex}
+				{#key refusal.seq}
+					<div class="alert alert-error mt-2 py-2 text-xs" role="alert">{refusal.message}</div>
+				{/key}
+			{/if}
 
 			<div class="mt-2 flex flex-wrap items-center gap-3 text-xs text-base-content/50">
 				<span class="inline-flex items-center gap-1">
