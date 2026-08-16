@@ -1,6 +1,7 @@
 import type { Certainty, ReadingTypeDefinition, ReadingTypeId } from './reading-types';
 
-export type CollationPhase = 'setup' | 'regularization' | 'alignment' | 'readings' | 'stemma';
+export type CollationPhase =
+	'setup' | 'regularization' | 'alignment' | 'readings' | 'stemma' | 'review';
 
 export type RuleScope = 'project' | 'verse';
 

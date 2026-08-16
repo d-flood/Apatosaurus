@@ -119,6 +119,7 @@ const PHASE_ORDER: CollationPhase[] = [
 	'alignment',
 	'readings',
 	'stemma',
+	'review',
 ];
 export type { CollationPhase, ReadingArc, WitnessConfig, WitnessTreatment };
 
@@ -371,7 +372,7 @@ function createCollationState() {
 	}
 
 	function isFinalizedCollationPhase(): boolean {
-		return phase === 'stemma';
+		return phase === 'review';
 	}
 
 	async function persistDocument(): Promise<boolean> {
@@ -490,6 +491,7 @@ function createCollationState() {
 	}
 
 	function canNavigateTo(targetPhase: CollationPhase): boolean {
+		if (targetPhase === 'review') return alignmentColumns.length > 0;
 		return PHASE_ORDER.indexOf(targetPhase) <= PHASE_ORDER.indexOf(furthestPhase);
 	}
 
@@ -504,6 +506,7 @@ function createCollationState() {
 		if (phase === 'regularization') return witnesses.some(w => !w.isExcluded);
 		if (phase === 'alignment') return alignmentColumns.length > 0;
 		if (phase === 'readings') return alignmentColumns.length > 0;
+		if (phase === 'stemma') return alignmentColumns.length > 0;
 		return false;
 	}
 
@@ -1394,10 +1397,10 @@ function createCollationState() {
 		classifiedReadings = new Map();
 		readingArcs = new Map();
 		selectedUnitIndex = 0;
-		if (furthestPhase === 'stemma') {
+		if (furthestPhase === 'stemma' || furthestPhase === 'review') {
 			furthestPhase = 'alignment';
 		}
-		if (phase === 'stemma') {
+		if (phase === 'stemma' || phase === 'review') {
 			phase = 'alignment';
 		}
 	}

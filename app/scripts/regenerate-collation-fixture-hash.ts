@@ -6,6 +6,10 @@ import {
 } from '../src/lib/client/store/formats/collation';
 
 const fixturePath = new URL('../src/lib/client/store/formats/collation.ts', import.meta.url);
+const checkpointFixturePath = new URL(
+	'../src/lib/client/store/formats/checkpoint-collation.ts',
+	import.meta.url
+);
 const hash = await hashCanonicalPayload(collationPayloadToContent(COLLATION_FIXTURE));
 const source = await readFile(fixturePath, 'utf8');
 const updated = source.replace(/(content_hash:\s*')[^']+(',)/, `$1${hash}$2`);
@@ -13,4 +17,16 @@ if (updated === source && !source.includes(`content_hash: '${hash}',`)) {
 	throw new Error('Could not locate COLLATION_FIXTURE.current_revision.content_hash.');
 }
 await writeFile(fixturePath, updated);
+const checkpointSource = await readFile(checkpointFixturePath, 'utf8');
+const updatedCheckpoint = checkpointSource.replace(
+	/(payload_content_hash:\s*')[^']+(',)/,
+	`$1${hash}$2`
+);
+if (
+	updatedCheckpoint === checkpointSource &&
+	!checkpointSource.includes(`payload_content_hash: '${hash}',`)
+) {
+	throw new Error('Could not locate COLLATION_CHECKPOINT_FIXTURE.payload_content_hash.');
+}
+await writeFile(checkpointFixturePath, updatedCheckpoint);
 console.log(hash);

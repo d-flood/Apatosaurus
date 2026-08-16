@@ -64,13 +64,13 @@ function makeClassifiedReading(
 }
 
 describe('collation document', () => {
-	it('round-trips semantic state through the persisted document model', () => {
+	it('round-trips Review semantic state through the persisted document model', () => {
 		const document = buildCollationDocument({
 			collationId: 'coll-1',
 			projectId: 'proj-1',
 			projectName: 'Project One',
-			phase: 'readings',
-			furthestPhase: 'stemma',
+			phase: 'review',
+			furthestPhase: 'review',
 			segment: { id: 'segment-1', name: 'John 1:1', members: ['John 1:1'] },
 			witnesses: [makeWitness('A', 'θεος', true), makeWitness('B', 'θς')],
 			rules: [
@@ -227,8 +227,8 @@ describe('collation document', () => {
 			name: 'John 1:1',
 			members: ['John 1:1'],
 		});
-		expect(hydrated.phase).toBe('readings');
-		expect(hydrated.furthestPhase).toBe('stemma');
+		expect(hydrated.phase).toBe('review');
+		expect(hydrated.furthestPhase).toBe('review');
 		expect(hydrated.ignoreWordBreaks).toBe(true);
 		expect(hydrated.lowercase).toBe(true);
 		expect(hydrated.ignoreTokenWhitespace).toBe(true);
@@ -252,6 +252,41 @@ describe('collation document', () => {
 			],
 		]);
 		expect(hydrated.readingArcs[0]?.[1][0]?.posteriorReadingId).toBe('r-b');
+	});
+
+	it('preserves setup and clamps an unknown persisted phase without resetting progress', () => {
+		const document = buildCollationDocument({
+			collationId: null,
+			projectId: null,
+			projectName: null,
+			phase: 'setup',
+			furthestPhase: 'review',
+			segment: { id: 'segment-1', name: 'John 1:1', members: ['John 1:1'] },
+			witnesses: [],
+			rules: [],
+			ignoreWordBreaks: false,
+			lowercase: false,
+			ignoreTokenWhitespace: true,
+			ignorePunctuation: false,
+			suppliedTextMode: 'clear',
+			segmentation: true,
+			alignmentColumns: [],
+			witnessOrder: [],
+			classifiedReadings: new Map(),
+			unitDecisions: new Map(),
+			readingArcs: new Map(),
+			alignmentDisplayMode: 'regularized',
+			alignmentLayout: 'grid',
+		});
+		expect(hydrateCollationDocument(document)).toMatchObject({
+			phase: 'setup',
+			furthestPhase: 'review',
+		});
+
+		(document.flow as { phase: unknown }).phase = 'future-phase';
+
+		expect(hydrateCollationDocument(document).phase).toBe('review');
+		expect(hydrateCollationDocument(document).furthestPhase).toBe('review');
 	});
 
 	it('persists orphaned unit decisions without inventing a positional column id', () => {

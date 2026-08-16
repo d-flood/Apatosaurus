@@ -608,6 +608,72 @@ describe('collation file persistence', () => {
 		expect(status.commitState).toBe('clean');
 	});
 
+	it('writes reconstructive derived TEI for a complete collation commit', async () => {
+		await createFixtureCollation();
+		await saveWorkingCollationArtifact(
+			harness.db,
+			{
+				collationId: 'col-1',
+				artifactType: 'collation_document_v1',
+				payload: JSON.stringify(completeCollationDocument()),
+				now: '2026-07-04T12:00:00.000Z',
+			},
+			{ backend }
+		);
+
+		const checkpoint = await createCommittedCollationCheckpointWithFiles(
+			harness.db,
+			{
+				collationId: 'col-1',
+				checkpointId: 'col-cp-reconstructive',
+				createdAt: '2026-07-04T13:00:00.000Z',
+			},
+			{ backend }
+		);
+		const tei = await readTextFile(collationTeiFile('project-slug', 'col-1'), { backend });
+
+		expect(checkpoint.warnings).toEqual([]);
+		expect(tei).toContain('one');
+		expect(tei).toContain('<app from="4"');
+		expect(tei).toContain('two');
+		expect(tei).toContain('<graph type="directed">');
+	});
+
+	it('commits an incomplete collation with a warning and no derived TEI', async () => {
+		await createFixtureCollation();
+		await saveWorkingCollationArtifact(
+			harness.db,
+			{
+				collationId: 'col-1',
+				artifactType: 'collation_document_v1',
+				payload: JSON.stringify(incompleteCollationDocument()),
+				now: '2026-07-04T12:00:00.000Z',
+			},
+			{ backend }
+		);
+
+		const checkpoint = await createCommittedCollationCheckpointWithFiles(
+			harness.db,
+			{
+				collationId: 'col-1',
+				checkpointId: 'col-cp-incomplete',
+				createdAt: '2026-07-04T13:00:00.000Z',
+			},
+			{ backend }
+		);
+
+		expect(checkpoint.warnings).toEqual([
+			expect.objectContaining({
+				code: 'tei_write_failed',
+				entityType: 'collation',
+				message: expect.stringContaining('Cannot export apparatus'),
+			}),
+		]);
+		await expect(
+			readTextFile(collationTeiFile('project-slug', 'col-1'), { backend })
+		).rejects.toThrow('not found');
+	});
+
 	it('allows manifest to advance while the collation index remains old if index insertion fails', async () => {
 		await createFixtureCollation();
 		await saveWorkingCollationArtifact(
@@ -818,6 +884,166 @@ function collationDocument(phase: string) {
 		alignment: null,
 		apparatus: null,
 		stemma: null,
+	};
+}
+
+function completeCollationDocument() {
+	return {
+		...collationDocument('review'),
+		setup: {
+			segment: { id: 'segment-1', name: 'Romans 1:1', members: ['Romans 1:1'] },
+			witnesses: [
+				witnessNode('A', 'one alpha two', true),
+				witnessNode('B', 'one beta two'),
+			],
+		},
+		alignment: {
+			type: 'alignment',
+			witnessOrder: ['A', 'B'],
+			columns: [
+				alignmentColumn('one', 0, 'one', 'one'),
+				alignmentColumn('variant', 1, 'alpha', 'beta'),
+				alignmentColumn('two', 2, 'two', 'two'),
+			],
+		},
+		apparatus: {
+			type: 'apparatus',
+			units: [
+				{
+					type: 'variationUnit',
+					id: 'unit:variant',
+					unitId: 'unit:variant',
+					columnId: 'variant',
+					readings: [
+						reading('variant::alpha', 0, 'alpha', 'A'),
+						reading('variant::beta', 1, 'beta', 'B'),
+					],
+					decisions: {
+						sourceDecision: {
+							'variant::alpha': { kind: 'unclear' },
+							'variant::beta': { kind: 'derived', from: 'variant::alpha' },
+						},
+					},
+				},
+			],
+		},
+		stemma: {
+			type: 'stemma',
+			units: [
+				{
+					type: 'stemmaUnit',
+					id: 'unit:variant',
+					unitId: 'unit:variant',
+					columnId: 'variant',
+					arcs: [
+						{
+							id: 'variant-alpha-beta',
+							priorReadingId: 'variant::alpha',
+							posteriorReadingId: 'variant::beta',
+						},
+					],
+				},
+			],
+		},
+	};
+}
+
+function incompleteCollationDocument() {
+	return {
+		...collationDocument('review'),
+		setup: {
+			segment: { id: 'segment-1', name: 'Romans 1:1', members: ['Romans 1:1'] },
+			witnesses: [
+				witnessNode('A', 'one', true),
+				witnessNode('B', ''),
+			],
+		},
+		alignment: {
+			type: 'alignment',
+			witnessOrder: ['A', 'B'],
+			columns: [
+				{
+					...alignmentColumn('one', 0, 'one', 'one'),
+					cells: [
+						['A', textCell('one')],
+						[
+							'B',
+							{
+								...textCell('⊘'),
+								regularizedText: null,
+								alignmentValue: '__untranscribed__:none:none:none',
+								kind: 'untranscribed',
+								gap: { source: 'untranscribed', reason: '', unit: '', extent: '' },
+								isLacuna: true,
+							},
+						],
+					],
+				},
+			],
+		},
+	};
+}
+
+function witnessNode(id: string, content: string, isBaseText = false) {
+	return {
+		type: 'witness',
+		id,
+		siglum: id,
+		transcriptionId: '',
+		content,
+		treatment: 'inherit',
+		isBaseText,
+		isExcluded: false,
+		overridesDefault: false,
+		sourceTokens: [],
+	};
+}
+
+function alignmentColumn(id: string, index: number, a: string, b: string) {
+	return {
+		id,
+		index,
+		merged: false,
+		cells: [
+			['A', textCell(a)],
+			['B', textCell(b)],
+		],
+	};
+}
+
+function textCell(text: string) {
+	return {
+		text,
+		regularizedText: text,
+		alignmentValue: text,
+		sourceTokenIds: [],
+		kind: 'text',
+		gap: null,
+		isOmission: false,
+		isLacuna: false,
+		isRegularized: false,
+		ruleIds: [],
+		regularizationTypes: [],
+	};
+}
+
+function reading(id: string, order: number, text: string, witnessId: string) {
+	return {
+		id,
+		order,
+		label: order === 0 ? 'a' : 'b',
+		text,
+		normalizedText: text,
+		witnessIds: [witnessId],
+		witnessGroups: [],
+		isOmission: false,
+		isLacuna: false,
+		readingType: null,
+		certainty: null,
+		parentReadingId: null,
+		isSubreading: false,
+		autoGenerated: false,
+		derivedFromRuleIds: [],
 	};
 }
 

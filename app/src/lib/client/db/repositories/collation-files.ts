@@ -7,7 +7,6 @@ import {
 	COLLATION_FORMAT,
 	assertCollationRevisionHash,
 	collationCheckpointFile,
-	collationDocumentToTei,
 	collationPrimaryFile,
 	collationTeiFile,
 	collationWorkingFile,
@@ -37,6 +36,7 @@ import {
 	serializeCollationDocument,
 	type CollationDocument as SemanticCollationDocument,
 } from '$lib/client/collation/collation-document';
+import { exportCollationDocumentTei } from '$lib/client/collation/collation-tei';
 import {
 	buildCollationProjectionFromDocument,
 	buildSerializedCollationProjectionRows,
@@ -542,14 +542,25 @@ async function writeDerivedCollationTei(
 	payload: CollationPayload,
 	storeOptions: StoreOperationOptions
 ): Promise<PersistenceWarning | null> {
+	const path = collationTeiFile(projectStorageSlug, collationId);
 	try {
 		await writeTextFileAtomic(
-			collationTeiFile(projectStorageSlug, collationId),
-			collationDocumentToTei(payload.document),
+			path,
+			exportCollationDocumentTei(payload.document),
 			storeOptions
 		);
 		return null;
 	} catch (error) {
+		try {
+			await deleteFile(path, storeOptions);
+		} catch (deleteError) {
+			if (!isMissingFileError(deleteError)) {
+				console.warn('[document-store] Could not remove stale derived collation TEI.', {
+					collationId,
+					error: errorMessage(deleteError),
+				});
+			}
+		}
 		const message = errorMessage(error);
 		console.warn('[document-store] Could not write derived collation TEI.', {
 			collationId,

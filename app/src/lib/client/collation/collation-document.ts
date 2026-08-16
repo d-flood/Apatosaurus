@@ -193,12 +193,14 @@ function makeSourceTokenId(witnessId: string, index: number): string {
 }
 
 function normalizePhase(value: unknown): CollationPhase {
-	return value === 'alignment' ||
+	return value === 'setup' ||
+		value === 'alignment' ||
 		value === 'readings' ||
 		value === 'stemma' ||
+		value === 'review' ||
 		value === 'regularization'
 		? value
-		: 'setup';
+		: 'review';
 }
 
 function normalizeDisplayMode(value: unknown): AlignmentDisplayMode {

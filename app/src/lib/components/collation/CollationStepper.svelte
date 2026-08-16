@@ -4,15 +4,17 @@ import Crosshair from 'phosphor-svelte/lib/Crosshair';
 import ListBullets from 'phosphor-svelte/lib/ListBullets';
 import Table from 'phosphor-svelte/lib/Table';
 import TreeStructure from 'phosphor-svelte/lib/TreeStructure';
+import Check from 'phosphor-svelte/lib/Check';
 
 const steps: { phase: CollationPhase; label: string; icon: typeof Crosshair }[] = [
 	{ phase: 'setup', label: 'Setup', icon: Crosshair },
 	{ phase: 'alignment', label: 'Alignment', icon: Table },
 	{ phase: 'readings', label: 'Readings', icon: ListBullets },
 	{ phase: 'stemma', label: 'Stemma', icon: TreeStructure },
+	{ phase: 'review', label: 'Review', icon: Check },
 ];
 
-const phaseOrder: CollationPhase[] = ['setup', 'alignment', 'readings', 'stemma'];
+const phaseOrder: CollationPhase[] = ['setup', 'alignment', 'readings', 'stemma', 'review'];
 
 function displayPhase(phase: CollationPhase): CollationPhase {
 	return phase === 'regularization' ? 'alignment' : phase;
@@ -72,7 +74,7 @@ function phaseHref(stepPhase: CollationPhase): string {
 			<div
 				class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-200 shrink-0 {current ? 'bg-primary-content text-primary' : completed ? 'bg-primary text-primary-content' : 'bg-base-300 text-base-content/60'}"
 			>
-				{#if step.phase === 'stemma' || completed}
+				{#if step.phase === 'review' || completed}
 					<svelte:component this={step.icon} size={14} weight="bold" />
 				{:else}
 					{i + 1}

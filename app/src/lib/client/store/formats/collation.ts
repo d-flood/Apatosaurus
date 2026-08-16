@@ -15,7 +15,7 @@ import {
 } from './validation';
 
 export const COLLATION_FORMAT = 'apatosaurus.collation';
-export const COLLATION_CURRENT_VERSION = 4;
+export const COLLATION_CURRENT_VERSION = 5;
 export const collationUpgraders: DocumentUpgrader[] = [upgradeCollationV1];
 
 export type CollationContent = JsonObject & {
@@ -46,7 +46,7 @@ export const COLLATION_FIXTURE: CollationPayload = {
 	status: 'draft',
 	current_revision: {
 		id: 'col-cp-1',
-		content_hash: 'sha256:6e6c4bd5976253ef8b50af08425b3bece4e5ea7cc604724c229ae90c2c85802a',
+		content_hash: 'sha256:625adfc84755d1554eb7ea249d4a839af0ed8dd43b938b30300c167b6d74b8dc',
 		created_at: '2026-07-03T00:00:00.000Z',
 		author_name: 'Editor',
 	},
@@ -60,8 +60,8 @@ export const COLLATION_FIXTURE: CollationPayload = {
 		version: 1,
 		meta: { collationId: 'col-1', projectId: 'project-1', projectName: 'Project' },
 		flow: {
-			phase: 'readings',
-			furthestPhase: 'readings',
+			phase: 'review',
+			furthestPhase: 'review',
 			alignmentDisplayMode: 'regularized',
 			alignmentLayout: 'grid',
 		},

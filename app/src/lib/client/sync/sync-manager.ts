@@ -10,7 +10,6 @@ import {
 import { createCommittedTranscriptionCheckpointWithFiles } from '$lib/client/db/repositories/transcription-files';
 import {
 	canonicalFormatForProjectPath,
-	collationDocumentToTei,
 	deleteFile,
 	joinStorePath,
 	listDirectory,
@@ -25,6 +24,10 @@ import {
 	type StoreOperationOptions,
 	type StoreQuarantineRecord,
 } from '$lib/client/store';
+import {
+	ApparatusExportError,
+	exportCollationDocumentTei,
+} from '$lib/client/collation/collation-tei';
 import {
 	rebuildIndexFromStore,
 	restoreOrphanPrimaryToProject,
@@ -840,18 +843,49 @@ async function mirrorProjectFiles(
 			}
 		}
 
-		const derivedTeiFiles = await regenerateDerivedTeiFiles(projectRoot, storeOptions);
+		const { files: derivedTeiFiles, absentPaths } = await regenerateDerivedTeiFiles(
+			projectRoot,
+			storeOptions
+		);
+		for (const path of absentPaths) {
+			const remoteFile = remoteFiles.get(path);
+			if (!remoteFile) continue;
+			await provider.deleteFile(
+				remoteFile.metadata.id,
+				provider.capabilities.supportsExpectedRevisionDelete
+					? remoteFile.metadata.revision
+					: undefined
+			);
+			remoteFiles.delete(path);
+			result.deletedPaths.push(path);
+		}
 		for (const localFile of derivedTeiFiles) {
 			const remoteFile = remoteFiles.get(localFile.path) ?? null;
 			const conflictingPrimary = conflictingRemotePrimaries.get(localFile.path);
-			const remoteContent = conflictingPrimary
-				? await deriveTeiFromCanonicalPrimary(
-						conflictingPrimary.path,
-						conflictingPrimary.content,
-						context.projectId,
-						storeOptions
-					)
-				: localFile.content;
+			let remoteContent: string;
+			try {
+				remoteContent = conflictingPrimary
+					? await deriveTeiFromCanonicalPrimary(
+							conflictingPrimary.path,
+							conflictingPrimary.content,
+							context.projectId,
+							storeOptions
+						)
+					: localFile.content;
+			} catch (error) {
+				if (!(error instanceof ApparatusExportError)) throw error;
+				if (remoteFile) {
+					await provider.deleteFile(
+						remoteFile.metadata.id,
+						provider.capabilities.supportsExpectedRevisionDelete
+							? remoteFile.metadata.revision
+							: undefined
+					);
+					remoteFiles.delete(localFile.path);
+					result.deletedPaths.push(localFile.path);
+				}
+				continue;
+			}
 			const remoteFingerprint = await fingerprintText(remoteContent, remoteFile?.metadata.modifiedAt ?? '');
 			if (remoteFile?.fingerprint.contentHash === remoteFingerprint.contentHash) {
 				await upsertFileFingerprint(
@@ -1045,22 +1079,31 @@ async function writePulledMirrorFile(
 async function regenerateDerivedTeiFiles(
 	projectRoot: string,
 	storeOptions: StoreOperationOptions
-): Promise<LocalMirrorFile[]> {
+): Promise<{ files: LocalMirrorFile[]; absentPaths: string[] }> {
 	const files: LocalMirrorFile[] = [];
 	await collectLocalMirrorFiles(projectRoot, '', files, storeOptions, false);
 	const derived: LocalMirrorFile[] = [];
+	const absentPaths: string[] = [];
 	for (const primary of files) {
 		const transcriptionMatch = /^transcriptions\/([^/]+)\.json$/.exec(primary.path);
 		const collationMatch = /^collations\/([^/]+)\.json$/.exec(primary.path);
 		if (!transcriptionMatch && !collationMatch) continue;
 		const path = primary.path.replace(/\.json$/, '.tei.xml');
-		const content = await deriveTeiFromCanonicalPrimary(
-			primary.path,
-			primary.content,
-			undefined,
-			storeOptions
-		);
 		const storePath = joinStorePath(projectRoot, path);
+		let content: string;
+		try {
+			content = await deriveTeiFromCanonicalPrimary(
+				primary.path,
+				primary.content,
+				undefined,
+				storeOptions
+			);
+		} catch (error) {
+			if (!(error instanceof ApparatusExportError)) throw error;
+			await deleteStoreFileIfExists(storePath, storeOptions);
+			absentPaths.push(path);
+			continue;
+		}
 		await writeTextFileAtomic(storePath, content, storeOptions);
 		derived.push({
 			path,
@@ -1069,7 +1112,7 @@ async function regenerateDerivedTeiFiles(
 			fingerprint: await fingerprintText(content, ''),
 		});
 	}
-	return derived;
+	return { files: derived, absentPaths };
 }
 
 async function deriveTeiFromCanonicalPrimary(
@@ -1091,7 +1134,7 @@ async function deriveTeiFromCanonicalPrimary(
 				parsed.payload as ProjectTranscriptionPayload,
 				storeOptions
 			)
-		: collationDocumentToTei((parsed.payload as CollationPayload).document);
+		: exportCollationDocumentTei((parsed.payload as CollationPayload).document);
 }
 
 async function deleteStoreFileIfExists(

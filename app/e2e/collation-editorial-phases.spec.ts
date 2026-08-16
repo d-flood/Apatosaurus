@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { placeCaretAtLineEnd } from './editor-helpers';
 
@@ -8,7 +9,9 @@ const TEI_FIXTURE_PATH = fileURLToPath(
 
 test.setTimeout(180_000);
 
-test('the local stemma has one tabstop and supports keyboard source decisions', async ({ page }) => {
+test('the local stemma has one tabstop and supports keyboard source decisions', async ({
+	page,
+}) => {
 	const projectId = await createProject(page, `Stemma editor ${Date.now().toString(36)}`);
 	await createAndCommitWitness(page, projectId, 'Stemma Alpha', 'SA', 'αλφα');
 	await createAndCommitWitness(page, projectId, 'Stemma Beta', 'SB', 'βητα');
@@ -51,7 +54,9 @@ test('the local stemma has one tabstop and supports keyboard source decisions', 
 	await page.keyboard.press('Enter');
 	await expect(announcer).toContainText(`Lifted reading ${placedReadingLabel}`);
 	await page.keyboard.press('ArrowUp');
-	const pendingTargetDescription = await diagram.locator('button:focus').getAttribute('aria-label');
+	const pendingTargetDescription = await diagram
+		.locator('button:focus')
+		.getAttribute('aria-label');
 	const pendingTargetLabel = readingLabel(pendingTargetDescription);
 	await expect(announcer).toContainText(
 		`Reading ${pendingTargetLabel} is selected as the prior reading for lifted reading ${placedReadingLabel}`
@@ -65,11 +70,16 @@ test('the local stemma has one tabstop and supports keyboard source decisions', 
 
 	await page.keyboard.press('u');
 	await expect(announcer).toContainText('is marked unclear');
-	await expect(diagram.locator('button:focus')).toHaveAttribute('aria-label', /origin undeterminable/);
+	await expect(diagram.locator('button:focus')).toHaveAttribute(
+		'aria-label',
+		/origin undeterminable/
+	);
 	await page.keyboard.press('r');
 	await expect(announcer).toContainText('is now a root');
 
-	const rootsBeforeCanvasDrop = diagram.getByRole('button', { name: /origin not yet considered/ });
+	const rootsBeforeCanvasDrop = diagram.getByRole('button', {
+		name: /origin not yet considered/,
+	});
 	await rootsBeforeCanvasDrop.nth(0).dragTo(rootsBeforeCanvasDrop.nth(1));
 	await expect(announcer).toContainText('now derives from');
 	await diagram.getByRole('button', { name: /derived from/ }).dragTo(diagram, {
@@ -95,6 +105,45 @@ test('the local stemma has one tabstop and supports keyboard source decisions', 
 	await root.dragTo(derived);
 	await expect(announcer).toContainText('Cannot make reading');
 	await expect(page.getByRole('alert').last()).toContainText('form a cycle');
+
+	for (let index = 0; index < (await sourceControls.count()); index += 1) {
+		if ((await sourceControls.nth(index).inputValue()) === 'undecided') {
+			await sourceControls.nth(index).selectOption('unclear');
+		}
+	}
+
+	await page.getByRole('link', { name: 'Review', exact: true }).click();
+	await expect(page.getByRole('heading', { name: 'Review', exact: true })).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'Verse apparatus' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'Local stemmata' })).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Commit version' })).toBeVisible();
+	await page.getByRole('button', { name: 'Commit version' }).click();
+	await expect(page.getByPlaceholder('Describe this version')).toBeVisible();
+	await page.getByRole('button', { name: 'Cancel' }).click();
+
+	const download = page.waitForEvent('download');
+	await page.getByRole('button', { name: 'Export TEI apparatus' }).click();
+	const exported = await download;
+	expect(exported.suggestedFilename()).toContain('-apparatus.xml');
+	const downloadedPath = await exported.path();
+	if (!downloadedPath) throw new Error('Expected a downloaded apparatus file.');
+	const xml = await readFile(downloadedPath, 'utf8');
+	expect(xml).toContain('<app ');
+	expect(xml).toContain('<graph type="directed">');
+
+	await page.getByRole('link', { name: 'Stemma', exact: true }).click();
+	await page
+		.getByRole('combobox', { name: /Source of reading/ })
+		.first()
+		.selectOption('undecided');
+	await page.getByRole('link', { name: 'Review', exact: true }).click();
+	await page.getByRole('button', { name: 'Export TEI apparatus' }).click();
+	await expect(page.getByRole('alert')).toContainText('Export needs more editorial decisions.');
+	const refusal = page.getByRole('link', { name: /Unit .*set every reading source/ });
+	await expect(refusal).toBeVisible();
+	await refusal.click();
+	await expect(page).toHaveURL(/\/stemma$/);
+	await expect(page.getByRole('combobox', { name: /Source of reading/ }).first()).toBeVisible();
 });
 
 async function createProject(page: Page, name: string): Promise<string> {
@@ -114,7 +163,10 @@ async function createProject(page: Page, name: string): Promise<string> {
 
 function readingLabel(description: string | null): string {
 	const label = description?.match(/^([^:(]+)(?: \([^)]*\))?:/)?.[1];
-	if (!label) throw new Error(`Could not identify reading label from ${description ?? 'no description'}.`);
+	if (!label)
+		throw new Error(
+			`Could not identify reading label from ${description ?? 'no description'}.`
+		);
 	return label;
 }
 
@@ -147,7 +199,9 @@ async function createAndCommitWitness(
 	const form = page.locator('form', { has: page.getByPlaceholder('Describe this version') });
 	await form.getByPlaceholder('Describe this version').fill(`Commit ${title}`);
 	await form.getByRole('button', { name: 'Commit version' }).click();
-	await expect(page.getByText('Committed locally', { exact: true })).toBeVisible({ timeout: 30_000 });
+	await expect(page.getByText('Committed locally', { exact: true })).toBeVisible({
+		timeout: 30_000,
+	});
 }
 
 async function createCollation(page: Page, projectId: string): Promise<void> {

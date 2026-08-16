@@ -22,8 +22,20 @@ export interface DisplayedColumnSlot {
 }
 
 export type Segment =
-	| { kind: 'agreed'; text: string; label: string; columnIds: string[] }
-	| { kind: 'unit'; span: VariationUnitSpan; ordinal: number; label: string };
+	| {
+			kind: 'agreed';
+			text: string;
+			label: string;
+			columnIds: string[];
+			untranscribedWitnessIds: string[];
+	  }
+	| {
+			kind: 'unit';
+			span: VariationUnitSpan;
+			ordinal: number;
+			label: string;
+			untranscribedWitnessIds: string[];
+	  };
 
 /** The label non-attestation is cited under. Reserved: no reading may take it. */
 export const NON_ATTESTATION_LABEL = 'zz';
@@ -103,6 +115,16 @@ function joinCellTexts(cells: Array<AlignmentCell | undefined>): string {
 	);
 }
 
+function untranscribedWitnessIds(columns: AlignmentColumn[]): string[] {
+	const witnessIds = new Set<string>();
+	for (const column of columns) {
+		for (const [witnessId, cell] of column.cells) {
+			if (cell.kind === 'untranscribed') witnessIds.add(witnessId);
+		}
+	}
+	return [...witnessIds];
+}
+
 /**
  * The verse as alternating agreed stretches and variation units. Every column appears in exactly
  * one segment, so an apparatus built from the sequence reconstructs each witness's whole text.
@@ -134,6 +156,9 @@ export function buildSegmentSequence(input: {
 					? formatSlotLabel(first.start, last.end)
 					: formatSlotLabel(agreedRun[0] + 1, agreedRun[agreedRun.length - 1] + 1),
 			columnIds: agreedRun.map(index => columns[index].id),
+			untranscribedWitnessIds: untranscribedWitnessIds(
+				agreedRun.map(index => columns[index])
+			),
 		});
 		agreedRun = [];
 	};
@@ -154,6 +179,9 @@ export function buildSegmentSequence(input: {
 					start && end
 						? formatSlotLabel(start.start, end.end)
 						: String(span.startIndex + 1),
+				untranscribedWitnessIds: untranscribedWitnessIds(
+					columns.slice(span.startIndex, span.endIndex + 1)
+				),
 			});
 			columnIndex = span.endIndex + 1;
 			continue;

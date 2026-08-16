@@ -16,6 +16,7 @@
 	import SetupPhase from './SetupPhase.svelte';
 	import AlignmentGrid from './AlignmentGrid.svelte';
 	import ReadingsPhase from './ReadingsPhase.svelte';
+	import ReviewPhase from './ReviewPhase.svelte';
 	import StemmaPhase from './StemmaPhase.svelte';
 	import ProjectCollationGate from './ProjectCollationGate.svelte';
 	import ArrowLeft from 'phosphor-svelte/lib/ArrowLeft';
@@ -273,15 +274,6 @@
 							commitState={collationVersionStatus.commitState}
 							checkpointRevisionId={collationVersionStatus.currentCheckpoint?.revisionId ?? null}
 						/>
-						<button
-							type="button"
-							class="btn btn-sm btn-secondary"
-							disabled={!canCommitVersion}
-							title={commitDisabledReason}
-							onclick={openCommitForm}
-						>
-							{commitInFlight ? 'Committing...' : 'Commit version'}
-						</button>
 					</div>
 				{:else if versionStatusError}
 					<div class="border-l border-base-300 pl-3" title={versionStatusError}>
@@ -310,57 +302,10 @@
 				{/if}
 			</div>
 		</div>
-		{#if commitSuccess}
-			<p class="mt-2 max-w-7xl mx-auto text-sm text-success">{commitSuccess}</p>
-		{/if}
 		{#if bulkRefreshError}
 			<p class="mt-2 max-w-7xl mx-auto text-sm text-error">{bulkRefreshError}</p>
 		{/if}
 	</div>
-
-	{#if isCommitFormOpen}
-		<div class="shrink-0 bg-base-100 border-b border-base-300 px-4 py-3">
-			<form class="max-w-7xl mx-auto space-y-2" onsubmit={handleCommitVersion}>
-				<div class="flex items-center justify-between gap-3">
-					<p class="text-xs font-semibold uppercase tracking-[0.14em] opacity-70">
-						Commit collation version
-					</p>
-					<div class="flex gap-2">
-						<button
-							type="button"
-							class="btn btn-sm btn-ghost"
-							disabled={commitInFlight}
-							onclick={closeCommitForm}
-						>
-							Cancel
-						</button>
-						<button
-							type="submit"
-							class="btn btn-sm btn-primary"
-							disabled={commitInFlight}
-						>
-							{commitInFlight ? 'Committing...' : 'Commit version'}
-						</button>
-					</div>
-				</div>
-				<fieldset class="fieldset p-0">
-					<legend class="fieldset-legend text-xs uppercase tracking-[0.14em] opacity-70">
-						Version note
-					</legend>
-					<textarea
-						bind:value={commitMessage}
-						class="textarea textarea-sm min-h-20 w-full"
-						placeholder="Describe this version"
-						disabled={commitInFlight}
-					></textarea>
-					<p class="label text-xs">Optional note for this local version.</p>
-				</fieldset>
-				{#if commitError}
-					<p class="text-sm text-error" role="alert">{commitError}</p>
-				{/if}
-			</form>
-		</div>
-	{/if}
 
 	<!-- Phase Content -->
 	<div class="flex-1 min-h-0 overflow-hidden">
@@ -399,6 +344,20 @@
 				<ReadingsPhase />
 			{:else if collationState.phase === 'stemma'}
 				<StemmaPhase />
+			{:else if collationState.phase === 'review'}
+				<ReviewPhase
+					{canCommitVersion}
+					{commitDisabledReason}
+					{commitInFlight}
+					{isCommitFormOpen}
+					{commitMessage}
+					{commitError}
+					{commitSuccess}
+					onOpenCommitForm={openCommitForm}
+					onCloseCommitForm={closeCommitForm}
+					onCommitVersion={handleCommitVersion}
+					onCommitMessage={message => (commitMessage = message)}
+				/>
 			{:else}
 				<AlignmentGrid />
 			{/if}

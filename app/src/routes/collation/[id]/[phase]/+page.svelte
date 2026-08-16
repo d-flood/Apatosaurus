@@ -3,7 +3,7 @@
 	import { collationState, type CollationPhase } from '$lib/client/collation/collation-state.svelte';
 	import CollationWorkspace from '$lib/components/collation/CollationWorkspace.svelte';
 
-const phaseOrder: CollationPhase[] = ['setup', 'alignment', 'readings', 'stemma'];
+const phaseOrder: CollationPhase[] = ['setup', 'alignment', 'readings', 'stemma', 'review'];
 
 	let { params } = $props();
 

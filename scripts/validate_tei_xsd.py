@@ -9,9 +9,15 @@ from lxml import etree
 
 def parse_args() -> argparse.Namespace:
 	parser = argparse.ArgumentParser(
-		description="Validate TEI XML against an XSD schema using lxml."
+		description="Validate TEI XML against an XSD or Relax NG schema using lxml."
 	)
-	parser.add_argument("--schema", required=True, help="Path to the XSD schema file.")
+	parser.add_argument("--schema", required=True, help="Path to the schema file.")
+	parser.add_argument(
+		"--schema-kind",
+		choices=("xsd", "relaxng"),
+		default="xsd",
+		help="Schema language (default: xsd).",
+	)
 	parser.add_argument(
 		"--xml",
 		help="Path to the XML file to validate. If omitted, XML is read from stdin.",
@@ -19,9 +25,9 @@ def parse_args() -> argparse.Namespace:
 	return parser.parse_args()
 
 
-def load_schema(schema_path: Path) -> etree.XMLSchema:
+def load_schema(schema_path: Path, schema_kind: str) -> etree._Validator:
 	schema_doc = etree.parse(str(schema_path))
-	return etree.XMLSchema(schema_doc)
+	return etree.RelaxNG(schema_doc) if schema_kind == "relaxng" else etree.XMLSchema(schema_doc)
 
 
 def load_xml(xml_path: Path | None) -> etree._ElementTree:
@@ -45,9 +51,14 @@ def main() -> int:
 	xml_path = Path(args.xml).resolve() if args.xml else None
 
 	try:
-		schema = load_schema(schema_path)
+		schema = load_schema(schema_path, args.schema_kind)
 		document = load_xml(xml_path)
-	except (OSError, etree.XMLSyntaxError, etree.XMLSchemaParseError) as exc:
+	except (
+		OSError,
+		etree.XMLSyntaxError,
+		etree.XMLSchemaParseError,
+		etree.RelaxNGParseError,
+	) as exc:
 		print(f"Failed to load validation inputs: {exc}", file=sys.stderr)
 		return 2
 
@@ -56,7 +67,7 @@ def main() -> int:
 		print(f"OK {target}")
 		return 0
 
-	print("XSD validation failed:", file=sys.stderr)
+	print(f"{args.schema_kind.upper()} validation failed:", file=sys.stderr)
 	for error in schema.error_log:
 		print(
 			f"  line {error.line}, column {error.column}: {error.message}",

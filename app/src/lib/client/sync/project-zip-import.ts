@@ -13,7 +13,6 @@ import {
 	TOMBSTONE_FORMAT,
 	WORKING_COLLATION_FORMAT,
 	WORKING_TRANSCRIPTION_FORMAT,
-	collationDocumentToTei,
 	deleteDirectory,
 	deleteFile,
 	joinStorePath,
@@ -37,6 +36,10 @@ import {
 	type WorkingCollationPayload,
 	type WorkingTranscriptionPayload,
 } from '$lib/client/store';
+import {
+	ApparatusExportError,
+	exportCollationDocumentTei,
+} from '$lib/client/collation/collation-tei';
 import { hashCanonicalPayload } from './canonical-json';
 import {
 	PROJECT_IMPORT_LEASE_FILE,
@@ -271,7 +274,7 @@ async function prepareImport(
 		.executeTakeFirst();
 	if (!existing)
 		return {
-			entries: staged.entries,
+			entries: regenerateDerivedCollationTei(staged.entries),
 			manifest,
 			storageSlug: deriveStorageSlug(manifest.name, manifest.id),
 			mode: 'created',
@@ -287,7 +290,7 @@ async function prepareImport(
 	}
 	if (options.collisionMode === 'replace')
 		return {
-			entries: staged.entries,
+			entries: regenerateDerivedCollationTei(staged.entries),
 			manifest,
 			storageSlug: existing.storage_slug,
 			mode: 'replaced',
@@ -415,20 +418,32 @@ async function copyProjectEntries(
 			format: null,
 		});
 	}
-	for (const entry of rewritten.filter(entry => entry.format === COLLATION_FORMAT)) {
-		const payload = entry.payload as CollationPayload;
-		rewritten.push({
-			path: `collations/${payload.id}.tei.xml`,
-			content: collationDocumentToTei(payload.document),
-			format: null,
-		});
-	}
 	return {
-		entries: rewritten,
+		entries: regenerateDerivedCollationTei(rewritten),
 		manifest,
 		storageSlug: deriveStorageSlug(copyName, copyId),
 		mode: 'copied',
 	};
+}
+
+function regenerateDerivedCollationTei(
+	entries: ValidatedStagedProjectEntry[]
+): ValidatedStagedProjectEntry[] {
+	const regenerated = entries.filter(entry => !/^collations\/[^/]+\.tei\.xml$/.test(entry.path));
+	for (const entry of entries) {
+		if (entry.format !== COLLATION_FORMAT) continue;
+		const payload = entry.payload as CollationPayload;
+		try {
+			regenerated.push({
+				path: `collations/${payload.id}.tei.xml`,
+				content: exportCollationDocumentTei(payload.document),
+				format: null,
+			});
+		} catch (error) {
+			if (!(error instanceof ApparatusExportError)) throw error;
+		}
+	}
+	return regenerated;
 }
 
 async function placePreparedImport(

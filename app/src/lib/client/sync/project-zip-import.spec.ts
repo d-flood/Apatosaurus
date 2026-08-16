@@ -32,6 +32,7 @@ import {
 	type StoreOperationOptions,
 } from '$lib/client/store';
 import type { StoredTranscriptionDocument } from '$lib/client/transcription/content';
+import { exportCollationDocumentTei } from '$lib/client/collation/collation-tei';
 import { exportProjectZip } from './project-zip-export';
 import {
 	cleanStaleProjectImportStaging,
@@ -159,6 +160,55 @@ describe('project zip import', () => {
 		expect(await getProject(harness.db, 'project-1')).toMatchObject({ name: 'Romans' });
 	});
 
+	it.each([
+		['created', undefined, 'romans-project-'],
+		['replaced', 'replace', 'local-project'],
+	] as const)(
+		'does not install stale derived collation TEI when a project is %s',
+		async (mode, collisionMode, storageSlug) => {
+			const entries = await exportedProjectEntriesWithCollation(incompleteCollationDocument());
+			if (collisionMode) {
+				await createProject(harness.db, {
+					id: 'project-1',
+					storageSlug,
+					name: 'Local',
+				});
+				await writeTextFileAtomic(
+					joinStorePath(projectFolder(storageSlug), 'collations/col-1.tei.xml'),
+					'<local-stale-derived-tei/>',
+					storeOptions
+				);
+			}
+
+			const imported = await importProjectFileTree(
+				harness.db,
+				Object.entries(entries).map(([path, content]) => ({ path, read: async () => content })),
+				{ storeOptions, collisionMode, nonce: () => `stale-derived-${mode}` }
+			);
+
+			expect(imported).toMatchObject({ ok: true, mode });
+			const files = projectFiles(storageSlug);
+			expect(files).not.toHaveProperty('collations/col-1.tei.xml');
+			expect(files['transcriptions/pt-1.tei.xml']).toBe(entries['transcriptions/pt-1.tei.xml']);
+		}
+	);
+
+	it('regenerates current derived collation TEI from the imported primary', async () => {
+		const document = completeCollationDocument();
+		const entries = await exportedProjectEntriesWithCollation(document);
+
+		const imported = await importProjectFileTree(
+			harness.db,
+			Object.entries(entries).map(([path, content]) => ({ path, read: async () => content })),
+			{ storeOptions, nonce: () => 'regenerated-derived' }
+		);
+
+		expect(imported.ok, JSON.stringify(imported.quarantinedFiles)).toBe(true);
+		const tei = projectFiles(imported.storageSlug)['collations/col-1.tei.xml'];
+		expect(tei).toBe(exportCollationDocumentTei(document));
+		expect(tei).not.toBe('<stale-derived-tei/>');
+	});
+
 	it('requires an explicit collision choice and can replace the local project', async () => {
 		const exported = await exportedProjectZip();
 		await createProject(harness.db, {
@@ -228,6 +278,20 @@ describe('project zip import', () => {
 		expect(manifestRead.ok).toBe(true);
 		if (!manifestRead.ok) return;
 		const collation = structuredClone(COLLATION_FIXTURE);
+		collation.document = incompleteCollationDocument();
+		collation.current_revision.content_hash = await import('./canonical-json').then(module =>
+			module.hashCanonicalPayload({
+				id: collation.id,
+				project_id: collation.project_id,
+				title: collation.title,
+				verse_identifier: collation.verse_identifier,
+				status: collation.status,
+				group_path: collation.group_path,
+				notes: collation.notes,
+				sort_key: collation.sort_key,
+				document: collation.document,
+			})
+		);
 		const working = structuredClone(WORKING_COLLATION_FIXTURE);
 		working.draft.base_revision_id = collation.current_revision.id;
 		working.draft.base_content_hash = collation.current_revision.content_hash;
@@ -332,7 +396,7 @@ describe('project zip import', () => {
 			payload: { project_id: copied.projectId },
 		});
 		expect(copiedTombstone).toMatchObject({ id: 'tombstone-1', project_id: copied.projectId });
-		expect(files['collations/col-1.tei.xml']).not.toBe('<old-derived-tei />');
+		expect(files).not.toHaveProperty('collations/col-1.tei.xml');
 
 		const { rebuildIndexFromStore } = await import('$lib/client/db/repositories/index-rebuild');
 		const secondRebuild = await rebuildIndexFromStore(harness.db, storeOptions);
@@ -555,6 +619,73 @@ async function exportedProjectZip() {
 	return exported;
 }
 
+async function exportedProjectEntriesWithCollation(document: typeof COLLATION_FIXTURE.document) {
+	const exported = await exportedProjectZip();
+	const entries = readZipEntries(exported.bytes);
+	const collation = structuredClone(COLLATION_FIXTURE);
+	collation.document = document;
+	collation.current_revision.content_hash = await collationContentHash(collation);
+	entries['collations/col-1.json'] = serializeSealedDocument(
+		await sealDocument(COLLATION_FORMAT, COLLATION_CURRENT_VERSION, collation)
+	);
+	entries['history/collations/col-1/col-cp-1.json'] = serializeSealedDocument(
+		await sealDocument(
+			COLLATION_CHECKPOINT_FORMAT,
+			COLLATION_CHECKPOINT_CURRENT_VERSION,
+			COLLATION_CHECKPOINT_FIXTURE
+		)
+	);
+	entries['collations/col-1.tei.xml'] = '<stale-derived-tei/>';
+
+	const manifestRead = await readCanonicalDocument(PROJECT_MANIFEST_FORMAT, entries['project.json']);
+	expect(manifestRead.ok).toBe(true);
+	if (!manifestRead.ok) throw new Error('Exported project manifest did not parse.');
+	const manifest = manifestRead.payload as typeof manifestRead.payload & {
+		collations: JsonObject[];
+		manifest_content_hash: string;
+	};
+	manifest.collations = [
+		{
+			collation_id: collation.id,
+			current_revision: {
+				id: collation.current_revision.id,
+				content_hash: collation.current_revision.content_hash,
+			},
+			title: collation.title,
+			verse_identifier: collation.verse_identifier,
+			primary_path: 'collations/col-1.json',
+		},
+	];
+	manifest.manifest_content_hash = await import('./canonical-json').then(module =>
+		module.hashCanonicalPayload({
+			project_id: manifest.id,
+			transcriptions: manifest.transcriptions,
+			collations: manifest.collations,
+			tombstones: manifest.tombstones,
+		})
+	);
+	entries['project.json'] = serializeSealedDocument(
+		await sealDocument(PROJECT_MANIFEST_FORMAT, PROJECT_MANIFEST_CURRENT_VERSION, manifest)
+	);
+	return entries;
+}
+
+async function collationContentHash(collation: typeof COLLATION_FIXTURE): Promise<string> {
+	return import('./canonical-json').then(module =>
+		module.hashCanonicalPayload({
+			id: collation.id,
+			project_id: collation.project_id,
+			title: collation.title,
+			verse_identifier: collation.verse_identifier,
+			status: collation.status,
+			group_path: collation.group_path,
+			notes: collation.notes,
+			sort_key: collation.sort_key,
+			document: collation.document,
+		})
+	);
+}
+
 function projectFiles(storageSlug: string): Record<string, string> {
 	const prefix = `apatosaurus/v1/${projectFolder(storageSlug)}/`;
 	const files: Record<string, string> = {};
@@ -595,6 +726,110 @@ function documentWithVerses(verses: string[]): StoredTranscriptionDocument {
 			},
 		],
 	};
+}
+
+function incompleteCollationDocument(): typeof COLLATION_FIXTURE.document {
+	const document = structuredClone(COLLATION_FIXTURE.document);
+	document.setup.witnesses = [
+		{
+			type: 'witness',
+			id: 'A',
+			siglum: 'A',
+			transcriptionId: 'tx-1',
+			content: 'alpha',
+			treatment: 'inherit',
+			isBaseText: true,
+			isExcluded: false,
+			overridesDefault: false,
+			sourceTokens: [],
+		},
+		{
+			type: 'witness',
+			id: 'B',
+			siglum: 'B',
+			transcriptionId: 'tx-1',
+			content: '',
+			treatment: 'inherit',
+			isBaseText: false,
+			isExcluded: false,
+			overridesDefault: false,
+			sourceTokens: [],
+		},
+	];
+	document.alignment = {
+		type: 'alignment',
+		witnessOrder: ['A', 'B'],
+		columns: [
+			{
+				id: 'col-1',
+				index: 0,
+				merged: false,
+				cells: [
+					[
+						'A',
+						{
+							text: 'alpha',
+							regularizedText: 'alpha',
+							alignmentValue: 'alpha',
+							sourceTokenIds: [],
+							kind: 'text',
+							gap: null,
+							isOmission: false,
+							isLacuna: false,
+							isRegularized: false,
+							ruleIds: [],
+							regularizationTypes: [],
+						},
+					],
+					[
+						'B',
+						{
+							text: '⊘',
+							regularizedText: null,
+							alignmentValue: '__untranscribed__:none:none:none',
+							sourceTokenIds: [],
+							kind: 'untranscribed',
+							gap: { source: 'untranscribed', reason: '', unit: '', extent: '' },
+							isOmission: false,
+							isLacuna: true,
+							isRegularized: false,
+							ruleIds: [],
+							regularizationTypes: [],
+						},
+					],
+				],
+			},
+		],
+	};
+	document.apparatus = null;
+	document.stemma = null;
+	return document;
+}
+
+function completeCollationDocument(): typeof COLLATION_FIXTURE.document {
+	const document = incompleteCollationDocument();
+	const secondWitness = document.setup.witnesses[1]!;
+	document.setup.witnesses[1] = {
+		...secondWitness,
+		content: 'alpha',
+	};
+	document.alignment!.columns[0]!.cells[1] = [
+		'B',
+		{
+			text: 'alpha',
+			regularizedText: 'alpha',
+			alignmentValue: 'alpha',
+			sourceTokenIds: [],
+			kind: 'text',
+			gap: null,
+			isOmission: false,
+			isLacuna: false,
+			isRegularized: false,
+			ruleIds: [],
+			regularizationTypes: [],
+		},
+	];
+	return document;
 }
 
 function zipEntries(entries: Record<string, string>): Uint8Array {

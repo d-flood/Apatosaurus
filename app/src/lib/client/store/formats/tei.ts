@@ -1,5 +1,5 @@
-import { coerceTranscriptionDocument } from '$lib/client/transcription/content';
 import type { CollationDocument as SemanticCollationDocument } from '$lib/client/collation/collation-document';
+import { coerceTranscriptionDocument } from '$lib/client/transcription/content';
 import { resolveReferenceEditionAttributions } from '$lib/reference-editions/attribution';
 import {
 	listReferenceEditions,
@@ -18,7 +18,9 @@ export function transcriptionDocumentToTei(
 ): string {
 	const transcription = coerceTranscriptionDocument(document.content_json);
 	if (!transcription) {
-		throw new Error(`Project transcription ${document.project_transcription_id} has invalid content.`);
+		throw new Error(
+			`Project transcription ${document.project_transcription_id} has invalid content.`
+		);
 	}
 	const sourceAttributions = resolveReferenceEditionAttributions(
 		transcription.referenceEditionsUsed || [],
@@ -97,12 +99,15 @@ function serializeVariationUnit(
 ): string {
 	const readings = [...unit.readings].sort((left, right) => left.order - right.order);
 	const [lemma, ...variantReadings] = readings;
+	const recordedReadingTypeIds = new Set(Object.keys(unit.decisions.readingType ?? {}));
 	const position = String(unitIndex + 1);
 	const serializedLemma = lemma
-		? serializeReading('lem', lemma, 0, witnessIds)
+		? serializeReading('lem', lemma, 0, witnessIds, recordedReadingTypeIds)
 		: '          <lem type="om"/>';
 	const serializedReadings = variantReadings
-		.map((reading, index) => serializeReading('rdg', reading, index + 1, witnessIds))
+		.map((reading, index) =>
+			serializeReading('rdg', reading, index + 1, witnessIds, recordedReadingTypeIds)
+		)
 		.join('\n');
 	return `          <app from="${escapeAttribute(position)}" n="${escapeAttribute(verseIdentifier)}" to="${escapeAttribute(position)}" type="main">
 ${serializedLemma}${serializedReadings ? `\n${serializedReadings}` : ''}
@@ -112,14 +117,17 @@ ${serializedLemma}${serializedReadings ? `\n${serializedReadings}` : ''}
 
 function serializeReading(
 	tag: 'lem' | 'rdg',
-	reading: NonNullable<SemanticCollationDocument['apparatus']>['units'][number]['readings'][number],
+	reading: NonNullable<
+		SemanticCollationDocument['apparatus']
+	>['units'][number]['readings'][number],
 	sequence: number,
-	witnessIds: Map<string, string>
+	witnessIds: Map<string, string>,
+	recordedReadingTypeIds: ReadonlySet<string>
 ): string {
 	const attrs = [
 		tag === 'rdg' ? `n="${escapeAttribute(reading.label || String(sequence))}"` : '',
 		tag === 'rdg' ? `varSeq="${sequence}"` : '',
-		readingTypeAttribute(reading),
+		readingTypeAttribute(reading, recordedReadingTypeIds),
 		witnessAttribute(reading.witnessIds, witnessIds),
 	]
 		.filter(Boolean)
@@ -130,11 +138,16 @@ function serializeReading(
 }
 
 function readingTypeAttribute(
-	reading: NonNullable<SemanticCollationDocument['apparatus']>['units'][number]['readings'][number]
+	reading: NonNullable<
+		SemanticCollationDocument['apparatus']
+	>['units'][number]['readings'][number],
+	recordedReadingTypeIds: ReadonlySet<string>
 ): string {
 	if (reading.isOmission) return 'type="om"';
 	if (reading.isLacuna) return 'type="lac"';
-	return reading.readingType ? `type="${escapeAttribute(reading.readingType)}"` : '';
+	return recordedReadingTypeIds.has(reading.id) && reading.readingType
+		? `type="${escapeAttribute(reading.readingType)}"`
+		: '';
 }
 
 function witnessAttribute(witnesses: string[], witnessIds: Map<string, string>): string {

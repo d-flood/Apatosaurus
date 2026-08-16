@@ -1029,7 +1029,7 @@ describe('collationState artifact-first persistence', () => {
 		);
 	});
 
-	it('persists the semantic document when the collation is saved in stemma', async () => {
+	it('persists the semantic document when the collation is saved in Review', async () => {
 		const collationState = await importState();
 		collationState.reset();
 		await collationState.selectProject('proj-1');
@@ -1099,9 +1099,12 @@ describe('collationState artifact-first persistence', () => {
 				},
 			],
 		});
+		expect(collationState.canNavigateTo('review')).toBe(true);
 		collationState.nextPhase();
 		collationState.nextPhase();
 		collationState.nextPhase();
+		collationState.nextPhase();
+		expect(collationState.phase).toBe('review');
 		await vi.advanceTimersByTimeAsync(801);
 
 		expect(saveCollationProjection).not.toHaveBeenCalled();

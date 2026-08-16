@@ -14,6 +14,7 @@ import {
 	COLLATION_CHECKPOINT_CURRENT_VERSION,
 	COLLATION_CHECKPOINT_FORMAT,
 	COLLATION_CHECKPOINT_OLD_SHAPE_FIXTURE,
+	type CollationCheckpointPayload,
 	COLLATION_FIXTURE,
 	COLLATION_CURRENT_VERSION,
 	COLLATION_FORMAT,
@@ -50,7 +51,6 @@ import collationV1Input from './fixtures/collation-v1.input.json';
 import workingCollationV1Input from './fixtures/working-collation-v1.input.json';
 import workingCollationV2Expected from './fixtures/working-collation-v2.expected.json';
 import checkpointCollationV1Input from './fixtures/checkpoint-collation-v1.input.json';
-import checkpointCollationV2Expected from './fixtures/checkpoint-collation-v2.expected.json';
 import projectManifestV1Input from './fixtures/project-manifest-v1.input.json';
 import projectManifestV2Expected from './fixtures/project-manifest-v2.expected.json';
 
@@ -228,7 +228,7 @@ describe('canonical store formats', () => {
 		});
 	});
 
-	it('upgrades v1 collation primary, working, and checkpoint files', async () => {
+	it('rejects v1 primary collations but upgrades v1 working collations', async () => {
 		const registry = createCanonicalFormatRegistry();
 		const content = {
 			id: COLLATION_FIXTURE.id,
@@ -277,51 +277,39 @@ describe('canonical store formats', () => {
 			updated_at: COLLATION_FIXTURE.updated_at,
 			draft: WORKING_COLLATION_FIXTURE.draft,
 		} as JsonObject);
-		const checkpoint = await sealDocument(COLLATION_CHECKPOINT_FORMAT, 1, {
-			...COLLATION_CHECKPOINT_FIXTURE,
-			payload_content_hash: revisionHash,
-			payload: legacyHashPayload,
-		} as JsonObject);
-
 		await expect(registry.readDocument(COLLATION_FORMAT, primary)).resolves.toMatchObject({
 			ok: false,
 			quarantine: { code: 'invalid_schema_version' },
 		});
 
-		for (const [format, document] of [
-			[WORKING_COLLATION_FORMAT, working],
-			[COLLATION_CHECKPOINT_FORMAT, checkpoint],
-		] as const) {
-			const result = await registry.readDocument(format, document);
-			if (!result.ok) {
-				throw new Error(
-					`Expected ${format} v1 fixture to upgrade: ${JSON.stringify(result.quarantine)}`
-				);
-			}
-			expect(result).toMatchObject({ ok: true, upgraded: true, originalVersion: 1 });
-			const payload = result.payload as Record<string, unknown>;
-			const upgradedContent =
-				format === COLLATION_CHECKPOINT_FORMAT
-					? (payload.payload as Record<string, unknown>)
-					: payload;
-			expect(upgradedContent.document).toEqual(COLLATION_FIXTURE.document);
-			expect(upgradedContent).not.toHaveProperty('artifacts');
+		const result = await registry.readDocument(WORKING_COLLATION_FORMAT, working);
+		if (!result.ok) {
+			throw new Error(`Expected ${WORKING_COLLATION_FORMAT} v1 fixture to upgrade.`);
 		}
+		expect(result).toMatchObject({ ok: true, upgraded: true, originalVersion: 1 });
+		expect(result.payload.document).toEqual(COLLATION_FIXTURE.document);
+		expect(result.payload).not.toHaveProperty('artifacts');
 	});
 
-	it.each([
-		[WORKING_COLLATION_FORMAT, workingCollationV1Input, workingCollationV2Expected],
-		[COLLATION_CHECKPOINT_FORMAT, checkpointCollationV1Input, checkpointCollationV2Expected],
-	] as const)(
-		'upgrades checked-in %s v1 fixtures through the public read API',
-		async (format, input, expected) => {
-			const result = await readCanonicalDocument(format, input);
+	it('upgrades the checked-in v1 working collation fixture through the public read API', async () => {
+		const result = await readCanonicalDocument(
+			WORKING_COLLATION_FORMAT,
+			workingCollationV1Input
+		);
 
-			expect(result).toMatchObject({ ok: true, upgraded: true, originalVersion: 1 });
-			if (!result.ok) throw new Error(`Expected ${format} fixture to upgrade.`);
-			expect(result.payload).toEqual(expected);
-		}
-	);
+		expect(result).toMatchObject({ ok: true, upgraded: true, originalVersion: 1 });
+		if (!result.ok) throw new Error(`Expected ${WORKING_COLLATION_FORMAT} fixture to upgrade.`);
+		expect(result.payload).toEqual(workingCollationV2Expected);
+	});
+
+	it('rejects the checked-in v1 collation checkpoint fixture without an upgrader', async () => {
+		await expect(
+			readCanonicalDocument(COLLATION_CHECKPOINT_FORMAT, checkpointCollationV1Input)
+		).resolves.toMatchObject({
+			ok: false,
+			quarantine: { code: 'invalid_schema_version' },
+		});
+	});
 
 	it('refuses a v3 collation rather than loading its stemma arcs away', async () => {
 		const registry = createCanonicalFormatRegistry();
@@ -376,12 +364,100 @@ describe('canonical store formats', () => {
 		});
 	});
 
+	it('refuses a valid v4 collation because Review requires v5', async () => {
+		const v4 = await sealDocument(COLLATION_FORMAT, 4, COLLATION_FIXTURE);
+
+		await expect(readCanonicalDocument(COLLATION_FORMAT, v4)).resolves.toMatchObject({
+			ok: false,
+			quarantine: {
+				code: 'invalid_schema_version',
+				message: 'No upgrader registered for apatosaurus.collation schema_version 4.',
+			},
+		});
+	});
+
+	it('refuses v2 working collations because they can discard Review, and accepts v3', async () => {
+		const v2 = await sealDocument(WORKING_COLLATION_FORMAT, 2, WORKING_COLLATION_FIXTURE);
+
+		await expect(readCanonicalDocument(WORKING_COLLATION_FORMAT, v2)).resolves.toMatchObject({
+			ok: false,
+			quarantine: {
+				code: 'invalid_schema_version',
+				message:
+					'No upgrader registered for apatosaurus.working.collation schema_version 2.',
+			},
+		});
+
+		const current = await serializeCanonicalDocument(
+			WORKING_COLLATION_FORMAT,
+			WORKING_COLLATION_FIXTURE
+		);
+		await expect(
+			readCanonicalDocument(WORKING_COLLATION_FORMAT, current)
+		).resolves.toMatchObject({
+			ok: true,
+			upgraded: false,
+			originalVersion: 3,
+		});
+	});
+
+	it('refuses v2 collation checkpoints because they can discard Review, and accepts v3', async () => {
+		const v2 = await sealDocument(COLLATION_CHECKPOINT_FORMAT, 2, COLLATION_CHECKPOINT_FIXTURE);
+
+		await expect(readCanonicalDocument(COLLATION_CHECKPOINT_FORMAT, v2)).resolves.toMatchObject(
+			{
+				ok: false,
+				quarantine: {
+					code: 'invalid_schema_version',
+					message:
+						'No upgrader registered for apatosaurus.checkpoint.collation schema_version 2.',
+				},
+			}
+		);
+
+		const current = await serializeCanonicalDocument(
+			COLLATION_CHECKPOINT_FORMAT,
+			COLLATION_CHECKPOINT_FIXTURE
+		);
+		const result = await readCanonicalDocument<CollationCheckpointPayload>(
+			COLLATION_CHECKPOINT_FORMAT,
+			current
+		);
+
+		expect(result).toMatchObject({ ok: true, upgraded: false, originalVersion: 3 });
+		if (!result.ok) throw new Error('Expected current collation checkpoint to round-trip.');
+		expect(result.payload.payload.document.flow).toMatchObject({
+			phase: 'review',
+			furthestPhase: 'review',
+		});
+	});
+
+	it('round-trips a current Review collation', async () => {
+		const bytes = await serializeCanonicalDocument(COLLATION_FORMAT, COLLATION_FIXTURE);
+		const result = await readCanonicalDocument<CollationPayload>(COLLATION_FORMAT, bytes);
+
+		expect(result).toMatchObject({
+			ok: true,
+			upgraded: false,
+			originalVersion: COLLATION_CURRENT_VERSION,
+		});
+		if (!result.ok) throw new Error('Expected current Review collation to round-trip.');
+		expect(result.payload.document.flow).toMatchObject({
+			phase: 'review',
+			furthestPhase: 'review',
+		});
+	});
+
 	it.each([
 		[TRANSCRIPTION_CHECKPOINT_FORMAT, TRANSCRIPTION_CHECKPOINT_FIXTURE],
 		[COLLATION_CHECKPOINT_FORMAT, COLLATION_CHECKPOINT_FIXTURE],
 	])('rejects %s documents with a null nested payload', async (format, fixture) => {
 		const registry = createCanonicalFormatRegistry();
-		const document = await sealDocument(format, 1, { ...fixture, payload: null } as JsonObject);
+		const document = await sealDocument(
+			format,
+			format === COLLATION_CHECKPOINT_FORMAT ? COLLATION_CHECKPOINT_CURRENT_VERSION : 1,
+			{ ...fixture, payload: null } as JsonObject
+		);
 
 		await expect(registry.readDocument(format, document)).resolves.toMatchObject({
 			ok: false,
@@ -416,8 +492,8 @@ describe('canonical store formats', () => {
 			const version =
 				format === COLLATION_FORMAT
 					? COLLATION_CURRENT_VERSION
-					: format.includes('collation')
-						? 2
+					: format === COLLATION_CHECKPOINT_FORMAT
+						? COLLATION_CHECKPOINT_CURRENT_VERSION
 						: 1;
 			const document = await sealDocument(format, version, {
 				...fixture,
@@ -583,8 +659,25 @@ describe('derived TEI serializers', () => {
 			doc.getElementsByTagName('listWit')[0]?.getElementsByTagName('witness')
 		).toHaveLength(2);
 		expect(doc.getElementsByTagName('app')).toHaveLength(1);
-		expect(doc.getElementsByTagName('lem')[0]?.textContent).toBe('in');
-		expect(doc.getElementsByTagName('rdg')[0]?.getAttribute('wit')).toBe('#wit-B');
+		expect(doc.getElementsByTagName('lem')[0]?.textContent?.trim()).toBe('in');
+		expect(
+			Array.from(doc.getElementsByTagName('rdg'))
+				.find(reading => reading.getAttribute('n') === 'b')
+				?.getAttribute('wit')
+		).toBe('#wit-B');
+	});
+
+	it('serializes incomplete collations without exporting proposed reading types', () => {
+		const fixture = collationDocumentFixture();
+		const variant = fixture.apparatus!.units[0]!.readings[1]!;
+		variant.readingType = 'deficient';
+
+		const document = parseXml(collationDocumentToTei(fixture));
+		expect(
+			Array.from(document.getElementsByTagName('rdg'))
+				.find(reading => reading.getAttribute('n') === 'b')
+				?.getAttribute('type')
+		).toBeNull();
 	});
 
 	it('emits valid xml:id values for numeric and punctuation-heavy identifiers', () => {
@@ -595,6 +688,9 @@ describe('derived TEI serializers', () => {
 			members: ['123:1?!'],
 		};
 		fixture.setup.witnesses[0].id = '123?!';
+		fixture.alignment!.witnessOrder[0] = '123?!';
+		fixture.alignment!.columns[0]!.cells[0]![0] = '123?!';
+		fixture.apparatus!.units[0]!.readings[0]!.witnessIds = ['123?!'];
 		const doc = parseXml(collationDocumentToTei(fixture));
 		const ids = Array.from(doc.getElementsByTagName('*'))
 			.map(node => node.getAttribute('xml:id'))
@@ -671,16 +767,35 @@ function collationDocumentFixture(): SemanticCollationDocument {
 			suppliedTextMode: 'clear',
 			segmentation: true,
 		},
-		alignment: null,
+		alignment: {
+			type: 'alignment',
+			witnessOrder: ['A', 'B'],
+			columns: [
+				{
+					id: 'col-1',
+					index: 0,
+					merged: false,
+					cells: [
+						['A', serializedTextCell('in')],
+						['B', serializedTextCell('en')],
+					],
+				},
+			],
+		},
 		apparatus: {
 			type: 'apparatus',
 			units: [
 				{
 					type: 'variationUnit',
-					id: 'unit-1',
-					unitId: 'unit-1',
-					columnId: null,
-					decisions: {},
+					id: 'unit:col-1',
+					unitId: 'unit:col-1',
+					columnId: 'col-1',
+					decisions: {
+						sourceDecision: {
+							'r-a': { kind: 'unclear' },
+							'r-b': { kind: 'unclear' },
+						},
+					},
 					readings: [
 						reading('r-a', 0, 'a', 'in', ['A']),
 						reading('r-b', 1, 'b', 'en', ['B']),
@@ -724,5 +839,21 @@ function reading(id: string, order: number, label: string, text: string, witness
 		isSubreading: false,
 		autoGenerated: false,
 		derivedFromRuleIds: [],
+	};
+}
+
+function serializedTextCell(text: string) {
+	return {
+		text,
+		regularizedText: text,
+		alignmentValue: text,
+		sourceTokenIds: [],
+		kind: 'text' as const,
+		gap: null,
+		isOmission: false,
+		isLacuna: false,
+		isRegularized: false,
+		ruleIds: [],
+		regularizationTypes: [],
 	};
 }

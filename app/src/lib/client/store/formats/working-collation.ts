@@ -1,5 +1,6 @@
 import type { DocumentUpgrader, FormatRegistration } from '../migrate-on-read';
 import type { JsonObject, SealedDocument } from '../envelope';
+import { invalidSchemaVersion } from '../quarantine';
 import { readDraftMetadata, type CanonicalDraftMetadata } from './common';
 import {
 	COLLATION_FIXTURE,
@@ -10,7 +11,10 @@ import {
 import { readString } from './validation';
 
 export const WORKING_COLLATION_FORMAT = 'apatosaurus.working.collation';
-export const WORKING_COLLATION_CURRENT_VERSION = 2;
+export const WORKING_COLLATION_CURRENT_VERSION = 3;
+// Only the v1 wrapper migration may cross the v2 Review boundary.
+const LEGACY_V1_MARKER = '__working_collation_v1';
+
 export const workingCollationUpgraders: DocumentUpgrader[] = [
 	payload => {
 		const record = payload as Record<string, unknown>;
@@ -19,7 +23,20 @@ export const workingCollationUpgraders: DocumentUpgrader[] = [
 			created_at: readString(record, 'created_at'),
 			updated_at: readString(record, 'updated_at'),
 			draft: record.draft as JsonObject,
+			[LEGACY_V1_MARKER]: true,
 		};
+	},
+	payload => {
+		const record = payload as Record<string, unknown>;
+		if (record[LEGACY_V1_MARKER] !== true) {
+			throw invalidSchemaVersion(
+				`No upgrader registered for ${WORKING_COLLATION_FORMAT} schema_version 2.`,
+				WORKING_COLLATION_CURRENT_VERSION,
+				2
+			);
+		}
+		const { [LEGACY_V1_MARKER]: _, ...upgraded } = record;
+		return upgraded as JsonObject;
 	},
 ];
 

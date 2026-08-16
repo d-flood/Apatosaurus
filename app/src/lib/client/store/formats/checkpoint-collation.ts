@@ -1,13 +1,8 @@
-import type { DocumentUpgrader, FormatRegistration } from '../migrate-on-read';
+import type { FormatRegistration } from '../migrate-on-read';
 import type { JsonObject, SealedDocument } from '../envelope';
 import { invalidShape } from '../quarantine';
 import { assertContentHashMatches } from './validation';
-import {
-	COLLATION_FIXTURE,
-	readCollationContent,
-	upgradeLegacyCollationContent,
-	type CollationContent,
-} from './collation';
+import { COLLATION_FIXTURE, readCollationContent, type CollationContent } from './collation';
 import {
 	COLLATION_HISTORY_ENTITY_TYPE,
 	readCheckpointBasePayload,
@@ -16,27 +11,7 @@ import {
 } from './checkpoint-utils';
 
 export const COLLATION_CHECKPOINT_FORMAT = 'apatosaurus.checkpoint.collation';
-export const COLLATION_CHECKPOINT_CURRENT_VERSION = 2;
-export const collationCheckpointUpgraders: DocumentUpgrader[] = [
-	async payload => {
-		const record = payload as Record<string, unknown>;
-		const base = readCheckpointBasePayload(record, COLLATION_HISTORY_ENTITY_TYPE);
-		await assertContentHashMatches(
-			base.payload,
-			base.payload_content_hash,
-			`Checkpoint ${base.checkpoint_id}`
-		);
-		return {
-			...base,
-			entity_type: readHistoryEntityType(
-				record,
-				'entity_type',
-				COLLATION_HISTORY_ENTITY_TYPE
-			),
-			payload: upgradeLegacyCollationContent(base.payload as Record<string, unknown>),
-		};
-	},
-];
+export const COLLATION_CHECKPOINT_CURRENT_VERSION = 3;
 
 export type CollationCheckpointPayload = CheckpointBasePayload & {
 	entity_type: 'collation';
@@ -53,7 +28,7 @@ export const COLLATION_CHECKPOINT_FIXTURE: CollationCheckpointPayload = {
 	entity_type: 'collation',
 	entity_id: 'col-1',
 	parent_checkpoint_id: null,
-	payload_content_hash: 'sha256:6e6c4bd5976253ef8b50af08425b3bece4e5ea7cc604724c229ae90c2c85802a',
+	payload_content_hash: 'sha256:625adfc84755d1554eb7ea249d4a839af0ed8dd43b938b30300c167b6d74b8dc',
 	commit_message: 'Initial commit',
 	author_name: 'Editor',
 	created_at: '2026-07-03T00:00:00.000Z',
@@ -110,7 +85,7 @@ export const collationCheckpointFormatRegistration: FormatRegistration<Collation
 	{
 		format: COLLATION_CHECKPOINT_FORMAT,
 		currentVersion: COLLATION_CHECKPOINT_CURRENT_VERSION,
-		upgraders: collationCheckpointUpgraders,
+		upgraders: [],
 		validate: validateCollationCheckpointPayload,
 		validateIntegrity: assertCollationCheckpointPayloadIntegrity,
 	};
