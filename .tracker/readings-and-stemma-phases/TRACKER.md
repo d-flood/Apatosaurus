@@ -8,7 +8,7 @@ The shape of the fix: separate the reading proposal from editorial decisions, re
 
 ## Current Status
 
-Overall status: `In Progress`
+Overall status: `Completed`
 
 Current ticket: None
 
