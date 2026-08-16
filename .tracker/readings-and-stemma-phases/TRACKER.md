@@ -33,12 +33,13 @@ The critical path is 01 → 02 → 05 → 08 → 10 → 11.
 | 09 | `09-stemma-graph-interaction.md` | Completed | 08 |
 | 10 | `10-lemma-root-coupling-and-connectivity.md` | Completed | 08 |
 | 11 | `11-review-phase-and-tei-apparatus-export.md` | Completed | 06, 10 |
-| 12 | `12-research-connectivity-absolute-value.md` | Not Started | None |
+| 12 | `12-research-connectivity-absolute-value.md` | Completed | None |
 
 ## Notes
 
 | Date | Note |
 | --- | --- |
+| 2026-08-15 | Ticket `12` completed. open-cbgm positively confirms per-unit absolute connectivity as omission of the connectivity feature, not a known non-numeric token. Its published 3 John corpus uses `10` in all 116 units. Ticket `10`'s contract is amended to add an explicit `absolute` decision, which ticket 11's exporter must encode by omitting the feature. |
 | 2026-08-15 | Ticket `11` completed. Review is the fifth, alignment-reachable phase, with the shared apparatus, local stemmata, divergence report, linked worklist, TEI export, and version commit. The new reconstructive apparatus exporter validates against TEI P5 all-modules and refuses incomplete editorial data. Primary, working, and checkpoint collation formats now fail loudly on stale builds; derived collation TEI is regenerated from canonical data and never trusted from project imports. |
 | 2026-08-15 | Ticket `10` completed. Connectivity is a sparse, positive integer decision that defaults to `10`, with presets and free entry on the stemma phase. Lemma-posterior arcs are reported as a visible worklist violation without preventing source edits or mutating arcs when a lemma changes; the explicit reroot repair removes only those arcs in one undoable operation. |
 | 2026-08-15 | Ticket `09` completed. The local-stemma diagram is a single roving tabstop of HTML buttons over a non-interactive SVG arc surface. Keyboard lift/move/place, cancellation, unclear/root/detach actions, drag reparenting, and canvas detachment all route through `setReadingSource`, announce their state changes, and preserve the ticket 08 list editor. The epic Playwright spec verifies the keyboard and pointer routes. |

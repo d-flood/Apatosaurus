@@ -26,16 +26,16 @@ The distinction matters and is the whole design of this ticket: scholars pass th
 
 ```ts
 // decisions overlay gains:
-connectivity?: number;                 // per variation unit; default 10
+connectivity?: number | 'absolute';    // per variation unit; unset defaults to 10
 ```
 
 Connectivity rules:
 
-- Default **10**. Persisted only once a scholar sets it, following the decisions-are-sparse pattern; the default is applied on read.
-- The control offers the values editors actually use — 1, 2, 3, 5, 10 — plus free entry. **Not a bare number input**: the common values carry meaning, and a free field invites a typo into an exported editorial claim.
+- Default **10**. Persisted only once a scholar sets it, following the decisions-are-sparse pattern; the default is applied on read. **Absolute** is a distinct, explicit decision rather than the meaning of an absent value.
+- The control offers **Absolute** and the values editors actually use — 1, 2, 3, 5, 10 — plus free entry. **Not a bare number input**: the common values carry meaning, and a free field invites a typo into an exported editorial claim.
 - One undo step per change.
 - Reject non-positive and non-integer values at the boundary with an observable refusal.
-- Ticket 12 is researching whether a non-numeric unlimited value exists. **Model `number` only for now.** If ticket 12 resolves affirmatively before this ticket is picked up, widen to `number | 'absolute'` here rather than later.
+- Ticket 12 positively confirmed the open-cbgm absolute mode. Model `number | 'absolute'`; when ticket 11's apparatus exporter receives an explicit `absolute` decision, it emits no `connectivity` feature, matching open-cbgm's documented representation.
 
 Lemma/root rules:
 
@@ -59,9 +59,10 @@ Lemma/root rules:
 ## Acceptance criteria
 
 - [ ] Connectivity is settable per variation unit, defaults to 10 when unset, and persists once set.
-- [ ] The control offers 1, 2, 3, 5, and 10 directly as well as free entry.
+- [ ] The control offers Absolute, 1, 2, 3, 5, and 10 directly as well as free entry.
 - [ ] A non-positive or non-integer connectivity is refused observably.
 - [ ] A connectivity change is one undo step and survives an unrelated edit to the same unit.
+- [ ] An explicit absolute connectivity decision is one undo step, persists independently of the default, and emits no connectivity feature in ticket 11's apparatus export.
 - [ ] Arcs that make the lemma a posterior reading produce a reported violation on the unit.
 - [ ] That arc is **not** rejected — a spec asserts the write succeeds and the violation is reported.
 - [ ] Elevating the lemma leaves existing arcs byte-identical — a spec asserts arcs are unchanged before and after.
