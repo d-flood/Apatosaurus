@@ -179,7 +179,7 @@ describe('collation document', () => {
 					{
 						subreadingOf: { 'r-b': 'r-a' },
 						sourceDecision: { 'r-c': { kind: 'unclear' as const } },
-						connectivity: 3,
+						connectivity: 'absolute',
 					},
 				],
 			]),
@@ -214,7 +214,7 @@ describe('collation document', () => {
 		expect(document.stemma?.units[0]).toMatchObject({
 			unitId: 'unit:col-1',
 			columnId: 'col-1',
-			connectivity: 3,
+			connectivity: 'absolute',
 		});
 		expect(document.stemma?.units[0]).not.toHaveProperty('unitIndex');
 		expect(document).not.toHaveProperty('undoHistory');
@@ -247,7 +247,7 @@ describe('collation document', () => {
 				{
 					subreadingOf: { 'r-b': 'r-a' },
 					sourceDecision: { 'r-c': { kind: 'unclear' } },
-					connectivity: 3,
+					connectivity: 'absolute',
 				},
 			],
 		]);
@@ -287,6 +287,56 @@ describe('collation document', () => {
 
 		expect(hydrateCollationDocument(document).phase).toBe('review');
 		expect(hydrateCollationDocument(document).furthestPhase).toBe('review');
+	});
+
+	it('rejects persisted connectivity other than a positive integer or absolute', () => {
+		const document = {
+			type: 'collationDocument',
+			version: 1,
+			setup: {
+				segment: { id: 'segment-1', name: 'John 1:1', members: ['John 1:1'] },
+			},
+			stemma: {
+				units: [{ unitId: 'unit:col-1', connectivity: 0 }],
+			},
+		};
+
+		expect(parseCollationDocument(document)).toBeNull();
+		expect(
+			parseCollationDocument({
+				...document,
+				stemma: { units: [{ unitId: 'unit:col-1', connectivity: 1.5 }] },
+			})
+		).toBeNull();
+		expect(
+			parseCollationDocument({
+				...document,
+				stemma: { units: [{ unitId: 'unit:col-1', connectivity: 10 }] },
+			})
+		).not.toBeNull();
+		expect(
+			parseCollationDocument({
+				...document,
+				stemma: { units: [{ unitId: 'unit:col-1', connectivity: 'absolute' }] },
+			})
+		).not.toBeNull();
+	});
+
+	it('rejects connectivity in apparatus decisions regardless of value', () => {
+		for (const connectivity of [10, 0, 'absolute', '0']) {
+			expect(
+				parseCollationDocument({
+					type: 'collationDocument',
+					version: 1,
+					setup: {
+						segment: { id: 'segment-1', name: 'John 1:1', members: ['John 1:1'] },
+					},
+					apparatus: {
+						units: [{ decisions: { connectivity } }],
+					},
+				})
+			).toBeNull();
+		}
 	});
 
 	it('persists orphaned unit decisions without inventing a positional column id', () => {

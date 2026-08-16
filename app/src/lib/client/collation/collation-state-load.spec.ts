@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { deserializeAlignmentColumns } from './alignment-snapshot';
-import { buildCollationDocument, serializeCollationDocument } from './collation-document';
+import {
+	buildCollationDocument,
+	parseCollationDocument,
+	serializeCollationDocument,
+} from './collation-document';
 
 const {
 	loadCollation,
@@ -214,6 +218,14 @@ function makeDecisionDocumentPayload(corruptPersistedReadings = false) {
 	return serializeCollationDocument(document);
 }
 
+function makeMalformedApparatusConnectivityPayload(connectivity: unknown) {
+	const document = JSON.parse(makeDecisionDocumentPayload()) as {
+		apparatus: { units: Array<{ decisions: Record<string, unknown> }> };
+	};
+	document.apparatus.units[0]!.decisions.connectivity = connectivity;
+	return JSON.stringify(document);
+}
+
 function makeReadingTypeDocumentPayload() {
 	return serializeCollationDocument(
 		buildCollationDocument({
@@ -396,6 +408,25 @@ describe('collationState artifact-first persistence', () => {
 			{ text: 'alpha', parentReadingId: null },
 			{ text: 'beta', parentReadingId: 'col-1::alpha::original' },
 		]);
+	}, 30000);
+
+	it('refuses artifacts with apparatus connectivity instead of silently stripping it', async () => {
+		for (const connectivity of [10, 0, 'absolute', '0']) {
+			expect(parseCollationDocument(makeMalformedApparatusConnectivityPayload(connectivity))).toBeNull();
+		}
+
+		const loadedValue = await loadCollation();
+		loadCollation.mockResolvedValue({
+			...loadedValue,
+			artifact: {
+				...loadedValue.artifact,
+				payload: makeMalformedApparatusConnectivityPayload('absolute'),
+			},
+		});
+		const collationState = await importState();
+		collationState.reset();
+
+		expect(await collationState.loadCollationById('col-1')).toBe(false);
 	}, 30000);
 
 	it('round-trips a project-supplied reading type through the store and the document', async () => {

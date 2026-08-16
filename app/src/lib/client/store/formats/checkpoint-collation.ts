@@ -11,7 +11,7 @@ import {
 } from './checkpoint-utils';
 
 export const COLLATION_CHECKPOINT_FORMAT = 'apatosaurus.checkpoint.collation';
-export const COLLATION_CHECKPOINT_CURRENT_VERSION = 3;
+export const COLLATION_CHECKPOINT_CURRENT_VERSION = 4;
 
 export type CollationCheckpointPayload = CheckpointBasePayload & {
 	entity_type: 'collation';

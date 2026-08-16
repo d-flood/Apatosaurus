@@ -49,7 +49,6 @@ import {
 } from './collation';
 import collationV1Input from './fixtures/collation-v1.input.json';
 import workingCollationV1Input from './fixtures/working-collation-v1.input.json';
-import workingCollationV2Expected from './fixtures/working-collation-v2.expected.json';
 import checkpointCollationV1Input from './fixtures/checkpoint-collation-v1.input.json';
 import projectManifestV1Input from './fixtures/project-manifest-v1.input.json';
 import projectManifestV2Expected from './fixtures/project-manifest-v2.expected.json';
@@ -228,7 +227,27 @@ describe('canonical store formats', () => {
 		});
 	});
 
-	it('rejects v1 primary collations but upgrades v1 working collations', async () => {
+	it('quarantines current collations with connectivity in apparatus decisions', async () => {
+		for (const connectivity of [10, 0, 'absolute', '0']) {
+			const document = await sealDocument(COLLATION_FORMAT, COLLATION_CURRENT_VERSION, {
+				...COLLATION_FIXTURE,
+				document: {
+					...COLLATION_FIXTURE.document,
+					apparatus: {
+						type: 'apparatus',
+						units: [{ decisions: { connectivity } }],
+					},
+				},
+			} as unknown as JsonObject);
+
+			await expect(readCanonicalDocument(COLLATION_FORMAT, document)).resolves.toMatchObject({
+				ok: false,
+				quarantine: { code: 'invalid_shape' },
+			});
+		}
+	});
+
+	it('rejects v1 primary and working collations without an upgrader to the current format', async () => {
 		const registry = createCanonicalFormatRegistry();
 		const content = {
 			id: COLLATION_FIXTURE.id,
@@ -282,24 +301,21 @@ describe('canonical store formats', () => {
 			quarantine: { code: 'invalid_schema_version' },
 		});
 
-		const result = await registry.readDocument(WORKING_COLLATION_FORMAT, working);
-		if (!result.ok) {
-			throw new Error(`Expected ${WORKING_COLLATION_FORMAT} v1 fixture to upgrade.`);
-		}
-		expect(result).toMatchObject({ ok: true, upgraded: true, originalVersion: 1 });
-		expect(result.payload.document).toEqual(COLLATION_FIXTURE.document);
-		expect(result.payload).not.toHaveProperty('artifacts');
+		await expect(
+			registry.readDocument(WORKING_COLLATION_FORMAT, working)
+		).resolves.toMatchObject({
+			ok: false,
+			quarantine: { code: 'invalid_schema_version' },
+		});
 	});
 
-	it('upgrades the checked-in v1 working collation fixture through the public read API', async () => {
-		const result = await readCanonicalDocument(
-			WORKING_COLLATION_FORMAT,
-			workingCollationV1Input
-		);
-
-		expect(result).toMatchObject({ ok: true, upgraded: true, originalVersion: 1 });
-		if (!result.ok) throw new Error(`Expected ${WORKING_COLLATION_FORMAT} fixture to upgrade.`);
-		expect(result.payload).toEqual(workingCollationV2Expected);
+	it('rejects the checked-in v1 working collation fixture without an upgrader', async () => {
+		await expect(
+			readCanonicalDocument(WORKING_COLLATION_FORMAT, workingCollationV1Input)
+		).resolves.toMatchObject({
+			ok: false,
+			quarantine: { code: 'invalid_schema_version' },
+		});
 	});
 
 	it('rejects the checked-in v1 collation checkpoint fixture without an upgrader', async () => {
@@ -364,27 +380,27 @@ describe('canonical store formats', () => {
 		});
 	});
 
-	it('refuses a valid v4 collation because Review requires v5', async () => {
-		const v4 = await sealDocument(COLLATION_FORMAT, 4, COLLATION_FIXTURE);
+	it('refuses a valid v5 collation because absolute connectivity requires v6', async () => {
+		const v5 = await sealDocument(COLLATION_FORMAT, 5, COLLATION_FIXTURE);
 
-		await expect(readCanonicalDocument(COLLATION_FORMAT, v4)).resolves.toMatchObject({
+		await expect(readCanonicalDocument(COLLATION_FORMAT, v5)).resolves.toMatchObject({
 			ok: false,
 			quarantine: {
 				code: 'invalid_schema_version',
-				message: 'No upgrader registered for apatosaurus.collation schema_version 4.',
+				message: 'No upgrader registered for apatosaurus.collation schema_version 5.',
 			},
 		});
 	});
 
-	it('refuses v2 working collations because they can discard Review, and accepts v3', async () => {
-		const v2 = await sealDocument(WORKING_COLLATION_FORMAT, 2, WORKING_COLLATION_FIXTURE);
+	it('refuses v3 working collations because they cannot preserve absolute connectivity, and accepts v4', async () => {
+		const v3 = await sealDocument(WORKING_COLLATION_FORMAT, 3, WORKING_COLLATION_FIXTURE);
 
-		await expect(readCanonicalDocument(WORKING_COLLATION_FORMAT, v2)).resolves.toMatchObject({
+		await expect(readCanonicalDocument(WORKING_COLLATION_FORMAT, v3)).resolves.toMatchObject({
 			ok: false,
 			quarantine: {
 				code: 'invalid_schema_version',
 				message:
-					'No upgrader registered for apatosaurus.working.collation schema_version 2.',
+					'No upgrader registered for apatosaurus.working.collation schema_version 3.',
 			},
 		});
 
@@ -397,20 +413,20 @@ describe('canonical store formats', () => {
 		).resolves.toMatchObject({
 			ok: true,
 			upgraded: false,
-			originalVersion: 3,
+			originalVersion: 4,
 		});
 	});
 
-	it('refuses v2 collation checkpoints because they can discard Review, and accepts v3', async () => {
-		const v2 = await sealDocument(COLLATION_CHECKPOINT_FORMAT, 2, COLLATION_CHECKPOINT_FIXTURE);
+	it('refuses v3 collation checkpoints because they cannot preserve absolute connectivity, and accepts v4', async () => {
+		const v3 = await sealDocument(COLLATION_CHECKPOINT_FORMAT, 3, COLLATION_CHECKPOINT_FIXTURE);
 
-		await expect(readCanonicalDocument(COLLATION_CHECKPOINT_FORMAT, v2)).resolves.toMatchObject(
+		await expect(readCanonicalDocument(COLLATION_CHECKPOINT_FORMAT, v3)).resolves.toMatchObject(
 			{
 				ok: false,
 				quarantine: {
 					code: 'invalid_schema_version',
 					message:
-						'No upgrader registered for apatosaurus.checkpoint.collation schema_version 2.',
+						'No upgrader registered for apatosaurus.checkpoint.collation schema_version 3.',
 				},
 			}
 		);
@@ -424,7 +440,7 @@ describe('canonical store formats', () => {
 			current
 		);
 
-		expect(result).toMatchObject({ ok: true, upgraded: false, originalVersion: 3 });
+		expect(result).toMatchObject({ ok: true, upgraded: false, originalVersion: 4 });
 		if (!result.ok) throw new Error('Expected current collation checkpoint to round-trip.');
 		expect(result.payload.payload.document.flow).toMatchObject({
 			phase: 'review',

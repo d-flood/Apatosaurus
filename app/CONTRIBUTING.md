@@ -41,7 +41,15 @@ Canonical formats live in `src/lib/client/store/formats/` and are registered by
 version, validates the current payload and semantic integrity, then reseals the in-memory document at the
 current version. Reading does not rewrite the file; a later save does.
 
-To add version `N + 1` to an existing format:
+The default policy requires a pure upgrader for every format version. A tracked, explicit pre-release format
+break may intentionally provide no upgrader only when validation coverage proves that older envelopes are
+refused before semantic hydration. This narrow exception does not weaken the normal upgrade requirement.
+
+The following procedure applies to the default migration path. For the narrow pre-release exception above,
+increment the version without adding an upgrader and add coverage that a valid prior envelope is refused
+before semantic hydration instead of the upgrade-fixture coverage below.
+
+To add a normally migrated version `N + 1` to an existing format:
 
 1. In that format's module, increment its `*_CURRENT_VERSION`, add a pure `vN -> vN+1` upgrader, and append
    it to the exported upgrader array. Keep every earlier upgrader in order: array element `0` upgrades v1 to

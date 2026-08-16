@@ -631,9 +631,9 @@ describe('collationState stemma derivation', () => {
 		// attachment standing; the attachment goes back on the undo that belongs to it.
 		collationState.undo();
 		expect(collationState.phase).toBe('readings');
-		expect(collationState.getReadingsForUnit(0).find(reading => reading.id === gamma.id)?.text).toBe(
-			'gamma'
-		);
+		expect(
+			collationState.getReadingsForUnit(0).find(reading => reading.id === gamma.id)?.text
+		).toBe('gamma');
 		expect(
 			collationState.getReadingsForUnit(0).find(reading => reading.id === beta.id)
 				?.parentReadingId
@@ -1420,9 +1420,9 @@ describe('collationState lemma establishment', () => {
 
 		collationState.redo();
 		collationState.redo();
-		expect(collationState.getReadingsForUnit(0).find(reading => reading.id === gamma.id)?.text).toBe(
-			'delta'
-		);
+		expect(
+			collationState.getReadingsForUnit(0).find(reading => reading.id === gamma.id)?.text
+		).toBe('delta');
 		expect(collationState.getLemmaReadingId(0)).toBe(beta.id);
 	});
 
@@ -2226,7 +2226,7 @@ describe('collationState local stemma source decisions', () => {
 		expect(arcsForUnit()).toEqual([]);
 	});
 
-	it('defaults connectivity to 10 and records a changed value as one sparse decision', () => {
+	it('defaults connectivity to 10 and records numeric and absolute values as sparse undoable decisions', () => {
 		collateReadings({ A: 'λογος', B: 'θεος' });
 		const b = labelled('b');
 
@@ -2243,8 +2243,14 @@ describe('collationState local stemma source decisions', () => {
 		expect(collationState.setConnectivity(0, 3)).toEqual({ ok: true });
 		expect(collationState.getConnectivity(0)).toBe(3);
 		expect([...collationState.unitDecisions.values()]).toEqual([{ connectivity: 3 }]);
+		expect(collationState.setConnectivity(0, 'absolute')).toEqual({ ok: true });
+		expect(collationState.getConnectivity(0)).toBe('absolute');
+		expect([...collationState.unitDecisions.values()]).toEqual([{ connectivity: 'absolute' }]);
 		collationState.setReadingType(0, b.id, 'nonsense');
-		expect(collationState.getConnectivity(0)).toBe(3);
+		expect(collationState.getConnectivity(0)).toBe('absolute');
+
+		collationState.undo();
+		expect(collationState.getConnectivity(0)).toBe('absolute');
 
 		collationState.undo();
 		expect(collationState.getConnectivity(0)).toBe(3);
@@ -2387,7 +2393,14 @@ describe('collationState bulk witness partitioning', () => {
 			makeWitness('B', 'θεος'),
 			{
 				...makeWitness('C', 'λογος'),
-				tokens: [{ kind: 'gap', original: '⊘', segments: [], gap: { source: 'gap', reason: '', unit: '', extent: '' } }],
+				tokens: [
+					{
+						kind: 'gap',
+						original: '⊘',
+						segments: [],
+						gap: { source: 'gap', reason: '', unit: '', extent: '' },
+					},
+				],
 			},
 		]);
 		expect(collationState.getNonAttestationForUnit(0).witnessIds).toEqual(['C']);
@@ -2523,7 +2536,9 @@ describe('collationState bulk witness partitioning', () => {
 		collateTexts({ A: 'λογος', B: 'θεος', C: 'θεος' });
 		const conjecture = collationState.addReading(0);
 
-		expect(collationState.moveWitnessesToReading(0, ['B', 'C'], labelled('a').id)).toMatchObject({
+		expect(
+			collationState.moveWitnessesToReading(0, ['B', 'C'], labelled('a').id)
+		).toMatchObject({
 			ok: true,
 		});
 
@@ -2544,7 +2559,9 @@ describe('collationState bulk witness partitioning', () => {
 
 		const readings = collationState.getReadingsForUnit(0);
 		expect(readings.find(reading => reading.id === main.id)?.witnessIds).toEqual([]);
-		expect(readings.find(reading => reading.id === subreading.id)?.parentReadingId).toBe(main.id);
+		expect(readings.find(reading => reading.id === subreading.id)?.parentReadingId).toBe(
+			main.id
+		);
 	});
 
 	it('refuses to delete a reading whose subreading still holds witnesses', () => {
@@ -2556,9 +2573,9 @@ describe('collationState bulk witness partitioning', () => {
 
 		expect(collationState.getAttestingWitnessIdsForReading(0, main.id)).toEqual(['C']);
 		collationState.deleteReading(0, main.id);
-		expect(
-			collationState.getReadingsForUnit(0).some(reading => reading.id === main.id)
-		).toBe(true);
+		expect(collationState.getReadingsForUnit(0).some(reading => reading.id === main.id)).toBe(
+			true
+		);
 	});
 
 	it('refuses to merge a reading into its own subreading', () => {
@@ -2581,21 +2598,23 @@ describe('collationState bulk witness partitioning', () => {
 		const c = labelled('c');
 
 		collationState.updateReadingText(0, c.id, 'δελτα');
-		expect(collationState.getReadingsForUnit(0).find(reading => reading.id === c.id)?.text).toBe(
-			'δελτα'
-		);
+		expect(
+			collationState.getReadingsForUnit(0).find(reading => reading.id === c.id)?.text
+		).toBe('δελτα');
 		collationState.undo();
-		expect(collationState.getReadingsForUnit(0).find(reading => reading.id === c.id)?.text).toBe(
-			'πνευμα'
-		);
+		expect(
+			collationState.getReadingsForUnit(0).find(reading => reading.id === c.id)?.text
+		).toBe('πνευμα');
 		collationState.redo();
-		expect(collationState.getReadingsForUnit(0).find(reading => reading.id === c.id)?.text).toBe(
-			'δελτα'
-		);
+		expect(
+			collationState.getReadingsForUnit(0).find(reading => reading.id === c.id)?.text
+		).toBe('δελτα');
 
 		const added = collationState.addReading(0);
 		collationState.undo();
-		expect(collationState.getReadingsForUnit(0).some(reading => reading.id === added)).toBe(false);
+		expect(collationState.getReadingsForUnit(0).some(reading => reading.id === added)).toBe(
+			false
+		);
 
 		collationState.deleteReading(0, collationState.addReading(0));
 		collationState.undo();
@@ -2631,14 +2650,17 @@ describe('collationState bulk witness partitioning', () => {
 			.getReadingsForUnit(first)
 			.map(reading => reading.witnessIds);
 
-		const edited = collationState.getReadingsForUnit(second).find(reading => reading.label === 'b')!;
+		const edited = collationState
+			.getReadingsForUnit(second)
+			.find(reading => reading.label === 'b')!;
 		collationState.updateReadingText(second, edited.id, 'δελτα');
 
 		// One undo reverses the text edit — the gesture that was made last — and the move made in
 		// the other unit is not touched by it.
 		collationState.undo();
 		expect(
-			collationState.getReadingsForUnit(second).find(reading => reading.id === edited.id)?.text
+			collationState.getReadingsForUnit(second).find(reading => reading.id === edited.id)
+				?.text
 		).not.toBe('δελτα');
 		expect(collationState.getReadingsForUnit(first).map(reading => reading.witnessIds)).toEqual(
 			movedWitnessIds
@@ -2646,7 +2668,8 @@ describe('collationState bulk witness partitioning', () => {
 
 		collationState.redo();
 		expect(
-			collationState.getReadingsForUnit(second).find(reading => reading.id === edited.id)?.text
+			collationState.getReadingsForUnit(second).find(reading => reading.id === edited.id)
+				?.text
 		).toBe('δελτα');
 	});
 

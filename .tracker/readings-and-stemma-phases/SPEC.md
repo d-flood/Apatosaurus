@@ -171,7 +171,7 @@ type UnitDecisions = {
   text?: Record<ReadingId, string>;
   witnessAssignment?: Record<WitnessId, ReadingId>;
   addedReadings?: AddedReading[];
-  connectivity?: number;
+  connectivity?: number | 'absolute';  // absent = default 10
 };
 
 applyDecisions(proposal: ReadingProposal, decisions: UnitDecisions): UnitView;
@@ -234,7 +234,7 @@ Serialisation contract:
 - Non-attestation is one reserved-label reading per unit, typed as lacuna, ordered last, and never a node.
 - Undecided source decisions do not serialise; unclear serialises as the **absence** of an incoming arc, which is the only encoding available — no dedicated unknown-source node exists in the reference corpus.
 - Nodes are emitted for every reading regardless of its source decision.
-- Connectivity is emitted per unit as a feature structure.
+- Numeric connectivity is emitted per unit as a feature structure; an explicit `absolute` decision omits that feature structure.
 - The lemma is emitted with the witnesses that actually attest it; the base text appears there only when it genuinely does.
 
 ### Schema validation
@@ -281,7 +281,5 @@ A good test here fixes external behaviour: what a scholar can observe through th
 ## Further Notes
 
 The reference corpus in the repository and the reference implementation's examples are the same passage, so the repository's example file is that corpus with its local stemmata unfilled. Producing those arcs is precisely the gap this epic closes. Both lack the agreed-text segments and the lemma that this application will emit, which is a deliberate improvement rather than a divergence: without agreed text, an apparatus records only where witnesses differ, and no witness's text can be reconstructed from it.
-
-One research question remains and gates nothing: whether tooling accepts a non-numeric unlimited connectivity value. If it does, connectivity should be widened at the point it is introduced rather than later.
 
 The unclear-source encoding is settled by **inference from absence** rather than positive confirmation: the reference corpus's completed local stemmata give every non-root reading an incoming arc and contain no unknown-source node, and the reference implementation documents unclear sources as breaking substemma optimisation. If a positive counter-example surfaces, the export mapping for unclear is the only thing that changes.

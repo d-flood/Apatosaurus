@@ -11,7 +11,7 @@ import {
 import { readString } from './validation';
 
 export const WORKING_COLLATION_FORMAT = 'apatosaurus.working.collation';
-export const WORKING_COLLATION_CURRENT_VERSION = 3;
+export const WORKING_COLLATION_CURRENT_VERSION = 4;
 // Only the v1 wrapper migration may cross the v2 Review boundary.
 const LEGACY_V1_MARKER = '__working_collation_v1';
 

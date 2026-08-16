@@ -55,8 +55,22 @@ describe('StemmaPhase', () => {
 		const customConnectivity = page.getByRole('spinbutton', { name: 'Custom connectivity' });
 		await expect.element(customConnectivity).toBeInTheDocument();
 		for (const preset of ['1', '2', '3', '5', '10']) {
-			await expect.element(page.getByRole('button', { name: preset, exact: true })).toBeInTheDocument();
+			await expect
+				.element(page.getByRole('button', { name: preset, exact: true }))
+				.toBeInTheDocument();
 		}
+		await expect
+			.element(page.getByRole('button', { name: 'Absolute', exact: true }))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByTestId('connectivity-state'))
+			.toHaveTextContent('Connectivity: 10');
+		await userEvent.click(page.getByRole('button', { name: 'Absolute', exact: true }));
+		expect(collationState.getConnectivity(0)).toBe('absolute');
+		await expect
+			.element(page.getByTestId('connectivity-state'))
+			.toHaveTextContent('Connectivity: Absolute');
+		await expect.element(customConnectivity).not.toHaveValue('10');
 		await userEvent.fill(customConnectivity, '4');
 		await userEvent.tab();
 		expect(collationState.getConnectivity(0)).toBe(4);

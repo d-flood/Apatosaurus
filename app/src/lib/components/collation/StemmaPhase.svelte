@@ -147,7 +147,7 @@
 		return recordSourceRefusal(node, result.error);
 	}
 
-	function setConnectivity(value: number) {
+	function setConnectivity(value: number | 'absolute') {
 		const result = collationState.setConnectivity(collationState.selectedUnitIndex, value);
 		if (result.ok) {
 			connectivityRefusal = null;
@@ -379,13 +379,17 @@
 		if (draggedReadingId === node.readingId || dropTargetReadingId === node.readingId) return;
 		dropTargetReadingId = node.readingId;
 		const dragged = nodeById.get(draggedReadingId);
-		if (dragged) liveMessage = `Drop reading ${dragged.label} on reading ${node.label} to record that relationship.`;
+		if (dragged)
+			liveMessage = `Drop reading ${dragged.label} on reading ${node.label} to record that relationship.`;
 	}
 
 	function handleDragLeaveNode(event: DragEvent, node: StemmaTreeNode) {
 		if (dropTargetReadingId !== node.readingId) return;
 		const nextTarget = event.relatedTarget;
-		if (nextTarget instanceof Node && (event.currentTarget as HTMLElement).contains(nextTarget)) {
+		if (
+			nextTarget instanceof Node &&
+			(event.currentTarget as HTMLElement).contains(nextTarget)
+		) {
 			return;
 		}
 		dropTargetReadingId = null;
@@ -526,6 +530,17 @@
 				>Connectivity</span
 			>
 			<div class="join" aria-label="Common connectivity values">
+				<button
+					type="button"
+					class="btn btn-xs join-item {connectivity === 'absolute'
+						? 'btn-primary'
+						: 'btn-ghost'}"
+					aria-pressed={connectivity === 'absolute'}
+					disabled={selectedSpan === null}
+					onclick={() => setConnectivity('absolute')}
+				>
+					Absolute
+				</button>
 				{#each [1, 2, 3, 5, 10] as value}
 					<button
 						type="button"
@@ -548,11 +563,17 @@
 					type="number"
 					min="1"
 					step="1"
-					value={connectivity}
+					value={connectivity === 'absolute' ? '' : connectivity}
 					disabled={selectedSpan === null}
 					onchange={event => setCustomConnectivity(event.currentTarget)}
 				/>
 			</label>
+			<output
+				data-testid="connectivity-state"
+				class="text-xs text-base-content/60"
+				aria-live="polite"
+				>Connectivity: {connectivity === 'absolute' ? 'Absolute' : connectivity}</output
+			>
 			{#if connectivityRefusal && connectivityRefusal.unitIndex === collationState.selectedUnitIndex}
 				{#key connectivityRefusal.seq}
 					<p class="text-xs text-error" role="alert">{connectivityRefusal.message}</p>
@@ -702,7 +723,9 @@
 				</div>
 			{/each}
 
-			<div class="flex-1 bg-base-200/30 rounded-box border border-base-300/40 relative overflow-auto">
+			<div
+				class="flex-1 bg-base-200/30 rounded-box border border-base-300/40 relative overflow-auto"
+			>
 				{#if layout.nodes.length === 0}
 					<div
 						class="flex items-center justify-center h-full text-sm text-base-content/30"
@@ -769,9 +792,13 @@
 									aria-label={describeNode(node)}
 									class="absolute overflow-hidden rounded-md border bg-base-100 px-2 py-1 text-center shadow-sm outline-offset-2 transition-colors cursor-grab active:cursor-grabbing focus-visible:outline-2 focus-visible:outline-primary {SOURCE_STATES[
 										state
-									].classes} {node.isLemma ? 'ring-1 ring-primary ring-inset' : ''} {isDropTarget
+									].classes} {node.isLemma
+										? 'ring-1 ring-primary ring-inset'
+										: ''} {isDropTarget
 										? 'ring-2 ring-success ring-offset-2 ring-offset-base-200'
-										: ''} {liftedReadingId === node.readingId ? 'opacity-60 ring-2 ring-primary' : ''}"
+										: ''} {liftedReadingId === node.readingId
+										? 'opacity-60 ring-2 ring-primary'
+										: ''}"
 									style="left: {placed.x}px; top: {placed.y}px; width: {placed.width}px; height: {placed.height}px;"
 									onfocus={() => (focusedNodeId = node.readingId)}
 									onkeydown={event => handleNodeKeydown(event, node)}
@@ -781,7 +808,9 @@
 									ondrop={event => handleDropOnNode(event, node)}
 									ondragend={handleDragEnd}
 								>
-									<span class="block truncate font-mono text-[10px] text-base-content/60">
+									<span
+										class="block truncate font-mono text-[10px] text-base-content/60"
+									>
 										{node.label}
 										{state === 'undecided'
 											? ' · ?'
@@ -791,14 +820,21 @@
 													? ' · conflict'
 													: ' · derived'}
 									</span>
-									<span class="block truncate font-greek text-xs text-base-content">
+									<span
+										class="block truncate font-greek text-xs text-base-content"
+									>
 										{node.isOmission ? 'om.' : truncate(node.text ?? '', 14)}
 									</span>
-									<span class="block truncate font-mono text-[9px] text-base-content/50">
+									<span
+										class="block truncate font-mono text-[9px] text-base-content/50"
+									>
 										{truncate(node.witnessIds.join(', '), 20)}
 									</span>
 									{#if node.isLemma}
-										<span class="absolute right-1 top-0.5 font-mono text-[8px] text-primary">lemma</span>
+										<span
+											class="absolute right-1 top-0.5 font-mono text-[8px] text-primary"
+											>lemma</span
+										>
 									{/if}
 								</button>
 							{/if}
@@ -812,10 +848,14 @@
 				again on its prior reading to place it. Press Escape to cancel. Press U to mark a
 				reading unclear, R to make it a root, or D to detach it.
 			</p>
-			<div class="sr-only" aria-live="polite" data-testid="stemma-announcer">{liveMessage}</div>
+			<div class="sr-only" aria-live="polite" data-testid="stemma-announcer">
+				{liveMessage}
+			</div>
 			{#if refusal && refusal.unitIndex === collationState.selectedUnitIndex}
 				{#key refusal.seq}
-					<div class="alert alert-error mt-2 py-2 text-xs" role="alert">{refusal.message}</div>
+					<div class="alert alert-error mt-2 py-2 text-xs" role="alert">
+						{refusal.message}
+					</div>
 				{/key}
 			{/if}
 

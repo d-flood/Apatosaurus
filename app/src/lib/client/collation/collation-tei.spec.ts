@@ -247,6 +247,30 @@ describe('apparatus TEI exporter', () => {
 		expect(graph.getElementsByTagName('node').item(0)?.getAttribute('n')).not.toBe('zz');
 	});
 
+	it('serializes numeric connectivity and encodes explicit absolute by omitting its feature structure', () => {
+		const numeric = exportApparatusTei(exportInput());
+		const numericDocument = parse(numeric);
+		const numericFeature = numericDocument.getElementsByTagName('f')[0]!;
+		expect(numericFeature.getAttribute('name')).toBe('connectivity');
+		expect(numericFeature.getElementsByTagName('numeric')[0]?.getAttribute('value')).toBe('10');
+		expect(() => validateTeiP5(numeric)).not.toThrow();
+
+		const absoluteInput = exportInput();
+		const unit = absoluteInput.segments.find(segment => segment.kind === 'unit')!;
+		const unitId = variationUnitId(unit.span.columnIds[0]);
+		absoluteInput.units.get(unitId)!.connectivity = 'absolute';
+		const absolute = exportApparatusTei(absoluteInput);
+		const absoluteDocument = parse(absolute);
+		const note = absoluteDocument.getElementsByTagName('note')[0]!;
+		expect(note.getElementsByTagName('fs')).toHaveLength(0);
+		expect(note.getElementsByTagName('label')[0]?.textContent).toBe('John 1:1/1');
+		expect(note.getElementsByTagName('graph')).toHaveLength(1);
+		expect(reconstructWitness(absoluteDocument, 'A')).toBe('one alpha two');
+		expect(reconstructWitness(absoluteDocument, 'B')).toBe('one beta two');
+		expect(reconstructWitness(absoluteDocument, 'D')).toBe('one two');
+		expect(() => validateTeiP5(absolute)).not.toThrow();
+	}, 30_000);
+
 	it('adds basetext to the lemma only when the base text actually attests it', () => {
 		const readings = collationState.peekReadingsForUnit(1);
 		const beta = readings.find(reading => reading.text === 'beta')!;

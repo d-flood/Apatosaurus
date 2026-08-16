@@ -100,7 +100,7 @@ export interface CollationStemmaUnitNode {
 	columnId: string | null;
 	arcs: ReadingArc[];
 	/** Omitted until a scholar establishes a value; the in-memory default is 10. */
-	connectivity?: number;
+	connectivity?: number | 'absolute';
 }
 
 export interface CollationStemmaNode {
@@ -213,6 +213,34 @@ function normalizeAlignmentLayout(value: unknown): AlignmentLayout {
 
 function normalizeSuppliedTextMode(value: unknown): SuppliedTextMode {
 	return value === 'gap' ? 'gap' : 'clear';
+}
+
+function isPersistedConnectivity(value: unknown): value is number | 'absolute' {
+	return (
+		value === 'absolute' || (typeof value === 'number' && Number.isInteger(value) && value > 0)
+	);
+}
+
+function hasValidStemmaConnectivity(value: unknown): boolean {
+	if (!value || typeof value !== 'object' || Array.isArray(value)) return true;
+	const units = (value as Record<string, unknown>).units;
+	if (!Array.isArray(units)) return true;
+	return units.every(unit => {
+		if (!unit || typeof unit !== 'object' || Array.isArray(unit)) return true;
+		const candidate = unit as Record<string, unknown>;
+		return !('connectivity' in candidate) || isPersistedConnectivity(candidate.connectivity);
+	});
+}
+
+function hasApparatusConnectivity(value: unknown): boolean {
+	if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+	const units = (value as Record<string, unknown>).units;
+	if (!Array.isArray(units)) return false;
+	return units.some(unit => {
+		if (!unit || typeof unit !== 'object' || Array.isArray(unit)) return false;
+		const decisions = (unit as Record<string, unknown>).decisions;
+		return Boolean(decisions && typeof decisions === 'object' && 'connectivity' in decisions);
+	});
 }
 
 function assertCollationSegment(value: unknown): CollationSegment {
@@ -536,15 +564,13 @@ export function hydrateCollationDocument(document: CollationDocument): HydratedC
 	const decisionsByUnit = new Map(
 		document.apparatus?.units
 			?.filter(unit => typeof unit.unitId === 'string')
-			.map(unit => [unit.unitId, unit.decisions ?? {}] as [string, UnitDecisions]) ?? []
+			.map(unit => {
+				const { connectivity: _, ...decisions } = unit.decisions ?? {};
+				return [unit.unitId, decisions] as [string, UnitDecisions];
+			}) ?? []
 	);
 	for (const unit of document.stemma?.units ?? []) {
-		if (
-			typeof unit.unitId !== 'string' ||
-			typeof unit.connectivity !== 'number' ||
-			!Number.isInteger(unit.connectivity) ||
-			unit.connectivity <= 0
-		) {
+		if (typeof unit.unitId !== 'string' || !isPersistedConnectivity(unit.connectivity)) {
 			continue;
 		}
 		decisionsByUnit.set(unit.unitId, {
@@ -601,7 +627,13 @@ export function parseCollationDocument(value: unknown): CollationDocument | null
 	}
 	if (!raw || typeof raw !== 'object') return null;
 	const candidate = raw as Record<string, unknown>;
-	if (candidate.type !== 'collationDocument' || candidate.version !== 1) return null;
+	if (
+		candidate.type !== 'collationDocument' ||
+		candidate.version !== 1 ||
+		!hasValidStemmaConnectivity(candidate.stemma) ||
+		hasApparatusConnectivity(candidate.apparatus)
+	)
+		return null;
 	try {
 		assertCollationSegment((candidate.setup as Record<string, unknown> | undefined)?.segment);
 	} catch {

@@ -45,7 +45,7 @@ export interface ApparatusTeiUnit {
 	view: UnitView;
 	nonAttestation: NonAttestation;
 	stemma: LocalStemma;
-	connectivity: number;
+	connectivity: number | 'absolute';
 	/** Types inferred from evidence remain proposals until this set contains the reading id. */
 	recordedReadingTypeIds: readonly string[];
 }
@@ -228,8 +228,12 @@ function serializeUnit(
 				: [];
 		})
 		.join('');
+	const connectivity =
+		unit.connectivity === 'absolute'
+			? ''
+			: `<fs><f name="connectivity"><numeric value="${unit.connectivity}"/></f></fs>`;
 
-	return `<app from="${escapeAttribute(segment.label)}" n="${escapeAttribute(segmentName)}" to="${escapeAttribute(segment.label)}" type="main">${serializedLemma}${readings.join('')}<note><label>${escapeText(`${segmentName}/${segment.ordinal}`)}</label><fs><f name="connectivity"><numeric value="${unit.connectivity}"/></f></fs><graph type="directed">${nodes}${arcs}</graph></note></app>`;
+	return `<app from="${escapeAttribute(segment.label)}" n="${escapeAttribute(segmentName)}" to="${escapeAttribute(segment.label)}" type="main">${serializedLemma}${readings.join('')}<note><label>${escapeText(`${segmentName}/${segment.ordinal}`)}</label>${connectivity}<graph type="directed">${nodes}${arcs}</graph></note></app>`;
 }
 
 export function getApparatusExportRefusals(

@@ -2243,7 +2243,8 @@ function createCollationState() {
 		const primaries = readings.filter(reading => reading.parentReadingId === null);
 		return primaries.map(parent => {
 			const children = readings.filter(
-				reading => reading.parentReadingId !== null && mainReadingIdOf(reading.id) === parent.id
+				reading =>
+					reading.parentReadingId !== null && mainReadingIdOf(reading.id) === parent.id
 			);
 			return {
 				id: parent.id,
@@ -2423,9 +2424,7 @@ function createCollationState() {
 			before.filter(reading => reading.witnessIds.length > 0).map(reading => reading.id)
 		);
 		const parentIds = new Set(
-			after
-				.map(reading => reading.parentReadingId)
-				.filter((id): id is string => id !== null)
+			after.map(reading => reading.parentReadingId).filter((id): id is string => id !== null)
 		);
 		return after.filter(
 			reading =>
@@ -2441,10 +2440,7 @@ function createCollationState() {
 	 * order given. Non-attestation holds no reading id, so such a witness can never be moved,
 	 * split, or merged.
 	 */
-	function attestingSelection(
-		readings: ClassifiedReading[],
-		witnessIds: string[]
-	): string[] {
+	function attestingSelection(readings: ClassifiedReading[], witnessIds: string[]): string[] {
 		const seen = new Set<string>();
 		return witnessIds.filter(witnessId => {
 			if (seen.has(witnessId)) return false;
@@ -2478,7 +2474,9 @@ function createCollationState() {
 				return { ...reading, witnessIds: [...reading.witnessIds, ...moving] };
 			}
 			const kept = reading.witnessIds.filter(witnessId => !movingSet.has(witnessId));
-			return kept.length === reading.witnessIds.length ? reading : { ...reading, witnessIds: kept };
+			return kept.length === reading.witnessIds.length
+				? reading
+				: { ...reading, witnessIds: kept };
 		});
 
 		commitReadingsForUnit(unitIndex, dropEmptiedReadings(readings, updated, target.id), {
@@ -2530,7 +2528,9 @@ function createCollationState() {
 
 		const updated: ClassifiedReading[] = readings.map(reading => {
 			const kept = reading.witnessIds.filter(witnessId => !selectedSet.has(witnessId));
-			return kept.length === reading.witnessIds.length ? reading : { ...reading, witnessIds: kept };
+			return kept.length === reading.witnessIds.length
+				? reading
+				: { ...reading, witnessIds: kept };
 		});
 		const readingId = crypto.randomUUID();
 		updated.push({
@@ -2613,7 +2613,9 @@ function createCollationState() {
 			decisions.subreadingOf = Object.fromEntries(
 				Object.entries(attachments).map(([readingId, mainReadingId]) => [
 					readingId,
-					mainReadingId !== null && sourceIds.has(mainReadingId) ? target.id : mainReadingId,
+					mainReadingId !== null && sourceIds.has(mainReadingId)
+						? target.id
+						: mainReadingId,
 				])
 			);
 		}
@@ -2965,11 +2967,12 @@ function createCollationState() {
 	function getAttestingWitnessIdsForReading(unitIndex: number, readingId: string): string[] {
 		const readings = peekReadingsForUnit(unitIndex);
 		const chain = new Set<string>([readingId]);
-		for (let grew = true; grew; ) {
+		for (let grew = true; grew;) {
 			grew = false;
 			for (const reading of readings) {
 				if (chain.has(reading.id)) continue;
-				if (reading.parentReadingId === null || !chain.has(reading.parentReadingId)) continue;
+				if (reading.parentReadingId === null || !chain.has(reading.parentReadingId))
+					continue;
 				chain.add(reading.id);
 				grew = true;
 			}
@@ -3116,7 +3119,7 @@ function createCollationState() {
 	}
 
 	/** The per-unit connectivity threshold, with the editorial default applied only on read. */
-	function getConnectivity(unitIndex: number): number {
+	function getConnectivity(unitIndex: number): number | 'absolute' {
 		const key = getReadingUnitKey(unitIndex);
 		return key ? (unitDecisions.get(key)?.connectivity ?? 10) : 10;
 	}
@@ -3125,9 +3128,9 @@ function createCollationState() {
 
 	function setConnectivity(
 		unitIndex: number,
-		connectivity: number
+		connectivity: number | 'absolute'
 	): { ok: true } | { ok: false; error: ConnectivityError } {
-		if (!Number.isInteger(connectivity) || connectivity <= 0) {
+		if (connectivity !== 'absolute' && (!Number.isInteger(connectivity) || connectivity <= 0)) {
 			return { ok: false, error: 'invalid-connectivity' };
 		}
 		const key = getReadingUnitKey(unitIndex);

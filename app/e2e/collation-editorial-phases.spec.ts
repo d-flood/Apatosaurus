@@ -19,6 +19,10 @@ test('the local stemma has one tabstop and supports keyboard source decisions', 
 
 	await page.getByRole('button', { name: 'Readings' }).click();
 	await page.getByRole('button', { name: 'Stemma', exact: true }).click();
+	const absoluteConnectivity = page.getByRole('button', { name: 'Absolute', exact: true });
+	await expect(absoluteConnectivity).toBeVisible();
+	await absoluteConnectivity.click();
+	await expect(absoluteConnectivity).toHaveAttribute('aria-pressed', 'true');
 
 	const sourceControls = page.getByRole('combobox', { name: /Source of reading/ });
 	await expect(sourceControls).toHaveCount(2);
@@ -130,6 +134,7 @@ test('the local stemma has one tabstop and supports keyboard source decisions', 
 	const xml = await readFile(downloadedPath, 'utf8');
 	expect(xml).toContain('<app ');
 	expect(xml).toContain('<graph type="directed">');
+	expect(xml).not.toContain('<f name="connectivity">');
 
 	await page.getByRole('link', { name: 'Stemma', exact: true }).click();
 	await page

@@ -10,7 +10,7 @@ export interface UnitDecisions {
 	readingType?: Record<string, ReadingTypeId | null>;
 	certainty?: Record<string, Certainty | null>;
 	/** Per-variation-unit relationship threshold. Absent means the editorial default of 10. */
-	connectivity?: number;
+	connectivity?: number | 'absolute';
 	/**
 	 * Only the source decisions no arc can express. A `derived` decision is stored as an arc,
 	 * which is the persisted form and the only one able to hold more than one source; `undecided`
