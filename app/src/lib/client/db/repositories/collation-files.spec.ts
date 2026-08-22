@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
 	COLLATION_CHECKPOINT_FORMAT,
+	COLLATION_CURRENT_VERSION,
 	COLLATION_FORMAT,
 	PROJECT_MANIFEST_FORMAT,
 	createQuarantineReport,
@@ -283,7 +284,7 @@ describe('collation file persistence', () => {
 			},
 			{
 				code: 'invalid_shape',
-				raw: serializeSealedDocument(await sealDocument(COLLATION_FORMAT, 1, {})),
+				raw: serializeSealedDocument(await sealDocument(COLLATION_FORMAT, COLLATION_CURRENT_VERSION, {})),
 			},
 			{ code: 'hash_mismatch', raw: JSON.stringify({ ...validDocument, title: 'tampered' }) },
 		] as const;

@@ -289,6 +289,38 @@ describe('collation document', () => {
 		expect(hydrateCollationDocument(document).furthestPhase).toBe('review');
 	});
 
+	it('hydrates a document without a flow record as unstarted rather than complete', () => {
+		const document = buildCollationDocument({
+			collationId: null,
+			projectId: null,
+			projectName: null,
+			phase: 'setup',
+			furthestPhase: 'review',
+			segment: { id: 'segment-1', name: 'John 1:1', members: ['John 1:1'] },
+			witnesses: [],
+			rules: [],
+			ignoreWordBreaks: false,
+			lowercase: false,
+			ignoreTokenWhitespace: true,
+			ignorePunctuation: false,
+			suppliedTextMode: 'clear',
+			segmentation: true,
+			alignmentColumns: [],
+			witnessOrder: [],
+			classifiedReadings: new Map(),
+			unitDecisions: new Map(),
+			readingArcs: new Map(),
+			alignmentDisplayMode: 'regularized',
+			alignmentLayout: 'grid',
+		});
+		delete (document as { flow?: unknown }).flow;
+
+		expect(hydrateCollationDocument(document)).toMatchObject({
+			phase: 'setup',
+			furthestPhase: 'setup',
+		});
+	});
+
 	it('rejects persisted connectivity other than a positive integer or absolute', () => {
 		const document = {
 			type: 'collationDocument',

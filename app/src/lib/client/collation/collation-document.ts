@@ -192,15 +192,22 @@ function makeSourceTokenId(witnessId: string, index: number): string {
 	return `${witnessId}::source::${index}`;
 }
 
+/**
+ * A phase name this build does not recognize comes from a newer build, so it clamps to the last
+ * phase rather than resetting recorded progress. An absent phase records no progress at all.
+ */
 function normalizePhase(value: unknown): CollationPhase {
-	return value === 'setup' ||
+	if (
+		value === 'setup' ||
 		value === 'alignment' ||
 		value === 'readings' ||
 		value === 'stemma' ||
 		value === 'review' ||
 		value === 'regularization'
-		? value
-		: 'review';
+	) {
+		return value;
+	}
+	return typeof value === 'string' ? 'review' : 'setup';
 }
 
 function normalizeDisplayMode(value: unknown): AlignmentDisplayMode {

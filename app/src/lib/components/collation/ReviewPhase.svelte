@@ -113,7 +113,9 @@
 				});
 			}
 			const stemma = collationState.getLocalStemma(unitIndex);
-			if (stemma.nodes.some(node => node.sourceDecision.kind === 'undecided')) {
+			if (
+				stemma.nodes.some(node => !node.isRoot && node.sourceDecision.kind === 'undecided')
+			) {
 				entries.push({
 					unitIndex,
 					title: 'Set reading sources',

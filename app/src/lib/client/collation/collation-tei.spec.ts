@@ -3,10 +3,12 @@ import type { Document as XmlDocument } from '@xmldom/xmldom';
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
 	exportApparatusTei,
+	exportCollationDocumentTei,
 	getApparatusExportRefusals,
 	type ApparatusTeiExportInput,
 	type ApparatusTeiUnit,
 } from './collation-tei';
+import { buildCollationDocument } from './collation-document';
 import { collationState, type WitnessConfig } from './collation-state.svelte';
 import { variationUnitId } from './collation-unit-id';
 import type { AlignmentCell, AlignmentSnapshot } from './alignment-snapshot';
@@ -153,7 +155,7 @@ function settleSources() {
 	collationState.setReadingType(1, beta.id, 'apparent');
 	collationState.setReadingCertainty(1, beta.id, 'low');
 	collationState.setReadingParent(1, beta.id, alpha.id);
-	collationState.setReadingSource(1, alpha.id, { kind: 'unclear' });
+	// `alpha` is the base text's reading and therefore the lemma, which roots the stemma.
 	collationState.setReadingSource(1, omission.id, { kind: 'derived', from: alpha.id });
 }
 
@@ -273,10 +275,11 @@ describe('apparatus TEI exporter', () => {
 
 	it('adds basetext to the lemma only when the base text actually attests it', () => {
 		const readings = collationState.peekReadingsForUnit(1);
+		const alpha = readings.find(reading => reading.text === 'alpha')!;
 		const beta = readings.find(reading => reading.text === 'beta')!;
 		collationState.setReadingParent(1, beta.id, null);
 		collationState.setLemmaReading(1, beta.id);
-		collationState.setReadingSource(1, beta.id, { kind: 'unclear' });
+		collationState.setReadingSource(1, alpha.id, { kind: 'unclear' });
 
 		const lemmaWitnesses = parse(exportApparatusTei(exportInput()))
 			.getElementsByTagName('lem')[0]!
@@ -309,7 +312,9 @@ describe('apparatus TEI exporter', () => {
 		const unit = undecided.segments.find(segment => segment.kind === 'unit')!;
 		const unitId = variationUnitId(unit.span.columnIds[0]);
 		const undecidedUnit = undecided.units.get(unitId)!;
-		undecidedUnit.stemma.nodes[0]!.sourceDecision = { kind: 'undecided' };
+		undecidedUnit.stemma.nodes.find(node => !node.isRoot)!.sourceDecision = {
+			kind: 'undecided',
+		};
 
 		expect(getApparatusExportRefusals(undecided)).toEqual(
 			expect.arrayContaining([expect.objectContaining({ kind: 'undecided-source', unitId })])
@@ -367,6 +372,72 @@ describe('apparatus TEI exporter', () => {
 		);
 		expect(() => exportApparatusTei(incomplete)).toThrow(
 			`agreed text ${refusal?.label} has untranscribed witnesses`
+		);
+	});
+
+	it('exports a unit whose lemma roots the stemma and whose other sources are settled', () => {
+		const input = exportInput();
+		const unitId = variationUnitId(
+			input.segments.find(segment => segment.kind === 'unit')!.span.columnIds[0]
+		);
+		const nodes = input.units.get(unitId)!.stemma.nodes;
+
+		expect(nodes.find(node => node.isLemma)).toMatchObject({
+			isRoot: true,
+			sourceDecision: { kind: 'undecided' },
+		});
+		expect(getApparatusExportRefusals(input)).toEqual([]);
+		expect(() => exportApparatusTei(input)).not.toThrow();
+	});
+
+	it('emits valid xml:id values for numeric and punctuation-heavy identifiers', () => {
+		const input = exportInput();
+		const document = parse(
+			exportApparatusTei({
+				...input,
+				segmentName: '123:1?!',
+				witnesses: input.witnesses.map(entry =>
+					entry.witnessId === 'A' ? { ...entry, witnessId: '123?!' } : entry
+				),
+				baseTextWitnessId: '123?!',
+			})
+		);
+		const ids = Array.from(document.getElementsByTagName('*'))
+			.map(node => node.getAttribute('xml:id'))
+			.filter((id): id is string => Boolean(id));
+
+		expect(ids.length).toBeGreaterThan(0);
+		expect(ids.every(id => /^[A-Za-z_][A-Za-z0-9_.-]*$/.test(id))).toBe(true);
+	});
+
+	it('serializes the same apparatus from the editor state and from the saved document', () => {
+		collationState.segment = { id: 'segment-1', name: 'John 1:1', members: ['John 1:1'] };
+		const document = buildCollationDocument({
+			collationId: collationState.collationId,
+			projectId: collationState.projectId,
+			projectName: collationState.projectName,
+			phase: collationState.phase,
+			furthestPhase: collationState.furthestPhase,
+			segment: collationState.segment,
+			witnesses: collationState.witnesses,
+			rules: collationState.rules,
+			ignoreWordBreaks: collationState.ignoreWordBreaks,
+			lowercase: collationState.lowercase,
+			ignoreTokenWhitespace: collationState.ignoreTokenWhitespace,
+			ignorePunctuation: collationState.ignorePunctuation,
+			suppliedTextMode: collationState.suppliedTextMode,
+			segmentation: collationState.segmentation,
+			alignmentColumns: collationState.alignmentColumns,
+			witnessOrder: collationState.witnessOrder,
+			classifiedReadings: collationState.classifiedReadings,
+			unitDecisions: collationState.unitDecisions,
+			readingArcs: collationState.readingArcs,
+			alignmentDisplayMode: collationState.alignmentDisplayMode,
+			alignmentLayout: collationState.alignmentLayout,
+		});
+
+		expect(exportCollationDocumentTei(document)).toBe(
+			exportApparatusTei({ ...exportInput(), title: 'Apatosaurus Collation' })
 		);
 	});
 });

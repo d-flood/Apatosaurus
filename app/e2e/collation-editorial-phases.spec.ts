@@ -82,7 +82,7 @@ test('the local stemma has one tabstop and supports keyboard source decisions', 
 	await expect(announcer).toContainText('is now a root');
 
 	const rootsBeforeCanvasDrop = diagram.getByRole('button', {
-		name: /origin not yet considered/,
+		name: /origin not yet considered|roots this stemma/,
 	});
 	await rootsBeforeCanvasDrop.nth(0).dragTo(rootsBeforeCanvasDrop.nth(1));
 	await expect(announcer).toContainText('now derives from');
@@ -90,19 +90,26 @@ test('the local stemma has one tabstop and supports keyboard source decisions', 
 		targetPosition: { x: 4, y: 4 },
 	});
 	await expect(announcer).toContainText('is detached');
-	const roots = diagram.getByRole('button', { name: /origin not yet considered/ });
+	const roots = diagram.getByRole('button', {
+		name: /origin not yet considered|roots this stemma/,
+	});
 	await expect(roots).toHaveCount(2);
 	await roots.nth(0).dragTo(roots.nth(1));
 	await expect(announcer).toContainText('now derives from');
 	await diagram.getByRole('button', { name: /derived from/ }).focus();
 	await page.keyboard.press('d');
 	await expect(announcer).toContainText('is detached');
-	await expect(diagram.getByRole('button', { name: /origin not yet considered/ })).toHaveCount(2);
-	const rootsAfterDetach = diagram.getByRole('button', { name: /origin not yet considered/ });
+	const unsourced = diagram.getByRole('button', {
+		name: /origin not yet considered|roots this stemma/,
+	});
+	await expect(unsourced).toHaveCount(2);
+	const rootsAfterDetach = unsourced;
 	await rootsAfterDetach.nth(0).dragTo(rootsAfterDetach.nth(1));
 	await expect(announcer).toContainText('now derives from');
 
-	const root = diagram.getByRole('button', { name: /origin not yet considered/ });
+	const root = diagram.getByRole('button', {
+		name: /origin not yet considered|roots this stemma/,
+	});
 	const derived = diagram.getByRole('button', { name: /derived from/ });
 	await expect(root).toHaveCount(1);
 	await expect(derived).toHaveCount(1);
@@ -110,9 +117,12 @@ test('the local stemma has one tabstop and supports keyboard source decisions', 
 	await expect(announcer).toContainText('Cannot make reading');
 	await expect(page.getByRole('alert').last()).toContainText('form a cycle');
 
+	// The lemma roots its own stemma and needs no source decision; every other reading does.
 	for (let index = 0; index < (await sourceControls.count()); index += 1) {
-		if ((await sourceControls.nth(index).inputValue()) === 'undecided') {
-			await sourceControls.nth(index).selectOption('unclear');
+		const control = sourceControls.nth(index);
+		const selected = await control.locator('option:checked').textContent();
+		if ((await control.inputValue()) === 'undecided' && !selected?.startsWith('Root')) {
+			await control.selectOption('unclear');
 		}
 	}
 

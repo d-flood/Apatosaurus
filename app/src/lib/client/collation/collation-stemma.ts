@@ -34,6 +34,11 @@ export interface StemmaTreeNode {
 	subreadingIds: string[];
 	sourceDecision: SourceDecision;
 	isLemma: boolean;
+	/**
+	 * The lemma roots its own local stemma, so it needs no source decision. Derived from the
+	 * readings and arcs on every projection; never persisted.
+	 */
+	isRoot: boolean;
 	/** Set where the recorded arcs do not present a single source, so no source is projected. */
 	violation: StemmaViolation | null;
 }
@@ -138,6 +143,7 @@ export function projectLocalStemma(
 			subreadingIds: folded.map(subreading => subreading.id),
 			sourceDecision,
 			isLemma: reading.id === lemmaReadingId,
+			isRoot: reading.id === lemmaReadingId && priors.length === 0,
 			violation,
 		};
 	});

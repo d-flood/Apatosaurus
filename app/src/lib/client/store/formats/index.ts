@@ -124,7 +124,6 @@ export {
 export {
 	transcriptionDocumentToTei,
 	transcriptionDocumentToTeiFromStore,
-	collationDocumentToTei,
 } from './tei';
 
 export const canonicalFormatRegistrations: FormatRegistration<JsonObject>[] = [

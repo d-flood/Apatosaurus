@@ -171,7 +171,11 @@ function serializeUnit(
 	const lemma = unit.view.readings.find(reading => reading.id === unit.view.lemmaReadingId);
 	if (!lemma)
 		throw new ApparatusExportError([
-			{ kind: 'missing-lemma', unitId: '', label: segment.label },
+			{
+				kind: 'missing-lemma',
+				unitId: variationUnitId(segment.span.columnIds[0]),
+				label: segment.label,
+			},
 		]);
 	const recordedReadingTypeIds = new Set(unit.recordedReadingTypeIds);
 	const lemmaAttributes = readingAttributes(lemma, {
@@ -276,7 +280,9 @@ export function getApparatusExportRefusals(
 				});
 			}
 		}
-		if (unit.stemma.nodes.some(node => node.sourceDecision.kind === 'undecided')) {
+		if (
+			unit.stemma.nodes.some(node => !node.isRoot && node.sourceDecision.kind === 'undecided')
+		) {
 			refusals.push({ kind: 'undecided-source', unitId, label: segment.label });
 		}
 	}

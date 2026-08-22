@@ -45,6 +45,7 @@
 	let draggedReadingId = $state<string | null>(null);
 	let dropTargetReadingId = $state<string | null>(null);
 	let liveMessage = $state('');
+	let liveMessageSeq = $state(0);
 	let connectivityRefusal = $state<{
 		unitIndex: number;
 		message: string;
@@ -64,13 +65,24 @@
 		if (dropTargetReadingId && !nodeIds.has(dropTargetReadingId)) dropTargetReadingId = null;
 	});
 
+	/** A live region ignores an unchanged string, so each announcement carries a fresh key. */
+	function announce(message: string) {
+		liveMessage = message;
+		liveMessageSeq += 1;
+	}
+
 	/**
-	 * Node colour encodes the source decision and nothing else. Being the lemma is an orthogonal
-	 * fact, marked separately, so an unconsidered lemma still reads as unconsidered.
+	 * Node colour encodes where the reading came from. The lemma roots its own stemma, so it is a
+	 * settled state rather than an unconsidered one; being the lemma is marked separately.
 	 */
 	const SOURCE_STATES = {
 		derived: {
 			label: 'Derived',
+			classes: 'border-base-content/40 bg-base-content/10 text-base-content',
+			stroke: 'text-base-content/50',
+		},
+		root: {
+			label: 'Root',
 			classes: 'border-base-content/40 bg-base-content/10 text-base-content',
 			stroke: 'text-base-content/50',
 		},
@@ -97,7 +109,7 @@
 		if (node.violation) return 'violation';
 		if (node.sourceDecision.kind === 'derived') return 'derived';
 		if (node.sourceDecision.kind === 'unclear') return 'unclear';
-		return 'undecided';
+		return node.isRoot ? 'root' : 'undecided';
 	}
 
 	/** The value the select shows. A conflict is no judgement, so it takes its own placeholder. */
@@ -171,10 +183,10 @@
 	function rerootOnLemma() {
 		const result = collationState.rerootStemmaOnLemma(collationState.selectedUnitIndex);
 		if (!result.ok) {
-			liveMessage = 'The stemma could not be rerooted on the lemma.';
+			announce('The stemma could not be rerooted on the lemma.');
 			return;
 		}
-		liveMessage = `Removed ${result.removed} arc${result.removed === 1 ? '' : 's'} into the lemma.`;
+		announce(`Removed ${result.removed} arc${result.removed === 1 ? '' : 's'} into the lemma.`);
 	}
 
 	function chooseSource(node: StemmaTreeNode, control: HTMLSelectElement) {
@@ -209,7 +221,9 @@
 				? `derived from ${labelById.get(node.sourceDecision.from) ?? node.sourceDecision.from}`
 				: node.sourceDecision.kind === 'unclear'
 					? 'origin undeterminable'
-					: 'origin not yet considered';
+					: node.isRoot
+						? 'is the lemma and roots this stemma'
+						: 'origin not yet considered';
 		return `${node.label}${node.isLemma ? ' (lemma)' : ''}: ${readingSummary(node)} \u2014 ${source}.`;
 	}
 
@@ -267,7 +281,7 @@
 		const lifted = nodeById.get(liftedReadingId);
 		if (lifted) {
 			liftTargetReadingId = target.readingId;
-			liveMessage = describeLiftTarget(lifted, target);
+			announce(describeLiftTarget(lifted, target));
 		}
 	}
 
@@ -275,7 +289,7 @@
 		if (!liftedReadingId) {
 			liftedReadingId = node.readingId;
 			liftTargetReadingId = null;
-			liveMessage = `Lifted reading ${node.label}. Choose its prior reading with the arrow keys.`;
+			announce(`Lifted reading ${node.label}. Choose its prior reading with the arrow keys.`);
 			return;
 		}
 
@@ -286,18 +300,22 @@
 			return;
 		}
 		if (lifted.readingId === node.readingId) {
-			liveMessage = `Reading ${lifted.label} cannot be its own prior reading. Choose another reading.`;
+			announce(
+				`Reading ${lifted.label} cannot be its own prior reading. Choose another reading.`
+			);
 			return;
 		}
 
 		const refusalMessage = setSourceDecision(lifted, { kind: 'derived', from: node.readingId });
 		if (refusalMessage) {
-			liveMessage = `Cannot make reading ${lifted.label} derive from reading ${node.label}. ${refusalMessage}`;
+			announce(
+				`Cannot make reading ${lifted.label} derive from reading ${node.label}. ${refusalMessage}`
+			);
 			return;
 		}
 		liftedReadingId = null;
 		liftTargetReadingId = null;
-		liveMessage = `Reading ${lifted.label} now derives from reading ${node.label}.`;
+		announce(`Reading ${lifted.label} now derives from reading ${node.label}.`);
 	}
 
 	function cancelLift() {
@@ -305,9 +323,11 @@
 		const lifted = nodeById.get(liftedReadingId);
 		const target = liftTargetReadingId ? nodeById.get(liftTargetReadingId) : null;
 		if (lifted) {
-			liveMessage = target
-				? `Cancelled placing reading ${lifted.label} on reading ${target.label}. Focus returned to reading ${lifted.label}.`
-				: `Cancelled placing reading ${lifted.label}. Focus returned to reading ${lifted.label}.`;
+			announce(
+				target
+					? `Cancelled placing reading ${lifted.label} on reading ${target.label}. Focus returned to reading ${lifted.label}.`
+					: `Cancelled placing reading ${lifted.label}. Focus returned to reading ${lifted.label}.`
+			);
 		}
 		liftedReadingId = null;
 		liftTargetReadingId = null;
@@ -320,16 +340,18 @@
 		const formerSource = formerSourceId ? nodeById.get(formerSourceId) : null;
 		const refusalMessage = setSourceDecision(node, decision);
 		if (refusalMessage) {
-			liveMessage = `Could not ${action} for reading ${node.label}. ${refusalMessage}`;
+			announce(`Could not ${action} for reading ${node.label}. ${refusalMessage}`);
 			return;
 		}
 		if (decision.kind === 'unclear') {
-			liveMessage = `Reading ${node.label} is marked unclear; its origin cannot be determined.`;
+			announce(`Reading ${node.label} is marked unclear; its origin cannot be determined.`);
 			return;
 		}
-		liveMessage = formerSource
-			? `Reading ${node.label} is detached from reading ${formerSource.label} and is now a root.`
-			: `Reading ${node.label} is now a root.`;
+		announce(
+			formerSource
+				? `Reading ${node.label} is detached from reading ${formerSource.label} and is now a root.`
+				: `Reading ${node.label} is now a root.`
+		);
 	}
 
 	function handleNodeKeydown(event: KeyboardEvent, node: StemmaTreeNode) {
@@ -369,7 +391,9 @@
 		if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
 		draggedReadingId = node.readingId;
 		dropTargetReadingId = null;
-		liveMessage = `Lifted reading ${node.label}. Drag it onto its prior reading or drop it on the canvas to make it a root.`;
+		announce(
+			`Lifted reading ${node.label}. Drag it onto its prior reading or drop it on the canvas to make it a root.`
+		);
 	}
 
 	function handleDragOverNode(event: DragEvent, node: StemmaTreeNode) {
@@ -380,7 +404,9 @@
 		dropTargetReadingId = node.readingId;
 		const dragged = nodeById.get(draggedReadingId);
 		if (dragged)
-			liveMessage = `Drop reading ${dragged.label} on reading ${node.label} to record that relationship.`;
+			announce(
+				`Drop reading ${dragged.label} on reading ${node.label} to record that relationship.`
+			);
 	}
 
 	function handleDragLeaveNode(event: DragEvent, node: StemmaTreeNode) {
@@ -395,7 +421,9 @@
 		dropTargetReadingId = null;
 		const dragged = draggedReadingId ? nodeById.get(draggedReadingId) : null;
 		if (dragged) {
-			liveMessage = `Reading ${dragged.label} is no longer targeting a prior reading. Drop it on the canvas to make it a root.`;
+			announce(
+				`Reading ${dragged.label} is no longer targeting a prior reading. Drop it on the canvas to make it a root.`
+			);
 		}
 	}
 
@@ -407,7 +435,7 @@
 		dropTargetReadingId = null;
 		if (!dragged) return;
 		if (dragged.readingId === target.readingId) {
-			liveMessage = `Reading ${dragged.label} was dropped on itself. No change was made.`;
+			announce(`Reading ${dragged.label} was dropped on itself. No change was made.`);
 			void focusNode(dragged.readingId);
 			return;
 		}
@@ -416,11 +444,13 @@
 			from: target.readingId,
 		});
 		if (refusalMessage) {
-			liveMessage = `Cannot make reading ${dragged.label} derive from reading ${target.label}. ${refusalMessage}`;
+			announce(
+				`Cannot make reading ${dragged.label} derive from reading ${target.label}. ${refusalMessage}`
+			);
 			void focusNode(dragged.readingId);
 			return;
 		}
-		liveMessage = `Reading ${dragged.label} now derives from reading ${target.label}.`;
+		announce(`Reading ${dragged.label} now derives from reading ${target.label}.`);
 		void focusNode(dragged.readingId);
 	}
 
@@ -434,11 +464,13 @@
 		const formerSource = formerSourceId ? nodeById.get(formerSourceId) : null;
 		const refusalMessage = setSourceDecision(dragged, { kind: 'undecided' });
 		if (refusalMessage) {
-			liveMessage = `Could not make reading ${dragged.label} a root. ${refusalMessage}`;
+			announce(`Could not make reading ${dragged.label} a root. ${refusalMessage}`);
 		} else if (formerSource) {
-			liveMessage = `Reading ${dragged.label} is detached from reading ${formerSource.label} and is now a root.`;
+			announce(
+				`Reading ${dragged.label} is detached from reading ${formerSource.label} and is now a root.`
+			);
 		} else {
-			liveMessage = `Reading ${dragged.label} remains a root.`;
+			announce(`Reading ${dragged.label} remains a root.`);
 		}
 		void focusNode(dragged.readingId);
 	}
@@ -448,7 +480,7 @@
 		const dragged = nodeById.get(draggedReadingId);
 		draggedReadingId = null;
 		dropTargetReadingId = null;
-		if (dragged) liveMessage = `Cancelled dragging reading ${dragged.label}.`;
+		if (dragged) announce(`Cancelled dragging reading ${dragged.label}.`);
 	}
 
 	function handleKeydown(e: KeyboardEvent) {
@@ -658,9 +690,15 @@
 									value={selectValueOf(node)}
 									onchange={e => chooseSource(node, e.currentTarget)}
 								>
-									<option value="undecided"
-										>Undecided &mdash; not yet considered</option
-									>
+									{#if node.isRoot}
+										<option value="undecided"
+											>Root &mdash; the lemma roots this stemma</option
+										>
+									{:else}
+										<option value="undecided"
+											>Undecided &mdash; not yet considered</option
+										>
+									{/if}
 									<option value="unclear"
 										>Unclear &mdash; origin undeterminable</option
 									>
@@ -818,7 +856,9 @@
 												? ' · unclear'
 												: state === 'violation'
 													? ' · conflict'
-													: ' · derived'}
+													: state === 'root'
+														? ' · root'
+														: ' · derived'}
 									</span>
 									<span
 										class="block truncate font-greek text-xs text-base-content"
@@ -849,7 +889,9 @@
 				reading unclear, R to make it a root, or D to detach it.
 			</p>
 			<div class="sr-only" aria-live="polite" data-testid="stemma-announcer">
-				{liveMessage}
+				{#key liveMessageSeq}
+					{liveMessage}
+				{/key}
 			</div>
 			{#if refusal && refusal.unitIndex === collationState.selectedUnitIndex}
 				{#key refusal.seq}

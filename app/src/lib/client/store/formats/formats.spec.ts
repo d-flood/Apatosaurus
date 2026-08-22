@@ -2,7 +2,6 @@ import { DOMParser } from '@xmldom/xmldom';
 import type { Document as XmlDocument } from '@xmldom/xmldom';
 import { describe, expect, it } from 'vitest';
 
-import type { CollationDocument as SemanticCollationDocument } from '$lib/client/collation/collation-document';
 import type { ReferenceEditionCatalogEntry } from '$lib/reference-editions/catalog';
 import { hashCanonicalPayload } from '../canonical-json';
 import { MemoryStoreBackend } from '../memory-store-backend.spec-support';
@@ -35,7 +34,6 @@ import {
 	WORKING_TRANSCRIPTION_FIXTURE,
 	WORKING_TRANSCRIPTION_FORMAT,
 	canonicalFormatRegistrations,
-	collationDocumentToTei,
 	createCanonicalFormatRegistry,
 	readCanonicalDocument,
 	serializeCanonicalDocument,
@@ -43,7 +41,6 @@ import {
 	transcriptionDocumentToTeiFromStore,
 } from './index';
 import {
-	buildLegacyCollationHashPayload,
 	collationPayloadToContent,
 	type CollationPayload,
 } from './collation';
@@ -271,22 +268,9 @@ describe('canonical store formats', () => {
 				},
 			],
 		};
-		const {
-			readings: _readings,
-			reading_witnesses: _readingWitnesses,
-			...legacyHashContent
-		} = content;
-		const legacyHashPayload = {
-			...legacyHashContent,
-			artifacts: [
-				{ artifact_type: 'collation_document_v1', payload: COLLATION_FIXTURE.document },
-			],
-		};
-		const revisionHash = await hashCanonicalPayload(legacyHashPayload);
-		expect(buildLegacyCollationHashPayload(content)).toEqual(legacyHashPayload);
 		const primary = await sealDocument(COLLATION_FORMAT, 1, {
 			...content,
-			current_revision: { ...COLLATION_FIXTURE.current_revision, content_hash: revisionHash },
+			current_revision: COLLATION_FIXTURE.current_revision,
 			created_at: COLLATION_FIXTURE.created_at,
 			updated_at: COLLATION_FIXTURE.updated_at,
 		} as JsonObject);
@@ -298,14 +282,21 @@ describe('canonical store formats', () => {
 		} as JsonObject);
 		await expect(registry.readDocument(COLLATION_FORMAT, primary)).resolves.toMatchObject({
 			ok: false,
-			quarantine: { code: 'invalid_schema_version' },
+			quarantine: {
+				code: 'invalid_schema_version',
+				message: 'No upgrader registered for apatosaurus.collation schema_version 1.',
+			},
 		});
 
 		await expect(
 			registry.readDocument(WORKING_COLLATION_FORMAT, working)
 		).resolves.toMatchObject({
 			ok: false,
-			quarantine: { code: 'invalid_schema_version' },
+			quarantine: {
+				code: 'invalid_schema_version',
+				message:
+					'No upgrader registered for apatosaurus.working.collation schema_version 1.',
+			},
 		});
 	});
 
@@ -666,55 +657,6 @@ describe('derived TEI serializers', () => {
 			'Edition One attribution',
 		]);
 	});
-
-	it('serializes collation documents as a TEI parallel-segmentation apparatus', () => {
-		const xml = collationDocumentToTei(collationDocumentFixture());
-		const doc = parseXml(xml);
-
-		expect(
-			doc.getElementsByTagName('listWit')[0]?.getElementsByTagName('witness')
-		).toHaveLength(2);
-		expect(doc.getElementsByTagName('app')).toHaveLength(1);
-		expect(doc.getElementsByTagName('lem')[0]?.textContent?.trim()).toBe('in');
-		expect(
-			Array.from(doc.getElementsByTagName('rdg'))
-				.find(reading => reading.getAttribute('n') === 'b')
-				?.getAttribute('wit')
-		).toBe('#wit-B');
-	});
-
-	it('serializes incomplete collations without exporting proposed reading types', () => {
-		const fixture = collationDocumentFixture();
-		const variant = fixture.apparatus!.units[0]!.readings[1]!;
-		variant.readingType = 'deficient';
-
-		const document = parseXml(collationDocumentToTei(fixture));
-		expect(
-			Array.from(document.getElementsByTagName('rdg'))
-				.find(reading => reading.getAttribute('n') === 'b')
-				?.getAttribute('type')
-		).toBeNull();
-	});
-
-	it('emits valid xml:id values for numeric and punctuation-heavy identifiers', () => {
-		const fixture = collationDocumentFixture();
-		fixture.setup.segment = {
-			...fixture.setup.segment,
-			name: '123:1?!',
-			members: ['123:1?!'],
-		};
-		fixture.setup.witnesses[0].id = '123?!';
-		fixture.alignment!.witnessOrder[0] = '123?!';
-		fixture.alignment!.columns[0]!.cells[0]![0] = '123?!';
-		fixture.apparatus!.units[0]!.readings[0]!.witnessIds = ['123?!'];
-		const doc = parseXml(collationDocumentToTei(fixture));
-		const ids = Array.from(doc.getElementsByTagName('*'))
-			.map(node => node.getAttribute('xml:id'))
-			.filter((id): id is string => id !== '');
-
-		expect(ids.length).toBeGreaterThan(0);
-		expect(ids.every(id => /^[A-Za-z_][A-Za-z0-9_.-]*$/.test(id))).toBe(true);
-	});
 });
 
 function parseXml(xml: string): XmlDocument {
@@ -757,119 +699,4 @@ function referenceEditionEntries(doc: XmlDocument) {
 	return Array.from(doc.getElementsByTagName('bibl')).filter(
 		node => node.getAttribute('type') === 'referenceEdition'
 	);
-}
-
-function collationDocumentFixture(): SemanticCollationDocument {
-	return {
-		type: 'collationDocument',
-		version: 1,
-		meta: { collationId: 'col-1', projectId: 'project-1', projectName: 'Project One' },
-		flow: {
-			phase: 'readings',
-			furthestPhase: 'readings',
-			alignmentDisplayMode: 'regularized',
-			alignmentLayout: 'grid',
-		},
-		setup: {
-			segment: { id: 'segment-1', name: 'John 1:1', members: ['John 1:1'] },
-			witnesses: [witnessNode('A', 'A', 'in'), witnessNode('B', 'B', 'en')],
-		},
-		settings: {
-			regularizationRules: [],
-			ignoreWordBreaks: false,
-			lowercase: false,
-			ignoreTokenWhitespace: true,
-			ignorePunctuation: false,
-			suppliedTextMode: 'clear',
-			segmentation: true,
-		},
-		alignment: {
-			type: 'alignment',
-			witnessOrder: ['A', 'B'],
-			columns: [
-				{
-					id: 'col-1',
-					index: 0,
-					merged: false,
-					cells: [
-						['A', serializedTextCell('in')],
-						['B', serializedTextCell('en')],
-					],
-				},
-			],
-		},
-		apparatus: {
-			type: 'apparatus',
-			units: [
-				{
-					type: 'variationUnit',
-					id: 'unit:col-1',
-					unitId: 'unit:col-1',
-					columnId: 'col-1',
-					decisions: {
-						sourceDecision: {
-							'r-a': { kind: 'unclear' },
-							'r-b': { kind: 'unclear' },
-						},
-					},
-					readings: [
-						reading('r-a', 0, 'a', 'in', ['A']),
-						reading('r-b', 1, 'b', 'en', ['B']),
-					],
-				},
-			],
-		},
-		stemma: null,
-	};
-}
-
-function witnessNode(id: string, siglum: string, content: string) {
-	return {
-		type: 'witness' as const,
-		id,
-		siglum,
-		transcriptionId: `${id}-tx`,
-		content,
-		treatment: 'inherit' as const,
-		isBaseText: id === 'A',
-		isExcluded: false,
-		overridesDefault: false,
-		sourceTokens: [],
-	};
-}
-
-function reading(id: string, order: number, label: string, text: string, witnessIds: string[]) {
-	return {
-		id,
-		order,
-		label,
-		text,
-		normalizedText: text,
-		witnessIds,
-		witnessGroups: [],
-		isOmission: false,
-		isLacuna: false,
-		readingType: null,
-		certainty: null,
-		parentReadingId: null,
-		isSubreading: false,
-		autoGenerated: false,
-		derivedFromRuleIds: [],
-	};
-}
-
-function serializedTextCell(text: string) {
-	return {
-		text,
-		regularizedText: text,
-		alignmentValue: text,
-		sourceTokenIds: [],
-		kind: 'text' as const,
-		gap: null,
-		isOmission: false,
-		isLacuna: false,
-		isRegularized: false,
-		ruleIds: [],
-		regularizationTypes: [],
-	};
 }
