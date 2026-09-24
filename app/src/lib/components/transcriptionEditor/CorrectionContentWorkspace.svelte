@@ -623,7 +623,6 @@
 		cursorPosition={toolbarCursorPosition}
 		showPageNameInput={false}
 		showInsertPageButton={false}
-		showInsertLineButton={false}
 		showMarginaliaButton={false}
 		showExportButton={false}
 		insertColumnTooltip="Split into a new column"

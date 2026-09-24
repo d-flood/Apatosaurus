@@ -8,7 +8,6 @@
 	import CheckCircle from 'phosphor-svelte/lib/CheckCircle';
 	import FileArrowDownIcon from 'phosphor-svelte/lib/FileArrowDownIcon';
 	import Image from 'phosphor-svelte/lib/Image';
-	import ListNumbers from 'phosphor-svelte/lib/ListNumbers';
 	import Note from 'phosphor-svelte/lib/Note';
 	import Paragraph from 'phosphor-svelte/lib/Paragraph';
 	import Sidebar from 'phosphor-svelte/lib/Sidebar';
@@ -20,7 +19,6 @@
 	type ToolbarItemKey =
 		| 'page-name'
 		| 'insert-page'
-		| 'insert-line'
 		| 'insert-column'
 		| 'iiif-workspace'
 		| 'untranscribed'
@@ -59,25 +57,18 @@
 		exportLoading: boolean;
 		showPageNameInput?: boolean;
 		showInsertPageButton?: boolean;
-		showInsertLineButton?: boolean;
-		showInsertColumnButton?: boolean;
 		showMarginaliaButton?: boolean;
-		showIiifWorkspaceButton?: boolean;
 		showExportButton?: boolean;
 		sticky?: boolean;
 		insertColumnTooltip?: string;
 		insertColumnTitle?: string;
 		insertColumnAriaLabel?: string;
-		insertLineTooltip?: string;
-		insertLineTitle?: string;
-		insertLineAriaLabel?: string;
 		cursorPosition?: CursorPosition;
 		iiifWorkspaceOpen?: boolean;
 		onPageNameChange: (name: string) => void;
 		onToggleIiifWorkspace?: () => void;
 		onInsertPage: () => void;
 		onInsertFramedPage?: () => void;
-		onInsertLine?: () => void;
 		onInsertColumn: () => void;
 		onToggleWordWrapped: () => void;
 		onToggleParagraphStart?: () => void;
@@ -114,25 +105,18 @@
 		exportLoading,
 		showPageNameInput = true,
 		showInsertPageButton = true,
-		showInsertLineButton = false,
-		showInsertColumnButton = true,
 		showMarginaliaButton = true,
-		showIiifWorkspaceButton = true,
 		showExportButton = true,
 		sticky = true,
 		insertColumnTooltip = 'Insert column',
 		insertColumnTitle = 'Insert a new column at the current cursor position',
 		insertColumnAriaLabel = 'Insert Column',
-		insertLineTooltip = 'Insert line',
-		insertLineTitle = 'Insert a new line at the current cursor position',
-		insertLineAriaLabel = 'Insert Line',
 		cursorPosition,
 		iiifWorkspaceOpen = false,
 		onPageNameChange,
 		onToggleIiifWorkspace,
 		onInsertPage,
 		onInsertFramedPage,
-		onInsertLine,
 		onInsertColumn,
 		onToggleWordWrapped,
 		onToggleParagraphStart,
@@ -222,9 +206,7 @@
 
 		if (showPageNameInput && !showInsertPageButton) items.push('page-name');
 		if (showInsertPageButton) items.push('insert-page');
-		if (showInsertLineButton) items.push('insert-line');
-		if (showInsertColumnButton) items.push('insert-column');
-		if (showIiifWorkspaceButton) items.push('iiif-workspace');
+		items.push('insert-column', 'iiif-workspace');
 
 		items.push('untranscribed', 'gap', 'hand-shift');
 
@@ -396,26 +378,6 @@
 						</button>
 					{/if}
 				</div>
-			</div>
-		{:else if item === 'insert-line'}
-			<div
-				data-toolbar-item-key={item}
-				data-group-position={position}
-				class="tooltip tooltip-neutral tooltip-bottom join-item"
-				data-tip={insertLineTooltip}
-			>
-				<button
-					onclick={() => onInsertLine?.()}
-					class={[
-						'btn btn-primary',
-						!hasPage && 'border-none bg-primary/40 text-primary-content shadow-none',
-					]}
-					title={insertLineTitle}
-					aria-label={insertLineAriaLabel}
-					disabled={!hasPage || !onInsertLine}
-				>
-					<ListNumbers class="inline-block" size={24} />
-				</button>
 			</div>
 		{:else if item === 'insert-column'}
 			<div

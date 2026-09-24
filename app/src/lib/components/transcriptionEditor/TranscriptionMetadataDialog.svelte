@@ -24,7 +24,6 @@
 			kind: 'pageLabel' | 'runningTitle' | 'catchword' | 'quireSignature',
 			newText: string
 		) => void;
-		onSaveTranscription?: (transcription: TranscriptionRecord) => void;
 	}
 
 	let {
@@ -35,7 +34,6 @@
 		onDeletePage,
 		onUpdatePageFormWork,
 		data,
-		onSaveTranscription,
 	}: Props = $props();
 	let editMode = $state(false);
 	let pageNameDrafts = $state<Record<string, string>>({});
@@ -54,11 +52,8 @@
 	const teiHeader = $derived(canonicalDocument.header);
 	const preservedSections = $derived(buildPreservedSections(canonicalDocument));
 
-	function handleSaveTranscription(updatedTranscription: TranscriptionRecord) {
+	function handleSaveTranscription(_updatedTranscription: TranscriptionRecord) {
 		editMode = false;
-		if (onSaveTranscription) {
-			onSaveTranscription(updatedTranscription);
-		}
 	}
 
 	function buildPreservedSections(document: StoredTranscriptionDocument) {
