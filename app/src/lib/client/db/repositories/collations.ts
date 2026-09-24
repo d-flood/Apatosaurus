@@ -16,24 +16,6 @@ import {
 
 type DbExecutor = Kysely<Database> | Transaction<Database>;
 
-export async function loadProjectTranscriptionIds(
-	db: DbExecutor,
-	projectId: string,
-	transcriptionIds: Iterable<string | null>
-): Promise<Map<string, string>> {
-	const ids = [...new Set([...transcriptionIds].filter(isNonEmptyString))];
-	if (ids.length === 0) return new Map();
-	const rows = await db
-		.selectFrom('project_transcriptions')
-		.select(['id', 'transcription_id'])
-		.where('project_id', '=', projectId)
-		.where('transcription_id', 'in', ids)
-		.execute();
-	return new Map(
-		rows.map(row => [row.transcription_id, requireId(row.id, 'project transcription')])
-	);
-}
-
 export interface CollationListItem {
 	id: string;
 	projectId: string;
@@ -501,18 +483,6 @@ export async function updateCollationMetadata(
 		.executeTakeFirst();
 	if (Number(result.numUpdatedRows) === 0)
 		throw new Error(`Collation ${input.id} was not found.`);
-}
-
-export function mapCollationRow(row: Selectable<Collations>): CollationListItem {
-	return {
-		id: requireId(row.id, 'collation'),
-		projectId: requireId(row.project_id, 'collation project'),
-		projectName: 'Project',
-		title: row.title,
-		verseIdentifier: row.verse_identifier,
-		status: row.status,
-		updatedAt: row.updated_at,
-	};
 }
 
 function requireId(value: string | null, label: string): string {

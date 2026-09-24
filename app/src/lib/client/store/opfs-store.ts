@@ -243,10 +243,6 @@ export async function createOpfsStoreBackend(
 	return new OpfsStoreBackend(opfsRoot);
 }
 
-export function resetDefaultStoreBackendForTests(): void {
-	defaultBackendPromise = null;
-}
-
 function toBackendPath(path: string): string {
 	return joinStorePath(APP_STORE_ROOT, path);
 }

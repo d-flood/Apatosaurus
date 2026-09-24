@@ -1,6 +1,6 @@
 import { canonicalJson, hashCanonicalPayload } from '../canonical-json';
 
-import type { JsonObject, JsonValue } from '../envelope';
+import type { JsonValue } from '../envelope';
 import { hashMismatch, invalidShape } from '../quarantine';
 
 export function readObjectValue(value: unknown, label: string): Record<string, unknown> {
@@ -88,16 +88,6 @@ export async function assertContentHashMatches(
 	if (actualHash !== expectedHash) {
 		throw hashMismatch(`${label} content hash mismatch.`, expectedHash, actualHash);
 	}
-}
-
-export function assertJsonObject(value: unknown, label: string): JsonObject {
-	readObjectValue(value, label);
-	try {
-		canonicalJson(value);
-	} catch (error) {
-		throw invalidShape(`${label} is not canonicalizable JSON: ${errorMessage(error)}`);
-	}
-	return value as JsonObject;
 }
 
 export function errorMessage(error: unknown): string {

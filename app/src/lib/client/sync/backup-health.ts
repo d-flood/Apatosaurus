@@ -62,43 +62,6 @@ export interface ProjectBackupHealth {
 	quarantines: SyncQuarantine[];
 }
 
-export async function deriveLocalProjectBackupHealth(
-	db: Kysely<Database>,
-	projectId: string,
-	context?: SyncProjectContext | null
-): Promise<ProjectBackupHealth> {
-	if (!context) {
-		return finalizeHealth({
-			projectId,
-			connectionId: null,
-			status: 'local-only',
-			lastFullySyncedAt: null,
-			checks: [
-				check(
-					'backup-location',
-					'Backup location',
-					'fail',
-					'This project has no selected backup location.',
-					true
-				),
-			],
-			quarantines: [],
-		});
-	}
-
-	const summary = await deriveProjectBackupSummary(db, context);
-	const checks = localSummaryChecks(summary.blockingItems, summary.pendingItems);
-	const status = localStatusFromSummary(summary.blockingItems, summary.pendingItems);
-	return finalizeHealth({
-		projectId,
-		connectionId: context.connectionId,
-		status,
-		lastFullySyncedAt: summary.lastFullySyncedAt,
-		checks,
-		quarantines: [],
-	});
-}
-
 export async function verifyRemoteProjectBackupHealth(
 	db: Kysely<Database>,
 	provider: CloudStorageProvider,
@@ -215,8 +178,6 @@ export async function verifyRemoteProjectBackupHealth(
 		quarantines,
 	});
 }
-
-export const deriveSafeRemovalChecklist = verifyRemoteProjectBackupHealth;
 
 function localSummaryChecks(
 	blockingItems: BackupItemState[],
@@ -497,15 +458,6 @@ function remoteStatusFromChecks(
 	if (checks.some(item => item.blocking && item.status === 'fail')) return 'incomplete-backup';
 	if (pendingItems.length > 0) return 'backed-up-local-metadata';
 	return 'restorable-now';
-}
-
-function localStatusFromSummary(
-	blockingItems: BackupItemState[],
-	pendingItems: BackupItemState[]
-): ProjectBackupHealthStatus {
-	if (blockingItems.length > 0) return 'uncommitted-changes';
-	if (pendingItems.length > 0) return 'committed-pending-backup';
-	return 'backed-up-local-metadata';
 }
 
 function finalizeHealth(input: Omit<ProjectBackupHealth, 'safeToRemove' | 'blockingChecks'>): ProjectBackupHealth {

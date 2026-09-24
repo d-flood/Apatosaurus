@@ -17,10 +17,6 @@ export interface AggregatedVerse {
 	count: number;
 }
 
-export function extractVerses(_ydoc: unknown): VerseNode[] {
-	return [];
-}
-
 export function extractVersesFromJSON(node: any, verses: VerseNode[]): void {
 	if (!node) return;
 	if (node.type === 'verse' && node.attrs) {

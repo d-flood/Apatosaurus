@@ -102,21 +102,6 @@ export async function updateSyncTargetLastSyncedAt(
 	return next;
 }
 
-export async function setSyncTargetEnabled(
-	targetId: string,
-	enabled: boolean,
-	options: StoreOperationOptions = {}
-): Promise<SyncTargetRecord> {
-	const targets = await readSyncTargets(options);
-	const index = targets.findIndex(target => target.targetId === targetId);
-	if (index === -1) throw new Error(`Sync target ${targetId} was not found.`);
-	const now = new Date().toISOString();
-	const next = { ...targets[index], enabled, updatedAt: now };
-	targets[index] = next;
-	await writeSyncTargets(targets, options);
-	return next;
-}
-
 export async function removeSyncTarget(
 	targetId: string,
 	options: StoreOperationOptions = {}

@@ -3,7 +3,6 @@ import { emitLocalDbInvalidation } from '$lib/client/db/client';
 import { notificationCenter } from '$lib/client/notification-center.svelte';
 import {
 	getSyncTarget,
-	listSyncTargets,
 	removeSyncTarget,
 	upsertSyncTarget,
 	type SyncTargetRecord,
@@ -17,10 +16,6 @@ import {
 } from './local-folder-handles';
 
 export { isLocalFolderProviderSupported };
-
-export async function listProjectSyncTargets(projectId: string): Promise<SyncTargetRecord[]> {
-	return listSyncTargets(projectId);
-}
 
 export async function connectProjectSyncFolder(projectId: string): Promise<SyncTargetRecord> {
 	const handle = await pickLocalFolderHandle();

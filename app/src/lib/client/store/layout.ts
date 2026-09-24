@@ -16,10 +16,6 @@ export function projectManifestRelativeFile(): string {
 	return 'project.json';
 }
 
-export function projectTranscriptionsFolder(projectSlug: string): string {
-	return joinStorePath(projectFolder(projectSlug), 'transcriptions');
-}
-
 export function transcriptionPrimaryFile(projectSlug: string, transcriptionId: string): string {
 	return joinStorePath(
 		projectFolder(projectSlug),
@@ -48,10 +44,6 @@ export function transcriptionTeiFile(projectSlug: string, transcriptionId: strin
 
 export function transcriptionTeiRelativeFile(transcriptionId: string): string {
 	return joinStorePath('transcriptions', `${validateFileStem(transcriptionId)}.tei.xml`);
-}
-
-export function projectCollationsFolder(projectSlug: string): string {
-	return joinStorePath(projectFolder(projectSlug), 'collations');
 }
 
 export function collationPrimaryFile(projectSlug: string, collationId: string): string {
@@ -131,10 +123,6 @@ export function collationCheckpointRelativeFile(collationId: string, checkpointI
 		validateFileStem(collationId),
 		`${validateFileStem(checkpointId)}.json`
 	);
-}
-
-export function projectTombstonesFolder(projectSlug: string): string {
-	return joinStorePath(projectFolder(projectSlug), 'tombstones');
 }
 
 export function tombstoneFile(projectSlug: string, entityType: string, entityId: string): string {

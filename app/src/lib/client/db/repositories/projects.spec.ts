@@ -65,7 +65,6 @@ import {
 	updateProjectMetadata,
 } from './projects';
 import {
-	createCommittedCollationCheckpoint,
 	createCommittedTranscriptionCheckpoint,
 	getTranscriptionCommittedHead,
 	listCommittedTranscriptionCheckpoints,

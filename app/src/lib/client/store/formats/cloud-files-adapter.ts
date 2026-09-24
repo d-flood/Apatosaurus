@@ -37,7 +37,6 @@ import {
 	hashMismatch,
 	invalidShape,
 	quarantineFromError,
-	type StoreQuarantineCode,
 	type StoreQuarantineReason,
 } from '$lib/client/store/quarantine';
 import {
@@ -242,7 +241,6 @@ export interface CollationCheckpointImportInput {
 	created_at: string;
 }
 
-export type CloudFileQuarantineCode = StoreQuarantineCode;
 export type CloudFileQuarantine = StoreQuarantineReason;
 
 export type CloudFileParseResult<T> =

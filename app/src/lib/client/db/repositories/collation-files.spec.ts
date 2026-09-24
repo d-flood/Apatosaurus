@@ -845,19 +845,6 @@ async function createFixtureCollation(): Promise<void> {
 	});
 }
 
-async function saveFixtureWorkingCollation(): Promise<void> {
-	await saveWorkingCollationArtifact(
-		harness.db,
-		{
-			collationId: 'col-1',
-			artifactType: 'collation_document_v1',
-			payload: JSON.stringify(collationDocument('setup')),
-			now: '2026-07-04T12:00:00.000Z',
-		},
-		{ backend, nonce: () => 'fixture-working' }
-	);
-}
-
 function collationDocument(phase: string) {
 	return {
 		type: 'collationDocument',

@@ -162,14 +162,6 @@ export async function removeUserReferenceEdition(
 	await deleteFile(entry.storePath, options);
 }
 
-export async function restoreUserReferenceEdition(
-	raw: string,
-	options: StoreOperationOptions = {}
-): Promise<'restored' | 'already-present'> {
-	const result = await restoreUserReferenceEditions([raw], options);
-	return result.restored === 1 ? 'restored' : 'already-present';
-}
-
 export async function restoreUserReferenceEditions(
 	raws: string[],
 	options: StoreOperationOptions = {}

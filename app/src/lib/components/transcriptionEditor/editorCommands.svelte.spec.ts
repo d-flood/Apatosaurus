@@ -5,10 +5,7 @@
  * Written for ticket 01 of the `refactor-transcription-editor` epic. The
  * existing `toolbar-insertions` spec drives some of these through the toolbar
  * on a one-line document; this one calls them directly on a document where a
- * position error is visible. Assertions tagged DEFECT record behaviour the
- * inventory marks as wrong.
- *
- * See `.tracker/refactor-transcription-editor/INVENTORY.md`.
+ * position error is visible. Assertions tagged DEFECT record known defects.
  */
 import { NodeSelection, TextSelection } from '@tiptap/pm/state';
 import { describe, expect, it } from 'vitest';
@@ -41,8 +38,6 @@ import {
 	toggleEditorMark,
 	updateNodeAttrs,
 } from './editorCommands';
-
-type Json = Record<string, any>;
 
 const EDITOR_COMMAND_FIXTURE = editorDocument({
 	pages: [

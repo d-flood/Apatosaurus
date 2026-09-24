@@ -39,7 +39,6 @@ import {
 import { exportCollationDocumentTei } from '$lib/client/collation/collation-tei';
 import {
 	buildCollationProjectionFromDocument,
-	buildSerializedCollationProjectionRows,
 } from '$lib/client/collation/collation-projection';
 import { hashCanonicalPayload } from '$lib/client/sync/canonical-json';
 import { deriveEntityCloudBackupState } from '$lib/client/sync/backup-status';
@@ -351,22 +350,6 @@ export async function loadCollationWithWorkingFile(
 	if (primaryPayload) return loadedCollationFromPrimaryPayload(primaryPayload);
 	if (storeOptions.allowIndexFallback === false) return null;
 	return loaded;
-}
-
-export async function loadSerializedCollationWithFiles(
-	db: Kysely<Database>,
-	collationId: string,
-	storeOptions: FileBackedCollationLoadOptions = {}
-): Promise<SerializedCollation> {
-	const context = await loadCollationFileContext(db, collationId);
-	const primaryPayload = await tryReadPrimaryCollationPayload(context, storeOptions);
-	const workingPayload = await tryReadEligibleWorkingCollationPayload(context, primaryPayload, storeOptions);
-	if (workingPayload) return serializedCollationFromPayload(workingPayload);
-	if (primaryPayload) return serializedCollationFromPayload(primaryPayload);
-	if (storeOptions.allowIndexFallback === false) {
-		throw new Error(`Canonical collation file for ${collationId} was not found.`);
-	}
-	return loadSerializedCollation(db, collationId);
 }
 
 export async function loadCommittedCollationPayloadWithFiles(
@@ -768,30 +751,6 @@ function loadedCollationFromPrimaryPayload(payload: CollationPayload): LoadedCol
 		artifact: artifactRecordFromDocument(payload.document, payload.updated_at),
 		legacyArtifact: null,
 		projection: projectionRecordFromDocument(payload.document),
-	};
-}
-
-function serializedCollationFromPayload(
-	payload: LoadedWorkingCollationPayload | CollationPayload
-): SerializedCollation {
-	const projection = buildSerializedCollationProjectionRows(payload.id, payload.document);
-	return {
-		id: payload.id,
-		project_id: payload.project_id,
-		title: payload.title,
-		verse_identifier: payload.verse_identifier,
-		status: payload.status,
-		group_path: payload.group_path,
-		notes: payload.notes,
-		sort_key: payload.sort_key,
-		...projection,
-		artifacts: [
-			{
-				id: `${payload.id}:document`,
-				artifact_type: COLLATION_DOCUMENT_ARTIFACT_TYPE,
-				payload: payload.document,
-			},
-		],
 	};
 }
 

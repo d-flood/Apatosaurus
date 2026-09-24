@@ -1,5 +1,5 @@
 import type { Editor } from '@tiptap/core';
-import { TextSelection } from '@tiptap/pm/state';
+import { TextSelection, type Transaction } from '@tiptap/pm/state';
 import { lineItemsToProseMirror, type LineItem, type TextMark } from '$lib/tei/tei-transcription';
 
 import { extractRange, type ParsedReferenceEdition } from './source';
@@ -29,7 +29,7 @@ export function insertReferenceEditionRange(
 		}
 	}
 
-	let transaction = state.tr;
+	let transaction: Transaction;
 	if (!insideLine) {
 		if (state.doc.childCount !== 0) return false;
 

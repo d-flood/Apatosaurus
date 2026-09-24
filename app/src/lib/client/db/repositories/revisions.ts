@@ -465,16 +465,6 @@ export async function createCommittedCollationCheckpoint(
 	});
 }
 
-export async function createCommittedCollationCheckpointFromSerialized(
-	db: Kysely<Database>,
-	collation: SerializedCollation,
-	input: CommitCollationInput
-): Promise<CollationCheckpoint> {
-	return db.transaction().execute(trx =>
-		createCommittedCollationCheckpointFromSerializedInTransaction(trx, collation, input)
-	);
-}
-
 export async function recordCommittedCollationCheckpoint(
 	db: DbExecutor,
 	collationId: string,

@@ -53,7 +53,6 @@ export async function registerServiceWorker(): Promise<ServiceWorkerRegistration
 			scope: '/',
 		});
 
-		console.log('Service Worker registered:', registration.scope);
 		let hasControlledPage = navigator.serviceWorker.controller !== null;
 		if (registration.waiting) offerUpdate(registration.waiting);
 
@@ -161,19 +160,6 @@ export async function releaseCorpusCache(): Promise<void> {
 	if (!('caches' in globalThis)) return;
 	const corpusCacheNames = (await caches.keys()).filter(isCorpusCacheName);
 	await Promise.all(corpusCacheNames.map(name => caches.delete(name)));
-}
-
-export function unregisterServiceWorker(): Promise<boolean> {
-	if (!('serviceWorker' in navigator)) {
-		return Promise.resolve(false);
-	}
-
-	return navigator.serviceWorker.getRegistration().then(registration => {
-		if (registration) {
-			return registration.unregister();
-		}
-		return false;
-	});
 }
 
 function ensureWarmProgressListener(): void {

@@ -123,13 +123,6 @@ export function isStructuredFormWorkContent(content: unknown): content is FormWo
 	return !!content && typeof content === 'object' && (content as Record<string, any>).type === 'doc';
 }
 
-export function createEmptyStructuredFormWorkContent(): FormWorkDoc {
-	return {
-		type: 'doc',
-		content: [createEmptyColumn()],
-	};
-}
-
 function createEmptyColumn(): FormWorkColumnNode {
 	return {
 		type: 'marginaliaColumn',

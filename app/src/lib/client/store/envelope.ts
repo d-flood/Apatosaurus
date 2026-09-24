@@ -83,12 +83,6 @@ export function serializeSealedDocument(document: DocumentEnvelopeHeader & objec
 	return canonicalJson(document);
 }
 
-export function payloadFromEnvelope<TPayload extends JsonObject = JsonObject>(
-	document: SealedDocument
-): TPayload {
-	return payloadFromRecord(document as Record<string, unknown>) as TPayload;
-}
-
 function parseJson(raw: string): unknown {
 	try {
 		return JSON.parse(raw) as unknown;

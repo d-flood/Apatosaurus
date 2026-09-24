@@ -70,16 +70,6 @@ export function lineElement(
 		[columnIndex].querySelectorAll('.line')[lineIndex] as HTMLElement;
 }
 
-export function marginaliaLineElement(
-	container: ParentNode,
-	columnIndex: number,
-	lineIndex: number
-): HTMLElement {
-	return container
-		.querySelectorAll('.marginalia-column')
-		[columnIndex].querySelectorAll('.marginalia-line')[lineIndex] as HTMLElement;
-}
-
 export interface TranscriptionEditorHarness {
 	container: HTMLElement;
 	viewport: HTMLElement;

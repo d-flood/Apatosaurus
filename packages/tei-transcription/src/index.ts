@@ -14,7 +14,6 @@ export { normalizeDocument } from './normalize';
 export {
 	createStructuredFormWorkContent,
 	flattenStructuredFormWorkContent,
-	createEmptyStructuredFormWorkContent,
 	isStructuredFormWorkContent,
 } from './formwork-pm';
 export type {

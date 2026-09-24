@@ -52,16 +52,6 @@ async function replaceTextarea(label: string, value: string) {
 	await input.fill(value);
 }
 
-async function fillInlineCarrierEditor(value: string) {
-	const editorElement = document.querySelector(
-		'.inline-carrier-editor-input .ProseMirror'
-	) as Element | null;
-	expect(editorElement).toBeTruthy();
-	const editorLocator = browserPage.elementLocator(editorElement!);
-	await editorLocator.click();
-	await editorLocator.fill(value);
-}
-
 async function fillFormWorkContent(value: string) {
 	const editor = (document.querySelector('.ProseMirror') as any)?.editor;
 	expect(editor).toBeTruthy();

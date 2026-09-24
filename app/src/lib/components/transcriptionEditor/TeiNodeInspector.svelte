@@ -62,11 +62,6 @@
 		}
 		return node.type;
 	}
-
-	export function isComplexType(node: SelectedCarrierNode | null): boolean {
-		if (!node) return false;
-		return ['fw', 'correctionNode', 'editorialAction'].includes(node.type);
-	}
 </script>
 
 <script lang="ts">

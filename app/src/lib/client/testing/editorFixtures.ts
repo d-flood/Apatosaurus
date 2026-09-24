@@ -399,14 +399,6 @@ export function domDocumentSnapshot(container: ParentNode): string[][][] {
 	);
 }
 
-export function domMarginaliaSnapshot(container: ParentNode): string[][] {
-	return Array.from(container.querySelectorAll('.marginalia-column')).map(column =>
-		Array.from(column.querySelectorAll('.marginalia-line')).map(
-			line => line.querySelector('.line-content')?.textContent ?? ''
-		)
-	);
-}
-
 export function structuralAttributeSnapshot(document_: any): EditorJson[] {
 	const json = jsonOf(document_);
 	return (json.content ?? []).map((page: EditorJson) => ({

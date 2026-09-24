@@ -5,7 +5,7 @@ import { COLLATION_FIXTURE } from '$lib/client/store';
 import { MemoryStoreBackend } from '$lib/client/store/memory-store-backend.spec-support';
 import { ensureManifestSource, upsertCanvasAnnotation, upsertPageCanvasLink } from './iiif';
 import { createCollation, saveCollationArtifact, updateCollationMetadata } from './collations';
-import { createProject as createProjectRepository, syncProjectTranscriptionIds } from './projects';
+import { createProject as createProjectRepository } from './projects';
 import { createTranscription, updateTranscriptionContent } from './transcriptions';
 import { createLocalDbTestHarness, type LocalDbTestHarness } from '../test-harness';
 import {
@@ -491,16 +491,6 @@ function pageCanvasLinkInput(transcriptionId: string, manifestSourceId: string) 
 		thumbnailUrl: null,
 		linkRole: 'primary',
 	};
-}
-
-async function getProjectTranscriptionId(transcriptionId: string): Promise<string> {
-	const row = await harness.db
-		.selectFrom('project_transcriptions')
-		.select('id')
-		.where('transcription_id', '=', transcriptionId)
-		.executeTakeFirstOrThrow();
-	if (!row.id) throw new Error('Missing project transcription id.');
-	return row.id;
 }
 
 async function insertCollationProjectionRows(): Promise<void> {

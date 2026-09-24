@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { StoredTranscriptionDocument } from '$lib/client/transcription/content';
 import { MemoryStoreBackend } from '$lib/client/store/memory-store-backend.spec-support';
 import { upsertCloudConnection } from './cloud-connections';
-import { createProject as createProjectRepository, syncProjectTranscriptionIds } from './projects';
+import { createProject as createProjectRepository } from './projects';
 import {
 	createCommittedCollationCheckpoint,
 	createCommittedTranscriptionCheckpoint,
@@ -597,16 +597,6 @@ describe('collations repository', () => {
 		});
 	});
 });
-
-async function getProjectTranscriptionId(transcriptionId: string): Promise<string> {
-	const row = await harness.db
-		.selectFrom('project_transcriptions')
-		.select('id')
-		.where('transcription_id', '=', transcriptionId)
-		.executeTakeFirstOrThrow();
-	if (!row.id) throw new Error('Missing project transcription id.');
-	return row.id;
-}
 
 async function createSyncContext() {
 	await upsertCloudConnection(harness.db, {

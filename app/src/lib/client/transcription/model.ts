@@ -31,7 +31,3 @@ export function parseTranscriptionTags(tags: unknown): string[] {
 	}
 	return [];
 }
-
-export function serializeTranscriptionTags(tags: string[]): string {
-	return JSON.stringify(tags);
-}

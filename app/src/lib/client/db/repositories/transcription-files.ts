@@ -55,7 +55,6 @@ import {
 	type PersistenceResult,
 } from './revisions';
 import {
-	createTranscription,
 	createTranscriptions,
 	getTranscription,
 	replaceTranscriptionVerseIndexRows,
@@ -355,14 +354,6 @@ export async function createTranscriptionWithFilesResult(
 ): Promise<PersistenceResult<string>> {
 	const result = await createTranscriptionsWithFilesResult(db, [input], storeOptions);
 	return { value: result.value[0], warnings: result.warnings };
-}
-
-export async function createTranscriptionsWithFiles(
-	db: Kysely<Database>,
-	inputs: CreateTranscriptionInput[],
-	storeOptions: StoreOperationOptions = {}
-): Promise<string[]> {
-	return (await createTranscriptionsWithFilesResult(db, inputs, storeOptions)).value;
 }
 
 export async function createTranscriptionsWithFilesResult(

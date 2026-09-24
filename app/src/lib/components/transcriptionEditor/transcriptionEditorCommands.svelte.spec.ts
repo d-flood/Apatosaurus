@@ -5,8 +5,7 @@
  * Written for ticket 01 of the `refactor-transcription-editor` epic. The point
  * of mounting the component rather than re-implementing its handlers is that
  * the handlers are component-private; a test that copies them proves only that
- * the copy is stable. Assertions tagged DEFECT record behaviour the inventory
- * marks as wrong. See `.tracker/refactor-transcription-editor/INVENTORY.md`.
+ * the copy is stable. Assertions tagged DEFECT record known defects.
  */
 import { describe, expect, it } from 'vitest';
 import { userEvent } from '@vitest/browser/context';
@@ -333,7 +332,7 @@ describe('TranscriptionEditor structural commands (mounted, multi-page fixture)'
 });
 
 describe('TranscriptionEditor page metadata commands (mounted, multi-page fixture)', () => {
-	async function openMetadataDialog(harness: Harness) {
+	async function openMetadataDialog() {
 		const dialog = document.getElementById('transcription-metadata-modal') as HTMLDialogElement;
 		dialog.showModal();
 		dialog.dispatchEvent(new Event('toggle'));
@@ -362,7 +361,7 @@ describe('TranscriptionEditor page metadata commands (mounted, multi-page fixtur
 	it('updatePageName renames the addressed page only', async () => {
 		const harness = await mountEditor();
 		try {
-			const details = await openMetadataDialog(harness);
+			const details = await openMetadataDialog();
 			const nameInputs = Array.from(
 				details.querySelectorAll<HTMLInputElement>('input[placeholder^="Page name"]')
 			);
@@ -382,7 +381,7 @@ describe('TranscriptionEditor page metadata commands (mounted, multi-page fixtur
 	it('reclassifies page chrome from its fw child without retaining the old kind', async () => {
 		const harness = await mountEditor();
 		try {
-			let details = await openMetadataDialog(harness);
+			let details = await openMetadataDialog();
 			setInput(pageMetadataInputs(details, 'Visible page number')[2], 'fol. 2r');
 			await tick();
 			closeMetadataDialog();
@@ -404,7 +403,7 @@ describe('TranscriptionEditor page metadata commands (mounted, multi-page fixtur
 			expect(thirdPage.querySelector<HTMLElement>('.fw-node')?.dataset.category).toBe(
 				'Running Title'
 			);
-			details = await openMetadataDialog(harness);
+			details = await openMetadataDialog();
 			expect(details.textContent).not.toContain('pageLabel:');
 			expect(details.textContent).toContain('runningTitle: runTitle');
 			expect(pageMetadataInputs(details, 'Visible page number')[2].value).toBe('');
@@ -417,7 +416,7 @@ describe('TranscriptionEditor page metadata commands (mounted, multi-page fixtur
 	it('removes page chrome when its fw child is deleted', async () => {
 		const harness = await mountEditor();
 		try {
-			const details = await openMetadataDialog(harness);
+			const details = await openMetadataDialog();
 			setInput(pageMetadataInputs(details, 'Visible page number')[2], 'fol. 2r');
 			await tick();
 
@@ -438,7 +437,7 @@ describe('TranscriptionEditor page metadata commands (mounted, multi-page fixtur
 	it('updatePageName refuses a name that duplicates another page', async () => {
 		const harness = await mountEditor();
 		try {
-			const details = await openMetadataDialog(harness);
+			const details = await openMetadataDialog();
 			const nameInputs = Array.from(
 				details.querySelectorAll<HTMLInputElement>('input[placeholder^="Page name"]')
 			);
@@ -464,7 +463,7 @@ describe('TranscriptionEditor page metadata commands (mounted, multi-page fixtur
 		async (placeholder, value) => {
 			const harness = await mountEditor();
 			try {
-				const details = await openMetadataDialog(harness);
+				const details = await openMetadataDialog();
 				const inputs = Array.from(
 					details.querySelectorAll<HTMLInputElement>(
 						`input[placeholder^="${placeholder}"]`
@@ -492,7 +491,7 @@ describe('TranscriptionEditor page metadata commands (mounted, multi-page fixtur
 		const originalConfirm = window.confirm;
 		window.confirm = () => true;
 		try {
-			const details = await openMetadataDialog(harness);
+			const details = await openMetadataDialog();
 			const removeButtons = Array.from(details.querySelectorAll('button')).filter(candidate =>
 				(candidate.textContent || '').includes('Remove page')
 			);
@@ -519,7 +518,7 @@ describe('TranscriptionEditor page metadata commands (mounted, multi-page fixtur
 				) as HTMLElement
 			);
 			await tick();
-			const details = await openMetadataDialog(harness);
+			const details = await openMetadataDialog();
 			const nameInputs = Array.from(
 				details.querySelectorAll<HTMLInputElement>('input[placeholder^="Page name"]')
 			);

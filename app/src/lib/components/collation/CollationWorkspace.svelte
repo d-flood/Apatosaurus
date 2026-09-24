@@ -6,10 +6,7 @@
 		getCollationVersionStatus,
 		subscribeLocalDbInvalidations,
 	} from '$lib/client/db/client';
-	import type {
-		CollationVersionStatus,
-		CollationWitnessSourceStatus,
-	} from '$lib/client/db/repositories/collations';
+	import type { CollationVersionStatus } from '$lib/client/db/repositories/collations';
 	import CollationStepper from './CollationStepper.svelte';
 	import AutoSaveIndicator from './AutoSaveIndicator.svelte';
 	import EntityHeader from '$lib/components/EntityHeader.svelte';

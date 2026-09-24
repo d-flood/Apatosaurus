@@ -6,7 +6,6 @@ import type {
 	IiifManifestSources,
 	Projects,
 	ProjectTranscriptions,
-	TranscriptionCheckpoints,
 	TranscriptionPageCanvasLinks,
 	Transcriptions,
 } from '../types.generated';
@@ -18,14 +17,13 @@ import {
 } from '$lib/client/sync/backup-status';
 import type { StoreOperationOptions } from '$lib/client/store';
 import {
-	canonicalJson,
 	getTranscriptionCommittedHead,
 	loadCommittedTranscriptionCheckpointPayload,
 	type EntityCheckpointHead,
 	type TranscriptionCheckpointPayload,
 	type PersistenceWarning,
 } from './revisions';
-import { ensureDefaultProject, resolveProjectStorageSlug } from './project-bootstrap';
+import { resolveProjectStorageSlug } from './project-bootstrap';
 import {
 	createCommittedTranscriptionCheckpointWithFiles,
 	getProjectTranscriptionCheckpointStatusWithFiles,
@@ -767,8 +765,6 @@ export async function refreshProjectTranscription(
 	if (!target) {
 		throw new Error(`Project transcription ${input.projectTranscriptionId} was not found.`);
 	}
-	const targetTranscriptionId = requireId(target.transcription_id, 'project-owned transcription');
-
 	const targetCheckpointStatus = await getProjectTranscriptionCheckpointStatusWithFiles(
 		db,
 		input.projectTranscriptionId,
@@ -1035,47 +1031,6 @@ async function forkProjectTranscriptions(
 	return idMap;
 }
 
-async function buildTranscriptionCheckpointIdMap(
-	db: DbExecutor,
-	sourceTranscriptionId: string
-): Promise<Map<string, string>> {
-	const rows = await db
-		.selectFrom('transcription_checkpoints')
-		.select(['id'])
-		.where('transcription_id', '=', sourceTranscriptionId)
-		.execute();
-	return new Map(rows.map(row => [requireId(row.id, 'transcription checkpoint'), createId()]));
-}
-
-async function copyTranscriptionCheckpoints(
-	db: DbExecutor,
-	sourceTranscriptionId: string,
-	targetTranscriptionId: string,
-	idMap: Map<string, string>
-): Promise<void> {
-	const rows = await db
-		.selectFrom('transcription_checkpoints')
-		.selectAll()
-		.where('transcription_id', '=', sourceTranscriptionId)
-		.orderBy('created_at')
-		.execute();
-	if (rows.length > 0) {
-		await db
-			.insertInto('transcription_checkpoints')
-			.values(
-				rows.map(row => ({
-					...row,
-					id: mappedId(idMap, row.id),
-					transcription_id: targetTranscriptionId,
-					parent_checkpoint_id: row.parent_checkpoint_id
-						? mappedId(idMap, row.parent_checkpoint_id)
-						: null,
-				}))
-			)
-			.execute();
-	}
-}
-
 async function forkProjectCollations(
 	db: DbExecutor,
 	sourceProjectId: string,
@@ -1126,47 +1081,6 @@ async function forkProjectCollations(
 	return targets;
 }
 
-async function buildCollationCheckpointIdMap(
-	db: DbExecutor,
-	sourceCollationId: string
-): Promise<Map<string, string>> {
-	const rows = await db
-		.selectFrom('collation_checkpoints')
-		.select(['id'])
-		.where('collation_id', '=', sourceCollationId)
-		.execute();
-	return new Map(rows.map(row => [requireId(row.id, 'collation checkpoint'), createId()]));
-}
-
-async function copyCollationCheckpoints(
-	db: DbExecutor,
-	sourceCollationId: string,
-	targetCollationId: string,
-	idMap: Map<string, string>
-): Promise<void> {
-	const rows = await db
-		.selectFrom('collation_checkpoints')
-		.selectAll()
-		.where('collation_id', '=', sourceCollationId)
-		.orderBy('created_at')
-		.execute();
-	if (rows.length > 0) {
-		await db
-			.insertInto('collation_checkpoints')
-			.values(
-				rows.map(row => ({
-					...row,
-					id: mappedId(idMap, row.id),
-					collation_id: targetCollationId,
-					parent_checkpoint_id: row.parent_checkpoint_id
-						? mappedId(idMap, row.parent_checkpoint_id)
-						: null,
-				}))
-			)
-			.execute();
-	}
-}
-
 function rewriteForkIdentifiers(value: unknown, idMap: Map<string, string>): unknown {
 	if (typeof value === 'string') return idMap.get(value) ?? value;
 	if (Array.isArray(value)) return value.map(entry => rewriteForkIdentifiers(entry, idMap));
@@ -1174,124 +1088,6 @@ function rewriteForkIdentifiers(value: unknown, idMap: Map<string, string>): unk
 	return Object.fromEntries(
 		Object.entries(value).map(([key, entry]) => [key, rewriteForkIdentifiers(entry, idMap)])
 	);
-}
-
-async function copyCollationProjection(
-	db: DbExecutor,
-	sourceCollationId: string,
-	targetCollationId: string,
-	transcriptionMap: Map<string, ForkedProjectTranscriptionIds>
-): Promise<void> {
-	const witnesses = await db
-		.selectFrom('collation_witnesses')
-		.selectAll()
-		.where('collation_id', '=', sourceCollationId)
-		.execute();
-	if (witnesses.length > 0) {
-		await db
-			.insertInto('collation_witnesses')
-			.values(
-				witnesses.map(row => {
-					const mapped = row.project_transcription_id
-						? transcriptionMap.get(row.project_transcription_id)
-						: row.transcription_id
-							? transcriptionMap.get(row.transcription_id)
-							: undefined;
-					return {
-						...row,
-						id: createId(),
-						collation_id: targetCollationId,
-						project_transcription_id: mapped?.projectTranscriptionId ?? null,
-						transcription_id: mapped?.transcriptionId ?? null,
-						source_revision_id: mapped
-							? mappedId(mapped.checkpointIds, row.source_revision_id)
-							: row.source_revision_id,
-					};
-				})
-			)
-			.execute();
-	}
-
-	const tokens = await db
-		.selectFrom('collation_tokens')
-		.selectAll()
-		.where('collation_id', '=', sourceCollationId)
-		.execute();
-	if (tokens.length > 0) {
-		await db
-			.insertInto('collation_tokens')
-			.values(
-				tokens.map(row => ({ ...row, id: createId(), collation_id: targetCollationId }))
-			)
-			.execute();
-	}
-
-	const units = await db
-		.selectFrom('collation_variation_units')
-		.selectAll()
-		.where('collation_id', '=', sourceCollationId)
-		.execute();
-	const unitIdMap = new Map(units.map(row => [requireId(row.id, 'variation unit'), createId()]));
-	if (units.length > 0) {
-		await db
-			.insertInto('collation_variation_units')
-			.values(
-				units.map(row => ({
-					...row,
-					id: mappedId(unitIdMap, row.id),
-					collation_id: targetCollationId,
-				}))
-			)
-			.execute();
-	}
-
-	const readings =
-		units.length > 0
-			? await db
-					.selectFrom('collation_readings')
-					.selectAll()
-					.where('variation_unit_id', 'in', [...unitIdMap.keys()])
-					.execute()
-			: [];
-	const readingIdMap = new Map(readings.map(row => [requireId(row.id, 'reading'), createId()]));
-	if (readings.length > 0) {
-		await db
-			.insertInto('collation_readings')
-			.values(
-				readings.map(row => ({
-					...row,
-					id: mappedId(readingIdMap, row.id),
-					variation_unit_id: mappedId(unitIdMap, row.variation_unit_id),
-				}))
-			)
-			.execute();
-	}
-
-	const readingWitnesses =
-		readings.length > 0
-			? await db
-					.selectFrom('collation_reading_witnesses')
-					.selectAll()
-					.where('reading_id', 'in', [...readingIdMap.keys()])
-					.execute()
-			: [];
-	if (readingWitnesses.length > 0) {
-		await db
-			.insertInto('collation_reading_witnesses')
-			.values(
-				readingWitnesses.map(row => ({
-					...row,
-					id: createId(),
-					reading_id: mappedId(readingIdMap, row.reading_id),
-				}))
-			)
-			.execute();
-	}
-}
-
-function mappedId(idMap: Map<string, string>, id: string | null): string {
-	if (!id) return '';
-	return idMap.get(id) ?? id;
 }
 
 async function replaceIiifRowsFromPayload(

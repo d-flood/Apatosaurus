@@ -148,10 +148,6 @@ export function readDocument<TPayload extends JsonObject = JsonObject>(
 	return defaultRegistry.readDocument(format, raw);
 }
 
-export function clearRegisteredFormatsForTests(): void {
-	defaultRegistry.clear();
-}
-
 function assertPayloadObject(value: unknown, label: string): JsonObject {
 	if (!value || typeof value !== 'object' || Array.isArray(value)) {
 		throw invalidShape(`${label} upgrader must return an object.`);

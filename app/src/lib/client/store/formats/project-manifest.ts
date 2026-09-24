@@ -10,7 +10,6 @@ import {
 	assertContentHashMatches,
 	readArray,
 	readJsonValue,
-	readNullableString,
 	readObjectValue,
 	readString,
 } from './validation';

@@ -1,5 +1,3 @@
-import type { Editor } from '@tiptap/core';
-
 export interface Correction {
 	hand: string;
 	content: any[];
@@ -8,11 +6,6 @@ export interface Correction {
 	rend?: string;
 	readingAttrs?: Record<string, string>;
 	segmentAttrs?: Record<string, string>;
-}
-
-export interface PageMetadata {
-	pos: number;
-	pageName: string | null;
 }
 
 export interface MarkVisibility {
@@ -31,16 +24,7 @@ export interface MarkVisibility {
 	paragraphStart: boolean;
 }
 
-export interface TranscriptionEditorState {
-	editor: Editor | null;
-}
-
 export interface Abbreviation {
 	type: string;
 	expansion: string;
-}
-
-export interface CorrectionForm {
-	hand: string;
-	tempCorrections: Correction[];
 }

@@ -3,8 +3,6 @@ import type {
 	DbRequestPayload,
 	DbResponse,
 	DbIndexRebuiltEvent,
-	DbRow,
-	DbValue,
 	CollationRpcRequest,
 	CollationRpcResponse,
 	ProjectRpcRequest,
@@ -32,7 +30,6 @@ import type {
 	UpsertCloudProjectFolderInput,
 	UpsertCloudConnectionInput,
 } from './repositories/cloud-connections';
-import type { ProjectBackupHealth } from '../sync/backup-health';
 import type {
 	AllProjectsZipExportResult,
 	ProjectZipExportResult,
@@ -113,26 +110,6 @@ const pending = new Map<
 	}
 >();
 const invalidationListeners = new Set<(event: DbInvalidationEvent) => void>();
-
-export async function localDbQuery(sql: string, params: DbValue[] = []): Promise<DbRow[]> {
-	await ensureLocalDbRuntime();
-	return send<DbRow[]>({ type: 'query', sql, params });
-}
-
-export async function localDbExecute(
-	sql: string,
-	params: DbValue[] = []
-): Promise<{ changes: number }> {
-	await ensureLocalDbRuntime();
-	return send<{ changes: number }>({ type: 'execute', sql, params });
-}
-
-export async function localDbTransaction(
-	statements: Array<{ sql: string; params?: DbValue[] }>
-): Promise<void> {
-	await ensureLocalDbRuntime();
-	await send<void>({ type: 'transaction', statements });
-}
 
 export function subscribeLocalDbInvalidations(
 	listener: (event: DbInvalidationEvent) => void
@@ -634,12 +611,6 @@ export async function deriveProjectBackupSummary(
 	folder?: CloudProjectFolderRecord | null
 ): Promise<ProjectBackupSummary> {
 	return sendCloudConnectionRequest({ type: 'projectBackup.summary', context, folder });
-}
-
-export async function verifyProjectBackupHealth(
-	context: SyncProjectContext
-): Promise<ProjectBackupHealth> {
-	return sendCloudConnectionRequest({ type: 'projectBackup.verifyHealth', context });
 }
 
 export async function removeLocalProject(
