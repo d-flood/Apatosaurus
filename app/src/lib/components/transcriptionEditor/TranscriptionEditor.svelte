@@ -976,8 +976,7 @@
 	 * or the end of the document when the caret is not inside a page — which is
 	 * the case for an editor that has not yet been clicked into. Deriving it from
 	 * `state.selection` (what `insertContent` does) let ProseMirror's fitter
-	 * resolve the block/inline mismatch by replacing the entire manuscript. See
-	 * `.tracker/refactor-transcription-editor/INVENTORY.md` F6.
+	 * resolve the block/inline mismatch by replacing the entire manuscript.
 	 */
 	function pageInsertPosition(state: EditorState): number {
 		const resolvedFrom = state.selection.$from;

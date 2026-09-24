@@ -19,8 +19,6 @@ Apatosaurus is live at [apatosaurus.io](https://www.apatosaurus.io)
 
 See [About your data](https://www.apatosaurus.io/about) for the recommended setup and data-ownership model.
 
-![screenshot of apatosaurus.io homepage](_static/media/home_page_20230329.png)
-
 This is the open source rewrite of [Apparatus Explorer](https://www.apparatusexplorer.com/).
 
 This new version is more than an explorer. Its features include
@@ -36,10 +34,8 @@ This new version is more than an explorer. Its features include
 
 Apatosaurus is now a frontend-only SvelteKit app. The legacy Django backend and bundled reverse-proxy deployment have been removed.
 
-The persistence architecture is documented in
-[`.tracker/files-as-database/architecture.md`](.tracker/files-as-database/architecture.md). A project is a
-folder of versioned, hash-validated documents in the browser's Origin Private File System (OPFS); SQLite is
-only a disposable index rebuilt from those files.
+Canonical project data lives as versioned, hash-validated files in OPFS. SQLite contains only rebuildable listings,
+indexes, and projections; deleting it must not lose user data.
 
 Install dependencies from the repository root or from `app/` with the full monorepo checked out:
 

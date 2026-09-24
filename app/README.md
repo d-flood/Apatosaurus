@@ -12,8 +12,7 @@ Current workspace constraint:
 
 ## Persistence Architecture
 
-The accepted architecture is
-[`../.tracker/files-as-database/architecture.md`](../.tracker/files-as-database/architecture.md). Canonical
+Canonical
 project data lives as versioned, hash-validated files in OPFS. SQLite contains only rebuildable listings,
 indexes, and projections; deleting it must not lose user data.
 

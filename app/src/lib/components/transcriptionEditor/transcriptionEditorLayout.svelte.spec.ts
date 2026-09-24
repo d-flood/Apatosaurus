@@ -5,7 +5,7 @@
  * Written for ticket 01 of the `refactor-transcription-editor` epic. `SPEC.md`
  * § D3 left one caveat open: a *blank* framed page did not overflow in
  * isolation, so the reported blank-page horizontal scroll was unexplained.
- * These tests close it. See `.tracker/refactor-transcription-editor/INVENTORY.md`.
+ * These tests close it.
  */
 import { beforeAll, describe, expect, it } from 'vitest';
 

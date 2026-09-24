@@ -7,8 +7,6 @@
  * appended transactions fragment or poison the undo stack. They do not — the
  * initial `setContent` did sit in the history, which was worse, and ticket 07
  * of the same epic took it out (F14).
- *
- * See `.tracker/refactor-transcription-editor/INVENTORY.md`.
  */
 import { describe, expect, it } from 'vitest';
 

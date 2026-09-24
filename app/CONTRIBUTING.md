@@ -1,7 +1,6 @@
 # Contributing to the Apatosaurus App
 
-The storage model and its invariants are defined in
-[`../.tracker/files-as-database/architecture.md`](../.tracker/files-as-database/architecture.md). Canonical
+Canonical
 project files are the database; SQLite is a disposable index.
 
 ## Setup

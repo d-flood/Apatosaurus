@@ -7,8 +7,6 @@
  * behaviour the inventory marks as defective. Where an assertion locks in a
  * defect it is tagged with its inventory identifier (F<n>) and the word
  * DEFECT, so the ticket that fixes it knows exactly which expectation to flip.
- *
- * See `.tracker/refactor-transcription-editor/INVENTORY.md`.
  */
 import { describe, expect, it } from 'vitest';
 

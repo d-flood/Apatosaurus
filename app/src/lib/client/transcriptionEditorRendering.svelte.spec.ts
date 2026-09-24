@@ -5,9 +5,7 @@
  * `renderHTML` is not only the view: it is also the clipboard serializer and
  * the input to `renderCorrectionContent`'s `generateHTML`, and `parseHTML` is
  * expected to invert it. These tests check that round trip. Assertions tagged
- * DEFECT record behaviour the inventory marks as wrong.
- *
- * See `.tracker/refactor-transcription-editor/INVENTORY.md`.
+ * DEFECT record known defects.
  */
 import { Editor, generateHTML } from '@tiptap/core';
 import { NodeSelection } from '@tiptap/pm/state';

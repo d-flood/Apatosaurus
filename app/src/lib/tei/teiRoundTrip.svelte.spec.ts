@@ -5,8 +5,7 @@
  * The export path the app actually uses is
  * `exportTEIDocument(fromProseMirror(editor.getJSON()))`, i.e.
  * ProseMirror JSON -> TranscriptionDocument -> toProseMirror -> XML. Everything
- * below drives that path. Assertions tagged DEFECT record losses the inventory
- * marks as wrong. See `.tracker/refactor-transcription-editor/INVENTORY.md`.
+ * below drives that path. Assertions tagged DEFECT record known losses.
  */
 import { describe, expect, it } from 'vitest';
 
