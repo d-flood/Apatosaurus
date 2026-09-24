@@ -27,7 +27,7 @@ export default ts.config(
 		},
 	},
 	{
-		ignores: ['build/', '.svelte-kit/', 'node_modules/', 'test-results/', 'src/generated/'],
+		ignores: ['build/', '.svelte-kit/', 'node_modules/', 'test-results/'],
 	},
 	{
 		rules: {

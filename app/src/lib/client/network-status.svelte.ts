@@ -7,12 +7,10 @@ class NetworkStatus {
 
 			window.addEventListener('online', () => {
 				this.online = true;
-				console.log('Network: Online');
 			});
 
 			window.addEventListener('offline', () => {
 				this.online = false;
-				console.log('Network: Offline');
 			});
 		}
 	}
