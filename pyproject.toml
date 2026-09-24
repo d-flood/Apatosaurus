@@ -3,8 +3,6 @@ name = "apatopwa-scripts"
 version = "0.1.0"
 description = "Scripts for Apatopwa development"
 dependencies = [
-    "pillow>=10.0.0",
-    "cairosvg>=2.7.0",
     "lxml>=6.0.2",
 ]
 requires-python = ">=3.14"
