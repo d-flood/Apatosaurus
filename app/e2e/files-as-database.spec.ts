@@ -126,10 +126,11 @@ test('reference-edition backup restores through the client, RPC worker, and OPFS
 
 test('committee contexts propagate updates and preserve divergent commits as conflict copies', async ({
 	browser,
+	baseURL,
 }, testInfo) => {
 	const sharedFolder = new SharedFolderServer();
-	const contextA = await createCommitteeContext(browser, sharedFolder);
-	const contextB = await createCommitteeContext(browser, sharedFolder);
+	const contextA = await createCommitteeContext(browser, sharedFolder, baseURL);
+	const contextB = await createCommitteeContext(browser, sharedFolder, baseURL);
 	const pageA = await contextA.newPage();
 	const pageB = await contextB.newPage();
 	try {
@@ -513,9 +514,10 @@ async function syncNow(page: Page): Promise<void> {
 
 async function createCommitteeContext(
 	browser: Browser,
-	sharedFolder: SharedFolderServer
+	sharedFolder: SharedFolderServer,
+	baseURL: string | undefined
 ): Promise<BrowserContext> {
-	const context = await browser.newContext({ baseURL: 'http://localhost:4173' });
+	const context = await browser.newContext({ baseURL });
 	await context.addInitScript(() => {
 		Object.defineProperty(window, 'showDirectoryPicker', {
 			configurable: true,

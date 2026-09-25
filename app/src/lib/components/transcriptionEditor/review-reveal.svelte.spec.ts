@@ -8,6 +8,7 @@ import {
 	mountTranscriptionEditor,
 	placeCaretAtEndOf,
 	tick,
+	waitFor,
 } from '$lib/client/testing/editorHarnesses.svelte';
 
 function markedText(text: string) {
@@ -124,9 +125,8 @@ async function exportXml(container: ParentNode): Promise<string> {
 
 	try {
 		control(container, 'Export as TEI XML').click();
-		await tick();
-		if (!blob) throw new Error('Export did not create a Blob');
-		return await blob.text();
+		await waitFor(() => blob ?? null);
+		return await blob!.text();
 	} finally {
 		createObjectURL.mockRestore();
 		revokeObjectURL.mockRestore();

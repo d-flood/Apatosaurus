@@ -46,6 +46,16 @@ export async function reconcileAlphaProjectUpgrade(entries: ProjectEntry[]): Pro
 		const upgraded = entry.payload as CollationPayload;
 		const head = manifest.collations.find(head => head.collation_id === upgraded.id);
 		if (
+			!head &&
+			manifest.tombstones.some(
+				tombstone =>
+					tombstone.entity_type === 'collation' &&
+					tombstone.entity_id === upgraded.id &&
+					tombstone.deletion_revision_id === original.current_revision.id
+			)
+		)
+			continue;
+		if (
 			!head?.current_revision ||
 			head.current_revision.id !== original.current_revision.id ||
 			head.current_revision.content_hash !== original.current_revision.content_hash
@@ -123,7 +133,10 @@ export async function reconcileAlphaProjectUpgrade(entries: ProjectEntry[]): Pro
 	});
 	manifestEntry.content = await serializeCanonicalDocument(PROJECT_MANIFEST_FORMAT, manifest);
 	for (const entry of entries) {
-		if (entry.format === COLLATION_FORMAT)
+		if (
+			entry.format === COLLATION_FORMAT &&
+			manifest.collations.some(head => head.collation_id === entry.payload?.id)
+		)
 			entry.content = await serializeCanonicalDocument(COLLATION_FORMAT, entry.payload!);
 	}
 }

@@ -345,12 +345,7 @@ async function validateProjectSemantics(
 		} else if (entry.format === WORKING_COLLATION_FORMAT) {
 			const working = payload as WorkingCollationPayload;
 			const head = collationHeads.get(working.id);
-			if (
-				!head ||
-				working.project_id !== manifest.id ||
-				working.draft.base_revision_id !== head.current_revision?.id ||
-				working.draft.base_content_hash !== head.current_revision?.content_hash
-			)
+			if (!head || working.project_id !== manifest.id)
 				message = 'Working collation does not match its committed primary.';
 		} else if (entry.format === TRANSCRIPTION_CHECKPOINT_FORMAT) {
 			const checkpoint = payload as TranscriptionCheckpointPayload;

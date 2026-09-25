@@ -7,6 +7,7 @@ import {
 	mountTranscriptionEditor,
 	placeCaretAtEndOf,
 	tick,
+	waitFor,
 } from '$lib/client/testing/editorHarnesses.svelte';
 
 import { getSelectedTranscriptionQuote } from './editorInteractions';
@@ -30,7 +31,7 @@ describe('ticket 15 identifier mappings', () => {
 			await tick();
 
 			control(harness.container, 'Export as TEI XML').click();
-			await tick();
+			await waitFor(() => exportedBlob ?? null);
 			expect(exportedBlob).toBeDefined();
 			const xml = await exportedBlob!.text();
 			const lineBreaks = xml.match(/<lb[^>]*\/>/g) ?? [];

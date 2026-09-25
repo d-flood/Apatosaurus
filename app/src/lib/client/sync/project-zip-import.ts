@@ -364,7 +364,13 @@ async function copyProjectEntries(
 	for (const entry of entries.filter(entry => entry.format === WORKING_COLLATION_FORMAT)) {
 		const working = payloads.get(entry.path) as WorkingCollationPayload;
 		const hash = collationHashes.get(working.id);
-		if (hash) working.draft.base_content_hash = hash;
+		const original = sourceManifest.collations.find(head => head.collation_id === working.id);
+		if (
+			hash &&
+			working.draft.base_revision_id === original?.current_revision?.id &&
+			working.draft.base_content_hash === original.current_revision.content_hash
+		)
+			working.draft.base_content_hash = hash;
 	}
 
 	const manifest = structuredClone(sourceManifest);

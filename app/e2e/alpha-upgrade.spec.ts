@@ -11,6 +11,12 @@ test('alpha upgrade opens existing OPFS collation edits and preserves them after
 	content.document.setup.witnesses.forEach(witness => {
 		witness.transcriptionId = '';
 	});
+	const readings = content.document.apparatus.units[0].readings;
+	readings[0].order = 1;
+	readings[0].label = 'b';
+	readings[1].order = 0;
+	readings[1].label = 'a';
+	readings[2].label = 'a1';
 	const hash = await hashCanonicalPayload(content);
 	const revision = {
 		id: 'cp-alpha',
@@ -116,12 +122,18 @@ test('alpha upgrade opens existing OPFS collation edits and preserves them after
 	await page.goto(`/collation/${alpha.id}/stemma`);
 	await expect(page.getByRole('combobox', { name: /Source of reading/ })).toHaveCount(2);
 	await expect(
+		page.getByRole('combobox', { name: 'Source of reading a', exact: true })
+	).toHaveValue('derived:r-a');
+	await expect(
 		page
 			.getByRole('group', { name: /Local stemma for unit/ })
 			.getByRole('button', { name: /derived from/ })
 	).toHaveCount(1);
 	await page.reload();
 	await expect(page.getByRole('combobox', { name: /Source of reading/ })).toHaveCount(2);
+	await expect(
+		page.getByRole('combobox', { name: 'Source of reading a', exact: true })
+	).toHaveValue('derived:r-a');
 	const stored = await page.evaluate(async () => {
 		const root = await navigator.storage.getDirectory();
 		async function read(path: string) {

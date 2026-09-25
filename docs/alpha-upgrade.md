@@ -17,10 +17,14 @@ file and writes the manifest last. If interrupted, startup resumes from the
 journal before opening the editor; it refuses to overwrite a file that no
 longer matches either the original or converted version. A separate completion
 marker ensures the index is rebuilt even if the browser exits after publication.
+Tombstoned collation primaries left by interrupted deletion are retained without
+restoring the deleted collation or blocking startup.
 
 Primary revision hashes and matching draft base hashes are updated together.
 Revision IDs and parent checkpoint IDs remain unchanged. Stale drafts retain
 their original base reference and are not promoted over newer work.
+Backups containing stale collation drafts can be restored or imported as copies;
+the drafts remain recoverable files and are reported as stale during index rebuild.
 History files remain byte-for-byte immutable and are converted on read.
 Transcription files, drafts, metadata, IIIF links, and checkpoint payloads retain
 their existing v1 format.
@@ -30,6 +34,7 @@ their existing v1 format.
 - The selected verse becomes the segment; alignment and witness source links stay intact.
 - Saved reading groups retain their IDs, witness splits, order, and subreading relationships.
   A `preserveReadings` decision prevents regeneration from erasing these groups on reload.
+  Their saved order survives subsequent saves until an explicit lemma choice reorders them.
 - Directed stemma edges become prior-to-posterior arcs with the same IDs.
 - Explicit `add`, `substitute`, and `transpose` classifications become custom reading types,
   added to the project vocabulary without replacing existing definitions.

@@ -208,7 +208,7 @@ export function applyDecisions(
 		readings: relabelReadings(
 			readings,
 			baseTextReadingId ? baseWitnessId : null,
-			lemmaReadingId
+			decisions.preserveReadings && designatedLemmaId === null ? null : lemmaReadingId
 		),
 		orphanedDecisions,
 		lemmaReadingId,

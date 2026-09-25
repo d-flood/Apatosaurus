@@ -21,6 +21,7 @@ test('the local stemma has one tabstop and supports keyboard source decisions', 
 	await page.getByRole('button', { name: 'Stemma', exact: true }).click();
 	const absoluteConnectivity = page.getByRole('button', { name: 'Absolute', exact: true });
 	await expect(absoluteConnectivity).toBeVisible();
+	await expect(absoluteConnectivity).toBeEnabled({ timeout: 90_000 });
 	await absoluteConnectivity.click();
 	await expect(absoluteConnectivity).toHaveAttribute('aria-pressed', 'true');
 

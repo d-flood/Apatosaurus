@@ -3,7 +3,7 @@ import alpha from './formats/fixtures/alpha-collation-v2.json';
 import { upgradeAlphaProjects, markAlphaUpgradesIndexed } from './alpha-project-upgrade';
 import { MemoryStoreBackend } from './memory-store-backend.spec-support';
 import { hashCanonicalPayload } from './canonical-json';
-import { sealDocument, serializeSealedDocument, type JsonObject } from './envelope';
+import { openEnvelope, sealDocument, serializeSealedDocument, type JsonObject } from './envelope';
 import { readTextFile, writeTextFileAtomic } from './opfs-store';
 import {
 	COLLATION_FORMAT,
@@ -16,6 +16,8 @@ import {
 	WORKING_TRANSCRIPTION_FORMAT,
 	TRANSCRIPTION_CHECKPOINT_FORMAT,
 	TRANSCRIPTION_CHECKPOINT_FIXTURE,
+	TOMBSTONE_FORMAT,
+	TOMBSTONE_FIXTURE,
 	projectTranscriptionPayloadToSnapshot,
 	readCanonicalDocument,
 	type CollationPayload,
@@ -26,11 +28,14 @@ import {
 	buildCollationDocument,
 } from '$lib/client/collation/collation-document';
 import { deserializeAlignmentColumns } from '$lib/client/collation/alignment-snapshot';
+import { applyDecisions } from '$lib/client/collation/collation-decisions';
+import { joinStorePath, APP_STORE_ROOT } from './layout';
 import {
 	buildApparatusTeiExportInput,
 	exportCollationDocumentTei,
 } from '$lib/client/collation/collation-tei';
 import { createLocalDbTestHarness } from '$lib/client/db/test-harness';
+import { createProject } from '$lib/client/db/repositories/projects';
 import { rebuildIndexFromStore } from '$lib/client/db/repositories/index-rebuild';
 import {
 	loadCollationWithWorkingFile,
@@ -40,10 +45,10 @@ import {
 import { importProjectFileTree, importProjectZip } from '$lib/client/sync/project-zip-import';
 import { exportProjectZip } from '$lib/client/sync/project-zip-export';
 
-async function fixture() {
+async function fixture(source = structuredClone(alpha), deleted = false) {
 	const backend = new MemoryStoreBackend();
 	const options = { backend };
-	const { created_at, updated_at, ...content } = structuredClone(alpha);
+	const { created_at, updated_at, ...content } = source;
 	const contentHash = await hashCanonicalPayload(content);
 	const revision = {
 		id: 'cp-alpha',
@@ -89,6 +94,14 @@ async function fixture() {
 		payload: txSnapshot as unknown as JsonObject,
 		payload_content_hash: txRevision.content_hash,
 	};
+	const tombstone = {
+		...TOMBSTONE_FIXTURE,
+		project_id: alpha.project_id,
+		entity_type: 'collation',
+		entity_id: alpha.id,
+		cloud_path: `collations/${alpha.id}.json`,
+		deletion_revision_id: revision.id,
+	};
 	const manifest = {
 		...structuredClone(PROJECT_MANIFEST_FIXTURE),
 		id: alpha.project_id,
@@ -109,6 +122,20 @@ async function fixture() {
 			},
 		],
 	};
+	if (deleted) {
+		manifest.collations = [];
+		manifest.tombstones = [
+			{
+				tombstone_id: tombstone.id,
+				entity_type: tombstone.entity_type,
+				entity_id: tombstone.entity_id,
+				deletion_revision_id: tombstone.deletion_revision_id,
+				content_hash: await hashCanonicalPayload(tombstone),
+				primary_path: `tombstones/collation--${alpha.id}.json`,
+				deleted_at: tombstone.deleted_at,
+			},
+		];
+	}
 	manifest.manifest_content_hash = await hashCanonicalPayload({
 		project_id: manifest.id,
 		transcriptions: manifest.transcriptions,
@@ -117,6 +144,9 @@ async function fixture() {
 	});
 	const entries = [
 		['project.json', PROJECT_MANIFEST_FORMAT, 2, manifest],
+		...(deleted
+			? [[`tombstones/collation--${alpha.id}.json`, TOMBSTONE_FORMAT, 1, tombstone] as const]
+			: []),
 		[
 			`collations/${alpha.id}.json`,
 			COLLATION_FORMAT,
@@ -191,6 +221,110 @@ async function fixture() {
 }
 
 describe('alpha project upgrade', () => {
+	it('keeps manual alpha reading order through load, save and reload until a lemma is chosen', async () => {
+		const source = structuredClone(alpha);
+		const readings = source.document.apparatus.units[0].readings;
+		readings[0].order = 1;
+		readings[0].label = 'b';
+		readings[1].order = 0;
+		readings[1].label = 'a';
+		readings[2].label = 'a1';
+		const { options } = await fixture(source);
+		await upgradeAlphaProjects(options);
+		const harness = createLocalDbTestHarness();
+		try {
+			await rebuildIndexFromStore(harness.db, options);
+			const path = `projects/alpha/collations/${alpha.id}.working.json`;
+			for (const lemmaReadingId of [undefined, undefined, 'r-a']) {
+				const working = await readCanonicalDocument<WorkingCollationPayload>(
+					WORKING_COLLATION_FORMAT,
+					await readTextFile(path, options)
+				);
+				if (!working.ok) throw new Error('Draft unreadable');
+				const hydrated = hydrateCollationDocument(working.payload.document);
+				const [unitId, decisions] = hydrated.unitDecisions[0];
+				if (lemmaReadingId) decisions.lemmaReadingId = lemmaReadingId;
+				const view = applyDecisions(hydrated.classifiedReadings[0][1], decisions, {
+					baseWitnessId: 'A',
+				});
+				const expected = lemmaReadingId
+					? [
+							['r-a', 0, 'a'],
+							['r-b', 1, 'b'],
+							['split-c', 0, 'b1'],
+						]
+					: [
+							['r-b', 0, 'a'],
+							['r-a', 1, 'b'],
+							['split-c', 0, 'a1'],
+						];
+				expect(
+					view.readings.map(reading => [reading.id, reading.order, reading.label])
+				).toEqual(expected);
+				const saved = buildCollationDocument({
+					...hydrated,
+					alignmentColumns: deserializeAlignmentColumns(hydrated.alignmentColumns),
+					classifiedReadings: new Map(hydrated.classifiedReadings),
+					unitDecisions: new Map([[unitId, decisions]]),
+					readingArcs: new Map(hydrated.readingArcs),
+				});
+				await saveWorkingCollationArtifact(
+					harness.db,
+					{
+						collationId: alpha.id,
+						artifactType: 'collation_document_v1',
+						payload: JSON.stringify(saved),
+					},
+					options
+				);
+				const reloaded = await readCanonicalDocument<WorkingCollationPayload>(
+					WORKING_COLLATION_FORMAT,
+					await readTextFile(path, options)
+				);
+				if (!reloaded.ok) throw new Error('Saved draft unreadable');
+				expect(
+					hydrateCollationDocument(
+						reloaded.payload.document
+					).classifiedReadings[0][1].map(reading => [
+						reading.id,
+						reading.order,
+						reading.label,
+					])
+				).toEqual(expected);
+			}
+		} finally {
+			await harness.destroy();
+		}
+	});
+
+	it('retains tombstoned leftovers without blocking other project data or resurrecting deleted work', async () => {
+		const { options, files } = await fixture(structuredClone(alpha), true);
+		expect(await upgradeAlphaProjects(options)).toBe(true);
+		for (const file of files) {
+			expect(
+				await readTextFile(`upgrades/alpha-c7d94ee/alpha/original/${file.path}`, options)
+			).toBe(file.content);
+			if (file.path.startsWith('collations/'))
+				expect(await readTextFile(`projects/alpha/${file.path}`, options)).toBe(
+					file.content
+				);
+		}
+		const harness = createLocalDbTestHarness();
+		try {
+			expect(await rebuildIndexFromStore(harness.db, options)).toMatchObject({
+				projectsRestored: 1,
+				transcriptionsRestored: 1,
+				collationsRestored: 0,
+				tombstonesRestored: 1,
+				quarantinedFiles: [],
+			});
+			await markAlphaUpgradesIndexed(options);
+			expect(await upgradeAlphaProjects(options)).toBe(false);
+		} finally {
+			await harness.destroy();
+		}
+	});
+
 	it('preserves drafts, history, witness splits, classifications and source arcs through rebuild, save and commit', async () => {
 		const { options, files } = await fixture();
 		expect(await upgradeAlphaProjects(options)).toBe(true);
@@ -326,6 +460,66 @@ describe('alpha project upgrade', () => {
 		expect(backend.files).toEqual(before);
 	});
 
+	it.each(['primary', 'checkpoint'])(
+		'rejects a corrupt inner %s hash even with a valid envelope',
+		async kind => {
+			const { backend, options } = await fixture();
+			const path =
+				kind === 'primary'
+					? `projects/alpha/collations/${alpha.id}.json`
+					: `projects/alpha/history/collations/${alpha.id}/cp-alpha.json`;
+			const { header, payload } = openEnvelope(await readTextFile(path, options));
+			if (kind === 'primary')
+				(payload.current_revision as JsonObject).content_hash = 'sha256:wrong';
+			else payload.payload_content_hash = 'sha256:wrong';
+			await backend.writeTextFile(
+				joinStorePath(APP_STORE_ROOT, path),
+				serializeSealedDocument(
+					await sealDocument(header.format, header.schema_version, payload)
+				)
+			);
+			const before = new Map(backend.files);
+			await expect(upgradeAlphaProjects(options)).rejects.toThrow('hash mismatch');
+			expect(backend.files).toEqual(before);
+		}
+	);
+
+	it('refuses undirected alpha edges before publishing or retaining any files', async () => {
+		const source = structuredClone(alpha);
+		source.document.stemma.units[0].edges[0].directed = false;
+		const { backend, options } = await fixture(source);
+		const before = new Map(backend.files);
+		await expect(upgradeAlphaProjects(options)).rejects.toThrow('undirected alpha stemma edge');
+		expect(backend.files).toEqual(before);
+	});
+
+	it('converts omission decisions and automatic nonsense proposals without inventing a type decision', async () => {
+		const source = structuredClone(alpha);
+		source.document.apparatus.units[0].readings[1].classification = 'omit';
+		const sourceReadings = source.document.apparatus.units[0].readings as Array<{
+			readingType: string | null;
+		}>;
+		sourceReadings[0].readingType = 'ns';
+		const { options } = await fixture(source);
+		await upgradeAlphaProjects(options);
+		const primary = await readCanonicalDocument<CollationPayload>(
+			COLLATION_FORMAT,
+			await readTextFile(`projects/alpha/collations/${alpha.id}.json`, options)
+		);
+		if (!primary.ok) throw new Error('Upgraded primary unreadable');
+		const unit = primary.payload.document.apparatus!.units[0];
+		expect(unit.decisions.readingType).toEqual({
+			'r-b': 'omission',
+			'split-c': 'orthographic',
+		});
+		expect(unit.readings.find(reading => reading.id === 'r-a')?.readingType).toBe('nonsense');
+		expect(
+			applyDecisions(unit.readings, unit.decisions).readings.find(
+				reading => reading.id === 'r-b'
+			)?.readingType
+		).toBe('omission');
+	});
+
 	it('does not publish any converted files if retaining the originals fails', async () => {
 		const { backend, options, files } = await fixture();
 		backend.failWritePathIncludesOnce = 'original/history/';
@@ -335,30 +529,81 @@ describe('alpha project upgrade', () => {
 		expect(await upgradeAlphaProjects(options)).toBe(true);
 	});
 
-	it('does not rebase a stale draft onto a different committed revision', async () => {
-		const { options } = await fixture();
-		const path = `projects/alpha/collations/${alpha.id}.working.json`;
-		const original = JSON.parse(await readTextFile(path, options));
-		const { format, schema_version, content_hash: _, ...payload } = original;
-		payload.draft.base_revision_id = 'superseded';
-		payload.draft.base_content_hash = 'sha256:superseded';
-		const stale = serializeSealedDocument(await sealDocument(format, schema_version, payload));
-		await writeTextFileAtomic(path, stale, options);
-		await upgradeAlphaProjects(options);
-		expect(await readTextFile(path, options)).toBe(stale);
-		const harness = createLocalDbTestHarness();
-		try {
-			const report = await rebuildIndexFromStore(harness.db, options);
-			expect(report.orphanedFiles).toEqual(
-				expect.arrayContaining([expect.objectContaining({ code: 'stale_working' })])
+	it.each(['revision', 'hash'])(
+		'retains a draft with a stale %s through upgrade, backup restore and copy',
+		async mismatch => {
+			const { options } = await fixture();
+			const path = `projects/alpha/collations/${alpha.id}.working.json`;
+			const original = JSON.parse(await readTextFile(path, options));
+			const { format, schema_version, content_hash: _, ...payload } = original;
+			if (mismatch === 'revision') payload.draft.base_revision_id = 'superseded';
+			payload.draft.base_content_hash = 'sha256:superseded';
+			const stale = serializeSealedDocument(
+				await sealDocument(format, schema_version, payload)
 			);
-			expect(
-				await harness.db.selectFrom('collations').select('notes').executeTakeFirst()
-			).toMatchObject({ notes: 'Editorial notes' });
-		} finally {
-			await harness.destroy();
+			await writeTextFileAtomic(path, stale, options);
+			await upgradeAlphaProjects(options);
+			expect(await readTextFile(path, options)).toBe(stale);
+			const harness = createLocalDbTestHarness();
+			try {
+				const report = await rebuildIndexFromStore(harness.db, options);
+				expect(report.orphanedFiles).toEqual(
+					expect.arrayContaining([expect.objectContaining({ code: 'stale_working' })])
+				);
+				expect(
+					await harness.db.selectFrom('collations').select('notes').executeTakeFirst()
+				).toMatchObject({ notes: 'Editorial notes' });
+				const archive = await exportProjectZip(harness.db, alpha.project_id, {
+					includeDrafts: true,
+					storeOptions: options,
+				});
+				for (const collisionMode of [undefined, 'copy'] as const) {
+					const restored = createLocalDbTestHarness();
+					const storeOptions = { backend: new MemoryStoreBackend() };
+					try {
+						if (collisionMode)
+							await createProject(
+								restored.db,
+								{ id: alpha.project_id, storageSlug: 'existing', name: 'Existing' },
+								storeOptions
+							);
+						const result = await importProjectZip(restored.db, archive.bytes, {
+							storeOptions,
+							collisionMode,
+						});
+						expect(result).toMatchObject({ ok: true, quarantinedFiles: [] });
+						expect(result.orphanedFiles).toEqual(
+							expect.arrayContaining([
+								expect.objectContaining({ code: 'stale_working' }),
+							])
+						);
+						const raw = await readTextFile(
+							`projects/${result.storageSlug}/collations/${alpha.id}.working.json`,
+							storeOptions
+						);
+						const working = await readCanonicalDocument<WorkingCollationPayload>(
+							WORKING_COLLATION_FORMAT,
+							raw
+						);
+						if (!working.ok) throw new Error('Restored draft unreadable');
+						expect(working.payload.draft).toEqual(payload.draft);
+						expect(working.payload.notes).toBe('Unsaved editorial work');
+						expect(
+							await restored.db
+								.selectFrom('collations')
+								.select('notes')
+								.where('project_id', '=', result.projectId!)
+								.executeTakeFirst()
+						).toMatchObject({ notes: 'Editorial notes' });
+					} finally {
+						await restored.destroy();
+					}
+				}
+			} finally {
+				await harness.destroy();
+			}
 		}
-	});
+	);
 
 	it('restores an alpha project backup with usable drafts and current revision hashes', async () => {
 		const { files } = await fixture();
