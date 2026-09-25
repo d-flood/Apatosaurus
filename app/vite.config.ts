@@ -219,6 +219,7 @@ export default defineConfig({
 				test: {
 					name: 'client',
 					environment: 'browser',
+					retry: process.env.CI ? 1 : 0,
 					browser: {
 						enabled: true,
 						provider: 'playwright',

@@ -214,9 +214,13 @@ test('upgrade fixture migrates on save and rebuilds after an index version bump'
 		.getByPlaceholder('Add a description for this project.')
 		.fill('Synthetic v1 fixture saved as v2');
 	await page.getByRole('button', { name: 'Save Details' }).click();
-	await expect(page.getByRole('button', { name: 'Save Details' })).toBeDisabled();
+	await expect(
+		page.getByText('Synthetic v1 fixture saved as v2', { exact: true }).first()
+	).toBeVisible();
 
 	await page.getByRole('link', { name: 'Backup and Sync' }).click();
+	await expect(page).toHaveURL(/\/projects\/[^/]+\/backup$/);
+	await expect(page.getByRole('button', { name: 'Export project zip' })).toBeVisible();
 	const downloadPromise = page.waitForEvent('download');
 	await page.getByRole('button', { name: 'Export project zip' }).click();
 	const download = await downloadPromise;

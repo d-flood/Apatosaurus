@@ -256,11 +256,11 @@ describe('/data persistence request', () => {
 			.getByLabelText('Restore reference editions')
 			.upload(new File([new Uint8Array([1, 2, 3])], 'reference-editions.zip'));
 
-		expect(mocks.restoreReferenceEditionsArchive).toHaveBeenCalledOnce();
-		expect(mocks.restoreReferenceEditionsArchive.mock.calls[0]?.[0]).toBeInstanceOf(Uint8Array);
 		await expect
 			.element(page.getByRole('status'))
 			.toHaveTextContent('1 available in the catalog');
+		expect(mocks.restoreReferenceEditionsArchive).toHaveBeenCalledOnce();
+		expect(mocks.restoreReferenceEditionsArchive.mock.calls[0]?.[0]).toBeInstanceOf(Uint8Array);
 	});
 
 	it('surfaces corrupt editions without hiding usable page data', async () => {
