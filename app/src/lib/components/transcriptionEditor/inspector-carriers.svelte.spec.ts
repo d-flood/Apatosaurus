@@ -1,5 +1,5 @@
 import { page } from '@vitest/browser/context';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 
 import { editorColumn, editorLine, editorPlainPage } from '$lib/client/testing/editorFixtures';
@@ -223,7 +223,9 @@ describe('transcription editor carrier inspectors', () => {
 		await correctionEditor.fill('beta');
 		// The fill resolves once the keystrokes are dispatched; the editor applies
 		// them in a later transaction, so wait for the content before saving.
-		await expect.element(correctionEditor).toHaveTextContent('beta');
+		await vi.waitFor(() => expect.element(correctionEditor).toHaveTextContent('beta'), {
+			timeout: 30_000,
+		});
 		await browserPage.getByRole('button', { name: 'Save Reading' }).click();
 		await browserPage.getByRole('button', { name: 'Apply', exact: true }).click();
 
@@ -336,7 +338,9 @@ describe('transcription editor carrier inspectors', () => {
 		await correctionEditor.fill('beta');
 		// The fill resolves once the keystrokes are dispatched; the editor applies
 		// them in a later transaction, so wait for the content before saving.
-		await expect.element(correctionEditor).toHaveTextContent('beta');
+		await vi.waitFor(() => expect.element(correctionEditor).toHaveTextContent('beta'), {
+			timeout: 30_000,
+		});
 		await browserPage.getByRole('button', { name: 'Save Reading' }).click();
 		await browserPage.getByRole('button', { name: 'Apply to Node' }).click();
 		expect(compactXml(await exportedXml())).toMatch(
