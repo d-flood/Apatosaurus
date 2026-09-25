@@ -610,7 +610,20 @@ export async function deriveProjectBackupSummary(
 	context: SyncProjectContext,
 	folder?: CloudProjectFolderRecord | null
 ): Promise<ProjectBackupSummary> {
-	return sendCloudConnectionRequest({ type: 'projectBackup.summary', context, folder });
+	return sendCloudConnectionRequest({
+		type: 'projectBackup.summary',
+		context: detachSyncContext(context),
+		folder: folder ? { ...folder } : folder,
+	});
+}
+
+/**
+ * Sync contexts are often read out of `$state`, whose proxies `postMessage`
+ * to the database worker cannot clone. The context is flat string data, so a
+ * spread detaches it into plain data on the way out.
+ */
+function detachSyncContext(context: SyncProjectContext): SyncProjectContext {
+	return { ...context };
 }
 
 export async function removeLocalProject(
@@ -625,8 +638,8 @@ export async function backupProject(
 ): Promise<ProjectBackupResult> {
 	return sendCloudConnectionRequest({
 		type: 'projectBackup.backup',
-		context,
-		folder,
+		context: detachSyncContext(context),
+		folder: folder ? { ...folder } : folder,
 		strict: true,
 	});
 }
@@ -637,8 +650,8 @@ export async function backupEligibleProjectEntities(
 ): Promise<ProjectBackupResult> {
 	return sendCloudConnectionRequest({
 		type: 'projectBackup.backup',
-		context,
-		folder,
+		context: detachSyncContext(context),
+		folder: folder ? { ...folder } : folder,
 		strict: false,
 	});
 }

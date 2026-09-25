@@ -92,6 +92,7 @@ import type { Database } from './types.generated';
 import { createWorkerKysely } from './worker-kysely';
 import { LocalSqliteDatabase, type OpenIndexDatabaseResult } from './worker-sqlite';
 import { createCurrentIndexSchema } from './worker-schema';
+import { upgradeAlphaProjects, markAlphaUpgradesIndexed } from '$lib/client/store/alpha-project-upgrade';
 import type { Kysely } from 'kysely';
 
 const db = new LocalSqliteDatabase();
@@ -587,8 +588,10 @@ async function init(): Promise<void> {
 		await timeWorkerStep('schema create', () => createCurrentIndexSchema(db));
 	}
 	kyselyDb = timeWorkerStepSync('kysely init', () => createWorkerKysely(db));
-	if (openResult.created) {
+	const upgradedAlpha = await upgradeAlphaProjects();
+	if (openResult.created || upgradedAlpha) {
 		const report = await rebuildIndex();
+		if (upgradedAlpha) await markAlphaUpgradesIndexed();
 		console.info('[local-db] index rebuilt from document store', report);
 		if (openResult.rebuildReason && openResult.rebuildReason !== 'missing') {
 			postMessage({

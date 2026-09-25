@@ -26,7 +26,6 @@ import {
 	createTestEditor,
 	lineElement,
 	mountTranscriptionEditor,
-	placeCaretAtEndOf,
 	tick,
 } from './testing/editorHarnesses.svelte';
 
@@ -305,8 +304,16 @@ describe('typed punctuation from a mounted editor', () => {
 		try {
 			const line = lineElement(harness.container, 0, 0, 0);
 			const content = line.querySelector('.line-content') as HTMLElement;
-			await userEvent.click(content);
-			placeCaretAtEndOf(content);
+			expect(content.textContent).toBe('a1');
+			const editor = (harness.container.querySelector('.ProseMirror') as any).editor;
+			// Set the caret through the editor rather than the DOM: a DOM
+			// selection placed at the end of the line only reaches ProseMirror
+			// asynchronously, so a keystroke typed after a fixed `tick()` can
+			// land at the pre-existing (mid-line) selection under load.
+			editor.commands.setTextSelection(
+				editor.view.posAtDOM(content, content.childNodes.length)
+			);
+			editor.commands.focus();
 			await tick();
 			await userEvent.keyboard('.');
 			await tick();
@@ -316,7 +323,6 @@ describe('typed punctuation from a mounted editor', () => {
 				'a1<span data-tei-attrs="{}" class="punctuation">.</span>'
 			);
 
-			const editor = (harness.container.querySelector('.ProseMirror') as any).editor;
 			// The fixture's first column holds four lines, so the `<ab>` continues
 			// past the edited one; what matters is that `a1` is still there.
 			expect(firstAbXml(exportTEI(editor.getJSON()))).toMatch(

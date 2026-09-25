@@ -221,6 +221,9 @@ describe('transcription editor carrier inspectors', () => {
 		const correctionEditor = browserPage.elementLocator(correctionEditorElement!);
 		await correctionEditor.click();
 		await correctionEditor.fill('beta');
+		// The fill resolves once the keystrokes are dispatched; the editor applies
+		// them in a later transaction, so wait for the content before saving.
+		await expect.element(correctionEditor).toHaveTextContent('beta');
 		await browserPage.getByRole('button', { name: 'Save Reading' }).click();
 		await browserPage.getByRole('button', { name: 'Apply', exact: true }).click();
 
@@ -331,6 +334,9 @@ describe('transcription editor carrier inspectors', () => {
 		const correctionEditor = browserPage.elementLocator(correctionEditorElement!);
 		await correctionEditor.click();
 		await correctionEditor.fill('beta');
+		// The fill resolves once the keystrokes are dispatched; the editor applies
+		// them in a later transaction, so wait for the content before saving.
+		await expect.element(correctionEditor).toHaveTextContent('beta');
 		await browserPage.getByRole('button', { name: 'Save Reading' }).click();
 		await browserPage.getByRole('button', { name: 'Apply to Node' }).click();
 		expect(compactXml(await exportedXml())).toMatch(

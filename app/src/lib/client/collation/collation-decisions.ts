@@ -4,6 +4,8 @@ import type { ClassifiedReading, ReadingArc } from './collation-types';
 import type { Certainty, ReadingTypeId } from './reading-types';
 
 export interface UnitDecisions {
+	/** Alpha stored hand-edited reading groups that cannot be regenerated from alignment. */
+	preserveReadings?: true;
 	subreadingOf?: Record<string, string | null>;
 	lemmaReadingId?: string | null;
 	/** A recorded type outranks the proposal; a recorded null means "no type", not "undecided". */
@@ -76,6 +78,7 @@ export interface UnitView {
 
 export function cloneUnitDecisions(decisions: UnitDecisions | undefined): UnitDecisions {
 	const clone: UnitDecisions = {};
+	if (decisions?.preserveReadings) clone.preserveReadings = true;
 	if (decisions?.subreadingOf) clone.subreadingOf = { ...decisions.subreadingOf };
 	if (decisions?.lemmaReadingId !== undefined) clone.lemmaReadingId = decisions.lemmaReadingId;
 	if (decisions?.readingType) clone.readingType = { ...decisions.readingType };

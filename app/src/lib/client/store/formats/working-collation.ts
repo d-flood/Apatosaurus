@@ -1,6 +1,7 @@
 import type { DocumentUpgrader, FormatRegistration } from '../migrate-on-read';
 import type { JsonObject, SealedDocument } from '../envelope';
 import { readDraftMetadata, type CanonicalDraftMetadata } from './common';
+import { upgradeAlphaWorkingCollation } from './alpha-collation';
 import { COLLATION_FIXTURE, readCollationPayload, type CollationContent } from './collation';
 
 export const WORKING_COLLATION_FORMAT = 'apatosaurus.working.collation';
@@ -44,5 +45,6 @@ export const workingCollationFormatRegistration: FormatRegistration<WorkingColla
 	format: WORKING_COLLATION_FORMAT,
 	currentVersion: WORKING_COLLATION_CURRENT_VERSION,
 	upgraders: workingCollationUpgraders,
+	directUpgraders: { 2: upgradeAlphaWorkingCollation },
 	validate: validateWorkingCollationPayload,
 };

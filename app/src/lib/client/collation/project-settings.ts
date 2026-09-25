@@ -109,7 +109,7 @@ export function createProjectCollationSettings(
 		readingTypes: ReadingTypeDefinition[];
 	}
 ): ProjectCollationSettings {
-	return {
+	const settings: ProjectCollationSettings = {
 		regularizationRules: rules.filter(rule => rule.scope === 'project'),
 		readingTypes: options.readingTypes,
 		ignoreWordBreaks: options.ignoreWordBreaks,
@@ -123,6 +123,9 @@ export function createProjectCollationSettings(
 			options.transcriptionWitnessExcludedHands
 		),
 	};
+	// Callers pass `$state` values whose proxies `postMessage` to the database worker
+	// cannot clone, so detach the payload into plain data on the way out.
+	return JSON.parse(JSON.stringify(settings)) as ProjectCollationSettings;
 }
 
 export function mergeProjectRules(

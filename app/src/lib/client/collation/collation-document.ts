@@ -612,7 +612,9 @@ export function hydrateCollationDocument(document: CollationDocument): HydratedC
 						(id): id is string => typeof id === 'string'
 					)
 				: [],
-		classifiedReadings: [],
+		classifiedReadings: (document.apparatus?.units ?? [])
+			.filter(unit => unit.decisions?.preserveReadings && typeof unit.unitId === 'string' && Array.isArray(unit.readings))
+			.map(unit => [unit.unitId, unit.readings]),
 		unitDecisions: [...decisionsByUnit],
 		readingArcs:
 			document.stemma?.units

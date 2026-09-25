@@ -147,9 +147,15 @@ test('the local stemma has one tabstop and supports keyboard source decisions', 
 	expect(xml).not.toContain('<f name="connectivity">');
 
 	await page.getByRole('link', { name: 'Stemma', exact: true }).click();
-	await page
+	// The lemma roots its own stemma (or carries an explicit source), so only a
+	// non-lemma reading left undecided refuses export. The lemma's item carries a
+	// `lemma` badge; every other source control belongs to an ordinary reading.
+	const nonLemmaItem = page
+		.locator('li')
+		.filter({ has: page.getByRole('combobox', { name: /Source of reading/ }) })
+		.filter({ hasNot: page.getByText('lemma', { exact: true }) });
+	await nonLemmaItem
 		.getByRole('combobox', { name: /Source of reading/ })
-		.first()
 		.selectOption('undecided');
 	await page.getByRole('link', { name: 'Review', exact: true }).click();
 	await page.getByRole('button', { name: 'Export TEI apparatus' }).click();

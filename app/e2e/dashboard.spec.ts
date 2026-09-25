@@ -87,6 +87,9 @@ async function createRomansCollation(page: Page, projectId: string): Promise<str
 		timeout: 30_000,
 	});
 	await page.getByRole('button', { name: /^Rom / }).first().click();
+	// The segment name is scholar-assigned and required before advancing.
+	const memberName = await page.locator('span.min-w-0.truncate.font-mono').first().innerText();
+	await page.getByRole('textbox', { name: /Segment name/ }).fill(memberName);
 	const proceed = page.getByRole('button', { name: 'Proceed to Alignment' });
 	await expect(proceed).toBeEnabled({ timeout: 30_000 });
 	await proceed.click();

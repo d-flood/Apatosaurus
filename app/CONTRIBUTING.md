@@ -44,6 +44,11 @@ The default policy requires a pure upgrader for every format version. A tracked,
 break may intentionally provide no upgrader only when validation coverage proves that older envelopes are
 refused before semantic hydration. This narrow exception does not weaken the normal upgrade requirement.
 
+Released alpha v2 collations have a direct upgrade to the current format, registered through
+`directUpgraders`. Their project-level revision references are reconciled before startup or backup import;
+see [`../docs/alpha-upgrade.md`](../docs/alpha-upgrade.md). Keep this released-data path when advancing
+collation formats.
+
 The following procedure applies to the default migration path. For the narrow pre-release exception above,
 increment the version without adding an upgrader and add coverage that a valid prior envelope is refused
 before semantic hydration instead of the upgrade-fixture coverage below.

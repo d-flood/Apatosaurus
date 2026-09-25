@@ -328,6 +328,9 @@ describe('typing the first character into an empty line', () => {
 				const content = contentOf(line);
 				editor.commands.setTextSelection(editor.view.posAtDOM(content, 0));
 				editor.commands.focus();
+				// The keystroke below dispatches into the DOM selection, which only
+				// settles after focus flushes; without this it can land nowhere.
+				await tick();
 				transactionBatchSizes.length = 0;
 
 				await userEvent.keyboard('x');

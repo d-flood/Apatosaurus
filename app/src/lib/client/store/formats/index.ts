@@ -146,7 +146,8 @@ export function registerCanonicalFormats(registry: MigrationRegistry): void {
 			registration.currentVersion,
 			registration.upgraders,
 			registration.validate,
-			registration.validateIntegrity
+			registration.validateIntegrity,
+			registration.directUpgraders
 		);
 	}
 }

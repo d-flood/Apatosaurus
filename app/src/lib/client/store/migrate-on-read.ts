@@ -23,6 +23,8 @@ export interface FormatRegistration<TPayload extends JsonObject = JsonObject> {
 	format: string;
 	currentVersion: number;
 	upgraders: DocumentUpgrader[];
+	/** Released versions that migrate directly to the current shape, across unreleased formats. */
+	directUpgraders?: Record<number, DocumentUpgrader>;
 	validate: DocumentValidator<TPayload>;
 	validateIntegrity?: DocumentIntegrityValidator<TPayload>;
 }
@@ -34,7 +36,7 @@ export type ReadDocumentResult<TPayload extends JsonObject = JsonObject> =
 			payload: TPayload;
 			upgraded: boolean;
 			originalVersion: number;
-		}
+	  }
 	| { ok: false; quarantine: StoreQuarantineReason };
 
 export class MigrationRegistry {
@@ -45,7 +47,8 @@ export class MigrationRegistry {
 		currentVersion: number,
 		upgraders: DocumentUpgrader[],
 		validate: DocumentValidator<TPayload>,
-		validateIntegrity?: DocumentIntegrityValidator<TPayload>
+		validateIntegrity?: DocumentIntegrityValidator<TPayload>,
+		directUpgraders?: Record<number, DocumentUpgrader>
 	): void {
 		if (!format.trim()) throw new Error('format is required.');
 		if (!Number.isInteger(currentVersion) || currentVersion < 1) {
@@ -61,8 +64,10 @@ export class MigrationRegistry {
 			format,
 			currentVersion,
 			upgraders,
+			directUpgraders,
 			validate,
-			validateIntegrity: validateIntegrity as DocumentIntegrityValidator<JsonObject> | undefined,
+			validateIntegrity: validateIntegrity as
+				DocumentIntegrityValidator<JsonObject> | undefined,
 		});
 	}
 
@@ -93,7 +98,15 @@ export class MigrationRegistry {
 			await assertEnvelopeHash(opened, format);
 
 			let payload = opened.payload;
-			for (let version = originalVersion; version < registration.currentVersion; version += 1) {
+			const directUpgrade = registration.directUpgraders?.[originalVersion];
+			if (originalVersion < registration.currentVersion && directUpgrade) {
+				payload = assertPayloadObject(await directUpgrade(payload), format);
+			}
+			for (
+				let version = directUpgrade ? registration.currentVersion : originalVersion;
+				version < registration.currentVersion;
+				version += 1
+			) {
 				const upgrader = registration.upgraders[version - 1];
 				if (!upgrader) {
 					throw invalidSchemaVersion(
@@ -107,7 +120,11 @@ export class MigrationRegistry {
 
 			const validatedPayload = registration.validate(payload) as TPayload;
 			await registration.validateIntegrity?.(validatedPayload, originalVersion);
-			const document = await sealDocument(format, registration.currentVersion, validatedPayload);
+			const document = await sealDocument(
+				format,
+				registration.currentVersion,
+				validatedPayload
+			);
 			return {
 				ok: true,
 				document,

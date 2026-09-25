@@ -1,6 +1,7 @@
 import type { FormatRegistration } from '../migrate-on-read';
 import type { JsonObject, SealedDocument } from '../envelope';
 import { invalidShape } from '../quarantine';
+import { upgradeAlphaCollationCheckpoint } from './alpha-collation';
 import { assertContentHashMatches } from './validation';
 import { COLLATION_FIXTURE, readCollationContent, type CollationContent } from './collation';
 import {
@@ -86,6 +87,7 @@ export const collationCheckpointFormatRegistration: FormatRegistration<Collation
 		format: COLLATION_CHECKPOINT_FORMAT,
 		currentVersion: COLLATION_CHECKPOINT_CURRENT_VERSION,
 		upgraders: [],
+		directUpgraders: { 2: upgradeAlphaCollationCheckpoint },
 		validate: validateCollationCheckpointPayload,
 		validateIntegrity: assertCollationCheckpointPayloadIntegrity,
 	};

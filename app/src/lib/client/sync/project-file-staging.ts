@@ -25,6 +25,7 @@ import {
 	type WorkingTranscriptionPayload,
 } from '$lib/client/store';
 import { hashCanonicalPayload } from './canonical-json';
+import { reconcileAlphaProjectUpgrade } from '$lib/client/store/alpha-project-upgrade';
 
 export interface ProjectFileCandidate {
 	path: string;
@@ -142,6 +143,11 @@ export async function stageAndValidateProjectFiles(
 	}
 
 	if (manifest && quarantinedFiles.length === 0) {
+		try {
+			await reconcileAlphaProjectUpgrade(entries);
+		} catch (error) {
+			quarantinedFiles.push(quarantine('project.json', errorMessage(error), now));
+		}
 		await validateProjectSemantics(manifest, entries, quarantinedFiles, now);
 	}
 	return {

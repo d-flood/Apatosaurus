@@ -218,7 +218,8 @@ describe('apparatus TEI exporter', () => {
 		expect(reconstructWitness(document, 'B')).toBe('one beta two');
 		expect(reconstructWitness(document, 'D')).toBe('one two');
 		expect(() => validateTeiP5(xml)).not.toThrow();
-	}, 30_000);
+		// Compiles the 1MB TEI schema in a fresh Python process; slow under parallel load.
+	}, 60_000);
 
 	it('serializes flat subreadings, omission, non-attestation, and local-stemma decisions', () => {
 		const document = parse(exportApparatusTei(exportInput()));
@@ -271,7 +272,8 @@ describe('apparatus TEI exporter', () => {
 		expect(reconstructWitness(absoluteDocument, 'B')).toBe('one beta two');
 		expect(reconstructWitness(absoluteDocument, 'D')).toBe('one two');
 		expect(() => validateTeiP5(absolute)).not.toThrow();
-	}, 30_000);
+		// Validates twice, each in a fresh Python process against the 1MB TEI schema.
+	}, 60_000);
 
 	it('adds basetext to the lemma only when the base text actually attests it', () => {
 		const readings = collationState.peekReadingsForUnit(1);

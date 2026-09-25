@@ -6,6 +6,7 @@ import {
 import type { DocumentUpgrader, FormatRegistration } from '../migrate-on-read';
 import type { JsonObject, SealedDocument } from '../envelope';
 import { readCurrentRevision, type CanonicalCurrentRevision } from './common';
+import { upgradeAlphaCollation } from './alpha-collation';
 import {
 	assertContentHashMatches,
 	readFiniteNumber,
@@ -153,6 +154,7 @@ export const collationFormatRegistration: FormatRegistration<CollationPayload> =
 	format: COLLATION_FORMAT,
 	currentVersion: COLLATION_CURRENT_VERSION,
 	upgraders: collationUpgraders,
+	directUpgraders: { 2: upgradeAlphaCollation },
 	validate: validateCollationPayload,
 	validateIntegrity: assertCollationRevisionHash,
 };
