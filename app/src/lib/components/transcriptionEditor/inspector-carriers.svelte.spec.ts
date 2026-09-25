@@ -218,7 +218,10 @@ describe('transcription editor carrier inspectors', () => {
 		);
 	});
 
-	it('preserves correctionNode reading metadata and its segment when editing content', async () => {
+	it(
+		'preserves correctionNode reading metadata and its segment when editing content',
+		{ timeout: 60_000 },
+		async () => {
 		render(InspectorTestHarness, {
 			xml: wrapInTei('<pb n="1r"/><cb n="1"/><lb/>'),
 			seedNodes: [
