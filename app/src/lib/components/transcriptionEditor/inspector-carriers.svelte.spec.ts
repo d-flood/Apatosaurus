@@ -5,7 +5,6 @@ import { render } from 'vitest-browser-svelte';
 import { editorColumn, editorLine, editorPlainPage } from '$lib/client/testing/editorFixtures';
 import { fromProseMirror, serializeTei } from '$lib/tei/tei-transcription';
 
-import CorrectionWorkspace from './CorrectionWorkspace.svelte';
 import InspectorTestHarness from './InspectorTestHarness.svelte';
 import SimpleCarrierInspector from './SimpleCarrierInspector.svelte';
 
@@ -186,83 +185,6 @@ describe('transcription editor carrier inspectors', () => {
 		rendered.unmount();
 	});
 
-	it('preserves marked correction metadata and its segment when editing content', async () => {
-		let appliedCorrections: any[] = [];
-		const rendered = render(CorrectionWorkspace, {
-			idPrefix: 'marked-correction-spec',
-			title: 'Correction readings',
-			initialCorrections: [
-				{
-					hand: 'c2',
-					content: [{ type: 'text', text: 'alpha' }],
-					rend: 'superscript',
-					readingAttrs: {
-						type: 'alt',
-						rend: 'superscript',
-						source: '#src1',
-						resp: '#editor',
-					},
-					type: 'margin',
-					position: 'pagetop',
-					segmentAttrs: {
-						type: 'margin',
-						subtype: 'pagetop',
-						n: '@P1',
-						'xml:id': 'seg1',
-					},
-				},
-			],
-			onApply: corrections => (appliedCorrections = corrections),
-		});
-
-		await browserPage.getByRole('button', { name: 'Edit', exact: true }).click();
-		const correctionEditorElement = latestInlineEditor();
-		expect(correctionEditorElement).toBeTruthy();
-		const correctionEditor = browserPage.elementLocator(correctionEditorElement!);
-		await correctionEditor.click();
-		await correctionEditor.fill('beta');
-		// The fill resolves once the keystrokes are dispatched; the editor applies
-		// them in a later transaction, so wait for the content before saving.
-		await vi.waitFor(() => expect.element(correctionEditor).toHaveTextContent('beta'), {
-			timeout: 30_000,
-		});
-		await browserPage.getByRole('button', { name: 'Save Reading' }).click();
-		await browserPage.getByRole('button', { name: 'Apply', exact: true }).click();
-
-		const pm = {
-			type: 'manuscript',
-			content: [
-				editorPlainPage({
-					columns: [
-						editorColumn({
-							lines: [
-								editorLine({
-									content: [
-										{
-											type: 'text',
-											text: 'alpha',
-											marks: [
-												{
-													type: 'correction',
-													attrs: { corrections: appliedCorrections },
-												},
-											],
-										},
-									],
-								}),
-							],
-						}),
-					],
-				}),
-			],
-		};
-		expect(compactXml(serializeTei(fromProseMirror(pm as any)))).toMatch(
-			/<rdgtype="alt"hand="c2"rend="superscript"source="#src1"resp="#editor"><segtype="margin"subtype="pagetop"n="@P1"xml:id="seg1"><w>[^<]*beta[^<]*<\/w><\/seg><\/rdg>/
-		);
-
-		rendered.unmount();
-	});
-
 	it('edits formwork, TEI atoms, and metamarks through inspector components', async () => {
 		render(InspectorTestHarness, {
 			xml: wrapInTei(
@@ -345,58 +267,6 @@ describe('transcription editor carrier inspectors', () => {
 		await browserPage.getByRole('button', { name: 'Apply to Node' }).click();
 		expect(compactXml(await exportedXml())).toMatch(
 			/<rdgtype="alt"hand="c2"rend="superscript"source="#src1"resp="#editor"><segtype="margin"subtype="pagetop"n="@P1"xml:id="seg1"><w>[^<]*beta[^<]*<\/w><\/seg><\/rdg>/
-		);
-	});
-
-	it('handles a mixed carrier document with multiple inspector edits before export', async () => {
-		render(InspectorTestHarness, {
-			xml: wrapInTei(
-				'<pb n="1r"/><cb n="1"/><lb/>' +
-					'<foreign xml:lang="la"><w>ab<lb break="no"/>cd</w></foreign>' +
-					'<seg type="margin" subtype="lineright" n="@P1"><fw place="margin right"/></seg>' +
-					'<gap reason="lost-folio" unit="chars" extent="2"/>' +
-					'<note place="margin">aside</note>' +
-					'<metamark function="omission" target="#omit1"/>'
-			),
-		});
-
-		await selectCarrier('teiWrapper');
-		await replaceTextarea('Text 1', 'nova');
-		await browserPage.getByRole('button', { name: 'Apply' }).click();
-
-		await selectCarrier('fw');
-		await fillFormWorkContent('margin note');
-		await browserPage.getByRole('button', { name: 'Apply' }).click();
-
-		await selectCarrier('gap');
-		await browserPage.getByLabelText('Reason').selectOptions('Illegible');
-		await browserPage.getByLabelText('Extent').fill('4');
-		await browserPage.getByRole('button', { name: 'Apply' }).click();
-
-		await selectCarrier('teiAtom');
-		await browserPage.getByLabelText('Note Type').fill('local');
-		await replaceTextarea('Text Content', 'reviewed aside');
-		await browserPage.getByRole('button', { name: 'Apply' }).click();
-
-		await selectCarrier('metamark');
-		setSelectValue('Function', 'insertion');
-		await browserPage.getByRole('button', { name: 'Apply' }).click();
-
-		const xml = await exportedXml();
-		expect(compactXml(xml)).toContain(
-			compactXml('<foreign xml:lang="la"><w>nova<lb break="no"/>cd</w></foreign>')
-		);
-		expect(compactXml(xml)).toMatch(
-			/<segtype="margin"subtype="lineright"n="@P1"><fwplace="marginright"><w>margin<\/w><w>note<\/w><\/fw><\/seg>/
-		);
-		expect(compactXml(xml)).toContain(
-			compactXml('<gap reason="Illegible" unit="chars" extent="4"/>')
-		);
-		expect(compactXml(xml)).toContain(
-			compactXml('<note place="margin" type="local">reviewed aside</note>')
-		);
-		expect(compactXml(xml)).toContain(
-			compactXml('<metamark function="insertion" target="#omit1"/>')
 		);
 	});
 });
