@@ -44,6 +44,12 @@
 						Import IGNTP
 					</a>
 					<a
+						href={resolve(`/transcription/import${projectActionQuery}`)}
+						class="btn btn-outline btn-sm"
+					>
+						Import TEI Folder
+					</a>
+					<a
 						href={resolve(`/collation/new${projectActionQuery}`)}
 						class="btn btn-outline btn-sm"
 					>

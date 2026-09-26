@@ -473,7 +473,7 @@
 		};
 		const show = (event: MouseEvent | FocusEvent) => {
 			if (!(event.target instanceof Element)) return;
-			const trigger = event.target.closest<HTMLElement>('.tooltip[data-tip]');
+			const trigger = event.target.closest<HTMLElement>('.ProseMirror .tooltip[data-tip]');
 			const text = trigger?.dataset.tip;
 			if (!trigger || !text || !node.contains(trigger) || trigger === activeTrigger) return;
 

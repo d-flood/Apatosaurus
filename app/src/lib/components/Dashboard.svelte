@@ -233,6 +233,14 @@
 				</a>
 				<a
 					href={resolve(
+						`/transcription/import?projectId=${encodeURIComponent(lastOpenedProject.id)}`
+					)}
+					class="btn btn-outline btn-sm"
+				>
+					Import TEI Folder in {lastOpenedProject.name}
+				</a>
+				<a
+					href={resolve(
 						`/collation/new?projectId=${encodeURIComponent(lastOpenedProject.id)}`
 					)}
 					class="btn btn-outline btn-sm"
