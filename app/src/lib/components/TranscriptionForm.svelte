@@ -1,4 +1,5 @@
 <script lang="ts">
+	import FilePicker from '$lib/components/FilePicker.svelte';
 	import { goto } from '$app/navigation';
 	import {
 		ensureDefaultProject,
@@ -270,10 +271,11 @@
 			<p class="text-sm text-base-content/70">
 				Choose a TEI transcription file. The TEI header will prefill the record metadata below, and the TEI body will become the initial transcription content. Review the fields before creating the transcription.
 			</p>
-			<label class="file-input w-full">
-				<span class="font-bold label">TEI File</span>
-				<input type="file" accept=".xml,text/xml,application/xml" onchange={handleTeiFileChange} />
-			</label>
+			<FilePicker
+				label="TEI File"
+				accept=".xml,text/xml,application/xml"
+				onchange={handleTeiFileChange}
+			/>
 			{#if importedFileName}
 				<div class="rounded-box bg-base-100 p-3 text-sm space-y-4">
 					<div class="font-semibold">Imported {importedFileName}</div>

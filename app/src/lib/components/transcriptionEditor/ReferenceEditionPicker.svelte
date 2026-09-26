@@ -1,4 +1,5 @@
 <script lang="ts">
+	import FilePicker from '$lib/components/FilePicker.svelte';
 	import {
 		loadReferenceEdition,
 		parseReferenceEditionInWorker,
@@ -524,15 +525,12 @@
 							</button>
 						{/each}
 					</div>
-					<label class="btn btn-sm btn-outline w-full">
-						{catalogLoading ? 'Loading...' : 'Add edition file'}
-						<input
-							type="file"
-							accept=".xml,.tei,text/xml,application/xml"
-							class="sr-only"
-							onchange={addEdition}
-						/>
-					</label>
+					<FilePicker
+						label="Add edition"
+						accept=".xml,.tei,text/xml,application/xml"
+						disabled={catalogLoading}
+						onchange={addEdition}
+					/>
 					{#if selectedEntry?.source === 'user'}
 						<button
 							type="button"

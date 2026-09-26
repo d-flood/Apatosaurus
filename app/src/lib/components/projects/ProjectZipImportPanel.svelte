@@ -1,4 +1,5 @@
 <script lang="ts">
+	import FilePicker from '$lib/components/FilePicker.svelte';
 	import { importProjectZip } from '$lib/client/db/client';
 	import type {
 		ProjectZipImportCollisionMode,
@@ -8,7 +9,6 @@
 	let { onImported }: { onImported?: (projectId: string) => void | Promise<void> } = $props();
 
 	let bytes = $state<Uint8Array | null>(null);
-	let fileName = $state('');
 	let result = $state<ProjectZipImportResult | null>(null);
 	let error = $state<string | null>(null);
 	let importing = $state(false);
@@ -17,7 +17,6 @@
 		const file = (event.currentTarget as HTMLInputElement).files?.[0];
 		if (!file) return;
 		bytes = new Uint8Array(await file.arrayBuffer());
-		fileName = file.name;
 		result = null;
 		error = null;
 		await runImport();
@@ -47,19 +46,14 @@
 	<p class="mt-1 text-xs leading-relaxed text-base-content/55">
 		Choose one project .zip backup. Files are validated before any local project is changed.
 	</p>
-	<label class="btn btn-outline btn-sm mt-3 w-full" class:btn-disabled={importing}>
-		{importing ? 'Validating...' : 'Choose project .zip'}
-		<input
-			type="file"
+	<div class="mt-3">
+		<FilePicker
+			label="Backup"
 			accept=".zip,application/zip"
-			class="sr-only"
 			disabled={importing}
 			onchange={selectFile}
 		/>
-	</label>
-	{#if fileName}
-		<div class="mt-2 truncate text-xs text-base-content/55">{fileName}</div>
-	{/if}
+	</div>
 	{#if error}
 		<div class="alert alert-error mt-3 py-2 text-xs">{error}</div>
 	{/if}

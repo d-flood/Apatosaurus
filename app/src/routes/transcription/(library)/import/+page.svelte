@@ -1,4 +1,5 @@
 <script lang="ts">
+	import FilePicker from '$lib/components/FilePicker.svelte';
 	import { onMount } from 'svelte';
 	import {
 		createTranscriptionRecords,
@@ -157,17 +158,13 @@
 		</select>
 	</label>
 
-	<label class="file-input w-full">
-		<span class="font-bold label">Folder</span>
-		<input
-			type="file"
-			webkitdirectory
-			multiple
-			disabled={busy}
-			onchange={handleFolderChange}
-			data-testid="tei-folder-input"
-		/>
-	</label>
+	<FilePicker
+		label="Folder"
+		directory
+		disabled={busy}
+		onchange={handleFolderChange}
+		testid="tei-folder-input"
+	/>
 
 	<fieldset class="fieldset rounded-box border border-base-300 bg-base-200 p-4">
 		<legend class="fieldset-legend text-lg">Defaults for missing metadata</legend>

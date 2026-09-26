@@ -113,12 +113,12 @@ test('reference-edition backup restores through the client, RPC worker, and OPFS
 
 	await wipeSiteData(context, page);
 	await page.goto('/data');
-	await page.getByLabel('Restore reference editions').setInputFiles(archivePath);
+	await page.getByLabel('Restore editions').setInputFiles(archivePath);
 	await expect(page.getByRole('status')).toContainText('1 available in the catalog', {
 		timeout: 30_000,
 	});
 
-	await page.getByLabel('Restore reference editions').setInputFiles(archivePath);
+	await page.getByLabel('Restore editions').setInputFiles(archivePath);
 	await expect(page.getByRole('status')).toContainText('skipped 1 already present', {
 		timeout: 30_000,
 	});

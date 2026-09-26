@@ -1,4 +1,5 @@
 <script lang="ts">
+	import FilePicker from '$lib/components/FilePicker.svelte';
 	import { resolve } from '$app/paths';
 	import {
 		checkStoragePersistence,
@@ -706,16 +707,14 @@
 				>
 					{isExportingAllProjects ? 'Exporting...' : 'Export all projects'}
 				</button>
-				<label class="btn btn-outline btn-sm mt-2 w-full">
-					{isRestoringReferenceEditions ? 'Restoring...' : 'Restore reference editions'}
-					<input
-						type="file"
+				<div class="mt-2">
+					<FilePicker
+						label="Restore editions"
 						accept=".zip,application/zip"
-						class="sr-only"
 						disabled={isRestoringReferenceEditions}
 						onchange={restoreReferenceEditions}
 					/>
-				</label>
+				</div>
 				{#if exportAllError}<div class="alert alert-error mt-3 py-2 text-xs">
 						{exportAllError}
 					</div>{/if}

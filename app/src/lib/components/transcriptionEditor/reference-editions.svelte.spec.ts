@@ -201,7 +201,7 @@ describe('reference edition seeding', () => {
 		await expect
 			.element(browserPage.getByTestId('missing-reference-edition'))
 			.toHaveTextContent('not on this device');
-		await expect.element(browserPage.getByText('Add edition file')).toBeVisible();
+		await expect.element(browserPage.getByText('Add edition')).toBeVisible();
 	});
 
 	it('drills through every structural level present in the edition', async () => {

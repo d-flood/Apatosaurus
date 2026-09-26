@@ -144,6 +144,7 @@ export default defineConfig({
 			'phosphor-svelte/lib/Eye',
 			'phosphor-svelte/lib/EyeSlash',
 			'phosphor-svelte/lib/FileArrowDownIcon',
+			'phosphor-svelte/lib/FileArrowUp',
 			'phosphor-svelte/lib/FlagBanner',
 			'phosphor-svelte/lib/FloppyDisk',
 			'phosphor-svelte/lib/FolderOpen',
