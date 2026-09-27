@@ -285,4 +285,3 @@ export interface Transcriptions {
 	settlement: string;
 	language: string;
 }
-

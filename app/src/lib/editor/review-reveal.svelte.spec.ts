@@ -223,10 +223,11 @@ describe('unconfirmed verse review and export', () => {
 
 			expect(harness.container.querySelector('.hide-unconfirmed')).not.toBeNull();
 			expect(harness.container.querySelector('.unconfirmed')?.textContent).toBe('alpha');
-			expect(
-				harness.container.querySelector('[data-testid="unconfirmed-verse-count"]')
-					?.textContent
-			).toContain('2 verses unconfirmed');
+			await expect
+				.element(
+					harness.container.querySelector('[data-testid="unconfirmed-verse-count"]')!
+				)
+				.toHaveTextContent('2 verses unconfirmed');
 			expect(await exportXml(harness.container)).toBe(before);
 		} finally {
 			harness.dispose();

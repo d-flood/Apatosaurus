@@ -315,8 +315,7 @@ async function hasAlphaCollations(
 		const raw = await readTextFile(entry.path, options);
 		try {
 			if (openEnvelope(raw).header.schema_version === 2) return true;
-		} catch {
-		}
+		} catch {}
 	}
 	return false;
 }

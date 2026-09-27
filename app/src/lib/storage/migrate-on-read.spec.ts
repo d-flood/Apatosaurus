@@ -30,7 +30,11 @@ describe('migrate-on-read registry', () => {
 		if (!result.ok) throw new Error('Expected v1 document to upgrade.');
 		expect(result.payload).toEqual(v3Payload);
 		expect(result.document.schema_version).toBe(3);
-		await expect(import('./envelope').then(({ assertEnvelopeHash }) => assertEnvelopeHash(openEnvelope(result.document)))).resolves.toBeUndefined();
+		await expect(
+			import('./envelope').then(({ assertEnvelopeHash }) =>
+				assertEnvelopeHash(openEnvelope(result.document))
+			)
+		).resolves.toBeUndefined();
 	});
 
 	it('upgrades v2 documents and passes current v3 documents through without upgrading', async () => {
@@ -130,7 +134,8 @@ function validateSyntheticPayload(payload: JsonObject): SyntheticPayload {
 
 function readObject(payload: JsonObject, key: string): JsonObject {
 	const value = payload[key];
-	if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(`${key} must be an object.`);
+	if (!value || typeof value !== 'object' || Array.isArray(value))
+		throw new Error(`${key} must be an object.`);
 	return value as JsonObject;
 }
 

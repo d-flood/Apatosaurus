@@ -1,10 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { MemoryStoreBackend } from './memory-store-backend.spec-support';
-import {
-	getProjectBackupMetadata,
-	recordProjectZipExport,
-} from './backup-metadata';
+import { getProjectBackupMetadata, recordProjectZipExport } from './backup-metadata';
 
 describe('backup metadata store', () => {
 	it('persists project zip export timestamps in app-local metadata', async () => {

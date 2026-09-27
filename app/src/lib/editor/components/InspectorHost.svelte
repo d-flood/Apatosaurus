@@ -43,7 +43,7 @@
 		overflow: hidden;
 		background: var(--color-base-100);
 		border-top: 1px solid color-mix(in srgb, var(--color-base-content) 14%, transparent);
-		box-shadow: 0 -4px 24px rgb(0 0 0 / 0.10);
+		box-shadow: 0 -4px 24px rgb(0 0 0 / 0.1);
 	}
 
 	:global(.inspector-host-fixed) {

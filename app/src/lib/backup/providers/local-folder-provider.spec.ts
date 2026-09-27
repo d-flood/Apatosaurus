@@ -6,7 +6,9 @@ import { LocalFolderStorageProvider } from './local-folder-provider';
 describe('local folder storage provider', () => {
 	it('creates nested folders and lists files recursively with path IDs', async () => {
 		const root = new FakeDirectoryHandle('root');
-		const provider = new LocalFolderStorageProvider(root as unknown as FileSystemDirectoryHandle);
+		const provider = new LocalFolderStorageProvider(
+			root as unknown as FileSystemDirectoryHandle
+		);
 		const projectFolderId = await provider.createFolder('Project');
 
 		await provider.createFile(projectFolderId, 'project.json', '{"id":"project"}');
@@ -22,14 +24,16 @@ describe('local folder storage provider', () => {
 			'Project/transcriptions/a.json',
 			'Project/transcriptions/b.json',
 		]);
-		expect(listing.entries.find(entry => entry.path.endsWith('project.json'))?.revision).toMatch(
-			/^sha256:[0-9a-f]{64}$/
-		);
+		expect(
+			listing.entries.find(entry => entry.path.endsWith('project.json'))?.revision
+		).toMatch(/^sha256:[0-9a-f]{64}$/);
 	});
 
 	it('writes, reads, updates, and deletes files with expected-revision checks', async () => {
 		const root = new FakeDirectoryHandle('root');
-		const provider = new LocalFolderStorageProvider(root as unknown as FileSystemDirectoryHandle);
+		const provider = new LocalFolderStorageProvider(
+			root as unknown as FileSystemDirectoryHandle
+		);
 		const folderId = await provider.createFolder('Project');
 		const created = await provider.createFile(folderId, 'project.json', 'v1');
 
@@ -46,12 +50,16 @@ describe('local folder storage provider', () => {
 			code: 'conflict',
 		});
 		await provider.deleteFile(created.id, updated.revision);
-		await expect(provider.downloadFile(created.id)).rejects.toMatchObject({ code: 'not-found' });
+		await expect(provider.downloadFile(created.id)).rejects.toMatchObject({
+			code: 'not-found',
+		});
 	});
 
 	it('requires reconnection when persistent handle access is denied', async () => {
 		const root = new FakeDirectoryHandle('root');
-		const provider = new LocalFolderStorageProvider(root as unknown as FileSystemDirectoryHandle);
+		const provider = new LocalFolderStorageProvider(
+			root as unknown as FileSystemDirectoryHandle
+		);
 		root.failWith = domException('NotAllowedError');
 
 		await expect(provider.createFolder('Project')).rejects.toMatchObject({
@@ -61,12 +69,13 @@ describe('local folder storage provider', () => {
 
 	it('requires reconnection when persistent handle access is blocked by security policy', async () => {
 		const root = new FakeDirectoryHandle('root');
-		const provider = new LocalFolderStorageProvider(root as unknown as FileSystemDirectoryHandle);
+		const provider = new LocalFolderStorageProvider(
+			root as unknown as FileSystemDirectoryHandle
+		);
 		root.failWith = domException('SecurityError');
 
 		await expect(provider.listFiles('.')).rejects.toMatchObject({
 			code: 'reauthorization-required',
 		});
 	});
-
 });

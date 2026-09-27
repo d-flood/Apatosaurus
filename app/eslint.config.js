@@ -34,6 +34,7 @@ export default ts.config(
 			'@typescript-eslint/no-explicit-any': 'off',
 			'@typescript-eslint/no-unused-expressions': 'off',
 			'no-constant-binary-expression': 'off',
+			'no-empty': ['error', { allowEmptyCatch: true }],
 			'no-undef': 'off',
 			'no-useless-escape': 'off',
 			'prefer-const': 'off',

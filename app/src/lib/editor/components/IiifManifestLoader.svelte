@@ -37,19 +37,28 @@
 <div class="space-y-3">
 	<div class="tabs tabs-box bg-base-200 p-1">
 		<button
-			class={['tab tab-sm flex-1 whitespace-nowrap px-1 text-xs', loaderMode === 'manifest' && 'tab-active']}
+			class={[
+				'tab tab-sm flex-1 whitespace-nowrap px-1 text-xs',
+				loaderMode === 'manifest' && 'tab-active',
+			]}
 			onclick={() => onLoaderModeChange('manifest')}
 		>
 			Manifest URL
 		</button>
 		<button
-			class={['tab tab-sm flex-1 whitespace-nowrap px-1 text-xs', loaderMode === 'images' && 'tab-active']}
+			class={[
+				'tab tab-sm flex-1 whitespace-nowrap px-1 text-xs',
+				loaderMode === 'images' && 'tab-active',
+			]}
 			onclick={() => onLoaderModeChange('images')}
 		>
 			Image URLs
 		</button>
 		<button
-			class={['tab tab-sm flex-1 whitespace-nowrap px-1 text-xs', loaderMode === 'intf' && 'tab-active']}
+			class={[
+				'tab tab-sm flex-1 whitespace-nowrap px-1 text-xs',
+				loaderMode === 'intf' && 'tab-active',
+			]}
 			onclick={() => onLoaderModeChange('intf')}
 		>
 			INTF JSON
@@ -106,9 +115,13 @@ https://example.org/image-2.png"
 					class="checkbox checkbox-sm"
 					checked={intfAutoAssociate}
 					onchange={event =>
-						onIntfAutoAssociateChange((event.currentTarget as HTMLInputElement).checked)}
+						onIntfAutoAssociateChange(
+							(event.currentTarget as HTMLInputElement).checked
+						)}
 				/>
-				<span class="label-text text-sm flex-1 whitespace-normal text-left leading-tight">Auto-associate pages by folio when possible</span>
+				<span class="label-text text-sm flex-1 whitespace-normal text-left leading-tight"
+					>Auto-associate pages by folio when possible</span
+				>
 			</label>
 			<button
 				class="btn btn-primary w-full"
@@ -123,7 +136,8 @@ https://example.org/image-2.png"
 				{/if}
 			</button>
 			<p class="text-xs text-base-content/60">
-				Paste the manuscript metadata JSON from INTF. The app will create a local synthetic IIIF manifest.
+				Paste the manuscript metadata JSON from INTF. The app will create a local synthetic
+				IIIF manifest.
 			</p>
 		{/if}
 	</div>

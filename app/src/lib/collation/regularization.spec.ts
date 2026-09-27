@@ -67,9 +67,11 @@ describe('deriveCollationInput', () => {
 
 	it('normalizes decomposed polytonic Greek text to NFC before matching', () => {
 		const decomposedAlphaWithMarks = 'α\u0314\u0345';
-		const result = deriveCollationInput([makeWitness(decomposedAlphaWithMarks)], defaultSettings, [
-			makeRule({ id: 'breathing-iota', pattern: 'ᾁ', replacement: 'alpha' }),
-		]);
+		const result = deriveCollationInput(
+			[makeWitness(decomposedAlphaWithMarks)],
+			defaultSettings,
+			[makeRule({ id: 'breathing-iota', pattern: 'ᾁ', replacement: 'alpha' })]
+		);
 
 		expect(result.witnessInputs[0]?.tokens?.[0]?.n).toBe('alpha');
 		expect(result.perWitnessTokens.get('A')?.[0]?.regularized).toBe('alpha');

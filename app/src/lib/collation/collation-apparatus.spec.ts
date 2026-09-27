@@ -207,7 +207,7 @@ describe('renderApparatusUnit', () => {
 	});
 
 	it('cannot be rendered without a non-attestation report', () => {
-		// @ts-expect-error
+		// @ts-expect-error nonAttestation is required
 		const options: ApparatusRenderOptions = { label: '2' };
 
 		expect(options.nonAttestation).toBeUndefined();
@@ -223,11 +223,7 @@ describe('the shared variation-unit definition', () => {
 		collate([
 			makeWitness('A', textTokens('εν αρχη ην ο λογος'), true),
 			makeWitness('B', textTokens('εν αρχη ην ο λογος')),
-			makeWitness('C', [
-				...textTokens('εν αρχη'),
-				gapToken(),
-				...textTokens('ο λογος'),
-			]),
+			makeWitness('C', [...textTokens('εν αρχη'), gapToken(), ...textTokens('ο λογος')]),
 		]);
 
 		expect(collationState.getVariationUnitSpans()).toEqual([]);
@@ -279,7 +275,11 @@ describe('the shared variation-unit definition', () => {
 
 	it('reports only units the readings pane can select as needing a lemma decision', () => {
 		const columns = collate([
-			makeWitness('A', [...textTokens('εν αρχη'), gapToken(), ...textTokens('ο'), gapToken()], true),
+			makeWitness(
+				'A',
+				[...textTokens('εν αρχη'), gapToken(), ...textTokens('ο'), gapToken()],
+				true
+			),
 			makeWitness('B', textTokens('εν αρχη ην ο λογος')),
 			makeWitness('C', textTokens('εν αρχη ην ο θεος')),
 		]);

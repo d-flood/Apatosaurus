@@ -201,7 +201,9 @@
 						</div>
 					</div>
 
-					<div class="overflow-hidden rounded-2xl border border-base-300 bg-base-100 divide-y divide-base-300">
+					<div
+						class="overflow-hidden rounded-2xl border border-base-300 bg-base-100 divide-y divide-base-300"
+					>
 						{#each group.entries as entry (entry.path)}
 							<label
 								class="flex cursor-pointer items-start gap-3 px-3 py-2 transition {!entry.isSupported
@@ -226,10 +228,14 @@
 								/>
 								<div class="min-w-0 flex-1 space-y-1">
 									<div class="flex flex-wrap items-center gap-2">
-										<span class="min-w-48 flex-1 font-semibold leading-snug line-clamp-2">
+										<span
+											class="min-w-48 flex-1 font-semibold leading-snug line-clamp-2"
+										>
 											{entry.title}
 										</span>
-										<span class="badge badge-outline badge-sm">{entry.fileName}</span>
+										<span class="badge badge-outline badge-sm"
+											>{entry.fileName}</span
+										>
 										{#if entry.siglum}
 											<span class="badge badge-neutral badge-sm"
 												>{entry.siglum}</span

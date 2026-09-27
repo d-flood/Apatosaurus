@@ -29,7 +29,8 @@ describe('IndexRepairReport', () => {
 					{
 						path: 'projects/p/transcriptions/good.json',
 						code: 'unreferenced_primary',
-						message: 'Valid canonical primary is not referenced by the project manifest.',
+						message:
+							'Valid canonical primary is not referenced by the project manifest.',
 						recoverable: true,
 						projectSlug: 'p',
 						entityType: 'transcription',
@@ -47,15 +48,23 @@ describe('IndexRepairReport', () => {
 			onRestore,
 		});
 
-		await expect.element(browserPage.getByText('projects/p/transcriptions/bad.json')).toBeVisible();
+		await expect
+			.element(browserPage.getByText('projects/p/transcriptions/bad.json'))
+			.toBeVisible();
 		await expect.element(browserPage.getByText('hash_mismatch')).toBeVisible();
 		await expect.element(browserPage.getByText('Content hash does not match.')).toBeVisible();
-		await expect.element(browserPage.getByText('projects/p/history/transcriptions/lost/cp.json')).toBeVisible();
-		await expect.element(browserPage.getByText('History file has no manifest entity.')).toBeVisible();
+		await expect
+			.element(browserPage.getByText('projects/p/history/transcriptions/lost/cp.json'))
+			.toBeVisible();
+		await expect
+			.element(browserPage.getByText('History file has no manifest entity.'))
+			.toBeVisible();
 		const restoreButton = browserPage.getByRole('button', { name: 'Restore good' });
 		await expect.element(restoreButton).toBeVisible();
 		await restoreButton.click();
 		expect(onRestore).toHaveBeenCalledWith('projects/p/transcriptions/good.json');
-		await expect.element(browserPage.getByRole('button', { name: 'Restore lost' })).not.toBeInTheDocument();
+		await expect
+			.element(browserPage.getByRole('button', { name: 'Restore lost' }))
+			.not.toBeInTheDocument();
 	});
 });

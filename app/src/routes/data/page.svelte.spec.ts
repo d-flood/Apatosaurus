@@ -254,7 +254,7 @@ describe('/data persistence request', () => {
 		render(Page);
 
 		await page
-			.getByLabelText('Restore reference editions')
+			.getByLabelText(/Restore editions/)
 			.upload(new File([new Uint8Array([1, 2, 3])], 'reference-editions.zip'));
 
 		await expect

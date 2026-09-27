@@ -9,7 +9,7 @@
 		disabled = false,
 		placeholder = directory ? 'No folder chosen' : 'No file chosen',
 		onchange,
-		testid
+		testid,
 	}: {
 		label: string;
 		directory?: boolean;
@@ -39,7 +39,8 @@
 >
 	<span class="font-bold label">{label}</span>
 	<span class="btn btn-xs btn-outline" class:btn-disabled={disabled}>
-		{#if directory}<FolderOpen size={14} />Choose folder{:else}<FileArrowUp size={14} />Choose file{/if}
+		{#if directory}<FolderOpen size={14} />Choose folder{:else}<FileArrowUp size={14} />Choose
+			file{/if}
 	</span>
 	<span class="grow truncate" class:opacity-60={!selection}>
 		{selection || placeholder}

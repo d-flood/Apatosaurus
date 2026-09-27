@@ -18,7 +18,13 @@ describe('zip download lifecycle', () => {
 			const revokeObjectURL = vi.fn();
 			vi.stubGlobal('URL', { createObjectURL: vi.fn(() => 'blob:backup'), revokeObjectURL });
 			vi.stubGlobal('document', {
-				createElement: vi.fn(() => ({ click, remove, href: '', download: '', hidden: false })),
+				createElement: vi.fn(() => ({
+					click,
+					remove,
+					href: '',
+					download: '',
+					hidden: false,
+				})),
 				body: { append },
 			});
 

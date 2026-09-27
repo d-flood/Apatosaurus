@@ -14,7 +14,7 @@ _Avoid_: Current project, selected project, active project
 The remembered id of the project most recently opened, used only to construct links (navbar, redirects) when no project is in the URL. Never a source of truth for what a page displays.
 
 **Project-scoped page**:
-A page about a project (its document lists, settings, backup). Its URL carries the project id.
+A page about a project (its document lists, settings, location). Its URL carries the project id.
 
 **Document page**:
 An editor page addressed by document id alone. Its project is derived from document ownership, never from the URL or navigation history.
@@ -24,7 +24,7 @@ The home page (`/`): recent documents to resume, attention items, and creation s
 _Avoid_: Home page, landing page
 
 **Data & Storage page**:
-The app-wide surface for storage durability, whole-account export, and database repair. The single click-through target for backup status. Per-project backup controls live on the project's backup page, never here.
+The app-wide surface for storage accounts and project locations, storage durability, whole-account export, and database repair. The single click-through target for sync status. Where one project lives, and moving it, belongs to that project's pages, never here.
 
 ### Transcription
 
@@ -121,3 +121,52 @@ _Avoid_: Parent, ancestor, source reading (`source` means the transcription a wi
 **Posterior reading**:
 The reading an arc runs to — the one hypothesised to have arisen from the prior reading.
 _Avoid_: Child, descendant, derived reading
+
+### Versions and storage
+
+**Version**:
+A named, unchanging record of one document's content at a moment the scholar chose, with an optional note. A document has exactly as many versions as the scholar has named.
+_Avoid_: Commit, checkpoint, snapshot, revision
+
+**Current**:
+A document's content as it stands now, saved automatically as the scholar works. Never a version, even when its content matches one.
+_Avoid_: Latest, working copy, draft, HEAD
+
+**Storage account**:
+A signed-in identity with a cloud storage provider, such as one Google or Dropbox account. A scholar may have several at once.
+_Avoid_: Connection, login, provider (the provider is the company)
+
+**Project location**:
+A folder holding a scholar's or a team's projects, either in a storage account or on this computer. Each project lives in at most one.
+_Avoid_: Sync target, sync folder, remote, destination
+
+**Personal location**:
+The project location a storage account gets for its owner alone when the scholar first signs in.
+
+**Team location**:
+A project location shared with other scholars through their storage provider. Deleting a project there deletes it for everyone.
+_Avoid_: Shared drive (a provider feature, not ours), workspace
+
+**Browser-only project**:
+A project with no project location; it exists only in this browser.
+_Avoid_: Local project, unsynced project
+
+**Move**:
+Transferring a project and all its versions into a project location, from another location or from this browser alone, after which the old place is no longer used and anyone still using it is told the project has moved. Never leaves the project in two places.
+_Avoid_: Mirror, migrate, copy
+
+**Collision**:
+Two copies of a document's Current that changed independently, from two people or two devices, since they last agreed.
+_Avoid_: Conflict (reserve for the resulting copy), merge conflict
+
+**Conflict copy**:
+The document a collision produces from the side that arrived second, kept whole until the scholar reconciles it. Nothing in a collision is silently discarded.
+_Avoid_: Duplicate, backup copy
+
+**Editing notice**:
+A warning that someone else, or you on another device, has recently been editing the document you are opening. Informs; never blocks.
+_Avoid_: Lock, checkout, presence
+
+**Witness source**:
+Where a witness's text was taken from: a named version of a transcription, or its Current at a recorded moment. The collation keeps its own copy, so later edits to the transcription never move the witness until the scholar refreshes it.
+_Avoid_: Pinned revision, source checkpoint

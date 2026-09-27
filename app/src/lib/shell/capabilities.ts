@@ -34,8 +34,7 @@ let persistRequestedThisSession = false;
 let pendingInstallPrompt: BeforeInstallPromptEvent | null = null;
 
 export function getDirectoryPicker():
-	| ((options?: { mode?: 'read' | 'readwrite' }) => Promise<FileSystemDirectoryHandle>)
-	| null {
+	((options?: { mode?: 'read' | 'readwrite' }) => Promise<FileSystemDirectoryHandle>) | null {
 	const maybeGlobal = globalThis as typeof globalThis & {
 		showDirectoryPicker?: (options?: {
 			mode?: 'read' | 'readwrite';
@@ -49,7 +48,9 @@ export function isLocalFolderProviderSupported(): boolean {
 }
 
 export function isOpfsSupported(): boolean {
-	return typeof navigator !== 'undefined' && typeof navigator.storage?.getDirectory === 'function';
+	return (
+		typeof navigator !== 'undefined' && typeof navigator.storage?.getDirectory === 'function'
+	);
 }
 
 export async function openOriginPrivateFileSystemRoot(): Promise<FileSystemDirectoryHandle> {

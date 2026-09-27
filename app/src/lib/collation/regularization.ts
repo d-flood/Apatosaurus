@@ -63,9 +63,12 @@ function buildGapPlaceholder(
 	fallbackSource: GapMetadata['source']
 ): string {
 	const meta = gap ?? { source: fallbackSource, reason: '', unit: '', extent: '' };
-	return [`__${meta.source}__`, meta.reason || 'none', meta.unit || 'none', meta.extent || 'none'].join(
-		':'
-	);
+	return [
+		`__${meta.source}__`,
+		meta.reason || 'none',
+		meta.unit || 'none',
+		meta.extent || 'none',
+	].join(':');
 }
 
 function orderedEnabledRules(rules: RegularizationRule[]): RegularizationRule[] {
@@ -185,7 +188,8 @@ function deriveToken(
 	const originalSegments = sourceToken.segments.map(segment => ({ ...segment }));
 	const hasUnclear = sourceToken.segments.some(segment => segment.hasUnclear);
 	const isPunctuationOnly =
-		sourceToken.segments.length > 0 && sourceToken.segments.every(segment => segment.isPunctuation);
+		sourceToken.segments.length > 0 &&
+		sourceToken.segments.every(segment => segment.isPunctuation);
 	const isSupplied = sourceToken.segments.some(segment => segment.isSupplied);
 
 	// Fixed order: structural, project, verse; NFC regexes.
@@ -212,7 +216,8 @@ function deriveToken(
 	structuralText = structuralText.normalize('NFC');
 
 	const suppliedOnly =
-		sourceToken.segments.length > 0 && sourceToken.segments.every(segment => segment.isSupplied);
+		sourceToken.segments.length > 0 &&
+		sourceToken.segments.every(segment => segment.isSupplied);
 
 	if (settings.suppliedTextMode === 'gap' && suppliedOnly) {
 		return {
@@ -294,7 +299,9 @@ function mergeIgnoredPunctuationIntoPreviousToken(
 			originalSegments: token.originalSegments?.map(segment => ({ ...segment })),
 			gap: token.gap ? { ...token.gap } : token.gap,
 			ruleIds: token.ruleIds ? [...token.ruleIds] : undefined,
-			regularizationTypes: token.regularizationTypes ? [...token.regularizationTypes] : undefined,
+			regularizationTypes: token.regularizationTypes
+				? [...token.regularizationTypes]
+				: undefined,
 		};
 		if (!isPunctuationToken(tokenToJoinablePart(cloned))) {
 			prepared.push(cloned);
@@ -389,7 +396,11 @@ export function deriveCollationInput(
 			);
 			if (!token) {
 				if (settings.ignorePunctuation) {
-					const punctuationToken = ignoredPunctuationInputToken(witness.witnessId, index, sourceToken);
+					const punctuationToken = ignoredPunctuationInputToken(
+						witness.witnessId,
+						index,
+						sourceToken
+					);
 					if (punctuationToken) inputTokens.push(punctuationToken);
 				}
 				continue;

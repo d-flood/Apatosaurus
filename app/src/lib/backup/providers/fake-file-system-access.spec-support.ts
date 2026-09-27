@@ -62,7 +62,10 @@ export class FakeFileHandle {
 		return new File([this.content], this.name, { lastModified: this.lastModified });
 	}
 
-	async createWritable(): Promise<{ write: (content: string) => Promise<void>; close: () => Promise<void> }> {
+	async createWritable(): Promise<{
+		write: (content: string) => Promise<void>;
+		close: () => Promise<void>;
+	}> {
 		return {
 			write: async (content: string) => {
 				this.content = content;

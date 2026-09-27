@@ -15,9 +15,15 @@ describe('EntityHeader', () => {
 			checkpointRevisionId: 'abcdef1234567890',
 		});
 
-		await expect.element(browserPage.getByTestId('entity-project')).toHaveTextContent('Project: Romans Edition');
-		await expect.element(browserPage.getByTestId('entity-commit-state')).toHaveTextContent('Committed');
-		await expect.element(browserPage.getByTestId('entity-revision')).toHaveTextContent('Revision abcdef12...');
+		await expect
+			.element(browserPage.getByTestId('entity-project'))
+			.toHaveTextContent('Project: Romans Edition');
+		await expect
+			.element(browserPage.getByTestId('entity-commit-state'))
+			.toHaveTextContent('Committed');
+		await expect
+			.element(browserPage.getByTestId('entity-revision'))
+			.toHaveTextContent('Revision abcdef12...');
 	});
 
 	it('shows dirty state as uncommitted changes', async () => {
@@ -27,7 +33,9 @@ describe('EntityHeader', () => {
 			checkpointRevisionId: 'rev-1',
 		});
 
-		await expect.element(browserPage.getByTestId('entity-commit-state')).toHaveTextContent('Uncommitted changes');
+		await expect
+			.element(browserPage.getByTestId('entity-commit-state'))
+			.toHaveTextContent('Uncommitted changes');
 	});
 
 	it('shows never-committed state without a revision', async () => {
@@ -36,7 +44,9 @@ describe('EntityHeader', () => {
 			commitState: 'never-committed',
 		});
 
-		await expect.element(browserPage.getByTestId('entity-commit-state')).toHaveTextContent('No committed version yet');
+		await expect
+			.element(browserPage.getByTestId('entity-commit-state'))
+			.toHaveTextContent('No committed version yet');
 		await expect.element(browserPage.getByTestId('entity-revision')).not.toBeInTheDocument();
 	});
 });

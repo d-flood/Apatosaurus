@@ -9,10 +9,12 @@
 	let { type, attrs, onApply }: Props = $props();
 
 	const usesTeiAttrs = $derived(
-		['pageBreak', 'lineBreak', 'columnBreak', 'handShift', 'teiMilestone', 'space'].includes(type)
+		['pageBreak', 'lineBreak', 'columnBreak', 'handShift', 'teiMilestone', 'space'].includes(
+			type
+		)
 	);
 	const editedAttrs = $derived(
-		usesTeiAttrs ? (attrs?.teiAttrs as Record<string, any>) || {} : (attrs || {})
+		usesTeiAttrs ? (attrs?.teiAttrs as Record<string, any>) || {} : attrs || {}
 	);
 
 	let reason = $state('');
@@ -140,20 +142,36 @@
 		</label>
 		<label class="form-control">
 			<span class="label-text text-xs font-semibold">Unit</span>
-			<input class="input input-bordered input-sm" bind:value={unit} placeholder="e.g. chars, lines, words" />
+			<input
+				class="input input-bordered input-sm"
+				bind:value={unit}
+				placeholder="e.g. chars, lines, words"
+			/>
 		</label>
 		<label class="form-control">
 			<span class="label-text text-xs font-semibold">Extent</span>
-			<input class="input input-bordered input-sm" bind:value={extent} placeholder="e.g. 3, several, unknown" />
+			<input
+				class="input input-bordered input-sm"
+				bind:value={extent}
+				placeholder="e.g. 3, several, unknown"
+			/>
 		</label>
 	{:else if type === 'pageBreak' || type === 'lineBreak' || type === 'columnBreak'}
 		<label class="form-control">
 			<span class="label-text text-xs font-semibold">Number</span>
-			<input class="input input-bordered input-sm" bind:value={milestoneN} placeholder="e.g. 2" />
+			<input
+				class="input input-bordered input-sm"
+				bind:value={milestoneN}
+				placeholder="e.g. 2"
+			/>
 		</label>
 		<label class="form-control">
 			<span class="label-text text-xs font-semibold">Edition</span>
-			<input class="input input-bordered input-sm" bind:value={milestoneEd} placeholder="e.g. NA28" />
+			<input
+				class="input input-bordered input-sm"
+				bind:value={milestoneEd}
+				placeholder="e.g. NA28"
+			/>
 		</label>
 		<label class="form-control">
 			<span class="label-text text-xs font-semibold">Break</span>
@@ -165,7 +183,11 @@
 	{:else if type === 'space'}
 		<label class="form-control">
 			<span class="label-text text-xs font-semibold">Unit</span>
-			<input class="input input-bordered input-sm" bind:value={unit} placeholder="e.g. chars, lines" />
+			<input
+				class="input input-bordered input-sm"
+				bind:value={unit}
+				placeholder="e.g. chars, lines"
+			/>
 		</label>
 		<label class="form-control">
 			<span class="label-text text-xs font-semibold">Extent</span>
@@ -173,34 +195,62 @@
 		</label>
 		<label class="form-control">
 			<span class="label-text text-xs font-semibold">Dimension</span>
-			<input class="input input-bordered input-sm" bind:value={dim} placeholder="e.g. horizontal" />
+			<input
+				class="input input-bordered input-sm"
+				bind:value={dim}
+				placeholder="e.g. horizontal"
+			/>
 		</label>
 	{:else if type === 'handShift'}
 		<label class="form-control">
 			<span class="label-text text-xs font-semibold">Hand</span>
-			<input class="input input-bordered input-sm" bind:value={hand} placeholder="e.g. #corrector1" />
+			<input
+				class="input input-bordered input-sm"
+				bind:value={hand}
+				placeholder="e.g. #corrector1"
+			/>
 		</label>
 		<label class="form-control">
 			<span class="label-text text-xs font-semibold">Medium</span>
-			<input class="input input-bordered input-sm" bind:value={medium} placeholder="e.g. ink" />
+			<input
+				class="input input-bordered input-sm"
+				bind:value={medium}
+				placeholder="e.g. ink"
+			/>
 		</label>
 	{:else if type === 'teiMilestone'}
 		<label class="form-control">
 			<span class="label-text text-xs font-semibold">Unit</span>
-			<input class="input input-bordered input-sm" bind:value={milestoneUnit} placeholder="e.g. section" />
+			<input
+				class="input input-bordered input-sm"
+				bind:value={milestoneUnit}
+				placeholder="e.g. section"
+			/>
 		</label>
 		<label class="form-control">
 			<span class="label-text text-xs font-semibold">Value</span>
-			<input class="input input-bordered input-sm" bind:value={milestoneN} placeholder="e.g. A" />
+			<input
+				class="input input-bordered input-sm"
+				bind:value={milestoneN}
+				placeholder="e.g. A"
+			/>
 		</label>
 		<label class="form-control">
 			<span class="label-text text-xs font-semibold">Edition</span>
-			<input class="input input-bordered input-sm" bind:value={milestoneEd} placeholder="e.g. NA28" />
+			<input
+				class="input input-bordered input-sm"
+				bind:value={milestoneEd}
+				placeholder="e.g. NA28"
+			/>
 		</label>
 	{:else if type === 'untranscribed'}
 		<label class="form-control">
 			<span class="label-text text-xs font-semibold">Reason</span>
-			<input class="input input-bordered input-sm" bind:value={untranscribedReason} placeholder="e.g. damage, illegible" />
+			<input
+				class="input input-bordered input-sm"
+				bind:value={untranscribedReason}
+				placeholder="e.g. damage, illegible"
+			/>
 		</label>
 		<label class="form-control">
 			<span class="label-text text-xs font-semibold">Extent</span>

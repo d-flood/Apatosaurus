@@ -67,8 +67,7 @@ function handleWorkerMessage(event: MessageEvent<ReferenceEditionWorkerResponse>
 	pending.delete(message.requestId);
 	if (message.type === 'parsed') {
 		request.resolve({ source: message.source, metadata: message.metadata });
-	}
-	else request.reject(new Error(message.error));
+	} else request.reject(new Error(message.error));
 }
 
 function handleWorkerError(event: ErrorEvent): void {

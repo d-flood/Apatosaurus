@@ -35,7 +35,11 @@
 		<span class="font-semibold text-base-content/80">{label}</span>
 	{/if}
 	<span class="badge badge-outline" data-testid="entity-project">Project: {projectLabel}</span>
-	<span class="badge" class:badge-warning={commitState === 'dirty'} data-testid="entity-commit-state">
+	<span
+		class="badge"
+		class:badge-warning={commitState === 'dirty'}
+		data-testid="entity-commit-state"
+	>
 		{commitStateText}
 	</span>
 	{#if checkpointText}

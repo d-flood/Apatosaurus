@@ -14,9 +14,15 @@ describe('OnboardingGuidance', () => {
 			installSupported: true,
 		});
 
-		await expect.element(browserPage.getByTestId('onboarding-guidance')).toHaveTextContent('Chromium-based browser');
-		await expect.element(browserPage.getByTestId('onboarding-primary-path')).toHaveTextContent('Connect a sync folder');
-		await expect.element(browserPage.getByTestId('onboarding-primary-path')).toHaveTextContent('Dropbox, OneDrive, or Drive');
+		await expect
+			.element(browserPage.getByTestId('onboarding-guidance'))
+			.toHaveTextContent('Chromium-based browser');
+		await expect
+			.element(browserPage.getByTestId('onboarding-primary-path'))
+			.toHaveTextContent('Connect a sync folder');
+		await expect
+			.element(browserPage.getByTestId('onboarding-primary-path'))
+			.toHaveTextContent('Dropbox, OneDrive, or Drive');
 		await expect.element(browserPage.getByText('Allow persistent storage')).toBeInTheDocument();
 	});
 
@@ -27,9 +33,15 @@ describe('OnboardingGuidance', () => {
 			installSupported: false,
 		});
 
-		await expect.element(browserPage.getByTestId('onboarding-primary-path')).toHaveTextContent('Use zip export/import');
-		await expect.element(browserPage.getByTestId('onboarding-primary-path')).toHaveTextContent('Firefox and Safari');
-		await expect.element(browserPage.getByText('Connect a sync folder')).not.toBeInTheDocument();
+		await expect
+			.element(browserPage.getByTestId('onboarding-primary-path'))
+			.toHaveTextContent('Use zip export/import');
+		await expect
+			.element(browserPage.getByTestId('onboarding-primary-path'))
+			.toHaveTextContent('Firefox and Safari');
+		await expect
+			.element(browserPage.getByText('Connect a sync folder'))
+			.not.toBeInTheDocument();
 	});
 
 	it('states the data ownership model and exit paths', async () => {
@@ -40,9 +52,17 @@ describe('OnboardingGuidance', () => {
 			variant: 'about',
 		});
 
-		await expect.element(browserPage.getByTestId('data-ownership')).toHaveTextContent('Origin Private File System');
-		await expect.element(browserPage.getByTestId('data-ownership')).toHaveTextContent('byte-identical mirror');
-		await expect.element(browserPage.getByTestId('data-ownership')).toHaveTextContent('TEI sibling');
-		await expect.element(browserPage.getByTestId('data-ownership')).toHaveTextContent('zip export');
+		await expect
+			.element(browserPage.getByTestId('data-ownership'))
+			.toHaveTextContent('Origin Private File System');
+		await expect
+			.element(browserPage.getByTestId('data-ownership'))
+			.toHaveTextContent('byte-identical mirror');
+		await expect
+			.element(browserPage.getByTestId('data-ownership'))
+			.toHaveTextContent('TEI sibling');
+		await expect
+			.element(browserPage.getByTestId('data-ownership'))
+			.toHaveTextContent('zip export');
 	});
 });

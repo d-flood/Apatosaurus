@@ -6,12 +6,7 @@
 		[key: string]: any;
 	}
 
-	let {
-		size = 24,
-		color = 'currentColor',
-		weight = 'regular',
-		...props
-	}: Props = $props();
+	let { size = 24, color = 'currentColor', weight = 'regular', ...props }: Props = $props();
 
 	const strokeWidth = $derived(
 		weight === 'bold' ? 24 : weight === 'light' ? 12 : weight === 'thin' ? 8 : 16

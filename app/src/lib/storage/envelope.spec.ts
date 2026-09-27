@@ -10,7 +10,10 @@ import {
 
 describe('document envelope helpers', () => {
 	it('seals, serializes, opens, and verifies a payload hash', async () => {
-		const payload = { title: 'Codex', metadata: { b: 'second', a: 'first' } } satisfies JsonObject;
+		const payload = {
+			title: 'Codex',
+			metadata: { b: 'second', a: 'first' },
+		} satisfies JsonObject;
 
 		const document = await sealDocument('apatosaurus.test', 1, payload);
 		const opened = openEnvelope(serializeSealedDocument(document));
@@ -28,7 +31,9 @@ describe('document envelope helpers', () => {
 		const document = await sealDocument('apatosaurus.test', 1, { title: 'Codex' });
 
 		expect(() => openEnvelope('{')).toThrow('Document is not valid JSON');
-		await expect(sealDocument('apatosaurus.test', 1, { format: 'payload-value' })).rejects.toMatchObject({
+		await expect(
+			sealDocument('apatosaurus.test', 1, { format: 'payload-value' })
+		).rejects.toMatchObject({
 			code: 'invalid_shape',
 		});
 		await expect(

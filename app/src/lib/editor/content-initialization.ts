@@ -8,7 +8,9 @@ export function initializeEditorContent(
 	options: { emitUpdate?: boolean } = { emitUpdate: false }
 ): void {
 	if (initializedEditors.has(editor)) {
-		throw new Error('setContent is init-only for editor documents; use a transaction after load');
+		throw new Error(
+			'setContent is init-only for editor documents; use a transaction after load'
+		);
 	}
 	// Load stays out of undo; otherwise first Ctrl+Z empties the manuscript.
 	editor.chain().setMeta('addToHistory', false).setContent(content, options).run();
@@ -25,7 +27,9 @@ export function initializeEditorContent(
 			firstStep.to === transaction.before.content.size &&
 			transaction.selectionSet === false
 		) {
-			throw new Error('setContent is init-only for editor documents; use a transaction after load');
+			throw new Error(
+				'setContent is init-only for editor documents; use a transaction after load'
+			);
 		}
 		originalDispatchTransaction.call(editor.view, transaction);
 	};

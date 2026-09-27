@@ -46,10 +46,10 @@ describe('project backup health state', () => {
 				localFolderSupported: true,
 			})
 		).toMatchObject({
-				status: 'browser-only',
-				showBrowserOnlyPrompt: true,
-				primaryAction: 'connect-folder',
-			});
+			status: 'browser-only',
+			showBrowserOnlyPrompt: true,
+			primaryAction: 'connect-folder',
+		});
 	});
 
 	it('uses export as the browser-only action when folder sync is unsupported', () => {
