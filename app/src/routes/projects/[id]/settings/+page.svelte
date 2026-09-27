@@ -1,40 +1,44 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
 	import {
-		addProjectTranscriptionFromProject,
-		getProjectTranscriptionIds,
-		listProjectTranscriptionSourceCandidates,
-		listProjectTranscriptionStatuses,
 		listTranscriptions,
 		loadTranscriptionHands,
-		refreshProjectTranscription,
-		syncProjectTranscriptionIds,
-		updateProjectMetadata,
-		type ProjectRecord,
 		type ProjectTranscriptionOption,
-		type ProjectTranscriptionSourceCandidate,
-		type ProjectTranscriptionSourceState,
-		type ProjectTranscriptionStatus,
-	} from '$lib/client/collation/project-collation';
+	} from '$lib/project/projects';
 	import {
 		createProjectCollationSettings,
 		parseProjectCollationSettings,
-	} from '$lib/client/collation/project-settings';
+	} from '$lib/collation/project-settings';
 	import type {
 		RegularizationRule,
 		RegularizationType,
 		SuppliedTextMode,
 		WitnessTreatment,
-	} from '$lib/client/collation/collation-types';
-	import type { ReadingTypeDefinition } from '$lib/client/collation/reading-types';
-	import { subscribeLocalDbInvalidations } from '$lib/client/db/client';
-	import AddProjectTranscriptionFromProjectDialog from '$lib/components/projects/AddProjectTranscriptionFromProjectDialog.svelte';
-	import ProjectCollationSettingsEditor from '$lib/components/projects/ProjectCollationSettingsEditor.svelte';
-	import ProjectTranscriptionRefreshDialog from '$lib/components/projects/ProjectTranscriptionRefreshDialog.svelte';
-	import ProjectTranscriptionsEditor from '$lib/components/projects/ProjectTranscriptionsEditor.svelte';
-	import ProjectTranscriptionVersionsPanel from '$lib/components/projects/ProjectTranscriptionVersionsPanel.svelte';
-	import ProjectUserManagementStub from '$lib/components/projects/ProjectUserManagementStub.svelte';
+	} from '$lib/collation/collation-types';
+	import type { ReadingTypeDefinition } from '$lib/collation/reading-types';
+	import {
+		subscribeLocalDbInvalidations,
+		addProjectTranscriptionFromProject,
+		getProjectTranscriptionIds,
+		listProjectTranscriptionSourceCandidates,
+		listProjectTranscriptionStatuses,
+		refreshProjectTranscription,
+		syncProjectTranscriptionIds,
+		updateProjectMetadata,
+	} from '$lib/db/client';
+	import AddProjectTranscriptionFromProjectDialog from '$lib/project/components/AddProjectTranscriptionFromProjectDialog.svelte';
+	import ProjectCollationSettingsEditor from '$lib/project/components/ProjectCollationSettingsEditor.svelte';
+	import ProjectTranscriptionRefreshDialog from '$lib/project/components/ProjectTranscriptionRefreshDialog.svelte';
+	import ProjectTranscriptionsEditor from '$lib/project/components/ProjectTranscriptionsEditor.svelte';
+	import ProjectTranscriptionVersionsPanel from '$lib/project/components/ProjectTranscriptionVersionsPanel.svelte';
+	import ProjectUserManagementStub from '$lib/project/components/ProjectUserManagementStub.svelte';
 	import { onMount } from 'svelte';
+	import type {
+		ProjectRecord,
+		ProjectTranscriptionSourceCandidate,
+		ProjectTranscriptionSourceState,
+		ProjectTranscriptionStatus,
+	} from '$lib/db/repositories/projects';
 
 	let { data } = $props<{ data: { project: ProjectRecord } }>();
 
@@ -77,8 +81,7 @@
 	);
 
 	let metadataDirty = $derived(
-		nameDraft.trim() !== openProject.name ||
-			descriptionDraft.trim() !== openProject.description
+		nameDraft.trim() !== openProject.name || descriptionDraft.trim() !== openProject.description
 	);
 
 	$effect(() => {
@@ -248,7 +251,8 @@
 		isSavingMetadata = true;
 		error = null;
 		try {
-			await updateProjectMetadata(projectId, {
+			await updateProjectMetadata({
+				projectId,
 				name,
 				description: descriptionDraft,
 			});
@@ -296,7 +300,8 @@
 				transcriptionWitnessExcludedHands: nextExcludedHands,
 				readingTypes: projectReadingTypes,
 			});
-			await updateProjectMetadata(openProject.id, {
+			await updateProjectMetadata({
+				projectId: openProject.id,
 				collationSettings,
 				updatedAt: now,
 			});

@@ -1,15 +1,13 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import { collationState } from '$lib/client/collation/collation-state.svelte';
-	import {
-		listProjects,
-		type ProjectOption,
-	} from '$lib/client/collation/project-collation';
-	import { ensureDefaultProject } from '$lib/client/db/client';
-	import { resolveCreationTargetProjectId } from '$lib/client/navigation/last-opened-project';
-	import CollationWorkspace from '$lib/components/collation/CollationWorkspace.svelte';
+	import { collationState } from '$lib/collation/collation-state.svelte';
+
+	import { ensureDefaultProject, listProjects } from '$lib/db/client';
+	import { resolveCreationTargetProjectId } from '$lib/shell/last-opened-project';
+	import CollationWorkspace from '$lib/collation/components/CollationWorkspace.svelte';
 	import { selectInitialCollationProject } from './new-collation-project';
 	import { onMount } from 'svelte';
+	import type { ProjectOption } from '$lib/db/repositories/projects';
 
 	let projects = $state<ProjectOption[]>([]);
 	let selectedProjectId = $state('');
@@ -23,7 +21,11 @@
 			showProjectSelector = true;
 			const defaultProjectId = await ensureDefaultProject();
 			projects = await listProjects();
-			selectedProjectId = resolveCreationTargetProjectId(projectId, projects, defaultProjectId);
+			selectedProjectId = resolveCreationTargetProjectId(
+				projectId,
+				projects,
+				defaultProjectId
+			);
 		}
 		await selectInitialCollationProject(projectId, {
 			ensureDefaultProject: async () => selectedProjectId || ensureDefaultProject(),

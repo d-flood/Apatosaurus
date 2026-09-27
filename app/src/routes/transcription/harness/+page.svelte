@@ -5,18 +5,18 @@
 		getTranscription,
 		getTranscriptionSummary,
 		subscribeLocalDbInvalidations,
-	} from '$lib/client/db/client';
-	import { ensureLocalDbRuntime } from '$lib/client/db/runtime';
+	} from '$lib/db/client';
+	import { ensureLocalDbRuntime } from '$lib/db/runtime';
 	import {
 		mapLocalTranscriptionRecord,
 		type TranscriptionRecord,
-	} from '$lib/client/transcription/model';
+	} from '$lib/transcription/model';
 	import {
 		buildHarnessTranscriptionCreatePayload,
 		HARNESS_TRANSCRIPTION_ID,
 		HARNESS_TRANSCRIPTION_TITLE,
 	} from '$lib/testing/transcriptionEditorHarness';
-	import TranscriptionEditor from '$lib/components/transcriptionEditor/TranscriptionEditor.svelte';
+	import TranscriptionEditor from '$lib/editor/components/TranscriptionEditor.svelte';
 	import { onMount } from 'svelte';
 
 	const harnessData = {};
@@ -85,7 +85,9 @@
 		async function loadTranscription() {
 			const nextTranscription = await getTranscription(HARNESS_TRANSCRIPTION_ID);
 			if (cancelled) return;
-			transcription = nextTranscription ? mapLocalTranscriptionRecord(nextTranscription) : null;
+			transcription = nextTranscription
+				? mapLocalTranscriptionRecord(nextTranscription)
+				: null;
 			loadError = nextTranscription ? null : 'Failed to load transcription harness';
 		}
 
@@ -97,7 +99,9 @@
 			.catch(error => {
 				if (cancelled) return;
 				loadError =
-					error instanceof Error ? error.message : 'Failed to initialize transcription harness';
+					error instanceof Error
+						? error.message
+						: 'Failed to initialize transcription harness';
 			});
 
 		unsubscribeInvalidations = subscribeLocalDbInvalidations(event => {
@@ -128,10 +132,14 @@
 	<div class="mx-auto max-w-450 px-4 pb-24" data-testid="transcription-harness">
 		<div class="my-4 space-y-1 text-center">
 			<h1 class="font-serif text-3xl">{HARNESS_TRANSCRIPTION_TITLE}</h1>
-			<p class="text-sm opacity-70">Deterministic multi-page framed-page editor fixture for Playwright.</p>
+			<p class="text-sm opacity-70">
+				Deterministic multi-page framed-page editor fixture for Playwright.
+			</p>
 		</div>
 
-		<div class="sticky top-0 z-20 mb-4 rounded-box border border-base-300 bg-base-100/95 p-3 shadow-sm backdrop-blur">
+		<div
+			class="sticky top-0 z-20 mb-4 rounded-box border border-base-300 bg-base-100/95 p-3 shadow-sm backdrop-blur"
+		>
 			<div use:captureToolbarHost></div>
 		</div>
 
@@ -150,11 +158,7 @@
 			</div>
 		</div>
 
-		<div
-			data-testid="harness-ready"
-			data-transcription-id={transcription.id}
-			class="sr-only"
-		>
+		<div data-testid="harness-ready" data-transcription-id={transcription.id} class="sr-only">
 			Harness ready
 		</div>
 	</div>

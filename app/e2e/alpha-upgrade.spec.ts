@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
-import alpha from '../src/lib/client/store/formats/fixtures/alpha-collation-v2.json' with { type: 'json' };
-import { sealDocument, serializeSealedDocument } from '../src/lib/client/store/envelope';
-import { hashCanonicalPayload } from '../src/lib/client/store/canonical-json';
+import alpha from '../src/lib/storage/formats/fixtures/alpha-collation-v2.json' with { type: 'json' };
+import { sealDocument, serializeSealedDocument } from '../src/lib/storage/envelope';
+import { hashCanonicalPayload } from '../src/lib/storage/canonical-json';
 
 test('alpha upgrade opens existing OPFS collation edits and preserves them after reload', async ({
 	page,

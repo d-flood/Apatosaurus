@@ -24,7 +24,7 @@ const mocks = vi.hoisted(() => ({
 	warmListeners: [] as Array<(progress: unknown) => void>,
 }));
 
-vi.mock('$lib/client/capabilities', () => ({
+vi.mock('$lib/shell/capabilities', () => ({
 	checkStoragePersistence: vi.fn(async () => ({
 		status: 'denied',
 		persisted: false,
@@ -43,7 +43,7 @@ vi.mock('$lib/client/capabilities', () => ({
 	shouldShowDurabilityWarning: vi.fn(() => false),
 }));
 
-vi.mock('$lib/client/sw-registration', () => ({
+vi.mock('$lib/shell/sw-registration', () => ({
 	getCorpusCacheEntryCount: mocks.getCorpusCacheEntryCount,
 	getOfflineCacheSize: mocks.getOfflineCacheSize,
 	onCacheWarmProgress: vi.fn((listener: (progress: unknown) => void) => {
@@ -54,11 +54,8 @@ vi.mock('$lib/client/sw-registration', () => ({
 	releaseCorpusCache: mocks.releaseCorpusCache,
 }));
 
-vi.mock('$lib/client/collation/project-collation', () => ({
+vi.mock('$lib/db/client', () => ({
 	listProjects: vi.fn(async () => []),
-}));
-
-vi.mock('$lib/client/db/client', () => ({
 	deriveProjectBackupSummary: vi.fn(),
 	exportAllProjectsZip: mocks.exportAllProjectsZip,
 	restoreReferenceEditionsArchive: mocks.restoreReferenceEditionsArchive,
@@ -67,14 +64,18 @@ vi.mock('$lib/client/db/client', () => ({
 	subscribeLocalDbInvalidations: vi.fn(() => vi.fn()),
 }));
 
-vi.mock('$lib/client/db/runtime', () => ({ ensureLocalDbRuntime: vi.fn() }));
-vi.mock('$lib/client/download-blob', () => ({ downloadZipArchive: mocks.downloadZipArchive }));
-vi.mock('$lib/client/store', () => ({
+vi.mock('$lib/db/runtime', () => ({ ensureLocalDbRuntime: vi.fn() }));
+vi.mock('$lib/shell/download-blob', () => ({ downloadZipArchive: mocks.downloadZipArchive }));
+vi.mock('$lib/storage/sync-targets', () => ({
 	listSyncTargets: vi.fn(async () => []),
+}));
+vi.mock('$lib/reference-editions/user-reference-editions', () => ({
 	inspectUserReferenceEditions: mocks.inspectUserReferenceEditions,
+}));
+vi.mock('$lib/storage/backup-metadata', () => ({
 	recordProjectZipExport: vi.fn(),
 }));
-vi.mock('$lib/client/sync/providers/local-folder-provider', () => ({
+vi.mock('$lib/backup/providers/local-folder-provider', () => ({
 	LOCAL_FOLDER_ROOT_FOLDER_ID: 'root',
 }));
 

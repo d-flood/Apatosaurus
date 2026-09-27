@@ -1,5 +1,5 @@
 <script lang="ts">
-	import FilePicker from '$lib/components/FilePicker.svelte';
+	import FilePicker from '$lib/shell/components/FilePicker.svelte';
 	import { resolve } from '$app/paths';
 	import {
 		checkStoragePersistence,
@@ -12,42 +12,42 @@
 		shouldShowDurabilityWarning,
 		type StorageEstimateReport,
 		type StoragePersistenceReport,
-	} from '$lib/client/capabilities';
-	import { listProjects, type ProjectOption } from '$lib/client/collation/project-collation';
+	} from '$lib/shell/capabilities';
+
 	import {
 		exportAllProjectsZip,
 		rebuildLocalIndex,
 		restoreReferenceEditionsArchive,
 		restoreOrphanPrimary,
 		subscribeLocalDbInvalidations,
-	} from '$lib/client/db/client';
-	import { ensureLocalDbRuntime } from '$lib/client/db/runtime';
-	import { downloadZipArchive } from '$lib/client/download-blob';
-	import {
-		inspectUserReferenceEditions,
-		recordProjectZipExport,
-	} from '$lib/client/store';
+		listProjects,
+	} from '$lib/db/client';
+	import { ensureLocalDbRuntime } from '$lib/db/runtime';
+	import { downloadZipArchive } from '$lib/shell/download-blob';
+	import { inspectUserReferenceEditions } from '$lib/reference-editions/user-reference-editions';
+	import { recordProjectZipExport } from '$lib/storage/backup-metadata';
 	import {
 		loadProjectBackupOverviews,
 		type ProjectBackupOverview,
 		type ProjectBackupOverviewStatus,
-	} from '$lib/client/sync/project-backup-overview';
+	} from '$lib/backup/project-backup-overview';
 	import {
 		CORPUS_APPROXIMATE_BYTES,
 		hasCorpusStorageHeadroom,
 		type WarmProgress,
-	} from '$lib/client/offline-cache-policy';
+	} from '$lib/shell/offline-cache-policy';
 	import {
 		getCorpusCacheEntryCount,
 		getOfflineCacheSize,
 		onCacheWarmProgress,
 		releaseCorpusCache,
 		requestCacheWarmNow,
-	} from '$lib/client/sw-registration';
-	import IndexRepairReport from '$lib/components/projects/IndexRepairReport.svelte';
-	import OnboardingGuidance from '$lib/components/OnboardingGuidance.svelte';
-	import type { IndexRebuildReport } from '$lib/client/db/repositories/index-rebuild';
+	} from '$lib/shell/sw-registration';
+	import IndexRepairReport from '$lib/project/components/IndexRepairReport.svelte';
+	import OnboardingGuidance from '$lib/shell/components/OnboardingGuidance.svelte';
+	import type { IndexRebuildReport } from '$lib/db/repositories/index-rebuild';
 	import { onMount } from 'svelte';
+	import type { ProjectOption } from '$lib/db/repositories/projects';
 
 	let projects = $state.raw<ProjectOption[]>([]);
 	let userReferenceEditionCount = $state(0);
@@ -252,7 +252,9 @@
 	async function loadProjectBackupSummaries(projectRows: ProjectOption[] = projects) {
 		const runId = ++backupSummaryRunId;
 		try {
-			const overviews = await loadProjectBackupOverviews(projectRows.map(project => project.id));
+			const overviews = await loadProjectBackupOverviews(
+				projectRows.map(project => project.id)
+			);
 			if (runId === backupSummaryRunId) projectBackupOverviews = overviews;
 		} catch (cause) {
 			if (runId !== backupSummaryRunId) return;
@@ -649,10 +651,12 @@
 								>
 									<span class="font-medium">{project.name}</span>
 									<span
-									class="badge badge-sm {overview
-										? backupBadgeClass(overview.status)
-										: 'badge-ghost'}"
-										>{overview ? backupStatusLabel(overview.status) : 'Checking sync'}</span
+										class="badge badge-sm {overview
+											? backupBadgeClass(overview.status)
+											: 'badge-ghost'}"
+										>{overview
+											? backupStatusLabel(overview.status)
+											: 'Checking sync'}</span
 									>
 								</a>
 							</li>

@@ -4,9 +4,9 @@
 		getInstallCapabilityReport,
 		isLocalFolderProviderSupported,
 		type StoragePersistenceReport,
-	} from '$lib/client/capabilities';
+	} from '$lib/shell/capabilities';
 	import aptosaurusAnimated from '$lib/assets/apatosaurus_animated.gif';
-	import OnboardingGuidance from '$lib/components/OnboardingGuidance.svelte';
+	import OnboardingGuidance from '$lib/shell/components/OnboardingGuidance.svelte';
 	import { onMount } from 'svelte';
 
 	let persistenceReport = $state<StoragePersistenceReport | null>(null);

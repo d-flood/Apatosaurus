@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({
 	warmListeners: [] as Array<(progress: unknown) => void>,
 }));
 
-vi.mock('$lib/client/capabilities', () => ({
+vi.mock('$lib/shell/capabilities', () => ({
 	checkStoragePersistence: vi.fn(async () => ({
 		status: 'granted',
 		persisted: true,
@@ -24,7 +24,7 @@ vi.mock('$lib/client/capabilities', () => ({
 	shouldShowDurabilityWarning: vi.fn(() => false),
 }));
 
-vi.mock('$lib/client/db/client', () => ({
+vi.mock('$lib/db/client', () => ({
 	deriveProjectBackupSummary: vi.fn(),
 	getCollationVersionStatus: vi.fn(),
 	getProjectTranscriptionStatusForOwnedTranscription: vi.fn(),
@@ -34,15 +34,15 @@ vi.mock('$lib/client/db/client', () => ({
 	subscribeLocalDbInvalidations: vi.fn(() => vi.fn()),
 }));
 
-vi.mock('$lib/client/db/runtime', () => ({
+vi.mock('$lib/db/runtime', () => ({
 	ensureLocalDbRuntime: vi.fn(),
 }));
 
-vi.mock('$lib/client/store', () => ({
+vi.mock('$lib/storage/sync-targets', () => ({
 	listSyncTargets: vi.fn(async () => []),
 }));
 
-vi.mock('$lib/client/sw-registration', () => ({
+vi.mock('$lib/shell/sw-registration', () => ({
 	onCacheWarmProgress: vi.fn((listener: (progress: unknown) => void) => {
 		mocks.warmListeners.push(listener);
 		return vi.fn();

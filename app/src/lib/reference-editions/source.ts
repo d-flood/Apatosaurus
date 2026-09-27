@@ -5,7 +5,7 @@ import type {
 	TeiElementNode,
 	TeiNode,
 	TranscriptionDocument,
-} from '$lib/tei/tei-transcription';
+} from '@apatosaurus/tei-transcription';
 
 export interface ReferenceEditionUnitLabel {
 	book?: string;
@@ -24,8 +24,6 @@ export interface ReferenceEditionUnit {
 export interface ParsedReferenceEdition {
 	units: ReferenceEditionUnit[];
 }
-
-export type ReferenceEditionSource = ParsedReferenceEdition;
 
 type AddressableMilestoneKind = 'book' | 'chapter' | 'verse';
 
@@ -297,8 +295,7 @@ function cloneValue<T>(value: T): T {
 	if (typeof globalThis.structuredClone === 'function') {
 		try {
 			return globalThis.structuredClone(value);
-		} catch {
-		}
+		} catch {}
 	}
 	return JSON.parse(JSON.stringify(value)) as T;
 }

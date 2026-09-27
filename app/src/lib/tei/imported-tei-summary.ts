@@ -3,7 +3,7 @@ import type {
 	TeiHandInfo,
 	TranscriptionDocument,
 	TranscriptionLine,
-} from './tei-transcription';
+} from '@apatosaurus/tei-transcription';
 
 export interface ImportedTeiSummary {
 	title?: string;

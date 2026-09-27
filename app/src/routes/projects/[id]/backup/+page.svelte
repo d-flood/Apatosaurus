@@ -1,8 +1,9 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import type { ProjectRecord } from '$lib/client/collation/project-collation';
-	import ProjectBackupPanel from '$lib/components/projects/ProjectBackupPanel.svelte';
+
+	import ProjectBackupPanel from '$lib/project/components/ProjectBackupPanel.svelte';
+	import type { ProjectRecord } from '$lib/db/repositories/projects';
 
 	let { data } = $props<{ data: { project: ProjectRecord } }>();
 

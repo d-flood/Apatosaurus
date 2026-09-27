@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { parseReferenceEditionInWorker } from '$lib/client/reference-editions/reference-edition-worker';
+import { parseReferenceEditionInWorker } from '$lib/reference-editions/reference-edition-worker';
 import { listReferenceEditions } from './catalog';
 import { listUnits } from './source';
 

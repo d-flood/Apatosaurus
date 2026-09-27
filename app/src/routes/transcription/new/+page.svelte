@@ -1,5 +1,5 @@
 <script lang="ts">
-	import TranscriptionForm from '$lib/components/TranscriptionForm.svelte';
+	import TranscriptionForm from '$lib/transcription/components/TranscriptionForm.svelte';
 
 	let { data } = $props();
 </script>

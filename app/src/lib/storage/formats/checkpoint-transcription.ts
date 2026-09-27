@@ -1,0 +1,108 @@
+import type { DocumentUpgrader, FormatRegistration } from '../migrate-on-read';
+import type { JsonObject } from '../envelope';
+import { invalidShape } from '../quarantine';
+import { assertContentHashMatches, readString } from './validation';
+import {
+	readCheckpointBasePayload,
+	readHistoryEntityType,
+	type CheckpointBasePayload,
+	TRANSCRIPTION_HISTORY_ENTITY_TYPE,
+} from './checkpoint-utils';
+import { readProjectTranscriptionPayload } from './project-transcription';
+
+export const TRANSCRIPTION_CHECKPOINT_FORMAT = 'apatosaurus.checkpoint.transcription';
+export const TRANSCRIPTION_CHECKPOINT_CURRENT_VERSION = 1;
+const transcriptionCheckpointUpgraders: DocumentUpgrader[] = [];
+
+export type TranscriptionCheckpointPayload = CheckpointBasePayload & {
+	entity_type: 'project-transcription';
+	payload_transcription_id: string;
+	content_format: string;
+	payload: JsonObject;
+};
+
+function validateTranscriptionCheckpointPayload(
+	payload: JsonObject
+): TranscriptionCheckpointPayload {
+	const record = payload as Record<string, unknown>;
+	const base = readCheckpointBasePayload(record, TRANSCRIPTION_HISTORY_ENTITY_TYPE);
+	const payloadTranscriptionId = readString(record, 'payload_transcription_id');
+	const contentFormat = readString(record, 'content_format');
+	const nested = base.payload as Record<string, unknown>;
+	readProjectTranscriptionPayload(
+		{
+			...nested,
+			canonical_transcription_id: null,
+			origin: {
+				source_type: 'original',
+				source_project_id: null,
+				source_transcription_id: null,
+				source_revision_id: null,
+				source_content_hash: null,
+			},
+			content_format: readString(nested, 'format'),
+			created_at: base.created_at,
+			updated_at: base.created_at,
+		},
+		false
+	);
+	if (nested.project_transcription_id !== base.entity_id) {
+		throw invalidShape(
+			'Transcription checkpoint payload project_transcription_id does not match entity_id.'
+		);
+	}
+	if (nested.id !== payloadTranscriptionId) {
+		throw invalidShape(
+			'Transcription checkpoint payload id does not match payload_transcription_id.'
+		);
+	}
+	if (nested.format !== contentFormat) {
+		throw invalidShape(
+			'Transcription checkpoint payload format does not match content_format.'
+		);
+	}
+	return {
+		...base,
+		entity_type: readHistoryEntityType(
+			record,
+			'entity_type',
+			TRANSCRIPTION_HISTORY_ENTITY_TYPE
+		),
+		payload_transcription_id: payloadTranscriptionId,
+		content_format: contentFormat,
+	};
+}
+
+async function assertTranscriptionCheckpointPayloadIntegrity(
+	payload: TranscriptionCheckpointPayload
+): Promise<void> {
+	await assertContentHashMatches(
+		payload.payload,
+		payload.payload_content_hash,
+		`Checkpoint ${payload.checkpoint_id}`
+	);
+	const nestedPayload = payload.payload;
+	if (!nestedPayload || typeof nestedPayload !== 'object' || Array.isArray(nestedPayload)) {
+		throw invalidShape('Transcription checkpoint payload must be an object.');
+	}
+	const record = nestedPayload as Record<string, unknown>;
+	if (record.project_transcription_id !== payload.entity_id) {
+		throw invalidShape(
+			'Transcription checkpoint payload project_transcription_id does not match entity_id.'
+		);
+	}
+	if (record.id !== payload.payload_transcription_id) {
+		throw invalidShape(
+			'Transcription checkpoint payload id does not match payload_transcription_id.'
+		);
+	}
+}
+
+export const transcriptionCheckpointFormatRegistration: FormatRegistration<TranscriptionCheckpointPayload> =
+	{
+		format: TRANSCRIPTION_CHECKPOINT_FORMAT,
+		currentVersion: TRANSCRIPTION_CHECKPOINT_CURRENT_VERSION,
+		upgraders: transcriptionCheckpointUpgraders,
+		validate: validateTranscriptionCheckpointPayload,
+		validateIntegrity: assertTranscriptionCheckpointPayloadIntegrity,
+	};

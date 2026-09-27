@@ -2,7 +2,7 @@ import { importTEIDocument } from '$lib/tei/tei-importer';
 import { DOMParser } from '@xmldom/xmldom';
 
 import { createReferenceEditionSource } from './source';
-import type { ParsedReferenceEditionResult } from '$lib/client/reference-editions/reference-edition-worker-types';
+import type { ParsedReferenceEditionResult } from '$lib/reference-editions/reference-edition-worker-types';
 
 export function parseReferenceEditionXml(xml: string): ParsedReferenceEditionResult {
 	const previousDOMParser = globalThis.DOMParser;

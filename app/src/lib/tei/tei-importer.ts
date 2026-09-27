@@ -4,8 +4,8 @@ import {
 	type ProseMirrorJSON,
 	type TeiParseOptions,
 	type TranscriptionDocument,
-} from './tei-transcription';
-import { prepareManuscriptDocumentEntry } from '$lib/client/transcriptionEditorStructure';
+} from '@apatosaurus/tei-transcription';
+import { prepareManuscriptDocumentEntry } from '$lib/editor/structure';
 
 export function importTEI(xmlString: string): ProseMirrorJSON {
 	return prepareManuscriptDocumentEntry(toProseMirror(parseTei(xmlString)))

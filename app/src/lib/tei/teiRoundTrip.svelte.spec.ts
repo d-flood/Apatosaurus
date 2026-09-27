@@ -1,8 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { createTestEditor } from '$lib/client/testing/editorHarnesses.svelte';
+import { createTestEditor } from '$lib/testing/editorHarnesses.svelte';
 
-import { fromProseMirror, parseTei, serializeTei, toProseMirror } from './tei-transcription';
+import {
+	fromProseMirror,
+	parseTei,
+	serializeTei,
+	toProseMirror,
+} from '@apatosaurus/tei-transcription';
 
 const SAMPLE_TEI = `<?xml version="1.0" encoding="UTF-8"?>
 <TEI xmlns="http://www.tei-c.org/ns/1.0">

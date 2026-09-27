@@ -186,6 +186,10 @@ export default defineConfig({
 				find: 'collatex-tsport',
 				replacement: workspacePath('collatex', 'collatex-tsport', 'src', 'index.ts'),
 			},
+			{
+				find: '@apatosaurus/tei-transcription',
+				replacement: workspacePath('packages', 'tei-transcription', 'src', 'index.ts'),
+			},
 		],
 	},
 	test: {

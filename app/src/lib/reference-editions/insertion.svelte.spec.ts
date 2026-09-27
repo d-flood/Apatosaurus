@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { createTestEditor } from '$lib/client/testing/editorHarnesses.svelte';
+import { createTestEditor } from '$lib/testing/editorHarnesses.svelte';
 import type { ParsedReferenceEdition } from './source';
 import { insertReferenceEditionRange } from './insertion';
 

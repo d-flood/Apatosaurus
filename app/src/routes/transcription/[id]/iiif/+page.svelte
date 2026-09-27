@@ -1,14 +1,14 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import { getTranscription, subscribeLocalDbInvalidations } from '$lib/client/db/client';
-	import { ensureLocalDbRuntime } from '$lib/client/db/runtime';
-	import type { TranscriptionSelectionQuote } from '$lib/client/iiif/types';
-	import type { PageEditorMetadata } from '$lib/components/transcriptionEditor/pageFormwork';
+	import { getTranscription, subscribeLocalDbInvalidations } from '$lib/db/client';
+	import { ensureLocalDbRuntime } from '$lib/db/runtime';
+	import type { TranscriptionSelectionQuote } from '$lib/iiif/types';
+	import type { PageEditorMetadata } from '$lib/editor/pageFormwork';
 	import {
 		mapLocalTranscriptionRecord,
 		type TranscriptionRecord,
-	} from '$lib/client/transcription/model';
-	import IiifWorkspace from '$lib/components/transcriptionEditor/IiifWorkspace.svelte';
+	} from '$lib/transcription/model';
+	import IiifWorkspace from '$lib/editor/components/IiifWorkspace.svelte';
 	import { onMount } from 'svelte';
 
 	const transcriptionIdValue = page.params.id;
@@ -123,14 +123,15 @@
 		async function loadTranscription() {
 			await ensureLocalDbRuntime();
 			const nextTranscription = await getTranscription(transcriptionId);
-			transcription = nextTranscription ? mapLocalTranscriptionRecord(nextTranscription) : null;
+			transcription = nextTranscription
+				? mapLocalTranscriptionRecord(nextTranscription)
+				: null;
 			loadError = nextTranscription ? null : 'Failed to load transcription';
 		}
 
-		void loadTranscription()
-			.catch(err => {
-				loadError = err instanceof Error ? err.message : 'Failed to load transcription';
-			});
+		void loadTranscription().catch(err => {
+			loadError = err instanceof Error ? err.message : 'Failed to load transcription';
+		});
 
 		unsubscribeInvalidations = subscribeLocalDbInvalidations(event => {
 			if (event.domain === 'transcriptions') void loadTranscription();
@@ -164,11 +165,11 @@
 		<IiifWorkspace
 			transcriptionId={transcription.id}
 			{transcriptionTitle}
-			initialManifestSourceId={initialManifestSourceId}
+			{initialManifestSourceId}
 			{pages}
 			{activePageId}
 			{selectionQuote}
-			restoreState={restoreState}
+			{restoreState}
 			onRequestPageJump={pageId => postToOpener({ type: 'popup-page-jump', pageId })}
 			onViewerStateChange={viewerState =>
 				postToOpener({

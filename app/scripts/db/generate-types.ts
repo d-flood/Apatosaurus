@@ -30,7 +30,7 @@ for (const table of tables) {
 	lines.push('}', '');
 }
 
-writeFileSync(join(process.cwd(), 'src/lib/client/db/types.generated.ts'), `${lines.join('\n')}\n`);
+writeFileSync(join(process.cwd(), 'src/lib/db/types.generated.ts'), `${lines.join('\n')}\n`);
 db.close();
 
 function sqliteTypeToTs(type: string): string {

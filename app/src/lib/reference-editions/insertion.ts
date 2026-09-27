@@ -1,6 +1,10 @@
 import type { Editor } from '@tiptap/core';
 import { TextSelection, type Transaction } from '@tiptap/pm/state';
-import { lineItemsToProseMirror, type LineItem, type TextMark } from '$lib/tei/tei-transcription';
+import {
+	lineItemsToProseMirror,
+	type LineItem,
+	type TextMark,
+} from '@apatosaurus/tei-transcription';
 
 import { extractRange, type ParsedReferenceEdition } from './source';
 

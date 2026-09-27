@@ -1,6 +1,6 @@
 import catalogJson from './catalog.generated.json';
 
-export type ReferenceEditionSource = 'bundled' | 'user';
+type ReferenceEditionSource = 'bundled' | 'user';
 
 export interface ReferenceEditionCatalogEntry {
 	id: string;
@@ -18,7 +18,7 @@ interface ReferenceEditionCatalogManifest {
 
 const bundledReferenceEditionManifest = catalogJson as ReferenceEditionCatalogManifest;
 
-export function listBundledReferenceEditions(): ReferenceEditionCatalogEntry[] {
+function listBundledReferenceEditions(): ReferenceEditionCatalogEntry[] {
 	return bundledReferenceEditionManifest.entries.map(entry => ({ ...entry }));
 }
 
@@ -33,5 +33,3 @@ export function listReferenceEditions(
 ): ReferenceEditionCatalogEntry[] {
 	return [...listBundledReferenceEditions(), ...listUserReferenceEditions(userEntries)];
 }
-
-export const referenceEditionCatalog = listReferenceEditions();

@@ -51,7 +51,7 @@ The retained originals are local recovery data outside the synced project tree.
 From `app/`:
 
 ```sh
-pnpm exec vitest run --project server src/lib/client/store/alpha-project-upgrade.spec.ts
+pnpm exec vitest run --project server src/lib/storage/alpha-project-upgrade.spec.ts
 pnpm exec playwright test -g 'alpha upgrade opens existing OPFS collation edits and preserves them after reload'
 ```
 

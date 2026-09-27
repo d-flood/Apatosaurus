@@ -2,12 +2,12 @@ import {
 	TRANSCRIPTION_FORMAT,
 	serializeTranscriptionDocument,
 	type StoredTranscriptionDocument,
-} from '$lib/client/transcription/content';
+} from '$lib/transcription/content';
 
 export const HARNESS_TRANSCRIPTION_ID = '11111111-1111-4111-8111-111111111111';
 export const HARNESS_TRANSCRIPTION_TITLE = 'Transcription Editor Harness';
 
-export const HARNESS_TRANSCRIPTION_DOCUMENT: StoredTranscriptionDocument = {
+const HARNESS_TRANSCRIPTION_DOCUMENT: StoredTranscriptionDocument = {
 	type: 'transcriptionDocument',
 	pages: [
 		{
@@ -155,25 +155,6 @@ export function buildHarnessTranscriptionCreatePayload(now: string) {
 		content_json: serializeTranscriptionDocument(HARNESS_TRANSCRIPTION_DOCUMENT),
 		format: TRANSCRIPTION_FORMAT,
 		created_at: now,
-		updated_at: now,
-		owner: null,
-		is_public: false,
-		tags: '[]',
-		transcriber: 'OpenCode',
-		repository: 'Harness Repository',
-		settlement: 'Harness Settlement',
-		language: 'Greek',
-	};
-}
-
-export function buildHarnessTranscriptionUpdatePayload(now: string, createdAt: string) {
-	return {
-		title: HARNESS_TRANSCRIPTION_TITLE,
-		siglum: 'HARNESS',
-		description: 'Deterministic browser harness for transcription editor focus regressions.',
-		content_json: serializeTranscriptionDocument(HARNESS_TRANSCRIPTION_DOCUMENT),
-		format: TRANSCRIPTION_FORMAT,
-		created_at: createdAt,
 		updated_at: now,
 		owner: null,
 		is_public: false,

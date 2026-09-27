@@ -6,7 +6,7 @@
 		shouldShowDurabilityWarning,
 		type StorageEstimateReport,
 		type StoragePersistenceReport,
-	} from '$lib/client/capabilities';
+	} from '$lib/shell/capabilities';
 	import {
 		getCollationVersionStatus,
 		getProjectTranscriptionStatusForOwnedTranscription,
@@ -14,25 +14,25 @@
 		listProjects,
 		listTranscriptionSummaries,
 		subscribeLocalDbInvalidations,
-	} from '$lib/client/db/client';
-	import type { CollationListItem } from '$lib/client/db/repositories/collations';
-	import type { ProjectOption } from '$lib/client/db/repositories/projects';
-	import type { TranscriptionSummary } from '$lib/client/db/repositories/transcriptions';
-	import { ensureLocalDbRuntime } from '$lib/client/db/runtime';
+	} from '$lib/db/client';
+	import type { CollationListItem } from '$lib/db/repositories/collations';
+	import type { ProjectOption } from '$lib/db/repositories/projects';
+	import type { TranscriptionSummary } from '$lib/db/repositories/transcriptions';
+	import { ensureLocalDbRuntime } from '$lib/db/runtime';
 	import {
 		readLastOpenedProjectId,
 		resolveLastOpenedProjectId,
-	} from '$lib/client/navigation/last-opened-project';
+	} from '$lib/shell/last-opened-project';
 	import {
 		loadProjectBackupOverviews,
 		type ProjectBackupOverview,
-	} from '$lib/client/sync/project-backup-overview';
-	import type { WarmProgress } from '$lib/client/offline-cache-policy';
-	import { onCacheWarmProgress } from '$lib/client/sw-registration';
+	} from '$lib/backup/project-backup-overview';
+	import type { WarmProgress } from '$lib/shell/offline-cache-policy';
+	import { onCacheWarmProgress } from '$lib/shell/sw-registration';
 	import Dashboard, {
 		type DashboardAttentionItem,
 		type DashboardDocument,
-	} from '$lib/components/Dashboard.svelte';
+	} from '$lib/shell/components/Dashboard.svelte';
 	import { onMount } from 'svelte';
 
 	type RecentSummary =
@@ -157,7 +157,9 @@
 				console.warn('[dashboard-route] project backup summary load failed', {
 					projectId: project.id,
 					error:
-						overview.error instanceof Error ? overview.error.message : String(overview.error),
+						overview.error instanceof Error
+							? overview.error.message
+							: String(overview.error),
 				});
 			}
 			const problem = summarizeBackupProblem(project, overview);

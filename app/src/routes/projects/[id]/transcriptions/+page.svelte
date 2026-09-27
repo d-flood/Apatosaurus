@@ -1,12 +1,13 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
+
 	import {
+		deleteTranscription,
+		subscribeLocalDbInvalidations,
 		listProjectTranscriptionStatuses,
-		type ProjectRecord,
-		type ProjectTranscriptionStatus,
-	} from '$lib/client/collation/project-collation';
-	import { deleteTranscription, subscribeLocalDbInvalidations } from '$lib/client/db/client';
+	} from '$lib/db/client';
 	import { onMount } from 'svelte';
+	import type { ProjectRecord, ProjectTranscriptionStatus } from '$lib/db/repositories/projects';
 
 	let { data } = $props<{ data: { project: ProjectRecord } }>();
 

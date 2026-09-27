@@ -34,9 +34,9 @@ pnpm run test:e2e
 
 ## Adding a Document Format Version
 
-Canonical formats live in `src/lib/client/store/formats/` and are registered by
-`src/lib/client/store/formats/index.ts`. Reads use the registry in
-`src/lib/client/store/migrate-on-read.ts`: it verifies the old envelope hash, applies one pure upgrader per
+Canonical formats live in `src/lib/storage/formats/` and are registered by
+`src/lib/storage/formats/index.ts`. Reads use the registry in
+`src/lib/storage/migrate-on-read.ts`: it verifies the old envelope hash, applies one pure upgrader per
 version, validates the current payload and semantic integrity, then reseals the in-memory document at the
 current version. Reading does not rewrite the file; a later save does.
 
@@ -62,10 +62,10 @@ To add a normally migrated version `N + 1` to an existing format:
 2. Update the current payload type, validator, and integrity validator in the same module. The upgrader must
    return a JSON object accepted by those current validators; it must not read or write storage.
 3. Add checked-in old-input and expected-current-payload fixtures under
-   `src/lib/client/store/formats/fixtures/`. Either check in a valid old sealed document or seal the old
+   `src/lib/storage/formats/fixtures/`. Either check in a valid old sealed document or seal the old
    payload in the test before passing it to the registry. Its envelope `content_hash` must match the old
    payload.
-4. Extend `src/lib/client/store/formats/formats.spec.ts` to read the old fixture through
+4. Extend `src/lib/storage/formats/formats.spec.ts` to read the old fixture through
    `readCanonicalDocument()`, assert `upgraded: true` and the original version, and compare its payload with
    the expected fixture. Keep current-version round-trip coverage in `FORMAT_FIXTURES` accurate.
 5. Exercise the persisted upgrade path. Ticket 22's project-manifest example is
@@ -77,7 +77,7 @@ To add a normally migrated version `N + 1` to an existing format:
 Run the focused checks before the full quality gates:
 
 ```sh
-pnpm run test:unit -- --run src/lib/client/store/formats/formats.spec.ts
+pnpm run test:unit -- --run src/lib/storage/formats/formats.spec.ts
 pnpm run test:e2e -- -g "upgrade fixture"
 ```
 
@@ -87,10 +87,10 @@ Do not change `INDEX_SCHEMA_VERSION` for a document-format-only change. Document
 ## Adding a Storage Provider
 
 Sync semantics are provider-independent and operate through `CloudStorageProvider` in
-`src/lib/client/sync/providers/provider.ts`. To add a provider:
+`src/lib/backup/providers/provider.ts`. To add a provider:
 
 1. Implement every `CloudStorageProvider` operation in a new module under
-   `src/lib/client/sync/providers/`, declare an ID and truthful `CloudProviderCapabilities`, and return
+   `src/lib/backup/providers/`, declare an ID and truthful `CloudProviderCapabilities`, and return
    stable metadata/revisions in the shapes defined by the interface.
 2. Translate provider failures to `CloudProviderError` codes. In particular, preserve `conflict`,
    `not-found`, `permission-denied`, and `reauthorization-required` so sync can protect both copies and show
@@ -98,13 +98,13 @@ Sync semantics are provider-independent and operate through `CloudStorageProvide
 3. Add contract tests beside the provider covering recursive listing, create/download/update/delete,
    expected-revision conflicts, pagination if applicable, and authorization or permission loss. Use
    `mock-provider.ts` and `local-folder-provider.spec.ts` as examples.
-4. Register construction in `src/lib/client/sync/provider-factory.ts`, including credential or handle
+4. Register construction in `src/lib/backup/provider-factory.ts`, including credential or handle
    loading. Do not add provider-specific branches to `sync-manager.ts`.
 5. Extend the target connection and persistence UI for the provider. `SyncTargetRecord` and
    `createProviderForSyncTarget()` are currently local-folder-specific, so a non-folder production provider
    also needs an explicit provider ID plus provider-specific authorization references in the target model.
    Keep secrets out of canonical project files and the disposable SQLite index.
-6. Run the provider tests, `src/lib/client/sync/sync-manager.spec.ts`, and the full quality gates.
+6. Run the provider tests, `src/lib/backup/sync-manager.spec.ts`, and the full quality gates.
 
 Adding a provider must not change the file set, commit boundary, tombstone behavior, fingerprint comparison,
 or conflict-copy semantics described in the architecture.

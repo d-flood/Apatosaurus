@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { collationState } from '$lib/client/collation/collation-state.svelte';
+	import { collationState } from '$lib/collation/collation-state.svelte';
 	import { onMount } from 'svelte';
 
 	let { params } = $props();

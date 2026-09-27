@@ -13,7 +13,7 @@ import {
 	type PrecacheManifest,
 	type WarmConditions,
 	type WarmProgress,
-} from '$lib/client/offline-cache-policy';
+} from '$lib/shell/offline-cache-policy';
 
 const manifest: PrecacheManifest = { base, build, files, prerendered, version };
 const tiers = partitionPrecache(manifest);

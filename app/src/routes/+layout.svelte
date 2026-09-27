@@ -1,10 +1,10 @@
 <script lang="ts">
 	import favicon from '$lib/assets/favicon.ico';
-	import { checkStoragePersistence } from '$lib/client/capabilities';
-	import { ensureLocalDbRuntime } from '$lib/client/db/runtime';
-	import { syncService } from '$lib/client/sync/sync-service.svelte';
-	import { registerServiceWorker, scheduleCacheWarm } from '$lib/client/sw-registration';
-	import Navbar from '$lib/components/Navbar.svelte';
+	import { checkStoragePersistence } from '$lib/shell/capabilities';
+	import { ensureLocalDbRuntime } from '$lib/db/runtime';
+	import { syncService } from '$lib/backup/sync-service.svelte';
+	import { registerServiceWorker, scheduleCacheWarm } from '$lib/shell/sw-registration';
+	import Navbar from '$lib/shell/components/Navbar.svelte';
 	import { onMount } from 'svelte';
 	import 'triiiceratops/style.css';
 	import '../app.css';

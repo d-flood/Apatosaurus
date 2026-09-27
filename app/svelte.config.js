@@ -16,6 +16,12 @@ const config = {
 		adapter: staticAdapter({ fallback: '404.html' }),
 		alias: {
 			'collatex-tsport': workspacePath('collatex', 'collatex-tsport', 'src', 'index.ts'),
+			'@apatosaurus/tei-transcription': workspacePath(
+				'packages',
+				'tei-transcription',
+				'src',
+				'index.ts'
+			),
 		},
 		prerender: {
 			entries: ['*'],

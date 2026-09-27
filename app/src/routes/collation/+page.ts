@@ -1,10 +1,10 @@
 import { redirect } from '@sveltejs/kit';
 
-import { listProjects } from '$lib/client/collation/project-collation';
 import {
 	buildLegacyCollationRedirectTarget,
 	readLastOpenedProjectId,
-} from '$lib/client/navigation/last-opened-project';
+} from '$lib/shell/last-opened-project';
+import { listProjects } from '$lib/db/client';
 
 export const ssr = false;
 

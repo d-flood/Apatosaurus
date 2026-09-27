@@ -10,6 +10,9 @@ importers:
 
   app:
     dependencies:
+      '@apatosaurus/tei-transcription':
+        specifier: workspace:*
+        version: link:../packages/tei-transcription
       '@floating-ui/dom':
         specifier: ^1.7.6
         version: 1.8.0

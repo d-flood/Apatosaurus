@@ -5,19 +5,19 @@
 		formatTranscriptionFieldList,
 		listMissingRequiredTranscriptionFields,
 		type CreateTranscriptionInput,
-	} from '$lib/client/transcription/create-transcription';
-	import { checkpointLocalDb, ensureLocalDbRuntime } from '$lib/client/db/runtime';
+	} from '$lib/transcription/create-transcription';
+	import { checkpointLocalDb, ensureLocalDbRuntime } from '$lib/db/runtime';
 	import {
 		ensureDefaultProject,
 		listProjects,
 		listTranscriptionSummaries,
 		subscribeLocalDbInvalidations,
-	} from '$lib/client/db/client';
-	import type { TranscriptionSummary } from '$lib/client/db/repositories/transcriptions';
-	import type { ProjectOption } from '$lib/client/db/repositories/projects';
-	import { fetchAndPrepareIgntpImport } from '$lib/client/transcription/igntp-import';
-	import { resolveCreationTargetProjectId } from '$lib/client/navigation/last-opened-project';
-	import IgntpImportPanel from '$lib/components/IgntpImportPanel.svelte';
+	} from '$lib/db/client';
+	import type { TranscriptionSummary } from '$lib/db/repositories/transcriptions';
+	import type { ProjectOption } from '$lib/db/repositories/projects';
+	import { fetchAndPrepareIgntpImport } from '$lib/igntp/igntp-import';
+	import { resolveCreationTargetProjectId } from '$lib/shell/last-opened-project';
+	import IgntpImportPanel from '$lib/igntp/IgntpImportPanel.svelte';
 	import { buildTranscriptionDuplicateKey } from '$lib/igntp/duplicate-key';
 	import { flattenIgntpCatalogEntries, igntpCatalog } from '$lib/igntp/catalog';
 
@@ -67,7 +67,9 @@
 	const igntpImportSummary = $derived.by(() => {
 		if (igntpImportResults.length === 0) return null;
 		const created = igntpImportResults.filter(result => result.status === 'created').length;
-		const duplicates = igntpImportResults.filter(result => result.status === 'duplicate').length;
+		const duplicates = igntpImportResults.filter(
+			result => result.status === 'duplicate'
+		).length;
 		const failed = igntpImportResults.filter(result => result.status === 'failed').length;
 		return { created, duplicates, failed };
 	});
@@ -95,7 +97,10 @@
 		unsubscribe = subscribeLocalDbInvalidations(event => {
 			if (event.domain !== 'transcriptions' && event.domain !== 'all') return;
 			void loadTranscriptionSummaries().catch(err => {
-				console.error('Failed to reload transcriptions for IGNTP duplicate detection:', err);
+				console.error(
+					'Failed to reload transcriptions for IGNTP duplicate detection:',
+					err
+				);
 			});
 		});
 
@@ -156,7 +161,10 @@
 					continue;
 				}
 
-				if (knownDuplicateKeys.has(entry.duplicateKey) || createdThisRun.includes(entry.duplicateKey)) {
+				if (
+					knownDuplicateKeys.has(entry.duplicateKey) ||
+					createdThisRun.includes(entry.duplicateKey)
+				) {
 					results.push({
 						fileName: entry.fileName,
 						status: 'duplicate',
@@ -348,7 +356,9 @@
 
 		{#if igntpImportSummary}
 			<div
-				class="rounded-3xl border p-4 {igntpImportSummary.failed > 0 ? 'border-warning/50 bg-warning/10' : 'border-success/40 bg-success/10'}"
+				class="rounded-3xl border p-4 {igntpImportSummary.failed > 0
+					? 'border-warning/50 bg-warning/10'
+					: 'border-success/40 bg-success/10'}"
 			>
 				{#if igntpImportBusy && igntpImportProgress.total > 0}
 					<p class="mb-2 text-sm text-base-content/75">
@@ -359,14 +369,19 @@
 					</p>
 				{/if}
 				<p class="font-semibold">
-					Imported {igntpImportSummary.created}, skipped {igntpImportSummary.duplicates}, failed {igntpImportSummary.failed}.
+					Imported {igntpImportSummary.created}, skipped {igntpImportSummary.duplicates},
+					failed {igntpImportSummary.failed}.
 				</p>
 				{#if igntpImportResults.length > 0}
 					<ul class="mt-3 space-y-2 text-sm">
 						{#each igntpImportResults as result (result.fileName)}
 							<li class="flex flex-wrap items-center gap-2">
 								<span
-									class="badge badge-sm {result.status === 'created' ? 'badge-success' : result.status === 'duplicate' ? 'badge-neutral' : 'badge-warning'}"
+									class="badge badge-sm {result.status === 'created'
+										? 'badge-success'
+										: result.status === 'duplicate'
+											? 'badge-neutral'
+											: 'badge-warning'}"
 								>
 									{result.status}
 								</span>
@@ -382,7 +397,9 @@
 {/snippet}
 
 <div
-	class="mb-6 flex min-h-0 flex-1 flex-col gap-4 overflow-hidden lg:grid {hasIgntpImportStatus ? 'lg:grid-cols-[minmax(0,1fr)_22rem]' : 'lg:grid-cols-1'}"
+	class="mb-6 flex min-h-0 flex-1 flex-col gap-4 overflow-hidden lg:grid {hasIgntpImportStatus
+		? 'lg:grid-cols-[minmax(0,1fr)_22rem]'
+		: 'lg:grid-cols-1'}"
 >
 	<div class="rounded-box border border-base-300 bg-base-100 p-4 lg:col-span-full">
 		<label class="select w-full md:max-w-md">

@@ -5,9 +5,9 @@ import { load as loadProjectWorkspace } from './projects/[id]/+layout';
 import { load as loadProjectRoot } from './projects/[id]/+page';
 import { load as loadTranscriptionIgntp } from './transcription/(library)/igntp/+page';
 import { load as loadTranscriptionList } from './transcription/(library)/+page';
-import { getProject, listProjects } from '$lib/client/collation/project-collation';
+import { getProject, listProjects } from '$lib/db/client';
 
-vi.mock('$lib/client/collation/project-collation', () => ({
+vi.mock('$lib/db/client', () => ({
 	getProject: vi.fn(),
 	listProjects: vi.fn(),
 }));

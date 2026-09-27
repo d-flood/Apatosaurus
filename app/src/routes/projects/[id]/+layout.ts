@@ -1,12 +1,12 @@
 import { redirect } from '@sveltejs/kit';
 
-import { getProject, listProjects } from '$lib/client/collation/project-collation';
 import {
 	buildLastOpenedProjectSectionTarget,
 	readLastOpenedProjectId,
 	recordLastOpenedProject,
 	type ProjectSection,
-} from '$lib/client/navigation/last-opened-project';
+} from '$lib/shell/last-opened-project';
+import { getProject, listProjects } from '$lib/db/client';
 
 export const ssr = false;
 

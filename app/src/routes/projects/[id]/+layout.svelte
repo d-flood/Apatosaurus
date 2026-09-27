@@ -1,8 +1,9 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
-	import type { ProjectRecord } from '$lib/client/collation/project-collation';
+
 	import type { Snippet } from 'svelte';
+	import type { ProjectRecord } from '$lib/db/repositories/projects';
 
 	let { data, children } = $props<{
 		data: { project: ProjectRecord };

@@ -1,12 +1,14 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
+
 	import {
+		deleteCollation,
+		subscribeLocalDbInvalidations,
 		listProjectCollationVersionStatuses,
-		type CollationVersionStatus,
-		type ProjectRecord,
-	} from '$lib/client/collation/project-collation';
-	import { deleteCollation, subscribeLocalDbInvalidations } from '$lib/client/db/client';
+	} from '$lib/db/client';
 	import { onMount } from 'svelte';
+	import type { ProjectRecord } from '$lib/db/repositories/projects';
+	import type { CollationVersionStatus } from '$lib/db/repositories/collations';
 
 	let { data } = $props<{ data: { project: ProjectRecord } }>();
 

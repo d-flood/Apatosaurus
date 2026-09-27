@@ -18,11 +18,11 @@ indexes, and projections; deleting it must not lose user data.
 
 For an index schema change:
 
-1. Edit `src/lib/client/db/migrations/0001_initial.sql`, which defines the current greenfield index schema.
-2. Increment `INDEX_SCHEMA_VERSION` in `src/lib/client/db/schema-version.generated.ts` so the app opens a new
+1. Edit `src/lib/db/migrations/0001_initial.sql`, which defines the current greenfield index schema.
+2. Increment `INDEX_SCHEMA_VERSION` in `src/lib/db/schema-version.generated.ts` so the app opens a new
    versioned index and rebuilds it from project files. Do not write a runtime SQL migration or delete the
    current database in application code.
-3. Run `pnpm run db:generate` and commit the updated `src/lib/client/db/types.generated.ts`.
+3. Run `pnpm run db:generate` and commit the updated `src/lib/db/types.generated.ts`.
 4. Run `pnpm run db:check`, `pnpm run check`, and the index-rebuild tests before the full test suite.
 
 ## Prerequisites

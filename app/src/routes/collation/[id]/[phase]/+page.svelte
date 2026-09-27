@@ -1,16 +1,16 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { collationState, type CollationPhase } from '$lib/client/collation/collation-state.svelte';
-	import CollationWorkspace from '$lib/components/collation/CollationWorkspace.svelte';
+	import { collationState, type CollationPhase } from '$lib/collation/collation-state.svelte';
+	import CollationWorkspace from '$lib/collation/components/CollationWorkspace.svelte';
 
-const phaseOrder: CollationPhase[] = ['setup', 'alignment', 'readings', 'stemma', 'review'];
+	const phaseOrder: CollationPhase[] = ['setup', 'alignment', 'readings', 'stemma', 'review'];
 
 	let { params } = $props();
 
-function parsePhase(value: string): CollationPhase | null {
-	if (value === 'regularization') return 'alignment';
-	return phaseOrder.includes(value as CollationPhase) ? (value as CollationPhase) : null;
-}
+	function parsePhase(value: string): CollationPhase | null {
+		if (value === 'regularization') return 'alignment';
+		return phaseOrder.includes(value as CollationPhase) ? (value as CollationPhase) : null;
+	}
 
 	$effect(() => {
 		if (collationState.isLoading || !collationState.collationId) return;
@@ -26,7 +26,9 @@ function parsePhase(value: string): CollationPhase | null {
 		}
 
 		if (requestedPhase !== 'setup' && !collationState.canNavigateTo(requestedPhase)) {
-			void goto(`/collation/${params.id}/${collationState.furthestPhase}`, { replaceState: true });
+			void goto(`/collation/${params.id}/${collationState.furthestPhase}`, {
+				replaceState: true,
+			});
 			return;
 		}
 

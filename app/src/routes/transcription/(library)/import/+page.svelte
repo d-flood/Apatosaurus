@@ -1,27 +1,23 @@
 <script lang="ts">
-	import FilePicker from '$lib/components/FilePicker.svelte';
+	import FilePicker from '$lib/shell/components/FilePicker.svelte';
 	import { onMount } from 'svelte';
 	import {
 		createTranscriptionRecords,
 		formatTranscriptionFieldList,
 		listMissingRequiredTranscriptionFields,
 		type CreateTranscriptionInput,
-	} from '$lib/client/transcription/create-transcription';
-	import { checkpointLocalDb, ensureLocalDbRuntime } from '$lib/client/db/runtime';
-	import {
-		ensureDefaultProject,
-		listProjects,
-		listTranscriptionSummaries,
-	} from '$lib/client/db/client';
-	import type { ProjectOption } from '$lib/client/db/repositories/projects';
-	import { resolveCreationTargetProjectId } from '$lib/client/navigation/last-opened-project';
+	} from '$lib/transcription/create-transcription';
+	import { checkpointLocalDb, ensureLocalDbRuntime } from '$lib/db/runtime';
+	import { ensureDefaultProject, listProjects, listTranscriptionSummaries } from '$lib/db/client';
+	import type { ProjectOption } from '$lib/db/repositories/projects';
+	import { resolveCreationTargetProjectId } from '$lib/shell/last-opened-project';
 	import { buildTranscriptionDuplicateKey } from '$lib/igntp/duplicate-key';
 	import {
 		filePath,
 		prepareLocalTeiImport,
 		selectTeiFiles,
 		type LocalTeiImportDefaults,
-	} from '$lib/client/transcription/local-tei-import';
+	} from '$lib/transcription/local-tei-import';
 
 	interface ImportResult {
 		fileName: string;
@@ -54,7 +50,11 @@
 		await ensureLocalDbRuntime();
 		const defaultProjectId = await ensureDefaultProject();
 		projects = await listProjects();
-		selectedProjectId = resolveCreationTargetProjectId(data.projectId, projects, defaultProjectId);
+		selectedProjectId = resolveCreationTargetProjectId(
+			data.projectId,
+			projects,
+			defaultProjectId
+		);
 	});
 
 	function handleFolderChange(event: Event) {
@@ -82,7 +82,11 @@
 				try {
 					const prepared = prepareLocalTeiImport(file.name, await file.text(), defaults);
 					if (prepared.duplicateKey && seenKeys.has(prepared.duplicateKey)) {
-						output.push({ fileName, status: 'duplicate', message: 'Already imported.' });
+						output.push({
+							fileName,
+							status: 'duplicate',
+							message: 'Already imported.',
+						});
 						continue;
 					}
 					const missing = listMissingRequiredTranscriptionFields(prepared.metadata);
@@ -169,7 +173,8 @@
 	<fieldset class="fieldset rounded-box border border-base-300 bg-base-200 p-4">
 		<legend class="fieldset-legend text-lg">Defaults for missing metadata</legend>
 		<p class="text-sm text-base-content/70">
-			Values from each file's TEI header take precedence. These fill only what a header lacks. Title and siglum fall back to the file name.
+			Values from each file's TEI header take precedence. These fill only what a header lacks.
+			Title and siglum fall back to the file name.
 		</p>
 		<div class="grid gap-2 sm:grid-cols-2">
 			<label class="input w-full">
@@ -210,7 +215,9 @@
 
 	{#if results.length > 0}
 		<div
-			class="rounded-box border p-4 {summary.failed > 0 ? 'border-warning/50 bg-warning/10' : 'border-success/40 bg-success/10'}"
+			class="rounded-box border p-4 {summary.failed > 0
+				? 'border-warning/50 bg-warning/10'
+				: 'border-success/40 bg-success/10'}"
 			data-testid="tei-folder-import-results"
 		>
 			<p class="font-semibold">
@@ -220,7 +227,11 @@
 				{#each results as result (result.fileName)}
 					<li class="flex flex-wrap items-center gap-2">
 						<span
-							class="badge badge-sm {result.status === 'created' ? 'badge-success' : result.status === 'duplicate' ? 'badge-neutral' : 'badge-warning'}"
+							class="badge badge-sm {result.status === 'created'
+								? 'badge-success'
+								: result.status === 'duplicate'
+									? 'badge-neutral'
+									: 'badge-warning'}"
 						>
 							{result.status}
 						</span>

@@ -2,17 +2,12 @@ import type {
 	TeiHeaderInfo,
 	TeiMetadata as TEIMetadata,
 	TranscriptionDocument,
-} from './tei-transcription';
+} from '@apatosaurus/tei-transcription';
 
-import type { TranscriptionRecord } from '$lib/client/transcription/model';
+import type { TranscriptionRecord } from '$lib/transcription/model';
 
 type MetadataPatchKeys =
-	| 'title'
-	| 'transcriber'
-	| 'repository'
-	| 'settlement'
-	| 'siglum'
-	| 'language';
+	'title' | 'transcriber' | 'repository' | 'settlement' | 'siglum' | 'language';
 
 export type TranscriptionRecordMetadataPatch = Partial<
 	Pick<TranscriptionRecord, MetadataPatchKeys>

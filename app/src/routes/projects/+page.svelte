@@ -1,23 +1,20 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import {
-		createProjectRecord,
-		listProjects,
-		type ProjectOption,
-	} from '$lib/client/collation/project-collation';
-	import { waitForBrowserIdle } from '$lib/client/defer';
-	import { subscribeLocalDbInvalidations } from '$lib/client/db/client';
-	import { ensureLocalDbRuntime } from '$lib/client/db/runtime';
+	import { createProjectRecord } from '$lib/project/projects';
+	import { waitForBrowserIdle } from '$lib/shell/defer';
+	import { subscribeLocalDbInvalidations, listProjects } from '$lib/db/client';
+	import { ensureLocalDbRuntime } from '$lib/db/runtime';
 	import {
 		loadProjectBackupOverviews,
 		type ProjectBackupOverview,
 		type ProjectBackupOverviewStatus,
-	} from '$lib/client/sync/project-backup-overview';
-	import ProjectZipImportPanel from '$lib/components/projects/ProjectZipImportPanel.svelte';
+	} from '$lib/backup/project-backup-overview';
+	import ProjectZipImportPanel from '$lib/project/components/ProjectZipImportPanel.svelte';
 	import FolderOpen from 'phosphor-svelte/lib/FolderOpen';
 	import Plus from 'phosphor-svelte/lib/Plus';
 	import { onMount } from 'svelte';
+	import type { ProjectOption } from '$lib/db/repositories/projects';
 
 	const PROJECTS_LOG_PREFIX = '[projects-route]';
 
@@ -85,7 +82,9 @@
 			return;
 		}
 		try {
-			const overviews = await loadProjectBackupOverviews(projectRows.map(project => project.id));
+			const overviews = await loadProjectBackupOverviews(
+				projectRows.map(project => project.id)
+			);
 			if (runId === backupSummaryRunId) projectBackupOverviews = overviews;
 		} catch (cause) {
 			if (runId !== backupSummaryRunId) return;
@@ -206,7 +205,9 @@
 									? backupBadgeClass(backupOverview.status)
 									: 'badge-ghost'}"
 							>
-								{backupOverview ? backupStatusLabel(backupOverview.status) : 'Checking sync'}
+								{backupOverview
+									? backupStatusLabel(backupOverview.status)
+									: 'Checking sync'}
 							</span>
 							<a
 								href={resolve('/projects/[id]/transcriptions', { id: project.id })}

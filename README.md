@@ -52,7 +52,7 @@ pnpm run dev
 See `app/README.md` for app-specific setup and quality gates.
 
 When the derived SQLite schema changes, edit the current schema, regenerate its types, and increment
-`INDEX_SCHEMA_VERSION` in `app/src/lib/client/db/schema-version.generated.ts`. Do not add a migration that
+`INDEX_SCHEMA_VERSION` in `app/src/lib/db/schema-version.generated.ts`. Do not add a migration that
 deletes the user's current database: the new versioned index is rebuilt from canonical project files, and
 the old index is removed only after rebuild.
 
