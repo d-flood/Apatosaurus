@@ -1,12 +1,3 @@
-/**
- * Layout measurements for the page/column model, taken from a real mounted
- * editor in Chromium with the real stylesheet applied.
- *
- * Written for ticket 01 of the `refactor-transcription-editor` epic. `SPEC.md`
- * § D3 left one caveat open: a *blank* framed page did not overflow in
- * isolation, so the reported blank-page horizontal scroll was unexplained.
- * These tests close it.
- */
 import { beforeAll, describe, expect, it } from 'vitest';
 
 import {
@@ -24,9 +15,6 @@ import {
 } from '$lib/client/testing/editorHarnesses.svelte';
 import { createDefaultFormWorkAttrs } from './pageFormwork';
 
-// The measurements below are only meaningful with the app's real utility CSS
-// applied; without it `.page`, `.column` and `.line` have no padding, and the
-// Tailwind `min-w-max` on the editor root does nothing.
 beforeAll(async () => {
 	const css = (await import('../../../app.css?inline')).default as string;
 	const style = document.createElement('style');
@@ -56,7 +44,6 @@ const PLAIN_PAGE_DOCUMENT = transcriptionDocument({
 
 const PANE_WIDTHS = [1400, 1200, 1000, 900, 700, 600] as const;
 
-/** Distinct top offsets = distinct visual rows of the frame grid. */
 function frameRows(harness: Harness): number {
 	const grid = harness.container.querySelector('.frame-grid');
 	if (!grid) throw new Error('no frame grid');
@@ -66,7 +53,6 @@ function frameRows(harness: Harness): number {
 	return tops.size;
 }
 
-/** Rounded top offset of a frame zone, used to tell rows apart. */
 function zoneRow(harness: Harness, zone: string): number {
 	const element = harness.container.querySelector<HTMLElement>(`.column[data-zone="${zone}"]`);
 	if (!element) throw new Error(`no ${zone} zone`);

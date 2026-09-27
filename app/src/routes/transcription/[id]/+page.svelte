@@ -421,9 +421,7 @@
 				const parsed = JSON.parse(rawLayout) as { open?: boolean };
 				iiifWorkspaceOpen = parsed.open ?? iiifWorkspaceOpen;
 			}
-		} catch {
-			// ignore invalid saved layout
-		}
+		} catch {}
 
 		const timer = window.setInterval(() => {
 			nowMs = Date.now();

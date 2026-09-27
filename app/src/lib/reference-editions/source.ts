@@ -298,7 +298,6 @@ function cloneValue<T>(value: T): T {
 		try {
 			return globalThis.structuredClone(value);
 		} catch {
-			// Plain transcription items are JSON-compatible.
 		}
 	}
 	return JSON.parse(JSON.stringify(value)) as T;

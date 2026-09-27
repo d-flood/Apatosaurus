@@ -1,23 +1,20 @@
 import { makeMainReadingIdOf } from './collation-reading-proposal';
 import type { ClassifiedReading, ReadingArc } from './collation-types';
 
-/**
- * Where a reading came from. `undecided` is the absence of an answer and is never reported as a
- * judgement; `unclear` is the considered judgement that the origin cannot be determined.
- */
+/** `undecided` is no answer; `unclear` judges the origin undeterminable. */
 export type SourceDecision =
 	{ kind: 'undecided' } | { kind: 'unclear' } | { kind: 'derived'; from: string };
 
-/** A projected local stemma state the scholar needs to resolve, never an automatic rewrite. */
+/** Projected state needing resolution, never an automatic rewrite. */
 export type StemmaViolation =
 	| {
-			/** A reading with more than one recorded prior reading is never drawn as a guess. */
+			/** Multiple priors are never drawn as a guess. */
 			kind: 'multiple-sources';
 			readingId: string;
 			priorReadingIds: string[];
 	  }
 	| {
-			/** The established lemma must not derive from another reading in a rooted stemma. */
+			/** Lemma must not derive in a rooted stemma. */
 			kind: 'lemma-is-posterior';
 			readingId: string;
 			priorReadingIds: string[];
@@ -28,22 +25,19 @@ export interface StemmaTreeNode {
 	label: string;
 	text: string | null;
 	isOmission: boolean;
-	/** The main reading's witnesses, followed by those of every subreading folded into it. */
+	/** Main witnesses plus folded subreadings'. */
 	witnessIds: string[];
-	/** The subreadings this node stands for. They are never nodes of their own. */
+	/** Folded subreadings; never nodes of their own. */
 	subreadingIds: string[];
 	sourceDecision: SourceDecision;
 	isLemma: boolean;
-	/**
-	 * The lemma roots its own local stemma, so it needs no source decision. Derived from the
-	 * readings and arcs on every projection; never persisted.
-	 */
+	/** Lemma roots its stemma; derived per projection, never stored. */
 	isRoot: boolean;
-	/** Set where the recorded arcs do not present a single source, so no source is projected. */
+	/** No single source projected. */
 	violation: StemmaViolation | null;
 }
 
-/** A recorded arc naming a reading the unit no longer has. Reported, never silently dropped. */
+/** Orphaned arc; reported, never dropped. */
 export interface OrphanedArc {
 	arc: ReadingArc;
 	missingReadingIds: string[];
@@ -52,17 +46,11 @@ export interface OrphanedArc {
 export interface LocalStemma {
 	nodes: StemmaTreeNode[];
 	violations: StemmaViolation[];
-	/** `derived` decisions the current readings can no longer carry. */
+	/** Uncarriable `derived` decisions. */
 	orphanedArcs: OrphanedArc[];
 }
 
-/**
- * The local stemma a unit's readings and arcs imply: one node per main reading, subreadings
- * folded into the main reading at the head of their chain, and at most one source per node.
- *
- * Arcs are the storage of a `derived` decision, so multiple sources stay expressible; `unclear`
- * has no arc to live in and is supplied from the decisions overlay.
- */
+/** One node per main reading; `derived` lives in arcs, `unclear` in the overlay. */
 export function projectLocalStemma(
 	readings: ClassifiedReading[],
 	arcs: ReadingArc[],
@@ -71,7 +59,6 @@ export function projectLocalStemma(
 ): LocalStemma {
 	const mainReadingIdOf = makeMainReadingIdOf(readings);
 
-	// Non-attestation is not a reading and holds no place in a local stemma.
 	const mains = readings.filter(reading => reading.parentReadingId === null && !reading.isLacuna);
 	const mainIds = new Set(mains.map(reading => reading.id));
 
@@ -103,7 +90,6 @@ export function projectLocalStemma(
 			});
 			continue;
 		}
-		// An arc between a subreading and its own main reading folds away rather than orphaning.
 		if (prior === posterior) continue;
 		const existing = priorsOf.get(posterior) ?? [];
 		if (existing.includes(prior)) continue;
@@ -163,12 +149,12 @@ export function projectLocalStemma(
 	return { nodes, violations, orphanedArcs };
 }
 
-/** The prior reading each node derives from, keyed by node, for cycle checks and layout. */
+/** Prior reading per node, for cycle checks and layout. */
 export function sourceReadingIdOf(node: StemmaTreeNode): string | null {
 	return node.sourceDecision.kind === 'derived' ? node.sourceDecision.from : null;
 }
 
-/** Whether deriving `readingId` from `priorReadingId` would close a cycle in the current tree. */
+/** Whether this derivation would close a cycle. */
 export function wouldCreateCycle(
 	nodes: StemmaTreeNode[],
 	readingId: string,

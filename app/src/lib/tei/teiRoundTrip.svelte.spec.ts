@@ -1,12 +1,3 @@
-/**
- * TEI round-trip fidelity, for ticket 01 of the `refactor-transcription-editor`
- * epic (inventory questions 1 and 4).
- *
- * The export path the app actually uses is
- * `exportTEIDocument(fromProseMirror(editor.getJSON()))`, i.e.
- * ProseMirror JSON -> TranscriptionDocument -> toProseMirror -> XML. Everything
- * below drives that path. Assertions tagged DEFECT record known losses.
- */
 import { describe, expect, it } from 'vitest';
 
 import { createTestEditor } from '$lib/client/testing/editorHarnesses.svelte';
@@ -29,12 +20,10 @@ const SAMPLE_TEI = `<?xml version="1.0" encoding="UTF-8"?>
   </body></text>
 </TEI>`;
 
-/** The full app export path, minus metadata. */
 function exportFromProseMirror(pm: any): string {
 	return serializeTei(fromProseMirror(pm));
 }
 
-/** `toProseMirror` typed loosely, so a fixture can be poked at any depth. */
 function editorJson(tei: string): any {
 	return toProseMirror(parseTei(tei)) as any;
 }
@@ -139,7 +128,6 @@ describe('TEI round trip through the ProseMirror adapter', () => {
   <lb n="98"/><w>two</w>
 </body></text></TEI>`);
 			expect(document_.pages[0].columns[0].lines.map(line => line.number)).toEqual([1, 2]);
-			// The scribe's own numbering survives only as an opaque TEI attribute.
 			expect(document_.pages[0].columns[0].lines[0].teiAttrs?.n).toBe('97');
 		});
 
@@ -166,12 +154,10 @@ describe('TEI round trip through the ProseMirror adapter', () => {
 	describe('question 4 — attributes parsed but never rendered', () => {
 		it('exports an editor-set paragraph start to TEI', () => {
 			const pm = editorJson(SAMPLE_TEI);
-			// This is exactly what `toggleParagraphStart` writes.
 			lineNode(pm, 0, 0, 1).attrs['paragraph-start'] = true;
 
 			const xml = exportFromProseMirror(pm);
 			const lineBreaks = xml.match(/<lb[^>]*\/>/g) ?? [];
-			// The first line came from TEI; the second was flagged in the editor.
 			expect(lineBreaks[0]).toContain('rend="hang"');
 			expect(lineBreaks[1]).toContain('rend="hang"');
 
@@ -254,11 +240,6 @@ describe('TEI round trip through the ProseMirror adapter', () => {
 		}
 	});
 
-	/**
-	 * Ticket 24 / INVENTORY R1. The selection UI permits a correction over part of
-	 * a word and over several words; the fixtures only ever covered a whole single
-	 * word. These build the shapes directly as ProseMirror JSON and export them.
-	 */
 	describe('R1 — corrections on partial and multi-word selections', () => {
 		const CORRECTION = {
 			type: 'correction',
@@ -286,7 +267,6 @@ describe('TEI round trip through the ProseMirror adapter', () => {
 			};
 		}
 
-		/** The line's exported content, with boilerplate and pretty-printing removed. */
 		function body(xml: string): string {
 			return xml
 				.replace(/^[\s\S]*<lb\/>\n/, '')

@@ -88,7 +88,6 @@ function computeCharSemanticDiff(baseWord: string, witnessWord: string): DiffSeg
 	return semantic;
 }
 
-// Computes a simple word-level diff using LCS to align unchanged tokens.
 export function computeWordDiff(
 	baseText: string | null,
 	witnessText: string | null

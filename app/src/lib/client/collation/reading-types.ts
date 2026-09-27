@@ -1,9 +1,4 @@
-/**
- * The reading-type vocabulary: evidential qualifiers a reading carries on its own, without
- * reference to any other reading, plus the orthogonal certainty axis.
- */
-
-/** Open vocabulary: a project may record a value the bundled list does not carry. */
+/** Open vocabulary: projects may record values outside the bundled list. */
 export type ReadingTypeId = string;
 
 /** TEI `@cert` values, or a probability. */
@@ -13,10 +8,7 @@ export interface ReadingTypeDefinition {
 	id: ReadingTypeId;
 	label: string;
 	description: string;
-	/**
-	 * Whether a scholar may choose it. Facts the aligner determines — omission above all — are
-	 * reported on a reading but never picked from a menu.
-	 */
+	/** Aligner-determined facts are reported, never picked from a menu. */
 	selectable: boolean;
 }
 
@@ -55,10 +47,7 @@ export const BUNDLED_READING_TYPES: readonly ReadingTypeDefinition[] = [
 	},
 ];
 
-/**
- * The bundled vocabulary extended by a project's own values. A project entry sharing a bundled
- * id replaces it, so a project can relabel a standard type without forking the list.
- */
+/** Bundled types plus project overrides; shared ids replace bundled entries. */
 export function resolveReadingTypeVocabulary(
 	projectReadingTypes: readonly ReadingTypeDefinition[] = []
 ): ReadingTypeDefinition[] {
@@ -81,8 +70,7 @@ export function coerceReadingTypeDefinitions(value: unknown): ReadingTypeDefinit
 		if (!entry || typeof entry !== 'object') return [];
 		const raw = entry as Record<string, unknown>;
 		if (typeof raw.id !== 'string' || raw.id.trim().length === 0) return [];
-		// A project may relabel a bundled type but never promote one the aligner determines into
-		// the menu: omission is a fact about the text, not an editorial choice.
+		// Omission is textual fact, not editorial choice.
 		const bundled = BUNDLED_READING_TYPES.find(type => type.id === raw.id);
 		return [
 			{
@@ -95,10 +83,7 @@ export function coerceReadingTypeDefinitions(value: unknown): ReadingTypeDefinit
 	});
 }
 
-/**
- * The type the evidence implies before any scholar has judged the reading. A recorded decision
- * always outranks it. Damage outranks a nonsense rule: text one cannot read is not yet nonsense.
- */
+/** Evidence-implied type before judgement; recorded decisions outrank it. */
 export function proposeReadingType(reading: {
 	isOmission: boolean;
 	hasUnclear: boolean;

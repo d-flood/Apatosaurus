@@ -44,7 +44,6 @@ const GAP_TOKEN: WitnessSourceToken = {
 	gap: { source: 'gap', reason: '', unit: '', extent: '' },
 };
 
-/** The alignment the real collation pipeline produces, never a hand-built one. */
 function collate(witnesses: WitnessConfig[]) {
 	collationState.setWitnesses(witnesses);
 	collationState.refreshCollationInput();
@@ -77,7 +76,6 @@ function announcement(): string {
 	return document.querySelector('[data-testid="readings-announcer"]')?.textContent ?? '';
 }
 
-/** Both destructive verbs take a target and then an explicit apply, never a `change` event. */
 async function chooseAndApply(selectLabel: string, readingLabel: string, applyTestId: string) {
 	const target = collationState
 		.peekReadingsForUnit(0)
@@ -114,7 +112,6 @@ describe('ReadingsPhase witness selection', () => {
 			true
 		);
 
-		// Tab lands in the group once and the next Tab leaves it; movement inside is by arrow key.
 		document.querySelector<HTMLInputElement>('input[aria-label="Text of reading a"]')!.focus();
 		await userEvent.tab();
 		expect(document.activeElement?.getAttribute('data-witness-id')).toBe('A');
@@ -159,7 +156,6 @@ describe('ReadingsPhase witness selection', () => {
 		await expect
 			.element(page.getByTestId('selection-count'))
 			.toHaveTextContent('3 witnesses selected');
-		// The selection spans the readings `a` and `b`, so merging them is offered.
 		expect(
 			document.querySelector<HTMLSelectElement>(
 				'select[aria-label="Merge the selected readings into"]'
@@ -183,11 +179,8 @@ describe('ReadingsPhase witness selection', () => {
 			.element(page.getByTestId('readings-announcer'))
 			.toHaveTextContent('Moved B, D to reading a.');
 		expect(collationState.peekReadingsForUnit(0)[0]?.witnessIds).toEqual(['A', 'B', 'D']);
-		// The bar that held the control is gone, so focus has to be put somewhere a keyboard
-		// scholar can carry on from rather than dropped to the document.
 		expect(document.activeElement?.getAttribute('data-witness-id')).toBe('B');
 
-		// Selecting and deselecting is not editorial work, so it consumes no undo entry.
 		chip('C').focus();
 		await userEvent.keyboard(' ');
 		await userEvent.keyboard('{Escape}');
@@ -200,8 +193,6 @@ describe('ReadingsPhase witness selection', () => {
 		render(ReadingsPhase);
 		await expect.element(page.getByRole('button', { name: 'A', exact: true })).toBeInTheDocument();
 
-		// A closed select moves through its options with the arrow keys and fires `change` as it
-		// goes, so choosing a target must not be the same event as performing the move.
 		chip('B').focus();
 		await userEvent.keyboard(' ');
 		const before = witnessesOfReadings();
@@ -238,8 +229,6 @@ describe('ReadingsPhase witness selection', () => {
 		chip('D').focus();
 		await userEvent.keyboard(' ');
 
-		// A merge discards the text of every reading it collapses, so the scholar is told which
-		// text before committing to it.
 		await userEvent.selectOptions(
 			document.querySelector<HTMLSelectElement>(
 				'select[aria-label="Merge the selected readings into"]'
@@ -266,8 +255,6 @@ describe('ReadingsPhase witness selection', () => {
 		render(ReadingsPhase);
 		await expect.element(page.getByRole('button', { name: 'A', exact: true })).toBeInTheDocument();
 
-		// `a` is the base text's reading and so the lemma; merging it away is allowed but never
-		// silent, because the lemma falls back to a reading the scholar did not choose.
 		chip('A').focus();
 		await userEvent.keyboard(' ');
 		chip('B').focus();
@@ -317,8 +304,6 @@ describe('ReadingsPhase selection beyond the witnesses on screen', () => {
 		render(ReadingsPhase);
 		await expect.element(page.getByRole('button', { name: 'A', exact: true })).toBeInTheDocument();
 
-		// A reading shows twelve sigla at a time, so the whole reading is brought into view, all
-		// fourteen selected, and then the reading collapsed again.
 		clickText('+2 more');
 		await expect.element(page.getByRole('button', { name: 'W14', exact: true })).toBeInTheDocument();
 		chip('W01').focus();
@@ -370,7 +355,6 @@ describe('ReadingsPhase per-card menu', () => {
 		render(ReadingsPhase);
 		await expect.element(page.getByRole('button', { name: 'A', exact: true })).toBeInTheDocument();
 
-		// Nothing on the card itself offers them; they live behind the card's menu.
 		expect(document.querySelector('summary[aria-label="More actions for reading a"]')).not.toBeNull();
 		const menu = document
 			.querySelector('summary[aria-label="More actions for reading a"]')!
@@ -405,8 +389,6 @@ describe('ReadingsPhase deletion guard', () => {
 		const main = readings.find(reading => reading.label === 'b')!;
 		const subreading = readings.find(reading => reading.label === 'c')!;
 		collationState.setReadingParent(0, subreading.id, main.id);
-		// The main reading's own witnesses go elsewhere; its subreading's witness still attests it,
-		// and the card still shows that siglum.
 		collationState.moveWitnessesToReading(0, ['B'], readings.find(r => r.label === 'a')!.id);
 
 		render(ReadingsPhase);

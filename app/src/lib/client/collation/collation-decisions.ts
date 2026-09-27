@@ -4,20 +4,16 @@ import type { ClassifiedReading, ReadingArc } from './collation-types';
 import type { Certainty, ReadingTypeId } from './reading-types';
 
 export interface UnitDecisions {
-	/** Alpha stored hand-edited reading groups that cannot be regenerated from alignment. */
+	/** Legacy alpha hand-edits; cannot regenerate. */
 	preserveReadings?: true;
 	subreadingOf?: Record<string, string | null>;
 	lemmaReadingId?: string | null;
-	/** A recorded type outranks the proposal; a recorded null means "no type", not "undecided". */
+	/** Recorded null means "no type", not "undecided". */
 	readingType?: Record<string, ReadingTypeId | null>;
 	certainty?: Record<string, Certainty | null>;
-	/** Per-variation-unit relationship threshold. Absent means the editorial default of 10. */
+	/** Relationship threshold; absent is the default of 10. */
 	connectivity?: number | 'absolute';
-	/**
-	 * Only the source decisions no arc can express. A `derived` decision is stored as an arc,
-	 * which is the persisted form and the only one able to hold more than one source; `undecided`
-	 * is the absence of both. So in practice this holds `unclear`.
-	 */
+	/** Only non-arc source decisions; `derived` lives in arcs. */
 	sourceDecision?: Record<string, SourceDecision>;
 }
 
@@ -51,7 +47,6 @@ export type OrphanedDecision =
 			sourceDecision: SourceDecision;
 			missingReadingIds: string[];
 	  }
-	/** A `derived` decision, which lives in an arc rather than in the overlay. */
 	| {
 			kind: 'sourceArc';
 			readingId: string;
@@ -62,16 +57,16 @@ export type OrphanedDecision =
 export interface OrphanedUnitDecision {
 	unitId: string;
 	decisions: UnitDecisions;
-	/** Present only where the dead unit also holds arcs, which carry its `derived` decisions. */
+	/** Arcs of dead units, carrying their `derived` decisions. */
 	arcs?: ReadingArc[];
 }
 
 export interface UnitView {
 	readings: ClassifiedReading[];
 	orphanedDecisions: OrphanedDecision[];
-	/** The reading established as `a`, or null where none can be derived or was designated. */
+	/** Established as `a`, or null where none exists. */
 	lemmaReadingId: string | null;
-	/** The main reading the base text attests, or null where it does not testify. */
+	/** Main reading the base text attests, or null where it does not testify. */
 	baseTextReadingId: string | null;
 	needsLemmaDecision: boolean;
 }
@@ -179,7 +174,6 @@ export function applyDecisions(
 	const baseTextReading = baseWitnessId
 		? readings.find(reading => reading.witnessIds.includes(baseWitnessId))
 		: undefined;
-	// A lacunose base witness testifies to nothing, so it establishes no default lemma.
 	const baseTextReadingId =
 		baseTextReading && !baseTextReading.isLacuna ? mainReadingIdOf(baseTextReading.id) : null;
 
@@ -187,7 +181,6 @@ export function applyDecisions(
 	const designatedLemmaId = decisions.lemmaReadingId ?? null;
 	if (designatedLemmaId !== null) {
 		if (readingIds.has(designatedLemmaId)) {
-			// A designated subreading is cited under its main reading, which is what takes `a`.
 			lemmaReadingId = mainReadingIdOf(designatedLemmaId);
 		} else {
 			orphanedDecisions.push({
@@ -203,8 +196,7 @@ export function applyDecisions(
 		lemmaReadingId === null && readings.some(reading => reading.parentReadingId === null);
 
 	return {
-		// Without a base-text reading the base witness cannot anchor the order, so the
-		// remaining readings fall back to witness count — a provisional order, not a lemma.
+		// No base text: fall back to witness count, not a lemma.
 		readings: relabelReadings(
 			readings,
 			baseTextReadingId ? baseWitnessId : null,
@@ -217,11 +209,7 @@ export function applyDecisions(
 	};
 }
 
-/**
- * Editorial work recorded against units that no longer exist. Arcs are walked alongside the
- * overlay because a `derived` decision is stored only as an arc, so a report built from the
- * overlay alone would omit exactly the decisions the diagram is made of.
- */
+/** Orphaned work; arcs walked too since `derived` lives only there. */
 export function findOrphanedUnitDecisions(
 	decisions: ReadonlyMap<string, UnitDecisions>,
 	liveUnitIds: ReadonlySet<string>,

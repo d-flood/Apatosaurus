@@ -40,7 +40,6 @@
 	}: Props = $props();
 
 	function openModal() {
-		// Try to use the bound dialog first, otherwise query the DOM
 		const dialog =
 			transcriptionMetadataDialog ||
 			(document.getElementById('transcription-metadata-modal') as HTMLDialogElement);

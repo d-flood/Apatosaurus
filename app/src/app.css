@@ -289,7 +289,6 @@
 	padding-left: 2.5rem;
 }
 
-/* Styles for correction editor display */
 .correction-display.show-lacunose .lacunose {
 	@apply text-base-content bg-base-300 opacity-60;
 }
@@ -318,7 +317,6 @@
 	@apply text-secondary text-xs font-bold;
 }
 
-/* Styles for correction editor input area (mini-editor) */
 .correction-editor-input.show-lacunose .lacunose {
 	@apply text-base-content bg-base-300 opacity-60;
 }

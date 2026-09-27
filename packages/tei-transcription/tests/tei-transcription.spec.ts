@@ -1907,8 +1907,6 @@ describe('tei-transcription package', () => {
 		expect(compactXml(exported)).toContain(
 			compactXml('<rdg type="alt" hand="corrector"></rdg>')
 		);
-		// Ticket 24 / INVENTORY R1: a two-word orig reading is one apparatus, not
-		// one per word. This previously asserted 2, locking in the duplication.
 		expect(exported.match(/<rdg type="alt" hand="corrector">/g)).toHaveLength(1);
 		expect(compactXml(exported)).toContain(
 			compactXml('<rdg type="orig"><w>εν</w><w>ρωμη</w></rdg>')
@@ -1934,8 +1932,6 @@ describe('tei-transcription package', () => {
 		expect(compactXml(exported)).toContain(
 			compactXml('<rdg type="alt" hand="corrector"><w>ελπιζει</w></rdg>')
 		);
-		// Ticket 24 / INVENTORY R1: the source has one <app> spanning two words, so
-		// the export must have one too. This previously asserted 2.
 		expect(exported.match(/<app>/g)).toHaveLength(1);
 		expect(compactXml(exported)).toContain(
 			compactXml('<rdg type="orig"><w>και</w><w>ελπιζει</w></rdg>')
@@ -2209,7 +2205,6 @@ describe('frame zones', () => {
 		const doc = parseTei(tei);
 		const pm = toProseMirror(doc);
 
-		// Verify PM columns have zone attrs
 		const columns = pm.content![0].content!;
 		expect(columns[0].attrs?.zone).toBe('top');
 		expect(columns[1].attrs?.zone).toBe('left');
@@ -2217,13 +2212,11 @@ describe('frame zones', () => {
 		expect(columns[3].attrs?.zone).toBe('right');
 		expect(columns[4].attrs?.zone).toBe('bottom');
 
-		// Round-trip back to document
 		const roundTripped = fromProseMirror(pm);
 		expect(roundTripped.pages[0].columns[0].zone).toBe('top');
 		expect(roundTripped.pages[0].columns[2].zone).toBe('center');
 		expect(roundTripped.pages[0].columns[4].zone).toBe('bottom');
 
-		// Serialize and verify TEI output
 		const exported = serializeTei(roundTripped);
 		expect(exported).toContain('type="frame" subtype="top"');
 		expect(exported).toContain('type="frame" subtype="center"');

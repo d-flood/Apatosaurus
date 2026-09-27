@@ -1,12 +1,3 @@
-/**
- * The save path for the editor's document, exercised end to end.
- *
- * Ticket 08 of the `refactor-transcription-editor` epic (SPEC.md § D6,
- * INVENTORY.md F36): the editor's own Enter-on-a-blank-line command produced a
- * line that `fromProseMirror` -> `normalizeDocument` deleted again, so autosave
- * persisted a document without it. These tests run the real Enter keybinding
- * and then the real autosave conversion and store round trip.
- */
 import { describe, expect, it } from 'vitest';
 
 import { fromProseMirror, type TranscriptionDocument } from '$lib/tei/tei-transcription';
@@ -26,7 +17,6 @@ function blankLineFixture() {
 	};
 }
 
-/** Position just inside the start of the Nth line of page 0, column 0. */
 function lineStart(doc: any, lineIndex: number): number {
 	const columnNode = doc.child(0).child(0);
 	let linePos = 1 + 1;
@@ -42,7 +32,6 @@ function pressEnter(editor: any): boolean {
 	);
 }
 
-/** What autosave does with the editor's JSON before it reaches the store. */
 function saveAndReload(editorJson: unknown): TranscriptionDocument {
 	const converted = fromProseMirror(editorJson as any);
 	const stored = coerceTranscriptionDocument(serializeTranscriptionDocument(converted));
@@ -87,7 +76,6 @@ describe('the transcription save path', () => {
 		try {
 			editor.commands.setTextSelection(lineStart(editor.state.doc, 1));
 			expect(pressEnter(editor)).toBe(true);
-			// The Enter handler finishes placing the caret in a microtask.
 			await Promise.resolve();
 			await Promise.resolve();
 			expect(modelDocumentSnapshot(editor.state.doc)[0][0]).toEqual([

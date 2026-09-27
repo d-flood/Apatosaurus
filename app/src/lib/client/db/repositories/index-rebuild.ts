@@ -566,8 +566,6 @@ async function readWorkingTranscriptionPayload(
 		projectTranscriptionPayloadToSnapshot(payload as unknown as ProjectTranscriptionPayload)
 	);
 	if (workingHash === primaryPayload.current_revision.content_hash) return null;
-	// Working transcription payloads are primary payloads minus current_revision; rebuild only
-	// uses the live index fields from them and keeps committed revision heads from primaries.
 	return payload as unknown as ProjectTranscriptionPayload;
 }
 
@@ -610,8 +608,6 @@ async function readWorkingCollationPayload(
 		collationPayloadToContent(payload as unknown as CollationPayload)
 	);
 	if (workingHash === primaryPayload.current_revision.content_hash) return null;
-	// Working collation payloads are primary payloads minus current_revision; rebuild only
-	// uses the live index fields from them and keeps committed revision heads from primaries.
 	return payload as unknown as CollationPayload;
 }
 

@@ -136,11 +136,7 @@ export interface ReadingFamilyView {
 export type ReorderResult =
 	{ ok: true } | { ok: false; error: 'reading-not-found' | 'different-group' | 'at-boundary' };
 
-/**
- * `moved` is 0 where every selected witness already attested the target. `movedWitnessIds` is
- * exactly the witnesses that changed reading, so a caller announces what happened rather than
- * what was asked for.
- */
+/** `movedWitnessIds` are exactly what changed, for announcements. */
 export type MoveWitnessesResult =
 	| { ok: true; moved: number; movedWitnessIds: string[] }
 	| { ok: false; error: 'reading-not-found' | 'no-attesting-witnesses' };
@@ -204,7 +200,6 @@ function createCollationState() {
 	let workspaceArtifactId = $state<string | null>(null);
 	let isLoading = $state(false);
 
-	// Phase 1: Setup
 	let segment = $state<CollationSegment | null>(null);
 	let orphanedMembers = $state<string[]>([]);
 	let selectedVerse = $state<AggregatedVerse | null>(null);
@@ -213,7 +208,6 @@ function createCollationState() {
 	let selectedChapter = $state('');
 	let selectedVerseNum = $state('');
 
-	// Phase 2: Regularization
 	let rules = $state<RegularizationRule[]>([]);
 	let regularizedTexts = $state<Map<string, RegularizedToken[]>>(new Map());
 	let regularizationDiagnostics = $state<CollationInputDiagnostic[]>([]);
@@ -230,7 +224,6 @@ function createCollationState() {
 	let transcriptionWitnessExcludedHands = $state<Map<string, string[]>>(new Map());
 	let projectReadingTypes = $state<ReadingTypeDefinition[]>([]);
 
-	// Phase 3: Alignment
 	let alignmentColumns = $state<AlignmentColumn[]>([]);
 	let witnessOrder = $state<string[]>([]);
 	let selectedColumnIds = $state<Set<string>>(new Set());
@@ -240,13 +233,11 @@ function createCollationState() {
 	let alignmentDisplayMode = $state<AlignmentDisplayMode>('regularized');
 	let alignmentLayout = $state<AlignmentLayout>('grid');
 
-	// Phase 4: Stemma
 	let selectedUnitIndex = $state<number>(0);
 	let classifiedReadings = $state<Map<string, ClassifiedReading[]>>(new Map());
 	let unitDecisions = $state<Map<string, UnitDecisions>>(new Map());
 	let readingArcs = $state<Map<string, ReadingArc[]>>(new Map());
 
-	// Command stack for undo/redo
 	let commandHistory: CommandEntry[] = [];
 	let commandIndex = -1;
 
@@ -276,9 +267,7 @@ function createCollationState() {
 		selectedUnitIndex = normalizeVariationUnitIndex(snap.selectedUnitIndex ?? 0);
 		classifiedReadings = new Map(snap.classifiedReadings ?? []);
 		unitDecisions = new Map();
-		// A legacy snapshot's arcs name real reading ids under the previous field names, so they
-		// are dropped rather than lost silently: the document format version was bumped so a
-		// pre-change document is refused on read instead of being reloaded empty and saved over.
+		// Legacy arcs dropped; old docs are refused on read.
 		readingArcs = new Map();
 		alignmentDisplayMode = snap.alignmentDisplayMode ?? 'regularized';
 		alignmentLayout = snap.alignmentLayout ?? 'grid';
@@ -812,7 +801,6 @@ function createCollationState() {
 		return id;
 	}
 
-	// Witness configuration
 	function setWitnesses(configs: WitnessConfig[]) {
 		witnesses = ensureBaseTextSelection(
 			applyWitnessTreatmentSources(filterWitnessesByProjectSettings(configs))
@@ -861,7 +849,6 @@ function createCollationState() {
 		markUnsaved();
 	}
 
-	// Regularization
 	async function persistRulesToProject(nextRules: RegularizationRule[]): Promise<void> {
 		if (!projectId) return;
 		try {
@@ -1424,7 +1411,6 @@ function createCollationState() {
 			.filter((input): input is CollationWitnessInput => Boolean(input));
 	}
 
-	// Alignment
 	function applyAlignmentSnapshot(snapshot: AlignmentSnapshot) {
 		witnessOrder = [...snapshot.witnessOrder];
 		selectedColumnIds = new Set();
@@ -1979,7 +1965,6 @@ function createCollationState() {
 		});
 	}
 
-	// Column selection for alignment
 	function toggleColumnSelection(columnId: string) {
 		const next = new Set(selectedColumnIds);
 		if (next.has(columnId)) {
@@ -2000,12 +1985,7 @@ function createCollationState() {
 		return active.find(w => w.isBaseText)?.witnessId ?? active[0].witnessId;
 	}
 
-	/**
-	 * The witness a scholar designated as the base text, or null when none is designated or the
-	 * designated one is excluded and so testifies nowhere. Unlike `getBaseWitnessId`, which
-	 * anchors display order and falls back to any active witness, this never stands another
-	 * witness in for the base text.
-	 */
+	/** Designated base text; never falls back. */
 	function getBaseTextWitnessId(): string | null {
 		return findBaseTextWitnessId(witnesses);
 	}
@@ -2048,15 +2028,11 @@ function createCollationState() {
 		return tokens;
 	}
 
-	// Phase 4: Stemma
 	function getVariationUnitSpans() {
 		return buildVariationUnitSpans(alignmentColumns);
 	}
 
-	/**
-	 * The verse as agreed stretches and variation units. Every surface that shows the verse's
-	 * shape reads it from here, so none of them can drift from the others.
-	 */
+	/** Single verse-shape derivation; all surfaces read here. */
 	function getSegmentSequence(): Segment[] {
 		return buildSegmentSequence({
 			columns: alignmentColumns,
@@ -2213,8 +2189,7 @@ function createCollationState() {
 	}
 
 	function getOrphanedDecisionsForUnit(unitIndex: number): OrphanedDecision[] {
-		// A `derived` decision lives in an arc, not in the overlay, so the projection is the only
-		// place that can tell whether one still names readings the unit has.
+		// Only the projection knows if an arc still names live readings.
 		const arcOrphans: OrphanedDecision[] = getLocalStemma(unitIndex).orphanedArcs.map(
 			orphan => ({
 				kind: 'sourceArc',
@@ -2234,11 +2209,9 @@ function createCollationState() {
 	}
 
 	function getReadingFamiliesForUnit(unitIndex: number): ReadingFamilyView[] {
-		// `peekReadingsForUnit` already returns lemma-first display order; re-sorting here
-		// would discard the lemma decision.
+		// Already lemma-first; re-sorting would discard the lemma.
 		const readings = peekReadingsForUnit(unitIndex);
-		// A subreading can be attached to another subreading, so a family is the whole chain
-		// below a main reading rather than its direct children only.
+		// Families are whole chains, not direct children.
 		const mainReadingIdOf = makeMainReadingIdOf(readings);
 		const primaries = readings.filter(reading => reading.parentReadingId === null);
 		return primaries.map(parent => {
@@ -2329,9 +2302,7 @@ function createCollationState() {
 		const proposalById = new Map(
 			(classifiedReadings.get(key) ?? []).map(reading => [reading.id, reading] as const)
 		);
-		// Mutators edit the decision-applied view and hand it back here as the proposal, so every
-		// field a decision can overlay has to be restored from the stored proposal. A decided
-		// value welded into the proposal would survive its own undo and stop re-deriving.
+		// Restore overlayable fields from proposal, or decided values survive undo.
 		const decisions = unitDecisions.get(key) ?? {};
 		const attachments = decisions.subreadingOf ?? {};
 		const readingTypes = decisions.readingType ?? {};
@@ -2378,15 +2349,7 @@ function createCollationState() {
 		unitDecisions = nextDecisions;
 	}
 
-	/**
-	 * Store a proposal edit as one undoable gesture. Every mutator of the proposal goes through
-	 * here, so no edit is invisible to the history, and the snapshot covers only the unit edited,
-	 * so undoing a gesture in one unit cannot revert work done in another.
-	 *
-	 * A gesture that also settles an editorial decision — merging carries a hand-made attachment
-	 * to the surviving reading — passes the whole overlay for its unit, so the proposal edit and
-	 * the decision it implies undo together as the one gesture they are.
-	 */
+	/** One gesture, one unit, one undo entry; merge carries its attachment. */
 	function commitReadingsForUnit(
 		unitIndex: number,
 		readings: ClassifiedReading[],
@@ -2408,13 +2371,7 @@ function createCollationState() {
 		});
 	}
 
-	/**
-	 * Readings a verb emptied go with their last witness. An empty lettered reading would keep
-	 * its letter, its place in the ordering, its citation in the apparatus, and a node in the
-	 * local stemma while attesting nothing. A reading that still carries subreadings stays,
-	 * because its family still attests; one that was already empty stays, because a scholar added
-	 * it deliberately.
-	 */
+	/** Emptied readings go with last witness; families and deliberate blanks stay. */
 	function dropEmptiedReadings(
 		before: ClassifiedReading[],
 		after: ClassifiedReading[],
@@ -2435,11 +2392,7 @@ function createCollationState() {
 		);
 	}
 
-	/**
-	 * The witnesses of a selection that actually attest a reading here, deduplicated and in the
-	 * order given. Non-attestation holds no reading id, so such a witness can never be moved,
-	 * split, or merged.
-	 */
+	/** Deduped attesting subset, in order. */
 	function attestingSelection(readings: ClassifiedReading[], witnessIds: string[]): string[] {
 		const seen = new Set<string>();
 		return witnessIds.filter(witnessId => {
@@ -2453,7 +2406,6 @@ function createCollationState() {
 		return `${count} ${noun}${count === 1 ? '' : 'es'}`;
 	}
 
-	/** Reassign a whole selection of witnesses in one gesture, spanning any number of readings. */
 	function moveWitnessesToReading(
 		unitIndex: number,
 		witnessIds: string[],
@@ -2486,11 +2438,7 @@ function createCollationState() {
 		return { ok: true, moved: moving.length, movedWitnessIds: moving };
 	}
 
-	/**
-	 * Separate a selection of witnesses into a reading of its own. The new reading takes its text
-	 * from the reading the first selected witness left, so a distinction the alignment missed is
-	 * recorded against real text rather than against a blank.
-	 */
+	/** New reading inherits the first witness's text, not a blank. */
 	function splitWitnessesIntoNewReading(
 		unitIndex: number,
 		witnessIds: string[],
@@ -2508,8 +2456,7 @@ function createCollationState() {
 		const sources = readings.filter(reading =>
 			reading.witnessIds.some(witnessId => selectedSet.has(witnessId))
 		);
-		// Taking every witness of the only reading involved leaves an empty husk beside an
-		// identical new reading, which records no distinction at all.
+		// Whole-reading split records no distinction.
 		if (
 			sources.length === 1 &&
 			sources[0].witnessIds.every(witnessId => selectedSet.has(witnessId))
@@ -2552,11 +2499,7 @@ function createCollationState() {
 		return { ok: true, readingId };
 	}
 
-	/**
-	 * Collapse a distinction the alignment over-drew: the target keeps its text and takes the
-	 * union of every source reading's witnesses. A subreading of a merged-away reading follows
-	 * its witnesses into the survivor.
-	 */
+	/** Target keeps text; merged subreadings follow witnesses. */
 	function mergeReadings(
 		unitIndex: number,
 		sourceReadingIds: string[],
@@ -2573,8 +2516,7 @@ function createCollationState() {
 		if ([...sourceIds].some(id => !readings.some(reading => reading.id === id))) {
 			return { ok: false, error: 'reading-not-found' };
 		}
-		// Merging a reading into its own subreading would leave the survivor attached to a
-		// reading that no longer exists.
+		// Survivor would dangle from a removed reading.
 		let ancestorId = target.parentReadingId;
 		while (ancestorId) {
 			if (sourceIds.has(ancestorId)) return { ok: false, error: 'target-under-source' };
@@ -2600,9 +2542,7 @@ function createCollationState() {
 				return reading;
 			});
 
-		// An attachment a scholar established is a decision, not a proposal, so reparenting the
-		// proposal alone would be discarded on read. The decision follows the witnesses into the
-		// survivor, which is what keeps a hand-attached subreading attached across a merge.
+		// Attachment is a decision: it must follow witnesses into the survivor.
 		const attachments = unitDecisions.get(key)?.subreadingOf ?? {};
 		const reattached = Object.entries(attachments).some(
 			([, mainReadingId]) => mainReadingId !== null && sourceIds.has(mainReadingId)
@@ -2683,10 +2623,7 @@ function createCollationState() {
 		return peekUnitView(unitIndex).needsLemmaDecision;
 	}
 
-	/**
-	 * Establish which reading is `a`. Passing null returns the unit to the lemma derived from
-	 * the base text. Purely a labelling decision: any local stemma for the unit is untouched.
-	 */
+	/** Labelling only; null restores the base-text lemma, stemma untouched. */
 	function setLemmaReading(
 		unitIndex: number,
 		readingId: string | null
@@ -2728,7 +2665,7 @@ function createCollationState() {
 		return results;
 	}
 
-	/** Units with no base-text testimony and no designated lemma, so nothing is `a` yet. */
+	/** Units with no lemma yet. */
 	function getUnitsNeedingLemmaDecision(): { unitIndex: number; unitId: string }[] {
 		return forEachUnitView((view, span) =>
 			view.needsLemmaDecision
@@ -2737,7 +2674,7 @@ function createCollationState() {
 		);
 	}
 
-	/** Where the established lemma departs from the reading the base text attests. */
+	/** Where lemma departs from base-text reading. */
 	function getLemmaDivergence(): {
 		unitIndex: number;
 		unitId: string;
@@ -2839,10 +2776,7 @@ function createCollationState() {
 		});
 	}
 
-	/**
-	 * Record a reading's evidential qualifier. Purely a judgement about the reading: the text is
-	 * never touched, and passing null records "no type" rather than returning to the proposal.
-	 */
+	/** Judgement only, never touches text; null means "no type". */
 	function setReadingType(
 		unitIndex: number,
 		readingId: string,
@@ -2854,7 +2788,7 @@ function createCollationState() {
 		});
 	}
 
-	/** Record how confident the scholar is in the reading. Orthogonal to its type. */
+	/** Scholar confidence, orthogonal to type. */
 	function setReadingCertainty(
 		unitIndex: number,
 		readingId: string,
@@ -2897,15 +2831,12 @@ function createCollationState() {
 		return { ok: true };
 	}
 
-	/** The reading types a scholar may pick from: the bundled vocabulary plus the project's own. */
+	/** Bundled plus project reading types. */
 	function getReadingTypeVocabulary(): ReadingTypeDefinition[] {
 		return resolveReadingTypeVocabulary(projectReadingTypes);
 	}
 
-	/**
-	 * Subreadings carrying no reading type. A nudge for the Review phase, never an error: a
-	 * subreading may legitimately be recorded before its qualifier is decided.
-	 */
+	/** Untyped subreadings; Review nudge, never an error. */
 	function getSubreadingsMissingReadingType(): {
 		unitIndex: number;
 		unitId: string;
@@ -2959,11 +2890,7 @@ function createCollationState() {
 		return reading.id;
 	}
 
-	/**
-	 * The witnesses that attest a reading as the card shows it: its own, plus those of every
-	 * subreading in its chain, which are counted with it. The one set the deletion guard and the
-	 * displayed witnesses both read, so a reading can never be deletable while sigla are on it.
-	 */
+	/** Own witnesses plus every subreading in the chain; guards deletion. */
 	function getAttestingWitnessIdsForReading(unitIndex: number, readingId: string): string[] {
 		const readings = peekReadingsForUnit(unitIndex);
 		const chain = new Set<string>([readingId]);
@@ -3077,8 +3004,7 @@ function createCollationState() {
 		const reading = readings.find(entry => entry.id === readingId);
 		const target = readings.find(entry => entry.id === targetReadingId);
 		if (!reading || !target) return { ok: false, error: 'reading-not-found' };
-		// A subreading orders within its main reading; moving it across groups would be an
-		// attachment change, which is `setReadingParent`'s decision to make.
+		// Cross-group moves are attachments, not reorderings.
 		if (reading.parentReadingId !== target.parentReadingId) {
 			return { ok: false, error: 'different-group' };
 		}
@@ -3102,10 +3028,7 @@ function createCollationState() {
 		return { ok: true };
 	}
 
-	/**
-	 * The local stemma a unit's readings and arcs imply. The single derivation: every surface
-	 * reads the tree from here rather than pairing readings with arcs itself.
-	 */
+	/** Single stemma derivation; all surfaces read here. */
 	function getLocalStemma(unitIndex: number): LocalStemma {
 		const key = getReadingUnitKey(unitIndex);
 		if (!key) return { nodes: [], violations: [], orphanedArcs: [] };
@@ -3118,7 +3041,7 @@ function createCollationState() {
 		);
 	}
 
-	/** The per-unit connectivity threshold, with the editorial default applied only on read. */
+	/** Per-unit threshold; default applied on read. */
 	function getConnectivity(unitIndex: number): number | 'absolute' {
 		const key = getReadingUnitKey(unitIndex);
 		return key ? (unitDecisions.get(key)?.connectivity ?? 10) : 10;
@@ -3155,7 +3078,7 @@ function createCollationState() {
 		return { ok: true };
 	}
 
-	/** Projection warnings ready for the Review worklist, grouped by the variation unit they name. */
+	/** Review worklist warnings, grouped by unit. */
 	function getStemmaViolations(): {
 		unitIndex: number;
 		unitId: string;
@@ -3175,11 +3098,7 @@ function createCollationState() {
 
 	type SourceDecisionError = 'reading-not-found' | 'not-a-main-reading' | 'self-source' | 'cycle';
 
-	/**
-	 * Record where a reading came from. The only mutation the local stemma accepts: it replaces
-	 * every arc into that reading with at most one, so the interface can express one source even
-	 * though the storage can hold more.
-	 */
+	/** One source per reading; storage may hold more. */
 	function setReadingSource(
 		unitIndex: number,
 		readingId: string,
@@ -3233,8 +3152,7 @@ function createCollationState() {
 		if (Object.keys(sourceDecisions).length > 0) nextDecisions.sourceDecision = sourceDecisions;
 		else delete nextDecisions.sourceDecision;
 
-		// Recording the answer a reading already carries is not a judgement: writing it would add
-		// an undo step for nothing and leave an empty entry in the orphaned-decision worklist.
+		// Re-recording the current answer is no judgement; skip the undo entry.
 		const currentArcs = readingArcs.get(key) ?? [];
 		const currentSourceDecisions = unitDecisions.get(key)?.sourceDecision ?? {};
 		const arcsUnchanged =
@@ -3307,7 +3225,6 @@ function createCollationState() {
 		return { ok: true, removed };
 	}
 
-	// Keyboard navigation
 	function moveFocus(direction: 'up' | 'down' | 'left' | 'right') {
 		if (phase === 'alignment' || phase === 'readings' || phase === 'stemma') {
 			if (direction === 'left') focusedColumn = Math.max(0, focusedColumn - 1);
@@ -3472,7 +3389,6 @@ function createCollationState() {
 
 			collationId = id;
 
-			// Try to load the canonical collation document first.
 			if (loaded.artifact?.payload) {
 				workspaceArtifactId = loaded.artifact.id;
 				applyCollationDocumentPayload(loaded.artifact.payload);

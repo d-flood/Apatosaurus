@@ -152,8 +152,7 @@ function exportNode(node: ProseMirrorJSON, context: ExportContext): void {
 			break;
 
 		case 'line':
-			// TranscriptionDocument paragraphStart maps to ProseMirror `paragraph-start`
-			// and TEI rend="hang"; keep this reader aligned with the ProseMirror spelling.
+			// paragraphStart = PM `paragraph-start` = TEI rend="hang".
 			context.xml.push(
 				`<lb${serializeAttrs(
 					mergeTeiAttrs(node.attrs, {
@@ -443,13 +442,7 @@ function exportWord(nodes: ProseMirrorJSON[], context: ExportContext): void {
 		node.marks?.some(mark => mark.type === 'punctuation')
 	);
 	if (hasPunctuation) {
-		// A word group can mix punctuation-marked nodes with unmarked ones. The
-		// editor's punctuation highlighter marks the character in place, so typing
-		// `alpha.` leaves `alpha` and a marked `.` adjacent inside one group with
-		// no space between them for `groupIntoWords` to split on. Emit every run
-		// in order — `<pc>` for the marked nodes, the ordinary word path for the
-		// rest. Emitting only the marked nodes deleted the word from the export
-		// (SPEC.md D5 / INVENTORY.md F35).
+		// Marked and unmarked nodes can be adjacent with no split space; emit every run.
 		for (const run of splitOnPunctuation(nodes)) {
 			if (!run.punctuation) {
 				exportWord(run.nodes, context);
@@ -486,10 +479,6 @@ function exportWord(nodes: ProseMirrorJSON[], context: ExportContext): void {
 	context.xml.push(buildWordXml(nodes));
 }
 
-/**
- * Splits a word group into consecutive runs of punctuation-marked and unmarked
- * nodes, preserving order. Every input node lands in exactly one run.
- */
 function splitOnPunctuation(
 	nodes: ProseMirrorJSON[]
 ): { punctuation: boolean; nodes: ProseMirrorJSON[] }[] {
@@ -559,13 +548,7 @@ function removeWrapperMark(
 	}));
 }
 
-/**
- * Finds the correction mark carried by any node in a word group.
- *
- * The mark may sit on a suffix, a prefix or a middle fragment — the selection UI
- * permits a correction over part of a word — so it must not be read from
- * `nodes[0]`.
- */
+// Correction may cover part of a word, so scan all nodes instead of `nodes[0]`.
 function findCorrectionMark(
 	nodes: ProseMirrorJSON[]
 ): { type: string; attrs?: Record<string, any> } | undefined {
@@ -595,14 +578,7 @@ function isSameCorrectionMark(
 	return JSON.stringify(candidate.attrs || {}) === JSON.stringify(reference.attrs || {});
 }
 
-/**
- * Emits one `<app>` for a correction span.
- *
- * A correction covering part of a word uses the whole word as its comparison
- * locus: the editor and collation model require complete word readings. A span
- * covering several words yields a single `<app>` whose orig reading holds each
- * of them.
- */
+// One `<app>` per span; locus is always whole words for collation.
 function exportCorrection(
 	groups: WordGroup[],
 	correctionMark: { attrs?: Record<string, any> },

@@ -29,7 +29,7 @@ interface ProjectEntry {
 	payload?: JsonObject;
 }
 
-/** Rebase only references that matched the verified old revision, never stale drafts. */
+/** Rebase only references matching the verified old revision. */
 export async function reconcileAlphaProjectUpgrade(entries: ProjectEntry[]): Promise<void> {
 	const manifestEntry = entries.find(entry => entry.format === PROJECT_MANIFEST_FORMAT);
 	const manifest = manifestEntry?.payload as ProjectManifestPayload | undefined;
@@ -146,7 +146,7 @@ interface UpgradeJournal {
 	files: Array<{ path: string; original: string; upgraded: string }>;
 }
 
-/** Original files and the publication journal remain outside the project's synced file tree. */
+/** Originals and journal stay outside the synced tree. */
 export async function upgradeAlphaProjects(
 	storeOptions: StoreOperationOptions = {}
 ): Promise<boolean> {
@@ -316,7 +316,6 @@ async function hasAlphaCollations(
 		try {
 			if (openEnvelope(raw).header.schema_version === 2) return true;
 		} catch {
-			/* Invalid files remain the canonical reader's responsibility. */
 		}
 	}
 	return false;

@@ -289,11 +289,7 @@ export function getApparatusExportRefusals(
 	return refusals;
 }
 
-/**
- * Serialize an apparatus from the shared sequence that the basetext strip and live preview use.
- * Supplying that sequence is deliberate: re-deriving it here would make reconstruction depend on
- * two definitions of a variation unit.
- */
+/** Shared sequence; re-deriving would fork the unit definition. */
 export function exportApparatusTei(input: ApparatusTeiExportInput): string {
 	const refusals = getApparatusExportRefusals(input);
 	if (refusals.length > 0) throw new ApparatusExportError(refusals);
@@ -350,7 +346,6 @@ function activeWitnessIds(
 	return ordered;
 }
 
-/** Build a serializable export input while retaining the same segment derivation as the editor. */
 export function buildApparatusTeiExportInput(document: CollationDocument): ApparatusTeiExportInput {
 	const columns = deserializeAlignmentColumns(document.alignment?.columns ?? []);
 	const baseTextWitnessId =

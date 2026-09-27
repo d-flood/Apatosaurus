@@ -166,13 +166,11 @@
 		verse?: string;
 	}
 
-	// Performance optimization: Only rebuild page list when needed (e.g., when drawer opens)
 	let pages = $state<PageEditorMetadata[]>([]);
 	let pagesNeedUpdate = $state(false);
 	let lastScrollToPageToken: number | null = null;
 	let lastScrollToVerseToken: string | null = null;
 
-	// Cursor position state for status bar display
 	let cursorPosition = $state<CursorPosition>({});
 	let selectedTeiNode = $state<{ pos: number; type: string; attrs: Record<string, any> } | null>(
 		null
@@ -181,7 +179,6 @@
 	let dismissedInspectorSelectionKey = $state('');
 	let inspectorPanelOpen = $state(false);
 
-	// Drawer mode: 'inspector' for carrier nodes, 'correction'/'abbreviation' for text marks
 	type DrawerMode = 'inspector' | 'correction' | 'abbreviation';
 	let drawerMode = $state<DrawerMode>('inspector');
 	let inspectorDrawerOpen = $derived(
@@ -190,11 +187,9 @@
 			: drawerMode === 'correction' || drawerMode === 'abbreviation'
 	);
 
-	// Correction mark editing state
 	let correctionDraftCorrections = $state<Correction[]>([]);
 	let correctionTarget = $state<TextMarkTarget | null>(null);
 
-	// Abbreviation mark editing state
 	let abbrType = $state('nomSac');
 	let abbrExpansion = $state('');
 	let abbrRend = $state('\u00AF');
@@ -259,12 +254,10 @@
 	}
 
 	const pageNameDuplicate = $derived(pageNameExists(pageName));
-	// Helper function to check if document has pages
 	function checkForPages(editor: Editor | null): boolean {
 		return (editor?.state.doc.childCount ?? 0) > 0;
 	}
 
-	// Helper function to rebuild page list
 	function rebuildPageList() {
 		if (!editorState.editor) return;
 		const pageList: PageEditorMetadata[] = [];
@@ -391,13 +384,11 @@
 			domAtPos.node instanceof HTMLElement ? domAtPos.node : domAtPos.node.parentElement;
 		if (!selectedElement) return;
 
-		// Wait a frame so the drawer transition has started and we can measure
 		requestAnimationFrame(() => {
 			const drawerHeight = window.innerHeight * 0.5; // max-height: 50vh
 			const rect = selectedElement.getBoundingClientRect();
 			const visibleBottom = window.innerHeight - drawerHeight;
-			// If the selected element is below (or close to) the drawer top, scroll it up
-			const margin = 48; // px breathing room above drawer
+			const margin = 48;
 			if (rect.bottom > visibleBottom - margin) {
 				const scrollBy = rect.bottom - (visibleBottom - margin);
 				const scrollContainer = transcriptionElement?.closest<HTMLElement>(
@@ -512,7 +503,6 @@
 		};
 	}
 
-	// Reactively rebuild page list when drawer opens and updates are pending
 	$effect(() => {
 		if (drawerOpen && pagesNeedUpdate) {
 			rebuildPageList();
@@ -527,12 +517,10 @@
 			lastInspectorSelectionKey = '';
 			dismissedInspectorSelectionKey = '';
 			inspectorPanelOpen = false;
-			// Don't reset drawerMode here — correction/abbreviation drawers
-			// should stay open when text selection changes
+			// Correction drawers stay open across text selection changes.
 			return;
 		}
 
-		// A carrier node was selected — switch to inspector mode
 		drawerMode = 'inspector';
 
 		if (key !== lastInspectorSelectionKey) {
@@ -673,7 +661,6 @@
 			}
 		}
 
-		// Get reference to the dialog element after mount
 		const dialogElement = document.getElementById(
 			'transcription-metadata-modal'
 		) as HTMLDialogElement;
@@ -709,14 +696,12 @@
 			}
 			initializeEditorContent(editor, repairResult.doc, { emitUpdate: false });
 
-			// Set editor state once (not on every transaction)
 			editorState.editor = editor;
 			if (repairResult.repaired && repairResult.issues.length > 0) {
 				onSaveStateChange?.(false);
 				debouncedAutosave();
 			}
 
-			// Performance optimization: Only track structural changes, not every edit
 			editor.on('update', ({ transaction }: { transaction: any }) => {
 				if (transaction.docChanged) {
 					unconfirmedVerseCount = countUnconfirmedVerses(editor);
@@ -735,18 +720,15 @@
 				updateSelectionDerivedState(editor);
 			});
 
-			// Update cursor position when selection changes (for cursor movement without content changes)
 			editor.on('selectionUpdate', () => {
 				updateSelectionDerivedState(editor);
 			});
 
-			// Initialize hasPage and pages on mount
 			hasPage = checkForPages(editor);
 			unconfirmedVerseCount = countUnconfirmedVerses(editor);
 			rebuildPageList();
 			updateSelectionDerivedState(editor);
 
-			// Add listener for modal open event
 			const modal = document.getElementById(
 				'transcription-metadata-modal'
 			) as HTMLDialogElement;
@@ -762,7 +744,6 @@
 			window.addEventListener('beforeunload', handleBeforeUnload);
 			if (modal) {
 				const handleModalToggle = () => {
-					// When modal is open (has open attribute), rebuild page list if needed
 					if (modal.open && pagesNeedUpdate) {
 						rebuildPageList();
 						pagesNeedUpdate = false;
@@ -801,7 +782,7 @@
 		const { state, view } = editorState.editor;
 
 		if (extent === 'full') {
-			// For "full", we need to ensure it's the only content on the line
+			// A "full" line holds nothing else.
 			const from = state.selection.$from;
 			let linePos: number | null = null;
 			let lineNode: any = null;
@@ -819,12 +800,10 @@
 				const lineEnd = linePos + (lineNode.nodeSize as number) - 1;
 				const tr = state.tr;
 
-				// Clear all content in the line
 				if (lineNode.content.size > 0) {
 					tr.delete(lineStart, lineEnd);
 				}
 
-				// Insert the untranscribed milestone
 				tr.insert(
 					lineStart,
 					state.schema.nodes.untranscribed.create({
@@ -942,7 +921,6 @@
 			const newAttrs = { ...lineNode.attrs, wrapped: newWrapped };
 			const tr = state.tr.setNodeMarkup(linePos, null, newAttrs);
 			view.dispatch(tr);
-			// Note: editor.on('update') will handle marking changes
 		}
 	}
 
@@ -968,16 +946,7 @@
 		}
 	}
 
-	/**
-	 * Where a new top-level `page` node belongs.
-	 *
-	 * A page is a top-level node, so its insert point is a property of the
-	 * document, never of the selection: the end of the page containing the caret,
-	 * or the end of the document when the caret is not inside a page — which is
-	 * the case for an editor that has not yet been clicked into. Deriving it from
-	 * `state.selection` (what `insertContent` does) let ProseMirror's fitter
-	 * resolve the block/inline mismatch by replacing the entire manuscript.
-	 */
+	/** Insert position is document-derived: `insertContent` from selection can replace the manuscript. */
 	function pageInsertPosition(state: EditorState): number {
 		const resolvedFrom = state.selection.$from;
 		for (let depth = resolvedFrom.depth; depth > 0; depth--) {
@@ -986,18 +955,14 @@
 		return state.doc.content.size;
 	}
 
-	/** Insert a page built from `pageJson` at a document-derived position. */
 	function insertPageNode(editor: Editor, pageJson: Record<string, any>) {
 		const { state, view } = editor;
 		const insertAt = pageInsertPosition(state);
 		const pageNode = state.schema.nodeFromJSON(pageJson);
 		const tr = state.tr.insert(insertAt, pageNode);
-		// Put the caret in the new page's first line rather than at the end of the
-		// document — the two differ whenever the caret was in a middle page.
 		tr.setSelection(TextSelection.near(tr.doc.resolve(insertAt + 3)));
 		view.dispatch(tr);
 
-		// Performance optimization: set hasPage instead of checking the whole document
 		hasPage = true;
 		editor.commands.focus();
 		pageName = '';
@@ -1085,7 +1050,6 @@
 			result.column = resolvedFrom.index(columnDepth - 1) + 1;
 		}
 
-		// Get milestone values (book, chapter, verse)
 		const milestones = getCurrentMilestoneValues(editor);
 		result.book = milestones.book;
 		result.chapter = milestones.chapter;

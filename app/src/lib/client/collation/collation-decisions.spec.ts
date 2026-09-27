@@ -26,7 +26,6 @@ function reading(
 	};
 }
 
-/** A main reading with the given witnesses, left unordered so priority decides its place. */
 function attested(id: string, witnessIds: string[]): ClassifiedReading {
 	return {
 		...reading(id, 0),
@@ -148,7 +147,6 @@ describe('decision overlay', () => {
 
 		expect(result.lemmaReadingId).toBeNull();
 		expect(result.needsLemmaDecision).toBe(true);
-		// `gamma` leads the provisional witness-count order but is not thereby the lemma.
 		expect(result.readings[0]?.id).toBe('gamma');
 	});
 

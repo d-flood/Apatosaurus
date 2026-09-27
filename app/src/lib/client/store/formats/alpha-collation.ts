@@ -27,7 +27,6 @@ export const ALPHA_READING_TYPES = [
 	},
 ];
 
-// c7d94ee used format v2 for primaries, working files, and checkpoints.
 export async function upgradeAlphaCollation(payload: JsonObject): Promise<JsonObject> {
 	const { current_revision, created_at, updated_at, ...content } = payload;
 	const revision = readObjectValue(current_revision, 'current_revision');

@@ -118,7 +118,7 @@ test('the local stemma has one tabstop and supports keyboard source decisions', 
 	await expect(announcer).toContainText('Cannot make reading');
 	await expect(page.getByRole('alert').last()).toContainText('form a cycle');
 
-	// The lemma roots its own stemma and needs no source decision; every other reading does.
+	// Lemma needs no source decision.
 	for (let index = 0; index < (await sourceControls.count()); index += 1) {
 		const control = sourceControls.nth(index);
 		const selected = await control.locator('option:checked').textContent();
@@ -148,9 +148,7 @@ test('the local stemma has one tabstop and supports keyboard source decisions', 
 	expect(xml).not.toContain('<f name="connectivity">');
 
 	await page.getByRole('link', { name: 'Stemma', exact: true }).click();
-	// The lemma roots its own stemma (or carries an explicit source), so only a
-	// non-lemma reading left undecided refuses export. The lemma's item carries a
-	// `lemma` badge; every other source control belongs to an ordinary reading.
+	// Only a non-lemma reading left undecided blocks export.
 	const nonLemmaItem = page
 		.locator('li')
 		.filter({ has: page.getByRole('combobox', { name: /Source of reading/ }) })

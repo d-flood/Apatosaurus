@@ -44,7 +44,6 @@ function makeWitness(
 	};
 }
 
-/** The readings the real collation pipeline produces, never a hand-built set. */
 function readingsFor(witnesses: WitnessConfig[]): ClassifiedReading[] {
 	collationState.reset();
 	collationState.setWitnesses(witnesses);
@@ -129,7 +128,6 @@ describe('projectLocalStemma', () => {
 			makeWitness('A', textTokens('λογος'), true),
 			makeWitness('B', textTokens('θεος')),
 		]);
-		// The shape a document written before non-attestation left the reading model still holds.
 		const legacy = readings.map(reading =>
 			reading.label === 'b' ? { ...reading, isLacuna: true } : reading
 		);
@@ -147,7 +145,6 @@ describe('projectLocalStemma', () => {
 		]);
 		const { nodes } = projectLocalStemma(readings, [], labelled(readings, 'a').id);
 
-		// The majority reading has three witnesses to the lemma's one and still is not the root.
 		expect(nodes.filter(node => node.isLemma).map(node => node.witnessIds)).toEqual([['A']]);
 		expect(nodes.filter(node => !node.isLemma).map(node => node.sourceDecision)).toEqual([
 			{ kind: 'undecided' },

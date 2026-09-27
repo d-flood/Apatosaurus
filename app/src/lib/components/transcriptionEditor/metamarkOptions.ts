@@ -3,9 +3,7 @@ export interface MetamarkFunctionOption {
 	label: string;
 }
 
-// The IGNTP schema documents examples rather than a closed enumeration.
-// This curated list combines the guideline examples with values already used
-// in this repo's fixtures, tests, and editor affordances.
+// IGNTP schema gives examples, not a closed list.
 export const METAMARK_FUNCTION_OPTIONS: MetamarkFunctionOption[] = [
 	{ value: 'insertion', label: 'Insertion' },
 	{ value: 'deletion', label: 'Deletion' },

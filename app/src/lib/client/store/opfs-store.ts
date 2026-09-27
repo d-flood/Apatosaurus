@@ -41,7 +41,7 @@ export interface StoreOperationOptions {
 	backend?: StoreBackend;
 	nonce?: () => string;
 	quarantineSink?: StoreQuarantineSink;
-	/** Set only by withDocumentStoreWriterLock callbacks to avoid reacquiring the same Web Lock. */
+	/** True inside writer-lock callbacks; do not reacquire. */
 	writerLockHeld?: boolean;
 }
 

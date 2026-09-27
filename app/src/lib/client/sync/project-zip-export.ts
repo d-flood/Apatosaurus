@@ -75,7 +75,7 @@ const ZIP32_MAX_VALUE = 0xffffffff;
 const DEFAULT_ZIP_LIMITS: ZipLimits = {
 	maxEntries: ZIP32_MAX_ENTRIES,
 	maxEntryBytes: ZIP32_MAX_VALUE,
-	// The worker RPC returns one Uint8Array, so fail clearly before a browser-hostile allocation.
+	// RPC returns one buffer; cap before allocating.
 	maxArchiveBytes: 512 * 1024 * 1024,
 };
 

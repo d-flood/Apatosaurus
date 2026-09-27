@@ -52,11 +52,7 @@ export function developmentServer(environment: DevelopmentEnvironment = process.
 	};
 }
 
-// The browser test project binds a TCP port for its Chromium runner. Vitest
-// defaults to 63315 with strict binding, so two concurrent `--project client`
-// runs collide and the loser reports "no tests" rather than a real failure.
-// Unpinned runs therefore fall back to the next free port; set
-// VITEST_BROWSER_PORT to pin one and fail loudly if it is taken.
+// Unpinned browser runs use the next free port; pinned ports fail loudly if taken.
 export function browserTestServer(environment: DevelopmentEnvironment = process.env) {
 	const portText = environment.VITEST_BROWSER_PORT;
 	if (portText === undefined || portText === '') {
@@ -86,11 +82,7 @@ export default defineConfig({
 	},
 	optimizeDeps: {
 		exclude: ['@sqlite.org/sqlite-wasm'],
-		// Pre-bundle every dep the app and browser test suite touch. When Vite
-		// discovers a dep mid-run it re-optimizes and reloads, which aborts
-		// in-flight dynamic imports in the Chromium test runner ("Failed to fetch
-		// dynamically imported module"). Regenerate from
-		// node_modules/.vite/vitest/*/deps/_metadata.json if a new dep flakes.
+		// Pre-bundle all deps; mid-run discovery aborts dynamic imports in Chromium.
 		include: [
 			'@annotorious/openseadragon',
 			'@xmldom/xmldom',
@@ -201,8 +193,6 @@ export default defineConfig({
 		projects: [
 			{
 				extends: './vite.config.ts',
-				// Test-only deps that would otherwise be discovered (and trigger a
-				// mid-run reload) the first time a spec module loads in the browser.
 				optimizeDeps: {
 					include: [
 						'chai',

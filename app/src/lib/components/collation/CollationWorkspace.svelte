@@ -237,7 +237,6 @@
 </script>
 
 <div class="flex flex-col h-[calc(100vh-4rem)]">
-	<!-- Global Header -->
 	<div class="shrink-0 bg-base-200/60 border-b border-base-300/50 px-4 py-3">
 		<div class="flex items-center justify-between gap-4 max-w-7xl mx-auto">
 			<div class="flex items-center gap-3">
@@ -304,7 +303,6 @@
 		{/if}
 	</div>
 
-	<!-- Phase Content -->
 	<div class="flex-1 min-h-0 overflow-hidden">
 		<div class="h-full w-full px-3 py-4 md:px-4">
 			{#if collationState.orphanedMembers.length > 0}

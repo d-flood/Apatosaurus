@@ -63,7 +63,6 @@ export function getExternalImageLabel(url: string, index: number): string {
 			if (decoded) return decoded;
 		}
 	} catch {
-		// ignore and fall back
 	}
 	return `Image ${index + 1}`;
 }

@@ -26,7 +26,6 @@
 
 	type ReorderRefusal = Extract<ReorderResult, { ok: false }>['error'];
 
-	/** A reading and how deep it sits inside its main reading's card. */
 	type CardNode = { reading: ClassifiedReading; depth: number };
 	type Card = { main: ClassifiedReading; nodes: CardNode[] };
 
@@ -35,16 +34,11 @@
 
 	let liveMessage = $state('');
 	let expandedWitnesses = new SvelteSet<string>();
-	/**
-	 * The witness selection. Component state, never the store's: it is not editorial work and
-	 * must not consume an undo entry.
-	 */
+	/** Selection only; never stored, so it consumes no undo entry. */
 	let selectedWitnessIds = new SvelteSet<string>();
 	let activeChipIndex = $state(0);
-	/** Where a `Shift`-extended range starts. */
 	let anchorChipIndex = $state(0);
 	let chipGroup = $state<HTMLElement | null>(null);
-	/** Chosen targets for the two destructive verbs, which act only on an explicit apply. */
 	let moveTargetId = $state(NO_VALUE);
 	let mergeTargetId = $state(NO_VALUE);
 
@@ -93,10 +87,6 @@
 		unitIndex < 0 ? false : collationState.unitNeedsLemmaDecision(unitIndex)
 	);
 
-	/**
-	 * One card per main reading, holding the whole chain of subreadings beneath it. Regularized
-	 * display folds subreadings into their main reading, so they are not shown separately there.
-	 */
 	let cards = $derived.by<Card[]>(() => {
 		const childrenOf = new Map<string, ClassifiedReading[]>();
 		for (const reading of readings) {
@@ -135,7 +125,6 @@
 			.sort((a, b) => a.siglum.localeCompare(b.siglum));
 	}
 
-	/** The witnesses that keep a reading undeletable: its own and its subreadings'. */
 	function attestingWitnessesOf(reading: ClassifiedReading): string[] {
 		if (unitIndex < 0) return reading.witnessIds;
 		return collationState.getAttestingWitnessIdsForReading(unitIndex, reading.id);
@@ -146,7 +135,6 @@
 		return collationState.getDisplayedWitnessIdsForReading(unitIndex, reading.id, displayMode);
 	}
 
-	/** The witnesses a reading shows, honouring its own show-more state. */
 	function visibleWitnessesOf(reading: ClassifiedReading): { id: string; siglum: string }[] {
 		const sorted = getSortedWitnesses(getDisplayedWitnessIds(reading));
 		return expandedWitnesses.has(reading.id) ? sorted : sorted.slice(0, WITNESS_DISPLAY_LIMIT);
@@ -157,10 +145,7 @@
 		return Math.max(0, getDisplayedWitnessIds(reading).length - WITNESS_DISPLAY_LIMIT);
 	}
 
-	/**
-	 * Every witness chip on screen, in reading order across all cards. One flat sequence is what
-	 * makes the group a single tabstop and lets a range span more than one card.
-	 */
+	/** Flat chip order keeps one tabstop and lets ranges span cards. */
 	let chips = $derived.by(() => {
 		const list: { witnessId: string; readingId: string }[] = [];
 		for (const card of cards) {
@@ -178,11 +163,7 @@
 	);
 	let rovingIndex = $derived(Math.min(Math.max(activeChipIndex, 0), Math.max(chips.length - 1, 0)));
 
-	/**
-	 * The selection itself, in reading order — never the chips on screen. A reading shows at most
-	 * twelve sigla, so a verb reading the selection off the chips would act on a subset of what
-	 * the scholar selected and announce only that subset.
-	 */
+	/** Reading order, not screen order: only 12 sigla show per reading. */
 	let selectedWitnessIdsInOrder = $derived(
 		readings.flatMap(reading => reading.witnessIds.filter(id => selectedWitnessIds.has(id)))
 	);
@@ -193,11 +174,6 @@
 	);
 	let selectionCount = $derived(selectedWitnessIdsInOrder.length);
 
-	/**
-	 * What merging into the chosen target would throw away. Shown before the scholar commits,
-	 * because a merge discards the text of every reading it collapses and may take the lemma
-	 * reading with it.
-	 */
 	let mergeDiscards = $derived.by(() => {
 		const sources = readings.filter(
 			reading => reading.id !== mergeTargetId && selectedReadingIds.includes(reading.id)
@@ -285,10 +261,6 @@
 		return witnessIds.map(getWitnessSiglum).join(', ');
 	}
 
-	/**
-	 * Where focus lands once a verb has run and the selection bar — with the control that ran it —
-	 * has gone. The witnesses acted on are where the scholar's attention already is.
-	 */
 	async function focusAfterVerb(witnessId: string | undefined) {
 		await tick();
 		const target =
@@ -312,8 +284,6 @@
 					: 'That reading no longer exists. Nothing was moved.';
 			return;
 		}
-		// Witnesses that already attested the target did not move, so they are not announced as
-		// though they had.
 		liveMessage =
 			result.moved === 0
 				? `Every selected witness already attests ${target.label}. Nothing was moved.`
@@ -376,11 +346,7 @@
 		return collationState.getBaseTextForVariationUnit(span.startIndex) || 'om.';
 	}
 
-	/**
-	 * The options the type control offers, plus whatever the reading already carries. A type the
-	 * aligner determined, or a project value dropped from the vocabulary, is reported but not
-	 * selectable, so the control never misstates what is recorded.
-	 */
+	/** Unselectable recorded types stay visible so the control never misstates them. */
 	function readingTypeOptions(reading: ClassifiedReading): ReadingTypeDefinition[] {
 		const options = readingTypeVocabulary.filter(type => type.selectable);
 		const current = reading.readingType;
@@ -438,7 +404,7 @@
 		return reading.text ?? '';
 	}
 
-	/** Commit on blur, which is what keeps a text edit one undo entry rather than one per keystroke. */
+	/** Blur commit keeps a text edit one undo entry. */
 	function commitReadingText(reading: ClassifiedReading, value: string) {
 		if (value.trim() === getDisplayedReadingText(reading).trim()) return;
 		collationState.updateReadingTextForDisplayMode(unitIndex, reading.id, value, displayMode);
@@ -530,7 +496,6 @@
 </script>
 
 <div class="flex h-full flex-col gap-2">
-	<!-- Basetext strip -->
 	<div class="rounded-xl border border-base-300/50 bg-base-200/30 px-4 py-3">
 		<div class="mb-2 flex items-center justify-between">
 			<h2 class="text-xs font-semibold uppercase tracking-[0.2em] text-base-content/50">
@@ -580,8 +545,6 @@
 		</div>
 	</div>
 
-	<!-- Live apparatus notation for the selected unit: real text, so it can be read out,
-	     selected, and copied. -->
 	{#if apparatusNotation}
 		<section
 			class="rounded-xl border border-base-300/50 bg-base-100 px-4 py-2"
@@ -593,7 +556,6 @@
 		</section>
 	{/if}
 
-	<!-- Toolbar -->
 	<div class="flex items-center justify-between gap-2">
 		<div class="flex items-center gap-2">
 			<button
@@ -662,7 +624,6 @@
 		</div>
 	{/if}
 
-	<!-- Contextual verbs: they act on the whole selection, once per gesture. -->
 	{#if selectionCount > 0}
 		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 		<section
@@ -682,8 +643,7 @@
 				{selectionCount === 1 ? 'witness' : 'witnesses'} selected
 				<span class="text-base-content/40">({siglaOf(selectedWitnessIdsInOrder)})</span>
 			</span>
-			<!-- Both verbs act on an explicit apply: arrowing through a closed select fires change,
-			     which would otherwise perform a move nobody asked for. -->
+			<!-- Explicit apply: arrowing a closed select fires change. -->
 			<label class="flex items-center gap-1 text-xs text-base-content/60">
 				<span>Move to</span>
 				<select
@@ -767,7 +727,6 @@
 		</section>
 	{/if}
 
-	<!-- Reading cards -->
 	<div class="min-h-0 flex-1 overflow-auto rounded-xl border border-base-300/50 bg-base-100 p-3">
 		{#if !selectedSpan}
 			<div class="flex h-full items-center justify-center p-6 text-sm text-base-content/35">
@@ -798,7 +757,6 @@
 								]}
 								style:margin-left={isSub ? `${node.depth * 1.25}rem` : undefined}
 							>
-								<!-- The letter is the card's anchor. -->
 								<div class="w-16 shrink-0">
 									<span
 										class={[
@@ -822,7 +780,6 @@
 								</div>
 
 								<div class="min-w-0 flex-1 space-y-2">
-									<!-- Edited in place: no permanent box, committed on blur. -->
 									<input
 										class="input input-ghost w-full max-w-md px-1 font-greek text-base"
 										aria-label={`Text of reading ${reading.label}`}
@@ -886,7 +843,6 @@
 									{/if}
 								</div>
 
-								<!-- Rare operations live here and nowhere else on the card. -->
 								<details class="dropdown dropdown-end shrink-0">
 									<summary
 										class="btn btn-ghost btn-xs"
@@ -1016,8 +972,6 @@
 					</article>
 				{/each}
 
-				<!-- Non-attestation is not a reading: pinned last, unlettered, and its sigla are
-				     plain text because there is nothing to move or merge them into. -->
 				{#if hasNonAttestation}
 					<section
 						class="rounded-xl border border-base-300/60 bg-base-200/40 px-3 py-3"

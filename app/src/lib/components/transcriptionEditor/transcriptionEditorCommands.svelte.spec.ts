@@ -1,12 +1,3 @@
-/**
- * Characterization tests for the editor's page/column/line commands, driven
- * through a real mounted `TranscriptionEditor` and its real toolbar/dialog.
- *
- * Written for ticket 01 of the `refactor-transcription-editor` epic. The point
- * of mounting the component rather than re-implementing its handlers is that
- * the handlers are component-private; a test that copies them proves only that
- * the copy is stable. Assertions tagged DEFECT record known defects.
- */
 import { describe, expect, it } from 'vitest';
 import { userEvent } from '@vitest/browser/context';
 
@@ -93,23 +84,14 @@ describe('TranscriptionEditor structural commands (mounted, multi-page fixture)'
 		}
 	});
 
-	// The two assertions below were written as `DEFECT F6` and are inverted in
-	// place by ticket 07: the insert position is now derived from the document
-	// rather than from `state.selection`, so an unfocused editor is not a special
-	// case at all.
-
 	it('F6: insertPage appends without touching the document when the editor has never been focused', async () => {
 		const harness = await mountEditor();
 		try {
-			// No caret placed. `insertContent` used to fit a block `page` node into
-			// whatever the default selection was, and ProseMirror's fitter resolved
-			// the mismatch by replacing everything.
 			const before = Array.from(harness.container.querySelectorAll('.ProseMirror .page')).map(
 				element => element.outerHTML
 			);
 			await insertPage(harness, '2v', 'Standard');
 
-			// The three original pages are byte-identical, not merely same-shaped.
 			const after = Array.from(harness.container.querySelectorAll('.ProseMirror .page')).map(
 				element => element.outerHTML
 			);
@@ -154,7 +136,6 @@ describe('TranscriptionEditor structural commands (mounted, multi-page fixture)'
 	it('F6: insertPage lands the new page after the page containing the caret', async () => {
 		const harness = await mountEditor();
 		try {
-			// Caret in the FIRST page, which is not the end of the document.
 			placeCaretAtEndOf(
 				lineElement(harness.container, 0, 0, 1).querySelector(
 					'.line-content'
@@ -208,7 +189,6 @@ describe('TranscriptionEditor structural commands (mounted, multi-page fixture)'
 			await tick();
 			const panel = popover(harness.container, 'popover-insert-page');
 			const standard = buttonWithText(panel, 'Standard Page');
-			// The only feedback that a name is required is the disabled attribute.
 			expect(standard.disabled).toBe(true);
 			standard.click();
 			await tick();
@@ -322,7 +302,6 @@ describe('TranscriptionEditor structural commands (mounted, multi-page fixture)'
 			const target = lineElement(harness.container, 0, 0, 1);
 			expect(target.querySelectorAll('.untranscribed-milestone')).toHaveLength(1);
 			expect(target.querySelector('.line-content')?.textContent).not.toContain('a2');
-			// Sibling lines are untouched.
 			expect(domShape(harness.container)[0][0][0]).toBe('a1');
 			expect(domShape(harness.container)[0][0][2]).toBe('a3');
 		} finally {

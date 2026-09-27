@@ -27,7 +27,6 @@ export function getCanvasLabel(canvas: any, index: number): string {
 			return firstValue(label) || `Canvas ${index + 1}`;
 		}
 	} catch {
-		// ignore malformed labels
 	}
 	return firstValue(canvas?.label) || `Canvas ${index + 1}`;
 }
@@ -48,7 +47,6 @@ export function getCanvasThumbnailUrl(canvas: any, size = 220): string | null {
 			}
 		}
 	} catch {
-		// ignore
 	}
 
 	const serviceUrl = getCanvasImageServiceUrl(canvas);

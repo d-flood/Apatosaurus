@@ -287,7 +287,7 @@
 				try {
 					await checkpointLocalDb();
 				} catch {
-					// Non-critical: checkpoint failure doesn't affect data integrity.
+					// Checkpoint failure is safe to ignore.
 				}
 
 				try {

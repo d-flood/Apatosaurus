@@ -33,8 +33,7 @@ test('project libraries are clean worklists and collation configuration lives in
 
 	const lowercaseToggle = page.getByRole('checkbox', { name: /Lowercase for alignment/ });
 	await lowercaseToggle.check();
-	// The saving indicator is transient and may already be gone; waiting for its
-	// absence covers both a save in flight and one that finished instantly.
+	// Absence covers a save in flight or one that finished instantly.
 	await expect(page.getByText('Saving project settings')).toHaveCount(0, { timeout: 30_000 });
 	const treatmentToggle = page.locator('[data-treatment-control]').getByRole('checkbox');
 	await treatmentToggle.check();
@@ -170,7 +169,6 @@ async function seedProjectDocuments(page: Page, projectId: string): Promise<void
 		timeout: 30_000,
 	});
 	await page.getByRole('button', { name: /^Rom / }).first().click();
-	// The segment name is scholar-assigned and required before advancing.
 	const memberName = await page.locator('span.min-w-0.truncate.font-mono').first().innerText();
 	await page.getByRole('textbox', { name: /Segment name/ }).fill(memberName);
 	const proceed = page.getByRole('button', { name: 'Proceed to Alignment' });

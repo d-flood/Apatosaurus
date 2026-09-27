@@ -24,12 +24,6 @@ function makeCell(text: string | null, options: Partial<AlignmentCell> = {}): Al
 	};
 }
 
-/**
- * A lacunose cell as the collation pipeline really emits one, built by running the adapter over a
- * gap token. Gap and untranscribed milestones carry the `⊘` placeholder as their text, and a
- * supplied-only token collated as a gap carries the editor's restored letters — so a fixture
- * asserting an empty cell would test a shape production never produces.
- */
 function makeLacunaCell(
 	options: {
 		kind?: 'gap' | 'untranscribed';
@@ -244,8 +238,6 @@ describe('reading proposal', () => {
 					['A', makeCell('alpha')],
 					['B', makeLacunaCell()],
 					['C', makeLacunaCell({ kind: 'untranscribed', source: 'untranscribed' })],
-					// Supplied text collated as a gap keeps the editor's restored letters as its
-					// text, so only the cell's kind can tell that the witness does not testify.
 					['D', makeLacunaCell({ source: 'supplied', text: 'λογος' })],
 				]),
 			],

@@ -155,7 +155,6 @@ function settleSources() {
 	collationState.setReadingType(1, beta.id, 'apparent');
 	collationState.setReadingCertainty(1, beta.id, 'low');
 	collationState.setReadingParent(1, beta.id, alpha.id);
-	// `alpha` is the base text's reading and therefore the lemma, which roots the stemma.
 	collationState.setReadingSource(1, omission.id, { kind: 'derived', from: alpha.id });
 }
 
@@ -218,7 +217,7 @@ describe('apparatus TEI exporter', () => {
 		expect(reconstructWitness(document, 'B')).toBe('one beta two');
 		expect(reconstructWitness(document, 'D')).toBe('one two');
 		expect(() => validateTeiP5(xml)).not.toThrow();
-		// Compiles the 1MB TEI schema in a fresh Python process; slow under parallel load.
+		// Slow: fresh Python + 1MB schema.
 	}, 60_000);
 
 	it('serializes flat subreadings, omission, non-attestation, and local-stemma decisions', () => {
@@ -272,7 +271,7 @@ describe('apparatus TEI exporter', () => {
 		expect(reconstructWitness(absoluteDocument, 'B')).toBe('one beta two');
 		expect(reconstructWitness(absoluteDocument, 'D')).toBe('one two');
 		expect(() => validateTeiP5(absolute)).not.toThrow();
-		// Validates twice, each in a fresh Python process against the 1MB TEI schema.
+		// Slow: two fresh Python validations against the 1MB schema.
 	}, 60_000);
 
 	it('adds basetext to the lemma only when the base text actually attests it', () => {

@@ -188,8 +188,7 @@ function deriveToken(
 		sourceToken.segments.length > 0 && sourceToken.segments.every(segment => segment.isPunctuation);
 	const isSupplied = sourceToken.segments.some(segment => segment.isSupplied);
 
-	// Derivation order is fixed: structural preprocessing first, then project rules,
-	// then verse rules. Rule matching uses NFC-normalized Unicode regexes.
+	// Fixed order: structural, project, verse; NFC regexes.
 	let structuralText = sourceToken.segments
 		.map(segment => {
 			if (segment.hasUnclear) return segment.text;

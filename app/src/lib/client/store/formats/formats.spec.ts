@@ -320,8 +320,7 @@ describe('canonical store formats', () => {
 
 	it('refuses a v3 collation rather than loading its stemma arcs away', async () => {
 		const registry = createCanonicalFormatRegistry();
-		// v3 held the stemma under `edges` with `sourceReadingId`/`targetReadingId`. The current
-		// parser reads `arcs`, so loading this would hydrate to no arcs and save the loss back.
+		// v3 stemma used `edges`; parser reads `arcs`.
 		const payload = {
 			...COLLATION_FIXTURE,
 			document: {
@@ -347,7 +346,7 @@ describe('canonical store formats', () => {
 				},
 			},
 		} as unknown as CollationPayload;
-		// A correct revision hash, so the version is the only thing that can refuse this document.
+		// Correct hash isolates version as refusal cause.
 		const sealed = await sealDocument(COLLATION_FORMAT, 3, {
 			...payload,
 			current_revision: {

@@ -7,7 +7,7 @@ test('alpha upgrade opens existing OPFS collation edits and preserves them after
 	page,
 }) => {
 	const { created_at, updated_at, ...content } = structuredClone(alpha);
-	// This fixture exercises the collation without requiring unrelated witness refreshes.
+	// Blank witnesses to avoid unrelated refreshes.
 	content.document.setup.witnesses.forEach(witness => {
 		witness.transcriptionId = '';
 	});

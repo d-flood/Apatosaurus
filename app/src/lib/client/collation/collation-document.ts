@@ -99,7 +99,7 @@ export interface CollationStemmaUnitNode {
 	unitId: string;
 	columnId: string | null;
 	arcs: ReadingArc[];
-	/** Omitted until a scholar establishes a value; the in-memory default is 10. */
+	/** Unset until decided; in-memory default is 10. */
 	connectivity?: number | 'absolute';
 }
 
@@ -192,10 +192,7 @@ function makeSourceTokenId(witnessId: string, index: number): string {
 	return `${witnessId}::source::${index}`;
 }
 
-/**
- * A phase name this build does not recognize comes from a newer build, so it clamps to the last
- * phase rather than resetting recorded progress. An absent phase records no progress at all.
- */
+/** Unknown phases come from newer builds, so clamp instead of resetting progress. */
 function normalizePhase(value: unknown): CollationPhase {
 	if (
 		value === 'setup' ||
@@ -441,10 +438,7 @@ function parseWitnesses(nodes: unknown): WitnessConfig[] {
 	return parsed;
 }
 
-/**
- * The witness a scholar designated as the base text, or null when none is designated or the
- * designated one is excluded and so testifies nowhere. Never stands another witness in.
- */
+/** Designated base-text witness, or null when none testifies. Never falls back. */
 export function findBaseTextWitnessId(
 	witnesses: Pick<WitnessConfig, 'witnessId' | 'isBaseText' | 'isExcluded'>[]
 ): string | null {

@@ -1,12 +1,3 @@
-/**
- * Characterization tests for everything exported from `editorCommands.ts`,
- * executed against a multi-line, multi-column, multi-page fixture.
- *
- * Written for ticket 01 of the `refactor-transcription-editor` epic. The
- * existing `toolbar-insertions` spec drives some of these through the toolbar
- * on a one-line document; this one calls them directly on a document where a
- * position error is visible. Assertions tagged DEFECT record known defects.
- */
 import { NodeSelection, TextSelection } from '@tiptap/pm/state';
 import { describe, expect, it } from 'vitest';
 
@@ -69,7 +60,6 @@ const EDITOR_COMMAND_FIXTURE = editorDocument({
 	],
 });
 
-/** Position of the first text node whose text equals `value`. */
 function findText(editor: any, value: string): number {
 	let position = -1;
 	editor.state.doc.descendants((node: any, pos: number) => {
@@ -318,7 +308,6 @@ describe('editorCommands against a multi-page fixture', () => {
 			const updated = editor.state.doc.nodeAt(pos)!;
 			expect(updated.attrs).toMatchObject({ reason: 'lost', unit: 'chars', extent: '3' });
 
-			// A position inside the document that holds no node fails cleanly.
 			expect(updateNodeAttrs(editor, pos + 1, { reason: 'x' })).toBe(false);
 			expect(updateNodeAttrs(null, pos, {})).toBe(false);
 
@@ -412,7 +401,6 @@ describe('editorCommands against a multi-page fixture', () => {
 			expect(insertMilestoneNode(editor, 'book', '')).toBe('invalid');
 			expect(insertMilestoneNode(null, 'book', 'Luke')).toBe('invalid');
 
-			// On a document with no milestones at all, the ordering rules bite.
 			const bare = createTestEditor({ content: editorDocument({}) });
 			try {
 				expect(insertMilestoneNode(bare, 'chapter', '1')).toBe('missing-book');
@@ -457,7 +445,6 @@ describe('editorCommands against a multi-page fixture', () => {
 	it('DEFECT F17: insertMetamarkForSelection produces two different representations of a metamark', () => {
 		const editor = createTestEditor({ content: EDITOR_COMMAND_FIXTURE });
 		try {
-			// Over a text selection it becomes a `teiSpan` mark tagged "metamark".
 			selectText(editor, 'b2');
 			expect(insertMetamarkForSelection(editor, 'transposition')).toBe(true);
 			expect(countNodes(editor, 'metamark')).toBe(0);
@@ -470,7 +457,6 @@ describe('editorCommands against a multi-page fixture', () => {
 			});
 			expect(spanTags).toEqual(['metamark']);
 
-			// Over a selected editorial action it becomes a `metamark` *node*.
 			caretAfter(editor, 'b3');
 			insertSelectableCarrierNode(editor, 'editorialAction', {
 				tag: 'undo',
@@ -480,7 +466,6 @@ describe('editorCommands against a multi-page fixture', () => {
 			expect(insertMetamarkForSelection(editor, 'transposition')).toBe(true);
 			expect(countNodes(editor, 'metamark')).toBe(1);
 
-			// With no usable selection it silently does nothing.
 			caretAfter(editor, 'd4');
 			expect(insertMetamarkForSelection(editor, 'transposition')).toBe(false);
 			expect(insertMetamarkForSelection(editor, '   ')).toBe(false);

@@ -143,13 +143,7 @@ function createEmptyLine(number: number = 1): TranscriptionLine {
 }
 
 function normalizeColumn(column: TranscriptionColumn): TranscriptionColumn {
-	// Empty lines are kept. A blank line is content: a scribe's spacing, the
-	// extent of a lacuna, and the result of the editor's Enter-on-a-blank-line
-	// command. This used to filter them out, which meant autosave deleted them
-	// on the way to the store (SPEC.md D6 / INVENTORY.md F36, ticket 08). The
-	// structural guard below is the part that was load-bearing: a column always
-	// has at least one line. The TEI parser drops its own structurally empty
-	// lines in `flushCurrentLine`, so imports do not gain blank lines here.
+	// Blank lines are content; only guarantee is a column keeps ≥1 line.
 	const normalizedLines = column.lines.map(normalizeLine);
 
 	return {

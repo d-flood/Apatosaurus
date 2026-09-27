@@ -119,10 +119,6 @@ export function applyTextLeafUpdates(
 	return visit(Array.isArray(children) ? children : [], []);
 }
 
-// ---------------------------------------------------------------------------
-// Manuscript-concept label utilities
-// ---------------------------------------------------------------------------
-
 const TAG_TO_CONCEPT: Record<string, string> = {
 	note: 'Note',
 	foreign: 'Foreign Language',

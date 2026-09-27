@@ -114,8 +114,7 @@ export function buildCollationProjection(input: {
 			const readings = [...input.getReadingsForUnit(startIndex)].sort(
 				(a, b) => a.order - b.order
 			);
-			// A base witness that does not testify has no base text. Falling back to another
-			// reading here would claim base-text content the manuscript does not carry.
+			// No testimony means no base text; never fall back.
 			const baseTestifies = !baseWitnessId || baseWitnessAttestsAt(startIndex, endIndex);
 			const baseReading = baseWitnessId
 				? readings.find(reading => reading.witnessIds.includes(baseWitnessId))

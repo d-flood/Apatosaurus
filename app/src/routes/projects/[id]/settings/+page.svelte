@@ -42,7 +42,7 @@
 	let nameDraft = $state('');
 	let descriptionDraft = $state('');
 	let projectRules = $state<RegularizationRule[]>([]);
-	// Carried through saves untouched: this epic ships no editor for project reading types.
+	// No editor; preserve on save.
 	let projectReadingTypes = $state<ReadingTypeDefinition[]>([]);
 	let lowercase = $state(false);
 	let ignoreWordBreaks = $state(false);

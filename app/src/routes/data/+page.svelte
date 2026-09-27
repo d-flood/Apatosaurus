@@ -372,7 +372,7 @@
 				currentDurabilityMilestone
 			);
 		} catch {
-			// The warning can return on the next load when localStorage is unavailable.
+			// Warning reappears next load if localStorage is unavailable.
 		}
 	}
 

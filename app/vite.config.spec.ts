@@ -42,8 +42,6 @@ describe('development server configuration', () => {
 });
 
 describe('browser test server configuration', () => {
-	// Concurrent `--project client` runs must not collide on a strict port: the
-	// loser reports "no tests" rather than a real failure.
 	it.each([{}, { VITEST_BROWSER_PORT: '' }])(
 		'yields the default port without strict binding when unpinned (%j)',
 		environment => {

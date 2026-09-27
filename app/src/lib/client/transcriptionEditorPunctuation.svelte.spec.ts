@@ -1,20 +1,3 @@
-/**
- * Punctuation typed in the editor, for ticket 09 of the `refactor-transcription-editor`
- * epic (SPEC.md § D5 / § B2, INVENTORY.md F35).
- *
- * Everything here starts from **editor state**, not from TEI. The existing
- * punctuation coverage in `packages/tei-transcription/tests/tei-transcription.spec.ts`
- * ("preserves word and punctuation attrs through prose mirror and TEI export")
- * starts from TEI, where the parser appends a word boundary that `pm-adapter`
- * turns into a space — so an *imported* `<pc>` sits in its own word group and
- * the serializer never sees the shape the editor produces. A round-trip suite
- * that starts from TEI is structurally blind to D5.
- *
- * The export assertions below were the defect: `exportWord` saw a punctuation
- * mark on any node in the group, emitted only the marked nodes, and returned,
- * so the word beside the punctuation was discarded. They now assert the word
- * survives, and that a typed period and an imported one export identically.
- */
 import { userEvent } from '@vitest/browser/context';
 import { NodeSelection } from '@tiptap/pm/state';
 import { describe, expect, it } from 'vitest';
@@ -31,7 +14,6 @@ import {
 
 type Json = Record<string, any>;
 
-/** A one-page, one-column, one-line document whose only line holds `content`. */
 function documentWithLineContent(content: Json[]): Json {
 	return editorDocument({
 		pages: [
@@ -46,7 +28,6 @@ function firstLineContent(json: Json): Json[] {
 	return json.content[0].content[0].content[0].content ?? [];
 }
 
-/** Position just inside the end of the first `line` node. */
 function endOfFirstLine(editor: any): number {
 	let found: number | null = null;
 	editor.state.doc.descendants((node: any, pos: number) => {
@@ -61,18 +42,12 @@ function endOfFirstLine(editor: any): number {
 	return found;
 }
 
-/**
- * Applies `tr` the way ProseMirror does and reports every transaction that came
- * out, so an `appendTransaction` from the punctuation plugin is directly
- * observable: one transaction means the plugin stayed quiet.
- */
 function applyAndCountTransactions(editor: any, build: (tr: any) => any): number {
 	const state = editor.state;
 	const { transactions } = state.applyTransaction(build(state.tr));
 	return transactions.length;
 }
 
-/** The serialized content of the first `<ab>` in an exported TEI document. */
 function firstAbXml(xml: string): string {
 	const ab = new DOMParser()
 		.parseFromString(xml, 'application/xml')
@@ -82,8 +57,6 @@ function firstAbXml(xml: string): string {
 		.map(child => new XMLSerializer().serializeToString(child))
 		.join('')
 		.replace(/ xmlns="[^"]*"/g, '')
-		// The serializer pretty-prints one element per line; the line breaks are
-		// formatting, not content.
 		.replace(/\n\s*/g, '')
 		.trim();
 }
@@ -196,8 +169,6 @@ describe('PunctuationHighlighter', () => {
 		editor.commands.insertContent('.');
 		const afterFirstPass = JSON.stringify(editor.getJSON());
 
-		// A doc-changing edit that introduces no new punctuation re-runs the full
-		// scan over the marked period; it must neither re-mark nor re-split it.
 		editor.commands.focus('start');
 		editor.commands.insertContent('X');
 		const withPrefix = JSON.stringify(editor.getJSON());
@@ -306,10 +277,7 @@ describe('typed punctuation from a mounted editor', () => {
 			const content = line.querySelector('.line-content') as HTMLElement;
 			expect(content.textContent).toBe('a1');
 			const editor = (harness.container.querySelector('.ProseMirror') as any).editor;
-			// Set the caret through the editor rather than the DOM: a DOM
-			// selection placed at the end of the line only reaches ProseMirror
-			// asynchronously, so a keystroke typed after a fixed `tick()` can
-			// land at the pre-existing (mid-line) selection under load.
+			// DOM selection reaches ProseMirror async; set caret via editor to avoid flakes.
 			editor.commands.setTextSelection(
 				editor.view.posAtDOM(content, content.childNodes.length)
 			);
@@ -318,13 +286,10 @@ describe('typed punctuation from a mounted editor', () => {
 			await userEvent.keyboard('.');
 			await tick();
 
-			// The keystroke reached the editor and the highlighter marked it.
 			expect(content.innerHTML).toBe(
 				'a1<span data-tei-attrs="{}" class="punctuation">.</span>'
 			);
 
-			// The fixture's first column holds four lines, so the `<ab>` continues
-			// past the edited one; what matters is that `a1` is still there.
 			expect(firstAbXml(exportTEI(editor.getJSON()))).toMatch(
 				/^<w>a1<\/w><pc>\.<\/pc><lb\/><w>a2<\/w>/
 			);

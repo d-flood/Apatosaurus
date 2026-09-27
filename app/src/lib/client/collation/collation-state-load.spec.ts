@@ -476,7 +476,6 @@ describe('collationState artifact-first persistence', () => {
 		expect(await collationState.loadCollationById('col-1')).toBe(true);
 		expect(collationState.getReadingTypeVocabulary().map(type => type.id)).toContain('itacism');
 
-		// A vocabulary left behind by reset would be copied into the next project created.
 		collationState.reset();
 		expect(collationState.getReadingTypeVocabulary().map(type => type.id)).not.toContain(
 			'itacism'

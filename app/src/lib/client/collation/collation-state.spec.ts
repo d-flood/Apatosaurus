@@ -627,8 +627,6 @@ describe('collationState stemma derivation', () => {
 				?.parentReadingId
 		).toBe(alpha.id);
 
-		// The text edit is its own gesture, so the first undo reverts it and leaves the
-		// attachment standing; the attachment goes back on the undo that belongs to it.
 		collationState.undo();
 		expect(collationState.phase).toBe('readings');
 		expect(
@@ -957,8 +955,6 @@ describe('collationState stemma derivation', () => {
 
 		expect(nextParent?.parentReadingId).toBeNull();
 		expect(nextParent?.isSubreading).toBe(false);
-		// The type describes the reading's own evidence, so promotion does not move it around
-		// the family: only the witness whose ns rule fired keeps a nonsense type.
 		expect(nextParent?.readingType).toBe('nonsense');
 		expect(previousParent?.parentReadingId).toBe(nextParent?.id);
 		expect(previousParent?.readingType).toBeNull();
@@ -1406,8 +1402,6 @@ describe('collationState lemma establishment', () => {
 		collationState.updateReadingText(0, gamma.id, 'delta');
 		expect(collationState.getLemmaReadingId(0)).toBe(beta.id);
 
-		// Two gestures, two steps: the last one reverses first, and the lemma decision beneath it
-		// is untouched until its own undo.
 		collationState.undo();
 		const afterTextUndo = collationState.getReadingsForUnit(0);
 		expect(afterTextUndo.find(reading => reading.id === gamma.id)?.text).toBe('gamma');
@@ -1559,7 +1553,6 @@ describe('collationState lemma establishment', () => {
 			collationState.getReadingFamiliesForUnit(0).map(family => family.parent.text);
 		expect(displayed()).toEqual(['gamma', 'alpha', 'beta']);
 
-		// `gamma` heads the displayed sequence, so there is no row above it to swap with.
 		expect(collationState.moveReadingByOffset(0, gamma.id, -1)).toEqual({
 			ok: false,
 			error: 'at-boundary',
@@ -1575,11 +1568,6 @@ describe('collationState non-attestation', () => {
 		collationState.reset();
 	});
 
-	/**
-	 * A gap cell as the collation pipeline emits one: the tokenizer gives gap and untranscribed
-	 * milestones the `⊘` placeholder as their text, so the cell is never empty and attestation
-	 * cannot be decided from text presence.
-	 */
 	function makeGapCell(kind: 'gap' | 'untranscribed' = 'gap'): AlignmentCell {
 		return {
 			...makeTextCell('⊘'),
@@ -1679,8 +1667,6 @@ describe('collationState non-attestation', () => {
 		});
 		const readings = collationState.getReadingsForUnit(0);
 		const alpha = readings.find(reading => reading.text === 'alpha')!;
-		// Non-attestation holds no reading id, so the only address a caller could reach for
-		// is the absent witness itself.
 		expect(collationState.setReadingParent(0, 'C', alpha.id)).toEqual({
 			ok: false,
 			error: 'reading-not-found',
@@ -1751,8 +1737,6 @@ describe('collationState non-attestation', () => {
 		expect(columnId).toBeTruthy();
 		collationState.shiftToken(columnId!, 'C', 'right');
 
-		// The shifted-from slot is empty but still damaged, so C attests nothing there — it must
-		// never be reported as positively attesting an omission.
 		expect(collationState.getNonAttestationForUnit(0).witnessIds).toContain('C');
 		expect(
 			collationState.getReadingsForUnit(0).flatMap(reading => reading.witnessIds)
@@ -1883,9 +1867,6 @@ describe('collationState reading types and certainty', () => {
 			.find(reading => reading.id === beta.id);
 		expect([decided?.readingType, decided?.certainty]).toEqual(['apparent', 'low']);
 
-		// Type and certainty are decisions, never part of the proposal underneath them: undoing
-		// back past the attachment, the text edit, the certainty, and the type — one step each —
-		// must leave nothing behind.
 		collationState.undo();
 		collationState.undo();
 		collationState.undo();
@@ -1998,7 +1979,6 @@ describe('collationState local stemma source decisions', () => {
 		collationState.reset();
 	});
 
-	/** The alignment the real collation pipeline produces, never a hand-built one. */
 	function collateReadings(texts: Record<string, string>) {
 		collationState.setWitnesses(
 			Object.entries(texts).map(([witnessId, text], index) =>
@@ -2143,7 +2123,6 @@ describe('collationState local stemma source decisions', () => {
 		const c = labelled('c');
 		collationState.setReadingSource(0, b.id, { kind: 'derived', from: c.id });
 
-		// The reading `b` derives from is emptied and removed, the way a merge would remove it.
 		collationState.moveWitnessesToReading(0, ['C'], b.id);
 		collationState.deleteReading(0, c.id);
 
@@ -2183,7 +2162,6 @@ describe('collationState local stemma source decisions', () => {
 		const c = labelled('c');
 		collationState.setReadingSource(0, b.id, { kind: 'derived', from: a.id });
 
-		// Undecided is what `c` already is, so there is no judgement here to record.
 		expect(collationState.setReadingSource(0, c.id, { kind: 'undecided' })).toEqual({
 			ok: true,
 		});
@@ -2195,7 +2173,6 @@ describe('collationState local stemma source decisions', () => {
 		);
 		expect(arcsForUnit()).toHaveLength(1);
 
-		// One undo returns to before the only decision made, rather than spending itself on a no-op.
 		collationState.undo();
 		expect(sourceOf(b.id)).toEqual({ kind: 'undecided' });
 	});
@@ -2323,7 +2300,6 @@ describe('collationState bulk witness partitioning', () => {
 		collationState.reset();
 	});
 
-	/** The alignment the real collation pipeline produces, never a hand-built one. */
 	function collateUnit(witnesses: WitnessConfig[]) {
 		collationState.setWitnesses(witnesses);
 		collationState.refreshCollationInput();
@@ -2480,7 +2456,6 @@ describe('collationState bulk witness partitioning', () => {
 		const target = labelled('b');
 		const merged = labelled('c');
 		const subreading = labelled('d');
-		// The attachment is made the way a scholar makes one: a decision, across differing text.
 		expect(collationState.setReadingParent(0, subreading.id, merged.id)).toEqual({ ok: true });
 
 		expect(collationState.mergeReadings(0, [merged.id], target.id)).toEqual({ ok: true });
@@ -2493,10 +2468,8 @@ describe('collationState bulk witness partitioning', () => {
 			collationState.getReadingFamiliesForUnit(0).find(family => family.id === target.id)
 				?.children.length
 		).toBe(1);
-		// The attachment moved rather than being left naming a reading the merge removed.
 		expect(collationState.getOrphanedDecisionsForUnit(0)).toEqual([]);
 
-		// The merge and the attachment it carried undo as the one gesture the scholar made.
 		collationState.undo();
 		expect(
 			collationState.getReadingsForUnit(0).find(reading => reading.id === subreading.id)
@@ -2655,8 +2628,6 @@ describe('collationState bulk witness partitioning', () => {
 			.find(reading => reading.label === 'b')!;
 		collationState.updateReadingText(second, edited.id, 'δελτα');
 
-		// One undo reverses the text edit — the gesture that was made last — and the move made in
-		// the other unit is not touched by it.
 		collationState.undo();
 		expect(
 			collationState.getReadingsForUnit(second).find(reading => reading.id === edited.id)

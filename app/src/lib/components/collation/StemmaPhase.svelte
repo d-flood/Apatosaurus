@@ -5,11 +5,7 @@
 	import ArrowLeft from 'phosphor-svelte/lib/ArrowLeft';
 	import { onDestroy, onMount, tick } from 'svelte';
 
-	/**
-	 * A refusal belongs beside the control that produced it, not at the top of a scrolling panel,
-	 * and it must re-announce when the same refusal repeats. `seq` remounts the alert; the unit
-	 * and reading it names keep it from outliving the control it refers to.
-	 */
+	/** Refusal sits with its control; `seq` re-announces repeats. */
 	let refusal = $state<{
 		unitIndex: number;
 		readingId: string;
@@ -71,10 +67,7 @@
 		liveMessageSeq += 1;
 	}
 
-	/**
-	 * Node colour encodes where the reading came from. The lemma roots its own stemma, so it is a
-	 * settled state rather than an unconsidered one; being the lemma is marked separately.
-	 */
+	/** Lemma roots its own stemma, so it reads as settled, not undecided. */
 	const SOURCE_STATES = {
 		derived: {
 			label: 'Derived',
@@ -112,7 +105,7 @@
 		return node.isRoot ? 'root' : 'undecided';
 	}
 
-	/** The value the select shows. A conflict is no judgement, so it takes its own placeholder. */
+	/** A conflict is no judgement, so it takes its own placeholder. */
 	const CONFLICT_VALUE = '__conflict__';
 
 	function selectValueOf(node: StemmaTreeNode): string {
@@ -193,7 +186,6 @@
 		if (control.value === CONFLICT_VALUE) return;
 		const message = setSourceDecision(node, decisionFromValue(control.value));
 		if (!message) return;
-		// Nothing was recorded, so the control must not go on showing the refused choice.
 		control.value = selectValueOf(node);
 	}
 
@@ -512,7 +504,6 @@
 		document.removeEventListener('keydown', handleKeydown);
 	});
 
-	/** The unit's ordinal, or null when it is not one of the current spans. */
 	function getSpanLabel(startIndex: number): number | null {
 		const index = unitSpans.findIndex(span => span.startIndex === startIndex);
 		return index === -1 ? null : index + 1;
@@ -782,7 +773,6 @@
 						ondragover={event => event.preventDefault()}
 						ondrop={handleCanvasDrop}
 					>
-						<!-- Geometry is wholly in the layout module; this surface only renders arcs. -->
 						<svg
 							width={layout.bounds.width}
 							height={layout.bounds.height}

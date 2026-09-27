@@ -261,8 +261,7 @@ describe('transcription editor carrier inspectors', () => {
 		const correctionEditor = browserPage.elementLocator(correctionEditorElement!);
 		await correctionEditor.click();
 		await correctionEditor.fill('beta');
-		// The fill resolves once the keystrokes are dispatched; the editor applies
-		// them in a later transaction, so wait for the content before saving.
+		// Editor applies keys in a later transaction; wait before saving.
 		await vi.waitFor(() => expect.element(correctionEditor).toHaveTextContent('beta'), {
 			timeout: 30_000,
 		});

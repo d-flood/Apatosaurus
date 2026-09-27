@@ -56,10 +56,7 @@ export interface WitnessConfig {
 	overridesDefault: boolean;
 }
 
-/**
- * One hypothesis that a prior reading gave rise to a posterior reading. Direction is a property
- * of the graph in the target format, so no arc carries a directedness flag of its own.
- */
+/** One prior-to-posterior hypothesis; direction lives in the graph, not the arc. */
 export interface ReadingArc {
 	id: string;
 	priorReadingId: string;
@@ -119,7 +116,7 @@ export type AlignmentLayout = 'grid' | 'variation-units';
 
 export interface ProjectCollationSettings {
 	regularizationRules?: RegularizationRule[];
-	/** Reading types this project adds to the bundled vocabulary. */
+	/** Project-added reading types. */
 	readingTypes?: ReadingTypeDefinition[];
 	ignoreWordBreaks?: boolean;
 	lowercase?: boolean;

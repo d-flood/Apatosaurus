@@ -404,8 +404,7 @@ async function copyProjectEntries(
 	});
 	payloads.set('project.json', manifest);
 
-	// Entity, revision, and checkpoint IDs intentionally remain stable: a copied project is a new
-	// project container with lineage, not a fork of every historical identity.
+	// Copied IDs stay stable: new container, not a fork.
 	const rewritten: ValidatedStagedProjectEntry[] = [];
 	for (const entry of entries) {
 		if (entry.format === null) continue;
@@ -540,7 +539,6 @@ function startHeartbeat(stagingPath: string, options: ProjectImportOptions): { s
 			lease.heartbeat_at = (options.now?.() ?? new Date()).toISOString();
 			await writeTextFileAtomic(path, JSON.stringify(lease), storeOptions);
 		} catch {
-			/* Import cleanup or failure owns the lease lifecycle. */
 		}
 	};
 	const timer = setInterval(() => void update(), HEARTBEAT_INTERVAL_MS);

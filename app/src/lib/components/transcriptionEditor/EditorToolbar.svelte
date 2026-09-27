@@ -869,7 +869,6 @@
 						}
 					}}
 				>
-					<!-- Book Section -->
 					<div class="space-y-2">
 						<label class="block text-sm font-medium" for={inputId('book-input')}
 							>Book</label
@@ -897,7 +896,6 @@
 						</div>
 					</div>
 
-					<!-- Chapter Section -->
 					<div class="space-y-2">
 						<label class="block text-sm font-medium" for={inputId('chapter-input')}
 							>Chapter (auto-links to preceding book)</label
@@ -925,7 +923,6 @@
 						</div>
 					</div>
 
-					<!-- Verse Section -->
 					<div class="space-y-2">
 						<label class="block text-sm font-medium" for={inputId('verse-input')}
 							>Verse (auto-links to preceding chapter)</label

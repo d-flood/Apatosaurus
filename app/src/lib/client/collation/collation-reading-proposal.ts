@@ -23,12 +23,7 @@ export function getReadingFamilyKey(
 	return reading.normalizedText ?? reading.text ?? '__EMPTY__';
 }
 
-/**
- * The main reading at the head of a subreading chain — the single definition every surface uses,
- * because citation, labelling, and the local stemma must agree on which reading a subreading
- * belongs to. A chain that cycles has no head, so the walk answers null rather than naming an
- * arbitrary reading inside the cycle.
- */
+/** Head of a subreading chain; cycles answer null. */
 export function makeMainReadingIdOf(
 	readings: ClassifiedReading[]
 ): (readingId: string) => string | null {
@@ -204,8 +199,7 @@ export function relabelReadings(
 ): ClassifiedReading[] {
 	const normalized = normalizeReadingOrders(readings, baseWitnessId);
 	const primaryReadings = normalized.filter(reading => reading.parentReadingId === null);
-	// The lemma takes `a`; everything else keeps the base-text-first order, so the reading
-	// the scholar compares against stays prominent even when it is not the lemma.
+	// Lemma takes `a`; rest keep base-text-first order.
 	const sortedPrimary = [...primaryReadings].sort((a, b) => {
 		if (a.id === b.id) return 0;
 		if (a.id === lemmaReadingId) return -1;
@@ -220,8 +214,7 @@ export function relabelReadings(
 		primaryRankById.set(reading.id, index);
 	}
 
-	// Subreadings are labelled flat from their main reading, so a subreading attached to another
-	// subreading belongs to the main at the head of that chain rather than going unlabelled.
+	// Subreadings label flat from their chain head.
 	const mainReadingIdOf = makeMainReadingIdOf(normalized);
 
 	const subreadingsByParent = new Map<string, ClassifiedReading[]>();
@@ -251,8 +244,7 @@ export function relabelReadings(
 		.map(reading => ({
 			...reading,
 			witnessGroups: makeWitnessGroups(reading.witnessIds),
-			// `order` is the position this labelling implies, so consumers that sort by it
-			// agree with the letters. Elevation is not written back to the stored proposal.
+			// `order` mirrors the letters; elevation is not persisted.
 			order:
 				reading.parentReadingId === null
 					? (primaryRankById.get(reading.id) ?? reading.order)
@@ -275,11 +267,7 @@ export function relabelReadings(
 		});
 }
 
-/**
- * Witnesses that do not testify at a variation unit. Not a reading: they take no letter and
- * never enter ordering. Untranscribed witnesses are held apart because reporting them as
- * non-attestation would assert damage to a manuscript that may be perfectly intact.
- */
+/** Non-testifiers; untranscribed is unfinished work, not damage. */
 export interface NonAttestation {
 	witnessIds: string[];
 	untranscribedWitnessIds: string[];

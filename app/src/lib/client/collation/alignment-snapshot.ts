@@ -71,8 +71,7 @@ export function deserializeAlignmentColumns(
 					alignmentValue:
 						cell.alignmentValue ?? cell.regularizedText ?? cell.text ?? null,
 					sourceTokenIds: cell.sourceTokenIds ?? [],
-					// Damage and untranscribed material must stay distinguishable, so a cell
-					// stored without a kind recovers it from the gap's own source.
+					// Kind recovers from gap source when unstamped.
 					kind:
 						cell.kind ??
 						(cell.isOmission

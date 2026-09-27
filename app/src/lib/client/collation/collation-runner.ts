@@ -383,8 +383,7 @@ export function extractWitnessTokensForVerse(
 			if (item.type === 'text') {
 				const correction = target ? getCorrectionForHand(item, target.handId) : null;
 				if (correction) {
-					// Consecutive words with the same reading are one apparatus; this is
-					// the same grouping rule used by the TEI serializer.
+					// Same grouping as the TEI serializer.
 					const correctionSignature = JSON.stringify(correction);
 					if (correctionSignature === activeCorrectionSignature) {
 						continue;

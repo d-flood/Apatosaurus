@@ -15,7 +15,6 @@
 		usesTeiAttrs ? (attrs?.teiAttrs as Record<string, any>) || {} : (attrs || {})
 	);
 
-	// Per-type structured field state
 	let reason = $state('');
 	let unit = $state('');
 	let extent = $state('');

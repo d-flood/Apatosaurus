@@ -63,11 +63,6 @@ function lineNumbers(document_: TranscriptionDocument): number[] {
 }
 
 describe('normalizeDocument structural guards', () => {
-	// Ticket 08 (`refactor-transcription-editor`) flipped this expectation. It
-	// used to assert that two empty lines collapsed to one, which is the defect
-	// recorded as SPEC.md § D6 / INVENTORY.md F36: autosave normalized the
-	// editor's own Enter-on-a-blank-line result away. Empty lines are now kept;
-	// the guard that survives is the structural one — a column is never empty.
 	it('keeps every empty line, and synthesizes one only for a column that has none', () => {
 		const normalized = normalizeDocument({
 			type: 'transcriptionDocument',
@@ -170,7 +165,6 @@ describe('empty lines survive the save path (SPEC.md D6 / INVENTORY.md F36)', ()
 			],
 		} satisfies TranscriptionDocument);
 
-		// The trailing-boundary trim empties the line; the line itself stays.
 		expect(document_.pages[0].columns[0].lines).toEqual([
 			{ type: 'line', number: 1, items: [] },
 		]);

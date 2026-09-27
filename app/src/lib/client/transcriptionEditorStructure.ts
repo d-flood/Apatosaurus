@@ -99,7 +99,6 @@ function cloneJsonNode<T>(value: T): T {
 		try {
 			return globalThis.structuredClone(value);
 		} catch {
-			// Fall through to the JSON clone below for plain editor JSON payloads.
 		}
 	}
 	return JSON.parse(JSON.stringify(value)) as T;

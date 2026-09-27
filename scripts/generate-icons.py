@@ -8,9 +8,7 @@ OUTPUT_DIR = "app/static/icons"
 
 
 def convert_png_to_icon(source_path, output_path, size):
-    """Convert PNG to icon at specified size using ImageMagick."""
     try:
-        # Use ImageMagick to resize PNG to fit within target size, then center on square canvas
         subprocess.run(
             [
                 "convert",
@@ -36,7 +34,6 @@ def convert_png_to_icon(source_path, output_path, size):
 
 
 def generate_icons():
-    """Generate all icon sizes from the source PNG."""
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
     if not os.path.exists(SOURCE):

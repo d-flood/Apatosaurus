@@ -7,7 +7,6 @@ import {
 	type CloudWriteResult,
 } from './provider';
 
-// Test-only provider used by the Playwright build to give isolated browser contexts one folder.
 export class E2eSharedFolderStorageProvider implements CloudStorageProvider {
 	id = 'local-folder';
 	name = 'E2E shared folder';

@@ -1,9 +1,6 @@
 import { sourceReadingIdOf, type StemmaTreeNode } from './collation-stemma';
 
-/**
- * Geometry for a local stemma: layered top-down, roots at the top, viewport fitted to the
- * computed bounds. Pure and deterministic — no DOM, no store, no free node positioning.
- */
+/** Layered top-down geometry; pure, no DOM or store. */
 
 const NODE_WIDTH = 132;
 const NODE_HEIGHT = 56;
@@ -32,7 +29,7 @@ export interface StemmaLayout {
 	bounds: { width: number; height: number };
 }
 
-/** Layer each node one below its prior reading. Nodes in an arc cycle land in a trailing row. */
+/** Nodes below priors; cycles land in a trailing row. */
 function assignRows(nodes: StemmaTreeNode[]): string[][] {
 	const present = new Set(nodes.map(node => node.readingId));
 	const sourceOf = new Map(
@@ -71,11 +68,9 @@ function assignRows(nodes: StemmaTreeNode[]): string[][] {
 		const row = rowOf.get(node.readingId);
 		if (row !== undefined) push(row, node.readingId);
 	}
-	// Whatever an arc cycle left unplaced still has to be visible.
 	const unplaced = nodes.filter(node => !rowOf.has(node.readingId));
 	for (const node of unplaced) push(rows.length === 0 ? 0 : rows.length, node.readingId);
 
-	// Keep each row beneath its own prior readings so arcs do not cross needlessly.
 	for (let row = 1; row < rows.length; row += 1) {
 		const parentOrder = new Map(rows[row - 1].map((id, index) => [id, index] as const));
 		const originalOrder = new Map(rows[row].map((id, index) => [id, index] as const));

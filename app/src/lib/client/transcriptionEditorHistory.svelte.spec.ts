@@ -1,13 +1,3 @@
-/**
- * Undo/redo behaviour under the editor's appended transactions.
- *
- * Answers inventory question 5 for ticket 01 of the
- * `refactor-transcription-editor` epic. `LineNumberNormalizer` appends a repair
- * or renumber transaction after most edits; the question was whether those
- * appended transactions fragment or poison the undo stack. They do not — the
- * initial `setContent` did sit in the history, which was worse, and ticket 07
- * of the same epic took it out (F14).
- */
 import { describe, expect, it } from 'vitest';
 
 import { initializeEditorContent } from './editorContentInitialization';
@@ -29,7 +19,6 @@ const LOADED = [
 
 const HISTORY_FIXTURE = editorDocument({ pages: editorDocument({}).content.slice(0, 2) });
 
-/** Longer than the history plugin's `newGroupDelay`, so edits become separate steps. */
 function newHistoryGroup() {
 	return new Promise(resolve => setTimeout(resolve, 600));
 }
@@ -65,8 +54,6 @@ describe('undo/redo under appended repair and renumber transactions', () => {
 			editor.view.dispatch(createColumnSplitTransaction(editor.state)!);
 			expect(shape(editor)[0]).toHaveLength(2);
 
-			// The appended repair transaction is folded into the same history event,
-			// so one undo restores the pre-split document exactly.
 			editor.commands.undo();
 			expect(shape(editor)).toEqual([
 				[['aX1', 'a2', 'a3', 'a4']],
@@ -104,15 +91,10 @@ describe('undo/redo under appended repair and renumber transactions', () => {
 		}
 	});
 
-	// The three assertions below were written as `DEFECT F14` and are inverted in
-	// place by ticket 07: `initializeEditorContent` now dispatches the load with
-	// `addToHistory: false`, so the load is not an undoable event at all.
-
 	it('F14: the load is not undoable — a freshly opened transcription has an empty history', async () => {
 		const editor = createTestEditor({ content: HISTORY_FIXTURE });
 		try {
 			expect(shape(editor)).toEqual(LOADED);
-			// Nothing has been edited, so there is nothing to undo.
 			expect((editor as any).can().undo()).toBe(false);
 
 			editor.commands.undo();
@@ -128,9 +110,6 @@ describe('undo/redo under appended repair and renumber transactions', () => {
 	it('F14: the first edit is its own history event even inside the grouping window', async () => {
 		const editor = createTestEditor({ content: HISTORY_FIXTURE });
 		try {
-			// A user who starts typing within `newGroupDelay` of the document
-			// appearing used to get their first keystroke merged into the same
-			// history event as the load.
 			editor.commands.setTextSelection(4);
 			editor.commands.insertContent('X');
 			expect(shape(editor)[0][0][0]).toBe('aX1');
@@ -161,12 +140,6 @@ describe('undo/redo under appended repair and renumber transactions', () => {
 	});
 });
 
-/**
- * The load transaction now carries `addToHistory: false` (F14). That must not
- * weaken the init-only invariant established by `files-as-database` ticket 19.
- * The post-load `setContent` half of that invariant is covered by
- * `transcriptionEditorStructure.svelte.spec.ts`; only the re-entry guard is here.
- */
 describe('initializeEditorContent init-only invariant', () => {
 	it('still refuses a second initialization of the same editor', () => {
 		const editor = createTestEditor({ content: HISTORY_FIXTURE });

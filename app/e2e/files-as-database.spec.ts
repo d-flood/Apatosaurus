@@ -439,7 +439,6 @@ async function createAndCommitCollation(page: Page, projectName: string): Promis
 	await verseButton.click();
 	await expect(page.getByText('Loading witnesses...')).not.toBeVisible({ timeout: 30_000 });
 	await expect(page.locator('tbody tr')).toHaveCount(2, { timeout: 30_000 });
-	// The segment name is scholar-assigned and required before advancing.
 	const memberName = await page.locator('span.min-w-0.truncate.font-mono').first().innerText();
 	await page.getByRole('textbox', { name: /Segment name/ }).fill(memberName);
 	await page.getByRole('button', { name: 'Proceed to Alignment' }).click();
@@ -458,8 +457,7 @@ async function createAndCommitCollation(page: Page, projectName: string): Promis
 	const form = page.locator('form', { has: page.getByPlaceholder('Describe this version') });
 	await form.getByPlaceholder('Describe this version').fill('Commit end-to-end collation');
 	await form.getByRole('button', { name: 'Commit version' }).click();
-	// The commit lands even when derived TEI cannot be produced yet (undecided
-	// sources); that surfaces as a warning suffix on the success message.
+	// Commit succeeds with a warning suffix when derived TEI is undecided.
 	await expect(page.getByText('Committed locally')).toBeVisible({
 		timeout: 30_000,
 	});
@@ -508,10 +506,7 @@ async function connectSyncFolder(page: Page, projectName: string): Promise<void>
 async function syncNow(page: Page): Promise<void> {
 	const button = page.getByRole('button', { name: 'Sync now' });
 	await button.click();
-	// A mock-backed sync can finish before any poll observes the disabled
-	// in-flight state. The result panel below only renders once a sync has
-	// completed, and the button is disabled for the whole run, so visible result
-	// plus enabled button means this sync is done.
+	// Mock sync can finish before the in-flight state is observable.
 	await expect(page.getByText(/Last sync result:/)).toBeVisible({ timeout: 30_000 });
 	await expect(button).toBeEnabled({ timeout: 30_000 });
 }

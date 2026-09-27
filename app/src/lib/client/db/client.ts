@@ -617,11 +617,7 @@ export async function deriveProjectBackupSummary(
 	});
 }
 
-/**
- * Sync contexts are often read out of `$state`, whose proxies `postMessage`
- * to the database worker cannot clone. The context is flat string data, so a
- * spread detaches it into plain data on the way out.
- */
+/** `$state` proxies cannot cross `postMessage`; spread detaches. */
 function detachSyncContext(context: SyncProjectContext): SyncProjectContext {
 	return { ...context };
 }

@@ -123,8 +123,7 @@ export function createProjectCollationSettings(
 			options.transcriptionWitnessExcludedHands
 		),
 	};
-	// Callers pass `$state` values whose proxies `postMessage` to the database worker
-	// cannot clone, so detach the payload into plain data on the way out.
+	// `$state` proxies cannot cross `postMessage`; detach.
 	return JSON.parse(JSON.stringify(settings)) as ProjectCollationSettings;
 }
 

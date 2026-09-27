@@ -13,7 +13,7 @@ export interface DisplaySegment {
 	hasUnclear: boolean;
 }
 
-/** A run of text in a reading key, kept apart by the damage markers over it. */
+/** A key text run; damage markers keep restored text apart from intact text. */
 interface KeySegment extends DisplaySegment {
 	isSupplied: boolean;
 }
@@ -69,7 +69,7 @@ export interface ReadingFamilyBucket {
 	isBase: boolean;
 	isOmission: boolean;
 	isLacuna: boolean;
-	/** Any segment the transcriber marked unclear, or restored as supplied text. */
+	/** Unclear or supplied segments. */
 	hasUnclear: boolean;
 	hasSupplied: boolean;
 	hasRegularization: boolean;
@@ -118,9 +118,7 @@ export function getOriginalReadingKey(cell: AlignmentCell | undefined): string {
 	}
 
 	if (Array.isArray(cell.originalSegments) && cell.originalSegments.length > 0) {
-		// Damage markers belong in the key, not only in the text: under `suppliedTextMode: 'clear'`
-		// a restored reading carries the same letters as one read intact, and bucketing the two
-		// together would report the intact witnesses as only partly identifiable.
+		// Damage markers stay in the key, or restored text buckets with intact text.
 		const normalizedSegments = cell.originalSegments
 			.filter(segment => segment.text.length > 0)
 			.reduce<KeySegment[]>((acc, segment) => {
@@ -251,16 +249,11 @@ export function indexToReadingLabel(index: number): string {
 	return label;
 }
 
-/**
- * Whether a cell carries no testimony. Decided from the cell's kind and damage flag, never from
- * whether text is present: a gap cell carries the `⊘` placeholder as its text, and a supplied-only
- * token collated as a gap carries the editor's restored letters.
- */
+/** No testimony by kind/damage flag; never by text presence (`⊘` is placeholder text). */
 function cellIsAbsentTestimony(cell: AlignmentCell | undefined): boolean {
 	if (!cell) return false;
 	if (cell.kind === 'gap' || cell.kind === 'untranscribed') return true;
-	// Reshaping the alignment (shifting a token, merging cells) empties a slot while keeping the
-	// damage flag. An empty slot left by damage is absence, not an omission the witness attests.
+	// A reshaped-away slot with damage is absence, not an attested omission.
 	return cell.isLacuna && !cell.text?.trim();
 }
 
@@ -285,18 +278,12 @@ function cellsAreLacunose(cells: Array<AlignmentCell | undefined>): boolean {
 
 export type WitnessAttestation = 'attesting' | 'non-attesting' | 'untranscribed';
 
-/**
- * Whether a witness testifies at a variation unit, and if not, why. An omission is testimony —
- * the witness attests the absence of text — so a span with any surviving cell is attesting.
- * Untranscribed material is a fact about project progress and must never be reported as damage
- * to the manuscript.
- */
+/** Testimony status; omission testifies, untranscribed is progress not damage. */
 export function classifyWitnessAttestation(
 	cells: Array<AlignmentCell | undefined>
 ): WitnessAttestation {
 	if (!cellsAreLacunose(cells)) return 'attesting';
-	// Genuine damage anywhere in the span outweighs untranscribed material, because the
-	// witness really is absent; only a wholly untranscribed span is unfinished work.
+	// Any genuine damage outweighs untranscribed spans.
 	const damaged = cells.some(
 		cell => cellIsAbsentTestimony(cell) && cell?.kind !== 'untranscribed'
 	);
@@ -620,11 +607,7 @@ export function buildCollapsedReadingGroups({
 	});
 }
 
-/**
- * Whether the witnesses that testify at a column actually differ. A witness that does not testify
- * is not evidence: on its own it can never open a variation unit, or every column a damaged or
- * untranscribed witness covers would become one and agreed stretches would fragment around it.
- */
+/** Differing testifiers only; non-testifiers alone never open a unit. */
 export function isVariationColumn(column: AlignmentColumn): boolean {
 	const normalizedBucket = new Set<string>();
 	const originalBucket = new Set<string>();

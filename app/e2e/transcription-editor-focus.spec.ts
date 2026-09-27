@@ -5,8 +5,7 @@ const HARNESS_TRANSCRIPTION_ID = '11111111-1111-4111-8111-111111111111';
 
 type SelectionSnapshot = {
 	activeElementTag: string | null;
-	// Line numbers are presentational (CSS counters), so report the caret line's
-	// 1-based position within its column instead of reading an attribute.
+	// Line numbers are CSS counters; report 1-based position in column.
 	linePosition: number | null;
 	lineText: string | null;
 	pageId: string | null;

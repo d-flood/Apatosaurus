@@ -346,9 +346,6 @@ function formatHandShiftAriaLabel(teiAttrs: Record<string, any>): string {
 	return tooltipText === 'Change of Scribe' ? tooltipText : `Change of Scribe: ${tooltipText}`;
 }
 
-// ########################################
-//                Marks
-// ########################################
 const Lacunose = Mark.create({
 	name: 'lacunose',
 	parseHTML() {
@@ -713,8 +710,7 @@ const Correction = Mark.create({
 	addKeyboardShortcuts() {
 		return {
 			'Mod-Shift-c': () => {
-				// Keyboard shortcut registered - actual correction UI opens via bubble menu
-				// This allows users to discover the shortcut but the UI is in the bubble menu
+				// Discoverable shortcut; UI lives in the bubble menu.
 				return true;
 			},
 		};
@@ -800,7 +796,6 @@ const Abbreviation = Mark.create({
 		const expansion = mark.attrs.expansion || '';
 		const rend = mark.attrs.rend || '¯';
 
-		// Build tooltip text based on type
 		const tooltipText = (() => {
 			if (type === 'nomSac') return `Nomen Sacrum ${expansion}` || 'Abbreviation';
 			if (type === 'ligature') return expansion || 'Expansion';
@@ -810,8 +805,6 @@ const Abbreviation = Mark.create({
 			if (expansion) tooltipParts.push(`Expansion: ${expansion}`);
 			return tooltipParts.join(' | ') || 'Abbreviation';
 		})();
-
-		// Render differently based on type
 		if (type === 'nomSac') {
 			return [
 				'span',
@@ -872,8 +865,7 @@ const Abbreviation = Mark.create({
 	addKeyboardShortcuts() {
 		return {
 			'Mod-Shift-a': () => {
-				// Keyboard shortcut registered - actual abbreviation UI opens via bubble menu
-				// This allows users to discover the shortcut but the UI is in the bubble menu
+				// Discoverable shortcut; UI lives in the bubble menu.
 				return true;
 			},
 		};
@@ -882,7 +874,6 @@ const Abbreviation = Mark.create({
 
 const Punctuation = Mark.create({
 	name: 'punctuation',
-	// Prevent marks from expanding when text is typed adjacent to them
 	inclusive: false,
 	parseHTML() {
 		return [{ tag: 'span.punctuation' }];
@@ -1005,10 +996,7 @@ const PunctuationHighlighter = Extension.create({
 		return [
 			new Plugin({
 				key: new PluginKey('punctuationHighlighter'),
-				// Regex to match punctuation characters: Latin + Greek punctuation
-				// This runs AFTER each transaction to mark any punctuation that was added
 				appendTransaction: (transactions, oldState, newState) => {
-					// If the document didn't change, we don't need to do anything
 					if (!newState.doc.eq(oldState.doc)) {
 						const punctuationType = newState.schema.marks.punctuation;
 						if (!punctuationType) {
@@ -1016,7 +1004,6 @@ const PunctuationHighlighter = Extension.create({
 						}
 						const tr = newState.tr;
 						let changed = false;
-						// Comprehensive regex for Latin and Greek punctuation
 						const punctuationRegex = /[.,;:!?"'«»()\[\]{}\-–—/\\·⸄⸃´`†‡]/g;
 
 						for (const range of getChangedRanges(
@@ -1044,20 +1031,17 @@ const PunctuationHighlighter = Extension.create({
 							return null;
 						}
 
-						// Return the transaction with our new marks
 						return tr;
 					}
 
-					return null; // No changes to apply
+					return null;
 				},
 			}),
 		];
 	},
 });
 
-// Preserves the visual selection highlight when the editor loses focus
-// (e.g. when clicking into the inspector drawer). Adds a decoration over the
-// selection range on blur and removes it on focus.
+// Keeps selection visible when the inspector drawer takes focus.
 const selectionHighlightKey = new PluginKey('selectionHighlight');
 
 const SelectionHighlight = Extension.create({
@@ -1077,7 +1061,6 @@ const SelectionHighlight = Extension.create({
 						if (highlight === 'show') {
 							const { selection } = tr;
 							if (selection instanceof NodeSelection) {
-								// For atom/node selections, add a node decoration
 								return DecorationSet.create(tr.doc, [
 									Decoration.node(selection.from, selection.to, {
 										class: 'selection-highlight-node',
@@ -1092,7 +1075,6 @@ const SelectionHighlight = Extension.create({
 								}),
 							]);
 						}
-						// Map decorations through document changes
 						return value.map(tr.mapping, tr.doc);
 					},
 				},
@@ -1186,9 +1168,6 @@ const VerseNode = Node.create({
 	},
 });
 
-// ########################################
-//                Nodes
-// ########################################
 const Manuscript = Node.create({
 	name: 'manuscript',
 	topNode: true,
@@ -2194,7 +2173,6 @@ const renderPageBreakNode: NodeRenderer = (node, HTMLAttributes) =>
 		icon: 'pageBreak',
 	});
 
-// Line break node for use in correction mini-editor
 const LineBreakInline = Node.create({
 	name: 'lineBreak',
 	group: 'inline',
@@ -2279,7 +2257,6 @@ const PageBreakInline = Node.create({
 	},
 });
 
-// Inline carrier document for nested inspector-backed content such as marginalia.
 const CorrectionRenderDocument = Node.create({
 	name: 'correctionDoc',
 	topNode: true,
@@ -2559,13 +2536,7 @@ export function getInlineCarrierEditor(element: HTMLElement, bubbleMenu?: HTMLEl
 	});
 }
 
-/**
- * Render correction content (JSON) as HTML using TipTap's generateHTML
- * This uses the same extensions as the correction mini-editor to ensure
- * consistent rendering of marks like lacunose, unclear, etc.
- */
 export function renderCorrectionContent(content: any): string {
-	// Empty content check
 	if (!content || (Array.isArray(content) && content.length === 0)) {
 		return '[empty]';
 	}
@@ -2573,7 +2544,6 @@ export function renderCorrectionContent(content: any): string {
 	const correctionExtensions = getCorrectionRenderExtensions();
 
 	try {
-		// generateHTML expects a full document structure
 		const docContent = {
 			type: 'correctionDoc',
 			content: Array.isArray(content) ? content : [content],
@@ -2587,8 +2557,6 @@ export function renderCorrectionContent(content: any): string {
 }
 
 export function getCorrectionRenderExtensions() {
-	// Use the broader inline-carrier schema so previews can render correction nodes
-	// inside marginalia/formwork as well as plain correction content.
 	return [
 		CorrectionRenderDocument,
 		...SHARED_MARK_EXTENSIONS,

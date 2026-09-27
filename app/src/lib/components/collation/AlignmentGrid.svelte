@@ -569,9 +569,7 @@
 	role="application"
 	aria-label="Alignment and regularization workspace"
 >
-	<!-- Toolbar -->
 	<div class="flex items-center gap-2 mb-3 px-1">
-		<!-- Navigation -->
 		<a
 			class="btn btn-ghost btn-sm gap-1"
 			href={collationState.collationId
@@ -589,7 +587,6 @@
 
 		<div class="w-px h-5 bg-base-300/60"></div>
 
-		<!-- Primary Actions -->
 		<button
 			type="button"
 			class="btn btn-primary btn-sm gap-1"
@@ -624,7 +621,6 @@
 			</span>
 		{/if}
 
-		<!-- Contextual Merge Panel -->
 		{#if canMergeColumns || selectedCellCount > 0}
 			<div
 				class="bg-primary/10 border border-primary/30 rounded-box px-3 py-1 flex items-center gap-2"
@@ -650,10 +646,8 @@
 			</div>
 		{/if}
 
-		<!-- Spacer -->
 		<div class="flex-1"></div>
 
-		<!-- View Toggles -->
 		<div class="join">
 			<input
 				class="join-item btn btn-xs"
@@ -694,7 +688,6 @@
 
 		<div class="w-px h-5 bg-base-300/60"></div>
 
-		<!-- Feature Toggles -->
 		<button
 			type="button"
 			class={['btn btn-xs border-none', showDiffs ? 'btn-active' : 'btn-ghost']}
@@ -713,7 +706,6 @@
 
 		<div class="w-px h-5 bg-base-300/60"></div>
 
-		<!-- Workflow Forward -->
 		<button
 			type="button"
 			class="btn btn-secondary btn-sm gap-1"
@@ -735,7 +727,6 @@
 	{/if}
 
 	<div class="flex flex-1 gap-3 min-h-0">
-		<!-- The Grid -->
 		<div class="flex-1 overflow-auto rounded-box border border-base-300/60 bg-base-100">
 			{#if collationState.alignmentColumns.length === 0}
 				<div class="flex items-center justify-center h-full text-base-content/40">
@@ -941,7 +932,6 @@
 			{/if}
 		</div>
 
-		<!-- Rule Panel -->
 		{#if showRulesSidebar}
 			<div
 				class="w-80 shrink-0 overflow-y-auto bg-base-200/40 rounded-box border border-base-300/40 p-3"
@@ -1190,7 +1180,6 @@
 	</div>
 </div>
 
-<!-- Context Menu -->
 {#if contextMenu}
 	{@const canSplitContextColumn = contextMenu
 		? collationState.canSplitColumn(contextMenu.columnId)

@@ -1,13 +1,3 @@
-/**
- * Characterization tests for the hand-built structural transactions.
- *
- * Written for ticket 01 of the `refactor-transcription-editor` epic. Every
- * assertion here records *observed* behaviour against a non-degenerate fixture
- * (multi-line columns, multi-column pages, multi-page documents), including
- * behaviour the inventory marks as defective. Where an assertion locks in a
- * defect it is tagged with its inventory identifier (F<n>) and the word
- * DEFECT, so the ticket that fixes it knows exactly which expectation to flip.
- */
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -46,7 +36,6 @@ function columnAttrs(doc: any, pageIndex: number): Json[] {
 	return attrs;
 }
 
-/** Position just inside the start of the Nth line of the given page/column. */
 function lineStart(doc: any, pageIndex: number, columnIndex: number, lineIndex: number): number {
 	let pagePos = 0;
 	for (let index = 0; index < pageIndex; index += 1) {
@@ -77,7 +66,6 @@ describe('structural transactions against a multi-line, multi-column, multi-page
 		it('replaces only the split line in a multi-line column', () => {
 			const editor = createTestEditor(multiPageFixture());
 			try {
-				// Cursor inside "b2", the second of four lines in page 2 column 1.
 				const start = lineStart(editor.state.doc, 1, 0, 1);
 				selectAt(editor, start + 1);
 
@@ -154,7 +142,6 @@ describe('structural transactions against a multi-line, multi-column, multi-page
 			try {
 				const firstPageBefore = editor.state.doc.child(0).toJSON();
 				const thirdPageBefore = editor.state.doc.child(2).toJSON();
-				// Cursor inside "b3" — third of four lines, page 2 column 1.
 				selectAt(editor, lineStart(editor.state.doc, 1, 0, 2) + 1);
 				const tr = createColumnSplitTransaction(editor.state);
 				expect(tr).not.toBeNull();
@@ -178,7 +165,6 @@ describe('structural transactions against a multi-line, multi-column, multi-page
 		it('derives the new column position without storing an ordinal', () => {
 			const editor = createTestEditor(multiPageFixture());
 			try {
-				// Split page 1's only column. Page 2 already has columns 1 and 2.
 				selectAt(editor, lineStart(editor.state.doc, 0, 0, 1) + 1);
 				const tr = createColumnSplitTransaction(editor.state);
 				expect(tr).not.toBeNull();
@@ -199,7 +185,6 @@ describe('structural transactions against a multi-line, multi-column, multi-page
 			fixture.content[0].content[2].attrs.teiAttrs['xml:id'] = 'center-column';
 			const editor = createTestEditor(fixture);
 			try {
-				// Split the "center" zone column (index 2).
 				selectAt(editor, lineStart(editor.state.doc, 0, 2, 0) + 1);
 				const tr = createColumnSplitTransaction(editor.state);
 				expect(tr).not.toBeNull();
@@ -366,7 +351,6 @@ describe('structural transactions against a multi-line, multi-column, multi-page
 				selectAt(editor, lineStart(editor.state.doc, 0, 0, 1) + 1);
 				pressEnter(editor);
 
-				// The transaction the handler dispatched already set the selection.
 				const synchronous = editor.state.selection.from;
 				await Promise.resolve();
 				await Promise.resolve();

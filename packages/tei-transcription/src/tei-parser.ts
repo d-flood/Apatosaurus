@@ -430,7 +430,6 @@ function handleColumnBreak(element: Element, context: ParseContext, insideWord: 
 	const subtypeAttr = element.getAttribute('subtype');
 	if (typeAttr === 'frame' && subtypeAttr && VALID_FRAME_ZONES.has(subtypeAttr)) {
 		context.currentColumnZone = subtypeAttr as FrameZone;
-		// Remove type/subtype from teiAttrs since they'll be re-derived from zone
 		if (context.currentColumnAttrs) {
 			delete context.currentColumnAttrs['type'];
 			delete context.currentColumnAttrs['subtype'];

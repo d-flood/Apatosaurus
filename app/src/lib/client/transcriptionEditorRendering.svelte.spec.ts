@@ -1,12 +1,3 @@
-/**
- * What `renderHTML` actually emits, for ticket 01 of the
- * `refactor-transcription-editor` epic.
- *
- * `renderHTML` is not only the view: it is also the clipboard serializer and
- * the input to `renderCorrectionContent`'s `generateHTML`, and `parseHTML` is
- * expected to invert it. These tests check that round trip. Assertions tagged
- * DEFECT record known defects.
- */
 import { Editor, generateHTML } from '@tiptap/core';
 import { NodeSelection } from '@tiptap/pm/state';
 import { beforeAll, describe, expect, it } from 'vitest';

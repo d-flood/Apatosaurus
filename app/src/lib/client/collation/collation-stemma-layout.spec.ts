@@ -32,7 +32,6 @@ function makeWitness(witnessId: string, text: string, isBaseText = false): Witne
 	};
 }
 
-/** The readings the real collation pipeline produces, never a hand-built set. */
 function readingsFor(witnesses: WitnessConfig[]): ClassifiedReading[] {
 	collationState.reset();
 	collationState.setWitnesses(witnesses);
@@ -59,7 +58,6 @@ function chainReadings(): ClassifiedReading[] {
 	);
 }
 
-/** A stemma of `depth + 1` generations, each reading derived from the one before it. */
 function generations(readings: ClassifiedReading[], depth: number): StemmaTreeNode[] {
 	const arcs: ReadingArc[] = [];
 	for (let index = 1; index <= depth; index += 1) {
