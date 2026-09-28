@@ -245,8 +245,8 @@ function createCollationState() {
 	let unitDecisions = $state<Map<string, UnitDecisions>>(new Map());
 	let readingArcs = $state<Map<string, ReadingArc[]>>(new Map());
 
-	let commandHistory: CommandEntry[] = [];
-	let commandIndex = -1;
+	let commandHistory = $state.raw<CommandEntry[]>([]);
+	let commandIndex = $state(-1);
 
 	function normalizeLegacyPhase(p: CollationPhase): CollationPhase {
 		return p === 'regularization' ? 'alignment' : p;
@@ -410,9 +410,9 @@ function createCollationState() {
 	}
 
 	function pushCommand(cmd: PendingCommandEntry) {
-		commandHistory = commandHistory.slice(0, commandIndex + 1);
-		commandHistory.push({ ...cmd, phase });
-		if (commandHistory.length > 100) commandHistory.shift();
+		commandHistory = [...commandHistory.slice(0, commandIndex + 1), { ...cmd, phase }].slice(
+			-100
+		);
 		commandIndex = commandHistory.length - 1;
 		markUnsaved();
 	}
@@ -2518,6 +2518,12 @@ function createCollationState() {
 		},
 		get saveStatus() {
 			return saveStatus;
+		},
+		get canUndo() {
+			return commandIndex >= 0;
+		},
+		get canRedo() {
+			return commandIndex < commandHistory.length - 1;
 		},
 		get collationId() {
 			return collationId;

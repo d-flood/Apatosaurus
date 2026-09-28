@@ -240,13 +240,7 @@
 	}
 
 	function handleKeydown(e: KeyboardEvent) {
-		if (e.ctrlKey && e.key === 'z') {
-			e.preventDefault();
-			collationState.undo();
-		} else if (e.ctrlKey && e.key === 'y') {
-			e.preventDefault();
-			collationState.redo();
-		} else if (e.key === 'ArrowLeft') {
+		if (e.key === 'ArrowLeft') {
 			e.preventDefault();
 			collationState.moveFocus('left');
 		} else if (e.key === 'ArrowRight') {

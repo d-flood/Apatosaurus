@@ -17,6 +17,8 @@
 	import StemmaPhase from './StemmaPhase.svelte';
 	import ProjectCollationGate from './ProjectCollationGate.svelte';
 	import ArrowLeft from 'phosphor-svelte/lib/ArrowLeft';
+	import ArrowUUpLeft from 'phosphor-svelte/lib/ArrowUUpLeft';
+	import ArrowUUpRight from 'phosphor-svelte/lib/ArrowUUpRight';
 	import GitCommit from 'phosphor-svelte/lib/GitCommit';
 	import Warning from 'phosphor-svelte/lib/Warning';
 
@@ -231,12 +233,35 @@
 		};
 	});
 
+	function handleHistoryKeydown(e: KeyboardEvent) {
+		if (e.defaultPrevented || !(e.ctrlKey || e.metaKey) || e.altKey) return;
+		const target = e.target as HTMLElement | null;
+		if (
+			target &&
+			(target.tagName === 'INPUT' ||
+				target.tagName === 'TEXTAREA' ||
+				target.isContentEditable)
+		) {
+			return;
+		}
+		const key = e.key.toLowerCase();
+		if (key === 'z' && !e.shiftKey) {
+			e.preventDefault();
+			collationState.undo();
+		} else if ((key === 'z' && e.shiftKey) || (key === 'y' && !e.shiftKey)) {
+			e.preventDefault();
+			collationState.redo();
+		}
+	}
+
 	$effect(() => {
 		if (collationState.saveStatus === 'unsaved') {
 			commitSuccess = null;
 		}
 	});
 </script>
+
+<svelte:window onkeydown={handleHistoryKeydown} />
 
 <div class="flex flex-col h-[calc(100vh-4rem)]">
 	<div class="shrink-0 bg-base-200/60 border-b border-base-300/50 px-4 py-3">
@@ -260,6 +285,28 @@
 			</div>
 			<div class="flex items-center gap-4">
 				<CollationStepper />
+				<div class="border-l border-base-300 pl-3 flex items-center gap-1">
+					<button
+						type="button"
+						class="btn btn-ghost btn-sm btn-square"
+						title="Undo (Ctrl+Z)"
+						aria-label="Undo"
+						disabled={!collationState.canUndo}
+						onclick={() => collationState.undo()}
+					>
+						<ArrowUUpLeft size={16} />
+					</button>
+					<button
+						type="button"
+						class="btn btn-ghost btn-sm btn-square"
+						title="Redo (Ctrl+Shift+Z)"
+						aria-label="Redo"
+						disabled={!collationState.canRedo}
+						onclick={() => collationState.redo()}
+					>
+						<ArrowUUpRight size={16} />
+					</button>
+				</div>
 				<div class="border-l border-base-300 pl-3">
 					<AutoSaveIndicator />
 				</div>
