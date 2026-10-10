@@ -7,7 +7,7 @@
 -- are deleted (see Phase 6).
 --
 -- Notes:
---   * This is the current schema for INDEX_SCHEMA_VERSION = 1. Bumping the
+--   * This is the current schema for INDEX_SCHEMA_VERSION = 4. Bumping the
 --     index version creates a fresh disposable index and rebuilds it from
 --     files instead of migrating SQL in place.
 --   * `transcriptions.content_json` and `collation_artifacts.payload` are
@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS transcriptions (
 	origin_transcription_id TEXT,
 	origin_revision_id TEXT NOT NULL DEFAULT '',
 	origin_content_hash TEXT NOT NULL DEFAULT '',
+	origin_captured_at TEXT NOT NULL DEFAULT '',
 	current_revision_id TEXT NOT NULL DEFAULT '',
 	current_content_hash TEXT NOT NULL DEFAULT '',
 	title TEXT NOT NULL,
@@ -119,6 +120,7 @@ CREATE TABLE IF NOT EXISTS collations (
 	group_path TEXT NOT NULL DEFAULT '',
 	notes TEXT NOT NULL DEFAULT '',
 	sort_key INTEGER NOT NULL DEFAULT 0,
+	conflict_of_collation_id TEXT NOT NULL DEFAULT '',
 	created_at TEXT NOT NULL,
 	updated_at TEXT NOT NULL
 );
@@ -146,8 +148,10 @@ CREATE TABLE IF NOT EXISTS collation_witnesses (
 	position INTEGER NOT NULL DEFAULT 0,
 	project_transcription_id TEXT REFERENCES project_transcriptions(id) ON DELETE SET NULL,
 	transcription_id TEXT REFERENCES transcriptions(id) ON DELETE SET NULL,
+	source_kind TEXT NOT NULL DEFAULT '',
 	source_revision_id TEXT NOT NULL DEFAULT '',
 	source_content_hash TEXT NOT NULL DEFAULT '',
+	source_captured_at TEXT NOT NULL DEFAULT '',
 	UNIQUE(collation_id, witness_id)
 );
 
@@ -322,6 +326,7 @@ CREATE TABLE IF NOT EXISTS transcription_checkpoints (
 	format TEXT NOT NULL,
 	content_hash TEXT NOT NULL,
 	is_committed INTEGER NOT NULL DEFAULT 0,
+	label TEXT NOT NULL DEFAULT '',
 	commit_message TEXT,
 	author_name TEXT NOT NULL DEFAULT '',
 	created_at TEXT NOT NULL
@@ -336,6 +341,7 @@ CREATE TABLE IF NOT EXISTS collation_checkpoints (
 	parent_checkpoint_id TEXT REFERENCES collation_checkpoints(id) ON DELETE SET NULL,
 	content_hash TEXT NOT NULL,
 	is_committed INTEGER NOT NULL DEFAULT 0,
+	label TEXT NOT NULL DEFAULT '',
 	commit_message TEXT,
 	author_name TEXT NOT NULL DEFAULT '',
 	created_at TEXT NOT NULL

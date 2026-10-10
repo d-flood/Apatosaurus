@@ -2,13 +2,13 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 
-	import ProjectBackupPanel from '$lib/project/components/ProjectBackupPanel.svelte';
+	import ProjectLocationPanel from '$lib/project/components/ProjectLocationPanel.svelte';
 	import type { ProjectRecord } from '$lib/db/repositories/projects';
 
 	let { data } = $props<{ data: { project: ProjectRecord } }>();
 
 	async function handleProjectForked(projectId: string) {
-		await goto(resolve('/projects/[id]/backup', { id: projectId }));
+		await goto(resolve('/projects/[id]/location', { id: projectId }));
 	}
 
 	async function handleProjectRemoved() {
@@ -16,7 +16,7 @@
 	}
 </script>
 
-<ProjectBackupPanel
+<ProjectLocationPanel
 	projectId={data.project.id}
 	onForked={handleProjectForked}
 	onRemoved={handleProjectRemoved}

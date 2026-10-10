@@ -11,13 +11,11 @@ import {
 } from '$lib/storage/opfs-store';
 import { projectFolder, projectsFolder, userReferenceEditionsFolder } from '$lib/storage/layout';
 import { validateStoredUserReferenceEdition } from '$lib/reference-editions/user-reference-editions';
-import { zipExportBackupPathMessage } from '$lib/shell/onboarding-guidance';
 
 import type { DbExecutor } from '$lib/db/worker-kysely';
 import { listProjectArchiveFilePaths } from '$lib/backup/project-archive';
 
 export interface ProjectZipExportOptions {
-	includeDrafts?: boolean;
 	storeOptions?: StoreOperationOptions;
 	now?: () => Date;
 	zipLimits?: Partial<ZipLimits>;
@@ -49,11 +47,6 @@ interface ReferenceEditionsZipExportResult {
 	fileName: string;
 	bytes: Uint8Array;
 	entryPaths: string[];
-}
-
-export interface ProjectBackupCapabilityMessage {
-	primaryAction: 'folder-sync' | 'zip-export';
-	message: string;
 }
 
 interface ZipEntryInput {
@@ -154,22 +147,6 @@ export async function exportAllProjectsZip(
 	return { archives, referenceEditionsArchive, invalidProjects, exportedAt };
 }
 
-export function projectBackupCapabilityMessage(
-	folderSyncSupported: boolean
-): ProjectBackupCapabilityMessage {
-	if (folderSyncSupported) {
-		return {
-			primaryAction: 'folder-sync',
-			message:
-				'Folder sync can mirror committed files continuously; zip export is also available.',
-		};
-	}
-	return {
-		primaryAction: 'zip-export',
-		message: zipExportBackupPathMessage,
-	};
-}
-
 function zipFileName(slug: string, exportedAt: string): string {
 	return `${slug}-${exportedAt.slice(0, 10)}.zip`;
 }
@@ -178,10 +155,7 @@ async function readProjectArchiveEntries(
 	root: string,
 	options: ProjectZipExportOptions
 ): Promise<ZipEntryInput[]> {
-	const files = await listProjectArchiveFilePaths(root, {
-		includeDrafts: options.includeDrafts,
-		storeOptions: options.storeOptions,
-	});
+	const files = await listProjectArchiveFilePaths(root, { storeOptions: options.storeOptions });
 	const entries: ZipEntryInput[] = [];
 	for (const file of files) {
 		entries.push({

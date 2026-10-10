@@ -11,6 +11,7 @@ import {
 	COLLATION_CHECKPOINT_FORMAT,
 	COLLATION_CHECKPOINT_CURRENT_VERSION,
 	COLLATION_CURRENT_VERSION,
+	collationPayloadToContent,
 	COLLATION_FORMAT,
 	PROJECT_MANIFEST_FORMAT,
 	PROJECT_TRANSCRIPTION_FORMAT,
@@ -119,7 +120,7 @@ interface ProjectTranscriptionOriginCloudFile {
 export interface ProjectTranscriptionCloudFile extends ProjectTranscriptionSnapshot {
 	schema_version: CloudFileSchemaVersion;
 	canonical_transcription_id: string | null;
-	current_revision: CloudCurrentRevision;
+	based_on_checkpoint: ProjectManifestRevisionHead | null;
 	origin: ProjectTranscriptionOriginCloudFile;
 	created_at: string;
 	updated_at: string;
@@ -127,7 +128,7 @@ export interface ProjectTranscriptionCloudFile extends ProjectTranscriptionSnaps
 
 export interface CollationCloudFile extends CollationContent {
 	schema_version: typeof COLLATION_CURRENT_VERSION;
-	current_revision: CloudCurrentRevision;
+	based_on_checkpoint: CollationPayload['based_on_checkpoint'];
 	created_at: string;
 	updated_at: string;
 }
@@ -139,9 +140,11 @@ interface BaseHistoryCloudFile {
 	entity_id: string;
 	parent_checkpoint_id: string | null;
 	content_hash: string;
+	label: string;
 	commit_message: string | null;
 	author_name: string;
 	created_at: string;
+	metadata_updated_at: string;
 	payload: unknown;
 }
 
@@ -338,7 +341,7 @@ export async function serializeProjectTranscriptionCloudFile(
 		project_transcription_id: snapshot.project_transcription_id,
 		id: snapshot.id,
 		canonical_transcription_id: metadata.canonical_transcription_id,
-		current_revision: currentRevision,
+		based_on_checkpoint: { id: currentRevision.id, content_hash: currentRevision.content_hash },
 		origin: {
 			source_type: metadata.origin_type,
 			source_project_id: metadata.origin_project_id,
@@ -378,13 +381,7 @@ export async function serializeCollationCloudFile(
 	assertCollationSourcesSyncReady(
 		collationCloudFileToImportInput(collationPayloadToCloudFile(collation))
 	);
-	const {
-		current_revision: _revision,
-		created_at: _createdAt,
-		updated_at: _updatedAt,
-		...content
-	} = collation;
-	const contentHash = await hashCanonicalPayload(content);
+	const contentHash = await hashCanonicalPayload(collationPayloadToContent(collation));
 	if (contentHash !== metadata.current_content_hash) {
 		throw new Error(
 			`Collation ${collationId} has uncommitted changes and cannot be serialized for cloud sync.`
@@ -404,7 +401,7 @@ export async function serializeCollationCloudFile(
 		title: collation.title,
 		verse_identifier: collation.verse_identifier,
 		status: collation.status,
-		current_revision: currentRevision,
+		based_on_checkpoint: { id: currentRevision.id, content_hash: currentRevision.content_hash },
 		group_path: collation.group_path,
 		notes: collation.notes,
 		sort_key: collation.sort_key,
@@ -443,9 +440,11 @@ export async function serializeProjectTranscriptionHistoryCloudFile(
 		parent_checkpoint_id: loaded.parentCheckpointId,
 		content_hash: loaded.contentHash,
 		format: loaded.payload.format,
+		label: loaded.label,
 		commit_message: loaded.commitMessage,
 		author_name: loaded.authorName,
 		created_at: loaded.createdAt,
+		metadata_updated_at: loaded.metadataUpdatedAt,
 		payload: loaded.payload,
 	};
 }
@@ -492,9 +491,11 @@ export async function serializeCollationHistoryCloudFile(
 		entity_id: row.collation_id,
 		parent_checkpoint_id: row.parent_checkpoint_id,
 		content_hash: row.content_hash,
+		label: payload.label,
 		commit_message: row.commit_message,
 		author_name: row.author_name,
 		created_at: row.created_at,
+		metadata_updated_at: payload.metadata_updated_at,
 		payload: payload.payload,
 	};
 }
@@ -686,17 +687,17 @@ export function validateProjectTranscriptionHeadMatchesCheckpoint(
 				'Project transcription checkpoint payload id does not match the primary file.'
 			);
 		}
-		if (checkpoint.checkpoint_id !== primary.current_revision.id) {
+		if (checkpoint.checkpoint_id !== primary.based_on_checkpoint?.id) {
 			throw hashMismatch(
 				'Project transcription current revision id does not match its checkpoint file.',
-				primary.current_revision.id,
+				primary.based_on_checkpoint?.id,
 				checkpoint.checkpoint_id
 			);
 		}
-		if (checkpoint.content_hash !== primary.current_revision.content_hash) {
+		if (checkpoint.content_hash !== primary.based_on_checkpoint?.content_hash) {
 			throw hashMismatch(
 				'Project transcription current revision hash does not match its checkpoint file.',
-				primary.current_revision.content_hash,
+				primary.based_on_checkpoint?.content_hash,
 				checkpoint.content_hash
 			);
 		}
@@ -717,17 +718,17 @@ export function validateCollationHeadMatchesCheckpoint(
 		if (checkpoint.entity_id !== primary.id) {
 			throw invalidShape('Collation checkpoint entity id does not match the primary file.');
 		}
-		if (checkpoint.checkpoint_id !== primary.current_revision.id) {
+		if (checkpoint.checkpoint_id !== primary.based_on_checkpoint?.id) {
 			throw hashMismatch(
 				'Collation current revision id does not match its checkpoint file.',
-				primary.current_revision.id,
+				primary.based_on_checkpoint?.id,
 				checkpoint.checkpoint_id
 			);
 		}
-		if (checkpoint.content_hash !== primary.current_revision.content_hash) {
+		if (checkpoint.content_hash !== primary.based_on_checkpoint?.content_hash) {
 			throw hashMismatch(
 				'Collation current revision hash does not match its checkpoint file.',
-				primary.current_revision.content_hash,
+				primary.based_on_checkpoint?.content_hash,
 				checkpoint.content_hash
 			);
 		}
@@ -759,8 +760,8 @@ export function projectTranscriptionCloudFileToImportInput(
 		transcription_id: file.id,
 		canonical_transcription_id: file.canonical_transcription_id,
 		origin: { ...file.origin },
-		current_revision_id: file.current_revision.id,
-		current_content_hash: file.current_revision.content_hash,
+		current_revision_id: file.based_on_checkpoint?.id ?? '',
+		current_content_hash: file.based_on_checkpoint?.content_hash ?? '',
 		title: file.title,
 		siglum: file.siglum,
 		description: file.description,
@@ -792,8 +793,8 @@ export function collationCloudFileToImportInput(file: CollationCloudFile): Colla
 		group_path: file.group_path,
 		notes: file.notes,
 		sort_key: file.sort_key,
-		current_revision_id: file.current_revision.id,
-		current_content_hash: file.current_revision.content_hash,
+		current_revision_id: file.based_on_checkpoint?.id ?? '',
+		current_content_hash: file.based_on_checkpoint?.content_hash ?? '',
 		created_at: file.created_at,
 		updated_at: file.updated_at,
 		document: file.document,
@@ -855,11 +856,11 @@ function isProjectCloudFile(file: CloudFile): file is ProjectCloudFile {
 }
 
 function isProjectTranscriptionCloudFile(file: CloudFile): file is ProjectTranscriptionCloudFile {
-	return 'project_transcription_id' in file && 'current_revision' in file;
+	return 'project_transcription_id' in file && 'based_on_checkpoint' in file;
 }
 
 function isCollationCloudFile(file: CloudFile): file is CollationCloudFile {
-	return 'verse_identifier' in file && 'document' in file && 'current_revision' in file;
+	return 'verse_identifier' in file && 'document' in file && 'based_on_checkpoint' in file;
 }
 
 function isHistoryCloudFile(file: CloudFile): file is HistoryCloudFile {
@@ -908,7 +909,9 @@ function projectTranscriptionCloudFileToPayload(
 		project_transcription_id: file.project_transcription_id,
 		id: file.id,
 		canonical_transcription_id: file.canonical_transcription_id,
-		current_revision: file.current_revision as ProjectTranscriptionPayload['current_revision'],
+		based_on_checkpoint:
+			file.based_on_checkpoint as ProjectTranscriptionPayload['based_on_checkpoint'],
+		draft: { saved_at: file.updated_at, author_name: null },
 		origin: file.origin as ProjectTranscriptionPayload['origin'],
 		title: file.title,
 		siglum: file.siglum,
@@ -941,7 +944,7 @@ function projectTranscriptionPayloadToCloudFile(
 		project_transcription_id: payload.project_transcription_id,
 		id: payload.id,
 		canonical_transcription_id: payload.canonical_transcription_id,
-		current_revision: payload.current_revision,
+		based_on_checkpoint: payload.based_on_checkpoint,
 		origin: payload.origin,
 		title: payload.title,
 		siglum: payload.siglum,
@@ -970,7 +973,8 @@ function collationCloudFileToPayload(file: CollationCloudFile): CollationPayload
 		title: file.title,
 		verse_identifier: file.verse_identifier,
 		status: file.status,
-		current_revision: file.current_revision as CollationPayload['current_revision'],
+		based_on_checkpoint: file.based_on_checkpoint,
+		draft: { saved_at: file.updated_at, author_name: null },
 		group_path: file.group_path,
 		notes: file.notes,
 		sort_key: file.sort_key,
@@ -988,7 +992,7 @@ function collationPayloadToCloudFile(payload: CollationPayload): CollationCloudF
 		title: payload.title,
 		verse_identifier: payload.verse_identifier,
 		status: payload.status,
-		current_revision: payload.current_revision,
+		based_on_checkpoint: payload.based_on_checkpoint,
 		group_path: payload.group_path,
 		notes: payload.notes,
 		sort_key: payload.sort_key,
@@ -1009,9 +1013,11 @@ function transcriptionHistoryCloudFileToPayload(
 		parent_checkpoint_id: file.parent_checkpoint_id,
 		payload_content_hash: file.content_hash,
 		content_format: file.format,
+		label: file.label,
 		commit_message: file.commit_message,
 		author_name: file.author_name,
 		created_at: file.created_at,
+		metadata_updated_at: file.metadata_updated_at,
 		payload: file.payload as TranscriptionCheckpointPayload['payload'],
 	};
 }
@@ -1028,9 +1034,11 @@ function transcriptionCheckpointPayloadToCloudFile(
 		parent_checkpoint_id: payload.parent_checkpoint_id,
 		content_hash: payload.payload_content_hash,
 		format: payload.content_format,
+		label: payload.label,
 		commit_message: payload.commit_message,
 		author_name: payload.author_name,
 		created_at: payload.created_at,
+		metadata_updated_at: payload.metadata_updated_at,
 		payload: payload.payload,
 	};
 }
@@ -1044,9 +1052,11 @@ function collationHistoryCloudFileToPayload(
 		entity_id: file.entity_id,
 		parent_checkpoint_id: file.parent_checkpoint_id,
 		payload_content_hash: file.content_hash,
+		label: file.label,
 		commit_message: file.commit_message,
 		author_name: file.author_name,
 		created_at: file.created_at,
+		metadata_updated_at: file.metadata_updated_at,
 		payload: file.payload as CollationCheckpointPayload['payload'],
 	};
 }
@@ -1061,9 +1071,11 @@ function collationCheckpointPayloadToCloudFile(
 		entity_id: payload.entity_id,
 		parent_checkpoint_id: payload.parent_checkpoint_id,
 		content_hash: payload.payload_content_hash,
+		label: payload.label,
 		commit_message: payload.commit_message,
 		author_name: payload.author_name,
 		created_at: payload.created_at,
+		metadata_updated_at: payload.metadata_updated_at,
 		payload: payload.payload,
 	};
 }
@@ -1204,11 +1216,12 @@ function tombstoneRowToCloudFile(row: Selectable<SyncTombstones>): TombstoneClou
 function assertCollationSourcesSyncReady(collation: SerializedCollation): void {
 	const missing = collation.witnesses.find(
 		witness =>
-			!witness.transcription_id || !witness.source_revision_id || !witness.source_content_hash
+			!witness.transcription_id ||
+			!(witness.source_revision_id || witness.source_content_hash)
 	);
 	if (!missing) return;
 	throw new Error(
-		`Collation ${collation.id} witness ${missing.witness_id} is missing committed source revision metadata and cannot be serialized for cloud sync.`
+		`Collation ${collation.id} witness ${missing.witness_id} is missing witness source metadata and cannot be serialized for cloud sync.`
 	);
 }
 

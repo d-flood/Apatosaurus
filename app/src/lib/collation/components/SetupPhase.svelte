@@ -9,7 +9,9 @@
 	} from '$lib/collation/collation-state.svelte';
 	import { gatherVerses, type AggregatedVerse } from '$lib/collation/gather-verses';
 	import { listTranscriptions, type ProjectTranscriptionOption } from '$lib/project/projects';
-	import type { TranscriptionCheckpointSummary } from '$lib/db/repositories/revisions';
+	import type { TranscriptionSourceOptions } from '$lib/db/repositories/revisions';
+	import SourceVersionPicker from '$lib/shell/components/SourceVersionPicker.svelte';
+	import { formatWitnessSourceLabel } from '$lib/shell/source-labels';
 	import {
 		rebuildVerseIndexForTranscriptions,
 		type VerseIndexRebuildProgress,
@@ -24,6 +26,7 @@
 	import LinkBreak from 'phosphor-svelte/lib/LinkBreak';
 	import LinkSimple from 'phosphor-svelte/lib/LinkSimple';
 	import Warning from 'phosphor-svelte/lib/Warning';
+	import X from 'phosphor-svelte/lib/X';
 	import { onMount } from 'svelte';
 	import type {
 		CollationWitnessSourceStatus,
@@ -31,7 +34,7 @@
 	} from '$lib/db/repositories/collations';
 	import {
 		getProjectTranscriptionIds,
-		listCommittedTranscriptionCheckpoints,
+		getTranscriptionSourceOptions,
 		syncProjectTranscriptionIds,
 	} from '$lib/db/client';
 
@@ -196,7 +199,7 @@
 				transcriptionId: witness.transcriptionUid,
 				kind: witness.kind,
 				handId: witness.handId,
-				sourceVersion: witness.sourceVersion,
+				source: witness.source,
 				content: witness.content,
 				tokens: witness.tokens,
 				fullContent: witness.fullContent,
@@ -328,13 +331,13 @@
 	let refreshWitnessId = $state<string | null>(null);
 	let refreshInFlight = $state(false);
 	let refreshError = $state<string | null>(null);
-	let refreshCheckpoints = $state<TranscriptionCheckpointSummary[]>([]);
-	let selectedRefreshCheckpointId = $state('');
-	let refreshCheckpointLoadToken = 0;
+	let refreshOptions = $state<TranscriptionSourceOptions | null>(null);
+	let selectedRefreshVersionId = $state<string | null>(null);
+	let refreshOptionsLoadToken = 0;
 
-	const refreshTargetStatus = $derived(
-		refreshWitnessId && witnessStatuses
-			? (witnessStatuses.find(w => w.witnessId === refreshWitnessId) ?? null)
+	const refreshWitness = $derived(
+		refreshWitnessId
+			? (collationState.witnesses.find(w => w.witnessId === refreshWitnessId) ?? null)
 			: null
 	);
 
@@ -345,60 +348,40 @@
 
 	function witnessVersionStateLabel(state: CollationWitnessVersionState): string {
 		switch (state) {
-			case 'pinned-current':
-				return 'Pinned current';
-			case 'newer-source-available':
-				return 'Newer source version';
-			case 'source-has-uncommitted-changes':
-				return 'Source has uncommitted edits';
-			case 'source-has-no-committed-version':
-				return 'No committed source version';
+			case 'source-changed':
+				return 'Source changed';
 			case 'source-missing':
 				return 'Source missing';
-			case 'no-source':
-				return 'Legacy witness metadata';
 			default:
 				return '';
 		}
 	}
 
 	function witnessVersionStateBadgeClass(state: CollationWitnessVersionState): string {
-		switch (state) {
-			case 'pinned-current':
-				return 'badge-success';
-			case 'newer-source-available':
-				return 'badge-info';
-			case 'source-has-uncommitted-changes':
-				return 'badge-warning';
-			default:
-				return 'badge-ghost';
-		}
+		return state === 'source-changed' ? 'badge-info' : 'badge-ghost';
 	}
 
 	function canRefreshWitness(status: CollationWitnessSourceStatus | null): boolean {
-		if (!status) return false;
-		return status.versionState === 'newer-source-available';
+		return status?.versionState === 'source-changed';
 	}
 
 	async function openRefreshDialog(witnessId: string) {
+		const witness = collationState.witnesses.find(w => w.witnessId === witnessId);
+		if (!witness?.transcriptionId) return;
 		refreshWitnessId = witnessId;
 		refreshError = null;
-		refreshCheckpoints = [];
-		selectedRefreshCheckpointId = '';
-		const status = witnessStatusFor(witnessId);
-		const transcriptionId = status?.projectOwnedTranscriptionId;
-		if (!transcriptionId) return;
-		const loadToken = ++refreshCheckpointLoadToken;
+		refreshOptions = null;
+		selectedRefreshVersionId = null;
+		const loadToken = ++refreshOptionsLoadToken;
 		try {
-			const checkpoints = await listCommittedTranscriptionCheckpoints(transcriptionId);
-			if (loadToken !== refreshCheckpointLoadToken || refreshWitnessId !== witnessId) return;
-			refreshCheckpoints = checkpoints;
-			selectedRefreshCheckpointId =
-				status.availableCheckpoint?.revisionId ?? checkpoints[0]?.id ?? '';
+			const options = await getTranscriptionSourceOptions(witness.transcriptionId);
+			if (loadToken !== refreshOptionsLoadToken || refreshWitnessId !== witnessId) return;
+			refreshOptions = options;
+			selectedRefreshVersionId =
+				witness.source?.kind === 'version' ? (options.versions[0]?.id ?? null) : null;
 		} catch (err) {
-			if (loadToken !== refreshCheckpointLoadToken || refreshWitnessId !== witnessId) return;
-			refreshError =
-				err instanceof Error ? err.message : 'Failed to load source checkpoints.';
+			if (loadToken !== refreshOptionsLoadToken || refreshWitnessId !== witnessId) return;
+			refreshError = err instanceof Error ? err.message : 'Failed to load source versions.';
 		}
 	}
 
@@ -406,34 +389,23 @@
 		if (refreshInFlight) return;
 		refreshWitnessId = null;
 		refreshError = null;
-		refreshCheckpoints = [];
-		selectedRefreshCheckpointId = '';
-		refreshCheckpointLoadToken++;
+		refreshOptions = null;
+		selectedRefreshVersionId = null;
+		refreshOptionsLoadToken++;
 	}
 
 	async function handleRefreshWitness(event: SubmitEvent) {
 		event.preventDefault();
-		if (!refreshWitnessId || refreshInFlight) return;
-		const status = refreshTargetStatus;
-		if (!status?.availableCheckpoint && !selectedRefreshCheckpointId) {
-			refreshError = 'No committed source checkpoint available.';
-			return;
-		}
-		const checkpointId = selectedRefreshCheckpointId || status?.availableCheckpoint?.revisionId;
-		if (!checkpointId) {
-			refreshError = 'No committed source checkpoint available.';
-			return;
-		}
+		if (!refreshWitnessId || refreshInFlight || !refreshOptions) return;
 		refreshInFlight = true;
 		refreshError = null;
 		try {
 			const refreshed = await collationState.refreshWitnessSource(
 				refreshWitnessId,
-				checkpointId
+				selectedRefreshVersionId
 			);
 			if (!refreshed) {
-				refreshError =
-					'Witness source could not be refreshed from the committed checkpoint.';
+				refreshError = 'Witness source could not be refreshed from the selected source.';
 			} else {
 				refreshWitnessId = null;
 			}
@@ -840,7 +812,7 @@
 									<th>Siglum</th>
 									<th>Text Preview</th>
 									<th class="w-36">Treatment</th>
-									<th class="w-40">Source Version</th>
+									<th class="w-40">Source</th>
 									<th class="w-16 text-center">Base</th>
 								</tr>
 							</thead>
@@ -923,32 +895,42 @@
 										</td>
 										<td>
 											<div class="flex flex-col items-start gap-1">
-												{#if witnessStatus}
+												<button
+													type="button"
+													class="link link-hover text-left text-xs text-base-content/70"
+													title="Choose witness source"
+													disabled={refreshInFlight ||
+														!witness.transcriptionId}
+													onclick={() =>
+														void openRefreshDialog(witness.witnessId)}
+												>
+													{formatWitnessSourceLabel(
+														witness.source,
+														witnessStatus?.sourceVersionLabel ?? null
+													)}
+												</button>
+												{#if witnessStatus && witnessVersionStateLabel(witnessStatus.versionState)}
 													<span
-														class={`badge badge-xs ${witnessVersionStateBadgeClass(witnessStatus.versionState)}`}
+														class={`badge badge-xs whitespace-nowrap ${witnessVersionStateBadgeClass(witnessStatus.versionState)}`}
 													>
 														{witnessVersionStateLabel(
 															witnessStatus.versionState
 														)}
 													</span>
-													{#if canRefreshWitness(witnessStatus)}
-														<button
-															type="button"
-															class="btn btn-xs btn-outline btn-secondary gap-1"
-															disabled={refreshInFlight}
-															onclick={() =>
-																void openRefreshDialog(
-																	witness.witnessId
-																)}
-														>
-															<ArrowsClockwise size={12} />
-															Refresh
-														</button>
-													{/if}
-												{:else}
-													<span class="text-[11px] text-base-content/40"
-														>Status unavailable</span
+												{/if}
+												{#if canRefreshWitness(witnessStatus)}
+													<button
+														type="button"
+														class="btn btn-xs btn-outline btn-secondary gap-1"
+														disabled={refreshInFlight}
+														onclick={() =>
+															void openRefreshDialog(
+																witness.witnessId
+															)}
 													>
+														<ArrowsClockwise size={12} />
+														Refresh
+													</button>
 												{/if}
 											</div>
 										</td>
@@ -1007,13 +989,13 @@
 	</div>
 </div>
 
-{#if refreshWitnessId && refreshTargetStatus}
+{#if refreshWitnessId && refreshWitness}
 	<div class="fixed inset-0 z-50 flex items-center justify-center p-4">
 		<div
 			class="absolute inset-0 bg-black/40"
 			role="button"
 			tabindex="-1"
-			aria-label="Close refresh dialog"
+			aria-label="Close source dialog"
 			onclick={closeRefreshDialog}
 			onkeydown={event => {
 				if (event.key === 'Escape') closeRefreshDialog();
@@ -1029,87 +1011,55 @@
 					</div>
 					<div>
 						<h2 class="font-serif text-lg font-semibold leading-tight">
-							Refresh witness from committed source
+							Choose witness source
 						</h2>
 						<p class="text-xs text-base-content/50">
-							{#if collationState.witnesses.find(w => w.witnessId === refreshWitnessId)}
-								{collationState.witnesses.find(
-									w => w.witnessId === refreshWitnessId
-								)?.siglum}
-							{/if}
+							{refreshWitness.siglum} · now {formatWitnessSourceLabel(
+								refreshWitness.source,
+								witnessStatusFor(refreshWitness.witnessId)?.sourceVersionLabel ??
+									null
+							)}
 						</p>
 					</div>
 				</div>
 				<button
 					type="button"
 					class="btn btn-sm btn-circle btn-ghost"
-					aria-label="Close refresh dialog"
+					aria-label="Close source dialog"
 					disabled={refreshInFlight}
 					onclick={closeRefreshDialog}
 				>
-					<Warning size={16} />
+					<X size={16} />
 				</button>
 			</div>
 
 			<div class="mt-4 space-y-3 text-sm">
 				<p class="text-base-content/80">
-					This replaces the witness's pinned source text with the selected committed
-					project transcription version.
+					This replaces the witness text with the transcription's Current or a named
+					version.
 				</p>
-				<label class="form-control">
-					<span class="label pb-1">
-						<span class="label-text text-xs">Source checkpoint</span>
-					</span>
-					<select
-						class="select select-bordered select-sm"
-						bind:value={selectedRefreshCheckpointId}
-						disabled={refreshInFlight || refreshCheckpoints.length === 0}
-					>
-						{#if refreshCheckpoints.length === 0}
-							<option value="">Loading committed checkpoints...</option>
-						{/if}
-						{#each refreshCheckpoints as checkpoint (checkpoint.id)}
-							<option value={checkpoint.id}>
-								{checkpoint.id.slice(0, 8)}... · {checkpoint.contentHash.slice(
-									0,
-									12
-								)} · {new Date(checkpoint.createdAt).toLocaleString()}
-							</option>
-						{/each}
-					</select>
-				</label>
+				{#if refreshOptions}
+					<SourceVersionPicker
+						currentEditedAt={refreshOptions.currentEditedAt}
+						versions={refreshOptions.versions}
+						bind:value={selectedRefreshVersionId}
+						disabled={refreshInFlight}
+					/>
+				{:else if !refreshError}
+					<div class="flex items-center gap-2 text-xs text-base-content/60">
+						<span class="loading loading-spinner loading-xs"></span>
+						Loading versions...
+					</div>
+				{/if}
 				<div
 					class="flex items-start gap-2 rounded-box border border-warning/40 bg-warning/10 p-3 text-xs text-base-content/80"
 				>
 					<Warning size={16} class="mt-0.5 shrink-0 text-warning" />
 					<span>
 						Alignment and readings will be rebuilt. Classified readings and stemma state
-						will be cleared. The collation will have uncommitted changes until you
-						commit it.
+						will be cleared.
 					</span>
 				</div>
-				{#if refreshTargetStatus.pinnedCheckpoint && refreshTargetStatus.availableCheckpoint}
-					<div class="text-xs text-base-content/60 space-y-0.5">
-						<p>
-							Pinned:
-							<span class="font-mono text-base-content/70"
-								>{refreshTargetStatus.pinnedCheckpoint.revisionId.slice(
-									0,
-									8
-								)}...</span
-							>
-						</p>
-						<p>
-							Available:
-							<span class="font-mono text-base-content/70"
-								>{refreshTargetStatus.availableCheckpoint.revisionId.slice(
-									0,
-									8
-								)}...</span
-							>
-						</p>
-					</div>
-				{/if}
 				{#if refreshError}
 					<p class="text-sm text-error" role="alert">{refreshError}</p>
 				{/if}
@@ -1128,14 +1078,14 @@
 					<button
 						type="submit"
 						class="btn btn-sm btn-secondary gap-1"
-						disabled={refreshInFlight}
+						disabled={refreshInFlight || !refreshOptions}
 					>
 						{#if refreshInFlight}
 							<span class="loading loading-spinner loading-xs"></span>
 							Refreshing...
 						{:else}
 							<ArrowsClockwise size={14} />
-							Refresh witness
+							Use this source
 						{/if}
 					</button>
 				</form>

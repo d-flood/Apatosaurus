@@ -80,6 +80,7 @@ export const updateProjectMetadata = call('updateProjectMetadata');
 export const listProjectTranscriptionOptions = call('listProjectTranscriptionOptions');
 export const listProjectTranscriptionStatuses = call('listProjectTranscriptionStatuses');
 export const listProjectDocumentTitles = call('listProjectDocumentTitles');
+export const listProjectIdsWithContent = call('listProjectIdsWithContent');
 export const getProjectTranscriptionStatusForOwnedTranscription = call(
 	'getProjectTranscriptionStatusForOwnedTranscription'
 );
@@ -122,24 +123,42 @@ export const createCommittedTranscriptionCheckpoint = call(
 );
 export const createCommittedCollationCheckpoint = call('createCommittedCollationCheckpoint');
 export const listCommittedTranscriptionCheckpoints = call('listCommittedTranscriptionCheckpoints');
+export const listTranscriptionVersions = call('listTranscriptionVersions');
+export const getTranscriptionCurrentContentHashes = call('getTranscriptionCurrentContentHashes');
+export const getTranscriptionSourceOptions = call('getTranscriptionSourceOptions');
+export const listCollationVersions = call('listCollationVersions');
+export const restoreTranscriptionVersion = call('restoreTranscriptionVersion');
+export const replaceTranscriptionCurrent = call('replaceTranscriptionCurrent');
+export const updateTranscriptionVersionNote = call('updateTranscriptionVersionNote');
+export const restoreCollationVersion = call('restoreCollationVersion');
+export const replaceCollationCurrent = call('replaceCollationCurrent');
+export const updateCollationVersionNote = call('updateCollationVersionNote');
+export const loadTranscriptionVersionContent = call('loadTranscriptionVersionContent');
+export const listConflictCopies = call('listConflictCopies');
+export const loadConflictCopyContents = call('loadConflictCopyContents');
+export const reconcileConflictCopy = call('reconcileConflictCopy');
+export const loadCollationVersionDocument = call('loadCollationVersionDocument');
 export const getLatestProjectCommitTimestamp = call('getLatestProjectCommitTimestamp');
 export const loadCommittedTranscriptionCheckpointPayload = call(
 	'loadCommittedTranscriptionCheckpointPayload'
 );
 
 // `$state` proxies cannot cross `postMessage`; spreading the context detaches it.
-export function deriveProjectBackupSummary(context: SyncProjectContext) {
-	return call('deriveProjectBackupSummary')({ ...context });
+export function listPendingUploadPaths(context: SyncProjectContext) {
+	return call('listPendingUploadPaths')({ ...context });
 }
 
 export function backupProject(context: SyncProjectContext) {
-	return call('backupProject')({ ...context }, true);
+	return call('backupProject')({ ...context });
 }
 
-export function backupEligibleProjectEntities(context: SyncProjectContext) {
-	return call('backupProject')({ ...context }, false);
-}
-
+export const discoverLocationProjects = call('discoverLocationProjects');
+export const writeEditingPresence = call('writeEditingPresence');
+export const clearEditingPresence = call('clearEditingPresence');
+export const readEditingNotice = call('readEditingNotice');
+export const removeProjectsFromDevice = call('removeProjectsFromDevice');
+export const moveProject = call('moveProject');
+export const deleteProject = call('deleteProject');
 export const exportProjectZip = call('exportProjectZip');
 export const exportAllProjectsZip = call('exportAllProjectsZip');
 export const importProjectZip = call('importProjectZip');

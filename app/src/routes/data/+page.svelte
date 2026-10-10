@@ -29,8 +29,42 @@
 	import {
 		loadProjectBackupOverviews,
 		type ProjectBackupOverview,
-		type ProjectBackupOverviewStatus,
 	} from '$lib/backup/project-backup-overview';
+	import {
+		addDeviceLocation,
+		addTeamLocation,
+		browseTeamFolders,
+		completeAccountSignIn,
+		inspectGoogleTeamFolder,
+		reconnectDeviceLocation,
+		signOutAccount,
+		type GoogleTeamFolder,
+	} from '$lib/backup/location-connections';
+	import { beginSignIn, issueToken, providerLabel } from '$lib/backup/storage-account-auth';
+	import {
+		hasDriveScope,
+		pickGoogleFolder,
+		requestDriveAccess,
+		takePendingDriveAccess,
+		teamLocationAccounts,
+	} from '$lib/backup/google-team-locations';
+	import type { FolderListing } from '$lib/backup/folder-browser';
+	import { LOCATION_ROOT_FOLDER_ID } from '$lib/backup/providers/provider';
+	import { syncService } from '$lib/backup/sync-service.svelte';
+	import {
+		syncStatusLabels,
+		syncStatusReason,
+		type SyncStatusState,
+	} from '$lib/backup/sync-status';
+	import { networkStatus } from '$lib/shell/network-status.svelte';
+	import {
+		listProjectLocations,
+		listStorageAccounts,
+		type ProjectLocation,
+		type StorageAccount,
+	} from '$lib/storage/project-locations';
+	import { readAppSettings, saveAppSettings } from '$lib/storage/app-settings';
+	import { readDeviceIdentity, saveDeviceName } from '$lib/storage/device-identity';
 	import {
 		CORPUS_APPROXIMATE_BYTES,
 		hasCorpusStorageHeadroom,
@@ -52,6 +86,36 @@
 	let projects = $state.raw<ProjectOption[]>([]);
 	let userReferenceEditionCount = $state(0);
 	let projectBackupOverviews = $state.raw<Record<string, ProjectBackupOverview>>({});
+	let locations = $state.raw<ProjectLocation[]>([]);
+	let accounts = $state.raw<StorageAccount[]>([]);
+	let accountError = $state<string | null>(null);
+	let isCompletingSignIn = $state(false);
+	let signOutDialog = $state<HTMLDialogElement>();
+	let signingOutAccount = $state<StorageAccount | null>(null);
+	let removeOnSignOut = $state(false);
+	let isSigningOut = $state(false);
+	let signOutError = $state<string | null>(null);
+	let authorName = $state('');
+	let authorNameMessage = $state<string | null>(null);
+	let deviceName = $state('');
+	let deviceNameMessage = $state<string | null>(null);
+	let isAddingLocation = $state(false);
+	let reconnectingLocationId = $state<string | null>(null);
+	let locationError = $state<string | null>(null);
+	let teamDialog = $state<HTMLDialogElement>();
+	let teamAccountId = $state('');
+	let teamFolderId = $state(LOCATION_ROOT_FOLDER_ID);
+	let teamListing = $state.raw<FolderListing | null>(null);
+	let isBrowsingTeam = $state(false);
+	let isAddingTeam = $state(false);
+	let teamError = $state<string | null>(null);
+	let googleFolder = $state.raw<GoogleTeamFolder | null>(null);
+	let isPickingGoogleFolder = $state(false);
+	const teamAccounts = $derived(teamLocationAccounts(accounts));
+	const teamAccount = $derived(teamAccounts.find(account => account.id === teamAccountId));
+	const teamFolderSegments = $derived(
+		teamFolderId === LOCATION_ROOT_FOLDER_ID ? [] : teamFolderId.split('/')
+	);
 	let persistenceReport = $state<StoragePersistenceReport | null>(null);
 	let storageEstimateReport = $state<StorageEstimateReport | null>(null);
 	let installSupported = $state(false);
@@ -100,7 +164,7 @@
 			linkedCount: summaries.filter(summary => summary.status !== 'local-only').length,
 			backedUpCount: summaries.filter(summary => summary.status === 'backed-up').length,
 			attentionCount: summaries.filter(summary =>
-				['pending', 'blocked', 'unavailable'].includes(summary.status)
+				['pending', 'unavailable'].includes(summary.status)
 			).length,
 		};
 	});
@@ -135,7 +199,11 @@
 			if (inspection.invalidPaths.length > 0) {
 				initialDataError = `${inspection.invalidPaths.length} stored reference edition${inspection.invalidPaths.length === 1 ? ' is' : 's are'} corrupt and cannot be used or backed up. Restore them from a reference-edition backup or remove the affected local files.`;
 			}
-			await Promise.all([refreshStorageCapabilities(), loadProjectBackupSummaries(projects)]);
+			await Promise.all([
+				refreshStorageCapabilities(),
+				loadProjectBackupSummaries(projects),
+				loadLocations(),
+			]);
 		} catch (cause) {
 			initialDataError =
 				cause instanceof Error
@@ -249,6 +317,213 @@
 		}
 	}
 
+	async function loadLocations() {
+		[locations, accounts] = await Promise.all([listProjectLocations(), listStorageAccounts()]);
+	}
+
+	function accountLabel(location: ProjectLocation): string {
+		const account = accountFor(location);
+		return account
+			? `${providerLabel(account.provider)} · ${account.displayName}`
+			: 'Signed-out account';
+	}
+
+	function accountFor(location: ProjectLocation): StorageAccount | undefined {
+		return accounts.find(account => account.id === location.accountId);
+	}
+
+	function accountNeedsReconnect(accountId: string): boolean {
+		return locations.some(
+			location => location.accountId === accountId && locationNeedsReconnect(location.id)
+		);
+	}
+
+	async function completeSignInFromRedirect() {
+		const params = new URLSearchParams(window.location.hash.slice(1));
+		const accountId = params.get('account');
+		const provider = params.get('provider');
+		const authError = params.get('auth-error');
+		if (!accountId && !authError) return;
+		const pendingDriveAccess = takePendingDriveAccess();
+		history.replaceState(history.state, '', window.location.pathname + window.location.search);
+		if (authError) {
+			accountError =
+				authError === 'access_denied'
+					? 'Sign-in was cancelled.'
+					: 'Sign-in did not complete. Try again.';
+			return;
+		}
+		if ((provider !== 'dropbox' && provider !== 'google') || !accountId) return;
+		isCompletingSignIn = true;
+		accountError = null;
+		try {
+			await ensureLocalDbRuntime();
+			await completeAccountSignIn(accountId, provider);
+			await loadLocations();
+			const account = teamAccounts.find(candidate => candidate.id === pendingDriveAccess);
+			if (account?.id === accountId && hasDriveScope(account)) {
+				openTeamLocation(account.id);
+				void chooseGoogleFolder();
+			}
+		} catch (cause) {
+			accountError = cause instanceof Error ? cause.message : 'Sign-in did not complete.';
+		} finally {
+			isCompletingSignIn = false;
+		}
+	}
+
+	function openSignOut(account: StorageAccount) {
+		signingOutAccount = account;
+		removeOnSignOut = false;
+		signOutError = null;
+		signOutDialog?.showModal();
+	}
+
+	async function confirmSignOut(event: SubmitEvent) {
+		event.preventDefault();
+		if (!signingOutAccount || isSigningOut) return;
+		isSigningOut = true;
+		signOutError = null;
+		try {
+			await signOutAccount(signingOutAccount.id, removeOnSignOut);
+			signOutDialog?.close();
+		} catch (cause) {
+			signOutError = cause instanceof Error ? cause.message : 'Sign-out did not complete.';
+		} finally {
+			isSigningOut = false;
+			await loadLocations();
+		}
+	}
+
+	async function loadAuthorName() {
+		authorName = (await readAppSettings()).authorName ?? '';
+	}
+
+	async function saveAuthorName(event: SubmitEvent) {
+		event.preventDefault();
+		await saveAppSettings({ authorName });
+		authorNameMessage = 'Saved';
+	}
+
+	async function loadDeviceName() {
+		deviceName = (await readDeviceIdentity()).deviceName;
+	}
+
+	async function submitDeviceName(event: SubmitEvent) {
+		event.preventDefault();
+		deviceName = (await saveDeviceName(deviceName)).deviceName;
+		deviceNameMessage = 'Saved';
+	}
+
+	function locationNeedsReconnect(locationId: string): boolean {
+		return Object.values(projectBackupOverviews).some(
+			overview =>
+				overview.placement?.locationId === locationId &&
+				syncService.reconnectProjectIds.includes(overview.projectId)
+		);
+	}
+
+	async function addFolderLocation() {
+		isAddingLocation = true;
+		locationError = null;
+		try {
+			await addDeviceLocation();
+			await loadLocations();
+		} catch (cause) {
+			if (cause instanceof DOMException && cause.name === 'AbortError') return;
+			locationError = cause instanceof Error ? cause.message : 'Failed to add the folder.';
+		} finally {
+			isAddingLocation = false;
+		}
+	}
+
+	function openTeamLocation(accountId = teamAccounts[0]?.id ?? '') {
+		teamAccountId = accountId;
+		teamDialog?.showModal();
+		selectTeamAccount();
+	}
+
+	function selectTeamAccount() {
+		teamError = null;
+		googleFolder = null;
+		if (teamAccount?.provider === 'dropbox') void browseTeam(LOCATION_ROOT_FOLDER_ID);
+	}
+
+	async function chooseGoogleFolder() {
+		const account = teamAccount;
+		if (!account || isPickingGoogleFolder) return;
+		if (!hasDriveScope(account)) {
+			requestDriveAccess(account);
+			return;
+		}
+		isPickingGoogleFolder = true;
+		teamError = null;
+		teamDialog?.close();
+		try {
+			const token = await issueToken(account.id, 'google', false);
+			const folderId = await pickGoogleFolder(token.accessToken);
+			if (folderId) googleFolder = await inspectGoogleTeamFolder(account.id, folderId);
+		} catch (cause) {
+			teamError = cause instanceof Error ? cause.message : 'The folder could not be opened.';
+		} finally {
+			isPickingGoogleFolder = false;
+			teamDialog?.showModal();
+		}
+	}
+
+	async function browseTeam(folderId: string) {
+		teamFolderId = folderId;
+		teamListing = null;
+		teamError = null;
+		isBrowsingTeam = true;
+		try {
+			teamListing = await browseTeamFolders(teamAccountId, folderId);
+		} catch (cause) {
+			teamError = cause instanceof Error ? cause.message : 'Folders could not be listed.';
+		} finally {
+			isBrowsingTeam = false;
+		}
+	}
+
+	function browseTeamUp() {
+		void browseTeam(teamFolderSegments.slice(0, -1).join('/') || LOCATION_ROOT_FOLDER_ID);
+	}
+
+	async function confirmTeamLocation(event: SubmitEvent) {
+		event.preventDefault();
+		const folderId =
+			teamAccount?.provider === 'google'
+				? googleFolder?.id
+				: teamFolderId === LOCATION_ROOT_FOLDER_ID
+					? undefined
+					: teamFolderId;
+		if (isAddingTeam || !folderId) return;
+		isAddingTeam = true;
+		teamError = null;
+		try {
+			await addTeamLocation(teamAccountId, folderId);
+			teamDialog?.close();
+			await loadLocations();
+		} catch (cause) {
+			teamError = cause instanceof Error ? cause.message : 'Failed to add the team location.';
+		} finally {
+			isAddingTeam = false;
+		}
+	}
+
+	async function reconnectLocation(locationId: string) {
+		reconnectingLocationId = locationId;
+		locationError = null;
+		try {
+			await reconnectDeviceLocation(locationId);
+		} catch (cause) {
+			if (cause instanceof DOMException && cause.name === 'AbortError') return;
+			locationError = cause instanceof Error ? cause.message : 'Failed to reconnect.';
+		} finally {
+			reconnectingLocationId = null;
+		}
+	}
+
 	async function loadProjectBackupSummaries(projectRows: ProjectOption[] = projects) {
 		const runId = ++backupSummaryRunId;
 		try {
@@ -265,27 +540,18 @@
 		}
 	}
 
-	function backupStatusLabel(status: ProjectBackupOverviewStatus): string {
-		if (status === 'local-only') return 'Local only';
-		if (status === 'blocked') return 'Commit before sync';
-		if (status === 'pending') return 'Pending sync';
-		if (status === 'backed-up') return 'Synced';
-		return 'Sync unavailable';
-	}
-
-	function backupBadgeClass(status: ProjectBackupOverviewStatus): string {
-		if (status === 'blocked' || status === 'unavailable') return 'badge-warning';
-		if (status === 'pending') return 'badge-info';
-		if (status === 'backed-up') return 'badge-success';
-		return 'badge-ghost';
-	}
+	const statusBadgeClass: Record<SyncStatusState, string> = {
+		synced: 'badge-success',
+		'saved-on-device': 'badge-ghost',
+		'needs-attention': 'badge-warning',
+	};
 
 	async function exportAllProjectArchives() {
 		if (isExportingAllProjects) return;
 		isExportingAllProjects = true;
 		exportAllError = null;
 		try {
-			const result = await exportAllProjectsZip(false);
+			const result = await exportAllProjectsZip();
 			for (const archive of result.archives)
 				downloadZipArchive(archive.fileName, archive.bytes);
 			if (result.referenceEditionsArchive) {
@@ -405,6 +671,9 @@
 	onMount(() => {
 		installSupported = getInstallCapabilityReport().installSupported;
 		void bootstrap();
+		void completeSignInFromRedirect();
+		void loadAuthorName();
+		void loadDeviceName();
 		void refreshOfflineCacheSize();
 		void refreshCorpusCacheState();
 		const refreshCacheState = () => {
@@ -422,7 +691,10 @@
 		});
 		const unsubscribeDb = subscribeLocalDbInvalidations(event => {
 			if (event.domain === 'projects' || event.domain === 'all') void bootstrap();
-			else if (event.domain === 'sync-targets') void loadProjectBackupSummaries();
+			else if (event.domain === 'sync-targets') {
+				void loadProjectBackupSummaries();
+				void loadLocations();
+			}
 		});
 		return () => {
 			window.removeEventListener('focus', refreshCacheState);
@@ -630,9 +902,198 @@
 			</section>
 
 			<section class="rounded-box border border-base-300/60 bg-base-100 p-5 shadow-sm">
-				<h2 class="font-serif text-xl font-semibold">Project Backup Status</h2>
+				<h2 class="font-serif text-xl font-semibold">Storage accounts</h2>
 				<p class="mt-1 text-sm text-base-content/55">
-					Open a project's backup page to configure or run folder sync.
+					Sign in to keep projects in your own cloud storage. Each account gets an
+					Apatosaurus folder.
+				</p>
+				{#if accountError}
+					<div class="alert alert-error mt-3 py-2 text-sm" role="alert">
+						{accountError}
+					</div>
+				{/if}
+				{#if isCompletingSignIn}
+					<div class="mt-4 flex items-center gap-2 text-sm text-base-content/55">
+						<span class="loading loading-spinner loading-sm"></span>Finishing sign-in...
+					</div>
+				{/if}
+				{#if accounts.length > 0}
+					<ul class="mt-4 divide-y divide-base-300/60">
+						{#each accounts as account (account.id)}
+							<li class="flex flex-wrap items-center justify-between gap-3 py-3">
+								<div class="min-w-0">
+									<div class="truncate font-medium">{account.displayName}</div>
+									<div class="truncate text-xs text-base-content/55">
+										{providerLabel(account.provider)} · {account.email}
+									</div>
+								</div>
+								<div class="flex flex-wrap gap-2">
+									{#if !account.signedIn}
+										<span class="badge badge-ghost badge-sm self-center">
+											Signed out
+										</span>
+										<button
+											type="button"
+											class="btn btn-outline btn-sm"
+											onclick={() => beginSignIn(account.provider)}
+										>
+											Sign in
+										</button>
+									{:else}
+										{#if accountNeedsReconnect(account.id)}
+											<button
+												type="button"
+												class="btn btn-warning btn-sm"
+												onclick={() => beginSignIn(account.provider)}
+											>
+												Reconnect
+											</button>
+										{/if}
+										<button
+											type="button"
+											class="btn btn-ghost btn-sm"
+											onclick={() => openSignOut(account)}
+										>
+											Sign out
+										</button>
+									{/if}
+								</div>
+							</li>
+						{/each}
+					</ul>
+				{/if}
+				<div class="mt-4 grid gap-2 sm:grid-cols-2">
+					<button
+						type="button"
+						class="btn btn-outline btn-sm"
+						disabled={isCompletingSignIn}
+						onclick={() => beginSignIn('google')}
+					>
+						Sign in with Google
+					</button>
+					<button
+						type="button"
+						class="btn btn-outline btn-sm"
+						disabled={isCompletingSignIn}
+						onclick={() => beginSignIn('dropbox')}
+					>
+						Sign in with Dropbox
+					</button>
+				</div>
+				<form class="mt-5 space-y-2" onsubmit={saveAuthorName}>
+					<label class="block text-sm font-medium" for="author-name">Your name</label>
+					<p class="text-xs text-base-content/55">
+						Names versions in browser-only projects and folders on this computer.
+						Storage accounts use their own display name.
+					</p>
+					<div class="flex gap-2">
+						<input
+							id="author-name"
+							class="input input-bordered input-sm min-w-0 flex-1"
+							bind:value={authorName}
+							oninput={() => (authorNameMessage = null)}
+							autocomplete="name"
+						/>
+						<button type="submit" class="btn btn-sm">Save</button>
+					</div>
+					{#if authorNameMessage}
+						<p class="text-xs text-success" role="status">{authorNameMessage}</p>
+					{/if}
+				</form>
+			</section>
+
+			<section class="rounded-box border border-base-300/60 bg-base-100 p-5 shadow-sm">
+				<h2 class="font-serif text-xl font-semibold">Locations</h2>
+				<p class="mt-1 text-sm text-base-content/55">
+					Places where projects live and sync. Projects already in a location are
+					downloaded to this device.
+				</p>
+				{#if locationError}
+					<div class="alert alert-error mt-3 py-2 text-sm" role="alert">
+						{locationError}
+					</div>
+				{/if}
+				{#if locations.length === 0}
+					<p class="mt-4 text-sm text-base-content/55">No locations yet.</p>
+				{:else}
+					<ul class="mt-4 divide-y divide-base-300/60">
+						{#each locations as location (location.id)}
+							<li class="flex flex-wrap items-center justify-between gap-3 py-3">
+								<div class="min-w-0">
+									<div class="truncate font-medium">{location.displayPath}</div>
+									<div class="text-xs text-base-content/55">
+										{#if location.accountId}
+											{location.kind === 'team'
+												? 'Team · '
+												: ''}{accountLabel(location)}
+										{:else}
+											Folder on this computer
+										{/if}
+									</div>
+								</div>
+								{#if !location.accountId && locationNeedsReconnect(location.id)}
+									<button
+										type="button"
+										class="btn btn-warning btn-sm"
+										disabled={reconnectingLocationId === location.id}
+										onclick={() => reconnectLocation(location.id)}
+									>
+										Reconnect
+									</button>
+								{/if}
+							</li>
+						{/each}
+					</ul>
+				{/if}
+				<div class="mt-4 grid gap-2 empty:hidden">
+					{#if teamAccounts.length > 0}
+						<button
+							type="button"
+							class="btn btn-outline btn-sm"
+							onclick={() => openTeamLocation()}
+						>
+							Add team location
+						</button>
+					{/if}
+					{#if isLocalFolderProviderSupported()}
+						<button
+							type="button"
+							class="btn btn-outline btn-sm"
+							disabled={isAddingLocation}
+							onclick={addFolderLocation}
+						>
+							{isAddingLocation ? 'Adding folder...' : 'Add folder on this computer'}
+						</button>
+					{/if}
+				</div>
+			</section>
+
+			<section class="rounded-box border border-base-300/60 bg-base-100 p-5 shadow-sm">
+				<h2 class="font-serif text-xl font-semibold">This device</h2>
+				<form class="mt-3 space-y-2" onsubmit={submitDeviceName}>
+					<label class="block text-sm font-medium" for="device-name">Device name</label>
+					<p class="text-xs text-base-content/55">
+						Editing notices use this name when you edit on more than one device.
+					</p>
+					<div class="flex gap-2">
+						<input
+							id="device-name"
+							class="input input-bordered input-sm min-w-0 flex-1"
+							bind:value={deviceName}
+							oninput={() => (deviceNameMessage = null)}
+						/>
+						<button type="submit" class="btn btn-sm">Save</button>
+					</div>
+					{#if deviceNameMessage}
+						<p class="text-xs text-success" role="status">{deviceNameMessage}</p>
+					{/if}
+				</form>
+			</section>
+
+			<section class="rounded-box border border-base-300/60 bg-base-100 p-5 shadow-sm">
+				<h2 class="font-serif text-xl font-semibold">Project Sync Status</h2>
+				<p class="mt-1 text-sm text-base-content/55">
+					Open a project's Location page to choose where it lives.
 				</p>
 				{#if isLoading}
 					<div class="mt-4 flex items-center gap-2 text-sm text-base-content/55">
@@ -643,20 +1104,22 @@
 				{:else}
 					<ul class="mt-4 divide-y divide-base-300/60">
 						{#each projects as project (project.id)}
-							{@const overview = projectBackupOverviews[project.id]}
+							{@const projectStatus = syncService.projectStatus(
+								project.id,
+								networkStatus.online
+							)}
 							<li>
 								<a
-									href={resolve('/projects/[id]/backup', { id: project.id })}
+									href={resolve('/projects/[id]/location', { id: project.id })}
 									class="flex items-center justify-between gap-3 py-3 hover:text-primary"
 								>
 									<span class="font-medium">{project.name}</span>
 									<span
-										class="badge badge-sm {overview
-											? backupBadgeClass(overview.status)
-											: 'badge-ghost'}"
-										>{overview
-											? backupStatusLabel(overview.status)
-											: 'Checking sync'}</span
+										class="badge badge-sm {statusBadgeClass[
+											projectStatus.state
+										]}"
+										title={syncStatusReason(projectStatus)}
+										>{syncStatusLabels[projectStatus.state]}</span
 									>
 								</a>
 							</li>
@@ -676,7 +1139,7 @@
 					</div>
 					<div class="rounded-box bg-base-200/60 p-3">
 						<div class="text-2xl font-semibold">{storageOverview.linkedCount}</div>
-						<div class="text-xs text-base-content/55">Sync folders</div>
+						<div class="text-xs text-base-content/55">In a location</div>
 					</div>
 					<div class="rounded-box bg-base-200/60 p-3">
 						<div class="text-2xl font-semibold text-success">
@@ -765,3 +1228,194 @@
 		</div>
 	</div>
 </main>
+
+<dialog
+	bind:this={signOutDialog}
+	class="modal"
+	aria-label="Sign out"
+	oncancel={event => isSigningOut && event.preventDefault()}
+>
+	<form class="modal-box w-full max-w-md space-y-3" onsubmit={confirmSignOut}>
+		<h3 class="font-serif text-lg font-bold">Sign out of {signingOutAccount?.email}</h3>
+		<p class="text-sm text-base-content/70">What should happen to this account's projects?</p>
+		<label class="flex cursor-pointer items-start gap-3">
+			<input
+				type="radio"
+				class="radio radio-sm mt-0.5"
+				name="sign-out-projects"
+				value={false}
+				bind:group={removeOnSignOut}
+				disabled={isSigningOut}
+			/>
+			<span>
+				<span class="block text-sm font-medium">Keep on this device</span>
+				<span class="block text-xs text-base-content/60">
+					Projects stay editable but stop syncing until you sign in again.
+				</span>
+			</span>
+		</label>
+		<label class="flex cursor-pointer items-start gap-3">
+			<input
+				type="radio"
+				class="radio radio-sm mt-0.5"
+				name="sign-out-projects"
+				value={true}
+				bind:group={removeOnSignOut}
+				disabled={isSigningOut}
+			/>
+			<span>
+				<span class="block text-sm font-medium">Remove from this device</span>
+				<span class="block text-xs text-base-content/60">
+					Deletes the local copies only. They stay in your storage account.
+				</span>
+			</span>
+		</label>
+		{#if signOutError}
+			<p class="text-sm text-error" role="alert">{signOutError}</p>
+		{/if}
+		<div class="modal-action mt-2">
+			<button
+				type="button"
+				class="btn btn-sm btn-ghost"
+				disabled={isSigningOut}
+				onclick={() => signOutDialog?.close()}
+			>
+				Cancel
+			</button>
+			<button type="submit" class="btn btn-sm btn-primary" disabled={isSigningOut}>
+				{isSigningOut ? 'Signing out...' : 'Sign out'}
+			</button>
+		</div>
+	</form>
+</dialog>
+
+<dialog
+	bind:this={teamDialog}
+	class="modal"
+	aria-label="Add team location"
+	oncancel={event => isAddingTeam && event.preventDefault()}
+>
+	<form class="modal-box w-full max-w-lg space-y-3" onsubmit={confirmTeamLocation}>
+		<h3 class="font-serif text-lg font-bold">Add team location</h3>
+		{#if teamAccounts.length > 1}
+			<label class="block text-sm font-medium" for="team-account">Account</label>
+			<select
+				id="team-account"
+				class="select select-bordered select-sm w-full"
+				bind:value={teamAccountId}
+				onchange={selectTeamAccount}
+				disabled={isAddingTeam}
+			>
+				{#each teamAccounts as account (account.id)}
+					<option value={account.id}>
+						{providerLabel(account.provider)} · {account.displayName} · {account.email}
+					</option>
+				{/each}
+			</select>
+		{/if}
+		{#if teamAccount?.provider === 'google'}
+			<p class="text-sm text-base-content/70">
+				Pick your team's shared folder in Google Drive, including folders in shared drives.
+			</p>
+			{#if !hasDriveScope(teamAccount)}
+				<p class="text-sm text-base-content/70">
+					Google will ask once for access to your Drive, so Apatosaurus can open folders
+					it did not create.
+				</p>
+			{/if}
+			<div class="flex flex-wrap items-center gap-3">
+				<button
+					type="button"
+					class="btn btn-outline btn-sm"
+					disabled={isPickingGoogleFolder || isAddingTeam}
+					onclick={chooseGoogleFolder}
+				>
+					{hasDriveScope(teamAccount) ? 'Choose folder' : 'Continue to Google'}
+				</button>
+				{#if googleFolder}
+					<span class="min-w-0 truncate text-sm" aria-label="Chosen folder">
+						{googleFolder.name}
+					</span>
+					{#if googleFolder.hasMarker}
+						<span class="badge badge-primary badge-sm">Location</span>
+					{/if}
+				{/if}
+			</div>
+		{:else}
+			<p class="text-sm text-base-content/70">
+				Open your team's shared Dropbox folder. Folders marked Location already hold
+				Apatosaurus projects.
+			</p>
+			<div class="flex items-center gap-2">
+				<button
+					type="button"
+					class="btn btn-ghost btn-sm"
+					disabled={teamFolderSegments.length === 0 || isBrowsingTeam || isAddingTeam}
+					onclick={browseTeamUp}
+				>
+					Up
+				</button>
+				<span class="min-w-0 truncate font-mono text-sm" aria-label="Current folder">
+					/{teamFolderSegments.join('/')}
+				</span>
+			</div>
+			<ul
+				class="max-h-72 divide-y divide-base-300/60 overflow-y-auto rounded-box border border-base-300/60"
+				aria-label="Folders"
+			>
+				{#if isBrowsingTeam}
+					<li class="flex items-center gap-2 p-3 text-sm text-base-content/55">
+						<span class="loading loading-spinner loading-sm"></span>Loading folders...
+					</li>
+				{:else if teamListing && teamListing.folders.length === 0}
+					<li class="p-3 text-sm text-base-content/55">No folders here.</li>
+				{:else if teamListing}
+					{#each teamListing.folders as folder (folder.id)}
+						<li>
+							<button
+								type="button"
+								class="flex w-full items-center justify-between gap-3 p-3 text-left text-sm hover:bg-base-200"
+								disabled={isAddingTeam}
+								onclick={() => browseTeam(folder.id)}
+							>
+								<span class="min-w-0 truncate">{folder.name}</span>
+								{#if folder.hasMarker}
+									<span class="badge badge-primary badge-sm">Location</span>
+								{/if}
+							</button>
+						</li>
+					{/each}
+				{/if}
+			</ul>
+		{/if}
+		{#if teamError}
+			<p class="text-sm text-error" role="alert">{teamError}</p>
+		{/if}
+		<div class="modal-action mt-2 flex-wrap">
+			<button
+				type="button"
+				class="btn btn-sm btn-ghost"
+				disabled={isAddingTeam}
+				onclick={() => teamDialog?.close()}
+			>
+				Cancel
+			</button>
+			<button
+				type="submit"
+				class="btn btn-sm btn-primary"
+				disabled={isAddingTeam ||
+					(teamAccount?.provider === 'google'
+						? !googleFolder
+						: !teamListing || teamFolderSegments.length === 0)}
+			>
+				{#if isAddingTeam}
+					Adding...
+				{:else if (teamAccount?.provider === 'google' ? googleFolder : teamListing)?.hasMarker}
+					Add team location
+				{:else}
+					Make this a team location
+				{/if}
+			</button>
+		</div>
+	</form>
+</dialog>

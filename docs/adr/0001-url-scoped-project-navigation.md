@@ -2,7 +2,7 @@
 
 Status: accepted
 
-Projects own all transcriptions and collations, and the UI is organized around an "open project." We decided the open project is identified solely by the project id in the URL on project-scoped pages (`/projects/[id]/transcriptions`, `/projects/[id]/collations`, `/projects/[id]/settings`, `/projects/[id]/backup`), while document editor pages stay flat and are addressed by document id alone (`/transcription/[id]`, `/collation/[id]/[phase]`), deriving their project from document ownership. A last-opened project id in `localStorage` is used only to construct links (navbar, redirects, creation-page preselection) when no project is in the URL — it is never a source of truth for what a page displays.
+Projects own all transcriptions and collations, and the UI is organized around an "open project." We decided the open project is identified solely by the project id in the URL on project-scoped pages (`/projects/[id]/transcriptions`, `/projects/[id]/collations`, `/projects/[id]/settings`, `/projects/[id]/location`), while document editor pages stay flat and are addressed by document id alone (`/transcription/[id]`, `/collation/[id]/[phase]`), deriving their project from document ownership. A last-opened project id in `localStorage` is used only to construct links (navbar, redirects, creation-page preselection) when no project is in the URL — it is never a source of truth for what a page displays.
 
 ## Considered Options
 

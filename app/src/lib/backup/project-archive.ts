@@ -4,7 +4,7 @@ import {
 	type StoreDirectoryEntry,
 	type StoreOperationOptions,
 } from '$lib/storage/opfs-store';
-import { joinStorePath, projectFolder } from '$lib/storage/layout';
+import { isPresencePath, joinStorePath, projectFolder } from '$lib/storage/layout';
 import type { DbExecutor } from '$lib/db/worker-kysely';
 
 export interface ProjectArchiveFile {
@@ -21,7 +21,7 @@ export interface ProjectArchiveFilePath {
 export async function listProjectArchiveFiles(
 	db: DbExecutor,
 	projectId: string,
-	options: { storeOptions?: StoreOperationOptions; includeDrafts?: boolean } = {}
+	options: { storeOptions?: StoreOperationOptions } = {}
 ): Promise<ProjectArchiveFile[]> {
 	const root = await loadProjectStoreRoot(db, projectId);
 	const files = await listProjectArchiveFilePaths(root, options);
@@ -36,16 +36,10 @@ export async function listProjectArchiveFiles(
 
 export async function listProjectArchiveFilePaths(
 	projectRoot: string,
-	options: { storeOptions?: StoreOperationOptions; includeDrafts?: boolean } = {}
+	options: { storeOptions?: StoreOperationOptions } = {}
 ): Promise<ProjectArchiveFilePath[]> {
 	const files: ProjectArchiveFilePath[] = [];
-	await collectProjectArchiveFilePaths(
-		projectRoot,
-		'',
-		files,
-		options.storeOptions ?? {},
-		options.includeDrafts ?? false
-	);
+	await collectProjectArchiveFilePaths(projectRoot, '', files, options.storeOptions ?? {});
 	return files.sort((left, right) => left.path.localeCompare(right.path));
 }
 
@@ -63,8 +57,7 @@ async function collectProjectArchiveFilePaths(
 	storePath: string,
 	relativePath: string,
 	files: ProjectArchiveFilePath[],
-	storeOptions: StoreOperationOptions,
-	includeDrafts: boolean
+	storeOptions: StoreOperationOptions
 ): Promise<void> {
 	let entries: StoreDirectoryEntry[];
 	try {
@@ -81,20 +74,19 @@ async function collectProjectArchiveFilePaths(
 				childStorePath,
 				childRelativePath,
 				files,
-				storeOptions,
-				includeDrafts
+				storeOptions
 			);
 			continue;
 		}
-		if (!shouldMirrorProjectFile(childRelativePath, includeDrafts)) continue;
+		if (!shouldMirrorProjectFile(childRelativePath)) continue;
 		files.push({ path: childRelativePath, storePath: childStorePath });
 	}
 }
 
-export function shouldMirrorProjectFile(path: string, includeDrafts = false): boolean {
+export function shouldMirrorProjectFile(path: string): boolean {
 	const normalized = normalizeSlashes(path);
-	if (!normalized || normalized.includes('.tmp-')) return false;
-	if (normalized.endsWith('.working.json')) return includeDrafts;
+	if (!normalized || normalized.includes('.tmp-') || isPresencePath(normalized)) return false;
+	if (normalized.endsWith('.working.json')) return false;
 	return normalized.endsWith('.json') || normalized.endsWith('.tei.xml');
 }
 

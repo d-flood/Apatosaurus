@@ -5,9 +5,9 @@ import {
 	COLLATION_CHECKPOINT_FORMAT,
 	COLLATION_CURRENT_VERSION,
 	COLLATION_FORMAT,
-	assertCollationRevisionHash,
+	collationPayloadToContent,
+	mergeWorkingCollation,
 	readCanonicalDocument,
-	WORKING_COLLATION_CURRENT_VERSION,
 	WORKING_COLLATION_FORMAT,
 	type CollationCheckpointPayload as CanonicalCollationCheckpointPayload,
 	type CollationContent,
@@ -66,6 +66,8 @@ import {
 import {
 	recordCommittedCollationCheckpoint,
 	loadSerializedCollation,
+	nextCollationVersionLabel,
+	rewriteVersionNote,
 	type CollationCheckpoint,
 	type CommitCollationInput,
 	type PersistenceWarning,
@@ -80,12 +82,7 @@ interface CollationFileContext {
 	projectStorageSlug: string;
 	currentRevisionId: string | null;
 	currentContentHash: string | null;
-	createdAt: string;
-	updatedAt: string;
-}
-
-interface CollationCommitSource {
-	content: CollationContent;
+	conflictOfCollationId: string;
 	createdAt: string;
 	updatedAt: string;
 }
@@ -93,8 +90,6 @@ interface CollationCommitSource {
 interface FileBackedCollationLoadOptions extends StoreOperationOptions {
 	allowIndexFallback?: boolean;
 }
-
-type LoadedWorkingCollationPayload = WorkingCollationPayload;
 
 export async function saveWorkingCollationArtifact(
 	db: DbExecutor,
@@ -112,16 +107,10 @@ export async function saveWorkingCollationArtifact(
 	const semanticDocument = parseCollationDocument(input.payload);
 	if (!semanticDocument) throw new Error('Invalid collation_document_v1 document.');
 	const artifactId = input.artifactId || crypto.randomUUID();
-	const payload = buildWorkingCollationPayload(collation, context, semanticDocument, updatedAt);
-	const document = await sealDocument(
-		WORKING_COLLATION_FORMAT,
-		WORKING_COLLATION_CURRENT_VERSION,
-		payload
-	);
-
-	await writeTextFileAtomic(
-		collationWorkingFile(context.projectStorageSlug, input.collationId),
-		serializeSealedDocument(document),
+	await writeCurrentCollationFiles(
+		context,
+		buildCurrentCollationContent(collation, semanticDocument),
+		updatedAt,
 		storeOptions
 	);
 	await saveCollationProjection(db, {
@@ -137,36 +126,21 @@ export async function saveWorkingCollationMetadata(
 	storeOptions: StoreOperationOptions = {}
 ): Promise<void> {
 	const context = await loadCollationFileContext(db, input.id);
-	const primary = await tryReadPrimaryCollationPayload(context, storeOptions);
-	const working = await tryReadEligibleWorkingCollationPayload(context, primary, storeOptions);
-	const source = working ?? primary;
+	const source = await tryReadPrimaryCollationPayload(context, storeOptions);
 	if (!source) throw new Error(`Canonical collation file for ${input.id} was not found.`);
 	const updatedAt = input.updatedAt ?? new Date().toISOString();
-	const payload: WorkingCollationPayload = {
-		...collationContentFromPayload(source),
-		title: input.title ?? source.title,
-		verse_identifier: input.verseIdentifier ?? source.verse_identifier,
-		status: input.status ?? source.status,
-		notes: input.notes ?? source.notes,
-		group_path: input.groupPath ?? source.group_path,
-		sort_key: input.sortKey ?? source.sort_key,
-		created_at: source.created_at,
-		updated_at: updatedAt,
-		draft: {
-			base_revision_id: primary?.current_revision.id ?? context.currentRevisionId,
-			base_content_hash: primary?.current_revision.content_hash ?? context.currentContentHash,
-			saved_at: updatedAt,
-			author_name: null,
+	await writeCurrentCollationFiles(
+		context,
+		{
+			...collationPayloadToContent(source),
+			title: input.title ?? source.title,
+			verse_identifier: input.verseIdentifier ?? source.verse_identifier,
+			status: input.status ?? source.status,
+			notes: input.notes ?? source.notes,
+			group_path: input.groupPath ?? source.group_path,
+			sort_key: input.sortKey ?? source.sort_key,
 		},
-	};
-	const document = await sealDocument(
-		WORKING_COLLATION_FORMAT,
-		WORKING_COLLATION_CURRENT_VERSION,
-		payload
-	);
-	await writeTextFileAtomic(
-		collationWorkingFile(context.projectStorageSlug, input.id),
-		serializeSealedDocument(document),
+		updatedAt,
 		storeOptions
 	);
 	await updateCollationMetadata(db, input);
@@ -243,22 +217,28 @@ export async function createCommittedCollationCheckpointWithFiles(
 	const lockContext = await loadCollationFileContext(db, input.collationId);
 	return withProjectWriteLock(lockContext.projectId, async () => {
 		const context = await loadCollationFileContext(db, input.collationId);
-		const source = await loadCollationCommitSource(db, context, storeOptions);
-		const payload = source.content;
+		const source = await tryReadPrimaryCollationPayload(context, storeOptions);
+		if (!source)
+			throw new Error(`Canonical collation file for ${context.collationId} was not found.`);
+		const payload = collationPayloadToContent(source);
 		const contentHash = await hashCanonicalPayload(payload);
 		const checkpointId = input.checkpointId ?? createId();
 		const createdAt = input.createdAt ?? new Date().toISOString();
 		const authorName = input.authorName ?? '';
 		const commitMessage = input.commitMessage ?? null;
+		const label =
+			input.label?.trim() || (await nextCollationVersionLabel(db, context.collationId));
 		const checkpointPayload: CanonicalCollationCheckpointPayload = {
 			checkpoint_id: checkpointId,
 			entity_type: 'collation',
-			entity_id: source.content.id,
+			entity_id: payload.id,
 			parent_checkpoint_id: context.currentRevisionId,
 			payload_content_hash: contentHash,
+			label,
 			commit_message: commitMessage,
 			author_name: authorName,
 			created_at: createdAt,
+			metadata_updated_at: createdAt,
 			payload,
 		};
 		const checkpointPath = collationCheckpointFile(
@@ -276,17 +256,9 @@ export async function createCommittedCollationCheckpointWithFiles(
 		);
 
 		const primaryPayload: CollationPayload = {
-			...source.content,
-			current_revision: {
-				id: checkpointId,
-				content_hash: contentHash,
-				created_at: createdAt,
-				author_name: authorName,
-			},
-			created_at: source.createdAt,
-			updated_at: source.updatedAt,
+			...source,
+			based_on_checkpoint: { id: checkpointId, content_hash: contentHash },
 		};
-		await assertCollationRevisionHash(primaryPayload);
 		await writeSealedJsonFile(
 			collationPrimaryFile(context.projectStorageSlug, context.collationId),
 			COLLATION_FORMAT,
@@ -313,26 +285,164 @@ export async function createCommittedCollationCheckpointWithFiles(
 
 		const checkpoint = await recordCommittedCollationCheckpoint(
 			db,
-			source.content.id,
+			payload.id,
 			contentHash,
 			payload,
 			{
 				...input,
 				checkpointId,
+				label,
 				createdAt,
 				authorName,
 				commitMessage,
 			}
 		);
-		try {
-			await deleteFile(
-				collationWorkingFile(context.projectStorageSlug, context.collationId),
-				storeOptions
-			);
-		} catch (error) {
-			if (!isMissingFileError(error)) throw error;
-		}
 		return { ...checkpoint, warnings: teiWarning ? [teiWarning] : [] };
+	});
+}
+
+async function readCollationVersion(
+	context: CollationFileContext,
+	collationId: string,
+	checkpointId: string,
+	storeOptions: StoreOperationOptions
+): Promise<CanonicalCollationCheckpointPayload> {
+	const path = collationCheckpointFile(context.projectStorageSlug, collationId, checkpointId);
+	const read = await readCanonicalDocument<CanonicalCollationCheckpointPayload>(
+		COLLATION_CHECKPOINT_FORMAT,
+		await readTextFile(path, storeOptions)
+	);
+	if (!read.ok) throw new Error(`Invalid version file ${path}: ${read.quarantine.code}`);
+	if (read.payload.entity_id !== collationId) {
+		throw new Error('Version does not belong to this collation.');
+	}
+	return read.payload;
+}
+
+export async function loadCollationVersionDocument(
+	db: Kysely<Database>,
+	collationId: string,
+	checkpointId: string | null,
+	storeOptions: StoreOperationOptions = {}
+): Promise<SemanticCollationDocument> {
+	if (!checkpointId) {
+		return (await loadCommittedCollationPayloadWithFiles(db, collationId, storeOptions))
+			.document;
+	}
+	const context = await loadCollationFileContext(db, collationId);
+	return (await readCollationVersion(context, collationId, checkpointId, storeOptions)).payload
+		.document;
+}
+
+export async function restoreCollationVersion(
+	db: Kysely<Database>,
+	collationId: string,
+	checkpointId: string,
+	storeOptions: StoreOperationOptions = {}
+): Promise<CollationPayload> {
+	const context = await loadCollationFileContext(db, collationId);
+	const previous = await tryReadPrimaryCollationPayload(context, storeOptions);
+	if (!previous) throw new Error(`Current for collation ${collationId} was not found.`);
+	const version = await readCollationVersion(context, collationId, checkpointId, storeOptions);
+	const now = new Date().toISOString();
+	await replaceCollationCurrent(
+		db,
+		collationId,
+		{
+			...version.payload,
+			based_on_checkpoint: {
+				id: version.checkpoint_id,
+				content_hash: version.payload_content_hash,
+			},
+			draft: { saved_at: now, author_name: null },
+			created_at: previous.created_at,
+			updated_at: now,
+			...(previous.conflict_of_collation_id
+				? { conflict_of_collation_id: previous.conflict_of_collation_id }
+				: {}),
+		},
+		storeOptions
+	);
+	return previous;
+}
+
+export async function replaceCollationCurrent(
+	db: Kysely<Database>,
+	collationId: string,
+	payload: CollationPayload,
+	storeOptions: StoreOperationOptions = {}
+): Promise<void> {
+	const context = await loadCollationFileContext(db, collationId);
+	if (payload.id !== collationId || payload.project_id !== context.projectId) {
+		throw new Error('Current does not belong to this collation.');
+	}
+	await withProjectWriteLock(context.projectId, async () => {
+		await writeSealedJsonFile(
+			collationPrimaryFile(context.projectStorageSlug, collationId),
+			COLLATION_FORMAT,
+			COLLATION_CURRENT_VERSION,
+			payload,
+			storeOptions
+		);
+		await writeDerivedCollationTei(
+			context.projectStorageSlug,
+			collationId,
+			payload,
+			storeOptions
+		);
+		await db.transaction().execute(async trx => {
+			await trx
+				.updateTable('collations')
+				.set({
+					current_revision_id: payload.based_on_checkpoint?.id ?? '',
+					current_content_hash: payload.based_on_checkpoint?.content_hash ?? '',
+					title: payload.title,
+					verse_identifier: payload.verse_identifier,
+					status: payload.status,
+					group_path: payload.group_path,
+					notes: payload.notes,
+					sort_key: payload.sort_key,
+					updated_at: payload.updated_at,
+				})
+				.where('id', '=', collationId)
+				.execute();
+			await saveCollationProjection(trx, {
+				collationId,
+				...buildCollationProjectionFromDocument(payload.document),
+			});
+		});
+		await writeProjectManifestFile(db, context.projectId, {}, storeOptions);
+	});
+}
+
+export async function updateCollationVersionNote(
+	db: Kysely<Database>,
+	collationId: string,
+	checkpointId: string,
+	note: string | null,
+	storeOptions: StoreOperationOptions = {}
+): Promise<void> {
+	const context = await loadCollationFileContext(db, collationId);
+	const row = await db
+		.selectFrom('collation_checkpoints')
+		.select('label')
+		.where('id', '=', checkpointId)
+		.where('collation_id', '=', collationId)
+		.executeTakeFirst();
+	if (!row) throw new Error(`Version ${checkpointId} was not found.`);
+	await withProjectWriteLock(context.projectId, async () => {
+		const updated = await rewriteVersionNote<CanonicalCollationCheckpointPayload>(
+			collationCheckpointFile(context.projectStorageSlug, collationId, checkpointId),
+			COLLATION_CHECKPOINT_FORMAT,
+			COLLATION_CHECKPOINT_CURRENT_VERSION,
+			{ label: row.label, note, updatedAt: new Date().toISOString() },
+			storeOptions
+		);
+		await db
+			.updateTable('collation_checkpoints')
+			.set({ label: updated.label, commit_message: updated.commit_message })
+			.where('id', '=', checkpointId)
+			.execute();
 	});
 }
 
@@ -345,12 +455,6 @@ export async function loadCollationWithWorkingFile(
 	if (!loaded) return null;
 	const context = await loadCollationFileContext(db, collationId);
 	const primaryPayload = await tryReadPrimaryCollationPayload(context, storeOptions);
-	const workingPayload = await tryReadEligibleWorkingCollationPayload(
-		context,
-		primaryPayload,
-		storeOptions
-	);
-	if (workingPayload) return loadedCollationFromWorkingPayload(loaded, workingPayload);
 	if (primaryPayload) return loadedCollationFromPrimaryPayload(primaryPayload);
 	if (storeOptions.allowIndexFallback === false) return null;
 	return loaded;
@@ -377,12 +481,6 @@ export async function getCollationVersionStatusWithWorkingFile(
 	const base = await getCollationVersionStatus(db, collationId, options);
 	const context = await loadCollationFileContext(db, collationId);
 	const primaryPayload = await tryReadPrimaryCollationPayload(context, storeOptions);
-	const payload = await tryReadEligibleWorkingCollationPayload(
-		context,
-		primaryPayload,
-		storeOptions
-	);
-	if (payload) return collationVersionStatusFromSerialized(db, base, payload, options);
 	if (primaryPayload) {
 		return collationVersionStatusFromSerialized(db, base, primaryPayload, options);
 	}
@@ -395,10 +493,10 @@ export async function getCollationVersionStatusWithWorkingFile(
 async function collationVersionStatusFromSerialized(
 	db: Kysely<Database>,
 	base: CollationVersionStatus,
-	payload: LoadedWorkingCollationPayload | CollationPayload,
+	payload: CollationPayload,
 	options: CollationVersionStatusOptions
 ): Promise<CollationVersionStatus> {
-	const content = collationContentFromPayload(payload);
+	const content = collationPayloadToContent(payload);
 	const workingContentHash = await hashCanonicalPayload(content);
 	const dirtyToCheckpoint = base.currentCheckpoint
 		? workingContentHash !== base.currentCheckpoint.contentHash
@@ -463,6 +561,7 @@ async function loadCollationFileContext(
 			'projects.storage_slug as project_storage_slug',
 			'collations.current_revision_id as current_revision_id',
 			'collations.current_content_hash as current_content_hash',
+			'collations.conflict_of_collation_id as conflict_of_collation_id',
 			'collations.created_at as created_at',
 			'collations.updated_at as updated_at',
 		])
@@ -475,6 +574,7 @@ async function loadCollationFileContext(
 		projectStorageSlug: requireString(row.project_storage_slug, 'project storage slug'),
 		currentRevisionId: emptyToNull(row.current_revision_id),
 		currentContentHash: emptyToNull(row.current_content_hash),
+		conflictOfCollationId: row.conflict_of_collation_id,
 		createdAt: row.created_at,
 		updatedAt: row.updated_at,
 	};
@@ -487,34 +587,6 @@ async function loadProjectName(db: DbExecutor, projectId: string): Promise<strin
 		.where('id', '=', projectId)
 		.executeTakeFirst();
 	return row?.name ?? null;
-}
-
-async function loadCollationCommitSource(
-	db: Kysely<Database>,
-	context: CollationFileContext,
-	storeOptions: StoreOperationOptions
-): Promise<CollationCommitSource> {
-	const primaryPayload = await tryReadPrimaryCollationPayload(context, storeOptions);
-	const workingPayload = await tryReadEligibleWorkingCollationPayload(
-		context,
-		primaryPayload,
-		storeOptions
-	);
-	if (workingPayload) {
-		return {
-			content: collationContentFromPayload(workingPayload),
-			createdAt: workingPayload.created_at,
-			updatedAt: workingPayload.updated_at,
-		};
-	}
-	if (primaryPayload) {
-		return {
-			content: collationContentFromPayload(primaryPayload),
-			createdAt: primaryPayload.created_at,
-			updatedAt: primaryPayload.updated_at,
-		};
-	}
-	throw new Error(`Canonical collation file for ${context.collationId} was not found.`);
 }
 
 async function writeSealedJsonFile<
@@ -577,12 +649,10 @@ async function assertFileMissing(path: string, storeOptions: StoreOperationOptio
 	throw new Error(`Refusing to overwrite existing history file ${path}.`);
 }
 
-function buildWorkingCollationPayload(
+function buildCurrentCollationContent(
 	collation: SerializedCollation,
-	context: CollationFileContext,
-	document: SemanticCollationDocument,
-	updatedAt: string
-): WorkingCollationPayload {
+	document: SemanticCollationDocument
+): CollationContent {
 	return {
 		id: collation.id,
 		project_id: collation.project_id,
@@ -592,22 +662,48 @@ function buildWorkingCollationPayload(
 		group_path: collation.group_path,
 		notes: collation.notes,
 		sort_key: collation.sort_key,
+		document: document as SemanticCollationDocument & JsonObject,
+	};
+}
+
+async function writeCurrentCollationFiles(
+	context: CollationFileContext,
+	content: CollationContent,
+	updatedAt: string,
+	storeOptions: StoreOperationOptions
+): Promise<void> {
+	const payload: CollationPayload = {
+		...content,
+		based_on_checkpoint:
+			context.currentRevisionId && context.currentContentHash
+				? { id: context.currentRevisionId, content_hash: context.currentContentHash }
+				: null,
+		draft: { saved_at: updatedAt, author_name: null },
 		created_at: context.createdAt,
 		updated_at: updatedAt,
-		document: document as SemanticCollationDocument & JsonObject,
-		draft: {
-			base_revision_id: context.currentRevisionId,
-			base_content_hash: context.currentContentHash,
-			saved_at: updatedAt,
-			author_name: null,
-		},
+		...(context.conflictOfCollationId
+			? { conflict_of_collation_id: context.conflictOfCollationId }
+			: {}),
 	};
+	await writeSealedJsonFile(
+		collationPrimaryFile(context.projectStorageSlug, context.collationId),
+		COLLATION_FORMAT,
+		COLLATION_CURRENT_VERSION,
+		payload,
+		storeOptions
+	);
+	await writeDerivedCollationTei(
+		context.projectStorageSlug,
+		context.collationId,
+		payload,
+		storeOptions
+	);
 }
 
 async function tryReadWorkingCollationPayload(
 	context: CollationFileContext,
 	storeOptions: StoreOperationOptions
-): Promise<LoadedWorkingCollationPayload | null> {
+): Promise<WorkingCollationPayload | null> {
 	const path = collationWorkingFile(context.projectStorageSlug, context.collationId);
 	let raw: string;
 	try {
@@ -627,7 +723,7 @@ async function tryReadWorkingCollationPayload(
 		raw
 	);
 	if (result.ok) {
-		const payload = result.payload as unknown as LoadedWorkingCollationPayload;
+		const payload = result.payload;
 		if (payload.id !== context.collationId) {
 			recordStoreQuarantine(
 				storeOptions.quarantineSink,
@@ -651,26 +747,6 @@ async function tryReadWorkingCollationPayload(
 		quarantine: result.quarantine,
 	});
 	return null;
-}
-
-async function tryReadEligibleWorkingCollationPayload(
-	context: CollationFileContext,
-	primary: CollationPayload | null,
-	storeOptions: StoreOperationOptions
-): Promise<LoadedWorkingCollationPayload | null> {
-	const working = await tryReadWorkingCollationPayload(context, storeOptions);
-	if (!working || !primary) return working;
-	if (
-		working.draft.base_revision_id !== primary.current_revision.id ||
-		working.draft.base_content_hash !== primary.current_revision.content_hash
-	) {
-		console.warn('[document-store] Ignoring stale collation working file.', {
-			collationId: context.collationId,
-		});
-		return null;
-	}
-	const workingHash = await hashCanonicalPayload(collationContentFromPayload(working));
-	return workingHash === primary.current_revision.content_hash ? null : working;
 }
 
 async function tryReadPrimaryCollationPayload(
@@ -716,28 +792,41 @@ async function tryReadPrimaryCollationPayload(
 		});
 		return null;
 	}
-	return payload;
+	return migrateLegacyWorkingCollation(context, payload, storeOptions);
 }
 
-function loadedCollationFromWorkingPayload(
-	loaded: LoadedCollation,
-	payload: LoadedWorkingCollationPayload
-): LoadedCollation {
-	return {
-		row: {
-			...loaded.row,
-			projectId: payload.project_id,
-			title: payload.title,
-			verseIdentifier: payload.verse_identifier,
-			status: payload.status,
-			groupPath: payload.group_path,
-			notes: payload.notes,
-			sortKey: payload.sort_key,
-			createdAt: payload.created_at,
-			updatedAt: payload.updated_at,
-		},
-		artifact: artifactRecordFromDocument(payload.document, payload.updated_at),
-	};
+async function migrateLegacyWorkingCollation(
+	context: CollationFileContext,
+	primary: CollationPayload,
+	storeOptions: StoreOperationOptions
+): Promise<CollationPayload> {
+	const working = await tryReadWorkingCollationPayload(context, storeOptions);
+	if (
+		!working ||
+		working.draft.base_revision_id !== (primary.based_on_checkpoint?.id ?? null) ||
+		working.draft.base_content_hash !== (primary.based_on_checkpoint?.content_hash ?? null)
+	) {
+		return primary;
+	}
+	const current = mergeWorkingCollation(primary, working);
+	await writeSealedJsonFile(
+		collationPrimaryFile(context.projectStorageSlug, context.collationId),
+		COLLATION_FORMAT,
+		COLLATION_CURRENT_VERSION,
+		current,
+		storeOptions
+	);
+	await writeDerivedCollationTei(
+		context.projectStorageSlug,
+		context.collationId,
+		current,
+		storeOptions
+	);
+	await deleteFile(
+		collationWorkingFile(context.projectStorageSlug, context.collationId),
+		storeOptions
+	);
+	return current;
 }
 
 function loadedCollationFromPrimaryPayload(payload: CollationPayload): LoadedCollation {
@@ -755,22 +844,6 @@ function loadedCollationFromPrimaryPayload(payload: CollationPayload): LoadedCol
 			updatedAt: payload.updated_at,
 		},
 		artifact: artifactRecordFromDocument(payload.document, payload.updated_at),
-	};
-}
-
-function collationContentFromPayload(
-	payload: LoadedWorkingCollationPayload | CollationPayload
-): CollationContent {
-	return {
-		id: payload.id,
-		project_id: payload.project_id,
-		title: payload.title,
-		verse_identifier: payload.verse_identifier,
-		status: payload.status,
-		group_path: payload.group_path,
-		notes: payload.notes,
-		sort_key: payload.sort_key,
-		document: payload.document,
 	};
 }
 

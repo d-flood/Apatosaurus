@@ -1,5 +1,6 @@
 import {
 	CloudProviderError,
+	LOCATION_ROOT_FOLDER_ID,
 	type CloudFileMetadata,
 	type CloudListResult,
 	type CloudProviderCapabilities,
@@ -9,7 +10,7 @@ import {
 } from './provider';
 
 const LOCAL_FOLDER_PROVIDER_ID = 'local-folder';
-export const LOCAL_FOLDER_ROOT_FOLDER_ID = '.';
+export const LOCAL_FOLDER_ROOT_FOLDER_ID = LOCATION_ROOT_FOLDER_ID;
 
 export class LocalFolderStorageProvider implements CloudStorageProvider {
 	id = LOCAL_FOLDER_PROVIDER_ID;

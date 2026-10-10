@@ -23,7 +23,7 @@ import {
 	writeTextFileAtomic,
 	type StoreOperationOptions,
 } from '$lib/storage/opfs-store';
-import { joinStorePath } from '$lib/storage/layout';
+import { isPresencePath, joinStorePath } from '$lib/storage/layout';
 import type { JsonObject } from '$lib/storage/envelope';
 import type { StoreQuarantineRecord } from '$lib/storage/quarantine';
 import { hashCanonicalPayload } from '$lib/storage/canonical-json';
@@ -215,13 +215,15 @@ function normalizeProjectTree(candidates: ProjectFileCandidate[]): ProjectFileCa
 		}
 	}
 	const seen = new Set<string>();
-	return original.map(entry => {
-		const path = root ? entry.path.slice(root.length + 1) : entry.path;
-		if (seen.has(path))
-			throw new Error(`Duplicate project entry path ${JSON.stringify(path)}.`);
-		seen.add(path);
-		return { ...entry, path };
-	});
+	return original
+		.map(entry => {
+			const path = root ? entry.path.slice(root.length + 1) : entry.path;
+			if (seen.has(path))
+				throw new Error(`Duplicate project entry path ${JSON.stringify(path)}.`);
+			seen.add(path);
+			return { ...entry, path };
+		})
+		.filter(entry => !isPresencePath(entry.path));
 }
 
 async function validateProjectSemantics(
@@ -243,10 +245,8 @@ async function validateProjectSemantics(
 		if (
 			payload.project_transcription_id !== head.project_transcription_id ||
 			payload.id !== head.transcription_id ||
-			payload.title !== head.title ||
-			payload.siglum !== head.siglum ||
-			payload.current_revision.id !== head.current_revision?.id ||
-			payload.current_revision.content_hash !== head.current_revision?.content_hash
+			payload.based_on_checkpoint?.id !== head.current_revision?.id ||
+			payload.based_on_checkpoint?.content_hash !== head.current_revision?.content_hash
 		)
 			quarantined.push(
 				quarantine(
@@ -268,10 +268,8 @@ async function validateProjectSemantics(
 		if (
 			payload.project_id !== manifest.id ||
 			payload.id !== head.collation_id ||
-			payload.title !== head.title ||
-			payload.verse_identifier !== head.verse_identifier ||
-			payload.current_revision.id !== head.current_revision?.id ||
-			payload.current_revision.content_hash !== head.current_revision?.content_hash
+			payload.based_on_checkpoint?.id !== head.current_revision?.id ||
+			payload.based_on_checkpoint?.content_hash !== head.current_revision?.content_hash
 		)
 			quarantined.push(
 				quarantine(

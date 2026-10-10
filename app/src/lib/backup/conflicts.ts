@@ -24,7 +24,26 @@ import {
 	loadSerializedCollation,
 } from '$lib/db/repositories/revisions';
 import { requireId } from '$lib/db/repositories/id';
+import {
+	loadCollationVersionDocument,
+	saveWorkingCollationArtifact,
+} from '$lib/db/repositories/collation-files';
+import {
+	deleteCollationWithFiles,
+	deleteTranscriptionWithFiles,
+} from '$lib/db/repositories/entity-deletion';
+import {
+	loadTranscriptionContentWithFiles,
+	saveWorkingTranscriptionContent,
+} from '$lib/db/repositories/transcription-files';
 import type { DbExecutor } from '$lib/db/worker-kysely';
+import { COLLATION_DOCUMENT_ARTIFACT_TYPE } from '$lib/collation/collation-document';
+import {
+	mergeCollations,
+	mergeTranscriptions,
+	type CompareChoices,
+} from '$lib/shell/version-compare';
+import type { StoreOperationOptions } from '$lib/storage/opfs-store';
 
 export interface SyncEntityHead {
 	revisionId: string;
@@ -93,6 +112,7 @@ export async function createProjectTranscriptionConflictCopy(
 				origin_transcription_id: entity.transcription.id,
 				origin_revision_id: entity.transcription.current_revision_id,
 				origin_content_hash: entity.transcription.current_content_hash,
+				origin_captured_at: '',
 				current_revision_id: '',
 				current_content_hash: '',
 				title,
@@ -155,6 +175,7 @@ export async function createCollationConflictCopy(
 			.values({
 				...source,
 				id: conflictCollationId,
+				conflict_of_collation_id: requireId(source.id, 'collation'),
 				current_revision_id: '',
 				current_content_hash: '',
 				title,
@@ -182,6 +203,140 @@ export async function createCollationConflictCopy(
 			title,
 		};
 	});
+}
+
+export interface ConflictCopy {
+	kind: 'transcription' | 'collation';
+	copyId: string;
+	originId: string;
+	projectId: string;
+	title: string;
+	author: string;
+	createdAt: string;
+}
+
+export interface ConflictCopyContents {
+	copy: ConflictCopy;
+	mine: unknown;
+	theirs: unknown;
+}
+
+export async function listConflictCopies(
+	db: DbExecutor,
+	projectId?: string
+): Promise<ConflictCopy[]> {
+	let transcriptions = db
+		.selectFrom('transcriptions as copy')
+		.innerJoin('transcriptions as origin', 'origin.id', 'copy.origin_transcription_id')
+		.select([
+			'copy.id as copy_id',
+			'origin.id as origin_id',
+			'copy.project_id as project_id',
+			'origin.title as title',
+			'copy.created_at as created_at',
+			eb =>
+				eb
+					.selectFrom('transcription_checkpoints')
+					.select('author_name')
+					.whereRef('transcription_id', '=', 'copy.id')
+					.orderBy('created_at')
+					.limit(1)
+					.as('author'),
+		])
+		.where('copy.origin_type', '=', 'conflict_copy');
+	let collations = db
+		.selectFrom('collations as copy')
+		.innerJoin('collations as origin', 'origin.id', 'copy.conflict_of_collation_id')
+		.select([
+			'copy.id as copy_id',
+			'origin.id as origin_id',
+			'copy.project_id as project_id',
+			'origin.title as title',
+			'copy.created_at as created_at',
+			eb =>
+				eb
+					.selectFrom('collation_checkpoints')
+					.select('author_name')
+					.whereRef('collation_id', '=', 'copy.id')
+					.orderBy('created_at')
+					.limit(1)
+					.as('author'),
+		]);
+	if (projectId) {
+		transcriptions = transcriptions.where('copy.project_id', '=', projectId);
+		collations = collations.where('copy.project_id', '=', projectId);
+	}
+	const toCopy =
+		(kind: ConflictCopy['kind']) =>
+		(row: Awaited<ReturnType<typeof transcriptions.execute>>[number]): ConflictCopy => ({
+			kind,
+			copyId: requireId(row.copy_id, 'conflict copy'),
+			originId: requireId(row.origin_id, 'conflict copy origin'),
+			projectId: row.project_id,
+			title: row.title,
+			author: row.author ?? '',
+			createdAt: row.created_at,
+		});
+	const [transcriptionRows, collationRows] = await Promise.all([
+		transcriptions.execute(),
+		collations.execute(),
+	]);
+	return [
+		...transcriptionRows.map(toCopy('transcription')),
+		...collationRows.map(toCopy('collation')),
+	].sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+}
+
+async function findConflictCopy(db: DbExecutor, copyId: string): Promise<ConflictCopy> {
+	const copy = (await listConflictCopies(db)).find(candidate => candidate.copyId === copyId);
+	if (!copy) throw new Error(`Conflict copy ${copyId} was not found.`);
+	return copy;
+}
+
+export async function loadConflictCopyContents(
+	db: Kysely<Database>,
+	copyId: string,
+	storeOptions: StoreOperationOptions = {}
+): Promise<ConflictCopyContents> {
+	const copy = await findConflictCopy(db, copyId);
+	const load =
+		copy.kind === 'transcription'
+			? (id: string) => loadTranscriptionContentWithFiles(db, id, storeOptions)
+			: (id: string) => loadCollationVersionDocument(db, id, null, storeOptions);
+	const [mine, theirs] = await Promise.all([load(copy.originId), load(copy.copyId)]);
+	return { copy, mine, theirs };
+}
+
+export async function reconcileConflictCopy(
+	db: Kysely<Database>,
+	copyId: string,
+	choices: CompareChoices,
+	storeOptions: StoreOperationOptions = {}
+): Promise<ConflictCopy> {
+	const { copy, mine, theirs } = await loadConflictCopyContents(db, copyId, storeOptions);
+	if (copy.kind === 'transcription') {
+		await saveWorkingTranscriptionContent(
+			db,
+			{ id: copy.originId, document: mergeTranscriptions(mine, theirs, choices) },
+			storeOptions
+		);
+		await deleteTranscriptionWithFiles(db, copy.copyId, {}, storeOptions);
+		return copy;
+	}
+	const [left, right] = [mine, theirs] as Awaited<
+		ReturnType<typeof loadCollationVersionDocument>
+	>[];
+	await saveWorkingCollationArtifact(
+		db,
+		{
+			collationId: copy.originId,
+			artifactType: COLLATION_DOCUMENT_ARTIFACT_TYPE,
+			payload: JSON.stringify(mergeCollations(left, right, choices)),
+		},
+		storeOptions
+	);
+	await deleteCollationWithFiles(db, copy.copyId, {}, storeOptions);
+	return copy;
 }
 
 interface ProjectTranscriptionEntity {
@@ -415,6 +570,7 @@ async function createCommittedCheckpointForProjectTranscriptionCopy(
 			format: snapshot.format,
 			content_hash: contentHash,
 			is_committed: 1,
+			label: 'Version 1',
 			commit_message: 'Conflicted copy',
 			author_name: authorName,
 			created_at: now,
@@ -446,6 +602,7 @@ async function createCommittedCheckpointForCollationCopy(
 			parent_checkpoint_id: null,
 			content_hash: contentHash,
 			is_committed: 1,
+			label: 'Version 1',
 			commit_message: 'Conflicted copy',
 			author_name: authorName,
 			created_at: now,

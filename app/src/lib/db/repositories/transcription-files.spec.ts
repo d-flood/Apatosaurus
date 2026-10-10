@@ -15,14 +15,21 @@ import {
 	getTranscriptionsWithWorkingFilesByIds,
 	loadTranscriptionWithWorkingFile,
 	rebuildVerseIndexForTranscriptionsWithFiles,
+	replaceTranscriptionCurrent,
+	restoreTranscriptionVersion,
 	saveWorkingTranscriptionContent,
 	saveWorkingTranscriptionMetadata,
+	updateTranscriptionVersionNote,
 } from './transcription-files';
+import { rebuildIndexFromStore } from './index-rebuild';
+import { listTranscriptionVersions } from './revisions';
 import type { StoredTranscriptionDocument } from '$lib/transcription/content';
 import {
 	PROJECT_MANIFEST_FORMAT,
+	PROJECT_TRANSCRIPTION_CURRENT_VERSION,
 	PROJECT_TRANSCRIPTION_FORMAT,
 	TRANSCRIPTION_CHECKPOINT_FORMAT,
+	projectTranscriptionPayloadToSnapshot,
 	readCanonicalDocument,
 	WORKING_TRANSCRIPTION_FORMAT,
 	type ProjectManifestPayload,
@@ -50,7 +57,7 @@ import {
 	writeTextFileAtomic,
 } from '$lib/storage/opfs-store';
 import { registerUserReferenceEdition } from '$lib/reference-editions/user-reference-editions';
-import { sealDocument, serializeSealedDocument } from '$lib/storage/envelope';
+import { sealDocument, serializeSealedDocument, type JsonValue } from '$lib/storage/envelope';
 
 let harness: LocalDbTestHarness;
 let backend: MemoryStoreBackend;
@@ -73,7 +80,7 @@ function createProject(
 }
 
 describe('transcription file persistence', () => {
-	it('writes metadata to the canonical working file before updating the index', async () => {
+	it('writes metadata to the primary file before updating the index', async () => {
 		await createFixtureTranscription();
 		backend.failWrites = true;
 
@@ -103,7 +110,7 @@ describe('transcription file persistence', () => {
 		});
 	});
 
-	it('derives edited transcription metadata from the canonical working file', async () => {
+	it('derives edited transcription metadata from the primary file', async () => {
 		await createFixtureTranscription();
 
 		await saveWorkingTranscriptionMetadata(
@@ -123,11 +130,11 @@ describe('transcription file persistence', () => {
 			{ backend, nonce: () => 'metadata-write' }
 		);
 
-		const raw = await readTextFile(transcriptionWorkingFile('project-slug', 'pt-1'), {
+		const raw = await readTextFile(transcriptionPrimaryFile('project-slug', 'pt-1'), {
 			backend,
 		});
-		const parsed = await readCanonicalDocument<WorkingTranscriptionPayload>(
-			WORKING_TRANSCRIPTION_FORMAT,
+		const parsed = await readCanonicalDocument<ProjectTranscriptionPayload>(
+			PROJECT_TRANSCRIPTION_FORMAT,
 			raw
 		);
 		expect(parsed).toMatchObject({
@@ -152,7 +159,7 @@ describe('transcription file persistence', () => {
 		});
 	});
 
-	it('writes the working transcription file before updating the index cache', async () => {
+	it('writes the primary transcription file before updating the index cache', async () => {
 		await createFixtureTranscription();
 		backend.failWrites = true;
 
@@ -173,7 +180,7 @@ describe('transcription file persistence', () => {
 		expect(row?.updated_at).toBe('2026-07-04T00:00:00.000Z');
 	});
 
-	it('stores a canonical working file and then updates the index cache', async () => {
+	it('stores Current in the primary file and then updates the index cache', async () => {
 		await createFixtureTranscription();
 
 		await saveWorkingTranscriptionContent(
@@ -186,10 +193,10 @@ describe('transcription file persistence', () => {
 			{ backend, nonce: () => 'working-write' }
 		);
 
-		const path = transcriptionWorkingFile('project-slug', 'pt-1');
+		const path = transcriptionPrimaryFile('project-slug', 'pt-1');
 		const raw = await readTextFile(path, { backend });
-		const parsed = await readCanonicalDocument<WorkingTranscriptionPayload>(
-			WORKING_TRANSCRIPTION_FORMAT,
+		const parsed = await readCanonicalDocument<ProjectTranscriptionPayload>(
+			PROJECT_TRANSCRIPTION_FORMAT,
 			raw
 		);
 		const row = await getTranscription(harness.db, 'tx-1');
@@ -201,20 +208,20 @@ describe('transcription file persistence', () => {
 				id: 'tx-1',
 				content_format: 'normalized_ast_v3',
 				updated_at: '2026-07-04T12:00:00.000Z',
-				draft: {
-					base_revision_id: null,
-					base_content_hash: null,
-					saved_at: '2026-07-04T12:00:00.000Z',
-				},
+				based_on_checkpoint: null,
+				draft: { saved_at: '2026-07-04T12:00:00.000Z', author_name: null },
 			},
 		});
-		if (!parsed.ok) throw new Error('working file did not parse');
+		if (!parsed.ok) throw new Error('primary file did not parse');
+		await expect(
+			readTextFile(transcriptionTeiFile('project-slug', 'pt-1'), { backend })
+		).resolves.toContain('<TEI');
 		expect(JSON.stringify(parsed.payload.content_json)).toContain('"verse":"2"');
 		expect(row?.content_json).toContain('"verse":"2"');
 		expect(row?.updated_at).toBe('2026-07-04T12:00:00.000Z');
 	});
 
-	it('loads a newer working file when the index cache is stale', async () => {
+	it('loads Current from the primary file when the index cache is stale', async () => {
 		await createFixtureTranscription();
 		await saveWorkingTranscriptionContent(
 			harness.db,
@@ -247,9 +254,7 @@ describe('transcription file persistence', () => {
 			{ id: 'tx-1', document: documentWithVerses(['Romans 1:2']) },
 			{ backend }
 		);
-		const staleWorking = await readTextFile(transcriptionWorkingFile('project-slug', 'pt-1'), {
-			backend,
-		});
+		const staleWorking = await legacyWorkingFileFromPrimary(null);
 		await createCommittedTranscriptionCheckpointWithFiles(
 			harness.db,
 			{ projectTranscriptionId: 'pt-1', checkpointId: 'tx-cp-1' },
@@ -499,7 +504,7 @@ describe('transcription file persistence', () => {
 			payload: {
 				project_transcription_id: 'pt-created',
 				id: 'tx-created',
-				current_revision: {
+				based_on_checkpoint: {
 					id: head.current_revision_id,
 					content_hash: head.current_content_hash,
 				},
@@ -694,12 +699,7 @@ describe('transcription file persistence', () => {
 			payload: {
 				project_transcription_id: 'pt-1',
 				id: 'tx-1',
-				current_revision: {
-					id: 'tx-cp-1',
-					content_hash: checkpoint.contentHash,
-					created_at: '2026-07-04T13:00:00.000Z',
-					author_name: 'Editor',
-				},
+				based_on_checkpoint: { id: 'tx-cp-1', content_hash: checkpoint.contentHash },
 			},
 		});
 		expect(manifest).toMatchObject({
@@ -733,6 +733,7 @@ describe('transcription file persistence', () => {
 				format: 'normalized_ast_v3',
 				content_hash: 'preexisting-content-hash',
 				is_committed: 1,
+				label: '',
 				commit_message: null,
 				author_name: 'Seed',
 				created_at: '2026-07-04T01:00:00.000Z',
@@ -819,23 +820,250 @@ describe('transcription file persistence', () => {
 		}
 	});
 
-	it('removes the working file after a successful transcription commit', async () => {
+	it('returns autosaved Current after reload with no working file on disk', async () => {
 		await createFixtureTranscription();
+		await createCommittedTranscriptionCheckpointWithFiles(
+			harness.db,
+			{ projectTranscriptionId: 'pt-1', checkpointId: 'tx-cp-1' },
+			{ backend }
+		);
 		await saveWorkingTranscriptionContent(
 			harness.db,
 			{ id: 'tx-1', document: documentWithVerses(['Romans 1:2']) },
 			{ backend }
 		);
+		await harness.db
+			.updateTable('transcriptions')
+			.set({ content_json: JSON.stringify(documentWithVerses(['Romans 9:9'])) })
+			.where('id', '=', 'tx-1')
+			.execute();
 
+		const loaded = await loadTranscriptionWithWorkingFile(harness.db, 'tx-1', { backend });
+
+		expect(loaded?.content_json).toContain('"verse":"2"');
+		expect(loaded?.current_revision_id).toBe('tx-cp-1');
+		expect([...backend.files.keys()].filter(path => path.endsWith('.working.json'))).toEqual(
+			[]
+		);
+	});
+
+	it('names a version without changing primary content and adds exactly one history file', async () => {
+		await createFixtureTranscription();
 		await createCommittedTranscriptionCheckpointWithFiles(
 			harness.db,
-			{ projectTranscriptionId: 'pt-1', checkpointId: 'tx-cp-clean' },
+			{ projectTranscriptionId: 'pt-1', checkpointId: 'tx-cp-1' },
+			{ backend }
+		);
+		await saveWorkingTranscriptionContent(
+			harness.db,
+			{ id: 'tx-1', document: documentWithVerses(['Romans 1:2']) },
+			{ backend }
+		);
+		const before = await readPrimaryPayload();
+		const historyBefore = historyFiles();
+
+		const checkpoint = await createCommittedTranscriptionCheckpointWithFiles(
+			harness.db,
+			{ projectTranscriptionId: 'pt-1', checkpointId: 'tx-cp-2' },
 			{ backend }
 		);
 
+		const after = await readPrimaryPayload();
+		expect(projectTranscriptionPayloadToSnapshot(after)).toEqual(
+			projectTranscriptionPayloadToSnapshot(before)
+		);
+		expect(before.based_on_checkpoint?.id).toBe('tx-cp-1');
+		expect(after.based_on_checkpoint).toEqual({
+			id: 'tx-cp-2',
+			content_hash: checkpoint.contentHash,
+		});
+		const added = historyFiles().filter(path => !historyBefore.includes(path));
+		expect(added).toHaveLength(1);
+		expect(added[0]).toMatch(/history\/transcriptions\/pt-1\/tx-cp-2\.json$/);
+	});
+
+	it('labels versions by count and edits a note without changing the content hash', async () => {
+		await createFixtureTranscription();
+		await createCommittedTranscriptionCheckpointWithFiles(
+			harness.db,
+			{ projectTranscriptionId: 'pt-1', checkpointId: 'tx-cp-1' },
+			{ backend }
+		);
+		await createCommittedTranscriptionCheckpointWithFiles(
+			harness.db,
+			{ projectTranscriptionId: 'pt-1', checkpointId: 'tx-cp-2', commitMessage: 'First' },
+			{ backend }
+		);
+		const path = transcriptionCheckpointFile('project-slug', 'pt-1', 'tx-cp-2');
+		const before = await readCheckpoint(path);
+
+		await updateTranscriptionVersionNote(harness.db, 'tx-1', 'tx-cp-2', 'Edited', { backend });
+
+		const after = await readCheckpoint(path);
+		expect(after.commit_message).toBe('Edited');
+		expect(after.label).toBe('Version 2');
+		expect(after.payload_content_hash).toBe(before.payload_content_hash);
+		expect(after.payload).toEqual(before.payload);
+		expect(
+			(await listTranscriptionVersions(harness.db, 'tx-1')).map(version => [
+				version.label,
+				version.note,
+				version.contentHash,
+			])
+		).toEqual([
+			['Version 2', 'Edited', before.payload_content_hash],
+			['Version 1', null, expect.any(String)],
+		]);
+	});
+
+	it('restores a version into Current and undoes it without touching history', async () => {
+		await createFixtureTranscription();
+		await createCommittedTranscriptionCheckpointWithFiles(
+			harness.db,
+			{ projectTranscriptionId: 'pt-1', checkpointId: 'tx-cp-1' },
+			{ backend }
+		);
+		await saveWorkingTranscriptionContent(
+			harness.db,
+			{ id: 'tx-1', document: documentWithVerses(['Romans 1:2']) },
+			{ backend }
+		);
+		const history = new Map(
+			historyFiles().map(path => [path, backend.files.get(path)] as const)
+		);
+
+		const previous = await restoreTranscriptionVersion(harness.db, 'tx-1', 'tx-cp-1', {
+			backend,
+		});
+
+		const restored = await readPrimaryPayload();
+		expect(JSON.stringify(restored.content_json)).toContain('"verse":"1"');
+		expect(restored.based_on_checkpoint?.id).toBe('tx-cp-1');
+		expect((await getTranscription(harness.db, 'tx-1'))?.content_json).toContain('"verse":"1"');
+		expect(
+			(await listVerseIndexRowsForTranscription(harness.db, 'tx-1')).map(
+				row => row.verse_identifier
+			)
+		).toEqual(['Romans 1:1']);
+
+		await replaceTranscriptionCurrent(harness.db, 'tx-1', previous, { backend });
+
+		const undone = await readPrimaryPayload();
+		expect(undone).toEqual(previous);
+		expect((await getTranscription(harness.db, 'tx-1'))?.content_json).toContain('"verse":"2"');
+		expect(
+			new Map(historyFiles().map(path => [path, backend.files.get(path)] as const))
+		).toEqual(history);
+	});
+
+	it('numbers unlabelled legacy versions by date when indexing', async () => {
+		await createFixtureTranscription();
+		for (const checkpointId of ['tx-cp-a', 'tx-cp-b', 'tx-cp-c']) {
+			await createCommittedTranscriptionCheckpointWithFiles(
+				harness.db,
+				{ projectTranscriptionId: 'pt-1', checkpointId },
+				{ backend }
+			);
+		}
+		const createdAt = {
+			'tx-cp-a': '2026-07-03T00:00:00.000Z',
+			'tx-cp-b': '2026-07-01T00:00:00.000Z',
+			'tx-cp-c': '2026-07-02T00:00:00.000Z',
+		};
+		for (const [checkpointId, date] of Object.entries(createdAt)) {
+			const path = transcriptionCheckpointFile('project-slug', 'pt-1', checkpointId);
+			const {
+				label: _label,
+				metadata_updated_at: _updatedAt,
+				...legacy
+			} = await readCheckpoint(path);
+			backend.files.set(
+				[...backend.files.keys()].find(key => key.endsWith(path)) ?? path,
+				serializeSealedDocument(
+					await sealDocument(TRANSCRIPTION_CHECKPOINT_FORMAT, 1, {
+						...legacy,
+						parent_checkpoint_id: null,
+						created_at: date,
+					})
+				)
+			);
+		}
+
+		await rebuildIndexFromStore(harness.db, { backend });
+
+		const labels = Object.fromEntries(
+			(await listTranscriptionVersions(harness.db, 'tx-1')).map(version => [
+				version.id,
+				version.label,
+			])
+		);
+		expect(labels).toEqual({
+			'tx-cp-b': 'Version 1',
+			'tx-cp-c': 'Version 2',
+			'tx-cp-a': 'Version 3',
+		});
+	});
+
+	it('migrates a legacy primary and working file into one Current primary on load', async () => {
+		await createFixtureTranscription();
+		await createCommittedTranscriptionCheckpointWithFiles(
+			harness.db,
+			{ projectTranscriptionId: 'pt-1', checkpointId: 'tx-cp-1' },
+			{ backend }
+		);
+		const committed = await readPrimaryPayload();
+		const { based_on_checkpoint: basedOn, draft: _draft, ...content } = committed;
+		if (!basedOn) throw new Error('Expected a committed primary.');
+		await writeTextFileAtomic(
+			transcriptionPrimaryFile('project-slug', 'pt-1'),
+			serializeSealedDocument(
+				await sealDocument(PROJECT_TRANSCRIPTION_FORMAT, 1, {
+					...content,
+					current_revision: {
+						...basedOn,
+						created_at: '2026-07-04T13:00:00.000Z',
+						author_name: 'Editor',
+					},
+				})
+			),
+			{ backend }
+		);
+		await writeTextFileAtomic(
+			transcriptionWorkingFile('project-slug', 'pt-1'),
+			serializeSealedDocument(
+				await sealDocument(WORKING_TRANSCRIPTION_FORMAT, 1, {
+					...content,
+					title: 'Draft title',
+					content_json: documentWithVerses(['Romans 1:5']) as unknown as JsonValue,
+					draft: {
+						base_revision_id: basedOn.id,
+						base_content_hash: basedOn.content_hash,
+						saved_at: '2026-07-04T14:00:00.000Z',
+						author_name: null,
+					},
+				} satisfies WorkingTranscriptionPayload)
+			),
+			{ backend }
+		);
+
+		const loaded = await loadTranscriptionWithWorkingFile(harness.db, 'tx-1', { backend });
+
+		expect(loaded).toMatchObject({ title: 'Draft title', current_revision_id: 'tx-cp-1' });
+		expect(loaded?.content_json).toContain('"verse":"5"');
 		await expect(
 			readTextFile(transcriptionWorkingFile('project-slug', 'pt-1'), { backend })
 		).rejects.toThrow('not found');
+		const migratedRaw = await readTextFile(transcriptionPrimaryFile('project-slug', 'pt-1'), {
+			backend,
+		});
+		expect(JSON.parse(migratedRaw)).toMatchObject({
+			schema_version: PROJECT_TRANSCRIPTION_CURRENT_VERSION,
+		});
+		expect(await readPrimaryPayload()).toMatchObject({
+			title: 'Draft title',
+			based_on_checkpoint: basedOn,
+			draft: { saved_at: '2026-07-04T14:00:00.000Z' },
+		});
 	});
 
 	it('runs committed transcription file writes under the project write lock', async () => {
@@ -861,6 +1089,45 @@ describe('transcription file persistence', () => {
 		);
 	});
 });
+
+async function readPrimaryPayload(): Promise<ProjectTranscriptionPayload> {
+	const read = await readCanonicalDocument<ProjectTranscriptionPayload>(
+		PROJECT_TRANSCRIPTION_FORMAT,
+		await readTextFile(transcriptionPrimaryFile('project-slug', 'pt-1'), { backend })
+	);
+	if (!read.ok) throw new Error('Expected a readable transcription primary.');
+	return read.payload;
+}
+
+async function legacyWorkingFileFromPrimary(
+	basedOn: ProjectTranscriptionPayload['based_on_checkpoint']
+): Promise<string> {
+	const { based_on_checkpoint: _basedOn, draft, ...content } = await readPrimaryPayload();
+	return serializeSealedDocument(
+		await sealDocument(WORKING_TRANSCRIPTION_FORMAT, 1, {
+			...content,
+			draft: {
+				base_revision_id: basedOn?.id ?? null,
+				base_content_hash: basedOn?.content_hash ?? null,
+				saved_at: draft.saved_at,
+				author_name: null,
+			},
+		} satisfies WorkingTranscriptionPayload)
+	);
+}
+
+async function readCheckpoint(path: string): Promise<TranscriptionCheckpointPayload> {
+	const read = await readCanonicalDocument<TranscriptionCheckpointPayload>(
+		TRANSCRIPTION_CHECKPOINT_FORMAT,
+		await readTextFile(path, { backend })
+	);
+	if (!read.ok) throw new Error(`Expected a readable version at ${path}.`);
+	return read.payload;
+}
+
+function historyFiles(): string[] {
+	return [...backend.files.keys()].filter(path => path.includes('/history/')).sort();
+}
 
 async function createFixtureTranscription(): Promise<void> {
 	await createProject(harness.db, {

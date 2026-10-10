@@ -96,7 +96,7 @@ describe('project navigation targets', () => {
 		);
 	});
 
-	it.each(['transcriptions', 'collations', 'settings', 'backup'] as const)(
+	it.each(['transcriptions', 'collations', 'settings', 'location'] as const)(
 		'keeps the %s section when switching projects',
 		section => {
 			expect(buildProjectSwitcherTarget(section, 'project-b')).toBe(

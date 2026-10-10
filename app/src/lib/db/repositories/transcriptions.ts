@@ -428,6 +428,7 @@ function buildTranscriptionRow(
 		origin_transcription_id: null,
 		origin_revision_id: '',
 		origin_content_hash: '',
+		origin_captured_at: '',
 		current_revision_id: '',
 		current_content_hash: '',
 		title: input.title.trim(),

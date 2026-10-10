@@ -2,6 +2,7 @@ import type { Kysely, Selectable } from 'kysely';
 import type { Database, SyncFileFingerprints } from '$lib/db/types.generated';
 import {
 	createCommittedCollationCheckpointWithFiles,
+	loadCommittedCollationPayloadWithFiles,
 	saveWorkingCollationArtifact,
 } from '$lib/db/repositories/collation-files';
 import { createCommittedTranscriptionCheckpointWithFiles } from '$lib/db/repositories/transcription-files';
@@ -21,6 +22,12 @@ import {
 	type StoreOperationOptions,
 } from '$lib/storage/opfs-store';
 import { joinStorePath } from '$lib/storage/layout';
+import {
+	upsertProjectPlacements,
+	type DeletedNotice,
+	type MovedNotice,
+} from '$lib/storage/project-locations';
+import { canonicalJson } from '$lib/storage/canonical-json';
 import type { StoreQuarantineRecord } from '$lib/storage/quarantine';
 import { ApparatusExportError, exportCollationDocumentTei } from '$lib/collation/collation-tei';
 import {
@@ -31,17 +38,11 @@ import { writeProjectManifestFile } from '$lib/db/repositories/project-files';
 import {
 	createCollationConflictCopy,
 	createProjectTranscriptionConflictCopy,
+	listConflictCopies,
 	type SyncEntityHead,
 } from './conflicts';
 import type { SyncEntityReference, SyncEntityType, SyncProjectContext } from './backup-status';
-import {
-	parseCollationCloudFile,
-	parseTombstoneCloudFile,
-	serializeCloudFile,
-	serializeCollationCloudFile,
-	serializeProjectTranscriptionCloudFile,
-	type CloudFileQuarantine,
-} from './cloud-files';
+import { parseTombstoneCloudFile, type CloudFileQuarantine } from './cloud-files';
 import {
 	isCloudProviderError,
 	type CloudFileMetadata,
@@ -51,24 +52,22 @@ import {
 } from './providers/provider';
 import type { DbExecutor } from '$lib/db/worker-kysely';
 import { validateProjectFilesWithTemporaryStaging } from './project-file-staging';
-import {
-	deriveProjectBackupSummary,
-	loadLocalEntity,
-	primaryPathFor,
-	type BackupItemState,
-	type LocalEntityState,
-} from './backup-summary';
+import { loadLocalEntity, primaryPathFor, type LocalEntityState } from './backup-summary';
 import {
 	loadProjectStoreRoot,
 	isMissingStoreEntryError,
 	shouldMirrorProjectFile,
 	normalizeSlashes,
 } from './project-archive';
+import {
+	DELETED_MARKER_FILE,
+	MOVED_MARKER_FILE,
+	parseDeletedMarker,
+	parseMovedMarker,
+} from './moved-marker';
 
 export type SyncUiState =
 	| 'saved locally'
-	| 'uncommitted local changes'
-	| 'committed locally'
 	| 'sync pending'
 	| 'synced'
 	| 'remote update available'
@@ -95,6 +94,8 @@ export interface SyncOperationResult {
 	checkpointId?: string;
 	draftCheckpointId?: string;
 	conflictCopyId?: string;
+	moved?: MovedNotice;
+	deleted?: DeletedNotice;
 	localHead?: SyncEntityHead;
 	remoteHead?: SyncEntityHead;
 	providerError?: CloudProviderErrorCode;
@@ -109,11 +110,7 @@ export interface ProjectBackupResult extends SyncOperationResult {
 	projectId: string;
 	manifestUploaded: boolean;
 	entityResults: SyncOperationResult[];
-	skippedItems: BackupItemState[];
-}
-
-export interface ProjectBackupOptions extends SyncManagerOptions {
-	strict?: boolean;
+	hasConflictCopies?: boolean;
 }
 
 interface FileFingerprint {
@@ -159,35 +156,27 @@ export async function backupProject(
 	db: Kysely<Database>,
 	provider: CloudStorageProvider,
 	context: SyncProjectContext,
-	options: ProjectBackupOptions = {}
+	options: SyncManagerOptions = {}
 ): Promise<ProjectBackupResult> {
-	const strict = options.strict ?? true;
 	const backupContext = await ensureProjectBackupFolder(provider, context);
-	const summary = await deriveProjectBackupSummary(db, backupContext, options.storeOptions);
 	const result: ProjectBackupResult = {
 		...baseResult('sync pending'),
 		projectId: backupContext.projectId,
 		manifestUploaded: false,
 		entityResults: [],
-		skippedItems: [],
 	};
-
-	if (strict && summary.blockingItems.length > 0) {
-		result.uiState = 'uncommitted local changes';
-		result.skippedItems = summary.blockingItems;
-		return result;
-	}
 
 	const mirrorResult = await mirrorProjectFiles(db, provider, backupContext, options);
 	mergeOperationResult(result, mirrorResult);
 	result.entityResults.push(mirrorResult);
+	if (result.moved || result.deleted) {
+		result.uiState = 'saved locally';
+		return result;
+	}
 	result.manifestUploaded = !hasOperationFailure(mirrorResult);
+	result.hasConflictCopies = (await listConflictCopies(db, backupContext.projectId)).length > 0;
 
-	if (
-		result.manifestUploaded &&
-		!hasOperationFailure(result) &&
-		result.skippedItems.length === 0
-	) {
+	if (result.manifestUploaded && !hasOperationFailure(result)) {
 		result.uiState = 'synced';
 		return result;
 	}
@@ -232,15 +221,33 @@ async function mirrorProjectFiles(
 	const now = options.now?.() ?? new Date().toISOString();
 	const storeOptions = options.storeOptions ?? {};
 	try {
+		const remoteMetadata = await listRemoteMetadata(provider, context);
+		const movedEntry = remoteMetadata.find(
+			entry => relativeEntryPath(entry.path, context) === MOVED_MARKER_FILE
+		);
+		if (movedEntry) {
+			result.moved = parseMovedMarker(await provider.downloadFile(movedEntry.id));
+			await markProjectRetired(db, context, { moved: result.moved }, storeOptions);
+			return result;
+		}
+		const deletedEntry = remoteMetadata.find(
+			entry => relativeEntryPath(entry.path, context) === DELETED_MARKER_FILE
+		);
+		if (deletedEntry) {
+			result.deleted = parseDeletedMarker(await provider.downloadFile(deletedEntry.id));
+			await markProjectRetired(db, context, { deleted: result.deleted }, storeOptions);
+			return result;
+		}
 		const projectRoot = await loadProjectStoreRoot(db, context.projectId);
 		let [localFiles, remoteFiles] = await Promise.all([
 			listLocalProjectMirrorFiles(db, context.projectId, storeOptions),
-			listRemoteMirrorFiles(provider, context),
+			downloadRemoteMirrorFiles(provider, context, remoteMetadata),
 		]);
 		const pulledFiles: Array<{ localFile: LocalMirrorFile; remoteFile: RemoteMirrorFile }> = [];
 		const remoteOnlyPrimaryPaths: string[] = [];
 		const tombstonedPrimaryPaths = new Set<string>();
-		const conflictReferences: SyncEntityReference[] = [];
+		const conflicts: Array<{ reference: SyncEntityReference; remoteFile: RemoteMirrorFile }> =
+			[];
 		const conflictingRemotePrimaries = new Map<string, RemoteMirrorFile>();
 		let pulledTombstone = false;
 
@@ -333,7 +340,7 @@ async function mirrorProjectFiles(
 		}
 
 		if (pulledTombstone) {
-			await rebuildIndexFromStore(db, storeOptions);
+			await keepingFingerprints(db, () => rebuildIndexFromStore(db, storeOptions));
 			await writeProjectManifestFile(db, context.projectId, {}, storeOptions);
 			localFiles = await listLocalProjectMirrorFiles(db, context.projectId, storeOptions);
 		}
@@ -384,7 +391,17 @@ async function mirrorProjectFiles(
 			const remoteUnchanged = cached
 				? cached.remoteContentHash === remoteFile.fingerprint.contentHash
 				: false;
-			if (localUnchanged && !remoteUnchanged) {
+			const winner =
+				localUnchanged && !remoteUnchanged
+					? 'remote'
+					: remoteUnchanged
+						? 'local'
+						: resolveDivergentFile(
+								localFile.path,
+								localFile.content,
+								remoteFile.content
+							);
+			if (winner === 'remote') {
 				const validation = await validateProjectFilesWithTemporaryStaging(
 					[{ path: remoteFile.path, content: remoteFile.content }],
 					{ projectId: context.projectId, storeOptions }
@@ -404,7 +421,7 @@ async function mirrorProjectFiles(
 				result.downloadedPaths.push(remoteFile.path);
 				continue;
 			}
-			if (remoteUnchanged) {
+			if (winner === 'local') {
 				const write = await provider.updateFile(
 					remoteFile.metadata.id,
 					localFile.content,
@@ -439,7 +456,7 @@ async function mirrorProjectFiles(
 			});
 			const reference = primaryReferenceForMirrorPath(localFile.path);
 			if (reference) {
-				conflictReferences.push(reference);
+				conflicts.push({ reference, remoteFile });
 				conflictingRemotePrimaries.set(
 					localFile.path.replace(/\.json$/, '.tei.xml'),
 					remoteFile
@@ -478,23 +495,8 @@ async function mirrorProjectFiles(
 			result.downloadedPaths.push(remoteFile.path);
 		}
 
-		if (pulledFiles.length > 0) {
-			await rebuildIndexFromStore(db, storeOptions);
-			for (const path of remoteOnlyPrimaryPaths) {
-				await restoreOrphanPrimaryToProject(db, path, storeOptions);
-			}
-			for (const pulled of pulledFiles) {
-				await upsertFileFingerprint(
-					db,
-					context,
-					pulled.localFile,
-					pulled.remoteFile.metadata,
-					pulled.remoteFile.fingerprint,
-					now
-				);
-			}
-		}
-		for (const reference of conflictReferences) {
+		const conflictFingerprints: Array<() => Promise<void>> = [];
+		for (const { reference, remoteFile } of conflicts) {
 			const local = await loadLocalEntity(db, reference, options.storeOptions);
 			const copyId = await createConflictCopy(db, local, options);
 			result.conflictCopyId ??= copyId;
@@ -508,9 +510,35 @@ async function mirrorProjectFiles(
 					file.content
 				);
 				result.uploadedPaths.push(file.path);
-				await upsertFileFingerprint(db, context, file, write, file.fingerprint, now);
+				conflictFingerprints.push(() =>
+					upsertFileFingerprint(db, context, file, write, file.fingerprint, now)
+				);
+			}
+			pulledFiles.push({
+				localFile: await writePulledMirrorFile(projectRoot, remoteFile, storeOptions),
+				remoteFile,
+			});
+			result.downloadedPaths.push(remoteFile.path);
+		}
+		if (pulledFiles.length > 0) {
+			await keepingFingerprints(db, async () => {
+				await rebuildIndexFromStore(db, storeOptions);
+				for (const path of remoteOnlyPrimaryPaths) {
+					await restoreOrphanPrimaryToProject(db, path, storeOptions);
+				}
+			});
+			for (const pulled of pulledFiles) {
+				await upsertFileFingerprint(
+					db,
+					context,
+					pulled.localFile,
+					pulled.remoteFile.metadata,
+					pulled.remoteFile.fingerprint,
+					now
+				);
 			}
 		}
+		for (const upsert of conflictFingerprints) await upsert();
 
 		const { files: derivedTeiFiles, absentPaths } = await regenerateDerivedTeiFiles(
 			projectRoot,
@@ -634,6 +662,26 @@ async function mirrorProjectFiles(
 	}
 }
 
+export async function listPendingUploadPaths(
+	db: DbExecutor,
+	context: SyncProjectContext,
+	storeOptions: StoreOperationOptions = {}
+): Promise<string[]> {
+	const [localFiles, synced] = await Promise.all([
+		listLocalProjectMirrorFiles(db, context.projectId, storeOptions),
+		db
+			.selectFrom('sync_file_fingerprints')
+			.select(['file_path', 'local_content_hash'])
+			.where('target_id', '=', context.connectionId)
+			.where('project_id', '=', context.projectId)
+			.execute(),
+	]);
+	const syncedHashes = new Map(synced.map(row => [row.file_path, row.local_content_hash]));
+	return localFiles
+		.filter(file => syncedHashes.get(file.path) !== file.fingerprint.contentHash)
+		.map(file => file.path);
+}
+
 async function listLocalProjectMirrorFiles(
 	db: DbExecutor,
 	projectId: string,
@@ -641,7 +689,7 @@ async function listLocalProjectMirrorFiles(
 ): Promise<LocalMirrorFile[]> {
 	const root = await loadProjectStoreRoot(db, projectId);
 	const files: LocalMirrorFile[] = [];
-	await collectLocalMirrorFiles(root, '', files, storeOptions, false);
+	await collectLocalMirrorFiles(root, '', files, storeOptions);
 	return files.sort(
 		(left, right) =>
 			mirrorWriteOrder(left.path) - mirrorWriteOrder(right.path) ||
@@ -653,8 +701,7 @@ async function collectLocalMirrorFiles(
 	storePath: string,
 	relativePath: string,
 	files: LocalMirrorFile[],
-	storeOptions: StoreOperationOptions,
-	includeDrafts: boolean
+	storeOptions: StoreOperationOptions
 ): Promise<void> {
 	let entries: StoreDirectoryEntry[];
 	try {
@@ -667,16 +714,10 @@ async function collectLocalMirrorFiles(
 		const childRelativePath = joinStorePath(relativePath, entry.name);
 		const childStorePath = joinStorePath(storePath, entry.name);
 		if (entry.kind === 'directory') {
-			await collectLocalMirrorFiles(
-				childStorePath,
-				childRelativePath,
-				files,
-				storeOptions,
-				includeDrafts
-			);
+			await collectLocalMirrorFiles(childStorePath, childRelativePath, files, storeOptions);
 			continue;
 		}
-		if (!shouldMirrorProjectFile(childRelativePath, includeDrafts)) continue;
+		if (!shouldMirrorProjectFile(childRelativePath)) continue;
 		const content = await readTextFile(childStorePath, storeOptions);
 		files.push({
 			path: childRelativePath,
@@ -687,12 +728,38 @@ async function collectLocalMirrorFiles(
 	}
 }
 
-async function listRemoteMirrorFiles(
+async function markProjectRetired(
+	db: DbExecutor,
+	context: SyncProjectContext,
+	notice: { moved: MovedNotice } | { deleted: DeletedNotice },
+	storeOptions: StoreOperationOptions
+): Promise<void> {
+	await upsertProjectPlacements(
+		[
+			{
+				projectId: context.projectId,
+				locationId: null,
+				folderName: null,
+				needsLocationChoice: false,
+				...notice,
+			},
+		],
+		storeOptions
+	);
+	await db
+		.deleteFrom('sync_file_fingerprints')
+		.where('target_id', '=', context.connectionId)
+		.where('project_id', '=', context.projectId)
+		.execute();
+}
+
+async function downloadRemoteMirrorFiles(
 	provider: CloudStorageProvider,
-	context: SyncProjectContext
+	context: SyncProjectContext,
+	remoteMetadata: CloudFileMetadata[]
 ): Promise<Map<string, RemoteMirrorFile>> {
 	const remoteFiles = new Map<string, RemoteMirrorFile>();
-	for (const metadata of await listRemoteMetadata(provider, context)) {
+	for (const metadata of remoteMetadata) {
 		const path = relativeEntryPath(metadata.path, context);
 		if (!shouldMirrorProjectFile(path)) continue;
 		const content = await provider.downloadFile(metadata.id);
@@ -704,6 +771,25 @@ async function listRemoteMirrorFiles(
 		});
 	}
 	return remoteFiles;
+}
+
+async function keepingFingerprints(
+	db: Kysely<Database>,
+	rebuild: () => Promise<unknown>
+): Promise<void> {
+	const fingerprints = await db.selectFrom('sync_file_fingerprints').selectAll().execute();
+	await rebuild();
+	const projectIds = new Set(
+		(await db.selectFrom('projects').select('id').execute()).map(project => project.id)
+	);
+	const kept = fingerprints.filter(fingerprint => projectIds.has(fingerprint.project_id));
+	for (let start = 0; start < kept.length; start += 50) {
+		await db
+			.insertInto('sync_file_fingerprints')
+			.values(kept.slice(start, start + 50))
+			.onConflict(conflict => conflict.doNothing())
+			.execute();
+	}
 }
 
 async function writePulledMirrorFile(
@@ -726,7 +812,7 @@ async function regenerateDerivedTeiFiles(
 	storeOptions: StoreOperationOptions
 ): Promise<{ files: LocalMirrorFile[]; absentPaths: string[] }> {
 	const files: LocalMirrorFile[] = [];
-	await collectLocalMirrorFiles(projectRoot, '', files, storeOptions, false);
+	await collectLocalMirrorFiles(projectRoot, '', files, storeOptions);
 	const derived: LocalMirrorFile[] = [];
 	const absentPaths: string[] = [];
 	for (const primary of files) {
@@ -944,6 +1030,44 @@ function primaryReferenceForMirrorPath(path: string): SyncEntityReference | null
 	return null;
 }
 
+function resolveDivergentFile(
+	path: string,
+	localContent: string,
+	remoteContent: string
+): 'local' | 'remote' | null {
+	const local = parseJsonRecord(localContent);
+	const remote = parseJsonRecord(remoteContent);
+	if (!local || !remote) return null;
+	if (path.startsWith('history/')) {
+		if (
+			local.checkpoint_id !== remote.checkpoint_id ||
+			local.payload_content_hash !== remote.payload_content_hash
+		)
+			return null;
+		return String(local.metadata_updated_at ?? '') > String(remote.metadata_updated_at ?? '')
+			? 'local'
+			: 'remote';
+	}
+	if (!primaryReferenceForMirrorPath(path)) return null;
+	const withoutBase = ({
+		based_on_checkpoint: _basedOn,
+		content_hash: _hash,
+		...rest
+	}: Record<string, unknown>) => canonicalJson(rest);
+	return withoutBase(local) === withoutBase(remote) ? 'remote' : null;
+}
+
+function parseJsonRecord(content: string): Record<string, unknown> | null {
+	try {
+		const value = JSON.parse(content) as unknown;
+		return value && typeof value === 'object' && !Array.isArray(value)
+			? (value as Record<string, unknown>)
+			: null;
+	} catch {
+		return null;
+	}
+}
+
 function isConflictCopyFile(path: string, entityType: SyncEntityType, entityId: string): boolean {
 	const primary = primaryPathFor(entityType, entityId);
 	const historyFolder =
@@ -968,7 +1092,7 @@ async function fingerprintText(content: string, modifiedAt: string): Promise<Fil
 	};
 }
 
-async function hashText(content: string): Promise<string> {
+export async function hashText(content: string): Promise<string> {
 	const digest = await globalThis.crypto?.subtle?.digest(
 		'SHA-256',
 		new TextEncoder().encode(content)
@@ -977,17 +1101,6 @@ async function hashText(content: string): Promise<string> {
 	return `sha256:${[...new Uint8Array(digest)]
 		.map(byte => byte.toString(16).padStart(2, '0'))
 		.join('')}`;
-}
-
-async function serializePrimaryFile(
-	db: Kysely<Database>,
-	local: LocalEntityState,
-	storeOptions: StoreOperationOptions = {}
-): Promise<string> {
-	if (local.entityType === 'project-transcription') {
-		return serializeCloudFile(await serializeProjectTranscriptionCloudFile(db, local.entityId));
-	}
-	return serializeCloudFile(await serializeCollationCloudFile(db, local.entityId, storeOptions));
 }
 
 async function createConflictCopy(
@@ -1025,12 +1138,11 @@ async function createConflictCopy(
 		});
 		return copy.projectTranscriptionId;
 	}
-	const sourceFile = await parseCollationCloudFile(
-		await serializePrimaryFile(db, local, options.storeOptions)
+	const source = await loadCommittedCollationPayloadWithFiles(
+		db,
+		local.entityId,
+		options.storeOptions
 	);
-	if (!sourceFile.ok) {
-		throw new Error(`Cannot preserve collation conflict: ${sourceFile.quarantine.message}`);
-	}
 	const copy = await createCollationConflictCopy(db, {
 		collationId: local.entityId,
 		actorName: options.authorName,
@@ -1051,7 +1163,7 @@ async function createConflictCopy(
 			{
 				collationId: copy.collationId,
 				artifactType: 'collation_document_v1',
-				payload: JSON.stringify(sourceFile.value.document),
+				payload: JSON.stringify(source.document),
 				now: options.now?.(),
 			},
 			options.storeOptions
@@ -1077,6 +1189,8 @@ function mergeOperationResult(target: SyncOperationResult, source: SyncOperation
 	target.deletedPaths.push(...source.deletedPaths);
 	target.quarantines.push(...source.quarantines);
 	if (source.conflictCopyId) target.conflictCopyId = source.conflictCopyId;
+	if (source.moved) target.moved = source.moved;
+	if (source.deleted) target.deleted = source.deleted;
 	if (source.draftCheckpointId) target.draftCheckpointId = source.draftCheckpointId;
 	if (source.providerError) target.providerError = source.providerError;
 	if (source.providerMessage) target.providerMessage = source.providerMessage;

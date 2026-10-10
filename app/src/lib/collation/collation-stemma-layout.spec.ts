@@ -22,7 +22,6 @@ function makeWitness(witnessId: string, text: string, isBaseText = false): Witne
 		witnessId,
 		siglum: witnessId,
 		transcriptionId: `${witnessId}-tx`,
-		sourceVersion: 'v1',
 		content: text,
 		tokens: textTokens(text),
 		treatment: 'inherit',

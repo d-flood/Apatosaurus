@@ -1,20 +1,23 @@
-import { deriveProjectBackupSummary } from '$lib/db/client';
-import { listSyncTargets, type SyncTargetRecord } from '$lib/storage/sync-targets';
-import { LOCAL_FOLDER_ROOT_FOLDER_ID } from './providers/local-folder-provider';
+import { listPendingUploadPaths } from '$lib/db/client';
+import {
+	isPlacedProject,
+	listProjectLocations,
+	listProjectPlacements,
+	type PlacedProject,
+	type ProjectLocation,
+} from '$lib/storage/project-locations';
 
-import type { SyncProjectContext } from './backup-status';
-import type { ProjectBackupSummary } from '$lib/backup/backup-summary';
+import { placementSyncContext, type SyncProjectContext } from './backup-status';
 
-export type ProjectBackupOverviewStatus =
-	'local-only' | 'blocked' | 'pending' | 'backed-up' | 'unavailable';
+export type ProjectBackupOverviewStatus = 'local-only' | 'pending' | 'backed-up' | 'unavailable';
 
 export interface ProjectBackupOverview {
 	projectId: string;
 	status: ProjectBackupOverviewStatus;
-	targets: SyncTargetRecord[];
-	selectedTarget: SyncTargetRecord | null;
+	placement: PlacedProject | null;
+	location: ProjectLocation | null;
 	context: SyncProjectContext | null;
-	summary: ProjectBackupSummary | null;
+	pendingPaths: string[] | null;
 	error: unknown | null;
 }
 
@@ -23,9 +26,13 @@ export async function loadProjectBackupOverviews(
 ): Promise<Record<string, ProjectBackupOverview>> {
 	if (projectIds.length === 0) return {};
 
-	let allTargets: SyncTargetRecord[];
+	let placements: PlacedProject[];
+	let locations: ProjectLocation[];
 	try {
-		allTargets = await listSyncTargets();
+		[placements, locations] = await Promise.all([
+			listProjectPlacements().then(all => all.filter(isPlacedProject)),
+			listProjectLocations(),
+		]);
 	} catch (error) {
 		return Object.fromEntries(
 			projectIds.map(projectId => [
@@ -33,72 +40,49 @@ export async function loadProjectBackupOverviews(
 				{
 					projectId,
 					status: 'unavailable',
-					targets: [],
-					selectedTarget: null,
+					placement: null,
+					location: null,
 					context: null,
-					summary: null,
+					pendingPaths: null,
 					error,
 				} satisfies ProjectBackupOverview,
 			])
 		);
 	}
 	const entries = await Promise.all(
-		projectIds.map(async projectId => {
-			const targets = allTargets.filter(target => target.projectId === projectId);
-			const selectedTarget = targets.find(target => target.enabled) ?? targets[0] ?? null;
-			if (!selectedTarget) {
+		projectIds.map(async (projectId): Promise<[string, ProjectBackupOverview]> => {
+			const placement = placements.find(candidate => candidate.projectId === projectId);
+			const location = locations.find(candidate => candidate.id === placement?.locationId);
+			if (!placement || !location) {
 				return [
 					projectId,
 					{
 						projectId,
 						status: 'local-only',
-						targets,
-						selectedTarget: null,
+						placement: null,
+						location: null,
 						context: null,
-						summary: null,
+						pendingPaths: null,
 						error: null,
 					},
-				] as const;
+				];
 			}
 
-			const context: SyncProjectContext = {
-				projectId,
-				connectionId: selectedTarget.targetId,
-				cloudFolderId: LOCAL_FOLDER_ROOT_FOLDER_ID,
-				cloudFolderPath: '',
-			};
+			const context = placementSyncContext(placement);
+			const base = { projectId, placement, location, context };
 			try {
-				const summary = await deriveProjectBackupSummary(context);
+				const pendingPaths = await listPendingUploadPaths(context);
 				return [
 					projectId,
 					{
-						projectId,
-						status:
-							summary.blockingItems.length > 0
-								? 'blocked'
-								: summary.pendingItems.length > 0 || summary.tombstones.length > 0
-									? 'pending'
-									: 'backed-up',
-						targets,
-						selectedTarget,
-						context,
-						summary,
+						...base,
+						status: pendingPaths.length > 0 ? 'pending' : 'backed-up',
+						pendingPaths,
 						error: null,
 					},
-				] as const;
+				];
 			} catch (error) {
-				return [
-					projectId,
-					{
-						projectId,
-						status: 'unavailable',
-						targets,
-						selectedTarget,
-						context,
-						summary: null,
-						error,
-					},
-				] as const;
+				return [projectId, { ...base, status: 'unavailable', pendingPaths: null, error }];
 			}
 		})
 	);

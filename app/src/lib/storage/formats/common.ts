@@ -1,11 +1,21 @@
 import type { JsonObject } from '../envelope';
-import { readObjectValue, readString } from './validation';
+import { readNullableString, readObjectValue, readString } from './validation';
 
 export type CanonicalCurrentRevision = JsonObject & {
 	id: string;
 	content_hash: string;
 	created_at: string;
 	author_name: string;
+};
+
+export type CanonicalCheckpointReference = JsonObject & {
+	id: string;
+	content_hash: string;
+};
+
+export type CanonicalCurrentDraft = JsonObject & {
+	saved_at: string;
+	author_name: string | null;
 };
 
 export type CanonicalDraftMetadata = JsonObject & {
@@ -40,5 +50,28 @@ export function readDraftMetadata(
 			draft.base_content_hash === null ? null : readString(draft, 'base_content_hash'),
 		saved_at: readString(draft, 'saved_at'),
 		author_name: draft.author_name === null ? null : readString(draft, 'author_name'),
+	};
+}
+
+export function readNullableCheckpointReference(
+	record: Record<string, unknown>,
+	key: string
+): CanonicalCheckpointReference | null {
+	if (record[key] === null) return null;
+	const reference = readObjectValue(record[key], key);
+	return {
+		id: readString(reference, 'id'),
+		content_hash: readString(reference, 'content_hash'),
+	};
+}
+
+export function readCurrentDraft(
+	record: Record<string, unknown>,
+	key: string
+): CanonicalCurrentDraft {
+	const draft = readObjectValue(record[key], key);
+	return {
+		saved_at: readString(draft, 'saved_at'),
+		author_name: readNullableString(draft, 'author_name'),
 	};
 }

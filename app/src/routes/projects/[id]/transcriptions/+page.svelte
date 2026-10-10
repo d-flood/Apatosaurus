@@ -3,6 +3,7 @@
 
 	import {
 		deleteTranscription,
+		listConflictCopies,
 		subscribeLocalDbInvalidations,
 		listProjectTranscriptionStatuses,
 	} from '$lib/db/client';
@@ -12,6 +13,7 @@
 	let { data } = $props<{ data: { project: ProjectRecord } }>();
 
 	let rows = $state.raw<ProjectTranscriptionStatus[]>([]);
+	let conflictCopyIds = $state.raw(new Set<string>());
 	let isLoading = $state(true);
 	let deletingId = $state<string | null>(null);
 	let error = $state<string | null>(null);
@@ -37,9 +39,13 @@
 		const runId = ++loadRunId;
 		isLoading = true;
 		try {
-			const statuses = await listProjectTranscriptionStatuses(projectId);
+			const [statuses, copies] = await Promise.all([
+				listProjectTranscriptionStatuses(projectId),
+				listConflictCopies(projectId),
+			]);
 			if (runId !== loadRunId || data.project.id !== projectId) return;
 			rows = statuses;
+			conflictCopyIds = new Set(copies.map(copy => copy.copyId));
 			error = null;
 		} catch (err) {
 			if (runId !== loadRunId) return;
@@ -71,18 +77,6 @@
 		} finally {
 			deletingId = null;
 		}
-	}
-
-	function commitStateLabel(state: ProjectTranscriptionStatus['commitState']): string {
-		if (state === 'never-committed') return 'No committed version yet';
-		if (state === 'dirty') return 'Uncommitted changes';
-		return 'Committed';
-	}
-
-	function commitStateBadge(state: ProjectTranscriptionStatus['commitState']): string {
-		if (state === 'dirty') return 'badge-warning';
-		if (state === 'clean') return 'badge-success';
-		return 'badge-ghost';
 	}
 
 	function formatDate(iso: string): string {
@@ -127,17 +121,27 @@
 							<span>Updated {formatDate(row.updatedAt)}</span>
 						</div>
 					</div>
-					<span class="badge badge-sm {commitStateBadge(row.commitState)}">
-						{commitStateLabel(row.commitState)}
-					</span>
-					<a
-						href={resolve('/transcription/[id]', {
-							id: row.projectOwnedTranscriptionId,
-						})}
-						class="btn btn-ghost btn-sm"
-					>
-						Open
-					</a>
+					{#if conflictCopyIds.has(row.projectOwnedTranscriptionId)}
+						<span class="badge badge-sm badge-warning">Conflict copy</span>
+						<a
+							href={resolve('/projects/[id]/conflicts/[copyId]', {
+								id: data.project.id,
+								copyId: row.projectOwnedTranscriptionId,
+							})}
+							class="btn btn-ghost btn-sm"
+						>
+							Reconcile
+						</a>
+					{:else}
+						<a
+							href={resolve('/transcription/[id]', {
+								id: row.projectOwnedTranscriptionId,
+							})}
+							class="btn btn-ghost btn-sm"
+						>
+							Open
+						</a>
+					{/if}
 					<details class="dropdown dropdown-end">
 						<summary
 							class="btn btn-ghost btn-sm btn-circle list-none text-lg"

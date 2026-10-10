@@ -17,16 +17,25 @@ import {
 } from '$lib/backup/backup-status';
 import type { StoreOperationOptions } from '$lib/storage/opfs-store';
 import {
-	getTranscriptionCommittedHead,
+	buildTranscriptionHashPayload,
+	deriveSourceFreshness,
+	hashCanonicalPayload,
+	listTranscriptionVersions,
 	loadCommittedTranscriptionCheckpointPayload,
 	type EntityCheckpointHead,
+	type ProjectTranscriptionSnapshot,
+	type SourceFreshness,
 	type TranscriptionCheckpointPayload,
+	type TranscriptionSourceState,
 	type PersistenceWarning,
+	type VersionSummary,
 } from './revisions';
+import type { WitnessSource } from '$lib/collation/collation-types';
 import { resolveProjectStorageSlug } from './project-bootstrap';
 import {
 	createCommittedTranscriptionCheckpointWithFiles,
 	getProjectTranscriptionCheckpointStatusWithFiles,
+	loadProjectTranscriptionSnapshotWithFiles,
 } from './transcription-files';
 import { replaceTranscriptionVerseIndexRows } from './transcriptions';
 import { writeEmptyProjectManifestFile, writeProjectManifestFile } from './project-files';
@@ -83,8 +92,7 @@ interface TranscriptionSourceSummary {
 	projectName: string | null;
 	title: string;
 	siglum: string;
-	currentCheckpoint: EntityCheckpointHead | null;
-	dirtyToCheckpoint: boolean | null;
+	state: TranscriptionSourceState | null;
 }
 
 interface TranscriptionOriginSummary {
@@ -94,30 +102,14 @@ interface TranscriptionOriginSummary {
 	sourceTranscriptionId: string | null;
 	sourceRevisionId: string | null;
 	sourceContentHash: string | null;
+	sourceCapturedAt: string | null;
+	sourceVersionLabel: string | null;
 }
 
 export type ProjectTranscriptionSourceState =
 	| { kind: 'no-source' }
 	| { kind: 'source-missing'; sourceTranscriptionId: string }
-	| { kind: 'source-has-no-committed-version'; sourceTranscriptionId: string }
-	| {
-			kind: 'up-to-date';
-			sourceTranscriptionId: string;
-			sourceRevisionId: string;
-			sourceContentHash: string;
-	  }
-	| {
-			kind: 'newer-source-available';
-			sourceTranscriptionId: string;
-			sourceRevisionId: string;
-			sourceContentHash: string;
-	  }
-	| {
-			kind: 'source-has-uncommitted-changes';
-			sourceTranscriptionId: string;
-			sourceRevisionId: string | null;
-			sourceContentHash: string | null;
-	  };
+	| { kind: SourceFreshness; sourceTranscriptionId: string };
 
 export interface ProjectTranscriptionStatus {
 	projectId: string;
@@ -489,6 +481,7 @@ export async function listProjectTranscriptionStatuses(
 			'transcriptions.origin_transcription_id as origin_transcription_id',
 			'transcriptions.origin_revision_id as origin_revision_id',
 			'transcriptions.origin_content_hash as origin_content_hash',
+			'transcriptions.origin_captured_at as origin_captured_at',
 			'transcriptions.siglum as siglum',
 			'transcriptions.title as title',
 			'transcriptions.description as description',
@@ -499,6 +492,23 @@ export async function listProjectTranscriptionStatuses(
 		.execute();
 
 	return Promise.all(rows.map(row => mapProjectTranscriptionStatus(db, row, options)));
+}
+
+export async function listProjectIdsWithContent(db: DbExecutor): Promise<string[]> {
+	const [transcriptions, collations] = await Promise.all([
+		db
+			.selectFrom('project_transcriptions')
+			.innerJoin(
+				'transcription_verse_index',
+				'transcription_verse_index.transcription_id',
+				'project_transcriptions.transcription_id'
+			)
+			.select('project_transcriptions.project_id as projectId')
+			.distinct()
+			.execute(),
+		db.selectFrom('collations').select('project_id as projectId').distinct().execute(),
+	]);
+	return [...new Set([...transcriptions, ...collations].map(row => row.projectId))];
 }
 
 export async function listProjectDocumentTitles(
@@ -566,6 +576,7 @@ export async function getProjectTranscriptionStatus(
 			'transcriptions.origin_transcription_id as origin_transcription_id',
 			'transcriptions.origin_revision_id as origin_revision_id',
 			'transcriptions.origin_content_hash as origin_content_hash',
+			'transcriptions.origin_captured_at as origin_captured_at',
 			'transcriptions.siglum as siglum',
 			'transcriptions.title as title',
 			'transcriptions.description as description',
@@ -604,6 +615,7 @@ export async function getProjectTranscriptionStatusForOwnedTranscription(
 			'transcriptions.origin_transcription_id as origin_transcription_id',
 			'transcriptions.origin_revision_id as origin_revision_id',
 			'transcriptions.origin_content_hash as origin_content_hash',
+			'transcriptions.origin_captured_at as origin_captured_at',
 			'transcriptions.siglum as siglum',
 			'transcriptions.title as title',
 			'transcriptions.description as description',
@@ -733,7 +745,7 @@ export async function syncProjectTranscriptionIds(
 export interface RefreshProjectTranscriptionInput {
 	projectTranscriptionId: string;
 	sourceTranscriptionId: string;
-	sourceCheckpointId: string;
+	sourceVersionId: string | null;
 	allowReplaceDirty?: boolean;
 	updatedAt?: string;
 }
@@ -747,6 +759,56 @@ export class RefreshDirtyProjectTranscriptionError extends Error {
 		this.name = 'RefreshDirtyProjectTranscriptionError';
 		this.projectTranscriptionId = projectTranscriptionId;
 	}
+}
+
+interface LoadedSourceContent {
+	payload: TranscriptionCheckpointPayload;
+	revisionId: string;
+	contentHash: string;
+	capturedAt: string;
+}
+
+async function loadSourceContent(
+	db: DbExecutor,
+	sourceTranscriptionId: string,
+	sourceVersionId: string | null,
+	options: ProjectContentLoadOptions
+): Promise<LoadedSourceContent> {
+	if (sourceVersionId) {
+		const loaded = await loadCommittedTranscriptionCheckpointPayload(
+			db,
+			sourceTranscriptionId,
+			sourceVersionId,
+			options.storeOptions
+		);
+		return {
+			payload: loaded.payload,
+			revisionId: loaded.id,
+			contentHash: loaded.contentHash,
+			capturedAt: '',
+		};
+	}
+	const sourceLink = await db
+		.selectFrom('project_transcriptions')
+		.innerJoin('transcriptions', 'transcriptions.id', 'project_transcriptions.transcription_id')
+		.select('project_transcriptions.id as id')
+		.whereRef('project_transcriptions.project_id', '=', 'transcriptions.project_id')
+		.where('transcriptions.id', '=', sourceTranscriptionId)
+		.executeTakeFirst();
+	if (!sourceLink?.id) {
+		throw new Error(`Source transcription ${sourceTranscriptionId} was not found.`);
+	}
+	const snapshot: ProjectTranscriptionSnapshot = await loadProjectTranscriptionSnapshotWithFiles(
+		db,
+		sourceLink.id,
+		fileBackedLoadOptions(options)
+	);
+	return {
+		payload: snapshot,
+		revisionId: '',
+		contentHash: await hashCanonicalPayload(buildTranscriptionHashPayload(snapshot)),
+		capturedAt: new Date().toISOString(),
+	};
 }
 
 export async function refreshProjectTranscription(
@@ -779,26 +841,17 @@ export async function refreshProjectTranscription(
 		throw new RefreshDirtyProjectTranscriptionError(input.projectTranscriptionId);
 	}
 
-	const loaded = await loadCommittedTranscriptionCheckpointPayload(
+	const loaded = await loadSourceContent(
 		db,
 		input.sourceTranscriptionId,
-		input.sourceCheckpointId,
-		options.storeOptions
+		input.sourceVersionId,
+		options
 	);
-	const sourceHead = await getTranscriptionCommittedHead(db, input.sourceTranscriptionId);
-	if (
-		!sourceHead ||
-		sourceHead.revisionId !== loaded.id ||
-		sourceHead.contentHash !== loaded.contentHash
-	) {
-		throw new Error(
-			'Source checkpoint is not the current committed head. Only the latest committed source version is supported.'
-		);
-	}
 	if (
 		!targetCheckpointStatus.dirtyToCheckpoint &&
-		target.origin_revision_id === loaded.id &&
-		target.origin_content_hash === loaded.contentHash
+		target.origin_revision_id === loaded.revisionId &&
+		target.origin_content_hash === loaded.contentHash &&
+		!loaded.capturedAt
 	) {
 		return getProjectTranscriptionStatus(db, input.projectTranscriptionId, options);
 	}
@@ -860,8 +913,9 @@ export async function refreshProjectTranscription(
 				origin_type: 'project_snapshot',
 				origin_project_id: sourceRow.project_id,
 				origin_transcription_id: input.sourceTranscriptionId,
-				origin_revision_id: loaded.id,
+				origin_revision_id: loaded.revisionId,
 				origin_content_hash: loaded.contentHash,
+				origin_captured_at: loaded.capturedAt,
 				updated_at: now,
 			})
 			.where('id', '=', targetTranscriptionId)
@@ -963,7 +1017,9 @@ async function forkProjectTranscriptions(
 		const targetProjectTranscriptionId = createId();
 		const checkpointId = createId();
 		const checkpointIdMap = new Map<string, string>();
-		checkpointIdMap.set(sourcePayload.current_revision.id, checkpointId);
+		if (sourcePayload.based_on_checkpoint) {
+			checkpointIdMap.set(sourcePayload.based_on_checkpoint.id, checkpointId);
+		}
 		const embeddedIdMap = new Map([
 			[sourceProjectId, targetProjectId],
 			[sourceTranscriptionId, targetTranscriptionId],
@@ -979,6 +1035,7 @@ async function forkProjectTranscriptions(
 				origin_transcription_id: sourcePayload.origin.source_transcription_id,
 				origin_revision_id: sourcePayload.origin.source_revision_id ?? '',
 				origin_content_hash: sourcePayload.origin.source_content_hash ?? '',
+				origin_captured_at: sourcePayload.origin.source_captured_at ?? '',
 				current_revision_id: '',
 				current_content_hash: '',
 				title: sourcePayload.title,
@@ -1021,7 +1078,7 @@ async function forkProjectTranscriptions(
 			transcriptionId: targetTranscriptionId,
 			checkpointIds: checkpointIdMap,
 			checkpointId,
-			sourceContentHash: sourcePayload.current_revision.content_hash,
+			sourceContentHash: sourcePayload.based_on_checkpoint?.content_hash ?? '',
 			contentHash: '',
 		});
 		idMap.set(sourceProjectTranscriptionId, {
@@ -1029,7 +1086,7 @@ async function forkProjectTranscriptions(
 			transcriptionId: targetTranscriptionId,
 			checkpointIds: checkpointIdMap,
 			checkpointId,
-			sourceContentHash: sourcePayload.current_revision.content_hash,
+			sourceContentHash: sourcePayload.based_on_checkpoint?.content_hash ?? '',
 			contentHash: '',
 		});
 	}
@@ -1061,6 +1118,7 @@ async function forkProjectCollations(
 				group_path: source.group_path,
 				notes: source.notes,
 				sort_key: source.sort_key,
+				conflict_of_collation_id: '',
 				created_at: now,
 				updated_at: now,
 			})
@@ -1182,19 +1240,8 @@ async function replaceIiifRowsFromPayload(
 export interface AddProjectTranscriptionFromProjectInput {
 	targetProjectId: string;
 	sourceProjectTranscriptionId: string;
-	sourceCheckpointId?: string;
+	sourceVersionId?: string | null;
 	createdAt?: string;
-}
-
-export class AddFromProjectUncommittedSourceError extends Error {
-	readonly sourceProjectTranscriptionId: string;
-	constructor(sourceProjectTranscriptionId: string) {
-		super(
-			'Source project transcription has no committed version. Commit it before adding to another project.'
-		);
-		this.name = 'AddFromProjectUncommittedSourceError';
-		this.sourceProjectTranscriptionId = sourceProjectTranscriptionId;
-	}
 }
 
 export class AddFromProjectSameProjectError extends Error {
@@ -1227,8 +1274,6 @@ export async function addProjectTranscriptionFromProject(
 				'project_transcriptions.id as project_transcription_id',
 				'project_transcriptions.project_id as source_project_id',
 				'project_transcriptions.transcription_id as source_transcription_id',
-				'transcriptions.current_revision_id as current_revision_id',
-				'transcriptions.current_content_hash as current_content_hash',
 			])
 			.where('project_transcriptions.id', '=', input.sourceProjectTranscriptionId)
 			.executeTakeFirst();
@@ -1246,16 +1291,11 @@ export async function addProjectTranscriptionFromProject(
 			throw new AddFromProjectSameProjectError(input.sourceProjectTranscriptionId);
 		}
 
-		const checkpointId = input.sourceCheckpointId ?? sourceLink.current_revision_id ?? '';
-		if (!checkpointId) {
-			throw new AddFromProjectUncommittedSourceError(input.sourceProjectTranscriptionId);
-		}
-
-		const loaded = await loadCommittedTranscriptionCheckpointPayload(
+		const loaded = await loadSourceContent(
 			trx,
 			sourceTranscriptionId,
-			checkpointId,
-			options.storeOptions
+			input.sourceVersionId ?? null,
+			options
 		);
 		const payload = loaded.payload;
 		const now = input.createdAt ?? new Date().toISOString();
@@ -1268,8 +1308,9 @@ export async function addProjectTranscriptionFromProject(
 			origin_type: 'project_snapshot',
 			origin_project_id: sourceProjectId,
 			origin_transcription_id: sourceTranscriptionId,
-			origin_revision_id: loaded.id,
+			origin_revision_id: loaded.revisionId,
 			origin_content_hash: loaded.contentHash,
+			origin_captured_at: loaded.capturedAt,
 			current_revision_id: '',
 			current_content_hash: '',
 			title: payload.title,
@@ -1337,14 +1378,13 @@ export interface ProjectTranscriptionSourceCandidate {
 	title: string;
 	siglum: string;
 	description: string;
-	currentCheckpoint: EntityCheckpointHead | null;
-	dirtyToCheckpoint: boolean;
+	currentEditedAt: string;
+	versions: VersionSummary[];
 }
 
 export async function listProjectTranscriptionSourceCandidates(
 	db: DbExecutor,
-	targetProjectId: string,
-	options: ProjectContentLoadOptions = {}
+	targetProjectId: string
 ): Promise<ProjectTranscriptionSourceCandidate[]> {
 	const rows = await db
 		.selectFrom('project_transcriptions')
@@ -1358,8 +1398,7 @@ export async function listProjectTranscriptionSourceCandidates(
 			'transcriptions.title as title',
 			'transcriptions.siglum as siglum',
 			'transcriptions.description as description',
-			'transcriptions.current_revision_id as current_revision_id',
-			'transcriptions.current_content_hash as current_content_hash',
+			'transcriptions.updated_at as updated_at',
 		])
 		.where('project_transcriptions.project_id', '!=', targetProjectId)
 		.orderBy('projects.name')
@@ -1377,15 +1416,6 @@ export async function listProjectTranscriptionSourceCandidates(
 			'project-owned transcription'
 		);
 		const projectId = requireId(row.project_id, 'project');
-		const currentCheckpoint = checkpointHeadFromFields(
-			row.current_revision_id,
-			row.current_content_hash
-		);
-		const status = await getProjectTranscriptionCheckpointStatusWithFiles(
-			db,
-			projectTranscriptionId,
-			fileBackedLoadOptions(options)
-		);
 		candidates.push({
 			projectTranscriptionId,
 			projectOwnedTranscriptionId,
@@ -1394,8 +1424,8 @@ export async function listProjectTranscriptionSourceCandidates(
 			title: row.title,
 			siglum: row.siglum,
 			description: row.description,
-			currentCheckpoint,
-			dirtyToCheckpoint: status.dirtyToCheckpoint,
+			currentEditedAt: row.updated_at,
+			versions: await listTranscriptionVersions(db, projectOwnedTranscriptionId),
 		});
 	}
 	return candidates;
@@ -1425,6 +1455,7 @@ interface ProjectTranscriptionStatusQueryRow {
 	origin_transcription_id: string | null;
 	origin_revision_id: string;
 	origin_content_hash: string;
+	origin_captured_at: string;
 	siglum: string;
 	title: string;
 	description: string;
@@ -1449,15 +1480,15 @@ async function mapProjectTranscriptionStatus(
 	const canonicalSource = row.canonical_transcription_id
 		? await loadTranscriptionSourceSummary(db, row.canonical_transcription_id, options)
 		: null;
-	const immediateSource = mapImmediateSource(row);
 	const sourceTranscriptionId =
-		row.canonical_transcription_id || immediateSource?.sourceTranscriptionId || null;
+		row.canonical_transcription_id || nonEmptyStringOrNull(row.origin_transcription_id);
 	const sourceSummary =
 		sourceTranscriptionId === row.canonical_transcription_id
 			? canonicalSource
 			: sourceTranscriptionId
 				? await loadTranscriptionSourceSummary(db, sourceTranscriptionId, options)
 				: null;
+	const immediateSource = mapImmediateSource(row, sourceSummary);
 	const cloudBackupState = await deriveEntityCloudBackupState(
 		db,
 		options.syncContext,
@@ -1485,8 +1516,7 @@ async function mapProjectTranscriptionStatus(
 		sourceState: deriveProjectTranscriptionSourceState(
 			sourceTranscriptionId,
 			sourceSummary,
-			row.origin_revision_id,
-			row.origin_content_hash
+			originSource(row)
 		),
 		cloudBackupState,
 	};
@@ -1500,104 +1530,77 @@ async function loadTranscriptionSourceSummary(
 	const row = await db
 		.selectFrom('transcriptions')
 		.leftJoin('projects', 'projects.id', 'transcriptions.project_id')
+		.leftJoin('project_transcriptions', join =>
+			join
+				.onRef('project_transcriptions.transcription_id', '=', 'transcriptions.id')
+				.onRef('project_transcriptions.project_id', '=', 'transcriptions.project_id')
+		)
 		.select([
 			'transcriptions.id as id',
 			'transcriptions.project_id as project_id',
 			'projects.name as project_name',
 			'transcriptions.title as title',
 			'transcriptions.siglum as siglum',
-			'transcriptions.current_revision_id as current_revision_id',
-			'transcriptions.current_content_hash as current_content_hash',
+			'project_transcriptions.id as project_transcription_id',
 		])
 		.where('transcriptions.id', '=', transcriptionId)
 		.executeTakeFirst();
 	if (!row) return null;
 	const sourceId = requireId(row.id, 'source transcription');
-	const currentCheckpoint = checkpointHeadFromFields(
-		row.current_revision_id,
-		row.current_content_hash
-	);
 	return {
 		transcriptionId: sourceId,
 		projectId: row.project_id,
 		projectName: row.project_name,
 		title: row.title,
 		siglum: row.siglum,
-		currentCheckpoint,
-		dirtyToCheckpoint: await loadSourceDirtyToCheckpoint(db, {
-			transcriptionId: sourceId,
-			projectId: row.project_id,
-			currentCheckpoint,
-			options,
-		}),
+		state: row.project_transcription_id
+			? {
+					currentContentHash: (
+						await getProjectTranscriptionCheckpointStatusWithFiles(
+							db,
+							row.project_transcription_id,
+							fileBackedLoadOptions(options)
+						)
+					).workingContentHash,
+					versions: await listTranscriptionVersions(db, sourceId),
+				}
+			: null,
 	};
 }
 
-async function loadSourceDirtyToCheckpoint(
-	db: DbExecutor,
-	source: {
-		transcriptionId: string;
-		projectId: string;
-		currentCheckpoint: EntityCheckpointHead | null;
-		options: ProjectContentLoadOptions;
+function originSource(row: ProjectTranscriptionStatusQueryRow): WitnessSource | null {
+	const transcriptionId = row.origin_transcription_id;
+	if (!transcriptionId) return null;
+	if (row.origin_revision_id) {
+		return { kind: 'version', transcriptionId, versionId: row.origin_revision_id };
 	}
-): Promise<boolean | null> {
-	if (!source.currentCheckpoint) return null;
-	const projectTranscription = await db
-		.selectFrom('project_transcriptions')
-		.select('id')
-		.where('project_id', '=', source.projectId)
-		.where('transcription_id', '=', source.transcriptionId)
-		.executeTakeFirst();
-	if (!projectTranscription?.id) return null;
-	return (
-		await getProjectTranscriptionCheckpointStatusWithFiles(
-			db,
-			projectTranscription.id,
-			fileBackedLoadOptions(source.options)
-		)
-	).dirtyToCheckpoint;
+	if (!row.origin_content_hash) return null;
+	return {
+		kind: 'current',
+		transcriptionId,
+		capturedAt: row.origin_captured_at,
+		contentHash: row.origin_content_hash,
+	};
 }
 
 function deriveProjectTranscriptionSourceState(
 	sourceTranscriptionId: string | null,
 	sourceSummary: TranscriptionSourceSummary | null,
-	originRevisionId: string,
-	originContentHash: string
+	origin: WitnessSource | null
 ): ProjectTranscriptionSourceState {
 	if (!sourceTranscriptionId) return { kind: 'no-source' };
-	if (!sourceSummary) return { kind: 'source-missing', sourceTranscriptionId };
-	const sourceHead = sourceSummary.currentCheckpoint;
-	if (!sourceHead) return { kind: 'source-has-no-committed-version', sourceTranscriptionId };
-	if (sourceSummary.dirtyToCheckpoint === true) {
-		return {
-			kind: 'source-has-uncommitted-changes',
-			sourceTranscriptionId,
-			sourceRevisionId: sourceHead.revisionId,
-			sourceContentHash: sourceHead.contentHash,
-		};
-	}
-	if (
-		sourceHead.revisionId === originRevisionId &&
-		sourceHead.contentHash === originContentHash
-	) {
-		return {
-			kind: 'up-to-date',
-			sourceTranscriptionId,
-			sourceRevisionId: sourceHead.revisionId,
-			sourceContentHash: sourceHead.contentHash,
-		};
+	if (!sourceSummary?.state || !origin) {
+		return { kind: 'source-missing', sourceTranscriptionId };
 	}
 	return {
-		kind: 'newer-source-available',
+		kind: deriveSourceFreshness(origin, sourceSummary.state),
 		sourceTranscriptionId,
-		sourceRevisionId: sourceHead.revisionId,
-		sourceContentHash: sourceHead.contentHash,
 	};
 }
 
 function mapImmediateSource(
-	row: ProjectTranscriptionStatusQueryRow
+	row: ProjectTranscriptionStatusQueryRow,
+	sourceSummary: TranscriptionSourceSummary | null
 ): TranscriptionOriginSummary | null {
 	const sourceRevisionId = nonEmptyStringOrNull(row.origin_revision_id);
 	const sourceContentHash = nonEmptyStringOrNull(row.origin_content_hash);
@@ -1618,15 +1621,12 @@ function mapImmediateSource(
 		sourceTranscriptionId,
 		sourceRevisionId,
 		sourceContentHash,
+		sourceCapturedAt: nonEmptyStringOrNull(row.origin_captured_at),
+		sourceVersionLabel: sourceRevisionId
+			? (sourceSummary?.state?.versions.find(version => version.id === sourceRevisionId)
+					?.label ?? null)
+			: null,
 	};
-}
-
-function checkpointHeadFromFields(
-	revisionId: string | null,
-	contentHash: string | null
-): EntityCheckpointHead | null {
-	if (!revisionId || !contentHash) return null;
-	return { revisionId, contentHash };
 }
 
 function mapProjectOption(

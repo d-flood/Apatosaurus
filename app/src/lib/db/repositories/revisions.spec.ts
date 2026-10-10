@@ -506,8 +506,10 @@ async function insertCollationProjectionRows(): Promise<void> {
 				position: 1,
 				project_transcription_id: null,
 				transcription_id: null,
+				source_kind: 'version',
 				source_revision_id: 'source-rev-b',
 				source_content_hash: 'sha256:source-b',
+				source_captured_at: '',
 			},
 			{
 				id: 'witness-a',
@@ -517,8 +519,10 @@ async function insertCollationProjectionRows(): Promise<void> {
 				position: 0,
 				project_transcription_id: null,
 				transcription_id: null,
+				source_kind: 'version',
 				source_revision_id: 'source-rev-a',
 				source_content_hash: 'sha256:source-a',
+				source_captured_at: '',
 			},
 		])
 		.execute();

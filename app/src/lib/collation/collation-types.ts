@@ -36,14 +36,17 @@ export type WitnessTreatment = 'inherit' | 'full' | 'fragmentary';
 
 export type WitnessKind = 'firsthand' | 'corrector';
 
+export type WitnessSource =
+	| { kind: 'version'; transcriptionId: string; versionId: string }
+	| { kind: 'current'; transcriptionId: string; capturedAt: string; contentHash: string };
+
 export interface WitnessConfig {
 	witnessId: string;
 	siglum: string;
 	transcriptionId: string;
 	kind?: WitnessKind;
 	handId?: string;
-	sourceVersion?: string;
-	sourceContentHash?: string;
+	source?: WitnessSource;
 	content: string;
 	tokens: WitnessSourceToken[];
 	fullContent?: string;

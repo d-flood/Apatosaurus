@@ -11,6 +11,7 @@ import {
 	storePathDirname,
 } from './layout';
 import type { StoreQuarantineSink } from './quarantine';
+import { canonicalJson } from './canonical-json';
 
 type StoreEntryKind = 'file' | 'directory';
 
@@ -294,7 +295,27 @@ async function assertAppendOnlyHistoryWrite(
 		throw error;
 	}
 	if (existing === content) return false;
+	const existingKey = versionContentKey(existing);
+	if (existingKey !== null && existingKey === versionContentKey(content)) return true;
 	throw new Error(`History file ${targetPath} is append-only and cannot be rewritten.`);
+}
+
+const EDITABLE_VERSION_FIELDS = [
+	'schema_version',
+	'content_hash',
+	'label',
+	'commit_message',
+	'metadata_updated_at',
+];
+
+function versionContentKey(raw: string): string | null {
+	try {
+		const record = JSON.parse(raw) as Record<string, unknown>;
+		for (const field of EDITABLE_VERSION_FIELDS) delete record[field];
+		return canonicalJson(record);
+	} catch {
+		return null;
+	}
 }
 
 function isCanonicalHistoryPath(path: string): boolean {

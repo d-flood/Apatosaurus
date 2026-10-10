@@ -51,14 +51,6 @@ export async function listSyncTargets(
 	);
 }
 
-export async function getSyncTarget(
-	targetId: string,
-	options: StoreOperationOptions = {}
-): Promise<SyncTargetRecord | null> {
-	const targets = await readSyncTargets(options);
-	return targets.find(target => target.targetId === targetId) ?? null;
-}
-
 export async function upsertSyncTarget(
 	input: UpsertSyncTargetInput,
 	options: StoreOperationOptions = {}
@@ -84,35 +76,6 @@ export async function upsertSyncTarget(
 		options
 	);
 	return next;
-}
-
-export async function updateSyncTargetLastSyncedAt(
-	targetId: string,
-	lastSyncedAt: string,
-	options: StoreOperationOptions = {}
-): Promise<SyncTargetRecord> {
-	const targets = await readSyncTargets(options);
-	const index = targets.findIndex(target => target.targetId === targetId);
-	if (index === -1) throw new Error(`Sync target ${targetId} was not found.`);
-	const next = {
-		...targets[index],
-		lastSyncedAt,
-		updatedAt: lastSyncedAt,
-	};
-	targets[index] = next;
-	await writeSyncTargets(targets, options);
-	return next;
-}
-
-export async function removeSyncTarget(
-	targetId: string,
-	options: StoreOperationOptions = {}
-): Promise<boolean> {
-	const targets = await readSyncTargets(options);
-	const next = targets.filter(target => target.targetId !== targetId);
-	if (next.length === targets.length) return false;
-	await writeSyncTargets(next, options);
-	return true;
 }
 
 async function readSyncTargets(options: StoreOperationOptions): Promise<SyncTargetRecord[]> {

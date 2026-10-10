@@ -1,4 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Browser, type Page } from '@playwright/test';
+import { SharedFolderServer } from './shared-folder-server';
 
 test.setTimeout(120_000);
 
@@ -46,6 +47,96 @@ test('first creation with no projects still uses Default', async ({ page }) => {
 	await page.getByRole('link', { name: 'Open' }).click();
 	await expect(page.getByText('First Run Witness', { exact: true }).first()).toBeVisible();
 });
+
+test('creating a project asks no location question with one place', async ({
+	browser,
+	baseURL,
+}) => {
+	const sharedFolder = new SharedFolderServer();
+	const page = await newFolderContextPage(browser, sharedFolder, baseURL);
+
+	await page.goto('/projects');
+	await expect(page.getByPlaceholder('New project name')).toBeVisible();
+	await expect(page.getByRole('combobox', { name: 'Location' })).toHaveCount(0);
+	await createProject(page, 'Browser Only Project');
+
+	await addFolderLocation(page, 'Desk Folder');
+	await page.goto('/projects');
+	await expect(page.getByPlaceholder('New project name')).toBeVisible();
+	await expect(page.getByRole('combobox', { name: 'Location' })).toHaveCount(0);
+	await createProject(page, 'Desk Project');
+
+	await page.goto('/projects');
+	await expect(
+		page
+			.getByRole('region', { name: 'Only in this browser' })
+			.getByRole('heading', { name: 'Browser Only Project' })
+	).toBeVisible();
+	await expect(
+		page
+			.getByRole('region', { name: 'Desk Folder' })
+			.getByRole('heading', { name: 'Desk Project' })
+	).toBeVisible();
+});
+
+test('creating a project with two locations offers a picker defaulting to the last used', async ({
+	browser,
+	baseURL,
+}) => {
+	const sharedFolder = new SharedFolderServer();
+	const page = await newFolderContextPage(browser, sharedFolder, baseURL);
+	await addFolderLocation(page, 'Desk Folder');
+	sharedFolder.forgetLocationMarker();
+	await addFolderLocation(page, 'Lab Folder');
+
+	await page.goto('/projects');
+	const location = page.getByRole('combobox', { name: 'Location' });
+	await expect(location.locator('option:checked')).toHaveText('Desk Folder');
+	await location.selectOption({ label: 'Lab Folder' });
+	await page.getByPlaceholder('New project name').fill('Lab Project');
+	await page.getByRole('button', { name: 'Create' }).click();
+	await expect(page.getByRole('heading', { name: 'Lab Project' })).toBeVisible();
+
+	await page.goto('/projects');
+	await expect(location.locator('option:checked')).toHaveText('Lab Folder');
+	await expect(
+		page
+			.getByRole('region', { name: 'Lab Folder' })
+			.getByRole('heading', { name: 'Lab Project' })
+	).toBeVisible();
+});
+
+async function newFolderContextPage(
+	browser: Browser,
+	sharedFolder: SharedFolderServer,
+	baseURL: string | undefined
+): Promise<Page> {
+	const context = await browser.newContext({ baseURL });
+	await context.addInitScript(() => {
+		Object.defineProperty(window, 'showDirectoryPicker', {
+			configurable: true,
+			value: async () => ({
+				kind: 'directory',
+				name: (window as Window & { e2eFolderName?: string }).e2eFolderName,
+				queryPermission: async () => 'granted',
+				requestPermission: async () => 'granted',
+			}),
+		});
+	});
+	await context.route('**/__e2e-shared-folder', route => sharedFolder.handle(route));
+	return context.newPage();
+}
+
+async function addFolderLocation(page: Page, name: string): Promise<void> {
+	await page.goto('/data');
+	await page.evaluate(folderName => {
+		(window as Window & { e2eFolderName?: string }).e2eFolderName = folderName;
+	}, name);
+	await page.getByRole('button', { name: 'Add folder on this computer' }).click();
+	await expect(page.getByRole('listitem').filter({ hasText: name })).toBeVisible({
+		timeout: 30_000,
+	});
+}
 
 async function createProject(page: Page, name: string): Promise<string> {
 	await page.goto('/projects');

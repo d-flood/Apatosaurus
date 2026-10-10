@@ -5,6 +5,7 @@ import { upgradeAlphaCollationCheckpoint } from './alpha-collation';
 import { assertContentHashMatches } from './validation';
 import { readCollationContent, type CollationContent } from './collation';
 import {
+	addVersionMetadata,
 	COLLATION_HISTORY_ENTITY_TYPE,
 	readCheckpointBasePayload,
 	readHistoryEntityType,
@@ -12,7 +13,8 @@ import {
 } from './checkpoint-utils';
 
 export const COLLATION_CHECKPOINT_FORMAT = 'apatosaurus.checkpoint.collation';
-export const COLLATION_CHECKPOINT_CURRENT_VERSION = 4;
+export const COLLATION_CHECKPOINT_CURRENT_VERSION = 5;
+const FIRST_HASH_STABLE_VERSION = 4;
 
 export type CollationCheckpointPayload = CheckpointBasePayload & {
 	entity_type: 'collation';
@@ -33,7 +35,7 @@ async function assertCollationCheckpointPayloadIntegrity(
 	payload: CollationCheckpointPayload,
 	originalVersion = COLLATION_CHECKPOINT_CURRENT_VERSION
 ): Promise<void> {
-	if (originalVersion >= COLLATION_CHECKPOINT_CURRENT_VERSION) {
+	if (originalVersion >= FIRST_HASH_STABLE_VERSION) {
 		await assertContentHashMatches(
 			payload.payload,
 			payload.payload_content_hash,
@@ -54,7 +56,10 @@ export const collationCheckpointFormatRegistration: FormatRegistration<Collation
 		format: COLLATION_CHECKPOINT_FORMAT,
 		currentVersion: COLLATION_CHECKPOINT_CURRENT_VERSION,
 		upgraders: [],
-		directUpgraders: { 2: upgradeAlphaCollationCheckpoint },
+		directUpgraders: {
+			2: async payload => addVersionMetadata(await upgradeAlphaCollationCheckpoint(payload)),
+			4: addVersionMetadata,
+		},
 		validate: validateCollationCheckpointPayload,
 		validateIntegrity: assertCollationCheckpointPayloadIntegrity,
 	};

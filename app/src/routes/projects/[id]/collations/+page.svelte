@@ -3,6 +3,7 @@
 
 	import {
 		deleteCollation,
+		listConflictCopies,
 		subscribeLocalDbInvalidations,
 		listProjectCollationVersionStatuses,
 	} from '$lib/db/client';
@@ -13,6 +14,7 @@
 	let { data } = $props<{ data: { project: ProjectRecord } }>();
 
 	let projectCollationStatuses = $state.raw<CollationVersionStatus[]>([]);
+	let conflictCopyIds = $state.raw(new Set<string>());
 	let isLoadingCollations = $state(false);
 	let deletingId = $state<string | null>(null);
 	let error = $state<string | null>(null);
@@ -38,9 +40,13 @@
 		const runId = ++loadRunId;
 		isLoadingCollations = true;
 		try {
-			const statuses = await listProjectCollationVersionStatuses(projectId);
+			const [statuses, copies] = await Promise.all([
+				listProjectCollationVersionStatuses(projectId),
+				listConflictCopies(projectId),
+			]);
 			if (runId !== loadRunId || data.project.id !== projectId) return;
 			projectCollationStatuses = statuses;
+			conflictCopyIds = new Set(copies.map(copy => copy.copyId));
 			error = null;
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Failed to load project collations';
@@ -127,23 +133,30 @@
 						<div class="font-serif font-medium">{status.title}</div>
 						<div class="mt-0.5 flex items-center gap-2 text-xs text-base-content/50">
 							<span class="font-mono">{status.verseIdentifier}</span>
-							<span class="text-base-content/20">|</span>
-							<span>
-								{status.commitState === 'dirty'
-									? 'Uncommitted changes'
-									: 'Committed state current'}
-							</span>
 						</div>
 					</div>
-					<span class="badge badge-sm {phaseBadge(status.workflowStatus)}">
-						{phaseLabel(status.workflowStatus)}
-					</span>
-					<a
-						href={resolve('/collation/[id]', { id: status.collationId })}
-						class="btn btn-ghost btn-sm"
-					>
-						Open
-					</a>
+					{#if conflictCopyIds.has(status.collationId)}
+						<span class="badge badge-sm badge-warning">Conflict copy</span>
+						<a
+							href={resolve('/projects/[id]/conflicts/[copyId]', {
+								id: data.project.id,
+								copyId: status.collationId,
+							})}
+							class="btn btn-ghost btn-sm"
+						>
+							Reconcile
+						</a>
+					{:else}
+						<span class="badge badge-sm {phaseBadge(status.workflowStatus)}">
+							{phaseLabel(status.workflowStatus)}
+						</span>
+						<a
+							href={resolve('/collation/[id]', { id: status.collationId })}
+							class="btn btn-ghost btn-sm"
+						>
+							Open
+						</a>
+					{/if}
 					<details class="dropdown dropdown-end">
 						<summary
 							class="btn btn-ghost btn-sm btn-circle list-none text-lg"

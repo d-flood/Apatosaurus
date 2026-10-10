@@ -1,3 +1,5 @@
+export const LOCATION_ROOT_FOLDER_ID = '.';
+
 export interface CloudFileMetadata {
 	id: string;
 	path: string;

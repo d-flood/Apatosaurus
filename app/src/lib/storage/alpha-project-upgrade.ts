@@ -42,7 +42,9 @@ export async function reconcileAlphaProjectUpgrade(entries: ProjectEntry[]): Pro
 			openEnvelope(entry.content).header.schema_version !== 2
 		)
 			continue;
-		const original = openEnvelope(entry.content).payload as CollationPayload;
+		const original = openEnvelope(entry.content).payload as unknown as {
+			current_revision: { id: string; content_hash: string };
+		};
 		const upgraded = entry.payload as CollationPayload;
 		const head = manifest.collations.find(head => head.collation_id === upgraded.id);
 		if (
@@ -62,7 +64,7 @@ export async function reconcileAlphaProjectUpgrade(entries: ProjectEntry[]): Pro
 		) {
 			throw new Error(`Alpha collation ${upgraded.id} does not match its manifest revision.`);
 		}
-		head.current_revision.content_hash = upgraded.current_revision.content_hash;
+		head.current_revision.content_hash = upgraded.based_on_checkpoint!.content_hash;
 		for (const candidate of entries) {
 			if (candidate.format !== WORKING_COLLATION_FORMAT) continue;
 			const working = candidate.payload as WorkingCollationPayload;
@@ -71,7 +73,7 @@ export async function reconcileAlphaProjectUpgrade(entries: ProjectEntry[]): Pro
 				working.draft.base_revision_id === original.current_revision.id &&
 				working.draft.base_content_hash === original.current_revision.content_hash
 			) {
-				working.draft.base_content_hash = upgraded.current_revision.content_hash;
+				working.draft.base_content_hash = upgraded.based_on_checkpoint!.content_hash;
 				candidate.content = await serializeCanonicalDocument(
 					WORKING_COLLATION_FORMAT,
 					working

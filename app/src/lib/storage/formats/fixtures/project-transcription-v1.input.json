@@ -1,0 +1,85 @@
+{
+	"project_transcription_id": "pt-1",
+	"id": "tx-1",
+	"canonical_transcription_id": null,
+	"origin": {
+		"source_type": "created",
+		"source_project_id": null,
+		"source_transcription_id": null,
+		"source_revision_id": null,
+		"source_content_hash": null
+	},
+	"title": "Witness A",
+	"siglum": "A",
+	"description": "Fixture transcription",
+	"content_json": {
+		"type": "transcriptionDocument",
+		"pages": []
+	},
+	"content_format": "normalized_ast_v3",
+	"created_at": "2026-07-03T00:00:00.000Z",
+	"updated_at": "2026-07-03T00:00:00.000Z",
+	"owner": null,
+	"is_public": false,
+	"tags": ["fixture"],
+	"transcriber": "Editor",
+	"repository": "Repository",
+	"settlement": "City",
+	"language": "grc",
+	"iiif_manifest_sources": [
+		{
+			"id": "manifest-1",
+			"manifest_url": "https://example.org/manifest.json",
+			"label": "Fixture manifest",
+			"source_kind": "iiif",
+			"default_canvas_id": "canvas-1",
+			"default_image_service_url": null,
+			"metadata_json": {
+				"label": "Fixture manifest"
+			}
+		}
+	],
+	"page_canvas_links": [
+		{
+			"id": "link-1",
+			"page_id": "page-1",
+			"page_name_snapshot": "Page 1",
+			"page_order": 1,
+			"manifest_source_id": "manifest-1",
+			"manifest_url_snapshot": "https://example.org/manifest.json",
+			"canvas_id": "canvas-1",
+			"canvas_order": 1,
+			"canvas_label": "Canvas 1",
+			"image_service_url": null,
+			"thumbnail_url": null,
+			"link_role": "primary"
+		}
+	],
+	"canvas_annotations": [
+		{
+			"id": "annotation-row-1",
+			"manifest_source_id": "manifest-1",
+			"canvas_id": "canvas-1",
+			"page_id": "page-1",
+			"annotation_id": "annotation-1",
+			"annotation_kind": "comment",
+			"body_json": {
+				"value": "note"
+			},
+			"target_json": {
+				"source": "canvas-1"
+			},
+			"anchor_json": {
+				"pageId": "page-1"
+			},
+			"motivation": "commenting",
+			"created_by": "editor@example.com"
+		}
+	],
+	"current_revision": {
+		"id": "tx-cp-1",
+		"content_hash": "sha256:de6dbef56033da96f56e1514fb53181cfa4128829f94c214bc1ee29d75c42e4c",
+		"created_at": "2026-07-03T00:00:00.000Z",
+		"author_name": "Editor"
+	}
+}

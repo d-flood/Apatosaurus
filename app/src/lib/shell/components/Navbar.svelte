@@ -67,12 +67,12 @@
 
 	function openProjectSection(): ProjectSection {
 		const section = page.url.pathname.match(
-			/^\/projects\/[^/]+\/(transcriptions|collations|settings|backup)(?:\/|$)/
+			/^\/projects\/[^/]+\/(transcriptions|collations|settings|location)(?:\/|$)/
 		)?.[1];
 		if (
 			section === 'collations' ||
 			section === 'settings' ||
-			section === 'backup' ||
+			section === 'location' ||
 			section === 'transcriptions'
 		) {
 			return section;

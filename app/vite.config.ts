@@ -72,13 +72,22 @@ export function browserTestServer(environment: DevelopmentEnvironment = process.
 	return { port, strictPort: true };
 }
 
+const authProxy = {
+	'/auth': process.env.AUTH_WORKER_ORIGIN ?? 'http://127.0.0.1:8787',
+};
+
 export default defineConfig({
 	plugins: [tailwindcss(), sveltekit(), devtoolsJson()],
+	envPrefix: ['VITE_', 'PUBLIC_'],
 	server: {
 		...developmentServer(),
+		proxy: authProxy,
 		fs: {
 			allow: [repoRoot],
 		},
+	},
+	preview: {
+		proxy: authProxy,
 	},
 	optimizeDeps: {
 		exclude: ['@sqlite.org/sqlite-wasm'],
@@ -130,6 +139,7 @@ export default defineConfig({
 			'phosphor-svelte/lib/Check',
 			'phosphor-svelte/lib/CheckCircle',
 			'phosphor-svelte/lib/CircleNotch',
+			'phosphor-svelte/lib/ClockCounterClockwise',
 			'phosphor-svelte/lib/CloudArrowUp',
 			'phosphor-svelte/lib/Crosshair',
 			'phosphor-svelte/lib/DotsThreeVertical',

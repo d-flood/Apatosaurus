@@ -26,7 +26,6 @@ describe('Dashboard', () => {
 					type: 'Collation',
 					title: 'Romans 1:1',
 					projectName: 'Romans',
-					commitState: 'dirty',
 					updatedAt: new Date().toISOString(),
 					href: '/collation/collation-1',
 				},
@@ -39,7 +38,6 @@ describe('Dashboard', () => {
 			.toBeInTheDocument();
 		await expect.element(page.getByText('Romans 1:1')).toBeInTheDocument();
 		await expect.element(page.getByText('Collation', { exact: true })).toBeInTheDocument();
-		await expect.element(page.getByText('Uncommitted changes')).toBeInTheDocument();
 
 		view.unmount();
 		render(Dashboard, {

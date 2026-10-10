@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createLocalDbTestHarness, type LocalDbTestHarness } from '$lib/testing/local-db-harness';
 import {
 	createCollationWithFiles,
+	loadCollationWithWorkingFile,
 	saveWorkingCollationMetadata,
 } from '$lib/db/repositories/collation-files';
 import { createProject as createProjectRepository } from '$lib/db/repositories/projects';
@@ -23,13 +24,7 @@ import {
 	writeTextFileAtomic,
 	type StoreOperationOptions,
 } from '$lib/storage/opfs-store';
-import { zipExportBackupPathMessage } from '$lib/shell/onboarding-guidance';
-import {
-	exportAllProjectsZip,
-	exportProjectZip,
-	createStoreOnlyZip,
-	projectBackupCapabilityMessage,
-} from './project-zip-export';
+import { exportAllProjectsZip, exportProjectZip, createStoreOnlyZip } from './project-zip-export';
 import { importProjectZip, restoreReferenceEditionsZip } from './project-zip-import';
 
 let harness: LocalDbTestHarness;
@@ -68,7 +63,7 @@ function createProject(
 }
 
 describe('project zip export', () => {
-	it('exports committed project files byte-for-byte without working files by default', async () => {
+	it('exports project files byte-for-byte without working files', async () => {
 		await createProject(harness.db, {
 			id: 'project-1',
 			storageSlug: 'romans-a1b2',
@@ -97,27 +92,6 @@ describe('project zip export', () => {
 			'project.json': backend.files.get('apatosaurus/v1/projects/romans-a1b2/project.json'),
 			'transcriptions/tx-1.json': '{"format":"tx"}',
 			'transcriptions/tx-1.tei.xml': '<TEI>tx</TEI>',
-		});
-	});
-
-	it('includes working files only when drafts are requested', async () => {
-		await createProject(harness.db, {
-			id: 'project-1',
-			storageSlug: 'romans-a1b2',
-			name: 'Romans',
-		});
-		await writeProjectFile('romans-a1b2', 'collations/col-1.working.json', '{"draft":true}');
-		await writeTextFileAtomic('app/settings.json', '{"local":true}', storeOptions);
-
-		const result = await exportProjectZip(harness.db, 'project-1', {
-			includeDrafts: true,
-			storeOptions,
-		});
-
-		expect(result.entryPaths).toEqual(['collations/col-1.working.json', 'project.json']);
-		expect(readZipEntries(result.bytes)).toEqual({
-			'collations/col-1.working.json': '{"draft":true}',
-			'project.json': backend.files.get('apatosaurus/v1/projects/romans-a1b2/project.json'),
 		});
 	});
 
@@ -151,7 +125,7 @@ describe('project zip export', () => {
 		);
 	});
 
-	it('preserves every complete-project entry as exact bytes and includes both draft formats on request', async () => {
+	it('preserves every complete-project entry as exact bytes and never exports working files', async () => {
 		const byteBackend = new ByteReadingMemoryStoreBackend();
 		backend = byteBackend;
 		storeOptions = { backend };
@@ -182,13 +156,15 @@ describe('project zip export', () => {
 		const manifest = backend.files.get('apatosaurus/v1/projects/romans-a1b2/project.json');
 		expect(manifest).toBeDefined();
 
-		const result = await exportProjectZip(harness.db, 'project-1', {
-			includeDrafts: true,
-			storeOptions,
-		});
+		const result = await exportProjectZip(harness.db, 'project-1', { storeOptions });
 
 		const entries = readZipEntryBytes(result.bytes);
-		const expected = { 'project.json': manifest!, ...files };
+		const expected = {
+			'project.json': manifest!,
+			...Object.fromEntries(
+				Object.entries(files).filter(([path]) => !path.endsWith('.working.json'))
+			),
+		};
 		expect(Object.keys(entries).sort()).toEqual(Object.keys(expected).sort());
 		for (const [path, content] of Object.entries(expected)) {
 			expect(entries[path]).toEqual(
@@ -199,7 +175,7 @@ describe('project zip export', () => {
 		}
 	});
 
-	it('restores both draft formats and identifies them in the import report', async () => {
+	it('round-trips transcription and collation Current through a zip', async () => {
 		await createProject(harness.db, {
 			id: 'project-1',
 			storageSlug: 'romans-a1b2',
@@ -252,10 +228,7 @@ describe('project zip export', () => {
 			{ id: 'col-1', notes: 'Draft notes' },
 			storeOptions
 		);
-		const exported = await exportProjectZip(harness.db, 'project-1', {
-			includeDrafts: true,
-			storeOptions,
-		});
+		const exported = await exportProjectZip(harness.db, 'project-1', { storeOptions });
 
 		const targetHarness = createLocalDbTestHarness();
 		const targetBackend = new MemoryStoreBackend();
@@ -264,10 +237,15 @@ describe('project zip export', () => {
 				storeOptions: { backend: targetBackend },
 			});
 			expect(imported.ok, JSON.stringify(imported.quarantinedFiles)).toBe(true);
-			expect(imported.draftFilesRestored).toEqual([
-				'collations/col-1.working.json',
-				'transcriptions/pt-1.working.json',
-			]);
+			expect(imported.draftFilesRestored).toEqual([]);
+			expect(exported.entryPaths.filter(path => path.endsWith('.working.json'))).toEqual([]);
+			expect(
+				(
+					await loadCollationWithWorkingFile(targetHarness.db, 'col-1', {
+						backend: targetBackend,
+					})
+				)?.row.notes
+			).toBe('Draft notes');
 		} finally {
 			await targetHarness.destroy();
 		}
@@ -647,14 +625,6 @@ describe('project zip export', () => {
 				zipLimits: { maxArchiveBytes: 32 },
 			})
 		).rejects.toThrow('ZIP archive size');
-	});
-
-	it('identifies zip export as the non-Chromium backup path', () => {
-		expect(projectBackupCapabilityMessage(false)).toEqual({
-			primaryAction: 'zip-export',
-			message: zipExportBackupPathMessage,
-		});
-		expect(projectBackupCapabilityMessage(true).primaryAction).toBe('folder-sync');
 	});
 });
 

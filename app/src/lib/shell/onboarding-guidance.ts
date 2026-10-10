@@ -23,17 +23,13 @@ export interface OnboardingGuidanceContent {
 export function buildOnboardingGuidanceContent(
 	input: OnboardingGuidanceInput
 ): OnboardingGuidanceContent {
-	const primaryPath = input.localFolderSupported
-		? {
-				title: 'Connect a sync folder',
-				body: 'Mirror committed project files to a folder on your computer, optionally inside a Dropbox, OneDrive, or Drive-managed directory.',
-				state: 'recommended' as const,
-			}
-		: {
-				title: 'Use zip export/import',
-				body: 'Firefox and Safari are supported with full project zip export/import as the backup and transfer path.',
-				state: 'recommended' as const,
-			};
+	const primaryPath = {
+		title: 'Choose where projects live',
+		body: input.localFolderSupported
+			? 'Sign in with Google Drive or Dropbox, or pick a folder on this computer, and projects sync there automatically.'
+			: 'Sign in with Google Drive or Dropbox and projects sync there automatically.',
+		state: 'recommended' as const,
+	};
 
 	return {
 		heading: 'Set up local-first project storage',
@@ -41,16 +37,9 @@ export function buildOnboardingGuidanceContent(
 		primaryPath,
 		actions: [
 			{
-				title: 'Use a Chromium-based browser',
-				body: input.localFolderSupported
-					? 'Folder sync is available here, so this browser can use the full recommended backup path.'
-					: 'This browser can still use the app and zip backups; folder sync needs directory picker support.',
-				state: input.localFolderSupported ? 'ready' : 'unavailable',
-			},
-			{
 				title: 'Install the app',
 				body: input.installSupported
-					? 'Installing the PWA helps Chromium keep storage and folder permissions reliable.'
+					? 'Installing the PWA helps the browser keep storage and folder permissions reliable.'
 					: 'If your browser offers installation from its address bar or menu, use it for a more durable workspace.',
 				state: input.installSupported ? 'recommended' : 'ready',
 			},
@@ -66,12 +55,9 @@ export function buildOnboardingGuidanceContent(
 		],
 		dataOwnership: [
 			'Project files live in the browser Origin Private File System, under Apatosaurus project folders.',
-			'Folder sync creates a byte-identical mirror of committed project files; local-only drafts and app settings stay in the browser.',
-			'Every committed transcription and collation has a regenerated TEI sibling for archival use outside the app.',
-			'You can leave with your data through a sync folder or a full project zip export.',
+			'Each project syncs as a byte-identical copy of its project files to its project location; app settings stay in the browser.',
+			'Every transcription and collation has a regenerated TEI sibling for archival use outside the app.',
+			'You can leave with your data through your project location or a full project zip export.',
 		],
 	};
 }
-
-export const zipExportBackupPathMessage =
-	'Folder sync is unavailable in this browser. Use zip export as your backup path.';

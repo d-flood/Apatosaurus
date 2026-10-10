@@ -13,3 +13,31 @@ The committed, working, and checkpoint collation formats evolve together:
 - `apatosaurus.checkpoint.collation` validates the nested v1 payload hash before upgrading that payload.
 
 Checked-in input and expected payload fixtures live in `app/src/lib/storage/formats/fixtures/`. Tests read every input through the public `readCanonicalDocument` API and compare the upgraded payload to its expected fixture.
+
+## Project Transcription Version 2
+
+Version 2 makes `transcriptions/<id>.json` the transcription's Current. Autosave writes it (and the derived TEI) directly; no transcription path writes `<id>.working.json` any more.
+
+- `current_revision` is replaced by `based_on_checkpoint: { id, content_hash } | null`, the version Current was last named or restored from. Content may differ from that version, so v2 has no nested hash check.
+- `draft: { saved_at, author_name }` carries the working format's draft metadata.
+- The v1 upgrader validates the v1 revision hash, then maps `current_revision` to `based_on_checkpoint` and sets `draft.saved_at` from `updated_at`.
+- Loading a transcription also folds a leftover `apatosaurus.working.transcription` file into the primary when its `draft.base_*` matches `based_on_checkpoint`. This is the one read that writes: it writes the new primary, then deletes the working file. A stale working file is left in place and reported by index rebuild.
+- `apatosaurus.working.transcription` stays registered only so legacy files can be read and migrated.
+
+## Collation Version 7
+
+Version 7 applies the Project Transcription Version 2 change to collations: `collations/<id>.json` is the collation's Current, and autosave writes it (and the derived TEI) directly without touching `project.json`.
+
+- `current_revision` is replaced by `based_on_checkpoint: { id, content_hash } | null`; `draft: { saved_at, author_name }` carries the working format's draft metadata.
+- The v6 upgrader maps `current_revision` to `based_on_checkpoint` and sets `draft.saved_at` from `updated_at`; the v6 revision hash is checked after upgrade. Alpha v2 collations upgrade through the alpha converter and then the v6 upgrader.
+- Loading folds a leftover `apatosaurus.working.collation` file into the primary when its `draft.base_*` matches `based_on_checkpoint`, writing the new primary before deleting the working file. Zip import folds both working formats the same way before placing files.
+- `apatosaurus.working.collation` stays registered only so legacy files can be read and migrated. Checkpoint content is unchanged.
+
+## Transcription Checkpoint Version 2 and Collation Checkpoint Version 5
+
+Both checkpoint formats gain the version's editable metadata. `commit_message` remains the version's note.
+
+- `label: string` is the version's name. `metadata_updated_at: string` records the last label or note edit and decides last-write-wins when two devices edit the same version's note.
+- Label, note and `metadata_updated_at` sit outside `payload`, so editing them never changes `payload` or `payload_content_hash`. History files stay append-only for content: the store rejects any rewrite that changes anything other than these fields and the envelope hash.
+- The transcription v1 and collation v4 upgraders set `label` to `""` and `metadata_updated_at` to `created_at`. Index rebuild names unlabelled versions `Version N`, numbered by `created_at` per document; the label is written to the file the next time its note is edited.
+- Collation checkpoint v4 keeps its payload hash check. Alpha v2 checkpoints upgrade through the alpha converter and then gain the same metadata.

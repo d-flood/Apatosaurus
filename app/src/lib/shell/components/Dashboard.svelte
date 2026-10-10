@@ -1,13 +1,12 @@
 <script module lang="ts">
 	import type { ProjectOption } from '$lib/db/repositories/projects';
-	import type { EntityCommitState } from '$lib/db/repositories/revisions';
+	import { formatRelativeTime } from '$lib/shell/source-labels';
 
 	export interface DashboardDocument {
 		id: string;
 		type: 'Transcription' | 'Collation';
 		title: string;
 		projectName: string;
-		commitState: EntityCommitState;
 		updatedAt: string;
 		href: string;
 	}
@@ -18,6 +17,8 @@
 		description: string;
 		href: string;
 		linkLabel: string;
+		dismissLabel?: string;
+		onDismiss?: () => void;
 	}
 
 	export interface DashboardProps {
@@ -43,33 +44,6 @@
 		error = null,
 		appVersion = 'development',
 	}: DashboardProps = $props();
-
-	function commitStateLabel(state: DashboardDocument['commitState']): string {
-		if (state === 'never-committed') return 'No committed version yet';
-		if (state === 'dirty') return 'Uncommitted changes';
-		return 'Committed';
-	}
-
-	function commitStateBadge(state: DashboardDocument['commitState']): string {
-		if (state === 'dirty') return 'badge-warning';
-		if (state === 'clean') return 'badge-success';
-		return 'badge-ghost';
-	}
-
-	function formatRelativeTime(value: string): string {
-		const elapsedSeconds = Math.round((new Date(value).getTime() - Date.now()) / 1000);
-		const formatter = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
-		if (Math.abs(elapsedSeconds) < 60) return 'just now';
-		const elapsedMinutes = Math.round(elapsedSeconds / 60);
-		if (Math.abs(elapsedMinutes) < 60) return formatter.format(elapsedMinutes, 'minute');
-		const elapsedHours = Math.round(elapsedMinutes / 60);
-		if (Math.abs(elapsedHours) < 24) return formatter.format(elapsedHours, 'hour');
-		const elapsedDays = Math.round(elapsedHours / 24);
-		if (Math.abs(elapsedDays) < 30) return formatter.format(elapsedDays, 'day');
-		const elapsedMonths = Math.round(elapsedDays / 30);
-		if (Math.abs(elapsedMonths) < 12) return formatter.format(elapsedMonths, 'month');
-		return formatter.format(Math.round(elapsedMonths / 12), 'year');
-	}
 </script>
 
 <svelte:head><title>Apatosaurus Dashboard</title></svelte:head>
@@ -154,9 +128,6 @@
 									)}
 								</p>
 							</div>
-							<span class="badge badge-sm {commitStateBadge(document.commitState)}">
-								{commitStateLabel(document.commitState)}
-							</span>
 							<a href={document.href} class="btn btn-ghost btn-sm">Open</a>
 						</li>
 					{/each}
@@ -181,12 +152,23 @@
 							<p class="mt-1 text-sm leading-relaxed text-base-content/65">
 								{item.description}
 							</p>
-							<a
-								href={item.href}
-								class="btn btn-ghost btn-sm mt-2 -ml-3 text-warning-content"
-							>
-								{item.linkLabel}
-							</a>
+							<div class="mt-2 -ml-3 flex flex-wrap gap-1">
+								<a
+									href={item.href}
+									class="btn btn-ghost btn-sm text-warning-content"
+								>
+									{item.linkLabel}
+								</a>
+								{#if item.onDismiss}
+									<button
+										type="button"
+										class="btn btn-ghost btn-sm text-base-content/60"
+										onclick={item.onDismiss}
+									>
+										{item.dismissLabel}
+									</button>
+								{/if}
+							</div>
 						</article>
 					{/each}
 				</div>

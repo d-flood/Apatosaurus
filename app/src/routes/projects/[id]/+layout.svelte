@@ -79,10 +79,10 @@
 					Settings
 				</a>
 				<a
-					href={resolve('/projects/[id]/backup', { id: project.id })}
-					class={['tab', isActive('backup') && 'tab-active']}
+					href={resolve('/projects/[id]/location', { id: project.id })}
+					class={['tab', isActive('location') && 'tab-active']}
 				>
-					Backup and Sync
+					Location
 				</a>
 			</div>
 		</div>

@@ -8,7 +8,14 @@ import {
 
 import type { DocumentUpgrader, FormatRegistration } from '../migrate-on-read';
 import type { JsonObject, JsonValue } from '../envelope';
-import { readCurrentRevision, type CanonicalCurrentRevision } from './common';
+import {
+	readCurrentDraft,
+	readCurrentRevision,
+	readNullableCheckpointReference,
+	type CanonicalCheckpointReference,
+	type CanonicalCurrentDraft,
+	type CanonicalDraftMetadata,
+} from './common';
 import {
 	assertContentHashMatches,
 	readArray,
@@ -22,8 +29,8 @@ import {
 } from './validation';
 
 export const PROJECT_TRANSCRIPTION_FORMAT = 'apatosaurus.project-transcription';
-export const PROJECT_TRANSCRIPTION_CURRENT_VERSION = 1;
-const projectTranscriptionUpgraders: DocumentUpgrader[] = [];
+export const PROJECT_TRANSCRIPTION_CURRENT_VERSION = 2;
+const projectTranscriptionUpgraders: DocumentUpgrader[] = [upgradeProjectTranscriptionV1];
 
 type ProjectTranscriptionOrigin = JsonObject & {
 	source_type: string;
@@ -31,6 +38,7 @@ type ProjectTranscriptionOrigin = JsonObject & {
 	source_transcription_id: string | null;
 	source_revision_id: string | null;
 	source_content_hash: string | null;
+	source_captured_at?: string | null;
 };
 
 type CanonicalIiifManifestSource = JsonObject &
@@ -47,11 +55,10 @@ type CanonicalIiifCanvasAnnotation = JsonObject &
 		anchor_json: JsonValue;
 	};
 
-export type ProjectTranscriptionPayload = JsonObject & {
+export type ProjectTranscriptionContentPayload = JsonObject & {
 	project_transcription_id: string;
 	id: string;
 	canonical_transcription_id: string | null;
-	current_revision: CanonicalCurrentRevision;
 	origin: ProjectTranscriptionOrigin;
 	title: string;
 	siglum: string;
@@ -72,23 +79,46 @@ export type ProjectTranscriptionPayload = JsonObject & {
 	canvas_annotations: CanonicalIiifCanvasAnnotation[];
 };
 
+export type ProjectTranscriptionPayload = ProjectTranscriptionContentPayload & {
+	based_on_checkpoint: CanonicalCheckpointReference | null;
+	draft: CanonicalCurrentDraft;
+};
+
 function validateProjectTranscriptionPayload(payload: JsonObject): ProjectTranscriptionPayload {
-	return readProjectTranscriptionPayload(payload as Record<string, unknown>, true);
+	const record = payload as Record<string, unknown>;
+	return {
+		...readProjectTranscriptionContent(record),
+		based_on_checkpoint: readNullableCheckpointReference(record, 'based_on_checkpoint'),
+		draft: readCurrentDraft(record, 'draft'),
+	};
 }
 
-export function readProjectTranscriptionPayload(
-	record: Record<string, unknown>,
-	withCurrentRevision: true
-): ProjectTranscriptionPayload;
-export function readProjectTranscriptionPayload(
-	record: Record<string, unknown>,
-	withCurrentRevision: false
-): Omit<ProjectTranscriptionPayload, 'current_revision'>;
-export function readProjectTranscriptionPayload(
-	record: Record<string, unknown>,
-	withCurrentRevision: boolean
-): ProjectTranscriptionPayload | Omit<ProjectTranscriptionPayload, 'current_revision'> {
-	const base = {
+function upgradeProjectTranscriptionV1(payload: JsonObject): JsonObject {
+	const { current_revision: _currentRevision, ...content } = payload;
+	const revision = readCurrentRevision(payload, 'current_revision');
+	return {
+		...content,
+		based_on_checkpoint: { id: revision.id, content_hash: revision.content_hash },
+		draft: { saved_at: readString(payload, 'updated_at'), author_name: null },
+	};
+}
+
+export function mergeWorkingTranscription(
+	primary: ProjectTranscriptionPayload,
+	working: ProjectTranscriptionContentPayload & { draft: CanonicalDraftMetadata }
+): ProjectTranscriptionPayload {
+	const { draft, ...content } = working;
+	return {
+		...content,
+		based_on_checkpoint: primary.based_on_checkpoint,
+		draft: { saved_at: draft.saved_at, author_name: draft.author_name },
+	};
+}
+
+export function readProjectTranscriptionContent(
+	record: Record<string, unknown>
+): ProjectTranscriptionContentPayload {
+	return {
 		project_transcription_id: readString(record, 'project_transcription_id'),
 		id: readString(record, 'id'),
 		canonical_transcription_id: readNullableString(record, 'canonical_transcription_id'),
@@ -111,23 +141,22 @@ export function readProjectTranscriptionPayload(
 		page_canvas_links: readPageCanvasLinks(record, 'page_canvas_links'),
 		canvas_annotations: readCanvasAnnotations(record, 'canvas_annotations'),
 	};
-	return withCurrentRevision
-		? { current_revision: readCurrentRevision(record, 'current_revision'), ...base }
-		: base;
 }
 
-export async function assertProjectTranscriptionRevisionHash(
-	payload: ProjectTranscriptionPayload
+async function assertUpgradedProjectTranscriptionHash(
+	payload: ProjectTranscriptionPayload,
+	originalVersion: number
 ): Promise<void> {
+	if (originalVersion >= PROJECT_TRANSCRIPTION_CURRENT_VERSION) return;
 	await assertContentHashMatches(
 		buildTranscriptionHashPayload(projectTranscriptionPayloadToSnapshot(payload)),
-		payload.current_revision.content_hash,
+		payload.based_on_checkpoint?.content_hash ?? '',
 		`Project transcription ${payload.project_transcription_id}`
 	);
 }
 
 export function projectTranscriptionPayloadToSnapshot(
-	payload: ProjectTranscriptionPayload
+	payload: ProjectTranscriptionContentPayload
 ): ProjectTranscriptionSnapshot {
 	return {
 		project_transcription_id: payload.project_transcription_id,
@@ -156,7 +185,7 @@ export const projectTranscriptionFormatRegistration: FormatRegistration<ProjectT
 		currentVersion: PROJECT_TRANSCRIPTION_CURRENT_VERSION,
 		upgraders: projectTranscriptionUpgraders,
 		validate: validateProjectTranscriptionPayload,
-		validateIntegrity: assertProjectTranscriptionRevisionHash,
+		validateIntegrity: assertUpgradedProjectTranscriptionHash,
 	};
 
 function readProjectTranscriptionOrigin(
@@ -170,6 +199,9 @@ function readProjectTranscriptionOrigin(
 		source_transcription_id: readNullableString(origin, 'source_transcription_id'),
 		source_revision_id: readNullableString(origin, 'source_revision_id'),
 		source_content_hash: readNullableString(origin, 'source_content_hash'),
+		...(origin.source_captured_at === undefined
+			? {}
+			: { source_captured_at: readNullableString(origin, 'source_captured_at') }),
 	};
 }
 

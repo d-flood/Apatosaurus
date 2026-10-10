@@ -1,9 +1,58 @@
 import { describe, expect, it } from 'vitest';
 
 import { domException, FakeDirectoryHandle } from './fake-file-system-access.spec-support';
-import { LocalFolderStorageProvider } from './local-folder-provider';
+import { LocalFolderStorageProvider, LOCAL_FOLDER_ROOT_FOLDER_ID } from './local-folder-provider';
+import { ensureLocationMarker, readLocationMarker } from '../location-marker';
+import { describeProviderContract } from './provider-contract.spec-support';
+
+describeProviderContract('local folder', () => {
+	const root = new FakeDirectoryHandle('root');
+	return {
+		provider: new LocalFolderStorageProvider(root as unknown as FileSystemDirectoryHandle),
+		rootFolderId: LOCAL_FOLDER_ROOT_FOLDER_ID,
+		expireAuth: () => {
+			root.failWith = domException('NotAllowedError');
+		},
+	};
+});
 
 describe('local folder storage provider', () => {
+	it('writes a location marker once at the folder root and reuses it', async () => {
+		const root = new FakeDirectoryHandle('root');
+		const provider = new LocalFolderStorageProvider(
+			root as unknown as FileSystemDirectoryHandle
+		);
+		await provider.createFolder('existing-project');
+		await expect(readLocationMarker(provider, LOCAL_FOLDER_ROOT_FOLDER_ID)).resolves.toBeNull();
+
+		const first = await ensureLocationMarker(
+			provider,
+			LOCAL_FOLDER_ROOT_FOLDER_ID,
+			'location-1',
+			'2026-10-03T12:00:00.000Z'
+		);
+		const second = await ensureLocationMarker(
+			provider,
+			LOCAL_FOLDER_ROOT_FOLDER_ID,
+			'location-2',
+			'2026-10-03T13:00:00.000Z'
+		);
+
+		expect(first.created).toBe(true);
+		expect(second).toEqual({ marker: first.marker, created: false });
+		expect(JSON.parse(await provider.downloadFile('apatosaurus-location.json'))).toEqual({
+			format: 'apatosaurus.location',
+			version: 1,
+			id: 'location-1',
+			created_at: '2026-10-03T12:00:00.000Z',
+		});
+		const listing = await provider.listFiles(LOCAL_FOLDER_ROOT_FOLDER_ID);
+		expect(listing.entries.map(entry => entry.path)).toEqual([
+			'apatosaurus-location.json',
+			'existing-project',
+		]);
+	});
+
 	it('creates nested folders and lists files recursively with path IDs', async () => {
 		const root = new FakeDirectoryHandle('root');
 		const provider = new LocalFolderStorageProvider(

@@ -3,7 +3,7 @@ export interface ProjectRecency {
 	updatedAt: string;
 }
 
-export type ProjectSection = 'transcriptions' | 'collations' | 'settings' | 'backup';
+export type ProjectSection = 'transcriptions' | 'collations' | 'settings' | 'location';
 
 const LAST_OPENED_PROJECT_STORAGE_KEY = 'lastOpenedProjectId';
 

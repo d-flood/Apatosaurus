@@ -1,0 +1,19 @@
+{
+	"name": "auth-worker",
+	"version": "0.0.1",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "wrangler dev",
+		"deploy": "wrangler deploy --env production",
+		"test": "vitest run",
+		"typecheck": "tsc --noEmit"
+	},
+	"devDependencies": {
+		"@cloudflare/vitest-pool-workers": "^0.22.0",
+		"@cloudflare/workers-types": "^5.20261003.1",
+		"typescript": "^6.0.3",
+		"vitest": "^4.1.5",
+		"wrangler": "^4.147.0"
+	}
+}

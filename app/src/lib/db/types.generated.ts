@@ -70,6 +70,7 @@ export interface CollationCheckpoints {
 	parent_checkpoint_id: string | null;
 	content_hash: string;
 	is_committed: number;
+	label: string;
 	commit_message: string | null;
 	author_name: string;
 	created_at: string;
@@ -115,8 +116,10 @@ export interface CollationWitnesses {
 	position: number;
 	project_transcription_id: string | null;
 	transcription_id: string | null;
+	source_kind: string;
 	source_revision_id: string;
 	source_content_hash: string;
+	source_captured_at: string;
 }
 
 export interface Collations {
@@ -130,6 +133,7 @@ export interface Collations {
 	group_path: string;
 	notes: string;
 	sort_key: number;
+	conflict_of_collation_id: string;
 	created_at: string;
 	updated_at: string;
 }
@@ -220,6 +224,7 @@ export interface TranscriptionCheckpoints {
 	format: string;
 	content_hash: string;
 	is_committed: number;
+	label: string;
 	commit_message: string | null;
 	author_name: string;
 	created_at: string;
@@ -268,6 +273,7 @@ export interface Transcriptions {
 	origin_transcription_id: string | null;
 	origin_revision_id: string;
 	origin_content_hash: string;
+	origin_captured_at: string;
 	current_revision_id: string;
 	current_content_hash: string;
 	title: string;

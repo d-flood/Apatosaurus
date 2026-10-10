@@ -136,6 +136,15 @@ export function tombstoneRelativeFile(entityType: string, entityId: string): str
 	);
 }
 
+export const PRESENCE_FOLDER = '.presence';
+
+export function isPresencePath(projectRelativePath: string): boolean {
+	return (
+		projectRelativePath === PRESENCE_FOLDER ||
+		projectRelativePath.startsWith(`${PRESENCE_FOLDER}/`)
+	);
+}
+
 export interface ProjectRelativePaths {
 	project: string;
 	transcriptions: (projectTranscriptionId: string) => string;
@@ -164,8 +173,28 @@ export function appSettingsFile(): string {
 	return joinStorePath(appFolder(), 'settings.json');
 }
 
+export function deviceFile(): string {
+	return joinStorePath(appFolder(), 'device.json');
+}
+
 export function syncTargetsFile(): string {
 	return joinStorePath(appFolder(), 'sync-targets.json');
+}
+
+export function storageAccountsFile(): string {
+	return joinStorePath(appFolder(), 'storage-accounts.json');
+}
+
+export function projectLocationsFile(): string {
+	return joinStorePath(appFolder(), 'project-locations.json');
+}
+
+export function projectPlacementsFile(): string {
+	return joinStorePath(appFolder(), 'project-placements.json');
+}
+
+export function removedProjectsFile(): string {
+	return joinStorePath(appFolder(), 'removed-projects.json');
 }
 
 export function backupMetadataFile(): string {

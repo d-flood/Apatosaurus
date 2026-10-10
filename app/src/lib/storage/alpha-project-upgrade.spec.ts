@@ -31,7 +31,6 @@ import {
 	exportCollationDocumentTei,
 } from '$lib/collation/collation-tei';
 import { createLocalDbTestHarness } from '$lib/testing/local-db-harness';
-import { createProject } from '$lib/db/repositories/projects';
 import { rebuildIndexFromStore } from '$lib/db/repositories/index-rebuild';
 import {
 	loadCollationWithWorkingFile,
@@ -58,7 +57,20 @@ async function fixture(source = structuredClone(alpha), deleted = false) {
 		created_at,
 		author_name: 'Alpha editor',
 	};
-	const transcription = structuredClone(PROJECT_TRANSCRIPTION_FIXTURE);
+	const {
+		based_on_checkpoint: _basedOnCheckpoint,
+		draft: _draft,
+		...transcriptionContent
+	} = structuredClone(PROJECT_TRANSCRIPTION_FIXTURE);
+	const transcription = {
+		...transcriptionContent,
+		current_revision: {
+			id: 'tx-cp-1',
+			content_hash: '',
+			created_at: '2026-07-03T00:00:00.000Z',
+			author_name: 'Editor',
+		},
+	};
 	transcription.content_json = {
 		type: 'transcriptionDocument',
 		pages: [
@@ -236,10 +248,11 @@ describe('alpha project upgrade', () => {
 		const harness = createLocalDbTestHarness();
 		try {
 			await rebuildIndexFromStore(harness.db, options);
-			const path = `projects/alpha/collations/${alpha.id}.working.json`;
+			await loadCollationWithWorkingFile(harness.db, alpha.id, options);
+			const path = `projects/alpha/collations/${alpha.id}.json`;
 			for (const lemmaReadingId of [undefined, undefined, 'r-a']) {
-				const working = await readCanonicalDocument<WorkingCollationPayload>(
-					WORKING_COLLATION_FORMAT,
+				const working = await readCanonicalDocument<CollationPayload>(
+					COLLATION_FORMAT,
 					await readTextFile(path, options)
 				);
 				if (!working.ok) throw new Error('Draft unreadable');
@@ -279,8 +292,8 @@ describe('alpha project upgrade', () => {
 					},
 					options
 				);
-				const reloaded = await readCanonicalDocument<WorkingCollationPayload>(
-					WORKING_COLLATION_FORMAT,
+				const reloaded = await readCanonicalDocument<CollationPayload>(
+					COLLATION_FORMAT,
 					await readTextFile(path, options)
 				);
 				if (!reloaded.ok) throw new Error('Saved draft unreadable');
@@ -348,7 +361,7 @@ describe('alpha project upgrade', () => {
 		);
 		if (!primary.ok || !working.ok) throw new Error('Upgrade unreadable');
 		expect(working.payload.draft.base_content_hash).toBe(
-			primary.payload.current_revision.content_hash
+			primary.payload.based_on_checkpoint?.content_hash
 		);
 		expect(working.payload.notes).toBe('Unsaved editorial work');
 		const hydrated = hydrateCollationDocument(working.payload.document);
@@ -532,7 +545,7 @@ describe('alpha project upgrade', () => {
 	});
 
 	it.each(['revision', 'hash'])(
-		'retains a draft with a stale %s through upgrade, backup restore and copy',
+		'retains a draft with a stale %s through upgrade and index rebuild',
 		async mismatch => {
 			const { options } = await fixture();
 			const path = `projects/alpha/collations/${alpha.id}.working.json`;
@@ -555,52 +568,6 @@ describe('alpha project upgrade', () => {
 				expect(
 					await harness.db.selectFrom('collations').select('notes').executeTakeFirst()
 				).toMatchObject({ notes: 'Editorial notes' });
-				const archive = await exportProjectZip(harness.db, alpha.project_id, {
-					includeDrafts: true,
-					storeOptions: options,
-				});
-				for (const collisionMode of [undefined, 'copy'] as const) {
-					const restored = createLocalDbTestHarness();
-					const storeOptions = { backend: new MemoryStoreBackend() };
-					try {
-						if (collisionMode)
-							await createProject(
-								restored.db,
-								{ id: alpha.project_id, storageSlug: 'existing', name: 'Existing' },
-								storeOptions
-							);
-						const result = await importProjectZip(restored.db, archive.bytes, {
-							storeOptions,
-							collisionMode,
-						});
-						expect(result).toMatchObject({ ok: true, quarantinedFiles: [] });
-						expect(result.orphanedFiles).toEqual(
-							expect.arrayContaining([
-								expect.objectContaining({ code: 'stale_working' }),
-							])
-						);
-						const raw = await readTextFile(
-							`projects/${result.storageSlug}/collations/${alpha.id}.working.json`,
-							storeOptions
-						);
-						const working = await readCanonicalDocument<WorkingCollationPayload>(
-							WORKING_COLLATION_FORMAT,
-							raw
-						);
-						if (!working.ok) throw new Error('Restored draft unreadable');
-						expect(working.payload.draft).toEqual(payload.draft);
-						expect(working.payload.notes).toBe('Unsaved editorial work');
-						expect(
-							await restored.db
-								.selectFrom('collations')
-								.select('notes')
-								.where('project_id', '=', result.projectId!)
-								.executeTakeFirst()
-						).toMatchObject({ notes: 'Editorial notes' });
-					} finally {
-						await restored.destroy();
-					}
-				}
 			} finally {
 				await harness.destroy();
 			}
@@ -626,7 +593,6 @@ describe('alpha project upgrade', () => {
 			});
 			expect(result.draftFilesRestored).toHaveLength(2);
 			const archive = await exportProjectZip(harness.db, alpha.project_id, {
-				includeDrafts: true,
 				storeOptions: { backend },
 			});
 			const restored = createLocalDbTestHarness();

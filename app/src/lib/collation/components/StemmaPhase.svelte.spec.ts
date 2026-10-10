@@ -21,7 +21,6 @@ function witness(witnessId: string, content: string, isBaseText = false): Witnes
 		witnessId,
 		siglum: witnessId,
 		transcriptionId: `${witnessId}-tx`,
-		sourceVersion: 'v1',
 		content,
 		tokens: tokens(content),
 		treatment: 'inherit',

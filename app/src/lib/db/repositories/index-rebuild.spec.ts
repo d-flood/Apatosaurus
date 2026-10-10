@@ -14,14 +14,17 @@ import {
 	projectManifestFile,
 	storePathBasename,
 	storePathDirname,
+	transcriptionPrimaryFile,
 	transcriptionWorkingFile,
 } from '$lib/storage/layout';
 import {
 	readCanonicalDocument,
 	PROJECT_MANIFEST_FORMAT,
+	PROJECT_TRANSCRIPTION_FORMAT,
 	serializeCanonicalDocument,
 	WORKING_TRANSCRIPTION_FORMAT,
 	type ProjectManifestPayload,
+	type ProjectTranscriptionPayload,
 	type WorkingTranscriptionPayload,
 } from '$lib/storage/formats';
 import { hashCanonicalPayload } from '$lib/storage/canonical-json';
@@ -401,38 +404,28 @@ describe('rebuildIndexFromStore', () => {
 			{ projectTranscriptionId: 'pt-1' },
 			storeOptions
 		);
-		await saveWorkingTranscriptionMetadata(
-			harness.db,
-			{
-				id: 'tx-1',
-				title: 'Stale draft title',
-				siglum: '01',
-				description: '',
-				tags: [],
-				transcriber: '',
-				repository: '',
-				settlement: '',
-				language: 'grc',
-			},
-			storeOptions
-		);
 		const workingPath = transcriptionWorkingFile('project-slug', 'pt-1');
-		const workingRead = await readCanonicalDocument<WorkingTranscriptionPayload>(
-			WORKING_TRANSCRIPTION_FORMAT,
-			await backend.readTextFile(joinStorePath(APP_STORE_ROOT, workingPath))
+		const primaryRead = await readCanonicalDocument<ProjectTranscriptionPayload>(
+			PROJECT_TRANSCRIPTION_FORMAT,
+			await backend.readTextFile(
+				joinStorePath(APP_STORE_ROOT, transcriptionPrimaryFile('project-slug', 'pt-1'))
+			)
 		);
-		if (!workingRead.ok) throw new Error(workingRead.quarantine.message);
-		const staleWorking = {
-			...workingRead.payload,
+		if (!primaryRead.ok) throw new Error(primaryRead.quarantine.message);
+		const { based_on_checkpoint: _basedOn, draft, ...content } = primaryRead.payload;
+		const staleWorking: WorkingTranscriptionPayload = {
+			...content,
+			title: 'Stale draft title',
 			draft: {
-				...workingRead.payload.draft,
 				base_revision_id: 'superseded',
 				base_content_hash: 'sha256:superseded',
+				saved_at: draft.saved_at,
+				author_name: null,
 			},
 		};
 		await backend.writeTextFile(
 			joinStorePath(APP_STORE_ROOT, workingPath),
-			await serializeCanonicalDocument(WORKING_TRANSCRIPTION_FORMAT, staleWorking as never)
+			await serializeCanonicalDocument(WORKING_TRANSCRIPTION_FORMAT, staleWorking)
 		);
 
 		const report = await rebuildIndexFromStore(harness.db, storeOptions);

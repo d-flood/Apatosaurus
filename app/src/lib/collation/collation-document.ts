@@ -12,6 +12,7 @@ import type {
 	ReadingArc,
 	SuppliedTextMode,
 	WitnessConfig,
+	WitnessSource,
 	WitnessSourceToken,
 } from './collation-types';
 import { applyDecisions, type UnitDecisions } from './collation-decisions';
@@ -32,8 +33,7 @@ interface CollationWitnessNode {
 	transcriptionId: string;
 	kind?: WitnessConfig['kind'];
 	handId?: string;
-	sourceVersion?: string;
-	sourceContentHash?: string;
+	source?: WitnessSource;
 	content: string;
 	fullContent?: string;
 	fragmentaryContent?: string;
@@ -283,8 +283,7 @@ function normalizeWitnesses(witnesses: WitnessConfig[]): CollationWitnessNode[] 
 		transcriptionId: witness.transcriptionId,
 		kind: witness.kind,
 		handId: witness.handId,
-		sourceVersion: witness.sourceVersion,
-		sourceContentHash: witness.sourceContentHash,
+		source: witness.source,
 		content: witness.content,
 		fullContent: witness.fullContent,
 		fragmentaryContent: witness.fragmentaryContent,
@@ -320,6 +319,45 @@ function normalizeWitnesses(witnesses: WitnessConfig[]): CollationWitnessNode[] 
 			},
 		})),
 	}));
+}
+
+/** Legacy nodes carry `sourceVersion`/`sourceContentHash` instead of `source`. */
+export function readWitnessSource(
+	raw: Record<string, unknown>,
+	legacyCapturedAt = ''
+): WitnessSource | undefined {
+	const transcriptionId = typeof raw.transcriptionId === 'string' ? raw.transcriptionId : '';
+	const source = raw.source as Record<string, unknown> | null | undefined;
+	if (source && typeof source === 'object') {
+		const sourceTranscriptionId =
+			typeof source.transcriptionId === 'string' ? source.transcriptionId : transcriptionId;
+		if (source.kind === 'version' && typeof source.versionId === 'string') {
+			return {
+				kind: 'version',
+				transcriptionId: sourceTranscriptionId,
+				versionId: source.versionId,
+			};
+		}
+		if (source.kind === 'current') {
+			return {
+				kind: 'current',
+				transcriptionId: sourceTranscriptionId,
+				capturedAt: typeof source.capturedAt === 'string' ? source.capturedAt : '',
+				contentHash: typeof source.contentHash === 'string' ? source.contentHash : '',
+			};
+		}
+		return undefined;
+	}
+	if (!transcriptionId) return undefined;
+	if (typeof raw.sourceVersion === 'string' && raw.sourceVersion) {
+		return { kind: 'version', transcriptionId, versionId: raw.sourceVersion };
+	}
+	return {
+		kind: 'current',
+		transcriptionId,
+		capturedAt: legacyCapturedAt,
+		contentHash: typeof raw.sourceContentHash === 'string' ? raw.sourceContentHash : '',
+	};
 }
 
 function parseWitnesses(nodes: unknown): WitnessConfig[] {
@@ -416,9 +454,7 @@ function parseWitnesses(nodes: unknown): WitnessConfig[] {
 			transcriptionId: typeof raw.transcriptionId === 'string' ? raw.transcriptionId : '',
 			kind: raw.kind === 'corrector' ? 'corrector' : 'firsthand',
 			handId: typeof raw.handId === 'string' ? raw.handId : undefined,
-			sourceVersion: typeof raw.sourceVersion === 'string' ? raw.sourceVersion : '',
-			sourceContentHash:
-				typeof raw.sourceContentHash === 'string' ? raw.sourceContentHash : undefined,
+			source: readWitnessSource(raw),
 			content: typeof raw.content === 'string' ? raw.content : '',
 			tokens: sourceTokens,
 			fullContent: typeof raw.fullContent === 'string' ? raw.fullContent : undefined,

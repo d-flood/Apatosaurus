@@ -47,7 +47,7 @@ describe('data-safety invariants in browser storage', () => {
 		const removalReport = await removeIndexFilesAfterWorkerRelease();
 		expect(removalReport.failedPaths).toEqual([]);
 		expect(removalReport.removedPaths).toContain(
-			'apatosaurus/v1/index/apatosaurus-index-v1.db'
+			'apatosaurus/v1/index/apatosaurus-index-v4.db'
 		);
 
 		client = new WorkerClient();

@@ -26,7 +26,7 @@ test('data and storage page exports, repairs, and links to project backups', asy
 	await expect(page.getByRole('heading', { name: 'Data & Storage' })).toBeVisible();
 	await expect(page.getByRole('link', { name: /Data Project/ })).toHaveAttribute(
 		'href',
-		`/projects/${projectId}/backup`
+		`/projects/${projectId}/location`
 	);
 
 	const downloadPromise = page.waitForEvent('download');

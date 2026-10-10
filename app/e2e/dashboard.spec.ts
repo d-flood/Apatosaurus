@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { placeCaretAtLineEnd } from './editor-helpers';
 
 test.setTimeout(120_000);
 
@@ -22,15 +23,46 @@ test('Continue resumes a collation at its current phase and About preserves the 
 	await expect(page.getByRole('heading', { name: 'Local and Offline First' })).toBeVisible();
 });
 
-test('attention opens Data & Storage and Start something creates in its named project', async ({
+test('a fresh user creates and edits a project without signing in, then is nudged to choose a location', async ({
 	page,
 }) => {
-	const projectId = await createProject(page, 'Dashboard Creation');
+	const signInPrompt = page.getByText(/sign in|log in|signed out/i);
 	await page.goto('/');
+	await expect(page.getByRole('link', { name: 'Create your first project' })).toBeVisible();
+	await expect(signInPrompt).toHaveCount(0);
 
-	await page.getByRole('link', { name: 'Review backup options' }).click();
-	await expect(page).toHaveURL('/data');
+	const projectId = await createProject(page, 'Fresh Romans');
+	await expect(signInPrompt).toHaveCount(0);
+	await page.goto('/');
+	await expect(
+		page.getByRole('heading', { name: 'Choose where this project lives' })
+	).toHaveCount(0);
 
+	await importRomansTranscription(page, projectId);
+	await page.goto(`/projects/${projectId}/transcriptions`);
+	await page
+		.locator('div.rounded-box', { hasText: 'GA 459' })
+		.last()
+		.getByRole('link', { name: 'Open' })
+		.click();
+	const line = page.locator('.line-content').filter({ hasText: /\S/ }).first();
+	await placeCaretAtLineEnd(line);
+	await page.keyboard.type(' fresh-edit');
+	await expect(page.getByText('Unsaved local edits')).toBeVisible();
+	await expect(signInPrompt).toHaveCount(0);
+
+	await page.goto('/');
+	await expect(
+		page.getByRole('heading', { name: 'Choose where this project lives' })
+	).toBeVisible();
+	await expect(
+		page.getByRole('link', { name: 'Choose a location for Fresh Romans' })
+	).toHaveAttribute('href', `/projects/${projectId}/location`);
+	await expect(signInPrompt).toHaveCount(0);
+});
+
+test('Start something creates in its named project', async ({ page }) => {
+	const projectId = await createProject(page, 'Dashboard Creation');
 	await page.goto('/');
 	await page.getByRole('link', { name: 'New Transcription in Dashboard Creation' }).click();
 	await expect(page.getByRole('combobox', { name: 'Project*' })).toHaveValue(projectId);

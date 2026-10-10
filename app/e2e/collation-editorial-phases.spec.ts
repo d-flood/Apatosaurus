@@ -131,10 +131,10 @@ test('the local stemma has one tabstop and supports keyboard source decisions', 
 	await expect(page.getByRole('heading', { name: 'Review', exact: true })).toBeVisible();
 	await expect(page.getByRole('heading', { name: 'Verse apparatus' })).toBeVisible();
 	await expect(page.getByRole('heading', { name: 'Local stemmata' })).toBeVisible();
-	await expect(page.getByRole('button', { name: 'Commit version' })).toBeVisible();
-	await page.getByRole('button', { name: 'Commit version' }).click();
-	await expect(page.getByPlaceholder('Describe this version')).toBeVisible();
-	await page.getByRole('button', { name: 'Cancel' }).click();
+	await page.getByRole('button', { name: 'Name this version' }).click();
+	const nameDialog = page.getByRole('dialog', { name: 'Name this version' });
+	await expect(nameDialog.getByRole('textbox').first()).toHaveValue(/^Version \d+$/);
+	await nameDialog.getByRole('button', { name: 'Cancel' }).click();
 
 	const download = page.waitForEvent('download');
 	await page.getByRole('button', { name: 'Export TEI apparatus' }).click();
@@ -215,11 +215,11 @@ async function createAndCommitWitness(
 	await placeCaretAtLineEnd(line);
 	await page.keyboard.type(` ${marker}`);
 	await expect(page.getByText('Unsaved local edits')).toBeVisible();
-	await page.getByRole('button', { name: 'Commit version' }).first().click();
-	const form = page.locator('form', { has: page.getByPlaceholder('Describe this version') });
+	await page.getByRole('button', { name: 'Name this version' }).first().click();
+	const form = page.getByRole('dialog', { name: 'Name this version' });
 	await form.getByPlaceholder('Describe this version').fill(`Commit ${title}`);
-	await form.getByRole('button', { name: 'Commit version' }).click();
-	await expect(page.getByText('Committed locally', { exact: true })).toBeVisible({
+	await form.getByRole('button', { name: 'Name this version' }).click();
+	await expect(page.getByText(/^Named Version \d+/)).toBeVisible({
 		timeout: 30_000,
 	});
 }

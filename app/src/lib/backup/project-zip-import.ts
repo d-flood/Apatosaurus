@@ -10,6 +10,8 @@ import {
 	TOMBSTONE_FORMAT,
 	WORKING_COLLATION_FORMAT,
 	WORKING_TRANSCRIPTION_FORMAT,
+	mergeWorkingCollation,
+	mergeWorkingTranscription,
 	serializeCanonicalDocument,
 	transcriptionDocumentToTeiFromStore,
 	type CollationCheckpointPayload,
@@ -110,6 +112,7 @@ interface PreparedImport {
 	manifest: ProjectManifestPayload;
 	storageSlug: string;
 	mode: ProjectImportResult['mode'];
+	draftFilesRestored: string[];
 }
 
 const STAGING_MAX_IDLE_MS = 60 * 60 * 1000;
@@ -264,6 +267,10 @@ async function prepareImport(
 	options: ProjectImportOptions
 ): Promise<PreparedImport | { collision: ProjectImportCollision }> {
 	const manifest = staged.manifest!;
+	const { entries, draftFilesRestored } = await foldLegacyWorkingEntries(
+		staged.entries,
+		options.storeOptions ?? {}
+	);
 	const existing = await db
 		.selectFrom('projects')
 		.select(['storage_slug', 'updated_at'])
@@ -271,10 +278,11 @@ async function prepareImport(
 		.executeTakeFirst();
 	if (!existing)
 		return {
-			entries: regenerateDerivedCollationTei(staged.entries),
+			entries: regenerateDerivedCollationTei(entries),
 			manifest,
 			storageSlug: deriveStorageSlug(manifest.name, manifest.id),
 			mode: 'created',
+			draftFilesRestored,
 		};
 	if (!options.collisionMode) {
 		return {
@@ -287,19 +295,77 @@ async function prepareImport(
 	}
 	if (options.collisionMode === 'replace')
 		return {
-			entries: regenerateDerivedCollationTei(staged.entries),
+			entries: regenerateDerivedCollationTei(entries),
 			manifest,
 			storageSlug: existing.storage_slug,
 			mode: 'replaced',
+			draftFilesRestored,
 		};
-	return copyProjectEntries(staged.entries, manifest, options.storeOptions ?? {});
+	return {
+		...(await copyProjectEntries(entries, manifest, options.storeOptions ?? {})),
+		draftFilesRestored,
+	};
+}
+
+async function foldLegacyWorkingEntries(
+	stagedEntries: ValidatedStagedProjectEntry[],
+	storeOptions: StoreOperationOptions
+): Promise<{ entries: ValidatedStagedProjectEntry[]; draftFilesRestored: string[] }> {
+	const byPath = new Map(stagedEntries.map(entry => [entry.path, entry]));
+	const draftFilesRestored: string[] = [];
+	for (const entry of stagedEntries) {
+		if (entry.format === WORKING_COLLATION_FORMAT) {
+			const working = entry.payload as WorkingCollationPayload;
+			const path = `collations/${working.id}.json`;
+			const primary = byPath.get(path)?.payload as CollationPayload | undefined;
+			if (!primary || !draftMatchesBase(working.draft, primary.based_on_checkpoint)) continue;
+			const payload = mergeWorkingCollation(primary, working);
+			byPath.set(path, {
+				path,
+				format: COLLATION_FORMAT,
+				payload,
+				content: await serializeCanonicalDocument(COLLATION_FORMAT, payload),
+			});
+		} else if (entry.format === WORKING_TRANSCRIPTION_FORMAT) {
+			const working = entry.payload as WorkingTranscriptionPayload;
+			const path = `transcriptions/${working.project_transcription_id}.json`;
+			const primary = byPath.get(path)?.payload as ProjectTranscriptionPayload | undefined;
+			if (!primary || !draftMatchesBase(working.draft, primary.based_on_checkpoint)) continue;
+			const payload = mergeWorkingTranscription(primary, working);
+			const teiPath = path.replace(/\.json$/, '.tei.xml');
+			byPath.set(path, {
+				path,
+				format: PROJECT_TRANSCRIPTION_FORMAT,
+				payload,
+				content: await serializeCanonicalDocument(PROJECT_TRANSCRIPTION_FORMAT, payload),
+			});
+			byPath.set(teiPath, {
+				path: teiPath,
+				format: null,
+				content: await transcriptionDocumentToTeiFromStore(payload, storeOptions),
+			});
+		} else continue;
+		byPath.delete(entry.path);
+		draftFilesRestored.push(entry.path);
+	}
+	return { entries: [...byPath.values()], draftFilesRestored: draftFilesRestored.sort() };
+}
+
+function draftMatchesBase(
+	draft: WorkingCollationPayload['draft'],
+	base: CollationPayload['based_on_checkpoint']
+): boolean {
+	return (
+		draft.base_revision_id === (base?.id ?? null) &&
+		draft.base_content_hash === (base?.content_hash ?? null)
+	);
 }
 
 async function copyProjectEntries(
 	entries: ValidatedStagedProjectEntry[],
 	sourceManifest: ProjectManifestPayload,
 	storeOptions: StoreOperationOptions
-): Promise<PreparedImport> {
+): Promise<Omit<PreparedImport, 'draftFilesRestored'>> {
 	const copyId = createId();
 	const copyName = `${sourceManifest.name} Copy`;
 	const payloads = new Map(
@@ -308,6 +374,7 @@ async function copyProjectEntries(
 		)
 	);
 	const collationHashes = new Map<string, string>();
+	const checkpointHashes = new Map<string, string>();
 
 	for (const entry of entries) {
 		const payload = payloads.get(entry.path);
@@ -317,8 +384,8 @@ async function copyProjectEntries(
 				source_type: 'imported_project_copy',
 				source_project_id: sourceManifest.id,
 				source_transcription_id: transcription.id,
-				source_revision_id: transcription.current_revision.id,
-				source_content_hash: transcription.current_revision.content_hash,
+				source_revision_id: transcription.based_on_checkpoint?.id ?? null,
+				source_content_hash: transcription.based_on_checkpoint?.content_hash ?? null,
 			};
 		} else if (entry.format === WORKING_TRANSCRIPTION_FORMAT) {
 			const transcription = payload as WorkingTranscriptionPayload;
@@ -346,6 +413,7 @@ async function copyProjectEntries(
 				projectName: copyName,
 			};
 			checkpoint.payload_content_hash = await hashCanonicalPayload(checkpoint.payload);
+			checkpointHashes.set(checkpoint.checkpoint_id, checkpoint.payload_content_hash);
 		} else if (entry.format === TOMBSTONE_FORMAT) {
 			(payload as TombstonePayload).project_id = copyId;
 		}
@@ -353,21 +421,11 @@ async function copyProjectEntries(
 
 	for (const entry of entries.filter(entry => entry.format === COLLATION_FORMAT)) {
 		const collation = payloads.get(entry.path) as CollationPayload;
-		collation.current_revision.content_hash = await hashCanonicalPayload(
-			collationContent(collation)
-		);
-		collationHashes.set(collation.id, collation.current_revision.content_hash);
-	}
-	for (const entry of entries.filter(entry => entry.format === WORKING_COLLATION_FORMAT)) {
-		const working = payloads.get(entry.path) as WorkingCollationPayload;
-		const hash = collationHashes.get(working.id);
-		const original = sourceManifest.collations.find(head => head.collation_id === working.id);
-		if (
-			hash &&
-			working.draft.base_revision_id === original?.current_revision?.id &&
-			working.draft.base_content_hash === original.current_revision.content_hash
-		)
-			working.draft.base_content_hash = hash;
+		if (!collation.based_on_checkpoint) continue;
+		collation.based_on_checkpoint.content_hash =
+			checkpointHashes.get(collation.based_on_checkpoint.id) ??
+			(await hashCanonicalPayload(collationContent(collation)));
+		collationHashes.set(collation.id, collation.based_on_checkpoint.content_hash);
 	}
 
 	const manifest = structuredClone(sourceManifest);
@@ -477,10 +535,7 @@ async function placePreparedImport(
 				projectId: prepared.manifest.id,
 				storageSlug: prepared.storageSlug,
 				mode: prepared.mode,
-				draftFilesRestored: prepared.entries
-					.filter(entry => entry.path.endsWith('.working.json'))
-					.map(entry => entry.path)
-					.sort(),
+				draftFilesRestored: prepared.draftFilesRestored,
 				...report,
 			};
 		} catch (error) {

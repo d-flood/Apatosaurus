@@ -89,18 +89,18 @@
 			<h2 class="font-serif text-xl font-semibold">The durable record</h2>
 			<p class="mt-2 text-sm leading-relaxed text-base-content/70">
 				Apatosaurus stores each project in the browser's Origin Private File System as
-				hash-validated JSON documents. Committed transcriptions, collations, and checkpoint
-				history live there; autosaved working files preserve uncommitted changes locally.
-				The SQLite index is disposable and can be repaired from the project files.
+				hash-validated JSON documents. Each transcription and collation keeps its Current
+				and its named versions there, and every edit saves automatically. The SQLite index
+				is disposable and can be repaired from the project files.
 			</p>
 		</div>
 		<div class="rounded-box border border-base-300 bg-base-100 p-5 shadow-sm">
 			<h2 class="font-serif text-xl font-semibold">Taking your work elsewhere</h2>
 			<p class="mt-2 text-sm leading-relaxed text-base-content/70">
-				Use folder sync to maintain a readable mirror of committed project files, or export
-				a project zip in any supported browser. Every committed transcription and collation
-				includes a regenerated TEI sibling, so an archival, interoperable copy remains
-				available outside Apatosaurus.
+				Use folder sync to maintain a readable mirror of project files, or export a project
+				zip in any supported browser. Every transcription and collation includes a
+				regenerated TEI sibling, so an archival, interoperable copy remains available
+				outside Apatosaurus.
 			</p>
 		</div>
 	</section>

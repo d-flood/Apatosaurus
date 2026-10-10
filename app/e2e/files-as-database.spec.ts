@@ -1,14 +1,8 @@
-import {
-	expect,
-	test,
-	type Browser,
-	type BrowserContext,
-	type Page,
-	type Route,
-} from '@playwright/test';
+import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { placeCaretAtLineEnd } from './editor-helpers';
+import { SharedFolderServer } from './shared-folder-server';
 
 const TEI_FIXTURE_PATH = fileURLToPath(
 	new URL('../src/lib/tei/NT_GRC_P118_Rom.xml', import.meta.url)
@@ -124,10 +118,10 @@ test('reference-edition backup restores through the client, RPC worker, and OPFS
 	});
 });
 
-test('committee contexts propagate updates and preserve divergent commits as conflict copies', async ({
+test('committee contexts propagate updates and reconcile divergent commits from conflict copies', async ({
 	browser,
 	baseURL,
-}, testInfo) => {
+}) => {
 	const sharedFolder = new SharedFolderServer();
 	const contextA = await createCommitteeContext(browser, sharedFolder, baseURL);
 	const contextB = await createCommitteeContext(browser, sharedFolder, baseURL);
@@ -142,26 +136,28 @@ test('committee contexts propagate updates and preserve divergent commits as con
 			'COM',
 			'committee-initial'
 		);
-		const archivePath = testInfo.outputPath('committee-project.zip');
-		await exportProject(pageA, 'Committee Romans', archivePath);
-
-		await pageB.goto('/projects');
-		await importProjectArchive(pageB, archivePath);
-		await pageB.reload();
-		await connectSyncFolder(pageA, 'Committee Romans');
-		await connectSyncFolder(pageB, 'Committee Romans');
+		await addSharedFolderLocation(pageA);
+		await placeProject(pageA, 'Committee Romans');
 		await syncNow(pageA);
+
+		await addSharedFolderLocation(pageB);
+		await pageB.goto('/projects');
+		await selectProject(pageB, 'Committee Romans');
+		await pageB.getByRole('link', { name: 'Location', exact: true }).click();
+		await expect(pageB.getByTestId('project-location')).toHaveText(
+			'E2E Shared Committee Folder'
+		);
 		await syncNow(pageB);
 
 		await openTranscription(pageA, 'Committee Romans', 'Committee Witness');
 		await editAndCommitOpenTranscription(pageA, 'update-from-a', 'Committee update from A');
 		await pageA.goto('/projects');
 		await selectProject(pageA, 'Committee Romans');
-		await pageA.getByRole('link', { name: 'Backup and Sync' }).click();
+		await pageA.getByRole('link', { name: 'Location', exact: true }).click();
 		await syncNow(pageA);
 		await pageB.goto('/projects');
 		await selectProject(pageB, 'Committee Romans');
-		await pageB.getByRole('link', { name: 'Backup and Sync' }).click();
+		await pageB.getByRole('link', { name: 'Location', exact: true }).click();
 		await syncNow(pageB);
 		await openTranscription(pageB, 'Committee Romans', 'Committee Witness');
 		await expect(
@@ -171,29 +167,87 @@ test('committee contexts propagate updates and preserve divergent commits as con
 		sharedFolder.setAvailable(false);
 		await openTranscription(pageA, 'Committee Romans', 'Committee Witness');
 		await editAndCommitOpenTranscription(pageA, 'divergent-a', 'Divergent A commit');
-		await editAndCommitOpenTranscription(pageB, 'divergent-b', 'Divergent B commit');
+		await editAndCommitOpenTranscription(pageB, 'divergent-b', 'Divergent B commit', 'last');
 		sharedFolder.setAvailable(true);
 
 		await pageA.goto('/projects');
 		await selectProject(pageA, 'Committee Romans');
-		await pageA.getByRole('link', { name: 'Backup and Sync' }).click();
+		await pageA.getByRole('link', { name: 'Location', exact: true }).click();
 		await syncNow(pageA);
 		await pageB.goto('/projects');
 		await selectProject(pageB, 'Committee Romans');
-		await pageB.getByRole('link', { name: 'Backup and Sync' }).click();
+		await pageB.getByRole('link', { name: 'Location', exact: true }).click();
 		await syncNow(pageB);
 		await pageB.goto('/projects');
 		await selectProject(pageB, 'Committee Romans');
 		await expect(pageB.getByText(/Committee Witness \(Conflicted Copy/).first()).toBeVisible();
 		await syncNow(pageA);
 
-		for (const page of [pageA]) {
+		for (const page of [pageA, pageB]) {
 			await page.goto('/projects');
 			await selectProject(page, 'Committee Romans');
 			await expect(
 				page.getByText(/Committee Witness \(Conflicted Copy/).first()
 			).toBeVisible();
+			await expect(page.getByText('Conflict copy', { exact: true })).toHaveCount(1);
 		}
+
+		await pageB.goto('/');
+		const attention = pageB
+			.getByTestId('dashboard-attention')
+			.locator('article', { hasText: /Conflict copy of Committee Witness/ });
+		await expect(attention).toBeVisible();
+		await attention.getByRole('link', { name: 'Reconcile' }).click();
+		await expect(pageB.getByTestId('version-compare-summary')).toHaveText(
+			/^2 of \d+ parts differ$/,
+			{
+				timeout: 30_000,
+			}
+		);
+		await pageB
+			.getByTestId('compare-part')
+			.filter({ hasText: 'divergent-b' })
+			.getByRole('radio', { name: 'Keep Theirs' })
+			.check();
+		await pageB.getByRole('button', { name: 'Use these choices' }).click();
+		await expect(pageB).toHaveURL(/\/projects\/[^/]+\/transcriptions$/);
+		await expect(pageB.getByText('Conflict copy', { exact: true })).toHaveCount(0);
+
+		await pageB.getByRole('link', { name: 'Location', exact: true }).click();
+		await syncNow(pageB);
+		await pageA.goto('/projects');
+		await selectProject(pageA, 'Committee Romans');
+		await pageA.getByRole('link', { name: 'Location', exact: true }).click();
+		await syncNow(pageA);
+		for (const page of [pageA, pageB]) {
+			await page.goto('/projects');
+			await selectProject(page, 'Committee Romans');
+			await expect(page.getByText('Committee Witness', { exact: true })).toBeVisible();
+			await expect(page.getByText(/Committee Witness \(Conflicted Copy/)).toHaveCount(0);
+			await openTranscription(page, 'Committee Romans', 'Committee Witness');
+			for (const marker of ['divergent-a', 'divergent-b']) {
+				await expect(page.locator('.line-content').filter({ hasText: marker })).toHaveCount(
+					1
+				);
+			}
+		}
+
+		const presenceLine = pageA.locator('.line-content').filter({ hasText: /\S/ }).first();
+		await placeCaretAtLineEnd(presenceLine);
+		await pageA.keyboard.type(' presence-from-a');
+		await expect
+			.poll(() => sharedFolder.paths().some(path => path.includes('/.presence/')))
+			.toBe(true);
+		await openTranscription(pageB, 'Committee Romans', 'Committee Witness');
+		await expect(pageB.getByText(/has been editing this · \d+ min ago/)).toBeVisible({
+			timeout: 30_000,
+		});
+		const lineB = pageB.locator('.line-content').filter({ hasText: /\S/ }).last();
+		await placeCaretAtLineEnd(lineB);
+		await pageB.keyboard.type(' still-editable-b');
+		await expect(
+			pageB.locator('.line-content').filter({ hasText: 'still-editable-b' })
+		).toHaveCount(1);
 	} finally {
 		await contextA.close();
 		await contextB.close();
@@ -218,8 +272,8 @@ test('upgrade fixture migrates on save and rebuilds after an index version bump'
 		page.getByText('Synthetic v1 fixture saved as v2', { exact: true }).first()
 	).toBeVisible();
 
-	await page.getByRole('link', { name: 'Backup and Sync' }).click();
-	await expect(page).toHaveURL(/\/projects\/[^/]+\/backup$/);
+	await page.getByRole('link', { name: 'Location', exact: true }).click();
+	await expect(page).toHaveURL(/\/projects\/[^/]+\/location$/);
 	await expect(page.getByRole('button', { name: 'Export project zip' })).toBeVisible();
 	const downloadPromise = page.waitForEvent('download');
 	await page.getByRole('button', { name: 'Export project zip' }).click();
@@ -386,13 +440,13 @@ async function createAndCommitTeiTranscription(
 	await placeCaretAtLineEnd(line);
 	await page.keyboard.type(` ${marker}`);
 	await expect(page.getByText('Unsaved local edits')).toBeVisible();
-	const commitButton = page.getByRole('button', { name: 'Commit version' }).first();
+	const commitButton = page.getByRole('button', { name: 'Name this version' }).first();
 	await expect(commitButton).toBeEnabled({ timeout: 30_000 });
 	await commitButton.click();
-	const form = page.locator('form', { has: page.getByPlaceholder('Describe this version') });
+	const form = page.getByRole('dialog', { name: 'Name this version' });
 	await form.getByPlaceholder('Describe this version').fill(`Commit ${title}`);
-	await form.getByRole('button', { name: 'Commit version' }).click();
-	await expect(page.getByText('Committed locally', { exact: true })).toBeVisible({
+	await form.getByRole('button', { name: 'Name this version' }).click();
+	await expect(page.getByText(/^Named Version \d+/)).toBeVisible({
 		timeout: 30_000,
 	});
 }
@@ -400,19 +454,20 @@ async function createAndCommitTeiTranscription(
 async function editAndCommitOpenTranscription(
 	page: Page,
 	marker: string,
-	commitMessage: string
+	commitMessage: string,
+	which: 'first' | 'last' = 'first'
 ): Promise<void> {
-	const line = page.locator('.line-content').filter({ hasText: /\S/ }).first();
+	const line = page.locator('.line-content').filter({ hasText: /\S/ })[which]();
 	await placeCaretAtLineEnd(line);
 	await page.keyboard.type(` ${marker}`);
 	await expect(page.getByText('Unsaved local edits')).toBeVisible();
-	const commitButton = page.getByRole('button', { name: 'Commit version' }).first();
+	const commitButton = page.getByRole('button', { name: 'Name this version' }).first();
 	await expect(commitButton).toBeEnabled({ timeout: 30_000 });
 	await commitButton.click();
-	const form = page.locator('form', { has: page.getByPlaceholder('Describe this version') });
+	const form = page.getByRole('dialog', { name: 'Name this version' });
 	await form.getByPlaceholder('Describe this version').fill(commitMessage);
-	await form.getByRole('button', { name: 'Commit version' }).click();
-	await expect(page.getByText('Committed locally', { exact: true })).toBeVisible({
+	await form.getByRole('button', { name: 'Name this version' }).click();
+	await expect(page.getByText(/^Named Version \d+/)).toBeVisible({
 		timeout: 30_000,
 	});
 }
@@ -453,14 +508,14 @@ async function createAndCommitCollation(page: Page, projectName: string): Promis
 		timeout: 30_000,
 	});
 
-	const commitButton = page.getByRole('button', { name: 'Commit version' }).first();
+	const commitButton = page.getByRole('button', { name: 'Name this version' }).first();
 	await expect(commitButton).toBeEnabled({ timeout: 30_000 });
 	await commitButton.click();
-	const form = page.locator('form', { has: page.getByPlaceholder('Describe this version') });
+	const form = page.getByRole('dialog', { name: 'Name this version' });
 	await form.getByPlaceholder('Describe this version').fill('Commit end-to-end collation');
-	await form.getByRole('button', { name: 'Commit version' }).click();
-	// Commit succeeds with a warning suffix when derived TEI is undecided.
-	await expect(page.getByText('Committed locally')).toBeVisible({
+	await form.getByRole('button', { name: 'Name this version' }).click();
+	// Naming succeeds with a warning suffix when derived TEI is undecided.
+	await expect(page.getByText(/^Named Version \d+/)).toBeVisible({
 		timeout: 30_000,
 	});
 }
@@ -482,7 +537,7 @@ async function importProjectArchive(page: Page, archivePath: string): Promise<vo
 async function exportProject(page: Page, projectName: string, archivePath: string): Promise<void> {
 	await page.goto('/projects');
 	await selectProject(page, projectName);
-	await page.getByRole('link', { name: 'Backup and Sync' }).click();
+	await page.getByRole('link', { name: 'Location', exact: true }).click();
 	const downloadPromise = page.waitForEvent('download');
 	await page.getByRole('button', { name: 'Export project zip' }).click();
 	const download = await downloadPromise;
@@ -497,20 +552,31 @@ async function openTranscription(page: Page, projectName: string, title: string)
 	await expect(page.getByRole('heading', { name: title })).toBeVisible({ timeout: 30_000 });
 }
 
-async function connectSyncFolder(page: Page, projectName: string): Promise<void> {
+async function addSharedFolderLocation(page: Page): Promise<void> {
+	await page.goto('/data');
+	await page.getByRole('button', { name: 'Add folder on this computer' }).click();
+	await expect(
+		page.getByRole('listitem').filter({ hasText: 'E2E Shared Committee Folder' })
+	).toBeVisible({ timeout: 30_000 });
+}
+
+async function placeProject(page: Page, projectName: string): Promise<void> {
 	await page.goto('/projects');
 	await selectProject(page, projectName);
-	await page.getByRole('link', { name: 'Backup and Sync' }).click();
-	await page.getByRole('button', { name: 'Connect sync folder' }).click();
-	await expect(page.getByRole('button', { name: 'Sync now' })).toBeVisible();
+	await page.getByRole('link', { name: 'Location', exact: true }).click();
+	await page.getByRole('button', { name: 'Move', exact: true }).click();
+	await expect(page.getByTestId('project-location')).toHaveText('E2E Shared Committee Folder', {
+		timeout: 30_000,
+	});
 }
 
 async function syncNow(page: Page): Promise<void> {
-	const button = page.getByRole('button', { name: 'Sync now' });
-	await button.click();
-	// Mock sync can finish before the in-flight state is observable.
-	await expect(page.getByText(/Last sync result:/)).toBeVisible({ timeout: 30_000 });
-	await expect(button).toBeEnabled({ timeout: 30_000 });
+	// Reloading restarts the sync service, which syncs every connected project at once.
+	await page.waitForURL(/\/location$/);
+	await page.reload();
+	await expect(page.getByText(/^(All changes synced|Conflict copy to review)$/)).toBeVisible({
+		timeout: 30_000,
+	});
 }
 
 async function createCommitteeContext(
@@ -532,169 +598,4 @@ async function createCommitteeContext(
 	});
 	await context.route('**/__e2e-shared-folder', route => sharedFolder.handle(route));
 	return context;
-}
-
-type SharedFile = { content: string; revision: number; modifiedAt: string };
-
-class SharedFolderServer {
-	private readonly files = new Map<string, SharedFile>();
-	private readonly folders = new Set<string>(['']);
-	private nextRevision = 0;
-	private available = true;
-
-	setAvailable(available: boolean): void {
-		this.available = available;
-	}
-
-	async handle(route: Route): Promise<void> {
-		if (!this.available) {
-			await route.fulfill({
-				status: 503,
-				contentType: 'application/json',
-				body: JSON.stringify({
-					code: 'provider-unavailable',
-					message: 'Shared folder is paused while both committee members edit.',
-				}),
-			});
-			return;
-		}
-		const request = route.request().postDataJSON() as Record<string, unknown>;
-		try {
-			const result = this.dispatch(request);
-			await route.fulfill({
-				status: 200,
-				contentType: 'application/json',
-				body: JSON.stringify(result),
-			});
-		} catch (error) {
-			const failure = error as Error & { code?: string };
-			await route.fulfill({
-				status: failure.code === 'conflict' ? 409 : 404,
-				contentType: 'application/json',
-				body: JSON.stringify({
-					code: failure.code ?? 'not-found',
-					message: failure.message,
-				}),
-			});
-		}
-	}
-
-	private dispatch(request: Record<string, unknown>): unknown {
-		const operation = String(request.operation);
-		if (operation === 'create-folder') {
-			const path = joinRemotePath(String(request.parentId ?? '.'), String(request.name));
-			this.ensureFolders(path);
-			return { id: path };
-		}
-		if (operation === 'list-files') {
-			const folder = normalizeRemotePath(String(request.folderId ?? '.'));
-			const recursive = request.recursive === true;
-			const entries = [
-				...[...this.folders]
-					.filter(path => path && isListedPath(path, folder, recursive))
-					.map(path => ({
-						id: path,
-						path,
-						name: path.split('/').at(-1),
-						revision: 'directory',
-						modifiedAt: new Date(0).toISOString(),
-						size: 0,
-						isFolder: true,
-					})),
-				...[...this.files.entries()]
-					.filter(([path]) => isListedPath(path, folder, recursive))
-					.map(([path, file]) => ({
-						id: path,
-						path,
-						name: path.split('/').at(-1),
-						revision: `rev-${file.revision}`,
-						modifiedAt: file.modifiedAt,
-						size: new TextEncoder().encode(file.content).byteLength,
-						isFolder: false,
-					})),
-			].sort((left, right) => left.path.localeCompare(right.path));
-			return { entries, hasMore: false };
-		}
-		if (operation === 'download-file') {
-			return { content: this.requireFile(String(request.fileId)).content };
-		}
-		if (operation === 'write-file') {
-			const path = request.fileId
-				? normalizeRemotePath(String(request.fileId))
-				: joinRemotePath(String(request.folderId ?? '.'), String(request.path));
-			const existing = this.files.get(path);
-			const expectedRevision = request.expectedRevision;
-			if (request.createOnly === true && existing)
-				throw remoteError('conflict', `${path} exists.`);
-			if (
-				typeof expectedRevision === 'string' &&
-				(!existing || `rev-${existing.revision}` !== expectedRevision)
-			) {
-				throw remoteError('conflict', `Revision changed for ${path}.`);
-			}
-			this.ensureFolders(parentRemotePath(path));
-			const file = {
-				content: String(request.content ?? ''),
-				revision: ++this.nextRevision,
-				modifiedAt: new Date().toISOString(),
-			};
-			this.files.set(path, file);
-			return {
-				id: path,
-				path,
-				revision: `rev-${file.revision}`,
-				modifiedAt: file.modifiedAt,
-				size: new TextEncoder().encode(file.content).byteLength,
-			};
-		}
-		if (operation === 'delete-file') {
-			const path = normalizeRemotePath(String(request.fileId));
-			const file = this.requireFile(path);
-			if (
-				typeof request.expectedRevision === 'string' &&
-				request.expectedRevision !== `rev-${file.revision}`
-			) {
-				throw remoteError('conflict', `Revision changed for ${path}.`);
-			}
-			this.files.delete(path);
-			return {};
-		}
-		throw remoteError('not-found', `Unknown shared-folder operation ${operation}.`);
-	}
-
-	private requireFile(path: string): SharedFile {
-		const file = this.files.get(normalizeRemotePath(path));
-		if (!file) throw remoteError('not-found', `${path} was not found.`);
-		return file;
-	}
-
-	private ensureFolders(path: string): void {
-		const segments = normalizeRemotePath(path).split('/').filter(Boolean);
-		let current = '';
-		for (const segment of segments) {
-			current = current ? `${current}/${segment}` : segment;
-			this.folders.add(current);
-		}
-	}
-}
-
-function normalizeRemotePath(path: string): string {
-	return path === '.' ? '' : path.replace(/^\/+|\/+$/g, '');
-}
-
-function joinRemotePath(parent: string, child: string): string {
-	return [normalizeRemotePath(parent), normalizeRemotePath(child)].filter(Boolean).join('/');
-}
-
-function parentRemotePath(path: string): string {
-	return path.split('/').slice(0, -1).join('/');
-}
-
-function isListedPath(path: string, folder: string, recursive: boolean): boolean {
-	const parent = parentRemotePath(path);
-	return recursive ? path.startsWith(folder ? `${folder}/` : '') : parent === folder;
-}
-
-function remoteError(code: string, message: string): Error & { code: string } {
-	return Object.assign(new Error(message), { code });
 }

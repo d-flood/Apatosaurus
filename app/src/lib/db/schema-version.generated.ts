@@ -1,4 +1,4 @@
-export const INDEX_SCHEMA_VERSION = 1;
+export const INDEX_SCHEMA_VERSION = 4;
 export const INDEX_DATABASE_PREFIX = 'apatosaurus-index-v';
 export const INDEX_DATABASE_FILENAME = `${INDEX_DATABASE_PREFIX}${INDEX_SCHEMA_VERSION}.db`;
 export const INDEX_DATABASE_DIRECTORY = 'apatosaurus/v1/index';

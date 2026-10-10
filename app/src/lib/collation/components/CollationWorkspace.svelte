@@ -4,12 +4,21 @@
 	import {
 		createCommittedCollationCheckpoint,
 		getCollationVersionStatus,
+		listCollationVersions,
+		loadCollationVersionDocument,
+		replaceCollationCurrent,
+		restoreCollationVersion,
 		subscribeLocalDbInvalidations,
+		updateCollationVersionNote,
 	} from '$lib/db/client';
 	import type { CollationVersionStatus } from '$lib/db/repositories/collations';
 	import CollationStepper from './CollationStepper.svelte';
 	import AutoSaveIndicator from './AutoSaveIndicator.svelte';
 	import EntityHeader from '$lib/shell/components/EntityHeader.svelte';
+	import VersionControls, {
+		type VersionActions,
+	} from '$lib/shell/components/VersionControls.svelte';
+	import { compareCollations, formatCollationPart } from '$lib/shell/version-compare';
 	import SetupPhase from './SetupPhase.svelte';
 	import AlignmentGrid from './AlignmentGrid.svelte';
 	import ReadingsPhase from './ReadingsPhase.svelte';
@@ -19,88 +28,82 @@
 	import ArrowLeft from 'phosphor-svelte/lib/ArrowLeft';
 	import ArrowUUpLeft from 'phosphor-svelte/lib/ArrowUUpLeft';
 	import ArrowUUpRight from 'phosphor-svelte/lib/ArrowUUpRight';
-	import GitCommit from 'phosphor-svelte/lib/GitCommit';
 	import Warning from 'phosphor-svelte/lib/Warning';
 
 	let collationVersionStatus = $state<CollationVersionStatus | null>(null);
 	let versionStatusError = $state<string | null>(null);
-	let isCommitFormOpen = $state(false);
-	let commitMessage = $state('');
-	let commitInFlight = $state(false);
-	let commitError = $state<string | null>(null);
-	let commitSuccess = $state<string | null>(null);
 	let bulkRefreshInFlight = $state(false);
 	let bulkRefreshError = $state<string | null>(null);
 
-	const canCommitVersion = $derived(
-		!!collationState.collationId &&
-			!commitInFlight &&
-			!!collationVersionStatus &&
-			(collationVersionStatus.commitState === 'never-committed' ||
-				collationVersionStatus.commitState === 'dirty')
-	);
+	async function flushCollation(id: string) {
+		const flushed = await collationState.flushPendingSave();
+		if (!flushed) throw new Error('Local save failed. Try again.');
+		if (collationState.collationId !== id) throw new Error('Collation changed. Try again.');
+	}
 
-	const commitDisabledReason = $derived.by(() => {
-		if (!collationState.collationId) return 'No collation loaded.';
-		if (!collationVersionStatus) return 'Version status is loading.';
-		if (commitInFlight) return 'Committing version.';
-		if (collationVersionStatus.commitState === 'clean') {
-			return 'No changes since the last committed version.';
-		}
-		return '';
-	});
+	async function reloadCollation(id: string) {
+		await collationState.reloadCollation();
+		await loadCollationVersionStatus(id);
+	}
+
+	function versionActionsFor(id: string): VersionActions {
+		return {
+			list: () => listCollationVersions(id),
+			async name(label, note) {
+				await flushCollation(id);
+				const version = await createCommittedCollationCheckpoint({
+					collationId: id,
+					label,
+					commitMessage: note,
+				});
+				await loadCollationVersionStatus(id);
+				return version.warnings?.map(warning => warning.message) ?? [];
+			},
+			async restore(versionId) {
+				await flushCollation(id);
+				const previous = await restoreCollationVersion(id, versionId);
+				await reloadCollation(id);
+				return async () => {
+					await flushCollation(id);
+					await replaceCollationCurrent(id, previous);
+					await reloadCollation(id);
+				};
+			},
+			editNote: (versionId, note) => updateCollationVersionNote(id, versionId, note),
+			async compare(leftVersionId, rightVersionId) {
+				if (!rightVersionId) await flushCollation(id);
+				const [left, right] = await Promise.all([
+					loadCollationVersionDocument(id, leftVersionId),
+					loadCollationVersionDocument(id, rightVersionId),
+				]);
+				return compareCollations(left, right);
+			},
+			formatPart: formatCollationPart,
+		};
+	}
 
 	const witnessSourceSummary = $derived.by(() => {
 		const witnessStatuses = collationVersionStatus?.witnesses ?? [];
 		if (witnessStatuses.length === 0) return null;
-		let newerCount = 0;
-		let uncommittedCount = 0;
+		let changedCount = 0;
 		let missingCount = 0;
-		let noCommittedCount = 0;
 		for (const witness of witnessStatuses) {
-			switch (witness.versionState) {
-				case 'newer-source-available':
-					newerCount++;
-					break;
-				case 'source-has-uncommitted-changes':
-					uncommittedCount++;
-					break;
-				case 'source-missing':
-					missingCount++;
-					break;
-				case 'source-has-no-committed-version':
-					noCommittedCount++;
-					break;
-			}
+			if (witness.versionState === 'source-changed') changedCount++;
+			if (witness.versionState === 'source-missing') missingCount++;
 		}
-		return { newerCount, uncommittedCount, missingCount, noCommittedCount };
+		return { changedCount, missingCount };
 	});
 
 	const witnessSourceSummaryText = $derived.by(() => {
 		const summary = witnessSourceSummary;
 		if (!summary) return '';
-		if (
-			summary.newerCount === 0 &&
-			summary.uncommittedCount === 0 &&
-			summary.missingCount === 0 &&
-			summary.noCommittedCount === 0
-		) {
+		if (summary.changedCount === 0 && summary.missingCount === 0) {
 			return 'All witness sources current';
 		}
 		const parts: string[] = [];
-		if (summary.newerCount > 0) {
+		if (summary.changedCount > 0) {
 			parts.push(
-				`${summary.newerCount} witness source${summary.newerCount === 1 ? '' : 's'} with newer committed version${summary.newerCount === 1 ? '' : 's'}`
-			);
-		}
-		if (summary.uncommittedCount > 0) {
-			parts.push(
-				`${summary.uncommittedCount} witness source${summary.uncommittedCount === 1 ? '' : 's'} with uncommitted edits`
-			);
-		}
-		if (summary.noCommittedCount > 0) {
-			parts.push(
-				`${summary.noCommittedCount} witness source${summary.noCommittedCount === 1 ? '' : 's'} without committed version`
+				`${summary.changedCount} witness source${summary.changedCount === 1 ? '' : 's'} changed`
 			);
 		}
 		if (summary.missingCount > 0) {
@@ -113,7 +116,7 @@
 
 	const staleWitnessCount = $derived(
 		collationVersionStatus?.witnesses.filter(
-			witness => witness.versionState === 'newer-source-available'
+			witness => witness.versionState === 'source-changed'
 		).length ?? 0
 	);
 
@@ -135,57 +138,10 @@
 		}
 	}
 
-	function openCommitForm() {
-		commitError = null;
-		commitSuccess = null;
-		isCommitFormOpen = true;
-	}
-
-	function closeCommitForm() {
-		if (commitInFlight) return;
-		isCommitFormOpen = false;
-		commitMessage = '';
-		commitError = null;
-	}
-
-	async function handleCommitVersion(event: SubmitEvent) {
-		event.preventDefault();
-		if (!canCommitVersion || !collationVersionStatus || !collationState.collationId) return;
-		const id = collationState.collationId;
-		commitInFlight = true;
-		commitError = null;
-		commitSuccess = null;
-		try {
-			const flushed = await collationState.flushPendingSave();
-			if (!flushed) {
-				throw new Error('Local save failed. Commit was not created.');
-			}
-			if (collationState.collationId !== id) {
-				throw new Error(
-					'Collation changed before commit completed. Commit was not created.'
-				);
-			}
-			const checkpoint = await createCommittedCollationCheckpoint({
-				collationId: id,
-				commitMessage: commitMessage.trim() || null,
-			});
-			await loadCollationVersionStatus(id);
-			isCommitFormOpen = false;
-			commitMessage = '';
-			commitSuccess = checkpoint.warnings?.length
-				? `Committed locally. ${checkpoint.warnings.map(warning => warning.message).join(' ')}`
-				: 'Committed locally';
-		} catch (err) {
-			commitError = err instanceof Error ? err.message : 'Failed to commit version';
-		} finally {
-			commitInFlight = false;
-		}
-	}
-
 	async function refreshStaleWitnessSources() {
 		if (!collationState.collationId || staleWitnessCount === 0 || bulkRefreshInFlight) return;
 		const confirmed = window.confirm(
-			`Refresh ${staleWitnessCount} stale witness source${staleWitnessCount === 1 ? '' : 's'} from the latest committed source version? Alignment/readings will be rebuilt and the collation will need a new commit.`
+			`Refresh ${staleWitnessCount} stale witness source${staleWitnessCount === 1 ? '' : 's'} from their source? Alignment/readings will be rebuilt.`
 		);
 		if (!confirmed) return;
 		const id = collationState.collationId;
@@ -213,10 +169,6 @@
 		let cancelled = false;
 		collationVersionStatus = null;
 		versionStatusError = null;
-		isCommitFormOpen = false;
-		commitMessage = '';
-		commitError = null;
-		commitSuccess = null;
 		bulkRefreshError = null;
 		if (!id) {
 			return;
@@ -253,12 +205,6 @@
 			collationState.redo();
 		}
 	}
-
-	$effect(() => {
-		if (collationState.saveStatus === 'unsaved') {
-			commitSuccess = null;
-		}
-	});
 </script>
 
 <svelte:window onkeydown={handleHistoryKeydown} />
@@ -310,15 +256,17 @@
 				<div class="border-l border-base-300 pl-3">
 					<AutoSaveIndicator />
 				</div>
-				{#if collationVersionStatus}
+				{#if collationVersionStatus && collationState.collationId}
 					<div class="border-l border-base-300 pl-3 flex items-center gap-2">
-						<GitCommit size={14} class="text-base-content/60" />
 						<EntityHeader
 							label="Collation"
 							projectName={collationVersionStatus.projectName}
-							commitState={collationVersionStatus.commitState}
-							checkpointRevisionId={collationVersionStatus.currentCheckpoint
+						/>
+						<VersionControls
+							actions={versionActionsFor(collationState.collationId)}
+							basedOnVersionId={collationVersionStatus.currentCheckpoint
 								?.revisionId ?? null}
+							changedSinceBase={collationVersionStatus.commitState !== 'clean'}
 						/>
 					</div>
 				{:else if versionStatusError}
@@ -392,19 +340,7 @@
 			{:else if collationState.phase === 'stemma'}
 				<StemmaPhase />
 			{:else if collationState.phase === 'review'}
-				<ReviewPhase
-					{canCommitVersion}
-					{commitDisabledReason}
-					{commitInFlight}
-					{isCommitFormOpen}
-					{commitMessage}
-					{commitError}
-					{commitSuccess}
-					onOpenCommitForm={openCommitForm}
-					onCloseCommitForm={closeCommitForm}
-					onCommitVersion={handleCommitVersion}
-					onCommitMessage={message => (commitMessage = message)}
-				/>
+				<ReviewPhase />
 			{:else}
 				<AlignmentGrid />
 			{/if}

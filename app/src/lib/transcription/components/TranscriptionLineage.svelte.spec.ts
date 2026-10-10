@@ -27,11 +27,7 @@ function statusWithSource(
 			projectName: 'Source Project',
 			title: 'Source witness',
 			siglum: 'A',
-			currentCheckpoint: {
-				revisionId: 'rev-source-current',
-				contentHash: 'hash-source-current',
-			},
-			dirtyToCheckpoint: false,
+			state: null,
 		},
 		immediateSource: {
 			sourceType: 'project_copy',
@@ -40,48 +36,63 @@ function statusWithSource(
 			sourceTranscriptionId: 'tx-source',
 			sourceRevisionId: 'rev-source-current',
 			sourceContentHash: 'hash-source-current',
+			sourceCapturedAt: null,
+			sourceVersionLabel: 'Version 2',
 		},
 		currentCheckpoint: null,
 		workingContentHash: 'hash-target-working',
 		dirtyToCheckpoint: false,
 		commitState: 'clean',
-		sourceState: {
-			kind: 'up-to-date',
-			sourceTranscriptionId: 'tx-source',
-			sourceRevisionId: 'rev-source-current',
-			sourceContentHash: 'hash-source-current',
-		},
+		sourceState: { kind: 'up-to-date', sourceTranscriptionId: 'tx-source' },
 		...overrides,
 	};
 }
 
 describe('TranscriptionLineage', () => {
-	it('renders copied origin project and short revision for a current source', async () => {
+	it('renders copied origin project and version label for a current source', async () => {
 		render(TranscriptionLineage, { status: statusWithSource({}) });
 
 		await expect
 			.element(browserPage.getByTestId('transcription-lineage'))
-			.toHaveTextContent('Copied from Source Project @ rev-sour...');
+			.toHaveTextContent('Copied from Source Project @ Version 2');
 		await expect
 			.element(browserPage.getByTestId('transcription-lineage-state'))
 			.toHaveTextContent('Source current');
 	});
 
-	it('marks lineage stale exactly when the source head differs', async () => {
+	it('marks lineage stale exactly when the source changed', async () => {
 		render(TranscriptionLineage, {
 			status: statusWithSource({
-				sourceState: {
-					kind: 'newer-source-available',
-					sourceTranscriptionId: 'tx-source',
-					sourceRevisionId: 'rev-source-newer',
-					sourceContentHash: 'hash-source-newer',
-				},
+				sourceState: { kind: 'source-changed', sourceTranscriptionId: 'tx-source' },
 			}),
 		});
 
 		await expect
 			.element(browserPage.getByTestId('transcription-lineage-state'))
-			.toHaveTextContent('Newer source available');
+			.toHaveTextContent('Source changed');
+	});
+
+	it('renders a Current source with its capture time and no ids', async () => {
+		render(TranscriptionLineage, {
+			status: statusWithSource({
+				immediateSource: {
+					sourceType: 'project_snapshot',
+					sourceProjectId: 'source-project',
+					sourceProjectName: 'Source Project',
+					sourceTranscriptionId: 'tx-source',
+					sourceRevisionId: null,
+					sourceContentHash: 'hash-source-current',
+					sourceCapturedAt: '2026-09-27T14:02:00.000Z',
+					sourceVersionLabel: null,
+				},
+			}),
+		});
+
+		const lineage = browserPage.getByTestId('transcription-lineage');
+		await expect
+			.element(lineage)
+			.toHaveTextContent(/Copied from Source Project @ Current as of/);
+		await expect.element(lineage).not.toHaveTextContent('hash-source-current');
 	});
 
 	it('renders missing-source provenance without crashing', async () => {
@@ -95,6 +106,8 @@ describe('TranscriptionLineage', () => {
 					sourceTranscriptionId: 'deleted-transcription',
 					sourceRevisionId: 'deleted-revision-123456',
 					sourceContentHash: 'deleted-hash',
+					sourceCapturedAt: null,
+					sourceVersionLabel: null,
 				},
 				sourceState: {
 					kind: 'source-missing',
@@ -105,7 +118,7 @@ describe('TranscriptionLineage', () => {
 
 		await expect
 			.element(browserPage.getByTestId('transcription-lineage'))
-			.toHaveTextContent('Copied from deleted-project @ deleted-...');
+			.toHaveTextContent('Copied from deleted-project @ Named version');
 		await expect
 			.element(browserPage.getByTestId('transcription-lineage-state'))
 			.toHaveTextContent('Source unavailable');

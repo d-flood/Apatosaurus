@@ -1,16 +1,38 @@
 import type { Kysely } from 'kysely';
 
-import { backupProject } from '$lib/backup/sync-manager';
-import { deriveProjectBackupSummary } from '$lib/backup/backup-summary';
+import { backupProject, listPendingUploadPaths } from '$lib/backup/sync-manager';
+import {
+	listConflictCopies,
+	loadConflictCopyContents,
+	reconcileConflictCopy,
+} from '$lib/backup/conflicts';
+import type { CompareChoices } from '$lib/shell/version-compare';
 import type { SyncProjectContext } from '$lib/backup/backup-status';
+import {
+	getProjectLocation,
+	isPlacedProject,
+	listProjectPlacements,
+	type PlacedProject,
+} from '$lib/storage/project-locations';
+import { deleteProjectFromLocation, moveProject } from '$lib/backup/project-move';
 import { exportAllProjectsZip, exportProjectZip } from '$lib/backup/project-zip-export';
 import {
 	importProjectZip,
 	restoreReferenceEditionsZip,
 	type ProjectZipImportCollisionMode,
 } from '$lib/backup/project-zip-import';
-import { createProviderForSyncTarget } from '$lib/backup/provider-factory';
+import { createProviderForLocation } from '$lib/backup/provider-factory';
+import { discoverLocationProjects } from '$lib/backup/location-discovery';
+import { deleteProjectLocally, removeProjectsFromDevice } from '$lib/backup/project-removal';
+import { LOCATION_ROOT_FOLDER_ID } from '$lib/backup/providers/provider';
+import { effectiveAuthorName } from '$lib/backup/version-author';
+import {
+	clearEditingPresence,
+	readEditingNotice,
+	writeEditingPresence,
+} from '$lib/backup/editing-presence';
 import type { SavePageCanvasLinkInput } from '$lib/iiif/types';
+import type { CollationPayload, ProjectTranscriptionPayload } from '$lib/storage/formats';
 import type { DbInvalidationDomain } from './rpc';
 import type { Database } from './types.generated';
 import {
@@ -18,9 +40,13 @@ import {
 	createCommittedCollationCheckpointWithFiles,
 	getCollationVersionStatusWithWorkingFile,
 	listProjectCollationVersionStatusesWithWorkingFiles,
+	loadCollationVersionDocument,
 	loadCollationWithWorkingFile,
+	replaceCollationCurrent,
+	restoreCollationVersion,
 	saveWorkingCollationArtifact,
 	saveWorkingCollationMetadata,
+	updateCollationVersionNote,
 } from './repositories/collation-files';
 import {
 	listCollationsWithProjectNames,
@@ -45,6 +71,7 @@ import {
 	getProjectTranscriptionIds,
 	getProjectTranscriptionStatusForOwnedTranscription,
 	listProjectDocumentTitles,
+	listProjectIdsWithContent,
 	listProjects,
 	listProjectTranscriptionOptions,
 	listProjectTranscriptionSourceCandidates,
@@ -61,7 +88,11 @@ import {
 } from './repositories/projects';
 import {
 	getLatestProjectCommitTimestamp,
+	getTranscriptionCurrentContentHashes,
+	getTranscriptionSourceOptions,
+	listCollationVersions,
 	listCommittedTranscriptionCheckpoints,
+	listTranscriptionVersions,
 	loadCommittedTranscriptionCheckpointPayload,
 	type CommitCollationInput,
 	type CommitTranscriptionInput,
@@ -75,8 +106,11 @@ import {
 	loadTranscriptionContentWithFiles,
 	loadTranscriptionWithWorkingFile,
 	rebuildVerseIndexForTranscriptionsWithFiles,
+	replaceTranscriptionCurrent,
+	restoreTranscriptionVersion,
 	saveWorkingTranscriptionContent,
 	saveWorkingTranscriptionMetadata,
+	updateTranscriptionVersionNote,
 } from './repositories/transcription-files';
 import {
 	getTranscriptionSummary,
@@ -126,6 +160,12 @@ export const dbApi = defineApi({
 	async updateTranscriptionMetadata({ db, invalidate }, input: UpdateTranscriptionMetadataInput) {
 		await saveWorkingTranscriptionMetadata(db, input);
 		invalidate('transcriptions');
+	},
+	listConflictCopies: ({ db }, projectId?: string) => listConflictCopies(db, projectId),
+	loadConflictCopyContents: ({ db }, copyId: string) => loadConflictCopyContents(db, copyId),
+	async reconcileConflictCopy({ db, invalidate }, copyId: string, choices: CompareChoices) {
+		await reconcileConflictCopy(db, copyId, choices);
+		invalidate('transcriptions', 'collations', 'projects');
 	},
 	async deleteTranscription({ db, invalidate, warn }, id: string) {
 		warn(await deleteTranscriptionWithFiles(db, id));
@@ -179,6 +219,7 @@ export const dbApi = defineApi({
 	) => listProjectTranscriptionStatuses(db, projectId, { ...options, ...fileBacked }),
 	listProjectDocumentTitles: ({ db }, projectId: string) =>
 		listProjectDocumentTitles(db, projectId),
+	listProjectIdsWithContent: ({ db }) => listProjectIdsWithContent(db),
 	getProjectTranscriptionStatusForOwnedTranscription: (
 		{ db },
 		projectOwnedTranscriptionId: string,
@@ -216,7 +257,7 @@ export const dbApi = defineApi({
 		return result;
 	},
 	listProjectTranscriptionSourceCandidates: ({ db }, targetProjectId: string) =>
-		listProjectTranscriptionSourceCandidates(db, targetProjectId, fileBacked),
+		listProjectTranscriptionSourceCandidates(db, targetProjectId),
 
 	listCollationsWithProjectNames: ({ db }) => listCollationsWithProjectNames(db),
 	async createCollation({ db, invalidate, warn }, input: CreateCollationInput) {
@@ -313,17 +354,103 @@ export const dbApi = defineApi({
 		{ db, invalidate },
 		input: CommitTranscriptionInput
 	) {
-		const checkpoint = await createCommittedTranscriptionCheckpointWithFiles(db, input);
+		const { project_id } = await db
+			.selectFrom('project_transcriptions')
+			.select('project_id')
+			.where('id', '=', input.projectTranscriptionId)
+			.executeTakeFirstOrThrow();
+		const checkpoint = await createCommittedTranscriptionCheckpointWithFiles(db, {
+			...input,
+			authorName: input.authorName ?? (await effectiveAuthorName(project_id)) ?? undefined,
+		});
 		invalidate('transcriptions');
 		return checkpoint;
 	},
 	async createCommittedCollationCheckpoint({ db, invalidate }, input: CommitCollationInput) {
-		const checkpoint = await createCommittedCollationCheckpointWithFiles(db, input);
+		const { project_id } = await db
+			.selectFrom('collations')
+			.select('project_id')
+			.where('id', '=', input.collationId)
+			.executeTakeFirstOrThrow();
+		const checkpoint = await createCommittedCollationCheckpointWithFiles(db, {
+			...input,
+			authorName: input.authorName ?? (await effectiveAuthorName(project_id)) ?? undefined,
+		});
 		invalidate('collations');
 		return checkpoint;
 	},
 	listCommittedTranscriptionCheckpoints: ({ db }, transcriptionId: string) =>
 		listCommittedTranscriptionCheckpoints(db, transcriptionId),
+	listTranscriptionVersions: ({ db }, transcriptionId: string) =>
+		listTranscriptionVersions(db, transcriptionId),
+	getTranscriptionCurrentContentHashes: ({ db }, transcriptionIds: string[]) =>
+		getTranscriptionCurrentContentHashes(db, transcriptionIds),
+	getTranscriptionSourceOptions: ({ db }, transcriptionId: string) =>
+		getTranscriptionSourceOptions(db, transcriptionId),
+	listCollationVersions: ({ db }, collationId: string) => listCollationVersions(db, collationId),
+	async restoreTranscriptionVersion(
+		{ db, invalidate },
+		transcriptionId: string,
+		checkpointId: string
+	) {
+		const previous = await restoreTranscriptionVersion(db, transcriptionId, checkpointId);
+		invalidate('transcriptions', 'iiif');
+		return previous;
+	},
+	async replaceTranscriptionCurrent(
+		{ db, invalidate },
+		transcriptionId: string,
+		payload: ProjectTranscriptionPayload
+	) {
+		await replaceTranscriptionCurrent(db, transcriptionId, payload);
+		invalidate('transcriptions', 'iiif');
+	},
+	async updateTranscriptionVersionNote(
+		{ db, invalidate },
+		transcriptionId: string,
+		checkpointId: string,
+		note: string | null
+	) {
+		await updateTranscriptionVersionNote(db, transcriptionId, checkpointId, note);
+		invalidate('transcriptions');
+	},
+	async restoreCollationVersion({ db, invalidate }, collationId: string, checkpointId: string) {
+		const previous = await restoreCollationVersion(db, collationId, checkpointId);
+		invalidate('collations');
+		return previous;
+	},
+	async replaceCollationCurrent(
+		{ db, invalidate },
+		collationId: string,
+		payload: CollationPayload
+	) {
+		await replaceCollationCurrent(db, collationId, payload);
+		invalidate('collations');
+	},
+	async updateCollationVersionNote(
+		{ db, invalidate },
+		collationId: string,
+		checkpointId: string,
+		note: string | null
+	) {
+		await updateCollationVersionNote(db, collationId, checkpointId, note);
+		invalidate('collations');
+	},
+	async loadTranscriptionVersionContent(
+		{ db },
+		transcriptionId: string,
+		checkpointId: string | null
+	): Promise<unknown> {
+		if (!checkpointId) return loadTranscriptionContentWithFiles(db, transcriptionId, fileOnly);
+		const version = await loadCommittedTranscriptionCheckpointPayload(
+			db,
+			transcriptionId,
+			checkpointId
+		);
+		return version.payload.content_json;
+	},
+	loadCollationVersionDocument: ({ db }, collationId: string, checkpointId: string | null) =>
+		loadCollationVersionDocument(db, collationId, checkpointId),
 	getLatestProjectCommitTimestamp: ({ db }, projectId: string) =>
 		getLatestProjectCommitTimestamp(db, projectId),
 	loadCommittedTranscriptionCheckpointPayload: (
@@ -332,21 +459,102 @@ export const dbApi = defineApi({
 		checkpointId: string
 	) => loadCommittedTranscriptionCheckpointPayload(db, transcriptionId, checkpointId),
 
-	deriveProjectBackupSummary: ({ db }, context: SyncProjectContext) =>
-		deriveProjectBackupSummary(db, context),
-	async backupProject({ db, invalidate }, context: SyncProjectContext, strict: boolean) {
-		const provider = await createProviderForSyncTarget(context.connectionId);
-		const result = await backupProject(db, provider, context, { strict });
+	listPendingUploadPaths: ({ db }, context: SyncProjectContext) =>
+		listPendingUploadPaths(db, context),
+	async backupProject({ db, invalidate }, context: SyncProjectContext) {
+		const provider = await createProviderForLocation(context.connectionId);
+		const result = await backupProject(db, provider, context, {
+			authorName: (await effectiveAuthorName(context.projectId)) ?? undefined,
+		});
 		invalidate('sync-targets');
 		if (result.downloadedPaths.length || result.deletedPaths.length || result.conflictCopyId) {
 			invalidate('projects', 'transcriptions', 'collations', 'iiif');
 		}
 		return result;
 	},
-	exportProjectZip: ({ db }, projectId: string, includeDrafts = false) =>
-		exportProjectZip(db, projectId, { includeDrafts }),
-	exportAllProjectsZip: ({ db }, includeDrafts = false) =>
-		exportAllProjectsZip(db, { includeDrafts }),
+	writeEditingPresence: (_context, projectId: string, documentId: string) =>
+		writeEditingPresence(projectId, documentId),
+	clearEditingPresence: (_context, projectId: string, documentId: string) =>
+		clearEditingPresence(projectId, documentId),
+	readEditingNotice: (_context, projectId: string, documentId: string) =>
+		readEditingNotice(projectId, documentId),
+	async discoverLocationProjects({ db, invalidate }, locationId: string) {
+		const provider = await createProviderForLocation(locationId);
+		const result = await discoverLocationProjects(db, provider, LOCATION_ROOT_FOLDER_ID);
+		if (result.projects.some(project => project.imported)) {
+			invalidate('projects', 'transcriptions', 'collations', 'iiif');
+		}
+		return result;
+	},
+	async moveProject({ db, invalidate }, projectId: string, locationId: string) {
+		const placement = (await listProjectPlacements())
+			.filter(isPlacedProject)
+			.find(candidate => candidate.projectId === projectId);
+		if (placement?.locationId === locationId) {
+			throw new Error('The project already lives in this location.');
+		}
+		const location = await getProjectLocation(locationId);
+		if (!location) throw new Error('Project location was not found.');
+		const project = await db
+			.selectFrom('projects')
+			.select('storage_slug')
+			.where('id', '=', projectId)
+			.executeTakeFirstOrThrow();
+		const authorName = (await effectiveAuthorName(projectId)) ?? undefined;
+		await moveProject(
+			db,
+			{
+				projectId,
+				source: placement
+					? {
+							provider: await createProviderForLocation(placement.locationId),
+							rootFolderId: LOCATION_ROOT_FOLDER_ID,
+							locationId: placement.locationId,
+							folderName: placement.folderName,
+						}
+					: null,
+				destination: {
+					provider: await createProviderForLocation(location.id),
+					rootFolderId: LOCATION_ROOT_FOLDER_ID,
+					locationId: location.id,
+					folderName: project.storage_slug,
+					label: location.displayPath,
+				},
+				movedBy: authorName ?? 'A collaborator',
+			},
+			{ authorName }
+		);
+		invalidate('sync-targets');
+	},
+	async deleteProject({ db, invalidate }, projectId: string) {
+		const placement = (await listProjectPlacements())
+			.filter(isPlacedProject)
+			.find(candidate => candidate.projectId === projectId);
+		if (placement) {
+			await deleteProjectFromLocation(
+				{
+					provider: await createProviderForLocation(placement.locationId),
+					rootFolderId: LOCATION_ROOT_FOLDER_ID,
+					locationId: placement.locationId,
+					folderName: placement.folderName,
+				},
+				{
+					deletedAt: new Date().toISOString(),
+					deletedBy: (await effectiveAuthorName(projectId)) ?? 'A collaborator',
+				}
+			);
+		}
+		await deleteProjectLocally(db, projectId);
+		invalidate('projects', 'transcriptions', 'collations', 'iiif', 'sync-targets');
+	},
+	async removeProjectsFromDevice({ db, invalidate }, placements: PlacedProject[]) {
+		const result = await removeProjectsFromDevice(db, placements);
+		if (result.ok)
+			invalidate('projects', 'transcriptions', 'collations', 'iiif', 'sync-targets');
+		return result;
+	},
+	exportProjectZip: ({ db }, projectId: string) => exportProjectZip(db, projectId),
+	exportAllProjectsZip: ({ db }) => exportAllProjectsZip(db),
 	async importProjectZip(
 		{ db, invalidate },
 		bytes: Uint8Array,

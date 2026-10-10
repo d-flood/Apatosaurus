@@ -76,8 +76,8 @@
 	let isAddingFromProject = $state(false);
 	let addFromProjectError = $state<string | null>(null);
 
-	let refreshSourceCheckpointId = $derived(
-		refreshTarget ? (resolveRefreshSource(refreshTarget)?.sourceCheckpointId ?? '') : ''
+	let refreshSourceTranscriptionId = $derived(
+		refreshTarget ? resolveRefreshSourceTranscriptionId(refreshTarget) : null
 	);
 
 	let metadataDirty = $derived(
@@ -472,21 +472,11 @@
 		}
 	}
 
-	function resolveRefreshSource(status: ProjectTranscriptionStatus) {
+	function resolveRefreshSourceTranscriptionId(status: ProjectTranscriptionStatus) {
 		const state: ProjectTranscriptionSourceState = status.sourceState;
-		if (state.kind === 'up-to-date' || state.kind === 'newer-source-available') {
-			return {
-				sourceTranscriptionId: state.sourceTranscriptionId,
-				sourceCheckpointId: state.sourceRevisionId,
-			};
-		}
-		if (state.kind === 'source-has-uncommitted-changes' && state.sourceRevisionId) {
-			return {
-				sourceTranscriptionId: state.sourceTranscriptionId,
-				sourceCheckpointId: state.sourceRevisionId,
-			};
-		}
-		return null;
+		return state.kind === 'up-to-date' || state.kind === 'source-changed'
+			? state.sourceTranscriptionId
+			: null;
 	}
 
 	function handleRequestRefresh(status: ProjectTranscriptionStatus) {
@@ -500,12 +490,15 @@
 		refreshError = null;
 	}
 
-	async function confirmRefreshTranscription(allowReplaceDirty: boolean) {
+	async function confirmRefreshTranscription(
+		allowReplaceDirty: boolean,
+		sourceVersionId: string | null
+	) {
 		const target = refreshTarget;
 		if (!target) return;
-		const source = resolveRefreshSource(target);
-		if (!source) {
-			refreshError = 'No committed source version available for this project transcription.';
+		const sourceTranscriptionId = resolveRefreshSourceTranscriptionId(target);
+		if (!sourceTranscriptionId) {
+			refreshError = 'No source available for this project transcription.';
 			return;
 		}
 		isRefreshing = true;
@@ -513,8 +506,8 @@
 		try {
 			await refreshProjectTranscription({
 				projectTranscriptionId: target.projectTranscriptionId,
-				sourceTranscriptionId: source.sourceTranscriptionId,
-				sourceCheckpointId: source.sourceCheckpointId,
+				sourceTranscriptionId,
+				sourceVersionId,
 				allowReplaceDirty,
 			});
 			refreshTarget = null;
@@ -551,7 +544,10 @@
 		addFromProjectCandidates = [];
 	}
 
-	async function confirmAddFromProject(candidate: ProjectTranscriptionSourceCandidate) {
+	async function confirmAddFromProject(
+		candidate: ProjectTranscriptionSourceCandidate,
+		sourceVersionId: string | null
+	) {
 		const projectId = openProject.id;
 		isAddingFromProject = true;
 		addFromProjectError = null;
@@ -559,6 +555,7 @@
 			await addProjectTranscriptionFromProject({
 				targetProjectId: projectId,
 				sourceProjectTranscriptionId: candidate.projectTranscriptionId,
+				sourceVersionId,
 			});
 			showAddFromProject = false;
 			addFromProjectCandidates = [];
@@ -665,10 +662,10 @@
 	<span class="sr-only">Saving project settings</span>
 {/if}
 
-{#if refreshTarget}
+{#if refreshTarget && refreshSourceTranscriptionId}
 	<ProjectTranscriptionRefreshDialog
 		status={refreshTarget}
-		sourceCheckpointId={refreshSourceCheckpointId}
+		sourceTranscriptionId={refreshSourceTranscriptionId}
 		isSubmitting={isRefreshing}
 		error={refreshError}
 		onConfirm={confirmRefreshTranscription}

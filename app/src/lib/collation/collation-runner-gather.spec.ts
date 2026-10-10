@@ -1,11 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { getTranscriptionsByIds, getVerseIndexRowsForVerse } = vi.hoisted(() => ({
-	getTranscriptionsByIds: vi.fn(),
-	getVerseIndexRowsForVerse: vi.fn(),
-}));
+const { getTranscriptionCurrentContentHashes, getTranscriptionsByIds, getVerseIndexRowsForVerse } =
+	vi.hoisted(() => ({
+		getTranscriptionCurrentContentHashes: vi.fn(async (ids: string[]) =>
+			Object.fromEntries(ids.map(id => [id, `sha256:${id}-current`]))
+		),
+		getTranscriptionsByIds: vi.fn(),
+		getVerseIndexRowsForVerse: vi.fn(),
+	}));
 
 vi.mock('$lib/db/client', () => ({
+	getTranscriptionCurrentContentHashes,
 	getTranscriptionsByIds,
 }));
 
@@ -698,12 +703,19 @@ describe('gatherWitnessesForVerse', () => {
 				witness.kind,
 				witness.handId,
 				witness.transcriptionUid,
-				witness.sourceVersion,
+				witness.source.kind === 'current' ? witness.source.contentHash : null,
 				witness.content,
 			])
 		).toEqual([
-			['Shared 01', 'firsthand', 'firsthand', 'tx-first', 'tx-first-revision', 'λογος'],
-			['Shared 01', 'firsthand', 'firsthand', 'tx-second', 'tx-second-revision', 'θεος'],
+			['Shared 01', 'firsthand', 'firsthand', 'tx-first', 'sha256:tx-first-current', 'λογος'],
+			[
+				'Shared 01',
+				'firsthand',
+				'firsthand',
+				'tx-second',
+				'sha256:tx-second-current',
+				'θεος',
+			],
 		]);
 	});
 
@@ -800,8 +812,16 @@ describe('gatherWitnessesForVerse', () => {
 			'tx-1',
 		]);
 
+		const withoutCaptureTime = (witnesses: typeof perIdentifier) =>
+			witnesses.map(witness => ({
+				...witness,
+				source: { ...witness.source, capturedAt: '' },
+			}));
+
 		expect(segmentResult.error).toBeNull();
-		expect(segmentResult.witnesses).toEqual(perIdentifier);
+		expect(withoutCaptureTime(segmentResult.witnesses)).toEqual(
+			withoutCaptureTime(perIdentifier)
+		);
 		expect(segmentResult.witnesses.map(witness => witness.siglum)).toEqual([
 			'Corrected 01',
 			'Corrected 01 corrector1',

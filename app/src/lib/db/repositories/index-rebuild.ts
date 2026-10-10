@@ -9,8 +9,8 @@ import {
 	TRANSCRIPTION_CHECKPOINT_FORMAT,
 	WORKING_COLLATION_FORMAT,
 	WORKING_TRANSCRIPTION_FORMAT,
-	collationPayloadToContent,
-	projectTranscriptionPayloadToSnapshot,
+	mergeWorkingCollation,
+	mergeWorkingTranscription,
 	readCanonicalDocument,
 	type CollationCheckpointPayload,
 	type CollationPayload,
@@ -33,7 +33,6 @@ import {
 	transcriptionTeiFile,
 	transcriptionWorkingFile,
 } from '$lib/storage/layout';
-import { hashCanonicalPayload } from '$lib/storage/canonical-json';
 import {
 	listDirectory,
 	readTextFile,
@@ -204,9 +203,9 @@ export async function restoreOrphanPrimaryToProject(
 			{
 				project_transcription_id: payload.project_transcription_id,
 				transcription_id: payload.id,
-				current_revision: {
-					id: payload.current_revision.id,
-					content_hash: payload.current_revision.content_hash,
+				current_revision: payload.based_on_checkpoint && {
+					id: payload.based_on_checkpoint.id,
+					content_hash: payload.based_on_checkpoint.content_hash,
 				},
 				title: payload.title,
 				siglum: payload.siglum,
@@ -235,9 +234,9 @@ export async function restoreOrphanPrimaryToProject(
 			...manifest.collations,
 			{
 				collation_id: payload.id,
-				current_revision: {
-					id: payload.current_revision.id,
-					content_hash: payload.current_revision.content_hash,
+				current_revision: payload.based_on_checkpoint && {
+					id: payload.based_on_checkpoint.id,
+					content_hash: payload.based_on_checkpoint.content_hash,
 				},
 				title: payload.title,
 				verse_identifier: payload.verse_identifier,
@@ -353,9 +352,37 @@ async function collectTranscriptionRows(
 		report,
 		storeOptions
 	);
-	const indexPayload = workingPayload ?? payload;
+	const indexRows = transcriptionIndexRowsFromPrimary(
+		projectId,
+		payload,
+		workingPayload ?? payload
+	);
+	rows.transcriptions.push(indexRows.transcription);
+	rows.projectTranscriptions.push(indexRows.projectTranscription);
+	rows.transcriptionVerseInputs.push({
+		transcriptionId: payload.id,
+		contentJson: indexRows.transcription.content_json,
+	});
+	rows.iiifManifestSources.push(...indexRows.iiifManifestSources);
+	rows.pageCanvasLinks.push(...indexRows.pageCanvasLinks);
+	rows.canvasAnnotations.push(...indexRows.canvasAnnotations);
+
+	await collectTranscriptionCheckpointRows(
+		projectSlug,
+		payload.project_transcription_id,
+		rows,
+		report,
+		storeOptions
+	);
+}
+
+export function transcriptionIndexRowsFromPrimary(
+	projectId: string,
+	payload: ProjectTranscriptionPayload,
+	indexPayload: ProjectTranscriptionPayload = payload
+) {
 	const contentJson = JSON.stringify(indexPayload.content_json);
-	rows.transcriptions.push({
+	const transcription = {
 		id: payload.id,
 		project_id: projectId,
 		origin_type: indexPayload.origin.source_type,
@@ -363,8 +390,9 @@ async function collectTranscriptionRows(
 		origin_transcription_id: indexPayload.origin.source_transcription_id,
 		origin_revision_id: indexPayload.origin.source_revision_id ?? '',
 		origin_content_hash: indexPayload.origin.source_content_hash ?? '',
-		current_revision_id: payload.current_revision.id,
-		current_content_hash: payload.current_revision.content_hash,
+		origin_captured_at: indexPayload.origin.source_captured_at ?? '',
+		current_revision_id: payload.based_on_checkpoint?.id ?? '',
+		current_content_hash: payload.based_on_checkpoint?.content_hash ?? '',
 		title: indexPayload.title,
 		siglum: indexPayload.siglum,
 		description: indexPayload.description,
@@ -379,75 +407,67 @@ async function collectTranscriptionRows(
 		repository: indexPayload.repository,
 		settlement: indexPayload.settlement,
 		language: indexPayload.language,
-	});
-	rows.projectTranscriptions.push({
+	};
+	const projectTranscription = {
 		id: payload.project_transcription_id,
 		project_id: projectId,
 		transcription_id: payload.id,
 		canonical_transcription_id: payload.canonical_transcription_id,
 		added_at: payload.created_at,
-	});
-	rows.transcriptionVerseInputs.push({ transcriptionId: payload.id, contentJson });
+	};
 
-	for (const source of indexPayload.iiif_manifest_sources) {
-		rows.iiifManifestSources.push({
-			id: source.id,
-			transcription_id: payload.id,
-			manifest_url: source.manifest_url,
-			label: source.label,
-			source_kind: source.source_kind,
-			default_canvas_id: source.default_canvas_id,
-			default_image_service_url: source.default_image_service_url,
-			metadata_json: JSON.stringify(source.metadata_json),
-			created_at: indexPayload.created_at,
-			updated_at: indexPayload.updated_at,
-		});
-	}
-	for (const link of indexPayload.page_canvas_links) {
-		rows.pageCanvasLinks.push({
-			id: link.id,
-			transcription_id: payload.id,
-			page_id: link.page_id,
-			page_name_snapshot: link.page_name_snapshot,
-			page_order: link.page_order,
-			manifest_source_id: link.manifest_source_id,
-			manifest_url_snapshot: link.manifest_url_snapshot,
-			canvas_id: link.canvas_id,
-			canvas_order: link.canvas_order,
-			canvas_label: link.canvas_label,
-			image_service_url: link.image_service_url,
-			thumbnail_url: link.thumbnail_url,
-			link_role: link.link_role,
-			created_at: indexPayload.created_at,
-			updated_at: indexPayload.updated_at,
-		});
-	}
-	for (const annotation of indexPayload.canvas_annotations) {
-		rows.canvasAnnotations.push({
-			id: annotation.id,
-			transcription_id: payload.id,
-			manifest_source_id: annotation.manifest_source_id,
-			canvas_id: annotation.canvas_id,
-			page_id: annotation.page_id,
-			annotation_id: annotation.annotation_id,
-			annotation_kind: annotation.annotation_kind,
-			body_json: JSON.stringify(annotation.body_json),
-			target_json: JSON.stringify(annotation.target_json),
-			anchor_json: JSON.stringify(annotation.anchor_json),
-			motivation: annotation.motivation,
-			created_by: annotation.created_by,
-			created_at: indexPayload.created_at,
-			updated_at: indexPayload.updated_at,
-		});
-	}
-
-	await collectTranscriptionCheckpointRows(
-		projectSlug,
-		payload.project_transcription_id,
-		rows,
-		report,
-		storeOptions
-	);
+	const iiifManifestSources = indexPayload.iiif_manifest_sources.map(source => ({
+		id: source.id,
+		transcription_id: payload.id,
+		manifest_url: source.manifest_url,
+		label: source.label,
+		source_kind: source.source_kind,
+		default_canvas_id: source.default_canvas_id,
+		default_image_service_url: source.default_image_service_url,
+		metadata_json: JSON.stringify(source.metadata_json),
+		created_at: indexPayload.created_at,
+		updated_at: indexPayload.updated_at,
+	}));
+	const pageCanvasLinks = indexPayload.page_canvas_links.map(link => ({
+		id: link.id,
+		transcription_id: payload.id,
+		page_id: link.page_id,
+		page_name_snapshot: link.page_name_snapshot,
+		page_order: link.page_order,
+		manifest_source_id: link.manifest_source_id,
+		manifest_url_snapshot: link.manifest_url_snapshot,
+		canvas_id: link.canvas_id,
+		canvas_order: link.canvas_order,
+		canvas_label: link.canvas_label,
+		image_service_url: link.image_service_url,
+		thumbnail_url: link.thumbnail_url,
+		link_role: link.link_role,
+		created_at: indexPayload.created_at,
+		updated_at: indexPayload.updated_at,
+	}));
+	const canvasAnnotations = indexPayload.canvas_annotations.map(annotation => ({
+		id: annotation.id,
+		transcription_id: payload.id,
+		manifest_source_id: annotation.manifest_source_id,
+		canvas_id: annotation.canvas_id,
+		page_id: annotation.page_id,
+		annotation_id: annotation.annotation_id,
+		annotation_kind: annotation.annotation_kind,
+		body_json: JSON.stringify(annotation.body_json),
+		target_json: JSON.stringify(annotation.target_json),
+		anchor_json: JSON.stringify(annotation.anchor_json),
+		motivation: annotation.motivation,
+		created_by: annotation.created_by,
+		created_at: indexPayload.created_at,
+		updated_at: indexPayload.updated_at,
+	}));
+	return {
+		transcription,
+		projectTranscription,
+		iiifManifestSources,
+		pageCanvasLinks,
+		canvasAnnotations,
+	};
 }
 
 async function collectCollationRows(
@@ -478,14 +498,15 @@ async function collectCollationRows(
 	rows.collations.push({
 		id: payload.id,
 		project_id: projectId,
-		current_revision_id: payload.current_revision.id,
-		current_content_hash: payload.current_revision.content_hash,
+		current_revision_id: payload.based_on_checkpoint?.id ?? '',
+		current_content_hash: payload.based_on_checkpoint?.content_hash ?? '',
 		title: indexPayload.title,
 		verse_identifier: indexPayload.verse_identifier,
 		status: indexPayload.status,
 		group_path: indexPayload.group_path,
 		notes: indexPayload.notes,
 		sort_key: indexPayload.sort_key,
+		conflict_of_collation_id: payload.conflict_of_collation_id ?? '',
 		created_at: indexPayload.created_at,
 		updated_at: indexPayload.updated_at,
 	});
@@ -562,8 +583,8 @@ async function readWorkingTranscriptionPayload(
 		return null;
 	}
 	if (
-		payload.draft.base_revision_id !== primaryPayload.current_revision.id ||
-		payload.draft.base_content_hash !== primaryPayload.current_revision.content_hash
+		payload.draft.base_revision_id !== primaryPayload.based_on_checkpoint?.id ||
+		payload.draft.base_content_hash !== primaryPayload.based_on_checkpoint?.content_hash
 	) {
 		report.orphanedFiles.push(
 			orphanRecord(
@@ -575,11 +596,7 @@ async function readWorkingTranscriptionPayload(
 		);
 		return null;
 	}
-	const workingHash = await hashCanonicalPayload(
-		projectTranscriptionPayloadToSnapshot(payload as unknown as ProjectTranscriptionPayload)
-	);
-	if (workingHash === primaryPayload.current_revision.content_hash) return null;
-	return payload as unknown as ProjectTranscriptionPayload;
+	return mergeWorkingTranscription(primaryPayload, payload);
 }
 
 async function readWorkingCollationPayload(
@@ -604,8 +621,9 @@ async function readWorkingCollationPayload(
 		return null;
 	}
 	if (
-		payload.draft.base_revision_id !== primaryPayload.current_revision.id ||
-		payload.draft.base_content_hash !== primaryPayload.current_revision.content_hash
+		payload.draft.base_revision_id !== (primaryPayload.based_on_checkpoint?.id ?? null) ||
+		payload.draft.base_content_hash !==
+			(primaryPayload.based_on_checkpoint?.content_hash ?? null)
 	) {
 		report.orphanedFiles.push(
 			orphanRecord(
@@ -617,11 +635,7 @@ async function readWorkingCollationPayload(
 		);
 		return null;
 	}
-	const workingHash = await hashCanonicalPayload(
-		collationPayloadToContent(payload as unknown as CollationPayload)
-	);
-	if (workingHash === primaryPayload.current_revision.content_hash) return null;
-	return payload as unknown as CollationPayload;
+	return mergeWorkingCollation(primaryPayload, payload);
 }
 
 async function collectTranscriptionCheckpointRows(
@@ -632,6 +646,7 @@ async function collectTranscriptionCheckpointRows(
 	storeOptions: StoreOperationOptions
 ): Promise<void> {
 	const folder = transcriptionHistoryFolder(projectSlug, projectTranscriptionId);
+	const documentRows: Insertable<TranscriptionCheckpoints>[] = [];
 	for (const entry of await listDirectoryIfExists(folder, storeOptions)) {
 		if (!isJsonFile(entry)) continue;
 		const path = joinStorePath(folder, entry.name);
@@ -649,18 +664,20 @@ async function collectTranscriptionCheckpointRows(
 			});
 			continue;
 		}
-		rows.transcriptionCheckpoints.push({
+		documentRows.push({
 			id: payload.checkpoint_id,
 			transcription_id: payload.payload_transcription_id,
 			parent_checkpoint_id: payload.parent_checkpoint_id,
 			format: payload.content_format,
 			content_hash: payload.payload_content_hash,
 			is_committed: 1,
+			label: payload.label,
 			commit_message: payload.commit_message,
 			author_name: payload.author_name,
 			created_at: payload.created_at,
 		});
 	}
+	rows.transcriptionCheckpoints.push(...numberUnlabelledVersions(documentRows));
 }
 
 async function collectCollationCheckpointRows(
@@ -671,6 +688,7 @@ async function collectCollationCheckpointRows(
 	storeOptions: StoreOperationOptions
 ): Promise<void> {
 	const folder = collationHistoryFolder(projectSlug, collationId);
+	const documentRows: Insertable<CollationCheckpoints>[] = [];
 	for (const entry of await listDirectoryIfExists(folder, storeOptions)) {
 		if (!isJsonFile(entry)) continue;
 		const path = joinStorePath(folder, entry.name);
@@ -688,17 +706,32 @@ async function collectCollationCheckpointRows(
 			});
 			continue;
 		}
-		rows.collationCheckpoints.push({
+		documentRows.push({
 			id: payload.checkpoint_id,
 			collation_id: payload.entity_id,
 			parent_checkpoint_id: payload.parent_checkpoint_id,
 			content_hash: payload.payload_content_hash,
 			is_committed: 1,
+			label: payload.label,
 			commit_message: payload.commit_message,
 			author_name: payload.author_name,
 			created_at: payload.created_at,
 		});
 	}
+	rows.collationCheckpoints.push(...numberUnlabelledVersions(documentRows));
+}
+
+export function numberUnlabelledVersions<
+	TRow extends { id?: string | null; label?: string; created_at: string },
+>(rows: TRow[]): TRow[] {
+	const byDate = [...rows].sort(
+		(left, right) =>
+			left.created_at.localeCompare(right.created_at) ||
+			(left.id ?? '').localeCompare(right.id ?? '')
+	);
+	return byDate.map((row, index) =>
+		row.label ? row : { ...row, label: `Version ${index + 1}` }
+	);
 }
 
 async function collectTombstoneRow(

@@ -6,62 +6,27 @@ import {
 } from './project-backup-health-state';
 
 describe('project backup health state', () => {
-	it('covers fresh, synced, exported-only, and browser-only project states', () => {
-		expect(
-			deriveProjectBackupHealthState({
-				lastCommittedAt: null,
-				lastSyncedAt: null,
-				lastExportedAt: null,
-				hasEnabledSyncTarget: false,
-				localFolderSupported: true,
-			})
-		).toMatchObject({ status: 'fresh', showBrowserOnlyPrompt: false });
+	it('shows the nudge only for a browser-only project with content', () => {
+		const prompt = (hasContent: boolean, hasLocation: boolean) =>
+			deriveProjectBackupHealthState({ hasContent, hasLocation, localFolderSupported: true })
+				.showBrowserOnlyPrompt;
 
-		expect(
-			deriveProjectBackupHealthState({
-				lastCommittedAt: '2026-07-07T10:00:00.000Z',
-				lastSyncedAt: '2026-07-07T10:05:00.000Z',
-				lastExportedAt: null,
-				hasEnabledSyncTarget: true,
-				localFolderSupported: true,
-			})
-		).toMatchObject({ status: 'protected-by-sync', showBrowserOnlyPrompt: false });
-
-		expect(
-			deriveProjectBackupHealthState({
-				lastCommittedAt: '2026-07-07T10:00:00.000Z',
-				lastSyncedAt: null,
-				lastExportedAt: '2026-07-07T10:10:00.000Z',
-				hasEnabledSyncTarget: false,
-				localFolderSupported: false,
-			})
-		).toMatchObject({ status: 'protected-by-export', showBrowserOnlyPrompt: false });
-
-		expect(
-			deriveProjectBackupHealthState({
-				lastCommittedAt: '2026-07-07T10:00:00.000Z',
-				lastSyncedAt: null,
-				lastExportedAt: null,
-				hasEnabledSyncTarget: false,
-				localFolderSupported: true,
-			})
-		).toMatchObject({
-			status: 'browser-only',
-			showBrowserOnlyPrompt: true,
-			primaryAction: 'connect-folder',
-		});
+		expect(prompt(true, false)).toBe(true);
+		expect(prompt(false, false)).toBe(false);
+		expect(prompt(true, true)).toBe(false);
+		expect(prompt(false, true)).toBe(false);
 	});
 
 	it('uses export as the browser-only action when folder sync is unsupported', () => {
-		expect(
+		const state = (localFolderSupported: boolean) =>
 			deriveProjectBackupHealthState({
-				lastCommittedAt: '2026-07-07T10:00:00.000Z',
-				lastSyncedAt: null,
-				lastExportedAt: null,
-				hasEnabledSyncTarget: false,
-				localFolderSupported: false,
-			}).primaryAction
-		).toBe('export');
+				hasContent: true,
+				hasLocation: false,
+				localFolderSupported,
+			}).primaryAction;
+
+		expect(state(true)).toBe('connect-folder');
+		expect(state(false)).toBe('export');
 	});
 
 	it('shows install nudge once per data milestone when install is supported', () => {

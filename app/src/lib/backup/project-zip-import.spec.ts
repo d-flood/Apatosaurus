@@ -14,11 +14,15 @@ import {
 	COLLATION_FORMAT,
 	PROJECT_MANIFEST_CURRENT_VERSION,
 	PROJECT_MANIFEST_FORMAT,
+	PROJECT_TRANSCRIPTION_FORMAT,
 	TOMBSTONE_CURRENT_VERSION,
 	TOMBSTONE_FORMAT,
 	WORKING_COLLATION_CURRENT_VERSION,
 	WORKING_COLLATION_FORMAT,
+	WORKING_TRANSCRIPTION_CURRENT_VERSION,
+	WORKING_TRANSCRIPTION_FORMAT,
 	readCanonicalDocument,
+	type ProjectTranscriptionPayload,
 } from '$lib/storage/formats';
 import { joinStorePath, projectFolder } from '$lib/storage/layout';
 import { sealDocument, serializeSealedDocument, type JsonObject } from '$lib/storage/envelope';
@@ -214,6 +218,96 @@ describe('project zip import', () => {
 		expect(tei).not.toBe('<stale-derived-tei/>');
 	});
 
+	it('imports an old zip with working files as Current', async () => {
+		const document = completeCollationDocument();
+		const entries = await exportedProjectEntriesWithCollation(document);
+		const {
+			based_on_checkpoint,
+			draft: _draft,
+			...content
+		} = structuredClone(COLLATION_FIXTURE);
+		content.document = document;
+		entries['collations/col-1.json'] = serializeSealedDocument(
+			await sealDocument(COLLATION_FORMAT, 6, {
+				...content,
+				current_revision: {
+					...based_on_checkpoint!,
+					content_hash: await collationContentHash({ ...COLLATION_FIXTURE, document }),
+					created_at: content.created_at,
+					author_name: 'Editor',
+				},
+			})
+		);
+		const collationWorking = structuredClone(WORKING_COLLATION_FIXTURE);
+		collationWorking.document = document;
+		collationWorking.notes = 'Uncommitted notes';
+		collationWorking.draft.base_revision_id = 'col-cp-1';
+		collationWorking.draft.base_content_hash = await collationContentHash({
+			...COLLATION_FIXTURE,
+			document,
+		});
+		entries['collations/col-1.working.json'] = serializeSealedDocument(
+			await sealDocument(
+				WORKING_COLLATION_FORMAT,
+				WORKING_COLLATION_CURRENT_VERSION,
+				collationWorking
+			)
+		);
+		const transcriptionRead = await readCanonicalDocument<ProjectTranscriptionPayload>(
+			PROJECT_TRANSCRIPTION_FORMAT,
+			entries['transcriptions/pt-1.json']
+		);
+		if (!transcriptionRead.ok) throw new Error('Exported transcription did not parse.');
+		const {
+			based_on_checkpoint: transcriptionBase,
+			draft: _transcriptionDraft,
+			...transcriptionContent
+		} = transcriptionRead.payload;
+		entries['transcriptions/pt-1.working.json'] = serializeSealedDocument(
+			await sealDocument(
+				WORKING_TRANSCRIPTION_FORMAT,
+				WORKING_TRANSCRIPTION_CURRENT_VERSION,
+				{
+					...transcriptionContent,
+					title: 'Witness 1 (uncommitted)',
+					draft: {
+						base_revision_id: transcriptionBase!.id,
+						base_content_hash: transcriptionBase!.content_hash,
+						saved_at: '2026-07-07T00:05:00.000Z',
+						author_name: null,
+					},
+				}
+			)
+		);
+
+		const imported = await importProjectFileTree(
+			harness.db,
+			Object.entries(entries).map(([path, content]) => ({ path, read: async () => content })),
+			{ storeOptions, nonce: () => 'old-working-files' }
+		);
+
+		expect(imported.ok, JSON.stringify(imported.quarantinedFiles)).toBe(true);
+		expect(imported.draftFilesRestored).toEqual([
+			'collations/col-1.working.json',
+			'transcriptions/pt-1.working.json',
+		]);
+		const files = projectFiles(imported.storageSlug);
+		expect(Object.keys(files).filter(path => path.endsWith('.working.json'))).toEqual([]);
+		await expect(
+			readCanonicalDocument(COLLATION_FORMAT, files['collations/col-1.json'])
+		).resolves.toMatchObject({
+			ok: true,
+			payload: { notes: 'Uncommitted notes', based_on_checkpoint: { id: 'col-cp-1' } },
+		});
+		await expect(
+			readCanonicalDocument(PROJECT_TRANSCRIPTION_FORMAT, files['transcriptions/pt-1.json'])
+		).resolves.toMatchObject({
+			ok: true,
+			payload: { title: 'Witness 1 (uncommitted)', based_on_checkpoint: transcriptionBase },
+		});
+		expect(files['transcriptions/pt-1.tei.xml']).toContain('Witness 1 (uncommitted)');
+	});
+
 	it('requires an explicit collision choice and can replace the local project', async () => {
 		const exported = await exportedProjectZip();
 		await createProject(harness.db, {
@@ -284,8 +378,8 @@ describe('project zip import', () => {
 		if (!manifestRead.ok) return;
 		const collation = structuredClone(COLLATION_FIXTURE);
 		collation.document = incompleteCollationDocument();
-		collation.current_revision.content_hash = await import('$lib/storage/canonical-json').then(
-			module =>
+		collation.based_on_checkpoint!.content_hash =
+			await import('$lib/storage/canonical-json').then(module =>
 				module.hashCanonicalPayload({
 					id: collation.id,
 					project_id: collation.project_id,
@@ -297,10 +391,12 @@ describe('project zip import', () => {
 					sort_key: collation.sort_key,
 					document: collation.document,
 				})
-		);
+			);
 		const working = structuredClone(WORKING_COLLATION_FIXTURE);
-		working.draft.base_revision_id = collation.current_revision.id;
-		working.draft.base_content_hash = collation.current_revision.content_hash;
+		working.document = collation.document;
+		working.notes = 'Working notes';
+		working.draft.base_revision_id = collation.based_on_checkpoint!.id;
+		working.draft.base_content_hash = collation.based_on_checkpoint!.content_hash;
 		const checkpoint = structuredClone(COLLATION_CHECKPOINT_FIXTURE);
 		const tombstone = structuredClone(TOMBSTONE_FIXTURE);
 		entries['collations/col-1.json'] = serializeSealedDocument(
@@ -329,8 +425,8 @@ describe('project zip import', () => {
 			{
 				collation_id: collation.id,
 				current_revision: {
-					id: collation.current_revision.id,
-					content_hash: collation.current_revision.content_hash,
+					id: collation.based_on_checkpoint!.id,
+					content_hash: collation.based_on_checkpoint!.content_hash,
 				},
 				title: collation.title,
 				verse_identifier: collation.verse_identifier,
@@ -377,10 +473,6 @@ describe('project zip import', () => {
 		const files = projectFiles(copied.storageSlug);
 		const copiedManifest = JSON.parse(files['project.json']) as Record<string, any>;
 		const copiedCollation = JSON.parse(files['collations/col-1.json']) as Record<string, any>;
-		const copiedWorking = JSON.parse(files['collations/col-1.working.json']) as Record<
-			string,
-			any
-		>;
 		const copiedCheckpoint = JSON.parse(
 			files['history/collations/col-1/col-cp-1.json']
 		) as Record<string, any>;
@@ -392,10 +484,12 @@ describe('project zip import', () => {
 		expect(copiedCollation).toMatchObject({
 			id: 'col-1',
 			project_id: copied.projectId,
-			current_revision: { id: 'col-cp-1' },
+			notes: 'Working notes',
+			based_on_checkpoint: { id: 'col-cp-1' },
 			document: { meta: { collationId: 'col-1', projectId: copied.projectId } },
 		});
-		expect(copiedWorking).toMatchObject({ project_id: copied.projectId });
+		expect(files).not.toHaveProperty('collations/col-1.working.json');
+		expect(copied.draftFilesRestored).toEqual(['collations/col-1.working.json']);
 		expect(copiedCheckpoint).toMatchObject({
 			checkpoint_id: 'col-cp-1',
 			entity_id: 'col-1',
@@ -630,7 +724,7 @@ async function exportedProjectEntriesWithCollation(document: typeof COLLATION_FI
 	const entries = readZipEntries(exported.bytes);
 	const collation = structuredClone(COLLATION_FIXTURE);
 	collation.document = document;
-	collation.current_revision.content_hash = await collationContentHash(collation);
+	collation.based_on_checkpoint!.content_hash = await collationContentHash(collation);
 	entries['collations/col-1.json'] = serializeSealedDocument(
 		await sealDocument(COLLATION_FORMAT, COLLATION_CURRENT_VERSION, collation)
 	);
@@ -657,8 +751,8 @@ async function exportedProjectEntriesWithCollation(document: typeof COLLATION_FI
 		{
 			collation_id: collation.id,
 			current_revision: {
-				id: collation.current_revision.id,
-				content_hash: collation.current_revision.content_hash,
+				id: collation.based_on_checkpoint!.id,
+				content_hash: collation.based_on_checkpoint!.content_hash,
 			},
 			title: collation.title,
 			verse_identifier: collation.verse_identifier,

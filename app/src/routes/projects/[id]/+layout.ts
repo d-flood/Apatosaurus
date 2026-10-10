@@ -33,7 +33,7 @@ function readSection(pathname: string): ProjectSection {
 	if (
 		section === 'collations' ||
 		section === 'settings' ||
-		section === 'backup' ||
+		section === 'location' ||
 		section === 'transcriptions'
 	) {
 		return section;

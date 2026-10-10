@@ -1,11 +1,16 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import { collationState } from '$lib/collation/collation-state.svelte';
-	import { onMount } from 'svelte';
+	import OfflineNotice from '$lib/shell/components/OfflineNotice.svelte';
+	import EditingNotice from '$lib/shell/components/EditingNotice.svelte';
+	import { trackEditingPresence } from '$lib/backup/editing-presence-tracker';
+	import { onDestroy, onMount } from 'svelte';
 
 	let { children, params } = $props();
 	let error = $state<string | null>(null);
 	let isBootstrapping = $state(true);
+	let stopPresence: (() => void) | null = null;
+	let destroyed = false;
 
 	onMount(async () => {
 		try {
@@ -21,6 +26,19 @@
 		} finally {
 			isBootstrapping = false;
 		}
+		const { projectId, collationId } = collationState;
+		if (destroyed || error || !projectId || !collationId) return;
+		const presence = trackEditingPresence(projectId, collationId);
+		const stopEdits = collationState.onEdit(presence.noteEdit);
+		stopPresence = () => {
+			stopEdits();
+			presence.close();
+		};
+	});
+
+	onDestroy(() => {
+		destroyed = true;
+		stopPresence?.();
 	});
 </script>
 
@@ -37,5 +55,14 @@
 		<a href={resolve('/collation')} class="btn btn-ghost btn-sm">Back to Collations</a>
 	</div>
 {:else}
+	<div class="px-4">
+		<OfflineNotice />
+		{#if collationState.projectId && collationState.collationId}
+			<EditingNotice
+				projectId={collationState.projectId}
+				documentId={collationState.collationId}
+			/>
+		{/if}
+	</div>
 	{@render children()}
 {/if}

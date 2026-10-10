@@ -16,18 +16,25 @@ import {
 	COLLATION_FORMAT,
 	PROJECT_MANIFEST_CURRENT_VERSION,
 	PROJECT_MANIFEST_FORMAT,
+	PROJECT_TRANSCRIPTION_CURRENT_VERSION,
 	PROJECT_TRANSCRIPTION_FORMAT,
 	TOMBSTONE_FORMAT,
+	TRANSCRIPTION_CHECKPOINT_CURRENT_VERSION,
 	TRANSCRIPTION_CHECKPOINT_FORMAT,
 	WORKING_COLLATION_CURRENT_VERSION,
 	WORKING_COLLATION_FORMAT,
 	WORKING_TRANSCRIPTION_FORMAT,
 	canonicalFormatRegistrations,
 	createCanonicalFormatRegistry,
+	mergeWorkingCollation,
+	mergeWorkingTranscription,
 	readCanonicalDocument,
 	serializeCanonicalDocument,
 	transcriptionDocumentToTei,
 	transcriptionDocumentToTeiFromStore,
+	type ProjectTranscriptionPayload,
+	type WorkingCollationPayload,
+	type WorkingTranscriptionPayload,
 } from './index';
 import { collationPayloadToContent, type CollationPayload } from './collation';
 import collationV1Input from './fixtures/collation-v1.input.json';
@@ -35,6 +42,12 @@ import workingCollationV1Input from './fixtures/working-collation-v1.input.json'
 import checkpointCollationV1Input from './fixtures/checkpoint-collation-v1.input.json';
 import projectManifestV1Input from './fixtures/project-manifest-v1.input.json';
 import projectManifestV2Expected from './fixtures/project-manifest-v2.expected.json';
+import projectTranscriptionV1Input from './fixtures/project-transcription-v1.input.json';
+import workingTranscriptionV1Input from './fixtures/working-transcription-v1.input.json';
+import projectTranscriptionV2Expected from './fixtures/project-transcription-v2.expected.json';
+import collationV6Input from './fixtures/collation-v6.input.json';
+import workingCollationV4Input from './fixtures/working-collation-v4.input.json';
+import collationV7Expected from './fixtures/collation-v7.expected.json';
 import {
 	COLLATION_CHECKPOINT_FIXTURE,
 	COLLATION_CHECKPOINT_OLD_SHAPE_FIXTURE,
@@ -55,11 +68,15 @@ const FORMAT_FIXTURES = [
 		version: PROJECT_MANIFEST_CURRENT_VERSION,
 		payload: PROJECT_MANIFEST_FIXTURE,
 	},
-	{ format: PROJECT_TRANSCRIPTION_FORMAT, version: 1, payload: PROJECT_TRANSCRIPTION_FIXTURE },
+	{
+		format: PROJECT_TRANSCRIPTION_FORMAT,
+		version: PROJECT_TRANSCRIPTION_CURRENT_VERSION,
+		payload: PROJECT_TRANSCRIPTION_FIXTURE,
+	},
 	{ format: COLLATION_FORMAT, version: COLLATION_CURRENT_VERSION, payload: COLLATION_FIXTURE },
 	{
 		format: TRANSCRIPTION_CHECKPOINT_FORMAT,
-		version: 1,
+		version: TRANSCRIPTION_CHECKPOINT_CURRENT_VERSION,
 		payload: TRANSCRIPTION_CHECKPOINT_FIXTURE,
 	},
 	{
@@ -117,6 +134,135 @@ describe('canonical store formats', () => {
 		expect(read.payload).toEqual(projectManifestV2Expected);
 	});
 
+	it('migrates a v1 project transcription and its working file into a v2 primary holding the working content', async () => {
+		const primary = await readCanonicalDocument<ProjectTranscriptionPayload>(
+			PROJECT_TRANSCRIPTION_FORMAT,
+			serializeSealedDocument(
+				await sealDocument(
+					PROJECT_TRANSCRIPTION_FORMAT,
+					1,
+					projectTranscriptionV1Input as JsonObject
+				)
+			)
+		);
+		const working = await readCanonicalDocument<WorkingTranscriptionPayload>(
+			WORKING_TRANSCRIPTION_FORMAT,
+			serializeSealedDocument(
+				await sealDocument(
+					WORKING_TRANSCRIPTION_FORMAT,
+					1,
+					workingTranscriptionV1Input as JsonObject
+				)
+			)
+		);
+
+		expect(primary).toMatchObject({ ok: true, upgraded: true, originalVersion: 1 });
+		if (!primary.ok || !working.ok)
+			throw new Error('Expected v1 transcription fixtures to read.');
+		expect(primary.payload.content_json).toEqual(projectTranscriptionV1Input.content_json);
+		expect(primary.payload.based_on_checkpoint).toEqual({
+			id: projectTranscriptionV1Input.current_revision.id,
+			content_hash: projectTranscriptionV1Input.current_revision.content_hash,
+		});
+		const merged = mergeWorkingTranscription(primary.payload, working.payload);
+		expect(merged).toEqual(projectTranscriptionV2Expected);
+		const reread = await readCanonicalDocument(
+			PROJECT_TRANSCRIPTION_FORMAT,
+			await serializeCanonicalDocument(PROJECT_TRANSCRIPTION_FORMAT, merged)
+		);
+		expect(reread).toMatchObject({ ok: true, upgraded: false, payload: merged });
+	});
+
+	it('migrates a v6 collation and its working file into a v7 primary holding the working content', async () => {
+		const primary = await readCanonicalDocument<CollationPayload>(
+			COLLATION_FORMAT,
+			serializeSealedDocument(
+				await sealDocument(COLLATION_FORMAT, 6, collationV6Input as JsonObject)
+			)
+		);
+		const working = await readCanonicalDocument<WorkingCollationPayload>(
+			WORKING_COLLATION_FORMAT,
+			serializeSealedDocument(
+				await sealDocument(
+					WORKING_COLLATION_FORMAT,
+					4,
+					workingCollationV4Input as JsonObject
+				)
+			)
+		);
+
+		expect(primary).toMatchObject({ ok: true, upgraded: true, originalVersion: 6 });
+		if (!primary.ok || !working.ok) throw new Error('Expected collation fixtures to read.');
+		expect(primary.payload.notes).toBe(collationV6Input.notes);
+		expect(primary.payload.based_on_checkpoint).toEqual({
+			id: collationV6Input.current_revision.id,
+			content_hash: collationV6Input.current_revision.content_hash,
+		});
+		const merged = mergeWorkingCollation(primary.payload, working.payload);
+		expect(merged).toEqual(collationV7Expected);
+		const reread = await readCanonicalDocument(
+			COLLATION_FORMAT,
+			await serializeCanonicalDocument(COLLATION_FORMAT, merged)
+		);
+		expect(reread).toMatchObject({ ok: true, upgraded: false, payload: merged });
+	});
+
+	it('migrates pinned-checkpoint witnesses in a v7 collation to witness sources', async () => {
+		const witness = {
+			type: 'witness',
+			siglum: 'A',
+			content: 'in principio',
+			treatment: 'full',
+			isBaseText: true,
+			isExcluded: false,
+			overridesDefault: false,
+			sourceTokens: [],
+		};
+		const v7 = {
+			...collationV7Expected,
+			document: {
+				...collationV7Expected.document,
+				setup: {
+					...collationV7Expected.document.setup,
+					witnesses: [
+						{
+							...witness,
+							id: 'pinned',
+							transcriptionId: 'tx-1',
+							sourceVersion: 'tx-cp-1',
+							sourceContentHash: 'sha256:tx-cp-1',
+						},
+						{ ...witness, id: 'unpinned', transcriptionId: 'tx-2', sourceVersion: '' },
+					],
+				},
+			},
+		};
+
+		const result = await readCanonicalDocument<CollationPayload>(
+			COLLATION_FORMAT,
+			serializeSealedDocument(await sealDocument(COLLATION_FORMAT, 7, v7 as JsonObject))
+		);
+
+		expect(result).toMatchObject({ ok: true, upgraded: true, originalVersion: 7 });
+		if (!result.ok) throw new Error('Expected the v7 collation to read.');
+		const [pinned, unpinned] = result.payload.document.setup.witnesses;
+		expect(pinned).toMatchObject({
+			id: 'pinned',
+			source: { kind: 'version', transcriptionId: 'tx-1', versionId: 'tx-cp-1' },
+		});
+		expect(pinned).not.toHaveProperty('sourceVersion');
+		expect(pinned).not.toHaveProperty('sourceContentHash');
+		expect(unpinned).toMatchObject({
+			id: 'unpinned',
+			source: {
+				kind: 'current',
+				transcriptionId: 'tx-2',
+				capturedAt: collationV7Expected.updated_at,
+				contentHash: '',
+			},
+		});
+	});
+
 	it('round-trips a complete project file set through the canonical API', async () => {
 		const transcription = {
 			...PROJECT_TRANSCRIPTION_FIXTURE,
@@ -134,19 +280,13 @@ describe('canonical store formats', () => {
 			transcriptions: [
 				{
 					...PROJECT_MANIFEST_FIXTURE.transcriptions[0],
-					current_revision: {
-						id: transcription.current_revision.id,
-						content_hash: transcription.current_revision.content_hash,
-					},
+					current_revision: transcription.based_on_checkpoint,
 				},
 			],
 			collations: [
 				{
 					...PROJECT_MANIFEST_FIXTURE.collations[0],
-					current_revision: {
-						id: COLLATION_FIXTURE.current_revision.id,
-						content_hash: COLLATION_FIXTURE.current_revision.content_hash,
-					},
+					current_revision: COLLATION_FIXTURE.based_on_checkpoint,
 				},
 			],
 			tombstones: [
@@ -269,7 +409,7 @@ describe('canonical store formats', () => {
 		};
 		const primary = await sealDocument(COLLATION_FORMAT, 1, {
 			...content,
-			current_revision: COLLATION_FIXTURE.current_revision,
+			current_revision: collationV6Input.current_revision,
 			created_at: COLLATION_FIXTURE.created_at,
 			updated_at: COLLATION_FIXTURE.updated_at,
 		} as JsonObject);
@@ -349,8 +489,10 @@ describe('canonical store formats', () => {
 		const sealed = await sealDocument(COLLATION_FORMAT, 3, {
 			...payload,
 			current_revision: {
-				...payload.current_revision,
+				id: 'col-cp-1',
 				content_hash: await hashCanonicalPayload(collationPayloadToContent(payload)),
+				created_at: payload.created_at,
+				author_name: 'Editor',
 			},
 		} as unknown as JsonObject);
 
@@ -406,7 +548,35 @@ describe('canonical store formats', () => {
 		});
 	});
 
-	it('refuses v3 collation checkpoints because they cannot preserve absolute connectivity, and accepts v4', async () => {
+	it('upgrades unlabelled checkpoints with a blank label and their creation time', async () => {
+		const {
+			label: _txLabel,
+			metadata_updated_at: _txUpdatedAt,
+			...transcription
+		} = TRANSCRIPTION_CHECKPOINT_FIXTURE;
+		const {
+			label: _colLabel,
+			metadata_updated_at: _colUpdatedAt,
+			...collation
+		} = COLLATION_CHECKPOINT_FIXTURE;
+
+		for (const [format, version, payload] of [
+			[TRANSCRIPTION_CHECKPOINT_FORMAT, 1, transcription],
+			[COLLATION_CHECKPOINT_FORMAT, 4, collation],
+		] as const) {
+			const result = await readCanonicalDocument(
+				format,
+				await sealDocument(format, version, payload as JsonObject)
+			);
+			expect(result).toMatchObject({
+				ok: true,
+				upgraded: true,
+				payload: { label: '', metadata_updated_at: payload.created_at },
+			});
+		}
+	});
+
+	it('refuses v3 collation checkpoints because they cannot preserve absolute connectivity, and accepts v5', async () => {
 		const v3 = await sealDocument(COLLATION_CHECKPOINT_FORMAT, 3, COLLATION_CHECKPOINT_FIXTURE);
 
 		await expect(readCanonicalDocument(COLLATION_CHECKPOINT_FORMAT, v3)).resolves.toMatchObject(
@@ -429,7 +599,11 @@ describe('canonical store formats', () => {
 			current
 		);
 
-		expect(result).toMatchObject({ ok: true, upgraded: false, originalVersion: 4 });
+		expect(result).toMatchObject({
+			ok: true,
+			upgraded: false,
+			originalVersion: COLLATION_CHECKPOINT_CURRENT_VERSION,
+		});
 		if (!result.ok) throw new Error('Expected current collation checkpoint to round-trip.');
 		expect(result.payload.payload.document.flow).toMatchObject({
 			phase: 'review',
@@ -487,8 +661,8 @@ describe('canonical store formats', () => {
 	});
 
 	it.each([
-		[PROJECT_TRANSCRIPTION_FORMAT, PROJECT_TRANSCRIPTION_FIXTURE],
-		[COLLATION_FORMAT, COLLATION_FIXTURE],
+		[PROJECT_TRANSCRIPTION_FORMAT, projectTranscriptionV1Input],
+		[COLLATION_FORMAT, collationV6Input],
 		[TRANSCRIPTION_CHECKPOINT_FORMAT, TRANSCRIPTION_CHECKPOINT_FIXTURE],
 		[COLLATION_CHECKPOINT_FORMAT, COLLATION_CHECKPOINT_FIXTURE],
 	] as const)(
@@ -496,7 +670,7 @@ describe('canonical store formats', () => {
 		async (format, fixture) => {
 			const version =
 				format === COLLATION_FORMAT
-					? COLLATION_CURRENT_VERSION
+					? 6
 					: format === COLLATION_CHECKPOINT_FORMAT
 						? COLLATION_CHECKPOINT_CURRENT_VERSION
 						: 1;

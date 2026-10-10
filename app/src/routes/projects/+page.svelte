@@ -2,14 +2,34 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { createProjectRecord } from '$lib/project/projects';
-	import { waitForBrowserIdle } from '$lib/shell/defer';
 	import { subscribeLocalDbInvalidations, listProjects } from '$lib/db/client';
 	import { ensureLocalDbRuntime } from '$lib/db/runtime';
+	import { placeProjectInLocation } from '$lib/backup/location-connections';
+	import { syncService } from '$lib/backup/sync-service.svelte';
 	import {
-		loadProjectBackupOverviews,
-		type ProjectBackupOverview,
-		type ProjectBackupOverviewStatus,
-	} from '$lib/backup/project-backup-overview';
+		syncStatusLabels,
+		syncStatusReason,
+		worstSyncStatus,
+		type SyncStatusState,
+	} from '$lib/backup/sync-status';
+	import { networkStatus } from '$lib/shell/network-status.svelte';
+	import {
+		readLastUsedLocationId,
+		recordLastUsedLocation,
+		resolveDefaultLocationId,
+	} from '$lib/shell/last-used-location';
+	import {
+		groupProjectsByLocation,
+		type ProjectLocationGroup,
+	} from '$lib/shell/project-location-groups';
+	import {
+		listProjectLocations,
+		listProjectPlacements,
+		listStorageAccounts,
+		type ProjectLocation,
+		type ProjectPlacement,
+		type StorageAccount,
+	} from '$lib/storage/project-locations';
 	import ProjectZipImportPanel from '$lib/project/components/ProjectZipImportPanel.svelte';
 	import FolderOpen from 'phosphor-svelte/lib/FolderOpen';
 	import Plus from 'phosphor-svelte/lib/Plus';
@@ -19,14 +39,16 @@
 	const PROJECTS_LOG_PREFIX = '[projects-route]';
 
 	let projects = $state.raw<ProjectOption[]>([]);
-	let projectBackupOverviews = $state.raw<Record<string, ProjectBackupOverview>>({});
+	let placements = $state.raw<ProjectPlacement[]>([]);
+	let locations = $state.raw<ProjectLocation[]>([]);
+	let accounts = $state.raw<StorageAccount[]>([]);
+	let chosenLocationId = $state('');
 	let createName = $state('');
 	let isBooting = $state(true);
 	let isCreating = $state(false);
 	let error = $state<string | null>(null);
-	let backupSummaryScheduleId = 0;
-	let backupSummaryRunId = 0;
 
+	let groups = $derived(groupProjectsByLocation(projects, placements, locations, accounts));
 	let projectCountLabel = $derived(
 		`${projects.length} project${projects.length === 1 ? '' : 's'}`
 	);
@@ -46,8 +68,8 @@
 		error = null;
 		try {
 			await ensureLocalDbRuntime();
-			projects = await listProjects();
-			queueProjectBackupSummaries(projects);
+			const [projectRows] = await Promise.all([listProjects(), loadLocations()]);
+			projects = projectRows;
 		} catch (cause) {
 			error = cause instanceof Error ? cause.message : 'Failed to load projects';
 			logProjects('error', 'project picker load failed', { error });
@@ -56,6 +78,31 @@
 		}
 	}
 
+	async function loadLocations() {
+		[placements, locations, accounts] = await Promise.all([
+			listProjectPlacements(),
+			listProjectLocations(),
+			listStorageAccounts(),
+		]);
+		if (!locations.some(location => location.id === chosenLocationId)) {
+			chosenLocationId = resolveDefaultLocationId(readLastUsedLocationId(), locations) ?? '';
+		}
+	}
+
+	function groupStatus(group: ProjectLocationGroup) {
+		return worstSyncStatus(
+			group.projects.map(project =>
+				syncService.projectStatus(project.id, networkStatus.online)
+			)
+		);
+	}
+
+	const statusBadgeClass: Record<SyncStatusState, string> = {
+		synced: 'badge-success',
+		'saved-on-device': 'badge-ghost',
+		'needs-attention': 'badge-warning',
+	};
+
 	async function createProject() {
 		const name = createName.trim();
 		if (!name || isCreating) return;
@@ -63,6 +110,10 @@
 		error = null;
 		try {
 			const projectId = await createProjectRecord({ name });
+			if (chosenLocationId) {
+				await placeProjectInLocation(projectId, chosenLocationId);
+				recordLastUsedLocation(chosenLocationId);
+			}
 			await openProject(projectId);
 		} catch (cause) {
 			error = cause instanceof Error ? cause.message : 'Failed to create project';
@@ -75,55 +126,11 @@
 		await goto(resolve('/projects/[id]/transcriptions', { id: projectId }));
 	}
 
-	async function loadProjectBackupSummaries(projectRows: ProjectOption[] = projects) {
-		const runId = ++backupSummaryRunId;
-		if (projectRows.length === 0) {
-			projectBackupOverviews = {};
-			return;
-		}
-		try {
-			const overviews = await loadProjectBackupOverviews(
-				projectRows.map(project => project.id)
-			);
-			if (runId === backupSummaryRunId) projectBackupOverviews = overviews;
-		} catch (cause) {
-			if (runId !== backupSummaryRunId) return;
-			logProjects('warn', 'project backup summary load failed', {
-				error: cause instanceof Error ? cause.message : String(cause),
-			});
-			projectBackupOverviews = {};
-		}
-	}
-
-	function queueProjectBackupSummaries(projectRows: ProjectOption[] = projects) {
-		const scheduleId = ++backupSummaryScheduleId;
-		void (async () => {
-			await waitForBrowserIdle(2_000);
-			if (scheduleId === backupSummaryScheduleId)
-				await loadProjectBackupSummaries(projectRows);
-		})();
-	}
-
-	function backupStatusLabel(status: ProjectBackupOverviewStatus): string {
-		if (status === 'local-only') return 'Local only';
-		if (status === 'blocked') return 'Commit before sync';
-		if (status === 'pending') return 'Pending sync';
-		if (status === 'backed-up') return 'Synced';
-		return 'Sync unavailable';
-	}
-
-	function backupBadgeClass(status: ProjectBackupOverviewStatus): string {
-		if (status === 'blocked' || status === 'unavailable') return 'badge-warning';
-		if (status === 'pending') return 'badge-info';
-		if (status === 'backed-up') return 'badge-success';
-		return 'badge-ghost';
-	}
-
 	onMount(() => {
 		void loadProjects();
 		return subscribeLocalDbInvalidations(event => {
 			if (event.domain === 'projects' || event.domain === 'all') void loadProjects();
-			else if (event.domain === 'sync-targets') queueProjectBackupSummaries();
+			else if (event.domain === 'sync-targets') void loadLocations();
 		});
 	});
 </script>
@@ -143,7 +150,7 @@
 
 	<section class="rounded-box border border-base-300/60 bg-base-100 p-5 shadow-sm">
 		<h2 class="font-serif text-xl font-semibold">Create a project</h2>
-		<div class="mt-3 flex max-w-xl gap-2">
+		<div class="mt-3 flex max-w-2xl flex-col gap-2 sm:flex-row">
 			<input
 				type="text"
 				class="input input-bordered flex-1"
@@ -156,6 +163,17 @@
 					}
 				}}
 			/>
+			{#if locations.length > 1}
+				<select
+					class="select select-bordered sm:max-w-56"
+					aria-label="Location"
+					bind:value={chosenLocationId}
+				>
+					{#each locations as location (location.id)}
+						<option value={location.id}>{location.displayPath}</option>
+					{/each}
+				</select>
+			{/if}
 			<button
 				type="button"
 				class="btn btn-primary gap-2"
@@ -189,34 +207,64 @@
 				</p>
 			</div>
 		{:else}
-			<div class="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-				{#each projects as project (project.id)}
-					{@const backupOverview = projectBackupOverviews[project.id]}
-					<article
-						class="rounded-box border border-base-300/60 bg-base-100 p-5 shadow-sm"
-					>
-						<h3 class="font-serif text-lg font-semibold">{project.name}</h3>
-						<p class="mt-1 min-h-10 text-sm text-base-content/55">
-							{project.description || 'No description'}
-						</p>
-						<div class="mt-4 flex items-center justify-between gap-3">
+			{#each groups as group (group.id)}
+				{@const status = group.location ? groupStatus(group) : null}
+				<section class="mt-4" aria-label={group.label}>
+					<div class="flex flex-wrap items-center gap-2">
+						<h3 class="font-medium">{group.label}</h3>
+						{#if group.owner}
+							<span class="text-sm text-base-content/55">{group.owner}</span>
+						{/if}
+						{#if status}
 							<span
-								class="badge badge-sm {backupOverview
-									? backupBadgeClass(backupOverview.status)
-									: 'badge-ghost'}"
+								class="badge badge-sm {statusBadgeClass[status.state]}"
+								title={syncStatusReason(status)}
 							>
-								{backupOverview
-									? backupStatusLabel(backupOverview.status)
-									: 'Checking sync'}
+								{syncStatusLabels[status.state]}{status.state === 'synced'
+									? ''
+									: ` · ${syncStatusReason(status)}`}
 							</span>
-							<a
-								href={resolve('/projects/[id]/transcriptions', { id: project.id })}
-								class="btn btn-primary btn-sm">Open</a
+						{/if}
+					</div>
+					{#if group.signedOut}
+						<p class="mt-1 text-sm text-warning">
+							Changes stay on this device until you sign in again.
+						</p>
+					{/if}
+					<div class="mt-2 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+						{#each group.projects as project (project.id)}
+							{@const projectStatus = syncService.projectStatus(
+								project.id,
+								networkStatus.online
+							)}
+							<article
+								class="rounded-box border border-base-300/60 bg-base-100 p-5 shadow-sm"
 							>
-						</div>
-					</article>
-				{/each}
-			</div>
+								<h4 class="font-serif text-lg font-semibold">{project.name}</h4>
+								<p class="mt-1 min-h-10 text-sm text-base-content/55">
+									{project.description || 'No description'}
+								</p>
+								<div class="mt-4 flex items-center justify-between gap-3">
+									<span
+										class="badge badge-sm {statusBadgeClass[
+											projectStatus.state
+										]}"
+										title={syncStatusReason(projectStatus)}
+									>
+										{syncStatusLabels[projectStatus.state]}
+									</span>
+									<a
+										href={resolve('/projects/[id]/transcriptions', {
+											id: project.id,
+										})}
+										class="btn btn-primary btn-sm">Open</a
+									>
+								</div>
+							</article>
+						{/each}
+					</div>
+				</section>
+			{/each}
 		{/if}
 	</section>
 

@@ -100,10 +100,10 @@ Sync semantics are provider-independent and operate through `CloudStorageProvide
    `mock-provider.ts` and `local-folder-provider.spec.ts` as examples.
 4. Register construction in `src/lib/backup/provider-factory.ts`, including credential or handle
    loading. Do not add provider-specific branches to `sync-manager.ts`.
-5. Extend the target connection and persistence UI for the provider. `SyncTargetRecord` and
-   `createProviderForSyncTarget()` are currently local-folder-specific, so a non-folder production provider
-   also needs an explicit provider ID plus provider-specific authorization references in the target model.
-   Keep secrets out of canonical project files and the disposable SQLite index.
+5. Extend `StorageAccount['provider']` in `src/lib/storage/project-locations.ts`, sign-in and personal-location
+   setup in `src/lib/backup/location-connections.ts`, and the auth Worker in `packages/auth-worker/`.
+   Refresh tokens stay in the Worker's sealed cookie; keep secrets out of canonical project files and the
+   disposable SQLite index.
 6. Run the provider tests, `src/lib/backup/sync-manager.spec.ts`, and the full quality gates.
 
 Adding a provider must not change the file set, commit boundary, tombstone behavior, fingerprint comparison,

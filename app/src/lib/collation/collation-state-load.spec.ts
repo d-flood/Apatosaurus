@@ -18,6 +18,7 @@ const {
 	createProject,
 	updateProjectMetadata,
 	getCollationVersionStatus,
+	listTranscriptionVersions,
 	loadCommittedTranscriptionCheckpointPayload,
 	gatherWitnessesForSegment,
 	prepareWitnessesFromDocument,
@@ -34,6 +35,7 @@ const {
 	createProject: vi.fn(),
 	updateProjectMetadata: vi.fn(),
 	getCollationVersionStatus: vi.fn(),
+	listTranscriptionVersions: vi.fn(),
 	loadCommittedTranscriptionCheckpointPayload: vi.fn(),
 	gatherWitnessesForSegment: vi.fn(),
 	prepareWitnessesFromDocument: vi.fn(),
@@ -52,6 +54,7 @@ vi.mock('$lib/db/client', () => ({
 	createProject,
 	updateProjectMetadata,
 	getCollationVersionStatus,
+	listTranscriptionVersions,
 	loadCommittedTranscriptionCheckpointPayload,
 }));
 
@@ -69,7 +72,11 @@ function makeWitness(witnessId: string, content: string, isBaseText: boolean = f
 		witnessId,
 		siglum: witnessId,
 		transcriptionId: `${witnessId}-tx`,
-		sourceVersion: '2026-03-10T00:00:00.000Z',
+		source: {
+			kind: 'version' as const,
+			transcriptionId: `${witnessId}-tx`,
+			versionId: 'cp-initial',
+		},
 		content,
 		tokens: content
 			.split(/\s+/)
@@ -110,7 +117,7 @@ function makeTextCell(text: string) {
 	};
 }
 
-function makePreparedWitness(transcriptionId: string, content: string, sourceVersion: string) {
+function makePreparedWitness(transcriptionId: string, content: string, versionId: string) {
 	const tokens = content
 		.split(/\s+/)
 		.filter(Boolean)
@@ -137,7 +144,50 @@ function makePreparedWitness(transcriptionId: string, content: string, sourceVer
 		fullContent: content,
 		fullTokens: tokens,
 		transcriptionUid: transcriptionId,
-		sourceVersion,
+		source: { kind: 'version' as const, transcriptionId, versionId },
+	};
+}
+
+function makeCurrentPreparedWitness(transcriptionId: string, content: string, contentHash: string) {
+	return {
+		...makePreparedWitness(transcriptionId, content, ''),
+		source: {
+			kind: 'current' as const,
+			transcriptionId,
+			capturedAt: new Date().toISOString(),
+			contentHash,
+		},
+	};
+}
+
+function makeWitnessStatus(
+	witnessId: string,
+	source: Record<string, unknown>,
+	versionState: 'up-to-date' | 'source-changed'
+) {
+	return {
+		witnessId,
+		position: witnessId === 'A' ? 0 : 1,
+		projectTranscriptionId: `pt-${witnessId.toLowerCase()}`,
+		projectOwnedTranscriptionId: `${witnessId}-tx`,
+		source,
+		sourceVersionLabel: null,
+		versionState,
+	};
+}
+
+function makeVersionStatus(witnesses: ReturnType<typeof makeWitnessStatus>[]) {
+	return {
+		projectId: 'proj-1',
+		collationId: 'col-1',
+		title: 'Romans 1:1',
+		verseIdentifier: 'Romans 1:1',
+		workflowStatus: 'alignment',
+		currentCheckpoint: null,
+		workingContentHash: 'sha256:working',
+		dirtyToCheckpoint: true,
+		commitState: 'dirty',
+		witnesses,
 	};
 }
 
@@ -541,7 +591,12 @@ describe('collationState artifact-first persistence', () => {
 						},
 					],
 					transcriptionUid: 'A-tx',
-					sourceVersion: '2026-03-10T00:00:00.000Z',
+					source: {
+						kind: 'current',
+						transcriptionId: 'A-tx',
+						capturedAt: '2026-03-10T00:00:00.000Z',
+						contentHash: 'sha256:a-current',
+					},
 				},
 			],
 			orphanedMembers: ['Romans 1:1'],
@@ -619,7 +674,7 @@ describe('collationState artifact-first persistence', () => {
 		expect(collationState.orphanedMembers).toEqual(['Romans 1:1']);
 	}, 30000);
 
-	it('refreshWitnessSource replaces witness content from a committed checkpoint and marks dirty', async () => {
+	it('refreshWitnessSource replaces witness content from a named version and marks dirty', async () => {
 		const checkpointDocument = { type: 'transcriptionDocument', pages: [] };
 		coerceTranscriptionDocument.mockReturnValue(checkpointDocument);
 		prepareWitnessesFromDocument.mockReturnValue([
@@ -645,7 +700,7 @@ describe('collationState artifact-first persistence', () => {
 					},
 				],
 				transcriptionUid: 'A-tx',
-				sourceVersion: 'cp-refreshed',
+				source: { kind: 'version', transcriptionId: 'A-tx', versionId: 'cp-refreshed' },
 			},
 		]);
 		loadCommittedTranscriptionCheckpointPayload.mockResolvedValue({
@@ -677,32 +732,6 @@ describe('collationState artifact-first persistence', () => {
 				canvas_annotations: [],
 			},
 		});
-		getCollationVersionStatus.mockResolvedValue({
-			projectId: 'proj-1',
-			collationId: 'col-1',
-			title: 'Romans 1:1',
-			verseIdentifier: 'Romans 1:1',
-			workflowStatus: 'alignment',
-			currentCheckpoint: null,
-			workingContentHash: 'sha256:working',
-			dirtyToCheckpoint: true,
-			commitState: 'never-committed',
-			witnesses: [
-				{
-					witnessId: 'A',
-					position: 0,
-					projectTranscriptionId: 'pt-a',
-					projectOwnedTranscriptionId: 'A-tx',
-					pinnedCheckpoint: { revisionId: 'cp-old', contentHash: 'sha256:old' },
-					availableCheckpoint: {
-						revisionId: 'cp-refreshed',
-						contentHash: 'sha256:refreshed',
-					},
-					sourceDirtyToCheckpoint: false,
-					versionState: 'newer-source-available',
-				},
-			],
-		});
 
 		const collationState = await importState();
 		collationState.reset();
@@ -720,12 +749,15 @@ describe('collationState artifact-first persistence', () => {
 			expect.objectContaining({
 				verseIdentifier: 'Romans 1:1',
 				transcriptionId: 'A-tx',
-				sourceVersion: 'cp-refreshed',
+				source: { kind: 'version', transcriptionId: 'A-tx', versionId: 'cp-refreshed' },
 			})
 		);
 		expect(collationState.witnesses[0]?.content).toBe('refreshed');
-		expect(collationState.witnesses[0]?.sourceVersion).toBe('cp-refreshed');
-		expect(collationState.witnesses[0]?.sourceContentHash).toBe('sha256:refreshed');
+		expect(collationState.witnesses[0]?.source).toEqual({
+			kind: 'version',
+			transcriptionId: 'A-tx',
+			versionId: 'cp-refreshed',
+		});
 		expect(collationState.saveStatus).toBe('unsaved');
 
 		const flushed = await collationState.flushPendingSave();
@@ -733,7 +765,7 @@ describe('collationState artifact-first persistence', () => {
 		expect(flushed).toBe(true);
 		expect(saveCollationArtifact).toHaveBeenCalledWith(
 			expect.objectContaining({
-				payload: expect.stringContaining('sha256:refreshed'),
+				payload: expect.stringContaining('cp-refreshed'),
 			})
 		);
 	}, 30000);
@@ -848,7 +880,7 @@ describe('collationState artifact-first persistence', () => {
 						},
 					],
 					transcriptionUid: transcriptionId,
-					sourceVersion: String(input.sourceVersion),
+					source: input.source,
 				},
 			];
 		});
@@ -884,40 +916,23 @@ describe('collationState artifact-first persistence', () => {
 					},
 				})
 		);
-		getCollationVersionStatus.mockResolvedValue({
-			projectId: 'proj-1',
-			collationId: 'col-1',
-			title: 'Romans 1:1',
-			verseIdentifier: 'Romans 1:1',
-			workflowStatus: 'alignment',
-			currentCheckpoint: null,
-			workingContentHash: 'sha256:working',
-			dirtyToCheckpoint: true,
-			commitState: 'dirty',
-			witnesses: [
-				{
-					witnessId: 'A',
-					position: 0,
-					projectTranscriptionId: 'pt-a',
-					projectOwnedTranscriptionId: 'A-tx',
-					pinnedCheckpoint: { revisionId: 'cp-a-old', contentHash: 'sha256:a-old' },
-					availableCheckpoint: { revisionId: 'cp-a-new', contentHash: 'sha256:cp-a-new' },
-					sourceDirtyToCheckpoint: false,
-					versionState: 'newer-source-available',
-				},
-				{
-					witnessId: 'B',
-					position: 1,
-					projectTranscriptionId: 'pt-b',
-					projectOwnedTranscriptionId: 'B-tx',
-					pinnedCheckpoint: { revisionId: 'cp-b-old', contentHash: 'sha256:b-old' },
-					availableCheckpoint: { revisionId: 'cp-b-new', contentHash: 'sha256:cp-b-new' },
-					sourceDirtyToCheckpoint: false,
-					versionState: 'newer-source-available',
-				},
-			],
-		});
-
+		getCollationVersionStatus.mockResolvedValue(
+			makeVersionStatus([
+				makeWitnessStatus(
+					'A',
+					{ kind: 'version', transcriptionId: 'A-tx', versionId: 'cp-a-old' },
+					'source-changed'
+				),
+				makeWitnessStatus(
+					'B',
+					{ kind: 'version', transcriptionId: 'B-tx', versionId: 'cp-b-old' },
+					'source-changed'
+				),
+			])
+		);
+		listTranscriptionVersions.mockImplementation(async (transcriptionId: string) => [
+			{ id: transcriptionId.startsWith('A') ? 'cp-a-new' : 'cp-b-new' },
+		]);
 		const collationState = await importState();
 		collationState.reset();
 		await collationState.loadCollationById('col-1');
@@ -934,15 +949,138 @@ describe('collationState artifact-first persistence', () => {
 			'B-tx',
 			'cp-b-new'
 		);
-		expect(collationState.witnesses.map(witness => witness.sourceVersion)).toEqual([
-			'cp-a-new',
-			'cp-b-new',
-		]);
-		expect(collationState.witnesses.map(witness => witness.sourceContentHash)).toEqual([
-			'sha256:cp-a-new',
-			'sha256:cp-b-new',
+		expect(collationState.witnesses.map(witness => witness.source)).toEqual([
+			{ kind: 'version', transcriptionId: 'A-tx', versionId: 'cp-a-new' },
+			{ kind: 'version', transcriptionId: 'B-tx', versionId: 'cp-b-new' },
 		]);
 		expect(collationState.saveStatus).toBe('unsaved');
+	}, 30000);
+
+	it('records the captured Current hash when a witness is added from Current', async () => {
+		gatherWitnessesForSegment.mockResolvedValue({
+			witnesses: [makeCurrentPreparedWitness('A-tx', 'from current', 'sha256:a-current')],
+			orphanedMembers: [],
+			error: null,
+		});
+		const collationState = await importState();
+		collationState.reset();
+		await collationState.loadCollationById('col-1');
+
+		expect(await collationState.refreshWitnessesFromSource(['A-tx'])).toBe(true);
+		expect(collationState.witnesses[0]?.source).toMatchObject({
+			kind: 'current',
+			transcriptionId: 'A-tx',
+			contentHash: 'sha256:a-current',
+		});
+		expect(await collationState.flushPendingSave()).toBe(true);
+		const payload = JSON.parse(saveCollationArtifact.mock.lastCall?.[0].payload ?? '{}');
+		expect(payload.setup.witnesses[0].source).toMatchObject({
+			kind: 'current',
+			contentHash: 'sha256:a-current',
+			capturedAt: expect.any(String),
+		});
+	}, 30000);
+
+	it('keeps the captured Current source when re-gathering finds the same hash', async () => {
+		gatherWitnessesForSegment.mockResolvedValue({
+			witnesses: [makeCurrentPreparedWitness('A-tx', 'from current', 'sha256:a-current')],
+			orphanedMembers: [],
+			error: null,
+		});
+		const collationState = await importState();
+		collationState.reset();
+		await collationState.loadCollationById('col-1');
+		await collationState.refreshWitnessesFromSource(['A-tx']);
+		const captured = collationState.witnesses[0]?.source;
+		gatherWitnessesForSegment.mockResolvedValue({
+			witnesses: [
+				{
+					...makeCurrentPreparedWitness('A-tx', 'from current', 'sha256:a-current'),
+					source: {
+						kind: 'current',
+						transcriptionId: 'A-tx',
+						capturedAt: '2099-01-01T00:00:00.000Z',
+						contentHash: 'sha256:a-current',
+					},
+				},
+			],
+			orphanedMembers: [],
+			error: null,
+		});
+
+		expect(await collationState.refreshWitnessesFromSource(['A-tx'])).toBe(false);
+		expect(collationState.witnesses[0]?.source).toEqual(captured);
+	}, 30000);
+
+	it('refreshes only witnesses whose source changed, from Current or the newest version', async () => {
+		gatherWitnessesForSegment.mockResolvedValue({
+			witnesses: [makeCurrentPreparedWitness('A-tx', 'a current', 'sha256:a-new')],
+			orphanedMembers: [],
+			error: null,
+		});
+		getCollationVersionStatus.mockResolvedValue(
+			makeVersionStatus([
+				makeWitnessStatus(
+					'A',
+					{
+						kind: 'current',
+						transcriptionId: 'A-tx',
+						capturedAt: '2026-03-10T00:00:00.000Z',
+						contentHash: 'sha256:a-old',
+					},
+					'source-changed'
+				),
+				makeWitnessStatus(
+					'B',
+					{ kind: 'version', transcriptionId: 'B-tx', versionId: 'cp-initial' },
+					'up-to-date'
+				),
+			])
+		);
+		const collationState = await importState();
+		collationState.reset();
+		await collationState.loadCollationById('col-1');
+		vi.clearAllMocks();
+
+		expect(await collationState.refreshAllStaleWitnessSources()).toBe(1);
+		expect(gatherWitnessesForSegment).toHaveBeenCalledTimes(1);
+		expect(gatherWitnessesForSegment).toHaveBeenCalledWith(
+			{ members: ['Romans 1:1'] },
+			['A-tx'],
+			{ ignoreWordBreaks: false }
+		);
+		expect(loadCommittedTranscriptionCheckpointPayload).not.toHaveBeenCalled();
+		expect(collationState.witnesses.map(witness => witness.content)).toEqual([
+			'a current',
+			'και λογος',
+		]);
+		expect(collationState.witnesses[0]?.source).toMatchObject({ contentHash: 'sha256:a-new' });
+	}, 30000);
+
+	it('never refreshes witnesses whose sources are up to date', async () => {
+		getCollationVersionStatus.mockResolvedValue(
+			makeVersionStatus([
+				makeWitnessStatus(
+					'A',
+					{ kind: 'version', transcriptionId: 'A-tx', versionId: 'cp-initial' },
+					'up-to-date'
+				),
+				makeWitnessStatus(
+					'B',
+					{ kind: 'version', transcriptionId: 'B-tx', versionId: 'cp-initial' },
+					'up-to-date'
+				),
+			])
+		);
+		const collationState = await importState();
+		collationState.reset();
+		await collationState.loadCollationById('col-1');
+		vi.clearAllMocks();
+
+		expect(await collationState.refreshAllStaleWitnessSources()).toBe(0);
+		expect(gatherWitnessesForSegment).not.toHaveBeenCalled();
+		expect(loadCommittedTranscriptionCheckpointPayload).not.toHaveBeenCalled();
+		expect(collationState.saveStatus).toBe('saved');
 	}, 30000);
 
 	it('refreshes witness tokens after load when project preprocessing differs from the artifact', async () => {
@@ -986,7 +1124,12 @@ describe('collationState artifact-first persistence', () => {
 						},
 					],
 					transcriptionUid: 'A-tx',
-					sourceVersion: '2026-03-10T00:00:00.000Z',
+					source: {
+						kind: 'current',
+						transcriptionId: 'A-tx',
+						capturedAt: '2026-03-10T00:00:00.000Z',
+						contentHash: 'sha256:a-current',
+					},
 				},
 			],
 			error: null,

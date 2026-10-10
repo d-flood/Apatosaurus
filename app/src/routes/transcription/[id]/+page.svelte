@@ -5,7 +5,12 @@
 		createCommittedTranscriptionCheckpoint,
 		getProjectTranscriptionStatusForOwnedTranscription,
 		getTranscription,
+		listTranscriptionVersions,
+		loadTranscriptionVersionContent,
+		replaceTranscriptionCurrent,
+		restoreTranscriptionVersion,
 		subscribeLocalDbInvalidations,
+		updateTranscriptionVersionNote,
 	} from '$lib/db/client';
 	import { ensureLocalDbRuntime } from '$lib/db/runtime';
 	import type { ProjectTranscriptionStatus } from '$lib/db/repositories/projects';
@@ -19,6 +24,16 @@
 	} from '$lib/transcription/model';
 	import IiifWorkspace from '$lib/editor/components/IiifWorkspace.svelte';
 	import EntityHeader from '$lib/shell/components/EntityHeader.svelte';
+	import OfflineNotice from '$lib/shell/components/OfflineNotice.svelte';
+	import EditingNotice from '$lib/shell/components/EditingNotice.svelte';
+	import {
+		trackEditingPresence,
+		type EditingPresenceTracker,
+	} from '$lib/backup/editing-presence-tracker';
+	import VersionControls, {
+		type VersionActions,
+	} from '$lib/shell/components/VersionControls.svelte';
+	import { compareTranscriptions, formatTranscriptionPart } from '$lib/shell/version-compare';
 	import TranscriptionLineage from '$lib/transcription/components/TranscriptionLineage.svelte';
 	import type { TranscriptionSelectionQuote } from '$lib/iiif/types';
 	import type { PageEditorMetadata } from '$lib/editor/pageFormwork';
@@ -76,11 +91,7 @@
 	let unsubscribeInvalidations: (() => void) | null = null;
 	let nowMs = $state(Date.now());
 	let hasUnsavedChanges = $state(false);
-	let isCommitFormOpen = $state(false);
-	let commitMessage = $state('');
-	let commitInFlight = $state(false);
-	let commitError = $state<string | null>(null);
-	let commitSuccess = $state<string | null>(null);
+	let editorKey = $state(0);
 	let iiifWorkspaceOpen = $state(false);
 	let iiifPopupOpen = $state(false);
 	let editorPages = $state<PageEditorMetadata[]>([]);
@@ -92,6 +103,9 @@
 	let toolbarHost = $state<HTMLElement | null>(null);
 	let statusBarHost = $state<HTMLElement | null>(null);
 	let iiifPopupWindow: Window | null = null;
+	let presence: EditingPresenceTracker | null = null;
+	const presenceProjectId = $derived(transcriptionVersionStatus?.projectId ?? null);
+	const presenceDocumentId = $derived(transcriptionVersionStatus?.projectTranscriptionId ?? null);
 	let iiifPopupSessionId = $state<string | null>(null);
 	let lastPostedIiifStateKey = $state('');
 	let sendPopupRestoreState = $state(false);
@@ -180,33 +194,63 @@
 		return `Saved locally ${diffDays}d ago`;
 	});
 
-	const canCommitVersion = $derived.by(() => {
-		return (
-			!!transcriptionVersionStatus?.isProjectOwned &&
-			!!transcriptionEditorRef &&
-			!commitInFlight &&
-			(transcriptionVersionStatus.commitState === 'never-committed' ||
-				transcriptionVersionStatus.commitState === 'dirty')
-		);
-	});
-
-	const commitDisabledReason = $derived.by(() => {
+	const versionDisabledReason = $derived.by(() => {
 		if (!transcriptionVersionStatus?.isProjectOwned) {
-			return 'Only project transcriptions can be committed for project backup.';
+			return 'Only project transcriptions have versions.';
 		}
 		if (!transcriptionEditorRef) return 'Editor is still loading.';
-		if (commitInFlight) return 'Committing version.';
-		if (transcriptionVersionStatus.commitState === 'clean') {
-			return 'No changes since the last committed version.';
-		}
 		return '';
 	});
 
+	async function flushEditor() {
+		const flushed = await transcriptionEditorRef?.flushPendingAutosave?.();
+		if (!flushed) throw new Error('Local save failed. Try again.');
+	}
+
+	async function reloadEditor() {
+		await Promise.all([loadTranscription(), loadTranscriptionVersionStatus()]);
+		editorKey += 1;
+	}
+
+	const versionActions: VersionActions = {
+		list: () => listTranscriptionVersions(transcriptionId),
+		async name(label, note) {
+			if (!transcriptionVersionStatus) throw new Error('Version status is loading.');
+			await flushEditor();
+			const version = await createCommittedTranscriptionCheckpoint({
+				projectTranscriptionId: transcriptionVersionStatus.projectTranscriptionId,
+				label,
+				commitMessage: note,
+			});
+			await Promise.all([loadTranscription(), loadTranscriptionVersionStatus()]);
+			return version.warnings?.map(warning => warning.message) ?? [];
+		},
+		async restore(versionId) {
+			await flushEditor();
+			const previous = await restoreTranscriptionVersion(transcriptionId, versionId);
+			await reloadEditor();
+			return async () => {
+				await flushEditor();
+				await replaceTranscriptionCurrent(transcriptionId, previous);
+				await reloadEditor();
+			};
+		},
+		editNote: (versionId, note) =>
+			updateTranscriptionVersionNote(transcriptionId, versionId, note),
+		async compare(leftVersionId, rightVersionId) {
+			if (!rightVersionId) await flushEditor();
+			const [left, right] = await Promise.all([
+				loadTranscriptionVersionContent(transcriptionId, leftVersionId),
+				loadTranscriptionVersionContent(transcriptionId, rightVersionId),
+			]);
+			return compareTranscriptions(left, right);
+		},
+		formatPart: formatTranscriptionPart,
+	};
+
 	function handleSaveStateChange(saved: boolean) {
 		hasUnsavedChanges = !saved;
-		if (!saved) {
-			commitSuccess = null;
-		}
+		if (!saved) presence?.noteEdit();
 		if (saved) {
 			nowMs = Date.now();
 		}
@@ -254,47 +298,6 @@
 				sensitivity: 'base',
 			})
 		);
-	}
-
-	function openCommitForm() {
-		commitError = null;
-		commitSuccess = null;
-		isCommitFormOpen = true;
-	}
-
-	function closeCommitForm() {
-		if (commitInFlight) return;
-		isCommitFormOpen = false;
-		commitMessage = '';
-		commitError = null;
-	}
-
-	async function handleCommitVersion(event: SubmitEvent) {
-		event.preventDefault();
-		if (!canCommitVersion || !transcriptionVersionStatus) return;
-		commitInFlight = true;
-		commitError = null;
-		commitSuccess = null;
-		try {
-			const flushed = await transcriptionEditorRef?.flushPendingAutosave?.();
-			if (!flushed) {
-				throw new Error('Local save failed. Commit was not created.');
-			}
-			const checkpoint = await createCommittedTranscriptionCheckpoint({
-				projectTranscriptionId: transcriptionVersionStatus.projectTranscriptionId,
-				commitMessage: commitMessage.trim() || null,
-			});
-			await Promise.all([loadTranscription(), loadTranscriptionVersionStatus()]);
-			isCommitFormOpen = false;
-			commitMessage = '';
-			commitSuccess = checkpoint.warnings?.length
-				? `Committed locally. ${checkpoint.warnings.map(warning => warning.message).join(' ')}`
-				: 'Committed locally';
-		} catch (err) {
-			commitError = err instanceof Error ? err.message : 'Failed to commit version';
-		} finally {
-			commitInFlight = false;
-		}
 	}
 
 	function buildVerseHref(book: string, chapter: string, verse: string): string {
@@ -448,6 +451,16 @@
 	});
 
 	$effect(() => {
+		if (!presenceProjectId || !presenceDocumentId) return;
+		const tracker = trackEditingPresence(presenceProjectId, presenceDocumentId);
+		presence = tracker;
+		return () => {
+			tracker.close();
+			if (presence === tracker) presence = null;
+		};
+	});
+
+	$effect(() => {
 		if (!iiifPopupOpen) return;
 		const interval = window.setInterval(() => {
 			if (iiifPopupWindow?.closed) {
@@ -469,10 +482,6 @@
 		transcriptionVersionStatus = null;
 		loadError = null;
 		versionStatusError = null;
-		isCommitFormOpen = false;
-		commitMessage = '';
-		commitError = null;
-		commitSuccess = null;
 
 		void loadTranscription(() => cancelled).catch(err => {
 			if (cancelled) return;
@@ -564,6 +573,12 @@
 				<span>{hasUnsavedChanges ? 'Unsaved local edits' : lastSavedText}</span>
 			</div>
 		</div>
+		<OfflineNotice />
+		{#if presenceProjectId && presenceDocumentId}
+			{#key `${presenceProjectId}/${presenceDocumentId}`}
+				<EditingNotice projectId={presenceProjectId} documentId={presenceDocumentId} />
+			{/key}
+		{/if}
 
 		<div class={['gap-4', iiifWorkspaceOpen ? 'flex items-start' : '']}>
 			<div class={['min-w-0', iiifWorkspaceOpen ? 'flex-1' : '']}>
@@ -578,69 +593,18 @@
 									<EntityHeader
 										label="Transcription"
 										projectName={transcriptionVersionStatus.projectName}
-										commitState={transcriptionVersionStatus.commitState}
-										checkpointRevisionId={transcriptionVersionStatus
-											.currentCheckpoint?.revisionId ?? null}
 									/>
 									<TranscriptionLineage status={transcriptionVersionStatus} />
 								</div>
-								<button
-									type="button"
-									class="btn btn-sm btn-secondary"
-									disabled={!canCommitVersion}
-									title={commitDisabledReason}
-									onclick={openCommitForm}
-								>
-									{commitInFlight ? 'Committing...' : 'Commit version'}
-								</button>
+								<VersionControls
+									actions={versionActions}
+									basedOnVersionId={transcriptionVersionStatus.currentCheckpoint
+										?.revisionId ?? null}
+									changedSinceBase={transcriptionVersionStatus.commitState !==
+										'clean'}
+									disabledReason={versionDisabledReason}
+								/>
 							</div>
-
-							{#if isCommitFormOpen}
-								<form
-									class="mt-3 border-t border-base-300/70 pt-3"
-									onsubmit={handleCommitVersion}
-								>
-									<fieldset class="fieldset p-0">
-										<legend
-											class="fieldset-legend text-xs uppercase tracking-[0.14em] opacity-70"
-										>
-											Version note
-										</legend>
-										<textarea
-											bind:value={commitMessage}
-											class="textarea textarea-sm min-h-20 w-full"
-											placeholder="Describe this version"
-											disabled={commitInFlight}
-										></textarea>
-										<p class="label text-xs">
-											Optional note for this local version.
-										</p>
-									</fieldset>
-									<div class="mt-2 flex flex-wrap justify-end gap-2">
-										<button
-											type="button"
-											class="btn btn-sm btn-ghost"
-											disabled={commitInFlight}
-											onclick={closeCommitForm}
-										>
-											Cancel
-										</button>
-										<button
-											type="submit"
-											class="btn btn-sm btn-primary"
-											disabled={commitInFlight}
-										>
-											{commitInFlight ? 'Committing...' : 'Commit version'}
-										</button>
-									</div>
-								</form>
-							{/if}
-
-							{#if commitError}
-								<p class="mt-2 text-sm text-error" role="alert">{commitError}</p>
-							{:else if commitSuccess}
-								<p class="mt-2 text-sm text-success">{commitSuccess}</p>
-							{/if}
 						</div>
 					{:else if versionStatusError}
 						<p class="mt-3 text-right text-xs text-warning" role="status">
@@ -682,29 +646,31 @@
 					</form>
 				</div>
 				<div data-transcription-scroll-container>
-					<TranscriptionEditor
-						bind:this={transcriptionEditorRef}
-						{transcription}
-						{data}
-						onSaveStateChange={handleSaveStateChange}
-						onPagesChange={pages => (editorPages = pages)}
-						onActivePageChange={page => (activePageId = page?.pageId || null)}
-						onTextSelectionChange={selection =>
-							(selectedTranscriptionQuote = selection)}
-						onReferenceEditionsUsedChange={editionIds => {
-							if (transcription)
-								transcription = {
-									...transcription,
-									referenceEditionsUsed: editionIds,
-								};
-						}}
-						onToggleIiifWorkspace={toggleInlineIiifWorkspace}
-						{iiifWorkspaceOpen}
-						toolbarTarget={toolbarHost}
-						statusBarTarget={statusBarHost}
-						{scrollToPageRequest}
-						{scrollToVerseRequest}
-					/>
+					{#key editorKey}
+						<TranscriptionEditor
+							bind:this={transcriptionEditorRef}
+							{transcription}
+							{data}
+							onSaveStateChange={handleSaveStateChange}
+							onPagesChange={pages => (editorPages = pages)}
+							onActivePageChange={page => (activePageId = page?.pageId || null)}
+							onTextSelectionChange={selection =>
+								(selectedTranscriptionQuote = selection)}
+							onReferenceEditionsUsedChange={editionIds => {
+								if (transcription)
+									transcription = {
+										...transcription,
+										referenceEditionsUsed: editionIds,
+									};
+							}}
+							onToggleIiifWorkspace={toggleInlineIiifWorkspace}
+							{iiifWorkspaceOpen}
+							toolbarTarget={toolbarHost}
+							statusBarTarget={statusBarHost}
+							{scrollToPageRequest}
+							{scrollToVerseRequest}
+						/>
+					{/key}
 				</div>
 				<div class="sticky bottom-0 z-30 pointer-events-none">
 					<div class="pointer-events-auto">

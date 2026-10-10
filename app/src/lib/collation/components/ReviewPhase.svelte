@@ -23,32 +23,6 @@
 		untranscribedLocation?: string;
 	};
 
-	let {
-		canCommitVersion,
-		commitDisabledReason,
-		commitInFlight,
-		isCommitFormOpen,
-		commitMessage,
-		commitError,
-		commitSuccess,
-		onOpenCommitForm,
-		onCloseCommitForm,
-		onCommitVersion,
-		onCommitMessage,
-	}: {
-		canCommitVersion: boolean;
-		commitDisabledReason: string;
-		commitInFlight: boolean;
-		isCommitFormOpen: boolean;
-		commitMessage: string;
-		commitError: string | null;
-		commitSuccess: string | null;
-		onOpenCommitForm: () => void;
-		onCloseCommitForm: () => void;
-		onCommitVersion: (event: SubmitEvent) => void;
-		onCommitMessage: (message: string) => void;
-	} = $props();
-
 	let segments = $derived(collationState.getSegmentSequence());
 	let unitSegments = $derived(segments.filter(segment => segment.kind === 'unit'));
 	let vocabulary = $derived(collationState.getReadingTypeVocabulary());
@@ -294,7 +268,7 @@
 				<div>
 					<h2 class="font-serif text-xl font-bold tracking-tight">Review</h2>
 					<p class="mt-1 text-sm text-base-content/60">
-						Review the apparatus, settle outstanding decisions, then export or commit a
+						Review the apparatus, settle outstanding decisions, then export or name a
 						version.
 					</p>
 				</div>
@@ -499,69 +473,6 @@
 					</ul>
 				{/if}
 			</div>
-		</section>
-
-		<section class="rounded-xl border border-base-300/60 bg-base-100 p-4">
-			<div class="flex flex-wrap items-center justify-between gap-3">
-				<div>
-					<h3 class="text-sm font-bold uppercase tracking-wider text-base-content/50">
-						Version
-					</h3>
-					<p class="mt-1 text-sm text-base-content/60">
-						Record this reviewed collation as a local version.
-					</p>
-				</div>
-				<button
-					type="button"
-					class="btn btn-secondary btn-sm"
-					disabled={!canCommitVersion}
-					title={commitDisabledReason}
-					onclick={onOpenCommitForm}
-				>
-					{commitInFlight ? 'Committing...' : 'Commit version'}
-				</button>
-			</div>
-			{#if isCommitFormOpen}
-				<form class="mt-4 space-y-2" onsubmit={onCommitVersion}>
-					<div class="flex items-center justify-between gap-3">
-						<p class="text-xs font-semibold uppercase tracking-[0.14em] opacity-70">
-							Commit collation version
-						</p>
-						<div class="flex gap-2">
-							<button
-								type="button"
-								class="btn btn-sm btn-ghost"
-								disabled={commitInFlight}
-								onclick={onCloseCommitForm}>Cancel</button
-							>
-							<button
-								type="submit"
-								class="btn btn-sm btn-primary"
-								disabled={commitInFlight}
-								>{commitInFlight ? 'Committing...' : 'Commit version'}</button
-							>
-						</div>
-					</div>
-					<fieldset class="fieldset p-0">
-						<legend
-							class="fieldset-legend text-xs uppercase tracking-[0.14em] opacity-70"
-							>Version note</legend
-						>
-						<textarea
-							value={commitMessage}
-							class="textarea textarea-sm min-h-20 w-full"
-							placeholder="Describe this version"
-							disabled={commitInFlight}
-							oninput={event => onCommitMessage(event.currentTarget.value)}
-						></textarea>
-						<p class="label text-xs">Optional note for this local version.</p>
-					</fieldset>
-					{#if commitError}<p class="text-sm text-error" role="alert">
-							{commitError}
-						</p>{/if}
-				</form>
-			{/if}
-			{#if commitSuccess}<p class="mt-3 text-sm text-success">{commitSuccess}</p>{/if}
 		</section>
 	</div>
 </div>

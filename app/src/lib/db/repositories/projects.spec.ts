@@ -59,7 +59,6 @@ import {
 	listProjectTranscriptionSourceCandidates,
 	loadTranscriptionContent,
 	addProjectTranscriptionFromProject,
-	AddFromProjectUncommittedSourceError,
 	AddFromProjectSameProjectError,
 	refreshProjectTranscription,
 	RefreshDirtyProjectTranscriptionError,
@@ -501,8 +500,9 @@ describe('projects repository', () => {
 			origin_type: 'project_snapshot',
 			origin_project_id: source.project_id,
 			origin_transcription_id: 'tx-1',
-			origin_revision_id: 'rev-1',
+			origin_revision_id: '',
 			origin_content_hash: sourceCheckpoint.contentHash,
+			origin_captured_at: expect.any(String),
 			current_revision_id: expect.any(String),
 			current_content_hash: expect.stringMatching(/^sha256:/),
 		});
@@ -658,7 +658,7 @@ describe('projects repository', () => {
 		expect(dirtyStatus.workingContentHash).not.toBe(checkpoint.contentHash);
 	});
 
-	it('reports project transcription committed source availability', async () => {
+	it('reports project transcription source freshness', async () => {
 		await createTranscription(harness.db, {
 			...baseTranscription('tx-1', '01'),
 			document: documentWithVerses(['Romans 1:1']),
@@ -691,21 +691,22 @@ describe('projects repository', () => {
 			sourceType: 'project_snapshot',
 			sourceProjectId: sourceProject.project_id,
 			sourceTranscriptionId: 'tx-1',
-			sourceRevisionId: 'source-rev-1',
+			sourceRevisionId: null,
 			sourceContentHash: sourceCheckpoint.contentHash,
 		});
 		expect(upToDateStatus.sourceState).toEqual({
 			kind: 'up-to-date',
 			sourceTranscriptionId: 'tx-1',
-			sourceRevisionId: 'source-rev-1',
-			sourceContentHash: sourceCheckpoint.contentHash,
 		});
 
 		await updateTranscriptionContent(harness.db, {
 			id: 'tx-1',
 			document: documentWithVerses(['Romans 1:2']),
 		});
-		const newerSourceCheckpoint = await createCommittedTranscriptionCheckpointWithFiles(
+		expect(
+			(await getProjectTranscriptionStatus(harness.db, projectTranscriptionId)).sourceState
+		).toEqual({ kind: 'source-changed', sourceTranscriptionId: 'tx-1' });
+		await createCommittedTranscriptionCheckpointWithFiles(
 			harness.db,
 			{
 				projectTranscriptionId: sourceProjectTranscriptionId,
@@ -715,12 +716,7 @@ describe('projects repository', () => {
 		);
 		expect(
 			(await getProjectTranscriptionStatus(harness.db, projectTranscriptionId)).sourceState
-		).toEqual({
-			kind: 'newer-source-available',
-			sourceTranscriptionId: 'tx-1',
-			sourceRevisionId: 'source-rev-2',
-			sourceContentHash: newerSourceCheckpoint.contentHash,
-		});
+		).toEqual({ kind: 'source-changed', sourceTranscriptionId: 'tx-1' });
 
 		await harness.db.deleteFrom('transcriptions').where('id', '=', 'tx-1').execute();
 		expect(
@@ -771,7 +767,7 @@ describe('projects repository', () => {
 			{
 				projectTranscriptionId: projectTranscriptionBId,
 				sourceTranscriptionId: snapshotAId,
-				sourceCheckpointId: 'src-cp-1',
+				sourceVersionId: 'src-cp-1',
 				allowReplaceDirty: true,
 				updatedAt: '2026-06-20T12:00:00.000Z',
 			},
@@ -906,8 +902,10 @@ describe('projects repository', () => {
 				position: 0,
 				project_transcription_id: projectTranscriptionBId,
 				transcription_id: snapshotBId,
+				source_kind: 'version',
 				source_revision_id: 'pinned-rev',
 				source_content_hash: 'sha256:pinned',
+				source_captured_at: '',
 			})
 			.execute();
 
@@ -916,7 +914,7 @@ describe('projects repository', () => {
 			{
 				projectTranscriptionId: projectTranscriptionBId,
 				sourceTranscriptionId: snapshotAId,
-				sourceCheckpointId: 'src-cp-1',
+				sourceVersionId: 'src-cp-1',
 				allowReplaceDirty: true,
 			},
 			{ storeOptions }
@@ -946,8 +944,10 @@ describe('projects repository', () => {
 		expect(witnessRows[0]).toMatchObject({
 			project_transcription_id: projectTranscriptionBId,
 			transcription_id: snapshotBId,
+			source_kind: 'version',
 			source_revision_id: 'pinned-rev',
 			source_content_hash: 'sha256:pinned',
+			source_captured_at: '',
 		});
 	});
 
@@ -986,7 +986,7 @@ describe('projects repository', () => {
 					{
 						projectTranscriptionId: targetLinkId,
 						sourceTranscriptionId: 'tx-1',
-						sourceCheckpointId: 'src-cp-refresh',
+						sourceVersionId: 'src-cp-refresh',
 					},
 					{ storeOptions }
 				)
@@ -1075,7 +1075,7 @@ describe('projects repository', () => {
 				{
 					projectTranscriptionId: projectTranscriptionBId,
 					sourceTranscriptionId: snapshotAId,
-					sourceCheckpointId: 'src-cp-1',
+					sourceVersionId: 'src-cp-1',
 				},
 				{ storeOptions }
 			)
@@ -1086,7 +1086,7 @@ describe('projects repository', () => {
 			{
 				projectTranscriptionId: projectTranscriptionBId,
 				sourceTranscriptionId: snapshotAId,
-				sourceCheckpointId: 'src-cp-1',
+				sourceVersionId: 'src-cp-1',
 				allowReplaceDirty: true,
 			},
 			{ storeOptions }
@@ -1105,7 +1105,7 @@ describe('projects repository', () => {
 		).rejects.toThrow('not found');
 	});
 
-	it('blocks refresh when the source checkpoint is missing or not the current committed head', async () => {
+	it('blocks refresh when the source version is missing', async () => {
 		const storeOptions = { backend: projectBackend };
 		await createCommittedSourceProject(storeOptions);
 		await createProject(harness.db, { id: 'project-b', name: 'Project B' });
@@ -1154,30 +1154,18 @@ describe('projects repository', () => {
 				{
 					projectTranscriptionId: projectTranscriptionBId,
 					sourceTranscriptionId: snapshotAId,
-					sourceCheckpointId: 'missing-cp',
+					sourceVersionId: 'missing-cp',
 				},
 				{ storeOptions }
 			)
 		).rejects.toThrow(/was not found/);
-
-		await expect(
-			refreshProjectTranscription(
-				harness.db,
-				{
-					projectTranscriptionId: projectTranscriptionBId,
-					sourceTranscriptionId: snapshotAId,
-					sourceCheckpointId: 'src-cp-1',
-				},
-				{ storeOptions }
-			)
-		).rejects.toThrow(/not the current committed head/);
 
 		const refreshed = await refreshProjectTranscription(
 			harness.db,
 			{
 				projectTranscriptionId: projectTranscriptionBId,
 				sourceTranscriptionId: snapshotAId,
-				sourceCheckpointId: 'src-cp-2',
+				sourceVersionId: 'src-cp-2',
 			},
 			{ storeOptions }
 		);
@@ -1207,6 +1195,7 @@ describe('projects repository', () => {
 			{
 				targetProjectId: 'project-b',
 				sourceProjectTranscriptionId: projectTranscriptionAId,
+				sourceVersionId: 'src-cp-1',
 			},
 			{ storeOptions }
 		);
@@ -1226,7 +1215,7 @@ describe('projects repository', () => {
 			{
 				projectTranscriptionId: copied.projectTranscriptionId,
 				sourceTranscriptionId: snapshotAId,
-				sourceCheckpointId: 'src-cp-1',
+				sourceVersionId: 'src-cp-1',
 			},
 			{ storeOptions }
 		);
@@ -1269,6 +1258,7 @@ describe('projects repository', () => {
 			{
 				targetProjectId: 'project-b',
 				sourceProjectTranscriptionId: projectTranscriptionAId,
+				sourceVersionId: 'src-cp-1',
 				createdAt: '2026-06-20T12:00:00.000Z',
 			},
 			{ storeOptions }
@@ -1432,7 +1422,7 @@ describe('projects repository', () => {
 		expect(targetIds).not.toContain(snapshotAId);
 	});
 
-	it('blocks add-from-project when the source is uncommitted', async () => {
+	it('copies an un-versioned transcription from its Current', async () => {
 		const storeOptions = { backend: projectBackend };
 		await createProject(harness.db, { id: 'project-a', name: 'Project A' });
 		await createTranscription(harness.db, {
@@ -1442,19 +1432,40 @@ describe('projects repository', () => {
 			document: documentWithVerses(['Romans 1:1']),
 		});
 		await createProject(harness.db, { id: 'project-b', name: 'Project B' });
+		const sourceStatus = await getProjectTranscriptionStatus(harness.db, 'pt-a');
 
-		await expect(
-			addProjectTranscriptionFromProject(
-				harness.db,
-				{
-					targetProjectId: 'project-b',
-					sourceProjectTranscriptionId: 'pt-a',
-				},
-				{ storeOptions }
-			)
-		).rejects.toBeInstanceOf(AddFromProjectUncommittedSourceError);
+		const copied = await addProjectTranscriptionFromProject(
+			harness.db,
+			{
+				targetProjectId: 'project-b',
+				sourceProjectTranscriptionId: 'pt-a',
+			},
+			{ storeOptions }
+		);
 
-		expect(await getProjectTranscriptionIds(harness.db, 'project-b')).toEqual([]);
+		const copiedStatus = await getProjectTranscriptionStatus(
+			harness.db,
+			copied.projectTranscriptionId
+		);
+		expect(await getProjectTranscriptionIds(harness.db, 'project-b')).toEqual([
+			copied.projectOwnedTranscriptionId,
+		]);
+		expect(copiedStatus.immediateSource).toMatchObject({
+			sourceTranscriptionId: 'tx-1',
+			sourceRevisionId: null,
+			sourceContentHash: sourceStatus.workingContentHash,
+			sourceCapturedAt: expect.any(String),
+		});
+		expect(copiedStatus.sourceState).toEqual({
+			kind: 'up-to-date',
+			sourceTranscriptionId: 'tx-1',
+		});
+		const verseRows = await harness.db
+			.selectFrom('transcription_verse_index')
+			.select('verse_identifier')
+			.where('transcription_id', '=', copied.projectOwnedTranscriptionId)
+			.execute();
+		expect(verseRows.map(row => row.verse_identifier)).toEqual(['Romans 1:1']);
 	});
 
 	it('blocks add-from-project when the source is in the same project', async () => {
@@ -1536,8 +1547,11 @@ describe('projects repository', () => {
 								id: 'A',
 								siglum: 'A',
 								transcriptionId: snapshotAId,
-								sourceVersion: 'src-cp-1',
-								sourceContentHash: sourceCheckpoint.contentHash,
+								source: {
+									kind: 'version',
+									transcriptionId: snapshotAId,
+									versionId: 'src-cp-1',
+								},
 								content: 'in principio',
 								treatment: 'full',
 								isBaseText: true,
@@ -1638,7 +1652,7 @@ describe('projects repository', () => {
 		expect(forkedWitness).toMatchObject({
 			project_transcription_id: fork.projectTranscriptionIds[0],
 			transcription_id: fork.projectOwnedTranscriptionIds[0],
-			source_content_hash: forkedTranscription.current_content_hash,
+			source_kind: 'version',
 		});
 		expect(forkedWitness.source_revision_id).not.toBe('src-cp-1');
 		expect(forkedWitness.source_revision_id).toBe(forkedTranscription.current_revision_id);
@@ -1722,7 +1736,7 @@ describe('projects repository', () => {
 		);
 	});
 
-	it('lists project transcription source candidates from other projects with committed status', async () => {
+	it('lists project transcription source candidates from other projects with their versions', async () => {
 		const storeOptions = { backend: projectBackend };
 		await createCommittedSourceProject(storeOptions, { checkpointId: 'src-cp-1' });
 		await createProject(harness.db, { id: 'project-b', name: 'Project B' });
@@ -1740,13 +1754,11 @@ describe('projects repository', () => {
 
 		const candidatesForB = await listProjectTranscriptionSourceCandidates(
 			harness.db,
-			'project-b',
-			{ storeOptions }
+			'project-b'
 		);
 		const candidatesForA = await listProjectTranscriptionSourceCandidates(
 			harness.db,
-			'project-a',
-			{ storeOptions }
+			'project-a'
 		);
 
 		expect(candidatesForB).toHaveLength(1);
@@ -1758,8 +1770,8 @@ describe('projects repository', () => {
 					projectId: 'project-a',
 					projectName: 'Project A',
 					siglum: '01',
-					currentCheckpoint: expect.objectContaining({ revisionId: 'src-cp-1' }),
-					dirtyToCheckpoint: false,
+					currentEditedAt: expect.any(String),
+					versions: [expect.objectContaining({ id: 'src-cp-1' })],
 				}),
 			])
 		);
@@ -1770,10 +1782,7 @@ describe('projects repository', () => {
 					projectTranscriptionId: projectTranscriptionBId,
 					projectId: 'project-b',
 					projectName: 'Project B',
-					currentCheckpoint: expect.objectContaining({
-						revisionId: expect.any(String),
-					}),
-					dirtyToCheckpoint: false,
+					currentEditedAt: expect.any(String),
 				}),
 			])
 		);

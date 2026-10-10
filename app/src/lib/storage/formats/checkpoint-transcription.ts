@@ -3,16 +3,17 @@ import type { JsonObject } from '../envelope';
 import { invalidShape } from '../quarantine';
 import { assertContentHashMatches, readString } from './validation';
 import {
+	addVersionMetadata,
 	readCheckpointBasePayload,
 	readHistoryEntityType,
 	type CheckpointBasePayload,
 	TRANSCRIPTION_HISTORY_ENTITY_TYPE,
 } from './checkpoint-utils';
-import { readProjectTranscriptionPayload } from './project-transcription';
+import { readProjectTranscriptionContent } from './project-transcription';
 
 export const TRANSCRIPTION_CHECKPOINT_FORMAT = 'apatosaurus.checkpoint.transcription';
-export const TRANSCRIPTION_CHECKPOINT_CURRENT_VERSION = 1;
-const transcriptionCheckpointUpgraders: DocumentUpgrader[] = [];
+export const TRANSCRIPTION_CHECKPOINT_CURRENT_VERSION = 2;
+const transcriptionCheckpointUpgraders: DocumentUpgrader[] = [addVersionMetadata];
 
 export type TranscriptionCheckpointPayload = CheckpointBasePayload & {
 	entity_type: 'project-transcription';
@@ -29,23 +30,20 @@ function validateTranscriptionCheckpointPayload(
 	const payloadTranscriptionId = readString(record, 'payload_transcription_id');
 	const contentFormat = readString(record, 'content_format');
 	const nested = base.payload as Record<string, unknown>;
-	readProjectTranscriptionPayload(
-		{
-			...nested,
-			canonical_transcription_id: null,
-			origin: {
-				source_type: 'original',
-				source_project_id: null,
-				source_transcription_id: null,
-				source_revision_id: null,
-				source_content_hash: null,
-			},
-			content_format: readString(nested, 'format'),
-			created_at: base.created_at,
-			updated_at: base.created_at,
+	readProjectTranscriptionContent({
+		...nested,
+		canonical_transcription_id: null,
+		origin: {
+			source_type: 'original',
+			source_project_id: null,
+			source_transcription_id: null,
+			source_revision_id: null,
+			source_content_hash: null,
 		},
-		false
-	);
+		content_format: readString(nested, 'format'),
+		created_at: base.created_at,
+		updated_at: base.created_at,
+	});
 	if (nested.project_transcription_id !== base.entity_id) {
 		throw invalidShape(
 			'Transcription checkpoint payload project_transcription_id does not match entity_id.'

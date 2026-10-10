@@ -32,7 +32,6 @@ import {
 	projectFolder,
 	projectManifestFile,
 	transcriptionPrimaryFile,
-	transcriptionWorkingFile,
 } from '$lib/storage/layout';
 import {
 	COLLATION_CHECKPOINT_CURRENT_VERSION,
@@ -110,14 +109,15 @@ describe('data-safety invariants', () => {
 		expect(before).toMatchObject({ ok: true });
 		expect(after).toMatchObject({
 			ok: true,
-			payload: { current_revision: { id: 'revision-2' } },
+			payload: { based_on_checkpoint: { id: 'revision-2' } },
 		});
 		if (before.ok && after.ok) {
-			expect(after.payload.current_revision).not.toEqual(before.payload.current_revision);
+			expect(after.payload.based_on_checkpoint).not.toEqual(
+				before.payload.based_on_checkpoint
+			);
 		}
-		expect(targetOperations).toEqual([
-			expect.objectContaining({ type: 'move', content: rawAfter }),
-		]);
+		expect(targetOperations.map(operation => operation.type)).toEqual(['move', 'move']);
+		expect(targetOperations.at(-1)).toMatchObject({ content: rawAfter });
 		expect(
 			backend.writeOperations.some(
 				operation => operation.type !== 'move' && operation.path === targetPath
@@ -290,9 +290,9 @@ describe('data-safety invariants', () => {
 		}
 	);
 
-	it('Invariant 7: an interrupted working-file replacement recovers the previous draft', async () => {
+	it('Invariant 7: an interrupted Current replacement recovers the previous Current', async () => {
 		await seedCompleteProject();
-		const path = transcriptionWorkingFile('project-slug', 'pt-1');
+		const path = transcriptionPrimaryFile('project-slug', 'pt-1');
 		await saveWorkingTranscriptionContent(
 			harness.db,
 			{ id: 'tx-1', document: documentWithVerses(['Romans 1:2']) },

@@ -11,7 +11,6 @@ function makeWitness(witnessId: string, content: string, isBaseText = false): Wi
 		witnessId,
 		siglum: witnessId,
 		transcriptionId: `${witnessId}-tx`,
-		sourceVersion: 'v1',
 		content,
 		tokens: content.split(/\s+/).map(token => ({
 			kind: 'text' as const,

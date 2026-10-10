@@ -3,14 +3,16 @@
 	import {
 		checkStoragePersistence,
 		getStorageEstimate,
+		isLocalFolderProviderSupported,
 		shouldShowDurabilityWarning,
 		type StorageEstimateReport,
 		type StoragePersistenceReport,
 	} from '$lib/shell/capabilities';
 	import {
-		getCollationVersionStatus,
 		getProjectTranscriptionStatusForOwnedTranscription,
 		listCollationsWithProjectNames,
+		listConflictCopies,
+		listProjectIdsWithContent,
 		listProjects,
 		listTranscriptionSummaries,
 		subscribeLocalDbInvalidations,
@@ -27,7 +29,11 @@
 		loadProjectBackupOverviews,
 		type ProjectBackupOverview,
 	} from '$lib/backup/project-backup-overview';
+	import { deriveProjectBackupHealthState } from '$lib/backup/project-backup-health-state';
+	import { dismissPlacementNotice } from '$lib/backup/location-connections';
+	import { listProjectPlacements } from '$lib/storage/project-locations';
 	import type { WarmProgress } from '$lib/shell/offline-cache-policy';
+	import { formatConflictCopyTitle } from '$lib/shell/source-labels';
 	import { onCacheWarmProgress } from '$lib/shell/sw-registration';
 	import Dashboard, {
 		type DashboardAttentionItem,
@@ -122,19 +128,16 @@
 						type: row.type,
 						title: row.summary.title,
 						projectName: status.projectName?.trim() || 'Project unavailable',
-						commitState: status.commitState,
 						updatedAt: row.updatedAt,
 						href: `/transcription/${row.id}`,
 					} satisfies DashboardDocument;
 				}
 
-				const status = await getCollationVersionStatus(row.id);
 				return {
 					id: row.id,
 					type: row.type,
 					title: row.summary.title,
 					projectName: row.summary.projectName,
-					commitState: status.commitState,
 					updatedAt: row.updatedAt,
 					href: `/collation/${row.id}`,
 				} satisfies DashboardDocument;
@@ -149,8 +152,20 @@
 		estimate: StorageEstimateReport
 	): Promise<DashboardAttentionItem[]> {
 		if (projectRows.length === 0) return [];
-		const items: DashboardAttentionItem[] = [];
-		const overviews = await loadProjectBackupOverviews(projectRows.map(project => project.id));
+		const [overviews, conflictCopies, projectIdsWithContent, placements] = await Promise.all([
+			loadProjectBackupOverviews(projectRows.map(project => project.id)),
+			listConflictCopies(),
+			listProjectIdsWithContent(),
+			listProjectPlacements(),
+		]);
+		const items: DashboardAttentionItem[] = conflictCopies.map(copy => ({
+			id: `conflict-copy:${copy.copyId}`,
+			title: formatConflictCopyTitle(copy),
+			description:
+				'Two copies of this document changed independently. Choose what to keep from each.',
+			href: `/projects/${copy.projectId}/conflicts/${copy.copyId}`,
+			linkLabel: 'Reconcile',
+		}));
 		for (const project of projectRows) {
 			const overview = overviews[project.id];
 			if (overview.error) {
@@ -164,6 +179,57 @@
 			}
 			const problem = summarizeBackupProblem(project, overview);
 			if (problem) items.push(problem);
+			const placement = placements.find(candidate => candidate.projectId === project.id);
+			if (placement?.moved) {
+				items.push({
+					id: `moved:${project.id}`,
+					title: `${project.name} moved`,
+					description: `Moved by ${placement.moved.movedBy} on ${new Date(placement.moved.movedAt).toLocaleString()} to ${placement.moved.destinationLabel}. This copy no longer syncs and is kept only in this browser.`,
+					href: `/projects/${project.id}/location`,
+					linkLabel: `Open location of ${project.name}`,
+					dismissLabel: 'Dismiss',
+					onDismiss: () => void dismissPlacementNotice(project.id),
+				});
+				continue;
+			}
+			if (placement?.deleted) {
+				items.push({
+					id: `deleted:${project.id}`,
+					title: `${project.name} deleted`,
+					description: `Deleted by ${placement.deleted.deletedBy} on ${new Date(placement.deleted.deletedAt).toLocaleString()}. This copy no longer syncs and is kept only in this browser.`,
+					href: `/projects/${project.id}/location`,
+					linkLabel: `Open location of ${project.name}`,
+					dismissLabel: 'Dismiss',
+					onDismiss: () => void dismissPlacementNotice(project.id),
+				});
+				continue;
+			}
+			if (placement?.needsLocationChoice) {
+				items.push({
+					id: `needs-location-choice:${project.id}`,
+					title: 'Choose where this project lives',
+					description: `${project.name} synced to a folder before this update. That folder is left untouched; move the project to a location to keep syncing.`,
+					href: `/projects/${project.id}/location`,
+					linkLabel: `Move ${project.name}`,
+					dismissLabel: 'Keep in this browser',
+					onDismiss: () => void dismissPlacementNotice(project.id),
+				});
+				continue;
+			}
+			const health = deriveProjectBackupHealthState({
+				hasContent: projectIdsWithContent.includes(project.id),
+				hasLocation: overview.status !== 'local-only',
+				localFolderSupported: isLocalFolderProviderSupported(),
+			});
+			if (health.showBrowserOnlyPrompt) {
+				items.push({
+					id: `choose-location:${project.id}`,
+					title: 'Choose where this project lives',
+					description: `${project.name} is stored only in this browser.`,
+					href: `/projects/${project.id}/location`,
+					linkLabel: `Choose a location for ${project.name}`,
+				});
+			}
 		}
 
 		if (
@@ -194,17 +260,6 @@
 			});
 		}
 
-		if (projectRows.some(project => overviews[project.id].status === 'local-only')) {
-			items.push({
-				id: 'storage-setup',
-				title: 'Set up a backup path',
-				description:
-					'Some projects are stored only in this browser. Connect folder sync or plan regular zip exports.',
-				href: '/data',
-				linkLabel: 'Review backup options',
-			});
-		}
-
 		return items;
 	}
 
@@ -214,16 +269,6 @@
 	): DashboardAttentionItem | null {
 		if (overview.status === 'unavailable')
 			return projectBackupAttention(project, 'Backup status is currently unavailable.');
-		if (overview.status === 'blocked')
-			return projectBackupAttention(
-				project,
-				'Commit local changes before this project can be backed up.'
-			);
-		if (overview.status === 'pending')
-			return projectBackupAttention(
-				project,
-				'Committed project changes are waiting to be backed up.'
-			);
 		return null;
 	}
 
@@ -235,8 +280,8 @@
 			id: `project-backup:${project.id}`,
 			title: `${project.name} backup needs attention`,
 			description,
-			href: `/projects/${project.id}/backup`,
-			linkLabel: 'Open project backup',
+			href: `/projects/${project.id}/location`,
+			linkLabel: 'Open project location',
 		};
 	}
 

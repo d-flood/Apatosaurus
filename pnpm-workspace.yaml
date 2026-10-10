@@ -1,6 +1,7 @@
 packages:
   - app
   - packages/tei-transcription
+  - packages/auth-worker
   - collatex/collatex-tsport
 
 overrides:

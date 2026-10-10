@@ -244,7 +244,7 @@ describe('cloud file serialization formats', () => {
 			checkpoint_id: 'tx-cp-1',
 			project_transcription_id: projectTranscriptionId,
 			transcription_id: snapshotId,
-			content_hash: primary.current_revision.content_hash,
+			content_hash: primary.based_on_checkpoint?.content_hash,
 		});
 		const projectFile = await serializeProjectCloudFile(harness.db, 'project-1');
 		expect(projectFile.transcriptions).toEqual([
@@ -253,7 +253,7 @@ describe('cloud file serialization formats', () => {
 				transcription_id: snapshotId,
 				current_revision: {
 					id: 'tx-cp-1',
-					content_hash: primary.current_revision.content_hash,
+					content_hash: primary.based_on_checkpoint?.content_hash,
 				},
 				primary_path: `transcriptions/${projectTranscriptionId}.json`,
 			}),
@@ -404,7 +404,7 @@ describe('cloud file serialization formats', () => {
 		expect(historyCloudFileToImportInput(parsedHistory.value)).toMatchObject({
 			checkpoint_id: 'col-cp-1',
 			collation_id: 'col-1',
-			content_hash: primary.current_revision.content_hash,
+			content_hash: primary.based_on_checkpoint?.content_hash,
 		});
 		expect(
 			validateCollationHeadMatchesCheckpoint(parsedPrimary.value, {
@@ -490,8 +490,10 @@ async function insertCollationChildRows(sources: {
 				position: 1,
 				project_transcription_id: sources.b.projectTranscriptionId,
 				transcription_id: sources.b.transcriptionId,
+				source_kind: 'version',
 				source_revision_id: sources.b.sourceRevisionId,
 				source_content_hash: sources.b.sourceContentHash,
+				source_captured_at: '',
 			},
 			{
 				id: 'witness-a',
@@ -501,8 +503,10 @@ async function insertCollationChildRows(sources: {
 				position: 0,
 				project_transcription_id: sources.a.projectTranscriptionId,
 				transcription_id: sources.a.transcriptionId,
+				source_kind: 'version',
 				source_revision_id: sources.a.sourceRevisionId,
 				source_content_hash: sources.a.sourceContentHash,
+				source_captured_at: '',
 			},
 		])
 		.execute();

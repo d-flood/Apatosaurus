@@ -1,6 +1,6 @@
 import { page } from '@vitest/browser/context';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render } from 'vitest-browser-svelte';
+import { cleanup, render } from 'vitest-browser-svelte';
 
 const mocks = vi.hoisted(() => ({
 	requestPersistence: vi.fn(),
@@ -22,6 +22,12 @@ const mocks = vi.hoisted(() => ({
 		isNearQuota: false,
 	})),
 	warmListeners: [] as Array<(progress: unknown) => void>,
+	listProjectLocations: vi.fn(async () => [] as unknown[]),
+	addDeviceLocation: vi.fn(async () => undefined),
+	listStorageAccounts: vi.fn(async () => [] as unknown[]),
+	signOutAccount: vi.fn(async () => undefined),
+	beginSignIn: vi.fn(),
+	googleTeamLocations: false,
 }));
 
 vi.mock('$lib/shell/capabilities', () => ({
@@ -56,7 +62,7 @@ vi.mock('$lib/shell/sw-registration', () => ({
 
 vi.mock('$lib/db/client', () => ({
 	listProjects: vi.fn(async () => []),
-	deriveProjectBackupSummary: vi.fn(),
+	listPendingUploadPaths: vi.fn(),
 	exportAllProjectsZip: mocks.exportAllProjectsZip,
 	restoreReferenceEditionsArchive: mocks.restoreReferenceEditionsArchive,
 	rebuildLocalIndex: vi.fn(),
@@ -66,8 +72,46 @@ vi.mock('$lib/db/client', () => ({
 
 vi.mock('$lib/db/runtime', () => ({ ensureLocalDbRuntime: vi.fn() }));
 vi.mock('$lib/shell/download-blob', () => ({ downloadZipArchive: mocks.downloadZipArchive }));
-vi.mock('$lib/storage/sync-targets', () => ({
-	listSyncTargets: vi.fn(async () => []),
+vi.mock('$lib/storage/project-locations', () => ({
+	isPlacedProject: vi.fn(() => true),
+	listProjectLocations: mocks.listProjectLocations,
+	listProjectPlacements: vi.fn(async () => []),
+	listStorageAccounts: mocks.listStorageAccounts,
+}));
+vi.mock('$lib/storage/app-settings', () => ({
+	readAppSettings: vi.fn(async () => ({ authorName: null })),
+	saveAppSettings: vi.fn(async () => undefined),
+}));
+vi.mock('$lib/storage/device-identity', () => ({
+	readDeviceIdentity: vi.fn(async () => ({
+		deviceId: 'device-1',
+		deviceName: 'Chrome on Linux',
+	})),
+	saveDeviceName: vi.fn(),
+}));
+vi.mock('$lib/backup/location-connections', () => ({
+	addDeviceLocation: mocks.addDeviceLocation,
+	addTeamLocation: vi.fn(),
+	browseTeamFolders: vi.fn(),
+	completeAccountSignIn: vi.fn(),
+	inspectGoogleTeamFolder: vi.fn(),
+	reconnectDeviceLocation: vi.fn(),
+	signOutAccount: mocks.signOutAccount,
+}));
+vi.mock('$lib/backup/storage-account-auth', async importOriginal => ({
+	...(await importOriginal<typeof import('$lib/backup/storage-account-auth')>()),
+	beginSignIn: mocks.beginSignIn,
+}));
+vi.mock('$lib/backup/google-team-locations', async importOriginal => {
+	const actual = await importOriginal<typeof import('$lib/backup/google-team-locations')>();
+	return {
+		...actual,
+		teamLocationAccounts: (accounts: Parameters<typeof actual.teamLocationAccounts>[0]) =>
+			actual.teamLocationAccounts(accounts, mocks.googleTeamLocations),
+	};
+});
+vi.mock('$lib/backup/sync-service.svelte', () => ({
+	syncService: { reconnectProjectIds: [] },
 }));
 vi.mock('$lib/reference-editions/user-reference-editions', () => ({
 	inspectUserReferenceEditions: mocks.inspectUserReferenceEditions,
@@ -80,6 +124,119 @@ vi.mock('$lib/backup/providers/local-folder-provider', () => ({
 }));
 
 import Page from './+page.svelte';
+import * as capabilities from '$lib/shell/capabilities';
+
+describe('/data locations', () => {
+	beforeEach(async () => {
+		const actual =
+			await vi.importActual<typeof import('$lib/shell/capabilities')>(
+				'$lib/shell/capabilities'
+			);
+		vi.mocked(capabilities.isLocalFolderProviderSupported).mockImplementation(
+			actual.isLocalFolderProviderSupported
+		);
+		return () => {
+			vi.mocked(capabilities.isLocalFolderProviderSupported).mockImplementation(() => false);
+			vi.unstubAllGlobals();
+		};
+	});
+
+	it('offers a folder on this computer when the directory picker exists', async () => {
+		vi.stubGlobal('showDirectoryPicker', vi.fn());
+		render(Page);
+
+		const add = page.getByRole('button', { name: 'Add folder on this computer' });
+		await expect.element(add).toBeInTheDocument();
+		await add.click();
+		expect(mocks.addDeviceLocation).toHaveBeenCalledOnce();
+	});
+
+	it('signs out keeping projects by default, and shows a refused removal', async () => {
+		mocks.listStorageAccounts.mockResolvedValue([
+			{
+				id: 'dbid:a',
+				provider: 'dropbox',
+				displayName: 'Ada',
+				email: 'ada@example.org',
+				grantedScopes: [],
+				signedIn: true,
+			},
+		]);
+		mocks.signOutAccount.mockRejectedValueOnce(
+			new Error('Changes are still waiting to upload in Romans.')
+		);
+		render(Page);
+
+		await page.getByRole('button', { name: 'Sign out' }).click();
+		const keep = page.getByRole('radio', { name: /Keep on this device/ });
+		const remove = page.getByRole('radio', { name: /Remove from this device/ });
+		await expect.element(keep).toBeChecked();
+		await remove.click();
+		await page.getByRole('dialog').getByRole('button', { name: 'Sign out' }).click();
+		expect(mocks.signOutAccount).toHaveBeenLastCalledWith('dbid:a', true);
+		await expect
+			.element(page.getByRole('alert').getByText(/waiting to upload in Romans/))
+			.toBeInTheDocument();
+
+		await keep.click();
+		await page.getByRole('dialog').getByRole('button', { name: 'Sign out' }).click();
+		expect(mocks.signOutAccount).toHaveBeenLastCalledWith('dbid:a', false);
+		mocks.listStorageAccounts.mockResolvedValue([]);
+	});
+
+	it('offers Google in Add team location only with the flag on, and asks for drive once', async () => {
+		const google = {
+			id: 'google:1',
+			provider: 'google',
+			displayName: 'Ada',
+			email: 'ada@example.org',
+			grantedScopes: ['https://www.googleapis.com/auth/drive.file'],
+			signedIn: true,
+		};
+		mocks.listStorageAccounts.mockResolvedValue([google]);
+		render(Page);
+
+		await expect.element(page.getByText('Ada', { exact: true })).toBeInTheDocument();
+		await expect
+			.element(page.getByRole('button', { name: 'Add team location' }))
+			.not.toBeInTheDocument();
+		cleanup();
+
+		mocks.googleTeamLocations = true;
+		render(Page);
+		await page.getByRole('button', { name: 'Add team location' }).click();
+		await page.getByRole('button', { name: 'Continue to Google' }).click();
+
+		expect(mocks.beginSignIn).toHaveBeenCalledWith('google', {
+			scopes: 'drive',
+			loginHint: 'ada@example.org',
+		});
+		cleanup();
+
+		mocks.beginSignIn.mockClear();
+		mocks.listStorageAccounts.mockResolvedValue([
+			{ ...google, grantedScopes: ['https://www.googleapis.com/auth/drive'] },
+		]);
+		render(Page);
+		await page.getByRole('button', { name: 'Add team location' }).click();
+		await expect.element(page.getByRole('button', { name: 'Choose folder' })).toBeVisible();
+		await expect.element(page.getByText(/ask once for access/)).not.toBeInTheDocument();
+		expect(mocks.beginSignIn).not.toHaveBeenCalled();
+		mocks.googleTeamLocations = false;
+		mocks.listStorageAccounts.mockResolvedValue([]);
+	});
+
+	it('does not render the folder option without the directory picker', async () => {
+		vi.stubGlobal('showDirectoryPicker', undefined);
+		render(Page);
+
+		await expect.element(page.getByRole('heading', { name: 'Locations' })).toBeInTheDocument();
+		await expect.element(page.getByText('No locations yet.')).toBeInTheDocument();
+		expect(
+			page.getByRole('button', { name: 'Add folder on this computer' }).elements()
+		).toHaveLength(0);
+	});
+});
 
 describe('/data persistence request', () => {
 	beforeEach(() => {

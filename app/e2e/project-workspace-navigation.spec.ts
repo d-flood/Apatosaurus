@@ -14,7 +14,6 @@ test('project libraries are clean worklists and collation configuration lives in
 	await page.goto(`/projects/${projectId}/transcriptions`);
 	const transcriptionRow = page.getByRole('listitem').filter({ hasText: 'GA 459' });
 	await expect(transcriptionRow).toContainText('Pluteo IV. 32');
-	await expect(transcriptionRow).toContainText('Committed');
 	await expect(transcriptionRow).toContainText('Updated');
 	await expect(transcriptionRow.getByRole('link', { name: 'Open' })).toBeVisible();
 	await expect(page.getByText('Corrector treatment', { exact: true })).toHaveCount(0);
@@ -94,7 +93,7 @@ test('project workspace sections are bookmarkable and stay isolated across tabs'
 	const sections = [
 		{ name: 'Collations', path: 'collations', heading: 'Project Collations' },
 		{ name: 'Settings', path: 'settings', heading: 'Project Details' },
-		{ name: 'Backup and Sync', path: 'backup', heading: 'Folder Sync' },
+		{ name: 'Location', path: 'location', heading: 'Location' },
 		{ name: 'Transcriptions', path: 'transcriptions', heading: 'Project Transcriptions' },
 	] as const;
 	for (const section of sections) {

@@ -6,6 +6,7 @@ import {
 	getProjectTranscriptionIds,
 	loadCollation,
 	loadCommittedTranscriptionCheckpointPayload,
+	listTranscriptionVersions,
 	listVerseIndexRowsForTranscriptions,
 	saveCollationArtifact,
 	updateProjectMetadata,
@@ -39,6 +40,7 @@ import {
 	cloneWitnessSourceTokens,
 	didPreparedWitnessChangeSource,
 	ensureBaseTextSelection,
+	isSameWitnessSource,
 } from './witness-config';
 import {
 	COLLATION_DOCUMENT_ARTIFACT_TYPE,
@@ -360,9 +362,17 @@ function createCollationState() {
 		}
 	}
 
+	const editListeners = new Set<() => void>();
+
 	function markUnsaved() {
 		saveStatus = 'unsaved';
 		scheduleSave();
+		if (collationId) for (const listener of editListeners) listener();
+	}
+
+	function onEdit(listener: () => void): () => void {
+		editListeners.add(listener);
+		return () => editListeners.delete(listener);
 	}
 
 	let saveTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -1063,7 +1073,9 @@ function createCollationState() {
 						siglum: prepared.siglum,
 						kind: prepared.kind,
 						handId: prepared.handId,
-						sourceVersion: prepared.sourceVersion,
+						source: isSameWitnessSource(witness.source, prepared.source)
+							? witness.source
+							: prepared.source,
 						fullContent: prepared.fullContent ?? prepared.content,
 						fullTokens: cloneWitnessSourceTokens(
 							prepared.fullTokens ?? prepared.tokens
@@ -1113,9 +1125,52 @@ function createCollationState() {
 		return true;
 	}
 
-	async function applyCheckpointToWitness(
+	async function prepareVersionWitnesses(
+		transcriptionId: string,
+		versionId: string,
+		members: string[],
+		fallbackSiglum: string
+	): Promise<PreparedWitness[] | null> {
+		const loaded = await loadCommittedTranscriptionCheckpointPayload(
+			transcriptionId,
+			versionId
+		);
+		const document = coerceTranscriptionDocument(loaded.payload.content_json);
+		if (!document) return null;
+		const preparedWitnesses: PreparedWitness[] = [];
+		const memberByTranscription = new Map<string, string>();
+		for (const member of new Set(members)) {
+			const preparedForMember = prepareWitnessesFromDocument({
+				document,
+				verseIdentifier: member,
+				transcriptionId,
+				siglum: loaded.payload.siglum || fallbackSiglum,
+				source: { kind: 'version', transcriptionId, versionId: loaded.id },
+				options: { ignoreWordBreaks },
+			});
+			for (const prepared of preparedForMember) {
+				const previousMember = memberByTranscription.get(prepared.transcriptionUid);
+				if (previousMember !== undefined && previousMember !== member) return null;
+				memberByTranscription.set(prepared.transcriptionUid, member);
+				preparedWitnesses.push(prepared);
+			}
+		}
+		return preparedWitnesses;
+	}
+
+	async function prepareCurrentWitnesses(
+		transcriptionId: string,
+		members: string[]
+	): Promise<PreparedWitness[] | null> {
+		const gathered = await gatherWitnessesForSegment({ members }, [transcriptionId], {
+			ignoreWordBreaks,
+		});
+		return gathered.error ? null : gathered.witnesses;
+	}
+
+	async function applySourceToWitness(
 		witnessId: string,
-		checkpointId: string
+		versionId: string | null
 	): Promise<boolean> {
 		const expectedCollationId = collationId;
 		const expectedSegmentId = segment?.id;
@@ -1126,10 +1181,14 @@ function createCollationState() {
 		if (!witness || !witness.transcriptionId) return false;
 		const expectedTranscriptionId = witness.transcriptionId;
 
-		const loaded = await loadCommittedTranscriptionCheckpointPayload(
-			expectedTranscriptionId,
-			checkpointId
-		);
+		const preparedWitnesses = versionId
+			? await prepareVersionWitnesses(
+					expectedTranscriptionId,
+					versionId,
+					expectedMembers,
+					witness.siglum
+				)
+			: await prepareCurrentWitnesses(expectedTranscriptionId, expectedMembers);
 		const currentSegment = segment;
 		if (
 			collationId !== expectedCollationId ||
@@ -1144,32 +1203,13 @@ function createCollationState() {
 		if (!currentWitness || currentWitness.transcriptionId !== expectedTranscriptionId) {
 			return false;
 		}
-		const document = coerceTranscriptionDocument(loaded.payload.content_json);
-		if (!document) return false;
-
-		const preparedWitnesses: PreparedWitness[] = [];
-		const memberByTranscription = new Map<string, string>();
-		for (const member of new Set(expectedMembers)) {
-			const preparedForMember = prepareWitnessesFromDocument({
-				document,
-				verseIdentifier: member,
-				transcriptionId: expectedTranscriptionId,
-				siglum: loaded.payload.siglum || currentWitness.siglum,
-				sourceVersion: loaded.id,
-				options: { ignoreWordBreaks },
-			});
-			for (const prepared of preparedForMember) {
-				const previousMember = memberByTranscription.get(prepared.transcriptionUid);
-				if (previousMember !== undefined && previousMember !== member) return false;
-				memberByTranscription.set(prepared.transcriptionUid, member);
-				preparedWitnesses.push(prepared);
-			}
-		}
+		if (!preparedWitnesses) return false;
 
 		const witnessKind = currentWitness.kind ?? 'firsthand';
 		const witnessHandId = currentWitness.handId ?? 'firsthand';
 		const matching = preparedWitnesses.find(
 			prepared =>
+				prepared.transcriptionUid === expectedTranscriptionId &&
 				(prepared.kind ?? 'firsthand') === witnessKind &&
 				(prepared.handId ?? 'firsthand') === witnessHandId
 		);
@@ -1179,8 +1219,7 @@ function createCollationState() {
 			{
 				...currentWitness,
 				siglum: matching.siglum,
-				sourceVersion: matching.sourceVersion,
-				sourceContentHash: loaded.contentHash,
+				source: matching.source,
 				content: matching.content,
 				tokens: cloneWitnessSourceTokens(matching.tokens),
 				fullContent: matching.fullContent,
@@ -1198,18 +1237,10 @@ function createCollationState() {
 
 	async function refreshWitnessSource(
 		witnessId: string,
-		sourceCheckpointId?: string
+		versionId: string | null
 	): Promise<boolean> {
 		if (!collationId) return false;
-		let checkpointId = sourceCheckpointId ?? null;
-		if (!checkpointId) {
-			const status = await getCollationVersionStatus(collationId);
-			const witnessStatus = status.witnesses.find(entry => entry.witnessId === witnessId);
-			if (!witnessStatus?.availableCheckpoint) return false;
-			checkpointId = witnessStatus.availableCheckpoint.revisionId;
-		}
-
-		const didRefresh = await applyCheckpointToWitness(witnessId, checkpointId);
+		const didRefresh = await applySourceToWitness(witnessId, versionId);
 		if (!didRefresh) return false;
 
 		handleWitnessSourceChange();
@@ -1221,14 +1252,16 @@ function createCollationState() {
 		if (!collationId) return 0;
 		const status = await getCollationVersionStatus(collationId);
 		const staleWitnesses = status.witnesses.filter(
-			witness =>
-				witness.versionState === 'newer-source-available' && witness.availableCheckpoint
+			witness => witness.versionState === 'source-changed' && witness.source
 		);
 		let refreshedCount = 0;
 		for (const witness of staleWitnesses) {
-			const checkpointId = witness.availableCheckpoint?.revisionId;
-			if (!checkpointId) continue;
-			if (await applyCheckpointToWitness(witness.witnessId, checkpointId)) {
+			const versionId =
+				witness.source?.kind === 'version'
+					? ((await listTranscriptionVersions(witness.source.transcriptionId))[0]?.id ??
+						null)
+					: null;
+			if (await applySourceToWitness(witness.witnessId, versionId)) {
 				refreshedCount++;
 			}
 		}
@@ -2509,7 +2542,24 @@ function createCollationState() {
 		}
 	}
 
+	async function reloadCollation(): Promise<boolean> {
+		if (!collationId) return false;
+		if (saveTimeout) {
+			clearTimeout(saveTimeout);
+			saveTimeout = null;
+		}
+		const loaded = await loadCollation(collationId);
+		if (!loaded?.artifact?.payload) return false;
+		workspaceArtifactId = loaded.artifact.id;
+		applyCollationDocumentPayload(loaded.artifact.payload);
+		if (segment) await restoreSelectedVerseFromProjectIndex();
+		await refreshOrphanedMembersFromProjectIndex();
+		saveStatus = 'saved';
+		return true;
+	}
+
 	return {
+		onEdit,
 		get phase() {
 			return phase;
 		},
@@ -2766,6 +2816,7 @@ function createCollationState() {
 		reset,
 		createNewCollation,
 		loadCollationById,
+		reloadCollation,
 		flushPendingSave,
 		pushCommand,
 	};

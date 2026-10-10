@@ -2,14 +2,17 @@ import type { Selectable } from 'kysely';
 
 import type { Collations, Database } from '../types.generated';
 import type { CollationSegment } from '$lib/collation/collation-document';
+import { witnessSourceColumns } from '$lib/collation/collation-projection';
+import type { WitnessSource } from '$lib/collation/collation-types';
 import {
 	deriveEntityCloudBackupState,
 	type EntityCloudBackupState,
 	type SyncProjectContext,
 } from '$lib/backup/backup-status';
 import {
+	deriveSourceFreshness,
 	getCollationCheckpointStatus,
-	getProjectTranscriptionCheckpointStatus,
+	loadTranscriptionSourceState,
 	type EntityCheckpointHead,
 	type EntityCommitState,
 } from './revisions';
@@ -67,21 +70,15 @@ interface CollationRecord {
 }
 
 export type CollationWitnessVersionState =
-	| 'no-source'
-	| 'source-missing'
-	| 'source-has-no-committed-version'
-	| 'pinned-current'
-	| 'newer-source-available'
-	| 'source-has-uncommitted-changes';
+	'no-source' | 'source-missing' | 'up-to-date' | 'source-changed';
 
 export interface CollationWitnessSourceStatus {
 	witnessId: string;
 	position: number;
 	projectTranscriptionId: string | null;
 	projectOwnedTranscriptionId: string | null;
-	pinnedCheckpoint: EntityCheckpointHead | null;
-	availableCheckpoint: EntityCheckpointHead | null;
-	sourceDirtyToCheckpoint: boolean | null;
+	source: WitnessSource | null;
+	sourceVersionLabel: string | null;
 	versionState: CollationWitnessVersionState;
 }
 
@@ -108,8 +105,7 @@ interface SaveCollationProjectionWitnessInput {
 	witnessId: string;
 	transcriptionId: string | null;
 	projectTranscriptionId?: string | null;
-	sourceVersion: string;
-	sourceContentHash?: string;
+	source?: WitnessSource;
 	content: string;
 	position: number;
 }
@@ -262,6 +258,7 @@ export async function createCollation(
 			group_path: '',
 			notes: '',
 			sort_key: 0,
+			conflict_of_collation_id: '',
 			created_at: now,
 			updated_at: now,
 		})
@@ -328,7 +325,7 @@ export async function saveCollationProjection(
 			.where('id', '=', input.collationId)
 			.executeTakeFirst();
 		if (!collation) throw new Error(`Collation ${input.collationId} was not found.`);
-		const sourceMetadataByTranscriptionId = await loadWitnessSourceMetadata(
+		const projectTranscriptionIds = await loadWitnessProjectTranscriptionIds(
 			trx,
 			collation.project_id,
 			input.witnesses
@@ -352,7 +349,11 @@ export async function saveCollationProjection(
 				.insertInto('collation_witnesses')
 				.values(
 					input.witnesses.map(row => ({
-						...sourceMetadataForWitness(row, sourceMetadataByTranscriptionId),
+						project_transcription_id: row.transcriptionId
+							? (projectTranscriptionIds.get(row.transcriptionId) ?? null)
+							: null,
+						transcription_id: row.transcriptionId,
+						...witnessSourceColumns(row.source),
 						id: crypto.randomUUID(),
 						collation_id: input.collationId,
 						witness_id: row.witnessId,
@@ -447,25 +448,15 @@ export async function updateCollationMetadata(
 		throw new Error(`Collation ${input.id} was not found.`);
 }
 
-interface WitnessSourceMetadata {
-	projectTranscriptionId: string;
-	revisionId: string;
-	contentHash: string;
-}
-
 interface CollationWitnessSourceStatusQueryRow {
 	witness_id: string;
 	position: number;
 	project_transcription_id: string | null;
 	transcription_id: string | null;
+	source_kind: string;
 	source_revision_id: string;
 	source_content_hash: string;
-}
-
-interface WitnessAvailableSourceStatus {
-	projectOwnedTranscriptionId: string;
-	currentCheckpoint: EntityCheckpointHead | null;
-	dirtyToCheckpoint: boolean;
+	source_captured_at: string;
 }
 
 async function getCollationWitnessSourceStatuses(
@@ -479,8 +470,10 @@ async function getCollationWitnessSourceStatuses(
 			'position',
 			'project_transcription_id',
 			'transcription_id',
+			'source_kind',
 			'source_revision_id',
 			'source_content_hash',
+			'source_captured_at',
 		])
 		.where('collation_id', '=', collationId)
 		.orderBy('position', 'asc')
@@ -494,110 +487,62 @@ async function mapCollationWitnessSourceStatus(
 	row: CollationWitnessSourceStatusQueryRow
 ): Promise<CollationWitnessSourceStatus> {
 	const projectTranscriptionId = row.project_transcription_id;
-	const pinnedCheckpoint = checkpointHeadFromFields(
-		row.source_revision_id,
-		row.source_content_hash
-	);
+	const source = witnessSourceFromRow(row);
 	const base = {
 		witnessId: row.witness_id,
 		position: row.position,
 		projectTranscriptionId,
 		projectOwnedTranscriptionId: row.transcription_id,
-		pinnedCheckpoint,
+		source,
+		sourceVersionLabel: null,
 	};
 
-	if (!projectTranscriptionId) {
-		return {
-			...base,
-			availableCheckpoint: null,
-			sourceDirtyToCheckpoint: null,
-			versionState: 'no-source',
-		};
-	}
+	if (!projectTranscriptionId || !source) return { ...base, versionState: 'no-source' };
 
-	const sourceStatus = await loadWitnessAvailableSourceStatus(db, projectTranscriptionId);
-	if (!sourceStatus) {
-		return {
-			...base,
-			availableCheckpoint: null,
-			sourceDirtyToCheckpoint: null,
-			versionState: 'source-missing',
-		};
-	}
-
-	return {
-		...base,
-		projectOwnedTranscriptionId: sourceStatus.projectOwnedTranscriptionId,
-		availableCheckpoint: sourceStatus.currentCheckpoint,
-		sourceDirtyToCheckpoint: sourceStatus.dirtyToCheckpoint,
-		versionState: deriveCollationWitnessVersionState({
-			pinnedCheckpoint,
-			availableCheckpoint: sourceStatus.currentCheckpoint,
-			sourceDirtyToCheckpoint: sourceStatus.dirtyToCheckpoint,
-		}),
-	};
-}
-
-async function loadWitnessAvailableSourceStatus(
-	db: DbExecutor,
-	projectTranscriptionId: string
-): Promise<WitnessAvailableSourceStatus | null> {
-	const row = await db
+	const exists = await db
 		.selectFrom('project_transcriptions')
 		.innerJoin('transcriptions', 'transcriptions.id', 'project_transcriptions.transcription_id')
-		.select('project_transcriptions.transcription_id as transcription_id')
+		.select('project_transcriptions.id')
 		.where('project_transcriptions.id', '=', projectTranscriptionId)
 		.executeTakeFirst();
-	if (!row) return null;
+	if (!exists) return { ...base, versionState: 'source-missing' };
 
-	const checkpointStatus = await getProjectTranscriptionCheckpointStatus(
-		db,
-		projectTranscriptionId
-	);
+	const state = await loadTranscriptionSourceState(db, projectTranscriptionId);
 	return {
-		projectOwnedTranscriptionId: requireId(row.transcription_id, 'project-owned transcription'),
-		currentCheckpoint: checkpointStatus.currentCheckpoint,
-		dirtyToCheckpoint: checkpointStatus.dirtyToCheckpoint,
+		...base,
+		sourceVersionLabel:
+			source.kind === 'version'
+				? (state.versions.find(version => version.id === source.versionId)?.label ?? null)
+				: null,
+		versionState: deriveSourceFreshness(source, state),
 	};
 }
 
-function deriveCollationWitnessVersionState(input: {
-	pinnedCheckpoint: EntityCheckpointHead | null;
-	availableCheckpoint: EntityCheckpointHead | null;
-	sourceDirtyToCheckpoint: boolean;
-}): CollationWitnessVersionState {
-	if (!input.availableCheckpoint) return 'source-has-no-committed-version';
-	if (input.sourceDirtyToCheckpoint) return 'source-has-uncommitted-changes';
-	if (areSameCheckpoint(input.pinnedCheckpoint, input.availableCheckpoint))
-		return 'pinned-current';
-	return 'newer-source-available';
+function witnessSourceFromRow(row: CollationWitnessSourceStatusQueryRow): WitnessSource | null {
+	if (!row.transcription_id) return null;
+	if (row.source_kind === 'version') {
+		return {
+			kind: 'version',
+			transcriptionId: row.transcription_id,
+			versionId: row.source_revision_id,
+		};
+	}
+	if (row.source_kind === 'current') {
+		return {
+			kind: 'current',
+			transcriptionId: row.transcription_id,
+			capturedAt: row.source_captured_at,
+			contentHash: row.source_content_hash,
+		};
+	}
+	return null;
 }
 
-function areSameCheckpoint(
-	left: EntityCheckpointHead | null,
-	right: EntityCheckpointHead | null
-): boolean {
-	return Boolean(
-		left &&
-		right &&
-		left.revisionId === right.revisionId &&
-		left.contentHash === right.contentHash
-	);
-}
-
-function checkpointHeadFromFields(
-	revisionId: string | null,
-	contentHash: string | null
-): EntityCheckpointHead | null {
-	if (!revisionId || !contentHash) return null;
-	return { revisionId, contentHash };
-}
-
-async function loadWitnessSourceMetadata(
+async function loadWitnessProjectTranscriptionIds(
 	db: DbExecutor,
 	projectId: string,
 	witnesses: SaveCollationProjectionWitnessInput[]
-): Promise<Map<string, WitnessSourceMetadata>> {
+): Promise<Map<string, string>> {
 	const transcriptionIds = [
 		...new Set(witnesses.map(row => row.transcriptionId).filter(isNonEmptyString)),
 	];
@@ -608,70 +553,38 @@ async function loadWitnessSourceMetadata(
 		.innerJoin('transcriptions', 'transcriptions.id', 'project_transcriptions.transcription_id')
 		.select([
 			'transcriptions.id as id',
-			'transcriptions.current_revision_id as current_revision_id',
-			'transcriptions.current_content_hash as current_content_hash',
 			'project_transcriptions.id as project_transcription_id',
 		])
 		.where('project_transcriptions.project_id', '=', projectId)
 		.where('transcriptions.id', 'in', transcriptionIds)
 		.execute();
-	const metadata = new Map(
-		transcriptionRows.map(row => {
-			const transcriptionId = requireId(row.id, 'transcription');
-			return [
-				transcriptionId,
-				{
-					projectTranscriptionId: requireId(
-						row.project_transcription_id,
-						'project transcription'
-					),
-					revisionId: row.current_revision_id,
-					contentHash: row.current_content_hash,
-				},
-			] as const;
-		})
+	const projectTranscriptionIds = new Map(
+		transcriptionRows.map(
+			row =>
+				[
+					requireId(row.id, 'transcription'),
+					requireId(row.project_transcription_id, 'project transcription'),
+				] as const
+		)
 	);
 	for (const witness of witnesses) {
 		if (!witness.transcriptionId) continue;
-		const source = metadata.get(witness.transcriptionId);
-		if (!source) {
+		const projectTranscriptionId = projectTranscriptionIds.get(witness.transcriptionId);
+		if (!projectTranscriptionId) {
 			throw new Error(
 				`Witness transcription ${witness.transcriptionId} does not belong to collation project ${projectId}.`
 			);
 		}
 		if (
 			witness.projectTranscriptionId &&
-			witness.projectTranscriptionId !== source.projectTranscriptionId
+			witness.projectTranscriptionId !== projectTranscriptionId
 		) {
 			throw new Error(
 				`Project transcription ${witness.projectTranscriptionId} does not match transcription ${witness.transcriptionId}.`
 			);
 		}
 	}
-	return metadata;
-}
-
-function sourceMetadataForWitness(
-	witness: SaveCollationProjectionWitnessInput,
-	sourceMetadataByTranscriptionId: Map<string, WitnessSourceMetadata>
-): Pick<
-	Selectable<Database['collation_witnesses']>,
-	'project_transcription_id' | 'transcription_id' | 'source_revision_id' | 'source_content_hash'
-> {
-	const source = witness.transcriptionId
-		? sourceMetadataByTranscriptionId.get(witness.transcriptionId)
-		: undefined;
-	const explicitPinnedSource = Boolean(witness.sourceVersion && witness.sourceContentHash);
-	return {
-		project_transcription_id: source?.projectTranscriptionId ?? null,
-		transcription_id: witness.transcriptionId,
-		source_revision_id: explicitPinnedSource
-			? witness.sourceVersion
-			: (source?.revisionId ?? witness.sourceVersion),
-		source_content_hash: explicitPinnedSource
-			? (witness.sourceContentHash ?? '')
-			: (source?.contentHash ?? witness.sourceContentHash ?? ''),
-	};
+	return projectTranscriptionIds;
 }
 
 function isNonEmptyString(value: string | null): value is string {

@@ -178,8 +178,8 @@ describe('project-first navigation redirects', () => {
 
 		await expectRedirect(
 			loadProjectWorkspace as TestLoad,
-			'/projects/project-b/backup',
-			'/projects/deleted-project/backup',
+			'/projects/project-b/location',
+			'/projects/deleted-project/location',
 			{ id: 'deleted-project' }
 		);
 	});

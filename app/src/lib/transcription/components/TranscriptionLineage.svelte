@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { ProjectTranscriptionStatus } from '$lib/db/repositories/projects';
+	import { formatSourceDate } from '$lib/shell/source-labels';
 
 	let { status }: { status: ProjectTranscriptionStatus | null | undefined } = $props();
 
@@ -14,22 +15,18 @@
 		);
 	});
 	const sourceRevisionLabel = $derived.by(() => {
-		const revision = origin?.sourceRevisionId || origin?.sourceContentHash || '';
-		return revision ? shortRevisionId(revision) : 'uncommitted source';
+		if (origin?.sourceRevisionId) return origin.sourceVersionLabel || 'Named version';
+		return origin?.sourceCapturedAt
+			? `Current as of ${formatSourceDate(origin.sourceCapturedAt)}`
+			: 'Current';
 	});
 	const sourceStateText = $derived.by(() => {
 		const state = status?.sourceState.kind;
-		if (state === 'newer-source-available') return 'Newer source available';
+		if (state === 'source-changed') return 'Source changed';
 		if (state === 'source-missing') return 'Source unavailable';
-		if (state === 'source-has-no-committed-version') return 'Source has no committed version';
-		if (state === 'source-has-uncommitted-changes') return 'Source has uncommitted changes';
 		if (state === 'up-to-date') return 'Source current';
 		return '';
 	});
-
-	function shortRevisionId(revisionId: string): string {
-		return revisionId.length <= 12 ? revisionId : `${revisionId.slice(0, 8)}...`;
-	}
 </script>
 
 {#if hasLineage}
@@ -38,7 +35,7 @@
 		{#if sourceStateText}
 			<span
 				class="ml-2 badge badge-sm"
-				class:badge-warning={status?.sourceState.kind === 'newer-source-available'}
+				class:badge-warning={status?.sourceState.kind === 'source-changed'}
 				class:badge-error={status?.sourceState.kind === 'source-missing'}
 				data-testid="transcription-lineage-state"
 			>

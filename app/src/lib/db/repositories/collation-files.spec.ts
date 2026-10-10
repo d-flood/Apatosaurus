@@ -9,8 +9,8 @@ import {
 	type CollationCheckpointPayload,
 	type CollationPayload,
 	type ProjectManifestPayload,
+	WORKING_COLLATION_CURRENT_VERSION,
 	WORKING_COLLATION_FORMAT,
-	type WorkingCollationPayload,
 } from '$lib/storage/formats';
 import { createQuarantineReport } from '$lib/storage/quarantine';
 import {
@@ -68,7 +68,7 @@ function createProject(
 }
 
 describe('collation file persistence', () => {
-	it('writes the working collation file before updating artifact storage', async () => {
+	it('writes the Current collation file before updating artifact storage', async () => {
 		await createFixtureCollation();
 		backend.failWrites = true;
 
@@ -94,7 +94,7 @@ describe('collation file persistence', () => {
 		});
 	});
 
-	it('stores a canonical working file and leaves collation_artifacts empty', async () => {
+	it('stores Current in the canonical primary and leaves collation_artifacts empty', async () => {
 		await createFixtureCollation();
 		await harness.db
 			.insertInto('collation_tokens')
@@ -118,11 +118,8 @@ describe('collation file persistence', () => {
 			{ backend, nonce: () => 'working-write' }
 		);
 
-		const raw = await readTextFile(collationWorkingFile('project-slug', 'col-1'), { backend });
-		const parsed = await readCanonicalDocument<WorkingCollationPayload>(
-			WORKING_COLLATION_FORMAT,
-			raw
-		);
+		const raw = await readTextFile(collationPrimaryFile('project-slug', 'col-1'), { backend });
+		const parsed = await readCanonicalDocument<CollationPayload>(COLLATION_FORMAT, raw);
 
 		expect(parsed).toMatchObject({
 			ok: true,
@@ -132,15 +129,15 @@ describe('collation file persistence', () => {
 				title: 'Romans 1:1',
 				status: 'alignment',
 				updated_at: '2026-07-04T12:00:00.000Z',
-				draft: {
-					base_revision_id: null,
-					base_content_hash: null,
-					saved_at: '2026-07-04T12:00:00.000Z',
-				},
+				based_on_checkpoint: null,
+				draft: { saved_at: '2026-07-04T12:00:00.000Z', author_name: null },
 				document: { type: 'collationDocument', flow: { phase: 'alignment' } },
 			},
 		});
-		if (!parsed.ok) throw new Error('working file did not parse');
+		if (!parsed.ok) throw new Error('primary file did not parse');
+		await expect(
+			readTextFile(collationWorkingFile('project-slug', 'col-1'), { backend })
+		).rejects.toThrow('was not found');
 		expect(parsed.payload).not.toHaveProperty('artifacts');
 		expect(parsed.payload).not.toHaveProperty('witnesses');
 		expect(parsed.payload).not.toHaveProperty('tokens');
@@ -153,7 +150,7 @@ describe('collation file persistence', () => {
 		).resolves.toEqual([]);
 	});
 
-	it('synchronizes renamed display metadata in the DB and working file', async () => {
+	it('synchronizes renamed display metadata in the DB and Current without touching project.json', async () => {
 		await createProject(harness.db, {
 			id: 'project-1',
 			storageSlug: 'project-slug',
@@ -174,6 +171,8 @@ describe('collation file persistence', () => {
 			{ backend, nonce: () => 'create-renamed-collation' }
 		);
 
+		const manifestBefore = await readTextFile(projectManifestFile('project-slug'), { backend });
+
 		await saveWorkingCollationMetadata(
 			harness.db,
 			{
@@ -187,16 +186,16 @@ describe('collation file persistence', () => {
 		await expect(loadCollation(harness.db, 'col-1')).resolves.toMatchObject({
 			row: { verseIdentifier: 'Romans 1:1 (critical text)' },
 		});
-		const raw = await readTextFile(collationWorkingFile('project-slug', 'col-1'), { backend });
-		const parsed = await readCanonicalDocument<WorkingCollationPayload>(
-			WORKING_COLLATION_FORMAT,
-			raw
-		);
+		const raw = await readTextFile(collationPrimaryFile('project-slug', 'col-1'), { backend });
+		const parsed = await readCanonicalDocument<CollationPayload>(COLLATION_FORMAT, raw);
 
 		expect(parsed).toMatchObject({
 			ok: true,
 			payload: { verse_identifier: 'Romans 1:1 (critical text)' },
 		});
+		await expect(readTextFile(projectManifestFile('project-slug'), { backend })).resolves.toBe(
+			manifestBefore
+		);
 	});
 
 	it('loads a working file when the index artifact cache is empty', async () => {
@@ -411,7 +410,7 @@ describe('collation file persistence', () => {
 			payload: {
 				id: 'col-created',
 				project_id: 'project-1',
-				current_revision: {
+				based_on_checkpoint: {
 					id: head.current_revision_id,
 					content_hash: head.current_content_hash,
 				},
@@ -569,12 +568,7 @@ describe('collation file persistence', () => {
 				id: 'col-1',
 				project_id: 'project-1',
 				status: 'readings',
-				current_revision: {
-					id: 'col-cp-1',
-					content_hash: checkpoint.contentHash,
-					created_at: '2026-07-04T13:00:00.000Z',
-					author_name: 'Editor',
-				},
+				based_on_checkpoint: { id: 'col-cp-1', content_hash: checkpoint.contentHash },
 				document: { type: 'collationDocument', flow: { phase: 'readings' } },
 			},
 		});
@@ -701,6 +695,7 @@ describe('collation file persistence', () => {
 				parent_checkpoint_id: null,
 				content_hash: 'preexisting-content-hash',
 				is_committed: 1,
+				label: '',
 				commit_message: null,
 				author_name: 'Seed',
 				created_at: '2026-07-04T01:00:00.000Z',
@@ -796,6 +791,100 @@ describe('collation file persistence', () => {
 		} finally {
 			warn.mockRestore();
 		}
+	});
+
+	it.each([
+		['migrates', null],
+		[
+			'keeps the working file when the new primary cannot be written',
+			'collations/col-1.json.tmp-',
+		],
+	])('%s a legacy primary and working pair on load', async (_case, failWritePathIncludes) => {
+		await createFixtureCollation();
+		await saveWorkingCollationArtifact(
+			harness.db,
+			{
+				collationId: 'col-1',
+				artifactType: 'collation_document_v1',
+				payload: JSON.stringify(collationDocument('readings')),
+				now: '2026-07-04T12:00:00.000Z',
+			},
+			{ backend }
+		);
+		await createCommittedCollationCheckpointWithFiles(
+			harness.db,
+			{ collationId: 'col-1', checkpointId: 'col-cp-1' },
+			{ backend }
+		);
+		const committed = await readCanonicalDocument<CollationPayload>(
+			COLLATION_FORMAT,
+			await readTextFile(collationPrimaryFile('project-slug', 'col-1'), { backend })
+		);
+		if (!committed.ok || !committed.payload.based_on_checkpoint)
+			throw new Error('Expected a committed primary.');
+		const { based_on_checkpoint: basedOn, draft: _draft, ...content } = committed.payload;
+		const legacyPrimary = serializeSealedDocument(
+			await sealDocument(COLLATION_FORMAT, 6, {
+				...content,
+				current_revision: {
+					...basedOn,
+					created_at: '2026-07-04T13:00:00.000Z',
+					author_name: 'Editor',
+				},
+			})
+		);
+		await writeTextFileAtomic(collationPrimaryFile('project-slug', 'col-1'), legacyPrimary, {
+			backend,
+		});
+		await writeTextFileAtomic(
+			collationWorkingFile('project-slug', 'col-1'),
+			serializeSealedDocument(
+				await sealDocument(WORKING_COLLATION_FORMAT, WORKING_COLLATION_CURRENT_VERSION, {
+					...content,
+					notes: 'Uncommitted notes',
+					updated_at: '2026-07-04T14:00:00.000Z',
+					draft: {
+						base_revision_id: basedOn.id,
+						base_content_hash: basedOn.content_hash,
+						saved_at: '2026-07-04T14:00:00.000Z',
+						author_name: null,
+					},
+				})
+			),
+			{ backend }
+		);
+		backend.failWritePathIncludes = failWritePathIncludes;
+
+		const loading = loadCollationWithWorkingFile(harness.db, 'col-1', { backend });
+
+		if (failWritePathIncludes) {
+			await expect(loading).rejects.toThrow('simulated write failure');
+			await expect(
+				readTextFile(collationPrimaryFile('project-slug', 'col-1'), { backend })
+			).resolves.toBe(legacyPrimary);
+			await expect(
+				readTextFile(collationWorkingFile('project-slug', 'col-1'), { backend })
+			).resolves.toContain('Uncommitted notes');
+			return;
+		}
+		expect((await loading)?.row.notes).toBe('Uncommitted notes');
+		await expect(
+			readTextFile(collationWorkingFile('project-slug', 'col-1'), { backend })
+		).rejects.toThrow('not found');
+		const migratedRaw = await readTextFile(collationPrimaryFile('project-slug', 'col-1'), {
+			backend,
+		});
+		expect(JSON.parse(migratedRaw)).toMatchObject({
+			schema_version: COLLATION_CURRENT_VERSION,
+		});
+		await expect(readCanonicalDocument(COLLATION_FORMAT, migratedRaw)).resolves.toMatchObject({
+			ok: true,
+			payload: {
+				notes: 'Uncommitted notes',
+				based_on_checkpoint: basedOn,
+				draft: { saved_at: '2026-07-04T14:00:00.000Z' },
+			},
+		});
 	});
 
 	it('runs committed collation file writes under the project write lock', async () => {

@@ -2,7 +2,7 @@ import { expect, test, type ConsoleMessage, type Page } from '@playwright/test';
 
 const RUN_PERF = process.env.RUN_IGNTP_PERF === '1';
 const LOCAL_DB_PREFIXES = ['apatosaurus-index-v', 'apatosaurus-local-v1'];
-const LOCAL_DB_IDB_DATABASES = ['apatosaurus-index-v1-idb', 'apatosaurus-local-v1-idb'];
+const LOCAL_DB_IDB_DATABASES = ['apatosaurus-index-v4-idb', 'apatosaurus-local-v1-idb'];
 const LOCAL_DB_INDEX_DIRECTORY = 'apatosaurus/v1/index';
 
 type TimingLog = {

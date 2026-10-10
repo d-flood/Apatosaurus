@@ -2,15 +2,46 @@ import { deserializeAlignmentColumns, type AlignmentColumn } from './alignment-s
 import { hydrateCollationDocument, type CollationDocument } from './collation-document';
 import { buildVariationUnitSpans, classifyWitnessAttestation } from './collation-variation-units';
 import { variationUnitId } from './collation-unit-id';
-import type { ClassifiedReading, WitnessConfig } from './collation-types';
+import type { ClassifiedReading, WitnessConfig, WitnessSource } from './collation-types';
 
 interface ProjectedWitnessRow {
 	witnessId: string;
 	transcriptionId: string | null;
-	sourceVersion: string;
-	sourceContentHash?: string;
+	source?: WitnessSource;
 	content: string;
 	position: number;
+}
+
+export interface WitnessSourceColumns {
+	source_kind: string;
+	source_revision_id: string;
+	source_content_hash: string;
+	source_captured_at: string;
+}
+
+export function witnessSourceColumns(source: WitnessSource | undefined): WitnessSourceColumns {
+	if (source?.kind === 'version') {
+		return {
+			source_kind: 'version',
+			source_revision_id: source.versionId,
+			source_content_hash: '',
+			source_captured_at: '',
+		};
+	}
+	if (source?.kind === 'current') {
+		return {
+			source_kind: 'current',
+			source_revision_id: '',
+			source_content_hash: source.contentHash,
+			source_captured_at: source.capturedAt,
+		};
+	}
+	return {
+		source_kind: '',
+		source_revision_id: '',
+		source_content_hash: '',
+		source_captured_at: '',
+	};
 }
 
 interface ProjectedTokenRow {
@@ -42,16 +73,16 @@ export interface CollationProjection {
 }
 
 export interface SerializedCollationProjectionRows {
-	witnesses: Array<{
-		id: string;
-		witness_id: string;
-		content: string;
-		position: number;
-		project_transcription_id: string | null;
-		transcription_id: string | null;
-		source_revision_id: string;
-		source_content_hash: string;
-	}>;
+	witnesses: Array<
+		WitnessSourceColumns & {
+			id: string;
+			witness_id: string;
+			content: string;
+			position: number;
+			project_transcription_id: string | null;
+			transcription_id: string | null;
+		}
+	>;
 	tokens: Array<{
 		id: string;
 		witness_id: string;
@@ -87,8 +118,7 @@ export function buildCollationProjection(input: {
 	const witnesses = activeWitnesses.map((witness, position) => ({
 		witnessId: witness.witnessId,
 		transcriptionId: witness.transcriptionId || null,
-		sourceVersion: witness.sourceVersion ?? '',
-		sourceContentHash: witness.sourceContentHash,
+		source: witness.source,
 		content: witness.content,
 		position,
 	}));
@@ -200,8 +230,7 @@ export function buildSerializedCollationProjectionRows(
 				? (projectTranscriptionIdByTranscriptionId.get(row.transcriptionId) ?? null)
 				: null,
 			transcription_id: row.transcriptionId,
-			source_revision_id: row.sourceVersion,
-			source_content_hash: row.sourceContentHash ?? '',
+			...witnessSourceColumns(row.source),
 		})),
 		tokens: projection.tokens.map((row, index) => ({
 			id: `${collationId}:token:${index}`,

@@ -2,6 +2,20 @@ import { describe, expect, it } from 'vitest';
 
 import { CloudProviderError, isCloudProviderError } from './provider';
 import { MockCloudStorageProvider } from './mock-provider';
+import { describeProviderContract } from './provider-contract.spec-support';
+
+describeProviderContract('mock', () => {
+	const provider = new MockCloudStorageProvider({ pageSize: 2 });
+	return {
+		provider,
+		rootFolderId: provider.rootFolderId,
+		expireAuth: () =>
+			provider.injectError({
+				code: 'reauthorization-required',
+				remaining: Number.POSITIVE_INFINITY,
+			}),
+	};
+});
 
 describe('mock cloud storage provider', () => {
 	it('creates folders and returns deterministic paginated recursive listings', async () => {

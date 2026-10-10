@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { MemoryStoreBackend } from './memory-store-backend.spec-support';
-import { listSyncTargets, upsertSyncTarget, updateSyncTargetLastSyncedAt } from './sync-targets';
+import { listSyncTargets, upsertSyncTarget } from './sync-targets';
 
 describe('sync targets store', () => {
 	it('persists project-scoped local folder targets in app/sync-targets.json', async () => {
@@ -33,11 +33,5 @@ describe('sync targets store', () => {
 		});
 		await expect(listSyncTargets('project-1', storeOptions)).resolves.toEqual([target]);
 		await expect(listSyncTargets('other-project', storeOptions)).resolves.toEqual([]);
-
-		await updateSyncTargetLastSyncedAt('target-1', '2026-07-07T10:05:00.000Z', storeOptions);
-
-		await expect(listSyncTargets('project-1', storeOptions)).resolves.toMatchObject([
-			{ targetId: 'target-1', lastSyncedAt: '2026-07-07T10:05:00.000Z' },
-		]);
 	});
 });

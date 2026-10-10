@@ -1,21 +1,28 @@
 import { browser } from '$app/environment';
 import {
-	backupEligibleProjectEntities,
-	emitLocalDbInvalidation,
+	backupProject,
+	deleteProject,
+	listProjects,
+	moveProject,
 	subscribeLocalDbInvalidations,
 } from '$lib/db/client';
 import {
-	listSyncTargets,
-	updateSyncTargetLastSyncedAt,
-	type SyncTargetRecord,
-} from '$lib/storage/sync-targets';
-import { LOCAL_FOLDER_ROOT_FOLDER_ID } from './providers/local-folder-provider';
+	listProjectLocations,
+	listProjectPlacements,
+	listStorageAccounts,
+	upgradeSyncTargetsToPlacements,
+	isPlacedProject,
+	type PlacedProject,
+} from '$lib/storage/project-locations';
+import { deleteLocalFolderHandle } from './local-folder-handles';
+import { placeDiscoveredProjects } from './location-connections';
 import type { ProjectBackupResult, SyncUiState } from './sync-manager';
-import type { SyncProjectContext } from './backup-status';
+import { placementSyncContext } from './backup-status';
+import { syncStatusFor, worstSyncStatus, type SyncStatus } from './sync-status';
 import { OpenObjectSyncPoller } from '$lib/backup/sync-poller';
 
 interface TargetPoller {
-	target: SyncTargetRecord;
+	target: PlacedProject;
 	poller: OpenObjectSyncPoller;
 	key: string;
 }
@@ -28,10 +35,21 @@ class SyncService {
 	reconnectRequired = $state(false);
 	reconnectProjectIds = $state<string[]>([]);
 	uiState = $state<SyncUiState>('saved locally');
+	projectIds = $state<string[] | null>(null);
+	syncedProjectIds = $state<string[]>([]);
+	signedOutProjectIds = $state<string[]>([]);
+	movedProjectIds = $state<string[]>([]);
+	deletedProjectIds = $state<string[]>([]);
+	projectResults = $state<Record<string, ProjectBackupResult>>({});
+	projectSyncedAt = $state<Record<string, string>>({});
 	private pollers = new Map<string, TargetPoller>();
 	private runningSyncs = new Map<string, Promise<ProjectBackupResult>>();
+	private movingProjectIds = new Set<string>();
 	private unsubscribeInvalidations: (() => void) | null = null;
+	private discoveryTimer: ReturnType<typeof setInterval> | null = null;
+	private runningDiscovery: Promise<void> | null = null;
 	private eventsAttached = false;
+	private uploadTimer: ReturnType<typeof setTimeout> | null = null;
 
 	async initLocalDB(_dbName: string): Promise<void> {
 		this.ready = true;
@@ -41,10 +59,21 @@ class SyncService {
 		this.reconnectProjectIds = [];
 		this.lastSyncTime = null;
 		this.uiState = 'saved locally';
+		this.projectResults = {};
 		if (!browser) return;
 		this.attachEvents();
 		this.attachInvalidations();
-		await this.reloadTargets();
+		try {
+			await upgradeSyncTargetsToPlacements(deleteLocalFolderHandle);
+		} catch (error) {
+			console.warn('[sync] sync target upgrade failed', error);
+		}
+		await Promise.all([this.reloadProjects(), this.reloadTargets()]);
+		void this.discoverLocations();
+		this.discoveryTimer ??= setInterval(
+			() => void this.discoverLocations(),
+			DISCOVERY_INTERVAL_MS
+		);
 	}
 
 	async startSync(_dbName: string, _email: string): Promise<void> {
@@ -58,6 +87,15 @@ class SyncService {
 		this.reconnectProjectIds = [];
 		this.syncStatus = 'idle';
 		this.uiState = 'saved locally';
+		this.projectIds = null;
+		this.syncedProjectIds = [];
+		this.signedOutProjectIds = [];
+		this.movedProjectIds = [];
+		this.deletedProjectIds = [];
+		this.projectResults = {};
+		if (this.discoveryTimer) clearInterval(this.discoveryTimer);
+		this.discoveryTimer = null;
+		this.cancelScheduledUpload();
 		for (const entry of this.pollers.values()) entry.poller.stop();
 		this.pollers.clear();
 		this.runningSyncs.clear();
@@ -75,6 +113,58 @@ class SyncService {
 
 	async loadLastSyncTime(): Promise<void> {
 		return;
+	}
+
+	projectStatus(projectId: string, online: boolean): SyncStatus {
+		const result = this.projectResults[projectId];
+		return syncStatusFor({
+			hasLocation: this.syncedProjectIds.includes(projectId),
+			signedOut: this.signedOutProjectIds.includes(projectId),
+			moved: this.movedProjectIds.includes(projectId),
+			deleted: this.deletedProjectIds.includes(projectId),
+			online,
+			uiState: result?.uiState,
+			providerError: result?.providerError,
+			hasConflictCopies: result?.hasConflictCopies,
+		});
+	}
+
+	overallStatus(online: boolean): SyncStatus {
+		const offline: SyncStatus[] = online
+			? []
+			: [{ state: 'saved-on-device', reason: 'offline' }];
+		if (!this.projectIds)
+			return worstSyncStatus([...offline, { state: 'saved-on-device', reason: 'uploading' }]);
+		return worstSyncStatus([
+			...offline,
+			...this.projectIds.map(projectId => this.projectStatus(projectId, online)),
+		]);
+	}
+
+	async moveProject(projectId: string, locationId: string): Promise<void> {
+		this.movingProjectIds.add(projectId);
+		this.pollers.get(projectId)?.poller.stop();
+		this.pollers.delete(projectId);
+		try {
+			await this.runningSyncs.get(projectId);
+			await moveProject(projectId, locationId);
+		} finally {
+			this.movingProjectIds.delete(projectId);
+			await this.reloadTargets();
+		}
+	}
+
+	async deleteProject(projectId: string): Promise<void> {
+		this.movingProjectIds.add(projectId);
+		this.pollers.get(projectId)?.poller.stop();
+		this.pollers.delete(projectId);
+		try {
+			await this.runningSyncs.get(projectId);
+			await deleteProject(projectId);
+		} finally {
+			this.movingProjectIds.delete(projectId);
+			await this.reloadTargets();
+		}
 	}
 
 	setUiState(uiState: SyncUiState): void {
@@ -98,10 +188,18 @@ class SyncService {
 
 	private attachEvents(): void {
 		if (this.eventsAttached || typeof window === 'undefined') return;
-		window.addEventListener('focus', () => void this.syncAllNow());
-		window.addEventListener('online', () => void this.syncAllNow());
+		const refresh = () => {
+			void this.syncAllNow();
+			void this.discoverLocations();
+		};
+		window.addEventListener('focus', refresh);
+		window.addEventListener('online', refresh);
 		document.addEventListener('visibilitychange', () => {
-			if (document.visibilityState === 'visible') void this.syncAllNow();
+			if (document.visibilityState === 'visible') refresh();
+			else if (this.uploadTimer) {
+				this.cancelScheduledUpload();
+				void this.syncAllNow();
+			}
 		});
 		this.eventsAttached = true;
 	}
@@ -110,6 +208,7 @@ class SyncService {
 		if (this.unsubscribeInvalidations) return;
 		this.unsubscribeInvalidations = subscribeLocalDbInvalidations(event => {
 			if (event.domain === 'sync-targets' || event.domain === 'all') {
+				if (event.domain === 'all') void this.reloadProjects();
 				void this.reloadTargets();
 				return;
 			}
@@ -118,30 +217,81 @@ class SyncService {
 				event.domain === 'transcriptions' ||
 				event.domain === 'collations'
 			) {
-				void this.syncAllNow();
+				if (event.domain === 'projects') void this.reloadProjects();
+				this.scheduleUpload();
 			}
 		});
 	}
 
+	private async reloadProjects(): Promise<void> {
+		if (!this.ready || !browser) return;
+		this.projectIds = (await listProjects()).map(project => project.id);
+	}
+
 	private async reloadTargets(): Promise<void> {
 		if (!this.ready || !browser) return;
-		const targets = (await listSyncTargets()).filter(target => target.enabled);
-		const activeIds = new Set(targets.map(target => target.targetId));
-		for (const [targetId, entry] of this.pollers) {
-			if (!activeIds.has(targetId)) {
+		const [placements, signedOutLocationIds] = await Promise.all([
+			listProjectPlacements(),
+			listSignedOutLocationIds(),
+		]);
+		this.movedProjectIds = placements
+			.filter(placement => placement.moved)
+			.map(placement => placement.projectId);
+		this.deletedProjectIds = placements
+			.filter(placement => placement.deleted)
+			.map(placement => placement.projectId);
+		const placed = placements.filter(isPlacedProject);
+		const targets = placed.filter(
+			target =>
+				!signedOutLocationIds.has(target.locationId) &&
+				!this.movingProjectIds.has(target.projectId)
+		);
+		this.signedOutProjectIds = placed
+			.filter(target => signedOutLocationIds.has(target.locationId))
+			.map(target => target.projectId);
+		const activeIds = new Set(targets.map(target => target.projectId));
+		for (const [projectId, entry] of this.pollers) {
+			if (!activeIds.has(projectId)) {
 				entry.poller.stop();
-				this.pollers.delete(targetId);
+				this.pollers.delete(projectId);
 			}
 		}
 
+		this.syncedProjectIds = targets.map(target => target.projectId);
+		this.projectResults = Object.fromEntries(
+			Object.entries(this.projectResults).filter(([projectId]) =>
+				this.syncedProjectIds.includes(projectId)
+			)
+		);
 		for (const target of targets) this.ensurePoller(target);
 		this.connected = this.pollers.size > 0;
 		this.syncStatus = this.connected ? 'active' : 'paused';
 	}
 
-	private ensurePoller(target: SyncTargetRecord): void {
+	private discoverLocations(): Promise<void> {
+		this.runningDiscovery ??= this.performDiscovery().finally(() => {
+			this.runningDiscovery = null;
+		});
+		return this.runningDiscovery;
+	}
+
+	private async performDiscovery(): Promise<void> {
+		if (!this.ready || !browser) return;
+		const signedOut = await listSignedOutLocationIds();
+		for (const location of await listProjectLocations()) {
+			if (signedOut.has(location.id)) continue;
+			try {
+				await placeDiscoveredProjects(location.id);
+			} catch (error) {
+				console.warn('[sync] location discovery failed', error);
+			}
+		}
+		await this.reloadTargets();
+	}
+
+	private ensurePoller(target: PlacedProject): void {
 		const key = targetKey(target);
-		const existing = this.pollers.get(target.targetId);
+		const existing = this.pollers.get(target.projectId);
 		if (existing?.key === key) {
 			existing.target = target;
 			existing.poller.resumeAfterReconnect();
@@ -152,8 +302,21 @@ class SyncService {
 		const poller = new OpenObjectSyncPoller({
 			poll: () => this.runTargetSync(target),
 		});
-		this.pollers.set(target.targetId, { target, poller, key });
+		this.pollers.set(target.projectId, { target, poller, key });
 		poller.start();
+	}
+
+	private scheduleUpload(): void {
+		this.cancelScheduledUpload();
+		this.uploadTimer = setTimeout(() => {
+			this.uploadTimer = null;
+			void this.syncAllNow();
+		}, UPLOAD_IDLE_MS);
+	}
+
+	private cancelScheduledUpload(): void {
+		if (this.uploadTimer) clearTimeout(this.uploadTimer);
+		this.uploadTimer = null;
 	}
 
 	private async syncAllNow(): Promise<void> {
@@ -162,24 +325,23 @@ class SyncService {
 		await Promise.all([...this.pollers.values()].map(entry => entry.poller.pollNow()));
 	}
 
-	private runTargetSync(target: SyncTargetRecord): Promise<ProjectBackupResult> {
-		const existing = this.runningSyncs.get(target.targetId);
+	private runTargetSync(target: PlacedProject): Promise<ProjectBackupResult> {
+		const existing = this.runningSyncs.get(target.projectId);
 		if (existing) return existing;
 		const run = this.performTargetSync(target).finally(() => {
-			this.runningSyncs.delete(target.targetId);
+			this.runningSyncs.delete(target.projectId);
 		});
-		this.runningSyncs.set(target.targetId, run);
+		this.runningSyncs.set(target.projectId, run);
 		return run;
 	}
 
-	private async performTargetSync(target: SyncTargetRecord): Promise<ProjectBackupResult> {
+	private async performTargetSync(target: PlacedProject): Promise<ProjectBackupResult> {
 		try {
-			const result = await backupEligibleProjectEntities(syncContext(target));
+			const result = await backupProject(placementSyncContext(target));
 			this.applyResult(result, target);
 			if (result.uiState === 'synced') {
 				const syncedAt = new Date().toISOString();
-				await updateSyncTargetLastSyncedAt(target.targetId, syncedAt);
-				emitLocalDbInvalidation('sync-targets');
+				this.projectSyncedAt = { ...this.projectSyncedAt, [target.projectId]: syncedAt };
 				this.lastSyncTime = syncedAt;
 			}
 			return result;
@@ -190,9 +352,12 @@ class SyncService {
 		}
 	}
 
-	private applyResult(result: ProjectBackupResult, target: SyncTargetRecord): void {
+	private applyResult(result: ProjectBackupResult, target: PlacedProject): void {
 		this.uiState = result.uiState;
-		const reconnect = result.providerError === 'reauthorization-required';
+		this.projectResults = { ...this.projectResults, [target.projectId]: result };
+		const reconnect =
+			result.providerError === 'reauthorization-required' ||
+			result.providerError === 'permission-denied';
 		this.reconnectProjectIds = reconnect
 			? [...new Set([...this.reconnectProjectIds, target.projectId])]
 			: this.reconnectProjectIds.filter(projectId => projectId !== target.projectId);
@@ -205,32 +370,35 @@ class SyncService {
 
 export const syncService = new SyncService();
 
-function syncContext(target: SyncTargetRecord): SyncProjectContext {
-	return {
-		projectId: target.projectId,
-		connectionId: target.targetId,
-		cloudFolderId: LOCAL_FOLDER_ROOT_FOLDER_ID,
-		cloudFolderPath: '',
-	};
+const DISCOVERY_INTERVAL_MS = 30_000;
+const UPLOAD_IDLE_MS = 5_000;
+
+async function listSignedOutLocationIds(): Promise<Set<string>> {
+	const [locations, accounts] = await Promise.all([
+		listProjectLocations(),
+		listStorageAccounts(),
+	]);
+	const signedIn = new Set(
+		accounts.filter(account => account.signedIn).map(account => account.id)
+	);
+	return new Set(
+		locations
+			.filter(location => location.accountId !== null && !signedIn.has(location.accountId))
+			.map(location => location.id)
+	);
 }
 
-function targetKey(target: SyncTargetRecord): string {
-	return [
-		target.projectId,
-		target.handleRef,
-		target.folderDisplayPath,
-		String(target.enabled),
-	].join(':');
+function targetKey(target: PlacedProject): string {
+	return [target.projectId, target.locationId, target.folderName].join(':');
 }
 
-function failureResult(target: SyncTargetRecord, error: unknown): ProjectBackupResult {
+function failureResult(target: PlacedProject, error: unknown): ProjectBackupResult {
 	const message = error instanceof Error ? error.message : String(error);
 	return {
 		uiState: 'sync pending',
 		projectId: target.projectId,
 		manifestUploaded: false,
 		entityResults: [],
-		skippedItems: [],
 		providerError: isReconnectError(message)
 			? 'reauthorization-required'
 			: 'provider-unavailable',
@@ -243,5 +411,5 @@ function failureResult(target: SyncTargetRecord, error: unknown): ProjectBackupR
 }
 
 function isReconnectError(message: string): boolean {
-	return /permission|reconnect|directory picker|folder target was not found/i.test(message);
+	return /permission|reconnect|directory picker|location was not found/i.test(message);
 }

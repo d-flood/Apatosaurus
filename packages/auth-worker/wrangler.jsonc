@@ -1,0 +1,17 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "apatosaurus-auth",
+	"main": "src/index.ts",
+	"compatibility_date": "2026-08-15",
+	"vars": {
+		"APP_ORIGIN": "http://localhost:3160",
+	},
+	"env": {
+		"production": {
+			"vars": {
+				"APP_ORIGIN": "https://alpha.apatosaurus.io",
+			},
+			"routes": [{ "pattern": "alpha.apatosaurus.io/auth/*", "zone_name": "apatosaurus.io" }],
+		},
+	},
+}

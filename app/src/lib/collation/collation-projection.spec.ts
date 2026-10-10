@@ -18,7 +18,6 @@ function makeWitness(
 		witnessId,
 		siglum: witnessId,
 		transcriptionId: `${witnessId}-tx`,
-		sourceVersion: 'v1',
 		content,
 		tokens: content
 			.split(/\s+/)
@@ -50,8 +49,7 @@ describe('buildCollationProjection', () => {
 						id: 'A',
 						siglum: 'A',
 						transcriptionId: 'tx-1',
-						sourceVersion: 'cp-1',
-						sourceContentHash: 'sha256:tx-1',
+						source: { kind: 'version', transcriptionId: 'tx-1', versionId: 'cp-1' },
 						content: 'in principio',
 						treatment: 'full',
 						isBaseText: true,
@@ -74,8 +72,9 @@ describe('buildCollationProjection', () => {
 				id: 'col-1:witness:0',
 				transcription_id: 'tx-1',
 				project_transcription_id: 'pt-1',
+				source_kind: 'version',
 				source_revision_id: 'cp-1',
-				source_content_hash: 'sha256:tx-1',
+				source_content_hash: '',
 			}),
 		]);
 	});

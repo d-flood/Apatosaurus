@@ -44,12 +44,11 @@ export const PROJECT_TRANSCRIPTION_FIXTURE: ProjectTranscriptionPayload = {
 	project_transcription_id: 'pt-1',
 	id: 'tx-1',
 	canonical_transcription_id: null,
-	current_revision: {
+	based_on_checkpoint: {
 		id: 'tx-cp-1',
 		content_hash: 'sha256:de6dbef56033da96f56e1514fb53181cfa4128829f94c214bc1ee29d75c42e4c',
-		created_at: '2026-07-03T00:00:00.000Z',
-		author_name: 'Editor',
 	},
+	draft: { saved_at: '2026-07-03T00:00:00.000Z', author_name: null },
 	origin: {
 		source_type: 'created',
 		source_project_id: null,
@@ -127,12 +126,11 @@ export const COLLATION_FIXTURE: CollationPayload = {
 	title: 'John 1:1 Collation',
 	verse_identifier: 'John 1:1',
 	status: 'draft',
-	current_revision: {
+	based_on_checkpoint: {
 		id: 'col-cp-1',
 		content_hash: 'sha256:625adfc84755d1554eb7ea249d4a839af0ed8dd43b938b30300c167b6d74b8dc',
-		created_at: '2026-07-03T00:00:00.000Z',
-		author_name: 'Editor',
 	},
+	draft: { saved_at: '2026-07-03T00:00:00.000Z', author_name: null },
 	group_path: '',
 	notes: '',
 	sort_key: 0,
@@ -175,9 +173,11 @@ export const TRANSCRIPTION_CHECKPOINT_FIXTURE: TranscriptionCheckpointPayload = 
 	parent_checkpoint_id: null,
 	payload_content_hash: 'sha256:b88064113fd452747b0723b27847c5ecf9efada27c6a9d5eaeee8b2eae57f4bb',
 	content_format: 'normalized_ast_v3',
+	label: 'Version 1',
 	commit_message: 'Initial commit',
 	author_name: 'Editor',
 	created_at: '2026-07-03T00:00:00.000Z',
+	metadata_updated_at: '2026-07-03T00:00:00.000Z',
 	payload: {
 		project_transcription_id: 'pt-1',
 		id: 'tx-1',
@@ -212,12 +212,15 @@ export const COLLATION_CHECKPOINT_FIXTURE: CollationCheckpointPayload = {
 	entity_id: 'col-1',
 	parent_checkpoint_id: null,
 	payload_content_hash: 'sha256:625adfc84755d1554eb7ea249d4a839af0ed8dd43b938b30300c167b6d74b8dc',
+	label: 'Version 1',
 	commit_message: 'Initial commit',
 	author_name: 'Editor',
 	created_at: '2026-07-03T00:00:00.000Z',
+	metadata_updated_at: '2026-07-03T00:00:00.000Z',
 	payload: (() => {
 		const {
-			current_revision: _,
+			based_on_checkpoint: _,
+			draft: _draft,
 			created_at: _createdAt,
 			updated_at: _updatedAt,
 			...content
@@ -243,8 +246,11 @@ export const TOMBSTONE_FIXTURE: TombstonePayload = {
 	deleted_at: '2026-07-03T00:00:00.000Z',
 };
 
-const { current_revision: _currentRevision, ...workingTranscriptionBase } =
-	PROJECT_TRANSCRIPTION_FIXTURE;
+const {
+	based_on_checkpoint: _basedOnCheckpoint,
+	draft: _currentDraft,
+	...workingTranscriptionBase
+} = PROJECT_TRANSCRIPTION_FIXTURE;
 
 export const WORKING_TRANSCRIPTION_FIXTURE: WorkingTranscriptionPayload = {
 	...workingTranscriptionBase,
@@ -256,7 +262,11 @@ export const WORKING_TRANSCRIPTION_FIXTURE: WorkingTranscriptionPayload = {
 	},
 };
 
-const { current_revision: _collationRevision, ...workingCollationBase } = COLLATION_FIXTURE;
+const {
+	based_on_checkpoint: _collationBasedOn,
+	draft: _collationDraft,
+	...workingCollationBase
+} = COLLATION_FIXTURE;
 
 export const WORKING_COLLATION_FIXTURE: WorkingCollationPayload = {
 	...workingCollationBase,

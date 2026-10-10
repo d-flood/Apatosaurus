@@ -6,6 +6,7 @@ import { createProject as createProjectRepository } from './projects';
 import {
 	createCommittedCollationCheckpoint,
 	createCommittedTranscriptionCheckpoint,
+	getTranscriptionCurrentContentHashes,
 } from './revisions';
 import { createTranscription, updateTranscriptionContent } from './transcriptions';
 import { createLocalDbTestHarness, type LocalDbTestHarness } from '$lib/testing/local-db-harness';
@@ -148,7 +149,6 @@ describe('collations repository', () => {
 				{
 					witnessId: 'A',
 					transcriptionId: null,
-					sourceVersion: 'v1',
 					content: 'In principio',
 					position: 0,
 				},
@@ -178,7 +178,6 @@ describe('collations repository', () => {
 				{
 					witnessId: 'B',
 					transcriptionId: null,
-					sourceVersion: 'v2',
 					content: 'Principio',
 					position: 0,
 				},
@@ -189,12 +188,10 @@ describe('collations repository', () => {
 
 		const witnesses = await harness.db
 			.selectFrom('collation_witnesses')
-			.select(['witness_id', 'source_revision_id', 'content', 'position'])
+			.select(['witness_id', 'content', 'position'])
 			.where('collation_id', '=', 'col-1')
 			.execute();
-		expect(witnesses).toEqual([
-			{ witness_id: 'B', source_revision_id: 'v2', content: 'Principio', position: 0 },
-		]);
+		expect(witnesses).toEqual([{ witness_id: 'B', content: 'Principio', position: 0 }]);
 		const tokens = await harness.db
 			.selectFrom('collation_tokens')
 			.select(['witness_id', 'token_index', 'token_text'])
@@ -209,7 +206,7 @@ describe('collations repository', () => {
 		expect(units).toEqual([]);
 	});
 
-	it('stores exact committed source revisions for project transcription witnesses', async () => {
+	it('stores witness sources for project transcription witnesses', async () => {
 		await createProject(harness.db, { id: 'project-1', name: 'Romans' });
 		await createTranscription(harness.db, {
 			id: 'tx-1',
@@ -222,13 +219,6 @@ describe('collations repository', () => {
 			settlement: 'City',
 			language: 'grc',
 		});
-		const snapshotId = 'tx-1';
-		const projectTranscriptionId = 'pt-1';
-		const checkpoint = await createCommittedTranscriptionCheckpoint(harness.db, {
-			projectTranscriptionId,
-			checkpointId: 'tx-cp-1',
-			createdAt: '2026-06-09T10:00:00.000Z',
-		});
 		await insertCollation('col-1', 'Romans 1:1', '2024-01-02T00:00:00.000Z');
 
 		await saveCollationProjection(harness.db, {
@@ -236,8 +226,8 @@ describe('collations repository', () => {
 			witnesses: [
 				{
 					witnessId: '01',
-					transcriptionId: snapshotId,
-					sourceVersion: '2024-01-01T00:00:00.000Z',
+					transcriptionId: 'tx-1',
+					source: { kind: 'version', transcriptionId: 'tx-1', versionId: 'tx-cp-1' },
 					content: 'In principio',
 					position: 0,
 				},
@@ -246,16 +236,18 @@ describe('collations repository', () => {
 			variationUnits: [],
 		});
 
-		const row = await harness.db
+		const versionRow = await harness.db
 			.selectFrom('collation_witnesses')
 			.selectAll()
 			.where('collation_id', '=', 'col-1')
 			.executeTakeFirstOrThrow();
-		expect(row).toMatchObject({
-			project_transcription_id: projectTranscriptionId,
-			transcription_id: snapshotId,
-			source_revision_id: checkpoint.id,
-			source_content_hash: checkpoint.contentHash,
+		expect(versionRow).toMatchObject({
+			project_transcription_id: 'pt-1',
+			transcription_id: 'tx-1',
+			source_kind: 'version',
+			source_revision_id: 'tx-cp-1',
+			source_content_hash: '',
+			source_captured_at: '',
 		});
 
 		await saveCollationProjection(harness.db, {
@@ -263,9 +255,13 @@ describe('collations repository', () => {
 			witnesses: [
 				{
 					witnessId: '01',
-					transcriptionId: snapshotId,
-					sourceVersion: 'tx-cp-older',
-					sourceContentHash: 'sha256:older',
+					transcriptionId: 'tx-1',
+					source: {
+						kind: 'current',
+						transcriptionId: 'tx-1',
+						capturedAt: '2026-09-27T14:02:00.000Z',
+						contentHash: 'sha256:current',
+					},
 					content: 'In principio',
 					position: 0,
 				},
@@ -274,16 +270,18 @@ describe('collations repository', () => {
 			variationUnits: [],
 		});
 
-		const explicitPinnedRow = await harness.db
+		const currentRow = await harness.db
 			.selectFrom('collation_witnesses')
 			.selectAll()
 			.where('collation_id', '=', 'col-1')
 			.executeTakeFirstOrThrow();
-		expect(explicitPinnedRow).toMatchObject({
-			project_transcription_id: projectTranscriptionId,
-			transcription_id: snapshotId,
-			source_revision_id: 'tx-cp-older',
-			source_content_hash: 'sha256:older',
+		expect(currentRow).toMatchObject({
+			project_transcription_id: 'pt-1',
+			transcription_id: 'tx-1',
+			source_kind: 'current',
+			source_revision_id: '',
+			source_content_hash: 'sha256:current',
+			source_captured_at: '2026-09-27T14:02:00.000Z',
 		});
 	});
 
@@ -305,7 +303,6 @@ describe('collations repository', () => {
 						witnessId: 'F',
 						transcriptionId: 'tx-foreign',
 						projectTranscriptionId: 'pt-foreign',
-						sourceVersion: 'v1',
 						content: 'foreign',
 						position: 0,
 					},
@@ -338,7 +335,6 @@ describe('collations repository', () => {
 						witnessId: '01',
 						transcriptionId: 'tx-1',
 						projectTranscriptionId: 'pt-2',
-						sourceVersion: 'v1',
 						content: 'local',
 						position: 0,
 					},
@@ -365,10 +361,13 @@ describe('collations repository', () => {
 		const snapshotBId = 'tx-2';
 		const projectTranscriptionAId = 'pt-1';
 		const projectTranscriptionBId = 'pt-2';
-		const sourceCheckpoint = await createCommittedTranscriptionCheckpoint(harness.db, {
+		await createCommittedTranscriptionCheckpoint(harness.db, {
 			projectTranscriptionId: projectTranscriptionAId,
 			checkpointId: 'tx-cp-1',
+			label: 'Version 1',
+			createdAt: '2026-01-01T00:00:00.000Z',
 		});
+		const currentHashes = await getTranscriptionCurrentContentHashes(harness.db, [snapshotBId]);
 		const collationId = await createCollation(harness.db, {
 			id: 'col-1',
 			projectId: 'project-1',
@@ -382,22 +381,25 @@ describe('collations repository', () => {
 				{
 					witnessId: '01',
 					transcriptionId: snapshotAId,
-					sourceVersion: 'fallback',
+					source: { kind: 'version', transcriptionId: snapshotAId, versionId: 'tx-cp-1' },
 					content: 'In principio',
 					position: 0,
 				},
 				{
 					witnessId: '02',
 					transcriptionId: snapshotBId,
-					sourceVersion: 'fallback',
+					source: {
+						kind: 'current',
+						transcriptionId: snapshotBId,
+						capturedAt: '2026-01-02T00:00:00.000Z',
+						contentHash: currentHashes[snapshotBId],
+					},
 					content: 'In principio erat',
 					position: 1,
 				},
 				{
 					witnessId: 'legacy',
 					transcriptionId: null,
-					sourceVersion: 'legacy-rev',
-					sourceContentHash: 'sha256:legacy',
 					content: 'Legacy content',
 					position: 2,
 				},
@@ -425,35 +427,31 @@ describe('collations repository', () => {
 				position: 0,
 				projectTranscriptionId: projectTranscriptionAId,
 				projectOwnedTranscriptionId: snapshotAId,
-				pinnedCheckpoint: {
-					revisionId: 'tx-cp-1',
-					contentHash: sourceCheckpoint.contentHash,
-				},
-				availableCheckpoint: {
-					revisionId: 'tx-cp-1',
-					contentHash: sourceCheckpoint.contentHash,
-				},
-				sourceDirtyToCheckpoint: false,
-				versionState: 'pinned-current',
+				source: { kind: 'version', transcriptionId: snapshotAId, versionId: 'tx-cp-1' },
+				sourceVersionLabel: 'Version 1',
+				versionState: 'up-to-date',
 			},
 			{
 				witnessId: '02',
 				position: 1,
 				projectTranscriptionId: projectTranscriptionBId,
 				projectOwnedTranscriptionId: snapshotBId,
-				pinnedCheckpoint: null,
-				availableCheckpoint: null,
-				sourceDirtyToCheckpoint: true,
-				versionState: 'source-has-no-committed-version',
+				source: {
+					kind: 'current',
+					transcriptionId: snapshotBId,
+					capturedAt: '2026-01-02T00:00:00.000Z',
+					contentHash: currentHashes[snapshotBId],
+				},
+				sourceVersionLabel: null,
+				versionState: 'up-to-date',
 			},
 			{
 				witnessId: 'legacy',
 				position: 2,
 				projectTranscriptionId: null,
 				projectOwnedTranscriptionId: null,
-				pinnedCheckpoint: { revisionId: 'legacy-rev', contentHash: 'sha256:legacy' },
-				availableCheckpoint: null,
-				sourceDirtyToCheckpoint: null,
+				source: null,
+				sourceVersionLabel: null,
 				versionState: 'no-source',
 			},
 		]);
@@ -525,22 +523,103 @@ describe('collations repository', () => {
 			cloudBackupState: { status: 'uncommitted-local-changes' },
 		});
 		expect(dirtyStatus.workingContentHash).not.toBe(collationCheckpoint.contentHash);
-		expect(dirtyStatus.witnesses[0].versionState).toBe('pinned-current');
+		expect(dirtyStatus.witnesses[0].versionState).toBe('up-to-date');
 	});
 
-	it('reports dirty and newer witness source versions separately from collation dirty state', async () => {
+	it('offers a witness refresh only after its source Current changes or gains a version', async () => {
 		await createProject(harness.db, { id: 'project-1', name: 'Romans' });
 		await createTranscription(harness.db, {
 			...sourceTranscription('tx-1', '01'),
 			projectId: 'project-1',
 			projectTranscriptionId: 'pt-1',
 		});
-		const snapshotId = 'tx-1';
-		const projectTranscriptionId = 'pt-1';
-		const firstSourceCheckpoint = await createCommittedTranscriptionCheckpoint(harness.db, {
-			projectTranscriptionId,
-			checkpointId: 'tx-cp-1',
+		await createTranscription(harness.db, {
+			...sourceTranscription('tx-2', '02'),
+			projectId: 'project-1',
+			projectTranscriptionId: 'pt-2',
 		});
+		await createCommittedTranscriptionCheckpoint(harness.db, {
+			projectTranscriptionId: 'pt-2',
+			checkpointId: 'tx-2-cp-1',
+			createdAt: '2026-01-01T00:00:00.000Z',
+		});
+		const capturedHashes = await getTranscriptionCurrentContentHashes(harness.db, [
+			'tx-1',
+			'tx-2',
+		]);
+		await createCollation(harness.db, {
+			id: 'col-1',
+			projectId: 'project-1',
+			title: 'Romans 1:1',
+			verseIdentifier: 'Rom 1:1',
+		});
+		await saveCollationProjection(harness.db, {
+			collationId: 'col-1',
+			witnesses: [
+				{
+					witnessId: 'current',
+					transcriptionId: 'tx-1',
+					source: {
+						kind: 'current',
+						transcriptionId: 'tx-1',
+						capturedAt: '2026-01-02T00:00:00.000Z',
+						contentHash: capturedHashes['tx-1'],
+					},
+					content: 'In principio',
+					position: 0,
+				},
+				{
+					witnessId: 'version',
+					transcriptionId: 'tx-2',
+					source: { kind: 'version', transcriptionId: 'tx-2', versionId: 'tx-2-cp-1' },
+					content: 'In principio',
+					position: 1,
+				},
+			],
+			tokens: [],
+			variationUnits: [],
+		});
+		const states = async () =>
+			(await getCollationVersionStatus(harness.db, 'col-1')).witnesses.map(
+				witness => witness.versionState
+			);
+
+		expect(await states()).toEqual(['up-to-date', 'up-to-date']);
+
+		await createCommittedCollationCheckpoint(harness.db, {
+			collationId: 'col-1',
+			checkpointId: 'col-cp-1',
+		});
+		expect(await states()).toEqual(['up-to-date', 'up-to-date']);
+
+		await updateTranscriptionContent(harness.db, {
+			id: 'tx-2',
+			document: documentWithVerses(['Romans 1:2']),
+		});
+		expect(await states()).toEqual(['up-to-date', 'up-to-date']);
+
+		await updateTranscriptionContent(harness.db, {
+			id: 'tx-1',
+			document: documentWithVerses(['Romans 1:2']),
+		});
+		expect(await states()).toEqual(['source-changed', 'up-to-date']);
+
+		await createCommittedTranscriptionCheckpoint(harness.db, {
+			projectTranscriptionId: 'pt-2',
+			checkpointId: 'tx-2-cp-2',
+			createdAt: '2026-01-03T00:00:00.000Z',
+		});
+		expect(await states()).toEqual(['source-changed', 'source-changed']);
+	});
+
+	it('offers a Current witness refresh when its unchanged source gains a version', async () => {
+		await createProject(harness.db, { id: 'project-1', name: 'Romans' });
+		await createTranscription(harness.db, {
+			...sourceTranscription('tx-1', '01'),
+			projectId: 'project-1',
+			projectTranscriptionId: 'pt-1',
+		});
+		const capturedHashes = await getTranscriptionCurrentContentHashes(harness.db, ['tx-1']);
 		await createCollation(harness.db, {
 			id: 'col-1',
 			projectId: 'project-1',
@@ -552,8 +631,13 @@ describe('collations repository', () => {
 			witnesses: [
 				{
 					witnessId: '01',
-					transcriptionId: snapshotId,
-					sourceVersion: 'fallback',
+					transcriptionId: 'tx-1',
+					source: {
+						kind: 'current',
+						transcriptionId: 'tx-1',
+						capturedAt: '2026-01-02T00:00:00.000Z',
+						contentHash: capturedHashes['tx-1'],
+					},
 					content: 'In principio',
 					position: 0,
 				},
@@ -561,49 +645,15 @@ describe('collations repository', () => {
 			tokens: [],
 			variationUnits: [],
 		});
-		await createCommittedCollationCheckpoint(harness.db, {
-			collationId: 'col-1',
-			checkpointId: 'col-cp-1',
+
+		await createCommittedTranscriptionCheckpoint(harness.db, {
+			projectTranscriptionId: 'pt-1',
+			checkpointId: 'tx-cp-1',
+			createdAt: '2026-01-03T00:00:00.000Z',
 		});
 
-		await updateTranscriptionContent(harness.db, {
-			id: snapshotId,
-			document: documentWithVerses(['Romans 1:2']),
-		});
-		const sourceDirtyStatus = await getCollationVersionStatus(harness.db, 'col-1');
-
-		expect(sourceDirtyStatus.commitState).toBe('clean');
-		expect(sourceDirtyStatus.witnesses[0]).toMatchObject({
-			pinnedCheckpoint: {
-				revisionId: 'tx-cp-1',
-				contentHash: firstSourceCheckpoint.contentHash,
-			},
-			availableCheckpoint: {
-				revisionId: 'tx-cp-1',
-				contentHash: firstSourceCheckpoint.contentHash,
-			},
-			sourceDirtyToCheckpoint: true,
-			versionState: 'source-has-uncommitted-changes',
-		});
-
-		const secondSourceCheckpoint = await createCommittedTranscriptionCheckpoint(harness.db, {
-			projectTranscriptionId,
-			checkpointId: 'tx-cp-2',
-		});
-		const newerSourceStatus = await getCollationVersionStatus(harness.db, 'col-1');
-
-		expect(newerSourceStatus.commitState).toBe('clean');
-		expect(newerSourceStatus.witnesses[0]).toMatchObject({
-			pinnedCheckpoint: {
-				revisionId: 'tx-cp-1',
-				contentHash: firstSourceCheckpoint.contentHash,
-			},
-			availableCheckpoint: {
-				revisionId: 'tx-cp-2',
-				contentHash: secondSourceCheckpoint.contentHash,
-			},
-			sourceDirtyToCheckpoint: false,
-			versionState: 'newer-source-available',
+		expect((await getCollationVersionStatus(harness.db, 'col-1')).witnesses[0]).toMatchObject({
+			versionState: 'source-changed',
 		});
 	});
 });
@@ -631,6 +681,7 @@ async function insertCollation(id: string, title: string, updatedAt: string): Pr
 			group_path: '',
 			notes: '',
 			sort_key: 0,
+			conflict_of_collation_id: '',
 			created_at: '2024-01-01T00:00:00.000Z',
 			updated_at: updatedAt,
 		})

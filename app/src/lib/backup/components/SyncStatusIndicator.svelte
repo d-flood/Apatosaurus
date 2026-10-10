@@ -1,44 +1,35 @@
 <script lang="ts">
 	import { networkStatus } from '$lib/shell/network-status.svelte';
 	import { syncService } from '$lib/backup/sync-service.svelte';
-	import type { SyncUiState } from '$lib/backup/sync-manager';
+	import {
+		syncStatusLabels,
+		syncStatusReason,
+		type SyncStatusState,
+	} from '$lib/backup/sync-status';
 	import HardDrives from 'phosphor-svelte/lib/HardDrives';
 	import WifiSlash from 'phosphor-svelte/lib/WifiSlash';
 
-	const stateBadgeClass: Record<SyncUiState, string> = {
-		'saved locally': 'badge-ghost',
-		'uncommitted local changes': 'badge-warning',
-		'committed locally': 'badge-info',
-		'sync pending': 'badge-info',
+	const stateBadgeClass: Record<SyncStatusState, string> = {
 		synced: 'badge-success',
-		'remote update available': 'badge-warning',
-		'conflict requires resolution': 'badge-error',
+		'saved-on-device': 'badge-ghost',
+		'needs-attention': 'badge-warning',
 	};
 
-	let displayState = $derived(syncService.uiState);
+	let status = $derived(syncService.overallStatus(networkStatus.online));
+	let label = $derived(syncStatusLabels[status.state]);
 	let offline = $derived(!networkStatus.online);
-	let connectionLabel = $derived.by(() => {
-		if (offline) return 'Offline';
-		if (syncService.reconnectRequired) return 'Reconnect folder';
-		if (syncService.connected) return 'Connected';
-		if (syncService.ready) return 'Sync not connected';
-		return 'Local-first mode';
-	});
-	let tooltip = $derived(`${connectionLabel} · ${displayState}`);
-	let visibleState = $derived(syncService.reconnectRequired ? 'Reconnect folder' : displayState);
-	let badgeClass = $derived(
-		`badge gap-1 whitespace-nowrap ${syncService.reconnectRequired ? 'badge-warning' : stateBadgeClass[displayState]}`
-	);
 </script>
 
-<div class="tooltip tooltip-bottom z-10" role="tooltip" data-tip={tooltip}>
-	<span class={badgeClass}>
-		<span class="sr-only">{visibleState}</span>
+<div class="tooltip tooltip-bottom z-10" role="tooltip" data-tip={syncStatusReason(status)}>
+	<span class="badge gap-1 whitespace-nowrap {stateBadgeClass[status.state]}">
+		<span class="sr-only">{label}</span>
 		{#if offline}
 			<WifiSlash size="24" weight="fill" aria-hidden="true" />
 		{:else}
 			<HardDrives size="24" weight="fill" aria-hidden="true" />
 		{/if}
-		<span class="hidden text-xs font-medium normal-case xl:inline">{visibleState}</span>
+		<span class="hidden text-xs font-medium normal-case xl:inline" aria-hidden="true"
+			>{label}</span
+		>
 	</span>
 </div>

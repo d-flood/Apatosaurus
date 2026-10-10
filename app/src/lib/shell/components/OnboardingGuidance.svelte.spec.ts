@@ -7,7 +7,7 @@ import OnboardingGuidance from './OnboardingGuidance.svelte';
 const browserPage = page as any;
 
 describe('OnboardingGuidance', () => {
-	it('renders the full recommended setup when folder sync is supported', async () => {
+	it('offers a folder on this computer alongside cloud storage when supported', async () => {
 		render(OnboardingGuidance, {
 			localFolderSupported: true,
 			persistenceStatus: 'granted',
@@ -15,18 +15,15 @@ describe('OnboardingGuidance', () => {
 		});
 
 		await expect
-			.element(browserPage.getByTestId('onboarding-guidance'))
-			.toHaveTextContent('Chromium-based browser');
+			.element(browserPage.getByTestId('onboarding-primary-path'))
+			.toHaveTextContent('Google Drive or Dropbox');
 		await expect
 			.element(browserPage.getByTestId('onboarding-primary-path'))
-			.toHaveTextContent('Connect a sync folder');
-		await expect
-			.element(browserPage.getByTestId('onboarding-primary-path'))
-			.toHaveTextContent('Dropbox, OneDrive, or Drive');
+			.toHaveTextContent('folder on this computer');
 		await expect.element(browserPage.getByText('Allow persistent storage')).toBeInTheDocument();
 	});
 
-	it('renders the zip export path when folder sync is unavailable', async () => {
+	it('hides the folder option when the browser cannot pick folders', async () => {
 		render(OnboardingGuidance, {
 			localFolderSupported: false,
 			persistenceStatus: 'denied',
@@ -35,13 +32,10 @@ describe('OnboardingGuidance', () => {
 
 		await expect
 			.element(browserPage.getByTestId('onboarding-primary-path'))
-			.toHaveTextContent('Use zip export/import');
+			.toHaveTextContent('Google Drive or Dropbox');
 		await expect
-			.element(browserPage.getByTestId('onboarding-primary-path'))
-			.toHaveTextContent('Firefox and Safari');
-		await expect
-			.element(browserPage.getByText('Connect a sync folder'))
-			.not.toBeInTheDocument();
+			.element(browserPage.getByTestId('onboarding-guidance'))
+			.not.toHaveTextContent('folder on this computer');
 	});
 
 	it('states the data ownership model and exit paths', async () => {
@@ -57,7 +51,7 @@ describe('OnboardingGuidance', () => {
 			.toHaveTextContent('Origin Private File System');
 		await expect
 			.element(browserPage.getByTestId('data-ownership'))
-			.toHaveTextContent('byte-identical mirror');
+			.toHaveTextContent('byte-identical copy');
 		await expect
 			.element(browserPage.getByTestId('data-ownership'))
 			.toHaveTextContent('TEI sibling');

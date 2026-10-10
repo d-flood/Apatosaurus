@@ -21,7 +21,6 @@ function witness(witnessId: string, content: string, isBaseText = false): Witnes
 		witnessId,
 		siglum: witnessId,
 		transcriptionId: `${witnessId}-tx`,
-		sourceVersion: 'v1',
 		content,
 		tokens: tokens(content),
 		treatment: 'inherit',
@@ -74,19 +73,7 @@ function snapshot(columnIds: string[]): AlignmentSnapshot {
 }
 
 function renderReview() {
-	render(ReviewPhase, {
-		canCommitVersion: false,
-		commitDisabledReason: '',
-		commitInFlight: false,
-		isCommitFormOpen: false,
-		commitMessage: '',
-		commitError: null,
-		commitSuccess: null,
-		onOpenCommitForm: () => {},
-		onCloseCommitForm: () => {},
-		onCommitVersion: event => event.preventDefault(),
-		onCommitMessage: () => {},
-	});
+	render(ReviewPhase);
 }
 
 describe('ReviewPhase orphan worklist', () => {

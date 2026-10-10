@@ -1,16 +1,19 @@
 <script lang="ts">
 	import ArrowsLeftRight from 'phosphor-svelte/lib/ArrowsLeftRight';
-	import GitCommit from 'phosphor-svelte/lib/GitCommit';
 	import Warning from 'phosphor-svelte/lib/Warning';
 	import X from 'phosphor-svelte/lib/X';
 	import type { ProjectTranscriptionSourceCandidate } from '$lib/db/repositories/projects';
+	import SourceVersionPicker from '$lib/shell/components/SourceVersionPicker.svelte';
 
 	interface Props {
 		candidates: ProjectTranscriptionSourceCandidate[];
 		isLoadingCandidates: boolean;
 		isSubmitting: boolean;
 		error: string | null;
-		onConfirm: (candidate: ProjectTranscriptionSourceCandidate) => Promise<void> | void;
+		onConfirm: (
+			candidate: ProjectTranscriptionSourceCandidate,
+			versionId: string | null
+		) => Promise<void> | void;
 		onClose: () => void;
 	}
 
@@ -18,27 +21,16 @@
 		$props();
 
 	let selectedId = $state<string | null>(null);
+	let selectedVersionId = $state<string | null>(null);
 
 	let selectedCandidate = $derived(
 		candidates.find(candidate => candidate.projectTranscriptionId === selectedId) ?? null
 	);
-	let hasCommittedCandidates = $derived(
-		candidates.some(candidate => candidate.currentCheckpoint !== null)
-	);
 
-	function shortRevisionId(revisionId: string | null | undefined): string {
-		if (!revisionId) return '';
-		return revisionId.length <= 12 ? revisionId : `${revisionId.slice(0, 8)}...`;
-	}
-
-	function candidateBadgeClass(candidate: ProjectTranscriptionSourceCandidate): string {
-		if (!candidate.currentCheckpoint) return 'badge-ghost';
-		return candidate.dirtyToCheckpoint ? 'badge-warning' : 'badge-success';
-	}
-
-	function candidateLabel(candidate: ProjectTranscriptionSourceCandidate): string {
-		if (!candidate.currentCheckpoint) return 'No committed version';
-		return candidate.dirtyToCheckpoint ? 'Committed (has edits)' : 'Committed';
+	function versionCountLabel(candidate: ProjectTranscriptionSourceCandidate): string {
+		const count = candidate.versions.length;
+		if (count === 0) return 'No named versions';
+		return `${count} named version${count === 1 ? '' : 's'}`;
 	}
 
 	function close() {
@@ -49,7 +41,7 @@
 	async function handleSubmit(event: SubmitEvent) {
 		event.preventDefault();
 		if (isSubmitting || !selectedCandidate) return;
-		await onConfirm(selectedCandidate);
+		await onConfirm(selectedCandidate, selectedVersionId);
 	}
 </script>
 
@@ -77,7 +69,7 @@
 						Add transcription from another project
 					</h2>
 					<p class="text-xs text-base-content/50">
-						Reuse a committed project transcription as new source material.
+						Reuse a project transcription as new source material.
 					</p>
 				</div>
 			</div>
@@ -94,9 +86,9 @@
 
 		<div class="mt-4 space-y-3 text-sm">
 			<p class="text-base-content/80">
-				Select a committed project transcription from another local project. This creates a
-				new full project transcription in the current project. The source project is not
-				changed.
+				Select a project transcription from another local project, then its Current or a
+				named version. This creates a new full project transcription in the current project.
+				The source project is not changed.
 			</p>
 			<div
 				class="flex items-start gap-2 rounded-box border border-warning/40 bg-warning/10 p-3 text-xs text-base-content/80"
@@ -121,13 +113,6 @@
 				>
 					No project transcriptions from other projects yet.
 				</div>
-			{:else if !hasCommittedCandidates}
-				<div
-					class="rounded-box border border-dashed border-base-300/80 p-4 text-sm text-base-content/55"
-				>
-					Other projects have transcriptions, but none have a committed version. Commit a
-					project transcription in another project first.
-				</div>
 			{:else}
 				<div class="max-h-80 space-y-1.5 overflow-y-auto">
 					{#each candidates as candidate (candidate.projectTranscriptionId)}
@@ -138,9 +123,10 @@
 									? 'border-secondary/50 bg-secondary/10'
 									: 'border-base-300/50 hover:bg-base-200/60'
 							}`}
-							disabled={isSubmitting || !candidate.currentCheckpoint}
+							disabled={isSubmitting}
 							onclick={() => {
 								selectedId = candidate.projectTranscriptionId;
+								selectedVersionId = null;
 							}}
 						>
 							<div class="min-w-0 flex-1">
@@ -148,9 +134,6 @@
 									<span class="font-mono text-sm font-bold"
 										>{candidate.siglum || candidate.title}</span
 									>
-									{#if candidate.currentCheckpoint}
-										<GitCommit size={12} class="text-base-content/40" />
-									{/if}
 								</div>
 								<div class="mt-0.5 text-[11px] text-base-content/50">
 									From <span class="text-base-content/70"
@@ -161,23 +144,21 @@
 									{/if}
 								</div>
 							</div>
-							<span
-								class={`badge badge-xs shrink-0 ${candidateBadgeClass(candidate)}`}
-							>
-								{candidateLabel(candidate)}
+							<span class="badge badge-xs badge-ghost shrink-0">
+								{versionCountLabel(candidate)}
 							</span>
 						</button>
 					{/each}
 				</div>
 			{/if}
 
-			{#if selectedCandidate?.currentCheckpoint}
-				<p class="text-xs text-base-content/55">
-					Selected source version:
-					<span class="font-mono text-base-content/70"
-						>{shortRevisionId(selectedCandidate.currentCheckpoint.revisionId)}</span
-					>
-				</p>
+			{#if selectedCandidate}
+				<SourceVersionPicker
+					currentEditedAt={selectedCandidate.currentEditedAt}
+					versions={selectedCandidate.versions}
+					bind:value={selectedVersionId}
+					disabled={isSubmitting}
+				/>
 			{/if}
 			{#if error}
 				<p class="text-sm text-error" role="alert">{error}</p>
@@ -197,7 +178,7 @@
 				<button
 					type="submit"
 					class="btn btn-sm btn-secondary gap-1"
-					disabled={isSubmitting || !selectedCandidate?.currentCheckpoint}
+					disabled={isSubmitting || !selectedCandidate}
 				>
 					{#if isSubmitting}
 						<span class="loading loading-spinner loading-xs"></span>

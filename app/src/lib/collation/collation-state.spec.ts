@@ -47,7 +47,6 @@ function makeWitness(
 		transcriptionId: `${witnessId}-tx`,
 		kind: options?.kind,
 		handId: options?.handId,
-		sourceVersion: 'v1',
 		content,
 		tokens: makeTokens(content),
 		fullContent: options?.fullContent,

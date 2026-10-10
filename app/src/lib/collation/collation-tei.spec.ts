@@ -32,7 +32,6 @@ function witness(id: string, content: string, isBaseText = false): WitnessConfig
 		witnessId: id,
 		siglum: id,
 		transcriptionId: `${id}-transcription`,
-		sourceVersion: 'v1',
 		content,
 		tokens: tokens(content),
 		treatment: 'inherit',

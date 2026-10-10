@@ -6,7 +6,14 @@ import {
 	readCanonicalDocument,
 	type TranscriptionCheckpointPayload as CanonicalTranscriptionCheckpointPayload,
 } from '$lib/storage/formats';
-import { readTextFile, type StoreOperationOptions } from '$lib/storage/opfs-store';
+import {
+	readTextFile,
+	writeTextFileAtomic,
+	type StoreOperationOptions,
+} from '$lib/storage/opfs-store';
+import { sealDocument, serializeSealedDocument } from '$lib/storage/envelope';
+import type { CheckpointBasePayload } from '$lib/storage/formats/checkpoint-utils';
+import type { WitnessSource } from '$lib/collation/collation-types';
 import { transcriptionCheckpointFile } from '$lib/storage/layout';
 import type { CollationCheckpoints, Database, TranscriptionCheckpoints } from '../types.generated';
 import { createId, requireId } from './id';
@@ -137,6 +144,7 @@ interface SerializedCollationArtifact {
 export interface CommitTranscriptionInput {
 	projectTranscriptionId: string;
 	checkpointId?: string;
+	label?: string;
 	commitMessage?: string | null;
 	authorName?: string;
 	createdAt?: string;
@@ -145,6 +153,7 @@ export interface CommitTranscriptionInput {
 export interface CommitCollationInput {
 	collationId: string;
 	checkpointId?: string;
+	label?: string;
 	commitMessage?: string | null;
 	authorName?: string;
 	createdAt?: string;
@@ -156,6 +165,7 @@ interface Checkpoint {
 	payload: unknown;
 	contentHash: string;
 	isCommitted: boolean;
+	label: string;
 	commitMessage: string | null;
 	authorName: string;
 	createdAt: string;
@@ -599,6 +609,7 @@ export interface TranscriptionCheckpointSummary {
 	parentCheckpointId: string | null;
 	contentHash: string;
 	isCommitted: boolean;
+	label: string;
 	commitMessage: string | null;
 	authorName: string;
 	createdAt: string;
@@ -630,9 +641,11 @@ export interface LoadedTranscriptionCheckpoint {
 	parentCheckpointId: string | null;
 	contentHash: string;
 	isCommitted: boolean;
+	label: string;
 	commitMessage: string | null;
 	authorName: string;
 	createdAt: string;
+	metadataUpdatedAt: string;
 	payload: TranscriptionCheckpointPayload;
 }
 
@@ -648,6 +661,7 @@ export async function listCommittedTranscriptionCheckpoints(
 			'parent_checkpoint_id',
 			'content_hash',
 			'is_committed',
+			'label',
 			'commit_message',
 			'author_name',
 			'created_at',
@@ -663,10 +677,198 @@ export async function listCommittedTranscriptionCheckpoints(
 		parentCheckpointId: row.parent_checkpoint_id,
 		contentHash: row.content_hash,
 		isCommitted: row.is_committed === 1,
+		label: row.label,
 		commitMessage: row.commit_message,
 		authorName: row.author_name,
 		createdAt: row.created_at,
 	}));
+}
+
+export interface VersionSummary {
+	id: string;
+	parentCheckpointId: string | null;
+	contentHash: string;
+	label: string;
+	note: string | null;
+	authorName: string;
+	createdAt: string;
+}
+
+export async function listCollationVersions(
+	db: DbExecutor,
+	collationId: string
+): Promise<VersionSummary[]> {
+	const rows = await db
+		.selectFrom('collation_checkpoints')
+		.select([
+			'id',
+			'parent_checkpoint_id',
+			'content_hash',
+			'label',
+			'commit_message',
+			'author_name',
+			'created_at',
+		])
+		.where('collation_id', '=', collationId)
+		.where('is_committed', '=', 1)
+		.orderBy('created_at', 'desc')
+		.orderBy('id', 'desc')
+		.execute();
+	return rows.map(row => ({
+		id: requireId(row.id, 'collation checkpoint'),
+		parentCheckpointId: row.parent_checkpoint_id,
+		contentHash: row.content_hash,
+		label: row.label,
+		note: row.commit_message,
+		authorName: row.author_name,
+		createdAt: row.created_at,
+	}));
+}
+
+export async function listTranscriptionVersions(
+	db: DbExecutor,
+	transcriptionId: string
+): Promise<VersionSummary[]> {
+	return (await listCommittedTranscriptionCheckpoints(db, transcriptionId)).map(row => ({
+		id: row.id,
+		parentCheckpointId: row.parentCheckpointId,
+		contentHash: row.contentHash,
+		label: row.label,
+		note: row.commitMessage,
+		authorName: row.authorName,
+		createdAt: row.createdAt,
+	}));
+}
+
+export type SourceFreshness = 'up-to-date' | 'source-changed';
+
+export interface TranscriptionSourceState {
+	currentContentHash: string;
+	versions: VersionSummary[];
+}
+
+export function deriveSourceFreshness(
+	source: WitnessSource,
+	state: TranscriptionSourceState
+): SourceFreshness {
+	const capturedAt =
+		source.kind === 'current'
+			? source.capturedAt
+			: state.versions.find(version => version.id === source.versionId)?.createdAt;
+	if (capturedAt === undefined) return 'source-changed';
+	if (source.kind === 'current' && source.contentHash !== state.currentContentHash) {
+		return 'source-changed';
+	}
+	return state.versions.some(version => version.createdAt > capturedAt)
+		? 'source-changed'
+		: 'up-to-date';
+}
+
+export async function loadTranscriptionSourceState(
+	db: DbExecutor,
+	projectTranscriptionId: string
+): Promise<TranscriptionSourceState> {
+	const status = await getProjectTranscriptionCheckpointStatus(db, projectTranscriptionId);
+	return {
+		currentContentHash: status.workingContentHash,
+		versions: await listTranscriptionVersions(db, status.projectOwnedTranscriptionId),
+	};
+}
+
+export interface TranscriptionSourceOptions {
+	currentEditedAt: string;
+	versions: VersionSummary[];
+}
+
+export async function getTranscriptionSourceOptions(
+	db: DbExecutor,
+	transcriptionId: string
+): Promise<TranscriptionSourceOptions> {
+	const row = await db
+		.selectFrom('transcriptions')
+		.select('updated_at')
+		.where('id', '=', transcriptionId)
+		.executeTakeFirstOrThrow();
+	return {
+		currentEditedAt: row.updated_at,
+		versions: await listTranscriptionVersions(db, transcriptionId),
+	};
+}
+
+export async function getTranscriptionCurrentContentHashes(
+	db: DbExecutor,
+	transcriptionIds: string[]
+): Promise<Record<string, string>> {
+	if (transcriptionIds.length === 0) return {};
+	const rows = await db
+		.selectFrom('project_transcriptions')
+		.innerJoin('transcriptions', 'transcriptions.id', 'project_transcriptions.transcription_id')
+		.select([
+			'project_transcriptions.id as project_transcription_id',
+			'transcriptions.id as transcription_id',
+		])
+		.whereRef('project_transcriptions.project_id', '=', 'transcriptions.project_id')
+		.where('transcriptions.id', 'in', transcriptionIds)
+		.execute();
+	const hashes: Record<string, string> = {};
+	for (const row of rows) {
+		const status = await getProjectTranscriptionCheckpointStatus(
+			db,
+			requireId(row.project_transcription_id, 'project transcription')
+		);
+		hashes[requireId(row.transcription_id, 'transcription')] = status.workingContentHash;
+	}
+	return hashes;
+}
+
+export async function nextTranscriptionVersionLabel(
+	db: DbExecutor,
+	transcriptionId: string
+): Promise<string> {
+	const row = await db
+		.selectFrom('transcription_checkpoints')
+		.select(eb => eb.fn.countAll<number>().as('count'))
+		.where('transcription_id', '=', transcriptionId)
+		.executeTakeFirstOrThrow();
+	return `Version ${Number(row.count) + 1}`;
+}
+
+export async function nextCollationVersionLabel(
+	db: DbExecutor,
+	collationId: string
+): Promise<string> {
+	const row = await db
+		.selectFrom('collation_checkpoints')
+		.select(eb => eb.fn.countAll<number>().as('count'))
+		.where('collation_id', '=', collationId)
+		.executeTakeFirstOrThrow();
+	return `Version ${Number(row.count) + 1}`;
+}
+
+export async function rewriteVersionNote<TPayload extends CheckpointBasePayload>(
+	path: string,
+	format: string,
+	schemaVersion: number,
+	input: { label: string; note: string | null; updatedAt: string },
+	storeOptions: StoreOperationOptions
+): Promise<TPayload> {
+	const read = await readCanonicalDocument<TPayload>(
+		format,
+		await readTextFile(path, storeOptions)
+	);
+	if (!read.ok) throw new Error(`Invalid version file ${path}: ${read.quarantine.code}`);
+	const payload: TPayload = {
+		...read.payload,
+		label: read.payload.label || input.label,
+		commit_message: input.note,
+		metadata_updated_at: input.updatedAt,
+	};
+	await writeTextFileAtomic(
+		path,
+		serializeSealedDocument(await sealDocument(format, schemaVersion, payload)),
+		storeOptions
+	);
+	return payload;
 }
 
 export async function getLatestProjectCommitTimestamp(
@@ -762,9 +964,11 @@ export async function loadCommittedTranscriptionCheckpointPayload(
 		parentCheckpointId: checkpointPayload.parent_checkpoint_id,
 		contentHash: row.content_hash,
 		isCommitted: row.is_committed === 1,
+		label: checkpointPayload.label,
 		commitMessage: checkpointPayload.commit_message,
 		authorName: checkpointPayload.author_name,
 		createdAt: checkpointPayload.created_at,
+		metadataUpdatedAt: checkpointPayload.metadata_updated_at,
 		payload: parseCheckpointPayload(
 			checkpointPayload.payload,
 			requireId(row.id, 'transcription checkpoint')
@@ -1051,6 +1255,7 @@ function buildTranscriptionCheckpointRow(
 		format: snapshot.format,
 		content_hash: contentHash,
 		is_committed: 1,
+		label: input.label ?? '',
 		commit_message: input.commitMessage ?? null,
 		author_name: input.authorName ?? '',
 		created_at: input.createdAt ?? new Date().toISOString(),
@@ -1069,6 +1274,7 @@ function buildCollationCheckpointRow(
 		parent_checkpoint_id: parentCheckpointId,
 		content_hash: contentHash,
 		is_committed: 1,
+		label: input.label ?? '',
 		commit_message: input.commitMessage ?? null,
 		author_name: input.authorName ?? '',
 		created_at: input.createdAt ?? new Date().toISOString(),
@@ -1089,6 +1295,7 @@ function mapTranscriptionCheckpoint(
 		payload,
 		contentHash: row.content_hash,
 		isCommitted: row.is_committed === 1,
+		label: row.label,
 		commitMessage: row.commit_message,
 		authorName: row.author_name,
 		createdAt: row.created_at,
@@ -1106,6 +1313,7 @@ function mapCollationCheckpoint(
 		payload,
 		contentHash: row.content_hash,
 		isCommitted: row.is_committed === 1,
+		label: row.label,
 		commitMessage: row.commit_message,
 		authorName: row.author_name,
 		createdAt: row.created_at,

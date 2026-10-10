@@ -2,7 +2,8 @@ import type { DocumentUpgrader, FormatRegistration } from '../migrate-on-read';
 import type { JsonObject } from '../envelope';
 import { readDraftMetadata, type CanonicalDraftMetadata } from './common';
 import { upgradeAlphaWorkingCollation } from './alpha-collation';
-import { readCollationPayload, type CollationContent } from './collation';
+import { readCollationContent, type CollationContent } from './collation';
+import { readString } from './validation';
 
 export const WORKING_COLLATION_FORMAT = 'apatosaurus.working.collation';
 export const WORKING_COLLATION_CURRENT_VERSION = 4;
@@ -19,7 +20,9 @@ export type WorkingCollationPayload = CollationContent &
 function validateWorkingCollationPayload(payload: JsonObject): WorkingCollationPayload {
 	const record = payload as Record<string, unknown>;
 	return {
-		...readCollationPayload(record, false),
+		...readCollationContent(record),
+		created_at: readString(record, 'created_at'),
+		updated_at: readString(record, 'updated_at'),
 		draft: readDraftMetadata(record, 'draft'),
 	};
 }

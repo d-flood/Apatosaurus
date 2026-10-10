@@ -51,15 +51,15 @@ export {
 export {
 	PROJECT_TRANSCRIPTION_CURRENT_VERSION,
 	PROJECT_TRANSCRIPTION_FORMAT,
-	assertProjectTranscriptionRevisionHash,
+	mergeWorkingTranscription,
 	projectTranscriptionPayloadToSnapshot,
 	type ProjectTranscriptionPayload,
 } from './project-transcription';
 export {
 	COLLATION_CURRENT_VERSION,
 	COLLATION_FORMAT,
-	assertCollationRevisionHash,
 	collationPayloadToContent,
+	mergeWorkingCollation,
 	type CollationContent,
 	type CollationPayload,
 } from './collation';

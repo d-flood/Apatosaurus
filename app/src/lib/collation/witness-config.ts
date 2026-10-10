@@ -1,5 +1,10 @@
 import type { PreparedWitness } from './collation-runner';
-import type { WitnessConfig, WitnessSourceToken, WitnessTreatment } from './collation-types';
+import type {
+	WitnessConfig,
+	WitnessSource,
+	WitnessSourceToken,
+	WitnessTreatment,
+} from './collation-types';
 
 export function cloneWitnessSourceTokens(
 	tokens: WitnessSourceToken[] | undefined
@@ -84,7 +89,7 @@ export function buildWitnessConfigFromPrepared(
 			transcriptionId: prepared.transcriptionUid,
 			kind: prepared.kind,
 			handId: prepared.handId,
-			sourceVersion: prepared.sourceVersion,
+			source: prepared.source,
 			content: prepared.content,
 			tokens: cloneWitnessSourceTokens(prepared.tokens),
 			fullContent: prepared.fullContent,
@@ -102,6 +107,16 @@ export function buildWitnessConfigFromPrepared(
 	);
 }
 
+export function isSameWitnessSource(left?: WitnessSource, right?: WitnessSource): boolean {
+	if (left?.kind === 'version' && right?.kind === 'version') {
+		return left.versionId === right.versionId;
+	}
+	if (left?.kind === 'current' && right?.kind === 'current') {
+		return left.contentHash === right.contentHash;
+	}
+	return left === right;
+}
+
 export function didPreparedWitnessChangeSource(
 	witness: WitnessConfig,
 	prepared: PreparedWitness
@@ -109,7 +124,7 @@ export function didPreparedWitnessChangeSource(
 	if ((witness.kind ?? 'firsthand') !== prepared.kind) return true;
 	if ((witness.handId ?? 'firsthand') !== prepared.handId) return true;
 	if (witness.siglum !== prepared.siglum) return true;
-	if ((witness.sourceVersion ?? '') !== prepared.sourceVersion) return true;
+	if (!isSameWitnessSource(witness.source, prepared.source)) return true;
 	if ((witness.fullContent ?? witness.content) !== (prepared.fullContent ?? prepared.content))
 		return true;
 	if ((witness.fragmentaryContent ?? '') !== (prepared.fragmentaryContent ?? '')) return true;

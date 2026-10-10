@@ -1,4 +1,4 @@
-import { getTranscriptionsByIds } from '$lib/db/client';
+import { getTranscriptionCurrentContentHashes, getTranscriptionsByIds } from '$lib/db/client';
 import {
 	coerceTranscriptionDocument,
 	type StoredTranscriptionDocument,
@@ -14,6 +14,7 @@ import type { CollationSegment } from './collation-document';
 import type {
 	GapMetadata,
 	WitnessKind,
+	WitnessSource,
 	WitnessSourceToken,
 	WitnessTextSegment,
 } from './collation-types';
@@ -37,7 +38,7 @@ export interface PreparedWitness {
 	fragmentaryContent?: string;
 	fragmentaryTokens?: WitnessSourceToken[];
 	transcriptionUid: string;
-	sourceVersion: string;
+	source: WitnessSource;
 }
 
 interface SegmentGatherError {
@@ -647,7 +648,7 @@ export interface PrepareWitnessesFromDocumentInput {
 	verseIdentifier: string;
 	transcriptionId: string;
 	siglum: string;
-	sourceVersion: string;
+	source: WitnessSource;
 	options?: WitnessExtractionOptions;
 	seenWitnessIds?: Map<string, number>;
 }
@@ -655,14 +656,7 @@ export interface PrepareWitnessesFromDocumentInput {
 export function prepareWitnessesFromDocument(
 	input: PrepareWitnessesFromDocumentInput
 ): PreparedWitness[] {
-	const {
-		document,
-		verseIdentifier,
-		transcriptionId,
-		siglum,
-		sourceVersion,
-		options = {},
-	} = input;
+	const { document, verseIdentifier, transcriptionId, siglum, source, options = {} } = input;
 	const seenWitnessIds = input.seenWitnessIds ?? new Map<string, number>();
 	const witnesses: PreparedWitness[] = [];
 	const baseHand = inferBaseHand(document);
@@ -686,7 +680,7 @@ export function prepareWitnessesFromDocument(
 			fullContent: firsthandContent,
 			fullTokens: cloneSourceTokens(firsthandTokens),
 			transcriptionUid: transcriptionId,
-			sourceVersion,
+			source,
 		});
 	}
 
@@ -722,7 +716,7 @@ export function prepareWitnessesFromDocument(
 			fragmentaryContent,
 			fragmentaryTokens: cloneSourceTokens(fragmentaryTokens),
 			transcriptionUid: transcriptionId,
-			sourceVersion,
+			source,
 		});
 	}
 
@@ -746,8 +740,12 @@ export async function gatherWitnessesForVerse(
 	}
 	if (orderedTranscriptionIds.length === 0) return [];
 
-	const transcriptions: TranscriptionRecord[] =
-		await getTranscriptionsByIds(orderedTranscriptionIds);
+	const [transcriptions, currentContentHashes]: [TranscriptionRecord[], Record<string, string>] =
+		await Promise.all([
+			getTranscriptionsByIds(orderedTranscriptionIds),
+			getTranscriptionCurrentContentHashes(orderedTranscriptionIds),
+		]);
+	const capturedAt = new Date().toISOString();
 	const transcriptionById = new Map(
 		transcriptions.map(transcription => [transcription.id, transcription] as const)
 	);
@@ -768,7 +766,12 @@ export async function gatherWitnessesForVerse(
 			verseIdentifier,
 			transcriptionId: transcription.id || transcriptionId,
 			siglum,
-			sourceVersion: String(transcription.current_revision_id || ''),
+			source: {
+				kind: 'current',
+				transcriptionId: transcription.id || transcriptionId,
+				capturedAt,
+				contentHash: currentContentHashes[transcription.id || transcriptionId] ?? '',
+			},
 			options,
 			seenWitnessIds,
 		});

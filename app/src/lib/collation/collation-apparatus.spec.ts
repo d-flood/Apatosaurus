@@ -41,7 +41,6 @@ function makeWitness(
 		witnessId,
 		siglum: witnessId,
 		transcriptionId: `${witnessId}-tx`,
-		sourceVersion: 'v1',
 		content: tokens.map(token => token.original).join(' '),
 		tokens,
 		treatment: 'inherit',

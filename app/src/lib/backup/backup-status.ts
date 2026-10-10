@@ -3,6 +3,7 @@ import type { Selectable } from 'kysely';
 import type { SyncFileFingerprints } from '$lib/db/types.generated';
 import { projectRelativePaths } from '$lib/storage/layout';
 import type { DbExecutor } from '$lib/db/worker-kysely';
+import type { PlacedProject } from '$lib/storage/project-locations';
 
 export type SyncEntityType = 'project-transcription' | 'collation';
 
@@ -11,6 +12,15 @@ export interface SyncProjectContext {
 	projectId: string;
 	cloudFolderId: string;
 	cloudFolderPath?: string;
+}
+
+export function placementSyncContext(placement: PlacedProject): SyncProjectContext {
+	return {
+		projectId: placement.projectId,
+		connectionId: placement.locationId,
+		cloudFolderId: placement.folderName,
+		cloudFolderPath: placement.folderName,
+	};
 }
 
 export interface SyncEntityReference {
