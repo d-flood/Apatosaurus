@@ -50,9 +50,11 @@ vi.mock('$lib/storage/project-locations', () => ({
 	isPlacedProject: vi.fn(() => true),
 	listProjectLocations: vi.fn(async () => []),
 	listProjectPlacements: mocks.listProjectPlacements,
+	listStorageAccounts: vi.fn(async () => []),
 }));
 
 vi.mock('$lib/backup/location-connections', () => ({
+	completeAccountSignIn: vi.fn(),
 	dismissPlacementNotice: mocks.dismissPlacementNotice,
 }));
 

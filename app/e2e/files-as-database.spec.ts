@@ -1,6 +1,7 @@
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
+import { WELCOME_SKIPPED_STORAGE_KEY } from '../src/lib/shell/welcome-gate';
 import { placeCaretAtLineEnd } from './editor-helpers';
 import { SharedFolderServer } from './shared-folder-server';
 
@@ -524,6 +525,7 @@ async function wipeSiteData(context: BrowserContext, page: Page): Promise<void> 
 	const origin = new URL(page.url()).origin;
 	const session = await context.newCDPSession(page);
 	await session.send('Storage.clearDataForOrigin', { origin, storageTypes: 'all' });
+	await page.evaluate(key => localStorage.setItem(key, 'true'), WELCOME_SKIPPED_STORAGE_KEY);
 }
 
 async function importProjectArchive(page: Page, archivePath: string): Promise<void> {

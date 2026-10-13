@@ -1,4 +1,7 @@
 import { defineConfig } from '@playwright/test';
+import { WELCOME_SKIPPED_STORAGE_KEY } from './src/lib/shell/welcome-gate';
+
+const baseURL = 'http://localhost:4173';
 
 export default defineConfig({
 	webServer: {
@@ -12,6 +15,15 @@ export default defineConfig({
 	workers: 1,
 	retries: process.env.CI ? 1 : 0,
 	use: {
-		baseURL: 'http://localhost:4173',
+		baseURL,
+		storageState: {
+			cookies: [],
+			origins: [
+				{
+					origin: baseURL,
+					localStorage: [{ name: WELCOME_SKIPPED_STORAGE_KEY, value: 'true' }],
+				},
+			],
+		},
 	},
 });

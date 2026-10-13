@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { page } from '$app/state';
 	import favicon from '$lib/assets/favicon.ico';
 	import { checkStoragePersistence } from '$lib/shell/capabilities';
 	import { ensureLocalDbRuntime } from '$lib/db/runtime';
@@ -35,7 +36,9 @@
 	<link rel="icon" href={favicon} />
 </svelte:head>
 
-<Navbar />
+{#if page.url.pathname !== '/welcome'}
+	<Navbar />
+{/if}
 
 {#if signInCompletion.error}
 	<div class="mx-auto max-w-5xl px-4 pt-4">

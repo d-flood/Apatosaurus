@@ -75,7 +75,10 @@ vi.mock('$lib/backup/project-backup-overview', () => ({
 	loadProjectBackupOverviews: vi.fn(async () => ({})),
 }));
 
-vi.mock('$lib/backup/location-connections', () => ({ placeProjectInLocation: vi.fn() }));
+vi.mock('$lib/backup/location-connections', () => ({
+	completeAccountSignIn: vi.fn(),
+	placeProjectInLocation: vi.fn(),
+}));
 
 vi.mock('$lib/backup/sync-service.svelte', () => ({
 	syncService: { projectStatus: mocks.projectStatus },

@@ -40,6 +40,7 @@
 		type DashboardAttentionItem,
 		type DashboardDocument,
 	} from '$lib/shell/components/Dashboard.svelte';
+	import WelcomeGate from '$lib/shell/components/WelcomeGate.svelte';
 	import { onMount } from 'svelte';
 
 	type RecentSummary =
@@ -334,12 +335,14 @@
 	});
 </script>
 
-<Dashboard
-	{projects}
-	{lastOpenedProject}
-	{recentDocuments}
-	attentionItems={displayedAttentionItems}
-	{isLoading}
-	{error}
-	appVersion={version}
-/>
+<WelcomeGate>
+	<Dashboard
+		{projects}
+		{lastOpenedProject}
+		{recentDocuments}
+		attentionItems={displayedAttentionItems}
+		{isLoading}
+		{error}
+		appVersion={version}
+	/>
+</WelcomeGate>
