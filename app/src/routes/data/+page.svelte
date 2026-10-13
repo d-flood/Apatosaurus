@@ -34,13 +34,14 @@
 		addDeviceLocation,
 		addTeamLocation,
 		browseTeamFolders,
-		completeAccountSignIn,
 		inspectGoogleTeamFolder,
 		reconnectDeviceLocation,
 		signOutAccount,
 		type GoogleTeamFolder,
 	} from '$lib/backup/location-connections';
 	import { beginSignIn, issueToken, providerLabel } from '$lib/backup/storage-account-auth';
+	import { signInCompletion } from '$lib/backup/sign-in-completion.svelte';
+	import StorageSignInButtons from '$lib/backup/components/StorageSignInButtons.svelte';
 	import {
 		hasDriveScope,
 		pickGoogleFolder,
@@ -88,8 +89,7 @@
 	let projectBackupOverviews = $state.raw<Record<string, ProjectBackupOverview>>({});
 	let locations = $state.raw<ProjectLocation[]>([]);
 	let accounts = $state.raw<StorageAccount[]>([]);
-	let accountError = $state<string | null>(null);
-	let isCompletingSignIn = $state(false);
+	let pendingDriveAccess: string | null = null;
 	let signOutDialog = $state<HTMLDialogElement>();
 	let signingOutAccount = $state<StorageAccount | null>(null);
 	let removeOnSignOut = $state(false);
@@ -338,37 +338,20 @@
 		);
 	}
 
-	async function completeSignInFromRedirect() {
-		const params = new URLSearchParams(window.location.hash.slice(1));
-		const accountId = params.get('account');
-		const provider = params.get('provider');
-		const authError = params.get('auth-error');
-		if (!accountId && !authError) return;
-		const pendingDriveAccess = takePendingDriveAccess();
-		history.replaceState(history.state, '', window.location.pathname + window.location.search);
-		if (authError) {
-			accountError =
-				authError === 'access_denied'
-					? 'Sign-in was cancelled.'
-					: 'Sign-in did not complete. Try again.';
-			return;
+	$effect(() => {
+		const completed = signInCompletion.lastCompleted;
+		if (completed && completed.accountId === pendingDriveAccess) {
+			pendingDriveAccess = null;
+			void continueDriveAccess(completed.accountId);
 		}
-		if ((provider !== 'dropbox' && provider !== 'google') || !accountId) return;
-		isCompletingSignIn = true;
-		accountError = null;
-		try {
-			await ensureLocalDbRuntime();
-			await completeAccountSignIn(accountId, provider);
-			await loadLocations();
-			const account = teamAccounts.find(candidate => candidate.id === pendingDriveAccess);
-			if (account?.id === accountId && hasDriveScope(account)) {
-				openTeamLocation(account.id);
-				void chooseGoogleFolder();
-			}
-		} catch (cause) {
-			accountError = cause instanceof Error ? cause.message : 'Sign-in did not complete.';
-		} finally {
-			isCompletingSignIn = false;
+	});
+
+	async function continueDriveAccess(accountId: string) {
+		await loadLocations();
+		const account = teamAccounts.find(candidate => candidate.id === accountId);
+		if (account && hasDriveScope(account)) {
+			openTeamLocation(account.id);
+			void chooseGoogleFolder();
 		}
 	}
 
@@ -670,8 +653,8 @@
 
 	onMount(() => {
 		installSupported = getInstallCapabilityReport().installSupported;
+		pendingDriveAccess = takePendingDriveAccess();
 		void bootstrap();
-		void completeSignInFromRedirect();
 		void loadAuthorName();
 		void loadDeviceName();
 		void refreshOfflineCacheSize();
@@ -894,12 +877,7 @@
 				<p class="mt-1 text-sm text-base-content/55">
 					Sync projects to an Apatosaurus folder in your cloud storage.
 				</p>
-				{#if accountError}
-					<div class="alert alert-error mt-3 py-2 text-sm" role="alert">
-						{accountError}
-					</div>
-				{/if}
-				{#if isCompletingSignIn}
+				{#if signInCompletion.completing}
 					<div class="mt-4 flex items-center gap-2 text-sm text-base-content/55">
 						<span class="loading loading-spinner loading-sm"></span>Finishing sign-in...
 					</div>
@@ -949,23 +927,8 @@
 						{/each}
 					</ul>
 				{/if}
-				<div class="mt-4 grid gap-2 sm:grid-cols-2">
-					<button
-						type="button"
-						class="btn btn-outline btn-sm"
-						disabled={isCompletingSignIn}
-						onclick={() => beginSignIn('google')}
-					>
-						Sign in with Google
-					</button>
-					<button
-						type="button"
-						class="btn btn-outline btn-sm"
-						disabled={isCompletingSignIn}
-						onclick={() => beginSignIn('dropbox')}
-					>
-						Sign in with Dropbox
-					</button>
+				<div class="mt-4">
+					<StorageSignInButtons />
 				</div>
 				<form class="mt-5 space-y-2" onsubmit={saveAuthorName}>
 					<label class="block text-sm font-medium" for="author-name"

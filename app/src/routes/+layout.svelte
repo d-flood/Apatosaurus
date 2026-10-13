@@ -2,6 +2,7 @@
 	import favicon from '$lib/assets/favicon.ico';
 	import { checkStoragePersistence } from '$lib/shell/capabilities';
 	import { ensureLocalDbRuntime } from '$lib/db/runtime';
+	import { signInCompletion } from '$lib/backup/sign-in-completion.svelte';
 	import { syncService } from '$lib/backup/sync-service.svelte';
 	import { registerServiceWorker, scheduleCacheWarm } from '$lib/shell/sw-registration';
 	import Navbar from '$lib/shell/components/Navbar.svelte';
@@ -13,6 +14,7 @@
 
 	onMount(() => {
 		void initializeApp();
+		void signInCompletion.completeFromRedirect();
 		void registerServiceWorker().then(registration => {
 			if (registration) scheduleCacheWarm(registration, 'routes');
 		});
@@ -34,6 +36,19 @@
 </svelte:head>
 
 <Navbar />
+
+{#if signInCompletion.error}
+	<div class="mx-auto max-w-5xl px-4 pt-4">
+		<div class="alert alert-error text-sm" role="alert">
+			<span>{signInCompletion.error}</span>
+			<button
+				type="button"
+				class="btn btn-ghost btn-xs"
+				onclick={() => signInCompletion.dismissError()}>Dismiss</button
+			>
+		</div>
+	</div>
+{/if}
 
 <div class="bg-transparent rounded-lg">
 	{@render children?.()}

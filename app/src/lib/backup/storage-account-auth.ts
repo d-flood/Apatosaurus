@@ -26,13 +26,14 @@ export function providerLabel(provider: Provider): string {
 
 export function beginSignIn(
 	provider: Provider,
-	options: { scopes?: string; loginHint?: string } = {}
+	options: { scopes?: string; loginHint?: string; returnTo?: string } = {}
 ): void {
 	const params = new URLSearchParams({
 		...(options.scopes ? { scopes: options.scopes } : {}),
 		...(options.loginHint ? { login_hint: options.loginHint } : {}),
+		return_to: options.returnTo ?? window.location.pathname + window.location.search,
 	});
-	window.location.assign(`/auth/${provider}/start${params.size ? `?${params}` : ''}`);
+	window.location.assign(`/auth/${provider}/start?${params}`);
 }
 
 export function accountTokens(accountId: string, provider: Provider): AccessTokenSource {

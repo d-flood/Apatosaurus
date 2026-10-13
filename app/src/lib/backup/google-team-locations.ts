@@ -30,7 +30,7 @@ export function requestDriveAccess(account: StorageAccount): void {
 	} catch {
 		// Without the reminder the scholar reopens Add team location after the redirect.
 	}
-	beginSignIn('google', { scopes: 'drive', loginHint: account.email });
+	beginSignIn('google', { scopes: 'drive', loginHint: account.email, returnTo: '/data' });
 }
 
 export function takePendingDriveAccess(): string | null {

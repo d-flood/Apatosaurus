@@ -137,6 +137,78 @@ describe('auth worker', () => {
 		expect(fetchSpy).not.toHaveBeenCalled();
 	});
 
+	it('returns to the starting page after success and after an error', async () => {
+		stubDropbox(async () =>
+			Response.json({
+				access_token: 'access',
+				refresh_token: REFRESH_TOKEN,
+				account_id: 'dbid:AAH4f99',
+			})
+		);
+		const started = await call(
+			new Request(`${APP}/auth/dropbox/start?return_to=${encodeURIComponent('/projects?q=1')}`)
+		);
+		const state = new URL(started.headers.get('Location') ?? '').searchParams.get('state');
+		const pending = cookiePairs(started).join('; ');
+
+		const signedIn = await call(
+			new Request(`${APP}/auth/dropbox/callback?code=code&state=${state}`, {
+				headers: { Cookie: pending },
+			})
+		);
+		const cancelled = await call(
+			new Request(`${APP}/auth/dropbox/callback?error=access_denied&state=${state}`, {
+				headers: { Cookie: pending },
+			})
+		);
+
+		expect(signedIn.headers.get('Location')).toBe(
+			`${APP}/projects?q=1#account=${encodeURIComponent(ACCOUNT_ID)}&provider=dropbox`
+		);
+		expect(cancelled.headers.get('Location')).toBe(
+			`${APP}/projects?q=1#auth-error=access_denied`
+		);
+		expect(signedIn.headers.get('Location')).not.toContain(REFRESH_TOKEN);
+		for (const header of signedIn.headers.getSetCookie()) {
+			expect(header).not.toContain(REFRESH_TOKEN);
+		}
+	});
+
+	it('falls back to Data & Storage for a missing or off-site return path', async () => {
+		stubDropbox(async () =>
+			Response.json({
+				access_token: 'access',
+				refresh_token: REFRESH_TOKEN,
+				account_id: 'dbid:AAH4f99',
+			})
+		);
+		for (const query of [
+			'',
+			`?return_to=${encodeURIComponent('//evil.example/projects')}`,
+			`?return_to=${encodeURIComponent('https://evil.example/projects')}`,
+			`?return_to=${encodeURIComponent('/\\evil.example/projects')}`,
+			'?return_to=projects',
+		]) {
+			const started = await call(new Request(`${APP}/auth/dropbox/start${query}`));
+			const state = new URL(started.headers.get('Location') ?? '').searchParams.get('state');
+
+			const callback = await call(
+				new Request(`${APP}/auth/dropbox/callback?code=code&state=${state}`, {
+					headers: { Cookie: cookiePairs(started).join('; ') },
+				})
+			);
+
+			expect(callback.headers.get('Location')).toBe(
+				`${APP}/data#account=${encodeURIComponent(ACCOUNT_ID)}&provider=dropbox`
+			);
+		}
+
+		const withoutPending = await call(
+			new Request(`${APP}/auth/dropbox/callback?error=access_denied&state=any`)
+		);
+		expect(withoutPending.headers.get('Location')).toBe(`${APP}/data#auth-error=access_denied`);
+	});
+
 	it('signs out by clearing the cookie and revoking at the provider', async () => {
 		const accountCookie = await signIn();
 		const fetchSpy = stubDropbox(async () => Response.json({ access_token: 'access-3' }));

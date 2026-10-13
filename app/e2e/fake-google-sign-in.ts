@@ -19,7 +19,15 @@ export class FakeGoogleSignIn {
 	async install(target: Page | BrowserContext): Promise<void> {
 		await target.route(
 			url => url.pathname === '/auth/google/start',
-			route => route.fulfill({ status: 302, headers: { Location: this.startRedirect() } })
+			route =>
+				route.fulfill({
+					status: 302,
+					headers: {
+						Location: this.startRedirect(
+							new URL(route.request().url()).searchParams.get('return_to')
+						),
+					},
+				})
 		);
 		await target.route(
 			url => url.pathname === '/auth/google/token',
@@ -48,12 +56,16 @@ export class FakeGoogleSignIn {
 		this.cancelNext = true;
 	}
 
-	private startRedirect(): string {
+	private startRedirect(returnTo: string | null): string {
 		const params: Record<string, string> = this.cancelNext
 			? { 'auth-error': 'access_denied' }
 			: { account: ACCOUNT_ID, provider: 'google' };
 		this.cancelNext = false;
-		return `/data#${new URLSearchParams(params)}`;
+		const path =
+			returnTo?.startsWith('/') && !returnTo.startsWith('//') && !returnTo.includes('\\')
+				? returnTo
+				: '/data';
+		return `${path}#${new URLSearchParams(params)}`;
 	}
 
 	private async forwardToDrive(route: Route): Promise<void> {

@@ -21,6 +21,7 @@ interface PendingSignIn {
 	provider: string;
 	state: string;
 	verifier: string;
+	returnTo: string;
 }
 
 interface TokenResponse {
@@ -92,6 +93,7 @@ const providers: Record<string, OAuthProvider> = {
 const PENDING_COOKIE = '__Host-sa-pending';
 const ACCOUNT_COOKIE_MAX_AGE = 400 * 24 * 60 * 60;
 const PENDING_COOKIE_MAX_AGE = 10 * 60;
+const DEFAULT_RETURN_TO = '/data';
 
 export default {
 	async fetch(request: Request, env: Env): Promise<Response> {
@@ -146,7 +148,12 @@ async function start(
 	})) {
 		authorize.searchParams.set(key, value);
 	}
-	const pending: PendingSignIn = { provider: providerName, state, verifier };
+	const pending: PendingSignIn = {
+		provider: providerName,
+		state,
+		verifier,
+		returnTo: returnPath(url.searchParams.get('return_to')),
+	};
 	return redirect(authorize.toString(), [
 		cookie(PENDING_COOKIE, await seal(pending, env.COOKIE_SECRET), PENDING_COOKIE_MAX_AGE),
 	]);
@@ -164,6 +171,7 @@ async function callback(
 	const pending = pendingValue
 		? await unseal<PendingSignIn>(pendingValue, env.COOKIE_SECRET)
 		: null;
+	const returnTo = pending?.returnTo ?? DEFAULT_RETURN_TO;
 	const code = url.searchParams.get('code');
 	if (
 		!pending ||
@@ -172,7 +180,7 @@ async function callback(
 		!code
 	) {
 		return redirect(
-			appRedirect(env, { 'auth-error': url.searchParams.get('error') ?? 'state' }),
+			appRedirect(env, returnTo, { 'auth-error': url.searchParams.get('error') ?? 'state' }),
 			[clearPending]
 		);
 	}
@@ -184,7 +192,7 @@ async function callback(
 	});
 	const accountId = exchanged.ok ? provider.accountId(exchanged.body) : null;
 	if (!exchanged.ok || !accountId || !exchanged.body.refresh_token) {
-		return redirect(appRedirect(env, { 'auth-error': 'exchange' }), [clearPending]);
+		return redirect(appRedirect(env, returnTo, { 'auth-error': 'exchange' }), [clearPending]);
 	}
 	const account: AccountCookie = {
 		provider: providerName,
@@ -193,7 +201,7 @@ async function callback(
 		scopes: splitScopes(exchanged.body.scope),
 		issuedAt: new Date().toISOString(),
 	};
-	return redirect(appRedirect(env, { account: accountId, provider: providerName }), [
+	return redirect(appRedirect(env, returnTo, { account: accountId, provider: providerName }), [
 		clearPending,
 		cookie(
 			accountCookieName(accountId),
@@ -309,8 +317,14 @@ function redirectUri(env: Env, providerName: string): string {
 	return `${env.APP_ORIGIN}/auth/${providerName}/callback`;
 }
 
-function appRedirect(env: Env, params: Record<string, string>): string {
-	return `${env.APP_ORIGIN}/data#${new URLSearchParams(params)}`;
+function returnPath(value: string | null): string {
+	return value?.startsWith('/') && !value.startsWith('//') && !value.includes('\\')
+		? value
+		: DEFAULT_RETURN_TO;
+}
+
+function appRedirect(env: Env, returnTo: string, params: Record<string, string>): string {
+	return `${env.APP_ORIGIN}${returnTo}#${new URLSearchParams(params)}`;
 }
 
 function redirect(location: string, cookies: string[]): Response {

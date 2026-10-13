@@ -2,16 +2,16 @@
 
 Stateless Cloudflare Worker that exchanges and refreshes storage-account OAuth tokens (ADR 0002). It has no storage bindings, and file contents never pass through it. The refresh token lives only in a sealed, HttpOnly `__Host-sa-<account>` cookie.
 
-| Route                                    | Result                                                                                                   |
-| ---------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `GET /auth/:provider/start?scopes=…`     | 302 to the provider with state and PKCE                                                                  |
-| `GET /auth/:provider/callback`           | Exchanges the code, sets the account cookie, 302 to `<APP_ORIGIN>/data#account=<id>&provider=<provider>` |
-| `POST /auth/:provider/token {accountId}` | `200 {accessToken, expiresAt, scopes}` or `401 {error: 'reauthorization-required'}`                      |
-| `POST /auth/signout {accountId}`         | Clears the cookie, best-effort provider revoke, 204                                                      |
+| Route                                    | Result                                                                                                         |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `GET /auth/:provider/start?scopes=…`     | 302 to the provider with state and PKCE                                                                        |
+| `GET /auth/:provider/callback`           | Exchanges the code, sets the account cookie, 302 to `<APP_ORIGIN><return_to>#account=<id>&provider=<provider>` |
+| `POST /auth/:provider/token {accountId}` | `200 {accessToken, expiresAt, scopes}` or `401 {error: 'reauthorization-required'}`                            |
+| `POST /auth/signout {accountId}`         | Clears the cookie, best-effort provider revoke, 204                                                            |
 
 `:provider` is `dropbox` or `google`. Google accounts are `google:<sub>`, taken from the ID token.
 
-`start` takes optional `scopes` (named extras: `drive` for Google, nothing for Dropbox; others are a 400) and `login_hint`. `scopes=drive` adds `https://www.googleapis.com/auth/drive` to the sign-in scopes with `include_granted_scopes=true`, and the callback's cookie replaces the account's old one. Only Add team location requests it.
+`start` takes optional `scopes` (named extras: `drive` for Google, nothing for Dropbox; others are a 400), `login_hint` and `return_to`. `return_to` is a same-origin path, sealed into the pending cookie; a missing or off-site value, or a callback without a pending cookie, returns to `/data`, with errors as `#auth-error=<code>`. `scopes=drive` adds `https://www.googleapis.com/auth/drive` to the sign-in scopes with `include_granted_scopes=true`, and the callback's cookie replaces the account's old one. Only Add team location requests it.
 
 ## Configuration
 

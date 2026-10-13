@@ -210,6 +210,7 @@ describe('/data locations', () => {
 		expect(mocks.beginSignIn).toHaveBeenCalledWith('google', {
 			scopes: 'drive',
 			loginHint: 'ada@example.org',
+			returnTo: '/data',
 		});
 		cleanup();
 
