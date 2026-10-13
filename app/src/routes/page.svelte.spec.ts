@@ -7,7 +7,6 @@ const mocks = vi.hoisted(() => ({
 	listTranscriptionSummaries: vi.fn(),
 	listCollationsWithProjectNames: vi.fn(),
 	listConflictCopies: vi.fn(async () => [] as unknown[]),
-	listProjectIdsWithContent: vi.fn(async () => [] as string[]),
 	listProjectPlacements: vi.fn(async () => [] as unknown[]),
 	dismissPlacementNotice: vi.fn(),
 	shouldShowDurabilityWarning: vi.fn(() => false),
@@ -27,7 +26,6 @@ vi.mock('$lib/shell/capabilities', () => ({
 		canRequest: false,
 	})),
 	getStorageEstimate: mocks.getStorageEstimate,
-	isLocalFolderProviderSupported: vi.fn(() => true),
 	shouldShowDurabilityWarning: mocks.shouldShowDurabilityWarning,
 }));
 
@@ -36,7 +34,6 @@ vi.mock('$lib/db/client', () => ({
 	getProjectTranscriptionStatusForOwnedTranscription: vi.fn(),
 	listCollationsWithProjectNames: mocks.listCollationsWithProjectNames,
 	listConflictCopies: mocks.listConflictCopies,
-	listProjectIdsWithContent: mocks.listProjectIdsWithContent,
 	listProjects: mocks.listProjects,
 	listTranscriptionSummaries: mocks.listTranscriptionSummaries,
 	subscribeLocalDbInvalidations: vi.fn(() => vi.fn()),

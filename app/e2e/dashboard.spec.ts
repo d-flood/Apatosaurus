@@ -23,20 +23,19 @@ test('Continue resumes a collation at its current phase and About preserves the 
 	await expect(page.getByRole('heading', { name: 'Local and Offline First' })).toBeVisible();
 });
 
-test('a fresh user creates and edits a project without signing in, then is nudged to choose a location', async ({
+test('a fresh user creates and edits a project without signing in, and a dismissable banner asks them to sign in', async ({
 	page,
+	context,
 }) => {
-	const signInPrompt = page.getByText(/sign in|log in|signed out/i);
+	const banner = page.getByRole('region', { name: 'Storage', exact: true });
 	await page.goto('/');
 	await expect(page.getByRole('link', { name: 'Create your first project' })).toBeVisible();
-	await expect(signInPrompt).toHaveCount(0);
+	await expect(banner).toHaveCount(0);
 
 	const projectId = await createProject(page, 'Fresh Romans');
-	await expect(signInPrompt).toHaveCount(0);
-	await page.goto('/');
-	await expect(
-		page.getByRole('heading', { name: 'Choose where this project lives' })
-	).toHaveCount(0);
+	await expect(banner).toContainText('Not backed up');
+	await expect(banner.getByRole('button', { name: 'Sign in with Google Drive' })).toBeVisible();
+	await expect(banner.getByRole('button', { name: 'Sign in with Dropbox' })).toBeVisible();
 
 	await importRomansTranscription(page, projectId);
 	await page.goto(`/projects/${projectId}/transcriptions`);
@@ -49,16 +48,24 @@ test('a fresh user creates and edits a project without signing in, then is nudge
 	await placeCaretAtLineEnd(line);
 	await page.keyboard.type(' fresh-edit');
 	await expect(page.getByText('Unsaved local edits')).toBeVisible();
-	await expect(signInPrompt).toHaveCount(0);
+	await expect(banner).toBeVisible();
 
 	await page.goto('/');
+	await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
 	await expect(
 		page.getByRole('heading', { name: 'Choose where this project lives' })
-	).toBeVisible();
-	await expect(
-		page.getByRole('link', { name: 'Choose a location for Fresh Romans' })
-	).toHaveAttribute('href', `/projects/${projectId}/location`);
-	await expect(signInPrompt).toHaveCount(0);
+	).toHaveCount(0);
+	await banner.getByRole('button', { name: 'Dismiss' }).click();
+	await expect(banner).toHaveCount(0);
+	await page.goto('/projects');
+	await expect(page.getByRole('heading', { name: 'Projects', level: 1 })).toBeVisible();
+	await expect(banner).toHaveCount(0);
+
+	const relaunched = await context.newPage();
+	await relaunched.goto('/');
+	await expect(relaunched.getByRole('region', { name: 'Storage', exact: true })).toContainText(
+		'Not backed up'
+	);
 });
 
 test('Start something creates in its named project', async ({ page }) => {

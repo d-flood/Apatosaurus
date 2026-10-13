@@ -7,6 +7,7 @@
 	import { syncService } from '$lib/backup/sync-service.svelte';
 	import { registerServiceWorker, scheduleCacheWarm } from '$lib/shell/sw-registration';
 	import Navbar from '$lib/shell/components/Navbar.svelte';
+	import StorageBanner from '$lib/shell/components/StorageBanner.svelte';
 	import { onMount } from 'svelte';
 	import 'triiiceratops/style.css';
 	import '../app.css';
@@ -38,6 +39,7 @@
 
 {#if page.url.pathname !== '/welcome'}
 	<Navbar />
+	<StorageBanner />
 {/if}
 
 {#if signInCompletion.error}

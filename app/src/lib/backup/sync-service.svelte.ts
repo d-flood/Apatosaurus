@@ -2,6 +2,7 @@ import { browser } from '$app/environment';
 import {
 	backupProject,
 	deleteProject,
+	emitLocalDbInvalidation,
 	listProjects,
 	moveProject,
 	subscribeLocalDbInvalidations,
@@ -64,7 +65,8 @@ class SyncService {
 		this.attachEvents();
 		this.attachInvalidations();
 		try {
-			await upgradeSyncTargetsToPlacements(deleteLocalFolderHandle);
+			if (await upgradeSyncTargetsToPlacements(deleteLocalFolderHandle))
+				emitLocalDbInvalidation('sync-targets');
 		} catch (error) {
 			console.warn('[sync] sync target upgrade failed', error);
 		}

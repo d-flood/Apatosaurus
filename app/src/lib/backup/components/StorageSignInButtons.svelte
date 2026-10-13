@@ -5,7 +5,7 @@
 	import { beginSignIn } from '$lib/backup/storage-account-auth';
 	import { networkStatus } from '$lib/shell/network-status.svelte';
 
-	let { returnTo }: { returnTo?: string } = $props();
+	let { returnTo, size }: { returnTo?: string; size?: 'sm' } = $props();
 
 	const disabled = $derived(!networkStatus.online || signInCompletion.completing);
 </script>
@@ -13,20 +13,20 @@
 <div class="grid gap-2 sm:grid-cols-2">
 	<button
 		type="button"
-		class="btn btn-outline"
+		class={['btn btn-outline', size === 'sm' && 'btn-sm']}
 		{disabled}
 		onclick={() => beginSignIn('google', { returnTo })}
 	>
-		<GoogleDriveLogo size="20" aria-hidden="true" />
+		<GoogleDriveLogo size={size === 'sm' ? 16 : 20} aria-hidden="true" />
 		Sign in with Google Drive
 	</button>
 	<button
 		type="button"
-		class="btn btn-outline"
+		class={['btn btn-outline', size === 'sm' && 'btn-sm']}
 		{disabled}
 		onclick={() => beginSignIn('dropbox', { returnTo })}
 	>
-		<DropboxLogo size="20" aria-hidden="true" />
+		<DropboxLogo size={size === 'sm' ? 16 : 20} aria-hidden="true" />
 		Sign in with Dropbox
 	</button>
 </div>

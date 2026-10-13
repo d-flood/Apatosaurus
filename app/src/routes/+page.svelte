@@ -3,7 +3,6 @@
 	import {
 		checkStoragePersistence,
 		getStorageEstimate,
-		isLocalFolderProviderSupported,
 		shouldShowDurabilityWarning,
 		type StorageEstimateReport,
 		type StoragePersistenceReport,
@@ -12,7 +11,6 @@
 		getProjectTranscriptionStatusForOwnedTranscription,
 		listCollationsWithProjectNames,
 		listConflictCopies,
-		listProjectIdsWithContent,
 		listProjects,
 		listTranscriptionSummaries,
 		subscribeLocalDbInvalidations,
@@ -29,7 +27,6 @@
 		loadProjectBackupOverviews,
 		type ProjectBackupOverview,
 	} from '$lib/backup/project-backup-overview';
-	import { deriveProjectBackupHealthState } from '$lib/backup/project-backup-health-state';
 	import { dismissPlacementNotice } from '$lib/backup/location-connections';
 	import { isNotBackedUp } from '$lib/backup/sync-status';
 	import { listProjectPlacements } from '$lib/storage/project-locations';
@@ -154,10 +151,9 @@
 		estimate: StorageEstimateReport
 	): Promise<DashboardAttentionItem[]> {
 		if (projectRows.length === 0) return [];
-		const [overviews, conflictCopies, projectIdsWithContent, placements] = await Promise.all([
+		const [overviews, conflictCopies, placements] = await Promise.all([
 			loadProjectBackupOverviews(projectRows.map(project => project.id)),
 			listConflictCopies(),
-			listProjectIdsWithContent(),
 			listProjectPlacements(),
 		]);
 		const items: DashboardAttentionItem[] = conflictCopies.map(copy => ({
@@ -214,21 +210,6 @@
 					linkLabel: `Move ${project.name}`,
 					dismissLabel: 'Keep in this browser',
 					onDismiss: () => void dismissPlacementNotice(project.id),
-				});
-				continue;
-			}
-			const health = deriveProjectBackupHealthState({
-				hasContent: projectIdsWithContent.includes(project.id),
-				hasLocation: overview.status !== 'local-only',
-				localFolderSupported: isLocalFolderProviderSupported(),
-			});
-			if (health.showBrowserOnlyPrompt) {
-				items.push({
-					id: `choose-location:${project.id}`,
-					title: 'Choose where this project lives',
-					description: `${project.name} is stored only in this browser.`,
-					href: `/projects/${project.id}/location`,
-					linkLabel: `Choose a location for ${project.name}`,
 				});
 			}
 		}
