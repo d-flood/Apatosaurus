@@ -3,12 +3,12 @@ import { describe, expect, it } from 'vitest';
 import { browserTestServer, developmentServer } from './vite.config';
 
 describe('development server configuration', () => {
-	it('defaults direct development to loopback port 3160', () => {
+	it('defaults direct development to all interfaces on port 3160', () => {
 		expect(developmentServer({})).toMatchObject({
-			host: '127.0.0.1',
+			host: '0.0.0.0',
 			port: 3160,
 			strictPort: true,
-			allowedHosts: ['localhost'],
+			allowedHosts: ['localhost', 'df-laptop-lx', 'df-laptop-lx.flicker-lionfish.ts.net'],
 		});
 	});
 
@@ -23,7 +23,11 @@ describe('development server configuration', () => {
 			host: '127.0.0.1',
 			port: 13160,
 			strictPort: true,
-			allowedHosts: ['apatosaurus-dev.example.ts.net'],
+			allowedHosts: [
+				'apatosaurus-dev.example.ts.net',
+				'df-laptop-lx',
+				'df-laptop-lx.flicker-lionfish.ts.net',
+			],
 		});
 	});
 

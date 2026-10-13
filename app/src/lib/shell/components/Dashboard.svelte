@@ -182,7 +182,10 @@
 		<footer
 			class="mt-10 flex items-center justify-between border-t border-base-300/60 py-5 text-xs text-base-content/45"
 		>
-			<a href={resolve('/about')} class="link link-hover">About Apatosaurus</a>
+			<span class="flex gap-4">
+				<a href={resolve('/about')} class="link link-hover">About Apatosaurus</a>
+				<a href={resolve('/privacy')} class="link link-hover">Privacy</a>
+			</span>
 			<span>Version {appVersion}</span>
 		</footer>
 	</main>

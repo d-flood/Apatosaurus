@@ -14,13 +14,11 @@ describe('OnboardingGuidance', () => {
 			installSupported: true,
 		});
 
-		await expect
-			.element(browserPage.getByTestId('onboarding-primary-path'))
-			.toHaveTextContent('Google Drive or Dropbox');
-		await expect
-			.element(browserPage.getByTestId('onboarding-primary-path'))
-			.toHaveTextContent('folder on this computer');
+		const guidance = browserPage.getByTestId('onboarding-guidance');
+		await expect.element(guidance).toHaveTextContent('Google Drive or Dropbox');
+		await expect.element(guidance).toHaveTextContent('folder on this computer');
 		await expect.element(browserPage.getByText('Allow persistent storage')).toBeInTheDocument();
+		await expect.element(browserPage.getByTestId('data-ownership')).not.toBeInTheDocument();
 	});
 
 	it('hides the folder option when the browser cannot pick folders', async () => {
@@ -30,12 +28,9 @@ describe('OnboardingGuidance', () => {
 			installSupported: false,
 		});
 
-		await expect
-			.element(browserPage.getByTestId('onboarding-primary-path'))
-			.toHaveTextContent('Google Drive or Dropbox');
-		await expect
-			.element(browserPage.getByTestId('onboarding-guidance'))
-			.not.toHaveTextContent('folder on this computer');
+		const guidance = browserPage.getByTestId('onboarding-guidance');
+		await expect.element(guidance).toHaveTextContent('Google Drive or Dropbox');
+		await expect.element(guidance).not.toHaveTextContent('folder on this computer');
 	});
 
 	it('states the data ownership model and exit paths', async () => {
@@ -46,17 +41,10 @@ describe('OnboardingGuidance', () => {
 			variant: 'about',
 		});
 
-		await expect
-			.element(browserPage.getByTestId('data-ownership'))
-			.toHaveTextContent('Origin Private File System');
-		await expect
-			.element(browserPage.getByTestId('data-ownership'))
-			.toHaveTextContent('byte-identical copy');
-		await expect
-			.element(browserPage.getByTestId('data-ownership'))
-			.toHaveTextContent('TEI sibling');
-		await expect
-			.element(browserPage.getByTestId('data-ownership'))
-			.toHaveTextContent('zip export');
+		const ownership = browserPage.getByTestId('data-ownership');
+		await expect.element(ownership).toHaveTextContent('Origin Private File System');
+		await expect.element(ownership).toHaveTextContent('exact copy');
+		await expect.element(ownership).toHaveTextContent('TEI');
+		await expect.element(ownership).toHaveTextContent('zip export');
 	});
 });

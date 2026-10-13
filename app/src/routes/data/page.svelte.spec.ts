@@ -348,7 +348,7 @@ describe('/data persistence request', () => {
 
 		await expect
 			.element(page.getByRole('status'))
-			.toHaveTextContent('not enough browser storage');
+			.toHaveTextContent('Not enough browser storage');
 		expect(mocks.requestCacheWarmNow).not.toHaveBeenCalledWith('corpus');
 	});
 

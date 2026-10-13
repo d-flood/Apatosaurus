@@ -13,9 +13,6 @@ interface OnboardingAction {
 }
 
 export interface OnboardingGuidanceContent {
-	heading: string;
-	intro: string;
-	primaryPath: OnboardingAction;
 	actions: OnboardingAction[];
 	dataOwnership: string[];
 }
@@ -23,41 +20,36 @@ export interface OnboardingGuidanceContent {
 export function buildOnboardingGuidanceContent(
 	input: OnboardingGuidanceInput
 ): OnboardingGuidanceContent {
-	const primaryPath = {
-		title: 'Choose where projects live',
-		body: input.localFolderSupported
-			? 'Sign in with Google Drive or Dropbox, or pick a folder on this computer, and projects sync there automatically.'
-			: 'Sign in with Google Drive or Dropbox and projects sync there automatically.',
-		state: 'recommended' as const,
-	};
-
 	return {
-		heading: 'Set up local-first project storage',
-		intro: 'Apatosaurus keeps your scholarship in project files first, with the browser database acting as a rebuildable index.',
-		primaryPath,
 		actions: [
+			{
+				title: 'Choose where projects live',
+				body: input.localFolderSupported
+					? 'Sign in to Google Drive or Dropbox, or pick a folder on this computer.'
+					: 'Sign in to Google Drive or Dropbox.',
+				state: 'recommended',
+			},
 			{
 				title: 'Install the app',
 				body: input.installSupported
-					? 'Installing the PWA helps the browser keep storage and folder permissions reliable.'
-					: 'If your browser offers installation from its address bar or menu, use it for a more durable workspace.',
+					? 'Keeps storage and folder access reliable.'
+					: "Use your browser's install option, if offered.",
 				state: input.installSupported ? 'recommended' : 'ready',
 			},
 			{
 				title: 'Allow persistent storage',
 				body:
 					input.persistenceStatus === 'granted'
-						? 'Persistent storage is already granted for this browser profile.'
-						: 'Allow persistent storage when prompted so the browser is less likely to evict local project files.',
+						? 'Already granted.'
+						: 'Protects local files from browser cleanup.',
 				state: input.persistenceStatus === 'granted' ? 'ready' : 'recommended',
 			},
-			primaryPath,
 		],
 		dataOwnership: [
-			'Project files live in the browser Origin Private File System, under Apatosaurus project folders.',
-			'Each project syncs as a byte-identical copy of its project files to its project location; app settings stay in the browser.',
-			'Every transcription and collation has a regenerated TEI sibling for archival use outside the app.',
-			'You can leave with your data through your project location or a full project zip export.',
+			"Projects are stored in your browser's Origin Private File System.",
+			'Each project syncs to its location as an exact copy.',
+			'Every transcription and collation is also saved as TEI.',
+			'Leave anytime with your location or a zip export.',
 		],
 	};
 }

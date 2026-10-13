@@ -45,10 +45,10 @@ export function developmentServer(environment: DevelopmentEnvironment = process.
 	}
 
 	return {
-		host: environment.DEV_BIND_HOST || '127.0.0.1',
+		host: environment.DEV_BIND_HOST || '0.0.0.0',
 		port,
 		strictPort: true,
-		allowedHosts: [origin.hostname],
+		allowedHosts: [origin.hostname, 'df-laptop-lx', 'df-laptop-lx.flicker-lionfish.ts.net'],
 	};
 }
 

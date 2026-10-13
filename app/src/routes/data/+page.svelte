@@ -197,7 +197,7 @@
 			const inspection = await inspectUserReferenceEditions();
 			userReferenceEditionCount = inspection.editions.length;
 			if (inspection.invalidPaths.length > 0) {
-				initialDataError = `${inspection.invalidPaths.length} stored reference edition${inspection.invalidPaths.length === 1 ? ' is' : 's are'} corrupt and cannot be used or backed up. Restore them from a reference-edition backup or remove the affected local files.`;
+				initialDataError = `${inspection.invalidPaths.length} stored reference edition${inspection.invalidPaths.length === 1 ? ' is' : 's are'} corrupt. Restore from a backup.`;
 			}
 			await Promise.all([
 				refreshStorageCapabilities(),
@@ -237,7 +237,7 @@
 		corpusMessage = null;
 		const estimate = await getStorageEstimate();
 		if (!hasCorpusStorageHeadroom(estimate)) {
-			corpusMessage = `There is not enough browser storage for the approximately ${corpusApproximateSizeLabel} reference edition download.`;
+			corpusMessage = `Not enough browser storage for the ${corpusApproximateSizeLabel} download.`;
 			return;
 		}
 		await requestCacheWarmNow('corpus');
@@ -304,8 +304,8 @@
 			hasRequestedPersistence = true;
 			persistenceRequestMessage =
 				persistenceReport.status === 'granted'
-					? 'Persistent storage granted. Local project files are protected from automatic browser eviction.'
-					: 'This browser did not grant persistent storage. Installing the app and using it regularly may improve eligibility; keep external backups in the meantime.';
+					? 'Persistent storage granted.'
+					: 'This browser did not grant persistent storage. Keep backups; installing the app may help.';
 		} catch (cause) {
 			persistenceRequestFailed = true;
 			persistenceRequestMessage =
@@ -708,14 +708,7 @@
 
 <main class="container mx-auto max-w-5xl p-4">
 	<header class="mb-6">
-		<p class="text-sm font-semibold uppercase tracking-wide text-primary">
-			App-wide data tools
-		</p>
 		<h1 class="font-serif text-3xl font-bold tracking-tight">Data & Storage</h1>
-		<p class="mt-2 max-w-3xl text-sm leading-relaxed text-base-content/65">
-			Review local durability, export all project files, and repair the rebuildable database
-			index.
-		</p>
 	</header>
 	{#if initialDataError}
 		<div class="alert alert-error mb-6 text-sm" role="alert">{initialDataError}</div>
@@ -730,8 +723,8 @@
 	{#if showDurabilityWarning}
 		<div class="alert alert-warning mt-6 items-start text-sm">
 			<div>
-				<div class="font-semibold">Browser storage is not persistent yet</div>
-				<div>Your browser may evict local project files under storage pressure.</div>
+				<div class="font-semibold">Storage isn't persistent</div>
+				<div>The browser may delete local files when space runs low.</div>
 			</div>
 			<button type="button" class="btn btn-ghost btn-xs" onclick={dismissDurabilityWarning}
 				>Dismiss</button
@@ -743,10 +736,7 @@
 		<div class="space-y-6">
 			<section class="rounded-box border border-base-300/60 bg-base-100 p-5 shadow-sm">
 				<h2 class="font-serif text-xl font-semibold">Offline Readiness</h2>
-				<p class="mt-1 text-sm text-base-content/55">
-					Prepare the application itself for use without a network connection. Project
-					data is stored separately.
-				</p>
+				<p class="sr-only">Prepares the app to work without a network.</p>
 				<div class="mt-4 grid gap-3 text-sm sm:grid-cols-2">
 					<div class="rounded-box bg-base-200/60 p-3">
 						<div class="text-base-content/55">App shell</div>
@@ -786,8 +776,7 @@
 						<div>
 							<h3 class="font-semibold">Reference editions</h3>
 							<p class="mt-1 text-base-content/55">
-								Opt in to use the bundled reference corpus without a network
-								connection. Approximately {corpusApproximateSizeLabel}.
+								For offline use. Approximately {corpusApproximateSizeLabel}.
 							</p>
 						</div>
 						<span class="badge badge-ghost shrink-0">Optional</span>
@@ -895,8 +884,7 @@
 				{/if}
 				{#if storageEstimateReport?.isNearQuota}
 					<div class="alert alert-warning mt-4 text-sm">
-						Storage is near this browser's reported quota. Export a backup before adding
-						large batches.
+						Storage is nearly full. Export a backup before adding large batches.
 					</div>
 				{/if}
 			</section>
@@ -904,8 +892,7 @@
 			<section class="rounded-box border border-base-300/60 bg-base-100 p-5 shadow-sm">
 				<h2 class="font-serif text-xl font-semibold">Storage accounts</h2>
 				<p class="mt-1 text-sm text-base-content/55">
-					Sign in to keep projects in your own cloud storage. Each account gets an
-					Apatosaurus folder.
+					Sync projects to an Apatosaurus folder in your cloud storage.
 				</p>
 				{#if accountError}
 					<div class="alert alert-error mt-3 py-2 text-sm" role="alert">
@@ -981,14 +968,14 @@
 					</button>
 				</div>
 				<form class="mt-5 space-y-2" onsubmit={saveAuthorName}>
-					<label class="block text-sm font-medium" for="author-name">Your name</label>
-					<p class="text-xs text-base-content/55">
-						Names versions in browser-only projects and folders on this computer.
-						Storage accounts use their own display name.
+					<label class="block text-sm font-medium" for="author-name">Name on versions</label>
+					<p id="author-name-hint" class="sr-only">
+						Storage accounts use their own display name instead.
 					</p>
 					<div class="flex gap-2">
 						<input
 							id="author-name"
+							aria-describedby="author-name-hint"
 							class="input input-bordered input-sm min-w-0 flex-1"
 							bind:value={authorName}
 							oninput={() => (authorNameMessage = null)}
@@ -1004,10 +991,8 @@
 
 			<section class="rounded-box border border-base-300/60 bg-base-100 p-5 shadow-sm">
 				<h2 class="font-serif text-xl font-semibold">Locations</h2>
-				<p class="mt-1 text-sm text-base-content/55">
-					Places where projects live and sync. Projects already in a location are
-					downloaded to this device.
-				</p>
+				<p class="mt-1 text-sm text-base-content/55">Where projects live and sync.</p>
+				<p class="sr-only">Projects already in a location download to this device.</p>
 				{#if locationError}
 					<div class="alert alert-error mt-3 py-2 text-sm" role="alert">
 						{locationError}
@@ -1072,12 +1057,13 @@
 				<h2 class="font-serif text-xl font-semibold">This device</h2>
 				<form class="mt-3 space-y-2" onsubmit={submitDeviceName}>
 					<label class="block text-sm font-medium" for="device-name">Device name</label>
-					<p class="text-xs text-base-content/55">
-						Editing notices use this name when you edit on more than one device.
+					<p id="device-name-hint" class="sr-only">
+						Shown in editing notices when you edit on more than one device.
 					</p>
 					<div class="flex gap-2">
 						<input
 							id="device-name"
+							aria-describedby="device-name-hint"
 							class="input input-bordered input-sm min-w-0 flex-1"
 							bind:value={deviceName}
 							oninput={() => (deviceNameMessage = null)}
@@ -1092,9 +1078,7 @@
 
 			<section class="rounded-box border border-base-300/60 bg-base-100 p-5 shadow-sm">
 				<h2 class="font-serif text-xl font-semibold">Project Sync Status</h2>
-				<p class="mt-1 text-sm text-base-content/55">
-					Open a project's Location page to choose where it lives.
-				</p>
+				<p class="mt-1 text-sm text-base-content/55">Select a project to change its location.</p>
 				{#if isLoading}
 					<div class="mt-4 flex items-center gap-2 text-sm text-base-content/55">
 						<span class="loading loading-spinner loading-sm"></span>Loading status...
@@ -1162,9 +1146,9 @@
 			<section class="rounded-box border border-base-300/60 bg-base-100 p-5 shadow-sm">
 				<h2 class="font-serif text-xl font-semibold">Whole-Account Export</h2>
 				<p class="mt-1 text-sm text-base-content/55">
-					Download one independently restorable zip per project, plus your user-supplied
-					reference editions. Draft files stay local.
+					One zip per project, plus your reference editions.
 				</p>
+				<p class="sr-only">Each zip restores on its own. Drafts are not included.</p>
 				<button
 					type="button"
 					class="btn btn-outline btn-sm mt-4 w-full"
@@ -1202,8 +1186,7 @@
 			<section class="rounded-box border border-base-300/60 bg-base-100 p-5 shadow-sm">
 				<h2 class="font-serif text-xl font-semibold">Repair Database</h2>
 				<p class="mt-1 text-sm text-base-content/55">
-					Rebuild the disposable SQLite index from project files. This does not delete
-					canonical documents.
+					Rebuilds the app's index from your project files. Nothing is deleted.
 				</p>
 				<button
 					type="button"
@@ -1250,7 +1233,7 @@
 			<span>
 				<span class="block text-sm font-medium">Keep on this device</span>
 				<span class="block text-xs text-base-content/60">
-					Projects stay editable but stop syncing until you sign in again.
+					Stops syncing until you sign in again.
 				</span>
 			</span>
 		</label>
@@ -1266,7 +1249,7 @@
 			<span>
 				<span class="block text-sm font-medium">Remove from this device</span>
 				<span class="block text-xs text-base-content/60">
-					Deletes the local copies only. They stay in your storage account.
+					Deletes local copies only. Cloud copies are kept.
 				</span>
 			</span>
 		</label>
@@ -1314,14 +1297,9 @@
 			</select>
 		{/if}
 		{#if teamAccount?.provider === 'google'}
-			<p class="text-sm text-base-content/70">
-				Pick your team's shared folder in Google Drive, including folders in shared drives.
-			</p>
+			<p class="text-sm text-base-content/70">Pick a shared Google Drive folder.</p>
 			{#if !hasDriveScope(teamAccount)}
-				<p class="text-sm text-base-content/70">
-					Google will ask once for access to your Drive, so Apatosaurus can open folders
-					it did not create.
-				</p>
+				<p class="text-sm text-base-content/70">Google will ask once for access to your Drive.</p>
 			{/if}
 			<div class="flex flex-wrap items-center gap-3">
 				<button
@@ -1342,10 +1320,8 @@
 				{/if}
 			</div>
 		{:else}
-			<p class="text-sm text-base-content/70">
-				Open your team's shared Dropbox folder. Folders marked Location already hold
-				Apatosaurus projects.
-			</p>
+			<p class="text-sm text-base-content/70">Open a shared Dropbox folder.</p>
+			<p class="sr-only">Folders marked Location already hold projects.</p>
 			<div class="flex items-center gap-2">
 				<button
 					type="button"
