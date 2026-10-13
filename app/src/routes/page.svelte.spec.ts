@@ -1,5 +1,5 @@
 import { page } from '@vitest/browser/context';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 
 const mocks = vi.hoisted(() => ({
@@ -10,6 +10,13 @@ const mocks = vi.hoisted(() => ({
 	listProjectIdsWithContent: vi.fn(async () => [] as string[]),
 	listProjectPlacements: vi.fn(async () => [] as unknown[]),
 	dismissPlacementNotice: vi.fn(),
+	shouldShowDurabilityWarning: vi.fn(() => false),
+	getStorageEstimate: vi.fn(async () => ({
+		usage: 1,
+		quota: 100,
+		usageRatio: 0.01,
+		isNearQuota: false,
+	})),
 	warmListeners: [] as Array<(progress: unknown) => void>,
 }));
 
@@ -19,14 +26,9 @@ vi.mock('$lib/shell/capabilities', () => ({
 		persisted: true,
 		canRequest: false,
 	})),
-	getStorageEstimate: vi.fn(async () => ({
-		usage: 1,
-		quota: 100,
-		usageRatio: 0.01,
-		isNearQuota: false,
-	})),
+	getStorageEstimate: mocks.getStorageEstimate,
 	isLocalFolderProviderSupported: vi.fn(() => true),
-	shouldShowDurabilityWarning: vi.fn(() => false),
+	shouldShowDurabilityWarning: mocks.shouldShowDurabilityWarning,
 }));
 
 vi.mock('$lib/db/client', () => ({
@@ -64,6 +66,11 @@ vi.mock('$lib/shell/sw-registration', () => ({
 import Page from './+page.svelte';
 
 describe('/+page.svelte dashboard', () => {
+	afterEach(() => {
+		mocks.shouldShowDurabilityWarning.mockReset();
+		mocks.getStorageEstimate.mockReset();
+	});
+
 	it('promotes creation in the resolved project when there is no recent work', async () => {
 		mocks.listProjects.mockResolvedValue([
 			{
@@ -246,5 +253,59 @@ describe('/+page.svelte dashboard', () => {
 			.toHaveTextContent(/Romans moved.*Moved by Ada on .* to Dropbox\/Lab/);
 		await page.getByRole('button', { name: 'Dismiss' }).click();
 		expect(mocks.dismissPlacementNotice).toHaveBeenCalledWith('project-1');
+	});
+
+	it('warns about browser cleanup only while a project is not backed up', async () => {
+		mocks.shouldShowDurabilityWarning.mockReturnValue(true);
+		mocks.getStorageEstimate.mockResolvedValue({
+			usage: 99,
+			quota: 100,
+			usageRatio: 0.99,
+			isNearQuota: true,
+		});
+		mocks.listProjects.mockResolvedValue([
+			{
+				id: 'project-1',
+				storageSlug: 'project-1',
+				name: 'Romans',
+				description: '',
+				createdAt: '2026-07-01T00:00:00.000Z',
+				updatedAt: '2026-07-18T00:00:00.000Z',
+			},
+		]);
+		mocks.listTranscriptionSummaries.mockResolvedValue([]);
+		mocks.listCollationsWithProjectNames.mockResolvedValue([]);
+		mocks.listConflictCopies.mockResolvedValue([]);
+		mocks.listProjectPlacements.mockResolvedValue([
+			{
+				projectId: 'project-1',
+				locationId: 'location-1',
+				folderName: 'project-1',
+				needsLocationChoice: false,
+			},
+		]);
+
+		const view = render(Page);
+
+		await expect
+			.element(page.getByRole('heading', { name: 'Storage on this device is nearly full' }))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByRole('link', { name: 'Review storage usage' }))
+			.toHaveAttribute('href', '/data#advanced');
+		await expect
+			.element(page.getByRole('heading', { name: 'Protect local work from browser cleanup' }))
+			.not.toBeInTheDocument();
+
+		view.unmount();
+		mocks.listProjectPlacements.mockResolvedValue([]);
+		render(Page);
+
+		await expect
+			.element(page.getByRole('heading', { name: 'Protect local work from browser cleanup' }))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByRole('link', { name: 'Review storage durability' }))
+			.toHaveAttribute('href', '/data#advanced');
 	});
 });

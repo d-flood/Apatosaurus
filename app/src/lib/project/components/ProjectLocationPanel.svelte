@@ -2,29 +2,25 @@
 	import { onMount } from 'svelte';
 	import FolderOpen from 'phosphor-svelte/lib/FolderOpen';
 	import WarningCircle from 'phosphor-svelte/lib/WarningCircle';
-	import {
-		exportProjectZip,
-		forkProject,
-		listProjectIdsWithContent,
-		subscribeLocalDbInvalidations,
-	} from '$lib/db/client';
+	import { exportProjectZip, forkProject, subscribeLocalDbInvalidations } from '$lib/db/client';
 	import { resolve } from '$app/paths';
 	import {
 		dismissPlacementNotice,
-		isLocalFolderProviderSupported,
 		removeProjectFromDevice,
 	} from '$lib/backup/location-connections';
 	import {
 		listProjectLocations,
 		listProjectPlacements,
+		listStorageAccounts,
 		type ProjectLocation,
 		type ProjectPlacement,
+		type StorageAccount,
 	} from '$lib/storage/project-locations';
 	import { downloadZipArchive } from '$lib/shell/download-blob';
 	import { getProjectBackupMetadata, recordProjectZipExport } from '$lib/storage/backup-metadata';
-	import { deriveProjectBackupHealthState } from '$lib/backup/project-backup-health-state';
 	import { syncService } from '$lib/backup/sync-service.svelte';
-	import { syncStatusLabels, syncStatusReason } from '$lib/backup/sync-status';
+	import { isNotBackedUp, syncStatusLabel, syncStatusReason } from '$lib/backup/sync-status';
+	import StorageSignInButtons from '$lib/backup/components/StorageSignInButtons.svelte';
 	import { networkStatus } from '$lib/shell/network-status.svelte';
 
 	interface Props {
@@ -37,6 +33,8 @@
 
 	let placement = $state.raw<ProjectPlacement | null>(null);
 	let locations = $state.raw<ProjectLocation[]>([]);
+	let accounts = $state.raw<StorageAccount[]>([]);
+	let loaded = $state(false);
 	let chosenLocationId = $state('');
 	let isLoading = $state(false);
 	let isMoving = $state(false);
@@ -46,7 +44,6 @@
 	let isDeleting = $state(false);
 	let deleteDialog = $state<HTMLDialogElement>();
 	let lastExportedAt = $state<string | null>(null);
-	let hasContent = $state(false);
 	let error = $state<string | null>(null);
 	let loadRunId = 0;
 
@@ -55,14 +52,8 @@
 	);
 	let syncStatus = $derived(syncService.projectStatus(projectId, networkStatus.online));
 	let destinations = $derived(locations.filter(candidate => candidate.id !== location?.id));
-	let folderSupported = $derived(isLocalFolderProviderSupported());
-	let backupHealth = $derived(
-		deriveProjectBackupHealthState({
-			hasContent,
-			hasLocation: Boolean(location),
-			localFolderSupported: folderSupported,
-		})
-	);
+	let signedIn = $derived(accounts.some(account => account.signedIn));
+	let notBackedUp = $derived(loaded && isNotBackedUp(placement ?? undefined));
 
 	onMount(() =>
 		subscribeLocalDbInvalidations(event => {
@@ -83,20 +74,21 @@
 		const runId = ++loadRunId;
 		isLoading = true;
 		try {
-			const [placements, nextLocations, metadata, projectIdsWithContent] = await Promise.all([
+			const [placements, nextLocations, nextAccounts, metadata] = await Promise.all([
 				listProjectPlacements(),
 				listProjectLocations(),
+				listStorageAccounts(),
 				getProjectBackupMetadata(nextProjectId),
-				listProjectIdsWithContent(),
 			]);
 			if (runId !== loadRunId) return;
 			placement = placements.find(candidate => candidate.projectId === nextProjectId) ?? null;
 			locations = nextLocations;
+			accounts = nextAccounts;
 			if (!destinations.some(candidate => candidate.id === chosenLocationId)) {
 				chosenLocationId = destinations[0]?.id ?? '';
 			}
 			lastExportedAt = metadata.lastExportedAt;
-			hasContent = projectIdsWithContent.includes(nextProjectId);
+			loaded = true;
 		} catch (err) {
 			if (runId !== loadRunId) return;
 			error = err instanceof Error ? err.message : 'Failed to load the project location.';
@@ -273,23 +265,27 @@
 		</div>
 		<div class="rounded-box bg-base-200/60 p-3">
 			<div class="text-xs uppercase tracking-wide text-base-content/40">Status</div>
-			<div class="mt-1 text-sm font-medium">{syncStatusLabels[syncStatus.state]}</div>
+			<div class="mt-1 text-sm font-medium">{syncStatusLabel(syncStatus)}</div>
 			<div class="text-xs text-base-content/60">{syncStatusReason(syncStatus)}</div>
 		</div>
 	</div>
 
-	{#if backupHealth.showBrowserOnlyPrompt && !placement?.moved && !placement?.deleted}
-		<div class="alert alert-warning mt-3 text-sm">
+	{#if notBackedUp}
+		<div class="alert alert-warning alert-vertical mt-3 text-sm sm:alert-horizontal">
 			<WarningCircle size={18} />
 			<div>
-				<div class="font-medium">Your data exists only in this browser.</div>
+				<div class="font-medium">Not backed up</div>
 				<div class="text-xs opacity-80">
-					{destinations.length > 0
-						? 'Move it to a location for continuous sync, or export a zip now.'
-						: 'Add a location for continuous sync, or export a zip now.'}
+					{!signedIn
+						? 'Sign in to back it up as you work, or export a zip now.'
+						: destinations.length > 0
+							? 'Move it to a location for continuous sync, or export a zip now.'
+							: 'Add a location for continuous sync, or export a zip now.'}
 				</div>
 			</div>
-			{#if destinations.length === 0}
+			{#if !signedIn}
+				<div><StorageSignInButtons /></div>
+			{:else if destinations.length === 0}
 				<a href={resolve('/data')} class="btn btn-warning btn-sm">Add a location</a>
 			{/if}
 		</div>

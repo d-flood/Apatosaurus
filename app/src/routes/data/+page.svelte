@@ -53,7 +53,7 @@
 	import { LOCATION_ROOT_FOLDER_ID } from '$lib/backup/providers/provider';
 	import { syncService } from '$lib/backup/sync-service.svelte';
 	import {
-		syncStatusLabels,
+		syncStatusLabel,
 		syncStatusReason,
 		type SyncStatusState,
 	} from '$lib/backup/sync-status';
@@ -1070,7 +1070,7 @@
 											projectStatus.state
 										]}"
 										title={syncStatusReason(projectStatus)}
-										>{syncStatusLabels[projectStatus.state]}</span
+										>{syncStatusLabel(projectStatus)}</span
 									>
 								</a>
 							</li>

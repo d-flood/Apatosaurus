@@ -90,12 +90,14 @@ describe('/projects grouped by location', () => {
 				? { state: 'needs-attention', reason: 'reconnect' }
 				: projectId === 'loose'
 					? { state: 'saved-on-device', reason: 'browser-only' }
-					: { state: 'synced' }
+					: projectId === 'galatians'
+						? { state: 'saved-on-device', reason: 'uploading' }
+						: { state: 'synced' }
 		);
 
 		render(Page);
 
-		const browserOnly = page.getByRole('region', { name: 'Only in this browser' });
+		const browserOnly = page.getByRole('region', { name: 'Not backed up' });
 		const desk = page.getByRole('region', { name: 'Desk' });
 		const lab = page.getByRole('region', { name: 'Lab/Apatosaurus' });
 
@@ -109,12 +111,17 @@ describe('/projects grouped by location', () => {
 		await expect.element(lab.getByRole('heading', { name: 'Acts' })).toBeVisible();
 		await expect.element(lab.getByText('ada@example.org')).toBeVisible();
 		await expect.element(lab.getByText('Needs attention · Reconnect storage')).toBeVisible();
+		await expect.element(lab.getByText('Saved on this device', { exact: true })).toBeVisible();
 		await expect
 			.element(browserOnly.getByText(/Synced|Needs attention/))
 			.not.toBeInTheDocument();
 		await expect
-			.element(browserOnly.getByText('Saved on this device', { exact: true }))
+			.element(browserOnly.getByRole('heading', { name: 'Not backed up' }))
 			.toBeVisible();
+		await expect
+			.element(browserOnly.getByText('Not backed up', { exact: true }).last())
+			.toBeVisible();
+		await expect.element(browserOnly.getByText('Saved on this device')).not.toBeInTheDocument();
 		await expect.element(page.getByRole('combobox', { name: 'Location' })).toHaveValue('desk');
 	});
 });

@@ -1,3 +1,4 @@
+import type { ProjectPlacement } from '$lib/storage/project-locations';
 import type { CloudProviderErrorCode } from './providers/provider';
 import type { SyncUiState } from './sync-manager';
 
@@ -69,11 +70,21 @@ export function worstSyncStatus(statuses: readonly SyncStatus[]): SyncStatus {
 	);
 }
 
-export const syncStatusLabels: Record<SyncStatusState, string> = {
+export function isNotBackedUp(placement: ProjectPlacement | undefined): boolean {
+	return !placement?.locationId && !placement?.moved && !placement?.deleted;
+}
+
+const syncStatusLabels: Record<SyncStatusState, string> = {
 	synced: 'Synced',
 	'saved-on-device': 'Saved on this device',
 	'needs-attention': 'Needs attention',
 };
+
+export function syncStatusLabel(status: SyncStatus): string {
+	return status.state === 'saved-on-device' && status.reason === 'browser-only'
+		? 'Not backed up'
+		: syncStatusLabels[status.state];
+}
 
 const reasonLabels = {
 	offline: 'Offline',

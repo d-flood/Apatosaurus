@@ -82,9 +82,9 @@ describe('Dashboard', () => {
 			attentionItems: [
 				{
 					id: 'quota',
-					title: 'Browser storage is nearly full',
+					title: 'Storage on this device is nearly full',
 					description: 'Export a backup before adding more work.',
-					href: '/data',
+					href: '/data#advanced',
 					linkLabel: 'Review storage',
 				},
 			],
@@ -95,7 +95,7 @@ describe('Dashboard', () => {
 			.toBeInTheDocument();
 		await expect
 			.element(page.getByRole('link', { name: 'Review storage' }))
-			.toHaveAttribute('href', '/data');
+			.toHaveAttribute('href', '/data#advanced');
 	});
 
 	it('shows only first-project guidance when there are no projects', async () => {

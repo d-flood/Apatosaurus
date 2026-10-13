@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { CloudProviderErrorCode } from './providers/provider';
 import type { SyncUiState } from './sync-manager';
+import type { ProjectPlacement } from '$lib/storage/project-locations';
 import {
+	isNotBackedUp,
 	syncStatusFor,
-	syncStatusLabels,
+	syncStatusLabel,
 	syncStatusReason,
 	worstSyncStatus,
 	type SyncStatus,
@@ -62,7 +64,7 @@ describe('syncStatusFor', () => {
 							providerError: providerError as CloudProviderErrorCode | undefined,
 						});
 						expect(states).toContain(status.state);
-						expect(syncStatusLabels[status.state]).toBeTruthy();
+						expect(syncStatusLabel(status)).toBeTruthy();
 						expect(syncStatusReason(status)).toBeTruthy();
 					}
 	});
@@ -119,6 +121,70 @@ describe('syncStatusFor', () => {
 				providerError: 'reauthorization-required',
 			})
 		).toEqual({ state: 'needs-attention', reason: 'reconnect' });
+	});
+});
+
+describe('syncStatusLabel', () => {
+	it('calls a browser-only project not backed up', () => {
+		expect(syncStatusLabel({ state: 'saved-on-device', reason: 'browser-only' })).toBe(
+			'Not backed up'
+		);
+	});
+
+	it('keeps the state labels for projects in a location', () => {
+		expect(syncStatusLabel({ state: 'synced' })).toBe('Synced');
+		expect(syncStatusLabel({ state: 'saved-on-device', reason: 'uploading' })).toBe(
+			'Saved on this device'
+		);
+		expect(syncStatusLabel({ state: 'saved-on-device', reason: 'offline' })).toBe(
+			'Saved on this device'
+		);
+		expect(syncStatusLabel({ state: 'needs-attention', reason: 'reconnect' })).toBe(
+			'Needs attention'
+		);
+	});
+});
+
+describe('isNotBackedUp', () => {
+	const browserOnly: ProjectPlacement = {
+		projectId: 'project-1',
+		locationId: null,
+		folderName: null,
+		needsLocationChoice: false,
+	};
+
+	it('is true for a project with no placement', () => {
+		expect(isNotBackedUp(undefined)).toBe(true);
+	});
+
+	it('is true for a browser-only placement, including an alpha project choosing a location', () => {
+		expect(isNotBackedUp(browserOnly)).toBe(true);
+		expect(isNotBackedUp({ ...browserOnly, needsLocationChoice: true })).toBe(true);
+	});
+
+	it('is false for a project in a location, a folder on this computer included', () => {
+		expect(
+			isNotBackedUp({ ...browserOnly, locationId: 'device-folder', folderName: 'project-1' })
+		).toBe(false);
+	});
+
+	it('is false for a copy left behind by a move or deletion elsewhere', () => {
+		expect(
+			isNotBackedUp({
+				...browserOnly,
+				moved: {
+					movedAt: '2026-10-03T12:00:00.000Z',
+					movedBy: 'Ada',
+					destinationLabel: 'Dropbox/Lab',
+				},
+			})
+		).toBe(false);
+		expect(
+			isNotBackedUp({
+				...browserOnly,
+				deleted: { deletedAt: '2026-10-03T12:00:00.000Z', deletedBy: 'Ada' },
+			})
+		).toBe(false);
 	});
 });
 

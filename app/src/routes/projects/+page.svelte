@@ -7,7 +7,7 @@
 	import { placeProjectInLocation } from '$lib/backup/location-connections';
 	import { syncService } from '$lib/backup/sync-service.svelte';
 	import {
-		syncStatusLabels,
+		syncStatusLabel,
 		syncStatusReason,
 		worstSyncStatus,
 		type SyncStatusState,
@@ -217,7 +217,7 @@
 								class="badge badge-sm {statusBadgeClass[status.state]}"
 								title={syncStatusReason(status)}
 							>
-								{syncStatusLabels[status.state]}{status.state === 'synced'
+								{syncStatusLabel(status)}{status.state === 'synced'
 									? ''
 									: ` · ${syncStatusReason(status)}`}
 							</span>
@@ -248,7 +248,7 @@
 										]}"
 										title={syncStatusReason(projectStatus)}
 									>
-										{syncStatusLabels[projectStatus.state]}
+										{syncStatusLabel(projectStatus)}
 									</span>
 									<a
 										href={resolve('/projects/[id]/transcriptions', {

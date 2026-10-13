@@ -5,6 +5,7 @@ import { render } from 'vitest-browser-svelte';
 const mocks = vi.hoisted(() => ({
 	listProjectLocations: vi.fn(),
 	listProjectPlacements: vi.fn(),
+	listStorageAccounts: vi.fn(),
 	moveProject: vi.fn(),
 	deleteProject: vi.fn(),
 	removeProjectFromDevice: vi.fn(),
@@ -14,19 +15,21 @@ const mocks = vi.hoisted(() => ({
 vi.mock('$lib/db/client', () => ({
 	exportProjectZip: vi.fn(),
 	forkProject: vi.fn(),
-	listProjectIdsWithContent: vi.fn(async () => ['project-1']),
 	subscribeLocalDbInvalidations: vi.fn(() => vi.fn()),
 }));
 
+vi.mock('$lib/db/runtime', () => ({ ensureLocalDbRuntime: vi.fn() }));
+
 vi.mock('$lib/backup/location-connections', () => ({
+	completeAccountSignIn: vi.fn(),
 	dismissPlacementNotice: mocks.dismissPlacementNotice,
-	isLocalFolderProviderSupported: vi.fn(() => true),
 	removeProjectFromDevice: mocks.removeProjectFromDevice,
 }));
 
 vi.mock('$lib/storage/project-locations', () => ({
 	listProjectLocations: mocks.listProjectLocations,
 	listProjectPlacements: mocks.listProjectPlacements,
+	listStorageAccounts: mocks.listStorageAccounts,
 }));
 
 vi.mock('$lib/shell/download-blob', () => ({ downloadZipArchive: vi.fn() }));
@@ -71,6 +74,7 @@ describe('ProjectLocationPanel', () => {
 				needsLocationChoice: false,
 			},
 		]);
+		mocks.listStorageAccounts.mockResolvedValue([]);
 	});
 
 	it('shows where the project lives, Move and zip export, and nothing about commit status', async () => {
@@ -100,9 +104,45 @@ describe('ProjectLocationPanel', () => {
 		render(ProjectLocationPanel, { projectId: 'project-1' });
 
 		await expect.element(page.getByText('This browser only')).toBeInTheDocument();
+		await expect.element(page.getByText('Not backed up').first()).toBeInTheDocument();
 		await page.getByRole('button', { name: 'Move', exact: true }).click();
 
 		expect(mocks.moveProject).toHaveBeenCalledWith('project-1', 'location-1');
+	});
+
+	it('offers sign-in in place of Add a location for a browser-only project with no account', async () => {
+		mocks.listProjectLocations.mockResolvedValue([]);
+		mocks.listProjectPlacements.mockResolvedValue([]);
+		render(ProjectLocationPanel, { projectId: 'project-1' });
+
+		await expect
+			.element(page.getByRole('button', { name: 'Sign in with Google Drive' }))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByRole('button', { name: 'Sign in with Dropbox' }))
+			.toBeInTheDocument();
+		expect(page.getByRole('link', { name: 'Add a location' }).elements()).toHaveLength(0);
+	});
+
+	it('keeps the Move picker for a browser-only project once an account is signed in', async () => {
+		mocks.listProjectPlacements.mockResolvedValue([]);
+		mocks.listStorageAccounts.mockResolvedValue([
+			{
+				id: 'account-1',
+				provider: 'dropbox',
+				displayName: 'Ada',
+				email: 'ada@example.org',
+				grantedScopes: [],
+				signedIn: true,
+			},
+		]);
+		render(ProjectLocationPanel, { projectId: 'project-1' });
+
+		await expect
+			.element(page.getByRole('combobox', { name: 'Move to' }))
+			.toHaveTextContent('Shared Folder');
+		await expect.element(page.getByText('Not backed up').first()).toBeInTheDocument();
+		expect(page.getByRole('button', { name: /^Sign in with/ }).elements()).toHaveLength(0);
 	});
 
 	it('says who moved the project and when until dismissed', async () => {
@@ -125,6 +165,7 @@ describe('ProjectLocationPanel', () => {
 			.element(page.getByTestId('project-moved-notice'))
 			.toHaveTextContent(/Moved by Ada on .*Dropbox\/Lab/);
 		await expect.element(page.getByText('This browser only')).toBeInTheDocument();
+		expect(page.getByText('Not backed up').elements()).toHaveLength(0);
 		await page.getByRole('button', { name: 'Dismiss' }).click();
 
 		expect(mocks.dismissPlacementNotice).toHaveBeenCalledWith('project-1');

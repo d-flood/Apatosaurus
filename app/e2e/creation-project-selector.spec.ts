@@ -69,7 +69,7 @@ test('creating a project asks no location question with one place', async ({
 	await page.goto('/projects');
 	await expect(
 		page
-			.getByRole('region', { name: 'Only in this browser' })
+			.getByRole('region', { name: 'Not backed up' })
 			.getByRole('heading', { name: 'Browser Only Project' })
 	).toBeVisible();
 	await expect(

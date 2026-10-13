@@ -29,7 +29,7 @@ export function groupProjectsByLocation(
 	const browserOnly: ProjectLocationGroup = {
 		id: 'browser-only',
 		location: null,
-		label: 'Only in this browser',
+		label: 'Not backed up',
 		owner: null,
 		signedOut: false,
 		projects: [],

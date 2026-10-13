@@ -2,7 +2,7 @@
 	import { networkStatus } from '$lib/shell/network-status.svelte';
 	import { syncService } from '$lib/backup/sync-service.svelte';
 	import {
-		syncStatusLabels,
+		syncStatusLabel,
 		syncStatusReason,
 		type SyncStatusState,
 	} from '$lib/backup/sync-status';
@@ -16,7 +16,7 @@
 	};
 
 	let status = $derived(syncService.overallStatus(networkStatus.online));
-	let label = $derived(syncStatusLabels[status.state]);
+	let label = $derived(syncStatusLabel(status));
 	let offline = $derived(!networkStatus.online);
 </script>
 

@@ -31,6 +31,7 @@
 	} from '$lib/backup/project-backup-overview';
 	import { deriveProjectBackupHealthState } from '$lib/backup/project-backup-health-state';
 	import { dismissPlacementNotice } from '$lib/backup/location-connections';
+	import { isNotBackedUp } from '$lib/backup/sync-status';
 	import { listProjectPlacements } from '$lib/storage/project-locations';
 	import type { WarmProgress } from '$lib/shell/offline-cache-policy';
 	import { formatConflictCopyTitle } from '$lib/shell/source-labels';
@@ -232,6 +233,9 @@
 		}
 
 		if (
+			projectRows.some(project =>
+				isNotBackedUp(placements.find(placement => placement.projectId === project.id))
+			) &&
 			shouldShowDurabilityWarning({
 				hasUserData: true,
 				persistenceStatus: persistence.status,
@@ -243,7 +247,7 @@
 				id: 'storage-durability',
 				title: 'Protect local work from browser cleanup',
 				description: 'Persistent storage is not granted.',
-				href: '/data',
+				href: '/data#advanced',
 				linkLabel: 'Review storage durability',
 			});
 		}
@@ -251,9 +255,9 @@
 		if (estimate.isNearQuota) {
 			items.push({
 				id: 'storage-quota',
-				title: 'Browser storage is nearly full',
+				title: 'Storage on this device is nearly full',
 				description: 'Export a backup before adding large batches of work.',
-				href: '/data',
+				href: '/data#advanced',
 				linkLabel: 'Review storage usage',
 			});
 		}
