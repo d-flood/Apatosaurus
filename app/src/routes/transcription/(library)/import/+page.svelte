@@ -173,8 +173,7 @@
 	<fieldset class="fieldset rounded-box border border-base-300 bg-base-200 p-4">
 		<legend class="fieldset-legend text-lg">Defaults for missing metadata</legend>
 		<p class="text-sm text-base-content/70">
-			Values from each file's TEI header take precedence. These fill only what a header lacks.
-			Title and siglum fall back to the file name.
+			TEI headers take precedence. Title and siglum default to the file name.
 		</p>
 		<div class="grid gap-2 sm:grid-cols-2">
 			<label class="input w-full">

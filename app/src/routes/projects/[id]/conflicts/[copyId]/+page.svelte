@@ -81,8 +81,7 @@
 			<p class="text-xs text-base-content/50">
 				Keep yours or theirs for each {contents.copy.kind === 'transcription'
 					? 'verse'
-					: 'variation unit'}. Applying updates the document and removes the conflict
-				copy.
+					: 'variation unit'}, then apply.
 			</p>
 		</div>
 		<fieldset disabled={applying}>

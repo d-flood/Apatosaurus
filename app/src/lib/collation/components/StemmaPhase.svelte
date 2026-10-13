@@ -538,9 +538,8 @@
 			class="mb-3 inline-flex items-center gap-2 rounded-full border border-base-300/60 bg-base-200/60 px-3 py-1 text-xs text-base-content/60"
 		>
 			<span class="font-semibold uppercase tracking-[0.18em]">Stemma View</span>
-			<span
-				>Each reading takes one source. Subreadings are cited with their main reading.</span
-			>
+			<span>Each reading takes one source.</span>
+			<span class="sr-only">Subreadings are cited with their main reading.</span>
 		</div>
 
 		<fieldset
@@ -742,9 +741,9 @@
 			{#each stemma.violations.filter(violation => violation.kind === 'lemma-is-posterior') as violation (violation.readingId)}
 				<div class="alert alert-warning mb-2 py-2 text-xs" role="alert">
 					<span>
-						The lemma has a recorded prior reading ({violation.priorReadingIds
+						The lemma has a prior reading ({violation.priorReadingIds
 							.map(id => labelById.get(id) ?? id)
-							.join(', ')}). Its incoming arc is preserved until you repair it.
+							.join(', ')}).
 					</span>
 					<button type="button" class="btn btn-warning btn-xs" onclick={rerootOnLemma}
 						>Reroot on lemma</button

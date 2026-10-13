@@ -720,8 +720,7 @@
 	{/if}
 	{#if collationState.isAlignmentStale}
 		<div class="alert alert-warning mb-3 text-sm">
-			Rules or collation settings changed after this alignment was run. Re-run needed before
-			readings match the current preview.
+			Settings changed since this alignment ran. Re-run collation.
 		</div>
 	{/if}
 
@@ -938,17 +937,16 @@
 				<h3 class="text-sm font-bold tracking-tight text-base-content/80 mb-3">
 					Regularization Rules
 				</h3>
-				<p class="text-xs text-base-content/50 mb-3">
-					Adjust rules, run collation, review alignment, and iterate. Preprocessing runs
-					first, then project rules, then verse rules, each in list order.
+				<p class="sr-only">
+					Rules apply in order: preprocessing, project rules, then verse rules.
 				</p>
 
 				<div class="bg-base-100 rounded-box p-3 border border-base-300/50 space-y-3 mb-3">
 					<label class="flex items-center justify-between gap-3">
 						<div>
 							<div class="text-sm font-medium">CollateX segmentation</div>
-							<div class="text-xs text-base-content/50">
-								Merge identical adjacent runs into one segment when enabled.
+							<div class="sr-only">
+								Merges identical adjacent tokens into one segment.
 							</div>
 						</div>
 						<input
@@ -965,10 +963,7 @@
 					<label class="flex items-center justify-between gap-3">
 						<div>
 							<div class="text-sm font-medium">Lowercase for alignment</div>
-							<div class="text-xs text-base-content/50">
-								Collate on lowercase text while preserving original case for
-								display.
-							</div>
+							<div class="sr-only">Original case is kept for display.</div>
 						</div>
 						<input
 							type="checkbox"
@@ -984,10 +979,7 @@
 					<label class="flex items-center justify-between gap-3">
 						<div>
 							<div class="text-sm font-medium">Ignore punctuation</div>
-							<div class="text-xs text-base-content/50">
-								Automatic unclear handling stays on; punctuation can be excluded
-								from alignment.
-							</div>
+							<div class="sr-only">Original punctuation is kept for display.</div>
 						</div>
 						<input
 							type="checkbox"

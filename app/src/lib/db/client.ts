@@ -202,7 +202,7 @@ function reportAutomaticIndexRebuild(message: DbIndexRebuiltEvent): void {
 	notificationCenter.upsert({
 		id: 'local-db-index-rebuilt',
 		title: 'Local database repaired',
-		message: `The local SQLite index ${issue}, so it was rebuilt from your project files. Restored ${message.report.projectsRestored} project(s), ${message.report.transcriptionsRestored} transcription(s), and ${message.report.collationsRestored} collation(s).`,
+		message: `The local index ${issue}. Rebuilt ${message.report.projectsRestored} project(s), ${message.report.transcriptionsRestored} transcription(s), and ${message.report.collationsRestored} collation(s) from your files.`,
 		tone: 'warning',
 		persistent: true,
 	});

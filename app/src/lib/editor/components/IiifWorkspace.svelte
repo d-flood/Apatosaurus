@@ -849,8 +849,8 @@
 			selectManifestSource(saved.id);
 			statusMessage =
 				images.length === 1
-					? 'Image loaded as a synthetic IIIF canvas and saved locally.'
-					: `${images.length} images loaded as a synthetic IIIF manifest and saved locally.`;
+					? 'Image loaded and saved.'
+					: `${images.length} images loaded and saved.`;
 		} catch (error) {
 			statusMessage =
 				error instanceof Error ? error.message : 'Failed to load external image URLs.';
@@ -1161,9 +1161,9 @@
 			>
 				<p>
 					{#if hydratingManifest}
-						Preparing the saved manifest snapshot for direct viewer loading...
+						Preparing manifest...
 					{:else if isCompositeSelected}
-						No linked images are available in the composite manifest yet.
+						No linked images yet.
 					{:else}
 						Load or select a source to open the viewer.
 					{/if}
@@ -1432,9 +1432,7 @@
 								<p class="font-medium">Current source</p>
 								{#if isCompositeSelected}
 									<p class="mt-1 opacity-80">
-										The composite local manifest is for review and unlinking
-										only. New links can only be created while a saved source is
-										selected.
+										Composite view is unlink-only. Select a source to add links.
 									</p>
 								{:else if currentManifestSource}
 									<p class="mt-1 opacity-80 wrap-break-word">
@@ -1678,7 +1676,7 @@
 								{:else}
 									<p class="text-xs opacity-70">
 										{#if isCompositeSelected}
-											No linked images are in the composite manifest yet.
+											No linked images yet.
 										{:else}
 											No links yet for this source.
 										{/if}

@@ -318,9 +318,8 @@
 									: 's'}
 							</div>
 							<p class="mt-1">
-								These members no longer resolve to a transcription and were not
-								gathered. Witnesses from other members continue to collate. This is
-								distinct from non-attestation.
+								These no longer match a transcription and were skipped. Other
+								witnesses still collate.
 							</p>
 							<ul class="mt-2 list-inside list-disc font-mono text-xs">
 								{#each collationState.orphanedMembers as member (member)}

@@ -29,9 +29,7 @@
 					</div>
 					<div class="mt-1 font-semibold text-error">{file.code}</div>
 					<div>{file.message}</div>
-					<div class="mt-1 text-base-content/50">
-						The file was left unchanged for manual recovery.
-					</div>
+					<div class="mt-1 text-base-content/50">Left unchanged.</div>
 				</div>
 			{/each}
 		</div>
@@ -59,9 +57,7 @@
 								: `Restore ${file.entityId}`}
 						</button>
 					{:else}
-						<div class="mt-1 text-base-content/50">
-							No automatic recovery is safe for this file.
-						</div>
+						<div class="mt-1 text-base-content/50">Can't restore automatically.</div>
 					{/if}
 				</div>
 			{/each}
@@ -69,6 +65,6 @@
 	{/if}
 
 	{#if report.quarantinedFiles.length === 0 && report.orphanedFiles.length === 0}
-		<div class="mt-1">No quarantined or orphaned files were found.</div>
+		<div class="mt-1">No problem files found.</div>
 	{/if}
 </div>

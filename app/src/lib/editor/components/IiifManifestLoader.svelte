@@ -98,9 +98,7 @@ https://example.org/image-2.png"
 			>
 				{busy ? 'Loading...' : 'Load images'}
 			</button>
-			<p class="text-xs text-base-content/60">
-				One external image URL per line. A synthetic IIIF manifest will be created locally.
-			</p>
+			<p class="text-xs text-base-content/60">One image URL per line.</p>
 		{:else}
 			<textarea
 				class="textarea textarea-bordered min-h-36 w-full"
@@ -135,10 +133,6 @@ https://example.org/image-2.png"
 					<span>Import INTF manuscript</span>
 				{/if}
 			</button>
-			<p class="text-xs text-base-content/60">
-				Paste the manuscript metadata JSON from INTF. The app will create a local synthetic
-				IIIF manifest.
-			</p>
 		{/if}
 	</div>
 </div>

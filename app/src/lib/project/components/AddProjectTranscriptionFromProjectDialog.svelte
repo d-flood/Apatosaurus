@@ -64,14 +64,9 @@
 				<div class="rounded-box bg-secondary/10 p-2 text-secondary">
 					<ArrowsLeftRight size={20} />
 				</div>
-				<div>
-					<h2 class="font-serif text-lg font-semibold leading-tight">
-						Add transcription from another project
-					</h2>
-					<p class="text-xs text-base-content/50">
-						Reuse a project transcription as new source material.
-					</p>
-				</div>
+				<h2 class="font-serif text-lg font-semibold leading-tight">
+					Add transcription from another project
+				</h2>
 			</div>
 			<button
 				type="button"
@@ -86,18 +81,13 @@
 
 		<div class="mt-4 space-y-3 text-sm">
 			<p class="text-base-content/80">
-				Select a project transcription from another local project, then its Current or a
-				named version. This creates a new full project transcription in the current project.
-				The source project is not changed.
+				Pick a transcription and version to copy. The source project is not changed.
 			</p>
 			<div
 				class="flex items-start gap-2 rounded-box border border-warning/40 bg-warning/10 p-3 text-xs text-base-content/80"
 			>
 				<Warning size={16} class="mt-0.5 shrink-0 text-warning" />
-				<span>
-					Collations in the current project will not use the new transcription until you
-					add it as a witness.
-				</span>
+				<span> Add it as a witness to use it in collations. </span>
 			</div>
 
 			{#if isLoadingCandidates}

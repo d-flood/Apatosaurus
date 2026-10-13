@@ -44,7 +44,7 @@
 <div class="rounded-box border border-base-300/60 bg-base-200/40 p-3">
 	<h3 class="font-serif text-sm font-semibold">Import Project Backup</h3>
 	<p class="mt-1 text-xs leading-relaxed text-base-content/55">
-		Choose one project .zip backup. Files are validated before any local project is changed.
+		Choose a project .zip backup. Nothing changes until it validates.
 	</p>
 	<div class="mt-3">
 		<FilePicker

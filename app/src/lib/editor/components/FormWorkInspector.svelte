@@ -163,9 +163,7 @@
 		</div>
 	{/if}
 
-	<p class="text-xs text-base-content/65">
-		Edit this formwork's text directly in the transcription.
-	</p>
+	<p class="text-xs text-base-content/65">Edit its text in the transcription.</p>
 
 	<div class="flex justify-end">
 		<button class="btn btn-sm btn-primary" onclick={applyChanges}>

@@ -633,8 +633,8 @@
 		<div
 			class="rounded-lg border border-warning/40 bg-warning/10 px-4 py-2 text-sm text-base-content/70"
 		>
-			The base text does not testify here, so this unit has no lemma. Choose the reading to
-			establish as <span class="font-mono">a</span>.
+			No lemma: the base text doesn't testify here. Choose the reading to establish as
+			<span class="font-mono">a</span>.
 		</div>
 	{/if}
 
@@ -727,8 +727,7 @@
 				<p class="w-full text-xs text-warning" data-testid="merge-warning">
 					Merging discards the text of {mergeDiscards.texts.join(', ')}.
 					{#if mergeDiscards.lemmaLabel}
-						{mergeDiscards.lemmaLabel} is the lemma reading; the lemma will return to the
-						base text's reading.
+						{mergeDiscards.lemmaLabel} is the lemma reading; it reverts to the base text.
 					{/if}
 				</p>
 			{/if}
@@ -749,7 +748,7 @@
 	<div class="min-h-0 flex-1 overflow-auto rounded-xl border border-base-300/50 bg-base-100 p-3">
 		{#if !selectedSpan}
 			<div class="flex h-full items-center justify-center p-6 text-sm text-base-content/35">
-				No variation units available. Return to alignment to adjust the collation.
+				No variation units. Adjust the alignment.
 			</div>
 		{:else}
 			<div
@@ -996,9 +995,8 @@
 										</button>
 										{#if attesting.length > 0}
 											<p class="text-[0.65rem] text-base-content/40">
-												{attesting.length} witness(es) still attest this reading,
-												counting its subreadings. Move them elsewhere before deleting
-												it.
+												{attesting.length} witness(es) still attest this reading.
+												Move them first.
 											</p>
 										{/if}
 									</div>

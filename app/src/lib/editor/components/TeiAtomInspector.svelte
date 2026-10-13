@@ -72,8 +72,7 @@
 		</label>
 	{:else if textContent === null}
 		<div class="rounded bg-base-200 p-3 text-xs text-base-content/70">
-			This element contains nested structure. Attributes are editable here; nested content
-			stays structured.
+			Nested content. Only attributes are editable here.
 		</div>
 	{/if}
 

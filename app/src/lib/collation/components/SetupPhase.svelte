@@ -527,7 +527,7 @@
 			<div
 				class="rounded-box border border-base-300/40 bg-base-200/40 px-3 py-2 text-xs text-base-content/55"
 			>
-				Changing transcription preprocessing may rebuild downstream alignment and readings.
+				Changing preprocessing may rebuild alignment and readings.
 			</div>
 		</div>
 	</div>
@@ -538,10 +538,7 @@
 				<h2 class="font-serif text-2xl font-bold tracking-tight text-base-content/90">
 					Textual Scope
 				</h2>
-				<p class="text-sm text-base-content/55">
-					Choose a verse from the currently linked project transcriptions and review the
-					witnesses that will enter collation.
-				</p>
+				<p class="text-sm text-base-content/55">Choose a verse and its witnesses.</p>
 			</div>
 			{#if collationState.witnesses.length > 0}
 				<span class="text-xs font-mono text-base-content/50">
@@ -571,8 +568,7 @@
 					Link at least one transcription
 				</h3>
 				<p class="mx-auto mt-2 max-w-lg text-sm leading-6 text-base-content/55">
-					Project scope is empty right now. Select transcriptions in the sidebar to
-					populate the available verses and witnesses.
+					Select transcriptions in the sidebar.
 				</p>
 			</div>
 		{/if}
@@ -760,12 +756,12 @@
 								value={collationState.segment?.name ?? ''}
 								disabled={!collationState.segment}
 								required
+								aria-describedby="segment-name-hint"
 								oninput={event =>
 									collationState.setSegmentName(event.currentTarget.value)}
 							/>
-							<p class="mt-1 text-xs text-base-content/50">
-								Required. This is the only passage reference shown in the collation
-								output.
+							<p id="segment-name-hint" class="mt-1 text-xs text-base-content/50">
+								Shown as the passage reference in output.
 							</p>
 						</label>
 					</div>
@@ -1035,8 +1031,7 @@
 
 			<div class="mt-4 space-y-3 text-sm">
 				<p class="text-base-content/80">
-					This replaces the witness text with the transcription's Current or a named
-					version.
+					Replaces the witness text with a version of the transcription.
 				</p>
 				{#if refreshOptions}
 					<SourceVersionPicker
@@ -1056,8 +1051,7 @@
 				>
 					<Warning size={16} class="mt-0.5 shrink-0 text-warning" />
 					<span>
-						Alignment and readings will be rebuilt. Classified readings and stemma state
-						will be cleared.
+						Rebuilds alignment and readings. Clears classified readings and stemma.
 					</span>
 				</div>
 				{#if refreshError}

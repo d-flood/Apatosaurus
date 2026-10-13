@@ -139,9 +139,6 @@
 	<header class="mb-6 flex items-end justify-between gap-4">
 		<div>
 			<h1 class="font-serif text-3xl font-bold tracking-tight">Projects</h1>
-			<p class="mt-1 text-sm text-base-content/55">
-				Choose a project or start a new workspace.
-			</p>
 		</div>
 		<span class="badge badge-outline text-xs">{projectCountLabel}</span>
 	</header>

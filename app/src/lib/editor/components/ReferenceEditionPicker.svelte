@@ -545,8 +545,7 @@
 							class="rounded-box border border-info/40 bg-info/10 p-3 text-xs"
 							data-testid="missing-reference-edition"
 						>
-							This edition is not on this device. Add the edition file to seed from it
-							again.
+							Edition not on this device. Add its file to seed from it.
 						</div>
 					{/if}
 					{#if pendingRegistration}
@@ -711,7 +710,7 @@
 						<div
 							class="min-h-32 rounded-box border border-dashed border-base-300 p-4 text-sm text-base-content/65"
 						>
-							Choose an edition to load its addressable units.
+							Choose an edition.
 						</div>
 					{/if}
 				</section>
@@ -722,7 +721,7 @@
 			>
 				<p class="text-xs text-base-content/65">
 					{#if startPosition !== null && endPosition !== null}
-						Selected units {startPosition}-{endPosition} in document order.
+						Selected units {startPosition}-{endPosition}.
 					{:else}
 						Select a start and end unit.
 					{/if}

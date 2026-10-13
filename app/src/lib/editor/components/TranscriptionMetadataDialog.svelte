@@ -244,11 +244,7 @@
 						>Document TEI Context</summary
 					>
 					<div class="collapse-content text-sm space-y-4">
-						<p class="text-gray-600">
-							Common export metadata is managed on the transcription record, not in
-							the Tiptap document. This section only shows TEI-specific witness and
-							manuscript context that may still matter for the imported document.
-						</p>
+						<p class="text-gray-600">TEI witness and manuscript details from import.</p>
 						{#if teiHeader}
 							<div>
 								<h3 class="font-semibold mb-2">Typed TEI Context</h3>
@@ -285,10 +281,7 @@
 								</dl>
 							</div>
 						{:else}
-							<p class="text-gray-500">
-								No extra TEI-specific witness/manuscript context is currently
-								attached to this document.
-							</p>
+							<p class="text-gray-500">No TEI context.</p>
 						{/if}
 					</div>
 				</details>
@@ -298,10 +291,7 @@
 					</summary>
 					<div class="collapse-content text-sm space-y-3">
 						{#if preservedSections.length > 0}
-							<p class="text-gray-600">
-								These sections are preserved losslessly for export even when they
-								are not directly editable in the flattened transcription view.
-							</p>
+							<p class="text-gray-600">Kept unchanged for export.</p>
 							{#each preservedSections as section}
 								<div class="rounded border border-base-300 p-3">
 									<div class="font-semibold mb-2">
@@ -323,10 +313,7 @@
 								</div>
 							{/each}
 						{:else}
-							<p class="text-gray-500">
-								No preserved non-body TEI sections are currently attached to this
-								document.
-							</p>
+							<p class="text-gray-500">No preserved sections.</p>
 						{/if}
 					</div>
 				</details>

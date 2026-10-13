@@ -7,9 +7,7 @@
 	<div class="mb-3 flex items-start justify-between gap-3">
 		<div>
 			<h2 class="font-serif text-lg font-semibold">Collaboration</h2>
-			<p class="text-xs text-base-content/50">
-				Shared projects, roles, and team ownership are not available yet.
-			</p>
+			<p class="text-xs text-base-content/50">Not available yet.</p>
 		</div>
 		<span class="badge badge-neutral gap-1">
 			<Lock size={12} />

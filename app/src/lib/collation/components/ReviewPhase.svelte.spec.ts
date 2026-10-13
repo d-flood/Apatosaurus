@@ -243,11 +243,8 @@ describe('ReviewPhase export refusals', () => {
 		await page.getByRole('button', { name: 'Export TEI apparatus' }).click();
 
 		const refusal = page.getByRole('link', {
-			name: /Agreed text .*untranscribed witness coverage \(C\) in Alignment before export/,
+			name: /Agreed text .*untranscribed witnesses \(C\) in Alignment/,
 		});
 		await expect.element(refusal).toHaveAttribute('href', '/collation/collation-1/alignment');
-		await expect
-			.element(refusal)
-			.toHaveTextContent('This agreed-text refusal has no variation unit.');
 	});
 });

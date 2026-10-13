@@ -75,9 +75,7 @@
 			{/each}
 		</div>
 	{:else}
-		<div class="rounded bg-base-200 p-3 text-xs text-base-content/70">
-			This element has no direct text content that can be edited here.
-		</div>
+		<div class="rounded bg-base-200 p-3 text-xs text-base-content/70">No editable text.</div>
 	{/if}
 
 	<div class="flex justify-end">

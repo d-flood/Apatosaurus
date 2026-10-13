@@ -94,8 +94,7 @@
 		<div>
 			<h2 class="font-serif text-lg font-semibold">Project Transcriptions</h2>
 			<p class="text-xs text-base-content/50">
-				Choose which linked transcriptions can supply verses, first-hand witnesses, and
-				corrector hands.
+				Choose which transcriptions supply witnesses.
 			</p>
 		</div>
 		{#if isSaving}
@@ -108,10 +107,7 @@
 	>
 		<div>
 			<div class="text-sm font-medium">Corrector treatment</div>
-			<div class="text-xs text-base-content/50">
-				Apply a full or fragmentary witness treatment to corrector hands from all selected
-				transcriptions.
-			</div>
+			<div class="sr-only">Applies to corrector hands in all selected transcriptions.</div>
 		</div>
 		<label class="flex items-center gap-3">
 			<span
@@ -194,10 +190,6 @@
 										{transcription.description}
 									</div>
 								{/if}
-								<div class="mt-1 text-[11px] text-base-content/45">
-									Corrector treatment stays separate from per-hand inclusion
-									below.
-								</div>
 							</div>
 						</label>
 						<div

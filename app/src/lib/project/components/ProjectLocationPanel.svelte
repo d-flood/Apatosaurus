@@ -238,8 +238,7 @@
 					Moved by {placement.moved.movedBy} on {formatDate(placement.moved.movedAt)}
 				</div>
 				<div class="text-xs opacity-80">
-					It now lives in {placement.moved.destinationLabel}. This copy no longer syncs
-					and is kept only in this browser.
+					Now in {placement.moved.destinationLabel}. This copy no longer syncs.
 				</div>
 			</div>
 			<button type="button" class="btn btn-ghost btn-sm" onclick={dismissMoved}>
@@ -257,9 +256,7 @@
 						placement.deleted.deletedAt
 					)}
 				</div>
-				<div class="text-xs opacity-80">
-					This copy no longer syncs and is kept only in this browser.
-				</div>
+				<div class="text-xs opacity-80">This copy no longer syncs.</div>
 			</div>
 			<button type="button" class="btn btn-ghost btn-sm" onclick={dismissMoved}>
 				Dismiss
@@ -301,9 +298,7 @@
 	{#if destinations.length > 0}
 		<div class="mt-4 rounded-box border border-base-300/60 bg-base-200/40 p-3">
 			<div class="text-sm font-medium">Move</div>
-			<div class="text-xs text-base-content/60">
-				Moves the project and all its versions. Nothing is left in two places.
-			</div>
+			<div class="text-xs text-base-content/60">Moves the project and all its versions.</div>
 			<div class="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
 				<select
 					class="select select-bordered select-sm w-full sm:w-auto"
@@ -333,9 +328,7 @@
 			<div>
 				<div class="text-sm font-medium">Zip export</div>
 				<div class="text-xs text-base-content/60">
-					Downloads project files for backup in any browser. Last exported: {formatDate(
-						lastExportedAt
-					)}
+					Last exported: {formatDate(lastExportedAt)}
 				</div>
 			</div>
 			<button

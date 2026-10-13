@@ -96,8 +96,7 @@
 
 		<div class="mt-4 space-y-3 text-sm">
 			<p class="text-base-content/80">
-				This replaces the project transcription's Current with the source's Current or a
-				named version.
+				Replaces this transcription's Current with a source version.
 			</p>
 			{#if sourceLabel}
 				<p class="text-xs text-base-content/60">
@@ -118,10 +117,7 @@
 				class="flex items-start gap-2 rounded-box border border-warning/40 bg-warning/10 p-3 text-xs text-base-content/80"
 			>
 				<Warning size={16} class="mt-0.5 shrink-0 text-warning" />
-				<span>
-					Collations that already use this transcription remain pinned to their current
-					witness versions.
-				</span>
+				<span> Existing collations keep their witness versions. </span>
 			</div>
 			{#if targetIsDirty}
 				<label
@@ -133,9 +129,7 @@
 						bind:checked={confirmReplaceDirty}
 						disabled={isSubmitting}
 					/>
-					<span>
-						Replace changes made since this project transcription's last version.
-					</span>
+					<span> Replace changes made since the last version. </span>
 				</label>
 			{/if}
 			{#if error}

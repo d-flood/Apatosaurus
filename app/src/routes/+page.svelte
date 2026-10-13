@@ -161,8 +161,7 @@
 		const items: DashboardAttentionItem[] = conflictCopies.map(copy => ({
 			id: `conflict-copy:${copy.copyId}`,
 			title: formatConflictCopyTitle(copy),
-			description:
-				'Two copies of this document changed independently. Choose what to keep from each.',
+			description: 'Two copies changed separately. Choose what to keep.',
 			href: `/projects/${copy.projectId}/conflicts/${copy.copyId}`,
 			linkLabel: 'Reconcile',
 		}));
@@ -184,7 +183,7 @@
 				items.push({
 					id: `moved:${project.id}`,
 					title: `${project.name} moved`,
-					description: `Moved by ${placement.moved.movedBy} on ${new Date(placement.moved.movedAt).toLocaleString()} to ${placement.moved.destinationLabel}. This copy no longer syncs and is kept only in this browser.`,
+					description: `Moved by ${placement.moved.movedBy} on ${new Date(placement.moved.movedAt).toLocaleString()} to ${placement.moved.destinationLabel}. This copy no longer syncs.`,
 					href: `/projects/${project.id}/location`,
 					linkLabel: `Open location of ${project.name}`,
 					dismissLabel: 'Dismiss',
@@ -196,7 +195,7 @@
 				items.push({
 					id: `deleted:${project.id}`,
 					title: `${project.name} deleted`,
-					description: `Deleted by ${placement.deleted.deletedBy} on ${new Date(placement.deleted.deletedAt).toLocaleString()}. This copy no longer syncs and is kept only in this browser.`,
+					description: `Deleted by ${placement.deleted.deletedBy} on ${new Date(placement.deleted.deletedAt).toLocaleString()}. This copy no longer syncs.`,
 					href: `/projects/${project.id}/location`,
 					linkLabel: `Open location of ${project.name}`,
 					dismissLabel: 'Dismiss',
@@ -208,7 +207,7 @@
 				items.push({
 					id: `needs-location-choice:${project.id}`,
 					title: 'Choose where this project lives',
-					description: `${project.name} synced to a folder before this update. That folder is left untouched; move the project to a location to keep syncing.`,
+					description: `${project.name} used a sync folder before this update. Move it to keep syncing.`,
 					href: `/projects/${project.id}/location`,
 					linkLabel: `Move ${project.name}`,
 					dismissLabel: 'Keep in this browser',
@@ -243,8 +242,7 @@
 			items.push({
 				id: 'storage-durability',
 				title: 'Protect local work from browser cleanup',
-				description:
-					'Persistent browser storage has not been granted for your project files.',
+				description: 'Persistent storage is not granted.',
 				href: '/data',
 				linkLabel: 'Review storage durability',
 			});
@@ -296,8 +294,8 @@
 					: 'Offline preparation failed',
 			description:
 				progress.reason === 'quota'
-					? 'The browser does not currently have enough storage headroom to cache every app page.'
-					: 'Some application pages may be unavailable without a network connection.',
+					? 'Not enough storage to cache every page.'
+					: 'Some pages may not work offline.',
 			href: '/data',
 			linkLabel: 'Review offline readiness',
 		};

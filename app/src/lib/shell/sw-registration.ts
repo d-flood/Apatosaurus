@@ -23,7 +23,7 @@ function offerUpdate(worker: ServiceWorker): void {
 	notificationCenter.upsert({
 		id: UPDATE_NOTIFICATION_ID,
 		title: 'App update available',
-		message: 'Apply the update when you are ready. Your page will not reload automatically.',
+		message: "Apply when ready. The page won't reload on its own.",
 		tone: 'neutral',
 		persistent: true,
 		actions: [

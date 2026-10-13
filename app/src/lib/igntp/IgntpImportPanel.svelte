@@ -106,10 +106,7 @@
 			</div>
 			<div>
 				<h2 class="font-serif text-2xl font-semibold">Import Provided Transcriptions</h2>
-				<p class="max-w-3xl text-sm text-base-content/70">
-					Browse the bundled IGNTP TEI corpus by subdirectory, then import one or more
-					witnesses directly into your local transcription library.
-				</p>
+				<p class="max-w-3xl text-sm text-base-content/70">Select witnesses to import.</p>
 			</div>
 		</div>
 		<div class="grid grid-cols-2 gap-2 text-center text-sm md:grid-cols-4">
@@ -147,7 +144,7 @@
 		class="flex flex-col gap-3 border-b border-base-300/80 pb-4 md:flex-row md:items-center md:justify-between shrink-0"
 	>
 		<p class="text-sm text-base-content/65">
-			Already imported and unsupported witnesses stay visible but cannot be selected.
+			Imported and unsupported witnesses can't be selected.
 		</p>
 		<button
 			type="button"

@@ -66,6 +66,10 @@ _Avoid_: Parent reading, primary reading
 A reading recorded separately from its main reading but treated as equivalent to it, and counted with it in analysis — typically a form differing only in damage, uncertainty, or orthography. Labelled from its main reading (`a1`, `a2`). Never a genealogically distinct variant.
 _Avoid_: Child reading, nested reading, reading family
 
+**Split reading**:
+A main reading whose text is identical to another main reading at the same variation unit, recorded separately because the scholar judges its witnesses reached it by a separate route. Takes its own place in the local stemma. Whether coherence treats the pair as agreeing is chosen per CBGM analysis.
+_Avoid_: Split attestation, duplicate reading
+
 **Lemma reading**:
 The reading a scholar establishes as `a` at a variation unit — the initial text's reading. Defaults to the reading the base text attests, and may be elevated from any reading, which bumps the base text's reading down into the ordinary letter sequence.
 _Avoid_: Lemma, main reading (a main reading is any lettered reading), base reading
@@ -121,6 +125,12 @@ _Avoid_: Parent, ancestor, source reading (`source` means the transcription a wi
 **Posterior reading**:
 The reading an arc runs to — the one hypothesised to have arisen from the prior reading.
 _Avoid_: Child, descendant, derived reading
+
+### CBGM
+
+**CBGM analysis**:
+A named, saved computation of coherence over a set of a project's collations the scholar chooses, under settings the scholar chooses, which the scholar then queries. A project may hold several, none privileged over the others. Its witnesses are identified by siglum across its collations, and include first hands only unless the scholar adds correctors. Becomes out of date when any of its collations changes, and is never recomputed without the scholar asking.
+_Avoid_: CBGM database, CBGM run, genealogical cache
 
 ### Versions and storage
 

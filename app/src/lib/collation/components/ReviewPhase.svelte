@@ -268,8 +268,7 @@
 				<div>
 					<h2 class="font-serif text-xl font-bold tracking-tight">Review</h2>
 					<p class="mt-1 text-sm text-base-content/60">
-						Review the apparatus, settle outstanding decisions, then export or name a
-						version.
+						Settle open decisions, then export.
 					</p>
 				</div>
 				<button type="button" class="btn btn-primary btn-sm" onclick={downloadExport}>
@@ -306,9 +305,9 @@
 										href={exportRefusalHref(refusal)}
 										class="link link-hover text-left text-sm"
 									>
-										Agreed text {refusal.label}: review untranscribed witness
-										coverage ({refusalWitnesses(refusal)}) in Alignment before
-										export. This agreed-text refusal has no variation unit.
+										Agreed text {refusal.label}: check untranscribed witnesses ({refusalWitnesses(
+											refusal
+										)}) in Alignment.
 									</a>
 								{/if}
 							</li>

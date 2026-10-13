@@ -73,10 +73,7 @@
 <div class="rounded-box border border-base-300/50 bg-base-100 p-4 shadow-md">
 	<div class="mb-3">
 		<h2 class="font-serif text-lg font-semibold">Project Collation Settings</h2>
-		<p class="text-xs text-base-content/50">
-			Automatic unclear handling always regularizes to clear text for alignment. Transcription
-			preprocessing and alignment normalization are configured here.
-		</p>
+		<p class="sr-only">Unclear text is always aligned as clear text.</p>
 	</div>
 
 	<div class="mb-3 space-y-3 rounded-box border border-base-300/50 bg-base-200/40 p-3">
@@ -89,10 +86,7 @@
 			>
 				<div>
 					<div class="text-sm font-medium">Ignore word breaks</div>
-					<div class="text-xs text-base-content/50">
-						Remove wrapped word-break markers from the original tokens and readings
-						before collation, not only from the alignment normalization form.
-					</div>
+					<div class="sr-only">Also removes them from readings, not only alignment.</div>
 				</div>
 				<input
 					type="checkbox"
@@ -113,10 +107,7 @@
 			>
 				<div>
 					<div class="text-sm font-medium">CollateX segmentation</div>
-					<div class="text-xs text-base-content/50">
-						Merge identical adjacent runs into one segment instead of keeping each token
-						separate.
-					</div>
+					<div class="sr-only">Merges identical adjacent tokens into one segment.</div>
 				</div>
 				<input
 					type="checkbox"
@@ -132,10 +123,7 @@
 			>
 				<div>
 					<div class="text-sm font-medium">Lowercase for alignment</div>
-					<div class="text-xs text-base-content/50">
-						Collate on lowercase text while keeping the original case available on
-						demand.
-					</div>
+					<div class="sr-only">Original case is kept for display.</div>
 				</div>
 				<input
 					type="checkbox"
@@ -151,10 +139,7 @@
 			>
 				<div>
 					<div class="text-sm font-medium">Ignore punctuation in alignment</div>
-					<div class="text-xs text-base-content/50">
-						Original punctuation stays visible on demand, but can be removed from the
-						alignment form.
-					</div>
+					<div class="sr-only">Original punctuation is kept for display.</div>
 				</div>
 				<input
 					type="checkbox"

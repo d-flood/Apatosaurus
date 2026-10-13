@@ -658,7 +658,7 @@
 
 	function persistenceStatusLabel(report: StoragePersistenceReport | null): string {
 		if (!report) return 'Checking';
-		if (report.status === 'granted') return 'Protected from browser eviction';
+		if (report.status === 'granted') return 'Granted';
 		if (report.status === 'denied')
 			return report.canRequest ? 'Not yet granted' : 'Not granted';
 		return 'Unsupported by this browser';
@@ -968,7 +968,9 @@
 					</button>
 				</div>
 				<form class="mt-5 space-y-2" onsubmit={saveAuthorName}>
-					<label class="block text-sm font-medium" for="author-name">Name on versions</label>
+					<label class="block text-sm font-medium" for="author-name"
+						>Name on versions</label
+					>
 					<p id="author-name-hint" class="sr-only">
 						Storage accounts use their own display name instead.
 					</p>
@@ -1078,7 +1080,9 @@
 
 			<section class="rounded-box border border-base-300/60 bg-base-100 p-5 shadow-sm">
 				<h2 class="font-serif text-xl font-semibold">Project Sync Status</h2>
-				<p class="mt-1 text-sm text-base-content/55">Select a project to change its location.</p>
+				<p class="mt-1 text-sm text-base-content/55">
+					Select a project to change its location.
+				</p>
 				{#if isLoading}
 					<div class="mt-4 flex items-center gap-2 text-sm text-base-content/55">
 						<span class="loading loading-spinner loading-sm"></span>Loading status...
@@ -1299,7 +1303,9 @@
 		{#if teamAccount?.provider === 'google'}
 			<p class="text-sm text-base-content/70">Pick a shared Google Drive folder.</p>
 			{#if !hasDriveScope(teamAccount)}
-				<p class="text-sm text-base-content/70">Google will ask once for access to your Drive.</p>
+				<p class="text-sm text-base-content/70">
+					Google will ask once for access to your Drive.
+				</p>
 			{/if}
 			<div class="flex flex-wrap items-center gap-3">
 				<button

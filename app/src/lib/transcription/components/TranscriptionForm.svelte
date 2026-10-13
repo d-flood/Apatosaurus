@@ -275,9 +275,7 @@
 		<div class="fieldset bg-base-200 border border-base-300 rounded-box p-4 space-y-4">
 			<legend class="fieldset-legend text-lg">Import TEI XML</legend>
 			<p class="text-sm text-base-content/70">
-				Choose a TEI transcription file. The TEI header will prefill the record metadata
-				below, and the TEI body will become the initial transcription content. Review the
-				fields before creating the transcription.
+				Choose a TEI file. Its header fills in the fields below.
 			</p>
 			<FilePicker
 				label="TEI File"
@@ -459,14 +457,12 @@
 	</label>
 
 	<fieldset class="fieldset">
-		<legend class="fieldset-legend text-lg">Database-backed Export Metadata</legend>
+		<legend class="fieldset-legend text-lg">Export Metadata</legend>
 		<p class="text-sm text-base-content/70 mb-2">
 			{#if !isEditMode && importMode === 'tei'}
-				These fields were prefilled from the imported TEI where possible. Review and adjust
-				them before creating the transcription.
+				Prefilled from the TEI. Review before creating.
 			{:else}
-				These fields live on the transcription record and are used to build the TEI header
-				at export time.
+				Used for the TEI header on export.
 			{/if}
 		</p>
 		<div class="tooltip" data-tip="The name of the person who transcribed the text.">

@@ -84,10 +84,6 @@
 	<div class="mb-3 flex items-center justify-between gap-3">
 		<div>
 			<h2 class="font-serif text-lg font-semibold">Project Transcription Versions</h2>
-			<p class="text-xs text-base-content/50">
-				Provenance, source freshness, and version status for each linked project
-				transcription.
-			</p>
 		</div>
 		<div class="flex items-center gap-2">
 			<button
@@ -161,8 +157,7 @@
 								{/if}
 							</div>
 							<p class="mt-1 text-[11px] text-base-content/40">
-								Collation witnesses keep their captured text until refreshed
-								separately.
+								Collations keep their text until refreshed.
 							</p>
 						</div>
 						<div class="flex shrink-0 items-center gap-2">

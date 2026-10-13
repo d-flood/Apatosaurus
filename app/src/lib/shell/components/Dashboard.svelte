@@ -67,8 +67,7 @@
 				Begin with a project
 			</h1>
 			<p class="mt-4 max-w-2xl leading-relaxed text-base-content/65">
-				Projects keep related transcriptions, collations, and scholarly decisions together.
-				Create your first one to begin working.
+				A project holds your transcriptions and collations.
 			</p>
 			<a href={resolve('/projects')} class="btn btn-primary mt-7">Create your first project</a
 			>
@@ -81,10 +80,6 @@
 				Workspace overview
 			</p>
 			<h1 class="mt-1 font-serif text-4xl font-bold tracking-tight">Dashboard</h1>
-			<p class="mt-2 max-w-2xl text-sm leading-relaxed text-base-content/60">
-				Return to recent scholarship or begin something new in {lastOpenedProject?.name ??
-					'a project'}.
-			</p>
 		</header>
 
 		{#if error}
@@ -196,9 +191,6 @@
 		<p class="text-xs font-semibold uppercase tracking-wide text-base-content/45">Create</p>
 		<h2 class="font-serif text-2xl font-semibold">Start something</h2>
 		{#if lastOpenedProject}
-			<p class="mt-1 text-sm text-base-content/55">
-				New work will belong to {lastOpenedProject.name}.
-			</p>
 			<div class="mt-4 flex flex-wrap gap-2">
 				<a
 					href={resolve(

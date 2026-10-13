@@ -63,10 +63,7 @@
 	<div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
 		<div class="space-y-1">
 			<h2 class="text-2xl font-serif font-bold tracking-tight">Select a Project</h2>
-			<p class="text-sm text-base-content/60">
-				Choose or create a project to begin collating. Projects define which transcriptions,
-				witnesses, and settings are available.
-			</p>
+			<p class="text-sm text-base-content/60">Choose a project to collate in.</p>
 		</div>
 		<a href={resolve('/projects')} class="btn btn-ghost btn-sm">Manage Projects</a>
 	</div>
@@ -84,9 +81,7 @@
 		<div class="text-center py-12 space-y-3">
 			<FolderOpen size={32} class="mx-auto text-base-content/30" />
 			<div class="text-base-content/30 text-lg">No projects yet</div>
-			<p class="text-sm text-base-content/50 max-w-md mx-auto">
-				Create a project to start linking transcriptions and collation settings.
-			</p>
+			<p class="text-sm text-base-content/50 max-w-md mx-auto">Create a project to start.</p>
 		</div>
 	{:else}
 		<ul class="list rounded-box shadow-md bg-base-100 mb-6">
