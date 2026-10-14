@@ -384,7 +384,6 @@ export function extractWitnessTokensForVerse(
 			if (item.type === 'text') {
 				const correction = target ? getCorrectionForHand(item, target.handId) : null;
 				if (correction) {
-					// Same grouping as the TEI serializer.
 					const correctionSignature = JSON.stringify(correction);
 					if (correctionSignature === activeCorrectionSignature) {
 						continue;

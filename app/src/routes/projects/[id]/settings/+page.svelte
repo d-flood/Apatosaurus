@@ -46,7 +46,6 @@
 	let nameDraft = $state('');
 	let descriptionDraft = $state('');
 	let projectRules = $state<RegularizationRule[]>([]);
-	// No editor; preserve on save.
 	let projectReadingTypes = $state<ReadingTypeDefinition[]>([]);
 	let lowercase = $state(false);
 	let ignoreWordBreaks = $state(false);

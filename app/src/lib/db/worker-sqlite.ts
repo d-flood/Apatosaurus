@@ -94,7 +94,7 @@ export class LocalSqliteDatabase {
 			for await (const prepared of statement) {
 				this.bind(prepared, params);
 				while ((await this.sqlite!.step(prepared)) === SQLite.SQLITE_ROW) {
-					// Discard RETURNING rows.
+					// Drain RETURNING rows before finalizing.
 				}
 			}
 		} finally {

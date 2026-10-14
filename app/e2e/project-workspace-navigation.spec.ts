@@ -32,7 +32,6 @@ test('project libraries are clean worklists and collation configuration lives in
 
 	const lowercaseToggle = page.getByRole('checkbox', { name: /Lowercase for alignment/ });
 	await lowercaseToggle.check();
-	// Absence covers a save in flight or one that finished instantly.
 	await expect(page.getByText('Saving project settings')).toHaveCount(0, { timeout: 30_000 });
 	const treatmentToggle = page.locator('[data-treatment-control]').getByRole('checkbox');
 	await treatmentToggle.check();

@@ -99,14 +99,6 @@
 	font-display: swap;
 	font-style: italic;
 }
-/**
-* This is a variable font
-* You can control variable axes as shown below:
-* font-variation-settings: wght 400.0;
-*
-* available axes:
-'wght' (range from 400.0 to 700.0
-*/
 @font-face {
 	font-family: 'Lora-Variable';
 	src:
@@ -117,14 +109,6 @@
 	font-display: swap;
 	font-style: normal;
 }
-/**
-* This is a variable font
-* You can control variable axes as shown below:
-* font-variation-settings: wght 400.0;
-*
-* available axes:
-'wght' (range from 400.0 to 700.0
-*/
 @font-face {
 	font-family: 'Lora-VariableItalic';
 	src:

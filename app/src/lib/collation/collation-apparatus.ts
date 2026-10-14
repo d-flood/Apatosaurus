@@ -1,5 +1,3 @@
-/** Single derivation of verse shape shared by strip, preview, and export. */
-
 import type { AlignmentCell, AlignmentColumn } from './alignment-snapshot';
 import type { UnitView } from './collation-decisions';
 import type { NonAttestation } from './collation-reading-proposal';
@@ -8,7 +6,6 @@ import type { ReadingTypeId } from './reading-types';
 import { classifyWitnessAttestation, type VariationUnitSpan } from './collation-variation-units';
 import { isPunctuationToken, joinTokenTexts, tokenizeDisplayText } from './token-text';
 
-/** Word-index range in the odd/even citation convention. */
 export interface DisplayedColumnSlot {
 	columnId: string;
 	columnIndex: number;
@@ -32,7 +29,6 @@ export type Segment =
 			untranscribedWitnessIds: string[];
 	  };
 
-/** Reserved non-attestation label; no reading may take it. */
 export const NON_ATTESTATION_LABEL = 'zz';
 
 const LEMMA_OPEN_MARKER = '⸂';
@@ -76,7 +72,6 @@ function cellAttests(cell: AlignmentCell | undefined): boolean {
 	return classifyWitnessAttestation([cell]) === 'attesting';
 }
 
-/** Agreed-column text; falls back past a non-testifying base witness. */
 function agreedColumnCell(
 	column: AlignmentColumn,
 	baseWitnessId: string | null
@@ -113,7 +108,6 @@ function untranscribedWitnessIds(columns: AlignmentColumn[]): string[] {
 	return [...witnessIds];
 }
 
-/** Alternating agreed/unit segments; every column appears exactly once. */
 export function buildSegmentSequence(input: {
 	columns: AlignmentColumn[];
 	spans: VariationUnitSpan[];
@@ -180,7 +174,6 @@ export function buildSegmentSequence(input: {
 }
 
 export interface ApparatusRenderOptions {
-	/** Word-index range as labelled. */
 	label: string;
 	siglumOf?: (witnessId: string) => string;
 	/** Required: omitting it would claim testimony manuscripts do not give. */
@@ -194,7 +187,6 @@ function readingText(reading: ClassifiedReading): string {
 	return text.length > 0 ? text : '—';
 }
 
-/** Mains in order, each followed by subreadings; every reading cited once. */
 function citationOrder(readings: ClassifiedReading[]): ClassifiedReading[] {
 	const subreadingsByParent = new Map<string, ClassifiedReading[]>();
 	for (const reading of readings) {
@@ -218,7 +210,6 @@ function citationOrder(readings: ClassifiedReading[]): ClassifiedReading[] {
 	return ordered;
 }
 
-/** One unit in conventional notation, non-attestation last. */
 export function renderApparatusUnit(unit: UnitView, options: ApparatusRenderOptions): string {
 	const siglumOf = options.siglumOf ?? ((witnessId: string) => witnessId);
 	const lemma = unit.readings.find(reading => reading.id === unit.lemmaReadingId) ?? null;

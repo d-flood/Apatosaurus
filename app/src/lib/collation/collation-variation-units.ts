@@ -69,7 +69,6 @@ interface ReadingFamilyBucket {
 	isBase: boolean;
 	isOmission: boolean;
 	isLacuna: boolean;
-	/** Unclear or supplied segments. */
 	hasUnclear: boolean;
 	hasSupplied: boolean;
 	hasRegularization: boolean;
@@ -283,7 +282,6 @@ export function classifyWitnessAttestation(
 	cells: Array<AlignmentCell | undefined>
 ): WitnessAttestation {
 	if (!cellsAreLacunose(cells)) return 'attesting';
-	// Any genuine damage outweighs untranscribed spans.
 	const damaged = cells.some(
 		cell => cellIsAbsentTestimony(cell) && cell?.kind !== 'untranscribed'
 	);

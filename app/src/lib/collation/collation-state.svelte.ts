@@ -163,7 +163,6 @@ interface ReadingFamilyView {
 export type ReorderResult =
 	{ ok: true } | { ok: false; error: 'reading-not-found' | 'different-group' | 'at-boundary' };
 
-/** `movedWitnessIds` are exactly what changed, for announcements. */
 type MoveWitnessesResult =
 	| { ok: true; moved: number; movedWitnessIds: string[] }
 	| { ok: false; error: 'reading-not-found' | 'no-attesting-witnesses' };
@@ -1480,7 +1479,6 @@ function createCollationState() {
 		return buildVariationUnitSpans(alignmentColumns);
 	}
 
-	/** Single verse-shape derivation; all surfaces read here. */
 	function getSegmentSequence(): Segment[] {
 		return buildSegmentSequence({
 			columns: alignmentColumns,
@@ -1584,10 +1582,6 @@ function createCollationState() {
 		return buildProposalForUnit(unitIndex)?.readings ?? [];
 	}
 
-	/**
-	 * The witnesses absent from a unit. Derived from the alignment on every read rather than
-	 * stored, because absence is a fact about the witnesses, never an editorial decision.
-	 */
 	function getNonAttestationForUnit(unitIndex: number): NonAttestation {
 		return (
 			buildProposalForUnit(unitIndex)?.nonAttestation ?? {
@@ -1632,7 +1626,6 @@ function createCollationState() {
 	}
 
 	function getOrphanedDecisionsForUnit(unitIndex: number): OrphanedDecision[] {
-		// Only the projection knows if an arc still names live readings.
 		const arcOrphans: OrphanedDecision[] = getLocalStemma(unitIndex).orphanedArcs.map(
 			orphan => ({
 				kind: 'sourceArc',
@@ -1654,7 +1647,6 @@ function createCollationState() {
 	function getReadingFamiliesForUnit(unitIndex: number): ReadingFamilyView[] {
 		// Already lemma-first; re-sorting would discard the lemma.
 		const readings = peekReadingsForUnit(unitIndex);
-		// Families are whole chains, not direct children.
 		const mainReadingIdOf = makeMainReadingIdOf(readings);
 		const primaries = readings.filter(reading => reading.parentReadingId === null);
 		return primaries.map(parent => {
@@ -1955,7 +1947,6 @@ function createCollationState() {
 		return results;
 	}
 
-	/** Units with no lemma yet. */
 	function getUnitsNeedingLemmaDecision(): { unitIndex: number; unitId: string }[] {
 		return forEachUnitView((view, span) =>
 			view.needsLemmaDecision
@@ -1964,7 +1955,6 @@ function createCollationState() {
 		);
 	}
 
-	/** Where lemma departs from base-text reading. */
 	function getLemmaDivergence(): {
 		unitIndex: number;
 		unitId: string;
@@ -2031,7 +2021,6 @@ function createCollationState() {
 		});
 	}
 
-	/** Scholar confidence, orthogonal to type. */
 	function setReadingCertainty(
 		unitIndex: number,
 		readingId: string,
@@ -2074,12 +2063,10 @@ function createCollationState() {
 		return { ok: true };
 	}
 
-	/** Bundled plus project reading types. */
 	function getReadingTypeVocabulary(): ReadingTypeDefinition[] {
 		return resolveReadingTypeVocabulary(projectReadingTypes);
 	}
 
-	/** Untyped subreadings; Review nudge, never an error. */
 	function getSubreadingsMissingReadingType(): {
 		unitIndex: number;
 		unitId: string;
@@ -2154,7 +2141,6 @@ function createCollationState() {
 		return { ok: true };
 	}
 
-	/** Single stemma derivation; all surfaces read here. */
 	function getLocalStemma(unitIndex: number): LocalStemma {
 		const key = getReadingUnitKey(unitIndex);
 		if (!key) return { nodes: [], violations: [], orphanedArcs: [] };
@@ -2167,7 +2153,6 @@ function createCollationState() {
 		);
 	}
 
-	/** Per-unit threshold; default applied on read. */
 	function getConnectivity(unitIndex: number): number | 'absolute' {
 		const key = getReadingUnitKey(unitIndex);
 		return key ? (unitDecisions.get(key)?.connectivity ?? 10) : 10;
@@ -2204,7 +2189,6 @@ function createCollationState() {
 		return { ok: true };
 	}
 
-	/** Review worklist warnings, grouped by unit. */
 	function getStemmaViolations(): {
 		unitIndex: number;
 		unitId: string;
@@ -2278,7 +2262,6 @@ function createCollationState() {
 		if (Object.keys(sourceDecisions).length > 0) nextDecisions.sourceDecision = sourceDecisions;
 		else delete nextDecisions.sourceDecision;
 
-		// Re-recording the current answer is no judgement; skip the undo entry.
 		const currentArcs = readingArcs.get(key) ?? [];
 		const currentSourceDecisions = unitDecisions.get(key)?.sourceDecision ?? {};
 		const arcsUnchanged =

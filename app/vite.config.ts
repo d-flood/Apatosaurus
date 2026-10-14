@@ -52,7 +52,6 @@ export function developmentServer(environment: DevelopmentEnvironment = process.
 	};
 }
 
-// Unpinned browser runs use the next free port; pinned ports fail loudly if taken.
 export function browserTestServer(environment: DevelopmentEnvironment = process.env) {
 	const portText = environment.VITEST_BROWSER_PORT;
 	if (portText === undefined || portText === '') {

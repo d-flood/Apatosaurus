@@ -288,7 +288,6 @@ export function getApparatusExportRefusals(
 	return refusals;
 }
 
-/** Shared sequence; re-deriving would fork the unit definition. */
 export function exportApparatusTei(input: ApparatusTeiExportInput): string {
 	const refusals = getApparatusExportRefusals(input);
 	if (refusals.length > 0) throw new ApparatusExportError(refusals);

@@ -216,7 +216,6 @@ describe('apparatus TEI exporter', () => {
 		expect(reconstructWitness(document, 'B')).toBe('one beta two');
 		expect(reconstructWitness(document, 'D')).toBe('one two');
 		expect(() => validateTeiP5(xml)).not.toThrow();
-		// Slow: fresh Python + 1MB schema.
 	}, 60_000);
 
 	it('serializes flat subreadings, omission, non-attestation, and local-stemma decisions', () => {
@@ -270,7 +269,6 @@ describe('apparatus TEI exporter', () => {
 		expect(reconstructWitness(absoluteDocument, 'B')).toBe('one beta two');
 		expect(reconstructWitness(absoluteDocument, 'D')).toBe('one two');
 		expect(() => validateTeiP5(absolute)).not.toThrow();
-		// Slow: two fresh Python validations against the 1MB schema.
 	}, 60_000);
 
 	it('adds basetext to the lemma only when the base text actually attests it', () => {

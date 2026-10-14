@@ -158,7 +158,6 @@ export function editorDocument(options: EditorDocumentOptions = {}): EditorJson 
 		],
 	};
 	if (options.nodeIds === false) {
-		// Imported JSON omits ids; schema defaults supply them.
 		for (const page of document_.content) {
 			for (const column of page.content) {
 				delete column.attrs.columnId;

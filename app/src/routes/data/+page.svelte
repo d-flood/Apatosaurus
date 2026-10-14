@@ -632,9 +632,7 @@
 				'apatosaurus:durability-warning-dismissed-milestone',
 				currentDurabilityMilestone
 			);
-		} catch {
-			// Warning reappears next load if localStorage is unavailable.
-		}
+		} catch {}
 	}
 
 	function readDismissedDurabilityMilestone(): string | null {

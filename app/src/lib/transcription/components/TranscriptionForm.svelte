@@ -210,7 +210,7 @@
 				try {
 					await checkpointLocalDb();
 				} catch {
-					// Non-critical: checkpoint failure doesn't affect data integrity
+					// Checkpoint failure does not affect data integrity.
 				}
 				await goto(`/transcription/${transcriptionId}`);
 			}

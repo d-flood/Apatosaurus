@@ -14,7 +14,6 @@ import type {
 import { regularizeCollationText } from './regularization';
 import { joinTokenTexts, tokenizeDisplayText } from './token-text';
 
-/** What alignment edits read from the collation besides the columns themselves. */
 export interface AlignmentEditContext {
 	rules: RegularizationRule[];
 	witnessOrder: string[];

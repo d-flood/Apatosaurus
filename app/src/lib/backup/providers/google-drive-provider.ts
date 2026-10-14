@@ -217,7 +217,7 @@ export class GoogleDriveStorageProvider implements CloudStorageProvider {
 		return toWriteResult(file, id);
 	}
 
-	/** Drive v3 has no ETag/If-Match on files, so the revision is checked just before writing; the race window is covered by Drive's revision history. */
+	/** Drive v3 lacks conditional writes; revision history covers the check/write race. */
 	async updateFile(
 		fileId: string,
 		content: string,

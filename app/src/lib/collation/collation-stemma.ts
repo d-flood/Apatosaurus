@@ -5,16 +5,13 @@ import type { ClassifiedReading, ReadingArc } from './collation-types';
 export type SourceDecision =
 	{ kind: 'undecided' } | { kind: 'unclear' } | { kind: 'derived'; from: string };
 
-/** Projected state needing resolution, never an automatic rewrite. */
 export type StemmaViolation =
 	| {
-			/** Multiple priors are never drawn as a guess. */
 			kind: 'multiple-sources';
 			readingId: string;
 			priorReadingIds: string[];
 	  }
 	| {
-			/** Lemma must not derive in a rooted stemma. */
 			kind: 'lemma-is-posterior';
 			readingId: string;
 			priorReadingIds: string[];
@@ -25,7 +22,6 @@ export interface StemmaTreeNode {
 	label: string;
 	text: string | null;
 	isOmission: boolean;
-	/** Main witnesses plus folded subreadings'. */
 	witnessIds: string[];
 	/** Folded subreadings; never nodes of their own. */
 	subreadingIds: string[];
@@ -33,11 +29,9 @@ export interface StemmaTreeNode {
 	isLemma: boolean;
 	/** Lemma roots its stemma; derived per projection, never stored. */
 	isRoot: boolean;
-	/** No single source projected. */
 	violation: StemmaViolation | null;
 }
 
-/** Orphaned arc; reported, never dropped. */
 interface OrphanedArc {
 	arc: ReadingArc;
 	missingReadingIds: string[];
@@ -46,7 +40,6 @@ interface OrphanedArc {
 export interface LocalStemma {
 	nodes: StemmaTreeNode[];
 	violations: StemmaViolation[];
-	/** Uncarriable `derived` decisions. */
 	orphanedArcs: OrphanedArc[];
 }
 
@@ -149,12 +142,10 @@ export function projectLocalStemma(
 	return { nodes, violations, orphanedArcs };
 }
 
-/** Prior reading per node, for cycle checks and layout. */
 export function sourceReadingIdOf(node: StemmaTreeNode): string | null {
 	return node.sourceDecision.kind === 'derived' ? node.sourceDecision.from : null;
 }
 
-/** Whether this derivation would close a cycle. */
 export function wouldCreateCycle(
 	nodes: StemmaTreeNode[],
 	readingId: string,

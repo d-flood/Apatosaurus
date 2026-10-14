@@ -516,7 +516,6 @@ async function createAndCommitCollation(page: Page, projectName: string): Promis
 	const form = page.getByRole('dialog', { name: 'Name this version' });
 	await form.getByPlaceholder('Describe this version').fill('Commit end-to-end collation');
 	await form.getByRole('button', { name: 'Name this version' }).click();
-	// Naming succeeds with a warning suffix when derived TEI is undecided.
 	await expect(page.getByText(/^Named Version \d+/)).toBeVisible({
 		timeout: 30_000,
 	});

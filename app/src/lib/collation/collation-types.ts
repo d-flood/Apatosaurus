@@ -119,7 +119,6 @@ export type AlignmentLayout = 'grid' | 'variation-units';
 
 export interface ProjectCollationSettings {
 	regularizationRules?: RegularizationRule[];
-	/** Project-added reading types. */
 	readingTypes?: ReadingTypeDefinition[];
 	ignoreWordBreaks?: boolean;
 	lowercase?: boolean;

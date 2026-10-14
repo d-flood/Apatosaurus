@@ -21,7 +21,6 @@ export function getReadingFamilyKey(
 	return reading.normalizedText ?? reading.text ?? '__EMPTY__';
 }
 
-/** Head of a subreading chain; cycles answer null. */
 export function makeMainReadingIdOf(
 	readings: ClassifiedReading[]
 ): (readingId: string) => string | null {
@@ -197,7 +196,6 @@ export function relabelReadings(
 ): ClassifiedReading[] {
 	const normalized = normalizeReadingOrders(readings, baseWitnessId);
 	const primaryReadings = normalized.filter(reading => reading.parentReadingId === null);
-	// Lemma takes `a`; rest keep base-text-first order.
 	const sortedPrimary = [...primaryReadings].sort((a, b) => {
 		if (a.id === b.id) return 0;
 		if (a.id === lemmaReadingId) return -1;
@@ -212,7 +210,6 @@ export function relabelReadings(
 		primaryRankById.set(reading.id, index);
 	}
 
-	// Subreadings label flat from their chain head.
 	const mainReadingIdOf = makeMainReadingIdOf(normalized);
 
 	const subreadingsByParent = new Map<string, ClassifiedReading[]>();

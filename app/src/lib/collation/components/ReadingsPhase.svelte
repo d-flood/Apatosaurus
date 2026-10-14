@@ -31,7 +31,6 @@
 
 	let liveMessage = $state('');
 	let expandedWitnesses = new SvelteSet<string>();
-	/** Selection only; never stored, so it consumes no undo entry. */
 	let selectedWitnessIds = new SvelteSet<string>();
 	let activeChipIndex = $state(0);
 	let anchorChipIndex = $state(0);
@@ -415,7 +414,6 @@
 		return reading.text ?? '';
 	}
 
-	/** Blur commit keeps a text edit one undo entry. */
 	function commitReadingText(reading: ClassifiedReading, value: string) {
 		if (value.trim() === getDisplayedReadingText(reading).trim()) return;
 		collationState.updateReadingTextForDisplayMode(unitIndex, reading.id, value, displayMode);

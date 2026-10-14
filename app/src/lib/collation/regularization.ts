@@ -192,7 +192,6 @@ function deriveToken(
 		sourceToken.segments.every(segment => segment.isPunctuation);
 	const isSupplied = sourceToken.segments.some(segment => segment.isSupplied);
 
-	// Fixed order: structural, project, verse; NFC regexes.
 	let structuralText = sourceToken.segments
 		.map(segment => {
 			if (segment.hasUnclear) return segment.text;

@@ -81,7 +81,6 @@ export class FakeGoogleDriveApi {
 		this.failures.push({ call, status, reason });
 	}
 
-	/** Simulates another client writing the file directly. */
 	touch(driveId: string, content: string): void {
 		const file = this.files.get(driveId);
 		if (!file) throw new Error(`No fake Drive file ${driveId}.`);

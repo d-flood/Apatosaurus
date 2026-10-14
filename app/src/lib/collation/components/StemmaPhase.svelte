@@ -67,7 +67,6 @@
 		liveMessageSeq += 1;
 	}
 
-	/** Lemma roots its own stemma, so it reads as settled, not undecided. */
 	const SOURCE_STATES = {
 		derived: {
 			label: 'Derived',
@@ -105,7 +104,6 @@
 		return node.isRoot ? 'root' : 'undecided';
 	}
 
-	/** A conflict is no judgement, so it takes its own placeholder. */
 	const CONFLICT_VALUE = '__conflict__';
 
 	function selectValueOf(node: StemmaTreeNode): string {

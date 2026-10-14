@@ -152,7 +152,6 @@ function exportNode(node: ProseMirrorJSON, context: ExportContext): void {
 			break;
 
 		case 'line':
-			// paragraphStart = PM `paragraph-start` = TEI rend="hang".
 			context.xml.push(
 				`<lb${serializeAttrs(
 					mergeTeiAttrs(node.attrs, {
@@ -548,7 +547,7 @@ function removeWrapperMark(
 	}));
 }
 
-// Correction may cover part of a word, so scan all nodes instead of `nodes[0]`.
+// Corrections can cover only part of a word.
 function findCorrectionMark(
 	nodes: ProseMirrorJSON[]
 ): { type: string; attrs?: Record<string, any> } | undefined {

@@ -345,7 +345,7 @@ function splitScopes(scope: string | undefined): string[] {
 	return (scope ?? '').split(/\s+/).filter(Boolean);
 }
 
-/** The ID token comes straight from Google's token endpoint over TLS, so its signature need not be checked (OIDC Core 3.1.3.7). */
+// Google's TLS token endpoint permits skipping signature verification (OIDC Core 3.1.3.7).
 function idTokenSubject(idToken: string | undefined): string | null {
 	try {
 		const payload = JSON.parse(

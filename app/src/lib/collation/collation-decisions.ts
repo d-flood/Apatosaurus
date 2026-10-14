@@ -11,7 +11,6 @@ export interface UnitDecisions {
 	/** Recorded null means "no type", not "undecided". */
 	readingType?: Record<string, ReadingTypeId | null>;
 	certainty?: Record<string, Certainty | null>;
-	/** Relationship threshold; absent is the default of 10. */
 	connectivity?: number | 'absolute';
 	/** Only non-arc source decisions; `derived` lives in arcs. */
 	sourceDecision?: Record<string, SourceDecision>;
@@ -64,9 +63,7 @@ export interface OrphanedUnitDecision {
 export interface UnitView {
 	readings: ClassifiedReading[];
 	orphanedDecisions: OrphanedDecision[];
-	/** Established as `a`, or null where none exists. */
 	lemmaReadingId: string | null;
-	/** Main reading the base text attests, or null where it does not testify. */
 	baseTextReadingId: string | null;
 	needsLemmaDecision: boolean;
 }
@@ -196,7 +193,6 @@ export function applyDecisions(
 		lemmaReadingId === null && readings.some(reading => reading.parentReadingId === null);
 
 	return {
-		// No base text: fall back to witness count, not a lemma.
 		readings: relabelReadings(
 			readings,
 			baseTextReadingId ? baseWitnessId : null,

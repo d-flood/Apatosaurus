@@ -1,7 +1,4 @@
-/**
- * Coalesces rapid edits into sequential saves: at most one save runs at a time, and `flush`
- * keeps saving the latest value until nothing is pending.
- */
+/** Saves run sequentially; flush drains pending edits. */
 export function createDebouncedSave<T>(options: {
 	read: () => T | null;
 	save: (value: T) => Promise<boolean>;

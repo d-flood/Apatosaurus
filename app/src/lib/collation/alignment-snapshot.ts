@@ -73,7 +73,6 @@ export function deserializeAlignmentColumns(
 					alignmentValue:
 						cell.alignmentValue ?? cell.regularizedText ?? cell.text ?? null,
 					sourceTokenIds: cell.sourceTokenIds ?? [],
-					// Kind recovers from gap source when unstamped.
 					kind:
 						cell.kind ??
 						(cell.isOmission

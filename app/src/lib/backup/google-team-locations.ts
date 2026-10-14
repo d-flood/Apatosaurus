@@ -27,9 +27,7 @@ export function hasDriveScope(account: StorageAccount): boolean {
 export function requestDriveAccess(account: StorageAccount): void {
 	try {
 		sessionStorage.setItem(PENDING_DRIVE_ACCESS_KEY, account.id);
-	} catch {
-		// Without the reminder the scholar reopens Add team location after the redirect.
-	}
+	} catch {}
 	beginSignIn('google', { scopes: 'drive', loginHint: account.email, returnTo: '/data' });
 }
 

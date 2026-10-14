@@ -1,7 +1,6 @@
 /** Open vocabulary: projects may record values outside the bundled list. */
 export type ReadingTypeId = string;
 
-/** TEI `@cert` values, or a probability. */
 export type Certainty = 'high' | 'medium' | 'low' | 'unknown' | number;
 
 export interface ReadingTypeDefinition {
@@ -47,7 +46,6 @@ export const BUNDLED_READING_TYPES: readonly ReadingTypeDefinition[] = [
 	},
 ];
 
-/** Bundled types plus project overrides; shared ids replace bundled entries. */
 export function resolveReadingTypeVocabulary(
 	projectReadingTypes: readonly ReadingTypeDefinition[] = []
 ): ReadingTypeDefinition[] {
@@ -83,7 +81,6 @@ export function coerceReadingTypeDefinitions(value: unknown): ReadingTypeDefinit
 	});
 }
 
-/** Evidence-implied type before judgement; recorded decisions outrank it. */
 export function proposeReadingType(reading: {
 	isOmission: boolean;
 	hasUnclear: boolean;

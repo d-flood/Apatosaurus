@@ -12,7 +12,6 @@ export function countLabel(count: number, noun: string): string {
 	return `${count} ${noun}${count === 1 ? '' : 'es'}`;
 }
 
-/** Deduped attesting subset, in order. */
 function attestingSelection(readings: Readings, witnessIds: string[]): string[] {
 	const seen = new Set<string>();
 	return witnessIds.filter(witnessId => {
@@ -79,7 +78,6 @@ export function moveWitnesses(readings: Readings, witnessIds: string[], targetRe
 	};
 }
 
-/** New reading inherits the first witness's text, not a blank. */
 export function splitWitnesses(
 	readings: Readings,
 	witnessIds: string[],
@@ -96,7 +94,6 @@ export function splitWitnesses(
 	const sources = readings.filter(reading =>
 		reading.witnessIds.some(witnessId => selectedSet.has(witnessId))
 	);
-	// Whole-reading split records no distinction.
 	if (
 		sources.length === 1 &&
 		sources[0].witnessIds.every(witnessId => selectedSet.has(witnessId))
@@ -127,7 +124,6 @@ export function splitWitnesses(
 	};
 }
 
-/** Target keeps text; merged subreadings follow witnesses. */
 export function mergeReadingsInto(
 	readings: Readings,
 	sourceReadingIds: string[],
@@ -298,7 +294,6 @@ export function emptyReading(
 	};
 }
 
-/** Own witnesses plus every subreading in the chain; guards deletion. */
 export function attestingWitnessIds(readings: Readings, readingId: string): string[] {
 	const chain = new Set<string>([readingId]);
 	for (let grew = true; grew;) {
@@ -390,7 +385,6 @@ export function moveReadingBeforeIn(
 	const reading = readings.find(entry => entry.id === readingId);
 	const target = readings.find(entry => entry.id === targetReadingId);
 	if (!reading || !target) return { ok: false as const, error: 'reading-not-found' as const };
-	// Cross-group moves are attachments, not reorderings.
 	if (reading.parentReadingId !== target.parentReadingId) {
 		return { ok: false as const, error: 'different-group' as const };
 	}

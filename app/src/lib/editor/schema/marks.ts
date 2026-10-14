@@ -241,7 +241,7 @@ export const Correction = Mark.create({
 	addKeyboardShortcuts() {
 		return {
 			'Mod-Shift-c': () => {
-				// Discoverable shortcut; UI lives in the bubble menu.
+				// Advertises the bubble-menu action.
 				return true;
 			},
 		};
@@ -327,7 +327,7 @@ export const Abbreviation = Mark.create({
 	addKeyboardShortcuts() {
 		return {
 			'Mod-Shift-a': () => {
-				// Discoverable shortcut; UI lives in the bubble menu.
+				// Advertises the bubble-menu action.
 				return true;
 			},
 		};

@@ -1,7 +1,5 @@
 import { sourceReadingIdOf, type StemmaTreeNode } from './collation-stemma';
 
-/** Layered top-down geometry; pure, no DOM or store. */
-
 const NODE_WIDTH = 132;
 const NODE_HEIGHT = 56;
 const COLUMN_GAP = 24;

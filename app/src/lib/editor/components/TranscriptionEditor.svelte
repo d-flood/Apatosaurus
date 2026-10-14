@@ -388,7 +388,7 @@
 		if (!selectedElement) return;
 
 		requestAnimationFrame(() => {
-			const drawerHeight = window.innerHeight * 0.5; // max-height: 50vh
+			const drawerHeight = window.innerHeight * 0.5;
 			const rect = selectedElement.getBoundingClientRect();
 			const visibleBottom = window.innerHeight - drawerHeight;
 			const margin = 48;
@@ -420,7 +420,6 @@
 			lastInspectorSelectionKey = '';
 			dismissedInspectorSelectionKey = '';
 			inspectorPanelOpen = false;
-			// Correction drawers stay open across text selection changes.
 			return;
 		}
 
@@ -685,7 +684,6 @@
 		const { state, view } = editorState.editor;
 
 		if (extent === 'full') {
-			// A "full" line holds nothing else.
 			const from = state.selection.$from;
 			let linePos: number | null = null;
 			let lineNode: any = null;

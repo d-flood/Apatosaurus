@@ -29,7 +29,6 @@ interface ProjectEntry {
 	payload?: JsonObject;
 }
 
-/** Rebase only references matching the verified old revision. */
 export async function reconcileAlphaProjectUpgrade(entries: ProjectEntry[]): Promise<void> {
 	const manifestEntry = entries.find(entry => entry.format === PROJECT_MANIFEST_FORMAT);
 	const manifest = manifestEntry?.payload as ProjectManifestPayload | undefined;

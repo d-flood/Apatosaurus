@@ -23,7 +23,6 @@ export interface FormatRegistration<TPayload extends JsonObject = JsonObject> {
 	format: string;
 	currentVersion: number;
 	upgraders: DocumentUpgrader[];
-	/** Released versions that skip intermediate upgrades. */
 	directUpgraders?: Record<number, DocumentUpgrader>;
 	validate: DocumentValidator<TPayload>;
 	validateIntegrity?: DocumentIntegrityValidator<TPayload>;
