@@ -411,6 +411,27 @@ describe('collationState artifact-first persistence', () => {
 		vi.useRealTimers();
 	});
 
+	it('persists route phases without emitting presence edits', async () => {
+		const state = await importState();
+		state.reset();
+		expect(await state.loadCollationById('col-1')).toBe(true);
+		const listener = vi.fn();
+		const unsubscribe = state.onEdit(listener);
+		try {
+			state.showPhase('readings');
+			expect(state.phase).toBe('readings');
+			expect(state.saveStatus).toBe('unsaved');
+			expect(listener).not.toHaveBeenCalled();
+			expect(await state.flushPendingSave()).toBe(true);
+			state.showPhase('readings');
+			expect(state.saveStatus).toBe('saved');
+			state.setPhase('stemma');
+			expect(listener).toHaveBeenCalledOnce();
+		} finally {
+			unsubscribe();
+		}
+	});
+
 	it('loads from the canonical artifact without refreshing unchanged witnesses', async () => {
 		const collationState = await importState();
 		collationState.reset();

@@ -9,6 +9,54 @@ const TEI_FIXTURE_PATH = fileURLToPath(
 
 test.setTimeout(180_000);
 
+test('phase navigation follows history, undo, and Continue from saved setup', async ({ page }) => {
+	const projectId = await createProject(page, `Phase navigation ${Date.now().toString(36)}`);
+	await createAndCommitWitness(page, projectId, 'Phase Alpha', 'PA', 'αλφα');
+	await createAndCommitWitness(page, projectId, 'Phase Beta', 'PB', 'βητα');
+	await createCollation(page, projectId);
+	await expect(page).toHaveURL(/\/alignment$/);
+	await page.getByRole('button', { name: 'Readings', exact: true }).click();
+	await expect(page).toHaveURL(/\/readings$/);
+	await expect(page.getByRole('link', { name: /Readings$/ })).toHaveAttribute(
+		'aria-current',
+		'step'
+	);
+	await page.getByRole('link', { name: 'Alignment', exact: true }).click();
+	await expect(page).toHaveURL(/\/alignment$/);
+	await page.getByRole('link', { name: /Readings$/ }).click();
+	await expect(page).toHaveURL(/\/readings$/);
+	await page.goBack();
+	await expect(page).toHaveURL(/\/alignment$/);
+	await expect(page.getByRole('button', { name: 'Run Collation' })).toBeVisible();
+	await page.goForward();
+	await expect(page).toHaveURL(/\/readings$/);
+	await expect(page.getByRole('link', { name: /Readings$/ })).toHaveAttribute(
+		'aria-current',
+		'step'
+	);
+	await page.getByRole('link', { name: 'Alignment', exact: true }).click();
+	await page.getByRole('radio', { name: 'Grid', exact: true }).check();
+	const headers = page.locator('thead th');
+	await headers.nth(1).click();
+	await headers.nth(2).click({ modifiers: ['Shift'] });
+	await page.getByRole('button', { name: 'Merge', exact: true }).click();
+	await page.getByRole('button', { name: 'Readings', exact: true }).click();
+	await expect(page).toHaveURL(/\/readings$/);
+	await page.getByRole('button', { name: 'Undo', exact: true }).click();
+	await expect(page).toHaveURL(/\/alignment$/);
+	await expect(page.getByRole('button', { name: 'Run Collation' })).toBeVisible();
+	await page.getByRole('button', { name: 'Redo', exact: true }).click();
+	await expect(page).toHaveURL(/\/alignment$/);
+	await page
+		.getByRole('navigation', { name: 'Collation workflow steps' })
+		.getByRole('link', { name: 'Setup', exact: true })
+		.click();
+	await expect(page).toHaveURL(/\/setup$/);
+	await page.getByRole('button', { name: 'Proceed to Alignment' }).click();
+	await expect(page).toHaveURL(/\/alignment$/);
+	await expect(page.getByRole('button', { name: 'Run Collation' })).toBeVisible();
+});
+
 test('the local stemma has one tabstop and supports keyboard source decisions', async ({
 	page,
 }) => {

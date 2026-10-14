@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { deserializeAlignmentColumns, type AlignmentCell } from './alignment-snapshot';
 import { collateToAlignmentSnapshot } from './collation-adapter';
 import { collationState, type WitnessConfig } from './collation-state.svelte';
@@ -124,6 +124,24 @@ function makeOmissionCell() {
 describe('collationState stemma derivation', () => {
 	beforeEach(() => {
 		collationState.reset();
+	});
+
+	it('shows a phase without reporting an edit and ignores the current phase', () => {
+		const onEdit = vi.fn();
+		const unsubscribe = collationState.onEdit(onEdit);
+		try {
+			collationState.showPhase('setup');
+			expect(collationState.saveStatus).toBe('saved');
+			collationState.showPhase('readings');
+			expect(collationState.phase).toBe('readings');
+			expect(collationState.furthestPhase).toBe('readings');
+			expect(collationState.saveStatus).toBe('unsaved');
+			collationState.showPhase('alignment');
+			expect(collationState.furthestPhase).toBe('readings');
+			expect(onEdit).not.toHaveBeenCalled();
+		} finally {
+			unsubscribe();
+		}
 	});
 
 	it('splits a non-merged alignment unit that contains grouped words', () => {

@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
+	import { page } from '$app/state';
+	import { goto } from '$app/navigation';
 	import { collationState } from '$lib/collation/collation-state.svelte';
 	import {
 		createCommittedCollationCheckpoint,
@@ -185,6 +187,25 @@
 		};
 	});
 
+	async function followPhase() {
+		const id = collationState.collationId;
+		const routePhase = page.params.phase;
+		if (!id || !routePhase || routePhase === collationState.phase) return;
+		await goto(resolve('/collation/[id]/[phase]', { id, phase: collationState.phase }), {
+			replaceState: true,
+		});
+	}
+
+	function undo() {
+		collationState.undo();
+		void followPhase();
+	}
+
+	function redo() {
+		collationState.redo();
+		void followPhase();
+	}
+
 	function handleHistoryKeydown(e: KeyboardEvent) {
 		if (e.defaultPrevented || !(e.ctrlKey || e.metaKey) || e.altKey) return;
 		const target = e.target as HTMLElement | null;
@@ -199,10 +220,10 @@
 		const key = e.key.toLowerCase();
 		if (key === 'z' && !e.shiftKey) {
 			e.preventDefault();
-			collationState.undo();
+			undo();
 		} else if ((key === 'z' && e.shiftKey) || (key === 'y' && !e.shiftKey)) {
 			e.preventDefault();
-			collationState.redo();
+			redo();
 		}
 	}
 </script>
@@ -238,7 +259,7 @@
 						title="Undo (Ctrl+Z)"
 						aria-label="Undo"
 						disabled={!collationState.canUndo}
-						onclick={() => collationState.undo()}
+						onclick={undo}
 					>
 						<ArrowUUpLeft size={16} />
 					</button>
@@ -248,7 +269,7 @@
 						title="Redo (Ctrl+Shift+Z)"
 						aria-label="Redo"
 						disabled={!collationState.canRedo}
-						onclick={() => collationState.redo()}
+						onclick={redo}
 					>
 						<ArrowUUpRight size={16} />
 					</button>

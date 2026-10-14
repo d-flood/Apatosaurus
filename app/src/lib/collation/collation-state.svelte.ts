@@ -439,6 +439,14 @@ function createCollationState() {
 		markUnsaved();
 	}
 
+	function showPhase(p: CollationPhase) {
+		if (p === phase) return;
+		phase = p;
+		advanceFurthest(p);
+		saveStatus = 'unsaved';
+		scheduleSave();
+	}
+
 	function advanceFurthest(p: CollationPhase) {
 		if (COLLATION_PHASES.indexOf(p) > COLLATION_PHASES.indexOf(furthestPhase)) {
 			furthestPhase = p;
@@ -2676,6 +2684,7 @@ function createCollationState() {
 		canAdvance,
 		canNavigateTo,
 		setPhase,
+		showPhase,
 		nextPhase,
 		selectProject,
 		clearProjectSelection,

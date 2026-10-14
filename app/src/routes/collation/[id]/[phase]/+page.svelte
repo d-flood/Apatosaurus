@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { COLLATION_PHASES } from '$lib/collation/collation-types';
 	import { goto } from '$app/navigation';
+	import { untrack } from 'svelte';
 	import { collationState, type CollationPhase } from '$lib/collation/collation-state.svelte';
 	import CollationWorkspace from '$lib/collation/components/CollationWorkspace.svelte';
 
@@ -12,38 +13,28 @@
 			: null;
 	}
 
-	$effect(() => {
-		if (collationState.isLoading || !collationState.collationId) return;
-		if (params.phase === 'regularization') {
-			void goto(`/collation/${params.id}/alignment`, { replaceState: true });
+	function syncPhaseFromRoute(id: string, phaseParam: string) {
+		if (phaseParam === 'regularization') {
+			void goto(`/collation/${id}/alignment`, { replaceState: true });
 			return;
 		}
-
-		const requestedPhase = parsePhase(params.phase);
+		const requestedPhase = parsePhase(phaseParam);
 		if (!requestedPhase) {
-			void goto(`/collation/${params.id}/${collationState.phase}`, { replaceState: true });
+			void goto(`/collation/${id}/${collationState.phase}`, { replaceState: true });
 			return;
 		}
-
 		if (requestedPhase !== 'setup' && !collationState.canNavigateTo(requestedPhase)) {
-			void goto(`/collation/${params.id}/${collationState.furthestPhase}`, {
-				replaceState: true,
-			});
+			void goto(`/collation/${id}/${collationState.furthestPhase}`, { replaceState: true });
 			return;
 		}
-
-		if (collationState.phase !== requestedPhase) {
-			collationState.setPhase(requestedPhase);
-		}
-	});
+		collationState.showPhase(requestedPhase);
+	}
 
 	$effect(() => {
+		const id = params.id;
+		const phaseParam = params.phase;
 		if (collationState.isLoading || !collationState.collationId) return;
-		const requestedPhase = parsePhase(params.phase);
-		if (!requestedPhase) return;
-		if (collationState.phase !== requestedPhase) {
-			void goto(`/collation/${params.id}/${collationState.phase}`, { replaceState: true });
-		}
+		untrack(() => syncPhaseFromRoute(id, phaseParam));
 	});
 </script>
 
