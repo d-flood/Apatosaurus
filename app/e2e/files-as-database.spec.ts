@@ -555,7 +555,7 @@ async function openTranscription(page: Page, projectName: string, title: string)
 }
 
 async function addSharedFolderLocation(page: Page): Promise<void> {
-	await page.goto('/data');
+	await page.goto('/data#advanced');
 	await page.getByRole('button', { name: 'Add folder on this computer' }).click();
 	await expect(
 		page.getByRole('listitem').filter({ hasText: 'E2E Shared Committee Folder' })

@@ -2,36 +2,9 @@
 
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import type { StoragePersistenceStatus } from '$lib/shell/capabilities';
-	import { buildOnboardingGuidanceContent } from '$lib/shell/onboarding-guidance';
+	import { ONBOARDING_GUIDANCE } from '$lib/shell/onboarding-guidance';
 
-	interface Props {
-		localFolderSupported: boolean;
-		persistenceStatus: StoragePersistenceStatus;
-		installSupported: boolean;
-		variant?: 'card' | 'about';
-	}
-
-	let {
-		localFolderSupported,
-		persistenceStatus,
-		installSupported,
-		variant = 'card',
-	}: Props = $props();
-
-	let content = $derived(
-		buildOnboardingGuidanceContent({
-			localFolderSupported,
-			persistenceStatus,
-			installSupported,
-		})
-	);
-
-	function badgeClass(state: 'ready' | 'recommended' | 'unavailable') {
-		if (state === 'ready') return 'badge-success';
-		if (state === 'recommended') return 'badge-primary';
-		return 'badge-warning';
-	}
+	let { variant = 'card' }: { variant?: 'card' | 'about' } = $props();
 </script>
 
 <section
@@ -41,29 +14,26 @@
 	data-testid="onboarding-guidance"
 >
 	<div class="flex items-baseline justify-between gap-3">
-		<h2 class="font-serif text-xl font-semibold">Recommended setup</h2>
+		<h2 class="font-serif text-xl font-semibold">{ONBOARDING_GUIDANCE.heading}</h2>
 		{#if variant === 'card'}
 			<a href={resolve('/about')} class="link link-primary text-sm">About your data</a>
 		{/if}
 	</div>
+	<p class="mt-1 text-sm text-base-content/65">{ONBOARDING_GUIDANCE.intro}</p>
 
-	<ul class="mt-3 grid gap-3 sm:grid-cols-3">
-		{#each content.actions as action}
-			<li class="rounded-box border border-base-300/70 bg-base-100 p-3">
-				<div class="flex items-start justify-between gap-3">
-					<h3 class="font-semibold">{action.title}</h3>
-					<span class={`badge badge-xs ${badgeClass(action.state)}`}>{action.state}</span>
-				</div>
-				<p class="mt-1 text-sm text-base-content/65">{action.body}</p>
+	<ol class="mt-3 grid gap-3">
+		{#each ONBOARDING_GUIDANCE.steps as step}
+			<li class="rounded-box border border-base-300/70 bg-base-100 p-3 font-semibold">
+				{step}
 			</li>
 		{/each}
-	</ul>
+	</ol>
 
 	{#if variant === 'about'}
 		<div class="mt-4 rounded-box bg-base-200/60 p-4" data-testid="data-ownership">
 			<h3 class="font-serif text-lg font-semibold">You own the files</h3>
 			<ul class="mt-2 list-disc space-y-1 pl-5 text-sm text-base-content/70">
-				{#each content.dataOwnership as item}
+				{#each ONBOARDING_GUIDANCE.dataOwnership as item}
 					<li>{item}</li>
 				{/each}
 			</ul>

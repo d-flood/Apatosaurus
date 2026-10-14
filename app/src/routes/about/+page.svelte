@@ -1,25 +1,6 @@
 <script lang="ts">
-	import {
-		checkStoragePersistence,
-		getInstallCapabilityReport,
-		isLocalFolderProviderSupported,
-		type StoragePersistenceReport,
-	} from '$lib/shell/capabilities';
 	import aptosaurusAnimated from '$lib/assets/apatosaurus_animated.gif';
 	import OnboardingGuidance from '$lib/shell/components/OnboardingGuidance.svelte';
-	import { onMount } from 'svelte';
-
-	let persistenceReport = $state<StoragePersistenceReport | null>(null);
-	let localFolderSupported = $state(false);
-	let installSupported = $state(false);
-
-	onMount(() => {
-		localFolderSupported = isLocalFolderProviderSupported();
-		installSupported = getInstallCapabilityReport().installSupported;
-		void checkStoragePersistence().then(report => {
-			persistenceReport = report;
-		});
-	});
 </script>
 
 <svelte:head>
@@ -77,12 +58,7 @@
 		</p>
 	</div>
 
-	<OnboardingGuidance
-		variant="about"
-		{localFolderSupported}
-		persistenceStatus={persistenceReport?.status ?? 'unsupported'}
-		{installSupported}
-	/>
+	<OnboardingGuidance variant="about" />
 
 	<section class="mt-6 grid gap-4 md:grid-cols-2" aria-label="How Apatosaurus stores your work">
 		<div class="rounded-box border border-base-300 bg-base-100 p-5 shadow-sm">

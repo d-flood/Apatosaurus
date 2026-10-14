@@ -136,7 +136,7 @@ async function newFolderContextPage(
 }
 
 async function addFolderLocation(page: Page, name: string): Promise<void> {
-	await page.goto('/data');
+	await page.goto('/data#advanced');
 	await page.evaluate(folderName => {
 		(window as Window & { e2eFolderName?: string }).e2eFolderName = folderName;
 	}, name);

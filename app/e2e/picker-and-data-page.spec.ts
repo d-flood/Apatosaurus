@@ -33,8 +33,21 @@ test('data and storage page exports, repairs, and links to project backups', asy
 	await page.getByRole('button', { name: 'Export all projects' }).click();
 	await downloadPromise;
 
+	await expect(page.getByRole('button', { name: 'Repair database' })).toBeHidden();
+	await page.getByText('Advanced', { exact: true }).click();
 	await page.getByRole('button', { name: 'Repair database' }).click();
 	await expect(page.getByText('Repair complete')).toBeVisible({ timeout: 30_000 });
+});
+
+test('a Dashboard storage alert opens Advanced on Data & Storage', async ({ page }) => {
+	await createProject(page, 'Alert Project');
+	await page.goto('/');
+
+	await page.getByRole('link', { name: 'Review storage durability' }).click();
+
+	await expect(page).toHaveURL('/data#advanced');
+	await expect(page.getByRole('heading', { name: 'Storage Durability' })).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Repair database' })).toBeVisible();
 });
 
 async function createProject(page: Page, name: string): Promise<string> {

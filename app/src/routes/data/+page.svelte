@@ -4,7 +4,6 @@
 	import {
 		checkStoragePersistence,
 		formatStorageBytes,
-		getInstallCapabilityReport,
 		getStorageEstimate,
 		isLocalFolderProviderSupported,
 		isOpfsSupported,
@@ -111,13 +110,14 @@
 	let googleFolder = $state.raw<GoogleTeamFolder | null>(null);
 	let isPickingGoogleFolder = $state(false);
 	const teamAccounts = $derived(teamLocationAccounts(accounts));
+	const cloudLocations = $derived(locations.filter(location => location.kind !== 'device'));
+	const deviceLocations = $derived(locations.filter(location => location.kind === 'device'));
 	const teamAccount = $derived(teamAccounts.find(account => account.id === teamAccountId));
 	const teamFolderSegments = $derived(
 		teamFolderId === LOCATION_ROOT_FOLDER_ID ? [] : teamFolderId.split('/')
 	);
 	let persistenceReport = $state<StoragePersistenceReport | null>(null);
 	let storageEstimateReport = $state<StorageEstimateReport | null>(null);
-	let installSupported = $state(false);
 	let isLoading = $state(true);
 	let initialDataError = $state<string | null>(null);
 	let isRequestingPersistence = $state(false);
@@ -134,6 +134,7 @@
 	let indexRepairError = $state<string | null>(null);
 	let indexRepairReport = $state<IndexRebuildReport | null>(null);
 	let restoringOrphanPath = $state<string | null>(null);
+	let advancedOpen = $state(false);
 	let dismissedDurabilityMilestone = $state<string | null>(readDismissedDurabilityMilestone());
 	let backupSummaryRunId = 0;
 	let routesWarmProgress = $state<WarmProgress>({
@@ -646,12 +647,16 @@
 		return 'Unsupported by this browser';
 	}
 
+	function openAdvancedFromHash() {
+		if (window.location.hash === '#advanced') advancedOpen = true;
+	}
+
 	function formatDate(value: string): string {
 		return new Date(value).toLocaleString();
 	}
 
 	onMount(() => {
-		installSupported = getInstallCapabilityReport().installSupported;
+		openAdvancedFromHash();
 		void bootstrap();
 		void loadAuthorName();
 		void loadDeviceName();
@@ -686,6 +691,7 @@
 </script>
 
 <svelte:head><title>Data & Storage</title></svelte:head>
+<svelte:window onhashchange={openAdvancedFromHash} />
 
 <main class="container mx-auto max-w-5xl p-4">
 	<header class="mb-6">
@@ -695,26 +701,221 @@
 		<div class="alert alert-error mb-6 text-sm" role="alert">{initialDataError}</div>
 	{/if}
 
-	<OnboardingGuidance
-		localFolderSupported={isLocalFolderProviderSupported()}
-		persistenceStatus={persistenceReport?.status ?? 'unsupported'}
-		{installSupported}
-	/>
+	<OnboardingGuidance />
 
-	{#if showDurabilityWarning}
-		<div class="alert alert-warning mt-6 items-start text-sm">
-			<div>
-				<div class="font-semibold">Storage isn't persistent</div>
-				<div>The browser may delete local files when space runs low.</div>
+	<div class="mt-6 grid gap-6 lg:grid-cols-[1.15fr_0.85fr] lg:items-start">
+		<section class="rounded-box border border-base-300/60 bg-base-100 p-5 shadow-sm">
+			<h2 class="font-serif text-xl font-semibold">Storage accounts</h2>
+			<p class="mt-1 text-sm text-base-content/55">
+				Sync projects to an Apatosaurus folder in your cloud storage.
+			</p>
+			{#if signInCompletion.completing}
+				<div class="mt-4 flex items-center gap-2 text-sm text-base-content/55">
+					<span class="loading loading-spinner loading-sm"></span>Finishing sign-in...
+				</div>
+			{/if}
+			{#if accounts.length > 0}
+				<ul class="mt-4 divide-y divide-base-300/60">
+					{#each accounts as account (account.id)}
+						<li class="flex flex-wrap items-center justify-between gap-3 py-3">
+							<div class="min-w-0">
+								<div class="truncate font-medium">{account.displayName}</div>
+								<div class="truncate text-xs text-base-content/55">
+									{providerLabel(account.provider)} · {account.email}
+								</div>
+							</div>
+							<div class="flex flex-wrap gap-2">
+								{#if !account.signedIn}
+									<span class="badge badge-ghost badge-sm self-center">
+										Signed out
+									</span>
+									<button
+										type="button"
+										class="btn btn-outline btn-sm"
+										onclick={() => beginSignIn(account.provider)}
+									>
+										Sign in
+									</button>
+								{:else}
+									{#if accountNeedsReconnect(account.id)}
+										<button
+											type="button"
+											class="btn btn-warning btn-sm"
+											onclick={() => beginSignIn(account.provider)}
+										>
+											Reconnect
+										</button>
+									{/if}
+									<button
+										type="button"
+										class="btn btn-ghost btn-sm"
+										onclick={() => openSignOut(account)}
+									>
+										Sign out
+									</button>
+								{/if}
+							</div>
+						</li>
+					{/each}
+				</ul>
+			{/if}
+			{#if cloudLocations.length > 0}
+				<h3 class="mt-5 text-sm font-semibold">Locations</h3>
+				<p class="sr-only">Projects already in a location download to this device.</p>
+				<ul class="mt-1 divide-y divide-base-300/60">
+					{#each cloudLocations as location (location.id)}
+						<li class="min-w-0 py-3">
+							<div class="truncate font-medium">{location.displayPath}</div>
+							<div class="text-xs text-base-content/55">
+								{location.kind === 'team' ? 'Team · ' : ''}{accountLabel(location)}
+							</div>
+						</li>
+					{/each}
+				</ul>
+			{/if}
+			{#if teamAccounts.length > 0}
+				<button
+					type="button"
+					class="btn btn-outline btn-sm mt-3 w-full"
+					onclick={() => openTeamLocation()}
+				>
+					Add team location
+				</button>
+			{/if}
+			<div class="mt-5">
+				<StorageSignInButtons />
 			</div>
-			<button type="button" class="btn btn-ghost btn-xs" onclick={dismissDurabilityWarning}
-				>Dismiss</button
-			>
-		</div>
-	{/if}
-
-	<div class="mt-6 grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
+		</section>
 		<div class="space-y-6">
+			<section class="rounded-box border border-base-300/60 bg-base-100 p-5 shadow-sm">
+				<h2 class="font-serif text-xl font-semibold">Project Sync Status</h2>
+				<p class="mt-1 text-sm text-base-content/55">
+					Select a project to change its location.
+				</p>
+				{#if isLoading}
+					<div class="mt-4 flex items-center gap-2 text-sm text-base-content/55">
+						<span class="loading loading-spinner loading-sm"></span>Loading status...
+					</div>
+				{:else if projects.length === 0}
+					<p class="mt-4 text-sm text-base-content/55">No projects yet.</p>
+				{:else}
+					<ul class="mt-4 divide-y divide-base-300/60">
+						{#each projects as project (project.id)}
+							{@const projectStatus = syncService.projectStatus(
+								project.id,
+								networkStatus.online
+							)}
+							<li>
+								<a
+									href={resolve('/projects/[id]/location', { id: project.id })}
+									class="flex items-center justify-between gap-3 py-3 hover:text-primary"
+								>
+									<span class="font-medium">{project.name}</span>
+									<span
+										class="badge badge-sm {statusBadgeClass[
+											projectStatus.state
+										]}"
+										title={syncStatusReason(projectStatus)}
+										>{syncStatusLabel(projectStatus)}</span
+									>
+								</a>
+							</li>
+						{/each}
+					</ul>
+				{/if}
+			</section>
+
+			<section class="rounded-box border border-base-300/60 bg-base-100 p-5 shadow-sm">
+				<h2 class="font-serif text-xl font-semibold">Whole-Account Export</h2>
+				<p class="mt-1 text-sm text-base-content/55">
+					One zip per project, plus your reference editions.
+				</p>
+				<p class="sr-only">Each zip restores on its own. Drafts are not included.</p>
+				<button
+					type="button"
+					class="btn btn-outline btn-sm mt-4 w-full"
+					disabled={isExportingAllProjects ||
+						(projects.length === 0 && userReferenceEditionCount === 0)}
+					onclick={exportAllProjectArchives}
+				>
+					{isExportingAllProjects ? 'Exporting...' : 'Export all projects'}
+				</button>
+				<div class="mt-2">
+					<FilePicker
+						label="Restore editions"
+						accept=".zip,application/zip"
+						disabled={isRestoringReferenceEditions}
+						onchange={restoreReferenceEditions}
+					/>
+				</div>
+				{#if exportAllError}<div class="alert alert-error mt-3 py-2 text-xs">
+						{exportAllError}
+					</div>{/if}
+				{#if lastAllProjectsExportedAt}<p class="mt-2 text-xs text-base-content/50">
+						Last exported {formatDate(lastAllProjectsExportedAt)}
+					</p>{/if}
+				{#if restoreReferenceEditionsError}<div class="alert alert-error mt-3 py-2 text-xs">
+						{restoreReferenceEditionsError}
+					</div>{/if}
+				{#if restoreReferenceEditionsMessage}<p
+						class="mt-2 text-xs text-success"
+						role="status"
+					>
+						{restoreReferenceEditionsMessage}
+					</p>{/if}
+			</section>
+		</div>
+	</div>
+
+	<details
+		id="advanced"
+		class="collapse collapse-arrow mt-6 rounded-box border border-base-300/60"
+		bind:open={advancedOpen}
+	>
+		<summary class="collapse-title font-serif text-xl font-semibold">Advanced</summary>
+		<div class="collapse-content grid gap-6 lg:grid-cols-2 lg:items-start">
+			<section class="rounded-box border border-base-300/60 bg-base-100 p-5 shadow-sm">
+				<h2 class="font-serif text-xl font-semibold">Folder on this computer</h2>
+				{#if locationError}
+					<div class="alert alert-error mt-3 py-2 text-sm" role="alert">
+						{locationError}
+					</div>
+				{/if}
+				{#if deviceLocations.length === 0}
+					<p class="mt-4 text-sm text-base-content/55">No folders yet.</p>
+				{:else}
+					<ul class="mt-4 divide-y divide-base-300/60">
+						{#each deviceLocations as location (location.id)}
+							<li class="flex flex-wrap items-center justify-between gap-3 py-3">
+								<div class="min-w-0 truncate font-medium">
+									{location.displayPath}
+								</div>
+								{#if locationNeedsReconnect(location.id)}
+									<button
+										type="button"
+										class="btn btn-warning btn-sm"
+										disabled={reconnectingLocationId === location.id}
+										onclick={() => reconnectLocation(location.id)}
+									>
+										Reconnect
+									</button>
+								{/if}
+							</li>
+						{/each}
+					</ul>
+				{/if}
+				{#if isLocalFolderProviderSupported()}
+					<button
+						type="button"
+						class="btn btn-outline btn-sm mt-4 w-full"
+						disabled={isAddingLocation}
+						onclick={addFolderLocation}
+					>
+						{isAddingLocation ? 'Adding folder...' : 'Add folder on this computer'}
+					</button>
+				{/if}
+			</section>
+
 			<section class="rounded-box border border-base-300/60 bg-base-100 p-5 shadow-sm">
 				<h2 class="font-serif text-xl font-semibold">Offline Readiness</h2>
 				<p class="sr-only">Prepares the app to work without a network.</p>
@@ -816,6 +1017,19 @@
 
 			<section class="rounded-box border border-base-300/60 bg-base-100 p-5 shadow-sm">
 				<h2 class="font-serif text-xl font-semibold">Storage Durability</h2>
+				{#if showDurabilityWarning}
+					<div class="alert alert-warning mt-4 items-start text-sm">
+						<div>
+							<div class="font-semibold">Storage isn't persistent</div>
+							<div>The browser may delete local files when space runs low.</div>
+						</div>
+						<button
+							type="button"
+							class="btn btn-ghost btn-xs"
+							onclick={dismissDurabilityWarning}>Dismiss</button
+						>
+					</div>
+				{/if}
 				<div class="mt-4 grid gap-3 text-sm sm:grid-cols-2">
 					<div class="rounded-box bg-base-200/60 p-3">
 						<div class="text-base-content/55">Persistent storage</div>
@@ -871,215 +1085,6 @@
 			</section>
 
 			<section class="rounded-box border border-base-300/60 bg-base-100 p-5 shadow-sm">
-				<h2 class="font-serif text-xl font-semibold">Storage accounts</h2>
-				<p class="mt-1 text-sm text-base-content/55">
-					Sync projects to an Apatosaurus folder in your cloud storage.
-				</p>
-				{#if signInCompletion.completing}
-					<div class="mt-4 flex items-center gap-2 text-sm text-base-content/55">
-						<span class="loading loading-spinner loading-sm"></span>Finishing sign-in...
-					</div>
-				{/if}
-				{#if accounts.length > 0}
-					<ul class="mt-4 divide-y divide-base-300/60">
-						{#each accounts as account (account.id)}
-							<li class="flex flex-wrap items-center justify-between gap-3 py-3">
-								<div class="min-w-0">
-									<div class="truncate font-medium">{account.displayName}</div>
-									<div class="truncate text-xs text-base-content/55">
-										{providerLabel(account.provider)} · {account.email}
-									</div>
-								</div>
-								<div class="flex flex-wrap gap-2">
-									{#if !account.signedIn}
-										<span class="badge badge-ghost badge-sm self-center">
-											Signed out
-										</span>
-										<button
-											type="button"
-											class="btn btn-outline btn-sm"
-											onclick={() => beginSignIn(account.provider)}
-										>
-											Sign in
-										</button>
-									{:else}
-										{#if accountNeedsReconnect(account.id)}
-											<button
-												type="button"
-												class="btn btn-warning btn-sm"
-												onclick={() => beginSignIn(account.provider)}
-											>
-												Reconnect
-											</button>
-										{/if}
-										<button
-											type="button"
-											class="btn btn-ghost btn-sm"
-											onclick={() => openSignOut(account)}
-										>
-											Sign out
-										</button>
-									{/if}
-								</div>
-							</li>
-						{/each}
-					</ul>
-				{/if}
-				<div class="mt-4">
-					<StorageSignInButtons />
-				</div>
-				<form class="mt-5 space-y-2" onsubmit={saveAuthorName}>
-					<label class="block text-sm font-medium" for="author-name"
-						>Name on versions</label
-					>
-					<p id="author-name-hint" class="sr-only">
-						Storage accounts use their own display name instead.
-					</p>
-					<div class="flex gap-2">
-						<input
-							id="author-name"
-							aria-describedby="author-name-hint"
-							class="input input-bordered input-sm min-w-0 flex-1"
-							bind:value={authorName}
-							oninput={() => (authorNameMessage = null)}
-							autocomplete="name"
-						/>
-						<button type="submit" class="btn btn-sm">Save</button>
-					</div>
-					{#if authorNameMessage}
-						<p class="text-xs text-success" role="status">{authorNameMessage}</p>
-					{/if}
-				</form>
-			</section>
-
-			<section class="rounded-box border border-base-300/60 bg-base-100 p-5 shadow-sm">
-				<h2 class="font-serif text-xl font-semibold">Locations</h2>
-				<p class="mt-1 text-sm text-base-content/55">Where projects live and sync.</p>
-				<p class="sr-only">Projects already in a location download to this device.</p>
-				{#if locationError}
-					<div class="alert alert-error mt-3 py-2 text-sm" role="alert">
-						{locationError}
-					</div>
-				{/if}
-				{#if locations.length === 0}
-					<p class="mt-4 text-sm text-base-content/55">No locations yet.</p>
-				{:else}
-					<ul class="mt-4 divide-y divide-base-300/60">
-						{#each locations as location (location.id)}
-							<li class="flex flex-wrap items-center justify-between gap-3 py-3">
-								<div class="min-w-0">
-									<div class="truncate font-medium">{location.displayPath}</div>
-									<div class="text-xs text-base-content/55">
-										{#if location.accountId}
-											{location.kind === 'team'
-												? 'Team · '
-												: ''}{accountLabel(location)}
-										{:else}
-											Folder on this computer
-										{/if}
-									</div>
-								</div>
-								{#if !location.accountId && locationNeedsReconnect(location.id)}
-									<button
-										type="button"
-										class="btn btn-warning btn-sm"
-										disabled={reconnectingLocationId === location.id}
-										onclick={() => reconnectLocation(location.id)}
-									>
-										Reconnect
-									</button>
-								{/if}
-							</li>
-						{/each}
-					</ul>
-				{/if}
-				<div class="mt-4 grid gap-2 empty:hidden">
-					{#if teamAccounts.length > 0}
-						<button
-							type="button"
-							class="btn btn-outline btn-sm"
-							onclick={() => openTeamLocation()}
-						>
-							Add team location
-						</button>
-					{/if}
-					{#if isLocalFolderProviderSupported()}
-						<button
-							type="button"
-							class="btn btn-outline btn-sm"
-							disabled={isAddingLocation}
-							onclick={addFolderLocation}
-						>
-							{isAddingLocation ? 'Adding folder...' : 'Add folder on this computer'}
-						</button>
-					{/if}
-				</div>
-			</section>
-
-			<section class="rounded-box border border-base-300/60 bg-base-100 p-5 shadow-sm">
-				<h2 class="font-serif text-xl font-semibold">This device</h2>
-				<form class="mt-3 space-y-2" onsubmit={submitDeviceName}>
-					<label class="block text-sm font-medium" for="device-name">Device name</label>
-					<p id="device-name-hint" class="sr-only">
-						Shown in editing notices when you edit on more than one device.
-					</p>
-					<div class="flex gap-2">
-						<input
-							id="device-name"
-							aria-describedby="device-name-hint"
-							class="input input-bordered input-sm min-w-0 flex-1"
-							bind:value={deviceName}
-							oninput={() => (deviceNameMessage = null)}
-						/>
-						<button type="submit" class="btn btn-sm">Save</button>
-					</div>
-					{#if deviceNameMessage}
-						<p class="text-xs text-success" role="status">{deviceNameMessage}</p>
-					{/if}
-				</form>
-			</section>
-
-			<section class="rounded-box border border-base-300/60 bg-base-100 p-5 shadow-sm">
-				<h2 class="font-serif text-xl font-semibold">Project Sync Status</h2>
-				<p class="mt-1 text-sm text-base-content/55">
-					Select a project to change its location.
-				</p>
-				{#if isLoading}
-					<div class="mt-4 flex items-center gap-2 text-sm text-base-content/55">
-						<span class="loading loading-spinner loading-sm"></span>Loading status...
-					</div>
-				{:else if projects.length === 0}
-					<p class="mt-4 text-sm text-base-content/55">No projects yet.</p>
-				{:else}
-					<ul class="mt-4 divide-y divide-base-300/60">
-						{#each projects as project (project.id)}
-							{@const projectStatus = syncService.projectStatus(
-								project.id,
-								networkStatus.online
-							)}
-							<li>
-								<a
-									href={resolve('/projects/[id]/location', { id: project.id })}
-									class="flex items-center justify-between gap-3 py-3 hover:text-primary"
-								>
-									<span class="font-medium">{project.name}</span>
-									<span
-										class="badge badge-sm {statusBadgeClass[
-											projectStatus.state
-										]}"
-										title={syncStatusReason(projectStatus)}
-										>{syncStatusLabel(projectStatus)}</span
-									>
-								</a>
-							</li>
-						{/each}
-					</ul>
-				{/if}
-			</section>
-		</div>
-
-		<div class="space-y-6">
-			<section class="rounded-box border border-base-300/60 bg-base-100 p-5 shadow-sm">
 				<h2 class="font-serif text-xl font-semibold">Local Storage</h2>
 				<div class="mt-4 grid grid-cols-2 gap-3 text-sm">
 					<div class="rounded-box bg-base-200/60 p-3">
@@ -1109,43 +1114,52 @@
 			</section>
 
 			<section class="rounded-box border border-base-300/60 bg-base-100 p-5 shadow-sm">
-				<h2 class="font-serif text-xl font-semibold">Whole-Account Export</h2>
-				<p class="mt-1 text-sm text-base-content/55">
-					One zip per project, plus your reference editions.
-				</p>
-				<p class="sr-only">Each zip restores on its own. Drafts are not included.</p>
-				<button
-					type="button"
-					class="btn btn-outline btn-sm mt-4 w-full"
-					disabled={isExportingAllProjects ||
-						(projects.length === 0 && userReferenceEditionCount === 0)}
-					onclick={exportAllProjectArchives}
-				>
-					{isExportingAllProjects ? 'Exporting...' : 'Export all projects'}
-				</button>
-				<div class="mt-2">
-					<FilePicker
-						label="Restore editions"
-						accept=".zip,application/zip"
-						disabled={isRestoringReferenceEditions}
-						onchange={restoreReferenceEditions}
-					/>
-				</div>
-				{#if exportAllError}<div class="alert alert-error mt-3 py-2 text-xs">
-						{exportAllError}
-					</div>{/if}
-				{#if lastAllProjectsExportedAt}<p class="mt-2 text-xs text-base-content/50">
-						Last exported {formatDate(lastAllProjectsExportedAt)}
-					</p>{/if}
-				{#if restoreReferenceEditionsError}<div class="alert alert-error mt-3 py-2 text-xs">
-						{restoreReferenceEditionsError}
-					</div>{/if}
-				{#if restoreReferenceEditionsMessage}<p
-						class="mt-2 text-xs text-success"
-						role="status"
+				<h2 class="font-serif text-xl font-semibold">This device</h2>
+				<form class="mt-3 space-y-2" onsubmit={submitDeviceName}>
+					<label class="block text-sm font-medium" for="device-name">Device name</label>
+					<p id="device-name-hint" class="sr-only">
+						Shown in editing notices when you edit on more than one device.
+					</p>
+					<div class="flex gap-2">
+						<input
+							id="device-name"
+							aria-describedby="device-name-hint"
+							class="input input-bordered input-sm min-w-0 flex-1"
+							bind:value={deviceName}
+							oninput={() => (deviceNameMessage = null)}
+						/>
+						<button type="submit" class="btn btn-sm">Save</button>
+					</div>
+					{#if deviceNameMessage}
+						<p class="text-xs text-success" role="status">{deviceNameMessage}</p>
+					{/if}
+				</form>
+			</section>
+
+			<section class="rounded-box border border-base-300/60 bg-base-100 p-5 shadow-sm">
+				<h2 class="font-serif text-xl font-semibold">Your name</h2>
+				<form class="mt-3 space-y-2" onsubmit={saveAuthorName}>
+					<label class="block text-sm font-medium" for="author-name"
+						>Name on versions</label
 					>
-						{restoreReferenceEditionsMessage}
-					</p>{/if}
+					<p id="author-name-hint" class="sr-only">
+						Storage accounts use their own display name instead.
+					</p>
+					<div class="flex gap-2">
+						<input
+							id="author-name"
+							aria-describedby="author-name-hint"
+							class="input input-bordered input-sm min-w-0 flex-1"
+							bind:value={authorName}
+							oninput={() => (authorNameMessage = null)}
+							autocomplete="name"
+						/>
+						<button type="submit" class="btn btn-sm">Save</button>
+					</div>
+					{#if authorNameMessage}
+						<p class="text-xs text-success" role="status">{authorNameMessage}</p>
+					{/if}
+				</form>
 			</section>
 
 			<section class="rounded-box border border-base-300/60 bg-base-100 p-5 shadow-sm">
@@ -1174,7 +1188,7 @@
 				{/if}
 			</section>
 		</div>
-	</div>
+	</details>
 </main>
 
 <dialog

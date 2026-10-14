@@ -100,7 +100,7 @@ test('an alpha project that synced to a folder asks once where it lives, and Mov
 		.locator('article', { hasText: 'Choose where this project lives' });
 	await expect(banner).toBeVisible({ timeout: 30_000 });
 
-	await page.goto('/data');
+	await page.goto('/data#advanced');
 	await page.getByRole('button', { name: 'Add folder on this computer' }).click();
 	await expect(
 		page.getByRole('listitem').filter({ hasText: 'E2E Shared Committee Folder' })

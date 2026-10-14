@@ -1,5 +1,5 @@
 import { page } from '@vitest/browser/context';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render } from 'vitest-browser-svelte';
 
 const mocks = vi.hoisted(() => ({
@@ -126,6 +126,69 @@ vi.mock('$lib/backup/providers/local-folder-provider', () => ({
 import Page from './+page.svelte';
 import * as capabilities from '$lib/shell/capabilities';
 
+async function openAdvanced() {
+	await page.getByText('Advanced', { exact: true }).click();
+}
+
+function headingTexts(headings: Iterable<Element>): string[] {
+	return [...headings].map(heading => heading.textContent?.trim() ?? '');
+}
+
+describe('/data layout', () => {
+	afterEach(() => {
+		history.replaceState(null, '', location.pathname + location.search);
+	});
+
+	it('leads with storage accounts, sync status and export, and keeps device controls in a closed Advanced', async () => {
+		const { container } = render(Page);
+		await expect.element(page.getByRole('heading', { name: 'Storage accounts' })).toBeVisible();
+
+		const advanced = container.querySelector<HTMLDetailsElement>('details#advanced')!;
+		expect(advanced.open).toBe(false);
+		const headings = [...container.querySelectorAll('h2')];
+		expect(headingTexts(headings.filter(heading => !advanced.contains(heading)))).toEqual([
+			'Keep your projects safe',
+			'Storage accounts',
+			'Project Sync Status',
+			'Whole-Account Export',
+		]);
+		expect(headingTexts(headings.filter(heading => advanced.contains(heading)))).toEqual([
+			'Folder on this computer',
+			'Offline Readiness',
+			'Storage Durability',
+			'Local Storage',
+			'This device',
+			'Your name',
+			'Repair Database',
+		]);
+		expect(
+			[...advanced.querySelectorAll('button')]
+				.find(button => button.textContent?.trim() === 'Repair database')
+				?.checkVisibility()
+		).toBe(false);
+
+		await openAdvanced();
+		await expect.element(page.getByRole('button', { name: 'Repair database' })).toBeVisible();
+	});
+
+	it('opens Advanced when the page loads at #advanced', async () => {
+		history.replaceState(null, '', '#advanced');
+		render(Page);
+
+		await expect.element(page.getByRole('button', { name: 'Repair database' })).toBeVisible();
+	});
+
+	it('opens Advanced on a hash change to #advanced', async () => {
+		const { container } = render(Page);
+		await expect.element(page.getByRole('heading', { name: 'Storage accounts' })).toBeVisible();
+		expect(container.querySelector<HTMLDetailsElement>('details#advanced')!.open).toBe(false);
+
+		location.hash = 'advanced';
+
+		await expect.element(page.getByRole('button', { name: 'Repair database' })).toBeVisible();
+	});
+});
+
 describe('/data locations', () => {
 	beforeEach(async () => {
 		const actual =
@@ -144,6 +207,7 @@ describe('/data locations', () => {
 	it('offers a folder on this computer when the directory picker exists', async () => {
 		vi.stubGlobal('showDirectoryPicker', vi.fn());
 		render(Page);
+		await openAdvanced();
 
 		const add = page.getByRole('button', { name: 'Add folder on this computer' });
 		await expect.element(add).toBeInTheDocument();
@@ -230,9 +294,12 @@ describe('/data locations', () => {
 	it('does not render the folder option without the directory picker', async () => {
 		vi.stubGlobal('showDirectoryPicker', undefined);
 		render(Page);
+		await openAdvanced();
 
-		await expect.element(page.getByRole('heading', { name: 'Locations' })).toBeInTheDocument();
-		await expect.element(page.getByText('No locations yet.')).toBeInTheDocument();
+		await expect
+			.element(page.getByRole('heading', { name: 'Folder on this computer' }))
+			.toBeVisible();
+		await expect.element(page.getByText('No folders yet.')).toBeVisible();
 		expect(
 			page.getByRole('button', { name: 'Add folder on this computer' }).elements()
 		).toHaveLength(0);
@@ -257,6 +324,7 @@ describe('/data persistence request', () => {
 			canRequest: true,
 		});
 		render(Page);
+		await openAdvanced();
 
 		const requestButton = page.getByRole('button', { name: 'Request persistent storage' });
 		await expect.element(requestButton).toBeInTheDocument();
@@ -271,6 +339,7 @@ describe('/data persistence request', () => {
 
 	it('shows shell-only readiness before progress arrives and reports cache usage', async () => {
 		render(Page);
+		await openAdvanced();
 
 		await expect
 			.element(page.getByRole('heading', { name: 'Offline Readiness' }))
@@ -282,6 +351,7 @@ describe('/data persistence request', () => {
 
 	it('shows route warm progress and allows immediate preparation', async () => {
 		render(Page);
+		await openAdvanced();
 		await page.getByRole('button', { name: 'Prepare for offline now' }).click();
 		expect(mocks.requestCacheWarmNow).toHaveBeenCalledWith('routes');
 
@@ -298,6 +368,7 @@ describe('/data persistence request', () => {
 
 	it('explains a metered-connection skip and offers the same retry action after failure', async () => {
 		render(Page);
+		await openAdvanced();
 		const listener = mocks.warmListeners.at(-1);
 		listener?.({
 			tier: 'routes',
@@ -328,6 +399,7 @@ describe('/data persistence request', () => {
 	it('offers the approximate corpus size and derives opt-in state from cache contents', async () => {
 		mocks.getCorpusCacheEntryCount.mockResolvedValueOnce(0);
 		render(Page);
+		await openAdvanced();
 
 		await expect.element(page.getByText('Approximately 44 MB')).toBeInTheDocument();
 		await expect
@@ -344,6 +416,7 @@ describe('/data persistence request', () => {
 			isNearQuota: false,
 		});
 		render(Page);
+		await openAdvanced();
 
 		await page.getByRole('button', { name: 'Download reference editions' }).click();
 
@@ -356,6 +429,7 @@ describe('/data persistence request', () => {
 	it('shows corpus progress, resumes after a partial download, and releases only its cache', async () => {
 		mocks.getCorpusCacheEntryCount.mockResolvedValueOnce(12);
 		render(Page);
+		await openAdvanced();
 		await expect
 			.element(page.getByRole('button', { name: 'Release reference editions' }))
 			.toBeInTheDocument();
