@@ -1,4 +1,5 @@
 import type { ProjectOption } from '$lib/db/repositories/projects';
+import { isNotBackedUp } from '$lib/backup/sync-status';
 import {
 	isPlacedProject,
 	type ProjectLocation,
@@ -34,6 +35,12 @@ export function groupProjectsByLocation(
 		signedOut: false,
 		projects: [],
 	};
+	const attention: ProjectLocationGroup = {
+		...browserOnly,
+		id: 'unplaced-attention',
+		label: 'Needs attention',
+		projects: [],
+	};
 	const groups = new Map<string, ProjectLocationGroup>(
 		locations.map(location => {
 			const account = accounts.find(candidate => candidate.id === location.accountId);
@@ -54,7 +61,9 @@ export function groupProjectsByLocation(
 	);
 	for (const project of projects) {
 		const locationId = locationIdByProject.get(project.id);
-		(groups.get(locationId ?? '') ?? browserOnly).projects.push(project);
+		const placement = placements.find(candidate => candidate.projectId === project.id);
+		const fallback = isNotBackedUp(placement) ? browserOnly : attention;
+		(groups.get(locationId ?? '') ?? fallback).projects.push(project);
 	}
-	return [browserOnly, ...groups.values()].filter(group => group.projects.length > 0);
+	return [browserOnly, attention, ...groups.values()].filter(group => group.projects.length > 0);
 }

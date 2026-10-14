@@ -51,6 +51,7 @@
 	import { LOCATION_ROOT_FOLDER_ID } from '$lib/backup/providers/provider';
 	import { syncService } from '$lib/backup/sync-service.svelte';
 	import {
+		isNotBackedUp,
 		syncStatusLabel,
 		syncStatusReason,
 		type SyncStatusState,
@@ -58,8 +59,10 @@
 	import { networkStatus } from '$lib/shell/network-status.svelte';
 	import {
 		listProjectLocations,
+		listProjectPlacements,
 		listStorageAccounts,
 		type ProjectLocation,
+		type ProjectPlacement,
 		type StorageAccount,
 	} from '$lib/storage/project-locations';
 	import { readAppSettings, saveAppSettings } from '$lib/storage/app-settings';
@@ -86,6 +89,7 @@
 	let userReferenceEditionCount = $state(0);
 	let projectBackupOverviews = $state.raw<Record<string, ProjectBackupOverview>>({});
 	let locations = $state.raw<ProjectLocation[]>([]);
+	let placements = $state.raw<ProjectPlacement[]>([]);
 	let accounts = $state.raw<StorageAccount[]>([]);
 	let handledDriveAccess = signInCompletion.lastCompleted;
 	let signOutDialog = $state<HTMLDialogElement>();
@@ -171,7 +175,9 @@
 	let currentDurabilityMilestone = $derived(`projects:${projects.length}`);
 	let showDurabilityWarning = $derived(
 		shouldShowDurabilityWarning({
-			hasUserData: projects.length > 0,
+			hasUserData: projects.some(project =>
+				isNotBackedUp(placements.find(placement => placement.projectId === project.id))
+			),
 			persistenceStatus: persistenceReport?.status ?? 'unsupported',
 			dismissedMilestone: dismissedDurabilityMilestone,
 			currentMilestone: currentDurabilityMilestone,
@@ -318,7 +324,11 @@
 	}
 
 	async function loadLocations() {
-		[locations, accounts] = await Promise.all([listProjectLocations(), listStorageAccounts()]);
+		[locations, accounts, placements] = await Promise.all([
+			listProjectLocations(),
+			listStorageAccounts(),
+			listProjectPlacements(),
+		]);
 	}
 
 	function accountLabel(location: ProjectLocation): string {
@@ -1079,7 +1089,8 @@
 				{/if}
 				{#if storageEstimateReport?.isNearQuota}
 					<div class="alert alert-warning mt-4 text-sm">
-						Storage is nearly full. Export a backup before adding large batches.
+						Storage on this device is nearly full. Export a backup before adding large
+						batches.
 					</div>
 				{/if}
 			</section>

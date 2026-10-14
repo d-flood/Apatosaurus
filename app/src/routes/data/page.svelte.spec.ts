@@ -28,6 +28,10 @@ const mocks = vi.hoisted(() => ({
 	signOutAccount: vi.fn(async () => undefined),
 	beginSignIn: vi.fn(),
 	googleTeamLocations: false,
+	listProjects: vi.fn(async () => [] as import('$lib/db/repositories/projects').ProjectOption[]),
+	listProjectPlacements: vi.fn(
+		async () => [] as import('$lib/storage/project-locations').ProjectPlacement[]
+	),
 }));
 
 vi.mock('$lib/shell/capabilities', () => ({
@@ -61,7 +65,7 @@ vi.mock('$lib/shell/sw-registration', () => ({
 }));
 
 vi.mock('$lib/db/client', () => ({
-	listProjects: vi.fn(async () => []),
+	listProjects: mocks.listProjects,
 	listPendingUploadPaths: vi.fn(),
 	exportAllProjectsZip: mocks.exportAllProjectsZip,
 	restoreReferenceEditionsArchive: mocks.restoreReferenceEditionsArchive,
@@ -75,7 +79,7 @@ vi.mock('$lib/shell/download-blob', () => ({ downloadZipArchive: mocks.downloadZ
 vi.mock('$lib/storage/project-locations', () => ({
 	isPlacedProject: vi.fn(() => true),
 	listProjectLocations: mocks.listProjectLocations,
-	listProjectPlacements: vi.fn(async () => []),
+	listProjectPlacements: mocks.listProjectPlacements,
 	listStorageAccounts: mocks.listStorageAccounts,
 }));
 vi.mock('$lib/storage/app-settings', () => ({
@@ -111,7 +115,7 @@ vi.mock('$lib/backup/google-team-locations', async importOriginal => {
 	};
 });
 vi.mock('$lib/backup/sync-service.svelte', () => ({
-	syncService: { reconnectProjectIds: [] },
+	syncService: { reconnectProjectIds: [], projectStatus: () => ({ state: 'synced' }) },
 }));
 vi.mock('$lib/reference-editions/user-reference-editions', () => ({
 	inspectUserReferenceEditions: mocks.inspectUserReferenceEditions,
@@ -509,5 +513,83 @@ describe('/data persistence request', () => {
 		await expect
 			.element(page.getByRole('button', { name: 'Export all projects' }))
 			.toBeEnabled();
+	});
+});
+
+describe('/data storage warnings', () => {
+	beforeEach(() => {
+		mocks.listProjects.mockResolvedValue([
+			{
+				id: 'romans',
+				name: 'Romans',
+				storageSlug: 'romans',
+				description: '',
+				createdAt: '2026-10-01',
+				updatedAt: '2026-10-01',
+			},
+		]);
+		vi.mocked(capabilities.shouldShowDurabilityWarning).mockImplementation(
+			input => input.hasUserData
+		);
+	});
+	afterEach(() => {
+		mocks.listProjects.mockResolvedValue([]);
+		mocks.listProjectPlacements.mockResolvedValue([]);
+		vi.mocked(capabilities.shouldShowDurabilityWarning).mockImplementation(() => false);
+	});
+
+	it.each(['cloud', 'device', 'moved', 'deleted', 'browser-only'])(
+		'warns about cleanup only for browser-only work, with %s placement',
+		async kind => {
+			mocks.listProjectPlacements.mockResolvedValue([
+				{
+					projectId: 'romans',
+					locationId: kind === 'cloud' || kind === 'device' ? kind : null,
+					folderName: kind === 'cloud' || kind === 'device' ? 'romans' : null,
+					needsLocationChoice: false,
+					...(kind === 'moved'
+						? {
+								moved: {
+									movedAt: '2026-10-01',
+									movedBy: 'Ada',
+									destinationLabel: 'Dropbox',
+								},
+							}
+						: {}),
+					...(kind === 'deleted'
+						? { deleted: { deletedAt: '2026-10-01', deletedBy: 'Ada' } }
+						: {}),
+				},
+			]);
+			render(Page);
+			await expect.element(page.getByRole('link', { name: 'Romans' })).toBeVisible();
+			await openAdvanced();
+			const warning = page.getByText("Storage isn't persistent", { exact: true });
+			if (kind === 'browser-only') await expect.element(warning).toBeVisible();
+			else await expect.element(warning).not.toBeInTheDocument();
+		}
+	);
+
+	it('names device storage when quota runs low even for backed-up work', async () => {
+		mocks.listProjectPlacements.mockResolvedValue([
+			{
+				projectId: 'romans',
+				locationId: 'cloud',
+				folderName: 'romans',
+				needsLocationChoice: false,
+			},
+		]);
+		mocks.getStorageEstimate.mockResolvedValue({
+			usage: 95,
+			quota: 100,
+			usageRatio: 0.95,
+			isNearQuota: true,
+		});
+		render(Page);
+		await expect.element(page.getByRole('link', { name: 'Romans' })).toBeVisible();
+		await openAdvanced();
+		await expect
+			.element(page.getByText('Storage on this device is nearly full.', { exact: false }))
+			.toBeVisible();
 	});
 });

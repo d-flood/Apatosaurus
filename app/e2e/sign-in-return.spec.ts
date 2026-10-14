@@ -32,3 +32,18 @@ test('a cancelled sign-in started on Projects is reported on Projects', async ({
 	await alert.getByRole('button', { name: 'Dismiss' }).click();
 	await expect(alert).toBeHidden();
 });
+
+test('a sign-in error offers another sign-in on the landing page', async ({ page }) => {
+	const harness = new FakeGoogleSignIn();
+	await harness.install(page);
+	harness.cancelNextSignIn();
+	await page.goto(`/auth/google/start?return_to=${encodeURIComponent('/about')}`);
+	const alert = page.getByRole('alert').filter({ hasText: 'Sign-in was cancelled.' });
+	await expect(alert).toBeVisible();
+	await expect(page).toHaveURL(/\/about$/);
+	await alert.getByRole('button', { name: 'Sign in with Google Drive' }).click();
+	await expect(alert).toBeHidden();
+	await expect(page).toHaveURL(/\/about$/);
+	await page.locator('.navbar-end .dropdown [role="button"]').click();
+	await expect(page.getByText('Google Drive connected', { exact: true })).toBeVisible();
+});

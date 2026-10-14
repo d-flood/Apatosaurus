@@ -86,6 +86,34 @@ test('offline, the sign-in buttons are disabled and continuing without signing i
 	await expect(page.getByRole('heading', { name: 'Projects', level: 1 })).toBeVisible();
 });
 
+test('creation and import wait for the signed-in personal location', async ({ page }) => {
+	const harness = new FakeGoogleSignIn();
+	await harness.install(page);
+	let releaseProfile!: () => void;
+	const holdProfile = new Promise<void>(resolve => {
+		releaseProfile = resolve;
+	});
+	await page.route('https://openidconnect.googleapis.com/v1/userinfo', async route => {
+		await holdProfile;
+		await route.fallback();
+	});
+	try {
+		await page.goto('/welcome');
+		await page.getByRole('button', { name: 'Sign in with Google Drive' }).click();
+		await page.getByPlaceholder('New project name').fill('Ready Romans');
+		await expect(page.getByRole('button', { name: 'Create', exact: true })).toBeDisabled();
+		await expect(page.locator('input[type="file"]')).toBeDisabled();
+	} finally {
+		releaseProfile();
+	}
+	await expect(page.getByText('Saves to Google Drive · Apatosaurus').first()).toBeVisible();
+	await page.getByRole('button', { name: 'Create', exact: true }).click();
+	await expect(page).toHaveURL(/\/projects\/[^/]+\/transcriptions$/);
+	await expect
+		.poll(() => apatosaurusFolderNames(harness), { timeout: 30_000 })
+		.toContainEqual(expect.stringMatching(/^ready-romans-/));
+});
+
 test('on a phone the sign-in buttons stack full width above the skip link', async ({ page }) => {
 	await page.setViewportSize({ width: 390, height: 844 });
 	await page.goto('/welcome');

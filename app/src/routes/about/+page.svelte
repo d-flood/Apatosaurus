@@ -53,8 +53,8 @@
 		<p class="text-sm font-semibold uppercase tracking-wide text-primary">Data ownership</p>
 		<h2 class="font-serif text-3xl font-bold">Your Apatosaurus data</h2>
 		<p class="mt-3 max-w-3xl leading-relaxed text-base-content/70">
-			Apatosaurus is local-first: your versioned project files are the durable record. The
-			browser database only accelerates the interface and can be rebuilt from those files.
+			Your projects save automatically as files you own. Keep a copy in your Google Drive or
+			Dropbox account, or export a project to take your work with you.
 		</p>
 	</div>
 
@@ -62,21 +62,20 @@
 
 	<section class="mt-6 grid gap-4 md:grid-cols-2" aria-label="How Apatosaurus stores your work">
 		<div class="rounded-box border border-base-300 bg-base-100 p-5 shadow-sm">
-			<h2 class="font-serif text-xl font-semibold">The durable record</h2>
+			<h2 class="font-serif text-xl font-semibold">A working copy on this device</h2>
 			<p class="mt-2 text-sm leading-relaxed text-base-content/70">
-				Apatosaurus stores each project in the browser's Origin Private File System as
-				hash-validated JSON documents. Each transcription and collation keeps its Current
-				and its named versions there, and every edit saves automatically. The SQLite index
-				is disposable and can be repaired from the project files.
+				Apatosaurus keeps a working copy of your projects on this device, including your
+				transcriptions, collations and named versions. Every edit saves automatically, so
+				you can work offline. Projects in a cloud location also sync your changes to your
+				account when you reconnect.
 			</p>
 		</div>
 		<div class="rounded-box border border-base-300 bg-base-100 p-5 shadow-sm">
 			<h2 class="font-serif text-xl font-semibold">Taking your work elsewhere</h2>
 			<p class="mt-2 text-sm leading-relaxed text-base-content/70">
-				Use folder sync to maintain a readable mirror of project files, or export a project
-				zip in any supported browser. Every transcription and collation includes a
-				regenerated TEI sibling, so an archival, interoperable copy remains available
-				outside Apatosaurus.
+				Projects in Google Drive or Dropbox live in an Apatosaurus folder in your account.
+				You can also export any project as a zip. Transcriptions and collations include
+				standard TEI files you can open outside Apatosaurus.
 			</p>
 		</div>
 	</section>

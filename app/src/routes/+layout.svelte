@@ -4,6 +4,7 @@
 	import { checkStoragePersistence } from '$lib/shell/capabilities';
 	import { ensureLocalDbRuntime } from '$lib/db/runtime';
 	import { signInCompletion } from '$lib/backup/sign-in-completion.svelte';
+	import StorageSignInButtons from '$lib/backup/components/StorageSignInButtons.svelte';
 	import { syncService } from '$lib/backup/sync-service.svelte';
 	import { registerServiceWorker, scheduleCacheWarm } from '$lib/shell/sw-registration';
 	import Navbar from '$lib/shell/components/Navbar.svelte';
@@ -44,8 +45,11 @@
 
 {#if signInCompletion.error}
 	<div class="mx-auto max-w-5xl px-4 pt-4">
-		<div class="alert alert-error text-sm" role="alert">
-			<span>{signInCompletion.error}</span>
+		<div class="alert alert-error alert-vertical text-sm sm:alert-horizontal" role="alert">
+			<div class="w-full flex-1 space-y-3">
+				<p>{signInCompletion.error}</p>
+				<div class="max-w-md"><StorageSignInButtons size="sm" /></div>
+			</div>
 			<button
 				type="button"
 				class="btn btn-ghost btn-xs"

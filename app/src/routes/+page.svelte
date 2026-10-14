@@ -150,7 +150,6 @@
 		persistence: StoragePersistenceReport,
 		estimate: StorageEstimateReport
 	): Promise<DashboardAttentionItem[]> {
-		if (projectRows.length === 0) return [];
 		const [overviews, conflictCopies, placements] = await Promise.all([
 			loadProjectBackupOverviews(projectRows.map(project => project.id)),
 			listConflictCopies(),

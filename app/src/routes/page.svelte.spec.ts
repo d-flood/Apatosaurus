@@ -92,6 +92,28 @@ describe('/+page.svelte dashboard', () => {
 			.toHaveAttribute('href', '/transcription/new?projectId=project-1');
 	});
 
+	it('warns about device quota even without projects', async () => {
+		localStorage.setItem('welcomeSkipped', 'true');
+		mocks.listProjects.mockResolvedValue([]);
+		mocks.listTranscriptionSummaries.mockResolvedValue([]);
+		mocks.listCollationsWithProjectNames.mockResolvedValue([]);
+		mocks.listConflictCopies.mockResolvedValue([]);
+		mocks.getStorageEstimate.mockResolvedValue({
+			usage: 99,
+			quota: 100,
+			usageRatio: 0.99,
+			isNearQuota: true,
+		});
+		render(Page);
+		await expect
+			.element(page.getByRole('heading', { name: 'Storage on this device is nearly full' }))
+			.toBeVisible();
+		await expect
+			.element(page.getByRole('link', { name: 'Review storage usage' }))
+			.toHaveAttribute('href', '/data#advanced');
+		localStorage.removeItem('welcomeSkipped');
+	});
+
 	it('raises offline attention only for failure or quota exhaustion', async () => {
 		mocks.listProjects.mockResolvedValue([
 			{

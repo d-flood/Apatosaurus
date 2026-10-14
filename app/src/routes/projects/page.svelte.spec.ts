@@ -161,7 +161,7 @@ describe('/projects destination', () => {
 	});
 
 	it('names the only location read-only and places created and imported projects there', async () => {
-		vi.mocked(listProjectLocations).mockResolvedValueOnce([driveLocation]);
+		vi.mocked(listProjectLocations).mockResolvedValue([driveLocation]);
 		mocks.createProjectRecord.mockResolvedValueOnce('created');
 		mocks.importProjectZip.mockResolvedValueOnce({
 			ok: true,
@@ -193,7 +193,7 @@ describe('/projects destination', () => {
 	});
 
 	it('creates a browser-only project with a note when there is no location', async () => {
-		vi.mocked(listProjectLocations).mockResolvedValueOnce([]);
+		vi.mocked(listProjectLocations).mockResolvedValue([]);
 		mocks.createProjectRecord.mockResolvedValueOnce('created');
 
 		render(Page);
@@ -214,7 +214,7 @@ describe('/projects destination', () => {
 	});
 
 	it('keeps the existing placement when an import replaces a project', async () => {
-		vi.mocked(listProjectLocations).mockResolvedValueOnce([driveLocation]);
+		vi.mocked(listProjectLocations).mockResolvedValue([driveLocation]);
 		mocks.importProjectZip
 			.mockResolvedValueOnce({
 				ok: false,

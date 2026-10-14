@@ -56,7 +56,9 @@
 		</div>
 	</main>
 {:else if projects.length === 0}
-	<main class="mx-auto flex min-h-[70vh] max-w-3xl items-center px-4 py-12">
+	<main
+		class="mx-auto flex min-h-[70vh] max-w-3xl flex-col items-center justify-center gap-8 px-4 py-12"
+	>
 		<section
 			class="w-full rounded-box border border-base-300/60 bg-base-100 p-8 shadow-md sm:p-12"
 		>
@@ -72,6 +74,7 @@
 			<a href={resolve('/projects')} class="btn btn-primary mt-7">Create your first project</a
 			>
 		</section>
+		{@render needsAttention()}
 	</main>
 {:else}
 	<main class="container mx-auto max-w-6xl px-4 py-8">
@@ -134,41 +137,7 @@
 			{@render startSomething()}
 		{/if}
 
-		{#if attentionItems.length > 0}
-			<section class="mb-8" data-testid="dashboard-attention">
-				<p class="text-xs font-semibold uppercase tracking-wide text-warning">
-					Action recommended
-				</p>
-				<h2 class="font-serif text-2xl font-semibold">Needs attention</h2>
-				<div class="mt-3 grid gap-3 md:grid-cols-2">
-					{#each attentionItems as item (item.id)}
-						<article class="rounded-box border border-warning/30 bg-warning/8 p-4">
-							<h3 class="font-semibold">{item.title}</h3>
-							<p class="mt-1 text-sm leading-relaxed text-base-content/65">
-								{item.description}
-							</p>
-							<div class="mt-2 -ml-3 flex flex-wrap gap-1">
-								<a
-									href={item.href}
-									class="btn btn-ghost btn-sm text-warning-content"
-								>
-									{item.linkLabel}
-								</a>
-								{#if item.onDismiss}
-									<button
-										type="button"
-										class="btn btn-ghost btn-sm text-base-content/60"
-										onclick={item.onDismiss}
-									>
-										{item.dismissLabel}
-									</button>
-								{/if}
-							</div>
-						</article>
-					{/each}
-				</div>
-			</section>
-		{/if}
+		{@render needsAttention()}
 
 		{#if recentDocuments.length > 0}
 			{@render startSomething()}
@@ -229,4 +198,39 @@
 			<a href={resolve('/projects')} class="btn btn-primary btn-sm mt-4">Choose a project</a>
 		{/if}
 	</section>
+{/snippet}
+
+{#snippet needsAttention()}
+	{#if attentionItems.length > 0}
+		<section class="mb-8" data-testid="dashboard-attention">
+			<p class="text-xs font-semibold uppercase tracking-wide text-warning">
+				Action recommended
+			</p>
+			<h2 class="font-serif text-2xl font-semibold">Needs attention</h2>
+			<div class="mt-3 grid gap-3 md:grid-cols-2">
+				{#each attentionItems as item (item.id)}
+					<article class="rounded-box border border-warning/30 bg-warning/8 p-4">
+						<h3 class="font-semibold">{item.title}</h3>
+						<p class="mt-1 text-sm leading-relaxed text-base-content/65">
+							{item.description}
+						</p>
+						<div class="mt-2 -ml-3 flex flex-wrap gap-1">
+							<a href={item.href} class="btn btn-ghost btn-sm text-warning-content">
+								{item.linkLabel}
+							</a>
+							{#if item.onDismiss}
+								<button
+									type="button"
+									class="btn btn-ghost btn-sm text-base-content/60"
+									onclick={item.onDismiss}
+								>
+									{item.dismissLabel}
+								</button>
+							{/if}
+						</div>
+					</article>
+				{/each}
+			</div>
+		</section>
+	{/if}
 {/snippet}

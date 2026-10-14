@@ -6,6 +6,7 @@
 	import { ensureLocalDbRuntime } from '$lib/db/runtime';
 	import { placeProjectInLocation } from '$lib/backup/location-connections';
 	import { syncService } from '$lib/backup/sync-service.svelte';
+	import { signInCompletion } from '$lib/backup/sign-in-completion.svelte';
 	import {
 		syncStatusLabel,
 		syncStatusReason,
@@ -57,6 +58,7 @@
 	let projectCountLabel = $derived(
 		`${projects.length} project${projects.length === 1 ? '' : 's'}`
 	);
+	let creationReady = $derived(!isBooting && !signInCompletion.completing);
 
 	function logProjects(
 		level: 'debug' | 'warn' | 'error',
@@ -110,7 +112,7 @@
 
 	async function createProject() {
 		const name = createName.trim();
-		if (!name || isCreating) return;
+		if (!name || isCreating || !creationReady) return;
 		isCreating = true;
 		error = null;
 		try {
@@ -125,6 +127,7 @@
 	}
 
 	async function placeInChosenLocation(projectId: string) {
+		await loadLocations();
 		if (!chosenLocationId) return;
 		await placeProjectInLocation(projectId, chosenLocationId);
 		recordLastUsedLocation(chosenLocationId);
@@ -177,7 +180,7 @@
 				<button
 					type="button"
 					class="btn btn-primary gap-2"
-					disabled={isCreating || !createName.trim()}
+					disabled={!creationReady || isCreating || !createName.trim()}
 					onclick={createProject}
 				>
 					{#if isCreating}<span class="loading loading-spinner loading-xs"
@@ -278,7 +281,7 @@
 		</section>
 
 		<section class="mt-6 max-w-xl">
-			<ProjectZipImportPanel onImported={openImportedProject}>
+			<ProjectZipImportPanel onImported={openImportedProject} disabled={!creationReady}>
 				<ProjectDestination {locations} bind:value={chosenLocationId} />
 			</ProjectZipImportPanel>
 		</section>

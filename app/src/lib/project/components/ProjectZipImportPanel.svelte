@@ -10,12 +10,14 @@
 	let {
 		onImported,
 		children,
+		disabled = false,
 	}: {
 		onImported?: (
 			projectId: string,
 			mode: ProjectZipImportResult['mode']
 		) => void | Promise<void>;
 		children?: Snippet;
+		disabled?: boolean;
 	} = $props();
 
 	let bytes = $state<Uint8Array | null>(null);
@@ -33,7 +35,7 @@
 	}
 
 	async function runImport(collisionMode?: ProjectZipImportCollisionMode) {
-		if (!bytes || importing) return;
+		if (!bytes || importing || disabled) return;
 		importing = true;
 		error = null;
 		try {
@@ -60,7 +62,7 @@
 		<FilePicker
 			label="Backup"
 			accept=".zip,application/zip"
-			disabled={importing}
+			disabled={importing || disabled}
 			onchange={selectFile}
 		/>
 	</div>
@@ -77,7 +79,7 @@
 				<button
 					class="btn btn-error btn-sm"
 					type="button"
-					disabled={importing}
+					disabled={importing || disabled}
 					onclick={() => runImport('replace')}
 				>
 					Replace local project
@@ -85,7 +87,7 @@
 				<button
 					class="btn btn-outline btn-sm"
 					type="button"
-					disabled={importing}
+					disabled={importing || disabled}
 					onclick={() => runImport('copy')}
 				>
 					Import as copy
