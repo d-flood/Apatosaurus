@@ -1,5 +1,5 @@
 import type { DbInvalidationDomain, DbRequest, DbResponse } from './rpc';
-import { dbApi, type DbApiContext } from './api';
+import { dbApi, unqueuedMethods, type DbApiContext } from './api';
 import type { PersistenceWarning } from './repositories/revisions';
 import { rebuildIndexFromStore } from './repositories/index-rebuild';
 import { cleanStaleProjectImportStaging } from '$lib/backup/project-zip-import';
@@ -26,17 +26,31 @@ interface IndexStartupOpenResult extends OpenIndexDatabaseResult {
 self.onmessage = async (event: MessageEvent<DbRequest>) => {
 	const request = event.data;
 	const receivedAt = now();
-	requestQueue = requestQueue.then(
-		() => processRequest(request, receivedAt),
-		() => processRequest(request, receivedAt)
-	);
+	if (initialized && 'method' in request && unqueuedMethods.has(request.method)) {
+		void processRequest(request, receivedAt, exclusive);
+		return;
+	}
+	void exclusive(() => processRequest(request, receivedAt, work => work()));
 };
 
-async function processRequest(request: DbRequest, receivedAt: number): Promise<void> {
+function exclusive<T>(work: () => Promise<T>): Promise<T> {
+	const run = requestQueue.then(work);
+	requestQueue = run.then(
+		() => undefined,
+		() => undefined
+	);
+	return run;
+}
+
+async function processRequest(
+	request: DbRequest,
+	receivedAt: number,
+	runExclusive: DbApiContext['exclusive']
+): Promise<void> {
 	const startedAt = now();
 	const queueWaitMs = elapsed(receivedAt);
 	try {
-		const result = await handleRequest(request);
+		const result = await handleRequest(request, runExclusive);
 		postResponse({ id: request.id ?? 0, ok: true, result });
 	} catch (error) {
 		console.error('[local-db] worker request failed', {
@@ -54,14 +68,17 @@ async function processRequest(request: DbRequest, receivedAt: number): Promise<v
 	}
 }
 
-async function handleRequest(request: DbRequest): Promise<unknown> {
+async function handleRequest(
+	request: DbRequest,
+	runExclusive: DbApiContext['exclusive']
+): Promise<unknown> {
 	await init();
 	if ('method' in request) {
 		const method = dbApi[request.method] as (
 			context: DbApiContext,
 			...args: unknown[]
 		) => Promise<unknown>;
-		return method(apiContext(), ...request.args);
+		return method(apiContext(runExclusive), ...request.args);
 	}
 	if (request.type === 'query') return db.query(request.sql, request.params ?? []);
 	if (request.type === 'execute') return db.execute(request.sql, request.params ?? []);
@@ -69,9 +86,10 @@ async function handleRequest(request: DbRequest): Promise<unknown> {
 	return null;
 }
 
-function apiContext(): DbApiContext {
+function apiContext(runExclusive: DbApiContext['exclusive']): DbApiContext {
 	return {
 		db: getKyselyDb(),
+		exclusive: runExclusive,
 		invalidate: (...domains: DbInvalidationDomain[]) => {
 			for (const domain of domains) postMessage({ type: 'db:invalidate', domain });
 		},

@@ -48,6 +48,7 @@ import {
 	LOCATION_ROOT_FOLDER_ID,
 	type CloudFileMetadata,
 	type CloudListResult,
+	type CloudStorageProvider,
 	type CloudWriteResult,
 } from './providers/provider';
 import { browseFolder } from './folder-browser';
@@ -251,6 +252,49 @@ describe('sync manager', () => {
 				.executeTakeFirst()
 		).resolves.toBeUndefined();
 		expect(await remoteFile(provider, context, 'collations/col-1.json')).toBeNull();
+	});
+
+	it('checks a synced Drive project for remote changes with a single request', async () => {
+		const { api, sync } = await quietDriveProject();
+
+		const result = await sync();
+
+		expect(result.uiState).toBe('synced');
+		expect(api.calls).toEqual(['GET /changes']);
+	});
+
+	it('runs a full sync when a synced file changes remotely', async () => {
+		const { api, sync, context, connect } = await quietDriveProject();
+		const other = connect();
+		const file = (await remoteFile(other, context, 'collations/col-1.json'))!;
+		await other.updateFile(file.id, await other.downloadFile(file.id), file.revision);
+		api.calls = [];
+
+		const result = await sync();
+
+		expect(result.uiState).toBe('synced');
+		expect(api.calls).toContain('GET /files');
+		api.calls = [];
+		await sync();
+		expect(api.calls).toEqual(['GET /changes']);
+	});
+
+	it('uploads local edits to a synced project whose remote has not changed', async () => {
+		const { sync } = await quietDriveProject();
+		await createCommittedCollationCheckpointWithFiles(
+			harness.db,
+			{
+				collationId: 'col-1',
+				checkpointId: 'col-cp-2',
+				createdAt: '2026-06-10T12:03:00.000Z',
+			},
+			storeOptions
+		);
+
+		const result = await sync();
+
+		expect(result.uiState).toBe('synced');
+		expect(result.uploadedPaths).toContain('history/collations/col-1/col-cp-2.json');
 	});
 
 	it('does not download remote files that have not changed since the last sync', async () => {
@@ -2117,8 +2161,38 @@ async function pushRemoteCollationRevision(
 	}
 }
 
+async function quietDriveProject() {
+	await createCommittedProjectCollation('Initial notes', 'col-cp-1');
+	const api = new FakeGoogleDriveApi();
+	const options = { tokens: api.tokens, fetch: api.fetch };
+	const myDrive = new GoogleDriveStorageProvider({ ...options, driveRootId: 'root' });
+	const driveRootId = await myDrive.folderDriveId(await myDrive.createFolder('Apatosaurus'));
+	const connect = () => new GoogleDriveStorageProvider({ ...options, driveRootId });
+	const context: SyncProjectContext = {
+		projectId: 'project-1',
+		connectionId: 'google-personal',
+		cloudFolderId: 'Project',
+		cloudFolderPath: 'Project',
+	};
+	let remoteCursor: string | undefined;
+	const sync = async () => {
+		const result = await backupProject(
+			harness.db,
+			connect(),
+			context,
+			syncOptions({ remoteCursor })
+		);
+		remoteCursor = result.remoteCursor;
+		return result;
+	};
+	expect((await sync()).uiState).toBe('synced');
+	expect((await sync()).uiState).toBe('synced');
+	api.calls = [];
+	return { api, sync, context, connect };
+}
+
 async function remoteFile(
-	provider: RecordingMockProvider,
+	provider: CloudStorageProvider,
 	context: SyncProjectContext,
 	path: string
 ): Promise<CloudFileMetadata | null> {

@@ -24,8 +24,12 @@ export async function discoverLocationProjects(
 	db: Kysely<Database>,
 	provider: CloudStorageProvider,
 	rootFolderId: string,
-	options: { storeOptions?: StoreOperationOptions } = {}
+	options: {
+		storeOptions?: StoreOperationOptions;
+		exclusive?: <T>(work: () => Promise<T>) => Promise<T>;
+	} = {}
 ): Promise<LocationDiscoveryResult> {
+	const exclusive = options.exclusive ?? (work => work());
 	const marker = await readLocationMarker(provider, rootFolderId);
 	if (!marker) throw new Error('This folder is not a project location.');
 	const [placements, removed] = await Promise.all([
@@ -37,7 +41,11 @@ export async function discoverLocationProjects(
 			.filter(entry => entry.locationId === marker.id)
 			.map(entry => entry.folderName)
 	);
-	const projects: DiscoveredLocationProject[] = [];
+	const found: Array<{
+		projectId: string;
+		folderName: string;
+		files: Array<{ path: string; read: () => Promise<string> }>;
+	}> = [];
 	for (const folder of await listAll(provider, rootFolderId, false)) {
 		if (!folder.isFolder || folder.isDeleted || skippedFolders.has(folder.name)) continue;
 		const files = (await listAll(provider, folder.id, true)).filter(
@@ -55,29 +63,36 @@ export async function discoverLocationProjects(
 			{ projectPath: projectManifestRelativeFile() }
 		);
 		if (!manifest.ok) continue;
-		const projectId = String(manifest.payload.id);
-		const local = await db
-			.selectFrom('projects')
-			.select('id')
-			.where('id', '=', projectId)
-			.executeTakeFirst();
-		if (local) {
-			projects.push({ projectId, folderName: folder.name, imported: false });
-			continue;
-		}
-		const result = await importProjectFileTree(
-			db,
-			files
+		found.push({
+			projectId: String(manifest.payload.id),
+			folderName: folder.name,
+			files: files
 				.filter(entry => shouldMirrorProjectFile(relative(entry)))
 				.map(entry => ({
 					path: relative(entry),
 					read: () => provider.downloadFile(entry.id),
 				})),
-			{ storeOptions: options.storeOptions }
-		);
-		if (result.ok) projects.push({ projectId, folderName: folder.name, imported: true });
+		});
 	}
-	return { locationId: marker.id, projects };
+	return exclusive(async () => {
+		const projects: DiscoveredLocationProject[] = [];
+		for (const { projectId, folderName, files } of found) {
+			const local = await db
+				.selectFrom('projects')
+				.select('id')
+				.where('id', '=', projectId)
+				.executeTakeFirst();
+			if (local) {
+				projects.push({ projectId, folderName, imported: false });
+				continue;
+			}
+			const result = await importProjectFileTree(db, files, {
+				storeOptions: options.storeOptions,
+			});
+			if (result.ok) projects.push({ projectId, folderName, imported: true });
+		}
+		return { locationId: marker.id, projects };
+	});
 }
 
 async function listAll(

@@ -48,6 +48,7 @@ import type { SyncEntityReference, SyncEntityType, SyncProjectContext } from './
 import {
 	isCloudProviderError,
 	type CloudFileMetadata,
+	type CloudListResult,
 	type CloudProviderErrorCode,
 	type CloudStorageProvider,
 	type CloudWriteResult,
@@ -79,6 +80,8 @@ export interface SyncManagerOptions {
 	authorName?: string;
 	now?: () => string;
 	storeOptions?: StoreOperationOptions;
+	remoteCursor?: string;
+	exclusive?: <T>(work: () => Promise<T>) => Promise<T>;
 }
 
 interface SyncQuarantine {
@@ -113,6 +116,7 @@ export interface ProjectBackupResult extends SyncOperationResult {
 	manifestUploaded: boolean;
 	entityResults: SyncOperationResult[];
 	hasConflictCopies?: boolean;
+	remoteCursor?: string;
 }
 
 interface FileFingerprint {
@@ -160,6 +164,34 @@ export async function backupProject(
 	context: SyncProjectContext,
 	options: SyncManagerOptions = {}
 ): Promise<ProjectBackupResult> {
+	const exclusive = options.exclusive ?? (work => work());
+	const remoteCursor =
+		options.remoteCursor &&
+		(await remoteCursorIfUnchanged(provider, context, options.remoteCursor));
+	return exclusive(async () => {
+		if (
+			remoteCursor &&
+			(await listPendingUploadPaths(db, context, options.storeOptions)).length === 0
+		) {
+			return {
+				...baseResult('synced'),
+				projectId: context.projectId,
+				manifestUploaded: true,
+				entityResults: [],
+				hasConflictCopies: (await listConflictCopies(db, context.projectId)).length > 0,
+				remoteCursor,
+			};
+		}
+		return backupProjectFiles(db, provider, context, options);
+	});
+}
+
+async function backupProjectFiles(
+	db: Kysely<Database>,
+	provider: CloudStorageProvider,
+	context: SyncProjectContext,
+	options: SyncManagerOptions
+): Promise<ProjectBackupResult> {
 	const backupContext = await ensureProjectBackupFolder(provider, context);
 	const result: ProjectBackupResult = {
 		...baseResult('sync pending'),
@@ -180,12 +212,42 @@ export async function backupProject(
 
 	if (result.manifestUploaded && !hasOperationFailure(result)) {
 		result.uiState = 'synced';
+		result.remoteCursor = mirrorResult.remoteCursor;
 		return result;
 	}
 
 	result.uiState =
 		result.quarantines.length > 0 ? 'conflict requires resolution' : 'sync pending';
 	return result;
+}
+
+async function remoteCursorIfUnchanged(
+	provider: CloudStorageProvider,
+	context: SyncProjectContext,
+	cursor: string
+): Promise<string | undefined> {
+	try {
+		let next: string | undefined = cursor;
+		let page: CloudListResult;
+		do {
+			page = await provider.listFiles(context.cloudFolderId, {
+				recursive: true,
+				cursor: next,
+			});
+			const changed = page.entries.some(
+				entry =>
+					entry.isDeleted ||
+					(!entry.isFolder &&
+						shouldMirrorProjectFile(relativeEntryPath(entry.path, context)))
+			);
+			if (changed) return undefined;
+			next = page.cursor;
+		} while (page.hasMore && next);
+		return next;
+	} catch (error) {
+		if (isCloudProviderError(error)) return undefined;
+		throw error;
+	}
 }
 
 async function ensureProjectBackupFolder(
@@ -218,12 +280,16 @@ async function mirrorProjectFiles(
 	provider: CloudStorageProvider,
 	context: SyncProjectContext,
 	options: SyncManagerOptions = {}
-): Promise<SyncOperationResult> {
-	const result = baseResult('sync pending');
+): Promise<SyncOperationResult & { remoteCursor?: string }> {
+	const result: SyncOperationResult & { remoteCursor?: string } = baseResult('sync pending');
 	const now = options.now?.() ?? new Date().toISOString();
 	const storeOptions = options.storeOptions ?? {};
 	try {
-		const remoteMetadata = await listRemoteMetadata(provider, context);
+		const { entries: remoteMetadata, cursor: remoteCursor } = await listRemoteMetadata(
+			provider,
+			context
+		);
+		result.remoteCursor = remoteCursor;
 		const movedEntry = remoteMetadata.find(
 			entry => relativeEntryPath(entry.path, context) === MOVED_MARKER_FILE
 		);
@@ -1257,17 +1323,21 @@ async function listRemoteMetadata(
 	provider: CloudStorageProvider,
 	context: SyncProjectContext,
 	prefix = ''
-): Promise<CloudFileMetadata[]> {
+): Promise<{ entries: CloudFileMetadata[]; cursor?: string }> {
 	let cursor: string | undefined;
+	let page: CloudListResult;
 	const entries: CloudFileMetadata[] = [];
 	do {
-		const page = await provider.listFiles(context.cloudFolderId, { recursive: true, cursor });
+		page = await provider.listFiles(context.cloudFolderId, { recursive: true, cursor });
 		entries.push(...page.entries.filter(entry => !entry.isFolder && !entry.isDeleted));
-		cursor = page.hasMore ? page.cursor : undefined;
-	} while (cursor);
-	return prefix
-		? entries.filter(entry => relativeEntryPath(entry.path, context).startsWith(prefix))
-		: entries;
+		cursor = page.cursor;
+	} while (page.hasMore && cursor);
+	return {
+		entries: prefix
+			? entries.filter(entry => relativeEntryPath(entry.path, context).startsWith(prefix))
+			: entries,
+		cursor,
+	};
 }
 
 function relativeEntryPath(path: string, context: SyncProjectContext): string {

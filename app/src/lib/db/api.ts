@@ -128,9 +128,12 @@ export interface DbApiContext {
 	db: Kysely<Database>;
 	invalidate: (...domains: DbInvalidationDomain[]) => void;
 	warn: (warnings: PersistenceWarning[]) => void;
+	exclusive: <T>(work: () => Promise<T>) => Promise<T>;
 }
 
 export type DbApi = typeof dbApi;
+
+const remoteCursors = new Map<string, string>();
 
 export const dbApi = defineApi({
 	listTranscriptionSummaries: ({ db }) => listTranscriptionSummaries(db),
@@ -455,11 +458,16 @@ export const dbApi = defineApi({
 
 	listPendingUploadPaths: ({ db }, context: SyncProjectContext) =>
 		listPendingUploadPaths(db, context),
-	async backupProject({ db, invalidate }, context: SyncProjectContext) {
+	async backupProject({ db, invalidate, exclusive }, context: SyncProjectContext) {
 		const provider = await createProviderForLocation(context.connectionId);
+		const cursorKey = `${context.connectionId}/${context.projectId}/${context.cloudFolderId}`;
 		const result = await backupProject(db, provider, context, {
 			authorName: (await effectiveAuthorName(context.projectId)) ?? undefined,
+			remoteCursor: remoteCursors.get(cursorKey),
+			exclusive,
 		});
+		if (result.remoteCursor) remoteCursors.set(cursorKey, result.remoteCursor);
+		else remoteCursors.delete(cursorKey);
 		invalidate('sync-targets');
 		if (result.downloadedPaths.length || result.deletedPaths.length || result.conflictCopyId) {
 			invalidate('projects', 'transcriptions', 'collations', 'iiif');
@@ -472,9 +480,11 @@ export const dbApi = defineApi({
 		clearEditingPresence(projectId, documentId),
 	readEditingNotice: (_context, projectId: string, documentId: string) =>
 		readEditingNotice(projectId, documentId),
-	async discoverLocationProjects({ db, invalidate }, locationId: string) {
+	async discoverLocationProjects({ db, invalidate, exclusive }, locationId: string) {
 		const provider = await createProviderForLocation(locationId);
-		const result = await discoverLocationProjects(db, provider, LOCATION_ROOT_FOLDER_ID);
+		const result = await discoverLocationProjects(db, provider, LOCATION_ROOT_FOLDER_ID, {
+			exclusive,
+		});
 		if (result.projects.some(project => project.imported)) {
 			invalidate('projects', 'transcriptions', 'collations', 'iiif');
 		}
@@ -575,6 +585,15 @@ export const dbApi = defineApi({
 		return report;
 	},
 });
+
+/** Run outside the request queue; local database and store work goes through `exclusive`. */
+export const unqueuedMethods = new Set<keyof DbApi>([
+	'backupProject',
+	'discoverLocationProjects',
+	'writeEditingPresence',
+	'clearEditingPresence',
+	'readEditingNotice',
+]);
 
 function defineApi<T extends Record<string, (context: DbApiContext, ...args: never[]) => unknown>>(
 	api: T
