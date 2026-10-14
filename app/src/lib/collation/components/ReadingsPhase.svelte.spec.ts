@@ -318,6 +318,33 @@ describe('ReadingsPhase selection beyond the witnesses on screen', () => {
 		]);
 	});
 
+	it('clears witness expansion and selection when switching units', async () => {
+		collationState.reset();
+		collate([
+			makeWitness('A', 'λογος και αλφα', true),
+			...sigla.map(siglum => makeWitness(siglum, 'θεος και βητα')),
+		]);
+		render(ReadingsPhase);
+		await expect.element(page.getByRole('button', { name: '+2 more' })).toBeInTheDocument();
+		clickText('+2 more');
+		await expect
+			.element(page.getByRole('button', { name: 'W14', exact: true }))
+			.toBeInTheDocument();
+		chip('W01').focus();
+		await userEvent.keyboard(' ');
+		await expect
+			.element(page.getByTestId('selection-count'))
+			.toHaveTextContent('1 witness selected');
+		collationState.selectedUnitIndex = 2;
+		await expect.element(page.getByRole('button', { name: '+2 more' })).toBeInTheDocument();
+		await expect.element(page.getByTestId('selection-count')).not.toBeInTheDocument();
+		collationState.selectedUnitIndex = 0;
+		await expect.element(page.getByRole('button', { name: '+2 more' })).toBeInTheDocument();
+		await expect
+			.element(page.getByRole('button', { name: 'W14', exact: true }))
+			.not.toBeInTheDocument();
+	});
+
 	it('moves every selected witness, including those the reading has collapsed out of view', async () => {
 		render(ReadingsPhase);
 		await expect

@@ -128,6 +128,7 @@
 			selectedNode = null;
 			currentPositionLabel = 'Column 1, Line 1';
 			toolbarCursorPosition = {};
+			syncInspectorPanel();
 			return;
 		}
 
@@ -144,6 +145,7 @@
 		}
 
 		selectedNode = getSelectedInspectorNode(editor, NESTED_INSPECTOR_CARRIER_TYPES);
+		syncInspectorPanel();
 	}
 
 	function dismissInspectorPanel() {
@@ -575,7 +577,7 @@
 		updateSelectedNode();
 	});
 
-	$effect(() => {
+	function syncInspectorPanel() {
 		const key = inspectorSelectionKey(selectedNode);
 
 		if (!key) {
@@ -597,7 +599,7 @@
 		if (!inspectorPanelOpen && dismissedInspectorSelectionKey !== key) {
 			inspectorPanelOpen = true;
 		}
-	});
+	}
 </script>
 
 <div class="rounded border border-base-300 bg-base-100 p-3 space-y-3">

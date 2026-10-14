@@ -37,7 +37,6 @@
 	}: Props = $props();
 	let editMode = $state(false);
 	let pageNameDrafts = $state<Record<string, string>>({});
-	let pageNameErrors = $state<Record<string, string>>({});
 
 	function valueFromMetadata(node: HTMLInputElement, value: string) {
 		node.value = value;
@@ -134,44 +133,22 @@
 		);
 	}
 
+	function pendingPageNameDraft(page: PageEditorMetadata): string | undefined {
+		const draft = pageNameDrafts[page.pageId];
+		return draft !== undefined && pageNameIsDuplicate(page, draft) ? draft : undefined;
+	}
+
 	function pageNameValue(page: PageEditorMetadata): string {
-		return pageNameDrafts[page.pageId] ?? page.pageName ?? '';
+		return pendingPageNameDraft(page) ?? page.pageName ?? '';
 	}
 
 	function handlePageNameInput(page: PageEditorMetadata, value: string) {
 		pageNameDrafts[page.pageId] = value;
 		const updated = onUpdatePageName(page.pageId, value);
-		pageNameErrors[page.pageId] = updated ? '' : 'Page names must be unique.';
 		if (updated) {
 			delete pageNameDrafts[page.pageId];
 		}
 	}
-
-	$effect(() => {
-		const pageIds = new Set(pages.map(page => page.pageId));
-
-		for (const pageId of Object.keys(pageNameDrafts)) {
-			if (!pageIds.has(pageId)) {
-				delete pageNameDrafts[pageId];
-			}
-		}
-
-		for (const pageId of Object.keys(pageNameErrors)) {
-			if (!pageIds.has(pageId)) {
-				delete pageNameErrors[pageId];
-			}
-		}
-
-		for (const page of pages) {
-			if (!pageNameErrors[page.pageId]) continue;
-
-			const draftValue = pageNameDrafts[page.pageId] ?? page.pageName ?? '';
-			if (!pageNameIsDuplicate(page, draftValue)) {
-				pageNameErrors[page.pageId] = '';
-				delete pageNameDrafts[page.pageId];
-			}
-		}
-	});
 </script>
 
 <dialog id="transcription-metadata-modal" class="modal">
@@ -343,18 +320,18 @@
 										oninput={e =>
 											handlePageNameInput(page, e.currentTarget.value)}
 										placeholder="Page name (e.g. 123r)"
-										aria-invalid={Boolean(pageNameErrors[page.pageId])}
+										aria-invalid={pendingPageNameDraft(page) !== undefined}
 										class={[
 											'rounded px-3 py-1 border flex-1',
-											pageNameErrors[page.pageId]
+											pendingPageNameDraft(page) !== undefined
 												? 'border-error'
 												: 'border-gray-300',
 										]}
 									/>
 								</div>
-								{#if pageNameErrors[page.pageId]}
+								{#if pendingPageNameDraft(page) !== undefined}
 									<p class="-mt-1 text-xs text-error">
-										{pageNameErrors[page.pageId]}
+										Page names must be unique.
 									</p>
 								{/if}
 								<div class="flex gap-2 items-center">

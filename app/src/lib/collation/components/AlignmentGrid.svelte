@@ -145,23 +145,6 @@
 	let groupedRows = $derived(buildGroupedRows());
 	let collapsedCount = $derived(Math.max(0, activeWitnesses.length - groupedRows.length));
 
-	$effect(() => {
-		const activeRowIds = new Set(groupedRows.map(row => row.id));
-		const nextExpanded = Object.fromEntries(
-			Object.entries(expandedWitnessRows).filter(([rowId]) => activeRowIds.has(rowId))
-		);
-		if (Object.keys(nextExpanded).length !== Object.keys(expandedWitnessRows).length) {
-			expandedWitnessRows = nextExpanded;
-		}
-
-		const nextCollapsible = Object.fromEntries(
-			Object.entries(collapsibleWitnessRows).filter(([rowId]) => activeRowIds.has(rowId))
-		);
-		if (Object.keys(nextCollapsible).length !== Object.keys(collapsibleWitnessRows).length) {
-			collapsibleWitnessRows = nextCollapsible;
-		}
-	});
-
 	function addRule() {
 		if (!newPattern.trim()) return;
 		if (newPatternError) return;

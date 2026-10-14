@@ -38,6 +38,21 @@ const catalog: IgntpCatalog = {
 };
 
 describe('IgntpImportPanel', () => {
+	it('hides invalid selections and restores them when they become importable again', async () => {
+		const onImport = vi.fn();
+		const view = render(IgntpImportPanel, { catalog, importedKeys: [], onImport });
+		await page.getByRole('button', { name: 'Select Visible' }).click();
+		await expect
+			.element(page.getByRole('button', { name: 'Import Selected (2)' }))
+			.toBeEnabled();
+		await view.rerender({ importedKeys: ['01', '02'] });
+		await expect
+			.element(page.getByRole('button', { name: 'Import Selected (0)' }))
+			.toBeDisabled();
+		await view.rerender({ importedKeys: ['01'] });
+		await page.getByRole('button', { name: 'Import Selected (1)' }).click();
+		expect(onImport).toHaveBeenCalledWith(['Romans_Greek_transcriptions/NT_GRC_02_Rom.xml']);
+	});
 	it('renders grouped entries and disables already imported witnesses', async () => {
 		render(IgntpImportPanel, {
 			catalog,

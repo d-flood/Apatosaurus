@@ -308,6 +308,7 @@
 
 	function updateSelectedTeiNode(editor: Editor | null) {
 		selectedTeiNode = getSelectedInspectorNode(editor, DEFAULT_INSPECTOR_CARRIER_TYPES);
+		syncInspectorPanel();
 	}
 
 	function updateSelectedTextQuote(editor: Editor | null) {
@@ -416,7 +417,7 @@
 		}
 	});
 
-	$effect(() => {
+	function syncInspectorPanel() {
 		const key = inspectorSelectionKey(selectedTeiNode);
 
 		if (!key) {
@@ -440,7 +441,7 @@
 			inspectorPanelOpen = true;
 			scrollSelectedNodeAboveDrawer();
 		}
-	});
+	}
 
 	function updatePageName(pageId: string, newName: string): boolean {
 		if (!editorState.editor) return false;

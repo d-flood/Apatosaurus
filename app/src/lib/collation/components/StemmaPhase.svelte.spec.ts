@@ -46,6 +46,37 @@ describe('StemmaPhase', () => {
 		collationState.setLemmaReading(0, b.id);
 	});
 
+	it('keeps keyboard source controls usable after undo removes a lifted reading', async () => {
+		render(StemmaPhase);
+		collationState.addReading(0);
+		const diagram = page.getByRole('group', { name: /Local stemma for unit/ });
+		const nodeCount = () =>
+			document
+				.querySelector('[aria-label^="Local stemma for unit"]')
+				?.querySelectorAll('button').length;
+		await expect.poll(nodeCount).toBe(3);
+		const addedLabel = collationState
+			.peekReadingsForUnit(0)
+			.find(reading => reading.witnessIds.length === 0)!.label;
+		const added = diagram.getByRole('button', { name: new RegExp(`^${addedLabel}:`) });
+		await added.click();
+		await userEvent.keyboard('{Enter}');
+		await expect
+			.element(page.getByTestId('stemma-announcer'))
+			.toHaveTextContent('Lifted reading');
+		collationState.undo();
+		await expect.poll(nodeCount).toBe(2);
+		const remaining = diagram.getByRole('button').first();
+		(remaining.element() as HTMLButtonElement).focus();
+		await userEvent.keyboard('u');
+		await expect
+			.element(page.getByTestId('stemma-announcer'))
+			.toHaveTextContent('is marked unclear');
+		await expect
+			.poll(() => remaining.element().getAttribute('aria-label'))
+			.toMatch(/origin undeterminable/);
+	});
+
 	it('offers connectivity choices and a visible lemma-root repair', async () => {
 		render(StemmaPhase);
 

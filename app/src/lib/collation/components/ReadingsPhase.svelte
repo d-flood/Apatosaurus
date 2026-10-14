@@ -30,13 +30,7 @@
 	const NO_VALUE = '';
 
 	let liveMessage = $state('');
-	let expandedWitnesses = new SvelteSet<string>();
-	let selectedWitnessIds = new SvelteSet<string>();
-	let activeChipIndex = $state(0);
-	let anchorChipIndex = $state(0);
 	let chipGroup = $state<HTMLElement | null>(null);
-	let moveTargetId = $state(NO_VALUE);
-	let mergeTargetId = $state(NO_VALUE);
 
 	let segments = $derived(collationState.getSegmentSequence());
 	let unitSegments = $derived(segments.filter(segment => segment.kind === 'unit'));
@@ -46,18 +40,35 @@
 	);
 	let unitIndex = $derived(selectedSpan?.startIndex ?? -1);
 
+	const expandedWitnesses = $derived.by(() => {
+		unitIndex;
+		return new SvelteSet<string>();
+	});
+	const selectedWitnessIds = $derived.by(() => {
+		unitIndex;
+		return new SvelteSet<string>();
+	});
+	let moveTargetId = $derived.by(() => {
+		unitIndex;
+		return NO_VALUE;
+	});
+	let mergeTargetId = $derived.by(() => {
+		unitIndex;
+		return NO_VALUE;
+	});
+	let activeChipIndex = $derived.by(() => {
+		unitIndex;
+		return 0;
+	});
+	let anchorChipIndex = $derived.by(() => {
+		unitIndex;
+		return 0;
+	});
+
 	$effect(() => {
 		if (selectedSpan) {
 			collationState.primeReadingsForUnit(selectedSpan.startIndex);
 		}
-	});
-
-	$effect(() => {
-		unitIndex;
-		expandedWitnesses.clear();
-		clearSelection();
-		activeChipIndex = 0;
-		anchorChipIndex = 0;
 	});
 
 	let displayMode = $derived(collationState.alignmentDisplayMode);

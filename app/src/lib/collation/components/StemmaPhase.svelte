@@ -34,6 +34,15 @@
 	let labelById = $derived(new Map(stemma.nodes.map(node => [node.readingId, node.label])));
 	let focusedNodeId = $state<string | null>(null);
 	let liftedReadingId = $state<string | null>(null);
+	const activeFocusedNodeId = $derived(
+		focusedNodeId && nodeById.has(focusedNodeId)
+			? focusedNodeId
+			: (stemma.nodes[0]?.readingId ?? null)
+	);
+	const activeLiftedReadingId = $derived(
+		liftedReadingId && nodeById.has(liftedReadingId) ? liftedReadingId : null
+	);
+
 	let liftTargetReadingId = $state<string | null>(null);
 	let draggedReadingId = $state<string | null>(null);
 	let dropTargetReadingId = $state<string | null>(null);
@@ -46,17 +55,6 @@
 	} | null>(null);
 	let connectivityRefusalCount = 0;
 	const nodeButtons = new Map<string, HTMLButtonElement>();
-
-	$effect(() => {
-		const nodeIds = new Set(stemma.nodes.map(node => node.readingId));
-		if (!focusedNodeId || !nodeIds.has(focusedNodeId)) {
-			focusedNodeId = stemma.nodes[0]?.readingId ?? null;
-		}
-		if (liftedReadingId && !nodeIds.has(liftedReadingId)) liftedReadingId = null;
-		if (liftTargetReadingId && !nodeIds.has(liftTargetReadingId)) liftTargetReadingId = null;
-		if (draggedReadingId && !nodeIds.has(draggedReadingId)) draggedReadingId = null;
-		if (dropTargetReadingId && !nodeIds.has(dropTargetReadingId)) dropTargetReadingId = null;
-	});
 
 	/** A live region ignores an unchanged string, so each announcement carries a fresh key. */
 	function announce(message: string) {
@@ -264,8 +262,8 @@
 		const target = nodeById.get(targetId);
 		if (!target) return;
 		void focusNode(targetId);
-		if (!liftedReadingId) return;
-		const lifted = nodeById.get(liftedReadingId);
+		if (!activeLiftedReadingId) return;
+		const lifted = nodeById.get(activeLiftedReadingId);
 		if (lifted) {
 			liftTargetReadingId = target.readingId;
 			announce(describeLiftTarget(lifted, target));
@@ -273,14 +271,14 @@
 	}
 
 	function liftOrPlace(node: StemmaTreeNode) {
-		if (!liftedReadingId) {
+		if (!activeLiftedReadingId) {
 			liftedReadingId = node.readingId;
 			liftTargetReadingId = null;
 			announce(`Lifted reading ${node.label}. Choose its prior reading with the arrow keys.`);
 			return;
 		}
 
-		const lifted = nodeById.get(liftedReadingId);
+		const lifted = nodeById.get(activeLiftedReadingId);
 		if (!lifted) {
 			liftedReadingId = null;
 			liftTargetReadingId = null;
@@ -306,8 +304,8 @@
 	}
 
 	function cancelLift() {
-		if (!liftedReadingId) return;
-		const lifted = nodeById.get(liftedReadingId);
+		if (!activeLiftedReadingId) return;
+		const lifted = nodeById.get(activeLiftedReadingId);
 		const target = liftTargetReadingId ? nodeById.get(liftTargetReadingId) : null;
 		if (lifted) {
 			announce(
@@ -354,13 +352,13 @@
 			liftOrPlace(node);
 			return;
 		}
-		if (event.key === 'Escape' && liftedReadingId) {
+		if (event.key === 'Escape' && activeLiftedReadingId) {
 			event.preventDefault();
 			event.stopPropagation();
 			cancelLift();
 			return;
 		}
-		if (liftedReadingId) return;
+		if (activeLiftedReadingId) return;
 		if (event.key.toLowerCase() === 'u') {
 			event.preventDefault();
 			setNodeState(node, { kind: 'unclear' }, 'mark the source unclear');
@@ -810,7 +808,7 @@
 									use:registerNodeButton={node.readingId}
 									type="button"
 									draggable="true"
-									tabindex={focusedNodeId === node.readingId ? 0 : -1}
+									tabindex={activeFocusedNodeId === node.readingId ? 0 : -1}
 									aria-label={describeNode(node)}
 									class="absolute overflow-hidden rounded-md border bg-base-100 px-2 py-1 text-center shadow-sm outline-offset-2 transition-colors cursor-grab active:cursor-grabbing focus-visible:outline-2 focus-visible:outline-primary {SOURCE_STATES[
 										state
@@ -818,7 +816,7 @@
 										? 'ring-1 ring-primary ring-inset'
 										: ''} {isDropTarget
 										? 'ring-2 ring-success ring-offset-2 ring-offset-base-200'
-										: ''} {liftedReadingId === node.readingId
+										: ''} {activeLiftedReadingId === node.readingId
 										? 'opacity-60 ring-2 ring-primary'
 										: ''}"
 									style="left: {placed.x}px; top: {placed.y}px; width: {placed.width}px; height: {placed.height}px;"

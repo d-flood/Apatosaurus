@@ -15,7 +15,13 @@
 	const importedKeySet = $derived(new Set(importedKeys));
 	const allEntries = $derived(catalog.groups.flatMap(group => group.entries));
 	const entryByPath = $derived(new Map(allEntries.map(entry => [entry.path, entry])));
-	const selectedPathSet = $derived(new Set(selectedPaths));
+	const importablePaths = $derived(
+		selectedPaths.filter(path => {
+			const entry = entryByPath.get(path);
+			return entry ? isImportable(entry) : false;
+		})
+	);
+	const selectedPathSet = $derived(new Set(importablePaths));
 	const totalEntryCount = $derived(allEntries.length);
 	const duplicateEntryCount = $derived(
 		allEntries.filter(entry => importedKeySet.has(entry.duplicateKey)).length
@@ -29,17 +35,6 @@
 			}))
 			.filter(group => group.entries.length > 0)
 	);
-
-	$effect(() => {
-		const nextSelection = selectedPaths.filter(path => {
-			const entry = entryByPath.get(path);
-			return entry ? isImportable(entry) : false;
-		});
-
-		if (nextSelection.length !== selectedPaths.length) {
-			selectedPaths = nextSelection;
-		}
-	});
 
 	function matchesQuery(entry: IgntpCatalogEntry, value: string): boolean {
 		const trimmed = value.trim().toLocaleLowerCase();
@@ -88,8 +83,8 @@
 	}
 
 	async function handleImport() {
-		if (isImporting || selectedPaths.length === 0) return;
-		await onImport(selectedPaths);
+		if (isImporting || importablePaths.length === 0) return;
+		await onImport(importablePaths);
 	}
 </script>
 
@@ -123,7 +118,7 @@
 				<div class="text-base-content/60">Unsupported</div>
 			</div>
 			<div class="rounded-2xl border border-base-300 bg-base-100 px-3 py-2">
-				<div class="text-lg font-semibold">{selectedPaths.length}</div>
+				<div class="text-lg font-semibold">{importablePaths.length}</div>
 				<div class="text-base-content/60">Selected</div>
 			</div>
 		</div>
@@ -149,10 +144,10 @@
 		<button
 			type="button"
 			class="btn btn-primary rounded-full px-6"
-			disabled={isImporting || selectedPaths.length === 0}
+			disabled={isImporting || importablePaths.length === 0}
 			onclick={handleImport}
 		>
-			{isImporting ? 'Importing…' : `Import Selected (${selectedPaths.length})`}
+			{isImporting ? 'Importing…' : `Import Selected (${importablePaths.length})`}
 		</button>
 	</div>
 
