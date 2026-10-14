@@ -39,7 +39,7 @@
 	import type { PageEditorMetadata } from '$lib/editor/pageFormwork';
 	import TranscriptionEditor from '$lib/editor/components/TranscriptionEditor.svelte';
 	import CheckCircle from 'phosphor-svelte/lib/CheckCircle';
-	import { onMount, tick } from 'svelte';
+	import { onMount } from 'svelte';
 
 	let { data } = $props();
 	const transcriptionIdValue = page.params.id;
@@ -363,6 +363,9 @@
 			}
 			handlePopupClosed();
 		}
+		if (!iiifWorkspaceOpen) {
+			iiifWorkspaceRestoreState = sanitizeInlineRestoreState(iiifWorkspaceLastState);
+		}
 		iiifWorkspaceOpen = !iiifWorkspaceOpen;
 	}
 
@@ -532,13 +535,6 @@
 		if (sendPopupRestoreState) {
 			sendPopupRestoreState = false;
 		}
-	});
-
-	$effect(() => {
-		if (!iiifWorkspaceOpen || !iiifWorkspaceRestoreState) return;
-		void tick().then(() => {
-			iiifWorkspaceRestoreState = null;
-		});
 	});
 </script>
 

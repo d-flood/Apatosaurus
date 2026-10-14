@@ -54,6 +54,7 @@
 	let activePageId = $state<string | null>(null);
 	let selectionQuote = $state<TranscriptionSelectionQuote | null>(null);
 	let restoreState = $state<IiifWorkspaceSyncState | null>(null);
+	let workspace = $state<ReturnType<typeof IiifWorkspace>>();
 	const transcriptionTitle = $derived(
 		typeof transcription?.title === 'string' ? transcription.title : 'Untitled transcription'
 	);
@@ -113,7 +114,10 @@
 		pages = message.pages;
 		activePageId = message.activePageId;
 		selectionQuote = message.selectionQuote;
-		restoreState = sanitizePopupRestoreState(message.viewerState);
+		const next = sanitizePopupRestoreState(message.viewerState);
+		if (!next) return;
+		if (workspace) workspace.restore(next);
+		else restoreState = next;
 	}
 
 	onMount(() => {
@@ -163,6 +167,7 @@
 {:else}
 	<div class="mx-auto flex h-[100vh] max-w-[1800px] flex-col p-4">
 		<IiifWorkspace
+			bind:this={workspace}
 			transcriptionId={transcription.id}
 			{transcriptionTitle}
 			{initialManifestSourceId}

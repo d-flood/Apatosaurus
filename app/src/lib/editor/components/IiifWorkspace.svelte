@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, untrack } from 'svelte';
 	import { TriiiceratopsViewer, type ThemeConfig, type ViewerState } from 'triiiceratops';
 	import {
 		createAnnotationEditorPlugin,
@@ -208,11 +208,7 @@
 	let statusMessage = $state<string | null>(null);
 	let intfImportStage = $state<string | null>(null);
 	let pendingCanvasRequest = $state<string | null>(null);
-	let lastPageNavigationInput = $state('');
-	let lastRequestedJumpKey = $state('');
 	let lastManifestSyncKey = $state('');
-	let lastRestoreStateKey = $state('');
-	let lastEmittedViewerStateKey = $state('');
 	let activeTab = $state<'sources' | 'linking'>('sources');
 	let sidebarOpen = $state(true);
 	const annotationUser = { id: 'Apatopwa Editor', name: 'Apatopwa Editor' } as const;
@@ -498,14 +494,21 @@
 			hostContext: annotationExtension.getContext?.() || null,
 		}) || null
 	);
+	const validStartCanvasId = $derived(
+		canvasRefs.some(canvas => canvas.canvasId === startCanvasId) ? startCanvasId : ''
+	);
+	const validEndCanvasId = $derived(
+		canvasRefs.some(canvas => canvas.canvasId === endCanvasId) ? endCanvasId : ''
+	);
+
 	const smartLinkPlan = $derived(
 		createSmartLinkPlan({
 			pages: pageRefs,
 			canvases: canvasRefs,
 			startPageId,
 			endPageId,
-			startCanvasId,
-			endCanvasId,
+			startCanvasId: validStartCanvasId,
+			endCanvasId: validEndCanvasId,
 		})
 	);
 
@@ -570,41 +573,20 @@
 	}
 
 	onMount(() => {
+		if (restoreState) restore(restoreState);
 		void refreshStoredData();
 	});
 
-	$effect(() => {
-		if (!restoreState) return;
-		const restoreKey = JSON.stringify(restoreState);
-		if (restoreKey === lastRestoreStateKey) return;
-		lastRestoreStateKey = restoreKey;
-		sidebarOpen = restoreState.sidebarOpen;
-		activeTab = restoreState.activeTab;
-		hasUserSelectedSource =
-			Boolean(restoreState.selection) && restoreState.selection !== COMPOSITE_SELECTION;
-		if (restoreState.selection !== currentSelection) {
-			applySelection(restoreState.selection);
-		}
+	export function restore(next: IiifWorkspaceSyncState) {
+		sidebarOpen = next.sidebarOpen;
+		activeTab = next.activeTab;
+		hasUserSelectedSource = Boolean(next.selection) && next.selection !== COMPOSITE_SELECTION;
+		if (next.selection !== currentSelection) applySelection(next.selection);
 		pendingCanvasRequest =
-			restoreState.canvasId && restoreState.canvasId !== currentCanvasId
-				? restoreState.canvasId
-				: null;
-	});
+			next.canvasId && next.canvasId !== currentCanvasId ? next.canvasId : null;
+	}
 
-	$effect(() => {
-		const nextViewerState = externalViewerState;
-		const nextKey = JSON.stringify(nextViewerState);
-		if (nextKey === lastEmittedViewerStateKey) return;
-		lastEmittedViewerStateKey = nextKey;
-		onViewerStateChange?.(nextViewerState);
-	});
-
-	$effect(() => {
-		const nextSelection = resolveSelection(currentSelection);
-		if (nextSelection !== currentSelection) {
-			applySelection(nextSelection);
-		}
-	});
+	$effect(() => onViewerStateChange?.(externalViewerState));
 
 	$effect(() => {
 		if (currentManifestSource && !currentManifestSource.manifestJson && !hydratingManifest) {
@@ -613,30 +595,14 @@
 	});
 
 	$effect(() => {
-		if (
-			startCanvasId &&
-			!canvasRefs.some((canvas: CanvasRef) => canvas.canvasId === startCanvasId)
-		) {
-			startCanvasId = '';
-		}
-		if (
-			endCanvasId &&
-			!canvasRefs.some((canvas: CanvasRef) => canvas.canvasId === endCanvasId)
-		) {
-			endCanvasId = '';
-		}
-	});
-
-	$effect(() => {
-		const navigationInput = `${currentSelection || ''}:${activePageId || ''}:${activePageViewerCanvasId || ''}`;
-		if (navigationInput === lastPageNavigationInput) return;
-		lastPageNavigationInput = navigationInput;
-		if (!activePageId || !activePageViewerCanvasId) {
+		currentSelection;
+		const targetCanvasId = activePageViewerCanvasId;
+		if (!activePageId || !targetCanvasId) {
 			pendingCanvasRequest = null;
 			return;
 		}
 		pendingCanvasRequest =
-			activePageViewerCanvasId !== currentCanvasId ? activePageViewerCanvasId : null;
+			targetCanvasId !== untrack(() => currentCanvasId) ? targetCanvasId : null;
 	});
 
 	$effect(() => {
@@ -645,15 +611,13 @@
 		}
 	});
 
+	const currentCanvasLinkedPageId = $derived(currentCanvasLinkedPage?.pageId ?? null);
+
 	$effect(() => {
-		if (!currentCanvasLinkedPage || !currentCanvasId) return;
-		if (isAwaitingActivePageCanvas) return;
-		const nextJumpKey = `${currentSelection || ''}:${currentCanvasId}:${currentCanvasLinkedPage.pageId}`;
-		if (nextJumpKey === lastRequestedJumpKey) return;
-		lastRequestedJumpKey = nextJumpKey;
-		if (currentCanvasLinkedPage.pageId !== activePageId) {
-			onRequestPageJump?.(currentCanvasLinkedPage.pageId);
-		}
+		currentSelection;
+		const pageId = currentCanvasLinkedPageId;
+		if (!pageId || !currentCanvasId || isAwaitingActivePageCanvas) return;
+		if (pageId !== untrack(() => activePageId)) onRequestPageJump?.(pageId);
 	});
 
 	$effect(() => {
@@ -683,8 +647,6 @@
 
 	function resetSyncKeys() {
 		pendingCanvasRequest = null;
-		lastPageNavigationInput = '';
-		lastRequestedJumpKey = '';
 		lastManifestSyncKey = '';
 	}
 
@@ -758,6 +720,8 @@
 	async function refreshStoredData() {
 		manifestSources = await listManifestSources(transcriptionId);
 		pageLinks = await listPageCanvasLinks(transcriptionId);
+		const resolved = resolveSelection(currentSelection);
+		if (resolved !== currentSelection) applySelection(resolved);
 	}
 
 	async function fetchManifestJson(manifestUrl: string): Promise<Record<string, any>> {
@@ -1522,8 +1486,8 @@
 									canvases={canvasRefs}
 									{startPageId}
 									{endPageId}
-									{startCanvasId}
-									{endCanvasId}
+									startCanvasId={validStartCanvasId}
+									endCanvasId={validEndCanvasId}
 									busy={applyingSmartLink}
 									onStartPageChange={value => (startPageId = value)}
 									onEndPageChange={value => (endPageId = value)}

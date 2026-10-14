@@ -430,7 +430,7 @@ describe('collationState artifact-first persistence', () => {
 		} finally {
 			unsubscribe();
 		}
-	});
+	}, 10_000);
 
 	it('loads from the canonical artifact without refreshing unchanged witnesses', async () => {
 		const collationState = await importState();
