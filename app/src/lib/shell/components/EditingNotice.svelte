@@ -18,9 +18,14 @@
 
 	onMount(() => {
 		void check();
-		return subscribeLocalDbInvalidations(event => {
+		const timer = setInterval(() => void check(), 30_000);
+		const unsubscribe = subscribeLocalDbInvalidations(event => {
 			if (event.domain === 'sync-targets') void check();
 		});
+		return () => {
+			clearInterval(timer);
+			unsubscribe();
+		};
 	});
 </script>
 

@@ -10,6 +10,7 @@ import {
 } from './provider';
 
 const LOCAL_FOLDER_PROVIDER_ID = 'local-folder';
+const CHANGES_CURSOR = 'changes:';
 export const LOCAL_FOLDER_ROOT_FOLDER_ID = LOCATION_ROOT_FOLDER_ID;
 
 export class LocalFolderStorageProvider implements CloudStorageProvider {
@@ -38,18 +39,29 @@ export class LocalFolderStorageProvider implements CloudStorageProvider {
 		folderId: string,
 		options: { recursive?: boolean; cursor?: string } = {}
 	): Promise<CloudListResult> {
-		if (options.cursor)
-			throw providerError('unknown', 'Local folder provider does not paginate lists.');
+		const since = options.cursor ? parseChangesCursor(options.cursor) : null;
+		const recursive = since?.recursive ?? options.recursive === true;
 		const folder = await this.requireDirectory(folderId);
 		const entries: CloudFileMetadata[] = [];
-		await this.collectEntries(
-			folder,
-			normalizeFolderId(folderId),
-			options.recursive === true,
-			entries
-		);
+		await this.collectEntries(folder, normalizeFolderId(folderId), recursive, entries);
 		entries.sort(compareMetadata);
-		return { entries, hasMore: false };
+		const revisions = Object.fromEntries(
+			entries.filter(entry => !entry.isFolder).map(entry => [entry.path, entry.revision])
+		);
+		const cursor = `${CHANGES_CURSOR}${JSON.stringify({ recursive, revisions })}`;
+		if (!since) return { entries, cursor, hasMore: false };
+		return {
+			entries: [
+				...entries.filter(
+					entry => !entry.isFolder && since.revisions[entry.path] !== entry.revision
+				),
+				...Object.keys(since.revisions)
+					.filter(path => !(path in revisions))
+					.map(path => deletedMetadata(path)),
+			],
+			cursor,
+			hasMore: false,
+		};
 	}
 
 	async downloadFile(fileId: string): Promise<string> {
@@ -250,6 +262,28 @@ function joinPath(parentPath: string, name: string): string {
 	const parent = parentPath === LOCAL_FOLDER_ROOT_FOLDER_ID ? '' : parentPath.replace(/\/+$/, '');
 	const child = name.replace(/^\/+/g, '');
 	return parent ? `${parent}/${child}` : child;
+}
+
+function parseChangesCursor(cursor: string): {
+	recursive: boolean;
+	revisions: Record<string, string>;
+} {
+	if (!cursor.startsWith(CHANGES_CURSOR))
+		throw providerError('unknown', 'Local folder provider does not paginate lists.');
+	return JSON.parse(cursor.slice(CHANGES_CURSOR.length));
+}
+
+function deletedMetadata(path: string): CloudFileMetadata {
+	return {
+		id: path,
+		path,
+		name: path.split('/').at(-1) ?? path,
+		revision: '',
+		modifiedAt: new Date(0).toISOString(),
+		size: 0,
+		isFolder: false,
+		isDeleted: true,
+	};
 }
 
 async function fileMetadata(path: string, name: string, file: File): Promise<CloudFileMetadata> {

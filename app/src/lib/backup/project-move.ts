@@ -41,6 +41,7 @@ export async function moveProject(
 	options: SyncManagerOptions = {}
 ): Promise<void> {
 	const storeOptions = options.storeOptions ?? {};
+	const exclusive = options.exclusive ?? (work => work());
 	const { source, destination } = input;
 	if (source) {
 		const synced = await backupProject(
@@ -61,7 +62,9 @@ export async function moveProject(
 		}
 	}
 
-	const files = await listProjectArchiveFiles(db, input.projectId, { storeOptions });
+	const files = await exclusive(() =>
+		listProjectArchiveFiles(db, input.projectId, { storeOptions })
+	);
 	const folder = await createEmptyFolder(destination);
 	let copied: CloudFileMetadata[];
 	try {
@@ -80,17 +83,26 @@ export async function moveProject(
 		folderName: destination.folderName,
 		needsLocationChoice: false,
 	};
-	await upsertProjectPlacements([placement], storeOptions);
 	const syncedAt = options.now?.() ?? new Date().toISOString();
-	for (const [index, file] of files.entries()) {
-		await recordSyncedFile(db, placementSyncContext(placement), file, copied[index]!, syncedAt);
-	}
+	await exclusive(async () => {
+		await upsertProjectPlacements([placement], storeOptions);
+		for (const [index, file] of files.entries()) {
+			await recordSyncedFile(
+				db,
+				placementSyncContext(placement),
+				file,
+				copied[index]!,
+				syncedAt
+			);
+		}
+		if (!source) return;
+		await db
+			.deleteFrom('sync_file_fingerprints')
+			.where('target_id', '=', source.locationId)
+			.where('project_id', '=', input.projectId)
+			.execute();
+	});
 	if (!source) return;
-	await db
-		.deleteFrom('sync_file_fingerprints')
-		.where('target_id', '=', source.locationId)
-		.where('project_id', '=', input.projectId)
-		.execute();
 	await retireSourceFolder(
 		source,
 		MOVED_MARKER_FILE,

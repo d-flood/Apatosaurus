@@ -52,7 +52,7 @@ import {
 	type CloudWriteResult,
 } from './providers/provider';
 import { browseFolder } from './folder-browser';
-import { backupProject, type SyncManagerOptions } from './sync-manager';
+import { backupProject, listPendingUploadPaths, type SyncManagerOptions } from './sync-manager';
 import { reconcileConflictCopy } from './conflicts';
 import { ensureLocationMarker } from './location-marker';
 import { discoverLocationProjects } from './location-discovery';
@@ -254,12 +254,16 @@ describe('sync manager', () => {
 		expect(await remoteFile(provider, context, 'collations/col-1.json')).toBeNull();
 	});
 
-	it('checks a synced Drive project for remote changes with a single request', async () => {
+	it('checks a synced Drive project with a single request, recognising its own uploads', async () => {
 		const { api, sync } = await quietDriveProject();
 
 		const result = await sync();
 
 		expect(result.uiState).toBe('synced');
+		expect(api.calls).not.toContain('GET /files');
+		expect(result.uploadedPaths).toEqual([]);
+		api.calls = [];
+		await sync();
 		expect(api.calls).toEqual(['GET /changes']);
 	});
 
@@ -280,7 +284,7 @@ describe('sync manager', () => {
 	});
 
 	it('uploads local edits to a synced project whose remote has not changed', async () => {
-		const { sync } = await quietDriveProject();
+		const { api, sync } = await quietDriveProject();
 		await createCommittedCollationCheckpointWithFiles(
 			harness.db,
 			{
@@ -295,6 +299,176 @@ describe('sync manager', () => {
 
 		expect(result.uiState).toBe('synced');
 		expect(result.uploadedPaths).toContain('history/collations/col-1/col-cp-2.json');
+		api.calls = [];
+		expect((await sync()).uploadedPaths).toEqual([]);
+		expect(api.calls).not.toContain('GET /files');
+		api.calls = [];
+		await sync();
+		expect(api.calls).toEqual(['GET /changes']);
+	});
+
+	it('checks a synced local folder for changes without a full sync', async () => {
+		await createCommittedProjectCollation('Initial notes', 'col-cp-1');
+		const { provider, context } = await createConnectedLocalFolderProvider();
+		const first = await backupProject(harness.db, provider, context, syncOptions());
+		expect(first.remoteCursor).toBeDefined();
+		const writes = vi.spyOn(provider, 'createFile');
+
+		const quiet = await backupProject(
+			harness.db,
+			provider,
+			context,
+			syncOptions({ remoteCursor: first.remoteCursor })
+		);
+
+		expect(quiet.uiState).toBe('synced');
+		expect(quiet.entityResults).toEqual([]);
+		expect(writes).not.toHaveBeenCalled();
+	});
+
+	it('makes no cloud requests while it holds exclusive local access', async () => {
+		const { exclusive, guard, violations } = guardedExclusive();
+		const now = '2026-10-03T12:00:00.000Z';
+		const provider = guard(new MockCloudStorageProvider({ now: () => now }));
+		await ensureLocationMarker(provider, provider.rootFolderId, 'location-1', now);
+		await createCommittedProjectCollation('Initial notes', 'col-cp-1');
+		const slug = await loadProjectStorageSlug('project-1');
+		const placement = {
+			projectId: 'project-1',
+			locationId: 'location-1',
+			folderName: slug,
+			needsLocationChoice: false,
+		};
+		await moveProject(
+			harness.db,
+			{
+				projectId: 'project-1',
+				source: null,
+				destination: {
+					provider,
+					rootFolderId: provider.rootFolderId,
+					locationId: placement.locationId,
+					folderName: slug,
+					label: 'Dropbox/Apatosaurus',
+				},
+				movedBy: 'Ada',
+			},
+			syncOptions({ exclusive })
+		);
+		const context = placementSyncContext(placement);
+		const syncA = () =>
+			backupProject(harness.db, provider, context, syncOptions({ exclusive }));
+		expect((await syncA()).uiState).toBe('synced');
+
+		const storeB = createLocalDbTestHarness();
+		const storeOptionsB = { backend: new MemoryStoreBackend() };
+		try {
+			const discovered = await discoverLocationProjects(
+				storeB.db,
+				provider,
+				provider.rootFolderId,
+				{ storeOptions: storeOptionsB, exclusive }
+			);
+			expect(discovered.projects).toEqual([
+				{ projectId: 'project-1', folderName: slug, imported: true },
+			]);
+			const syncB = () =>
+				backupProject(storeB.db, provider, context, {
+					storeOptions: storeOptionsB,
+					exclusive,
+				});
+			expect((await syncB()).uiState).toBe('synced');
+			await createCommittedCollationCheckpointWithFiles(
+				storeB.db,
+				{
+					collationId: 'col-1',
+					checkpointId: 'col-cp-b',
+					createdAt: '2026-06-10T12:05:00.000Z',
+				},
+				storeOptionsB
+			);
+			expect((await syncB()).uploadedPaths).toContain(
+				'history/collations/col-1/col-cp-b.json'
+			);
+
+			const pulled = await syncA();
+
+			expect(pulled.uiState).toBe('synced');
+			expect(pulled.downloadedPaths).toContain('history/collations/col-1/col-cp-b.json');
+			expect(violations).toEqual([]);
+		} finally {
+			await storeB.destroy();
+		}
+	});
+
+	it('leaves edits made while uploads run pending for the next sync', async () => {
+		await createCommittedProjectCollation('Initial notes', 'col-cp-1');
+		const { provider, context } = await createConnectedProvider();
+		let edit: Promise<unknown> | undefined;
+		const editing = new Proxy(provider, {
+			get(target, property, receiver) {
+				const value = Reflect.get(target, property, receiver);
+				if (property !== 'createFile') return value;
+				return async (...args: Parameters<RecordingMockProvider['createFile']>) => {
+					edit ??= createCommittedCollationCheckpointWithFiles(
+						harness.db,
+						{
+							collationId: 'col-1',
+							checkpointId: 'col-cp-2',
+							createdAt: '2026-06-10T12:03:00.000Z',
+						},
+						storeOptions
+					);
+					await edit;
+					return target.createFile(...args);
+				};
+			},
+		});
+
+		expect((await backupProject(harness.db, editing, context, syncOptions())).uiState).toBe(
+			'synced'
+		);
+		expect(await listPendingUploadPaths(harness.db, context, storeOptions)).toContain(
+			'history/collations/col-1/col-cp-2.json'
+		);
+
+		const next = await backupProject(harness.db, provider, context, syncOptions());
+
+		expect(next.uploadedPaths).toContain('history/collations/col-1/col-cp-2.json');
+		expect(await listPendingUploadPaths(harness.db, context, storeOptions)).toEqual([]);
+	});
+
+	it('does not download a project that failed to import again until it changes', async () => {
+		await createCommittedProjectCollation('Initial notes', 'col-cp-1');
+		const { provider, context } = await createConnectedProvider();
+		await ensureLocationMarker(
+			provider,
+			provider.rootFolderId,
+			'location-1',
+			'2026-10-03T12:00:00.000Z'
+		);
+		await backupProject(harness.db, provider, context, syncOptions());
+		const broken = (await remoteFile(provider, context, 'collations/col-1.json'))!;
+		await provider.updateFile(broken.id, 'not json', broken.revision);
+		const storeB = createLocalDbTestHarness();
+		const failedImports = new Map<string, string>();
+		try {
+			const discover = () =>
+				discoverLocationProjects(storeB.db, provider, provider.rootFolderId, {
+					storeOptions: { backend: new MemoryStoreBackend() },
+					failedImports,
+				});
+			expect((await discover()).projects).toEqual([]);
+			provider.calls = [];
+
+			expect((await discover()).projects).toEqual([]);
+
+			expect(provider.calls.filter(call => call.operation === 'download-file')).toHaveLength(
+				1
+			);
+		} finally {
+			await storeB.destroy();
+		}
 	});
 
 	it('does not download remote files that have not changed since the last sync', async () => {
@@ -2186,9 +2360,33 @@ async function quietDriveProject() {
 		return result;
 	};
 	expect((await sync()).uiState).toBe('synced');
-	expect((await sync()).uiState).toBe('synced');
 	api.calls = [];
 	return { api, sync, context, connect };
+}
+
+function guardedExclusive() {
+	let held = false;
+	const violations: string[] = [];
+	const exclusive = async <T>(work: () => Promise<T>): Promise<T> => {
+		held = true;
+		try {
+			return await work();
+		} finally {
+			held = false;
+		}
+	};
+	const guard = <P extends object>(provider: P): P =>
+		new Proxy(provider, {
+			get(target, property, receiver) {
+				const value = Reflect.get(target, property, receiver);
+				if (typeof value !== 'function') return value;
+				return (...args: unknown[]) => {
+					if (held) violations.push(String(property));
+					return value.apply(target, args);
+				};
+			},
+		});
+	return { exclusive, guard, violations };
 }
 
 async function remoteFile(

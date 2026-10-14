@@ -133,7 +133,8 @@ export interface DbApiContext {
 
 export type DbApi = typeof dbApi;
 
-const remoteCursors = new Map<string, string>();
+const lastBackups = new Map<string, { remoteCursor?: string; state: string }>();
+const failedImports = new Map<string, string>();
 
 export const dbApi = defineApi({
 	listTranscriptionSummaries: ({ db }) => listTranscriptionSummaries(db),
@@ -460,15 +461,24 @@ export const dbApi = defineApi({
 		listPendingUploadPaths(db, context),
 	async backupProject({ db, invalidate, exclusive }, context: SyncProjectContext) {
 		const provider = await createProviderForLocation(context.connectionId);
-		const cursorKey = `${context.connectionId}/${context.projectId}/${context.cloudFolderId}`;
+		const key = `${context.connectionId}/${context.projectId}/${context.cloudFolderId}`;
 		const result = await backupProject(db, provider, context, {
 			authorName: (await effectiveAuthorName(context.projectId)) ?? undefined,
-			remoteCursor: remoteCursors.get(cursorKey),
+			remoteCursor: lastBackups.get(key)?.remoteCursor,
 			exclusive,
 		});
-		if (result.remoteCursor) remoteCursors.set(cursorKey, result.remoteCursor);
-		else remoteCursors.delete(cursorKey);
-		invalidate('sync-targets');
+		const state = JSON.stringify([
+			result.uiState,
+			result.providerError ?? null,
+			Boolean(result.hasConflictCopies),
+		]);
+		const changed =
+			lastBackups.get(key)?.state !== state ||
+			result.uploadedPaths.length > 0 ||
+			result.downloadedPaths.length > 0 ||
+			result.deletedPaths.length > 0;
+		lastBackups.set(key, { remoteCursor: result.remoteCursor, state });
+		if (changed) invalidate('sync-targets');
 		if (result.downloadedPaths.length || result.deletedPaths.length || result.conflictCopyId) {
 			invalidate('projects', 'transcriptions', 'collations', 'iiif');
 		}
@@ -484,13 +494,14 @@ export const dbApi = defineApi({
 		const provider = await createProviderForLocation(locationId);
 		const result = await discoverLocationProjects(db, provider, LOCATION_ROOT_FOLDER_ID, {
 			exclusive,
+			failedImports,
 		});
 		if (result.projects.some(project => project.imported)) {
 			invalidate('projects', 'transcriptions', 'collations', 'iiif');
 		}
 		return result;
 	},
-	async moveProject({ db, invalidate }, projectId: string, locationId: string) {
+	async moveProject({ db, invalidate, exclusive }, projectId: string, locationId: string) {
 		const placement = (await listProjectPlacements())
 			.filter(isPlacedProject)
 			.find(candidate => candidate.projectId === projectId);
@@ -499,11 +510,13 @@ export const dbApi = defineApi({
 		}
 		const location = await getProjectLocation(locationId);
 		if (!location) throw new Error('Project location was not found.');
-		const project = await db
-			.selectFrom('projects')
-			.select('storage_slug')
-			.where('id', '=', projectId)
-			.executeTakeFirstOrThrow();
+		const project = await exclusive(() =>
+			db
+				.selectFrom('projects')
+				.select('storage_slug')
+				.where('id', '=', projectId)
+				.executeTakeFirstOrThrow()
+		);
 		const authorName = (await effectiveAuthorName(projectId)) ?? undefined;
 		await moveProject(
 			db,
@@ -526,11 +539,11 @@ export const dbApi = defineApi({
 				},
 				movedBy: authorName ?? 'A collaborator',
 			},
-			{ authorName }
+			{ authorName, exclusive }
 		);
 		invalidate('sync-targets');
 	},
-	async deleteProject({ db, invalidate }, projectId: string) {
+	async deleteProject({ db, invalidate, exclusive }, projectId: string) {
 		const placement = (await listProjectPlacements())
 			.filter(isPlacedProject)
 			.find(candidate => candidate.projectId === projectId);
@@ -548,7 +561,7 @@ export const dbApi = defineApi({
 				}
 			);
 		}
-		await deleteProjectLocally(db, projectId);
+		await exclusive(() => deleteProjectLocally(db, projectId));
 		invalidate('projects', 'transcriptions', 'collations', 'iiif', 'sync-targets');
 	},
 	async removeProjectsFromDevice({ db, invalidate }, placements: PlacedProject[]) {
@@ -590,6 +603,8 @@ export const dbApi = defineApi({
 export const unqueuedMethods = new Set<keyof DbApi>([
 	'backupProject',
 	'discoverLocationProjects',
+	'moveProject',
+	'deleteProject',
 	'writeEditingPresence',
 	'clearEditingPresence',
 	'readEditingNotice',

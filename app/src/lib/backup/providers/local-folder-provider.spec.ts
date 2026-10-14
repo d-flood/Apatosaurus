@@ -17,6 +17,34 @@ describeProviderContract('local folder', () => {
 });
 
 describe('local folder storage provider', () => {
+	it('lists only the files that changed since a listing', async () => {
+		const provider = new LocalFolderStorageProvider(
+			new FakeDirectoryHandle('root') as unknown as FileSystemDirectoryHandle
+		);
+		const folderId = await provider.createFolder('project');
+		const kept = await provider.createFile(folderId, 'kept.json', 'kept');
+		const edited = await provider.createFile(folderId, 'nested/edited.json', 'before');
+		const removed = await provider.createFile(folderId, 'removed.json', 'removed');
+		const { cursor } = await provider.listFiles(folderId, { recursive: true });
+		await provider.updateFile(edited.id, 'after', edited.revision);
+		await provider.deleteFile(removed.id);
+		await provider.createFile(folderId, 'added.json', 'added');
+
+		const changes = await provider.listFiles(folderId, { cursor });
+
+		expect(changes.entries.map(entry => [entry.path, entry.isDeleted ?? false]).sort()).toEqual(
+			[
+				['project/added.json', false],
+				['project/nested/edited.json', false],
+				['project/removed.json', true],
+			]
+		);
+		expect(changes.entries.some(entry => entry.path === kept.path)).toBe(false);
+		expect((await provider.listFiles(folderId, { cursor: changes.cursor })).entries).toEqual(
+			[]
+		);
+	});
+
 	it('writes a location marker once at the folder root and reuses it', async () => {
 		const root = new FakeDirectoryHandle('root');
 		const provider = new LocalFolderStorageProvider(
