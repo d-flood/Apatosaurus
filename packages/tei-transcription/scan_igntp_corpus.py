@@ -10,7 +10,6 @@ import xml.etree.ElementTree as ET
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_MANIFEST = REPO_ROOT / "packages" / "tei-transcription" / "igntp-audit-corpus.json"
-DEFAULT_OUTPUT = REPO_ROOT / "packages" / "tei-transcription" / "igntp-corpus-audit.json"
 DEFAULT_MATRIX = REPO_ROOT / "packages" / "tei-transcription" / "igntp-support-matrix.json"
 
 BODY_WRAPPER_TAGS = {
@@ -93,7 +92,7 @@ def parse_args() -> argparse.Namespace:
 	)
 	parser.add_argument("--manifest", default=str(DEFAULT_MANIFEST), help="Path to the checked-in audit corpus manifest.")
 	parser.add_argument("--matrix", default=str(DEFAULT_MATRIX), help="Path to the checked-in support matrix.")
-	parser.add_argument("--output", default=str(DEFAULT_OUTPUT), help="Path to write the generated report.")
+	parser.add_argument("--output", help="Path to write the generated report.")
 	parser.add_argument("--check", help="Compare generated JSON to an existing report file.")
 	return parser.parse_args()
 
