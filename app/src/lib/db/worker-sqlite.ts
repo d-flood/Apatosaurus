@@ -5,11 +5,7 @@ import * as SQLite from '@journeyapps/wa-sqlite';
 import { isOpfsSupported, openOriginPrivateFileSystemRoot } from '$lib/shell/capabilities';
 
 import type { DbRow, DbValue } from './rpc';
-import {
-	INDEX_DATABASE_FILENAME,
-	INDEX_DATABASE_PATH,
-	INDEX_VFS_NAME,
-} from './schema-version.generated';
+import { INDEX_DATABASE_FILENAME, INDEX_DATABASE_PATH, INDEX_VFS_NAME } from './schema-version';
 
 type SQLiteApi = ReturnType<typeof SQLite.Factory>;
 

@@ -1,15 +1,15 @@
 import { defineConfig } from '@playwright/test';
 import { WELCOME_SKIPPED_STORAGE_KEY } from './src/lib/shell/welcome-gate';
 
-const baseURL = 'http://localhost:4173';
+const port = Number(process.env.E2E_PORT ?? 4173);
+const baseURL = `http://127.0.0.1:${port}`;
 
 export default defineConfig({
 	webServer: {
-		command:
-			'VITE_E2E_SHARED_FOLDER=1 pnpm run build && pnpm exec vite preview --host 127.0.0.1 --port 4173',
-		port: 4173,
+		command: `VITE_E2E_SHARED_FOLDER=1 pnpm run build && pnpm exec vite preview --host 127.0.0.1 --port ${port} --strictPort`,
+		port,
 		timeout: 120000,
-		reuseExistingServer: !process.env.CI,
+		reuseExistingServer: false,
 	},
 	testDir: 'e2e',
 	workers: 1,

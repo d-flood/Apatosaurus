@@ -217,17 +217,6 @@ export function userReferenceEditionQuarantineFile(editionId: string, nonce: str
 	);
 }
 
-function indexFolder(): string {
-	return 'index';
-}
-
-export function indexDatabaseFile(indexSchemaVersion: number): string {
-	if (!Number.isInteger(indexSchemaVersion) || indexSchemaVersion < 1) {
-		throw new Error('Index schema version must be a positive integer.');
-	}
-	return joinStorePath(indexFolder(), `apatosaurus-index-v${indexSchemaVersion}.db`);
-}
-
 export function joinStorePath(...parts: string[]): string {
 	const segments: string[] = [];
 	for (const part of parts) {

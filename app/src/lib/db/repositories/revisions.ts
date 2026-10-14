@@ -204,10 +204,6 @@ export interface ProjectTranscriptionCheckpointStatus extends EntityCheckpointSt
 	projectOwnedTranscriptionId: string;
 }
 
-export interface CollationCheckpointStatus extends EntityCheckpointStatus {
-	collationId: string;
-}
-
 export interface TranscriptionCheckpoint extends Checkpoint {
 	projectTranscriptionId: string;
 	transcriptionId: string;
@@ -546,10 +542,6 @@ export async function isTranscriptionDirty(
 		.dirtyToCheckpoint;
 }
 
-export async function isCollationDirty(db: DbExecutor, collationId: string): Promise<boolean> {
-	return (await getCollationCheckpointStatus(db, collationId)).dirtyToCheckpoint;
-}
-
 export async function getProjectTranscriptionCheckpointStatus(
 	db: DbExecutor,
 	projectTranscriptionId: string
@@ -560,19 +552,6 @@ export async function getProjectTranscriptionCheckpointStatus(
 	return {
 		projectTranscriptionId,
 		projectOwnedTranscriptionId: snapshot.id,
-		...deriveCheckpointStatus(currentCheckpoint, workingContentHash),
-	};
-}
-
-export async function getCollationCheckpointStatus(
-	db: DbExecutor,
-	collationId: string
-): Promise<CollationCheckpointStatus> {
-	const collation = await loadSerializedCollation(db, collationId);
-	const currentCheckpoint = await getCollationCommittedHead(db, collation.id);
-	const workingContentHash = await hashCanonicalPayload(buildCollationHashPayload(collation));
-	return {
-		collationId: collation.id,
 		...deriveCheckpointStatus(currentCheckpoint, workingContentHash),
 	};
 }
@@ -590,7 +569,7 @@ export async function getTranscriptionCommittedHead(
 	return { revisionId: row.current_revision_id, contentHash: row.current_content_hash };
 }
 
-async function getCollationCommittedHead(
+export async function getCollationCommittedHead(
 	db: DbExecutor,
 	collationId: string
 ): Promise<EntityCheckpointHead | null> {

@@ -2254,3 +2254,147 @@ describe('frame zones', () => {
 		expect(exported).not.toContain('subtype=');
 	});
 });
+
+describe('TEI editor adapters', () => {
+	it('imports structural page, column, and line nodes', () => {
+		const result = toProseMirror(
+			parseTei(wrapInTei('<pb n="1r"/><cb n="1"/><lb/><w>hello</w>'))
+		);
+		expect(result.type).toBe('manuscript');
+		expect(result.content).toHaveLength(1);
+		expect(result.content![0]).toMatchObject({
+			type: 'page',
+			attrs: { pageName: '1r' },
+		});
+		expect(result.content![0].content![0]).toMatchObject({
+			type: 'column',
+			attrs: {},
+		});
+		expect(result.content![0].content![0].content![0]).toMatchObject({
+			type: 'line',
+			attrs: {},
+		});
+	});
+
+	it('preserves wrapped words across lines without inserting a boundary', () => {
+		const result = toProseMirror(
+			parseTei(wrapInTei('<pb n="1r"/><cb n="1"/><lb/><w>part1<lb break="no"/>part2</w>'))
+		);
+		const column = result.content![0].content![0];
+		expect(column.content).toHaveLength(2);
+		expect(column.content![0].attrs?.wrapped).toBeUndefined();
+		expect(column.content![1].attrs?.wrapped).toBe(true);
+		expect(column.content![0].content![0].text).toBe('part1');
+		expect(column.content![1].content![0].text).toBe('part2');
+	});
+
+	it('exports simple words as separate TEI words', () => {
+		const pmJSON = {
+			type: 'manuscript',
+			content: [
+				{
+					type: 'page',
+					attrs: { pageName: '1r' },
+					content: [
+						{
+							type: 'column',
+							attrs: {},
+							content: [
+								{
+									type: 'line',
+									attrs: {},
+									content: [
+										{ type: 'text', text: 'hello' },
+										{ type: 'text', text: ' ' },
+										{ type: 'text', text: 'world' },
+									],
+								},
+							],
+						},
+					],
+				},
+			],
+		};
+		const doc = new DOMParser().parseFromString(
+			serializeTei(fromProseMirror(pmJSON as any)),
+			'application/xml'
+		);
+		const words = doc.getElementsByTagName('w');
+		expect(words).toHaveLength(2);
+		expect(words[0].textContent).toBe('hello');
+		expect(words[1].textContent).toBe('world');
+	});
+
+	it('exports correction marks as apparatus readings', () => {
+		const pmJSON = {
+			type: 'manuscript',
+			content: [
+				{
+					type: 'page',
+					attrs: { pageName: '1r' },
+					content: [
+						{
+							type: 'column',
+							attrs: {},
+							content: [
+								{
+									type: 'line',
+									attrs: {},
+									content: [
+										{
+											type: 'text',
+											text: 'original',
+											marks: [
+												{
+													type: 'correction',
+													attrs: {
+														corrections: [
+															{
+																hand: 'corrector',
+																content: [
+																	{
+																		type: 'text',
+																		text: 'corrected',
+																	},
+																],
+															},
+														],
+													},
+												},
+											],
+										},
+									],
+								},
+							],
+						},
+					],
+				},
+			],
+		};
+		const doc = new DOMParser().parseFromString(
+			serializeTei(fromProseMirror(pmJSON as any)),
+			'application/xml'
+		);
+		const rdgs = Array.from(doc.getElementsByTagName('rdg'));
+		expect(rdgs).toHaveLength(2);
+		const origText = rdgs.find(rdg => rdg.getAttribute('type') === 'orig')?.textContent || '';
+		const corrText = rdgs.find(rdg => rdg.getAttribute('type') === 'corr')?.textContent || '';
+		expect(origText.includes('original')).toBe(true);
+		expect(corrText.includes('corrected')).toBe(true);
+	});
+
+	it('round-trips wrapped words across lines', () => {
+		const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0">
+	<teiHeader></teiHeader>
+	<text><body><pb n="1r"/><cb n="1"/><lb/><w>part1<lb break="no"/>part2</w></body></text>
+</TEI>`;
+		const doc = new DOMParser().parseFromString(
+			serializeTei(fromProseMirror(toProseMirror(parseTei(xml)) as any)),
+			'application/xml'
+		);
+		const lbs = doc.getElementsByTagName('lb');
+		expect(lbs).toHaveLength(2);
+		expect(lbs[1].getAttribute('break')).toBe('no');
+	});
+});

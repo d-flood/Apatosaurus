@@ -569,3 +569,38 @@ describe('collation document', () => {
 		]);
 	});
 });
+
+describe('legacy collation phases', () => {
+	it('hydrates retired regularization phases as alignment', () => {
+		const document = buildCollationDocument({
+			collationId: null,
+			projectId: null,
+			projectName: null,
+			phase: 'setup',
+			furthestPhase: 'review',
+			segment: { id: 'segment-1', name: 'John 1:1', members: ['John 1:1'] },
+			witnesses: [],
+			rules: [],
+			ignoreWordBreaks: false,
+			lowercase: false,
+			ignoreTokenWhitespace: true,
+			ignorePunctuation: false,
+			suppliedTextMode: 'clear',
+			segmentation: true,
+			alignmentColumns: [],
+			witnessOrder: [],
+			classifiedReadings: new Map(),
+			unitDecisions: new Map(),
+			readingArcs: new Map(),
+			alignmentDisplayMode: 'regularized',
+			alignmentLayout: 'grid',
+		});
+		(document.flow as { phase: string; furthestPhase: string }).phase = 'regularization';
+		(document.flow as { phase: string; furthestPhase: string }).furthestPhase =
+			'regularization';
+		expect(hydrateCollationDocument(document)).toMatchObject({
+			phase: 'alignment',
+			furthestPhase: 'alignment',
+		});
+	});
+});

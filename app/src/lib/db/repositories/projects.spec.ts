@@ -1,3 +1,9 @@
+import {
+	createCollationWithFiles,
+	createTranscriptionWithFiles,
+	createLocalDbTestHarness,
+	type LocalDbTestHarness,
+} from '$lib/testing/local-db-harness';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import type { StoredTranscriptionDocument } from '$lib/transcription/content';
@@ -34,30 +40,27 @@ import {
 } from '$lib/storage/layout';
 import { createCollation } from './collations';
 import {
-	createCollationWithFiles,
 	createCommittedCollationCheckpointWithFiles,
 	saveWorkingCollationArtifact,
 } from './collation-files';
 import {
 	createTranscription as createTranscriptionRepository,
-	updateTranscriptionContent,
+	updateTranscriptionContent as updateTranscriptionContentRepository,
 } from './transcriptions';
 import { ensureManifestSource, upsertCanvasAnnotation, upsertPageCanvasLink } from './iiif';
-import { createLocalDbTestHarness, type LocalDbTestHarness } from '$lib/testing/local-db-harness';
 import {
 	createProject as createProjectRepository,
 	ensureDefaultProject,
 	forkProject,
 	getProject,
 	getProjectTranscriptionIds,
-	getProjectTranscriptionStatus,
-	getProjectTranscriptionStatusForOwnedTranscription,
+	getProjectTranscriptionStatus as getProjectTranscriptionStatusRepository,
+	getProjectTranscriptionStatusForOwnedTranscription as getProjectTranscriptionStatusForOwnedTranscriptionRepository,
 	listProjectDocumentTitles,
 	listProjects,
 	listProjectTranscriptionOptions,
-	listProjectTranscriptionStatuses,
+	listProjectTranscriptionStatuses as listProjectTranscriptionStatusesRepository,
 	listProjectTranscriptionSourceCandidates,
-	loadTranscriptionContent,
 	addProjectTranscriptionFromProject,
 	AddFromProjectSameProjectError,
 	refreshProjectTranscription,
@@ -72,7 +75,6 @@ import {
 } from './revisions';
 import {
 	createCommittedTranscriptionCheckpointWithFiles,
-	createTranscriptionWithFiles,
 	saveWorkingTranscriptionContent,
 } from './transcription-files';
 import { rebuildIndexFromStore } from './index-rebuild';
@@ -103,7 +105,24 @@ async function createTranscription(
 	input: Parameters<typeof createTranscriptionRepository>[1]
 ) {
 	if (!input.projectId?.trim()) await ensureDefaultProject(db, { backend: projectBackend });
-	return createTranscriptionRepository(db, input);
+	const id = await createTranscriptionRepository(db, input);
+	const row = await db
+		.selectFrom('transcriptions')
+		.select('updated_at')
+		.where('id', '=', id)
+		.executeTakeFirstOrThrow();
+	await saveWorkingTranscriptionContent(
+		db,
+		{
+			id,
+			document: input.document,
+			contentJson: input.contentJson,
+			format: input.format,
+			updatedAt: row.updated_at,
+		},
+		{ backend: projectBackend }
+	);
+	return id;
 }
 
 function syncProjectTranscriptionIds(
@@ -234,7 +253,7 @@ describe('projects repository', () => {
 		});
 	});
 
-	it('lists transcription options without content and loads content on demand', async () => {
+	it('lists transcription options without content', async () => {
 		await createTranscription(harness.db, baseTranscription('tx-2', '02'));
 		await createTranscription(harness.db, baseTranscription('tx-1', '01'));
 		const defaultProjectLink = await harness.db
@@ -247,11 +266,9 @@ describe('projects repository', () => {
 			harness.db,
 			defaultProjectLink.project_id
 		);
-		const content = await loadTranscriptionContent(harness.db, 'tx-1');
 
 		expect(options.map(option => option.id)).toEqual(['tx-1', 'tx-2']);
 		expect(options[0]).not.toHaveProperty('content_json');
-		expect(content).toContain('transcriptionDocument');
 	});
 
 	it('lists project document titles by backup file identity', async () => {
@@ -532,8 +549,6 @@ describe('projects repository', () => {
 			updatedAt: '2024-03-01T00:00:00.000Z',
 		});
 
-		const canonicalContent = await loadTranscriptionContent(harness.db, 'tx-1');
-		const snapshotContent = await loadTranscriptionContent(harness.db, snapshotId);
 		const canonicalVerseRows = await harness.db
 			.selectFrom('transcription_verse_index')
 			.select('verse_identifier')
@@ -545,7 +560,6 @@ describe('projects repository', () => {
 			.where('transcription_id', '=', snapshotId)
 			.execute();
 
-		expect(snapshotContent).not.toBe(canonicalContent);
 		expect(canonicalVerseRows.map(row => row.verse_identifier)).toEqual(['Romans 1:1']);
 		expect(snapshotVerseRows.map(row => row.verse_identifier)).toEqual(['Romans 1:2']);
 	});
@@ -920,7 +934,6 @@ describe('projects repository', () => {
 			{ storeOptions }
 		);
 
-		const sourceContent = await loadTranscriptionContent(harness.db, snapshotAId);
 		const sourceVerseRows = await harness.db
 			.selectFrom('transcription_verse_index')
 			.select('verse_identifier')
@@ -936,7 +949,6 @@ describe('projects repository', () => {
 			projectTranscriptionAId
 		);
 
-		expect(sourceContent).not.toContain('Romans 1:1');
 		expect(sourceVerseRows.map(row => row.verse_identifier)).toEqual(['Romans 1:2']);
 		expect(otherProjectStatus.projectOwnedTranscriptionId).toBe(snapshotAId);
 		expect(otherProjectStatus.commitState).toBe('clean');
@@ -1611,11 +1623,6 @@ describe('projects repository', () => {
 			.selectAll()
 			.where('collation_id', '=', fork.collationIds[0]!)
 			.executeTakeFirstOrThrow();
-		const sourceFolderLinks = await harness.db
-			.selectFrom('cloud_project_folders')
-			.selectAll()
-			.where('project_id', '=', fork.projectId)
-			.execute();
 
 		expect(forkedProject).toMatchObject({
 			name: 'Project A Fork',
@@ -1656,7 +1663,6 @@ describe('projects repository', () => {
 		});
 		expect(forkedWitness.source_revision_id).not.toBe('src-cp-1');
 		expect(forkedWitness.source_revision_id).toBe(forkedTranscription.current_revision_id);
-		expect(sourceFolderLinks).toHaveLength(0);
 
 		const forkManifest = await readCanonicalDocument<ProjectManifestPayload>(
 			PROJECT_MANIFEST_FORMAT,
@@ -1940,4 +1946,44 @@ class MemoryStoreBackend implements StoreBackend {
 		if (parent !== normalized) this.addDirectory(parent);
 		this.directories.add(normalized);
 	}
+}
+
+function getProjectTranscriptionStatus(
+	db: Parameters<typeof getProjectTranscriptionStatusRepository>[0],
+	id: string,
+	options: Parameters<typeof getProjectTranscriptionStatusRepository>[2] = {}
+) {
+	return getProjectTranscriptionStatusRepository(db, id, {
+		storeOptions: { backend: projectBackend },
+		...options,
+	});
+}
+
+function getProjectTranscriptionStatusForOwnedTranscription(
+	db: Parameters<typeof getProjectTranscriptionStatusForOwnedTranscriptionRepository>[0],
+	id: string,
+	options: Parameters<typeof getProjectTranscriptionStatusForOwnedTranscriptionRepository>[2] = {}
+) {
+	return getProjectTranscriptionStatusForOwnedTranscriptionRepository(db, id, {
+		storeOptions: { backend: projectBackend },
+		...options,
+	});
+}
+
+function listProjectTranscriptionStatuses(
+	db: Parameters<typeof listProjectTranscriptionStatusesRepository>[0],
+	id: string,
+	options: Parameters<typeof listProjectTranscriptionStatusesRepository>[2] = {}
+) {
+	return listProjectTranscriptionStatusesRepository(db, id, {
+		storeOptions: { backend: projectBackend },
+		...options,
+	});
+}
+
+function updateTranscriptionContent(
+	db: Parameters<typeof updateTranscriptionContentRepository>[0],
+	input: Parameters<typeof updateTranscriptionContentRepository>[1]
+) {
+	return saveWorkingTranscriptionContent(db, input, { backend: projectBackend });
 }

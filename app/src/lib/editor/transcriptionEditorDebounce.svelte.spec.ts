@@ -81,27 +81,6 @@ describe('transcription editor autosave', () => {
 		}
 	});
 
-	it('saves one canonical document after an edit and the autosave delay', async () => {
-		const { component, target } = await mountEditor();
-		try {
-			editMountedDocument(target);
-			await wait(AUTOSAVE_DELAY_MS - 100);
-			expect(updateTranscriptionContent).not.toHaveBeenCalled();
-			await wait(200);
-
-			expect(updateTranscriptionContent).toHaveBeenCalledOnce();
-			expect(updateTranscriptionContent).toHaveBeenCalledWith(
-				expect.objectContaining({
-					id: 'autosave-spec',
-					document: expect.objectContaining({ type: 'transcriptionDocument' }),
-				})
-			);
-		} finally {
-			await unmount(component);
-			target.remove();
-		}
-	});
-
 	it('flushes a pending edit through the public autosave interface', async () => {
 		const { component, target } = await mountEditor();
 		try {

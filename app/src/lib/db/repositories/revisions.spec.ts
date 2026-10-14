@@ -13,10 +13,8 @@ import {
 	canonicalJson,
 	createCommittedCollationCheckpoint,
 	createCommittedTranscriptionCheckpoint,
-	getCollationCheckpointStatus,
 	getProjectTranscriptionCheckpointStatus,
 	hashCanonicalPayload,
-	isCollationDirty,
 	isTranscriptionDirty,
 	listCommittedTranscriptionCheckpoints,
 	type SerializedCollation,
@@ -287,14 +285,6 @@ describe('revision hashing and checkpoints', () => {
 			now: '2026-06-09T09:30:00.000Z',
 		});
 
-		expect(await getCollationCheckpointStatus(harness.db, 'col-1')).toMatchObject({
-			collationId: 'col-1',
-			currentCheckpoint: null,
-			dirtyToCheckpoint: true,
-			commitState: 'never-committed',
-		});
-		expect(await isCollationDirty(harness.db, 'col-1')).toBe(true);
-
 		const first = await createCommittedCollationCheckpoint(harness.db, {
 			collationId: 'col-1',
 			checkpointId: 'col-cp-1',
@@ -342,28 +332,12 @@ describe('revision hashing and checkpoints', () => {
 		});
 		expect(first.payload).not.toHaveProperty('variation_units');
 		expect(first.payload).not.toHaveProperty('artifacts');
-		expect(await getCollationCheckpointStatus(harness.db, 'col-1')).toMatchObject({
-			currentCheckpoint: { revisionId: 'col-cp-1', contentHash: first.contentHash },
-			workingContentHash: first.contentHash,
-			dirtyToCheckpoint: false,
-			commitState: 'clean',
-		});
-		expect(await isCollationDirty(harness.db, 'col-1')).toBe(false);
 
 		await updateCollationMetadata(harness.db, {
 			id: 'col-1',
 			notes: 'Needs review',
 			updatedAt: '2026-06-09T11:00:00.000Z',
 		});
-
-		const dirtyStatus = await getCollationCheckpointStatus(harness.db, 'col-1');
-		expect(dirtyStatus).toMatchObject({
-			currentCheckpoint: { revisionId: 'col-cp-1', contentHash: first.contentHash },
-			dirtyToCheckpoint: true,
-			commitState: 'dirty',
-		});
-		expect(dirtyStatus.workingContentHash).not.toBe(first.contentHash);
-		expect(await isCollationDirty(harness.db, 'col-1')).toBe(true);
 
 		const second = await createCommittedCollationCheckpoint(harness.db, {
 			collationId: 'col-1',
@@ -373,7 +347,6 @@ describe('revision hashing and checkpoints', () => {
 
 		expect(second.parentCheckpointId).toBe('col-cp-1');
 		expect(second.contentHash).not.toBe(first.contentHash);
-		expect(await isCollationDirty(harness.db, 'col-1')).toBe(false);
 	});
 });
 

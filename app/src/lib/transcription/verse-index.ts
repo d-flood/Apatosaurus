@@ -4,13 +4,8 @@ import {
 	listVerseIndexRowsForTranscriptions as listDbVerseIndexRowsForTranscriptions,
 	listVerseIndexRows,
 	rebuildVerseIndexForTranscriptions as rebuildDbVerseIndexForTranscriptions,
-	updateTranscriptionContent,
 } from '$lib/db/client';
 import type { VerseIndexRow as DbVerseIndexRow } from '$lib/db/repositories/transcriptions';
-import {
-	serializeTranscriptionDocument,
-	type StoredTranscriptionDocument,
-} from '$lib/transcription/content';
 
 export interface VerseNode {
 	book: string;
@@ -72,17 +67,6 @@ export function normalizeVerseIdentifier(verse: VerseNode): string {
 	if (!chapter) return `${book} ${verseNum}`;
 	if (!verseNum) return `${book} ${chapter}`;
 	return `${book} ${chapter}:${verseNum}`;
-}
-
-export async function syncVerseIndexFromDocument(
-	transcriptionId: string,
-	document: StoredTranscriptionDocument
-): Promise<void> {
-	await updateTranscriptionContent({
-		id: transcriptionId,
-		document,
-		contentJson: serializeTranscriptionDocument(document),
-	});
 }
 
 interface RebuildVerseIndexOptions {

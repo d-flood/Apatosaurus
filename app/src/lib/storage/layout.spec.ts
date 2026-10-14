@@ -9,7 +9,6 @@ import {
 	collationPrimaryFile,
 	collationTeiFile,
 	collationWorkingFile,
-	indexDatabaseFile,
 	joinStorePath,
 	normalizeStorePath,
 	projectManifestFile,
@@ -61,7 +60,6 @@ describe('store layout path builders', () => {
 		);
 		expect(appSettingsFile()).toBe('app/settings.json');
 		expect(syncTargetsFile()).toBe('app/sync-targets.json');
-		expect(indexDatabaseFile(7)).toBe('index/apatosaurus-index-v7.db');
 	});
 
 	it('uses the same project-relative paths for manifests, sync mirrors, and archives', () => {
@@ -93,6 +91,5 @@ describe('store layout path builders', () => {
 			'projects/default-a1/transcriptions/tx-1.json'
 		);
 		expect(() => projectManifestFile('../escape')).toThrow('Invalid store path segment');
-		expect(() => indexDatabaseFile(0)).toThrow('positive integer');
 	});
 });

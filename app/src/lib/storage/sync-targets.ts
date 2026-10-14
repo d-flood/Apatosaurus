@@ -1,13 +1,6 @@
-import {
-	assertEnvelopeHash,
-	openEnvelope,
-	sealDocument,
-	serializeSealedDocument,
-	type JsonObject,
-	type JsonValue,
-} from './envelope';
+import { assertEnvelopeHash, openEnvelope, type JsonObject, type JsonValue } from './envelope';
 import { syncTargetsFile } from './layout';
-import { readTextFile, writeTextFileAtomic, type StoreOperationOptions } from './opfs-store';
+import { readTextFile, type StoreOperationOptions } from './opfs-store';
 import { invalidShape, quarantineFromError } from './quarantine';
 
 const SYNC_TARGETS_FORMAT = 'apatosaurus.sync-targets';
@@ -24,21 +17,6 @@ export interface SyncTargetRecord {
 	lastSyncedAt: string | null;
 }
 
-export interface UpsertSyncTargetInput {
-	targetId?: string;
-	projectId: string;
-	handleRef?: string;
-	folderDisplayPath: string;
-	enabled?: boolean;
-	connectedAt?: string;
-	updatedAt?: string;
-	lastSyncedAt?: string | null;
-}
-
-interface SyncTargetsPayload extends JsonObject {
-	targets: JsonValue[];
-}
-
 export async function listSyncTargets(
 	projectId?: string,
 	options: StoreOperationOptions = {}
@@ -49,33 +27,6 @@ export async function listSyncTargets(
 			left.projectId.localeCompare(right.projectId) ||
 			left.targetId.localeCompare(right.targetId)
 	);
-}
-
-export async function upsertSyncTarget(
-	input: UpsertSyncTargetInput,
-	options: StoreOperationOptions = {}
-): Promise<SyncTargetRecord> {
-	const now = input.updatedAt ?? new Date().toISOString();
-	const targetId = input.targetId?.trim() || createId();
-	const handleRef = input.handleRef?.trim() || targetId;
-	const existingTargets = await readSyncTargets(options);
-	const existing = existingTargets.find(target => target.targetId === targetId);
-	const next: SyncTargetRecord = {
-		targetId,
-		projectId: requireNonEmpty(input.projectId, 'projectId'),
-		handleRef,
-		folderDisplayPath: requireNonEmpty(input.folderDisplayPath, 'folderDisplayPath'),
-		enabled: input.enabled ?? existing?.enabled ?? true,
-		connectedAt: input.connectedAt ?? existing?.connectedAt ?? now,
-		updatedAt: now,
-		lastSyncedAt: input.lastSyncedAt ?? existing?.lastSyncedAt ?? null,
-	};
-
-	await writeSyncTargets(
-		[...existingTargets.filter(target => target.targetId !== targetId), next],
-		options
-	);
-	return next;
 }
 
 async function readSyncTargets(options: StoreOperationOptions): Promise<SyncTargetRecord[]> {
@@ -105,26 +56,6 @@ async function readSyncTargets(options: StoreOperationOptions): Promise<SyncTarg
 		const quarantine = quarantineFromError(error);
 		throw new Error(`Could not read sync targets: ${quarantine.message}`, { cause: error });
 	}
-}
-
-async function writeSyncTargets(
-	targets: SyncTargetRecord[],
-	options: StoreOperationOptions
-): Promise<void> {
-	const payload: SyncTargetsPayload = {
-		targets: targets.map(target => ({
-			target_id: target.targetId,
-			project_id: target.projectId,
-			handle_ref: target.handleRef,
-			folder_display_path: target.folderDisplayPath,
-			enabled: target.enabled,
-			connected_at: target.connectedAt,
-			updated_at: target.updatedAt,
-			last_synced_at: target.lastSyncedAt,
-		})),
-	};
-	const document = await sealDocument(SYNC_TARGETS_FORMAT, SYNC_TARGETS_CURRENT_VERSION, payload);
-	await writeTextFileAtomic(syncTargetsFile(), serializeSealedDocument(document), options);
 }
 
 function validateTargetsPayload(payload: JsonObject): SyncTargetRecord[] {
@@ -179,21 +110,9 @@ function readBoolean(record: Record<string, JsonValue>, key: string, index: numb
 	return value;
 }
 
-function requireNonEmpty(value: string, label: string): string {
-	const trimmed = value.trim();
-	if (!trimmed) throw new Error(`${label} is required.`);
-	return trimmed;
-}
-
 function isMissingFileError(error: unknown): boolean {
 	if (typeof DOMException !== 'undefined' && error instanceof DOMException) {
 		return error.name === 'NotFoundError';
 	}
 	return error instanceof Error && /not found/i.test(error.message);
-}
-
-function createId(): string {
-	return typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-		? crypto.randomUUID()
-		: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 }

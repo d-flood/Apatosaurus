@@ -76,10 +76,6 @@ import {
 } from './transcriptions';
 import type { DbExecutor } from '../worker-kysely';
 
-interface FileBackedLoadOptions extends StoreOperationOptions {
-	allowIndexFallback?: boolean;
-}
-
 interface TranscriptionFileContext {
 	transcriptionId: string;
 	projectTranscriptionId: string;
@@ -256,14 +252,6 @@ function buildCurrentTranscriptionPayload(
 			anchor_json: annotation.anchor_json as JsonValue,
 		})),
 	};
-}
-
-export async function createTranscriptionWithFiles(
-	db: Kysely<Database>,
-	input: CreateTranscriptionInput,
-	storeOptions: StoreOperationOptions = {}
-): Promise<string> {
-	return (await createTranscriptionWithFilesResult(db, input, storeOptions)).value;
 }
 
 export async function createTranscriptionWithFilesResult(
@@ -533,7 +521,7 @@ export async function updateTranscriptionVersionNote(
 export async function loadTranscriptionWithWorkingFile(
 	db: DbExecutor,
 	transcriptionId: string,
-	storeOptions: FileBackedLoadOptions = {}
+	storeOptions: StoreOperationOptions = {}
 ): Promise<TranscriptionRecord | null> {
 	const record = await getTranscription(db, transcriptionId);
 	if (!record) return null;
@@ -541,14 +529,13 @@ export async function loadTranscriptionWithWorkingFile(
 	const primaryPayload = await tryReadPrimaryTranscriptionPayload(context, storeOptions);
 	if (primaryPayload)
 		return transcriptionRecordFromPrimaryPayload(record, context, primaryPayload);
-	if (storeOptions.allowIndexFallback === false) return null;
-	return record;
+	return null;
 }
 
 export async function getTranscriptionsWithWorkingFilesByIds(
 	db: DbExecutor,
 	ids: string[],
-	storeOptions: FileBackedLoadOptions = {}
+	storeOptions: StoreOperationOptions = {}
 ): Promise<TranscriptionRecord[]> {
 	const records: TranscriptionRecord[] = [];
 	for (const id of uniqueNonEmpty(ids)) {
@@ -561,7 +548,7 @@ export async function getTranscriptionsWithWorkingFilesByIds(
 export async function loadTranscriptionContentWithFiles(
 	db: DbExecutor,
 	transcriptionId: string,
-	storeOptions: FileBackedLoadOptions = {}
+	storeOptions: StoreOperationOptions = {}
 ): Promise<string | null> {
 	return (
 		(await loadTranscriptionWithWorkingFile(db, transcriptionId, storeOptions))?.content_json ??
@@ -572,7 +559,7 @@ export async function loadTranscriptionContentWithFiles(
 export async function rebuildVerseIndexForTranscriptionsWithFiles(
 	db: Kysely<Database>,
 	transcriptionIds: string[],
-	storeOptions: FileBackedLoadOptions = {}
+	storeOptions: StoreOperationOptions = {}
 ): Promise<VerseIndexRebuildResult> {
 	const ids = uniqueNonEmpty(transcriptionIds);
 	if (ids.length === 0) return { processed: 0, succeeded: 0, failed: 0, failures: [] };
@@ -580,10 +567,7 @@ export async function rebuildVerseIndexForTranscriptionsWithFiles(
 	const failures: VerseIndexRebuildFailure[] = [];
 	let succeeded = 0;
 	for (const id of ids) {
-		const record = await loadTranscriptionWithWorkingFile(db, id, {
-			...storeOptions,
-			allowIndexFallback: false,
-		});
+		const record = await loadTranscriptionWithWorkingFile(db, id, storeOptions);
 		const label = record ? formatTranscriptionLabel(record) : id;
 		try {
 			if (!record) throw new Error('Canonical transcription file was not found');
@@ -611,7 +595,7 @@ export async function rebuildVerseIndexForTranscriptionsWithFiles(
 export async function loadProjectTranscriptionSnapshotWithFiles(
 	db: DbExecutor,
 	projectTranscriptionId: string,
-	storeOptions: FileBackedLoadOptions = {}
+	storeOptions: StoreOperationOptions = {}
 ): Promise<ProjectTranscriptionSnapshot> {
 	const context = await loadTranscriptionFileContextByProjectTranscriptionId(
 		db,
@@ -619,18 +603,15 @@ export async function loadProjectTranscriptionSnapshotWithFiles(
 	);
 	const primaryPayload = await tryReadPrimaryTranscriptionPayload(context, storeOptions);
 	if (primaryPayload) return projectTranscriptionSnapshotFromPayload(primaryPayload);
-	if (storeOptions.allowIndexFallback === false) {
-		throw new Error(
-			`Canonical transcription file for project transcription ${projectTranscriptionId} was not found.`
-		);
-	}
-	return loadProjectTranscriptionSnapshot(db, projectTranscriptionId);
+	throw new Error(
+		`Canonical transcription file for project transcription ${projectTranscriptionId} was not found.`
+	);
 }
 
 export async function getProjectTranscriptionCheckpointStatusWithFiles(
 	db: DbExecutor,
 	projectTranscriptionId: string,
-	storeOptions: FileBackedLoadOptions = {}
+	storeOptions: StoreOperationOptions = {}
 ): Promise<ProjectTranscriptionCheckpointStatus> {
 	const snapshot = await loadProjectTranscriptionSnapshotWithFiles(
 		db,
@@ -693,7 +674,7 @@ async function tryReadPrimaryTranscriptionPayload(
 		raw = await readTextFile(path, storeOptions);
 	} catch (error) {
 		recordStoreQuarantine(storeOptions.quarantineSink, path, quarantineFromError(error));
-		console.warn('[document-store] Falling back to transcription index cache.', {
+		console.warn('[document-store] Could not read canonical transcription content.', {
 			path,
 			error: errorMessage(error),
 		});
@@ -793,7 +774,7 @@ async function tryReadWorkingTranscriptionPayload(
 	} catch (error) {
 		if (!isMissingFileError(error)) {
 			recordStoreQuarantine(storeOptions.quarantineSink, path, quarantineFromError(error));
-			console.warn('[document-store] Falling back to transcription index cache.', {
+			console.warn('[document-store] Could not read canonical transcription content.', {
 				path,
 				error: errorMessage(error),
 			});

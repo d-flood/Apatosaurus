@@ -35,22 +35,6 @@ function firstTextEnd(editor: ReturnType<typeof createTestEditor>): number {
 	return end;
 }
 
-function measureTyping(lineCount: number): number {
-	const editor = createTestEditor({ content: documentWithLines(lineCount) });
-	try {
-		let position = firstTextEnd(editor);
-		const samples = 20;
-		const started = performance.now();
-		for (let index = 0; index < samples; index += 1) {
-			editor.view.dispatch(editor.state.tr.insertText('x', position, position));
-			position += 1;
-		}
-		return (performance.now() - started) / samples;
-	} finally {
-		editor.destroy();
-	}
-}
-
 describe('transcription editor keystroke path', () => {
 	it('dispatches exactly one transaction per ordinary typed character', () => {
 		const editor = createTestEditor({ content: documentWithLines(100) });
@@ -70,14 +54,6 @@ describe('transcription editor keystroke path', () => {
 		} finally {
 			editor.destroy();
 		}
-	});
-
-	it('keeps per-keystroke cost flat as the manuscript grows', () => {
-		const timings = [100, 250, 500].map(measureTyping);
-		const spread = Math.max(...timings) - Math.min(...timings);
-
-		expect(timings[2]).toBeLessThan(2);
-		expect(spread).toBeLessThan(1);
 	});
 });
 

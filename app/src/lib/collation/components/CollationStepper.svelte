@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { COLLATION_PHASES } from '$lib/collation/collation-types';
 	import { collationState, type CollationPhase } from '$lib/collation/collation-state.svelte';
 	import Crosshair from 'phosphor-svelte/lib/Crosshair';
 	import ListBullets from 'phosphor-svelte/lib/ListBullets';
@@ -14,21 +15,15 @@
 		{ phase: 'review', label: 'Review', icon: Check },
 	];
 
-	const phaseOrder: CollationPhase[] = ['setup', 'alignment', 'readings', 'stemma', 'review'];
-
-	function displayPhase(phase: CollationPhase): CollationPhase {
-		return phase === 'regularization' ? 'alignment' : phase;
-	}
-
 	function isCompleted(stepPhase: CollationPhase): boolean {
 		return (
-			phaseOrder.indexOf(stepPhase) <
-			phaseOrder.indexOf(displayPhase(collationState.furthestPhase))
+			COLLATION_PHASES.indexOf(stepPhase) <
+			COLLATION_PHASES.indexOf(collationState.furthestPhase)
 		);
 	}
 
 	function isCurrent(stepPhase: CollationPhase): boolean {
-		return stepPhase === displayPhase(collationState.phase);
+		return stepPhase === collationState.phase;
 	}
 
 	function canNavigateTo(stepPhase: CollationPhase): boolean {

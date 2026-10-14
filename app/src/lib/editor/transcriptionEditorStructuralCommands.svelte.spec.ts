@@ -1,6 +1,5 @@
-import { describe, expect, it } from 'vitest';
-
 import {
+	findLineStartPositionById,
 	editorColumn,
 	editorDocument,
 	editorFramedPage,
@@ -9,12 +8,13 @@ import {
 	modelDocumentSnapshot,
 	type EditorJson,
 } from '$lib/testing/editorFixtures';
+import { describe, expect, it } from 'vitest';
+
 import { createTestEditor } from '$lib/testing/editorHarnesses.svelte';
 import {
 	createColumnSplitTransaction,
 	createEmptyLineInsertTransaction,
 	createLineSplitTransaction,
-	findLineStartPositionById,
 	prepareManuscriptDocumentEntry,
 	repairManuscriptStructureJson,
 } from './structure';

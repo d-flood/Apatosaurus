@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0">
+  <teiHeader>
+    <fileDesc>
+      <titleStmt>
+        <title type="document" n="body">IGNTP body fixture</title>
+      </titleStmt>
+      <publicationStmt>
+        <publisher>IGNTP</publisher>
+        <date>2026</date>
+        <availability><p>Test fixture.</p></availability>
+      </publicationStmt>
+      <sourceDesc>
+        <msDesc>
+          <msIdentifier>
+            <country>United Kingdom</country>
+            <settlement>Manchester</settlement>
+            <repository>John Rylands University Library</repository>
+            <idno>IGNTP-BODY</idno>
+          </msIdentifier>
+        </msDesc>
+      </sourceDesc>
+    </fileDesc>
+  </teiHeader>
+  <text xml:lang="grc">
+    <body>
+      <pb n="1r" type="folio" xml:id="P1r-body"/>
+      <cb n="P1rC1-body"/>
+      <lb n="P1rC1L-body"/>
+      <div type="book" n="Rom">
+        <div type="chapter" n="Rom.1">
+          <ab n="Rom.1.1" type="lemma" xml:id="lemma-body" corresp="#source-body">
+            <w>γενη<lb n="P1rC1L-body" break="no"/>ται</w>
+            <w>ο</w>
+            <w>λογο<cb n="P1rC2-body" break="no"/>ς</w>
+            <w>παν<pb n="1v" type="folio" xml:id="P1v-body" break="no"/>τας</w>
+            <cb n="P1vC1-body"/>
+            <lb n="P1vC1L-body"/>
+            <w>πιστευοντας</w>
+          </ab>
+        </div>
+      </div>
+    </body>
+  </text>
+</TEI>

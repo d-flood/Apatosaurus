@@ -1,3 +1,8 @@
+import {
+	createCollationWithFiles,
+	createLocalDbTestHarness,
+	type LocalDbTestHarness,
+} from '$lib/testing/local-db-harness';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -12,7 +17,7 @@ import {
 	WORKING_COLLATION_CURRENT_VERSION,
 	WORKING_COLLATION_FORMAT,
 } from '$lib/storage/formats';
-import { createQuarantineReport } from '$lib/storage/quarantine';
+import { createQuarantineReport } from '$lib/storage/quarantine-report.spec-support';
 import {
 	collationCheckpointFile,
 	collationPrimaryFile,
@@ -32,13 +37,11 @@ import {
 	writeTextFileAtomic,
 } from '$lib/storage/opfs-store';
 import { sealDocument, serializeSealedDocument } from '$lib/storage/envelope';
-import { createLocalDbTestHarness, type LocalDbTestHarness } from '$lib/testing/local-db-harness';
 import { createProject as createProjectRepository } from './projects';
 import { projectWriteLockName } from './project-locks';
 import { createCollation, loadCollation } from './collations';
 import { createCommittedCollationCheckpoint } from './revisions';
 import {
-	createCollationWithFiles,
 	createCollationWithFilesResult,
 	createCommittedCollationCheckpointWithFiles,
 	getCollationVersionStatusWithWorkingFile,

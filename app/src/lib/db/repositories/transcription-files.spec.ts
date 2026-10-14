@@ -1,6 +1,10 @@
+import {
+	createTranscriptionWithFiles,
+	createLocalDbTestHarness,
+	type LocalDbTestHarness,
+} from '$lib/testing/local-db-harness';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createLocalDbTestHarness, type LocalDbTestHarness } from '$lib/testing/local-db-harness';
 import { projectWriteLockName } from './project-locks';
 import { createProject as createProjectRepository } from './projects';
 import {
@@ -9,7 +13,6 @@ import {
 	listVerseIndexRowsForTranscription,
 } from './transcriptions';
 import {
-	createTranscriptionWithFiles,
 	createTranscriptionWithFilesResult,
 	createCommittedTranscriptionCheckpointWithFiles,
 	getTranscriptionsWithWorkingFilesByIds,
@@ -37,7 +40,7 @@ import {
 	type TranscriptionCheckpointPayload,
 	type WorkingTranscriptionPayload,
 } from '$lib/storage/formats';
-import { createQuarantineReport } from '$lib/storage/quarantine';
+import { createQuarantineReport } from '$lib/storage/quarantine-report.spec-support';
 import {
 	joinStorePath,
 	normalizeStorePath,
@@ -80,8 +83,100 @@ function createProject(
 }
 
 describe('transcription file persistence', () => {
+	it('rejects metadata edits without canonical content before changing the index', async () => {
+		await createFixtureTranscription();
+		await expect(
+			saveWorkingTranscriptionMetadata(
+				harness.db,
+				{
+					id: 'tx-1',
+					title: 'Changed',
+					siglum: '02',
+					description: '',
+					tags: [],
+					transcriber: '',
+					repository: '',
+					settlement: '',
+					language: 'grc',
+				},
+				{ backend }
+			)
+		).rejects.toThrow('Canonical transcription file');
+		expect((await getTranscription(harness.db, 'tx-1'))?.title).toBe('Witness 1');
+		await expect(
+			readTextFile(transcriptionPrimaryFile('project-slug', 'pt-1'), { backend })
+		).rejects.toThrow();
+	});
+
+	it('reports a missing canonical file without changing its index or unrequested IDs', async () => {
+		await createFixtureTranscription();
+		await createCommittedTranscriptionCheckpointWithFiles(
+			harness.db,
+			{ projectTranscriptionId: 'pt-1', checkpointId: 'tx-cp-1' },
+			{ backend }
+		);
+		for (const id of ['tx-missing', 'tx-untouched']) {
+			await createTranscription(harness.db, {
+				id,
+				projectId: 'project-1',
+				title: id,
+				siglum: id,
+				transcriber: '',
+				repository: '',
+				settlement: '',
+				language: 'grc',
+				document: documentWithVerses(['Romans 2:2']),
+			});
+		}
+		const beforeMissing = await listVerseIndexRowsForTranscription(harness.db, 'tx-missing');
+		const beforeUntouched = await listVerseIndexRowsForTranscription(
+			harness.db,
+			'tx-untouched'
+		);
+		await harness.db
+			.deleteFrom('transcription_verse_index')
+			.where('transcription_id', '=', 'tx-1')
+			.execute();
+		const result = await rebuildVerseIndexForTranscriptionsWithFiles(
+			harness.db,
+			['tx-1', 'tx-missing'],
+			{ backend }
+		);
+		expect(result).toMatchObject({
+			processed: 2,
+			succeeded: 1,
+			failed: 1,
+			failures: [
+				{
+					transcriptionId: 'tx-missing',
+					message: 'Canonical transcription file was not found',
+				},
+			],
+		});
+		expect(
+			(await listVerseIndexRowsForTranscription(harness.db, 'tx-1')).map(
+				row => row.verse_identifier
+			)
+		).toEqual(['Romans 1:1']);
+		expect(await listVerseIndexRowsForTranscription(harness.db, 'tx-missing')).toEqual(
+			beforeMissing
+		);
+		expect(await listVerseIndexRowsForTranscription(harness.db, 'tx-untouched')).toEqual(
+			beforeUntouched
+		);
+	});
+
 	it('writes metadata to the primary file before updating the index', async () => {
 		await createFixtureTranscription();
+		await saveWorkingTranscriptionContent(
+			harness.db,
+			{
+				id: 'tx-1',
+				document: documentWithVerses(['Romans 1:1']),
+				updatedAt: '2026-07-04T00:00:00.000Z',
+			},
+			{ backend }
+		);
 		backend.failWrites = true;
 
 		await expect(
@@ -112,6 +207,15 @@ describe('transcription file persistence', () => {
 
 	it('derives edited transcription metadata from the primary file', async () => {
 		await createFixtureTranscription();
+		await saveWorkingTranscriptionContent(
+			harness.db,
+			{
+				id: 'tx-1',
+				document: documentWithVerses(['Romans 1:1']),
+				updatedAt: '2026-07-04T00:00:00.000Z',
+			},
+			{ backend }
+		);
 
 		await saveWorkingTranscriptionMetadata(
 			harness.db,
@@ -398,7 +502,7 @@ describe('transcription file persistence', () => {
 		const loaded = await getTranscriptionsWithWorkingFilesByIds(
 			harness.db,
 			['tx-1', 'tx-1', 'missing'],
-			{ backend, allowIndexFallback: false }
+			{ backend }
 		);
 
 		expect(loaded).toHaveLength(1);
@@ -421,7 +525,6 @@ describe('transcription file persistence', () => {
 
 		const result = await rebuildVerseIndexForTranscriptionsWithFiles(harness.db, ['tx-1'], {
 			backend,
-			allowIndexFallback: false,
 		});
 		const rows = await listVerseIndexRowsForTranscription(harness.db, 'tx-1');
 

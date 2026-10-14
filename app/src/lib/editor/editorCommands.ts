@@ -27,16 +27,6 @@ export function toggleEditorMark(
 	return true;
 }
 
-export function insertContentNode(
-	editor: Editor | null,
-	nodeTypeName: string,
-	attrs: Record<string, any>
-): boolean {
-	if (!editor) return false;
-	editor.chain().focus().insertContent({ type: nodeTypeName, attrs }).run();
-	return true;
-}
-
 export function insertSelectableCarrierNode(
 	editor: Editor | null,
 	nodeTypeName: string,

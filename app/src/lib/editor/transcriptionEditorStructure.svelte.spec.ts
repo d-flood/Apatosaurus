@@ -1,17 +1,17 @@
-import { describe, expect, it } from 'vitest';
-
 import {
+	findLineStartPositionById,
 	editorColumn,
 	editorDocument,
 	editorLine,
 	editorPlainPage,
 } from '$lib/testing/editorFixtures';
+import { describe, expect, it } from 'vitest';
+
 import { createTestEditor } from '$lib/testing/editorHarnesses.svelte';
 import {
 	createEmptyLineInsertTransaction,
 	createColumnSplitTransaction,
 	createLineSplitTransaction,
-	findLineStartPositionById,
 	LINE_SPLIT_TARGET_LINE_ID_META,
 	prepareManuscriptDocumentEntry,
 	repairManuscriptStructureJson,

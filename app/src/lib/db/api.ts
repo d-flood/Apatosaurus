@@ -130,17 +130,14 @@ export interface DbApiContext {
 	warn: (warnings: PersistenceWarning[]) => void;
 }
 
-const fileOnly = { allowIndexFallback: false };
-const fileBacked = { requireFileBackedContent: true };
-
 export type DbApi = typeof dbApi;
 
 export const dbApi = defineApi({
 	listTranscriptionSummaries: ({ db }) => listTranscriptionSummaries(db),
 	getTranscriptionSummary: ({ db }, id: string) => getTranscriptionSummary(db, id),
-	getTranscription: ({ db }, id: string) => loadTranscriptionWithWorkingFile(db, id, fileOnly),
+	getTranscription: ({ db }, id: string) => loadTranscriptionWithWorkingFile(db, id),
 	getTranscriptionsByIds: ({ db }, ids: string[]) =>
-		getTranscriptionsWithWorkingFilesByIds(db, ids, fileOnly),
+		getTranscriptionsWithWorkingFilesByIds(db, ids),
 	async createTranscription({ db, invalidate, warn }, input: CreateTranscriptionInput) {
 		const result = await createTranscriptionWithFilesResult(db, input);
 		invalidate('transcriptions', 'projects');
@@ -179,11 +176,7 @@ export const dbApi = defineApi({
 	listVerseIndexRowsForTranscriptions: ({ db }, transcriptionIds: string[]) =>
 		listVerseIndexRowsForTranscriptions(db, transcriptionIds),
 	async rebuildVerseIndexForTranscriptions({ db, invalidate }, transcriptionIds: string[]) {
-		const result = await rebuildVerseIndexForTranscriptionsWithFiles(
-			db,
-			transcriptionIds,
-			fileOnly
-		);
+		const result = await rebuildVerseIndexForTranscriptionsWithFiles(db, transcriptionIds);
 		invalidate('transcriptions');
 		return result;
 	},
@@ -216,7 +209,7 @@ export const dbApi = defineApi({
 		{ db },
 		projectId: string,
 		options?: ProjectTranscriptionStatusOptions
-	) => listProjectTranscriptionStatuses(db, projectId, { ...options, ...fileBacked }),
+	) => listProjectTranscriptionStatuses(db, projectId, options),
 	listProjectDocumentTitles: ({ db }, projectId: string) =>
 		listProjectDocumentTitles(db, projectId),
 	listProjectIdsWithContent: ({ db }) => listProjectIdsWithContent(db),
@@ -225,12 +218,13 @@ export const dbApi = defineApi({
 		projectOwnedTranscriptionId: string,
 		options?: ProjectTranscriptionStatusOptions
 	) =>
-		getProjectTranscriptionStatusForOwnedTranscription(db, projectOwnedTranscriptionId, {
-			...options,
-			...fileBacked,
-		}),
+		getProjectTranscriptionStatusForOwnedTranscription(
+			db,
+			projectOwnedTranscriptionId,
+			options
+		),
 	loadProjectTranscriptionContent: ({ db }, transcriptionId: string) =>
-		loadTranscriptionContentWithFiles(db, transcriptionId, fileOnly),
+		loadTranscriptionContentWithFiles(db, transcriptionId),
 	getProjectTranscriptionIds: ({ db }, projectId: string) =>
 		getProjectTranscriptionIds(db, projectId),
 	async syncProjectTranscriptionIds({ db, invalidate }, projectId: string, nextIds: string[]) {
@@ -242,7 +236,7 @@ export const dbApi = defineApi({
 		{ db, invalidate, warn },
 		input: RefreshProjectTranscriptionInput
 	) {
-		const status = await refreshProjectTranscription(db, input, fileBacked);
+		const status = await refreshProjectTranscription(db, input);
 		invalidate('projects', 'transcriptions', 'iiif');
 		warn(status.warnings ?? []);
 		return status;
@@ -251,7 +245,7 @@ export const dbApi = defineApi({
 		{ db, invalidate, warn },
 		input: AddProjectTranscriptionFromProjectInput
 	) {
-		const result = await addProjectTranscriptionFromProject(db, input, fileBacked);
+		const result = await addProjectTranscriptionFromProject(db, input);
 		invalidate('projects', 'transcriptions', 'iiif');
 		warn(result.warnings);
 		return result;
@@ -266,17 +260,17 @@ export const dbApi = defineApi({
 		warn(result.warnings);
 		return result.value;
 	},
-	loadCollation: ({ db }, id: string) => loadCollationWithWorkingFile(db, id, fileOnly),
+	loadCollation: ({ db }, id: string) => loadCollationWithWorkingFile(db, id),
 	listProjectCollationVersionStatuses: (
 		{ db },
 		projectId: string,
 		options?: CollationVersionStatusOptions
-	) => listProjectCollationVersionStatusesWithWorkingFiles(db, projectId, options, fileOnly),
+	) => listProjectCollationVersionStatusesWithWorkingFiles(db, projectId, options),
 	getCollationVersionStatus: (
 		{ db },
 		collationId: string,
 		options?: CollationVersionStatusOptions
-	) => getCollationVersionStatusWithWorkingFile(db, collationId, options, fileOnly),
+	) => getCollationVersionStatusWithWorkingFile(db, collationId, options),
 	async saveCollationArtifact({ db, invalidate }, input: SaveCollationArtifactInput) {
 		const artifactId = await saveWorkingCollationArtifact(db, input);
 		invalidate('collations');
@@ -441,7 +435,7 @@ export const dbApi = defineApi({
 		transcriptionId: string,
 		checkpointId: string | null
 	): Promise<unknown> {
-		if (!checkpointId) return loadTranscriptionContentWithFiles(db, transcriptionId, fileOnly);
+		if (!checkpointId) return loadTranscriptionContentWithFiles(db, transcriptionId);
 		const version = await loadCommittedTranscriptionCheckpointPayload(
 			db,
 			transcriptionId,

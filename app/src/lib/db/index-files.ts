@@ -4,7 +4,7 @@ import {
 	INDEX_DATABASE_FILENAME,
 	INDEX_DATABASE_PREFIX,
 	LEGACY_INDEX_DATABASE_PREFIXES,
-} from './schema-version.generated';
+} from './schema-version';
 
 type DirectoryHandleWithEntries = FileSystemDirectoryHandle & {
 	entries?: () => AsyncIterableIterator<[string, FileSystemHandle]>;

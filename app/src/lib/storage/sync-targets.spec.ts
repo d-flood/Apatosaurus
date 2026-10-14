@@ -1,37 +1,37 @@
 import { describe, expect, it } from 'vitest';
 
+import { sealDocument, serializeSealedDocument } from './envelope';
+import { syncTargetsFile } from './layout';
 import { MemoryStoreBackend } from './memory-store-backend.spec-support';
-import { listSyncTargets, upsertSyncTarget } from './sync-targets';
+import { writeTextFileAtomic } from './opfs-store';
+import { listSyncTargets, type SyncTargetRecord } from './sync-targets';
+import { writeLegacySyncTargetsFile } from './sync-targets.spec-support';
 
-describe('sync targets store', () => {
-	it('persists project-scoped local folder targets in app/sync-targets.json', async () => {
-		const backend = new MemoryStoreBackend();
-		const storeOptions = { backend };
-
-		await expect(listSyncTargets('project-1', storeOptions)).resolves.toEqual([]);
-
-		const target = await upsertSyncTarget(
-			{
-				targetId: 'target-1',
-				projectId: 'project-1',
-				handleRef: 'handle-1',
-				folderDisplayPath: 'Apatosaurus Project',
-				enabled: true,
-				connectedAt: '2026-07-07T10:00:00.000Z',
-				updatedAt: '2026-07-07T10:00:00.000Z',
-			},
-			storeOptions
-		);
-
-		expect(target).toMatchObject({
+describe('legacy sync targets reader', () => {
+	it('reads, filters, and sorts project-scoped targets', async () => {
+		const options = { backend: new MemoryStoreBackend() };
+		await expect(listSyncTargets(undefined, options)).resolves.toEqual([]);
+		const target: SyncTargetRecord = {
 			targetId: 'target-1',
 			projectId: 'project-1',
 			handleRef: 'handle-1',
 			folderDisplayPath: 'Apatosaurus Project',
 			enabled: true,
+			connectedAt: '2026-07-07T10:00:00.000Z',
+			updatedAt: '2026-07-07T10:00:00.000Z',
 			lastSyncedAt: null,
-		});
-		await expect(listSyncTargets('project-1', storeOptions)).resolves.toEqual([target]);
-		await expect(listSyncTargets('other-project', storeOptions)).resolves.toEqual([]);
+		};
+		const other = { ...target, targetId: 'target-2', projectId: 'project-2' };
+		await writeLegacySyncTargetsFile([other, target], options);
+		await expect(listSyncTargets(undefined, options)).resolves.toEqual([target, other]);
+		await expect(listSyncTargets('project-1', options)).resolves.toEqual([target]);
+		await expect(listSyncTargets('missing', options)).resolves.toEqual([]);
+	});
+
+	it('rejects the wrong format', async () => {
+		const options = { backend: new MemoryStoreBackend() };
+		const document = await sealDocument('apatosaurus.wrong-format', 1, { targets: [] });
+		await writeTextFileAtomic(syncTargetsFile(), serializeSealedDocument(document), options);
+		await expect(listSyncTargets(undefined, options)).rejects.toThrow(/does not match/);
 	});
 });

@@ -31,7 +31,6 @@
 	import ProjectTranscriptionRefreshDialog from '$lib/project/components/ProjectTranscriptionRefreshDialog.svelte';
 	import ProjectTranscriptionsEditor from '$lib/project/components/ProjectTranscriptionsEditor.svelte';
 	import ProjectTranscriptionVersionsPanel from '$lib/project/components/ProjectTranscriptionVersionsPanel.svelte';
-	import ProjectUserManagementStub from '$lib/project/components/ProjectUserManagementStub.svelte';
 	import { onMount } from 'svelte';
 	import type {
 		ProjectRecord,
@@ -654,8 +653,6 @@
 	onRefreshTranscription={handleRequestRefresh}
 	onAddFromProject={handleRequestAddFromProject}
 />
-
-<ProjectUserManagementStub />
 
 {#if isSavingSettings}
 	<span class="sr-only">Saving project settings</span>

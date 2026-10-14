@@ -10,6 +10,8 @@ import {
 	canonicalFormatForProjectPath,
 	readCanonicalDocument,
 	transcriptionDocumentToTeiFromStore,
+	TOMBSTONE_FORMAT,
+	type TombstonePayload,
 	type CollationPayload,
 	type ProjectTranscriptionPayload,
 } from '$lib/storage/formats';
@@ -28,7 +30,7 @@ import {
 	type MovedNotice,
 } from '$lib/storage/project-locations';
 import { canonicalJson } from '$lib/storage/canonical-json';
-import type { StoreQuarantineRecord } from '$lib/storage/quarantine';
+import type { StoreQuarantineRecord, StoreQuarantineReason } from '$lib/storage/quarantine';
 import { ApparatusExportError, exportCollationDocumentTei } from '$lib/collation/collation-tei';
 import {
 	rebuildIndexFromStore,
@@ -42,7 +44,6 @@ import {
 	type SyncEntityHead,
 } from './conflicts';
 import type { SyncEntityReference, SyncEntityType, SyncProjectContext } from './backup-status';
-import { parseTombstoneCloudFile, type CloudFileQuarantine } from './cloud-files';
 import {
 	isCloudProviderError,
 	type CloudFileMetadata,
@@ -81,7 +82,7 @@ export interface SyncManagerOptions {
 
 interface SyncQuarantine {
 	path: string;
-	code: CloudFileQuarantine['code'];
+	code: StoreQuarantineReason['code'];
 	message: string;
 	expected?: unknown;
 	actual?: unknown;
@@ -252,12 +253,15 @@ async function mirrorProjectFiles(
 		let pulledTombstone = false;
 
 		for (const localFile of localFiles.filter(file => file.path.startsWith('tombstones/'))) {
-			const parsed = await parseTombstoneCloudFile(localFile.content);
+			const parsed = await readCanonicalDocument<TombstonePayload>(
+				TOMBSTONE_FORMAT,
+				localFile.content
+			);
 			if (!parsed.ok) {
 				result.quarantines.push(quarantineFor(localFile.path, parsed.quarantine));
 				continue;
 			}
-			tombstonedPrimaryPaths.add(parsed.value.cloud_path);
+			tombstonedPrimaryPaths.add(parsed.payload.cloud_path);
 			const remoteFile = remoteFiles.get(localFile.path) ?? null;
 			let write: CloudFileMetadata | CloudWriteResult;
 			if (!remoteFile) {
@@ -279,7 +283,7 @@ async function mirrorProjectFiles(
 			}
 			await upsertFileFingerprint(db, context, localFile, write, localFile.fingerprint, now);
 
-			const remotePrimary = remoteFiles.get(parsed.value.cloud_path);
+			const remotePrimary = remoteFiles.get(parsed.payload.cloud_path);
 			if (remotePrimary) {
 				await provider.deleteFile(
 					remotePrimary.metadata.id,
@@ -287,8 +291,8 @@ async function mirrorProjectFiles(
 						? remotePrimary.metadata.revision
 						: undefined
 				);
-				remoteFiles.delete(parsed.value.cloud_path);
-				result.deletedPaths.push(parsed.value.cloud_path);
+				remoteFiles.delete(parsed.payload.cloud_path);
+				result.deletedPaths.push(parsed.payload.cloud_path);
 			}
 		}
 
@@ -304,29 +308,35 @@ async function mirrorProjectFiles(
 				result.quarantines.push(...validation.quarantinedFiles.map(storeQuarantineForSync));
 				continue;
 			}
-			const parsed = await parseTombstoneCloudFile(remoteFile.content);
+			const parsed = await readCanonicalDocument<TombstonePayload>(
+				TOMBSTONE_FORMAT,
+				remoteFile.content
+			);
 			if (!parsed.ok) {
 				result.quarantines.push(quarantineFor(remoteFile.path, parsed.quarantine));
 				continue;
 			}
-			tombstonedPrimaryPaths.add(parsed.value.cloud_path);
+			tombstonedPrimaryPaths.add(parsed.payload.cloud_path);
 			const pulledLocalFile = await writePulledMirrorFile(
 				projectRoot,
 				remoteFile,
 				storeOptions
 			);
 			await deleteStoreFileIfExists(
-				joinStorePath(projectRoot, parsed.value.cloud_path),
+				joinStorePath(projectRoot, parsed.payload.cloud_path),
 				storeOptions
 			);
 			await deleteStoreFileIfExists(
-				joinStorePath(projectRoot, parsed.value.cloud_path.replace(/\.json$/, '.tei.xml')),
+				joinStorePath(
+					projectRoot,
+					parsed.payload.cloud_path.replace(/\.json$/, '.tei.xml')
+				),
 				storeOptions
 			);
 			pulledFiles.push({ localFile: pulledLocalFile, remoteFile });
 			result.downloadedPaths.push(remoteFile.path);
 			pulledTombstone = true;
-			const remotePrimary = remoteFiles.get(parsed.value.cloud_path);
+			const remotePrimary = remoteFiles.get(parsed.payload.cloud_path);
 			if (remotePrimary) {
 				await provider.deleteFile(
 					remotePrimary.metadata.id,
@@ -334,8 +344,8 @@ async function mirrorProjectFiles(
 						? remotePrimary.metadata.revision
 						: undefined
 				);
-				remoteFiles.delete(parsed.value.cloud_path);
-				result.deletedPaths.push(parsed.value.cloud_path);
+				remoteFiles.delete(parsed.payload.cloud_path);
+				result.deletedPaths.push(parsed.payload.cloud_path);
 			}
 		}
 
@@ -1251,7 +1261,7 @@ function baseResult(
 	};
 }
 
-function quarantineFor(path: string, quarantine: CloudFileQuarantine): SyncQuarantine {
+function quarantineFor(path: string, quarantine: StoreQuarantineReason): SyncQuarantine {
 	return {
 		path,
 		code: quarantine.code,

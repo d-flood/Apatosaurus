@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0">
+  <teiHeader>
+    <fileDesc>
+      <titleStmt>
+        <title type="document" n="header">IGNTP manuscript description fixture</title>
+        <title type="work">The Epistle to the Romans</title>
+        <respStmt>
+          <resp>Transcribed by</resp>
+          <name type="person">INTF</name>
+        </respStmt>
+      </titleStmt>
+      <editionStmt><edition n="1.0">Fixture edition</edition></editionStmt>
+      <publicationStmt>
+        <publisher>IGNTP</publisher>
+        <date>2026</date>
+        <availability><p>Test fixture.</p></availability>
+      </publicationStmt>
+      <sourceDesc>
+        <msDesc xml:id="msdesc-header">
+          <msIdentifier>
+            <country>United Kingdom</country>
+            <settlement>Manchester</settlement>
+            <repository>John Rylands University Library</repository>
+            <idno>IGNTP-MS-DESC</idno>
+            <msName>Romans witness</msName>
+          </msIdentifier>
+          <msContents>
+            <msItemStruct>
+              <locus from="1r" to="2v">1r-2v</locus>
+              <author>Paul</author>
+              <title>Romans</title>
+              <note>Structured manuscript contents.</note>
+              <textLang>grc</textLang>
+            </msItemStruct>
+          </msContents>
+          <physDesc>
+            <objectDesc form="codex">
+              <supportDesc material="parch">
+                <support>parchment</support>
+                <foliation>Two folios</foliation>
+                <condition>Stable</condition>
+              </supportDesc>
+              <layoutDesc>
+                <layout columns="2" writtenLines="24">Two columns per page.</layout>
+              </layoutDesc>
+            </objectDesc>
+            <handDesc hands="2">
+              <handNote scope="major">Firsthand and corrector hands.</handNote>
+            </handDesc>
+          </physDesc>
+          <history>
+            <origin>
+              <origDate when="0200">Second century</origDate>
+              <origPlace>Egypt</origPlace>
+            </origin>
+            <provenance>Transferred to the repository.</provenance>
+          </history>
+          <additional>
+            <surrogates>Digital images available.</surrogates>
+          </additional>
+        </msDesc>
+      </sourceDesc>
+    </fileDesc>
+  </teiHeader>
+  <text xml:lang="grc">
+    <body>
+      <pb n="1r" type="folio" xml:id="P1r-header"/>
+      <cb n="P1rC1-header"/>
+      <lb n="P1rC1L-header"/>
+      <div type="book" n="Rom">
+        <div type="chapter" n="Rom.1">
+          <ab n="Rom.1.1"><w>παυλος</w><w>κλητος</w><w>αποστολος</w></ab>
+        </div>
+      </div>
+    </body>
+  </text>
+</TEI>

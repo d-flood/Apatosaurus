@@ -7,24 +7,28 @@
 -- are deleted (see Phase 6).
 --
 -- Notes:
---   * This is the current schema for INDEX_SCHEMA_VERSION = 4. Bumping the
+--   * This is the current schema for INDEX_SCHEMA_VERSION = 5. Bumping the
 --     index version creates a fresh disposable index and rebuilds it from
 --     files instead of migrating SQL in place.
 --   * `transcriptions.content_json` and `collation_artifacts.payload` are
---     disposable cache columns kept for legacy copy/sync code until those
---     flows move to file-backed imports in Phases 7-8. Public worker load
---     paths prefer working/primary OPFS files and treat these columns/tables
---     only as repairable fallbacks.
+--     disposable caches retained for write snapshots and conflict copies.
+--     Public content loads require canonical OPFS files.
+--     Remaining readers outside index rebuild/projection:
+--       transcriptions.ts: getTranscription, getTranscriptionsByIds,
+--         rebuildVerseIndexForTranscriptions (repository-only index repair).
+--       revisions.ts: loadProjectTranscriptionSnapshot (write snapshots,
+--         checkpoint construction and source hashes), loadCollationArtifacts
+--         via loadSerializedCollation (artifact writes and conflict hashes).
+--       projects.ts: forkProjectTranscriptions selects the cache with metadata;
+--         fork content itself comes from canonical files.
+--       conflicts.ts: loadProjectTranscriptionEntity copies the SQL row;
+--         copyCollationChildRows copies artifacts before checkpoint hashing.
+--       collations.ts: loadCollation is a repository-level cache reader.
 --   * Checkpoint tables are metadata-only listings. Payloads live exclusively
 --     in canonical history files under OPFS.
 --   * `transcriptions.scope_type` (global/project_snapshot) is removed:
 --     every transcription is project-owned under the project-only
 --     ownership model (architecture.md section 3 decision 1).
---   * `cloud_connections`, `cloud_project_folders`, and
---     `cloud_sync_metadata` are kept for this phase (they back the
---     existing sync layer until Phase 7 rewrites sync on top of
---     `app/sync-targets.json` and a per-file fingerprint cache). They
---     are slated for removal in Phase 7.
 
 PRAGMA foreign_keys = ON;
 
@@ -275,47 +279,6 @@ CREATE TABLE IF NOT EXISTS sync_file_fingerprints (
 
 CREATE INDEX IF NOT EXISTS idx_sync_file_fingerprints_project ON sync_file_fingerprints(project_id, target_id);
 CREATE INDEX IF NOT EXISTS idx_sync_file_fingerprints_entity ON sync_file_fingerprints(project_id, entity_type, entity_id);
-
--- Legacy sync-state tables. Kept only for Phase-8 import/project-restore
--- compatibility while Phase 7 moves active sync to sync targets and file
--- fingerprints.
-CREATE TABLE IF NOT EXISTS cloud_connections (
-	id TEXT PRIMARY KEY,
-	provider_id TEXT NOT NULL,
-	provider_account_id TEXT NOT NULL DEFAULT '',
-	account_email TEXT NOT NULL,
-	scopes TEXT NOT NULL DEFAULT '[]',
-	connected_at TEXT NOT NULL,
-	updated_at TEXT NOT NULL,
-	UNIQUE(provider_id, provider_account_id)
-);
-
-CREATE TABLE IF NOT EXISTS cloud_project_folders (
-	project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
-	connection_id TEXT NOT NULL REFERENCES cloud_connections(id) ON DELETE RESTRICT,
-	cloud_folder_id TEXT NOT NULL,
-	cloud_folder_path TEXT NOT NULL,
-	sync_cursor TEXT NOT NULL DEFAULT '',
-	last_fully_synced_at TEXT
-);
-
-CREATE TABLE IF NOT EXISTS cloud_sync_metadata (
-	connection_id TEXT NOT NULL REFERENCES cloud_connections(id) ON DELETE CASCADE,
-	scope_type TEXT NOT NULL,
-	scope_id TEXT NOT NULL,
-	entity_type TEXT NOT NULL,
-	entity_id TEXT NOT NULL,
-	cloud_file_id TEXT NOT NULL,
-	cloud_file_revision TEXT NOT NULL,
-	cloud_path TEXT NOT NULL,
-	last_synced_revision TEXT NOT NULL,
-	last_synced_hash TEXT NOT NULL,
-	last_synced_at TEXT NOT NULL,
-	PRIMARY KEY (connection_id, scope_type, scope_id, entity_type, entity_id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_cloud_sync_metadata_scope ON cloud_sync_metadata(scope_type, scope_id);
-CREATE INDEX IF NOT EXISTS idx_cloud_sync_metadata_path ON cloud_sync_metadata(connection_id, cloud_path);
 
 -- Checkpoint listings only. Canonical checkpoint payloads live in
 -- history/<entity>/<checkpoint>.json files.

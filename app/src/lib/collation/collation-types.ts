@@ -1,7 +1,7 @@
 import type { Certainty, ReadingTypeDefinition, ReadingTypeId } from './reading-types';
 
-export type CollationPhase =
-	'setup' | 'regularization' | 'alignment' | 'readings' | 'stemma' | 'review';
+export const COLLATION_PHASES = ['setup', 'alignment', 'readings', 'stemma', 'review'] as const;
+export type CollationPhase = (typeof COLLATION_PHASES)[number];
 
 export type RuleScope = 'project' | 'verse';
 

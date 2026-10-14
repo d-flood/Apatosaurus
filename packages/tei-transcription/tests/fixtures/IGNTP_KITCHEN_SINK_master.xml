@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0">
+  <teiHeader>
+    <fileDesc>
+      <titleStmt><title type="document">IGNTP unsupported master apparatus fixture</title></titleStmt>
+      <publicationStmt>
+        <publisher>IGNTP</publisher>
+        <date>2026</date>
+        <availability><p>Test fixture.</p></availability>
+      </publicationStmt>
+      <sourceDesc>
+        <msDesc><msIdentifier><idno>IGNTP-MASTER</idno></msIdentifier></msDesc>
+      </sourceDesc>
+    </fileDesc>
+  </teiHeader>
+  <text xml:lang="grc">
+    <body>
+      <pb n="1r" type="folio"/>
+      <cb n="1rC1"/>
+      <lb n="1rC1L"/>
+      <div type="book" n="Rom">
+        <div type="chapter" n="Rom.1">
+          <ab n="Rom.1.1">
+            <app type="master">
+              <lem><w>λογος</w></lem>
+              <rdg wit="#witness-a"><w>ρημα</w></rdg>
+            </app>
+          </ab>
+        </div>
+      </div>
+    </body>
+  </text>
+</TEI>

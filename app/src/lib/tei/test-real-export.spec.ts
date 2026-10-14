@@ -5,8 +5,8 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { exportTEI } from './tei-exporter';
-import { importTEI } from './tei-importer';
+import { exportTEIDocument } from './tei-exporter';
+import { importTEIDocument } from './tei-importer';
 import { validateIgntpXsd } from '../../../../test-support/validate-igntp-xsd';
 
 beforeAll(() => {
@@ -46,7 +46,7 @@ function readStaticIgntpFixture(relativePath: string): string {
 describe('real TEI wrapper integration', () => {
 	it('imports and re-exports the P118 fixture as valid XML', () => {
 		const xml = readTeiFixture('NT_GRC_P118_Rom.xml');
-		const exported = exportTEI(importTEI(xml) as any);
+		const exported = exportTEIDocument(importTEIDocument(xml));
 		const doc = parse(exported);
 
 		expect(doc.getElementsByTagName('parsererror')).toHaveLength(0);
@@ -58,11 +58,11 @@ describe('real TEI wrapper integration', () => {
 
 	it('preserves apparatus and line breaks in the 01 Romans fixture', () => {
 		const xml = readTeiFixture('NT_GRC_01_Rom.xml');
-		const imported = importTEI(xml);
-		const exported = exportTEI(imported as any);
+		const imported = importTEIDocument(xml);
+		const exported = exportTEIDocument(imported);
 		const doc = parse(exported);
 
-		expect(imported.content!.length).toBeGreaterThan(0);
+		expect(imported.pages.length).toBeGreaterThan(0);
 		expect(() => validateIgntpXsd(exported)).not.toThrow();
 		expect(doc.getElementsByTagName('app').length).toBeGreaterThan(0);
 		expect(doc.getElementsByTagName('fw').length).toBeGreaterThan(0);
@@ -71,7 +71,7 @@ describe('real TEI wrapper integration', () => {
 
 	it('does not introduce suspicious embedded spaces into fixture words', () => {
 		const xml = readTeiFixture('NT_GRC_P118_Rom.xml');
-		const imported = importTEI(xml);
+		const imported = importTEIDocument(xml);
 		const textNodes: string[] = [];
 
 		const walk = (node: any) => {
@@ -83,7 +83,9 @@ describe('real TEI wrapper integration', () => {
 			if (node.type === 'text' && typeof node.text === 'string') {
 				textNodes.push(node.text);
 			}
-			if (node.content) walk(node.content);
+			for (const key of ['pages', 'columns', 'lines', 'items', 'content']) {
+				if (node[key]) walk(node[key]);
+			}
 		};
 
 		walk(imported);
@@ -92,14 +94,14 @@ describe('real TEI wrapper integration', () => {
 
 	it('keeps L60 folio 59r as a single imported column', () => {
 		const xml = readStaticIgntpFixture('Romans_Greek_transcriptions/NT_GRC_L60_Rom.xml');
-		const imported = importTEI(xml);
-		const page59r = imported.content?.find(node => node.attrs?.pageName === '59r');
+		const imported = importTEIDocument(xml);
+		const page59r = imported.pages.find(page => page.id === '59r');
 
 		expect(page59r).toBeTruthy();
-		expect(page59r?.content).toHaveLength(1);
-		expect(page59r?.content?.[0].attrs).not.toHaveProperty('n');
-		expect(page59r?.content?.[0].content?.[0].attrs).not.toHaveProperty('n');
-		expect(page59r?.content?.[0].content?.[0].content?.[0]).toMatchObject({
+		expect(page59r?.columns).toHaveLength(1);
+		expect(page59r?.columns[0].teiAttrs).toMatchObject({ n: 'P59rC1-L60' });
+		expect(page59r?.columns[0].lines[0].teiAttrs).toMatchObject({ n: 'P59rC1L-L60' });
+		expect(page59r?.columns[0].lines[0].items[0]).toMatchObject({
 			type: 'text',
 			text: 'ρεαν',
 		});

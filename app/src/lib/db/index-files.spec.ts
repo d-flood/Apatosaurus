@@ -14,8 +14,8 @@ describe('cleanupStaleIndexFiles', () => {
 		await root.getFileHandle('apatosaurus-local-v1.db', { create: true });
 		await root.getFileHandle('user-file.txt', { create: true });
 		const indexDirectory = await nestedDirectory(root, 'apatosaurus/v1/index');
-		await indexDirectory.getFileHandle('apatosaurus-index-v4.db', { create: true });
-		await indexDirectory.getFileHandle('apatosaurus-index-v4.db-wal', { create: true });
+		await indexDirectory.getFileHandle('apatosaurus-index-v5.db', { create: true });
+		await indexDirectory.getFileHandle('apatosaurus-index-v5.db-wal', { create: true });
 		await indexDirectory.getFileHandle('apatosaurus-index-v3.db', { create: true });
 		await indexDirectory.getFileHandle('apatosaurus-index-v3.db-wal', { create: true });
 		await indexDirectory.getFileHandle('notes.txt', { create: true });
@@ -31,8 +31,8 @@ describe('cleanupStaleIndexFiles', () => {
 		]);
 		expect(await entryNames(root)).toEqual(['apatosaurus', 'user-file.txt']);
 		expect(await entryNames(indexDirectory)).toEqual([
-			'apatosaurus-index-v4.db',
-			'apatosaurus-index-v4.db-wal',
+			'apatosaurus-index-v5.db',
+			'apatosaurus-index-v5.db-wal',
 			'notes.txt',
 		]);
 	});
@@ -41,11 +41,11 @@ describe('cleanupStaleIndexFiles', () => {
 describe('removeCurrentIndexFiles', () => {
 	it('removes only the current nested index database and companions', async () => {
 		const root = new FakeDirectoryHandle('');
-		await root.getFileHandle('apatosaurus-index-v4.db', { create: true });
+		await root.getFileHandle('apatosaurus-index-v5.db', { create: true });
 		const indexDirectory = await nestedDirectory(root, 'apatosaurus/v1/index');
-		await indexDirectory.getFileHandle('apatosaurus-index-v4.db', { create: true });
-		await indexDirectory.getFileHandle('apatosaurus-index-v4.db-wal', { create: true });
-		await indexDirectory.getFileHandle('apatosaurus-index-v4.db-shm', { create: true });
+		await indexDirectory.getFileHandle('apatosaurus-index-v5.db', { create: true });
+		await indexDirectory.getFileHandle('apatosaurus-index-v5.db-wal', { create: true });
+		await indexDirectory.getFileHandle('apatosaurus-index-v5.db-shm', { create: true });
 		await indexDirectory.getFileHandle('apatosaurus-index-v3.db', { create: true });
 		await indexDirectory.getFileHandle('notes.txt', { create: true });
 
@@ -53,11 +53,11 @@ describe('removeCurrentIndexFiles', () => {
 
 		expect(report.failedPaths).toEqual([]);
 		expect(report.removedPaths.sort()).toEqual([
-			'apatosaurus/v1/index/apatosaurus-index-v4.db',
-			'apatosaurus/v1/index/apatosaurus-index-v4.db-shm',
-			'apatosaurus/v1/index/apatosaurus-index-v4.db-wal',
+			'apatosaurus/v1/index/apatosaurus-index-v5.db',
+			'apatosaurus/v1/index/apatosaurus-index-v5.db-shm',
+			'apatosaurus/v1/index/apatosaurus-index-v5.db-wal',
 		]);
-		expect(await entryNames(root)).toEqual(['apatosaurus', 'apatosaurus-index-v4.db']);
+		expect(await entryNames(root)).toEqual(['apatosaurus', 'apatosaurus-index-v5.db']);
 		expect(await entryNames(indexDirectory)).toEqual(['apatosaurus-index-v3.db', 'notes.txt']);
 	});
 });

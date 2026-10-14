@@ -1180,7 +1180,7 @@ describe('collationState artifact-first persistence', () => {
 		await vi.advanceTimersByTimeAsync(801);
 
 		expect(updateCollationMetadata).toHaveBeenCalledWith(
-			expect.objectContaining({ id: collationId, status: 'regularization' })
+			expect.objectContaining({ id: collationId, status: 'alignment' })
 		);
 		expect(saveCollationProjection).not.toHaveBeenCalled();
 	});

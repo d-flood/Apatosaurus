@@ -14,7 +14,7 @@ import {
 	type StoreBackendDirectoryEntry,
 	writeTextFileAtomic,
 } from './opfs-store';
-import { createQuarantineReport, recordQuarantineResult } from './quarantine';
+import { createQuarantineReport, recordQuarantineResult } from './quarantine-report.spec-support';
 
 describe('OPFS document store operations', () => {
 	it('keeps the target intact when atomic move is interrupted after the temp write', async () => {

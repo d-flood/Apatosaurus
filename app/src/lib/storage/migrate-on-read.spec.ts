@@ -9,7 +9,7 @@ import {
 	type DocumentUpgrader,
 	type MigrationRegistry,
 } from './migrate-on-read';
-import { createQuarantineReport, recordQuarantineResult } from './quarantine';
+import { createQuarantineReport, recordQuarantineResult } from './quarantine-report.spec-support';
 
 const FORMAT = 'apatosaurus.synthetic';
 

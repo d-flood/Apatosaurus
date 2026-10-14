@@ -3,8 +3,6 @@ import { TextSelection, type EditorState, type Transaction } from '@tiptap/pm/st
 
 import { flattenStructuredFormWorkContent } from '@apatosaurus/tei-transcription';
 
-import { findFirstDescendantPosition } from './node-lookup';
-
 const MAIN_LINE_CONTENT_NODE_NAMES = new Set([
 	'text',
 	'book',
@@ -735,17 +733,4 @@ export function createEmptyLineInsertTransaction(state: EditorState): Transactio
 		TextSelection.near(tr.doc.resolve(currentLinePos + preservedLine.nodeSize + 1))
 	);
 	return tr;
-}
-
-export function findLineStartPositionById(
-	doc: any,
-	lineId: string | null | undefined
-): number | null {
-	if (!lineId) return null;
-
-	const position = findFirstDescendantPosition(
-		doc,
-		node => node.type.name === 'line' && node.attrs?.lineId === lineId
-	);
-	return position === null ? null : position + 1;
 }

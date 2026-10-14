@@ -20,18 +20,7 @@ export interface DurabilityWarningInput {
 	currentMilestone: string;
 }
 
-export interface InstallCapabilityReport {
-	isInstalled: boolean;
-	installSupported: boolean;
-}
-
-type BeforeInstallPromptEvent = Event & {
-	prompt: () => Promise<void>;
-	userChoice?: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
-};
-
 let persistRequestedThisSession = false;
-let pendingInstallPrompt: BeforeInstallPromptEvent | null = null;
 
 export function getDirectoryPicker():
 	((options?: { mode?: 'read' | 'readwrite' }) => Promise<FileSystemDirectoryHandle>) | null {
@@ -101,32 +90,6 @@ export function shouldShowDurabilityWarning(input: DurabilityWarningInput): bool
 	return input.dismissedMilestone !== input.currentMilestone;
 }
 
-export function initializeInstallPromptTracking(onChange?: () => void): () => void {
-	const handler = (event: Event) => {
-		event.preventDefault();
-		pendingInstallPrompt = event as BeforeInstallPromptEvent;
-		onChange?.();
-	};
-	globalThis.addEventListener?.('beforeinstallprompt', handler);
-	return () => globalThis.removeEventListener?.('beforeinstallprompt', handler);
-}
-
-export function getInstallCapabilityReport(): InstallCapabilityReport {
-	return {
-		isInstalled: isRunningInstalled(),
-		installSupported: pendingInstallPrompt !== null,
-	};
-}
-
-export async function promptForPwaInstall(): Promise<boolean> {
-	const prompt = pendingInstallPrompt;
-	if (!prompt) return false;
-	pendingInstallPrompt = null;
-	await prompt.prompt();
-	const choice = await prompt.userChoice?.catch(() => null);
-	return choice?.outcome === 'accepted';
-}
-
 export function isStorageNearQuota(usageRatio: number | null): boolean {
 	return usageRatio !== null && usageRatio >= 0.8;
 }
@@ -145,15 +108,8 @@ export function formatStorageBytes(value: number | null): string {
 
 export function resetPersistenceRequestSessionForTests(): void {
 	persistRequestedThisSession = false;
-	pendingInstallPrompt = null;
 }
 
 function emptyStorageEstimate(): StorageEstimateReport {
 	return { usage: null, quota: null, usageRatio: null, isNearQuota: false };
-}
-
-function isRunningInstalled(): boolean {
-	const standaloneMedia = globalThis.matchMedia?.('(display-mode: standalone)').matches ?? false;
-	const navigatorWithStandalone = globalThis.navigator as Navigator & { standalone?: boolean };
-	return standaloneMedia || navigatorWithStandalone?.standalone === true;
 }

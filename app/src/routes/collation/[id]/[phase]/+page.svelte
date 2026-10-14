@@ -1,15 +1,15 @@
 <script lang="ts">
+	import { COLLATION_PHASES } from '$lib/collation/collation-types';
 	import { goto } from '$app/navigation';
 	import { collationState, type CollationPhase } from '$lib/collation/collation-state.svelte';
 	import CollationWorkspace from '$lib/collation/components/CollationWorkspace.svelte';
 
-	const phaseOrder: CollationPhase[] = ['setup', 'alignment', 'readings', 'stemma', 'review'];
-
 	let { params } = $props();
 
 	function parsePhase(value: string): CollationPhase | null {
-		if (value === 'regularization') return 'alignment';
-		return phaseOrder.includes(value as CollationPhase) ? (value as CollationPhase) : null;
+		return COLLATION_PHASES.includes(value as CollationPhase)
+			? (value as CollationPhase)
+			: null;
 	}
 
 	$effect(() => {

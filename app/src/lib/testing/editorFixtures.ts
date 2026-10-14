@@ -1,3 +1,4 @@
+import { findFirstDescendantPosition } from '$lib/editor/node-lookup';
 import type { TranscriptionDocument } from '@apatosaurus/tei-transcription';
 
 export type EditorJson = Record<string, any>;
@@ -407,4 +408,17 @@ export function structuralAttributeSnapshot(document_: any): EditorJson[] {
 			lines: (column.content ?? []).map((line: EditorJson) => line.attrs ?? {}),
 		})),
 	}));
+}
+
+export function findLineStartPositionById(
+	doc: any,
+	lineId: string | null | undefined
+): number | null {
+	if (!lineId) return null;
+
+	const position = findFirstDescendantPosition(
+		doc,
+		node => node.type.name === 'line' && node.attrs?.lineId === lineId
+	);
+	return position === null ? null : position + 1;
 }

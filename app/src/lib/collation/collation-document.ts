@@ -1,3 +1,4 @@
+import { COLLATION_PHASES } from './collation-types';
 import {
 	serializeAlignmentColumns,
 	type AlignmentColumn,
@@ -194,16 +195,8 @@ function makeSourceTokenId(witnessId: string, index: number): string {
 
 /** Unknown phases come from newer builds, so clamp instead of resetting progress. */
 function normalizePhase(value: unknown): CollationPhase {
-	if (
-		value === 'setup' ||
-		value === 'alignment' ||
-		value === 'readings' ||
-		value === 'stemma' ||
-		value === 'review' ||
-		value === 'regularization'
-	) {
-		return value;
-	}
+	if (value === 'regularization') return 'alignment';
+	if (COLLATION_PHASES.includes(value as CollationPhase)) return value as CollationPhase;
 	return typeof value === 'string' ? 'review' : 'setup';
 }
 

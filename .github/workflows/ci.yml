@@ -1,4 +1,4 @@
-name: App Tests
+name: CI
 
 on:
   push:
@@ -7,31 +7,33 @@ on:
       - "collatex"
       - "collatex/collatex-tsport/**"
       - "packages/tei-transcription/**"
+      - "packages/auth-worker/**"
       - "package.json"
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
-      - ".github/workflows/app-tests.yml"
+      - ".github/workflows/ci.yml"
   pull_request:
     paths:
       - "app/**"
       - "collatex"
       - "collatex/collatex-tsport/**"
       - "packages/tei-transcription/**"
+      - "packages/auth-worker/**"
       - "package.json"
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
-      - ".github/workflows/app-tests.yml"
+      - ".github/workflows/ci.yml"
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: app-tests-${{ github.ref }}
+  group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  test:
+  app:
     runs-on: ubuntu-latest
 
     steps:
@@ -41,7 +43,6 @@ jobs:
           submodules: recursive
           token: ${{ secrets.DJAZZKIT_ACCESS_TOKEN || github.token }}
 
-      # TEI validation shells out to uv.
       - uses: astral-sh/setup-uv@v6
 
       - uses: actions/setup-node@v4
@@ -59,8 +60,12 @@ jobs:
         run: pnpm exec playwright install --with-deps chromium
         working-directory: app
 
+      - name: Lint
+        run: pnpm run lint
+        working-directory: app
+
       - name: Check generated database types
-        run: pnpm run db:generate && pnpm run db:check
+        run: pnpm run db:check
         working-directory: app
 
       - name: Check app types
@@ -72,5 +77,42 @@ jobs:
         working-directory: app
 
       - name: Run Playwright scenarios
-        run: pnpm exec playwright test
+        run: pnpm run test:e2e
         working-directory: app
+
+  packages:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository and submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          token: ${{ secrets.DJAZZKIT_ACCESS_TOKEN || github.token }}
+
+      - uses: astral-sh/setup-uv@v6
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: TEI tests
+        run: pnpm --filter @apatosaurus/tei-transcription test
+
+      - name: TEI types
+        run: pnpm --filter @apatosaurus/tei-transcription typecheck
+
+      - name: Auth tests
+        run: pnpm --filter auth-worker test
+
+      - name: Auth types
+        run: pnpm --filter auth-worker typecheck
+
+      - name: CollateX tests
+        run: pnpm --filter collatex-tsport test

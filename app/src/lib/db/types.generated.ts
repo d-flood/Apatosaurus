@@ -1,7 +1,4 @@
 export interface Database {
-	cloud_connections: CloudConnections;
-	cloud_project_folders: CloudProjectFolders;
-	cloud_sync_metadata: CloudSyncMetadata;
 	collation_artifacts: CollationArtifacts;
 	collation_checkpoints: CollationCheckpoints;
 	collation_reading_witnesses: CollationReadingWitnesses;
@@ -21,39 +18,6 @@ export interface Database {
 	transcription_verse_index: TranscriptionVerseIndex;
 	transcription_verse_index_state: TranscriptionVerseIndexState;
 	transcriptions: Transcriptions;
-}
-
-export interface CloudConnections {
-	id: string | null;
-	provider_id: string;
-	provider_account_id: string;
-	account_email: string;
-	scopes: string;
-	connected_at: string;
-	updated_at: string;
-}
-
-export interface CloudProjectFolders {
-	project_id: string | null;
-	connection_id: string;
-	cloud_folder_id: string;
-	cloud_folder_path: string;
-	sync_cursor: string;
-	last_fully_synced_at: string | null;
-}
-
-export interface CloudSyncMetadata {
-	connection_id: string;
-	scope_type: string;
-	scope_id: string;
-	entity_type: string;
-	entity_id: string;
-	cloud_file_id: string;
-	cloud_file_revision: string;
-	cloud_path: string;
-	last_synced_revision: string;
-	last_synced_hash: string;
-	last_synced_at: string;
 }
 
 export interface CollationArtifacts {

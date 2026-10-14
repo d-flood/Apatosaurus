@@ -11,7 +11,7 @@ import {
 	upgradeSyncTargetsToPlacements,
 	upsertProjectPlacements,
 } from './project-locations';
-import { upsertSyncTarget } from './sync-targets';
+import { writeLegacySyncTargetsFile } from './sync-targets.spec-support';
 import type { ProjectLocation, StorageAccount } from './project-locations';
 
 describe('signing into a different account', () => {
@@ -96,13 +96,19 @@ describe('sync target upgrade', () => {
 		await folderProvider.createFile('.', 'transcriptions/pt-1.json', 'transcription');
 		const before = await folderSnapshot(folderProvider);
 		const handles = new Map<string, FakeDirectoryHandle>([['handle-1', oldFolder]]);
-		await upsertSyncTarget(
-			{
-				targetId: 'target-1',
-				projectId: 'project-1',
-				handleRef: 'handle-1',
-				folderDisplayPath: 'Old Project Folder',
-			},
+		await writeLegacySyncTargetsFile(
+			[
+				{
+					targetId: 'target-1',
+					projectId: 'project-1',
+					handleRef: 'handle-1',
+					folderDisplayPath: 'Old Project Folder',
+					enabled: true,
+					connectedAt: '2026-07-07T10:00:00.000Z',
+					updatedAt: '2026-07-07T10:00:00.000Z',
+					lastSyncedAt: null,
+				},
+			],
 			storeOptions
 		);
 		await upsertProjectPlacements(

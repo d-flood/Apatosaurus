@@ -1,23 +1,24 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-
-import { createLocalDbTestHarness, type LocalDbTestHarness } from '$lib/testing/local-db-harness';
 import {
 	createCollationWithFiles,
+	createTranscriptionWithFiles,
+	createLocalDbTestHarness,
+	type LocalDbTestHarness,
+} from '$lib/testing/local-db-harness';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+
+import {
 	loadCollationWithWorkingFile,
 	saveWorkingCollationMetadata,
 } from '$lib/db/repositories/collation-files';
 import { createProject as createProjectRepository } from '$lib/db/repositories/projects';
-import {
-	createTranscriptionWithFiles,
-	saveWorkingTranscriptionMetadata,
-} from '$lib/db/repositories/transcription-files';
+import { saveWorkingTranscriptionMetadata } from '$lib/db/repositories/transcription-files';
 import { MemoryStoreBackend } from '$lib/storage/memory-store-backend.spec-support';
 import {
 	listUserReferenceEditions,
 	loadUserReferenceEditionXml,
 	registerUserReferenceEdition,
 } from '$lib/reference-editions/user-reference-editions';
-import { InMemoryQuarantineReport } from '$lib/storage/quarantine';
+import { InMemoryQuarantineReport } from '$lib/storage/quarantine-report.spec-support';
 import { joinStorePath, projectFolder } from '$lib/storage/layout';
 import {
 	readTextFile,

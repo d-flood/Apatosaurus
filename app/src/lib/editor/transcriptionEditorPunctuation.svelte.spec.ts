@@ -2,7 +2,7 @@ import { userEvent } from '@vitest/browser/context';
 import { NodeSelection } from '@tiptap/pm/state';
 import { describe, expect, it } from 'vitest';
 
-import { exportTEI } from '$lib/tei/tei-exporter';
+import { exportTEIDocument } from '$lib/tei/tei-exporter';
 import {
 	fromProseMirror,
 	parseTei,
@@ -305,7 +305,7 @@ describe('typed punctuation from a mounted editor', () => {
 				'a1<span data-tei-attrs="{}" class="punctuation">.</span>'
 			);
 
-			expect(firstAbXml(exportTEI(editor.getJSON()))).toMatch(
+			expect(firstAbXml(exportTEIDocument(fromProseMirror(editor.getJSON())))).toMatch(
 				/^<w>a1<\/w><pc>\.<\/pc><lb\/><w>a2<\/w>/
 			);
 		} finally {

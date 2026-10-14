@@ -1,3 +1,9 @@
+import {
+	createCollationWithFiles,
+	createTranscriptionWithFiles,
+	createLocalDbTestHarness,
+	type LocalDbTestHarness,
+} from '$lib/testing/local-db-harness';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -5,10 +11,8 @@ import {
 	resetPersistenceRequestSessionForTests,
 	shouldShowDurabilityWarning,
 } from '$lib/shell/capabilities';
-import { createLocalDbTestHarness, type LocalDbTestHarness } from '$lib/testing/local-db-harness';
 import { createCollation, loadCollation } from '$lib/db/repositories/collations';
 import {
-	createCollationWithFiles,
 	createCommittedCollationCheckpointWithFiles,
 	loadCollationWithWorkingFile,
 	saveWorkingCollationArtifact,
@@ -18,7 +22,6 @@ import { createProject } from '$lib/db/repositories/projects';
 import { createTranscription, getTranscription } from '$lib/db/repositories/transcriptions';
 import {
 	createCommittedTranscriptionCheckpointWithFiles,
-	createTranscriptionWithFiles,
 	loadTranscriptionWithWorkingFile,
 	saveWorkingTranscriptionContent,
 } from '$lib/db/repositories/transcription-files';

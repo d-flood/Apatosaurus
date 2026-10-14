@@ -51,8 +51,7 @@ import { writeProjectManifestFile } from './project-files';
 import { withProjectWriteLock } from './project-locks';
 import {
 	createCollation,
-	getCollationVersionStatus,
-	loadCollation,
+	getCollationWitnessSourceStatuses,
 	saveCollationProjection,
 	updateCollationMetadata,
 	type CreateCollationInput,
@@ -64,6 +63,7 @@ import {
 	type UpdateCollationMetadataInput,
 } from './collations';
 import {
+	getCollationCommittedHead,
 	recordCommittedCollationCheckpoint,
 	loadSerializedCollation,
 	nextCollationVersionLabel,
@@ -85,10 +85,6 @@ interface CollationFileContext {
 	conflictOfCollationId: string;
 	createdAt: string;
 	updatedAt: string;
-}
-
-interface FileBackedCollationLoadOptions extends StoreOperationOptions {
-	allowIndexFallback?: boolean;
 }
 
 export async function saveWorkingCollationArtifact(
@@ -144,14 +140,6 @@ export async function saveWorkingCollationMetadata(
 		storeOptions
 	);
 	await updateCollationMetadata(db, input);
-}
-
-export async function createCollationWithFiles(
-	db: Kysely<Database>,
-	input: CreateCollationInput,
-	storeOptions: StoreOperationOptions = {}
-): Promise<string> {
-	return (await createCollationWithFilesResult(db, input, storeOptions)).value;
 }
 
 export async function createCollationWithFilesResult(
@@ -449,15 +437,18 @@ export async function updateCollationVersionNote(
 export async function loadCollationWithWorkingFile(
 	db: Kysely<Database>,
 	collationId: string,
-	storeOptions: FileBackedCollationLoadOptions = {}
+	storeOptions: StoreOperationOptions = {}
 ): Promise<LoadedCollation | null> {
-	const loaded = await loadCollation(db, collationId);
-	if (!loaded) return null;
+	const row = await db
+		.selectFrom('collations')
+		.select('id')
+		.where('id', '=', collationId)
+		.executeTakeFirst();
+	if (!row) return null;
 	const context = await loadCollationFileContext(db, collationId);
 	const primaryPayload = await tryReadPrimaryCollationPayload(context, storeOptions);
 	if (primaryPayload) return loadedCollationFromPrimaryPayload(primaryPayload);
-	if (storeOptions.allowIndexFallback === false) return null;
-	return loaded;
+	return null;
 }
 
 export async function loadCommittedCollationPayloadWithFiles(
@@ -476,23 +467,45 @@ export async function getCollationVersionStatusWithWorkingFile(
 	db: Kysely<Database>,
 	collationId: string,
 	options: CollationVersionStatusOptions = {},
-	storeOptions: FileBackedCollationLoadOptions = {}
+	storeOptions: StoreOperationOptions = {}
 ): Promise<CollationVersionStatus> {
-	const base = await getCollationVersionStatus(db, collationId, options);
+	const row = await db
+		.selectFrom('collations')
+		.innerJoin('projects', 'projects.id', 'collations.project_id')
+		.select([
+			'collations.id as id',
+			'collations.project_id as project_id',
+			'projects.name as project_name',
+			'collations.title as title',
+			'collations.verse_identifier as verse_identifier',
+			'collations.status as status',
+		])
+		.where('collations.id', '=', collationId)
+		.executeTakeFirst();
+	if (!row) throw new Error(`Collation ${collationId} was not found.`);
 	const context = await loadCollationFileContext(db, collationId);
 	const primaryPayload = await tryReadPrimaryCollationPayload(context, storeOptions);
-	if (primaryPayload) {
-		return collationVersionStatusFromSerialized(db, base, primaryPayload, options);
-	}
-	if (storeOptions.allowIndexFallback === false) {
+	if (!primaryPayload)
 		throw new Error(`Canonical collation file for ${collationId} was not found.`);
-	}
-	return base;
+	const base = {
+		projectId: row.project_id,
+		projectName: row.project_name,
+		collationId,
+		title: row.title,
+		verseIdentifier: row.verse_identifier,
+		workflowStatus: row.status,
+		currentCheckpoint: await getCollationCommittedHead(db, collationId),
+		witnesses: await getCollationWitnessSourceStatuses(db, collationId),
+	};
+	return collationVersionStatusFromSerialized(db, base, primaryPayload, options);
 }
 
 async function collationVersionStatusFromSerialized(
 	db: Kysely<Database>,
-	base: CollationVersionStatus,
+	base: Omit<
+		CollationVersionStatus,
+		'workingContentHash' | 'dirtyToCheckpoint' | 'commitState' | 'cloudBackupState'
+	>,
 	payload: CollationPayload,
 	options: CollationVersionStatusOptions
 ): Promise<CollationVersionStatus> {
@@ -506,15 +519,13 @@ async function collationVersionStatusFromSerialized(
 			? 'dirty'
 			: 'clean'
 		: 'never-committed';
-	const cloudBackupState = options.syncContext
-		? await deriveEntityCloudBackupState(
-				db,
-				options.syncContext,
-				{ entityType: 'collation', entityId: content.id },
-				base.currentCheckpoint,
-				dirtyToCheckpoint
-			)
-		: base.cloudBackupState;
+	const cloudBackupState = await deriveEntityCloudBackupState(
+		db,
+		options.syncContext,
+		{ entityType: 'collation', entityId: content.id },
+		base.currentCheckpoint,
+		dirtyToCheckpoint
+	);
 
 	return {
 		...base,
@@ -529,7 +540,7 @@ export async function listProjectCollationVersionStatusesWithWorkingFiles(
 	db: Kysely<Database>,
 	projectId: string,
 	options: CollationVersionStatusOptions = {},
-	storeOptions: FileBackedCollationLoadOptions = {}
+	storeOptions: StoreOperationOptions = {}
 ): Promise<CollationVersionStatus[]> {
 	const rows = await db
 		.selectFrom('collations')
@@ -711,7 +722,7 @@ async function tryReadWorkingCollationPayload(
 	} catch (error) {
 		if (!isMissingFileError(error)) {
 			recordStoreQuarantine(storeOptions.quarantineSink, path, quarantineFromError(error));
-			console.warn('[document-store] Falling back to collation index cache.', {
+			console.warn('[document-store] Could not read canonical collation content.', {
 				path,
 				error: errorMessage(error),
 			});
@@ -759,7 +770,7 @@ async function tryReadPrimaryCollationPayload(
 		raw = await readTextFile(path, storeOptions);
 	} catch (error) {
 		recordStoreQuarantine(storeOptions.quarantineSink, path, quarantineFromError(error));
-		console.warn('[document-store] Falling back to collation index cache.', {
+		console.warn('[document-store] Could not read canonical collation content.', {
 			path,
 			error: errorMessage(error),
 		});

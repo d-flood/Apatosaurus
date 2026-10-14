@@ -9,7 +9,6 @@ import {
 	deleteTranscription,
 	getTranscription,
 	getTranscriptionSummary,
-	getTranscriptionVersionsByIds,
 	getTranscriptionsByIds,
 	getVerseIndexRowsForVerse,
 	listVerseIndexRowsForTranscription,
@@ -212,7 +211,7 @@ describe('transcriptions repository', () => {
 		expect(rows.map(row => row.id)).toEqual(['tx-3', 'tx-1']);
 	});
 
-	it('loads metadata-only transcription summaries and versions', async () => {
+	it('loads metadata-only transcription summaries', async () => {
 		await createTranscriptions(harness.db, [
 			baseInput('tx-1', '01'),
 			baseInput('tx-2', '02'),
@@ -220,17 +219,9 @@ describe('transcriptions repository', () => {
 		]);
 
 		const summary = await getTranscriptionSummary(harness.db, 'tx-1');
-		const versions = await getTranscriptionVersionsByIds(harness.db, [
-			'tx-3',
-			'tx-1',
-			'tx-missing',
-		]);
 
 		expect(summary).toMatchObject({ id: 'tx-1', siglum: '01' });
 		expect(summary).not.toHaveProperty('content_json');
-		expect(versions.map(row => row.id)).toEqual(['tx-3', 'tx-1']);
-		expect(versions[0]).toEqual({ id: 'tx-3', updated_at: expect.any(String) });
-		expect(versions[0]).not.toHaveProperty('content_json');
 	});
 
 	it('lists project-owned transcriptions and project copies', async () => {
@@ -256,13 +247,11 @@ describe('transcriptions repository', () => {
 		const summaries = await listTranscriptionSummaries(harness.db);
 		const snapshotSummary = await getTranscriptionSummary(harness.db, snapshotId);
 		const loadedByIds = await getTranscriptionsByIds(harness.db, [snapshotId, 'tx-1']);
-		const versions = await getTranscriptionVersionsByIds(harness.db, [snapshotId]);
 		const snapshot = await getTranscription(harness.db, snapshotId);
 
 		expect(summaries.map(row => row.id)).toEqual([snapshotId, 'tx-1']);
 		expect(snapshotSummary).toMatchObject({ id: snapshotId, siglum: '01' });
 		expect(loadedByIds.map(row => row.id)).toEqual([snapshotId, 'tx-1']);
-		expect(versions.map(row => row.id)).toEqual([snapshotId]);
 		expect(snapshot).toMatchObject({
 			id: snapshotId,
 			project_id: 'project-1',

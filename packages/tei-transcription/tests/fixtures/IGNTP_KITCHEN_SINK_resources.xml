@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0">
+  <teiHeader>
+    <fileDesc>
+      <titleStmt><title type="document">IGNTP resources fixture</title></titleStmt>
+      <publicationStmt>
+        <publisher>IGNTP</publisher>
+        <date>2026</date>
+        <availability><p>Test fixture.</p></availability>
+      </publicationStmt>
+      <sourceDesc>
+        <msDesc>
+          <msIdentifier>
+            <country>United Kingdom</country>
+            <settlement>Birmingham</settlement>
+            <repository>University of Birmingham</repository>
+            <idno>IGNTP-RESOURCES</idno>
+          </msIdentifier>
+        </msDesc>
+      </sourceDesc>
+    </fileDesc>
+  </teiHeader>
+  <facsimile xml:id="facsimile-resources">
+    <media url="https://example.org/igntp/P1r.jpg" mimeType="image/jpeg"/>
+  </facsimile>
+  <sourceDoc xml:id="source-doc-resources">
+    <media url="https://example.org/igntp/source-P1r.jpg" mimeType="image/jpeg"/>
+  </sourceDoc>
+  <standOff xml:id="stand-off-resources">
+    <bibl xml:id="resource-note">Resource note <ptr target="#word-resources"/></bibl>
+  </standOff>
+  <text xml:lang="grc">
+    <body>
+      <pb n="1r" type="folio" xml:id="P1r-resources"/>
+      <cb n="P1rC1-resources"/>
+      <lb n="P1rC1L-resources"/>
+      <div type="book" n="Rom">
+        <div type="chapter" n="Rom.1">
+          <ab n="Rom.1.1"><w xml:id="word-resources">ευαγγελιον</w></ab>
+        </div>
+      </div>
+    </body>
+  </text>
+</TEI>

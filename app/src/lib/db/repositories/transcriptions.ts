@@ -22,11 +22,6 @@ export type TranscriptionSummary = Omit<
 	'id'
 > & { id: string };
 
-export type TranscriptionVersion = Omit<
-	Pick<Selectable<Transcriptions>, 'id' | 'updated_at'>,
-	'id'
-> & { id: string };
-
 export type TranscriptionRecord = Omit<Selectable<Transcriptions>, 'is_public' | 'tags'> & {
 	id: string;
 	is_public: boolean;
@@ -140,26 +135,6 @@ export async function getTranscriptionSummary(
 		.where('id', '=', id)
 		.executeTakeFirst();
 	return row ? { ...row, id: requireId(row.id, 'transcription') } : null;
-}
-
-export async function getTranscriptionVersionsByIds(
-	db: DbExecutor,
-	ids: string[]
-): Promise<TranscriptionVersion[]> {
-	const uniqueIds = uniqueNonEmpty(ids);
-	if (uniqueIds.length === 0) return [];
-	const rows = await db
-		.selectFrom('transcriptions')
-		.select(['id', 'updated_at'])
-		.where('id', 'in', uniqueIds)
-		.execute();
-	const byId = new Map(
-		rows.map(row => [row.id, { ...row, id: requireId(row.id, 'transcription') }])
-	);
-	return uniqueIds.flatMap(id => {
-		const row = byId.get(id);
-		return row ? [row] : [];
-	});
 }
 
 export async function getTranscription(

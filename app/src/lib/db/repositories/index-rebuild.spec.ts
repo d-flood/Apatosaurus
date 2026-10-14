@@ -1,3 +1,8 @@
+import {
+	createCollationWithFiles,
+	createLocalDbTestHarness,
+	type LocalDbTestHarness,
+} from '$lib/testing/local-db-harness';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import type { StoredTranscriptionDocument } from '$lib/transcription/content';
@@ -29,9 +34,7 @@ import {
 } from '$lib/storage/formats';
 import { hashCanonicalPayload } from '$lib/storage/canonical-json';
 
-import { createLocalDbTestHarness, type LocalDbTestHarness } from '$lib/testing/local-db-harness';
 import {
-	createCollationWithFiles,
 	loadCollationWithWorkingFile,
 	saveWorkingCollationArtifact,
 	saveWorkingCollationMetadata,

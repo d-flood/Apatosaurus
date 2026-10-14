@@ -1,8 +1,11 @@
+import {
+	createTranscriptionWithFiles,
+	createLocalDbTestHarness,
+	type LocalDbTestHarness,
+} from '$lib/testing/local-db-harness';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { createLocalDbTestHarness, type LocalDbTestHarness } from '$lib/testing/local-db-harness';
 import { createProject } from '$lib/db/repositories/projects';
-import { createTranscriptionWithFiles } from '$lib/db/repositories/transcription-files';
 import { MemoryStoreBackend } from '$lib/storage/memory-store-backend.spec-support';
 import {
 	listProjectPlacements,

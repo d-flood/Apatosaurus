@@ -1,11 +1,14 @@
+import {
+	createTranscriptionWithFiles,
+	createLocalDbTestHarness,
+	type LocalDbTestHarness,
+} from '$lib/testing/local-db-harness';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createLocalDbTestHarness, type LocalDbTestHarness } from '$lib/testing/local-db-harness';
 import {
 	createProject as createProjectRepository,
 	getProject,
 } from '$lib/db/repositories/projects';
-import { createTranscriptionWithFiles } from '$lib/db/repositories/transcription-files';
 import { MemoryStoreBackend } from '$lib/storage/memory-store-backend.spec-support';
 import {
 	COLLATION_CHECKPOINT_CURRENT_VERSION,

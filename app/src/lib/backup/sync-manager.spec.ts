@@ -1,7 +1,11 @@
+import {
+	createTranscriptionWithFiles,
+	createLocalDbTestHarness,
+	type LocalDbTestHarness,
+} from '$lib/testing/local-db-harness';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { StoredTranscriptionDocument } from '$lib/transcription/content';
-import { createLocalDbTestHarness, type LocalDbTestHarness } from '$lib/testing/local-db-harness';
 import { createCollation, updateCollationMetadata } from '$lib/db/repositories/collations';
 import { createProject as createProjectRepository } from '$lib/db/repositories/projects';
 import { listCollationVersions, type CollationCheckpoint } from '$lib/db/repositories/revisions';
@@ -14,7 +18,6 @@ import {
 import { createTranscription } from '$lib/db/repositories/transcriptions';
 import {
 	createCommittedTranscriptionCheckpointWithFiles,
-	createTranscriptionWithFiles,
 	loadTranscriptionWithWorkingFile,
 	saveWorkingTranscriptionContent,
 } from '$lib/db/repositories/transcription-files';
@@ -29,16 +32,11 @@ import {
 	collationCheckpointFile,
 	joinStorePath,
 	projectFolder,
+	projectManifestFile,
 	transcriptionPrimaryFile,
 } from '$lib/storage/layout';
 import { sealDocument, serializeSealedDocument } from '$lib/storage/envelope';
 import { TOMBSTONE_CURRENT_VERSION, TOMBSTONE_FORMAT } from '$lib/storage/formats';
-import {
-	serializeCloudFile,
-	serializeCollationCloudFile,
-	serializeCollationHistoryCloudFile,
-	serializeProjectCloudFile,
-} from './cloud-files';
 import { MockCloudStorageProvider, type MockProviderOperation } from './providers/mock-provider';
 import { FakeDirectoryHandle } from './providers/fake-file-system-access.spec-support';
 import { LocalFolderStorageProvider } from './providers/local-folder-provider';
@@ -2035,43 +2033,32 @@ async function pushRemoteCollationRevision(
 			remoteStoreOptions
 		);
 		const historyPath = `history/collations/${collationId}/${checkpointId}.json`;
-		const history = await serializeCollationHistoryCloudFile(
-			remoteHarness.db,
-			collationId,
-			checkpointId,
+		const remoteProject = await remoteHarness.db
+			.selectFrom('projects')
+			.select('storage_slug')
+			.where('id', '=', 'project-1')
+			.executeTakeFirstOrThrow();
+		const history = await readTextFile(
+			collationCheckpointFile(remoteProject.storage_slug, collationId, checkpointId),
 			remoteStoreOptions
 		);
-		await provider.createFile(
-			context.cloudFolderId,
-			historyPath,
-			await serializeCloudFile(history)
-		);
+		await provider.createFile(context.cloudFolderId, historyPath, history);
 		const primary = await remoteFile(provider, context, `collations/${collationId}.json`);
 		if (!primary) throw new Error('Expected remote primary file.');
-		const remotePrimary = await serializeCollationCloudFile(
-			remoteHarness.db,
-			collationId,
+		const remotePrimary = await readTextFile(
+			collationPrimaryFile(remoteProject.storage_slug, collationId),
 			remoteStoreOptions
 		);
-		await provider.updateFile(
-			primary.id,
-			await serializeCloudFile(remotePrimary),
-			primary.revision
-		);
+		await provider.updateFile(primary.id, remotePrimary, primary.revision);
 		const manifest = await remoteFile(provider, context, 'project.json');
-		const remoteManifest = await serializeProjectCloudFile(remoteHarness.db, 'project-1');
+		const remoteManifest = await readTextFile(
+			projectManifestFile(remoteProject.storage_slug),
+			remoteStoreOptions
+		);
 		if (manifest) {
-			await provider.updateFile(
-				manifest.id,
-				await serializeCloudFile(remoteManifest),
-				manifest.revision
-			);
+			await provider.updateFile(manifest.id, remoteManifest, manifest.revision);
 		} else {
-			await provider.createFile(
-				context.cloudFolderId,
-				'project.json',
-				await serializeCloudFile(remoteManifest)
-			);
+			await provider.createFile(context.cloudFolderId, 'project.json', remoteManifest);
 		}
 	} finally {
 		await remoteHarness.destroy();

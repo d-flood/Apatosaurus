@@ -4,14 +4,9 @@ import type { Collations, Database } from '../types.generated';
 import type { CollationSegment } from '$lib/collation/collation-document';
 import { witnessSourceColumns } from '$lib/collation/collation-projection';
 import type { WitnessSource } from '$lib/collation/collation-types';
-import {
-	deriveEntityCloudBackupState,
-	type EntityCloudBackupState,
-	type SyncProjectContext,
-} from '$lib/backup/backup-status';
+import { type EntityCloudBackupState, type SyncProjectContext } from '$lib/backup/backup-status';
 import {
 	deriveSourceFreshness,
-	getCollationCheckpointStatus,
 	loadTranscriptionSourceState,
 	type EntityCheckpointHead,
 	type EntityCommitState,
@@ -167,67 +162,6 @@ export async function listCollationsWithProjectNames(db: DbExecutor): Promise<Co
 		status: row.status,
 		updatedAt: row.updated_at,
 	}));
-}
-
-export async function listProjectCollationVersionStatuses(
-	db: DbExecutor,
-	projectId: string,
-	options: CollationVersionStatusOptions = {}
-): Promise<CollationVersionStatus[]> {
-	const rows = await db
-		.selectFrom('collations')
-		.select('id')
-		.where('project_id', '=', projectId)
-		.orderBy('updated_at', 'desc')
-		.execute();
-	return Promise.all(
-		rows.map(row => getCollationVersionStatus(db, requireId(row.id, 'collation'), options))
-	);
-}
-
-export async function getCollationVersionStatus(
-	db: DbExecutor,
-	collationId: string,
-	options: CollationVersionStatusOptions = {}
-): Promise<CollationVersionStatus> {
-	const row = await db
-		.selectFrom('collations')
-		.innerJoin('projects', 'projects.id', 'collations.project_id')
-		.select([
-			'collations.id as id',
-			'collations.project_id as project_id',
-			'projects.name as project_name',
-			'collations.title as title',
-			'collations.verse_identifier as verse_identifier',
-			'collations.status as status',
-		])
-		.where('collations.id', '=', collationId)
-		.executeTakeFirst();
-	if (!row) throw new Error(`Collation ${collationId} was not found.`);
-
-	const id = requireId(row.id, 'collation');
-	const checkpointStatus = await getCollationCheckpointStatus(db, id);
-	const cloudBackupState = await deriveEntityCloudBackupState(
-		db,
-		options.syncContext,
-		{ entityType: 'collation', entityId: id },
-		checkpointStatus.currentCheckpoint,
-		checkpointStatus.dirtyToCheckpoint
-	);
-	return {
-		projectId: row.project_id,
-		projectName: row.project_name,
-		collationId: id,
-		title: row.title,
-		verseIdentifier: row.verse_identifier,
-		workflowStatus: row.status,
-		currentCheckpoint: checkpointStatus.currentCheckpoint,
-		workingContentHash: checkpointStatus.workingContentHash,
-		dirtyToCheckpoint: checkpointStatus.dirtyToCheckpoint,
-		commitState: checkpointStatus.commitState,
-		witnesses: await getCollationWitnessSourceStatuses(db, id),
-		cloudBackupState,
-	};
 }
 
 export async function deleteCollation(db: DbExecutor, collationId: string): Promise<void> {
@@ -459,7 +393,7 @@ interface CollationWitnessSourceStatusQueryRow {
 	source_captured_at: string;
 }
 
-async function getCollationWitnessSourceStatuses(
+export async function getCollationWitnessSourceStatuses(
 	db: DbExecutor,
 	collationId: string
 ): Promise<CollationWitnessSourceStatus[]> {

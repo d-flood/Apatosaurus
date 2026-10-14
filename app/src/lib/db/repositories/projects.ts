@@ -134,7 +134,6 @@ export interface ProjectTranscriptionStatus {
 
 export interface ProjectTranscriptionStatusOptions {
 	syncContext?: SyncProjectContext | null;
-	requireFileBackedContent?: boolean;
 	storeOptions?: StoreOperationOptions;
 }
 
@@ -145,7 +144,6 @@ export interface ProjectDocumentTitle {
 }
 
 interface ProjectContentLoadOptions {
-	requireFileBackedContent?: boolean;
 	storeOptions?: StoreOperationOptions;
 }
 
@@ -627,18 +625,6 @@ export async function getProjectTranscriptionStatusForOwnedTranscription(
 	return mapProjectTranscriptionStatus(db, row, options);
 }
 
-export async function loadTranscriptionContent(
-	db: DbExecutor,
-	transcriptionId: string
-): Promise<string | null> {
-	const row = await db
-		.selectFrom('transcriptions')
-		.select('content_json')
-		.where('transcriptions.id', '=', transcriptionId)
-		.executeTakeFirst();
-	return row?.content_json ?? null;
-}
-
 export async function getProjectTranscriptionIds(
 	db: DbExecutor,
 	projectId: string
@@ -801,7 +787,7 @@ async function loadSourceContent(
 	const snapshot: ProjectTranscriptionSnapshot = await loadProjectTranscriptionSnapshotWithFiles(
 		db,
 		sourceLink.id,
-		fileBackedLoadOptions(options)
+		options.storeOptions
 	);
 	return {
 		payload: snapshot,
@@ -835,7 +821,7 @@ export async function refreshProjectTranscription(
 	const targetCheckpointStatus = await getProjectTranscriptionCheckpointStatusWithFiles(
 		db,
 		input.projectTranscriptionId,
-		fileBackedLoadOptions(options)
+		options.storeOptions
 	);
 	if (targetCheckpointStatus.dirtyToCheckpoint && !input.allowReplaceDirty) {
 		throw new RefreshDirtyProjectTranscriptionError(input.projectTranscriptionId);
@@ -1431,17 +1417,6 @@ export async function listProjectTranscriptionSourceCandidates(
 	return candidates;
 }
 
-function fileBackedLoadOptions(options: ProjectContentLoadOptions): {
-	allowIndexFallback: boolean;
-	backend?: StoreOperationOptions['backend'];
-	nonce?: StoreOperationOptions['nonce'];
-} {
-	return {
-		...options.storeOptions,
-		allowIndexFallback: options.requireFileBackedContent !== true,
-	};
-}
-
 interface ProjectTranscriptionStatusQueryRow {
 	project_transcription_id: string | null;
 	project_id: string;
@@ -1475,7 +1450,7 @@ async function mapProjectTranscriptionStatus(
 	const checkpointStatus = await getProjectTranscriptionCheckpointStatusWithFiles(
 		db,
 		projectTranscriptionId,
-		fileBackedLoadOptions(options)
+		options.storeOptions
 	);
 	const canonicalSource = row.canonical_transcription_id
 		? await loadTranscriptionSourceSummary(db, row.canonical_transcription_id, options)
@@ -1559,7 +1534,7 @@ async function loadTranscriptionSourceSummary(
 						await getProjectTranscriptionCheckpointStatusWithFiles(
 							db,
 							row.project_transcription_id,
-							fileBackedLoadOptions(options)
+							options.storeOptions
 						)
 					).workingContentHash,
 					versions: await listTranscriptionVersions(db, sourceId),

@@ -45,7 +45,6 @@ vi.mock('$lib/shell/capabilities', () => ({
 		if (value === 44 * 1024 * 1024) return '44 MB';
 		return 'Unavailable';
 	}),
-	getInstallCapabilityReport: vi.fn(() => ({ isInstalled: false, installSupported: false })),
 	getStorageEstimate: mocks.getStorageEstimate,
 	isLocalFolderProviderSupported: vi.fn(() => false),
 	isOpfsSupported: vi.fn(() => true),

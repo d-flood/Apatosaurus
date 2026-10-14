@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0">
+  <teiHeader>
+    <fileDesc>
+      <titleStmt>
+        <title type="document" n="editorial">IGNTP editorial fixture</title>
+        <respStmt>
+          <resp>Transcribed by</resp>
+          <name type="person">INTF</name>
+        </respStmt>
+      </titleStmt>
+      <publicationStmt>
+        <publisher>IGNTP</publisher>
+        <date>2026</date>
+        <availability><p>Test fixture.</p></availability>
+      </publicationStmt>
+      <sourceDesc>
+        <msDesc>
+          <msIdentifier>
+            <country>United Kingdom</country>
+            <settlement>Birmingham</settlement>
+            <repository>University of Birmingham</repository>
+            <idno>IGNTP-EDITORIAL</idno>
+          </msIdentifier>
+        </msDesc>
+      </sourceDesc>
+    </fileDesc>
+    <profileDesc>
+      <langUsage><language ident="grc"/></langUsage>
+      <handNotes>
+        <handNote>
+          <listWit>
+            <witness xml:id="firsthand"/>
+            <witness xml:id="corrector"/>
+          </listWit>
+        </handNote>
+      </handNotes>
+    </profileDesc>
+    <encodingDesc n="1.6">
+      <projectDesc><p>IGNTP editorial fixture.</p></projectDesc>
+      <variantEncoding method="parallel-segmentation" location="internal"/>
+    </encodingDesc>
+  </teiHeader>
+  <text xml:lang="grc">
+    <front><p xml:id="editorial-front">Front matter retained as a generic TEI tree.</p></front>
+    <body>
+      <pb n="1r" type="folio" xml:id="P1r-editorial"/>
+      <cb n="P1rC1-editorial"/>
+      <lb n="P1rC1L-editorial"/>
+      <div type="book" n="Rom">
+        <div type="chapter" n="Rom.3">
+          <ab n="Rom.3.24" xml:id="ab-editorial">
+            <title type="rubric">Romans</title>
+            <handShift new="#corrector"/>
+            <metamark function="addition" target="#word-editorial"/>
+            <w xml:id="word-editorial">δικαιοσυνη</w>
+            <milestone unit="frameRegion" n="top" xml:id="frame-region-editorial"/>
+            <app xml:id="app-editorial">
+              <rdg type="orig" hand="firsthand"><w>δικαιουμαινοι</w></rdg>
+              <rdg type="corr" hand="corrector" rend="erased">
+                <seg type="line" subtype="above" n="@P1rC1L-editorial"><w>δικαιουμενοι</w></seg>
+              </rdg>
+            </app>
+            <note type="editorial"><p>Editorial note retained inside the note tree.</p></note>
+            <w><abbr type="nomSac"><hi rend="overline">θυ</hi></abbr></w>
+          </ab>
+        </div>
+      </div>
+    </body>
+  </text>
+</TEI>

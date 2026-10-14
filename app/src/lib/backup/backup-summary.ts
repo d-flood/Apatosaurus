@@ -72,15 +72,7 @@ export async function loadLocalEntity(
 		primaryPath: primaryPathFor(reference.entityType, reference.entityId),
 		head,
 		dirty: (
-			await getCollationVersionStatusWithWorkingFile(
-				db,
-				reference.entityId,
-				{},
-				{
-					...storeOptions,
-					allowIndexFallback: false,
-				}
-			)
+			await getCollationVersionStatusWithWorkingFile(db, reference.entityId, {}, storeOptions)
 		).dirtyToCheckpoint,
 		hasCommittedHead: hasHead(head),
 	};

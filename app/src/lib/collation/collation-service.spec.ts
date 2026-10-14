@@ -58,7 +58,9 @@ describe('makeCloneableCollationRunPayload', () => {
 			options: { segmentation: true },
 		});
 
-		expect(payload).toEqual({
+		expect(() => structuredClone(payload)).not.toThrow();
+		expect(payload.witnesses[0].tokens?.[0].gap).not.toHaveProperty('debugOnly');
+		expect(payload).toMatchObject({
 			witnesses: [
 				{
 					id: 'A',
@@ -70,39 +72,20 @@ describe('makeCloneableCollationRunPayload', () => {
 							sourceTokenIds: ['w1::1'],
 							kind: 'gap',
 							displayRegularized: 'alpha',
+							gap: { source: 'gap', reason: 'lacuna', unit: 'chars', extent: '3' },
+							ruleIds: ['rule-1'],
+							regularizationTypes: ['ns'],
 							originalSegments: [
-								{
-									text: 'al',
-									hasUnclear: false,
-									isPunctuation: false,
-									isSupplied: false,
-								},
-								{
-									text: 'pha',
-									hasUnclear: true,
-									isPunctuation: false,
-									isSupplied: false,
-								},
+								{ text: 'al', hasUnclear: false },
+								{ text: 'pha', hasUnclear: true },
 							],
-							gap: {
-								source: 'gap',
-								reason: 'lacuna',
-								unit: 'chars',
-								extent: '3',
-							},
 							hasUnclear: true,
 							isPunctuation: false,
 							isSupplied: false,
-							ruleIds: ['rule-1'],
-							regularizationTypes: ['ns'],
 						},
 					],
 				},
-				{
-					id: 'B',
-					content: 'beta',
-					tokens: undefined,
-				},
+				{ id: 'B', content: 'beta' },
 			],
 			options: { segmentation: true },
 		});

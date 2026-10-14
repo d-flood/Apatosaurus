@@ -21,7 +21,6 @@ import {
 	describeMetamarkTarget,
 	getCurrentMilestoneValues,
 	getMetamarkInsertContext,
-	insertContentNode,
 	insertMetamarkForSelection,
 	insertMilestoneNode,
 	insertSelectableCarrierNode,
@@ -105,16 +104,6 @@ function firstNodeOfType(editor: any, typeName: string): { node: any; pos: numbe
 	});
 	if (!found) throw new Error(`no ${typeName} node`);
 	return found;
-}
-
-function documentText(editor: any): string[] {
-	const lines: string[] = [];
-	editor.state.doc.descendants((node: any) => {
-		if (node.type.name !== 'line') return true;
-		lines.push(node.textContent);
-		return false;
-	});
-	return lines;
 }
 
 describe('editorCommands pure builders', () => {
@@ -227,38 +216,6 @@ describe('editorCommands against a multi-page fixture', () => {
 			expect(marked).toEqual([]);
 
 			expect(toggleEditorMark(null, 'lacunose')).toBe(false);
-		} finally {
-			editor.destroy();
-		}
-	});
-
-	it('insertContentNode inserts at the caret without disturbing other lines', () => {
-		const editor = createTestEditor({ content: EDITOR_COMMAND_FIXTURE });
-		try {
-			caretAfter(editor, 'b2');
-			expect(insertContentNode(editor, 'gap', buildGapAttrs('illegible', 'chars', '3'))).toBe(
-				true
-			);
-			expect(countNodes(editor, 'gap')).toBe(1);
-			expect(documentText(editor)).toEqual([
-				'alpha',
-				'beta',
-				'gamma',
-				'delta',
-				'b1',
-				'b2',
-				'b3',
-				'b4',
-				'c1',
-				'c2',
-				'c3',
-				'c4',
-				'd1',
-				'd2',
-				'd3',
-				'd4',
-			]);
-			expect(insertContentNode(null, 'gap', {})).toBe(false);
 		} finally {
 			editor.destroy();
 		}

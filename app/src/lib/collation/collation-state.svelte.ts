@@ -1,3 +1,4 @@
+import { COLLATION_PHASES } from './collation-types';
 import {
 	createCollation,
 	createProject as createLocalProject,
@@ -142,14 +143,6 @@ import {
 	withReadingText,
 } from './reading-edits';
 
-const PHASE_ORDER: CollationPhase[] = [
-	'setup',
-	'regularization',
-	'alignment',
-	'readings',
-	'stemma',
-	'review',
-];
 export type { CollationPhase, WitnessConfig, WitnessTreatment };
 
 interface ReadingFamilyView {
@@ -249,10 +242,6 @@ function createCollationState() {
 	let commandHistory = $state.raw<CommandEntry[]>([]);
 	let commandIndex = $state(-1);
 
-	function normalizeLegacyPhase(p: CollationPhase): CollationPhase {
-		return p === 'regularization' ? 'alignment' : p;
-	}
-
 	function segmentMember(): string {
 		return segment?.members[0] ?? '';
 	}
@@ -261,8 +250,8 @@ function createCollationState() {
 		const document = parseCollationDocument(rawDocument);
 		if (!document) throw new Error('Invalid collation document artifact.');
 		const hydrated = hydrateCollationDocument(document);
-		phase = normalizeLegacyPhase(hydrated.phase);
-		furthestPhase = normalizeLegacyPhase(hydrated.furthestPhase);
+		phase = hydrated.phase;
+		furthestPhase = hydrated.furthestPhase;
 		segment = hydrated.segment;
 		orphanedMembers = [];
 		selectedVerse = null;
@@ -445,21 +434,20 @@ function createCollationState() {
 	}
 
 	function setPhase(p: CollationPhase) {
-		const normalized = normalizeLegacyPhase(p);
-		phase = normalized;
-		advanceFurthest(normalized);
+		phase = p;
+		advanceFurthest(p);
 		markUnsaved();
 	}
 
 	function advanceFurthest(p: CollationPhase) {
-		if (PHASE_ORDER.indexOf(p) > PHASE_ORDER.indexOf(furthestPhase)) {
+		if (COLLATION_PHASES.indexOf(p) > COLLATION_PHASES.indexOf(furthestPhase)) {
 			furthestPhase = p;
 		}
 	}
 
 	function canNavigateTo(targetPhase: CollationPhase): boolean {
 		if (targetPhase === 'review') return alignmentColumns.length > 0;
-		return PHASE_ORDER.indexOf(targetPhase) <= PHASE_ORDER.indexOf(furthestPhase);
+		return COLLATION_PHASES.indexOf(targetPhase) <= COLLATION_PHASES.indexOf(furthestPhase);
 	}
 
 	function canAdvance(): boolean {
@@ -470,7 +458,6 @@ function createCollationState() {
 				witnesses.some(w => !w.isExcluded)
 			);
 		}
-		if (phase === 'regularization') return witnesses.some(w => !w.isExcluded);
 		if (phase === 'alignment') return alignmentColumns.length > 0;
 		if (phase === 'readings') return alignmentColumns.length > 0;
 		if (phase === 'stemma') return alignmentColumns.length > 0;
@@ -478,19 +465,12 @@ function createCollationState() {
 	}
 
 	function nextPhase() {
-		const idx = PHASE_ORDER.indexOf(phase);
-		if (idx < PHASE_ORDER.length - 1 && canAdvance()) {
-			const next = PHASE_ORDER[idx + 1];
+		const idx = COLLATION_PHASES.indexOf(phase);
+		if (idx < COLLATION_PHASES.length - 1 && canAdvance()) {
+			const next = COLLATION_PHASES[idx + 1];
 			phase = next;
 			advanceFurthest(next);
 			markUnsaved();
-		}
-	}
-
-	function prevPhase() {
-		const idx = PHASE_ORDER.indexOf(phase);
-		if (idx > 0) {
-			phase = PHASE_ORDER[idx - 1];
 		}
 	}
 
@@ -2697,7 +2677,6 @@ function createCollationState() {
 		canNavigateTo,
 		setPhase,
 		nextPhase,
-		prevPhase,
 		selectProject,
 		clearProjectSelection,
 		createProject,
