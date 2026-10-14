@@ -144,6 +144,24 @@ describe('collationState stemma derivation', () => {
 		}
 	});
 
+	it('keeps the effective unit selection valid when alignment shrinks without a mounted view', () => {
+		collationState.setWitnesses([
+			makeWitness('A', 'alpha beta gamma', { isBaseText: true }),
+			makeWitness('B', 'delta epsilon zeta'),
+		]);
+		const { snapshot } = collateToAlignmentSnapshot({
+			witnesses: collationState.buildCollationWitnessInputs(),
+			options: { segmentation: false },
+		});
+		collationState.setAlignmentSnapshot(snapshot);
+		collationState.selectedUnitIndex = 2;
+		expect(collationState.selectedUnitIndex).toBe(2);
+		collationState.alignmentColumns.splice(1);
+		expect(collationState.selectedUnitIndex).toBe(0);
+		collationState.setAlignmentSnapshot({ ...snapshot, columns: snapshot.columns.slice(0, 1) });
+		expect(collationState.selectedUnitIndex).toBe(0);
+	});
+
 	it('splits a non-merged alignment unit that contains grouped words', () => {
 		collationState.setWitnesses([
 			makeWitness('A', 'και εγενετο', { isBaseText: true }),

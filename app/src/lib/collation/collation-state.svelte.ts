@@ -237,6 +237,7 @@ function createCollationState() {
 	let alignmentLayout = $state<AlignmentLayout>('grid');
 
 	let selectedUnitIndex = $state<number>(0);
+	const effectiveSelectedUnitIndex = $derived(normalizeVariationUnitIndex(selectedUnitIndex));
 	let classifiedReadings = $state<Map<string, ClassifiedReading[]>>(new Map());
 	let unitDecisions = $state<Map<string, UnitDecisions>>(new Map());
 	let readingArcs = $state<Map<string, ReadingArc[]>>(new Map());
@@ -2633,7 +2634,7 @@ function createCollationState() {
 			focusedRow = v;
 		},
 		get selectedUnitIndex() {
-			return selectedUnitIndex;
+			return effectiveSelectedUnitIndex;
 		},
 		set selectedUnitIndex(v) {
 			selectedUnitIndex = normalizeVariationUnitIndex(v);

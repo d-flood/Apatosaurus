@@ -22,9 +22,6 @@
 	);
 
 	$effect(() => {
-		if (selectedSpan && collationState.selectedUnitIndex !== selectedSpan.startIndex) {
-			collationState.selectedUnitIndex = selectedSpan.startIndex;
-		}
 		if (selectedSpan) {
 			collationState.primeReadingsForUnit(selectedSpan.startIndex);
 		}
