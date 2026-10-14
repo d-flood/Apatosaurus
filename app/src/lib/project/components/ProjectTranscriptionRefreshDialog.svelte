@@ -30,16 +30,23 @@
 		status.canonicalSource?.title || status.canonicalSource?.siglum || ''
 	);
 
-	onMount(async () => {
-		try {
-			const options = await getTranscriptionSourceOptions(sourceTranscriptionId);
-			sourceOptions = options;
-			selectedVersionId = status.immediateSource?.sourceRevisionId
-				? (options.versions[0]?.id ?? null)
-				: null;
-		} catch (err) {
-			loadError = err instanceof Error ? err.message : 'Failed to load source versions.';
-		}
+	onMount(() => {
+		let cancelled = false;
+		const sourceId = sourceTranscriptionId;
+		const hasImmediateSource = Boolean(status.immediateSource?.sourceRevisionId);
+		getTranscriptionSourceOptions(sourceId)
+			.then(options => {
+				if (cancelled) return;
+				sourceOptions = options;
+				selectedVersionId = hasImmediateSource ? (options.versions[0]?.id ?? null) : null;
+			})
+			.catch(err => {
+				if (cancelled) return;
+				loadError = err instanceof Error ? err.message : 'Failed to load source versions.';
+			});
+		return () => {
+			cancelled = true;
+		};
 	});
 
 	function close() {
