@@ -1,6 +1,3 @@
-import type { Selectable } from 'kysely';
-
-import type { Collations, Database } from '../types.generated';
 import type { CollationSegment } from '$lib/collation/collation-document';
 import { witnessSourceColumns } from '$lib/collation/collation-projection';
 import type { WitnessSource } from '$lib/collation/collation-types';
@@ -198,29 +195,6 @@ export async function createCollation(
 		})
 		.execute();
 	return id;
-}
-
-export async function loadCollation(
-	db: DbExecutor,
-	collationId: string
-): Promise<LoadedCollation | null> {
-	const row = await db
-		.selectFrom('collations')
-		.selectAll()
-		.where('id', '=', collationId)
-		.executeTakeFirst();
-	if (!row) return null;
-	const artifacts = await db
-		.selectFrom('collation_artifacts')
-		.selectAll()
-		.where('collation_id', '=', collationId)
-		.execute();
-	return {
-		row: mapCollationRecord(row),
-		artifact: mapArtifact(
-			artifacts.find(artifact => artifact.artifact_type === 'collation_document_v1')
-		),
-	};
 }
 
 export async function saveCollationArtifact(
@@ -523,31 +497,4 @@ async function loadWitnessProjectTranscriptionIds(
 
 function isNonEmptyString(value: string | null): value is string {
 	return typeof value === 'string' && value.length > 0;
-}
-
-function mapArtifact(
-	row: Selectable<Database['collation_artifacts']> | undefined
-): CollationArtifactRecord | null {
-	if (!row) return null;
-	return {
-		id: requireId(row.id, 'artifact'),
-		artifactType: row.artifact_type,
-		payload: row.payload,
-		createdAt: row.created_at,
-	};
-}
-
-function mapCollationRecord(row: Selectable<Collations>): CollationRecord {
-	return {
-		id: requireId(row.id, 'collation'),
-		projectId: requireId(row.project_id, 'collation project'),
-		title: row.title,
-		verseIdentifier: row.verse_identifier,
-		status: row.status,
-		groupPath: row.group_path,
-		notes: row.notes,
-		sortKey: row.sort_key,
-		createdAt: row.created_at,
-		updatedAt: row.updated_at,
-	};
 }

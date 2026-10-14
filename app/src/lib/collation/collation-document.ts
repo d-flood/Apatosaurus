@@ -1,20 +1,20 @@
-import { COLLATION_PHASES } from './collation-types';
 import {
 	serializeAlignmentColumns,
 	type AlignmentColumn,
 	type SerializedAlignmentColumn,
 } from './alignment-snapshot';
-import type {
-	AlignmentLayout,
-	AlignmentDisplayMode,
-	ClassifiedReading,
-	CollationPhase,
-	RegularizationRule,
-	ReadingArc,
-	SuppliedTextMode,
-	WitnessConfig,
-	WitnessSource,
-	WitnessSourceToken,
+import {
+	COLLATION_PHASES,
+	type AlignmentLayout,
+	type AlignmentDisplayMode,
+	type ClassifiedReading,
+	type CollationPhase,
+	type RegularizationRule,
+	type ReadingArc,
+	type SuppliedTextMode,
+	type WitnessConfig,
+	type WitnessSource,
+	type WitnessSourceToken,
 } from './collation-types';
 import { applyDecisions, type UnitDecisions } from './collation-decisions';
 import { variationUnitId } from './collation-unit-id';

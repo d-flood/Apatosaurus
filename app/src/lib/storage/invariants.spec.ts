@@ -11,7 +11,7 @@ import {
 	resetPersistenceRequestSessionForTests,
 	shouldShowDurabilityWarning,
 } from '$lib/shell/capabilities';
-import { createCollation, loadCollation } from '$lib/db/repositories/collations';
+import { createCollation } from '$lib/db/repositories/collations';
 import {
 	createCommittedCollationCheckpointWithFiles,
 	loadCollationWithWorkingFile,
@@ -358,9 +358,13 @@ describe('data-safety invariants', () => {
 		expect(imported).toMatchObject({ ok: true, projectId: 'project-1', projectsRestored: 1 });
 		expect(projectFiles(imported.storageSlug)).toEqual(expected);
 		expect(await getTranscription(harness.db, 'tx-1')).toMatchObject({ title: 'Witness 1' });
-		expect(await loadCollation(harness.db, 'col-1')).toMatchObject({
-			row: { title: 'Romans 1:1' },
-		});
+		await expect(
+			harness.db
+				.selectFrom('collations')
+				.select('title')
+				.where('id', '=', 'col-1')
+				.executeTakeFirst()
+		).resolves.toEqual({ title: 'Romans 1:1' });
 	});
 });
 

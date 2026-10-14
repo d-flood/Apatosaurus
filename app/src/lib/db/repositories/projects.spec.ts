@@ -302,6 +302,33 @@ describe('projects repository', () => {
 		await expect(listProjectDocumentTitles(harness.db, 'empty-project')).resolves.toEqual([]);
 	});
 
+	it('refuses to copy a synced transcription without a canonical source file', async () => {
+		const storeOptions = { backend: projectBackend };
+		await createProject(
+			harness.db,
+			{ id: 'source-project', storageSlug: 'source-project', name: 'Source' },
+			storeOptions
+		);
+		await createProject(
+			harness.db,
+			{ id: 'target-project', storageSlug: 'target-project', name: 'Target' },
+			storeOptions
+		);
+		await createTranscriptionRepository(harness.db, {
+			...baseTranscription('tx-1', '01'),
+			projectId: 'source-project',
+			projectTranscriptionId: 'source-pt',
+			document: documentWithVerses(['Romans 1:1']),
+		});
+
+		await expect(
+			syncProjectTranscriptionIds(harness.db, 'target-project', ['tx-1'], storeOptions)
+		).rejects.toThrow(
+			'Canonical transcription file for project transcription source-pt was not found.'
+		);
+		await expect(getProjectTranscriptionIds(harness.db, 'target-project')).resolves.toEqual([]);
+	});
+
 	it('canonically copies and tombstones synced project transcriptions across index rebuilds', async () => {
 		const backend = projectBackend;
 		const storeOptions = { backend };

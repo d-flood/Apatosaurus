@@ -5,6 +5,8 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { toProseMirror } from '@apatosaurus/tei-transcription';
+import { prepareManuscriptDocumentEntry } from '$lib/editor/structure';
 import { exportTEIDocument } from './tei-exporter';
 import { importTEIDocument } from './tei-importer';
 import { validateIgntpXsd } from '../../../../test-support/validate-igntp-xsd';
@@ -105,5 +107,11 @@ describe('real TEI wrapper integration', () => {
 			type: 'text',
 			text: 'ρεαν',
 		});
+
+		const editorPage59r = prepareManuscriptDocumentEntry(
+			toProseMirror(imported)
+		).doc.content?.find((node: any) => node.attrs?.pageName === '59r');
+		expect(editorPage59r?.content?.[0].attrs).not.toHaveProperty('n');
+		expect(editorPage59r?.content?.[0].content?.[0].attrs).not.toHaveProperty('n');
 	});
 });

@@ -11,19 +11,8 @@
 --     index version creates a fresh disposable index and rebuilds it from
 --     files instead of migrating SQL in place.
 --   * `transcriptions.content_json` and `collation_artifacts.payload` are
---     disposable caches retained for write snapshots and conflict copies.
---     Public content loads require canonical OPFS files.
---     Remaining readers outside index rebuild/projection:
---       transcriptions.ts: getTranscription, getTranscriptionsByIds,
---         rebuildVerseIndexForTranscriptions (repository-only index repair).
---       revisions.ts: loadProjectTranscriptionSnapshot (write snapshots,
---         checkpoint construction and source hashes), loadCollationArtifacts
---         via loadSerializedCollation (artifact writes and conflict hashes).
---       projects.ts: forkProjectTranscriptions selects the cache with metadata;
---         fork content itself comes from canonical files.
---       conflicts.ts: loadProjectTranscriptionEntity copies the SQL row;
---         copyCollationChildRows copies artifacts before checkpoint hashing.
---       collations.ts: loadCollation is a repository-level cache reader.
+--     disposable caches: file writes snapshot and hash from them, but content
+--     loads read only canonical OPFS files.
 --   * Checkpoint tables are metadata-only listings. Payloads live exclusively
 --     in canonical history files under OPFS.
 --   * `transcriptions.scope_type` (global/project_snapshot) is removed:

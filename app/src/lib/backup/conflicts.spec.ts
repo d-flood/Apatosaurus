@@ -51,21 +51,28 @@ function createProject(
 }
 
 describe('local sync conflicts and tombstones', () => {
-	it('does not load SQL-only content for a conflict copy', async () => {
+	it('refuses to load or reconcile a conflict copy without canonical content', async () => {
 		const projectTranscriptionId = await createCommittedProjectTranscription();
 		const copy = await createProjectTranscriptionConflictCopy(harness.db, {
 			projectTranscriptionId,
 			conflictTranscriptionId: 'tx-conflict',
 			conflictProjectTranscriptionId: 'pt-conflict',
 		});
-		const contents = await loadConflictCopyContents(harness.db, copy.transcriptionId, {
-			backend,
-		});
-		expect(contents.mine).toContain('transcriptionDocument');
-		expect(contents.theirs).toBeNull();
 		await expect(
-			loadTranscriptionContentWithFiles(harness.db, copy.transcriptionId, { backend })
-		).resolves.toBeNull();
+			loadConflictCopyContents(harness.db, copy.transcriptionId, { backend })
+		).rejects.toThrow('Canonical transcription file for tx-conflict was not found.');
+		await expect(
+			reconcileConflictCopy(harness.db, copy.transcriptionId, {}, { backend })
+		).rejects.toThrow('Canonical transcription file for tx-conflict was not found.');
+		await expect(
+			harness.db
+				.selectFrom('transcriptions')
+				.select('content_json')
+				.where('id', '=', copy.transcriptionId)
+				.executeTakeFirst()
+		).resolves.toMatchObject({
+			content_json: expect.stringContaining('transcriptionDocument'),
+		});
 	});
 
 	it('creates project-scoped conflict copies without mutating primary records', async () => {

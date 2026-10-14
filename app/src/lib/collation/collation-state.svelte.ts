@@ -1,4 +1,3 @@
-import { COLLATION_PHASES } from './collation-types';
 import {
 	createCollation,
 	createProject as createLocalProject,
@@ -57,18 +56,19 @@ import {
 	prepareWitnessesFromDocument,
 	type PreparedWitness,
 } from './collation-runner';
-import type {
-	AlignmentDisplayMode,
-	AlignmentLayout,
-	ClassifiedReading,
-	CollationPhase,
-	RegularizationRule,
-	RegularizationType,
-	RegularizedToken,
-	ReadingArc,
-	SuppliedTextMode,
-	WitnessConfig,
-	WitnessTreatment,
+import {
+	COLLATION_PHASES,
+	type AlignmentDisplayMode,
+	type AlignmentLayout,
+	type ClassifiedReading,
+	type CollationPhase,
+	type RegularizationRule,
+	type RegularizationType,
+	type RegularizedToken,
+	type ReadingArc,
+	type SuppliedTextMode,
+	type WitnessConfig,
+	type WitnessTreatment,
 } from './collation-types';
 import {
 	buildReadingProposal,

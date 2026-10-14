@@ -15,7 +15,6 @@ import {
 	getCollationWitnessSourceStatuses,
 	deleteCollation,
 	listCollationsWithProjectNames,
-	loadCollation,
 	saveCollationArtifact,
 	saveCollationProjection,
 	updateCollationMetadata,
@@ -102,7 +101,7 @@ describe('collations repository', () => {
 		).resolves.toEqual([]);
 	});
 
-	it('creates, loads, and updates the canonical artifact and metadata', async () => {
+	it('creates and updates the canonical artifact and metadata', async () => {
 		await createProject(harness.db, { id: 'project-1', name: 'Romans' });
 		const id = await createCollation(harness.db, {
 			id: 'col-1',
@@ -132,10 +131,20 @@ describe('collations repository', () => {
 			updatedAt: '2024-01-04T00:00:00.000Z',
 		});
 
-		const loaded = await loadCollation(harness.db, id);
-		expect(loaded?.artifact).toMatchObject({ id: 'artifact-1', payload: '{"version":2}' });
-		expect(loaded?.row.status).toBe('complete');
-		expect(loaded?.row.updatedAt).toBe('2024-01-04T00:00:00.000Z');
+		await expect(
+			harness.db
+				.selectFrom('collation_artifacts')
+				.select(['id', 'payload'])
+				.where('collation_id', '=', id)
+				.execute()
+		).resolves.toEqual([{ id: 'artifact-1', payload: '{"version":2}' }]);
+		await expect(
+			harness.db
+				.selectFrom('collations')
+				.select(['status', 'updated_at'])
+				.where('id', '=', id)
+				.executeTakeFirst()
+		).resolves.toEqual({ status: 'complete', updated_at: '2024-01-04T00:00:00.000Z' });
 	});
 
 	it('replaces derived projection rows in one transaction', async () => {

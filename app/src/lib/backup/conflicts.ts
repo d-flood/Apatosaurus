@@ -301,7 +301,12 @@ export async function loadConflictCopyContents(
 	const copy = await findConflictCopy(db, copyId);
 	const load =
 		copy.kind === 'transcription'
-			? (id: string) => loadTranscriptionContentWithFiles(db, id, storeOptions)
+			? async (id: string) => {
+					const content = await loadTranscriptionContentWithFiles(db, id, storeOptions);
+					if (content === null)
+						throw new Error(`Canonical transcription file for ${id} was not found.`);
+					return content;
+				}
 			: (id: string) => loadCollationVersionDocument(db, id, null, storeOptions);
 	const [mine, theirs] = await Promise.all([load(copy.originId), load(copy.copyId)]);
 	return { copy, mine, theirs };
