@@ -1,4 +1,5 @@
 import { isNotBackedUp } from '$lib/backup/sync-status';
+import { resolveDefaultLocationId } from '$lib/shell/last-used-location';
 import {
 	isPlacedProject,
 	type ProjectLocation,
@@ -12,6 +13,7 @@ export type StorageBanner =
 	| { kind: 'signed-out'; account: StorageAccount }
 	| { kind: 'reconnect'; account: StorageAccount }
 	| { kind: 'sign-in'; count: number }
+	| { kind: 'move'; count: number; destination: ProjectLocation }
 	| null;
 
 export function deriveStorageBanner(input: {
@@ -20,6 +22,7 @@ export function deriveStorageBanner(input: {
 	locations: readonly ProjectLocation[];
 	accounts: readonly StorageAccount[];
 	reconnectAccountIds: ReadonlySet<string>;
+	lastUsedLocationId: string | null;
 	dismissed: boolean;
 }): StorageBanner {
 	const placementFor = (projectId: string) =>
@@ -48,9 +51,11 @@ export function deriveStorageBanner(input: {
 	const count = input.projectIds.filter(projectId =>
 		isNotBackedUp(placementFor(projectId))
 	).length;
-	if (count === 0 || input.dismissed || input.accounts.some(account => account.signedIn))
-		return null;
-	return { kind: 'sign-in', count };
+	if (count === 0 || input.dismissed) return null;
+	if (!input.accounts.some(account => account.signedIn)) return { kind: 'sign-in', count };
+	const destinationId = resolveDefaultLocationId(input.lastUsedLocationId, input.locations);
+	const destination = input.locations.find(location => location.id === destinationId);
+	return destination ? { kind: 'move', count, destination } : null;
 }
 
 export function readStorageBannerDismissed(): boolean {

@@ -46,7 +46,6 @@
 		hasDriveScope,
 		pickGoogleFolder,
 		requestDriveAccess,
-		takePendingDriveAccess,
 		teamLocationAccounts,
 	} from '$lib/backup/google-team-locations';
 	import type { FolderListing } from '$lib/backup/folder-browser';
@@ -89,7 +88,7 @@
 	let projectBackupOverviews = $state.raw<Record<string, ProjectBackupOverview>>({});
 	let locations = $state.raw<ProjectLocation[]>([]);
 	let accounts = $state.raw<StorageAccount[]>([]);
-	let pendingDriveAccess: string | null = null;
+	let handledDriveAccess = signInCompletion.lastCompleted;
 	let signOutDialog = $state<HTMLDialogElement>();
 	let signingOutAccount = $state<StorageAccount | null>(null);
 	let removeOnSignOut = $state(false);
@@ -340,8 +339,8 @@
 
 	$effect(() => {
 		const completed = signInCompletion.lastCompleted;
-		if (completed && completed.accountId === pendingDriveAccess) {
-			pendingDriveAccess = null;
+		if (completed?.driveAccess && completed !== handledDriveAccess) {
+			handledDriveAccess = completed;
 			void continueDriveAccess(completed.accountId);
 		}
 	});
@@ -653,7 +652,6 @@
 
 	onMount(() => {
 		installSupported = getInstallCapabilityReport().installSupported;
-		pendingDriveAccess = takePendingDriveAccess();
 		void bootstrap();
 		void loadAuthorName();
 		void loadDeviceName();

@@ -62,6 +62,7 @@ function banner(
 		projectIds: input.placements.map(placement => placement.projectId),
 		locations,
 		reconnectAccountIds: new Set(),
+		lastUsedLocationId: null,
 		dismissed: false,
 		...input,
 	});
@@ -131,6 +132,7 @@ describe('deriveStorageBanner', () => {
 		];
 
 		expect(banner({ placements, accounts: [] })).toBeNull();
+		expect(banner({ placements, accounts: [google] })).toBeNull();
 		expect(banner({ placements: [...placements, browserOnly('loose')], accounts: [] })).toEqual(
 			{ kind: 'sign-in', count: 1 }
 		);
@@ -149,7 +151,66 @@ describe('deriveStorageBanner', () => {
 		).toEqual({ kind: 'sign-in', count: 1 });
 	});
 
-	it('leaves not-backed-up projects without a banner once an account is signed in', () => {
-		expect(banner({ placements: [browserOnly('loose')], accounts: [google] })).toBeNull();
+	it('offers to move not-backed-up projects only while an account is signed in', () => {
+		const placements = [
+			browserOnly('loose'),
+			browserOnly('stray'),
+			placed('in-google', 'google-home'),
+		];
+
+		expect(banner({ placements, accounts: [google] })).toEqual({
+			kind: 'move',
+			count: 2,
+			destination: locations[0],
+		});
+		expect(
+			banner({
+				placements,
+				accounts: [{ ...google, signedIn: false }],
+				projectIds: ['loose'],
+			})
+		).toEqual({
+			kind: 'sign-in',
+			count: 1,
+		});
+		expect(
+			banner({ placements: [placed('in-google', 'google-home')], accounts: [google] })
+		).toBeNull();
+	});
+
+	it('ranks move below signed-out, reconnect and sign-in', () => {
+		const placements = [placed('in-dropbox', 'dropbox-home'), browserOnly('loose')];
+
+		expect(
+			banner({ placements, accounts: [google, { ...dropbox, signedIn: false }] })
+		).toMatchObject({ kind: 'signed-out' });
+		expect(
+			banner({
+				placements,
+				accounts: [google, dropbox],
+				reconnectAccountIds: new Set([dropbox.id]),
+			})
+		).toMatchObject({ kind: 'reconnect' });
+		expect(banner({ placements, accounts: [{ ...google, signedIn: false }] })).toMatchObject({
+			kind: 'sign-in',
+		});
+		expect(banner({ placements, accounts: [google, dropbox] })).toMatchObject({ kind: 'move' });
+	});
+
+	it('lets dismissal hide move', () => {
+		expect(
+			banner({ placements: [browserOnly('loose')], accounts: [google], dismissed: true })
+		).toBeNull();
+	});
+
+	it('moves to the last-used location while it exists, otherwise the first personal one', () => {
+		const placements = [browserOnly('loose')];
+
+		expect(
+			banner({ placements, accounts: [google, dropbox], lastUsedLocationId: 'dropbox-home' })
+		).toMatchObject({ destination: locations[1] });
+		expect(
+			banner({ placements, accounts: [google, dropbox], lastUsedLocationId: 'gone' })
+		).toMatchObject({ destination: locations[0] });
 	});
 });

@@ -1,11 +1,13 @@
 import { ensureLocalDbRuntime } from '$lib/db/runtime';
 import type { ProjectLocation, StorageAccount } from '$lib/storage/project-locations';
+import { takePendingDriveAccess } from './google-team-locations';
 import { completeAccountSignIn } from './location-connections';
 
 interface CompletedSignIn {
 	accountId: string;
 	provider: StorageAccount['provider'];
 	location: ProjectLocation;
+	driveAccess: boolean;
 }
 
 class SignInCompletion {
@@ -19,6 +21,7 @@ class SignInCompletion {
 		const provider = params.get('provider');
 		const authError = params.get('auth-error');
 		if (!accountId && !authError) return;
+		const driveAccessAccountId = takePendingDriveAccess();
 		history.replaceState(history.state, '', window.location.pathname + window.location.search);
 		if (authError) {
 			this.error =
@@ -33,7 +36,12 @@ class SignInCompletion {
 		try {
 			await ensureLocalDbRuntime();
 			const location = await completeAccountSignIn(accountId, provider);
-			this.lastCompleted = { accountId, provider, location };
+			this.lastCompleted = {
+				accountId,
+				provider,
+				location,
+				driveAccess: driveAccessAccountId === accountId,
+			};
 		} catch (cause) {
 			this.error = cause instanceof Error ? cause.message : 'Sign-in did not complete.';
 		} finally {
