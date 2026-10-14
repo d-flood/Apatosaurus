@@ -58,12 +58,20 @@ test('creating a project asks no location question with one place', async ({
 	await page.goto('/projects');
 	await expect(page.getByPlaceholder('New project name')).toBeVisible();
 	await expect(page.getByRole('combobox', { name: 'Location' })).toHaveCount(0);
+	await expect(
+		page
+			.getByText(
+				'Saves only in this browser · Sign in with Google Drive or Dropbox to back up'
+			)
+			.first()
+	).toBeVisible();
 	await createProject(page, 'Browser Only Project');
 
 	await addFolderLocation(page, 'Desk Folder');
 	await page.goto('/projects');
 	await expect(page.getByPlaceholder('New project name')).toBeVisible();
 	await expect(page.getByRole('combobox', { name: 'Location' })).toHaveCount(0);
+	await expect(page.getByText('Saves to Desk Folder').first()).toBeVisible();
 	await createProject(page, 'Desk Project');
 
 	await page.goto('/projects');
@@ -90,7 +98,7 @@ test('creating a project with two locations offers a picker defaulting to the la
 	await addFolderLocation(page, 'Lab Folder');
 
 	await page.goto('/projects');
-	const location = page.getByRole('combobox', { name: 'Location' });
+	const location = page.getByRole('combobox', { name: 'Location' }).first();
 	await expect(location.locator('option:checked')).toHaveText('Desk Folder');
 	await location.selectOption({ label: 'Lab Folder' });
 	await page.getByPlaceholder('New project name').fill('Lab Project');

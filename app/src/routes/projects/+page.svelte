@@ -30,12 +30,15 @@
 		type ProjectPlacement,
 		type StorageAccount,
 	} from '$lib/storage/project-locations';
+	import ProjectDestination from '$lib/project/components/ProjectDestination.svelte';
 	import ProjectZipImportPanel from '$lib/project/components/ProjectZipImportPanel.svelte';
+	import StorageSignInButtons from '$lib/backup/components/StorageSignInButtons.svelte';
 	import WelcomeGate from '$lib/shell/components/WelcomeGate.svelte';
 	import FolderOpen from 'phosphor-svelte/lib/FolderOpen';
 	import Plus from 'phosphor-svelte/lib/Plus';
 	import { onMount } from 'svelte';
 	import type { ProjectOption } from '$lib/db/repositories/projects';
+	import type { ProjectZipImportResult } from '$lib/backup/project-zip-import';
 
 	const PROJECTS_LOG_PREFIX = '[projects-route]';
 
@@ -49,6 +52,7 @@
 	let isCreating = $state(false);
 	let error = $state<string | null>(null);
 
+	let signedIn = $derived(accounts.some(account => account.signedIn));
 	let groups = $derived(groupProjectsByLocation(projects, placements, locations, accounts));
 	let projectCountLabel = $derived(
 		`${projects.length} project${projects.length === 1 ? '' : 's'}`
@@ -111,16 +115,24 @@
 		error = null;
 		try {
 			const projectId = await createProjectRecord({ name });
-			if (chosenLocationId) {
-				await placeProjectInLocation(projectId, chosenLocationId);
-				recordLastUsedLocation(chosenLocationId);
-			}
+			await placeInChosenLocation(projectId);
 			await openProject(projectId);
 		} catch (cause) {
 			error = cause instanceof Error ? cause.message : 'Failed to create project';
 		} finally {
 			isCreating = false;
 		}
+	}
+
+	async function placeInChosenLocation(projectId: string) {
+		if (!chosenLocationId) return;
+		await placeProjectInLocation(projectId, chosenLocationId);
+		recordLastUsedLocation(chosenLocationId);
+	}
+
+	async function openImportedProject(projectId: string, mode: ProjectZipImportResult['mode']) {
+		if (mode !== 'replaced') await placeInChosenLocation(projectId);
+		await openProject(projectId);
 	}
 
 	async function openProject(projectId: string) {
@@ -162,17 +174,6 @@
 						}
 					}}
 				/>
-				{#if locations.length > 1}
-					<select
-						class="select select-bordered sm:max-w-56"
-						aria-label="Location"
-						bind:value={chosenLocationId}
-					>
-						{#each locations as location (location.id)}
-							<option value={location.id}>{location.displayPath}</option>
-						{/each}
-					</select>
-				{/if}
 				<button
 					type="button"
 					class="btn btn-primary gap-2"
@@ -183,6 +184,9 @@
 						></span>{:else}<Plus size={16} />{/if}
 					Create
 				</button>
+			</div>
+			<div class="mt-2">
+				<ProjectDestination {locations} bind:value={chosenLocationId} />
 			</div>
 		</section>
 
@@ -200,9 +204,16 @@
 				<div class="mt-3 rounded-box border border-dashed border-base-300 p-8 text-center">
 					<FolderOpen size={28} class="mx-auto text-base-content/30" />
 					<p class="mt-2 font-medium">No projects yet</p>
-					<p class="mt-1 text-sm text-base-content/55">
-						Name your first project above to begin.
-					</p>
+					{#if signedIn}
+						<p class="mt-1 text-sm text-base-content/55">
+							Name your first project above to begin.
+						</p>
+					{:else}
+						<div class="mx-auto mt-4 max-w-md"><StorageSignInButtons /></div>
+						<p class="mt-3 text-sm text-base-content/55">
+							or name a project above to start in this browser
+						</p>
+					{/if}
 				</div>
 			{:else}
 				{#each groups as group (group.id)}
@@ -267,7 +278,9 @@
 		</section>
 
 		<section class="mt-6 max-w-xl">
-			<ProjectZipImportPanel onImported={openProject} />
+			<ProjectZipImportPanel onImported={openImportedProject}>
+				<ProjectDestination {locations} bind:value={chosenLocationId} />
+			</ProjectZipImportPanel>
 		</section>
 	</main>
 </WelcomeGate>

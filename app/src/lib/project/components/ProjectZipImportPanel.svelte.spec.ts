@@ -101,6 +101,6 @@ describe('ProjectZipImportPanel', () => {
 		await expect
 			.element(page.getByText('Imported the project successfully.'))
 			.toBeInTheDocument();
-		expect(onImported).toHaveBeenCalledWith('project-imported');
+		expect(onImported).toHaveBeenCalledWith('project-imported', 'created');
 	});
 });

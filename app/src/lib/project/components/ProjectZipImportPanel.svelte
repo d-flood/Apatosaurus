@@ -5,8 +5,18 @@
 		ProjectZipImportCollisionMode,
 		ProjectZipImportResult,
 	} from '$lib/backup/project-zip-import';
+	import type { Snippet } from 'svelte';
 
-	let { onImported }: { onImported?: (projectId: string) => void | Promise<void> } = $props();
+	let {
+		onImported,
+		children,
+	}: {
+		onImported?: (
+			projectId: string,
+			mode: ProjectZipImportResult['mode']
+		) => void | Promise<void>;
+		children?: Snippet;
+	} = $props();
 
 	let bytes = $state<Uint8Array | null>(null);
 	let result = $state<ProjectZipImportResult | null>(null);
@@ -28,7 +38,7 @@
 		error = null;
 		try {
 			result = await importProjectZip(bytes, collisionMode);
-			if (result.ok) await onImported?.(result.projectId);
+			if (result.ok) await onImported?.(result.projectId, result.mode);
 		} catch (cause) {
 			error = cause instanceof Error ? cause.message : 'Project import failed.';
 		} finally {
@@ -54,6 +64,7 @@
 			onchange={selectFile}
 		/>
 	</div>
+	{#if children}<div class="mt-2">{@render children()}</div>{/if}
 	{#if error}
 		<div class="alert alert-error mt-3 py-2 text-xs">{error}</div>
 	{/if}
