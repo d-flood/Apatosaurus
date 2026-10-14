@@ -395,6 +395,8 @@
 		emitContent();
 	}
 
+	let correctionSession = $state(0);
+
 	function openCorrectionPanel() {
 		const draft = readCorrectionDraft(editor);
 		const target = captureCorrectionTarget(editor);
@@ -402,6 +404,7 @@
 		correctionDraftCorrections = draft;
 		correctionTarget = target;
 
+		correctionSession += 1;
 		drawerMode = 'correction';
 	}
 
@@ -672,16 +675,18 @@
 			{#if drawerMode === 'inspector' && selectedNode && inspectorPanelOpen}
 				<TeiNodeInspector {selectedNode} onUpdateNodeAttrs={updateNestedNodeAttrs} />
 			{:else if drawerMode === 'correction'}
-				<CorrectionWorkspace
-					idPrefix="inline-carrier-correction"
-					title="Correction Readings"
-					description="Apply a correction mark to the current text selection."
-					initialCorrections={correctionDraftCorrections}
-					applyLabel="Apply to Selection"
-					onApply={applyCorrectionMark}
-					onRemoveAll={removeCorrectionMark}
-					variant="popover"
-				/>
+				{#key correctionSession}
+					<CorrectionWorkspace
+						idPrefix="inline-carrier-correction"
+						title="Correction Readings"
+						description="Apply a correction mark to the current text selection."
+						initialCorrections={correctionDraftCorrections}
+						applyLabel="Apply to Selection"
+						onApply={applyCorrectionMark}
+						onRemoveAll={removeCorrectionMark}
+						variant="popover"
+					/>
+				{/key}
 			{:else if drawerMode === 'abbreviation'}
 				<AbbreviationPanel
 					bind:abbrType

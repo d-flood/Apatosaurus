@@ -60,7 +60,7 @@
 
 	const isEditMode = $derived(!!transcription);
 
-	$effect(() => {
+	function initDrafts() {
 		if (!transcription) return;
 		title = transcription.title || '';
 		siglum = transcription.siglum || '';
@@ -70,7 +70,9 @@
 		repository = transcription.repository || '';
 		settlement = transcription.settlement || '';
 		language = transcription.language || '';
-	});
+	}
+
+	initDrafts();
 
 	onMount(async () => {
 		await ensureLocalDbRuntime();

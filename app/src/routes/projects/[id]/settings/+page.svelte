@@ -15,7 +15,6 @@
 		SuppliedTextMode,
 		WitnessTreatment,
 	} from '$lib/collation/collation-types';
-	import type { ReadingTypeDefinition } from '$lib/collation/reading-types';
 	import {
 		subscribeLocalDbInvalidations,
 		addProjectTranscriptionFromProject,
@@ -31,7 +30,7 @@
 	import ProjectTranscriptionRefreshDialog from '$lib/project/components/ProjectTranscriptionRefreshDialog.svelte';
 	import ProjectTranscriptionsEditor from '$lib/project/components/ProjectTranscriptionsEditor.svelte';
 	import ProjectTranscriptionVersionsPanel from '$lib/project/components/ProjectTranscriptionVersionsPanel.svelte';
-	import { onMount } from 'svelte';
+	import { onMount, untrack } from 'svelte';
 	import type {
 		ProjectRecord,
 		ProjectTranscriptionSourceCandidate,
@@ -42,17 +41,27 @@
 	let { data } = $props<{ data: { project: ProjectRecord } }>();
 
 	let openProject = $derived(data.project);
-	let nameDraft = $state('');
-	let descriptionDraft = $state('');
-	let projectRules = $state<RegularizationRule[]>([]);
-	let projectReadingTypes = $state<ReadingTypeDefinition[]>([]);
-	let lowercase = $state(false);
-	let ignoreWordBreaks = $state(false);
-	let ignorePunctuation = $state(false);
-	let suppliedTextMode = $state<SuppliedTextMode>('clear');
-	let segmentation = $state(true);
-	let transcriptionWitnessTreatments = $state<Map<string, WitnessTreatment>>(new Map());
-	let transcriptionWitnessExcludedHands = $state<Map<string, string[]>>(new Map());
+	let nameDraft = $derived(openProject.name);
+	let descriptionDraft = $derived(openProject.description);
+	const savedSettings = $derived(parseProjectCollationSettings(openProject.collationSettings));
+	let projectRules = $derived(savedSettings.regularizationRules ?? []);
+	const projectReadingTypes = $derived(savedSettings.readingTypes ?? []);
+	let lowercase = $derived(savedSettings.lowercase ?? false);
+	let ignoreWordBreaks = $derived(savedSettings.ignoreWordBreaks ?? false);
+	let ignorePunctuation = $derived(savedSettings.ignorePunctuation ?? false);
+	let suppliedTextMode = $derived(savedSettings.suppliedTextMode ?? 'clear');
+	let segmentation = $derived(savedSettings.segmentation ?? true);
+	let transcriptionWitnessTreatments = $derived(
+		new Map(Object.entries(savedSettings.transcriptionWitnessTreatments ?? {}))
+	);
+	let transcriptionWitnessExcludedHands = $derived(
+		new Map(
+			Object.entries(savedSettings.transcriptionWitnessExcludedHands ?? {}).map(
+				([transcriptionId, handIds]) => [transcriptionId, [...handIds]]
+			)
+		)
+	);
+	const projectId = $derived(data.project.id);
 	let isSavingMetadata = $state(false);
 	let isSavingSettings = $state(false);
 	let error = $state<string | null>(null);
@@ -83,11 +92,10 @@
 	);
 
 	$effect(() => {
-		const project = data.project;
-		nameDraft = project.name;
-		descriptionDraft = project.description;
-		applyProjectSettings(project);
-		void bootstrapProjectTranscriptions(project.id);
+		const id = projectId;
+		untrack(() => {
+			void bootstrapProjectTranscriptions(id);
+		});
 	});
 
 	onMount(() =>
@@ -102,25 +110,6 @@
 			}
 		})
 	);
-
-	function applyProjectSettings(project: ProjectRecord) {
-		const settings = parseProjectCollationSettings(project.collationSettings);
-		projectRules = settings.regularizationRules ?? [];
-		projectReadingTypes = settings.readingTypes ?? [];
-		lowercase = settings.lowercase ?? false;
-		ignoreWordBreaks = settings.ignoreWordBreaks ?? false;
-		ignorePunctuation = settings.ignorePunctuation ?? false;
-		suppliedTextMode = settings.suppliedTextMode ?? 'clear';
-		segmentation = settings.segmentation ?? true;
-		transcriptionWitnessTreatments = new Map(
-			Object.entries(settings.transcriptionWitnessTreatments ?? {})
-		);
-		transcriptionWitnessExcludedHands = new Map(
-			Object.entries(settings.transcriptionWitnessExcludedHands ?? {}).map(
-				([transcriptionId, handIds]) => [transcriptionId, [...handIds]]
-			)
-		);
-	}
 
 	function logProjects(
 		level: 'debug' | 'warn' | 'error',
@@ -164,12 +153,13 @@
 		const runId = ++bootstrapRunId;
 		isLoadingProjectTranscriptions = true;
 		try {
-			selectedTranscriptionIds = await runLoggedStep(
+			const transcriptionIds = await runLoggedStep(
 				'getProjectTranscriptionIds',
 				() => getProjectTranscriptionIds(projectId),
 				{ projectId, runId }
 			);
 			if (runId !== bootstrapRunId || openProject.id !== projectId) return;
+			selectedTranscriptionIds = transcriptionIds;
 			void loadProjectTranscriptionStatuses(projectId);
 			void loadTranscriptionCatalog(runId, projectId);
 		} catch (err) {

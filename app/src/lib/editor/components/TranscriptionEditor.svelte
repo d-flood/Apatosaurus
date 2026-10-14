@@ -323,6 +323,8 @@
 		}
 	}
 
+	let correctionSession = $state(0);
+
 	function openCorrectionDrawer() {
 		const draft = readCorrectionDraft(editorState.editor);
 		const target = captureCorrectionTarget(editorState.editor);
@@ -330,6 +332,7 @@
 		correctionDraftCorrections = draft;
 		correctionTarget = target;
 
+		correctionSession += 1;
 		drawerMode = 'correction';
 	}
 
@@ -1301,15 +1304,17 @@
 			onUpdateNodeAttrs={updateCarrierNodeAttrs}
 		/>
 	{:else if drawerMode === 'correction'}
-		<CorrectionWorkspace
-			idPrefix="drawer-correction"
-			title="Correction Readings"
-			description="Add or edit correction readings for the selected text."
-			initialCorrections={correctionDraftCorrections}
-			applyLabel="Apply"
-			onApply={applyCorrectionFromDrawer}
-			onRemoveAll={removeCorrectionFromDrawer}
-		/>
+		{#key correctionSession}
+			<CorrectionWorkspace
+				idPrefix="drawer-correction"
+				title="Correction Readings"
+				description="Add or edit correction readings for the selected text."
+				initialCorrections={correctionDraftCorrections}
+				applyLabel="Apply"
+				onApply={applyCorrectionFromDrawer}
+				onRemoveAll={removeCorrectionFromDrawer}
+			/>
+		{/key}
 	{:else if drawerMode === 'abbreviation'}
 		<AbbreviationPanel
 			bind:abbrType

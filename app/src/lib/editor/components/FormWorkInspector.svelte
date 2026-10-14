@@ -27,7 +27,7 @@
 	let segPlaceValue = $state('');
 	const contentTypeOptions = ['runTitle', 'pageNum', 'quireSig', 'chapTitle', 'lectTitle'];
 
-	$effect(() => {
+	function initDrafts() {
 		categoryValue = classification.marginaliaCategory || 'Other';
 		placementValue = derivePlacementValue(classification);
 		typeValue = attrs?.type || '';
@@ -37,7 +37,9 @@
 		segTypeValue = attrs?.segType || '';
 		segSubtypeValue = attrs?.segSubtype || '';
 		segPlaceValue = attrs?.segPlace || '';
-	});
+	}
+
+	initDrafts();
 
 	function applyChanges() {
 		const placementChanged =

@@ -12,15 +12,13 @@
 	let { attrs, onApply }: Props = $props();
 
 	let functionValue = $state('');
-	let lastSnapshot = $state('');
 	const targetDescription = $derived(describeMetamarkTarget(attrs));
 
-	$effect(() => {
-		const snapshot = JSON.stringify(attrs || {});
-		if (snapshot === lastSnapshot) return;
-		lastSnapshot = snapshot;
+	function initDrafts() {
 		functionValue = String(attrs?.teiAttrs?.function || '');
-	});
+	}
+
+	initDrafts();
 
 	function apply() {
 		const normalizedFunction = functionValue.trim();

@@ -12,7 +12,6 @@
 
 	let textDraft = $state('');
 	let noteType = $state('');
-	let lastSnapshot = $state('');
 
 	const tag = $derived(String(attrs?.tag || 'tei'));
 	const textContent = $derived(extractTextChildren(attrs?.teiNode));
@@ -21,13 +20,12 @@
 
 	const noteTypeOptions = ['editorial', 'local'];
 
-	$effect(() => {
-		const snapshot = JSON.stringify(attrs || {});
-		if (snapshot === lastSnapshot) return;
-		lastSnapshot = snapshot;
+	function initDrafts() {
 		textDraft = textContent ?? String(attrs?.text || '');
 		noteType = String(attrs?.teiAttrs?.type || '');
-	});
+	}
+
+	initDrafts();
 
 	function apply() {
 		const teiAttrs = { ...(attrs?.teiAttrs || {}) };

@@ -38,7 +38,6 @@
 	let hand = $state('');
 	let type = $state('');
 	let position = $state('');
-	let lastSnapshot = $state('');
 
 	const commonCorrectionTypes = [
 		'correction',
@@ -68,14 +67,13 @@
 			: 'mt-2 rounded bg-base-200 p-2 text-sm correction-display font-greek show-lacunose show-unclear show-abbreviation'
 	);
 
-	$effect(() => {
-		const snapshot = JSON.stringify(initialCorrections || []);
-		if (snapshot === lastSnapshot) return;
-		lastSnapshot = snapshot;
+	function initDrafts() {
 		tempCorrections = cloneCorrections(initialCorrections);
 		correctionKeys = tempCorrections.map(() => createCorrectionKey());
 		resetDraft();
-	});
+	}
+
+	initDrafts();
 
 	function createCorrectionKey(): string {
 		nextCorrectionKey += 1;

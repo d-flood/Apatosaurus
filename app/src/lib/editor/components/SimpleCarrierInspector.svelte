@@ -30,15 +30,9 @@
 	let untranscribedReason = $state('');
 	let untranscribedExtent = $state<'partial' | 'full'>('partial');
 
-	let lastSnapshot = $state('');
-
 	const gapReasons = ['Damage/Loss', 'Illegible', 'Missing', 'Witness End', 'Other'];
 
-	$effect(() => {
-		const snapshot = JSON.stringify(editedAttrs);
-		if (snapshot === lastSnapshot) return;
-		lastSnapshot = snapshot;
-
+	function initDrafts() {
 		if (type === 'gap') {
 			reason = String(editedAttrs.reason || '');
 			unit = String(editedAttrs.unit || '');
@@ -62,7 +56,9 @@
 			untranscribedReason = String(editedAttrs.reason || '');
 			untranscribedExtent = editedAttrs.extent === 'full' ? 'full' : 'partial';
 		}
-	});
+	}
+
+	initDrafts();
 
 	function mergeTeiAttrs(updates: Record<string, string | undefined>) {
 		const next = { ...editedAttrs };

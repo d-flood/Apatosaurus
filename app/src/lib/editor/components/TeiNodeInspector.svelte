@@ -59,6 +59,7 @@
 </script>
 
 <script lang="ts">
+	import { inspectorSelectionKey } from '$lib/editor/editorInteractions';
 	import CorrectionNodeInspector from './CorrectionNodeInspector.svelte';
 	import EditorialActionInspector from './EditorialActionInspector.svelte';
 	import FormWorkInspector from './FormWorkInspector.svelte';
@@ -81,27 +82,29 @@
 </script>
 
 {#if selectedNode}
-	{#if selectedNode.type === 'correctionNode'}
-		<CorrectionNodeInspector attrs={selectedNode.attrs} onApply={applyAttrs} />
-	{:else if selectedNode.type === 'editorialAction'}
-		<EditorialActionInspector attrs={selectedNode.attrs} onApply={applyAttrs} />
-	{:else if selectedNode.type === 'metamark'}
-		<MetamarkInspector attrs={selectedNode.attrs} onApply={applyAttrs} />
-	{:else if selectedNode.type === 'teiAtom'}
-		<TeiAtomInspector attrs={selectedNode.attrs} onApply={applyAttrs} />
-	{:else if selectedNode.type === 'teiWrapper'}
-		<TeiWrapperInspector attrs={selectedNode.attrs} onApply={applyAttrs} />
-	{:else if selectedNode.type === 'fw'}
-		<FormWorkInspector attrs={selectedNode.attrs} onApply={applyAttrs} />
-	{:else if ['pageBreak', 'lineBreak', 'columnBreak', 'handShift', 'teiMilestone', 'gap', 'space', 'untranscribed'].includes(selectedNode.type)}
-		<SimpleCarrierInspector
-			type={selectedNode.type}
-			attrs={selectedNode.attrs}
-			onApply={applyAttrs}
-		/>
-	{:else}
-		<div class="rounded bg-base-200 p-3 text-xs text-base-content/70">
-			No editable fields available for this element yet.
-		</div>
-	{/if}
+	{#key inspectorSelectionKey(selectedNode)}
+		{#if selectedNode.type === 'correctionNode'}
+			<CorrectionNodeInspector attrs={selectedNode.attrs} onApply={applyAttrs} />
+		{:else if selectedNode.type === 'editorialAction'}
+			<EditorialActionInspector attrs={selectedNode.attrs} onApply={applyAttrs} />
+		{:else if selectedNode.type === 'metamark'}
+			<MetamarkInspector attrs={selectedNode.attrs} onApply={applyAttrs} />
+		{:else if selectedNode.type === 'teiAtom'}
+			<TeiAtomInspector attrs={selectedNode.attrs} onApply={applyAttrs} />
+		{:else if selectedNode.type === 'teiWrapper'}
+			<TeiWrapperInspector attrs={selectedNode.attrs} onApply={applyAttrs} />
+		{:else if selectedNode.type === 'fw'}
+			<FormWorkInspector attrs={selectedNode.attrs} onApply={applyAttrs} />
+		{:else if ['pageBreak', 'lineBreak', 'columnBreak', 'handShift', 'teiMilestone', 'gap', 'space', 'untranscribed'].includes(selectedNode.type)}
+			<SimpleCarrierInspector
+				type={selectedNode.type}
+				attrs={selectedNode.attrs}
+				onApply={applyAttrs}
+			/>
+		{:else}
+			<div class="rounded bg-base-200 p-3 text-xs text-base-content/70">
+				No editable fields available for this element yet.
+			</div>
+		{/if}
+	{/key}
 {/if}

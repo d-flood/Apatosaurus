@@ -20,20 +20,18 @@
 
 	let textLeafDrafts = $state<TextLeafDraft[]>([]);
 	let languageValue = $state('');
-	let lastSnapshot = $state('');
 
 	const tag = $derived(String(attrs?.tag || 'seg'));
 	const isForeign = $derived(tag === 'foreign');
-	$effect(() => {
-		const snapshot = JSON.stringify(attrs || {});
-		if (snapshot === lastSnapshot) return;
-		lastSnapshot = snapshot;
+	function initDrafts() {
 		languageValue = String(attrs?.teiAttrs?.['xml:lang'] || '');
 		textLeafDrafts = collectTextLeaves(attrs?.children).map((leaf, index) => ({
 			...leaf,
 			label: `Text ${index + 1}`,
 		}));
-	});
+	}
+
+	initDrafts();
 
 	function apply() {
 		const teiAttrs = { ...(attrs?.teiAttrs || {}) };

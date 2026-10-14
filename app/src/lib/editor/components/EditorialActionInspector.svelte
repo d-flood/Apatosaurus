@@ -11,7 +11,6 @@
 
 	let targetsDraft = $state('');
 	let itemsDraft = $state('[]');
-	let lastSnapshot = $state('');
 
 	const structure = $derived(
 		attrs?.structure && typeof attrs.structure === 'object' ? attrs.structure : null
@@ -19,13 +18,12 @@
 	const isListTranspose = $derived(structure?.kind === 'listTranspose');
 	const kindLabel = $derived(editorialActionLabel(structure?.kind));
 
-	$effect(() => {
-		const snapshot = JSON.stringify(attrs || {});
-		if (snapshot === lastSnapshot) return;
-		lastSnapshot = snapshot;
+	function initDrafts() {
 		targetsDraft = Array.isArray(structure?.targets) ? structure.targets.join(' ') : '';
 		itemsDraft = JSON.stringify(structure?.items || [], null, 2);
-	});
+	}
+
+	initDrafts();
 
 	function apply() {
 		if (!structure) return;
