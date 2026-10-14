@@ -52,6 +52,7 @@
 	let isBooting = $state(true);
 	let isCreating = $state(false);
 	let error = $state<string | null>(null);
+	let appliedSignIn = signInCompletion.lastCompleted;
 
 	let signedIn = $derived(accounts.some(account => account.signedIn));
 	let groups = $derived(groupProjectsByLocation(projects, placements, locations, accounts));
@@ -95,6 +96,13 @@
 			chosenLocationId = resolveDefaultLocationId(readLastUsedLocationId(), locations) ?? '';
 		}
 	}
+
+	$effect(() => {
+		const completed = signInCompletion.lastCompleted;
+		if (!completed || completed === appliedSignIn) return;
+		appliedSignIn = completed;
+		void loadLocations().then(() => (chosenLocationId = completed.location.id));
+	});
 
 	function groupStatus(group: ProjectLocationGroup) {
 		return worstSyncStatus(

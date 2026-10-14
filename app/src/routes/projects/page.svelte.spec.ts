@@ -90,7 +90,16 @@ vi.mock('$lib/backup/sync-service.svelte', () => ({
 }));
 
 import { listProjectLocations } from '$lib/storage/project-locations';
+import { signInCompletion } from '$lib/backup/sign-in-completion.svelte';
 import Page from './+page.svelte';
+
+const deskLocation = {
+	id: 'desk',
+	accountId: null,
+	kind: 'device' as const,
+	rootFolderId: '.',
+	displayPath: 'Desk',
+};
 
 const driveLocation = {
 	id: 'drive',
@@ -158,6 +167,7 @@ describe('/projects destination', () => {
 	beforeEach(() => {
 		mocks.placeProjectInLocation.mockClear();
 		localStorage.clear();
+		signInCompletion.lastCompleted = null;
 	});
 
 	it('names the only location read-only and places created and imported projects there', async () => {
@@ -246,5 +256,22 @@ describe('/projects destination', () => {
 			.toBeInTheDocument();
 		expect(mocks.importProjectZip).toHaveBeenLastCalledWith(expect.any(Uint8Array), 'replace');
 		expect(mocks.placeProjectInLocation).not.toHaveBeenCalled();
+	});
+
+	it('switches the destination to the location of a sign-in completed here', async () => {
+		localStorage.setItem('lastUsedLocationId', 'desk');
+		vi.mocked(listProjectLocations).mockResolvedValue([deskLocation, driveLocation]);
+
+		render(Page);
+
+		const picker = page.getByRole('combobox', { name: 'Location' }).first();
+		await expect.element(picker).toHaveValue('desk');
+		signInCompletion.lastCompleted = {
+			accountId: 'account-1',
+			provider: 'google',
+			location: driveLocation,
+			driveAccess: false,
+		};
+		await expect.element(picker).toHaveValue('drive');
 	});
 });
