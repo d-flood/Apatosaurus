@@ -1,6 +1,5 @@
 import { page } from '@vitest/browser/context';
 import { expect, it, vi } from 'vitest';
-import { tick } from 'svelte';
 import { render } from 'vitest-browser-svelte';
 import type { ProjectRecord } from '$lib/db/repositories/projects';
 
@@ -42,11 +41,10 @@ it('saves details and resets saved drafts without reloading transcription member
 	const view = render(SettingsPage, { data: { project } });
 	await expect.poll(() => mocks.getProjectTranscriptionIds.mock.calls.length).toBe(1);
 	const name = page.getByRole('textbox', { name: 'Name', exact: true });
-	await name.fill('Saved name');
+	await name.fill('  Saved name  ');
 	await page.getByRole('button', { name: 'Save Details' }).click();
 	await expect.poll(() => mocks.invalidateAll.mock.calls.length).toBe(1);
 	await view.rerender({ data: { project: { ...project, name: 'Saved name' } } });
-	await tick();
 	await expect.element(name).toHaveValue('Saved name');
 	expect(mocks.updateProjectMetadata).toHaveBeenCalledWith({
 		projectId: project.id,

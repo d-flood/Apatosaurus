@@ -54,6 +54,10 @@
 		const nextSegType = structuredPlacement.segType ?? segTypeValue;
 		const nextSegSubtype = structuredPlacement.segSubtype ?? segSubtypeValue;
 		const nextSegPlace = structuredPlacement.segPlace ?? segPlaceValue;
+		placeValue = nextPlace;
+		segTypeValue = nextSegType;
+		segSubtypeValue = nextSegSubtype;
+		segPlaceValue = nextSegPlace;
 		onApply({
 			...attrs,
 			type: typeValue,

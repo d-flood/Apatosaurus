@@ -46,7 +46,7 @@ describe('StemmaPhase', () => {
 		collationState.setLemmaReading(0, b.id);
 	});
 
-	it('keeps keyboard source controls usable after undo removes a lifted reading', async () => {
+	it('forgets a lift when undo removes the lifted reading, even after redo restores it', async () => {
 		render(StemmaPhase);
 		collationState.addReading(0);
 		const diagram = page.getByRole('group', { name: /Local stemma for unit/ });
@@ -66,6 +66,8 @@ describe('StemmaPhase', () => {
 			.toHaveTextContent('Lifted reading');
 		collationState.undo();
 		await expect.poll(nodeCount).toBe(2);
+		collationState.redo();
+		await expect.poll(nodeCount).toBe(3);
 		const remaining = diagram.getByRole('button').first();
 		(remaining.element() as HTMLButtonElement).focus();
 		await userEvent.keyboard('u');

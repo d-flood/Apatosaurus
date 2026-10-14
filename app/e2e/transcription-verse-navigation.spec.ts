@@ -29,6 +29,8 @@ test('Go To changes verse without remounting the editor', async ({ page }) => {
 	});
 	await page.getByPlaceholder('Select or type a verse').fill(identifier);
 	await page.getByRole('button', { name: 'Go To', exact: true }).click();
-	await expect(page).toHaveURL(new RegExp(`verse=${identifier.split(':').at(-1)}`));
+	await expect
+		.poll(() => new URL(page.url()).searchParams.get('verse'))
+		.toBe(identifier.split(':').at(-1));
 	await expect(page.locator('.tiptap[data-probe="1"]')).toBeVisible();
 });

@@ -411,27 +411,6 @@ describe('collationState artifact-first persistence', () => {
 		vi.useRealTimers();
 	});
 
-	it('persists route phases without emitting presence edits', async () => {
-		const state = await importState();
-		state.reset();
-		expect(await state.loadCollationById('col-1')).toBe(true);
-		const listener = vi.fn();
-		const unsubscribe = state.onEdit(listener);
-		try {
-			state.showPhase('readings');
-			expect(state.phase).toBe('readings');
-			expect(state.saveStatus).toBe('unsaved');
-			expect(listener).not.toHaveBeenCalled();
-			expect(await state.flushPendingSave()).toBe(true);
-			state.showPhase('readings');
-			expect(state.saveStatus).toBe('saved');
-			state.setPhase('stemma');
-			expect(listener).toHaveBeenCalledOnce();
-		} finally {
-			unsubscribe();
-		}
-	}, 10_000);
-
 	it('loads from the canonical artifact without refreshing unchanged witnesses', async () => {
 		const collationState = await importState();
 		collationState.reset();
@@ -454,6 +433,30 @@ describe('collationState artifact-first persistence', () => {
 		expect(collationState.alignmentLayout).toBe('variation-units');
 		expect(collationState.ignoreWordBreaks).toBe(false);
 	}, 30000);
+
+	it('persists route phases without emitting presence edits', async () => {
+		const state = await importState();
+		state.reset();
+		expect(await state.loadCollationById('col-1')).toBe(true);
+		const listener = vi.fn();
+		const unsubscribe = state.onEdit(listener);
+		try {
+			state.showPhase('readings');
+			expect(state.phase).toBe('readings');
+			expect(state.furthestPhase).toBe('readings');
+			expect(state.saveStatus).toBe('unsaved');
+			expect(await state.flushPendingSave()).toBe(true);
+			state.showPhase('readings');
+			expect(state.saveStatus).toBe('saved');
+			state.showPhase('alignment');
+			expect(state.furthestPhase).toBe('readings');
+			expect(listener).not.toHaveBeenCalled();
+			state.setPhase('stemma');
+			expect(listener).toHaveBeenCalledOnce();
+		} finally {
+			unsubscribe();
+		}
+	});
 
 	it('recomputes readings from alignment and decisions instead of loading persisted readings', async () => {
 		const loadedValue = await loadCollation();

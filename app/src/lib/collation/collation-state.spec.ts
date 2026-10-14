@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { deserializeAlignmentColumns, type AlignmentCell } from './alignment-snapshot';
 import { collateToAlignmentSnapshot } from './collation-adapter';
 import { collationState, type WitnessConfig } from './collation-state.svelte';
@@ -126,39 +126,21 @@ describe('collationState stemma derivation', () => {
 		collationState.reset();
 	});
 
-	it('shows a phase without reporting an edit and ignores the current phase', () => {
-		const onEdit = vi.fn();
-		const unsubscribe = collationState.onEdit(onEdit);
-		try {
-			collationState.showPhase('setup');
-			expect(collationState.saveStatus).toBe('saved');
-			collationState.showPhase('readings');
-			expect(collationState.phase).toBe('readings');
-			expect(collationState.furthestPhase).toBe('readings');
-			expect(collationState.saveStatus).toBe('unsaved');
-			collationState.showPhase('alignment');
-			expect(collationState.furthestPhase).toBe('readings');
-			expect(onEdit).not.toHaveBeenCalled();
-		} finally {
-			unsubscribe();
-		}
-	});
-
-	it('keeps the effective unit selection valid when alignment shrinks without a mounted view', () => {
-		collationState.setWitnesses([
-			makeWitness('A', 'alpha beta gamma', { isBaseText: true }),
-			makeWitness('B', 'delta epsilon zeta'),
-		]);
-		const { snapshot } = collateToAlignmentSnapshot({
-			witnesses: collationState.buildCollationWitnessInputs(),
-			options: { segmentation: false },
+	it('derives a valid unit selection after an alignment edit without a mounted view', () => {
+		collationState.setAlignmentSnapshot({
+			witnessOrder: ['A', 'B'],
+			columns: ['col-1', 'col-2', 'col-3'].map((id, index) => ({
+				id,
+				index,
+				merged: false,
+				cells: [
+					['A', makeTextCell(`alpha-${index}`)],
+					['B', makeTextCell(`beta-${index}`)],
+				],
+			})),
 		});
-		collationState.setAlignmentSnapshot(snapshot);
 		collationState.selectedUnitIndex = 2;
-		expect(collationState.selectedUnitIndex).toBe(2);
-		collationState.alignmentColumns.splice(1);
-		expect(collationState.selectedUnitIndex).toBe(0);
-		collationState.setAlignmentSnapshot({ ...snapshot, columns: snapshot.columns.slice(0, 1) });
+		collationState.mergeColumns(['col-2', 'col-3']);
 		expect(collationState.selectedUnitIndex).toBe(0);
 	});
 

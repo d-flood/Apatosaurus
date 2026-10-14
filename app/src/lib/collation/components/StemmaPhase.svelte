@@ -32,15 +32,16 @@
 	let layout = $derived(layoutLocalStemma(stemma.nodes));
 	let nodeById = $derived(new Map(stemma.nodes.map(node => [node.readingId, node] as const)));
 	let labelById = $derived(new Map(stemma.nodes.map(node => [node.readingId, node.label])));
+	const nodeIdsKey = $derived(stemma.nodes.map(node => node.readingId).join('\n'));
 	let focusedNodeId = $state<string | null>(null);
-	let liftedReadingId = $state<string | null>(null);
+	let liftedReadingId = $derived.by<string | null>(() => {
+		nodeIdsKey;
+		return null;
+	});
 	const activeFocusedNodeId = $derived(
 		focusedNodeId && nodeById.has(focusedNodeId)
 			? focusedNodeId
 			: (stemma.nodes[0]?.readingId ?? null)
-	);
-	const activeLiftedReadingId = $derived(
-		liftedReadingId && nodeById.has(liftedReadingId) ? liftedReadingId : null
 	);
 
 	let liftTargetReadingId = $state<string | null>(null);
@@ -262,8 +263,8 @@
 		const target = nodeById.get(targetId);
 		if (!target) return;
 		void focusNode(targetId);
-		if (!activeLiftedReadingId) return;
-		const lifted = nodeById.get(activeLiftedReadingId);
+		if (!liftedReadingId) return;
+		const lifted = nodeById.get(liftedReadingId);
 		if (lifted) {
 			liftTargetReadingId = target.readingId;
 			announce(describeLiftTarget(lifted, target));
@@ -271,14 +272,14 @@
 	}
 
 	function liftOrPlace(node: StemmaTreeNode) {
-		if (!activeLiftedReadingId) {
+		if (!liftedReadingId) {
 			liftedReadingId = node.readingId;
 			liftTargetReadingId = null;
 			announce(`Lifted reading ${node.label}. Choose its prior reading with the arrow keys.`);
 			return;
 		}
 
-		const lifted = nodeById.get(activeLiftedReadingId);
+		const lifted = nodeById.get(liftedReadingId);
 		if (!lifted) {
 			liftedReadingId = null;
 			liftTargetReadingId = null;
@@ -304,8 +305,8 @@
 	}
 
 	function cancelLift() {
-		if (!activeLiftedReadingId) return;
-		const lifted = nodeById.get(activeLiftedReadingId);
+		if (!liftedReadingId) return;
+		const lifted = nodeById.get(liftedReadingId);
 		const target = liftTargetReadingId ? nodeById.get(liftTargetReadingId) : null;
 		if (lifted) {
 			announce(
@@ -352,13 +353,13 @@
 			liftOrPlace(node);
 			return;
 		}
-		if (event.key === 'Escape' && activeLiftedReadingId) {
+		if (event.key === 'Escape' && liftedReadingId) {
 			event.preventDefault();
 			event.stopPropagation();
 			cancelLift();
 			return;
 		}
-		if (activeLiftedReadingId) return;
+		if (liftedReadingId) return;
 		if (event.key.toLowerCase() === 'u') {
 			event.preventDefault();
 			setNodeState(node, { kind: 'unclear' }, 'mark the source unclear');
@@ -816,7 +817,7 @@
 										? 'ring-1 ring-primary ring-inset'
 										: ''} {isDropTarget
 										? 'ring-2 ring-success ring-offset-2 ring-offset-base-200'
-										: ''} {activeLiftedReadingId === node.readingId
+										: ''} {liftedReadingId === node.readingId
 										? 'opacity-60 ring-2 ring-primary'
 										: ''}"
 									style="left: {placed.x}px; top: {placed.y}px; width: {placed.width}px; height: {placed.height}px;"
