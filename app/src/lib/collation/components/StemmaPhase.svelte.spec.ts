@@ -34,7 +34,6 @@ describe('StemmaPhase', () => {
 	beforeEach(() => {
 		collationState.reset();
 		collationState.setWitnesses([witness('A', 'λογος', true), witness('B', 'θεος')]);
-		collationState.refreshCollationInput();
 		const snapshot = collateToAlignmentSnapshot({
 			witnesses: collationState.buildCollationWitnessInputs(),
 			options: { segmentation: false },

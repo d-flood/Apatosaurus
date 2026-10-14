@@ -64,7 +64,6 @@ import {
 	type CollationPhase,
 	type RegularizationRule,
 	type RegularizationType,
-	type RegularizedToken,
 	type ReadingArc,
 	type SuppliedTextMode,
 	type WitnessConfig,
@@ -121,7 +120,6 @@ import {
 import {
 	deriveCollationInput,
 	validateRegularizationRule,
-	type CollationInputDiagnostic,
 	type DerivedCollationInput,
 	type RegularizationRuleEffect,
 } from './regularization';
@@ -210,10 +208,6 @@ function createCollationState() {
 	let selectedVerseNum = $state('');
 
 	let rules = $state<RegularizationRule[]>([]);
-	let regularizedTexts = $state<Map<string, RegularizedToken[]>>(new Map());
-	let regularizationDiagnostics = $state<CollationInputDiagnostic[]>([]);
-	let regularizationRuleEffects = $state<RegularizationRuleEffect[]>([]);
-	let derivedCollationInput: DerivedCollationInput | null = null;
 	let lastAlignmentInputSignature = $state<string | null>(null);
 	let lowercase = $state(false);
 	let ignoreWordBreaks = $state(false);
@@ -221,6 +215,14 @@ function createCollationState() {
 	let ignorePunctuation = $state(false);
 	let suppliedTextMode = $state<SuppliedTextMode>('clear');
 	let segmentation = $state(true);
+	const collationInput = $derived(
+		deriveCollationInput(
+			witnesses,
+			{ lowercase, ignoreTokenWhitespace, ignorePunctuation, suppliedTextMode },
+			rules
+		)
+	);
+
 	let transcriptionWitnessTreatments = $state<Map<string, WitnessTreatment>>(new Map());
 	let transcriptionWitnessExcludedHands = $state<Map<string, string[]>>(new Map());
 	let projectReadingTypes = $state<ReadingTypeDefinition[]>([]);
@@ -278,10 +280,6 @@ function createCollationState() {
 		readingArcs = new Map(hydrated.readingArcs);
 		alignmentDisplayMode = hydrated.alignmentDisplayMode;
 		alignmentLayout = hydrated.alignmentLayout;
-		regularizedTexts = new Map();
-		regularizationDiagnostics = [];
-		regularizationRuleEffects = [];
-		derivedCollationInput = null;
 		lastAlignmentInputSignature =
 			alignmentColumns.length > 0 ? buildAlignmentInputSignature() : null;
 		selectedColumnIds = new Set();
@@ -490,9 +488,6 @@ function createCollationState() {
 		selectedBook = '';
 		selectedChapter = '';
 		selectedVerseNum = '';
-		regularizedTexts = new Map();
-		regularizationDiagnostics = [];
-		derivedCollationInput = null;
 	}
 
 	function getExcludedHandsForTranscription(transcriptionId: string): string[] {
@@ -532,14 +527,12 @@ function createCollationState() {
 		transcriptionWitnessExcludedHands = new Map();
 		projectReadingTypes = [];
 		if (!nextProjectId) {
-			refreshCollationInput();
 			return;
 		}
 
 		const project = await getProject(nextProjectId);
 		if (!project) {
 			projectId = null;
-			refreshCollationInput();
 			return;
 		}
 
@@ -573,7 +566,6 @@ function createCollationState() {
 				scheduleSave();
 			}
 		}
-		refreshCollationInput();
 	}
 
 	function clearSelectedVerse() {
@@ -677,7 +669,6 @@ function createCollationState() {
 		witnesses = ensureBaseTextSelection(
 			applyWitnessTreatmentSources(filterWitnessesByProjectSettings(configs))
 		);
-		refreshCollationInput();
 		markUnsaved();
 	}
 
@@ -692,7 +683,6 @@ function createCollationState() {
 				return next;
 			})
 		);
-		refreshCollationInput();
 		markUnsaved();
 	}
 
@@ -746,7 +736,6 @@ function createCollationState() {
 
 	function setRules(nextRules: RegularizationRule[]) {
 		rules = nextRules;
-		refreshCollationInput();
 		void persistRulesToProject(nextRules);
 		markUnsaved();
 	}
@@ -770,8 +759,8 @@ function createCollationState() {
 
 	function getRuleEffects(ruleId?: string): RegularizationRuleEffect[] {
 		return ruleId
-			? regularizationRuleEffects.filter(effect => effect.ruleId === ruleId)
-			: regularizationRuleEffects;
+			? collationInput.ruleEffects.filter(effect => effect.ruleId === ruleId)
+			: collationInput.ruleEffects;
 	}
 
 	function addRule(rule: RegularizationRule) {
@@ -793,7 +782,6 @@ function createCollationState() {
 	function setLowercase(nextValue: boolean) {
 		lowercase = nextValue;
 		void persistRulesToProject(rules);
-		refreshCollationInput();
 		markUnsaved();
 	}
 
@@ -805,21 +793,18 @@ function createCollationState() {
 		if (didChange) {
 			handleWitnessSourceChange();
 		}
-		refreshCollationInput();
 		markUnsaved();
 	}
 
 	function setIgnorePunctuation(nextValue: boolean) {
 		ignorePunctuation = nextValue;
 		void persistRulesToProject(rules);
-		refreshCollationInput();
 		markUnsaved();
 	}
 
 	function setSuppliedTextMode(nextValue: SuppliedTextMode) {
 		suppliedTextMode = nextValue;
 		void persistRulesToProject(rules);
-		refreshCollationInput();
 		markUnsaved();
 	}
 
@@ -838,7 +823,6 @@ function createCollationState() {
 		nextMap.set(transcriptionId, normalizedTreatment);
 		transcriptionWitnessTreatments = nextMap;
 		witnesses = applyWitnessTreatmentSources(witnesses);
-		refreshCollationInput();
 		void persistRulesToProject(rules);
 		markUnsaved();
 	}
@@ -854,7 +838,6 @@ function createCollationState() {
 		}
 		transcriptionWitnessTreatments = nextMap;
 		witnesses = applyWitnessTreatmentSources(witnesses);
-		refreshCollationInput();
 		void persistRulesToProject(rules);
 		markUnsaved();
 	}
@@ -904,17 +887,6 @@ function createCollationState() {
 		markUnsaved();
 	}
 
-	function refreshCollationInput() {
-		derivedCollationInput = deriveCollationInput(
-			witnesses,
-			{ lowercase, ignoreTokenWhitespace, ignorePunctuation, suppliedTextMode },
-			rules
-		);
-		regularizedTexts = derivedCollationInput.perWitnessTokens;
-		regularizationDiagnostics = derivedCollationInput.diagnostics;
-		regularizationRuleEffects = derivedCollationInput.ruleEffects;
-	}
-
 	function buildAlignmentInputSignature(): string {
 		const input = getDerivedCollationInput();
 		return JSON.stringify({
@@ -943,8 +915,7 @@ function createCollationState() {
 	}
 
 	function getDerivedCollationInput(): DerivedCollationInput {
-		if (!derivedCollationInput) refreshCollationInput();
-		return derivedCollationInput!;
+		return collationInput;
 	}
 
 	function alignmentEditContext(): AlignmentEditContext {
@@ -1259,7 +1230,6 @@ function createCollationState() {
 	}
 
 	function handleWitnessSourceChange() {
-		refreshCollationInput();
 		if (alignmentColumns.length > 0) {
 			rebuildAlignmentFromWitnessTokens();
 		}
@@ -2384,10 +2354,6 @@ function createCollationState() {
 		transcriptionWitnessTreatments = new Map();
 		projectReadingTypes = [];
 		alignmentColumns = [];
-		regularizedTexts = new Map();
-		regularizationDiagnostics = [];
-		regularizationRuleEffects = [];
-		derivedCollationInput = null;
 		lastAlignmentInputSignature = null;
 		witnessOrder = [];
 		selectedColumnIds = new Set();
@@ -2601,13 +2567,13 @@ function createCollationState() {
 			return rules;
 		},
 		get regularizedTexts() {
-			return regularizedTexts;
+			return collationInput.perWitnessTokens;
 		},
 		get regularizationDiagnostics() {
-			return regularizationDiagnostics;
+			return collationInput.diagnostics;
 		},
 		get regularizationRuleEffects() {
-			return regularizationRuleEffects;
+			return collationInput.ruleEffects;
 		},
 		get isAlignmentStale() {
 			return isAlignmentStale();
@@ -2715,7 +2681,6 @@ function createCollationState() {
 		setSegmentMember,
 		setOrphanedMembers,
 		clearSegment,
-		refreshCollationInput,
 		buildCollationWitnessInputs,
 		refreshWitnessesFromSource,
 		refreshWitnessSource,

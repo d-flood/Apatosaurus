@@ -175,7 +175,6 @@
 			type: newType,
 		};
 		collationState.addRule(rule);
-		collationState.refreshCollationInput();
 		newPattern = '';
 		newReplacement = '';
 		newDescription = '';
@@ -183,7 +182,6 @@
 	}
 
 	async function runCollation() {
-		collationState.refreshCollationInput();
 		const invalidDiagnostic = collationState.regularizationDiagnostics.find(
 			diagnostic => diagnostic.code === 'invalid_regex'
 		);
@@ -549,12 +547,6 @@
 	}
 
 	let baseIndexLabels = $derived(computeBaseIndexLabels());
-
-	$effect(() => {
-		if (collationState.rules.length >= 0) {
-			collationState.refreshCollationInput();
-		}
-	});
 </script>
 
 <!-- svelte-ignore a11y_no_noninteractive_tabindex -->

@@ -592,7 +592,6 @@ describe('collationState stemma derivation', () => {
 			makeWitness('B', 'θς'),
 		]);
 		collationState.addRule(makeRule());
-		collationState.refreshCollationInput();
 
 		const snapshot = collateToAlignmentSnapshot({
 			witnesses: collationState.buildCollationWitnessInputs(),
@@ -1124,7 +1123,6 @@ describe('collationState stemma derivation', () => {
 		]);
 
 		collationState.setLowercase(true);
-		collationState.refreshCollationInput();
 
 		const inputs = collationState.buildCollationWitnessInputs({ forceSourceWitnesses: true });
 		expect(inputs[0]?.tokens?.[0]).toMatchObject({
@@ -1155,6 +1153,19 @@ describe('collationState stemma derivation', () => {
 		expect(previewTokens.map(token => token.alignmentValue)).toEqual(
 			workerTokens.map(token => token.n)
 		);
+	});
+
+	it('derives rule effects immediately and clears them when setup selections reset', async () => {
+		collationState.setWitnesses([makeWitness('A', 'θς', { isBaseText: true })]);
+		expect(collationState.regularizationRuleEffects).toEqual([]);
+		collationState.addRule(makeRule());
+		expect(collationState.regularizationRuleEffects).toEqual([
+			expect.objectContaining({ ruleId: 'rule-1', witnessId: 'A' }),
+		]);
+		expect(collationState.regularizedTexts.get('A')?.[0]?.regularized).toBe('θεος');
+		await collationState.clearProjectSelection();
+		expect(collationState.regularizationRuleEffects).toEqual([]);
+		expect(collationState.regularizedTexts.size).toBe(0);
 	});
 
 	it('marks alignment stale when rules or settings change after a run and clears on rerun', () => {
@@ -1257,8 +1268,6 @@ describe('collationState stemma derivation', () => {
 			makeWitness('B', 'κλητος'),
 		]);
 
-		collationState.refreshCollationInput();
-
 		const inputs = collationState.buildCollationWitnessInputs({ forceSourceWitnesses: true });
 		expect(inputs[0]?.tokens?.[0]).toMatchObject({
 			t: 'κλη\\nτος',
@@ -1306,8 +1315,6 @@ describe('collationState stemma derivation', () => {
 			makeWitness('B', 'αποστολος'),
 		]);
 
-		collationState.refreshCollationInput();
-
 		const inputs = collationState.buildCollationWitnessInputs({ forceSourceWitnesses: true });
 		expect(inputs[0]?.tokens?.[0]).toMatchObject({
 			t: 'αποστολος',
@@ -1327,7 +1334,6 @@ describe('collationState stemma derivation', () => {
 			makeWitness('B', 'λογος'),
 			makeWitness('C', 'λογος'),
 		]);
-		collationState.refreshCollationInput();
 
 		const snapshot = collateToAlignmentSnapshot({
 			witnesses: collationState.buildCollationWitnessInputs(),
@@ -1615,7 +1621,6 @@ describe('collationState non-attestation', () => {
 	}
 
 	function collateWitnesses() {
-		collationState.refreshCollationInput();
 		const snapshot = collateToAlignmentSnapshot({
 			witnesses: collationState.buildCollationWitnessInputs(),
 			options: { segmentation: false },
@@ -1798,7 +1803,6 @@ describe('collationState reading types and certainty', () => {
 	}
 
 	function collateWitnesses() {
-		collationState.refreshCollationInput();
 		const snapshot = collateToAlignmentSnapshot({
 			witnesses: collationState.buildCollationWitnessInputs(),
 			options: { segmentation: false },
@@ -2002,7 +2006,6 @@ describe('collationState local stemma source decisions', () => {
 				makeWitness(witnessId, text, { isBaseText: index === 0 })
 			)
 		);
-		collationState.refreshCollationInput();
 		const snapshot = collateToAlignmentSnapshot({
 			witnesses: collationState.buildCollationWitnessInputs(),
 			options: { segmentation: false },
@@ -2319,7 +2322,6 @@ describe('collationState bulk witness partitioning', () => {
 
 	function collateUnit(witnesses: WitnessConfig[]) {
 		collationState.setWitnesses(witnesses);
-		collationState.refreshCollationInput();
 		const snapshot = collateToAlignmentSnapshot({
 			witnesses: collationState.buildCollationWitnessInputs(),
 			options: { segmentation: false },

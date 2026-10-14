@@ -42,7 +42,6 @@ const GAP_TOKEN: WitnessSourceToken = {
 
 function collate(witnesses: WitnessConfig[]) {
 	collationState.setWitnesses(witnesses);
-	collationState.refreshCollationInput();
 	const snapshot = collateToAlignmentSnapshot({
 		witnesses: collationState.buildCollationWitnessInputs(),
 		options: { segmentation: false },

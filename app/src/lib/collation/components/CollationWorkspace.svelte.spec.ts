@@ -43,7 +43,6 @@ describe('CollationWorkspace undo/redo', () => {
 			makeWitness('B', 'θεος'),
 			makeWitness('C', 'πνευμα'),
 		]);
-		collationState.refreshCollationInput();
 		const snapshot = collateToAlignmentSnapshot({
 			witnesses: collationState.buildCollationWitnessInputs(),
 			options: { segmentation: false },

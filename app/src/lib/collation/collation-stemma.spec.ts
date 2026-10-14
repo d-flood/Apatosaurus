@@ -46,7 +46,6 @@ function makeWitness(
 function readingsFor(witnesses: WitnessConfig[]): ClassifiedReading[] {
 	collationState.reset();
 	collationState.setWitnesses(witnesses);
-	collationState.refreshCollationInput();
 	const result = collateToAlignmentSnapshot({
 		witnesses: collationState.buildCollationWitnessInputs(),
 		options: { segmentation: false },
