@@ -45,15 +45,20 @@ export class LocalSqliteDatabase {
 			await this.exec('PRAGMA journal_mode = WAL');
 			await this.exec('PRAGMA synchronous = NORMAL');
 		});
+		// A first start torn down before its schema transaction leaves an empty file behind.
+		const created =
+			!existed ||
+			(await this.query("SELECT 1 FROM sqlite_master WHERE type = 'table' LIMIT 1"))
+				.length === 0;
 		console.debug('[local-db] SQLite database opened', {
 			build: 'wa-sqlite',
 			vfs: INDEX_VFS_NAME,
 			filename: INDEX_DATABASE_FILENAME,
 			path: INDEX_DATABASE_PATH,
-			created: !existed,
+			created,
 			elapsedMs: elapsed(openStartedAt),
 		});
-		return { created: !existed };
+		return { created };
 	}
 
 	async close(): Promise<void> {

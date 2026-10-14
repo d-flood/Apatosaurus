@@ -137,6 +137,26 @@ describe('data-safety invariants in browser storage', () => {
 			])
 		);
 	}, 60_000);
+
+	it('an index file left without a schema by an interrupted first start is rebuilt', async () => {
+		client = new WorkerClient();
+		await client.request({ type: 'init' });
+		await createProjectTranscriptionAndCollation(client);
+		await client.request({ type: 'checkpoint' });
+		client.terminate();
+		client = null;
+		expect((await removeIndexFilesAfterWorkerRelease()).failedPaths).toEqual([]);
+		await writeTextFileAtomic('index/apatosaurus-index-v4.db', '');
+
+		client = new WorkerClient();
+		await client.request({ type: 'init' });
+		const projects = await client.request<Array<{ id: string }>>({
+			method: 'listProjects',
+			args: [],
+		});
+
+		expect(projects.map(project => project.id)).toContain(PROJECT_ID);
+	}, 60_000);
 });
 
 async function insertDisposableSyncFingerprint(db: WorkerClient): Promise<void> {

@@ -103,6 +103,7 @@ test('creating a project with two locations offers a picker defaulting to the la
 	await location.selectOption({ label: 'Lab Folder' });
 	await page.getByPlaceholder('New project name').fill('Lab Project');
 	await page.getByRole('button', { name: 'Create' }).click();
+	await expect(page).toHaveURL(/\/projects\/[^/]+\/transcriptions$/);
 	await expect(page.getByRole('heading', { name: 'Lab Project' })).toBeVisible();
 
 	await page.goto('/projects');
@@ -152,6 +153,7 @@ async function createProject(page: Page, name: string): Promise<string> {
 	const input = page.getByPlaceholder('New project name');
 	await input.fill(name);
 	await input.press('Enter');
+	await expect(page).toHaveURL(/\/projects\/[^/]+\/transcriptions$/);
 	await expect(page.getByRole('heading', { name })).toBeVisible();
 	const href = await page.getByRole('link', { name: 'New Transcription' }).getAttribute('href');
 	const projectId = new URL(href!, page.url()).searchParams.get('projectId');

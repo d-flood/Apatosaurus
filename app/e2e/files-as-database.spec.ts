@@ -405,6 +405,7 @@ async function createProject(page: Page, name: string): Promise<void> {
 	const input = page.getByPlaceholder('New project name');
 	await input.fill(name);
 	await input.press('Enter');
+	await expect(page).toHaveURL(/\/projects\/[^/]+\/transcriptions$/);
 	await expect(page.getByRole('heading', { name })).toBeVisible();
 }
 

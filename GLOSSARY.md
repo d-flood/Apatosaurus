@@ -63,11 +63,11 @@ A reading cited in its own right at a variation unit, labelled with a letter (`a
 _Avoid_: Parent reading, primary reading
 
 **Subreading**:
-A reading recorded separately from its main reading but treated as equivalent to it, and counted with it in analysis — typically a form differing only in damage, uncertainty, or orthography. Labelled from its main reading (`a1`, `a2`). Never a genealogically distinct variant.
+A reading recorded separately from its main reading but treated as equivalent to it, and counted with it in analysis — typically a form differing only in damage, uncertainty, or orthography. Always carries a reading type, and is labelled from its main reading by that type's suffix (`ao`), numbered when several share a type (`ao1`, `ao2`). Never a genealogically distinct variant.
 _Avoid_: Child reading, nested reading, reading family
 
 **Split reading**:
-A main reading whose text is identical to another main reading at the same variation unit, recorded separately because the scholar judges its witnesses reached it by a separate route. Takes its own place in the local stemma. Whether coherence treats the pair as agreeing is chosen per CBGM analysis.
+A main reading whose text is identical to another main reading at the same variation unit, recorded separately because the scholar judges its witnesses reached it by a separate route. The pair shares its letter and is numbered (`b1`, `b2`). Takes its own place in the local stemma. Whether coherence treats the pair as agreeing is chosen per CBGM analysis.
 _Avoid_: Split attestation, duplicate reading
 
 **Lemma reading**:
@@ -79,7 +79,7 @@ The readings, subreading groupings, and provisional order that the alignment and
 _Avoid_: Auto readings, generated readings, default readings
 
 **Editorial decision**:
-Something a scholar has explicitly established about a variation unit — a subreading attachment, a lemma elevation, a source decision, an order, a text correction, a split or merge. Outranks the reading proposal and survives realignment.
+Something a scholar has explicitly established about a variation unit — a subreading attachment, a lemma elevation, a source decision, an order, a text correction, splitting witnesses off a reading or merging readings, an ambiguous attestation. Outranks the reading proposal and survives realignment.
 _Avoid_: Override, manual edit, user change
 
 **Orphaned decision**:
@@ -99,12 +99,16 @@ A scholar's judgement, recorded per variation unit, of how many generations of i
 _Avoid_: Coherence value, connection strength
 
 **Reading type**:
-An evidential qualifier on a reading, standing on its own without reference to any other reading — that it is an omission, is too damaged to identify, is only apparently this text, or is not meaningful Greek. Exists so that later analysis can cite honestly and filter readings out. Never holds a claim about how one reading relates to another.
+An evidential qualifier on a reading, standing on its own without reference to any other reading — that it is an omission, is too damaged to identify, is only apparently this text, or is not meaningful Greek. Exists so that later analysis can cite honestly and filter readings out. Never holds a claim about how one reading relates to another. Each has a one-letter suffix that labels subreadings of that type.
 _Avoid_: Reading classification, reading category
 
 **Non-attestation**:
 The witnesses that do not testify at a variation unit because their text is damaged, lost, or illegible. Not a reading: it takes no letter, holds no subreadings, and never appears in a local stemma.
 _Avoid_: Lacuna reading, gap reading, empty reading
+
+**Ambiguous attestation**:
+A witness's testimony at a variation unit that is compatible with two or more named readings and cannot be decided between them (cited `zw a/b`). Not a reading: it takes no letter, holds no subreadings, and never appears in a local stemma. Coherence always treats the witness as not attesting there.
+_Avoid_: Ambiguous reading, zw reading
 
 **Omission**:
 A reading whose witnesses attest the absence of text at a variation unit. A genuine variant — it takes a letter and may stand at either end of an arc.
@@ -129,8 +133,15 @@ _Avoid_: Child, descendant, derived reading
 ### CBGM
 
 **CBGM analysis**:
-A named, saved computation of coherence over a set of a project's collations the scholar chooses, under settings the scholar chooses, which the scholar then queries. A project may hold several, none privileged over the others. Its witnesses are identified by siglum across its collations, and include first hands only unless the scholar adds correctors. Becomes out of date when any of its collations changes, and is never recomputed without the scholar asking.
-_Avoid_: CBGM database, CBGM run, genealogical cache
+A named, unchanging computation of coherence over a set of a project's collations as they stood when it started, under settings the scholar chooses, which the scholar then queries. A project may hold several, none privileged, each kept until the scholar deletes it; computing again makes a new analysis. Its witnesses are identified by siglum across its collations, and include first hands only unless the scholar adds correctors. Reading types it drops exclude main readings only; a subreading always counts with its main reading. Noted as out of date when any of its collations has changed since it started, which never alters the analysis.
+_Avoid_: CBGM database, CBGM run, genealogical cache, version
+
+**Substemma**:
+The witnesses chosen, by optimization, as a witness's stemmatic ancestors: a smallest-cost set of its potential ancestors that together explain its text.
+
+**Global stemma**:
+The stemma of all witnesses in a CBGM analysis, assembled from every witness's substemma. Computed once per analysis when the scholar asks, and kept with it; strengths and costs are ways of viewing it, not separate computations.
+_Avoid_: Stemma (unqualified)
 
 ### Versions and storage
 

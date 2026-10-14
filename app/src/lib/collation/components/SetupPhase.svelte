@@ -963,7 +963,8 @@
 							}
 							collationState.setPhase('alignment');
 							await collationState.flushPendingSave();
-							if (targetId) {
+							// The alignment workspace is live during the flush; don't pull back an editor who moved on.
+							if (targetId && collationState.phase === 'alignment') {
 								await goto(
 									resolve('/collation/[id]/[phase]', {
 										id: targetId,

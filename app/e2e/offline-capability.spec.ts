@@ -61,6 +61,7 @@ test('edits a transcription offline with a notice that clears online', async ({
 	await expect(page.getByRole('heading', { name: 'Projects' })).toBeVisible();
 	await page.getByPlaceholder('New project name').fill('Offline Project');
 	await page.getByPlaceholder('New project name').press('Enter');
+	await expect(page).toHaveURL(/\/projects\/[^/]+\/transcriptions$/);
 	await expect(page.getByRole('heading', { name: 'Offline Project' })).toBeVisible();
 	await page.getByRole('link', { name: 'New Transcription' }).click();
 	await page.locator('input[name="title"]').fill('Offline Witness');

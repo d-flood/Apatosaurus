@@ -174,6 +174,7 @@ async function createProject(page: Page, name: string): Promise<string> {
 	const create = page.getByRole('button', { name: 'Create' });
 	await expect(create).toBeEnabled();
 	await create.click();
+	await expect(page).toHaveURL(/\/projects\/[^/]+\/transcriptions$/);
 	await expect(page.getByRole('heading', { name })).toBeVisible();
 	const href = await page.getByRole('link', { name: 'New Transcription' }).getAttribute('href');
 	const projectId = new URL(href!, page.url()).searchParams.get('projectId');
