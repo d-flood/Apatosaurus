@@ -12,7 +12,9 @@ import {
 	serializeDeletedMarker,
 	serializeMovedMarker,
 } from './moved-marker';
-import { backupProject, hashText, type SyncManagerOptions } from './sync-manager';
+import { placementSyncContext } from './backup-status';
+import { mapConcurrently } from './map-concurrently';
+import { backupProject, hashText, recordSyncedFile, type SyncManagerOptions } from './sync-manager';
 import {
 	isCloudProviderError,
 	type CloudFileMetadata,
@@ -61,27 +63,28 @@ export async function moveProject(
 
 	const files = await listProjectArchiveFiles(db, input.projectId, { storeOptions });
 	const folder = await createEmptyFolder(destination);
+	let copied: CloudFileMetadata[];
 	try {
 		for (const file of files) {
 			await destination.provider.createFile(folder.id, file.path, file.content);
 		}
-		await verifyCopy(destination.provider, folder, files);
+		copied = await verifyCopy(destination.provider, folder, files);
 	} catch (error) {
 		await removeFolderContents(destination.provider, folder, null).catch(() => undefined);
 		throw error;
 	}
 
-	await upsertProjectPlacements(
-		[
-			{
-				projectId: input.projectId,
-				locationId: destination.locationId,
-				folderName: destination.folderName,
-				needsLocationChoice: false,
-			},
-		],
-		storeOptions
-	);
+	const placement = {
+		projectId: input.projectId,
+		locationId: destination.locationId,
+		folderName: destination.folderName,
+		needsLocationChoice: false,
+	};
+	await upsertProjectPlacements([placement], storeOptions);
+	const syncedAt = options.now?.() ?? new Date().toISOString();
+	for (const [index, file] of files.entries()) {
+		await recordSyncedFile(db, placementSyncContext(placement), file, copied[index]!, syncedAt);
+	}
 	if (!source) return;
 	await db
 		.deleteFrom('sync_file_fingerprints')
@@ -125,13 +128,13 @@ async function verifyCopy(
 	provider: CloudStorageProvider,
 	folder: CloudFileMetadata,
 	files: readonly ProjectArchiveFile[]
-): Promise<void> {
+): Promise<CloudFileMetadata[]> {
 	const copied = new Map(
 		(await listAll(provider, folder.id, true))
 			.filter(entry => !entry.isFolder)
 			.map(entry => [relativePath(entry, folder), entry])
 	);
-	for (const file of files) {
+	return mapConcurrently(files, async file => {
 		const entry = copied.get(file.path);
 		if (
 			!entry ||
@@ -140,7 +143,8 @@ async function verifyCopy(
 		) {
 			throw new Error(`Move could not verify ${file.path} at the destination.`);
 		}
-	}
+		return entry;
+	});
 }
 
 /** The marker goes first so other devices stop syncing before the files disappear. */

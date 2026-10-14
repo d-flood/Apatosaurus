@@ -253,6 +253,18 @@ describe('sync manager', () => {
 		expect(await remoteFile(provider, context, 'collations/col-1.json')).toBeNull();
 	});
 
+	it('does not download remote files that have not changed since the last sync', async () => {
+		await createCommittedProjectCollation('Initial notes', 'col-cp-1');
+		const { provider, context } = await createConnectedProvider();
+		await backupProject(harness.db, provider, context, syncOptions());
+		provider.calls = [];
+
+		const result = await backupProject(harness.db, provider, context, syncOptions());
+
+		expect(result.uiState).toBe('synced');
+		expect(provider.calls.filter(call => call.operation === 'download-file')).toEqual([]);
+	});
+
 	it('backs up project entities before uploading the project manifest', async () => {
 		await createCommittedProjectCollation('Initial notes', 'col-cp-1');
 		const { provider, context } = await createConnectedProvider();
@@ -1677,6 +1689,46 @@ describe('sync manager', () => {
 		} finally {
 			await storeB.destroy();
 		}
+	});
+
+	it('does not download a moved project again on its first sync at the destination', async () => {
+		await createCommittedProjectCollation('Initial notes', 'col-cp-1');
+		const destination = new RecordingMockProvider({ now: () => '2026-10-03T12:00:00.000Z' });
+		const slug = await loadProjectStorageSlug('project-1');
+		const placement = {
+			projectId: 'project-1',
+			locationId: 'dropbox-location',
+			folderName: slug,
+			needsLocationChoice: false,
+		};
+		await moveProject(
+			harness.db,
+			{
+				projectId: 'project-1',
+				source: null,
+				destination: {
+					provider: destination,
+					rootFolderId: destination.rootFolderId,
+					locationId: placement.locationId,
+					folderName: slug,
+					label: 'Dropbox/Apatosaurus',
+				},
+				movedBy: 'Ada',
+			},
+			syncOptions()
+		);
+		destination.calls = [];
+
+		const result = await backupProject(
+			harness.db,
+			destination,
+			placementSyncContext(placement),
+			syncOptions()
+		);
+
+		expect(result.uiState).toBe('synced');
+		expect(result.uploadedPaths).toEqual([]);
+		expect(destination.calls.filter(call => call.operation === 'download-file')).toEqual([]);
 	});
 
 	it('leaves the source intact and removes the partial destination when verification fails', async () => {

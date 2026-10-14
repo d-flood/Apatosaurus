@@ -24,6 +24,7 @@ import {
 	type StoreOperationOptions,
 } from '$lib/storage/opfs-store';
 import { joinStorePath } from '$lib/storage/layout';
+import { mapConcurrently } from './map-concurrently';
 import {
 	upsertProjectPlacements,
 	type DeletedNotice,
@@ -240,10 +241,14 @@ async function mirrorProjectFiles(
 			return result;
 		}
 		const projectRoot = await loadProjectStoreRoot(db, context.projectId);
-		let [localFiles, remoteFiles] = await Promise.all([
-			listLocalProjectMirrorFiles(db, context.projectId, storeOptions),
-			downloadRemoteMirrorFiles(provider, context, remoteMetadata),
-		]);
+		let localFiles = await listLocalProjectMirrorFiles(db, context.projectId, storeOptions);
+		const remoteFiles = await downloadRemoteMirrorFiles(
+			db,
+			provider,
+			context,
+			remoteMetadata,
+			localFiles
+		);
 		const pulledFiles: Array<{ localFile: LocalMirrorFile; remoteFile: RemoteMirrorFile }> = [];
 		const remoteOnlyPrimaryPaths: string[] = [];
 		const tombstonedPrimaryPaths = new Set<string>();
@@ -764,23 +769,43 @@ async function markProjectRetired(
 }
 
 async function downloadRemoteMirrorFiles(
+	db: DbExecutor,
 	provider: CloudStorageProvider,
 	context: SyncProjectContext,
-	remoteMetadata: CloudFileMetadata[]
+	remoteMetadata: CloudFileMetadata[],
+	localFiles: LocalMirrorFile[]
 ): Promise<Map<string, RemoteMirrorFile>> {
-	const remoteFiles = new Map<string, RemoteMirrorFile>();
-	for (const metadata of remoteMetadata) {
-		const path = relativeEntryPath(metadata.path, context);
-		if (!shouldMirrorProjectFile(path)) continue;
-		const content = await provider.downloadFile(metadata.id);
-		remoteFiles.set(path, {
+	const synced = new Map(
+		(
+			await db
+				.selectFrom('sync_file_fingerprints')
+				.select(['file_path', 'remote_revision', 'remote_content_hash'])
+				.where('target_id', '=', context.connectionId)
+				.where('project_id', '=', context.projectId)
+				.execute()
+		).map(row => [row.file_path, row])
+	);
+	const localByPath = new Map(localFiles.map(file => [file.path, file]));
+	const mirrored = remoteMetadata
+		.map(metadata => ({ metadata, path: relativeEntryPath(metadata.path, context) }))
+		.filter(({ path }) => shouldMirrorProjectFile(path));
+	const files = await mapConcurrently(mirrored, async ({ metadata, path }) => {
+		const cached = synced.get(path);
+		const local = localByPath.get(path);
+		const content =
+			local &&
+			cached?.remote_revision === metadata.revision &&
+			cached.remote_content_hash === local.fingerprint.contentHash
+				? local.content
+				: await provider.downloadFile(metadata.id);
+		return {
 			path,
 			metadata,
 			content,
 			fingerprint: await fingerprintText(content, metadata.modifiedAt),
-		});
-	}
-	return remoteFiles;
+		};
+	});
+	return new Map(files.map(file => [file.path, file]));
 }
 
 async function keepingFingerprints(
@@ -913,6 +938,24 @@ async function getFileFingerprint(
 		.where('file_path', '=', filePath)
 		.executeTakeFirst();
 	return row ? mapSyncFileFingerprint(row) : null;
+}
+
+export async function recordSyncedFile(
+	db: DbExecutor,
+	context: SyncProjectContext,
+	file: Omit<LocalMirrorFile, 'fingerprint'>,
+	remote: CloudFileMetadata,
+	syncedAt: string
+): Promise<void> {
+	const fingerprint = await fingerprintText(file.content, '');
+	await upsertFileFingerprint(
+		db,
+		context,
+		{ ...file, fingerprint },
+		remote,
+		fingerprint,
+		syncedAt
+	);
 }
 
 async function upsertFileFingerprint(

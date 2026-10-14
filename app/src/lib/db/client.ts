@@ -24,15 +24,12 @@ function call<K extends DbMethod>(method: K) {
 	return (...args: DbArgs<K>) => send<DbResult<K>>({ method, args });
 }
 
-const DB_REQUEST_TIMEOUT_MS = 60_000;
-
 let nextRequestId = 1;
 const pending = new Map<
 	number,
 	{
 		resolve: (value: unknown) => void;
 		reject: (error: Error) => void;
-		timeoutId: ReturnType<typeof setTimeout>;
 	}
 >();
 const invalidationListeners = new Set<(event: DbInvalidationEvent) => void>();
@@ -190,7 +187,6 @@ export function attachLocalDbClient(worker: Worker): void {
 		const pendingRequest = pending.get(message.id);
 		if (!pendingRequest) return;
 		pending.delete(message.id);
-		clearTimeout(pendingRequest.timeoutId);
 		if (message.ok) pendingRequest.resolve(message.result);
 		else pendingRequest.reject(new Error(message.error));
 	});
@@ -212,13 +208,8 @@ async function send<T>(payload: DbRequestPayload): Promise<T> {
 	await ensureLocalDbRuntime();
 	const worker = getLocalDbWorker();
 	const id = nextRequestId++;
-	const label = 'method' in payload ? payload.method : payload.type;
 	return new Promise<T>((resolve, reject) => {
-		const timeoutId = setTimeout(() => {
-			pending.delete(id);
-			reject(new Error(`Timed out waiting for the local database worker (${label}).`));
-		}, DB_REQUEST_TIMEOUT_MS);
-		pending.set(id, { resolve: value => resolve(value as T), reject, timeoutId });
+		pending.set(id, { resolve: value => resolve(value as T), reject });
 		worker.postMessage({ ...payload, id });
 	});
 }
