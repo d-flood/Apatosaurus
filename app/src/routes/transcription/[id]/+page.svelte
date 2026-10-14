@@ -110,7 +110,6 @@
 	let lastPostedIiifStateKey = $state('');
 	let sendPopupRestoreState = $state(false);
 	let verseIndexOptions = $state<VerseIndexRow[]>([]);
-	let goToVerseIdentifier = $state('');
 	let forcedVerseKey = $state('');
 	let forcedVerseNonce = $state(0);
 	let transcriptionEditorRef = $state<TranscriptionEditorHandle | null>(null);
@@ -136,6 +135,8 @@
 		if (!request.chapter) return [request.book, request.verse].filter(Boolean).join(' ');
 		return `${request.book} ${request.chapter}:${request.verse}`;
 	});
+
+	let goToVerseIdentifier = $derived(currentVerseIdentifier);
 
 	const normalizedVerseIndexLookup = $derived.by(() => {
 		const entries = verseIndexOptions.map(
@@ -447,10 +448,6 @@
 	});
 
 	$effect(() => {
-		goToVerseIdentifier = currentVerseIdentifier;
-	});
-
-	$effect(() => {
 		if (!presenceProjectId || !presenceDocumentId) return;
 		const tracker = trackEditingPresence(presenceProjectId, presenceDocumentId);
 		presence = tracker;
@@ -475,7 +472,6 @@
 
 		let cancelled = false;
 		verseIndexOptions = [];
-		goToVerseIdentifier = currentVerseIdentifier;
 		unsubscribeInvalidations?.();
 		unsubscribeInvalidations = null;
 		transcription = null;
