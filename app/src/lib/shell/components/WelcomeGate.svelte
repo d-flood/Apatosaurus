@@ -19,6 +19,7 @@
 			// A sign-in returning here has not written its account record yet.
 			if (
 				!signInCompletion.completing &&
+				!signInCompletion.error &&
 				shouldShowWelcome({
 					accountCount: accounts.length,
 					projectCount: projects.length,

@@ -86,6 +86,23 @@ test('offline, the sign-in buttons are disabled and continuing without signing i
 	await expect(page.getByRole('heading', { name: 'Projects', level: 1 })).toBeVisible();
 });
 
+test('a cancelled welcome sign-in stays on Projects and can be retried there', async ({ page }) => {
+	const harness = new FakeGoogleSignIn();
+	await harness.install(page);
+	harness.cancelNextSignIn();
+	await page.goto('/welcome');
+	await page.getByRole('button', { name: 'Sign in with Google Drive' }).click();
+
+	const alert = page.getByRole('alert').filter({ hasText: 'Sign-in was cancelled.' });
+	await expect(alert).toBeVisible();
+	await expect(page).toHaveURL(/\/projects$/);
+	await expect(page.getByRole('heading', { name: 'Projects', level: 1 })).toBeVisible();
+	await alert.getByRole('button', { name: 'Sign in with Google Drive' }).click();
+	await expect(alert).toBeHidden();
+	await expect(page).toHaveURL(/\/projects$/);
+	await expect(page.getByText('Saves to Google Drive · Apatosaurus').first()).toBeVisible();
+});
+
 test('creation and import wait for the signed-in personal location', async ({ page }) => {
 	const harness = new FakeGoogleSignIn();
 	await harness.install(page);
