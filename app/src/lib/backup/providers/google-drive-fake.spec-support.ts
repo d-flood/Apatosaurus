@@ -2,13 +2,14 @@ import { CloudProviderError } from './provider';
 import type { AccessTokenSource } from './dropbox-provider';
 
 const FOLDER_MIME_TYPE = 'application/vnd.google-apps.folder';
+const SIMPLE_UPLOAD_LIMIT = 5 * 1024 * 1024;
 
 interface FakeFile {
 	id: string;
 	name: string;
 	mimeType: string;
 	parents: string[];
-	content: string;
+	content: Uint8Array<ArrayBuffer>;
 	driveId?: string;
 	headRevisionId?: string;
 	modifiedTime: string;
@@ -28,6 +29,10 @@ export class FakeGoogleDriveApi {
 	private counter = 0;
 	private currentToken: string | null = null;
 	private failures: Array<{ call: string; status: number; reason: string }> = [];
+	private uploadSessions = new Map<
+		string,
+		{ length: number; fileId?: string; metadata?: Pick<FakeFile, 'name' | 'parents'> }
+	>();
 
 	constructor() {
 		this.files.set(this.myDriveId, {
@@ -35,7 +40,7 @@ export class FakeGoogleDriveApi {
 			name: 'My Drive',
 			mimeType: FOLDER_MIME_TYPE,
 			parents: [],
-			content: '',
+			content: new Uint8Array(),
 			modifiedTime: this.now(),
 		});
 	}
@@ -65,7 +70,8 @@ export class FakeGoogleDriveApi {
 			const [{ status, reason }] = this.failures.splice(failure, 1);
 			return driveError(status, reason);
 		}
-		return this.handle(method, url, String(init?.body ?? ''), init?.headers);
+		const body = new Uint8Array(await new Response(init?.body).arrayBuffer());
+		return this.handle(method, url, body, init?.headers);
 	};
 
 	expireAccessTokens(): void {
@@ -84,7 +90,7 @@ export class FakeGoogleDriveApi {
 	touch(driveId: string, content: string): void {
 		const file = this.files.get(driveId);
 		if (!file) throw new Error(`No fake Drive file ${driveId}.`);
-		this.write(file, content);
+		this.write(file, new TextEncoder().encode(content));
 	}
 
 	addSharedDrive(name: string): string {
@@ -94,7 +100,7 @@ export class FakeGoogleDriveApi {
 			name,
 			mimeType: FOLDER_MIME_TYPE,
 			parents: [],
-			content: '',
+			content: new Uint8Array(),
 			driveId: id,
 			modifiedTime: this.now(),
 		});
@@ -114,11 +120,20 @@ export class FakeGoogleDriveApi {
 	private handle(
 		method: string,
 		url: URL,
-		body: string,
+		body: Uint8Array<ArrayBuffer>,
 		headers: HeadersInit | undefined
 	): Response {
 		const path = url.pathname;
 		const params = url.searchParams;
+		const text = () => new TextDecoder().decode(body);
+		if (params.get('uploadType') === 'resumable') {
+			return method === 'PUT'
+				? this.completeUpload(params.get('upload_id') ?? '', body)
+				: this.startUpload(path, body, new Headers(headers));
+		}
+		if (path.startsWith('/upload/') && body.byteLength > SIMPLE_UPLOAD_LIMIT) {
+			return driveError(413, 'uploadTooLarge');
+		}
 		if (path.startsWith('/drive/v3/changes')) this.changeRequests.push(params);
 		if (method === 'GET' && path === '/drive/v3/changes/startPageToken') {
 			return Response.json({ startPageToken: String(this.changes.length) });
@@ -126,19 +141,19 @@ export class FakeGoogleDriveApi {
 		if (method === 'GET' && path === '/drive/v3/changes') return this.listChanges(params);
 		if (method === 'GET' && path === '/drive/v3/files') return this.listFiles(params);
 		if (method === 'POST' && path === '/drive/v3/files') {
-			const metadata = JSON.parse(body) as Pick<FakeFile, 'name' | 'mimeType' | 'parents'>;
-			return Response.json(this.create(metadata, ''));
+			const metadata = JSON.parse(text()) as Pick<FakeFile, 'name' | 'mimeType' | 'parents'>;
+			return Response.json(this.create(metadata, new Uint8Array()));
 		}
 		if (method === 'POST' && path === '/upload/drive/v3/files') {
 			if (params.get('uploadType') !== 'multipart') return driveError(400, 'badRequest');
 			const boundary = /boundary=(.+)$/.exec(
 				new Headers(headers).get('Content-Type') ?? ''
 			)?.[1];
-			const [metadataPart, contentPart] = body
-				.split(`--${boundary}`)
-				.slice(1, 3)
-				.map(part => part.slice(part.indexOf('\r\n\r\n') + 4, -2));
-			const metadata = JSON.parse(metadataPart) as Pick<FakeFile, 'name' | 'parents'>;
+			const [metadataPart, contentPart] = multipartParts(body, `--${boundary}`);
+			const metadata = JSON.parse(new TextDecoder().decode(metadataPart)) as Pick<
+				FakeFile,
+				'name' | 'parents'
+			>;
 			return Response.json(
 				this.create({ ...metadata, mimeType: 'application/octet-stream' }, contentPart)
 			);
@@ -160,10 +175,48 @@ export class FakeGoogleDriveApi {
 			return Response.json(this.resource(file));
 		}
 		if (method === 'PATCH') {
-			if ((JSON.parse(body) as { trashed?: boolean }).trashed) this.trash(file.id);
+			if ((JSON.parse(text()) as { trashed?: boolean }).trashed) this.trash(file.id);
 			return Response.json(this.resource(file));
 		}
 		return driveError(400, 'badRequest');
+	}
+
+	private startUpload(path: string, body: Uint8Array<ArrayBuffer>, headers: Headers): Response {
+		const match = /^\/upload\/drive\/v3\/files(?:\/([^/]+))?$/.exec(path);
+		const fileId = match?.[1] && this.alias(match[1]);
+		if (!match || (fileId && !this.files.has(fileId))) return driveError(404, 'notFound');
+		const id = `upload-${++this.counter}`;
+		this.uploadSessions.set(id, {
+			length: Number(headers.get('X-Upload-Content-Length')),
+			...(fileId
+				? { fileId }
+				: {
+						metadata: JSON.parse(new TextDecoder().decode(body)) as Pick<
+							FakeFile,
+							'name' | 'parents'
+						>,
+					}),
+		});
+		return new Response(null, {
+			headers: {
+				Location: `https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&upload_id=${id}`,
+			},
+		});
+	}
+
+	private completeUpload(id: string, body: Uint8Array<ArrayBuffer>): Response {
+		const session = this.uploadSessions.get(id);
+		if (!session) return driveError(404, 'notFound');
+		if (body.byteLength !== session.length) return driveError(400, 'badContentLength');
+		this.uploadSessions.delete(id);
+		if (session.metadata) {
+			return Response.json(
+				this.create({ ...session.metadata, mimeType: 'application/octet-stream' }, body)
+			);
+		}
+		const file = this.files.get(session.fileId!)!;
+		this.write(file, body);
+		return Response.json(this.resource(file));
 	}
 
 	private listFiles(params: URLSearchParams): Response {
@@ -223,14 +276,14 @@ export class FakeGoogleDriveApi {
 
 	private create(
 		metadata: Pick<FakeFile, 'name' | 'mimeType' | 'parents'>,
-		content: string
+		content: Uint8Array<ArrayBuffer>
 	): object {
 		const file: FakeFile = {
 			id: `drive-${++this.counter}`,
 			name: metadata.name,
 			mimeType: metadata.mimeType,
 			parents: metadata.parents.map(parent => this.alias(parent)),
-			content: '',
+			content: new Uint8Array(),
 			driveId: this.files.get(this.alias(metadata.parents[0]))?.driveId,
 			modifiedTime: this.now(),
 		};
@@ -243,7 +296,7 @@ export class FakeGoogleDriveApi {
 		return this.resource(file);
 	}
 
-	private write(file: FakeFile, content: string): void {
+	private write(file: FakeFile, content: Uint8Array<ArrayBuffer>): void {
 		file.content = content;
 		file.headRevisionId = `rev-${++this.counter}`;
 		file.modifiedTime = this.now();
@@ -272,7 +325,7 @@ export class FakeGoogleDriveApi {
 				? {}
 				: {
 						headRevisionId: file.headRevisionId,
-						size: String(new TextEncoder().encode(file.content).byteLength),
+						size: String(file.content.byteLength),
 					}),
 		};
 	}
@@ -284,6 +337,34 @@ export class FakeGoogleDriveApi {
 	private now(): string {
 		return new Date(Date.UTC(2026, 9, 3, 12, 0, this.counter)).toISOString();
 	}
+}
+
+function multipartParts(
+	body: Uint8Array<ArrayBuffer>,
+	delimiter: string
+): Uint8Array<ArrayBuffer>[] {
+	const marker = new TextEncoder().encode(delimiter);
+	const parts: Uint8Array<ArrayBuffer>[] = [];
+	let start = indexOfBytes(body, marker, 0);
+	while (start !== -1) {
+		const next = indexOfBytes(body, marker, start + marker.length);
+		if (next === -1) break;
+		const part = body.subarray(start + marker.length, next - 2);
+		const headerEnd = indexOfBytes(part, new TextEncoder().encode('\r\n\r\n'), 0);
+		parts.push(part.subarray(headerEnd + 4));
+		start = next;
+	}
+	return parts;
+}
+
+function indexOfBytes(haystack: Uint8Array, needle: Uint8Array, from: number): number {
+	outer: for (let index = from; index <= haystack.length - needle.length; index++) {
+		for (let offset = 0; offset < needle.length; offset++) {
+			if (haystack[index + offset] !== needle[offset]) continue outer;
+		}
+		return index;
+	}
+	return -1;
 }
 
 function driveError(status: number, reason: string): Response {

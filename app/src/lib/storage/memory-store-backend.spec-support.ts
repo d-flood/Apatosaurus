@@ -6,7 +6,7 @@ import {
 } from './opfs-store';
 
 export class MemoryStoreBackend implements StoreBackend {
-	readonly files = new Map<string, string>();
+	readonly files = new Map<string, string | Uint8Array>();
 	readonly directories = new Set<string>(['']);
 	readonly writeOperations: MemoryStoreWriteOperation[] = [];
 	failWrites = false;
@@ -18,58 +18,29 @@ export class MemoryStoreBackend implements StoreBackend {
 	failReplacementPathIncludesOnce: string | null = null;
 
 	async readTextFile(path: string): Promise<string> {
-		const normalized = normalizeStorePath(path);
-		if (this.failReadPathIncludesOnce && normalized.includes(this.failReadPathIncludesOnce)) {
-			this.failReadPathIncludesOnce = null;
-			throw new Error(`simulated read failure for ${path}`);
-		}
-		if (
-			this.failReadPathIncludesAfter &&
-			normalized.includes(this.failReadPathIncludesAfter.path)
-		) {
-			if (this.failReadPathIncludesAfter.successfulReads === 0) {
-				this.failReadPathIncludesAfter = null;
-				throw new Error(`simulated read failure for ${path}`);
-			}
-			this.failReadPathIncludesAfter.successfulReads -= 1;
-		}
-		const content = this.files.get(normalized);
-		if (content === undefined) throw new Error(`File ${path} was not found.`);
-		return content;
+		const content = await this.readFile(path);
+		return typeof content === 'string' ? content : new TextDecoder().decode(content);
+	}
+
+	async readFileBytes(path: string): Promise<Uint8Array> {
+		const content = await this.readFile(path);
+		return typeof content === 'string' ? new TextEncoder().encode(content) : content.slice();
 	}
 
 	async writeTextFile(path: string, content: string): Promise<void> {
-		const normalized = normalizeStorePath(path);
-		if (
-			this.failWrites ||
-			(this.failWritePathIncludes && normalized.includes(this.failWritePathIncludes)) ||
-			(this.failWritePathIncludesOnce && normalized.includes(this.failWritePathIncludesOnce))
-		) {
-			if (
-				this.failWritePathIncludesOnce &&
-				normalized.includes(this.failWritePathIncludesOnce)
-			) {
-				this.failWritePathIncludesOnce = null;
-			}
-			throw new Error(`simulated write failure for ${path}`);
-		}
-		this.addDirectory(storePathDirname(normalized));
-		this.files.set(normalized, content);
-		this.writeOperations.push({ type: 'write', path: normalized, content });
+		await this.writeFile(path, content);
+	}
+
+	async writeFileBytes(path: string, bytes: Uint8Array): Promise<void> {
+		await this.writeFile(path, bytes.slice());
 	}
 
 	async replaceTextFile(path: string, content: string): Promise<void> {
-		const normalized = normalizeStorePath(path);
-		if (
-			this.failReplacementPathIncludesOnce &&
-			normalized.includes(this.failReplacementPathIncludesOnce)
-		) {
-			this.failReplacementPathIncludesOnce = null;
-			throw new Error(`simulated replacement failure for ${path}`);
-		}
-		this.addDirectory(storePathDirname(normalized));
-		this.files.set(normalized, content);
-		this.writeOperations.push({ type: 'replace', path: normalized, content });
+		await this.replaceFile(path, content);
+	}
+
+	async replaceFileBytes(path: string, bytes: Uint8Array): Promise<void> {
+		await this.replaceFile(path, bytes.slice());
 	}
 
 	async deleteFile(path: string): Promise<void> {
@@ -144,6 +115,61 @@ export class MemoryStoreBackend implements StoreBackend {
 		});
 	}
 
+	private async readFile(path: string): Promise<string | Uint8Array> {
+		const normalized = normalizeStorePath(path);
+		if (this.failReadPathIncludesOnce && normalized.includes(this.failReadPathIncludesOnce)) {
+			this.failReadPathIncludesOnce = null;
+			throw new Error(`simulated read failure for ${path}`);
+		}
+		if (
+			this.failReadPathIncludesAfter &&
+			normalized.includes(this.failReadPathIncludesAfter.path)
+		) {
+			if (this.failReadPathIncludesAfter.successfulReads === 0) {
+				this.failReadPathIncludesAfter = null;
+				throw new Error(`simulated read failure for ${path}`);
+			}
+			this.failReadPathIncludesAfter.successfulReads -= 1;
+		}
+		const content = this.files.get(normalized);
+		if (content === undefined) throw new Error(`File ${path} was not found.`);
+		return content;
+	}
+
+	private async writeFile(path: string, content: string | Uint8Array): Promise<void> {
+		const normalized = normalizeStorePath(path);
+		if (
+			this.failWrites ||
+			(this.failWritePathIncludes && normalized.includes(this.failWritePathIncludes)) ||
+			(this.failWritePathIncludesOnce && normalized.includes(this.failWritePathIncludesOnce))
+		) {
+			if (
+				this.failWritePathIncludesOnce &&
+				normalized.includes(this.failWritePathIncludesOnce)
+			) {
+				this.failWritePathIncludesOnce = null;
+			}
+			throw new Error(`simulated write failure for ${path}`);
+		}
+		this.addDirectory(storePathDirname(normalized));
+		this.files.set(normalized, content);
+		this.writeOperations.push({ type: 'write', path: normalized, content });
+	}
+
+	private async replaceFile(path: string, content: string | Uint8Array): Promise<void> {
+		const normalized = normalizeStorePath(path);
+		if (
+			this.failReplacementPathIncludesOnce &&
+			normalized.includes(this.failReplacementPathIncludesOnce)
+		) {
+			this.failReplacementPathIncludesOnce = null;
+			throw new Error(`simulated replacement failure for ${path}`);
+		}
+		this.addDirectory(storePathDirname(normalized));
+		this.files.set(normalized, content);
+		this.writeOperations.push({ type: 'replace', path: normalized, content });
+	}
+
 	private addDirectory(path: string): void {
 		const normalized = normalizeStorePath(path);
 		let current = '';
@@ -156,5 +182,5 @@ export class MemoryStoreBackend implements StoreBackend {
 }
 
 export type MemoryStoreWriteOperation =
-	| { type: 'write' | 'replace'; path: string; content: string }
-	| { type: 'move'; fromPath: string; path: string; content: string };
+	| { type: 'write' | 'replace'; path: string; content: string | Uint8Array }
+	| { type: 'move'; fromPath: string; path: string; content: string | Uint8Array };

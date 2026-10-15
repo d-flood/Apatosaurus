@@ -69,7 +69,16 @@ export class LocalFolderStorageProvider implements CloudStorageProvider {
 		return file.text();
 	}
 
-	async createFile(folderId: string, path: string, content: string): Promise<CloudWriteResult> {
+	async downloadFileBytes(fileId: string): Promise<Uint8Array> {
+		const file = await this.readFile(fileId);
+		return new Uint8Array(await file.arrayBuffer());
+	}
+
+	async createFile(
+		folderId: string,
+		path: string,
+		content: string | Uint8Array
+	): Promise<CloudWriteResult> {
 		const folder = await this.requireDirectory(folderId);
 		const segments = normalizeRelativePath(path);
 		const fileName = segments[segments.length - 1];
@@ -91,18 +100,18 @@ export class LocalFolderStorageProvider implements CloudStorageProvider {
 		}
 
 		const handle = await parent.getFileHandle(fileName, { create: true });
-		await writeTextFile(handle, content);
+		await writeFile(handle, content);
 		return this.toWriteResult(joinPath(folderId, path), await handle.getFile());
 	}
 
 	async updateFile(
 		fileId: string,
-		content: string,
+		content: string | Uint8Array,
 		expectedRevision: string
 	): Promise<CloudWriteResult> {
 		const handle = await this.requireFileHandle(fileId);
 		const currentFile = await getFile(handle, fileId);
-		const currentRevision = await hashText(await currentFile.text());
+		const currentRevision = await hashFile(currentFile);
 		if (currentRevision !== expectedRevision) {
 			throw providerError(
 				'conflict',
@@ -110,14 +119,14 @@ export class LocalFolderStorageProvider implements CloudStorageProvider {
 			);
 		}
 
-		await writeTextFile(handle, content);
+		await writeFile(handle, content);
 		return this.toWriteResult(fileId, await handle.getFile());
 	}
 
 	async deleteFile(fileId: string, expectedRevision?: string): Promise<void> {
 		if (expectedRevision !== undefined) {
 			const file = await this.readFile(fileId);
-			const currentRevision = await hashText(await file.text());
+			const currentRevision = await hashFile(file);
 			if (currentRevision !== expectedRevision) {
 				throw providerError(
 					'conflict',
@@ -218,7 +227,7 @@ export class LocalFolderStorageProvider implements CloudStorageProvider {
 		return {
 			id: normalizeFileId(path),
 			path: normalizeFileId(path),
-			revision: await hashText(await file.text()),
+			revision: await hashFile(file),
 			modifiedAt: new Date(file.lastModified).toISOString(),
 			size: file.size,
 		};
@@ -291,17 +300,20 @@ async function fileMetadata(path: string, name: string, file: File): Promise<Clo
 		id: path,
 		path,
 		name,
-		revision: await hashText(await file.text()),
+		revision: await hashFile(file),
 		modifiedAt: new Date(file.lastModified).toISOString(),
 		size: file.size,
 		isFolder: false,
 	};
 }
 
-async function writeTextFile(handle: FileSystemFileHandle, content: string): Promise<void> {
+async function writeFile(
+	handle: FileSystemFileHandle,
+	content: string | Uint8Array
+): Promise<void> {
 	try {
 		const writable = await handle.createWritable();
-		await writable.write(content);
+		await writable.write(content as string | Uint8Array<ArrayBuffer>);
 		await writable.close();
 	} catch (error) {
 		throw mapHandleError(error, `Could not write local file ${handle.name}.`);
@@ -316,11 +328,8 @@ async function getFile(handle: FileSystemFileHandle, path: string): Promise<File
 	}
 }
 
-async function hashText(content: string): Promise<string> {
-	const digest = await globalThis.crypto?.subtle?.digest(
-		'SHA-256',
-		new TextEncoder().encode(content)
-	);
+async function hashFile(file: File): Promise<string> {
+	const digest = await globalThis.crypto?.subtle?.digest('SHA-256', await file.arrayBuffer());
 	if (!digest) throw providerError('provider-unavailable', 'SHA-256 hashing is unavailable.');
 	return `sha256:${[...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, '0')).join('')}`;
 }

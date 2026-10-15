@@ -41,6 +41,13 @@ import type { StoreQuarantineRecord } from '$lib/storage/quarantine';
 import { ApparatusExportError, exportCollationDocumentTei } from '$lib/collation/collation-tei';
 import { hashCanonicalPayload } from '$lib/storage/canonical-json';
 import {
+	isCbgmSidecarFile,
+	projectFileText,
+	readProjectFile,
+	writeProjectFileAtomic,
+	type ProjectFileContent,
+} from './project-archive';
+import {
 	PROJECT_IMPORT_LEASE_FILE,
 	PROJECT_IMPORT_STAGING_ROOT,
 	stageAndValidateProjectFiles,
@@ -93,7 +100,7 @@ export interface ReferenceEditionsRestoreResult {
 
 interface ReadableProjectImportFile {
 	path: string;
-	read: () => Promise<string>;
+	read: () => Promise<ProjectFileContent>;
 }
 
 export type ReadableProjectFileTree =
@@ -126,7 +133,7 @@ export async function importProjectZip(
 	try {
 		const files = parseStoreOnlyZip(bytes).map(entry => ({
 			path: entry.path,
-			read: async () => entry.content,
+			read: async () => entry.bytes,
 		}));
 		return await importProjectFileTree(db, files, options);
 	} catch (error) {
@@ -138,7 +145,11 @@ export async function restoreReferenceEditionsZip(
 	bytes: Uint8Array,
 	storeOptions: StoreOperationOptions = {}
 ): Promise<ReferenceEditionsRestoreResult> {
-	const entries = parseStoreOnlyZip(bytes);
+	const decoder = new TextDecoder();
+	const entries = parseStoreOnlyZip(bytes).map(entry => ({
+		path: entry.path,
+		content: decoder.decode(entry.bytes),
+	}));
 	if (entries.length === 0) {
 		throw new Error('Reference edition archive must contain at least one edition.');
 	}
@@ -435,7 +446,9 @@ async function copyProjectEntries(
 		source_project_id: sourceManifest.id,
 		source_manifest_content_hash: String(
 			(
-				JSON.parse(entries.find(entry => entry.path === 'project.json')!.content) as {
+				JSON.parse(
+					projectFileText(entries.find(entry => entry.path === 'project.json')!.content)
+				) as {
 					content_hash: string;
 				}
 			).content_hash
@@ -462,7 +475,10 @@ async function copyProjectEntries(
 	// Copied IDs stay stable: new container, not a fork.
 	const rewritten: ValidatedStagedProjectEntry[] = [];
 	for (const entry of entries) {
-		if (entry.format === null) continue;
+		if (entry.format === null) {
+			if (isCbgmSidecarFile(entry.path)) rewritten.push(entry);
+			continue;
+		}
 		const payload = payloads.get(entry.path)!;
 		rewritten.push({
 			...entry,
@@ -517,7 +533,7 @@ async function placePreparedImport(
 		const newPaths = new Set(prepared.entries.map(entry => entry.path));
 		try {
 			for (const entry of manifestLast(prepared.entries)) {
-				await writeTextFileAtomic(
+				await writeProjectFileAtomic(
 					joinStorePath(targetFolder, entry.path),
 					entry.content,
 					lockedOptions
@@ -541,7 +557,7 @@ async function placePreparedImport(
 		} catch (error) {
 			await deleteDirectoryIfExists(targetFolder, lockedOptions);
 			for (const [path, content] of oldFiles)
-				await writeTextFileAtomic(
+				await writeProjectFileAtomic(
 					joinStorePath(targetFolder, path),
 					content,
 					lockedOptions
@@ -562,8 +578,8 @@ function manifestLast(entries: ValidatedStagedProjectEntry[]): ValidatedStagedPr
 async function readDirectoryFiles(
 	path: string,
 	storeOptions: StoreOperationOptions
-): Promise<Map<string, string>> {
-	const files = new Map<string, string>();
+): Promise<Map<string, ProjectFileContent>> {
+	const files = new Map<string, ProjectFileContent>();
 	async function visit(folder: string, relative = ''): Promise<void> {
 		let entries;
 		try {
@@ -575,7 +591,11 @@ async function readDirectoryFiles(
 		for (const entry of entries) {
 			const childRelative = joinStorePath(relative, entry.name);
 			if (entry.kind === 'directory') await visit(entry.path, childRelative);
-			else files.set(childRelative, await readTextFile(entry.path, storeOptions));
+			else
+				files.set(
+					childRelative,
+					await readProjectFile(childRelative, entry.path, storeOptions)
+				);
 		}
 	}
 	await visit(path);
@@ -647,10 +667,11 @@ function collationContent(payload: CollationPayload): JsonObject {
 	};
 }
 
-function parseStoreOnlyZip(bytes: Uint8Array): Array<{ path: string; content: string }> {
+function parseStoreOnlyZip(bytes: Uint8Array): Array<{ path: string; bytes: Uint8Array }> {
 	if (bytes.length < 22) throw new Error('Input is not a ZIP archive.');
 	const decoder = new TextDecoder();
-	const entries: Array<{ path: string; content: string; size: number; localOffset: number }> = [];
+	const entries: Array<{ path: string; bytes: Uint8Array; size: number; localOffset: number }> =
+		[];
 	const endOffset = bytes.length - 22;
 	const endView = new DataView(bytes.buffer, bytes.byteOffset + endOffset, 22);
 	if (endView.getUint32(0, true) !== 0x06054b50 || endView.getUint16(20, true) !== 0) {
@@ -687,7 +708,7 @@ function parseStoreOnlyZip(bytes: Uint8Array): Array<{ path: string; content: st
 			throw new Error('ZIP entry extends beyond the archive.');
 		entries.push({
 			path: decoder.decode(bytes.slice(pathStart, pathStart + pathLength)),
-			content: decoder.decode(bytes.slice(contentStart, contentStart + size)),
+			bytes: bytes.slice(contentStart, contentStart + size),
 			size,
 			localOffset,
 		});
@@ -718,7 +739,7 @@ function parseStoreOnlyZip(bytes: Uint8Array): Array<{ path: string; content: st
 		offset = nextOffset;
 	}
 	if (offset !== endOffset) throw new Error('ZIP central directory size is inconsistent.');
-	return entries.map(({ path, content }) => ({ path, content }));
+	return entries.map(({ path, bytes }) => ({ path, bytes }));
 }
 
 function collisionImport(collision: ProjectImportCollision): ProjectImportResult {

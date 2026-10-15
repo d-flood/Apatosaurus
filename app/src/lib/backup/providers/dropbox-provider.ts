@@ -93,19 +93,24 @@ export class DropboxStorageProvider implements CloudStorageProvider {
 	}
 
 	async downloadFile(fileId: string): Promise<string> {
-		const response = await this.request(`${CONTENT_API}/files/download`, {
-			'Dropbox-API-Arg': headerJson({ path: this.apiPath(fileId) }),
-		});
-		return response.text();
+		return (await this.download(fileId)).text();
 	}
 
-	async createFile(folderId: string, path: string, content: string): Promise<CloudWriteResult> {
+	async downloadFileBytes(fileId: string): Promise<Uint8Array> {
+		return new Uint8Array(await (await this.download(fileId)).arrayBuffer());
+	}
+
+	async createFile(
+		folderId: string,
+		path: string,
+		content: string | Uint8Array
+	): Promise<CloudWriteResult> {
 		return this.upload(joinId(folderId, normalizeSegments(path).join('/')), content, 'add');
 	}
 
 	async updateFile(
 		fileId: string,
-		content: string,
+		content: string | Uint8Array,
 		expectedRevision: string
 	): Promise<CloudWriteResult> {
 		return this.upload(fileId, content, { '.tag': 'update', update: expectedRevision });
@@ -131,9 +136,15 @@ export class DropboxStorageProvider implements CloudStorageProvider {
 		}
 	}
 
+	private async download(id: string): Promise<Response> {
+		return this.request(`${CONTENT_API}/files/download`, {
+			'Dropbox-API-Arg': headerJson({ path: this.apiPath(id) }),
+		});
+	}
+
 	private async upload(
 		id: string,
-		content: string,
+		content: string | Uint8Array,
 		mode: 'add' | { '.tag': 'update'; update: string }
 	): Promise<CloudWriteResult> {
 		const response = await this.request(
@@ -183,7 +194,7 @@ export class DropboxStorageProvider implements CloudStorageProvider {
 	private async request(
 		url: string,
 		headers: Record<string, string>,
-		body?: string
+		body?: string | Uint8Array
 	): Promise<Response> {
 		let response = await this.send(
 			url,
@@ -206,7 +217,7 @@ export class DropboxStorageProvider implements CloudStorageProvider {
 	private async send(
 		url: string,
 		headers: Record<string, string>,
-		body: string | undefined,
+		body: string | Uint8Array | undefined,
 		accessToken: string
 	): Promise<Response> {
 		try {
@@ -224,7 +235,7 @@ export class DropboxStorageProvider implements CloudStorageProvider {
 						: {}),
 					Authorization: `Bearer ${accessToken}`,
 				},
-				body,
+				body: body as BodyInit | undefined,
 			});
 		} catch (error) {
 			throw new CloudProviderError('provider-unavailable', 'Dropbox is unreachable.', error);

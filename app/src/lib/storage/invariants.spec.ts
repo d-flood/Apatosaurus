@@ -461,7 +461,10 @@ function projectFiles(storageSlug: string): Record<string, string> {
 	const prefix = `${joinStorePath(APP_STORE_ROOT, projectFolder(storageSlug))}/`;
 	return Object.fromEntries(
 		[...backend.files.entries()]
-			.filter(([path]) => path.startsWith(prefix))
+			.filter(
+				(entry): entry is [string, string] =>
+					entry[0].startsWith(prefix) && typeof entry[1] === 'string'
+			)
 			.map(([path, content]) => [path.slice(prefix.length), content])
 			.sort(([left], [right]) => left.localeCompare(right))
 	);

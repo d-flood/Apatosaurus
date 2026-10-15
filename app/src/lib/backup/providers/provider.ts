@@ -69,10 +69,15 @@ export interface CloudStorageProvider {
 		options?: { recursive?: boolean; cursor?: string }
 	): Promise<CloudListResult>;
 	downloadFile(fileId: string): Promise<string>;
-	createFile(folderId: string, path: string, content: string): Promise<CloudWriteResult>;
+	downloadFileBytes(fileId: string): Promise<Uint8Array>;
+	createFile(
+		folderId: string,
+		path: string,
+		content: string | Uint8Array
+	): Promise<CloudWriteResult>;
 	updateFile(
 		fileId: string,
-		content: string,
+		content: string | Uint8Array,
 		expectedRevision: string
 	): Promise<CloudWriteResult>;
 	deleteFile(fileId: string, expectedRevision?: string): Promise<void>;

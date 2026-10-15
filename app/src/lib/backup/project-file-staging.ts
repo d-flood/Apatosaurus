@@ -28,10 +28,16 @@ import type { JsonObject } from '$lib/storage/envelope';
 import type { StoreQuarantineRecord } from '$lib/storage/quarantine';
 import { hashCanonicalPayload } from '$lib/storage/canonical-json';
 import { reconcileAlphaProjectUpgrade } from '$lib/storage/alpha-project-upgrade';
+import {
+	isCbgmSidecarFile,
+	projectFileText,
+	writeProjectFileAtomic,
+	type ProjectFileContent,
+} from './project-archive';
 
 export interface ProjectFileCandidate {
 	path: string;
-	content: string;
+	content: ProjectFileContent;
 }
 
 export interface ValidateProjectFileCandidatesOptions {
@@ -92,7 +98,7 @@ export async function stageAndValidateProjectFiles(
 		storeOptions
 	);
 	for (const entry of normalized) {
-		await writeTextFileAtomic(
+		await writeProjectFileAtomic(
 			joinStorePath(stagingPath, entry.path),
 			entry.content,
 			storeOptions
@@ -107,7 +113,7 @@ export async function stageAndValidateProjectFiles(
 	if (manifestEntry) {
 		const read = await readCanonicalDocument<ProjectManifestPayload>(
 			PROJECT_MANIFEST_FORMAT,
-			manifestEntry.content,
+			projectFileText(manifestEntry.content),
 			{ projectPath: manifestEntry.path, projectId }
 		);
 		if (read.ok) {
@@ -127,6 +133,10 @@ export async function stageAndValidateProjectFiles(
 
 	for (const entry of normalized) {
 		if (entry === manifestEntry) continue;
+		if (isCbgmSidecarFile(entry.path)) {
+			entries.push({ ...entry, format: null });
+			continue;
+		}
 		const format = canonicalFormatForProjectPath(entry.path);
 		if (!format) {
 			if (isCanonicalTeiPath(entry.path)) entries.push({ ...entry, format: null });
@@ -136,7 +146,7 @@ export async function stageAndValidateProjectFiles(
 				);
 			continue;
 		}
-		const read = await readCanonicalDocument(format, entry.content, {
+		const read = await readCanonicalDocument(format, projectFileText(entry.content), {
 			projectPath: entry.path,
 			projectId,
 		});
@@ -146,7 +156,12 @@ export async function stageAndValidateProjectFiles(
 
 	if (manifest && quarantinedFiles.length === 0) {
 		try {
-			await reconcileAlphaProjectUpgrade(entries);
+			await reconcileAlphaProjectUpgrade(
+				entries.filter(
+					(entry): entry is ValidatedStagedProjectEntry & { content: string } =>
+						typeof entry.content === 'string'
+				)
+			);
 		} catch (error) {
 			quarantinedFiles.push(quarantine('project.json', errorMessage(error), now));
 		}
@@ -221,7 +236,10 @@ function normalizeProjectTree(candidates: ProjectFileCandidate[]): ProjectFileCa
 			if (seen.has(path))
 				throw new Error(`Duplicate project entry path ${JSON.stringify(path)}.`);
 			seen.add(path);
-			return { ...entry, path };
+			return {
+				path,
+				content: isCbgmSidecarFile(path) ? entry.content : projectFileText(entry.content),
+			};
 		})
 		.filter(entry => !isPresencePath(entry.path));
 }

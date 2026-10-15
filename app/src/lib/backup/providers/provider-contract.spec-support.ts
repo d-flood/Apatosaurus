@@ -47,6 +47,28 @@ export function describeProviderContract(
 			});
 		});
 
+		it('creates, updates and downloads binary files byte for byte', async () => {
+			const { provider, rootFolderId } = await create();
+			const folderId = await provider.createFolder('Project', rootFolderId);
+			const small = Uint8Array.from({ length: 512 }, (_, index) => index % 256);
+			const large = Uint8Array.from(
+				{ length: 6 * 1024 * 1024 + 1 },
+				(_, index) => Math.imul(index, 2654435761) >>> 24
+			);
+
+			const created = await provider.createFile(folderId, 'cbgm/a.sqlite', small);
+			expect(created.size).toBe(small.byteLength);
+			expectSameBytes(await provider.downloadFileBytes(created.id), small);
+			const grown = await provider.updateFile(created.id, large, created.revision);
+			expect(grown.size).toBe(large.byteLength);
+			expectSameBytes(await provider.downloadFileBytes(created.id), large);
+
+			const createdLarge = await provider.createFile(folderId, 'cbgm/b.sqlite', large);
+			expectSameBytes(await provider.downloadFileBytes(createdLarge.id), large);
+			await provider.updateFile(createdLarge.id, small, createdLarge.revision);
+			expectSameBytes(await provider.downloadFileBytes(createdLarge.id), small);
+		});
+
 		it('moves deleted files to the provider trash where one exists', async () => {
 			const { provider, rootFolderId, trashed } = await create();
 			const folderId = await provider.createFolder('Project', rootFolderId);
@@ -89,4 +111,9 @@ export function describeProviderContract(
 			);
 		});
 	});
+}
+
+function expectSameBytes(actual: Uint8Array, expected: Uint8Array): void {
+	expect(actual.byteLength).toBe(expected.byteLength);
+	expect(actual.findIndex((byte, index) => byte !== expected[index])).toBe(-1);
 }

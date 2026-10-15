@@ -42,25 +42,38 @@ export class E2eSharedFolderStorageProvider implements CloudStorageProvider {
 		return result.content;
 	}
 
-	async createFile(folderId: string, path: string, content: string): Promise<CloudWriteResult> {
+	async downloadFileBytes(fileId: string): Promise<Uint8Array> {
+		const result = await request<{ contentBase64: string }>({
+			operation: 'download-file',
+			fileId,
+			encoding: 'base64',
+		});
+		return Uint8Array.from(atob(result.contentBase64), char => char.charCodeAt(0));
+	}
+
+	async createFile(
+		folderId: string,
+		path: string,
+		content: string | Uint8Array
+	): Promise<CloudWriteResult> {
 		return request<CloudWriteResult>({
 			operation: 'write-file',
 			folderId,
 			path,
-			content,
+			...contentBody(content),
 			createOnly: true,
 		});
 	}
 
 	async updateFile(
 		fileId: string,
-		content: string,
+		content: string | Uint8Array,
 		expectedRevision: string
 	): Promise<CloudWriteResult> {
 		return request<CloudWriteResult>({
 			operation: 'write-file',
 			fileId,
-			content,
+			...contentBody(content),
 			expectedRevision,
 		});
 	}
@@ -68,6 +81,17 @@ export class E2eSharedFolderStorageProvider implements CloudStorageProvider {
 	async deleteFile(fileId: string, expectedRevision?: string): Promise<void> {
 		await request({ operation: 'delete-file', fileId, expectedRevision });
 	}
+}
+
+function contentBody(
+	content: string | Uint8Array
+): { content: string } | { contentBase64: string } {
+	if (typeof content === 'string') return { content };
+	let binary = '';
+	for (let index = 0; index < content.length; index += 0x8000) {
+		binary += String.fromCharCode(...content.subarray(index, index + 0x8000));
+	}
+	return { contentBase64: btoa(binary) };
 }
 
 async function request<T = unknown>(body: Record<string, unknown>): Promise<T> {

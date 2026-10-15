@@ -53,7 +53,7 @@ export class FakeDirectoryHandle {
 
 export class FakeFileHandle {
 	readonly kind = 'file';
-	private content = '';
+	private content: string | Uint8Array<ArrayBuffer> = '';
 	private lastModified = Date.parse('2026-06-10T12:00:00.000Z');
 
 	constructor(readonly name: string) {}
@@ -63,12 +63,12 @@ export class FakeFileHandle {
 	}
 
 	async createWritable(): Promise<{
-		write: (content: string) => Promise<void>;
+		write: (content: string | Uint8Array) => Promise<void>;
 		close: () => Promise<void>;
 	}> {
 		return {
-			write: async (content: string) => {
-				this.content = content;
+			write: async (content: string | Uint8Array) => {
+				this.content = typeof content === 'string' ? content : content.slice();
 				this.lastModified += 1_000;
 			},
 			close: async () => {},

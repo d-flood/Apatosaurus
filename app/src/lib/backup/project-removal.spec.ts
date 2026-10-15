@@ -6,7 +6,9 @@ import {
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { createProject } from '$lib/db/repositories/projects';
+import { joinStorePath, projectFolder } from '$lib/storage/layout';
 import { MemoryStoreBackend } from '$lib/storage/memory-store-backend.spec-support';
+import { readFileBytes, writeFileBytesAtomic } from '$lib/storage/opfs-store';
 import {
 	listProjectPlacements,
 	listRemovedProjects,
@@ -46,6 +48,13 @@ describe('remove from this device', () => {
 			},
 			storeOptions
 		);
+		const { storage_slug } = await harness.db
+			.selectFrom('projects')
+			.select('storage_slug')
+			.executeTakeFirstOrThrow();
+		const cachePath = joinStorePath(projectFolder(storage_slug), 'cbgm/x.sqlite');
+		const cache = Uint8Array.from({ length: 1024 }, (_, index) => index % 256);
+		await writeFileBytesAtomic(cachePath, cache, storeOptions);
 		const placement: PlacedProject = {
 			projectId: 'project-1',
 			locationId: 'location-1',
@@ -68,5 +77,6 @@ describe('remove from this device', () => {
 		expect(await listProjectPlacements(storeOptions)).toEqual([placement]);
 		expect(await listRemovedProjects(storeOptions)).toEqual([]);
 		expect([...storeOptions.backend.files.keys()].sort()).toEqual(filesBefore);
+		expect(await readFileBytes(cachePath, storeOptions)).toEqual(cache);
 	});
 });

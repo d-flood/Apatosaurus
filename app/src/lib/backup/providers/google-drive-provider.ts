@@ -17,6 +17,7 @@ const FOLDER_MIME_TYPE = 'application/vnd.google-apps.folder';
 const FILE_FIELDS = 'id,name,mimeType,parents,headRevisionId,modifiedTime,size,trashed';
 const WALK_CURSOR = 'walk:';
 const CHANGES_CURSOR = 'changes:';
+const RESUMABLE_UPLOAD_THRESHOLD = 5 * 1024 * 1024;
 
 export interface GoogleDriveStorageProviderOptions {
 	driveRootId: string;
@@ -51,7 +52,7 @@ interface DriveChange {
 interface DriveRequest {
 	params?: Record<string, string>;
 	headers?: Record<string, string>;
-	body?: string;
+	body?: string | Uint8Array | Blob;
 }
 
 interface WalkState {
@@ -180,13 +181,18 @@ export class GoogleDriveStorageProvider implements CloudStorageProvider {
 	}
 
 	async downloadFile(fileId: string): Promise<string> {
-		const response = await this.request('GET', `${API}/files/${await this.driveId(fileId)}`, {
-			params: { alt: 'media' },
-		});
-		return response.text();
+		return (await this.download(fileId)).text();
 	}
 
-	async createFile(folderId: string, path: string, content: string): Promise<CloudWriteResult> {
+	async downloadFileBytes(fileId: string): Promise<Uint8Array> {
+		return new Uint8Array(await (await this.download(fileId)).arrayBuffer());
+	}
+
+	async createFile(
+		folderId: string,
+		path: string,
+		content: string | Uint8Array
+	): Promise<CloudWriteResult> {
 		const segments = normalizeSegments(path);
 		const name = segments.pop()!;
 		const parentId = segments.length
@@ -197,22 +203,10 @@ export class GoogleDriveStorageProvider implements CloudStorageProvider {
 		if (await this.findChild(parentDriveId, name)) {
 			throw new CloudProviderError('conflict', `${id} already exists.`);
 		}
-		const boundary = `apatosaurus-${crypto.randomUUID()}`;
-		const file = (await this.json('POST', `${UPLOAD_API}/files`, {
-			params: { uploadType: 'multipart', fields: FILE_FIELDS },
-			headers: { 'Content-Type': `multipart/related; boundary=${boundary}` },
-			body: [
-				`--${boundary}`,
-				'Content-Type: application/json; charset=UTF-8',
-				'',
-				JSON.stringify({ name, parents: [parentDriveId] }),
-				`--${boundary}`,
-				'Content-Type: application/octet-stream',
-				'',
-				content,
-				`--${boundary}--`,
-			].join('\r\n'),
-		})) as DriveFile;
+		const metadata = { name, parents: [parentDriveId] };
+		const file = isLargeUpload(content)
+			? await this.resumableUpload('POST', `${UPLOAD_API}/files`, metadata, content)
+			: await this.multipartUpload(metadata, content);
 		this.remember(id, file.id);
 		return toWriteResult(file, id);
 	}
@@ -220,16 +214,18 @@ export class GoogleDriveStorageProvider implements CloudStorageProvider {
 	/** Drive v3 lacks conditional writes; revision history covers the check/write race. */
 	async updateFile(
 		fileId: string,
-		content: string,
+		content: string | Uint8Array,
 		expectedRevision: string
 	): Promise<CloudWriteResult> {
 		const driveId = await this.driveId(fileId);
 		await this.assertRevision(driveId, fileId, expectedRevision);
-		const file = (await this.json('PATCH', `${UPLOAD_API}/files/${driveId}`, {
-			params: { uploadType: 'media', fields: FILE_FIELDS },
-			headers: { 'Content-Type': 'application/octet-stream' },
-			body: content,
-		})) as DriveFile;
+		const file = isLargeUpload(content)
+			? await this.resumableUpload('PATCH', `${UPLOAD_API}/files/${driveId}`, {}, content)
+			: ((await this.json('PATCH', `${UPLOAD_API}/files/${driveId}`, {
+					params: { uploadType: 'media', fields: FILE_FIELDS },
+					headers: { 'Content-Type': 'application/octet-stream' },
+					body: content,
+				})) as DriveFile);
 		return toWriteResult(file, fileId);
 	}
 
@@ -243,6 +239,66 @@ export class GoogleDriveStorageProvider implements CloudStorageProvider {
 		for (const path of [...this.driveIds.keys()]) {
 			if (path === fileId || path.startsWith(`${fileId}/`)) this.driveIds.delete(path);
 		}
+	}
+
+	private async download(fileId: string): Promise<Response> {
+		return this.request('GET', `${API}/files/${await this.driveId(fileId)}`, {
+			params: { alt: 'media' },
+		});
+	}
+
+	private async multipartUpload(
+		metadata: object,
+		content: string | Uint8Array
+	): Promise<DriveFile> {
+		const boundary = `apatosaurus-${crypto.randomUUID()}`;
+		return (await this.json('POST', `${UPLOAD_API}/files`, {
+			params: { uploadType: 'multipart', fields: FILE_FIELDS },
+			headers: { 'Content-Type': `multipart/related; boundary=${boundary}` },
+			body: new Blob([
+				[
+					`--${boundary}`,
+					'Content-Type: application/json; charset=UTF-8',
+					'',
+					JSON.stringify(metadata),
+					`--${boundary}`,
+					'Content-Type: application/octet-stream',
+					'',
+					'',
+				].join('\r\n'),
+				content as string | Uint8Array<ArrayBuffer>,
+				`\r\n--${boundary}--`,
+			]),
+		})) as DriveFile;
+	}
+
+	private async resumableUpload(
+		method: 'POST' | 'PATCH',
+		url: string,
+		metadata: object,
+		content: string | Uint8Array
+	): Promise<DriveFile> {
+		const body = typeof content === 'string' ? new TextEncoder().encode(content) : content;
+		const session = await this.request(method, url, {
+			params: { uploadType: 'resumable', fields: FILE_FIELDS },
+			headers: {
+				'Content-Type': 'application/json; charset=UTF-8',
+				'X-Upload-Content-Type': 'application/octet-stream',
+				'X-Upload-Content-Length': String(body.byteLength),
+			},
+			body: JSON.stringify(metadata),
+		});
+		const location = session.headers.get('Location');
+		if (!location) {
+			throw new CloudProviderError(
+				'provider-unavailable',
+				'Google Drive did not start an upload session.'
+			);
+		}
+		return (await this.json('PUT', location, {
+			headers: { 'Content-Type': 'application/octet-stream' },
+			body,
+		})) as DriveFile;
 	}
 
 	private async listChanges(
@@ -375,7 +431,7 @@ export class GoogleDriveStorageProvider implements CloudStorageProvider {
 				return await this.fetch(target, {
 					method,
 					headers: { ...init.headers, Authorization: `Bearer ${accessToken}` },
-					body: init.body,
+					body: init.body as BodyInit | undefined,
 				});
 			} catch (error) {
 				throw new CloudProviderError(
@@ -392,6 +448,14 @@ export class GoogleDriveStorageProvider implements CloudStorageProvider {
 		if (response.ok) return response;
 		throw await responseError(response);
 	}
+}
+
+function isLargeUpload(content: string | Uint8Array): boolean {
+	const size =
+		typeof content === 'string'
+			? new TextEncoder().encode(content).byteLength
+			: content.byteLength;
+	return size > RESUMABLE_UPLOAD_THRESHOLD;
 }
 
 function toMetadata(file: DriveFile, path: string): CloudFileMetadata {

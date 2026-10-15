@@ -29,7 +29,12 @@ import {
 } from '$lib/storage/formats';
 import { joinStorePath, projectFolder } from '$lib/storage/layout';
 import { sealDocument, serializeSealedDocument, type JsonObject } from '$lib/storage/envelope';
-import { writeTextFileAtomic, type StoreOperationOptions } from '$lib/storage/opfs-store';
+import {
+	readFileBytes,
+	writeFileBytesAtomic,
+	writeTextFileAtomic,
+	type StoreOperationOptions,
+} from '$lib/storage/opfs-store';
 import type { StoredTranscriptionDocument } from '$lib/transcription/content';
 import { exportCollationDocumentTei } from '$lib/collation/collation-tei';
 import { exportProjectZip } from './project-zip-export';
@@ -164,6 +169,41 @@ describe('project zip import', () => {
 		expect(projectFiles(imported.storageSlug)).toEqual(expected);
 		expect(await getProject(harness.db, 'project-1')).toMatchObject({ name: 'Romans' });
 	});
+
+	it.each([
+		['created', undefined],
+		['copied', 'copy'],
+	] as const)(
+		'imports a CBGM cache byte for byte when a project is %s',
+		async (mode, collisionMode) => {
+			const cache = Uint8Array.from({ length: 4096 }, (_, index) => (index * 11) % 256);
+			const exported = await exportedProjectZip({ 'cbgm/x.sqlite': cache });
+			if (collisionMode) {
+				await createProject(harness.db, {
+					id: 'project-1',
+					storageSlug: 'local-project',
+					name: 'Local',
+				});
+			}
+
+			const imported = await importProjectZip(harness.db, exported.bytes, {
+				storeOptions,
+				collisionMode,
+				nonce: () => `cache-${mode}`,
+			});
+
+			expect(imported, JSON.stringify(imported.quarantinedFiles)).toMatchObject({
+				ok: true,
+				mode,
+			});
+			expect(
+				await readFileBytes(
+					joinStorePath(projectFolder(imported.storageSlug), 'cbgm/x.sqlite'),
+					storeOptions
+				)
+			).toEqual(cache);
+		}
+	);
 
 	it.each([
 		['created', undefined, 'romans-project-'],
@@ -673,6 +713,9 @@ describe('project zip import', () => {
 			name: 'Local',
 			updatedAt: '2026-07-08T00:00:00.000Z',
 		});
+		const cachePath = joinStorePath(projectFolder('local-project'), 'cbgm/x.sqlite');
+		const cache = Uint8Array.from({ length: 4096 }, (_, index) => (index * 13) % 256);
+		await writeFileBytesAtomic(cachePath, cache, storeOptions);
 		const before = projectFiles('local-project');
 		backend.failReadPathIncludesAfter = {
 			path: 'projects/local-project/project.json',
@@ -687,11 +730,12 @@ describe('project zip import', () => {
 
 		expect(result.ok).toBe(false);
 		expect(projectFiles('local-project')).toEqual(before);
+		expect(await readFileBytes(cachePath, storeOptions)).toEqual(cache);
 		expect(await getProject(harness.db, 'project-1')).toMatchObject({ name: 'Local' });
 	});
 });
 
-async function exportedProjectZip() {
+async function exportedProjectZip(cbgmFiles: Record<string, Uint8Array> = {}) {
 	await createProject(harness.db, {
 		id: 'project-1',
 		storageSlug: 'romans-project-',
@@ -714,6 +758,17 @@ async function exportedProjectZip() {
 		},
 		storeOptions
 	);
+	const { storage_slug } = await harness.db
+		.selectFrom('projects')
+		.select('storage_slug')
+		.executeTakeFirstOrThrow();
+	for (const [path, bytes] of Object.entries(cbgmFiles)) {
+		await writeFileBytesAtomic(
+			joinStorePath(projectFolder(storage_slug), path),
+			bytes,
+			storeOptions
+		);
+	}
 	const exported = await exportProjectZip(harness.db, 'project-1', { storeOptions });
 	await harness.destroy();
 	harness = createLocalDbTestHarness();
@@ -796,7 +851,8 @@ function projectFiles(storageSlug: string): Record<string, string> {
 	const prefix = `apatosaurus/v1/${projectFolder(storageSlug)}/`;
 	const files: Record<string, string> = {};
 	for (const [path, content] of backend.files) {
-		if (path.startsWith(prefix)) files[path.slice(prefix.length)] = content;
+		if (path.startsWith(prefix) && typeof content === 'string')
+			files[path.slice(prefix.length)] = content;
 	}
 	return files;
 }

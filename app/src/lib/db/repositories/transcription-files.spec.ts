@@ -1314,6 +1314,14 @@ class MemoryStoreBackend implements StoreBackend {
 		this.files.set(normalized, content);
 	}
 
+	async readFileBytes(path: string): Promise<Uint8Array> {
+		return new TextEncoder().encode(await this.readTextFile(path));
+	}
+
+	async writeFileBytes(path: string, bytes: Uint8Array): Promise<void> {
+		await this.writeTextFile(path, new TextDecoder().decode(bytes));
+	}
+
 	async deleteFile(path: string): Promise<void> {
 		const normalized = normalizeStorePath(path);
 		if (!this.files.delete(normalized)) throw new Error(`File ${path} was not found.`);

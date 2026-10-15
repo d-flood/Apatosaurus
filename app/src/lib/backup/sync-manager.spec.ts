@@ -25,7 +25,12 @@ import { deleteCollationWithFiles } from '$lib/db/repositories/entity-deletion';
 import { MemoryStoreBackend } from '$lib/storage/memory-store-backend.spec-support';
 import type { StoreOperationOptions } from '$lib/storage/opfs-store';
 
-import { readTextFile, writeTextFileAtomic } from '$lib/storage/opfs-store';
+import {
+	readFileBytes,
+	readTextFile,
+	writeFileBytesAtomic,
+	writeTextFileAtomic,
+} from '$lib/storage/opfs-store';
 import {
 	collationTeiFile,
 	collationPrimaryFile,
@@ -481,6 +486,65 @@ describe('sync manager', () => {
 
 		expect(result.uiState).toBe('synced');
 		expect(provider.calls.filter(call => call.operation === 'download-file')).toEqual([]);
+	});
+
+	it('mirrors a binary CBGM cache byte for byte and downloads it again only when its revision changes', async () => {
+		await createCommittedProjectCollation('Initial notes', 'col-cp-1');
+		const { provider, context: contextA } = await createConnectedProvider();
+		const storeB = createLocalDbTestHarness();
+		const storeOptionsB = { backend: new MemoryStoreBackend() };
+		const contextB: SyncProjectContext = { ...contextA, connectionId: 'target-b' };
+		try {
+			const archive = await listProjectArchiveFiles(harness.db, 'project-1', {
+				storeOptions,
+			});
+			const imported = await importProjectFileTree(
+				storeB.db,
+				archive.map(file => ({ path: file.path, read: async () => file.content })),
+				{ storeOptions: storeOptionsB }
+			);
+			expect(imported.ok).toBe(true);
+			const cacheA = joinStorePath(
+				projectFolder(await loadProjectStorageSlug('project-1')),
+				'cbgm/x.sqlite'
+			);
+			const cacheB = joinStorePath(projectFolder(imported.storageSlug), 'cbgm/x.sqlite');
+			const syncB = () =>
+				backupProject(storeB.db, provider, contextB, { storeOptions: storeOptionsB });
+			const cache = binaryCache(4096, 1);
+			await writeFileBytesAtomic(cacheA, cache, storeOptions);
+
+			const pushA = await backupProject(harness.db, provider, contextA, syncOptions());
+			expect(pushA.uploadedPaths).toContain('cbgm/x.sqlite');
+			const remote = (await remoteFile(provider, contextA, 'cbgm/x.sqlite'))!;
+			expect(remote.size).toBe(cache.byteLength);
+			expect(await provider.downloadFileBytes(remote.id)).toEqual(cache);
+			const pullB = await syncB();
+			expect(pullB.uiState).toBe('synced');
+			expect(pullB.downloadedPaths).toEqual(['cbgm/x.sqlite']);
+			expect(await readFileBytes(cacheB, storeOptionsB)).toEqual(cache);
+
+			provider.calls = [];
+			const unchanged = await syncB();
+			expect(unchanged.uiState).toBe('synced');
+			expect(provider.calls.filter(call => call.operation === 'download-file')).toEqual([]);
+
+			const recomputed = binaryCache(8192, 7);
+			await writeFileBytesAtomic(cacheA, recomputed, storeOptions);
+			expect(
+				(await backupProject(harness.db, provider, contextA, syncOptions())).uploadedPaths
+			).toEqual(['cbgm/x.sqlite']);
+			provider.calls = [];
+			const changed = await syncB();
+			expect(changed.uiState).toBe('synced');
+			expect(changed.downloadedPaths).toEqual(['cbgm/x.sqlite']);
+			expect(provider.calls.filter(call => call.operation === 'download-file')).toHaveLength(
+				1
+			);
+			expect(await readFileBytes(cacheB, storeOptionsB)).toEqual(recomputed);
+		} finally {
+			await storeB.destroy();
+		}
 	});
 
 	it('backs up project entities before uploading the project manifest', async () => {
@@ -1111,10 +1175,16 @@ describe('sync manager', () => {
 			{ id: 'tx-1', document: documentWithVerses(['Romans 1:2']) },
 			storeOptions
 		);
+		const slug = await loadProjectStorageSlug('project-1');
+		await writeFileBytesAtomic(
+			joinStorePath(projectFolder(slug), 'cbgm/x.sqlite'),
+			binaryCache(4096, 1),
+			storeOptions
+		);
 		const placement = {
 			projectId: 'project-1',
 			locationId: marker.id,
-			folderName: await loadProjectStorageSlug('project-1'),
+			folderName: slug,
 			needsLocationChoice: false,
 		};
 		await upsertProjectPlacements([placement], storeOptions);
@@ -1125,10 +1195,12 @@ describe('sync manager', () => {
 			syncOptions()
 		);
 		expect(result.uiState).toBe('synced');
+		expect(result.uploadedPaths).toContain('cbgm/x.sqlite');
 
 		await expect(
 			removeProjectsFromDevice(harness.db, [placement], storeOptions)
 		).resolves.toEqual({ ok: true });
+		expect([...backend.files.keys()].filter(path => path.includes(`/${slug}/`))).toEqual([]);
 	});
 
 	it('downloads every project when a second store signs in, and removes one from that device only', async () => {
@@ -1768,9 +1840,9 @@ describe('sync manager', () => {
 	it('moves a project with its history between two locations and stops a second store from syncing it', async () => {
 		const now = () => '2026-10-03T12:00:00.000Z';
 		const destination = new MockCloudStorageProvider({ now });
-		let destinationAtMarker: Map<string, string> | null = null;
+		let destinationAtMarker: Map<string, string | Uint8Array> | null = null;
 		const source = new (class extends MockCloudStorageProvider {
-			async createFile(folderId: string, path: string, content: string) {
+			async createFile(folderId: string, path: string, content: string | Uint8Array) {
 				if (path === 'moved.json')
 					destinationAtMarker = await snapshotContents(destination);
 				return super.createFile(folderId, path, content);
@@ -1801,6 +1873,12 @@ describe('sync manager', () => {
 			storeOptions
 		);
 		const slug = await loadProjectStorageSlug('project-1');
+		const cache = binaryCache(4096, 3);
+		await writeFileBytesAtomic(
+			joinStorePath(projectFolder(slug), 'cbgm/x.sqlite'),
+			cache,
+			storeOptions
+		);
 		const placement = {
 			projectId: 'project-1',
 			locationId: 'source-location',
@@ -1831,6 +1909,16 @@ describe('sync manager', () => {
 					storeOptions: storeOptionsB,
 				});
 			expect((await syncB()).uiState).toBe('synced');
+			const { storage_slug: slugB } = await storeB.db
+				.selectFrom('projects')
+				.select('storage_slug')
+				.executeTakeFirstOrThrow();
+			expect(
+				await readFileBytes(
+					joinStorePath(projectFolder(slugB), 'cbgm/x.sqlite'),
+					storeOptionsB
+				)
+			).toEqual(cache);
 			await createCommittedTranscriptionCheckpointWithFiles(
 				storeB.db,
 				{ projectTranscriptionId: 'pt-1', checkpointId: 'tx-cp-b', label: 'Unsynced B' },
@@ -1840,8 +1928,11 @@ describe('sync manager', () => {
 			const archive = await listProjectArchiveFiles(harness.db, 'project-1', {
 				storeOptions,
 			});
-			expect(archive.map(file => file.path)).toContain(
-				'history/transcriptions/pt-1/tx-cp-1.json'
+			expect(archive.map(file => file.path)).toEqual(
+				expect.arrayContaining([
+					'history/transcriptions/pt-1/tx-cp-1.json',
+					'cbgm/x.sqlite',
+				])
 			);
 			await moveProject(
 				harness.db,
@@ -1863,13 +1954,13 @@ describe('sync manager', () => {
 			const expected = new Map(archive.map(file => [`${slug}/${file.path}`, file.content]));
 			expect(destinationAtMarker).not.toBeNull();
 			for (const [path, content] of expected) {
-				expect(destinationAtMarker!.get(path)).toBe(content);
+				expect(destinationAtMarker!.get(path)).toEqual(content);
 			}
 			const sourceAfter = await snapshotContents(source);
 			expect([...sourceAfter.keys()].filter(path => path.startsWith(`${slug}/`))).toEqual([
 				`${slug}/moved.json`,
 			]);
-			expect(JSON.parse(sourceAfter.get(`${slug}/moved.json`)!)).toEqual({
+			expect(JSON.parse(sourceAfter.get(`${slug}/moved.json`) as string)).toEqual({
 				format: 'apatosaurus.moved',
 				version: 1,
 				moved_at: '2026-10-03T12:00:00.000Z',
@@ -1913,6 +2004,11 @@ describe('sync manager', () => {
 		await createCommittedProjectCollation('Initial notes', 'col-cp-1');
 		const destination = new RecordingMockProvider({ now: () => '2026-10-03T12:00:00.000Z' });
 		const slug = await loadProjectStorageSlug('project-1');
+		await writeFileBytesAtomic(
+			joinStorePath(projectFolder(slug), 'cbgm/x.sqlite'),
+			binaryCache(4096, 5),
+			storeOptions
+		);
 		const placement = {
 			projectId: 'project-1',
 			locationId: 'dropbox-location',
@@ -2118,14 +2214,23 @@ class RecordingMockProvider extends MockCloudStorageProvider {
 		return super.downloadFile(fileId);
 	}
 
-	async createFile(folderId: string, path: string, content: string): Promise<CloudWriteResult> {
+	async downloadFileBytes(fileId: string): Promise<Uint8Array> {
+		this.calls.push({ operation: 'download-file' });
+		return super.downloadFileBytes(fileId);
+	}
+
+	async createFile(
+		folderId: string,
+		path: string,
+		content: string | Uint8Array
+	): Promise<CloudWriteResult> {
 		this.calls.push({ operation: 'create-file', path });
 		return super.createFile(folderId, path, content);
 	}
 
 	async updateFile(
 		fileId: string,
-		content: string,
+		content: string | Uint8Array,
 		expectedRevision: string
 	): Promise<CloudWriteResult> {
 		this.calls.push({ operation: 'update-file' });
@@ -2436,8 +2541,10 @@ async function snapshotRemote(provider: RecordingMockProvider): Promise<string[]
 	return entries.sort();
 }
 
-async function snapshotContents(provider: MockCloudStorageProvider): Promise<Map<string, string>> {
-	const contents = new Map<string, string>();
+async function snapshotContents(
+	provider: MockCloudStorageProvider
+): Promise<Map<string, string | Uint8Array>> {
+	const contents = new Map<string, string | Uint8Array>();
 	let cursor: string | undefined;
 	do {
 		const page = await MockCloudStorageProvider.prototype.listFiles.call(
@@ -2449,7 +2556,12 @@ async function snapshotContents(provider: MockCloudStorageProvider): Promise<Map
 			if (entry.isFolder || entry.name === 'apatosaurus-location.json') continue;
 			contents.set(
 				entry.path,
-				await MockCloudStorageProvider.prototype.downloadFile.call(provider, entry.id)
+				entry.name.endsWith('.sqlite')
+					? await MockCloudStorageProvider.prototype.downloadFileBytes.call(
+							provider,
+							entry.id
+						)
+					: await MockCloudStorageProvider.prototype.downloadFile.call(provider, entry.id)
 			);
 		}
 		cursor = page.hasMore ? page.cursor : undefined;
@@ -2484,6 +2596,10 @@ async function loadProjectStorageSlug(projectId: string): Promise<string> {
 function relativeEntryPath(path: string, context: SyncProjectContext): string {
 	const root = context.cloudFolderPath ?? '';
 	return root && path.startsWith(`${root}/`) ? path.slice(root.length + 1) : path;
+}
+
+function binaryCache(length: number, step: number): Uint8Array {
+	return Uint8Array.from({ length }, (_, index) => (index * step) % 256);
 }
 
 function syncOptions(options: SyncManagerOptions = {}): SyncManagerOptions {

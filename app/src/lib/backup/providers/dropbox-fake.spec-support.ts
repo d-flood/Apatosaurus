@@ -4,7 +4,7 @@ import type { AccessTokenSource } from './dropbox-provider';
 interface FakeEntry {
 	pathDisplay: string;
 	isFolder: boolean;
-	content: string;
+	content: Uint8Array<ArrayBuffer>;
 	rev: string;
 	modifiedAt: string;
 }
@@ -55,8 +55,9 @@ export class FakeDropboxApi {
 			return Response.json({ error_summary: 'too_many_requests/' }, { status });
 		}
 		const arg = new Headers(init?.headers).get('Dropbox-API-Arg');
-		const args = JSON.parse(arg ?? String(init?.body ?? 'null'));
-		return this.handle(endpoint, args, arg ? String(init?.body ?? '') : '');
+		const body = new Uint8Array(await new Response(init?.body).arrayBuffer());
+		const args = JSON.parse(arg ?? (new TextDecoder().decode(body) || 'null'));
+		return this.handle(endpoint, args, arg ? body : new Uint8Array());
 	};
 
 	expireAccessTokens(): void {
@@ -78,7 +79,11 @@ export class FakeDropboxApi {
 		return this.currentToken;
 	}
 
-	private handle(endpoint: string, args: Record<string, unknown>, body: string): Response {
+	private handle(
+		endpoint: string,
+		args: Record<string, unknown>,
+		body: Uint8Array<ArrayBuffer>
+	): Response {
 		switch (endpoint) {
 			case 'files/list_folder':
 				return this.listFolder(String(args.path), args.recursive === true);
@@ -139,7 +144,7 @@ export class FakeDropboxApi {
 		});
 	}
 
-	private upload(path: string, mode: UploadMode, content: string): Response {
+	private upload(path: string, mode: UploadMode, content: Uint8Array<ArrayBuffer>): Response {
 		const key = lower(path);
 		const existing = this.entries.get(key);
 		if (mode === 'add' && existing) return conflict('path/conflict/file/');
@@ -181,7 +186,7 @@ export class FakeDropboxApi {
 				entry = {
 					pathDisplay: current,
 					isFolder: true,
-					content: '',
+					content: new Uint8Array(),
 					rev: '',
 					modifiedAt: '',
 				};
@@ -206,7 +211,7 @@ export class FakeDropboxApi {
 					...common,
 					rev: entry.rev,
 					server_modified: entry.modifiedAt,
-					size: new TextEncoder().encode(entry.content).byteLength,
+					size: entry.content.byteLength,
 				};
 	}
 }

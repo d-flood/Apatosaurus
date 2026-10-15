@@ -22,6 +22,7 @@ import { InMemoryQuarantineReport } from '$lib/storage/quarantine-report.spec-su
 import { joinStorePath, projectFolder } from '$lib/storage/layout';
 import {
 	readTextFile,
+	writeFileBytesAtomic,
 	writeTextFileAtomic,
 	type StoreOperationOptions,
 } from '$lib/storage/opfs-store';
@@ -75,6 +76,14 @@ describe('project zip export', () => {
 		await writeProjectFile('romans-a1b2', 'transcriptions/tx-1.working.json', '{"draft":true}');
 		await writeProjectFile('romans-a1b2', 'history/transcriptions/tx-1/cp-1.json', '{"cp":1}');
 		await writeProjectFile('romans-a1b2', 'transcriptions/tx-1.json.tmp-1', 'temporary');
+		await writeProjectFile('romans-a1b2', 'cbgm/x.input.xml', '<TEI>frozen</TEI>');
+		await writeProjectFile('romans-a1b2', 'cbgm/x.global-stemma.dot', 'digraph {}');
+		const cache = Uint8Array.from({ length: 4096 }, (_, index) => (index * 7) % 256);
+		await writeFileBytesAtomic(
+			joinStorePath(projectFolder('romans-a1b2'), 'cbgm/x.sqlite'),
+			cache,
+			storeOptions
+		);
 
 		const result = await exportProjectZip(harness.db, 'project-1', {
 			storeOptions,
@@ -83,12 +92,19 @@ describe('project zip export', () => {
 
 		expect(result.fileName).toBe('romans-a1b2-2026-07-07.zip');
 		expect(result.entryPaths).toEqual([
+			'cbgm/x.global-stemma.dot',
+			'cbgm/x.input.xml',
+			'cbgm/x.sqlite',
 			'history/transcriptions/tx-1/cp-1.json',
 			'project.json',
 			'transcriptions/tx-1.json',
 			'transcriptions/tx-1.tei.xml',
 		]);
+		expect(readZipEntryBytes(result.bytes)['cbgm/x.sqlite']).toEqual(cache);
 		expect(readZipEntries(result.bytes)).toEqual({
+			'cbgm/x.global-stemma.dot': 'digraph {}',
+			'cbgm/x.input.xml': '<TEI>frozen</TEI>',
+			'cbgm/x.sqlite': expect.any(String),
 			'history/transcriptions/tx-1/cp-1.json': '{"cp":1}',
 			'project.json': backend.files.get('apatosaurus/v1/projects/romans-a1b2/project.json'),
 			'transcriptions/tx-1.json': '{"format":"tx"}',
@@ -154,14 +170,15 @@ describe('project zip export', () => {
 			'apatosaurus/v1/projects/romans-a1b2/transcriptions/tx-1.tei.xml',
 			exactTeiBytes
 		);
-		const manifest = backend.files.get('apatosaurus/v1/projects/romans-a1b2/project.json');
-		expect(manifest).toBeDefined();
+		const manifest = await backend.readTextFile(
+			'apatosaurus/v1/projects/romans-a1b2/project.json'
+		);
 
 		const result = await exportProjectZip(harness.db, 'project-1', { storeOptions });
 
 		const entries = readZipEntryBytes(result.bytes);
 		const expected = {
-			'project.json': manifest!,
+			'project.json': manifest,
 			...Object.fromEntries(
 				Object.entries(files).filter(([path]) => !path.endsWith('.working.json'))
 			),

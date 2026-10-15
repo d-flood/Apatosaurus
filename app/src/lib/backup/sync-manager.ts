@@ -58,9 +58,14 @@ import { validateProjectFilesWithTemporaryStaging } from './project-file-staging
 import { loadLocalEntity, primaryPathFor, type LocalEntityState } from './backup-summary';
 import {
 	loadProjectStoreRoot,
+	isBinaryProjectFile,
 	isMissingStoreEntryError,
+	projectFileText,
+	readProjectFile,
 	shouldMirrorProjectFile,
 	normalizeSlashes,
+	writeProjectFileAtomic,
+	type ProjectFileContent,
 } from './project-archive';
 import {
 	DELETED_MARKER_FILE,
@@ -130,14 +135,14 @@ interface FileFingerprint {
 interface LocalMirrorFile {
 	path: string;
 	storePath: string;
-	content: string;
+	content: ProjectFileContent;
 	fingerprint: FileFingerprint;
 }
 
 interface RemoteMirrorFile {
 	path: string;
 	metadata: CloudFileMetadata;
-	content: string | null;
+	content: ProjectFileContent | null;
 	fingerprint: FileFingerprint;
 }
 
@@ -159,7 +164,7 @@ type RemoteOperation =
 	| {
 			kind: 'upload';
 			path: string;
-			content: string;
+			content: ProjectFileContent;
 			file: CloudFileMetadata | null;
 			localFile: LocalMirrorFile;
 			remoteFingerprint: FileFingerprint;
@@ -384,7 +389,7 @@ async function mirrorProjectFiles(
 			.map(metadata => ({ metadata, path: relativeEntryPath(metadata.path, context) }))
 			.filter(({ path }) => shouldMirrorProjectFile(path));
 		const syncedRevisions = await exclusive(() => listSyncedRemoteRevisions(db, context));
-		const downloaded = new Map<string, string>();
+		const downloaded = new Map<string, ProjectFileContent>();
 		await downloadRemoteContents(
 			provider,
 			mirrored.filter(
@@ -445,10 +450,15 @@ async function mirrorProjectFiles(
 async function downloadRemoteContents(
 	provider: CloudStorageProvider,
 	files: Array<{ metadata: CloudFileMetadata; path: string }>,
-	downloaded: Map<string, string>
+	downloaded: Map<string, ProjectFileContent>
 ): Promise<void> {
 	await mapConcurrently(files, async ({ metadata, path }) => {
-		downloaded.set(path, await provider.downloadFile(metadata.id));
+		downloaded.set(
+			path,
+			isBinaryProjectFile(path)
+				? await provider.downloadFileBytes(metadata.id)
+				: await provider.downloadFile(metadata.id)
+		);
 	});
 }
 
@@ -456,7 +466,7 @@ async function loadLocalMirrorState(
 	db: DbExecutor,
 	context: SyncProjectContext,
 	mirrored: Array<{ metadata: CloudFileMetadata; path: string }>,
-	downloaded: Map<string, string>,
+	downloaded: Map<string, ProjectFileContent>,
 	storeOptions: StoreOperationOptions
 ): Promise<LocalMirrorState> {
 	const projectRoot = await loadProjectStoreRoot(db, context.projectId);
@@ -483,7 +493,7 @@ async function loadLocalMirrorState(
 				path,
 				metadata,
 				content,
-				fingerprint: await fingerprintText(content, metadata.modifiedAt),
+				fingerprint: await fingerprintContent(content, metadata.modifiedAt),
 			});
 		} else if (local && row?.remote_revision === metadata.revision) {
 			remoteFiles.set(path, {
@@ -518,7 +528,7 @@ async function reconcileLocalMirror(
 	const operations: RemoteOperation[] = [];
 	const upload = (
 		path: string,
-		content: string,
+		content: ProjectFileContent,
 		localFile: LocalMirrorFile,
 		remoteFingerprint: FileFingerprint,
 		file: CloudFileMetadata | null
@@ -540,7 +550,7 @@ async function reconcileLocalMirror(
 	for (const localFile of localFiles.filter(file => file.path.startsWith('tombstones/'))) {
 		const parsed = await readCanonicalDocument<TombstonePayload>(
 			TOMBSTONE_FORMAT,
-			localFile.content
+			projectFileText(localFile.content)
 		);
 		if (!parsed.ok) {
 			result.quarantines.push(quarantineFor(localFile.path, parsed.quarantine));
@@ -584,7 +594,10 @@ async function reconcileLocalMirror(
 			result.quarantines.push(...validation.quarantinedFiles.map(storeQuarantineForSync));
 			continue;
 		}
-		const parsed = await readCanonicalDocument<TombstonePayload>(TOMBSTONE_FORMAT, content);
+		const parsed = await readCanonicalDocument<TombstonePayload>(
+			TOMBSTONE_FORMAT,
+			projectFileText(content)
+		);
 		if (!parsed.ok) {
 			result.quarantines.push(quarantineFor(remoteFile.path, parsed.quarantine));
 			continue;
@@ -645,15 +658,16 @@ async function reconcileLocalMirror(
 		const remoteUnchanged = cached
 			? cached.remoteContentHash === remoteFile.fingerprint.contentHash
 			: false;
+		// Binary caches are derived: on divergence this sync's upload is the last write and wins.
 		const winner =
 			localUnchanged && !remoteUnchanged
 				? 'remote'
-				: remoteUnchanged
+				: remoteUnchanged || isBinaryProjectFile(localFile.path)
 					? 'local'
 					: resolveDivergentFile(
 							localFile.path,
-							localFile.content,
-							remoteContent(remoteFile)
+							projectFileText(localFile.content),
+							projectFileText(remoteContent(remoteFile))
 						);
 		if (winner === 'remote') {
 			const validation = await validateProjectFilesWithTemporaryStaging(
@@ -782,12 +796,12 @@ async function reconcileLocalMirror(
 	for (const localFile of derivedTeiFiles) {
 		const remoteFile = remoteFiles.get(localFile.path) ?? null;
 		const conflictingPrimary = conflictingRemotePrimaries.get(localFile.path);
-		let content: string;
+		let content: ProjectFileContent;
 		try {
 			content = conflictingPrimary
 				? await deriveTeiFromCanonicalPrimary(
 						conflictingPrimary.path,
-						remoteContent(conflictingPrimary),
+						projectFileText(remoteContent(conflictingPrimary)),
 						context.projectId,
 						storeOptions
 					)
@@ -797,7 +811,7 @@ async function reconcileLocalMirror(
 			if (remoteFile) remove(remoteFile);
 			continue;
 		}
-		const remoteFingerprint = await fingerprintText(
+		const remoteFingerprint = await fingerprintContent(
 			content,
 			remoteFile?.metadata.modifiedAt ?? ''
 		);
@@ -908,7 +922,7 @@ async function recordRemoteOperations(
 	}
 }
 
-function remoteContent(file: RemoteMirrorFile): string {
+function remoteContent(file: RemoteMirrorFile): ProjectFileContent {
 	if (file.content === null) throw new Error(`Sync did not download ${file.path}.`);
 	return file.content;
 }
@@ -969,12 +983,12 @@ async function collectLocalMirrorFiles(
 			continue;
 		}
 		if (!shouldMirrorProjectFile(childRelativePath)) continue;
-		const content = await readTextFile(childStorePath, storeOptions);
+		const content = await readProjectFile(childRelativePath, childStorePath, storeOptions);
 		files.push({
 			path: childRelativePath,
 			storePath: childStorePath,
 			content,
-			fingerprint: await fingerprintText(content, ''),
+			fingerprint: await fingerprintContent(content, ''),
 		});
 	}
 }
@@ -1030,12 +1044,12 @@ async function writePulledMirrorFile(
 ): Promise<LocalMirrorFile> {
 	const storePath = joinStorePath(projectRoot, remoteFile.path);
 	const content = remoteContent(remoteFile);
-	await writeTextFileAtomic(storePath, content, storeOptions);
+	await writeProjectFileAtomic(storePath, content, storeOptions);
 	return {
 		path: remoteFile.path,
 		storePath,
 		content,
-		fingerprint: await fingerprintText(content, ''),
+		fingerprint: await fingerprintContent(content, ''),
 	};
 }
 
@@ -1047,7 +1061,7 @@ async function readLocalMirrorFile(
 	const storePath = joinStorePath(projectRoot, path);
 	try {
 		const content = await readTextFile(storePath, storeOptions);
-		return { path, storePath, content, fingerprint: await fingerprintText(content, '') };
+		return { path, storePath, content, fingerprint: await fingerprintContent(content, '') };
 	} catch (error) {
 		if (isMissingStoreEntryError(error)) return null;
 		throw error;
@@ -1079,7 +1093,7 @@ async function regenerateDerivedTeiFiles(
 		try {
 			content = await deriveTeiFromCanonicalPrimary(
 				primary.path,
-				primary.content,
+				projectFileText(primary.content),
 				undefined,
 				storeOptions
 			);
@@ -1097,7 +1111,7 @@ async function regenerateDerivedTeiFiles(
 			path,
 			storePath,
 			content,
-			fingerprint: await fingerprintText(content, ''),
+			fingerprint: await fingerprintContent(content, ''),
 		});
 	}
 	return { files: derived, absentPaths };
@@ -1169,7 +1183,7 @@ export async function recordSyncedFile(
 	remote: CloudFileMetadata,
 	syncedAt: string
 ): Promise<void> {
-	const fingerprint = await fingerprintText(file.content, '');
+	const fingerprint = await fingerprintContent(file.content, '');
 	await upsertFileFingerprint(
 		db,
 		context,
@@ -1357,18 +1371,24 @@ function mirrorWriteOrder(path: string): number {
 	return 2;
 }
 
-async function fingerprintText(content: string, modifiedAt: string): Promise<FileFingerprint> {
+async function fingerprintContent(
+	content: ProjectFileContent,
+	modifiedAt: string
+): Promise<FileFingerprint> {
+	const bytes = typeof content === 'string' ? new TextEncoder().encode(content) : content;
 	return {
-		contentHash: await hashText(content),
-		size: new TextEncoder().encode(content).byteLength,
+		contentHash: await hashContent(bytes),
+		size: bytes.byteLength,
 		modifiedAt,
 	};
 }
 
-export async function hashText(content: string): Promise<string> {
+export async function hashContent(content: ProjectFileContent): Promise<string> {
 	const digest = await globalThis.crypto?.subtle?.digest(
 		'SHA-256',
-		new TextEncoder().encode(content)
+		typeof content === 'string'
+			? new TextEncoder().encode(content)
+			: (content as Uint8Array<ArrayBuffer>)
 	);
 	if (!digest) throw new Error('SHA-256 hashing is unavailable.');
 	return `sha256:${[...new Uint8Array(digest)]

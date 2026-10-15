@@ -1,6 +1,6 @@
 import type { Route } from '@playwright/test';
 
-type SharedFile = { content: string; revision: number; modifiedAt: string };
+type SharedFile = { content: Buffer; revision: number; modifiedAt: string };
 
 export class SharedFolderServer {
 	private readonly files = new Map<string, SharedFile>();
@@ -83,14 +83,17 @@ export class SharedFolderServer {
 						name: path.split('/').at(-1),
 						revision: `rev-${file.revision}`,
 						modifiedAt: file.modifiedAt,
-						size: new TextEncoder().encode(file.content).byteLength,
+						size: file.content.byteLength,
 						isFolder: false,
 					})),
 			].sort((left, right) => left.path.localeCompare(right.path));
 			return { entries, hasMore: false };
 		}
 		if (operation === 'download-file') {
-			return { content: this.requireFile(String(request.fileId)).content };
+			const { content } = this.requireFile(String(request.fileId));
+			return request.encoding === 'base64'
+				? { contentBase64: content.toString('base64') }
+				: { content: content.toString('utf8') };
 		}
 		if (operation === 'write-file') {
 			const path = request.fileId
@@ -108,7 +111,10 @@ export class SharedFolderServer {
 			}
 			this.ensureFolders(parentRemotePath(path));
 			const file = {
-				content: String(request.content ?? ''),
+				content:
+					typeof request.contentBase64 === 'string'
+						? Buffer.from(request.contentBase64, 'base64')
+						: Buffer.from(String(request.content ?? ''), 'utf8'),
 				revision: ++this.nextRevision,
 				modifiedAt: new Date().toISOString(),
 			};
@@ -118,7 +124,7 @@ export class SharedFolderServer {
 				path,
 				revision: `rev-${file.revision}`,
 				modifiedAt: file.modifiedAt,
-				size: new TextEncoder().encode(file.content).byteLength,
+				size: file.content.byteLength,
 			};
 		}
 		if (operation === 'delete-file') {

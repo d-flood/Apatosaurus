@@ -3,8 +3,10 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
 	createOpfsStoreBackend,
 	listDirectory,
+	readFileBytes,
 	readTextFile,
 	type StoreBackend,
+	writeFileBytesAtomic,
 	writeTextFileAtomic,
 } from './opfs-store';
 
@@ -32,6 +34,26 @@ describe('browser OPFS atomic replacement', () => {
 		expect(
 			(await listDirectory('projects/browser-atomic', { backend })).map(entry => entry.name)
 		).toEqual(['project.json']);
+	});
+
+	it('writes and replaces binary files byte for byte, with and without move', async () => {
+		const cachePath = 'projects/browser-atomic/cbgm/x.sqlite';
+		const bytes = Uint8Array.from({ length: 4096 }, (_, index) => (index * 7) % 256);
+		const replaced = bytes.map(byte => 255 - byte);
+
+		await writeFileBytesAtomic(cachePath, bytes, { backend, nonce: () => 'bytes' });
+		expect(await readFileBytes(cachePath, { backend })).toEqual(bytes);
+		await writeFileBytesAtomic(cachePath, replaced, {
+			backend: withoutMove(backend),
+			nonce: () => 'fallback',
+		});
+
+		expect(await readFileBytes(cachePath, { backend })).toEqual(replaced);
+		expect(
+			(await listDirectory('projects/browser-atomic/cbgm', { backend })).map(
+				entry => entry.name
+			)
+		).toEqual(['x.sqlite']);
 	});
 
 	it('transactionally replaces an existing target when move is missing', async () => {
@@ -96,8 +118,11 @@ describe('browser OPFS atomic replacement', () => {
 function withoutMove(value: StoreBackend): StoreBackend {
 	return {
 		readTextFile: value.readTextFile.bind(value),
+		readFileBytes: value.readFileBytes.bind(value),
 		writeTextFile: value.writeTextFile.bind(value),
+		writeFileBytes: value.writeFileBytes.bind(value),
 		replaceTextFile: value.replaceTextFile?.bind(value),
+		replaceFileBytes: value.replaceFileBytes?.bind(value),
 		deleteFile: value.deleteFile.bind(value),
 		deleteDirectory: value.deleteDirectory?.bind(value),
 		listDirectory: value.listDirectory.bind(value),

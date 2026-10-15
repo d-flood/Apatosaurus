@@ -42,7 +42,7 @@ interface MockCloudEntry {
 	size: number;
 	isFolder: boolean;
 	isDeleted: boolean;
-	content: string;
+	content: string | Uint8Array;
 	version: number;
 	createdOrder: number;
 }
@@ -122,10 +122,21 @@ export class MockCloudStorageProvider implements CloudStorageProvider {
 
 	async downloadFile(fileId: string): Promise<string> {
 		this.throwInjectedError('download-file');
-		return this.requireFile(fileId).content;
+		const { content } = this.requireFile(fileId);
+		return typeof content === 'string' ? content : new TextDecoder().decode(content);
 	}
 
-	async createFile(folderId: string, path: string, content: string): Promise<CloudWriteResult> {
+	async downloadFileBytes(fileId: string): Promise<Uint8Array> {
+		this.throwInjectedError('download-file');
+		const { content } = this.requireFile(fileId);
+		return typeof content === 'string' ? new TextEncoder().encode(content) : content.slice();
+	}
+
+	async createFile(
+		folderId: string,
+		path: string,
+		content: string | Uint8Array
+	): Promise<CloudWriteResult> {
 		this.throwInjectedError('create-file');
 		const folder = this.requireFolder(folderId);
 		const segments = normalizeRelativePath(path);
@@ -140,14 +151,14 @@ export class MockCloudStorageProvider implements CloudStorageProvider {
 			path: joinPath(parent.path, fileName),
 			name: fileName,
 			isFolder: false,
-			content,
+			content: copyContent(content),
 		});
 		return toWriteResult(entry);
 	}
 
 	async updateFile(
 		fileId: string,
-		content: string,
+		content: string | Uint8Array,
 		expectedRevision: string
 	): Promise<CloudWriteResult> {
 		this.throwInjectedError('update-file');
@@ -158,7 +169,7 @@ export class MockCloudStorageProvider implements CloudStorageProvider {
 				`Expected revision ${expectedRevision}, found ${entry.revision}.`
 			);
 		}
-		entry.content = content;
+		entry.content = copyContent(content);
 		entry.size = byteSize(content);
 		this.bumpRevision(entry);
 		return toWriteResult(entry);
@@ -260,7 +271,7 @@ export class MockCloudStorageProvider implements CloudStorageProvider {
 		path: string;
 		name: string;
 		isFolder: boolean;
-		content: string;
+		content: string | Uint8Array;
 	}): MockCloudEntry {
 		const entry: MockCloudEntry = {
 			id: this.nextId(input.isFolder ? 'folder' : 'file'),
@@ -356,8 +367,14 @@ function joinPath(parentPath: string, name: string): string {
 	return parentPath ? `${parentPath}/${name}` : name;
 }
 
-function byteSize(content: string): number {
-	return new TextEncoder().encode(content).byteLength;
+function byteSize(content: string | Uint8Array): number {
+	return typeof content === 'string'
+		? new TextEncoder().encode(content).byteLength
+		: content.byteLength;
+}
+
+function copyContent(content: string | Uint8Array): string | Uint8Array {
+	return typeof content === 'string' ? content : content.slice();
 }
 
 function toMetadata(entry: MockCloudEntry): CloudFileMetadata {

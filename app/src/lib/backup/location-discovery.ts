@@ -5,7 +5,7 @@ import { projectManifestRelativeFile } from '$lib/storage/layout';
 import type { StoreOperationOptions } from '$lib/storage/opfs-store';
 import { listProjectPlacements, listRemovedProjects } from '$lib/storage/project-locations';
 import { readLocationMarker } from './location-marker';
-import { normalizeSlashes, shouldMirrorProjectFile } from './project-archive';
+import { isBinaryProjectFile, normalizeSlashes, shouldMirrorProjectFile } from './project-archive';
 import { importProjectFileTree } from './project-zip-import';
 import { mapConcurrently } from './map-concurrently';
 import type { CloudFileMetadata, CloudStorageProvider } from './providers/provider';
@@ -87,8 +87,11 @@ export async function discoverLocationProjects(
 			entry => !entry.isFolder && !entry.isDeleted && shouldMirrorProjectFile(relative(entry))
 		);
 		const files = await mapConcurrently(entries, async entry => {
-			const content = await provider.downloadFile(entry.id);
-			return { path: relative(entry), read: async () => content };
+			const path = relative(entry);
+			const content = isBinaryProjectFile(path)
+				? await provider.downloadFileBytes(entry.id)
+				: await provider.downloadFile(entry.id);
+			return { path, read: async () => content };
 		});
 		const failureKey = `${marker.id}/${folder.name}`;
 		const imported = await exclusive(async () => {

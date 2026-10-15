@@ -2,6 +2,7 @@ import type { Kysely } from 'kysely';
 import type { Database } from '$lib/db/types.generated';
 import { upsertProjectPlacements, type DeletedNotice } from '$lib/storage/project-locations';
 import {
+	isBinaryProjectFile,
 	listProjectArchiveFiles,
 	normalizeSlashes,
 	type ProjectArchiveFile,
@@ -14,7 +15,12 @@ import {
 } from './moved-marker';
 import { placementSyncContext } from './backup-status';
 import { mapConcurrently } from './map-concurrently';
-import { backupProject, hashText, recordSyncedFile, type SyncManagerOptions } from './sync-manager';
+import {
+	backupProject,
+	hashContent,
+	recordSyncedFile,
+	type SyncManagerOptions,
+} from './sync-manager';
 import {
 	isCloudProviderError,
 	type CloudFileMetadata,
@@ -150,8 +156,11 @@ async function verifyCopy(
 		const entry = copied.get(file.path);
 		if (
 			!entry ||
-			(await hashText(await provider.downloadFile(entry.id))) !==
-				(await hashText(file.content))
+			(await hashContent(
+				isBinaryProjectFile(file.path)
+					? await provider.downloadFileBytes(entry.id)
+					: await provider.downloadFile(entry.id)
+			)) !== (await hashContent(file.content))
 		) {
 			throw new Error(`Move could not verify ${file.path} at the destination.`);
 		}

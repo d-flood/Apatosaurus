@@ -28,9 +28,11 @@ export interface StoreBackendDirectoryEntry {
 
 export interface StoreBackend {
 	readTextFile(path: string): Promise<string>;
-	readFileBytes?(path: string): Promise<Uint8Array>;
+	readFileBytes(path: string): Promise<Uint8Array>;
 	writeTextFile(path: string, content: string): Promise<void>;
+	writeFileBytes(path: string, bytes: Uint8Array): Promise<void>;
 	replaceTextFile?(path: string, content: string): Promise<void>;
+	replaceFileBytes?(path: string, bytes: Uint8Array): Promise<void>;
 	deleteFile(path: string): Promise<void>;
 	deleteDirectory?(path: string, options?: { recursive?: boolean }): Promise<void>;
 	listDirectory(path: string): Promise<StoreBackendDirectoryEntry[]>;
@@ -47,7 +49,7 @@ export interface StoreOperationOptions {
 }
 
 interface SyncAccessHandle {
-	write(buffer: BufferSource, options?: { at?: number }): number;
+	write(buffer: AllowSharedBufferSource, options?: { at?: number }): number;
 	truncate(size: number): void;
 	flush(): void;
 	close(): void;
@@ -85,9 +87,7 @@ export async function readFileBytes(
 	options: StoreOperationOptions = {}
 ): Promise<Uint8Array> {
 	const backend = await resolveBackend(options);
-	const backendPath = toBackendPath(normalizeStoreFilePath(path));
-	if (backend.readFileBytes) return backend.readFileBytes(backendPath);
-	return new TextEncoder().encode(await backend.readTextFile(backendPath));
+	return backend.readFileBytes(toBackendPath(normalizeStoreFilePath(path)));
 }
 
 export async function writeTextFileAtomic(
@@ -96,18 +96,32 @@ export async function writeTextFileAtomic(
 	options: StoreOperationOptions = {}
 ): Promise<void> {
 	return options.writerLockHeld
-		? writeTextFileAtomicUnlocked(path, content, options)
-		: runStoreMutation(() => writeTextFileAtomicUnlocked(path, content, options));
+		? writeFileAtomicUnlocked(path, content, options)
+		: runStoreMutation(() => writeFileAtomicUnlocked(path, content, options));
 }
 
-async function writeTextFileAtomicUnlocked(
+export async function writeFileBytesAtomic(
 	path: string,
-	content: string,
+	bytes: Uint8Array,
+	options: StoreOperationOptions = {}
+): Promise<void> {
+	return options.writerLockHeld
+		? writeFileAtomicUnlocked(path, bytes, options)
+		: runStoreMutation(() => writeFileAtomicUnlocked(path, bytes, options));
+}
+
+async function writeFileAtomicUnlocked(
+	path: string,
+	content: string | Uint8Array,
 	options: StoreOperationOptions
 ): Promise<void> {
 	const backend = await resolveBackend(options);
 	const targetPath = normalizeStoreFilePath(path);
-	if (!(await assertAppendOnlyHistoryWrite(backend, targetPath, content))) return;
+	if (
+		typeof content === 'string' &&
+		!(await assertAppendOnlyHistoryWrite(backend, targetPath, content))
+	)
+		return;
 	const parentPath = storePathDirname(targetPath);
 	const fileName = storePathBasename(targetPath);
 	const tempPath = joinStorePath(
@@ -118,8 +132,9 @@ async function writeTextFileAtomicUnlocked(
 	const tempBackendPath = toBackendPath(tempPath);
 
 	await backend.ensureDirectory(toBackendPath(parentPath));
-	await backend.writeTextFile(tempBackendPath, content);
-	await assertTextMatches(backend, tempBackendPath, content, `Temporary file ${tempPath}`);
+	if (typeof content === 'string') await backend.writeTextFile(tempBackendPath, content);
+	else await backend.writeFileBytes(tempBackendPath, content);
+	await assertContentMatches(backend, tempBackendPath, content, `Temporary file ${tempPath}`);
 
 	try {
 		await moveBackendFile(backend, tempBackendPath, targetBackendPath);
@@ -130,11 +145,8 @@ async function writeTextFileAtomicUnlocked(
 			throw error;
 	}
 
-	if (!backend.replaceTextFile) {
-		throw new Error('Store backend cannot transactionally replace files without move().');
-	}
-	await backend.replaceTextFile(targetBackendPath, content);
-	await assertTextMatches(backend, targetBackendPath, content, `Target file ${targetPath}`);
+	await replaceBackendFile(backend, targetBackendPath, content);
+	await assertContentMatches(backend, targetBackendPath, content, `Target file ${targetPath}`);
 	await deleteTempFile(backend, tempBackendPath);
 	if (!options.backend) void requestPersistentStorageForMeaningfulWrite();
 }
@@ -229,11 +241,8 @@ async function moveFileUnlocked(
 	}
 	const content = await backend.readTextFile(fromBackendPath);
 	await backend.ensureDirectory(storePathDirname(toBackendPathValue));
-	if (!backend.replaceTextFile) {
-		throw new Error('Store backend cannot transactionally replace files without move().');
-	}
-	await backend.replaceTextFile(toBackendPathValue, content);
-	await assertTextMatches(backend, toBackendPathValue, content, `Moved file ${toPath}`);
+	await replaceBackendFile(backend, toBackendPathValue, content);
+	await assertContentMatches(backend, toBackendPathValue, content, `Moved file ${toPath}`);
 	await backend.deleteFile(fromBackendPath);
 }
 
@@ -274,6 +283,18 @@ async function moveBackendFile(
 	if (!backend.moveFile) throw new StoreMoveUnavailableError();
 	await backend.ensureDirectory(storePathDirname(toBackendPathValue));
 	await backend.moveFile(fromBackendPath, toBackendPathValue);
+}
+
+async function replaceBackendFile(
+	backend: StoreBackend,
+	path: string,
+	content: string | Uint8Array
+): Promise<void> {
+	if (typeof content === 'string' && backend.replaceTextFile)
+		return backend.replaceTextFile(path, content);
+	if (typeof content !== 'string' && backend.replaceFileBytes)
+		return backend.replaceFileBytes(path, content);
+	throw new Error('Store backend cannot transactionally replace files without move().');
 }
 
 function isUnsupportedMoveError(error: unknown): boolean {
@@ -331,15 +352,17 @@ function isMissingStoreEntryError(error: unknown): boolean {
 	return error instanceof Error && /not found/i.test(error.message);
 }
 
-async function assertTextMatches(
+async function assertContentMatches(
 	backend: StoreBackend,
 	path: string,
-	expectedContent: string,
+	expectedContent: string | Uint8Array,
 	label: string
 ): Promise<void> {
 	const [expectedHash, actualHash] = await Promise.all([
-		hashText(expectedContent),
-		backend.readTextFile(path).then(hashText),
+		hashContent(expectedContent),
+		typeof expectedContent === 'string'
+			? backend.readTextFile(path).then(hashContent)
+			: backend.readFileBytes(path).then(hashContent),
 	]);
 	if (expectedHash !== actualHash) {
 		throw new Error(`${label} hash verification failed.`);
@@ -358,10 +381,12 @@ async function openOriginPrivateFileSystemRoot(): Promise<FileSystemDirectoryHan
 	return openOpfsRoot();
 }
 
-async function hashText(content: string): Promise<string> {
+async function hashContent(content: string | Uint8Array): Promise<string> {
 	const digest = await globalThis.crypto?.subtle?.digest(
 		'SHA-256',
-		new TextEncoder().encode(content)
+		typeof content === 'string'
+			? new TextEncoder().encode(content)
+			: (content as Uint8Array<ArrayBuffer>)
 	);
 	if (!digest) throw new Error('SHA-256 hashing requires Web Crypto support.');
 	return `sha256:${[...new Uint8Array(digest)]
@@ -392,15 +417,19 @@ class OpfsStoreBackend implements StoreBackend {
 	}
 
 	async writeTextFile(path: string, content: string): Promise<void> {
-		const parent = await this.ensureParentDirectory(path);
-		const handle = await parent.getFileHandle(storePathBasename(path), { create: true });
-		await writeFileHandle(handle, content);
+		await writeFileHandle(await this.createFileHandle(path), content);
+	}
+
+	async writeFileBytes(path: string, bytes: Uint8Array): Promise<void> {
+		await writeFileHandle(await this.createFileHandle(path), bytes);
 	}
 
 	async replaceTextFile(path: string, content: string): Promise<void> {
-		const parent = await this.ensureParentDirectory(path);
-		const handle = await parent.getFileHandle(storePathBasename(path), { create: true });
-		await replaceFileHandle(handle, content);
+		await replaceFileHandle(await this.createFileHandle(path), content);
+	}
+
+	async replaceFileBytes(path: string, bytes: Uint8Array): Promise<void> {
+		await replaceFileHandle(await this.createFileHandle(path), bytes);
 	}
 
 	async deleteFile(path: string): Promise<void> {
@@ -440,8 +469,9 @@ class OpfsStoreBackend implements StoreBackend {
 		await source.move(targetDirectory, toName);
 	}
 
-	private async ensureParentDirectory(path: string): Promise<FileSystemDirectoryHandle> {
-		return this.ensureDirectoryHandle(storePathDirname(path));
+	private async createFileHandle(path: string): Promise<FileSystemFileHandle> {
+		const parent = await this.ensureDirectoryHandle(storePathDirname(path));
+		return parent.getFileHandle(storePathBasename(path), { create: true });
 	}
 
 	private async requireFileHandle(path: string): Promise<FileSystemFileHandle> {
@@ -470,12 +500,15 @@ class OpfsStoreBackend implements StoreBackend {
 	}
 }
 
-async function writeFileHandle(handle: FileSystemFileHandle, content: string): Promise<void> {
+async function writeFileHandle(
+	handle: FileSystemFileHandle,
+	content: string | Uint8Array
+): Promise<void> {
 	const syncHandleFactory = (handle as SyncAccessFileHandle).createSyncAccessHandle;
 	if (typeof syncHandleFactory === 'function') {
 		const syncHandle = await syncHandleFactory.call(handle);
 		try {
-			const bytes = new TextEncoder().encode(content);
+			const bytes = typeof content === 'string' ? new TextEncoder().encode(content) : content;
 			syncHandle.truncate(0);
 			syncHandle.write(bytes, { at: 0 });
 			syncHandle.flush();
@@ -487,7 +520,7 @@ async function writeFileHandle(handle: FileSystemFileHandle, content: string): P
 
 	const writable = await handle.createWritable();
 	try {
-		await writable.write(content);
+		await writable.write(content as string | Uint8Array<ArrayBuffer>);
 		await writable.close();
 	} catch (error) {
 		await writable.abort().catch(() => undefined);
@@ -495,10 +528,13 @@ async function writeFileHandle(handle: FileSystemFileHandle, content: string): P
 	}
 }
 
-async function replaceFileHandle(handle: FileSystemFileHandle, content: string): Promise<void> {
+async function replaceFileHandle(
+	handle: FileSystemFileHandle,
+	content: string | Uint8Array
+): Promise<void> {
 	const writable = await handle.createWritable({ keepExistingData: false });
 	try {
-		await writable.write(content);
+		await writable.write(content as string | Uint8Array<ArrayBuffer>);
 		await writable.close();
 	} catch (error) {
 		await writable.abort().catch(() => undefined);
