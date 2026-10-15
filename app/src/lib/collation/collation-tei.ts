@@ -14,7 +14,7 @@ import { buildVariationUnitSpans } from './collation-variation-units';
 import { isPunctuationOnlyText } from './token-text';
 import { resolveReadingTypeVocabulary, type ReadingTypeDefinition } from './reading-types';
 
-type ApparatusExportRefusalKind = 'undecided-source' | 'untranscribed-witness' | 'missing-lemma';
+type ApparatusExportRefusalKind = 'untranscribed-witness' | 'missing-lemma';
 
 export interface ApparatusExportRefusal {
 	kind: ApparatusExportRefusalKind;
@@ -32,8 +32,6 @@ export class ApparatusExportError extends Error {
 					const location = refusal.unitId
 						? `unit ${refusal.label}`
 						: `agreed text ${refusal.label}`;
-					if (refusal.kind === 'undecided-source')
-						return `${location} has undecided sources`;
 					if (refusal.kind === 'untranscribed-witness') {
 						return `${location} has untranscribed witnesses`;
 					}
@@ -319,11 +317,6 @@ export function getApparatusExportRefusals(
 					witnessIds,
 				});
 			}
-		}
-		if (
-			unit.stemma.nodes.some(node => !node.isRoot && node.sourceDecision.kind === 'undecided')
-		) {
-			refusals.push({ kind: 'undecided-source', unitId, label: segment.label });
 		}
 	}
 	return refusals;

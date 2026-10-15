@@ -305,20 +305,36 @@ describe('apparatus TEI exporter', () => {
 		).toBeNull();
 	});
 
-	it('refuses undecided sources, untranscribed witnesses, and missing lemma decisions by unit', () => {
-		const undecided = exportInput();
-		const unit = undecided.segments.find(segment => segment.kind === 'unit')!;
-		const unitId = variationUnitId(unit.span.columnIds[0]);
-		const undecidedUnit = undecided.units.get(unitId)!;
-		undecidedUnit.stemma.nodes.find(node => !node.isRoot)!.sourceDecision = {
-			kind: 'undecided',
-		};
+	it('exports undecided sources without arcs while preserving derived arcs as valid TEI P5', () => {
+		const readings = collationState.peekReadingsForUnit(1);
+		const beta = readings.find(reading => reading.text === 'beta')!;
+		collationState.setReadingParent(1, beta.id, null);
+		collationState.setReadingSource(1, beta.id, { kind: 'undecided' });
+		const input = exportInput();
 
-		expect(getApparatusExportRefusals(undecided)).toEqual(
-			expect.arrayContaining([expect.objectContaining({ kind: 'undecided-source', unitId })])
-		);
-		expect(() => exportApparatusTei(undecided)).toThrow('unit 4 has undecided sources');
+		expect(getApparatusExportRefusals(input)).toEqual([]);
+		const xml = exportApparatusTei(input);
+		const document = parse(xml);
+		const graph = document.getElementsByTagName('graph')[0]!;
+		const nodes = Array.from(graph.getElementsByTagName('node'));
+		const alphaNode = nodes.find(node => node.getAttribute('n') === 'a')!;
+		const betaNode = nodes.find(node => node.getAttribute('n') === 'b')!;
+		const omissionNode = nodes.find(node => node.getAttribute('n') === 'c')!;
+		const arcs = Array.from(graph.getElementsByTagName('arc'));
 
+		expect(nodes).toHaveLength(3);
+		expect(betaNode).toBeDefined();
+		expect(arcs).toHaveLength(1);
+		expect(arcs[0]?.getAttribute('from')).toBe(`#${alphaNode.getAttribute('xml:id')}`);
+		expect(arcs[0]?.getAttribute('to')).toBe(`#${omissionNode.getAttribute('xml:id')}`);
+		expect(
+			arcs.some(arc => arc.getAttribute('to') === `#${betaNode.getAttribute('xml:id')}`)
+		).toBe(false);
+		expect(xml).not.toContain('unclear');
+		expect(() => validateTeiP5(xml)).not.toThrow();
+	}, 60_000);
+
+	it('refuses untranscribed witnesses and missing lemma decisions by unit', () => {
 		collationState.reset();
 		collationState.setWitnesses([
 			witness('A', 'one alpha two', true),

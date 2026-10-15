@@ -203,11 +203,14 @@ test('the local stemma has one tabstop and supports keyboard source decisions', 
 		.getByRole('combobox', { name: /Source of reading/ })
 		.selectOption('undecided');
 	await page.getByRole('link', { name: 'Review', exact: true }).click();
+	const undecidedDownload = page.waitForEvent('download');
 	await page.getByRole('button', { name: 'Export TEI apparatus' }).click();
-	await expect(page.getByRole('alert')).toContainText('Export needs more editorial decisions.');
-	const refusal = page.getByRole('link', { name: /Unit .*set every reading source/ });
-	await expect(refusal).toBeVisible();
-	await refusal.click();
+	const undecidedExport = await undecidedDownload;
+	expect(undecidedExport.suggestedFilename()).toContain('-apparatus.xml');
+	await expect(page.getByRole('alert')).toHaveCount(0);
+	const sourceWork = page.getByRole('button', { name: /Unit .*Set reading sources/ });
+	await expect(sourceWork).toBeVisible();
+	await sourceWork.click();
 	await expect(page).toHaveURL(/\/stemma$/);
 	await expect(page.getByRole('combobox', { name: /Source of reading/ }).first()).toBeVisible();
 });
