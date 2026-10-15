@@ -32,7 +32,11 @@ import {
 	writeEditingPresence,
 } from '$lib/backup/editing-presence';
 import type { SavePageCanvasLinkInput } from '$lib/iiif/types';
-import type { CollationPayload, ProjectTranscriptionPayload } from '$lib/storage/formats';
+import type {
+	CbgmGlobalStemmaState,
+	CollationPayload,
+	ProjectTranscriptionPayload,
+} from '$lib/storage/formats';
 import type { DbInvalidationDomain } from './rpc';
 import type { Database } from './types.generated';
 import {
@@ -56,9 +60,11 @@ import {
 	type UpdateCollationMetadataInput,
 } from './repositories/collations';
 import {
+	deleteCbgmAnalysisWithFiles,
 	deleteCollationWithFiles,
 	deleteTranscriptionWithFiles,
 } from './repositories/entity-deletion';
+import * as cbgmAnalyses from './repositories/cbgm-analyses';
 import * as iiif from './repositories/iiif';
 import * as iiifFiles from './repositories/iiif-files';
 import { rebuildIndexFromStore, restoreOrphanPrimaryToProject } from './repositories/index-rebuild';
@@ -289,6 +295,64 @@ export const dbApi = defineApi({
 		invalidate('collations', 'projects');
 	},
 
+	async createCbgmAnalysis(
+		{ db, invalidate },
+		projectId: string,
+		input: cbgmAnalyses.CreateCbgmAnalysisInput
+	) {
+		const analysis = await cbgmAnalyses.createAnalysis(db, projectId, input);
+		invalidate('cbgm-analyses');
+		return analysis;
+	},
+	async completeCbgmCoherence(
+		{ db, invalidate },
+		projectId: string,
+		analysisId: string,
+		cache: Uint8Array
+	) {
+		const analysis = await cbgmAnalyses.completeCoherence(db, projectId, analysisId, cache);
+		invalidate('cbgm-analyses');
+		return analysis;
+	},
+	async failCbgmCoherence(
+		{ db, invalidate },
+		projectId: string,
+		analysisId: string,
+		failure: string
+	) {
+		const analysis = await cbgmAnalyses.failCoherence(db, projectId, analysisId, failure);
+		invalidate('cbgm-analyses');
+		return analysis;
+	},
+	async setCbgmGlobalStemmaState(
+		{ db, invalidate },
+		projectId: string,
+		analysisId: string,
+		state: CbgmGlobalStemmaState,
+		cache?: Uint8Array,
+		dot?: string
+	) {
+		const analysis = await cbgmAnalyses.setGlobalStemmaState(
+			db,
+			projectId,
+			analysisId,
+			state,
+			cache,
+			dot
+		);
+		invalidate('cbgm-analyses');
+		return analysis;
+	},
+	readCbgmAnalysis: ({ db }, analysisId: string) => cbgmAnalyses.readAnalysis(db, analysisId),
+	readCbgmAnalysisCache: ({ db }, analysisId: string) => cbgmAnalyses.readCache(db, analysisId),
+	readCbgmAnalysisInputTei: ({ db }, analysisId: string) =>
+		cbgmAnalyses.readInputTei(db, analysisId),
+	listCbgmAnalyses: ({ db }, projectId: string) => cbgmAnalyses.listAnalyses(db, projectId),
+	async deleteCbgmAnalysis({ db, invalidate, warn }, projectId: string, analysisId: string) {
+		warn(await deleteCbgmAnalysisWithFiles(db, projectId, analysisId));
+		invalidate('cbgm-analyses', 'projects');
+	},
+
 	listManifestSources: ({ db }, transcriptionId: string) =>
 		iiif.listManifestSources(db, transcriptionId),
 	async ensureManifestSource({ db, invalidate }, input: iiif.EnsureManifestSourceInput) {
@@ -480,7 +544,7 @@ export const dbApi = defineApi({
 		lastBackups.set(key, { remoteCursor: result.remoteCursor, state });
 		if (changed) invalidate('sync-targets');
 		if (result.downloadedPaths.length || result.deletedPaths.length || result.conflictCopyId) {
-			invalidate('projects', 'transcriptions', 'collations', 'iiif');
+			invalidate('projects', 'transcriptions', 'collations', 'iiif', 'cbgm-analyses');
 		}
 		return result;
 	},
@@ -497,7 +561,7 @@ export const dbApi = defineApi({
 			failedImports,
 		});
 		if (result.projects.some(project => project.imported)) {
-			invalidate('projects', 'transcriptions', 'collations', 'iiif');
+			invalidate('projects', 'transcriptions', 'collations', 'iiif', 'cbgm-analyses');
 		}
 		return result;
 	},
@@ -562,12 +626,26 @@ export const dbApi = defineApi({
 			);
 		}
 		await exclusive(() => deleteProjectLocally(db, projectId));
-		invalidate('projects', 'transcriptions', 'collations', 'iiif', 'sync-targets');
+		invalidate(
+			'projects',
+			'transcriptions',
+			'collations',
+			'iiif',
+			'cbgm-analyses',
+			'sync-targets'
+		);
 	},
 	async removeProjectsFromDevice({ db, invalidate }, placements: PlacedProject[]) {
 		const result = await removeProjectsFromDevice(db, placements);
 		if (result.ok)
-			invalidate('projects', 'transcriptions', 'collations', 'iiif', 'sync-targets');
+			invalidate(
+				'projects',
+				'transcriptions',
+				'collations',
+				'iiif',
+				'cbgm-analyses',
+				'sync-targets'
+			);
 		return result;
 	},
 	exportProjectZip: ({ db }, projectId: string) => exportProjectZip(db, projectId),
@@ -578,7 +656,8 @@ export const dbApi = defineApi({
 		collisionMode?: ProjectZipImportCollisionMode
 	) {
 		const result = await importProjectZip(db, bytes, { collisionMode });
-		if (result.ok) invalidate('projects', 'transcriptions', 'collations', 'iiif');
+		if (result.ok)
+			invalidate('projects', 'transcriptions', 'collations', 'iiif', 'cbgm-analyses');
 		return result;
 	},
 	async restoreReferenceEditionsArchive({ invalidate }, bytes: Uint8Array) {

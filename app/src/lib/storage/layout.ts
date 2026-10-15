@@ -125,6 +125,37 @@ export function collationCheckpointRelativeFile(collationId: string, checkpointI
 	);
 }
 
+export interface CbgmAnalysisPaths {
+	metadata: string;
+	input: string;
+	cache: string;
+	globalStemma: string;
+}
+
+export function cbgmFolder(projectSlug: string): string {
+	return joinStorePath(projectFolder(projectSlug), 'cbgm');
+}
+
+export function cbgmAnalysisRelativeFiles(analysisId: string): CbgmAnalysisPaths {
+	const stem = joinStorePath('cbgm', validateFileStem(analysisId));
+	return {
+		metadata: `${stem}.json`,
+		input: `${stem}.input.xml`,
+		cache: `${stem}.sqlite`,
+		globalStemma: `${stem}.global-stemma.dot`,
+	};
+}
+
+export function cbgmAnalysisFiles(projectSlug: string, analysisId: string): CbgmAnalysisPaths {
+	const relative = cbgmAnalysisRelativeFiles(analysisId);
+	return {
+		metadata: joinStorePath(projectFolder(projectSlug), relative.metadata),
+		input: joinStorePath(projectFolder(projectSlug), relative.input),
+		cache: joinStorePath(projectFolder(projectSlug), relative.cache),
+		globalStemma: joinStorePath(projectFolder(projectSlug), relative.globalStemma),
+	};
+}
+
 export function tombstoneFile(projectSlug: string, entityType: string, entityId: string): string {
 	return joinStorePath(projectFolder(projectSlug), tombstoneRelativeFile(entityType, entityId));
 }

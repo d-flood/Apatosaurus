@@ -174,7 +174,7 @@ interface Checkpoint {
 
 export interface PersistenceWarning {
 	code: 'tei_write_failed' | 'primary_cleanup_failed';
-	entityType: 'transcription' | 'collation';
+	entityType: 'transcription' | 'collation' | 'cbgm_analysis';
 	entityId: string;
 	message: string;
 	recoverable: true;

@@ -1,12 +1,15 @@
 import type { Kysely, Transaction } from 'kysely';
 
 import {
+	CBGM_ANALYSIS_ENTITY_TYPE,
 	TOMBSTONE_CURRENT_VERSION,
 	TOMBSTONE_FORMAT,
 	readCanonicalDocument,
 	type TombstonePayload,
 } from '$lib/storage/formats';
 import {
+	cbgmAnalysisFiles,
+	cbgmAnalysisRelativeFiles,
 	collationPrimaryFile,
 	collationPrimaryRelativeFile,
 	tombstoneFile,
@@ -27,7 +30,7 @@ import { writeProjectManifestFile } from './project-files';
 import { withProjectWriteLock } from './project-locks';
 import type { PersistenceWarning } from './revisions';
 
-type EntityType = 'project-transcription' | 'collation';
+type EntityType = 'project-transcription' | 'collation' | typeof CBGM_ANALYSIS_ENTITY_TYPE;
 type DbTransaction = Transaction<Database>;
 
 export interface DeleteEntityWithFilesInput {
@@ -43,7 +46,7 @@ interface EntityDeletionContext {
 	projectId: string;
 	currentRevisionId: string;
 	cloudPath: string;
-	primaryPath: string;
+	filePaths: string[];
 	tombstonePath: string;
 }
 
@@ -81,6 +84,23 @@ export async function deleteCollationWithFiles(
 	);
 }
 
+export async function deleteCbgmAnalysisWithFiles(
+	db: Kysely<Database>,
+	projectId: string,
+	analysisId: string,
+	input: DeleteEntityWithFilesInput = {},
+	storeOptions: StoreOperationOptions = {}
+): Promise<PersistenceWarning[]> {
+	return withProjectWriteLock(projectId, async () =>
+		deleteEntityWithFiles(
+			db,
+			await loadCbgmAnalysisDeletionContext(db, projectId, analysisId),
+			input,
+			storeOptions
+		)
+	);
+}
+
 async function deleteEntityWithFiles(
 	db: Kysely<Database>,
 	context: EntityDeletionContext,
@@ -98,8 +118,7 @@ async function deleteEntityWithFiles(
 			.execute();
 		await writeProjectManifestFile(trx, context.projectId, {}, storeOptions);
 	});
-	const warning = await deletePrimaryFileBestEffort(context, storeOptions);
-	return warning ? [warning] : [];
+	return deleteEntityFilesBestEffort(context, storeOptions);
 }
 
 async function loadTranscriptionDeletionContext(
@@ -135,7 +154,7 @@ async function loadTranscriptionDeletionContext(
 		projectId: row.project_id,
 		currentRevisionId: row.current_revision_id || '',
 		cloudPath: transcriptionPrimaryRelativeFile(projectTranscriptionId),
-		primaryPath: transcriptionPrimaryFile(projectStorageSlug, projectTranscriptionId),
+		filePaths: [transcriptionPrimaryFile(projectStorageSlug, projectTranscriptionId)],
 		tombstonePath: tombstoneFile(
 			projectStorageSlug,
 			'project-transcription',
@@ -167,8 +186,34 @@ async function loadCollationDeletionContext(
 		projectId: row.project_id,
 		currentRevisionId: row.current_revision_id || '',
 		cloudPath: collationPrimaryRelativeFile(collationId),
-		primaryPath: collationPrimaryFile(projectStorageSlug, collationId),
+		filePaths: [collationPrimaryFile(projectStorageSlug, collationId)],
 		tombstonePath: tombstoneFile(projectStorageSlug, 'collation', collationId),
+	};
+}
+
+async function loadCbgmAnalysisDeletionContext(
+	db: Kysely<Database>,
+	projectId: string,
+	analysisId: string
+): Promise<EntityDeletionContext> {
+	const row = await db
+		.selectFrom('cbgm_analyses')
+		.innerJoin('projects', 'projects.id', 'cbgm_analyses.project_id')
+		.select('projects.storage_slug as project_storage_slug')
+		.where('cbgm_analyses.id', '=', analysisId)
+		.where('cbgm_analyses.project_id', '=', projectId)
+		.executeTakeFirst();
+	if (!row) throw new Error(`CBGM analysis ${analysisId} was not found.`);
+	const projectStorageSlug = requireString(row.project_storage_slug, 'project storage slug');
+	return {
+		entityType: CBGM_ANALYSIS_ENTITY_TYPE,
+		entityId: analysisId,
+		indexEntityId: analysisId,
+		projectId,
+		currentRevisionId: '',
+		cloudPath: cbgmAnalysisRelativeFiles(analysisId).metadata,
+		filePaths: Object.values(cbgmAnalysisFiles(projectStorageSlug, analysisId)),
+		tombstonePath: tombstoneFile(projectStorageSlug, CBGM_ANALYSIS_ENTITY_TYPE, analysisId),
 	};
 }
 
@@ -259,6 +304,10 @@ async function deleteEntityIndexRows(
 			throw new Error(`Transcription ${context.indexEntityId} was not found.`);
 		return;
 	}
+	if (context.entityType === CBGM_ANALYSIS_ENTITY_TYPE) {
+		await trx.deleteFrom('cbgm_analyses').where('id', '=', context.indexEntityId).execute();
+		return;
+	}
 	const result = await trx
 		.deleteFrom('collations')
 		.where('id', '=', context.indexEntityId)
@@ -267,30 +316,36 @@ async function deleteEntityIndexRows(
 		throw new Error(`Collation ${context.indexEntityId} was not found.`);
 }
 
-async function deletePrimaryFileBestEffort(
+async function deleteEntityFilesBestEffort(
 	context: EntityDeletionContext,
 	storeOptions: StoreOperationOptions
-): Promise<PersistenceWarning | null> {
-	try {
-		await deleteFile(context.primaryPath, storeOptions);
-		return null;
-	} catch (error) {
-		if (isMissingFileError(error)) return null;
-		const message = errorMessage(error);
-		console.warn('[document-store] Could not remove deleted entity primary file.', {
-			entityType: context.entityType,
-			entityId: context.entityId,
-			path: context.primaryPath,
-			error: message,
-		});
-		return {
-			code: 'primary_cleanup_failed',
-			entityType: context.entityType === 'collation' ? 'collation' : 'transcription',
-			entityId: context.entityId,
-			message: `Deletion was recorded, but the old primary file could not be removed: ${message}`,
-			recoverable: true,
-		};
+): Promise<PersistenceWarning[]> {
+	const warnings: PersistenceWarning[] = [];
+	for (const path of context.filePaths) {
+		try {
+			await deleteFile(path, storeOptions);
+		} catch (error) {
+			if (isMissingFileError(error)) continue;
+			const message = errorMessage(error);
+			console.warn('[document-store] Could not remove deleted entity primary file.', {
+				entityType: context.entityType,
+				entityId: context.entityId,
+				path,
+				error: message,
+			});
+			warnings.push({
+				code: 'primary_cleanup_failed',
+				entityType:
+					context.entityType === 'project-transcription'
+						? 'transcription'
+						: context.entityType,
+				entityId: context.entityId,
+				message: `Deletion was recorded, but the old primary file could not be removed: ${message}`,
+				recoverable: true,
+			});
+		}
 	}
+	return warnings;
 }
 
 function requireString(value: string | null, label: string): string {

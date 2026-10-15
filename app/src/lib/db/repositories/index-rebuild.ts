@@ -1,6 +1,8 @@
 import { sql, type Insertable, type Kysely, type Transaction } from 'kysely';
 
 import {
+	CBGM_ANALYSIS_ENTITY_TYPE,
+	CBGM_ANALYSIS_FORMAT,
 	COLLATION_CHECKPOINT_FORMAT,
 	COLLATION_FORMAT,
 	PROJECT_MANIFEST_FORMAT,
@@ -12,6 +14,7 @@ import {
 	mergeWorkingCollation,
 	mergeWorkingTranscription,
 	readCanonicalDocument,
+	type CbgmAnalysisMetadata,
 	type CollationCheckpointPayload,
 	type CollationPayload,
 	type ProjectManifestPayload,
@@ -22,6 +25,7 @@ import {
 	type WorkingTranscriptionPayload,
 } from '$lib/storage/formats';
 import {
+	cbgmFolder,
 	collationWorkingFile,
 	collationHistoryFolder,
 	collationTeiFile,
@@ -47,6 +51,7 @@ import {
 import type { JsonObject } from '$lib/storage/envelope';
 
 import type {
+	CbgmAnalyses,
 	CollationArtifacts,
 	CollationCheckpoints,
 	CollationReadingWitnesses,
@@ -68,6 +73,7 @@ import type {
 import { replaceTranscriptionVerseIndexRows } from './transcriptions';
 import { buildSerializedCollationProjectionRows } from '$lib/collation/collation-projection';
 import { writeProjectManifestPayloadFile } from './project-files';
+import { cbgmAnalysisIndexRow } from './cbgm-analyses';
 
 type DbTransaction = Transaction<Database>;
 
@@ -119,11 +125,13 @@ interface RebuildRows {
 	collationReadings: Insertable<CollationReadings>[];
 	collationReadingWitnesses: Insertable<CollationReadingWitnesses>[];
 	collationCheckpoints: Insertable<CollationCheckpoints>[];
+	cbgmAnalyses: Insertable<CbgmAnalyses>[];
 	tombstones: Insertable<SyncTombstones>[];
 }
 
 const INDEX_TABLE_DELETE_ORDER = [
 	'sync_file_fingerprints',
+	'cbgm_analyses',
 	'collation_reading_witnesses',
 	'collation_readings',
 	'collation_variation_units',
@@ -323,7 +331,38 @@ async function collectProjectRows(
 	for (const head of manifest.tombstones) {
 		await collectTombstoneRow(projectSlug, head.primary_path, rows, report, storeOptions);
 	}
+	await collectCbgmAnalysisRows(projectSlug, manifest, rows, report, storeOptions);
 	await recordProjectOrphans(projectSlug, manifest, report, storeOptions);
+}
+
+async function collectCbgmAnalysisRows(
+	projectSlug: string,
+	manifest: ProjectManifestPayload,
+	rows: RebuildRows,
+	report: IndexRebuildReport,
+	storeOptions: StoreOperationOptions
+): Promise<void> {
+	const deleted = new Set(
+		manifest.tombstones
+			.filter(head => head.entity_type === CBGM_ANALYSIS_ENTITY_TYPE)
+			.map(head => head.entity_id)
+	);
+	for (const entry of await listDirectoryIfExists(cbgmFolder(projectSlug), storeOptions)) {
+		if (!isJsonFile(entry)) continue;
+		const path = joinStorePath(cbgmFolder(projectSlug), entry.name);
+		try {
+			const result = await readCanonicalDocument<CbgmAnalysisMetadata>(
+				CBGM_ANALYSIS_FORMAT,
+				await readTextFile(path, storeOptions),
+				{ projectPath: `cbgm/${entry.name}`, projectId: manifest.id }
+			);
+			if (!result.ok) recordQuarantine(report, path, result.quarantine);
+			else if (!deleted.has(result.payload.id))
+				rows.cbgmAnalyses.push(cbgmAnalysisIndexRow(result.payload));
+		} catch (error) {
+			recordQuarantine(report, path, quarantineFromError(error));
+		}
+	}
 }
 
 async function collectTranscriptionRows(
@@ -805,6 +844,8 @@ async function insertIndexRows(trx: DbTransaction, rows: RebuildRows): Promise<v
 	const collationCheckpoints = sortCheckpointRowsByParent(rows.collationCheckpoints);
 	if (collationCheckpoints.length)
 		await trx.insertInto('collation_checkpoints').values(collationCheckpoints).execute();
+	if (rows.cbgmAnalyses.length)
+		await trx.insertInto('cbgm_analyses').values(rows.cbgmAnalyses).execute();
 	if (rows.tombstones.length)
 		await trx.insertInto('sync_tombstones').values(rows.tombstones).execute();
 }
@@ -1094,6 +1135,7 @@ function createEmptyRows(): RebuildRows {
 		collationReadings: [],
 		collationReadingWitnesses: [],
 		collationCheckpoints: [],
+		cbgmAnalyses: [],
 		tombstones: [],
 	};
 }

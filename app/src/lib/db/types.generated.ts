@@ -1,4 +1,5 @@
 export interface Database {
+	cbgm_analyses: CbgmAnalyses;
 	collation_artifacts: CollationArtifacts;
 	collation_checkpoints: CollationCheckpoints;
 	collation_reading_witnesses: CollationReadingWitnesses;
@@ -18,6 +19,18 @@ export interface Database {
 	transcription_verse_index: TranscriptionVerseIndex;
 	transcription_verse_index_state: TranscriptionVerseIndexState;
 	transcriptions: Transcriptions;
+}
+
+export interface CbgmAnalyses {
+	id: string | null;
+	project_id: string;
+	name: string;
+	inputs_frozen_at: string;
+	completed_at: string | null;
+	coherence: string;
+	global_stemma: string;
+	collation_ids: string;
+	witness_count: number;
 }
 
 export interface CollationArtifacts {

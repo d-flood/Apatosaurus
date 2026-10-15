@@ -10,6 +10,7 @@ export type DbInvalidationDomain =
 	| 'projects'
 	| 'collations'
 	| 'iiif'
+	| 'cbgm-analyses'
 	| 'sync-targets'
 	| 'reference-editions'
 	| 'all';

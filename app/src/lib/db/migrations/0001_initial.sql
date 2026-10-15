@@ -7,7 +7,7 @@
 -- are deleted (see Phase 6).
 --
 -- Notes:
---   * This is the current schema for INDEX_SCHEMA_VERSION = 5. Bumping the
+--   * This is the current schema for INDEX_SCHEMA_VERSION = 6. Bumping the
 --     index version creates a fresh disposable index and rebuilds it from
 --     files instead of migrating SQL in place.
 --   * `transcriptions.content_json` and `collation_artifacts.payload` are
@@ -301,6 +301,23 @@ CREATE TABLE IF NOT EXISTS collation_checkpoints (
 
 CREATE INDEX IF NOT EXISTS idx_collation_checkpoints_lookup ON collation_checkpoints(collation_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_collation_checkpoints_committed ON collation_checkpoints(collation_id, is_committed, created_at DESC);
+
+-- CBGM analysis listings. Canonical metadata lives in
+-- `<storage_slug>/cbgm/<id>.json`; the input, cache and global stemma are
+-- sibling files there.
+CREATE TABLE IF NOT EXISTS cbgm_analyses (
+	id TEXT PRIMARY KEY,
+	project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+	name TEXT NOT NULL,
+	inputs_frozen_at TEXT NOT NULL,
+	completed_at TEXT,
+	coherence TEXT NOT NULL,
+	global_stemma TEXT NOT NULL,
+	collation_ids TEXT NOT NULL DEFAULT '[]',
+	witness_count INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_cbgm_analyses_project ON cbgm_analyses(project_id, inputs_frozen_at DESC);
 
 -- Tombstone listings; canonical tombstone files live in OPFS
 -- `<storage_slug>/tombstones/` (Phase 5). The index copy is rebuilt

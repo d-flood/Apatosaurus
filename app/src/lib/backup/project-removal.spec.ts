@@ -1,4 +1,5 @@
 import {
+	createCbgmAnalysisWithFiles,
 	createTranscriptionWithFiles,
 	createLocalDbTestHarness,
 	type LocalDbTestHarness,
@@ -6,6 +7,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { createProject } from '$lib/db/repositories/projects';
+import { completeCoherence, listAnalyses } from '$lib/db/repositories/cbgm-analyses';
 import { joinStorePath, projectFolder } from '$lib/storage/layout';
 import { MemoryStoreBackend } from '$lib/storage/memory-store-backend.spec-support';
 import { readFileBytes, writeFileBytesAtomic } from '$lib/storage/opfs-store';
@@ -15,7 +17,7 @@ import {
 	upsertProjectPlacements,
 	type PlacedProject,
 } from '$lib/storage/project-locations';
-import { removeProjectsFromDevice } from './project-removal';
+import { deleteProjectLocally, removeProjectsFromDevice } from './project-removal';
 
 let harness: LocalDbTestHarness;
 let storeOptions: { backend: MemoryStoreBackend };
@@ -78,5 +80,33 @@ describe('remove from this device', () => {
 		expect(await listRemovedProjects(storeOptions)).toEqual([]);
 		expect([...storeOptions.backend.files.keys()].sort()).toEqual(filesBefore);
 		expect(await readFileBytes(cachePath, storeOptions)).toEqual(cache);
+	});
+});
+
+describe('delete a project', () => {
+	it('removes its analyses with it', async () => {
+		await createProject(
+			harness.db,
+			{ id: 'project-1', storageSlug: 'romans', name: 'Romans' },
+			storeOptions
+		);
+		await createCbgmAnalysisWithFiles(harness.db, 'project-1', {}, storeOptions);
+		await completeCoherence(
+			harness.db,
+			'project-1',
+			'analysis-1',
+			Uint8Array.from({ length: 1024 }, (_, index) => index % 256),
+			storeOptions
+		);
+		expect(
+			[...storeOptions.backend.files.keys()].filter(path => path.includes('/romans/cbgm/'))
+		).toHaveLength(3);
+
+		await deleteProjectLocally(harness.db, 'project-1', storeOptions);
+
+		expect(
+			[...storeOptions.backend.files.keys()].filter(path => path.includes('/romans/'))
+		).toEqual([]);
+		expect(await listAnalyses(harness.db, 'project-1')).toEqual([]);
 	});
 });

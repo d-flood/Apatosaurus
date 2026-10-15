@@ -47,7 +47,7 @@ describe('data-safety invariants in browser storage', () => {
 		const removalReport = await removeIndexFilesAfterWorkerRelease();
 		expect(removalReport.failedPaths).toEqual([]);
 		expect(removalReport.removedPaths).toContain(
-			'apatosaurus/v1/index/apatosaurus-index-v5.db'
+			'apatosaurus/v1/index/apatosaurus-index-v6.db'
 		);
 
 		client = new WorkerClient();
@@ -146,7 +146,7 @@ describe('data-safety invariants in browser storage', () => {
 		client.terminate();
 		client = null;
 		expect((await removeIndexFilesAfterWorkerRelease()).failedPaths).toEqual([]);
-		await writeTextFileAtomic('index/apatosaurus-index-v5.db', '');
+		await writeTextFileAtomic('index/apatosaurus-index-v6.db', '');
 
 		client = new WorkerClient();
 		await client.request({ type: 'init' });

@@ -1,4 +1,5 @@
 import {
+	createCbgmAnalysisWithFiles,
 	createTranscriptionWithFiles,
 	createLocalDbTestHarness,
 	type LocalDbTestHarness,
@@ -9,6 +10,7 @@ import {
 	createProject as createProjectRepository,
 	getProject,
 } from '$lib/db/repositories/projects';
+import { completeCoherence, listAnalyses, readAnalysis } from '$lib/db/repositories/cbgm-analyses';
 import { MemoryStoreBackend } from '$lib/storage/memory-store-backend.spec-support';
 import {
 	COLLATION_CHECKPOINT_CURRENT_VERSION,
@@ -27,10 +29,11 @@ import {
 	readCanonicalDocument,
 	type ProjectTranscriptionPayload,
 } from '$lib/storage/formats';
-import { joinStorePath, projectFolder } from '$lib/storage/layout';
+import { cbgmAnalysisFiles, joinStorePath, projectFolder } from '$lib/storage/layout';
 import { sealDocument, serializeSealedDocument, type JsonObject } from '$lib/storage/envelope';
 import {
 	readFileBytes,
+	readTextFile,
 	writeFileBytesAtomic,
 	writeTextFileAtomic,
 	type StoreOperationOptions,
@@ -174,10 +177,11 @@ describe('project zip import', () => {
 		['created', undefined],
 		['copied', 'copy'],
 	] as const)(
-		'imports a CBGM cache byte for byte when a project is %s',
+		"imports an analysis's metadata, input and cache byte for byte when a project is %s",
 		async (mode, collisionMode) => {
 			const cache = Uint8Array.from({ length: 4096 }, (_, index) => (index * 11) % 256);
-			const exported = await exportedProjectZip({ 'cbgm/x.sqlite': cache });
+			const exported = await exportedProjectZip(cache);
+			const entries = readZipEntries(exported.bytes);
 			if (collisionMode) {
 				await createProject(harness.db, {
 					id: 'project-1',
@@ -196,12 +200,21 @@ describe('project zip import', () => {
 				ok: true,
 				mode,
 			});
-			expect(
-				await readFileBytes(
-					joinStorePath(projectFolder(imported.storageSlug), 'cbgm/x.sqlite'),
-					storeOptions
-				)
-			).toEqual(cache);
+			const files = cbgmAnalysisFiles(imported.storageSlug, 'analysis-1');
+			expect(await readFileBytes(files.cache, storeOptions)).toEqual(cache);
+			expect(await readTextFile(files.input, storeOptions)).toBe(
+				entries['cbgm/analysis-1.input.xml']
+			);
+			expect(await readTextFile(files.metadata, storeOptions)).toEqual(
+				mode === 'created' ? entries['cbgm/analysis-1.json'] : expect.any(String)
+			);
+			expect(await readAnalysis(harness.db, 'analysis-1', storeOptions)).toMatchObject({
+				project_id: imported.projectId,
+				coherence: 'ready',
+			});
+			expect(await listAnalyses(harness.db, imported.projectId)).toMatchObject([
+				{ id: 'analysis-1' },
+			]);
 		}
 	);
 
@@ -735,7 +748,7 @@ describe('project zip import', () => {
 	});
 });
 
-async function exportedProjectZip(cbgmFiles: Record<string, Uint8Array> = {}) {
+async function exportedProjectZip(analysisCache?: Uint8Array) {
 	await createProject(harness.db, {
 		id: 'project-1',
 		storageSlug: 'romans-project-',
@@ -758,16 +771,9 @@ async function exportedProjectZip(cbgmFiles: Record<string, Uint8Array> = {}) {
 		},
 		storeOptions
 	);
-	const { storage_slug } = await harness.db
-		.selectFrom('projects')
-		.select('storage_slug')
-		.executeTakeFirstOrThrow();
-	for (const [path, bytes] of Object.entries(cbgmFiles)) {
-		await writeFileBytesAtomic(
-			joinStorePath(projectFolder(storage_slug), path),
-			bytes,
-			storeOptions
-		);
+	if (analysisCache) {
+		await createCbgmAnalysisWithFiles(harness.db, 'project-1', {}, storeOptions);
+		await completeCoherence(harness.db, 'project-1', 'analysis-1', analysisCache, storeOptions);
 	}
 	const exported = await exportProjectZip(harness.db, 'project-1', { storeOptions });
 	await harness.destroy();

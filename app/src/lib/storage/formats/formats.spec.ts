@@ -9,6 +9,7 @@ import { registerUserReferenceEdition } from '$lib/reference-editions/user-refer
 
 import { sealDocument, serializeSealedDocument, type JsonObject } from '../envelope';
 import {
+	CBGM_ANALYSIS_FORMAT,
 	COLLATION_CHECKPOINT_CURRENT_VERSION,
 	COLLATION_CHECKPOINT_FORMAT,
 	type CollationCheckpointPayload,
@@ -106,6 +107,7 @@ describe('canonical store formats', () => {
 			TOMBSTONE_FORMAT,
 			WORKING_TRANSCRIPTION_FORMAT,
 			WORKING_COLLATION_FORMAT,
+			CBGM_ANALYSIS_FORMAT,
 		]);
 	});
 

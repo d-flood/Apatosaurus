@@ -1,6 +1,8 @@
 import type { DocumentUpgrader, FormatRegistration } from '../migrate-on-read';
 import type { JsonObject } from '../envelope';
+import { cbgmAnalysisRelativeFiles } from '../layout';
 import { readNullableString, readString } from './validation';
+import { CBGM_ANALYSIS_ENTITY_TYPE } from './cbgm-analysis';
 
 export const TOMBSTONE_FORMAT = 'apatosaurus.tombstone';
 export const TOMBSTONE_CURRENT_VERSION = 1;
@@ -37,3 +39,8 @@ export const tombstoneFormatRegistration: FormatRegistration<TombstonePayload> =
 	upgraders: tombstoneUpgraders,
 	validate: validateTombstonePayload,
 };
+
+export function tombstonedProjectPaths(tombstone: TombstonePayload): string[] {
+	if (tombstone.entity_type !== CBGM_ANALYSIS_ENTITY_TYPE) return [tombstone.cloud_path];
+	return Object.values(cbgmAnalysisRelativeFiles(tombstone.entity_id));
+}

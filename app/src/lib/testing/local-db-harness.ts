@@ -1,5 +1,7 @@
 import { createTranscriptionWithFilesResult } from '$lib/db/repositories/transcription-files';
 import { createCollationWithFilesResult } from '$lib/db/repositories/collation-files';
+import { createAnalysis, type CreateCbgmAnalysisInput } from '$lib/db/repositories/cbgm-analyses';
+import type { CbgmAnalysisMetadata } from '$lib/storage/formats';
 import type { CreateTranscriptionInput } from '$lib/db/repositories/transcriptions';
 import type { CreateCollationInput } from '$lib/db/repositories/collations';
 import type { StoreOperationOptions } from '$lib/storage/opfs-store';
@@ -46,4 +48,35 @@ export async function createCollationWithFiles(
 	storeOptions: StoreOperationOptions = {}
 ): Promise<string> {
 	return (await createCollationWithFilesResult(db, input, storeOptions)).value;
+}
+
+export const CBGM_ANALYSIS_INPUT: CreateCbgmAnalysisInput = {
+	id: 'analysis-1',
+	name: 'Romans coherence',
+	settings: {
+		min_extant_units: null,
+		min_extant_proportion: 0.5,
+		excluded_witnesses: ['04'],
+		classic_rules: false,
+		merge_split_readings: true,
+		dropped_reading_types: ['nonsense'],
+		included_correctors: ['01*'],
+	},
+	collations: [
+		{ collation_id: 'col-1', content_hash: 'sha256:col-1', segment_name: 'Romans 1:1' },
+	],
+	witnesses: ['01', '02', '03'],
+	undecidedReadings: [{ unit: 'col-1-u1', reading: 'b' }],
+	inputTei:
+		'<?xml version="1.0" encoding="UTF-8"?>\n<TEI xmlns="http://www.tei-c.org/ns/1.0"><text><body><app n="col-1-u1"/></body></text></TEI>\n',
+	coherence: 'computing',
+};
+
+export async function createCbgmAnalysisWithFiles(
+	db: Kysely<Database>,
+	projectId: string,
+	input: Partial<CreateCbgmAnalysisInput> = {},
+	storeOptions: StoreOperationOptions = {}
+): Promise<CbgmAnalysisMetadata> {
+	return createAnalysis(db, projectId, { ...CBGM_ANALYSIS_INPUT, ...input }, storeOptions);
 }

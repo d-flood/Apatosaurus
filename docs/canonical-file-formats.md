@@ -49,3 +49,18 @@ Both checkpoint formats gain the version's editable metadata. `commit_message` r
 - Label, note and `metadata_updated_at` sit outside `payload`, so editing them never changes `payload` or `payload_content_hash`. History files stay append-only for content: the store rejects any rewrite that changes anything other than these fields and the envelope hash.
 - The transcription v1 and collation v4 upgraders set `label` to `""` and `metadata_updated_at` to `created_at`. Index rebuild names unlabelled versions `Version N`, numbered by `created_at` per document; the label is written to the file the next time its note is edited.
 - Collation checkpoint v4 keeps its payload hash check. Alpha v2 checkpoints upgrade through the alpha converter and then gain the same metadata.
+
+## CBGM Analysis Version 1
+
+`cbgm/<id>.json` holds a CBGM analysis's metadata as `apatosaurus.cbgm-analysis` version 1, envelope-hashed like the other formats. There are no upgraders. Its sibling files are not canonical JSON:
+
+- `cbgm/<id>.input.xml`: the frozen input TEI, written with the metadata when the analysis starts. It is authoritative, not derived.
+- `cbgm/<id>.sqlite`: the binary cache, absent until coherence finishes.
+- `cbgm/<id>.global-stemma.dot`: an imported native global stemma, optional.
+
+The payload records `id`, `project_id`, a `name` unique within the project (trimmed, case-insensitive), `inputs_frozen_at`, `completed_at`, the analysis `settings` (snake_case), the frozen `collations` (`collation_id`, `content_hash`, `segment_name`), `witnesses`, `undecided_readings`, `input_tei_hash`, `cache_hash`, the `coherence` and `global_stemma` states, `computing_device` and `failure`. Both hashes are `sha256:` digests of the sibling file's bytes.
+
+- Reads check that the file sits at `cbgm/<id>.json` for its own `id` and belongs to the reading project. A missing or invalid file never falls back to index rows.
+- Settings, collations and input are never rewritten after creation. Cache and global-stemma bytes are written before the metadata that publishes them.
+- An analysis has no versions. Deletion writes a `cbgm_analysis` tombstone that covers all four files, so stale sidecars cannot bring it back.
+- Analyses are not listed in `project.json`; index rebuild reads every `cbgm/*.json` that has no tombstone.

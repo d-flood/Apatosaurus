@@ -99,6 +99,16 @@ export const saveCollationArtifact = call('saveCollationArtifact');
 export const updateCollationMetadata = call('updateCollationMetadata');
 export const deleteCollation = call('deleteCollation');
 
+export const createCbgmAnalysis = call('createCbgmAnalysis');
+export const completeCbgmCoherence = call('completeCbgmCoherence');
+export const failCbgmCoherence = call('failCbgmCoherence');
+export const setCbgmGlobalStemmaState = call('setCbgmGlobalStemmaState');
+export const readCbgmAnalysis = call('readCbgmAnalysis');
+export const readCbgmAnalysisCache = call('readCbgmAnalysisCache');
+export const readCbgmAnalysisInputTei = call('readCbgmAnalysisInputTei');
+export const listCbgmAnalyses = call('listCbgmAnalyses');
+export const deleteCbgmAnalysis = call('deleteCbgmAnalysis');
+
 export const listManifestSources = call('listManifestSources');
 export const ensureManifestSource = call('ensureManifestSource');
 export const getManifestSource = call('getManifestSource');

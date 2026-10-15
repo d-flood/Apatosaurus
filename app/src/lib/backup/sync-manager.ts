@@ -11,6 +11,7 @@ import {
 	readCanonicalDocument,
 	transcriptionDocumentToTeiFromStore,
 	TOMBSTONE_FORMAT,
+	tombstonedProjectPaths,
 	type TombstonePayload,
 	type CollationPayload,
 	type ProjectTranscriptionPayload,
@@ -556,7 +557,6 @@ async function reconcileLocalMirror(
 			result.quarantines.push(quarantineFor(localFile.path, parsed.quarantine));
 			continue;
 		}
-		tombstonedPrimaryPaths.add(parsed.payload.cloud_path);
 		const remoteFile = remoteFiles.get(localFile.path) ?? null;
 		if (remoteFile?.fingerprint.contentHash === localFile.fingerprint.contentHash) {
 			await upsertFileFingerprint(
@@ -577,8 +577,11 @@ async function reconcileLocalMirror(
 			);
 		}
 
-		const remotePrimary = remoteFiles.get(parsed.payload.cloud_path);
-		if (remotePrimary) remove(remotePrimary);
+		for (const path of tombstonedProjectPaths(parsed.payload)) {
+			tombstonedPrimaryPaths.add(path);
+			const remoteCovered = remoteFiles.get(path);
+			if (remoteCovered) remove(remoteCovered);
+		}
 	}
 
 	for (const remoteFile of [...remoteFiles.values()].filter(file =>
@@ -602,12 +605,11 @@ async function reconcileLocalMirror(
 			result.quarantines.push(quarantineFor(remoteFile.path, parsed.quarantine));
 			continue;
 		}
-		tombstonedPrimaryPaths.add(parsed.payload.cloud_path);
 		const pulledLocalFile = await writePulledMirrorFile(projectRoot, remoteFile, storeOptions);
-		await deleteStoreFileIfExists(
-			joinStorePath(projectRoot, parsed.payload.cloud_path),
-			storeOptions
-		);
+		for (const path of tombstonedProjectPaths(parsed.payload)) {
+			tombstonedPrimaryPaths.add(path);
+			await deleteStoreFileIfExists(joinStorePath(projectRoot, path), storeOptions);
+		}
 		await deleteStoreFileIfExists(
 			joinStorePath(projectRoot, parsed.payload.cloud_path.replace(/\.json$/, '.tei.xml')),
 			storeOptions
@@ -615,8 +617,10 @@ async function reconcileLocalMirror(
 		pulledFiles.push({ localFile: pulledLocalFile, remoteFile });
 		result.downloadedPaths.push(remoteFile.path);
 		pulledTombstone = true;
-		const remotePrimary = remoteFiles.get(parsed.payload.cloud_path);
-		if (remotePrimary) remove(remotePrimary);
+		for (const path of tombstonedProjectPaths(parsed.payload)) {
+			const remoteCovered = remoteFiles.get(path);
+			if (remoteCovered) remove(remoteCovered);
+		}
 	}
 
 	if (pulledTombstone) {
@@ -630,7 +634,8 @@ async function reconcileLocalMirror(
 		if (
 			localFile.path === 'project.json' ||
 			localFile.path.startsWith('tombstones/') ||
-			localFile.path.endsWith('.tei.xml')
+			localFile.path.endsWith('.tei.xml') ||
+			tombstonedPrimaryPaths.has(localFile.path)
 		)
 			continue;
 		const remoteFile = remoteFiles.get(localFile.path) ?? null;

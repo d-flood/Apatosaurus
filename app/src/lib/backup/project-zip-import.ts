@@ -3,6 +3,7 @@ import type { Kysely } from 'kysely';
 import { rebuildIndexFromStore, type IndexRebuildReport } from '$lib/db/repositories/index-rebuild';
 import type { Database } from '$lib/db/types.generated';
 import {
+	CBGM_ANALYSIS_FORMAT,
 	COLLATION_CHECKPOINT_FORMAT,
 	COLLATION_FORMAT,
 	PROJECT_MANIFEST_CURRENT_VERSION,
@@ -14,6 +15,7 @@ import {
 	mergeWorkingTranscription,
 	serializeCanonicalDocument,
 	transcriptionDocumentToTeiFromStore,
+	type CbgmAnalysisMetadata,
 	type CollationCheckpointPayload,
 	type CollationPayload,
 	type ProjectManifestPayload,
@@ -427,6 +429,8 @@ async function copyProjectEntries(
 			checkpointHashes.set(checkpoint.checkpoint_id, checkpoint.payload_content_hash);
 		} else if (entry.format === TOMBSTONE_FORMAT) {
 			(payload as TombstonePayload).project_id = copyId;
+		} else if (entry.format === CBGM_ANALYSIS_FORMAT) {
+			(payload as CbgmAnalysisMetadata).project_id = copyId;
 		}
 	}
 

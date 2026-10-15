@@ -7,6 +7,7 @@ import {
 	type SealedDocument,
 } from '../envelope';
 import {
+	cbgmAnalysisRelativeFiles,
 	collationCheckpointRelativeFile,
 	collationPrimaryRelativeFile,
 	collationWorkingRelativeFile,
@@ -37,6 +38,7 @@ import {
 	workingTranscriptionFormatRegistration,
 } from './working-transcription';
 import { WORKING_COLLATION_FORMAT, workingCollationFormatRegistration } from './working-collation';
+import { CBGM_ANALYSIS_FORMAT, cbgmAnalysisFormatRegistration } from './cbgm-analysis';
 
 export {
 	PROJECT_MANIFEST_CURRENT_VERSION,
@@ -73,7 +75,12 @@ export {
 	COLLATION_CHECKPOINT_FORMAT,
 	type CollationCheckpointPayload,
 } from './checkpoint-collation';
-export { TOMBSTONE_CURRENT_VERSION, TOMBSTONE_FORMAT, type TombstonePayload } from './tombstone';
+export {
+	TOMBSTONE_CURRENT_VERSION,
+	TOMBSTONE_FORMAT,
+	tombstonedProjectPaths,
+	type TombstonePayload,
+} from './tombstone';
 export {
 	WORKING_TRANSCRIPTION_CURRENT_VERSION,
 	WORKING_TRANSCRIPTION_FORMAT,
@@ -84,6 +91,18 @@ export {
 	WORKING_COLLATION_FORMAT,
 	type WorkingCollationPayload,
 } from './working-collation';
+export {
+	CBGM_ANALYSIS_CURRENT_VERSION,
+	CBGM_ANALYSIS_ENTITY_TYPE,
+	CBGM_ANALYSIS_FORMAT,
+	type CbgmAnalysisCollation,
+	type CbgmAnalysisMetadata,
+	type CbgmAnalysisSettings,
+	type CbgmCoherenceState,
+	type CbgmComputingDevice,
+	type CbgmGlobalStemmaState,
+	type CbgmUndecidedReading,
+} from './cbgm-analysis';
 export { transcriptionDocumentToTei, transcriptionDocumentToTeiFromStore } from './tei';
 
 export const canonicalFormatRegistrations: FormatRegistration<JsonObject>[] = [
@@ -95,6 +114,7 @@ export const canonicalFormatRegistrations: FormatRegistration<JsonObject>[] = [
 	tombstoneFormatRegistration as unknown as FormatRegistration<JsonObject>,
 	workingTranscriptionFormatRegistration as unknown as FormatRegistration<JsonObject>,
 	workingCollationFormatRegistration as unknown as FormatRegistration<JsonObject>,
+	cbgmAnalysisFormatRegistration as unknown as FormatRegistration<JsonObject>,
 ];
 
 let canonicalRegistry: MigrationRegistry | null = null;
@@ -153,6 +173,7 @@ export function canonicalFormatForProjectPath(path: string): string | null {
 		return COLLATION_CHECKPOINT_FORMAT;
 	}
 	if (/^tombstones\/[^/]+--[^/]+\.json$/.test(path)) return TOMBSTONE_FORMAT;
+	if (/^cbgm\/[^/]+\.json$/.test(path)) return CBGM_ANALYSIS_FORMAT;
 	return null;
 }
 
@@ -175,11 +196,13 @@ function assertCanonicalReadContext(
 	}
 	if (
 		context.projectId &&
-		(format === COLLATION_FORMAT || format === WORKING_COLLATION_FORMAT) &&
+		(format === COLLATION_FORMAT ||
+			format === WORKING_COLLATION_FORMAT ||
+			format === CBGM_ANALYSIS_FORMAT) &&
 		record.project_id !== context.projectId
 	) {
 		throw invalidShape(
-			'Collation belongs to a different project.',
+			`${format === CBGM_ANALYSIS_FORMAT ? 'CBGM analysis' : 'Collation'} belongs to a different project.`,
 			context.projectId,
 			record.project_id
 		);
@@ -207,6 +230,8 @@ function assertCanonicalReadContext(
 		);
 	} else if (format === TOMBSTONE_FORMAT) {
 		expected = tombstoneRelativeFile(String(record.entity_type), String(record.entity_id));
+	} else if (format === CBGM_ANALYSIS_FORMAT) {
+		expected = cbgmAnalysisRelativeFiles(String(record.id)).metadata;
 	} else return;
 	if (context.projectPath !== expected) {
 		throw invalidShape(

@@ -1,4 +1,5 @@
 import {
+	createCbgmAnalysisWithFiles,
 	createTranscriptionWithFiles,
 	createLocalDbTestHarness,
 	type LocalDbTestHarness,
@@ -21,7 +22,16 @@ import {
 	loadTranscriptionWithWorkingFile,
 	saveWorkingTranscriptionContent,
 } from '$lib/db/repositories/transcription-files';
-import { deleteCollationWithFiles } from '$lib/db/repositories/entity-deletion';
+import {
+	deleteCbgmAnalysisWithFiles,
+	deleteCollationWithFiles,
+} from '$lib/db/repositories/entity-deletion';
+import {
+	completeCoherence,
+	listAnalyses as listCbgmAnalyses,
+	readCache,
+	setGlobalStemmaState,
+} from '$lib/db/repositories/cbgm-analyses';
 import { MemoryStoreBackend } from '$lib/storage/memory-store-backend.spec-support';
 import type { StoreOperationOptions } from '$lib/storage/opfs-store';
 
@@ -32,6 +42,7 @@ import {
 	writeTextFileAtomic,
 } from '$lib/storage/opfs-store';
 import {
+	cbgmAnalysisRelativeFiles,
 	collationTeiFile,
 	collationPrimaryFile,
 	collationCheckpointFile,
@@ -542,6 +553,73 @@ describe('sync manager', () => {
 				1
 			);
 			expect(await readFileBytes(cacheB, storeOptionsB)).toEqual(recomputed);
+		} finally {
+			await storeB.destroy();
+		}
+	});
+
+	it('deletes an analysis on a second store through its tombstone, sidecars included', async () => {
+		await createCommittedProjectCollation('Initial notes', 'col-cp-1');
+		await createCbgmAnalysisWithFiles(harness.db, 'project-1', {}, storeOptions);
+		const cache = binaryCache(4096, 9);
+		await completeCoherence(harness.db, 'project-1', 'analysis-1', cache, storeOptions);
+		await setGlobalStemmaState(
+			harness.db,
+			'project-1',
+			'analysis-1',
+			'imported-dot',
+			undefined,
+			'digraph global {}',
+			storeOptions
+		);
+		const { provider, context: contextA } = await createConnectedProvider();
+		const contextB: SyncProjectContext = { ...contextA, connectionId: 'target-b' };
+		const analysisPaths = Object.values(cbgmAnalysisRelativeFiles('analysis-1'));
+		await backupProject(harness.db, provider, contextA, syncOptions());
+		expect(await listRemoteFiles(provider, contextA)).toEqual(
+			expect.arrayContaining(analysisPaths)
+		);
+		const storeB = createLocalDbTestHarness();
+		const storeOptionsB = { backend: new MemoryStoreBackend() };
+		try {
+			const archive = await listProjectArchiveFiles(harness.db, 'project-1', {
+				storeOptions,
+			});
+			const imported = await importProjectFileTree(
+				storeB.db,
+				archive.map(file => ({ path: file.path, read: async () => file.content })),
+				{ storeOptions: storeOptionsB }
+			);
+			expect(imported.ok).toBe(true);
+			const syncB = () =>
+				backupProject(storeB.db, provider, contextB, { storeOptions: storeOptionsB });
+			expect((await syncB()).uiState).toBe('synced');
+			expect(await readCache(storeB.db, 'analysis-1', storeOptionsB)).toEqual(cache);
+
+			await deleteCbgmAnalysisWithFiles(
+				harness.db,
+				'project-1',
+				'analysis-1',
+				{ tombstoneId: 'tombstone-analysis-1' },
+				storeOptions
+			);
+			const pushA = await backupProject(harness.db, provider, contextA, syncOptions());
+			expect(pushA.deletedPaths).toEqual(expect.arrayContaining(analysisPaths));
+			await provider.createFile(contextA.cloudFolderId, 'cbgm/analysis-1.sqlite', cache);
+
+			const pullB = await syncB();
+
+			expect(pullB.uiState).toBe('synced');
+			expect(pullB.downloadedPaths).toContain('tombstones/cbgm_analysis--analysis-1.json');
+			expect(pullB.deletedPaths).toEqual(['cbgm/analysis-1.sqlite']);
+			expect(await listCbgmAnalyses(storeB.db, 'project-1')).toEqual([]);
+			expect(
+				[...storeOptionsB.backend.files.keys()].filter(path => path.includes('/cbgm/'))
+			).toEqual([]);
+			expect(
+				(await listRemoteFiles(provider, contextA)).filter(path => path.startsWith('cbgm/'))
+			).toEqual([]);
+			expect((await syncB()).uploadedPaths).toEqual([]);
 		} finally {
 			await storeB.destroy();
 		}
@@ -1874,11 +1952,8 @@ describe('sync manager', () => {
 		);
 		const slug = await loadProjectStorageSlug('project-1');
 		const cache = binaryCache(4096, 3);
-		await writeFileBytesAtomic(
-			joinStorePath(projectFolder(slug), 'cbgm/x.sqlite'),
-			cache,
-			storeOptions
-		);
+		await createCbgmAnalysisWithFiles(harness.db, 'project-1', {}, storeOptions);
+		await completeCoherence(harness.db, 'project-1', 'analysis-1', cache, storeOptions);
 		const placement = {
 			projectId: 'project-1',
 			locationId: 'source-location',
@@ -1909,16 +1984,10 @@ describe('sync manager', () => {
 					storeOptions: storeOptionsB,
 				});
 			expect((await syncB()).uiState).toBe('synced');
-			const { storage_slug: slugB } = await storeB.db
-				.selectFrom('projects')
-				.select('storage_slug')
-				.executeTakeFirstOrThrow();
-			expect(
-				await readFileBytes(
-					joinStorePath(projectFolder(slugB), 'cbgm/x.sqlite'),
-					storeOptionsB
-				)
-			).toEqual(cache);
+			expect(await listCbgmAnalyses(storeB.db, 'project-1')).toMatchObject([
+				{ id: 'analysis-1', coherence: 'ready' },
+			]);
+			expect(await readCache(storeB.db, 'analysis-1', storeOptionsB)).toEqual(cache);
 			await createCommittedTranscriptionCheckpointWithFiles(
 				storeB.db,
 				{ projectTranscriptionId: 'pt-1', checkpointId: 'tx-cp-b', label: 'Unsynced B' },
@@ -1931,7 +2000,9 @@ describe('sync manager', () => {
 			expect(archive.map(file => file.path)).toEqual(
 				expect.arrayContaining([
 					'history/transcriptions/pt-1/tx-cp-1.json',
-					'cbgm/x.sqlite',
+					'cbgm/analysis-1.json',
+					'cbgm/analysis-1.input.xml',
+					'cbgm/analysis-1.sqlite',
 				])
 			);
 			await moveProject(

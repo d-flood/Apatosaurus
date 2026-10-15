@@ -1,4 +1,5 @@
 import {
+	createCbgmAnalysisWithFiles,
 	createCollationWithFiles,
 	createTranscriptionWithFiles,
 	createLocalDbTestHarness,
@@ -11,6 +12,11 @@ import {
 	saveWorkingCollationMetadata,
 } from '$lib/db/repositories/collation-files';
 import { createProject as createProjectRepository } from '$lib/db/repositories/projects';
+import {
+	completeCoherence,
+	listAnalyses,
+	setGlobalStemmaState,
+} from '$lib/db/repositories/cbgm-analyses';
 import { saveWorkingTranscriptionMetadata } from '$lib/db/repositories/transcription-files';
 import { MemoryStoreBackend } from '$lib/storage/memory-store-backend.spec-support';
 import {
@@ -19,8 +25,9 @@ import {
 	registerUserReferenceEdition,
 } from '$lib/reference-editions/user-reference-editions';
 import { InMemoryQuarantineReport } from '$lib/storage/quarantine-report.spec-support';
-import { joinStorePath, projectFolder } from '$lib/storage/layout';
+import { cbgmAnalysisFiles, joinStorePath, projectFolder } from '$lib/storage/layout';
 import {
+	readFileBytes,
 	readTextFile,
 	writeFileBytesAtomic,
 	writeTextFileAtomic,
@@ -325,6 +332,50 @@ describe('project zip export', () => {
 				.execute();
 			expect(restored.map(project => project.id)).toEqual(
 				expect.arrayContaining(['project-1', 'project-2', copied.projectId])
+			);
+		} finally {
+			await targetHarness.destroy();
+		}
+	});
+
+	it('carries an analysis through a whole-account export and restore byte for byte', async () => {
+		await createProject(harness.db, {
+			id: 'project-1',
+			storageSlug: 'romans-a1b2',
+			name: 'Romans',
+		});
+		await createCbgmAnalysisWithFiles(harness.db, 'project-1', {}, storeOptions);
+		const cache = Uint8Array.from({ length: 4096 }, (_, index) => (index * 5) % 256);
+		await completeCoherence(harness.db, 'project-1', 'analysis-1', cache, storeOptions);
+		await setGlobalStemmaState(
+			harness.db,
+			'project-1',
+			'analysis-1',
+			'imported-dot',
+			undefined,
+			'digraph global {}',
+			storeOptions
+		);
+		const source = cbgmAnalysisFiles('romans-a1b2', 'analysis-1');
+
+		const result = await exportAllProjectsZip(harness.db, { storeOptions });
+
+		const targetHarness = createLocalDbTestHarness();
+		const targetStoreOptions = { backend: new MemoryStoreBackend() };
+		try {
+			const imported = await importProjectZip(targetHarness.db, result.archives[0]!.bytes, {
+				storeOptions: targetStoreOptions,
+			});
+			expect(imported.ok, JSON.stringify(imported.quarantinedFiles)).toBe(true);
+			const target = cbgmAnalysisFiles(imported.storageSlug, 'analysis-1');
+			for (const key of ['metadata', 'input', 'globalStemma'] as const) {
+				expect(await readTextFile(target[key], targetStoreOptions)).toBe(
+					await readTextFile(source[key], storeOptions)
+				);
+			}
+			expect(await readFileBytes(target.cache, targetStoreOptions)).toEqual(cache);
+			expect(await listAnalyses(targetHarness.db, 'project-1')).toEqual(
+				await listAnalyses(harness.db, 'project-1')
 			);
 		} finally {
 			await targetHarness.destroy();
