@@ -204,6 +204,22 @@ export function isUntypedSubreading(
 	);
 }
 
+function splitReadingKey(reading: ClassifiedReading): string | null {
+	if (reading.parentReadingId !== null || reading.isLacuna) return null;
+	if (reading.isOmission) return '__OMISSION__';
+	return reading.text?.trim() || null;
+}
+
+export function splitReadingGroups(readings: readonly ClassifiedReading[]): ClassifiedReading[][] {
+	const groups = new Map<string, ClassifiedReading[]>();
+	for (const reading of readings) {
+		const key = splitReadingKey(reading);
+		if (key === null) continue;
+		groups.set(key, [...(groups.get(key) ?? []), reading]);
+	}
+	return [...groups.values()].filter(group => group.length > 1);
+}
+
 export function relabelReadings(
 	readings: ClassifiedReading[],
 	baseWitnessId: string | null,
@@ -219,11 +235,22 @@ export function relabelReadings(
 		return compareReadingsForOrder(a, b, baseWitnessId);
 	});
 
+	const splitGroupOf = new Map<string, ClassifiedReading[]>();
+	for (const group of splitReadingGroups(sortedPrimary)) {
+		for (const member of group) splitGroupOf.set(member.id, group);
+	}
+
 	const primaryLabelById = new Map<string, string>();
 	const primaryRankById = new Map<string, number>();
-	for (const [index, reading] of sortedPrimary.entries()) {
-		primaryLabelById.set(reading.id, indexToReadingLabel(index));
-		primaryRankById.set(reading.id, index);
+	let letterIndex = 0;
+	for (const reading of sortedPrimary) {
+		if (primaryRankById.has(reading.id)) continue;
+		const letter = indexToReadingLabel(letterIndex++);
+		const group = splitGroupOf.get(reading.id);
+		for (const [index, member] of (group ?? [reading]).entries()) {
+			primaryLabelById.set(member.id, group ? `${letter}${index + 1}` : letter);
+			primaryRankById.set(member.id, primaryRankById.size);
+		}
 	}
 
 	const mainReadingIdOf = makeMainReadingIdOf(normalized);

@@ -2,7 +2,11 @@ import { deserializeAlignmentColumns } from './alignment-snapshot';
 import { buildSegmentSequence, type Segment, NON_ATTESTATION_LABEL } from './collation-apparatus';
 import { applyDecisions, type UnitDecisions, type UnitView } from './collation-decisions';
 import type { CollationDocument } from './collation-document';
-import { buildReadingProposal, type NonAttestation } from './collation-reading-proposal';
+import {
+	buildReadingProposal,
+	splitReadingGroups,
+	type NonAttestation,
+} from './collation-reading-proposal';
 import { projectLocalStemma, type LocalStemma } from './collation-stemma';
 import type { ClassifiedReading } from './collation-types';
 import { variationUnitId } from './collation-unit-id';
@@ -129,15 +133,21 @@ function readingAttributes(
 		baseTextWitnessId: string | null;
 		includeBaseText: boolean;
 		recordedReadingTypeIds: ReadonlySet<string>;
+		isLaterSplitMember?: boolean;
 	}
 ): string {
 	const attributes: string[] = [];
 	if (options.label !== undefined) attributes.push(`n="${escapeAttribute(options.label)}"`);
 	if (options.sequence !== undefined) attributes.push(`varSeq="${options.sequence}"`);
-	if (reading.isOmission) attributes.push('type="om"');
-	else if (options.recordedReadingTypeIds.has(reading.id) && reading.readingType !== null) {
-		attributes.push(`type="${escapeAttribute(reading.readingType)}"`);
-	}
+	const type = reading.isOmission
+		? 'om'
+		: options.recordedReadingTypeIds.has(reading.id)
+			? reading.readingType
+			: null;
+	if (options.isLaterSplitMember) {
+		attributes.push('type="split"');
+		if (type !== null) attributes.push(`subtype="${escapeAttribute(type)}"`);
+	} else if (type !== null) attributes.push(`type="${escapeAttribute(type)}"`);
 	if (reading.certainty !== null)
 		attributes.push(`cert="${escapeAttribute(String(reading.certainty))}"`);
 	attributes.push(
@@ -187,7 +197,11 @@ function serializeUnit(
 	const serializedLemma = lemmaContent
 		? `<lem ${lemmaAttributes}>${lemmaContent}</lem>`
 		: `<lem ${lemmaAttributes}/>`;
-	const readings = citationOrder(unit.view.readings).map((reading, index) =>
+	const ordered = citationOrder(unit.view.readings);
+	const laterSplitMemberIds = new Set(
+		splitReadingGroups(ordered).flatMap(group => group.slice(1).map(reading => reading.id))
+	);
+	const readings = ordered.map((reading, index) =>
 		serializeReading(reading, {
 			label: reading.label,
 			sequence: index + 1,
@@ -195,6 +209,7 @@ function serializeUnit(
 			baseTextWitnessId,
 			includeBaseText: false,
 			recordedReadingTypeIds,
+			isLaterSplitMember: laterSplitMemberIds.has(reading.id),
 		})
 	);
 	if (unit.nonAttestation.witnessIds.length > 0) {

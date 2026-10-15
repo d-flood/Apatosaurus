@@ -2419,7 +2419,7 @@ describe('collationState bulk witness partitioning', () => {
 			.getReadingsForUnit(0)
 			.find(reading => result.ok && reading.id === result.readingId);
 		expect(split?.witnessIds).toEqual(['B', 'C']);
-		expect(witnessesByLabel()).toMatchObject({ a: ['A'] });
+		expect(witnessesByLabel()).toMatchObject({ a1: ['A'], a2: ['B', 'C'] });
 
 		collationState.undo();
 		expect(witnessesByLabel()).toEqual(before);

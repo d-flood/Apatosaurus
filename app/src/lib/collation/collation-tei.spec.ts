@@ -388,6 +388,57 @@ describe('apparatus TEI exporter', () => {
 		expect(() => exportApparatusTei(input)).not.toThrow();
 	});
 
+	it('marks split members after the first as splits, moving a recorded type to subtype, and validates as TEI P5', () => {
+		const base = snapshot();
+		collationState.reset();
+		collationState.setWitnesses([
+			witness('A', 'one alpha two', true),
+			witness('B', 'one beta two'),
+			witness('C', 'one beta two'),
+			witness('D', 'one two'),
+		]);
+		collationState.setAlignmentSnapshot({
+			...base,
+			columns: base.columns.map(column => ({
+				...column,
+				cells: column.cells.map(([witnessId, cell]) =>
+					witnessId === 'C' ? [witnessId, column.cells[1][1]] : [witnessId, cell]
+				),
+			})),
+		});
+		const split = collationState.splitWitnessesIntoNewReading(1, ['C']);
+		if (!split.ok) throw new Error(split.error);
+		collationState.setReadingType(1, split.readingId, 'apparent');
+		const readings = collationState.peekReadingsForUnit(1);
+		const alpha = readings.find(reading => reading.text === 'alpha')!;
+		for (const reading of readings) {
+			if (reading.id !== alpha.id)
+				collationState.setReadingSource(1, reading.id, { kind: 'derived', from: alpha.id });
+		}
+
+		const xml = exportApparatusTei(exportInput());
+		const document = parse(xml);
+		const exported = Array.from(document.getElementsByTagName('rdg'));
+		const graph = document.getElementsByTagName('graph')[0]!;
+
+		expect(
+			exported.map(reading => [
+				reading.getAttribute('n'),
+				reading.getAttribute('type'),
+				reading.getAttribute('subtype'),
+			])
+		).toEqual([
+			['a', null, null],
+			['b1', null, null],
+			['b2', 'split', 'apparent'],
+			['c', 'om', null],
+		]);
+		expect(
+			Array.from(graph.getElementsByTagName('node')).map(node => node.getAttribute('n'))
+		).toEqual(['a', 'b1', 'b2', 'c']);
+		expect(() => validateTeiP5(xml)).not.toThrow();
+	}, 60_000);
+
 	it('emits valid xml:id values for numeric and punctuation-heavy identifiers', () => {
 		const input = exportInput();
 		const document = parse(

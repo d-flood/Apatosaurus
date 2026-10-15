@@ -9,6 +9,7 @@ import { applyDecisions } from './collation-decisions';
 import { buildReadingProposal, relabelReadings } from './collation-reading-proposal';
 import type { ClassifiedReading } from './collation-types';
 import { BUNDLED_READING_TYPES, resolveReadingTypeVocabulary } from './reading-types';
+import { splitWitnesses, withReadingText } from './reading-edits';
 
 function makeCell(text: string | null, options: Partial<AlignmentCell> = {}): AlignmentCell {
 	return {
@@ -260,14 +261,14 @@ describe('reading proposal', () => {
 function makeReading(
 	id: string,
 	order: number,
-	options: { parent?: string; type?: string | null } = {}
+	options: { parent?: string; type?: string | null; text?: string } = {}
 ): ClassifiedReading {
 	return {
 		id,
 		order,
 		label: '',
-		text: id,
-		normalizedText: id,
+		text: options.text ?? id,
+		normalizedText: options.text ?? id,
 		witnessIds: [id],
 		witnessGroups: [],
 		isOmission: false,
@@ -373,5 +374,62 @@ describe('subreading labels', () => {
 				makeReading('damaged', 2, { parent: 'child', type: 'deficient' }),
 			])
 		).toEqual({ main: 'a', child: 'ao1', grandchild: 'ao2', damaged: 'ad' });
+	});
+});
+
+describe('split reading labels', () => {
+	it('letters main readings with the same text as one numbered group and gives the next reading the next letter', () => {
+		expect(
+			labelsOf([
+				makeReading('lemma', 0),
+				makeReading('first', 1, { text: 'beta' }),
+				makeReading('other', 2, { text: 'gamma' }),
+				makeReading('second', 3, { text: ' beta ' }),
+				makeReading('last', 4),
+			])
+		).toEqual({ lemma: 'a', first: 'b1', second: 'b2', other: 'c', last: 'd' });
+	});
+
+	it('letters a split group holding the lemma a1, a2', () => {
+		const readings = [
+			makeReading('base', 0, { text: 'alpha' }),
+			makeReading('other', 1),
+			makeReading('elevated', 2, { text: 'alpha' }),
+		];
+
+		expect(
+			Object.fromEntries(
+				relabelReadings(readings, null, 'elevated').map(reading => [
+					reading.id,
+					reading.label,
+				])
+			)
+		).toEqual({ elevated: 'a1', base: 'a2', other: 'b' });
+	});
+
+	it("labels a split member's subreading from both, as b2o", () => {
+		expect(
+			labelsOf([
+				makeReading('lemma', 0),
+				makeReading('first', 1, { text: 'beta' }),
+				makeReading('second', 2, { text: 'beta' }),
+				makeReading('spelling', 0, { parent: 'second', type: 'orthographic' }),
+			])
+		).toEqual({ lemma: 'a', first: 'b1', second: 'b2', spelling: 'b2o' });
+	});
+
+	it('splits witnesses off into a b1/b2 pair that dissolves once one text is corrected', () => {
+		const shared = { ...makeReading('beta', 1), witnessIds: ['B', 'C'] };
+		const split = splitWitnesses([makeReading('alpha', 0), shared], ['C'], null);
+		if (!split.ok) throw new Error(split.error);
+		const labelOf = (readings: ClassifiedReading[], id: string) =>
+			relabelReadings(readings, null).find(reading => reading.id === id)?.label;
+
+		expect(labelOf(split.readings, 'beta')).toBe('b1');
+		expect(labelOf(split.readings, split.readingId)).toBe('b2');
+
+		const corrected = withReadingText(split.readings, split.readingId, 'gamma');
+		expect(labelOf(corrected, 'beta')).toBe('b');
+		expect(labelOf(corrected, split.readingId)).toBe('c');
 	});
 });
