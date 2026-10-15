@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { deserializeAlignmentColumns, type AlignmentCell } from './alignment-snapshot';
+import {
+	deserializeAlignmentColumns,
+	serializeAlignmentColumns,
+	type AlignmentCell,
+} from './alignment-snapshot';
 import { collateToAlignmentSnapshot } from './collation-adapter';
 import { collationState, type WitnessConfig } from './collation-state.svelte';
 import {
@@ -3028,7 +3032,7 @@ describe('collationState witness placement', () => {
 	});
 
 	it('holds split matches out and assigns matching subreadings and novel main readings', async () => {
-		setup({ A: 'alpha', B: 'beta', C: 'beta', D: 'gamma' });
+		setup({ A: 'alpha end', B: 'beta end', C: 'beta end', D: 'gamma end' });
 		const main = collationState
 			.getReadingsForUnit(0)
 			.find(reading => reading.text === 'alpha')!;
@@ -3038,7 +3042,7 @@ describe('collationState witness placement', () => {
 			.getReadingsForUnit(0)
 			.find(reading => reading.text === 'gamma')!;
 		expect(collationState.setReadingParent(0, gamma.id, main.id).ok).toBe(true);
-		await refresh({ N: 'beta', S: 'gamma', T: 'theta' });
+		await refresh({ N: 'beta different', S: 'gamma end', T: 'theta end' });
 		const view = collationState.peekUnitView(0);
 		expect(view.readings.some(reading => reading.witnessIds.includes('N'))).toBe(false);
 		expect(view.unresolvedAttestations).toEqual([
@@ -3058,6 +3062,125 @@ describe('collationState witness placement', () => {
 				?.sourceDecision
 		).toEqual({ kind: 'undecided' });
 		expect(view.unconfirmedWitnessIds).toEqual(['S', 'T']);
+	});
+
+	it.each(['new', 'refreshed'] as const)(
+		'inherits a twin source’s cells, split, subreading and ambiguous testimony when %s',
+		async mode => {
+			collationState.addRule(makeRule({ pattern: 'theta', replacement: 'beta' }));
+			setup({
+				A: 'alpha other omega finish',
+				B: 'beta start psi end',
+				C: 'beta start psi end',
+				...(mode === 'refreshed' ? { N: 'old other omega finish' } : {}),
+			});
+			const columns = collationState.alignmentColumns;
+			collationState.setAlignmentSnapshot({
+				witnessOrder: collationState.witnessOrder,
+				columns: serializeAlignmentColumns(columns).map((column, index) => ({
+					...column,
+					cells: column.cells.map(([id, cell]) => [
+						id,
+						index < 2 && ['B', 'C'].includes(id)
+							? columns[1 - index].cells.get(id)!
+							: cell,
+					]),
+				})),
+			});
+			collationState.getReadingsForUnit(0);
+			expect(collationState.splitWitnessesIntoNewReading(0, ['B']).ok).toBe(true);
+			const split = collationState
+				.peekReadingsForUnit(0)
+				.find(r => r.witnessIds.includes('B'))!;
+			const second = collationState.getReadingsForUnit(1);
+			const subreading = second.find(r => r.witnessIds.includes('B'))!;
+			expect(collationState.setReadingParent(1, subreading.id, second[0].id).ok).toBe(true);
+			const third = collationState.getReadingsForUnit(2);
+			expect(
+				collationState.recordAmbiguousAttestation(
+					2,
+					['B'],
+					third.map(r => r.id)
+				).ok
+			).toBe(true);
+			const beforeColumns = collationState.alignmentColumns.map(column => ({
+				...column,
+				cells: new Map([...column.cells].filter(([id]) => id !== 'N')),
+			}));
+			const storedKeys = [...collationState.classifiedReadings.keys()];
+			await refresh({ N: 'theta start psi end' });
+			expect(
+				collationState.alignmentColumns.map(column => ({
+					...column,
+					cells: new Map([...column.cells].filter(([id]) => id !== 'N')),
+				}))
+			).toEqual(beforeColumns);
+			const tokens = collationState
+				.buildCollationWitnessInputs({ forceSourceWitnesses: true })
+				.find(input => input.id === 'N')!.tokens!;
+			for (const [index, column] of collationState.alignmentColumns.entries()) {
+				expect(column.cells.get('N')).toEqual(
+					alignmentCellFromTokens([tokens[index < 2 ? 1 - index : index]])
+				);
+				expect(collationState.peekUnitView(index).unconfirmedWitnessIds).toEqual(['N']);
+				expect(collationState.peekUnitView(index).unresolvedAttestations).toEqual([]);
+			}
+			expect(
+				collationState.peekReadingsForUnit(0).find(r => r.id === split.id)?.witnessIds
+			).toEqual(['B', 'N']);
+			expect(
+				collationState.peekReadingsForUnit(1).find(r => r.id === subreading.id)
+			).toMatchObject({ witnessIds: ['B', 'C', 'N'], parentReadingId: second[0].id });
+			expect(collationState.peekUnitView(2).ambiguousAttestations[0].witnessIds).toEqual([
+				'B',
+				'N',
+			]);
+			expect([...collationState.classifiedReadings.keys()]).toEqual(storedKeys);
+			expect(
+				collationState.peekReadingsForUnit(3).find(r => r.witnessIds.includes('B'))
+					?.witnessIds
+			).toEqual(['B', 'C', 'N']);
+		}
+	);
+
+	it('copies omission, gap and untranscribed cells without inserting columns', async () => {
+		setup({ A: 'alpha one', B: 'beta two' });
+		const columns = collationState.alignmentColumns;
+		const kinds = ['omission', 'gap', 'untranscribed'] as const;
+		collationState.setAlignmentSnapshot({
+			witnessOrder: ['A', 'B'],
+			columns: [
+				...serializeAlignmentColumns(columns),
+				...kinds.map((kind, index) => ({
+					id: `absence-${kind}`,
+					index: columns.length + index,
+					merged: false,
+					cells: [
+						['A', alignmentCellFromTokens([{ t: 'extra', n: 'extra' }])],
+						[
+							'B',
+							{
+								...alignmentCellFromTokens([]),
+								kind,
+								isOmission: kind === 'omission',
+								isLacuna: kind !== 'omission',
+							},
+						],
+					] as Array<[string, AlignmentCell]>,
+				})),
+			],
+		});
+		await refresh({ N: 'beta two' });
+		expect(collationState.alignmentColumns).toHaveLength(5);
+		for (const [index, kind] of kinds.entries()) {
+			expect(collationState.alignmentColumns[index + 2].cells.get('N')).toEqual(
+				collationState.alignmentColumns[index + 2].cells.get('B')
+			);
+			expect(
+				collationState.unitDecisions.get(`unit:absence-${kind}`)?.unconfirmedWitnessIds ??
+					[]
+			).toEqual(kind === 'omission' ? ['N'] : []);
+		}
 	});
 
 	it('keeps lazy readings lazy, opens new units unmarked and places a batch in order', async () => {
