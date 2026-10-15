@@ -1,5 +1,4 @@
-export function downloadZipArchive(fileName: string, bytes: Uint8Array): void {
-	const blob = new Blob([bytes.slice().buffer], { type: 'application/zip' });
+export function downloadBlob(fileName: string, blob: Blob): void {
 	const url = URL.createObjectURL(blob);
 	const link = document.createElement('a');
 	link.href = url;
@@ -12,4 +11,8 @@ export function downloadZipArchive(fileName: string, bytes: Uint8Array): void {
 		link.remove();
 		URL.revokeObjectURL(url);
 	}, 0);
+}
+
+export function downloadZipArchive(fileName: string, bytes: Uint8Array): void {
+	downloadBlob(fileName, new Blob([bytes.slice().buffer], { type: 'application/zip' }));
 }

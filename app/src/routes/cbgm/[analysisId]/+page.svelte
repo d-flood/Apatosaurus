@@ -14,6 +14,7 @@
 		analysisCollationStatus,
 		type CbgmAnalysisCollationStatus,
 	} from '$lib/cbgm/cbgm-analysis-staleness';
+	import CbgmQueryTools from '$lib/cbgm/components/CbgmQueryTools.svelte';
 	import CbgmStalenessNote from '$lib/cbgm/components/CbgmStalenessNote.svelte';
 	import { BUNDLED_READING_TYPES, findReadingTypeDefinition } from '$lib/collation/reading-types';
 	import { readCbgmCollationHashes, subscribeLocalDbInvalidations } from '$lib/db/client';
@@ -155,9 +156,13 @@
 		class="rounded-box border border-base-300/50 bg-base-100 p-4 shadow-md"
 		aria-labelledby="cbgm-tools-heading"
 	>
-		<h2 id="cbgm-tools-heading" class="font-serif text-lg font-semibold">Tools</h2>
+		<h2 id="cbgm-tools-heading" class="mb-3 font-serif text-lg font-semibold">Tools</h2>
 		{#if analysis.coherence !== 'ready'}
-			<p class="mt-1 text-sm text-base-content/55">Tools open once coherence is ready.</p>
+			<p class="text-sm text-base-content/55">Tools open once coherence is ready.</p>
+		{:else}
+			{#key analysis.id}
+				<CbgmQueryTools {analysis} />
+			{/key}
 		{/if}
 	</section>
 </div>
