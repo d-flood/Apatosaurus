@@ -233,11 +233,8 @@
 		}
 	}
 
-	function exportRefusalPhase(
-		refusal: ApparatusExportRefusal
-	): 'alignment' | 'readings' | 'stemma' {
-		if (!refusal.unitId) return 'alignment';
-		return refusal.kind === 'undecided-source' ? 'stemma' : 'readings';
+	function exportRefusalPhase(refusal: ApparatusExportRefusal): 'alignment' | 'readings' {
+		return refusal.unitId ? 'readings' : 'alignment';
 	}
 
 	function exportRefusalHref(refusal: ApparatusExportRefusal): string {
@@ -294,11 +291,9 @@
 										onclick={() => selectExportRefusal(refusal)}
 									>
 										Unit {refusal.label}:
-										{refusal.kind === 'undecided-source'
-											? ' set every reading source'
-											: refusal.kind === 'untranscribed-witness'
-												? ` finish transcribing ${refusalWitnesses(refusal)}`
-												: ' establish a lemma reading'}
+										{refusal.kind === 'untranscribed-witness'
+											? ` finish transcribing ${refusalWitnesses(refusal)}`
+											: ' establish a lemma reading'}
 									</a>
 								{:else}
 									<a
