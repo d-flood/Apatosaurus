@@ -4,6 +4,7 @@ interface NotificationAction {
 	id: string;
 	label: string;
 	variant?: 'primary' | 'secondary' | 'neutral' | 'error' | 'ghost';
+	href?: string;
 	onSelect?: () => void | Promise<void>;
 }
 

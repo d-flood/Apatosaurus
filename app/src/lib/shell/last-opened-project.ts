@@ -56,10 +56,11 @@ export function buildLastOpenedProjectSectionTarget(
 export function buildNavbarProjectTargets(
 	storedId: string | null,
 	projects: readonly ProjectRecency[]
-): { transcriptions: string; collations: string } {
+): { transcriptions: string; collations: string; cbgm: string } {
 	return {
 		transcriptions: buildLastOpenedProjectSectionTarget(storedId, projects, 'transcriptions'),
 		collations: buildLastOpenedProjectSectionTarget(storedId, projects, 'collations'),
+		cbgm: buildLastOpenedProjectSectionTarget(storedId, projects, 'cbgm'),
 	};
 }
 

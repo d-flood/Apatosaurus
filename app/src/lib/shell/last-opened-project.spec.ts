@@ -77,6 +77,7 @@ describe('project navigation targets', () => {
 		expect(buildNavbarProjectTargets('project-a', projects)).toEqual({
 			transcriptions: '/projects/project-a/transcriptions',
 			collations: '/projects/project-a/collations',
+			cbgm: '/projects/project-a/cbgm',
 		});
 	});
 
@@ -84,6 +85,7 @@ describe('project navigation targets', () => {
 		expect(buildNavbarProjectTargets('deleted-project', [])).toEqual({
 			transcriptions: '/projects',
 			collations: '/projects',
+			cbgm: '/projects',
 		});
 	});
 

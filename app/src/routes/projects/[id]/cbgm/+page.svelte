@@ -22,6 +22,7 @@
 		type CbgmAnalysisCollationStatus,
 	} from '$lib/cbgm/cbgm-analysis-staleness';
 	import CbgmAnalysisForm from '$lib/cbgm/components/CbgmAnalysisForm.svelte';
+	import CbgmComputationProgress from '$lib/cbgm/components/CbgmComputationProgress.svelte';
 	import CbgmStalenessNote from '$lib/cbgm/components/CbgmStalenessNote.svelte';
 	import { parseProjectCollationSettings } from '$lib/collation/project-settings';
 	import {
@@ -176,6 +177,7 @@
 		name: string;
 		collationIds: string[];
 		settings: CoherenceSettings;
+		notifyOs: boolean;
 	}) {
 		await startCbgmAnalysis({ projectId: data.project.id, ...request });
 		recompute = null;
@@ -273,6 +275,7 @@
 						<div class="text-xs text-base-content/55">
 							{inputCounts(row)}
 						</div>
+						<CbgmComputationProgress analysisId={row.id} />
 						{#if analysis && status}
 							<CbgmStalenessNote {analysis} {status} />
 						{/if}

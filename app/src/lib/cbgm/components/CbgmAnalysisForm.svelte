@@ -24,6 +24,7 @@
 			name: string;
 			collationIds: string[];
 			settings: CoherenceSettings;
+			notifyOs: boolean;
 		}) => Promise<void>;
 	}
 
@@ -51,8 +52,12 @@
 	let name = $state(initial.name);
 	let deselectedCollationIds = $state.raw<string[]>(initial.deselectedCollationIds);
 	let draft = $state<CoherenceSettings>(initial.settings);
+	let notifyOs = $state(false);
+	let notificationsBlocked = $state(false);
 	let isStarting = $state(false);
 	let error = $state<string | null>(null);
+
+	const notificationsSupported = typeof Notification !== 'undefined';
 
 	const chosen = $derived(
 		collations.filter(collation => !deselectedCollationIds.includes(collation.collationId))
@@ -112,6 +117,17 @@
 			: [...deselectedCollationIds, collationId];
 	}
 
+	async function toggleNotifyOs(checked: boolean) {
+		notifyOs = checked;
+		notificationsBlocked = false;
+		if (!checked || Notification.permission === 'granted') return;
+		const permission = await Notification.requestPermission();
+		if (permission !== 'granted') {
+			notifyOs = false;
+			notificationsBlocked = permission === 'denied';
+		}
+	}
+
 	async function start(event: SubmitEvent) {
 		event.preventDefault();
 		if (!canStart) return;
@@ -122,6 +138,7 @@
 				name: name.trim(),
 				collationIds: chosen.map(collation => collation.collationId),
 				settings,
+				notifyOs,
 			});
 			name = '';
 		} catch (err) {
@@ -320,6 +337,26 @@
 					{/each}
 				</ul>
 			</div>
+		</div>
+	{/if}
+
+	{#if notificationsSupported}
+		<div class="space-y-1">
+			<label class="flex items-center gap-2 text-sm">
+				<input
+					type="checkbox"
+					class="checkbox checkbox-sm"
+					checked={notifyOs}
+					onchange={event => toggleNotifyOs(event.currentTarget.checked)}
+				/>
+				Notify me on this device when it finishes
+			</label>
+			{#if notificationsBlocked}
+				<p class="text-xs text-base-content/60">
+					Notifications are blocked for this site. Allow them in your browser's site
+					settings to use this.
+				</p>
+			{/if}
 		</div>
 	{/if}
 

@@ -1,4 +1,5 @@
 import type { CbgmCoherenceState, CbgmGlobalStemmaState } from '$lib/storage/formats';
+import type { ComputationPhase, ComputationState } from './cbgm-scheduler.svelte';
 
 const coherenceLabels: Record<CbgmCoherenceState, string> = {
 	computing: 'Computing',
@@ -20,6 +21,28 @@ const globalStemmaLabels: Record<CbgmGlobalStemmaState, string> = {
 	ready: 'Global stemma ready',
 	'imported-dot': 'Global stemma imported',
 };
+
+const phaseLabels: Record<ComputationPhase, string> = {
+	coherence: 'Coherence',
+	'global-stemma': 'Global stemma',
+};
+
+const computationStateLabels: Record<ComputationState, string> = {
+	queued: 'Queued',
+	running: 'Running',
+	paused: 'Paused',
+	writing: 'Writing',
+	done: 'Done',
+	failed: 'Failed',
+};
+
+export function phaseLabel(phase: ComputationPhase): string {
+	return phaseLabels[phase];
+}
+
+export function computationStateLabel(state: ComputationState): string {
+	return computationStateLabels[state];
+}
 
 export function coherenceLabel(state: string): string {
 	return coherenceLabels[state as CbgmCoherenceState] ?? state;

@@ -3,6 +3,8 @@
 	import { asset, resolve } from '$app/paths';
 	import { page } from '$app/state';
 
+	import { activeComputation, isComputing } from '$lib/cbgm/cbgm-progress';
+	import { cbgmScheduler, type CbgmScheduler } from '$lib/cbgm/cbgm-scheduler.svelte';
 	import { subscribeLocalDbInvalidations, listProjects } from '$lib/db/client';
 	import {
 		buildNavbarProjectTargets,
@@ -16,9 +18,12 @@
 	import Bell from 'phosphor-svelte/lib/Bell';
 	import CaretDown from 'phosphor-svelte/lib/CaretDown';
 	import Moon from 'phosphor-svelte/lib/Moon';
+	import Pause from 'phosphor-svelte/lib/Pause';
 	import Sun from 'phosphor-svelte/lib/Sun';
 	import { onMount } from 'svelte';
 	import type { ProjectOption } from '$lib/db/repositories/projects';
+
+	let { scheduler = cbgmScheduler }: { scheduler?: Pick<CbgmScheduler, 'progress'> } = $props();
 
 	let theme = $state('');
 	let projects = $state.raw<ProjectOption[]>([]);
@@ -29,6 +34,19 @@
 		const projectId = resolveLastOpenedProjectId(navigationProjectId(), projects);
 		return projects.find(project => project.id === projectId)?.name ?? 'Projects';
 	});
+	let runningAnalysisId = $derived(activeComputation(scheduler.progress)?.analysisId ?? null);
+	let cbgmTarget = $derived(
+		runningAnalysisId
+			? resolve('/cbgm/[analysisId]', { analysisId: runningAnalysisId })
+			: projectTargets.cbgm
+	);
+	let cbgmActivity = $derived(
+		isComputing(scheduler.progress)
+			? 'computing'
+			: scheduler.progress?.state === 'paused'
+				? 'paused'
+				: null
+	);
 
 	function toggleTheme() {
 		if (browser) {
@@ -60,17 +78,18 @@
 
 	function navigationProjectId(): string | null {
 		const projectId = page.url.pathname.match(
-			/^\/projects\/([^/]+)\/(?:transcriptions|collations|settings|backup)(?:\/|$)/
+			/^\/projects\/([^/]+)\/(?:transcriptions|collations|cbgm|settings|backup)(?:\/|$)/
 		)?.[1];
 		return projectId ? decodeURIComponent(projectId) : readLastOpenedProjectId();
 	}
 
 	function openProjectSection(): ProjectSection {
 		const section = page.url.pathname.match(
-			/^\/projects\/[^/]+\/(transcriptions|collations|settings|location)(?:\/|$)/
+			/^\/projects\/[^/]+\/(transcriptions|collations|cbgm|settings|location)(?:\/|$)/
 		)?.[1];
 		if (
 			section === 'collations' ||
+			section === 'cbgm' ||
 			section === 'settings' ||
 			section === 'location' ||
 			section === 'transcriptions'
@@ -97,6 +116,21 @@
 		return 'btn btn-xs btn-ghost';
 	}
 </script>
+
+{#snippet cbgmIndicator()}
+	{#if cbgmActivity === 'computing'}
+		<span
+			class="loading loading-spinner loading-xs text-info"
+			role="img"
+			aria-label="Computing"
+			title="Computing"
+		></span>
+	{:else if cbgmActivity === 'paused'}
+		<span class="inline-flex text-warning" role="img" aria-label="Paused" title="Paused">
+			<Pause size={14} weight="fill" aria-hidden="true" />
+		</span>
+	{/if}
+{/snippet}
 
 <nav class="navbar bg-base-200 font-serif shadow-sm" aria-label="Primary">
 	<div class="navbar-start flex-1 gap-2 lg:gap-4">
@@ -138,20 +172,27 @@
 				aria-label="Open navigation menu"
 				class="btn btn-ghost btn-square"
 			>
-				<svg
-					xmlns="http://www.w3.org/2000/svg"
-					class="h-5 w-5"
-					fill="none"
-					viewBox="0 0 24 24"
-					stroke="currentColor"
-				>
-					<path
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						stroke-width="2"
-						d="M4 6h16M4 12h8m-8 6h16"
-					/>
-				</svg>
+				<span class="indicator">
+					{#if cbgmActivity}
+						<span class="indicator-item" aria-hidden="true">
+							{@render cbgmIndicator()}
+						</span>
+					{/if}
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						class="h-5 w-5"
+						fill="none"
+						viewBox="0 0 24 24"
+						stroke="currentColor"
+					>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="2"
+							d="M4 6h16M4 12h8m-8 6h16"
+						/>
+					</svg>
+				</span>
 			</button>
 			<ul
 				tabindex="-1"
@@ -159,6 +200,7 @@
 			>
 				<li><a href={projectTargets.transcriptions}>Transcriptions</a></li>
 				<li><a href={projectTargets.collations}>Collations</a></li>
+				<li><a href={cbgmTarget}>CBGM {@render cbgmIndicator()}</a></li>
 				<li class="menu-title">Switch project</li>
 				{#each projects as project (project.id)}
 					<li>
@@ -174,9 +216,10 @@
 		<ul class="menu menu-horizontal hidden px-1 lg:flex">
 			<li class="text-lg"><a href={projectTargets.transcriptions}>Transcriptions</a></li>
 			<li class="text-lg"><a href={projectTargets.collations}>Collations</a></li>
+			<li class="text-lg"><a href={cbgmTarget}>CBGM {@render cbgmIndicator()}</a></li>
 		</ul>
 	</div>
-	<div class="navbar-end gap-2">
+	<div class="navbar-end w-auto gap-2">
 		<a href={resolve('/data')} aria-label="Data & Storage" class="rounded-field">
 			<SyncStatusIndicator />
 		</a>
@@ -221,14 +264,23 @@
 									{#if item.actions && item.actions.length > 0}
 										<div class="flex flex-wrap gap-2">
 											{#each item.actions as action (action.id)}
-												<button
-													class={actionClass(action.variant)}
-													onclick={async () => {
-														await action.onSelect?.();
-													}}
-												>
-													{action.label}
-												</button>
+												{#if action.href}
+													<a
+														class={actionClass(action.variant)}
+														href={action.href}
+													>
+														{action.label}
+													</a>
+												{:else}
+													<button
+														class={actionClass(action.variant)}
+														onclick={async () => {
+															await action.onSelect?.();
+														}}
+													>
+														{action.label}
+													</button>
+												{/if}
 											{/each}
 										</div>
 									{/if}

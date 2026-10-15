@@ -55,6 +55,7 @@ export type CbgmFailure = {
 	projectId: string;
 	phase: ComputationPhase;
 	message: string;
+	notifyOs: boolean;
 };
 
 export interface CbgmWorkerPort {
@@ -288,6 +289,7 @@ export class CbgmScheduler {
 				projectId: request.projectId,
 				phase: request.phase,
 				message,
+				notifyOs: request.notifyOs,
 			});
 		} catch (handlerError) {
 			console.error('[cbgm] failure handler failed', handlerError);

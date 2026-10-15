@@ -1,22 +1,27 @@
 import type { CoherenceSettings } from '@apatosaurus/open-cbgm-wasm';
+import { resolve } from '$app/paths';
 
 import {
 	completeCbgmCoherence,
 	createCbgmAnalysis,
 	deleteCbgmAnalysis,
 	failCbgmCoherence,
+	findCbgmAnalysis,
 	loadCbgmCollationSnapshots,
 } from '$lib/db/client';
 import { requestPersistentStorageForMeaningfulWrite } from '$lib/shell/capabilities';
+import { notificationCenter } from '$lib/shell/notification-center.svelte';
 import type { CbgmAnalysisMetadata, CbgmAnalysisSettings } from '$lib/storage/formats';
+import { phaseLabel } from './cbgm-analysis-labels';
 import { buildCbgmInput } from './cbgm-input';
-import { cbgmScheduler, type CbgmScheduler } from './cbgm-scheduler.svelte';
+import { cbgmScheduler, type CbgmScheduler, type ComputationPhase } from './cbgm-scheduler.svelte';
 
 export type StartCbgmAnalysisRequest = {
 	projectId: string;
 	name: string;
 	collationIds: string[];
 	settings: CoherenceSettings;
+	notifyOs: boolean;
 };
 
 export type CbgmAnalysisPrefill = {
@@ -113,19 +118,74 @@ export async function startCbgmAnalysis(
 		phase: 'coherence',
 		inputTei: input.tei,
 		settings,
-		notifyOs: false,
+		notifyOs: request.notifyOs,
 	});
 	return analysis;
 }
 
-export function persistCbgmComputations(scheduler: CbgmScheduler): void {
-	scheduler.onComplete(async ({ analysisId, projectId, phase, cache }) => {
+export function persistCbgmComputations(
+	scheduler: Pick<CbgmScheduler, 'onComplete' | 'onFailure'>
+): void {
+	scheduler.onComplete(async ({ analysisId, projectId, phase, cache, notifyOs }) => {
 		if (phase !== 'coherence') {
 			throw new Error(`Finished CBGM ${phase} computations cannot be saved yet.`);
 		}
-		await completeCbgmCoherence(projectId, analysisId, cache);
+		const analysis = await completeCbgmCoherence(projectId, analysisId, cache);
+		announce({ analysisId, name: analysis.name, phase, notifyOs, failure: null });
 	});
-	scheduler.onFailure(async ({ analysisId, projectId, phase, message }) => {
-		if (phase === 'coherence') await failCbgmCoherence(projectId, analysisId, message);
+	scheduler.onFailure(async ({ analysisId, projectId, phase, message, notifyOs }) => {
+		const analysis =
+			phase === 'coherence'
+				? await failCbgmCoherence(projectId, analysisId, message)
+				: await findCbgmAnalysis(analysisId);
+		const name = analysis?.name ?? 'CBGM analysis';
+		announce({ analysisId, name, phase, notifyOs, failure: message });
 	});
+}
+
+function announce({
+	analysisId,
+	name,
+	phase,
+	notifyOs,
+	failure,
+}: {
+	analysisId: string;
+	name: string;
+	phase: ComputationPhase;
+	notifyOs: boolean;
+	failure: string | null;
+}): void {
+	const id = `cbgm:${analysisId}:${phase}`;
+	const title = `CBGM ${phaseLabel(phase).toLowerCase()} ${failure === null ? 'finished' : 'failed'}`;
+	const message =
+		failure === null
+			? `${phaseLabel(phase)} for ${name} is ready.`
+			: `${phaseLabel(phase)} for ${name} failed: ${failure}`;
+	notificationCenter.upsert({
+		id,
+		title,
+		message,
+		tone: failure === null ? 'success' : 'error',
+		actions: [
+			{
+				id: 'open',
+				label: 'Open analysis',
+				variant: 'primary',
+				href: resolve('/cbgm/[analysisId]', { analysisId }),
+			},
+		],
+	});
+	if (notifyOs) void sendOsNotification(id, title, message);
+}
+
+async function sendOsNotification(tag: string, title: string, body: string): Promise<void> {
+	if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+	try {
+		const registration = await navigator.serviceWorker?.getRegistration();
+		if (registration) await registration.showNotification(title, { body, tag });
+		else new Notification(title, { body, tag });
+	} catch (error) {
+		console.error('[cbgm] OS notification failed', error);
+	}
 }

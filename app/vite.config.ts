@@ -165,6 +165,7 @@ export default defineConfig({
 			'phosphor-svelte/lib/Moon',
 			'phosphor-svelte/lib/Note',
 			'phosphor-svelte/lib/Paragraph',
+			'phosphor-svelte/lib/Pause',
 			'phosphor-svelte/lib/PencilSimple',
 			'phosphor-svelte/lib/Plus',
 			'phosphor-svelte/lib/Quotes',

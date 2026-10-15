@@ -14,6 +14,7 @@
 		analysisCollationStatus,
 		type CbgmAnalysisCollationStatus,
 	} from '$lib/cbgm/cbgm-analysis-staleness';
+	import CbgmComputationProgress from '$lib/cbgm/components/CbgmComputationProgress.svelte';
 	import CbgmQueryTools from '$lib/cbgm/components/CbgmQueryTools.svelte';
 	import CbgmStalenessNote from '$lib/cbgm/components/CbgmStalenessNote.svelte';
 	import { BUNDLED_READING_TYPES, findReadingTypeDefinition } from '$lib/collation/reading-types';
@@ -118,6 +119,8 @@
 				</span>
 			{/if}
 		</div>
+
+		<CbgmComputationProgress analysisId={analysis.id} />
 
 		<dl class="grid grid-cols-1 gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
 			<div class="flex flex-wrap gap-x-2">
