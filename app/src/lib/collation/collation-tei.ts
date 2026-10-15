@@ -72,11 +72,11 @@ function xmlId(value: string): string {
 	return /^[A-Za-z_]/.test(normalized) ? normalized : `id-${normalized}`;
 }
 
-function escapeText(value: string): string {
+export function escapeText(value: string): string {
 	return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-function escapeAttribute(value: string): string {
+export function escapeAttribute(value: string): string {
 	return escapeText(value).replace(/"/g, '&quot;');
 }
 
@@ -102,7 +102,7 @@ function citationOrder(readings: readonly ClassifiedReading[]): ClassifiedReadin
 	return ordered;
 }
 
-function textContent(text: string | null, isOmission: boolean): string {
+export function textContent(text: string | null, isOmission: boolean): string {
 	if (isOmission || !text?.trim()) return '';
 	const trimmed = text.trim();
 	return `${isPunctuationOnlyText(trimmed) ? '' : ' '}${escapeText(trimmed)}`;

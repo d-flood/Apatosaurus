@@ -93,6 +93,7 @@ export default defineConfig({
 		// Pre-bundle all deps; mid-run discovery aborts dynamic imports in Chromium.
 		include: [
 			'@annotorious/openseadragon',
+			'@apatosaurus/open-cbgm-wasm',
 			'@xmldom/xmldom',
 			'@triiiceratops/plugin-annotation-editor',
 			'@triiiceratops/plugin-sdk',

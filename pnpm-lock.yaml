@@ -10,6 +10,9 @@ importers:
 
   app:
     dependencies:
+      '@apatosaurus/open-cbgm-wasm':
+        specifier: workspace:*
+        version: link:../packages/open-cbgm-wasm
       '@apatosaurus/tei-transcription':
         specifier: workspace:*
         version: link:../packages/tei-transcription
