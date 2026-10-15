@@ -27,7 +27,7 @@ test('phase navigation follows history, undo, and Continue from saved setup', as
 	await expect(page).toHaveURL(/\/readings$/);
 	await page.goBack();
 	await expect(page).toHaveURL(/\/alignment$/);
-	await expect(page.getByRole('button', { name: 'Run Collation' })).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Re-align', exact: true })).toBeVisible();
 	await page.goForward();
 	await expect(page).toHaveURL(/\/readings$/);
 	await expect(page.getByRole('link', { name: /Readings$/ })).toHaveAttribute(
@@ -44,7 +44,7 @@ test('phase navigation follows history, undo, and Continue from saved setup', as
 	await expect(page).toHaveURL(/\/readings$/);
 	await page.getByRole('button', { name: 'Undo', exact: true }).click();
 	await expect(page).toHaveURL(/\/alignment$/);
-	await expect(page.getByRole('button', { name: 'Run Collation' })).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Re-align', exact: true })).toBeVisible();
 	await page.getByRole('button', { name: 'Redo', exact: true }).click();
 	await expect(page).toHaveURL(/\/alignment$/);
 	await page
@@ -54,7 +54,28 @@ test('phase navigation follows history, undo, and Continue from saved setup', as
 	await expect(page).toHaveURL(/\/setup$/);
 	await page.getByRole('button', { name: 'Proceed to Alignment' }).click();
 	await expect(page).toHaveURL(/\/alignment$/);
-	await expect(page.getByRole('button', { name: 'Run Collation' })).toBeVisible();
+	const realign = page.getByRole('button', { name: 'Re-align', exact: true });
+	await expect(realign).toBeVisible();
+	await page.setViewportSize({ width: 390, height: 844 });
+	await expect
+		.poll(async () => {
+			const box = await realign.boundingBox();
+			return box !== null && box.x >= 0 && box.x + box.width <= 390;
+		})
+		.toBe(true);
+	const mergedColumnCount = await headers.count();
+	const warning = page.waitForEvent('dialog');
+	const click = realign.click();
+	const dialog = await warning;
+	expect(dialog.message()).toContain('lose hand alignment edits');
+	expect(dialog.message()).toContain('listed as orphaned with their decisions');
+	await dialog.dismiss();
+	await click;
+	await expect(headers).toHaveCount(mergedColumnCount);
+	page.once('dialog', dialog => dialog.accept());
+	await realign.click();
+	await expect(headers).toHaveCount(mergedColumnCount + 1);
+	await expect(realign).toBeEnabled();
 });
 
 test('the local stemma has one tabstop and supports keyboard source decisions', async ({

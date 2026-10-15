@@ -174,7 +174,7 @@
 		}
 		if (collationState.alignmentColumns.length > 0) {
 			const shouldContinue = window.confirm(
-				'This collation already has alignment data. Running collation again may undo manual alignments. Continue?'
+				'Re-aligning will lose hand alignment edits. Units that cannot be recognized will be listed as orphaned with their decisions. Continue?'
 			);
 			if (!shouldContinue) return;
 		}
@@ -182,13 +182,14 @@
 		isCollating = true;
 		collationError = null;
 		try {
-			const witnesses = collationState.buildCollationWitnessInputs();
+			const witnesses = collationState.buildCollationWitnessInputs({
+				forceSourceWitnesses: true,
+			});
 			const result = await runCollationInWorker({
 				witnesses,
 				options: { segmentation: collationState.segmentation },
 			});
 			collationState.setAlignmentSnapshot(result.snapshot);
-			collationState.setPhase('alignment');
 			if (collationState.collationId) {
 				await goto(`/collation/${collationState.collationId}/alignment`, {
 					replaceState: true,
@@ -571,7 +572,7 @@
 				Collating…
 			{:else}
 				<Lightning size={16} weight="fill" />
-				Run Collation
+				{collationState.alignmentColumns.length > 0 ? 'Re-align' : 'Run Collation'}
 			{/if}
 		</button>
 		<button

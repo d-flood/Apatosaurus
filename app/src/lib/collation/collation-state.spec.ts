@@ -3271,6 +3271,186 @@ describe('collationState witness placement', () => {
 		).toEqual(before);
 	});
 
+	it('re-aligns from source tokens, keeping recognized editorial work and orphaning the rest', () => {
+		setup({ A: 'alpha start omega', B: 'beta middle psi' });
+		collationState.setSegmentation(false);
+		const readings = collationState.getReadingsForUnit(0);
+		const beta = readings.find(reading => reading.text === 'beta')!;
+		const alpha = readings.find(reading => reading.text === 'alpha')!;
+		collationState.updateReadingText(0, beta.id, 'edited beta');
+		collationState.setReadingType(0, beta.id, 'nonsense');
+		collationState.setLemmaReading(0, beta.id);
+		collationState.setReadingSource(0, alpha.id, { kind: 'derived', from: beta.id });
+		collationState.setConnectivity(0, 3);
+		collationState.setConnectivity(1, 5);
+		collationState.setConnectivity(2, 'absolute');
+		const before = reviewView(0);
+		const decisions = new Map(collationState.unitDecisions);
+		const arcs = new Map(collationState.readingArcs);
+		collationState.mergeColumns(['column-1', 'column-2']);
+		collationState.setPhase('review');
+		collationState.showPhase('stemma');
+		collationState.setAlignmentSnapshot(
+			collateToAlignmentSnapshot({
+				witnesses: collationState.buildCollationWitnessInputs({
+					forceSourceWitnesses: true,
+				}),
+				options: { segmentation: false },
+			}).snapshot
+		);
+		expect(collationState.alignmentColumns).toHaveLength(3);
+		expect(collationState.alignmentColumns[0].id).toBe('column-0');
+		expect(reviewView(0)).toEqual(before);
+		expect(collationState.unitDecisions).toEqual(decisions);
+		expect(collationState.readingArcs).toEqual(arcs);
+		expect([...collationState.classifiedReadings.keys()]).toEqual(['unit:column-0']);
+		expect(collationState.getOrphanedUnitDecisions().map(orphan => orphan.unitId)).toEqual([
+			'unit:column-1',
+			'unit:column-2',
+		]);
+		expect(collationState.phase).toBe('stemma');
+		expect(collationState.furthestPhase).toBe('review');
+	});
+
+	it.each(['remove', 'refresh removal', 'exclude'] as const)(
+		'%s drops only its row and empty columns, orphaning units that stop varying',
+		async action => {
+			setup({ A: 'alpha same end', B: 'beta same end', C: 'alpha extra end' });
+			const columns = serializeAlignmentColumns(collationState.alignmentColumns);
+			columns[2].cells = columns[2].cells.map(([id, cell]) => [
+				id,
+				id === 'C' ? cell : makeOmissionCell(),
+			]);
+			collationState.setAlignmentSnapshot({ witnessOrder: ['A', 'B', 'C'], columns });
+			collationState.getReadingsForUnit(0);
+			collationState.setConnectivity(1, 3);
+			collationState.setPhase('review');
+			collationState.showPhase('readings');
+			const before = collationState.alignmentColumns.slice(0, 2).map(column => ({
+				...column,
+				cells: new Map([...column.cells].filter(([id]) => id !== 'C')),
+			}));
+			const removedUnitId = `unit:${collationState.alignmentColumns[1].id}`;
+			if (action === 'exclude') collationState.toggleWitnessExclusion('C');
+			else if (action === 'remove') {
+				collationState.setWitnesses(
+					collationState.witnesses.filter(w => w.witnessId !== 'C')
+				);
+			} else {
+				vi.spyOn(collationRunner, 'gatherWitnessesForSegment').mockResolvedValue({
+					error: null,
+					orphanedMembers: [],
+					witnesses: [],
+				});
+				await collationState.refreshWitnessesFromSource(['C-tx']);
+			}
+			expect(collationState.alignmentColumns).toEqual(before);
+			expect(collationState.witnessOrder).toEqual(['A', 'B']);
+			expect(collationState.getOrphanedUnitDecisions()).toContainEqual({
+				unitId: removedUnitId,
+				decisions: { connectivity: 3 },
+			});
+			expect(
+				collationState.peekReadingsForUnit(0).flatMap(reading => reading.witnessIds)
+			).not.toContain('C');
+			expect(collationState.phase).toBe('readings');
+			expect(collationState.furthestPhase).toBe('review');
+			if (action === 'exclude') {
+				collationState.toggleWitnessExclusion('C');
+				expect(
+					collationState.alignmentColumns
+						.map(column => column.id)
+						.filter(id => before.some(column => column.id === id))
+				).toEqual(before.map(column => column.id));
+				expect(collationState.alignmentColumns.every(column => column.cells.has('C'))).toBe(
+					true
+				);
+				expect(collationState.peekUnitView(0).unconfirmedWitnessIds).toContain('C');
+			}
+		}
+	);
+
+	it.each(['new witnesses only', 'existing tokens changed'] as const)(
+		'handles a segment member change with %s',
+		mode => {
+			setup({ A: 'alpha start', B: 'beta end' });
+			collationState.setSegmentation(false);
+			collationState.mergeColumns(['column-0', 'column-1']);
+			const mergedId = collationState.alignmentColumns[0].id;
+			collationState.setConnectivity(0, 3);
+			collationState.setPhase('review');
+			collationState.showPhase('setup');
+			collationState.setSegmentMembers(['Romans 1:1', 'Rom.1.1']);
+			collationState.setWitnesses(
+				[
+					...(mode === 'new witnesses only'
+						? collationState.witnesses
+						: [
+								makeWitness('A', 'alpha changed', { isBaseText: true }),
+								makeWitness('B', 'beta changed'),
+							]),
+					makeWitness('N', 'beta end'),
+				],
+				{ segmentChanged: true }
+			);
+			if (mode === 'new witnesses only') {
+				expect(collationState.alignmentColumns[0].id).toBe(mergedId);
+				expect(collationState.alignmentColumns[0].merged).toBe(true);
+				expect(collationState.getConnectivity(0)).toBe(3);
+			} else {
+				expect(collationState.alignmentColumns.every(column => !column.merged)).toBe(true);
+				expect(collationState.alignmentColumns.some(column => column.id === mergedId)).toBe(
+					false
+				);
+				expect(collationState.getOrphanedUnitDecisions()).toContainEqual({
+					unitId: `unit:${mergedId}`,
+					decisions: { connectivity: 3 },
+				});
+			}
+			expect(collationState.phase).toBe('setup');
+			expect(collationState.furthestPhase).toBe('review');
+		}
+	);
+
+	it('re-aligns when ignore-word-breaks changes and leaves regularization changes deferred', async () => {
+		setup({ A: 'alpha start end', B: 'beta middle finish' });
+		collationState.setSegmentation(false);
+		collationState.setConnectivity(0, 3);
+		collationState.mergeColumns(['column-1', 'column-2']);
+		const mergedId = collationState.alignmentColumns[1].id;
+		collationState.setConnectivity(1, 5);
+		const beforeRules = serializeAlignmentColumns(collationState.alignmentColumns);
+		collationState.addRule(makeRule({ pattern: 'absent', replacement: 'other' }));
+		expect(serializeAlignmentColumns(collationState.alignmentColumns)).toEqual(beforeRules);
+		vi.spyOn(collationRunner, 'gatherWitnessesForSegment').mockResolvedValue({
+			error: null,
+			orphanedMembers: [],
+			witnesses: collationState.witnesses.map(witness => ({
+				...witness,
+				source: {
+					kind: 'version',
+					transcriptionId: witness.transcriptionId,
+					versionId: 'v1',
+				},
+				id: witness.witnessId,
+				transcriptionUid: witness.transcriptionId,
+				kind: 'firsthand',
+				handId: 'firsthand',
+			})),
+		});
+		collationState.setPhase('review');
+		await collationState.setIgnoreWordBreaks(true);
+		expect(collationState.alignmentColumns).toHaveLength(3);
+		expect(collationState.alignmentColumns[0].id).toBe('column-0');
+		expect(collationState.getConnectivity(0)).toBe(3);
+		expect(collationState.getOrphanedUnitDecisions()).toContainEqual({
+			unitId: `unit:${mergedId}`,
+			decisions: { connectivity: 5 },
+		});
+		expect(collationState.phase).toBe('review');
+		expect(collationState.furthestPhase).toBe('review');
+	});
+
 	it('leaves export and CBGM input identical with unconfirmed marks', async () => {
 		setup({ A: 'alpha', B: 'beta' });
 		await refresh({ N: 'beta' });

@@ -16,6 +16,7 @@ import { coerceTranscriptionDocument } from '$lib/transcription/content';
 import {
 	cloneAlignmentColumn,
 	deserializeAlignmentColumns,
+	serializeAlignmentColumns,
 	witnessInputFromAlignment,
 	type AlignmentCell,
 	type AlignmentColumn,
@@ -34,6 +35,7 @@ import {
 } from './alignment-edits';
 import { collateToAlignmentSnapshot } from './collation-adapter';
 import { placeWitnessRow } from './alignment-placement';
+import { recognizeColumns } from './alignment-recognition';
 import { alignmentCellFromTokens } from './alignment-cell';
 import {
 	applyWitnessTreatmentSource,
@@ -566,12 +568,10 @@ function createCollationState() {
 			segmentMember() &&
 			witnesses.length > 0
 		) {
-			const didChange = await refreshWitnessesFromTranscriptionSource();
-			if (didChange) {
-				handleWitnessSourceChange();
-				saveStatus = 'unsaved';
-				scheduleSave();
-			}
+			await refreshWitnessesFromTranscriptionSource();
+			if (alignmentColumns.length > 0) realign();
+			saveStatus = 'unsaved';
+			scheduleSave();
 		}
 	}
 
@@ -672,14 +672,17 @@ function createCollationState() {
 		return id;
 	}
 
-	function setWitnesses(configs: WitnessConfig[]) {
+	function setWitnesses(configs: WitnessConfig[], options?: { segmentChanged?: boolean }) {
+		const previousWitnesses = witnesses;
 		witnesses = ensureBaseTextSelection(
 			applyWitnessTreatmentSources(filterWitnessesByProjectSettings(configs))
 		);
+		handleWitnessSourceChange(previousWitnesses, options);
 		markUnsaved();
 	}
 
 	function updateWitness(witnessId: string, updates: Partial<WitnessConfig>) {
+		const previousWitnesses = witnesses;
 		witnesses = applyWitnessTreatmentSources(
 			witnesses.map(w => {
 				if (w.witnessId !== witnessId) return w;
@@ -690,6 +693,9 @@ function createCollationState() {
 				return next;
 			})
 		);
+		if (Object.prototype.hasOwnProperty.call(updates, 'isExcluded')) {
+			handleWitnessSourceChange(previousWitnesses);
+		}
 		markUnsaved();
 	}
 
@@ -796,10 +802,8 @@ function createCollationState() {
 		if (ignoreWordBreaks === nextValue) return;
 		ignoreWordBreaks = nextValue;
 		await persistRulesToProject(rules);
-		const didChange = await refreshWitnessesFromTranscriptionSource();
-		if (didChange) {
-			handleWitnessSourceChange();
-		}
+		await refreshWitnessesFromTranscriptionSource();
+		if (alignmentColumns.length > 0) realign();
 		markUnsaved();
 	}
 
@@ -965,12 +969,21 @@ function createCollationState() {
 		});
 	}
 
-	function rebuildAlignmentFromWitnessTokens() {
-		const snapshot = collateToAlignmentSnapshot({
-			witnesses: buildCollationWitnessInputs({ forceSourceWitnesses: true }),
-			options: { segmentation },
-		});
-		applyAlignmentSnapshot(snapshot.snapshot);
+	function realign() {
+		const inputs = buildCollationWitnessInputs({ forceSourceWitnesses: true });
+		const snapshot =
+			inputs.length >= 2
+				? collateToAlignmentSnapshot({ witnesses: inputs, options: { segmentation } })
+						.snapshot
+				: {
+						witnessOrder: inputs.map(input => input.id),
+						columns: serializeAlignmentColumns(
+							inputs.length === 0
+								? []
+								: placeWitnessRow([], inputs[0], { witnessOrder: [] }).columns
+						),
+					};
+		setAlignmentSnapshot(snapshot);
 	}
 
 	async function refreshWitnessesFromTranscriptionSource(
@@ -1243,25 +1256,62 @@ function createCollationState() {
 		return refreshedCount;
 	}
 
-	function handleWitnessSourceChange(previousWitnesses?: WitnessConfig[]) {
+	function handleWitnessSourceChange(
+		previousWitnesses: WitnessConfig[],
+		options?: { segmentChanged?: boolean }
+	) {
+		if (alignmentColumns.length === 0 && lastAlignmentInputSignature === null) return;
+		const previousActive = previousWitnesses.filter(witness => !witness.isExcluded);
 		if (
-			previousWitnesses &&
-			alignmentColumns.length > 0 &&
-			previousWitnesses.every(previous =>
-				witnesses.some(witness => witness.witnessId === previous.witnessId)
+			options?.segmentChanged &&
+			previousActive.some(previous =>
+				witnesses.some(
+					witness =>
+						!witness.isExcluded &&
+						witness.witnessId === previous.witnessId &&
+						JSON.stringify(witness.tokens) !== JSON.stringify(previous.tokens)
+				)
 			)
 		) {
-			placeChangedWitnesses(previousWitnesses);
-			lastAlignmentInputSignature = buildAlignmentInputSignature();
-			selectedUnitIndex = normalizeVariationUnitIndex(selectedUnitIndex);
+			realign();
 			return;
 		}
-		if (alignmentColumns.length > 0) {
-			rebuildAlignmentFromWitnessTokens();
+		const activeIds = new Set(getOrderedActiveWitnessIds());
+		const removedIds = new Set(
+			previousActive.map(witness => witness.witnessId).filter(id => !activeIds.has(id))
+		);
+		if (removedIds.size > 0) {
+			alignmentColumns = alignmentColumns
+				.map(column => ({
+					...column,
+					cells: new Map([...column.cells].filter(([id]) => !removedIds.has(id))),
+				}))
+				.filter(column =>
+					[...column.cells.values()].some(
+						cell => cell.sourceTokenIds.length > 0 || cell.kind === 'text'
+					)
+				)
+				.map((column, index) => ({ ...column, index }));
+			classifiedReadings = new Map(
+				[...classifiedReadings].map(([key, readings]) => [
+					key,
+					readings
+						.filter(
+							reading =>
+								reading.witnessIds.length === 0 ||
+								reading.witnessIds.some(id => !removedIds.has(id))
+						)
+						.map(reading => ({
+							...reading,
+							witnessIds: reading.witnessIds.filter(id => !removedIds.has(id)),
+						})),
+				])
+			);
+			witnessOrder = witnessOrder.filter(id => !removedIds.has(id));
 		}
-		classifiedReadings = new Map();
-		readingArcs = new Map();
-		selectedUnitIndex = 0;
+		placeChangedWitnesses(previousActive);
+		lastAlignmentInputSignature = buildAlignmentInputSignature();
+		selectedUnitIndex = normalizeVariationUnitIndex(selectedUnitIndex);
 	}
 
 	function placeChangedWitnesses(previousWitnesses: WitnessConfig[]) {
@@ -1281,11 +1331,12 @@ function createCollationState() {
 				rules
 			).witnessInputs.map(input => [input.id, input])
 		);
-		const changed = witnesses.filter(witness => {
+		const activeWitnesses = witnesses.filter(witness => !witness.isExcluded);
+		const changed = activeWitnesses.filter(witness => {
 			const previous = previousById.get(witness.witnessId);
 			return previous && JSON.stringify(previous.tokens) !== JSON.stringify(witness.tokens);
 		});
-		const added = witnesses.filter(witness => !previousById.has(witness.witnessId));
+		const added = activeWitnesses.filter(witness => !previousById.has(witness.witnessId));
 		const previousActiveIds = new Set(
 			previousWitnesses
 				.filter(witness => !witness.isExcluded)
@@ -1541,12 +1592,32 @@ function createCollationState() {
 	}
 
 	function setAlignmentSnapshot(snapshot: AlignmentSnapshot) {
+		const previousColumns = alignmentColumns;
+		const previousIds = new Set(previousColumns.map(column => column.id));
+		const previousWitnessIds = new Set(
+			previousColumns.flatMap(column => [...column.cells.keys()])
+		);
+		const recognized = recognizeColumns(
+			previousColumns,
+			deserializeAlignmentColumns(snapshot.columns),
+			snapshot.witnessOrder.filter(id => previousWitnessIds.has(id))
+		);
 		applyAlignmentSnapshot(snapshot);
+		alignmentColumns = alignmentColumns.map(column => ({
+			...column,
+			id:
+				recognized.get(column.id) ??
+				(previousIds.has(column.id) ? crypto.randomUUID() : column.id),
+		}));
+		const liveUnitIds = new Set(
+			getVariationUnitSpans().map(span => variationUnitId(span.columnIds[0]))
+		);
+		classifiedReadings = new Map(
+			[...classifiedReadings].filter(([key]) => liveUnitIds.has(key))
+		);
 		lastAlignmentInputSignature = buildAlignmentInputSignature();
 		selectedUnitIndex = normalizeVariationUnitIndex(selectedUnitIndex);
 		advanceFurthest('alignment');
-		classifiedReadings = new Map();
-		readingArcs = new Map();
 		markUnsaved();
 	}
 
@@ -2888,7 +2959,7 @@ function createCollationState() {
 			await refreshOrphanedMembersFromProjectIndex();
 			const repairedCollapsedAlignment = hasCollapsedAlignmentRegression();
 			if (repairedCollapsedAlignment) {
-				rebuildAlignmentFromWitnessTokens();
+				realign();
 				saveStatus = 'unsaved';
 				scheduleSave();
 			}

@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { gatherWitnessesForSegment } from '$lib/collation/collation-runner';
+	import { buildWitnessSourceKey } from '$lib/collation/witness-config';
 	import {
 		collationState,
 		type WitnessConfig,
@@ -193,25 +194,44 @@
 			}
 
 			collationState.setOrphanedMembers(result.orphanedMembers);
-			const configs: WitnessConfig[] = result.witnesses.map((witness, index) => ({
-				witnessId: witness.id,
-				siglum: witness.siglum,
-				transcriptionId: witness.transcriptionUid,
-				kind: witness.kind,
-				handId: witness.handId,
-				source: witness.source,
-				content: witness.content,
-				tokens: witness.tokens,
-				fullContent: witness.fullContent,
-				fullTokens: witness.fullTokens,
-				fragmentaryContent: witness.fragmentaryContent,
-				fragmentaryTokens: witness.fragmentaryTokens,
-				treatment: witness.kind === 'corrector' ? 'inherit' : 'full',
-				isBaseText: index === 0,
-				isExcluded: false,
-				overridesDefault: false,
-			}));
-			collationState.setWitnesses(configs);
+			const usedIds = new Set(collationState.witnesses.map(witness => witness.witnessId));
+			const configs: WitnessConfig[] = result.witnesses.map((witness, index) => {
+				const previous = collationState.witnesses.find(
+					config =>
+						buildWitnessSourceKey(config) ===
+						buildWitnessSourceKey({
+							transcriptionId: witness.transcriptionUid,
+							kind: witness.kind,
+							handId: witness.handId,
+						})
+				);
+				const witnessId =
+					previous?.witnessId ??
+					(usedIds.has(witness.id) ? crypto.randomUUID() : witness.id);
+				usedIds.add(witnessId);
+				return {
+					witnessId,
+					siglum: witness.siglum,
+					transcriptionId: witness.transcriptionUid,
+					kind: witness.kind,
+					handId: witness.handId,
+					source: witness.source,
+					content: witness.content,
+					tokens: witness.tokens,
+					fullContent: witness.fullContent,
+					fullTokens: witness.fullTokens,
+					fragmentaryContent: witness.fragmentaryContent,
+					fragmentaryTokens: witness.fragmentaryTokens,
+					treatment:
+						previous?.treatment ?? (witness.kind === 'corrector' ? 'inherit' : 'full'),
+					isBaseText:
+						previous?.isBaseText ??
+						(collationState.witnesses.length === 0 && index === 0),
+					isExcluded: previous?.isExcluded ?? false,
+					overridesDefault: previous?.overridesDefault ?? false,
+				};
+			});
+			collationState.setWitnesses(configs, { segmentChanged: true });
 			collationState.selectedVerse = request.verse;
 		} catch (err) {
 			console.error('Failed to load witnesses for segment', request.members, err);
@@ -254,13 +274,13 @@
 			if (collationState.projectId !== projectId) return;
 			selectedTranscriptionIds = syncedIds;
 			allTranscriptions = await listTranscriptions(projectId);
-			collationState.setWitnesses([]);
-			collationState.clearSegment();
-			collationState.selectedVerse = null;
-			collationState.selectedBook = '';
-			collationState.selectedChapter = '';
-			collationState.selectedVerseNum = '';
 			await reloadVerses();
+			const request = createWitnessLoadRequest(collationState.selectedVerse);
+			if (request) {
+				await loadWitnessesForRequest(request);
+			} else {
+				collationState.setWitnesses([]);
+			}
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Failed to update project transcriptions';
 		} finally {
@@ -435,12 +455,13 @@
 			collationState.selectedChapter = '';
 			collationState.selectedVerseNum = '';
 		}
-		collationState.setWitnesses([]);
 		collationState.selectedVerse = primaryVerse;
 
 		const request = createWitnessLoadRequest(primaryVerse);
 		if (request) {
 			void loadWitnessesForRequest(request);
+		} else {
+			collationState.setWitnesses([], { segmentChanged: true });
 		}
 	}
 
