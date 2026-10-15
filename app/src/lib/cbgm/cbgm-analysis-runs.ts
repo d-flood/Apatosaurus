@@ -3,6 +3,7 @@ import type { CoherenceSettings } from '@apatosaurus/open-cbgm-wasm';
 import {
 	completeCbgmCoherence,
 	createCbgmAnalysis,
+	deleteCbgmAnalysis,
 	failCbgmCoherence,
 	loadCbgmCollationSnapshots,
 } from '$lib/db/client';
@@ -18,6 +19,12 @@ export type StartCbgmAnalysisRequest = {
 	settings: CoherenceSettings;
 };
 
+export type CbgmAnalysisPrefill = {
+	name: string;
+	collationIds: string[];
+	settings: CoherenceSettings;
+};
+
 export function analysisSettings(settings: CoherenceSettings): CbgmAnalysisSettings {
 	return {
 		min_extant_units: settings.minExtantUnits,
@@ -28,6 +35,41 @@ export function analysisSettings(settings: CoherenceSettings): CbgmAnalysisSetti
 		dropped_reading_types: settings.droppedReadingTypes,
 		included_correctors: settings.includedCorrectors,
 	};
+}
+
+export function recomputePrefill(
+	analysis: CbgmAnalysisMetadata,
+	deletedCollationIds: readonly string[],
+	today = new Date()
+): CbgmAnalysisPrefill {
+	const { settings } = analysis;
+	const date = [today.getFullYear(), today.getMonth() + 1, today.getDate()]
+		.map(part => String(part).padStart(2, '0'))
+		.join('-');
+	return {
+		name: `${analysis.name} ${date}`,
+		collationIds: analysis.collations
+			.map(collation => collation.collation_id)
+			.filter(id => !deletedCollationIds.includes(id)),
+		settings: {
+			minExtantUnits: settings.min_extant_units,
+			minExtantProportion: settings.min_extant_proportion,
+			excludedWitnesses: [...settings.excluded_witnesses],
+			classicRules: settings.classic_rules,
+			mergeSplitReadings: settings.merge_split_readings,
+			droppedReadingTypes: [...settings.dropped_reading_types],
+			includedCorrectors: [...settings.included_correctors],
+		},
+	};
+}
+
+export async function deleteAnalysis(
+	projectId: string,
+	analysisId: string,
+	scheduler: CbgmScheduler = cbgmScheduler
+): Promise<void> {
+	await scheduler.cancel(analysisId);
+	await deleteCbgmAnalysis(projectId, analysisId);
 }
 
 export async function startCbgmAnalysis(

@@ -4,7 +4,12 @@
 	import { onMount } from 'svelte';
 
 	import { isNotBackedUp } from '$lib/backup/sync-status';
-	import { startCbgmAnalysis } from '$lib/cbgm/cbgm-analysis-runs';
+	import {
+		deleteAnalysis,
+		recomputePrefill,
+		startCbgmAnalysis,
+		type CbgmAnalysisPrefill,
+	} from '$lib/cbgm/cbgm-analysis-runs';
 	import {
 		coherenceBadge,
 		coherenceLabel,
@@ -12,12 +17,18 @@
 		formatAnalysisTime,
 		globalStemmaLabel,
 	} from '$lib/cbgm/cbgm-analysis-labels';
+	import {
+		analysisCollationStatus,
+		type CbgmAnalysisCollationStatus,
+	} from '$lib/cbgm/cbgm-analysis-staleness';
 	import CbgmAnalysisForm from '$lib/cbgm/components/CbgmAnalysisForm.svelte';
+	import CbgmStalenessNote from '$lib/cbgm/components/CbgmStalenessNote.svelte';
 	import { parseProjectCollationSettings } from '$lib/collation/project-settings';
 	import {
 		listCbgmAnalyses,
 		loadCbgmCollationSnapshots,
 		readCbgmAnalysis,
+		readCbgmCollationHashes,
 		subscribeLocalDbInvalidations,
 	} from '$lib/db/client';
 	import type {
@@ -25,14 +36,25 @@
 		CbgmCollationSnapshots,
 	} from '$lib/db/repositories/cbgm-analyses';
 	import type { ProjectRecord } from '$lib/db/repositories/projects';
+	import type { CbgmAnalysisMetadata } from '$lib/storage/formats';
 	import { listProjectLocations, listProjectPlacements } from '$lib/storage/project-locations';
 
 	type AnalysisListRow = CbgmAnalysisRow & { id: string };
+	type AnalysisListEntry = {
+		row: AnalysisListRow;
+		analysis: CbgmAnalysisMetadata | null;
+		status: CbgmAnalysisCollationStatus | null;
+	};
 	type AnalysisListing = {
 		projectId: string;
-		rows: AnalysisListRow[];
-		computingAuthors: Map<string, string | null>;
+		entries: AnalysisListEntry[];
 		locationLabel: string;
+	};
+	type Recompute = {
+		projectId: string;
+		from: string;
+		removed: CbgmAnalysisMetadata['collations'];
+		prefill: CbgmAnalysisPrefill;
 	};
 
 	let { data } = $props<{ data: { project: ProjectRecord } }>();
@@ -41,6 +63,12 @@
 	let snapshots = $state.raw<{ projectId: string; value: CbgmCollationSnapshots } | null>(null);
 	let listingError = $state.raw<{ projectId: string; message: string } | null>(null);
 	let collationsError = $state.raw<{ projectId: string; message: string } | null>(null);
+	let recompute = $state.raw<Recompute | null>(null);
+	let pendingDelete = $state.raw<{ projectId: string; row: AnalysisListRow } | null>(null);
+	let deleteError = $state<string | null>(null);
+	let isDeleting = $state(false);
+	let deleteDialog = $state<HTMLDialogElement>();
+	let formSection = $state<HTMLElement>();
 	let listingRunId = 0;
 	let collationsRunId = 0;
 	let destroyed = false;
@@ -59,6 +87,10 @@
 	const readingTypes = $derived(
 		parseProjectCollationSettings(data.project.collationSettings).readingTypes ?? []
 	);
+	const activeRecompute = $derived(recompute?.projectId === projectId ? recompute : null);
+	const deleting = $derived(
+		pendingDelete && pendingDelete.projectId === projectId ? pendingDelete.row : null
+	);
 
 	$effect(() => {
 		void loadListing(projectId);
@@ -67,7 +99,9 @@
 
 	onMount(() => {
 		const unsubscribe = subscribeLocalDbInvalidations(({ domain }) => {
-			if (['cbgm-analyses', 'projects', 'sync-targets', 'all'].includes(domain)) {
+			if (
+				['cbgm-analyses', 'collations', 'projects', 'sync-targets', 'all'].includes(domain)
+			) {
 				void loadListing(data.project.id);
 			}
 			if (['collations', 'projects', 'all'].includes(domain)) {
@@ -89,17 +123,27 @@
 				listProjectLocations(),
 			]);
 			const rows = indexRows.map(row => ({ ...row, id: row.id ?? '' }));
-			const computingAuthors = new Map<string, string | null>();
-			for (const row of rows.filter(isComputing)) {
-				const metadata = await readCbgmAnalysis(row.id).catch(() => null);
-				computingAuthors.set(row.id, metadata?.computing_device?.author_name ?? null);
-			}
+			const metadata = await Promise.all(
+				rows.map(row => readCbgmAnalysis(row.id).catch(() => null))
+			);
+			const current = await readCbgmCollationHashes(
+				id,
+				metadata.flatMap(
+					analysis => analysis?.collations.map(collation => collation.collation_id) ?? []
+				)
+			);
 			if (destroyed || runId !== listingRunId) return;
 			const placement = placements.find(candidate => candidate.projectId === id);
 			listing = {
 				projectId: id,
-				rows,
-				computingAuthors,
+				entries: rows.map((row, index) => {
+					const analysis = metadata[index];
+					return {
+						row,
+						analysis,
+						status: analysis ? analysisCollationStatus(analysis, current) : null,
+					};
+				}),
 				locationLabel: isNotBackedUp(placement)
 					? 'Not backed up'
 					: (locations.find(location => location.id === placement?.locationId)
@@ -134,6 +178,39 @@
 		settings: CoherenceSettings;
 	}) {
 		await startCbgmAnalysis({ projectId: data.project.id, ...request });
+		recompute = null;
+	}
+
+	function computeAgain(analysis: CbgmAnalysisMetadata, status: CbgmAnalysisCollationStatus) {
+		recompute = {
+			projectId: analysis.project_id,
+			from: analysis.name,
+			removed: analysis.collations.filter(collation =>
+				status.deleted.includes(collation.collation_id)
+			),
+			prefill: recomputePrefill(analysis, status.deleted),
+		};
+		formSection?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+	}
+
+	function askDelete(row: AnalysisListRow) {
+		pendingDelete = { projectId: data.project.id, row };
+		deleteError = null;
+		deleteDialog?.showModal();
+	}
+
+	async function confirmDelete() {
+		if (!deleting || isDeleting) return;
+		isDeleting = true;
+		deleteError = null;
+		try {
+			await deleteAnalysis(deleting.project_id, deleting.id);
+			deleteDialog?.close();
+		} catch (err) {
+			deleteError = errorMessage(err, 'Failed to delete the analysis.');
+		} finally {
+			isDeleting = false;
+		}
 	}
 
 	function isComputing(row: AnalysisListRow): boolean {
@@ -171,7 +248,7 @@
 			<span class="loading loading-spinner loading-sm"></span>
 			Loading analyses...
 		</div>
-	{:else if analyses.rows.length === 0}
+	{:else if analyses.entries.length === 0}
 		<div
 			class="rounded-box border border-dashed border-base-300/80 p-4 text-sm text-base-content/55"
 		>
@@ -179,7 +256,7 @@
 		</div>
 	{:else}
 		<ul class="divide-y divide-base-300/60">
-			{#each analyses.rows as row (row.id)}
+			{#each analyses.entries as { row, analysis, status } (row.id)}
 				<li class="flex flex-col gap-2 py-3 sm:flex-row sm:items-start sm:justify-between">
 					<div class="min-w-0 space-y-0.5">
 						<a
@@ -196,19 +273,39 @@
 						<div class="text-xs text-base-content/55">
 							{inputCounts(row)}
 						</div>
+						{#if analysis && status}
+							<CbgmStalenessNote {analysis} {status} />
+						{/if}
 					</div>
-					<div class="flex flex-wrap items-center gap-1.5 sm:justify-end">
+					<div class="flex shrink-0 flex-wrap items-center gap-1.5 sm:justify-end">
 						<span class="badge badge-sm {coherenceBadge(row.coherence)}">
 							{coherenceLabel(row.coherence)}
 						</span>
 						<span class="badge badge-sm badge-ghost"
 							>{globalStemmaLabel(row.global_stemma)}</span
 						>
-						{#if isComputing(row) && analyses.computingAuthors.get(row.id)}
+						{#if isComputing(row) && analysis?.computing_device}
 							<span class="text-xs text-base-content/60">
-								by {analyses.computingAuthors.get(row.id)}
+								by {analysis.computing_device.author_name}
 							</span>
 						{/if}
+						<div class="flex w-full flex-wrap gap-1 sm:justify-end">
+							<button
+								type="button"
+								class="btn btn-ghost btn-xs"
+								disabled={!analysis || !status}
+								onclick={() => analysis && status && computeAgain(analysis, status)}
+							>
+								Compute again
+							</button>
+							<button
+								type="button"
+								class="btn btn-ghost btn-xs text-error"
+								onclick={() => askDelete(row)}
+							>
+								Delete
+							</button>
+						</div>
 					</div>
 				</li>
 			{/each}
@@ -216,8 +313,27 @@
 	{/if}
 </div>
 
-<div class="rounded-box border border-base-300/50 bg-base-100 p-4 shadow-md">
+<div
+	bind:this={formSection}
+	class="scroll-mt-4 rounded-box border border-base-300/50 bg-base-100 p-4 shadow-md"
+>
 	<h2 class="mb-3 font-serif text-lg font-semibold">New Analysis</h2>
+	{#if activeRecompute}
+		<div class="mb-3 space-y-1 rounded-box bg-base-200/70 p-3 text-sm">
+			<p>
+				Prefilled from <span class="font-medium">{activeRecompute.from}</span>.
+				<button type="button" class="link" onclick={() => (recompute = null)}>
+					Start blank
+				</button>
+			</p>
+			{#each activeRecompute.removed as collation (collation.collation_id)}
+				<p class="text-base-content/70">
+					{collation.segment_name} was deleted since that analysis was frozen, so it is left
+					out.
+				</p>
+			{/each}
+		</div>
+	{/if}
 	{#key projectId}
 		{#if collationsErrorMessage}
 			<div class="alert alert-error text-sm">{collationsErrorMessage}</div>
@@ -229,13 +345,58 @@
 				Loading collations...
 			</div>
 		{:else}
-			<CbgmAnalysisForm
-				collations={collations.collations}
-				unavailable={collations.unavailable}
-				existingNames={analyses?.rows.map(row => row.name) ?? []}
-				{readingTypes}
-				onStart={start}
-			/>
+			{#key activeRecompute}
+				<CbgmAnalysisForm
+					collations={collations.collations}
+					unavailable={collations.unavailable}
+					existingNames={analyses?.entries.map(({ row }) => row.name) ?? []}
+					{readingTypes}
+					prefill={activeRecompute?.prefill}
+					onStart={start}
+				/>
+			{/key}
 		{/if}
 	{/key}
 </div>
+
+<dialog
+	bind:this={deleteDialog}
+	class="modal"
+	aria-label="Delete analysis"
+	oncancel={event => isDeleting && event.preventDefault()}
+>
+	<div class="modal-box w-full max-w-md space-y-3">
+		<h3 class="font-serif text-lg font-bold">Delete analysis</h3>
+		{#if deleting}
+			<p class="text-sm text-base-content/70">
+				This deletes <span class="font-medium">{deleting.name}</span> and its results from
+				this project. It can't be undone.
+				{#if isComputing(deleting)}
+					Its computation stops, and progress saved on this device is discarded.
+				{/if}
+			</p>
+		{/if}
+		{#if deleteError}
+			<div class="alert alert-error text-sm" role="alert">{deleteError}</div>
+		{/if}
+		<div class="modal-action mt-2 flex-wrap">
+			<button
+				type="button"
+				class="btn btn-sm btn-ghost"
+				disabled={isDeleting}
+				onclick={() => deleteDialog?.close()}
+			>
+				Cancel
+			</button>
+			<button
+				type="button"
+				class="btn btn-sm btn-error"
+				disabled={isDeleting || !deleting}
+				onclick={confirmDelete}
+			>
+				{#if isDeleting}<span class="loading loading-spinner loading-xs"></span>{/if}
+				Delete analysis
+			</button>
+		</div>
+	</div>
+</dialog>

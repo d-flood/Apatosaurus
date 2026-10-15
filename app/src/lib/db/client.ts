@@ -106,6 +106,7 @@ export const setCbgmGlobalStemmaState = call('setCbgmGlobalStemmaState');
 export const readCbgmAnalysis = call('readCbgmAnalysis');
 export const findCbgmAnalysis = call('findCbgmAnalysis');
 export const loadCbgmCollationSnapshots = call('loadCbgmCollationSnapshots');
+export const readCbgmCollationHashes = call('readCbgmCollationHashes');
 export const readCbgmAnalysisCache = call('readCbgmAnalysisCache');
 export const readCbgmAnalysisInputTei = call('readCbgmAnalysisInputTei');
 export const listCbgmAnalyses = call('listCbgmAnalyses');

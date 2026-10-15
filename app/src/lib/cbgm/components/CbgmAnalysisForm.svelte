@@ -1,7 +1,9 @@
 <script lang="ts">
 	import type { CoherenceSettings } from '@apatosaurus/open-cbgm-wasm';
 	import { resolve } from '$app/paths';
+	import { untrack } from 'svelte';
 
+	import type { CbgmAnalysisPrefill } from '$lib/cbgm/cbgm-analysis-runs';
 	import { buildCbgmInput } from '$lib/cbgm/cbgm-input';
 	import {
 		resolveReadingTypeVocabulary,
@@ -17,6 +19,7 @@
 		unavailable: CbgmCollationSnapshots['unavailable'];
 		existingNames: readonly string[];
 		readingTypes: readonly ReadingTypeDefinition[];
+		prefill?: CbgmAnalysisPrefill | null;
 		onStart: (request: {
 			name: string;
 			collationIds: string[];
@@ -24,19 +27,30 @@
 		}) => Promise<void>;
 	}
 
-	let { collations, unavailable, existingNames, readingTypes, onStart }: Props = $props();
+	let { collations, unavailable, existingNames, readingTypes, prefill, onStart }: Props =
+		$props();
 
-	let name = $state('');
-	let deselectedCollationIds = $state.raw<string[]>([]);
-	let draft = $state<CoherenceSettings>({
-		minExtantUnits: null,
-		minExtantProportion: null,
-		excludedWitnesses: [],
-		classicRules: false,
-		mergeSplitReadings: false,
-		droppedReadingTypes: [],
-		includedCorrectors: [],
-	});
+	const initial = untrack(() => ({
+		name: prefill?.name ?? '',
+		deselectedCollationIds: prefill
+			? collations
+					.map(collation => collation.collationId)
+					.filter(id => !prefill.collationIds.includes(id))
+			: [],
+		settings: prefill?.settings ?? {
+			minExtantUnits: null,
+			minExtantProportion: null,
+			excludedWitnesses: [],
+			classicRules: false,
+			mergeSplitReadings: false,
+			droppedReadingTypes: [],
+			includedCorrectors: [],
+		},
+	}));
+
+	let name = $state(initial.name);
+	let deselectedCollationIds = $state.raw<string[]>(initial.deselectedCollationIds);
+	let draft = $state<CoherenceSettings>(initial.settings);
 	let isStarting = $state(false);
 	let error = $state<string | null>(null);
 

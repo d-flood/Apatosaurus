@@ -58,6 +58,11 @@ export interface CbgmCollationSnapshots {
 	unavailable: { collationId: string; title: string; message: string }[];
 }
 
+export interface CbgmCurrentCollationHashes {
+	hashes: Record<string, string>;
+	unavailable: string[];
+}
+
 interface AnalysisLocation {
 	projectId: string;
 	storageSlug: string;
@@ -239,6 +244,55 @@ export async function loadCollationSnapshots(
 		}
 	});
 	return snapshots;
+}
+
+export async function readCurrentCollationHashes(
+	db: Kysely<Database>,
+	projectId: string,
+	collationIds: readonly string[],
+	storeOptions: StoreOperationOptions = {}
+): Promise<CbgmCurrentCollationHashes> {
+	const result: CbgmCurrentCollationHashes = { hashes: {}, unavailable: [] };
+	const ids = [...new Set(collationIds)];
+	if (ids.length === 0) return result;
+	const [indexed, tombstoned] = await Promise.all([
+		db
+			.selectFrom('collations')
+			.select('id')
+			.where('project_id', '=', projectId)
+			.where('id', 'in', ids)
+			.execute(),
+		db
+			.selectFrom('sync_tombstones')
+			.select('entity_id')
+			.where('project_id', '=', projectId)
+			.where('entity_type', '=', 'collation')
+			.where('entity_id', 'in', ids)
+			.execute(),
+	]);
+	const indexedIds = new Set(indexed.map(row => row.id));
+	const deletedIds = new Set(tombstoned.map(row => row.entity_id));
+	await Promise.all(
+		ids.map(async collationId => {
+			if (!indexedIds.has(collationId)) {
+				if (!deletedIds.has(collationId)) result.unavailable.push(collationId);
+				return;
+			}
+			try {
+				const payload = await loadCommittedCollationPayloadWithFiles(
+					db,
+					collationId,
+					storeOptions
+				);
+				result.hashes[collationId] = await hashCanonicalPayload(
+					collationPayloadToContent(payload)
+				);
+			} catch {
+				result.unavailable.push(collationId);
+			}
+		})
+	);
+	return result;
 }
 
 export async function readCache(

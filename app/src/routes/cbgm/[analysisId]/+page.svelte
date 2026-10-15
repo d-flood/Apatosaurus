@@ -10,13 +10,29 @@
 		globalStemmaLabel,
 		undecidedReadingsLabel,
 	} from '$lib/cbgm/cbgm-analysis-labels';
+	import {
+		analysisCollationStatus,
+		type CbgmAnalysisCollationStatus,
+	} from '$lib/cbgm/cbgm-analysis-staleness';
+	import CbgmStalenessNote from '$lib/cbgm/components/CbgmStalenessNote.svelte';
 	import { BUNDLED_READING_TYPES, findReadingTypeDefinition } from '$lib/collation/reading-types';
-	import { subscribeLocalDbInvalidations } from '$lib/db/client';
+	import { readCbgmCollationHashes, subscribeLocalDbInvalidations } from '$lib/db/client';
+	import type { CbgmAnalysisMetadata } from '$lib/storage/formats';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
 
+	let collationStatus = $state.raw<{
+		analysisId: string;
+		status: CbgmAnalysisCollationStatus;
+	} | null>(null);
+	let statusRunId = 0;
+	let destroyed = false;
+
 	const analysis = $derived(data.analysis);
+	const status = $derived(
+		collationStatus?.analysisId === analysis.id ? collationStatus.status : null
+	);
 	const settings = $derived(analysis.settings);
 	const settingsSummary = $derived([
 		{
@@ -48,13 +64,32 @@
 		{ label: 'Witnesses', value: analysis.witnesses.length },
 	]);
 
-	onMount(() =>
-		subscribeLocalDbInvalidations(({ domain }) => {
+	$effect(() => {
+		void loadStatus(analysis);
+	});
+
+	onMount(() => {
+		const unsubscribe = subscribeLocalDbInvalidations(({ domain }) => {
 			if (domain === 'cbgm-analyses' || domain === 'projects' || domain === 'all') {
 				void invalidate('app:cbgm-analysis');
 			}
-		})
-	);
+			if (domain === 'collations') void loadStatus(analysis);
+		});
+		return () => {
+			destroyed = true;
+			unsubscribe();
+		};
+	});
+
+	async function loadStatus(target: CbgmAnalysisMetadata) {
+		const runId = ++statusRunId;
+		const collationIds = target.collations.map(collation => collation.collation_id);
+		const next = await readCbgmCollationHashes(target.project_id, collationIds)
+			.then(hashes => analysisCollationStatus(target, hashes))
+			.catch(() => ({ changed: [], deleted: [], unavailable: collationIds }));
+		if (destroyed || runId !== statusRunId) return;
+		collationStatus = { analysisId: target.id, status: next };
+	}
 </script>
 
 <div class="container mx-auto max-w-6xl space-y-6 p-4">
@@ -93,6 +128,10 @@
 				<dd>{formatAnalysisTime(analysis.completed_at)}</dd>
 			</div>
 		</dl>
+
+		{#if status}
+			<CbgmStalenessNote {analysis} {status} />
+		{/if}
 
 		<p class="text-sm">{undecidedReadingsLabel(analysis.undecided_readings.length)}</p>
 
