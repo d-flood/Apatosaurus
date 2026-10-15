@@ -2,6 +2,7 @@ import { expect, test, type Browser, type BrowserContext, type Page } from '@pla
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { WELCOME_SKIPPED_STORAGE_KEY } from '../src/lib/shell/welcome-gate';
+import { PROJECT_MANIFEST_CURRENT_VERSION } from '../src/lib/storage/formats/project-manifest';
 import { placeCaretAtLineEnd } from './editor-helpers';
 import { SharedFolderServer } from './shared-folder-server';
 
@@ -289,7 +290,7 @@ test('upgrade fixture migrates on save and rebuilds after an index version bump'
 		forked_from?: unknown;
 	};
 	expect(manifest).toMatchObject({
-		schema_version: 2,
+		schema_version: PROJECT_MANIFEST_CURRENT_VERSION,
 		description: 'Synthetic v1 fixture saved as v2',
 		forked_from: null,
 	});

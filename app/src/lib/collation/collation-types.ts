@@ -106,6 +106,7 @@ export interface ClassifiedReading {
 	isOmission: boolean;
 	isLacuna: boolean;
 	readingType: ReadingTypeId | null;
+	readingTags?: string[];
 	certainty: Certainty | null;
 	parentReadingId: string | null;
 	isSubreading: boolean;
@@ -120,6 +121,7 @@ export type AlignmentLayout = 'grid' | 'variation-units';
 export interface ProjectCollationSettings {
 	regularizationRules?: RegularizationRule[];
 	readingTypes?: ReadingTypeDefinition[];
+	readingTags?: Array<{ id: string; label: string }>;
 	ignoreWordBreaks?: boolean;
 	lowercase?: boolean;
 	ignoreTokenWhitespace?: boolean;

@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import alpha from '../src/lib/storage/formats/fixtures/alpha-collation-v2.json' with { type: 'json' };
 import { sealDocument, serializeSealedDocument } from '../src/lib/storage/envelope';
 import { hashCanonicalPayload } from '../src/lib/storage/canonical-json';
+import { COLLATION_CURRENT_VERSION } from '../src/lib/storage/formats/collation';
 import { SharedFolderServer } from './shared-folder-server';
 
 test('alpha upgrade opens existing OPFS collation edits and preserves them after reload', async ({
@@ -43,7 +44,7 @@ test('alpha upgrade opens existing OPFS collation edits and preserves them after
 			),
 		};
 	});
-	expect(stored.primary.schema_version).toBe(9);
+	expect(stored.primary.schema_version).toBe(COLLATION_CURRENT_VERSION);
 	expect(stored.original.schema_version).toBe(2);
 	expect(stored.working).toBeNull();
 	expect(stored.primary.notes).toBe('Unsaved alpha work');

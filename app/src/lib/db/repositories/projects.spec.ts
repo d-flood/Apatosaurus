@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { StoredTranscriptionDocument } from '$lib/transcription/content';
 import {
 	PROJECT_MANIFEST_FORMAT,
+	PROJECT_MANIFEST_CURRENT_VERSION,
 	COLLATION_FORMAT,
 	PROJECT_TRANSCRIPTION_FORMAT,
 	TOMBSTONE_FORMAT,
@@ -1702,7 +1703,7 @@ describe('projects repository', () => {
 				forked_from: {
 					source_project_id: 'project-a',
 					source_manifest_content_hash: expect.stringMatching(/^sha256:/),
-					source_manifest_schema_version: 2,
+					source_manifest_schema_version: PROJECT_MANIFEST_CURRENT_VERSION,
 				},
 			},
 		});

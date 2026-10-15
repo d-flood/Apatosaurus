@@ -80,6 +80,24 @@
 		unitIndex;
 		return new SvelteMap<string, string>();
 	});
+	const tagDrafts = $derived.by(() => {
+		unitIndex;
+		return new SvelteMap<string, string>();
+	});
+	let readingTags = $derived(collationState.getReadingTags());
+
+	async function addTag(reading: ClassifiedReading) {
+		const value = tagDrafts.get(reading.id) ?? '';
+		const result = await collationState.addReadingTag(unitIndex, reading.id, value);
+		if (!result.ok) return;
+		tagDrafts.delete(reading.id);
+		liveMessage = `Added tag to reading ${reading.label}.`;
+	}
+
+	function removeTag(reading: ClassifiedReading, tagId: string) {
+		collationState.removeReadingTag(unitIndex, reading.id, tagId);
+		liveMessage = `Removed tag from reading ${reading.label}.`;
+	}
 
 	$effect(() => {
 		if (selectedSpan) {
@@ -1032,6 +1050,24 @@
 										}}
 									/>
 
+									{#if reading.readingTags?.length}
+										<div class="flex flex-wrap gap-1">
+											{#each reading.readingTags as tagId (tagId)}
+												{@const label =
+													readingTags.find(tag => tag.id === tagId)
+														?.label ?? tagId}
+												<button
+													type="button"
+													class="badge badge-outline h-auto max-w-full gap-1 whitespace-normal break-words py-1 text-left"
+													aria-label={`Remove tag ${label} from reading ${reading.label}`}
+													onclick={() => removeTag(reading, tagId)}
+													>{label}
+													<span aria-hidden="true">×</span></button
+												>
+											{/each}
+										</div>
+									{/if}
+
 									{#if getDisplayedWitnessIds(reading).length === 0}
 										<span class="text-sm italic text-base-content/25"
 											>no witnesses</span
@@ -1106,6 +1142,43 @@
 									<div
 										class="dropdown-content z-20 w-72 space-y-2 rounded-box border border-base-300/60 bg-base-100 p-3 shadow-lg"
 									>
+										<div class="flex items-end gap-1">
+											<label
+												class="block min-w-0 flex-1 text-xs text-base-content/50"
+											>
+												<span>Reading tags</span>
+												<input
+													class="input input-bordered input-xs mt-1 w-full"
+													aria-label={`Tag for reading ${reading.label}`}
+													list={`reading-tags-${reading.id}`}
+													placeholder="Choose or enter a tag"
+													value={tagDrafts.get(reading.id) ?? ''}
+													oninput={event =>
+														tagDrafts.set(
+															reading.id,
+															event.currentTarget.value
+														)}
+													onkeydown={event => {
+														if (event.key === 'Enter') {
+															event.preventDefault();
+															void addTag(reading);
+														}
+													}}
+												/>
+												<datalist id={`reading-tags-${reading.id}`}>
+													{#each readingTags.filter(tag => !reading.readingTags?.includes(tag.id)) as tag (tag.id)}
+														<option value={tag.label}></option>
+													{/each}
+												</datalist>
+											</label>
+											<button
+												type="button"
+												class="btn btn-ghost btn-xs"
+												aria-label={`Add tag to reading ${reading.label}`}
+												disabled={!(tagDrafts.get(reading.id) ?? '').trim()}
+												onclick={() => addTag(reading)}>Add tag</button
+											>
+										</div>
 										<div class="flex items-center gap-1">
 											<button
 												type="button"

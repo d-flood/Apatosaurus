@@ -819,10 +819,13 @@ async function reconcileLocalMirror(
 		.executeTakeFirstOrThrow();
 	const projectReadingTypes =
 		parseProjectCollationSettings(project.collation_settings).readingTypes ?? [];
+	const projectReadingTags =
+		parseProjectCollationSettings(project.collation_settings).readingTags ?? [];
 	const { files: derivedTeiFiles, absentPaths } = await regenerateDerivedTeiFiles(
 		projectRoot,
 		storeOptions,
-		projectReadingTypes
+		projectReadingTypes,
+		projectReadingTags
 	);
 	for (const path of absentPaths) {
 		const remoteFile = remoteFiles.get(path);
@@ -839,7 +842,8 @@ async function reconcileLocalMirror(
 						projectFileText(remoteContent(conflictingPrimary)),
 						context.projectId,
 						storeOptions,
-						projectReadingTypes
+						projectReadingTypes,
+						projectReadingTags
 					)
 				: localFile.content;
 		} catch (error) {
@@ -1107,7 +1111,8 @@ async function readLocalMirrorFile(
 async function regenerateDerivedTeiFiles(
 	projectRoot: string,
 	storeOptions: StoreOperationOptions,
-	projectReadingTypes: readonly ReadingTypeDefinition[]
+	projectReadingTypes: readonly ReadingTypeDefinition[],
+	projectReadingTags: ReadonlyArray<{ id: string; label: string }>
 ): Promise<{ files: LocalMirrorFile[]; absentPaths: string[] }> {
 	const files: LocalMirrorFile[] = [];
 	for (const folder of ['transcriptions', 'collations']) {
@@ -1133,7 +1138,8 @@ async function regenerateDerivedTeiFiles(
 				projectFileText(primary.content),
 				undefined,
 				storeOptions,
-				projectReadingTypes
+				projectReadingTypes,
+				projectReadingTags
 			);
 		} catch (error) {
 			if (!(error instanceof ApparatusExportError)) throw error;
@@ -1160,7 +1166,8 @@ async function deriveTeiFromCanonicalPrimary(
 	content: string,
 	projectId?: string,
 	storeOptions: StoreOperationOptions = {},
-	projectReadingTypes: readonly ReadingTypeDefinition[] = []
+	projectReadingTypes: readonly ReadingTypeDefinition[] = [],
+	projectReadingTags: ReadonlyArray<{ id: string; label: string }> = []
 ): Promise<string> {
 	const format = canonicalFormatForProjectPath(path);
 	if (!format) throw new Error(`No canonical format is registered for ${path}.`);
@@ -1178,7 +1185,8 @@ async function deriveTeiFromCanonicalPrimary(
 			)
 		: exportCollationDocumentTei(
 				(parsed.payload as CollationPayload).document,
-				projectReadingTypes
+				projectReadingTypes,
+				projectReadingTags
 			);
 }
 

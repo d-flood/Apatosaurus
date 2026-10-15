@@ -143,6 +143,7 @@ function exportInput(): ApparatusTeiExportInput {
 		baseTextWitnessId: collationState.getBaseTextWitnessId(),
 		segments,
 		units,
+		readingTags: collationState.getReadingTags(),
 	};
 }
 
@@ -191,6 +192,35 @@ function reconstructWitness(document: XmlDocument, witnessId: string): string {
 }
 
 describe('apparatus TEI exporter', () => {
+	it('declares tags once and references them on main and subreadings in valid P5', async () => {
+		const readings = collationState.peekReadingsForUnit(1);
+		const alpha = readings.find(reading => reading.text === 'alpha')!;
+		const beta = readings.find(reading => reading.text === 'beta')!;
+		await collationState.addReadingTag(1, alpha.id, 'Nomen sacrum');
+		await collationState.addReadingTag(1, alpha.id, 'Abbreviation & contraction');
+		await collationState.addReadingTag(1, beta.id, 'nomen SACRUM');
+		const input = exportInput();
+		const xml = exportApparatusTei(input);
+		const document = parse(xml);
+		const tags = Array.from(document.getElementsByTagName('interp'));
+		expect(tags.map(tag => tag.textContent)).toEqual([
+			'Nomen sacrum',
+			'Abbreviation & contraction',
+		]);
+		const [ns, abbreviation] = tags.map(tag => `#${tag.getAttribute('xml:id')}`);
+		expect(document.getElementsByTagName('lem')[0]?.getAttribute('ana')).toBe(
+			`${ns} ${abbreviation}`
+		);
+		const exported = Array.from(document.getElementsByTagName('rdg'));
+		expect(
+			exported.find(reading => reading.getAttribute('n') === 'a')?.getAttribute('ana')
+		).toBe(`${ns} ${abbreviation}`);
+		expect(
+			exported.find(reading => reading.getAttribute('n') === 'av')?.getAttribute('ana')
+		).toBe(ns);
+		expect(() => validateTeiP5(xml)).not.toThrow();
+	}, 60_000);
+
 	beforeEach(() => {
 		collationState.reset();
 		collationState.setWitnesses([

@@ -589,6 +589,107 @@ describe('ReadingsPhase ambiguous attestations', () => {
 	});
 });
 
+describe('ReadingsPhase reading tags', () => {
+	const originalViewport = { width: window.innerWidth, height: window.innerHeight };
+	afterEach(async () => {
+		await page.viewport(originalViewport.width, originalViewport.height);
+	});
+
+	it.each([390, 1280])('adds existing and new tags, and removes badges at %ipx', async width => {
+		await page.viewport(width, 844);
+		collationState.reset();
+		collate([
+			makeWitness('A', 'λογος', true),
+			makeWitness('B', 'θεος'),
+			makeWitness('C', 'πνευμα'),
+		]);
+		collationState.setAlignmentDisplayMode('original');
+		const main = collationState.peekReadingsForUnit(0)[0];
+		await collationState.addReadingTag(0, main.id, 'Nomen sacrum');
+		collationState.removeReadingTag(0, main.id, collationState.getReadingTags()[0].id);
+		const sub = collationState.peekReadingsForUnit(0)[1];
+		collationState.setReadingParent(0, sub.id, main.id, 'orthographic');
+		const label = collationState
+			.peekReadingsForUnit(0)
+			.find(reading => reading.id === sub.id)!.label;
+		render(ReadingsPhase);
+		await expect
+			.poll(() =>
+				[...document.querySelectorAll('summary')].map(element =>
+					element.getAttribute('aria-label')
+				)
+			)
+			.toContain(`More actions for reading ${label}`);
+		(
+			document
+				.querySelector(`summary[aria-label="More actions for reading ${label}"]`)!
+				.closest('details') as HTMLDetailsElement
+		).open = true;
+		const input = page.getByRole('combobox', { name: `Tag for reading ${label}`, exact: true });
+		await expect.element(input).toBeVisible();
+		expect(
+			document
+				.querySelector(`input[aria-label="Tag for reading ${label}"]`)
+				?.getAttribute('list')
+		).toBeTruthy();
+		expect(
+			[...document.querySelectorAll('datalist option')].some(
+				option => option.getAttribute('value') === 'Nomen sacrum'
+			)
+		).toBe(true);
+		await input.fill('nomen SACRUM');
+		await page
+			.getByRole('button', { name: `Add tag to reading ${label}`, exact: true })
+			.click();
+		const badge = page.getByRole('button', {
+			name: `Remove tag Nomen sacrum from reading ${label}`,
+			exact: true,
+		});
+		await expect.element(badge).toBeVisible();
+		await input.fill('Abbreviation');
+		await page
+			.getByRole('button', { name: `Add tag to reading ${label}`, exact: true })
+			.click();
+		await expect
+			.element(
+				page.getByRole('button', {
+					name: `Remove tag Abbreviation from reading ${label}`,
+					exact: true,
+				})
+			)
+			.toBeVisible();
+		expect(collationState.getReadingTags().map(tag => tag.label)).toEqual([
+			'Nomen sacrum',
+			'Abbreviation',
+		]);
+		expect(
+			collationState.peekReadingsForUnit(0).find(reading => reading.id === sub.id)
+				?.readingTags
+		).toHaveLength(2);
+		await expect
+			.poll(() => {
+				const menu = document
+					.querySelector(`input[aria-label="Tag for reading ${label}"]`)!
+					.closest('.dropdown-content')!;
+				const bounds = menu.getBoundingClientRect();
+				return (
+					bounds.left >= 0 &&
+					bounds.right <= width &&
+					menu.scrollWidth <= menu.clientWidth
+				);
+			})
+			.toBe(true);
+		await badge.click();
+		await expect.element(badge).not.toBeInTheDocument();
+		expect(
+			collationState.peekReadingsForUnit(0).find(reading => reading.id === sub.id)
+				?.readingTags
+		).toEqual([collationState.getReadingTags()[1].id]);
+		collationState.undo();
+		await expect.element(badge).toBeVisible();
+	});
+});
+
 describe('ReadingsPhase placement review', () => {
 	const originalViewport = { width: window.innerWidth, height: window.innerHeight };
 	afterEach(async () => {

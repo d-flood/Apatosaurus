@@ -511,8 +511,8 @@ function regenerateDerivedCollationTei(
 	entries: ValidatedStagedProjectEntry[],
 	manifest: ProjectManifestPayload
 ): ValidatedStagedProjectEntry[] {
-	const projectReadingTypes =
-		parseProjectCollationSettings(manifest.collation_settings).readingTypes ?? [];
+	const settings = parseProjectCollationSettings(manifest.collation_settings);
+	const projectReadingTypes = settings.readingTypes ?? [];
 	const regenerated = entries.filter(entry => !/^collations\/[^/]+\.tei\.xml$/.test(entry.path));
 	for (const entry of entries) {
 		if (entry.format !== COLLATION_FORMAT) continue;
@@ -520,7 +520,11 @@ function regenerateDerivedCollationTei(
 		try {
 			regenerated.push({
 				path: `collations/${payload.id}.tei.xml`,
-				content: exportCollationDocumentTei(payload.document, projectReadingTypes),
+				content: exportCollationDocumentTei(
+					payload.document,
+					projectReadingTypes,
+					settings.readingTags
+				),
 				format: null,
 			});
 		} catch (error) {

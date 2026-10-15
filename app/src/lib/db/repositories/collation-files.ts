@@ -83,6 +83,7 @@ interface CollationFileContext {
 	projectId: string;
 	projectStorageSlug: string;
 	projectReadingTypes: ReadingTypeDefinition[];
+	projectReadingTags: Array<{ id: string; label: string }>;
 	currentRevisionId: string | null;
 	currentContentHash: string | null;
 	conflictOfCollationId: string;
@@ -579,6 +580,7 @@ async function loadCollationFileContext(
 		projectStorageSlug: requireString(row.project_storage_slug, 'project storage slug'),
 		projectReadingTypes:
 			parseProjectCollationSettings(row.collation_settings).readingTypes ?? [],
+		projectReadingTags: parseProjectCollationSettings(row.collation_settings).readingTags ?? [],
 		currentRevisionId: emptyToNull(row.current_revision_id),
 		currentContentHash: emptyToNull(row.current_content_hash),
 		conflictOfCollationId: row.conflict_of_collation_id,
@@ -615,12 +617,12 @@ async function writeDerivedCollationTei(
 	payload: CollationPayload,
 	storeOptions: StoreOperationOptions
 ): Promise<PersistenceWarning | null> {
-	const { projectStorageSlug, collationId, projectReadingTypes } = context;
+	const { projectStorageSlug, collationId, projectReadingTypes, projectReadingTags } = context;
 	const path = collationTeiFile(projectStorageSlug, collationId);
 	try {
 		await writeTextFileAtomic(
 			path,
-			exportCollationDocumentTei(payload.document, projectReadingTypes),
+			exportCollationDocumentTei(payload.document, projectReadingTypes, projectReadingTags),
 			storeOptions
 		);
 		return null;

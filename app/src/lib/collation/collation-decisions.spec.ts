@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ClassifiedReading } from './collation-types';
 import {
 	applyDecisions,
+	cloneUnitDecisions,
 	findOrphanedUnitDecisions,
 	withAmbiguousAttestation,
 	type UnitDecisions,
@@ -40,6 +41,35 @@ function attested(id: string, witnessIds: string[]): ClassifiedReading {
 }
 
 describe('decision overlay', () => {
+	it('projects tags onto main and subreadings without changing citation or attachment', () => {
+		const proposal = [reading('alpha', 0), reading('form', 1, 'alpha'), reading('beta', 2)];
+		const plain = applyDecisions(proposal, {});
+		const decisions = { readingTags: { alpha: ['ns', 'abbreviation'], form: ['ns'] } };
+		const tagged = applyDecisions(proposal, decisions);
+		expect(
+			tagged.readings.map(({ readingTags: _, witnessGroups: _groups, ...entry }) => entry)
+		).toEqual(plain.readings.map(({ witnessGroups: _, ...entry }) => entry));
+		expect(tagged.readings.find(entry => entry.id === 'alpha')?.readingTags).toEqual([
+			'ns',
+			'abbreviation',
+		]);
+		expect(tagged.readings.find(entry => entry.id === 'form')?.readingTags).toEqual(['ns']);
+		expect(tagged.orphanedDecisions).toEqual([]);
+		const cloned = cloneUnitDecisions(decisions);
+		cloned.readingTags!.alpha.push('other');
+		expect(decisions.readingTags.alpha).toEqual(['ns', 'abbreviation']);
+		expect(applyDecisions([reading('beta', 2)], decisions).orphanedDecisions).toEqual([
+			{
+				kind: 'readingTag',
+				readingId: 'alpha',
+				tagIds: ['ns', 'abbreviation'],
+				missingReadingIds: ['alpha'],
+			},
+			{ kind: 'readingTag', readingId: 'form', tagIds: ['ns'], missingReadingIds: ['form'] },
+		]);
+		expect(applyDecisions([], { readingTags: { alpha: [] } }).orphanedDecisions).toEqual([]);
+	});
+
 	it('applies a recorded cross-text attachment over the proposal and relabels readings', () => {
 		const result = applyDecisions(
 			[reading('alpha', 0), reading('beta', 1), reading('beta-form', 2, 'beta')],

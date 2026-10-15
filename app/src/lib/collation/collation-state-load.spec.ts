@@ -523,6 +523,50 @@ describe('collationState artifact-first persistence', () => {
 		);
 	}, 30000);
 
+	it('persists new tags to the project and collation, reusing saved labels', async () => {
+		const project = await getProject();
+		getProject.mockResolvedValue({
+			...project,
+			collationSettings: {
+				...project.collationSettings,
+				readingTags: [{ id: 'ns', label: 'Nomen sacrum' }],
+			},
+		});
+		const loaded = await loadCollation();
+		loadCollation.mockResolvedValue({
+			...loaded,
+			artifact: {
+				...loaded.artifact,
+				payload: makeReadingTypeDocumentPayload(),
+			},
+		});
+		const state = await importState();
+		state.reset();
+		expect(await state.loadCollationById('col-1')).toBe(true);
+		const beta = state.getReadingsForUnit(0).find(reading => reading.text === 'beta')!;
+		await state.addReadingTag(0, beta.id, ' nomen SACRUM ');
+		await state.addReadingTag(0, beta.id, 'Abbreviation');
+		expect(state.getReadingTags()).toHaveLength(2);
+		expect(updateProjectMetadata).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				projectId: 'proj-1',
+				collationSettings: expect.objectContaining({
+					readingTags: [
+						{ id: 'ns', label: 'Nomen sacrum' },
+						{ id: expect.any(String), label: 'Abbreviation' },
+					],
+				}),
+			})
+		);
+		expect(await state.flushPendingSave()).toBe(true);
+		const payload = JSON.parse(saveCollationArtifact.mock.lastCall![0].payload);
+		expect(payload.apparatus.units[0].decisions.readingTags[beta.id]).toEqual(
+			state.getReadingTags().map(tag => tag.id)
+		);
+		state.reset();
+		expect(state.getReadingTags()).toEqual([]);
+	}, 30000);
+
 	it('drops a project reading-type vocabulary on reset', async () => {
 		getProject.mockResolvedValue({
 			id: 'proj-1',

@@ -11,6 +11,25 @@ function coerceRegularizationType(value: unknown): RegularizationType {
 	return value === 'ns' ? 'ns' : 'none';
 }
 
+function coerceReadingTags(value: unknown): NonNullable<ProjectCollationSettings['readingTags']> {
+	if (!Array.isArray(value)) return [];
+	const tags: NonNullable<ProjectCollationSettings['readingTags']> = [];
+	const ids = new Set<string>();
+	const labels = new Set<string>();
+	for (const entry of value) {
+		if (!entry || typeof entry !== 'object') continue;
+		if (typeof entry.id !== 'string' || !entry.id.trim() || typeof entry.label !== 'string')
+			continue;
+		const label = entry.label.trim();
+		const key = label.toLowerCase();
+		if (!label || ids.has(entry.id) || labels.has(key)) continue;
+		tags.push({ id: entry.id, label });
+		ids.add(entry.id);
+		labels.add(key);
+	}
+	return tags;
+}
+
 function coerceRegularizationRule(value: unknown): RegularizationRule | null {
 	if (!value || typeof value !== 'object') return null;
 	const raw = value as Record<string, unknown>;
@@ -84,6 +103,7 @@ export function parseProjectCollationSettings(value: unknown): ProjectCollationS
 	return {
 		regularizationRules,
 		readingTypes: coerceReadingTypeDefinitions(settings.readingTypes),
+		readingTags: coerceReadingTags(settings.readingTags),
 		ignoreWordBreaks: settings.ignoreWordBreaks === true,
 		lowercase: settings.lowercase === true,
 		ignoreTokenWhitespace: settings.ignoreTokenWhitespace !== false,
@@ -107,11 +127,13 @@ export function createProjectCollationSettings(
 		transcriptionWitnessTreatments: Map<string, WitnessTreatment>;
 		transcriptionWitnessExcludedHands: Map<string, string[]>;
 		readingTypes: ReadingTypeDefinition[];
+		readingTags?: ProjectCollationSettings['readingTags'];
 	}
 ): ProjectCollationSettings {
 	const settings: ProjectCollationSettings = {
 		regularizationRules: rules.filter(rule => rule.scope === 'project'),
 		readingTypes: options.readingTypes,
+		readingTags: coerceReadingTags(options.readingTags),
 		ignoreWordBreaks: options.ignoreWordBreaks,
 		lowercase: options.lowercase,
 		ignoreTokenWhitespace: options.ignoreTokenWhitespace,
