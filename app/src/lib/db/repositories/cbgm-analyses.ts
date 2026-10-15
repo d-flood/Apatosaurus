@@ -1,7 +1,10 @@
 import type { Kysely, Selectable } from 'kysely';
 
+import type { CollationDocument } from '$lib/collation/collation-document';
+import { hashCanonicalPayload } from '$lib/storage/canonical-json';
 import {
 	CBGM_ANALYSIS_FORMAT,
+	collationPayloadToContent,
 	readCanonicalDocument,
 	serializeCanonicalDocument,
 	type CbgmAnalysisCollation,
@@ -25,6 +28,7 @@ import { effectiveAuthorName } from '$lib/backup/version-author';
 
 import type { CbgmAnalyses, Database } from '../types.generated';
 import type { DbExecutor } from '../worker-kysely';
+import { loadCommittedCollationPayloadWithFiles } from './collation-files';
 import { createId } from './id';
 import { withProjectWriteLock } from './project-locks';
 
@@ -39,6 +43,19 @@ export interface CreateCbgmAnalysisInput {
 	inputTei: string;
 	coherence: Extract<CbgmCoherenceState, 'computing' | 'awaiting-import'>;
 	id?: string;
+}
+
+export interface CbgmCollationSnapshot {
+	collationId: string;
+	title: string;
+	segmentName: string;
+	contentHash: string;
+	document: CollationDocument;
+}
+
+export interface CbgmCollationSnapshots {
+	collations: CbgmCollationSnapshot[];
+	unavailable: { collationId: string; title: string; message: string }[];
 }
 
 interface AnalysisLocation {
@@ -165,6 +182,65 @@ export async function readAnalysis(
 	return readMetadata(await locateAnalysis(db, analysisId), analysisId, storeOptions);
 }
 
+export async function findAnalysis(
+	db: DbExecutor,
+	analysisId: string,
+	storeOptions: StoreOperationOptions = {}
+): Promise<CbgmAnalysisMetadata | null> {
+	const location = await findAnalysisLocation(db, analysisId);
+	return location ? readMetadata(location, analysisId, storeOptions) : null;
+}
+
+export async function loadCollationSnapshots(
+	db: Kysely<Database>,
+	projectId: string,
+	collationIds?: readonly string[],
+	storeOptions: StoreOperationOptions = {}
+): Promise<CbgmCollationSnapshots> {
+	const rows = (
+		await db
+			.selectFrom('collations')
+			.select(['id', 'title'])
+			.where('project_id', '=', projectId)
+			.where('conflict_of_collation_id', '=', '')
+			.orderBy('sort_key', 'asc')
+			.orderBy('title', 'asc')
+			.orderBy('id', 'asc')
+			.execute()
+	).map(row => ({ id: row.id ?? '', title: row.title }));
+	const chosen = collationIds ? rows.filter(row => collationIds.includes(row.id)) : rows;
+	const missing = collationIds?.filter(id => !chosen.some(row => row.id === id)) ?? [];
+	if (missing.length > 0) {
+		throw new Error(`Collation ${missing.join(', ')} is not in project ${projectId}.`);
+	}
+	const results = await Promise.allSettled(
+		chosen.map(async row => {
+			const payload = await loadCommittedCollationPayloadWithFiles(db, row.id, storeOptions);
+			return {
+				collationId: payload.id,
+				title: payload.title,
+				segmentName: payload.document.setup.segment.name,
+				contentHash: await hashCanonicalPayload(collationPayloadToContent(payload)),
+				document: payload.document,
+			};
+		})
+	);
+	const snapshots: CbgmCollationSnapshots = { collations: [], unavailable: [] };
+	results.forEach((result, index) => {
+		if (result.status === 'fulfilled') {
+			snapshots.collations.push(result.value);
+		} else {
+			snapshots.unavailable.push({
+				collationId: chosen[index].id,
+				title: chosen[index].title,
+				message:
+					result.reason instanceof Error ? result.reason.message : String(result.reason),
+			});
+		}
+	});
+	return snapshots;
+}
+
 export async function readCache(
 	db: DbExecutor,
 	analysisId: string,
@@ -266,14 +342,22 @@ async function publishMetadata(
 }
 
 async function locateAnalysis(db: DbExecutor, analysisId: string): Promise<AnalysisLocation> {
+	const location = await findAnalysisLocation(db, analysisId);
+	if (!location) throw new Error(`CBGM analysis ${analysisId} was not found.`);
+	return location;
+}
+
+async function findAnalysisLocation(
+	db: DbExecutor,
+	analysisId: string
+): Promise<AnalysisLocation | null> {
 	const row = await db
 		.selectFrom('cbgm_analyses')
 		.innerJoin('projects', 'projects.id', 'cbgm_analyses.project_id')
 		.select(['cbgm_analyses.project_id as project_id', 'projects.storage_slug as storage_slug'])
 		.where('cbgm_analyses.id', '=', analysisId)
 		.executeTakeFirst();
-	if (!row) throw new Error(`CBGM analysis ${analysisId} was not found.`);
-	return { projectId: row.project_id, storageSlug: row.storage_slug };
+	return row ? { projectId: row.project_id, storageSlug: row.storage_slug } : null;
 }
 
 async function readMetadata(

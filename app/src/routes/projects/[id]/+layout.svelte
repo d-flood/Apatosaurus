@@ -73,6 +73,12 @@
 					Collations
 				</a>
 				<a
+					href={resolve('/projects/[id]/cbgm', { id: project.id })}
+					class={['tab', isActive('cbgm') && 'tab-active']}
+				>
+					CBGM
+				</a>
+				<a
 					href={resolve('/projects/[id]/settings', { id: project.id })}
 					class={['tab', isActive('settings') && 'tab-active']}
 				>

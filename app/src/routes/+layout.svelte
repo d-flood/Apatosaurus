@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import favicon from '$lib/assets/favicon.ico';
+	import { persistCbgmComputations } from '$lib/cbgm/cbgm-analysis-runs';
 	import { cbgmScheduler } from '$lib/cbgm/cbgm-scheduler.svelte';
 	import { checkStoragePersistence } from '$lib/shell/capabilities';
 	import { ensureLocalDbRuntime } from '$lib/db/runtime';
@@ -28,6 +29,7 @@
 		try {
 			void checkStoragePersistence();
 			await ensureLocalDbRuntime();
+			persistCbgmComputations(cbgmScheduler);
 			cbgmScheduler
 				.start()
 				.catch(error => console.error('Failed to resume CBGM computations:', error));

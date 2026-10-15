@@ -32,6 +32,7 @@ function readSection(pathname: string): ProjectSection {
 	const section = pathname.split('/').filter(Boolean).at(-1);
 	if (
 		section === 'collations' ||
+		section === 'cbgm' ||
 		section === 'settings' ||
 		section === 'location' ||
 		section === 'transcriptions'

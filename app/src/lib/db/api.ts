@@ -344,6 +344,9 @@ export const dbApi = defineApi({
 		return analysis;
 	},
 	readCbgmAnalysis: ({ db }, analysisId: string) => cbgmAnalyses.readAnalysis(db, analysisId),
+	findCbgmAnalysis: ({ db }, analysisId: string) => cbgmAnalyses.findAnalysis(db, analysisId),
+	loadCbgmCollationSnapshots: ({ db }, projectId: string, collationIds?: string[]) =>
+		cbgmAnalyses.loadCollationSnapshots(db, projectId, collationIds),
 	readCbgmAnalysisCache: ({ db }, analysisId: string) => cbgmAnalyses.readCache(db, analysisId),
 	readCbgmAnalysisInputTei: ({ db }, analysisId: string) =>
 		cbgmAnalyses.readInputTei(db, analysisId),
