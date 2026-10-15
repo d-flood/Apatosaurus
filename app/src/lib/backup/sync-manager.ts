@@ -35,6 +35,8 @@ import { canonicalJson } from '$lib/storage/canonical-json';
 import { hashContent } from '$lib/storage/content-hash';
 import type { StoreQuarantineRecord, StoreQuarantineReason } from '$lib/storage/quarantine';
 import { ApparatusExportError, exportCollationDocumentTei } from '$lib/collation/collation-tei';
+import { parseProjectCollationSettings } from '$lib/collation/project-settings';
+import type { ReadingTypeDefinition } from '$lib/collation/reading-types';
 import {
 	rebuildIndexFromStore,
 	restoreOrphanPrimaryToProject,
@@ -810,9 +812,17 @@ async function reconcileLocalMirror(
 		}
 	}
 
+	const project = await db
+		.selectFrom('projects')
+		.select('collation_settings')
+		.where('id', '=', context.projectId)
+		.executeTakeFirstOrThrow();
+	const projectReadingTypes =
+		parseProjectCollationSettings(project.collation_settings).readingTypes ?? [];
 	const { files: derivedTeiFiles, absentPaths } = await regenerateDerivedTeiFiles(
 		projectRoot,
-		storeOptions
+		storeOptions,
+		projectReadingTypes
 	);
 	for (const path of absentPaths) {
 		const remoteFile = remoteFiles.get(path);
@@ -828,7 +838,8 @@ async function reconcileLocalMirror(
 						conflictingPrimary.path,
 						projectFileText(remoteContent(conflictingPrimary)),
 						context.projectId,
-						storeOptions
+						storeOptions,
+						projectReadingTypes
 					)
 				: localFile.content;
 		} catch (error) {
@@ -1095,7 +1106,8 @@ async function readLocalMirrorFile(
 
 async function regenerateDerivedTeiFiles(
 	projectRoot: string,
-	storeOptions: StoreOperationOptions
+	storeOptions: StoreOperationOptions,
+	projectReadingTypes: readonly ReadingTypeDefinition[]
 ): Promise<{ files: LocalMirrorFile[]; absentPaths: string[] }> {
 	const files: LocalMirrorFile[] = [];
 	for (const folder of ['transcriptions', 'collations']) {
@@ -1120,7 +1132,8 @@ async function regenerateDerivedTeiFiles(
 				primary.path,
 				projectFileText(primary.content),
 				undefined,
-				storeOptions
+				storeOptions,
+				projectReadingTypes
 			);
 		} catch (error) {
 			if (!(error instanceof ApparatusExportError)) throw error;
@@ -1146,7 +1159,8 @@ async function deriveTeiFromCanonicalPrimary(
 	path: string,
 	content: string,
 	projectId?: string,
-	storeOptions: StoreOperationOptions = {}
+	storeOptions: StoreOperationOptions = {},
+	projectReadingTypes: readonly ReadingTypeDefinition[] = []
 ): Promise<string> {
 	const format = canonicalFormatForProjectPath(path);
 	if (!format) throw new Error(`No canonical format is registered for ${path}.`);
@@ -1162,7 +1176,10 @@ async function deriveTeiFromCanonicalPrimary(
 				parsed.payload as ProjectTranscriptionPayload,
 				storeOptions
 			)
-		: exportCollationDocumentTei((parsed.payload as CollationPayload).document);
+		: exportCollationDocumentTei(
+				(parsed.payload as CollationPayload).document,
+				projectReadingTypes
+			);
 }
 
 async function deleteStoreFileIfExists(

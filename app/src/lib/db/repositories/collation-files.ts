@@ -41,6 +41,8 @@ import {
 	type CollationDocument as SemanticCollationDocument,
 } from '$lib/collation/collation-document';
 import { exportCollationDocumentTei } from '$lib/collation/collation-tei';
+import { parseProjectCollationSettings } from '$lib/collation/project-settings';
+import type { ReadingTypeDefinition } from '$lib/collation/reading-types';
 import { buildCollationProjectionFromDocument } from '$lib/collation/collation-projection';
 import { hashCanonicalPayload } from '$lib/storage/canonical-json';
 import { deriveEntityCloudBackupState } from '$lib/backup/backup-status';
@@ -80,6 +82,7 @@ interface CollationFileContext {
 	collationId: string;
 	projectId: string;
 	projectStorageSlug: string;
+	projectReadingTypes: ReadingTypeDefinition[];
 	currentRevisionId: string | null;
 	currentContentHash: string | null;
 	conflictOfCollationId: string;
@@ -254,12 +257,7 @@ export async function createCommittedCollationCheckpointWithFiles(
 			primaryPayload,
 			storeOptions
 		);
-		const teiWarning = await writeDerivedCollationTei(
-			context.projectStorageSlug,
-			context.collationId,
-			primaryPayload,
-			storeOptions
-		);
+		const teiWarning = await writeDerivedCollationTei(context, primaryPayload, storeOptions);
 		await writeProjectManifestFile(
 			db,
 			context.projectId,
@@ -372,12 +370,7 @@ export async function replaceCollationCurrent(
 			payload,
 			storeOptions
 		);
-		await writeDerivedCollationTei(
-			context.projectStorageSlug,
-			collationId,
-			payload,
-			storeOptions
-		);
+		await writeDerivedCollationTei(context, payload, storeOptions);
 		await db.transaction().execute(async trx => {
 			await trx
 				.updateTable('collations')
@@ -570,6 +563,7 @@ async function loadCollationFileContext(
 		.select([
 			'collations.project_id as project_id',
 			'projects.storage_slug as project_storage_slug',
+			'projects.collation_settings as collation_settings',
 			'collations.current_revision_id as current_revision_id',
 			'collations.current_content_hash as current_content_hash',
 			'collations.conflict_of_collation_id as conflict_of_collation_id',
@@ -583,6 +577,8 @@ async function loadCollationFileContext(
 		collationId,
 		projectId: requireString(row.project_id, 'project id'),
 		projectStorageSlug: requireString(row.project_storage_slug, 'project storage slug'),
+		projectReadingTypes:
+			parseProjectCollationSettings(row.collation_settings).readingTypes ?? [],
 		currentRevisionId: emptyToNull(row.current_revision_id),
 		currentContentHash: emptyToNull(row.current_content_hash),
 		conflictOfCollationId: row.conflict_of_collation_id,
@@ -615,14 +611,18 @@ async function writeSealedJsonFile<
 }
 
 async function writeDerivedCollationTei(
-	projectStorageSlug: string,
-	collationId: string,
+	context: CollationFileContext,
 	payload: CollationPayload,
 	storeOptions: StoreOperationOptions
 ): Promise<PersistenceWarning | null> {
+	const { projectStorageSlug, collationId, projectReadingTypes } = context;
 	const path = collationTeiFile(projectStorageSlug, collationId);
 	try {
-		await writeTextFileAtomic(path, exportCollationDocumentTei(payload.document), storeOptions);
+		await writeTextFileAtomic(
+			path,
+			exportCollationDocumentTei(payload.document, projectReadingTypes),
+			storeOptions
+		);
 		return null;
 	} catch (error) {
 		try {
@@ -703,12 +703,7 @@ async function writeCurrentCollationFiles(
 		payload,
 		storeOptions
 	);
-	await writeDerivedCollationTei(
-		context.projectStorageSlug,
-		context.collationId,
-		payload,
-		storeOptions
-	);
+	await writeDerivedCollationTei(context, payload, storeOptions);
 }
 
 async function tryReadWorkingCollationPayload(
@@ -827,12 +822,7 @@ async function migrateLegacyWorkingCollation(
 		current,
 		storeOptions
 	);
-	await writeDerivedCollationTei(
-		context.projectStorageSlug,
-		context.collationId,
-		current,
-		storeOptions
-	);
+	await writeDerivedCollationTei(context, current, storeOptions);
 	await deleteFile(
 		collationWorkingFile(context.projectStorageSlug, context.collationId),
 		storeOptions

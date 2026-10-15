@@ -12,6 +12,7 @@ import type { ClassifiedReading } from './collation-types';
 import { variationUnitId } from './collation-unit-id';
 import { buildVariationUnitSpans } from './collation-variation-units';
 import { isPunctuationOnlyText } from './token-text';
+import { resolveReadingTypeVocabulary, type ReadingTypeDefinition } from './reading-types';
 
 type ApparatusExportRefusalKind = 'undecided-source' | 'untranscribed-witness' | 'missing-lemma';
 
@@ -384,7 +385,11 @@ function activeWitnessIds(
 	return ordered;
 }
 
-export function buildApparatusTeiExportInput(document: CollationDocument): ApparatusTeiExportInput {
+export function buildApparatusTeiExportInput(
+	document: CollationDocument,
+	projectReadingTypes: readonly ReadingTypeDefinition[] = []
+): ApparatusTeiExportInput {
+	const vocabulary = resolveReadingTypeVocabulary(projectReadingTypes);
 	const columns = deserializeAlignmentColumns(document.alignment?.columns ?? []);
 	const baseTextWitnessId =
 		document.setup.witnesses.find(witness => witness.isBaseText && !witness.isExcluded)?.id ??
@@ -420,6 +425,7 @@ export function buildApparatusTeiExportInput(document: CollationDocument): Appar
 		});
 		const view = applyDecisions(saved?.readings ?? proposal.readings, decisions, {
 			baseWitnessId: baseTextWitnessId,
+			vocabulary,
 		});
 		const stemmaUnit = stemmaByUnitId.get(unitId);
 		units.set(unitId, {
@@ -452,6 +458,9 @@ export function buildApparatusTeiExportInput(document: CollationDocument): Appar
 	};
 }
 
-export function exportCollationDocumentTei(document: CollationDocument): string {
-	return exportApparatusTei(buildApparatusTeiExportInput(document));
+export function exportCollationDocumentTei(
+	document: CollationDocument,
+	projectReadingTypes: readonly ReadingTypeDefinition[] = []
+): string {
+	return exportApparatusTei(buildApparatusTeiExportInput(document, projectReadingTypes));
 }

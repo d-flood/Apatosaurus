@@ -41,6 +41,7 @@ import {
 import type { JsonObject } from '$lib/storage/envelope';
 import type { StoreQuarantineRecord } from '$lib/storage/quarantine';
 import { ApparatusExportError, exportCollationDocumentTei } from '$lib/collation/collation-tei';
+import { parseProjectCollationSettings } from '$lib/collation/project-settings';
 import { hashCanonicalPayload } from '$lib/storage/canonical-json';
 import {
 	isCbgmSidecarFile,
@@ -291,7 +292,7 @@ async function prepareImport(
 		.executeTakeFirst();
 	if (!existing)
 		return {
-			entries: regenerateDerivedCollationTei(entries),
+			entries: regenerateDerivedCollationTei(entries, manifest),
 			manifest,
 			storageSlug: deriveStorageSlug(manifest.name, manifest.id),
 			mode: 'created',
@@ -308,7 +309,7 @@ async function prepareImport(
 	}
 	if (options.collisionMode === 'replace')
 		return {
-			entries: regenerateDerivedCollationTei(entries),
+			entries: regenerateDerivedCollationTei(entries, manifest),
 			manifest,
 			storageSlug: existing.storage_slug,
 			mode: 'replaced',
@@ -499,7 +500,7 @@ async function copyProjectEntries(
 		});
 	}
 	return {
-		entries: regenerateDerivedCollationTei(rewritten),
+		entries: regenerateDerivedCollationTei(rewritten, manifest),
 		manifest,
 		storageSlug: deriveStorageSlug(copyName, copyId),
 		mode: 'copied',
@@ -507,8 +508,11 @@ async function copyProjectEntries(
 }
 
 function regenerateDerivedCollationTei(
-	entries: ValidatedStagedProjectEntry[]
+	entries: ValidatedStagedProjectEntry[],
+	manifest: ProjectManifestPayload
 ): ValidatedStagedProjectEntry[] {
+	const projectReadingTypes =
+		parseProjectCollationSettings(manifest.collation_settings).readingTypes ?? [];
 	const regenerated = entries.filter(entry => !/^collations\/[^/]+\.tei\.xml$/.test(entry.path));
 	for (const entry of entries) {
 		if (entry.format !== COLLATION_FORMAT) continue;
@@ -516,7 +520,7 @@ function regenerateDerivedCollationTei(
 		try {
 			regenerated.push({
 				path: `collations/${payload.id}.tei.xml`,
-				content: exportCollationDocumentTei(payload.document),
+				content: exportCollationDocumentTei(payload.document, projectReadingTypes),
 				format: null,
 			});
 		} catch (error) {

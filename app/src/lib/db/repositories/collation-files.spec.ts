@@ -41,6 +41,13 @@ import { createProject as createProjectRepository } from './projects';
 import { projectWriteLockName } from './project-locks';
 import { createCollation, saveCollationProjection } from './collations';
 import { createCommittedCollationCheckpoint } from './revisions';
+import { parseCollationDocument } from '$lib/collation/collation-document';
+import { MockCloudStorageProvider } from '$lib/backup/providers/mock-provider';
+import { backupProject } from '$lib/backup/sync-manager';
+import { exportProjectZip } from '$lib/backup/project-zip-export';
+import { importProjectZip } from '$lib/backup/project-zip-import';
+import { writeProjectManifestFile } from './project-files';
+import { MemoryStoreBackend as ImportStoreBackend } from '$lib/storage/memory-store-backend.spec-support';
 import {
 	createCollationWithFilesResult,
 	createCommittedCollationCheckpointWithFiles,
@@ -699,6 +706,79 @@ describe('collation file persistence', () => {
 			{ backend }
 		);
 		expect(status.commitState).toBe('clean');
+	});
+
+	it('keeps custom subreading suffixes through persistence, sync and archive import', async () => {
+		await createFixtureCollation();
+		const readingTypes = [
+			{
+				id: 'itacism',
+				label: 'Itacism',
+				description: '',
+				selectable: true,
+				suffix: 'i',
+			},
+		];
+		await harness.db
+			.updateTable('projects')
+			.set({ collation_settings: JSON.stringify({ readingTypes }) })
+			.where('id', '=', 'project-1')
+			.execute();
+		await writeProjectManifestFile(harness.db, 'project-1', {}, { backend });
+		const document = parseCollationDocument(completeCollationDocument())!;
+		const unit = document.apparatus!.units[0];
+		unit.decisions.subreadingOf = { 'variant::beta': 'variant::alpha' };
+		unit.decisions.readingType = { 'variant::beta': 'itacism' };
+		await saveWorkingCollationArtifact(
+			harness.db,
+			{
+				collationId: 'col-1',
+				artifactType: 'collation_document_v1',
+				payload: JSON.stringify(document),
+			},
+			{ backend }
+		);
+		const path = collationTeiFile('project-slug', 'col-1');
+		expect(await readTextFile(path, { backend })).toContain('n="ai"');
+		await createCommittedCollationCheckpointWithFiles(
+			harness.db,
+			{
+				collationId: 'col-1',
+				checkpointId: 'custom-suffix',
+			},
+			{ backend }
+		);
+		expect(await readTextFile(path, { backend })).toContain('n="ai"');
+		await writeTextFileAtomic(path, '<stale/>', { backend });
+		const provider = new MockCloudStorageProvider();
+		const cloudFolderId = await provider.createFolder('Project');
+		const result = await backupProject(
+			harness.db,
+			provider,
+			{
+				connectionId: 'suffix-location',
+				projectId: 'project-1',
+				cloudFolderId,
+				cloudFolderPath: 'Project',
+			},
+			{ storeOptions: { backend } }
+		);
+		expect(result.uiState).toBe('synced');
+		expect(await readTextFile(path, { backend })).toContain('n="ai"');
+		const archive = await exportProjectZip(harness.db, 'project-1', {
+			storeOptions: { backend },
+		});
+		const importedBackend = new ImportStoreBackend();
+		const imported = await importProjectZip(harness.db, archive.bytes, {
+			collisionMode: 'copy',
+			storeOptions: { backend: importedBackend },
+		});
+		expect(imported.ok, JSON.stringify(imported.quarantinedFiles)).toBe(true);
+		expect(
+			await readTextFile(collationTeiFile(imported.storageSlug, 'col-1'), {
+				backend: importedBackend,
+			})
+		).toContain('n="ai"');
 	});
 
 	it('writes reconstructive derived TEI for a complete collation commit', async () => {
