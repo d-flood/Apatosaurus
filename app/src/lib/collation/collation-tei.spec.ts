@@ -225,7 +225,7 @@ describe('apparatus TEI exporter', () => {
 		const graph = document.getElementsByTagName('graph')[0]!;
 
 		expect(document.getElementsByTagName('rdgGrp')).toHaveLength(0);
-		expect(readings.map(reading => reading.getAttribute('n'))).toEqual(['a', 'a1', 'b', 'zz']);
+		expect(readings.map(reading => reading.getAttribute('n'))).toEqual(['a', 'av', 'b', 'zz']);
 		expect(readings[1]?.getAttribute('type')).toBe('apparent');
 		expect(readings[1]?.getAttribute('cert')).toBe('low');
 		expect(readings[2]?.getAttribute('type')).toBe('om');
@@ -243,7 +243,7 @@ describe('apparatus TEI exporter', () => {
 		const arcs = Array.from(graph.getElementsByTagName('arc'));
 		expect(arcs).toHaveLength(1);
 		expect(arcs.every(arc => arc.getAttribute('to') !== `#${alphaNodeId}`)).toBe(true);
-		expect(graph.getElementsByTagName('node').item(0)?.getAttribute('n')).not.toBe('a1');
+		expect(graph.getElementsByTagName('node').item(0)?.getAttribute('n')).not.toBe('av');
 		expect(graph.getElementsByTagName('node').item(0)?.getAttribute('n')).not.toBe('zz');
 	});
 

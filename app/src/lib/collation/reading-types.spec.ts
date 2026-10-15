@@ -35,8 +35,8 @@ describe('reading type vocabulary', () => {
 
 	it('extends the bundled vocabulary with project values and lets a project relabel one', () => {
 		const vocabulary = resolveReadingTypeVocabulary([
-			{ id: 'itacism', label: 'Itacism', description: '', selectable: true },
-			{ id: 'nonsense', label: 'Not Greek', description: '', selectable: true },
+			{ id: 'itacism', label: 'Itacism', description: '', selectable: true, suffix: 'i' },
+			{ id: 'nonsense', label: 'Not Greek', description: '', selectable: true, suffix: 'f' },
 		]);
 
 		expect(vocabulary.find(type => type.id === 'itacism')?.label).toBe('Itacism');
@@ -47,7 +47,7 @@ describe('reading type vocabulary', () => {
 	it('refuses to let project data make a bundled non-selectable type selectable', () => {
 		const parsed = coerceReadingTypeDefinitions([
 			{ id: 'omission', label: 'Omission' },
-			{ id: 'omission-like', label: 'Omission-like' },
+			{ id: 'omission-like', label: 'Omission-like', suffix: 'm' },
 		]);
 
 		expect(parsed.find(type => type.id === 'omission')?.selectable).toBe(false);
@@ -57,6 +57,47 @@ describe('reading type vocabulary', () => {
 				.filter(type => type.selectable)
 				.map(type => type.id)
 		).not.toContain('omission');
+	});
+});
+
+describe('reading type suffixes', () => {
+	it('gives the bundled subreading types their suffixes and omission none', () => {
+		expect(
+			Object.fromEntries(BUNDLED_READING_TYPES.map(type => [type.id, type.suffix]))
+		).toEqual({
+			omission: '',
+			deficient: 'd',
+			apparent: 'v',
+			nonsense: 'f',
+			orthographic: 'o',
+		});
+	});
+
+	it('drops a project type whose suffix is missing, not one lowercase letter, or already used', () => {
+		const parsed = coerceReadingTypeDefinitions([
+			{ id: 'itacism', label: 'Itacism', suffix: 'i' },
+			{ id: 'missing', label: 'Missing' },
+			{ id: 'empty', label: 'Empty', suffix: '' },
+			{ id: 'long', label: 'Long', suffix: 'ab' },
+			{ id: 'capital', label: 'Capital', suffix: 'C' },
+			{ id: 'digit', label: 'Digit', suffix: '1' },
+			{ id: 'bundled-clash', label: 'Bundled clash', suffix: 'o' },
+			{ id: 'project-clash', label: 'Project clash', suffix: 'i' },
+		]);
+
+		expect(parsed.map(type => [type.id, type.suffix])).toEqual([['itacism', 'i']]);
+	});
+
+	it('keeps the bundled suffix when a project relabels a bundled type', () => {
+		const parsed = coerceReadingTypeDefinitions([
+			{ id: 'nonsense', label: 'Not Greek', suffix: 'n' },
+			{ id: 'nasal', label: 'Nasal', suffix: 'n' },
+		]);
+
+		expect(parsed.map(type => [type.id, type.suffix])).toEqual([
+			['nonsense', 'f'],
+			['nasal', 'n'],
+		]);
 	});
 });
 

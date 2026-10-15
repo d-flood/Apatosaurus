@@ -31,7 +31,9 @@ vi.mock('$lib/shell/capabilities', () => ({
 
 vi.mock('$lib/db/client', () => ({
 	listPendingUploadPaths: vi.fn(),
+	getProject: vi.fn(),
 	getProjectTranscriptionStatusForOwnedTranscription: vi.fn(),
+	loadCollation: vi.fn(),
 	listCollationsWithProjectNames: mocks.listCollationsWithProjectNames,
 	listConflictCopies: mocks.listConflictCopies,
 	listProjects: mocks.listProjects,

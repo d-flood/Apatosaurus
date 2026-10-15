@@ -463,3 +463,83 @@ describe('ReadingsPhase deletion guard', () => {
 		expect(menu.textContent).toContain('still attest this reading');
 	});
 });
+
+describe('ReadingsPhase subreading types', () => {
+	beforeEach(() => {
+		collationState.reset();
+		collate([makeWitness('A', 'λογος', true), makeWitness('B', 'θεος')]);
+	});
+
+	function openMenu(label: string): HTMLDetailsElement {
+		const menu = document
+			.querySelector(`summary[aria-label="More actions for reading ${label}"]`)!
+			.closest('details') as HTMLDetailsElement;
+		menu.open = true;
+		return menu;
+	}
+
+	function selectIn(menu: HTMLElement, labelText: string): HTMLSelectElement {
+		const label = [...menu.querySelectorAll('label')].find(element =>
+			element.textContent?.includes(labelText)
+		);
+		if (!label) throw new Error(`no control labelled ${labelText}`);
+		return label.querySelector('select')!;
+	}
+
+	function buttonIn(menu: HTMLElement, text: string): HTMLButtonElement {
+		const button = [...menu.querySelectorAll('button')].find(element =>
+			element.textContent?.includes(text)
+		);
+		if (!button) throw new Error(`no button labelled ${text}`);
+		return button;
+	}
+
+	function labels(): string[] {
+		return collationState.peekReadingsForUnit(0).map(reading => reading.label);
+	}
+
+	it('adds a subreading only once a reading type is chosen', async () => {
+		render(ReadingsPhase);
+		await expect
+			.element(page.getByRole('button', { name: 'A', exact: true }))
+			.toBeInTheDocument();
+		const menu = openMenu('a');
+
+		expect(buttonIn(menu, 'Add subreading').disabled).toBe(true);
+		buttonIn(menu, 'Add subreading').click();
+		expect(labels()).toEqual(['a', 'b']);
+
+		await userEvent.selectOptions(selectIn(menu, 'New subreading type'), 'orthographic');
+		await expect.poll(() => buttonIn(menu, 'Add subreading').disabled).toBe(false);
+		buttonIn(menu, 'Add subreading').click();
+
+		await expect.poll(labels).toEqual(['a', 'b', 'ao']);
+		expect(
+			collationState.peekReadingsForUnit(0).find(reading => reading.label === 'ao')
+				?.readingType
+		).toBe('orthographic');
+	});
+
+	it('attaches a reading as a subreading only once a reading type is chosen', async () => {
+		render(ReadingsPhase);
+		await expect
+			.element(page.getByRole('button', { name: 'A', exact: true }))
+			.toBeInTheDocument();
+		const main = collationState.peekReadingsForUnit(0).find(reading => reading.label === 'a')!;
+		const menu = openMenu('b');
+
+		await userEvent.selectOptions(selectIn(menu, 'Attach as subreading of'), main.id);
+		await expect.poll(() => buttonIn(menu, 'Attach').disabled).toBe(true);
+		buttonIn(menu, 'Attach').click();
+		expect(labels()).toEqual(['a', 'b']);
+
+		await userEvent.selectOptions(selectIn(menu, 'Subreading type'), 'nonsense');
+		await expect.poll(() => buttonIn(menu, 'Attach').disabled).toBe(false);
+		buttonIn(menu, 'Attach').click();
+
+		await expect.poll(labels).toEqual(['a', 'af']);
+		await expect
+			.element(page.getByTestId('readings-announcer'))
+			.toHaveTextContent('b is now a subreading.');
+	});
+});

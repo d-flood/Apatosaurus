@@ -177,7 +177,7 @@ describe('renderApparatusUnit', () => {
 			readingTypeLabelOf: readingType => readingType.toUpperCase(),
 		});
 
-		expect(notation).toBe(`${unit.label} ⸂ λογος ] a: 0A | a1 (ORTHOGRAPHIC): 0B | b: 0C`);
+		expect(notation).toBe(`${unit.label} ⸂ λογος ] a: 0A | ao (ORTHOGRAPHIC): 0B | b: 0C`);
 	});
 
 	it('cites the witnesses of a subreading attached to another subreading', () => {
@@ -201,7 +201,7 @@ describe('renderApparatusUnit', () => {
 		});
 
 		expect(notation).toContain(': C');
-		expect(notation).toBe(`${unit.label} ⸂ λογος ] a: A | a1: B | a2: C`);
+		expect(notation).toBe(`${unit.label} ⸂ λογος ] a: A | a?1: B | a?2: C`);
 	});
 
 	it('cannot be rendered without a non-attestation report', () => {

@@ -50,7 +50,7 @@ describe('decision overlay', () => {
 		).toEqual([
 			{ id: 'beta', label: 'a', parentReadingId: null },
 			{ id: 'beta-form', label: 'b', parentReadingId: null },
-			{ id: 'alpha', label: 'a1', parentReadingId: 'beta' },
+			{ id: 'alpha', label: 'a?', parentReadingId: 'beta' },
 		]);
 		expect(result.orphanedDecisions).toEqual([]);
 	});
@@ -225,20 +225,26 @@ describe('decision overlay', () => {
 
 describe('reading type and certainty decisions', () => {
 	it('outranks the proposed type and records "no type" distinctly from undecided', () => {
-		const proposal = [reading('alpha', 0), reading('alpha-form', 1, 'alpha')];
+		const proposal = [
+			reading('alpha', 0),
+			{ ...reading('beta', 1), readingType: 'deficient' },
+			reading('alpha-form', 2, 'alpha'),
+		];
 
 		const decided = applyDecisions(proposal, {
-			readingType: { alpha: 'apparent', 'alpha-form': null },
+			readingType: { alpha: 'apparent', beta: null, 'alpha-form': null },
 		});
 
 		expect(decided.readings.map(entry => [entry.id, entry.readingType])).toEqual([
 			['alpha', 'apparent'],
-			['alpha-form', null],
+			['beta', null],
+			['alpha-form', 'nonsense'],
 		]);
 		expect(
 			applyDecisions(proposal, {}).readings.map(entry => [entry.id, entry.readingType])
 		).toEqual([
 			['alpha', null],
+			['beta', 'deficient'],
 			['alpha-form', 'nonsense'],
 		]);
 	});

@@ -266,12 +266,12 @@ describe('alpha project upgrade', () => {
 					? [
 							['r-a', 0, 'a'],
 							['r-b', 1, 'b'],
-							['split-c', 0, 'b1'],
+							['split-c', 0, 'bo'],
 						]
 					: [
 							['r-b', 0, 'a'],
 							['r-a', 1, 'b'],
-							['split-c', 0, 'a1'],
+							['split-c', 0, 'ao'],
 						];
 				expect(
 					view.readings.map(reading => [reading.id, reading.order, reading.label])

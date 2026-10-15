@@ -1,7 +1,7 @@
 import { makeMainReadingIdOf, relabelReadings } from './collation-reading-proposal';
 import type { SourceDecision } from './collation-stemma';
 import type { ClassifiedReading, ReadingArc } from './collation-types';
-import type { Certainty, ReadingTypeId } from './reading-types';
+import type { Certainty, ReadingTypeDefinition, ReadingTypeId } from './reading-types';
 
 export interface UnitDecisions {
 	/** Legacy alpha hand-edits; cannot regenerate. */
@@ -83,7 +83,10 @@ export function cloneUnitDecisions(decisions: UnitDecisions | undefined): UnitDe
 export function applyDecisions(
 	proposal: ClassifiedReading[],
 	decisions: UnitDecisions,
-	options?: { baseWitnessId?: string | null }
+	options?: {
+		baseWitnessId?: string | null;
+		vocabulary?: readonly ReadingTypeDefinition[];
+	}
 ): UnitView {
 	const baseWitnessId = options?.baseWitnessId ?? null;
 	const readingIds = new Set(proposal.map(reading => reading.id));
@@ -147,17 +150,22 @@ export function applyDecisions(
 	}
 
 	const readings = proposal.map(reading => {
+		const parentReadingId = applicable.has(reading.id)
+			? (applicable.get(reading.id) ?? null)
+			: reading.parentReadingId;
+		const recordedType = readingTypes.get(reading.id) ?? null;
 		const decided = {
 			...reading,
-			readingType: readingTypes.has(reading.id)
-				? (readingTypes.get(reading.id) ?? null)
-				: reading.readingType,
+			// A subreading recorded as "no type" falls back to the proposed type.
+			readingType:
+				recordedType !== null || (readingTypes.has(reading.id) && parentReadingId === null)
+					? recordedType
+					: reading.readingType,
 			certainty: certainties.has(reading.id)
 				? (certainties.get(reading.id) ?? null)
 				: reading.certainty,
 		};
 		if (!applicable.has(reading.id)) return decided;
-		const parentReadingId = applicable.get(reading.id) ?? null;
 		return {
 			...decided,
 			parentReadingId,
@@ -196,7 +204,8 @@ export function applyDecisions(
 		readings: relabelReadings(
 			readings,
 			baseTextReadingId ? baseWitnessId : null,
-			decisions.preserveReadings && designatedLemmaId === null ? null : lemmaReadingId
+			decisions.preserveReadings && designatedLemmaId === null ? null : lemmaReadingId,
+			options?.vocabulary
 		),
 		orphanedDecisions,
 		lemmaReadingId,

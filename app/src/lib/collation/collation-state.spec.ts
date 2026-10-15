@@ -607,7 +607,7 @@ describe('collationState stemma derivation', () => {
 		const sub = readings.find(reading => reading.text === 'θς');
 
 		expect(base?.label).toBe('a');
-		expect(sub?.label).toBe('a1');
+		expect(sub?.label).toBe('af');
 		expect(sub?.readingType).toBe('nonsense');
 		expect(sub?.parentReadingId).toBe(base?.id);
 		expect(sub?.isSubreading).toBe(true);
@@ -2449,7 +2449,7 @@ describe('collationState bulk witness partitioning', () => {
 			.getReadingsForUnit(0)
 			.find(reading => result.ok && reading.id === result.readingId);
 		expect(split?.parentReadingId).toBe(main.id);
-		expect(split?.label).toBe('b1');
+		expect(split?.label).toBe('b?');
 		expect(split?.witnessIds).toEqual(['B']);
 	});
 

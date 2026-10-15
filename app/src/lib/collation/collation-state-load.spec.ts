@@ -539,7 +539,13 @@ describe('collationState artifact-first persistence', () => {
 				segmentation: true,
 				transcriptionWitnessTreatments: {},
 				readingTypes: [
-					{ id: 'itacism', label: 'Itacism', description: '', selectable: true },
+					{
+						id: 'itacism',
+						label: 'Itacism',
+						description: '',
+						selectable: true,
+						suffix: 'i',
+					},
 				],
 			},
 			createdAt: '2026-03-10T00:00:00.000Z',

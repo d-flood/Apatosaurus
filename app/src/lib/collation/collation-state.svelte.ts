@@ -72,6 +72,7 @@ import {
 import {
 	buildReadingProposal,
 	getReadingFamilyKey,
+	isUntypedSubreading,
 	makeMainReadingIdOf,
 	relabelReadings,
 	type NonAttestation,
@@ -1561,6 +1562,7 @@ function createCollationState() {
 	function viewUnit(key: string, proposal: ClassifiedReading[]): UnitView {
 		return applyDecisions(proposal, unitDecisions.get(key) ?? {}, {
 			baseWitnessId: getBaseTextWitnessId(),
+			vocabulary: getReadingTypeVocabulary(),
 		});
 	}
 
@@ -1827,7 +1829,8 @@ function createCollationState() {
 	function setReadingParent(
 		unitIndex: number,
 		readingId: string,
-		parentReadingId: string | null
+		parentReadingId: string | null,
+		readingType?: ReadingTypeId
 	): { ok: true } | { ok: false; error: 'reading-not-found' | 'self-attachment' | 'cycle' } {
 		const key = getReadingUnitKey(unitIndex);
 		if (!key) return { ok: false, error: 'reading-not-found' };
@@ -1841,6 +1844,7 @@ function createCollationState() {
 		const previous = new Map(unitDecisions);
 		const next = cloneUnitDecisions(previous.get(key));
 		next.subreadingOf = { ...next.subreadingOf, [readingId]: parentReadingId };
+		if (readingType) next.readingType = { ...next.readingType, [readingId]: readingType };
 		const updated = new Map(previous).set(key, next);
 		unitDecisions = updated;
 		pushCommand({
@@ -2031,9 +2035,10 @@ function createCollationState() {
 		unitId: string;
 		readingIds: string[];
 	}[] {
+		const vocabulary = getReadingTypeVocabulary();
 		return forEachUnitView((view, span) => {
 			const readingIds = view.readings
-				.filter(reading => reading.parentReadingId !== null && reading.readingType === null)
+				.filter(reading => isUntypedSubreading(reading, vocabulary))
 				.map(reading => reading.id);
 			return readingIds.length > 0
 				? {
@@ -2045,13 +2050,27 @@ function createCollationState() {
 		});
 	}
 
-	function addReading(unitIndex: number, options?: { parentReadingId?: string | null }) {
+	function addReading(
+		unitIndex: number,
+		options?: { parentReadingId?: string | null; readingType?: ReadingTypeId }
+	) {
 		const readings = ensureReadingsForUnit(unitIndex);
 		const reading = emptyReading(readings, options?.parentReadingId ?? null);
-		commitReadingsForUnit(unitIndex, [...readings, reading], {
-			type: 'add-reading',
-			description: reading.parentReadingId ? 'Add subreading' : 'Add reading',
-		});
+		const key = getReadingUnitKey(unitIndex);
+		let decisions: UnitDecisions | undefined;
+		if (key && options?.readingType) {
+			decisions = cloneUnitDecisions(unitDecisions.get(key));
+			decisions.readingType = { ...decisions.readingType, [reading.id]: options.readingType };
+		}
+		commitReadingsForUnit(
+			unitIndex,
+			[...readings, reading],
+			{
+				type: 'add-reading',
+				description: reading.parentReadingId ? 'Add subreading' : 'Add reading',
+			},
+			decisions
+		);
 		return reading.id;
 	}
 

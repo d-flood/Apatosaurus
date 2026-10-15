@@ -37,6 +37,7 @@ describe('project collation settings', () => {
 					label: 'Itacism',
 					description: 'Vowel confusion characteristic of the scribe.',
 					selectable: true,
+					suffix: 'i',
 				},
 			],
 		});
@@ -47,6 +48,7 @@ describe('project collation settings', () => {
 				label: 'Itacism',
 				description: 'Vowel confusion characteristic of the scribe.',
 				selectable: true,
+				suffix: 'i',
 			},
 		]);
 	});

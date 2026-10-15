@@ -1,6 +1,11 @@
 import type { AlignmentCell, AlignmentColumn } from './alignment-snapshot';
 import type { ClassifiedReading } from './collation-types';
-import { proposeReadingType } from './reading-types';
+import {
+	BUNDLED_READING_TYPES,
+	findReadingTypeSuffix,
+	proposeReadingType,
+	type ReadingTypeDefinition,
+} from './reading-types';
 import {
 	buildReadingFamilyGroups,
 	classifyWitnessAttestation,
@@ -189,10 +194,21 @@ function normalizeReadingOrders(
 	return readings.map(reading => normalizedById.get(reading.id) ?? reading);
 }
 
+export function isUntypedSubreading(
+	reading: Pick<ClassifiedReading, 'parentReadingId' | 'readingType'>,
+	vocabulary: readonly ReadingTypeDefinition[]
+): boolean {
+	return (
+		reading.parentReadingId !== null &&
+		findReadingTypeSuffix(vocabulary, reading.readingType) === null
+	);
+}
+
 export function relabelReadings(
 	readings: ClassifiedReading[],
 	baseWitnessId: string | null,
-	lemmaReadingId: string | null = null
+	lemmaReadingId: string | null = null,
+	vocabulary: readonly ReadingTypeDefinition[] = BUNDLED_READING_TYPES
 ): ClassifiedReading[] {
 	const normalized = normalizeReadingOrders(readings, baseWitnessId);
 	const primaryReadings = normalized.filter(reading => reading.parentReadingId === null);
@@ -227,12 +243,19 @@ export function relabelReadings(
 	for (const [parentId, children] of subreadingsByParent.entries()) {
 		const parentLabel = primaryLabelById.get(parentId);
 		if (!parentLabel) continue;
-		children
-			.sort((a, b) => compareReadingsForOrder(a, b, baseWitnessId))
-			.forEach((child, index) => {
-				subLabelById.set(child.id, `${parentLabel}${index + 1}`);
-				subRankById.set(child.id, index);
-			});
+		const sorted = children.sort((a, b) => compareReadingsForOrder(a, b, baseWitnessId));
+		const suffixes = sorted.map(
+			child => findReadingTypeSuffix(vocabulary, child.readingType) ?? '?'
+		);
+		const seen = new Map<string, number>();
+		sorted.forEach((child, index) => {
+			const suffix = suffixes[index];
+			const position = (seen.get(suffix) ?? 0) + 1;
+			seen.set(suffix, position);
+			const shared = suffixes.filter(candidate => candidate === suffix).length > 1;
+			subLabelById.set(child.id, `${parentLabel}${suffix}${shared ? position : ''}`);
+			subRankById.set(child.id, index);
+		});
 	}
 
 	return normalized

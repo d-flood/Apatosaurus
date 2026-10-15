@@ -19,7 +19,7 @@
 	import Plus from 'phosphor-svelte/lib/Plus';
 	import Trash from 'phosphor-svelte/lib/Trash';
 	import { tick } from 'svelte';
-	import { SvelteSet } from 'svelte/reactivity';
+	import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 
 	type ReorderRefusal = Extract<ReorderResult, { ok: false }>['error'];
 
@@ -64,6 +64,18 @@
 		unitIndex;
 		return 0;
 	});
+	const newSubreadingTypeDrafts = $derived.by(() => {
+		unitIndex;
+		return new SvelteMap<string, string>();
+	});
+	const attachParentDrafts = $derived.by(() => {
+		unitIndex;
+		return new SvelteMap<string, string>();
+	});
+	const attachTypeDrafts = $derived.by(() => {
+		unitIndex;
+		return new SvelteMap<string, string>();
+	});
 
 	$effect(() => {
 		if (selectedSpan) {
@@ -77,6 +89,7 @@
 		unitIndex < 0 ? new Map() : collationState.getReadingDisplayValuesForUnit(unitIndex)
 	);
 	let readingTypeVocabulary = $derived(collationState.getReadingTypeVocabulary());
+	let subreadingTypeOptions = $derived(readingTypeVocabulary.filter(type => type.selectable));
 	let nonAttestation = $derived(
 		unitIndex < 0
 			? { witnessIds: [], untranscribedWitnessIds: [] }
@@ -367,7 +380,13 @@
 		if (current !== null && !options.some(type => type.id === current)) {
 			const known = readingTypeVocabulary.find(type => type.id === current);
 			options.unshift(
-				known ?? { id: current, label: current, description: '', selectable: false }
+				known ?? {
+					id: current,
+					label: current,
+					description: '',
+					selectable: false,
+					suffix: '',
+				}
 			);
 		}
 		return options;
@@ -451,8 +470,38 @@
 			: 'Only a main reading can be the lemma.';
 	}
 
-	function attachTo(reading: ClassifiedReading, parentReadingId: string | null) {
-		const result = collationState.setReadingParent(unitIndex, reading.id, parentReadingId);
+	function attachParentOf(reading: ClassifiedReading): string {
+		return attachParentDrafts.get(reading.id) ?? reading.parentReadingId ?? NO_VALUE;
+	}
+
+	function attachTypeOf(reading: ClassifiedReading): string {
+		const current = reading.readingType;
+		return (
+			attachTypeDrafts.get(reading.id) ??
+			(subreadingTypeOptions.some(type => type.id === current) ? current! : NO_VALUE)
+		);
+	}
+
+	function applyAttachment(reading: ClassifiedReading) {
+		const parentReadingId = attachParentOf(reading) || null;
+		const readingType = attachTypeOf(reading) || undefined;
+		if (parentReadingId && !readingType) return;
+		attachParentDrafts.delete(reading.id);
+		attachTypeDrafts.delete(reading.id);
+		attachTo(reading, parentReadingId, readingType);
+	}
+
+	function attachTo(
+		reading: ClassifiedReading,
+		parentReadingId: string | null,
+		readingType: string | undefined
+	) {
+		const result = collationState.setReadingParent(
+			unitIndex,
+			reading.id,
+			parentReadingId,
+			readingType
+		);
 		liveMessage = result.ok
 			? parentReadingId
 				? `${reading.label} is now a subreading.`
@@ -469,9 +518,16 @@
 		liveMessage = `Deleted reading ${reading.label}.`;
 	}
 
-	function addSubreading(reading: ClassifiedReading) {
-		collationState.addReading(unitIndex, { parentReadingId: reading.id });
-		liveMessage = `Added a subreading of ${reading.label}.`;
+	function addSubreading(reading: ClassifiedReading, readingType: string) {
+		const id = collationState.addReading(unitIndex, {
+			parentReadingId: reading.id,
+			readingType,
+		});
+		newSubreadingTypeDrafts.delete(reading.id);
+		const label = collationState
+			.peekReadingsForUnit(unitIndex)
+			.find(candidate => candidate.id === id)?.label;
+		liveMessage = `Added subreading ${label ?? ''} of ${reading.label}.`;
 	}
 
 	function getAttachmentOptions(readingId: string): ClassifiedReading[] {
@@ -772,6 +828,8 @@
 							{@const reading = node.reading}
 							{@const isSub = node.depth > 0}
 							{@const attesting = attestingWitnessesOf(reading)}
+							{@const attachParentId = attachParentOf(reading)}
+							{@const attachTypeId = attachTypeOf(reading)}
 							<div
 								class={[
 									'flex gap-3 px-3 py-3',
@@ -915,27 +973,59 @@
 										{/if}
 
 										{#if !isSub}
-											<button
-												type="button"
-												class="btn btn-ghost btn-xs w-full justify-start gap-1"
-												onclick={() => addSubreading(reading)}
-											>
-												<Plus size={12} /> Add subreading
-											</button>
+											{@const newSubreadingType =
+												newSubreadingTypeDrafts.get(reading.id) ?? NO_VALUE}
+											<div class="flex items-end gap-1">
+												<label
+													class="block min-w-0 flex-1 text-xs text-base-content/50"
+												>
+													<span>New subreading type</span>
+													<select
+														class="select select-bordered select-xs mt-1 w-full"
+														value={newSubreadingType}
+														onchange={event =>
+															newSubreadingTypeDrafts.set(
+																reading.id,
+																event.currentTarget.value
+															)}
+													>
+														<option value={NO_VALUE}
+															>Choose a reading type…</option
+														>
+														{#each subreadingTypeOptions as type (type.id)}
+															<option
+																value={type.id}
+																title={type.description}
+																>{type.label} ({type.suffix})</option
+															>
+														{/each}
+													</select>
+												</label>
+												<button
+													type="button"
+													class="btn btn-ghost btn-xs gap-1"
+													disabled={newSubreadingType === NO_VALUE}
+													onclick={() =>
+														addSubreading(reading, newSubreadingType)}
+												>
+													<Plus size={12} /> Add subreading
+												</button>
+											</div>
 										{/if}
 
 										<label class="block text-xs text-base-content/50">
 											<span>Attach as subreading of</span>
 											<select
 												class="select select-bordered select-xs mt-1 w-full"
-												value={reading.parentReadingId ?? ''}
+												value={attachParentId}
 												onchange={event =>
-													attachTo(
-														reading,
-														event.currentTarget.value || null
+													attachParentDrafts.set(
+														reading.id,
+														event.currentTarget.value
 													)}
 											>
-												<option value="">Independent reading</option>
+												<option value={NO_VALUE}>Independent reading</option
+												>
 												{#each getAttachmentOptions(reading.id) as candidate (candidate.id)}
 													<option value={candidate.id}
 														>{candidate.label}: {describeReading(
@@ -945,6 +1035,44 @@
 												{/each}
 											</select>
 										</label>
+										{#if attachParentId !== (reading.parentReadingId ?? NO_VALUE)}
+											{#if attachParentId !== NO_VALUE}
+												<label class="block text-xs text-base-content/50">
+													<span>Subreading type</span>
+													<select
+														class="select select-bordered select-xs mt-1 w-full"
+														value={attachTypeId}
+														onchange={event =>
+															attachTypeDrafts.set(
+																reading.id,
+																event.currentTarget.value
+															)}
+													>
+														<option value={NO_VALUE}
+															>Choose a reading type…</option
+														>
+														{#each subreadingTypeOptions as type (type.id)}
+															<option
+																value={type.id}
+																title={type.description}
+																>{type.label} ({type.suffix})</option
+															>
+														{/each}
+													</select>
+												</label>
+											{/if}
+											<button
+												type="button"
+												class="btn btn-xs w-full"
+												disabled={attachParentId !== NO_VALUE &&
+													attachTypeId === NO_VALUE}
+												onclick={() => applyAttachment(reading)}
+											>
+												{attachParentId === NO_VALUE
+													? 'Make independent'
+													: 'Attach'}
+											</button>
+										{/if}
 
 										<label class="block text-xs text-base-content/50">
 											<span>Reading type</span>

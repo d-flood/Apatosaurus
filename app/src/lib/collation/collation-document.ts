@@ -1,4 +1,5 @@
 import {
+	deserializeAlignmentColumns,
 	serializeAlignmentColumns,
 	type AlignmentColumn,
 	type SerializedAlignmentColumn,
@@ -17,7 +18,10 @@ import {
 	type WitnessSourceToken,
 } from './collation-types';
 import { applyDecisions, type UnitDecisions } from './collation-decisions';
+import { buildReadingProposal, isUntypedSubreading } from './collation-reading-proposal';
 import { variationUnitId } from './collation-unit-id';
+import { buildVariationUnitSpans } from './collation-variation-units';
+import type { ReadingTypeDefinition } from './reading-types';
 
 export const COLLATION_DOCUMENT_ARTIFACT_TYPE = 'collation_document_v1';
 
@@ -651,6 +655,44 @@ export function hydrateCollationDocument(document: CollationDocument): HydratedC
 		alignmentDisplayMode: normalizeDisplayMode(document.flow?.alignmentDisplayMode),
 		alignmentLayout: normalizeAlignmentLayout(document.flow?.alignmentLayout),
 	};
+}
+
+export function countUntypedSubreadings(
+	document: CollationDocument,
+	vocabulary: readonly ReadingTypeDefinition[]
+): number {
+	const columns = deserializeAlignmentColumns(document.alignment?.columns ?? []);
+	const witnesses = document.setup.witnesses.filter(witness => !witness.isExcluded);
+	const baseWitnessId = witnesses.find(witness => witness.isBaseText)?.id ?? null;
+	const activeIds = new Set(witnesses.map(witness => witness.id));
+	const sourceWitnessIds = [
+		...new Set([
+			baseWitnessId ?? witnesses[0]?.id,
+			...(document.alignment?.witnessOrder ?? []),
+			...activeIds,
+		]),
+	].filter((id): id is string => id !== undefined && activeIds.has(id));
+	const savedUnits = new Map(
+		(document.apparatus?.units ?? []).map(unit => [unit.unitId, unit] as const)
+	);
+	let count = 0;
+	for (const span of buildVariationUnitSpans(columns)) {
+		const saved = savedUnits.get(variationUnitId(span.columnIds[0]));
+		const decisions = saved?.decisions ?? {};
+		const preserved = decisions.preserveReadings ? saved?.readings : undefined;
+		const readings = Array.isArray(preserved)
+			? preserved
+			: buildReadingProposal({
+					columns: columns.slice(span.startIndex, span.endIndex + 1),
+					spanColumnIds: span.columnIds,
+					sourceWitnessIds,
+					baseWitnessId,
+				}).readings;
+		count += applyDecisions(readings, decisions, { baseWitnessId, vocabulary }).readings.filter(
+			reading => isUntypedSubreading(reading, vocabulary)
+		).length;
+	}
+	return count;
 }
 
 export function parseCollationDocument(value: unknown): CollationDocument | null {

@@ -12,18 +12,21 @@ export const ALPHA_READING_TYPES = [
 		label: 'Addition',
 		description: 'Addition, classified in alpha.',
 		selectable: true,
+		suffix: 'a',
 	},
 	{
 		id: 'substitute',
 		label: 'Substitution',
 		description: 'Substitution, classified in alpha.',
 		selectable: true,
+		suffix: 's',
 	},
 	{
 		id: 'transpose',
 		label: 'Transposition',
 		description: 'Transposition, classified in alpha.',
 		selectable: true,
+		suffix: 't',
 	},
 ];
 

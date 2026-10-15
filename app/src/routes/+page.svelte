@@ -8,13 +8,24 @@
 		type StoragePersistenceReport,
 	} from '$lib/shell/capabilities';
 	import {
+		getProject,
 		getProjectTranscriptionStatusForOwnedTranscription,
 		listCollationsWithProjectNames,
 		listConflictCopies,
 		listProjects,
 		listTranscriptionSummaries,
+		loadCollation,
 		subscribeLocalDbInvalidations,
 	} from '$lib/db/client';
+	import {
+		countUntypedSubreadings,
+		parseCollationDocument,
+	} from '$lib/collation/collation-document';
+	import { parseProjectCollationSettings } from '$lib/collation/project-settings';
+	import {
+		resolveReadingTypeVocabulary,
+		type ReadingTypeDefinition,
+	} from '$lib/collation/reading-types';
 	import type { CollationListItem } from '$lib/db/repositories/collations';
 	import type { ProjectOption } from '$lib/db/repositories/projects';
 	import type { TranscriptionSummary } from '$lib/db/repositories/transcriptions';
@@ -48,9 +59,11 @@
 	let lastOpenedProject = $state<ProjectOption | null>(null);
 	let recentDocuments = $state.raw<DashboardDocument[]>([]);
 	let attentionItems = $state.raw<DashboardAttentionItem[]>([]);
+	let subreadingAttentionItems = $state.raw<DashboardAttentionItem[]>([]);
 	let routesWarmProgress = $state<WarmProgress | null>(null);
 	let displayedAttentionItems = $derived([
 		...attentionItems,
+		...subreadingAttentionItems,
 		...(offlineAttentionItem(routesWarmProgress)
 			? [offlineAttentionItem(routesWarmProgress)!]
 			: []),
@@ -85,6 +98,7 @@
 			recentDocuments = documents;
 			attentionItems = warnings;
 			error = null;
+			void loadSubreadingAttentionItems(runId, collationRows);
 		} catch (cause) {
 			if (runId !== loadRunId) return;
 			error = cause instanceof Error ? cause.message : 'Failed to load the dashboard.';
@@ -246,6 +260,43 @@
 		return items;
 	}
 
+	/** One collation at a time, so other worker requests interleave. */
+	async function loadSubreadingAttentionItems(runId: number, collations: CollationListItem[]) {
+		const vocabularies = new Map<string, ReadingTypeDefinition[]>();
+		const items: DashboardAttentionItem[] = [];
+		for (const collation of collations) {
+			if (runId !== loadRunId) return;
+			try {
+				const loaded = await loadCollation(collation.id);
+				const document = parseCollationDocument(loaded?.artifact?.payload);
+				if (!document) continue;
+				let vocabulary = vocabularies.get(collation.projectId);
+				if (!vocabulary) {
+					const project = await getProject(collation.projectId);
+					vocabulary = resolveReadingTypeVocabulary(
+						parseProjectCollationSettings(project?.collationSettings).readingTypes
+					);
+					vocabularies.set(collation.projectId, vocabulary);
+				}
+				const count = countUntypedSubreadings(document, vocabulary);
+				if (count === 0) continue;
+				items.push({
+					id: `untyped-subreadings:${collation.id}`,
+					title: `${count} ${count === 1 ? 'subreading needs' : 'subreadings need'} a reading type`,
+					description: `${collation.title} in ${collation.projectName}.`,
+					href: `/collation/${collation.id}/readings`,
+					linkLabel: `Open readings of ${collation.title}`,
+				});
+			} catch (cause) {
+				console.warn('[dashboard-route] subreading type check failed', {
+					collationId: collation.id,
+					error: cause instanceof Error ? cause.message : String(cause),
+				});
+			}
+		}
+		if (runId === loadRunId) subreadingAttentionItems = items;
+	}
+
 	function summarizeBackupProblem(
 		project: ProjectOption,
 		overview: ProjectBackupOverview
@@ -309,6 +360,7 @@
 			}
 		});
 		return () => {
+			loadRunId += 1;
 			unsubscribeWarmProgress();
 			unsubscribeDb();
 		};

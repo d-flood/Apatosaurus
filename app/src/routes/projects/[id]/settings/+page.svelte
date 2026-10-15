@@ -15,6 +15,7 @@
 		SuppliedTextMode,
 		WitnessTreatment,
 	} from '$lib/collation/collation-types';
+	import type { ReadingTypeDefinition } from '$lib/collation/reading-types';
 	import {
 		subscribeLocalDbInvalidations,
 		addProjectTranscriptionFromProject,
@@ -27,6 +28,7 @@
 	} from '$lib/db/client';
 	import AddProjectTranscriptionFromProjectDialog from '$lib/project/components/AddProjectTranscriptionFromProjectDialog.svelte';
 	import ProjectCollationSettingsEditor from '$lib/project/components/ProjectCollationSettingsEditor.svelte';
+	import ProjectReadingTypesEditor from '$lib/project/components/ProjectReadingTypesEditor.svelte';
 	import ProjectTranscriptionRefreshDialog from '$lib/project/components/ProjectTranscriptionRefreshDialog.svelte';
 	import ProjectTranscriptionsEditor from '$lib/project/components/ProjectTranscriptionsEditor.svelte';
 	import ProjectTranscriptionVersionsPanel from '$lib/project/components/ProjectTranscriptionVersionsPanel.svelte';
@@ -45,7 +47,7 @@
 	let descriptionDraft = $derived(openProject.description);
 	const savedSettings = $derived(parseProjectCollationSettings(openProject.collationSettings));
 	let projectRules = $derived(savedSettings.regularizationRules ?? []);
-	const projectReadingTypes = $derived(savedSettings.readingTypes ?? []);
+	let projectReadingTypes = $derived(savedSettings.readingTypes ?? []);
 	let lowercase = $derived(savedSettings.lowercase ?? false);
 	let ignoreWordBreaks = $derived(savedSettings.ignoreWordBreaks ?? false);
 	let ignorePunctuation = $derived(savedSettings.ignorePunctuation ?? false);
@@ -262,6 +264,7 @@
 		segmentation?: boolean;
 		transcriptionWitnessTreatments?: Map<string, WitnessTreatment>;
 		transcriptionWitnessExcludedHands?: Map<string, string[]>;
+		readingTypes?: ReadingTypeDefinition[];
 	}) {
 		const nextRules = nextState?.rules ?? projectRules;
 		const nextLowercase = nextState?.lowercase ?? lowercase;
@@ -286,7 +289,7 @@
 				segmentation: nextSegmentation,
 				transcriptionWitnessTreatments: nextTreatments,
 				transcriptionWitnessExcludedHands: nextExcludedHands,
-				readingTypes: projectReadingTypes,
+				readingTypes: nextState?.readingTypes ?? projectReadingTypes,
 			});
 			await updateProjectMetadata({
 				projectId: openProject.id,
@@ -324,6 +327,18 @@
 		const nextRules = projectRules.map(rule => (rule.id === ruleId ? { ...rule, type } : rule));
 		projectRules = nextRules;
 		void persistProjectSettings({ rules: nextRules });
+	}
+
+	function addReadingType(type: ReadingTypeDefinition) {
+		const nextReadingTypes = [...projectReadingTypes, type];
+		projectReadingTypes = nextReadingTypes;
+		void persistProjectSettings({ readingTypes: nextReadingTypes });
+	}
+
+	function removeReadingType(id: string) {
+		const nextReadingTypes = projectReadingTypes.filter(type => type.id !== id);
+		projectReadingTypes = nextReadingTypes;
+		void persistProjectSettings({ readingTypes: nextReadingTypes });
 	}
 
 	function setLowercase(nextValue: boolean) {
@@ -620,6 +635,13 @@
 	onSetIgnorePunctuation={setIgnorePunctuation}
 	onSetSuppliedTextMode={setSuppliedTextMode}
 	onSetSegmentation={setSegmentation}
+/>
+
+<ProjectReadingTypesEditor
+	{projectId}
+	readingTypes={projectReadingTypes}
+	onAddReadingType={addReadingType}
+	onRemoveReadingType={removeReadingType}
 />
 
 <ProjectTranscriptionsEditor
