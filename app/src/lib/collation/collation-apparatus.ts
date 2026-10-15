@@ -187,7 +187,7 @@ function readingText(reading: ClassifiedReading): string {
 	return text.length > 0 ? text : '—';
 }
 
-function citationOrder(readings: ClassifiedReading[]): ClassifiedReading[] {
+export function citationOrder(readings: ClassifiedReading[]): ClassifiedReading[] {
 	const subreadingsByParent = new Map<string, ClassifiedReading[]>();
 	for (const reading of readings) {
 		if (reading.parentReadingId === null) continue;
@@ -223,6 +223,9 @@ export function renderApparatusUnit(unit: UnitView, options: ApparatusRenderOpti
 		const sigla = reading.witnessIds.map(siglumOf).join(' ');
 		return `${reading.label}${typeLabel}: ${sigla}`.trimEnd();
 	});
+	for (const attestation of unit.ambiguousAttestations) {
+		entries.push(`${attestation.label}: ${attestation.witnessIds.map(siglumOf).join(' ')}`);
+	}
 
 	const nonAttesting = options.nonAttestation.witnessIds;
 	if (nonAttesting.length > 0) {

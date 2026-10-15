@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { ClassifiedReading } from './collation-types';
-import { applyDecisions, findOrphanedUnitDecisions } from './collation-decisions';
+import {
+	applyDecisions,
+	findOrphanedUnitDecisions,
+	withAmbiguousAttestation,
+	type UnitDecisions,
+} from './collation-decisions';
 
 function reading(
 	id: string,
@@ -291,5 +296,163 @@ describe('reading type and certainty decisions', () => {
 				missingReadingIds: ['absent'],
 			},
 		]);
+	});
+});
+
+describe('ambiguous attestation decisions', () => {
+	const proposal = [
+		attested('alpha', ['base', 'w1', 'w2']),
+		attested('beta', ['w3', 'w4']),
+		attested('gamma', ['w5']),
+	];
+
+	function record(
+		readings: ClassifiedReading[],
+		decisions: UnitDecisions,
+		witnessIds: string[],
+		targetReadingIds: string[]
+	) {
+		const result = withAmbiguousAttestation(readings, decisions, {
+			witnessIds,
+			targetReadingIds,
+		});
+		if (!result.ok) throw new Error(result.error);
+		return result;
+	}
+
+	it('removes its witnesses from their readings and shows as zw with the targets in label order', () => {
+		const { decisions, attestationId } = record(proposal, {}, ['w2', 'w5'], ['beta', 'alpha']);
+
+		const view = applyDecisions(proposal, decisions, { baseWitnessId: 'base' });
+
+		expect(view.readings.map(entry => [entry.label, entry.witnessIds])).toEqual([
+			['a', ['base', 'w1']],
+			['b', ['w3', 'w4']],
+		]);
+		expect(view.ambiguousAttestations).toEqual([
+			{
+				id: attestationId,
+				witnessIds: ['w2', 'w5'],
+				targetReadingIds: ['alpha', 'beta'],
+				targetLabels: ['a', 'b'],
+				label: 'zw a/b',
+			},
+		]);
+		expect(view.orphanedDecisions).toEqual([]);
+		expect(applyDecisions(proposal, {}).readings.map(entry => entry.witnessIds)).toContainEqual(
+			['w5']
+		);
+	});
+
+	it('survives a realignment that keeps its targets', () => {
+		const { decisions } = record(proposal, {}, ['w2'], ['alpha', 'beta']);
+		const realigned = [
+			attested('alpha', ['base', 'w2']),
+			attested('beta', ['w1', 'w3', 'w4']),
+			attested('delta', ['w5']),
+		];
+
+		const view = applyDecisions(realigned, decisions, { baseWitnessId: 'base' });
+
+		expect(view.ambiguousAttestations.map(entry => entry.label)).toEqual(['zw a/b']);
+		expect(view.readings.flatMap(entry => entry.witnessIds)).not.toContain('w2');
+		expect(view.orphanedDecisions).toEqual([]);
+	});
+
+	it('becomes an orphaned decision, returning its witnesses, when a target disappears', () => {
+		const { decisions, attestationId } = record(proposal, {}, ['w2'], ['alpha', 'gamma']);
+		const realigned = [attested('alpha', ['base', 'w1', 'w2']), attested('beta', ['w3'])];
+
+		const view = applyDecisions(realigned, decisions, { baseWitnessId: 'base' });
+
+		expect(view.orphanedDecisions).toEqual([
+			{ kind: 'ambiguousAttestation', attestationId, missingReadingIds: ['gamma'] },
+		]);
+		expect(view.ambiguousAttestations).toEqual([]);
+		expect(view.readings[0]?.witnessIds).toEqual(['base', 'w1', 'w2']);
+		expect(decisions.ambiguousAttestations).toHaveLength(1);
+	});
+
+	it('targets subreadings and takes no letter itself', () => {
+		const readings = [
+			...proposal,
+			{ ...attested('alpha-form', ['w6']), parentReadingId: 'alpha' },
+		];
+		const { decisions } = record(
+			readings,
+			{
+				readingType: { 'alpha-form': 'orthographic' },
+			},
+			['w1'],
+			['alpha-form', 'beta']
+		);
+
+		const view = applyDecisions(readings, decisions, { baseWitnessId: 'base' });
+
+		expect(view.ambiguousAttestations.map(entry => entry.label)).toEqual(['zw ao/b']);
+		expect(view.readings.map(entry => entry.label)).toEqual(['a', 'b', 'c', 'ao']);
+	});
+
+	it('refuses fewer than two distinct targets', () => {
+		expect(
+			withAmbiguousAttestation(
+				proposal,
+				{},
+				{
+					witnessIds: ['w1'],
+					targetReadingIds: ['beta', 'beta'],
+				}
+			)
+		).toEqual({ ok: false, error: 'too-few-targets' });
+	});
+
+	it('refuses a target that is not a reading at this unit', () => {
+		expect(
+			withAmbiguousAttestation(
+				proposal,
+				{},
+				{
+					witnessIds: ['w1'],
+					targetReadingIds: ['beta', 'zz'],
+				}
+			)
+		).toEqual({ ok: false, error: 'target-not-found' });
+	});
+
+	it('refuses a witness that does not attest the unit', () => {
+		expect(
+			withAmbiguousAttestation(
+				proposal,
+				{},
+				{
+					witnessIds: ['w1', 'lacunose'],
+					targetReadingIds: ['beta', 'gamma'],
+				}
+			)
+		).toEqual({ ok: false, error: 'witness-not-attesting' });
+	});
+
+	it('refuses a witness already in another ambiguous attestation at the unit', () => {
+		const { decisions } = record(proposal, {}, ['w1'], ['beta', 'gamma']);
+
+		expect(
+			withAmbiguousAttestation(proposal, decisions, {
+				witnessIds: ['w1', 'w3'],
+				targetReadingIds: ['alpha', 'gamma'],
+			})
+		).toEqual({ ok: false, error: 'witness-already-ambiguous' });
+	});
+
+	it('refuses to leave a target without witnesses', () => {
+		expect(
+			withAmbiguousAttestation(
+				proposal,
+				{},
+				{
+					witnessIds: ['w5'],
+					targetReadingIds: ['alpha', 'gamma'],
+				}
+			)
+		).toEqual({ ok: false, error: 'target-emptied' });
 	});
 });

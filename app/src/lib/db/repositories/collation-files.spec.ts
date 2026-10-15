@@ -727,7 +727,7 @@ describe('collation file persistence', () => {
 
 		expect(checkpoint.warnings).toEqual([]);
 		expect(tei).toContain('one');
-		expect(tei).toContain('<app from="4"');
+		expect(tei).toContain('<app xml:id="unit-variant" from="4"');
 		expect(tei).toContain('two');
 		expect(tei).toContain('<graph type="directed">');
 	});

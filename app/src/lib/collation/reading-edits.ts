@@ -21,7 +21,11 @@ function attestingSelection(readings: Readings, witnessIds: string[]): string[] 
 	});
 }
 
-function dropEmptiedReadings(before: Readings, after: Readings, keepReadingId: string): Readings {
+export function dropEmptiedReadings(
+	before: Readings,
+	after: Readings,
+	...keepReadingIds: string[]
+): Readings {
 	const hadWitnesses = new Set(
 		before.filter(reading => reading.witnessIds.length > 0).map(reading => reading.id)
 	);
@@ -30,14 +34,14 @@ function dropEmptiedReadings(before: Readings, after: Readings, keepReadingId: s
 	);
 	return after.filter(
 		reading =>
-			reading.id === keepReadingId ||
+			keepReadingIds.includes(reading.id) ||
 			reading.witnessIds.length > 0 ||
 			!hadWitnesses.has(reading.id) ||
 			parentIds.has(reading.id)
 	);
 }
 
-function withoutWitnesses(readings: Readings, witnessIds: Set<string>): Readings {
+export function withoutWitnesses(readings: Readings, witnessIds: Set<string>): Readings {
 	return readings.map(reading => {
 		const kept = reading.witnessIds.filter(witnessId => !witnessIds.has(witnessId));
 		return kept.length === reading.witnessIds.length

@@ -439,6 +439,62 @@ describe('apparatus TEI exporter', () => {
 		expect(() => validateTeiP5(xml)).not.toThrow();
 	}, 60_000);
 
+	it('writes an ambiguous attestation as a witDetail after the readings, pointing at its targets, and validates as TEI P5', () => {
+		const base = snapshot();
+		collationState.reset();
+		collationState.setWitnesses([
+			witness('A', 'one alpha two', true),
+			witness('B', 'one beta two'),
+			witness('C', 'one beta two'),
+			witness('D', 'one two'),
+		]);
+		collationState.setAlignmentSnapshot({
+			...base,
+			columns: base.columns.map(column => ({
+				...column,
+				cells: column.cells.map(([witnessId, cell]) =>
+					witnessId === 'C' ? [witnessId, column.cells[1][1]] : [witnessId, cell]
+				),
+			})),
+		});
+		const readings = collationState.peekReadingsForUnit(1);
+		const alpha = readings.find(reading => reading.text === 'alpha')!;
+		const beta = readings.find(reading => reading.text === 'beta')!;
+		for (const reading of readings) {
+			if (reading.id !== alpha.id)
+				collationState.setReadingSource(1, reading.id, { kind: 'derived', from: alpha.id });
+		}
+		const recorded = collationState.recordAmbiguousAttestation(1, ['C'], [beta.id, alpha.id]);
+		if (!recorded.ok) throw new Error(recorded.error);
+
+		const xml = exportApparatusTei(exportInput());
+		const document = parse(xml);
+		const app = document.getElementsByTagName('app')[0]!;
+		const children = Array.from(app.childNodes)
+			.filter(node => node.nodeType === 1)
+			.map(node => (node as unknown as Element).tagName);
+		const detail = document.getElementsByTagName('witDetail')[0]!;
+
+		expect(app.getAttribute('xml:id')).toBe('unit-variant');
+		expect(
+			Array.from(document.getElementsByTagName('rdg')).map(reading => [
+				reading.getAttribute('n'),
+				reading.getAttribute('xml:id'),
+				reading.getAttribute('wit'),
+			])
+		).toEqual([
+			['a', 'unit-variant-a', '#wit-A'],
+			['b', 'unit-variant-b', '#wit-B'],
+			['c', null, '#wit-D'],
+		]);
+		expect(children).toEqual(['lem', 'rdg', 'rdg', 'rdg', 'witDetail', 'note']);
+		expect(detail.getAttribute('type')).toBe('ambiguous');
+		expect(detail.getAttribute('n')).toBe('zw-a/b');
+		expect(detail.getAttribute('target')).toBe('#unit-variant-a #unit-variant-b');
+		expect(detail.getAttribute('wit')).toBe('#wit-C');
+		expect(() => validateTeiP5(xml)).not.toThrow();
+	}, 60_000);
+
 	it('emits valid xml:id values for numeric and punctuation-heavy identifiers', () => {
 		const input = exportInput();
 		const document = parse(

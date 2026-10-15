@@ -48,6 +48,8 @@ import projectTranscriptionV2Expected from './fixtures/project-transcription-v2.
 import collationV6Input from './fixtures/collation-v6.input.json';
 import workingCollationV4Input from './fixtures/working-collation-v4.input.json';
 import collationV7Expected from './fixtures/collation-v7.expected.json';
+import collationV8Input from './fixtures/collation-v8.input.json';
+import collationV9Expected from './fixtures/collation-v9.expected.json';
 import {
 	COLLATION_CHECKPOINT_FIXTURE,
 	COLLATION_CHECKPOINT_OLD_SHAPE_FIXTURE,
@@ -261,6 +263,64 @@ describe('canonical store formats', () => {
 				contentHash: '',
 			},
 		});
+	});
+
+	it('upgrades a v8 collation to v9 without changing its payload', async () => {
+		const result = await readCanonicalDocument<CollationPayload>(
+			COLLATION_FORMAT,
+			serializeSealedDocument(
+				await sealDocument(COLLATION_FORMAT, 8, collationV8Input as JsonObject)
+			)
+		);
+
+		expect(result).toMatchObject({ ok: true, upgraded: true, originalVersion: 8 });
+		if (!result.ok) throw new Error('Expected the v8 collation to read.');
+		expect(result.payload).toEqual(collationV9Expected);
+	});
+
+	it('retains ambiguous attestations in a v9 collation and quarantines malformed ones', async () => {
+		const withAttestations = (ambiguousAttestations: unknown) =>
+			({
+				...collationV9Expected,
+				document: {
+					...collationV9Expected.document,
+					apparatus: {
+						...collationV9Expected.document.apparatus,
+						units: collationV9Expected.document.apparatus.units.map(unit => ({
+							...unit,
+							decisions: { ...unit.decisions, ambiguousAttestations },
+						})),
+					},
+				},
+			}) as unknown as JsonObject;
+		const valid = withAttestations([
+			{ id: 'zw-1', witnessIds: ['A'], targetReadingIds: ['reading-a', 'reading-b'] },
+		]);
+
+		const read = await readCanonicalDocument<CollationPayload>(
+			COLLATION_FORMAT,
+			await serializeCanonicalDocument(COLLATION_FORMAT, valid)
+		);
+		expect(read).toMatchObject({ ok: true, upgraded: false, payload: valid });
+
+		for (const malformed of [
+			{},
+			[{ id: 'zw-1', witnessIds: ['A'], targetReadingIds: ['reading-a'] }],
+			[{ id: 'zw-1', witnessIds: ['A'], targetReadingIds: ['reading-a', 'reading-a'] }],
+			[{ id: 'zw-1', witnessIds: [], targetReadingIds: ['reading-a', 'reading-b'] }],
+			[{ witnessIds: ['A'], targetReadingIds: ['reading-a', 'reading-b'] }],
+		]) {
+			await expect(
+				readCanonicalDocument(
+					COLLATION_FORMAT,
+					await sealDocument(
+						COLLATION_FORMAT,
+						COLLATION_CURRENT_VERSION,
+						withAttestations(malformed)
+					)
+				)
+			).resolves.toMatchObject({ ok: false, quarantine: { code: 'invalid_shape' } });
+		}
 	});
 
 	it('round-trips a complete project file set through the canonical API', async () => {

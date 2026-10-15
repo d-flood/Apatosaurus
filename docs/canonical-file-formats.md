@@ -33,6 +33,14 @@ Version 7 applies the Project Transcription Version 2 change to collations: `col
 - Loading folds a leftover `apatosaurus.working.collation` file into the primary when its `draft.base_*` matches `based_on_checkpoint`, writing the new primary before deleting the working file. Zip import folds both working formats the same way before placing files.
 - `apatosaurus.working.collation` stays registered only so legacy files can be read and migrated. Checkpoint content is unchanged.
 
+## Collation Version 9
+
+Version 9 adds ambiguous attestations to a variation unit's decisions: `document.apparatus.units[].decisions.ambiguousAttestations?: { id, witnessIds, targetReadingIds }[]`, cited `zw a/b`.
+
+- The v8 upgrader is a no-op apart from the version number; v8 files never hold the new key.
+- Reads validate each attestation: a string `id`, at least one witness id, and at least two distinct target reading ids. A malformed attestation quarantines the file rather than being dropped.
+- `apatosaurus.working.collation` and `apatosaurus.checkpoint.collation` read the same semantic document without rejecting unknown decision keys, so their versions are unchanged.
+
 ## Transcription Checkpoint Version 2 and Collation Checkpoint Version 5
 
 Both checkpoint formats gain the version's editable metadata. `commit_message` remains the version's note.

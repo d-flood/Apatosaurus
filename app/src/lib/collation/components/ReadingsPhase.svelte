@@ -56,6 +56,10 @@
 		unitIndex;
 		return NO_VALUE;
 	});
+	const ambiguousTargetDrafts = $derived.by(() => {
+		unitIndex;
+		return new SvelteSet<string>();
+	});
 	let activeChipIndex = $derived.by(() => {
 		unitIndex;
 		return 0;
@@ -104,6 +108,12 @@
 	);
 	let needsLemmaDecision = $derived(
 		unitIndex < 0 ? false : collationState.unitNeedsLemmaDecision(unitIndex)
+	);
+	let ambiguousAttestations = $derived(
+		unitIndex < 0 ? [] : collationState.peekUnitView(unitIndex).ambiguousAttestations
+	);
+	let ambiguousTargetIds = $derived(
+		readings.filter(reading => ambiguousTargetDrafts.has(reading.id)).map(reading => reading.id)
 	);
 
 	let cards = $derived.by<Card[]>(() => {
@@ -229,6 +239,7 @@
 
 	function clearSelection() {
 		selectedWitnessIds.clear();
+		ambiguousTargetDrafts.clear();
 		moveTargetId = NO_VALUE;
 		mergeTargetId = NO_VALUE;
 	}
@@ -363,6 +374,46 @@
 		liveMessage = `Merged ${sourceReadingIds.length + 1} readings into ${target.label}.${discardedText}${lemmaNote}`;
 		clearSelection();
 		await focusAfterVerb(witnessIds[0]);
+	}
+
+	function toggleAmbiguousTarget(readingId: string) {
+		if (ambiguousTargetDrafts.has(readingId)) ambiguousTargetDrafts.delete(readingId);
+		else ambiguousTargetDrafts.add(readingId);
+	}
+
+	async function recordAmbiguousSelection() {
+		const witnessIds = selectedWitnessIdsInOrder;
+		const result = collationState.recordAmbiguousAttestation(
+			unitIndex,
+			witnessIds,
+			ambiguousTargetIds
+		);
+		if (!result.ok) {
+			liveMessage =
+				result.error === 'too-few-targets'
+					? 'Choose at least two readings the selected witnesses could support.'
+					: result.error === 'witness-already-ambiguous'
+						? 'A selected witness already has an ambiguous attestation here.'
+						: result.error === 'witness-not-attesting'
+							? 'Every selected witness must testify here.'
+							: result.error === 'target-emptied'
+								? 'Each chosen reading must keep at least one other witness.'
+								: 'That reading no longer exists. Nothing was recorded.';
+			return;
+		}
+		const recorded = collationState
+			.peekUnitView(unitIndex)
+			.ambiguousAttestations.find(attestation => attestation.id === result.attestationId);
+		liveMessage = `Recorded ${siglaOf(witnessIds)} as ${recorded?.label ?? 'ambiguous'}.`;
+		clearSelection();
+		await focusAfterVerb(undefined);
+	}
+
+	function removeAmbiguousAttestation(attestation: { id: string; label: string }) {
+		const result = collationState.removeAmbiguousAttestation(unitIndex, attestation.id);
+		liveMessage = result.ok
+			? `Removed ${attestation.label}; its witnesses are back with their readings.`
+			: 'That ambiguous attestation no longer exists.';
 	}
 
 	function getUnitOrdinal(startIndex: number): number {
@@ -785,6 +836,31 @@
 			>
 				Merge
 			</button>
+			<fieldset class="flex flex-wrap items-center gap-1.5 text-xs text-base-content/60">
+				<legend class="sr-only">Readings the selected witnesses could support</legend>
+				<span aria-hidden="true">Ambiguous between</span>
+				{#each readings as reading (reading.id)}
+					<label class="flex items-center gap-0.5">
+						<input
+							type="checkbox"
+							class="checkbox checkbox-xs"
+							aria-label={`Ambiguous between: ${reading.label}`}
+							checked={ambiguousTargetIds.includes(reading.id)}
+							onchange={() => toggleAmbiguousTarget(reading.id)}
+						/>
+						<span class="font-mono">{reading.label}</span>
+					</label>
+				{/each}
+			</fieldset>
+			<button
+				type="button"
+				class="btn btn-xs"
+				disabled={ambiguousTargetIds.length < 2}
+				data-testid="apply-ambiguous"
+				onclick={recordAmbiguousSelection}
+			>
+				Record zw
+			</button>
 			{#if mergeTargetId !== NO_VALUE && mergeDiscards.texts.length > 0}
 				<p class="w-full text-xs text-warning" data-testid="merge-warning">
 					Merging discards the text of {mergeDiscards.texts.join(', ')}.
@@ -1139,6 +1215,41 @@
 						{/each}
 					</article>
 				{/each}
+
+				{#if ambiguousAttestations.length > 0}
+					<section
+						class="rounded-xl border border-base-300/60 bg-base-200/40 px-3 py-3"
+						aria-label="Ambiguous attestations"
+					>
+						<div class="text-sm font-medium text-base-content/60">Ambiguous</div>
+						<div class="mt-0.5 text-xs text-base-content/40">
+							Compatible with more than one reading. Takes no letter and no place in
+							the local stemma.
+						</div>
+						<ul class="mt-1 space-y-1">
+							{#each ambiguousAttestations as attestation (attestation.id)}
+								<li class="flex flex-wrap items-center gap-2">
+									<span class="font-mono text-sm font-semibold"
+										>{attestation.label}</span
+									>
+									<span class="font-mono text-sm text-base-content/60">
+										{getSortedWitnesses(attestation.witnessIds)
+											.map(witness => witness.siglum)
+											.join(' ')}
+									</span>
+									<button
+										type="button"
+										class="btn btn-ghost btn-xs"
+										aria-label={`Remove ${attestation.label}`}
+										onclick={() => removeAmbiguousAttestation(attestation)}
+									>
+										Remove
+									</button>
+								</li>
+							{/each}
+						</ul>
+					</section>
+				{/if}
 
 				{#if hasNonAttestation}
 					<section

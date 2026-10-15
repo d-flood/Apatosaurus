@@ -543,3 +543,48 @@ describe('ReadingsPhase subreading types', () => {
 			.toHaveTextContent('b is now a subreading.');
 	});
 });
+
+describe('ReadingsPhase ambiguous attestations', () => {
+	beforeEach(() => {
+		collationState.reset();
+		collate([
+			makeWitness('A', 'λογος', true),
+			makeWitness('B', 'θεος'),
+			makeWitness('C', 'θεος'),
+			makeWitness('D', 'πνευμα'),
+		]);
+	});
+
+	it('records selected witnesses as zw between two readings, then removes it', async () => {
+		render(ReadingsPhase);
+		await expect
+			.element(page.getByRole('button', { name: 'A', exact: true }))
+			.toBeInTheDocument();
+
+		chip('C').focus();
+		await userEvent.keyboard(' ');
+		const record = page.getByTestId('apply-ambiguous');
+		await userEvent.click(page.getByRole('checkbox', { name: 'Ambiguous between: a' }));
+		await expect.element(record).toBeDisabled();
+		await userEvent.click(page.getByRole('checkbox', { name: 'Ambiguous between: b' }));
+		await expect.element(record).toBeEnabled();
+		await userEvent.click(record);
+
+		await expect
+			.element(page.getByTestId('readings-announcer'))
+			.toHaveTextContent('Recorded C as zw a/b.');
+		await expect
+			.element(page.getByLabelText('Ambiguous attestations'))
+			.toHaveTextContent(/zw a\/b\s*C/);
+		await expect
+			.element(page.getByLabelText('Apparatus notation for the selected variation unit'))
+			.toHaveTextContent('zw a/b: C');
+		expect(document.querySelector('[data-witness-id="C"]')).toBeNull();
+		expect(witnessesOfReadings()).toEqual([['A'], ['B'], ['D']]);
+
+		await userEvent.click(page.getByRole('button', { name: 'Remove zw a/b' }));
+
+		await expect.element(page.getByLabelText('Ambiguous attestations')).not.toBeInTheDocument();
+		expect(witnessesOfReadings()).toEqual([['A'], ['B', 'C'], ['D']]);
+	});
+});

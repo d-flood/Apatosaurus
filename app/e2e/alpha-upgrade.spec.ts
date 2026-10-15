@@ -43,7 +43,7 @@ test('alpha upgrade opens existing OPFS collation edits and preserves them after
 			),
 		};
 	});
-	expect(stored.primary.schema_version).toBe(8);
+	expect(stored.primary.schema_version).toBe(9);
 	expect(stored.original.schema_version).toBe(2);
 	expect(stored.working).toBeNull();
 	expect(stored.primary.notes).toBe('Unsaved alpha work');

@@ -244,6 +244,38 @@ function hasApparatusConnectivity(value: unknown): boolean {
 	});
 }
 
+function isStringList(value: unknown): value is string[] {
+	return Array.isArray(value) && value.every(entry => typeof entry === 'string');
+}
+
+function isAmbiguousAttestation(value: unknown): boolean {
+	if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+	const candidate = value as Record<string, unknown>;
+	return (
+		typeof candidate.id === 'string' &&
+		isStringList(candidate.witnessIds) &&
+		candidate.witnessIds.length > 0 &&
+		isStringList(candidate.targetReadingIds) &&
+		new Set(candidate.targetReadingIds).size >= 2
+	);
+}
+
+function hasValidAmbiguousAttestations(value: unknown): boolean {
+	if (!value || typeof value !== 'object' || Array.isArray(value)) return true;
+	const units = (value as Record<string, unknown>).units;
+	if (!Array.isArray(units)) return true;
+	return units.every(unit => {
+		if (!unit || typeof unit !== 'object' || Array.isArray(unit)) return true;
+		const decisions = (unit as Record<string, unknown>).decisions;
+		if (!decisions || typeof decisions !== 'object' || Array.isArray(decisions)) return true;
+		const attestations = (decisions as Record<string, unknown>).ambiguousAttestations;
+		return (
+			attestations === undefined ||
+			(Array.isArray(attestations) && attestations.every(isAmbiguousAttestation))
+		);
+	});
+}
+
 function assertCollationSegment(value: unknown): CollationSegment {
 	if (!value || typeof value !== 'object' || Array.isArray(value)) {
 		throw new Error('Collation segment is required.');
@@ -710,7 +742,8 @@ export function parseCollationDocument(value: unknown): CollationDocument | null
 		candidate.type !== 'collationDocument' ||
 		candidate.version !== 1 ||
 		!hasValidStemmaConnectivity(candidate.stemma) ||
-		hasApparatusConnectivity(candidate.apparatus)
+		hasApparatusConnectivity(candidate.apparatus) ||
+		!hasValidAmbiguousAttestations(candidate.apparatus)
 	)
 		return null;
 	try {

@@ -81,6 +81,8 @@ import {
 	applyDecisions,
 	cloneUnitDecisions,
 	findOrphanedUnitDecisions,
+	withAmbiguousAttestation,
+	type AmbiguousAttestationError,
 	type OrphanedDecision,
 	type UnitDecisions,
 	type UnitView,
@@ -1553,6 +1555,7 @@ function createCollationState() {
 
 	const EMPTY_UNIT_VIEW: UnitView = {
 		readings: [],
+		ambiguousAttestations: [],
 		orphanedDecisions: [],
 		lemmaReadingId: null,
 		baseTextReadingId: null,
@@ -1695,18 +1698,33 @@ function createCollationState() {
 	function setReadingsForUnit(unitIndex: number, readings: ClassifiedReading[]) {
 		const key = getReadingUnitKey(unitIndex);
 		if (!key) return;
-		const proposalById = new Map(
-			(classifiedReadings.get(key) ?? []).map(reading => [reading.id, reading] as const)
-		);
+		const stored = classifiedReadings.get(key) ?? [];
+		const proposalById = new Map(stored.map(reading => [reading.id, reading] as const));
 		// Restore overlayable fields from proposal, or decided values survive undo.
 		const decisions = unitDecisions.get(key) ?? {};
 		const attachments = decisions.subreadingOf ?? {};
 		const readingTypes = decisions.readingType ?? {};
 		const certainties = decisions.certainty ?? {};
-		const proposal = readings.map(reading => {
+		const storedView = viewUnit(key, stored);
+		const ambiguousWitnessIds = new Set(
+			storedView.ambiguousAttestations.flatMap(attestation => attestation.witnessIds)
+		);
+		const visibleIds = new Set(storedView.readings.map(reading => reading.id));
+		const editedIds = new Set(readings.map(reading => reading.id));
+		const hiddenReadings = stored.filter(
+			reading => !visibleIds.has(reading.id) && !editedIds.has(reading.id)
+		);
+		const proposal = [...readings, ...hiddenReadings].map(reading => {
 			const existing = proposalById.get(reading.id);
 			if (!existing) return reading;
-			let restored = reading;
+			const ambiguous = existing.witnessIds.filter(
+				witnessId =>
+					ambiguousWitnessIds.has(witnessId) && !reading.witnessIds.includes(witnessId)
+			);
+			let restored =
+				ambiguous.length > 0
+					? { ...reading, witnessIds: [...reading.witnessIds, ...ambiguous] }
+					: reading;
 			if (Object.hasOwn(attachments, reading.id)) {
 				restored = {
 					...restored,
@@ -1850,6 +1868,69 @@ function createCollationState() {
 		pushCommand({
 			type: 'set-subreading-attachment',
 			description: parentReadingId ? 'Attach subreading' : 'Detach subreading',
+			undo: () => {
+				unitDecisions = new Map(previous);
+			},
+			redo: () => {
+				unitDecisions = new Map(updated);
+			},
+		});
+		return { ok: true };
+	}
+
+	type AmbiguousAttestationResult =
+		| { ok: true; attestationId: string }
+		| { ok: false; error: AmbiguousAttestationError | 'unit-not-found' };
+
+	function recordAmbiguousAttestation(
+		unitIndex: number,
+		witnessIds: string[],
+		targetReadingIds: string[]
+	): AmbiguousAttestationResult {
+		const key = getReadingUnitKey(unitIndex);
+		if (!key) return { ok: false, error: 'unit-not-found' };
+		ensureReadingsForUnit(unitIndex);
+		const previous = new Map(unitDecisions);
+		const edit = withAmbiguousAttestation(
+			classifiedReadings.get(key) ?? [],
+			previous.get(key) ?? {},
+			{ witnessIds, targetReadingIds }
+		);
+		if (!edit.ok) return edit;
+		const updated = new Map(previous).set(key, edit.decisions);
+		unitDecisions = updated;
+		pushCommand({
+			type: 'record-ambiguous-attestation',
+			description: 'Record ambiguous attestation',
+			undo: () => {
+				unitDecisions = new Map(previous);
+			},
+			redo: () => {
+				unitDecisions = new Map(updated);
+			},
+		});
+		return { ok: true, attestationId: edit.attestationId };
+	}
+
+	function removeAmbiguousAttestation(
+		unitIndex: number,
+		attestationId: string
+	): { ok: true } | { ok: false; error: 'attestation-not-found' } {
+		const key = getReadingUnitKey(unitIndex);
+		const attestations = key ? (unitDecisions.get(key)?.ambiguousAttestations ?? []) : [];
+		if (!key || !attestations.some(attestation => attestation.id === attestationId)) {
+			return { ok: false, error: 'attestation-not-found' };
+		}
+		const previous = new Map(unitDecisions);
+		const next = cloneUnitDecisions(previous.get(key));
+		const remaining = attestations.filter(attestation => attestation.id !== attestationId);
+		if (remaining.length > 0) next.ambiguousAttestations = remaining;
+		else delete next.ambiguousAttestations;
+		const updated = new Map(previous).set(key, next);
+		unitDecisions = updated;
+		pushCommand({
+			type: 'remove-ambiguous-attestation',
+			description: 'Remove ambiguous attestation',
 			undo: () => {
 				unitDecisions = new Map(previous);
 			},
@@ -2744,6 +2825,8 @@ function createCollationState() {
 		splitWitnessesIntoNewReading,
 		mergeReadings,
 		setReadingParent,
+		recordAmbiguousAttestation,
+		removeAmbiguousAttestation,
 		getLemmaReadingId,
 		unitNeedsLemmaDecision,
 		setLemmaReading,

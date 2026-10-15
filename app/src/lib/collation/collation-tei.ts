@@ -127,6 +127,7 @@ function witnessAttribute(
 function readingAttributes(
 	reading: ClassifiedReading,
 	options: {
+		xmlId?: string;
 		label?: string;
 		sequence?: number;
 		witnessXmlIds: ReadonlyMap<string, string>;
@@ -137,6 +138,7 @@ function readingAttributes(
 	}
 ): string {
 	const attributes: string[] = [];
+	if (options.xmlId !== undefined) attributes.push(`xml:id="${escapeAttribute(options.xmlId)}"`);
 	if (options.label !== undefined) attributes.push(`n="${escapeAttribute(options.label)}"`);
 	if (options.sequence !== undefined) attributes.push(`varSeq="${options.sequence}"`);
 	const type = reading.isOmission
@@ -201,8 +203,16 @@ function serializeUnit(
 	const laterSplitMemberIds = new Set(
 		splitReadingGroups(ordered).flatMap(group => group.slice(1).map(reading => reading.id))
 	);
+	const unitXmlId = xmlId(variationUnitId(segment.span.columnIds[0]));
+	const readingXmlIds = new Map(
+		ordered.map(reading => [reading.id, xmlId(`${unitXmlId}-${reading.label}`)] as const)
+	);
+	const targetIds = new Set(
+		unit.view.ambiguousAttestations.flatMap(attestation => attestation.targetReadingIds)
+	);
 	const readings = ordered.map((reading, index) =>
 		serializeReading(reading, {
+			xmlId: targetIds.has(reading.id) ? readingXmlIds.get(reading.id) : undefined,
 			label: reading.label,
 			sequence: index + 1,
 			witnessXmlIds,
@@ -222,6 +232,21 @@ function serializeUnit(
 		);
 		readings.push(
 			`<rdg n="${NON_ATTESTATION_LABEL}" type="lac" varSeq="${sequence}"${witnesses}/>`
+		);
+	}
+	for (const attestation of unit.view.ambiguousAttestations) {
+		const witnesses = witnessAttribute(
+			attestation.witnessIds,
+			witnessXmlIds,
+			baseTextWitnessId,
+			false
+		);
+		if (!witnesses) continue;
+		const target = attestation.targetReadingIds
+			.map(readingId => `#${readingXmlIds.get(readingId)}`)
+			.join(' ');
+		readings.push(
+			`<witDetail type="ambiguous" n="${escapeAttribute(`zw-${attestation.targetLabels.join('/')}`)}" target="${escapeAttribute(target)}"${witnesses}/>`
 		);
 	}
 
@@ -251,7 +276,7 @@ function serializeUnit(
 			? ''
 			: `<fs><f name="connectivity"><numeric value="${unit.connectivity}"/></f></fs>`;
 
-	return `<app from="${escapeAttribute(segment.label)}" n="${escapeAttribute(segmentName)}" to="${escapeAttribute(segment.label)}" type="main">${serializedLemma}${readings.join('')}<note><label>${escapeText(`${segmentName}/${segment.ordinal}`)}</label>${connectivity}<graph type="directed">${nodes}${arcs}</graph></note></app>`;
+	return `<app xml:id="${escapeAttribute(unitXmlId)}" from="${escapeAttribute(segment.label)}" n="${escapeAttribute(segmentName)}" to="${escapeAttribute(segment.label)}" type="main">${serializedLemma}${readings.join('')}<note><label>${escapeText(`${segmentName}/${segment.ordinal}`)}</label>${connectivity}<graph type="directed">${nodes}${arcs}</graph></note></app>`;
 }
 
 export function getApparatusExportRefusals(
