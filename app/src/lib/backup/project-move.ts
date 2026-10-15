@@ -1,5 +1,6 @@
 import type { Kysely } from 'kysely';
 import type { Database } from '$lib/db/types.generated';
+import { hashContent } from '$lib/storage/content-hash';
 import { upsertProjectPlacements, type DeletedNotice } from '$lib/storage/project-locations';
 import {
 	isBinaryProjectFile,
@@ -15,12 +16,7 @@ import {
 } from './moved-marker';
 import { placementSyncContext } from './backup-status';
 import { mapConcurrently } from './map-concurrently';
-import {
-	backupProject,
-	hashContent,
-	recordSyncedFile,
-	type SyncManagerOptions,
-} from './sync-manager';
+import { backupProject, recordSyncedFile, type SyncManagerOptions } from './sync-manager';
 import {
 	isCloudProviderError,
 	type CloudFileMetadata,

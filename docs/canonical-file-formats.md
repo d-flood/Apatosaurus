@@ -63,4 +63,5 @@ The payload records `id`, `project_id`, a `name` unique within the project (trim
 - Reads check that the file sits at `cbgm/<id>.json` for its own `id` and belongs to the reading project. A missing or invalid file never falls back to index rows.
 - Settings, collations and input are never rewritten after creation. Cache and global-stemma bytes are written before the metadata that publishes them.
 - An analysis has no versions. Deletion writes a `cbgm_analysis` tombstone that covers all four files, so stale sidecars cannot bring it back.
+- When two devices change an analysis between syncs, sync resolves its files together, following the metadata: the device that syncs last wins, so the cache always matches `cache_hash`. Results are derived from the frozen inputs, so nothing is quarantined.
 - Analyses are not listed in `project.json`; index rebuild reads every `cbgm/*.json` that has no tombstone.

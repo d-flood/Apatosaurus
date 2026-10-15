@@ -625,6 +625,86 @@ describe('sync manager', () => {
 		}
 	});
 
+	it('keeps an analysis metadata and cache together when two stores both change it', async () => {
+		await createCommittedProjectCollation('Initial notes', 'col-cp-1');
+		await createCbgmAnalysisWithFiles(harness.db, 'project-1', {}, storeOptions);
+		const { provider, context: contextA } = await createConnectedProvider();
+		const contextB: SyncProjectContext = { ...contextA, connectionId: 'target-b' };
+		const syncA = () => backupProject(harness.db, provider, contextA, syncOptions());
+		await syncA();
+		const storeB = createLocalDbTestHarness();
+		const storeOptionsB = { backend: new MemoryStoreBackend() };
+		try {
+			const archive = await listProjectArchiveFiles(harness.db, 'project-1', {
+				storeOptions,
+			});
+			const imported = await importProjectFileTree(
+				storeB.db,
+				archive.map(file => ({ path: file.path, read: async () => file.content })),
+				{ storeOptions: storeOptionsB }
+			);
+			expect(imported.ok).toBe(true);
+			const syncB = () =>
+				backupProject(storeB.db, provider, contextB, { storeOptions: storeOptionsB });
+			expect((await syncB()).uiState).toBe('synced');
+
+			const cacheB = binaryCache(4096, 2);
+			await completeCoherence(
+				harness.db,
+				'project-1',
+				'analysis-1',
+				binaryCache(4096, 1),
+				storeOptions
+			);
+			await completeCoherence(storeB.db, 'project-1', 'analysis-1', cacheB, storeOptionsB);
+			expect((await syncA()).uiState).toBe('synced');
+			const pushB = await syncB();
+			expect(pushB.quarantines).toEqual([]);
+			expect(pushB.uploadedPaths).toEqual(
+				expect.arrayContaining(['cbgm/analysis-1.json', 'cbgm/analysis-1.sqlite'])
+			);
+			expect((await syncA()).uiState).toBe('synced');
+			expect(await readCache(harness.db, 'analysis-1', storeOptions)).toEqual(cacheB);
+
+			await setGlobalStemmaState(
+				harness.db,
+				'project-1',
+				'analysis-1',
+				'ready',
+				binaryCache(8192, 3),
+				undefined,
+				storeOptions
+			);
+			await setGlobalStemmaState(
+				storeB.db,
+				'project-1',
+				'analysis-1',
+				'computing',
+				undefined,
+				undefined,
+				storeOptionsB
+			);
+			expect((await syncA()).uiState).toBe('synced');
+			const markB = await syncB();
+			expect(markB.quarantines).toEqual([]);
+			expect(markB.uploadedPaths).toEqual(
+				expect.arrayContaining(['cbgm/analysis-1.json', 'cbgm/analysis-1.sqlite'])
+			);
+			expect((await syncA()).uiState).toBe('synced');
+			for (const [db, options] of [
+				[harness.db, storeOptions],
+				[storeB.db, storeOptionsB],
+			] as const) {
+				expect(await readCache(db, 'analysis-1', options)).toEqual(cacheB);
+				expect(await listCbgmAnalyses(db, 'project-1')).toMatchObject([
+					{ id: 'analysis-1', global_stemma: 'computing' },
+				]);
+			}
+		} finally {
+			await storeB.destroy();
+		}
+	});
+
 	it('backs up project entities before uploading the project manifest', async () => {
 		await createCommittedProjectCollation('Initial notes', 'col-cp-1');
 		const { provider, context } = await createConnectedProvider();

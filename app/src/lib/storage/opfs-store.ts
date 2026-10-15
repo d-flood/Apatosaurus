@@ -12,6 +12,7 @@ import {
 } from './layout';
 import type { StoreQuarantineSink } from './quarantine';
 import { canonicalJson } from './canonical-json';
+import { hashContent } from './content-hash';
 
 type StoreEntryKind = 'file' | 'directory';
 
@@ -379,19 +380,6 @@ async function deleteTempFile(backend: StoreBackend, tempBackendPath: string): P
 
 async function openOriginPrivateFileSystemRoot(): Promise<FileSystemDirectoryHandle> {
 	return openOpfsRoot();
-}
-
-async function hashContent(content: string | Uint8Array): Promise<string> {
-	const digest = await globalThis.crypto?.subtle?.digest(
-		'SHA-256',
-		typeof content === 'string'
-			? new TextEncoder().encode(content)
-			: (content as Uint8Array<ArrayBuffer>)
-	);
-	if (!digest) throw new Error('SHA-256 hashing requires Web Crypto support.');
-	return `sha256:${[...new Uint8Array(digest)]
-		.map(byte => byte.toString(16).padStart(2, '0'))
-		.join('')}`;
 }
 
 function createNonce(): string {

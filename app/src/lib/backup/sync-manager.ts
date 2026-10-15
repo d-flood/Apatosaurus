@@ -32,6 +32,7 @@ import {
 	type MovedNotice,
 } from '$lib/storage/project-locations';
 import { canonicalJson } from '$lib/storage/canonical-json';
+import { hashContent } from '$lib/storage/content-hash';
 import type { StoreQuarantineRecord, StoreQuarantineReason } from '$lib/storage/quarantine';
 import { ApparatusExportError, exportCollationDocumentTei } from '$lib/collation/collation-tei';
 import {
@@ -629,6 +630,22 @@ async function reconcileLocalMirror(
 		localFiles = await listLocalProjectMirrorFiles(db, context.projectId, storeOptions);
 	}
 
+	const analysisWinners = new Map<string, 'local' | 'remote'>();
+	for (const localFile of localFiles) {
+		const analysisId = /^cbgm\/([^/]+)\.json$/.exec(localFile.path)?.[1];
+		const remoteFile = remoteFiles.get(localFile.path);
+		if (!analysisId || !remoteFile) continue;
+		if (remoteFile.fingerprint.contentHash === localFile.fingerprint.contentHash) continue;
+		const cached = await getFileFingerprint(db, context, localFile.path);
+		analysisWinners.set(
+			analysisId,
+			cached?.localContentHash === localFile.fingerprint.contentHash &&
+				cached.remoteContentHash !== remoteFile.fingerprint.contentHash
+				? 'remote'
+				: 'local'
+		);
+	}
+
 	const localPaths = new Set(localFiles.map(file => file.path));
 	for (const localFile of localFiles) {
 		if (
@@ -663,9 +680,12 @@ async function reconcileLocalMirror(
 		const remoteUnchanged = cached
 			? cached.remoteContentHash === remoteFile.fingerprint.contentHash
 			: false;
-		// Binary caches are derived: on divergence this sync's upload is the last write and wins.
+		// CBGM results are derived: on divergence this sync's upload is the last write and wins, and
+		// an analysis's files follow its metadata so the cache keeps matching cache_hash.
+		const analysisId = cbgmAnalysisIdForPath(localFile.path);
 		const winner =
-			localUnchanged && !remoteUnchanged
+			(!remoteUnchanged && analysisId && analysisWinners.get(analysisId)) ||
+			(localUnchanged && !remoteUnchanged
 				? 'remote'
 				: remoteUnchanged || isBinaryProjectFile(localFile.path)
 					? 'local'
@@ -673,7 +693,7 @@ async function reconcileLocalMirror(
 							localFile.path,
 							projectFileText(localFile.content),
 							projectFileText(remoteContent(remoteFile))
-						);
+						));
 		if (winner === 'remote') {
 			const validation = await validateProjectFilesWithTemporaryStaging(
 				[{ path: remoteFile.path, content: remoteContent(remoteFile) }],
@@ -1322,6 +1342,10 @@ function primaryReferenceForMirrorPath(path: string): SyncEntityReference | null
 	return null;
 }
 
+function cbgmAnalysisIdForPath(path: string): string | undefined {
+	return /^cbgm\/([^/]+?)\.(?:json|input\.xml|sqlite|global-stemma\.dot)$/.exec(path)?.[1];
+}
+
 function resolveDivergentFile(
 	path: string,
 	localContent: string,
@@ -1386,19 +1410,6 @@ async function fingerprintContent(
 		size: bytes.byteLength,
 		modifiedAt,
 	};
-}
-
-export async function hashContent(content: ProjectFileContent): Promise<string> {
-	const digest = await globalThis.crypto?.subtle?.digest(
-		'SHA-256',
-		typeof content === 'string'
-			? new TextEncoder().encode(content)
-			: (content as Uint8Array<ArrayBuffer>)
-	);
-	if (!digest) throw new Error('SHA-256 hashing is unavailable.');
-	return `sha256:${[...new Uint8Array(digest)]
-		.map(byte => byte.toString(16).padStart(2, '0'))
-		.join('')}`;
 }
 
 async function createConflictCopy(

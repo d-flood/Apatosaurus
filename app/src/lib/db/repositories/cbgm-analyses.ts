@@ -4,6 +4,7 @@ import { createStoreOnlyZip } from '$lib/backup/project-zip-export';
 import { nativeCommands } from '$lib/cbgm/cbgm-native';
 import type { CollationDocument } from '$lib/collation/collation-document';
 import { hashCanonicalPayload } from '$lib/storage/canonical-json';
+import { hashContent } from '$lib/storage/content-hash';
 import {
 	CBGM_ANALYSIS_FORMAT,
 	collationPayloadToContent,
@@ -103,7 +104,7 @@ export async function createAnalysis(
 			collations: input.collations,
 			witnesses: input.witnesses,
 			undecided_readings: input.undecidedReadings,
-			input_tei_hash: await hashBytes(input.inputTei),
+			input_tei_hash: await hashContent(input.inputTei),
 			cache_hash: null,
 			coherence: input.coherence,
 			global_stemma: 'none',
@@ -129,7 +130,7 @@ export async function completeCoherence(
 		await writeFileBytesAtomic(files.cache, cache, storeOptions);
 		return {
 			...metadata,
-			cache_hash: await hashBytes(cache),
+			cache_hash: await hashContent(cache),
 			coherence: 'ready',
 			completed_at: new Date().toISOString(),
 			computing_device: null,
@@ -173,7 +174,7 @@ export async function setGlobalStemmaState(
 		if (dot !== undefined) await writeTextFileAtomic(files.globalStemma, dot, storeOptions);
 		return {
 			...metadata,
-			cache_hash: cache ? await hashBytes(cache) : metadata.cache_hash,
+			cache_hash: cache ? await hashContent(cache) : metadata.cache_hash,
 			global_stemma: state,
 			computing_device:
 				state === 'computing' ? await thisDevice(projectId, storeOptions) : null,
@@ -325,7 +326,7 @@ export async function readCache(
 		cbgmAnalysisFiles(location.storageSlug, analysisId).cache,
 		storeOptions
 	);
-	if ((await hashBytes(cache)) !== metadata.cache_hash) {
+	if ((await hashContent(cache)) !== metadata.cache_hash) {
 		throw new Error(`CBGM analysis ${analysisId} cache does not match its metadata.`);
 	}
 	return cache;
@@ -342,7 +343,7 @@ export async function readInputTei(
 		cbgmAnalysisFiles(location.storageSlug, analysisId).input,
 		storeOptions
 	);
-	if ((await hashBytes(input)) !== metadata.input_tei_hash) {
+	if ((await hashContent(input)) !== metadata.input_tei_hash) {
 		throw new Error(`CBGM analysis ${analysisId} input does not match its metadata.`);
 	}
 	return input;
@@ -495,12 +496,4 @@ async function thisDevice(
 
 function nameKey(name: string): string {
 	return name.trim().toLocaleLowerCase();
-}
-
-async function hashBytes(content: string | Uint8Array): Promise<string> {
-	const bytes = typeof content === 'string' ? new TextEncoder().encode(content) : content;
-	const digest = await crypto.subtle.digest('SHA-256', bytes as Uint8Array<ArrayBuffer>);
-	return `sha256:${[...new Uint8Array(digest)]
-		.map(byte => byte.toString(16).padStart(2, '0'))
-		.join('')}`;
 }
