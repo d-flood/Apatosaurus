@@ -268,7 +268,30 @@ function hasValidAmbiguousAttestations(value: unknown): boolean {
 		if (!unit || typeof unit !== 'object' || Array.isArray(unit)) return true;
 		const decisions = (unit as Record<string, unknown>).decisions;
 		if (!decisions || typeof decisions !== 'object' || Array.isArray(decisions)) return true;
-		const attestations = (decisions as Record<string, unknown>).ambiguousAttestations;
+		const record = decisions as Record<string, unknown>;
+		const unconfirmed = record.unconfirmedWitnessIds;
+		if (
+			unconfirmed !== undefined &&
+			(!Array.isArray(unconfirmed) || !unconfirmed.every(id => typeof id === 'string'))
+		)
+			return false;
+		const unresolved = record.unresolvedAttestations;
+		if (
+			unresolved !== undefined &&
+			(!Array.isArray(unresolved) ||
+				!unresolved.every(value => {
+					if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+					const attestation = value as Record<string, unknown>;
+					return (
+						typeof attestation.witnessId === 'string' &&
+						Array.isArray(attestation.candidateReadingIds) &&
+						attestation.candidateReadingIds.every(id => typeof id === 'string') &&
+						new Set(attestation.candidateReadingIds).size >= 2
+					);
+				}))
+		)
+			return false;
+		const attestations = record.ambiguousAttestations;
 		return (
 			attestations === undefined ||
 			(Array.isArray(attestations) && attestations.every(isAmbiguousAttestation))
@@ -516,7 +539,8 @@ function buildApparatus(
 	classifiedReadings: Map<string, ClassifiedReading[]>,
 	unitDecisions: Map<string, UnitDecisions>,
 	alignmentColumns: AlignmentColumn[],
-	baseWitnessId: string | null
+	baseWitnessId: string | null,
+	sourceWitnessIds: string[]
 ): CollationApparatusNode | null {
 	if (classifiedReadings.size === 0 && unitDecisions.size === 0) return null;
 	const unitIds = new Set([...classifiedReadings.keys(), ...unitDecisions.keys()]);
@@ -531,7 +555,13 @@ function buildApparatus(
 				unitId,
 				columnId,
 				readings: applyDecisions(
-					classifiedReadings.get(unitId) ?? [],
+					classifiedReadings.get(unitId) ??
+						buildReadingProposal({
+							columns: alignmentColumns.filter(column => column.id === columnId),
+							spanColumnIds: columnId ? [columnId] : [],
+							sourceWitnessIds,
+							baseWitnessId,
+						}).readings,
 					unitDecisions.get(unitId) ?? {},
 					{ baseWitnessId }
 				).readings,
@@ -620,7 +650,8 @@ export function buildCollationDocument(seed: CollationDocumentSeed): CollationDo
 			seed.classifiedReadings,
 			seed.unitDecisions,
 			seed.alignmentColumns,
-			findBaseTextWitnessId(seed.witnesses)
+			findBaseTextWitnessId(seed.witnesses),
+			seed.witnesses.filter(witness => !witness.isExcluded).map(witness => witness.witnessId)
 		),
 		stemma: buildStemma(seed.readingArcs, seed.unitDecisions, seed.alignmentColumns),
 	};

@@ -33,6 +33,12 @@ Version 7 applies the Project Transcription Version 2 change to collations: `col
 - Loading folds a leftover `apatosaurus.working.collation` file into the primary when its `draft.base_*` matches `based_on_checkpoint`, writing the new primary before deleting the working file. Zip import folds both working formats the same way before placing files.
 - `apatosaurus.working.collation` stays registered only so legacy files can be read and migrated. Checkpoint content is unchanged.
 
+## Collation Version 10
+
+Version 10 adds placement review decisions: `unconfirmedWitnessIds?: string[]` and `unresolvedAttestations?: { witnessId: string, candidateReadingIds: string[] }[]` on each apparatus unit. Unresolved attestations require at least two distinct candidate reading ids and hold their witness out of readings; unconfirmed marks do not change export or CBGM input.
+
+The upgrade from version 9 leaves the payload unchanged. Malformed placement decisions quarantine the document. Working collation version 4 and checkpoint version 5 already preserve these decisions through the shared semantic document parser, so their versions stay unchanged.
+
 ## Collation Version 9
 
 Version 9 adds ambiguous attestations to a variation unit's decisions: `document.apparatus.units[].decisions.ambiguousAttestations?: { id, witnessIds, targetReadingIds }[]`, cited `zw a/b`.

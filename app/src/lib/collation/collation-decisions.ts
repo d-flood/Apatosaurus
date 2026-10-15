@@ -6,7 +6,6 @@ import type { Certainty, ReadingTypeDefinition, ReadingTypeId } from './reading-
 import { dropEmptiedReadings, withoutWitnesses } from './reading-edits';
 
 export interface UnitDecisions {
-	/** Legacy alpha hand-edits; cannot regenerate. */
 	preserveReadings?: true;
 	subreadingOf?: Record<string, string | null>;
 	lemmaReadingId?: string | null;
@@ -17,7 +16,11 @@ export interface UnitDecisions {
 	/** Only non-arc source decisions; `derived` lives in arcs. */
 	sourceDecision?: Record<string, SourceDecision>;
 	ambiguousAttestations?: AmbiguousAttestation[];
+	unconfirmedWitnessIds?: string[];
+	unresolvedAttestations?: UnresolvedAttestation[];
 }
+
+export type UnresolvedAttestation = { witnessId: string; candidateReadingIds: string[] };
 
 export type AmbiguousAttestation = {
 	id: string;
@@ -90,6 +93,8 @@ export interface OrphanedUnitDecision {
 export interface UnitView {
 	readings: ClassifiedReading[];
 	ambiguousAttestations: AmbiguousAttestationView[];
+	unconfirmedWitnessIds: string[];
+	unresolvedAttestations: UnresolvedAttestation[];
 	orphanedDecisions: OrphanedDecision[];
 	lemmaReadingId: string | null;
 	baseTextReadingId: string | null;
@@ -112,6 +117,13 @@ export function cloneUnitDecisions(decisions: UnitDecisions | undefined): UnitDe
 			targetReadingIds: [...attestation.targetReadingIds],
 		}));
 	}
+	if (decisions?.unconfirmedWitnessIds)
+		clone.unconfirmedWitnessIds = [...decisions.unconfirmedWitnessIds];
+	if (decisions?.unresolvedAttestations)
+		clone.unresolvedAttestations = decisions.unresolvedAttestations.map(attestation => ({
+			...attestation,
+			candidateReadingIds: [...attestation.candidateReadingIds],
+		}));
 	return clone;
 }
 
@@ -226,9 +238,17 @@ export function applyDecisions(
 		decidedReadings,
 		withoutWitnesses(
 			decidedReadings,
-			new Set(attestations.flatMap(attestation => attestation.witnessIds))
+			new Set([
+				...attestations.flatMap(attestation => attestation.witnessIds),
+				...(decisions.unresolvedAttestations ?? []).map(
+					attestation => attestation.witnessId
+				),
+			])
 		),
-		...attestations.flatMap(attestation => attestation.targetReadingIds)
+		...attestations.flatMap(attestation => attestation.targetReadingIds),
+		...(decisions.unresolvedAttestations ?? []).flatMap(
+			attestation => attestation.candidateReadingIds
+		)
 	);
 
 	const mainReadingIdOf = makeMainReadingIdOf(readings);
@@ -267,6 +287,11 @@ export function applyDecisions(
 
 	return {
 		readings: labelled,
+		unconfirmedWitnessIds: [...(decisions.unconfirmedWitnessIds ?? [])],
+		unresolvedAttestations: (decisions.unresolvedAttestations ?? []).map(attestation => ({
+			...attestation,
+			candidateReadingIds: [...attestation.candidateReadingIds],
+		})),
 		ambiguousAttestations: attestations.map(attestation => {
 			const targets = citation.filter(reading =>
 				attestation.targetReadingIds.includes(reading.id)

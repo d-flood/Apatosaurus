@@ -33,6 +33,7 @@ import {
 	type AlignmentEditContext,
 } from './alignment-edits';
 import { collateToAlignmentSnapshot } from './collation-adapter';
+import { placeWitnessRow } from './alignment-placement';
 import {
 	applyWitnessTreatmentSource,
 	buildWitnessConfigFromPrepared,
@@ -979,9 +980,11 @@ function createCollationState() {
 		if (!member) return false;
 		const scopedTranscriptionIds =
 			transcriptionIds ??
-			witnesses
-				.map(witness => witness.transcriptionId)
-				.filter((id): id is string => typeof id === 'string' && id.length > 0);
+			(projectId
+				? await getProjectTranscriptionIds(projectId)
+				: witnesses
+						.map(witness => witness.transcriptionId)
+						.filter((id): id is string => typeof id === 'string' && id.length > 0));
 		if (scopedTranscriptionIds.length === 0 && transcriptionIds === undefined) return false;
 
 		const gathered = await gatherWitnessesForSegment(
@@ -1070,9 +1073,11 @@ function createCollationState() {
 			});
 			if (seenPreparedKeys.has(sourceKey)) continue;
 			didChange = true;
-			nextWitnesses.push(
-				buildWitnessConfigFromPrepared(prepared, transcriptionWitnessTreatments)
-			);
+			const added = buildWitnessConfigFromPrepared(prepared, transcriptionWitnessTreatments);
+			if (nextWitnesses.some(witness => witness.witnessId === added.witnessId)) {
+				added.witnessId = crypto.randomUUID();
+			}
+			nextWitnesses.push(added);
 		}
 		witnesses = ensureBaseTextSelection(applyWitnessTreatmentSources(nextWitnesses));
 		await refreshOrphanedMembersFromProjectIndex();
@@ -1080,9 +1085,10 @@ function createCollationState() {
 	}
 
 	async function refreshWitnessesFromSource(transcriptionIds?: string[]): Promise<boolean> {
+		const previousWitnesses = witnesses;
 		const didChange = await refreshWitnessesFromTranscriptionSource(transcriptionIds);
 		if (!didChange) return false;
-		handleWitnessSourceChange();
+		handleWitnessSourceChange(previousWitnesses);
 		saveStatus = 'unsaved';
 		scheduleSave();
 		return true;
@@ -1203,16 +1209,18 @@ function createCollationState() {
 		versionId: string | null
 	): Promise<boolean> {
 		if (!collationId) return false;
+		const previousWitnesses = witnesses;
 		const didRefresh = await applySourceToWitness(witnessId, versionId);
 		if (!didRefresh) return false;
 
-		handleWitnessSourceChange();
+		handleWitnessSourceChange(previousWitnesses);
 		markUnsaved();
 		return true;
 	}
 
 	async function refreshAllStaleWitnessSources(): Promise<number> {
 		if (!collationId) return 0;
+		const previousWitnesses = witnesses;
 		const status = await getCollationVersionStatus(collationId);
 		const staleWitnesses = status.witnesses.filter(
 			witness => witness.versionState === 'source-changed' && witness.source
@@ -1229,18 +1237,185 @@ function createCollationState() {
 			}
 		}
 		if (refreshedCount === 0) return 0;
-		handleWitnessSourceChange();
+		handleWitnessSourceChange(previousWitnesses);
 		markUnsaved();
 		return refreshedCount;
 	}
 
-	function handleWitnessSourceChange() {
+	function handleWitnessSourceChange(previousWitnesses?: WitnessConfig[]) {
+		if (
+			previousWitnesses &&
+			alignmentColumns.length > 0 &&
+			previousWitnesses.every(previous =>
+				witnesses.some(witness => witness.witnessId === previous.witnessId)
+			)
+		) {
+			placeChangedWitnesses(previousWitnesses);
+			lastAlignmentInputSignature = buildAlignmentInputSignature();
+			selectedUnitIndex = normalizeVariationUnitIndex(selectedUnitIndex);
+			return;
+		}
 		if (alignmentColumns.length > 0) {
 			rebuildAlignmentFromWitnessTokens();
 		}
 		classifiedReadings = new Map();
 		readingArcs = new Map();
 		selectedUnitIndex = 0;
+	}
+
+	function placeChangedWitnesses(previousWitnesses: WitnessConfig[]) {
+		const previousById = new Map(
+			previousWitnesses.map(witness => [witness.witnessId, witness])
+		);
+		const inputs = new Map(
+			buildCollationWitnessInputs({ forceSourceWitnesses: true }).map(input => [
+				input.id,
+				input,
+			])
+		);
+		const changed = witnesses.filter(witness => {
+			const previous = previousById.get(witness.witnessId);
+			return previous && JSON.stringify(previous.tokens) !== JSON.stringify(witness.tokens);
+		});
+		const added = witnesses.filter(witness => !previousById.has(witness.witnessId));
+		const previousActiveIds = new Set(
+			previousWitnesses
+				.filter(witness => !witness.isExcluded)
+				.map(witness => witness.witnessId)
+		);
+		const activeIds = new Set(
+			getOrderedActiveWitnessIds().filter(id => previousActiveIds.has(id))
+		);
+		for (const witness of [...changed, ...added]) {
+			const input = inputs.get(witness.witnessId);
+			if (!input) continue;
+			const witnessId = witness.witnessId;
+			const oldUnits = new Map(
+				getVariationUnitSpans().map(span => {
+					const key = variationUnitId(span.columnIds[0]);
+					const proposal =
+						classifiedReadings.get(key) ??
+						buildReadingProposal({
+							columns: alignmentColumns.slice(span.startIndex, span.endIndex + 1),
+							spanColumnIds: span.columnIds,
+							sourceWitnessIds: [...activeIds],
+							baseWitnessId: getBaseTextWitnessId(),
+						}).readings;
+					return [key, viewUnit(key, proposal).readings] as const;
+				})
+			);
+			if (previousById.has(witnessId)) {
+				alignmentColumns = alignmentColumns
+					.map(column => {
+						const cells = new Map(column.cells);
+						cells.delete(witnessId);
+						return { ...column, cells };
+					})
+					.filter(column =>
+						[...column.cells.values()].some(
+							cell => cell.sourceTokenIds.length > 0 || cell.kind === 'text'
+						)
+					);
+				classifiedReadings = new Map(
+					[...classifiedReadings].map(([key, readings]) => [
+						key,
+						readings
+							.map(reading => ({
+								...reading,
+								witnessIds: reading.witnessIds.filter(id => id !== witnessId),
+							}))
+							.filter(reading => reading.witnessIds.length > 0),
+					])
+				);
+			}
+			const placed = placeWitnessRow(alignmentColumns, input, {
+				witnessOrder: [...activeIds],
+			});
+			alignmentColumns = placed.columns;
+			activeIds.add(witnessId);
+			witnessOrder = [...activeIds];
+			for (const span of getVariationUnitSpans()) {
+				const key = variationUnitId(span.columnIds[0]);
+				const oldReadings = oldUnits.get(key);
+				if (!oldReadings) continue;
+				const proposal = buildReadingProposal({
+					columns: alignmentColumns.slice(span.startIndex, span.endIndex + 1),
+					spanColumnIds: span.columnIds,
+					sourceWitnessIds: [...activeIds],
+					baseWitnessId: getBaseTextWitnessId(),
+				}).readings;
+				const bucket = proposal.find(reading => reading.witnessIds.includes(witnessId));
+				const decisions = cloneUnitDecisions(unitDecisions.get(key));
+				if (classifiedReadings.has(key)) decisions.preserveReadings = true;
+				const wasUnconfirmed = decisions.unconfirmedWitnessIds?.includes(witnessId);
+				decisions.unconfirmedWitnessIds = (decisions.unconfirmedWitnessIds ?? []).filter(
+					id => id !== witnessId
+				);
+				decisions.unresolvedAttestations = (decisions.unresolvedAttestations ?? []).filter(
+					attestation => attestation.witnessId !== witnessId
+				);
+				if (bucket) {
+					const stored = classifiedReadings.get(key);
+					const coWitnesses = bucket.witnessIds.filter(id => id !== witnessId);
+					const candidates = stored
+						? viewUnit(key, stored).readings.filter(reading =>
+								reading.witnessIds.some(id => coWitnesses.includes(id))
+							)
+						: [];
+					let targetId = bucket.id;
+					if (candidates.length > 1) {
+						decisions.unresolvedAttestations.push({
+							witnessId,
+							candidateReadingIds: candidates.map(reading => reading.id),
+						});
+					} else {
+						if (stored) {
+							if (candidates.length === 1) {
+								targetId = candidates[0].id;
+								classifiedReadings = new Map(classifiedReadings).set(
+									key,
+									stored.map(reading =>
+										reading.id === targetId
+											? {
+													...reading,
+													witnessIds: [...reading.witnessIds, witnessId],
+												}
+											: reading
+									)
+								);
+							} else {
+								targetId = stored.some(reading => reading.id === bucket.id)
+									? crypto.randomUUID()
+									: bucket.id;
+								const reading = {
+									...bucket,
+									id: targetId,
+									witnessIds: [witnessId],
+									parentReadingId: null,
+									isSubreading: false,
+									autoGenerated: false,
+									order: stored.length,
+								};
+								classifiedReadings = new Map(classifiedReadings).set(
+									key,
+									relabelReadings([...stored, reading], getBaseTextWitnessId())
+								);
+							}
+						}
+						const oldReading = oldReadings.find(reading =>
+							reading.witnessIds.includes(witnessId)
+						);
+						if (
+							wasUnconfirmed ||
+							!previousById.has(witnessId) ||
+							oldReading?.id !== targetId
+						)
+							decisions.unconfirmedWitnessIds.push(witnessId);
+					}
+				}
+				unitDecisions = new Map(unitDecisions).set(key, decisions);
+			}
+		}
 	}
 
 	function buildCollationWitnessInputs(options?: {
@@ -1551,6 +1726,8 @@ function createCollationState() {
 	const EMPTY_UNIT_VIEW: UnitView = {
 		readings: [],
 		ambiguousAttestations: [],
+		unconfirmedWitnessIds: [],
+		unresolvedAttestations: [],
 		orphanedDecisions: [],
 		lemmaReadingId: null,
 		baseTextReadingId: null,

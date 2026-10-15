@@ -51,6 +51,8 @@ import workingCollationV4Input from './fixtures/working-collation-v4.input.json'
 import collationV7Expected from './fixtures/collation-v7.expected.json';
 import collationV8Input from './fixtures/collation-v8.input.json';
 import collationV9Expected from './fixtures/collation-v9.expected.json';
+import collationV9Input from './fixtures/collation-v9.input.json';
+import collationV10Expected from './fixtures/collation-v10.expected.json';
 import {
 	COLLATION_CHECKPOINT_FIXTURE,
 	COLLATION_CHECKPOINT_OLD_SHAPE_FIXTURE,
@@ -278,6 +280,65 @@ describe('canonical store formats', () => {
 		expect(result).toMatchObject({ ok: true, upgraded: true, originalVersion: 8 });
 		if (!result.ok) throw new Error('Expected the v8 collation to read.');
 		expect(result.payload).toEqual(collationV9Expected);
+	});
+
+	it('upgrades v9 placement decisions unchanged and quarantines malformed decisions', async () => {
+		const result = await readCanonicalDocument<CollationPayload>(
+			COLLATION_FORMAT,
+			await sealDocument(COLLATION_FORMAT, 9, collationV9Input as JsonObject)
+		);
+		expect(result).toMatchObject({
+			ok: true,
+			upgraded: true,
+			originalVersion: 9,
+			payload: collationV10Expected,
+		});
+		for (const decisions of [
+			{ unconfirmedWitnessIds: 'A' },
+			{ unconfirmedWitnessIds: [1] },
+			{ unresolvedAttestations: {} },
+			{ unresolvedAttestations: [{ witnessId: 1, candidateReadingIds: ['a', 'b'] }] },
+			{ unresolvedAttestations: [{ witnessId: 'A', candidateReadingIds: ['a'] }] },
+			{ unresolvedAttestations: [{ witnessId: 'A', candidateReadingIds: ['a', 'a'] }] },
+			{ unresolvedAttestations: [{ witnessId: 'A', candidateReadingIds: ['a', 1] }] },
+		]) {
+			const payload = structuredClone(collationV10Expected) as JsonObject;
+			const document = payload.document as JsonObject;
+			const apparatus = document.apparatus as JsonObject;
+			const units = apparatus.units as JsonObject[];
+			units[0].decisions = decisions as unknown as JsonObject;
+			await expect(
+				readCanonicalDocument(
+					COLLATION_FORMAT,
+					await sealDocument(COLLATION_FORMAT, COLLATION_CURRENT_VERSION, payload)
+				)
+			).resolves.toMatchObject({ ok: false, quarantine: { code: 'invalid_shape' } });
+		}
+	});
+
+	it('preserves placement decisions in current working and checkpoint formats', async () => {
+		const document = collationV10Expected.document;
+		const working = { ...WORKING_COLLATION_FIXTURE, document } as JsonObject;
+		const workingRead = await readCanonicalDocument(
+			WORKING_COLLATION_FORMAT,
+			await serializeCanonicalDocument(WORKING_COLLATION_FORMAT, working)
+		);
+		expect(workingRead).toMatchObject({ ok: true, upgraded: false, payload: { document } });
+		const payload = { ...COLLATION_CHECKPOINT_FIXTURE.payload, document } as JsonObject;
+		const checkpoint = {
+			...COLLATION_CHECKPOINT_FIXTURE,
+			payload,
+			payload_content_hash: await hashCanonicalPayload(payload),
+		};
+		const checkpointRead = await readCanonicalDocument(
+			COLLATION_CHECKPOINT_FORMAT,
+			await serializeCanonicalDocument(COLLATION_CHECKPOINT_FORMAT, checkpoint)
+		);
+		expect(checkpointRead).toMatchObject({
+			ok: true,
+			upgraded: false,
+			payload: { payload: { document } },
+		});
 	});
 
 	it('retains ambiguous attestations in a v9 collation and quarantines malformed ones', async () => {

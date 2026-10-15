@@ -1,0 +1,97 @@
+{
+	"id": "col-1",
+	"project_id": "project-1",
+	"title": "John 1:1 Collation (draft)",
+	"verse_identifier": "John 1:1",
+	"status": "draft",
+	"group_path": "",
+	"notes": "Uncommitted editorial notes",
+	"sort_key": 0,
+	"document": {
+		"type": "collationDocument",
+		"version": 1,
+		"meta": {
+			"collationId": "col-1",
+			"projectId": "project-1",
+			"projectName": "Project"
+		},
+		"flow": {
+			"phase": "review",
+			"furthestPhase": "review",
+			"alignmentDisplayMode": "regularized",
+			"alignmentLayout": "grid"
+		},
+		"setup": {
+			"segment": {
+				"id": "segment-1",
+				"name": "John 1:1",
+				"members": ["John 1:1"]
+			},
+			"witnesses": [
+				{
+					"type": "witness",
+					"id": "A",
+					"siglum": "A",
+					"transcriptionId": "tx-1",
+					"content": "in principio",
+					"treatment": "full",
+					"isBaseText": true,
+					"isExcluded": false,
+					"overridesDefault": false,
+					"sourceTokens": [],
+					"source": {
+						"kind": "version",
+						"transcriptionId": "tx-1",
+						"versionId": "tx-cp-1"
+					}
+				}
+			]
+		},
+		"settings": {
+			"regularizationRules": [],
+			"ignoreWordBreaks": false,
+			"lowercase": false,
+			"ignoreTokenWhitespace": true,
+			"ignorePunctuation": false,
+			"suppliedTextMode": "clear",
+			"segmentation": true
+		},
+		"alignment": null,
+		"apparatus": {
+			"type": "apparatus",
+			"units": [
+				{
+					"type": "variationUnit",
+					"id": "unit:col-1",
+					"unitId": "unit:col-1",
+					"columnId": "col-1",
+					"readings": [],
+					"decisions": {
+						"lemmaReadingId": "reading-a",
+						"readingType": {
+							"reading-b": "nonsense"
+						},
+						"unconfirmedWitnessIds": ["A"],
+						"unresolvedAttestations": [
+							{
+								"witnessId": "B",
+								"candidateReadingIds": ["reading-a", "reading-b"]
+							}
+						]
+					}
+				}
+			]
+		},
+		"stemma": null
+	},
+	"created_at": "2026-07-03T00:00:00.000Z",
+	"updated_at": "2026-07-03T00:05:00.000Z",
+	"based_on_checkpoint": {
+		"id": "col-cp-1",
+		"content_hash": "sha256:625adfc84755d1554eb7ea249d4a839af0ed8dd43b938b30300c167b6d74b8dc"
+	},
+	"draft": {
+		"saved_at": "2026-07-03T00:05:00.000Z",
+		"author_name": "Editor"
+	}
+}

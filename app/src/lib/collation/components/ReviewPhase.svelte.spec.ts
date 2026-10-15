@@ -85,6 +85,23 @@ describe('ReviewPhase orphan worklist', () => {
 		]);
 	});
 
+	it('lists placement confirmation and resolution with reading actions', async () => {
+		collationState.setAlignmentSnapshot(snapshot(['col-1']));
+		collationState.unitDecisions.set('unit:col-1', {
+			unconfirmedWitnessIds: ['A'],
+			unresolvedAttestations: [
+				{ witnessId: 'B', candidateReadingIds: ['reading-a', 'reading-b'] },
+			],
+		});
+		renderReview();
+		await expect
+			.element(page.getByRole('button', { name: /Confirm placed witness/ }))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByRole('button', { name: /Resolve placement/ }))
+			.toBeInTheDocument();
+	});
+
 	it('surfaces an orphaned decision at a live variation unit with its reading-phase action', async () => {
 		collationState.setAlignmentSnapshot(snapshot(['col-1']));
 		const reading = collationState.getReadingsForUnit(0)[0]!;

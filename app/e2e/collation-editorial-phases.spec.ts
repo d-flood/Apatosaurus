@@ -213,6 +213,40 @@ test('the local stemma has one tabstop and supports keyboard source decisions', 
 	await sourceWork.click();
 	await expect(page).toHaveURL(/\/stemma$/);
 	await expect(page.getByRole('combobox', { name: /Source of reading/ }).first()).toBeVisible();
+
+	const alignmentUrl = page.url().replace(/stemma$/, 'alignment');
+	await expect(page.getByText('Saved', { exact: true })).toBeVisible();
+	await createAndCommitWitness(page, projectId, 'Stemma Gamma', 'SC', 'βητα');
+	await page.goto(alignmentUrl.replace(/alignment$/, 'setup'));
+	await page.getByRole('button', { name: 'Rebuild Verse Index' }).click();
+	await expect(page.getByText('Rebuilt verse index for 3 transcriptions.')).toBeVisible({
+		timeout: 30_000,
+	});
+	await page.getByRole('link', { name: /Alignment$/ }).click();
+	await page.getByRole('button', { name: 'Refresh', exact: true }).click();
+	await page.getByRole('radio', { name: 'Grid', exact: true }).check();
+	await expect(page.locator('tbody [data-witness-chip]')).toHaveCount(3);
+	await page.getByRole('link', { name: 'Stemma', exact: true }).click();
+	await expect(page.getByRole('button', { name: 'Absolute', exact: true })).toHaveAttribute(
+		'aria-pressed',
+		'true'
+	);
+	await page.getByRole('link', { name: 'Review', exact: true }).click();
+	await expect(
+		page.getByRole('button', { name: /Confirm placed witness/ }).first()
+	).toBeVisible();
+	await expect(page.getByText('Saved', { exact: true })).toBeVisible();
+	await page.reload();
+	await expect(
+		page.getByRole('button', { name: /Confirm placed witness/ }).first()
+	).toBeVisible();
+	await page.setViewportSize({ width: 390, height: 844 });
+	const confirmation = page.getByRole('button', { name: /Confirm placed witness/ }).first();
+	await expect
+		.poll(async () => (await confirmation.boundingBox())?.width ?? Infinity)
+		.toBeLessThanOrEqual(390);
+	await confirmation.click();
+	await expect(page).toHaveURL(/\/readings$/);
 });
 
 async function createProject(page: Page, name: string): Promise<string> {

@@ -62,6 +62,23 @@
 		}
 		for (const segment of unitSegments) {
 			const unitIndex = segment.span.startIndex;
+			const view = collationState.peekUnitView(unitIndex);
+			if (view.unconfirmedWitnessIds.length > 0)
+				entries.push({
+					unitIndex,
+					title: 'Confirm placed witness',
+					detail: view.unconfirmedWitnessIds.map(siglumOf).join(', '),
+					phase: 'readings',
+				});
+			if (view.unresolvedAttestations.length > 0)
+				entries.push({
+					unitIndex,
+					title: 'Resolve placement',
+					detail: view.unresolvedAttestations
+						.map(attestation => siglumOf(attestation.witnessId))
+						.join(', '),
+					phase: 'readings',
+				});
 			for (const orphan of collationState.getOrphanedDecisionsForUnit(unitIndex)) {
 				entries.push({
 					unitIndex,
