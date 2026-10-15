@@ -53,6 +53,10 @@ import collationV8Input from './fixtures/collation-v8.input.json';
 import collationV9Expected from './fixtures/collation-v9.expected.json';
 import collationV9Input from './fixtures/collation-v9.input.json';
 import collationV10Expected from './fixtures/collation-v10.expected.json';
+import collationV10Input from './fixtures/collation-v10.input.json';
+import collationV11Expected from './fixtures/collation-v11.expected.json';
+import projectManifestV2Input from './fixtures/project-manifest-v2.input.json';
+import projectManifestV3Expected from './fixtures/project-manifest-v3.expected.json';
 import {
 	COLLATION_CHECKPOINT_FIXTURE,
 	COLLATION_CHECKPOINT_OLD_SHAPE_FIXTURE,
@@ -138,6 +142,85 @@ describe('canonical store formats', () => {
 		expect(read).toMatchObject({ ok: true, upgraded: true, originalVersion: 1 });
 		if (!read.ok) throw new Error('Expected project manifest v1 fixture to migrate.');
 		expect(read.payload).toEqual(projectManifestV2Expected);
+	});
+
+	it('upgrades v2 manifests with reading tags unchanged', async () => {
+		const result = await readCanonicalDocument(
+			PROJECT_MANIFEST_FORMAT,
+			await sealDocument(PROJECT_MANIFEST_FORMAT, 2, projectManifestV2Input)
+		);
+		expect(result).toMatchObject({
+			ok: true,
+			upgraded: true,
+			originalVersion: 2,
+			payload: projectManifestV3Expected,
+		});
+	});
+
+	it('upgrades v10 collation tags unchanged and preserves them in working and checkpoint formats', async () => {
+		const result = await readCanonicalDocument(
+			COLLATION_FORMAT,
+			await sealDocument(COLLATION_FORMAT, 10, collationV10Input as JsonObject)
+		);
+		expect(result).toMatchObject({
+			ok: true,
+			upgraded: true,
+			originalVersion: 10,
+			payload: collationV11Expected,
+		});
+		for (const [format, payload] of [
+			[
+				WORKING_COLLATION_FORMAT,
+				{ ...WORKING_COLLATION_FIXTURE, document: collationV11Expected.document },
+			],
+			[
+				COLLATION_CHECKPOINT_FORMAT,
+				{
+					...COLLATION_CHECKPOINT_FIXTURE,
+					payload: {
+						...COLLATION_CHECKPOINT_FIXTURE.payload,
+						document: collationV11Expected.document,
+					},
+				},
+			],
+		] as const) {
+			const checkedPayload =
+				'payload' in payload
+					? {
+							...payload,
+							payload_content_hash: await hashCanonicalPayload(payload.payload),
+						}
+					: payload;
+			expect(
+				await readCanonicalDocument(
+					format,
+					await serializeCanonicalDocument(format, checkedPayload as JsonObject)
+				)
+			).toMatchObject({ ok: true, payload: checkedPayload });
+		}
+	});
+
+	it.each([
+		null,
+		[],
+		'ns',
+		{ a: 'ns' },
+		{ a: [1] },
+		{ a: ['ns', 'ns'] },
+		{ a: [' '] },
+		{ '': ['ns'] },
+	])('quarantines malformed reading tags %j', async readingTags => {
+		const payload = structuredClone(collationV11Expected) as JsonObject;
+		const document = payload.document as JsonObject;
+		const apparatus = document.apparatus as JsonObject;
+		const units = apparatus.units as JsonObject[];
+		units[0].decisions = { readingTags } as JsonObject;
+		expect(
+			await readCanonicalDocument(
+				COLLATION_FORMAT,
+				await sealDocument(COLLATION_FORMAT, COLLATION_CURRENT_VERSION, payload)
+			)
+		).toMatchObject({ ok: false, quarantine: { code: 'invalid_shape' } });
 	});
 
 	it('migrates a v1 project transcription and its working file into a v2 primary holding the working content', async () => {

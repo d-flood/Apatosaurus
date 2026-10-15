@@ -269,6 +269,21 @@ function hasValidAmbiguousAttestations(value: unknown): boolean {
 		const decisions = (unit as Record<string, unknown>).decisions;
 		if (!decisions || typeof decisions !== 'object' || Array.isArray(decisions)) return true;
 		const record = decisions as Record<string, unknown>;
+		const tags = record.readingTags;
+		if (
+			tags !== undefined &&
+			(!tags ||
+				typeof tags !== 'object' ||
+				Array.isArray(tags) ||
+				!Object.entries(tags).every(
+					([readingId, ids]) =>
+						Boolean(readingId.trim()) &&
+						isStringList(ids) &&
+						ids.every(id => Boolean(id.trim())) &&
+						new Set(ids).size === ids.length
+				))
+		)
+			return false;
 		const unconfirmed = record.unconfirmedWitnessIds;
 		if (
 			unconfirmed !== undefined &&

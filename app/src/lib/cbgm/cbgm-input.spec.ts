@@ -123,6 +123,22 @@ function saved(collationId: string, segmentName: string): CollationDocument {
 }
 
 describe('CBGM input builder, as coherence sees it', () => {
+	it('produces identical input with several tags on main and subreadings', async () => {
+		collate([witness('A', { isBaseText: true }), witness('B'), witness('C')], {
+			A: text('alpha'),
+			B: text('alfa'),
+			C: text('beta'),
+		});
+		const main = reading('alpha').id;
+		const sub = reading('alfa').id;
+		collationState.setReadingParent(UNIT, sub, main, 'orthographic');
+		const before = buildCbgmInput([saved('c1', 'John 1:1')], defaults);
+		await collationState.addReadingTag(UNIT, main, 'Nomen sacrum');
+		await collationState.addReadingTag(UNIT, main, 'Abbreviation');
+		await collationState.addReadingTag(UNIT, sub, 'Nomen sacrum');
+		expect(buildCbgmInput([saved('c1', 'John 1:1')], defaults)).toEqual(before);
+	});
+
 	let engine: CbgmEngine;
 
 	beforeAll(async () => {

@@ -15,8 +15,8 @@ import {
 } from './validation';
 
 export const PROJECT_MANIFEST_FORMAT = 'apatosaurus.project-manifest';
-export const PROJECT_MANIFEST_CURRENT_VERSION = 2;
-const projectManifestUpgraders: DocumentUpgrader[] = [upgradeProjectManifestV1];
+export const PROJECT_MANIFEST_CURRENT_VERSION = 3;
+const projectManifestUpgraders: DocumentUpgrader[] = [upgradeProjectManifestV1, payload => payload];
 
 export type ProjectManifestForkProvenance = JsonObject & {
 	source_project_id: string;

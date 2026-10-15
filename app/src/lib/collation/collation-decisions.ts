@@ -11,6 +11,7 @@ export interface UnitDecisions {
 	lemmaReadingId?: string | null;
 	/** Recorded null means "no type", not "undecided". */
 	readingType?: Record<string, ReadingTypeId | null>;
+	readingTags?: Record<string, string[]>;
 	certainty?: Record<string, Certainty | null>;
 	connectivity?: number | 'absolute';
 	/** Only non-arc source decisions; `derived` lives in arcs. */
@@ -42,6 +43,12 @@ export type AmbiguousAttestationError =
 	| 'target-emptied';
 
 export type OrphanedDecision =
+	| {
+			kind: 'readingTag';
+			readingId: string;
+			tagIds: string[];
+			missingReadingIds: string[];
+	  }
 	| {
 			kind: 'subreadingOf';
 			readingId: string;
@@ -107,6 +114,10 @@ export function cloneUnitDecisions(decisions: UnitDecisions | undefined): UnitDe
 	if (decisions?.subreadingOf) clone.subreadingOf = { ...decisions.subreadingOf };
 	if (decisions?.lemmaReadingId !== undefined) clone.lemmaReadingId = decisions.lemmaReadingId;
 	if (decisions?.readingType) clone.readingType = { ...decisions.readingType };
+	if (decisions?.readingTags)
+		clone.readingTags = Object.fromEntries(
+			Object.entries(decisions.readingTags).map(([id, tags]) => [id, [...tags]])
+		);
 	if (decisions?.certainty) clone.certainty = { ...decisions.certainty };
 	if (decisions?.connectivity !== undefined) clone.connectivity = decisions.connectivity;
 	if (decisions?.sourceDecision) clone.sourceDecision = { ...decisions.sourceDecision };
@@ -170,6 +181,15 @@ export function applyDecisions(
 	}
 
 	const certainties = new Map<string, Certainty | null>();
+	for (const [readingId, tagIds] of Object.entries(decisions.readingTags ?? {})) {
+		if (readingIds.has(readingId) || tagIds.length === 0) continue;
+		orphanedDecisions.push({
+			kind: 'readingTag',
+			readingId,
+			tagIds: [...tagIds],
+			missingReadingIds: [readingId],
+		});
+	}
 	for (const [readingId, certainty] of Object.entries(decisions.certainty ?? {})) {
 		if (readingIds.has(readingId)) {
 			certainties.set(readingId, certainty);
@@ -215,8 +235,11 @@ export function applyDecisions(
 			? (applicable.get(reading.id) ?? null)
 			: reading.parentReadingId;
 		const recordedType = readingTypes.get(reading.id) ?? null;
+		const { readingTags: _readingTags, ...untagged } = reading;
+		const tagIds = decisions.readingTags?.[reading.id] ?? [];
 		const decided = {
-			...reading,
+			...untagged,
+			...(tagIds.length > 0 ? { readingTags: [...tagIds] } : {}),
 			// A subreading recorded as "no type" falls back to the proposed type.
 			readingType:
 				recordedType !== null || (readingTypes.has(reading.id) && parentReadingId === null)

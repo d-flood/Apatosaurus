@@ -83,7 +83,7 @@
 				entries.push({
 					unitIndex,
 					title: 'Resolve orphaned reading decision',
-					detail: `A saved ${orphan.kind === 'sourceArc' ? 'source' : orphan.kind} decision refers to a reading that is no longer in this variation unit.`,
+					detail: `A saved ${orphan.kind === 'sourceArc' ? 'source' : orphan.kind === 'readingTag' ? 'reading tag' : orphan.kind} decision refers to a reading that is no longer in this variation unit.`,
 					phase:
 						orphan.kind === 'sourceArc' || orphan.kind === 'sourceDecision'
 							? 'stemma'
@@ -221,6 +221,7 @@
 			witnesses: collationState.witnesses,
 			baseTextWitnessId: collationState.getBaseTextWitnessId(),
 			segments: sharedSegments,
+			readingTags: collationState.getReadingTags(),
 			units,
 		};
 	}

@@ -231,6 +231,7 @@ function createCollationState() {
 	let transcriptionWitnessTreatments = $state<Map<string, WitnessTreatment>>(new Map());
 	let transcriptionWitnessExcludedHands = $state<Map<string, string[]>>(new Map());
 	let projectReadingTypes = $state<ReadingTypeDefinition[]>([]);
+	let projectReadingTags = $state<Array<{ id: string; label: string }>>([]);
 
 	let alignmentColumns = $state<AlignmentColumn[]>([]);
 	let witnessOrder = $state<string[]>([]);
@@ -533,6 +534,7 @@ function createCollationState() {
 		transcriptionWitnessTreatments = new Map();
 		transcriptionWitnessExcludedHands = new Map();
 		projectReadingTypes = [];
+		projectReadingTags = [];
 		if (!nextProjectId) {
 			return;
 		}
@@ -560,6 +562,7 @@ function createCollationState() {
 			)
 		);
 		projectReadingTypes = settings.readingTypes ?? [];
+		projectReadingTags = settings.readingTags ?? [];
 		rules = mergeProjectRules(rules, settings.regularizationRules ?? []);
 		if (
 			previousIgnoreWordBreaks !== ignoreWordBreaks &&
@@ -664,6 +667,7 @@ function createCollationState() {
 				transcriptionWitnessTreatments,
 				transcriptionWitnessExcludedHands,
 				readingTypes: projectReadingTypes,
+				readingTags: projectReadingTags,
 			}),
 			createdAt: now,
 			updatedAt: now,
@@ -733,6 +737,7 @@ function createCollationState() {
 					transcriptionWitnessTreatments,
 					transcriptionWitnessExcludedHands,
 					readingTypes: projectReadingTypes,
+					readingTags: projectReadingTags,
 				}),
 				updatedAt: new Date().toISOString(),
 			});
@@ -2401,7 +2406,7 @@ function createCollationState() {
 		});
 	}
 
-	function recordReadingDecision<Field extends 'readingType' | 'certainty'>(
+	function recordReadingDecision<Field extends 'readingType' | 'certainty' | 'readingTags'>(
 		unitIndex: number,
 		readingId: string,
 		field: Field,
@@ -2434,6 +2439,45 @@ function createCollationState() {
 
 	function getReadingTypeVocabulary(): ReadingTypeDefinition[] {
 		return resolveReadingTypeVocabulary(projectReadingTypes);
+	}
+
+	function getReadingTags(): Array<{ id: string; label: string }> {
+		return projectReadingTags;
+	}
+
+	async function addReadingTag(unitIndex: number, readingId: string, value: string) {
+		const label = value.trim();
+		if (!label) return { ok: false as const };
+		const reading = peekReadingsForUnit(unitIndex).find(reading => reading.id === readingId);
+		if (!reading) return { ok: false as const };
+		let tag = projectReadingTags.find(tag => tag.label.toLowerCase() === label.toLowerCase());
+		const isNew = !tag;
+		if (!tag) {
+			tag = { id: crypto.randomUUID(), label };
+			projectReadingTags = [...projectReadingTags, tag];
+		}
+		const tags = [...new Set([...(reading.readingTags ?? []), tag.id])];
+		const result = recordReadingDecision(unitIndex, readingId, 'readingTags', tags, {
+			type: 'add-reading-tag',
+			description: 'Add reading tag',
+		});
+		if (isNew) await persistRulesToProject(rules);
+		return result;
+	}
+
+	function removeReadingTag(unitIndex: number, readingId: string, tagId: string) {
+		const reading = peekReadingsForUnit(unitIndex).find(reading => reading.id === readingId);
+		if (!reading) return { ok: false as const };
+		return recordReadingDecision(
+			unitIndex,
+			readingId,
+			'readingTags',
+			(reading.readingTags ?? []).filter(id => id !== tagId),
+			{
+				type: 'remove-reading-tag',
+				description: 'Remove reading tag',
+			}
+		);
 	}
 
 	function getSubreadingsMissingReadingType(): {
@@ -2779,6 +2823,7 @@ function createCollationState() {
 		segmentation = true;
 		transcriptionWitnessTreatments = new Map();
 		projectReadingTypes = [];
+		projectReadingTags = [];
 		alignmentColumns = [];
 		lastAlignmentInputSignature = null;
 		witnessOrder = [];
@@ -3163,6 +3208,9 @@ function createCollationState() {
 		updateReadingText,
 		updateReadingTextForDisplayMode,
 		setReadingType,
+		getReadingTags,
+		addReadingTag,
+		removeReadingTag,
 		setReadingCertainty,
 		getReadingTypeVocabulary,
 		getSubreadingsMissingReadingType,
