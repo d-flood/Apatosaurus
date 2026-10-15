@@ -8,7 +8,16 @@ interface EmbindModule {
   computeWitness(_0: EmbindString): any;
   assemble(_0: any): any;
   open(_0: any, _1: any, _2: number): any;
-  compareWitnesses(_0: EmbindString, _1: any): any;
+  witnesses(): any;
+  units(): any;
+  compareWitnesses(_0: EmbindString, _1: any, _2: any): any;
+  findRelatives(_0: EmbindString, _1: EmbindString, _2: any, _3: any): any;
+  optimizeSubstemmata(_0: EmbindString, _1: number): any;
+  textualFlow(_0: EmbindString, _1: EmbindString, _2: any, _3: boolean): any;
+  optimizeSubstemma(_0: EmbindString): any;
+  writeSubstemmata(_0: any, _1: any): any;
+  readSubstemmata(_0: any): any;
+  globalStemma(_0: any, _1: boolean, _2: boolean): any;
 }
 
 export type MainModule = WasmModule & EmbindModule;

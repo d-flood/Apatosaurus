@@ -1,0 +1,1 @@
+{"primary_wit":"5","primary_extant":116,"rows":[{"ancestors":["A"],"cost":12,"agreements":104},{"ancestors":["623","2344"],"cost":12,"agreements":113}]}

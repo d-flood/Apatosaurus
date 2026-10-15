@@ -10,6 +10,8 @@ export type CoherenceSettings = {
 	includedCorrectors: string[];
 };
 
+export type UndecidedReading = { unit: string; reading: string };
+
 export type CompareWitnessesRow = {
 	id: string;
 	dir: number;
@@ -21,6 +23,7 @@ export type CompareWitnessesRow = {
 	posterior: number;
 	norel: number;
 	uncl: number;
+	undecided: number;
 	expl: number;
 	cost: string;
 };
@@ -29,6 +32,23 @@ export type CompareWitnessesTable = {
 	primary_wit: string;
 	primary_extant: number;
 	rows: CompareWitnessesRow[];
+};
+
+export type FindRelativesRow = CompareWitnessesRow & { rdg: string };
+
+export type FindRelativesTable = {
+	primary_wit: string;
+	primary_extant: number;
+	label: string;
+	connectivity: number;
+	primary_rdg: string;
+	rows: FindRelativesRow[];
+};
+
+export type OptimizeSubstemmataTable = {
+	primary_wit: string;
+	primary_extant: number;
+	rows: { ancestors: string[]; cost: number; agreements: number }[];
 };
 
 export interface CbgmEngine {
@@ -42,7 +62,38 @@ export interface CbgmEngine {
 		cache: Uint8Array,
 		filter: { excludedWitnesses: string[]; minExtantProportion: number | null }
 	): void;
-	compareWitnesses(primary: string, others: string[]): CompareWitnessesTable;
+	witnesses(): string[];
+	units(): { id: string; label: string; readings: string[] }[];
+	compareWitnesses(
+		primary: string,
+		others: string[],
+		undecided?: UndecidedReading[]
+	): CompareWitnessesTable;
+	findRelatives(
+		witness: string,
+		unit: string,
+		readings: string[],
+		undecided?: UndecidedReading[]
+	): FindRelativesTable;
+	optimizeSubstemmata(
+		witness: string,
+		maxCost?: number
+	): OptimizeSubstemmataTable | { kind: 'no-potential-ancestors' } | { kind: 'no-data' };
+	textualFlow(
+		unit: string,
+		kind: 'flow' | 'attestations' | 'variants',
+		opts: { connectivityLimit?: number; strengths: boolean }
+	): string;
+	optimizeSubstemma(witness: string): string[] | null;
+	writeSubstemmata(
+		cache: Uint8Array,
+		rows: { witness: string; ancestors: string[]; completedAt: string }[]
+	): Uint8Array;
+	readSubstemmata(cache: Uint8Array): Map<string, string[]>;
+	globalStemma(
+		substemmata: Map<string, string[]>,
+		opts: { strengths: boolean; lengths: boolean }
+	): string;
 }
 
 export type CbgmEngineOptions = {
@@ -53,6 +104,15 @@ export type CbgmEngineOptions = {
 function unwrap<T>(result: T | Error): T {
 	if (result instanceof Error) throw result;
 	return result;
+}
+
+function splitUndecided(result: { table: string; undecided: Record<string, number> }) {
+	const table = JSON.parse(result.table);
+	for (const row of table.rows) {
+		row.undecided = result.undecided[row.id];
+		row.uncl -= row.undecided;
+	}
+	return table;
 }
 
 export async function createCbgmEngine(options: CbgmEngineOptions = {}): Promise<CbgmEngine> {
@@ -73,7 +133,32 @@ export async function createCbgmEngine(options: CbgmEngineOptions = {}): Promise
 		open: (cache, filter) => {
 			unwrap(module.open(cache, filter.excludedWitnesses, filter.minExtantProportion ?? 0));
 		},
-		compareWitnesses: (primary, others) =>
-			JSON.parse(unwrap(module.compareWitnesses(primary, others))),
+		witnesses: () => unwrap(module.witnesses()),
+		units: () => unwrap(module.units()),
+		compareWitnesses: (primary, others, undecided = []) =>
+			splitUndecided(unwrap(module.compareWitnesses(primary, others, undecided))),
+		findRelatives: (witness, unit, readings, undecided = []) =>
+			splitUndecided(unwrap(module.findRelatives(witness, unit, readings, undecided))),
+		optimizeSubstemmata: (witness, maxCost) =>
+			JSON.parse(unwrap(module.optimizeSubstemmata(witness, maxCost ?? 0))),
+		textualFlow: (unit, kind, opts) =>
+			unwrap(module.textualFlow(unit, kind, opts.connectivityLimit, opts.strengths)),
+		optimizeSubstemma: witness => unwrap(module.optimizeSubstemma(witness)),
+		writeSubstemmata: (cache, rows) =>
+			unwrap(
+				module.writeSubstemmata(
+					cache,
+					rows.map(row => [row.witness, JSON.stringify(row.ancestors), row.completedAt])
+				)
+			),
+		readSubstemmata: cache =>
+			new Map(
+				unwrap(module.readSubstemmata(cache)).map(([witness, ancestors]: string[]) => [
+					witness,
+					JSON.parse(ancestors),
+				])
+			),
+		globalStemma: (substemmata, opts) =>
+			unwrap(module.globalStemma(substemmata, opts.lengths, opts.strengths)),
 	};
 }

@@ -1,0 +1,1 @@
+The witness with ID A has no potential ancestors. This may be because it is too fragmentary or because it has equal priority to the Ausgangstext according to local stemmata.

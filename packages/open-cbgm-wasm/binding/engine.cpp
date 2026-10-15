@@ -18,9 +18,13 @@
 
 #include "apparatus.h"
 #include "compare_witnesses_table.h"
+#include "find_relatives_table.h"
+#include "global_stemma.h"
 #include "local_stemma.h"
+#include "optimize_substemmata_table.h"
 #include "pugixml.hpp"
 #include "sqlite3.h"
+#include "textual_flow.h"
 #include "variation_unit.h"
 #include "witness.h"
 
@@ -32,6 +36,7 @@ namespace {
 
 const char * ASSEMBLE_PATH = "/assemble.db";
 const char * CACHE_PATH = "/cache.db";
+const char * SUBSTEMMATA_PATH = "/substemmata.db";
 
 apparatus app;
 bool classic = false;
@@ -426,6 +431,135 @@ witness get_witness(sqlite3 * db, const string & wit_id, const set<string> & exc
 	return witness(wit_id, comps);
 }
 
+void require_witness(sqlite3 * db, const string & wit_id) {
+	if (!witness_exists(db, wit_id)) {
+		throw runtime_error("There are no rows in the GENEALOGICAL_COMPARISONS table for witness " + wit_id + ".");
+	}
+}
+
+bool variation_unit_exists(sqlite3 * db, const string & vu_id) {
+	statement select(db, "SELECT * FROM VARIATION_UNITS WHERE VARIATION_UNIT=?");
+	sqlite3_bind_text(select.stmt, 1, vu_id.c_str(), -1, SQLITE_STATIC);
+	return select.next_row();
+}
+
+bool reading_exists(sqlite3 * db, const string & vu_id, const string & rdg) {
+	statement select(db, "SELECT * FROM READINGS WHERE VARIATION_UNIT=? AND READING=?");
+	sqlite3_bind_text(select.stmt, 1, vu_id.c_str(), -1, SQLITE_STATIC);
+	sqlite3_bind_text(select.stmt, 2, rdg.c_str(), -1, SQLITE_STATIC);
+	return select.next_row();
+}
+
+list<string> get_readings(sqlite3 * db, const string & vu_id) {
+	list<string> readings;
+	statement select(db, "SELECT READING FROM READINGS WHERE VARIATION_UNIT=? ORDER BY ROW_ID");
+	sqlite3_bind_text(select.stmt, 1, vu_id.c_str(), -1, SQLITE_STATIC);
+	while (select.next_row()) {
+		readings.push_back(select.text(0));
+	}
+	return readings;
+}
+
+variation_unit get_variation_unit(sqlite3 * db, const string & vu_id) {
+	if (!variation_unit_exists(db, vu_id)) {
+		throw runtime_error("There are no rows in the VARIATION_UNITS table for variation unit ID " + vu_id + ".");
+	}
+	string label;
+	int connectivity = 0;
+	{
+		statement select(db, "SELECT LABEL, CONNECTIVITY FROM VARIATION_UNITS WHERE VARIATION_UNIT=?");
+		sqlite3_bind_text(select.stmt, 1, vu_id.c_str(), -1, SQLITE_STATIC);
+		if (select.next_row()) {
+			label = select.text(0);
+			connectivity = sqlite3_column_int(select.stmt, 1);
+		}
+	}
+	list<string> readings = get_readings(db, vu_id);
+	list<local_stemma_vertex> vertices;
+	for (const string & rdg : readings) {
+		local_stemma_vertex v;
+		v.id = rdg;
+		vertices.push_back(v);
+	}
+	list<local_stemma_edge> edges;
+	{
+		statement select(db, "SELECT PRIOR, POSTERIOR, WEIGHT FROM READING_RELATIONS WHERE VARIATION_UNIT=? ORDER BY ROW_ID");
+		sqlite3_bind_text(select.stmt, 1, vu_id.c_str(), -1, SQLITE_STATIC);
+		while (select.next_row()) {
+			local_stemma_edge e;
+			e.prior = select.text(0);
+			e.posterior = select.text(1);
+			e.weight = float(sqlite3_column_double(select.stmt, 2));
+			edges.push_back(e);
+		}
+	}
+	unordered_map<string, string> reading_support;
+	{
+		statement select(db, "SELECT WITNESS, READING FROM READING_SUPPORT WHERE VARIATION_UNIT=? ORDER BY ROW_ID");
+		sqlite3_bind_text(select.stmt, 1, vu_id.c_str(), -1, SQLITE_STATIC);
+		while (select.next_row()) {
+			reading_support[select.text(0)] = select.text(1);
+		}
+	}
+	local_stemma ls(vu_id, label, vertices, edges);
+	return variation_unit(vu_id, label, readings, reading_support, connectivity, ls);
+}
+
+list<witness> get_witnesses(sqlite3 * db, const list<string> & list_wit, const set<string> & excluded_wit_ids) {
+	list<witness> witnesses;
+	for (const string & wit_id : list_wit) {
+		witnesses.push_back(get_witness(db, wit_id, excluded_wit_ids));
+	}
+	return witnesses;
+}
+
+unordered_map<string, Roaring> get_undecided_units(sqlite3 * db, const val & undecided) {
+	unordered_map<string, unsigned int> unit_indices;
+	{
+		statement select(db, "SELECT VARIATION_UNIT FROM VARIATION_UNITS ORDER BY ROW_ID");
+		while (select.next_row()) {
+			unit_indices.emplace(select.text(0), unit_indices.size());
+		}
+	}
+	unordered_map<string, Roaring> units_by_witness;
+	statement select(db, "SELECT WITNESS FROM READING_SUPPORT WHERE VARIATION_UNIT=? AND READING=?");
+	unsigned int length = undecided["length"].as<unsigned int>();
+	for (unsigned int i = 0; i < length; i++) {
+		string vu_id = undecided[i]["unit"].as<string>();
+		string rdg = undecided[i]["reading"].as<string>();
+		auto index = unit_indices.find(vu_id);
+		if (index == unit_indices.end()) {
+			continue;
+		}
+		sqlite3_reset(select.stmt);
+		sqlite3_bind_text(select.stmt, 1, vu_id.c_str(), -1, SQLITE_TRANSIENT);
+		sqlite3_bind_text(select.stmt, 2, rdg.c_str(), -1, SQLITE_TRANSIENT);
+		while (select.next_row()) {
+			units_by_witness[select.text(0)].add(index->second);
+		}
+	}
+	return units_by_witness;
+}
+
+template <typename Row>
+val with_undecided_counts(const string & table_json, const witness & wit, const list<Row> & rows, const val & undecided) {
+	unordered_map<string, Roaring> units_by_witness = get_undecided_units(cache_db, undecided);
+	auto units_for = [&](const string & wit_id) {
+		auto units = units_by_witness.find(wit_id);
+		return units == units_by_witness.end() ? Roaring() : units->second;
+	};
+	Roaring primary_units = units_for(wit.get_id());
+	val counts = val::object();
+	for (const Row & row : rows) {
+		Roaring unclear = wit.get_genealogical_comparison_for_witness(row.id).unclear;
+		counts.set(row.id, int((unclear & (primary_units | units_for(row.id))).cardinality()));
+	}
+	val result = val::object();
+	result.set("table", table_json);
+	result.set("undecided", counts);
+	return result;
+}
+
 void close_cache() {
 	if (cache_db) {
 		sqlite3_close(cache_db);
@@ -562,28 +696,224 @@ val open_cache(const val & cache, const val & excluded, float proportion_extant)
 	});
 }
 
-val compare_witnesses(const string & primary_wit_id, const val & secondary) {
+val list_witnesses() {
+	return guarded([&] {
+		require_open();
+		val witnesses = val::array();
+		for (const string & wit_id : get_list_wit(cache_db, filter_excluded_wit_ids)) {
+			witnesses.call<void>("push", wit_id);
+		}
+		return witnesses;
+	});
+}
+
+val list_units() {
+	return guarded([&] {
+		require_open();
+		val units = val::array();
+		statement select(cache_db, "SELECT VARIATION_UNIT, LABEL FROM VARIATION_UNITS ORDER BY ROW_ID");
+		while (select.next_row()) {
+			string vu_id = select.text(0);
+			val readings = val::array();
+			for (const string & rdg : get_readings(cache_db, vu_id)) {
+				readings.call<void>("push", rdg);
+			}
+			val unit = val::object();
+			unit.set("id", vu_id);
+			unit.set("label", select.text(1));
+			unit.set("readings", readings);
+			units.call<void>("push", unit);
+		}
+		return units;
+	});
+}
+
+val compare_witnesses(const string & primary_wit_id, const val & secondary, const val & undecided) {
 	return guarded([&] {
 		require_open();
 		vector<string> secondary_wits = vecFromJSArray<string>(secondary);
 		set<string> secondary_wit_ids(secondary_wits.begin(), secondary_wits.end());
 		set<string> excluded_wit_ids = secondary_wit_ids.empty() ? filter_excluded_wit_ids : set<string>();
 		list<string> list_wit = get_list_wit(cache_db, excluded_wit_ids);
-		if (!witness_exists(cache_db, primary_wit_id)) {
-			throw runtime_error("There are no rows in the GENEALOGICAL_COMPARISONS table for witness " + primary_wit_id + ".");
-		}
+		require_witness(cache_db, primary_wit_id);
 		witness wit = get_witness(cache_db, primary_wit_id, excluded_wit_ids);
 		for (const string & secondary_wit_id : secondary_wit_ids) {
 			if (secondary_wit_id == primary_wit_id) {
 				throw runtime_error("The primary witness ID should not be included in the list of secondary witnesses.");
 			}
-			if (!witness_exists(cache_db, secondary_wit_id)) {
-				throw runtime_error("There are no rows in the GENEALOGICAL_COMPARISONS table for witness " + secondary_wit_id + ".");
-			}
+			require_witness(cache_db, secondary_wit_id);
 		}
 		compare_witnesses_table table(wit, list_wit, secondary_wit_ids);
 		stringstream out;
 		table.to_json(out);
+		return with_undecided_counts(out.str(), wit, table.get_rows(), undecided);
+	});
+}
+
+val find_relatives(const string & primary_wit_id, const string & vu_id, const val & readings, const val & undecided) {
+	return guarded([&] {
+		require_open();
+		vector<string> filter_rdgs = vecFromJSArray<string>(readings);
+		list<string> list_wit = get_list_wit(cache_db, filter_excluded_wit_ids);
+		require_witness(cache_db, primary_wit_id);
+		witness wit = get_witness(cache_db, primary_wit_id, filter_excluded_wit_ids);
+		variation_unit vu = get_variation_unit(cache_db, vu_id);
+		for (const string & rdg : filter_rdgs) {
+			if (!reading_exists(cache_db, vu_id, rdg)) {
+				throw runtime_error("There are no rows in the READINGS table for variation unit ID " + vu_id + " and reading ID " + rdg + ".");
+			}
+		}
+		find_relatives_table table(wit, vu, list_wit, set<string>(filter_rdgs.begin(), filter_rdgs.end()));
+		stringstream out;
+		table.to_json(out);
+		return with_undecided_counts(out.str(), wit, table.get_rows(), undecided);
+	});
+}
+
+val optimize_substemmata(const string & wit_id, float fixed_ub) {
+	return guarded([&] {
+		require_open();
+		require_witness(cache_db, wit_id);
+		witness wit = get_witness(cache_db, wit_id, filter_excluded_wit_ids);
+		if (wit.get_potential_ancestor_ids().empty()) {
+			return val(string("{\"kind\":\"no-potential-ancestors\"}"));
+		}
+		optimize_substemmata_table table(wit, fixed_ub);
+		if (table.get_rows().empty()) {
+			Roaring extant = wit.get_genealogical_comparison_for_witness(wit_id).extant;
+			Roaring covered;
+			for (const string & potential_ancestor_id : wit.get_potential_ancestor_ids()) {
+				covered |= wit.get_genealogical_comparison_for_witness(potential_ancestor_id).explained;
+			}
+			if (!(extant ^ covered).isEmpty()) {
+				return val(string("{\"kind\":\"no-data\"}"));
+			}
+		}
+		stringstream out;
+		table.to_json(out);
+		return val(out.str());
+	});
+}
+
+val textual_flow_dot(const string & vu_id, const string & kind, const val & connectivity_limit, bool flow_strengths) {
+	return guarded([&] {
+		require_open();
+		if (kind != "flow" && kind != "attestations" && kind != "variants") {
+			throw runtime_error("Unknown textual flow kind " + kind + ".");
+		}
+		int connectivity = connectivity_limit.isUndefined() ? -1 : connectivity_limit.as<int>();
+		if (!connectivity_limit.isUndefined() && connectivity <= 0) {
+			throw runtime_error("The connectivity limit must be a positive integer.");
+		}
+		variation_unit vu = get_variation_unit(cache_db, vu_id);
+		list<witness> witnesses = get_witnesses(cache_db, get_list_wit(cache_db, filter_excluded_wit_ids), filter_excluded_wit_ids);
+		textual_flow tf = connectivity == -1 ? textual_flow(vu, witnesses) : textual_flow(vu, witnesses, connectivity);
+		stringstream out;
+		if (kind == "flow") {
+			tf.textual_flow_to_dot(out, flow_strengths);
+		} else if (kind == "attestations") {
+			for (const string & rdg : vu.get_readings()) {
+				tf.coherence_in_attestations_to_dot(out, rdg, flow_strengths);
+			}
+		} else {
+			tf.coherence_in_variant_passages_to_dot(out, flow_strengths);
+		}
+		return val(out.str());
+	});
+}
+
+val optimize_substemma(const string & wit_id) {
+	return guarded([&] {
+		require_open();
+		require_witness(cache_db, wit_id);
+		witness wit = get_witness(cache_db, wit_id, filter_excluded_wit_ids);
+		list<set_cover_solution> substemmata = wit.get_substemmata(0, true);
+		if (substemmata.empty()) {
+			return val::null();
+		}
+		val ancestors = val::array();
+		for (const set_cover_row & row : substemmata.front().rows) {
+			ancestors.call<void>("push", row.id);
+		}
+		return ancestors;
+	});
+}
+
+val write_substemmata(const val & cache, const val & rows) {
+	return guarded([&] {
+		write_file(SUBSTEMMATA_PATH, from_uint8_array(cache));
+		try {
+			database out(SUBSTEMMATA_PATH, SQLITE_OPEN_READWRITE);
+			exec(out.db, "DROP TABLE IF EXISTS APATOSAURUS_SUBSTEMMATA;"
+					"CREATE TABLE APATOSAURUS_SUBSTEMMATA (WITNESS TEXT PRIMARY KEY, ANCESTORS TEXT NOT NULL, COMPLETED_AT TEXT NOT NULL);");
+			exec(out.db, "BEGIN TRANSACTION");
+			statement insert(out.db, "INSERT INTO APATOSAURUS_SUBSTEMMATA VALUES (?,?,?)");
+			unsigned int length = rows["length"].as<unsigned int>();
+			for (unsigned int i = 0; i < length; i++) {
+				for (int column = 0; column < 3; column++) {
+					string value = rows[i][column].as<string>();
+					sqlite3_bind_text(insert.stmt, column + 1, value.c_str(), -1, SQLITE_TRANSIENT);
+				}
+				insert.insert();
+			}
+			exec(out.db, "END TRANSACTION");
+		} catch (...) {
+			remove(SUBSTEMMATA_PATH);
+			throw;
+		}
+		string bytes = read_file(SUBSTEMMATA_PATH);
+		remove(SUBSTEMMATA_PATH);
+		return to_uint8_array(bytes);
+	});
+}
+
+val read_substemmata(const val & cache) {
+	return guarded([&] {
+		write_file(SUBSTEMMATA_PATH, from_uint8_array(cache));
+		val rows = val::array();
+		try {
+			database in(SUBSTEMMATA_PATH, SQLITE_OPEN_READONLY);
+			statement exists(in.db, "SELECT 1 FROM sqlite_master WHERE type='table' AND name='APATOSAURUS_SUBSTEMMATA'");
+			if (exists.next_row()) {
+				statement select(in.db, "SELECT WITNESS, ANCESTORS FROM APATOSAURUS_SUBSTEMMATA ORDER BY ROWID");
+				while (select.next_row()) {
+					val row = val::array();
+					row.call<void>("push", select.text(0));
+					row.call<void>("push", select.text(1));
+					rows.call<void>("push", row);
+				}
+			}
+		} catch (...) {
+			remove(SUBSTEMMATA_PATH);
+			throw;
+		}
+		remove(SUBSTEMMATA_PATH);
+		return rows;
+	});
+}
+
+val global_stemma_dot(const val & substemmata, bool print_lengths, bool flow_strengths) {
+	return guarded([&] {
+		require_open();
+		list<string> list_wit = get_list_wit(cache_db, filter_excluded_wit_ids);
+		set<string> wit_ids(list_wit.begin(), list_wit.end());
+		list<witness> witnesses = get_witnesses(cache_db, list_wit, filter_excluded_wit_ids);
+		for (witness & wit : witnesses) {
+			val ancestors = substemmata.call<val>("get", wit.get_id());
+			if (ancestors.isUndefined()) {
+				throw runtime_error("No substemma was given for witness " + wit.get_id() + ".");
+			}
+			vector<string> ancestor_ids = vecFromJSArray<string>(ancestors);
+			for (const string & ancestor_id : ancestor_ids) {
+				if (wit_ids.find(ancestor_id) == wit_ids.end()) {
+					throw runtime_error("The substemma for witness " + wit.get_id() + " names " + ancestor_id + ", which is not an opened witness.");
+				}
+			}
+			wit.set_stemmatic_ancestor_ids(list<string>(ancestor_ids.begin(), ancestor_ids.end()));
+		}
+		global_stemma gs(witnesses);
+		stringstream out;
+		gs.to_dot(out, print_lengths, flow_strengths);
 		return val(out.str());
 	});
 }
@@ -595,5 +925,14 @@ EMSCRIPTEN_BINDINGS(open_cbgm) {
 	emscripten::function("computeWitness", &compute_witness);
 	emscripten::function("assemble", &assemble);
 	emscripten::function("open", &open_cache);
+	emscripten::function("witnesses", &list_witnesses);
+	emscripten::function("units", &list_units);
 	emscripten::function("compareWitnesses", &compare_witnesses);
+	emscripten::function("findRelatives", &find_relatives);
+	emscripten::function("optimizeSubstemmata", &optimize_substemmata);
+	emscripten::function("textualFlow", &textual_flow_dot);
+	emscripten::function("optimizeSubstemma", &optimize_substemma);
+	emscripten::function("writeSubstemmata", &write_substemmata);
+	emscripten::function("readSubstemmata", &read_substemmata);
+	emscripten::function("globalStemma", &global_stemma_dot);
 }

@@ -2,16 +2,7 @@ import { gunzipSync } from 'node:zlib';
 import { beforeAll, describe, expect, it } from 'vitest';
 
 import { createCbgmEngine, type CbgmEngine } from '../src/index';
-import { computeCache, defaults, dumpTables, readFixture } from './support';
-
-const runs = [
-	{ fixture: 'default', settings: defaults },
-	{ fixture: 'classic', settings: { ...defaults, classicRules: true } },
-	{
-		fixture: 'dropped-ambiguous-merge-splits',
-		settings: { ...defaults, droppedReadingTypes: ['ambiguous'], mergeSplitReadings: true },
-	},
-];
+import { computeCache, dumpTables, expectedTable, readFixture, runs } from './support';
 
 describe.each(runs)(
 	'coherence parity with native open-cbgm v2.1: $fixture',
@@ -37,13 +28,13 @@ describe.each(runs)(
 
 		it('compares a primary witness against all witnesses', () => {
 			expect(engine.compareWitnesses('5', [])).toEqual(
-				JSON.parse(readFixture(fixture, 'compare-all.json').toString('utf8'))
+				expectedTable(fixture, 'compare-all.json')
 			);
 		});
 
 		it('compares a primary witness against a list of witnesses', () => {
 			expect(engine.compareWitnesses('5', ['A', '01', '03', '623'])).toEqual(
-				JSON.parse(readFixture(fixture, 'compare-list.json').toString('utf8'))
+				expectedTable(fixture, 'compare-list.json')
 			);
 		});
 	}

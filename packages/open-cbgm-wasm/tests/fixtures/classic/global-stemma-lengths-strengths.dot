@@ -1,0 +1,472 @@
+digraph global_stemma {
+	subgraph cluster_legend {
+		label [shape=plaintext, label="Global Stemma"];
+	}
+	subgraph cluster_plot {
+		style=invis;
+		node [shape=ellipse];
+		0 [label="A"];
+		1 [label="Byz"];
+		2 [label="P74"];
+		3 [label="01"];
+		4 [label="02"];
+		5 [label="03"];
+		6 [label="04"];
+		7 [label="018"];
+		8 [label="020"];
+		9 [label="025"];
+		10 [label="044"];
+		11 [label="048"];
+		12 [label="049"];
+		13 [label="0142"];
+		14 [label="0251"];
+		15 [label="1"];
+		16 [label="5"];
+		17 [label="6"];
+		18 [label="18"];
+		19 [label="33"];
+		20 [label="35"];
+		21 [label="43"];
+		22 [label="61"];
+		23 [label="69"];
+		24 [label="81"];
+		25 [label="88"];
+		26 [label="93"];
+		27 [label="94"];
+		28 [label="104"];
+		29 [label="180"];
+		30 [label="181"];
+		31 [label="206S"];
+		32 [label="218"];
+		33 [label="252"];
+		34 [label="254"];
+		35 [label="307"];
+		36 [label="319"];
+		37 [label="321"];
+		38 [label="323"];
+		39 [label="326"];
+		40 [label="330"];
+		41 [label="365"];
+		42 [label="378"];
+		43 [label="398"];
+		44 [label="400"];
+		45 [label="424"];
+		46 [label="429"];
+		47 [label="431"];
+		48 [label="436"];
+		49 [label="442"];
+		50 [label="453"];
+		51 [label="459"];
+		52 [label="467"];
+		53 [label="468"];
+		54 [label="522"];
+		55 [label="607"];
+		56 [label="614"];
+		57 [label="617"];
+		58 [label="621"];
+		59 [label="623"];
+		60 [label="629"];
+		61 [label="630"];
+		62 [label="642"];
+		63 [label="720"];
+		64 [label="808"];
+		65 [label="876"];
+		66 [label="915"];
+		67 [label="918"];
+		68 [label="945"];
+		69 [label="996"];
+		70 [label="1067"];
+		71 [label="1127"];
+		72 [label="1175"];
+		73 [label="1241"];
+		74 [label="1243"];
+		75 [label="1270"];
+		76 [label="1292"];
+		77 [label="1297"];
+		78 [label="1359"];
+		79 [label="1409"];
+		80 [label="1448"];
+		81 [label="1490"];
+		82 [label="1501"];
+		83 [label="1505"];
+		84 [label="1523"];
+		85 [label="1524"];
+		86 [label="1563"];
+		87 [label="1595"];
+		88 [label="1609"];
+		89 [label="1611"];
+		90 [label="1661"];
+		91 [label="1678"];
+		92 [label="1718"];
+		93 [label="1729"];
+		94 [label="1735"];
+		95 [label="1739"];
+		96 [label="1751"];
+		97 [label="1799"];
+		98 [label="1827"];
+		99 [label="1831"];
+		100 [label="1832"];
+		101 [label="1836"];
+		102 [label="1837"];
+		103 [label="1838"];
+		104 [label="1842"];
+		105 [label="1844"];
+		106 [label="1845"];
+		107 [label="1846"];
+		108 [label="1852"];
+		109 [label="1874"];
+		110 [label="1875"];
+		111 [label="1881"];
+		112 [label="1890"];
+		113 [label="2138"];
+		114 [label="2147"];
+		115 [label="2186"];
+		116 [label="2200"];
+		117 [label="2243"];
+		118 [label="2298"];
+		119 [label="2344"];
+		120 [label="2374"];
+		121 [label="2412"];
+		122 [label="2423"];
+		123 [label="2464"];
+		124 [label="2492"];
+		125 [label="2541"];
+		126 [label="2544"];
+		127 [label="2652"];
+		128 [label="2718"];
+		129 [label="2774"];
+		130 [label="2805"];
+		131 [label="2818"];
+		132 [label="L596"];
+		133 [label="L921"];
+		134 [label="L938"];
+		135 [label="L1141"];
+		136 [label="L1281"];
+		134 -> 1 [len=1.000000, label="1.000", fontsize=10
+, style=dotted];
+		0 -> 3 [len=7.000000, label="7.000", fontsize=10
+, style=solid];
+		0 -> 4 [len=10.000000, label="10.000", fontsize=10
+, style=solid];
+		9 -> 7 [len=4.000000, label="4.000", fontsize=10
+, style=dashed];
+		9 -> 8 [len=3.000000, label="3.000", fontsize=10
+, style=dashed];
+		134 -> 9 [len=1.000000, label="1.000", fontsize=10
+, style=dotted];
+		0 -> 10 [len=14.000000, label="14.000", fontsize=10
+, style=bold];
+		9 -> 12 [len=3.000000, label="3.000", fontsize=10
+, style=dashed];
+		4 -> 14 [len=1.000000, label="1.000", fontsize=10
+, style=bold];
+		9 -> 15 [len=1.000000, label="1.000", fontsize=10
+, style=dotted];
+		59 -> 16 [len=4.000000, label="4.000", fontsize=10
+, style=dashed];
+		119 -> 16 [len=8.000000, label="8.000", fontsize=10
+, style=solid];
+		1 -> 17 [len=11.000000, label="11.000", fontsize=10
+, style=dashed];
+		38 -> 17 [len=13.000000, label="13.000", fontsize=10
+, style=dotted];
+		49 -> 17 [len=15.000000, label="15.000", fontsize=10
+, style=dashed];
+		20 -> 18 [len=1.000000, label="1.000", fontsize=10
+, style=dotted];
+		14 -> 19 [len=1.000000, label="1.000", fontsize=10
+, style=bold];
+		0 -> 19 [len=13.000000, label="13.000", fontsize=10
+, style=bold];
+		9 -> 21 [len=4.000000, label="4.000", fontsize=10
+, style=dashed];
+		0 -> 24 [len=15.000000, label="15.000", fontsize=10
+, style=bold];
+		46 -> 25 [len=11.000000, label="11.000", fontsize=10
+, style=dashed];
+		49 -> 25 [len=14.000000, label="14.000", fontsize=10
+, style=dashed];
+		1 -> 27 [len=4.000000, label="4.000", fontsize=10
+, style=dashed];
+		82 -> 27 [len=5.000000, label="5.000", fontsize=10
+, style=dotted];
+		124 -> 27 [len=5.000000, label="5.000", fontsize=10
+, style=dashed];
+		82 -> 28 [len=7.000000, label="7.000", fontsize=10
+, style=dashed];
+		98 -> 28 [len=7.000000, label="7.000", fontsize=10
+, style=dashed];
+		20 -> 29 [len=6.000000, label="6.000", fontsize=10
+, style=dashed];
+		0 -> 29 [len=12.000000, label="12.000", fontsize=10
+, style=solid];
+		110 -> 30 [len=7.000000, label="7.000", fontsize=10
+, style=dotted];
+		82 -> 30 [len=9.000000, label="9.000", fontsize=10
+, style=dashed];
+		62 -> 32 [len=5.000000, label="5.000", fontsize=10
+, style=dashed];
+		120 -> 32 [len=11.000000, label="11.000", fontsize=10
+, style=dotted];
+		9 -> 33 [len=3.000000, label="3.000", fontsize=10
+, style=dashed];
+		123 -> 34 [len=3.000000, label="3.000", fontsize=10
+, style=dashed];
+		108 -> 34 [len=8.000000, label="8.000", fontsize=10
+, style=dashed];
+		27 -> 35 [len=3.000000, label="3.000", fontsize=10
+, style=dotted];
+		44 -> 35 [len=4.000000, label="4.000", fontsize=10
+, style=dotted];
+		134 -> 36 [len=1.000000, label="1.000", fontsize=10
+, style=dotted];
+		35 -> 37 [len=1.000000, label="1.000", fontsize=10
+, style=dotted];
+		95 -> 38 [len=8.000000, label="8.000", fontsize=10
+, style=dotted];
+		49 -> 38 [len=13.000000, label="13.000", fontsize=10
+, style=dashed];
+		9 -> 40 [len=6.000000, label="6.000", fontsize=10
+, style=solid];
+		134 -> 43 [len=1.000000, label="1.000", fontsize=10
+, style=dotted];
+		9 -> 44 [len=2.000000, label="2.000", fontsize=10
+, style=dashed];
+		9 -> 45 [len=1.000000, label="1.000", fontsize=10
+, style=dotted];
+		88 -> 46 [len=3.000000, label="3.000", fontsize=10
+, style=dashed];
+		82 -> 46 [len=4.000000, label="4.000", fontsize=10
+, style=dashed];
+		124 -> 47 [len=9.000000, label="9.000", fontsize=10
+, style=dashed];
+		20 -> 47 [len=10.000000, label="10.000", fontsize=10
+, style=dashed];
+		106 -> 47 [len=11.000000, label="11.000", fontsize=10
+, style=dashed];
+		125 -> 48 [len=3.000000, label="3.000", fontsize=10
+, style=dotted];
+		79 -> 48 [len=7.000000, label="7.000", fontsize=10
+, style=dotted];
+		27 -> 50 [len=3.000000, label="3.000", fontsize=10
+, style=dotted];
+		44 -> 50 [len=4.000000, label="4.000", fontsize=10
+, style=dotted];
+		104 -> 51 [len=4.000000, label="4.000", fontsize=10
+, style=dotted];
+		12 -> 51 [len=6.000000, label="6.000", fontsize=10
+, style=dashed];
+		88 -> 52 [len=4.000000, label="4.000", fontsize=10
+, style=dashed];
+		46 -> 54 [len=3.000000, label="3.000", fontsize=10
+, style=dashed];
+		134 -> 55 [len=1.000000, label="1.000", fontsize=10
+, style=dotted];
+		0 -> 59 [len=9.000000, label="9.000", fontsize=10
+, style=solid];
+		116 -> 61 [len=3.000000, label="3.000", fontsize=10
+, style=dashed];
+		119 -> 62 [len=9.000000, label="9.000", fontsize=10
+, style=dashed];
+		82 -> 62 [len=10.000000, label="10.000", fontsize=10
+, style=dashed];
+		35 -> 63 [len=4.000000, label="4.000", fontsize=10
+, style=dashed];
+		115 -> 63 [len=4.000000, label="4.000", fontsize=10
+, style=dashed];
+		62 -> 64 [len=4.000000, label="4.000", fontsize=10
+, style=dashed];
+		82 -> 64 [len=10.000000, label="10.000", fontsize=10
+, style=solid];
+		0 -> 65 [len=15.000000, label="15.000", fontsize=10
+, style=bold];
+		25 -> 66 [len=5.000000, label="5.000", fontsize=10
+, style=dotted];
+		106 -> 66 [len=10.000000, label="10.000", fontsize=10
+, style=solid];
+		35 -> 67 [len=3.000000, label="3.000", fontsize=10
+, style=dotted];
+		115 -> 67 [len=4.000000, label="4.000", fontsize=10
+, style=dotted];
+		80 -> 68 [len=7.000000, label="7.000", fontsize=10
+, style=dotted];
+		27 -> 68 [len=9.000000, label="9.000", fontsize=10
+, style=dashed];
+		45 -> 69 [len=3.000000, label="3.000", fontsize=10
+, style=dashed];
+		125 -> 70 [len=10.000000, label="10.000", fontsize=10
+, style=dashed];
+		65 -> 70 [len=16.000000, label="16.000", fontsize=10
+, style=dashed];
+		64 -> 71 [len=4.000000, label="4.000", fontsize=10
+, style=dashed];
+		62 -> 71 [len=6.000000, label="6.000", fontsize=10
+, style=dashed];
+		134 -> 72 [len=1.000000, label="1.000", fontsize=10
+, style=dotted];
+		118 -> 73 [len=15.000000, label="15.000", fontsize=10
+, style=bold];
+		38 -> 73 [len=16.000000, label="16.000", fontsize=10
+, style=solid];
+		1 -> 75 [len=11.000000, label="11.000", fontsize=10
+, style=solid];
+		32 -> 75 [len=16.000000, label="16.000", fontsize=10
+, style=dotted];
+		65 -> 76 [len=4.000000, label="4.000", fontsize=10
+, style=dotted];
+		29 -> 76 [len=12.000000, label="12.000", fontsize=10
+, style=dashed];
+		75 -> 77 [len=3.000000, label="3.000", fontsize=10
+, style=dashed];
+		47 -> 79 [len=10.000000, label="10.000", fontsize=10
+, style=dashed];
+		39 -> 79 [len=12.000000, label="12.000", fontsize=10
+, style=dotted];
+		0 -> 80 [len=10.000000, label="10.000", fontsize=10
+, style=solid];
+		46 -> 81 [len=2.000000, label="2.000", fontsize=10
+, style=dashed];
+		1 -> 82 [len=3.000000, label="3.000", fontsize=10
+, style=dashed];
+		107 -> 82 [len=9.000000, label="9.000", fontsize=10
+, style=dotted];
+		65 -> 83 [len=3.000000, label="3.000", fontsize=10
+, style=dotted];
+		116 -> 83 [len=5.000000, label="5.000", fontsize=10
+, style=dotted];
+		34 -> 84 [len=3.000000, label="3.000", fontsize=10
+, style=dashed];
+		34 -> 85 [len=1.000000, label="1.000", fontsize=10
+, style=dotted];
+		32 -> 86 [len=6.000000, label="6.000", fontsize=10
+, style=dotted];
+		120 -> 86 [len=10.000000, label="10.000", fontsize=10
+, style=dashed];
+		75 -> 87 [len=4.000000, label="4.000", fontsize=10
+, style=dashed];
+		1 -> 87 [len=12.000000, label="12.000", fontsize=10
+, style=solid];
+		9 -> 88 [len=1.000000, label="1.000", fontsize=10
+, style=dotted];
+		65 -> 89 [len=3.000000, label="3.000", fontsize=10
+, style=dotted];
+		116 -> 89 [len=3.000000, label="3.000", fontsize=10
+, style=dotted];
+		69 -> 90 [len=6.000000, label="6.000", fontsize=10
+, style=solid];
+		35 -> 91 [len=1.000000, label="1.000", fontsize=10
+, style=dotted];
+		78 -> 92 [len=2.000000, label="2.000", fontsize=10
+, style=dotted];
+		86 -> 92 [len=3.000000, label="3.000", fontsize=10
+, style=dotted];
+		88 -> 93 [len=6.000000, label="6.000", fontsize=10
+, style=solid];
+		14 -> 94 [len=2.000000, label="2.000", fontsize=10
+, style=bold];
+		119 -> 94 [len=9.000000, label="9.000", fontsize=10
+, style=solid];
+		79 -> 94 [len=15.000000, label="15.000", fontsize=10
+, style=solid];
+		0 -> 95 [len=11.000000, label="11.000", fontsize=10
+, style=solid];
+		26 -> 95 [len=15.000000, label="15.000", fontsize=10
+, style=dashed];
+		49 -> 95 [len=15.000000, label="15.000", fontsize=10
+, style=dashed];
+		88 -> 96 [len=4.000000, label="4.000", fontsize=10
+, style=dashed];
+		46 -> 97 [len=3.000000, label="3.000", fontsize=10
+, style=dashed];
+		46 -> 99 [len=2.000000, label="2.000", fontsize=10
+, style=dashed];
+		65 -> 100 [len=1.000000, label="1.000", fontsize=10
+, style=dotted];
+		30 -> 101 [len=7.000000, label="7.000", fontsize=10
+, style=dotted];
+		110 -> 101 [len=7.000000, label="7.000", fontsize=10
+, style=dashed];
+		39 -> 102 [len=6.000000, label="6.000", fontsize=10
+, style=dashed];
+		35 -> 102 [len=15.000000, label="15.000", fontsize=10
+, style=dashed];
+		46 -> 104 [len=7.000000, label="7.000", fontsize=10
+, style=dashed];
+		98 -> 104 [len=8.000000, label="8.000", fontsize=10
+, style=dashed];
+		13 -> 104 [len=9.000000, label="9.000", fontsize=10
+, style=dashed];
+		106 -> 107 [len=3.000000, label="3.000", fontsize=10
+, style=dotted];
+		0 -> 107 [len=9.000000, label="9.000", fontsize=10
+, style=solid];
+		0 -> 108 [len=9.000000, label="9.000", fontsize=10
+, style=solid];
+		9 -> 109 [len=5.000000, label="5.000", fontsize=10
+, style=dashed];
+		107 -> 110 [len=9.000000, label="9.000", fontsize=10
+, style=dashed];
+		124 -> 110 [len=9.000000, label="9.000", fontsize=10
+, style=dashed];
+		95 -> 111 [len=6.000000, label="6.000", fontsize=10
+, style=dashed];
+		38 -> 111 [len=10.000000, label="10.000", fontsize=10
+, style=dotted];
+		0 -> 113 [len=15.000000, label="15.000", fontsize=10
+, style=bold];
+		35 -> 114 [len=5.000000, label="5.000", fontsize=10
+, style=dashed];
+		9 -> 115 [len=3.000000, label="3.000", fontsize=10
+, style=dashed];
+		0 -> 116 [len=15.000000, label="15.000", fontsize=10
+, style=bold];
+		100 -> 117 [len=8.000000, label="8.000", fontsize=10
+, style=dashed];
+		29 -> 117 [len=10.000000, label="10.000", fontsize=10
+, style=dashed];
+		129 -> 120 [len=8.000000, label="8.000", fontsize=10
+, style=dotted];
+		98 -> 120 [len=13.000000, label="13.000", fontsize=10
+, style=dashed];
+		56 -> 121 [len=3.000000, label="3.000", fontsize=10
+, style=dotted];
+		127 -> 121 [len=6.000000, label="6.000", fontsize=10
+, style=dashed];
+		9 -> 122 [len=1.000000, label="1.000", fontsize=10
+, style=dotted];
+		0 -> 123 [len=1.000000, label="1.000", fontsize=10
+, style=dashed];
+		39 -> 125 [len=8.000000, label="8.000", fontsize=10
+, style=dotted];
+		47 -> 125 [len=13.000000, label="13.000", fontsize=10
+, style=dashed];
+		53 -> 126 [len=6.000000, label="6.000", fontsize=10
+, style=solid];
+		35 -> 127 [len=6.000000, label="6.000", fontsize=10
+, style=dashed];
+		82 -> 127 [len=7.000000, label="7.000", fontsize=10
+, style=dashed];
+		134 -> 128 [len=3.000000, label="3.000", fontsize=10
+, style=dashed];
+		106 -> 129 [len=8.000000, label="8.000", fontsize=10
+, style=dashed];
+		108 -> 129 [len=9.000000, label="9.000", fontsize=10
+, style=dashed];
+		129 -> 130 [len=7.000000, label="7.000", fontsize=10
+, style=dashed];
+		106 -> 130 [len=9.000000, label="9.000", fontsize=10
+, style=solid];
+		35 -> 131 [len=4.000000, label="4.000", fontsize=10
+, style=dashed];
+		115 -> 131 [len=5.000000, label="5.000", fontsize=10
+, style=dashed];
+		57 -> 134 [len=3.000000, label="3.000", fontsize=10
+, style=dotted];
+		0 -> 134 [len=8.000000, label="8.000", fontsize=10
+, style=solid];
+		134 -> 135 [len=2.000000, label="2.000", fontsize=10
+, style=dashed];
+		57 -> 136 [len=5.000000, label="5.000", fontsize=10
+, style=dashed];
+	}
+}
