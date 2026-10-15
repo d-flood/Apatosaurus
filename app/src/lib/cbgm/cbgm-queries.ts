@@ -5,7 +5,12 @@ import type {
 } from '@apatosaurus/open-cbgm-wasm';
 
 import type { CbgmAnalysisMetadata } from '$lib/storage/formats';
-import type { CbgmQueryRequest, CbgmQueryResponse, TextualFlowKind } from './cbgm-worker-types';
+import type {
+	CbgmQueryRequest,
+	CbgmQueryResponse,
+	GlobalStemmaOptions,
+	TextualFlowKind,
+} from './cbgm-worker-types';
 
 export type CbgmUnit = ReturnType<CbgmEngine['units']>[number];
 export type OptimizeSubstemmataResult = ReturnType<CbgmEngine['optimizeSubstemmata']>;
@@ -21,6 +26,7 @@ export type CbgmQueries = {
 		kind: TextualFlowKind,
 		opts: { connectivityLimit?: number; strengths: boolean }
 	): Promise<string>;
+	globalStemma(opts: GlobalStemmaOptions): Promise<string>;
 	close(): void;
 };
 
@@ -64,6 +70,7 @@ export async function openCbgmQueries(
 				excludedWitnesses: analysis.settings.excluded_witnesses,
 				minExtantProportion: analysis.settings.min_extant_proportion,
 			},
+			substemmata: analysis.global_stemma === 'ready',
 		});
 	} catch (error) {
 		worker.terminate();
@@ -78,6 +85,7 @@ export async function openCbgmQueries(
 		optimizeSubstemmata: (witness, maxCost) =>
 			request({ type: 'optimize-substemmata', witness, maxCost }),
 		textualFlow: (unit, kind, opts) => request({ type: 'textual-flow', unit, kind, opts }),
+		globalStemma: opts => request({ type: 'global-stemma', opts }),
 		close: () => worker.terminate(),
 	};
 }

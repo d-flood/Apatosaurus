@@ -18,6 +18,7 @@
 	import CbgmQueryTools from '$lib/cbgm/components/CbgmQueryTools.svelte';
 	import CbgmStalenessNote from '$lib/cbgm/components/CbgmStalenessNote.svelte';
 	import { BUNDLED_READING_TYPES, findReadingTypeDefinition } from '$lib/collation/reading-types';
+	import EditingNotice from '$lib/shell/components/EditingNotice.svelte';
 	import { readCbgmCollationHashes, subscribeLocalDbInvalidations } from '$lib/db/client';
 	import type { CbgmAnalysisMetadata } from '$lib/storage/formats';
 	import type { PageProps } from './$types';
@@ -119,6 +120,10 @@
 				</span>
 			{/if}
 		</div>
+
+		{#key analysis.id}
+			<EditingNotice projectId={analysis.project_id} documentId={analysis.id} />
+		{/key}
 
 		<CbgmComputationProgress analysisId={analysis.id} />
 

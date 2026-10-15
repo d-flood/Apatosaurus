@@ -103,6 +103,7 @@ export const createCbgmAnalysis = call('createCbgmAnalysis');
 export const completeCbgmCoherence = call('completeCbgmCoherence');
 export const failCbgmCoherence = call('failCbgmCoherence');
 export const setCbgmGlobalStemmaState = call('setCbgmGlobalStemmaState');
+export const failCbgmGlobalStemma = call('failCbgmGlobalStemma');
 export const readCbgmAnalysis = call('readCbgmAnalysis');
 export const findCbgmAnalysis = call('findCbgmAnalysis');
 export const loadCbgmCollationSnapshots = call('loadCbgmCollationSnapshots');

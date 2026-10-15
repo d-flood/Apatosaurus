@@ -175,8 +175,24 @@ export async function setGlobalStemmaState(
 			global_stemma: state,
 			computing_device:
 				state === 'computing' ? await thisDevice(projectId, storeOptions) : null,
+			failure: null,
 		};
 	});
+}
+
+export async function failGlobalStemma(
+	db: Kysely<Database>,
+	projectId: string,
+	analysisId: string,
+	failure: string,
+	storeOptions: StoreOperationOptions = {}
+): Promise<CbgmAnalysisMetadata> {
+	return updateAnalysis(db, projectId, analysisId, storeOptions, async metadata => ({
+		...metadata,
+		global_stemma: 'none',
+		computing_device: null,
+		failure,
+	}));
 }
 
 export async function readAnalysis(

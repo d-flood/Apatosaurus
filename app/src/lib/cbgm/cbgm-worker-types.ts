@@ -1,6 +1,7 @@
 import type { CbgmEngine, CoherenceSettings, UndecidedReading } from '@apatosaurus/open-cbgm-wasm';
 
 export type TextualFlowKind = Parameters<CbgmEngine['textualFlow']>[1];
+export type GlobalStemmaOptions = Parameters<CbgmEngine['globalStemma']>[1];
 
 export type SubstemmaRow = { witness: string; ancestors: string[]; completedAt: string };
 
@@ -19,6 +20,7 @@ export type CbgmQueryRequest =
 			type: 'open';
 			cache: Uint8Array;
 			filter: { excludedWitnesses: string[]; minExtantProportion: number | null };
+			substemmata: boolean;
 	  }
 	| {
 			type: 'compare-witnesses';
@@ -39,6 +41,7 @@ export type CbgmQueryRequest =
 			unit: string;
 			kind: TextualFlowKind;
 			opts: { connectivityLimit?: number; strengths: boolean };
-	  };
+	  }
+	| { type: 'global-stemma'; opts: GlobalStemmaOptions };
 
 export type CbgmQueryResponse = { id: number } & CbgmWorkerResponse;

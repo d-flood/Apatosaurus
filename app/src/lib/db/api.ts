@@ -343,6 +343,16 @@ export const dbApi = defineApi({
 		invalidate('cbgm-analyses');
 		return analysis;
 	},
+	async failCbgmGlobalStemma(
+		{ db, invalidate },
+		projectId: string,
+		analysisId: string,
+		failure: string
+	) {
+		const analysis = await cbgmAnalyses.failGlobalStemma(db, projectId, analysisId, failure);
+		invalidate('cbgm-analyses');
+		return analysis;
+	},
 	readCbgmAnalysis: ({ db }, analysisId: string) => cbgmAnalyses.readAnalysis(db, analysisId),
 	findCbgmAnalysis: ({ db }, analysisId: string) => cbgmAnalyses.findAnalysis(db, analysisId),
 	loadCbgmCollationSnapshots: ({ db }, projectId: string, collationIds?: string[]) =>

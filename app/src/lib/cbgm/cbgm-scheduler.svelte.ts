@@ -34,6 +34,7 @@ export type CbgmComputationRequest =
 
 export type CbgmComputationProgress = {
 	analysisId: string;
+	projectId: string;
 	phase: ComputationPhase;
 	state: ComputationState;
 	done: number;
@@ -183,6 +184,7 @@ export class CbgmScheduler {
 		const { analysisId, projectId, phase, notifyOs } = request;
 		this.#progress = {
 			analysisId,
+			projectId,
 			phase,
 			state: 'queued',
 			done: 0,

@@ -2,12 +2,16 @@ import type { CoherenceSettings } from '@apatosaurus/open-cbgm-wasm';
 import { resolve } from '$app/paths';
 
 import {
+	clearEditingPresence,
 	completeCbgmCoherence,
 	createCbgmAnalysis,
 	deleteCbgmAnalysis,
 	failCbgmCoherence,
-	findCbgmAnalysis,
+	failCbgmGlobalStemma,
 	loadCbgmCollationSnapshots,
+	readCbgmAnalysisCache,
+	setCbgmGlobalStemmaState,
+	writeEditingPresence,
 } from '$lib/db/client';
 import { requestPersistentStorageForMeaningfulWrite } from '$lib/shell/capabilities';
 import { notificationCenter } from '$lib/shell/notification-center.svelte';
@@ -15,6 +19,8 @@ import type { CbgmAnalysisMetadata, CbgmAnalysisSettings } from '$lib/storage/fo
 import { phaseLabel } from './cbgm-analysis-labels';
 import { buildCbgmInput } from './cbgm-input';
 import { cbgmScheduler, type CbgmScheduler, type ComputationPhase } from './cbgm-scheduler.svelte';
+
+const PRESENCE_REFRESH_MS = 60_000;
 
 export type StartCbgmAnalysisRequest = {
 	projectId: string;
@@ -42,12 +48,23 @@ export function analysisSettings(settings: CoherenceSettings): CbgmAnalysisSetti
 	};
 }
 
+export function coherenceSettings(settings: CbgmAnalysisSettings): CoherenceSettings {
+	return {
+		minExtantUnits: settings.min_extant_units,
+		minExtantProportion: settings.min_extant_proportion,
+		excludedWitnesses: [...settings.excluded_witnesses],
+		classicRules: settings.classic_rules,
+		mergeSplitReadings: settings.merge_split_readings,
+		droppedReadingTypes: [...settings.dropped_reading_types],
+		includedCorrectors: [...settings.included_correctors],
+	};
+}
+
 export function recomputePrefill(
 	analysis: CbgmAnalysisMetadata,
 	deletedCollationIds: readonly string[],
 	today = new Date()
 ): CbgmAnalysisPrefill {
-	const { settings } = analysis;
 	const date = [today.getFullYear(), today.getMonth() + 1, today.getDate()]
 		.map(part => String(part).padStart(2, '0'))
 		.join('-');
@@ -56,15 +73,7 @@ export function recomputePrefill(
 		collationIds: analysis.collations
 			.map(collation => collation.collation_id)
 			.filter(id => !deletedCollationIds.includes(id)),
-		settings: {
-			minExtantUnits: settings.min_extant_units,
-			minExtantProportion: settings.min_extant_proportion,
-			excludedWitnesses: [...settings.excluded_witnesses],
-			classicRules: settings.classic_rules,
-			mergeSplitReadings: settings.merge_split_readings,
-			droppedReadingTypes: [...settings.dropped_reading_types],
-			includedCorrectors: [...settings.included_correctors],
-		},
+		settings: coherenceSettings(analysis.settings),
 	};
 }
 
@@ -123,24 +132,76 @@ export async function startCbgmAnalysis(
 	return analysis;
 }
 
+export async function startGlobalStemma(
+	analysis: CbgmAnalysisMetadata,
+	notifyOs: boolean,
+	scheduler: Pick<CbgmScheduler, 'enqueue'> = cbgmScheduler
+): Promise<void> {
+	const { id: analysisId, project_id: projectId } = analysis;
+	const cache = await readCbgmAnalysisCache(analysisId);
+	if (!cache) throw new Error('This analysis has no coherence results yet.');
+	await setCbgmGlobalStemmaState(projectId, analysisId, 'computing');
+	void requestPersistentStorageForMeaningfulWrite();
+	scheduler.enqueue({
+		analysisId,
+		projectId,
+		phase: 'global-stemma',
+		cache,
+		settings: coherenceSettings(analysis.settings),
+		notifyOs,
+	});
+	publishPresence(projectId, analysisId);
+}
+
+export async function cancelGlobalStemma(
+	analysis: CbgmAnalysisMetadata,
+	scheduler: Pick<CbgmScheduler, 'cancel'> = cbgmScheduler
+): Promise<void> {
+	await scheduler.cancel(analysis.id);
+	await setCbgmGlobalStemmaState(analysis.project_id, analysis.id, 'none');
+	withdrawPresence(analysis.project_id, analysis.id);
+}
+
 export function persistCbgmComputations(
 	scheduler: Pick<CbgmScheduler, 'onComplete' | 'onFailure'>
 ): void {
 	scheduler.onComplete(async ({ analysisId, projectId, phase, cache, notifyOs }) => {
-		if (phase !== 'coherence') {
-			throw new Error(`Finished CBGM ${phase} computations cannot be saved yet.`);
-		}
-		const analysis = await completeCbgmCoherence(projectId, analysisId, cache);
+		const analysis =
+			phase === 'coherence'
+				? await completeCbgmCoherence(projectId, analysisId, cache)
+				: await setCbgmGlobalStemmaState(projectId, analysisId, 'ready', cache);
+		if (phase === 'global-stemma') withdrawPresence(projectId, analysisId);
 		announce({ analysisId, name: analysis.name, phase, notifyOs, failure: null });
 	});
 	scheduler.onFailure(async ({ analysisId, projectId, phase, message, notifyOs }) => {
 		const analysis =
 			phase === 'coherence'
 				? await failCbgmCoherence(projectId, analysisId, message)
-				: await findCbgmAnalysis(analysisId);
-		const name = analysis?.name ?? 'CBGM analysis';
-		announce({ analysisId, name, phase, notifyOs, failure: message });
+				: await failCbgmGlobalStemma(projectId, analysisId, message);
+		if (phase === 'global-stemma') withdrawPresence(projectId, analysisId);
+		announce({ analysisId, name: analysis.name, phase, notifyOs, failure: message });
 	});
+}
+
+export function refreshCbgmPresence(scheduler: Pick<CbgmScheduler, 'progress'>): void {
+	setInterval(() => {
+		const progress = scheduler.progress;
+		if (progress?.phase === 'global-stemma' && progress.state === 'running') {
+			publishPresence(progress.projectId, progress.analysisId);
+		}
+	}, PRESENCE_REFRESH_MS);
+}
+
+function publishPresence(projectId: string, analysisId: string): void {
+	void writeEditingPresence(projectId, analysisId).catch(error =>
+		console.warn('[presence] write failed', error)
+	);
+}
+
+function withdrawPresence(projectId: string, analysisId: string): void {
+	void clearEditingPresence(projectId, analysisId).catch(error =>
+		console.warn('[presence] clear failed', error)
+	);
 }
 
 function announce({

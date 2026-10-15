@@ -4,6 +4,7 @@ import wasmUrl from '@apatosaurus/open-cbgm-wasm/open-cbgm.wasm?url';
 import type { CbgmQueryRequest, CbgmQueryResponse } from './cbgm-worker-types';
 
 const engine = createCbgmEngine({ locateFile: () => wasmUrl });
+let substemmata = new Map<string, string[]>();
 
 self.onmessage = async (event: MessageEvent<{ id: number; request: CbgmQueryRequest }>) => {
 	const { id, request } = event.data;
@@ -18,6 +19,7 @@ function handle(engine: CbgmEngine, request: CbgmQueryRequest) {
 	switch (request.type) {
 		case 'open':
 			engine.open(request.cache, request.filter);
+			substemmata = request.substemmata ? engine.readSubstemmata(request.cache) : new Map();
 			return { witnesses: engine.witnesses(), units: engine.units() };
 		case 'compare-witnesses':
 			return engine.compareWitnesses(request.primary, request.others, request.undecided);
@@ -32,6 +34,8 @@ function handle(engine: CbgmEngine, request: CbgmQueryRequest) {
 			return engine.optimizeSubstemmata(request.witness, request.maxCost);
 		case 'textual-flow':
 			return engine.textualFlow(request.unit, request.kind, request.opts);
+		case 'global-stemma':
+			return engine.globalStemma(substemmata, request.opts);
 	}
 }
 

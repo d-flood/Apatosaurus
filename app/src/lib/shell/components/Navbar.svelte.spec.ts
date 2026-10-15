@@ -34,6 +34,7 @@ const projects = [
 function progress(state: ComputationState): CbgmComputationProgress {
 	return {
 		analysisId: 'analysis-1',
+		projectId: 'project-a',
 		phase: 'coherence',
 		state,
 		done: 2,

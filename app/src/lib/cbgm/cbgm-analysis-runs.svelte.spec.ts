@@ -1,23 +1,47 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 
 import { notificationCenter } from '$lib/shell/notification-center.svelte';
+import type { CbgmAnalysisMetadata } from '$lib/storage/formats';
 import type { CbgmCompletion, CbgmFailure } from './cbgm-scheduler.svelte';
 
 const mocks = vi.hoisted(() => ({
+	clearEditingPresence: vi.fn(),
 	completeCbgmCoherence: vi.fn(),
 	failCbgmCoherence: vi.fn(),
+	readCbgmAnalysisCache: vi.fn(),
+	setCbgmGlobalStemmaState: vi.fn(),
+	writeEditingPresence: vi.fn(),
 }));
 
 vi.mock('$lib/db/client', () => ({
+	clearEditingPresence: mocks.clearEditingPresence,
 	completeCbgmCoherence: mocks.completeCbgmCoherence,
 	createCbgmAnalysis: vi.fn(),
 	deleteCbgmAnalysis: vi.fn(),
 	failCbgmCoherence: mocks.failCbgmCoherence,
-	findCbgmAnalysis: vi.fn(),
+	failCbgmGlobalStemma: vi.fn(),
 	loadCbgmCollationSnapshots: vi.fn(),
+	readCbgmAnalysisCache: mocks.readCbgmAnalysisCache,
+	setCbgmGlobalStemmaState: mocks.setCbgmGlobalStemmaState,
+	writeEditingPresence: mocks.writeEditingPresence,
 }));
 
-import { persistCbgmComputations } from './cbgm-analysis-runs';
+import { persistCbgmComputations, startGlobalStemma } from './cbgm-analysis-runs';
+
+const analysis = {
+	id: 'analysis-1',
+	project_id: 'project-1',
+	name: 'Romans',
+	settings: {
+		min_extant_units: null,
+		min_extant_proportion: 0.5,
+		excluded_witnesses: ['P46'],
+		classic_rules: false,
+		merge_split_readings: false,
+		dropped_reading_types: [],
+		included_correctors: [],
+	},
+} as unknown as CbgmAnalysisMetadata;
 
 function registerHandlers() {
 	const handlers: {
@@ -32,9 +56,13 @@ function registerHandlers() {
 }
 
 beforeEach(() => {
+	vi.clearAllMocks();
 	notificationCenter.items = [];
 	mocks.completeCbgmCoherence.mockResolvedValue({ id: 'analysis-1', name: 'Romans' });
 	mocks.failCbgmCoherence.mockResolvedValue({ id: 'analysis-1', name: 'Romans' });
+	mocks.setCbgmGlobalStemmaState.mockResolvedValue(analysis);
+	mocks.writeEditingPresence.mockResolvedValue(undefined);
+	mocks.clearEditingPresence.mockResolvedValue(undefined);
 });
 
 it('upserts the completion notification for that analysis and phase', async () => {
@@ -72,4 +100,50 @@ it('includes the failure message in the failure notification', async () => {
 			tone: 'error',
 		}),
 	]);
+});
+
+it('publishes editing presence when the global stemma is enqueued and clears it on completion', async () => {
+	const handlers = registerHandlers();
+	const cache = new Uint8Array([1]);
+	const stemmaCache = new Uint8Array([1, 2]);
+	const enqueue = vi.fn();
+	mocks.readCbgmAnalysisCache.mockResolvedValue(cache);
+
+	await startGlobalStemma(analysis, true, { enqueue });
+
+	expect(mocks.setCbgmGlobalStemmaState).toHaveBeenCalledWith(
+		'project-1',
+		'analysis-1',
+		'computing'
+	);
+	expect(enqueue).toHaveBeenCalledWith({
+		analysisId: 'analysis-1',
+		projectId: 'project-1',
+		phase: 'global-stemma',
+		cache,
+		settings: expect.objectContaining({
+			excludedWitnesses: ['P46'],
+			minExtantProportion: 0.5,
+		}),
+		notifyOs: true,
+	});
+	expect(mocks.writeEditingPresence).toHaveBeenCalledWith('project-1', 'analysis-1');
+	expect(mocks.clearEditingPresence).not.toHaveBeenCalled();
+
+	await handlers.complete?.({
+		analysisId: 'analysis-1',
+		projectId: 'project-1',
+		phase: 'global-stemma',
+		cache: stemmaCache,
+		notifyOs: false,
+	});
+
+	expect(mocks.setCbgmGlobalStemmaState).toHaveBeenLastCalledWith(
+		'project-1',
+		'analysis-1',
+		'ready',
+		stemmaCache
+	);
+	expect(mocks.clearEditingPresence).toHaveBeenCalledWith('project-1', 'analysis-1');
+	expect(mocks.writeEditingPresence).toHaveBeenCalledTimes(1);
 });
