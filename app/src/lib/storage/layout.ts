@@ -232,6 +232,17 @@ export function backupMetadataFile(): string {
 	return joinStorePath(appFolder(), 'backup-metadata.json');
 }
 
+export function cbgmCheckpointsFolder(): string {
+	return joinStorePath(appFolder(), 'cbgm-checkpoints');
+}
+
+export function cbgmCheckpointFolder(analysisId: string, phase: string): string {
+	return joinStorePath(
+		cbgmCheckpointsFolder(),
+		`${validateFileStem(analysisId)}--${validateFileStem(phase)}`
+	);
+}
+
 export function userReferenceEditionsFolder(): string {
 	return joinStorePath(appFolder(), 'reference-editions');
 }

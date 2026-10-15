@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import favicon from '$lib/assets/favicon.ico';
+	import { cbgmScheduler } from '$lib/cbgm/cbgm-scheduler.svelte';
 	import { checkStoragePersistence } from '$lib/shell/capabilities';
 	import { ensureLocalDbRuntime } from '$lib/db/runtime';
 	import { signInCompletion } from '$lib/backup/sign-in-completion.svelte';
@@ -27,6 +28,9 @@
 		try {
 			void checkStoragePersistence();
 			await ensureLocalDbRuntime();
+			cbgmScheduler
+				.start()
+				.catch(error => console.error('Failed to resume CBGM computations:', error));
 			await syncService.initLocalDB('local');
 		} catch (err) {
 			console.error('Failed to initialize local runtime:', err);
