@@ -12,7 +12,7 @@ import {
 } from '$lib/collation/alignment-snapshot';
 import type { CollationDocument } from '$lib/collation/collation-document';
 import { variationUnitId } from '$lib/collation/collation-unit-id';
-import { isVariationColumn } from '$lib/collation/collation-variation-units';
+import { buildVariationUnitSpans } from '$lib/collation/collation-variation-units';
 import { coerceTranscriptionDocument } from '$lib/transcription/content';
 import { normalizeVerseIdentifier } from '$lib/transcription/verse-index';
 import { canonicalJson } from '$lib/storage/canonical-json';
@@ -34,6 +34,8 @@ type UnitColumn = Omit<SerializedAlignmentColumn, 'id' | 'index'>;
 
 export interface CollationUnitPart {
 	column: UnitColumn | null;
+	columns?: UnitColumn[];
+	declaration?: { firstColumnId: string; lastColumnId: string };
 	apparatus: ApparatusUnit | null;
 	stemma: StemmaUnit | null;
 }
@@ -246,19 +248,33 @@ function unitLabel(unit: CollationUnitPart): string {
 function collationSections(document: ComparableCollation | null): Section[] {
 	if (!document) return [];
 	const serializedColumns = document.alignment?.columns ?? [];
-	const columns = new Map(
-		serializedColumns.map(({ id, index: _, ...column }) => [variationUnitId(id), column])
-	);
+	const columns = new Map(serializedColumns.map(({ id, index: _, ...column }) => [id, column]));
 	const apparatus = new Map(document.apparatus?.units.map(unit => [unit.unitId, unit]) ?? []);
 	const stemma = new Map(document.stemma?.units.map(unit => [unit.unitId, unit]) ?? []);
-	const variantUnitIds = deserializeAlignmentColumns(serializedColumns)
-		.filter(isVariationColumn)
-		.map(column => variationUnitId(column.id));
+	const spans = buildVariationUnitSpans(
+		deserializeAlignmentColumns(serializedColumns),
+		document.alignment?.declaredUnits
+	);
+	const variantUnitIds = spans.map(span => span.unitId);
 	const unitIds = [...new Set([...variantUnitIds, ...apparatus.keys(), ...stemma.keys()])];
 	return [
 		...unitIds.map(unitId => {
+			const span = spans.find(span => span.unitId === unitId);
+			const declaration = document.alignment?.declaredUnits?.find(
+				unit =>
+					unit.firstColumnId === span?.columnIds[0] &&
+					unit.lastColumnId === span?.columnIds.at(-1)
+			);
 			const value: CollationUnitPart = {
-				column: columns.get(unitId) ?? null,
+				...(declaration ? { declaration } : {}),
+				...(span && span.columnIds.length > 1
+					? {
+							columns: serializedColumns
+								.slice(span.startIndex, span.endIndex + 1)
+								.map(({ id: _, index: _index, ...column }) => column),
+						}
+					: {}),
+				column: columns.get(span?.columnIds[0] ?? unitId.slice('unit:'.length)) ?? null,
 				apparatus: apparatus.get(unitId) ?? null,
 				stemma: stemma.get(unitId) ?? null,
 			};
@@ -309,14 +325,33 @@ export function mergeCollations(
 		}
 		if (merged.alignment || right.alignment) {
 			const alignment = merged.alignment ?? { ...right.alignment!, columns: [] };
-			const columns = spliceByKey(
-				alignment.columns,
-				right.alignment?.columns ?? [],
-				column => variationUnitId(column.id),
-				key
+			const rightSpan = buildVariationUnitSpans(
+				deserializeAlignmentColumns(right.alignment?.columns ?? []),
+				right.alignment?.declaredUnits
+			).find(span => span.unitId === key);
+			const declared = (alignment.declaredUnits ?? []).filter(
+				unit =>
+					(unit.firstColumnId === unit.lastColumnId
+						? variationUnitId(unit.firstColumnId)
+						: `unit:${unit.firstColumnId}..${unit.lastColumnId}`) !== key
 			);
+			const rightDeclaration = right.alignment?.declaredUnits?.find(
+				unit =>
+					unit.firstColumnId === rightSpan?.columnIds[0] &&
+					unit.lastColumnId === rightSpan?.columnIds.at(-1)
+			);
+			if (rightDeclaration) declared.push(structuredClone(rightDeclaration));
+			const columnIds =
+				rightSpan?.columnIds ?? (key.includes('..') ? [] : [key.slice('unit:'.length)]);
+			const columns = columnIds.reduce(
+				(columns, id) =>
+					spliceByKey(columns, right.alignment?.columns ?? [], column => column.id, id),
+				alignment.columns
+			);
+
 			merged.alignment = {
 				...alignment,
+				...(declared.length || alignment.declaredUnits ? { declaredUnits: declared } : {}),
 				columns: columns.map((column, index) => ({ ...structuredClone(column), index })),
 			};
 		}

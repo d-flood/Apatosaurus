@@ -10,7 +10,6 @@ import {
 } from './collation-tei';
 import { buildCollationDocument } from './collation-document';
 import { collationState, type WitnessConfig } from './collation-state.svelte';
-import { variationUnitId } from './collation-unit-id';
 import type { AlignmentCell, AlignmentSnapshot } from './alignment-snapshot';
 import type { WitnessSourceToken } from './collation-types';
 import { validateTeiP5 } from '../../../../test-support/validate-tei-p5';
@@ -125,7 +124,7 @@ function exportInput(): ApparatusTeiExportInput {
 	const units = new Map<string, ApparatusTeiUnit>();
 	for (const segment of segments) {
 		if (segment.kind !== 'unit') continue;
-		const unitId = variationUnitId(segment.span.columnIds[0]);
+		const unitId = segment.span.unitId;
 		units.set(unitId, {
 			view: collationState.peekUnitView(segment.span.startIndex),
 			nonAttestation: collationState.getNonAttestationForUnit(segment.span.startIndex),
@@ -287,7 +286,7 @@ describe('apparatus TEI exporter', () => {
 
 		const absoluteInput = exportInput();
 		const unit = absoluteInput.segments.find(segment => segment.kind === 'unit')!;
-		const unitId = variationUnitId(unit.span.columnIds[0]);
+		const unitId = unit.span.unitId;
 		absoluteInput.units.get(unitId)!.connectivity = 'absolute';
 		const absolute = exportApparatusTei(absoluteInput);
 		const absoluteDocument = parse(absolute);
@@ -319,7 +318,7 @@ describe('apparatus TEI exporter', () => {
 	it('does not serialize a proposed reading type as an editorial claim', () => {
 		const input = exportInput();
 		const unit = input.segments.find(segment => segment.kind === 'unit')!;
-		const unitId = variationUnitId(unit.span.columnIds[0]);
+		const unitId = unit.span.unitId;
 		const exportedUnit = input.units.get(unitId)!;
 		const beta = exportedUnit.view.readings.find(reading => reading.text === 'beta')!;
 		exportedUnit.view.readings = exportedUnit.view.readings.map(reading =>
@@ -407,7 +406,7 @@ describe('apparatus TEI exporter', () => {
 		settleSources();
 		const incomplete = exportInput();
 		const incompleteUnit = incomplete.segments.find(segment => segment.kind === 'unit')!;
-		const incompleteUnitId = variationUnitId(incompleteUnit.span.columnIds[0]);
+		const incompleteUnitId = incompleteUnit.span.unitId;
 		const incompleteRefusals = getApparatusExportRefusals(incomplete);
 		expect(incompleteRefusals).toEqual(
 			expect.arrayContaining([
@@ -452,9 +451,7 @@ describe('apparatus TEI exporter', () => {
 
 	it('exports a unit whose lemma roots the stemma and whose other sources are settled', () => {
 		const input = exportInput();
-		const unitId = variationUnitId(
-			input.segments.find(segment => segment.kind === 'unit')!.span.columnIds[0]
-		);
+		const unitId = input.segments.find(segment => segment.kind === 'unit')!.span.unitId;
 		const nodes = input.units.get(unitId)!.stemma.nodes;
 
 		expect(nodes.find(node => node.isLemma)).toMatchObject({
@@ -592,6 +589,28 @@ describe('apparatus TEI exporter', () => {
 		expect(ids.every(id => /^[A-Za-z_][A-Za-z0-9_.-]*$/.test(id))).toBe(true);
 	});
 
+	it('exports a multi-column declared unit as valid TEI P5', () => {
+		collationState.setWitnesses([witness('A', 'one two', true), witness('B', 'one two')]);
+		collationState.setAlignmentSnapshot({
+			witnessOrder: ['A', 'B'],
+			columns: ['one', 'two'].map((text, index) => ({
+				id: `declared-${index}`,
+				index,
+				merged: false,
+				cells: [
+					['A', textCell(text)],
+					['B', textCell(text)],
+				],
+			})),
+		});
+		expect(collationState.declareUnit(['declared-0', 'declared-1'])).toBe(true);
+		const xml = exportApparatusTei(exportInput());
+		expect(xml).toContain('<app ');
+		expect(xml).toContain('one two');
+		expect((xml.match(/<app /g) ?? []).length).toBe(1);
+		expect(() => validateTeiP5(xml)).not.toThrow();
+	}, 30_000);
+
 	it('serializes the same apparatus from the editor state and from the saved document', () => {
 		collationState.segment = { id: 'segment-1', name: 'John 1:1', members: ['John 1:1'] };
 		const document = buildCollationDocument({
@@ -610,6 +629,7 @@ describe('apparatus TEI exporter', () => {
 			suppliedTextMode: collationState.suppliedTextMode,
 			segmentation: collationState.segmentation,
 			alignmentColumns: collationState.alignmentColumns,
+			declaredUnits: collationState.declaredUnits,
 			witnessOrder: collationState.witnessOrder,
 			classifiedReadings: collationState.classifiedReadings,
 			unitDecisions: collationState.unitDecisions,

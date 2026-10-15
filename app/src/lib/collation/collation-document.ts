@@ -19,8 +19,11 @@ import {
 } from './collation-types';
 import { applyDecisions, type UnitDecisions } from './collation-decisions';
 import { buildReadingProposal, isUntypedSubreading } from './collation-reading-proposal';
-import { variationUnitId } from './collation-unit-id';
-import { buildVariationUnitSpans } from './collation-variation-units';
+import {
+	buildVariationUnitSpans,
+	validDeclaredUnits,
+	type DeclaredUnit,
+} from './collation-variation-units';
 import type { ReadingTypeDefinition } from './reading-types';
 
 export const COLLATION_DOCUMENT_ARTIFACT_TYPE = 'collation_document_v1';
@@ -79,6 +82,7 @@ interface CollationWitnessNode {
 }
 
 interface CollationAlignmentNode {
+	declaredUnits?: DeclaredUnit[];
 	type: 'alignment';
 	witnessOrder: string[];
 	columns: SerializedAlignmentColumn[];
@@ -161,6 +165,7 @@ export interface CollationDocumentSeed {
 	suppliedTextMode: SuppliedTextMode;
 	segmentation: boolean;
 	alignmentColumns: AlignmentColumn[];
+	declaredUnits?: DeclaredUnit[];
 	witnessOrder: string[];
 	classifiedReadings: Map<string, ClassifiedReading[]>;
 	unitDecisions: Map<string, UnitDecisions>;
@@ -185,6 +190,7 @@ export interface HydratedCollationDocument {
 	suppliedTextMode: SuppliedTextMode;
 	segmentation: boolean;
 	alignmentColumns: SerializedAlignmentColumn[];
+	declaredUnits: DeclaredUnit[];
 	witnessOrder: string[];
 	classifiedReadings: Array<[string, ClassifiedReading[]]>;
 	unitDecisions: Array<[string, UnitDecisions]>;
@@ -555,14 +561,17 @@ function buildApparatus(
 	unitDecisions: Map<string, UnitDecisions>,
 	alignmentColumns: AlignmentColumn[],
 	baseWitnessId: string | null,
-	sourceWitnessIds: string[]
+	sourceWitnessIds: string[],
+	declaredUnits: DeclaredUnit[]
 ): CollationApparatusNode | null {
 	if (classifiedReadings.size === 0 && unitDecisions.size === 0) return null;
 	const unitIds = new Set([...classifiedReadings.keys(), ...unitDecisions.keys()]);
 	const units = [...unitIds]
 		.map(unitId => {
-			const columnId =
-				alignmentColumns.find(column => variationUnitId(column.id) === unitId)?.id ?? null;
+			const span = buildVariationUnitSpans(alignmentColumns, declaredUnits).find(
+				span => span.unitId === unitId
+			);
+			const columnId = span?.columnIds[0] ?? null;
 			const { connectivity: _, ...decisions } = unitDecisions.get(unitId) ?? {};
 			return {
 				type: 'variationUnit' as const,
@@ -572,8 +581,10 @@ function buildApparatus(
 				readings: applyDecisions(
 					classifiedReadings.get(unitId) ??
 						buildReadingProposal({
-							columns: alignmentColumns.filter(column => column.id === columnId),
-							spanColumnIds: columnId ? [columnId] : [],
+							columns: alignmentColumns.filter(column =>
+								span?.columnIds.includes(column.id)
+							),
+							spanColumnIds: span?.columnIds ?? [],
 							sourceWitnessIds,
 							baseWitnessId,
 						}).readings,
@@ -594,7 +605,8 @@ function buildApparatus(
 function buildStemma(
 	readingArcs: Map<string, ReadingArc[]>,
 	unitDecisions: Map<string, UnitDecisions>,
-	alignmentColumns: AlignmentColumn[]
+	alignmentColumns: AlignmentColumn[],
+	declaredUnits: DeclaredUnit[]
 ): CollationStemmaNode | null {
 	const unitIds = new Set([
 		...readingArcs.keys(),
@@ -606,7 +618,9 @@ function buildStemma(
 	const units = [...unitIds]
 		.map(unitId => {
 			const columnId =
-				alignmentColumns.find(column => variationUnitId(column.id) === unitId)?.id ?? null;
+				buildVariationUnitSpans(alignmentColumns, declaredUnits).find(
+					span => span.unitId === unitId
+				)?.columnIds[0] ?? null;
 			const connectivity = unitDecisions.get(unitId)?.connectivity;
 			return {
 				type: 'stemmaUnit' as const,
@@ -659,6 +673,14 @@ export function buildCollationDocument(seed: CollationDocumentSeed): CollationDo
 						type: 'alignment',
 						witnessOrder: seed.witnessOrder,
 						columns: serializeAlignmentColumns(seed.alignmentColumns),
+						...(seed.declaredUnits?.length
+							? {
+									declaredUnits: validDeclaredUnits(
+										seed.alignmentColumns,
+										seed.declaredUnits
+									),
+								}
+							: {}),
 					}
 				: null,
 		apparatus: buildApparatus(
@@ -666,9 +688,15 @@ export function buildCollationDocument(seed: CollationDocumentSeed): CollationDo
 			seed.unitDecisions,
 			seed.alignmentColumns,
 			findBaseTextWitnessId(seed.witnesses),
-			seed.witnesses.filter(witness => !witness.isExcluded).map(witness => witness.witnessId)
+			seed.witnesses.filter(witness => !witness.isExcluded).map(witness => witness.witnessId),
+			seed.declaredUnits ?? []
 		),
-		stemma: buildStemma(seed.readingArcs, seed.unitDecisions, seed.alignmentColumns),
+		stemma: buildStemma(
+			seed.readingArcs,
+			seed.unitDecisions,
+			seed.alignmentColumns,
+			seed.declaredUnits ?? []
+		),
 	};
 }
 
@@ -677,7 +705,10 @@ function preservedCollationReadings(
 ): Array<[string, ClassifiedReading[]]> {
 	const columns = deserializeAlignmentColumns(document.alignment?.columns ?? []);
 	const spans = new Map(
-		buildVariationUnitSpans(columns).map(span => [variationUnitId(span.columnIds[0]), span])
+		buildVariationUnitSpans(columns, document.alignment?.declaredUnits).map(span => [
+			span.unitId,
+			span,
+		])
 	);
 	const witnesses = document.setup.witnesses.filter(witness => !witness.isExcluded);
 	const baseWitnessId = witnesses.find(witness => witness.isBaseText)?.id ?? null;
@@ -750,6 +781,10 @@ export function hydrateCollationDocument(document: CollationDocument): HydratedC
 			document.alignment && Array.isArray(document.alignment.columns)
 				? document.alignment.columns
 				: [],
+		declaredUnits: validDeclaredUnits(
+			deserializeAlignmentColumns(document.alignment?.columns ?? []),
+			document.alignment?.declaredUnits ?? []
+		),
 		witnessOrder:
 			document.alignment && Array.isArray(document.alignment.witnessOrder)
 				? document.alignment.witnessOrder.filter(
@@ -787,10 +822,10 @@ export function countUntypedSubreadings(
 	);
 	const preservedReadings = new Map(preservedCollationReadings(document));
 	let count = 0;
-	for (const span of buildVariationUnitSpans(columns)) {
-		const saved = savedUnits.get(variationUnitId(span.columnIds[0]));
+	for (const span of buildVariationUnitSpans(columns, document.alignment?.declaredUnits)) {
+		const saved = savedUnits.get(span.unitId);
 		const decisions = saved?.decisions ?? {};
-		const preserved = preservedReadings.get(variationUnitId(span.columnIds[0]));
+		const preserved = preservedReadings.get(span.unitId);
 		const readings = Array.isArray(preserved)
 			? preserved
 			: buildReadingProposal({
@@ -804,6 +839,28 @@ export function countUntypedSubreadings(
 		).length;
 	}
 	return count;
+}
+
+function hasValidDeclaredUnits(alignment: unknown): boolean {
+	if (!alignment || typeof alignment !== 'object') return true;
+	const { declaredUnits, columns } = alignment as Record<string, unknown>;
+	if (declaredUnits === undefined) return true;
+	if (!Array.isArray(declaredUnits) || !Array.isArray(columns)) return false;
+	const indices = new Map(columns.map((column, index) => [(column as { id: string }).id, index]));
+	return declaredUnits.every(unit => {
+		if (!unit || typeof unit !== 'object' || Array.isArray(unit)) return false;
+		const { firstColumnId, lastColumnId } = unit;
+		if (
+			typeof firstColumnId !== 'string' ||
+			!firstColumnId.trim() ||
+			typeof lastColumnId !== 'string' ||
+			!lastColumnId.trim()
+		)
+			return false;
+		const first = indices.get(firstColumnId);
+		const last = indices.get(lastColumnId);
+		return first === undefined || last === undefined || first <= last;
+	});
 }
 
 export function parseCollationDocument(value: unknown): CollationDocument | null {
@@ -820,6 +877,7 @@ export function parseCollationDocument(value: unknown): CollationDocument | null
 	if (
 		candidate.type !== 'collationDocument' ||
 		candidate.version !== 1 ||
+		!hasValidDeclaredUnits(candidate.alignment) ||
 		!hasValidStemmaConnectivity(candidate.stemma) ||
 		hasApparatusConnectivity(candidate.apparatus) ||
 		!hasValidAmbiguousAttestations(candidate.apparatus)

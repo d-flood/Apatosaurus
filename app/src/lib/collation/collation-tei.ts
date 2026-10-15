@@ -9,7 +9,6 @@ import {
 } from './collation-reading-proposal';
 import { projectLocalStemma, type LocalStemma } from './collation-stemma';
 import type { ClassifiedReading } from './collation-types';
-import { variationUnitId } from './collation-unit-id';
 import { buildVariationUnitSpans } from './collation-variation-units';
 import { isPunctuationOnlyText } from './token-text';
 import { resolveReadingTypeVocabulary, type ReadingTypeDefinition } from './reading-types';
@@ -196,7 +195,7 @@ function serializeUnit(
 		throw new ApparatusExportError([
 			{
 				kind: 'missing-lemma',
-				unitId: variationUnitId(segment.span.columnIds[0]),
+				unitId: segment.span.unitId,
 				label: segment.label,
 			},
 		]);
@@ -216,7 +215,7 @@ function serializeUnit(
 	const laterSplitMemberIds = new Set(
 		splitReadingGroups(ordered).flatMap(group => group.slice(1).map(reading => reading.id))
 	);
-	const unitXmlId = xmlId(variationUnitId(segment.span.columnIds[0]));
+	const unitXmlId = xmlId(segment.span.unitId);
 	const readingXmlIds = new Map(
 		ordered.map(reading => [reading.id, xmlId(`${unitXmlId}-${reading.label}`)] as const)
 	);
@@ -314,7 +313,7 @@ export function getApparatusExportRefusals(
 			}
 			continue;
 		}
-		const unitId = variationUnitId(segment.span.columnIds[0]);
+		const unitId = segment.span.unitId;
 		const unit = input.units.get(unitId);
 		if (!unit?.view.lemmaReadingId) {
 			refusals.push({ kind: 'missing-lemma', unitId, label: segment.label });
@@ -382,7 +381,7 @@ export function exportApparatusTei(input: ApparatusTeiExportInput): string {
 	const verse = input.segments
 		.map(segment => {
 			if (segment.kind === 'agreed') return textContent(segment.text, false);
-			const unitId = variationUnitId(segment.span.columnIds[0]);
+			const unitId = segment.span.unitId;
 			const unit = input.units.get(unitId);
 			if (!unit)
 				throw new ApparatusExportError([
@@ -434,7 +433,7 @@ export function buildApparatusTeiExportInput(
 		baseTextWitnessId ??
 		document.setup.witnesses.find(witness => !witness.isExcluded)?.id ??
 		null;
-	const spans = buildVariationUnitSpans(columns);
+	const spans = buildVariationUnitSpans(columns, document.alignment?.declaredUnits);
 	const segments = buildSegmentSequence({
 		columns,
 		spans,
@@ -450,7 +449,7 @@ export function buildApparatusTeiExportInput(
 	const units = new Map<string, ApparatusTeiUnit>();
 
 	for (const span of spans) {
-		const unitId = variationUnitId(span.columnIds[0]);
+		const unitId = span.unitId;
 		const saved = apparatusByUnitId.get(unitId);
 		const decisions: UnitDecisions = saved?.decisions ?? {};
 		const proposal = buildReadingProposal({

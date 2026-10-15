@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { COLLATION_PHASES } from '$lib/collation/collation-types';
 	import { page } from '$app/state';
-	import { variationUnitId } from '$lib/collation/collation-unit-id';
 	import { goto } from '$app/navigation';
 	import { untrack } from 'svelte';
 	import { collationState, type CollationPhase } from '$lib/collation/collation-state.svelte';
@@ -41,7 +40,7 @@
 			syncPhaseFromRoute(id, phaseParam);
 			const span = collationState
 				.getVariationUnitSpans()
-				.find(span => variationUnitId(span.columnIds[0]) === unitId);
+				.find(span => span.unitId === unitId);
 			if (span) collationState.selectedUnitIndex = span.startIndex;
 		});
 	});

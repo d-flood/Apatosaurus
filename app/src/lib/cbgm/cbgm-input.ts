@@ -9,7 +9,6 @@ import {
 	textContent,
 	type ApparatusTeiUnit,
 } from '$lib/collation/collation-tei';
-import { variationUnitId } from '$lib/collation/collation-unit-id';
 
 export type CbgmInput = {
 	tei: string | null;
@@ -121,9 +120,19 @@ export function buildCbgmInput(
 		const apps: string[] = [];
 		for (const segment of input.segments) {
 			if (segment.kind !== 'unit') continue;
-			const unitId = variationUnitId(segment.span.columnIds[0]);
+			const unitId = segment.span.unitId;
 			const unit = input.units.get(unitId);
-			if (!unit || unit.stemma.nodes.length < 2) continue;
+			const isDeclared = document.alignment?.declaredUnits?.some(
+				declaration =>
+					declaration.firstColumnId === segment.span.columnIds[0] &&
+					declaration.lastColumnId === segment.span.columnIds.at(-1)
+			);
+			if (
+				!unit ||
+				unit.stemma.nodes.length === 0 ||
+				(unit.stemma.nodes.length < 2 && !isDeclared)
+			)
+				continue;
 			const label = `${segmentName}/${segment.ordinal}`;
 			if (unit.view.lemmaReadingId === null) {
 				blockingUnits.push({

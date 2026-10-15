@@ -55,6 +55,8 @@ import collationV9Input from './fixtures/collation-v9.input.json';
 import collationV10Expected from './fixtures/collation-v10.expected.json';
 import collationV10Input from './fixtures/collation-v10.input.json';
 import collationV11Expected from './fixtures/collation-v11.expected.json';
+import collationV11Input from './fixtures/collation-v11.input.json';
+import collationV12Expected from './fixtures/collation-v12.expected.json';
 import projectManifestV2Input from './fixtures/project-manifest-v2.input.json';
 import projectManifestV3Expected from './fixtures/project-manifest-v3.expected.json';
 import {
@@ -155,6 +157,70 @@ describe('canonical store formats', () => {
 			originalVersion: 2,
 			payload: projectManifestV3Expected,
 		});
+	});
+
+	it('upgrades v11 declarations unchanged and preserves them in working and checkpoint formats', async () => {
+		expect(
+			await readCanonicalDocument(
+				COLLATION_FORMAT,
+				await sealDocument(COLLATION_FORMAT, 11, collationV11Input as JsonObject)
+			)
+		).toMatchObject({
+			ok: true,
+			upgraded: true,
+			originalVersion: 11,
+			payload: collationV12Expected,
+		});
+		for (const [format, payload] of [
+			[
+				WORKING_COLLATION_FORMAT,
+				{ ...WORKING_COLLATION_FIXTURE, document: collationV12Expected.document },
+			],
+			[
+				COLLATION_CHECKPOINT_FORMAT,
+				{
+					...COLLATION_CHECKPOINT_FIXTURE,
+					payload: {
+						...COLLATION_CHECKPOINT_FIXTURE.payload,
+						document: collationV12Expected.document,
+					},
+				},
+			],
+		] as const) {
+			const checked =
+				'payload' in payload
+					? {
+							...payload,
+							payload_content_hash: await hashCanonicalPayload(payload.payload),
+						}
+					: payload;
+			expect(
+				await readCanonicalDocument(
+					format,
+					await serializeCanonicalDocument(format, checked as JsonObject)
+				)
+			).toMatchObject({ ok: true, payload: checked });
+		}
+	});
+
+	it.each([
+		null,
+		{},
+		['column-0'],
+		[{ firstColumnId: '', lastColumnId: 'column-1' }],
+		[{ firstColumnId: 'column-1' }],
+		[{ firstColumnId: 'column-1', lastColumnId: 1 }],
+		[{ firstColumnId: 'declared-last', lastColumnId: 'declared-first' }],
+	])('quarantines malformed declarations %j', async declaredUnits => {
+		const payload = structuredClone(collationV12Expected) as JsonObject;
+		((payload.document as JsonObject).alignment as JsonObject).declaredUnits =
+			declaredUnits as JsonObject;
+		expect(
+			await readCanonicalDocument(
+				COLLATION_FORMAT,
+				await sealDocument(COLLATION_FORMAT, COLLATION_CURRENT_VERSION, payload)
+			)
+		).toMatchObject({ ok: false });
 	});
 
 	it('upgrades v10 collation tags unchanged and preserves them in working and checkpoint formats', async () => {

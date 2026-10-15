@@ -33,6 +33,12 @@ Version 7 applies the Project Transcription Version 2 change to collations: `col
 - Loading folds a leftover `apatosaurus.working.collation` file into the primary when its `draft.base_*` matches `based_on_checkpoint`, writing the new primary before deleting the working file. Zip import folds both working formats the same way before placing files.
 - `apatosaurus.working.collation` stays registered only so legacy files can be read and migrated. Checkpoint content is unchanged.
 
+## Collation Version 12
+
+Version 12 adds optional `alignment.declaredUnits`, a list of `{ firstColumnId, lastColumnId }` declarations over contiguous column runs. Endpoints must be nonempty strings in forward column order; missing endpoints drop the declaration when hydrated, leaving its decisions orphaned. Single-column unit IDs remain `unit:<columnId>`; longer runs use `unit:<firstColumnId>..<lastColumnId>`.
+
+The v11 upgrader is a no-op. Working and checkpoint formats preserve declarations through their semantic-document parser and need no version bump.
+
 ## Collation Version 11
 
 Version 11 adds `readingTags?: Record<readingId, string[]>` to apparatus unit decisions. Tag ids are nonempty strings without duplicates; malformed values quarantine the file. Tags describe readings without changing labels, attachment or CBGM input, and orphan when their reading disappears.

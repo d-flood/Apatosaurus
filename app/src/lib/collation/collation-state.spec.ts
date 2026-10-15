@@ -2851,6 +2851,7 @@ describe('collationState witness placement', () => {
 			suppliedTextMode: collationState.suppliedTextMode,
 			segmentation: collationState.segmentation,
 			alignmentColumns: collationState.alignmentColumns,
+			declaredUnits: collationState.declaredUnits,
 			witnessOrder: collationState.witnessOrder,
 			classifiedReadings: collationState.classifiedReadings,
 			unitDecisions: collationState.unitDecisions,
@@ -2870,6 +2871,100 @@ describe('collationState witness placement', () => {
 			})),
 		};
 	}
+
+	it('declares without merging, refuses overlaps, and removes declarations with undo', () => {
+		setup({ A: 'same words end', B: 'same words other' });
+		const before = serializeAlignmentColumns(collationState.alignmentColumns);
+		expect(collationState.declareUnit(['column-0', 'column-2'])).toBe(false);
+		expect(collationState.declareUnit(['column-1', 'column-2'])).toBe(false);
+		expect(collationState.declareUnit(['missing'])).toBe(false);
+		expect(collationState.declareUnit(['column-2'])).toBe(true);
+		expect(collationState.declaredUnits).toEqual([]);
+		expect(collationState.declareUnit(['column-0', 'column-1'])).toBe(true);
+		expect(collationState.declareUnit(['column-1'])).toBe(false);
+		expect(serializeAlignmentColumns(collationState.alignmentColumns)).toEqual(before);
+		expect(collationState.getVariationUnitSpans()[0].unitId).toBe('unit:column-0..column-1');
+		expect(collationState.peekReadingsForUnit(0)[0].text).toBe('same words');
+		const cbgm = buildCbgmInput([document()], {
+			minExtantUnits: null,
+			minExtantProportion: null,
+			excludedWitnesses: [],
+			classicRules: false,
+			mergeSplitReadings: false,
+			droppedReadingTypes: [],
+			includedCorrectors: [],
+		});
+		expect(cbgm.tei).toContain('same words');
+		expect(cbgm.tei?.match(/<app /g)).toHaveLength(2);
+		expect(hydrateCollationDocument(document()).declaredUnits).toEqual(
+			collationState.declaredUnits
+		);
+		expect(
+			buildApparatusTeiExportInput(document())
+				.segments.filter(segment => segment.kind === 'unit')
+				.map(segment => segment.span.unitId)
+		).toEqual(['unit:column-0..column-1', 'unit:column-2']);
+		collationState.undo();
+		expect(collationState.declaredUnits).toEqual([]);
+		collationState.redo();
+		collationState.removeDeclaredUnit('unit:column-0..column-1');
+		expect(collationState.declaredUnits).toEqual([]);
+		collationState.undo();
+		expect(collationState.declaredUnits).toHaveLength(1);
+	});
+
+	it('keeps declared endpoints and decisions when placement inserts inside the run', async () => {
+		setup({ A: 'same words end', B: 'same words other' });
+		collationState.declareUnit(['column-0', 'column-1']);
+		const reading = collationState.getReadingsForUnit(0)[0];
+		collationState.setReadingType(0, reading.id, 'nonsense');
+		collationState.setConnectivity(0, 3);
+		await refresh({ N: 'same extra words end' });
+		const span = collationState.getVariationUnitSpans()[0];
+		expect(span.unitId).toBe('unit:column-0..column-1');
+		expect(span.columnIds).toHaveLength(3);
+		expect(collationState.getConnectivity(0)).toBe(3);
+		expect(
+			collationState.peekReadingsForUnit(0).find(item => item.id === reading.id)?.readingType
+		).toBe('nonsense');
+		expect(
+			collationState.peekReadingsForUnit(0).find(item => item.text === 'same extra words')
+				?.witnessIds
+		).toEqual(['N']);
+	});
+
+	it.each(['both', 'first', 'last'] as const)(
+		'retains a declaration only when both ends are recognized: %s',
+		recognized => {
+			setup({ A: 'same words end', B: 'same words other' });
+			collationState.declareUnit(['column-0', 'column-1']);
+			collationState.getReadingsForUnit(0);
+			collationState.setConnectivity(0, 3);
+			const columns = serializeAlignmentColumns(collationState.alignmentColumns).map(
+				(column, index) => ({ ...column, id: `new-${index}` })
+			);
+			if (recognized !== 'both') {
+				const index = recognized === 'first' ? 1 : 0;
+				columns[index].cells = columns[index].cells.map(([id, cell]) => [
+					id,
+					{ ...cell, sourceTokenIds: [`changed-${id}`] },
+				]);
+			}
+			collationState.setAlignmentSnapshot({ witnessOrder: ['A', 'B'], columns });
+			expect(collationState.declaredUnits).toHaveLength(recognized === 'both' ? 1 : 0);
+			if (recognized === 'both') {
+				expect(collationState.getVariationUnitSpans()[0].unitId).toBe(
+					'unit:column-0..column-1'
+				);
+				expect(collationState.getConnectivity(0)).toBe(3);
+			} else {
+				expect(collationState.getOrphanedUnitDecisions()).toContainEqual({
+					unitId: 'unit:column-0..column-1',
+					decisions: { connectivity: 3 },
+				});
+			}
+		}
+	);
 
 	it('confirms every attestation at one unit in one undo entry', async () => {
 		setup({ A: 'alpha first', B: 'beta second' });

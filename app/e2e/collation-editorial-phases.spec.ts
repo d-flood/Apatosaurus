@@ -78,6 +78,51 @@ test('phase navigation follows history, undo, and Continue from saved setup', as
 	await expect(realign).toBeEnabled();
 });
 
+test('declares a column run, persists it, and removes it on a phone', async ({ page }) => {
+	const projectId = await createProject(page, `Declared units ${Date.now().toString(36)}`);
+	await createAndCommitWitness(page, projectId, 'Declaration Alpha', 'DA', 'αλφα');
+	await createAndCommitWitness(page, projectId, 'Declaration Beta', 'DB', 'βητα');
+	await createCollation(page, projectId, { segmentation: false });
+	await page.getByRole('radio', { name: 'Grid', exact: true }).check();
+	const headers = page.locator('thead th');
+	await page.setViewportSize({ width: 390, height: 844 });
+	const count = await headers.count();
+	await page.getByRole('button', { name: 'Select multiple columns', exact: true }).click();
+	await headers.nth(1).click();
+	await headers.nth(2).click();
+	const declare = page.getByRole('button', { name: 'Declare unit', exact: true });
+	await expect
+		.poll(async () => {
+			const box = await declare.boundingBox();
+			return box !== null && box.x >= 0 && box.x + box.width <= 390;
+		})
+		.toBe(true);
+	await declare.click();
+	const remove = page.getByRole('button', { name: 'Remove declaration', exact: true });
+	await expect(remove).toBeVisible();
+	await expect(headers).toHaveCount(count);
+	await page.getByRole('button', { name: 'Undo', exact: true }).click();
+	await expect(remove).toHaveCount(0);
+	await page.getByRole('button', { name: 'Redo', exact: true }).click();
+	await expect(remove).toBeVisible();
+	await expect(page.getByText('Saved', { exact: true })).toBeVisible();
+	await page.reload();
+	await page.getByRole('button', { name: 'Readings', exact: true }).click();
+	await expect(page).toHaveURL(/\/readings$/);
+	await page.goto(page.url().replace(/readings$/, 'alignment'));
+	await headers.nth(1).click();
+	await expect
+		.poll(async () => {
+			const box = await remove.boundingBox();
+			return box !== null && box.x >= 0 && box.x + box.width <= 390;
+		})
+		.toBe(true);
+	await remove.click();
+	await expect(remove).toHaveCount(0);
+	await page.getByRole('button', { name: 'Undo', exact: true }).click();
+	await expect(remove).toBeVisible();
+});
+
 test('the local stemma has one tabstop and supports keyboard source decisions', async ({
 	page,
 }) => {
@@ -351,7 +396,11 @@ async function createAndCommitWitness(
 	});
 }
 
-async function createCollation(page: Page, projectId: string): Promise<void> {
+async function createCollation(
+	page: Page,
+	projectId: string,
+	options?: { segmentation?: boolean }
+): Promise<void> {
 	await page.goto(`/collation/new?projectId=${projectId}`);
 	await expect(page.getByRole('heading', { name: 'Textual Scope' })).toBeVisible();
 	await expect(page.getByText('Loading verses...')).not.toBeVisible({ timeout: 30_000 });
@@ -371,6 +420,11 @@ async function createCollation(page: Page, projectId: string): Promise<void> {
 	const proceed = page.getByRole('button', { name: 'Proceed to Alignment' });
 	await expect(proceed).toBeEnabled();
 	await proceed.click();
+	if (options?.segmentation === false) {
+		await page.getByRole('button', { name: 'Rules', exact: true }).click();
+		await page.getByRole('checkbox', { name: /CollateX segmentation/ }).uncheck();
+		await page.getByRole('button', { name: 'Rules', exact: true }).click();
+	}
 	const runCollation = page.getByRole('button', { name: 'Run Collation' });
 	await expect(runCollation).toBeEnabled({ timeout: 30_000 });
 	await runCollation.click();

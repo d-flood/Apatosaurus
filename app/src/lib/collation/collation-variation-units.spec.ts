@@ -177,9 +177,30 @@ describe('collation variation units', () => {
 		expect(isVariationColumn(columns[2]!)).toBe(true);
 		expect(isVariationColumn(columns[3]!)).toBe(false);
 		expect(buildVariationUnitSpans(columns)).toEqual([
-			{ startIndex: 1, endIndex: 1, columnIds: ['col-2'] },
-			{ startIndex: 2, endIndex: 2, columnIds: ['col-3'] },
+			{ unitId: 'unit:col-2', startIndex: 1, endIndex: 1, columnIds: ['col-2'] },
+			{ unitId: 'unit:col-3', startIndex: 2, endIndex: 2, columnIds: ['col-3'] },
 		]);
+		expect(
+			buildVariationUnitSpans(columns, [{ firstColumnId: 'col-1', lastColumnId: 'col-3' }])
+		).toEqual([
+			{
+				unitId: 'unit:col-1..col-3',
+				startIndex: 0,
+				endIndex: 2,
+				columnIds: ['col-1', 'col-2', 'col-3'],
+			},
+		]);
+		expect(
+			buildVariationUnitSpans(columns, [
+				{ firstColumnId: 'col-4', lastColumnId: 'col-4' },
+			]).map(span => span.unitId)
+		).toEqual(['unit:col-2', 'unit:col-3', 'unit:col-4']);
+		expect(
+			buildVariationUnitSpans(columns, [
+				{ firstColumnId: 'missing', lastColumnId: 'col-4' },
+				{ firstColumnId: 'col-4', lastColumnId: 'col-1' },
+			])
+		).toEqual(buildVariationUnitSpans(columns));
 	});
 
 	it('attaches original-mode regularized readings under their aligned parent', () => {

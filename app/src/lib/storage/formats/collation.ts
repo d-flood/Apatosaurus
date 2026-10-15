@@ -23,7 +23,7 @@ import {
 } from './validation';
 
 export const COLLATION_FORMAT = 'apatosaurus.collation';
-export const COLLATION_CURRENT_VERSION = 11;
+export const COLLATION_CURRENT_VERSION = 12;
 const collationUpgraders: DocumentUpgrader[] = [];
 
 export type CollationContent = JsonObject & {
@@ -161,6 +161,7 @@ export const collationFormatRegistration: FormatRegistration<CollationPayload> =
 		8: payload => payload,
 		9: payload => payload,
 		10: payload => payload,
+		11: payload => payload,
 	},
 	validate: validateCollationPayload,
 };

@@ -11,7 +11,6 @@
 	import { renderApparatusUnit } from '$lib/collation/collation-apparatus';
 	import { collationState } from '$lib/collation/collation-state.svelte';
 	import { layoutLocalStemma } from '$lib/collation/collation-stemma-layout';
-	import { variationUnitId } from '$lib/collation/collation-unit-id';
 	import { findReadingTypeDefinition } from '$lib/collation/reading-types';
 
 	type WorklistEntry = {
@@ -202,7 +201,7 @@
 		const units = new Map<string, ApparatusTeiUnit>();
 		for (const segment of sharedSegments) {
 			if (segment.kind !== 'unit') continue;
-			const unitId = variationUnitId(segment.span.columnIds[0]);
+			const unitId = segment.span.unitId;
 			units.set(unitId, {
 				view: collationState.peekUnitView(segment.span.startIndex),
 				nonAttestation: collationState.getNonAttestationForUnit(segment.span.startIndex),
@@ -266,7 +265,7 @@
 	function selectExportRefusal(refusal: ApparatusExportRefusal) {
 		if (!refusal.unitId) return;
 		const unitIndex = unitSegments.find(
-			segment => variationUnitId(segment.span.columnIds[0]) === refusal.unitId
+			segment => segment.span.unitId === refusal.unitId
 		)?.span.startIndex;
 		if (unitIndex !== undefined) collationState.selectedUnitIndex = unitIndex;
 	}

@@ -47,6 +47,20 @@
 	let collationError = $state<string | null>(null);
 	let showRulesSidebar = $state(false);
 	let showDiffs = $state(false);
+	let selectMultipleColumns = $state(false);
+	let declarationError = $state<string | null>(null);
+	let selectedDeclarations = $derived(
+		collationState
+			.getVariationUnitSpans()
+			.filter(
+				span =>
+					collationState.declaredUnits.some(
+						unit =>
+							unit.firstColumnId === span.columnIds[0] &&
+							unit.lastColumnId === span.columnIds.at(-1)
+					) && span.columnIds.some(id => collationState.selectedColumnIds.has(id))
+			)
+	);
 	let newPatternError = $derived(
 		newPattern.trim() ? collationState.validateRegularizationPattern(newPattern) : null
 	);
@@ -243,7 +257,7 @@
 
 	function handleHeaderClick(columnId: string, e: MouseEvent) {
 		collationState.clearCellSelection();
-		if (e.shiftKey) {
+		if (e.shiftKey || selectMultipleColumns) {
 			collationState.toggleColumnSelection(columnId);
 		} else {
 			collationState.clearColumnSelection();
@@ -349,6 +363,12 @@
 				setCollapsibleWitnessRow(currentRowId, null);
 			},
 		};
+	}
+
+	function handleDeclare() {
+		declarationError = collationState.declareUnit([...collationState.selectedColumnIds])
+			? null
+			: 'Select contiguous columns that do not overlap an existing unit.';
 	}
 
 	function handleMerge() {
@@ -543,7 +563,7 @@
 	role="application"
 	aria-label="Alignment and regularization workspace"
 >
-	<div class="flex items-center gap-2 mb-3 px-1">
+	<div class="flex flex-wrap items-center gap-2 mb-3 px-1">
 		<a
 			class="btn btn-ghost btn-sm gap-1"
 			href={collationState.collationId
@@ -594,6 +614,37 @@
 				{collapsedCount} duplicate row{collapsedCount === 1 ? '' : 's'} merged
 			</span>
 		{/if}
+
+		<button
+			type="button"
+			class="btn btn-ghost btn-xs"
+			aria-pressed={selectMultipleColumns}
+			onclick={() => {
+				selectMultipleColumns = !selectMultipleColumns;
+			}}>Select multiple columns</button
+		>
+
+		{#if selectedCount > 0}
+			<button type="button" class="btn btn-primary btn-xs" onclick={handleDeclare}
+				>Declare unit</button
+			>
+			{#each selectedDeclarations as span (span.unitId)}
+				<button
+					type="button"
+					class="btn btn-ghost btn-xs"
+					onclick={() => {
+						collationState.removeDeclaredUnit(span.unitId);
+						declarationError = null;
+					}}
+					>Remove declaration{selectedDeclarations.length > 1
+						? ` ${span.startIndex + 1}–${span.endIndex + 1}`
+						: ''}</button
+				>
+			{/each}
+		{/if}
+		{#if declarationError}<p role="alert" class="text-error text-xs w-full">
+				{declarationError}
+			</p>{/if}
 
 		{#if canMergeColumns || selectedCellCount > 0}
 			<div

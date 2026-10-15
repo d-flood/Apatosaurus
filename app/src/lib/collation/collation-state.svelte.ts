@@ -114,6 +114,8 @@ import { variationUnitId } from './collation-unit-id';
 import {
 	buildReadingFamilyGroups,
 	buildVariationUnitSpans,
+	validDeclaredUnits,
+	type DeclaredUnit,
 	readingText,
 	type VariationUnitSpan,
 } from './collation-variation-units';
@@ -236,6 +238,7 @@ function createCollationState() {
 	let projectReadingTags = $state<Array<{ id: string; label: string }>>([]);
 
 	let alignmentColumns = $state<AlignmentColumn[]>([]);
+	let declaredUnits = $state<DeclaredUnit[]>([]);
 	let witnessOrder = $state<string[]>([]);
 	let selectedColumnIds = $state<Set<string>>(new Set());
 	let selectedCells = $state<Set<string>>(new Set());
@@ -282,6 +285,7 @@ function createCollationState() {
 		segmentation = hydrated.segmentation;
 		transcriptionWitnessTreatments = new Map();
 		alignmentColumns = deserializeAlignmentColumns(hydrated.alignmentColumns);
+		declaredUnits = validDeclaredUnits(alignmentColumns, hydrated.declaredUnits);
 		witnessOrder = hydrated.witnessOrder;
 		selectedUnitIndex = normalizeVariationUnitIndex(0);
 		classifiedReadings = new Map(hydrated.classifiedReadings);
@@ -317,6 +321,7 @@ function createCollationState() {
 			suppliedTextMode,
 			segmentation,
 			alignmentColumns,
+			declaredUnits: validDeclaredUnits(alignmentColumns, declaredUnits),
 			witnessOrder,
 			classifiedReadings,
 			unitDecisions,
@@ -945,15 +950,20 @@ function createCollationState() {
 
 	function setColumnsWithUndo(next: AlignmentColumn[], type: string, description: string) {
 		const previous = alignmentColumns.map(cloneAlignmentColumn);
+		const previousDeclarations = declaredUnits;
+		const nextDeclarations = validDeclaredUnits(next, declaredUnits);
 		alignmentColumns = next;
+		declaredUnits = nextDeclarations;
 		pushCommand({
 			type,
 			description,
 			undo: () => {
 				alignmentColumns = previous.map(cloneAlignmentColumn);
+				declaredUnits = previousDeclarations;
 			},
 			redo: () => {
 				alignmentColumns = next.map(cloneAlignmentColumn);
+				declaredUnits = nextDeclarations;
 			},
 		});
 	}
@@ -1315,6 +1325,7 @@ function createCollationState() {
 			witnessOrder = witnessOrder.filter(id => !removedIds.has(id));
 		}
 		placeChangedWitnesses(previousActive);
+		declaredUnits = validDeclaredUnits(alignmentColumns, declaredUnits);
 		lastAlignmentInputSignature = buildAlignmentInputSignature();
 		selectedUnitIndex = normalizeVariationUnitIndex(selectedUnitIndex);
 	}
@@ -1371,7 +1382,7 @@ function createCollationState() {
 			}
 			const oldUnits = new Map(
 				getVariationUnitSpans().map(span => {
-					const key = variationUnitId(span.columnIds[0]);
+					const key = span.unitId;
 					const proposal =
 						classifiedReadings.get(key) ??
 						buildReadingProposal({
@@ -1415,7 +1426,7 @@ function createCollationState() {
 			activeIds.add(witnessId);
 			witnessOrder = [...activeIds];
 			for (const span of getVariationUnitSpans()) {
-				const key = variationUnitId(span.columnIds[0]);
+				const key = span.unitId;
 				const oldReadings = oldUnits.get(key);
 				if (!oldReadings) continue;
 				const proposal = buildReadingProposal({
@@ -1537,7 +1548,7 @@ function createCollationState() {
 			])
 		);
 		for (const span of getVariationUnitSpans()) {
-			const key = variationUnitId(span.columnIds[0]);
+			const key = span.unitId;
 			const decisions = cloneUnitDecisions(unitDecisions.get(key));
 			if (classifiedReadings.has(key)) decisions.preserveReadings = true;
 			decisions.ambiguousAttestations = decisions.ambiguousAttestations
@@ -1614,9 +1625,8 @@ function createCollationState() {
 				recognized.get(column.id) ??
 				(previousIds.has(column.id) ? crypto.randomUUID() : column.id),
 		}));
-		const liveUnitIds = new Set(
-			getVariationUnitSpans().map(span => variationUnitId(span.columnIds[0]))
-		);
+		declaredUnits = validDeclaredUnits(alignmentColumns, declaredUnits);
+		const liveUnitIds = new Set(getVariationUnitSpans().map(span => span.unitId));
 		classifiedReadings = new Map(
 			[...classifiedReadings].filter(([key]) => liveUnitIds.has(key))
 		);
@@ -1624,6 +1634,64 @@ function createCollationState() {
 		selectedUnitIndex = normalizeVariationUnitIndex(selectedUnitIndex);
 		advanceFurthest('alignment');
 		markUnsaved();
+	}
+
+	function declareUnit(columnIds: string[]): boolean {
+		if (columnIds.length === 0 || new Set(columnIds).size !== columnIds.length) return false;
+		const indices = columnIds
+			.map(id => alignmentColumns.findIndex(column => column.id === id))
+			.sort((a, b) => a - b);
+		if (indices[0] < 0 || indices.at(-1)! - indices[0] + 1 !== indices.length) return false;
+		const first = indices[0];
+		const last = indices.at(-1)!;
+		const overlaps = getVariationUnitSpans().filter(
+			span => span.startIndex <= last && span.endIndex >= first
+		);
+		if (overlaps.length > 0)
+			return (
+				first === last &&
+				overlaps.length === 1 &&
+				overlaps[0].startIndex === first &&
+				overlaps[0].endIndex === last
+			);
+		setDeclaredUnitsWithUndo(
+			[
+				...validDeclaredUnits(alignmentColumns, declaredUnits),
+				{
+					firstColumnId: alignmentColumns[first].id,
+					lastColumnId: alignmentColumns[last].id,
+				},
+			],
+			'Declare variation unit'
+		);
+		return true;
+	}
+
+	function removeDeclaredUnit(unitId: string) {
+		const span = getVariationUnitSpans().find(span => span.unitId === unitId);
+		if (!span) return;
+		const next = declaredUnits.filter(
+			unit =>
+				unit.firstColumnId !== span.columnIds[0] ||
+				unit.lastColumnId !== span.columnIds.at(-1)
+		);
+		if (next.length !== declaredUnits.length)
+			setDeclaredUnitsWithUndo(next, 'Remove unit declaration');
+	}
+
+	function setDeclaredUnitsWithUndo(next: DeclaredUnit[], description: string) {
+		const previous = declaredUnits;
+		declaredUnits = next;
+		pushCommand({
+			type: 'declare-unit',
+			description,
+			undo: () => {
+				declaredUnits = previous;
+			},
+			redo: () => {
+				declaredUnits = next;
+			},
+		});
 	}
 
 	function mergeColumns(columnIds: string[]) {
@@ -1776,7 +1844,7 @@ function createCollationState() {
 	}
 
 	function getVariationUnitSpans() {
-		return buildVariationUnitSpans(alignmentColumns);
+		return buildVariationUnitSpans(alignmentColumns, declaredUnits);
 	}
 
 	function getSegmentSequence(): Segment[] {
@@ -1796,6 +1864,7 @@ function createCollationState() {
 			return {
 				startIndex: unitIndex,
 				endIndex: unitIndex,
+				unitId: variationUnitId(column.id),
 				columnIds: [column.id],
 			};
 		}
@@ -1824,8 +1893,7 @@ function createCollationState() {
 	}
 
 	function getReadingUnitKey(unitIndex: number): string | null {
-		const columnId = getVariationUnitSpan(unitIndex)?.columnIds[0];
-		return columnId ? variationUnitId(columnId) : null;
+		return getVariationUnitSpan(unitIndex)?.unitId ?? null;
 	}
 
 	function joinCellsText(cells: AlignmentCell[], mode: 'original' | 'normalized'): string | null {
@@ -1942,9 +2010,7 @@ function createCollationState() {
 	}
 
 	function getOrphanedUnitDecisions() {
-		const liveUnitIds = new Set(
-			getVariationUnitSpans().map(span => variationUnitId(span.columnIds[0]))
-		);
+		const liveUnitIds = new Set(getVariationUnitSpans().map(span => span.unitId));
 		return findOrphanedUnitDecisions(unitDecisions, liveUnitIds, readingArcs);
 	}
 
@@ -2394,9 +2460,7 @@ function createCollationState() {
 
 	function getUnitsNeedingLemmaDecision(): { unitIndex: number; unitId: string }[] {
 		return forEachUnitView((view, span) =>
-			view.needsLemmaDecision
-				? { unitIndex: span.startIndex, unitId: variationUnitId(span.columnIds[0]) }
-				: null
+			view.needsLemmaDecision ? { unitIndex: span.startIndex, unitId: span.unitId } : null
 		);
 	}
 
@@ -2412,7 +2476,7 @@ function createCollationState() {
 			view.lemmaReadingId !== view.baseTextReadingId
 				? {
 						unitIndex: span.startIndex,
-						unitId: variationUnitId(span.columnIds[0]),
+						unitId: span.unitId,
 						lemmaReadingId: view.lemmaReadingId,
 						baseTextReadingId: view.baseTextReadingId,
 					}
@@ -2564,7 +2628,7 @@ function createCollationState() {
 			return readingIds.length > 0
 				? {
 						unitIndex: span.startIndex,
-						unitId: variationUnitId(span.columnIds[0]),
+						unitId: span.unitId,
 						readingIds,
 					}
 				: null;
@@ -2698,7 +2762,7 @@ function createCollationState() {
 			return violations.length > 0
 				? {
 						unitIndex: span.startIndex,
-						unitId: variationUnitId(span.columnIds[0]),
+						unitId: span.unitId,
 						violations,
 					}
 				: null;
@@ -2896,6 +2960,7 @@ function createCollationState() {
 		projectReadingTypes = [];
 		projectReadingTags = [];
 		alignmentColumns = [];
+		declaredUnits = [];
 		lastAlignmentInputSignature = null;
 		witnessOrder = [];
 		selectedColumnIds = new Set();
@@ -3259,6 +3324,11 @@ function createCollationState() {
 		getNonAttestationForUnit,
 		getOrphanedDecisionsForUnit,
 		getOrphanedUnitDecisions,
+		get declaredUnits() {
+			return validDeclaredUnits(alignmentColumns, declaredUnits);
+		},
+		declareUnit,
+		removeDeclaredUnit,
 		getVariationUnitSpans,
 		getVariationUnitSpan,
 		getBaseTextForVariationUnit,

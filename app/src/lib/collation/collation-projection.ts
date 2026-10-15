@@ -1,7 +1,10 @@
 import { deserializeAlignmentColumns, type AlignmentColumn } from './alignment-snapshot';
 import { hydrateCollationDocument, type CollationDocument } from './collation-document';
-import { buildVariationUnitSpans, classifyWitnessAttestation } from './collation-variation-units';
-import { variationUnitId } from './collation-unit-id';
+import {
+	buildVariationUnitSpans,
+	classifyWitnessAttestation,
+	type DeclaredUnit,
+} from './collation-variation-units';
 import type { ClassifiedReading, WitnessConfig, WitnessSource } from './collation-types';
 
 interface ProjectedWitnessRow {
@@ -110,6 +113,7 @@ export interface SerializedCollationProjectionRows {
 export function buildCollationProjection(input: {
 	witnesses: WitnessConfig[];
 	alignmentColumns: AlignmentColumn[];
+	declaredUnits?: DeclaredUnit[];
 	getReadingsForUnit: (unitIndex: number) => ClassifiedReading[];
 	getBaseTextForVariationUnit: (unitIndex: number) => string;
 	getBaseWitnessId: () => string | null;
@@ -139,7 +143,7 @@ export function buildCollationProjection(input: {
 			.map(column => column.cells.get(baseWitnessId));
 		return classifyWitnessAttestation(cells) === 'attesting';
 	};
-	const variationUnits = buildVariationUnitSpans(input.alignmentColumns).map(
+	const variationUnits = buildVariationUnitSpans(input.alignmentColumns, input.declaredUnits).map(
 		({ startIndex, endIndex }) => {
 			const readings = [...input.getReadingsForUnit(startIndex)].sort(
 				(a, b) => a.order - b.order
@@ -186,13 +190,18 @@ export function buildCollationProjectionFromDocument(
 	return buildCollationProjection({
 		witnesses: hydrated.witnesses,
 		alignmentColumns,
+		declaredUnits: hydrated.declaredUnits,
 		getReadingsForUnit: unitIndex => {
-			const columnId = alignmentColumns[unitIndex]?.id;
-			return columnId ? (readingsByUnit.get(variationUnitId(columnId)) ?? []) : [];
+			const unitId = buildVariationUnitSpans(alignmentColumns, hydrated.declaredUnits).find(
+				span => span.startIndex === unitIndex
+			)?.unitId;
+			return unitId ? (readingsByUnit.get(unitId) ?? []) : [];
 		},
 		getBaseTextForVariationUnit: unitIndex => {
-			const columnId = alignmentColumns[unitIndex]?.id;
-			const readings = columnId ? (readingsByUnit.get(variationUnitId(columnId)) ?? []) : [];
+			const unitId = buildVariationUnitSpans(alignmentColumns, hydrated.declaredUnits).find(
+				span => span.startIndex === unitIndex
+			)?.unitId;
+			const readings = unitId ? (readingsByUnit.get(unitId) ?? []) : [];
 			const baseReading = baseWitnessId
 				? readings.find(reading => reading.witnessIds.includes(baseWitnessId))
 				: readings[0];

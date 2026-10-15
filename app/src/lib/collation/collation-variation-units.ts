@@ -1,8 +1,15 @@
 import type { AlignmentCell, AlignmentColumn } from './alignment-snapshot';
+import { variationUnitId } from './collation-unit-id';
 import type { AlignmentDisplayMode } from './collation-types';
 import { isPunctuationToken, joinTokenTexts } from './token-text';
 
+export interface DeclaredUnit {
+	firstColumnId: string;
+	lastColumnId: string;
+}
+
 export interface VariationUnitSpan {
+	unitId: string;
 	startIndex: number;
 	endIndex: number;
 	columnIds: string[];
@@ -626,16 +633,52 @@ export function isVariationColumn(column: AlignmentColumn): boolean {
 	);
 }
 
-export function buildVariationUnitSpans(columns: AlignmentColumn[]): VariationUnitSpan[] {
-	return columns.flatMap((column, index) =>
-		isVariationColumn(column)
-			? [
-					{
-						startIndex: index,
-						endIndex: index,
-						columnIds: [column.id],
-					} satisfies VariationUnitSpan,
-				]
-			: []
+export function validDeclaredUnits(
+	columns: AlignmentColumn[],
+	declarations: DeclaredUnit[]
+): DeclaredUnit[] {
+	const indices = new Map(columns.map((column, index) => [column.id, index]));
+	return declarations.filter(({ firstColumnId, lastColumnId }) => {
+		const first = indices.get(firstColumnId);
+		const last = indices.get(lastColumnId);
+		return first !== undefined && last !== undefined && first <= last;
+	});
+}
+
+export function buildVariationUnitSpans(
+	columns: AlignmentColumn[],
+	declarations: DeclaredUnit[] = []
+): VariationUnitSpan[] {
+	const indices = new Map(columns.map((column, index) => [column.id, index]));
+	const declared = validDeclaredUnits(columns, declarations).map(
+		({ firstColumnId, lastColumnId }) => {
+			const startIndex = indices.get(firstColumnId)!;
+			const endIndex = indices.get(lastColumnId)!;
+			return {
+				unitId:
+					firstColumnId === lastColumnId
+						? variationUnitId(firstColumnId)
+						: `unit:${firstColumnId}..${lastColumnId}`,
+				startIndex,
+				endIndex,
+				columnIds: columns.slice(startIndex, endIndex + 1).map(column => column.id),
+			};
+		}
 	);
+	return [
+		...declared,
+		...columns.flatMap((column, index) =>
+			isVariationColumn(column) &&
+			!declared.some(span => index >= span.startIndex && index <= span.endIndex)
+				? [
+						{
+							unitId: variationUnitId(column.id),
+							startIndex: index,
+							endIndex: index,
+							columnIds: [column.id],
+						},
+					]
+				: []
+		),
+	].sort((a, b) => a.startIndex - b.startIndex);
 }
