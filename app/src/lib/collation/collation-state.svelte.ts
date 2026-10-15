@@ -456,6 +456,7 @@ function createCollationState() {
 	}
 
 	function canNavigateTo(targetPhase: CollationPhase): boolean {
+		if (furthestPhase === 'review') return true;
 		if (targetPhase === 'review') return alignmentColumns.length > 0;
 		return COLLATION_PHASES.indexOf(targetPhase) <= COLLATION_PHASES.indexOf(furthestPhase);
 	}
@@ -1240,12 +1241,6 @@ function createCollationState() {
 		classifiedReadings = new Map();
 		readingArcs = new Map();
 		selectedUnitIndex = 0;
-		if (furthestPhase === 'stemma' || furthestPhase === 'review') {
-			furthestPhase = 'alignment';
-		}
-		if (phase === 'stemma' || phase === 'review') {
-			phase = 'alignment';
-		}
 	}
 
 	function buildCollationWitnessInputs(options?: {

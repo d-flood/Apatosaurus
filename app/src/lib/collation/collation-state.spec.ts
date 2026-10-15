@@ -1,8 +1,13 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { deserializeAlignmentColumns, type AlignmentCell } from './alignment-snapshot';
 import { collateToAlignmentSnapshot } from './collation-adapter';
 import { collationState, type WitnessConfig } from './collation-state.svelte';
-import type { RegularizationRule, WitnessSourceToken } from './collation-types';
+import {
+	COLLATION_PHASES,
+	type RegularizationRule,
+	type WitnessSourceToken,
+} from './collation-types';
+import * as collationRunner from './collation-runner';
 
 function makeTokens(content: string): WitnessSourceToken[] {
 	return content
@@ -120,6 +125,102 @@ function makeOmissionCell() {
 		regularizationTypes: [],
 	};
 }
+
+describe('collationState progress', () => {
+	beforeEach(() => {
+		collationState.reset();
+	});
+
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	it.each(COLLATION_PHASES)(
+		'keeps %s and Review progress through witness refresh and addition',
+		async phase => {
+			collationState.setSegmentMember('Romans 1:1');
+			collationState.setWitnesses([
+				makeWitness('A', 'λογος', { isBaseText: true }),
+				makeWitness('B', 'θεος'),
+			]);
+			collationState.setAlignmentSnapshot(
+				collateToAlignmentSnapshot({
+					witnesses: collationState.buildCollationWitnessInputs(),
+				}).snapshot
+			);
+			collationState.setPhase('review');
+			collationState.showPhase(phase);
+
+			const gathered = vi.spyOn(collationRunner, 'gatherWitnessesForSegment');
+			const refreshed = makeWitness('B', 'κυριος');
+			gathered.mockResolvedValue({
+				orphanedMembers: [],
+				error: null,
+				witnesses: [
+					{
+						...refreshed,
+						id: 'B',
+						transcriptionUid: 'B-tx',
+						kind: 'firsthand',
+						handId: 'firsthand',
+						source: { kind: 'version', transcriptionId: 'B-tx', versionId: 'B-v2' },
+					},
+				],
+			});
+
+			expect(await collationState.refreshWitnessesFromSource(['B-tx'])).toBe(true);
+			expect(
+				collationState.witnesses.find(witness => witness.witnessId === 'B')?.content
+			).toBe('κυριος');
+			expect(collationState.phase).toBe(phase);
+			expect(collationState.furthestPhase).toBe('review');
+
+			const added = makeWitness('C', 'πνευμα');
+			gathered.mockResolvedValue({
+				orphanedMembers: [],
+				error: null,
+				witnesses: [
+					{
+						...added,
+						id: 'C',
+						transcriptionUid: 'C-tx',
+						kind: 'firsthand',
+						handId: 'firsthand',
+						source: { kind: 'version', transcriptionId: 'C-tx', versionId: 'C-v1' },
+					},
+				],
+			});
+
+			expect(await collationState.refreshWitnessesFromSource(['C-tx'])).toBe(true);
+			expect(collationState.witnesses.map(witness => witness.witnessId)).toEqual([
+				'A',
+				'B',
+				'C',
+			]);
+			expect(collationState.phase).toBe(phase);
+			expect(collationState.furthestPhase).toBe('review');
+			expect(COLLATION_PHASES.every(target => collationState.canNavigateTo(target))).toBe(
+				true
+			);
+		}
+	);
+
+	it('keeps every phase navigable after Review even when the alignment becomes empty', () => {
+		collationState.setPhase('review');
+		collationState.setAlignmentSnapshot({ witnessOrder: [], columns: [] });
+
+		expect(collationState.furthestPhase).toBe('review');
+		expect(COLLATION_PHASES.every(phase => collationState.canNavigateTo(phase))).toBe(true);
+	});
+
+	it('keeps Stemma gated when the furthest phase is Alignment', () => {
+		collationState.setPhase('alignment');
+
+		expect(collationState.canNavigateTo('setup')).toBe(true);
+		expect(collationState.canNavigateTo('alignment')).toBe(true);
+		expect(collationState.canNavigateTo('stemma')).toBe(false);
+	});
+});
 
 describe('collationState stemma derivation', () => {
 	beforeEach(() => {
