@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { collationState } from '$lib/collation/collation-state.svelte';
 	import type { AlignmentColumn } from '$lib/collation/alignment-snapshot';
 	import type { AlignmentDisplayMode } from '$lib/collation/collation-types';
 	import {
@@ -406,6 +407,12 @@
 									class="text-[0.55rem] text-info ml-px">m</span
 								>{/if}</sup
 						>
+						{#if collationState.peekUnitView(unit.index).unconfirmedWitnessIds.length > 0}
+							<span
+								class="ml-1 text-xs text-warning"
+								aria-label="Unconfirmed attestations">●</span
+							>
+						{/if}
 						{#if unit.isMerged && onSplitColumn}
 							<button
 								type="button"

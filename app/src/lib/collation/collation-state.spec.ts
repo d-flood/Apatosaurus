@@ -2856,6 +2856,66 @@ describe('collationState witness placement', () => {
 		});
 	}
 
+	function reviewView(unitIndex: number) {
+		const view = collationState.peekUnitView(unitIndex);
+		return {
+			...view,
+			readings: view.readings.map(reading => ({
+				...reading,
+				witnessGroups: reading.witnessGroups.map(group => group.witnessIds),
+			})),
+		};
+	}
+
+	it('confirms every attestation at one unit in one undo entry', async () => {
+		setup({ A: 'alpha first', B: 'beta second' });
+		await refresh({ N: 'alpha first', M: 'beta second' });
+		const before = reviewView(0);
+		const other = reviewView(1);
+		expect(before.unconfirmedWitnessIds).toEqual(['N', 'M']);
+		collationState.confirmUnitAttestations(0);
+		expect(collationState.peekUnitView(0).unconfirmedWitnessIds).toEqual([]);
+		expect(reviewView(1)).toEqual(other);
+		collationState.undo();
+		expect(reviewView(0)).toEqual(before);
+		collationState.redo();
+		expect(collationState.peekUnitView(0).unconfirmedWitnessIds).toEqual([]);
+	});
+
+	it('resolves held-out testimony into any existing reading and undoes both changes', async () => {
+		setup({ A: 'alpha', B: 'beta', C: 'beta', D: 'gamma' });
+		const beta = collationState.getReadingsForUnit(0).find(reading => reading.text === 'beta')!;
+		collationState.splitWitnessesIntoNewReading(0, ['C']);
+		await refresh({ N: 'beta' });
+		const before = reviewView(0);
+		expect(before.unresolvedAttestations).toHaveLength(1);
+		expect(before.readings.flatMap(reading => reading.witnessIds)).not.toContain('N');
+		expect(collationState.resolveAttestation(0, 'N', 'missing')).toEqual({
+			ok: false,
+			error: 'reading-not-found',
+		});
+		expect(reviewView(0)).toEqual(before);
+		const gamma = before.readings.find(reading => reading.text === 'gamma')!;
+		expect(collationState.resolveAttestation(0, 'N', gamma.id)).toEqual({ ok: true });
+		expect(collationState.peekUnitView(0).unresolvedAttestations).toEqual([]);
+		expect(
+			collationState.classifiedReadings
+				.get('unit:column-0')!
+				.find(reading => reading.id === gamma.id)?.witnessIds
+		).toEqual(['D', 'N']);
+		collationState.undo();
+		expect(reviewView(0)).toEqual(before);
+		expect(collationState.resolveAttestation(0, 'N', beta.id)).toEqual({ ok: true });
+		expect(
+			collationState.peekUnitView(0).readings.find(reading => reading.id === beta.id)
+				?.witnessIds
+		).toEqual(['B', 'N']);
+		collationState.undo();
+		expect(reviewView(0)).toEqual(before);
+		collationState.redo();
+		expect(collationState.peekUnitView(0).unresolvedAttestations).toEqual([]);
+	});
+
 	it('keeps moves, splits, merges, attachments, types, lemma, arcs and connectivity', async () => {
 		setup({ A: 'alpha', B: 'beta', C: 'beta', D: 'gamma', E: 'delta', F: 'epsilon' });
 		const readings = collationState.getReadingsForUnit(0);

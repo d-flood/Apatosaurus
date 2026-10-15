@@ -1957,6 +1957,67 @@ function createCollationState() {
 		});
 	}
 
+	function confirmUnitAttestations(unitIndex: number): void {
+		const key = getReadingUnitKey(unitIndex);
+		if (!key || !unitDecisions.get(key)?.unconfirmedWitnessIds?.length) return;
+		const previous = new Map(unitDecisions);
+		const next = cloneUnitDecisions(previous.get(key));
+		delete next.unconfirmedWitnessIds;
+		const updated = new Map(previous).set(key, next);
+		unitDecisions = updated;
+		pushCommand({
+			type: 'confirm-unit-attestations',
+			description: 'Confirm attestations at a unit',
+			undo: () => {
+				unitDecisions = new Map(previous);
+			},
+			redo: () => {
+				unitDecisions = new Map(updated);
+			},
+		});
+	}
+
+	function resolveAttestation(
+		unitIndex: number,
+		witnessId: string,
+		readingId: string
+	): { ok: true } | { ok: false; error: 'attestation-not-found' | 'reading-not-found' } {
+		const key = getReadingUnitKey(unitIndex);
+		const decisions = key ? unitDecisions.get(key) : undefined;
+		if (
+			!key ||
+			!decisions?.unresolvedAttestations?.some(entry => entry.witnessId === witnessId)
+		) {
+			return { ok: false, error: 'attestation-not-found' };
+		}
+		if (!peekReadingsForUnit(unitIndex).some(reading => reading.id === readingId)) {
+			return { ok: false, error: 'reading-not-found' };
+		}
+		const readings = classifiedReadings.get(key) ?? buildReadingsForUnit(unitIndex);
+		const updated = readings.map(reading => ({
+			...reading,
+			witnessIds:
+				reading.id === readingId
+					? [...reading.witnessIds.filter(id => id !== witnessId), witnessId]
+					: reading.witnessIds.filter(id => id !== witnessId),
+		}));
+		const next = cloneUnitDecisions(decisions);
+		next.unresolvedAttestations = next.unresolvedAttestations!.filter(
+			entry => entry.witnessId !== witnessId
+		);
+		if (next.unresolvedAttestations.length === 0) delete next.unresolvedAttestations;
+		commitReadingsForUnit(
+			unitIndex,
+			updated,
+			{
+				type: 'resolve-attestation',
+				description: 'Resolve witness attestation',
+			},
+			next
+		);
+		return { ok: true };
+	}
+
 	function moveWitnessesToReading(
 		unitIndex: number,
 		witnessIds: string[],
@@ -2997,6 +3058,8 @@ function createCollationState() {
 		splitWitnessesIntoNewReading,
 		mergeReadings,
 		setReadingParent,
+		confirmUnitAttestations,
+		resolveAttestation,
 		recordAmbiguousAttestation,
 		removeAmbiguousAttestation,
 		getLemmaReadingId,

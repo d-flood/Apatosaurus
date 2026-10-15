@@ -14,7 +14,8 @@ import { buildVariationUnitSpans } from './collation-variation-units';
 import { isPunctuationOnlyText } from './token-text';
 import { resolveReadingTypeVocabulary, type ReadingTypeDefinition } from './reading-types';
 
-type ApparatusExportRefusalKind = 'untranscribed-witness' | 'missing-lemma';
+type ApparatusExportRefusalKind =
+	'untranscribed-witness' | 'missing-lemma' | 'unresolved-attestation';
 
 export interface ApparatusExportRefusal {
 	kind: ApparatusExportRefusalKind;
@@ -34,6 +35,10 @@ export class ApparatusExportError extends Error {
 						: `agreed text ${refusal.label}`;
 					if (refusal.kind === 'untranscribed-witness') {
 						return `${location} has untranscribed witnesses`;
+					}
+					if (refusal.kind === 'unresolved-attestation') {
+						const witnesses = refusal.witnessIds ?? [];
+						return `${location} has unresolved attestations (${witnesses.join(', ')})`;
 					}
 					return `${location} has no established lemma`;
 				})
@@ -305,6 +310,14 @@ export function getApparatusExportRefusals(
 			refusals.push({ kind: 'missing-lemma', unitId, label: segment.label });
 		}
 		if (!unit) continue;
+		if (unit.view.unresolvedAttestations.length > 0) {
+			refusals.push({
+				kind: 'unresolved-attestation',
+				unitId,
+				label: segment.label,
+				witnessIds: unit.view.unresolvedAttestations.map(entry => entry.witnessId),
+			});
+		}
 		if (segment.untranscribedWitnessIds.length > 0) {
 			const witnessIds = segment.untranscribedWitnessIds.filter(witnessId =>
 				activeWitnessIds.has(witnessId)

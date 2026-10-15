@@ -1,5 +1,5 @@
 import { page, userEvent } from '@vitest/browser/context';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 
 import { collateToAlignmentSnapshot } from '$lib/collation/collation-adapter';
@@ -586,5 +586,108 @@ describe('ReadingsPhase ambiguous attestations', () => {
 
 		await expect.element(page.getByLabelText('Ambiguous attestations')).not.toBeInTheDocument();
 		expect(witnessesOfReadings()).toEqual([['A'], ['B', 'C'], ['D']]);
+	});
+});
+
+describe('ReadingsPhase placement review', () => {
+	const originalViewport = { width: window.innerWidth, height: window.innerHeight };
+	afterEach(async () => {
+		await page.viewport(originalViewport.width, originalViewport.height);
+	});
+	beforeEach(async () => {
+		await page.viewport(390, 844);
+		collationState.reset();
+		collate([
+			makeWitness('A', 'λογος', true),
+			makeWitness('B', 'θεος'),
+			makeWitness('C', 'θεος'),
+			makeWitness('D', 'πνευμα'),
+		]);
+		collationState.primeReadingsForUnit(0);
+	});
+
+	it('marks units and witnesses, then confirms every attestation from the UI', async () => {
+		const key = `unit:${collationState.alignmentColumns[0].id}`;
+		collationState.unitDecisions.set(key, { unconfirmedWitnessIds: ['B', 'C'] });
+		render(ReadingsPhase);
+		await expect
+			.element(page.getByRole('button', { name: 'B Unconfirmed attestation', exact: true }))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByRole('button', { name: /Unconfirmed attestations/ }))
+			.toBeInTheDocument();
+		await expect
+			.poll(() => {
+				const section = document.querySelector<HTMLElement>(
+					'section[aria-label="Unconfirmed attestations"]'
+				)!;
+				return (
+					section.scrollWidth <= section.clientWidth &&
+					section.getBoundingClientRect().right <= 390
+				);
+			})
+			.toBe(true);
+		await page.getByRole('button', { name: 'Confirm attestations', exact: true }).click();
+		await expect
+			.element(page.getByRole('button', { name: 'B', exact: true }))
+			.toBeInTheDocument();
+		await expect
+			.element(page.getByRole('button', { name: 'Confirm attestations', exact: true }))
+			.not.toBeInTheDocument();
+		expect(collationState.peekUnitView(0).unconfirmedWitnessIds).toEqual([]);
+		collationState.undo();
+		await expect
+			.element(page.getByRole('button', { name: 'Confirm attestations', exact: true }))
+			.toBeInTheDocument();
+	});
+
+	it('shows candidates first and resolves a held-out witness to any reading from the UI', async () => {
+		const key = `unit:${collationState.alignmentColumns[0].id}`;
+		const readings = collationState.peekReadingsForUnit(0);
+		const beta = readings.find(reading => reading.witnessIds.includes('B'))!;
+		const gamma = readings.find(reading => reading.witnessIds.includes('D'))!;
+		collationState.unitDecisions.set(key, {
+			unresolvedAttestations: [{ witnessId: 'C', candidateReadingIds: [beta.id, gamma.id] }],
+		});
+		render(ReadingsPhase);
+		const section = page.getByRole('region', { name: 'Unresolved attestations' });
+		await expect.element(section).toBeInTheDocument();
+		expect(document.querySelector('[data-witness-id="C"]')).toBeNull();
+		const choices = [
+			...document.querySelectorAll<HTMLButtonElement>('[aria-label^="Assign C to reading"]'),
+		];
+		await expect
+			.poll(() =>
+				choices.every(button => {
+					const rect = button.getBoundingClientRect();
+					return (
+						rect.left >= 0 &&
+						rect.right <= 390 &&
+						button.scrollWidth <= button.clientWidth
+					);
+				})
+			)
+			.toBe(true);
+		expect(choices.map(button => button.getAttribute('aria-label'))).toEqual([
+			'Assign C to reading b (candidate)',
+			'Assign C to reading c (candidate)',
+			'Assign C to reading a',
+		]);
+		await page.getByRole('button', { name: 'Assign C to reading a', exact: true }).click();
+		await expect.element(section).not.toBeInTheDocument();
+		expect(
+			collationState.peekUnitView(0).readings.find(reading => reading.label === 'a')
+				?.witnessIds
+		).toEqual(['A', 'C']);
+		collationState.undo();
+		await expect.element(section).toBeInTheDocument();
+		await page
+			.getByRole('button', { name: 'Assign C to reading b (candidate)', exact: true })
+			.click();
+		expect(collationState.peekUnitView(0).unresolvedAttestations).toEqual([]);
+		expect(
+			collationState.peekUnitView(0).readings.find(reading => reading.id === beta.id)
+				?.witnessIds
+		).toEqual(['B', 'C']);
 	});
 });

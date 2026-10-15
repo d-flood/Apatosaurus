@@ -310,7 +310,9 @@
 										Unit {refusal.label}:
 										{refusal.kind === 'untranscribed-witness'
 											? ` finish transcribing ${refusalWitnesses(refusal)}`
-											: ' establish a lemma reading'}
+											: refusal.kind === 'unresolved-attestation'
+												? ` resolve attestations for ${refusalWitnesses(refusal)}`
+												: ' establish a lemma reading'}
 									</a>
 								{:else}
 									<a

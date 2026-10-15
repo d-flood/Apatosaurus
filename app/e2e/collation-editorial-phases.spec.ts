@@ -247,6 +247,28 @@ test('the local stemma has one tabstop and supports keyboard source decisions', 
 		.toBeLessThanOrEqual(390);
 	await confirmation.click();
 	await expect(page).toHaveURL(/\/readings$/);
+	const confirmAttestations = page.getByRole('button', {
+		name: 'Confirm attestations',
+		exact: true,
+	});
+	await expect(confirmAttestations).toBeVisible();
+	await expect
+		.poll(async () => {
+			const box = await confirmAttestations.boundingBox();
+			return box !== null && box.x >= 0 && box.x + box.width <= 390;
+		})
+		.toBe(true);
+	await confirmAttestations.click();
+	await expect(confirmAttestations).toHaveCount(0);
+	await page.getByRole('button', { name: 'Undo', exact: true }).click();
+	await expect(confirmAttestations).toBeVisible();
+	await page.getByRole('button', { name: 'Redo', exact: true }).click();
+	await expect(confirmAttestations).toHaveCount(0);
+	await page
+		.getByRole('navigation', { name: 'Collation workflow steps' })
+		.locator('a[href$="/review"]')
+		.click();
+	await expect(page.getByRole('button', { name: /Confirm placed witness/ })).toHaveCount(0);
 });
 
 async function createProject(page: Page, name: string): Promise<string> {

@@ -334,6 +334,37 @@ describe('apparatus TEI exporter', () => {
 		expect(() => validateTeiP5(xml)).not.toThrow();
 	}, 60_000);
 
+	it('refuses unresolved attestations once per unit until every witness is resolved', () => {
+		const readings = collationState.getReadingsForUnit(1);
+		const alpha = readings.find(reading => reading.text === 'alpha')!;
+		const beta = readings.find(reading => reading.text === 'beta')!;
+		const key = 'unit:variant';
+		collationState.unitDecisions.set(key, {
+			...collationState.unitDecisions.get(key),
+			unconfirmedWitnessIds: ['A'],
+			unresolvedAttestations: ['B', 'D'].map(witnessId => ({
+				witnessId,
+				candidateReadingIds: [alpha.id, beta.id],
+			})),
+		});
+		expect(getApparatusExportRefusals(exportInput())).toEqual([
+			{
+				kind: 'unresolved-attestation',
+				unitId: key,
+				label: '4',
+				witnessIds: ['B', 'D'],
+			},
+		]);
+		expect(() => exportApparatusTei(exportInput())).toThrow(
+			'has unresolved attestations (B, D)'
+		);
+		collationState.resolveAttestation(1, 'B', beta.id);
+		expect(getApparatusExportRefusals(exportInput())).toHaveLength(1);
+		collationState.resolveAttestation(1, 'D', alpha.id);
+		expect(getApparatusExportRefusals(exportInput())).toEqual([]);
+		expect(() => exportApparatusTei(exportInput())).not.toThrow();
+	});
+
 	it('refuses untranscribed witnesses and missing lemma decisions by unit', () => {
 		collationState.reset();
 		collationState.setWitnesses([

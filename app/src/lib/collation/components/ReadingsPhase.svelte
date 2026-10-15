@@ -112,6 +112,25 @@
 	let ambiguousAttestations = $derived(
 		unitIndex < 0 ? [] : collationState.peekUnitView(unitIndex).ambiguousAttestations
 	);
+	let unconfirmedWitnessIds = $derived(
+		unitIndex < 0 ? [] : collationState.peekUnitView(unitIndex).unconfirmedWitnessIds
+	);
+	let unresolvedAttestations = $derived(
+		unitIndex < 0 ? [] : collationState.peekUnitView(unitIndex).unresolvedAttestations
+	);
+
+	function confirmAttestations() {
+		collationState.confirmUnitAttestations(unitIndex);
+		liveMessage = 'Confirmed attestations at this unit.';
+	}
+
+	function resolveAttestation(witnessId: string, readingId: string) {
+		const result = collationState.resolveAttestation(unitIndex, witnessId, readingId);
+		liveMessage = result.ok
+			? 'Resolved witness attestation.'
+			: 'Could not resolve attestation.';
+	}
+
 	let ambiguousTargetIds = $derived(
 		readings.filter(reading => ambiguousTargetDrafts.has(reading.id)).map(reading => reading.id)
 	);
@@ -643,6 +662,7 @@
 						{/if}
 					{:else}
 						{@const isSelected = selectedSpan?.startIndex === segment.span.startIndex}
+						{@const view = collationState.peekUnitView(segment.span.startIndex)}
 						<button
 							type="button"
 							class={[
@@ -665,6 +685,12 @@
 							>
 								{segment.label}
 							</span>
+							{#if view.unconfirmedWitnessIds.length > 0}
+								<span
+									class="text-xs font-semibold"
+									aria-label="Unconfirmed attestations">●</span
+								>
+							{/if}
 						</button>
 					{/if}
 				{/each}
@@ -683,7 +709,7 @@
 		</section>
 	{/if}
 
-	<div class="flex items-center justify-between gap-2">
+	<div class="flex flex-wrap items-center justify-between gap-2">
 		<div class="flex items-center gap-2">
 			<button
 				type="button"
@@ -700,7 +726,7 @@
 				</span>
 			{/if}
 		</div>
-		<div class="flex items-center gap-1.5">
+		<div class="flex flex-wrap items-center gap-1.5">
 			<div class="join">
 				<input
 					class="join-item btn btn-xs"
@@ -741,6 +767,53 @@
 	</div>
 
 	<div class="sr-only" aria-live="polite" data-testid="readings-announcer">{liveMessage}</div>
+
+	{#if unconfirmedWitnessIds.length > 0}
+		<section
+			class="flex flex-wrap items-center gap-2 rounded-xl border border-warning/40 bg-warning/10 px-3 py-3"
+			aria-label="Unconfirmed attestations"
+		>
+			<p class="min-w-0 flex-1 text-sm wrap-break-word">
+				Unconfirmed: {siglaOf(unconfirmedWitnessIds)}
+			</p>
+			<button type="button" class="btn btn-sm" onclick={confirmAttestations}
+				>Confirm attestations</button
+			>
+		</section>
+	{/if}
+
+	{#if unresolvedAttestations.length > 0}
+		<section
+			class="space-y-3 rounded-xl border border-warning/40 bg-warning/10 px-3 py-3"
+			aria-label="Unresolved attestations"
+		>
+			<h3 class="text-sm font-semibold">Resolve attestations</h3>
+			{#each unresolvedAttestations as attestation (attestation.witnessId)}
+				<div class="min-w-0 space-y-2">
+					<p class="text-sm">
+						{siglaOf([attestation.witnessId])} is held out of the readings. Choose its reading.
+					</p>
+					<div class="flex flex-wrap gap-2">
+						{#each [true, false] as candidates}
+							{#each readings.filter(reading => attestation.candidateReadingIds.includes(reading.id) === candidates) as reading (reading.id)}
+								<button
+									type="button"
+									class="btn btn-sm h-auto min-h-8 max-w-full whitespace-normal wrap-anywhere text-left"
+									aria-label={`Assign ${siglaOf([attestation.witnessId])} to reading ${reading.label}${candidates ? ' (candidate)' : ''}`}
+									onclick={() =>
+										resolveAttestation(attestation.witnessId, reading.id)}
+								>
+									{reading.label}: {describeReading(reading)}{candidates
+										? ' (candidate)'
+										: ''}
+								</button>
+							{/each}
+						{/each}
+					</div>
+				</div>
+			{/each}
+		</section>
+	{/if}
 
 	{#if needsLemmaDecision}
 		<div
@@ -974,6 +1047,11 @@
 													type="button"
 													data-chip-index={index}
 													data-witness-id={witness.id}
+													title={unconfirmedWitnessIds.includes(
+														witness.id
+													)
+														? 'Unconfirmed attestation'
+														: undefined}
 													tabindex={index === rovingIndex ? 0 : -1}
 													aria-pressed={isSelected}
 													class={[
@@ -988,6 +1066,13 @@
 													onfocus={() => (activeChipIndex = index)}
 												>
 													{witness.siglum}
+													{#if unconfirmedWitnessIds.includes(witness.id)}
+														<span
+															class="text-warning"
+															aria-label="Unconfirmed attestation"
+															>●</span
+														>
+													{/if}
 												</button>
 											{/each}
 											{#if hiddenWitnessCount(reading) > 0}

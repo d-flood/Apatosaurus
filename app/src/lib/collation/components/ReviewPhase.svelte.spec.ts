@@ -157,6 +157,22 @@ describe('ReviewPhase export refusals', () => {
 		vi.restoreAllMocks();
 	});
 
+	it('links unresolved export testimony to its unit in Readings', async () => {
+		collationState.setAlignmentSnapshot(snapshot(['col-1', 'col-2']));
+		const readings = collationState.getReadingsForUnit(1);
+		collationState.unitDecisions.set('unit:col-2', {
+			unresolvedAttestations: [
+				{ witnessId: 'B', candidateReadingIds: readings.map(reading => reading.id) },
+			],
+		});
+		renderReview();
+		await page.getByRole('button', { name: 'Export TEI apparatus' }).click();
+		const refusal = page.getByRole('link', { name: /Unit .*resolve attestations for B/ });
+		await expect.element(refusal).toHaveAttribute('href', '/collation/collation-1/readings');
+		await refusal.click();
+		expect(collationState.selectedUnitIndex).toBe(1);
+	});
+
 	it('lists an untranscribed witness in agreed text with transcription and Setup routes', async () => {
 		collationState.setAlignmentSnapshot({
 			witnessOrder: ['A', 'B', 'C'],
