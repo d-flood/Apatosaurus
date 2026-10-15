@@ -5,6 +5,7 @@
 	import { resultFileStem } from '$lib/cbgm/cbgm-query-tables';
 	import { cbgmScheduler } from '$lib/cbgm/cbgm-scheduler.svelte';
 	import type { GlobalStemmaOptions } from '$lib/cbgm/cbgm-worker-types';
+	import { readCbgmImportedGlobalStemma } from '$lib/db/client';
 	import type { CbgmAnalysisMetadata } from '$lib/storage/formats';
 	import CbgmNotifyOsOption from './CbgmNotifyOsOption.svelte';
 	import GraphView from './GraphView.svelte';
@@ -22,7 +23,10 @@
 		error: string | null;
 	} | null>(null);
 
+	let imported = $state.raw<{ dot: string | null; error: string | null } | null>(null);
+
 	const ready = $derived(analysis.global_stemma === 'ready');
+	const isImported = $derived(analysis.global_stemma === 'imported-dot');
 	const options = $derived<GlobalStemmaOptions>({ strengths, lengths });
 	const computation = $derived(
 		analysisComputation(cbgmScheduler.progress, cbgmScheduler.queue, analysis.id)
@@ -42,6 +46,20 @@
 	$effect(() => {
 		if (ready) void draw(queries, options);
 	});
+
+	$effect(() => {
+		if (isImported) void loadImported();
+	});
+
+	async function loadImported() {
+		try {
+			imported = { dot: await readCbgmImportedGlobalStemma(analysis.id), error: null };
+		} catch (err) {
+			const message =
+				err instanceof Error ? err.message : 'Reading the imported global stemma failed.';
+			imported = { dot: null, error: message };
+		}
+	}
 
 	async function draw(source: CbgmQueries, requested: GlobalStemmaOptions) {
 		let next: NonNullable<typeof drawn>;
@@ -98,6 +116,25 @@
 				Assembling the global stemma...
 			</p>
 		{/if}
+	{:else if isImported}
+		{#if imported?.error}
+			<div class="alert alert-error text-sm" role="alert">{imported.error}</div>
+		{:else if imported?.dot}
+			<p class="text-sm text-base-content/70">
+				Imported from native open-cbgm. It has no per-witness substemmata, so it can't be
+				resumed or redrawn with strengths or costs.
+			</p>
+			<GraphView
+				dot={imported.dot}
+				title="Imported global stemma"
+				filenameBase={resultFileStem(analysis.name, 'global-stemma', 'imported')}
+			/>
+		{:else}
+			<p class="flex items-center gap-2 text-sm text-base-content/60">
+				<span class="loading loading-spinner loading-sm"></span>
+				Reading the imported global stemma...
+			</p>
+		{/if}
 	{:else if computingHere}
 		<p class="text-sm">
 			Computing the global stemma on this device. Each witness's substemma is saved as soon as
@@ -113,7 +150,7 @@
 				Cancel
 			</button>
 		{/if}
-	{:else if analysis.global_stemma !== 'imported-dot'}
+	{:else}
 		<p class="text-sm text-base-content/70">
 			{#if analysis.global_stemma === 'computing' && analysis.computing_device}
 				{analysis.computing_device.author_name} started computing the global stemma. You can still

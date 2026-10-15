@@ -362,6 +362,10 @@ export const dbApi = defineApi({
 	readCbgmAnalysisCache: ({ db }, analysisId: string) => cbgmAnalyses.readCache(db, analysisId),
 	readCbgmAnalysisInputTei: ({ db }, analysisId: string) =>
 		cbgmAnalyses.readInputTei(db, analysisId),
+	readCbgmImportedGlobalStemma: ({ db }, analysisId: string) =>
+		cbgmAnalyses.readImportedGlobalStemma(db, analysisId),
+	exportCbgmNativeInputs: ({ db }, analysisId: string) =>
+		cbgmAnalyses.exportNativeInputs(db, analysisId),
 	listCbgmAnalyses: ({ db }, projectId: string) => cbgmAnalyses.listAnalyses(db, projectId),
 	async deleteCbgmAnalysis({ db, invalidate, warn }, projectId: string, analysisId: string) {
 		warn(await deleteCbgmAnalysisWithFiles(db, projectId, analysisId));

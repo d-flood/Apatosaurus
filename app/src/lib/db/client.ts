@@ -110,6 +110,8 @@ export const loadCbgmCollationSnapshots = call('loadCbgmCollationSnapshots');
 export const readCbgmCollationHashes = call('readCbgmCollationHashes');
 export const readCbgmAnalysisCache = call('readCbgmAnalysisCache');
 export const readCbgmAnalysisInputTei = call('readCbgmAnalysisInputTei');
+export const readCbgmImportedGlobalStemma = call('readCbgmImportedGlobalStemma');
+export const exportCbgmNativeInputs = call('exportCbgmNativeInputs');
 export const listCbgmAnalyses = call('listCbgmAnalyses');
 export const deleteCbgmAnalysis = call('deleteCbgmAnalysis');
 

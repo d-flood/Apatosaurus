@@ -26,6 +26,7 @@
 			collationIds: string[];
 			settings: CoherenceSettings;
 			notifyOs: boolean;
+			native: boolean;
 		}) => Promise<void>;
 	}
 
@@ -118,6 +119,7 @@
 	async function start(event: SubmitEvent) {
 		event.preventDefault();
 		if (!canStart) return;
+		const native = event.submitter?.getAttribute('value') === 'native';
 		isStarting = true;
 		error = null;
 		try {
@@ -126,6 +128,7 @@
 				collationIds: chosen.map(collation => collation.collationId),
 				settings,
 				notifyOs,
+				native,
 			});
 			name = '';
 		} catch (err) {
@@ -333,7 +336,16 @@
 		<div class="alert alert-error text-sm" role="alert">{error}</div>
 	{/if}
 
-	<button type="submit" class="btn btn-primary w-full sm:w-auto" disabled={!canStart}>
-		{isStarting ? 'Starting...' : 'Start analysis'}
-	</button>
+	<div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+		<button type="submit" class="btn btn-primary w-full sm:w-auto" disabled={!canStart}>
+			{isStarting ? 'Starting...' : 'Start analysis'}
+		</button>
+		<button type="submit" value="native" class="btn w-full sm:w-auto" disabled={!canStart}>
+			Compute natively
+		</button>
+		<p class="text-xs text-base-content/55">
+			Compute natively freezes the inputs for open-cbgm on a workstation or cluster. Import
+			its results on the analysis page.
+		</p>
+	</div>
 </form>

@@ -178,6 +178,7 @@
 		collationIds: string[];
 		settings: CoherenceSettings;
 		notifyOs: boolean;
+		native: boolean;
 	}) {
 		await startCbgmAnalysis({ projectId: data.project.id, ...request });
 		recompute = null;

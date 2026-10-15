@@ -1,5 +1,7 @@
 import type { Kysely, Selectable } from 'kysely';
 
+import { createStoreOnlyZip } from '$lib/backup/project-zip-export';
+import { nativeCommands } from '$lib/cbgm/cbgm-native';
 import type { CollationDocument } from '$lib/collation/collation-document';
 import { hashCanonicalPayload } from '$lib/storage/canonical-json';
 import {
@@ -344,6 +346,37 @@ export async function readInputTei(
 		throw new Error(`CBGM analysis ${analysisId} input does not match its metadata.`);
 	}
 	return input;
+}
+
+export async function readImportedGlobalStemma(
+	db: DbExecutor,
+	analysisId: string,
+	storeOptions: StoreOperationOptions = {}
+): Promise<string> {
+	const location = await locateAnalysis(db, analysisId);
+	return readTextFile(
+		cbgmAnalysisFiles(location.storageSlug, analysisId).globalStemma,
+		storeOptions
+	);
+}
+
+export async function exportNativeInputs(
+	db: DbExecutor,
+	analysisId: string,
+	storeOptions: StoreOperationOptions = {}
+): Promise<{ fileName: string; bytes: Uint8Array }> {
+	const metadata = await readAnalysis(db, analysisId, storeOptions);
+	const encoder = new TextEncoder();
+	return {
+		fileName: `${metadata.name}.open-cbgm.zip`,
+		bytes: createStoreOnlyZip([
+			{
+				path: 'input.xml',
+				bytes: encoder.encode(await readInputTei(db, analysisId, storeOptions)),
+			},
+			{ path: 'commands.txt', bytes: encoder.encode(nativeCommands(metadata.settings)) },
+		]),
+	};
 }
 
 export async function listAnalyses(db: DbExecutor, projectId: string): Promise<CbgmAnalysisRow[]> {

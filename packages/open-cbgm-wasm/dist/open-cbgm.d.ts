@@ -10,6 +10,7 @@ interface EmbindModule {
   open(_0: any, _1: any, _2: number): any;
   witnesses(): any;
   units(): any;
+  tables(): any;
   compareWitnesses(_0: EmbindString, _1: any, _2: any): any;
   findRelatives(_0: EmbindString, _1: EmbindString, _2: any, _3: any): any;
   optimizeSubstemmata(_0: EmbindString, _1: number): any;

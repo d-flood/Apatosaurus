@@ -1,6 +1,7 @@
 import { createCbgmEngine, type CbgmEngine } from '@apatosaurus/open-cbgm-wasm';
 import wasmUrl from '@apatosaurus/open-cbgm-wasm/open-cbgm.wasm?url';
 
+import { nativeCacheMismatch } from './cbgm-native';
 import type { CbgmWorkerRequest, CbgmWorkerResponse } from './cbgm-worker-types';
 
 const engine = createCbgmEngine({ locateFile: () => wasmUrl });
@@ -32,6 +33,8 @@ function handle(engine: CbgmEngine, request: CbgmWorkerRequest) {
 			return engine.assemble(request.rows);
 		case 'write-substemmata':
 			return engine.writeSubstemmata(request.cache, request.rows);
+		case 'check-native-cache':
+			return nativeCacheMismatch(engine, request.inputTei, request.settings, request.cache);
 	}
 }
 

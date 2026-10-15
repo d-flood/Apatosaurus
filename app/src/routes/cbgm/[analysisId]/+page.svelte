@@ -15,6 +15,7 @@
 		type CbgmAnalysisCollationStatus,
 	} from '$lib/cbgm/cbgm-analysis-staleness';
 	import CbgmComputationProgress from '$lib/cbgm/components/CbgmComputationProgress.svelte';
+	import CbgmNativeActions from '$lib/cbgm/components/CbgmNativeActions.svelte';
 	import CbgmQueryTools from '$lib/cbgm/components/CbgmQueryTools.svelte';
 	import CbgmStalenessNote from '$lib/cbgm/components/CbgmStalenessNote.svelte';
 	import { BUNDLED_READING_TYPES, findReadingTypeDefinition } from '$lib/collation/reading-types';
@@ -165,12 +166,26 @@
 		aria-labelledby="cbgm-tools-heading"
 	>
 		<h2 id="cbgm-tools-heading" class="mb-3 font-serif text-lg font-semibold">Tools</h2>
-		{#if analysis.coherence !== 'ready'}
+		{#if analysis.coherence === 'awaiting-import'}
+			<p class="text-sm text-base-content/55">Tools open once native results are imported.</p>
+		{:else if analysis.coherence !== 'ready'}
 			<p class="text-sm text-base-content/55">Tools open once coherence is ready.</p>
 		{:else}
 			{#key analysis.id}
 				<CbgmQueryTools {analysis} />
 			{/key}
 		{/if}
+	</section>
+
+	<section
+		class="rounded-box border border-base-300/50 bg-base-100 p-4 shadow-md"
+		aria-labelledby="cbgm-native-heading"
+	>
+		<h2 id="cbgm-native-heading" class="mb-3 font-serif text-lg font-semibold">
+			Native open-cbgm
+		</h2>
+		{#key analysis.id}
+			<CbgmNativeActions {analysis} />
+		{/key}
 	</section>
 </div>

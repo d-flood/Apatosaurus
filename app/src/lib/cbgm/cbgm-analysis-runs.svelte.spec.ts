@@ -22,6 +22,7 @@ vi.mock('$lib/db/client', () => ({
 	failCbgmGlobalStemma: vi.fn(),
 	loadCbgmCollationSnapshots: vi.fn(),
 	readCbgmAnalysisCache: mocks.readCbgmAnalysisCache,
+	readCbgmAnalysisInputTei: vi.fn(),
 	setCbgmGlobalStemmaState: mocks.setCbgmGlobalStemmaState,
 	writeEditingPresence: mocks.writeEditingPresence,
 }));

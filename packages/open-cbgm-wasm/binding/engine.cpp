@@ -728,6 +728,18 @@ val list_units() {
 	});
 }
 
+val list_tables() {
+	return guarded([&] {
+		require_open();
+		val tables = val::array();
+		statement select(cache_db, "SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name");
+		while (select.next_row()) {
+			tables.call<void>("push", select.text(0));
+		}
+		return tables;
+	});
+}
+
 val compare_witnesses(const string & primary_wit_id, const val & secondary, const val & undecided) {
 	return guarded([&] {
 		require_open();
@@ -927,6 +939,7 @@ EMSCRIPTEN_BINDINGS(open_cbgm) {
 	emscripten::function("open", &open_cache);
 	emscripten::function("witnesses", &list_witnesses);
 	emscripten::function("units", &list_units);
+	emscripten::function("tables", &list_tables);
 	emscripten::function("compareWitnesses", &compare_witnesses);
 	emscripten::function("findRelatives", &find_relatives);
 	emscripten::function("optimizeSubstemmata", &optimize_substemmata);

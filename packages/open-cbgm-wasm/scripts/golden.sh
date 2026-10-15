@@ -65,4 +65,14 @@ python3 -c "import sqlite3, sys; assert sqlite3.connect(sys.argv[1]).execute(\"S
 $BIN/compare_witnesses -f json -o tests/fixtures/default/compare-all-with-substemmata.json /tmp/substemmata.db 5 > /dev/null
 golden classic --classic
 golden dropped-ambiguous-merge-splits -Z ambiguous --merge-splits
+
+native() {
+	rm -f $CACHE
+	$BIN/populate_db $2 $CACHE > /dev/null
+	gzip -9n < $CACHE > tests/fixtures/native-import/$1.db.gz
+}
+
+mkdir -p tests/fixtures/native-import
+native 3-john $INPUT
+native john-6-23 /tmp/upstream/lib/open-cbgm/examples/john_6_23_collation.xml
 '

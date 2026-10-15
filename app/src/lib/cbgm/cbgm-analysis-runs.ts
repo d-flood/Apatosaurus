@@ -10,6 +10,7 @@ import {
 	failCbgmGlobalStemma,
 	loadCbgmCollationSnapshots,
 	readCbgmAnalysisCache,
+	readCbgmAnalysisInputTei,
 	setCbgmGlobalStemmaState,
 	writeEditingPresence,
 } from '$lib/db/client';
@@ -19,6 +20,7 @@ import type { CbgmAnalysisMetadata, CbgmAnalysisSettings } from '$lib/storage/fo
 import { phaseLabel } from './cbgm-analysis-labels';
 import { buildCbgmInput } from './cbgm-input';
 import { cbgmScheduler, type CbgmScheduler, type ComputationPhase } from './cbgm-scheduler.svelte';
+import type { CbgmWorkerRequest, CbgmWorkerResponse } from './cbgm-worker-types';
 
 const PRESENCE_REFRESH_MS = 60_000;
 
@@ -28,7 +30,10 @@ export type StartCbgmAnalysisRequest = {
 	collationIds: string[];
 	settings: CoherenceSettings;
 	notifyOs: boolean;
+	native: boolean;
 };
+
+export type CbgmNativeImport = { cache: Uint8Array; globalStemmaDot: string | null };
 
 export type CbgmAnalysisPrefill = {
 	name: string;
@@ -118,9 +123,10 @@ export async function startCbgmAnalysis(
 		witnesses: input.witnesses,
 		undecidedReadings: input.undecidedReadings,
 		inputTei: input.tei,
-		coherence: 'computing',
+		coherence: request.native ? 'awaiting-import' : 'computing',
 	});
 	void requestPersistentStorageForMeaningfulWrite();
+	if (request.native) return analysis;
 	scheduler.enqueue({
 		analysisId: analysis.id,
 		projectId,
@@ -160,6 +166,47 @@ export async function cancelGlobalStemma(
 	await scheduler.cancel(analysis.id);
 	await setCbgmGlobalStemmaState(analysis.project_id, analysis.id, 'none');
 	withdrawPresence(analysis.project_id, analysis.id);
+}
+
+export async function importNativeResults(
+	analysis: CbgmAnalysisMetadata,
+	files: CbgmNativeImport,
+	scheduler: Pick<CbgmScheduler, 'cancel'> = cbgmScheduler
+): Promise<void> {
+	const { id: analysisId, project_id: projectId } = analysis;
+	const mismatch = await checkNativeCache({
+		type: 'check-native-cache',
+		inputTei: await readCbgmAnalysisInputTei(analysisId),
+		settings: coherenceSettings(analysis.settings),
+		cache: files.cache,
+	});
+	if (mismatch) throw new Error(`This database doesn't match the analysis. ${mismatch}`);
+	await scheduler.cancel(analysisId);
+	await completeCbgmCoherence(projectId, analysisId, files.cache);
+	if (files.globalStemmaDot !== null) {
+		await setCbgmGlobalStemmaState(
+			projectId,
+			analysisId,
+			'imported-dot',
+			undefined,
+			files.globalStemmaDot
+		);
+	}
+	void requestPersistentStorageForMeaningfulWrite();
+}
+
+function checkNativeCache(
+	request: Extract<CbgmWorkerRequest, { type: 'check-native-cache' }>
+): Promise<string | null> {
+	const worker = new Worker(new URL('./cbgm.worker.ts', import.meta.url), { type: 'module' });
+	return new Promise<string | null>((resolve, reject) => {
+		worker.onmessage = ({ data }: MessageEvent<CbgmWorkerResponse>) => {
+			if (data.ok) resolve(data.result as string | null);
+			else reject(new Error(data.error));
+		};
+		worker.onerror = event => reject(new Error(event.message || 'CBGM worker failed.'));
+		worker.postMessage(request);
+	}).finally(() => worker.terminate());
 }
 
 export function persistCbgmComputations(

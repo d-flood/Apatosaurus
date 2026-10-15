@@ -64,6 +64,7 @@ export interface CbgmEngine {
 	): void;
 	witnesses(): string[];
 	units(): { id: string; label: string; readings: string[] }[];
+	tables(): string[];
 	compareWitnesses(
 		primary: string,
 		others: string[],
@@ -135,6 +136,7 @@ export async function createCbgmEngine(options: CbgmEngineOptions = {}): Promise
 		},
 		witnesses: () => unwrap(module.witnesses()),
 		units: () => unwrap(module.units()),
+		tables: () => unwrap(module.tables()),
 		compareWitnesses: (primary, others, undecided = []) =>
 			splitUndecided(unwrap(module.compareWitnesses(primary, others, undecided))),
 		findRelatives: (witness, unit, readings, undecided = []) =>
