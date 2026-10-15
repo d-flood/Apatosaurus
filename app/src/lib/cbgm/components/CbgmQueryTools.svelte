@@ -7,6 +7,7 @@
 	import CbgmCompareWitnesses from './CbgmCompareWitnesses.svelte';
 	import CbgmFindRelatives from './CbgmFindRelatives.svelte';
 	import CbgmOptimizeSubstemmata from './CbgmOptimizeSubstemmata.svelte';
+	import CbgmTextualFlow from './CbgmTextualFlow.svelte';
 
 	let { analysis }: { analysis: CbgmAnalysisMetadata } = $props();
 
@@ -14,6 +15,7 @@
 		{ id: 'compare', label: 'Compare witnesses' },
 		{ id: 'relatives', label: 'Find relatives' },
 		{ id: 'substemmata', label: 'Optimize substemmata' },
+		{ id: 'flow', label: 'Textual flow' },
 	] as const;
 
 	let tool = $state<(typeof tools)[number]['id']>('compare');
@@ -74,6 +76,9 @@
 		</div>
 		<div role="tabpanel" aria-label="Optimize substemmata" hidden={tool !== 'substemmata'}>
 			<CbgmOptimizeSubstemmata analysisName={analysis.name} {queries} />
+		</div>
+		<div role="tabpanel" aria-label="Textual flow" hidden={tool !== 'flow'}>
+			<CbgmTextualFlow analysisName={analysis.name} {queries} />
 		</div>
 	</div>
 {/if}

@@ -5,7 +5,7 @@ import type {
 } from '@apatosaurus/open-cbgm-wasm';
 
 import type { CbgmAnalysisMetadata } from '$lib/storage/formats';
-import type { CbgmQueryRequest, CbgmQueryResponse } from './cbgm-worker-types';
+import type { CbgmQueryRequest, CbgmQueryResponse, TextualFlowKind } from './cbgm-worker-types';
 
 export type CbgmUnit = ReturnType<CbgmEngine['units']>[number];
 export type OptimizeSubstemmataResult = ReturnType<CbgmEngine['optimizeSubstemmata']>;
@@ -16,6 +16,11 @@ export type CbgmQueries = {
 	compareWitnesses(primary: string, others: string[]): Promise<CompareWitnessesTable>;
 	findRelatives(witness: string, unit: string, readings: string[]): Promise<FindRelativesTable>;
 	optimizeSubstemmata(witness: string, maxCost?: number): Promise<OptimizeSubstemmataResult>;
+	textualFlow(
+		unit: string,
+		kind: TextualFlowKind,
+		opts: { connectivityLimit?: number; strengths: boolean }
+	): Promise<string>;
 	close(): void;
 };
 
@@ -72,6 +77,7 @@ export async function openCbgmQueries(
 			request({ type: 'find-relatives', witness, unit, readings, undecided }),
 		optimizeSubstemmata: (witness, maxCost) =>
 			request({ type: 'optimize-substemmata', witness, maxCost }),
+		textualFlow: (unit, kind, opts) => request({ type: 'textual-flow', unit, kind, opts }),
 		close: () => worker.terminate(),
 	};
 }

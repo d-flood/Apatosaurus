@@ -1,4 +1,6 @@
-import type { CoherenceSettings, UndecidedReading } from '@apatosaurus/open-cbgm-wasm';
+import type { CbgmEngine, CoherenceSettings, UndecidedReading } from '@apatosaurus/open-cbgm-wasm';
+
+export type TextualFlowKind = Parameters<CbgmEngine['textualFlow']>[1];
 
 export type SubstemmaRow = { witness: string; ancestors: string[]; completedAt: string };
 
@@ -31,6 +33,12 @@ export type CbgmQueryRequest =
 			readings: string[];
 			undecided: UndecidedReading[];
 	  }
-	| { type: 'optimize-substemmata'; witness: string; maxCost?: number };
+	| { type: 'optimize-substemmata'; witness: string; maxCost?: number }
+	| {
+			type: 'textual-flow';
+			unit: string;
+			kind: TextualFlowKind;
+			opts: { connectivityLimit?: number; strengths: boolean };
+	  };
 
 export type CbgmQueryResponse = { id: number } & CbgmWorkerResponse;

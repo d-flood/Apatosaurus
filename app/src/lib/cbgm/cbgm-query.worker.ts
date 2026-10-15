@@ -30,6 +30,8 @@ function handle(engine: CbgmEngine, request: CbgmQueryRequest) {
 			);
 		case 'optimize-substemmata':
 			return engine.optimizeSubstemmata(request.witness, request.maxCost);
+		case 'textual-flow':
+			return engine.textualFlow(request.unit, request.kind, request.opts);
 	}
 }
 

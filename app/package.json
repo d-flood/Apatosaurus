@@ -62,6 +62,7 @@
 		"@triiiceratops/plugin-annotation-editor": "1.0.0-rc.6",
 		"@triiiceratops/plugin-sdk": "1.0.0-rc.5",
 		"@floating-ui/dom": "^1.7.6",
+		"@hpcc-js/wasm-graphviz": "1.29.2",
 		"@tiptap/core": "^3.22.5",
 		"@tiptap/extension-bubble-menu": "^3.22.5",
 		"@tiptap/extension-history": "^3.22.5",
