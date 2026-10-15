@@ -34,6 +34,7 @@ import {
 } from './alignment-edits';
 import { collateToAlignmentSnapshot } from './collation-adapter';
 import { placeWitnessRow } from './alignment-placement';
+import { alignmentCellFromTokens } from './alignment-cell';
 import {
 	applyWitnessTreatmentSource,
 	buildWitnessConfigFromPrepared,
@@ -1273,6 +1274,13 @@ function createCollationState() {
 				input,
 			])
 		);
+		const presentInputs = new Map(
+			deriveCollationInput(
+				previousWitnesses,
+				{ lowercase, ignoreTokenWhitespace, ignorePunctuation, suppliedTextMode },
+				rules
+			).witnessInputs.map(input => [input.id, input])
+		);
 		const changed = witnesses.filter(witness => {
 			const previous = previousById.get(witness.witnessId);
 			return previous && JSON.stringify(previous.tokens) !== JSON.stringify(witness.tokens);
@@ -1290,6 +1298,21 @@ function createCollationState() {
 			const input = inputs.get(witness.witnessId);
 			if (!input) continue;
 			const witnessId = witness.witnessId;
+			const twinSource = [...activeIds]
+				.filter(id => id !== witnessId)
+				.map(id => presentInputs.get(id))
+				.find(
+					source =>
+						source?.tokens?.length === input.tokens?.length &&
+						source?.tokens?.every((token, index) => token.n === input.tokens![index].n)
+				);
+			if (twinSource) {
+				inheritTwin(witnessId, input, twinSource);
+				activeIds.add(witnessId);
+				witnessOrder = [...activeIds];
+				presentInputs.set(witnessId, input);
+				continue;
+			}
 			const oldUnits = new Map(
 				getVariationUnitSpans().map(span => {
 					const key = variationUnitId(span.columnIds[0]);
@@ -1332,6 +1355,7 @@ function createCollationState() {
 				witnessOrder: [...activeIds],
 			});
 			alignmentColumns = placed.columns;
+			presentInputs.set(witnessId, input);
 			activeIds.add(witnessId);
 			witnessOrder = [...activeIds];
 			for (const span of getVariationUnitSpans()) {
@@ -1415,6 +1439,74 @@ function createCollationState() {
 				}
 				unitDecisions = new Map(unitDecisions).set(key, decisions);
 			}
+		}
+	}
+
+	function inheritTwin(
+		witnessId: string,
+		input: CollationWitnessInput,
+		source: CollationWitnessInput
+	) {
+		alignmentColumns = alignmentColumns.map(column => {
+			const sourceCell = column.cells.get(source.id)!;
+			const tokens = (input.tokens ?? []).filter((_, index) =>
+				source.tokens![index].sourceTokenIds?.some(id =>
+					sourceCell.sourceTokenIds.includes(id)
+				)
+			);
+			const cell = alignmentCellFromTokens(tokens);
+			if (sourceCell.kind !== 'text') {
+				cell.kind = sourceCell.kind;
+				cell.isOmission = sourceCell.isOmission;
+				cell.isLacuna = sourceCell.isLacuna;
+			}
+			return { ...column, cells: new Map(column.cells).set(witnessId, cell) };
+		});
+		classifiedReadings = new Map(
+			[...classifiedReadings].map(([key, readings]) => [
+				key,
+				readings
+					.filter(
+						reading =>
+							reading.witnessIds.length === 0 ||
+							reading.witnessIds.some(id => id !== witnessId)
+					)
+					.map(reading => ({
+						...reading,
+						witnessIds: [
+							...reading.witnessIds.filter(id => id !== witnessId),
+							...(reading.witnessIds.includes(source.id) ? [witnessId] : []),
+						],
+					})),
+			])
+		);
+		for (const span of getVariationUnitSpans()) {
+			const key = variationUnitId(span.columnIds[0]);
+			const decisions = cloneUnitDecisions(unitDecisions.get(key));
+			if (classifiedReadings.has(key)) decisions.preserveReadings = true;
+			decisions.ambiguousAttestations = decisions.ambiguousAttestations
+				?.map(attestation => ({
+					...attestation,
+					witnessIds: [
+						...attestation.witnessIds.filter(id => id !== witnessId),
+						...(attestation.witnessIds.includes(source.id) ? [witnessId] : []),
+					],
+				}))
+				.filter(attestation => attestation.witnessIds.length > 0);
+			decisions.unresolvedAttestations = decisions.unresolvedAttestations?.filter(
+				attestation => attestation.witnessId !== witnessId
+			);
+			const sourceView = peekUnitView(span.startIndex);
+			const testifies =
+				sourceView.readings.some(reading => reading.witnessIds.includes(source.id)) ||
+				sourceView.ambiguousAttestations.some(attestation =>
+					attestation.witnessIds.includes(source.id)
+				);
+			decisions.unconfirmedWitnessIds = [
+				...(decisions.unconfirmedWitnessIds ?? []).filter(id => id !== witnessId),
+				...(testifies ? [witnessId] : []),
+			];
+			unitDecisions = new Map(unitDecisions).set(key, decisions);
 		}
 	}
 
