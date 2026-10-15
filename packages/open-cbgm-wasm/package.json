@@ -1,0 +1,22 @@
+{
+  "name": "@apatosaurus/open-cbgm-wasm",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "types": "./src/index.ts",
+  "scripts": {
+    "build": "sh scripts/build.sh",
+    "build:check": "sh scripts/build.sh && git diff --exit-code -- dist",
+    "fixtures": "sh scripts/golden.sh",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^25",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.5"
+  }
+}

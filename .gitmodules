@@ -5,3 +5,6 @@
 [submodule "NT_Manuscripts_TEI_Schema"]
 	path = NT_Manuscripts_TEI_Schema
 	url = https://github.com/itsee-birmingham/NT_Manuscripts_TEI_Schema.git
+[submodule "packages/open-cbgm-wasm/vendor/open-cbgm-standalone"]
+	path = packages/open-cbgm-wasm/vendor/open-cbgm-standalone
+	url = https://github.com/jjmccollum/open-cbgm-standalone

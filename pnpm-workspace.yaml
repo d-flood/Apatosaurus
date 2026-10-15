@@ -1,6 +1,7 @@
 packages:
   - app
   - packages/tei-transcription
+  - packages/open-cbgm-wasm
   - packages/auth-worker
   - collatex/collatex-tsport
 
