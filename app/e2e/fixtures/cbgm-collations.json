@@ -1,0 +1,1567 @@
+[
+	{
+		"type": "collationDocument",
+		"version": 1,
+		"meta": {
+			"collationId": "cbgm-e2e-john-1-1",
+			"projectId": "cbgm-e2e-project",
+			"projectName": "CBGM fixture"
+		},
+		"flow": {
+			"phase": "stemma",
+			"furthestPhase": "stemma",
+			"alignmentDisplayMode": "regularized",
+			"alignmentLayout": "grid"
+		},
+		"setup": {
+			"segment": {
+				"id": "cbgm-e2e-john-1-1",
+				"name": "John 1:1",
+				"members": ["John 1:1"]
+			},
+			"witnesses": [
+				{
+					"type": "witness",
+					"id": "A",
+					"siglum": "A",
+					"transcriptionId": "",
+					"kind": "firsthand",
+					"content": "",
+					"fullContent": "",
+					"treatment": "full",
+					"isBaseText": true,
+					"isExcluded": false,
+					"overridesDefault": false,
+					"fullSourceTokens": [],
+					"fragmentarySourceTokens": [],
+					"sourceTokens": []
+				},
+				{
+					"type": "witness",
+					"id": "B",
+					"siglum": "B",
+					"transcriptionId": "",
+					"kind": "firsthand",
+					"content": "",
+					"fullContent": "",
+					"treatment": "full",
+					"isBaseText": false,
+					"isExcluded": false,
+					"overridesDefault": false,
+					"fullSourceTokens": [],
+					"fragmentarySourceTokens": [],
+					"sourceTokens": []
+				},
+				{
+					"type": "witness",
+					"id": "C",
+					"siglum": "C",
+					"transcriptionId": "",
+					"kind": "firsthand",
+					"content": "",
+					"fullContent": "",
+					"treatment": "full",
+					"isBaseText": false,
+					"isExcluded": false,
+					"overridesDefault": false,
+					"fullSourceTokens": [],
+					"fragmentarySourceTokens": [],
+					"sourceTokens": []
+				},
+				{
+					"type": "witness",
+					"id": "D",
+					"siglum": "D",
+					"transcriptionId": "",
+					"kind": "firsthand",
+					"content": "",
+					"fullContent": "",
+					"treatment": "full",
+					"isBaseText": false,
+					"isExcluded": false,
+					"overridesDefault": false,
+					"fullSourceTokens": [],
+					"fragmentarySourceTokens": [],
+					"sourceTokens": []
+				},
+				{
+					"type": "witness",
+					"id": "E",
+					"siglum": "E",
+					"transcriptionId": "",
+					"kind": "firsthand",
+					"content": "",
+					"fullContent": "",
+					"treatment": "full",
+					"isBaseText": false,
+					"isExcluded": false,
+					"overridesDefault": false,
+					"fullSourceTokens": [],
+					"fragmentarySourceTokens": [],
+					"sourceTokens": []
+				}
+			]
+		},
+		"settings": {
+			"regularizationRules": [],
+			"ignoreWordBreaks": false,
+			"lowercase": false,
+			"ignoreTokenWhitespace": true,
+			"ignorePunctuation": false,
+			"suppliedTextMode": "clear",
+			"segmentation": true
+		},
+		"alignment": {
+			"type": "alignment",
+			"witnessOrder": ["A", "B", "C", "D", "E"],
+			"columns": [
+				{
+					"id": "cbgm-e2e-john-1-1-c0",
+					"index": 0,
+					"cells": [
+						[
+							"A",
+							{
+								"text": "εν",
+								"regularizedText": "εν",
+								"alignmentValue": "εν",
+								"sourceTokenIds": [],
+								"kind": "text",
+								"gap": null,
+								"isOmission": false,
+								"isLacuna": false,
+								"isRegularized": false,
+								"ruleIds": [],
+								"regularizationTypes": [],
+								"originalSegments": [
+									{
+										"text": "εν",
+										"hasUnclear": false,
+										"isPunctuation": false,
+										"isSupplied": false
+									}
+								]
+							}
+						],
+						[
+							"B",
+							{
+								"text": "εν",
+								"regularizedText": "εν",
+								"alignmentValue": "εν",
+								"sourceTokenIds": [],
+								"kind": "text",
+								"gap": null,
+								"isOmission": false,
+								"isLacuna": false,
+								"isRegularized": false,
+								"ruleIds": [],
+								"regularizationTypes": [],
+								"originalSegments": [
+									{
+										"text": "εν",
+										"hasUnclear": false,
+										"isPunctuation": false,
+										"isSupplied": false
+									}
+								]
+							}
+						],
+						[
+							"C",
+							{
+								"text": "εν",
+								"regularizedText": "εν",
+								"alignmentValue": "εν",
+								"sourceTokenIds": [],
+								"kind": "text",
+								"gap": null,
+								"isOmission": false,
+								"isLacuna": false,
+								"isRegularized": false,
+								"ruleIds": [],
+								"regularizationTypes": [],
+								"originalSegments": [
+									{
+										"text": "εν",
+										"hasUnclear": false,
+										"isPunctuation": false,
+										"isSupplied": false
+									}
+								]
+							}
+						],
+						[
+							"D",
+							{
+								"text": "εν",
+								"regularizedText": "εν",
+								"alignmentValue": "εν",
+								"sourceTokenIds": [],
+								"kind": "text",
+								"gap": null,
+								"isOmission": false,
+								"isLacuna": false,
+								"isRegularized": false,
+								"ruleIds": [],
+								"regularizationTypes": [],
+								"originalSegments": [
+									{
+										"text": "εν",
+										"hasUnclear": false,
+										"isPunctuation": false,
+										"isSupplied": false
+									}
+								]
+							}
+						],
+						[
+							"E",
+							{
+								"text": "εν",
+								"regularizedText": "εν",
+								"alignmentValue": "εν",
+								"sourceTokenIds": [],
+								"kind": "text",
+								"gap": null,
+								"isOmission": false,
+								"isLacuna": false,
+								"isRegularized": false,
+								"ruleIds": [],
+								"regularizationTypes": [],
+								"originalSegments": [
+									{
+										"text": "εν",
+										"hasUnclear": false,
+										"isPunctuation": false,
+										"isSupplied": false
+									}
+								]
+							}
+						]
+					],
+					"merged": false
+				},
+				{
+					"id": "cbgm-e2e-john-1-1-c1",
+					"index": 1,
+					"cells": [
+						[
+							"A",
+							{
+								"text": "αρχη",
+								"regularizedText": "αρχη",
+								"alignmentValue": "αρχη",
+								"sourceTokenIds": [],
+								"kind": "text",
+								"gap": null,
+								"isOmission": false,
+								"isLacuna": false,
+								"isRegularized": false,
+								"ruleIds": [],
+								"regularizationTypes": [],
+								"originalSegments": [
+									{
+										"text": "αρχη",
+										"hasUnclear": false,
+										"isPunctuation": false,
+										"isSupplied": false
+									}
+								]
+							}
+						],
+						[
+							"B",
+							{
+								"text": "αρχη",
+								"regularizedText": "αρχη",
+								"alignmentValue": "αρχη",
+								"sourceTokenIds": [],
+								"kind": "text",
+								"gap": null,
+								"isOmission": false,
+								"isLacuna": false,
+								"isRegularized": false,
+								"ruleIds": [],
+								"regularizationTypes": [],
+								"originalSegments": [
+									{
+										"text": "αρχη",
+										"hasUnclear": false,
+										"isPunctuation": false,
+										"isSupplied": false
+									}
+								]
+							}
+						],
+						[
+							"C",
+							{
+								"text": "αρχης",
+								"regularizedText": "αρχης",
+								"alignmentValue": "αρχης",
+								"sourceTokenIds": [],
+								"kind": "text",
+								"gap": null,
+								"isOmission": false,
+								"isLacuna": false,
+								"isRegularized": false,
+								"ruleIds": [],
+								"regularizationTypes": [],
+								"originalSegments": [
+									{
+										"text": "αρχης",
+										"hasUnclear": false,
+										"isPunctuation": false,
+										"isSupplied": false
+									}
+								]
+							}
+						],
+						[
+							"D",
+							{
+								"text": "αρχης",
+								"regularizedText": "αρχης",
+								"alignmentValue": "αρχης",
+								"sourceTokenIds": [],
+								"kind": "text",
+								"gap": null,
+								"isOmission": false,
+								"isLacuna": false,
+								"isRegularized": false,
+								"ruleIds": [],
+								"regularizationTypes": [],
+								"originalSegments": [
+									{
+										"text": "αρχης",
+										"hasUnclear": false,
+										"isPunctuation": false,
+										"isSupplied": false
+									}
+								]
+							}
+						],
+						[
+							"E",
+							{
+								"text": "αρχαι",
+								"regularizedText": "αρχαι",
+								"alignmentValue": "αρχαι",
+								"sourceTokenIds": [],
+								"kind": "text",
+								"gap": null,
+								"isOmission": false,
+								"isLacuna": false,
+								"isRegularized": false,
+								"ruleIds": [],
+								"regularizationTypes": [],
+								"originalSegments": [
+									{
+										"text": "αρχαι",
+										"hasUnclear": false,
+										"isPunctuation": false,
+										"isSupplied": false
+									}
+								]
+							}
+						]
+					],
+					"merged": false
+				},
+				{
+					"id": "cbgm-e2e-john-1-1-c2",
+					"index": 2,
+					"cells": [
+						[
+							"A",
+							{
+								"text": "ην",
+								"regularizedText": "ην",
+								"alignmentValue": "ην",
+								"sourceTokenIds": [],
+								"kind": "text",
+								"gap": null,
+								"isOmission": false,
+								"isLacuna": false,
+								"isRegularized": false,
+								"ruleIds": [],
+								"regularizationTypes": [],
+								"originalSegments": [
+									{
+										"text": "ην",
+										"hasUnclear": false,
+										"isPunctuation": false,
+										"isSupplied": false
+									}
+								]
+							}
+						],
+						[
+							"B",
+							{
+								"text": "ην",
+								"regularizedText": "ην",
+								"alignmentValue": "ην",
+								"sourceTokenIds": [],
+								"kind": "text",
+								"gap": null,
+								"isOmission": false,
+								"isLacuna": false,
+								"isRegularized": false,
+								"ruleIds": [],
+								"regularizationTypes": [],
+								"originalSegments": [
+									{
+										"text": "ην",
+										"hasUnclear": false,
+										"isPunctuation": false,
+										"isSupplied": false
+									}
+								]
+							}
+						],
+						[
+							"C",
+							{
+								"text": "ην",
+								"regularizedText": "ην",
+								"alignmentValue": "ην",
+								"sourceTokenIds": [],
+								"kind": "text",
+								"gap": null,
+								"isOmission": false,
+								"isLacuna": false,
+								"isRegularized": false,
+								"ruleIds": [],
+								"regularizationTypes": [],
+								"originalSegments": [
+									{
+										"text": "ην",
+										"hasUnclear": false,
+										"isPunctuation": false,
+										"isSupplied": false
+									}
+								]
+							}
+						],
+						[
+							"D",
+							{
+								"text": "ην",
+								"regularizedText": "ην",
+								"alignmentValue": "ην",
+								"sourceTokenIds": [],
+								"kind": "text",
+								"gap": null,
+								"isOmission": false,
+								"isLacuna": false,
+								"isRegularized": false,
+								"ruleIds": [],
+								"regularizationTypes": [],
+								"originalSegments": [
+									{
+										"text": "ην",
+										"hasUnclear": false,
+										"isPunctuation": false,
+										"isSupplied": false
+									}
+								]
+							}
+						],
+						[
+							"E",
+							{
+								"text": "ην",
+								"regularizedText": "ην",
+								"alignmentValue": "ην",
+								"sourceTokenIds": [],
+								"kind": "text",
+								"gap": null,
+								"isOmission": false,
+								"isLacuna": false,
+								"isRegularized": false,
+								"ruleIds": [],
+								"regularizationTypes": [],
+								"originalSegments": [
+									{
+										"text": "ην",
+										"hasUnclear": false,
+										"isPunctuation": false,
+										"isSupplied": false
+									}
+								]
+							}
+						]
+					],
+					"merged": false
+				},
+				{
+					"id": "cbgm-e2e-john-1-1-c3",
+					"index": 3,
+					"cells": [
+						[
+							"A",
+							{
+								"text": "λογος",
+								"regularizedText": "λογος",
+								"alignmentValue": "λογος",
+								"sourceTokenIds": [],
+								"kind": "text",
+								"gap": null,
+								"isOmission": false,
+								"isLacuna": false,
+								"isRegularized": false,
+								"ruleIds": [],
+								"regularizationTypes": [],
+								"originalSegments": [
+									{
+										"text": "λογος",
+										"hasUnclear": false,
+										"isPunctuation": false,
+										"isSupplied": false
+									}
+								]
+							}
+						],
+						[
+							"B",
+							{
+								"text": "λογοι",
+								"regularizedText": "λογοι",
+								"alignmentValue": "λογοι",
+								"sourceTokenIds": [],
+								"kind": "text",
+								"gap": null,
+								"isOmission": false,
+								"isLacuna": false,
+								"isRegularized": false,
+								"ruleIds": [],
+								"regularizationTypes": [],
+								"originalSegments": [
+									{
+										"text": "λογοι",
+										"hasUnclear": false,
+										"isPunctuation": false,
+										"isSupplied": false
+									}
+								]
+							}
+						],
+						[
+							"C",
+							{
+								"text": "λογος",
+								"regularizedText": "λογος",
+								"alignmentValue": "λογος",
+								"sourceTokenIds": [],
+								"kind": "text",
+								"gap": null,
+								"isOmission": false,
+								"isLacuna": false,
+								"isRegularized": false,
+								"ruleIds": [],
+								"regularizationTypes": [],
+								"originalSegments": [
+									{
+										"text": "λογος",
+										"hasUnclear": false,
+										"isPunctuation": false,
+										"isSupplied": false
+									}
+								]
+							}
+						],
+						[
+							"D",
+							{
+								"text": "λογοι",
+								"regularizedText": "λογοι",
+								"alignmentValue": "λογοι",
+								"sourceTokenIds": [],
+								"kind": "text",
+								"gap": null,
+								"isOmission": false,
+								"isLacuna": false,
+								"isRegularized": false,
+								"ruleIds": [],
+								"regularizationTypes": [],
+								"originalSegments": [
+									{
+										"text": "λογοι",
+										"hasUnclear": false,
+										"isPunctuation": false,
+										"isSupplied": false
+									}
+								]
+							}
+						],
+						[
+							"E",
+							{
+								"text": "λογοι",
+								"regularizedText": "λογοι",
+								"alignmentValue": "λογοι",
+								"sourceTokenIds": [],
+								"kind": "text",
+								"gap": null,
+								"isOmission": false,
+								"isLacuna": false,
+								"isRegularized": false,
+								"ruleIds": [],
+								"regularizationTypes": [],
+								"originalSegments": [
+									{
+										"text": "λογοι",
+										"hasUnclear": false,
+										"isPunctuation": false,
+										"isSupplied": false
+									}
+								]
+							}
+						]
+					],
+					"merged": false
+				}
+			]
+		},
+		"apparatus": {
+			"type": "apparatus",
+			"units": [
+				{
+					"type": "variationUnit",
+					"id": "unit:cbgm-e2e-john-1-1-c1",
+					"unitId": "unit:cbgm-e2e-john-1-1-c1",
+					"columnId": "cbgm-e2e-john-1-1-c1",
+					"readings": [
+						{
+							"id": "cbgm-e2e-john-1-1-c1::αρχη::00",
+							"order": 0,
+							"label": "a",
+							"text": "αρχη",
+							"normalizedText": "αρχη",
+							"witnessIds": ["A", "B"],
+							"witnessGroups": [
+								{
+									"id": "483721d9-5a7d-4473-a0d4-c4c6912548ab",
+									"witnessIds": ["A", "B"]
+								}
+							],
+							"isOmission": false,
+							"isLacuna": false,
+							"readingType": null,
+							"certainty": null,
+							"parentReadingId": null,
+							"isSubreading": false,
+							"autoGenerated": false,
+							"derivedFromRuleIds": []
+						},
+						{
+							"id": "cbgm-e2e-john-1-1-c1::αρχης::00",
+							"order": 1,
+							"label": "b",
+							"text": "αρχης",
+							"normalizedText": "αρχης",
+							"witnessIds": ["C", "D"],
+							"witnessGroups": [
+								{
+									"id": "83bc169c-0ee8-4d90-b3c0-8cad45980f06",
+									"witnessIds": ["C", "D"]
+								}
+							],
+							"isOmission": false,
+							"isLacuna": false,
+							"readingType": null,
+							"certainty": null,
+							"parentReadingId": null,
+							"isSubreading": false,
+							"autoGenerated": false,
+							"derivedFromRuleIds": []
+						},
+						{
+							"id": "cbgm-e2e-john-1-1-c1::αρχαι::00",
+							"order": 2,
+							"label": "c",
+							"text": "αρχαι",
+							"normalizedText": "αρχαι",
+							"witnessIds": ["E"],
+							"witnessGroups": [
+								{
+									"id": "d18737cc-134e-47e5-841c-cadeefafc6db",
+									"witnessIds": ["E"]
+								}
+							],
+							"isOmission": false,
+							"isLacuna": false,
+							"readingType": null,
+							"certainty": null,
+							"parentReadingId": null,
+							"isSubreading": false,
+							"autoGenerated": false,
+							"derivedFromRuleIds": []
+						}
+					],
+					"decisions": {}
+				},
+				{
+					"type": "variationUnit",
+					"id": "unit:cbgm-e2e-john-1-1-c3",
+					"unitId": "unit:cbgm-e2e-john-1-1-c3",
+					"columnId": "cbgm-e2e-john-1-1-c3",
+					"readings": [
+						{
+							"id": "cbgm-e2e-john-1-1-c3::λογος::00",
+							"order": 0,
+							"label": "a",
+							"text": "λογος",
+							"normalizedText": "λογος",
+							"witnessIds": ["A", "C"],
+							"witnessGroups": [
+								{
+									"id": "0c834f78-cecf-42eb-ba9e-9e6d7d898fed",
+									"witnessIds": ["A", "C"]
+								}
+							],
+							"isOmission": false,
+							"isLacuna": false,
+							"readingType": null,
+							"certainty": null,
+							"parentReadingId": null,
+							"isSubreading": false,
+							"autoGenerated": false,
+							"derivedFromRuleIds": []
+						},
+						{
+							"id": "cbgm-e2e-john-1-1-c3::λογοι::00",
+							"order": 1,
+							"label": "b",
+							"text": "λογοι",
+							"normalizedText": "λογοι",
+							"witnessIds": ["B", "D", "E"],
+							"witnessGroups": [
+								{
+									"id": "8c5b6123-3ebe-438b-ba1d-191e0eb856c3",
+									"witnessIds": ["B", "D", "E"]
+								}
+							],
+							"isOmission": false,
+							"isLacuna": false,
+							"readingType": null,
+							"certainty": null,
+							"parentReadingId": null,
+							"isSubreading": false,
+							"autoGenerated": false,
+							"derivedFromRuleIds": []
+						}
+					],
+					"decisions": {}
+				}
+			]
+		},
+		"stemma": {
+			"type": "stemma",
+			"units": [
+				{
+					"type": "stemmaUnit",
+					"id": "unit:cbgm-e2e-john-1-1-c1",
+					"unitId": "unit:cbgm-e2e-john-1-1-c1",
+					"columnId": "cbgm-e2e-john-1-1-c1",
+					"arcs": [
+						{
+							"id": "d58a5bee-ded1-462e-9f68-d07c7231b7b9",
+							"priorReadingId": "cbgm-e2e-john-1-1-c1::αρχη::00",
+							"posteriorReadingId": "cbgm-e2e-john-1-1-c1::αρχης::00"
+						},
+						{
+							"id": "fc344d5f-348a-4135-a969-65361b796515",
+							"priorReadingId": "cbgm-e2e-john-1-1-c1::αρχης::00",
+							"posteriorReadingId": "cbgm-e2e-john-1-1-c1::αρχαι::00"
+						}
+					]
+				},
+				{
+					"type": "stemmaUnit",
+					"id": "unit:cbgm-e2e-john-1-1-c3",
+					"unitId": "unit:cbgm-e2e-john-1-1-c3",
+					"columnId": "cbgm-e2e-john-1-1-c3",
+					"arcs": [
+						{
+							"id": "aa42c3e5-e6c2-4583-b17b-a0ddc8ad31bb",
+							"priorReadingId": "cbgm-e2e-john-1-1-c3::λογος::00",
+							"posteriorReadingId": "cbgm-e2e-john-1-1-c3::λογοι::00"
+						}
+					]
+				}
+			]
+		}
+	},
+	{
+		"type": "collationDocument",
+		"version": 1,
+		"meta": {
+			"collationId": "cbgm-e2e-john-1-2",
+			"projectId": "cbgm-e2e-project",
+			"projectName": "CBGM fixture"
+		},
+		"flow": {
+			"phase": "stemma",
+			"furthestPhase": "stemma",
+			"alignmentDisplayMode": "regularized",
+			"alignmentLayout": "grid"
+		},
+		"setup": {
+			"segment": {
+				"id": "cbgm-e2e-john-1-2",
+				"name": "John 1:2",
+				"members": ["John 1:2"]
+			},
+			"witnesses": [
+				{
+					"type": "witness",
+					"id": "A",
+					"siglum": "A",
+					"transcriptionId": "",
+					"kind": "firsthand",
+					"content": "",
+					"fullContent": "",
+					"treatment": "full",
+					"isBaseText": true,
+					"isExcluded": false,
+					"overridesDefault": false,
+					"fullSourceTokens": [],
+					"fragmentarySourceTokens": [],
+					"sourceTokens": []
+				},
+				{
+					"type": "witness",
+					"id": "B",
+					"siglum": "B",
+					"transcriptionId": "",
+					"kind": "firsthand",
+					"content": "",
+					"fullContent": "",
+					"treatment": "full",
+					"isBaseText": false,
+					"isExcluded": false,
+					"overridesDefault": false,
+					"fullSourceTokens": [],
+					"fragmentarySourceTokens": [],
+					"sourceTokens": []
+				},
+				{
+					"type": "witness",
+					"id": "C",
+					"siglum": "C",
+					"transcriptionId": "",
+					"kind": "firsthand",
+					"content": "",
+					"fullContent": "",
+					"treatment": "full",
+					"isBaseText": false,
+					"isExcluded": false,
+					"overridesDefault": false,
+					"fullSourceTokens": [],
+					"fragmentarySourceTokens": [],
+					"sourceTokens": []
+				},
+				{
+					"type": "witness",
+					"id": "D",
+					"siglum": "D",
+					"transcriptionId": "",
+					"kind": "firsthand",
+					"content": "",
+					"fullContent": "",
+					"treatment": "full",
+					"isBaseText": false,
+					"isExcluded": false,
+					"overridesDefault": false,
+					"fullSourceTokens": [],
+					"fragmentarySourceTokens": [],
+					"sourceTokens": []
+				},
+				{
+					"type": "witness",
+					"id": "E",
+					"siglum": "E",
+					"transcriptionId": "",
+					"kind": "firsthand",
+					"content": "",
+					"fullContent": "",
+					"treatment": "full",
+					"isBaseText": false,
+					"isExcluded": false,
+					"overridesDefault": false,
+					"fullSourceTokens": [],
+					"fragmentarySourceTokens": [],
+					"sourceTokens": []
+				}
+			]
+		},
+		"settings": {
+			"regularizationRules": [],
+			"ignoreWordBreaks": false,
+			"lowercase": false,
+			"ignoreTokenWhitespace": true,
+			"ignorePunctuation": false,
+			"suppliedTextMode": "clear",
+			"segmentation": true
+		},
+		"alignment": {
+			"type": "alignment",
+			"witnessOrder": ["A", "B", "C", "D", "E"],
+			"columns": [
+				{
+					"id": "cbgm-e2e-john-1-2-c0",
+					"index": 0,
+					"cells": [
+						[
+							"A",
+							{
+								"text": "ουτος",
+								"regularizedText": "ουτος",
+								"alignmentValue": "ουτος",
+								"sourceTokenIds": [],
+								"kind": "text",
+								"gap": null,
+								"isOmission": false,
+								"isLacuna": false,
+								"isRegularized": false,
+								"ruleIds": [],
+								"regularizationTypes": [],
+								"originalSegments": [
+									{
+										"text": "ουτος",
+										"hasUnclear": false,
+										"isPunctuation": false,
+										"isSupplied": false
+									}
+								]
+							}
+						],
+						[
+							"B",
+							{
+								"text": "ουτος",
+								"regularizedText": "ουτος",
+								"alignmentValue": "ουτος",
+								"sourceTokenIds": [],
+								"kind": "text",
+								"gap": null,
+								"isOmission": false,
+								"isLacuna": false,
+								"isRegularized": false,
+								"ruleIds": [],
+								"regularizationTypes": [],
+								"originalSegments": [
+									{
+										"text": "ουτος",
+										"hasUnclear": false,
+										"isPunctuation": false,
+										"isSupplied": false
+									}
+								]
+							}
+						],
+						[
+							"C",
+							{
+								"text": "ουτος",
+								"regularizedText": "ουτος",
+								"alignmentValue": "ουτος",
+								"sourceTokenIds": [],
+								"kind": "text",
+								"gap": null,
+								"isOmission": false,
+								"isLacuna": false,
+								"isRegularized": false,
+								"ruleIds": [],
+								"regularizationTypes": [],
+								"originalSegments": [
+									{
+										"text": "ουτος",
+										"hasUnclear": false,
+										"isPunctuation": false,
+										"isSupplied": false
+									}
+								]
+							}
+						],
+						[
+							"D",
+							{
+								"text": "ουτος",
+								"regularizedText": "ουτος",
+								"alignmentValue": "ουτος",
+								"sourceTokenIds": [],
+								"kind": "text",
+								"gap": null,
+								"isOmission": false,
+								"isLacuna": false,
+								"isRegularized": false,
+								"ruleIds": [],
+								"regularizationTypes": [],
+								"originalSegments": [
+									{
+										"text": "ουτος",
+										"hasUnclear": false,
+										"isPunctuation": false,
+										"isSupplied": false
+									}
+								]
+							}
+						],
+						[
+							"E",
+							{
+								"text": "ουτος",
+								"regularizedText": "ουτος",
+								"alignmentValue": "ουτος",
+								"sourceTokenIds": [],
+								"kind": "text",
+								"gap": null,
+								"isOmission": false,
+								"isLacuna": false,
+								"isRegularized": false,
+								"ruleIds": [],
+								"regularizationTypes": [],
+								"originalSegments": [
+									{
+										"text": "ουτος",
+										"hasUnclear": false,
+										"isPunctuation": false,
+										"isSupplied": false
+									}
+								]
+							}
+						]
+					],
+					"merged": false
+				},
+				{
+					"id": "cbgm-e2e-john-1-2-c1",
+					"index": 1,
+					"cells": [
+						[
+							"A",
+							{
+								"text": "ην",
+								"regularizedText": "ην",
+								"alignmentValue": "ην",
+								"sourceTokenIds": [],
+								"kind": "text",
+								"gap": null,
+								"isOmission": false,
+								"isLacuna": false,
+								"isRegularized": false,
+								"ruleIds": [],
+								"regularizationTypes": [],
+								"originalSegments": [
+									{
+										"text": "ην",
+										"hasUnclear": false,
+										"isPunctuation": false,
+										"isSupplied": false
+									}
+								]
+							}
+						],
+						[
+							"B",
+							{
+								"text": "ην",
+								"regularizedText": "ην",
+								"alignmentValue": "ην",
+								"sourceTokenIds": [],
+								"kind": "text",
+								"gap": null,
+								"isOmission": false,
+								"isLacuna": false,
+								"isRegularized": false,
+								"ruleIds": [],
+								"regularizationTypes": [],
+								"originalSegments": [
+									{
+										"text": "ην",
+										"hasUnclear": false,
+										"isPunctuation": false,
+										"isSupplied": false
+									}
+								]
+							}
+						],
+						[
+							"C",
+							{
+								"text": "εστιν",
+								"regularizedText": "εστιν",
+								"alignmentValue": "εστιν",
+								"sourceTokenIds": [],
+								"kind": "text",
+								"gap": null,
+								"isOmission": false,
+								"isLacuna": false,
+								"isRegularized": false,
+								"ruleIds": [],
+								"regularizationTypes": [],
+								"originalSegments": [
+									{
+										"text": "εστιν",
+										"hasUnclear": false,
+										"isPunctuation": false,
+										"isSupplied": false
+									}
+								]
+							}
+						],
+						[
+							"D",
+							{
+								"text": "εστιν",
+								"regularizedText": "εστιν",
+								"alignmentValue": "εστιν",
+								"sourceTokenIds": [],
+								"kind": "text",
+								"gap": null,
+								"isOmission": false,
+								"isLacuna": false,
+								"isRegularized": false,
+								"ruleIds": [],
+								"regularizationTypes": [],
+								"originalSegments": [
+									{
+										"text": "εστιν",
+										"hasUnclear": false,
+										"isPunctuation": false,
+										"isSupplied": false
+									}
+								]
+							}
+						],
+						[
+							"E",
+							{
+								"text": "ην",
+								"regularizedText": "ην",
+								"alignmentValue": "ην",
+								"sourceTokenIds": [],
+								"kind": "text",
+								"gap": null,
+								"isOmission": false,
+								"isLacuna": false,
+								"isRegularized": false,
+								"ruleIds": [],
+								"regularizationTypes": [],
+								"originalSegments": [
+									{
+										"text": "ην",
+										"hasUnclear": false,
+										"isPunctuation": false,
+										"isSupplied": false
+									}
+								]
+							}
+						]
+					],
+					"merged": false
+				},
+				{
+					"id": "cbgm-e2e-john-1-2-c2",
+					"index": 2,
+					"cells": [
+						[
+							"A",
+							{
+								"text": "προς",
+								"regularizedText": "προς",
+								"alignmentValue": "προς",
+								"sourceTokenIds": [],
+								"kind": "text",
+								"gap": null,
+								"isOmission": false,
+								"isLacuna": false,
+								"isRegularized": false,
+								"ruleIds": [],
+								"regularizationTypes": [],
+								"originalSegments": [
+									{
+										"text": "προς",
+										"hasUnclear": false,
+										"isPunctuation": false,
+										"isSupplied": false
+									}
+								]
+							}
+						],
+						[
+							"B",
+							{
+								"text": "προς",
+								"regularizedText": "προς",
+								"alignmentValue": "προς",
+								"sourceTokenIds": [],
+								"kind": "text",
+								"gap": null,
+								"isOmission": false,
+								"isLacuna": false,
+								"isRegularized": false,
+								"ruleIds": [],
+								"regularizationTypes": [],
+								"originalSegments": [
+									{
+										"text": "προς",
+										"hasUnclear": false,
+										"isPunctuation": false,
+										"isSupplied": false
+									}
+								]
+							}
+						],
+						[
+							"C",
+							{
+								"text": "προς",
+								"regularizedText": "προς",
+								"alignmentValue": "προς",
+								"sourceTokenIds": [],
+								"kind": "text",
+								"gap": null,
+								"isOmission": false,
+								"isLacuna": false,
+								"isRegularized": false,
+								"ruleIds": [],
+								"regularizationTypes": [],
+								"originalSegments": [
+									{
+										"text": "προς",
+										"hasUnclear": false,
+										"isPunctuation": false,
+										"isSupplied": false
+									}
+								]
+							}
+						],
+						[
+							"D",
+							{
+								"text": "προς",
+								"regularizedText": "προς",
+								"alignmentValue": "προς",
+								"sourceTokenIds": [],
+								"kind": "text",
+								"gap": null,
+								"isOmission": false,
+								"isLacuna": false,
+								"isRegularized": false,
+								"ruleIds": [],
+								"regularizationTypes": [],
+								"originalSegments": [
+									{
+										"text": "προς",
+										"hasUnclear": false,
+										"isPunctuation": false,
+										"isSupplied": false
+									}
+								]
+							}
+						],
+						[
+							"E",
+							{
+								"text": "προς",
+								"regularizedText": "προς",
+								"alignmentValue": "προς",
+								"sourceTokenIds": [],
+								"kind": "text",
+								"gap": null,
+								"isOmission": false,
+								"isLacuna": false,
+								"isRegularized": false,
+								"ruleIds": [],
+								"regularizationTypes": [],
+								"originalSegments": [
+									{
+										"text": "προς",
+										"hasUnclear": false,
+										"isPunctuation": false,
+										"isSupplied": false
+									}
+								]
+							}
+						]
+					],
+					"merged": false
+				},
+				{
+					"id": "cbgm-e2e-john-1-2-c3",
+					"index": 3,
+					"cells": [
+						[
+							"A",
+							{
+								"text": "θεον",
+								"regularizedText": "θεον",
+								"alignmentValue": "θεον",
+								"sourceTokenIds": [],
+								"kind": "text",
+								"gap": null,
+								"isOmission": false,
+								"isLacuna": false,
+								"isRegularized": false,
+								"ruleIds": [],
+								"regularizationTypes": [],
+								"originalSegments": [
+									{
+										"text": "θεον",
+										"hasUnclear": false,
+										"isPunctuation": false,
+										"isSupplied": false
+									}
+								]
+							}
+						],
+						[
+							"B",
+							{
+								"text": "θεον",
+								"regularizedText": "θεον",
+								"alignmentValue": "θεον",
+								"sourceTokenIds": [],
+								"kind": "text",
+								"gap": null,
+								"isOmission": false,
+								"isLacuna": false,
+								"isRegularized": false,
+								"ruleIds": [],
+								"regularizationTypes": [],
+								"originalSegments": [
+									{
+										"text": "θεον",
+										"hasUnclear": false,
+										"isPunctuation": false,
+										"isSupplied": false
+									}
+								]
+							}
+						],
+						[
+							"C",
+							{
+								"text": "θεον",
+								"regularizedText": "θεον",
+								"alignmentValue": "θεον",
+								"sourceTokenIds": [],
+								"kind": "text",
+								"gap": null,
+								"isOmission": false,
+								"isLacuna": false,
+								"isRegularized": false,
+								"ruleIds": [],
+								"regularizationTypes": [],
+								"originalSegments": [
+									{
+										"text": "θεον",
+										"hasUnclear": false,
+										"isPunctuation": false,
+										"isSupplied": false
+									}
+								]
+							}
+						],
+						[
+							"D",
+							{
+								"text": "κυριον",
+								"regularizedText": "κυριον",
+								"alignmentValue": "κυριον",
+								"sourceTokenIds": [],
+								"kind": "text",
+								"gap": null,
+								"isOmission": false,
+								"isLacuna": false,
+								"isRegularized": false,
+								"ruleIds": [],
+								"regularizationTypes": [],
+								"originalSegments": [
+									{
+										"text": "κυριον",
+										"hasUnclear": false,
+										"isPunctuation": false,
+										"isSupplied": false
+									}
+								]
+							}
+						],
+						[
+							"E",
+							{
+								"text": "κυριον",
+								"regularizedText": "κυριον",
+								"alignmentValue": "κυριον",
+								"sourceTokenIds": [],
+								"kind": "text",
+								"gap": null,
+								"isOmission": false,
+								"isLacuna": false,
+								"isRegularized": false,
+								"ruleIds": [],
+								"regularizationTypes": [],
+								"originalSegments": [
+									{
+										"text": "κυριον",
+										"hasUnclear": false,
+										"isPunctuation": false,
+										"isSupplied": false
+									}
+								]
+							}
+						]
+					],
+					"merged": false
+				}
+			]
+		},
+		"apparatus": {
+			"type": "apparatus",
+			"units": [
+				{
+					"type": "variationUnit",
+					"id": "unit:cbgm-e2e-john-1-2-c1",
+					"unitId": "unit:cbgm-e2e-john-1-2-c1",
+					"columnId": "cbgm-e2e-john-1-2-c1",
+					"readings": [
+						{
+							"id": "cbgm-e2e-john-1-2-c1::ην::00",
+							"order": 0,
+							"label": "a",
+							"text": "ην",
+							"normalizedText": "ην",
+							"witnessIds": ["A", "B", "E"],
+							"witnessGroups": [
+								{
+									"id": "609e1898-c0cd-4203-b2db-6fb0d73a5c49",
+									"witnessIds": ["A", "B", "E"]
+								}
+							],
+							"isOmission": false,
+							"isLacuna": false,
+							"readingType": null,
+							"certainty": null,
+							"parentReadingId": null,
+							"isSubreading": false,
+							"autoGenerated": false,
+							"derivedFromRuleIds": []
+						},
+						{
+							"id": "cbgm-e2e-john-1-2-c1::εστιν::00",
+							"order": 1,
+							"label": "b",
+							"text": "εστιν",
+							"normalizedText": "εστιν",
+							"witnessIds": ["C", "D"],
+							"witnessGroups": [
+								{
+									"id": "59e545e0-e438-4072-b435-f15defb2c545",
+									"witnessIds": ["C", "D"]
+								}
+							],
+							"isOmission": false,
+							"isLacuna": false,
+							"readingType": null,
+							"certainty": null,
+							"parentReadingId": null,
+							"isSubreading": false,
+							"autoGenerated": false,
+							"derivedFromRuleIds": []
+						}
+					],
+					"decisions": {}
+				},
+				{
+					"type": "variationUnit",
+					"id": "unit:cbgm-e2e-john-1-2-c3",
+					"unitId": "unit:cbgm-e2e-john-1-2-c3",
+					"columnId": "cbgm-e2e-john-1-2-c3",
+					"readings": [
+						{
+							"id": "cbgm-e2e-john-1-2-c3::θεον::00",
+							"order": 0,
+							"label": "a",
+							"text": "θεον",
+							"normalizedText": "θεον",
+							"witnessIds": ["A", "B", "C"],
+							"witnessGroups": [
+								{
+									"id": "fdcc0f14-4bbf-4365-b548-0b6622bedb50",
+									"witnessIds": ["A", "B", "C"]
+								}
+							],
+							"isOmission": false,
+							"isLacuna": false,
+							"readingType": null,
+							"certainty": null,
+							"parentReadingId": null,
+							"isSubreading": false,
+							"autoGenerated": false,
+							"derivedFromRuleIds": []
+						},
+						{
+							"id": "cbgm-e2e-john-1-2-c3::κυριον::00",
+							"order": 1,
+							"label": "b",
+							"text": "κυριον",
+							"normalizedText": "κυριον",
+							"witnessIds": ["D", "E"],
+							"witnessGroups": [
+								{
+									"id": "e449d40a-a1bd-4ce7-8a6f-48eb29b89b7d",
+									"witnessIds": ["D", "E"]
+								}
+							],
+							"isOmission": false,
+							"isLacuna": false,
+							"readingType": null,
+							"certainty": null,
+							"parentReadingId": null,
+							"isSubreading": false,
+							"autoGenerated": false,
+							"derivedFromRuleIds": []
+						}
+					],
+					"decisions": {}
+				}
+			]
+		},
+		"stemma": {
+			"type": "stemma",
+			"units": [
+				{
+					"type": "stemmaUnit",
+					"id": "unit:cbgm-e2e-john-1-2-c1",
+					"unitId": "unit:cbgm-e2e-john-1-2-c1",
+					"columnId": "cbgm-e2e-john-1-2-c1",
+					"arcs": [
+						{
+							"id": "30a51d3b-fb38-4fc4-bdf3-e0d588c69762",
+							"priorReadingId": "cbgm-e2e-john-1-2-c1::ην::00",
+							"posteriorReadingId": "cbgm-e2e-john-1-2-c1::εστιν::00"
+						}
+					]
+				},
+				{
+					"type": "stemmaUnit",
+					"id": "unit:cbgm-e2e-john-1-2-c3",
+					"unitId": "unit:cbgm-e2e-john-1-2-c3",
+					"columnId": "cbgm-e2e-john-1-2-c3",
+					"arcs": [
+						{
+							"id": "8906850d-b41b-40d0-aa64-43ff8e5cea6f",
+							"priorReadingId": "cbgm-e2e-john-1-2-c3::θεον::00",
+							"posteriorReadingId": "cbgm-e2e-john-1-2-c3::κυριον::00"
+						}
+					]
+				}
+			]
+		}
+	}
+]
