@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onDestroy } from 'svelte';
 	import type { FindRelativesTable } from '@apatosaurus/open-cbgm-wasm';
 
 	import type { CbgmQueries } from '$lib/cbgm/cbgm-queries';
@@ -12,6 +13,10 @@
 	let unitId = $state('');
 	let readings = $state<string[]>([]);
 	let running = $state(false);
+	let runId = 0;
+	onDestroy(() => {
+		runId += 1;
+	});
 	let error = $state<string | null>(null);
 	let result = $state.raw<FindRelativesTable | null>(null);
 
@@ -20,17 +25,29 @@
 		readings.filter(reading => unit?.readings.includes(reading) ?? false)
 	);
 
+	function resetUnit() {
+		runId += 1;
+		running = false;
+		error = null;
+		readings = [];
+		result = null;
+	}
+
 	async function run(event: SubmitEvent) {
 		event.preventDefault();
 		if (!witness || !unit || running) return;
+		const id = ++runId;
+		const source = queries;
 		running = true;
 		error = null;
 		try {
-			result = await queries.findRelatives(witness, unit.id, chosenReadings);
+			const next = await queries.findRelatives(witness, unit.id, chosenReadings);
+			if (id === runId && source === queries) result = next;
 		} catch (err) {
+			if (id !== runId || source !== queries) return;
 			error = err instanceof Error ? err.message : 'Finding relatives failed.';
 		} finally {
-			running = false;
+			if (id === runId && source === queries) running = false;
 		}
 	}
 </script>
@@ -51,7 +68,11 @@
 			</label>
 			<label class="block min-w-0 space-y-1">
 				<span class="text-sm font-medium">Variation unit</span>
-				<select class="select select-bordered w-full" bind:value={unitId}>
+				<select
+					class="select select-bordered w-full"
+					bind:value={unitId}
+					onchange={resetUnit}
+				>
 					<option value="" disabled>Choose a unit</option>
 					{#each queries.units as option (option.id)}
 						<option value={option.id}>{option.label}</option>

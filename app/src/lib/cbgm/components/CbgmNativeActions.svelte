@@ -12,7 +12,9 @@
 	let busy = $state(false);
 	let error = $state<string | null>(null);
 
-	const importable = $derived(analysis.coherence !== 'ready');
+	const importable = $derived(
+		analysis.coherence !== 'ready' || analysis.global_stemma === 'computing'
+	);
 
 	function chosenFile(event: Event): File | null {
 		return (event.currentTarget as HTMLInputElement).files?.[0] ?? null;
@@ -99,7 +101,7 @@
 				placeholder="Optional global-stemma.dot"
 				onchange={event => (globalStemma = chosenFile(event))}
 			/>
-			{#if analysis.coherence === 'computing'}
+			{#if analysis.coherence === 'computing' || analysis.global_stemma === 'computing'}
 				<p class="text-xs text-base-content/60">
 					Importing cancels the computation in progress.
 				</p>

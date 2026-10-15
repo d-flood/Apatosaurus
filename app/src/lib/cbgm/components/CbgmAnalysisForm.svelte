@@ -321,7 +321,7 @@
 								href={resolve('/collation/[id]/[phase]', {
 									id: unit.collationId,
 									phase: 'readings',
-								})}>{unit.label}</a
+								}) + `?unit=${encodeURIComponent(unit.unitId)}`}>{unit.label}</a
 							>
 						</li>
 					{/each}

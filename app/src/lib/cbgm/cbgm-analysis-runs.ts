@@ -191,7 +191,10 @@ export async function importNativeResults(
 			undefined,
 			files.globalStemmaDot
 		);
+	} else {
+		await setCbgmGlobalStemmaState(projectId, analysisId, 'none');
 	}
+	withdrawPresence(projectId, analysisId);
 	void requestPersistentStorageForMeaningfulWrite();
 }
 

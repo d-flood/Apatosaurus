@@ -626,6 +626,45 @@ export function buildCollationDocument(seed: CollationDocumentSeed): CollationDo
 	};
 }
 
+function preservedCollationReadings(
+	document: CollationDocument
+): Array<[string, ClassifiedReading[]]> {
+	const columns = deserializeAlignmentColumns(document.alignment?.columns ?? []);
+	const spans = new Map(
+		buildVariationUnitSpans(columns).map(span => [variationUnitId(span.columnIds[0]), span])
+	);
+	const witnesses = document.setup.witnesses.filter(witness => !witness.isExcluded);
+	const baseWitnessId = witnesses.find(witness => witness.isBaseText)?.id ?? null;
+	return (document.apparatus?.units ?? [])
+		.filter(
+			unit =>
+				unit.decisions?.preserveReadings &&
+				typeof unit.unitId === 'string' &&
+				Array.isArray(unit.readings)
+		)
+		.map(unit => {
+			const span = spans.get(unit.unitId);
+			if (!span) return [unit.unitId, unit.readings];
+			const proposal = buildReadingProposal({
+				columns: columns.slice(span.startIndex, span.endIndex + 1),
+				spanColumnIds: span.columnIds,
+				sourceWitnessIds: witnesses.map(witness => witness.id),
+				baseWitnessId,
+			});
+			const types = new Map(
+				proposal.readings.map(reading => [reading.id, reading.readingType])
+			);
+			return [
+				unit.unitId,
+				unit.readings.map(reading =>
+					reading.parentReadingId !== null && reading.readingType === null
+						? { ...reading, readingType: types.get(reading.id) ?? null }
+						: reading
+				),
+			];
+		});
+}
+
 export function hydrateCollationDocument(document: CollationDocument): HydratedCollationDocument {
 	const decisionsByUnit = new Map(
 		document.apparatus?.units
@@ -671,14 +710,7 @@ export function hydrateCollationDocument(document: CollationDocument): HydratedC
 						(id): id is string => typeof id === 'string'
 					)
 				: [],
-		classifiedReadings: (document.apparatus?.units ?? [])
-			.filter(
-				unit =>
-					unit.decisions?.preserveReadings &&
-					typeof unit.unitId === 'string' &&
-					Array.isArray(unit.readings)
-			)
-			.map(unit => [unit.unitId, unit.readings]),
+		classifiedReadings: preservedCollationReadings(document),
 		unitDecisions: [...decisionsByUnit],
 		readingArcs:
 			document.stemma?.units
@@ -707,11 +739,12 @@ export function countUntypedSubreadings(
 	const savedUnits = new Map(
 		(document.apparatus?.units ?? []).map(unit => [unit.unitId, unit] as const)
 	);
+	const preservedReadings = new Map(preservedCollationReadings(document));
 	let count = 0;
 	for (const span of buildVariationUnitSpans(columns)) {
 		const saved = savedUnits.get(variationUnitId(span.columnIds[0]));
 		const decisions = saved?.decisions ?? {};
-		const preserved = decisions.preserveReadings ? saved?.readings : undefined;
+		const preserved = preservedReadings.get(variationUnitId(span.columnIds[0]));
 		const readings = Array.isArray(preserved)
 			? preserved
 			: buildReadingProposal({

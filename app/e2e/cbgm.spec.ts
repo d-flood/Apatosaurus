@@ -87,6 +87,13 @@ test('a CBGM analysis computes while the scholar works elsewhere, answers every 
 		await runTools(page, { computeGlobalStemma: true });
 	});
 
+	await test.step('open a specific blocking unit after collation hydration', async () => {
+		await page.goto('/collation/cbgm-e2e-john-1-1/readings?unit=unit%3Acbgm-e2e-john-1-1-c3');
+		await expect(
+			page.getByRole('textbox', { name: 'Text of reading a', exact: true })
+		).toHaveValue('λογος');
+	});
+
 	await test.step('save a collation edit without a checkpoint and see the analysis go out of date', async () => {
 		await page.goto('/collation/cbgm-e2e-john-1-1/stemma');
 		const source = page.getByRole('combobox', { name: 'Source of reading c', exact: true });

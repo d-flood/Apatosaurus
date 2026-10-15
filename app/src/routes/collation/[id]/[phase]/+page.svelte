@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { COLLATION_PHASES } from '$lib/collation/collation-types';
+	import { page } from '$app/state';
+	import { variationUnitId } from '$lib/collation/collation-unit-id';
 	import { goto } from '$app/navigation';
 	import { untrack } from 'svelte';
 	import { collationState, type CollationPhase } from '$lib/collation/collation-state.svelte';
@@ -33,8 +35,15 @@
 	$effect(() => {
 		const id = params.id;
 		const phaseParam = params.phase;
+		const unitId = page.url.searchParams.get('unit');
 		if (collationState.isLoading || !collationState.collationId) return;
-		untrack(() => syncPhaseFromRoute(id, phaseParam));
+		untrack(() => {
+			syncPhaseFromRoute(id, phaseParam);
+			const span = collationState
+				.getVariationUnitSpans()
+				.find(span => variationUnitId(span.columnIds[0]) === unitId);
+			if (span) collationState.selectedUnitIndex = span.startIndex;
+		});
 	});
 </script>
 

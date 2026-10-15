@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onDestroy } from 'svelte';
 	import type { CompareWitnessesTable } from '@apatosaurus/open-cbgm-wasm';
 
 	import type { CbgmQueries } from '$lib/cbgm/cbgm-queries';
@@ -11,6 +12,10 @@
 	let primary = $state('');
 	let others = $state<string[]>([]);
 	let running = $state(false);
+	let runId = 0;
+	onDestroy(() => {
+		runId += 1;
+	});
 	let error = $state<string | null>(null);
 	let result = $state.raw<CompareWitnessesTable | null>(null);
 
@@ -19,14 +24,18 @@
 	async function run(event: SubmitEvent) {
 		event.preventDefault();
 		if (!primary || running) return;
+		const id = ++runId;
+		const source = queries;
 		running = true;
 		error = null;
 		try {
-			result = await queries.compareWitnesses(primary, chosenOthers);
+			const next = await queries.compareWitnesses(primary, chosenOthers);
+			if (id === runId && source === queries) result = next;
 		} catch (err) {
+			if (id !== runId || source !== queries) return;
 			error = err instanceof Error ? err.message : 'The comparison failed.';
 		} finally {
-			running = false;
+			if (id === runId && source === queries) running = false;
 		}
 	}
 </script>

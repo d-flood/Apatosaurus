@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
+import fixtures from '../../../e2e/fixtures/cbgm-collations.json';
+import { applyDecisions } from './collation-decisions';
+import { BUNDLED_READING_TYPES } from './reading-types';
 import { deserializeAlignmentColumns } from './alignment-snapshot';
 import {
 	buildCollationDocument,
+	countUntypedSubreadings,
+	type CollationDocument,
 	hydrateCollationDocument,
 	parseCollationDocument,
 	serializeCollationDocument,
@@ -603,4 +608,31 @@ describe('legacy collation phases', () => {
 			furthestPhase: 'alignment',
 		});
 	});
+});
+
+it('types preserved untyped subreadings from their source proposals and flags only the unresolved ones', () => {
+	const document = structuredClone(fixtures[0]) as unknown as CollationDocument;
+	const unit = document.apparatus!.units[0];
+	unit.decisions.preserveReadings = true;
+	const [main, detected, unknown] = unit.readings;
+	for (const reading of [detected, unknown]) {
+		reading.parentReadingId = main.id;
+		reading.isSubreading = true;
+		reading.readingType = null;
+	}
+	for (const [witnessId, cell] of document.alignment!.columns[1].cells) {
+		if (detected.witnessIds.includes(witnessId)) cell.regularizationTypes = ['ns'];
+	}
+	const hydrated = hydrateCollationDocument(document);
+	const readings = new Map(hydrated.classifiedReadings).get(unit.unitId)!;
+	const view = applyDecisions(readings, unit.decisions, { baseWitnessId: 'A' });
+	expect(view.readings.find(reading => reading.id === detected.id)).toMatchObject({
+		readingType: 'nonsense',
+		label: 'af',
+	});
+	expect(view.readings.find(reading => reading.id === unknown.id)).toMatchObject({
+		readingType: null,
+		label: 'a?',
+	});
+	expect(countUntypedSubreadings(document, BUNDLED_READING_TYPES)).toBe(1);
 });

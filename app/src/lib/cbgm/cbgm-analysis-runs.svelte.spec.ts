@@ -1,4 +1,4 @@
-import { beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 import { notificationCenter } from '$lib/shell/notification-center.svelte';
 import type { CbgmAnalysisMetadata } from '$lib/storage/formats';
@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
 	completeCbgmCoherence: vi.fn(),
 	failCbgmCoherence: vi.fn(),
 	readCbgmAnalysisCache: vi.fn(),
+	readCbgmAnalysisInputTei: vi.fn(),
 	setCbgmGlobalStemmaState: vi.fn(),
 	writeEditingPresence: vi.fn(),
 }));
@@ -22,12 +23,16 @@ vi.mock('$lib/db/client', () => ({
 	failCbgmGlobalStemma: vi.fn(),
 	loadCbgmCollationSnapshots: vi.fn(),
 	readCbgmAnalysisCache: mocks.readCbgmAnalysisCache,
-	readCbgmAnalysisInputTei: vi.fn(),
+	readCbgmAnalysisInputTei: mocks.readCbgmAnalysisInputTei,
 	setCbgmGlobalStemmaState: mocks.setCbgmGlobalStemmaState,
 	writeEditingPresence: mocks.writeEditingPresence,
 }));
 
-import { persistCbgmComputations, startGlobalStemma } from './cbgm-analysis-runs';
+import {
+	importNativeResults,
+	persistCbgmComputations,
+	startGlobalStemma,
+} from './cbgm-analysis-runs';
 
 const analysis = {
 	id: 'analysis-1',
@@ -148,3 +153,50 @@ it('publishes editing presence when the global stemma is enqueued and clears it 
 	expect(mocks.clearEditingPresence).toHaveBeenCalledWith('project-1', 'analysis-1');
 	expect(mocks.writeEditingPresence).toHaveBeenCalledTimes(1);
 });
+
+afterEach(() => vi.unstubAllGlobals());
+
+it.each([null, 'digraph G { A -> B; }'])(
+	'replaces unfinished global-stemma work with native results (%s)',
+	async dot => {
+		vi.stubGlobal(
+			'Worker',
+			class {
+				onmessage: ((event: { data: { ok: boolean; result: null } }) => void) | null = null;
+				postMessage() {
+					queueMicrotask(() => this.onmessage?.({ data: { ok: true, result: null } }));
+				}
+				terminate() {}
+			}
+		);
+		mocks.readCbgmAnalysisInputTei.mockResolvedValue('<TEI/>');
+		const cache = new Uint8Array([1, 2]);
+		const cancel = vi.fn(async () => undefined);
+		await importNativeResults(
+			{ ...analysis, coherence: 'ready', global_stemma: 'computing' },
+			{ cache, globalStemmaDot: dot },
+			{ cancel }
+		);
+		expect(cancel).toHaveBeenCalledWith(analysis.id);
+		expect(mocks.completeCbgmCoherence).toHaveBeenCalledWith(
+			analysis.project_id,
+			analysis.id,
+			cache
+		);
+		if (dot === null)
+			expect(mocks.setCbgmGlobalStemmaState).toHaveBeenCalledWith(
+				analysis.project_id,
+				analysis.id,
+				'none'
+			);
+		else
+			expect(mocks.setCbgmGlobalStemmaState).toHaveBeenCalledWith(
+				analysis.project_id,
+				analysis.id,
+				'imported-dot',
+				undefined,
+				dot
+			);
+		expect(mocks.clearEditingPresence).toHaveBeenCalledWith(analysis.project_id, analysis.id);
+	}
+);

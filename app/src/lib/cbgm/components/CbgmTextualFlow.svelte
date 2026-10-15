@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onDestroy } from 'svelte';
 	import type { CbgmQueries, CbgmUnit } from '$lib/cbgm/cbgm-queries';
 	import { resultFileStem } from '$lib/cbgm/cbgm-query-tables';
 	import type { TextualFlowKind } from '$lib/cbgm/cbgm-worker-types';
@@ -20,6 +21,10 @@
 	let connectivityLimit = $state<number | null>(null);
 	let strengths = $state(false);
 	let running = $state(false);
+	let runId = 0;
+	onDestroy(() => {
+		runId += 1;
+	});
 	let error = $state<string | null>(null);
 	let graphs = $state.raw<FlowGraph[] | null>(null);
 	let shownGraph = $state(0);
@@ -33,9 +38,22 @@
 	);
 	const graph = $derived(graphs?.[shownGraph]);
 
+	function resetUnit() {
+		runId += 1;
+		running = false;
+		error = null;
+		kind = 'flow';
+		connectivityLimit = null;
+		strengths = false;
+		graphs = null;
+		shownGraph = 0;
+	}
+
 	async function run(event: SubmitEvent) {
 		event.preventDefault();
 		if (!unit || limitProblem || running) return;
+		const id = ++runId;
+		const source = queries;
 		running = true;
 		error = null;
 		const chosenKind = kind;
@@ -44,12 +62,14 @@
 				connectivityLimit: connectivityLimit ?? undefined,
 				strengths,
 			});
+			if (id !== runId || source !== queries) return;
 			graphs = graphsFor(unit, chosenKind, dot);
 			shownGraph = 0;
 		} catch (err) {
+			if (id !== runId || source !== queries) return;
 			error = err instanceof Error ? err.message : 'Drawing the textual flow failed.';
 		} finally {
-			running = false;
+			if (id === runId && source === queries) running = false;
 		}
 	}
 
@@ -85,7 +105,11 @@
 		>
 			<label class="block min-w-0 space-y-1">
 				<span class="text-sm font-medium">Variation unit</span>
-				<select class="select select-bordered w-full" bind:value={unitId}>
+				<select
+					class="select select-bordered w-full"
+					bind:value={unitId}
+					onchange={resetUnit}
+				>
 					<option value="" disabled>Choose a unit</option>
 					{#each queries.units as option (option.id)}
 						<option value={option.id}>{option.label}</option>

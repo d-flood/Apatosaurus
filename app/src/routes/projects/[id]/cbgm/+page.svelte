@@ -216,13 +216,12 @@
 		}
 	}
 
-	function isComputing(row: AnalysisListRow): boolean {
+	function isComputing(row: Pick<AnalysisListRow, 'coherence' | 'global_stemma'>): boolean {
 		return row.coherence === 'computing' || row.global_stemma === 'computing';
 	}
 
-	function inputCounts(row: AnalysisListRow): string {
-		const collations = (JSON.parse(row.collation_ids) as string[]).length;
-		return `${countLabel(collations, 'collation')} · ${countLabel(row.witness_count, 'witness', 'witnesses')}`;
+	function inputCounts(analysis: CbgmAnalysisMetadata): string {
+		return `${countLabel(analysis.collations.length, 'collation')} · ${countLabel(analysis.witnesses.length, 'witness', 'witnesses')}`;
 	}
 
 	function errorMessage(err: unknown, fallback: string): string {
@@ -266,32 +265,40 @@
 							href={resolve('/cbgm/[analysisId]', { analysisId: row.id })}
 							class="link link-hover break-words font-serif font-medium"
 						>
-							{row.name}
+							{analysis?.name ?? 'Unavailable analysis'}
 						</a>
-						<div class="text-xs text-base-content/55">
-							Frozen {formatAnalysisTime(row.inputs_frozen_at)} · Completed {formatAnalysisTime(
-								row.completed_at
-							)}
-						</div>
-						<div class="text-xs text-base-content/55">
-							{inputCounts(row)}
-						</div>
-						<CbgmComputationProgress analysisId={row.id} />
+						{#if analysis}
+							<div class="text-xs text-base-content/55">
+								Frozen {formatAnalysisTime(analysis.inputs_frozen_at)} · Completed {formatAnalysisTime(
+									analysis.completed_at
+								)}
+							</div>
+							<div class="text-xs text-base-content/55">
+								{inputCounts(analysis)}
+							</div>
+							<CbgmComputationProgress analysisId={row.id} />
+						{:else}
+							<p class="text-sm text-error">
+								Analysis metadata is missing or unreadable.
+							</p>
+						{/if}
 						{#if analysis && status}
 							<CbgmStalenessNote {analysis} {status} />
 						{/if}
 					</div>
 					<div class="flex shrink-0 flex-wrap items-center gap-1.5 sm:justify-end">
-						<span class="badge badge-sm {coherenceBadge(row.coherence)}">
-							{coherenceLabel(row.coherence)}
-						</span>
-						<span class="badge badge-sm badge-ghost"
-							>{globalStemmaLabel(row.global_stemma)}</span
-						>
-						{#if isComputing(row) && analysis?.computing_device}
-							<span class="text-xs text-base-content/60">
-								by {analysis.computing_device.author_name}
+						{#if analysis}
+							<span class="badge badge-sm {coherenceBadge(analysis.coherence)}">
+								{coherenceLabel(analysis.coherence)}
 							</span>
+							<span class="badge badge-sm badge-ghost"
+								>{globalStemmaLabel(analysis.global_stemma)}</span
+							>
+							{#if isComputing(analysis) && analysis.computing_device}
+								<span class="text-xs text-base-content/60">
+									by {analysis.computing_device.author_name}
+								</span>
+							{/if}
 						{/if}
 						<div class="flex w-full flex-wrap gap-1 sm:justify-end">
 							<button
@@ -305,7 +312,11 @@
 							<button
 								type="button"
 								class="btn btn-ghost btn-xs text-error"
-								onclick={() => askDelete(row)}
+								onclick={() =>
+									askDelete({
+										...row,
+										name: analysis?.name ?? 'Unavailable analysis',
+									})}
 							>
 								Delete
 							</button>

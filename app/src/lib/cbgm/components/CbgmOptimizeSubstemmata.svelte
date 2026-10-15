@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onDestroy } from 'svelte';
 	import type { CbgmQueries, OptimizeSubstemmataResult } from '$lib/cbgm/cbgm-queries';
 	import { resultFileStem, substemmataColumns, toCsv } from '$lib/cbgm/cbgm-query-tables';
 	import CbgmResultDownloads from './CbgmResultDownloads.svelte';
@@ -13,6 +14,10 @@
 	let witness = $state('');
 	let maxCost = $state<number | null>(null);
 	let running = $state(false);
+	let runId = 0;
+	onDestroy(() => {
+		runId += 1;
+	});
 	let error = $state<string | null>(null);
 	let result = $state.raw<OptimizeSubstemmataResult | null>(null);
 
@@ -23,14 +28,18 @@
 	async function run(event: SubmitEvent) {
 		event.preventDefault();
 		if (!witness || maxCostProblem || running) return;
+		const id = ++runId;
+		const source = queries;
 		running = true;
 		error = null;
 		try {
-			result = await queries.optimizeSubstemmata(witness, maxCost ?? undefined);
+			const next = await queries.optimizeSubstemmata(witness, maxCost ?? undefined);
+			if (id === runId && source === queries) result = next;
 		} catch (err) {
+			if (id !== runId || source !== queries) return;
 			error = err instanceof Error ? err.message : 'Optimizing substemmata failed.';
 		} finally {
-			running = false;
+			if (id === runId && source === queries) running = false;
 		}
 	}
 </script>

@@ -80,7 +80,7 @@ it('disables Start while units block the analysis', async () => {
 	await expect.element(start).toBeDisabled();
 	await expect
 		.element(page.getByRole('link', { name: 'Rom 2/3' }))
-		.toHaveAttribute('href', '/collation/rom-2/readings');
+		.toHaveAttribute('href', '/collation/rom-2/readings?unit=unit-3');
 
 	await page.getByRole('checkbox', { name: 'rom-2' }).click();
 	await expect.element(page.getByRole('link', { name: 'Rom 2/3' })).not.toBeInTheDocument();
