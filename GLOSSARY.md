@@ -55,7 +55,7 @@ Project-owned configuration for how collation interprets the project's witnesses
 The project-scoped list of transcriptions a scholar works from — open, create, delete. Carries no collation configuration.
 
 **Variation unit**:
-A place within a collation segment where the witnesses differ, and the scope everything editorial hangs from — its readings, its local stemma, its connectivity. Identified by the alignment column it covers, never by its position among the units: reshaping the alignment elsewhere must not change which unit a scholar's decision belongs to. A unit whose column is gone does not move; it orphans.
+A place within a collation segment where the witnesses differ, and the scope everything editorial hangs from — its readings, its local stemma, its connectivity. Identified by the first and last alignment columns it covers, never by its position among the units: reshaping the alignment elsewhere must not change which unit a scholar's decision belongs to. Units may overlap. A unit whose columns are gone does not move; it orphans.
 _Avoid_: Variant unit, unit (unqualified), alignment column (the column is the mechanism, the unit is the concept)
 
 **Main reading**:
@@ -102,9 +102,21 @@ _Avoid_: Coherence value, connection strength
 An evidential qualifier on a reading, standing on its own without reference to any other reading — that it is an omission, is too damaged to identify, is only apparently this text, or is not meaningful Greek. Exists so that later analysis can cite honestly and filter readings out. Never holds a claim about how one reading relates to another. Each has a one-letter suffix that labels subreadings of that type.
 _Avoid_: Reading classification, reading category
 
+**Reading tag**:
+A descriptive marker a scholar puts on a reading, such as nomen sacrum, that never changes how the reading is labelled, cited, or counted. A reading may carry several; the project keeps the tags it has seen.
+_Avoid_: Label (`a`, `ao` are labels), flag, category
+
 **Non-attestation**:
 The witnesses that do not testify at a variation unit because their text is damaged, lost, or illegible. Not a reading: it takes no letter, holds no subreadings, and never appears in a local stemma.
 _Avoid_: Lacuna reading, gap reading, empty reading
+
+**Uncited**:
+A witness's recorded absence from a variation unit for a reason other than damage, such as a language that cannot express the difference. Not a reading and not non-attestation.
+_Avoid_: Silent, skipped, not applicable
+
+**Overlapped**:
+A witness's testimony at a variation unit when its reading belongs to an overlapping unit instead — typically a long omission spanning several smaller units. Not a reading; coherence treats the witness as not attesting there.
+_Avoid_: Overlap reading, lacuna, covered
 
 **Ambiguous attestation**:
 A witness's testimony at a variation unit that is compatible with two or more named readings and cannot be decided between them (cited `zw a/b`). Not a reading: it takes no letter, holds no subreadings, and never appears in a local stemma. Coherence always treats the witness as not attesting there.
@@ -117,6 +129,26 @@ _Avoid_: Blank reading, null reading
 **Untranscribed witness**:
 A witness whose transcription does not yet cover a variation unit. A fact about project progress, never reported as non-attestation, because that would assert damage to the manuscript that may not exist.
 _Avoid_: Missing witness, lacunose witness
+
+**Manual witness**:
+A witness whose readings the scholar assigns and maintains by hand at each variation unit, rather than one derived from a transcription — typically a version, a father, or a manuscript known only from a printed apparatus. Once entered, it is known to the project and offered wherever a witness can be chosen.
+_Avoid_: Uncollated witness, hand-entered witness (a hand is a scribe), versional witness, untranscribed witness
+
+**Witness treatment**:
+Whether a witness is expected to testify at every variation unit (full) or only where its testimony is recorded (fragmentary). Set for the project and overridable per collation.
+_Avoid_: Witness mode, coverage
+
+**Placement**:
+Fitting a new or changed witness into a collation's existing alignment, leaving every other witness's columns as the scholar left them.
+_Avoid_: Incremental collation, slotting in
+
+**Re-alignment**:
+Collating every witness of a collation afresh, keeping each variation unit whose column can still be recognised.
+_Avoid_: Recollation, reset
+
+**Unconfirmed attestation**:
+A witness's testimony at a variation unit that the app assigned on the scholar's behalf and no scholar has yet looked at.
+_Avoid_: Provisional attestation, auto-assigned reading
 
 **Arc**:
 The genealogical relation between two readings at a variation unit: an editorial hypothesis that one reading gave rise to another. Runs from a prior reading to a posterior reading.
