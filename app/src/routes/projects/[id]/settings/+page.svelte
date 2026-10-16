@@ -333,17 +333,12 @@
 		}
 	}
 
-	async function setManualTreatment(id: string, treatment: WitnessTreatment) {
+	async function updateManualWitness(
+		id: string,
+		updates: Partial<Pick<ManualWitnessDefinition, 'treatment' | 'includeInCbgm'>>
+	) {
 		const next = manualWitnesses.map(witness =>
-			witness.id === id ? { ...witness, treatment } : witness
-		);
-		await persistProjectSettings({ manualWitnesses: next });
-		if (!error) manualWitnesses = next;
-	}
-
-	async function setManualCbgmDefault(id: string, includeInCbgm: boolean) {
-		const next = manualWitnesses.map(witness =>
-			witness.id === id ? { ...witness, includeInCbgm } : witness
+			witness.id === id ? { ...witness, ...updates } : witness
 		);
 		await persistProjectSettings({ manualWitnesses: next });
 		if (!error) manualWitnesses = next;
@@ -714,7 +709,9 @@
 				value={witness.treatment}
 				disabled={isSavingSettings}
 				onchange={event =>
-					setManualTreatment(witness.id, event.currentTarget.value as WitnessTreatment)}
+					updateManualWitness(witness.id, {
+						treatment: event.currentTarget.value as WitnessTreatment,
+					})}
 			>
 				<option value="full">Full</option><option value="fragmentary">Fragmentary</option>
 			</select>
@@ -726,7 +723,9 @@
 					checked={witness.includeInCbgm}
 					disabled={isSavingSettings}
 					onchange={event =>
-						setManualCbgmDefault(witness.id, event.currentTarget.checked)}
+						updateManualWitness(witness.id, {
+							includeInCbgm: event.currentTarget.checked,
+						})}
 				/>
 				Include in CBGM by default
 			</label>

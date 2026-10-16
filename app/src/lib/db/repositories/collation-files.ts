@@ -42,8 +42,7 @@ import {
 } from '$lib/collation/collation-document';
 import { exportCollationDocumentTei } from '$lib/collation/collation-tei';
 import { parseProjectCollationSettings } from '$lib/collation/project-settings';
-import type { ManualWitnessDefinition } from '$lib/collation/collation-types';
-import type { ReadingTypeDefinition } from '$lib/collation/reading-types';
+import type { ProjectCollationSettings } from '$lib/collation/collation-types';
 import { buildCollationProjectionFromDocument } from '$lib/collation/collation-projection';
 import { hashCanonicalPayload } from '$lib/storage/canonical-json';
 import { deriveEntityCloudBackupState } from '$lib/backup/backup-status';
@@ -83,9 +82,7 @@ interface CollationFileContext {
 	collationId: string;
 	projectId: string;
 	projectStorageSlug: string;
-	projectReadingTypes: ReadingTypeDefinition[];
-	projectReadingTags: Array<{ id: string; label: string }>;
-	projectManualWitnesses: ManualWitnessDefinition[];
+	projectSettings: ProjectCollationSettings;
 	currentRevisionId: string | null;
 	currentContentHash: string | null;
 	conflictOfCollationId: string;
@@ -580,11 +577,7 @@ async function loadCollationFileContext(
 		collationId,
 		projectId: requireString(row.project_id, 'project id'),
 		projectStorageSlug: requireString(row.project_storage_slug, 'project storage slug'),
-		projectReadingTypes:
-			parseProjectCollationSettings(row.collation_settings).readingTypes ?? [],
-		projectReadingTags: parseProjectCollationSettings(row.collation_settings).readingTags ?? [],
-		projectManualWitnesses:
-			parseProjectCollationSettings(row.collation_settings).manualWitnesses ?? [],
+		projectSettings: parseProjectCollationSettings(row.collation_settings),
 		currentRevisionId: emptyToNull(row.current_revision_id),
 		currentContentHash: emptyToNull(row.current_content_hash),
 		conflictOfCollationId: row.conflict_of_collation_id,
@@ -621,23 +614,12 @@ async function writeDerivedCollationTei(
 	payload: CollationPayload,
 	storeOptions: StoreOperationOptions
 ): Promise<PersistenceWarning | null> {
-	const {
-		projectStorageSlug,
-		collationId,
-		projectReadingTypes,
-		projectReadingTags,
-		projectManualWitnesses,
-	} = context;
+	const { projectStorageSlug, collationId, projectSettings } = context;
 	const path = collationTeiFile(projectStorageSlug, collationId);
 	try {
 		await writeTextFileAtomic(
 			path,
-			exportCollationDocumentTei(
-				payload.document,
-				projectReadingTypes,
-				projectReadingTags,
-				projectManualWitnesses
-			),
+			exportCollationDocumentTei(payload.document, projectSettings),
 			storeOptions
 		);
 		return null;

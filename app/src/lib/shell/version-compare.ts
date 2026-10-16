@@ -248,7 +248,9 @@ function unitLabel(unit: CollationUnitPart): string {
 function collationSections(document: ComparableCollation | null): Section[] {
 	if (!document) return [];
 	const serializedColumns = document.alignment?.columns ?? [];
-	const columns = new Map(serializedColumns.map(({ id, index: _, ...column }) => [id, column]));
+	const columns = new Map(
+		serializedColumns.map(({ id, index: _, ...column }) => [variationUnitId(id), column])
+	);
 	const apparatus = new Map(document.apparatus?.units.map(unit => [unit.unitId, unit]) ?? []);
 	const stemma = new Map(document.stemma?.units.map(unit => [unit.unitId, unit]) ?? []);
 	const spans = buildVariationUnitSpans(
@@ -261,9 +263,7 @@ function collationSections(document: ComparableCollation | null): Section[] {
 		...unitIds.map(unitId => {
 			const span = spans.find(span => span.unitId === unitId);
 			const declaration = document.alignment?.declaredUnits?.find(
-				unit =>
-					unit.firstColumnId === span?.columnIds[0] &&
-					unit.lastColumnId === span?.columnIds.at(-1)
+				unit => variationUnitId(unit.firstColumnId, unit.lastColumnId) === span?.unitId
 			);
 			const value: CollationUnitPart = {
 				...(declaration ? { declaration } : {}),
@@ -274,7 +274,7 @@ function collationSections(document: ComparableCollation | null): Section[] {
 								.map(({ id: _, index: _index, ...column }) => column),
 						}
 					: {}),
-				column: columns.get(span?.columnIds[0] ?? unitId.slice('unit:'.length)) ?? null,
+				column: columns.get(span ? variationUnitId(span.columnIds[0]) : unitId) ?? null,
 				apparatus: apparatus.get(unitId) ?? null,
 				stemma: stemma.get(unitId) ?? null,
 			};
@@ -330,19 +330,18 @@ export function mergeCollations(
 				right.alignment?.declaredUnits
 			).find(span => span.unitId === key);
 			const declared = (alignment.declaredUnits ?? []).filter(
-				unit =>
-					(unit.firstColumnId === unit.lastColumnId
-						? variationUnitId(unit.firstColumnId)
-						: `unit:${unit.firstColumnId}..${unit.lastColumnId}`) !== key
+				unit => variationUnitId(unit.firstColumnId, unit.lastColumnId) !== key
 			);
 			const rightDeclaration = right.alignment?.declaredUnits?.find(
-				unit =>
-					unit.firstColumnId === rightSpan?.columnIds[0] &&
-					unit.lastColumnId === rightSpan?.columnIds.at(-1)
+				unit => variationUnitId(unit.firstColumnId, unit.lastColumnId) === rightSpan?.unitId
 			);
 			if (rightDeclaration) declared.push(structuredClone(rightDeclaration));
 			const columnIds =
-				rightSpan?.columnIds ?? (key.includes('..') ? [] : [key.slice('unit:'.length)]);
+				rightSpan?.columnIds ??
+				[...alignment.columns, ...(right.alignment?.columns ?? [])]
+					.filter(column => variationUnitId(column.id) === key)
+					.map(column => column.id)
+					.slice(0, 1);
 			const columns = columnIds.reduce(
 				(columns, id) =>
 					spliceByKey(columns, right.alignment?.columns ?? [], column => column.id, id),

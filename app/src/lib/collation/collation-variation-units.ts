@@ -655,10 +655,7 @@ export function buildVariationUnitSpans(
 			const startIndex = indices.get(firstColumnId)!;
 			const endIndex = indices.get(lastColumnId)!;
 			return {
-				unitId:
-					firstColumnId === lastColumnId
-						? variationUnitId(firstColumnId)
-						: `unit:${firstColumnId}..${lastColumnId}`,
+				unitId: variationUnitId(firstColumnId, lastColumnId),
 				startIndex,
 				endIndex,
 				columnIds: columns.slice(startIndex, endIndex + 1).map(column => column.id),

@@ -3627,7 +3627,7 @@ describe('collationState witness placement', () => {
 			'Version',
 		]);
 		expect(
-			buildApparatusTeiExportInput(saved, [], [], manual)
+			buildApparatusTeiExportInput(saved, { manualWitnesses: manual })
 				.units.get('unit:column-1')!
 				.view.readings.find(reading => reading.id === authoredId)?.manualWitnessIds
 		).toEqual([manual[1].id]);
@@ -3720,7 +3720,9 @@ describe('collationState witness placement', () => {
 				.readings.every(reading => reading.manualWitnessIds?.length === 0)
 		).toBe(true);
 		const exported = exportApparatusTei(
-			buildApparatusTeiExportInput(document(), [], [], collationState.getManualWitnesses())
+			buildApparatusTeiExportInput(document(), {
+				manualWitnesses: collationState.getManualWitnesses(),
+			})
 		);
 		expect(exported).toContain('n="Syriac"');
 		expect(exported).toContain('type="om"');

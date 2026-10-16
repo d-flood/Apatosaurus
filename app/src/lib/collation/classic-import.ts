@@ -10,6 +10,7 @@ import {
 	type UnitDecisions,
 } from './collation-decisions';
 import { buildReadingProposal } from './collation-reading-proposal';
+import { variationUnitId } from './collation-unit-id';
 import { buildVariationUnitSpans } from './collation-variation-units';
 import { extractWitnessTokensForVerse, type PreparedWitness } from './collation-runner';
 import { deriveCollationInput } from './regularization';
@@ -365,8 +366,7 @@ export function buildClassicCollationDocument(input: {
 		const declaration = declaredUnits[index];
 		const span = spans.find(
 			span =>
-				span.columnIds[0] === declaration.firstColumnId &&
-				span.columnIds.at(-1) === declaration.lastColumnId
+				span.unitId === variationUnitId(declaration.firstColumnId, declaration.lastColumnId)
 		)!;
 		const proposal = buildReadingProposal({
 			columns: columns.slice(span.startIndex, span.endIndex + 1),

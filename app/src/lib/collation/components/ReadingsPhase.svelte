@@ -38,15 +38,13 @@
 	let manualWitnesses = $derived(collationState.getManualWitnesses());
 	let manualMembers = $derived(collationState.getManualWitnessMembers());
 	function manualState(id: string): string {
-		if (manualView.unrecordedManualWitnessIds.includes(id)) return 'Nothing recorded';
-		if (manualView.uncitedManualWitnessIds.includes(id)) return 'Uncited';
-		if (manualView.nonAttestingManualWitnessIds.includes(id))
-			return 'Non-attestation (damaged)';
+		if (unitView.unrecordedManualWitnessIds.includes(id)) return 'Nothing recorded';
+		if (unitView.uncitedManualWitnessIds.includes(id)) return 'Uncited';
+		if (unitView.nonAttestingManualWitnessIds.includes(id)) return 'Non-attestation (damaged)';
 		return (
-			manualView.ambiguousAttestations.find(attestation =>
-				attestation.witnessIds.includes(id)
-			)?.label ??
-			manualView.readings.find(reading => reading.manualWitnessIds?.includes(id))?.label ??
+			unitView.ambiguousAttestations.find(attestation => attestation.witnessIds.includes(id))
+				?.label ??
+			unitView.readings.find(reading => reading.manualWitnessIds?.includes(id))?.label ??
 			'Nothing recorded'
 		);
 	}
@@ -77,7 +75,7 @@
 		spans.find(span => span.unitId === collationState.selectedUnitId) ?? spans[0] ?? null
 	);
 	let unitId = $derived(selectedSpan?.unitId ?? '');
-	let manualView = $derived(collationState.peekUnitView(unitId));
+	let unitView = $derived(collationState.peekUnitView(unitId));
 
 	const expandedWitnesses = $derived.by(() => {
 		unitId;
@@ -164,35 +162,14 @@
 	let needsLemmaDecision = $derived(
 		!unitId ? false : collationState.unitNeedsLemmaDecision(unitId)
 	);
-	let ambiguousAttestations = $derived(
-		!unitId ? [] : collationState.peekUnitView(unitId).ambiguousAttestations
-	);
-	let unconfirmedWitnessIds = $derived(
-		!unitId ? [] : collationState.peekUnitView(unitId).unconfirmedWitnessIds
-	);
-	let unresolvedAttestations = $derived(
-		!unitId ? [] : collationState.peekUnitView(unitId).unresolvedAttestations
-	);
+	let ambiguousAttestations = $derived(unitView.ambiguousAttestations);
+	let unconfirmedWitnessIds = $derived(unitView.unconfirmedWitnessIds);
+	let unresolvedAttestations = $derived(unitView.unresolvedAttestations);
 
-	let overlapView = $derived(collationState.peekUnitView(unitId));
 	let spanningReadingIds = $derived(
 		collationState.unitDecisions.get(unitId)?.spanningReadingIds ?? []
 	);
-	let canSpan = $derived(
-		Boolean(
-			selectedSpan &&
-			spans.some(
-				other =>
-					other.unitId !== unitId &&
-					other.startIndex <= selectedSpan.endIndex &&
-					other.endIndex >= selectedSpan.startIndex &&
-					!(
-						other.startIndex <= selectedSpan.startIndex &&
-						other.endIndex >= selectedSpan.endIndex
-					)
-			)
-		)
-	);
+	let canSpan = $derived(collationState.canMarkSpanning(unitId));
 
 	function confirmAttestations() {
 		collationState.confirmUnitAttestations(unitId);
@@ -255,29 +232,26 @@
 		return collationState.getDisplayedWitnessIdsForReading(unitId, reading.id, displayMode);
 	}
 
+	function isManualWitness(id: string): boolean {
+		return manualWitnesses.some(witness => witness.id === id);
+	}
+
 	function displayedManualWitnessIds(reading: ClassifiedReading): string[] {
-		return getDisplayedWitnessIds(reading).filter(id =>
-			manualWitnesses.some(witness => witness.id === id)
-		);
+		return getDisplayedWitnessIds(reading).filter(isManualWitness);
+	}
+
+	function displayedTranscribedWitnessIds(reading: ClassifiedReading): string[] {
+		return getDisplayedWitnessIds(reading).filter(id => !isManualWitness(id));
 	}
 
 	function visibleWitnessesOf(reading: ClassifiedReading): { id: string; siglum: string }[] {
-		const sorted = getSortedWitnesses(
-			getDisplayedWitnessIds(reading).filter(
-				id => !manualWitnesses.some(witness => witness.id === id)
-			)
-		);
+		const sorted = getSortedWitnesses(displayedTranscribedWitnessIds(reading));
 		return expandedWitnesses.has(reading.id) ? sorted : sorted.slice(0, WITNESS_DISPLAY_LIMIT);
 	}
 
 	function hiddenWitnessCount(reading: ClassifiedReading): number {
 		if (expandedWitnesses.has(reading.id)) return 0;
-		return Math.max(
-			0,
-			getDisplayedWitnessIds(reading).filter(
-				id => !manualWitnesses.some(witness => witness.id === id)
-			).length - WITNESS_DISPLAY_LIMIT
-		);
+		return Math.max(0, displayedTranscribedWitnessIds(reading).length - WITNESS_DISPLAY_LIMIT);
 	}
 
 	/** Flat chip order keeps one tabstop and lets ranges span cards. */
@@ -314,9 +288,7 @@
 			.map(reading => reading.id)
 	);
 	let selectionCount = $derived(selectedWitnessIdsInOrder.length);
-	let hasManualSelection = $derived(
-		selectedWitnessIdsInOrder.some(id => manualWitnesses.some(witness => witness.id === id))
-	);
+	let hasManualSelection = $derived(selectedWitnessIdsInOrder.some(isManualWitness));
 
 	let mergeDiscards = $derived.by(() => {
 		const sources = readings.filter(
@@ -572,7 +544,7 @@
 
 	let apparatusNotation = $derived.by(() => {
 		if (!selectedSpan || !selectedUnitSegment) return '';
-		return renderApparatusUnit(collationState.peekUnitView(selectedSpan.unitId), {
+		return renderApparatusUnit(unitView, {
 			label: selectedUnitSegment.label,
 			siglumOf: getWitnessSiglum,
 			nonAttestation,
@@ -893,7 +865,7 @@
 								'nonAttestation'
 							)}>Non-attestation</button
 					>
-					{#if manualView.readings.some( reading => reading.manualWitnessIds?.includes(witness.id) )}
+					{#if unitView.readings.some( reading => reading.manualWitnessIds?.includes(witness.id) )}
 						<button
 							type="button"
 							class="btn btn-xs"
@@ -924,16 +896,16 @@
 		</section>
 	{/if}
 
-	{#if overlapView.overlappedWitnessIds.length > 0}
+	{#if unitView.overlappedWitnessIds.length > 0}
 		<section
 			class="space-y-2 rounded-xl border border-base-300 px-3 py-3 text-sm"
 			aria-label="Overlapped witnesses"
 		>
 			<h3 class="font-semibold">Overlapped</h3>
-			{#each overlapView.overlappedWitnessIds as witnessId (witnessId)}
+			{#each unitView.overlappedWitnessIds as witnessId (witnessId)}
 				<div class="flex flex-wrap items-center gap-2">
 					<span>{siglaOf([witnessId])}</span>
-					{#each overlapView.overlapTargets[witnessId] ?? [] as target (`${target.unitId}:${target.readingId}`)}
+					{#each unitView.overlapTargets[witnessId] ?? [] as target (`${target.unitId}:${target.readingId}`)}
 						<button
 							type="button"
 							class="link"
@@ -945,13 +917,13 @@
 			{/each}
 		</section>
 	{/if}
-	{#if overlapView.unresolvedOverlapWitnessIds.length > 0}
+	{#if unitView.unresolvedOverlapWitnessIds.length > 0}
 		<section
 			class="space-y-3 rounded-xl border border-warning/40 bg-warning/10 px-3 py-3"
 			aria-label="Unresolved overlaps"
 		>
 			<h3 class="text-sm font-semibold">Resolve overlapping testimony</h3>
-			{#each overlapView.unresolvedOverlapWitnessIds as witnessId (witnessId)}
+			{#each unitView.unresolvedOverlapWitnessIds as witnessId (witnessId)}
 				<div class="min-w-0 space-y-2">
 					<p class="text-sm">
 						{siglaOf([witnessId])} is held out where a spanning reading partly covers this

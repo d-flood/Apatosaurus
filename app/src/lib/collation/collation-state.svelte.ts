@@ -204,6 +204,25 @@ function coerceRegularizationType(value: unknown): RegularizationType {
 	return value === 'ns' ? 'ns' : 'none';
 }
 
+function withoutEmptyColumns(columns: AlignmentColumn[]): AlignmentColumn[] {
+	return columns
+		.filter(column =>
+			[...column.cells.values()].some(
+				cell => cell.sourceTokenIds.length > 0 || cell.kind === 'text'
+			)
+		)
+		.map((column, index) => ({ ...column, index }));
+}
+
+function removeAmbiguousWitness(decisions: UnitDecisions, witnessId: string) {
+	decisions.ambiguousAttestations = decisions.ambiguousAttestations
+		?.map(attestation => ({
+			...attestation,
+			witnessIds: attestation.witnessIds.filter(id => id !== witnessId),
+		}))
+		.filter(attestation => attestation.witnessIds.length > 0);
+}
+
 function createCollationState() {
 	let phase = $state<CollationPhase>('setup');
 	let furthestPhase = $state<CollationPhase>('setup');
@@ -1322,17 +1341,12 @@ function createCollationState() {
 			previousActive.map(witness => witness.witnessId).filter(id => !activeIds.has(id))
 		);
 		if (removedIds.size > 0) {
-			alignmentColumns = alignmentColumns
-				.map(column => ({
+			alignmentColumns = withoutEmptyColumns(
+				alignmentColumns.map(column => ({
 					...column,
 					cells: new Map([...column.cells].filter(([id]) => !removedIds.has(id))),
 				}))
-				.filter(column =>
-					[...column.cells.values()].some(
-						cell => cell.sourceTokenIds.length > 0 || cell.kind === 'text'
-					)
-				)
-				.map((column, index) => ({ ...column, index }));
+			);
 			classifiedReadings = new Map(
 				[...classifiedReadings].map(([key, readings]) => [
 					key,
@@ -1507,13 +1521,7 @@ function createCollationState() {
 			const placed = placeWitnessRow(alignmentColumns, input, {
 				witnessOrder: [...activeIds],
 			});
-			alignmentColumns = placed.columns
-				.filter(column =>
-					[...column.cells.values()].some(
-						cell => cell.sourceTokenIds.length > 0 || cell.kind === 'text'
-					)
-				)
-				.map((column, index) => ({ ...column, index }));
+			alignmentColumns = withoutEmptyColumns(placed.columns);
 			presentInputs.set(witnessId, input);
 			activeIds.add(witnessId);
 			witnessOrder = [...activeIds];
@@ -1877,12 +1885,9 @@ function createCollationState() {
 	}
 
 	function removeDeclaredUnit(unitId: string) {
-		const span = getVariationUnitSpans().find(span => span.unitId === unitId);
-		if (!span) return;
+		if (!getVariationUnitSpans().some(span => span.unitId === unitId)) return;
 		const next = declaredUnits.filter(
-			unit =>
-				unit.firstColumnId !== span.columnIds[0] ||
-				unit.lastColumnId !== span.columnIds.at(-1)
+			unit => variationUnitId(unit.firstColumnId, unit.lastColumnId) !== unitId
 		);
 		if (next.length !== declaredUnits.length)
 			setDeclaredUnitsWithUndo(next, 'Remove unit declaration');
@@ -2227,21 +2232,27 @@ function createCollationState() {
 		return applyOverlapDecisions(view, unitDecisions.get(key) ?? {}, span, sources);
 	}
 
-	function setReadingSpanning(unitId: string, readingId: string, spanning: boolean): boolean {
+	function canMarkSpanning(unitId: string): boolean {
 		const span = getVariationUnitSpan(unitId);
-		if (!span || !peekReadingsForUnit(unitId).some(reading => reading.id === readingId))
-			return false;
-		if (
-			spanning &&
-			!getVariationUnitSpans().some(
+		return Boolean(
+			span &&
+			getVariationUnitSpans().some(
 				other =>
 					other.unitId !== unitId &&
 					other.startIndex <= span.endIndex &&
 					other.endIndex >= span.startIndex &&
 					!(other.startIndex <= span.startIndex && other.endIndex >= span.endIndex)
 			)
+		);
+	}
+
+	function setReadingSpanning(unitId: string, readingId: string, spanning: boolean): boolean {
+		if (
+			!getVariationUnitSpan(unitId) ||
+			!peekReadingsForUnit(unitId).some(reading => reading.id === readingId)
 		)
 			return false;
+		if (spanning && !canMarkSpanning(unitId)) return false;
 		const next = cloneUnitDecisions(unitDecisions.get(unitId));
 		next.spanningReadingIds = [
 			...new Set([
@@ -2249,11 +2260,10 @@ function createCollationState() {
 				...(spanning ? [readingId] : []),
 			]),
 		];
-		commitManualDecisions(
-			unitId,
-			next,
-			spanning ? 'Mark spanning reading' : 'Unmark spanning reading'
-		);
+		commitUnitDecisions(unitId, next, {
+			type: 'set-spanning-reading',
+			description: spanning ? 'Mark spanning reading' : 'Unmark spanning reading',
+		});
 		return true;
 	}
 
@@ -2271,7 +2281,10 @@ function createCollationState() {
 			return false;
 		const next = cloneUnitDecisions(unitDecisions.get(unitId));
 		next.overlapResolutions = { ...next.overlapResolutions, [witnessId]: resolution };
-		commitManualDecisions(unitId, next, 'Resolve overlapping testimony');
+		commitUnitDecisions(unitId, next, {
+			type: 'resolve-overlap',
+			description: 'Resolve overlapping testimony',
+		});
 		return true;
 	}
 
@@ -2519,20 +2532,11 @@ function createCollationState() {
 	function confirmUnitAttestations(unitId: string): void {
 		const key = getReadingUnitKey(unitId);
 		if (!key || !unitDecisions.get(key)?.unconfirmedWitnessIds?.length) return;
-		const previous = new Map(unitDecisions);
-		const next = cloneUnitDecisions(previous.get(key));
+		const next = cloneUnitDecisions(unitDecisions.get(key));
 		delete next.unconfirmedWitnessIds;
-		const updated = new Map(previous).set(key, next);
-		unitDecisions = updated;
-		pushCommand({
+		commitUnitDecisions(unitId, next, {
 			type: 'confirm-unit-attestations',
 			description: 'Confirm attestations at a unit',
-			undo: () => {
-				unitDecisions = new Map(previous);
-			},
-			redo: () => {
-				unitDecisions = new Map(updated);
-			},
 		});
 	}
 
@@ -2950,14 +2954,12 @@ function createCollationState() {
 		const next = cloneUnitDecisions(unitDecisions.get(key));
 		const previous = next.manualTestimony?.[id];
 		next.manualTestimony = { ...next.manualTestimony, [id]: { kind } };
-		next.ambiguousAttestations = next.ambiguousAttestations
-			?.map(attestation => ({
-				...attestation,
-				witnessIds: attestation.witnessIds.filter(witnessId => witnessId !== id),
-			}))
-			.filter(attestation => attestation.witnessIds.length > 0);
+		removeAmbiguousWitness(next, id);
 		if (previous?.kind === 'reading') removeUnattestedAuthoredReading(next, previous.readingId);
-		commitManualDecisions(unitId, next, 'Record manual witness testimony');
+		commitUnitDecisions(unitId, next, {
+			type: 'edit-manual-testimony',
+			description: 'Record manual witness testimony',
+		});
 	}
 
 	function getManualWitnesses(): ManualWitnessDefinition[] {
@@ -2972,15 +2974,18 @@ function createCollationState() {
 		);
 	}
 
-	function commitManualDecisions(unitId: string, next: UnitDecisions, description: string) {
+	function commitUnitDecisions(
+		unitId: string,
+		next: UnitDecisions,
+		command: { type: string; description: string }
+	) {
 		const key = getReadingUnitKey(unitId);
 		if (!key) return;
 		const previous = new Map(unitDecisions);
 		const updated = new Map(previous).set(key, next);
 		unitDecisions = updated;
 		pushCommand({
-			type: 'edit-manual-testimony',
-			description,
+			...command,
 			undo: () => {
 				unitDecisions = new Map(previous);
 			},
@@ -3015,12 +3020,7 @@ function createCollationState() {
 		if (getManualWitnessOverride(witness.id).isExcluded)
 			return { ok: false as const, error: 'This manual witness is excluded in Setup.' };
 		const next = cloneUnitDecisions(unitDecisions.get(key));
-		next.ambiguousAttestations = next.ambiguousAttestations
-			?.map(attestation => ({
-				...attestation,
-				witnessIds: attestation.witnessIds.filter(id => id !== witness.id),
-			}))
-			.filter(attestation => attestation.witnessIds.length > 0);
+		removeAmbiguousWitness(next, witness.id);
 		const previous = next.manualTestimony?.[witness.id];
 		next.manualTestimony = {
 			...next.manualTestimony,
@@ -3028,7 +3028,10 @@ function createCollationState() {
 		};
 		if (previous?.kind === 'reading' && previous.readingId !== readingId)
 			removeUnattestedAuthoredReading(next, previous.readingId);
-		commitManualDecisions(unitId, next, 'Attach manual witness');
+		commitUnitDecisions(unitId, next, {
+			type: 'edit-manual-testimony',
+			description: 'Attach manual witness',
+		});
 		if (isNew) await persistRulesToProject(rules);
 		return { ok: true as const, witnessId: witness.id };
 	}
@@ -3054,7 +3057,10 @@ function createCollationState() {
 		delete next.manualTestimony![manualWitnessId];
 		if (testimony.kind === 'reading')
 			removeUnattestedAuthoredReading(next, testimony.readingId);
-		commitManualDecisions(unitId, next, 'Detach manual witness');
+		commitUnitDecisions(unitId, next, {
+			type: 'edit-manual-testimony',
+			description: 'Detach manual witness',
+		});
 	}
 
 	function addAuthoredReading(unitId: string, text: string, isOmission = false) {
@@ -3073,7 +3079,10 @@ function createCollationState() {
 				readingType: null,
 			},
 		];
-		commitManualDecisions(unitId, next, 'Add authored reading');
+		commitUnitDecisions(unitId, next, {
+			type: 'add-authored-reading',
+			description: 'Add authored reading',
+		});
 		return reading.id;
 	}
 
@@ -3837,6 +3846,7 @@ function createCollationState() {
 		mergeReadings,
 		setReadingParent,
 		confirmUnitAttestations,
+		canMarkSpanning,
 		setReadingSpanning,
 		resolveOverlap,
 		resolveAttestation,

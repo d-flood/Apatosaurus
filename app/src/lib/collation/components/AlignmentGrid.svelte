@@ -4,6 +4,7 @@
 	import type { AlignmentCell } from '$lib/collation/alignment-snapshot';
 	import { runCollationInWorker } from '$lib/collation/collation-service';
 	import { collationState } from '$lib/collation/collation-state.svelte';
+	import { variationUnitId } from '$lib/collation/collation-unit-id';
 	import type {
 		RegularizationRule,
 		RegularizationType,
@@ -56,8 +57,7 @@
 				span =>
 					collationState.declaredUnits.some(
 						unit =>
-							unit.firstColumnId === span.columnIds[0] &&
-							unit.lastColumnId === span.columnIds.at(-1)
+							variationUnitId(unit.firstColumnId, unit.lastColumnId) === span.unitId
 					) && span.columnIds.some(id => collationState.selectedColumnIds.has(id))
 			)
 	);

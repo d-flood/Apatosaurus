@@ -279,7 +279,7 @@ function isAmbiguousAttestation(value: unknown): boolean {
 	);
 }
 
-function hasValidAmbiguousAttestations(value: unknown): boolean {
+function hasValidUnitDecisions(value: unknown): boolean {
 	if (!value || typeof value !== 'object' || Array.isArray(value)) return true;
 	const units = (value as Record<string, unknown>).units;
 	if (!Array.isArray(units)) return true;
@@ -1024,7 +1024,7 @@ export function parseCollationDocument(value: unknown): CollationDocument | null
 		!hasValidDeclaredUnits(candidate.alignment) ||
 		!hasValidStemmaConnectivity(candidate.stemma) ||
 		hasApparatusConnectivity(candidate.apparatus) ||
-		!hasValidAmbiguousAttestations(candidate.apparatus)
+		!hasValidUnitDecisions(candidate.apparatus)
 	)
 		return null;
 	try {

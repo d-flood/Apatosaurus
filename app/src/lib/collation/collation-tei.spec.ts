@@ -910,7 +910,7 @@ describe('apparatus TEI exporter', () => {
 		const manual = [
 			{ id: 'full', siglum: 'Syriac', treatment: 'full' as const, includeInCbgm: false },
 		];
-		const withFull = buildApparatusTeiExportInput(document, [], [], manual);
+		const withFull = buildApparatusTeiExportInput(document, { manualWitnesses: manual });
 		expect(withFull.witnesses).toContainEqual({
 			witnessId: 'full',
 			siglum: 'Syriac',
@@ -927,7 +927,7 @@ describe('apparatus TEI exporter', () => {
 			{ manualWitnessId: 'full', isExcluded: false, treatment: 'fragmentary' as const },
 		]) {
 			document.setup.manualWitnessOverrides = [override];
-			const overridden = buildApparatusTeiExportInput(document, [], [], manual);
+			const overridden = buildApparatusTeiExportInput(document, { manualWitnesses: manual });
 			expect(overridden.witnesses.some(witness => witness.witnessId === 'full')).toBe(false);
 			expect(getApparatusExportRefusals(overridden)).toEqual([]);
 		}

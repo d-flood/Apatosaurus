@@ -2,6 +2,7 @@
 	import { collationState } from '$lib/collation/collation-state.svelte';
 	import type { AlignmentColumn } from '$lib/collation/alignment-snapshot';
 	import type { AlignmentDisplayMode } from '$lib/collation/collation-types';
+	import { variationUnitId } from '$lib/collation/collation-unit-id';
 	import {
 		buildCollapsedReadingGroups,
 		type CollapsedReadingDisplay,
@@ -407,7 +408,7 @@
 									class="text-[0.55rem] text-info ml-px">m</span
 								>{/if}</sup
 						>
-						{#if collationState.peekUnitView(`unit:${unit.id}`).unconfirmedWitnessIds.length > 0}
+						{#if collationState.peekUnitView(variationUnitId(unit.id)).unconfirmedWitnessIds.length > 0}
 							<span
 								class="ml-1 text-xs text-warning"
 								aria-label="Unconfirmed attestations">●</span

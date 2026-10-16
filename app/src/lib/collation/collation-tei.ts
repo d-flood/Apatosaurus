@@ -14,10 +14,10 @@ import {
 	type NonAttestation,
 } from './collation-reading-proposal';
 import { projectLocalStemma, type LocalStemma } from './collation-stemma';
-import type { ClassifiedReading, ManualWitnessDefinition } from './collation-types';
+import type { ClassifiedReading, ProjectCollationSettings } from './collation-types';
 import { buildVariationUnitSpans } from './collation-variation-units';
 import { isPunctuationOnlyText } from './token-text';
-import { resolveReadingTypeVocabulary, type ReadingTypeDefinition } from './reading-types';
+import { resolveReadingTypeVocabulary } from './reading-types';
 
 type ApparatusExportRefusalKind =
 	| 'untranscribed-witness'
@@ -97,6 +97,10 @@ export function escapeAttribute(value: string): string {
 
 function anchorId(columnId: string, edge: 'start' | 'end'): string {
 	return xmlId(`anchor-${columnId}-${edge}`);
+}
+
+function readingXmlId(unitId: string, label: string): string {
+	return xmlId(`${xmlId(unitId)}-${label}`);
 }
 
 function citationOrder(readings: readonly ClassifiedReading[]): ClassifiedReading[] {
@@ -233,7 +237,9 @@ function serializeUnit(
 	);
 	const unitXmlId = xmlId(segment.span.unitId);
 	const readingXmlIds = new Map(
-		ordered.map(reading => [reading.id, xmlId(`${unitXmlId}-${reading.label}`)] as const)
+		ordered.map(
+			reading => [reading.id, readingXmlId(segment.span.unitId, reading.label)] as const
+		)
 	);
 	const targetIds = new Set([
 		...unit.view.ambiguousAttestations.flatMap(attestation => attestation.targetReadingIds),
@@ -290,7 +296,7 @@ function serializeUnit(
 			const reading = units
 				.get(target.unitId)
 				?.view.readings.find(reading => reading.id === target.readingId);
-			return reading ? [`#${xmlId(`${xmlId(target.unitId)}-${reading.label}`)}`] : [];
+			return reading ? [`#${readingXmlId(target.unitId, reading.label)}`] : [];
 		});
 		readings.push(
 			`<witDetail type="overlap"${witnesses} target="${escapeAttribute(targets.join(' '))}"/>`
@@ -501,11 +507,9 @@ function activeWitnessIds(
 
 export function buildApparatusTeiExportInput(
 	document: CollationDocument,
-	projectReadingTypes: readonly ReadingTypeDefinition[] = [],
-	projectReadingTags: ReadonlyArray<{ id: string; label: string }> = [],
-	projectManualWitnesses: readonly ManualWitnessDefinition[] = []
+	projectSettings: ProjectCollationSettings = {}
 ): ApparatusTeiExportInput {
-	const vocabulary = resolveReadingTypeVocabulary(projectReadingTypes);
+	const vocabulary = resolveReadingTypeVocabulary(projectSettings.readingTypes ?? []);
 	const columns = deserializeAlignmentColumns(document.alignment?.columns ?? []);
 	const baseTextWitnessId =
 		document.setup.witnesses.find(witness => witness.isBaseText && !witness.isExcluded)?.id ??
@@ -528,7 +532,7 @@ export function buildApparatusTeiExportInput(
 	);
 	const witnessIds = activeWitnessIds(document, displayBaseWitnessId);
 	const manualMembers = manualWitnessMembers(
-		projectManualWitnesses,
+		projectSettings.manualWitnesses ?? [],
 		document.setup.manualWitnessOverrides ?? [],
 		(document.apparatus?.units ?? []).map(unit => unit.decisions)
 	);
@@ -612,22 +616,13 @@ export function buildApparatusTeiExportInput(
 		baseTextWitnessId,
 		segments,
 		units,
-		readingTags: projectReadingTags,
+		readingTags: projectSettings.readingTags ?? [],
 	};
 }
 
 export function exportCollationDocumentTei(
 	document: CollationDocument,
-	projectReadingTypes: readonly ReadingTypeDefinition[] = [],
-	projectReadingTags: ReadonlyArray<{ id: string; label: string }> = [],
-	projectManualWitnesses: readonly ManualWitnessDefinition[] = []
+	projectSettings: ProjectCollationSettings = {}
 ): string {
-	return exportApparatusTei(
-		buildApparatusTeiExportInput(
-			document,
-			projectReadingTypes,
-			projectReadingTags,
-			projectManualWitnesses
-		)
-	);
+	return exportApparatusTei(buildApparatusTeiExportInput(document, projectSettings));
 }

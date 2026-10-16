@@ -1,3 +1,5 @@
-export function variationUnitId(columnId: string): string {
-	return `unit:${columnId}`;
+export function variationUnitId(firstColumnId: string, lastColumnId = firstColumnId): string {
+	return firstColumnId === lastColumnId
+		? `unit:${firstColumnId}`
+		: `unit:${firstColumnId}..${lastColumnId}`;
 }

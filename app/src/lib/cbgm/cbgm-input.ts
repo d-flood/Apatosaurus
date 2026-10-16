@@ -10,6 +10,7 @@ import {
 	textContent,
 	type ApparatusTeiUnit,
 } from '$lib/collation/collation-tei';
+import { variationUnitId } from '$lib/collation/collation-unit-id';
 
 export type CbgmInput = {
 	tei: string | null;
@@ -123,7 +124,9 @@ export function buildCbgmInput(
 
 		const segmentName = document.setup.segment.name;
 		const prefix = claimUnitPrefix(segmentName, claimedPrefixes);
-		const input = buildApparatusTeiExportInput(document, [], [], manualWitnesses);
+		const input = buildApparatusTeiExportInput(document, {
+			manualWitnesses: [...manualWitnesses],
+		});
 		for (const witness of input.witnesses) {
 			if (witness.isExcluded || siglumOf.has(witness.witnessId)) continue;
 			if (!manualWitnesses.some(manual => manual.id === witness.witnessId)) continue;
@@ -133,6 +136,10 @@ export function buildCbgmInput(
 			if (!identities.includes(identity)) identities.push(identity);
 			transcriptionIdsBySiglum.set(witness.siglum, identities);
 		}
+		const isIncluded = (witnessId: string) => {
+			const siglum = siglumOf.get(witnessId);
+			return siglum !== undefined && !settings.excludedWitnesses.includes(siglum);
+		};
 		const apps: string[] = [];
 		for (const segment of input.segments) {
 			if (segment.kind !== 'unit') continue;
@@ -140,8 +147,7 @@ export function buildCbgmInput(
 			const unit = input.units.get(unitId);
 			const isDeclared = document.alignment?.declaredUnits?.some(
 				declaration =>
-					declaration.firstColumnId === segment.span.columnIds[0] &&
-					declaration.lastColumnId === segment.span.columnIds.at(-1)
+					variationUnitId(declaration.firstColumnId, declaration.lastColumnId) === unitId
 			);
 			if (
 				!unit ||
@@ -150,12 +156,7 @@ export function buildCbgmInput(
 			)
 				continue;
 			const label = `${segmentName}/${segment.ordinal}`;
-			if (
-				unit.view.unrecordedManualWitnessIds.some(id => {
-					const siglum = siglumOf.get(id);
-					return siglum !== undefined && !settings.excludedWitnesses.includes(siglum);
-				})
-			) {
+			if (unit.view.unrecordedManualWitnessIds.some(isIncluded)) {
 				blockingUnits.push({
 					collationId: document.meta.collationId ?? '',
 					unitId,
@@ -167,10 +168,7 @@ export function buildCbgmInput(
 				[
 					...unit.view.unresolvedAttestations.map(entry => entry.witnessId),
 					...unit.view.unresolvedOverlapWitnessIds,
-				].some(id => {
-					const siglum = siglumOf.get(id);
-					return siglum !== undefined && !settings.excludedWitnesses.includes(siglum);
-				})
+				].some(isIncluded)
 			)
 				blockingUnits.push({
 					collationId: document.meta.collationId ?? '',

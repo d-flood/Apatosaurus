@@ -185,7 +185,7 @@ describe('classic collation import', () => {
 		const { source, documents, manualWitnesses } = build('core');
 		for (const [index, document] of documents.entries()) {
 			const verse = source.verses[index];
-			const input = buildApparatusTeiExportInput(document, [], [], manualWitnesses);
+			const input = buildApparatusTeiExportInput(document, { manualWitnesses });
 			const expected = [...verse.units]
 				.sort((a, b) => a.from - b.from || b.to - a.to)
 				.map(unit =>
@@ -226,7 +226,7 @@ describe('classic collation import', () => {
 
 	it('leaves absent witnesses unrecorded and retains existing manual witness defaults', () => {
 		const { source, documents, manualWitnesses } = build('absent');
-		const input = buildApparatusTeiExportInput(documents[0], [], [], manualWitnesses);
+		const input = buildApparatusTeiExportInput(documents[0], { manualWitnesses });
 		expect([...input.units.values()][1].view.unrecordedManualWitnessIds).toEqual([
 			manualWitnesses[0].id,
 		]);
@@ -257,12 +257,11 @@ describe('classic collation import', () => {
 });
 
 function exportInput(result: ReturnType<typeof build>, index = 0) {
-	return buildApparatusTeiExportInput(
-		result.documents[index],
-		result.editorialVocabulary.readingTypes,
-		result.editorialVocabulary.readingTags,
-		result.manualWitnesses
-	);
+	return buildApparatusTeiExportInput(result.documents[index], {
+		readingTypes: result.editorialVocabulary.readingTypes,
+		readingTags: result.editorialVocabulary.readingTags,
+		manualWitnesses: result.manualWitnesses,
+	});
 }
 
 it('imports and exports every classic type, subreading, stemma arc, tag and ambiguous attestation', () => {
@@ -374,12 +373,10 @@ it('reproduces elevation and split labels and records exactly the unreproducible
 			unitDecisions: new Map(hydrated.unitDecisions),
 			readingArcs: new Map(hydrated.readingArcs),
 		} as CollationDocumentSeed);
-		const input = buildApparatusTeiExportInput(
-			rebuilt,
-			result.editorialVocabulary.readingTypes,
-			[],
-			result.manualWitnesses
-		);
+		const input = buildApparatusTeiExportInput(rebuilt, {
+			readingTypes: result.editorialVocabulary.readingTypes,
+			manualWitnesses: result.manualWitnesses,
+		});
 		expect([...input.units.values()][0].view.readings.map(reading => reading.label)).toEqual(
 			labels[index]
 		);
