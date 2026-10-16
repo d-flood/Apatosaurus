@@ -220,9 +220,16 @@ it('refuses a transcription whose siglum is a manual witness until that witness 
 		await expect
 			.element(page.getByRole('alert').filter({ hasText: "Transcription C isn't collated" }))
 			.not.toBeInTheDocument();
-		const gathers = mocks.gather.mock.calls.length;
-		await page.getByRole('checkbox', { name: 'Include manual witness C' }).click();
-		await expect.poll(() => mocks.gather.mock.calls.length).toBe(gathers + 1);
+		const include = page.getByRole('checkbox', { name: 'Include manual witness C' });
+		await include.click();
+		await expect
+			.element(
+				page.getByRole('alert').filter({ hasText: 'belongs to a transcribed witness' })
+			)
+			.toBeVisible();
+		await expect.element(include).not.toBeChecked();
+		collationState.undo();
+		expect(collationState.getManualWitnessMembers()).toEqual([]);
 		expect(collationState.witnesses.map(witness => witness.siglum)).toEqual(['A', 'B', 'C']);
 	} finally {
 		collationState.reset();

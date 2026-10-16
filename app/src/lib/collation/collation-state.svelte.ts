@@ -3001,6 +3001,14 @@ function createCollationState() {
 		);
 	}
 
+	function admitsManualWitness(id: string, overrides: ManualWitnessOverride[]): boolean {
+		const witness = projectManualWitnesses.find(entry => entry.id === id);
+		if (!witness || !witnesses.some(entry => entry.siglum === witness.siglum)) return true;
+		const isMember = (candidate: ManualWitnessOverride[]) =>
+			manualWitnessMembers([witness], candidate, unitDecisions.values()).length > 0;
+		return !isMember(overrides) || isMember(manualWitnessOverrides);
+	}
+
 	function updateManualWitness(
 		id: string,
 		updates: Partial<Pick<ManualWitnessOverride, 'treatment' | 'isExcluded'>>
@@ -3010,18 +3018,24 @@ function createCollationState() {
 			...previous.filter(entry => entry.manualWitnessId !== id),
 			{ ...getManualWitnessOverride(id), ...updates },
 		];
+		if (!admitsManualWitness(id, next))
+			return {
+				ok: false as const,
+				error: 'This siglum belongs to a transcribed witness in this collation. CBGM joins witnesses by siglum, so the manual witness stays out.',
+			};
 		manualWitnessOverrides = next;
 		pushCommand({
 			type: 'update-manual-witness',
 			description: 'Update manual witness membership',
 			undo: () => {
-				manualWitnessOverrides = previous;
+				if (admitsManualWitness(id, previous)) manualWitnessOverrides = previous;
 			},
 			redo: () => {
-				manualWitnessOverrides = next;
+				if (admitsManualWitness(id, next)) manualWitnessOverrides = next;
 			},
 		});
 		markUnsaved();
+		return { ok: true as const };
 	}
 
 	function setManualWitnessTestimony(

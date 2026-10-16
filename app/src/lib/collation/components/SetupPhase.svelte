@@ -65,6 +65,7 @@
 	let isSavingTranscriptions = $state(false);
 	let isRebuildingVerseIndex = $state(false);
 	let error = $state<string | null>(null);
+	let manualWitnessError = $state<string | null>(null);
 	let statusMessage = $state<string | null>(null);
 	let setupLoadToken = 0;
 	let verseFilter = $state('');
@@ -502,7 +503,9 @@
 		id: string,
 		updates: Parameters<typeof collationState.updateManualWitness>[1]
 	) {
-		collationState.updateManualWitness(id, updates);
+		const result = collationState.updateManualWitness(id, updates);
+		manualWitnessError = result.ok ? null : result.error;
+		if (!result.ok) return;
 		const request = createWitnessLoadRequest(collationState.selectedVerse);
 		if (request) void loadWitnessesForRequest(request, false);
 	}
@@ -535,6 +538,9 @@
 				the transcription instead.
 			</p>
 		{/each}
+		{#if manualWitnessError}
+			<p role="alert" class="text-sm text-warning">{manualWitnessError}</p>
+		{/if}
 		{#each manualWitnesses as witness (witness.id)}
 			{@const override = collationState.getManualWitnessOverride(witness.id)}
 			<div class="flex flex-wrap items-center gap-3">
@@ -544,10 +550,12 @@
 						class="checkbox checkbox-sm"
 						aria-label={`Include manual witness ${witness.siglum}`}
 						checked={!override.isExcluded}
-						onchange={event =>
-							updateManualWitness(witness.id, {
-								isExcluded: !event.currentTarget.checked,
-							})}
+						onchange={event => {
+							const input = event.currentTarget;
+							updateManualWitness(witness.id, { isExcluded: !input.checked });
+							input.checked = !collationState.getManualWitnessOverride(witness.id)
+								.isExcluded;
+						}}
 					/>
 					<span>{witness.siglum}</span>
 				</label>
@@ -555,10 +563,15 @@
 					class="select select-bordered select-sm max-w-full"
 					aria-label={`Treatment for manual witness ${witness.siglum}`}
 					value={override.treatment}
-					onchange={event =>
+					onchange={event => {
+						const select = event.currentTarget;
 						updateManualWitness(witness.id, {
-							treatment: event.currentTarget.value as WitnessTreatment,
-						})}
+							treatment: select.value as WitnessTreatment,
+						});
+						select.value = collationState.getManualWitnessOverride(
+							witness.id
+						).treatment;
+					}}
 				>
 					<option value="inherit">Project default ({witness.treatment})</option>
 					<option value="full">Full</option>

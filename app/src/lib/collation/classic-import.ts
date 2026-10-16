@@ -17,6 +17,7 @@ import { deriveCollationInput } from './regularization';
 import type {
 	ClassifiedReading,
 	ManualWitnessDefinition,
+	ManualWitnessOverride,
 	ReadingArc,
 	WitnessConfig,
 } from './collation-types';
@@ -258,7 +259,8 @@ export function buildClassicBaseTranscription(
 export function classicManualWitnesses(
 	source: ClassicCollationExport,
 	baseSiglum: string,
-	existing: ManualWitnessDefinition[]
+	existing: ManualWitnessDefinition[],
+	transcriptionSigla: string[] = []
 ): ManualWitnessDefinition[] {
 	const witnesses = [...existing];
 	for (const siglum of source.witnesses) {
@@ -266,7 +268,8 @@ export function classicManualWitnesses(
 			witnesses.push({
 				id: crypto.randomUUID(),
 				siglum,
-				treatment: 'full',
+				// A full entry would join every collation holding that transcription; the imported collations override it to full.
+				treatment: transcriptionSigla.includes(siglum) ? 'fragmentary' : 'full',
 				includeInCbgm: true,
 			});
 	}
@@ -277,6 +280,7 @@ export function buildClassicCollationDocument(input: {
 	verse: ClassicVerse;
 	witness: PreparedWitness;
 	manualWitnesses: ManualWitnessDefinition[];
+	sigla: string[];
 	projectId: string;
 	projectName: string;
 	collationId: string;
@@ -604,13 +608,12 @@ export function buildClassicCollationDocument(input: {
 		furthestPhase: 'review',
 		segment: { id: crypto.randomUUID(), name: verse.id, members: [verse.id] },
 		witnesses: [base],
-		manualWitnessOverrides: manualWitnesses
-			.filter(witness => witness.siglum === base.siglum)
-			.map(witness => ({
-				manualWitnessId: witness.id,
-				isExcluded: true,
-				treatment: 'inherit',
-			})),
+		manualWitnessOverrides: manualWitnesses.flatMap((witness): ManualWitnessOverride[] => {
+			if (witness.siglum === base.siglum)
+				return [{ manualWitnessId: witness.id, isExcluded: true, treatment: 'inherit' }];
+			if (witness.treatment === 'full' || !input.sigla.includes(witness.siglum)) return [];
+			return [{ manualWitnessId: witness.id, isExcluded: false, treatment: 'full' }];
+		}),
 		rules: [],
 		...settings,
 		alignmentColumns: columns,

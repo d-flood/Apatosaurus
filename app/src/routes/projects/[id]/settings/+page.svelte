@@ -337,6 +337,15 @@
 		id: string,
 		updates: Partial<Pick<ManualWitnessDefinition, 'treatment' | 'includeInCbgm'>>
 	) {
+		const siglum = manualWitnesses.find(witness => witness.id === id)?.siglum;
+		if (
+			updates.treatment === 'full' &&
+			allTranscriptions.some(witness => witness.siglum === siglum)
+		) {
+			error =
+				'This siglum belongs to a transcription. CBGM joins witnesses by siglum, so it cannot be a full manual witness.';
+			return;
+		}
 		const next = manualWitnesses.map(witness =>
 			witness.id === id ? { ...witness, ...updates } : witness
 		);
@@ -708,10 +717,13 @@
 				aria-label={`Treatment for ${witness.siglum}`}
 				value={witness.treatment}
 				disabled={isSavingSettings}
-				onchange={event =>
-					updateManualWitness(witness.id, {
-						treatment: event.currentTarget.value as WitnessTreatment,
-					})}
+				onchange={async event => {
+					const select = event.currentTarget;
+					await updateManualWitness(witness.id, {
+						treatment: select.value as WitnessTreatment,
+					});
+					select.value = witness.treatment;
+				}}
 			>
 				<option value="full">Full</option><option value="fragmentary">Fragmentary</option>
 			</select>

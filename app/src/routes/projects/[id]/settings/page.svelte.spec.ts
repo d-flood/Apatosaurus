@@ -168,3 +168,45 @@ it('adds project reading tags at phone width', async () => {
 		await page.viewport(original.width, original.height);
 	}
 });
+
+it('refuses making a manual witness full when a transcription has its siglum', async () => {
+	const { listTranscriptions } = await import('$lib/project/projects');
+	vi.mocked(listTranscriptions).mockResolvedValue([
+		{ id: 'b-tx', siglum: 'B', displayLabel: 'B', title: '', description: '', hands: [] },
+	]);
+	vi.mocked(listTranscriptions).mockClear();
+	mocks.updateProjectMetadata.mockClear();
+	try {
+		render(SettingsPage, {
+			data: {
+				project: {
+					id: 'promote-project',
+					storageSlug: 'promote-project',
+					name: 'Promote',
+					description: '',
+					charter: '',
+					collationSettings: {
+						manualWitnesses: [
+							{
+								id: 'b',
+								siglum: 'B',
+								treatment: 'fragmentary',
+								includeInCbgm: false,
+							},
+						],
+					},
+					createdAt: '2026-10-14',
+					updatedAt: '2026-10-14',
+				},
+			},
+		});
+		await expect.poll(() => vi.mocked(listTranscriptions).mock.calls.length).toBeGreaterThan(0);
+		const treatment = page.getByRole('combobox', { name: 'Treatment for B' });
+		await treatment.selectOptions('full');
+		await expect.element(page.getByText(/belongs to a transcription/)).toBeVisible();
+		await expect.element(treatment).toHaveValue('fragmentary');
+		expect(mocks.updateProjectMetadata).not.toHaveBeenCalled();
+	} finally {
+		vi.mocked(listTranscriptions).mockResolvedValue([]);
+	}
+});

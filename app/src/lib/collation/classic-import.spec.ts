@@ -47,6 +47,7 @@ function build(
 			verse,
 			witness,
 			manualWitnesses,
+			sigla: source.witnesses,
 			editorialVocabulary,
 			projectId: 'project',
 			projectName: 'Project',

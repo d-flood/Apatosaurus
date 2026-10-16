@@ -9,6 +9,7 @@ import { collationState } from './collation-state.svelte';
 const { db } = vi.hoisted(() => ({
 	db: {
 		getProject: vi.fn(),
+		listProjectTranscriptionOptions: vi.fn(),
 		createTranscription: vi.fn(),
 		getTranscriptionsByIds: vi.fn(),
 		getTranscriptionCurrentContentHashes: vi.fn(),
@@ -73,6 +74,7 @@ beforeEach(() => {
 		name: 'Project',
 		collationSettings: { ignoreWordBreaks: true, ignorePunctuation: true, lowercase: true },
 	});
+	db.listProjectTranscriptionOptions.mockResolvedValue([]);
 	db.updateProjectMetadata.mockImplementation(async input => {
 		const project = await db.getProject();
 		db.getProject.mockResolvedValue({ ...project, collationSettings: input.collationSettings });
@@ -157,6 +159,41 @@ describe('classic import into a project', () => {
 		expect(collationState.peekUnitView(span.unitId).unconfirmedWitnessIds).toEqual(['New']);
 		expect(collationState.phase).toBe('review');
 		expect(collationState.furthestPhase).toBe('review');
+	});
+
+	it('makes cited witnesses full in the imported collations without promoting project entries', async () => {
+		const existing = {
+			id: 'old-B',
+			siglum: 'B',
+			treatment: 'fragmentary' as const,
+			includeInCbgm: false,
+		};
+		db.getProject.mockResolvedValue({
+			id: 'project',
+			name: 'Project',
+			collationSettings: { manualWitnesses: [existing] },
+		});
+		db.listProjectTranscriptionOptions.mockResolvedValue([{ id: 'c-tx', siglum: 'C' }]);
+		await importClassicCollationProject({
+			projectId: 'project',
+			source: parseClassicCollationExport(fixture),
+			baseSiglum: 'A',
+			title: 'Classic base',
+			defaults,
+		});
+		expect((await db.getProject()).collationSettings.manualWitnesses).toEqual([
+			existing,
+			{ id: expect.any(String), siglum: 'C', treatment: 'fragmentary', includeInCbgm: true },
+		]);
+		expect(await collationState.loadCollationById(saved[0].meta.collationId!)).toBe(true);
+		expect(
+			collationState
+				.getManualWitnessMembers()
+				.map(witness => [witness.siglum, witness.treatment])
+		).toEqual([
+			['B', 'full'],
+			['C', 'full'],
+		]);
 	});
 
 	it('refuses a noncandidate siglum before writing anything', async () => {

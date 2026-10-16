@@ -3,6 +3,7 @@ import {
 	deleteCollation,
 	deleteTranscription,
 	getProject,
+	listProjectTranscriptionOptions,
 	saveCollationArtifact,
 	updateCollationMetadata,
 	updateProjectMetadata,
@@ -45,10 +46,12 @@ export async function importClassicCollationProject(input: {
 	const project = await getProject(input.projectId);
 	if (!project) throw new Error('Project not found.');
 	const settings = parseProjectCollationSettings(project.collationSettings);
+	const transcriptions = await listProjectTranscriptionOptions(project.id);
 	const manualWitnesses = classicManualWitnesses(
 		input.source,
 		baseSiglum,
-		settings.manualWitnesses ?? []
+		settings.manualWitnesses ?? [],
+		transcriptions.map(transcription => transcription.siglum)
 	);
 	const editorialVocabulary = classicEditorialVocabulary(
 		input.source,
@@ -75,6 +78,7 @@ export async function importClassicCollationProject(input: {
 			verse,
 			witness,
 			manualWitnesses,
+			sigla: input.source.witnesses,
 			editorialVocabulary,
 			collationId: collationIds[index],
 			projectId: project.id,
@@ -105,6 +109,7 @@ export async function importClassicCollationProject(input: {
 					verse,
 					witness,
 					manualWitnesses,
+					sigla: input.source.witnesses,
 					editorialVocabulary,
 					collationId: collationIds[index],
 					projectId: project.id,
