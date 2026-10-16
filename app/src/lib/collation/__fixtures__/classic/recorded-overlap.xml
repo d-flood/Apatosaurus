@@ -1,0 +1,5 @@
+<TEI><ab xml:id="Recorded_overlap">alpha beta gamma
+  <app from="2" to="6"><rdg n="a" wit="A">alpha beta gamma</rdg><rdg n="b" type="om" wit="B C"/><rdg n="c" wit="D">long variant</rdg></app>
+  <app from="2" to="2"><rdg n="a" wit="A D">alpha</rdg><rdg n="b" type="om" wit="C"/></app>
+  <app from="4" to="6"><rdg n="a" wit="A">beta gamma</rdg><rdg n="b" type="om" wit="C"/></app>
+</ab></TEI>

@@ -544,16 +544,21 @@ export function applyOverlapDecisions(
 	const overlapped = new Set(inside);
 	const unresolved = new Set<string>();
 	const assigned = new Map<string, string>();
-	for (const id of crossing) {
-		if (inside.has(id)) continue;
+	const recordedNonReadings = new Set([
+		...view.nonAttestingManualWitnessIds,
+		...view.ambiguousAttestations.flatMap(attestation => attestation.witnessIds),
+	]);
+	for (const id of new Set([...inside, ...crossing])) {
 		const resolution = decisions.overlapResolutions?.[id];
 		if (resolution?.kind === 'overlapped') overlapped.add(id);
 		else if (
 			resolution?.kind === 'reading' &&
 			view.readings.some(reading => reading.id === resolution.readingId)
-		)
+		) {
+			overlapped.delete(id);
 			assigned.set(id, resolution.readingId);
-		else unresolved.add(id);
+		} else if (inside.has(id) && recordedNonReadings.has(id)) overlapped.delete(id);
+		else if (!inside.has(id)) unresolved.add(id);
 	}
 	const affected = new Set([...overlapped, ...unresolved, ...assigned.keys()]);
 	const manual = new Set([

@@ -1,0 +1,5 @@
+<TEI><ab xml:id="Recorded_nonreadings">alpha beta
+  <app from="2" to="4"><rdg n="a" wit="A E">alpha beta</rdg><rdg n="b" type="om" wit="B C D"/></app>
+  <app from="2" to="2"><rdg n="a" wit="A D">alpha</rdg><rdg n="b" wit="E">other</rdg><rdg n="zz" type="lac" wit="C"/><witDetail n="zw-a/b" type="ambiguous" target="a b" wit="D"/></app>
+  <app from="4" to="4"><rdg n="a" wit="A D">beta</rdg><rdg n="b" wit="E">other</rdg><rdg n="zz" type="lac" wit="C"/><witDetail n="zw-a/b" type="ambiguous" target="a b" wit="D"/></app>
+</ab></TEI>

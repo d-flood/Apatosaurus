@@ -356,6 +356,11 @@ export function buildClassicCollationDocument(input: {
 	const unitDecisions = new Map<string, UnitDecisions>();
 	const readingArcs = new Map<string, ReadingArc[]>();
 	const classifiedReadings = new Map<string, ClassifiedReading[]>();
+	const importedUnits: Array<{
+		unit: ClassicUnit;
+		span: (typeof spans)[number];
+		ids: Map<string, string>;
+	}> = [];
 	for (const [index, unit] of verse.units.entries()) {
 		const declaration = declaredUnits[index];
 		const span = spans.find(
@@ -523,6 +528,73 @@ export function buildClassicCollationDocument(input: {
 		classifiedReadings.set(span.unitId, proposal.readings);
 		readingArcs.set(span.unitId, arcs);
 		unitDecisions.set(span.unitId, decisions);
+		importedUnits.push({ unit, span, ids });
+	}
+	for (const enclosing of importedUnits) {
+		const inner = importedUnits.filter(
+			candidate =>
+				candidate !== enclosing &&
+				candidate.span.startIndex >= enclosing.span.startIndex &&
+				candidate.span.endIndex <= enclosing.span.endIndex
+		);
+		if (!inner.length) continue;
+		const decisions = unitDecisions.get(enclosing.span.unitId)!;
+		for (const reading of enclosing.unit.readings) {
+			const readingId = enclosing.ids.get(reading.label);
+			if (
+				readingId &&
+				reading.witnesses.some(siglum =>
+					inner.every(
+						candidate =>
+							!candidate.unit.readings.some(reading =>
+								reading.witnesses.includes(siglum)
+							) &&
+							!candidate.unit.witnessDetails.some(detail =>
+								detail.witnesses.includes(siglum)
+							)
+					)
+				)
+			)
+				(decisions.spanningReadingIds ??= []).push(readingId);
+		}
+	}
+	for (const target of importedUnits) {
+		const decisions = unitDecisions.get(target.span.unitId)!;
+		for (const source of importedUnits) {
+			if (
+				source === target ||
+				source.span.endIndex < target.span.startIndex ||
+				source.span.startIndex > target.span.endIndex ||
+				(source.span.startIndex >= target.span.startIndex &&
+					source.span.endIndex <= target.span.endIndex)
+			)
+				continue;
+			const spanning = unitDecisions.get(source.span.unitId)!.spanningReadingIds ?? [];
+			for (const reading of source.unit.readings) {
+				if (!spanning.includes(source.ids.get(reading.label)!)) continue;
+				for (const siglum of reading.witnesses) {
+					const recorded = target.unit.readings.find(reading =>
+						reading.witnesses.includes(siglum)
+					);
+					const readingId = recorded && target.ids.get(recorded.label);
+					if (!readingId) continue;
+					const witnessId =
+						siglum === base.siglum
+							? base.witnessId
+							: manualWitnesses.find(witness => witness.siglum === siglum)!.id;
+					if (
+						decisions.ambiguousAttestations?.some(attestation =>
+							attestation.witnessIds.includes(witnessId)
+						)
+					)
+						continue;
+					(decisions.overlapResolutions ??= {})[witnessId] = {
+						kind: 'reading',
+						readingId,
+					};
+				}
+			}
+		}
 	}
 	return buildCollationDocument({
 		collationId: input.collationId,

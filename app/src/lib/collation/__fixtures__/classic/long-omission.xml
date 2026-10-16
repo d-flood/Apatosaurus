@@ -1,0 +1,6 @@
+<TEI><ab xml:id="Long_omission">alpha beta gamma delta
+  <app from="2" to="6"><rdg n="a" wit="A">alpha beta gamma</rdg><rdg n="b" type="om" wit="B"/></app>
+  <app from="2" to="2"><rdg n="a" wit="A">alpha</rdg></app>
+  <app from="4" to="6"><rdg n="a" wit="A">beta gamma</rdg></app>
+  <app from="8" to="8"><rdg n="a" wit="A B">delta</rdg></app>
+</ab></TEI>

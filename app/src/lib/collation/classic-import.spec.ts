@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { DOMParser } from '@xmldom/xmldom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -16,7 +16,7 @@ import {
 	buildCollationDocument,
 	type CollationDocumentSeed,
 } from './collation-document';
-import type { ReadingTypeDefinition } from './reading-types';
+import { resolveReadingTypeVocabulary, type ReadingTypeDefinition } from './reading-types';
 import { deserializeAlignmentColumns } from './alignment-snapshot';
 
 vi.stubGlobal('DOMParser', DOMParser);
@@ -418,4 +418,275 @@ it('reproduces contiguous main letters beyond z independently of XML order', () 
 	);
 	expect(labels).toEqual([...Array.from('abcdefghijklmnopqrstuvwxyz'), 'aa', 'ab']);
 	expect(result.documents[0].importNotes ?? []).toEqual([]);
+});
+
+describe('classic overlap inference', () => {
+	it('imports a long omission as overlap in both inner units, without inferring outside testimony', () => {
+		const result = build('long-omission');
+		const input = exportInput(result);
+		const units = [...input.units.values()];
+		const witnessId = result.manualWitnesses[0].id;
+		expect(result.documents[0].apparatus!.units[0].decisions.spanningReadingIds).toHaveLength(
+			1
+		);
+		expect(units.map(unit => unit.view.overlappedWitnessIds)).toEqual([
+			[],
+			[witnessId],
+			[witnessId],
+			[],
+		]);
+		expect(units.every(unit => unit.view.unrecordedManualWitnessIds.length === 0)).toBe(true);
+		expect(exportApparatusTei(input).match(/type="overlap"/g)).toHaveLength(2);
+		for (const unit of result.documents[0].apparatus!.units)
+			expect(unit.decisions.unconfirmedWitnessIds ?? []).toEqual([]);
+	});
+
+	it('keeps explicit inner omissions and only infers spanning for absence from every inner unit', () => {
+		const result = build('recorded-overlap');
+		const input = exportInput(result);
+		const units = [...input.units.values()];
+		const id = (siglum: string) =>
+			result.manualWitnesses.find(witness => witness.siglum === siglum)!.id;
+		expect(result.documents[0].apparatus!.units[0].decisions.spanningReadingIds).toHaveLength(
+			1
+		);
+		for (const [index, unit] of units.entries()) {
+			if (index === 0) continue;
+			expect(unit.view.overlappedWitnessIds).toEqual([id('B')]);
+			const omission = unit.view.readings.find(reading => reading.isOmission)!;
+			expect(omission.manualWitnessIds).toEqual([id('C')]);
+			expect(
+				result.documents[0].apparatus!.units[index].decisions.overlapResolutions
+			).toEqual({
+				[id('C')]: { kind: 'reading', readingId: omission.id },
+			});
+		}
+		expect(units[2].view.unrecordedManualWitnessIds).toEqual([id('D')]);
+	});
+
+	it('preserves recorded crossing testimony and leaves an absent crossing witness unresolved', () => {
+		const result = build('crossing');
+		const input = exportInput(result);
+		const witnessId = result.manualWitnesses[0].id;
+		const crossing = [...input.units.values()][2];
+		expect(crossing.view.unresolvedOverlapWitnessIds).toEqual([]);
+		expect(
+			crossing.view.readings.find(reading => reading.text === 'delta')?.manualWitnessIds
+		).toEqual([witnessId]);
+		expect(exportApparatusTei(input)).toContain('type="overlap"');
+		const document = result.documents[0];
+		const decisions = document.apparatus!.units[2].decisions;
+		delete decisions.manualTestimony![witnessId];
+		delete decisions.overlapResolutions![witnessId];
+		const unresolved = exportInput(result);
+		expect([...unresolved.units.values()][2].view.unresolvedOverlapWitnessIds).toEqual([
+			witnessId,
+		]);
+		expect(() => exportApparatusTei(unresolved)).toThrow('unresolved attestations');
+	});
+
+	it('keeps explicit inner lacunae and ambiguous attestations beside an inferred overlap', () => {
+		const result = build('recorded-nonreadings');
+		const id = (siglum: string) =>
+			result.manualWitnesses.find(witness => witness.siglum === siglum)!.id;
+		for (const unit of [...exportInput(result).units.values()].slice(1)) {
+			expect(unit.view.overlappedWitnessIds).toEqual([id('B')]);
+			expect(unit.view.nonAttestingManualWitnessIds).toEqual([id('C')]);
+			expect(unit.view.ambiguousAttestations[0].witnessIds).toEqual([id('D')]);
+		}
+	});
+});
+
+const classicFixtures = readdirSync(new URL('./__fixtures__/classic/', import.meta.url))
+	.filter(name => name.endsWith('.xml'))
+	.map(name => name.slice(0, -4));
+
+it.each(classicFixtures)('round-trips all editorial testimony and metadata in %s', name => {
+	const result = build(name);
+	const vocabulary = resolveReadingTypeVocabulary(result.editorialVocabulary.readingTypes);
+	const expectedNotes: Record<string, string[]> = {
+		absent: ['Classic ambiguous attestation zw could not be imported: target-emptied.'],
+		core: ['Classic reading `c` is now `zz`'],
+		labels: [
+			'Classic arc a → missing names an unknown reading.',
+			'Classic ambiguous attestation zw-a/missing could not be imported: target-not-found.',
+			'Classic reading `d` is now `b`',
+		],
+	};
+	expect(
+		result.documents.flatMap(document => document.importNotes?.map(note => note.detail) ?? [])
+	).toEqual(expectedNotes[name] ?? []);
+	for (const [verseIndex, document] of result.documents.entries()) {
+		const originalInput = exportInput(result, verseIndex);
+		const unrecorded = new Set(
+			[...originalInput.units.values()].flatMap(unit => unit.view.unrecordedManualWitnessIds)
+		);
+		if (unrecorded.size) {
+			expect(() => exportApparatusTei(originalInput)).toThrow('nothing recorded');
+			document.setup.manualWitnessOverrides = [...unrecorded].map(manualWitnessId => ({
+				manualWitnessId,
+				isExcluded: false,
+				treatment: 'fragmentary',
+			}));
+		}
+		const input = exportInput(result, verseIndex);
+		const xml = new DOMParser().parseFromString(exportApparatusTei(input), 'application/xml');
+		const refs = (value: string | null) => value?.trim().split(/\s+/).filter(Boolean) ?? [];
+		const witnesses = new Map(
+			Array.from(xml.getElementsByTagName('witness')).map(node => [
+				`#${node.getAttribute('xml:id')}`,
+				node.getAttribute('n'),
+			])
+		);
+		const tags = new Map(
+			Array.from(xml.getElementsByTagName('interp')).map(node => [
+				`#${node.getAttribute('xml:id')}`,
+				node.textContent,
+			])
+		);
+		const apps = Array.from(xml.getElementsByTagName('app'));
+		const sourceUnits = [...result.source.verses[verseIndex].units].sort(
+			(a, b) => a.from - b.from || b.to - a.to
+		);
+		expect(apps).toHaveLength(sourceUnits.length);
+		for (const [unitIndex, source] of sourceUnits.entries()) {
+			const segment = input.segments.filter(segment => segment.kind === 'unit')[unitIndex];
+			const app = apps.find(
+				app =>
+					app.getElementsByTagName('label')[0]?.textContent ===
+					`${input.segmentName}/${segment.ordinal}`
+			)!;
+			expect(segment.span.columnIds[0]).toMatch(new RegExp(`^classic:${source.from}:`));
+			expect(segment.span.columnIds.at(-1)).toMatch(new RegExp(`^classic:${source.to}:`));
+			const notes =
+				document.importNotes
+					?.filter(note => note.unitId === segment.span.unitId)
+					.map(note => note.detail) ?? [];
+			const renamed = (label: string) => {
+				const note = notes.find(note =>
+					note.startsWith(`Classic reading \`${label}\` is now `)
+				);
+				return note?.match(/is now `([^`]+)`/)?.[1] ?? label;
+			};
+			const validAmbiguities = source.witnessDetails.filter(
+				detail =>
+					detail.type === 'ambiguous' &&
+					!notes.some(note =>
+						note.startsWith(
+							`Classic ambiguous attestation ${detail.label || detail.witnesses.join(', ')} could not be imported:`
+						)
+					) &&
+					detail.targets.every(target =>
+						source.readings.some(reading => reading.label === target.replace(/^#/, ''))
+					)
+			);
+			const ambiguousWitnesses = new Set(
+				validAmbiguities.flatMap(detail => detail.witnesses)
+			);
+			const expectedReadings = source.readings
+				.map(reading => {
+					const type = result.editorialVocabulary.types.get(reading.type) ?? null;
+					return {
+						label: renamed(reading.label),
+						text: reading.type === 'om' || reading.type === 'lac' ? '' : reading.text,
+						type: reading.type === 'lac' ? 'lac' : reading.type === 'om' ? 'om' : type,
+						witnesses: reading.witnesses
+							.filter(witness => !ambiguousWitnesses.has(witness))
+							.sort(),
+						tags: reading.type === 'ns' ? ['Nomen sacrum'] : [],
+					};
+				})
+				.sort((a, b) => a.label.localeCompare(b.label));
+			const readings = Array.from(app.getElementsByTagName('rdg'));
+			expect(
+				readings
+					.map(reading => ({
+						label: reading.getAttribute('n'),
+						text: reading.textContent?.trim() ?? '',
+						type:
+							reading.getAttribute('type') === 'split'
+								? reading.getAttribute('subtype')
+								: reading.getAttribute('type'),
+						witnesses: refs(reading.getAttribute('wit'))
+							.map(ref => witnesses.get(ref))
+							.sort(),
+						tags: refs(reading.getAttribute('ana')).map(ref => tags.get(ref)),
+					}))
+					.sort((a, b) => (a.label ?? '').localeCompare(b.label ?? ''))
+			).toEqual(expectedReadings);
+			const labelById = new Map(
+				readings.map(reading => [
+					`#${reading.getAttribute('xml:id')}`,
+					reading.getAttribute('n'),
+				])
+			);
+			expect(
+				Array.from(app.getElementsByTagName('witDetail'))
+					.filter(detail => detail.getAttribute('type') === 'ambiguous')
+					.map(detail => ({
+						witnesses: refs(detail.getAttribute('wit'))
+							.map(ref => witnesses.get(ref))
+							.sort(),
+						targets: refs(detail.getAttribute('target'))
+							.map(ref => labelById.get(ref))
+							.sort(),
+					}))
+			).toEqual(
+				validAmbiguities.map(detail => ({
+					witnesses: [...detail.witnesses].sort(),
+					targets: detail.targets.map(target => renamed(target.replace(/^#/, ''))).sort(),
+				}))
+			);
+			const view = input.units.get(segment.span.unitId)!.view;
+			const mainArcs: string[][] = [];
+			for (const arc of source.arcs) {
+				const prior = arc.from.replace(/^#/, ''),
+					posterior = arc.to.replace(/^#/, '');
+				const reading = source.readings.find(reading => reading.label === posterior);
+				if (!reading || !source.readings.some(reading => reading.label === prior)) {
+					expect(notes).toContain(
+						`Classic arc ${arc.from} → ${arc.to} names an unknown reading.`
+					);
+					continue;
+				}
+				const type = result.editorialVocabulary.types.get(reading.type);
+				if (vocabulary.find(definition => definition.id === type)?.suffix) {
+					const imported = view.readings.find(
+						reading => reading.label === renamed(posterior)
+					)!;
+					expect(
+						view.readings.find(reading => reading.id === imported.parentReadingId)
+							?.label
+					).toBe(renamed(prior));
+				} else mainArcs.push([renamed(prior), renamed(posterior)]);
+			}
+			const nodeLabels = new Map(
+				Array.from(app.getElementsByTagName('node')).map(node => [
+					`#${node.getAttribute('xml:id')}`,
+					node.getAttribute('n'),
+				])
+			);
+			expect(
+				Array.from(app.getElementsByTagName('arc')).map(arc => [
+					nodeLabels.get(arc.getAttribute('from')!),
+					nodeLabels.get(arc.getAttribute('to')!),
+				])
+			).toEqual(mainArcs);
+			expect(app.getElementsByTagName('numeric')[0]?.getAttribute('value') ?? '10').toBe(
+				String(source.connectivity ?? 10)
+			);
+			for (const detail of Array.from(app.getElementsByTagName('witDetail')).filter(
+				detail => detail.getAttribute('type') === 'overlap'
+			)) {
+				for (const ref of refs(detail.getAttribute('target'))) {
+					const target = Array.from(xml.getElementsByTagName('rdg')).find(
+						reading => `#${reading.getAttribute('xml:id')}` === ref
+					);
+					expect(target).toBeDefined();
+					for (const witness of refs(detail.getAttribute('wit')))
+						expect(refs(target!.getAttribute('wit'))).toContain(witness);
+				}
+			}
+		}
+	}
 });
