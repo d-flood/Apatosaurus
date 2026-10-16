@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
+	import ClassicCollationImportDialog from '$lib/collation/components/ClassicCollationImportDialog.svelte';
 
 	import {
 		deleteCollation,
@@ -19,6 +20,7 @@
 	let deletingId = $state<string | null>(null);
 	let error = $state<string | null>(null);
 	let loadRunId = 0;
+	let importing = $state(false);
 
 	$effect(() => {
 		void loadProjectCollationStatuses(data.project.id);
@@ -95,17 +97,22 @@
 </script>
 
 <div class="rounded-box border border-base-300/50 bg-base-100 p-4 shadow-md">
-	<div class="mb-3 flex items-center justify-between gap-3">
+	<div class="mb-3 flex flex-wrap items-center justify-between gap-3">
 		<div>
 			<h2 class="font-serif text-lg font-semibold">Project Collations</h2>
 			<p class="text-xs text-base-content/50">Collations owned by {data.project.name}.</p>
 		</div>
-		<a
-			href={resolve(`/collation/new?projectId=${encodeURIComponent(data.project.id)}`)}
-			class="btn btn-primary btn-sm"
-		>
-			New Collation
-		</a>
+		<div class="flex flex-wrap gap-2">
+			<button type="button" class="btn btn-outline btn-sm" onclick={() => (importing = true)}
+				>Import classic collation</button
+			>
+			<a
+				href={resolve(`/collation/new?projectId=${encodeURIComponent(data.project.id)}`)}
+				class="btn btn-primary btn-sm"
+			>
+				New Collation
+			</a>
+		</div>
 	</div>
 
 	{#if error}
@@ -182,3 +189,14 @@
 		</ul>
 	{/if}
 </div>
+
+{#if importing}
+	<ClassicCollationImportDialog
+		projectId={data.project.id}
+		onclose={() => (importing = false)}
+		onimported={() => {
+			importing = false;
+			void loadProjectCollationStatuses(data.project.id);
+		}}
+	/>
+{/if}

@@ -537,17 +537,22 @@ function createCollationState() {
 		);
 	}
 
-	async function hydrateProjectContext(nextProjectId: string | null): Promise<void> {
+	async function hydrateProjectContext(
+		nextProjectId: string | null,
+		keepSettings = false
+	): Promise<void> {
 		projectId = nextProjectId;
 		projectName = null;
 		rules = rules.filter(rule => rule.scope !== 'project');
 		const previousIgnoreWordBreaks = ignoreWordBreaks;
-		ignoreWordBreaks = false;
-		lowercase = false;
-		ignoreTokenWhitespace = true;
-		ignorePunctuation = false;
-		suppliedTextMode = 'clear';
-		segmentation = true;
+		if (!keepSettings) {
+			ignoreWordBreaks = false;
+			lowercase = false;
+			ignoreTokenWhitespace = true;
+			ignorePunctuation = false;
+			suppliedTextMode = 'clear';
+			segmentation = true;
+		}
 		transcriptionWitnessTreatments = new Map();
 		transcriptionWitnessExcludedHands = new Map();
 		projectReadingTypes = [];
@@ -565,12 +570,14 @@ function createCollationState() {
 
 		projectName = project.name;
 		const settings = parseProjectCollationSettings(project.collationSettings);
-		ignoreWordBreaks = settings.ignoreWordBreaks ?? false;
-		lowercase = settings.lowercase ?? false;
-		ignoreTokenWhitespace = settings.ignoreTokenWhitespace ?? true;
-		ignorePunctuation = settings.ignorePunctuation ?? false;
-		suppliedTextMode = settings.suppliedTextMode ?? 'clear';
-		segmentation = settings.segmentation ?? true;
+		if (!keepSettings) {
+			ignoreWordBreaks = settings.ignoreWordBreaks ?? false;
+			lowercase = settings.lowercase ?? false;
+			ignoreTokenWhitespace = settings.ignoreTokenWhitespace ?? true;
+			ignorePunctuation = settings.ignorePunctuation ?? false;
+			suppliedTextMode = settings.suppliedTextMode ?? 'clear';
+			segmentation = settings.segmentation ?? true;
+		}
 		transcriptionWitnessTreatments = new Map(
 			Object.entries(settings.transcriptionWitnessTreatments ?? {})
 		);
@@ -3467,7 +3474,7 @@ function createCollationState() {
 			}
 			workspaceArtifactId = loaded.artifact.id;
 			applyCollationDocumentPayload(loaded.artifact.payload);
-			await hydrateProjectContext(loaded.row.projectId);
+			await hydrateProjectContext(loaded.row.projectId, alignmentColumns.length > 0);
 			if (segment) await restoreSelectedVerseFromProjectIndex();
 			await refreshOrphanedMembersFromProjectIndex();
 			const repairedCollapsedAlignment = hasCollapsedAlignmentRegression();
