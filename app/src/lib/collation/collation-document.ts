@@ -275,6 +275,47 @@ function hasValidAmbiguousAttestations(value: unknown): boolean {
 		const decisions = (unit as Record<string, unknown>).decisions;
 		if (!decisions || typeof decisions !== 'object' || Array.isArray(decisions)) return true;
 		const record = decisions as Record<string, unknown>;
+		const testimony = record.manualTestimony;
+		if (
+			testimony !== undefined &&
+			(!testimony ||
+				typeof testimony !== 'object' ||
+				Array.isArray(testimony) ||
+				!Object.entries(testimony).every(([id, value]) => {
+					if (!id.trim() || !value || typeof value !== 'object' || Array.isArray(value))
+						return false;
+					const entry = value as Record<string, unknown>;
+					return (
+						entry.kind === 'nonAttestation' ||
+						entry.kind === 'uncited' ||
+						(entry.kind === 'reading' &&
+							typeof entry.readingId === 'string' &&
+							Boolean(entry.readingId.trim()))
+					);
+				}))
+		)
+			return false;
+		const authored = record.authoredReadings;
+		if (
+			authored !== undefined &&
+			(!Array.isArray(authored) ||
+				!authored.every(value => {
+					if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+					const entry = value as Record<string, unknown>;
+					return (
+						typeof entry.id === 'string' &&
+						Boolean(entry.id.trim()) &&
+						(entry.text === null || typeof entry.text === 'string') &&
+						typeof entry.isOmission === 'boolean' &&
+						typeof entry.order === 'number' &&
+						Number.isFinite(entry.order) &&
+						entry.parentReadingId === null &&
+						entry.readingType === null
+					);
+				}) ||
+				new Set(authored.map(entry => entry.id)).size !== authored.length)
+		)
+			return false;
 		const tags = record.readingTags;
 		if (
 			tags !== undefined &&
@@ -590,7 +631,14 @@ function buildApparatus(
 						}).readings,
 					unitDecisions.get(unitId) ?? {},
 					{ baseWitnessId }
-				).readings,
+				)
+					.readings.filter(
+						reading =>
+							!decisions.authoredReadings?.some(
+								authored => authored.id === reading.id
+							)
+					)
+					.map(({ manualWitnessIds: _, ...reading }) => reading),
 				decisions,
 			};
 		})

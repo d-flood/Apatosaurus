@@ -33,6 +33,16 @@ Version 7 applies the Project Transcription Version 2 change to collations: `col
 - Loading folds a leftover `apatosaurus.working.collation` file into the primary when its `draft.base_*` matches `based_on_checkpoint`, writing the new primary before deleting the working file. Zip import folds both working formats the same way before placing files.
 - `apatosaurus.working.collation` stays registered only so legacy files can be read and migrated. Checkpoint content is unchanged.
 
+## Collation Version 13
+
+Version 13 adds optional `manualTestimony` and `authoredReadings` to unit decisions. Testimony maps stable project manual witness IDs to a reading, non-attestation or uncited state; authored readings carry their ID, text, omission flag and order, with null parent and type. Attachments and types use the existing decisions. Manual witness IDs never enter stored readings' witness lists. Malformed decisions quarantine the document.
+
+The v12 upgrader is a no-op. Working and checkpoint formats preserve both keys through the shared parser and need no version bump.
+
+## Project Manifest Version 4
+
+Version 4 preserves `collation_settings.manualWitnesses`, with stable IDs, trimmed case-sensitive unique sigla, treatment and CBGM inclusion defaults. The v3 upgrader is a no-op; the bump prevents older builds from dropping the project list when saving settings.
+
 ## Collation Version 12
 
 Version 12 adds optional `alignment.declaredUnits`, a list of `{ firstColumnId, lastColumnId }` declarations over contiguous column runs. Endpoints must be nonempty strings in forward column order; missing endpoints drop the declaration when hydrated, leaving its decisions orphaned. Single-column unit IDs remain `unit:<columnId>`; longer runs use `unit:<firstColumnId>..<lastColumnId>`.

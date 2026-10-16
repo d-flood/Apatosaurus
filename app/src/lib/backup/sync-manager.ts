@@ -1,3 +1,4 @@
+import type { ManualWitnessDefinition } from '$lib/collation/collation-types';
 import type { Kysely, Selectable } from 'kysely';
 import type { Database, SyncFileFingerprints } from '$lib/db/types.generated';
 import {
@@ -821,11 +822,14 @@ async function reconcileLocalMirror(
 		parseProjectCollationSettings(project.collation_settings).readingTypes ?? [];
 	const projectReadingTags =
 		parseProjectCollationSettings(project.collation_settings).readingTags ?? [];
+	const projectManualWitnesses =
+		parseProjectCollationSettings(project.collation_settings).manualWitnesses ?? [];
 	const { files: derivedTeiFiles, absentPaths } = await regenerateDerivedTeiFiles(
 		projectRoot,
 		storeOptions,
 		projectReadingTypes,
-		projectReadingTags
+		projectReadingTags,
+		projectManualWitnesses
 	);
 	for (const path of absentPaths) {
 		const remoteFile = remoteFiles.get(path);
@@ -843,7 +847,8 @@ async function reconcileLocalMirror(
 						context.projectId,
 						storeOptions,
 						projectReadingTypes,
-						projectReadingTags
+						projectReadingTags,
+						projectManualWitnesses
 					)
 				: localFile.content;
 		} catch (error) {
@@ -1112,7 +1117,8 @@ async function regenerateDerivedTeiFiles(
 	projectRoot: string,
 	storeOptions: StoreOperationOptions,
 	projectReadingTypes: readonly ReadingTypeDefinition[],
-	projectReadingTags: ReadonlyArray<{ id: string; label: string }>
+	projectReadingTags: ReadonlyArray<{ id: string; label: string }>,
+	projectManualWitnesses: readonly ManualWitnessDefinition[]
 ): Promise<{ files: LocalMirrorFile[]; absentPaths: string[] }> {
 	const files: LocalMirrorFile[] = [];
 	for (const folder of ['transcriptions', 'collations']) {
@@ -1139,7 +1145,8 @@ async function regenerateDerivedTeiFiles(
 				undefined,
 				storeOptions,
 				projectReadingTypes,
-				projectReadingTags
+				projectReadingTags,
+				projectManualWitnesses
 			);
 		} catch (error) {
 			if (!(error instanceof ApparatusExportError)) throw error;
@@ -1167,7 +1174,8 @@ async function deriveTeiFromCanonicalPrimary(
 	projectId?: string,
 	storeOptions: StoreOperationOptions = {},
 	projectReadingTypes: readonly ReadingTypeDefinition[] = [],
-	projectReadingTags: ReadonlyArray<{ id: string; label: string }> = []
+	projectReadingTags: ReadonlyArray<{ id: string; label: string }> = [],
+	projectManualWitnesses: readonly ManualWitnessDefinition[] = []
 ): Promise<string> {
 	const format = canonicalFormatForProjectPath(path);
 	if (!format) throw new Error(`No canonical format is registered for ${path}.`);
@@ -1186,7 +1194,8 @@ async function deriveTeiFromCanonicalPrimary(
 		: exportCollationDocumentTei(
 				(parsed.payload as CollationPayload).document,
 				projectReadingTypes,
-				projectReadingTags
+				projectReadingTags,
+				projectManualWitnesses
 			);
 }
 

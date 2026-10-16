@@ -107,9 +107,12 @@ export function projectLocalStemma(
 		} else if (sourceDecisions[reading.id]?.kind === 'unclear') {
 			sourceDecision = { kind: 'unclear' };
 		}
-		const witnessIds = [...reading.witnessIds];
+		const witnessIds = [...reading.witnessIds, ...(reading.manualWitnessIds ?? [])];
 		for (const subreading of folded) {
-			for (const witnessId of subreading.witnessIds) {
+			for (const witnessId of [
+				...subreading.witnessIds,
+				...(subreading.manualWitnessIds ?? []),
+			]) {
 				if (!witnessIds.includes(witnessId)) witnessIds.push(witnessId);
 			}
 		}

@@ -59,6 +59,10 @@ import collationV11Input from './fixtures/collation-v11.input.json';
 import collationV12Expected from './fixtures/collation-v12.expected.json';
 import projectManifestV2Input from './fixtures/project-manifest-v2.input.json';
 import projectManifestV3Expected from './fixtures/project-manifest-v3.expected.json';
+import collationV12Input from './fixtures/collation-v12.input.json';
+import collationV13Expected from './fixtures/collation-v13.expected.json';
+import projectManifestV3Input from './fixtures/project-manifest-v3.input.json';
+import projectManifestV4Expected from './fixtures/project-manifest-v4.expected.json';
 import {
 	COLLATION_CHECKPOINT_FIXTURE,
 	COLLATION_CHECKPOINT_OLD_SHAPE_FIXTURE,
@@ -157,6 +161,103 @@ describe('canonical store formats', () => {
 			originalVersion: 2,
 			payload: projectManifestV3Expected,
 		});
+	});
+
+	it('upgrades manual-witness fixtures and preserves decisions in working and checkpoint formats', async () => {
+		expect(
+			await readCanonicalDocument(
+				PROJECT_MANIFEST_FORMAT,
+				await sealDocument(PROJECT_MANIFEST_FORMAT, 3, projectManifestV3Input)
+			)
+		).toMatchObject({
+			ok: true,
+			upgraded: true,
+			originalVersion: 3,
+			payload: projectManifestV4Expected,
+		});
+		expect(
+			await readCanonicalDocument(
+				COLLATION_FORMAT,
+				await sealDocument(COLLATION_FORMAT, 12, collationV12Input as JsonObject)
+			)
+		).toMatchObject({
+			ok: true,
+			upgraded: true,
+			originalVersion: 12,
+			payload: collationV13Expected,
+		});
+		const working = { ...WORKING_COLLATION_FIXTURE, document: collationV13Expected.document };
+		expect(
+			await readCanonicalDocument(
+				WORKING_COLLATION_FORMAT,
+				await sealDocument(
+					WORKING_COLLATION_FORMAT,
+					WORKING_COLLATION_CURRENT_VERSION,
+					working as JsonObject
+				)
+			)
+		).toMatchObject({ ok: true, payload: working });
+		const payload = {
+			...COLLATION_CHECKPOINT_FIXTURE.payload,
+			document: collationV13Expected.document,
+		};
+		const checkpoint = {
+			...COLLATION_CHECKPOINT_FIXTURE,
+			payload,
+			payload_content_hash: await hashCanonicalPayload(payload),
+		};
+		expect(
+			await readCanonicalDocument(
+				COLLATION_CHECKPOINT_FORMAT,
+				await sealDocument(
+					COLLATION_CHECKPOINT_FORMAT,
+					COLLATION_CHECKPOINT_CURRENT_VERSION,
+					checkpoint as JsonObject
+				)
+			)
+		).toMatchObject({ ok: true, payload: checkpoint });
+	});
+
+	it.each<JsonObject>([
+		{ manualTestimony: [] },
+		{ manualTestimony: { father: { kind: 'wrong' } } },
+		{ manualTestimony: { father: { kind: 'reading', readingId: '' } } },
+		{ authoredReadings: {} },
+		{
+			authoredReadings: [
+				{
+					id: 'bad',
+					text: null,
+					isOmission: true,
+					order: '1',
+					parentReadingId: null,
+					readingType: null,
+				},
+			],
+		},
+		{
+			authoredReadings: [
+				{
+					id: 'bad',
+					text: null,
+					isOmission: true,
+					order: 1,
+					parentReadingId: 'parent',
+					readingType: null,
+				},
+			],
+		},
+	])('quarantines malformed manual decisions %j', async decisions => {
+		const payload = structuredClone(collationV13Expected) as JsonObject;
+		const document = payload.document as JsonObject;
+		const apparatus = document.apparatus as JsonObject;
+		(apparatus.units as JsonObject[])[0].decisions = decisions;
+		expect(
+			await readCanonicalDocument(
+				COLLATION_FORMAT,
+				await sealDocument(COLLATION_FORMAT, COLLATION_CURRENT_VERSION, payload)
+			)
+		).toMatchObject({ ok: false, quarantine: { code: 'invalid_shape' } });
 	});
 
 	it('upgrades v11 declarations unchanged and preserves them in working and checkpoint formats', async () => {

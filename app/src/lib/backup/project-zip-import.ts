@@ -523,7 +523,8 @@ function regenerateDerivedCollationTei(
 				content: exportCollationDocumentTei(
 					payload.document,
 					projectReadingTypes,
-					settings.readingTags
+					settings.readingTags,
+					settings.manualWitnesses
 				),
 				format: null,
 			});

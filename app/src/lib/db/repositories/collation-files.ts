@@ -42,6 +42,7 @@ import {
 } from '$lib/collation/collation-document';
 import { exportCollationDocumentTei } from '$lib/collation/collation-tei';
 import { parseProjectCollationSettings } from '$lib/collation/project-settings';
+import type { ManualWitnessDefinition } from '$lib/collation/collation-types';
 import type { ReadingTypeDefinition } from '$lib/collation/reading-types';
 import { buildCollationProjectionFromDocument } from '$lib/collation/collation-projection';
 import { hashCanonicalPayload } from '$lib/storage/canonical-json';
@@ -84,6 +85,7 @@ interface CollationFileContext {
 	projectStorageSlug: string;
 	projectReadingTypes: ReadingTypeDefinition[];
 	projectReadingTags: Array<{ id: string; label: string }>;
+	projectManualWitnesses: ManualWitnessDefinition[];
 	currentRevisionId: string | null;
 	currentContentHash: string | null;
 	conflictOfCollationId: string;
@@ -581,6 +583,8 @@ async function loadCollationFileContext(
 		projectReadingTypes:
 			parseProjectCollationSettings(row.collation_settings).readingTypes ?? [],
 		projectReadingTags: parseProjectCollationSettings(row.collation_settings).readingTags ?? [],
+		projectManualWitnesses:
+			parseProjectCollationSettings(row.collation_settings).manualWitnesses ?? [],
 		currentRevisionId: emptyToNull(row.current_revision_id),
 		currentContentHash: emptyToNull(row.current_content_hash),
 		conflictOfCollationId: row.conflict_of_collation_id,
@@ -617,12 +621,23 @@ async function writeDerivedCollationTei(
 	payload: CollationPayload,
 	storeOptions: StoreOperationOptions
 ): Promise<PersistenceWarning | null> {
-	const { projectStorageSlug, collationId, projectReadingTypes, projectReadingTags } = context;
+	const {
+		projectStorageSlug,
+		collationId,
+		projectReadingTypes,
+		projectReadingTags,
+		projectManualWitnesses,
+	} = context;
 	const path = collationTeiFile(projectStorageSlug, collationId);
 	try {
 		await writeTextFileAtomic(
 			path,
-			exportCollationDocumentTei(payload.document, projectReadingTypes, projectReadingTags),
+			exportCollationDocumentTei(
+				payload.document,
+				projectReadingTypes,
+				projectReadingTags,
+				projectManualWitnesses
+			),
 			storeOptions
 		);
 		return null;

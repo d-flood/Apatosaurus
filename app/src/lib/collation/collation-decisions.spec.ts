@@ -41,6 +41,52 @@ function attested(id: string, witnessIds: string[]): ClassifiedReading {
 }
 
 describe('decision overlay', () => {
+	it('projects manual testimony and authored readings without storing manual ids in witness lists', () => {
+		const proposal = [reading('alpha', 0)];
+		const decisions: UnitDecisions = {
+			manualTestimony: {
+				father: { kind: 'reading', readingId: 'alpha' },
+				version: { kind: 'reading', readingId: 'authored' },
+				absent: { kind: 'nonAttestation' },
+				uncited: { kind: 'uncited' },
+			},
+			authoredReadings: [
+				{
+					id: 'authored',
+					text: null,
+					isOmission: true,
+					order: 1,
+					parentReadingId: null,
+					readingType: null,
+				},
+			],
+		};
+		const view = applyDecisions(proposal, decisions, { baseWitnessId: 'alpha' });
+		expect(
+			view.readings.map(reading => [
+				reading.id,
+				reading.label,
+				reading.witnessIds,
+				reading.manualWitnessIds,
+			])
+		).toEqual([
+			['alpha', 'a', ['alpha'], ['father']],
+			['authored', 'b', [], ['version']],
+		]);
+		expect(proposal[0].manualWitnessIds).toBeUndefined();
+		const clone = cloneUnitDecisions(decisions);
+		clone.manualTestimony!.father = { kind: 'uncited' };
+		clone.authoredReadings![0].text = 'changed';
+		expect(decisions.manualTestimony!.father).toEqual({ kind: 'reading', readingId: 'alpha' });
+		expect(decisions.authoredReadings![0].text).toBeNull();
+		expect(applyDecisions([], decisions).orphanedDecisions).toContainEqual({
+			kind: 'manualTestimony',
+			manualWitnessId: 'father',
+			readingId: 'alpha',
+			missingReadingIds: ['alpha'],
+		});
+	});
+
 	it('projects tags onto main and subreadings without changing citation or attachment', () => {
 		const proposal = [reading('alpha', 0), reading('form', 1, 'alpha'), reading('beta', 2)];
 		const plain = applyDecisions(proposal, {});

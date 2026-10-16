@@ -30,6 +30,36 @@ function coerceReadingTags(value: unknown): NonNullable<ProjectCollationSettings
 	return tags;
 }
 
+function coerceManualWitnesses(
+	value: unknown
+): NonNullable<ProjectCollationSettings['manualWitnesses']> {
+	if (!Array.isArray(value)) return [];
+	const witnesses: NonNullable<ProjectCollationSettings['manualWitnesses']> = [];
+	for (const entry of value) {
+		if (
+			!entry ||
+			typeof entry !== 'object' ||
+			typeof entry.id !== 'string' ||
+			!entry.id.trim() ||
+			typeof entry.siglum !== 'string'
+		)
+			continue;
+		const siglum = entry.siglum.trim();
+		if (
+			!siglum ||
+			witnesses.some(witness => witness.id === entry.id || witness.siglum === siglum)
+		)
+			continue;
+		witnesses.push({
+			id: entry.id,
+			siglum,
+			treatment: entry.treatment === 'full' ? 'full' : 'fragmentary',
+			includeInCbgm: entry.includeInCbgm === true,
+		});
+	}
+	return witnesses;
+}
+
 function coerceRegularizationRule(value: unknown): RegularizationRule | null {
 	if (!value || typeof value !== 'object') return null;
 	const raw = value as Record<string, unknown>;
@@ -104,6 +134,7 @@ export function parseProjectCollationSettings(value: unknown): ProjectCollationS
 		regularizationRules,
 		readingTypes: coerceReadingTypeDefinitions(settings.readingTypes),
 		readingTags: coerceReadingTags(settings.readingTags),
+		manualWitnesses: coerceManualWitnesses(settings.manualWitnesses),
 		ignoreWordBreaks: settings.ignoreWordBreaks === true,
 		lowercase: settings.lowercase === true,
 		ignoreTokenWhitespace: settings.ignoreTokenWhitespace !== false,
@@ -128,12 +159,14 @@ export function createProjectCollationSettings(
 		transcriptionWitnessExcludedHands: Map<string, string[]>;
 		readingTypes: ReadingTypeDefinition[];
 		readingTags?: ProjectCollationSettings['readingTags'];
+		manualWitnesses?: ProjectCollationSettings['manualWitnesses'];
 	}
 ): ProjectCollationSettings {
 	const settings: ProjectCollationSettings = {
 		regularizationRules: rules.filter(rule => rule.scope === 'project'),
 		readingTypes: options.readingTypes,
 		readingTags: coerceReadingTags(options.readingTags),
+		manualWitnesses: coerceManualWitnesses(options.manualWitnesses),
 		ignoreWordBreaks: options.ignoreWordBreaks,
 		lowercase: options.lowercase,
 		ignoreTokenWhitespace: options.ignoreTokenWhitespace,

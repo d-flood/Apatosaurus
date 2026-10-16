@@ -35,6 +35,7 @@ export function dropEmptiedReadings(
 	return after.filter(
 		reading =>
 			keepReadingIds.includes(reading.id) ||
+			(reading.manualWitnessIds?.length ?? 0) > 0 ||
 			reading.witnessIds.length > 0 ||
 			!hadWitnesses.has(reading.id) ||
 			parentIds.has(reading.id)
@@ -313,7 +314,7 @@ export function attestingWitnessIds(readings: Readings, readingId: string): stri
 	const seen = new Set<string>();
 	for (const reading of readings) {
 		if (!chain.has(reading.id)) continue;
-		for (const witnessId of reading.witnessIds) {
+		for (const witnessId of [...reading.witnessIds, ...(reading.manualWitnessIds ?? [])]) {
 			if (seen.has(witnessId)) continue;
 			seen.add(witnessId);
 			witnessIds.push(witnessId);

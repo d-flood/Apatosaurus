@@ -2,6 +2,29 @@ import { describe, expect, it } from 'vitest';
 import { createProjectCollationSettings, parseProjectCollationSettings } from './project-settings';
 
 describe('project collation settings', () => {
+	it('trims manual sigla and keeps case-sensitive identities unique', () => {
+		expect(
+			parseProjectCollationSettings({
+				manualWitnesses: [
+					{
+						id: 'one',
+						siglum: ' Father ',
+						treatment: 'fragmentary',
+						includeInCbgm: false,
+					},
+					{ id: 'two', siglum: 'Father' },
+					{ id: 'one', siglum: 'Other' },
+					{ id: 'lower', siglum: 'father', treatment: 'full', includeInCbgm: true },
+					{ id: 'blank', siglum: ' ' },
+					null,
+				],
+			}).manualWitnesses
+		).toEqual([
+			{ id: 'one', siglum: 'Father', treatment: 'fragmentary', includeInCbgm: false },
+			{ id: 'lower', siglum: 'father', treatment: 'full', includeInCbgm: true },
+		]);
+	});
+
 	it('normalizes tag labels and rejects duplicate labels, ids and malformed entries', () => {
 		expect(
 			parseProjectCollationSettings({
@@ -31,11 +54,22 @@ describe('project collation settings', () => {
 			transcriptionWitnessExcludedHands: new Map([['tx-1', ['corrector1', 'corrector2']]]),
 			readingTypes: [],
 			readingTags: [{ id: 'ns', label: ' Nomen sacrum ' }],
+			manualWitnesses: [
+				{
+					id: 'father',
+					siglum: ' Father ',
+					treatment: 'fragmentary',
+					includeInCbgm: false,
+				},
+			],
 		});
 
 		expect(parseProjectCollationSettings(JSON.stringify(settings))).toMatchObject({
 			transcriptionWitnessTreatments: { 'tx-1': 'full' },
 			readingTags: [{ id: 'ns', label: 'Nomen sacrum' }],
+			manualWitnesses: [
+				{ id: 'father', siglum: 'Father', treatment: 'fragmentary', includeInCbgm: false },
+			],
 			transcriptionWitnessExcludedHands: { 'tx-1': ['corrector1', 'corrector2'] },
 		});
 	});

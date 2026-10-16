@@ -2861,6 +2861,184 @@ describe('collationState witness placement', () => {
 		});
 	}
 
+	it('keeps manual testimony through placement, recognized re-alignment, and document round trips, without changing CBGM', async () => {
+		setup({ A: 'one alpha two', B: 'one beta two' });
+		const settings = {
+			minExtantUnits: null,
+			minExtantProportion: null,
+			excludedWitnesses: [],
+			classicRules: false,
+			mergeSplitReadings: false,
+			droppedReadingTypes: [],
+			includedCorrectors: [],
+		};
+		const baseline = buildCbgmInput([document()], settings);
+		const main = collationState.peekReadingsForUnit(1)[0];
+		await collationState.attachManualWitness(1, main.id, 'Father');
+		const authoredId = collationState.addAuthoredReading(1, 'gamma')!;
+		await collationState.attachManualWitness(1, authoredId, 'Version');
+		const manual = collationState.getManualWitnesses();
+		expect(
+			manual.map(witness => [witness.siglum, witness.treatment, witness.includeInCbgm])
+		).toEqual([
+			['Father', 'fragmentary', false],
+			['Version', 'fragmentary', false],
+		]);
+		const saved = document();
+		expect(saved.apparatus!.units[0].readings.some(reading => reading.id === authoredId)).toBe(
+			false
+		);
+		expect(
+			saved.apparatus!.units[0].readings.every(
+				reading =>
+					reading.manualWitnessIds === undefined &&
+					reading.witnessIds.every(id => !manual.some(witness => witness.id === id))
+			)
+		).toBe(true);
+		expect(buildCbgmInput([saved], settings)).toEqual(baseline);
+		expect(
+			buildApparatusTeiExportInput(saved, [], [], manual)
+				.units.get('unit:column-1')!
+				.view.readings.find(reading => reading.id === authoredId)?.manualWitnessIds
+		).toEqual([manual[1].id]);
+		await refresh({ A: 'one alpha two', B: 'one beta two', C: 'one delta two' });
+		expect(
+			collationState.peekReadingsForUnit(1).find(reading => reading.id === authoredId)?.label
+		).toBe('c');
+		expect(
+			collationState.peekReadingsForUnit(1).find(reading => reading.witnessIds.includes('C'))
+				?.label
+		).toBe('d');
+		expect(
+			collationState.peekUnitView(1).readings.find(reading => reading.id === main.id)
+				?.manualWitnessIds
+		).toEqual([manual[0].id]);
+		collationState.setAlignmentSnapshot(
+			collateToAlignmentSnapshot({
+				witnesses: collationState.buildCollationWitnessInputs({
+					forceSourceWitnesses: true,
+				}),
+				options: { segmentation: false },
+			}).snapshot
+		);
+		expect(
+			collationState.peekUnitView(1).readings.find(reading => reading.id === authoredId)
+				?.manualWitnessIds
+		).toEqual([manual[1].id]);
+		expect(
+			collationState.getLocalStemma(1).nodes.some(node => node.readingId === authoredId)
+		).toBe(true);
+	});
+
+	it('records a manual omission on agreed text and stays quiet at unattached units', async () => {
+		setup({ A: 'one alpha', B: 'one beta' });
+		collationState.declareUnit(['column-0']);
+		const id = collationState.addAuthoredReading(0, '', true)!;
+		await collationState.attachManualWitness(0, id, 'Syriac');
+		const witnessId = collationState.getManualWitnesses()[0].id;
+		expect(
+			collationState.peekUnitView(0).readings.find(reading => reading.id === id)
+		).toMatchObject({ label: 'b', isOmission: true, manualWitnessIds: [witnessId] });
+		expect(
+			collationState
+				.peekUnitView(1)
+				.readings.every(reading => reading.manualWitnessIds?.length === 0)
+		).toBe(true);
+		const exported = exportApparatusTei(
+			buildApparatusTeiExportInput(document(), [], [], collationState.getManualWitnesses())
+		);
+		expect(exported).toContain('n="Syriac"');
+		expect(exported).toContain('type="om"');
+	});
+
+	it('places a matching witness into an authored reading under the same id', async () => {
+		setup({ A: 'one alpha two', B: 'one beta two' });
+		collationState.addRule(makeRule({ pattern: 'θς', replacement: 'θεος' }));
+		const id = collationState.addAuthoredReading(1, 'θς')!;
+		await collationState.attachManualWitness(1, id, 'Father');
+		const manualId = collationState.getManualWitnesses()[0].id;
+		await refresh({ A: 'one alpha two', B: 'one beta two', C: 'one θεος two' });
+		expect(
+			collationState.classifiedReadings
+				.get('unit:column-1')!
+				.find(reading => reading.id === id)?.witnessIds
+		).toEqual(['C']);
+		expect(
+			collationState.peekUnitView(1).readings.find(reading => reading.id === id)
+				?.manualWitnessIds
+		).toEqual([manualId]);
+		expect(collationState.unitDecisions.get('unit:column-1')?.authoredReadings).toEqual([]);
+		expect(collationState.peekUnitView(1).unconfirmedWitnessIds).toContain('C');
+	});
+
+	it('holds a witness out when several authored readings match', async () => {
+		setup({ A: 'one alpha two', B: 'one beta two' });
+		const ids = [
+			collationState.addAuthoredReading(1, 'gamma')!,
+			collationState.addAuthoredReading(1, 'gamma')!,
+		];
+		await refresh({ A: 'one alpha two', B: 'one beta two', C: 'one gamma two' });
+		expect(collationState.peekUnitView(1).unresolvedAttestations).toEqual([
+			{ witnessId: 'C', candidateReadingIds: ids },
+		]);
+		expect(
+			collationState
+				.peekUnitView(1)
+				.readings.every(reading => !reading.witnessIds.includes('C'))
+		).toBe(true);
+		expect(collationState.resolveAttestation(1, 'C', ids[0])).toEqual({ ok: true });
+		expect(
+			collationState.classifiedReadings
+				.get('unit:column-1')!
+				.find(reading => reading.id === ids[0])?.witnessIds
+		).toEqual(['C']);
+		expect(
+			collationState.unitDecisions
+				.get('unit:column-1')
+				?.authoredReadings?.map(reading => reading.id)
+		).toEqual([ids[1]]);
+		collationState.undo();
+		expect(collationState.peekUnitView(1).unresolvedAttestations).toEqual([
+			{ witnessId: 'C', candidateReadingIds: ids },
+		]);
+	});
+
+	it('orders and attaches authored readings through existing decisions and removes only their last testimony', async () => {
+		setup({ A: 'one alpha two', B: 'one beta two' });
+		const id = collationState.addAuthoredReading(1, 'gamma')!;
+		await collationState.attachManualWitness(1, id, 'Father');
+		await collationState.attachManualWitness(1, id, 'Version');
+		collationState.moveReadingByOffset(1, id, -1);
+		expect(
+			collationState
+				.peekReadingsForUnit(1)
+				.map(reading => reading.id)
+				.indexOf(id)
+		).toBe(1);
+		expect(collationState.unitDecisions.get('unit:column-1')?.authoredReadings?.[0].order).toBe(
+			1
+		);
+		const main = collationState.peekReadingsForUnit(1)[0];
+		collationState.setReadingParent(1, id, main.id, 'orthographic');
+		expect(
+			collationState.peekReadingsForUnit(1).find(reading => reading.id === id)
+		).toMatchObject({ parentReadingId: main.id, readingType: 'orthographic' });
+		expect(
+			collationState.unitDecisions.get('unit:column-1')?.authoredReadings?.[0]
+		).toMatchObject({ parentReadingId: null, readingType: null });
+		collationState.detachManualWitness(1, collationState.getManualWitnesses()[0].id);
+		expect(collationState.peekReadingsForUnit(1).some(reading => reading.id === id)).toBe(true);
+		collationState.detachManualWitness(1, collationState.getManualWitnesses()[1].id);
+		expect(collationState.peekReadingsForUnit(1).some(reading => reading.id === id)).toBe(
+			false
+		);
+		collationState.undo();
+		expect(
+			collationState.peekReadingsForUnit(1).find(reading => reading.id === id)
+				?.manualWitnessIds
+		).toEqual([collationState.getManualWitnesses()[1].id]);
+	});
+
 	function reviewView(unitIndex: number) {
 		const view = collationState.peekUnitView(unitIndex);
 		return {

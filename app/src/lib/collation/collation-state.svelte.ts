@@ -65,6 +65,7 @@ import {
 	type AlignmentDisplayMode,
 	type AlignmentLayout,
 	type ClassifiedReading,
+	type ManualWitnessDefinition,
 	type CollationPhase,
 	type RegularizationRule,
 	type RegularizationType,
@@ -236,6 +237,7 @@ function createCollationState() {
 	let transcriptionWitnessExcludedHands = $state<Map<string, string[]>>(new Map());
 	let projectReadingTypes = $state<ReadingTypeDefinition[]>([]);
 	let projectReadingTags = $state<Array<{ id: string; label: string }>>([]);
+	let projectManualWitnesses = $state<ManualWitnessDefinition[]>([]);
 
 	let alignmentColumns = $state<AlignmentColumn[]>([]);
 	let declaredUnits = $state<DeclaredUnit[]>([]);
@@ -542,6 +544,7 @@ function createCollationState() {
 		transcriptionWitnessExcludedHands = new Map();
 		projectReadingTypes = [];
 		projectReadingTags = [];
+		projectManualWitnesses = [];
 		if (!nextProjectId) {
 			return;
 		}
@@ -570,6 +573,7 @@ function createCollationState() {
 		);
 		projectReadingTypes = settings.readingTypes ?? [];
 		projectReadingTags = settings.readingTags ?? [];
+		projectManualWitnesses = settings.manualWitnesses ?? [];
 		rules = mergeProjectRules(rules, settings.regularizationRules ?? []);
 		if (
 			previousIgnoreWordBreaks !== ignoreWordBreaks &&
@@ -673,6 +677,7 @@ function createCollationState() {
 				transcriptionWitnessExcludedHands,
 				readingTypes: projectReadingTypes,
 				readingTags: projectReadingTags,
+				manualWitnesses: projectManualWitnesses,
 			}),
 			createdAt: now,
 			updatedAt: now,
@@ -749,6 +754,7 @@ function createCollationState() {
 					transcriptionWitnessExcludedHands,
 					readingTypes: projectReadingTypes,
 					readingTags: projectReadingTags,
+					manualWitnesses: projectManualWitnesses,
 				}),
 				updatedAt: new Date().toISOString(),
 			});
@@ -1330,6 +1336,42 @@ function createCollationState() {
 		selectedUnitIndex = normalizeVariationUnitIndex(selectedUnitIndex);
 	}
 
+	function regularizedAuthoredText(text: string | null): string | null {
+		const content = text ?? '';
+		const source: WitnessConfig = {
+			witnessId: 'authored',
+			siglum: '',
+			transcriptionId: '',
+			content,
+			tokens: content
+				.split(/\s+/)
+				.filter(Boolean)
+				.map(original => ({
+					kind: 'text',
+					original,
+					segments: [
+						{
+							text: original,
+							hasUnclear: false,
+							isPunctuation: isPunctuationToken({ text: original }),
+							isSupplied: false,
+						},
+					],
+					gap: null,
+				})),
+			treatment: 'fragmentary',
+			isBaseText: false,
+			isExcluded: false,
+			overridesDefault: false,
+		};
+		const input = deriveCollationInput(
+			[source],
+			{ lowercase, ignoreTokenWhitespace, ignorePunctuation, suppliedTextMode },
+			rules
+		).witnessInputs[0];
+		return alignmentCellFromTokens(input.tokens ?? []).regularizedText;
+	}
+
 	function placeChangedWitnesses(previousWitnesses: WitnessConfig[]) {
 		const previousById = new Map(
 			previousWitnesses.map(witness => [witness.witnessId, witness])
@@ -1448,11 +1490,26 @@ function createCollationState() {
 				if (bucket) {
 					const stored = classifiedReadings.get(key);
 					const coWitnesses = bucket.witnessIds.filter(id => id !== witnessId);
-					const candidates = stored
+					let candidates = stored
 						? viewUnit(key, stored).readings.filter(reading =>
 								reading.witnessIds.some(id => coWitnesses.includes(id))
 							)
 						: [];
+					if (candidates.length === 0 && coWitnesses.length === 0) {
+						const authoredIds = new Set(
+							(decisions.authoredReadings ?? []).map(reading => reading.id)
+						);
+						candidates = viewUnit(
+							key,
+							stored ?? oldReadings.filter(reading => !authoredIds.has(reading.id))
+						).readings.filter(
+							reading =>
+								authoredIds.has(reading.id) &&
+								reading.isOmission === bucket.isOmission &&
+								regularizedAuthoredText(reading.text) ===
+									(bucket.normalizedText ?? bucket.text)
+						);
+					}
 					let targetId = bucket.id;
 					if (candidates.length > 1) {
 						decisions.unresolvedAttestations.push({
@@ -1460,7 +1517,36 @@ function createCollationState() {
 							candidateReadingIds: candidates.map(reading => reading.id),
 						});
 					} else {
-						if (stored) {
+						if (
+							candidates.length === 1 &&
+							decisions.authoredReadings?.some(
+								reading => reading.id === candidates[0].id
+							)
+						) {
+							const authored = candidates[0];
+							targetId = authored.id;
+							const { manualWitnessIds: _, ...reading } = authored;
+							classifiedReadings = new Map(classifiedReadings).set(key, [
+								...(stored ??
+									oldReadings
+										.filter(
+											reading =>
+												!decisions.authoredReadings?.some(
+													authored => authored.id === reading.id
+												)
+										)
+										.map(({ manualWitnessIds: _, ...reading }) => reading)),
+								{
+									...reading,
+									witnessIds: [witnessId],
+									witnessGroups: bucket.witnessGroups,
+								},
+							]);
+							decisions.authoredReadings = decisions.authoredReadings.filter(
+								reading => reading.id !== targetId
+							);
+							decisions.preserveReadings = true;
+						} else if (stored) {
 							if (candidates.length === 1) {
 								targetId = candidates[0].id;
 								classifiedReadings = new Map(classifiedReadings).set(
@@ -1485,12 +1571,19 @@ function createCollationState() {
 									parentReadingId: null,
 									isSubreading: false,
 									autoGenerated: false,
-									order: stored.length,
+									order:
+										Math.max(
+											-1,
+											...stored.map(reading => reading.order),
+											...(decisions.authoredReadings ?? []).map(
+												reading => reading.order
+											)
+										) + 1,
 								};
-								classifiedReadings = new Map(classifiedReadings).set(
-									key,
-									relabelReadings([...stored, reading], getBaseTextWitnessId())
-								);
+								classifiedReadings = new Map(classifiedReadings).set(key, [
+									...stored,
+									reading,
+								]);
 							}
 						}
 						const oldReading = oldReadings.find(reading =>
@@ -2043,18 +2136,18 @@ function createCollationState() {
 		const reading = readings.find(entry => entry.id === readingId);
 		if (!reading) return [];
 		if (displayMode !== 'regularized' || reading.parentReadingId !== null) {
-			return [...reading.witnessIds];
+			return [...reading.witnessIds, ...(reading.manualWitnessIds ?? [])];
 		}
 
 		const family = getReadingFamiliesForUnit(unitIndex).find(
 			entry => entry.parent.id === readingId
 		);
-		if (!family) return [...reading.witnessIds];
+		if (!family) return [...reading.witnessIds, ...(reading.manualWitnessIds ?? [])];
 
 		const witnessIds: string[] = [];
 		const seen = new Set<string>();
 		for (const member of family.members) {
-			for (const witnessId of member.witnessIds) {
+			for (const witnessId of [...member.witnessIds, ...(member.manualWitnessIds ?? [])]) {
 				if (seen.has(witnessId)) continue;
 				seen.add(witnessId);
 				witnessIds.push(witnessId);
@@ -2107,7 +2200,23 @@ function createCollationState() {
 		const stored = classifiedReadings.get(key) ?? [];
 		const proposalById = new Map(stored.map(reading => [reading.id, reading] as const));
 		// Restore overlayable fields from proposal, or decided values survive undo.
-		const decisions = unitDecisions.get(key) ?? {};
+		const decisions = cloneUnitDecisions(unitDecisions.get(key));
+		if (decisions.authoredReadings) {
+			decisions.authoredReadings = decisions.authoredReadings.flatMap(authored => {
+				const edited = readings.find(reading => reading.id === authored.id);
+				return edited && edited.witnessIds.length === 0
+					? [
+							{
+								...authored,
+								text: edited.text,
+								isOmission: edited.isOmission,
+								order: edited.order,
+							},
+						]
+					: [];
+			});
+			unitDecisions = new Map(unitDecisions).set(key, decisions);
+		}
 		const attachments = decisions.subreadingOf ?? {};
 		const readingTypes = decisions.readingType ?? {};
 		const certainties = decisions.certainty ?? {};
@@ -2120,36 +2229,43 @@ function createCollationState() {
 		const hiddenReadings = stored.filter(
 			reading => !visibleIds.has(reading.id) && !editedIds.has(reading.id)
 		);
-		const proposal = [...readings, ...hiddenReadings].map(reading => {
-			const existing = proposalById.get(reading.id);
-			if (!existing) return reading;
-			const ambiguous = existing.witnessIds.filter(
-				witnessId =>
-					ambiguousWitnessIds.has(witnessId) && !reading.witnessIds.includes(witnessId)
-			);
-			let restored =
-				ambiguous.length > 0
-					? { ...reading, witnessIds: [...reading.witnessIds, ...ambiguous] }
-					: reading;
-			if (Object.hasOwn(attachments, reading.id)) {
-				restored = {
-					...restored,
-					parentReadingId: existing.parentReadingId,
-					isSubreading: existing.isSubreading,
-					autoGenerated: existing.autoGenerated,
-				};
-			}
-			if (Object.hasOwn(readingTypes, reading.id)) {
-				restored = { ...restored, readingType: existing.readingType };
-			}
-			if (Object.hasOwn(certainties, reading.id)) {
-				restored = { ...restored, certainty: existing.certainty };
-			}
-			return restored;
-		});
+		const authoredIds = new Set((decisions.authoredReadings ?? []).map(reading => reading.id));
+		const proposal = [...readings, ...hiddenReadings]
+			.filter(reading => !authoredIds.has(reading.id))
+			.map(({ manualWitnessIds: _, ...reading }) => {
+				const existing = proposalById.get(reading.id);
+				if (!existing) return reading;
+				const ambiguous = existing.witnessIds.filter(
+					witnessId =>
+						ambiguousWitnessIds.has(witnessId) &&
+						!reading.witnessIds.includes(witnessId)
+				);
+				let restored =
+					ambiguous.length > 0
+						? { ...reading, witnessIds: [...reading.witnessIds, ...ambiguous] }
+						: reading;
+				if (Object.hasOwn(attachments, reading.id)) {
+					restored = {
+						...restored,
+						parentReadingId: existing.parentReadingId,
+						isSubreading: existing.isSubreading,
+						autoGenerated: existing.autoGenerated,
+					};
+				}
+				if (Object.hasOwn(readingTypes, reading.id)) {
+					restored = { ...restored, readingType: existing.readingType };
+				}
+				if (Object.hasOwn(certainties, reading.id)) {
+					restored = { ...restored, certainty: existing.certainty };
+				}
+				return restored;
+			});
 		classifiedReadings = new Map(classifiedReadings).set(
 			key,
-			relabelReadings(proposal, getBaseTextWitnessId())
+			relabelReadings(
+				[...proposal, ...readings.filter(reading => authoredIds.has(reading.id))],
+				getBaseTextWitnessId()
+			).filter(reading => !authoredIds.has(reading.id))
 		);
 		markUnsaved();
 	}
@@ -2180,8 +2296,8 @@ function createCollationState() {
 		if (!key) return;
 		const previousReadings = classifiedReadings.get(key);
 		const previousDecisions = unitDecisions.get(key);
-		setReadingsForUnit(unitIndex, readings);
 		if (decisions) unitDecisions = new Map(unitDecisions).set(key, decisions);
+		setReadingsForUnit(unitIndex, readings);
 		const updatedReadings = classifiedReadings.get(key);
 		const updatedDecisions = unitDecisions.get(key);
 		pushCommand({
@@ -2227,7 +2343,7 @@ function createCollationState() {
 		if (!peekReadingsForUnit(unitIndex).some(reading => reading.id === readingId)) {
 			return { ok: false, error: 'reading-not-found' };
 		}
-		const readings = classifiedReadings.get(key) ?? buildReadingsForUnit(unitIndex);
+		const readings = peekReadingsForUnit(unitIndex);
 		const updated = readings.map(reading => ({
 			...reading,
 			witnessIds:
@@ -2574,6 +2690,115 @@ function createCollationState() {
 
 	function getReadingTypeVocabulary(): ReadingTypeDefinition[] {
 		return resolveReadingTypeVocabulary(projectReadingTypes);
+	}
+
+	function getManualWitnesses(): ManualWitnessDefinition[] {
+		return projectManualWitnesses;
+	}
+
+	function getWitnessSiglum(witnessId: string): string {
+		return (
+			witnesses.find(witness => witness.witnessId === witnessId)?.siglum ??
+			projectManualWitnesses.find(witness => witness.id === witnessId)?.siglum ??
+			witnessId
+		);
+	}
+
+	function commitManualDecisions(unitIndex: number, next: UnitDecisions, description: string) {
+		const key = getReadingUnitKey(unitIndex);
+		if (!key) return;
+		const previous = new Map(unitDecisions);
+		const updated = new Map(previous).set(key, next);
+		unitDecisions = updated;
+		pushCommand({
+			type: 'edit-manual-testimony',
+			description,
+			undo: () => {
+				unitDecisions = new Map(previous);
+			},
+			redo: () => {
+				unitDecisions = new Map(updated);
+			},
+		});
+	}
+
+	async function attachManualWitness(unitIndex: number, readingId: string, value: string) {
+		const siglum = value.trim();
+		if (!siglum) return { ok: false as const, error: 'Enter a siglum.' };
+		if (witnesses.some(witness => witness.siglum === siglum))
+			return {
+				ok: false as const,
+				error: 'This siglum belongs to a transcribed witness. CBGM joins witnesses by siglum; choose a different siglum.',
+			};
+		const key = getReadingUnitKey(unitIndex);
+		if (!key || !peekReadingsForUnit(unitIndex).some(reading => reading.id === readingId))
+			return { ok: false as const, error: 'Reading not found.' };
+		let witness = projectManualWitnesses.find(witness => witness.siglum === siglum);
+		const isNew = !witness;
+		if (!witness) {
+			witness = {
+				id: crypto.randomUUID(),
+				siglum,
+				treatment: 'fragmentary',
+				includeInCbgm: false,
+			};
+			projectManualWitnesses = [...projectManualWitnesses, witness];
+		}
+		const next = cloneUnitDecisions(unitDecisions.get(key));
+		const previous = next.manualTestimony?.[witness.id];
+		next.manualTestimony = {
+			...next.manualTestimony,
+			[witness.id]: { kind: 'reading', readingId },
+		};
+		if (previous?.kind === 'reading' && previous.readingId !== readingId)
+			removeUnattestedAuthoredReading(next, previous.readingId);
+		commitManualDecisions(unitIndex, next, 'Attach manual witness');
+		if (isNew) await persistRulesToProject(rules);
+		return { ok: true as const, witnessId: witness.id };
+	}
+
+	function removeUnattestedAuthoredReading(decisions: UnitDecisions, readingId: string) {
+		if (
+			Object.values(decisions.manualTestimony ?? {}).some(
+				testimony => testimony.kind === 'reading' && testimony.readingId === readingId
+			)
+		)
+			return;
+		decisions.authoredReadings = decisions.authoredReadings?.filter(
+			reading => reading.id !== readingId
+		);
+	}
+
+	function detachManualWitness(unitIndex: number, manualWitnessId: string) {
+		const key = getReadingUnitKey(unitIndex);
+		if (!key) return;
+		const next = cloneUnitDecisions(unitDecisions.get(key));
+		const testimony = next.manualTestimony?.[manualWitnessId];
+		if (!testimony) return;
+		delete next.manualTestimony![manualWitnessId];
+		if (testimony.kind === 'reading')
+			removeUnattestedAuthoredReading(next, testimony.readingId);
+		commitManualDecisions(unitIndex, next, 'Detach manual witness');
+	}
+
+	function addAuthoredReading(unitIndex: number, text: string, isOmission = false) {
+		const key = getReadingUnitKey(unitIndex);
+		if (!key || (!isOmission && !text.trim())) return null;
+		const reading = emptyReading(ensureReadingsForUnit(unitIndex), null);
+		const next = cloneUnitDecisions(unitDecisions.get(key));
+		next.authoredReadings = [
+			...(next.authoredReadings ?? []),
+			{
+				id: reading.id,
+				text: isOmission ? null : text.trim(),
+				isOmission,
+				order: reading.order,
+				parentReadingId: null,
+				readingType: null,
+			},
+		];
+		commitManualDecisions(unitIndex, next, 'Add authored reading');
+		return reading.id;
 	}
 
 	function getReadingTags(): Array<{ id: string; label: string }> {
@@ -2959,6 +3184,7 @@ function createCollationState() {
 		transcriptionWitnessTreatments = new Map();
 		projectReadingTypes = [];
 		projectReadingTags = [];
+		projectManualWitnesses = [];
 		alignmentColumns = [];
 		declaredUnits = [];
 		lastAlignmentInputSignature = null;
@@ -3350,6 +3576,11 @@ function createCollationState() {
 		updateReadingTextForDisplayMode,
 		setReadingType,
 		getReadingTags,
+		getManualWitnesses,
+		getWitnessSiglum,
+		attachManualWitness,
+		detachManualWitness,
+		addAuthoredReading,
 		addReadingTag,
 		removeReadingTag,
 		setReadingCertainty,

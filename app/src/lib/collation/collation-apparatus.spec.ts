@@ -137,6 +137,24 @@ describe('renderApparatusUnit', () => {
 		collationState.reset();
 	});
 
+	it('cites manual sigla on ordinary and authored readings', async () => {
+		collate([
+			makeWitness('A', textTokens('λογος'), true),
+			makeWitness('B', textTokens('θεος')),
+		]);
+		const main = collationState.peekReadingsForUnit(0)[0];
+		await collationState.attachManualWitness(0, main.id, 'Father');
+		const id = collationState.addAuthoredReading(0, '', true)!;
+		await collationState.attachManualWitness(0, id, 'Syriac');
+		const rendered = renderApparatusUnit(collationState.peekUnitView(0), {
+			label: '2',
+			nonAttestation: collationState.getNonAttestationForUnit(0),
+			siglumOf: collationState.getWitnessSiglum,
+		});
+		expect(rendered).toContain('a: A Father');
+		expect(rendered).toContain('c: Syriac');
+	});
+
 	it('renders the unit range, the lemma text, and every reading with its sigla', () => {
 		collate([
 			makeWitness('A', textTokens('ο λογος'), true),

@@ -792,3 +792,135 @@ describe('ReadingsPhase placement review', () => {
 		).toEqual(['B', 'C']);
 	});
 });
+
+describe('ReadingsPhase manual witnesses', () => {
+	const originalViewport = { width: window.innerWidth, height: window.innerHeight };
+	afterEach(async () => {
+		await page.viewport(originalViewport.width, originalViewport.height);
+	});
+
+	it('keeps an authored subreading’s manual witnesses visible when the family is collapsed', async () => {
+		collationState.reset();
+		collate([makeWitness('A', 'λογος', true), makeWitness('B', 'θεος')]);
+		const main = collationState.peekReadingsForUnit(0)[0];
+		const id = collationState.addAuthoredReading(0, 'λογου')!;
+		await collationState.attachManualWitness(0, id, 'Father');
+		collationState.setReadingParent(0, id, main.id, 'orthographic');
+		render(ReadingsPhase);
+		await expect
+			.element(
+				page.getByRole('button', { name: 'Detach Father from reading a', exact: true })
+			)
+			.toBeVisible();
+		await page.getByRole('radio', { name: 'Original', exact: true }).click();
+		await expect
+			.element(
+				page.getByRole('button', { name: 'Detach Father from reading ao', exact: true })
+			)
+			.toBeVisible();
+	});
+
+	it.each([390, 1280])(
+		'attaches existing and new sigla, refuses collisions, and authors readings at %ipx',
+		async width => {
+			await page.viewport(width, 844);
+			collationState.reset();
+			collate([makeWitness('A', 'λογος', true), makeWitness('B', 'θεος')]);
+			const first = collationState.peekReadingsForUnit(0)[0];
+			await collationState.attachManualWitness(0, first.id, 'Father');
+			collationState.detachManualWitness(0, collationState.getManualWitnesses()[0].id);
+			render(ReadingsPhase);
+			const input = page.getByRole('combobox', {
+				name: 'Manual witness for reading a',
+				exact: true,
+			});
+			await expect.element(input).toBeVisible();
+			expect(
+				[...document.querySelectorAll('datalist option')].some(
+					option => option.getAttribute('value') === 'Father'
+				)
+			).toBe(true);
+			await input.fill('Father');
+			await page
+				.getByRole('button', { name: 'Attach manual witness to reading a', exact: true })
+				.click();
+			const existing = page.getByRole('button', {
+				name: 'Detach Father from reading a',
+				exact: true,
+			});
+			await expect.element(existing).toBeVisible();
+			expect(collationState.getManualWitnesses()).toHaveLength(1);
+			await input.fill(' A ');
+			await page
+				.getByRole('button', { name: 'Attach manual witness to reading a', exact: true })
+				.click();
+			await expect.poll(announcement).toContain('CBGM joins witnesses by siglum');
+			await expect.element(page.getByRole('alert')).toBeVisible();
+			await expect
+				.element(page.getByRole('alert'))
+				.toHaveTextContent('CBGM joins witnesses by siglum');
+			expect(collationState.getManualWitnesses()).toHaveLength(1);
+			await input.fill('Version');
+			await page
+				.getByRole('button', { name: 'Attach manual witness to reading a', exact: true })
+				.click();
+			await expect
+				.element(
+					page.getByRole('button', { name: 'Detach Version from reading a', exact: true })
+				)
+				.toBeVisible();
+			expect(collationState.getManualWitnesses().map(witness => witness.siglum)).toEqual([
+				'Father',
+				'Version',
+			]);
+			await page
+				.getByRole('textbox', { name: 'New reading text', exact: true })
+				.fill('πνευμα');
+			await page.getByRole('button', { name: 'Add reading', exact: true }).click();
+			await expect
+				.element(page.getByRole('textbox', { name: 'Text of reading c', exact: true }))
+				.toHaveValue('πνευμα');
+			await page
+				.getByRole('combobox', { name: 'Manual witness for reading c', exact: true })
+				.fill('Version');
+			await page
+				.getByRole('button', { name: 'Attach manual witness to reading c', exact: true })
+				.click();
+			await expect
+				.element(
+					page.getByRole('button', { name: 'Detach Version from reading c', exact: true })
+				)
+				.toBeVisible();
+			await page.getByRole('checkbox', { name: 'Omission', exact: true }).click();
+			await page.getByRole('button', { name: 'Add reading', exact: true }).click();
+			await expect
+				.element(page.getByRole('textbox', { name: 'Text of reading d', exact: true }))
+				.toBeDisabled();
+			await expect
+				.poll(() =>
+					[
+						...document.querySelectorAll<HTMLElement>(
+							'input[aria-label^="Manual witness"], button[aria-label^="Attach manual"], form[aria-label="Add authored reading"]'
+						),
+					].every(element => {
+						const rect = element.getBoundingClientRect();
+						return (
+							rect.left >= 0 &&
+							rect.right <= width &&
+							element.scrollWidth <= element.clientWidth
+						);
+					})
+				)
+				.toBe(true);
+			await page
+				.getByRole('button', { name: 'Detach Version from reading c', exact: true })
+				.click();
+			await expect
+				.element(page.getByRole('textbox', { name: 'Text of reading c', exact: true }))
+				.toHaveAttribute('placeholder', 'om.');
+			expect(
+				collationState.peekReadingsForUnit(0).some(reading => reading.text === 'πνευμα')
+			).toBe(false);
+		}
+	);
+});

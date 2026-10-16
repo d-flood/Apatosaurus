@@ -82,7 +82,7 @@
 				entries.push({
 					unitIndex,
 					title: 'Resolve orphaned reading decision',
-					detail: `A saved ${orphan.kind === 'sourceArc' ? 'source' : orphan.kind === 'readingTag' ? 'reading tag' : orphan.kind} decision refers to a reading that is no longer in this variation unit.`,
+					detail: `A saved ${orphan.kind === 'sourceArc' ? 'source' : orphan.kind === 'readingTag' ? 'reading tag' : orphan.kind === 'manualTestimony' ? 'manual testimony' : orphan.kind} decision refers to a reading that is no longer in this variation unit.`,
 					phase:
 						orphan.kind === 'sourceArc' || orphan.kind === 'sourceDecision'
 							? 'stemma'
@@ -147,10 +147,7 @@
 	});
 
 	function siglumOf(witnessId: string): string {
-		return (
-			collationState.witnesses.find(witness => witness.witnessId === witnessId)?.siglum ??
-			witnessId
-		);
+		return collationState.getWitnessSiglum(witnessId);
 	}
 
 	function transcriptionHref(witnessId: string): string | null {
@@ -217,7 +214,21 @@
 				? `${collationState.projectName} Collation`
 				: 'Apatosaurus Collation',
 			segmentName: collationState.segment?.name ?? 'Collation',
-			witnesses: collationState.witnesses,
+			witnesses: [
+				...collationState.witnesses,
+				...collationState
+					.getManualWitnesses()
+					.filter(witness =>
+						[...collationState.unitDecisions.values()].some(
+							decisions => decisions.manualTestimony?.[witness.id]
+						)
+					)
+					.map(witness => ({
+						witnessId: witness.id,
+						siglum: witness.siglum,
+						isExcluded: false,
+					})),
+			],
 			baseTextWitnessId: collationState.getBaseTextWitnessId(),
 			segments: sharedSegments,
 			readingTags: collationState.getReadingTags(),
@@ -264,9 +275,8 @@
 
 	function selectExportRefusal(refusal: ApparatusExportRefusal) {
 		if (!refusal.unitId) return;
-		const unitIndex = unitSegments.find(
-			segment => segment.span.unitId === refusal.unitId
-		)?.span.startIndex;
+		const unitIndex = unitSegments.find(segment => segment.span.unitId === refusal.unitId)?.span
+			.startIndex;
 		if (unitIndex !== undefined) collationState.selectedUnitIndex = unitIndex;
 	}
 

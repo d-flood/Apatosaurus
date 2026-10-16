@@ -163,7 +163,7 @@ function parse(xml: string): XmlDocument {
 	return document;
 }
 
-function hasWitness(element: Element, witnessId: string): boolean {
+function hasWitness(element: Pick<Element, 'getAttribute'>, witnessId: string): boolean {
 	return (element.getAttribute('wit') ?? '').split(/\s+/).includes(`#wit-${witnessId}`);
 }
 
@@ -191,6 +191,46 @@ function reconstructWitness(document: XmlDocument, witnessId: string): string {
 }
 
 describe('apparatus TEI exporter', () => {
+	it('lists and cites manual witnesses on authored text and omission readings in valid P5', async () => {
+		const textId = collationState.addAuthoredReading(1, 'versional text')!;
+		const omissionId = collationState.addAuthoredReading(1, '', true)!;
+		await collationState.attachManualWitness(1, textId, 'Father & version');
+		await collationState.attachManualWitness(1, omissionId, 'Syriac');
+		await collationState.attachManualWitness(
+			1,
+			collationState.peekReadingsForUnit(1)[0].id,
+			'Latin'
+		);
+		const manual = collationState.getManualWitnesses();
+		const input = exportInput();
+		input.witnesses = [
+			...input.witnesses,
+			...manual.map(witness => ({
+				witnessId: witness.id,
+				siglum: witness.siglum,
+				isExcluded: false,
+			})),
+		];
+		const xml = exportApparatusTei(input);
+		const parsed = parse(xml);
+		expect(
+			Array.from(parsed.getElementsByTagName('witness')).map(witness =>
+				witness.getAttribute('n')
+			)
+		).toEqual(expect.arrayContaining(manual.map(witness => witness.siglum)));
+		const readings = Array.from(parsed.getElementsByTagName('rdg'));
+		expect(
+			readings.find(reading => hasWitness(reading, manual[0].id))?.textContent?.trim()
+		).toBe('versional text');
+		expect(
+			readings.find(reading => hasWitness(reading, manual[1].id))?.getAttribute('subtype')
+		).toBe('om');
+		expect(
+			readings.find(reading => hasWitness(reading, manual[2].id))?.textContent?.trim()
+		).toBe('alpha');
+		expect(() => validateTeiP5(xml)).not.toThrow();
+	}, 60_000);
+
 	it('declares tags once and references them on main and subreadings in valid P5', async () => {
 		const readings = collationState.peekReadingsForUnit(1);
 		const alpha = readings.find(reading => reading.text === 'alpha')!;

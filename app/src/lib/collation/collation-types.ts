@@ -95,7 +95,15 @@ interface ReadingWitnessGroup {
 	witnessIds: string[];
 }
 
+export interface ManualWitnessDefinition {
+	id: string;
+	siglum: string;
+	treatment: WitnessTreatment;
+	includeInCbgm: boolean;
+}
+
 export interface ClassifiedReading {
+	manualWitnessIds?: string[];
 	id: string;
 	order: number;
 	label: string;
@@ -119,6 +127,7 @@ export type AlignmentDisplayMode = 'regularized' | 'original';
 export type AlignmentLayout = 'grid' | 'variation-units';
 
 export interface ProjectCollationSettings {
+	manualWitnesses?: ManualWitnessDefinition[];
 	regularizationRules?: RegularizationRule[];
 	readingTypes?: ReadingTypeDefinition[];
 	readingTags?: Array<{ id: string; label: string }>;

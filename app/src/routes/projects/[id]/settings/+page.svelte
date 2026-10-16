@@ -291,6 +291,7 @@
 				transcriptionWitnessExcludedHands: nextExcludedHands,
 				readingTypes: nextState?.readingTypes ?? projectReadingTypes,
 				readingTags: savedSettings.readingTags,
+				manualWitnesses: savedSettings.manualWitnesses,
 			});
 			await updateProjectMetadata({
 				projectId: openProject.id,

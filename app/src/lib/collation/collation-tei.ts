@@ -8,7 +8,7 @@ import {
 	type NonAttestation,
 } from './collation-reading-proposal';
 import { projectLocalStemma, type LocalStemma } from './collation-stemma';
-import type { ClassifiedReading } from './collation-types';
+import type { ClassifiedReading, ManualWitnessDefinition } from './collation-types';
 import { buildVariationUnitSpans } from './collation-variation-units';
 import { isPunctuationOnlyText } from './token-text';
 import { resolveReadingTypeVocabulary, type ReadingTypeDefinition } from './reading-types';
@@ -164,7 +164,7 @@ function readingAttributes(
 	if (tags.length > 0) attributes.push(`ana="${escapeAttribute(tags.join(' '))}"`);
 	attributes.push(
 		witnessAttribute(
-			reading.witnessIds,
+			[...reading.witnessIds, ...(reading.manualWitnessIds ?? [])],
 			options.witnessXmlIds,
 			options.baseTextWitnessId,
 			options.includeBaseText
@@ -422,7 +422,8 @@ function activeWitnessIds(
 export function buildApparatusTeiExportInput(
 	document: CollationDocument,
 	projectReadingTypes: readonly ReadingTypeDefinition[] = [],
-	projectReadingTags: ReadonlyArray<{ id: string; label: string }> = []
+	projectReadingTags: ReadonlyArray<{ id: string; label: string }> = [],
+	projectManualWitnesses: readonly ManualWitnessDefinition[] = []
 ): ApparatusTeiExportInput {
 	const vocabulary = resolveReadingTypeVocabulary(projectReadingTypes);
 	const columns = deserializeAlignmentColumns(document.alignment?.columns ?? []);
@@ -482,11 +483,24 @@ export function buildApparatusTeiExportInput(
 			? `${document.meta.projectName} Collation`
 			: 'Apatosaurus Collation',
 		segmentName: document.setup.segment.name,
-		witnesses: document.setup.witnesses.map(witness => ({
-			witnessId: witness.id,
-			siglum: witness.siglum,
-			isExcluded: witness.isExcluded,
-		})),
+		witnesses: [
+			...document.setup.witnesses.map(witness => ({
+				witnessId: witness.id,
+				siglum: witness.siglum,
+				isExcluded: witness.isExcluded,
+			})),
+			...projectManualWitnesses
+				.filter(witness =>
+					(document.apparatus?.units ?? []).some(
+						unit => unit.decisions.manualTestimony?.[witness.id]
+					)
+				)
+				.map(witness => ({
+					witnessId: witness.id,
+					siglum: witness.siglum,
+					isExcluded: false,
+				})),
+		],
 		baseTextWitnessId,
 		segments,
 		units,
@@ -497,9 +511,15 @@ export function buildApparatusTeiExportInput(
 export function exportCollationDocumentTei(
 	document: CollationDocument,
 	projectReadingTypes: readonly ReadingTypeDefinition[] = [],
-	projectReadingTags: ReadonlyArray<{ id: string; label: string }> = []
+	projectReadingTags: ReadonlyArray<{ id: string; label: string }> = [],
+	projectManualWitnesses: readonly ManualWitnessDefinition[] = []
 ): string {
 	return exportApparatusTei(
-		buildApparatusTeiExportInput(document, projectReadingTypes, projectReadingTags)
+		buildApparatusTeiExportInput(
+			document,
+			projectReadingTypes,
+			projectReadingTags,
+			projectManualWitnesses
+		)
 	);
 }

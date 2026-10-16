@@ -30,6 +30,30 @@
 	const NO_VALUE = '';
 
 	let liveMessage = $state('');
+	let authoredText = $state('');
+	let authoredInput = $state<HTMLInputElement | null>(null);
+	let authoredOmission = $state(false);
+	const manualDrafts = new SvelteMap<string, string>();
+	const manualErrors = new SvelteMap<string, string>();
+	let manualWitnesses = $derived(collationState.getManualWitnesses());
+	async function attachManual(reading: ClassifiedReading) {
+		const result = await collationState.attachManualWitness(
+			unitIndex,
+			reading.id,
+			manualDrafts.get(reading.id) ?? ''
+		);
+		if (result.ok) {
+			manualDrafts.delete(reading.id);
+			manualErrors.delete(reading.id);
+		} else manualErrors.set(reading.id, result.error);
+		liveMessage = result.ok ? 'Attached manual witness.' : result.error;
+	}
+	function addAuthored() {
+		if (!collationState.addAuthoredReading(unitIndex, authoredText, authoredOmission)) return;
+		authoredText = '';
+		authoredOmission = false;
+		liveMessage = 'Added authored reading.';
+	}
 	let chipGroup = $state<HTMLElement | null>(null);
 
 	let segments = $derived(collationState.getSegmentSequence());
@@ -179,10 +203,7 @@
 	});
 
 	function getWitnessSiglum(witnessId: string): string {
-		return (
-			collationState.witnesses.find(witness => witness.witnessId === witnessId)?.siglum ??
-			witnessId
-		);
+		return collationState.getWitnessSiglum(witnessId);
 	}
 
 	function getSortedWitnesses(witnessIds: string[]): { id: string; siglum: string }[] {
@@ -201,14 +222,29 @@
 		return collationState.getDisplayedWitnessIdsForReading(unitIndex, reading.id, displayMode);
 	}
 
+	function displayedManualWitnessIds(reading: ClassifiedReading): string[] {
+		return getDisplayedWitnessIds(reading).filter(id =>
+			manualWitnesses.some(witness => witness.id === id)
+		);
+	}
+
 	function visibleWitnessesOf(reading: ClassifiedReading): { id: string; siglum: string }[] {
-		const sorted = getSortedWitnesses(getDisplayedWitnessIds(reading));
+		const sorted = getSortedWitnesses(
+			getDisplayedWitnessIds(reading).filter(
+				id => !manualWitnesses.some(witness => witness.id === id)
+			)
+		);
 		return expandedWitnesses.has(reading.id) ? sorted : sorted.slice(0, WITNESS_DISPLAY_LIMIT);
 	}
 
 	function hiddenWitnessCount(reading: ClassifiedReading): number {
 		if (expandedWitnesses.has(reading.id)) return 0;
-		return Math.max(0, getDisplayedWitnessIds(reading).length - WITNESS_DISPLAY_LIMIT);
+		return Math.max(
+			0,
+			getDisplayedWitnessIds(reading).filter(
+				id => !manualWitnesses.some(witness => witness.id === id)
+			).length - WITNESS_DISPLAY_LIMIT
+		);
 	}
 
 	/** Flat chip order keeps one tabstop and lets ranges span cards. */
@@ -767,7 +803,7 @@
 				type="button"
 				class="btn btn-primary btn-sm gap-1"
 				disabled={unitIndex < 0}
-				onclick={() => collationState.addReading(unitIndex)}
+				onclick={() => authoredInput?.focus()}
 			>
 				<Plus size={14} />
 				Reading
@@ -1130,6 +1166,69 @@
 											{/if}
 										</div>
 									{/if}
+									{#if displayedManualWitnessIds(reading).length > 0}
+										<div class="flex flex-wrap gap-1">
+											{#each displayedManualWitnessIds(reading) as id (id)}
+												<button
+													type="button"
+													class="badge badge-outline h-auto max-w-full whitespace-normal break-words py-1"
+													aria-label={`Detach ${getWitnessSiglum(id)} from reading ${reading.label}`}
+													onclick={() =>
+														collationState.detachManualWitness(
+															unitIndex,
+															id
+														)}>{getWitnessSiglum(id)} ×</button
+												>
+											{/each}
+										</div>
+									{/if}
+									<div class="flex flex-wrap items-end gap-1">
+										<label class="min-w-0 flex-1 text-xs text-base-content/60"
+											><span>Manual witness</span>
+											<input
+												class="input input-bordered input-xs mt-1 w-full"
+												aria-label={`Manual witness for reading ${reading.label}`}
+												aria-describedby={manualErrors.has(reading.id)
+													? `manual-error-${reading.id}`
+													: undefined}
+												list={`manual-witnesses-${reading.id}`}
+												placeholder="Choose or enter a siglum"
+												value={manualDrafts.get(reading.id) ?? ''}
+												oninput={event =>
+													manualDrafts.set(
+														reading.id,
+														event.currentTarget.value
+													)}
+												onkeydown={event => {
+													if (event.key === 'Enter') {
+														event.preventDefault();
+														void attachManual(reading);
+													}
+												}}
+											/>
+											<datalist id={`manual-witnesses-${reading.id}`}>
+												{#each manualWitnesses as witness (witness.id)}<option
+														value={witness.siglum}
+													></option>{/each}
+											</datalist>
+										</label>
+										<button
+											type="button"
+											class="btn btn-xs"
+											aria-label={`Attach manual witness to reading ${reading.label}`}
+											disabled={!(manualDrafts.get(reading.id) ?? '').trim()}
+											onclick={() => attachManual(reading)}>Attach</button
+										>
+									</div>
+									{#if manualErrors.has(reading.id)}
+										<p
+											id={`manual-error-${reading.id}`}
+											role="alert"
+											class="text-xs text-error"
+										>
+											{manualErrors.get(reading.id)}
+										</p>
+									{/if}
 								</div>
 
 								<details class="dropdown dropdown-end shrink-0">
@@ -1373,6 +1472,37 @@
 						{/each}
 					</article>
 				{/each}
+
+				<form
+					class="flex flex-wrap items-end gap-2 rounded-xl border border-base-300/60 p-3"
+					aria-label="Add authored reading"
+					onsubmit={event => {
+						event.preventDefault();
+						addAuthored();
+					}}
+				>
+					<label class="min-w-0 flex-1 text-xs"
+						><span>New reading text</span><input
+							class="input input-bordered input-sm mt-1 w-full"
+							aria-label="New reading text"
+							bind:this={authoredInput}
+							bind:value={authoredText}
+							disabled={authoredOmission}
+						/></label
+					>
+					<label class="flex items-center gap-1 text-sm"
+						><input
+							type="checkbox"
+							class="checkbox checkbox-sm"
+							bind:checked={authoredOmission}
+						/>Omission</label
+					>
+					<button
+						type="submit"
+						class="btn btn-sm"
+						disabled={!authoredOmission && !authoredText.trim()}>Add reading</button
+					>
+				</form>
 
 				{#if ambiguousAttestations.length > 0}
 					<section

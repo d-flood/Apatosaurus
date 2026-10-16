@@ -220,7 +220,9 @@ export function renderApparatusUnit(unit: UnitView, options: ApparatusRenderOpti
 			readingType === null
 				? ''
 				: ` (${options.readingTypeLabelOf?.(readingType) ?? readingType})`;
-		const sigla = reading.witnessIds.map(siglumOf).join(' ');
+		const sigla = [...reading.witnessIds, ...(reading.manualWitnessIds ?? [])]
+			.map(siglumOf)
+			.join(' ');
 		return `${reading.label}${typeLabel}: ${sigla}`.trimEnd();
 	});
 	for (const attestation of unit.ambiguousAttestations) {

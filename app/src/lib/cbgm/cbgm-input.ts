@@ -116,7 +116,18 @@ export function buildCbgmInput(
 
 		const segmentName = document.setup.segment.name;
 		const prefix = claimUnitPrefix(segmentName, claimedPrefixes);
-		const input = buildApparatusTeiExportInput(document);
+		const input = buildApparatusTeiExportInput({
+			...document,
+			apparatus: document.apparatus
+				? {
+						...document.apparatus,
+						units: document.apparatus.units.map(unit => ({
+							...unit,
+							decisions: { ...unit.decisions, authoredReadings: [] },
+						})),
+					}
+				: null,
+		});
 		const apps: string[] = [];
 		for (const segment of input.segments) {
 			if (segment.kind !== 'unit') continue;
