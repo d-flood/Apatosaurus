@@ -1,0 +1,4 @@
+<TEI xmlns="http://www.tei-c.org/ns/1.0">
+  <teiHeader><fileDesc><sourceDesc><listWit><witness n="A"/><witness n="B"/></listWit></sourceDesc></fileDesc></teiHeader>
+  <ab xml:id="Acts_1.1">αλφα βητα γαμμα<app from="2" to="2"><rdg n="a" wit="A" type="-">αλφα</rdg><rdg n="b" wit="B" type="-">δελτα</rdg></app></ab>
+</TEI>

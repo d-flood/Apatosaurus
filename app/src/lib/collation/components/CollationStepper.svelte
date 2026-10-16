@@ -54,6 +54,7 @@
 
 		<a
 			href={phaseHref(step.phase)}
+			aria-label={step.label}
 			class="group flex items-center gap-2 px-3 py-2 rounded-lg transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
 			class:bg-primary={current}
 			class:text-primary-content={current}

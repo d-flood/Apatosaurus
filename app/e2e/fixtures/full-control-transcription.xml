@@ -1,0 +1,4 @@
+<TEI xmlns="http://www.tei-c.org/ns/1.0">
+  <teiHeader><fileDesc><titleStmt><title type="document">Full control witness</title></titleStmt><publicationStmt><p>Test fixture.</p></publicationStmt><sourceDesc><p>Full control end-to-end fixture.</p></sourceDesc></fileDesc></teiHeader>
+  <text><body><div type="book" n="Acts"><div type="chapter" n="1"><ab n="1"><w>αλφα</w><w>βητα</w><w>γαμμα</w></ab></div></div></body></text>
+</TEI>

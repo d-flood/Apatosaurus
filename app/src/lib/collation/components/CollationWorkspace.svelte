@@ -232,7 +232,7 @@
 
 <div class="flex flex-col h-[calc(100vh-4rem)]">
 	<div class="shrink-0 bg-base-200/60 border-b border-base-300/50 px-4 py-3">
-		<div class="flex items-center justify-between gap-4 max-w-7xl mx-auto">
+		<div class="flex max-lg:flex-wrap items-center justify-between gap-4 max-w-7xl mx-auto">
 			<div class="flex items-center gap-3">
 				<a
 					href={resolve('/collation')}
@@ -250,7 +250,7 @@
 					</span>
 				{/if}
 			</div>
-			<div class="flex items-center gap-4">
+			<div class="flex max-lg:min-w-0 max-lg:max-w-full max-lg:flex-wrap items-center gap-4">
 				<CollationStepper />
 				<div class="border-l border-base-300 pl-3 flex items-center gap-1">
 					<button
@@ -278,7 +278,9 @@
 					<AutoSaveIndicator />
 				</div>
 				{#if collationVersionStatus && collationState.collationId}
-					<div class="border-l border-base-300 pl-3 flex items-center gap-2">
+					<div
+						class="border-l border-base-300 pl-3 flex max-lg:flex-wrap items-center gap-2"
+					>
 						<EntityHeader
 							label="Collation"
 							projectName={collationVersionStatus.projectName}

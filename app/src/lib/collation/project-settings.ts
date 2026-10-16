@@ -141,8 +141,8 @@ export function parseProjectCollationSettings(value: unknown): ProjectCollationS
 		ignorePunctuation: settings.ignorePunctuation === true,
 		suppliedTextMode: settings.suppliedTextMode === 'gap' ? 'gap' : 'clear',
 		segmentation: settings.segmentation !== false,
-		transcriptionWitnessTreatments,
-		transcriptionWitnessExcludedHands,
+		...(transcriptionWitnessTreatments ? { transcriptionWitnessTreatments } : {}),
+		...(transcriptionWitnessExcludedHands ? { transcriptionWitnessExcludedHands } : {}),
 	};
 }
 
