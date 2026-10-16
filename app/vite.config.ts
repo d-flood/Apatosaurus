@@ -94,6 +94,7 @@ export default defineConfig({
 		include: [
 			'@annotorious/openseadragon',
 			'@apatosaurus/open-cbgm-wasm',
+			'@apatosaurus/tei-transcription',
 			'@xmldom/xmldom',
 			'@triiiceratops/plugin-annotation-editor',
 			'@triiiceratops/plugin-sdk',
