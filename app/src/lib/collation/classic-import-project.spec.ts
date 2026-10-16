@@ -173,3 +173,55 @@ describe('classic import into a project', () => {
 		expect(db.createCollation).not.toHaveBeenCalled();
 	});
 });
+
+it('persists imported vocabulary and tags and reloads editorial decisions', async () => {
+	const xml = readFileSync(
+		new URL('./__fixtures__/classic/editorial.xml', import.meta.url),
+		'utf8'
+	);
+	await importClassicCollationProject({
+		projectId: 'project',
+		source: parseClassicCollationExport(xml),
+		baseSiglum: 'A',
+		title: 'Editorial base',
+		defaults,
+	});
+	expect(await collationState.loadCollationById(saved[0].meta.collationId!)).toBe(true);
+	expect(collationState.getReadingTypeVocabulary().map(type => type.label)).toEqual(
+		expect.arrayContaining([
+			'Insignificant',
+			'Subreading',
+			'Correction',
+			'Emendation',
+			'Lectionary adaptation',
+			'unusual',
+		])
+	);
+	const span = collationState.getVariationUnitSpans()[0];
+	const readings = collationState.peekReadingsForUnit(span.unitId);
+	const nomen = readings.find(reading => reading.label === 'ao2')!;
+	expect(nomen.readingType).toBe('orthographic');
+	const project = await db.getProject();
+	expect(project.collationSettings.readingTags).toEqual([
+		{ id: nomen.readingTags![0], label: 'Nomen sacrum' },
+	]);
+	expect(collationState.peekUnitView(span.unitId).ambiguousAttestations).toHaveLength(1);
+	expect(collationState.getConnectivity(span.unitId)).toBe(3);
+});
+
+it('saves a dismissed import note without losing the remaining notes', async () => {
+	const xml = readFileSync(new URL('./__fixtures__/classic/labels.xml', import.meta.url), 'utf8');
+	await importClassicCollationProject({
+		projectId: 'project',
+		source: parseClassicCollationExport(xml),
+		baseSiglum: 'A',
+		title: 'Labels base',
+		defaults,
+	});
+	expect(await collationState.loadCollationById(saved[0].meta.collationId!)).toBe(true);
+	const notes = collationState.importNotes.map(note => ({ ...note }));
+	expect(notes).toHaveLength(3);
+	collationState.dismissImportNote(notes[0].id);
+	expect(await collationState.flushPendingSave()).toBe(true);
+	expect(saved.at(-1)?.importNotes).toEqual(notes.slice(1));
+});

@@ -20,6 +20,7 @@ import {
 	buildClassicCollationDocument,
 	classicBaseSiglumCandidates,
 	classicManualWitnesses,
+	classicEditorialVocabulary,
 	type ClassicCollationExport,
 } from './classic-import';
 
@@ -49,6 +50,11 @@ export async function importClassicCollationProject(input: {
 		baseSiglum,
 		settings.manualWitnesses ?? []
 	);
+	const editorialVocabulary = classicEditorialVocabulary(
+		input.source,
+		settings.readingTypes,
+		settings.readingTags
+	);
 	const document = buildClassicBaseTranscription(input.source);
 	const collationIds = input.source.verses.map(() => crypto.randomUUID());
 	for (const [index, verse] of input.source.verses.entries()) {
@@ -69,6 +75,7 @@ export async function importClassicCollationProject(input: {
 			verse,
 			witness,
 			manualWitnesses,
+			editorialVocabulary,
 			collationId: collationIds[index],
 			projectId: project.id,
 			projectName: project.name,
@@ -98,6 +105,7 @@ export async function importClassicCollationProject(input: {
 					verse,
 					witness,
 					manualWitnesses,
+					editorialVocabulary,
 					collationId: collationIds[index],
 					projectId: project.id,
 					projectName: project.name,
@@ -106,7 +114,12 @@ export async function importClassicCollationProject(input: {
 		}
 		await updateProjectMetadata({
 			projectId: project.id,
-			collationSettings: { ...settings, manualWitnesses },
+			collationSettings: {
+				...settings,
+				manualWitnesses,
+				readingTypes: editorialVocabulary.readingTypes,
+				readingTags: editorialVocabulary.readingTags,
+			},
 		});
 		settingsSaved = true;
 		for (const document of documents) {

@@ -324,3 +324,41 @@ it('lists each unrecorded manual witness with a Readings action and clears after
 		.element(page.getByRole('button', { name: /Record manual witness/ }))
 		.not.toBeInTheDocument();
 });
+
+it.each([390, 1280])('lists and dismisses import notes at %ipx', async width => {
+	const original = { width: window.innerWidth, height: window.innerHeight };
+	await page.viewport(width, 844);
+	try {
+		collationState.reset();
+		collationState.setWitnesses([witness('A', 'alpha', true), witness('B', 'beta')]);
+		collationState.setAlignmentSnapshot(snapshot(['col-1']));
+		collationState.importNotes.push(
+			{ id: 'unit-note', unitId: 'unit:col-1', detail: 'Classic reading d is now c.' },
+			{ id: 'file-note', unitId: null, detail: 'Classic type imported without a suffix.' }
+		);
+		renderReview();
+		await expect.element(page.getByText('Classic reading d is now c.')).toBeVisible();
+		await expect
+			.element(page.getByText('Classic type imported without a suffix.'))
+			.toBeVisible();
+		await page
+			.getByRole('button', { name: 'Dismiss import note: Classic reading d is now c.' })
+			.click();
+		await expect.element(page.getByText('Classic reading d is now c.')).not.toBeInTheDocument();
+		expect(collationState.importNotes.map(note => note.id)).toEqual(['file-note']);
+		await page
+			.getByRole('button', {
+				name: 'Dismiss import note: Classic type imported without a suffix.',
+			})
+			.click();
+		await expect
+			.element(page.getByText('Classic type imported without a suffix.'))
+			.not.toBeInTheDocument();
+		expect(collationState.importNotes).toEqual([]);
+		await expect
+			.poll(() => document.documentElement.scrollWidth <= window.innerWidth)
+			.toBe(true);
+	} finally {
+		await page.viewport(original.width, original.height);
+	}
+});

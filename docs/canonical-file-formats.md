@@ -33,6 +33,14 @@ Version 7 applies the Project Transcription Version 2 change to collations: `col
 - Loading folds a leftover `apatosaurus.working.collation` file into the primary when its `draft.base_*` matches `based_on_checkpoint`, writing the new primary before deleting the working file. Zip import folds both working formats the same way before placing files.
 - `apatosaurus.working.collation` stays registered only so legacy files can be read and migrated. Checkpoint content is unchanged.
 
+## Project Manifest Version 5
+
+Version 5 permits project reading types with an explicitly empty suffix, as required by classic imports. The v4 upgrader is a no-op. Older settings parsers drop these types when saving, so older builds must reject this version.
+
+## Collation Version 16
+
+Version 16 adds optional document-level `importNotes`: an array of `{ id, unitId, detail }`, with a nullable unit ID. Notes retain classic-import differences until dismissed in Review. The v15 upgrader is a no-op; malformed notes quarantine the file. Working and checkpoint formats preserve notes without a bump.
+
 ## Collation Version 15
 
 Version 15 adds optional `spanningReadingIds` and `overlapResolutions` to unit decisions. Spanning marks name readings; overlap resolutions map witness IDs to a reading or `overlapped`. The v14 upgrader is a no-op; malformed values quarantine the document. Working and checkpoint formats preserve both keys without a bump.

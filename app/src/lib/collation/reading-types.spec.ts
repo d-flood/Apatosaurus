@@ -73,7 +73,7 @@ describe('reading type suffixes', () => {
 		});
 	});
 
-	it('drops a project type whose suffix is missing, not one lowercase letter, or already used', () => {
+	it('keeps explicitly suffixless types and drops invalid or conflicting suffixes', () => {
 		const parsed = coerceReadingTypeDefinitions([
 			{ id: 'itacism', label: 'Itacism', suffix: 'i' },
 			{ id: 'missing', label: 'Missing' },
@@ -85,7 +85,10 @@ describe('reading type suffixes', () => {
 			{ id: 'project-clash', label: 'Project clash', suffix: 'i' },
 		]);
 
-		expect(parsed.map(type => [type.id, type.suffix])).toEqual([['itacism', 'i']]);
+		expect(parsed.map(type => [type.id, type.suffix])).toEqual([
+			['itacism', 'i'],
+			['empty', ''],
+		]);
 	});
 
 	it('keeps the bundled suffix when a project relabels a bundled type', () => {

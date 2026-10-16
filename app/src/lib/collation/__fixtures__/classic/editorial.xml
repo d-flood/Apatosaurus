@@ -1,0 +1,29 @@
+<TEI xmlns="http://www.tei-c.org/ns/1.0">
+  <ab xml:id="Editorial_1">alpha<app from="2" to="2">
+    <rdg n="g" wit="Q">untyped</rdg>
+    <rdg n="ao2" type="ns" wit="N">nomen</rdg>
+    <rdg n="d" type="ilc" wit="L">lectionary</rdg>
+    <rdg n="ad" type="def" wit="D">deficient</rdg>
+    <rdg n="a" type="-" wit="A X">alpha</rdg>
+    <rdg n="af" type="err" wit="F">error</rdg>
+    <rdg n="ai" type="insi" wit="I">insignificant</rdg>
+    <rdg n="ao1" type="orth" wit="O">orthographic</rdg>
+    <rdg n="as" type="subr" wit="S">subreading</rdg>
+    <rdg n="b" type="corr" wit="B">correction</rdg>
+    <rdg n="c" type="emm" wit="C">emendation</rdg>
+    <rdg n="e" type="unusual" wit="U">unknown</rdg>
+    <rdg n="f" type="om" wit="M"/>
+    <rdg n="zz" type="lac" wit="Z"/>
+    <witDetail n="zw-a/b" type="ambiguous" target="#a b" wit="X"/>
+    <note><fs><f name="connectivity"><numeric value="3"/></f></fs>
+      <graph>
+        <arc from="a" to="ad"/><arc from="a" to="af"/>
+        <arc from="a" to="ai"/><arc from="a" to="ao1"/>
+        <arc from="a" to="ao2"/><arc from="a" to="as"/>
+        <arc from="a" to="b"/><arc from="b" to="c"/>
+        <arc from="c" to="d"/><arc from="d" to="e"/>
+        <arc from="e" to="f"/><arc from="f" to="g"/>
+      </graph>
+    </note>
+  </app></ab>
+</TEI>

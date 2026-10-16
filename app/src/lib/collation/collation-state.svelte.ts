@@ -54,6 +54,7 @@ import {
 	parseCollationDocument,
 	serializeCollationDocument,
 	type CollationSegment,
+	type ImportNote,
 } from './collation-document';
 import {
 	gatherWitnessesForSegment,
@@ -243,6 +244,7 @@ function createCollationState() {
 	let projectReadingTags = $state<Array<{ id: string; label: string }>>([]);
 	let projectManualWitnesses = $state<ManualWitnessDefinition[]>([]);
 	let manualWitnessOverrides = $state<ManualWitnessOverride[]>([]);
+	let importNotes = $state<ImportNote[]>([]);
 
 	let alignmentColumns = $state<AlignmentColumn[]>([]);
 	let declaredUnits = $state<DeclaredUnit[]>([]);
@@ -281,6 +283,7 @@ function createCollationState() {
 		selectedVerseNum = '';
 		witnesses = hydrated.witnesses;
 		manualWitnessOverrides = hydrated.manualWitnessOverrides ?? [];
+		importNotes = hydrated.importNotes ?? [];
 		rules = hydrated.rules.map(rule => ({
 			...rule,
 			type: coerceRegularizationType((rule as { type?: unknown }).type),
@@ -322,6 +325,7 @@ function createCollationState() {
 			segment,
 			witnesses,
 			manualWitnessOverrides,
+			importNotes,
 			rules,
 			ignoreWordBreaks,
 			lowercase,
@@ -510,6 +514,7 @@ function createCollationState() {
 		selectedVerse = null;
 		witnesses = [];
 		manualWitnessOverrides = [];
+		importNotes = [];
 		selectedBook = '';
 		selectedChapter = '';
 		selectedVerseNum = '';
@@ -3355,6 +3360,7 @@ function createCollationState() {
 		selectedVerse = null;
 		witnesses = [];
 		manualWitnessOverrides = [];
+		importNotes = [];
 		selectedBook = '';
 		selectedChapter = '';
 		selectedVerseNum = '';
@@ -3657,6 +3663,14 @@ function createCollationState() {
 		},
 		get classifiedReadings() {
 			return classifiedReadings;
+		},
+		get importNotes() {
+			return importNotes;
+		},
+		dismissImportNote(id: string) {
+			if (!importNotes.some(note => note.id === id)) return;
+			importNotes = importNotes.filter(note => note.id !== id);
+			markUnsaved();
 		},
 		get unitDecisions() {
 			return unitDecisions;

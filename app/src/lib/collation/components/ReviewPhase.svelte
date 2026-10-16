@@ -15,6 +15,7 @@
 
 	type WorklistEntry = {
 		unitId?: string;
+		importNoteId?: string;
 		title: string;
 		detail: string;
 		phase: 'alignment' | 'readings' | 'stemma';
@@ -37,7 +38,13 @@
 	);
 
 	let worklist = $derived.by<WorklistEntry[]>(() => {
-		const entries: WorklistEntry[] = [];
+		const entries: WorklistEntry[] = collationState.importNotes.map(note => ({
+			unitId: note.unitId ?? undefined,
+			importNoteId: note.id,
+			title: 'Review import note',
+			detail: note.detail,
+			phase: 'readings',
+		}));
 		const activeWitnessIds = new Set(
 			collationState.witnesses
 				.filter(witness => !witness.isExcluded)
@@ -464,9 +471,11 @@
 					<ul class="mt-3 space-y-2">
 						{#each worklist as entry, index (`${entry.unitId ?? 'vanished'}-${entry.title}-${index}`)}
 							<li>
-								{#if entry.unitId === undefined && entry.untranscribedLocation}
+								{#if entry.unitId === undefined && (entry.untranscribedLocation || entry.importNoteId)}
 									<p class="text-sm">
-										{entry.untranscribedLocation}: {entry.title}
+										{entry.untranscribedLocation
+											? `${entry.untranscribedLocation}: `
+											: ''}{entry.title}
 									</p>
 								{:else}
 									<button
@@ -479,7 +488,19 @@
 											: `Unit ${unitLabel(entry.unitId)}: `}{entry.title}
 									</button>
 								{/if}
-								<p class="text-xs text-base-content/55">{entry.detail}</p>
+								<p class="break-words text-xs text-base-content/55">
+									{entry.detail}
+								</p>
+								{#if entry.importNoteId}
+									<button
+										type="button"
+										class="btn btn-ghost btn-xs mt-1"
+										aria-label={`Dismiss import note: ${entry.detail}`}
+										onclick={() =>
+											collationState.dismissImportNote(entry.importNoteId!)}
+										>Dismiss</button
+									>
+								{/if}
 								{#if entry.untranscribedWitnessIds && entry.untranscribedLocation}
 									<div class="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs">
 										{#each entry.untranscribedWitnessIds as witnessId (witnessId)}

@@ -97,6 +97,7 @@ export function coerceReadingTypeDefinitions(value: unknown): ReadingTypeDefinit
 		const bundled = BUNDLED_READING_TYPES.find(type => type.id === raw.id);
 		if (
 			!bundled &&
+			raw.suffix !== '' &&
 			readingTypeSuffixProblem(raw.suffix, [...BUNDLED_READING_TYPES, ...accepted]) !== null
 		)
 			continue;

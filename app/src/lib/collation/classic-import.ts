@@ -1,14 +1,26 @@
 import type { LineItem } from '@apatosaurus/tei-transcription';
 import type { StoredTranscriptionDocument } from '$lib/transcription/content';
 import { alignmentCellFromTokens } from './alignment-cell';
+import { NON_ATTESTATION_LABEL } from './collation-apparatus';
 import type { AlignmentColumn } from './alignment-snapshot';
-import { buildCollationDocument } from './collation-document';
-import type { UnitDecisions } from './collation-decisions';
+import { buildCollationDocument, type ImportNote } from './collation-document';
+import {
+	applyDecisions,
+	withAmbiguousAttestation,
+	type UnitDecisions,
+} from './collation-decisions';
 import { buildReadingProposal } from './collation-reading-proposal';
 import { buildVariationUnitSpans } from './collation-variation-units';
 import { extractWitnessTokensForVerse, type PreparedWitness } from './collation-runner';
 import { deriveCollationInput } from './regularization';
-import type { ManualWitnessDefinition, WitnessConfig } from './collation-types';
+import type {
+	ClassifiedReading,
+	ManualWitnessDefinition,
+	ReadingArc,
+	WitnessConfig,
+} from './collation-types';
+
+import { resolveReadingTypeVocabulary, type ReadingTypeDefinition } from './reading-types';
 
 export interface ClassicReading {
 	label: string;
@@ -36,6 +48,68 @@ export interface ClassicVerse {
 export interface ClassicCollationExport {
 	verses: ClassicVerse[];
 	witnesses: string[];
+}
+
+export function classicEditorialVocabulary(
+	source: ClassicCollationExport,
+	existingTypes: ReadingTypeDefinition[] = [],
+	existingTags: Array<{ id: string; label: string }> = []
+) {
+	const readingTypes = [...existingTypes];
+	const readingTags = [...existingTags];
+	const types = new Map<string, string | null>([
+		['-', null],
+		['', null],
+		['om', 'omission'],
+		['lac', null],
+		['def', 'deficient'],
+		['orth', 'orthographic'],
+		['err', 'nonsense'],
+		['ns', 'orthographic'],
+	]);
+	const conflicts = new Map<string, string>();
+	const named: Record<string, [string, string]> = {
+		insi: ['Insignificant', 'i'],
+		subr: ['Subreading', 's'],
+		corr: ['Correction', ''],
+		emm: ['Emendation', ''],
+		ilc: ['Lectionary adaptation', ''],
+	};
+	const normalize = (label: string) => label.trim().toLowerCase();
+	for (const verse of source.verses)
+		for (const unit of verse.units)
+			for (const reading of unit.readings) {
+				if (
+					reading.type === 'ns' &&
+					!readingTags.some(tag => normalize(tag.label) === 'nomen sacrum')
+				)
+					readingTags.push({ id: crypto.randomUUID(), label: 'Nomen sacrum' });
+				if (types.has(reading.type)) continue;
+				const [label, desiredSuffix] = Object.hasOwn(named, reading.type)
+					? named[reading.type]
+					: [reading.type, ''];
+				const vocabulary = resolveReadingTypeVocabulary(readingTypes);
+				let type = vocabulary.find(type => normalize(type.label) === normalize(label));
+				if (!type) {
+					const conflict =
+						desiredSuffix && vocabulary.some(type => type.suffix === desiredSuffix);
+					if (conflict)
+						conflicts.set(
+							reading.type,
+							`Classic type ${label} imported without suffix ${desiredSuffix}, which is already in use.`
+						);
+					type = {
+						id: crypto.randomUUID(),
+						label,
+						description: '',
+						selectable: true,
+						suffix: conflict ? '' : desiredSuffix,
+					};
+					readingTypes.push(type);
+				}
+				types.set(reading.type, type.id);
+			}
+	return { readingTypes, readingTags, types, conflicts };
 }
 
 const collapse = (text: string) => text.replace(/\s+/g, ' ').trim();
@@ -205,8 +279,15 @@ export function buildClassicCollationDocument(input: {
 	projectId: string;
 	projectName: string;
 	collationId: string;
+	editorialVocabulary?: ReturnType<typeof classicEditorialVocabulary>;
 }) {
 	const { verse, witness, manualWitnesses } = input;
+	const editorial =
+		input.editorialVocabulary ?? classicEditorialVocabulary({ verses: [verse], witnesses: [] });
+	const vocabulary = resolveReadingTypeVocabulary(editorial.readingTypes);
+	const importNotes: ImportNote[] = [];
+	const note = (unitId: string, detail: string) =>
+		importNotes.push({ id: crypto.randomUUID(), unitId, detail });
 	const base: WitnessConfig = {
 		...witness,
 		witnessId: witness.id,
@@ -273,6 +354,8 @@ export function buildClassicCollationDocument(input: {
 	}));
 	const spans = buildVariationUnitSpans(columns, declaredUnits);
 	const unitDecisions = new Map<string, UnitDecisions>();
+	const readingArcs = new Map<string, ReadingArc[]>();
+	const classifiedReadings = new Map<string, ClassifiedReading[]>();
 	for (const [index, unit] of verse.units.entries()) {
 		const declaration = declaredUnits[index];
 		const span = spans.find(
@@ -288,34 +371,157 @@ export function buildClassicCollationDocument(input: {
 		});
 		const baseReading = proposal.readings[0];
 		if (!baseReading) throw new Error(`Cannot build the base reading in ${verse.id}.`);
-		const decisions: UnitDecisions = { authoredReadings: [], manualTestimony: {} };
-		for (const [readingIndex, reading] of unit.readings.entries()) {
-			const matchesBase =
-				reading.type !== 'lac' && reading.text === classicBaseText(verse, unit);
+		let decisions: UnitDecisions = {
+			authoredReadings: [],
+			manualTestimony: {},
+			readingType: {},
+			readingTags: {},
+			subreadingOf: {},
+			preserveReadings: true,
+		};
+		const parentLabels = new Map<string, string>();
+		for (const arc of unit.arcs) {
+			const posterior = unit.readings.find(
+				reading => reading.label === arc.to.replace(/^#/, '')
+			);
+			const typeId = posterior && editorial.types.get(posterior.type);
+			if (vocabulary.find(type => type.id === typeId)?.suffix)
+				parentLabels.set(arc.to.replace(/^#/, ''), arc.from.replace(/^#/, ''));
+		}
+		const mainLabel = (label: string) => {
+			const seen = new Set<string>();
+			while (parentLabels.has(label) && !seen.has(label)) {
+				seen.add(label);
+				label = parentLabels.get(label)!;
+			}
+			return label;
+		};
+		const ordered = [...unit.readings].sort((a, b) => {
+			const aMain = mainLabel(a.label),
+				bMain = mainLabel(b.label);
+			const aLetters = aMain.match(/^[a-z]+/)?.[0] ?? aMain;
+			const bLetters = bMain.match(/^[a-z]+/)?.[0] ?? bMain;
+			return (
+				aLetters.length - bLetters.length ||
+				aMain.localeCompare(bMain, 'en', { numeric: true }) ||
+				a.label.localeCompare(b.label, 'en', { numeric: true })
+			);
+		});
+		const matchingBase = ordered.filter(
+			reading => reading.type !== 'lac' && reading.text === classicBaseText(verse, unit)
+		);
+		const classicBase =
+			matchingBase.find(reading => reading.witnesses.includes(base.siglum)) ??
+			matchingBase[0];
+		const ids = new Map<string, string>();
+		for (const [readingIndex, reading] of ordered.entries()) {
+			if (reading.type === 'lac') {
+				for (const siglum of reading.witnesses) {
+					const manual = manualWitnesses.find(witness => witness.siglum === siglum);
+					if (manual) decisions.manualTestimony![manual.id] = { kind: 'nonAttestation' };
+				}
+				continue;
+			}
+			const matchesBase = reading === classicBase;
 			const readingId = matchesBase
 				? baseReading.id
 				: `classic-reading:${span.unitId}:${readingIndex}`;
-			if (reading.type !== 'lac' && !matchesBase)
+			ids.set(reading.label, readingId);
+			if (matchesBase) baseReading.order = readingIndex;
+			else
 				decisions.authoredReadings!.push({
 					id: readingId,
 					text: reading.type === 'om' ? null : reading.text,
 					isOmission: reading.type === 'om',
-					order: readingIndex + 1,
+					order: readingIndex,
 					parentReadingId: null,
 					readingType: null,
 				});
-			if (reading.label === 'a' && reading.type !== 'lac' && !matchesBase)
-				decisions.lemmaReadingId = readingId;
+			decisions.readingType![readingId] = editorial.types.get(reading.type) ?? null;
+			if (reading.type === 'ns')
+				decisions.readingTags![readingId] = [
+					editorial.readingTags.find(
+						tag => tag.label.trim().toLowerCase() === 'nomen sacrum'
+					)!.id,
+				];
 			for (const siglum of reading.witnesses) {
 				if (siglum === base.siglum) continue;
 				const manual = manualWitnesses.find(witness => witness.siglum === siglum);
 				if (!manual) throw new Error(`Missing manual witness ${siglum}.`);
-				decisions.manualTestimony![manual.id] =
-					reading.type === 'lac'
-						? { kind: 'nonAttestation' }
-						: { kind: 'reading', readingId };
+				decisions.manualTestimony![manual.id] = { kind: 'reading', readingId };
 			}
 		}
+		for (const type of new Set(unit.readings.map(reading => reading.type))) {
+			const conflict = editorial.conflicts.get(type);
+			if (conflict) note(span.unitId, conflict);
+		}
+		const resolve = (name: string) => ids.get(name.replace(/^#/, ''));
+		const arcs: ReadingArc[] = [];
+		for (const arc of unit.arcs) {
+			const from = resolve(arc.from),
+				to = resolve(arc.to);
+			if (!from || !to) {
+				note(span.unitId, `Classic arc ${arc.from} → ${arc.to} names an unknown reading.`);
+				continue;
+			}
+			const typeId = decisions.readingType![to];
+			if (vocabulary.find(type => type.id === typeId)?.suffix)
+				decisions.subreadingOf![to] = from;
+			else
+				arcs.push({
+					id: crypto.randomUUID(),
+					priorReadingId: from,
+					posteriorReadingId: to,
+				});
+		}
+		const firstMain = ordered.find(reading => {
+			const id = ids.get(reading.label);
+			return id && !decisions.subreadingOf![id];
+		});
+		const lemmaId = firstMain && ids.get(firstMain.label);
+		if (lemmaId && lemmaId !== baseReading.id) decisions.lemmaReadingId = lemmaId;
+		if (unit.connectivity !== null && unit.connectivity !== 10)
+			decisions.connectivity = unit.connectivity;
+		for (const detail of unit.witnessDetails.filter(detail => detail.type === 'ambiguous')) {
+			const targetReadingIds = detail.targets.map(
+				target => resolve(target) ?? `unknown:${target}`
+			);
+			const witnessIds = detail.witnesses.map(
+				siglum =>
+					manualWitnesses.find(witness => witness.siglum === siglum)?.id ??
+					(siglum === base.siglum ? base.witnessId : `unknown:${siglum}`)
+			);
+			const result = withAmbiguousAttestation(proposal.readings, decisions, {
+				witnessIds,
+				targetReadingIds,
+			});
+			if (result.ok) decisions = result.decisions;
+			else
+				note(
+					span.unitId,
+					`Classic ambiguous attestation ${detail.label || detail.witnesses.join(', ')} could not be imported: ${result.error}.`
+				);
+		}
+		const view = applyDecisions(proposal.readings, decisions, {
+			baseWitnessId: base.witnessId,
+			vocabulary,
+			manualWitnesses,
+		});
+		for (const reading of ordered) {
+			if (reading.label.startsWith('zw-')) continue;
+			const label =
+				reading.type === 'lac'
+					? NON_ATTESTATION_LABEL
+					: view.readings.find(candidate => candidate.id === ids.get(reading.label))
+							?.label;
+			if (label !== reading.label)
+				note(
+					span.unitId,
+					`Classic reading \`${reading.label}\` is now \`${label ?? 'unavailable'}\``
+				);
+		}
+		classifiedReadings.set(span.unitId, proposal.readings);
+		readingArcs.set(span.unitId, arcs);
 		unitDecisions.set(span.unitId, decisions);
 	}
 	return buildCollationDocument({
@@ -338,9 +544,10 @@ export function buildClassicCollationDocument(input: {
 		alignmentColumns: columns,
 		declaredUnits,
 		witnessOrder: [base.witnessId],
-		classifiedReadings: new Map(),
+		classifiedReadings,
+		importNotes,
 		unitDecisions,
-		readingArcs: new Map(),
+		readingArcs,
 		alignmentDisplayMode: 'original',
 		alignmentLayout: 'grid',
 	});

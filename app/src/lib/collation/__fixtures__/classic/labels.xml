@@ -1,0 +1,16 @@
+<TEI>
+  <ab xml:id="Gap">alpha<app from="2" to="2">
+    <rdg n="d" wit="B">beta</rdg><rdg n="a" wit="A C">alpha</rdg>
+    <note><numeric value="10"/><graph><arc from="a" to="missing"/></graph></note>
+    <witDetail n="zw-a/missing" type="ambiguous" target="a missing" wit="C"/>
+  </app></ab>
+  <ab xml:id="Elevated">beta<app from="2" to="2">
+    <rdg n="b" wit="A">beta</rdg><rdg n="a" wit="B C">alpha</rdg>
+  </app></ab>
+  <ab xml:id="Split">beta<app from="2" to="2">
+    <rdg n="a2" wit="B">alpha</rdg><rdg n="b" wit="A">beta</rdg><rdg n="a1" wit="C">alpha</rdg>
+  </app></ab>
+  <ab xml:id="Base_split">alpha<app from="2" to="2">
+    <rdg n="a2" wit="A">alpha</rdg><rdg n="b" wit="B">beta</rdg><rdg n="a1" wit="C">alpha</rdg>
+  </app></ab>
+</TEI>

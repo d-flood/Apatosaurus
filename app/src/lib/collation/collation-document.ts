@@ -118,7 +118,14 @@ interface CollationStemmaNode {
 	units: CollationStemmaUnitNode[];
 }
 
+export interface ImportNote {
+	id: string;
+	unitId: string | null;
+	detail: string;
+}
+
 export interface CollationDocument {
+	importNotes?: ImportNote[];
 	type: 'collationDocument';
 	version: 1;
 	meta: {
@@ -152,6 +159,7 @@ export interface CollationDocument {
 }
 
 export interface CollationDocumentSeed {
+	importNotes?: ImportNote[];
 	collationId: string | null;
 	projectId: string | null;
 	projectName: string | null;
@@ -178,6 +186,7 @@ export interface CollationDocumentSeed {
 }
 
 export interface HydratedCollationDocument {
+	importNotes?: ImportNote[];
 	collationId: string | null;
 	projectId: string | null;
 	projectName: string | null;
@@ -722,6 +731,9 @@ export function buildCollationDocument(seed: CollationDocumentSeed): CollationDo
 	return {
 		type: 'collationDocument',
 		version: 1,
+		...(seed.importNotes?.length
+			? { importNotes: seed.importNotes.map(note => ({ ...note })) }
+			: {}),
 		meta: {
 			collationId: seed.collationId,
 			projectId: seed.projectId,
@@ -847,6 +859,7 @@ export function hydrateCollationDocument(document: CollationDocument): HydratedC
 		});
 	}
 	return {
+		importNotes: document.importNotes?.map(note => ({ ...note })) ?? [],
 		collationId: document.meta.collationId ?? null,
 		projectId: document.meta.projectId ?? null,
 		projectName: document.meta.projectName ?? null,
@@ -975,6 +988,23 @@ function hasValidManualWitnessOverrides(setup: unknown): boolean {
 	);
 }
 
+function hasValidImportNotes(value: unknown): boolean {
+	if (value === undefined) return true;
+	if (!Array.isArray(value)) return false;
+	const ids = new Set<string>();
+	return value.every(note => {
+		if (!note || typeof note !== 'object' || Array.isArray(note)) return false;
+		if (typeof note.id !== 'string' || !note.id.trim() || ids.has(note.id)) return false;
+		ids.add(note.id);
+		return (
+			(note.unitId === null ||
+				(typeof note.unitId === 'string' && Boolean(note.unitId.trim()))) &&
+			typeof note.detail === 'string' &&
+			Boolean(note.detail.trim())
+		);
+	});
+}
+
 export function parseCollationDocument(value: unknown): CollationDocument | null {
 	let raw = value;
 	if (typeof value === 'string') {
@@ -989,6 +1019,7 @@ export function parseCollationDocument(value: unknown): CollationDocument | null
 	if (
 		candidate.type !== 'collationDocument' ||
 		candidate.version !== 1 ||
+		!hasValidImportNotes(candidate.importNotes) ||
 		!hasValidManualWitnessOverrides(candidate.setup) ||
 		!hasValidDeclaredUnits(candidate.alignment) ||
 		!hasValidStemmaConnectivity(candidate.stemma) ||
