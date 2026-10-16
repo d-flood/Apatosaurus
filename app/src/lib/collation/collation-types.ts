@@ -95,6 +95,12 @@ interface ReadingWitnessGroup {
 	witnessIds: string[];
 }
 
+export interface ManualWitnessOverride {
+	manualWitnessId: string;
+	isExcluded: boolean;
+	treatment: WitnessTreatment;
+}
+
 export interface ManualWitnessDefinition {
 	id: string;
 	siglum: string;

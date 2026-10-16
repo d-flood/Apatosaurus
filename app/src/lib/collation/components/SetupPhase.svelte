@@ -45,6 +45,7 @@
 
 	let { witnessStatuses = null }: Props = $props();
 
+	let manualWitnesses = $derived(collationState.getManualWitnesses());
 	let verses = $state<AggregatedVerse[]>([]);
 	let allTranscriptions = $state<ProjectTranscriptionOption[]>([]);
 	let selectedTranscriptionIds = $state<string[]>([]);
@@ -479,6 +480,46 @@
 		);
 	}
 </script>
+
+{#if manualWitnesses.length > 0}
+	<section
+		class="space-y-3 rounded-box border border-base-300/50 bg-base-100 p-4"
+		aria-label="Manual witnesses"
+	>
+		<h2 class="font-serif text-lg font-semibold">Manual witnesses</h2>
+		{#each manualWitnesses as witness (witness.id)}
+			{@const override = collationState.getManualWitnessOverride(witness.id)}
+			<div class="flex flex-wrap items-center gap-3">
+				<label class="flex min-w-0 flex-1 items-center gap-2 break-all">
+					<input
+						type="checkbox"
+						class="checkbox checkbox-sm"
+						aria-label={`Include manual witness ${witness.siglum}`}
+						checked={!override.isExcluded}
+						onchange={event =>
+							collationState.updateManualWitness(witness.id, {
+								isExcluded: !event.currentTarget.checked,
+							})}
+					/>
+					<span>{witness.siglum}</span>
+				</label>
+				<select
+					class="select select-bordered select-sm max-w-full"
+					aria-label={`Treatment for manual witness ${witness.siglum}`}
+					value={override.treatment}
+					onchange={event =>
+						collationState.updateManualWitness(witness.id, {
+							treatment: event.currentTarget.value as WitnessTreatment,
+						})}
+				>
+					<option value="inherit">Project default ({witness.treatment})</option>
+					<option value="full">Full</option>
+					<option value="fragmentary">Fragmentary</option>
+				</select>
+			</div>
+		{/each}
+	</section>
+{/if}
 
 <div class="flex h-full min-h-0 flex-col gap-6 overflow-y-auto lg:flex-row">
 	<div class="shrink-0 lg:w-100 lg:pr-2">

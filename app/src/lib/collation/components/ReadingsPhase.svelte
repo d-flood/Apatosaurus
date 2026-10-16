@@ -36,6 +36,20 @@
 	const manualDrafts = new SvelteMap<string, string>();
 	const manualErrors = new SvelteMap<string, string>();
 	let manualWitnesses = $derived(collationState.getManualWitnesses());
+	let manualMembers = $derived(collationState.getManualWitnessMembers());
+	function manualState(id: string): string {
+		if (manualView.unrecordedManualWitnessIds.includes(id)) return 'Nothing recorded';
+		if (manualView.uncitedManualWitnessIds.includes(id)) return 'Uncited';
+		if (manualView.nonAttestingManualWitnessIds.includes(id))
+			return 'Non-attestation (damaged)';
+		return (
+			manualView.ambiguousAttestations.find(attestation =>
+				attestation.witnessIds.includes(id)
+			)?.label ??
+			manualView.readings.find(reading => reading.manualWitnessIds?.includes(id))?.label ??
+			'Nothing recorded'
+		);
+	}
 	async function attachManual(reading: ClassifiedReading) {
 		const result = await collationState.attachManualWitness(
 			unitIndex,
@@ -63,6 +77,7 @@
 		spans.find(span => span.startIndex === collationState.selectedUnitIndex) ?? spans[0] ?? null
 	);
 	let unitIndex = $derived(selectedSpan?.startIndex ?? -1);
+	let manualView = $derived(collationState.peekUnitView(unitIndex));
 
 	const expandedWitnesses = $derived.by(() => {
 		unitIndex;
@@ -269,7 +284,11 @@
 
 	/** Reading order, not screen order: only 12 sigla show per reading. */
 	let selectedWitnessIdsInOrder = $derived(
-		readings.flatMap(reading => reading.witnessIds.filter(id => selectedWitnessIds.has(id)))
+		readings.flatMap(reading =>
+			[...reading.witnessIds, ...(reading.manualWitnessIds ?? [])].filter(id =>
+				selectedWitnessIds.has(id)
+			)
+		)
 	);
 	let selectedReadingIds = $derived(
 		readings
@@ -277,6 +296,9 @@
 			.map(reading => reading.id)
 	);
 	let selectionCount = $derived(selectedWitnessIdsInOrder.length);
+	let hasManualSelection = $derived(
+		selectedWitnessIdsInOrder.some(id => manualWitnesses.some(witness => witness.id === id))
+	);
 
 	let mergeDiscards = $derived.by(() => {
 		const sources = readings.filter(
@@ -739,6 +761,10 @@
 							>
 								{segment.label}
 							</span>
+							{#if view.unrecordedManualWitnessIds.length > 0}<span
+									class="text-xs font-semibold"
+									aria-label="Unrecorded manual witnesses">!</span
+								>{/if}
 							{#if view.unconfirmedWitnessIds.length > 0}
 								<span
 									class="text-xs font-semibold"
@@ -821,6 +847,56 @@
 	</div>
 
 	<div class="sr-only" aria-live="polite" data-testid="readings-announcer">{liveMessage}</div>
+
+	{#if manualMembers.length > 0}
+		<section
+			class="space-y-3 rounded-xl border border-base-300/60 bg-base-100 p-3"
+			aria-label="Manual witness testimony"
+		>
+			<h3 class="text-sm font-medium">Manual witness testimony</h3>
+			{#each manualMembers as witness (witness.id)}
+				<div class="flex flex-wrap items-center gap-2">
+					<span class="min-w-0 flex-1 break-all text-sm"
+						>{witness.siglum}: <strong>{manualState(witness.id)}</strong></span
+					>
+					<button
+						type="button"
+						class="btn btn-xs"
+						aria-label={`Set ${witness.siglum} uncited`}
+						onclick={() =>
+							collationState.setManualWitnessTestimony(
+								unitIndex,
+								witness.id,
+								'uncited'
+							)}>Uncited</button
+					>
+					<button
+						type="button"
+						class="btn btn-xs"
+						aria-label={`Set ${witness.siglum} non-attestation`}
+						onclick={() =>
+							collationState.setManualWitnessTestimony(
+								unitIndex,
+								witness.id,
+								'nonAttestation'
+							)}>Non-attestation</button
+					>
+					{#if manualView.readings.some( reading => reading.manualWitnessIds?.includes(witness.id) )}
+						<button
+							type="button"
+							class="btn btn-xs"
+							aria-label={`Select manual witness ${witness.siglum}`}
+							aria-pressed={selectedWitnessIds.has(witness.id)}
+							onclick={() =>
+								selectedWitnessIds.has(witness.id)
+									? selectedWitnessIds.delete(witness.id)
+									: selectedWitnessIds.add(witness.id)}>Select for zw</button
+						>
+					{/if}
+				</div>
+			{/each}
+		</section>
+	{/if}
 
 	{#if unconfirmedWitnessIds.length > 0}
 		<section
@@ -916,7 +992,7 @@
 			<button
 				type="button"
 				class="btn btn-xs"
-				disabled={moveTargetId === NO_VALUE}
+				disabled={hasManualSelection || moveTargetId === NO_VALUE}
 				data-testid="apply-move"
 				onclick={() => moveSelectionToReading(moveTargetId)}
 			>
@@ -926,6 +1002,7 @@
 				type="button"
 				class="btn btn-xs"
 				onclick={splitSelectionIntoNewReading}
+				disabled={hasManualSelection}
 				data-testid="split-selection"
 			>
 				Split into a new reading

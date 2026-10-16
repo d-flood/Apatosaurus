@@ -14,6 +14,7 @@ import {
 	type ReadingArc,
 	type SuppliedTextMode,
 	type WitnessConfig,
+	type ManualWitnessOverride,
 	type WitnessSource,
 	type WitnessSourceToken,
 } from './collation-types';
@@ -134,6 +135,7 @@ export interface CollationDocument {
 	setup: {
 		segment: CollationSegment;
 		witnesses: CollationWitnessNode[];
+		manualWitnessOverrides?: ManualWitnessOverride[];
 	};
 	settings: {
 		regularizationRules: RegularizationRule[];
@@ -157,6 +159,7 @@ export interface CollationDocumentSeed {
 	furthestPhase: CollationPhase;
 	segment: CollationSegment;
 	witnesses: WitnessConfig[];
+	manualWitnessOverrides?: ManualWitnessOverride[];
 	rules: RegularizationRule[];
 	ignoreWordBreaks: boolean;
 	lowercase: boolean;
@@ -182,6 +185,7 @@ export interface HydratedCollationDocument {
 	furthestPhase: CollationPhase;
 	segment: CollationSegment;
 	witnesses: WitnessConfig[];
+	manualWitnessOverrides?: ManualWitnessOverride[];
 	rules: RegularizationRule[];
 	ignoreWordBreaks: boolean;
 	lowercase: boolean;
@@ -705,6 +709,13 @@ export function buildCollationDocument(seed: CollationDocumentSeed): CollationDo
 		setup: {
 			segment: assertCollationSegment(seed.segment),
 			witnesses: normalizeWitnesses(seed.witnesses),
+			...(seed.manualWitnessOverrides?.length
+				? {
+						manualWitnessOverrides: seed.manualWitnessOverrides.map(entry => ({
+							...entry,
+						})),
+					}
+				: {}),
 		},
 		settings: {
 			regularizationRules: seed.rules,
@@ -816,6 +827,8 @@ export function hydrateCollationDocument(document: CollationDocument): HydratedC
 		furthestPhase: normalizePhase(document.flow?.furthestPhase),
 		segment: assertCollationSegment(document.setup?.segment),
 		witnesses: parseWitnesses(document.setup?.witnesses),
+		manualWitnessOverrides:
+			document.setup.manualWitnessOverrides?.map(entry => ({ ...entry })) ?? [],
 		rules: Array.isArray(document.settings?.regularizationRules)
 			? document.settings.regularizationRules
 			: [],
@@ -911,6 +924,30 @@ function hasValidDeclaredUnits(alignment: unknown): boolean {
 	});
 }
 
+function hasValidManualWitnessOverrides(setup: unknown): boolean {
+	if (!setup || typeof setup !== 'object') return false;
+	const overrides = (setup as Record<string, unknown>).manualWitnessOverrides;
+	if (overrides === undefined) return true;
+	const ids = new Set<string>();
+	return (
+		Array.isArray(overrides) &&
+		overrides.every(entry => {
+			if (
+				!entry ||
+				typeof entry !== 'object' ||
+				typeof entry.manualWitnessId !== 'string' ||
+				!entry.manualWitnessId.trim() ||
+				ids.has(entry.manualWitnessId) ||
+				typeof entry.isExcluded !== 'boolean' ||
+				!['inherit', 'full', 'fragmentary'].includes(entry.treatment)
+			)
+				return false;
+			ids.add(entry.manualWitnessId);
+			return true;
+		})
+	);
+}
+
 export function parseCollationDocument(value: unknown): CollationDocument | null {
 	let raw = value;
 	if (typeof value === 'string') {
@@ -925,6 +962,7 @@ export function parseCollationDocument(value: unknown): CollationDocument | null
 	if (
 		candidate.type !== 'collationDocument' ||
 		candidate.version !== 1 ||
+		!hasValidManualWitnessOverrides(candidate.setup) ||
 		!hasValidDeclaredUnits(candidate.alignment) ||
 		!hasValidStemmaConnectivity(candidate.stemma) ||
 		hasApparatusConnectivity(candidate.apparatus) ||

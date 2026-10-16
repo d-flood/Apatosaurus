@@ -281,3 +281,23 @@ describe('ReviewPhase export refusals', () => {
 		await expect.element(refusal).toHaveAttribute('href', '/collation/collation-1/alignment');
 	});
 });
+
+it('lists each unrecorded manual witness with a Readings action and clears after testimony', async () => {
+	collationState.reset();
+	collationState.setWitnesses([witness('A', 'alpha', true), witness('B', 'beta')]);
+	collationState.setAlignmentSnapshot(snapshot(['col-1']));
+	collationState
+		.getManualWitnesses()
+		.push({ id: 'full', siglum: 'Syriac', treatment: 'full', includeInCbgm: false });
+	renderReview();
+	await expect.element(page.getByRole('button', { name: /Record manual witness/ })).toBeVisible();
+	await expect.element(page.getByText('Syriac has nothing recorded at this unit.')).toBeVisible();
+	await page.getByRole('button', { name: 'Export TEI apparatus' }).click();
+	await expect
+		.element(page.getByRole('link', { name: /Unit .*record manual witnesses Syriac/ }))
+		.toBeVisible();
+	collationState.setManualWitnessTestimony(0, 'full', 'uncited');
+	await expect
+		.element(page.getByRole('button', { name: /Record manual witness/ }))
+		.not.toBeInTheDocument();
+});

@@ -45,9 +45,8 @@ export function dropEmptiedReadings(
 export function withoutWitnesses(readings: Readings, witnessIds: Set<string>): Readings {
 	return readings.map(reading => {
 		const kept = reading.witnessIds.filter(witnessId => !witnessIds.has(witnessId));
-		return kept.length === reading.witnessIds.length
-			? reading
-			: { ...reading, witnessIds: kept };
+		const manualWitnessIds = reading.manualWitnessIds?.filter(id => !witnessIds.has(id));
+		return { ...reading, witnessIds: kept, ...(manualWitnessIds ? { manualWitnessIds } : {}) };
 	});
 }
 

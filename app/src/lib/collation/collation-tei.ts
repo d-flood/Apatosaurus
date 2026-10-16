@@ -1,6 +1,11 @@
 import { deserializeAlignmentColumns } from './alignment-snapshot';
 import { buildSegmentSequence, type Segment, NON_ATTESTATION_LABEL } from './collation-apparatus';
-import { applyDecisions, type UnitDecisions, type UnitView } from './collation-decisions';
+import {
+	manualWitnessMembers,
+	applyDecisions,
+	type UnitDecisions,
+	type UnitView,
+} from './collation-decisions';
 import type { CollationDocument } from './collation-document';
 import {
 	buildReadingProposal,
@@ -14,7 +19,10 @@ import { isPunctuationOnlyText } from './token-text';
 import { resolveReadingTypeVocabulary, type ReadingTypeDefinition } from './reading-types';
 
 type ApparatusExportRefusalKind =
-	'untranscribed-witness' | 'missing-lemma' | 'unresolved-attestation';
+	| 'untranscribed-witness'
+	| 'missing-lemma'
+	| 'unresolved-attestation'
+	| 'unrecorded-manual-witness';
 
 export interface ApparatusExportRefusal {
 	kind: ApparatusExportRefusalKind;
@@ -35,6 +43,8 @@ export class ApparatusExportError extends Error {
 					if (refusal.kind === 'untranscribed-witness') {
 						return `${location} has untranscribed witnesses`;
 					}
+					if (refusal.kind === 'unrecorded-manual-witness')
+						return `${location} has manual witnesses with nothing recorded (${(refusal.witnessIds ?? []).join(', ')})`;
 					if (refusal.kind === 'unresolved-attestation') {
 						const witnesses = refusal.witnessIds ?? [];
 						return `${location} has unresolved attestations (${witnesses.join(', ')})`;
@@ -235,14 +245,12 @@ function serializeUnit(
 			isLaterSplitMember: laterSplitMemberIds.has(reading.id),
 		})
 	);
-	if (unit.nonAttestation.witnessIds.length > 0) {
+	const nonAttesting = [
+		...new Set([...unit.nonAttestation.witnessIds, ...unit.view.nonAttestingManualWitnessIds]),
+	];
+	if (nonAttesting.length > 0) {
 		const sequence = readings.length + 1;
-		const witnesses = witnessAttribute(
-			unit.nonAttestation.witnessIds,
-			witnessXmlIds,
-			baseTextWitnessId,
-			false
-		);
+		const witnesses = witnessAttribute(nonAttesting, witnessXmlIds, baseTextWitnessId, false);
 		readings.push(
 			`<rdg n="${NON_ATTESTATION_LABEL}" type="lac" varSeq="${sequence}"${witnesses}/>`
 		);
@@ -319,6 +327,14 @@ export function getApparatusExportRefusals(
 			refusals.push({ kind: 'missing-lemma', unitId, label: segment.label });
 		}
 		if (!unit) continue;
+		if (unit.view.unrecordedManualWitnessIds.length > 0) {
+			refusals.push({
+				kind: 'unrecorded-manual-witness',
+				unitId,
+				label: segment.label,
+				witnessIds: unit.view.unrecordedManualWitnessIds,
+			});
+		}
 		if (unit.view.unresolvedAttestations.length > 0) {
 			refusals.push({
 				kind: 'unresolved-attestation',
@@ -447,6 +463,11 @@ export function buildApparatusTeiExportInput(
 		(document.stemma?.units ?? []).map(unit => [unit.unitId, unit] as const)
 	);
 	const witnessIds = activeWitnessIds(document, displayBaseWitnessId);
+	const manualMembers = manualWitnessMembers(
+		projectManualWitnesses,
+		document.setup.manualWitnessOverrides ?? [],
+		(document.apparatus?.units ?? []).map(unit => unit.decisions)
+	);
 	const units = new Map<string, ApparatusTeiUnit>();
 
 	for (const span of spans) {
@@ -462,6 +483,7 @@ export function buildApparatusTeiExportInput(
 		const view = applyDecisions(saved?.readings ?? proposal.readings, decisions, {
 			baseWitnessId: baseTextWitnessId,
 			vocabulary,
+			manualWitnesses: manualMembers,
 		});
 		const stemmaUnit = stemmaByUnitId.get(unitId);
 		units.set(unitId, {
@@ -489,17 +511,11 @@ export function buildApparatusTeiExportInput(
 				siglum: witness.siglum,
 				isExcluded: witness.isExcluded,
 			})),
-			...projectManualWitnesses
-				.filter(witness =>
-					(document.apparatus?.units ?? []).some(
-						unit => unit.decisions.manualTestimony?.[witness.id]
-					)
-				)
-				.map(witness => ({
-					witnessId: witness.id,
-					siglum: witness.siglum,
-					isExcluded: false,
-				})),
+			...manualMembers.map(witness => ({
+				witnessId: witness.id,
+				siglum: witness.siglum,
+				isExcluded: false,
+			})),
 		],
 		baseTextWitnessId,
 		segments,

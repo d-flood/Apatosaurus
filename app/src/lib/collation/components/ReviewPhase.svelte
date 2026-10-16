@@ -62,6 +62,13 @@
 		for (const segment of unitSegments) {
 			const unitIndex = segment.span.startIndex;
 			const view = collationState.peekUnitView(unitIndex);
+			for (const witnessId of view.unrecordedManualWitnessIds)
+				entries.push({
+					unitIndex,
+					title: 'Record manual witness',
+					detail: `${siglumOf(witnessId)} has nothing recorded at this unit.`,
+					phase: 'readings',
+				});
 			if (view.unconfirmedWitnessIds.length > 0)
 				entries.push({
 					unitIndex,
@@ -216,18 +223,11 @@
 			segmentName: collationState.segment?.name ?? 'Collation',
 			witnesses: [
 				...collationState.witnesses,
-				...collationState
-					.getManualWitnesses()
-					.filter(witness =>
-						[...collationState.unitDecisions.values()].some(
-							decisions => decisions.manualTestimony?.[witness.id]
-						)
-					)
-					.map(witness => ({
-						witnessId: witness.id,
-						siglum: witness.siglum,
-						isExcluded: false,
-					})),
+				...collationState.getManualWitnessMembers().map(witness => ({
+					witnessId: witness.id,
+					siglum: witness.siglum,
+					isExcluded: false,
+				})),
 			],
 			baseTextWitnessId: collationState.getBaseTextWitnessId(),
 			segments: sharedSegments,
@@ -322,7 +322,9 @@
 											? ` finish transcribing ${refusalWitnesses(refusal)}`
 											: refusal.kind === 'unresolved-attestation'
 												? ` resolve attestations for ${refusalWitnesses(refusal)}`
-												: ' establish a lemma reading'}
+												: refusal.kind === 'unrecorded-manual-witness'
+													? ` record manual witnesses ${refusalWitnesses(refusal)}`
+													: ' establish a lemma reading'}
 									</a>
 								{:else}
 									<a

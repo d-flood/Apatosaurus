@@ -61,6 +61,8 @@ import projectManifestV2Input from './fixtures/project-manifest-v2.input.json';
 import projectManifestV3Expected from './fixtures/project-manifest-v3.expected.json';
 import collationV12Input from './fixtures/collation-v12.input.json';
 import collationV13Expected from './fixtures/collation-v13.expected.json';
+import collationV13Input from './fixtures/collation-v13.input.json';
+import collationV14Expected from './fixtures/collation-v14.expected.json';
 import projectManifestV3Input from './fixtures/project-manifest-v3.input.json';
 import projectManifestV4Expected from './fixtures/project-manifest-v4.expected.json';
 import {
@@ -634,6 +636,67 @@ describe('canonical store formats', () => {
 				)
 			).resolves.toMatchObject({ ok: false, quarantine: { code: 'invalid_shape' } });
 		}
+	});
+
+	it('upgrades v13 manual witness overrides and rejects malformed overrides', async () => {
+		expect(
+			await readCanonicalDocument(
+				COLLATION_FORMAT,
+				await sealDocument(COLLATION_FORMAT, 13, collationV13Input as JsonObject)
+			)
+		).toMatchObject({
+			ok: true,
+			upgraded: true,
+			originalVersion: 13,
+			payload: collationV14Expected,
+		});
+		for (const manualWitnessOverrides of [
+			{},
+			[{ manualWitnessId: 'x', isExcluded: false, treatment: 'bad' }],
+			[{ manualWitnessId: '', isExcluded: false, treatment: 'full' }],
+			[{ manualWitnessId: 'x', isExcluded: 'yes', treatment: 'full' }],
+			[
+				collationV13Input.document.setup.manualWitnessOverrides[0],
+				collationV13Input.document.setup.manualWitnessOverrides[0],
+			],
+		]) {
+			const payload = structuredClone(collationV14Expected) as JsonObject;
+			(payload.document as JsonObject).setup = {
+				...collationV14Expected.document.setup,
+				manualWitnessOverrides,
+			} as unknown as JsonObject;
+			expect(
+				await readCanonicalDocument(
+					COLLATION_FORMAT,
+					await sealDocument(COLLATION_FORMAT, COLLATION_CURRENT_VERSION, payload)
+				)
+			).toMatchObject({ ok: false, quarantine: { code: 'invalid_shape' } });
+		}
+	});
+
+	it('preserves manual witness overrides in working and checkpoint documents', async () => {
+		const document = collationV14Expected.document;
+		expect(
+			await readCanonicalDocument(
+				WORKING_COLLATION_FORMAT,
+				await serializeCanonicalDocument(WORKING_COLLATION_FORMAT, {
+					...WORKING_COLLATION_FIXTURE,
+					document,
+				} as JsonObject)
+			)
+		).toMatchObject({ ok: true, payload: { document } });
+		const payload = { ...COLLATION_CHECKPOINT_FIXTURE.payload, document } as JsonObject;
+		const checkpoint = {
+			...COLLATION_CHECKPOINT_FIXTURE,
+			payload,
+			payload_content_hash: await hashCanonicalPayload(payload),
+		} as JsonObject;
+		expect(
+			await readCanonicalDocument(
+				COLLATION_CHECKPOINT_FORMAT,
+				await serializeCanonicalDocument(COLLATION_CHECKPOINT_FORMAT, checkpoint)
+			)
+		).toMatchObject({ ok: true, payload: { payload: { document } } });
 	});
 
 	it('round-trips a complete project file set through the canonical API', async () => {

@@ -5,7 +5,7 @@ import type { ProjectRecord } from '$lib/db/repositories/projects';
 
 const mocks = vi.hoisted(() => ({
 	getProjectTranscriptionIds: vi.fn(async () => []),
-	updateProjectMetadata: vi.fn(async () => undefined),
+	updateProjectMetadata: vi.fn<(input: unknown) => Promise<void>>(async () => undefined),
 	invalidateAll: vi.fn(async () => undefined),
 }));
 vi.mock('$app/navigation', () => ({ invalidateAll: mocks.invalidateAll }));
@@ -52,4 +52,54 @@ it('saves details and resets saved drafts without reloading transcription member
 		description: '',
 	});
 	expect(mocks.getProjectTranscriptionIds).toHaveBeenCalledOnce();
+});
+
+it('adds full manual witnesses and changes treatment at phone width', async () => {
+	const original = { width: window.innerWidth, height: window.innerHeight };
+	await page.viewport(390, 844);
+	try {
+		render(SettingsPage, {
+			data: {
+				project: {
+					id: 'manual-project',
+					storageSlug: 'manual-project',
+					name: 'Manual',
+					description: '',
+					charter: '',
+					collationSettings: null,
+					createdAt: '2026-10-14',
+					updatedAt: '2026-10-14',
+				},
+			},
+		});
+		await page.getByRole('textbox', { name: 'Manual witness siglum' }).fill(' Syriac ');
+		await page.getByRole('button', { name: 'Add full witness' }).click();
+		const treatment = page.getByRole('combobox', { name: 'Treatment for Syriac' });
+		await expect.element(treatment).toHaveValue('full');
+		await treatment.selectOptions('fragmentary');
+		await expect
+			.poll(() => mocks.updateProjectMetadata.mock.lastCall?.[0])
+			.toMatchObject({
+				collationSettings: {
+					manualWitnesses: [
+						{ siglum: 'Syriac', treatment: 'fragmentary', includeInCbgm: false },
+					],
+				},
+			});
+		await expect.element(treatment).toHaveValue('fragmentary');
+		await expect
+			.poll(() =>
+				[
+					...document.querySelectorAll<HTMLElement>(
+						'section[aria-label="Manual witnesses"] input, section[aria-label="Manual witnesses"] select, section[aria-label="Manual witnesses"] button'
+					),
+				].every(element => {
+					const rect = element.getBoundingClientRect();
+					return rect.left >= 0 && rect.right <= 390;
+				})
+			)
+			.toBe(true);
+	} finally {
+		await page.viewport(original.width, original.height);
+	}
 });

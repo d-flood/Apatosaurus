@@ -2,12 +2,14 @@ import { DOMParser } from '@xmldom/xmldom';
 import type { Document as XmlDocument } from '@xmldom/xmldom';
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
+	buildApparatusTeiExportInput,
 	exportApparatusTei,
 	exportCollationDocumentTei,
 	getApparatusExportRefusals,
 	type ApparatusTeiExportInput,
 	type ApparatusTeiUnit,
 } from './collation-tei';
+import { applyDecisions } from './collation-decisions';
 import { buildCollationDocument } from './collation-document';
 import { collationState, type WitnessConfig } from './collation-state.svelte';
 import type { AlignmentCell, AlignmentSnapshot } from './alignment-snapshot';
@@ -681,5 +683,99 @@ describe('apparatus TEI exporter', () => {
 		expect(exportCollationDocumentTei(document)).toBe(
 			exportApparatusTei({ ...exportInput(), title: 'Apatosaurus Collation' })
 		);
+		const manual = [
+			{ id: 'full', siglum: 'Syriac', treatment: 'full' as const, includeInCbgm: false },
+		];
+		const withFull = buildApparatusTeiExportInput(document, [], [], manual);
+		expect(withFull.witnesses).toContainEqual({
+			witnessId: 'full',
+			siglum: 'Syriac',
+			isExcluded: false,
+		});
+		expect(getApparatusExportRefusals(withFull)).toContainEqual({
+			kind: 'unrecorded-manual-witness',
+			unitId: 'unit:variant',
+			label: '4',
+			witnessIds: ['full'],
+		});
+		for (const override of [
+			{ manualWitnessId: 'full', isExcluded: true, treatment: 'inherit' as const },
+			{ manualWitnessId: 'full', isExcluded: false, treatment: 'fragmentary' as const },
+		]) {
+			document.setup.manualWitnessOverrides = [override];
+			const overridden = buildApparatusTeiExportInput(document, [], [], manual);
+			expect(overridden.witnesses.some(witness => witness.witnessId === 'full')).toBe(false);
+			expect(getApparatusExportRefusals(overridden)).toEqual([]);
+		}
 	});
+
+	it('refuses unrecorded full witnesses and exports uncited, damaged and ambiguous testimony as valid TEI P5', () => {
+		const input = exportInput();
+		const manual = ['empty', 'damaged', 'uncited', 'ambiguous'].map(id => ({
+			id,
+			siglum: id,
+			treatment: 'full' as const,
+			includeInCbgm: false,
+		}));
+		const [unitId, unit] = [...input.units][0];
+		const targets = unit.view.readings.slice(0, 2).map(reading => reading.id);
+		const decisions = {
+			manualTestimony: {
+				damaged: { kind: 'nonAttestation' as const },
+				uncited: { kind: 'uncited' as const },
+				ambiguous: { kind: 'reading' as const, readingId: targets[0] },
+			},
+			ambiguousAttestations: [
+				{ id: 'manual-zw', witnessIds: ['ambiguous'], targetReadingIds: targets },
+			],
+		};
+		const view = applyDecisions(unit.view.readings, decisions, {
+			baseWitnessId: 'A',
+			manualWitnesses: manual,
+		});
+		const enriched = {
+			...input,
+			witnesses: [
+				...input.witnesses,
+				...manual.map(witness => ({
+					witnessId: witness.id,
+					siglum: witness.siglum,
+					isExcluded: false,
+				})),
+			],
+			units: new Map([[unitId, { ...unit, view }]]),
+		};
+		expect(getApparatusExportRefusals(enriched)).toContainEqual({
+			kind: 'unrecorded-manual-witness',
+			unitId,
+			label: input.segments.find(segment => segment.kind === 'unit')!.label,
+			witnessIds: ['empty'],
+		});
+		expect(() => exportApparatusTei(enriched)).toThrow('nothing recorded');
+		const complete = applyDecisions(
+			unit.view.readings,
+			{
+				...decisions,
+				manualTestimony: { ...decisions.manualTestimony, empty: { kind: 'uncited' } },
+			},
+			{ baseWitnessId: 'A', manualWitnesses: manual }
+		);
+		const xml = exportApparatusTei({
+			...enriched,
+			units: new Map([[unitId, { ...unit, view: complete }]]),
+		});
+		const document = parse(xml);
+		const app = document.getElementsByTagName('app')[0];
+		expect(
+			Array.from(app.getElementsByTagName('rdg'))
+				.find(reading => reading.getAttribute('type') === 'lac')
+				?.getAttribute('wit')
+		).toContain('#wit-damaged');
+		expect(app.toString()).not.toContain('#wit-uncited');
+		expect(app.toString()).not.toContain('#wit-empty');
+		expect(document.getElementsByTagName('witDetail')[0].getAttribute('wit')).toBe(
+			'#wit-ambiguous'
+		);
+		expect(() => validateTeiP5(xml)).not.toThrow();
+	}, 60_000);
 });

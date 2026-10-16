@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ClassifiedReading } from './collation-types';
 import {
 	applyDecisions,
+	manualWitnessMembers,
 	cloneUnitDecisions,
 	findOrphanedUnitDecisions,
 	withAmbiguousAttestation,
@@ -530,5 +531,113 @@ describe('ambiguous attestation decisions', () => {
 				}
 			)
 		).toEqual({ ok: false, error: 'target-emptied' });
+	});
+});
+
+describe('full manual witnesses', () => {
+	const full = { id: 'full', siglum: 'Full', treatment: 'full' as const, includeInCbgm: false };
+	const fragment = { ...full, id: 'fragment', treatment: 'fragmentary' as const };
+	it('derives membership from defaults, overrides and testimony anywhere in the collation', () => {
+		expect(manualWitnessMembers([full, fragment], [], [])).toEqual([full]);
+		expect(
+			manualWitnessMembers(
+				[full, fragment],
+				[],
+				[{ manualTestimony: { fragment: { kind: 'uncited' } } }]
+			).map(w => w.id)
+		).toEqual(['full', 'fragment']);
+		expect(
+			manualWitnessMembers(
+				[full],
+				[{ manualWitnessId: 'full', isExcluded: true, treatment: 'inherit' }],
+				[{ manualTestimony: { full: { kind: 'reading', readingId: 'a' } } }]
+			)
+		).toEqual([]);
+		expect(
+			manualWitnessMembers(
+				[full],
+				[{ manualWitnessId: 'full', isExcluded: false, treatment: 'fragmentary' }],
+				[]
+			)
+		).toEqual([]);
+		expect(
+			manualWitnessMembers(
+				[fragment],
+				[{ manualWitnessId: 'fragment', isExcluded: false, treatment: 'full' }],
+				[]
+			)
+		).toEqual([{ ...fragment, treatment: 'full' }]);
+		expect(
+			manualWitnessMembers(
+				[full],
+				[{ manualWitnessId: 'full', isExcluded: false, treatment: 'inherit' }],
+				[]
+			)
+		).toEqual([full]);
+	});
+	it('projects each state and derives nothing recorded without storing it', () => {
+		const proposal = [reading('a', 0)];
+		const options = { baseWitnessId: 'a', manualWitnesses: [full] };
+		const decisions: UnitDecisions = {};
+		expect(applyDecisions(proposal, decisions, options).unrecordedManualWitnessIds).toEqual([
+			'full',
+		]);
+		expect(decisions).toEqual({});
+		for (const kind of ['uncited', 'nonAttestation'] as const) {
+			const view = applyDecisions(proposal, { manualTestimony: { full: { kind } } }, options);
+			expect(view.unrecordedManualWitnessIds).toEqual([]);
+			expect(
+				kind === 'uncited'
+					? view.uncitedManualWitnessIds
+					: view.nonAttestingManualWitnessIds
+			).toEqual(['full']);
+		}
+		expect(
+			applyDecisions(
+				proposal,
+				{ manualTestimony: { full: { kind: 'reading', readingId: 'a' } } },
+				options
+			).readings[0].manualWitnessIds
+		).toEqual(['full']);
+		const excluded = applyDecisions(
+			proposal,
+			{ manualTestimony: { full: { kind: 'reading', readingId: 'a' } } },
+			{ manualWitnesses: [] }
+		);
+		expect(excluded.readings[0].manualWitnessIds).toEqual([]);
+		expect(excluded.unrecordedManualWitnessIds).toEqual([]);
+	});
+	it('records manual ambiguous testimony with the existing validation and removes ordinary citation', () => {
+		const proposal = [reading('a', 0), reading('b', 1)];
+		const decisions: UnitDecisions = {
+			manualTestimony: { full: { kind: 'reading', readingId: 'a' } },
+		};
+		expect(
+			withAmbiguousAttestation(
+				proposal,
+				{},
+				{ witnessIds: ['full'], targetReadingIds: ['a', 'b'] }
+			)
+		).toEqual({ ok: false, error: 'witness-not-attesting' });
+		const result = withAmbiguousAttestation(proposal, decisions, {
+			witnessIds: ['full'],
+			targetReadingIds: ['a', 'b'],
+		});
+		if (!result.ok) throw new Error(result.error);
+		const view = applyDecisions(proposal, result.decisions, {
+			manualWitnesses: [full],
+			baseWitnessId: 'a',
+		});
+		expect(view.ambiguousAttestations[0].witnessIds).toEqual(['full']);
+		expect(view.readings.every(reading => !reading.manualWitnessIds?.includes('full'))).toBe(
+			true
+		);
+		expect(view.unrecordedManualWitnessIds).toEqual([]);
+		expect(
+			withAmbiguousAttestation(proposal, result.decisions, {
+				witnessIds: ['full'],
+				targetReadingIds: ['a', 'b'],
+			})
+		).toEqual({ ok: false, error: 'witness-already-ambiguous' });
 	});
 });

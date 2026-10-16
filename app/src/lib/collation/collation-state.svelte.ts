@@ -66,6 +66,7 @@ import {
 	type AlignmentLayout,
 	type ClassifiedReading,
 	type ManualWitnessDefinition,
+	type ManualWitnessOverride,
 	type CollationPhase,
 	type RegularizationRule,
 	type RegularizationType,
@@ -84,6 +85,7 @@ import {
 } from './collation-reading-proposal';
 import {
 	applyDecisions,
+	manualWitnessMembers,
 	cloneUnitDecisions,
 	findOrphanedUnitDecisions,
 	withAmbiguousAttestation,
@@ -238,6 +240,7 @@ function createCollationState() {
 	let projectReadingTypes = $state<ReadingTypeDefinition[]>([]);
 	let projectReadingTags = $state<Array<{ id: string; label: string }>>([]);
 	let projectManualWitnesses = $state<ManualWitnessDefinition[]>([]);
+	let manualWitnessOverrides = $state<ManualWitnessOverride[]>([]);
 
 	let alignmentColumns = $state<AlignmentColumn[]>([]);
 	let declaredUnits = $state<DeclaredUnit[]>([]);
@@ -275,6 +278,7 @@ function createCollationState() {
 		selectedChapter = '';
 		selectedVerseNum = '';
 		witnesses = hydrated.witnesses;
+		manualWitnessOverrides = hydrated.manualWitnessOverrides ?? [];
 		rules = hydrated.rules.map(rule => ({
 			...rule,
 			type: coerceRegularizationType((rule as { type?: unknown }).type),
@@ -315,6 +319,7 @@ function createCollationState() {
 			furthestPhase,
 			segment,
 			witnesses,
+			manualWitnessOverrides,
 			rules,
 			ignoreWordBreaks,
 			lowercase,
@@ -502,6 +507,7 @@ function createCollationState() {
 		orphanedMembers = [];
 		selectedVerse = null;
 		witnesses = [];
+		manualWitnessOverrides = [];
 		selectedBook = '';
 		selectedChapter = '';
 		selectedVerseNum = '';
@@ -2044,16 +2050,24 @@ function createCollationState() {
 	}
 
 	function getNonAttestationForUnit(unitIndex: number): NonAttestation {
-		return (
-			buildProposalForUnit(unitIndex)?.nonAttestation ?? {
-				witnessIds: [],
-				untranscribedWitnessIds: [],
-			}
-		);
+		const nonAttestation = buildProposalForUnit(unitIndex)?.nonAttestation ?? {
+			witnessIds: [],
+			untranscribedWitnessIds: [],
+		};
+		return {
+			...nonAttestation,
+			witnessIds: [
+				...nonAttestation.witnessIds,
+				...peekUnitView(unitIndex).nonAttestingManualWitnessIds,
+			],
+		};
 	}
 
 	const EMPTY_UNIT_VIEW: UnitView = {
 		readings: [],
+		uncitedManualWitnessIds: [],
+		nonAttestingManualWitnessIds: [],
+		unrecordedManualWitnessIds: [],
 		ambiguousAttestations: [],
 		unconfirmedWitnessIds: [],
 		unresolvedAttestations: [],
@@ -2067,6 +2081,7 @@ function createCollationState() {
 		return applyDecisions(proposal, unitDecisions.get(key) ?? {}, {
 			baseWitnessId: getBaseTextWitnessId(),
 			vocabulary: getReadingTypeVocabulary(),
+			manualWitnesses: getManualWitnessMembers(),
 		});
 	}
 
@@ -2692,6 +2707,67 @@ function createCollationState() {
 		return resolveReadingTypeVocabulary(projectReadingTypes);
 	}
 
+	function getManualWitnessMembers() {
+		return manualWitnessMembers(
+			projectManualWitnesses,
+			manualWitnessOverrides,
+			unitDecisions.values()
+		);
+	}
+
+	function getManualWitnessOverride(id: string): ManualWitnessOverride {
+		return (
+			manualWitnessOverrides.find(entry => entry.manualWitnessId === id) ?? {
+				manualWitnessId: id,
+				treatment: 'inherit',
+				isExcluded: false,
+			}
+		);
+	}
+
+	function updateManualWitness(
+		id: string,
+		updates: Partial<Pick<ManualWitnessOverride, 'treatment' | 'isExcluded'>>
+	) {
+		const previous = manualWitnessOverrides;
+		const next = [
+			...previous.filter(entry => entry.manualWitnessId !== id),
+			{ ...getManualWitnessOverride(id), ...updates },
+		];
+		manualWitnessOverrides = next;
+		pushCommand({
+			type: 'update-manual-witness',
+			description: 'Update manual witness membership',
+			undo: () => {
+				manualWitnessOverrides = previous;
+			},
+			redo: () => {
+				manualWitnessOverrides = next;
+			},
+		});
+		markUnsaved();
+	}
+
+	function setManualWitnessTestimony(
+		unitIndex: number,
+		id: string,
+		kind: 'uncited' | 'nonAttestation'
+	) {
+		const key = getReadingUnitKey(unitIndex);
+		if (!key || !getManualWitnessMembers().some(witness => witness.id === id)) return;
+		const next = cloneUnitDecisions(unitDecisions.get(key));
+		const previous = next.manualTestimony?.[id];
+		next.manualTestimony = { ...next.manualTestimony, [id]: { kind } };
+		next.ambiguousAttestations = next.ambiguousAttestations
+			?.map(attestation => ({
+				...attestation,
+				witnessIds: attestation.witnessIds.filter(witnessId => witnessId !== id),
+			}))
+			.filter(attestation => attestation.witnessIds.length > 0);
+		if (previous?.kind === 'reading') removeUnattestedAuthoredReading(next, previous.readingId);
+		commitManualDecisions(unitIndex, next, 'Record manual witness testimony');
+	}
+
 	function getManualWitnesses(): ManualWitnessDefinition[] {
 		return projectManualWitnesses;
 	}
@@ -2744,7 +2820,15 @@ function createCollationState() {
 			};
 			projectManualWitnesses = [...projectManualWitnesses, witness];
 		}
+		if (getManualWitnessOverride(witness.id).isExcluded)
+			return { ok: false as const, error: 'This manual witness is excluded in Setup.' };
 		const next = cloneUnitDecisions(unitDecisions.get(key));
+		next.ambiguousAttestations = next.ambiguousAttestations
+			?.map(attestation => ({
+				...attestation,
+				witnessIds: attestation.witnessIds.filter(id => id !== witness.id),
+			}))
+			.filter(attestation => attestation.witnessIds.length > 0);
 		const previous = next.manualTestimony?.[witness.id];
 		next.manualTestimony = {
 			...next.manualTestimony,
@@ -3171,6 +3255,7 @@ function createCollationState() {
 		segment = null;
 		selectedVerse = null;
 		witnesses = [];
+		manualWitnessOverrides = [];
 		selectedBook = '';
 		selectedChapter = '';
 		selectedVerseNum = '';
@@ -3577,6 +3662,10 @@ function createCollationState() {
 		setReadingType,
 		getReadingTags,
 		getManualWitnesses,
+		getManualWitnessMembers,
+		getManualWitnessOverride,
+		updateManualWitness,
+		setManualWitnessTestimony,
 		getWitnessSiglum,
 		attachManualWitness,
 		detachManualWitness,

@@ -10,6 +10,7 @@
 		parseProjectCollationSettings,
 	} from '$lib/collation/project-settings';
 	import type {
+		ManualWitnessDefinition,
 		RegularizationRule,
 		RegularizationType,
 		SuppliedTextMode,
@@ -46,6 +47,8 @@
 	let nameDraft = $derived(openProject.name);
 	let descriptionDraft = $derived(openProject.description);
 	const savedSettings = $derived(parseProjectCollationSettings(openProject.collationSettings));
+	let manualWitnesses = $derived(savedSettings.manualWitnesses ?? []);
+	let manualSiglum = $state('');
 	let projectRules = $derived(savedSettings.regularizationRules ?? []);
 	let projectReadingTypes = $derived(savedSettings.readingTypes ?? []);
 	let lowercase = $derived(savedSettings.lowercase ?? false);
@@ -256,6 +259,7 @@
 	}
 
 	async function persistProjectSettings(nextState?: {
+		manualWitnesses?: ManualWitnessDefinition[];
 		rules?: RegularizationRule[];
 		lowercase?: boolean;
 		ignoreWordBreaks?: boolean;
@@ -291,7 +295,7 @@
 				transcriptionWitnessExcludedHands: nextExcludedHands,
 				readingTypes: nextState?.readingTypes ?? projectReadingTypes,
 				readingTags: savedSettings.readingTags,
-				manualWitnesses: savedSettings.manualWitnesses,
+				manualWitnesses: nextState?.manualWitnesses ?? manualWitnesses,
 			});
 			await updateProjectMetadata({
 				projectId: openProject.id,
@@ -303,6 +307,35 @@
 		} finally {
 			isSavingSettings = false;
 		}
+	}
+
+	async function addFullManualWitness() {
+		const siglum = manualSiglum.trim();
+		if (!siglum) return;
+		if (
+			manualWitnesses.some(witness => witness.siglum === siglum) ||
+			allTranscriptions.some(witness => witness.siglum === siglum)
+		) {
+			error = 'This siglum already belongs to a witness. Choose a different siglum.';
+			return;
+		}
+		const next = [
+			...manualWitnesses,
+			{ id: crypto.randomUUID(), siglum, treatment: 'full' as const, includeInCbgm: false },
+		];
+		await persistProjectSettings({ manualWitnesses: next });
+		if (!error) {
+			manualWitnesses = next;
+			manualSiglum = '';
+		}
+	}
+
+	async function setManualTreatment(id: string, treatment: WitnessTreatment) {
+		const next = manualWitnesses.map(witness =>
+			witness.id === id ? { ...witness, treatment } : witness
+		);
+		await persistProjectSettings({ manualWitnesses: next });
+		if (!error) manualWitnesses = next;
 	}
 
 	function addRule(rule: RegularizationRule) {
@@ -620,6 +653,48 @@
 		</div>
 	</div>
 </div>
+
+<section
+	class="space-y-3 rounded-box border border-base-300/50 bg-base-100 p-4 shadow-md"
+	aria-label="Manual witnesses"
+>
+	<h2 class="font-serif text-lg font-semibold">Manual witnesses</h2>
+	<form
+		class="flex flex-wrap items-end gap-2"
+		onsubmit={event => {
+			event.preventDefault();
+			void addFullManualWitness();
+		}}
+	>
+		<label class="min-w-0 flex-1 text-sm"
+			>Siglum<input
+				class="input input-bordered mt-1 w-full"
+				aria-label="Manual witness siglum"
+				bind:value={manualSiglum}
+			/></label
+		>
+		<button
+			type="submit"
+			class="btn btn-primary btn-sm"
+			disabled={isSavingSettings || !manualSiglum.trim()}>Add full witness</button
+		>
+	</form>
+	{#each manualWitnesses as witness (witness.id)}
+		<div class="flex flex-wrap items-center gap-2">
+			<span class="min-w-0 flex-1 break-all">{witness.siglum}</span>
+			<select
+				class="select select-bordered select-sm max-w-full"
+				aria-label={`Treatment for ${witness.siglum}`}
+				value={witness.treatment}
+				disabled={isSavingSettings}
+				onchange={event =>
+					setManualTreatment(witness.id, event.currentTarget.value as WitnessTreatment)}
+			>
+				<option value="full">Full</option><option value="fragmentary">Fragmentary</option>
+			</select>
+		</div>
+	{/each}
+</section>
 
 <ProjectCollationSettingsEditor
 	rules={projectRules}

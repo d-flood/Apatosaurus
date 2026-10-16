@@ -1,7 +1,12 @@
 import { citationOrder } from './collation-apparatus';
 import { makeMainReadingIdOf, relabelReadings } from './collation-reading-proposal';
 import type { SourceDecision } from './collation-stemma';
-import type { ClassifiedReading, ReadingArc } from './collation-types';
+import type {
+	ClassifiedReading,
+	ManualWitnessDefinition,
+	ManualWitnessOverride,
+	ReadingArc,
+} from './collation-types';
 import type { Certainty, ReadingTypeDefinition, ReadingTypeId } from './reading-types';
 import { dropEmptiedReadings, withoutWitnesses } from './reading-edits';
 
@@ -117,7 +122,35 @@ export interface OrphanedUnitDecision {
 	arcs?: ReadingArc[];
 }
 
+export function manualWitnessMembers(
+	witnesses: readonly ManualWitnessDefinition[],
+	overrides: readonly ManualWitnessOverride[],
+	decisions: Iterable<UnitDecisions>
+): Array<ManualWitnessDefinition & { treatment: 'full' | 'fragmentary' }> {
+	const recorded = new Set(
+		[...decisions].flatMap(decision => [
+			...Object.keys(decision.manualTestimony ?? {}),
+			...(decision.ambiguousAttestations ?? []).flatMap(
+				attestation => attestation.witnessIds
+			),
+		])
+	);
+	return witnesses.flatMap(witness => {
+		const override = overrides.find(entry => entry.manualWitnessId === witness.id);
+		if (override?.isExcluded) return [];
+		const treatment =
+			override && override.treatment !== 'inherit' ? override.treatment : witness.treatment;
+		const effective = treatment === 'full' ? 'full' : 'fragmentary';
+		return effective === 'full' || recorded.has(witness.id)
+			? [{ ...witness, treatment: effective }]
+			: [];
+	});
+}
+
 export interface UnitView {
+	uncitedManualWitnessIds: string[];
+	nonAttestingManualWitnessIds: string[];
+	unrecordedManualWitnessIds: string[];
 	readings: ClassifiedReading[];
 	ambiguousAttestations: AmbiguousAttestationView[];
 	unconfirmedWitnessIds: string[];
@@ -173,6 +206,7 @@ export function applyDecisions(
 	options?: {
 		baseWitnessId?: string | null;
 		vocabulary?: readonly ReadingTypeDefinition[];
+		manualWitnesses?: readonly ManualWitnessDefinition[];
 	}
 ): UnitView {
 	const baseWitnessId = options?.baseWitnessId ?? null;
@@ -197,6 +231,11 @@ export function applyDecisions(
 	const orphanedDecisions: OrphanedDecision[] = [];
 	const manualByReading = new Map<string, string[]>();
 	for (const [manualWitnessId, testimony] of Object.entries(decisions.manualTestimony ?? {})) {
+		if (
+			options?.manualWitnesses &&
+			!options.manualWitnesses.some(witness => witness.id === manualWitnessId)
+		)
+			continue;
 		if (testimony.kind !== 'reading') continue;
 		if (!readingIds.has(testimony.readingId)) {
 			orphanedDecisions.push({
@@ -283,7 +322,13 @@ export function applyDecisions(
 	for (const attestation of decisions.ambiguousAttestations ?? []) {
 		const missingReadingIds = attestation.targetReadingIds.filter(id => !readingIds.has(id));
 		if (missingReadingIds.length === 0) {
-			attestations.push(attestation);
+			const witnessIds = attestation.witnessIds.filter(
+				id =>
+					!options?.manualWitnesses ||
+					options.manualWitnesses.some(witness => witness.id === id) ||
+					proposal.some(reading => reading.witnessIds.includes(id))
+			);
+			if (witnessIds.length > 0) attestations.push({ ...attestation, witnessIds });
 			continue;
 		}
 		orphanedDecisions.push({
@@ -373,7 +418,26 @@ export function applyDecisions(
 	);
 	const citation = citationOrder(labelled);
 
+	const manualIds =
+		options?.manualWitnesses?.map(witness => witness.id) ??
+		Object.keys(decisions.manualTestimony ?? {});
+	const ambiguousIds = new Set(attestations.flatMap(attestation => attestation.witnessIds));
 	return {
+		uncitedManualWitnessIds: manualIds.filter(
+			id => decisions.manualTestimony?.[id]?.kind === 'uncited' && !ambiguousIds.has(id)
+		),
+		nonAttestingManualWitnessIds: manualIds.filter(
+			id =>
+				decisions.manualTestimony?.[id]?.kind === 'nonAttestation' && !ambiguousIds.has(id)
+		),
+		unrecordedManualWitnessIds: (options?.manualWitnesses ?? [])
+			.filter(
+				witness =>
+					witness.treatment === 'full' &&
+					!decisions.manualTestimony?.[witness.id] &&
+					!ambiguousIds.has(witness.id)
+			)
+			.map(witness => witness.id),
 		readings: labelled,
 		unconfirmedWitnessIds: [...(decisions.unconfirmedWitnessIds ?? [])],
 		unresolvedAttestations: (decisions.unresolvedAttestations ?? []).map(attestation => ({
@@ -420,10 +484,22 @@ export function withAmbiguousAttestation(
 	if (existing.some(attestation => attestation.witnessIds.some(id => witnessIds.includes(id)))) {
 		return { ok: false, error: 'witness-already-ambiguous' };
 	}
-	if (!witnessIds.every(id => readings.some(reading => reading.witnessIds.includes(id)))) {
+	if (
+		!witnessIds.every(id =>
+			readings.some(reading =>
+				[...reading.witnessIds, ...(reading.manualWitnessIds ?? [])].includes(id)
+			)
+		)
+	) {
 		return { ok: false, error: 'witness-not-attesting' };
 	}
-	if (targets.some(target => target.witnessIds.every(id => witnessIds.includes(id)))) {
+	if (
+		targets.some(target =>
+			[...target.witnessIds, ...(target.manualWitnessIds ?? [])].every(id =>
+				witnessIds.includes(id)
+			)
+		)
+	) {
 		return { ok: false, error: 'target-emptied' };
 	}
 

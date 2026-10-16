@@ -33,6 +33,10 @@ Version 7 applies the Project Transcription Version 2 change to collations: `col
 - Loading folds a leftover `apatosaurus.working.collation` file into the primary when its `draft.base_*` matches `based_on_checkpoint`, writing the new primary before deleting the working file. Zip import folds both working formats the same way before placing files.
 - `apatosaurus.working.collation` stays registered only so legacy files can be read and migrated. Checkpoint content is unchanged.
 
+## Collation Version 14
+
+Version 14 adds optional `setup.manualWitnessOverrides`, with stable manual witness IDs, exclusion flags and inherit/full/fragmentary treatment. The v13 upgrader is a no-op; malformed or duplicate overrides quarantine the document. Working and checkpoint formats preserve these keys without a bump.
+
 ## Collation Version 13
 
 Version 13 adds optional `manualTestimony` and `authoredReadings` to unit decisions. Testimony maps stable project manual witness IDs to a reading, non-attestation or uncited state; authored readings carry their ID, text, omission flag and order, with null parent and type. Attachments and types use the existing decisions. Manual witness IDs never enter stored readings' witness lists. Malformed decisions quarantine the document.

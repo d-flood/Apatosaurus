@@ -77,6 +77,9 @@ describe('collation document', () => {
 			furthestPhase: 'review',
 			segment: { id: 'segment-1', name: 'John 1:1', members: ['John 1:1'] },
 			witnesses: [makeWitness('A', 'θεος', true), makeWitness('B', 'θς')],
+			manualWitnessOverrides: [
+				{ manualWitnessId: 'father', isExcluded: false, treatment: 'fragmentary' },
+			],
 			rules: [
 				{
 					id: 'rule-1',
@@ -226,6 +229,9 @@ describe('collation document', () => {
 
 		const hydrated = hydrateCollationDocument(parsed!);
 		expect(hydrated.projectId).toBe('proj-1');
+		expect(hydrated.manualWitnessOverrides).toEqual([
+			{ manualWitnessId: 'father', isExcluded: false, treatment: 'fragmentary' },
+		]);
 		expect(hydrated.segment).toEqual({
 			id: 'segment-1',
 			name: 'John 1:1',

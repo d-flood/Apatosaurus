@@ -924,3 +924,57 @@ describe('ReadingsPhase manual witnesses', () => {
 		}
 	);
 });
+
+it('records all full-manual testimony states and manual ambiguity at phone width', async () => {
+	const original = { width: window.innerWidth, height: window.innerHeight };
+	await page.viewport(390, 844);
+	try {
+		collationState.reset();
+		collate([makeWitness('A', 'alpha', true), makeWitness('B', 'beta')]);
+		collationState
+			.getManualWitnesses()
+			.push({ id: 'full', siglum: 'Syriac', treatment: 'full', includeInCbgm: false });
+		render(ReadingsPhase);
+		await expect.element(page.getByLabelText('Unrecorded manual witnesses')).toBeVisible();
+		await page.getByRole('button', { name: 'Set Syriac uncited', exact: true }).click();
+		await expect
+			.poll(() => collationState.peekUnitView(0).uncitedManualWitnessIds)
+			.toEqual(['full']);
+		await expect
+			.poll(() => collationState.peekUnitView(0).unrecordedManualWitnessIds)
+			.toEqual([]);
+		await page.getByRole('button', { name: 'Set Syriac non-attestation', exact: true }).click();
+		await expect
+			.poll(() => collationState.peekUnitView(0).nonAttestingManualWitnessIds)
+			.toEqual(['full']);
+		await page
+			.getByRole('combobox', { name: 'Manual witness for reading a', exact: true })
+			.fill('Syriac');
+		await page
+			.getByRole('button', { name: 'Attach manual witness to reading a', exact: true })
+			.click();
+		await page
+			.getByRole('button', { name: 'Select manual witness Syriac', exact: true })
+			.click();
+		await page.getByRole('checkbox', { name: 'Ambiguous between: a', exact: true }).click();
+		await page.getByRole('checkbox', { name: 'Ambiguous between: b', exact: true }).click();
+		await page.getByRole('button', { name: 'Record zw', exact: true }).click();
+		await expect
+			.poll(() => collationState.peekUnitView(0).ambiguousAttestations[0]?.witnessIds)
+			.toEqual(['full']);
+		await expect
+			.poll(() =>
+				[
+					...document.querySelectorAll<HTMLElement>(
+						'section[aria-label="Manual witness testimony"] button'
+					),
+				].every(element => {
+					const rect = element.getBoundingClientRect();
+					return rect.left >= 0 && rect.right <= 390;
+				})
+			)
+			.toBe(true);
+	} finally {
+		await page.viewport(original.width, original.height);
+	}
+});
