@@ -14,7 +14,7 @@
 	import { findReadingTypeDefinition } from '$lib/collation/reading-types';
 
 	type WorklistEntry = {
-		unitIndex?: number;
+		unitId?: string;
 		title: string;
 		detail: string;
 		phase: 'alignment' | 'readings' | 'stemma';
@@ -31,7 +31,7 @@
 
 	let stemmata = $derived.by(() =>
 		unitSegments.map(segment => {
-			const stemma = collationState.getLocalStemma(segment.span.startIndex);
+			const stemma = collationState.getLocalStemma(segment.span.unitId);
 			return { segment, stemma, layout: layoutLocalStemma(stemma.nodes) };
 		})
 	);
@@ -45,7 +45,7 @@
 		);
 		for (const unit of collationState.getUnitsNeedingLemmaDecision()) {
 			entries.push({
-				unitIndex: unit.unitIndex,
+				unitId: unit.unitId,
 				title: 'Establish a lemma reading',
 				detail: 'The base text does not testify here.',
 				phase: 'readings',
@@ -53,41 +53,41 @@
 		}
 		for (const unit of collationState.getSubreadingsMissingReadingType()) {
 			entries.push({
-				unitIndex: unit.unitIndex,
+				unitId: unit.unitId,
 				title: 'Review subreading type',
 				detail: `${unit.readingIds.length} subreading${unit.readingIds.length === 1 ? '' : 's'} has no type.`,
 				phase: 'readings',
 			});
 		}
 		for (const segment of unitSegments) {
-			const unitIndex = segment.span.startIndex;
-			const view = collationState.peekUnitView(unitIndex);
+			const unitId = segment.span.unitId;
+			const view = collationState.peekUnitView(unitId);
 			for (const witnessId of view.unrecordedManualWitnessIds)
 				entries.push({
-					unitIndex,
+					unitId,
 					title: 'Record manual witness',
 					detail: `${siglumOf(witnessId)} has nothing recorded at this unit.`,
 					phase: 'readings',
 				});
 			if (view.unconfirmedWitnessIds.length > 0)
 				entries.push({
-					unitIndex,
+					unitId,
 					title: 'Confirm placed witness',
 					detail: view.unconfirmedWitnessIds.map(siglumOf).join(', '),
 					phase: 'readings',
 				});
 			if (view.unresolvedAttestations.length > 0)
 				entries.push({
-					unitIndex,
+					unitId,
 					title: 'Resolve placement',
 					detail: view.unresolvedAttestations
 						.map(attestation => siglumOf(attestation.witnessId))
 						.join(', '),
 					phase: 'readings',
 				});
-			for (const orphan of collationState.getOrphanedDecisionsForUnit(unitIndex)) {
+			for (const orphan of collationState.getOrphanedDecisionsForUnit(unitId)) {
 				entries.push({
-					unitIndex,
+					unitId,
 					title: 'Resolve orphaned reading decision',
 					detail: `A saved ${orphan.kind === 'sourceArc' ? 'source' : orphan.kind === 'readingTag' ? 'reading tag' : orphan.kind === 'manualTestimony' ? 'manual testimony' : orphan.kind} decision refers to a reading that is no longer in this variation unit.`,
 					phase:
@@ -101,7 +101,7 @@
 			);
 			if (witnessIds.length > 0) {
 				entries.push({
-					unitIndex,
+					unitId,
 					title: 'Finish transcribing witnesses',
 					detail: `${witnessIds.map(siglumOf).join(', ')} ${witnessIds.length === 1 ? 'is' : 'are'} untranscribed at variation unit ${segment.label}.`,
 					phase: 'readings',
@@ -109,12 +109,12 @@
 					untranscribedLocation: `variation unit ${segment.label}`,
 				});
 			}
-			const stemma = collationState.getLocalStemma(unitIndex);
+			const stemma = collationState.getLocalStemma(unitId);
 			if (
 				stemma.nodes.some(node => !node.isRoot && node.sourceDecision.kind === 'undecided')
 			) {
 				entries.push({
-					unitIndex,
+					unitId,
 					title: 'Set reading sources',
 					detail: 'At least one reading source is undecided.',
 					phase: 'stemma',
@@ -137,7 +137,7 @@
 		}
 		for (const unit of collationState.getStemmaViolations()) {
 			entries.push({
-				unitIndex: unit.unitIndex,
+				unitId: unit.unitId,
 				title: 'Resolve local stemma warning',
 				detail: `${unit.violations.length} recorded stemma contradiction${unit.violations.length === 1 ? '' : 's'}.`,
 				phase: 'stemma',
@@ -181,16 +181,13 @@
 		});
 	}
 
-	function unitLabel(unitIndex: number): string {
-		return (
-			unitSegments.find(segment => segment.span.startIndex === unitIndex)?.label ??
-			String(unitIndex + 1)
-		);
+	function unitLabel(unitId: string): string {
+		return unitSegments.find(segment => segment.span.unitId === unitId)?.label ?? unitId;
 	}
 
 	async function openUnit(entry: WorklistEntry) {
 		if (!collationState.collationId) return;
-		if (entry.unitIndex !== undefined) collationState.selectedUnitIndex = entry.unitIndex;
+		if (entry.unitId !== undefined) collationState.selectedUnitId = entry.unitId;
 		await goto(
 			resolve('/collation/[id]/[phase]', {
 				id: collationState.collationId,
@@ -207,10 +204,10 @@
 			if (segment.kind !== 'unit') continue;
 			const unitId = segment.span.unitId;
 			units.set(unitId, {
-				view: collationState.peekUnitView(segment.span.startIndex),
-				nonAttestation: collationState.getNonAttestationForUnit(segment.span.startIndex),
-				stemma: collationState.getLocalStemma(segment.span.startIndex),
-				connectivity: collationState.getConnectivity(segment.span.startIndex),
+				view: collationState.peekUnitView(segment.span.unitId),
+				nonAttestation: collationState.getNonAttestationForUnit(segment.span.unitId),
+				stemma: collationState.getLocalStemma(segment.span.unitId),
+				connectivity: collationState.getConnectivity(segment.span.unitId),
 				recordedReadingTypeIds: Object.keys(
 					collationState.unitDecisions.get(unitId)?.readingType ?? {}
 				),
@@ -275,9 +272,7 @@
 
 	function selectExportRefusal(refusal: ApparatusExportRefusal) {
 		if (!refusal.unitId) return;
-		const unitIndex = unitSegments.find(segment => segment.span.unitId === refusal.unitId)?.span
-			.startIndex;
-		if (unitIndex !== undefined) collationState.selectedUnitIndex = unitIndex;
+		collationState.selectedUnitId = refusal.unitId;
 	}
 
 	function refusalWitnesses(refusal: ApparatusExportRefusal): string {
@@ -353,17 +348,17 @@
 			<div
 				class="space-y-2 rounded-xl border border-base-300/60 bg-base-100 p-4 font-greek text-sm leading-relaxed"
 			>
-				{#each segments as segment (segment.kind === 'unit' ? `unit-${segment.span.startIndex}` : segment.columnIds.join('+'))}
+				{#each segments as segment (segment.kind === 'unit' ? segment.span.unitId : segment.columnIds.join('+'))}
 					{#if segment.kind === 'agreed'}
 						<span class="select-text text-base-content/70">{segment.text}</span>
 					{:else}
 						{@const notation = renderApparatusUnit(
-							collationState.peekUnitView(segment.span.startIndex),
+							collationState.peekUnitView(segment.span.unitId),
 							{
 								label: segment.label,
 								siglumOf,
 								nonAttestation: collationState.getNonAttestationForUnit(
-									segment.span.startIndex
+									segment.span.unitId
 								),
 								readingTypeLabelOf: readingType =>
 									findReadingTypeDefinition(vocabulary, readingType)?.label ??
@@ -384,7 +379,7 @@
 				Local stemmata
 			</h3>
 			<div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-				{#each stemmata as item (item.segment.span.startIndex)}
+				{#each stemmata as item (item.segment.span.unitId)}
 					<article class="rounded-xl border border-base-300/60 bg-base-100 p-3">
 						<h4 class="font-mono text-xs text-base-content/60">
 							Unit {item.segment.label}
@@ -445,8 +440,8 @@
 					<ul class="mt-3 space-y-2">
 						{#each divergence as entry (entry.unitId)}
 							<li class="text-sm">
-								Unit {unitLabel(entry.unitIndex)}: established lemma differs from
-								the base-text reading.
+								Unit {unitLabel(entry.unitId)}: established lemma differs from the
+								base-text reading.
 							</li>
 						{/each}
 					</ul>
@@ -460,9 +455,9 @@
 					<p class="mt-3 text-sm text-success">No unresolved decisions.</p>
 				{:else}
 					<ul class="mt-3 space-y-2">
-						{#each worklist as entry, index (`${entry.unitIndex ?? 'vanished'}-${entry.title}-${index}`)}
+						{#each worklist as entry, index (`${entry.unitId ?? 'vanished'}-${entry.title}-${index}`)}
 							<li>
-								{#if entry.unitIndex === undefined && entry.untranscribedLocation}
+								{#if entry.unitId === undefined && entry.untranscribedLocation}
 									<p class="text-sm">
 										{entry.untranscribedLocation}: {entry.title}
 									</p>
@@ -472,9 +467,9 @@
 										class="link link-hover text-left text-sm"
 										onclick={() => openUnit(entry)}
 									>
-										{entry.unitIndex === undefined
+										{entry.unitId === undefined
 											? ''
-											: `Unit ${unitLabel(entry.unitIndex)}: `}{entry.title}
+											: `Unit ${unitLabel(entry.unitId)}: `}{entry.title}
 									</button>
 								{/if}
 								<p class="text-xs text-base-content/55">{entry.detail}</p>

@@ -39,7 +39,7 @@ function readingsFor(witnesses: WitnessConfig[]): ClassifiedReading[] {
 		options: { segmentation: false },
 	});
 	collationState.setAlignmentSnapshot(result.snapshot);
-	return collationState.getReadingsForUnit(0);
+	return collationState.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`);
 }
 
 function arc(priorReadingId: string, posteriorReadingId: string): ReadingArc {

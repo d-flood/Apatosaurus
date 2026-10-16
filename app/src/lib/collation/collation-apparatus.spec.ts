@@ -142,15 +142,34 @@ describe('renderApparatusUnit', () => {
 			makeWitness('A', textTokens('λογος'), true),
 			makeWitness('B', textTokens('θεος')),
 		]);
-		const main = collationState.peekReadingsForUnit(0)[0];
-		await collationState.attachManualWitness(0, main.id, 'Father');
-		const id = collationState.addAuthoredReading(0, '', true)!;
-		await collationState.attachManualWitness(0, id, 'Syriac');
-		const rendered = renderApparatusUnit(collationState.peekUnitView(0), {
-			label: '2',
-			nonAttestation: collationState.getNonAttestationForUnit(0),
-			siglumOf: collationState.getWitnessSiglum,
-		});
+		const main = collationState.peekReadingsForUnit(
+			`unit:${collationState.alignmentColumns[0].id}`
+		)[0];
+		await collationState.attachManualWitness(
+			`unit:${collationState.alignmentColumns[0].id}`,
+			main.id,
+			'Father'
+		);
+		const id = collationState.addAuthoredReading(
+			`unit:${collationState.alignmentColumns[0].id}`,
+			'',
+			true
+		)!;
+		await collationState.attachManualWitness(
+			`unit:${collationState.alignmentColumns[0].id}`,
+			id,
+			'Syriac'
+		);
+		const rendered = renderApparatusUnit(
+			collationState.peekUnitView(`unit:${collationState.alignmentColumns[0].id}`),
+			{
+				label: '2',
+				nonAttestation: collationState.getNonAttestationForUnit(
+					`unit:${collationState.alignmentColumns[0].id}`
+				),
+				siglumOf: collationState.getWitnessSiglum,
+			}
+		);
 		expect(rendered).toContain('a: A Father');
 		expect(rendered).toContain('c: Syriac');
 	});
@@ -164,11 +183,11 @@ describe('renderApparatusUnit', () => {
 		]);
 		const segments = collationState.getSegmentSequence();
 		const unit = segments.find(segment => segment.kind === 'unit')!;
-		const view = collationState.peekUnitView(unit.span.startIndex);
+		const view = collationState.peekUnitView(unit.span.unitId);
 
 		const notation = renderApparatusUnit(view, {
 			label: unit.label,
-			nonAttestation: collationState.getNonAttestationForUnit(unit.span.startIndex),
+			nonAttestation: collationState.getNonAttestationForUnit(unit.span.unitId),
 		});
 
 		expect(notation).toBe(`${unit.label} ⸂ λογος ] a: A B | b: C | zz: D`);
@@ -181,17 +200,17 @@ describe('renderApparatusUnit', () => {
 			makeWitness('C', textTokens('ο κυριος')),
 		]);
 		const unit = collationState.getSegmentSequence().find(segment => segment.kind === 'unit')!;
-		const unitIndex = unit.span.startIndex;
-		const readings = collationState.peekReadingsForUnit(unitIndex);
+		const unitId = unit.span.unitId;
+		const readings = collationState.peekReadingsForUnit(unitId);
 		const main = readings.find(reading => reading.text === 'λογος')!;
 		const other = readings.find(reading => reading.text === 'θεος')!;
-		collationState.setReadingParent(unitIndex, other.id, main.id);
-		collationState.setReadingType(unitIndex, other.id, 'orthographic');
+		collationState.setReadingParent(unitId, other.id, main.id);
+		collationState.setReadingType(unitId, other.id, 'orthographic');
 
-		const notation = renderApparatusUnit(collationState.peekUnitView(unitIndex), {
+		const notation = renderApparatusUnit(collationState.peekUnitView(unitId), {
 			label: unit.label,
 			siglumOf: witnessId => `0${witnessId}`,
-			nonAttestation: collationState.getNonAttestationForUnit(unitIndex),
+			nonAttestation: collationState.getNonAttestationForUnit(unitId),
 			readingTypeLabelOf: readingType => readingType.toUpperCase(),
 		});
 
@@ -205,17 +224,17 @@ describe('renderApparatusUnit', () => {
 			makeWitness('C', textTokens('ο κυριος')),
 		]);
 		const unit = collationState.getSegmentSequence().find(segment => segment.kind === 'unit')!;
-		const unitIndex = unit.span.startIndex;
-		const readings = collationState.peekReadingsForUnit(unitIndex);
+		const unitId = unit.span.unitId;
+		const readings = collationState.peekReadingsForUnit(unitId);
 		const main = readings.find(reading => reading.text === 'λογος')!;
 		const middle = readings.find(reading => reading.text === 'θεος')!;
 		const deepest = readings.find(reading => reading.text === 'κυριος')!;
-		collationState.setReadingParent(unitIndex, middle.id, main.id);
-		collationState.setReadingParent(unitIndex, deepest.id, middle.id);
+		collationState.setReadingParent(unitId, middle.id, main.id);
+		collationState.setReadingParent(unitId, deepest.id, middle.id);
 
-		const notation = renderApparatusUnit(collationState.peekUnitView(unitIndex), {
+		const notation = renderApparatusUnit(collationState.peekUnitView(unitId), {
 			label: unit.label,
-			nonAttestation: collationState.getNonAttestationForUnit(unitIndex),
+			nonAttestation: collationState.getNonAttestationForUnit(unitId),
 		});
 
 		expect(notation).toContain(': C');
@@ -269,24 +288,29 @@ describe('the shared variation-unit definition', () => {
 			buildCollationProjection({
 				witnesses,
 				alignmentColumns: columns,
-				getReadingsForUnit: unitIndex => collationState.getReadingsForUnit(unitIndex),
-				getBaseTextForVariationUnit: unitIndex =>
-					collationState.getBaseTextForVariationUnit(unitIndex),
+				getReadingsForUnit: unitId => collationState.getReadingsForUnit(unitId),
+				getBaseTextForVariationUnit: unitId =>
+					collationState.getBaseTextForVariationUnit(unitId),
 				getBaseWitnessId: () => collationState.getBaseWitnessId(),
 			}).variationUnits.map(unit => columns[unit.startIndex].id)
 		).toEqual(expectedUnitColumnIds);
 
-		const readings = collationState.getReadingsForUnit(4);
-		collationState.setLemmaReading(4, readings.find(reading => reading.text === 'θεος')!.id);
+		const readings = collationState.getReadingsForUnit(
+			`unit:${collationState.alignmentColumns[4].id}`
+		);
+		collationState.setLemmaReading(
+			`unit:${collationState.alignmentColumns[4].id}`,
+			readings.find(reading => reading.text === 'θεος')!.id
+		);
 		expect(collationState.getLemmaDivergence().map(entry => entry.unitId)).toEqual(
 			expectedUnitColumnIds.map(columnId => `unit:${columnId}`)
 		);
 		expect(collationState.getOrphanedUnitDecisions()).toEqual([]);
 
 		collationState.setPhase('readings');
-		collationState.selectedUnitIndex = 0;
+		collationState.selectedUnitId = `unit:${collationState.alignmentColumns[0].id}`;
 		collationState.moveFocus('right');
-		expect(columns[collationState.selectedUnitIndex].id).toBe(expectedUnitColumnIds[0]);
+		expect(collationState.selectedUnitId).toBe(`unit:${expectedUnitColumnIds[0]}`);
 	});
 
 	it('reports only units the readings pane can select as needing a lemma decision', () => {
@@ -306,7 +330,9 @@ describe('the shared variation-unit definition', () => {
 		const needingLemma = collationState.getUnitsNeedingLemmaDecision();
 
 		expect(needingLemma.map(unit => unit.unitId)).toEqual([`unit:${columns[4].id}`]);
-		expect(needingLemma.map(unit => unit.unitIndex)).toEqual(selectableUnitIndexes);
+		expect(needingLemma.map(unit => unit.unitId)).toEqual(
+			selectableUnitIndexes.map(index => `unit:${columns[index].id}`)
+		);
 	});
 
 	it('reports a saved decision at a column that is no longer a unit as orphaned', () => {

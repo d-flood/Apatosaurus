@@ -56,7 +56,9 @@ function chip(witnessId: string): HTMLButtonElement {
 }
 
 function witnessesOfReadings(): string[][] {
-	return collationState.peekReadingsForUnit(0).map(reading => reading.witnessIds);
+	return collationState
+		.peekReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
+		.map(reading => reading.witnessIds);
 }
 
 function clickText(text: string) {
@@ -73,7 +75,7 @@ function announcement(): string {
 
 async function chooseAndApply(selectLabel: string, readingLabel: string, applyTestId: string) {
 	const target = collationState
-		.peekReadingsForUnit(0)
+		.peekReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
 		.find(reading => reading.label === readingLabel);
 	if (!target) throw new Error(`no reading labelled ${readingLabel}`);
 	await userEvent.selectOptions(
@@ -181,7 +183,10 @@ describe('ReadingsPhase witness selection', () => {
 		await expect
 			.element(page.getByTestId('readings-announcer'))
 			.toHaveTextContent('Moved B, D to reading a.');
-		expect(collationState.peekReadingsForUnit(0)[0]?.witnessIds).toEqual(['A', 'B', 'D']);
+		expect(
+			collationState.peekReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)[0]
+				?.witnessIds
+		).toEqual(['A', 'B', 'D']);
 		expect(document.activeElement?.getAttribute('data-witness-id')).toBe('B');
 
 		chip('C').focus();
@@ -244,7 +249,9 @@ describe('ReadingsPhase witness selection', () => {
 			document.querySelector<HTMLSelectElement>(
 				'select[aria-label="Merge the selected readings into"]'
 			)!,
-			collationState.peekReadingsForUnit(0).find(reading => reading.label === 'b')!.id
+			collationState
+				.peekReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
+				.find(reading => reading.label === 'b')!.id
 		);
 		await expect.element(page.getByTestId('merge-warning')).toHaveTextContent('πνευμα');
 
@@ -255,10 +262,11 @@ describe('ReadingsPhase witness selection', () => {
 			.element(page.getByTestId('readings-announcer'))
 			.toHaveTextContent('Merged 2 readings into b.');
 		expect(announcement()).toContain('Discarded the text of');
-		expect(collationState.peekReadingsForUnit(0).map(reading => reading.witnessIds)).toEqual([
-			['A'],
-			['B', 'C', 'D'],
-		]);
+		expect(
+			collationState
+				.peekReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
+				.map(reading => reading.witnessIds)
+		).toEqual([['A'], ['B', 'C', 'D']]);
 		expect(document.activeElement?.getAttribute('data-witness-id')).toBe('B');
 	});
 
@@ -277,7 +285,9 @@ describe('ReadingsPhase witness selection', () => {
 			document.querySelector<HTMLSelectElement>(
 				'select[aria-label="Merge the selected readings into"]'
 			)!,
-			collationState.peekReadingsForUnit(0).find(reading => reading.label === 'b')!.id
+			collationState
+				.peekReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
+				.find(reading => reading.label === 'b')!.id
 		);
 		await expect.element(page.getByTestId('merge-warning')).toHaveTextContent('lemma reading');
 
@@ -335,10 +345,10 @@ describe('ReadingsPhase selection beyond the witnesses on screen', () => {
 		await expect
 			.element(page.getByTestId('selection-count'))
 			.toHaveTextContent('1 witness selected');
-		collationState.selectedUnitIndex = 2;
+		collationState.selectedUnitId = `unit:${collationState.alignmentColumns[2].id}`;
 		await expect.element(page.getByRole('button', { name: '+2 more' })).toBeInTheDocument();
 		await expect.element(page.getByTestId('selection-count')).not.toBeInTheDocument();
-		collationState.selectedUnitIndex = 0;
+		collationState.selectedUnitId = `unit:${collationState.alignmentColumns[0].id}`;
 		await expect.element(page.getByRole('button', { name: '+2 more' })).toBeInTheDocument();
 		await expect
 			.element(page.getByRole('button', { name: 'W14', exact: true }))
@@ -367,7 +377,10 @@ describe('ReadingsPhase selection beyond the witnesses on screen', () => {
 
 		await chooseAndApply('Move selected witnesses to reading', 'a', 'apply-move');
 
-		expect(collationState.peekReadingsForUnit(0)[0]?.witnessIds).toEqual(['A', ...sigla]);
+		expect(
+			collationState.peekReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)[0]
+				?.witnessIds
+		).toEqual(['A', ...sigla]);
 		expect(announcement()).toContain('W14');
 	});
 });
@@ -388,7 +401,10 @@ describe('ReadingsPhase non-attestation', () => {
 			.element(page.getByRole('button', { name: 'A', exact: true }))
 			.toBeInTheDocument();
 
-		expect(collationState.getNonAttestationForUnit(0).witnessIds).toEqual(['C']);
+		expect(
+			collationState.getNonAttestationForUnit(`unit:${collationState.alignmentColumns[0].id}`)
+				.witnessIds
+		).toEqual(['C']);
 		expect(document.querySelector('[data-witness-id="C"]')).toBeNull();
 		await expect
 			.element(page.getByLabelText('Witnesses that do not testify'))
@@ -440,11 +456,21 @@ describe('ReadingsPhase deletion guard', () => {
 	});
 
 	it('keeps deletion blocked while the card still shows attesting witnesses', async () => {
-		const readings = collationState.peekReadingsForUnit(0);
+		const readings = collationState.peekReadingsForUnit(
+			`unit:${collationState.alignmentColumns[0].id}`
+		);
 		const main = readings.find(reading => reading.label === 'b')!;
 		const subreading = readings.find(reading => reading.label === 'c')!;
-		collationState.setReadingParent(0, subreading.id, main.id);
-		collationState.moveWitnessesToReading(0, ['B'], readings.find(r => r.label === 'a')!.id);
+		collationState.setReadingParent(
+			`unit:${collationState.alignmentColumns[0].id}`,
+			subreading.id,
+			main.id
+		);
+		collationState.moveWitnessesToReading(
+			`unit:${collationState.alignmentColumns[0].id}`,
+			['B'],
+			readings.find(r => r.label === 'a')!.id
+		);
 
 		render(ReadingsPhase);
 		await expect
@@ -495,7 +521,9 @@ describe('ReadingsPhase subreading types', () => {
 	}
 
 	function labels(): string[] {
-		return collationState.peekReadingsForUnit(0).map(reading => reading.label);
+		return collationState
+			.peekReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
+			.map(reading => reading.label);
 	}
 
 	it('adds a subreading only once a reading type is chosen', async () => {
@@ -515,8 +543,9 @@ describe('ReadingsPhase subreading types', () => {
 
 		await expect.poll(labels).toEqual(['a', 'b', 'ao']);
 		expect(
-			collationState.peekReadingsForUnit(0).find(reading => reading.label === 'ao')
-				?.readingType
+			collationState
+				.peekReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
+				.find(reading => reading.label === 'ao')?.readingType
 		).toBe('orthographic');
 	});
 
@@ -525,7 +554,9 @@ describe('ReadingsPhase subreading types', () => {
 		await expect
 			.element(page.getByRole('button', { name: 'A', exact: true }))
 			.toBeInTheDocument();
-		const main = collationState.peekReadingsForUnit(0).find(reading => reading.label === 'a')!;
+		const main = collationState
+			.peekReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
+			.find(reading => reading.label === 'a')!;
 		const menu = openMenu('b');
 
 		await userEvent.selectOptions(selectIn(menu, 'Attach as subreading of'), main.id);
@@ -604,13 +635,30 @@ describe('ReadingsPhase reading tags', () => {
 			makeWitness('C', 'πνευμα'),
 		]);
 		collationState.setAlignmentDisplayMode('original');
-		const main = collationState.peekReadingsForUnit(0)[0];
-		await collationState.addReadingTag(0, main.id, 'Nomen sacrum');
-		collationState.removeReadingTag(0, main.id, collationState.getReadingTags()[0].id);
-		const sub = collationState.peekReadingsForUnit(0)[1];
-		collationState.setReadingParent(0, sub.id, main.id, 'orthographic');
+		const main = collationState.peekReadingsForUnit(
+			`unit:${collationState.alignmentColumns[0].id}`
+		)[0];
+		await collationState.addReadingTag(
+			`unit:${collationState.alignmentColumns[0].id}`,
+			main.id,
+			'Nomen sacrum'
+		);
+		collationState.removeReadingTag(
+			`unit:${collationState.alignmentColumns[0].id}`,
+			main.id,
+			collationState.getReadingTags()[0].id
+		);
+		const sub = collationState.peekReadingsForUnit(
+			`unit:${collationState.alignmentColumns[0].id}`
+		)[1];
+		collationState.setReadingParent(
+			`unit:${collationState.alignmentColumns[0].id}`,
+			sub.id,
+			main.id,
+			'orthographic'
+		);
 		const label = collationState
-			.peekReadingsForUnit(0)
+			.peekReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
 			.find(reading => reading.id === sub.id)!.label;
 		render(ReadingsPhase);
 		await expect
@@ -663,8 +711,9 @@ describe('ReadingsPhase reading tags', () => {
 			'Abbreviation',
 		]);
 		expect(
-			collationState.peekReadingsForUnit(0).find(reading => reading.id === sub.id)
-				?.readingTags
+			collationState
+				.peekReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
+				.find(reading => reading.id === sub.id)?.readingTags
 		).toHaveLength(2);
 		await expect
 			.poll(() => {
@@ -682,8 +731,9 @@ describe('ReadingsPhase reading tags', () => {
 		await badge.click();
 		await expect.element(badge).not.toBeInTheDocument();
 		expect(
-			collationState.peekReadingsForUnit(0).find(reading => reading.id === sub.id)
-				?.readingTags
+			collationState
+				.peekReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
+				.find(reading => reading.id === sub.id)?.readingTags
 		).toEqual([collationState.getReadingTags()[1].id]);
 		collationState.undo();
 		await expect.element(badge).toBeVisible();
@@ -704,7 +754,7 @@ describe('ReadingsPhase placement review', () => {
 			makeWitness('C', 'θεος'),
 			makeWitness('D', 'πνευμα'),
 		]);
-		collationState.primeReadingsForUnit(0);
+		collationState.primeReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`);
 	});
 
 	it('marks units and witnesses, then confirms every attestation from the UI', async () => {
@@ -735,7 +785,10 @@ describe('ReadingsPhase placement review', () => {
 		await expect
 			.element(page.getByRole('button', { name: 'Confirm attestations', exact: true }))
 			.not.toBeInTheDocument();
-		expect(collationState.peekUnitView(0).unconfirmedWitnessIds).toEqual([]);
+		expect(
+			collationState.peekUnitView(`unit:${collationState.alignmentColumns[0].id}`)
+				.unconfirmedWitnessIds
+		).toEqual([]);
 		collationState.undo();
 		await expect
 			.element(page.getByRole('button', { name: 'Confirm attestations', exact: true }))
@@ -744,7 +797,9 @@ describe('ReadingsPhase placement review', () => {
 
 	it('shows candidates first and resolves a held-out witness to any reading from the UI', async () => {
 		const key = `unit:${collationState.alignmentColumns[0].id}`;
-		const readings = collationState.peekReadingsForUnit(0);
+		const readings = collationState.peekReadingsForUnit(
+			`unit:${collationState.alignmentColumns[0].id}`
+		);
 		const beta = readings.find(reading => reading.witnessIds.includes('B'))!;
 		const gamma = readings.find(reading => reading.witnessIds.includes('D'))!;
 		collationState.unitDecisions.set(key, {
@@ -777,18 +832,23 @@ describe('ReadingsPhase placement review', () => {
 		await page.getByRole('button', { name: 'Assign C to reading a', exact: true }).click();
 		await expect.element(section).not.toBeInTheDocument();
 		expect(
-			collationState.peekUnitView(0).readings.find(reading => reading.label === 'a')
-				?.witnessIds
+			collationState
+				.peekUnitView(`unit:${collationState.alignmentColumns[0].id}`)
+				.readings.find(reading => reading.label === 'a')?.witnessIds
 		).toEqual(['A', 'C']);
 		collationState.undo();
 		await expect.element(section).toBeInTheDocument();
 		await page
 			.getByRole('button', { name: 'Assign C to reading b (candidate)', exact: true })
 			.click();
-		expect(collationState.peekUnitView(0).unresolvedAttestations).toEqual([]);
 		expect(
-			collationState.peekUnitView(0).readings.find(reading => reading.id === beta.id)
-				?.witnessIds
+			collationState.peekUnitView(`unit:${collationState.alignmentColumns[0].id}`)
+				.unresolvedAttestations
+		).toEqual([]);
+		expect(
+			collationState
+				.peekUnitView(`unit:${collationState.alignmentColumns[0].id}`)
+				.readings.find(reading => reading.id === beta.id)?.witnessIds
 		).toEqual(['B', 'C']);
 	});
 });
@@ -802,10 +862,24 @@ describe('ReadingsPhase manual witnesses', () => {
 	it('keeps an authored subreading’s manual witnesses visible when the family is collapsed', async () => {
 		collationState.reset();
 		collate([makeWitness('A', 'λογος', true), makeWitness('B', 'θεος')]);
-		const main = collationState.peekReadingsForUnit(0)[0];
-		const id = collationState.addAuthoredReading(0, 'λογου')!;
-		await collationState.attachManualWitness(0, id, 'Father');
-		collationState.setReadingParent(0, id, main.id, 'orthographic');
+		const main = collationState.peekReadingsForUnit(
+			`unit:${collationState.alignmentColumns[0].id}`
+		)[0];
+		const id = collationState.addAuthoredReading(
+			`unit:${collationState.alignmentColumns[0].id}`,
+			'λογου'
+		)!;
+		await collationState.attachManualWitness(
+			`unit:${collationState.alignmentColumns[0].id}`,
+			id,
+			'Father'
+		);
+		collationState.setReadingParent(
+			`unit:${collationState.alignmentColumns[0].id}`,
+			id,
+			main.id,
+			'orthographic'
+		);
 		render(ReadingsPhase);
 		await expect
 			.element(
@@ -826,9 +900,18 @@ describe('ReadingsPhase manual witnesses', () => {
 			await page.viewport(width, 844);
 			collationState.reset();
 			collate([makeWitness('A', 'λογος', true), makeWitness('B', 'θεος')]);
-			const first = collationState.peekReadingsForUnit(0)[0];
-			await collationState.attachManualWitness(0, first.id, 'Father');
-			collationState.detachManualWitness(0, collationState.getManualWitnesses()[0].id);
+			const first = collationState.peekReadingsForUnit(
+				`unit:${collationState.alignmentColumns[0].id}`
+			)[0];
+			await collationState.attachManualWitness(
+				`unit:${collationState.alignmentColumns[0].id}`,
+				first.id,
+				'Father'
+			);
+			collationState.detachManualWitness(
+				`unit:${collationState.alignmentColumns[0].id}`,
+				collationState.getManualWitnesses()[0].id
+			);
 			render(ReadingsPhase);
 			const input = page.getByRole('combobox', {
 				name: 'Manual witness for reading a',
@@ -919,7 +1002,9 @@ describe('ReadingsPhase manual witnesses', () => {
 				.element(page.getByRole('textbox', { name: 'Text of reading c', exact: true }))
 				.toHaveAttribute('placeholder', 'om.');
 			expect(
-				collationState.peekReadingsForUnit(0).some(reading => reading.text === 'πνευμα')
+				collationState
+					.peekReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
+					.some(reading => reading.text === 'πνευμα')
 			).toBe(false);
 		}
 	);
@@ -938,14 +1023,26 @@ it('records all full-manual testimony states and manual ambiguity at phone width
 		await expect.element(page.getByLabelText('Unrecorded manual witnesses')).toBeVisible();
 		await page.getByRole('button', { name: 'Set Syriac uncited', exact: true }).click();
 		await expect
-			.poll(() => collationState.peekUnitView(0).uncitedManualWitnessIds)
+			.poll(
+				() =>
+					collationState.peekUnitView(`unit:${collationState.alignmentColumns[0].id}`)
+						.uncitedManualWitnessIds
+			)
 			.toEqual(['full']);
 		await expect
-			.poll(() => collationState.peekUnitView(0).unrecordedManualWitnessIds)
+			.poll(
+				() =>
+					collationState.peekUnitView(`unit:${collationState.alignmentColumns[0].id}`)
+						.unrecordedManualWitnessIds
+			)
 			.toEqual([]);
 		await page.getByRole('button', { name: 'Set Syriac non-attestation', exact: true }).click();
 		await expect
-			.poll(() => collationState.peekUnitView(0).nonAttestingManualWitnessIds)
+			.poll(
+				() =>
+					collationState.peekUnitView(`unit:${collationState.alignmentColumns[0].id}`)
+						.nonAttestingManualWitnessIds
+			)
 			.toEqual(['full']);
 		await page
 			.getByRole('combobox', { name: 'Manual witness for reading a', exact: true })
@@ -960,7 +1057,11 @@ it('records all full-manual testimony states and manual ambiguity at phone width
 		await page.getByRole('checkbox', { name: 'Ambiguous between: b', exact: true }).click();
 		await page.getByRole('button', { name: 'Record zw', exact: true }).click();
 		await expect
-			.poll(() => collationState.peekUnitView(0).ambiguousAttestations[0]?.witnessIds)
+			.poll(
+				() =>
+					collationState.peekUnitView(`unit:${collationState.alignmentColumns[0].id}`)
+						.ambiguousAttestations[0]?.witnessIds
+			)
 			.toEqual(['full']);
 		await expect
 			.poll(() =>

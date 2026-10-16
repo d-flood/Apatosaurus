@@ -407,7 +407,7 @@
 									class="text-[0.55rem] text-info ml-px">m</span
 								>{/if}</sup
 						>
-						{#if collationState.peekUnitView(unit.index).unconfirmedWitnessIds.length > 0}
+						{#if collationState.peekUnitView(`unit:${unit.id}`).unconfirmedWitnessIds.length > 0}
 							<span
 								class="ml-1 text-xs text-warning"
 								aria-label="Unconfirmed attestations">●</span

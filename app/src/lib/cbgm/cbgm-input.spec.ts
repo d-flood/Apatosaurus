@@ -10,7 +10,7 @@ import { buildCollationDocument, type CollationDocument } from '$lib/collation/c
 import { collationState, type WitnessConfig } from '$lib/collation/collation-state.svelte';
 import { buildCbgmInput } from './cbgm-input';
 
-const UNIT = 1;
+const UNIT = 'unit:variant';
 
 const defaults: CoherenceSettings = {
 	minExtantUnits: null,

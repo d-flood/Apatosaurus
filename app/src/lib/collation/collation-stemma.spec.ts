@@ -51,7 +51,7 @@ function readingsFor(witnesses: WitnessConfig[]): ClassifiedReading[] {
 		options: { segmentation: false },
 	});
 	collationState.setAlignmentSnapshot(result.snapshot);
-	return collationState.getReadingsForUnit(0);
+	return collationState.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`);
 }
 
 function arc(priorReadingId: string, posteriorReadingId: string): ReadingArc {
@@ -77,9 +77,17 @@ describe('projectLocalStemma', () => {
 		]);
 		const main = labelled(readings, 'b');
 		const folded = labelled(readings, 'c');
-		expect(collationState.setReadingParent(0, folded.id, main.id)).toEqual({ ok: true });
+		expect(
+			collationState.setReadingParent(
+				`unit:${collationState.alignmentColumns[0].id}`,
+				folded.id,
+				main.id
+			)
+		).toEqual({ ok: true });
 
-		const decided = collationState.getReadingsForUnit(0);
+		const decided = collationState.getReadingsForUnit(
+			`unit:${collationState.alignmentColumns[0].id}`
+		);
 		const { nodes } = projectLocalStemma(decided, [], labelled(decided, 'a').id);
 
 		expect(nodes.map(node => node.label)).toEqual(['a', 'b']);
@@ -97,9 +105,15 @@ describe('projectLocalStemma', () => {
 		]);
 		const main = labelled(readings, 'b');
 		const folded = labelled(readings, 'c');
-		collationState.setReadingParent(0, folded.id, main.id);
+		collationState.setReadingParent(
+			`unit:${collationState.alignmentColumns[0].id}`,
+			folded.id,
+			main.id
+		);
 
-		const decided = collationState.getReadingsForUnit(0);
+		const decided = collationState.getReadingsForUnit(
+			`unit:${collationState.alignmentColumns[0].id}`
+		);
 		const lemma = labelled(decided, 'a');
 		const { nodes } = projectLocalStemma(decided, [arc(lemma.id, folded.id)], lemma.id);
 
@@ -263,9 +277,15 @@ describe('projectLocalStemma', () => {
 		]);
 		const main = labelled(readings, 'b');
 		const folded = labelled(readings, 'c');
-		collationState.setReadingParent(0, folded.id, main.id);
+		collationState.setReadingParent(
+			`unit:${collationState.alignmentColumns[0].id}`,
+			folded.id,
+			main.id
+		);
 
-		const decided = collationState.getReadingsForUnit(0);
+		const decided = collationState.getReadingsForUnit(
+			`unit:${collationState.alignmentColumns[0].id}`
+		);
 		const { orphanedArcs } = projectLocalStemma(
 			decided,
 			[arc(main.id, folded.id)],

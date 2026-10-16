@@ -39,16 +39,21 @@ describe('StemmaPhase', () => {
 			options: { segmentation: false },
 		});
 		collationState.setAlignmentSnapshot(snapshot.snapshot);
-		const readings = collationState.getReadingsForUnit(0);
+		const readings = collationState.getReadingsForUnit(
+			`unit:${collationState.alignmentColumns[0].id}`
+		);
 		const a = readings.find(reading => reading.label === 'a')!;
 		const b = readings.find(reading => reading.label === 'b')!;
-		collationState.setReadingSource(0, b.id, { kind: 'derived', from: a.id });
-		collationState.setLemmaReading(0, b.id);
+		collationState.setReadingSource(`unit:${collationState.alignmentColumns[0].id}`, b.id, {
+			kind: 'derived',
+			from: a.id,
+		});
+		collationState.setLemmaReading(`unit:${collationState.alignmentColumns[0].id}`, b.id);
 	});
 
 	it('forgets a lift when undo removes the lifted reading, even after redo restores it', async () => {
 		render(StemmaPhase);
-		collationState.addReading(0);
+		collationState.addReading(`unit:${collationState.alignmentColumns[0].id}`);
 		const diagram = page.getByRole('group', { name: /Local stemma for unit/ });
 		const nodeCount = () =>
 			document
@@ -56,7 +61,7 @@ describe('StemmaPhase', () => {
 				?.querySelectorAll('button').length;
 		await expect.poll(nodeCount).toBe(3);
 		const addedLabel = collationState
-			.peekReadingsForUnit(0)
+			.peekReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
 			.find(reading => reading.witnessIds.length === 0)!.label;
 		const added = diagram.getByRole('button', { name: new RegExp(`^${addedLabel}:`) });
 		await added.click();
@@ -97,14 +102,18 @@ describe('StemmaPhase', () => {
 			.element(page.getByTestId('connectivity-state'))
 			.toHaveTextContent('Connectivity: 10');
 		await userEvent.click(page.getByRole('button', { name: 'Absolute', exact: true }));
-		expect(collationState.getConnectivity(0)).toBe('absolute');
+		expect(
+			collationState.getConnectivity(`unit:${collationState.alignmentColumns[0].id}`)
+		).toBe('absolute');
 		await expect
 			.element(page.getByTestId('connectivity-state'))
 			.toHaveTextContent('Connectivity: Absolute');
 		await expect.element(customConnectivity).not.toHaveValue('10');
 		await userEvent.fill(customConnectivity, '4');
 		await userEvent.tab();
-		expect(collationState.getConnectivity(0)).toBe(4);
+		expect(
+			collationState.getConnectivity(`unit:${collationState.alignmentColumns[0].id}`)
+		).toBe(4);
 		await userEvent.fill(customConnectivity, '1.5');
 		await userEvent.tab();
 		await expect
@@ -112,14 +121,21 @@ describe('StemmaPhase', () => {
 				page.getByText('Connectivity must be a positive whole number. No change was made.')
 			)
 			.toBeInTheDocument();
-		expect(collationState.getConnectivity(0)).toBe(4);
+		expect(
+			collationState.getConnectivity(`unit:${collationState.alignmentColumns[0].id}`)
+		).toBe(4);
 		await userEvent.click(page.getByRole('button', { name: '3', exact: true }));
-		expect(collationState.getConnectivity(0)).toBe(3);
+		expect(
+			collationState.getConnectivity(`unit:${collationState.alignmentColumns[0].id}`)
+		).toBe(3);
 
 		await expect.element(page.getByRole('alert')).toHaveTextContent('lemma');
 		const reroot = page.getByRole('button', { name: 'Reroot on lemma' });
 		await expect.element(reroot).toBeInTheDocument();
 		await userEvent.click(reroot);
-		expect(collationState.getLocalStemma(0).violations).toEqual([]);
+		expect(
+			collationState.getLocalStemma(`unit:${collationState.alignmentColumns[0].id}`)
+				.violations
+		).toEqual([]);
 	});
 });
