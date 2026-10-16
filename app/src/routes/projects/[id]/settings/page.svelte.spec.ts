@@ -118,3 +118,53 @@ it('adds full manual witnesses and changes treatment at phone width', async () =
 		await page.viewport(original.width, original.height);
 	}
 });
+
+it('adds project reading tags at phone width', async () => {
+	const original = { width: window.innerWidth, height: window.innerHeight };
+	await page.viewport(390, 844);
+	try {
+		render(SettingsPage, {
+			data: {
+				project: {
+					id: 'tag-project',
+					storageSlug: 'tag-project',
+					name: 'Tags',
+					description: '',
+					charter: '',
+					collationSettings: { readingTags: [{ id: 'ns', label: 'Nomen sacrum' }] },
+					createdAt: '2026-10-14',
+					updatedAt: '2026-10-14',
+				},
+			},
+		});
+		const tags = page.getByRole('region', { name: 'Reading tags' });
+		await expect.element(tags.getByText('Nomen sacrum')).toBeVisible();
+		await page.getByRole('textbox', { name: 'Reading tag label' }).fill(' Itacism ');
+		await page.getByRole('button', { name: 'Add tag' }).click();
+		await expect
+			.poll(() => mocks.updateProjectMetadata.mock.lastCall?.[0])
+			.toMatchObject({
+				collationSettings: {
+					readingTags: [
+						{ id: 'ns', label: 'Nomen sacrum' },
+						{ id: expect.any(String), label: 'Itacism' },
+					],
+				},
+			});
+		await expect.element(tags.getByText('Itacism')).toBeVisible();
+		await expect
+			.poll(() =>
+				[
+					...document.querySelectorAll<HTMLElement>(
+						'section[aria-label="Reading tags"] input, section[aria-label="Reading tags"] button, section[aria-label="Reading tags"] li'
+					),
+				].every(element => {
+					const rect = element.getBoundingClientRect();
+					return rect.left >= 0 && rect.right <= 390;
+				})
+			)
+			.toBe(true);
+	} finally {
+		await page.viewport(original.width, original.height);
+	}
+});

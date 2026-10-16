@@ -3667,6 +3667,34 @@ describe('collationState witness placement', () => {
 		).toBe(true);
 	});
 
+	it('keeps a manually attested reading when its last transcribed witness leaves', async () => {
+		setup({ A: 'alpha end', B: 'beta end', C: 'gamma end', D: 'delta end', E: 'eta end' });
+		const key = `unit:${collationState.alignmentColumns[0].id}`;
+		const readings = collationState.getReadingsForUnit(key);
+		for (const [text, siglum] of [
+			['gamma', 'Father'],
+			['delta', 'Version'],
+			['eta', 'Lectionary'],
+		]) {
+			const reading = readings.find(reading => reading.text === text)!;
+			await collationState.attachManualWitness(key, reading.id, siglum);
+		}
+		await refresh({ C: 'beta end', D: 'beta fin' });
+		collationState.toggleWitnessExclusion('E');
+		const view = collationState.peekUnitView(key);
+		expect(view.orphanedDecisions).toEqual([]);
+		expect(
+			view.readings
+				.filter(reading => reading.witnessIds.length === 0)
+				.map(reading => [reading.text, reading.manualWitnessIds?.length])
+				.sort()
+		).toEqual([
+			['delta', 1],
+			['eta', 1],
+			['gamma', 1],
+		]);
+	});
+
 	it('records a manual omission on agreed text and stays quiet at unattached units', async () => {
 		setup({ A: 'one alpha', B: 'one beta' });
 		collationState.declareUnit(['column-0']);
@@ -4007,7 +4035,7 @@ describe('collationState witness placement', () => {
 	});
 
 	it('resolves held-out testimony into any existing reading and undoes both changes', async () => {
-		setup({ A: 'alpha', B: 'beta', C: 'beta', D: 'gamma' });
+		setup({ A: 'alpha end', B: 'beta end', C: 'beta end', D: 'gamma end' });
 		const beta = collationState
 			.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
 			.find(reading => reading.text === 'beta')!;
@@ -4015,7 +4043,7 @@ describe('collationState witness placement', () => {
 			`unit:${collationState.alignmentColumns[0].id}`,
 			['C']
 		);
-		await refresh({ N: 'beta' });
+		await refresh({ N: 'beta fin' });
 		const before = reviewView(
 			collationState.getVariationUnitSpans().find(span => span.startIndex === 0)!.unitId
 		);
@@ -4768,5 +4796,110 @@ describe('collationState witness placement', () => {
 			includedCorrectors: [],
 		};
 		expect(buildCbgmInput([marked], settings)).toEqual(buildCbgmInput([unmarked], settings));
+	});
+
+	it('holds a twin of an unresolved witness out with its source’s candidates', async () => {
+		setup({ A: 'alpha end', B: 'beta end', C: 'beta end' });
+		const key = `unit:${collationState.alignmentColumns[0].id}`;
+		collationState.getReadingsForUnit(key);
+		expect(collationState.splitWitnessesIntoNewReading(key, ['C']).ok).toBe(true);
+		await refresh({ N: 'beta different', M: 'beta different' });
+		const view = collationState.peekUnitView(key);
+		expect(
+			view.readings.some(reading => reading.witnessIds.some(id => ['N', 'M'].includes(id)))
+		).toBe(false);
+		expect(view.unresolvedAttestations.map(entry => entry.witnessId)).toEqual(['N', 'M']);
+		expect(view.unresolvedAttestations[1].candidateReadingIds).toEqual(
+			view.unresolvedAttestations[0].candidateReadingIds
+		);
+		expect(view.unresolvedAttestations[0].candidateReadingIds).toHaveLength(2);
+	});
+
+	it('drops an excluded witness’s unresolved and unconfirmed marks', async () => {
+		setup({ A: 'alpha end', B: 'beta end', C: 'beta end' });
+		const key = `unit:${collationState.alignmentColumns[0].id}`;
+		collationState.getReadingsForUnit(key);
+		expect(collationState.splitWitnessesIntoNewReading(key, ['C']).ok).toBe(true);
+		await refresh({ N: 'beta different', M: 'alpha fin' });
+		expect(collationState.peekUnitView(key)).toMatchObject({
+			unconfirmedWitnessIds: ['M'],
+			unresolvedAttestations: [{ witnessId: 'N' }],
+		});
+		expect(() => exportApparatusTei(buildApparatusTeiExportInput(document()))).toThrow();
+		collationState.toggleWitnessExclusion('N');
+		collationState.toggleWitnessExclusion('M');
+		expect(collationState.peekUnitView(key)).toMatchObject({
+			unconfirmedWitnessIds: [],
+			unresolvedAttestations: [],
+		});
+		expect(() => exportApparatusTei(buildApparatusTeiExportInput(document()))).not.toThrow();
+	});
+
+	it('refreshes a witness without disturbing units where its reading is unchanged', async () => {
+		setup({ A: 'one alpha two three', B: 'one beta two four', C: 'one beta two five' });
+		await refresh({ N: 'one beta extra two six' });
+		const unit = (index: number) => `unit:${collationState.alignmentColumns[index].id}`;
+		const insertedId = collationState.alignmentColumns[2].id;
+		expect(collationState.alignmentColumns[2].cells.get('N')?.text).toBe('extra');
+		expect(collationState.splitWitnessesIntoNewReading(unit(1), ['N']).ok).toBe(true);
+		const split = collationState
+			.peekReadingsForUnit(unit(1))
+			.find(reading => reading.witnessIds.includes('N'))!;
+		const insertedLabels = collationState
+			.getReadingsForUnit(unit(2))
+			.map(reading => [reading.id, reading.label]);
+		collationState.getReadingsForUnit(unit(4));
+		for (const index of [1, 2, 4]) collationState.confirmUnitAttestations(unit(index));
+		await refresh({ N: 'one beta extra two seven' });
+		expect(collationState.alignmentColumns[2].id).toBe(insertedId);
+		expect(
+			collationState.peekReadingsForUnit(unit(1)).find(reading => reading.id === split.id)
+				?.witnessIds
+		).toEqual(['N']);
+		expect(
+			collationState.peekReadingsForUnit(unit(2)).map(reading => [reading.id, reading.label])
+		).toEqual(insertedLabels);
+		expect(
+			[1, 2, 4].map(index => collationState.peekUnitView(unit(index)).unconfirmedWitnessIds)
+		).toEqual([[], [], ['N']]);
+		expect(
+			collationState.peekReadingsForUnit(unit(4)).find(reading => reading.text === 'six')
+		).toBeUndefined();
+	});
+
+	it('places a witness with an ambiguous co-witness into the stored reading', async () => {
+		setup({ A: 'alpha end', B: 'beta end', C: 'gamma end' });
+		const key = `unit:${collationState.alignmentColumns[0].id}`;
+		const readings = collationState.getReadingsForUnit(key);
+		expect(
+			collationState.recordAmbiguousAttestation(
+				key,
+				['C'],
+				readings.filter(reading => reading.text !== 'gamma').map(reading => reading.id)
+			).ok
+		).toBe(true);
+		await refresh({ N: 'gamma fin' });
+		expect(
+			collationState.classifiedReadings
+				.get(key)!
+				.filter(reading => reading.text === 'gamma')
+				.map(reading => reading.witnessIds)
+		).toEqual([['C', 'N']]);
+	});
+
+	it('holds a witness out when its text matches a transcribed and an authored reading', async () => {
+		setup({ A: 'alpha end', B: 'beta end' });
+		const key = `unit:${collationState.alignmentColumns[0].id}`;
+		const beta = collationState
+			.getReadingsForUnit(key)
+			.find(reading => reading.text === 'beta')!;
+		const authoredId = collationState.addAuthoredReading(key, 'beta')!;
+		await collationState.attachManualWitness(key, authoredId, 'Father');
+		await refresh({ N: 'beta fin' });
+		const view = collationState.peekUnitView(key);
+		expect(view.readings.some(reading => reading.witnessIds.includes('N'))).toBe(false);
+		expect(view.unresolvedAttestations).toEqual([
+			{ witnessId: 'N', candidateReadingIds: [beta.id, authoredId] },
+		]);
 	});
 });

@@ -1340,7 +1340,8 @@ function createCollationState() {
 						.filter(
 							reading =>
 								reading.witnessIds.length === 0 ||
-								reading.witnessIds.some(id => !removedIds.has(id))
+								reading.witnessIds.some(id => !removedIds.has(id)) ||
+								manuallyAttestedReadingIds(key).has(reading.id)
 						)
 						.map(reading => ({
 							...reading,
@@ -1349,6 +1350,20 @@ function createCollationState() {
 				])
 			);
 			witnessOrder = witnessOrder.filter(id => !removedIds.has(id));
+			unitDecisions = new Map(
+				[...unitDecisions].map(([key, decisions]) => {
+					const next = cloneUnitDecisions(decisions);
+					if (next.unconfirmedWitnessIds)
+						next.unconfirmedWitnessIds = next.unconfirmedWitnessIds.filter(
+							id => !removedIds.has(id)
+						);
+					if (next.unresolvedAttestations)
+						next.unresolvedAttestations = next.unresolvedAttestations.filter(
+							attestation => !removedIds.has(attestation.witnessId)
+						);
+					return [key, next];
+				})
+			);
 		}
 		placeChangedWitnesses(previousActive);
 		declaredUnits = validDeclaredUnits(alignmentColumns, declaredUnits);
@@ -1464,34 +1479,41 @@ function createCollationState() {
 					return [key, viewUnitWithoutOverlaps(key, proposal).readings] as const;
 				})
 			);
-			if (previousById.has(witnessId)) {
-				alignmentColumns = alignmentColumns
-					.map(column => {
-						const cells = new Map(column.cells);
-						cells.delete(witnessId);
-						return { ...column, cells };
-					})
-					.filter(column =>
-						[...column.cells.values()].some(
-							cell => cell.sourceTokenIds.length > 0 || cell.kind === 'text'
-						)
+			const previousCells = new Map(
+				getVariationUnitSpans().map(span => [
+					span.unitId,
+					witnessUnitCells(span, witnessId),
+				])
+			);
+			const previousReadingIds = new Map(
+				[...classifiedReadings].flatMap(([key, readings]) => {
+					const reading = readings.find(reading =>
+						reading.witnessIds.includes(witnessId)
 					);
+					return reading ? [[key, reading.id] as const] : [];
+				})
+			);
+			if (previousById.has(witnessId)) {
 				classifiedReadings = new Map(
 					[...classifiedReadings].map(([key, readings]) => [
 						key,
-						readings
-							.map(reading => ({
-								...reading,
-								witnessIds: reading.witnessIds.filter(id => id !== witnessId),
-							}))
-							.filter(reading => reading.witnessIds.length > 0),
+						readings.map(reading => ({
+							...reading,
+							witnessIds: reading.witnessIds.filter(id => id !== witnessId),
+						})),
 					])
 				);
 			}
 			const placed = placeWitnessRow(alignmentColumns, input, {
 				witnessOrder: [...activeIds],
 			});
-			alignmentColumns = placed.columns;
+			alignmentColumns = placed.columns
+				.filter(column =>
+					[...column.cells.values()].some(
+						cell => cell.sourceTokenIds.length > 0 || cell.kind === 'text'
+					)
+				)
+				.map((column, index) => ({ ...column, index }));
 			presentInputs.set(witnessId, input);
 			activeIds.add(witnessId);
 			witnessOrder = [...activeIds];
@@ -1515,28 +1537,39 @@ function createCollationState() {
 				decisions.unresolvedAttestations = (decisions.unresolvedAttestations ?? []).filter(
 					attestation => attestation.witnessId !== witnessId
 				);
+				const previousReadingId = previousReadingIds.get(key);
 				if (bucket) {
 					const stored = classifiedReadings.get(key);
 					const coWitnesses = bucket.witnessIds.filter(id => id !== witnessId);
-					let candidates = stored
-						? viewUnitWithoutOverlaps(key, stored).readings.filter(reading =>
-								reading.witnessIds.some(id => coWitnesses.includes(id))
-							)
-						: [];
+					const authoredIds = new Set(
+						(decisions.authoredReadings ?? []).map(reading => reading.id)
+					);
+					const matchesAuthored = (reading: ClassifiedReading) =>
+						authoredIds.has(reading.id) &&
+						reading.isOmission === bucket.isOmission &&
+						regularizedAuthoredText(reading.text) ===
+							(bucket.normalizedText ?? bucket.text);
+					const kept =
+						previousCells.get(key) === witnessUnitCells(span, witnessId)
+							? stored?.find(reading => reading.id === previousReadingId)
+							: undefined;
+					let candidates = kept
+						? [kept]
+						: stored
+							? [
+									...stored.filter(reading =>
+										reading.witnessIds.some(id => coWitnesses.includes(id))
+									),
+									...viewUnitWithoutOverlaps(key, stored).readings.filter(
+										matchesAuthored
+									),
+								]
+							: [];
 					if (candidates.length === 0 && coWitnesses.length === 0) {
-						const authoredIds = new Set(
-							(decisions.authoredReadings ?? []).map(reading => reading.id)
-						);
 						candidates = viewUnitWithoutOverlaps(
 							key,
 							stored ?? oldReadings.filter(reading => !authoredIds.has(reading.id))
-						).readings.filter(
-							reading =>
-								authoredIds.has(reading.id) &&
-								reading.isOmission === bucket.isOmission &&
-								regularizedAuthoredText(reading.text) ===
-									(bucket.normalizedText ?? bucket.text)
-						);
+						).readings.filter(matchesAuthored);
 					}
 					let targetId = bucket.id;
 					if (candidates.length > 1) {
@@ -1620,15 +1653,47 @@ function createCollationState() {
 						if (
 							wasUnconfirmed ||
 							!previousById.has(witnessId) ||
-							oldReading?.id !== targetId
+							(previousReadingId ?? oldReading?.id) !== targetId
 						)
 							decisions.unconfirmedWitnessIds.push(witnessId);
 					}
 				}
 				unitDecisions = new Map(unitDecisions).set(key, decisions);
 			}
+			classifiedReadings = new Map(
+				[...classifiedReadings].map(([key, readings]) => [
+					key,
+					readings.filter(
+						reading =>
+							reading.witnessIds.length > 0 ||
+							reading.id !== previousReadingIds.get(key) ||
+							manuallyAttestedReadingIds(key).has(reading.id)
+					),
+				])
+			);
 			markPlacedOverlapsUnconfirmed(witnessId, previouslyOverlapped);
 		}
+	}
+
+	function manuallyAttestedReadingIds(key: string): Set<string> {
+		const testimony = unitDecisions.get(key)?.manualTestimony ?? {};
+		return new Set(
+			getManualWitnessMembers().flatMap(witness => {
+				const entry = testimony[witness.id];
+				return entry?.kind === 'reading' ? [entry.readingId] : [];
+			})
+		);
+	}
+
+	function witnessUnitCells(span: VariationUnitSpan, witnessId: string): string {
+		return JSON.stringify(
+			span.columnIds.map(id => {
+				const cell = alignmentColumns
+					.find(column => column.id === id)
+					?.cells.get(witnessId);
+				return [cell?.kind, cell?.text, cell?.alignmentValue];
+			})
+		);
 	}
 
 	function markPlacedOverlapsUnconfirmed(witnessId: string, previouslyOverlapped: Set<string>) {
@@ -1673,7 +1738,8 @@ function createCollationState() {
 					.filter(
 						reading =>
 							reading.witnessIds.length === 0 ||
-							reading.witnessIds.some(id => id !== witnessId)
+							reading.witnessIds.some(id => id !== witnessId) ||
+							manuallyAttestedReadingIds(key).has(reading.id)
 					)
 					.map(reading => ({
 						...reading,
@@ -1697,9 +1763,19 @@ function createCollationState() {
 					],
 				}))
 				.filter(attestation => attestation.witnessIds.length > 0);
-			decisions.unresolvedAttestations = decisions.unresolvedAttestations?.filter(
-				attestation => attestation.witnessId !== witnessId
-			);
+			decisions.unresolvedAttestations = decisions.unresolvedAttestations
+				?.filter(attestation => attestation.witnessId !== witnessId)
+				.flatMap(attestation =>
+					attestation.witnessId === source.id
+						? [
+								attestation,
+								{
+									witnessId,
+									candidateReadingIds: [...attestation.candidateReadingIds],
+								},
+							]
+						: [attestation]
+				);
 			const sourceView = peekUnitView(span.unitId);
 			const testifies =
 				sourceView.readings.some(reading => reading.witnessIds.includes(source.id)) ||

@@ -474,12 +474,15 @@ export function applyDecisions(
 				decisions.manualTestimony?.[id]?.kind === 'nonAttestation' && !ambiguousIds.has(id)
 		),
 		unrecordedManualWitnessIds: (options?.manualWitnesses ?? [])
-			.filter(
-				witness =>
+			.filter(witness => {
+				const testimony = decisions.manualTestimony?.[witness.id];
+				return (
 					witness.treatment === 'full' &&
-					!decisions.manualTestimony?.[witness.id] &&
+					(!testimony ||
+						(testimony.kind === 'reading' && !readingIds.has(testimony.readingId))) &&
 					!ambiguousIds.has(witness.id)
-			)
+				);
+			})
 			.map(witness => witness.id),
 		readings: labelled,
 		unconfirmedWitnessIds: [...(decisions.unconfirmedWitnessIds ?? [])],

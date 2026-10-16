@@ -49,6 +49,8 @@
 	const savedSettings = $derived(parseProjectCollationSettings(openProject.collationSettings));
 	let manualWitnesses = $derived(savedSettings.manualWitnesses ?? []);
 	let manualSiglum = $state('');
+	let readingTags = $derived(savedSettings.readingTags ?? []);
+	let tagLabel = $state('');
 	let projectRules = $derived(savedSettings.regularizationRules ?? []);
 	let projectReadingTypes = $derived(savedSettings.readingTypes ?? []);
 	let lowercase = $derived(savedSettings.lowercase ?? false);
@@ -269,6 +271,7 @@
 		transcriptionWitnessTreatments?: Map<string, WitnessTreatment>;
 		transcriptionWitnessExcludedHands?: Map<string, string[]>;
 		readingTypes?: ReadingTypeDefinition[];
+		readingTags?: Array<{ id: string; label: string }>;
 	}) {
 		const nextRules = nextState?.rules ?? projectRules;
 		const nextLowercase = nextState?.lowercase ?? lowercase;
@@ -294,7 +297,7 @@
 				transcriptionWitnessTreatments: nextTreatments,
 				transcriptionWitnessExcludedHands: nextExcludedHands,
 				readingTypes: nextState?.readingTypes ?? projectReadingTypes,
-				readingTags: savedSettings.readingTags,
+				readingTags: nextState?.readingTags ?? readingTags,
 				manualWitnesses: nextState?.manualWitnesses ?? manualWitnesses,
 			});
 			await updateProjectMetadata({
@@ -344,6 +347,21 @@
 		);
 		await persistProjectSettings({ manualWitnesses: next });
 		if (!error) manualWitnesses = next;
+	}
+
+	async function addProjectReadingTag() {
+		const label = tagLabel.trim();
+		if (!label) return;
+		if (readingTags.some(tag => tag.label.toLowerCase() === label.toLowerCase())) {
+			error = 'This tag already exists.';
+			return;
+		}
+		const next = [...readingTags, { id: crypto.randomUUID(), label }];
+		await persistProjectSettings({ readingTags: next });
+		if (!error) {
+			readingTags = next;
+			tagLabel = '';
+		}
 	}
 
 	function addRule(rule: RegularizationRule) {
@@ -714,6 +732,38 @@
 			</label>
 		</div>
 	{/each}
+</section>
+
+<section
+	class="space-y-3 rounded-box border border-base-300/50 bg-base-100 p-4 shadow-md"
+	aria-label="Reading tags"
+>
+	<h2 class="font-serif text-lg font-semibold">Reading tags</h2>
+	<form
+		class="flex flex-wrap items-end gap-2"
+		onsubmit={event => {
+			event.preventDefault();
+			void addProjectReadingTag();
+		}}
+	>
+		<label class="min-w-0 flex-1 text-sm"
+			>Tag<input
+				class="input input-bordered mt-1 w-full"
+				aria-label="Reading tag label"
+				bind:value={tagLabel}
+			/></label
+		>
+		<button
+			type="submit"
+			class="btn btn-primary btn-sm"
+			disabled={isSavingSettings || !tagLabel.trim()}>Add tag</button
+		>
+	</form>
+	<ul class="flex flex-wrap gap-2">
+		{#each readingTags as tag (tag.id)}
+			<li class="badge badge-outline max-w-full break-all">{tag.label}</li>
+		{/each}
+	</ul>
 </section>
 
 <ProjectCollationSettingsEditor

@@ -172,7 +172,7 @@
 		};
 	}
 
-	async function loadWitnessesForRequest(request: WitnessLoadRequest) {
+	async function loadWitnessesForRequest(request: WitnessLoadRequest, segmentChanged: boolean) {
 		activeWitnessLoadKey = request.key;
 		isLoadingWitnesses = true;
 		error = null;
@@ -187,7 +187,7 @@
 			);
 			if (!isCurrentWitnessLoad(request)) return;
 			if (result.error) {
-				collationState.setWitnesses([]);
+				if (collationState.alignmentColumns.length === 0) collationState.setWitnesses([]);
 				collationState.selectedVerse = request.verse;
 				collationState.setOrphanedMembers(result.orphanedMembers);
 				error = result.error.message;
@@ -232,7 +232,7 @@
 					overridesDefault: previous?.overridesDefault ?? false,
 				};
 			});
-			collationState.setWitnesses(configs, { segmentChanged: true });
+			collationState.setWitnesses(configs, { segmentChanged });
 			collationState.selectedVerse = request.verse;
 		} catch (err) {
 			console.error('Failed to load witnesses for segment', request.members, err);
@@ -278,7 +278,7 @@
 			await reloadVerses();
 			const request = createWitnessLoadRequest(collationState.selectedVerse);
 			if (request) {
-				await loadWitnessesForRequest(request);
+				await loadWitnessesForRequest(request, false);
 			} else {
 				collationState.setWitnesses([]);
 			}
@@ -460,7 +460,7 @@
 
 		const request = createWitnessLoadRequest(primaryVerse);
 		if (request) {
-			void loadWitnessesForRequest(request);
+			void loadWitnessesForRequest(request, true);
 		} else {
 			collationState.setWitnesses([], { segmentChanged: true });
 		}

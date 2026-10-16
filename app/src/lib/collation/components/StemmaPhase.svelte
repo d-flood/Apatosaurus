@@ -654,7 +654,7 @@
 								{/if}
 							</div>
 							<div class="text-[11px] font-mono text-base-content/50">
-								{node.witnessIds.join(', ')}
+								{node.witnessIds.map(collationState.getWitnessSiglum).join(', ')}
 							</div>
 
 							{#if node.violation}
@@ -853,7 +853,12 @@
 									<span
 										class="block truncate font-mono text-[9px] text-base-content/50"
 									>
-										{truncate(node.witnessIds.join(', '), 20)}
+										{truncate(
+											node.witnessIds
+												.map(collationState.getWitnessSiglum)
+												.join(', '),
+											20
+										)}
 									</span>
 									{#if node.isLemma}
 										<span

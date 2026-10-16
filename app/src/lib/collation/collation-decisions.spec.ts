@@ -607,6 +607,13 @@ describe('full manual witnesses', () => {
 		);
 		expect(excluded.readings[0].manualWitnessIds).toEqual([]);
 		expect(excluded.unrecordedManualWitnessIds).toEqual([]);
+		const orphaned = applyDecisions(
+			proposal,
+			{ manualTestimony: { full: { kind: 'reading', readingId: 'gone' } } },
+			options
+		);
+		expect(orphaned.orphanedDecisions).toMatchObject([{ kind: 'manualTestimony' }]);
+		expect(orphaned.unrecordedManualWitnessIds).toEqual(['full']);
 	});
 	it('records manual ambiguous testimony with the existing validation and removes ordinary citation', () => {
 		const proposal = [reading('a', 0), reading('b', 1)];

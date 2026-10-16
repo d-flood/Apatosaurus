@@ -115,7 +115,7 @@ export async function startCbgmAnalysis(
 	);
 	if (input.tei === null) {
 		throw new Error(
-			'Units without a lemma or with unrecorded full manual witnesses block this analysis.'
+			'Units without a lemma, with unresolved testimony or with unrecorded full manual witnesses block this analysis.'
 		);
 	}
 	const analysis = await createCbgmAnalysis(projectId, {
