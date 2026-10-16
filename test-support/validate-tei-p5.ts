@@ -1,22 +1,24 @@
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { execFile, type ExecFileException } from 'node:child_process';
+import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 
 const supportDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(supportDir, '..');
 const schemaPath = join(supportDir, 'tei_all.rng');
 const validatorPath = join(repoRoot, 'scripts', 'validate_tei_xsd.py');
+const execFileAsync = promisify(execFile);
 
-export function validateTeiP5(xml: string): void {
+export async function validateTeiP5(xml: string): Promise<void> {
 	const tempDir = mkdtempSync(join(tmpdir(), 'apatopwa-tei-p5-'));
 	const xmlPath = join(tempDir, 'document.xml');
 
 	try {
 		writeFileSync(xmlPath, xml, 'utf8');
 
-		const result = spawnSync(
+		await execFileAsync(
 			'uv',
 			[
 				'run',
@@ -39,19 +41,17 @@ export function validateTeiP5(xml: string): void {
 					UV_CACHE_DIR: process.env.UV_CACHE_DIR || '/tmp/uv-cache',
 				},
 			}
-		);
+		).catch((error: ExecFileException & { stdout?: string; stderr?: string }) => {
+			if (typeof error.code === 'string') {
+				throw new Error(`Failed to start TEI P5 validation: ${error.message}`);
+			}
 
-		if (result.error) {
-			throw new Error(`Failed to start TEI P5 validation: ${result.error.message}`);
-		}
-
-		if (result.status !== 0) {
-			const output = [result.stdout, result.stderr].filter(Boolean).join('\n').trim();
+			const output = [error.stdout, error.stderr].filter(Boolean).join('\n').trim();
 			throw new Error(
 				output ||
-					`TEI P5 validation exited with status ${result.status}${result.signal ? ` (signal: ${result.signal})` : ''}`
+					`TEI P5 validation exited with status ${error.code}${error.signal ? ` (signal: ${error.signal})` : ''}`
 			);
-		}
+		});
 	} finally {
 		rmSync(tempDir, { recursive: true, force: true });
 	}

@@ -449,6 +449,7 @@ async function createCollation(
 	const proceed = page.getByRole('button', { name: 'Proceed to Alignment' });
 	await expect(proceed).toBeEnabled();
 	await proceed.click();
+	await expect(page).toHaveURL(/\/alignment$/);
 	if (options?.segmentation === false) {
 		await page.getByRole('button', { name: 'Rules', exact: true }).click();
 		await page.getByRole('checkbox', { name: /CollateX segmentation/ }).uncheck();

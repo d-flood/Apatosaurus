@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
+	import { REALIGN_WARNING } from '$lib/collation/alignment-recognition';
 	import { gatherWitnessesForSegment } from '$lib/collation/collation-runner';
 	import { buildWitnessSourceKey } from '$lib/collation/witness-config';
 	import {
@@ -49,6 +50,16 @@
 	let verses = $state<AggregatedVerse[]>([]);
 	let allTranscriptions = $state<ProjectTranscriptionOption[]>([]);
 	let selectedTranscriptionIds = $state<string[]>([]);
+	let refusedTranscriptions = $derived(
+		allTranscriptions.filter(
+			transcription =>
+				selectedTranscriptionIds.includes(transcription.id) &&
+				collationState.isManualSiglum(transcription.siglum) &&
+				!collationState.witnesses.some(
+					witness => witness.transcriptionId === transcription.id
+				)
+		)
+	);
 	let isLoadingSetup = $state(true);
 	let isLoadingWitnesses = $state(false);
 	let isSavingTranscriptions = $state(false);
@@ -172,7 +183,11 @@
 		};
 	}
 
-	async function loadWitnessesForRequest(request: WitnessLoadRequest, segmentChanged: boolean) {
+	async function loadWitnessesForRequest(
+		request: WitnessLoadRequest,
+		segmentChanged: boolean,
+		revert: { members: string[]; orphanedMembers: string[] } | null = null
+	) {
 		activeWitnessLoadKey = request.key;
 		isLoadingWitnesses = true;
 		error = null;
@@ -232,6 +247,15 @@
 					overridesDefault: previous?.overridesDefault ?? false,
 				};
 			});
+			if (
+				revert &&
+				collationState.wouldRealign(configs) &&
+				!window.confirm(REALIGN_WARNING)
+			) {
+				selectSegmentMembers(revert.members);
+				collationState.setOrphanedMembers(revert.orphanedMembers);
+				return;
+			}
 			collationState.setWitnesses(configs, { segmentChanged });
 			collationState.selectedVerse = request.verse;
 		} catch (err) {
@@ -445,6 +469,20 @@
 
 	function updateSegmentMembers(members: string[]) {
 		error = null;
+		const revert = {
+			members: [...(collationState.segment?.members ?? [])],
+			orphanedMembers: [...collationState.orphanedMembers],
+		};
+		const primaryVerse = selectSegmentMembers(members);
+		const request = createWitnessLoadRequest(primaryVerse);
+		if (request) {
+			void loadWitnessesForRequest(request, true, revert);
+		} else {
+			collationState.setWitnesses([], { segmentChanged: true });
+		}
+	}
+
+	function selectSegmentMembers(members: string[]): AggregatedVerse | null {
 		collationState.setSegmentMembers(members);
 		const primaryVerse = verses.find(verse => members.includes(verse.identifier)) ?? null;
 		if (primaryVerse) {
@@ -457,13 +495,16 @@
 			collationState.selectedVerseNum = '';
 		}
 		collationState.selectedVerse = primaryVerse;
+		return primaryVerse;
+	}
 
-		const request = createWitnessLoadRequest(primaryVerse);
-		if (request) {
-			void loadWitnessesForRequest(request, true);
-		} else {
-			collationState.setWitnesses([], { segmentChanged: true });
-		}
+	function updateManualWitness(
+		id: string,
+		updates: Parameters<typeof collationState.updateManualWitness>[1]
+	) {
+		collationState.updateManualWitness(id, updates);
+		const request = createWitnessLoadRequest(collationState.selectedVerse);
+		if (request) void loadWitnessesForRequest(request, false);
 	}
 
 	function selectVerse(verse: AggregatedVerse) {
@@ -487,6 +528,13 @@
 		aria-label="Manual witnesses"
 	>
 		<h2 class="font-serif text-lg font-semibold">Manual witnesses</h2>
+		{#each refusedTranscriptions as transcription (transcription.id)}
+			<p role="alert" class="text-sm text-warning">
+				Transcription {transcription.siglum} isn't collated: {transcription.siglum} is a manual
+				witness here, and CBGM joins witnesses by siglum. Exclude the manual witness to collate
+				the transcription instead.
+			</p>
+		{/each}
 		{#each manualWitnesses as witness (witness.id)}
 			{@const override = collationState.getManualWitnessOverride(witness.id)}
 			<div class="flex flex-wrap items-center gap-3">
@@ -497,7 +545,7 @@
 						aria-label={`Include manual witness ${witness.siglum}`}
 						checked={!override.isExcluded}
 						onchange={event =>
-							collationState.updateManualWitness(witness.id, {
+							updateManualWitness(witness.id, {
 								isExcluded: !event.currentTarget.checked,
 							})}
 					/>
@@ -508,7 +556,7 @@
 					aria-label={`Treatment for manual witness ${witness.siglum}`}
 					value={override.treatment}
 					onchange={event =>
-						collationState.updateManualWitness(witness.id, {
+						updateManualWitness(witness.id, {
 							treatment: event.currentTarget.value as WitnessTreatment,
 						})}
 				>
@@ -579,7 +627,14 @@
 				onToggleRule={collationState.toggleRule}
 				onSetRuleType={collationState.setRuleType}
 				onSetLowercase={collationState.setLowercase}
-				onSetIgnoreWordBreaks={collationState.setIgnoreWordBreaks}
+				onSetIgnoreWordBreaks={value => {
+					if (
+						collationState.alignmentColumns.length > 0 &&
+						!window.confirm(REALIGN_WARNING)
+					)
+						return;
+					void collationState.setIgnoreWordBreaks(value);
+				}}
 				onSetIgnorePunctuation={collationState.setIgnorePunctuation}
 				onSetSuppliedTextMode={collationState.setSuppliedTextMode}
 				onSetSegmentation={collationState.setSegmentation}

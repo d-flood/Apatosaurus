@@ -92,8 +92,11 @@
 					type="checkbox"
 					class="toggle toggle-sm toggle-primary"
 					checked={ignoreWordBreaks}
-					onchange={event =>
-						onSetIgnoreWordBreaks((event.currentTarget as HTMLInputElement).checked)}
+					onchange={event => {
+						const input = event.currentTarget as HTMLInputElement;
+						onSetIgnoreWordBreaks(input.checked);
+						input.checked = ignoreWordBreaks;
+					}}
 				/>
 			</label>
 		</div>

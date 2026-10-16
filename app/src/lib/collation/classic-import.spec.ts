@@ -438,27 +438,32 @@ describe('classic overlap inference', () => {
 			expect(unit.decisions.unconfirmedWitnessIds ?? []).toEqual([]);
 	});
 
-	it('keeps explicit inner omissions and only infers spanning for absence from every inner unit', () => {
+	it('keeps explicit inner readings and infers spanning for absence from any inner unit', () => {
 		const result = build('recorded-overlap');
 		const input = exportInput(result);
 		const units = [...input.units.values()];
 		const id = (siglum: string) =>
 			result.manualWitnesses.find(witness => witness.siglum === siglum)!.id;
 		expect(result.documents[0].apparatus!.units[0].decisions.spanningReadingIds).toHaveLength(
-			1
+			2
 		);
+		const alpha = units[1].view.readings.find(reading => reading.text === 'alpha')!;
+		expect(alpha.manualWitnessIds).toEqual([id('D')]);
+		expect(units[1].view.overlappedWitnessIds).toEqual([id('B')]);
+		expect(units[2].view.overlappedWitnessIds).toEqual([id('B'), id('D')]);
 		for (const [index, unit] of units.entries()) {
 			if (index === 0) continue;
-			expect(unit.view.overlappedWitnessIds).toEqual([id('B')]);
 			const omission = unit.view.readings.find(reading => reading.isOmission)!;
 			expect(omission.manualWitnessIds).toEqual([id('C')]);
 			expect(
 				result.documents[0].apparatus!.units[index].decisions.overlapResolutions
 			).toEqual({
 				[id('C')]: { kind: 'reading', readingId: omission.id },
+				...(index === 1 ? { [id('D')]: { kind: 'reading', readingId: alpha.id } } : {}),
 			});
+			expect(unit.view.unrecordedManualWitnessIds).toEqual([]);
 		}
-		expect(units[2].view.unrecordedManualWitnessIds).toEqual([id('D')]);
+		expect(() => exportApparatusTei(input)).not.toThrow();
 	});
 
 	it('preserves recorded crossing testimony and leaves an absent crossing witness unresolved', () => {

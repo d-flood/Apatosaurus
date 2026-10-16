@@ -8,6 +8,7 @@ import { collateToAlignmentSnapshot } from './collation-adapter';
 import { collationState, type WitnessConfig } from './collation-state.svelte';
 import {
 	COLLATION_PHASES,
+	type ClassifiedReading,
 	type RegularizationRule,
 	type WitnessSourceToken,
 } from './collation-types';
@@ -3695,6 +3696,23 @@ describe('collationState witness placement', () => {
 		]);
 	});
 
+	it('keeps a unit declared on a varying column after it stops varying', async () => {
+		setup({ A: 'one alpha', B: 'one beta', C: 'one alpha' });
+		const key = 'unit:column-1';
+		expect(collationState.declareUnit(['column-1'])).toBe(true);
+		const alpha = collationState
+			.getReadingsForUnit(key)
+			.find(reading => reading.text === 'alpha')!;
+		await collationState.attachManualWitness(key, alpha.id, 'Syriac');
+		collationState.toggleWitnessExclusion('B');
+		expect(collationState.getVariationUnitSpans().map(span => span.unitId)).toContain(key);
+		const view = collationState.peekUnitView(key);
+		expect(view.orphanedDecisions).toEqual([]);
+		expect(view.readings.find(reading => reading.id === alpha.id)?.manualWitnessIds).toEqual([
+			collationState.getManualWitnesses()[0].id,
+		]);
+	});
+
 	it('records a manual omission on agreed text and stays quiet at unattached units', async () => {
 		setup({ A: 'one alpha', B: 'one beta' });
 		collationState.declareUnit(['column-0']);
@@ -3891,7 +3909,13 @@ describe('collationState witness placement', () => {
 		expect(collationState.declareUnit(['column-0', 'column-2'])).toBe(false);
 		expect(collationState.declareUnit(['missing'])).toBe(false);
 		expect(collationState.declareUnit(['column-2'])).toBe(true);
-		expect(collationState.declaredUnits).toEqual([]);
+		expect(collationState.declaredUnits).toEqual([
+			{ firstColumnId: 'column-2', lastColumnId: 'column-2' },
+		]);
+		expect(collationState.getVariationUnitSpans().map(span => span.unitId)).toEqual([
+			'unit:column-2',
+		]);
+		collationState.undo();
 		expect(collationState.declareUnit(['column-0', 'column-1'])).toBe(true);
 		expect(serializeAlignmentColumns(collationState.alignmentColumns)).toEqual(before);
 		expect(collationState.getVariationUnitSpans()[0].unitId).toBe('unit:column-0..column-1');
@@ -4002,6 +4026,50 @@ describe('collationState witness placement', () => {
 			}
 		}
 	);
+
+	it('letters a new reading next in a never-opened unit without shifting existing letters', async () => {
+		setup({ A: 'alpha end', B: 'beta end', C: 'beta end', D: 'gamma end' });
+		const labels = () =>
+			collationState
+				.peekUnitView(`unit:${collationState.alignmentColumns[0].id}`)
+				.readings.map(reading => [reading.text, reading.label]);
+		expect(labels()).toEqual([
+			['alpha', 'a'],
+			['beta', 'b'],
+			['gamma', 'c'],
+		]);
+		await refresh({ N: 'delta end' });
+		expect(labels()).toEqual([
+			['alpha', 'a'],
+			['beta', 'b'],
+			['gamma', 'c'],
+			['delta', 'd'],
+		]);
+	});
+
+	it('leaves out a new transcription whose siglum belongs to a manual witness', async () => {
+		setup({ A: 'alpha end', B: 'beta end' });
+		collationState
+			.getManualWitnesses()
+			.push({ id: 'manual-n', siglum: 'N', treatment: 'full', includeInCbgm: true });
+		await refresh({ N: 'gamma end', M: 'delta end' });
+		expect(collationState.witnesses.map(witness => witness.siglum)).toEqual(['A', 'B', 'M']);
+	});
+
+	it('keeps existing letters when a twin joins a reading in a never-opened unit', async () => {
+		setup({ A: 'alpha end', B: 'beta end', C: 'beta end', D: 'delta end', E: 'gamma end' });
+		const view = () =>
+			collationState
+				.peekUnitView(`unit:${collationState.alignmentColumns[0].id}`)
+				.readings.map(reading => [reading.text, reading.label, reading.witnessIds]);
+		await refresh({ N: 'gamma end' });
+		expect(view()).toEqual([
+			['alpha', 'a', ['A']],
+			['beta', 'b', ['B', 'C']],
+			['delta', 'c', ['D']],
+			['gamma', 'd', ['E', 'N']],
+		]);
+	});
 
 	it('confirms every attestation at one unit in one undo entry', async () => {
 		setup({ A: 'alpha first', B: 'beta second' });
@@ -4470,10 +4538,19 @@ describe('collationState witness placement', () => {
 		}
 	});
 
-	it('keeps lazy readings lazy, opens new units unmarked and places a batch in order', async () => {
+	it('keeps lazy readings lazy until letters would shift, opens new units unmarked and places a batch in order', async () => {
 		setup({ A: 'alpha end', B: 'beta end' });
 		await refresh({ N: 'theta new end', M: 'theta new end' });
-		expect(collationState.classifiedReadings.size).toBe(0);
+		expect([...collationState.classifiedReadings.keys()]).toEqual(['unit:column-0']);
+		expect(
+			collationState
+				.peekUnitView('unit:column-0')
+				.readings.map(reading => [reading.text, reading.label])
+		).toEqual([
+			['alpha', 'a'],
+			['beta', 'b'],
+			['new', 'c'],
+		]);
 		expect(collationState.witnessOrder).toEqual(['A', 'B', 'N', 'M']);
 		expect(collationState.alignmentColumns).toHaveLength(3);
 		expect(collationState.peekUnitView('unit:column-0').unconfirmedWitnessIds).toEqual([
@@ -4629,6 +4706,34 @@ describe('collationState witness placement', () => {
 		]);
 		expect(collationState.phase).toBe('stemma');
 		expect(collationState.furthestPhase).toBe('review');
+	});
+
+	it('orphans the edited readings of a unit re-alignment cannot recognize', () => {
+		setup({ A: 'alpha start omega', B: 'beta middle psi', C: 'beta middle psi' });
+		collationState.setSegmentation(false);
+		collationState.getReadingsForUnit('unit:column-0');
+		collationState.mergeColumns(['column-1', 'column-2']);
+		const key = `unit:${collationState.alignmentColumns[1].id}`;
+		expect(collationState.splitWitnessesIntoNewReading(key, ['C']).ok).toBe(true);
+		const edited = collationState.classifiedReadings.get(key);
+		collationState.setAlignmentSnapshot(
+			collateToAlignmentSnapshot({
+				witnesses: collationState.buildCollationWitnessInputs({
+					forceSourceWitnesses: true,
+				}),
+				options: { segmentation: false },
+			}).snapshot
+		);
+		expect(collationState.getOrphanedUnitDecisions().map(orphan => orphan.unitId)).toEqual([
+			key,
+		]);
+		expect(collationState.classifiedReadings.get(key)).toEqual(edited);
+		expect(collationState.classifiedReadings.has('unit:column-0')).toBe(true);
+		const texts = (readings?: ClassifiedReading[]) =>
+			readings?.map(reading => [reading.text, reading.witnessIds]);
+		expect(
+			texts(new Map(hydrateCollationDocument(document()).classifiedReadings).get(key))
+		).toEqual(texts(edited));
 	});
 
 	it.each(['remove', 'refresh removal', 'exclude'] as const)(

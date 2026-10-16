@@ -544,7 +544,7 @@ export function buildClassicCollationDocument(input: {
 			if (
 				readingId &&
 				reading.witnesses.some(siglum =>
-					inner.every(
+					inner.some(
 						candidate =>
 							!candidate.unit.readings.some(reading =>
 								reading.witnesses.includes(siglum)

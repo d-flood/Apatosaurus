@@ -1,5 +1,8 @@
 import type { AlignmentColumn } from './alignment-snapshot';
 
+export const REALIGN_WARNING =
+	'Re-aligning will lose hand alignment edits. Units that cannot be recognized will be listed as orphaned with their decisions. Continue?';
+
 export function recognizeColumns(
 	previous: AlignmentColumn[],
 	next: AlignmentColumn[],

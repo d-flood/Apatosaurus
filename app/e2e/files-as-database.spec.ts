@@ -505,7 +505,9 @@ async function createAndCommitCollation(page: Page, projectName: string): Promis
 	await runCollation.click();
 	const reviewLink = page.getByRole('link', { name: 'Review', exact: true });
 	await expect(reviewLink).not.toHaveAttribute('aria-disabled', 'true', { timeout: 30_000 });
-	await expect(runCollation).toBeVisible({ timeout: 30_000 });
+	await expect(page.getByRole('button', { name: 'Re-align', exact: true })).toBeVisible({
+		timeout: 30_000,
+	});
 	await reviewLink.click();
 	await expect(page.getByRole('heading', { name: 'Review', exact: true })).toBeVisible({
 		timeout: 30_000,

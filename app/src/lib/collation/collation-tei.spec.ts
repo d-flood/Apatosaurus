@@ -263,7 +263,7 @@ describe('apparatus TEI exporter', () => {
 		expect(
 			readings.find(reading => hasWitness(reading, manual[2].id))?.textContent?.trim()
 		).toBe('alpha');
-		expect(() => validateTeiP5(xml)).not.toThrow();
+		await expect(validateTeiP5(xml)).resolves.toBeUndefined();
 	}, 60_000);
 
 	it('declares tags once and references them on main and subreadings in valid P5', async () => {
@@ -306,7 +306,7 @@ describe('apparatus TEI exporter', () => {
 		expect(
 			exported.find(reading => reading.getAttribute('n') === 'av')?.getAttribute('ana')
 		).toBe(ns);
-		expect(() => validateTeiP5(xml)).not.toThrow();
+		await expect(validateTeiP5(xml)).resolves.toBeUndefined();
 	}, 60_000);
 
 	beforeEach(() => {
@@ -321,7 +321,7 @@ describe('apparatus TEI exporter', () => {
 		settleSources();
 	});
 
-	it('uses the shared segment sequence, reconstructs every attesting witness, and validates as TEI P5', () => {
+	it('uses the shared segment sequence, reconstructs every attesting witness, and validates as TEI P5', async () => {
 		const input = exportInput();
 		const xml = exportApparatusTei(input);
 		const document = parse(xml);
@@ -333,7 +333,7 @@ describe('apparatus TEI exporter', () => {
 		expect(reconstructWitness(document, 'A')).toBe('one alpha two');
 		expect(reconstructWitness(document, 'B')).toBe('one beta two');
 		expect(reconstructWitness(document, 'D')).toBe('one two');
-		expect(() => validateTeiP5(xml)).not.toThrow();
+		await expect(validateTeiP5(xml)).resolves.toBeUndefined();
 	}, 60_000);
 
 	it('serializes flat subreadings, omission, non-attestation, and local-stemma decisions', () => {
@@ -365,13 +365,13 @@ describe('apparatus TEI exporter', () => {
 		expect(graph.getElementsByTagName('node').item(0)?.getAttribute('n')).not.toBe('zz');
 	});
 
-	it('serializes numeric connectivity and encodes explicit absolute by omitting its feature structure', () => {
+	it('serializes numeric connectivity and encodes explicit absolute by omitting its feature structure', async () => {
 		const numeric = exportApparatusTei(exportInput());
 		const numericDocument = parse(numeric);
 		const numericFeature = numericDocument.getElementsByTagName('f')[0]!;
 		expect(numericFeature.getAttribute('name')).toBe('connectivity');
 		expect(numericFeature.getElementsByTagName('numeric')[0]?.getAttribute('value')).toBe('10');
-		expect(() => validateTeiP5(numeric)).not.toThrow();
+		await expect(validateTeiP5(numeric)).resolves.toBeUndefined();
 
 		const absoluteInput = exportInput();
 		const unit = absoluteInput.segments.find(segment => segment.kind === 'unit')!;
@@ -386,7 +386,7 @@ describe('apparatus TEI exporter', () => {
 		expect(reconstructWitness(absoluteDocument, 'A')).toBe('one alpha two');
 		expect(reconstructWitness(absoluteDocument, 'B')).toBe('one beta two');
 		expect(reconstructWitness(absoluteDocument, 'D')).toBe('one two');
-		expect(() => validateTeiP5(absolute)).not.toThrow();
+		await expect(validateTeiP5(absolute)).resolves.toBeUndefined();
 	}, 60_000);
 
 	it('adds basetext to the lemma only when the base text actually attests it', () => {
@@ -431,7 +431,7 @@ describe('apparatus TEI exporter', () => {
 		).toBeNull();
 	});
 
-	it('exports undecided sources without arcs while preserving derived arcs as valid TEI P5', () => {
+	it('exports undecided sources without arcs while preserving derived arcs as valid TEI P5', async () => {
 		const readings = collationState.peekReadingsForUnit(
 			`unit:${collationState.alignmentColumns[1].id}`
 		);
@@ -465,7 +465,7 @@ describe('apparatus TEI exporter', () => {
 			arcs.some(arc => arc.getAttribute('to') === `#${betaNode.getAttribute('xml:id')}`)
 		).toBe(false);
 		expect(xml).not.toContain('unclear');
-		expect(() => validateTeiP5(xml)).not.toThrow();
+		await expect(validateTeiP5(xml)).resolves.toBeUndefined();
 	}, 60_000);
 
 	it('refuses unresolved attestations once per unit until every witness is resolved', () => {
@@ -577,7 +577,7 @@ describe('apparatus TEI exporter', () => {
 		expect(() => exportApparatusTei(input)).not.toThrow();
 	});
 
-	it('marks split members after the first as splits, moving a recorded type to subtype, and validates as TEI P5', () => {
+	it('marks split members after the first as splits, moving a recorded type to subtype, and validates as TEI P5', async () => {
 		const base = snapshot();
 		collationState.reset();
 		collationState.setWitnesses([
@@ -638,10 +638,10 @@ describe('apparatus TEI exporter', () => {
 		expect(
 			Array.from(graph.getElementsByTagName('node')).map(node => node.getAttribute('n'))
 		).toEqual(['a', 'b1', 'b2', 'c']);
-		expect(() => validateTeiP5(xml)).not.toThrow();
+		await expect(validateTeiP5(xml)).resolves.toBeUndefined();
 	}, 60_000);
 
-	it('writes an ambiguous attestation as a witDetail after the readings, pointing at its targets, and validates as TEI P5', () => {
+	it('writes an ambiguous attestation as a witDetail after the readings, pointing at its targets, and validates as TEI P5', async () => {
 		const base = snapshot();
 		collationState.reset();
 		collationState.setWitnesses([
@@ -704,7 +704,7 @@ describe('apparatus TEI exporter', () => {
 		expect(detail.getAttribute('n')).toBe('zw-a/b');
 		expect(detail.getAttribute('target')).toBe('#unit-variant-a #unit-variant-b');
 		expect(detail.getAttribute('wit')).toBe('#wit-C');
-		expect(() => validateTeiP5(xml)).not.toThrow();
+		await expect(validateTeiP5(xml)).resolves.toBeUndefined();
 	}, 60_000);
 
 	it('emits valid xml:id values for numeric and punctuation-heavy identifiers', () => {
@@ -727,7 +727,7 @@ describe('apparatus TEI exporter', () => {
 		expect(ids.every(id => /^[A-Za-z_][A-Za-z0-9_.-]*$/.test(id))).toBe(true);
 	});
 
-	it('exports a multi-column declared unit as valid TEI P5', () => {
+	it('exports a multi-column declared unit as valid TEI P5', async () => {
 		collationState.setWitnesses([witness('A', 'one two', true), witness('B', 'one two')]);
 		collationState.setAlignmentSnapshot({
 			witnessOrder: ['A', 'B'],
@@ -746,10 +746,10 @@ describe('apparatus TEI exporter', () => {
 		expect(xml).toContain('<app ');
 		expect(xml).toContain('one two');
 		expect((xml.match(/<app /g) ?? []).length).toBe(1);
-		expect(() => validateTeiP5(xml)).not.toThrow();
+		await expect(validateTeiP5(xml)).resolves.toBeUndefined();
 	}, 30_000);
 
-	it('exports spanning testimony as P5-valid overlap references and refuses unresolved crossings', () => {
+	it('exports spanning testimony as P5-valid overlap references and refuses unresolved crossings', async () => {
 		collationState.setWitnesses([
 			witness('A', 'one two three', true),
 			witness('B', 'other second three'),
@@ -789,7 +789,7 @@ describe('apparatus TEI exporter', () => {
 				)
 			).toBe(true);
 		}
-		expect(() => validateTeiP5(xml)).not.toThrow();
+		await expect(validateTeiP5(xml)).resolves.toBeUndefined();
 		collationState.declareUnit(['span-1', 'span-2']);
 		expect(getApparatusExportRefusals(exportInput())).toContainEqual(
 			expect.objectContaining({
@@ -802,7 +802,7 @@ describe('apparatus TEI exporter', () => {
 
 	it.each(['nested', 'crossing'] as const)(
 		'exports %s units with valid P5 endpoint attachment',
-		kind => {
+		async kind => {
 			collationState.setWitnesses([
 				witness('A', 'one two three four five six', true),
 				witness('B', 'other two three four five last'),
@@ -872,7 +872,7 @@ describe('apparatus TEI exporter', () => {
 				);
 				expect(app.parentNode).toBe(ab);
 			}
-			expect(() => validateTeiP5(xml)).not.toThrow();
+			await expect(validateTeiP5(xml)).resolves.toBeUndefined();
 		},
 		30_000
 	);
@@ -933,7 +933,7 @@ describe('apparatus TEI exporter', () => {
 		}
 	});
 
-	it('refuses unrecorded full witnesses and exports uncited, damaged and ambiguous testimony as valid TEI P5', () => {
+	it('refuses unrecorded full witnesses and exports uncited, damaged and ambiguous testimony as valid TEI P5', async () => {
 		const input = exportInput();
 		const manual = ['empty', 'damaged', 'uncited', 'ambiguous'].map(id => ({
 			id,
@@ -1000,6 +1000,6 @@ describe('apparatus TEI exporter', () => {
 		expect(document.getElementsByTagName('witDetail')[0].getAttribute('wit')).toBe(
 			'#wit-ambiguous'
 		);
-		expect(() => validateTeiP5(xml)).not.toThrow();
+		await expect(validateTeiP5(xml)).resolves.toBeUndefined();
 	}, 60_000);
 });

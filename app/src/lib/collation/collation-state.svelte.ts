@@ -551,6 +551,10 @@ function createCollationState() {
 		return !getExcludedHandsForTranscription(source.transcriptionId).includes(handId);
 	}
 
+	function isManualSiglum(siglum: string): boolean {
+		return getManualWitnessMembers().some(witness => witness.siglum === siglum);
+	}
+
 	function filterWitnessesByProjectSettings(configs: WitnessConfig[]): WitnessConfig[] {
 		return configs.filter(config => isWitnessIncludedByProjectSettings(config));
 	}
@@ -725,13 +729,42 @@ function createCollationState() {
 		return id;
 	}
 
+	function prepareWitnesses(configs: WitnessConfig[]): WitnessConfig[] {
+		const present = new Set(witnesses.map(witness => witness.witnessId));
+		return ensureBaseTextSelection(
+			applyWitnessTreatmentSources(
+				filterWitnessesByProjectSettings(configs).filter(
+					config => present.has(config.witnessId) || !isManualSiglum(config.siglum)
+				)
+			)
+		);
+	}
+
 	function setWitnesses(configs: WitnessConfig[], options?: { segmentChanged?: boolean }) {
 		const previousWitnesses = witnesses;
-		witnesses = ensureBaseTextSelection(
-			applyWitnessTreatmentSources(filterWitnessesByProjectSettings(configs))
-		);
+		witnesses = prepareWitnesses(configs);
 		handleWitnessSourceChange(previousWitnesses, options);
 		markUnsaved();
+	}
+
+	function changesExistingTokens(previous: WitnessConfig[], next: WitnessConfig[]): boolean {
+		return previous.some(
+			old =>
+				!old.isExcluded &&
+				next.some(
+					witness =>
+						!witness.isExcluded &&
+						witness.witnessId === old.witnessId &&
+						JSON.stringify(witness.tokens) !== JSON.stringify(old.tokens)
+				)
+		);
+	}
+
+	function wouldRealign(configs: WitnessConfig[]): boolean {
+		return (
+			alignmentColumns.length > 0 &&
+			changesExistingTokens(witnesses, prepareWitnesses(configs))
+		);
 	}
 
 	function updateWitness(witnessId: string, updates: Partial<WitnessConfig>) {
@@ -1136,7 +1169,8 @@ function createCollationState() {
 				!isWitnessIncludedByProjectSettings({
 					transcriptionId: prepared.transcriptionUid,
 					handId: prepared.handId,
-				})
+				}) ||
+				isManualSiglum(prepared.siglum)
 			) {
 				continue;
 			}
@@ -1322,17 +1356,7 @@ function createCollationState() {
 	) {
 		if (alignmentColumns.length === 0 && lastAlignmentInputSignature === null) return;
 		const previousActive = previousWitnesses.filter(witness => !witness.isExcluded);
-		if (
-			options?.segmentChanged &&
-			previousActive.some(previous =>
-				witnesses.some(
-					witness =>
-						!witness.isExcluded &&
-						witness.witnessId === previous.witnessId &&
-						JSON.stringify(witness.tokens) !== JSON.stringify(previous.tokens)
-				)
-			)
-		) {
+		if (options?.segmentChanged && changesExistingTokens(previousWitnesses, witnesses)) {
 			realign();
 			return;
 		}
@@ -1479,19 +1503,23 @@ function createCollationState() {
 				presentInputs.set(witnessId, input);
 				continue;
 			}
-			const oldUnits = new Map(
-				getVariationUnitSpans().map(span => {
-					const key = span.unitId;
-					const proposal =
-						classifiedReadings.get(key) ??
+			const oldProposals = new Map(
+				getVariationUnitSpans().map(span => [
+					span.unitId,
+					classifiedReadings.get(span.unitId) ??
 						buildReadingProposal({
 							columns: alignmentColumns.slice(span.startIndex, span.endIndex + 1),
 							spanColumnIds: span.columnIds,
 							sourceWitnessIds: [...activeIds],
 							baseWitnessId: getBaseTextWitnessId(),
-						}).readings;
-					return [key, viewUnitWithoutOverlaps(key, proposal).readings] as const;
-				})
+						}).readings,
+				])
+			);
+			const oldUnits = new Map(
+				[...oldProposals].map(([key, proposal]) => [
+					key,
+					viewUnitWithoutOverlaps(key, proposal).readings,
+				])
 			);
 			const previousCells = new Map(
 				getVariationUnitSpans().map(span => [
@@ -1536,6 +1564,22 @@ function createCollationState() {
 					baseWitnessId: getBaseTextWitnessId(),
 				}).readings;
 				const bucket = proposal.find(reading => reading.witnessIds.includes(witnessId));
+				const oldProposal = oldProposals.get(key)!;
+				if (!classifiedReadings.has(key) && lettersShift(oldProposal, proposal)) {
+					classifiedReadings = new Map(classifiedReadings).set(
+						key,
+						oldProposal
+							.filter(
+								reading =>
+									reading.witnessIds.some(id => id !== witnessId) ||
+									manuallyAttestedReadingIds(key).has(reading.id)
+							)
+							.map(reading => ({
+								...reading,
+								witnessIds: reading.witnessIds.filter(id => id !== witnessId),
+							}))
+					);
+				}
 				const decisions = cloneUnitDecisions(unitDecisions.get(key));
 				if (classifiedReadings.has(key)) decisions.preserveReadings = true;
 				const wasUnconfirmed = decisions.unconfirmedWitnessIds?.includes(witnessId);
@@ -1683,6 +1727,13 @@ function createCollationState() {
 		}
 	}
 
+	function lettersShift(before: ClassifiedReading[], after: ClassifiedReading[]): boolean {
+		const labels = new Map(before.map(reading => [reading.id, reading.label]));
+		return after.some(
+			reading => labels.has(reading.id) && labels.get(reading.id) !== reading.label
+		);
+	}
+
 	function manuallyAttestedReadingIds(key: string): Set<string> {
 		const testimony = unitDecisions.get(key)?.manualTestimony ?? {};
 		return new Set(
@@ -1724,6 +1775,11 @@ function createCollationState() {
 		input: CollationWitnessInput,
 		source: CollationWitnessInput
 	) {
+		const lazyProposals = new Map(
+			getVariationUnitSpans()
+				.filter(span => !classifiedReadings.has(span.unitId))
+				.map(span => [span.unitId, buildReadingsForUnit(span.unitId)])
+		);
 		alignmentColumns = alignmentColumns.map(column => {
 			const sourceCell = column.cells.get(source.id)!;
 			const tokens = (input.tokens ?? []).filter((_, index) =>
@@ -1739,6 +1795,10 @@ function createCollationState() {
 			}
 			return { ...column, cells: new Map(column.cells).set(witnessId, cell) };
 		});
+		for (const [key, before] of lazyProposals) {
+			if (lettersShift(before, buildReadingsForUnit(key)))
+				classifiedReadings = new Map(classifiedReadings).set(key, before);
+		}
 		classifiedReadings = new Map(
 			[...classifiedReadings].map(([key, readings]) => [
 				key,
@@ -1839,6 +1899,12 @@ function createCollationState() {
 			deserializeAlignmentColumns(snapshot.columns),
 			snapshot.witnessOrder.filter(id => previousWitnessIds.has(id))
 		);
+		const proposals = new Map(
+			[...classifiedReadings.keys()].map(key => [
+				key,
+				readingsSignature(buildReadingsForUnit(key)),
+			])
+		);
 		applyAlignmentSnapshot(snapshot);
 		alignmentColumns = alignmentColumns.map(column => ({
 			...column,
@@ -1849,12 +1915,31 @@ function createCollationState() {
 		declaredUnits = validDeclaredUnits(alignmentColumns, declaredUnits);
 		const liveUnitIds = new Set(getVariationUnitSpans().map(span => span.unitId));
 		classifiedReadings = new Map(
-			[...classifiedReadings].filter(([key]) => liveUnitIds.has(key))
+			[...classifiedReadings].filter(
+				([key, readings]) =>
+					liveUnitIds.has(key) || readingsSignature(readings) !== proposals.get(key)
+			)
 		);
+		for (const key of classifiedReadings.keys()) {
+			if (liveUnitIds.has(key) || unitDecisions.get(key)?.preserveReadings) continue;
+			unitDecisions = new Map(unitDecisions).set(key, {
+				...cloneUnitDecisions(unitDecisions.get(key)),
+				preserveReadings: true,
+			});
+		}
 		lastAlignmentInputSignature = buildAlignmentInputSignature();
 		selectedUnitId = normalizeVariationUnitId(selectedUnitId);
 		advanceFurthest('alignment');
 		markUnsaved();
+	}
+
+	function readingsSignature(readings: ClassifiedReading[]): string {
+		return JSON.stringify(
+			readings.map(reading => ({
+				...reading,
+				witnessGroups: reading.witnessGroups.map(group => group.witnessIds),
+			}))
+		);
 	}
 
 	function declareUnit(columnIds: string[]): boolean {
@@ -1863,22 +1948,17 @@ function createCollationState() {
 			.map(id => alignmentColumns.findIndex(column => column.id === id))
 			.sort((a, b) => a - b);
 		if (indices[0] < 0 || indices.at(-1)! - indices[0] + 1 !== indices.length) return false;
-		const first = indices[0];
-		const last = indices.at(-1)!;
+		const firstColumnId = alignmentColumns[indices[0]].id;
+		const lastColumnId = alignmentColumns[indices.at(-1)!].id;
+		const current = validDeclaredUnits(alignmentColumns, declaredUnits);
 		if (
-			getVariationUnitSpans().some(
-				span => span.startIndex === first && span.endIndex === last
+			current.some(
+				unit => unit.firstColumnId === firstColumnId && unit.lastColumnId === lastColumnId
 			)
 		)
 			return true;
 		setDeclaredUnitsWithUndo(
-			[
-				...validDeclaredUnits(alignmentColumns, declaredUnits),
-				{
-					firstColumnId: alignmentColumns[first].id,
-					lastColumnId: alignmentColumns[last].id,
-				},
-			],
+			[...current, { firstColumnId, lastColumnId }],
 			'Declare variation unit'
 		);
 		return true;
@@ -3772,6 +3852,8 @@ function createCollationState() {
 		clearProjectSelection,
 		createProject,
 		setWitnesses,
+		wouldRealign,
+		isManualSiglum,
 		updateWitness,
 		setProjectTranscriptionTreatment,
 		setAllProjectTranscriptionTreatments,

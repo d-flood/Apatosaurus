@@ -3,6 +3,7 @@ import { expect, it, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 import { collationState, type WitnessConfig } from '../collation-state.svelte';
 import { alignmentCellFromTokens } from '../alignment-cell';
+import { REALIGN_WARNING } from '../alignment-recognition';
 import type { WitnessSourceToken } from '../collation-types';
 import SetupPhase from './SetupPhase.svelte';
 import * as db from '$lib/db/client';
@@ -11,7 +12,13 @@ const mocks = vi.hoisted(() => ({ gather: vi.fn() }));
 vi.mock('$lib/db/client', { spy: true });
 vi.mock('$lib/project/projects', () => ({
 	listTranscriptions: vi.fn(async () =>
-		['A', 'B', 'C'].map(id => ({ id: `${id}-tx`, displayLabel: id, title: '', hands: [] }))
+		['A', 'B', 'C'].map(id => ({
+			id: `${id}-tx`,
+			siglum: id,
+			displayLabel: id,
+			title: '',
+			hands: [],
+		}))
 	),
 }));
 vi.mock('$lib/collation/gather-verses', () => ({
@@ -121,6 +128,102 @@ it('places on a transcription toggle and keeps the alignment through a gather er
 			.toBeVisible();
 		expect(collationState.witnesses.map(witness => witness.siglum)).toEqual(['A', 'B', 'C']);
 		expect(collationState.alignmentColumns.map(column => column.id)).toEqual(merged);
+	} finally {
+		collationState.reset();
+	}
+});
+
+it('warns before a member change or word-break toggle re-aligns, keeping everything when declined', async () => {
+	vi.mocked(db.getProject).mockResolvedValue({
+		id: 'project',
+		name: 'Project',
+		collationSettings: null,
+	} as Awaited<ReturnType<typeof db.getProject>>);
+	vi.mocked(db.getProjectTranscriptionIds).mockResolvedValue(['A-tx', 'B-tx']);
+	collationState.reset();
+	await collationState.selectProject('project');
+	collationState.setSegmentMember('John 1:1');
+	collationState.setSegmentName('John 1:1');
+	collationState.setWitnesses([witness('A', 'one two'), witness('B', 'one two')]);
+	const inputs = collationState.buildCollationWitnessInputs();
+	collationState.setAlignmentSnapshot({
+		witnessOrder: ['A', 'B'],
+		columns: [0, 1].map(index => ({
+			id: `column-${index}`,
+			index,
+			merged: false,
+			cells: inputs.map(input => [
+				input.id,
+				alignmentCellFromTokens(input.tokens!.slice(index, index + 1)),
+			]),
+		})),
+	});
+	collationState.mergeColumns(['column-0', 'column-1']);
+	const merged = collationState.alignmentColumns.map(column => column.id);
+	const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+	mocks.gather.mockResolvedValue(gathered({ A: 'one two', B: 'one two' }));
+	try {
+		render(SetupPhase);
+		await expect
+			.poll(() => collationState.witnesses.map(witness => witness.siglum))
+			.toEqual(['A', 'B']);
+		mocks.gather.mockResolvedValue(gathered({ A: 'one two three', B: 'one two four' }));
+		await page.getByRole('button', { name: /John 1:2/ }).click();
+		await expect.poll(() => confirm.mock.calls.length).toBe(1);
+		expect(collationState.segment?.members).toEqual(['John 1:1']);
+		expect(collationState.witnesses.map(witness => witness.content)).toEqual([
+			'one two',
+			'one two',
+		]);
+		expect(collationState.alignmentColumns.map(column => column.id)).toEqual(merged);
+		const ignoreWordBreaks = page.getByRole('checkbox', { name: /Ignore word breaks/ });
+		await ignoreWordBreaks.click();
+		expect(confirm).toHaveBeenCalledTimes(2);
+		expect(confirm).toHaveBeenLastCalledWith(REALIGN_WARNING);
+		await expect.element(ignoreWordBreaks).not.toBeChecked();
+		expect(collationState.ignoreWordBreaks).toBe(false);
+		expect(collationState.alignmentColumns.map(column => column.id)).toEqual(merged);
+	} finally {
+		confirm.mockRestore();
+		collationState.reset();
+	}
+});
+
+it('refuses a transcription whose siglum is a manual witness until that witness is excluded', async () => {
+	vi.mocked(db.getProject).mockResolvedValue({
+		id: 'project',
+		name: 'Project',
+		collationSettings: null,
+	} as Awaited<ReturnType<typeof db.getProject>>);
+	vi.mocked(db.getProjectTranscriptionIds).mockResolvedValue(['A-tx', 'B-tx']);
+	vi.mocked(db.syncProjectTranscriptionIds).mockImplementation(async (_, ids) => ids);
+	collationState.reset();
+	await collationState.selectProject('project');
+	collationState.setSegmentMember('John 1:1');
+	collationState.setSegmentName('John 1:1');
+	collationState
+		.getManualWitnesses()
+		.push({ id: 'manual-c', siglum: 'C', treatment: 'full', includeInCbgm: true });
+	collationState.setWitnesses([witness('A', 'one two'), witness('B', 'one two')]);
+	mocks.gather.mockResolvedValue(gathered({ A: 'one two', B: 'one two', C: 'one three' }));
+	try {
+		render(SetupPhase);
+		await page.getByRole('checkbox', { name: 'C', exact: true }).click();
+		await expect
+			.element(page.getByRole('alert').filter({ hasText: "Transcription C isn't collated" }))
+			.toBeVisible();
+		expect(collationState.witnesses.map(witness => witness.siglum)).toEqual(['A', 'B']);
+		await page.getByRole('checkbox', { name: 'Include manual witness C' }).click();
+		await expect
+			.poll(() => collationState.witnesses.map(witness => witness.siglum))
+			.toEqual(['A', 'B', 'C']);
+		await expect
+			.element(page.getByRole('alert').filter({ hasText: "Transcription C isn't collated" }))
+			.not.toBeInTheDocument();
+		const gathers = mocks.gather.mock.calls.length;
+		await page.getByRole('checkbox', { name: 'Include manual witness C' }).click();
+		await expect.poll(() => mocks.gather.mock.calls.length).toBe(gathers + 1);
+		expect(collationState.witnesses.map(witness => witness.siglum)).toEqual(['A', 'B', 'C']);
 	} finally {
 		collationState.reset();
 	}

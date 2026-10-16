@@ -265,16 +265,15 @@ function collationSections(document: ComparableCollation | null): Section[] {
 			const declaration = document.alignment?.declaredUnits?.find(
 				unit => variationUnitId(unit.firstColumnId, unit.lastColumnId) === span?.unitId
 			);
+			const spanColumns = span
+				? serializedColumns
+						.slice(span.startIndex, span.endIndex + 1)
+						.map(({ id: _, index: _index, ...column }) => column)
+				: [];
 			const value: CollationUnitPart = {
 				...(declaration ? { declaration } : {}),
-				...(span && span.columnIds.length > 1
-					? {
-							columns: serializedColumns
-								.slice(span.startIndex, span.endIndex + 1)
-								.map(({ id: _, index: _index, ...column }) => column),
-						}
-					: {}),
-				column: columns.get(span ? variationUnitId(span.columnIds[0]) : unitId) ?? null,
+				...(spanColumns.length > 1 ? { columns: spanColumns } : {}),
+				column: spanColumns[0] ?? columns.get(unitId) ?? null,
 				apparatus: apparatus.get(unitId) ?? null,
 				stemma: stemma.get(unitId) ?? null,
 			};

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { computeWordDiff, type DiffSegment } from '$lib/collation/alignment-diff';
+	import { REALIGN_WARNING } from '$lib/collation/alignment-recognition';
 	import type { AlignmentCell } from '$lib/collation/alignment-snapshot';
 	import { runCollationInWorker } from '$lib/collation/collation-service';
 	import { collationState } from '$lib/collation/collation-state.svelte';
@@ -186,12 +187,7 @@
 			collationError = `Rule ${invalidDiagnostic.pattern} is invalid: ${invalidDiagnostic.message}`;
 			return;
 		}
-		if (collationState.alignmentColumns.length > 0) {
-			const shouldContinue = window.confirm(
-				'Re-aligning will lose hand alignment edits. Units that cannot be recognized will be listed as orphaned with their decisions. Continue?'
-			);
-			if (!shouldContinue) return;
-		}
+		if (collationState.alignmentColumns.length > 0 && !window.confirm(REALIGN_WARNING)) return;
 
 		isCollating = true;
 		collationError = null;
