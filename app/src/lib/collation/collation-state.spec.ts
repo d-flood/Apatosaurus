@@ -3746,6 +3746,53 @@ describe('collationState witness placement', () => {
 		expect(exported).toContain('type="om"');
 	});
 
+	it('keeps a token-less declared column and its manual testimony through placement', async () => {
+		setup({ A: 'one two' });
+		const tokens = collationState.buildCollationWitnessInputs()[0].tokens!;
+		collationState.setAlignmentSnapshot({
+			witnessOrder: ['A'],
+			columns: [
+				[tokens.slice(0, 1), 'column-0'],
+				[[], 'insertion'],
+				[tokens.slice(1, 2), 'column-1'],
+			].map(([cell, id], index) => ({
+				id: id as string,
+				index,
+				merged: false,
+				cells: [['A', alignmentCellFromTokens(cell as typeof tokens)]],
+			})),
+		});
+		collationState.declareUnit(['insertion']);
+		const key = 'unit:insertion';
+		const id = collationState.addAuthoredReading(key, 'extra')!;
+		await collationState.attachManualWitness(key, id, 'Syriac');
+		const manualId = collationState.getManualWitnesses()[0].id;
+		await refresh({ A: 'one two', C: 'one three' });
+		expect(collationState.alignmentColumns.map(column => column.id)).toEqual([
+			'column-0',
+			'insertion',
+			'column-1',
+		]);
+		const view = collationState.peekUnitView(key);
+		expect(view.readings.find(reading => reading.id === id)?.manualWitnessIds).toEqual([
+			manualId,
+		]);
+		expect(view.readings.find(reading => reading.isOmission)?.witnessIds).toEqual(['A', 'C']);
+	});
+
+	it('keeps a declared column whose only text belonged to a removed witness', async () => {
+		setup({ A: 'one two' });
+		await refresh({ A: 'one two', B: 'one extra two' });
+		const extra = collationState.alignmentColumns.find(
+			column => column.cells.get('B')?.text === 'extra'
+		)!;
+		collationState.declareUnit([extra.id]);
+		collationState.toggleWitnessExclusion('B');
+		expect(collationState.getVariationUnitSpans().map(span => span.unitId)).toContain(
+			`unit:${extra.id}`
+		);
+	});
+
 	it('places a matching witness into an authored reading under the same id', async () => {
 		setup({ A: 'one alpha two', B: 'one beta two' });
 		collationState.addRule(makeRule({ pattern: 'θς', replacement: 'θεος' }));

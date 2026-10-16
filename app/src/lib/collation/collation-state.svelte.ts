@@ -204,13 +204,18 @@ function coerceRegularizationType(value: unknown): RegularizationType {
 	return value === 'ns' ? 'ns' : 'none';
 }
 
-function withoutEmptyColumns(columns: AlignmentColumn[]): AlignmentColumn[] {
+function hasTokens(column: AlignmentColumn): boolean {
+	return [...column.cells.values()].some(
+		cell => cell.sourceTokenIds.length > 0 || cell.kind === 'text'
+	);
+}
+
+function withoutEmptyColumns(
+	columns: AlignmentColumn[],
+	frozenIds: ReadonlySet<string>
+): AlignmentColumn[] {
 	return columns
-		.filter(column =>
-			[...column.cells.values()].some(
-				cell => cell.sourceTokenIds.length > 0 || cell.kind === 'text'
-			)
-		)
+		.filter(column => frozenIds.has(column.id) || hasTokens(column))
 		.map((column, index) => ({ ...column, index }));
 }
 
@@ -1350,6 +1355,13 @@ function createCollationState() {
 		return refreshedCount;
 	}
 
+	function frozenColumnIds(): Set<string> {
+		return new Set([
+			...alignmentColumns.filter(column => !hasTokens(column)).map(column => column.id),
+			...declaredUnits.flatMap(unit => [unit.firstColumnId, unit.lastColumnId]),
+		]);
+	}
+
 	function handleWitnessSourceChange(
 		previousWitnesses: WitnessConfig[],
 		options?: { segmentChanged?: boolean }
@@ -1369,7 +1381,8 @@ function createCollationState() {
 				alignmentColumns.map(column => ({
 					...column,
 					cells: new Map([...column.cells].filter(([id]) => !removedIds.has(id))),
-				}))
+				})),
+				frozenColumnIds()
 			);
 			classifiedReadings = new Map(
 				[...classifiedReadings].map(([key, readings]) => [
@@ -1549,7 +1562,7 @@ function createCollationState() {
 			const placed = placeWitnessRow(alignmentColumns, input, {
 				witnessOrder: [...activeIds],
 			});
-			alignmentColumns = withoutEmptyColumns(placed.columns);
+			alignmentColumns = withoutEmptyColumns(placed.columns, frozenColumnIds());
 			presentInputs.set(witnessId, input);
 			activeIds.add(witnessId);
 			witnessOrder = [...activeIds];
