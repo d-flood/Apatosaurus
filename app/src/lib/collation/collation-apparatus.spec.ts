@@ -96,6 +96,29 @@ describe('buildSegmentSequence', () => {
 		expect(coveredColumnIds(segments)).toEqual(columns.map(column => column.id));
 	});
 
+	it('keeps every overlapping unit alongside a text flow that covers each column once', () => {
+		const columns = collate([
+			makeWitness('A', textTokens('one two three four'), true),
+			makeWitness('B', textTokens('other two third four')),
+		]);
+		const spans = buildVariationUnitSpans(columns, [
+			{ firstColumnId: columns[0].id, lastColumnId: columns[2].id },
+			{ firstColumnId: columns[1].id, lastColumnId: columns[3].id },
+		]);
+		const segments = buildSegmentSequence({ columns, spans, baseWitnessId: 'A' });
+		expect(
+			segments.filter(segment => segment.kind === 'unit').map(segment => segment.span)
+		).toEqual(spans);
+		const flow = segments.filter(segment => segment.kind === 'agreed' || !segment.overlapping);
+		expect(coveredColumnIds(flow)).toEqual(columns.map(column => column.id));
+		expect(flow.map(segment => (segment.kind === 'agreed' ? segment.text : '')).join(' ')).toBe(
+			'one two three four'
+		);
+		expect(
+			segments.filter(segment => segment.kind === 'unit').map(segment => segment.ordinal)
+		).toEqual([1, 2, 3, 4]);
+	});
+
 	it('keeps an agreed stretch whole when a witness is non-attesting across it', () => {
 		const columns = collate([
 			makeWitness('A', textTokens('εν χριστω ιησου τω κυριω'), true),

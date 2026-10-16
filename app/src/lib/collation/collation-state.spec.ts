@@ -3798,16 +3798,14 @@ describe('collationState witness placement', () => {
 		};
 	}
 
-	it('declares without merging, refuses overlaps, and removes declarations with undo', () => {
+	it('declares without merging, refuses invalid runs, and removes declarations with undo', () => {
 		setup({ A: 'same words end', B: 'same words other' });
 		const before = serializeAlignmentColumns(collationState.alignmentColumns);
 		expect(collationState.declareUnit(['column-0', 'column-2'])).toBe(false);
-		expect(collationState.declareUnit(['column-1', 'column-2'])).toBe(false);
 		expect(collationState.declareUnit(['missing'])).toBe(false);
 		expect(collationState.declareUnit(['column-2'])).toBe(true);
 		expect(collationState.declaredUnits).toEqual([]);
 		expect(collationState.declareUnit(['column-0', 'column-1'])).toBe(true);
-		expect(collationState.declareUnit(['column-1'])).toBe(false);
 		expect(serializeAlignmentColumns(collationState.alignmentColumns)).toEqual(before);
 		expect(collationState.getVariationUnitSpans()[0].unitId).toBe('unit:column-0..column-1');
 		expect(collationState.peekReadingsForUnit('unit:column-0..column-1')[0].text).toBe(
@@ -3839,6 +3837,27 @@ describe('collationState witness placement', () => {
 		expect(collationState.declaredUnits).toEqual([]);
 		collationState.undo();
 		expect(collationState.declaredUnits).toHaveLength(1);
+	});
+
+	it('keeps inner units and their decisions when declarations nest and cross', () => {
+		setup({ A: 'one two three four', B: 'other two third four' });
+		const innerId = 'unit:column-0';
+		const reading = collationState.getReadingsForUnit(innerId)[0];
+		collationState.setReadingType(innerId, reading.id, 'nonsense');
+		const before = reviewView(innerId);
+		const columns = serializeAlignmentColumns(collationState.alignmentColumns);
+		expect(collationState.declareUnit(['column-0', 'column-1', 'column-2'])).toBe(true);
+		expect(collationState.declareUnit(['column-1', 'column-2', 'column-3'])).toBe(true);
+		expect(collationState.declareUnit(['column-0', 'column-1', 'column-2'])).toBe(true);
+		expect(collationState.declaredUnits).toHaveLength(2);
+		expect(serializeAlignmentColumns(collationState.alignmentColumns)).toEqual(columns);
+		expect(reviewView(innerId)).toEqual(before);
+		expect(collationState.getVariationUnitSpans().map(span => span.unitId)).toEqual([
+			'unit:column-0..column-2',
+			innerId,
+			'unit:column-1..column-3',
+			'unit:column-2',
+		]);
 	});
 
 	it('keeps declared endpoints and decisions when placement inserts inside the run', async () => {

@@ -1079,3 +1079,39 @@ it('records all full-manual testimony states and manual ambiguity at phone width
 		await page.viewport(original.width, original.height);
 	}
 });
+
+describe('ReadingsPhase overlapping units', () => {
+	beforeEach(() => collationState.reset());
+	afterEach(() => collationState.reset());
+
+	it('selects enclosing and inner units with the same start independently', async () => {
+		collate([makeWitness('A', 'one two three', true), makeWitness('B', 'other two three')]);
+		const columns = collationState.alignmentColumns;
+		const inner = `unit:${columns[0].id}`;
+		expect(collationState.declareUnit(columns.map(column => column.id))).toBe(true);
+		const enclosing = collationState.getVariationUnitSpans()[0].unitId;
+		render(ReadingsPhase);
+		const enclosingButton = page.getByRole('button', {
+			name: 'one two three 2-6',
+			exact: true,
+		});
+		const innerButton = page.getByRole('button', { name: 'one 2', exact: true });
+		await enclosingButton.click();
+		await expect.element(enclosingButton).toHaveAttribute('aria-pressed', 'true');
+		expect(collationState.selectedUnitId).toBe(enclosing);
+		await expect
+			.element(page.getByRole('textbox', { name: 'Text of reading a', exact: true }))
+			.toHaveValue('one two three');
+		await innerButton.click();
+		await expect.element(innerButton).toHaveAttribute('aria-pressed', 'true');
+		await expect.element(enclosingButton).toHaveAttribute('aria-pressed', 'false');
+		expect(collationState.selectedUnitId).toBe(inner);
+		await expect
+			.element(page.getByRole('textbox', { name: 'Text of reading a', exact: true }))
+			.toHaveValue('one');
+		await enclosingButton.click();
+		await expect
+			.element(page.getByRole('textbox', { name: 'Text of reading a', exact: true }))
+			.toHaveValue('one two three');
+	});
+});

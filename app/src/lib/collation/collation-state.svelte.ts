@@ -1743,16 +1743,12 @@ function createCollationState() {
 		if (indices[0] < 0 || indices.at(-1)! - indices[0] + 1 !== indices.length) return false;
 		const first = indices[0];
 		const last = indices.at(-1)!;
-		const overlaps = getVariationUnitSpans().filter(
-			span => span.startIndex <= last && span.endIndex >= first
-		);
-		if (overlaps.length > 0)
-			return (
-				first === last &&
-				overlaps.length === 1 &&
-				overlaps[0].startIndex === first &&
-				overlaps[0].endIndex === last
-			);
+		if (
+			getVariationUnitSpans().some(
+				span => span.startIndex === first && span.endIndex === last
+			)
+		)
+			return true;
 		setDeclaredUnitsWithUndo(
 			[
 				...validDeclaredUnits(alignmentColumns, declaredUnits),

@@ -368,7 +368,7 @@
 	function handleDeclare() {
 		declarationError = collationState.declareUnit([...collationState.selectedColumnIds])
 			? null
-			: 'Select contiguous columns that do not overlap an existing unit.';
+			: 'Select contiguous columns.';
 	}
 
 	function handleMerge() {

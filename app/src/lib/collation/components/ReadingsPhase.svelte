@@ -741,6 +741,8 @@
 									? 'bg-primary text-primary-content shadow-sm'
 									: 'bg-base-300/40 text-base-content/70 hover:bg-base-300/70',
 							]}
+							data-unit-id={segment.span.unitId}
+							aria-pressed={isSelected}
 							onclick={() => (collationState.selectedUnitId = segment.span.unitId)}
 						>
 							<span class="font-greek text-base leading-tight"

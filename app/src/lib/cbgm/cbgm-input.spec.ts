@@ -114,6 +114,7 @@ function saved(collationId: string, segmentName: string): CollationDocument {
 		suppliedTextMode: collationState.suppliedTextMode,
 		segmentation: collationState.segmentation,
 		alignmentColumns: collationState.alignmentColumns,
+		declaredUnits: collationState.declaredUnits,
 		witnessOrder: collationState.witnessOrder,
 		classifiedReadings: collationState.classifiedReadings,
 		unitDecisions: collationState.unitDecisions,
@@ -124,6 +125,27 @@ function saved(collationId: string, segmentName: string): CollationDocument {
 }
 
 describe('CBGM input builder, as coherence sees it', () => {
+	it('emits every nested and crossing unit exactly once', () => {
+		collate([witness('A', { isBaseText: true }), witness('B')], {
+			A: text('alpha'),
+			B: text('beta'),
+		});
+		collationState.declareUnit(['one', 'variant']);
+		collationState.declareUnit(['variant', 'two']);
+		collationState.declareUnit(['one', 'variant', 'two']);
+		const result = buildCbgmInput([saved('c1', 'John 1:1')], defaults);
+		expect(result.blockingUnits).toEqual([]);
+		expect(result.tei?.match(/<app n="[^"]+"/g)).toEqual([
+			'<app n="John1:1U1"',
+			'<app n="John1:1U2"',
+			'<app n="John1:1U3"',
+			'<app n="John1:1U4"',
+		]);
+		expect(result.tei).toContain('one alpha two');
+		expect(result.tei).toContain('one alpha');
+		expect(result.tei).toContain('alpha two');
+	});
+
 	it('produces identical input with several tags on main and subreadings', async () => {
 		collate([witness('A', { isBaseText: true }), witness('B'), witness('C')], {
 			A: text('alpha'),

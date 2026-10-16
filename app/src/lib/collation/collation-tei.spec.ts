@@ -1,5 +1,5 @@
 import { DOMParser } from '@xmldom/xmldom';
-import type { Document as XmlDocument } from '@xmldom/xmldom';
+import type { Document as XmlDocument, Element as XmlElement } from '@xmldom/xmldom';
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
 	buildApparatusTeiExportInput,
@@ -748,6 +748,83 @@ describe('apparatus TEI exporter', () => {
 		expect((xml.match(/<app /g) ?? []).length).toBe(1);
 		expect(() => validateTeiP5(xml)).not.toThrow();
 	}, 30_000);
+
+	it.each(['nested', 'crossing'] as const)(
+		'exports %s units with valid P5 endpoint attachment',
+		kind => {
+			collationState.setWitnesses([
+				witness('A', 'one two three four five six', true),
+				witness('B', 'other two three four five last'),
+			]);
+			collationState.setAlignmentSnapshot({
+				witnessOrder: ['A', 'B'],
+				columns: ['one', 'two', 'three', 'four', 'five', 'six'].map((text, index) => ({
+					id: `overlap-${index}`,
+					index,
+					merged: false,
+					cells: [
+						['A', textCell(text)],
+						['B', textCell(index === 0 ? 'other' : index === 5 ? 'last' : text)],
+					],
+				})),
+			});
+			expect(collationState.declareUnit(['overlap-0', 'overlap-1', 'overlap-2'])).toBe(true);
+			expect(
+				collationState.declareUnit(
+					kind === 'nested'
+						? ['overlap-0', 'overlap-1']
+						: ['overlap-1', 'overlap-2', 'overlap-3']
+				)
+			).toBe(true);
+			const input = exportInput();
+			const xml = exportApparatusTei(input);
+			const doc = parse(xml);
+			const ab = doc.getElementsByTagName('ab')[0];
+			const apps = Array.from(doc.getElementsByTagName('app'));
+			expect(apps).toHaveLength(4);
+			const ids = Array.from(doc.getElementsByTagName('*'))
+				.map(node => node.getAttribute('xml:id'))
+				.filter(Boolean);
+			expect(new Set(ids).size).toBe(ids.length);
+			for (const segment of input.segments) {
+				if (segment.kind !== 'unit') continue;
+				const app = apps.find(
+					app => app.getAttribute('xml:id') === segment.span.unitId.replaceAll(':', '-')
+				)!;
+				if (!segment.overlapping) {
+					expect(app.getAttribute('from')).toBe(segment.label);
+					continue;
+				}
+				const from = app.getAttribute('from')!.slice(1);
+				const to = app.getAttribute('to')!.slice(1);
+				const children = Array.from(ab.childNodes);
+				const start = children.findIndex(
+					node =>
+						node.nodeType === 1 && (node as XmlElement).getAttribute('xml:id') === from
+				);
+				const end = children.findIndex(
+					node =>
+						node.nodeType === 1 && (node as XmlElement).getAttribute('xml:id') === to
+				);
+				expect(start).toBeGreaterThanOrEqual(0);
+				expect(end).toBeGreaterThan(start);
+				expect(
+					children
+						.slice(start + 1, end)
+						.map(node => node.textContent)
+						.join('')
+						.trim()
+				).toBe(
+					['one', 'two', 'three', 'four', 'five', 'six']
+						.slice(segment.span.startIndex, segment.span.endIndex + 1)
+						.join(' ')
+				);
+				expect(app.parentNode).toBe(ab);
+			}
+			expect(() => validateTeiP5(xml)).not.toThrow();
+		},
+		30_000
+	);
 
 	it('serializes the same apparatus from the editor state and from the saved document', () => {
 		collationState.segment = { id: 'segment-1', name: 'John 1:1', members: ['John 1:1'] };

@@ -85,11 +85,11 @@ test('declares a column run, persists it, and removes it on a phone', async ({ p
 	await createCollation(page, projectId, { segmentation: false });
 	await page.getByRole('radio', { name: 'Grid', exact: true }).check();
 	const headers = page.locator('thead th');
-	await page.setViewportSize({ width: 390, height: 844 });
 	const count = await headers.count();
 	await page.getByRole('button', { name: 'Select multiple columns', exact: true }).click();
 	await headers.nth(1).click();
 	await headers.nth(2).click();
+	await page.setViewportSize({ width: 390, height: 844 });
 	const declare = page.getByRole('button', { name: 'Declare unit', exact: true });
 	await expect
 		.poll(async () => {
@@ -109,8 +109,37 @@ test('declares a column run, persists it, and removes it on a phone', async ({ p
 	await page.reload();
 	await page.getByRole('button', { name: 'Readings', exact: true }).click();
 	await expect(page).toHaveURL(/\/readings$/);
+	const units = page.locator('button[data-unit-id]');
+	const unitCount = await units.count();
+	await units.first().click();
+	await expect(units.first()).toHaveAttribute('aria-pressed', 'true');
 	await page.goto(page.url().replace(/readings$/, 'alignment'));
+	await page.setViewportSize({ width: 1280, height: 900 });
+	await page.getByRole('button', { name: 'Select multiple columns', exact: true }).click();
 	await headers.nth(1).click();
+	await headers.nth(2).click();
+	await headers.nth(3).click();
+	await page.setViewportSize({ width: 390, height: 844 });
+	await declare.click();
+	await expect(headers).toHaveCount(count);
+	await page.getByRole('button', { name: 'Readings', exact: true }).click();
+	await expect(units).toHaveCount(unitCount + 1);
+	for (const index of [0, 1]) {
+		await units.nth(index).click();
+		await expect(units.nth(index)).toHaveAttribute('aria-pressed', 'true');
+		await expect
+			.poll(async () => {
+				const box = await units.nth(index).boundingBox();
+				return box !== null && box.x >= 0 && box.x + box.width <= 390;
+			})
+			.toBe(true);
+	}
+	await expect(page.getByText('Saved', { exact: true })).toBeVisible();
+	await page.goto(page.url().replace(/readings$/, 'alignment'));
+	await page.setViewportSize({ width: 1280, height: 900 });
+	await headers.nth(1).click();
+	await page.getByRole('button', { name: 'Remove declaration 1–3', exact: true }).click();
+	await page.setViewportSize({ width: 390, height: 844 });
 	await expect
 		.poll(async () => {
 			const box = await remove.boundingBox();

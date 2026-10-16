@@ -669,7 +669,7 @@ export function buildVariationUnitSpans(
 		...declared,
 		...columns.flatMap((column, index) =>
 			isVariationColumn(column) &&
-			!declared.some(span => index >= span.startIndex && index <= span.endIndex)
+			!declared.some(span => index === span.startIndex && index === span.endIndex)
 				? [
 						{
 							unitId: variationUnitId(column.id),
@@ -680,5 +680,9 @@ export function buildVariationUnitSpans(
 					]
 				: []
 		),
-	].sort((a, b) => a.startIndex - b.startIndex || a.endIndex - b.endIndex);
+	]
+		.filter(
+			(span, index, spans) => spans.findIndex(other => other.unitId === span.unitId) === index
+		)
+		.sort((a, b) => a.startIndex - b.startIndex || b.endIndex - a.endIndex);
 }

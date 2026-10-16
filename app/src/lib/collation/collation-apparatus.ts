@@ -24,6 +24,7 @@ export type Segment =
 	| {
 			kind: 'unit';
 			span: VariationUnitSpan;
+			overlapping?: boolean;
 			ordinal: number;
 			label: string;
 			untranscribedWitnessIds: string[];
@@ -115,7 +116,27 @@ export function buildSegmentSequence(input: {
 }): Segment[] {
 	const { columns, baseWitnessId } = input;
 	const slots = buildDisplayedColumnSlots(columns, baseWitnessId);
-	const spanByStart = new Map(input.spans.map(span => [span.startIndex, span] as const));
+	const spans = [...input.spans].sort(
+		(a, b) => a.startIndex - b.startIndex || b.endIndex - a.endIndex
+	);
+	const overlapping = new Set(
+		spans
+			.filter(span =>
+				spans.some(
+					other =>
+						other.unitId !== span.unitId &&
+						other.startIndex <= span.endIndex &&
+						other.endIndex >= span.startIndex
+				)
+			)
+			.map(span => span.unitId)
+	);
+	const spansByStart = new Map<number, VariationUnitSpan[]>();
+	for (const span of spans) {
+		const starting = spansByStart.get(span.startIndex) ?? [];
+		starting.push(span);
+		spansByStart.set(span.startIndex, starting);
+	}
 
 	const segments: Segment[] = [];
 	let agreedRun: number[] = [];
@@ -144,8 +165,8 @@ export function buildSegmentSequence(input: {
 
 	let columnIndex = 0;
 	while (columnIndex < columns.length) {
-		const span = spanByStart.get(columnIndex);
-		if (span) {
+		const starting = spansByStart.get(columnIndex) ?? [];
+		for (const span of starting) {
 			flushAgreedRun();
 			ordinal += 1;
 			const start = slots[span.startIndex];
@@ -153,6 +174,7 @@ export function buildSegmentSequence(input: {
 			segments.push({
 				kind: 'unit',
 				span,
+				...(overlapping.has(span.unitId) ? { overlapping: true } : {}),
 				ordinal,
 				label:
 					start && end
@@ -162,10 +184,18 @@ export function buildSegmentSequence(input: {
 					columns.slice(span.startIndex, span.endIndex + 1)
 				),
 			});
-			columnIndex = span.endIndex + 1;
+		}
+		const inline = starting.find(span => !overlapping.has(span.unitId));
+		if (inline) {
+			columnIndex = inline.endIndex + 1;
 			continue;
 		}
+		const covered = spans.some(
+			span => span.startIndex <= columnIndex && span.endIndex >= columnIndex
+		);
+		if (covered) flushAgreedRun();
 		agreedRun.push(columnIndex);
+		if (covered) flushAgreedRun();
 		columnIndex += 1;
 	}
 	flushAgreedRun();
