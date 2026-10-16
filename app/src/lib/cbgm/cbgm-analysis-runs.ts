@@ -9,11 +9,13 @@ import {
 	failCbgmCoherence,
 	failCbgmGlobalStemma,
 	loadCbgmCollationSnapshots,
+	getProject,
 	readCbgmAnalysisCache,
 	readCbgmAnalysisInputTei,
 	setCbgmGlobalStemmaState,
 	writeEditingPresence,
 } from '$lib/db/client';
+import { parseProjectCollationSettings } from '$lib/collation/project-settings';
 import { requestPersistentStorageForMeaningfulWrite } from '$lib/shell/capabilities';
 import { notificationCenter } from '$lib/shell/notification-center.svelte';
 import type { CbgmAnalysisMetadata, CbgmAnalysisSettings } from '$lib/storage/formats';
@@ -107,10 +109,14 @@ export async function startCbgmAnalysis(
 	}
 	const input = buildCbgmInput(
 		collations.map(collation => collation.document),
-		settings
+		settings,
+		parseProjectCollationSettings((await getProject(projectId))?.collationSettings ?? null)
+			.manualWitnesses ?? []
 	);
 	if (input.tei === null) {
-		throw new Error('Units without a lemma reading block this analysis.');
+		throw new Error(
+			'Units without a lemma or with unrecorded full manual witnesses block this analysis.'
+		);
 	}
 	const analysis = await createCbgmAnalysis(projectId, {
 		name: request.name,

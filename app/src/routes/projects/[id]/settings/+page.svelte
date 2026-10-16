@@ -338,6 +338,14 @@
 		if (!error) manualWitnesses = next;
 	}
 
+	async function setManualCbgmDefault(id: string, includeInCbgm: boolean) {
+		const next = manualWitnesses.map(witness =>
+			witness.id === id ? { ...witness, includeInCbgm } : witness
+		);
+		await persistProjectSettings({ manualWitnesses: next });
+		if (!error) manualWitnesses = next;
+	}
+
 	function addRule(rule: RegularizationRule) {
 		const nextRules = [...projectRules, rule];
 		projectRules = nextRules;
@@ -692,6 +700,18 @@
 			>
 				<option value="full">Full</option><option value="fragmentary">Fragmentary</option>
 			</select>
+			<label class="flex items-center gap-2 text-sm">
+				<input
+					type="checkbox"
+					class="toggle toggle-sm"
+					aria-label={`Include ${witness.siglum} in CBGM by default`}
+					checked={witness.includeInCbgm}
+					disabled={isSavingSettings}
+					onchange={event =>
+						setManualCbgmDefault(witness.id, event.currentTarget.checked)}
+				/>
+				Include in CBGM by default
+			</label>
 		</div>
 	{/each}
 </section>

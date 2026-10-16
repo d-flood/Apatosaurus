@@ -1,6 +1,7 @@
 import type { CoherenceSettings } from '@apatosaurus/open-cbgm-wasm';
 
 import type { CollationDocument } from '$lib/collation/collation-document';
+import type { ManualWitnessDefinition } from '$lib/collation/collation-types';
 import { splitReadingGroups } from '$lib/collation/collation-reading-proposal';
 import {
 	buildApparatusTeiExportInput,
@@ -14,7 +15,12 @@ export type CbgmInput = {
 	tei: string | null;
 	witnesses: string[];
 	siglumConflicts: { siglum: string; transcriptionIds: string[] }[];
-	blockingUnits: { collationId: string; unitId: string; label: string; kind: 'missing-lemma' }[];
+	blockingUnits: {
+		collationId: string;
+		unitId: string;
+		label: string;
+		kind: 'missing-lemma' | 'unrecorded-manual-witness';
+	}[];
 	undecidedReadings: { unit: string; reading: string }[];
 	availableCorrectors: string[];
 };
@@ -88,7 +94,8 @@ function serializeApp(
 
 export function buildCbgmInput(
 	collations: CollationDocument[],
-	settings: CoherenceSettings
+	settings: CoherenceSettings,
+	manualWitnesses: readonly ManualWitnessDefinition[] = []
 ): CbgmInput {
 	const includedCorrectors = new Set(settings.includedCorrectors);
 	const transcriptionIdsBySiglum = new Map<string, string[]>();
@@ -116,18 +123,16 @@ export function buildCbgmInput(
 
 		const segmentName = document.setup.segment.name;
 		const prefix = claimUnitPrefix(segmentName, claimedPrefixes);
-		const input = buildApparatusTeiExportInput({
-			...document,
-			apparatus: document.apparatus
-				? {
-						...document.apparatus,
-						units: document.apparatus.units.map(unit => ({
-							...unit,
-							decisions: { ...unit.decisions, authoredReadings: [] },
-						})),
-					}
-				: null,
-		});
+		const input = buildApparatusTeiExportInput(document, [], [], manualWitnesses);
+		for (const witness of input.witnesses) {
+			if (witness.isExcluded || siglumOf.has(witness.witnessId)) continue;
+			if (!manualWitnesses.some(manual => manual.id === witness.witnessId)) continue;
+			siglumOf.set(witness.witnessId, witness.siglum);
+			const identities = transcriptionIdsBySiglum.get(witness.siglum) ?? [];
+			const identity = `manual:${witness.witnessId}`;
+			if (!identities.includes(identity)) identities.push(identity);
+			transcriptionIdsBySiglum.set(witness.siglum, identities);
+		}
 		const apps: string[] = [];
 		for (const segment of input.segments) {
 			if (segment.kind !== 'unit') continue;
@@ -145,6 +150,19 @@ export function buildCbgmInput(
 			)
 				continue;
 			const label = `${segmentName}/${segment.ordinal}`;
+			if (
+				unit.view.unrecordedManualWitnessIds.some(id => {
+					const siglum = siglumOf.get(id);
+					return siglum !== undefined && !settings.excludedWitnesses.includes(siglum);
+				})
+			) {
+				blockingUnits.push({
+					collationId: document.meta.collationId ?? '',
+					unitId,
+					label,
+					kind: 'unrecorded-manual-witness',
+				});
+			}
 			if (unit.view.lemmaReadingId === null) {
 				blockingUnits.push({
 					collationId: document.meta.collationId ?? '',

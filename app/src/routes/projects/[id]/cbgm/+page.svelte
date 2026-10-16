@@ -88,6 +88,9 @@
 	const readingTypes = $derived(
 		parseProjectCollationSettings(data.project.collationSettings).readingTypes ?? []
 	);
+	const manualWitnesses = $derived(
+		parseProjectCollationSettings(data.project.collationSettings).manualWitnesses ?? []
+	);
 	const activeRecompute = $derived(recompute?.projectId === projectId ? recompute : null);
 	const deleting = $derived(
 		pendingDelete && pendingDelete.projectId === projectId ? pendingDelete.row : null
@@ -366,6 +369,7 @@
 					unavailable={collations.unavailable}
 					existingNames={analyses?.entries.map(({ row }) => row.name) ?? []}
 					{readingTypes}
+					{manualWitnesses}
 					prefill={activeRecompute?.prefill}
 					onStart={start}
 				/>

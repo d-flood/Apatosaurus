@@ -2,6 +2,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import collations from './fixtures/cbgm-collations.json' with { type: 'json' };
 import { hashCanonicalPayload } from '../src/lib/storage/canonical-json';
 import { sealDocument, serializeSealedDocument } from '../src/lib/storage/envelope';
+import type { CollationDocument } from '../src/lib/collation/collation-document';
 
 const PROJECT_ID = 'cbgm-e2e-project';
 const SEEDED_AT = '2026-10-01T00:00:00.000Z';
@@ -138,6 +139,51 @@ test('a CBGM analysis computes while the scholar works elsewhere, answers every 
 	});
 });
 
+test('manual witness defaults persist, exclusions unblock analyses, and absence is not agreement', async ({
+	page,
+}) => {
+	await seedProject(page, true);
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.goto(`/projects/${PROJECT_ID}/settings`);
+	const cbgmDefault = page.getByRole('checkbox', { name: 'Include Syriac in CBGM by default' });
+	await expect(cbgmDefault).not.toBeChecked();
+	await cbgmDefault.click();
+	await expect(cbgmDefault).toBeEnabled();
+	await page.reload();
+	await expect(cbgmDefault).toBeChecked();
+	await expect
+		.poll(() =>
+			page.getByRole('region', { name: 'Manual witnesses' }).evaluate(section =>
+				[...section.querySelectorAll('input, select, button')].every(element => {
+					const rect = element.getBoundingClientRect();
+					return rect.left >= 0 && rect.right <= window.innerWidth;
+				})
+			)
+		)
+		.toBe(true);
+	await page.goto(`/projects/${PROJECT_ID}/cbgm`);
+	await page.getByPlaceholder('e.g. Romans, first hands').fill('Manual witnesses');
+	const start = page.getByRole('button', { name: 'Start analysis' });
+	await expect(start).toBeDisabled();
+	await expect(page.getByText('Full manual witness with nothing recorded').first()).toBeVisible();
+	await expect(page.getByRole('link', { name: 'John 1:1/1', exact: true })).toHaveAttribute(
+		'href',
+		/\/readings\?unit=/
+	);
+	await page.getByRole('checkbox', { name: 'Syriac', exact: true }).click();
+	await expect(start).toBeEnabled();
+	await expectNoHorizontalScroll(page);
+	await start.click();
+	const row = analysisRow(page, 'Manual witnesses');
+	await expect(row.getByText('Ready', { exact: true })).toBeVisible({ timeout: 60_000 });
+	await row.getByRole('link', { name: 'Manual witnesses', exact: true }).click();
+	const compare = page.getByRole('tabpanel', { name: 'Compare witnesses' });
+	await compare.getByLabel('Witness').selectOption('Father');
+	await compare.getByRole('button', { name: 'Compare' }).click();
+	await expect(compare).toContainText('Genealogical comparisons for Father (1 extant units)');
+	await expectNoHorizontalScroll(page);
+});
+
 async function runTools(
 	page: Page,
 	{
@@ -259,8 +305,17 @@ async function holdCbgmWitnesses(page: Page): Promise<void> {
 	}, HOLD_KEY);
 }
 
-async function seedProject(page: Page): Promise<void> {
-	const contents = collations.map((document, index) => ({
+async function seedProject(page: Page, withManualWitnesses = false): Promise<void> {
+	const documents = structuredClone(collations) as CollationDocument[];
+	if (withManualWitnesses) {
+		const units = documents.flatMap(document => document.apparatus!.units);
+		units[0].decisions.manualTestimony = {
+			father: { kind: 'reading', readingId: units[0].readings[0].id },
+		};
+		units[1].decisions.manualTestimony = { father: { kind: 'uncited' } };
+		units[2].decisions.manualTestimony = { father: { kind: 'nonAttestation' } };
+	}
+	const contents = documents.map((document, index) => ({
 		id: document.meta.collationId,
 		project_id: PROJECT_ID,
 		title: `Collation ${document.setup.segment.name}`,
@@ -283,7 +338,19 @@ async function seedProject(page: Page): Promise<void> {
 		name: 'CBGM fixture',
 		description: '',
 		charter: '',
-		collation_settings: {},
+		collation_settings: withManualWitnesses
+			? {
+					manualWitnesses: [
+						{ id: 'syriac', siglum: 'Syriac', treatment: 'full', includeInCbgm: false },
+						{
+							id: 'father',
+							siglum: 'Father',
+							treatment: 'fragmentary',
+							includeInCbgm: true,
+						},
+					],
+				}
+			: {},
 		forked_from: null,
 		manifest_content_hash: await hashCanonicalPayload({
 			project_id: PROJECT_ID,

@@ -87,6 +87,21 @@ it('adds full manual witnesses and changes treatment at phone width', async () =
 				},
 			});
 		await expect.element(treatment).toHaveValue('fragmentary');
+		const cbgmDefault = page.getByRole('checkbox', {
+			name: 'Include Syriac in CBGM by default',
+		});
+		await expect.element(cbgmDefault).not.toBeChecked();
+		await cbgmDefault.click();
+		await expect
+			.poll(() => mocks.updateProjectMetadata.mock.lastCall?.[0])
+			.toMatchObject({
+				collationSettings: {
+					manualWitnesses: [
+						{ siglum: 'Syriac', treatment: 'fragmentary', includeInCbgm: true },
+					],
+				},
+			});
+		await expect.element(cbgmDefault).toBeChecked();
 		await expect
 			.poll(() =>
 				[

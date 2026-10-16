@@ -5,6 +5,7 @@
 
 	import type { CbgmAnalysisPrefill } from '$lib/cbgm/cbgm-analysis-runs';
 	import { buildCbgmInput } from '$lib/cbgm/cbgm-input';
+	import type { ManualWitnessDefinition } from '$lib/collation/collation-types';
 	import {
 		resolveReadingTypeVocabulary,
 		type ReadingTypeDefinition,
@@ -20,6 +21,7 @@
 		unavailable: CbgmCollationSnapshots['unavailable'];
 		existingNames: readonly string[];
 		readingTypes: readonly ReadingTypeDefinition[];
+		manualWitnesses?: readonly ManualWitnessDefinition[];
 		prefill?: CbgmAnalysisPrefill | null;
 		onStart: (request: {
 			name: string;
@@ -30,8 +32,15 @@
 		}) => Promise<void>;
 	}
 
-	let { collations, unavailable, existingNames, readingTypes, prefill, onStart }: Props =
-		$props();
+	let {
+		collations,
+		unavailable,
+		existingNames,
+		readingTypes,
+		manualWitnesses = [],
+		prefill,
+		onStart,
+	}: Props = $props();
 
 	const initial = untrack(() => ({
 		name: prefill?.name ?? '',
@@ -43,7 +52,9 @@
 		settings: prefill?.settings ?? {
 			minExtantUnits: null,
 			minExtantProportion: null,
-			excludedWitnesses: [],
+			excludedWitnesses: manualWitnesses
+				.filter(witness => !witness.includeInCbgm)
+				.map(witness => witness.siglum),
 			classicRules: false,
 			mergeSplitReadings: false,
 			droppedReadingTypes: [],
@@ -64,7 +75,8 @@
 	const input = $derived(
 		buildCbgmInput(
 			chosen.map(collation => collation.document),
-			draft
+			draft,
+			manualWitnesses
 		)
 	);
 	const vocabulary = $derived(
@@ -302,7 +314,7 @@
 				{#each input.siglumConflicts as conflict (conflict.siglum)}
 					<li>
 						<span class="font-mono">{conflict.siglum}</span> comes from {conflict
-							.transcriptionIds.length} transcriptions. They will count as one witness.
+							.transcriptionIds.length} witness sources. They will count as one witness.
 					</li>
 				{/each}
 			</ul>
@@ -312,9 +324,9 @@
 	{#if input.blockingUnits.length > 0}
 		<div class="alert alert-error alert-vertical items-start text-sm sm:alert-horizontal">
 			<div class="min-w-0 space-y-1">
-				<p>These units have no lemma reading. Choose one before starting.</p>
+				<p>Resolve these units before starting:</p>
 				<ul class="flex flex-wrap gap-x-3 gap-y-1">
-					{#each input.blockingUnits as unit (`${unit.collationId}:${unit.unitId}`)}
+					{#each input.blockingUnits as unit (`${unit.collationId}:${unit.unitId}:${unit.kind}`)}
 						<li>
 							<a
 								class="link font-mono"
@@ -323,6 +335,9 @@
 									phase: 'readings',
 								}) + `?unit=${encodeURIComponent(unit.unitId)}`}>{unit.label}</a
 							>
+							— {unit.kind === 'missing-lemma'
+								? 'No lemma reading'
+								: 'Full manual witness with nothing recorded'}
 						</li>
 					{/each}
 				</ul>

@@ -2861,7 +2861,7 @@ describe('collationState witness placement', () => {
 		});
 	}
 
-	it('keeps manual testimony through placement, recognized re-alignment, and document round trips, without changing CBGM', async () => {
+	it('keeps manual testimony through placement, recognized re-alignment, and document round trips', async () => {
 		setup({ A: 'one alpha two', B: 'one beta two' });
 		const settings = {
 			minExtantUnits: null,
@@ -2872,7 +2872,6 @@ describe('collationState witness placement', () => {
 			droppedReadingTypes: [],
 			includedCorrectors: [],
 		};
-		const baseline = buildCbgmInput([document()], settings);
 		const main = collationState.peekReadingsForUnit(1)[0];
 		await collationState.attachManualWitness(1, main.id, 'Father');
 		const authoredId = collationState.addAuthoredReading(1, 'gamma')!;
@@ -2895,7 +2894,12 @@ describe('collationState witness placement', () => {
 					reading.witnessIds.every(id => !manual.some(witness => witness.id === id))
 			)
 		).toBe(true);
-		expect(buildCbgmInput([saved], settings)).toEqual(baseline);
+		expect(buildCbgmInput([saved], settings, manual).witnesses).toEqual([
+			'A',
+			'B',
+			'Father',
+			'Version',
+		]);
 		expect(
 			buildApparatusTeiExportInput(saved, [], [], manual)
 				.units.get('unit:column-1')!

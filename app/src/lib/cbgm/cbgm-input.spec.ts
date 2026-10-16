@@ -6,6 +6,7 @@ import {
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import type { AlignmentCell } from '$lib/collation/alignment-snapshot';
+import type { ManualWitnessDefinition } from '$lib/collation/collation-types';
 import { buildCollationDocument, type CollationDocument } from '$lib/collation/collation-document';
 import { collationState, type WitnessConfig } from '$lib/collation/collation-state.svelte';
 import { buildCbgmInput } from './cbgm-input';
@@ -385,5 +386,138 @@ describe('CBGM input builder, as coherence sees it', () => {
 		const decided = buildCbgmInput([saved('c1', 'John 1:1')], defaults);
 		expect(decided.blockingUnits).toEqual([]);
 		expect(cohere(decided.tei).units).toHaveLength(1);
+	});
+
+	it('includes manual and authored readings while absence and ambiguity never agree', () => {
+		collate([witness('A', { isBaseText: true }), witness('B')], {
+			A: text('alpha'),
+			B: text('beta'),
+		});
+		collationState.getReadingsForUnit(UNIT);
+		const document = saved('c1', 'John 1:1');
+		const manual: ManualWitnessDefinition[] = [
+			'cited',
+			'authored',
+			'uncited',
+			'absent',
+			'empty',
+			'ambiguous',
+			'sub',
+		].map(id => ({
+			id,
+			siglum: id,
+			treatment: 'fragmentary',
+			includeInCbgm: true,
+		}));
+		const unit = document.apparatus!.units[0];
+		unit.decisions.manualTestimony = {
+			cited: { kind: 'reading', readingId: reading('beta').id },
+			authored: { kind: 'reading', readingId: 'manual-reading' },
+			uncited: { kind: 'uncited' },
+			absent: { kind: 'nonAttestation' },
+			sub: { kind: 'reading', readingId: 'manual-subreading' },
+		};
+		unit.decisions.authoredReadings = [
+			{
+				id: 'manual-reading',
+				order: 2,
+				text: 'gamma',
+				isOmission: false,
+				parentReadingId: null,
+				readingType: null,
+			},
+			{
+				id: 'manual-subreading',
+				order: 3,
+				text: 'alfa',
+				isOmission: false,
+				parentReadingId: null,
+				readingType: null,
+			},
+		];
+		unit.decisions.subreadingOf = { 'manual-subreading': reading('alpha').id };
+		unit.decisions.readingType = { 'manual-subreading': 'orthographic' };
+		unit.decisions.ambiguousAttestations = [
+			{
+				id: 'amb',
+				witnessIds: ['ambiguous'],
+				targetReadingIds: [reading('alpha').id, reading('beta').id],
+			},
+		];
+		const input = buildCbgmInput([document], defaults, manual);
+		expect(input.witnesses).toEqual([
+			'A',
+			'B',
+			'cited',
+			'authored',
+			'uncited',
+			'absent',
+			'ambiguous',
+			'sub',
+		]);
+		const [id] = cohere(input.tei).units;
+		expect(attestations(id)).toEqual({
+			A: 'a',
+			B: 'b',
+			cited: 'b',
+			authored: 'c',
+			uncited: '-',
+			absent: '-',
+			ambiguous: '-',
+			sub: 'a',
+		});
+	});
+
+	it('blocks only included full manual members with nothing recorded', () => {
+		collate([witness('A', { isBaseText: true }), witness('B')], {
+			A: text('alpha'),
+			B: text('beta'),
+		});
+		const document = saved('c1', 'John 1:1');
+		const manual: ManualWitnessDefinition[] = [
+			{ id: 'full', siglum: 'Syriac', treatment: 'full', includeInCbgm: true },
+		];
+		expect(buildCbgmInput([document], defaults, manual).blockingUnits).toEqual([
+			{
+				collationId: 'c1',
+				unitId: 'unit:variant',
+				label: 'John 1:1/1',
+				kind: 'unrecorded-manual-witness',
+			},
+		]);
+		const excluded = buildCbgmInput(
+			[document],
+			{ ...defaults, excludedWitnesses: ['Syriac'] },
+			manual
+		);
+		expect(excluded.blockingUnits).toEqual([]);
+		expect(excluded.witnesses).toContain('Syriac');
+		expect(excluded.tei).not.toContain('wit="Syriac"');
+		document.setup.manualWitnessOverrides = [
+			{ manualWitnessId: 'full', isExcluded: false, treatment: 'fragmentary' },
+		];
+		expect(buildCbgmInput([document], defaults, manual).blockingUnits).toEqual([]);
+		document.setup.manualWitnessOverrides[0].isExcluded = true;
+		expect(buildCbgmInput([document], defaults, manual).witnesses).not.toContain('Syriac');
+	});
+
+	it('reports manual sigla colliding with transcriptions across collations', () => {
+		collate([witness('A', { isBaseText: true }), witness('B')], {
+			A: text('alpha'),
+			B: text('beta'),
+		});
+		collationState.getReadingsForUnit(UNIT);
+		const first = saved('c1', 'John 1:1');
+		const second = saved('c2', 'John 1:2');
+		second.setup.witnesses[0].siglum = 'Syriac';
+		first.apparatus!.units[0].decisions.manualTestimony = {
+			manual: { kind: 'reading', readingId: reading('beta').id },
+		};
+		const input = buildCbgmInput([first, second], defaults, [
+			{ id: 'manual', siglum: 'Syriac', treatment: 'fragmentary', includeInCbgm: true },
+		]);
+		expect(input.siglumConflicts).toEqual([
+			{ siglum: 'Syriac', transcriptionIds: ['manual:manual', 'A-transcription'] },
+		]);
 	});
 });
