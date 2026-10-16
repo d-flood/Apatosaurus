@@ -76,6 +76,13 @@
 					detail: view.unconfirmedWitnessIds.map(siglumOf).join(', '),
 					phase: 'readings',
 				});
+			if (view.unresolvedOverlapWitnessIds.length > 0)
+				entries.push({
+					unitId,
+					title: 'Resolve overlapping testimony',
+					detail: view.unresolvedOverlapWitnessIds.map(siglumOf).join(', '),
+					phase: 'readings',
+				});
 			if (view.unresolvedAttestations.length > 0)
 				entries.push({
 					unitId,

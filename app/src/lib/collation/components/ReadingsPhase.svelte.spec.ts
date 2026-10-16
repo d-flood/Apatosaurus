@@ -1081,6 +1081,84 @@ it('records all full-manual testimony states and manual ambiguity at phone width
 });
 
 describe('ReadingsPhase overlapping units', () => {
+	const originalViewport = { width: window.innerWidth, height: window.innerHeight };
+	afterEach(async () => {
+		await page.viewport(originalViewport.width, originalViewport.height);
+	});
+	it.each([390, 1280])(
+		'marks spanning readings and resolves crossing testimony at %ipx',
+		async width => {
+			await page.viewport(width, 844);
+			collate([
+				makeWitness('A', 'one two three', true),
+				makeWitness('B', 'other second third'),
+			]);
+			const columns = collationState.alignmentColumns;
+			collationState.declareUnit(columns.slice(0, 2).map(column => column.id));
+			collationState.declareUnit(columns.slice(1, 3).map(column => column.id));
+			const spans = collationState.getVariationUnitSpans();
+			const outer = spans.find(span => span.startIndex === 0 && span.endIndex === 1)!.unitId;
+			const crossing = spans.find(
+				span => span.startIndex === 1 && span.endIndex === 2
+			)!.unitId;
+			collationState.selectedUnitId = outer;
+			render(ReadingsPhase);
+			const mark = page.getByRole('checkbox', {
+				name: 'Reading b spans this unit',
+				exact: true,
+			});
+			await mark.click();
+			await expect.element(mark).toBeChecked();
+			expect(collationState.unitDecisions.get(outer)?.spanningReadingIds).toHaveLength(1);
+			collationState.selectedUnitId = `unit:${columns[0].id}`;
+			await expect
+				.element(page.getByRole('region', { name: 'Overlapped witnesses' }))
+				.toHaveTextContent('B');
+			const link = page.getByRole('button', { name: 'Spanning unit 1', exact: true });
+			await link.click();
+			await expect.element(mark).toBeChecked();
+			collationState.selectedUnitId = crossing;
+			await expect
+				.element(page.getByRole('region', { name: 'Unresolved overlaps' }))
+				.toHaveTextContent('B is held out');
+			await expect
+				.poll(() => {
+					const controls = [
+						...document.querySelectorAll<HTMLElement>(
+							'[aria-label="Unresolved overlaps"] button'
+						),
+					];
+					return (
+						controls.length > 0 &&
+						controls.every(control => {
+							const rect = control.getBoundingClientRect();
+							return rect.left >= 0 && rect.right <= width;
+						})
+					);
+				})
+				.toBe(true);
+			await page.getByRole('button', { name: 'Assign B to reading a', exact: true }).click();
+			await expect
+				.element(page.getByRole('region', { name: 'Unresolved overlaps' }))
+				.not.toBeInTheDocument();
+			expect(
+				collationState
+					.peekUnitView(crossing)
+					.readings.find(reading => reading.label === 'a')?.witnessIds
+			).toContain('B');
+			collationState.undo();
+			await expect
+				.element(page.getByRole('region', { name: 'Unresolved overlaps' }))
+				.toBeInTheDocument();
+			await page.getByRole('button', { name: 'Mark B overlapped', exact: true }).click();
+			await expect
+				.element(page.getByRole('region', { name: 'Unresolved overlaps' }))
+				.not.toBeInTheDocument();
+			await expect
+				.element(page.getByRole('region', { name: 'Overlapped witnesses' }))
+				.toHaveTextContent('B');
+		}
+	);
 	beforeEach(() => collationState.reset());
 	afterEach(() => collationState.reset());
 

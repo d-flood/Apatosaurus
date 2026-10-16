@@ -749,6 +749,57 @@ describe('apparatus TEI exporter', () => {
 		expect(() => validateTeiP5(xml)).not.toThrow();
 	}, 30_000);
 
+	it('exports spanning testimony as P5-valid overlap references and refuses unresolved crossings', () => {
+		collationState.setWitnesses([
+			witness('A', 'one two three', true),
+			witness('B', 'other second three'),
+		]);
+		collationState.setAlignmentSnapshot({
+			witnessOrder: ['A', 'B'],
+			columns: ['one', 'two', 'three'].map((word, index) => ({
+				id: `span-${index}`,
+				index,
+				merged: false,
+				cells: [
+					['A', textCell(word)],
+					['B', textCell(index === 0 ? 'other' : index === 1 ? 'second' : word)],
+				],
+			})),
+		});
+		collationState.declareUnit(['span-0', 'span-1']);
+		const outer = 'unit:span-0..span-1';
+		const long = collationState
+			.peekReadingsForUnit(outer)
+			.find(reading => reading.witnessIds.includes('B'))!;
+		collationState.setReadingSpanning(outer, long.id, true);
+		const xml = exportApparatusTei(exportInput());
+		const doc = parse(xml);
+		const details = Array.from(doc.getElementsByTagName('witDetail')).filter(
+			node => node.getAttribute('type') === 'overlap'
+		);
+		expect(details).toHaveLength(2);
+		for (const detail of details) {
+			expect(detail.getAttribute('wit')).toBe('#wit-B');
+			const target = detail.getAttribute('target')!.slice(1);
+			expect(
+				Array.from(doc.getElementsByTagName('rdg')).some(
+					reading =>
+						reading.getAttribute('xml:id') === target &&
+						reading.getAttribute('wit') === '#wit-B'
+				)
+			).toBe(true);
+		}
+		expect(() => validateTeiP5(xml)).not.toThrow();
+		collationState.declareUnit(['span-1', 'span-2']);
+		expect(getApparatusExportRefusals(exportInput())).toContainEqual(
+			expect.objectContaining({
+				kind: 'unresolved-attestation',
+				unitId: 'unit:span-1..span-2',
+				witnessIds: ['B'],
+			})
+		);
+	}, 30_000);
+
 	it.each(['nested', 'crossing'] as const)(
 		'exports %s units with valid P5 endpoint attachment',
 		kind => {

@@ -279,6 +279,33 @@ function hasValidAmbiguousAttestations(value: unknown): boolean {
 		const decisions = (unit as Record<string, unknown>).decisions;
 		if (!decisions || typeof decisions !== 'object' || Array.isArray(decisions)) return true;
 		const record = decisions as Record<string, unknown>;
+		const spanning = record.spanningReadingIds;
+		if (
+			spanning !== undefined &&
+			(!isStringList(spanning) ||
+				spanning.some(id => !id.trim()) ||
+				new Set(spanning).size !== spanning.length)
+		)
+			return false;
+		const resolutions = record.overlapResolutions;
+		if (
+			resolutions !== undefined &&
+			(!resolutions ||
+				typeof resolutions !== 'object' ||
+				Array.isArray(resolutions) ||
+				!Object.entries(resolutions).every(([id, value]) => {
+					if (!id.trim() || !value || typeof value !== 'object' || Array.isArray(value))
+						return false;
+					const entry = value as Record<string, unknown>;
+					return (
+						entry.kind === 'overlapped' ||
+						(entry.kind === 'reading' &&
+							typeof entry.readingId === 'string' &&
+							Boolean(entry.readingId.trim()))
+					);
+				}))
+		)
+			return false;
 		const testimony = record.manualTestimony;
 		if (
 			testimony !== undefined &&

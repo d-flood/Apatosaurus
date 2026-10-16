@@ -3517,6 +3517,63 @@ describe('collationState witness placement', () => {
 		});
 	}
 
+	it('keeps underlying testimony through edits while overlapped and unmarks with undo', () => {
+		setup({ A: 'one two three', B: 'other second three' });
+		collationState.declareUnit(['column-0', 'column-1']);
+		const outer = 'unit:column-0..column-1';
+		const inner = 'unit:column-0';
+		const long = collationState
+			.peekReadingsForUnit(outer)
+			.find(reading => reading.witnessIds.includes('B'))!;
+		collationState.primeReadingsForUnit(inner);
+		collationState.setReadingSpanning(outer, long.id, true);
+		const reading = collationState
+			.peekReadingsForUnit(inner)
+			.find(reading => reading.text === 'other')!;
+		collationState.updateReadingText(inner, reading.id, 'edited');
+		expect(collationState.peekUnitView(inner).overlappedWitnessIds).toEqual(['B']);
+		collationState.setReadingSpanning(outer, long.id, false);
+		expect(
+			collationState.peekReadingsForUnit(inner).find(entry => entry.id === reading.id)
+				?.witnessIds
+		).toContain('B');
+		collationState.undo();
+		expect(collationState.peekUnitView(inner).overlappedWitnessIds).toEqual(['B']);
+	});
+
+	it.each(['twin', 'placed'] as const)(
+		'marks %s spanning testimony overlapped and unconfirmed inside',
+		async kind => {
+			setup({ A: 'one two three four', B: 'other second third four' });
+			collationState.declareUnit(['column-0', 'column-1']);
+			const outer = 'unit:column-0..column-1';
+			const long = collationState
+				.peekReadingsForUnit(outer)
+				.find(reading => reading.witnessIds.includes('B'))!;
+			expect(collationState.setReadingSpanning(outer, long.id, true)).toBe(true);
+			expect(collationState.peekUnitView('unit:column-0').overlappedWitnessIds).toEqual([
+				'B',
+			]);
+			await refresh({
+				A: 'one two three four',
+				B: 'other second third four',
+				C: kind === 'twin' ? 'other second third four' : 'other second changed four',
+			});
+			for (const unit of ['unit:column-0', 'unit:column-1']) {
+				const view = collationState.peekUnitView(unit);
+				expect(view.overlappedWitnessIds).toEqual(['B', 'C']);
+				expect(view.unconfirmedWitnessIds).toContain('C');
+				expect(view.readings.every(reading => !reading.witnessIds.includes('C'))).toBe(
+					true
+				);
+			}
+			expect(
+				new Map(hydrateCollationDocument(document()).unitDecisions).get(outer)
+					?.spanningReadingIds
+			).toEqual([long.id]);
+		}
+	);
+
 	it('keeps manual testimony through placement, recognized re-alignment, and document round trips', async () => {
 		setup({ A: 'one alpha two', B: 'one beta two' });
 		const settings = {

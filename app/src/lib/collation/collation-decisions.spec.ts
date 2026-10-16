@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ClassifiedReading } from './collation-types';
 import {
 	applyDecisions,
+	applyOverlapDecisions,
 	manualWitnessMembers,
 	cloneUnitDecisions,
 	findOrphanedUnitDecisions,
@@ -639,5 +640,96 @@ describe('full manual witnesses', () => {
 				targetReadingIds: ['a', 'b'],
 			})
 		).toEqual({ ok: false, error: 'witness-already-ambiguous' });
+	});
+});
+
+describe('spanning readings', () => {
+	const span = (unitId: string, startIndex: number, endIndex: number) => ({
+		unitId,
+		startIndex,
+		endIndex,
+		columnIds: [],
+	});
+	const manualWitnesses = [
+		{ id: 'manual', siglum: 'M', treatment: 'full' as const, includeInCbgm: true },
+	];
+	const enclosing = {
+		span: span('enclosing', 2, 6),
+		decisions: {
+			spanningReadingIds: ['long'],
+			manualTestimony: { manual: { kind: 'reading' as const, readingId: 'long' } },
+		},
+		view: applyDecisions(
+			[attested('long', ['B'])],
+			{ manualTestimony: { manual: { kind: 'reading', readingId: 'long' } } },
+			{ manualWitnesses }
+		),
+	};
+	const proposal = [attested('alpha', ['A', 'B']), attested('beta', ['C'])];
+	it.each([
+		[2, 2, 'inside'],
+		[3, 5, 'inside'],
+		[6, 6, 'inside'],
+		[0, 1, 'outside'],
+		[7, 8, 'outside'],
+		[1, 7, 'outside'],
+		[0, 3, 'crossing'],
+		[5, 8, 'crossing'],
+	] as const)('derives %s–%s as %s', (start, end, kind) => {
+		const view = applyOverlapDecisions(
+			applyDecisions(proposal, {}, { manualWitnesses }),
+			{},
+			span('target', start, end),
+			[enclosing]
+		);
+		expect(view.overlappedWitnessIds).toEqual(kind === 'inside' ? ['B', 'manual'] : []);
+		expect(view.unresolvedOverlapWitnessIds).toEqual(
+			kind === 'crossing' ? ['B', 'manual'] : []
+		);
+		expect(view.readings[0].witnessIds.includes('B')).toBe(kind === 'outside');
+		expect(view.unrecordedManualWitnessIds).toEqual(kind === 'outside' ? ['manual'] : []);
+		expect(proposal[0].witnessIds).toEqual(['A', 'B']);
+	});
+	it('resolves crossing witnesses to readings or overlap, and orphans missing readings', () => {
+		const decisions: UnitDecisions = {
+			overlapResolutions: {
+				B: { kind: 'reading', readingId: 'beta' },
+				manual: { kind: 'overlapped' },
+			},
+			spanningReadingIds: ['missing'],
+		};
+		const view = applyOverlapDecisions(
+			applyDecisions(proposal, decisions, { manualWitnesses }),
+			decisions,
+			span('target', 5, 8),
+			[enclosing]
+		);
+		expect(view.readings.find(reading => reading.id === 'beta')?.witnessIds).toEqual([
+			'C',
+			'B',
+		]);
+		expect(view.overlappedWitnessIds).toEqual(['manual']);
+		expect(view.unresolvedOverlapWitnessIds).toEqual([]);
+		expect(view.orphanedDecisions).toContainEqual({
+			kind: 'spanningReading',
+			readingId: 'missing',
+			missingReadingIds: ['missing'],
+		});
+		const orphan = applyDecisions([proposal[0]], decisions, { manualWitnesses });
+		expect(orphan.orphanedDecisions).toContainEqual({
+			kind: 'overlapResolution',
+			witnessId: 'B',
+			readingId: 'beta',
+			missingReadingIds: ['beta'],
+		});
+		expect(
+			applyOverlapDecisions(orphan, decisions, span('target', 5, 8), [enclosing])
+				.unresolvedOverlapWitnessIds
+		).toEqual(['B']);
+		const cloned = cloneUnitDecisions(decisions);
+		cloned.spanningReadingIds!.push('other');
+		cloned.overlapResolutions!.B = { kind: 'overlapped' };
+		expect(decisions.spanningReadingIds).toEqual(['missing']);
+		expect(decisions.overlapResolutions!.B.kind).toBe('reading');
 	});
 });

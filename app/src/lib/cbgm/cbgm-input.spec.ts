@@ -125,6 +125,62 @@ function saved(collationId: string, segmentName: string): CollationDocument {
 }
 
 describe('CBGM input builder, as coherence sees it', () => {
+	it('omits overlapped witnesses and blocks unresolved overlaps only when included', () => {
+		collate([witness('A', { isBaseText: true }), witness('B')], {
+			A: text('alpha'),
+			B: text('beta'),
+		});
+		collationState.declareUnit(['one', 'variant']);
+		const outer = 'unit:one..variant';
+		const long = collationState
+			.peekReadingsForUnit(outer)
+			.find(reading => reading.witnessIds.includes('B'))!;
+		collationState.setReadingSpanning(outer, long.id, true);
+		const nested = buildCbgmInput([saved('c1', 'John 1:1')], defaults);
+		expect(nested.blockingUnits).toEqual([]);
+		const inner = nested.tei!.split('<app n="John1:1U2">')[1].split('</app>')[0];
+		expect(inner).not.toMatch(/wit="[^"]*B/);
+		collationState.declareUnit(['variant', 'two']);
+		const blocked = buildCbgmInput([saved('c1', 'John 1:1')], defaults);
+		expect(blocked.blockingUnits).toContainEqual({
+			collationId: 'c1',
+			unitId: 'unit:variant..two',
+			label: 'John 1:1/2',
+			kind: 'unresolved-attestation',
+		});
+		expect(blocked.tei).toBeNull();
+		expect(
+			buildCbgmInput([saved('c1', 'John 1:1')], { ...defaults, excludedWitnesses: ['B'] })
+				.blockingUnits
+		).toEqual([]);
+		collationState.resolveOverlap('unit:variant..two', 'B', { kind: 'overlapped' });
+		expect(buildCbgmInput([saved('c1', 'John 1:1')], defaults).blockingUnits).toEqual([]);
+	});
+
+	it('blocks unresolved split testimony only for included witnesses', () => {
+		collate([witness('A', { isBaseText: true }), witness('B'), witness('C')], {
+			A: text('alpha'),
+			B: text('beta'),
+			C: text('gamma'),
+		});
+		collationState.primeReadingsForUnit(UNIT);
+		const doc = saved('split', 'John 1:1');
+		doc.apparatus!.units[0].decisions.unresolvedAttestations = [
+			{
+				witnessId: 'B',
+				candidateReadingIds: collationState
+					.peekReadingsForUnit(UNIT)
+					.map(reading => reading.id),
+			},
+		];
+		expect(buildCbgmInput([doc], defaults).blockingUnits).toContainEqual(
+			expect.objectContaining({ kind: 'unresolved-attestation', unitId: UNIT })
+		);
+		expect(
+			buildCbgmInput([doc], { ...defaults, excludedWitnesses: ['B'] }).blockingUnits
+		).toEqual([]);
+	});
+
 	it('emits every nested and crossing unit exactly once', () => {
 		collate([witness('A', { isBaseText: true }), witness('B')], {
 			A: text('alpha'),

@@ -7,6 +7,7 @@ import type {
 	ManualWitnessOverride,
 	ReadingArc,
 } from './collation-types';
+import type { VariationUnitSpan } from './collation-variation-units';
 import type { Certainty, ReadingTypeDefinition, ReadingTypeId } from './reading-types';
 import { dropEmptiedReadings, withoutWitnesses } from './reading-edits';
 
@@ -22,7 +23,11 @@ export interface AuthoredReading {
 	readingType: null;
 }
 
+export type OverlapResolution = { kind: 'reading'; readingId: string } | { kind: 'overlapped' };
+
 export interface UnitDecisions {
+	spanningReadingIds?: string[];
+	overlapResolutions?: Record<string, OverlapResolution>;
 	manualTestimony?: Record<string, ManualTestimony>;
 	authoredReadings?: AuthoredReading[];
 	preserveReadings?: true;
@@ -62,6 +67,13 @@ export type AmbiguousAttestationError =
 	| 'target-emptied';
 
 export type OrphanedDecision =
+	| { kind: 'spanningReading'; readingId: string; missingReadingIds: string[] }
+	| {
+			kind: 'overlapResolution';
+			witnessId: string;
+			readingId: string;
+			missingReadingIds: string[];
+	  }
 	| {
 			kind: 'manualTestimony';
 			manualWitnessId: string;
@@ -148,6 +160,9 @@ export function manualWitnessMembers(
 }
 
 export interface UnitView {
+	overlappedWitnessIds: string[];
+	unresolvedOverlapWitnessIds: string[];
+	overlapTargets: Record<string, Array<{ unitId: string; readingId: string }>>;
 	uncitedManualWitnessIds: string[];
 	nonAttestingManualWitnessIds: string[];
 	unrecordedManualWitnessIds: string[];
@@ -163,6 +178,14 @@ export interface UnitView {
 
 export function cloneUnitDecisions(decisions: UnitDecisions | undefined): UnitDecisions {
 	const clone: UnitDecisions = {};
+	if (decisions?.spanningReadingIds) clone.spanningReadingIds = [...decisions.spanningReadingIds];
+	if (decisions?.overlapResolutions)
+		clone.overlapResolutions = Object.fromEntries(
+			Object.entries(decisions.overlapResolutions).map(([id, resolution]) => [
+				id,
+				{ ...resolution },
+			])
+		);
 	if (decisions?.manualTestimony)
 		clone.manualTestimony = Object.fromEntries(
 			Object.entries(decisions.manualTestimony).map(([id, testimony]) => [
@@ -229,6 +252,23 @@ export function applyDecisions(
 	];
 	const readingIds = new Set(proposal.map(reading => reading.id));
 	const orphanedDecisions: OrphanedDecision[] = [];
+	for (const readingId of decisions.spanningReadingIds ?? []) {
+		if (!readingIds.has(readingId))
+			orphanedDecisions.push({
+				kind: 'spanningReading',
+				readingId,
+				missingReadingIds: [readingId],
+			});
+	}
+	for (const [witnessId, resolution] of Object.entries(decisions.overlapResolutions ?? {})) {
+		if (resolution.kind === 'reading' && !readingIds.has(resolution.readingId))
+			orphanedDecisions.push({
+				kind: 'overlapResolution',
+				witnessId,
+				readingId: resolution.readingId,
+				missingReadingIds: [resolution.readingId],
+			});
+	}
 	const manualByReading = new Map<string, string[]>();
 	for (const [manualWitnessId, testimony] of Object.entries(decisions.manualTestimony ?? {})) {
 		if (
@@ -423,6 +463,9 @@ export function applyDecisions(
 		Object.keys(decisions.manualTestimony ?? {});
 	const ambiguousIds = new Set(attestations.flatMap(attestation => attestation.witnessIds));
 	return {
+		overlappedWitnessIds: [],
+		unresolvedOverlapWitnessIds: [],
+		overlapTargets: {},
 		uncitedManualWitnessIds: manualIds.filter(
 			id => decisions.manualTestimony?.[id]?.kind === 'uncited' && !ambiguousIds.has(id)
 		),
@@ -461,6 +504,105 @@ export function applyDecisions(
 		lemmaReadingId,
 		baseTextReadingId,
 		needsLemmaDecision,
+	};
+}
+
+export function applyOverlapDecisions(
+	view: UnitView,
+	decisions: UnitDecisions,
+	span: VariationUnitSpan,
+	sources: Array<{ span: VariationUnitSpan; view: UnitView; decisions: UnitDecisions }>
+): UnitView {
+	const inside = new Set<string>();
+	const crossing = new Set<string>();
+	const overlapTargets: UnitView['overlapTargets'] = {};
+	for (const source of sources) {
+		const enclosing = source.span;
+		if (
+			enclosing.unitId === span.unitId ||
+			enclosing.endIndex < span.startIndex ||
+			enclosing.startIndex > span.endIndex
+		)
+			continue;
+		const isInside =
+			span.startIndex >= enclosing.startIndex && span.endIndex <= enclosing.endIndex;
+		const contains =
+			enclosing.startIndex >= span.startIndex && enclosing.endIndex <= span.endIndex;
+		if (!isInside && contains) continue;
+		for (const reading of source.view.readings) {
+			if (!source.decisions.spanningReadingIds?.includes(reading.id)) continue;
+			for (const id of [...reading.witnessIds, ...(reading.manualWitnessIds ?? [])]) {
+				(isInside ? inside : crossing).add(id);
+				(overlapTargets[id] ??= []).push({
+					unitId: enclosing.unitId,
+					readingId: reading.id,
+				});
+			}
+		}
+	}
+	if (inside.size === 0 && crossing.size === 0) return view;
+	const overlapped = new Set(inside);
+	const unresolved = new Set<string>();
+	const assigned = new Map<string, string>();
+	for (const id of crossing) {
+		if (inside.has(id)) continue;
+		const resolution = decisions.overlapResolutions?.[id];
+		if (resolution?.kind === 'overlapped') overlapped.add(id);
+		else if (
+			resolution?.kind === 'reading' &&
+			view.readings.some(reading => reading.id === resolution.readingId)
+		)
+			assigned.set(id, resolution.readingId);
+		else unresolved.add(id);
+	}
+	const affected = new Set([...overlapped, ...unresolved, ...assigned.keys()]);
+	const manual = new Set([
+		...view.readings.flatMap(reading => reading.manualWitnessIds ?? []),
+		...view.unrecordedManualWitnessIds,
+		...view.uncitedManualWitnessIds,
+		...view.nonAttestingManualWitnessIds,
+		...sources.flatMap(source =>
+			source.view.readings.flatMap(reading => reading.manualWitnessIds ?? [])
+		),
+	]);
+	return {
+		...view,
+		overlappedWitnessIds: [...overlapped],
+		unresolvedOverlapWitnessIds: [...unresolved],
+		overlapTargets,
+		readings: view.readings.map(reading => ({
+			...reading,
+			witnessIds: [
+				...reading.witnessIds.filter(id => !affected.has(id)),
+				...[...assigned]
+					.filter(([id, target]) => target === reading.id && !manual.has(id))
+					.map(([id]) => id),
+			],
+			manualWitnessIds: [
+				...(reading.manualWitnessIds ?? []).filter(id => !affected.has(id)),
+				...[...assigned]
+					.filter(([id, target]) => target === reading.id && manual.has(id))
+					.map(([id]) => id),
+			],
+			witnessGroups: reading.witnessGroups.map(group => ({
+				...group,
+				witnessIds: group.witnessIds.filter(id => !affected.has(id)),
+			})),
+		})),
+		ambiguousAttestations: view.ambiguousAttestations
+			.map(attestation => ({
+				...attestation,
+				witnessIds: attestation.witnessIds.filter(id => !affected.has(id)),
+			}))
+			.filter(attestation => attestation.witnessIds.length > 0),
+		unresolvedAttestations: view.unresolvedAttestations.filter(
+			attestation => !affected.has(attestation.witnessId)
+		),
+		unrecordedManualWitnessIds: view.unrecordedManualWitnessIds.filter(id => !affected.has(id)),
+		uncitedManualWitnessIds: view.uncitedManualWitnessIds.filter(id => !affected.has(id)),
+		nonAttestingManualWitnessIds: view.nonAttestingManualWitnessIds.filter(
+			id => !affected.has(id)
+		),
 	};
 }
 

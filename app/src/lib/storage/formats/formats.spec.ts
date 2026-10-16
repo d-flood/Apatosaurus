@@ -63,6 +63,8 @@ import collationV12Input from './fixtures/collation-v12.input.json';
 import collationV13Expected from './fixtures/collation-v13.expected.json';
 import collationV13Input from './fixtures/collation-v13.input.json';
 import collationV14Expected from './fixtures/collation-v14.expected.json';
+import collationV14Input from './fixtures/collation-v14.input.json';
+import collationV15Expected from './fixtures/collation-v15.expected.json';
 import projectManifestV3Input from './fixtures/project-manifest-v3.input.json';
 import projectManifestV4Expected from './fixtures/project-manifest-v4.expected.json';
 import {
@@ -111,6 +113,72 @@ const FORMAT_FIXTURES = [
 ] as const;
 
 describe('canonical store formats', () => {
+	it('upgrades v14 overlap decisions and preserves working and checkpoint documents', async () => {
+		expect(
+			await readCanonicalDocument(
+				COLLATION_FORMAT,
+				await sealDocument(COLLATION_FORMAT, 14, collationV14Input as JsonObject)
+			)
+		).toMatchObject({
+			ok: true,
+			upgraded: true,
+			originalVersion: 14,
+			payload: collationV15Expected,
+		});
+		const working = { ...WORKING_COLLATION_FIXTURE, document: collationV15Expected.document };
+		expect(
+			await readCanonicalDocument(
+				WORKING_COLLATION_FORMAT,
+				await sealDocument(
+					WORKING_COLLATION_FORMAT,
+					WORKING_COLLATION_CURRENT_VERSION,
+					working as JsonObject
+				)
+			)
+		).toMatchObject({ ok: true, payload: working });
+		const payload = {
+			...COLLATION_CHECKPOINT_FIXTURE.payload,
+			document: collationV15Expected.document,
+		};
+		const checkpoint = {
+			...COLLATION_CHECKPOINT_FIXTURE,
+			payload,
+			payload_content_hash: await hashCanonicalPayload(payload),
+		};
+		expect(
+			await readCanonicalDocument(
+				COLLATION_CHECKPOINT_FORMAT,
+				await sealDocument(
+					COLLATION_CHECKPOINT_FORMAT,
+					COLLATION_CHECKPOINT_CURRENT_VERSION,
+					checkpoint as JsonObject
+				)
+			)
+		).toMatchObject({ ok: true, payload: checkpoint });
+	});
+	it.each<JsonObject>([
+		{ spanningReadingIds: {} },
+		{ spanningReadingIds: [''] },
+		{ spanningReadingIds: ['a', 'a'] },
+		{ spanningReadingIds: [1] },
+		{ overlapResolutions: [] },
+		{ overlapResolutions: null },
+		{ overlapResolutions: { '': { kind: 'overlapped' } } },
+		{ overlapResolutions: { B: { kind: 'other' } } },
+		{ overlapResolutions: { B: { kind: 'reading', readingId: '' } } },
+		{ overlapResolutions: { B: { kind: 'reading', readingId: 1 } } },
+	])('quarantines malformed overlap decisions %j', async decisions => {
+		const payload = structuredClone(collationV14Input) as JsonObject;
+		const units = ((payload.document as JsonObject).apparatus as JsonObject)
+			.units as JsonObject[];
+		units[0].decisions = decisions;
+		expect(
+			await readCanonicalDocument(
+				COLLATION_FORMAT,
+				await sealDocument(COLLATION_FORMAT, COLLATION_CURRENT_VERSION, payload)
+			)
+		).toMatchObject({ ok: false });
+	});
 	it('registers all canonical formats with migrate-on-read', () => {
 		expect(canonicalFormatRegistrations.map(registration => registration.format)).toEqual([
 			PROJECT_MANIFEST_FORMAT,

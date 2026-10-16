@@ -3,6 +3,7 @@ import { buildSegmentSequence, type Segment, NON_ATTESTATION_LABEL } from './col
 import {
 	manualWitnessMembers,
 	applyDecisions,
+	applyOverlapDecisions,
 	type UnitDecisions,
 	type UnitView,
 } from './collation-decisions';
@@ -202,7 +203,8 @@ function serializeUnit(
 	unit: ApparatusTeiUnit,
 	witnessXmlIds: ReadonlyMap<string, string>,
 	baseTextWitnessId: string | null,
-	tagXmlIds: ReadonlyMap<string, string>
+	tagXmlIds: ReadonlyMap<string, string>,
+	units: ReadonlyMap<string, ApparatusTeiUnit>
 ): string {
 	const lemma = unit.view.readings.find(reading => reading.id === unit.view.lemmaReadingId);
 	if (!lemma)
@@ -233,9 +235,15 @@ function serializeUnit(
 	const readingXmlIds = new Map(
 		ordered.map(reading => [reading.id, xmlId(`${unitXmlId}-${reading.label}`)] as const)
 	);
-	const targetIds = new Set(
-		unit.view.ambiguousAttestations.flatMap(attestation => attestation.targetReadingIds)
-	);
+	const targetIds = new Set([
+		...unit.view.ambiguousAttestations.flatMap(attestation => attestation.targetReadingIds),
+		...[...units.values()].flatMap(other =>
+			Object.values(other.view.overlapTargets)
+				.flat()
+				.filter(target => target.unitId === segment.span.unitId)
+				.map(target => target.readingId)
+		),
+	]);
 	const readings = ordered.map((reading, index) =>
 		serializeReading(reading, {
 			tagXmlIds,
@@ -272,6 +280,20 @@ function serializeUnit(
 			.join(' ');
 		readings.push(
 			`<witDetail type="ambiguous" n="${escapeAttribute(`zw-${attestation.targetLabels.join('/')}`)}" target="${escapeAttribute(target)}"${witnesses}/>`
+		);
+	}
+
+	for (const witnessId of unit.view.overlappedWitnessIds) {
+		const witnesses = witnessAttribute([witnessId], witnessXmlIds, baseTextWitnessId, false);
+		if (!witnesses) continue;
+		const targets = (unit.view.overlapTargets[witnessId] ?? []).flatMap(target => {
+			const reading = units
+				.get(target.unitId)
+				?.view.readings.find(reading => reading.id === target.readingId);
+			return reading ? [`#${xmlId(`${xmlId(target.unitId)}-${reading.label}`)}`] : [];
+		});
+		readings.push(
+			`<witDetail type="overlap"${witnesses} target="${escapeAttribute(targets.join(' '))}"/>`
 		);
 	}
 
@@ -345,17 +367,25 @@ export function getApparatusExportRefusals(
 				witnessIds: unit.view.unrecordedManualWitnessIds,
 			});
 		}
-		if (unit.view.unresolvedAttestations.length > 0) {
+		if (
+			unit.view.unresolvedAttestations.length > 0 ||
+			unit.view.unresolvedOverlapWitnessIds.length > 0
+		) {
 			refusals.push({
 				kind: 'unresolved-attestation',
 				unitId,
 				label: segment.label,
-				witnessIds: unit.view.unresolvedAttestations.map(entry => entry.witnessId),
+				witnessIds: [
+					...new Set([
+						...unit.view.unresolvedAttestations.map(entry => entry.witnessId),
+						...unit.view.unresolvedOverlapWitnessIds,
+					]),
+				],
 			});
 		}
 		if (segment.untranscribedWitnessIds.length > 0) {
-			const witnessIds = segment.untranscribedWitnessIds.filter(witnessId =>
-				activeWitnessIds.has(witnessId)
+			const witnessIds = segment.untranscribedWitnessIds.filter(
+				witnessId => activeWitnessIds.has(witnessId) && !unit.view.overlapTargets[witnessId]
 			);
 			if (witnessIds.length > 0) {
 				refusals.push({
@@ -437,7 +467,8 @@ export function exportApparatusTei(input: ApparatusTeiExportInput): string {
 				unit,
 				witnessXmlIds,
 				input.baseTextWitnessId,
-				tagXmlIds
+				tagXmlIds,
+				input.units
 			);
 			if (segment.overlapping) {
 				attachedUnits.push(serialized);
@@ -530,6 +561,34 @@ export function buildApparatusTeiExportInput(
 			),
 			connectivity: stemmaUnit?.connectivity ?? 10,
 			recordedReadingTypeIds: Object.keys(decisions.readingType ?? {}),
+		});
+	}
+
+	const sources = spans.map(span => ({
+		span,
+		view: units.get(span.unitId)!.view,
+		decisions: apparatusByUnitId.get(span.unitId)?.decisions ?? {},
+	}));
+	for (const span of spans) {
+		const unit = units.get(span.unitId)!;
+		const decisions = apparatusByUnitId.get(span.unitId)?.decisions ?? {};
+		const view = applyOverlapDecisions(unit.view, decisions, span, sources);
+		const heldOut = new Set(Object.keys(view.overlapTargets));
+		units.set(span.unitId, {
+			...unit,
+			view,
+			nonAttestation: {
+				witnessIds: unit.nonAttestation.witnessIds.filter(id => !heldOut.has(id)),
+				untranscribedWitnessIds: unit.nonAttestation.untranscribedWitnessIds.filter(
+					id => !heldOut.has(id)
+				),
+			},
+			stemma: projectLocalStemma(
+				view.readings,
+				stemmaByUnitId.get(span.unitId)?.arcs ?? [],
+				view.lemmaReadingId,
+				decisions.sourceDecision ?? {}
+			),
 		});
 	}
 

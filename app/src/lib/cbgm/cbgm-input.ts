@@ -19,7 +19,7 @@ export type CbgmInput = {
 		collationId: string;
 		unitId: string;
 		label: string;
-		kind: 'missing-lemma' | 'unrecorded-manual-witness';
+		kind: 'missing-lemma' | 'unrecorded-manual-witness' | 'unresolved-attestation';
 	}[];
 	undecidedReadings: { unit: string; reading: string }[];
 	availableCorrectors: string[];
@@ -163,6 +163,21 @@ export function buildCbgmInput(
 					kind: 'unrecorded-manual-witness',
 				});
 			}
+			if (
+				[
+					...unit.view.unresolvedAttestations.map(entry => entry.witnessId),
+					...unit.view.unresolvedOverlapWitnessIds,
+				].some(id => {
+					const siglum = siglumOf.get(id);
+					return siglum !== undefined && !settings.excludedWitnesses.includes(siglum);
+				})
+			)
+				blockingUnits.push({
+					collationId: document.meta.collationId ?? '',
+					unitId,
+					label,
+					kind: 'unresolved-attestation',
+				});
 			if (unit.view.lemmaReadingId === null) {
 				blockingUnits.push({
 					collationId: document.meta.collationId ?? '',

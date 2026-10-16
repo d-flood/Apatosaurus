@@ -33,6 +33,10 @@ Version 7 applies the Project Transcription Version 2 change to collations: `col
 - Loading folds a leftover `apatosaurus.working.collation` file into the primary when its `draft.base_*` matches `based_on_checkpoint`, writing the new primary before deleting the working file. Zip import folds both working formats the same way before placing files.
 - `apatosaurus.working.collation` stays registered only so legacy files can be read and migrated. Checkpoint content is unchanged.
 
+## Collation Version 15
+
+Version 15 adds optional `spanningReadingIds` and `overlapResolutions` to unit decisions. Spanning marks name readings; overlap resolutions map witness IDs to a reading or `overlapped`. The v14 upgrader is a no-op; malformed values quarantine the document. Working and checkpoint formats preserve both keys without a bump.
+
 ## Collation Version 14
 
 Version 14 adds optional `setup.manualWitnessOverrides`, with stable manual witness IDs, exclusion flags and inherit/full/fragmentary treatment. The v13 upgrader is a no-op; malformed or duplicate overrides quarantine the document. Working and checkpoint formats preserve these keys without a bump.

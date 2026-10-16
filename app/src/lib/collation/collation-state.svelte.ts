@@ -85,6 +85,8 @@ import {
 } from './collation-reading-proposal';
 import {
 	applyDecisions,
+	applyOverlapDecisions,
+	type OverlapResolution,
 	manualWitnessMembers,
 	cloneUnitDecisions,
 	findOrphanedUnitDecisions,
@@ -1413,6 +1415,13 @@ function createCollationState() {
 			const input = inputs.get(witness.witnessId);
 			if (!input) continue;
 			const witnessId = witness.witnessId;
+			const previouslyOverlapped = new Set(
+				getVariationUnitSpans()
+					.filter(span =>
+						peekUnitView(span.unitId).overlappedWitnessIds.includes(witnessId)
+					)
+					.map(span => span.unitId)
+			);
 			const twinSource = [...activeIds]
 				.filter(id => id !== witnessId)
 				.map(id => presentInputs.get(id))
@@ -1423,6 +1432,7 @@ function createCollationState() {
 				);
 			if (twinSource) {
 				inheritTwin(witnessId, input, twinSource);
+				markPlacedOverlapsUnconfirmed(witnessId, previouslyOverlapped);
 				activeIds.add(witnessId);
 				witnessOrder = [...activeIds];
 				presentInputs.set(witnessId, input);
@@ -1439,7 +1449,7 @@ function createCollationState() {
 							sourceWitnessIds: [...activeIds],
 							baseWitnessId: getBaseTextWitnessId(),
 						}).readings;
-					return [key, viewUnit(key, proposal).readings] as const;
+					return [key, viewUnitWithoutOverlaps(key, proposal).readings] as const;
 				})
 			);
 			if (previousById.has(witnessId)) {
@@ -1497,7 +1507,7 @@ function createCollationState() {
 					const stored = classifiedReadings.get(key);
 					const coWitnesses = bucket.witnessIds.filter(id => id !== witnessId);
 					let candidates = stored
-						? viewUnit(key, stored).readings.filter(reading =>
+						? viewUnitWithoutOverlaps(key, stored).readings.filter(reading =>
 								reading.witnessIds.some(id => coWitnesses.includes(id))
 							)
 						: [];
@@ -1505,7 +1515,7 @@ function createCollationState() {
 						const authoredIds = new Set(
 							(decisions.authoredReadings ?? []).map(reading => reading.id)
 						);
-						candidates = viewUnit(
+						candidates = viewUnitWithoutOverlaps(
 							key,
 							stored ?? oldReadings.filter(reading => !authoredIds.has(reading.id))
 						).readings.filter(
@@ -1605,6 +1615,22 @@ function createCollationState() {
 				}
 				unitDecisions = new Map(unitDecisions).set(key, decisions);
 			}
+			markPlacedOverlapsUnconfirmed(witnessId, previouslyOverlapped);
+		}
+	}
+
+	function markPlacedOverlapsUnconfirmed(witnessId: string, previouslyOverlapped: Set<string>) {
+		for (const span of getVariationUnitSpans()) {
+			if (
+				previouslyOverlapped.has(span.unitId) ||
+				!peekUnitView(span.unitId).overlappedWitnessIds.includes(witnessId)
+			)
+				continue;
+			const next = cloneUnitDecisions(unitDecisions.get(span.unitId));
+			next.unconfirmedWitnessIds = [
+				...new Set([...(next.unconfirmedWitnessIds ?? []), witnessId]),
+			];
+			unitDecisions = new Map(unitDecisions).set(span.unitId, next);
 		}
 	}
 
@@ -2058,17 +2084,24 @@ function createCollationState() {
 			witnessIds: [],
 			untranscribedWitnessIds: [],
 		};
+		const view = peekUnitView(unitId);
+		const overlaps = new Set(Object.keys(view.overlapTargets));
 		return {
-			...nonAttestation,
 			witnessIds: [
-				...nonAttestation.witnessIds,
-				...peekUnitView(unitId).nonAttestingManualWitnessIds,
+				...nonAttestation.witnessIds.filter(id => !overlaps.has(id)),
+				...view.nonAttestingManualWitnessIds,
 			],
+			untranscribedWitnessIds: nonAttestation.untranscribedWitnessIds.filter(
+				id => !overlaps.has(id)
+			),
 		};
 	}
 
 	const EMPTY_UNIT_VIEW: UnitView = {
 		readings: [],
+		overlappedWitnessIds: [],
+		unresolvedOverlapWitnessIds: [],
+		overlapTargets: {},
 		uncitedManualWitnessIds: [],
 		nonAttestingManualWitnessIds: [],
 		unrecordedManualWitnessIds: [],
@@ -2081,12 +2114,77 @@ function createCollationState() {
 		needsLemmaDecision: false,
 	};
 
-	function viewUnit(key: string, proposal: ClassifiedReading[]): UnitView {
+	function viewUnitWithoutOverlaps(key: string, proposal: ClassifiedReading[]): UnitView {
 		return applyDecisions(proposal, unitDecisions.get(key) ?? {}, {
 			baseWitnessId: getBaseTextWitnessId(),
 			vocabulary: getReadingTypeVocabulary(),
 			manualWitnesses: getManualWitnessMembers(),
 		});
+	}
+
+	function viewUnit(key: string, proposal: ClassifiedReading[]): UnitView {
+		const view = viewUnitWithoutOverlaps(key, proposal);
+		const span = getVariationUnitSpan(key);
+		if (!span) return view;
+		const sources = getVariationUnitSpans()
+			.filter(source => unitDecisions.get(source.unitId)?.spanningReadingIds?.length)
+			.map(span => ({
+				span,
+				decisions: unitDecisions.get(span.unitId) ?? {},
+				view: viewUnitWithoutOverlaps(
+					span.unitId,
+					classifiedReadings.get(span.unitId) ?? buildReadingsForUnit(span.unitId)
+				),
+			}));
+		return applyOverlapDecisions(view, unitDecisions.get(key) ?? {}, span, sources);
+	}
+
+	function setReadingSpanning(unitId: string, readingId: string, spanning: boolean): boolean {
+		const span = getVariationUnitSpan(unitId);
+		if (!span || !peekReadingsForUnit(unitId).some(reading => reading.id === readingId))
+			return false;
+		if (
+			spanning &&
+			!getVariationUnitSpans().some(
+				other =>
+					other.unitId !== unitId &&
+					other.startIndex <= span.endIndex &&
+					other.endIndex >= span.startIndex &&
+					!(other.startIndex <= span.startIndex && other.endIndex >= span.endIndex)
+			)
+		)
+			return false;
+		const next = cloneUnitDecisions(unitDecisions.get(unitId));
+		next.spanningReadingIds = [
+			...new Set([
+				...(next.spanningReadingIds ?? []).filter(id => id !== readingId),
+				...(spanning ? [readingId] : []),
+			]),
+		];
+		commitManualDecisions(
+			unitId,
+			next,
+			spanning ? 'Mark spanning reading' : 'Unmark spanning reading'
+		);
+		return true;
+	}
+
+	function resolveOverlap(
+		unitId: string,
+		witnessId: string,
+		resolution: OverlapResolution
+	): boolean {
+		const view = peekUnitView(unitId);
+		if (
+			!view.overlapTargets[witnessId]?.length ||
+			(resolution.kind === 'reading' &&
+				!view.readings.some(reading => reading.id === resolution.readingId))
+		)
+			return false;
+		const next = cloneUnitDecisions(unitDecisions.get(unitId));
+		next.overlapResolutions = { ...next.overlapResolutions, [witnessId]: resolution };
+		commitManualDecisions(unitId, next, 'Resolve overlapping testimony');
+		return true;
 	}
 
 	function ensureReadingsForUnit(unitId: string): ClassifiedReading[] {
@@ -2238,9 +2336,11 @@ function createCollationState() {
 		const readingTypes = decisions.readingType ?? {};
 		const certainties = decisions.certainty ?? {};
 		const storedView = viewUnit(key, stored);
-		const ambiguousWitnessIds = new Set(
-			storedView.ambiguousAttestations.flatMap(attestation => attestation.witnessIds)
-		);
+		const overlapWitnessIds = new Set(Object.keys(storedView.overlapTargets));
+		const ambiguousWitnessIds = new Set([
+			...storedView.ambiguousAttestations.flatMap(attestation => attestation.witnessIds),
+			...overlapWitnessIds,
+		]);
 		const visibleIds = new Set(storedView.readings.map(reading => reading.id));
 		const editedIds = new Set(readings.map(reading => reading.id));
 		const hiddenReadings = stored.filter(
@@ -2249,7 +2349,11 @@ function createCollationState() {
 		const authoredIds = new Set((decisions.authoredReadings ?? []).map(reading => reading.id));
 		const proposal = [...readings, ...hiddenReadings]
 			.filter(reading => !authoredIds.has(reading.id))
-			.map(({ manualWitnessIds: _, ...reading }) => {
+			.map(({ manualWitnessIds: _, ...projected }) => {
+				const reading = {
+					...projected,
+					witnessIds: projected.witnessIds.filter(id => !overlapWitnessIds.has(id)),
+				};
 				const existing = proposalById.get(reading.id);
 				if (!existing) return reading;
 				const ambiguous = existing.witnessIds.filter(
@@ -3636,6 +3740,8 @@ function createCollationState() {
 		mergeReadings,
 		setReadingParent,
 		confirmUnitAttestations,
+		setReadingSpanning,
+		resolveOverlap,
 		resolveAttestation,
 		recordAmbiguousAttestation,
 		removeAmbiguousAttestation,

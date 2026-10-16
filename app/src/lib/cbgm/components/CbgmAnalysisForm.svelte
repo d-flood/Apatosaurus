@@ -337,7 +337,9 @@
 							>
 							— {unit.kind === 'missing-lemma'
 								? 'No lemma reading'
-								: 'Full manual witness with nothing recorded'}
+								: unit.kind === 'unresolved-attestation'
+									? 'Unresolved testimony'
+									: 'Full manual witness with nothing recorded'}
 						</li>
 					{/each}
 				</ul>

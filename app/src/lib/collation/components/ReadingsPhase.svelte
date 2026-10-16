@@ -174,6 +174,26 @@
 		!unitId ? [] : collationState.peekUnitView(unitId).unresolvedAttestations
 	);
 
+	let overlapView = $derived(collationState.peekUnitView(unitId));
+	let spanningReadingIds = $derived(
+		collationState.unitDecisions.get(unitId)?.spanningReadingIds ?? []
+	);
+	let canSpan = $derived(
+		Boolean(
+			selectedSpan &&
+			spans.some(
+				other =>
+					other.unitId !== unitId &&
+					other.startIndex <= selectedSpan.endIndex &&
+					other.endIndex >= selectedSpan.startIndex &&
+					!(
+						other.startIndex <= selectedSpan.startIndex &&
+						other.endIndex >= selectedSpan.endIndex
+					)
+			)
+		)
+	);
+
 	function confirmAttestations() {
 		collationState.confirmUnitAttestations(unitId);
 		liveMessage = 'Confirmed attestations at this unit.';
@@ -904,6 +924,67 @@
 		</section>
 	{/if}
 
+	{#if overlapView.overlappedWitnessIds.length > 0}
+		<section
+			class="space-y-2 rounded-xl border border-base-300 px-3 py-3 text-sm"
+			aria-label="Overlapped witnesses"
+		>
+			<h3 class="font-semibold">Overlapped</h3>
+			{#each overlapView.overlappedWitnessIds as witnessId (witnessId)}
+				<div class="flex flex-wrap items-center gap-2">
+					<span>{siglaOf([witnessId])}</span>
+					{#each overlapView.overlapTargets[witnessId] ?? [] as target (`${target.unitId}:${target.readingId}`)}
+						<button
+							type="button"
+							class="link"
+							onclick={() => (collationState.selectedUnitId = target.unitId)}
+							>Spanning unit {getUnitOrdinal(target.unitId)}</button
+						>
+					{/each}
+				</div>
+			{/each}
+		</section>
+	{/if}
+	{#if overlapView.unresolvedOverlapWitnessIds.length > 0}
+		<section
+			class="space-y-3 rounded-xl border border-warning/40 bg-warning/10 px-3 py-3"
+			aria-label="Unresolved overlaps"
+		>
+			<h3 class="text-sm font-semibold">Resolve overlapping testimony</h3>
+			{#each overlapView.unresolvedOverlapWitnessIds as witnessId (witnessId)}
+				<div class="min-w-0 space-y-2">
+					<p class="text-sm">
+						{siglaOf([witnessId])} is held out where a spanning reading partly covers this
+						unit.
+					</p>
+					<div class="flex flex-wrap gap-2">
+						{#each readings as reading (reading.id)}
+							<button
+								type="button"
+								class="btn btn-sm h-auto min-h-8 max-w-full whitespace-normal wrap-anywhere text-left"
+								aria-label={`Assign ${siglaOf([witnessId])} to reading ${reading.label}`}
+								onclick={() =>
+									collationState.resolveOverlap(unitId, witnessId, {
+										kind: 'reading',
+										readingId: reading.id,
+									})}>{reading.label}: {describeReading(reading)}</button
+							>
+						{/each}
+						<button
+							type="button"
+							class="btn btn-sm"
+							aria-label={`Mark ${siglaOf([witnessId])} overlapped`}
+							onclick={() =>
+								collationState.resolveOverlap(unitId, witnessId, {
+									kind: 'overlapped',
+								})}>Overlapped</button
+						>
+					</div>
+				</div>
+			{/each}
+		</section>
+	{/if}
+
 	{#if unresolvedAttestations.length > 0}
 		<section
 			class="space-y-3 rounded-xl border border-warning/40 bg-warning/10 px-3 py-3"
@@ -1138,6 +1219,23 @@
 								</div>
 
 								<div class="min-w-0 flex-1 space-y-2">
+									{#if canSpan}
+										<label class="flex items-center gap-2 text-xs">
+											<input
+												type="checkbox"
+												class="checkbox checkbox-sm"
+												aria-label={`Reading ${reading.label} spans this unit`}
+												checked={spanningReadingIds.includes(reading.id)}
+												onchange={event =>
+													collationState.setReadingSpanning(
+														unitId,
+														reading.id,
+														event.currentTarget.checked
+													)}
+											/>
+											Spans this unit
+										</label>
+									{/if}
 									<input
 										class="input input-ghost w-full max-w-md px-1 font-greek text-base"
 										aria-label={`Text of reading ${reading.label}`}
