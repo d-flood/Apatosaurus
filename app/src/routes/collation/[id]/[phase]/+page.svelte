@@ -38,10 +38,8 @@
 		if (collationState.isLoading || !collationState.collationId) return;
 		untrack(() => {
 			syncPhaseFromRoute(id, phaseParam);
-			const span = collationState
-				.getVariationUnitSpans()
-				.find(span => span.unitId === unitId);
-			if (span) collationState.selectedUnitIndex = span.startIndex;
+			if (unitId && collationState.getVariationUnitSpan(unitId))
+				collationState.selectedUnitId = unitId;
 		});
 	});
 </script>

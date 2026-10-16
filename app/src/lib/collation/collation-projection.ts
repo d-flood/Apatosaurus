@@ -114,8 +114,8 @@ export function buildCollationProjection(input: {
 	witnesses: WitnessConfig[];
 	alignmentColumns: AlignmentColumn[];
 	declaredUnits?: DeclaredUnit[];
-	getReadingsForUnit: (unitIndex: number) => ClassifiedReading[];
-	getBaseTextForVariationUnit: (unitIndex: number) => string;
+	getReadingsForUnit: (unitId: string) => ClassifiedReading[];
+	getBaseTextForVariationUnit: (unitId: string) => string;
 	getBaseWitnessId: () => string | null;
 }): CollationProjection {
 	const activeWitnesses = input.witnesses.filter(witness => !witness.isExcluded);
@@ -144,8 +144,8 @@ export function buildCollationProjection(input: {
 		return classifyWitnessAttestation(cells) === 'attesting';
 	};
 	const variationUnits = buildVariationUnitSpans(input.alignmentColumns, input.declaredUnits).map(
-		({ startIndex, endIndex }) => {
-			const readings = [...input.getReadingsForUnit(startIndex)].sort(
+		({ unitId, startIndex, endIndex }) => {
+			const readings = [...input.getReadingsForUnit(unitId)].sort(
 				(a, b) => a.order - b.order
 			);
 			// No testimony means no base text; never fall back.
@@ -158,7 +158,7 @@ export function buildCollationProjection(input: {
 				endIndex,
 				unitType: 'variation',
 				baseText: baseTestifies
-					? input.getBaseTextForVariationUnit(startIndex) || baseReading?.text || ''
+					? input.getBaseTextForVariationUnit(unitId) || baseReading?.text || ''
 					: '',
 				readings: readings.map((reading, readingOrder) => ({
 					readingOrder,
@@ -191,16 +191,8 @@ export function buildCollationProjectionFromDocument(
 		witnesses: hydrated.witnesses,
 		alignmentColumns,
 		declaredUnits: hydrated.declaredUnits,
-		getReadingsForUnit: unitIndex => {
-			const unitId = buildVariationUnitSpans(alignmentColumns, hydrated.declaredUnits).find(
-				span => span.startIndex === unitIndex
-			)?.unitId;
-			return unitId ? (readingsByUnit.get(unitId) ?? []) : [];
-		},
-		getBaseTextForVariationUnit: unitIndex => {
-			const unitId = buildVariationUnitSpans(alignmentColumns, hydrated.declaredUnits).find(
-				span => span.startIndex === unitIndex
-			)?.unitId;
+		getReadingsForUnit: unitId => readingsByUnit.get(unitId) ?? [],
+		getBaseTextForVariationUnit: unitId => {
 			const readings = unitId ? (readingsByUnit.get(unitId) ?? []) : [];
 			const baseReading = baseWitnessId
 				? readings.find(reading => reading.witnessIds.includes(baseWitnessId))

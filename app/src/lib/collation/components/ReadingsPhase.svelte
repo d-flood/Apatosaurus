@@ -52,7 +52,7 @@
 	}
 	async function attachManual(reading: ClassifiedReading) {
 		const result = await collationState.attachManualWitness(
-			unitIndex,
+			unitId,
 			reading.id,
 			manualDrafts.get(reading.id) ?? ''
 		);
@@ -63,7 +63,7 @@
 		liveMessage = result.ok ? 'Attached manual witness.' : result.error;
 	}
 	function addAuthored() {
-		if (!collationState.addAuthoredReading(unitIndex, authoredText, authoredOmission)) return;
+		if (!collationState.addAuthoredReading(unitId, authoredText, authoredOmission)) return;
 		authoredText = '';
 		authoredOmission = false;
 		liveMessage = 'Added authored reading.';
@@ -74,115 +74,113 @@
 	let unitSegments = $derived(segments.filter(segment => segment.kind === 'unit'));
 	let spans = $derived(unitSegments.map(segment => segment.span));
 	let selectedSpan = $derived(
-		spans.find(span => span.startIndex === collationState.selectedUnitIndex) ?? spans[0] ?? null
+		spans.find(span => span.unitId === collationState.selectedUnitId) ?? spans[0] ?? null
 	);
-	let unitIndex = $derived(selectedSpan?.startIndex ?? -1);
-	let manualView = $derived(collationState.peekUnitView(unitIndex));
+	let unitId = $derived(selectedSpan?.unitId ?? '');
+	let manualView = $derived(collationState.peekUnitView(unitId));
 
 	const expandedWitnesses = $derived.by(() => {
-		unitIndex;
+		unitId;
 		return new SvelteSet<string>();
 	});
 	const selectedWitnessIds = $derived.by(() => {
-		unitIndex;
+		unitId;
 		return new SvelteSet<string>();
 	});
 	let moveTargetId = $derived.by(() => {
-		unitIndex;
+		unitId;
 		return NO_VALUE;
 	});
 	let mergeTargetId = $derived.by(() => {
-		unitIndex;
+		unitId;
 		return NO_VALUE;
 	});
 	const ambiguousTargetDrafts = $derived.by(() => {
-		unitIndex;
+		unitId;
 		return new SvelteSet<string>();
 	});
 	let activeChipIndex = $derived.by(() => {
-		unitIndex;
+		unitId;
 		return 0;
 	});
 	let anchorChipIndex = $derived.by(() => {
-		unitIndex;
+		unitId;
 		return 0;
 	});
 	const newSubreadingTypeDrafts = $derived.by(() => {
-		unitIndex;
+		unitId;
 		return new SvelteMap<string, string>();
 	});
 	const attachParentDrafts = $derived.by(() => {
-		unitIndex;
+		unitId;
 		return new SvelteMap<string, string>();
 	});
 	const attachTypeDrafts = $derived.by(() => {
-		unitIndex;
+		unitId;
 		return new SvelteMap<string, string>();
 	});
 	const tagDrafts = $derived.by(() => {
-		unitIndex;
+		unitId;
 		return new SvelteMap<string, string>();
 	});
 	let readingTags = $derived(collationState.getReadingTags());
 
 	async function addTag(reading: ClassifiedReading) {
 		const value = tagDrafts.get(reading.id) ?? '';
-		const result = await collationState.addReadingTag(unitIndex, reading.id, value);
+		const result = await collationState.addReadingTag(unitId, reading.id, value);
 		if (!result.ok) return;
 		tagDrafts.delete(reading.id);
 		liveMessage = `Added tag to reading ${reading.label}.`;
 	}
 
 	function removeTag(reading: ClassifiedReading, tagId: string) {
-		collationState.removeReadingTag(unitIndex, reading.id, tagId);
+		collationState.removeReadingTag(unitId, reading.id, tagId);
 		liveMessage = `Removed tag from reading ${reading.label}.`;
 	}
 
 	$effect(() => {
 		if (selectedSpan) {
-			collationState.primeReadingsForUnit(selectedSpan.startIndex);
+			collationState.primeReadingsForUnit(selectedSpan.unitId);
 		}
 	});
 
 	let displayMode = $derived(collationState.alignmentDisplayMode);
-	let readings = $derived(unitIndex < 0 ? [] : collationState.peekReadingsForUnit(unitIndex));
+	let readings = $derived(!unitId ? [] : collationState.peekReadingsForUnit(unitId));
 	let readingDisplayValues = $derived(
-		unitIndex < 0 ? new Map() : collationState.getReadingDisplayValuesForUnit(unitIndex)
+		!unitId ? new Map() : collationState.getReadingDisplayValuesForUnit(unitId)
 	);
 	let readingTypeVocabulary = $derived(collationState.getReadingTypeVocabulary());
 	let subreadingTypeOptions = $derived(readingTypeVocabulary.filter(type => type.selectable));
 	let nonAttestation = $derived(
-		unitIndex < 0
+		!unitId
 			? { witnessIds: [], untranscribedWitnessIds: [] }
-			: collationState.getNonAttestationForUnit(unitIndex)
+			: collationState.getNonAttestationForUnit(unitId)
 	);
 	let hasNonAttestation = $derived(
 		nonAttestation.witnessIds.length > 0 || nonAttestation.untranscribedWitnessIds.length > 0
 	);
 	let baseTextWitnessId = $derived(collationState.getBaseTextWitnessId());
-	let lemmaReadingId = $derived(
-		unitIndex < 0 ? null : collationState.getLemmaReadingId(unitIndex)
-	);
+	let lemmaReadingId = $derived(!unitId ? null : collationState.getLemmaReadingId(unitId));
 	let needsLemmaDecision = $derived(
-		unitIndex < 0 ? false : collationState.unitNeedsLemmaDecision(unitIndex)
+		!unitId ? false : collationState.unitNeedsLemmaDecision(unitId)
 	);
 	let ambiguousAttestations = $derived(
-		unitIndex < 0 ? [] : collationState.peekUnitView(unitIndex).ambiguousAttestations
+		!unitId ? [] : collationState.peekUnitView(unitId).ambiguousAttestations
 	);
 	let unconfirmedWitnessIds = $derived(
-		unitIndex < 0 ? [] : collationState.peekUnitView(unitIndex).unconfirmedWitnessIds
+		!unitId ? [] : collationState.peekUnitView(unitId).unconfirmedWitnessIds
 	);
 	let unresolvedAttestations = $derived(
-		unitIndex < 0 ? [] : collationState.peekUnitView(unitIndex).unresolvedAttestations
+		!unitId ? [] : collationState.peekUnitView(unitId).unresolvedAttestations
 	);
 
 	function confirmAttestations() {
-		collationState.confirmUnitAttestations(unitIndex);
+		collationState.confirmUnitAttestations(unitId);
 		liveMessage = 'Confirmed attestations at this unit.';
 	}
 
 	function resolveAttestation(witnessId: string, readingId: string) {
-		const result = collationState.resolveAttestation(unitIndex, witnessId, readingId);
+		const result = collationState.resolveAttestation(unitId, witnessId, readingId);
 		liveMessage = result.ok
 			? 'Resolved witness attestation.'
 			: 'Could not resolve attestation.';
@@ -228,13 +226,13 @@
 	}
 
 	function attestingWitnessesOf(reading: ClassifiedReading): string[] {
-		if (unitIndex < 0) return reading.witnessIds;
-		return collationState.getAttestingWitnessIdsForReading(unitIndex, reading.id);
+		if (!unitId) return reading.witnessIds;
+		return collationState.getAttestingWitnessIdsForReading(unitId, reading.id);
 	}
 
 	function getDisplayedWitnessIds(reading: ClassifiedReading): string[] {
-		if (unitIndex < 0) return reading.witnessIds;
-		return collationState.getDisplayedWitnessIdsForReading(unitIndex, reading.id, displayMode);
+		if (!unitId) return reading.witnessIds;
+		return collationState.getDisplayedWitnessIdsForReading(unitId, reading.id, displayMode);
 	}
 
 	function displayedManualWitnessIds(reading: ClassifiedReading): string[] {
@@ -403,11 +401,7 @@
 		const target = readings.find(reading => reading.id === targetReadingId);
 		if (!target) return;
 		const witnessIds = selectedWitnessIdsInOrder;
-		const result = collationState.moveWitnessesToReading(
-			unitIndex,
-			witnessIds,
-			targetReadingId
-		);
+		const result = collationState.moveWitnessesToReading(unitId, witnessIds, targetReadingId);
 		if (!result.ok) {
 			liveMessage =
 				result.error === 'no-attesting-witnesses'
@@ -425,7 +419,7 @@
 
 	async function splitSelectionIntoNewReading() {
 		const witnessIds = selectedWitnessIdsInOrder;
-		const result = collationState.splitWitnessesIntoNewReading(unitIndex, witnessIds);
+		const result = collationState.splitWitnessesIntoNewReading(unitId, witnessIds);
 		if (!result.ok) {
 			liveMessage =
 				result.error === 'whole-reading'
@@ -436,7 +430,7 @@
 			return;
 		}
 		const created = collationState
-			.peekReadingsForUnit(unitIndex)
+			.peekReadingsForUnit(unitId)
 			.find(reading => reading.id === result.readingId);
 		liveMessage = `Split ${siglaOf(witnessIds)} into new reading ${created?.label ?? ''}.`;
 		clearSelection();
@@ -449,7 +443,7 @@
 		const witnessIds = selectedWitnessIdsInOrder;
 		const sourceReadingIds = selectedReadingIds.filter(id => id !== targetReadingId);
 		const discarded = mergeDiscards;
-		const result = collationState.mergeReadings(unitIndex, sourceReadingIds, targetReadingId);
+		const result = collationState.mergeReadings(unitId, sourceReadingIds, targetReadingId);
 		if (!result.ok) {
 			liveMessage =
 				result.error === 'target-under-source'
@@ -479,7 +473,7 @@
 	async function recordAmbiguousSelection() {
 		const witnessIds = selectedWitnessIdsInOrder;
 		const result = collationState.recordAmbiguousAttestation(
-			unitIndex,
+			unitId,
 			witnessIds,
 			ambiguousTargetIds
 		);
@@ -497,7 +491,7 @@
 			return;
 		}
 		const recorded = collationState
-			.peekUnitView(unitIndex)
+			.peekUnitView(unitId)
 			.ambiguousAttestations.find(attestation => attestation.id === result.attestationId);
 		liveMessage = `Recorded ${siglaOf(witnessIds)} as ${recorded?.label ?? 'ambiguous'}.`;
 		clearSelection();
@@ -505,18 +499,18 @@
 	}
 
 	function removeAmbiguousAttestation(attestation: { id: string; label: string }) {
-		const result = collationState.removeAmbiguousAttestation(unitIndex, attestation.id);
+		const result = collationState.removeAmbiguousAttestation(unitId, attestation.id);
 		liveMessage = result.ok
 			? `Removed ${attestation.label}; its witnesses are back with their readings.`
 			: 'That ambiguous attestation no longer exists.';
 	}
 
-	function getUnitOrdinal(startIndex: number): number {
-		return unitSegments.find(segment => segment.span.startIndex === startIndex)?.ordinal ?? 0;
+	function getUnitOrdinal(unitId: string): number {
+		return unitSegments.find(segment => segment.span.unitId === unitId)?.ordinal ?? 0;
 	}
 
 	function getBaseTextForSpan(span: VariationUnitSpan): string {
-		return collationState.getBaseTextForVariationUnit(span.startIndex) || 'om.';
+		return collationState.getBaseTextForVariationUnit(span.unitId) || 'om.';
 	}
 
 	/** Unselectable recorded types stay visible so the control never misstates them. */
@@ -553,12 +547,12 @@
 	}
 
 	let selectedUnitSegment = $derived(
-		unitSegments.find(segment => segment.span.startIndex === selectedSpan?.startIndex) ?? null
+		unitSegments.find(segment => segment.span.unitId === selectedSpan?.unitId) ?? null
 	);
 
 	let apparatusNotation = $derived.by(() => {
 		if (!selectedSpan || !selectedUnitSegment) return '';
-		return renderApparatusUnit(collationState.peekUnitView(selectedSpan.startIndex), {
+		return renderApparatusUnit(collationState.peekUnitView(selectedSpan.unitId), {
 			label: selectedUnitSegment.label,
 			siglumOf: getWitnessSiglum,
 			nonAttestation,
@@ -589,7 +583,7 @@
 
 	function commitReadingText(reading: ClassifiedReading, value: string) {
 		if (value.trim() === getDisplayedReadingText(reading).trim()) return;
-		collationState.updateReadingTextForDisplayMode(unitIndex, reading.id, value, displayMode);
+		collationState.updateReadingTextForDisplayMode(unitId, reading.id, value, displayMode);
 		liveMessage = `Reading ${reading.label} is now ${value.trim() || 'empty'}.`;
 	}
 
@@ -601,7 +595,7 @@
 	}
 
 	function moveReading(reading: ClassifiedReading, offset: -1 | 1) {
-		const result = collationState.moveReadingByOffset(unitIndex, reading.id, offset);
+		const result = collationState.moveReadingByOffset(unitId, reading.id, offset);
 		liveMessage = result.ok
 			? `Moved ${reading.label} ${offset === -1 ? 'up' : 'down'}.`
 			: result.error === 'at-boundary'
@@ -610,7 +604,7 @@
 	}
 
 	function establishLemma(reading: ClassifiedReading) {
-		const result = collationState.setLemmaReading(unitIndex, reading.id);
+		const result = collationState.setLemmaReading(unitId, reading.id);
 		liveMessage = result.ok
 			? `${describeReading(reading)} is now the lemma reading.`
 			: 'Only a main reading can be the lemma.';
@@ -643,7 +637,7 @@
 		readingType: string | undefined
 	) {
 		const result = collationState.setReadingParent(
-			unitIndex,
+			unitId,
 			reading.id,
 			parentReadingId,
 			readingType
@@ -660,18 +654,18 @@
 	}
 
 	function deleteReading(reading: ClassifiedReading) {
-		collationState.deleteReading(unitIndex, reading.id);
+		collationState.deleteReading(unitId, reading.id);
 		liveMessage = `Deleted reading ${reading.label}.`;
 	}
 
 	function addSubreading(reading: ClassifiedReading, readingType: string) {
-		const id = collationState.addReading(unitIndex, {
+		const id = collationState.addReading(unitId, {
 			parentReadingId: reading.id,
 			readingType,
 		});
 		newSubreadingTypeDrafts.delete(reading.id);
 		const label = collationState
-			.peekReadingsForUnit(unitIndex)
+			.peekReadingsForUnit(unitId)
 			.find(candidate => candidate.id === id)?.label;
 		liveMessage = `Added subreading ${label ?? ''} of ${reading.label}.`;
 	}
@@ -726,7 +720,7 @@
 		</div>
 		<div class="pb-1">
 			<div class="flex flex-wrap items-baseline gap-1.5">
-				{#each segments as segment (segment.kind === 'unit' ? `unit-${segment.span.startIndex}` : segment.columnIds.join('+'))}
+				{#each segments as segment (segment.kind === 'unit' ? segment.span.unitId : segment.columnIds.join('+'))}
 					{#if segment.kind === 'agreed'}
 						{#if segment.text.length > 0}
 							<span class="inline-flex items-baseline gap-1 text-base-content/30">
@@ -737,8 +731,8 @@
 							</span>
 						{/if}
 					{:else}
-						{@const isSelected = selectedSpan?.startIndex === segment.span.startIndex}
-						{@const view = collationState.peekUnitView(segment.span.startIndex)}
+						{@const isSelected = selectedSpan?.unitId === segment.span.unitId}
+						{@const view = collationState.peekUnitView(segment.span.unitId)}
 						<button
 							type="button"
 							class={[
@@ -747,8 +741,7 @@
 									? 'bg-primary text-primary-content shadow-sm'
 									: 'bg-base-300/40 text-base-content/70 hover:bg-base-300/70',
 							]}
-							onclick={() =>
-								(collationState.selectedUnitIndex = segment.span.startIndex)}
+							onclick={() => (collationState.selectedUnitId = segment.span.unitId)}
 						>
 							<span class="font-greek text-base leading-tight"
 								>{getBaseTextForSpan(segment.span)}</span
@@ -802,7 +795,7 @@
 			</button>
 			{#if selectedSpan}
 				<span class="text-sm text-base-content/40">
-					Unit {getUnitOrdinal(selectedSpan.startIndex)} · ids {getSelectedUnitLabel()}
+					Unit {getUnitOrdinal(selectedSpan.unitId)} · ids {getSelectedUnitLabel()}
 				</span>
 			{/if}
 		</div>
@@ -828,7 +821,7 @@
 			<button
 				type="button"
 				class="btn btn-primary btn-sm gap-1"
-				disabled={unitIndex < 0}
+				disabled={!unitId}
 				onclick={() => authoredInput?.focus()}
 			>
 				<Plus size={14} />
@@ -864,11 +857,8 @@
 						class="btn btn-xs"
 						aria-label={`Set ${witness.siglum} uncited`}
 						onclick={() =>
-							collationState.setManualWitnessTestimony(
-								unitIndex,
-								witness.id,
-								'uncited'
-							)}>Uncited</button
+							collationState.setManualWitnessTestimony(unitId, witness.id, 'uncited')}
+						>Uncited</button
 					>
 					<button
 						type="button"
@@ -876,7 +866,7 @@
 						aria-label={`Set ${witness.siglum} non-attestation`}
 						onclick={() =>
 							collationState.setManualWitnessTestimony(
-								unitIndex,
+								unitId,
 								witness.id,
 								'nonAttestation'
 							)}>Non-attestation</button
@@ -1252,7 +1242,7 @@
 													aria-label={`Detach ${getWitnessSiglum(id)} from reading ${reading.label}`}
 													onclick={() =>
 														collationState.detachManualWitness(
-															unitIndex,
+															unitId,
 															id
 														)}>{getWitnessSiglum(id)} ×</button
 												>
@@ -1491,7 +1481,7 @@
 												value={reading.readingType ?? ''}
 												onchange={event =>
 													collationState.setReadingType(
-														unitIndex,
+														unitId,
 														reading.id,
 														event.currentTarget.value || null
 													)}
@@ -1517,7 +1507,7 @@
 													: String(reading.certainty)}
 												onchange={event =>
 													collationState.setReadingCertainty(
-														unitIndex,
+														unitId,
 														reading.id,
 														parseCertainty(event.currentTarget.value)
 													)}

@@ -170,9 +170,10 @@ describe('buildCollationProjection', () => {
 			witnesses,
 			alignmentColumns,
 			getBaseWitnessId: () => 'A',
-			getBaseTextForVariationUnit: unitIndex => (unitIndex === 1 ? 'θεος' : ''),
-			getReadingsForUnit: unitIndex =>
-				unitIndex === 1
+			getBaseTextForVariationUnit: unitId =>
+				unitId === `unit:${alignmentColumns[1].id}` ? 'θεος' : '',
+			getReadingsForUnit: unitId =>
+				unitId === `unit:${alignmentColumns[1].id}`
 					? [
 							{
 								id: 'r-a',
@@ -357,10 +358,14 @@ describe('buildCollationProjection', () => {
 			witnesses,
 			alignmentColumns,
 			getBaseWitnessId: () => 'A',
-			getBaseTextForVariationUnit: unitIndex =>
-				unitIndex === 1 ? 'ο' : unitIndex === 2 ? 'λογος' : '',
-			getReadingsForUnit: unitIndex =>
-				unitIndex === 1
+			getBaseTextForVariationUnit: unitId =>
+				unitId === `unit:${alignmentColumns[1].id}`
+					? 'ο'
+					: unitId === `unit:${alignmentColumns[2].id}`
+						? 'λογος'
+						: '',
+			getReadingsForUnit: unitId =>
+				unitId === `unit:${alignmentColumns[1].id}`
 					? [
 							{
 								id: 'r-a',
@@ -397,7 +402,7 @@ describe('buildCollationProjection', () => {
 								derivedFromRuleIds: [],
 							},
 						]
-					: unitIndex === 2
+					: unitId === `unit:${alignmentColumns[2].id}`
 						? [
 								{
 									id: 'r-c',

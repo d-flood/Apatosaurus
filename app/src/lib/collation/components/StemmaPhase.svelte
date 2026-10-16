@@ -7,7 +7,7 @@
 
 	/** Refusal sits with its control; `seq` re-announces repeats. */
 	let refusal = $state<{
-		unitIndex: number;
+		unitId: string | null;
 		readingId: string;
 		message: string;
 		seq: number;
@@ -16,19 +16,21 @@
 
 	let unitSpans = $derived(collationState.getVariationUnitSpans());
 	let selectedSpan = $derived(
-		unitSpans.find(span => span.startIndex === collationState.selectedUnitIndex) ??
+		unitSpans.find(span => span.unitId === collationState.selectedUnitId) ??
 			unitSpans[0] ??
 			null
 	);
 
 	$effect(() => {
 		if (selectedSpan) {
-			collationState.primeReadingsForUnit(selectedSpan.startIndex);
+			collationState.primeReadingsForUnit(selectedSpan.unitId);
 		}
 	});
 
-	let stemma = $derived(collationState.getLocalStemma(collationState.selectedUnitIndex));
-	let connectivity = $derived(collationState.getConnectivity(collationState.selectedUnitIndex));
+	let stemma = $derived(collationState.getLocalStemma(collationState.selectedUnitId ?? ''));
+	let connectivity = $derived(
+		collationState.getConnectivity(collationState.selectedUnitId ?? '')
+	);
 	let layout = $derived(layoutLocalStemma(stemma.nodes));
 	let nodeById = $derived(new Map(stemma.nodes.map(node => [node.readingId, node] as const)));
 	let labelById = $derived(new Map(stemma.nodes.map(node => [node.readingId, node.label])));
@@ -50,7 +52,7 @@
 	let liveMessage = $state('');
 	let liveMessageSeq = $state(0);
 	let connectivityRefusal = $state<{
-		unitIndex: number;
+		unitId: string | null;
 		message: string;
 		seq: number;
 	} | null>(null);
@@ -125,7 +127,7 @@
 		const message = REFUSALS[error] ?? 'That source was refused.';
 		refusalCount += 1;
 		refusal = {
-			unitIndex: collationState.selectedUnitIndex,
+			unitId: collationState.selectedUnitId,
 			readingId: node.readingId,
 			message,
 			seq: refusalCount,
@@ -135,7 +137,7 @@
 
 	function setSourceDecision(node: StemmaTreeNode, decision: SourceDecision): string | null {
 		const result = collationState.setReadingSource(
-			collationState.selectedUnitIndex,
+			collationState.selectedUnitId ?? '',
 			node.readingId,
 			decision
 		);
@@ -147,14 +149,14 @@
 	}
 
 	function setConnectivity(value: number | 'absolute') {
-		const result = collationState.setConnectivity(collationState.selectedUnitIndex, value);
+		const result = collationState.setConnectivity(collationState.selectedUnitId ?? '', value);
 		if (result.ok) {
 			connectivityRefusal = null;
 			return;
 		}
 		connectivityRefusalCount += 1;
 		connectivityRefusal = {
-			unitIndex: collationState.selectedUnitIndex,
+			unitId: collationState.selectedUnitId,
 			message:
 				result.error === 'invalid-connectivity'
 					? 'Connectivity must be a positive whole number. No change was made.'
@@ -168,7 +170,7 @@
 	}
 
 	function rerootOnLemma() {
-		const result = collationState.rerootStemmaOnLemma(collationState.selectedUnitIndex);
+		const result = collationState.rerootStemmaOnLemma(collationState.selectedUnitId ?? '');
 		if (!result.ok) {
 			announce('The stemma could not be rerooted on the lemma.');
 			return;
@@ -186,7 +188,7 @@
 	function refusalFor(node: StemmaTreeNode) {
 		if (!refusal) return null;
 		if (refusal.readingId !== node.readingId) return null;
-		return refusal.unitIndex === collationState.selectedUnitIndex ? refusal : null;
+		return refusal.unitId === collationState.selectedUnitId ? refusal : null;
 	}
 
 	function readingSummary(node: StemmaTreeNode): string {
@@ -498,12 +500,12 @@
 		document.removeEventListener('keydown', handleKeydown);
 	});
 
-	function getSpanLabel(startIndex: number): number | null {
-		const index = unitSpans.findIndex(span => span.startIndex === startIndex);
+	function getSpanLabel(unitId: string): number | null {
+		const index = unitSpans.findIndex(span => span.unitId === unitId);
 		return index === -1 ? null : index + 1;
 	}
 
-	let selectedUnitLabel = $derived(selectedSpan ? getSpanLabel(selectedSpan.startIndex) : null);
+	let selectedUnitLabel = $derived(selectedSpan ? getSpanLabel(selectedSpan.unitId) : null);
 </script>
 
 <div class="flex flex-col h-full">
@@ -590,7 +592,7 @@
 				aria-live="polite"
 				>Connectivity: {connectivity === 'absolute' ? 'Absolute' : connectivity}</output
 			>
-			{#if connectivityRefusal && connectivityRefusal.unitIndex === collationState.selectedUnitIndex}
+			{#if connectivityRefusal && connectivityRefusal.unitId === collationState.selectedUnitId}
 				{#key connectivityRefusal.seq}
 					<p class="text-xs text-error" role="alert">{connectivityRefusal.message}</p>
 				{/key}
@@ -599,17 +601,17 @@
 
 		<div class="overflow-x-auto rounded-box border border-base-300/50 bg-base-100">
 			<div class="flex">
-				{#each unitSpans as span (span.startIndex)}
-					{@const isSelected = collationState.selectedUnitIndex === span.startIndex}
+				{#each unitSpans as span (span.unitId)}
+					{@const isSelected = collationState.selectedUnitId === span.unitId}
 					<button
 						type="button"
 						aria-current={isSelected ? 'true' : undefined}
 						class="shrink-0 border-r border-base-300/40 px-3 py-2 text-center text-xs font-mono transition-all duration-100 min-w-22 {isSelected
 							? 'bg-primary text-primary-content font-bold underline underline-offset-4'
 							: 'bg-base-200 text-base-content/60'}"
-						onclick={() => (collationState.selectedUnitIndex = span.startIndex)}
+						onclick={() => (collationState.selectedUnitId = span.unitId)}
 					>
-						<div class="font-semibold">VU {getSpanLabel(span.startIndex)}</div>
+						<div class="font-semibold">VU {getSpanLabel(span.unitId)}</div>
 						<div class="mt-0.5 text-[10px] opacity-75">
 							{span.startIndex + 1}-{span.endIndex + 1}
 						</div>
@@ -876,7 +878,7 @@
 					{liveMessage}
 				{/key}
 			</div>
-			{#if refusal && refusal.unitIndex === collationState.selectedUnitIndex}
+			{#if refusal && refusal.unitId === collationState.selectedUnitId}
 				{#key refusal.seq}
 					<div class="alert alert-error mt-2 py-2 text-xs" role="alert">
 						{refusal.message}

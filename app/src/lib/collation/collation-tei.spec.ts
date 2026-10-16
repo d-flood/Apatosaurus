@@ -128,10 +128,10 @@ function exportInput(): ApparatusTeiExportInput {
 		if (segment.kind !== 'unit') continue;
 		const unitId = segment.span.unitId;
 		units.set(unitId, {
-			view: collationState.peekUnitView(segment.span.startIndex),
-			nonAttestation: collationState.getNonAttestationForUnit(segment.span.startIndex),
-			stemma: collationState.getLocalStemma(segment.span.startIndex),
-			connectivity: collationState.getConnectivity(segment.span.startIndex),
+			view: collationState.peekUnitView(segment.span.unitId),
+			nonAttestation: collationState.getNonAttestationForUnit(segment.span.unitId),
+			stemma: collationState.getLocalStemma(segment.span.unitId),
+			connectivity: collationState.getConnectivity(segment.span.unitId),
 			recordedReadingTypeIds: Object.keys(
 				collationState.unitDecisions.get(unitId)?.readingType ?? {}
 			),
@@ -149,14 +149,31 @@ function exportInput(): ApparatusTeiExportInput {
 }
 
 function settleSources() {
-	const readings = collationState.peekReadingsForUnit(1);
+	const readings = collationState.peekReadingsForUnit(
+		`unit:${collationState.alignmentColumns[1].id}`
+	);
 	const alpha = readings.find(reading => reading.text === 'alpha')!;
 	const beta = readings.find(reading => reading.text === 'beta')!;
 	const omission = readings.find(reading => reading.isOmission)!;
-	collationState.setReadingType(1, beta.id, 'apparent');
-	collationState.setReadingCertainty(1, beta.id, 'low');
-	collationState.setReadingParent(1, beta.id, alpha.id);
-	collationState.setReadingSource(1, omission.id, { kind: 'derived', from: alpha.id });
+	collationState.setReadingType(
+		`unit:${collationState.alignmentColumns[1].id}`,
+		beta.id,
+		'apparent'
+	);
+	collationState.setReadingCertainty(
+		`unit:${collationState.alignmentColumns[1].id}`,
+		beta.id,
+		'low'
+	);
+	collationState.setReadingParent(
+		`unit:${collationState.alignmentColumns[1].id}`,
+		beta.id,
+		alpha.id
+	);
+	collationState.setReadingSource(`unit:${collationState.alignmentColumns[1].id}`, omission.id, {
+		kind: 'derived',
+		from: alpha.id,
+	});
 }
 
 function parse(xml: string): XmlDocument {
@@ -194,13 +211,29 @@ function reconstructWitness(document: XmlDocument, witnessId: string): string {
 
 describe('apparatus TEI exporter', () => {
 	it('lists and cites manual witnesses on authored text and omission readings in valid P5', async () => {
-		const textId = collationState.addAuthoredReading(1, 'versional text')!;
-		const omissionId = collationState.addAuthoredReading(1, '', true)!;
-		await collationState.attachManualWitness(1, textId, 'Father & version');
-		await collationState.attachManualWitness(1, omissionId, 'Syriac');
+		const textId = collationState.addAuthoredReading(
+			`unit:${collationState.alignmentColumns[1].id}`,
+			'versional text'
+		)!;
+		const omissionId = collationState.addAuthoredReading(
+			`unit:${collationState.alignmentColumns[1].id}`,
+			'',
+			true
+		)!;
 		await collationState.attachManualWitness(
-			1,
-			collationState.peekReadingsForUnit(1)[0].id,
+			`unit:${collationState.alignmentColumns[1].id}`,
+			textId,
+			'Father & version'
+		);
+		await collationState.attachManualWitness(
+			`unit:${collationState.alignmentColumns[1].id}`,
+			omissionId,
+			'Syriac'
+		);
+		await collationState.attachManualWitness(
+			`unit:${collationState.alignmentColumns[1].id}`,
+			collationState.peekReadingsForUnit(`unit:${collationState.alignmentColumns[1].id}`)[0]
+				.id,
 			'Latin'
 		);
 		const manual = collationState.getManualWitnesses();
@@ -234,12 +267,26 @@ describe('apparatus TEI exporter', () => {
 	}, 60_000);
 
 	it('declares tags once and references them on main and subreadings in valid P5', async () => {
-		const readings = collationState.peekReadingsForUnit(1);
+		const readings = collationState.peekReadingsForUnit(
+			`unit:${collationState.alignmentColumns[1].id}`
+		);
 		const alpha = readings.find(reading => reading.text === 'alpha')!;
 		const beta = readings.find(reading => reading.text === 'beta')!;
-		await collationState.addReadingTag(1, alpha.id, 'Nomen sacrum');
-		await collationState.addReadingTag(1, alpha.id, 'Abbreviation & contraction');
-		await collationState.addReadingTag(1, beta.id, 'nomen SACRUM');
+		await collationState.addReadingTag(
+			`unit:${collationState.alignmentColumns[1].id}`,
+			alpha.id,
+			'Nomen sacrum'
+		);
+		await collationState.addReadingTag(
+			`unit:${collationState.alignmentColumns[1].id}`,
+			alpha.id,
+			'Abbreviation & contraction'
+		);
+		await collationState.addReadingTag(
+			`unit:${collationState.alignmentColumns[1].id}`,
+			beta.id,
+			'nomen SACRUM'
+		);
 		const input = exportInput();
 		const xml = exportApparatusTei(input);
 		const document = parse(xml);
@@ -343,12 +390,20 @@ describe('apparatus TEI exporter', () => {
 	}, 60_000);
 
 	it('adds basetext to the lemma only when the base text actually attests it', () => {
-		const readings = collationState.peekReadingsForUnit(1);
+		const readings = collationState.peekReadingsForUnit(
+			`unit:${collationState.alignmentColumns[1].id}`
+		);
 		const alpha = readings.find(reading => reading.text === 'alpha')!;
 		const beta = readings.find(reading => reading.text === 'beta')!;
-		collationState.setReadingParent(1, beta.id, null);
-		collationState.setLemmaReading(1, beta.id);
-		collationState.setReadingSource(1, alpha.id, { kind: 'unclear' });
+		collationState.setReadingParent(
+			`unit:${collationState.alignmentColumns[1].id}`,
+			beta.id,
+			null
+		);
+		collationState.setLemmaReading(`unit:${collationState.alignmentColumns[1].id}`, beta.id);
+		collationState.setReadingSource(`unit:${collationState.alignmentColumns[1].id}`, alpha.id, {
+			kind: 'unclear',
+		});
 
 		const lemmaWitnesses = parse(exportApparatusTei(exportInput()))
 			.getElementsByTagName('lem')[0]!
@@ -377,10 +432,18 @@ describe('apparatus TEI exporter', () => {
 	});
 
 	it('exports undecided sources without arcs while preserving derived arcs as valid TEI P5', () => {
-		const readings = collationState.peekReadingsForUnit(1);
+		const readings = collationState.peekReadingsForUnit(
+			`unit:${collationState.alignmentColumns[1].id}`
+		);
 		const beta = readings.find(reading => reading.text === 'beta')!;
-		collationState.setReadingParent(1, beta.id, null);
-		collationState.setReadingSource(1, beta.id, { kind: 'undecided' });
+		collationState.setReadingParent(
+			`unit:${collationState.alignmentColumns[1].id}`,
+			beta.id,
+			null
+		);
+		collationState.setReadingSource(`unit:${collationState.alignmentColumns[1].id}`, beta.id, {
+			kind: 'undecided',
+		});
 		const input = exportInput();
 
 		expect(getApparatusExportRefusals(input)).toEqual([]);
@@ -406,7 +469,9 @@ describe('apparatus TEI exporter', () => {
 	}, 60_000);
 
 	it('refuses unresolved attestations once per unit until every witness is resolved', () => {
-		const readings = collationState.getReadingsForUnit(1);
+		const readings = collationState.getReadingsForUnit(
+			`unit:${collationState.alignmentColumns[1].id}`
+		);
 		const alpha = readings.find(reading => reading.text === 'alpha')!;
 		const beta = readings.find(reading => reading.text === 'beta')!;
 		const key = 'unit:variant';
@@ -429,9 +494,17 @@ describe('apparatus TEI exporter', () => {
 		expect(() => exportApparatusTei(exportInput())).toThrow(
 			'has unresolved attestations (B, D)'
 		);
-		collationState.resolveAttestation(1, 'B', beta.id);
+		collationState.resolveAttestation(
+			`unit:${collationState.alignmentColumns[1].id}`,
+			'B',
+			beta.id
+		);
 		expect(getApparatusExportRefusals(exportInput())).toHaveLength(1);
-		collationState.resolveAttestation(1, 'D', alpha.id);
+		collationState.resolveAttestation(
+			`unit:${collationState.alignmentColumns[1].id}`,
+			'D',
+			alpha.id
+		);
 		expect(getApparatusExportRefusals(exportInput())).toEqual([]);
 		expect(() => exportApparatusTei(exportInput())).not.toThrow();
 	});
@@ -522,14 +595,27 @@ describe('apparatus TEI exporter', () => {
 				),
 			})),
 		});
-		const split = collationState.splitWitnessesIntoNewReading(1, ['C']);
+		const split = collationState.splitWitnessesIntoNewReading(
+			`unit:${collationState.alignmentColumns[1].id}`,
+			['C']
+		);
 		if (!split.ok) throw new Error(split.error);
-		collationState.setReadingType(1, split.readingId, 'apparent');
-		const readings = collationState.peekReadingsForUnit(1);
+		collationState.setReadingType(
+			`unit:${collationState.alignmentColumns[1].id}`,
+			split.readingId,
+			'apparent'
+		);
+		const readings = collationState.peekReadingsForUnit(
+			`unit:${collationState.alignmentColumns[1].id}`
+		);
 		const alpha = readings.find(reading => reading.text === 'alpha')!;
 		for (const reading of readings) {
 			if (reading.id !== alpha.id)
-				collationState.setReadingSource(1, reading.id, { kind: 'derived', from: alpha.id });
+				collationState.setReadingSource(
+					`unit:${collationState.alignmentColumns[1].id}`,
+					reading.id,
+					{ kind: 'derived', from: alpha.id }
+				);
 		}
 
 		const xml = exportApparatusTei(exportInput());
@@ -573,14 +659,24 @@ describe('apparatus TEI exporter', () => {
 				),
 			})),
 		});
-		const readings = collationState.peekReadingsForUnit(1);
+		const readings = collationState.peekReadingsForUnit(
+			`unit:${collationState.alignmentColumns[1].id}`
+		);
 		const alpha = readings.find(reading => reading.text === 'alpha')!;
 		const beta = readings.find(reading => reading.text === 'beta')!;
 		for (const reading of readings) {
 			if (reading.id !== alpha.id)
-				collationState.setReadingSource(1, reading.id, { kind: 'derived', from: alpha.id });
+				collationState.setReadingSource(
+					`unit:${collationState.alignmentColumns[1].id}`,
+					reading.id,
+					{ kind: 'derived', from: alpha.id }
+				);
 		}
-		const recorded = collationState.recordAmbiguousAttestation(1, ['C'], [beta.id, alpha.id]);
+		const recorded = collationState.recordAmbiguousAttestation(
+			`unit:${collationState.alignmentColumns[1].id}`,
+			['C'],
+			[beta.id, alpha.id]
+		);
 		if (!recorded.ok) throw new Error(recorded.error);
 
 		const xml = exportApparatusTei(exportInput());

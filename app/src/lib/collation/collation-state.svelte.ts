@@ -252,8 +252,8 @@ function createCollationState() {
 	let alignmentDisplayMode = $state<AlignmentDisplayMode>('regularized');
 	let alignmentLayout = $state<AlignmentLayout>('grid');
 
-	let selectedUnitIndex = $state<number>(0);
-	const effectiveSelectedUnitIndex = $derived(normalizeVariationUnitIndex(selectedUnitIndex));
+	let selectedUnitId = $state<string | null>(null);
+	const effectiveSelectedUnitId = $derived(normalizeVariationUnitId(selectedUnitId));
 	let classifiedReadings = $state<Map<string, ClassifiedReading[]>>(new Map());
 	let unitDecisions = $state<Map<string, UnitDecisions>>(new Map());
 	let readingArcs = $state<Map<string, ReadingArc[]>>(new Map());
@@ -293,7 +293,7 @@ function createCollationState() {
 		alignmentColumns = deserializeAlignmentColumns(hydrated.alignmentColumns);
 		declaredUnits = validDeclaredUnits(alignmentColumns, hydrated.declaredUnits);
 		witnessOrder = hydrated.witnessOrder;
-		selectedUnitIndex = normalizeVariationUnitIndex(0);
+		selectedUnitId = normalizeVariationUnitId(null);
 		classifiedReadings = new Map(hydrated.classifiedReadings);
 		unitDecisions = new Map(hydrated.unitDecisions);
 		readingArcs = new Map(hydrated.readingArcs);
@@ -1339,7 +1339,7 @@ function createCollationState() {
 		placeChangedWitnesses(previousActive);
 		declaredUnits = validDeclaredUnits(alignmentColumns, declaredUnits);
 		lastAlignmentInputSignature = buildAlignmentInputSignature();
-		selectedUnitIndex = normalizeVariationUnitIndex(selectedUnitIndex);
+		selectedUnitId = normalizeVariationUnitId(selectedUnitId);
 	}
 
 	function regularizedAuthoredText(text: string | null): string | null {
@@ -1662,7 +1662,7 @@ function createCollationState() {
 			decisions.unresolvedAttestations = decisions.unresolvedAttestations?.filter(
 				attestation => attestation.witnessId !== witnessId
 			);
-			const sourceView = peekUnitView(span.startIndex);
+			const sourceView = peekUnitView(span.unitId);
 			const testifies =
 				sourceView.readings.some(reading => reading.witnessIds.includes(source.id)) ||
 				sourceView.ambiguousAttestations.some(attestation =>
@@ -1730,7 +1730,7 @@ function createCollationState() {
 			[...classifiedReadings].filter(([key]) => liveUnitIds.has(key))
 		);
 		lastAlignmentInputSignature = buildAlignmentInputSignature();
-		selectedUnitIndex = normalizeVariationUnitIndex(selectedUnitIndex);
+		selectedUnitId = normalizeVariationUnitId(selectedUnitId);
 		advanceFurthest('alignment');
 		markUnsaved();
 	}
@@ -1954,45 +1954,53 @@ function createCollationState() {
 		});
 	}
 
-	function getVariationUnitSpan(unitIndex: number): VariationUnitSpan | null {
+	function getVariationUnitSpan(unitId: string): VariationUnitSpan | null {
 		const spans = getVariationUnitSpans();
-		if (spans.length === 0) {
-			if (unitIndex < 0 || unitIndex >= alignmentColumns.length) return null;
-			const column = alignmentColumns[unitIndex];
-			if (!column) return null;
-			return {
-				startIndex: unitIndex,
-				endIndex: unitIndex,
-				unitId: variationUnitId(column.id),
-				columnIds: [column.id],
-			};
-		}
+		if (spans.length > 0) return spans.find(span => span.unitId === unitId) ?? null;
+		const index = alignmentColumns.findIndex(column => variationUnitId(column.id) === unitId);
+		if (index < 0) return null;
+		return {
+			unitId,
+			startIndex: index,
+			endIndex: index,
+			columnIds: [alignmentColumns[index].id],
+		};
+	}
+
+	function normalizeVariationUnitId(unitId: string | null): string | null {
+		const spans = getVariationUnitSpans();
+		if (unitId && spans.some(span => span.unitId === unitId)) return unitId;
+		const columnIndex = alignmentColumns.findIndex(
+			column => variationUnitId(column.id) === unitId
+		);
+		if (columnIndex < 0) return spans[0]?.unitId ?? null;
 		return (
-			spans.find(span => span.startIndex === unitIndex) ??
-			spans.find(span => unitIndex >= span.startIndex && unitIndex <= span.endIndex) ??
-			spans[0] ??
-			null
+			spans.reduce<VariationUnitSpan | null>((nearest, span) => {
+				const distance = (candidate: VariationUnitSpan) =>
+					Math.max(
+						candidate.startIndex - columnIndex,
+						columnIndex - candidate.endIndex,
+						0
+					);
+				return !nearest || distance(span) < distance(nearest) ? span : nearest;
+			}, null)?.unitId ?? null
 		);
 	}
 
-	function normalizeVariationUnitIndex(unitIndex: number): number {
-		return getVariationUnitSpan(unitIndex)?.startIndex ?? 0;
-	}
-
-	function getColumnsForUnit(unitIndex: number): AlignmentColumn[] {
-		const span = getVariationUnitSpan(unitIndex);
+	function getColumnsForUnit(unitId: string): AlignmentColumn[] {
+		const span = getVariationUnitSpan(unitId);
 		if (!span) return [];
 		return alignmentColumns.slice(span.startIndex, span.endIndex + 1);
 	}
 
-	function getCellsForUnit(unitIndex: number, witnessId: string): AlignmentCell[] {
-		return getColumnsForUnit(unitIndex)
+	function getCellsForUnit(unitId: string, witnessId: string): AlignmentCell[] {
+		return getColumnsForUnit(unitId)
 			.map(column => column.cells.get(witnessId))
 			.filter((cell): cell is AlignmentCell => Boolean(cell));
 	}
 
-	function getReadingUnitKey(unitIndex: number): string | null {
-		return getVariationUnitSpan(unitIndex)?.unitId ?? null;
+	function getReadingUnitKey(unitId: string): string | null {
+		return getVariationUnitSpan(unitId)?.unitId ?? null;
 	}
 
 	function joinCellsText(cells: AlignmentCell[], mode: 'original' | 'normalized'): string | null {
@@ -2012,10 +2020,10 @@ function createCollationState() {
 		return value.length > 0 ? value : null;
 	}
 
-	function getBaseTextForVariationUnit(unitIndex: number): string {
+	function getBaseTextForVariationUnit(unitId: string): string {
 		const baseWitnessId = getBaseWitnessId();
 		if (!baseWitnessId) return '';
-		return joinCellsText(getCellsForUnit(unitIndex, baseWitnessId), 'original') ?? '';
+		return joinCellsText(getCellsForUnit(unitId, baseWitnessId), 'original') ?? '';
 	}
 
 	function getSourceWitnessIdsForColumns(columns: AlignmentColumn[]): string[] {
@@ -2033,10 +2041,10 @@ function createCollationState() {
 		return collected;
 	}
 
-	function buildProposalForUnit(unitIndex: number) {
-		const span = getVariationUnitSpan(unitIndex);
+	function buildProposalForUnit(unitId: string) {
+		const span = getVariationUnitSpan(unitId);
 		if (!span) return null;
-		const columns = getColumnsForUnit(span.startIndex);
+		const columns = getColumnsForUnit(span.unitId);
 		return buildReadingProposal({
 			columns,
 			spanColumnIds: span.columnIds,
@@ -2045,12 +2053,12 @@ function createCollationState() {
 		});
 	}
 
-	function buildReadingsForUnit(unitIndex: number): ClassifiedReading[] {
-		return buildProposalForUnit(unitIndex)?.readings ?? [];
+	function buildReadingsForUnit(unitId: string): ClassifiedReading[] {
+		return buildProposalForUnit(unitId)?.readings ?? [];
 	}
 
-	function getNonAttestationForUnit(unitIndex: number): NonAttestation {
-		const nonAttestation = buildProposalForUnit(unitIndex)?.nonAttestation ?? {
+	function getNonAttestationForUnit(unitId: string): NonAttestation {
+		const nonAttestation = buildProposalForUnit(unitId)?.nonAttestation ?? {
 			witnessIds: [],
 			untranscribedWitnessIds: [],
 		};
@@ -2058,7 +2066,7 @@ function createCollationState() {
 			...nonAttestation,
 			witnessIds: [
 				...nonAttestation.witnessIds,
-				...peekUnitView(unitIndex).nonAttestingManualWitnessIds,
+				...peekUnitView(unitId).nonAttestingManualWitnessIds,
 			],
 		};
 	}
@@ -2085,36 +2093,34 @@ function createCollationState() {
 		});
 	}
 
-	function ensureReadingsForUnit(unitIndex: number): ClassifiedReading[] {
-		const key = getReadingUnitKey(unitIndex);
+	function ensureReadingsForUnit(unitId: string): ClassifiedReading[] {
+		const key = getReadingUnitKey(unitId);
 		if (!key) return [];
 		const existing = classifiedReadings.get(key);
 		if (existing) return viewUnit(key, existing).readings;
-		const built = buildReadingsForUnit(unitIndex);
+		const built = buildReadingsForUnit(unitId);
 		classifiedReadings = new Map(classifiedReadings).set(key, built);
 		return viewUnit(key, built).readings;
 	}
 
-	function peekUnitView(unitIndex: number): UnitView {
-		const key = getReadingUnitKey(unitIndex);
+	function peekUnitView(unitId: string): UnitView {
+		const key = getReadingUnitKey(unitId);
 		if (!key) return EMPTY_UNIT_VIEW;
-		return viewUnit(key, classifiedReadings.get(key) ?? buildReadingsForUnit(unitIndex));
+		return viewUnit(key, classifiedReadings.get(key) ?? buildReadingsForUnit(unitId));
 	}
 
-	function peekReadingsForUnit(unitIndex: number): ClassifiedReading[] {
-		return peekUnitView(unitIndex).readings;
+	function peekReadingsForUnit(unitId: string): ClassifiedReading[] {
+		return peekUnitView(unitId).readings;
 	}
 
-	function getOrphanedDecisionsForUnit(unitIndex: number): OrphanedDecision[] {
-		const arcOrphans: OrphanedDecision[] = getLocalStemma(unitIndex).orphanedArcs.map(
-			orphan => ({
-				kind: 'sourceArc',
-				readingId: orphan.arc.posteriorReadingId,
-				priorReadingId: orphan.arc.priorReadingId,
-				missingReadingIds: orphan.missingReadingIds,
-			})
-		);
-		return [...peekUnitView(unitIndex).orphanedDecisions, ...arcOrphans];
+	function getOrphanedDecisionsForUnit(unitId: string): OrphanedDecision[] {
+		const arcOrphans: OrphanedDecision[] = getLocalStemma(unitId).orphanedArcs.map(orphan => ({
+			kind: 'sourceArc',
+			readingId: orphan.arc.posteriorReadingId,
+			priorReadingId: orphan.arc.priorReadingId,
+			missingReadingIds: orphan.missingReadingIds,
+		}));
+		return [...peekUnitView(unitId).orphanedDecisions, ...arcOrphans];
 	}
 
 	function getOrphanedUnitDecisions() {
@@ -2122,9 +2128,9 @@ function createCollationState() {
 		return findOrphanedUnitDecisions(unitDecisions, liveUnitIds, readingArcs);
 	}
 
-	function getReadingFamiliesForUnit(unitIndex: number): ReadingFamilyView[] {
+	function getReadingFamiliesForUnit(unitId: string): ReadingFamilyView[] {
 		// Already lemma-first; re-sorting would discard the lemma.
-		const readings = peekReadingsForUnit(unitIndex);
+		const readings = peekReadingsForUnit(unitId);
 		const mainReadingIdOf = makeMainReadingIdOf(readings);
 		const primaries = readings.filter(reading => reading.parentReadingId === null);
 		return primaries.map(parent => {
@@ -2143,18 +2149,18 @@ function createCollationState() {
 	}
 
 	function getDisplayedWitnessIdsForReading(
-		unitIndex: number,
+		unitId: string,
 		readingId: string,
 		displayMode: AlignmentDisplayMode
 	): string[] {
-		const readings = peekReadingsForUnit(unitIndex);
+		const readings = peekReadingsForUnit(unitId);
 		const reading = readings.find(entry => entry.id === readingId);
 		if (!reading) return [];
 		if (displayMode !== 'regularized' || reading.parentReadingId !== null) {
 			return [...reading.witnessIds, ...(reading.manualWitnessIds ?? [])];
 		}
 
-		const family = getReadingFamiliesForUnit(unitIndex).find(
+		const family = getReadingFamiliesForUnit(unitId).find(
 			entry => entry.parent.id === readingId
 		);
 		if (!family) return [...reading.witnessIds, ...(reading.manualWitnessIds ?? [])];
@@ -2171,10 +2177,10 @@ function createCollationState() {
 		return witnessIds;
 	}
 
-	function getReadingDisplayValuesForUnit(unitIndex: number): Map<string, ReadingDisplayValue> {
-		const span = getVariationUnitSpan(unitIndex);
+	function getReadingDisplayValuesForUnit(unitId: string): Map<string, ReadingDisplayValue> {
+		const span = getVariationUnitSpan(unitId);
 		if (!span) return new Map();
-		const columns = getColumnsForUnit(span.startIndex);
+		const columns = getColumnsForUnit(span.unitId);
 		const sourceWitnessIds = getSourceWitnessIdsForColumns(columns);
 		const groups = buildReadingFamilyGroups({
 			entries: sourceWitnessIds.map(witnessId => ({
@@ -2201,16 +2207,16 @@ function createCollationState() {
 		return displayValues;
 	}
 
-	function getReadingsForUnit(unitIndex: number): ClassifiedReading[] {
-		return ensureReadingsForUnit(unitIndex);
+	function getReadingsForUnit(unitId: string): ClassifiedReading[] {
+		return ensureReadingsForUnit(unitId);
 	}
 
-	function primeReadingsForUnit(unitIndex: number): void {
-		void ensureReadingsForUnit(unitIndex);
+	function primeReadingsForUnit(unitId: string): void {
+		void ensureReadingsForUnit(unitId);
 	}
 
-	function setReadingsForUnit(unitIndex: number, readings: ClassifiedReading[]) {
-		const key = getReadingUnitKey(unitIndex);
+	function setReadingsForUnit(unitId: string, readings: ClassifiedReading[]) {
+		const key = getReadingUnitKey(unitId);
 		if (!key) return;
 		const stored = classifiedReadings.get(key) ?? [];
 		const proposalById = new Map(stored.map(reading => [reading.id, reading] as const));
@@ -2302,17 +2308,17 @@ function createCollationState() {
 
 	/** One gesture, one unit, one undo entry; merge carries its attachment. */
 	function commitReadingsForUnit(
-		unitIndex: number,
+		unitId: string,
 		readings: ClassifiedReading[],
 		command: { type: string; description: string },
 		decisions?: UnitDecisions
 	) {
-		const key = getReadingUnitKey(unitIndex);
+		const key = getReadingUnitKey(unitId);
 		if (!key) return;
 		const previousReadings = classifiedReadings.get(key);
 		const previousDecisions = unitDecisions.get(key);
 		if (decisions) unitDecisions = new Map(unitDecisions).set(key, decisions);
-		setReadingsForUnit(unitIndex, readings);
+		setReadingsForUnit(unitId, readings);
 		const updatedReadings = classifiedReadings.get(key);
 		const updatedDecisions = unitDecisions.get(key);
 		pushCommand({
@@ -2322,8 +2328,8 @@ function createCollationState() {
 		});
 	}
 
-	function confirmUnitAttestations(unitIndex: number): void {
-		const key = getReadingUnitKey(unitIndex);
+	function confirmUnitAttestations(unitId: string): void {
+		const key = getReadingUnitKey(unitId);
 		if (!key || !unitDecisions.get(key)?.unconfirmedWitnessIds?.length) return;
 		const previous = new Map(unitDecisions);
 		const next = cloneUnitDecisions(previous.get(key));
@@ -2343,11 +2349,11 @@ function createCollationState() {
 	}
 
 	function resolveAttestation(
-		unitIndex: number,
+		unitId: string,
 		witnessId: string,
 		readingId: string
 	): { ok: true } | { ok: false; error: 'attestation-not-found' | 'reading-not-found' } {
-		const key = getReadingUnitKey(unitIndex);
+		const key = getReadingUnitKey(unitId);
 		const decisions = key ? unitDecisions.get(key) : undefined;
 		if (
 			!key ||
@@ -2355,10 +2361,10 @@ function createCollationState() {
 		) {
 			return { ok: false, error: 'attestation-not-found' };
 		}
-		if (!peekReadingsForUnit(unitIndex).some(reading => reading.id === readingId)) {
+		if (!peekReadingsForUnit(unitId).some(reading => reading.id === readingId)) {
 			return { ok: false, error: 'reading-not-found' };
 		}
-		const readings = peekReadingsForUnit(unitIndex);
+		const readings = peekReadingsForUnit(unitId);
 		const updated = readings.map(reading => ({
 			...reading,
 			witnessIds:
@@ -2372,7 +2378,7 @@ function createCollationState() {
 		);
 		if (next.unresolvedAttestations.length === 0) delete next.unresolvedAttestations;
 		commitReadingsForUnit(
-			unitIndex,
+			unitId,
 			updated,
 			{
 				type: 'resolve-attestation',
@@ -2384,14 +2390,14 @@ function createCollationState() {
 	}
 
 	function moveWitnessesToReading(
-		unitIndex: number,
+		unitId: string,
 		witnessIds: string[],
 		targetReadingId: string
 	): MoveWitnessesResult {
-		const edit = moveWitnesses(ensureReadingsForUnit(unitIndex), witnessIds, targetReadingId);
+		const edit = moveWitnesses(ensureReadingsForUnit(unitId), witnessIds, targetReadingId);
 		if (!edit.ok) return edit;
 		if (edit.moving.length > 0) {
-			commitReadingsForUnit(unitIndex, edit.readings, {
+			commitReadingsForUnit(unitId, edit.readings, {
 				type: 'move-witnesses-to-reading',
 				description: `Move ${countLabel(edit.moving.length, 'witness')} to a reading`,
 			});
@@ -2400,17 +2406,17 @@ function createCollationState() {
 	}
 
 	function splitWitnessesIntoNewReading(
-		unitIndex: number,
+		unitId: string,
 		witnessIds: string[],
 		options?: { subreadingOf?: string }
 	): SplitWitnessesResult {
 		const edit = splitWitnesses(
-			ensureReadingsForUnit(unitIndex),
+			ensureReadingsForUnit(unitId),
 			witnessIds,
 			options?.subreadingOf ?? null
 		);
 		if (!edit.ok) return edit;
-		commitReadingsForUnit(unitIndex, edit.readings, {
+		commitReadingsForUnit(unitId, edit.readings, {
 			type: 'split-witnesses-into-reading',
 			description: `Split ${countLabel(edit.selected.length, 'witness')} into a new reading`,
 		});
@@ -2418,20 +2424,20 @@ function createCollationState() {
 	}
 
 	function mergeReadings(
-		unitIndex: number,
+		unitId: string,
 		sourceReadingIds: string[],
 		targetReadingId: string
 	): MergeReadingsResult {
-		const key = getReadingUnitKey(unitIndex);
+		const key = getReadingUnitKey(unitId);
 		if (!key) return { ok: false, error: 'reading-not-found' };
 		const edit = mergeReadingsInto(
-			ensureReadingsForUnit(unitIndex),
+			ensureReadingsForUnit(unitId),
 			sourceReadingIds,
 			targetReadingId
 		);
 		if (!edit.ok) return edit;
 		commitReadingsForUnit(
-			unitIndex,
+			unitId,
 			edit.readings,
 			{
 				type: 'merge-readings',
@@ -2443,15 +2449,15 @@ function createCollationState() {
 	}
 
 	function setReadingParent(
-		unitIndex: number,
+		unitId: string,
 		readingId: string,
 		parentReadingId: string | null,
 		readingType?: ReadingTypeId
 	): { ok: true } | { ok: false; error: 'reading-not-found' | 'self-attachment' | 'cycle' } {
-		const key = getReadingUnitKey(unitIndex);
+		const key = getReadingUnitKey(unitId);
 		if (!key) return { ok: false, error: 'reading-not-found' };
 		const error = parentAttachmentError(
-			ensureReadingsForUnit(unitIndex),
+			ensureReadingsForUnit(unitId),
 			readingId,
 			parentReadingId
 		);
@@ -2481,13 +2487,13 @@ function createCollationState() {
 		| { ok: false; error: AmbiguousAttestationError | 'unit-not-found' };
 
 	function recordAmbiguousAttestation(
-		unitIndex: number,
+		unitId: string,
 		witnessIds: string[],
 		targetReadingIds: string[]
 	): AmbiguousAttestationResult {
-		const key = getReadingUnitKey(unitIndex);
+		const key = getReadingUnitKey(unitId);
 		if (!key) return { ok: false, error: 'unit-not-found' };
-		ensureReadingsForUnit(unitIndex);
+		ensureReadingsForUnit(unitId);
 		const previous = new Map(unitDecisions);
 		const edit = withAmbiguousAttestation(
 			classifiedReadings.get(key) ?? [],
@@ -2511,10 +2517,10 @@ function createCollationState() {
 	}
 
 	function removeAmbiguousAttestation(
-		unitIndex: number,
+		unitId: string,
 		attestationId: string
 	): { ok: true } | { ok: false; error: 'attestation-not-found' } {
-		const key = getReadingUnitKey(unitIndex);
+		const key = getReadingUnitKey(unitId);
 		const attestations = key ? (unitDecisions.get(key)?.ambiguousAttestations ?? []) : [];
 		if (!key || !attestations.some(attestation => attestation.id === attestationId)) {
 			return { ok: false, error: 'attestation-not-found' };
@@ -2539,22 +2545,22 @@ function createCollationState() {
 		return { ok: true };
 	}
 
-	function getLemmaReadingId(unitIndex: number): string | null {
-		return peekUnitView(unitIndex).lemmaReadingId;
+	function getLemmaReadingId(unitId: string): string | null {
+		return peekUnitView(unitId).lemmaReadingId;
 	}
 
-	function unitNeedsLemmaDecision(unitIndex: number): boolean {
-		return peekUnitView(unitIndex).needsLemmaDecision;
+	function unitNeedsLemmaDecision(unitId: string): boolean {
+		return peekUnitView(unitId).needsLemmaDecision;
 	}
 
 	/** Labelling only; null restores the base-text lemma, stemma untouched. */
 	function setLemmaReading(
-		unitIndex: number,
+		unitId: string,
 		readingId: string | null
 	): { ok: true } | { ok: false; error: 'reading-not-found' | 'not-a-main-reading' } {
-		const key = getReadingUnitKey(unitIndex);
+		const key = getReadingUnitKey(unitId);
 		if (!key) return { ok: false, error: 'reading-not-found' };
-		const readings = ensureReadingsForUnit(unitIndex);
+		const readings = ensureReadingsForUnit(unitId);
 		if (readingId !== null) {
 			const target = readings.find(reading => reading.id === readingId);
 			if (!target) return { ok: false, error: 'reading-not-found' };
@@ -2583,20 +2589,19 @@ function createCollationState() {
 	function forEachUnitView<T>(map: (view: UnitView, span: VariationUnitSpan) => T | null): T[] {
 		const results: T[] = [];
 		for (const span of getVariationUnitSpans()) {
-			const mapped = map(peekUnitView(span.startIndex), span);
+			const mapped = map(peekUnitView(span.unitId), span);
 			if (mapped !== null) results.push(mapped);
 		}
 		return results;
 	}
 
-	function getUnitsNeedingLemmaDecision(): { unitIndex: number; unitId: string }[] {
+	function getUnitsNeedingLemmaDecision(): { unitId: string }[] {
 		return forEachUnitView((view, span) =>
-			view.needsLemmaDecision ? { unitIndex: span.startIndex, unitId: span.unitId } : null
+			view.needsLemmaDecision ? { unitId: span.unitId } : null
 		);
 	}
 
 	function getLemmaDivergence(): {
-		unitIndex: number;
 		unitId: string;
 		lemmaReadingId: string;
 		baseTextReadingId: string;
@@ -2606,7 +2611,6 @@ function createCollationState() {
 			view.baseTextReadingId &&
 			view.lemmaReadingId !== view.baseTextReadingId
 				? {
-						unitIndex: span.startIndex,
 						unitId: span.unitId,
 						lemmaReadingId: view.lemmaReadingId,
 						baseTextReadingId: view.baseTextReadingId,
@@ -2615,73 +2619,73 @@ function createCollationState() {
 		);
 	}
 
-	function promoteReadingAsFamilyParent(unitIndex: number, readingId: string) {
-		const updated = promoteFamilyParent(ensureReadingsForUnit(unitIndex), readingId);
+	function promoteReadingAsFamilyParent(unitId: string, readingId: string) {
+		const updated = promoteFamilyParent(ensureReadingsForUnit(unitId), readingId);
 		if (!updated) return;
-		commitReadingsForUnit(unitIndex, updated, {
+		commitReadingsForUnit(unitId, updated, {
 			type: 'promote-reading-as-family-parent',
 			description: 'Promote reading to main reading',
 		});
 	}
 
-	function updateReadingText(unitIndex: number, readingId: string, text: string) {
+	function updateReadingText(unitId: string, readingId: string, text: string) {
 		commitReadingsForUnit(
-			unitIndex,
-			withReadingText(ensureReadingsForUnit(unitIndex), readingId, text),
+			unitId,
+			withReadingText(ensureReadingsForUnit(unitId), readingId, text),
 			{ type: 'update-reading-text', description: 'Edit reading text' }
 		);
 	}
 
 	function updateReadingTextForDisplayMode(
-		unitIndex: number,
+		unitId: string,
 		readingId: string,
 		text: string,
 		displayMode: AlignmentDisplayMode
 	) {
 		if (displayMode === 'original') {
-			updateReadingText(unitIndex, readingId, text);
+			updateReadingText(unitId, readingId, text);
 			return;
 		}
 		commitReadingsForUnit(
-			unitIndex,
-			withNormalizedReadingText(ensureReadingsForUnit(unitIndex), readingId, text),
+			unitId,
+			withNormalizedReadingText(ensureReadingsForUnit(unitId), readingId, text),
 			{ type: 'update-reading-text', description: 'Edit reading text' }
 		);
 	}
 
 	/** Judgement only, never touches text; null means "no type". */
 	function setReadingType(
-		unitIndex: number,
+		unitId: string,
 		readingId: string,
 		readingType: ReadingTypeId | null
 	): { ok: true } | { ok: false; error: 'reading-not-found' } {
-		return recordReadingDecision(unitIndex, readingId, 'readingType', readingType, {
+		return recordReadingDecision(unitId, readingId, 'readingType', readingType, {
 			type: 'set-reading-type',
 			description: readingType ? 'Set reading type' : 'Clear reading type',
 		});
 	}
 
 	function setReadingCertainty(
-		unitIndex: number,
+		unitId: string,
 		readingId: string,
 		certainty: Certainty | null
 	): { ok: true } | { ok: false; error: 'reading-not-found' } {
-		return recordReadingDecision(unitIndex, readingId, 'certainty', certainty, {
+		return recordReadingDecision(unitId, readingId, 'certainty', certainty, {
 			type: 'set-reading-certainty',
 			description: certainty === null ? 'Clear reading certainty' : 'Set reading certainty',
 		});
 	}
 
 	function recordReadingDecision<Field extends 'readingType' | 'certainty' | 'readingTags'>(
-		unitIndex: number,
+		unitId: string,
 		readingId: string,
 		field: Field,
 		value: NonNullable<UnitDecisions[Field]>[string],
 		command: { type: string; description: string }
 	): { ok: true } | { ok: false; error: 'reading-not-found' } {
-		const key = getReadingUnitKey(unitIndex);
+		const key = getReadingUnitKey(unitId);
 		if (!key) return { ok: false, error: 'reading-not-found' };
-		const readings = ensureReadingsForUnit(unitIndex);
+		const readings = ensureReadingsForUnit(unitId);
 		if (!readings.some(reading => reading.id === readingId)) {
 			return { ok: false, error: 'reading-not-found' };
 		}
@@ -2749,11 +2753,11 @@ function createCollationState() {
 	}
 
 	function setManualWitnessTestimony(
-		unitIndex: number,
+		unitId: string,
 		id: string,
 		kind: 'uncited' | 'nonAttestation'
 	) {
-		const key = getReadingUnitKey(unitIndex);
+		const key = getReadingUnitKey(unitId);
 		if (!key || !getManualWitnessMembers().some(witness => witness.id === id)) return;
 		const next = cloneUnitDecisions(unitDecisions.get(key));
 		const previous = next.manualTestimony?.[id];
@@ -2765,7 +2769,7 @@ function createCollationState() {
 			}))
 			.filter(attestation => attestation.witnessIds.length > 0);
 		if (previous?.kind === 'reading') removeUnattestedAuthoredReading(next, previous.readingId);
-		commitManualDecisions(unitIndex, next, 'Record manual witness testimony');
+		commitManualDecisions(unitId, next, 'Record manual witness testimony');
 	}
 
 	function getManualWitnesses(): ManualWitnessDefinition[] {
@@ -2780,8 +2784,8 @@ function createCollationState() {
 		);
 	}
 
-	function commitManualDecisions(unitIndex: number, next: UnitDecisions, description: string) {
-		const key = getReadingUnitKey(unitIndex);
+	function commitManualDecisions(unitId: string, next: UnitDecisions, description: string) {
+		const key = getReadingUnitKey(unitId);
 		if (!key) return;
 		const previous = new Map(unitDecisions);
 		const updated = new Map(previous).set(key, next);
@@ -2798,7 +2802,7 @@ function createCollationState() {
 		});
 	}
 
-	async function attachManualWitness(unitIndex: number, readingId: string, value: string) {
+	async function attachManualWitness(unitId: string, readingId: string, value: string) {
 		const siglum = value.trim();
 		if (!siglum) return { ok: false as const, error: 'Enter a siglum.' };
 		if (witnesses.some(witness => witness.siglum === siglum))
@@ -2806,8 +2810,8 @@ function createCollationState() {
 				ok: false as const,
 				error: 'This siglum belongs to a transcribed witness. CBGM joins witnesses by siglum; choose a different siglum.',
 			};
-		const key = getReadingUnitKey(unitIndex);
-		if (!key || !peekReadingsForUnit(unitIndex).some(reading => reading.id === readingId))
+		const key = getReadingUnitKey(unitId);
+		if (!key || !peekReadingsForUnit(unitId).some(reading => reading.id === readingId))
 			return { ok: false as const, error: 'Reading not found.' };
 		let witness = projectManualWitnesses.find(witness => witness.siglum === siglum);
 		const isNew = !witness;
@@ -2836,7 +2840,7 @@ function createCollationState() {
 		};
 		if (previous?.kind === 'reading' && previous.readingId !== readingId)
 			removeUnattestedAuthoredReading(next, previous.readingId);
-		commitManualDecisions(unitIndex, next, 'Attach manual witness');
+		commitManualDecisions(unitId, next, 'Attach manual witness');
 		if (isNew) await persistRulesToProject(rules);
 		return { ok: true as const, witnessId: witness.id };
 	}
@@ -2853,8 +2857,8 @@ function createCollationState() {
 		);
 	}
 
-	function detachManualWitness(unitIndex: number, manualWitnessId: string) {
-		const key = getReadingUnitKey(unitIndex);
+	function detachManualWitness(unitId: string, manualWitnessId: string) {
+		const key = getReadingUnitKey(unitId);
 		if (!key) return;
 		const next = cloneUnitDecisions(unitDecisions.get(key));
 		const testimony = next.manualTestimony?.[manualWitnessId];
@@ -2862,13 +2866,13 @@ function createCollationState() {
 		delete next.manualTestimony![manualWitnessId];
 		if (testimony.kind === 'reading')
 			removeUnattestedAuthoredReading(next, testimony.readingId);
-		commitManualDecisions(unitIndex, next, 'Detach manual witness');
+		commitManualDecisions(unitId, next, 'Detach manual witness');
 	}
 
-	function addAuthoredReading(unitIndex: number, text: string, isOmission = false) {
-		const key = getReadingUnitKey(unitIndex);
+	function addAuthoredReading(unitId: string, text: string, isOmission = false) {
+		const key = getReadingUnitKey(unitId);
 		if (!key || (!isOmission && !text.trim())) return null;
-		const reading = emptyReading(ensureReadingsForUnit(unitIndex), null);
+		const reading = emptyReading(ensureReadingsForUnit(unitId), null);
 		const next = cloneUnitDecisions(unitDecisions.get(key));
 		next.authoredReadings = [
 			...(next.authoredReadings ?? []),
@@ -2881,7 +2885,7 @@ function createCollationState() {
 				readingType: null,
 			},
 		];
-		commitManualDecisions(unitIndex, next, 'Add authored reading');
+		commitManualDecisions(unitId, next, 'Add authored reading');
 		return reading.id;
 	}
 
@@ -2889,10 +2893,10 @@ function createCollationState() {
 		return projectReadingTags;
 	}
 
-	async function addReadingTag(unitIndex: number, readingId: string, value: string) {
+	async function addReadingTag(unitId: string, readingId: string, value: string) {
 		const label = value.trim();
 		if (!label) return { ok: false as const };
-		const reading = peekReadingsForUnit(unitIndex).find(reading => reading.id === readingId);
+		const reading = peekReadingsForUnit(unitId).find(reading => reading.id === readingId);
 		if (!reading) return { ok: false as const };
 		let tag = projectReadingTags.find(tag => tag.label.toLowerCase() === label.toLowerCase());
 		const isNew = !tag;
@@ -2901,7 +2905,7 @@ function createCollationState() {
 			projectReadingTags = [...projectReadingTags, tag];
 		}
 		const tags = [...new Set([...(reading.readingTags ?? []), tag.id])];
-		const result = recordReadingDecision(unitIndex, readingId, 'readingTags', tags, {
+		const result = recordReadingDecision(unitId, readingId, 'readingTags', tags, {
 			type: 'add-reading-tag',
 			description: 'Add reading tag',
 		});
@@ -2909,11 +2913,11 @@ function createCollationState() {
 		return result;
 	}
 
-	function removeReadingTag(unitIndex: number, readingId: string, tagId: string) {
-		const reading = peekReadingsForUnit(unitIndex).find(reading => reading.id === readingId);
+	function removeReadingTag(unitId: string, readingId: string, tagId: string) {
+		const reading = peekReadingsForUnit(unitId).find(reading => reading.id === readingId);
 		if (!reading) return { ok: false as const };
 		return recordReadingDecision(
-			unitIndex,
+			unitId,
 			readingId,
 			'readingTags',
 			(reading.readingTags ?? []).filter(id => id !== tagId),
@@ -2925,7 +2929,6 @@ function createCollationState() {
 	}
 
 	function getSubreadingsMissingReadingType(): {
-		unitIndex: number;
 		unitId: string;
 		readingIds: string[];
 	}[] {
@@ -2936,7 +2939,6 @@ function createCollationState() {
 				.map(reading => reading.id);
 			return readingIds.length > 0
 				? {
-						unitIndex: span.startIndex,
 						unitId: span.unitId,
 						readingIds,
 					}
@@ -2945,19 +2947,19 @@ function createCollationState() {
 	}
 
 	function addReading(
-		unitIndex: number,
+		unitId: string,
 		options?: { parentReadingId?: string | null; readingType?: ReadingTypeId }
 	) {
-		const readings = ensureReadingsForUnit(unitIndex);
+		const readings = ensureReadingsForUnit(unitId);
 		const reading = emptyReading(readings, options?.parentReadingId ?? null);
-		const key = getReadingUnitKey(unitIndex);
+		const key = getReadingUnitKey(unitId);
 		let decisions: UnitDecisions | undefined;
 		if (key && options?.readingType) {
 			decisions = cloneUnitDecisions(unitDecisions.get(key));
 			decisions.readingType = { ...decisions.readingType, [reading.id]: options.readingType };
 		}
 		commitReadingsForUnit(
-			unitIndex,
+			unitId,
 			[...readings, reading],
 			{
 				type: 'add-reading',
@@ -2968,27 +2970,23 @@ function createCollationState() {
 		return reading.id;
 	}
 
-	function getAttestingWitnessIdsForReading(unitIndex: number, readingId: string): string[] {
-		return attestingWitnessIds(peekReadingsForUnit(unitIndex), readingId);
+	function getAttestingWitnessIdsForReading(unitId: string, readingId: string): string[] {
+		return attestingWitnessIds(peekReadingsForUnit(unitId), readingId);
 	}
 
-	function deleteReading(unitIndex: number, readingId: string) {
-		const updated = withoutReading(ensureReadingsForUnit(unitIndex), readingId);
+	function deleteReading(unitId: string, readingId: string) {
+		const updated = withoutReading(ensureReadingsForUnit(unitId), readingId);
 		if (!updated) return;
-		commitReadingsForUnit(unitIndex, updated, {
+		commitReadingsForUnit(unitId, updated, {
 			type: 'delete-reading',
 			description: 'Delete reading',
 		});
 	}
 
-	function moveReadingByOffset(
-		unitIndex: number,
-		readingId: string,
-		offset: number
-	): ReorderResult {
-		const edit = moveReadingByOffsetIn(ensureReadingsForUnit(unitIndex), readingId, offset);
+	function moveReadingByOffset(unitId: string, readingId: string, offset: number): ReorderResult {
+		const edit = moveReadingByOffsetIn(ensureReadingsForUnit(unitId), readingId, offset);
 		if (!edit.ok) return edit;
-		commitReadingsForUnit(unitIndex, edit.readings, {
+		commitReadingsForUnit(unitId, edit.readings, {
 			type: 'reorder-reading',
 			description: 'Reorder reading',
 		});
@@ -2996,27 +2994,23 @@ function createCollationState() {
 	}
 
 	function moveReadingBefore(
-		unitIndex: number,
+		unitId: string,
 		readingId: string,
 		targetReadingId: string
 	): ReorderResult {
-		const edit = moveReadingBeforeIn(
-			ensureReadingsForUnit(unitIndex),
-			readingId,
-			targetReadingId
-		);
+		const edit = moveReadingBeforeIn(ensureReadingsForUnit(unitId), readingId, targetReadingId);
 		if (!edit.ok) return edit;
-		commitReadingsForUnit(unitIndex, edit.readings, {
+		commitReadingsForUnit(unitId, edit.readings, {
 			type: 'reorder-reading',
 			description: 'Reorder reading',
 		});
 		return { ok: true };
 	}
 
-	function getLocalStemma(unitIndex: number): LocalStemma {
-		const key = getReadingUnitKey(unitIndex);
+	function getLocalStemma(unitId: string): LocalStemma {
+		const key = getReadingUnitKey(unitId);
 		if (!key) return { nodes: [], violations: [], orphanedArcs: [] };
-		const view = peekUnitView(unitIndex);
+		const view = peekUnitView(unitId);
 		return projectLocalStemma(
 			view.readings,
 			readingArcs.get(key) ?? [],
@@ -3025,21 +3019,21 @@ function createCollationState() {
 		);
 	}
 
-	function getConnectivity(unitIndex: number): number | 'absolute' {
-		const key = getReadingUnitKey(unitIndex);
+	function getConnectivity(unitId: string): number | 'absolute' {
+		const key = getReadingUnitKey(unitId);
 		return key ? (unitDecisions.get(key)?.connectivity ?? 10) : 10;
 	}
 
 	type ConnectivityError = 'unit-not-found' | 'invalid-connectivity';
 
 	function setConnectivity(
-		unitIndex: number,
+		unitId: string,
 		connectivity: number | 'absolute'
 	): { ok: true } | { ok: false; error: ConnectivityError } {
 		if (connectivity !== 'absolute' && (!Number.isInteger(connectivity) || connectivity <= 0)) {
 			return { ok: false, error: 'invalid-connectivity' };
 		}
-		const key = getReadingUnitKey(unitIndex);
+		const key = getReadingUnitKey(unitId);
 		if (!key) return { ok: false, error: 'unit-not-found' };
 
 		const previous = new Map(unitDecisions);
@@ -3062,15 +3056,13 @@ function createCollationState() {
 	}
 
 	function getStemmaViolations(): {
-		unitIndex: number;
 		unitId: string;
 		violations: StemmaViolation[];
 	}[] {
 		return forEachUnitView((_, span) => {
-			const violations = getLocalStemma(span.startIndex).violations;
+			const violations = getLocalStemma(span.unitId).violations;
 			return violations.length > 0
 				? {
-						unitIndex: span.startIndex,
 						unitId: span.unitId,
 						violations,
 					}
@@ -3082,14 +3074,14 @@ function createCollationState() {
 
 	/** One source per reading; storage may hold more. */
 	function setReadingSource(
-		unitIndex: number,
+		unitId: string,
 		readingId: string,
 		decision: SourceDecision
 	): { ok: true } | { ok: false; error: SourceDecisionError } {
-		const key = getReadingUnitKey(unitIndex);
+		const key = getReadingUnitKey(unitId);
 		if (!key) return { ok: false, error: 'reading-not-found' };
-		const readings = ensureReadingsForUnit(unitIndex);
-		const stemma = getLocalStemma(unitIndex);
+		const readings = ensureReadingsForUnit(unitId);
+		const stemma = getLocalStemma(unitId);
 		const nodeFor = (id: string) => stemma.nodes.find(node => node.readingId === id) ?? null;
 		const reject = (id: string): { ok: false; error: SourceDecisionError } => ({
 			ok: false,
@@ -3177,11 +3169,11 @@ function createCollationState() {
 	}
 
 	function rerootStemmaOnLemma(
-		unitIndex: number
+		unitId: string
 	): { ok: true; removed: number } | { ok: false; error: 'unit-not-found' | 'no-lemma' } {
-		const key = getReadingUnitKey(unitIndex);
+		const key = getReadingUnitKey(unitId);
 		if (!key) return { ok: false, error: 'unit-not-found' };
-		const stemma = getLocalStemma(unitIndex);
+		const stemma = getLocalStemma(unitId);
 		const lemma = stemma.nodes.find(node => node.isLemma);
 		if (!lemma) return { ok: false, error: 'no-lemma' };
 
@@ -3218,11 +3210,11 @@ function createCollationState() {
 			if (phase === 'readings' || phase === 'stemma') {
 				const spans = getVariationUnitSpans();
 				if (spans.length === 0) {
-					selectedUnitIndex = 0;
+					selectedUnitId = null;
 					return;
 				}
 				const currentPosition = spans.findIndex(
-					span => span.startIndex === normalizeVariationUnitIndex(selectedUnitIndex)
+					span => span.unitId === normalizeVariationUnitId(selectedUnitId)
 				);
 				if (direction === 'left' || direction === 'right') {
 					const nextPosition =
@@ -3235,9 +3227,9 @@ function createCollationState() {
 										currentPosition + (direction === 'right' ? 1 : -1)
 									)
 								);
-					selectedUnitIndex = spans[nextPosition]?.startIndex ?? selectedUnitIndex;
+					selectedUnitId = spans[nextPosition]?.unitId ?? selectedUnitId;
 				} else {
-					selectedUnitIndex = normalizeVariationUnitIndex(selectedUnitIndex);
+					selectedUnitId = normalizeVariationUnitId(selectedUnitId);
 				}
 			}
 		}
@@ -3280,7 +3272,7 @@ function createCollationState() {
 		focusedRow = -1;
 		alignmentDisplayMode = 'regularized';
 		alignmentLayout = 'grid';
-		selectedUnitIndex = 0;
+		selectedUnitId = null;
 		classifiedReadings = new Map();
 		unitDecisions = new Map();
 		readingArcs = new Map();
@@ -3550,11 +3542,11 @@ function createCollationState() {
 		set focusedRow(v) {
 			focusedRow = v;
 		},
-		get selectedUnitIndex() {
-			return effectiveSelectedUnitIndex;
+		get selectedUnitId() {
+			return effectiveSelectedUnitId;
 		},
-		set selectedUnitIndex(v) {
-			selectedUnitIndex = normalizeVariationUnitIndex(v);
+		set selectedUnitId(v) {
+			selectedUnitId = normalizeVariationUnitId(v);
 		},
 		get classifiedReadings() {
 			return classifiedReadings;

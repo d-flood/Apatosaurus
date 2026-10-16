@@ -472,10 +472,12 @@ describe('collationState artifact-first persistence', () => {
 
 		expect(await collationState.loadCollationById('col-1')).toBe(true);
 		expect(
-			collationState.getReadingsForUnit(0).map(reading => ({
-				text: reading.text,
-				parentReadingId: reading.parentReadingId,
-			}))
+			collationState
+				.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
+				.map(reading => ({
+					text: reading.text,
+					parentReadingId: reading.parentReadingId,
+				}))
 		).toEqual([
 			{ text: 'alpha', parentReadingId: null },
 			{ text: 'beta', parentReadingId: 'col-1::alpha::original' },
@@ -513,10 +515,16 @@ describe('collationState artifact-first persistence', () => {
 		collationState.reset();
 		expect(await collationState.loadCollationById('col-1')).toBe(true);
 
-		const beta = collationState.getReadingsForUnit(0).find(reading => reading.text === 'beta')!;
+		const beta = collationState
+			.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
+			.find(reading => reading.text === 'beta')!;
 		expect([beta.readingType, beta.certainty]).toEqual(['itacism', 'low']);
 
-		collationState.setReadingType(0, beta.id, 'scribal-leap');
+		collationState.setReadingType(
+			`unit:${collationState.alignmentColumns[0].id}`,
+			beta.id,
+			'scribal-leap'
+		);
 		expect(await collationState.flushPendingSave()).toBe(true);
 		expect(saveCollationArtifact).toHaveBeenCalledWith(
 			expect.objectContaining({ payload: expect.stringContaining('scribal-leap') })
@@ -543,9 +551,15 @@ describe('collationState artifact-first persistence', () => {
 		const state = await importState();
 		state.reset();
 		expect(await state.loadCollationById('col-1')).toBe(true);
-		const beta = state.getReadingsForUnit(0).find(reading => reading.text === 'beta')!;
-		await state.addReadingTag(0, beta.id, ' nomen SACRUM ');
-		await state.addReadingTag(0, beta.id, 'Abbreviation');
+		const beta = state
+			.getReadingsForUnit(`unit:${state.alignmentColumns[0].id}`)
+			.find(reading => reading.text === 'beta')!;
+		await state.addReadingTag(
+			`unit:${state.alignmentColumns[0].id}`,
+			beta.id,
+			' nomen SACRUM '
+		);
+		await state.addReadingTag(`unit:${state.alignmentColumns[0].id}`, beta.id, 'Abbreviation');
 		expect(state.getReadingTags()).toHaveLength(2);
 		expect(updateProjectMetadata).toHaveBeenLastCalledWith(
 			expect.objectContaining({

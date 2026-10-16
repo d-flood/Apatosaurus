@@ -680,5 +680,5 @@ export function buildVariationUnitSpans(
 					]
 				: []
 		),
-	].sort((a, b) => a.startIndex - b.startIndex);
+	].sort((a, b) => a.startIndex - b.startIndex || a.endIndex - b.endIndex);
 }

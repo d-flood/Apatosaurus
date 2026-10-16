@@ -26,12 +26,20 @@ function makeWitness(witnessId: string, content: string, isBaseText = false): Wi
 }
 
 function witnessesOfReadings(): string[][] {
-	return collationState.peekReadingsForUnit(0).map(reading => reading.witnessIds);
+	return collationState
+		.peekReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
+		.map(reading => reading.witnessIds);
 }
 
 function mergeLastReadingIntoSecond() {
-	const readings = collationState.peekReadingsForUnit(0);
-	collationState.mergeReadings(0, [readings[2].id], readings[1].id);
+	const readings = collationState.peekReadingsForUnit(
+		`unit:${collationState.alignmentColumns[0].id}`
+	);
+	collationState.mergeReadings(
+		`unit:${collationState.alignmentColumns[0].id}`,
+		[readings[2].id],
+		readings[1].id
+	);
 }
 
 describe('CollationWorkspace undo/redo', () => {

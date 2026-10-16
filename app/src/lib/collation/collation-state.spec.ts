@@ -248,9 +248,36 @@ describe('collationState stemma derivation', () => {
 				],
 			})),
 		});
-		collationState.selectedUnitIndex = 2;
+		collationState.selectedUnitId = `unit:${collationState.alignmentColumns[2].id}`;
 		collationState.mergeColumns(['col-2', 'col-3']);
-		expect(collationState.selectedUnitIndex).toBe(0);
+		expect(collationState.selectedUnitId).toBe('unit:col-1');
+	});
+
+	it('keeps the selected unit when earlier columns merge and shift its index', () => {
+		collationState.setAlignmentSnapshot({
+			witnessOrder: ['A', 'B'],
+			columns: ['col-1', 'col-2', 'col-3'].map((id, index) => ({
+				id,
+				index,
+				merged: false,
+				cells: [
+					['A', makeTextCell(`alpha-${index}`)],
+					['B', makeTextCell(`beta-${index}`)],
+				],
+			})),
+		});
+		collationState.selectedUnitId = 'unit:col-3';
+		const readingIds = collationState
+			.getReadingsForUnit('unit:col-3')
+			.map(reading => reading.id);
+
+		collationState.mergeColumns(['col-1', 'col-2']);
+
+		expect(collationState.selectedUnitId).toBe('unit:col-3');
+		expect(collationState.getVariationUnitSpan('unit:col-3')?.startIndex).toBe(1);
+		expect(collationState.getReadingsForUnit('unit:col-3').map(reading => reading.id)).toEqual(
+			readingIds
+		);
 	});
 
 	it('splits a non-merged alignment unit that contains grouped words', () => {
@@ -709,7 +736,9 @@ describe('collationState stemma derivation', () => {
 
 		collationState.setAlignmentSnapshot(snapshot.snapshot);
 
-		const readings = collationState.getReadingsForUnit(0);
+		const readings = collationState.getReadingsForUnit(
+			`unit:${collationState.alignmentColumns[0].id}`
+		);
 		expect(readings).toHaveLength(2);
 
 		const base = readings.find(reading => reading.text === 'θεος');
@@ -739,39 +768,57 @@ describe('collationState stemma derivation', () => {
 				},
 			],
 		});
-		const initial = collationState.getReadingsForUnit(0);
+		const initial = collationState.getReadingsForUnit(
+			`unit:${collationState.alignmentColumns[0].id}`
+		);
 		const alpha = initial.find(reading => reading.text === 'alpha')!;
 		const beta = initial.find(reading => reading.text === 'beta')!;
 		const gamma = initial.find(reading => reading.text === 'gamma')!;
 
-		expect(collationState.setReadingParent(0, beta.id, alpha.id)).toEqual({ ok: true });
-		collationState.updateReadingText(0, gamma.id, 'delta');
+		expect(
+			collationState.setReadingParent(
+				`unit:${collationState.alignmentColumns[0].id}`,
+				beta.id,
+				alpha.id
+			)
+		).toEqual({ ok: true });
+		collationState.updateReadingText(
+			`unit:${collationState.alignmentColumns[0].id}`,
+			gamma.id,
+			'delta'
+		);
 
 		expect(
-			collationState.getReadingsForUnit(0).find(reading => reading.id === beta.id)
-				?.parentReadingId
+			collationState
+				.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
+				.find(reading => reading.id === beta.id)?.parentReadingId
 		).toBe(alpha.id);
 
 		collationState.undo();
 		expect(collationState.phase).toBe('readings');
 		expect(
-			collationState.getReadingsForUnit(0).find(reading => reading.id === gamma.id)?.text
+			collationState
+				.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
+				.find(reading => reading.id === gamma.id)?.text
 		).toBe('gamma');
 		expect(
-			collationState.getReadingsForUnit(0).find(reading => reading.id === beta.id)
-				?.parentReadingId
+			collationState
+				.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
+				.find(reading => reading.id === beta.id)?.parentReadingId
 		).toBe(alpha.id);
 
 		collationState.undo();
 		expect(
-			collationState.getReadingsForUnit(0).find(reading => reading.id === beta.id)
-				?.parentReadingId
+			collationState
+				.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
+				.find(reading => reading.id === beta.id)?.parentReadingId
 		).toBeNull();
 
 		collationState.redo();
 		expect(
-			collationState.getReadingsForUnit(0).find(reading => reading.id === beta.id)
-				?.parentReadingId
+			collationState
+				.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
+				.find(reading => reading.id === beta.id)?.parentReadingId
 		).toBe(alpha.id);
 	});
 
@@ -790,14 +837,34 @@ describe('collationState stemma derivation', () => {
 				},
 			],
 		});
-		const [alpha, beta] = collationState.getReadingsForUnit(0);
+		const [alpha, beta] = collationState.getReadingsForUnit(
+			`unit:${collationState.alignmentColumns[0].id}`
+		);
 
-		expect(collationState.setReadingParent(0, alpha.id, alpha.id)).toEqual({
+		expect(
+			collationState.setReadingParent(
+				`unit:${collationState.alignmentColumns[0].id}`,
+				alpha.id,
+				alpha.id
+			)
+		).toEqual({
 			ok: false,
 			error: 'self-attachment',
 		});
-		expect(collationState.setReadingParent(0, alpha.id, beta.id)).toEqual({ ok: true });
-		expect(collationState.setReadingParent(0, beta.id, alpha.id)).toEqual({
+		expect(
+			collationState.setReadingParent(
+				`unit:${collationState.alignmentColumns[0].id}`,
+				alpha.id,
+				beta.id
+			)
+		).toEqual({ ok: true });
+		expect(
+			collationState.setReadingParent(
+				`unit:${collationState.alignmentColumns[0].id}`,
+				beta.id,
+				alpha.id
+			)
+		).toEqual({
 			ok: false,
 			error: 'cycle',
 		});
@@ -818,13 +885,23 @@ describe('collationState stemma derivation', () => {
 				},
 			],
 		});
-		const alpha = collationState.getReadingsForUnit(0)[0];
-		const addedId = collationState.addReading(0);
-		collationState.setReadingParent(0, addedId, alpha.id);
+		const alpha = collationState.getReadingsForUnit(
+			`unit:${collationState.alignmentColumns[0].id}`
+		)[0];
+		const addedId = collationState.addReading(`unit:${collationState.alignmentColumns[0].id}`);
+		collationState.setReadingParent(
+			`unit:${collationState.alignmentColumns[0].id}`,
+			addedId,
+			alpha.id
+		);
 
-		collationState.deleteReading(0, addedId);
+		collationState.deleteReading(`unit:${collationState.alignmentColumns[0].id}`, addedId);
 
-		expect(collationState.getOrphanedDecisionsForUnit(0)).toEqual([
+		expect(
+			collationState.getOrphanedDecisionsForUnit(
+				`unit:${collationState.alignmentColumns[0].id}`
+			)
+		).toEqual([
 			{
 				kind: 'subreadingOf',
 				readingId: addedId,
@@ -847,14 +924,21 @@ describe('collationState stemma derivation', () => {
 				],
 			})),
 		});
-		const third = collationState.getReadingsForUnit(2);
-		collationState.setReadingParent(2, third[1].id, third[0].id);
+		const third = collationState.getReadingsForUnit(
+			`unit:${collationState.alignmentColumns[2].id}`
+		);
+		collationState.setReadingParent(
+			`unit:${collationState.alignmentColumns[2].id}`,
+			third[1].id,
+			third[0].id
+		);
 
 		collationState.mergeColumns(['col-1', 'col-2']);
 
 		expect(
-			collationState.getReadingsForUnit(1).find(reading => reading.id === third[1].id)
-				?.parentReadingId
+			collationState
+				.getReadingsForUnit(`unit:${collationState.alignmentColumns[1].id}`)
+				.find(reading => reading.id === third[1].id)?.parentReadingId
 		).toBe(third[0].id);
 		expect(collationState.unitDecisions.has('unit:col-3')).toBe(true);
 	});
@@ -872,10 +956,22 @@ describe('collationState stemma derivation', () => {
 				],
 			})),
 		});
-		const first = collationState.getReadingsForUnit(0);
-		const second = collationState.getReadingsForUnit(1);
-		collationState.setReadingParent(0, first[1].id, first[0].id);
-		collationState.setReadingParent(1, second[1].id, second[0].id);
+		const first = collationState.getReadingsForUnit(
+			`unit:${collationState.alignmentColumns[0].id}`
+		);
+		const second = collationState.getReadingsForUnit(
+			`unit:${collationState.alignmentColumns[1].id}`
+		);
+		collationState.setReadingParent(
+			`unit:${collationState.alignmentColumns[0].id}`,
+			first[1].id,
+			first[0].id
+		);
+		collationState.setReadingParent(
+			`unit:${collationState.alignmentColumns[1].id}`,
+			second[1].id,
+			second[0].id
+		);
 
 		collationState.mergeColumns(['col-1', 'col-2']);
 		expect(collationState.getOrphanedUnitDecisions().map(orphan => orphan.unitId)).toEqual([
@@ -885,8 +981,14 @@ describe('collationState stemma derivation', () => {
 
 		collationState.splitColumn(collationState.alignmentColumns[0].id);
 		expect(collationState.getOrphanedUnitDecisions()).toEqual([]);
-		expect(collationState.getReadingsForUnit(0)[1]?.parentReadingId).toBe(first[0].id);
-		expect(collationState.getReadingsForUnit(1)[1]?.parentReadingId).toBe(second[0].id);
+		expect(
+			collationState.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)[1]
+				?.parentReadingId
+		).toBe(first[0].id);
+		expect(
+			collationState.getReadingsForUnit(`unit:${collationState.alignmentColumns[1].id}`)[1]
+				?.parentReadingId
+		).toBe(second[0].id);
 	});
 
 	it('revives orphaned decisions when a merge is undone', () => {
@@ -902,14 +1004,23 @@ describe('collationState stemma derivation', () => {
 				],
 			})),
 		});
-		const first = collationState.getReadingsForUnit(0);
-		collationState.setReadingParent(0, first[1].id, first[0].id);
+		const first = collationState.getReadingsForUnit(
+			`unit:${collationState.alignmentColumns[0].id}`
+		);
+		collationState.setReadingParent(
+			`unit:${collationState.alignmentColumns[0].id}`,
+			first[1].id,
+			first[0].id
+		);
 		collationState.mergeColumns(['col-1', 'col-2']);
 		expect(collationState.getOrphanedUnitDecisions()).toHaveLength(1);
 
 		collationState.undo();
 		expect(collationState.getOrphanedUnitDecisions()).toEqual([]);
-		expect(collationState.getReadingsForUnit(0)[1]?.parentReadingId).toBe(first[0].id);
+		expect(
+			collationState.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)[1]
+				?.parentReadingId
+		).toBe(first[0].id);
 	});
 
 	it('promotes the preferred reading as parent when all equivalent readings are regularized', () => {
@@ -990,7 +1101,9 @@ describe('collationState stemma derivation', () => {
 			],
 		});
 
-		const readings = collationState.getReadingsForUnit(0);
+		const readings = collationState.getReadingsForUnit(
+			`unit:${collationState.alignmentColumns[0].id}`
+		);
 		const parent = readings.find(reading => reading.text === 'beta');
 		const alpha = readings.find(reading => reading.text === 'alpha');
 		const gamma = readings.find(reading => reading.text === 'gamma');
@@ -1067,13 +1180,20 @@ describe('collationState stemma derivation', () => {
 			],
 		});
 
-		const before = collationState.getReadingsForUnit(0);
+		const before = collationState.getReadingsForUnit(
+			`unit:${collationState.alignmentColumns[0].id}`
+		);
 		const promoted = before.find(reading => reading.text === 'θς');
 		expect(promoted?.parentReadingId).not.toBeNull();
 
-		collationState.promoteReadingAsFamilyParent(0, promoted!.id);
+		collationState.promoteReadingAsFamilyParent(
+			`unit:${collationState.alignmentColumns[0].id}`,
+			promoted!.id
+		);
 
-		const after = collationState.getReadingsForUnit(0);
+		const after = collationState.getReadingsForUnit(
+			`unit:${collationState.alignmentColumns[0].id}`
+		);
 		const nextParent = after.find(reading => reading.text === 'θς');
 		const previousParent = after.find(reading => reading.text === 'θεος');
 		const sibling = after.find(reading => reading.text === 'θεοσ');
@@ -1158,9 +1278,13 @@ describe('collationState stemma derivation', () => {
 			],
 		});
 
-		const readings = collationState.getReadingsForUnit(0);
+		const readings = collationState.getReadingsForUnit(
+			`unit:${collationState.alignmentColumns[0].id}`
+		);
 		const target = readings.find(reading => reading.text === 'κλη\\nτος');
-		const displayValues = collationState.getReadingDisplayValuesForUnit(0);
+		const displayValues = collationState.getReadingDisplayValuesForUnit(
+			`unit:${collationState.alignmentColumns[0].id}`
+		);
 		const display = target ? displayValues.get(target.id) : null;
 
 		expect(display?.originalDisplayText).toBe('κλητος');
@@ -1214,15 +1338,25 @@ describe('collationState stemma derivation', () => {
 			],
 		});
 
-		const parent = collationState.getReadingFamiliesForUnit(0)[0]?.parent;
+		const parent = collationState.getReadingFamiliesForUnit(
+			`unit:${collationState.alignmentColumns[0].id}`
+		)[0]?.parent;
 
 		expect(parent).toBeTruthy();
 		expect(
-			collationState.getDisplayedWitnessIdsForReading(0, parent!.id, 'regularized')
+			collationState.getDisplayedWitnessIdsForReading(
+				`unit:${collationState.alignmentColumns[0].id}`,
+				parent!.id,
+				'regularized'
+			)
 		).toEqual(['A', 'B']);
-		expect(collationState.getDisplayedWitnessIdsForReading(0, parent!.id, 'original')).toEqual([
-			'A',
-		]);
+		expect(
+			collationState.getDisplayedWitnessIdsForReading(
+				`unit:${collationState.alignmentColumns[0].id}`,
+				parent!.id,
+				'original'
+			)
+		).toEqual(['A']);
 	});
 
 	it('can lowercase alignment text while preserving original token text', () => {
@@ -1451,13 +1585,20 @@ describe('collationState stemma derivation', () => {
 
 		collationState.setAlignmentSnapshot(snapshot.snapshot);
 
-		const initial = collationState.getReadingsForUnit(0);
+		const initial = collationState.getReadingsForUnit(
+			`unit:${collationState.alignmentColumns[0].id}`
+		);
 		expect(initial).toHaveLength(1);
 		expect(initial[0]?.witnessIds).toEqual(['A', 'B', 'C']);
 
-		collationState.splitWitnessesIntoNewReading(0, ['C']);
+		collationState.splitWitnessesIntoNewReading(
+			`unit:${collationState.alignmentColumns[0].id}`,
+			['C']
+		);
 
-		const updated = collationState.getReadingsForUnit(0);
+		const updated = collationState.getReadingsForUnit(
+			`unit:${collationState.alignmentColumns[0].id}`
+		);
 		expect(updated).toHaveLength(2);
 		expect(updated.map(reading => reading.witnessIds)).toEqual([['A', 'B'], ['C']]);
 	});
@@ -1495,12 +1636,18 @@ describe('collationState lemma establishment', () => {
 			C: makeTextCell('beta'),
 		});
 
-		const readings = collationState.getReadingsForUnit(0);
+		const readings = collationState.getReadingsForUnit(
+			`unit:${collationState.alignmentColumns[0].id}`
+		);
 		const alpha = readings.find(reading => reading.text === 'alpha')!;
 
-		expect(collationState.getLemmaReadingId(0)).toBe(alpha.id);
+		expect(
+			collationState.getLemmaReadingId(`unit:${collationState.alignmentColumns[0].id}`)
+		).toBe(alpha.id);
 		expect(alpha.label).toBe('a');
-		expect(collationState.unitNeedsLemmaDecision(0)).toBe(false);
+		expect(
+			collationState.unitNeedsLemmaDecision(`unit:${collationState.alignmentColumns[0].id}`)
+		).toBe(false);
 	});
 
 	it('elevates a reading to a while the base-text reading keeps a letter ahead of the rest', () => {
@@ -1510,13 +1657,19 @@ describe('collationState lemma establishment', () => {
 			C: makeTextCell('gamma'),
 			D: makeTextCell('gamma'),
 		});
-		const initial = collationState.getReadingsForUnit(0);
+		const initial = collationState.getReadingsForUnit(
+			`unit:${collationState.alignmentColumns[0].id}`
+		);
 		const beta = initial.find(reading => reading.text === 'beta')!;
 
-		expect(collationState.setLemmaReading(0, beta.id)).toEqual({ ok: true });
+		expect(
+			collationState.setLemmaReading(`unit:${collationState.alignmentColumns[0].id}`, beta.id)
+		).toEqual({ ok: true });
 
 		expect(
-			collationState.getReadingsForUnit(0).map(reading => [reading.text, reading.label])
+			collationState
+				.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
+				.map(reading => [reading.text, reading.label])
 		).toEqual([
 			['beta', 'a'],
 			['alpha', 'b'],
@@ -1526,51 +1679,79 @@ describe('collationState lemma establishment', () => {
 
 	it('keeps the lemma decision through an unrelated edit and undoes each gesture in one step', () => {
 		setUpUnit({ A: makeTextCell('alpha'), B: makeTextCell('beta'), C: makeTextCell('gamma') });
-		const initial = collationState.getReadingsForUnit(0);
+		const initial = collationState.getReadingsForUnit(
+			`unit:${collationState.alignmentColumns[0].id}`
+		);
 		const beta = initial.find(reading => reading.text === 'beta')!;
 		const gamma = initial.find(reading => reading.text === 'gamma')!;
 
-		collationState.setLemmaReading(0, beta.id);
-		collationState.updateReadingText(0, gamma.id, 'delta');
-		expect(collationState.getLemmaReadingId(0)).toBe(beta.id);
+		collationState.setLemmaReading(`unit:${collationState.alignmentColumns[0].id}`, beta.id);
+		collationState.updateReadingText(
+			`unit:${collationState.alignmentColumns[0].id}`,
+			gamma.id,
+			'delta'
+		);
+		expect(
+			collationState.getLemmaReadingId(`unit:${collationState.alignmentColumns[0].id}`)
+		).toBe(beta.id);
 
 		collationState.undo();
-		const afterTextUndo = collationState.getReadingsForUnit(0);
+		const afterTextUndo = collationState.getReadingsForUnit(
+			`unit:${collationState.alignmentColumns[0].id}`
+		);
 		expect(afterTextUndo.find(reading => reading.id === gamma.id)?.text).toBe('gamma');
-		expect(collationState.getLemmaReadingId(0)).toBe(beta.id);
+		expect(
+			collationState.getLemmaReadingId(`unit:${collationState.alignmentColumns[0].id}`)
+		).toBe(beta.id);
 
 		collationState.undo();
-		expect(collationState.getLemmaReadingId(0)).toBe(
-			collationState.getReadingsForUnit(0).find(reading => reading.text === 'alpha')!.id
+		expect(
+			collationState.getLemmaReadingId(`unit:${collationState.alignmentColumns[0].id}`)
+		).toBe(
+			collationState
+				.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
+				.find(reading => reading.text === 'alpha')!.id
 		);
 
 		collationState.redo();
 		collationState.redo();
 		expect(
-			collationState.getReadingsForUnit(0).find(reading => reading.id === gamma.id)?.text
+			collationState
+				.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
+				.find(reading => reading.id === gamma.id)?.text
 		).toBe('delta');
-		expect(collationState.getLemmaReadingId(0)).toBe(beta.id);
+		expect(
+			collationState.getLemmaReadingId(`unit:${collationState.alignmentColumns[0].id}`)
+		).toBe(beta.id);
 	});
 
 	it('needs a lemma decision where the base text does not attest, and clears it once designated', () => {
 		setUpUnit({ A: makeLacunaCell(), B: makeTextCell('beta'), C: makeTextCell('gamma') });
 
-		expect(collationState.unitNeedsLemmaDecision(0)).toBe(true);
-		expect(collationState.getLemmaReadingId(0)).toBeNull();
-		const readings = collationState.getReadingsForUnit(0);
+		expect(
+			collationState.unitNeedsLemmaDecision(`unit:${collationState.alignmentColumns[0].id}`)
+		).toBe(true);
+		expect(
+			collationState.getLemmaReadingId(`unit:${collationState.alignmentColumns[0].id}`)
+		).toBeNull();
+		const readings = collationState.getReadingsForUnit(
+			`unit:${collationState.alignmentColumns[0].id}`
+		);
 		expect(readings.length).toBeGreaterThan(1);
 		expect(readings.every(reading => reading.label.length > 0)).toBe(true);
-		expect(collationState.getUnitsNeedingLemmaDecision()).toEqual([
-			{ unitIndex: 0, unitId: 'unit:col-1' },
-		]);
+		expect(collationState.getUnitsNeedingLemmaDecision()).toEqual([{ unitId: 'unit:col-1' }]);
 
 		const beta = readings.find(reading => reading.text === 'beta')!;
-		collationState.setLemmaReading(0, beta.id);
+		collationState.setLemmaReading(`unit:${collationState.alignmentColumns[0].id}`, beta.id);
 
-		expect(collationState.unitNeedsLemmaDecision(0)).toBe(false);
+		expect(
+			collationState.unitNeedsLemmaDecision(`unit:${collationState.alignmentColumns[0].id}`)
+		).toBe(false);
 		expect(collationState.getUnitsNeedingLemmaDecision()).toEqual([]);
 		expect(
-			collationState.getReadingsForUnit(0).find(reading => reading.id === beta.id)?.label
+			collationState
+				.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
+				.find(reading => reading.id === beta.id)?.label
 		).toBe('a');
 	});
 
@@ -1580,9 +1761,16 @@ describe('collationState lemma establishment', () => {
 			{ excludeBase: true }
 		);
 
-		expect(collationState.unitNeedsLemmaDecision(0)).toBe(true);
-		expect(collationState.getLemmaReadingId(0)).toBeNull();
-		expect(collationState.getReadingsForUnit(0).length).toBeGreaterThan(1);
+		expect(
+			collationState.unitNeedsLemmaDecision(`unit:${collationState.alignmentColumns[0].id}`)
+		).toBe(true);
+		expect(
+			collationState.getLemmaReadingId(`unit:${collationState.alignmentColumns[0].id}`)
+		).toBeNull();
+		expect(
+			collationState.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
+				.length
+		).toBeGreaterThan(1);
 	});
 
 	it('reports divergence for exactly the units whose lemma is not the base text reading', () => {
@@ -1615,58 +1803,93 @@ describe('collationState lemma establishment', () => {
 		});
 		expect(collationState.getLemmaDivergence()).toEqual([]);
 
-		const second = collationState.getReadingsForUnit(1);
+		const second = collationState.getReadingsForUnit(
+			`unit:${collationState.alignmentColumns[1].id}`
+		);
 		const eta = second.find(reading => reading.text === 'eta')!;
 		const zeta = second.find(reading => reading.text === 'zeta')!;
-		collationState.setLemmaReading(1, eta.id);
+		collationState.setLemmaReading(`unit:${collationState.alignmentColumns[1].id}`, eta.id);
 
 		expect(collationState.getLemmaDivergence()).toEqual([
 			{
-				unitIndex: 1,
 				unitId: 'unit:col-2',
 				lemmaReadingId: eta.id,
 				baseTextReadingId: zeta.id,
 			},
 		]);
 
-		collationState.setLemmaReading(1, zeta.id);
+		collationState.setLemmaReading(`unit:${collationState.alignmentColumns[1].id}`, zeta.id);
 		expect(collationState.getLemmaDivergence()).toEqual([]);
 	});
 
 	it('leaves existing arcs untouched when the lemma is elevated', () => {
 		setUpUnit({ A: makeTextCell('alpha'), B: makeTextCell('beta'), C: makeTextCell('gamma') });
-		const readings = collationState.getReadingsForUnit(0);
+		const readings = collationState.getReadingsForUnit(
+			`unit:${collationState.alignmentColumns[0].id}`
+		);
 		const alpha = readings.find(reading => reading.text === 'alpha')!;
 		const beta = readings.find(reading => reading.text === 'beta')!;
-		collationState.setReadingSource(0, beta.id, { kind: 'derived', from: alpha.id });
+		collationState.setReadingSource(`unit:${collationState.alignmentColumns[0].id}`, beta.id, {
+			kind: 'derived',
+			from: alpha.id,
+		});
 		const before = structuredClone(collationState.readingArcs.get('unit:col-1'));
 		expect(before).toHaveLength(1);
 
-		collationState.setLemmaReading(0, beta.id);
+		collationState.setLemmaReading(`unit:${collationState.alignmentColumns[0].id}`, beta.id);
 
 		expect(collationState.readingArcs.get('unit:col-1')).toEqual(before);
 	});
 
 	it('reports a refused reorder instead of returning silently', () => {
 		setUpUnit({ A: makeTextCell('alpha'), B: makeTextCell('beta'), C: makeTextCell('gamma') });
-		const readings = collationState.getReadingsForUnit(0);
+		const readings = collationState.getReadingsForUnit(
+			`unit:${collationState.alignmentColumns[0].id}`
+		);
 		const alpha = readings.find(reading => reading.text === 'alpha')!;
 		const beta = readings.find(reading => reading.text === 'beta')!;
-		const subreading = collationState.addReading(0, { parentReadingId: alpha.id });
+		const subreading = collationState.addReading(
+			`unit:${collationState.alignmentColumns[0].id}`,
+			{ parentReadingId: alpha.id }
+		);
 
-		expect(collationState.moveReadingBefore(0, subreading, beta.id)).toEqual({
+		expect(
+			collationState.moveReadingBefore(
+				`unit:${collationState.alignmentColumns[0].id}`,
+				subreading,
+				beta.id
+			)
+		).toEqual({
 			ok: false,
 			error: 'different-group',
 		});
-		expect(collationState.moveReadingBefore(0, 'missing', beta.id)).toEqual({
+		expect(
+			collationState.moveReadingBefore(
+				`unit:${collationState.alignmentColumns[0].id}`,
+				'missing',
+				beta.id
+			)
+		).toEqual({
 			ok: false,
 			error: 'reading-not-found',
 		});
-		expect(collationState.moveReadingByOffset(0, alpha.id, -1)).toEqual({
+		expect(
+			collationState.moveReadingByOffset(
+				`unit:${collationState.alignmentColumns[0].id}`,
+				alpha.id,
+				-1
+			)
+		).toEqual({
 			ok: false,
 			error: 'at-boundary',
 		});
-		expect(collationState.moveReadingByOffset(0, alpha.id, 1)).toEqual({ ok: true });
+		expect(
+			collationState.moveReadingByOffset(
+				`unit:${collationState.alignmentColumns[0].id}`,
+				alpha.id,
+				1
+			)
+		).toEqual({ ok: true });
 	});
 
 	it('reorders the rows the readings phase displays once a lemma is elevated', () => {
@@ -1676,21 +1899,37 @@ describe('collationState lemma establishment', () => {
 			C: makeTextCell('gamma'),
 			D: makeTextCell('gamma'),
 		});
-		const initial = collationState.getReadingsForUnit(0);
+		const initial = collationState.getReadingsForUnit(
+			`unit:${collationState.alignmentColumns[0].id}`
+		);
 		const beta = initial.find(reading => reading.text === 'beta')!;
 		const gamma = initial.find(reading => reading.text === 'gamma')!;
-		collationState.setLemmaReading(0, gamma.id);
+		collationState.setLemmaReading(`unit:${collationState.alignmentColumns[0].id}`, gamma.id);
 
 		const displayed = () =>
-			collationState.getReadingFamiliesForUnit(0).map(family => family.parent.text);
+			collationState
+				.getReadingFamiliesForUnit(`unit:${collationState.alignmentColumns[0].id}`)
+				.map(family => family.parent.text);
 		expect(displayed()).toEqual(['gamma', 'alpha', 'beta']);
 
-		expect(collationState.moveReadingByOffset(0, gamma.id, -1)).toEqual({
+		expect(
+			collationState.moveReadingByOffset(
+				`unit:${collationState.alignmentColumns[0].id}`,
+				gamma.id,
+				-1
+			)
+		).toEqual({
 			ok: false,
 			error: 'at-boundary',
 		});
 
-		expect(collationState.moveReadingByOffset(0, beta.id, -1)).toEqual({ ok: true });
+		expect(
+			collationState.moveReadingByOffset(
+				`unit:${collationState.alignmentColumns[0].id}`,
+				beta.id,
+				-1
+			)
+		).toEqual({ ok: true });
 		expect(displayed()).toEqual(['gamma', 'beta', 'alpha']);
 	});
 });
@@ -1757,7 +1996,7 @@ describe('collationState non-attestation', () => {
 			C: makeTextCell('beta'),
 		});
 		const before = collationState
-			.getReadingsForUnit(0)
+			.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
 			.map(reading => [reading.label, reading.text, reading.witnessIds]);
 
 		collationState.reset();
@@ -1770,10 +2009,14 @@ describe('collationState non-attestation', () => {
 		});
 
 		const after = collationState
-			.getReadingsForUnit(0)
+			.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
 			.map(reading => [reading.label, reading.text, reading.witnessIds]);
 		expect(after).toEqual(before);
-		expect(collationState.getReadingsForUnit(0).some(reading => reading.isLacuna)).toBe(false);
+		expect(
+			collationState
+				.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
+				.some(reading => reading.isLacuna)
+		).toBe(false);
 	});
 
 	it('surfaces damaged and untranscribed witnesses separately', () => {
@@ -1784,7 +2027,9 @@ describe('collationState non-attestation', () => {
 			D: makeGapCell('untranscribed'),
 		});
 
-		expect(collationState.getNonAttestationForUnit(0)).toEqual({
+		expect(
+			collationState.getNonAttestationForUnit(`unit:${collationState.alignmentColumns[0].id}`)
+		).toEqual({
 			witnessIds: ['C'],
 			untranscribedWitnessIds: ['D'],
 		});
@@ -1796,13 +2041,27 @@ describe('collationState non-attestation', () => {
 			B: makeTextCell('beta'),
 			C: makeGapCell(),
 		});
-		const readings = collationState.getReadingsForUnit(0);
+		const readings = collationState.getReadingsForUnit(
+			`unit:${collationState.alignmentColumns[0].id}`
+		);
 		const alpha = readings.find(reading => reading.text === 'alpha')!;
-		expect(collationState.setReadingParent(0, 'C', alpha.id)).toEqual({
+		expect(
+			collationState.setReadingParent(
+				`unit:${collationState.alignmentColumns[0].id}`,
+				'C',
+				alpha.id
+			)
+		).toEqual({
 			ok: false,
 			error: 'reading-not-found',
 		});
-		expect(collationState.setReadingParent(0, alpha.id, 'C')).toEqual({
+		expect(
+			collationState.setReadingParent(
+				`unit:${collationState.alignmentColumns[0].id}`,
+				alpha.id,
+				'C'
+			)
+		).toEqual({
 			ok: false,
 			error: 'reading-not-found',
 		});
@@ -1816,12 +2075,17 @@ describe('collationState non-attestation', () => {
 		});
 
 		expect(
-			collationState.getReadingsForUnit(0).map(reading => [reading.label, reading.witnessIds])
+			collationState
+				.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
+				.map(reading => [reading.label, reading.witnessIds])
 		).toEqual([
 			['a', ['A']],
 			['b', ['B']],
 		]);
-		expect(collationState.getNonAttestationForUnit(0).witnessIds).toEqual(['C']);
+		expect(
+			collationState.getNonAttestationForUnit(`unit:${collationState.alignmentColumns[0].id}`)
+				.witnessIds
+		).toEqual(['C']);
 	});
 
 	it('excludes a witness transcribed as a real gap from lettering, ordering, and readings', () => {
@@ -1832,11 +2096,15 @@ describe('collationState non-attestation', () => {
 		]);
 		collateWitnesses();
 
-		const readings = collationState.getReadingsForUnit(0);
+		const readings = collationState.getReadingsForUnit(
+			`unit:${collationState.alignmentColumns[0].id}`
+		);
 		expect(readings.map(reading => [reading.label, reading.text, reading.witnessIds])).toEqual([
 			['a', 'λογος', ['A', 'B']],
 		]);
-		expect(collationState.getNonAttestationForUnit(0)).toEqual({
+		expect(
+			collationState.getNonAttestationForUnit(`unit:${collationState.alignmentColumns[0].id}`)
+		).toEqual({
 			witnessIds: ['C'],
 			untranscribedWitnessIds: [],
 		});
@@ -1851,9 +2119,14 @@ describe('collationState non-attestation', () => {
 		]);
 		collateWitnesses();
 
-		const readings = collationState.getReadingsForUnit(0);
+		const readings = collationState.getReadingsForUnit(
+			`unit:${collationState.alignmentColumns[0].id}`
+		);
 		expect(readings.flatMap(reading => reading.witnessIds)).not.toContain('C');
-		expect(collationState.getNonAttestationForUnit(0).witnessIds).toEqual(['C']);
+		expect(
+			collationState.getNonAttestationForUnit(`unit:${collationState.alignmentColumns[0].id}`)
+				.witnessIds
+		).toEqual(['C']);
 	});
 
 	it('keeps a damaged witness absent after its token is shifted out of the unit', () => {
@@ -1868,9 +2141,14 @@ describe('collationState non-attestation', () => {
 		expect(columnId).toBeTruthy();
 		collationState.shiftToken(columnId!, 'C', 'right');
 
-		expect(collationState.getNonAttestationForUnit(0).witnessIds).toContain('C');
 		expect(
-			collationState.getReadingsForUnit(0).flatMap(reading => reading.witnessIds)
+			collationState.getNonAttestationForUnit(`unit:${collationState.alignmentColumns[0].id}`)
+				.witnessIds
+		).toContain('C');
+		expect(
+			collationState
+				.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
+				.flatMap(reading => reading.witnessIds)
 		).not.toContain('C');
 	});
 });
@@ -1921,7 +2199,9 @@ describe('collationState reading types and certainty', () => {
 
 	it('reports back exactly the type it was given, for every value in the vocabulary', () => {
 		setUpUnit({ A: makeTextCell('alpha'), B: makeTextCell('beta') });
-		const beta = collationState.getReadingsForUnit(0).find(reading => reading.text === 'beta')!;
+		const beta = collationState
+			.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
+			.find(reading => reading.text === 'beta')!;
 		const values = [
 			...collationState
 				.getReadingTypeVocabulary()
@@ -1932,22 +2212,35 @@ describe('collationState reading types and certainty', () => {
 		];
 
 		for (const value of values) {
-			expect(collationState.setReadingType(0, beta.id, value)).toEqual({ ok: true });
 			expect(
-				collationState.getReadingsForUnit(0).find(reading => reading.id === beta.id)
-					?.readingType
+				collationState.setReadingType(
+					`unit:${collationState.alignmentColumns[0].id}`,
+					beta.id,
+					value
+				)
+			).toEqual({ ok: true });
+			expect(
+				collationState
+					.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
+					.find(reading => reading.id === beta.id)?.readingType
 			).toBe(value);
 		}
 	});
 
 	it('never touches reading text when the type changes', () => {
 		setUpUnit({ A: makeTextCell('alpha'), B: makeTextCell('beta') });
-		const beta = collationState.getReadingsForUnit(0).find(reading => reading.text === 'beta')!;
+		const beta = collationState
+			.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
+			.find(reading => reading.text === 'beta')!;
 
 		for (const type of collationState.getReadingTypeVocabulary()) {
-			collationState.setReadingType(0, beta.id, type.id);
+			collationState.setReadingType(
+				`unit:${collationState.alignmentColumns[0].id}`,
+				beta.id,
+				type.id
+			);
 			const after = collationState
-				.getReadingsForUnit(0)
+				.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
 				.find(reading => reading.id === beta.id);
 			expect(after?.text).toBe('beta');
 			expect(after?.normalizedText).toBe('beta');
@@ -1958,20 +2251,30 @@ describe('collationState reading types and certainty', () => {
 
 	it('records certainty separately from the type and undoes each in one step', () => {
 		setUpUnit({ A: makeTextCell('alpha'), B: makeTextCell('beta') });
-		const beta = collationState.getReadingsForUnit(0).find(reading => reading.text === 'beta')!;
+		const beta = collationState
+			.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
+			.find(reading => reading.text === 'beta')!;
 
-		collationState.setReadingType(0, beta.id, 'apparent');
-		collationState.setReadingCertainty(0, beta.id, 'low');
+		collationState.setReadingType(
+			`unit:${collationState.alignmentColumns[0].id}`,
+			beta.id,
+			'apparent'
+		);
+		collationState.setReadingCertainty(
+			`unit:${collationState.alignmentColumns[0].id}`,
+			beta.id,
+			'low'
+		);
 
 		const decided = collationState
-			.getReadingsForUnit(0)
+			.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
 			.find(reading => reading.id === beta.id);
 		expect([decided?.readingType, decided?.certainty]).toEqual(['apparent', 'low']);
 
 		collationState.undo();
 
 		const afterUndo = collationState
-			.getReadingsForUnit(0)
+			.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
 			.find(reading => reading.id === beta.id);
 		expect([afterUndo?.readingType, afterUndo?.certainty]).toEqual(['apparent', null]);
 	});
@@ -1983,17 +2286,35 @@ describe('collationState reading types and certainty', () => {
 			makeWitness('C', 'gamma'),
 		]);
 		collateWitnesses();
-		const initial = collationState.getReadingsForUnit(0);
+		const initial = collationState.getReadingsForUnit(
+			`unit:${collationState.alignmentColumns[0].id}`
+		);
 		const beta = initial.find(reading => reading.text === 'beta')!;
 		const gamma = initial.find(reading => reading.text === 'gamma')!;
 
-		collationState.setReadingType(0, beta.id, 'apparent');
-		collationState.setReadingCertainty(0, beta.id, 'low');
-		collationState.updateReadingText(0, gamma.id, 'delta');
-		collationState.setReadingParent(0, gamma.id, beta.id);
+		collationState.setReadingType(
+			`unit:${collationState.alignmentColumns[0].id}`,
+			beta.id,
+			'apparent'
+		);
+		collationState.setReadingCertainty(
+			`unit:${collationState.alignmentColumns[0].id}`,
+			beta.id,
+			'low'
+		);
+		collationState.updateReadingText(
+			`unit:${collationState.alignmentColumns[0].id}`,
+			gamma.id,
+			'delta'
+		);
+		collationState.setReadingParent(
+			`unit:${collationState.alignmentColumns[0].id}`,
+			gamma.id,
+			beta.id
+		);
 
 		const decided = collationState
-			.getReadingsForUnit(0)
+			.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
 			.find(reading => reading.id === beta.id);
 		expect([decided?.readingType, decided?.certainty]).toEqual(['apparent', 'low']);
 
@@ -2002,14 +2323,22 @@ describe('collationState reading types and certainty', () => {
 		collationState.undo();
 		collationState.undo();
 
-		const undone = collationState.getReadingsForUnit(0).find(reading => reading.id === beta.id);
+		const undone = collationState
+			.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
+			.find(reading => reading.id === beta.id);
 		expect([undone?.readingType, undone?.certainty]).toEqual([null, null]);
 	});
 
 	it('refuses a type for a reading the unit does not hold', () => {
 		setUpUnit({ A: makeTextCell('alpha'), B: makeTextCell('beta') });
 
-		expect(collationState.setReadingType(0, 'missing', 'apparent')).toEqual({
+		expect(
+			collationState.setReadingType(
+				`unit:${collationState.alignmentColumns[0].id}`,
+				'missing',
+				'apparent'
+			)
+		).toEqual({
 			ok: false,
 			error: 'reading-not-found',
 		});
@@ -2022,7 +2351,9 @@ describe('collationState reading types and certainty', () => {
 		]);
 		collateWitnesses();
 
-		const readings = collationState.getReadingsForUnit(0);
+		const readings = collationState.getReadingsForUnit(
+			`unit:${collationState.alignmentColumns[0].id}`
+		);
 		expect(readings.map(reading => [reading.witnessIds, reading.readingType])).toEqual([
 			[['A'], null],
 			[['B'], 'deficient'],
@@ -2037,7 +2368,7 @@ describe('collationState reading types and certainty', () => {
 		collateWitnesses();
 
 		const supplied = collationState
-			.getReadingsForUnit(0)
+			.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
 			.find(reading => reading.witnessIds.includes('B'));
 		expect(supplied?.readingType).toBe('deficient');
 	});
@@ -2050,7 +2381,9 @@ describe('collationState reading types and certainty', () => {
 		]);
 		collateWitnesses();
 
-		const readings = collationState.getReadingsForUnit(0);
+		const readings = collationState.getReadingsForUnit(
+			`unit:${collationState.alignmentColumns[0].id}`
+		);
 		const intact = readings.find(reading => reading.witnessIds.includes('A'));
 		expect(intact?.witnessIds).toEqual(['A', 'B']);
 		expect(intact?.readingType).toBe(null);
@@ -2066,20 +2399,26 @@ describe('collationState reading types and certainty', () => {
 		]);
 		collateWitnesses();
 		const proposed = collationState
-			.getReadingsForUnit(0)
+			.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
 			.find(reading => reading.witnessIds.includes('B'))!;
 		expect(proposed.readingType).toBe('deficient');
 
-		collationState.setReadingType(0, proposed.id, 'nonsense');
+		collationState.setReadingType(
+			`unit:${collationState.alignmentColumns[0].id}`,
+			proposed.id,
+			'nonsense'
+		);
 		expect(
-			collationState.getReadingsForUnit(0).find(reading => reading.id === proposed.id)
-				?.readingType
+			collationState
+				.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
+				.find(reading => reading.id === proposed.id)?.readingType
 		).toBe('nonsense');
 
 		collationState.undo();
 		expect(
-			collationState.getReadingsForUnit(0).find(reading => reading.id === proposed.id)
-				?.readingType
+			collationState
+				.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
+				.find(reading => reading.id === proposed.id)?.readingType
 		).toBe('deficient');
 	});
 
@@ -2089,17 +2428,27 @@ describe('collationState reading types and certainty', () => {
 			B: makeTextCell('beta'),
 			C: makeTextCell('gamma'),
 		});
-		const initial = collationState.getReadingsForUnit(0);
+		const initial = collationState.getReadingsForUnit(
+			`unit:${collationState.alignmentColumns[0].id}`
+		);
 		const beta = initial.find(reading => reading.text === 'beta')!;
 		const gamma = initial.find(reading => reading.text === 'gamma')!;
 
-		collationState.setReadingParent(0, gamma.id, beta.id);
+		collationState.setReadingParent(
+			`unit:${collationState.alignmentColumns[0].id}`,
+			gamma.id,
+			beta.id
+		);
 
 		expect(collationState.getSubreadingsMissingReadingType()).toEqual([
-			{ unitIndex: 0, unitId: 'unit:col-1', readingIds: [gamma.id] },
+			{ unitId: 'unit:col-1', readingIds: [gamma.id] },
 		]);
 
-		collationState.setReadingType(0, gamma.id, 'orthographic');
+		collationState.setReadingType(
+			`unit:${collationState.alignmentColumns[0].id}`,
+			gamma.id,
+			'orthographic'
+		);
 		expect(collationState.getSubreadingsMissingReadingType()).toEqual([]);
 	});
 });
@@ -2120,11 +2469,13 @@ describe('collationState local stemma source decisions', () => {
 			options: { segmentation: false },
 		});
 		collationState.setAlignmentSnapshot(snapshot.snapshot);
-		return collationState.getReadingsForUnit(0);
+		return collationState.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`);
 	}
 
 	function labelled(label: string) {
-		const reading = collationState.getReadingsForUnit(0).find(entry => entry.label === label);
+		const reading = collationState
+			.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
+			.find(entry => entry.label === label);
 		if (!reading) throw new Error(`no reading labelled ${label}`);
 		return reading;
 	}
@@ -2134,8 +2485,9 @@ describe('collationState local stemma source decisions', () => {
 	}
 
 	function sourceOf(readingId: string) {
-		return collationState.getLocalStemma(0).nodes.find(node => node.readingId === readingId)
-			?.sourceDecision;
+		return collationState
+			.getLocalStemma(`unit:${collationState.alignmentColumns[0].id}`)
+			.nodes.find(node => node.readingId === readingId)?.sourceDecision;
 	}
 
 	it('records derived, unclear, and undecided as three distinguishable answers', () => {
@@ -2144,16 +2496,29 @@ describe('collationState local stemma source decisions', () => {
 		const b = labelled('b');
 		const c = labelled('c');
 
-		expect(collationState.setReadingSource(0, b.id, { kind: 'derived', from: a.id })).toEqual({
+		expect(
+			collationState.setReadingSource(`unit:${collationState.alignmentColumns[0].id}`, b.id, {
+				kind: 'derived',
+				from: a.id,
+			})
+		).toEqual({
 			ok: true,
 		});
-		expect(collationState.setReadingSource(0, c.id, { kind: 'unclear' })).toEqual({ ok: true });
+		expect(
+			collationState.setReadingSource(`unit:${collationState.alignmentColumns[0].id}`, c.id, {
+				kind: 'unclear',
+			})
+		).toEqual({ ok: true });
 
 		expect(sourceOf(b.id)).toEqual({ kind: 'derived', from: a.id });
 		expect(sourceOf(c.id)).toEqual({ kind: 'unclear' });
 		expect(sourceOf(a.id)).toEqual({ kind: 'undecided' });
 
-		expect(collationState.setReadingSource(0, c.id, { kind: 'undecided' })).toEqual({
+		expect(
+			collationState.setReadingSource(`unit:${collationState.alignmentColumns[0].id}`, c.id, {
+				kind: 'undecided',
+			})
+		).toEqual({
 			ok: true,
 		});
 		expect(sourceOf(c.id)).toEqual({ kind: 'undecided' });
@@ -2165,12 +2530,21 @@ describe('collationState local stemma source decisions', () => {
 		const b = labelled('b');
 		const c = labelled('c');
 
-		collationState.setReadingSource(0, c.id, { kind: 'derived', from: a.id });
-		collationState.setReadingSource(0, c.id, { kind: 'derived', from: b.id });
+		collationState.setReadingSource(`unit:${collationState.alignmentColumns[0].id}`, c.id, {
+			kind: 'derived',
+			from: a.id,
+		});
+		collationState.setReadingSource(`unit:${collationState.alignmentColumns[0].id}`, c.id, {
+			kind: 'derived',
+			from: b.id,
+		});
 
 		expect(arcsForUnit()).toHaveLength(1);
 		expect(sourceOf(c.id)).toEqual({ kind: 'derived', from: b.id });
-		expect(collationState.getLocalStemma(0).violations).toEqual([]);
+		expect(
+			collationState.getLocalStemma(`unit:${collationState.alignmentColumns[0].id}`)
+				.violations
+		).toEqual([]);
 	});
 
 	it('refuses a source that would close a cycle, and changes nothing', () => {
@@ -2178,16 +2552,32 @@ describe('collationState local stemma source decisions', () => {
 		const a = labelled('a');
 		const b = labelled('b');
 		const c = labelled('c');
-		collationState.setReadingSource(0, b.id, { kind: 'derived', from: a.id });
-		collationState.setReadingSource(0, c.id, { kind: 'derived', from: b.id });
+		collationState.setReadingSource(`unit:${collationState.alignmentColumns[0].id}`, b.id, {
+			kind: 'derived',
+			from: a.id,
+		});
+		collationState.setReadingSource(`unit:${collationState.alignmentColumns[0].id}`, c.id, {
+			kind: 'derived',
+			from: b.id,
+		});
 		const before = structuredClone(arcsForUnit());
 		expect(before).toHaveLength(2);
 
-		expect(collationState.setReadingSource(0, a.id, { kind: 'derived', from: c.id })).toEqual({
+		expect(
+			collationState.setReadingSource(`unit:${collationState.alignmentColumns[0].id}`, a.id, {
+				kind: 'derived',
+				from: c.id,
+			})
+		).toEqual({
 			ok: false,
 			error: 'cycle',
 		});
-		expect(collationState.setReadingSource(0, a.id, { kind: 'derived', from: a.id })).toEqual({
+		expect(
+			collationState.setReadingSource(`unit:${collationState.alignmentColumns[0].id}`, a.id, {
+				kind: 'derived',
+				from: a.id,
+			})
+		).toEqual({
 			ok: false,
 			error: 'self-source',
 		});
@@ -2199,13 +2589,27 @@ describe('collationState local stemma source decisions', () => {
 		const a = labelled('a');
 		const b = labelled('b');
 		const c = labelled('c');
-		collationState.setReadingParent(0, c.id, b.id);
+		collationState.setReadingParent(
+			`unit:${collationState.alignmentColumns[0].id}`,
+			c.id,
+			b.id
+		);
 
-		expect(collationState.setReadingSource(0, c.id, { kind: 'derived', from: a.id })).toEqual({
+		expect(
+			collationState.setReadingSource(`unit:${collationState.alignmentColumns[0].id}`, c.id, {
+				kind: 'derived',
+				from: a.id,
+			})
+		).toEqual({
 			ok: false,
 			error: 'not-a-main-reading',
 		});
-		expect(collationState.setReadingSource(0, b.id, { kind: 'derived', from: c.id })).toEqual({
+		expect(
+			collationState.setReadingSource(`unit:${collationState.alignmentColumns[0].id}`, b.id, {
+				kind: 'derived',
+				from: c.id,
+			})
+		).toEqual({
 			ok: false,
 			error: 'not-a-main-reading',
 		});
@@ -2216,8 +2620,13 @@ describe('collationState local stemma source decisions', () => {
 		const a = labelled('a');
 		const b = labelled('b');
 		const c = labelled('c');
-		collationState.setReadingSource(0, b.id, { kind: 'derived', from: a.id });
-		collationState.setReadingSource(0, c.id, { kind: 'unclear' });
+		collationState.setReadingSource(`unit:${collationState.alignmentColumns[0].id}`, b.id, {
+			kind: 'derived',
+			from: a.id,
+		});
+		collationState.setReadingSource(`unit:${collationState.alignmentColumns[0].id}`, c.id, {
+			kind: 'unclear',
+		});
 
 		collationState.undo();
 		expect(sourceOf(c.id)).toEqual({ kind: 'undecided' });
@@ -2235,12 +2644,24 @@ describe('collationState local stemma source decisions', () => {
 		const a = labelled('a');
 		const b = labelled('b');
 		const c = labelled('c');
-		collationState.setReadingSource(0, b.id, { kind: 'derived', from: a.id });
-		collationState.setReadingSource(0, c.id, { kind: 'unclear' });
+		collationState.setReadingSource(`unit:${collationState.alignmentColumns[0].id}`, b.id, {
+			kind: 'derived',
+			from: a.id,
+		});
+		collationState.setReadingSource(`unit:${collationState.alignmentColumns[0].id}`, c.id, {
+			kind: 'unclear',
+		});
 
-		collationState.setReadingType(0, c.id, 'nonsense');
-		collationState.setLemmaReading(0, b.id);
-		collationState.splitWitnessesIntoNewReading(0, ['C']);
+		collationState.setReadingType(
+			`unit:${collationState.alignmentColumns[0].id}`,
+			c.id,
+			'nonsense'
+		);
+		collationState.setLemmaReading(`unit:${collationState.alignmentColumns[0].id}`, b.id);
+		collationState.splitWitnessesIntoNewReading(
+			`unit:${collationState.alignmentColumns[0].id}`,
+			['C']
+		);
 
 		expect(sourceOf(b.id)).toEqual({ kind: 'derived', from: a.id });
 		expect(sourceOf(c.id)).toEqual({ kind: 'unclear' });
@@ -2250,12 +2671,23 @@ describe('collationState local stemma source decisions', () => {
 		collateReadings({ A: 'λογος', B: 'θεος', C: 'πνευμα' });
 		const b = labelled('b');
 		const c = labelled('c');
-		collationState.setReadingSource(0, b.id, { kind: 'derived', from: c.id });
+		collationState.setReadingSource(`unit:${collationState.alignmentColumns[0].id}`, b.id, {
+			kind: 'derived',
+			from: c.id,
+		});
 
-		collationState.moveWitnessesToReading(0, ['C'], b.id);
-		collationState.deleteReading(0, c.id);
+		collationState.moveWitnessesToReading(
+			`unit:${collationState.alignmentColumns[0].id}`,
+			['C'],
+			b.id
+		);
+		collationState.deleteReading(`unit:${collationState.alignmentColumns[0].id}`, c.id);
 
-		expect(collationState.getOrphanedDecisionsForUnit(0)).toEqual([
+		expect(
+			collationState.getOrphanedDecisionsForUnit(
+				`unit:${collationState.alignmentColumns[0].id}`
+			)
+		).toEqual([
 			{
 				kind: 'sourceArc',
 				readingId: b.id,
@@ -2267,10 +2699,15 @@ describe('collationState local stemma source decisions', () => {
 
 	it('reports the arcs of a unit that is no longer a variation unit', () => {
 		collateReadings({ A: 'λογος θεος', B: 'λογος πνευμα' });
-		const readings = collationState.getReadingsForUnit(1);
+		const readings = collationState.getReadingsForUnit(
+			`unit:${collationState.alignmentColumns[1].id}`
+		);
 		const a = readings.find(reading => reading.label === 'a')!;
 		const b = readings.find(reading => reading.label === 'b')!;
-		collationState.setReadingSource(1, b.id, { kind: 'derived', from: a.id });
+		collationState.setReadingSource(`unit:${collationState.alignmentColumns[1].id}`, b.id, {
+			kind: 'derived',
+			from: a.id,
+		});
 		const unitId = [...collationState.readingArcs.keys()][0];
 
 		collationState.mergeColumns(collationState.alignmentColumns.map(column => column.id));
@@ -2289,12 +2726,24 @@ describe('collationState local stemma source decisions', () => {
 		const a = labelled('a');
 		const b = labelled('b');
 		const c = labelled('c');
-		collationState.setReadingSource(0, b.id, { kind: 'derived', from: a.id });
+		collationState.setReadingSource(`unit:${collationState.alignmentColumns[0].id}`, b.id, {
+			kind: 'derived',
+			from: a.id,
+		});
 
-		expect(collationState.setReadingSource(0, c.id, { kind: 'undecided' })).toEqual({
+		expect(
+			collationState.setReadingSource(`unit:${collationState.alignmentColumns[0].id}`, c.id, {
+				kind: 'undecided',
+			})
+		).toEqual({
 			ok: true,
 		});
-		expect(collationState.setReadingSource(0, b.id, { kind: 'derived', from: a.id })).toEqual({
+		expect(
+			collationState.setReadingSource(`unit:${collationState.alignmentColumns[0].id}`, b.id, {
+				kind: 'derived',
+				from: a.id,
+			})
+		).toEqual({
 			ok: true,
 		});
 		expect([...collationState.unitDecisions.values()].some(entry => entry.sourceDecision)).toBe(
@@ -2310,7 +2759,11 @@ describe('collationState local stemma source decisions', () => {
 		collateReadings({ A: 'λογος', B: 'θεος' });
 		const b = labelled('b');
 
-		expect(collationState.setReadingSource(0, b.id, { kind: 'undecided' })).toEqual({
+		expect(
+			collationState.setReadingSource(`unit:${collationState.alignmentColumns[0].id}`, b.id, {
+				kind: 'undecided',
+			})
+		).toEqual({
 			ok: true,
 		});
 
@@ -2320,7 +2773,9 @@ describe('collationState local stemma source decisions', () => {
 
 	it('roots a newly-built stemma on the lemma, never on the reading with most witnesses', () => {
 		collateReadings({ A: 'λογος', B: 'θεος', C: 'θεος', D: 'θεος' });
-		const stemma = collationState.getLocalStemma(0);
+		const stemma = collationState.getLocalStemma(
+			`unit:${collationState.alignmentColumns[0].id}`
+		);
 
 		expect(stemma.nodes.filter(node => node.isLemma).map(node => node.witnessIds)).toEqual([
 			['A'],
@@ -2336,33 +2791,62 @@ describe('collationState local stemma source decisions', () => {
 		collateReadings({ A: 'λογος', B: 'θεος' });
 		const b = labelled('b');
 
-		expect(collationState.getConnectivity(0)).toBe(10);
+		expect(
+			collationState.getConnectivity(`unit:${collationState.alignmentColumns[0].id}`)
+		).toBe(10);
 		expect(collationState.unitDecisions).toEqual(new Map());
-		expect(collationState.setConnectivity(0, 0)).toEqual({
+		expect(
+			collationState.setConnectivity(`unit:${collationState.alignmentColumns[0].id}`, 0)
+		).toEqual({
 			ok: false,
 			error: 'invalid-connectivity',
 		});
-		expect(collationState.setConnectivity(0, 1.5)).toEqual({
+		expect(
+			collationState.setConnectivity(`unit:${collationState.alignmentColumns[0].id}`, 1.5)
+		).toEqual({
 			ok: false,
 			error: 'invalid-connectivity',
 		});
-		expect(collationState.setConnectivity(0, 3)).toEqual({ ok: true });
-		expect(collationState.getConnectivity(0)).toBe(3);
+		expect(
+			collationState.setConnectivity(`unit:${collationState.alignmentColumns[0].id}`, 3)
+		).toEqual({ ok: true });
+		expect(
+			collationState.getConnectivity(`unit:${collationState.alignmentColumns[0].id}`)
+		).toBe(3);
 		expect([...collationState.unitDecisions.values()]).toEqual([{ connectivity: 3 }]);
-		expect(collationState.setConnectivity(0, 'absolute')).toEqual({ ok: true });
-		expect(collationState.getConnectivity(0)).toBe('absolute');
+		expect(
+			collationState.setConnectivity(
+				`unit:${collationState.alignmentColumns[0].id}`,
+				'absolute'
+			)
+		).toEqual({ ok: true });
+		expect(
+			collationState.getConnectivity(`unit:${collationState.alignmentColumns[0].id}`)
+		).toBe('absolute');
 		expect([...collationState.unitDecisions.values()]).toEqual([{ connectivity: 'absolute' }]);
-		collationState.setReadingType(0, b.id, 'nonsense');
-		expect(collationState.getConnectivity(0)).toBe('absolute');
+		collationState.setReadingType(
+			`unit:${collationState.alignmentColumns[0].id}`,
+			b.id,
+			'nonsense'
+		);
+		expect(
+			collationState.getConnectivity(`unit:${collationState.alignmentColumns[0].id}`)
+		).toBe('absolute');
 
 		collationState.undo();
-		expect(collationState.getConnectivity(0)).toBe('absolute');
+		expect(
+			collationState.getConnectivity(`unit:${collationState.alignmentColumns[0].id}`)
+		).toBe('absolute');
 
 		collationState.undo();
-		expect(collationState.getConnectivity(0)).toBe(3);
+		expect(
+			collationState.getConnectivity(`unit:${collationState.alignmentColumns[0].id}`)
+		).toBe(3);
 
 		collationState.undo();
-		expect(collationState.getConnectivity(0)).toBe(10);
+		expect(
+			collationState.getConnectivity(`unit:${collationState.alignmentColumns[0].id}`)
+		).toBe(10);
 		expect(collationState.unitDecisions).toEqual(new Map());
 	});
 
@@ -2372,14 +2856,24 @@ describe('collationState local stemma source decisions', () => {
 		const b = labelled('b');
 		const c = labelled('c');
 
-		expect(collationState.setReadingSource(0, b.id, { kind: 'derived', from: a.id })).toEqual({
+		expect(
+			collationState.setReadingSource(`unit:${collationState.alignmentColumns[0].id}`, b.id, {
+				kind: 'derived',
+				from: a.id,
+			})
+		).toEqual({
 			ok: true,
 		});
 		const arcsBeforeElevation = structuredClone(arcsForUnit());
-		expect(collationState.setLemmaReading(0, b.id)).toEqual({ ok: true });
+		expect(
+			collationState.setLemmaReading(`unit:${collationState.alignmentColumns[0].id}`, b.id)
+		).toEqual({ ok: true });
 
 		expect(arcsForUnit()).toEqual(arcsBeforeElevation);
-		expect(collationState.getLocalStemma(0).violations).toEqual([
+		expect(
+			collationState.getLocalStemma(`unit:${collationState.alignmentColumns[0].id}`)
+				.violations
+		).toEqual([
 			{
 				kind: 'lemma-is-posterior',
 				readingId: b.id,
@@ -2388,7 +2882,6 @@ describe('collationState local stemma source decisions', () => {
 		]);
 		expect(collationState.getStemmaViolations()).toEqual([
 			{
-				unitIndex: 0,
 				unitId: expect.stringMatching(/^unit:/),
 				violations: [
 					{
@@ -2399,7 +2892,12 @@ describe('collationState local stemma source decisions', () => {
 				],
 			},
 		]);
-		expect(collationState.setReadingSource(0, c.id, { kind: 'derived', from: b.id })).toEqual({
+		expect(
+			collationState.setReadingSource(`unit:${collationState.alignmentColumns[0].id}`, c.id, {
+				kind: 'derived',
+				from: b.id,
+			})
+		).toEqual({
 			ok: true,
 		});
 	});
@@ -2410,13 +2908,24 @@ describe('collationState local stemma source decisions', () => {
 		const b = labelled('b');
 		const c = labelled('c');
 		const d = labelled('d');
-		collationState.setReadingSource(0, b.id, { kind: 'derived', from: a.id });
-		collationState.setReadingSource(0, c.id, { kind: 'derived', from: b.id });
-		collationState.setReadingSource(0, d.id, { kind: 'derived', from: a.id });
-		collationState.setLemmaReading(0, b.id);
+		collationState.setReadingSource(`unit:${collationState.alignmentColumns[0].id}`, b.id, {
+			kind: 'derived',
+			from: a.id,
+		});
+		collationState.setReadingSource(`unit:${collationState.alignmentColumns[0].id}`, c.id, {
+			kind: 'derived',
+			from: b.id,
+		});
+		collationState.setReadingSource(`unit:${collationState.alignmentColumns[0].id}`, d.id, {
+			kind: 'derived',
+			from: a.id,
+		});
+		collationState.setLemmaReading(`unit:${collationState.alignmentColumns[0].id}`, b.id);
 		const beforeReroot = structuredClone(arcsForUnit());
 
-		expect(collationState.rerootStemmaOnLemma(0)).toEqual({ ok: true, removed: 1 });
+		expect(
+			collationState.rerootStemmaOnLemma(`unit:${collationState.alignmentColumns[0].id}`)
+		).toEqual({ ok: true, removed: 1 });
 		expect(arcsForUnit()).toEqual(beforeReroot.filter(arc => arc.posteriorReadingId !== b.id));
 
 		collationState.undo();
@@ -2436,7 +2945,7 @@ describe('collationState bulk witness partitioning', () => {
 			options: { segmentation: false },
 		});
 		collationState.setAlignmentSnapshot(snapshot.snapshot);
-		return collationState.getReadingsForUnit(0);
+		return collationState.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`);
 	}
 
 	function collateTexts(texts: Record<string, string>) {
@@ -2450,13 +2959,15 @@ describe('collationState bulk witness partitioning', () => {
 	function witnessesByLabel() {
 		return Object.fromEntries(
 			collationState
-				.getReadingsForUnit(0)
+				.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
 				.map(reading => [reading.label, reading.witnessIds] as const)
 		);
 	}
 
 	function labelled(label: string) {
-		const reading = collationState.getReadingsForUnit(0).find(entry => entry.label === label);
+		const reading = collationState
+			.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
+			.find(entry => entry.label === label);
 		if (!reading) throw new Error(`no reading labelled ${label}`);
 		return reading;
 	}
@@ -2473,7 +2984,13 @@ describe('collationState bulk witness partitioning', () => {
 		const before = witnessesByLabel();
 		const target = labelled('a');
 
-		expect(collationState.moveWitnessesToReading(0, ['B', 'D', 'E'], target.id)).toEqual({
+		expect(
+			collationState.moveWitnessesToReading(
+				`unit:${collationState.alignmentColumns[0].id}`,
+				['B', 'D', 'E'],
+				target.id
+			)
+		).toEqual({
 			ok: true,
 			moved: 3,
 			movedWitnessIds: ['B', 'D', 'E'],
@@ -2482,7 +2999,7 @@ describe('collationState bulk witness partitioning', () => {
 		expect(witnessesByLabel()).toMatchObject({ a: ['A', 'B', 'D', 'E'] });
 		expect(
 			collationState
-				.getReadingsForUnit(0)
+				.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
 				.flatMap(reading => reading.witnessIds)
 				.filter(witnessId => ['B', 'D', 'E'].includes(witnessId))
 		).toEqual(['B', 'D', 'E']);
@@ -2507,10 +3024,19 @@ describe('collationState bulk witness partitioning', () => {
 				],
 			},
 		]);
-		expect(collationState.getNonAttestationForUnit(0).witnessIds).toEqual(['C']);
+		expect(
+			collationState.getNonAttestationForUnit(`unit:${collationState.alignmentColumns[0].id}`)
+				.witnessIds
+		).toEqual(['C']);
 		const before = witnessesByLabel();
 
-		expect(collationState.moveWitnessesToReading(0, ['C'], labelled('a').id)).toEqual({
+		expect(
+			collationState.moveWitnessesToReading(
+				`unit:${collationState.alignmentColumns[0].id}`,
+				['C'],
+				labelled('a').id
+			)
+		).toEqual({
 			ok: false,
 			error: 'no-attesting-witnesses',
 		});
@@ -2521,11 +3047,14 @@ describe('collationState bulk witness partitioning', () => {
 		collateTexts({ A: 'λογος', B: 'λογος', C: 'θεος', D: 'θεος' });
 		const before = witnessesByLabel();
 
-		const result = collationState.splitWitnessesIntoNewReading(0, ['B', 'C']);
+		const result = collationState.splitWitnessesIntoNewReading(
+			`unit:${collationState.alignmentColumns[0].id}`,
+			['B', 'C']
+		);
 		expect(result).toEqual({ ok: true, readingId: expect.any(String) });
 
 		const split = collationState
-			.getReadingsForUnit(0)
+			.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
 			.find(reading => result.ok && reading.id === result.readingId);
 		expect(split?.witnessIds).toEqual(['B', 'C']);
 		expect(witnessesByLabel()).toMatchObject({ a1: ['A'], a2: ['B', 'C'] });
@@ -2538,7 +3067,12 @@ describe('collationState bulk witness partitioning', () => {
 		collateTexts({ A: 'λογος', B: 'λογος', C: 'θεος' });
 		const before = witnessesByLabel();
 
-		expect(collationState.splitWitnessesIntoNewReading(0, ['A', 'B'])).toEqual({
+		expect(
+			collationState.splitWitnessesIntoNewReading(
+				`unit:${collationState.alignmentColumns[0].id}`,
+				['A', 'B']
+			)
+		).toEqual({
 			ok: false,
 			error: 'whole-reading',
 		});
@@ -2549,13 +3083,17 @@ describe('collationState bulk witness partitioning', () => {
 		collateTexts({ A: 'λογος', B: 'λογος', C: 'θεος' });
 		const main = labelled('b');
 
-		const result = collationState.splitWitnessesIntoNewReading(0, ['B'], {
-			subreadingOf: main.id,
-		});
+		const result = collationState.splitWitnessesIntoNewReading(
+			`unit:${collationState.alignmentColumns[0].id}`,
+			['B'],
+			{
+				subreadingOf: main.id,
+			}
+		);
 		expect(result).toEqual({ ok: true, readingId: expect.any(String) });
 
 		const split = collationState
-			.getReadingsForUnit(0)
+			.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
 			.find(reading => result.ok && reading.id === result.readingId);
 		expect(split?.parentReadingId).toBe(main.id);
 		expect(split?.label).toBe('b?');
@@ -2568,12 +3106,19 @@ describe('collationState bulk witness partitioning', () => {
 		const target = labelled('b');
 		const other = labelled('c');
 
-		expect(collationState.mergeReadings(0, [other.id], target.id)).toEqual({ ok: true });
+		expect(
+			collationState.mergeReadings(
+				`unit:${collationState.alignmentColumns[0].id}`,
+				[other.id],
+				target.id
+			)
+		).toEqual({ ok: true });
 
-		expect(collationState.getReadingsForUnit(0).map(reading => reading.witnessIds)).toEqual([
-			['A'],
-			['B', 'C', 'D'],
-		]);
+		expect(
+			collationState
+				.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
+				.map(reading => reading.witnessIds)
+		).toEqual([['A'], ['B', 'C', 'D']]);
 
 		collationState.undo();
 		expect(witnessesByLabel()).toEqual(before);
@@ -2584,24 +3129,43 @@ describe('collationState bulk witness partitioning', () => {
 		const target = labelled('b');
 		const merged = labelled('c');
 		const subreading = labelled('d');
-		expect(collationState.setReadingParent(0, subreading.id, merged.id)).toEqual({ ok: true });
-
-		expect(collationState.mergeReadings(0, [merged.id], target.id)).toEqual({ ok: true });
+		expect(
+			collationState.setReadingParent(
+				`unit:${collationState.alignmentColumns[0].id}`,
+				subreading.id,
+				merged.id
+			)
+		).toEqual({ ok: true });
 
 		expect(
-			collationState.getReadingsForUnit(0).find(reading => reading.id === subreading.id)
-				?.parentReadingId
+			collationState.mergeReadings(
+				`unit:${collationState.alignmentColumns[0].id}`,
+				[merged.id],
+				target.id
+			)
+		).toEqual({ ok: true });
+
+		expect(
+			collationState
+				.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
+				.find(reading => reading.id === subreading.id)?.parentReadingId
 		).toBe(target.id);
 		expect(
-			collationState.getReadingFamiliesForUnit(0).find(family => family.id === target.id)
-				?.children.length
+			collationState
+				.getReadingFamiliesForUnit(`unit:${collationState.alignmentColumns[0].id}`)
+				.find(family => family.id === target.id)?.children.length
 		).toBe(1);
-		expect(collationState.getOrphanedDecisionsForUnit(0)).toEqual([]);
+		expect(
+			collationState.getOrphanedDecisionsForUnit(
+				`unit:${collationState.alignmentColumns[0].id}`
+			)
+		).toEqual([]);
 
 		collationState.undo();
 		expect(
-			collationState.getReadingsForUnit(0).find(reading => reading.id === subreading.id)
-				?.parentReadingId
+			collationState
+				.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
+				.find(reading => reading.id === subreading.id)?.parentReadingId
 		).toBe(merged.id);
 	});
 
@@ -2609,7 +3173,13 @@ describe('collationState bulk witness partitioning', () => {
 		collateTexts({ A: 'λογος', B: 'θεος', C: 'θεος' });
 		const target = labelled('a');
 
-		expect(collationState.moveWitnessesToReading(0, ['B', 'C'], target.id)).toMatchObject({
+		expect(
+			collationState.moveWitnessesToReading(
+				`unit:${collationState.alignmentColumns[0].id}`,
+				['B', 'C'],
+				target.id
+			)
+		).toMatchObject({
 			ok: true,
 			moved: 2,
 		});
@@ -2624,7 +3194,10 @@ describe('collationState bulk witness partitioning', () => {
 		collateTexts({ A: 'λογος', B: 'θεος', C: 'θεος', D: 'πνευμα', E: 'πνευμα' });
 		const before = witnessesByLabel();
 
-		const result = collationState.splitWitnessesIntoNewReading(0, ['B', 'C', 'D', 'E']);
+		const result = collationState.splitWitnessesIntoNewReading(
+			`unit:${collationState.alignmentColumns[0].id}`,
+			['B', 'C', 'D', 'E']
+		);
 		expect(result).toEqual({ ok: true, readingId: expect.any(String) });
 
 		expect(witnessesByLabel()).toEqual({ a: ['A'], b: ['B', 'C', 'D', 'E'] });
@@ -2635,16 +3208,24 @@ describe('collationState bulk witness partitioning', () => {
 
 	it('keeps a reading a scholar added with no witnesses when a verb empties another', () => {
 		collateTexts({ A: 'λογος', B: 'θεος', C: 'θεος' });
-		const conjecture = collationState.addReading(0);
+		const conjecture = collationState.addReading(
+			`unit:${collationState.alignmentColumns[0].id}`
+		);
 
 		expect(
-			collationState.moveWitnessesToReading(0, ['B', 'C'], labelled('a').id)
+			collationState.moveWitnessesToReading(
+				`unit:${collationState.alignmentColumns[0].id}`,
+				['B', 'C'],
+				labelled('a').id
+			)
 		).toMatchObject({
 			ok: true,
 		});
 
 		expect(
-			collationState.getReadingsForUnit(0).some(reading => reading.id === conjecture)
+			collationState
+				.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
+				.some(reading => reading.id === conjecture)
 		).toBe(true);
 	});
 
@@ -2652,13 +3233,25 @@ describe('collationState bulk witness partitioning', () => {
 		collateTexts({ A: 'λογος', B: 'θεος', C: 'πνευμα' });
 		const main = labelled('b');
 		const subreading = labelled('c');
-		collationState.setReadingParent(0, subreading.id, main.id);
+		collationState.setReadingParent(
+			`unit:${collationState.alignmentColumns[0].id}`,
+			subreading.id,
+			main.id
+		);
 
-		expect(collationState.moveWitnessesToReading(0, ['B'], labelled('a').id)).toMatchObject({
+		expect(
+			collationState.moveWitnessesToReading(
+				`unit:${collationState.alignmentColumns[0].id}`,
+				['B'],
+				labelled('a').id
+			)
+		).toMatchObject({
 			ok: true,
 		});
 
-		const readings = collationState.getReadingsForUnit(0);
+		const readings = collationState.getReadingsForUnit(
+			`unit:${collationState.alignmentColumns[0].id}`
+		);
 		expect(readings.find(reading => reading.id === main.id)?.witnessIds).toEqual([]);
 		expect(readings.find(reading => reading.id === subreading.id)?.parentReadingId).toBe(
 			main.id
@@ -2669,24 +3262,49 @@ describe('collationState bulk witness partitioning', () => {
 		collateTexts({ A: 'λογος', B: 'θεος', C: 'πνευμα' });
 		const main = labelled('b');
 		const subreading = labelled('c');
-		collationState.setReadingParent(0, subreading.id, main.id);
-		collationState.moveWitnessesToReading(0, ['B'], labelled('a').id);
-
-		expect(collationState.getAttestingWitnessIdsForReading(0, main.id)).toEqual(['C']);
-		collationState.deleteReading(0, main.id);
-		expect(collationState.getReadingsForUnit(0).some(reading => reading.id === main.id)).toBe(
-			true
+		collationState.setReadingParent(
+			`unit:${collationState.alignmentColumns[0].id}`,
+			subreading.id,
+			main.id
 		);
+		collationState.moveWitnessesToReading(
+			`unit:${collationState.alignmentColumns[0].id}`,
+			['B'],
+			labelled('a').id
+		);
+
+		expect(
+			collationState.getAttestingWitnessIdsForReading(
+				`unit:${collationState.alignmentColumns[0].id}`,
+				main.id
+			)
+		).toEqual(['C']);
+		collationState.deleteReading(`unit:${collationState.alignmentColumns[0].id}`, main.id);
+		expect(
+			collationState
+				.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
+				.some(reading => reading.id === main.id)
+		).toBe(true);
 	});
 
 	it('refuses to merge a reading into its own subreading', () => {
 		collateTexts({ A: 'λογος', B: 'θεος', C: 'πνευμα' });
 		const main = labelled('b');
 		const other = labelled('c');
-		collationState.setReadingParent(0, other.id, main.id);
+		collationState.setReadingParent(
+			`unit:${collationState.alignmentColumns[0].id}`,
+			other.id,
+			main.id
+		);
 		const before = witnessesByLabel();
 
-		expect(collationState.mergeReadings(0, [main.id], other.id)).toEqual({
+		expect(
+			collationState.mergeReadings(
+				`unit:${collationState.alignmentColumns[0].id}`,
+				[main.id],
+				other.id
+			)
+		).toEqual({
 			ok: false,
 			error: 'target-under-source',
 		});
@@ -2698,37 +3316,65 @@ describe('collationState bulk witness partitioning', () => {
 		const b = labelled('b');
 		const c = labelled('c');
 
-		collationState.updateReadingText(0, c.id, 'δελτα');
+		collationState.updateReadingText(
+			`unit:${collationState.alignmentColumns[0].id}`,
+			c.id,
+			'δελτα'
+		);
 		expect(
-			collationState.getReadingsForUnit(0).find(reading => reading.id === c.id)?.text
+			collationState
+				.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
+				.find(reading => reading.id === c.id)?.text
 		).toBe('δελτα');
 		collationState.undo();
 		expect(
-			collationState.getReadingsForUnit(0).find(reading => reading.id === c.id)?.text
+			collationState
+				.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
+				.find(reading => reading.id === c.id)?.text
 		).toBe('πνευμα');
 		collationState.redo();
 		expect(
-			collationState.getReadingsForUnit(0).find(reading => reading.id === c.id)?.text
+			collationState
+				.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
+				.find(reading => reading.id === c.id)?.text
 		).toBe('δελτα');
 
-		const added = collationState.addReading(0);
+		const added = collationState.addReading(`unit:${collationState.alignmentColumns[0].id}`);
 		collationState.undo();
-		expect(collationState.getReadingsForUnit(0).some(reading => reading.id === added)).toBe(
-			false
-		);
+		expect(
+			collationState
+				.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
+				.some(reading => reading.id === added)
+		).toBe(false);
 
-		collationState.deleteReading(0, collationState.addReading(0));
+		collationState.deleteReading(
+			`unit:${collationState.alignmentColumns[0].id}`,
+			collationState.addReading(`unit:${collationState.alignmentColumns[0].id}`)
+		);
 		collationState.undo();
-		expect(collationState.getReadingsForUnit(0).length).toBe(4);
+		expect(
+			collationState.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
+				.length
+		).toBe(4);
 
-		expect(collationState.moveReadingByOffset(0, c.id, -1)).toEqual({ ok: true });
-		expect(collationState.getReadingsForUnit(0).findIndex(reading => reading.id === c.id)).toBe(
-			1
-		);
+		expect(
+			collationState.moveReadingByOffset(
+				`unit:${collationState.alignmentColumns[0].id}`,
+				c.id,
+				-1
+			)
+		).toEqual({ ok: true });
+		expect(
+			collationState
+				.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
+				.findIndex(reading => reading.id === c.id)
+		).toBe(1);
 		collationState.undo();
-		expect(collationState.getReadingsForUnit(0).findIndex(reading => reading.id === b.id)).toBe(
-			1
-		);
+		expect(
+			collationState
+				.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
+				.findIndex(reading => reading.id === b.id)
+		).toBe(1);
 	});
 
 	it('undoes a proposal edit in one unit without reverting work in another', () => {
@@ -2737,8 +3383,10 @@ describe('collationState bulk witness partitioning', () => {
 			makeWitness('B', 'θεος βητα'),
 			makeWitness('C', 'θεος γαμμα'),
 		]);
-		const [first, second] = collationState.getVariationUnitSpans().map(span => span.startIndex);
-		expect(second).toBeGreaterThan(first);
+		const [firstSpan, secondSpan] = collationState.getVariationUnitSpans();
+		expect(secondSpan.startIndex).toBeGreaterThan(firstSpan.startIndex);
+		const first = firstSpan.unitId;
+		const second = secondSpan.unitId;
 
 		const target = collationState
 			.getReadingsForUnit(first)
@@ -2777,11 +3425,19 @@ describe('collationState bulk witness partitioning', () => {
 		const main = labelled('b');
 		const middle = labelled('c');
 		const deepest = labelled('d');
-		collationState.setReadingParent(0, middle.id, main.id);
-		collationState.setReadingParent(0, deepest.id, middle.id);
+		collationState.setReadingParent(
+			`unit:${collationState.alignmentColumns[0].id}`,
+			middle.id,
+			main.id
+		);
+		collationState.setReadingParent(
+			`unit:${collationState.alignmentColumns[0].id}`,
+			deepest.id,
+			middle.id
+		);
 
 		const family = collationState
-			.getReadingFamiliesForUnit(0)
+			.getReadingFamiliesForUnit(`unit:${collationState.alignmentColumns[0].id}`)
 			.find(entry => entry.id === main.id);
 		expect(family?.members.map(member => member.id)).toEqual([main.id, middle.id, deepest.id]);
 	});
@@ -2872,10 +3528,23 @@ describe('collationState witness placement', () => {
 			droppedReadingTypes: [],
 			includedCorrectors: [],
 		};
-		const main = collationState.peekReadingsForUnit(1)[0];
-		await collationState.attachManualWitness(1, main.id, 'Father');
-		const authoredId = collationState.addAuthoredReading(1, 'gamma')!;
-		await collationState.attachManualWitness(1, authoredId, 'Version');
+		const main = collationState.peekReadingsForUnit(
+			`unit:${collationState.alignmentColumns[1].id}`
+		)[0];
+		await collationState.attachManualWitness(
+			`unit:${collationState.alignmentColumns[1].id}`,
+			main.id,
+			'Father'
+		);
+		const authoredId = collationState.addAuthoredReading(
+			`unit:${collationState.alignmentColumns[1].id}`,
+			'gamma'
+		)!;
+		await collationState.attachManualWitness(
+			`unit:${collationState.alignmentColumns[1].id}`,
+			authoredId,
+			'Version'
+		);
 		const manual = collationState.getManualWitnesses();
 		expect(
 			manual.map(witness => [witness.siglum, witness.treatment, witness.includeInCbgm])
@@ -2907,15 +3576,19 @@ describe('collationState witness placement', () => {
 		).toEqual([manual[1].id]);
 		await refresh({ A: 'one alpha two', B: 'one beta two', C: 'one delta two' });
 		expect(
-			collationState.peekReadingsForUnit(1).find(reading => reading.id === authoredId)?.label
+			collationState
+				.peekReadingsForUnit(`unit:${collationState.alignmentColumns[1].id}`)
+				.find(reading => reading.id === authoredId)?.label
 		).toBe('c');
 		expect(
-			collationState.peekReadingsForUnit(1).find(reading => reading.witnessIds.includes('C'))
-				?.label
+			collationState
+				.peekReadingsForUnit(`unit:${collationState.alignmentColumns[1].id}`)
+				.find(reading => reading.witnessIds.includes('C'))?.label
 		).toBe('d');
 		expect(
-			collationState.peekUnitView(1).readings.find(reading => reading.id === main.id)
-				?.manualWitnessIds
+			collationState
+				.peekUnitView(`unit:${collationState.alignmentColumns[1].id}`)
+				.readings.find(reading => reading.id === main.id)?.manualWitnessIds
 		).toEqual([manual[0].id]);
 		collationState.setAlignmentSnapshot(
 			collateToAlignmentSnapshot({
@@ -2926,26 +3599,39 @@ describe('collationState witness placement', () => {
 			}).snapshot
 		);
 		expect(
-			collationState.peekUnitView(1).readings.find(reading => reading.id === authoredId)
-				?.manualWitnessIds
+			collationState
+				.peekUnitView(`unit:${collationState.alignmentColumns[1].id}`)
+				.readings.find(reading => reading.id === authoredId)?.manualWitnessIds
 		).toEqual([manual[1].id]);
 		expect(
-			collationState.getLocalStemma(1).nodes.some(node => node.readingId === authoredId)
+			collationState
+				.getLocalStemma(`unit:${collationState.alignmentColumns[1].id}`)
+				.nodes.some(node => node.readingId === authoredId)
 		).toBe(true);
 	});
 
 	it('records a manual omission on agreed text and stays quiet at unattached units', async () => {
 		setup({ A: 'one alpha', B: 'one beta' });
 		collationState.declareUnit(['column-0']);
-		const id = collationState.addAuthoredReading(0, '', true)!;
-		await collationState.attachManualWitness(0, id, 'Syriac');
+		const id = collationState.addAuthoredReading(
+			`unit:${collationState.alignmentColumns[0].id}`,
+			'',
+			true
+		)!;
+		await collationState.attachManualWitness(
+			`unit:${collationState.alignmentColumns[0].id}`,
+			id,
+			'Syriac'
+		);
 		const witnessId = collationState.getManualWitnesses()[0].id;
 		expect(
-			collationState.peekUnitView(0).readings.find(reading => reading.id === id)
+			collationState
+				.peekUnitView(`unit:${collationState.alignmentColumns[0].id}`)
+				.readings.find(reading => reading.id === id)
 		).toMatchObject({ label: 'b', isOmission: true, manualWitnessIds: [witnessId] });
 		expect(
 			collationState
-				.peekUnitView(1)
+				.peekUnitView(`unit:${collationState.alignmentColumns[1].id}`)
 				.readings.every(reading => reading.manualWitnessIds?.length === 0)
 		).toBe(true);
 		const exported = exportApparatusTei(
@@ -2958,8 +3644,15 @@ describe('collationState witness placement', () => {
 	it('places a matching witness into an authored reading under the same id', async () => {
 		setup({ A: 'one alpha two', B: 'one beta two' });
 		collationState.addRule(makeRule({ pattern: 'θς', replacement: 'θεος' }));
-		const id = collationState.addAuthoredReading(1, 'θς')!;
-		await collationState.attachManualWitness(1, id, 'Father');
+		const id = collationState.addAuthoredReading(
+			`unit:${collationState.alignmentColumns[1].id}`,
+			'θς'
+		)!;
+		await collationState.attachManualWitness(
+			`unit:${collationState.alignmentColumns[1].id}`,
+			id,
+			'Father'
+		);
 		const manualId = collationState.getManualWitnesses()[0].id;
 		await refresh({ A: 'one alpha two', B: 'one beta two', C: 'one θεος two' });
 		expect(
@@ -2968,29 +3661,46 @@ describe('collationState witness placement', () => {
 				.find(reading => reading.id === id)?.witnessIds
 		).toEqual(['C']);
 		expect(
-			collationState.peekUnitView(1).readings.find(reading => reading.id === id)
-				?.manualWitnessIds
+			collationState
+				.peekUnitView(`unit:${collationState.alignmentColumns[1].id}`)
+				.readings.find(reading => reading.id === id)?.manualWitnessIds
 		).toEqual([manualId]);
 		expect(collationState.unitDecisions.get('unit:column-1')?.authoredReadings).toEqual([]);
-		expect(collationState.peekUnitView(1).unconfirmedWitnessIds).toContain('C');
+		expect(
+			collationState.peekUnitView(`unit:${collationState.alignmentColumns[1].id}`)
+				.unconfirmedWitnessIds
+		).toContain('C');
 	});
 
 	it('holds a witness out when several authored readings match', async () => {
 		setup({ A: 'one alpha two', B: 'one beta two' });
 		const ids = [
-			collationState.addAuthoredReading(1, 'gamma')!,
-			collationState.addAuthoredReading(1, 'gamma')!,
+			collationState.addAuthoredReading(
+				`unit:${collationState.alignmentColumns[1].id}`,
+				'gamma'
+			)!,
+			collationState.addAuthoredReading(
+				`unit:${collationState.alignmentColumns[1].id}`,
+				'gamma'
+			)!,
 		];
 		await refresh({ A: 'one alpha two', B: 'one beta two', C: 'one gamma two' });
-		expect(collationState.peekUnitView(1).unresolvedAttestations).toEqual([
-			{ witnessId: 'C', candidateReadingIds: ids },
-		]);
+		expect(
+			collationState.peekUnitView(`unit:${collationState.alignmentColumns[1].id}`)
+				.unresolvedAttestations
+		).toEqual([{ witnessId: 'C', candidateReadingIds: ids }]);
 		expect(
 			collationState
-				.peekUnitView(1)
+				.peekUnitView(`unit:${collationState.alignmentColumns[1].id}`)
 				.readings.every(reading => !reading.witnessIds.includes('C'))
 		).toBe(true);
-		expect(collationState.resolveAttestation(1, 'C', ids[0])).toEqual({ ok: true });
+		expect(
+			collationState.resolveAttestation(
+				`unit:${collationState.alignmentColumns[1].id}`,
+				'C',
+				ids[0]
+			)
+		).toEqual({ ok: true });
 		expect(
 			collationState.classifiedReadings
 				.get('unit:column-1')!
@@ -3002,49 +3712,83 @@ describe('collationState witness placement', () => {
 				?.authoredReadings?.map(reading => reading.id)
 		).toEqual([ids[1]]);
 		collationState.undo();
-		expect(collationState.peekUnitView(1).unresolvedAttestations).toEqual([
-			{ witnessId: 'C', candidateReadingIds: ids },
-		]);
+		expect(
+			collationState.peekUnitView(`unit:${collationState.alignmentColumns[1].id}`)
+				.unresolvedAttestations
+		).toEqual([{ witnessId: 'C', candidateReadingIds: ids }]);
 	});
 
 	it('orders and attaches authored readings through existing decisions and removes only their last testimony', async () => {
 		setup({ A: 'one alpha two', B: 'one beta two' });
-		const id = collationState.addAuthoredReading(1, 'gamma')!;
-		await collationState.attachManualWitness(1, id, 'Father');
-		await collationState.attachManualWitness(1, id, 'Version');
-		collationState.moveReadingByOffset(1, id, -1);
+		const id = collationState.addAuthoredReading(
+			`unit:${collationState.alignmentColumns[1].id}`,
+			'gamma'
+		)!;
+		await collationState.attachManualWitness(
+			`unit:${collationState.alignmentColumns[1].id}`,
+			id,
+			'Father'
+		);
+		await collationState.attachManualWitness(
+			`unit:${collationState.alignmentColumns[1].id}`,
+			id,
+			'Version'
+		);
+		collationState.moveReadingByOffset(`unit:${collationState.alignmentColumns[1].id}`, id, -1);
 		expect(
 			collationState
-				.peekReadingsForUnit(1)
+				.peekReadingsForUnit(`unit:${collationState.alignmentColumns[1].id}`)
 				.map(reading => reading.id)
 				.indexOf(id)
 		).toBe(1);
 		expect(collationState.unitDecisions.get('unit:column-1')?.authoredReadings?.[0].order).toBe(
 			1
 		);
-		const main = collationState.peekReadingsForUnit(1)[0];
-		collationState.setReadingParent(1, id, main.id, 'orthographic');
+		const main = collationState.peekReadingsForUnit(
+			`unit:${collationState.alignmentColumns[1].id}`
+		)[0];
+		collationState.setReadingParent(
+			`unit:${collationState.alignmentColumns[1].id}`,
+			id,
+			main.id,
+			'orthographic'
+		);
 		expect(
-			collationState.peekReadingsForUnit(1).find(reading => reading.id === id)
+			collationState
+				.peekReadingsForUnit(`unit:${collationState.alignmentColumns[1].id}`)
+				.find(reading => reading.id === id)
 		).toMatchObject({ parentReadingId: main.id, readingType: 'orthographic' });
 		expect(
 			collationState.unitDecisions.get('unit:column-1')?.authoredReadings?.[0]
 		).toMatchObject({ parentReadingId: null, readingType: null });
-		collationState.detachManualWitness(1, collationState.getManualWitnesses()[0].id);
-		expect(collationState.peekReadingsForUnit(1).some(reading => reading.id === id)).toBe(true);
-		collationState.detachManualWitness(1, collationState.getManualWitnesses()[1].id);
-		expect(collationState.peekReadingsForUnit(1).some(reading => reading.id === id)).toBe(
-			false
+		collationState.detachManualWitness(
+			`unit:${collationState.alignmentColumns[1].id}`,
+			collationState.getManualWitnesses()[0].id
 		);
+		expect(
+			collationState
+				.peekReadingsForUnit(`unit:${collationState.alignmentColumns[1].id}`)
+				.some(reading => reading.id === id)
+		).toBe(true);
+		collationState.detachManualWitness(
+			`unit:${collationState.alignmentColumns[1].id}`,
+			collationState.getManualWitnesses()[1].id
+		);
+		expect(
+			collationState
+				.peekReadingsForUnit(`unit:${collationState.alignmentColumns[1].id}`)
+				.some(reading => reading.id === id)
+		).toBe(false);
 		collationState.undo();
 		expect(
-			collationState.peekReadingsForUnit(1).find(reading => reading.id === id)
-				?.manualWitnessIds
+			collationState
+				.peekReadingsForUnit(`unit:${collationState.alignmentColumns[1].id}`)
+				.find(reading => reading.id === id)?.manualWitnessIds
 		).toEqual([collationState.getManualWitnesses()[1].id]);
 	});
 
-	function reviewView(unitIndex: number) {
-		const view = collationState.peekUnitView(unitIndex);
+	function reviewView(unitId: string) {
+		const view = collationState.peekUnitView(unitId);
 		return {
 			...view,
 			readings: view.readings.map(reading => ({
@@ -3066,7 +3810,9 @@ describe('collationState witness placement', () => {
 		expect(collationState.declareUnit(['column-1'])).toBe(false);
 		expect(serializeAlignmentColumns(collationState.alignmentColumns)).toEqual(before);
 		expect(collationState.getVariationUnitSpans()[0].unitId).toBe('unit:column-0..column-1');
-		expect(collationState.peekReadingsForUnit(0)[0].text).toBe('same words');
+		expect(collationState.peekReadingsForUnit('unit:column-0..column-1')[0].text).toBe(
+			'same words'
+		);
 		const cbgm = buildCbgmInput([document()], {
 			minExtantUnits: null,
 			minExtantProportion: null,
@@ -3098,20 +3844,23 @@ describe('collationState witness placement', () => {
 	it('keeps declared endpoints and decisions when placement inserts inside the run', async () => {
 		setup({ A: 'same words end', B: 'same words other' });
 		collationState.declareUnit(['column-0', 'column-1']);
-		const reading = collationState.getReadingsForUnit(0)[0];
-		collationState.setReadingType(0, reading.id, 'nonsense');
-		collationState.setConnectivity(0, 3);
+		const reading = collationState.getReadingsForUnit('unit:column-0..column-1')[0];
+		collationState.setReadingType('unit:column-0..column-1', reading.id, 'nonsense');
+		collationState.setConnectivity('unit:column-0..column-1', 3);
 		await refresh({ N: 'same extra words end' });
 		const span = collationState.getVariationUnitSpans()[0];
 		expect(span.unitId).toBe('unit:column-0..column-1');
 		expect(span.columnIds).toHaveLength(3);
-		expect(collationState.getConnectivity(0)).toBe(3);
+		expect(collationState.getConnectivity('unit:column-0..column-1')).toBe(3);
 		expect(
-			collationState.peekReadingsForUnit(0).find(item => item.id === reading.id)?.readingType
+			collationState
+				.peekReadingsForUnit('unit:column-0..column-1')
+				.find(item => item.id === reading.id)?.readingType
 		).toBe('nonsense');
 		expect(
-			collationState.peekReadingsForUnit(0).find(item => item.text === 'same extra words')
-				?.witnessIds
+			collationState
+				.peekReadingsForUnit('unit:column-0..column-1')
+				.find(item => item.text === 'same extra words')?.witnessIds
 		).toEqual(['N']);
 	});
 
@@ -3120,8 +3869,8 @@ describe('collationState witness placement', () => {
 		recognized => {
 			setup({ A: 'same words end', B: 'same words other' });
 			collationState.declareUnit(['column-0', 'column-1']);
-			collationState.getReadingsForUnit(0);
-			collationState.setConnectivity(0, 3);
+			collationState.getReadingsForUnit('unit:column-0..column-1');
+			collationState.setConnectivity('unit:column-0..column-1', 3);
 			const columns = serializeAlignmentColumns(collationState.alignmentColumns).map(
 				(column, index) => ({ ...column, id: `new-${index}` })
 			);
@@ -3138,7 +3887,7 @@ describe('collationState witness placement', () => {
 				expect(collationState.getVariationUnitSpans()[0].unitId).toBe(
 					'unit:column-0..column-1'
 				);
-				expect(collationState.getConnectivity(0)).toBe(3);
+				expect(collationState.getConnectivity('unit:column-0..column-1')).toBe(3);
 			} else {
 				expect(collationState.getOrphanedUnitDecisions()).toContainEqual({
 					unitId: 'unit:column-0..column-1',
@@ -3151,70 +3900,173 @@ describe('collationState witness placement', () => {
 	it('confirms every attestation at one unit in one undo entry', async () => {
 		setup({ A: 'alpha first', B: 'beta second' });
 		await refresh({ N: 'alpha first', M: 'beta second' });
-		const before = reviewView(0);
-		const other = reviewView(1);
+		const before = reviewView(
+			collationState.getVariationUnitSpans().find(span => span.startIndex === 0)!.unitId
+		);
+		const other = reviewView(
+			collationState.getVariationUnitSpans().find(span => span.startIndex === 1)!.unitId
+		);
 		expect(before.unconfirmedWitnessIds).toEqual(['N', 'M']);
-		collationState.confirmUnitAttestations(0);
-		expect(collationState.peekUnitView(0).unconfirmedWitnessIds).toEqual([]);
-		expect(reviewView(1)).toEqual(other);
+		collationState.confirmUnitAttestations(`unit:${collationState.alignmentColumns[0].id}`);
+		expect(
+			collationState.peekUnitView(`unit:${collationState.alignmentColumns[0].id}`)
+				.unconfirmedWitnessIds
+		).toEqual([]);
+		expect(
+			reviewView(
+				collationState.getVariationUnitSpans().find(span => span.startIndex === 1)!.unitId
+			)
+		).toEqual(other);
 		collationState.undo();
-		expect(reviewView(0)).toEqual(before);
+		expect(
+			reviewView(
+				collationState.getVariationUnitSpans().find(span => span.startIndex === 0)!.unitId
+			)
+		).toEqual(before);
 		collationState.redo();
-		expect(collationState.peekUnitView(0).unconfirmedWitnessIds).toEqual([]);
+		expect(
+			collationState.peekUnitView(`unit:${collationState.alignmentColumns[0].id}`)
+				.unconfirmedWitnessIds
+		).toEqual([]);
 	});
 
 	it('resolves held-out testimony into any existing reading and undoes both changes', async () => {
 		setup({ A: 'alpha', B: 'beta', C: 'beta', D: 'gamma' });
-		const beta = collationState.getReadingsForUnit(0).find(reading => reading.text === 'beta')!;
-		collationState.splitWitnessesIntoNewReading(0, ['C']);
+		const beta = collationState
+			.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
+			.find(reading => reading.text === 'beta')!;
+		collationState.splitWitnessesIntoNewReading(
+			`unit:${collationState.alignmentColumns[0].id}`,
+			['C']
+		);
 		await refresh({ N: 'beta' });
-		const before = reviewView(0);
+		const before = reviewView(
+			collationState.getVariationUnitSpans().find(span => span.startIndex === 0)!.unitId
+		);
 		expect(before.unresolvedAttestations).toHaveLength(1);
 		expect(before.readings.flatMap(reading => reading.witnessIds)).not.toContain('N');
-		expect(collationState.resolveAttestation(0, 'N', 'missing')).toEqual({
+		expect(
+			collationState.resolveAttestation(
+				`unit:${collationState.alignmentColumns[0].id}`,
+				'N',
+				'missing'
+			)
+		).toEqual({
 			ok: false,
 			error: 'reading-not-found',
 		});
-		expect(reviewView(0)).toEqual(before);
+		expect(
+			reviewView(
+				collationState.getVariationUnitSpans().find(span => span.startIndex === 0)!.unitId
+			)
+		).toEqual(before);
 		const gamma = before.readings.find(reading => reading.text === 'gamma')!;
-		expect(collationState.resolveAttestation(0, 'N', gamma.id)).toEqual({ ok: true });
-		expect(collationState.peekUnitView(0).unresolvedAttestations).toEqual([]);
+		expect(
+			collationState.resolveAttestation(
+				`unit:${collationState.alignmentColumns[0].id}`,
+				'N',
+				gamma.id
+			)
+		).toEqual({ ok: true });
+		expect(
+			collationState.peekUnitView(`unit:${collationState.alignmentColumns[0].id}`)
+				.unresolvedAttestations
+		).toEqual([]);
 		expect(
 			collationState.classifiedReadings
 				.get('unit:column-0')!
 				.find(reading => reading.id === gamma.id)?.witnessIds
 		).toEqual(['D', 'N']);
 		collationState.undo();
-		expect(reviewView(0)).toEqual(before);
-		expect(collationState.resolveAttestation(0, 'N', beta.id)).toEqual({ ok: true });
 		expect(
-			collationState.peekUnitView(0).readings.find(reading => reading.id === beta.id)
-				?.witnessIds
+			reviewView(
+				collationState.getVariationUnitSpans().find(span => span.startIndex === 0)!.unitId
+			)
+		).toEqual(before);
+		expect(
+			collationState.resolveAttestation(
+				`unit:${collationState.alignmentColumns[0].id}`,
+				'N',
+				beta.id
+			)
+		).toEqual({ ok: true });
+		expect(
+			collationState
+				.peekUnitView(`unit:${collationState.alignmentColumns[0].id}`)
+				.readings.find(reading => reading.id === beta.id)?.witnessIds
 		).toEqual(['B', 'N']);
 		collationState.undo();
-		expect(reviewView(0)).toEqual(before);
+		expect(
+			reviewView(
+				collationState.getVariationUnitSpans().find(span => span.startIndex === 0)!.unitId
+			)
+		).toEqual(before);
 		collationState.redo();
-		expect(collationState.peekUnitView(0).unresolvedAttestations).toEqual([]);
+		expect(
+			collationState.peekUnitView(`unit:${collationState.alignmentColumns[0].id}`)
+				.unresolvedAttestations
+		).toEqual([]);
 	});
 
 	it('keeps moves, splits, merges, attachments, types, lemma, arcs and connectivity', async () => {
 		setup({ A: 'alpha', B: 'beta', C: 'beta', D: 'gamma', E: 'delta', F: 'epsilon' });
-		const readings = collationState.getReadingsForUnit(0);
+		const readings = collationState.getReadingsForUnit(
+			`unit:${collationState.alignmentColumns[0].id}`
+		);
 		const id = (text: string) => readings.find(reading => reading.text === text)!.id;
-		expect(collationState.moveWitnessesToReading(0, ['C'], id('gamma')).ok).toBe(true);
-		expect(collationState.splitWitnessesIntoNewReading(0, ['D']).ok).toBe(true);
-		expect(collationState.mergeReadings(0, [id('epsilon')], id('delta')).ok).toBe(true);
-		expect(collationState.setReadingParent(0, id('beta'), id('delta')).ok).toBe(true);
-		expect(collationState.setReadingType(0, id('beta'), 'orthographic').ok).toBe(true);
-		expect(collationState.setLemmaReading(0, id('delta')).ok).toBe(true);
-		expect(collationState.setConnectivity(0, 3).ok).toBe(true);
 		expect(
-			collationState.setReadingSource(0, id('alpha'), { kind: 'derived', from: id('delta') })
-				.ok
+			collationState.moveWitnessesToReading(
+				`unit:${collationState.alignmentColumns[0].id}`,
+				['C'],
+				id('gamma')
+			).ok
+		).toBe(true);
+		expect(
+			collationState.splitWitnessesIntoNewReading(
+				`unit:${collationState.alignmentColumns[0].id}`,
+				['D']
+			).ok
+		).toBe(true);
+		expect(
+			collationState.mergeReadings(
+				`unit:${collationState.alignmentColumns[0].id}`,
+				[id('epsilon')],
+				id('delta')
+			).ok
+		).toBe(true);
+		expect(
+			collationState.setReadingParent(
+				`unit:${collationState.alignmentColumns[0].id}`,
+				id('beta'),
+				id('delta')
+			).ok
+		).toBe(true);
+		expect(
+			collationState.setReadingType(
+				`unit:${collationState.alignmentColumns[0].id}`,
+				id('beta'),
+				'orthographic'
+			).ok
+		).toBe(true);
+		expect(
+			collationState.setLemmaReading(
+				`unit:${collationState.alignmentColumns[0].id}`,
+				id('delta')
+			).ok
+		).toBe(true);
+		expect(
+			collationState.setConnectivity(`unit:${collationState.alignmentColumns[0].id}`, 3).ok
+		).toBe(true);
+		expect(
+			collationState.setReadingSource(
+				`unit:${collationState.alignmentColumns[0].id}`,
+				id('alpha'),
+				{ kind: 'derived', from: id('delta') }
+			).ok
 		).toBe(true);
 		const before = document();
 		const beforeView = collationState
-			.peekReadingsForUnit(0)
+			.peekReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
 			.map(reading => ({ ...reading, witnessGroups: [] }));
 		const beforeColumns = collationState.alignmentColumns.map(column => ({
 			id: column.id,
@@ -3241,23 +4093,33 @@ describe('collationState witness placement', () => {
 			}))
 		).toEqual(
 			collationState
-				.peekReadingsForUnit(0)
+				.peekReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
 				.map(reading => ({ id: reading.id, witnessIds: reading.witnessIds }))
 		);
-		const beforeReadings = collationState.peekReadingsForUnit(0).map(reading => ({
-			...reading,
-			witnessIds: reading.witnessIds.filter(id => id !== 'N'),
-			witnessGroups: [],
-		}));
+		const beforeReadings = collationState
+			.peekReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
+			.map(reading => ({
+				...reading,
+				witnessIds: reading.witnessIds.filter(id => id !== 'N'),
+				witnessGroups: [],
+			}));
 		expect(beforeReadings).toEqual(beforeView);
-		expect(collationState.peekUnitView(0).unconfirmedWitnessIds).toEqual(['N']);
-		expect(collationState.peekUnitView(0).unresolvedAttestations).toEqual([]);
-		expect(collationState.getLemmaReadingId(0)).toBe(id('delta'));
+		expect(
+			collationState.peekUnitView(`unit:${collationState.alignmentColumns[0].id}`)
+				.unconfirmedWitnessIds
+		).toEqual(['N']);
+		expect(
+			collationState.peekUnitView(`unit:${collationState.alignmentColumns[0].id}`)
+				.unresolvedAttestations
+		).toEqual([]);
+		expect(
+			collationState.getLemmaReadingId(`unit:${collationState.alignmentColumns[0].id}`)
+		).toBe(id('delta'));
 	});
 
 	it('gives a new source a unique id when gathered siglum ids collide', async () => {
 		setup({ A: 'alpha', B: 'beta' });
-		collationState.getReadingsForUnit(0);
+		collationState.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`);
 		const incoming = makeWitness('N', 'beta');
 		vi.spyOn(collationRunner, 'gatherWitnessesForSegment').mockResolvedValue({
 			error: null,
@@ -3278,10 +4140,14 @@ describe('collationState witness placement', () => {
 		expect(added.witnessId).not.toBe('B');
 		expect(new Set(collationState.witnesses.map(witness => witness.witnessId)).size).toBe(3);
 		expect(
-			collationState.peekReadingsForUnit(0).find(reading => reading.witnessIds.includes('B'))
-				?.witnessIds
+			collationState
+				.peekReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
+				.find(reading => reading.witnessIds.includes('B'))?.witnessIds
 		).toEqual(['B', added.witnessId]);
-		expect(collationState.peekUnitView(0).unconfirmedWitnessIds).toEqual([added.witnessId]);
+		expect(
+			collationState.peekUnitView(`unit:${collationState.alignmentColumns[0].id}`)
+				.unconfirmedWitnessIds
+		).toEqual([added.witnessId]);
 	});
 
 	it('keeps hand-merged columns and regularization rules through placement', async () => {
@@ -3311,16 +4177,29 @@ describe('collationState witness placement', () => {
 	it('holds split matches out and assigns matching subreadings and novel main readings', async () => {
 		setup({ A: 'alpha end', B: 'beta end', C: 'beta end', D: 'gamma end' });
 		const main = collationState
-			.getReadingsForUnit(0)
+			.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
 			.find(reading => reading.text === 'alpha')!;
-		const beta = collationState.getReadingsForUnit(0).find(reading => reading.text === 'beta')!;
-		expect(collationState.splitWitnessesIntoNewReading(0, ['C']).ok).toBe(true);
+		const beta = collationState
+			.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
+			.find(reading => reading.text === 'beta')!;
+		expect(
+			collationState.splitWitnessesIntoNewReading(
+				`unit:${collationState.alignmentColumns[0].id}`,
+				['C']
+			).ok
+		).toBe(true);
 		const gamma = collationState
-			.getReadingsForUnit(0)
+			.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
 			.find(reading => reading.text === 'gamma')!;
-		expect(collationState.setReadingParent(0, gamma.id, main.id).ok).toBe(true);
+		expect(
+			collationState.setReadingParent(
+				`unit:${collationState.alignmentColumns[0].id}`,
+				gamma.id,
+				main.id
+			).ok
+		).toBe(true);
 		await refresh({ N: 'beta different', S: 'gamma end', T: 'theta end' });
-		const view = collationState.peekUnitView(0);
+		const view = collationState.peekUnitView(`unit:${collationState.alignmentColumns[0].id}`);
 		expect(view.readings.some(reading => reading.witnessIds.includes('N'))).toBe(false);
 		expect(view.unresolvedAttestations).toEqual([
 			{
@@ -3335,8 +4214,9 @@ describe('collationState witness placement', () => {
 		const novel = view.readings.find(reading => reading.witnessIds.includes('T'))!;
 		expect(novel).toMatchObject({ text: 'theta', label: 'c', parentReadingId: null });
 		expect(
-			collationState.getLocalStemma(0).nodes.find(node => node.readingId === novel.id)
-				?.sourceDecision
+			collationState
+				.getLocalStemma(`unit:${collationState.alignmentColumns[0].id}`)
+				.nodes.find(node => node.readingId === novel.id)?.sourceDecision
 		).toEqual({ kind: 'undecided' });
 		expect(view.unconfirmedWitnessIds).toEqual(['S', 'T']);
 	});
@@ -3364,18 +4244,33 @@ describe('collationState witness placement', () => {
 					]),
 				})),
 			});
-			collationState.getReadingsForUnit(0);
-			expect(collationState.splitWitnessesIntoNewReading(0, ['B']).ok).toBe(true);
+			collationState.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`);
+			expect(
+				collationState.splitWitnessesIntoNewReading(
+					`unit:${collationState.alignmentColumns[0].id}`,
+					['B']
+				).ok
+			).toBe(true);
 			const split = collationState
-				.peekReadingsForUnit(0)
+				.peekReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
 				.find(r => r.witnessIds.includes('B'))!;
-			const second = collationState.getReadingsForUnit(1);
+			const second = collationState.getReadingsForUnit(
+				`unit:${collationState.alignmentColumns[1].id}`
+			);
 			const subreading = second.find(r => r.witnessIds.includes('B'))!;
-			expect(collationState.setReadingParent(1, subreading.id, second[0].id).ok).toBe(true);
-			const third = collationState.getReadingsForUnit(2);
+			expect(
+				collationState.setReadingParent(
+					`unit:${collationState.alignmentColumns[1].id}`,
+					subreading.id,
+					second[0].id
+				).ok
+			).toBe(true);
+			const third = collationState.getReadingsForUnit(
+				`unit:${collationState.alignmentColumns[2].id}`
+			);
 			expect(
 				collationState.recordAmbiguousAttestation(
-					2,
+					`unit:${collationState.alignmentColumns[2].id}`,
 					['B'],
 					third.map(r => r.id)
 				).ok
@@ -3399,23 +4294,32 @@ describe('collationState witness placement', () => {
 				expect(column.cells.get('N')).toEqual(
 					alignmentCellFromTokens([tokens[index < 2 ? 1 - index : index]])
 				);
-				expect(collationState.peekUnitView(index).unconfirmedWitnessIds).toEqual(['N']);
-				expect(collationState.peekUnitView(index).unresolvedAttestations).toEqual([]);
+				expect(
+					collationState.peekUnitView(`unit:${column.id}`).unconfirmedWitnessIds
+				).toEqual(['N']);
+				expect(
+					collationState.peekUnitView(`unit:${column.id}`).unresolvedAttestations
+				).toEqual([]);
 			}
 			expect(
-				collationState.peekReadingsForUnit(0).find(r => r.id === split.id)?.witnessIds
+				collationState
+					.peekReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
+					.find(r => r.id === split.id)?.witnessIds
 			).toEqual(['B', 'N']);
 			expect(
-				collationState.peekReadingsForUnit(1).find(r => r.id === subreading.id)
+				collationState
+					.peekReadingsForUnit(`unit:${collationState.alignmentColumns[1].id}`)
+					.find(r => r.id === subreading.id)
 			).toMatchObject({ witnessIds: ['B', 'C', 'N'], parentReadingId: second[0].id });
-			expect(collationState.peekUnitView(2).ambiguousAttestations[0].witnessIds).toEqual([
-				'B',
-				'N',
-			]);
+			expect(
+				collationState.peekUnitView(`unit:${collationState.alignmentColumns[2].id}`)
+					.ambiguousAttestations[0].witnessIds
+			).toEqual(['B', 'N']);
 			expect([...collationState.classifiedReadings.keys()]).toEqual(storedKeys);
 			expect(
-				collationState.peekReadingsForUnit(3).find(r => r.witnessIds.includes('B'))
-					?.witnessIds
+				collationState
+					.peekReadingsForUnit(`unit:${collationState.alignmentColumns[3].id}`)
+					.find(r => r.witnessIds.includes('B'))?.witnessIds
 			).toEqual(['B', 'C', 'N']);
 		}
 	);
@@ -3466,12 +4370,17 @@ describe('collationState witness placement', () => {
 		expect(collationState.classifiedReadings.size).toBe(0);
 		expect(collationState.witnessOrder).toEqual(['A', 'B', 'N', 'M']);
 		expect(collationState.alignmentColumns).toHaveLength(3);
-		const first = collationState.alignmentColumns.findIndex(column => column.id === 'column-0');
-		expect(collationState.peekUnitView(first).unconfirmedWitnessIds).toEqual(['N', 'M']);
+		expect(collationState.peekUnitView('unit:column-0').unconfirmedWitnessIds).toEqual([
+			'N',
+			'M',
+		]);
 		const inserted = collationState.alignmentColumns.findIndex(
 			column => !['column-0', 'column-1'].includes(column.id)
 		);
-		expect(collationState.peekUnitView(inserted).unconfirmedWitnessIds).toEqual(['M']);
+		expect(
+			collationState.peekUnitView(`unit:${collationState.alignmentColumns[inserted].id}`)
+				.unconfirmedWitnessIds
+		).toEqual(['M']);
 		expect(collationState.alignmentColumns[inserted].cells.get('M')?.text).toBe(
 			collationState.alignmentColumns[inserted].cells.get('N')?.text
 		);
@@ -3486,7 +4395,7 @@ describe('collationState witness placement', () => {
 		).toHaveLength(2);
 		for (const segment of collationState.getSegmentSequence()) {
 			if (segment.kind !== 'unit') continue;
-			const view = collationState.peekUnitView(segment.span.startIndex);
+			const view = collationState.peekUnitView(segment.span.unitId);
 			expect(view.unconfirmedWitnessIds).toEqual([]);
 			expect(view.unresolvedAttestations).toEqual([]);
 			expect(view.readings.some(reading => reading.witnessIds.includes('N'))).toBe(true);
@@ -3497,7 +4406,7 @@ describe('collationState witness placement', () => {
 		'does not assign or mark %s testimony',
 		async kind => {
 			setup({ A: 'alpha', B: 'beta' });
-			collationState.getReadingsForUnit(0);
+			collationState.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`);
 			const incoming = makeWitness('N', '⊘');
 			incoming.tokens = [
 				{
@@ -3522,7 +4431,9 @@ describe('collationState witness placement', () => {
 				],
 			});
 			expect(await collationState.refreshWitnessesFromSource(['N-tx'])).toBe(true);
-			const view = collationState.peekUnitView(0);
+			const view = collationState.peekUnitView(
+				`unit:${collationState.alignmentColumns[0].id}`
+			);
 			expect(view.readings.some(reading => reading.witnessIds.includes('N'))).toBe(false);
 			expect(view.unconfirmedWitnessIds).toEqual([]);
 			expect(view.unresolvedAttestations).toEqual([]);
@@ -3531,15 +4442,21 @@ describe('collationState witness placement', () => {
 
 	it('marks only the changed reading on refresh and keeps other rows untouched', async () => {
 		setup({ A: 'alpha start omega', B: 'beta start psi', C: 'beta start psi' });
-		collationState.getReadingsForUnit(0);
-		collationState.getReadingsForUnit(2);
+		collationState.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`);
+		collationState.getReadingsForUnit(`unit:${collationState.alignmentColumns[2].id}`);
 		const before = collationState.alignmentColumns.map(column => ({
 			id: column.id,
 			cell: column.cells.get('A'),
 		}));
 		await refresh({ B: 'gamma start psi' });
-		expect(collationState.peekUnitView(0).unconfirmedWitnessIds).toEqual(['B']);
-		expect(collationState.peekUnitView(2).unconfirmedWitnessIds).toEqual([]);
+		expect(
+			collationState.peekUnitView(`unit:${collationState.alignmentColumns[0].id}`)
+				.unconfirmedWitnessIds
+		).toEqual(['B']);
+		expect(
+			collationState.peekUnitView(`unit:${collationState.alignmentColumns[2].id}`)
+				.unconfirmedWitnessIds
+		).toEqual([]);
 		expect(
 			collationState.alignmentColumns.map(column => ({
 				id: column.id,
@@ -3551,17 +4468,32 @@ describe('collationState witness placement', () => {
 	it('re-aligns from source tokens, keeping recognized editorial work and orphaning the rest', () => {
 		setup({ A: 'alpha start omega', B: 'beta middle psi' });
 		collationState.setSegmentation(false);
-		const readings = collationState.getReadingsForUnit(0);
+		const readings = collationState.getReadingsForUnit(
+			`unit:${collationState.alignmentColumns[0].id}`
+		);
 		const beta = readings.find(reading => reading.text === 'beta')!;
 		const alpha = readings.find(reading => reading.text === 'alpha')!;
-		collationState.updateReadingText(0, beta.id, 'edited beta');
-		collationState.setReadingType(0, beta.id, 'nonsense');
-		collationState.setLemmaReading(0, beta.id);
-		collationState.setReadingSource(0, alpha.id, { kind: 'derived', from: beta.id });
-		collationState.setConnectivity(0, 3);
-		collationState.setConnectivity(1, 5);
-		collationState.setConnectivity(2, 'absolute');
-		const before = reviewView(0);
+		collationState.updateReadingText(
+			`unit:${collationState.alignmentColumns[0].id}`,
+			beta.id,
+			'edited beta'
+		);
+		collationState.setReadingType(
+			`unit:${collationState.alignmentColumns[0].id}`,
+			beta.id,
+			'nonsense'
+		);
+		collationState.setLemmaReading(`unit:${collationState.alignmentColumns[0].id}`, beta.id);
+		collationState.setReadingSource(`unit:${collationState.alignmentColumns[0].id}`, alpha.id, {
+			kind: 'derived',
+			from: beta.id,
+		});
+		collationState.setConnectivity(`unit:${collationState.alignmentColumns[0].id}`, 3);
+		collationState.setConnectivity(`unit:${collationState.alignmentColumns[1].id}`, 5);
+		collationState.setConnectivity(`unit:${collationState.alignmentColumns[2].id}`, 'absolute');
+		const before = reviewView(
+			collationState.getVariationUnitSpans().find(span => span.startIndex === 0)!.unitId
+		);
 		const decisions = new Map(collationState.unitDecisions);
 		const arcs = new Map(collationState.readingArcs);
 		collationState.mergeColumns(['column-1', 'column-2']);
@@ -3577,7 +4509,11 @@ describe('collationState witness placement', () => {
 		);
 		expect(collationState.alignmentColumns).toHaveLength(3);
 		expect(collationState.alignmentColumns[0].id).toBe('column-0');
-		expect(reviewView(0)).toEqual(before);
+		expect(
+			reviewView(
+				collationState.getVariationUnitSpans().find(span => span.startIndex === 0)!.unitId
+			)
+		).toEqual(before);
 		expect(collationState.unitDecisions).toEqual(decisions);
 		expect(collationState.readingArcs).toEqual(arcs);
 		expect([...collationState.classifiedReadings.keys()]).toEqual(['unit:column-0']);
@@ -3599,8 +4535,8 @@ describe('collationState witness placement', () => {
 				id === 'C' ? cell : makeOmissionCell(),
 			]);
 			collationState.setAlignmentSnapshot({ witnessOrder: ['A', 'B', 'C'], columns });
-			collationState.getReadingsForUnit(0);
-			collationState.setConnectivity(1, 3);
+			collationState.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`);
+			collationState.setConnectivity(`unit:${collationState.alignmentColumns[1].id}`, 3);
 			collationState.setPhase('review');
 			collationState.showPhase('readings');
 			const before = collationState.alignmentColumns.slice(0, 2).map(column => ({
@@ -3628,7 +4564,9 @@ describe('collationState witness placement', () => {
 				decisions: { connectivity: 3 },
 			});
 			expect(
-				collationState.peekReadingsForUnit(0).flatMap(reading => reading.witnessIds)
+				collationState
+					.peekReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
+					.flatMap(reading => reading.witnessIds)
 			).not.toContain('C');
 			expect(collationState.phase).toBe('readings');
 			expect(collationState.furthestPhase).toBe('review');
@@ -3642,7 +4580,10 @@ describe('collationState witness placement', () => {
 				expect(collationState.alignmentColumns.every(column => column.cells.has('C'))).toBe(
 					true
 				);
-				expect(collationState.peekUnitView(0).unconfirmedWitnessIds).toContain('C');
+				expect(
+					collationState.peekUnitView(`unit:${collationState.alignmentColumns[0].id}`)
+						.unconfirmedWitnessIds
+				).toContain('C');
 			}
 		}
 	);
@@ -3654,7 +4595,7 @@ describe('collationState witness placement', () => {
 			collationState.setSegmentation(false);
 			collationState.mergeColumns(['column-0', 'column-1']);
 			const mergedId = collationState.alignmentColumns[0].id;
-			collationState.setConnectivity(0, 3);
+			collationState.setConnectivity(`unit:${collationState.alignmentColumns[0].id}`, 3);
 			collationState.setPhase('review');
 			collationState.showPhase('setup');
 			collationState.setSegmentMembers(['Romans 1:1', 'Rom.1.1']);
@@ -3673,7 +4614,9 @@ describe('collationState witness placement', () => {
 			if (mode === 'new witnesses only') {
 				expect(collationState.alignmentColumns[0].id).toBe(mergedId);
 				expect(collationState.alignmentColumns[0].merged).toBe(true);
-				expect(collationState.getConnectivity(0)).toBe(3);
+				expect(
+					collationState.getConnectivity(`unit:${collationState.alignmentColumns[0].id}`)
+				).toBe(3);
 			} else {
 				expect(collationState.alignmentColumns.every(column => !column.merged)).toBe(true);
 				expect(collationState.alignmentColumns.some(column => column.id === mergedId)).toBe(
@@ -3692,10 +4635,10 @@ describe('collationState witness placement', () => {
 	it('re-aligns when ignore-word-breaks changes and leaves regularization changes deferred', async () => {
 		setup({ A: 'alpha start end', B: 'beta middle finish' });
 		collationState.setSegmentation(false);
-		collationState.setConnectivity(0, 3);
+		collationState.setConnectivity(`unit:${collationState.alignmentColumns[0].id}`, 3);
 		collationState.mergeColumns(['column-1', 'column-2']);
 		const mergedId = collationState.alignmentColumns[1].id;
-		collationState.setConnectivity(1, 5);
+		collationState.setConnectivity(`unit:${collationState.alignmentColumns[1].id}`, 5);
 		const beforeRules = serializeAlignmentColumns(collationState.alignmentColumns);
 		collationState.addRule(makeRule({ pattern: 'absent', replacement: 'other' }));
 		expect(serializeAlignmentColumns(collationState.alignmentColumns)).toEqual(beforeRules);
@@ -3719,7 +4662,9 @@ describe('collationState witness placement', () => {
 		await collationState.setIgnoreWordBreaks(true);
 		expect(collationState.alignmentColumns).toHaveLength(3);
 		expect(collationState.alignmentColumns[0].id).toBe('column-0');
-		expect(collationState.getConnectivity(0)).toBe(3);
+		expect(
+			collationState.getConnectivity(`unit:${collationState.alignmentColumns[0].id}`)
+		).toBe(3);
 		expect(collationState.getOrphanedUnitDecisions()).toContainEqual({
 			unitId: `unit:${mergedId}`,
 			decisions: { connectivity: 5 },

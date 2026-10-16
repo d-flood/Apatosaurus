@@ -104,10 +104,21 @@ describe('ReviewPhase orphan worklist', () => {
 
 	it('surfaces an orphaned decision at a live variation unit with its reading-phase action', async () => {
 		collationState.setAlignmentSnapshot(snapshot(['col-1']));
-		const reading = collationState.getReadingsForUnit(0)[0]!;
-		const addedReadingId = collationState.addReading(0);
-		collationState.setReadingParent(0, addedReadingId, reading.id);
-		collationState.deleteReading(0, addedReadingId);
+		const reading = collationState.getReadingsForUnit(
+			`unit:${collationState.alignmentColumns[0].id}`
+		)[0]!;
+		const addedReadingId = collationState.addReading(
+			`unit:${collationState.alignmentColumns[0].id}`
+		);
+		collationState.setReadingParent(
+			`unit:${collationState.alignmentColumns[0].id}`,
+			addedReadingId,
+			reading.id
+		);
+		collationState.deleteReading(
+			`unit:${collationState.alignmentColumns[0].id}`,
+			addedReadingId
+		);
 
 		renderReview();
 
@@ -123,8 +134,14 @@ describe('ReviewPhase orphan worklist', () => {
 
 	it('surfaces decisions for a vanished variation unit with an alignment action', async () => {
 		collationState.setAlignmentSnapshot(snapshot(['col-1', 'col-2']));
-		const readings = collationState.getReadingsForUnit(1);
-		collationState.setReadingParent(1, readings[1]!.id, readings[0]!.id);
+		const readings = collationState.getReadingsForUnit(
+			`unit:${collationState.alignmentColumns[1].id}`
+		);
+		collationState.setReadingParent(
+			`unit:${collationState.alignmentColumns[1].id}`,
+			readings[1]!.id,
+			readings[0]!.id
+		);
 		collationState.mergeColumns(['col-1', 'col-2']);
 
 		renderReview();
@@ -159,7 +176,9 @@ describe('ReviewPhase export refusals', () => {
 
 	it('links unresolved export testimony to its unit in Readings', async () => {
 		collationState.setAlignmentSnapshot(snapshot(['col-1', 'col-2']));
-		const readings = collationState.getReadingsForUnit(1);
+		const readings = collationState.getReadingsForUnit(
+			`unit:${collationState.alignmentColumns[1].id}`
+		);
 		collationState.unitDecisions.set('unit:col-2', {
 			unresolvedAttestations: [
 				{ witnessId: 'B', candidateReadingIds: readings.map(reading => reading.id) },
@@ -170,7 +189,7 @@ describe('ReviewPhase export refusals', () => {
 		const refusal = page.getByRole('link', { name: /Unit .*resolve attestations for B/ });
 		await expect.element(refusal).toHaveAttribute('href', '/collation/collation-1/readings');
 		await refusal.click();
-		expect(collationState.selectedUnitIndex).toBe(1);
+		expect(collationState.selectedUnitId).toBe(`unit:${collationState.alignmentColumns[1].id}`);
 	});
 
 	it('lists an untranscribed witness in agreed text with transcription and Setup routes', async () => {
@@ -296,7 +315,11 @@ it('lists each unrecorded manual witness with a Readings action and clears after
 	await expect
 		.element(page.getByRole('link', { name: /Unit .*record manual witnesses Syriac/ }))
 		.toBeVisible();
-	collationState.setManualWitnessTestimony(0, 'full', 'uncited');
+	collationState.setManualWitnessTestimony(
+		`unit:${collationState.alignmentColumns[0].id}`,
+		'full',
+		'uncited'
+	);
 	await expect
 		.element(page.getByRole('button', { name: /Record manual witness/ }))
 		.not.toBeInTheDocument();
