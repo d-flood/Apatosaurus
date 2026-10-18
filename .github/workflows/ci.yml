@@ -44,6 +44,8 @@ jobs:
           token: ${{ secrets.DJAZZKIT_ACCESS_TOKEN || github.token }}
 
       - uses: astral-sh/setup-uv@v10.3.0
+        with:
+          cache-suffix: ${{ github.job }}
 
       - uses: actions/setup-node@v7
         with:
@@ -90,6 +92,8 @@ jobs:
           token: ${{ secrets.DJAZZKIT_ACCESS_TOKEN || github.token }}
 
       - uses: astral-sh/setup-uv@v10.3.0
+        with:
+          cache-suffix: ${{ github.job }}
 
       - uses: actions/setup-node@v7
         with:
