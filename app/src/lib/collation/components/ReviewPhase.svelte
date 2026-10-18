@@ -12,6 +12,7 @@
 	import { collationState } from '$lib/collation/collation-state.svelte';
 	import { layoutLocalStemma } from '$lib/collation/collation-stemma-layout';
 	import { findReadingTypeDefinition } from '$lib/collation/reading-types';
+	import ParallelApparatus from './ParallelApparatus.svelte';
 
 	type WorklistEntry = {
 		unitId?: string;
@@ -29,6 +30,7 @@
 	let divergence = $derived(collationState.getLemmaDivergence());
 	let exportRefusals = $state<ApparatusExportRefusal[]>([]);
 	let exportError = $state<string | null>(null);
+	let apparatusView = $state<'traditional' | 'parallel'>('traditional');
 
 	let stemmata = $derived.by(() =>
 		unitSegments.map(segment => {
@@ -103,7 +105,7 @@
 				entries.push({
 					unitId,
 					title: 'Resolve orphaned reading decision',
-					detail: `A saved ${orphan.kind === 'sourceArc' ? 'source' : orphan.kind === 'readingTag' ? 'reading tag' : orphan.kind === 'manualTestimony' ? 'manual testimony' : orphan.kind} decision refers to a reading that is no longer in this variation unit.`,
+					detail: `A saved ${orphan.kind === 'sourceArc' ? 'source' : orphan.kind === 'readingTag' ? 'reading tag' : orphan.kind === 'readingNote' ? 'reading note' : orphan.kind === 'manualTestimony' ? 'manual testimony' : orphan.kind} decision refers to a reading that is no longer in this variation unit.`,
 					phase:
 						orphan.kind === 'sourceArc' || orphan.kind === 'sourceDecision'
 							? 'stemma'
@@ -243,6 +245,7 @@
 			baseTextWitnessId: collationState.getBaseTextWitnessId(),
 			segments: sharedSegments,
 			readingTags: collationState.getReadingTags(),
+			notes: collationState.notes,
 			units,
 		};
 	}
@@ -353,36 +356,60 @@
 		</section>
 
 		<section aria-labelledby="verse-apparatus-heading">
-			<h3
-				id="verse-apparatus-heading"
-				class="mb-2 text-sm font-bold uppercase tracking-wider text-base-content/50"
-			>
-				Verse apparatus
-			</h3>
-			<div
-				class="space-y-2 rounded-xl border border-base-300/60 bg-base-100 p-4 font-greek text-sm leading-relaxed"
-			>
-				{#each segments as segment (segment.kind === 'unit' ? segment.span.unitId : segment.columnIds.join('+'))}
-					{#if segment.kind === 'agreed'}
-						<span class="select-text text-base-content/70">{segment.text}</span>
-					{:else}
-						{@const notation = renderApparatusUnit(
-							collationState.peekUnitView(segment.span.unitId),
-							{
-								label: segment.label,
-								siglumOf,
-								nonAttestation: collationState.getNonAttestationForUnit(
-									segment.span.unitId
-								),
-								readingTypeLabelOf: readingType =>
-									findReadingTypeDefinition(vocabulary, readingType)?.label ??
-									readingType,
-							}
-						)}
-						<p class="select-text rounded bg-base-200/50 px-2 py-1">{notation}</p>
-					{/if}
-				{/each}
+			<div class="mb-2 flex flex-wrap items-center justify-between gap-2">
+				<h3
+					id="verse-apparatus-heading"
+					class="text-sm font-bold uppercase tracking-wider text-base-content/50"
+				>
+					Verse apparatus
+				</h3>
+				<div class="join">
+					<input
+						class="join-item btn btn-xs"
+						type="radio"
+						name="apparatus-view"
+						aria-label="Traditional"
+						checked={apparatusView === 'traditional'}
+						onchange={() => (apparatusView = 'traditional')}
+					/>
+					<input
+						class="join-item btn btn-xs"
+						type="radio"
+						name="apparatus-view"
+						aria-label="Parallel"
+						checked={apparatusView === 'parallel'}
+						onchange={() => (apparatusView = 'parallel')}
+					/>
+				</div>
 			</div>
+			{#if apparatusView === 'parallel'}
+				<ParallelApparatus {segments} />
+			{:else}
+				<div
+					class="space-y-2 rounded-xl border border-base-300/60 bg-base-100 p-4 font-greek text-sm leading-relaxed"
+				>
+					{#each segments as segment (segment.kind === 'unit' ? segment.span.unitId : segment.columnIds.join('+'))}
+						{#if segment.kind === 'agreed'}
+							<span class="select-text text-base-content/70">{segment.text}</span>
+						{:else}
+							{@const notation = renderApparatusUnit(
+								collationState.peekUnitView(segment.span.unitId),
+								{
+									label: segment.label,
+									siglumOf,
+									nonAttestation: collationState.getNonAttestationForUnit(
+										segment.span.unitId
+									),
+									readingTypeLabelOf: readingType =>
+										findReadingTypeDefinition(vocabulary, readingType)?.label ??
+										readingType,
+								}
+							)}
+							<p class="select-text rounded bg-base-200/50 px-2 py-1">{notation}</p>
+						{/if}
+					{/each}
+				</div>
+			{/if}
 		</section>
 
 		<section aria-labelledby="local-stemmata-heading">

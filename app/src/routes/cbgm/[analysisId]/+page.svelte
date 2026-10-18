@@ -56,10 +56,11 @@
 		{ label: 'Excluded witnesses', value: settings.excluded_witnesses.join(', ') || 'None' },
 		{
 			label: 'Dropped reading types',
-			value:
-				settings.dropped_reading_types
-					.map(id => findReadingTypeDefinition(BUNDLED_READING_TYPES, id)?.label ?? id)
-					.join(', ') || 'None',
+			value: readingTypeLabels(settings.dropped_reading_types),
+		},
+		{
+			label: 'Trivial reading types',
+			value: readingTypeLabels(settings.trivial_reading_types),
 		},
 		{
 			label: 'Collations',
@@ -71,6 +72,14 @@
 	$effect(() => {
 		void loadStatus(analysis);
 	});
+
+	function readingTypeLabels(ids: string[]): string {
+		return (
+			ids
+				.map(id => findReadingTypeDefinition(BUNDLED_READING_TYPES, id)?.label ?? id)
+				.join(', ') || 'None'
+		);
+	}
 
 	onMount(() => {
 		const unsubscribe = subscribeLocalDbInvalidations(({ domain }) => {

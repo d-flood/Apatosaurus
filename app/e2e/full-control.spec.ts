@@ -7,6 +7,9 @@ import { sealDocument, serializeSealedDocument } from '../src/lib/storage/envelo
 const PROJECT_ID = 'full-control-project';
 const CLASSIC = fileURLToPath(new URL('./fixtures/full-control-classic.xml', import.meta.url));
 const TRANSCRIPTION = new URL('./fixtures/full-control-transcription.xml', import.meta.url);
+const MIGRATION = fileURLToPath(
+	new URL('../src/lib/collation/__fixtures__/classic/metadata.xml', import.meta.url)
+);
 
 test.setTimeout(180_000);
 test.use({ actionTimeout: 15_000 });
@@ -146,6 +149,51 @@ test('a scholar imports, extends, reviews and exports a classic collation on a p
 	expect(xml).toContain('ζητα');
 	expect(xml.match(/<app /g)).toHaveLength(3);
 	await expectNoHorizontalScroll(page);
+});
+
+test('a scholar migrates sections, notes and witness descriptions from a classic export on a phone', async ({
+	page,
+}) => {
+	await page.setViewportSize({ width: 390, height: 844 });
+	await seedProject(page);
+	await page.goto(`/projects/${PROJECT_ID}/collations`);
+	await page.getByRole('button', { name: 'Import classic collation' }).click();
+	const dialog = page.getByRole('dialog', { name: 'Import classic collation' });
+	await dialog.getByLabel(/Classic export/).setInputFiles(MIGRATION);
+	await expect(dialog.getByRole('status')).toHaveText('2 verses · 3 witnesses');
+	await expect(dialog.getByRole('textbox', { name: 'Transcription title' })).toHaveValue('RP');
+	for (const [name, value] of Object.entries({
+		transcriber: 'Editor',
+		repository: 'Library',
+		settlement: 'Cambridge',
+		language: 'Greek',
+	})) {
+		await dialog.getByRole('textbox', { name, exact: true }).fill(value);
+	}
+	await dialog.getByRole('checkbox', { name: /non-attestation/ }).check();
+	await expectControlsFit(dialog);
+	await dialog.getByRole('button', { name: 'Import collation', exact: true }).click();
+	await expect(dialog).toHaveCount(0, { timeout: 30_000 });
+	await expect(page.getByText('Chapter 1 · 1')).toBeVisible();
+	await expect(page.getByText('Chapter 2 · 1')).toBeVisible();
+	await page.getByRole('link', { name: 'Open', exact: true }).first().click();
+	await expect(page).toHaveURL(/\/review$/);
+	await page.getByLabel('Verse note', { exact: true }).click();
+	await expect(page.getByRole('textbox', { name: 'Verse note text' })).toHaveValue(
+		'Verse remark\n\nClassic reading b at 4: Leaf damaged'
+	);
+	await page.getByLabel('Verse note', { exact: true }).click();
+	await page.getByRole('radio', { name: 'Parallel', exact: true }).check();
+	await expect(page.getByRole('button', { name: 'C', exact: true }).first()).toHaveAttribute(
+		'title',
+		'Vaticanus'
+	);
+	await expectNoHorizontalScroll(page);
+	const download = page.waitForEvent('download');
+	await page.getByRole('button', { name: 'Export TEI apparatus', exact: true }).click();
+	const xml = await readFile((await (await download).path())!, 'utf8');
+	expect(xml).toContain('<note type="verse">Verse remark');
+	expect(xml).toMatch(/<note type="reading" target="#[^"]+">Reading remark<\/note>/);
 });
 
 async function expectControlFits(control: Locator): Promise<void> {

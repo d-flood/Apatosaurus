@@ -21,6 +21,7 @@ export const defaults: CoherenceSettings = {
 	classicRules: false,
 	mergeSplitReadings: false,
 	droppedReadingTypes: [],
+	trivialReadingTypes: [],
 	includedCorrectors: [],
 };
 
@@ -30,6 +31,10 @@ export const runs = [
 	{
 		fixture: 'dropped-ambiguous-merge-splits',
 		settings: { ...defaults, droppedReadingTypes: ['ambiguous'], mergeSplitReadings: true },
+	},
+	{
+		fixture: 'trivial-defective-orthographic',
+		settings: { ...defaults, trivialReadingTypes: ['defective', 'orthographic'] },
 	},
 ];
 

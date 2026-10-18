@@ -65,6 +65,7 @@ python3 -c "import sqlite3, sys; assert sqlite3.connect(sys.argv[1]).execute(\"S
 $BIN/compare_witnesses -f json -o tests/fixtures/default/compare-all-with-substemmata.json /tmp/substemmata.db 5 > /dev/null
 golden classic --classic
 golden dropped-ambiguous-merge-splits -Z ambiguous --merge-splits
+golden trivial-defective-orthographic -z defective -z orthographic
 
 native() {
 	rm -f $CACHE

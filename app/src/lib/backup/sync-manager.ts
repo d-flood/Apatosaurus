@@ -1177,7 +1177,8 @@ async function deriveTeiFromCanonicalPrimary(
 			)
 		: exportCollationDocumentTei(
 				(parsed.payload as CollationPayload).document,
-				projectSettings
+				projectSettings,
+				(parsed.payload as CollationPayload).notes
 			);
 }
 

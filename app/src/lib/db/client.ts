@@ -91,6 +91,7 @@ export const listProjectTranscriptionSourceCandidates = call(
 );
 
 export const listCollationsWithProjectNames = call('listCollationsWithProjectNames');
+export const getNextCollationSortKey = call('getNextCollationSortKey');
 export const createCollation = call('createCollation');
 export const loadCollation = call('loadCollation');
 export const listProjectCollationVersionStatuses = call('listProjectCollationVersionStatuses');

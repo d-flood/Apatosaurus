@@ -3584,6 +3584,7 @@ describe('collationState witness placement', () => {
 			classicRules: false,
 			mergeSplitReadings: false,
 			droppedReadingTypes: [],
+			trivialReadingTypes: [],
 			includedCorrectors: [],
 		};
 		const main = collationState.peekReadingsForUnit(
@@ -3976,6 +3977,7 @@ describe('collationState witness placement', () => {
 			classicRules: false,
 			mergeSplitReadings: false,
 			droppedReadingTypes: [],
+			trivialReadingTypes: [],
 			includedCorrectors: [],
 		});
 		expect(cbgm.tei).toContain('same words');
@@ -4947,6 +4949,7 @@ describe('collationState witness placement', () => {
 			classicRules: false,
 			mergeSplitReadings: false,
 			droppedReadingTypes: [],
+			trivialReadingTypes: [],
 			includedCorrectors: [],
 		};
 		expect(buildCbgmInput([marked], settings)).toEqual(buildCbgmInput([unmarked], settings));

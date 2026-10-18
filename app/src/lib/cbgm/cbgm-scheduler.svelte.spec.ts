@@ -29,6 +29,7 @@ const settings: CoherenceSettings = {
 	classicRules: false,
 	mergeSplitReadings: false,
 	droppedReadingTypes: [],
+	trivialReadingTypes: [],
 	includedCorrectors: [],
 };
 

@@ -60,6 +60,7 @@ export const CBGM_ANALYSIS_INPUT: CreateCbgmAnalysisInput = {
 		classic_rules: false,
 		merge_split_readings: true,
 		dropped_reading_types: ['nonsense'],
+		trivial_reading_types: ['orthographic'],
 		included_correctors: ['01*'],
 	},
 	collations: [

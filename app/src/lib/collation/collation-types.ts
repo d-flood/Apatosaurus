@@ -106,6 +106,7 @@ export interface ManualWitnessDefinition {
 	siglum: string;
 	treatment: WitnessTreatment;
 	includeInCbgm: boolean;
+	description?: string;
 }
 
 export interface ClassifiedReading {
@@ -121,6 +122,7 @@ export interface ClassifiedReading {
 	isLacuna: boolean;
 	readingType: ReadingTypeId | null;
 	readingTags?: string[];
+	note?: string;
 	certainty: Certainty | null;
 	parentReadingId: string | null;
 	isSubreading: boolean;

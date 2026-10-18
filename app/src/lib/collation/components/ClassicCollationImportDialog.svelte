@@ -17,6 +17,7 @@
 	let choice = $state('');
 	let newSiglum = $state('');
 	let title = $state('');
+	let absentAsNonAttestation = $state(false);
 	let defaults = $state<LocalTeiImportDefaults>({
 		transcriber: '',
 		repository: '',
@@ -41,8 +42,12 @@
 			const parsed = parseClassicCollationExport(await file.text());
 			if (runId !== readId) return;
 			source = parsed;
-			title = file.name.replace(/\.xml$/i, '');
-			const candidate = classicBaseSiglumCandidates(parsed)[0];
+			const labels = new Set(parsed.verses.map(verse => verse.baseLabel).filter(Boolean));
+			const label = labels.size === 1 ? [...labels][0] : '';
+			title = label || file.name.replace(/\.xml$/i, '');
+			newSiglum = label;
+			const candidates = classicBaseSiglumCandidates(parsed);
+			const candidate = candidates.includes(label) ? label : candidates[0];
 			choice = candidate ? `w:${candidate}` : 'new';
 		} catch (err) {
 			if (runId === readId)
@@ -64,6 +69,7 @@
 				baseSiglum,
 				title,
 				defaults: { ...defaults },
+				absentAsNonAttestation,
 			});
 			onimported();
 		} catch (err) {
@@ -142,6 +148,18 @@
 						>
 					{/each}
 				</div>
+				<label class="flex items-start gap-2 text-sm">
+					<input
+						type="checkbox"
+						class="checkbox checkbox-sm mt-0.5"
+						bind:checked={absentAsNonAttestation}
+						disabled={busy}
+					/>
+					<span
+						>Record witnesses missing from a unit as non-attestation, as the classic app
+						and open-cbgm treated them. Otherwise they stay unrecorded until you decide.</span
+					>
+				</label>
 			{/if}
 			{#if error}<p class="alert alert-error text-sm" role="alert">{error}</p>{/if}
 			<div class="modal-action flex-wrap">

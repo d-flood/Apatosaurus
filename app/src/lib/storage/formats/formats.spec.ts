@@ -69,6 +69,10 @@ import projectManifestV4Input from './fixtures/project-manifest-v4.input.json';
 import projectManifestV5Expected from './fixtures/project-manifest-v5.expected.json';
 import collationV15Input from './fixtures/collation-v15.input.json';
 import collationV16Expected from './fixtures/collation-v16.expected.json';
+import collationV16Input from './fixtures/collation-v16.input.json';
+import collationV17Expected from './fixtures/collation-v17.expected.json';
+import projectManifestV5Input from './fixtures/project-manifest-v5.input.json';
+import projectManifestV6Expected from './fixtures/project-manifest-v6.expected.json';
 import projectManifestV3Input from './fixtures/project-manifest-v3.input.json';
 import projectManifestV4Expected from './fixtures/project-manifest-v4.expected.json';
 import {
@@ -117,6 +121,71 @@ const FORMAT_FIXTURES = [
 ] as const;
 
 describe('canonical store formats', () => {
+	it('upgrades v5 project manifests with manual witness descriptions unchanged', async () => {
+		expect(
+			await readCanonicalDocument(
+				PROJECT_MANIFEST_FORMAT,
+				await sealDocument(PROJECT_MANIFEST_FORMAT, 5, projectManifestV5Input)
+			)
+		).toMatchObject({
+			ok: true,
+			upgraded: true,
+			originalVersion: 5,
+			payload: projectManifestV6Expected,
+		});
+	});
+
+	it('upgrades v16 reading notes and preserves working and checkpoint documents', async () => {
+		expect(
+			await readCanonicalDocument(
+				COLLATION_FORMAT,
+				await sealDocument(COLLATION_FORMAT, 16, collationV16Input as JsonObject)
+			)
+		).toMatchObject({
+			ok: true,
+			upgraded: true,
+			originalVersion: 16,
+			payload: collationV17Expected,
+		});
+		const working = { ...WORKING_COLLATION_FIXTURE, document: collationV17Expected.document };
+		const payload = {
+			...COLLATION_CHECKPOINT_FIXTURE.payload,
+			document: collationV17Expected.document,
+		};
+		const checkpoint = {
+			...COLLATION_CHECKPOINT_FIXTURE,
+			payload,
+			payload_content_hash: await hashCanonicalPayload(payload),
+		};
+		for (const [format, value] of [
+			[WORKING_COLLATION_FORMAT, working],
+			[COLLATION_CHECKPOINT_FORMAT, checkpoint],
+		] as const) {
+			expect(
+				await readCanonicalDocument(
+					format,
+					await serializeCanonicalDocument(format, value as JsonObject)
+				)
+			).toMatchObject({ ok: true, payload: value });
+		}
+	});
+
+	it.each([null, [], 'note', { a: 1 }, { a: ' ' }, { '': 'note' }])(
+		'quarantines malformed reading notes %j',
+		async readingNotes => {
+			const payload = structuredClone(collationV17Expected) as JsonObject;
+			const units = ((payload.document as JsonObject).apparatus as JsonObject)
+				.units as JsonObject[];
+			units[0].decisions = { readingNotes } as JsonObject;
+			expect(
+				await readCanonicalDocument(
+					COLLATION_FORMAT,
+					await sealDocument(COLLATION_FORMAT, COLLATION_CURRENT_VERSION, payload)
+				)
+			).toMatchObject({ ok: false, quarantine: { code: 'invalid_shape' } });
+		}
+	);
+
 	it('upgrades v4 project manifests with suffixless reading types unchanged', async () => {
 		expect(
 			await readCanonicalDocument(

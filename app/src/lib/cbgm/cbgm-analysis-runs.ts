@@ -51,6 +51,7 @@ export function analysisSettings(settings: CoherenceSettings): CbgmAnalysisSetti
 		classic_rules: settings.classicRules,
 		merge_split_readings: settings.mergeSplitReadings,
 		dropped_reading_types: settings.droppedReadingTypes,
+		trivial_reading_types: settings.trivialReadingTypes,
 		included_correctors: settings.includedCorrectors,
 	};
 }
@@ -63,6 +64,7 @@ export function coherenceSettings(settings: CbgmAnalysisSettings): CoherenceSett
 		classicRules: settings.classic_rules,
 		mergeSplitReadings: settings.merge_split_readings,
 		droppedReadingTypes: [...settings.dropped_reading_types],
+		trivialReadingTypes: [...settings.trivial_reading_types],
 		includedCorrectors: [...settings.included_correctors],
 	};
 }

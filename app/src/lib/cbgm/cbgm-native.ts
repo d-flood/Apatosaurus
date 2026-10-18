@@ -1,4 +1,4 @@
-import type { CbgmEngine, CoherenceSettings } from '@apatosaurus/open-cbgm-wasm';
+import type { CbgmEngine, CoherenceSettings, ReadingRelation } from '@apatosaurus/open-cbgm-wasm';
 
 import type { CbgmAnalysisSettings } from '$lib/storage/formats';
 
@@ -15,6 +15,7 @@ export function nativeCommands(settings: CbgmAnalysisSettings): string {
 	const populate = [
 		'populate_db',
 		...(settings.min_extant_units === null ? [] : ['-t', String(settings.min_extant_units)]),
+		...settings.trivial_reading_types.flatMap(type => ['-z', type]),
 		...settings.dropped_reading_types.flatMap(type => ['-Z', type]),
 		...(settings.merge_split_readings ? ['--merge-splits'] : []),
 		...(settings.classic_rules ? ['--classic'] : []),
@@ -59,7 +60,27 @@ export function nativeCacheMismatch(
 			'variation unit',
 			expected.units,
 			engine.units().map(unit => unit.id)
-		)
+		) ??
+		relationMismatch(expected.relations, engine.relations())
+	);
+}
+
+function relationMismatch(expected: ReadingRelation[], actual: ReadingRelation[]): string | null {
+	const index = expected.findIndex(
+		(relation, position) => !sameRelation(relation, actual[position])
+	);
+	const unit = index === -1 ? actual[expected.length]?.unit : expected[index].unit;
+	return unit === undefined
+		? null
+		: `The database's local stemma of variation unit ${unit} differs from the frozen inputs and settings.`;
+}
+
+function sameRelation(left: ReadingRelation, right: ReadingRelation | undefined): boolean {
+	return (
+		left.unit === right?.unit &&
+		left.prior === right.prior &&
+		left.posterior === right.posterior &&
+		left.weight === right.weight
 	);
 }
 

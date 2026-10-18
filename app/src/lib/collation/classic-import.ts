@@ -39,21 +39,28 @@ export interface ClassicUnit {
 	witnessDetails: Array<{ label: string; witnesses: string[]; type: string; targets: string[] }>;
 	connectivity: number | null;
 	arcs: Array<{ from: string; to: string }>;
+	readingNotes: Record<string, string>;
 }
 
 export interface ClassicVerse {
 	id: string;
 	baseWords: string[];
 	units: ClassicUnit[];
+	baseLabel: string;
+	section: string;
+	note: string;
 }
 
 export interface ClassicCollationExport {
 	verses: ClassicVerse[];
 	witnesses: string[];
+	title: string;
+	description: string;
+	witnessDescriptions: Record<string, string>;
 }
 
 export function classicEditorialVocabulary(
-	source: ClassicCollationExport,
+	source: { verses: Array<Pick<ClassicVerse, 'units'>> },
 	existingTypes: ReadingTypeDefinition[] = [],
 	existingTags: Array<{ id: string; label: string }> = []
 ) {
@@ -118,6 +125,18 @@ const collapse = (text: string) => text.replace(/\s+/g, ' ').trim();
 const sigla = (text: string | null) => text?.trim().split(/\s+/).filter(Boolean) ?? [];
 const elements = (node: Element | Document, name: string) =>
 	Array.from(node.getElementsByTagNameNS('*', name));
+const childElements = (node: Element, name: string) =>
+	Array.from(node.childNodes).filter(
+		(child): child is Element => child.nodeType === 1 && (child as Element).localName === name
+	);
+const noteText = (node: Element | undefined) => node?.textContent?.trim() ?? '';
+
+function enclosingSection(node: Element): string {
+	for (let parent = node.parentNode; parent; parent = parent.parentNode)
+		if (parent.nodeType === 1 && (parent as Element).localName === 'div')
+			return (parent as Element).getAttribute('n')?.trim() ?? '';
+	return '';
+}
 
 export function classicBaseText(verse: ClassicVerse, unit: ClassicUnit): string {
 	return verse.baseWords
@@ -135,6 +154,10 @@ export function parseClassicCollationExport(xml: string): ClassicCollationExport
 	const witnesses = new Set(
 		elements(document, 'witness').flatMap(node => sigla(node.getAttribute('n')))
 	);
+	const witnessDescriptions: Record<string, string> = {};
+	for (const node of elements(document, 'witness'))
+		for (const siglum of sigla(node.getAttribute('n')))
+			if (noteText(node)) witnessDescriptions[siglum] = noteText(node);
 	const ids = new Set<string>();
 	const verses = elements(document, 'ab').map(ab => {
 		const id = ab.getAttribute('xml:id') ?? '';
@@ -188,12 +211,49 @@ export function parseClassicCollationExport(xml: string): ClassicCollationExport
 					from: arc.getAttribute('from') ?? '',
 					to: arc.getAttribute('to') ?? '',
 				})),
+				readingNotes: Object.fromEntries(
+					childElements(app, 'note')
+						.filter(note => note.getAttribute('type') === 'reading' && noteText(note))
+						.map(note => [note.getAttribute('n') ?? '', noteText(note)])
+				),
 			};
 		});
-		return { id, baseWords, units };
+		return {
+			id,
+			baseWords,
+			units,
+			baseLabel: ab.getAttribute('n')?.trim() ?? '',
+			section: enclosingSection(ab),
+			note: childElements(ab, 'note').map(noteText).filter(Boolean).join('\n\n'),
+		};
 	});
 	if (!verses.length) throw new Error('The export contains no verses (<ab>).');
-	return { verses, witnesses: [...witnesses] };
+	const titleStmt = elements(document, 'titleStmt')[0];
+	const notesStmt = elements(document, 'notesStmt')[0];
+	return {
+		verses,
+		witnesses: [...witnesses],
+		title: noteText(titleStmt && elements(titleStmt, 'title')[0]),
+		description: noteText(notesStmt && elements(notesStmt, 'note')[0]),
+		witnessDescriptions,
+	};
+}
+
+export function classicVerseNotes(verse: ClassicVerse): string {
+	const unattached = verse.units.flatMap(unit =>
+		Object.entries(unit.readingNotes)
+			.filter(
+				([label]) =>
+					!unit.readings.some(
+						reading => reading.label === label && reading.type !== 'lac'
+					)
+			)
+			.map(
+				([label, text]) =>
+					`Classic reading ${label} at ${unit.from === unit.to ? unit.from : `${unit.from}–${unit.to}`}: ${text}`
+			)
+	);
+	return [verse.note, ...unattached].filter(Boolean).join('\n\n');
 }
 
 export function classicBaseSiglumCandidates(source: ClassicCollationExport): string[] {
@@ -211,9 +271,9 @@ export function classicBaseSiglumCandidates(source: ClassicCollationExport): str
 	);
 }
 
-export function buildClassicBaseTranscription(
-	source: ClassicCollationExport
-): StoredTranscriptionDocument {
+export function buildClassicBaseTranscription(source: {
+	verses: Array<Pick<ClassicVerse, 'id' | 'baseWords'>>;
+}): StoredTranscriptionDocument {
 	return {
 		type: 'transcriptionDocument',
 		pages: [
@@ -262,7 +322,12 @@ export function classicManualWitnesses(
 	existing: ManualWitnessDefinition[],
 	transcriptionSigla: string[] = []
 ): ManualWitnessDefinition[] {
-	const witnesses = [...existing];
+	const descriptions = source.witnessDescriptions;
+	const witnesses = existing.map(witness =>
+		witness.description || !descriptions[witness.siglum]
+			? witness
+			: { ...witness, description: descriptions[witness.siglum] }
+	);
 	for (const siglum of source.witnesses) {
 		if (siglum !== baseSiglum && !witnesses.some(witness => witness.siglum === siglum))
 			witnesses.push({
@@ -271,6 +336,7 @@ export function classicManualWitnesses(
 				// A full entry would join every collation holding that transcription; the imported collations override it to full.
 				treatment: transcriptionSigla.includes(siglum) ? 'fragmentary' : 'full',
 				includeInCbgm: true,
+				...(descriptions[siglum] ? { description: descriptions[siglum] } : {}),
 			});
 	}
 	return witnesses;
@@ -285,10 +351,10 @@ export function buildClassicCollationDocument(input: {
 	projectName: string;
 	collationId: string;
 	editorialVocabulary?: ReturnType<typeof classicEditorialVocabulary>;
+	absentAsNonAttestation?: boolean;
 }) {
 	const { verse, witness, manualWitnesses } = input;
-	const editorial =
-		input.editorialVocabulary ?? classicEditorialVocabulary({ verses: [verse], witnesses: [] });
+	const editorial = input.editorialVocabulary ?? classicEditorialVocabulary({ verses: [verse] });
 	const vocabulary = resolveReadingTypeVocabulary(editorial.readingTypes);
 	const importNotes: ImportNote[] = [];
 	const note = (unitId: string, detail: string) =>
@@ -326,13 +392,8 @@ export function buildClassicCollationDocument(input: {
 				: (() => {
 						const wordSource = buildClassicBaseTranscription({
 							verses: [
-								{
-									id: verse.id,
-									baseWords: [verse.baseWords[position / 2 - 1]],
-									units: [],
-								},
+								{ id: verse.id, baseWords: [verse.baseWords[position / 2 - 1]] },
 							],
-							witnesses: [],
 						});
 						const count = extractWitnessTokensForVerse(wordSource, verse.id).length;
 						return tokens
@@ -447,6 +508,8 @@ export function buildClassicCollationDocument(input: {
 					readingType: null,
 				});
 			decisions.readingType![readingId] = editorial.types.get(reading.type) ?? null;
+			if (unit.readingNotes[reading.label])
+				(decisions.readingNotes ??= {})[readingId] = unit.readingNotes[reading.label];
 			if (reading.type === 'ns')
 				decisions.readingTags![readingId] = [
 					editorial.readingTags.find(
@@ -597,6 +660,32 @@ export function buildClassicCollationDocument(input: {
 						readingId,
 					};
 				}
+			}
+		}
+	}
+	if (input.absentAsNonAttestation) {
+		const members = manualWitnesses.filter(
+			witness =>
+				witness.siglum !== base.siglum &&
+				(witness.treatment === 'full' || input.sigla.includes(witness.siglum))
+		);
+		for (const target of importedUnits) {
+			const overlapping = importedUnits.filter(
+				source =>
+					source.span.startIndex <= target.span.endIndex &&
+					source.span.endIndex >= target.span.startIndex
+			);
+			const decisions = unitDecisions.get(target.span.unitId)!;
+			for (const witness of members) {
+				const cited = overlapping.some(
+					({ unit }) =>
+						unit.readings.some(reading => reading.witnesses.includes(witness.siglum)) ||
+						unit.witnessDetails.some(detail =>
+							detail.witnesses.includes(witness.siglum)
+						)
+				);
+				if (!cited)
+					(decisions.manualTestimony ??= {})[witness.id] = { kind: 'nonAttestation' };
 			}
 		}
 	}

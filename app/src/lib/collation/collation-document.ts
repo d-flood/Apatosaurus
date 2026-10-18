@@ -371,6 +371,20 @@ function hasValidUnitDecisions(value: unknown): boolean {
 				))
 		)
 			return false;
+		const notes = record.readingNotes;
+		if (
+			notes !== undefined &&
+			(!notes ||
+				typeof notes !== 'object' ||
+				Array.isArray(notes) ||
+				!Object.entries(notes).every(
+					([readingId, note]) =>
+						Boolean(readingId.trim()) &&
+						typeof note === 'string' &&
+						Boolean(note.trim())
+				))
+		)
+			return false;
 		const unconfirmed = record.unconfirmedWitnessIds;
 		if (
 			unconfirmed !== undefined &&

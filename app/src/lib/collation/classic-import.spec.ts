@@ -7,10 +7,16 @@ import {
 	classicBaseSiglumCandidates,
 	classicManualWitnesses,
 	classicEditorialVocabulary,
+	classicVerseNotes,
 	parseClassicCollationExport,
 } from './classic-import';
 import { prepareWitnessesFromDocument } from './collation-runner';
-import { buildApparatusTeiExportInput, exportApparatusTei } from './collation-tei';
+import {
+	buildApparatusTeiExportInput,
+	exportApparatusTei,
+	exportCollationDocumentTei,
+} from './collation-tei';
+import { validateTeiP5 } from '../../../../test-support/validate-tei-p5';
 import {
 	hydrateCollationDocument,
 	buildCollationDocument,
@@ -29,7 +35,8 @@ function build(
 	name: string,
 	baseSiglum = 'A',
 	existingTypes: ReadingTypeDefinition[] = [],
-	existingTags: Array<{ id: string; label: string }> = []
+	existingTags: Array<{ id: string; label: string }> = [],
+	absentAsNonAttestation = false
 ) {
 	const source = parseClassicCollationExport(fixture(name));
 	const editorialVocabulary = classicEditorialVocabulary(source, existingTypes, existingTags);
@@ -52,6 +59,7 @@ function build(
 			projectId: 'project',
 			projectName: 'Project',
 			collationId: verse.id,
+			absentAsNonAttestation,
 		});
 	});
 	return { source, transcription, manualWitnesses, documents, editorialVocabulary };
@@ -126,6 +134,7 @@ describe('classic collation import', () => {
 							],
 							connectivity: 3,
 							arcs: [{ from: 'a', to: 'b' }],
+							readingNotes: {},
 						},
 						{
 							from: 4,
@@ -142,10 +151,17 @@ describe('classic collation import', () => {
 							witnessDetails: [],
 							connectivity: null,
 							arcs: [],
+							readingNotes: {},
 						},
 					],
+					baseLabel: '',
+					section: '',
+					note: '',
 				},
 			],
+			title: '',
+			description: '',
+			witnessDescriptions: {},
 		});
 		expect(classicBaseSiglumCandidates(source)).toEqual(['A']);
 	});
@@ -223,6 +239,89 @@ describe('classic collation import', () => {
 			documents[0].apparatus?.units.find(unit => unit.decisions.lemmaReadingId)?.decisions
 				.lemmaReadingId
 		).toContain('classic-reading:');
+	});
+
+	it('reads sections, notes, base labels and witness descriptions from a classic export', () => {
+		const result = build('metadata');
+		const { source } = result;
+		expect(source).toMatchObject({
+			title: 'Romans',
+			description: 'Pauline sample',
+			witnessDescriptions: { A: 'Sinaiticus', C: 'Vaticanus' },
+		});
+		expect(source.verses.map(verse => [verse.section, verse.baseLabel, verse.note])).toEqual([
+			['Chapter 1', 'RP', 'Verse remark'],
+			['Chapter 2', 'RP', ''],
+		]);
+		expect(source.verses[0].baseWords).toEqual(['παυλος', 'δουλος']);
+		expect(classicVerseNotes(source.verses[0])).toBe(
+			'Verse remark\n\nClassic reading b at 4: Leaf damaged'
+		);
+		expect(classicVerseNotes(source.verses[1])).toBe('');
+		const reading = [...exportInput(result).units.values()][0].view.readings.find(
+			candidate => candidate.text === 'παυλος'
+		)!;
+		expect(reading.note).toBe('Reading remark');
+		expect(
+			result.manualWitnesses.map(witness => [witness.siglum, witness.description])
+		).toEqual([
+			['B', undefined],
+			['C', 'Vaticanus'],
+		]);
+		const existing = {
+			id: 'old',
+			siglum: 'C',
+			treatment: 'fragmentary' as const,
+			includeInCbgm: false,
+		};
+		expect(classicManualWitnesses(source, 'A', [existing])[0]).toEqual({
+			...existing,
+			description: 'Vaticanus',
+		});
+	});
+
+	it('exports imported reading and verse notes as valid TEI', async () => {
+		const result = build('metadata');
+		const xml = exportCollationDocumentTei(
+			result.documents[0],
+			{ manualWitnesses: result.manualWitnesses },
+			classicVerseNotes(result.source.verses[0])
+		);
+		const document = new DOMParser().parseFromString(xml, 'application/xml');
+		const notes = Array.from(document.getElementsByTagName('note'));
+		expect(notes.find(note => note.getAttribute('type') === 'verse')?.textContent).toBe(
+			'Verse remark\n\nClassic reading b at 4: Leaf damaged'
+		);
+		const readingNote = notes.find(note => note.getAttribute('type') === 'reading')!;
+		expect(readingNote.textContent).toBe('Reading remark');
+		const target = readingNote.getAttribute('target')!.slice(1);
+		expect(
+			Array.from(document.getElementsByTagName('rdg'))
+				.find(rdg => rdg.getAttribute('xml:id') === target)
+				?.textContent?.trim()
+		).toBe('παυλος');
+		await expect(validateTeiP5(xml)).resolves.toBeUndefined();
+	}, 60_000);
+
+	it('records absent witnesses as non-attestation on request, leaving spanning readings to overlap', () => {
+		const result = build('absent', 'A', [], [], true);
+		const input = buildApparatusTeiExportInput(result.documents[0], {
+			manualWitnesses: result.manualWitnesses,
+		});
+		const unit = [...input.units.values()][1];
+		expect(unit.view.unrecordedManualWitnessIds).toEqual([]);
+		expect(unit.view.nonAttestingManualWitnessIds).toEqual([result.manualWitnesses[0].id]);
+		expect(() => exportApparatusTei(input)).not.toThrow();
+		const long = build('long-omission', 'A', [], [], true);
+		const units = [...exportInput(long).units.values()];
+		const witnessId = long.manualWitnesses[0].id;
+		expect(units.map(unit => unit.view.overlappedWitnessIds)).toEqual([
+			[],
+			[witnessId],
+			[witnessId],
+			[],
+		]);
+		expect(units.every(unit => unit.view.nonAttestingManualWitnessIds.length === 0)).toBe(true);
 	});
 
 	it('leaves absent witnesses unrecorded and retains existing manual witness defaults', () => {
@@ -510,6 +609,7 @@ it.each(classicFixtures)('round-trips all editorial testimony and metadata in %s
 	const expectedNotes: Record<string, string[]> = {
 		absent: ['Classic ambiguous attestation zw could not be imported: target-emptied.'],
 		core: ['Classic reading `c` is now `zz`'],
+		metadata: ['Classic reading `b` is now `zz`'],
 		labels: [
 			'Classic arc a → missing names an unknown reading.',
 			'Classic ambiguous attestation zw-a/missing could not be imported: target-not-found.',

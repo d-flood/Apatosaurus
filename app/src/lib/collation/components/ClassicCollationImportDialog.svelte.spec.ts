@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 import ClassicCollationImportDialog from './ClassicCollationImportDialog.svelte';
 import fixture from '../__fixtures__/classic/core.xml?raw';
+import metadataFixture from '../__fixtures__/classic/metadata.xml?raw';
 
 const { importClassicCollationProject } = vi.hoisted(() => ({
 	importClassicCollationProject: vi.fn(async () => {}),
@@ -10,10 +11,10 @@ const { importClassicCollationProject } = vi.hoisted(() => ({
 vi.mock('../classic-import-project', () => ({ importClassicCollationProject }));
 afterEach(() => vi.clearAllMocks());
 
-async function chooseFile() {
+async function chooseFile(xml = fixture) {
 	const input = document.querySelector<HTMLInputElement>('[data-testid="classic-export-input"]')!;
 	const files = new DataTransfer();
-	files.items.add(new File([fixture], 'classic.xml', { type: 'application/xml' }));
+	files.items.add(new File([xml], 'classic.xml', { type: 'application/xml' }));
 	input.files = files.files;
 	input.dispatchEvent(new Event('change', { bubbles: true }));
 	await expect.element(page.getByText('2 verses · 3 witnesses')).toBeVisible();
@@ -70,5 +71,28 @@ describe('classic import base siglum', () => {
 			expect.objectContaining({ baseSiglum: 'Edition' })
 		);
 		await page.viewport(1280, 720);
+	});
+
+	it('prefills the base text label and passes the absence choice', async () => {
+		render(ClassicCollationImportDialog, {
+			projectId: 'project',
+			onclose: vi.fn(),
+			onimported: vi.fn(),
+		});
+		await chooseFile(metadataFixture);
+		await expect.element(page.getByLabelText('Transcription title')).toHaveValue('RP');
+		await userEvent.selectOptions(
+			page.getByLabelText('Base text siglum').element() as HTMLSelectElement,
+			'new'
+		);
+		await expect.element(page.getByLabelText('New base siglum')).toHaveValue('RP');
+		for (const field of ['transcriber', 'repository', 'settlement', 'language'])
+			await page.getByLabelText(field, { exact: true }).fill(field);
+		await page.getByRole('checkbox', { name: /non-attestation/ }).click();
+		await page.getByRole('button', { name: 'Import collation', exact: true }).click();
+		await expect.poll(() => importClassicCollationProject.mock.calls.length).toBe(1);
+		expect(importClassicCollationProject).toHaveBeenCalledWith(
+			expect.objectContaining({ baseSiglum: 'RP', title: 'RP', absentAsNonAttestation: true })
+		);
 	});
 });

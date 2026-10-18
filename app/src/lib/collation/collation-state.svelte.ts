@@ -269,6 +269,7 @@ function createCollationState() {
 	let projectManualWitnesses = $state<ManualWitnessDefinition[]>([]);
 	let manualWitnessOverrides = $state<ManualWitnessOverride[]>([]);
 	let importNotes = $state<ImportNote[]>([]);
+	let notes = $state('');
 
 	let alignmentColumns = $state<AlignmentColumn[]>([]);
 	let declaredUnits = $state<DeclaredUnit[]>([]);
@@ -388,6 +389,7 @@ function createCollationState() {
 			await updateCollationMetadata({
 				id: collationId,
 				verseIdentifier: segment.name,
+				notes,
 				updatedAt: now,
 				status: isFinalizedCollationPhase() ? 'complete' : phase,
 			});
@@ -3081,6 +3083,20 @@ function createCollationState() {
 		);
 	}
 
+	function setReadingNote(unitId: string, readingId: string, value: string) {
+		const key = getReadingUnitKey(unitId);
+		if (!key || !peekReadingsForUnit(unitId).some(reading => reading.id === readingId)) return;
+		const next = cloneUnitDecisions(unitDecisions.get(key));
+		const { [readingId]: previous, ...rest } = next.readingNotes ?? {};
+		const note = value.trim();
+		if ((previous ?? '') === note) return;
+		next.readingNotes = note ? { ...rest, [readingId]: note } : rest;
+		commitUnitDecisions(unitId, next, {
+			type: 'set-reading-note',
+			description: note ? 'Set reading note' : 'Clear reading note',
+		});
+	}
+
 	function commitUnitDecisions(
 		unitId: string,
 		next: UnitDecisions,
@@ -3553,6 +3569,7 @@ function createCollationState() {
 		witnesses = [];
 		manualWitnessOverrides = [];
 		importNotes = [];
+		notes = '';
 		selectedBook = '';
 		selectedChapter = '';
 		selectedVerseNum = '';
@@ -3671,6 +3688,7 @@ function createCollationState() {
 				throw new Error('Collation document artifact missing.');
 			}
 			workspaceArtifactId = loaded.artifact.id;
+			notes = loaded.row.notes ?? '';
 			applyCollationDocumentPayload(loaded.artifact.payload);
 			await hydrateProjectContext(loaded.row.projectId, alignmentColumns.length > 0);
 			if (segment) await restoreSelectedVerseFromProjectIndex();
@@ -3703,6 +3721,7 @@ function createCollationState() {
 		const loaded = await loadCollation(collationId);
 		if (!loaded?.artifact?.payload) return false;
 		workspaceArtifactId = loaded.artifact.id;
+		notes = loaded.row.notes ?? '';
 		applyCollationDocumentPayload(loaded.artifact.payload);
 		if (segment) await restoreSelectedVerseFromProjectIndex();
 		await refreshOrphanedMembersFromProjectIndex();
@@ -3859,6 +3878,14 @@ function createCollationState() {
 		get importNotes() {
 			return importNotes;
 		},
+		get notes() {
+			return notes;
+		},
+		setNotes(value: string) {
+			if (value === notes) return;
+			notes = value;
+			markUnsaved();
+		},
 		dismissImportNote(id: string) {
 			if (!importNotes.some(note => note.id === id)) return;
 			importNotes = importNotes.filter(note => note.id !== id);
@@ -3982,6 +4009,7 @@ function createCollationState() {
 		addAuthoredReading,
 		addReadingTag,
 		removeReadingTag,
+		setReadingNote,
 		setReadingCertainty,
 		getReadingTypeVocabulary,
 		getSubreadingsMissingReadingType,

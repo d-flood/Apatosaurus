@@ -519,7 +519,11 @@ function regenerateDerivedCollationTei(
 		try {
 			regenerated.push({
 				path: `collations/${payload.id}.tei.xml`,
-				content: exportCollationDocumentTei(payload.document, projectSettings),
+				content: exportCollationDocumentTei(
+					payload.document,
+					projectSettings,
+					payload.notes
+				),
 				format: null,
 			});
 		} catch (error) {

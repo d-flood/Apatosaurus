@@ -1,4 +1,4 @@
-import { page } from '@vitest/browser/context';
+import { page, userEvent } from '@vitest/browser/context';
 import { expect, it, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 import type { ProjectRecord } from '$lib/db/repositories/projects';
@@ -102,6 +102,15 @@ it('adds full manual witnesses and changes treatment at phone width', async () =
 				},
 			});
 		await expect.element(cbgmDefault).toBeChecked();
+		await page.getByRole('textbox', { name: 'Description for Syriac' }).fill(' Peshitta ');
+		await userEvent.tab();
+		await expect
+			.poll(() => mocks.updateProjectMetadata.mock.lastCall?.[0])
+			.toMatchObject({
+				collationSettings: {
+					manualWitnesses: [{ siglum: 'Syriac', description: 'Peshitta' }],
+				},
+			});
 		await expect
 			.poll(() =>
 				[

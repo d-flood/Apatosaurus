@@ -471,6 +471,8 @@ export async function getCollationVersionStatusWithWorkingFile(
 			'projects.name as project_name',
 			'collations.title as title',
 			'collations.verse_identifier as verse_identifier',
+			'collations.group_path as group_path',
+			'collations.sort_key as sort_key',
 			'collations.status as status',
 		])
 		.where('collations.id', '=', collationId)
@@ -486,6 +488,8 @@ export async function getCollationVersionStatusWithWorkingFile(
 		collationId,
 		title: row.title,
 		verseIdentifier: row.verse_identifier,
+		groupPath: row.group_path,
+		sortKey: row.sort_key,
 		workflowStatus: row.status,
 		currentCheckpoint: await getCollationCommittedHead(db, collationId),
 		witnesses: await getCollationWitnessSourceStatuses(db, collationId),
@@ -619,7 +623,7 @@ async function writeDerivedCollationTei(
 	try {
 		await writeTextFileAtomic(
 			path,
-			exportCollationDocumentTei(payload.document, projectSettings),
+			exportCollationDocumentTei(payload.document, projectSettings, payload.notes),
 			storeOptions
 		);
 		return null;

@@ -1193,3 +1193,28 @@ describe('ReadingsPhase overlapping units', () => {
 			.toHaveValue('one two three');
 	});
 });
+
+describe('ReadingsPhase reading notes', () => {
+	beforeEach(() => {
+		collationState.reset();
+		collate([makeWitness('A', 'λογος', true), makeWitness('B', 'θεος')]);
+	});
+
+	it('records a reading note from the reading menu and shows it on the card', async () => {
+		render(ReadingsPhase);
+		const menu = document
+			.querySelector('summary[aria-label="More actions for reading a"]')!
+			.closest('details') as HTMLDetailsElement;
+		menu.open = true;
+		await page
+			.getByRole('textbox', { name: 'Note for reading a' })
+			.fill('  Corrector erased  ');
+		await userEvent.tab();
+		const reading = () =>
+			collationState
+				.peekReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`)
+				.find(candidate => candidate.label === 'a');
+		await expect.poll(() => reading()?.note).toBe('Corrector erased');
+		await expect.element(page.getByText('Corrector erased', { exact: true })).toBeVisible();
+	});
+});

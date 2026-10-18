@@ -80,6 +80,8 @@ export interface CollationVersionStatus {
 	collationId: string;
 	title: string;
 	verseIdentifier: string;
+	groupPath: string;
+	sortKey: number;
 	workflowStatus: string;
 	currentCheckpoint: EntityCheckpointHead | null;
 	workingContentHash: string;
@@ -159,6 +161,15 @@ export async function listCollationsWithProjectNames(db: DbExecutor): Promise<Co
 		status: row.status,
 		updatedAt: row.updated_at,
 	}));
+}
+
+export async function getNextCollationSortKey(db: DbExecutor, projectId: string): Promise<number> {
+	const row = await db
+		.selectFrom('collations')
+		.select(eb => eb.fn.max('sort_key').as('max'))
+		.where('project_id', '=', projectId)
+		.executeTakeFirst();
+	return row?.max == null ? 0 : Number(row.max) + 1;
 }
 
 export async function deleteCollation(db: DbExecutor, collationId: string): Promise<void> {

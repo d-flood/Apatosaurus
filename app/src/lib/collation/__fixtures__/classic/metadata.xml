@@ -1,0 +1,32 @@
+<TEI xmlns="http://www.tei-c.org/ns/1.0">
+  <teiHeader>
+    <fileDesc>
+      <titleStmt>
+        <title>Romans</title>
+      </titleStmt>
+      <publicationStmt>
+        <p>Exported from Apatosaurus</p>
+      </publicationStmt>
+      <notesStmt>
+        <note>Pauline sample</note>
+      </notesStmt>
+      <sourceDesc>
+        <listWit>
+          <witness n="A">Sinaiticus</witness>
+          <witness n="B"/>
+          <witness n="C">Vaticanus</witness>
+        </listWit>
+      </sourceDesc>
+    </fileDesc>
+  </teiHeader>
+  <text>
+    <body>
+      <div type="section" n="Chapter 1">
+        <ab xml:id="Rom_1.1" n="RP">παυλος δουλος<note type="verse">Verse remark</note><app n="Rom_1.1" type="main" from="2" to="2"><rdg wit="A C" varSeq="1" n="a" type="-">παυλος</rdg><rdg wit="B" varSeq="1" n="b" type="-">σαυλος</rdg><note><fs><f><numeric value="10"/></f></fs><graph type="directed"><node n="a"/><node n="b"/></graph></note><note type="reading" n="a">Reading remark</note></app><app n="Rom_1.1" type="main" from="4" to="4"><rdg wit="A B" varSeq="1" n="a" type="-">δουλος</rdg><rdg wit="C" varSeq="1" n="b" type="lac"></rdg><note><fs><f><numeric value="10"/></f></fs><graph type="directed"><node n="a"/><node n="b"/></graph></note><note type="reading" n="b">Leaf damaged</note></app></ab>
+      </div>
+      <div type="section" n="Chapter 2">
+        <ab xml:id="Rom_2.1" n="RP">διο αναπολογητος<app n="Rom_2.1" type="main" from="2" to="2"><rdg wit="A B C" varSeq="1" n="a" type="-">διο</rdg><rdg wit="" varSeq="1" n="b" type="om"></rdg><note><fs><f><numeric value="10"/></f></fs><graph type="directed"><node n="a"/><node n="b"/></graph></note></app></ab>
+      </div>
+    </body>
+  </text>
+</TEI>

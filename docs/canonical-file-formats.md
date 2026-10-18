@@ -33,6 +33,14 @@ Version 7 applies the Project Transcription Version 2 change to collations: `col
 - Loading folds a leftover `apatosaurus.working.collation` file into the primary when its `draft.base_*` matches `based_on_checkpoint`, writing the new primary before deleting the working file. Zip import folds both working formats the same way before placing files.
 - `apatosaurus.working.collation` stays registered only so legacy files can be read and migrated. Checkpoint content is unchanged.
 
+## Project Manifest Version 6
+
+Version 6 preserves an optional trimmed, nonempty `description` on each `collation_settings.manualWitnesses` entry. The v5 upgrader is a no-op; the bump prevents older builds from dropping descriptions when saving settings.
+
+## Collation Version 17
+
+Version 17 adds `readingNotes?: Record<readingId, string>` to apparatus unit decisions. Notes are nonempty strings; malformed values quarantine the file. Notes describe readings without changing labels or CBGM input, and orphan when their reading disappears. The v16 upgrader is a no-op. Working and checkpoint formats preserve notes without a bump.
+
 ## Project Manifest Version 5
 
 Version 5 permits project reading types with an explicitly empty suffix, as required by classic imports. The v4 upgrader is a no-op. Older settings parsers drop these types when saving, so older builds must reject this version.
@@ -97,6 +105,10 @@ Both checkpoint formats gain the version's editable metadata. `commit_message` r
 - Label, note and `metadata_updated_at` sit outside `payload`, so editing them never changes `payload` or `payload_content_hash`. History files stay append-only for content: the store rejects any rewrite that changes anything other than these fields and the envelope hash.
 - The transcription v1 and collation v4 upgraders set `label` to `""` and `metadata_updated_at` to `created_at`. Index rebuild names unlabelled versions `Version N`, numbered by `created_at` per document; the label is written to the file the next time its note is edited.
 - Collation checkpoint v4 keeps its payload hash check. Alpha v2 checkpoints upgrade through the alpha converter and then gain the same metadata.
+
+## CBGM Analysis Version 2
+
+Version 2 adds `settings.trivial_reading_types`, the reading types open-cbgm treats as agreeing with their source (`populate_db -z`). The v1 upgrader sets it to `[]`; the bump stops older builds from computing an analysis without its trivial types.
 
 ## CBGM Analysis Version 1
 

@@ -11,9 +11,9 @@ import {
 } from './validation';
 
 export const CBGM_ANALYSIS_FORMAT = 'apatosaurus.cbgm-analysis';
-export const CBGM_ANALYSIS_CURRENT_VERSION = 1;
+export const CBGM_ANALYSIS_CURRENT_VERSION = 2;
 export const CBGM_ANALYSIS_ENTITY_TYPE = 'cbgm_analysis';
-const cbgmAnalysisUpgraders: DocumentUpgrader[] = [];
+const cbgmAnalysisUpgraders: DocumentUpgrader[] = [upgradeCbgmAnalysisV1];
 
 const COHERENCE_STATES = ['computing', 'awaiting-import', 'ready', 'failed'] as const;
 const GLOBAL_STEMMA_STATES = ['none', 'computing', 'ready', 'imported-dot'] as const;
@@ -28,6 +28,7 @@ export type CbgmAnalysisSettings = JsonObject & {
 	classic_rules: boolean;
 	merge_split_readings: boolean;
 	dropped_reading_types: string[];
+	trivial_reading_types: string[];
 	included_correctors: string[];
 };
 
@@ -105,8 +106,14 @@ function readSettings(settings: Record<string, unknown>): CbgmAnalysisSettings {
 		classic_rules: readBoolean(settings, 'classic_rules'),
 		merge_split_readings: readBoolean(settings, 'merge_split_readings'),
 		dropped_reading_types: readStringArray(settings, 'dropped_reading_types'),
+		trivial_reading_types: readStringArray(settings, 'trivial_reading_types'),
 		included_correctors: readStringArray(settings, 'included_correctors'),
 	};
+}
+
+function upgradeCbgmAnalysisV1(payload: JsonObject): JsonObject {
+	const settings = readObjectValue(payload.settings, 'settings') as JsonObject;
+	return { ...payload, settings: { ...settings, trivial_reading_types: [] } };
 }
 
 function readNullableNumber(record: Record<string, unknown>, key: string): number | null {

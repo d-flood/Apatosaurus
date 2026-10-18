@@ -46,6 +46,7 @@ const analysis = {
 		classic_rules: false,
 		merge_split_readings: false,
 		dropped_reading_types: [],
+		trivial_reading_types: [],
 		included_correctors: [],
 	},
 } as unknown as CbgmAnalysisMetadata;

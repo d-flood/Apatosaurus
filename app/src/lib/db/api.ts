@@ -53,6 +53,7 @@ import {
 	updateCollationVersionNote,
 } from './repositories/collation-files';
 import {
+	getNextCollationSortKey,
 	listCollationsWithProjectNames,
 	type CollationVersionStatusOptions,
 	type CreateCollationInput,
@@ -264,6 +265,7 @@ export const dbApi = defineApi({
 		listProjectTranscriptionSourceCandidates(db, targetProjectId),
 
 	listCollationsWithProjectNames: ({ db }) => listCollationsWithProjectNames(db),
+	getNextCollationSortKey: ({ db }, projectId: string) => getNextCollationSortKey(db, projectId),
 	async createCollation({ db, invalidate, warn }, input: CreateCollationInput) {
 		const result = await createCollationWithFilesResult(db, input);
 		invalidate('collations');

@@ -577,7 +577,21 @@ val guarded(F body) {
 	}
 }
 
-val prepare(const string & input_tei, int threshold, const val & dropped, bool merge_splits, bool classic_rules) {
+set<string> string_set(const val & array) {
+	vector<string> values = vecFromJSArray<string>(array);
+	return set<string>(values.begin(), values.end());
+}
+
+val relation(const string & vu_id, const string & prior, const string & posterior, double weight) {
+	val result = val::object();
+	result.set("unit", vu_id);
+	result.set("prior", prior);
+	result.set("posterior", posterior);
+	result.set("weight", weight);
+	return result;
+}
+
+val prepare(const string & input_tei, int threshold, const val & trivial, const val & dropped, bool merge_splits, bool classic_rules) {
 	return guarded([&] {
 		prepared = false;
 		pugi::xml_document doc;
@@ -589,9 +603,7 @@ val prepare(const string & input_tei, int threshold, const val & dropped, bool m
 		if (!tei_node) {
 			throw runtime_error("The input TEI does not have a <TEI> element as its root element.");
 		}
-		vector<string> dropped_types = vecFromJSArray<string>(dropped);
-		set<string> dropped_reading_types(dropped_types.begin(), dropped_types.end());
-		app = apparatus(tei_node, merge_splits, set<string>(), dropped_reading_types, list<string>());
+		app = apparatus(tei_node, merge_splits, string_set(trivial), string_set(dropped), list<string>());
 		if (threshold > 0) {
 			list<string> list_wit = app.get_list_wit();
 			list_wit.remove_if([&](const string & wit_id) {
@@ -606,12 +618,17 @@ val prepare(const string & input_tei, int threshold, const val & dropped, bool m
 			witnesses.call<void>("push", wit_id);
 		}
 		val units = val::array();
+		val relations = val::array();
 		for (const variation_unit & vu : app.get_variation_units()) {
 			units.call<void>("push", vu.get_id());
+			for (const local_stemma_edge & e : vu.get_local_stemma().get_edges()) {
+				relations.call<void>("push", relation(vu.get_id(), e.prior, e.posterior, e.weight));
+			}
 		}
 		val result = val::object();
 		result.set("witnesses", witnesses);
 		result.set("units", units);
+		result.set("relations", relations);
 		return result;
 	});
 }
@@ -725,6 +742,18 @@ val list_units() {
 			units.call<void>("push", unit);
 		}
 		return units;
+	});
+}
+
+val list_relations() {
+	return guarded([&] {
+		require_open();
+		val relations = val::array();
+		statement select(cache_db, "SELECT VARIATION_UNIT, PRIOR, POSTERIOR, WEIGHT FROM READING_RELATIONS ORDER BY ROW_ID");
+		while (select.next_row()) {
+			relations.call<void>("push", relation(select.text(0), select.text(1), select.text(2), sqlite3_column_double(select.stmt, 3)));
+		}
+		return relations;
 	});
 }
 
@@ -939,6 +968,7 @@ EMSCRIPTEN_BINDINGS(open_cbgm) {
 	emscripten::function("open", &open_cache);
 	emscripten::function("witnesses", &list_witnesses);
 	emscripten::function("units", &list_units);
+	emscripten::function("relations", &list_relations);
 	emscripten::function("tables", &list_tables);
 	emscripten::function("compareWitnesses", &compare_witnesses);
 	emscripten::function("findRelatives", &find_relatives);

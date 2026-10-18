@@ -2,6 +2,7 @@ import {
 	createCollation,
 	deleteCollation,
 	deleteTranscription,
+	getNextCollationSortKey,
 	getProject,
 	listProjectTranscriptionOptions,
 	saveCollationArtifact,
@@ -22,6 +23,7 @@ import {
 	classicBaseSiglumCandidates,
 	classicManualWitnesses,
 	classicEditorialVocabulary,
+	classicVerseNotes,
 	type ClassicCollationExport,
 } from './classic-import';
 
@@ -31,6 +33,7 @@ export async function importClassicCollationProject(input: {
 	baseSiglum: string;
 	title: string;
 	defaults: LocalTeiImportDefaults;
+	absentAsNonAttestation?: boolean;
 }): Promise<void> {
 	const baseSiglum = input.baseSiglum.trim();
 	const metadata = { ...input.defaults, title: input.title.trim(), siglum: baseSiglum };
@@ -83,8 +86,10 @@ export async function importClassicCollationProject(input: {
 			collationId: collationIds[index],
 			projectId: project.id,
 			projectName: project.name,
+			absentAsNonAttestation: input.absentAsNonAttestation,
 		});
 	}
+	const firstSortKey = await getNextCollationSortKey(project.id);
 	let transcriptionId: string | null = null;
 	const created: string[] = [];
 	let settingsSaved = false;
@@ -114,6 +119,7 @@ export async function importClassicCollationProject(input: {
 					collationId: collationIds[index],
 					projectId: project.id,
 					projectName: project.name,
+					absentAsNonAttestation: input.absentAsNonAttestation,
 				})
 			);
 		}
@@ -125,10 +131,14 @@ export async function importClassicCollationProject(input: {
 				readingTypes: editorialVocabulary.readingTypes,
 				readingTags: editorialVocabulary.readingTags,
 			},
+			...(!project.description.trim() && input.source.description
+				? { description: input.source.description }
+				: {}),
 		});
 		settingsSaved = true;
-		for (const document of documents) {
+		for (const [index, document] of documents.entries()) {
 			const id = document.meta.collationId!;
+			const verse = input.source.verses[index];
 			created.push(id);
 			await createCollation({
 				id,
@@ -142,7 +152,13 @@ export async function importClassicCollationProject(input: {
 				artifactType: COLLATION_DOCUMENT_ARTIFACT_TYPE,
 				payload: serializeCollationDocument(document),
 			});
-			await updateCollationMetadata({ id, status: 'complete' });
+			await updateCollationMetadata({
+				id,
+				status: 'complete',
+				notes: classicVerseNotes(verse),
+				groupPath: verse.section,
+				sortKey: firstSortKey + index,
+			});
 		}
 	} catch (error) {
 		for (const id of created.reverse()) await deleteCollation(id);
@@ -151,6 +167,7 @@ export async function importClassicCollationProject(input: {
 			await updateProjectMetadata({
 				projectId: project.id,
 				collationSettings: project.collationSettings,
+				description: project.description,
 			});
 		throw error;
 	}

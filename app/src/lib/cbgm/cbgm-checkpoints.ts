@@ -59,7 +59,12 @@ export function cbgmCheckpoints(backend?: StoreBackend) {
 			if (isMissingStoreEntryError(error)) return null;
 			throw error;
 		}
-		const { order, phase, ...request } = stored;
+		const { order, phase, settings, ...rest } = stored;
+		// Checkpoints saved before trivial reading types existed lack the setting.
+		const request = {
+			...rest,
+			settings: { ...settings, trivialReadingTypes: settings.trivialReadingTypes ?? [] },
+		};
 		return {
 			order,
 			request:

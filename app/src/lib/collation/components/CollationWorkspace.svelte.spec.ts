@@ -103,3 +103,24 @@ describe('CollationWorkspace undo/redo', () => {
 		expect(witnessesOfReadings()).toEqual(merged);
 	});
 });
+
+describe('CollationWorkspace verse note', () => {
+	beforeEach(() => {
+		collationState.reset();
+		collationState.setPhase('readings');
+	});
+
+	it('edits the verse note from the header and marks the button when a note exists', async () => {
+		render(CollationWorkspace);
+		await expect
+			.poll(() => document.querySelector('summary[aria-label="Verse note"]'))
+			.not.toBeNull();
+		const summary = document.querySelector<HTMLElement>('summary[aria-label="Verse note"]')!;
+		expect(summary.classList.contains('btn-secondary')).toBe(false);
+		(summary.closest('details') as HTMLDetailsElement).open = true;
+		await page.getByRole('textbox', { name: 'Verse note text' }).fill('Lacuna in P46');
+		await userEvent.tab();
+		await expect.poll(() => collationState.notes).toBe('Lacuna in P46');
+		await expect.poll(() => summary.classList.contains('btn-secondary')).toBe(true);
+	});
+});

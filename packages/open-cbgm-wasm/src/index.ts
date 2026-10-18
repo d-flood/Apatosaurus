@@ -7,10 +7,13 @@ export type CoherenceSettings = {
 	classicRules: boolean;
 	mergeSplitReadings: boolean;
 	droppedReadingTypes: string[];
+	trivialReadingTypes: string[];
 	includedCorrectors: string[];
 };
 
 export type UndecidedReading = { unit: string; reading: string };
+
+export type ReadingRelation = { unit: string; prior: string; posterior: string; weight: number };
 
 export type CompareWitnessesRow = {
 	id: string;
@@ -55,7 +58,7 @@ export interface CbgmEngine {
 	prepare(
 		inputTei: string,
 		settings: CoherenceSettings
-	): { witnesses: string[]; units: string[] };
+	): { witnesses: string[]; units: string[]; relations: ReadingRelation[] };
 	computeWitness(siglum: string): Uint8Array;
 	assemble(rowsBySiglum: Map<string, Uint8Array>): Uint8Array;
 	open(
@@ -64,6 +67,7 @@ export interface CbgmEngine {
 	): void;
 	witnesses(): string[];
 	units(): { id: string; label: string; readings: string[] }[];
+	relations(): ReadingRelation[];
 	tables(): string[];
 	compareWitnesses(
 		primary: string,
@@ -124,6 +128,7 @@ export async function createCbgmEngine(options: CbgmEngineOptions = {}): Promise
 				module.prepare(
 					inputTei,
 					settings.minExtantUnits ?? 0,
+					settings.trivialReadingTypes,
 					settings.droppedReadingTypes,
 					settings.mergeSplitReadings,
 					settings.classicRules
@@ -136,6 +141,7 @@ export async function createCbgmEngine(options: CbgmEngineOptions = {}): Promise
 		},
 		witnesses: () => unwrap(module.witnesses()),
 		units: () => unwrap(module.units()),
+		relations: () => unwrap(module.relations()),
 		tables: () => unwrap(module.tables()),
 		compareWitnesses: (primary, others, undecided = []) =>
 			splitUndecided(unwrap(module.compareWitnesses(primary, others, undecided))),

@@ -58,6 +58,7 @@
 			classicRules: false,
 			mergeSplitReadings: false,
 			droppedReadingTypes: [],
+			trivialReadingTypes: [],
 			includedCorrectors: [],
 		},
 	}));
@@ -93,6 +94,9 @@
 				input.availableCorrectors.includes(siglum)
 			),
 			droppedReadingTypes: snapshot.droppedReadingTypes.filter(id =>
+				vocabulary.some(type => type.id === id)
+			),
+			trivialReadingTypes: snapshot.trivialReadingTypes.filter(id =>
 				vocabulary.some(type => type.id === id)
 			),
 		};
@@ -300,6 +304,22 @@
 							class="checkbox checkbox-xs"
 							value={type.id}
 							bind:group={draft.droppedReadingTypes}
+						/>
+						{type.label}
+					</label>
+				{/each}
+			</div>
+			<div class="mt-2 text-xs font-medium text-base-content/60">
+				Count main readings of these types as agreeing with their source
+			</div>
+			<div class="flex flex-wrap gap-x-3 gap-y-1">
+				{#each vocabulary as type (type.id)}
+					<label class="flex items-center gap-1.5 text-sm">
+						<input
+							type="checkbox"
+							class="checkbox checkbox-xs"
+							value={type.id}
+							bind:group={draft.trivialReadingTypes}
 						/>
 						{type.label}
 					</label>

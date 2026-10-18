@@ -9,6 +9,7 @@ import { collationState } from './collation-state.svelte';
 const { db } = vi.hoisted(() => ({
 	db: {
 		getProject: vi.fn(),
+		getNextCollationSortKey: vi.fn(),
 		listProjectTranscriptionOptions: vi.fn(),
 		createTranscription: vi.fn(),
 		getTranscriptionsByIds: vi.fn(),
@@ -72,12 +73,18 @@ beforeEach(() => {
 	db.getProject.mockResolvedValue({
 		id: 'project',
 		name: 'Project',
+		description: '',
 		collationSettings: { ignoreWordBreaks: true, ignorePunctuation: true, lowercase: true },
 	});
+	db.getNextCollationSortKey.mockResolvedValue(7);
 	db.listProjectTranscriptionOptions.mockResolvedValue([]);
 	db.updateProjectMetadata.mockImplementation(async input => {
 		const project = await db.getProject();
-		db.getProject.mockResolvedValue({ ...project, collationSettings: input.collationSettings });
+		db.getProject.mockResolvedValue({
+			...project,
+			collationSettings: input.collationSettings,
+			description: input.description ?? project.description,
+		});
 	});
 	db.createTranscription.mockImplementation(async input => {
 		const id = `tx-${records.length}`;
@@ -105,7 +112,13 @@ beforeEach(() => {
 		return 'artifact';
 	});
 	db.loadCollation.mockImplementation(async id => ({
-		row: { id, projectId: 'project' },
+		row: {
+			id,
+			projectId: 'project',
+			notes:
+				db.updateCollationMetadata.mock.calls.findLast(([input]) => input.id === id)?.[0]
+					.notes ?? '',
+		},
 		artifact: {
 			id: 'artifact',
 			payload: JSON.stringify(saved.find(document => document.meta.collationId === id)),
@@ -143,8 +156,7 @@ describe('classic import into a project', () => {
 			siglum: 'New',
 			contentJson: JSON.stringify(
 				buildClassicBaseTranscription({
-					witnesses: [],
-					verses: [{ id: 'Acts 1:2', baseWords: ['θεος', 'εστιν'], units: [] }],
+					verses: [{ id: 'Acts 1:2', baseWords: ['θεος', 'εστιν'] }],
 				})
 			),
 		});
@@ -171,6 +183,7 @@ describe('classic import into a project', () => {
 		db.getProject.mockResolvedValue({
 			id: 'project',
 			name: 'Project',
+			description: '',
 			collationSettings: { manualWitnesses: [existing] },
 		});
 		db.listProjectTranscriptionOptions.mockResolvedValue([{ id: 'c-tx', siglum: 'C' }]);
@@ -261,4 +274,87 @@ it('saves a dismissed import note without losing the remaining notes', async () 
 	collationState.dismissImportNote(notes[0].id);
 	expect(await collationState.flushPendingSave()).toBe(true);
 	expect(saved.at(-1)?.importNotes).toEqual(notes.slice(1));
+});
+
+it('keeps classic sections, order, notes and descriptions with the imported collations', async () => {
+	const xml = readFileSync(
+		new URL('./__fixtures__/classic/metadata.xml', import.meta.url),
+		'utf8'
+	);
+	await importClassicCollationProject({
+		projectId: 'project',
+		source: parseClassicCollationExport(xml),
+		baseSiglum: 'A',
+		title: 'RP',
+		defaults,
+	});
+	expect(
+		db.updateCollationMetadata.mock.calls.map(([input]) => [
+			input.groupPath,
+			input.sortKey,
+			input.notes,
+		])
+	).toEqual([
+		['Chapter 1', 7, 'Verse remark\n\nClassic reading b at 4: Leaf damaged'],
+		['Chapter 2', 8, ''],
+	]);
+	const project = await db.getProject();
+	expect(project.description).toBe('Pauline sample');
+	expect(
+		project.collationSettings.manualWitnesses.map(
+			(witness: { siglum: string; description?: string }) => [
+				witness.siglum,
+				witness.description,
+			]
+		)
+	).toEqual([
+		['B', undefined],
+		['C', 'Vaticanus'],
+	]);
+	expect(await collationState.loadCollationById(saved[0].meta.collationId!)).toBe(true);
+	const span = collationState.getVariationUnitSpans()[0];
+	const reading = collationState
+		.peekReadingsForUnit(span.unitId)
+		.find(reading => reading.text === 'παυλος')!;
+	expect(reading.note).toBe('Reading remark');
+	expect(collationState.notes).toBe('Verse remark\n\nClassic reading b at 4: Leaf damaged');
+	collationState.setReadingNote(span.unitId, reading.id, '  Revised  ');
+	collationState.setNotes('Edited verse note');
+	expect(await collationState.flushPendingSave()).toBe(true);
+	expect(
+		Object.values(saved.at(-1)!.apparatus!.units).find(unit => unit.decisions.readingNotes)
+			?.decisions.readingNotes
+	).toEqual({ [reading.id]: 'Revised' });
+	expect(db.updateCollationMetadata).toHaveBeenLastCalledWith(
+		expect.objectContaining({ notes: 'Edited verse note' })
+	);
+	collationState.setReadingNote(span.unitId, reading.id, ' ');
+	expect(
+		collationState.peekReadingsForUnit(span.unitId).find(item => item.id === reading.id)?.note
+	).toBeUndefined();
+	collationState.undo();
+	expect(
+		collationState.peekReadingsForUnit(span.unitId).find(item => item.id === reading.id)?.note
+	).toBe('Revised');
+});
+
+it('keeps an existing project description', async () => {
+	db.getProject.mockResolvedValue({
+		id: 'project',
+		name: 'Project',
+		description: 'Mine',
+		collationSettings: {},
+	});
+	const xml = readFileSync(
+		new URL('./__fixtures__/classic/metadata.xml', import.meta.url),
+		'utf8'
+	);
+	await importClassicCollationProject({
+		projectId: 'project',
+		source: parseClassicCollationExport(xml),
+		baseSiglum: 'A',
+		title: 'RP',
+		defaults,
+	});
+	expect((await db.getProject()).description).toBe('Mine');
 });

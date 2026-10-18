@@ -30,6 +30,7 @@
 	import ArrowLeft from 'phosphor-svelte/lib/ArrowLeft';
 	import ArrowUUpLeft from 'phosphor-svelte/lib/ArrowUUpLeft';
 	import ArrowUUpRight from 'phosphor-svelte/lib/ArrowUUpRight';
+	import Note from 'phosphor-svelte/lib/Note';
 	import Warning from 'phosphor-svelte/lib/Warning';
 
 	let collationVersionStatus = $state<CollationVersionStatus | null>(null);
@@ -249,6 +250,31 @@
 						{collationState.segment.name}
 					</span>
 				{/if}
+				<details class="dropdown">
+					<summary
+						class={[
+							'btn btn-sm btn-square',
+							collationState.notes.trim() ? 'btn-secondary' : 'btn-ghost',
+						]}
+						title="Verse note"
+						aria-label="Verse note"
+					>
+						<Note size={16} />
+					</summary>
+					<div
+						class="dropdown-content z-30 mt-1 w-[min(24rem,calc(100vw-2rem))] rounded-box border border-base-300/60 bg-base-100 p-3 shadow-lg"
+					>
+						<label class="block text-xs text-base-content/50">
+							<span>Verse note</span>
+							<textarea
+								class="textarea textarea-bordered mt-1 h-40 w-full text-sm"
+								aria-label="Verse note text"
+								value={collationState.notes}
+								onblur={event => collationState.setNotes(event.currentTarget.value)}
+							></textarea>
+						</label>
+					</div>
+				</details>
 			</div>
 			<div class="flex max-lg:min-w-0 max-lg:max-w-full max-lg:flex-wrap items-center gap-4">
 				<CollationStepper />

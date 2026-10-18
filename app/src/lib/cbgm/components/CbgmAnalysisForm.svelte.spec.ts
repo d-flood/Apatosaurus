@@ -137,6 +137,7 @@ it('defaults manual exclusions, lets scholars change them, and keeps recompute e
 				classicRules: false,
 				mergeSplitReadings: false,
 				droppedReadingTypes: [],
+				trivialReadingTypes: [],
 				includedCorrectors: [],
 			},
 		},
@@ -158,4 +159,21 @@ it('disables Start while units block the analysis', async () => {
 	await page.getByRole('checkbox', { name: 'rom-2' }).click();
 	await expect.element(page.getByRole('link', { name: 'Rom 2/3' })).not.toBeInTheDocument();
 	await expect.element(start).toBeEnabled();
+});
+
+it('starts the analysis with the chosen trivial reading types', async () => {
+	const { name, start } = renderForm([snapshot('rom-1')]);
+	await name.fill('Romans trivial');
+	await page.getByRole('checkbox', { name: 'Orthographic', exact: true }).nth(1).click();
+	await start.click();
+
+	await expect.poll(() => onStart.mock.calls.length).toBe(1);
+	expect(onStart).toHaveBeenCalledWith(
+		expect.objectContaining({
+			settings: expect.objectContaining({
+				droppedReadingTypes: [],
+				trivialReadingTypes: ['orthographic'],
+			}),
+		})
+	);
 });

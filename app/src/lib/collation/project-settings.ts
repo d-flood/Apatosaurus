@@ -55,6 +55,9 @@ function coerceManualWitnesses(
 			siglum,
 			treatment: entry.treatment === 'full' ? 'full' : 'fragmentary',
 			includeInCbgm: entry.includeInCbgm === true,
+			...(typeof entry.description === 'string' && entry.description.trim()
+				? { description: entry.description.trim() }
+				: {}),
 		});
 	}
 	return witnesses;

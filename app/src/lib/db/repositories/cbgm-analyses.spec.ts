@@ -24,6 +24,7 @@ import {
 	type ProjectManifestPayload,
 	type TombstonePayload,
 } from '$lib/storage/formats';
+import { sealDocument, serializeSealedDocument } from '$lib/storage/envelope';
 import { cbgmAnalysisFiles, projectManifestFile, tombstoneFile } from '$lib/storage/layout';
 import { readDeviceIdentity } from '$lib/storage/device-identity';
 import { saveAppSettings } from '$lib/storage/app-settings';
@@ -270,6 +271,28 @@ describe('CBGM analysis repository', () => {
 		await expect(readAnalysis(harness.db, 'analysis-1', storeOptions)).rejects.toThrow(
 			'belongs to a different project'
 		);
+	});
+
+	it('reads an analysis saved before trivial reading types as having none', async () => {
+		const created = await createCbgmAnalysisWithFiles(
+			harness.db,
+			'project-1',
+			{},
+			storeOptions
+		);
+		const { trivial_reading_types: _trivial, ...settings } = created.settings;
+		await writeTextFileAtomic(
+			files.metadata,
+			serializeSealedDocument(
+				await sealDocument(CBGM_ANALYSIS_FORMAT, 1, { ...created, settings })
+			),
+			storeOptions
+		);
+
+		expect(await readAnalysis(harness.db, 'analysis-1', storeOptions)).toEqual({
+			...created,
+			settings: { ...created.settings, trivial_reading_types: [] },
+		});
 	});
 
 	it('never falls back to the index when the metadata file is missing', async () => {

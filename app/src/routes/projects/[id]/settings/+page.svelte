@@ -335,7 +335,9 @@
 
 	async function updateManualWitness(
 		id: string,
-		updates: Partial<Pick<ManualWitnessDefinition, 'treatment' | 'includeInCbgm'>>
+		updates: Partial<
+			Pick<ManualWitnessDefinition, 'treatment' | 'includeInCbgm' | 'description'>
+		>
 	) {
 		const siglum = manualWitnesses.find(witness => witness.id === id)?.siglum;
 		if (
@@ -741,6 +743,17 @@
 				/>
 				Include in CBGM by default
 			</label>
+			<input
+				class="input input-bordered input-sm w-full"
+				aria-label={`Description for ${witness.siglum}`}
+				placeholder="Description"
+				value={witness.description ?? ''}
+				disabled={isSavingSettings}
+				onchange={event =>
+					updateManualWitness(witness.id, {
+						description: event.currentTarget.value.trim(),
+					})}
+			/>
 		</div>
 	{/each}
 </section>

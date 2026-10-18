@@ -37,6 +37,9 @@
 	const manualErrors = new SvelteMap<string, string>();
 	let manualWitnesses = $derived(collationState.getManualWitnesses());
 	let manualMembers = $derived(collationState.getManualWitnessMembers());
+	let witnessDescriptions = $derived(
+		new Map(manualMembers.map(witness => [witness.id, witness.description]))
+	);
 	function manualState(id: string): string {
 		if (unitView.unrecordedManualWitnessIds.includes(id)) return 'Nothing recorded';
 		if (unitView.uncitedManualWitnessIds.includes(id)) return 'Uncited';
@@ -843,7 +846,7 @@
 			<h3 class="text-sm font-medium">Manual witness testimony</h3>
 			{#each manualMembers as witness (witness.id)}
 				<div class="flex flex-wrap items-center gap-2">
-					<span class="min-w-0 flex-1 break-all text-sm"
+					<span class="min-w-0 flex-1 break-all text-sm" title={witness.description}
 						>{witness.siglum}: <strong>{manualState(witness.id)}</strong></span
 					>
 					<button
@@ -1243,6 +1246,14 @@
 										</div>
 									{/if}
 
+									{#if reading.note}
+										<p
+											class="whitespace-pre-line break-words text-xs text-base-content/60"
+										>
+											{reading.note}
+										</p>
+									{/if}
+
 									{#if getDisplayedWitnessIds(reading).length === 0}
 										<span class="text-sm italic text-base-content/25"
 											>no witnesses</span
@@ -1262,7 +1273,7 @@
 														witness.id
 													)
 														? 'Unconfirmed attestation'
-														: undefined}
+														: witnessDescriptions.get(witness.id)}
 													tabindex={index === rovingIndex ? 0 : -1}
 													aria-pressed={isSelected}
 													class={[
@@ -1380,6 +1391,20 @@
 									<div
 										class="dropdown-content z-20 w-72 space-y-2 rounded-box border border-base-300/60 bg-base-100 p-3 shadow-lg"
 									>
+										<label class="block text-xs text-base-content/50">
+											<span>Reading note</span>
+											<textarea
+												class="textarea textarea-bordered textarea-xs mt-1 w-full"
+												aria-label={`Note for reading ${reading.label}`}
+												value={reading.note ?? ''}
+												onblur={event =>
+													collationState.setReadingNote(
+														unitId,
+														reading.id,
+														event.currentTarget.value
+													)}
+											></textarea>
+										</label>
 										<div class="flex items-end gap-1">
 											<label
 												class="block min-w-0 flex-1 text-xs text-base-content/50"

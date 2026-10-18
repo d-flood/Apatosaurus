@@ -15,9 +15,10 @@ import {
 } from './validation';
 
 export const PROJECT_MANIFEST_FORMAT = 'apatosaurus.project-manifest';
-export const PROJECT_MANIFEST_CURRENT_VERSION = 5;
+export const PROJECT_MANIFEST_CURRENT_VERSION = 6;
 const projectManifestUpgraders: DocumentUpgrader[] = [
 	upgradeProjectManifestV1,
+	payload => payload,
 	payload => payload,
 	payload => payload,
 	payload => payload,

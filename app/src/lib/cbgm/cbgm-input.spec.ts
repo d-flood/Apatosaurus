@@ -20,6 +20,7 @@ const defaults: CoherenceSettings = {
 	classicRules: false,
 	mergeSplitReadings: false,
 	droppedReadingTypes: [],
+	trivialReadingTypes: [],
 	includedCorrectors: [],
 };
 
