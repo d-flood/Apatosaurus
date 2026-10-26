@@ -113,6 +113,7 @@ import {
 	loadTranscriptionContentWithFiles,
 	loadTranscriptionWithWorkingFile,
 	rebuildVerseIndexForTranscriptionsWithFiles,
+	reimportTranscriptionContent,
 	replaceTranscriptionCurrent,
 	restoreTranscriptionVersion,
 	saveWorkingTranscriptionContent,
@@ -168,6 +169,10 @@ export const dbApi = defineApi({
 	async updateTranscriptionMetadata({ db, invalidate }, input: UpdateTranscriptionMetadataInput) {
 		await saveWorkingTranscriptionMetadata(db, input);
 		invalidate('transcriptions');
+	},
+	async reimportTranscriptionContent({ db, invalidate, warn }, id: string, contentJson: string) {
+		warn(await reimportTranscriptionContent(db, id, contentJson));
+		invalidate('transcriptions', 'projects');
 	},
 	listConflictCopies: ({ db }, projectId?: string) => listConflictCopies(db, projectId),
 	loadConflictCopyContents: ({ db }, copyId: string) => loadConflictCopyContents(db, copyId),

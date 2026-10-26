@@ -483,6 +483,69 @@ export async function replaceTranscriptionCurrent(
 	});
 }
 
+export async function reimportTranscriptionContent(
+	db: Kysely<Database>,
+	id: string,
+	contentJson: string,
+	storeOptions: StoreOperationOptions = {}
+): Promise<PersistenceWarning[]> {
+	const document = coerceTranscriptionDocument(contentJson);
+	if (!document) throw new Error(`Transcription ${id} content is missing or invalid.`);
+	const { projectTranscriptionId } = await loadTranscriptionFileContext(db, id);
+	const commitIfDirty = async (commitMessage: string) => {
+		const status = await getProjectTranscriptionCheckpointStatusWithFiles(
+			db,
+			projectTranscriptionId,
+			storeOptions
+		);
+		if (!status.dirtyToCheckpoint) return [];
+		const checkpoint = await createCommittedTranscriptionCheckpointWithFiles(
+			db,
+			{ projectTranscriptionId, commitMessage },
+			storeOptions
+		);
+		return checkpoint.warnings ?? [];
+	};
+	const warnings = await commitIfDirty('Before TEI re-import');
+	const previous = await loadProjectTranscriptionSnapshotWithFiles(
+		db,
+		projectTranscriptionId,
+		storeOptions
+	);
+	await saveWorkingTranscriptionContent(
+		db,
+		{
+			id,
+			document: inheritPageIds(coerceTranscriptionDocument(previous.content_json), document),
+		},
+		storeOptions
+	);
+	warnings.push(...(await commitIfDirty('TEI re-import')));
+	return warnings;
+}
+
+// Pages without a TEI xml:id are parsed with random ids; reuse the previous ones by page name so IIIF links survive.
+function inheritPageIds(
+	previous: StoredTranscriptionDocument | null,
+	next: StoredTranscriptionDocument
+): StoredTranscriptionDocument {
+	const claimed = new Set(next.pages.map(page => page.teiAttrs?.['xml:id']).filter(Boolean));
+	const pageIdsByName = new Map<string, string[]>();
+	for (const page of previous?.pages ?? []) {
+		if (!page.pageId || claimed.has(page.pageId)) continue;
+		pageIdsByName.set(page.id, [...(pageIdsByName.get(page.id) ?? []), page.pageId]);
+	}
+	return {
+		...next,
+		pages: next.pages.map(page => {
+			const pageId = page.teiAttrs?.['xml:id']
+				? undefined
+				: pageIdsByName.get(page.id)?.shift();
+			return pageId ? { ...page, pageId } : page;
+		}),
+	};
+}
+
 export async function updateTranscriptionVersionNote(
 	db: Kysely<Database>,
 	transcriptionId: string,

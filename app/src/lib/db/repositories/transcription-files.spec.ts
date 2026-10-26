@@ -18,6 +18,7 @@ import {
 	getTranscriptionsWithWorkingFilesByIds,
 	loadTranscriptionWithWorkingFile,
 	rebuildVerseIndexForTranscriptionsWithFiles,
+	reimportTranscriptionContent,
 	replaceTranscriptionCurrent,
 	restoreTranscriptionVersion,
 	saveWorkingTranscriptionContent,
@@ -1057,6 +1058,62 @@ describe('transcription file persistence', () => {
 		expect(
 			new Map(historyFiles().map(path => [path, backend.files.get(path)] as const))
 		).toEqual(history);
+	});
+
+	it('re-imports content as a version after versioning unsaved edits', async () => {
+		await createFixtureTranscription();
+		await createCommittedTranscriptionCheckpointWithFiles(
+			harness.db,
+			{ projectTranscriptionId: 'pt-1', checkpointId: 'tx-cp-1' },
+			{ backend }
+		);
+		await saveWorkingTranscriptionContent(
+			harness.db,
+			{ id: 'tx-1', document: documentWithVerses(['Romans 1:2']) },
+			{ backend }
+		);
+
+		await reimportTranscriptionContent(
+			harness.db,
+			'tx-1',
+			JSON.stringify(documentWithVerses(['Romans 1:3'])),
+			{ backend }
+		);
+
+		expect(JSON.stringify((await readPrimaryPayload()).content_json)).toContain('"verse":"3"');
+		expect(
+			(await listVerseIndexRowsForTranscription(harness.db, 'tx-1')).map(
+				row => row.verse_identifier
+			)
+		).toEqual(['Romans 1:3']);
+		expect(
+			(await listTranscriptionVersions(harness.db, 'tx-1')).map(version => [
+				version.label,
+				version.note,
+			])
+		).toEqual([
+			['Version 3', 'TEI re-import'],
+			['Version 2', 'Before TEI re-import'],
+			['Version 1', null],
+		]);
+	});
+
+	it('keeps page ids and adds no version when re-imported content is unchanged', async () => {
+		await createFixtureTranscription();
+		await createCommittedTranscriptionCheckpointWithFiles(
+			harness.db,
+			{ projectTranscriptionId: 'pt-1', checkpointId: 'tx-cp-1' },
+			{ backend }
+		);
+
+		await reimportTranscriptionContent(
+			harness.db,
+			'tx-1',
+			JSON.stringify(documentWithVerses(['Romans 1:1'])),
+			{ backend }
+		);
+
+		expect(await listTranscriptionVersions(harness.db, 'tx-1')).toHaveLength(1);
 	});
 
 	it('numbers unlabelled legacy versions by date when indexing', async () => {

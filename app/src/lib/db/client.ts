@@ -53,6 +53,7 @@ export const getTranscriptionsByIds = call('getTranscriptionsByIds');
 export const createTranscription = call('createTranscription');
 export const createTranscriptions = call('createTranscriptions');
 export const updateTranscriptionMetadata = call('updateTranscriptionMetadata');
+export const reimportTranscriptionContent = call('reimportTranscriptionContent');
 export const deleteTranscription = call('deleteTranscription');
 export const getVerseIndexRowsForVerse = call('getVerseIndexRowsForVerse');
 export const listVerseIndexRows = call('listVerseIndexRows');
