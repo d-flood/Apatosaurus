@@ -500,9 +500,6 @@ async function createAndCommitCollation(page: Page, projectName: string): Promis
 	const memberName = await page.locator('span.min-w-0.truncate.font-mono').first().innerText();
 	await page.getByRole('textbox', { name: /Segment name/ }).fill(memberName);
 	await page.getByRole('button', { name: 'Proceed to Alignment' }).click();
-	const runCollation = page.getByRole('button', { name: 'Run Collation' });
-	await expect(runCollation).toBeEnabled({ timeout: 30_000 });
-	await runCollation.click();
 	const reviewLink = page.getByRole('link', { name: 'Review', exact: true });
 	await expect(reviewLink).not.toHaveAttribute('aria-disabled', 'true', { timeout: 30_000 });
 	await expect(page.getByRole('button', { name: 'Re-align', exact: true })).toBeVisible({

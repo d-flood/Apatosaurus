@@ -429,8 +429,10 @@
 							<p class="mt-3 text-sm text-base-content/40">No readings.</p>
 						{:else}
 							<svg
+								width={item.layout.bounds.width}
+								height={item.layout.bounds.height}
 								viewBox="0 0 {item.layout.bounds.width} {item.layout.bounds.height}"
-								class="mt-2 h-40 w-full"
+								class="mx-auto mt-2 block h-auto max-w-full"
 								aria-label="Local stemma for unit {item.segment.label}"
 								role="img"
 							>
@@ -444,6 +446,10 @@
 									/>
 								{/each}
 								{#each item.layout.nodes as node (node.id)}
+									{@const entry = item.stemma.nodes.find(
+										candidate => candidate.readingId === node.id
+									)}
+									{@const text = entry?.isOmission ? 'om.' : (entry?.text ?? '')}
 									<rect
 										x={node.x}
 										y={node.y}
@@ -452,14 +458,23 @@
 										rx="4"
 										class="fill-base-200 stroke-base-content/40"
 									/>
-									<text
-										x={node.x + 8}
-										y={node.y + 18}
-										class="fill-base-content text-[12px] font-mono"
-										>{item.stemma.nodes.find(
-											entry => entry.readingId === node.id
-										)?.label}</text
+									<foreignObject
+										x={node.x}
+										y={node.y}
+										width={node.width}
+										height={node.height}
 									>
+										<div
+											class="flex h-full items-center gap-2.5 px-3.5 text-base-content"
+											title={`${entry?.label} ${text}`}
+										>
+											<span class="text-lg font-semibold">{entry?.label}</span
+											>
+											<span class="truncate font-greek text-[17px]"
+												>{text}</span
+											>
+										</div>
+									</foreignObject>
 								{/each}
 							</svg>
 						{/if}

@@ -446,17 +446,12 @@ async function createCollation(
 	await expect(page.getByText('Loading witnesses...')).not.toBeVisible({ timeout: 30_000 });
 	await expect(page.locator('tbody tr')).toHaveCount(2, { timeout: 30_000 });
 	await page.getByRole('textbox', { name: /Segment name/ }).fill('Romans 15:26');
+	if (options?.segmentation === false) {
+		await page.getByRole('checkbox', { name: /CollateX segmentation/ }).uncheck();
+	}
 	const proceed = page.getByRole('button', { name: 'Proceed to Alignment' });
 	await expect(proceed).toBeEnabled();
 	await proceed.click();
-	await expect(page).toHaveURL(/\/alignment$/);
-	if (options?.segmentation === false) {
-		await page.getByRole('button', { name: 'Rules', exact: true }).click();
-		await page.getByRole('checkbox', { name: /CollateX segmentation/ }).uncheck();
-		await page.getByRole('button', { name: 'Rules', exact: true }).click();
-	}
-	const runCollation = page.getByRole('button', { name: 'Run Collation' });
-	await expect(runCollation).toBeEnabled({ timeout: 30_000 });
-	await runCollation.click();
-	await expect(page.getByText('Collating…')).not.toBeVisible({ timeout: 30_000 });
+	await expect(page).toHaveURL(/\/alignment$/, { timeout: 30_000 });
+	await expect(page.getByRole('button', { name: 'Re-align', exact: true })).toBeVisible();
 }

@@ -65,6 +65,8 @@
 	let isSavingTranscriptions = $state(false);
 	let isRebuildingVerseIndex = $state(false);
 	let error = $state<string | null>(null);
+	let collateError = $state<string | null>(null);
+	let isCollating = $state(false);
 	let manualWitnessError = $state<string | null>(null);
 	let statusMessage = $state<string | null>(null);
 	let setupLoadToken = 0;
@@ -525,63 +527,6 @@
 	}
 </script>
 
-{#if manualWitnesses.length > 0}
-	<section
-		class="space-y-3 rounded-box border border-base-300/50 bg-base-100 p-4"
-		aria-label="Manual witnesses"
-	>
-		<h2 class="font-serif text-lg font-semibold">Manual witnesses</h2>
-		{#each refusedTranscriptions as transcription (transcription.id)}
-			<p role="alert" class="text-sm text-warning">
-				Transcription {transcription.siglum} isn't collated: {transcription.siglum} is a manual
-				witness here, and CBGM joins witnesses by siglum. Exclude the manual witness to collate
-				the transcription instead.
-			</p>
-		{/each}
-		{#if manualWitnessError}
-			<p role="alert" class="text-sm text-warning">{manualWitnessError}</p>
-		{/if}
-		{#each manualWitnesses as witness (witness.id)}
-			{@const override = collationState.getManualWitnessOverride(witness.id)}
-			<div class="flex flex-wrap items-center gap-3">
-				<label class="flex min-w-0 flex-1 items-center gap-2 break-all">
-					<input
-						type="checkbox"
-						class="checkbox checkbox-sm"
-						aria-label={`Include manual witness ${witness.siglum}`}
-						checked={!override.isExcluded}
-						onchange={event => {
-							const input = event.currentTarget;
-							updateManualWitness(witness.id, { isExcluded: !input.checked });
-							input.checked = !collationState.getManualWitnessOverride(witness.id)
-								.isExcluded;
-						}}
-					/>
-					<span>{witness.siglum}</span>
-				</label>
-				<select
-					class="select select-bordered select-sm max-w-full"
-					aria-label={`Treatment for manual witness ${witness.siglum}`}
-					value={override.treatment}
-					onchange={event => {
-						const select = event.currentTarget;
-						updateManualWitness(witness.id, {
-							treatment: select.value as WitnessTreatment,
-						});
-						select.value = collationState.getManualWitnessOverride(
-							witness.id
-						).treatment;
-					}}
-				>
-					<option value="inherit">Project default ({witness.treatment})</option>
-					<option value="full">Full</option>
-					<option value="fragmentary">Fragmentary</option>
-				</select>
-			</div>
-		{/each}
-	</section>
-{/if}
-
 <div class="flex h-full min-h-0 flex-col gap-6 overflow-y-auto lg:flex-row">
 	<div class="shrink-0 lg:w-100 lg:pr-2">
 		<div class="space-y-4">
@@ -625,6 +570,76 @@
 				setAllTreatments={collationState.setAllProjectTranscriptionTreatments}
 				onToggleTranscription={toggleProjectTranscription}
 			/>
+
+			{#if manualWitnesses.length > 0}
+				<section
+					class="rounded-box border border-base-300/50 bg-base-100 p-4 shadow-md"
+					aria-label="Manual witnesses"
+				>
+					<h2 class="mb-3 font-serif text-lg font-semibold">Manual witnesses</h2>
+					{#each refusedTranscriptions as transcription (transcription.id)}
+						<p role="alert" class="mb-2 text-xs text-warning">
+							Transcription {transcription.siglum} isn't collated: {transcription.siglum}
+							is a manual witness here, and CBGM joins witnesses by siglum. Exclude the
+							manual witness to collate the transcription instead.
+						</p>
+					{/each}
+					{#if manualWitnessError}
+						<p role="alert" class="mb-2 text-xs text-warning">{manualWitnessError}</p>
+					{/if}
+					<div class="max-h-48 space-y-1 overflow-y-auto pr-1">
+						{#each manualWitnesses as witness (witness.id)}
+							{@const override = collationState.getManualWitnessOverride(witness.id)}
+							<div
+								class="flex items-center gap-3 rounded-box border border-base-300/50 px-3 py-2"
+							>
+								<label
+									class="flex min-w-0 flex-1 cursor-pointer items-center gap-3"
+								>
+									<input
+										type="checkbox"
+										class="checkbox checkbox-sm"
+										aria-label={`Include manual witness ${witness.siglum}`}
+										checked={!override.isExcluded}
+										onchange={event => {
+											const input = event.currentTarget;
+											updateManualWitness(witness.id, {
+												isExcluded: !input.checked,
+											});
+											input.checked =
+												!collationState.getManualWitnessOverride(witness.id)
+													.isExcluded;
+										}}
+									/>
+									<span class="min-w-0 break-all font-mono text-sm font-bold"
+										>{witness.siglum}</span
+									>
+								</label>
+								<select
+									class="select select-xs w-auto max-w-full"
+									aria-label={`Treatment for manual witness ${witness.siglum}`}
+									value={override.treatment}
+									onchange={event => {
+										const select = event.currentTarget;
+										updateManualWitness(witness.id, {
+											treatment: select.value as WitnessTreatment,
+										});
+										select.value = collationState.getManualWitnessOverride(
+											witness.id
+										).treatment;
+									}}
+								>
+									<option value="inherit"
+										>Project default ({witness.treatment})</option
+									>
+									<option value="full">Full</option>
+									<option value="fragmentary">Fragmentary</option>
+								</select>
+							</div>
+						{/each}
+					</div>
+				</section>
+			{/if}
 
 			<ProjectCollationSettingsEditor
 				rules={collationState.rules}
@@ -1077,18 +1092,37 @@
 					</div>
 				{/if}
 
-				<div class="mt-6 flex justify-end">
+				<div class="mt-6 flex flex-wrap items-center justify-end gap-3">
+					{#if collateError}
+						<p class="text-sm text-error" role="alert">{collateError}</p>
+					{/if}
 					<button
 						type="button"
 						class="btn btn-primary gap-2"
-						disabled={!collationState.canAdvance()}
+						disabled={!collationState.canAdvance() || isCollating}
 						onclick={async () => {
+							collateError = null;
 							let targetId = collationState.collationId;
 							if (!targetId && collationState.segment?.members.length) {
 								targetId = await collationState.createNewCollation(
 									`Collation ${collationState.segment.name}`,
 									collationState.segment.name
 								);
+							}
+							if (
+								collationState.alignmentColumns.length === 0 &&
+								activeWitnessCount >= 2
+							) {
+								isCollating = true;
+								try {
+									await collationState.collate();
+								} catch (err) {
+									collateError =
+										err instanceof Error ? err.message : 'Collation failed';
+									return;
+								} finally {
+									isCollating = false;
+								}
 							}
 							collationState.setPhase('alignment');
 							await collationState.flushPendingSave();
@@ -1106,8 +1140,13 @@
 							}
 						}}
 					>
-						Proceed to Alignment
-						<ArrowRight size={18} />
+						{#if isCollating}
+							<span class="loading loading-spinner loading-sm"></span>
+							Collating…
+						{:else}
+							Proceed to Alignment
+							<ArrowRight size={18} />
+						{/if}
 					</button>
 				</div>
 			</section>

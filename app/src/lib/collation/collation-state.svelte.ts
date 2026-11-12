@@ -34,6 +34,7 @@ import {
 	type AlignmentEditContext,
 } from './alignment-edits';
 import { collateToAlignmentSnapshot } from './collation-adapter';
+import { runCollationInWorker } from './collation-service';
 import { placeWitnessRow } from './alignment-placement';
 import { recognizeColumns } from './alignment-recognition';
 import { alignmentCellFromTokens } from './alignment-cell';
@@ -1084,6 +1085,18 @@ function createCollationState() {
 						),
 					};
 		setAlignmentSnapshot(snapshot);
+	}
+
+	async function collate() {
+		const invalid = collationInput.diagnostics.find(
+			diagnostic => diagnostic.code === 'invalid_regex'
+		);
+		if (invalid) throw new Error(`Rule ${invalid.pattern} is invalid: ${invalid.message}`);
+		const result = await runCollationInWorker({
+			witnesses: buildCollationWitnessInputs({ forceSourceWitnesses: true }),
+			options: { segmentation },
+		});
+		setAlignmentSnapshot(result.snapshot);
 	}
 
 	async function refreshWitnessesFromTranscriptionSource(
@@ -3803,9 +3816,6 @@ function createCollationState() {
 		get regularizedTexts() {
 			return collationInput.perWitnessTokens;
 		},
-		get regularizationDiagnostics() {
-			return collationInput.diagnostics;
-		},
 		get regularizationRuleEffects() {
 			return collationInput.ruleEffects;
 		},
@@ -3934,6 +3944,7 @@ function createCollationState() {
 		setOrphanedMembers,
 		clearSegment,
 		buildCollationWitnessInputs,
+		collate,
 		refreshWitnessesFromSource,
 		refreshWitnessSource,
 		refreshAllStaleWitnessSources,

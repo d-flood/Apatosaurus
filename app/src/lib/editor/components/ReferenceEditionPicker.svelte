@@ -493,7 +493,7 @@
 				</button>
 			</header>
 
-			<div class="grid min-h-0 flex-1 gap-4 overflow-hidden p-5 md:grid-cols-[13rem_1fr]">
+			<div class="grid min-h-0 flex-1 gap-4 overflow-hidden p-5 md:grid-cols-[15rem_1fr]">
 				<section class="min-h-0 space-y-2">
 					<h3
 						class="text-xs font-semibold uppercase tracking-[0.12em] text-base-content/60"

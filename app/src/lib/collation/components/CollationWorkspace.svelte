@@ -276,7 +276,7 @@
 					</div>
 				</details>
 			</div>
-			<div class="flex max-lg:min-w-0 max-lg:max-w-full max-lg:flex-wrap items-center gap-4">
+			<div class="flex max-lg:min-w-0 max-lg:max-w-full flex-wrap items-center gap-4">
 				<CollationStepper />
 				<div class="border-l border-base-300 pl-3 flex items-center gap-1">
 					<button

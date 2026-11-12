@@ -69,6 +69,27 @@ function clickText(text: string) {
 	button.click();
 }
 
+function manualChip(readingLabel: string, siglum: string) {
+	return page
+		.getByRole('group', { name: `Reading ${readingLabel}`, exact: true })
+		.getByRole('button', { name: siglum, exact: true });
+}
+
+async function attachManual(readingLabel: string, siglum: string) {
+	await page
+		.getByRole('button', { name: `Add manual witness to reading ${readingLabel}`, exact: true })
+		.click();
+	await page
+		.getByRole('combobox', { name: `Manual witness for reading ${readingLabel}`, exact: true })
+		.fill(siglum);
+	await page
+		.getByRole('button', {
+			name: `Attach manual witness to reading ${readingLabel}`,
+			exact: true,
+		})
+		.click();
+}
+
 function announcement(): string {
 	return document.querySelector('[data-testid="readings-announcer"]')?.textContent ?? '';
 }
@@ -668,11 +689,8 @@ describe('ReadingsPhase reading tags', () => {
 				)
 			)
 			.toContain(`More actions for reading ${label}`);
-		(
-			document
-				.querySelector(`summary[aria-label="More actions for reading ${label}"]`)!
-				.closest('details') as HTMLDetailsElement
-		).open = true;
+		await page.getByRole('textbox', { name: `Text of reading ${label}`, exact: true }).click();
+		await page.getByRole('button', { name: `Tag reading ${label}`, exact: true }).click();
 		const input = page.getByRole('combobox', { name: `Tag for reading ${label}`, exact: true });
 		await expect.element(input).toBeVisible();
 		expect(
@@ -717,14 +735,14 @@ describe('ReadingsPhase reading tags', () => {
 		).toHaveLength(2);
 		await expect
 			.poll(() => {
-				const menu = document
-					.querySelector(`input[aria-label="Tag for reading ${label}"]`)!
-					.closest('.dropdown-content')!;
-				const bounds = menu.getBoundingClientRect();
+				const editor = document.querySelector(
+					`input[aria-label="Tag for reading ${label}"]`
+				)!.parentElement!;
+				const bounds = editor.getBoundingClientRect();
 				return (
 					bounds.left >= 0 &&
 					bounds.right <= width &&
-					menu.scrollWidth <= menu.clientWidth
+					editor.scrollWidth <= editor.clientWidth
 				);
 			})
 			.toBe(true);
@@ -881,17 +899,9 @@ describe('ReadingsPhase manual witnesses', () => {
 			'orthographic'
 		);
 		render(ReadingsPhase);
-		await expect
-			.element(
-				page.getByRole('button', { name: 'Detach Father from reading a', exact: true })
-			)
-			.toBeVisible();
+		await expect.element(manualChip('a', 'Father')).toBeVisible();
 		await page.getByRole('radio', { name: 'Original', exact: true }).click();
-		await expect
-			.element(
-				page.getByRole('button', { name: 'Detach Father from reading ao', exact: true })
-			)
-			.toBeVisible();
+		await expect.element(manualChip('ao', 'Father')).toBeVisible();
 	});
 
 	it.each([390, 1280])(
@@ -913,6 +923,9 @@ describe('ReadingsPhase manual witnesses', () => {
 				collationState.getManualWitnesses()[0].id
 			);
 			render(ReadingsPhase);
+			await page
+				.getByRole('button', { name: 'Add manual witness to reading a', exact: true })
+				.click();
 			const input = page.getByRole('combobox', {
 				name: 'Manual witness for reading a',
 				exact: true,
@@ -927,16 +940,10 @@ describe('ReadingsPhase manual witnesses', () => {
 			await page
 				.getByRole('button', { name: 'Attach manual witness to reading a', exact: true })
 				.click();
-			const existing = page.getByRole('button', {
-				name: 'Detach Father from reading a',
-				exact: true,
-			});
-			await expect.element(existing).toBeVisible();
+			await expect.element(manualChip('a', 'Father')).toBeVisible();
+			await expect.element(input).not.toBeInTheDocument();
 			expect(collationState.getManualWitnesses()).toHaveLength(1);
-			await input.fill(' A ');
-			await page
-				.getByRole('button', { name: 'Attach manual witness to reading a', exact: true })
-				.click();
+			await attachManual('a', ' A ');
 			await expect.poll(announcement).toContain('CBGM joins witnesses by siglum');
 			await expect.element(page.getByRole('alert')).toBeVisible();
 			await expect
@@ -947,38 +954,27 @@ describe('ReadingsPhase manual witnesses', () => {
 			await page
 				.getByRole('button', { name: 'Attach manual witness to reading a', exact: true })
 				.click();
-			await expect
-				.element(
-					page.getByRole('button', { name: 'Detach Version from reading a', exact: true })
-				)
-				.toBeVisible();
+			await expect.element(manualChip('a', 'Version')).toBeVisible();
 			expect(collationState.getManualWitnesses().map(witness => witness.siglum)).toEqual([
 				'Father',
 				'Version',
 			]);
-			await page
-				.getByRole('textbox', { name: 'New reading text', exact: true })
-				.fill('πνευμα');
-			await page.getByRole('button', { name: 'Add reading', exact: true }).click();
+			const newReading = page.getByRole('textbox', { name: 'New reading text', exact: true });
+			await newReading.fill('πνευμα');
+			await userEvent.keyboard('{Enter}');
 			await expect
 				.element(page.getByRole('textbox', { name: 'Text of reading c', exact: true }))
 				.toHaveValue('πνευμα');
-			await page
-				.getByRole('combobox', { name: 'Manual witness for reading c', exact: true })
-				.fill('Version');
-			await page
-				.getByRole('button', { name: 'Attach manual witness to reading c', exact: true })
-				.click();
-			await expect
-				.element(
-					page.getByRole('button', { name: 'Detach Version from reading c', exact: true })
-				)
-				.toBeVisible();
-			await page.getByRole('checkbox', { name: 'Omission', exact: true }).click();
-			await page.getByRole('button', { name: 'Add reading', exact: true }).click();
+			await attachManual('c', 'Version');
+			await expect.element(manualChip('c', 'Version')).toBeVisible();
+			await newReading.fill('om.');
+			await userEvent.keyboard('{Enter}');
 			await expect
 				.element(page.getByRole('textbox', { name: 'Text of reading d', exact: true }))
 				.toBeDisabled();
+			await page
+				.getByRole('button', { name: 'Add manual witness to reading c', exact: true })
+				.click();
 			await expect
 				.poll(() =>
 					[
@@ -995,9 +991,8 @@ describe('ReadingsPhase manual witnesses', () => {
 					})
 				)
 				.toBe(true);
-			await page
-				.getByRole('button', { name: 'Detach Version from reading c', exact: true })
-				.click();
+			await manualChip('c', 'Version').click();
+			await page.getByRole('button', { name: 'Detach', exact: true }).click();
 			await expect
 				.element(page.getByRole('textbox', { name: 'Text of reading c', exact: true }))
 				.toHaveAttribute('placeholder', 'om.');
@@ -1021,7 +1016,9 @@ it('records all full-manual testimony states and manual ambiguity at phone width
 			.push({ id: 'full', siglum: 'Syriac', treatment: 'full', includeInCbgm: false });
 		render(ReadingsPhase);
 		await expect.element(page.getByLabelText('Unrecorded manual witnesses')).toBeVisible();
-		await page.getByRole('button', { name: 'Set Syriac uncited', exact: true }).click();
+		const syriac = page.getByRole('button', { name: 'Syriac', exact: true });
+		await syriac.click();
+		await page.getByRole('button', { name: 'Uncited', exact: true }).click();
 		await expect
 			.poll(
 				() =>
@@ -1036,7 +1033,8 @@ it('records all full-manual testimony states and manual ambiguity at phone width
 						.unrecordedManualWitnessIds
 			)
 			.toEqual([]);
-		await page.getByRole('button', { name: 'Set Syriac non-attestation', exact: true }).click();
+		await syriac.click();
+		await page.getByRole('button', { name: 'Does not testify', exact: true }).click();
 		await expect
 			.poll(
 				() =>
@@ -1044,15 +1042,8 @@ it('records all full-manual testimony states and manual ambiguity at phone width
 						.nonAttestingManualWitnessIds
 			)
 			.toEqual(['full']);
-		await page
-			.getByRole('combobox', { name: 'Manual witness for reading a', exact: true })
-			.fill('Syriac');
-		await page
-			.getByRole('button', { name: 'Attach manual witness to reading a', exact: true })
-			.click();
-		await page
-			.getByRole('button', { name: 'Select manual witness Syriac', exact: true })
-			.click();
+		await attachManual('a', 'Syriac');
+		await manualChip('a', 'Syriac').click();
 		await page.getByRole('checkbox', { name: 'Ambiguous between: a', exact: true }).click();
 		await page.getByRole('checkbox', { name: 'Ambiguous between: b', exact: true }).click();
 		await page.getByRole('button', { name: 'Record zw', exact: true }).click();
@@ -1067,7 +1058,7 @@ it('records all full-manual testimony states and manual ambiguity at phone width
 			.poll(() =>
 				[
 					...document.querySelectorAll<HTMLElement>(
-						'section[aria-label="Manual witness testimony"] button'
+						'section[aria-label="Ambiguous attestations"] button'
 					),
 				].every(element => {
 					const rect = element.getBoundingClientRect();
@@ -1200,12 +1191,10 @@ describe('ReadingsPhase reading notes', () => {
 		collate([makeWitness('A', 'λογος', true), makeWitness('B', 'θεος')]);
 	});
 
-	it('records a reading note from the reading menu and shows it on the card', async () => {
+	it('records a reading note from its row and shows it there', async () => {
 		render(ReadingsPhase);
-		const menu = document
-			.querySelector('summary[aria-label="More actions for reading a"]')!
-			.closest('details') as HTMLDetailsElement;
-		menu.open = true;
+		await page.getByRole('textbox', { name: 'Text of reading a', exact: true }).click();
+		await page.getByRole('button', { name: 'Add a note to reading a', exact: true }).click();
 		await page
 			.getByRole('textbox', { name: 'Note for reading a' })
 			.fill('  Corrector erased  ');

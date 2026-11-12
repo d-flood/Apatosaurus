@@ -34,7 +34,7 @@
 </script>
 
 <label
-	class="input w-full cursor-pointer focus-within:outline-2 focus-within:outline-offset-2"
+	class="input @container w-full cursor-pointer focus-within:outline-2 focus-within:outline-offset-2"
 	class:input-disabled={disabled}
 >
 	<span class="font-bold label">{label}</span>
@@ -42,7 +42,7 @@
 		{#if directory}<FolderOpen size={14} />Choose folder{:else}<FileArrowUp size={14} />Choose
 			file{/if}
 	</span>
-	<span class="grow truncate" class:opacity-60={!selection}>
+	<span class="grow truncate @max-3xs:hidden" class:opacity-60={!selection}>
 		{selection || placeholder}
 	</span>
 	<input

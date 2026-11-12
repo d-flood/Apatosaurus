@@ -29,10 +29,12 @@
 	const WITNESS_DISPLAY_LIMIT = 12;
 	const NO_VALUE = '';
 
+	const META_CONTROL =
+		'rounded px-1.5 py-0.5 text-xs text-base-content/65 hover:bg-base-200 hover:text-base-content focus-visible:outline-2 focus-visible:outline-primary';
+
 	let liveMessage = $state('');
 	let authoredText = $state('');
-	let authoredInput = $state<HTMLInputElement | null>(null);
-	let authoredOmission = $state(false);
+	let noteCancelled = false;
 	const manualDrafts = new SvelteMap<string, string>();
 	const manualErrors = new SvelteMap<string, string>();
 	let manualWitnesses = $derived(collationState.getManualWitnesses());
@@ -40,17 +42,6 @@
 	let witnessDescriptions = $derived(
 		new Map(manualMembers.map(witness => [witness.id, witness.description]))
 	);
-	function manualState(id: string): string {
-		if (unitView.unrecordedManualWitnessIds.includes(id)) return 'Nothing recorded';
-		if (unitView.uncitedManualWitnessIds.includes(id)) return 'Uncited';
-		if (unitView.nonAttestingManualWitnessIds.includes(id)) return 'Non-attestation (damaged)';
-		return (
-			unitView.ambiguousAttestations.find(attestation => attestation.witnessIds.includes(id))
-				?.label ??
-			unitView.readings.find(reading => reading.manualWitnessIds?.includes(id))?.label ??
-			'Nothing recorded'
-		);
-	}
 	async function attachManual(reading: ClassifiedReading) {
 		const result = await collationState.attachManualWitness(
 			unitId,
@@ -60,13 +51,16 @@
 		if (result.ok) {
 			manualDrafts.delete(reading.id);
 			manualErrors.delete(reading.id);
+			witnessEditorFor = null;
+			void focusSlot(`witness-${reading.id}`);
 		} else manualErrors.set(reading.id, result.error);
 		liveMessage = result.ok ? 'Attached manual witness.' : result.error;
 	}
 	function addAuthored() {
-		if (!collationState.addAuthoredReading(unitId, authoredText, authoredOmission)) return;
+		const isOmission = authoredText.trim() === 'om.';
+		if (!collationState.addAuthoredReading(unitId, isOmission ? '' : authoredText, isOmission))
+			return;
 		authoredText = '';
-		authoredOmission = false;
 		liveMessage = 'Added authored reading.';
 	}
 	let chipGroup = $state<HTMLElement | null>(null);
@@ -124,6 +118,51 @@
 		unitId;
 		return new SvelteMap<string, string>();
 	});
+	let activeRowId = $derived.by(() => {
+		unitId;
+		return null as string | null;
+	});
+	let editingNoteFor = $derived.by(() => {
+		unitId;
+		return null as string | null;
+	});
+	let editingTagFor = $derived.by(() => {
+		unitId;
+		return null as string | null;
+	});
+	let witnessEditorFor = $derived.by(() => {
+		unitId;
+		return null as string | null;
+	});
+
+	/** Opening on click or keyboard focus only: a mousedown-time reveal shifts the row under the pointer. */
+	function slotClass(readingId: string): string {
+		return activeRowId === readingId
+			? 'order-last'
+			: 'order-last hidden group-has-[:focus-visible]:inline-block';
+	}
+
+	function focusOnMount(node: HTMLElement) {
+		node.focus();
+	}
+
+	async function focusSlot(slot: string) {
+		await tick();
+		chipGroup?.querySelector<HTMLElement>(`[data-slot="${slot}"]`)?.focus();
+	}
+
+	function closeWhenFocusLeaves(close: () => void) {
+		return (event: FocusEvent) => {
+			const container = event.currentTarget as HTMLElement;
+			if (!container.contains(event.relatedTarget as Node | null)) close();
+		};
+	}
+
+	function finishNote(reading: ClassifiedReading, value: string) {
+		if (!noteCancelled) collationState.setReadingNote(unitId, reading.id, value);
+		noteCancelled = false;
+		editingNoteFor = null;
+	}
 	let readingTags = $derived(collationState.getReadingTags());
 
 	async function addTag(reading: ClassifiedReading) {
@@ -132,6 +171,12 @@
 		if (!result.ok) return;
 		tagDrafts.delete(reading.id);
 		liveMessage = `Added tag to reading ${reading.label}.`;
+		await tick();
+		chipGroup
+			?.querySelector<HTMLInputElement>(
+				`input[aria-label="Tag for reading ${reading.label}"]`
+			)
+			?.focus();
 	}
 
 	function removeTag(reading: ClassifiedReading, tagId: string) {
@@ -257,16 +302,26 @@
 		return Math.max(0, displayedTranscribedWitnessIds(reading).length - WITNESS_DISPLAY_LIMIT);
 	}
 
-	/** Flat chip order keeps one tabstop and lets ranges span cards. */
+	let outsideManualIds = $derived([
+		...unitView.unrecordedManualWitnessIds,
+		...unitView.uncitedManualWitnessIds,
+		...unitView.nonAttestingManualWitnessIds,
+	]);
+
+	/** Flat chip order keeps one tabstop and lets ranges span readings and the footer. */
 	let chips = $derived.by(() => {
-		const list: { witnessId: string; readingId: string }[] = [];
+		const list: { witnessId: string }[] = [];
 		for (const card of cards) {
 			for (const node of card.nodes) {
 				for (const witness of visibleWitnessesOf(node.reading)) {
-					list.push({ witnessId: witness.id, readingId: node.reading.id });
+					list.push({ witnessId: witness.id });
+				}
+				for (const id of displayedManualWitnessIds(node.reading)) {
+					list.push({ witnessId: id });
 				}
 			}
 		}
+		for (const id of outsideManualIds) list.push({ witnessId: id });
 		return list;
 	});
 
@@ -279,11 +334,13 @@
 
 	/** Reading order, not screen order: only 12 sigla show per reading. */
 	let selectedWitnessIdsInOrder = $derived(
-		readings.flatMap(reading =>
-			[...reading.witnessIds, ...(reading.manualWitnessIds ?? [])].filter(id =>
-				selectedWitnessIds.has(id)
-			)
-		)
+		[
+			...readings.flatMap(reading => [
+				...reading.witnessIds,
+				...(reading.manualWitnessIds ?? []),
+			]),
+			...outsideManualIds,
+		].filter(id => selectedWitnessIds.has(id))
 	);
 	let selectedReadingIds = $derived(
 		readings
@@ -292,6 +349,9 @@
 	);
 	let selectionCount = $derived(selectedWitnessIdsInOrder.length);
 	let hasManualSelection = $derived(selectedWitnessIdsInOrder.some(isManualWitness));
+	let manualOnlySelection = $derived(
+		selectionCount > 0 && selectedWitnessIdsInOrder.every(isManualWitness)
+	);
 
 	let mergeDiscards = $derived.by(() => {
 		const sources = readings.filter(
@@ -491,6 +551,22 @@
 		liveMessage = `Recorded ${siglaOf(witnessIds)} as ${recorded?.label ?? 'ambiguous'}.`;
 		clearSelection();
 		await focusAfterVerb(undefined);
+	}
+
+	async function setSelectedManualTestimony(kind: 'uncited' | 'nonAttestation') {
+		const witnessIds = selectedWitnessIdsInOrder;
+		for (const id of witnessIds) collationState.setManualWitnessTestimony(unitId, id, kind);
+		liveMessage = `${siglaOf(witnessIds)} ${kind === 'uncited' ? 'uncited' : 'does not testify'} here.`;
+		clearSelection();
+		await focusAfterVerb(witnessIds[0]);
+	}
+
+	async function detachSelectedManual() {
+		const witnessIds = selectedWitnessIdsInOrder;
+		for (const id of witnessIds) collationState.detachManualWitness(unitId, id);
+		liveMessage = `Detached ${siglaOf(witnessIds)}.`;
+		clearSelection();
+		await focusAfterVerb(witnessIds[0]);
 	}
 
 	function removeAmbiguousAttestation(attestation: { id: string; label: string }) {
@@ -706,7 +782,7 @@
 </script>
 
 <div class="flex h-full flex-col gap-2">
-	<div class="rounded-xl border border-base-300/50 bg-base-200/30 px-4 py-3">
+	<div class="rounded-xl bg-base-200/50 px-4 py-3">
 		<div class="mb-2 flex items-center justify-between">
 			<h2 class="text-xs font-semibold uppercase tracking-[0.2em] text-base-content/50">
 				Readings Review
@@ -766,18 +842,14 @@
 				{/each}
 			</div>
 		</div>
+		{#if apparatusNotation}
+			<section class="mt-1" aria-label="Apparatus notation for the selected variation unit">
+				<p class="select-text font-greek text-sm leading-relaxed text-base-content/70">
+					{apparatusNotation}
+				</p>
+			</section>
+		{/if}
 	</div>
-
-	{#if apparatusNotation}
-		<section
-			class="rounded-xl border border-base-300/50 bg-base-100 px-4 py-2"
-			aria-label="Apparatus notation for the selected variation unit"
-		>
-			<p class="select-text font-greek text-sm leading-relaxed text-base-content/80">
-				{apparatusNotation}
-			</p>
-		</section>
-	{/if}
 
 	<div class="flex flex-wrap items-center justify-between gap-2">
 		<div class="flex items-center gap-2">
@@ -817,15 +889,6 @@
 			</div>
 			<button
 				type="button"
-				class="btn btn-primary btn-sm gap-1"
-				disabled={!unitId}
-				onclick={() => authoredInput?.focus()}
-			>
-				<Plus size={14} />
-				Reading
-			</button>
-			<button
-				type="button"
 				class="btn btn-secondary btn-sm gap-1"
 				disabled={!collationState.collationId}
 				onclick={goToStemma}
@@ -838,56 +901,9 @@
 
 	<div class="sr-only" aria-live="polite" data-testid="readings-announcer">{liveMessage}</div>
 
-	{#if manualMembers.length > 0}
-		<section
-			class="space-y-3 rounded-xl border border-base-300/60 bg-base-100 p-3"
-			aria-label="Manual witness testimony"
-		>
-			<h3 class="text-sm font-medium">Manual witness testimony</h3>
-			{#each manualMembers as witness (witness.id)}
-				<div class="flex flex-wrap items-center gap-2">
-					<span class="min-w-0 flex-1 break-all text-sm" title={witness.description}
-						>{witness.siglum}: <strong>{manualState(witness.id)}</strong></span
-					>
-					<button
-						type="button"
-						class="btn btn-xs"
-						aria-label={`Set ${witness.siglum} uncited`}
-						onclick={() =>
-							collationState.setManualWitnessTestimony(unitId, witness.id, 'uncited')}
-						>Uncited</button
-					>
-					<button
-						type="button"
-						class="btn btn-xs"
-						aria-label={`Set ${witness.siglum} non-attestation`}
-						onclick={() =>
-							collationState.setManualWitnessTestimony(
-								unitId,
-								witness.id,
-								'nonAttestation'
-							)}>Non-attestation</button
-					>
-					{#if unitView.readings.some( reading => reading.manualWitnessIds?.includes(witness.id) )}
-						<button
-							type="button"
-							class="btn btn-xs"
-							aria-label={`Select manual witness ${witness.siglum}`}
-							aria-pressed={selectedWitnessIds.has(witness.id)}
-							onclick={() =>
-								selectedWitnessIds.has(witness.id)
-									? selectedWitnessIds.delete(witness.id)
-									: selectedWitnessIds.add(witness.id)}>Select for zw</button
-						>
-					{/if}
-				</div>
-			{/each}
-		</section>
-	{/if}
-
 	{#if unconfirmedWitnessIds.length > 0}
 		<section
-			class="flex flex-wrap items-center gap-2 rounded-xl border border-warning/40 bg-warning/10 px-3 py-3"
+			class="flex flex-wrap items-center gap-2 rounded-xl bg-warning/10 px-3 py-2.5"
 			aria-label="Unconfirmed attestations"
 		>
 			<p class="min-w-0 flex-1 text-sm wrap-break-word">
@@ -901,7 +917,7 @@
 
 	{#if unitView.overlappedWitnessIds.length > 0}
 		<section
-			class="space-y-2 rounded-xl border border-base-300 px-3 py-3 text-sm"
+			class="space-y-2 rounded-xl bg-base-200/50 px-3 py-2.5 text-sm"
 			aria-label="Overlapped witnesses"
 		>
 			<h3 class="font-semibold">Overlapped</h3>
@@ -922,7 +938,7 @@
 	{/if}
 	{#if unitView.unresolvedOverlapWitnessIds.length > 0}
 		<section
-			class="space-y-3 rounded-xl border border-warning/40 bg-warning/10 px-3 py-3"
+			class="space-y-3 rounded-xl bg-warning/10 px-3 py-2.5"
 			aria-label="Unresolved overlaps"
 		>
 			<h3 class="text-sm font-semibold">Resolve overlapping testimony</h3>
@@ -962,7 +978,7 @@
 
 	{#if unresolvedAttestations.length > 0}
 		<section
-			class="space-y-3 rounded-xl border border-warning/40 bg-warning/10 px-3 py-3"
+			class="space-y-3 rounded-xl bg-warning/10 px-3 py-2.5"
 			aria-label="Unresolved attestations"
 		>
 			<h3 class="text-sm font-semibold">Resolve attestations</h3>
@@ -994,9 +1010,7 @@
 	{/if}
 
 	{#if needsLemmaDecision}
-		<div
-			class="rounded-lg border border-warning/40 bg-warning/10 px-4 py-2 text-sm text-base-content/70"
-		>
+		<div class="rounded-xl bg-warning/10 px-3 py-2.5 text-sm text-base-content/70">
 			No lemma: the base text doesn't testify here. Choose the reading to establish as
 			<span class="font-mono">a</span>.
 		</div>
@@ -1005,7 +1019,7 @@
 	{#if selectionCount > 0}
 		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 		<section
-			class="flex flex-wrap items-center gap-2 rounded-xl border border-primary/40 bg-primary/5 px-3 py-2"
+			class="flex flex-wrap items-center gap-2 rounded-xl bg-primary/10 px-3 py-2"
 			aria-label="Actions for the selected witnesses"
 			data-testid="selection-bar"
 			onkeydown={event => {
@@ -1021,6 +1035,22 @@
 				{selectionCount === 1 ? 'witness' : 'witnesses'} selected
 				<span class="text-base-content/40">({siglaOf(selectedWitnessIdsInOrder)})</span>
 			</span>
+			{#if manualOnlySelection}
+				<button
+					type="button"
+					class="btn btn-xs"
+					onclick={() => setSelectedManualTestimony('uncited')}>Uncited</button
+				>
+				<button
+					type="button"
+					class="btn btn-xs"
+					onclick={() => setSelectedManualTestimony('nonAttestation')}
+					>Does not testify</button
+				>
+				<button type="button" class="btn btn-xs" onclick={detachSelectedManual}
+					>Detach</button
+				>
+			{/if}
 			<!-- Explicit apply: arrowing a closed select fires change. -->
 			<label class="flex items-center gap-1 text-xs text-base-content/60">
 				<span>Move to</span>
@@ -1135,84 +1165,67 @@
 		</section>
 	{/if}
 
-	<div class="min-h-0 flex-1 overflow-auto rounded-xl border border-base-300/50 bg-base-100 p-3">
+	<div class="min-h-0 flex-1 overflow-auto rounded-xl bg-base-100 p-1 sm:px-2">
 		{#if !selectedSpan}
 			<div class="flex h-full items-center justify-center p-6 text-sm text-base-content/35">
 				No variation units. Adjust the alignment.
 			</div>
 		{:else}
-			<div
-				class="space-y-3"
-				role="group"
-				aria-label="Witness sigla, grouped by reading"
-				bind:this={chipGroup}
-			>
-				{#each cards as card (card.main.id)}
-					<article
-						class="rounded-xl border border-base-300/60 bg-base-100 shadow-sm"
-						aria-label={`Reading ${card.main.label}`}
-					>
-						{#each card.nodes as node (node.reading.id)}
-							{@const reading = node.reading}
-							{@const isSub = node.depth > 0}
-							{@const attesting = attestingWitnessesOf(reading)}
-							{@const attachParentId = attachParentOf(reading)}
-							{@const attachTypeId = attachTypeOf(reading)}
-							<div
-								class={[
-									'flex gap-3 px-3 py-3',
-									isSub
-										? 'ml-6 border-l-2 border-base-300/70 bg-base-200/30 pl-3'
-										: '',
-								]}
-								style:margin-left={isSub ? `${node.depth * 1.25}rem` : undefined}
-							>
-								<div class="w-16 shrink-0">
-									<span
-										class={[
-											'font-mono text-sm font-semibold',
-											isSub ? 'text-base-content/70' : 'text-base-content',
-										]}>{reading.label}</span
+			<div role="group" aria-label="Witness sigla, grouped by reading" bind:this={chipGroup}>
+				<div class="divide-y divide-base-300/60">
+					{#each cards as card (card.main.id)}
+						<article>
+							{#each card.nodes as node (node.reading.id)}
+								{@const reading = node.reading}
+								{@const isSub = node.depth > 0}
+								{@const isLemma = reading.id === lemmaReadingId}
+								{@const attesting = attestingWitnessesOf(reading)}
+								{@const attachParentId = attachParentOf(reading)}
+								{@const attachTypeId = attachTypeOf(reading)}
+								{@const manualIds = displayedManualWitnessIds(reading)}
+								<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions -->
+								<div
+									class={[
+										'group grid grid-cols-[2.75rem_minmax(0,1fr)_auto] gap-x-3 gap-y-1 px-2 py-2.5 sm:grid-cols-[2.75rem_minmax(7rem,13rem)_minmax(0,1fr)_auto]',
+										isLemma && 'rounded-lg bg-base-200/70',
+									]}
+									role="group"
+									aria-label={`Reading ${reading.label}`}
+									onclick={() => (activeRowId = reading.id)}
+								>
+									<div
+										class="row-span-3 pt-1 sm:row-span-2"
+										style:padding-left={isSub
+											? `${node.depth * 0.75}rem`
+											: undefined}
 									>
-									{#if reading.id === lemmaReadingId}
-										<div class="text-[0.6rem] font-medium text-primary">
-											lemma
-										</div>
-									{:else if baseTextWitnessId && reading.witnessIds.includes(baseTextWitnessId)}
-										<div class="text-[0.6rem] text-base-content/35">
-											base text
-										</div>
-									{/if}
-									{#if reading.readingType}
-										<div class="text-[0.6rem] text-base-content/40">
-											{findReadingTypeDefinition(
-												readingTypeVocabulary,
-												reading.readingType
-											)?.label ?? reading.readingType}
-										</div>
-									{/if}
-								</div>
+										<span
+											class={[
+												'block font-semibold leading-tight',
+												isSub
+													? 'font-medium text-base-content/65'
+													: isLemma
+														? 'text-primary'
+														: 'text-base-content',
+											]}>{reading.label}</span
+										>
+										{#if isLemma}
+											<span
+												class="block text-[0.65rem] font-medium text-primary"
+												>lemma</span
+											>
+										{:else if baseTextWitnessId && reading.witnessIds.includes(baseTextWitnessId)}
+											<span class="block text-[0.65rem] text-base-content/45"
+												>base text</span
+											>
+										{/if}
+									</div>
 
-								<div class="min-w-0 flex-1 space-y-2">
-									{#if canSpan}
-										<label class="flex items-center gap-2 text-xs">
-											<input
-												type="checkbox"
-												class="checkbox checkbox-sm"
-												aria-label={`Reading ${reading.label} spans this unit`}
-												checked={spanningReadingIds.includes(reading.id)}
-												onchange={event =>
-													collationState.setReadingSpanning(
-														unitId,
-														reading.id,
-														event.currentTarget.checked
-													)}
-											/>
-											Spans this unit
-										</label>
-									{/if}
 									<input
-										class="input input-ghost w-full max-w-md px-1 font-greek text-base"
+										class={[
+											'col-start-2 row-start-1 w-full min-w-0 border-b border-transparent bg-transparent font-greek leading-tight hover:border-base-300 focus:border-primary focus:outline-none disabled:hover:border-transparent',
+											isSub ? 'text-lg text-base-content/80' : 'text-xl',
+										]}
 										aria-label={`Text of reading ${reading.label}`}
 										disabled={reading.isOmission || reading.isLacuna}
 										value={getDisplayedReadingText(reading)}
@@ -1228,190 +1241,215 @@
 										}}
 									/>
 
-									{#if reading.readingTags?.length}
-										<div class="flex flex-wrap gap-1">
-											{#each reading.readingTags as tagId (tagId)}
-												{@const label =
-													readingTags.find(tag => tag.id === tagId)
-														?.label ?? tagId}
-												<button
-													type="button"
-													class="badge badge-outline h-auto max-w-full gap-1 whitespace-normal break-words py-1 text-left"
-													aria-label={`Remove tag ${label} from reading ${reading.label}`}
-													onclick={() => removeTag(reading, tagId)}
-													>{label}
-													<span aria-hidden="true">×</span></button
-												>
-											{/each}
-										</div>
-									{/if}
-
-									{#if reading.note}
-										<p
-											class="whitespace-pre-line break-words text-xs text-base-content/60"
-										>
-											{reading.note}
-										</p>
-									{/if}
-
-									{#if getDisplayedWitnessIds(reading).length === 0}
-										<span class="text-sm italic text-base-content/25"
-											>no witnesses</span
-										>
-									{:else}
-										<div class="flex flex-wrap items-center gap-1">
-											{#each visibleWitnessesOf(reading) as witness (witness.id)}
-												{@const index = chipIndexOf.get(witness.id) ?? 0}
-												{@const isSelected = selectedWitnessIds.has(
-													witness.id
-												)}
-												<button
-													type="button"
-													data-chip-index={index}
-													data-witness-id={witness.id}
-													title={unconfirmedWitnessIds.includes(
-														witness.id
-													)
-														? 'Unconfirmed attestation'
-														: witnessDescriptions.get(witness.id)}
-													tabindex={index === rovingIndex ? 0 : -1}
-													aria-pressed={isSelected}
-													class={[
-														'rounded px-1.5 py-0.5 font-mono text-sm transition',
-														isSelected
-															? 'bg-primary text-primary-content'
-															: 'text-base-content/70 hover:bg-base-200',
-													]}
-													onclick={event => handleChipClick(event, index)}
-													onkeydown={event =>
-														handleChipKeydown(event, index)}
-													onfocus={() => (activeChipIndex = index)}
-												>
-													{witness.siglum}
-													{#if unconfirmedWitnessIds.includes(witness.id)}
-														<span
-															class="text-warning"
-															aria-label="Unconfirmed attestation"
-															>●</span
-														>
-													{/if}
-												</button>
-											{/each}
-											{#if hiddenWitnessCount(reading) > 0}
-												<button
-													type="button"
-													class="ml-1 text-sm text-primary/60 hover:text-primary hover:underline"
-													onclick={() => toggleWitnessExpand(reading.id)}
-												>
-													+{hiddenWitnessCount(reading)} more
-												</button>
-											{:else if expandedWitnesses.has(reading.id)}
-												<button
-													type="button"
-													class="ml-1 text-sm text-primary/60 hover:text-primary hover:underline"
-													onclick={() => toggleWitnessExpand(reading.id)}
-												>
-													show less
-												</button>
+									<div
+										class="col-span-2 col-start-2 row-start-3 flex min-w-0 flex-wrap items-baseline gap-0.5 sm:col-span-1 sm:col-start-3 sm:row-start-1"
+									>
+										{#if getDisplayedWitnessIds(reading).length === 0}
+											<span class="px-1 text-sm italic text-base-content/30"
+												>no witnesses</span
+											>
+										{/if}
+										{#each visibleWitnessesOf(reading) as witness (witness.id)}
+											{@render witnessChip(witness.id)}
+										{/each}
+										{#if hiddenWitnessCount(reading) > 0}
+											<button
+												type="button"
+												class="ml-1 text-sm text-primary/60 hover:text-primary hover:underline"
+												onclick={() => toggleWitnessExpand(reading.id)}
+											>
+												+{hiddenWitnessCount(reading)} more
+											</button>
+										{:else if expandedWitnesses.has(reading.id)}
+											<button
+												type="button"
+												class="ml-1 text-sm text-primary/60 hover:text-primary hover:underline"
+												onclick={() => toggleWitnessExpand(reading.id)}
+											>
+												show less
+											</button>
+										{/if}
+										{#if manualIds.length > 0}
+											{#if displayedTranscribedWitnessIds(reading).length > 0}
+												<span
+													class="mx-1 h-3.5 w-px self-center bg-base-300"
+													aria-hidden="true"
+												></span>
 											{/if}
-										</div>
-									{/if}
-									{#if displayedManualWitnessIds(reading).length > 0}
-										<div class="flex flex-wrap gap-1">
-											{#each displayedManualWitnessIds(reading) as id (id)}
-												<button
-													type="button"
-													class="badge badge-outline h-auto max-w-full whitespace-normal break-words py-1"
-													aria-label={`Detach ${getWitnessSiglum(id)} from reading ${reading.label}`}
-													onclick={() =>
-														collationState.detachManualWitness(
-															unitId,
-															id
-														)}>{getWitnessSiglum(id)} ×</button
-												>
+											{#each manualIds as id (id)}
+												{@render witnessChip(id)}
 											{/each}
-										</div>
-									{/if}
-									<div class="flex flex-wrap items-end gap-1">
-										<label class="min-w-0 flex-1 text-xs text-base-content/60"
-											><span>Manual witness</span>
-											<input
-												class="input input-bordered input-xs mt-1 w-full"
-												aria-label={`Manual witness for reading ${reading.label}`}
-												aria-describedby={manualErrors.has(reading.id)
-													? `manual-error-${reading.id}`
-													: undefined}
-												list={`manual-witnesses-${reading.id}`}
-												placeholder="Choose or enter a siglum"
-												value={manualDrafts.get(reading.id) ?? ''}
-												oninput={event =>
-													manualDrafts.set(
-														reading.id,
-														event.currentTarget.value
-													)}
-												onkeydown={event => {
-													if (event.key === 'Enter') {
-														event.preventDefault();
-														void attachManual(reading);
-													}
-												}}
-											/>
-											<datalist id={`manual-witnesses-${reading.id}`}>
-												{#each manualWitnesses as witness (witness.id)}<option
-														value={witness.siglum}
-													></option>{/each}
-											</datalist>
-										</label>
+										{/if}
 										<button
 											type="button"
-											class="btn btn-xs"
-											aria-label={`Attach manual witness to reading ${reading.label}`}
-											disabled={!(manualDrafts.get(reading.id) ?? '').trim()}
-											onclick={() => attachManual(reading)}>Attach</button
+											class="ml-1 rounded px-1 text-xs text-base-content/40 hover:text-primary focus-visible:outline-2 focus-visible:outline-primary"
+											data-slot={`witness-${reading.id}`}
+											aria-label={`Add manual witness to reading ${reading.label}`}
+											aria-expanded={witnessEditorFor === reading.id}
+											onclick={() => (witnessEditorFor = reading.id)}
+											>+ witness</button
 										>
-									</div>
-									{#if manualErrors.has(reading.id)}
-										<p
-											id={`manual-error-${reading.id}`}
-											role="alert"
-											class="text-xs text-error"
-										>
-											{manualErrors.get(reading.id)}
-										</p>
-									{/if}
-								</div>
-
-								<details class="dropdown dropdown-end shrink-0">
-									<summary
-										class="btn btn-ghost btn-xs"
-										aria-label={`More actions for reading ${reading.label}`}
-									>
-										<DotsThreeVertical size={16} />
-									</summary>
-									<div
-										class="dropdown-content z-20 w-72 space-y-2 rounded-box border border-base-300/60 bg-base-100 p-3 shadow-lg"
-									>
-										<label class="block text-xs text-base-content/50">
-											<span>Reading note</span>
-											<textarea
-												class="textarea textarea-bordered textarea-xs mt-1 w-full"
-												aria-label={`Note for reading ${reading.label}`}
-												value={reading.note ?? ''}
-												onblur={event =>
-													collationState.setReadingNote(
-														unitId,
-														reading.id,
-														event.currentTarget.value
-													)}
-											></textarea>
-										</label>
-										<div class="flex items-end gap-1">
-											<label
-												class="block min-w-0 flex-1 text-xs text-base-content/50"
+										{#if witnessEditorFor === reading.id}
+											<div
+												class="flex basis-full flex-wrap items-center gap-1 pt-1"
+												onfocusout={closeWhenFocusLeaves(
+													() => (witnessEditorFor = null)
+												)}
 											>
-												<span>Reading tags</span>
 												<input
-													class="input input-bordered input-xs mt-1 w-full"
+													class="input input-xs min-w-0 flex-1 sm:max-w-64"
+													aria-label={`Manual witness for reading ${reading.label}`}
+													aria-describedby={manualErrors.has(reading.id)
+														? `manual-error-${reading.id}`
+														: undefined}
+													list={`manual-witnesses-${reading.id}`}
+													placeholder="Choose or enter a siglum"
+													value={manualDrafts.get(reading.id) ?? ''}
+													oninput={event =>
+														manualDrafts.set(
+															reading.id,
+															event.currentTarget.value
+														)}
+													onkeydown={event => {
+														if (event.key === 'Enter') {
+															event.preventDefault();
+															void attachManual(reading);
+														} else if (event.key === 'Escape') {
+															event.preventDefault();
+															witnessEditorFor = null;
+															void focusSlot(`witness-${reading.id}`);
+														}
+													}}
+													{@attach focusOnMount}
+												/>
+												<datalist id={`manual-witnesses-${reading.id}`}>
+													{#each manualWitnesses as witness (witness.id)}<option
+															value={witness.siglum}
+														></option>{/each}
+												</datalist>
+												<button
+													type="button"
+													class="btn btn-xs"
+													aria-label={`Attach manual witness to reading ${reading.label}`}
+													disabled={!(
+														manualDrafts.get(reading.id) ?? ''
+													).trim()}
+													onclick={() => attachManual(reading)}
+													>Attach</button
+												>
+												{#if manualErrors.has(reading.id)}
+													<p
+														id={`manual-error-${reading.id}`}
+														role="alert"
+														class="basis-full text-xs text-error"
+													>
+														{manualErrors.get(reading.id)}
+													</p>
+												{/if}
+											</div>
+										{/if}
+									</div>
+									<div
+										class="col-span-2 col-start-2 row-start-2 flex min-w-0 flex-wrap items-center gap-1"
+									>
+										{#if canSpan}
+											<label
+												class="flex items-center gap-1.5 px-1.5 text-xs text-base-content/65"
+											>
+												<input
+													type="checkbox"
+													class="checkbox checkbox-xs"
+													aria-label={`Reading ${reading.label} spans this unit`}
+													checked={spanningReadingIds.includes(
+														reading.id
+													)}
+													onchange={event =>
+														collationState.setReadingSpanning(
+															unitId,
+															reading.id,
+															event.currentTarget.checked
+														)}
+												/>
+												Spans this unit
+											</label>
+										{/if}
+										<select
+											class={[
+												META_CONTROL,
+												'field-sizing-content cursor-pointer appearance-none bg-transparent',
+												reading.readingType === null &&
+													slotClass(reading.id),
+											]}
+											aria-label={`Reading type for reading ${reading.label}`}
+											value={reading.readingType ?? ''}
+											onchange={event =>
+												collationState.setReadingType(
+													unitId,
+													reading.id,
+													event.currentTarget.value || null
+												)}
+										>
+											<option value=""
+												>{reading.readingType === null
+													? '+ type'
+													: 'No type'}</option
+											>
+											{#each readingTypeOptions(reading) as type (type.id)}
+												<option
+													value={type.id}
+													disabled={!type.selectable}
+													title={type.description}>{type.label}</option
+												>
+											{/each}
+										</select>
+										<select
+											class={[
+												META_CONTROL,
+												'field-sizing-content cursor-pointer appearance-none bg-transparent',
+												reading.certainty === null && slotClass(reading.id),
+											]}
+											aria-label={`Certainty for reading ${reading.label}`}
+											value={reading.certainty === null
+												? ''
+												: String(reading.certainty)}
+											onchange={event =>
+												collationState.setReadingCertainty(
+													unitId,
+													reading.id,
+													parseCertainty(event.currentTarget.value)
+												)}
+										>
+											<option value=""
+												>{reading.certainty === null
+													? '+ certainty'
+													: 'No certainty'}</option
+											>
+											{#each certaintyOptions(reading) as level (level)}
+												<option value={level}>certainty {level}</option>
+											{/each}
+										</select>
+										{#each reading.readingTags ?? [] as tagId (tagId)}
+											{@const label =
+												readingTags.find(tag => tag.id === tagId)?.label ??
+												tagId}
+											<button
+												type="button"
+												class="badge badge-ghost badge-sm h-auto max-w-full gap-1 whitespace-normal break-words py-0.5 text-left"
+												aria-label={`Remove tag ${label} from reading ${reading.label}`}
+												onclick={() => removeTag(reading, tagId)}
+												>{label}
+												<span aria-hidden="true">×</span></button
+											>
+										{/each}
+										{#if editingTagFor === reading.id}
+											<div
+												class="order-last flex basis-full flex-wrap items-center gap-1"
+												onfocusout={closeWhenFocusLeaves(
+													() => (editingTagFor = null)
+												)}
+											>
+												<input
+													class="input input-xs min-w-0 flex-1 sm:max-w-64"
 													aria-label={`Tag for reading ${reading.label}`}
 													list={`reading-tags-${reading.id}`}
 													placeholder="Choose or enter a tag"
@@ -1425,312 +1463,403 @@
 														if (event.key === 'Enter') {
 															event.preventDefault();
 															void addTag(reading);
+														} else if (event.key === 'Escape') {
+															event.preventDefault();
+															editingTagFor = null;
+															void focusSlot(`tag-${reading.id}`);
 														}
 													}}
+													{@attach focusOnMount}
 												/>
 												<datalist id={`reading-tags-${reading.id}`}>
 													{#each readingTags.filter(tag => !reading.readingTags?.includes(tag.id)) as tag (tag.id)}
 														<option value={tag.label}></option>
 													{/each}
 												</datalist>
-											</label>
-											<button
-												type="button"
-												class="btn btn-ghost btn-xs"
-												aria-label={`Add tag to reading ${reading.label}`}
-												disabled={!(tagDrafts.get(reading.id) ?? '').trim()}
-												onclick={() => addTag(reading)}>Add tag</button
-											>
-										</div>
-										<div class="flex items-center gap-1">
-											<button
-												type="button"
-												class="btn btn-ghost btn-xs gap-1"
-												onclick={() => moveReading(reading, -1)}
-											>
-												<CaretUp size={12} /> Move up
-											</button>
-											<button
-												type="button"
-												class="btn btn-ghost btn-xs gap-1"
-												onclick={() => moveReading(reading, 1)}
-											>
-												<CaretDown size={12} /> Move down
-											</button>
-										</div>
-
-										{#if !isSub && reading.id !== lemmaReadingId}
-											<button
-												type="button"
-												class="btn btn-ghost btn-xs w-full justify-start"
-												onclick={() => establishLemma(reading)}
-											>
-												Elevate to lemma
-											</button>
-										{/if}
-
-										{#if !isSub}
-											{@const newSubreadingType =
-												newSubreadingTypeDrafts.get(reading.id) ?? NO_VALUE}
-											<div class="flex items-end gap-1">
-												<label
-													class="block min-w-0 flex-1 text-xs text-base-content/50"
+												<button
+													type="button"
+													class="btn btn-ghost btn-xs"
+													aria-label={`Add tag to reading ${reading.label}`}
+													onclick={() => addTag(reading)}>Add tag</button
 												>
-													<span>New subreading type</span>
-													<select
-														class="select select-bordered select-xs mt-1 w-full"
-														value={newSubreadingType}
-														onchange={event =>
-															newSubreadingTypeDrafts.set(
-																reading.id,
-																event.currentTarget.value
-															)}
-													>
-														<option value={NO_VALUE}
-															>Choose a reading type…</option
-														>
-														{#each subreadingTypeOptions as type (type.id)}
-															<option
-																value={type.id}
-																title={type.description}
-																>{type.label} ({type.suffix})</option
-															>
-														{/each}
-													</select>
-												</label>
+											</div>
+										{:else}
+											<button
+												type="button"
+												class={[META_CONTROL, slotClass(reading.id)]}
+												data-slot={`tag-${reading.id}`}
+												aria-label={`Tag reading ${reading.label}`}
+												onclick={() => (editingTagFor = reading.id)}
+												>+ tag</button
+											>
+										{/if}
+										{#if editingNoteFor === reading.id}
+											<textarea
+												class="textarea textarea-xs order-last basis-full"
+												aria-label={`Note for reading ${reading.label}`}
+												value={reading.note ?? ''}
+												onblur={event =>
+													finishNote(reading, event.currentTarget.value)}
+												onkeydown={event => {
+													if (event.key !== 'Escape') return;
+													event.preventDefault();
+													noteCancelled = true;
+													event.currentTarget.blur();
+													void focusSlot(`note-${reading.id}`);
+												}}
+												{@attach focusOnMount}
+											></textarea>
+										{:else if reading.note}
+											<button
+												type="button"
+												class={[
+													META_CONTROL,
+													'max-w-full whitespace-pre-line break-words text-left italic',
+												]}
+												data-slot={`note-${reading.id}`}
+												title="Edit note"
+												onclick={() => (editingNoteFor = reading.id)}
+												>{reading.note}</button
+											>
+										{:else}
+											<button
+												type="button"
+												class={[META_CONTROL, slotClass(reading.id)]}
+												data-slot={`note-${reading.id}`}
+												aria-label={`Add a note to reading ${reading.label}`}
+												onclick={() => (editingNoteFor = reading.id)}
+												>+ note</button
+											>
+										{/if}
+									</div>
+
+									<details
+										class="dropdown dropdown-end col-start-3 row-start-1 justify-self-end sm:col-start-4"
+									>
+										<summary
+											class="btn btn-ghost btn-xs"
+											aria-label={`More actions for reading ${reading.label}`}
+										>
+											<DotsThreeVertical size={16} />
+										</summary>
+										<div
+											class="dropdown-content z-20 w-72 space-y-2 rounded-box border border-base-300/60 bg-base-100 p-3 shadow-lg"
+										>
+											<div class="flex items-center gap-1">
 												<button
 													type="button"
 													class="btn btn-ghost btn-xs gap-1"
-													disabled={newSubreadingType === NO_VALUE}
-													onclick={() =>
-														addSubreading(reading, newSubreadingType)}
+													onclick={() => moveReading(reading, -1)}
 												>
-													<Plus size={12} /> Add subreading
+													<CaretUp size={12} /> Move up
+												</button>
+												<button
+													type="button"
+													class="btn btn-ghost btn-xs gap-1"
+													onclick={() => moveReading(reading, 1)}
+												>
+													<CaretDown size={12} /> Move down
 												</button>
 											</div>
-										{/if}
 
-										<label class="block text-xs text-base-content/50">
-											<span>Attach as subreading of</span>
-											<select
-												class="select select-bordered select-xs mt-1 w-full"
-												value={attachParentId}
-												onchange={event =>
-													attachParentDrafts.set(
-														reading.id,
-														event.currentTarget.value
-													)}
-											>
-												<option value={NO_VALUE}>Independent reading</option
+											{#if !isSub && !isLemma}
+												<button
+													type="button"
+													class="btn btn-ghost btn-xs w-full justify-start"
+													onclick={() => establishLemma(reading)}
 												>
-												{#each getAttachmentOptions(reading.id) as candidate (candidate.id)}
-													<option value={candidate.id}
-														>{candidate.label}: {describeReading(
-															candidate
-														)}</option
+													Elevate to lemma
+												</button>
+											{/if}
+
+											{#if !isSub}
+												{@const newSubreadingType =
+													newSubreadingTypeDrafts.get(reading.id) ??
+													NO_VALUE}
+												<div class="flex items-end gap-1">
+													<label
+														class="block min-w-0 flex-1 text-xs text-base-content/50"
 													>
-												{/each}
-											</select>
-										</label>
-										{#if attachParentId !== (reading.parentReadingId ?? NO_VALUE)}
-											{#if attachParentId !== NO_VALUE}
-												<label class="block text-xs text-base-content/50">
-													<span>Subreading type</span>
-													<select
-														class="select select-bordered select-xs mt-1 w-full"
-														value={attachTypeId}
-														onchange={event =>
-															attachTypeDrafts.set(
-																reading.id,
-																event.currentTarget.value
+														<span>New subreading type</span>
+														<select
+															class="select select-bordered select-xs mt-1 w-full"
+															value={newSubreadingType}
+															onchange={event =>
+																newSubreadingTypeDrafts.set(
+																	reading.id,
+																	event.currentTarget.value
+																)}
+														>
+															<option value={NO_VALUE}
+																>Choose a reading type…</option
+															>
+															{#each subreadingTypeOptions as type (type.id)}
+																<option
+																	value={type.id}
+																	title={type.description}
+																	>{type.label} ({type.suffix})</option
+																>
+															{/each}
+														</select>
+													</label>
+													<button
+														type="button"
+														class="btn btn-ghost btn-xs gap-1"
+														disabled={newSubreadingType === NO_VALUE}
+														onclick={() =>
+															addSubreading(
+																reading,
+																newSubreadingType
 															)}
 													>
-														<option value={NO_VALUE}
-															>Choose a reading type…</option
-														>
-														{#each subreadingTypeOptions as type (type.id)}
-															<option
-																value={type.id}
-																title={type.description}
-																>{type.label} ({type.suffix})</option
-															>
-														{/each}
-													</select>
-												</label>
+														<Plus size={12} /> Add subreading
+													</button>
+												</div>
 											{/if}
+
+											<label class="block text-xs text-base-content/50">
+												<span>Attach as subreading of</span>
+												<select
+													class="select select-bordered select-xs mt-1 w-full"
+													value={attachParentId}
+													onchange={event =>
+														attachParentDrafts.set(
+															reading.id,
+															event.currentTarget.value
+														)}
+												>
+													<option value={NO_VALUE}
+														>Independent reading</option
+													>
+													{#each getAttachmentOptions(reading.id) as candidate (candidate.id)}
+														<option value={candidate.id}
+															>{candidate.label}: {describeReading(
+																candidate
+															)}</option
+														>
+													{/each}
+												</select>
+											</label>
+											{#if attachParentId !== (reading.parentReadingId ?? NO_VALUE)}
+												{#if attachParentId !== NO_VALUE}
+													<label
+														class="block text-xs text-base-content/50"
+													>
+														<span>Subreading type</span>
+														<select
+															class="select select-bordered select-xs mt-1 w-full"
+															value={attachTypeId}
+															onchange={event =>
+																attachTypeDrafts.set(
+																	reading.id,
+																	event.currentTarget.value
+																)}
+														>
+															<option value={NO_VALUE}
+																>Choose a reading type…</option
+															>
+															{#each subreadingTypeOptions as type (type.id)}
+																<option
+																	value={type.id}
+																	title={type.description}
+																	>{type.label} ({type.suffix})</option
+																>
+															{/each}
+														</select>
+													</label>
+												{/if}
+												<button
+													type="button"
+													class="btn btn-xs w-full"
+													disabled={attachParentId !== NO_VALUE &&
+														attachTypeId === NO_VALUE}
+													onclick={() => applyAttachment(reading)}
+												>
+													{attachParentId === NO_VALUE
+														? 'Make independent'
+														: 'Attach'}
+												</button>
+											{/if}
+
 											<button
 												type="button"
-												class="btn btn-xs w-full"
-												disabled={attachParentId !== NO_VALUE &&
-													attachTypeId === NO_VALUE}
-												onclick={() => applyAttachment(reading)}
+												class="btn btn-ghost btn-xs w-full justify-start gap-1 text-error"
+												disabled={attesting.length > 0}
+												onclick={() => deleteReading(reading)}
 											>
-												{attachParentId === NO_VALUE
-													? 'Make independent'
-													: 'Attach'}
+												<Trash size={12} /> Delete reading
 											</button>
-										{/if}
-
-										<label class="block text-xs text-base-content/50">
-											<span>Reading type</span>
-											<select
-												class="select select-bordered select-xs mt-1 w-full"
-												value={reading.readingType ?? ''}
-												onchange={event =>
-													collationState.setReadingType(
-														unitId,
-														reading.id,
-														event.currentTarget.value || null
-													)}
-											>
-												<option value="">-</option>
-												{#each readingTypeOptions(reading) as type (type.id)}
-													<option
-														value={type.id}
-														disabled={!type.selectable}
-														title={type.description}
-														>{type.label}</option
-													>
-												{/each}
-											</select>
-										</label>
-
-										<label class="block text-xs text-base-content/50">
-											<span>Certainty</span>
-											<select
-												class="select select-bordered select-xs mt-1 w-full"
-												value={reading.certainty === null
-													? ''
-													: String(reading.certainty)}
-												onchange={event =>
-													collationState.setReadingCertainty(
-														unitId,
-														reading.id,
-														parseCertainty(event.currentTarget.value)
-													)}
-											>
-												<option value="">certainty -</option>
-												{#each certaintyOptions(reading) as level (level)}
-													<option value={level}>{level}</option>
-												{/each}
-											</select>
-										</label>
-
-										<button
-											type="button"
-											class="btn btn-ghost btn-xs w-full justify-start gap-1 text-error"
-											disabled={attesting.length > 0}
-											onclick={() => deleteReading(reading)}
-										>
-											<Trash size={12} /> Delete reading
-										</button>
-										{#if attesting.length > 0}
-											<p class="text-[0.65rem] text-base-content/40">
-												{attesting.length} witness(es) still attest this reading.
-												Move them first.
-											</p>
-										{/if}
-									</div>
-								</details>
-							</div>
-						{/each}
-					</article>
-				{/each}
-
-				<form
-					class="flex flex-wrap items-end gap-2 rounded-xl border border-base-300/60 p-3"
-					aria-label="Add authored reading"
-					onsubmit={event => {
-						event.preventDefault();
-						addAuthored();
-					}}
-				>
-					<label class="min-w-0 flex-1 text-xs"
-						><span>New reading text</span><input
-							class="input input-bordered input-sm mt-1 w-full"
-							aria-label="New reading text"
-							bind:this={authoredInput}
-							bind:value={authoredText}
-							disabled={authoredOmission}
-						/></label
-					>
-					<label class="flex items-center gap-1 text-sm"
-						><input
-							type="checkbox"
-							class="checkbox checkbox-sm"
-							bind:checked={authoredOmission}
-						/>Omission</label
-					>
-					<button
-						type="submit"
-						class="btn btn-sm"
-						disabled={!authoredOmission && !authoredText.trim()}>Add reading</button
-					>
-				</form>
-
-				{#if ambiguousAttestations.length > 0}
-					<section
-						class="rounded-xl border border-base-300/60 bg-base-200/40 px-3 py-3"
-						aria-label="Ambiguous attestations"
-					>
-						<div class="text-sm font-medium text-base-content/60">Ambiguous</div>
-						<div class="mt-0.5 text-xs text-base-content/40">
-							Compatible with more than one reading. Takes no letter and no place in
-							the local stemma.
-						</div>
-						<ul class="mt-1 space-y-1">
-							{#each ambiguousAttestations as attestation (attestation.id)}
-								<li class="flex flex-wrap items-center gap-2">
-									<span class="font-mono text-sm font-semibold"
-										>{attestation.label}</span
-									>
-									<span class="font-mono text-sm text-base-content/60">
-										{getSortedWitnesses(attestation.witnessIds)
-											.map(witness => witness.siglum)
-											.join(' ')}
-									</span>
-									<button
-										type="button"
-										class="btn btn-ghost btn-xs"
-										aria-label={`Remove ${attestation.label}`}
-										onclick={() => removeAmbiguousAttestation(attestation)}
-									>
-										Remove
-									</button>
-								</li>
+											{#if attesting.length > 0}
+												<p class="text-[0.65rem] text-base-content/40">
+													{attesting.length} witness(es) still attest this reading.
+													Move them first.
+												</p>
+											{/if}
+										</div>
+									</details>
+								</div>
 							{/each}
-						</ul>
-					</section>
-				{/if}
+						</article>
+					{/each}
 
-				{#if hasNonAttestation}
-					<section
-						class="rounded-xl border border-base-300/60 bg-base-200/40 px-3 py-3"
-						aria-label="Witnesses that do not testify"
+					<form
+						class="grid grid-cols-[2.75rem_minmax(0,1fr)] items-baseline gap-x-3 px-2 py-3"
+						aria-label="Add authored reading"
+						onsubmit={event => {
+							event.preventDefault();
+							addAuthored();
+						}}
 					>
-						<div class="text-sm font-medium text-base-content/60">Does not testify</div>
-						<div class="mt-0.5 text-xs text-base-content/40">
-							Damaged, lost, or illegible. Takes no letter and no place in the local
-							stemma.
-						</div>
-						{#if nonAttestation.witnessIds.length > 0}
-							<div class="mt-1 font-mono text-sm text-base-content/60">
-								{getSortedWitnesses(nonAttestation.witnessIds)
-									.map(witness => witness.siglum)
-									.join('. ')}
-							</div>
+						<span class="pl-0.5 text-base-content/40" aria-hidden="true">+</span>
+						<input
+							class="w-full min-w-0 border-b border-base-300 bg-transparent py-0.5 font-greek text-lg placeholder:font-sans placeholder:text-sm placeholder:text-base-content/40 focus:border-primary focus:outline-none"
+							aria-label="New reading text"
+							placeholder="Add a reading, or om. for an omission"
+							bind:value={authoredText}
+						/>
+					</form>
+				</div>
+
+				{#if outsideManualIds.length > 0 || hasNonAttestation || ambiguousAttestations.length > 0}
+					<div class="mx-2 mt-1 mb-3 space-y-1.5 border-t border-base-300 pt-3 text-sm">
+						<h3 class="font-serif text-sm font-semibold">Not in a reading</h3>
+						{#if unitView.unrecordedManualWitnessIds.length > 0}
+							<section
+								class="flex flex-wrap items-baseline gap-x-4 gap-y-1"
+								aria-label="Manual witnesses with nothing recorded"
+							>
+								<h4 class="w-32 shrink-0 text-base-content/60">Not recorded</h4>
+								<div class="flex min-w-0 flex-1 flex-wrap items-baseline gap-0.5">
+									{#each unitView.unrecordedManualWitnessIds as id (id)}
+										{@render witnessChip(id)}
+									{/each}
+									<span class="ml-2 text-xs text-base-content/55"
+										><span class="text-warning" aria-hidden="true">●</span> needs
+										a decision</span
+									>
+								</div>
+							</section>
 						{/if}
-						{#if nonAttestation.untranscribedWitnessIds.length > 0}
-							<div class="mt-1 text-xs text-base-content/40">
-								<span class="uppercase tracking-wide">Not yet transcribed</span>:
-								{getSortedWitnesses(nonAttestation.untranscribedWitnessIds)
-									.map(witness => witness.siglum)
-									.join('. ')}
-							</div>
+						{#if unitView.uncitedManualWitnessIds.length > 0}
+							<section
+								class="flex flex-wrap items-baseline gap-x-4 gap-y-1"
+								aria-label="Uncited manual witnesses"
+							>
+								<h4 class="w-32 shrink-0 text-base-content/60">Uncited</h4>
+								<div class="flex min-w-0 flex-1 flex-wrap items-baseline gap-0.5">
+									{#each unitView.uncitedManualWitnessIds as id (id)}
+										{@render witnessChip(id)}
+									{/each}
+								</div>
+							</section>
 						{/if}
-					</section>
+						{#if hasNonAttestation}
+							{@const transcribedNonAttesting = nonAttestation.witnessIds.filter(
+								id => !isManualWitness(id)
+							)}
+							<section
+								class="flex flex-wrap items-baseline gap-x-4 gap-y-1"
+								aria-label="Witnesses that do not testify"
+							>
+								<h4 class="w-32 shrink-0 text-base-content/60">Does not testify</h4>
+								<div class="min-w-0 flex-1 space-y-0.5">
+									<div class="flex flex-wrap items-baseline gap-0.5">
+										{#if transcribedNonAttesting.length > 0}
+											<span class="px-1 tabular-nums text-base-content/70">
+												{getSortedWitnesses(transcribedNonAttesting)
+													.map(witness => witness.siglum)
+													.join('. ')}
+											</span>
+										{/if}
+										{#each unitView.nonAttestingManualWitnessIds as id (id)}
+											{@render witnessChip(id)}
+										{/each}
+										<span class="ml-2 text-xs text-base-content/45"
+											>Damaged, lost or illegible. Takes no letter and no
+											place in the local stemma.</span
+										>
+									</div>
+									{#if nonAttestation.untranscribedWitnessIds.length > 0}
+										<div class="px-1 text-xs text-base-content/45">
+											Not yet transcribed: {getSortedWitnesses(
+												nonAttestation.untranscribedWitnessIds
+											)
+												.map(witness => witness.siglum)
+												.join('. ')}
+										</div>
+									{/if}
+								</div>
+							</section>
+						{/if}
+						{#if ambiguousAttestations.length > 0}
+							<section
+								class="flex flex-wrap items-baseline gap-x-4 gap-y-1"
+								aria-label="Ambiguous attestations"
+							>
+								<h4 class="w-32 shrink-0 text-base-content/60">Ambiguous</h4>
+								<div class="min-w-0 flex-1">
+									<ul class="space-y-0.5">
+										{#each ambiguousAttestations as attestation (attestation.id)}
+											<li class="flex flex-wrap items-baseline gap-2 px-1">
+												<span class="font-semibold"
+													>{attestation.label}</span
+												>
+												<span class="tabular-nums text-base-content/70">
+													{getSortedWitnesses(attestation.witnessIds)
+														.map(witness => witness.siglum)
+														.join(' ')}
+												</span>
+												<button
+													type="button"
+													class="btn btn-ghost btn-xs"
+													aria-label={`Remove ${attestation.label}`}
+													onclick={() =>
+														removeAmbiguousAttestation(attestation)}
+												>
+													Remove
+												</button>
+											</li>
+										{/each}
+									</ul>
+									<p class="px-1 text-xs text-base-content/45">
+										Compatible with more than one reading. Takes no letter and
+										no place in the local stemma.
+									</p>
+								</div>
+							</section>
+						{/if}
+					</div>
 				{/if}
 			</div>
 		{/if}
 	</div>
 </div>
+
+{#snippet witnessChip(id: string)}
+	{@const index = chipIndexOf.get(id) ?? 0}
+	{@const isSelected = selectedWitnessIds.has(id)}
+	{@const isUnconfirmed = unconfirmedWitnessIds.includes(id)}
+	<button
+		type="button"
+		data-chip-index={index}
+		data-witness-id={id}
+		title={isUnconfirmed ? 'Unconfirmed attestation' : witnessDescriptions.get(id)}
+		tabindex={index === rovingIndex ? 0 : -1}
+		aria-pressed={isSelected}
+		class={[
+			'rounded px-1 py-0.5 text-sm tabular-nums transition',
+			isManualWitness(id) && 'italic',
+			isSelected
+				? 'bg-primary text-primary-content'
+				: 'text-base-content/70 hover:bg-base-200 hover:text-base-content',
+		]}
+		onclick={event => handleChipClick(event, index)}
+		onkeydown={event => handleChipKeydown(event, index)}
+		onfocus={() => (activeChipIndex = index)}
+	>
+		{getWitnessSiglum(id)}
+		{#if isUnconfirmed}
+			<span class="text-warning" aria-label="Unconfirmed attestation">●</span>
+		{/if}
+	</button>
+{/snippet}

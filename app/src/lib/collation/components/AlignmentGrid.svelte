@@ -3,7 +3,6 @@
 	import { computeWordDiff, type DiffSegment } from '$lib/collation/alignment-diff';
 	import { REALIGN_WARNING } from '$lib/collation/alignment-recognition';
 	import type { AlignmentCell } from '$lib/collation/alignment-snapshot';
-	import { runCollationInWorker } from '$lib/collation/collation-service';
 	import { collationState } from '$lib/collation/collation-state.svelte';
 	import { variationUnitId } from '$lib/collation/collation-unit-id';
 	import type {
@@ -180,26 +179,12 @@
 	}
 
 	async function runCollation() {
-		const invalidDiagnostic = collationState.regularizationDiagnostics.find(
-			diagnostic => diagnostic.code === 'invalid_regex'
-		);
-		if (invalidDiagnostic) {
-			collationError = `Rule ${invalidDiagnostic.pattern} is invalid: ${invalidDiagnostic.message}`;
-			return;
-		}
 		if (collationState.alignmentColumns.length > 0 && !window.confirm(REALIGN_WARNING)) return;
 
 		isCollating = true;
 		collationError = null;
 		try {
-			const witnesses = collationState.buildCollationWitnessInputs({
-				forceSourceWitnesses: true,
-			});
-			const result = await runCollationInWorker({
-				witnesses,
-				options: { segmentation: collationState.segmentation },
-			});
-			collationState.setAlignmentSnapshot(result.snapshot);
+			await collationState.collate();
 			if (collationState.collationId) {
 				await goto(`/collation/${collationState.collationId}/alignment`, {
 					replaceState: true,

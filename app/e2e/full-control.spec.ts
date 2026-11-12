@@ -44,6 +44,9 @@ test('a scholar imports, extends, reviews and exports a classic collation on a p
 		'αλφα'
 	);
 	await page
+		.getByRole('button', { name: 'Add manual witness to reading b', exact: true })
+		.click();
+	await page
 		.getByRole('combobox', { name: 'Manual witness for reading b', exact: true })
 		.fill('Father');
 	const attach = page.getByRole('button', {
@@ -56,9 +59,12 @@ test('a scholar imports, extends, reviews and exports a classic collation on a p
 	);
 	await attach.click();
 	await expect(
-		page.getByRole('button', { name: 'Detach Father from reading b', exact: true })
+		page
+			.getByRole('group', { name: 'Reading b', exact: true })
+			.getByRole('button', { name: 'Father', exact: true })
 	).toBeVisible();
-	await page.getByLabel('More actions for reading b', { exact: true }).click();
+	await page.getByRole('textbox', { name: 'Text of reading b', exact: true }).click();
+	await page.getByRole('button', { name: 'Tag reading b', exact: true }).click();
 	const tag = page.getByRole('combobox', { name: 'Tag for reading b', exact: true });
 	await tag.fill('Nomen sacrum');
 	await expectControlFits(tag);
@@ -69,7 +75,6 @@ test('a scholar imports, extends, reviews and exports a classic collation on a p
 	await expect(
 		page.getByRole('button', { name: 'Remove tag Nomen sacrum from reading b' })
 	).toBeVisible();
-	await page.getByLabel('More actions for reading b', { exact: true }).click();
 	await expect(page.getByText('Saved', { exact: true })).toBeVisible();
 
 	await addTranscription(page, 'Twin', false);
@@ -112,7 +117,8 @@ test('a scholar imports, extends, reviews and exports a classic collation on a p
 	await expect(page.getByRole('textbox', { name: 'Text of reading b', exact: true })).toHaveValue(
 		'ζητα'
 	);
-	await page.getByRole('button', { name: 'Set B uncited', exact: true }).click();
+	await page.getByRole('button', { name: 'B', exact: true }).click();
+	await page.getByRole('button', { name: 'Uncited', exact: true }).click();
 
 	await page.getByRole('link', { name: 'Alignment', exact: true }).click();
 	await page.getByRole('radio', { name: 'Grid', exact: true }).check();
@@ -128,7 +134,8 @@ test('a scholar imports, extends, reviews and exports a classic collation on a p
 	await expect(page.getByRole('textbox', { name: 'Text of reading a', exact: true })).toHaveValue(
 		'γαμμα'
 	);
-	await page.getByRole('button', { name: 'Set B uncited', exact: true }).click();
+	await page.getByRole('button', { name: 'B', exact: true }).click();
+	await page.getByRole('button', { name: 'Uncited', exact: true }).click();
 	await expect(page.getByText('Saved', { exact: true })).toBeVisible();
 	await page.reload();
 	await page.getByRole('link', { name: 'Review', exact: true }).click();
