@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
-import { fromProseMirror, type ProseMirrorJSON } from '@apatosaurus/tei-transcription';
+import { DOMParser } from '@xmldom/xmldom';
+import { describe, expect, it, vi } from 'vitest';
+import { fromProseMirror, parseTei, type ProseMirrorJSON } from '@apatosaurus/tei-transcription';
 
 import type { StoredTranscriptionDocument } from '$lib/transcription/content';
 import { extractWitnessTokensForVerse } from './collation-runner';
@@ -643,5 +644,23 @@ describe('extractWitnessTokensForVerse', () => {
 		);
 
 		expect(tokens.map(token => token.original)).toEqual(['gamma', 'delta']);
+	});
+	it('leaves margin chapter numbers out of the witness text', () => {
+		vi.stubGlobal('DOMParser', DOMParser);
+		vi.stubGlobal('Node', {
+			ELEMENT_NODE: 1,
+			TEXT_NODE: 3,
+			CDATA_SECTION_NODE: 4,
+			COMMENT_NODE: 8,
+		});
+		const document = parseTei(`<?xml version="1.0" encoding="UTF-8"?>
+<TEI xmlns="http://www.tei-c.org/ns/1.0"><teiHeader></teiHeader><text><body>
+<pb n="1r"/><cb n="1"/><lb n="1"/><div type="book" n="Rom"><div type="chapter" n="Rom.8"><ab n="Rom.8.28"><seg type="margin" subtype="colleft" n="@P1453C1-03"><num type="chapNum" n="11" rend="center">ια</num></seg><w>οιδαμεν</w><w>δε</w></ab></div></div>
+</body></text></TEI>`) as unknown as StoredTranscriptionDocument;
+
+		const tokens = extractWitnessTokensForVerse(document, 'Rom 8:28');
+
+		expect(tokens.map(token => token.original)).toEqual(['οιδαμεν', 'δε']);
+		vi.unstubAllGlobals();
 	});
 });

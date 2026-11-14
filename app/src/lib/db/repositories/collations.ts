@@ -7,6 +7,7 @@ import {
 	loadTranscriptionSourceState,
 	type EntityCheckpointHead,
 	type EntityCommitState,
+	type TranscriptionSourceState,
 } from './revisions';
 import { requireId } from './id';
 import type { DbExecutor } from '../worker-kysely';
@@ -398,12 +399,22 @@ export async function getCollationWitnessSourceStatuses(
 		.orderBy('position', 'asc')
 		.orderBy('id', 'asc')
 		.execute();
-	return Promise.all(rows.map(row => mapCollationWitnessSourceStatus(db, row)));
+	const sourceStates = new Map<string, Promise<TranscriptionSourceState>>();
+	const loadSourceState = (projectTranscriptionId: string) => {
+		let state = sourceStates.get(projectTranscriptionId);
+		if (!state) {
+			state = loadTranscriptionSourceState(db, projectTranscriptionId);
+			sourceStates.set(projectTranscriptionId, state);
+		}
+		return state;
+	};
+	return Promise.all(rows.map(row => mapCollationWitnessSourceStatus(db, row, loadSourceState)));
 }
 
 async function mapCollationWitnessSourceStatus(
 	db: DbExecutor,
-	row: CollationWitnessSourceStatusQueryRow
+	row: CollationWitnessSourceStatusQueryRow,
+	loadSourceState: (projectTranscriptionId: string) => Promise<TranscriptionSourceState>
 ): Promise<CollationWitnessSourceStatus> {
 	const projectTranscriptionId = row.project_transcription_id;
 	const source = witnessSourceFromRow(row);
@@ -426,7 +437,7 @@ async function mapCollationWitnessSourceStatus(
 		.executeTakeFirst();
 	if (!exists) return { ...base, versionState: 'source-missing' };
 
-	const state = await loadTranscriptionSourceState(db, projectTranscriptionId);
+	const state = await loadSourceState(projectTranscriptionId);
 	return {
 		...base,
 		sourceVersionLabel:

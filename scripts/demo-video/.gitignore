@@ -1,0 +1,7 @@
+node_modules/
+takes/
+out/
+stills/
+video/public/
+music-raw.wav
+*.log

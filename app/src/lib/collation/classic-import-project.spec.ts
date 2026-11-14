@@ -12,8 +12,7 @@ const { db } = vi.hoisted(() => ({
 		getNextCollationSortKey: vi.fn(),
 		listProjectTranscriptionOptions: vi.fn(),
 		createTranscription: vi.fn(),
-		getTranscriptionsByIds: vi.fn(),
-		getTranscriptionCurrentContentHashes: vi.fn(),
+		getCurrentTranscriptionsByIds: vi.fn(),
 		getVerseIndexRowsForVerse: vi.fn(),
 		listVerseIndexRowsForTranscriptions: vi.fn(),
 		getProjectTranscriptionIds: vi.fn(),
@@ -91,11 +90,10 @@ beforeEach(() => {
 		records.push({ id, siglum: input.siglum, content_json: input.contentJson });
 		return id;
 	});
-	db.getTranscriptionsByIds.mockImplementation(async ids =>
-		records.filter(record => ids.includes(record.id))
-	);
-	db.getTranscriptionCurrentContentHashes.mockImplementation(async ids =>
-		Object.fromEntries(ids.map((id: string) => [id, 'hash']))
+	db.getCurrentTranscriptionsByIds.mockImplementation(async ids =>
+		records
+			.filter(record => ids.includes(record.id))
+			.map(transcription => ({ transcription, contentHash: 'hash' }))
 	);
 	db.getVerseIndexRowsForVerse.mockImplementation(async (verse, ids) =>
 		indexRows().filter(

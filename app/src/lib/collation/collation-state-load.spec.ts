@@ -20,6 +20,7 @@ const {
 	getCollationVersionStatus,
 	listTranscriptionVersions,
 	loadCommittedTranscriptionCheckpointPayload,
+	findOrphanedSegmentMembers,
 	gatherWitnessesForSegment,
 	prepareWitnessesFromDocument,
 	coerceTranscriptionDocument,
@@ -37,6 +38,7 @@ const {
 	getCollationVersionStatus: vi.fn(),
 	listTranscriptionVersions: vi.fn(),
 	loadCommittedTranscriptionCheckpointPayload: vi.fn(),
+	findOrphanedSegmentMembers: vi.fn(),
 	gatherWitnessesForSegment: vi.fn(),
 	prepareWitnessesFromDocument: vi.fn(),
 	coerceTranscriptionDocument: vi.fn(),
@@ -59,6 +61,7 @@ vi.mock('$lib/db/client', () => ({
 }));
 
 vi.mock('./collation-runner', () => ({
+	findOrphanedSegmentMembers,
 	gatherWitnessesForSegment,
 	prepareWitnessesFromDocument,
 }));
@@ -401,6 +404,7 @@ describe('collationState artifact-first persistence', () => {
 			orphanedMembers: [],
 			error: null,
 		});
+		findOrphanedSegmentMembers.mockResolvedValue([]);
 		prepareWitnessesFromDocument.mockReturnValue([]);
 		coerceTranscriptionDocument.mockReturnValue(null);
 		getCollationVersionStatus.mockResolvedValue(null);
@@ -623,11 +627,7 @@ describe('collationState artifact-first persistence', () => {
 	it('leaves the selected verse orphaned when its member is absent from the project index', async () => {
 		getProjectTranscriptionIds.mockResolvedValue([]);
 		listVerseIndexRowsForTranscriptions.mockResolvedValue([]);
-		gatherWitnessesForSegment.mockResolvedValue({
-			witnesses: [],
-			orphanedMembers: ['Romans 1:1'],
-			error: null,
-		});
+		findOrphanedSegmentMembers.mockResolvedValue(['Romans 1:1']);
 		const collationState = await importState();
 		collationState.reset();
 
@@ -639,9 +639,8 @@ describe('collationState artifact-first persistence', () => {
 		expect(collationState.selectedChapter).toBe('');
 		expect(collationState.selectedVerseNum).toBe('');
 		expect(collationState.orphanedMembers).toEqual(['Romans 1:1']);
-		expect(gatherWitnessesForSegment).toHaveBeenCalledWith({ members: ['Romans 1:1'] }, [], {
-			ignoreWordBreaks: false,
-		});
+		expect(findOrphanedSegmentMembers).toHaveBeenCalledWith(['Romans 1:1'], []);
+		expect(gatherWitnessesForSegment).not.toHaveBeenCalled();
 		expect(collationState.saveStatus).toBe('saved');
 	}, 30000);
 
@@ -687,9 +686,10 @@ describe('collationState artifact-first persistence', () => {
 					},
 				},
 			],
-			orphanedMembers: ['Romans 1:1'],
+			orphanedMembers: [],
 			error: null,
 		});
+		findOrphanedSegmentMembers.mockResolvedValue(['Romans 1:1']);
 		const collationState = await importState();
 		collationState.reset();
 		await collationState.loadCollationById('col-1');
@@ -716,18 +716,12 @@ describe('collationState artifact-first persistence', () => {
 		collationState.setOrphanedMembers(['A 1:1']);
 		vi.clearAllMocks();
 
-		gatherWitnessesForSegment.mockImplementation(
-			async (_segment: { members: string[] }, transcriptionIds: string[]) => {
-				if (transcriptionIds.length === 1) {
-					return {
-						witnesses: [makePreparedWitness('A-tx', 'refreshed A', 'source-a')],
-						orphanedMembers: ['B 1:1'],
-						error: null,
-					};
-				}
-				return { witnesses: [], orphanedMembers: [], error: null };
-			}
-		);
+		gatherWitnessesForSegment.mockResolvedValue({
+			witnesses: [makePreparedWitness('A-tx', 'refreshed A', 'source-a')],
+			orphanedMembers: ['B 1:1'],
+			error: null,
+		});
+		findOrphanedSegmentMembers.mockResolvedValue([]);
 
 		const changed = await collationState.refreshWitnessesFromSource(['A-tx']);
 
@@ -735,19 +729,15 @@ describe('collationState artifact-first persistence', () => {
 		expect(collationState.witnesses[0]?.content).toBe('refreshed A');
 		expect(collationState.orphanedMembers).toEqual([]);
 		expect(getProjectTranscriptionIds).toHaveBeenCalledWith('proj-1');
-		expect(gatherWitnessesForSegment).toHaveBeenLastCalledWith(
-			{ members: ['A 1:1', 'B 1:1'] },
-			['A-tx', 'B-tx'],
-			{ ignoreWordBreaks: false }
+		expect(gatherWitnessesForSegment).toHaveBeenCalledTimes(1);
+		expect(findOrphanedSegmentMembers).toHaveBeenLastCalledWith(
+			['A 1:1', 'B 1:1'],
+			['A-tx', 'B-tx']
 		);
 	}, 30000);
 
 	it('reports all members as orphaned when source refresh receives an empty scope', async () => {
-		gatherWitnessesForSegment.mockResolvedValue({
-			witnesses: [],
-			orphanedMembers: ['Romans 1:1'],
-			error: null,
-		});
+		findOrphanedSegmentMembers.mockResolvedValue(['Romans 1:1']);
 		const collationState = await importState();
 		collationState.reset();
 		await collationState.loadCollationById('col-1');
@@ -1271,6 +1261,22 @@ describe('collationState artifact-first persistence', () => {
 			expect.objectContaining({ id: collationId, status: 'alignment' })
 		);
 		expect(saveCollationProjection).not.toHaveBeenCalled();
+	});
+
+	it('reports setup edits as unsaved, not failed, before the collation exists', async () => {
+		const collationState = await importState();
+		collationState.reset();
+		await collationState.selectProject('proj-1');
+		await vi.advanceTimersByTimeAsync(801);
+
+		collationState.setWitnesses([
+			makeWitness('A', 'και θεος', true),
+			makeWitness('B', 'και λογος'),
+		]);
+		await vi.advanceTimersByTimeAsync(801);
+
+		expect(collationState.collationId).toBeNull();
+		expect(collationState.saveStatus).toBe('unsaved');
 	});
 
 	it('persists a renamed segment as the collation display metadata', async () => {

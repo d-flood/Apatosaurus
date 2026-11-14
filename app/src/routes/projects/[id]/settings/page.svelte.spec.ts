@@ -4,7 +4,7 @@ import { render } from 'vitest-browser-svelte';
 import type { ProjectRecord } from '$lib/db/repositories/projects';
 
 const mocks = vi.hoisted(() => ({
-	getProjectTranscriptionIds: vi.fn(async () => []),
+	getProjectTranscriptionIds: vi.fn(async (): Promise<string[]> => []),
 	updateProjectMetadata: vi.fn<(input: unknown) => Promise<void>>(async () => undefined),
 	invalidateAll: vi.fn(async () => undefined),
 }));
@@ -218,4 +218,42 @@ it('refuses making a manual witness full when a transcription has its siglum', a
 	} finally {
 		vi.mocked(listTranscriptions).mockResolvedValue([]);
 	}
+});
+
+it('stops loading transcription hands after leaving the page', async () => {
+	const { listTranscriptions, loadTranscriptionHands } = await import('$lib/project/projects');
+	const transcriptions = ['a', 'b', 'c'].map(id => ({
+		id,
+		siglum: id,
+		displayLabel: id,
+		title: '',
+		description: '',
+		hands: [],
+	}));
+	let finishFirstLoad = () => {};
+	mocks.getProjectTranscriptionIds.mockResolvedValueOnce(transcriptions.map(row => row.id));
+	vi.mocked(listTranscriptions).mockResolvedValueOnce(transcriptions);
+	vi.mocked(loadTranscriptionHands).mockClear();
+	vi.mocked(loadTranscriptionHands).mockImplementationOnce(
+		() => new Promise(resolve => (finishFirstLoad = () => resolve([])))
+	);
+	const view = render(SettingsPage, {
+		data: {
+			project: {
+				id: 'hands-project',
+				storageSlug: 'hands-project',
+				name: 'Hands',
+				description: '',
+				charter: '',
+				collationSettings: null,
+				createdAt: '2026-10-14',
+				updatedAt: '2026-10-14',
+			},
+		},
+	});
+	await expect.poll(() => vi.mocked(loadTranscriptionHands).mock.calls.length).toBe(1);
+	view.unmount();
+	finishFirstLoad();
+	await new Promise(resolve => setTimeout(resolve, 0));
+	expect(loadTranscriptionHands).toHaveBeenCalledOnce();
 });

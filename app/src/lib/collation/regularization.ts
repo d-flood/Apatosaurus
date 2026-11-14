@@ -166,14 +166,25 @@ function deriveToken(
 	ruleEffects: RegularizationRuleEffect[]
 ): RegularizedToken | null {
 	if (sourceToken.kind === 'gap' || sourceToken.kind === 'untranscribed') {
+		// Inherited corrector text aligns on the first-hand words it stands in for.
+		const inherited =
+			sourceToken.gap?.reason === 'inherited' && sourceToken.segments.length > 0
+				? deriveToken(
+						witnessId,
+						{ ...sourceToken, kind: 'text', gap: null },
+						settings,
+						compiledRules,
+						[],
+						[]
+					)
+				: null;
 		return {
 			original: sourceToken.original,
 			originalSegments: sourceToken.segments.map(segment => ({ ...segment })),
 			regularized: null,
-			alignmentValue: buildGapPlaceholder(
-				sourceToken.gap,
-				sourceToken.gap?.source ?? sourceToken.kind
-			),
+			alignmentValue:
+				inherited?.alignmentValue ??
+				buildGapPlaceholder(sourceToken.gap, sourceToken.gap?.source ?? sourceToken.kind),
 			ruleIds: [],
 			types: [],
 			kind: sourceToken.kind,

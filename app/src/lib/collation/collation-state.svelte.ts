@@ -58,6 +58,7 @@ import {
 	type ImportNote,
 } from './collation-document';
 import {
+	findOrphanedSegmentMembers,
 	gatherWitnessesForSegment,
 	prepareWitnessesFromDocument,
 	type PreparedWitness,
@@ -419,6 +420,7 @@ function createCollationState() {
 	let inFlightSave: Promise<boolean> | null = null;
 
 	async function runPersist(): Promise<boolean> {
+		if (!collationId) return false;
 		if (inFlightSave) return inFlightSave;
 		saveStatus = 'saving';
 		const promise = persistDocument();
@@ -683,10 +685,9 @@ function createCollationState() {
 		}
 
 		const transcriptionIds = await getProjectTranscriptionIds(expectedProjectId);
-		const gathered = await gatherWitnessesForSegment(
-			{ members: [...expectedSegment.members] },
-			transcriptionIds,
-			{ ignoreWordBreaks }
+		const nextOrphanedMembers = await findOrphanedSegmentMembers(
+			expectedSegment.members,
+			transcriptionIds
 		);
 		if (
 			collationId !== expectedCollationId ||
@@ -695,7 +696,7 @@ function createCollationState() {
 		) {
 			return;
 		}
-		orphanedMembers = [...(gathered.orphanedMembers ?? [])];
+		orphanedMembers = nextOrphanedMembers;
 	}
 
 	async function selectProject(nextProjectId: string): Promise<void> {

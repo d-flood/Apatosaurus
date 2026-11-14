@@ -1,10 +1,4 @@
-import {
-	assertEnvelopeHash,
-	openEnvelope,
-	sealDocument,
-	type JsonObject,
-	type SealedDocument,
-} from './envelope';
+import { assertEnvelopeHash, openEnvelope, sealDocument, type JsonObject } from './envelope';
 import {
 	invalidSchemaVersion,
 	invalidShape,
@@ -31,7 +25,6 @@ export interface FormatRegistration<TPayload extends JsonObject = JsonObject> {
 export type ReadDocumentResult<TPayload extends JsonObject = JsonObject> =
 	| {
 			ok: true;
-			document: SealedDocument<TPayload>;
 			payload: TPayload;
 			upgraded: boolean;
 			originalVersion: number;
@@ -119,18 +112,10 @@ export class MigrationRegistry {
 
 			const validatedPayload = registration.validate(payload) as TPayload;
 			await registration.validateIntegrity?.(validatedPayload, originalVersion);
-			const document = await sealDocument(
-				format,
-				registration.currentVersion,
-				validatedPayload
-			);
-			return {
-				ok: true,
-				document,
-				payload: validatedPayload,
-				upgraded: originalVersion !== registration.currentVersion,
-				originalVersion,
-			};
+			const upgraded = originalVersion !== registration.currentVersion;
+			// Reject upgrader output that could not be sealed; the envelope hash only vouched for the original.
+			if (upgraded) await sealDocument(format, registration.currentVersion, validatedPayload);
+			return { ok: true, payload: validatedPayload, upgraded, originalVersion };
 		} catch (error) {
 			return { ok: false, quarantine: quarantineFromError(error) };
 		}

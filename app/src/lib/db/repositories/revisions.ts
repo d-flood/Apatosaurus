@@ -774,32 +774,6 @@ export async function getTranscriptionSourceOptions(
 	};
 }
 
-export async function getTranscriptionCurrentContentHashes(
-	db: DbExecutor,
-	transcriptionIds: string[]
-): Promise<Record<string, string>> {
-	if (transcriptionIds.length === 0) return {};
-	const rows = await db
-		.selectFrom('project_transcriptions')
-		.innerJoin('transcriptions', 'transcriptions.id', 'project_transcriptions.transcription_id')
-		.select([
-			'project_transcriptions.id as project_transcription_id',
-			'transcriptions.id as transcription_id',
-		])
-		.whereRef('project_transcriptions.project_id', '=', 'transcriptions.project_id')
-		.where('transcriptions.id', 'in', transcriptionIds)
-		.execute();
-	const hashes: Record<string, string> = {};
-	for (const row of rows) {
-		const status = await getProjectTranscriptionCheckpointStatus(
-			db,
-			requireId(row.project_transcription_id, 'project transcription')
-		);
-		hashes[requireId(row.transcription_id, 'transcription')] = status.workingContentHash;
-	}
-	return hashes;
-}
-
 export async function nextTranscriptionVersionLabel(
 	db: DbExecutor,
 	transcriptionId: string

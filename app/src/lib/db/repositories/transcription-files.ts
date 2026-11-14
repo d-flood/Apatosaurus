@@ -25,6 +25,7 @@ import {
 	writeTextFileAtomic,
 	type StoreOperationOptions,
 } from '$lib/storage/opfs-store';
+import { hashContent } from '$lib/storage/content-hash';
 import { recordStoreQuarantine, invalidShape, quarantineFromError } from '$lib/storage/quarantine';
 import {
 	sealDocument,
@@ -586,26 +587,46 @@ export async function loadTranscriptionWithWorkingFile(
 	transcriptionId: string,
 	storeOptions: StoreOperationOptions = {}
 ): Promise<TranscriptionRecord | null> {
-	const record = await getTranscription(db, transcriptionId);
-	if (!record) return null;
-	const context = await loadTranscriptionFileContext(db, transcriptionId);
-	const primaryPayload = await tryReadPrimaryTranscriptionPayload(context, storeOptions);
-	if (primaryPayload)
-		return transcriptionRecordFromPrimaryPayload(record, context, primaryPayload);
-	return null;
+	return (await loadPrimaryTranscription(db, transcriptionId, storeOptions))?.record ?? null;
 }
 
-export async function getTranscriptionsWithWorkingFilesByIds(
+export interface CurrentTranscription {
+	transcription: TranscriptionRecord;
+	contentHash: string;
+}
+
+export async function getCurrentTranscriptionsByIds(
 	db: DbExecutor,
 	ids: string[],
 	storeOptions: StoreOperationOptions = {}
-): Promise<TranscriptionRecord[]> {
-	const records: TranscriptionRecord[] = [];
+): Promise<CurrentTranscription[]> {
+	const current: CurrentTranscription[] = [];
 	for (const id of uniqueNonEmpty(ids)) {
-		const record = await loadTranscriptionWithWorkingFile(db, id, storeOptions);
-		if (record) records.push(record);
+		const loaded = await loadPrimaryTranscription(db, id, storeOptions);
+		if (!loaded) continue;
+		current.push({
+			transcription: loaded.record,
+			contentHash: await hashCanonicalPayload(
+				buildTranscriptionHashPayload(
+					projectTranscriptionSnapshotFromPayload(loaded.payload)
+				)
+			),
+		});
 	}
-	return records;
+	return current;
+}
+
+async function loadPrimaryTranscription(
+	db: DbExecutor,
+	transcriptionId: string,
+	storeOptions: StoreOperationOptions
+): Promise<{ record: TranscriptionRecord; payload: ProjectTranscriptionPayload } | null> {
+	const record = await getTranscription(db, transcriptionId);
+	if (!record) return null;
+	const context = await loadTranscriptionFileContext(db, transcriptionId);
+	const payload = await tryReadPrimaryTranscriptionPayload(context, storeOptions);
+	if (!payload) return null;
+	return { record: transcriptionRecordFromPrimaryPayload(record, context, payload), payload };
 }
 
 export async function loadTranscriptionContentWithFiles(
@@ -676,18 +697,83 @@ export async function getProjectTranscriptionCheckpointStatusWithFiles(
 	projectTranscriptionId: string,
 	storeOptions: StoreOperationOptions = {}
 ): Promise<ProjectTranscriptionCheckpointStatus> {
-	const snapshot = await loadProjectTranscriptionSnapshotWithFiles(
+	const context = await loadTranscriptionFileContextByProjectTranscriptionId(
 		db,
-		projectTranscriptionId,
-		storeOptions
+		projectTranscriptionId
 	);
-	const currentCheckpoint = await getTranscriptionCommittedHead(db, snapshot.id);
-	const workingContentHash = await hashCanonicalPayload(buildTranscriptionHashPayload(snapshot));
+	const workingContentHash = await loadWorkingContentHash(context, storeOptions);
+	const currentCheckpoint = await getTranscriptionCommittedHead(db, context.transcriptionId);
 	return {
 		projectTranscriptionId,
-		projectOwnedTranscriptionId: snapshot.id,
+		projectOwnedTranscriptionId: context.transcriptionId,
 		...deriveCheckpointStatus(currentCheckpoint, workingContentHash),
 	};
+}
+
+const workingContentHashes = new Map<
+	string,
+	{ transcriptionId: string; rawDigest: string; hash: string }
+>();
+
+async function loadWorkingContentHash(
+	context: TranscriptionFileContext,
+	storeOptions: StoreOperationOptions
+): Promise<string> {
+	const path = transcriptionPrimaryFile(
+		context.projectStorageSlug,
+		context.projectTranscriptionId
+	);
+	const raw = await tryReadPrimaryTranscriptionText(path, storeOptions);
+	// Memoize only when the hash depends solely on primary bytes; a legacy working file forces a merge.
+	const rawDigest =
+		raw !== null && !(await hasWorkingTranscriptionFile(context, storeOptions))
+			? await hashContent(raw)
+			: null;
+	const memo = workingContentHashes.get(path);
+	if (
+		rawDigest &&
+		memo?.rawDigest === rawDigest &&
+		memo.transcriptionId === context.transcriptionId
+	)
+		return memo.hash;
+	const primary =
+		raw === null
+			? null
+			: await parsePrimaryTranscriptionPayload(context, path, raw, storeOptions);
+	const payload =
+		primary && !rawDigest
+			? await migrateLegacyWorkingTranscription(context, primary, storeOptions)
+			: primary;
+	if (!payload) {
+		throw new Error(
+			`Canonical transcription file for project transcription ${context.projectTranscriptionId} was not found.`
+		);
+	}
+	const hash = await hashCanonicalPayload(
+		buildTranscriptionHashPayload(projectTranscriptionSnapshotFromPayload(payload))
+	);
+	if (rawDigest)
+		workingContentHashes.set(path, {
+			transcriptionId: context.transcriptionId,
+			rawDigest,
+			hash,
+		});
+	return hash;
+}
+
+async function hasWorkingTranscriptionFile(
+	context: TranscriptionFileContext,
+	storeOptions: StoreOperationOptions
+): Promise<boolean> {
+	try {
+		await readTextFile(
+			transcriptionWorkingFile(context.projectStorageSlug, context.projectTranscriptionId),
+			storeOptions
+		);
+		return true;
+	} catch (error) {
+		return !isMissingFileError(error);
+	}
 }
 
 function transcriptionRecordFromPrimaryPayload(
@@ -732,9 +818,20 @@ async function tryReadPrimaryTranscriptionPayload(
 		context.projectStorageSlug,
 		context.projectTranscriptionId
 	);
-	let raw: string;
+	const raw = await tryReadPrimaryTranscriptionText(path, storeOptions);
+	const payload =
+		raw === null
+			? null
+			: await parsePrimaryTranscriptionPayload(context, path, raw, storeOptions);
+	return payload && migrateLegacyWorkingTranscription(context, payload, storeOptions);
+}
+
+async function tryReadPrimaryTranscriptionText(
+	path: string,
+	storeOptions: StoreOperationOptions
+): Promise<string | null> {
 	try {
-		raw = await readTextFile(path, storeOptions);
+		return await readTextFile(path, storeOptions);
 	} catch (error) {
 		recordStoreQuarantine(storeOptions.quarantineSink, path, quarantineFromError(error));
 		console.warn('[document-store] Could not read canonical transcription content.', {
@@ -743,6 +840,14 @@ async function tryReadPrimaryTranscriptionPayload(
 		});
 		return null;
 	}
+}
+
+async function parsePrimaryTranscriptionPayload(
+	context: TranscriptionFileContext,
+	path: string,
+	raw: string,
+	storeOptions: StoreOperationOptions
+): Promise<ProjectTranscriptionPayload | null> {
 	const result = await readCanonicalDocument<ProjectTranscriptionPayload>(
 		PROJECT_TRANSCRIPTION_FORMAT,
 		raw
@@ -786,7 +891,7 @@ async function tryReadPrimaryTranscriptionPayload(
 		});
 		return null;
 	}
-	return migrateLegacyWorkingTranscription(context, payload, storeOptions);
+	return payload;
 }
 
 async function migrateLegacyWorkingTranscription(

@@ -95,7 +95,6 @@ import {
 } from './repositories/projects';
 import {
 	getLatestProjectCommitTimestamp,
-	getTranscriptionCurrentContentHashes,
 	getTranscriptionSourceOptions,
 	listCollationVersions,
 	listCommittedTranscriptionCheckpoints,
@@ -109,7 +108,7 @@ import {
 	createCommittedTranscriptionCheckpointWithFiles,
 	createTranscriptionsWithFilesResult,
 	createTranscriptionWithFilesResult,
-	getTranscriptionsWithWorkingFilesByIds,
+	getCurrentTranscriptionsByIds,
 	loadTranscriptionContentWithFiles,
 	loadTranscriptionWithWorkingFile,
 	rebuildVerseIndexForTranscriptionsWithFiles,
@@ -148,8 +147,8 @@ export const dbApi = defineApi({
 	listTranscriptionSummaries: ({ db }) => listTranscriptionSummaries(db),
 	getTranscriptionSummary: ({ db }, id: string) => getTranscriptionSummary(db, id),
 	getTranscription: ({ db }, id: string) => loadTranscriptionWithWorkingFile(db, id),
-	getTranscriptionsByIds: ({ db }, ids: string[]) =>
-		getTranscriptionsWithWorkingFilesByIds(db, ids),
+	getCurrentTranscriptionsByIds: ({ db }, ids: string[]) =>
+		getCurrentTranscriptionsByIds(db, ids),
 	async createTranscription({ db, invalidate, warn }, input: CreateTranscriptionInput) {
 		const result = await createTranscriptionWithFilesResult(db, input);
 		invalidate('transcriptions', 'projects');
@@ -471,8 +470,6 @@ export const dbApi = defineApi({
 		listCommittedTranscriptionCheckpoints(db, transcriptionId),
 	listTranscriptionVersions: ({ db }, transcriptionId: string) =>
 		listTranscriptionVersions(db, transcriptionId),
-	getTranscriptionCurrentContentHashes: ({ db }, transcriptionIds: string[]) =>
-		getTranscriptionCurrentContentHashes(db, transcriptionIds),
 	getTranscriptionSourceOptions: ({ db }, transcriptionId: string) =>
 		getTranscriptionSourceOptions(db, transcriptionId),
 	listCollationVersions: ({ db }, collationId: string) => listCollationVersions(db, collationId),

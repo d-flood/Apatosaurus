@@ -34,6 +34,7 @@ vi.mock('$lib/collation/gather-verses', () => ({
 }));
 vi.mock('$lib/collation/collation-runner', () => ({
 	gatherWitnessesForSegment: mocks.gather,
+	findOrphanedSegmentMembers: vi.fn(async () => []),
 	prepareWitnessesFromDocument: vi.fn(),
 	extractWitnessTokensForVerse: vi.fn(),
 }));

@@ -1,15 +1,14 @@
-import { getTranscriptionCurrentContentHashes, getTranscriptionsByIds } from '$lib/db/client';
+import { getCurrentTranscriptionsByIds } from '$lib/db/client';
 import {
 	coerceTranscriptionDocument,
 	type StoredTranscriptionDocument,
 } from '$lib/transcription/content';
-import type { CorrectionReading, InlineItem } from '@apatosaurus/tei-transcription';
+import type { CorrectionReading, InlineItem, TextMark } from '@apatosaurus/tei-transcription';
 import { getPreferredTranscriptionLabel } from '$lib/transcription/display';
 import {
 	getVerseIndexRowsForVerse,
 	normalizeVerseIdentifier,
 } from '$lib/transcription/verse-index';
-import type { TranscriptionRecord } from '$lib/db/repositories/transcriptions';
 import type { CollationSegment } from './collation-document';
 import type {
 	GapMetadata,
@@ -80,6 +79,15 @@ function currentVerseIdentifier(state: MilestoneState): string {
 
 function hasMark(item: { marks?: Array<{ type?: string }> }, markType: string): boolean {
 	return Array.isArray(item.marks) && item.marks.some(mark => mark?.type === markType);
+}
+
+function isChapterNumber(item: { marks?: TextMark[] }): boolean {
+	return (item.marks ?? []).some(
+		mark =>
+			mark.type === 'teiSpan' &&
+			mark.attrs.tag.toLowerCase() === 'num' &&
+			mark.attrs.teiAttrs.type === 'chapNum'
+	);
 }
 
 function buildTextSegment(item: {
@@ -198,23 +206,12 @@ function getCorrectionOnlyForHand(
 	return null;
 }
 
-function countPlaceholderTokens(text: string): number {
-	return text.split(/(\s+)/).filter(piece => piece.length > 0 && !/^\s+$/u.test(piece)).length;
-}
-
-function buildInheritedPlaceholderTokens(text: string): WitnessSourceToken[] {
-	return Array.from({ length: countPlaceholderTokens(text) }, () => ({
-		kind: 'untranscribed' as const,
-		original: '⊘',
-		segments: [],
-		gap: {
-			source: 'untranscribed' as const,
-			reason: 'inherited',
-			unit: 'token',
-			extent: '1',
-		},
-	}));
-}
+const INHERITED_GAP = {
+	source: 'untranscribed' as const,
+	reason: 'inherited',
+	unit: 'token',
+	extent: '1',
+};
 
 function cloneSourceToken(token: WitnessSourceToken): WitnessSourceToken {
 	return {
@@ -246,6 +243,7 @@ export function extractWitnessTokensForVerse(
 	const state: MilestoneState = { book: '', chapter: '', verse: '' };
 	const baseHand = target?.baseHand || inferBaseHand(document);
 	let currentHand: string;
+	const inheritedSegments = new WeakSet<WitnessTextSegment>();
 
 	function flushPendingTokenSegments(segments: WitnessTextSegment[]) {
 		if (segments.length === 0) return;
@@ -254,6 +252,15 @@ export function extractWitnessTokensForVerse(
 			.join('')
 			.trim();
 		if (original.length === 0) return;
+		if (segments.every(segment => inheritedSegments.has(segment))) {
+			tokens.push({
+				kind: 'untranscribed',
+				original: '⊘',
+				segments,
+				gap: { ...INHERITED_GAP },
+			});
+			return;
+		}
 		tokens.push({
 			kind: 'text',
 			original,
@@ -265,12 +272,14 @@ export function extractWitnessTokensForVerse(
 	function flushPendingTextSegments(segments: WitnessTextSegment[]) {
 		let pendingTokenSegments: WitnessTextSegment[] = [];
 		let pendingTokenIsPunctuation: boolean | null = null;
+		let pendingTokenIsInherited: boolean | null = null;
 
 		function flushCurrentToken() {
 			if (pendingTokenSegments.length === 0) return;
 			flushPendingTokenSegments(pendingTokenSegments);
 			pendingTokenSegments = [];
 			pendingTokenIsPunctuation = null;
+			pendingTokenIsInherited = null;
 		}
 
 		for (const segment of segments) {
@@ -282,20 +291,26 @@ export function extractWitnessTokensForVerse(
 				}
 
 				const pieceIsPunctuation = segment.isPunctuation;
+				const pieceIsInherited = inheritedSegments.has(segment);
 				if (
-					pendingTokenIsPunctuation !== null &&
-					pendingTokenIsPunctuation !== pieceIsPunctuation
+					(pendingTokenIsPunctuation !== null &&
+						pendingTokenIsPunctuation !== pieceIsPunctuation) ||
+					(pendingTokenIsInherited !== null &&
+						pendingTokenIsInherited !== pieceIsInherited)
 				) {
 					flushCurrentToken();
 				}
 
-				pendingTokenSegments.push({
+				const pieceSegment = {
 					text: piece,
 					hasUnclear: segment.hasUnclear,
 					isPunctuation: segment.isPunctuation,
 					isSupplied: segment.isSupplied,
-				});
+				};
+				if (pieceIsInherited) inheritedSegments.add(pieceSegment);
+				pendingTokenSegments.push(pieceSegment);
 				pendingTokenIsPunctuation = pieceIsPunctuation;
+				pendingTokenIsInherited = pieceIsInherited;
 			}
 		}
 
@@ -354,11 +369,6 @@ export function extractWitnessTokensForVerse(
 		clearPendingContinuation();
 	}
 
-	function appendPlaceholderTokens(text: string) {
-		flushPendingSegments();
-		tokens.push(...buildInheritedPlaceholderTokens(text));
-	}
-
 	function shouldUseOriginalText(item: { text?: string; marks?: unknown[] }): boolean {
 		if (!target) {
 			return true;
@@ -382,6 +392,10 @@ export function extractWitnessTokensForVerse(
 	function processInlineItems(items: ProcessableItem[]) {
 		for (const item of items) {
 			if (item.type === 'text') {
+				if (isChapterNumber(item)) {
+					flushPendingSegments();
+					continue;
+				}
 				const correction = target ? getCorrectionForHand(item, target.handId) : null;
 				if (correction) {
 					const correctionSignature = JSON.stringify(correction);
@@ -398,12 +412,8 @@ export function extractWitnessTokensForVerse(
 				}
 				activeCorrectionSignature = null;
 
-				if (!shouldUseOriginalText(item)) {
-					appendPlaceholderTokens(item.text || '');
-					continue;
-				}
-
 				const segment = buildTextSegment(item);
+				if (segment && !shouldUseOriginalText(item)) inheritedSegments.add(segment);
 				if (segment && awaitingNoBreakContinuation) {
 					segment.text = segment.text.replace(/^\s+/g, '');
 					if (segment.text.length > 0) {
@@ -739,20 +749,17 @@ export async function gatherWitnessesForVerse(
 	}
 	if (orderedTranscriptionIds.length === 0) return [];
 
-	const [transcriptions, currentContentHashes]: [TranscriptionRecord[], Record<string, string>] =
-		await Promise.all([
-			getTranscriptionsByIds(orderedTranscriptionIds),
-			getTranscriptionCurrentContentHashes(orderedTranscriptionIds),
-		]);
+	const currentTranscriptions = await getCurrentTranscriptionsByIds(orderedTranscriptionIds);
 	const capturedAt = new Date().toISOString();
-	const transcriptionById = new Map(
-		transcriptions.map(transcription => [transcription.id, transcription] as const)
+	const currentById = new Map(
+		currentTranscriptions.map(current => [current.transcription.id, current] as const)
 	);
 
 	const witnesses: PreparedWitness[] = [];
 	for (const transcriptionId of orderedTranscriptionIds) {
-		const transcription = transcriptionById.get(transcriptionId);
-		if (!transcription) continue;
+		const current = currentById.get(transcriptionId);
+		if (!current) continue;
+		const { transcription, contentHash } = current;
 		const document = coerceTranscriptionDocument(transcription.content_json);
 		if (!document) continue;
 		const siglum = getPreferredTranscriptionLabel({
@@ -769,7 +776,7 @@ export async function gatherWitnessesForVerse(
 				kind: 'current',
 				transcriptionId: transcription.id || transcriptionId,
 				capturedAt,
-				contentHash: currentContentHashes[transcription.id || transcriptionId] ?? '',
+				contentHash,
 			},
 			options,
 			seenWitnessIds,
@@ -786,24 +793,18 @@ export async function gatherWitnessesForSegment(
 	options: WitnessExtractionOptions = {}
 ): Promise<SegmentGatherResult> {
 	const members = [...new Set(segment.members)];
-	const gatheredByMember = await Promise.all(
-		members.map(async member => {
-			const [indexRows, witnesses] = await Promise.all([
-				getVerseIndexRowsForVerse(member, transcriptionIds),
-				gatherWitnessesForVerse(member, transcriptionIds, options),
-			]);
-			return { indexRows, witnesses };
-		})
-	);
-	const orphanedMembers = members.filter(
-		(_, memberIndex) => (gatheredByMember[memberIndex]?.indexRows.length ?? 0) === 0
-	);
+	const [orphanedMembers, witnessesByMember] = await Promise.all([
+		findOrphanedSegmentMembers(members, transcriptionIds),
+		Promise.all(
+			members.map(member => gatherWitnessesForVerse(member, transcriptionIds, options))
+		),
+	]);
 	const memberByTranscription = new Map<string, string>();
 	const witnesses: PreparedWitness[] = [];
 
 	for (let memberIndex = 0; memberIndex < members.length; memberIndex++) {
 		const member = members[memberIndex];
-		for (const witness of gatheredByMember[memberIndex]?.witnesses ?? []) {
+		for (const witness of witnessesByMember[memberIndex] ?? []) {
 			const previousMember = memberByTranscription.get(witness.transcriptionUid);
 			if (previousMember !== undefined && previousMember !== member) {
 				return {
@@ -825,9 +826,22 @@ export async function gatherWitnessesForSegment(
 	return {
 		witnesses:
 			members.length === 1
-				? (gatheredByMember[0]?.witnesses ?? [])
+				? (witnessesByMember[0] ?? [])
 				: ensureUniqueSegmentWitnessIds(witnesses),
 		orphanedMembers,
 		error: null,
 	};
+}
+
+export async function findOrphanedSegmentMembers(
+	members: string[],
+	transcriptionIds?: string[]
+): Promise<string[]> {
+	const uniqueMembers = [...new Set(members)];
+	const rowCounts = await Promise.all(
+		uniqueMembers.map(
+			async member => (await getVerseIndexRowsForVerse(member, transcriptionIds)).length
+		)
+	);
+	return uniqueMembers.filter((_, index) => rowCounts[index] === 0);
 }

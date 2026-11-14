@@ -1,0 +1,12 @@
+{
+	"name": "apatosaurus-demo-video",
+	"private": true,
+	"type": "module",
+	"dependencies": {
+		"@remotion/cli": "4.0.536",
+		"playwright": "1.61.1",
+		"react": "19.2.9",
+		"react-dom": "19.2.9",
+		"remotion": "4.0.536"
+	}
+}

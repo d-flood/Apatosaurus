@@ -33,7 +33,7 @@
 	import ProjectTranscriptionRefreshDialog from '$lib/project/components/ProjectTranscriptionRefreshDialog.svelte';
 	import ProjectTranscriptionsEditor from '$lib/project/components/ProjectTranscriptionsEditor.svelte';
 	import ProjectTranscriptionVersionsPanel from '$lib/project/components/ProjectTranscriptionVersionsPanel.svelte';
-	import { onMount, untrack } from 'svelte';
+	import { onDestroy, onMount, untrack } from 'svelte';
 	import type {
 		ProjectRecord,
 		ProjectTranscriptionSourceCandidate,
@@ -117,6 +117,8 @@
 			}
 		})
 	);
+
+	onDestroy(() => bootstrapRunId++);
 
 	function logProjects(
 		level: 'debug' | 'warn' | 'error',
@@ -226,7 +228,7 @@
 				runId,
 				transcriptionCount: transcriptionRows.length,
 			});
-			void loadHandsForSelectedTranscriptions();
+			void loadHandsForSelectedTranscriptions(runId);
 		} catch (err) {
 			if (runId !== bootstrapRunId) return;
 			error = err instanceof Error ? err.message : 'Failed to load transcriptions';
@@ -514,12 +516,15 @@
 		);
 	}
 
-	async function loadHandsForSelectedTranscriptions() {
+	async function loadHandsForSelectedTranscriptions(runId: number) {
 		const idsNeedingHands = selectedTranscriptionIds.filter(id => {
 			const transcription = allTranscriptions.find(candidate => candidate.id === id);
 			return transcription && transcription.hands.length === 0;
 		});
-		for (const id of idsNeedingHands) await ensureTranscriptionHands(id);
+		for (const id of idsNeedingHands) {
+			if (runId !== bootstrapRunId) return;
+			await ensureTranscriptionHands(id);
+		}
 	}
 
 	async function toggleProjectTranscription(transcriptionId: string) {

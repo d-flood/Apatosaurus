@@ -94,17 +94,11 @@ function parseJson(raw: string): unknown {
 	}
 }
 
+// Leave canonical validation to assertEnvelopeHash, which canonicalizes the payload anyway.
 function payloadFromRecord(record: Record<string, unknown>): JsonObject {
 	const payload: Record<string, JsonValue> = {};
 	for (const [key, value] of Object.entries(record)) {
-		if (RESERVED_ENVELOPE_FIELDS.has(key)) continue;
-		assertJsonValue(value, key);
-		payload[key] = value;
-	}
-	try {
-		canonicalJson(payload);
-	} catch (error) {
-		throw invalidShape(`Document payload is not canonicalizable: ${errorMessage(error)}`);
+		if (!RESERVED_ENVELOPE_FIELDS.has(key)) payload[key] = value as JsonValue;
 	}
 	return payload;
 }
@@ -122,14 +116,6 @@ function assertPayloadHasNoReservedFields(payload: JsonObject): void {
 	for (const key of RESERVED_ENVELOPE_FIELDS) {
 		if (key in payload)
 			throw invalidShape(`Document payload cannot include reserved field ${key}.`);
-	}
-}
-
-function assertJsonValue(value: unknown, path: string): asserts value is JsonValue {
-	try {
-		canonicalJson(value);
-	} catch (error) {
-		throw invalidShape(`${path} is not canonicalizable JSON: ${errorMessage(error)}`);
 	}
 }
 

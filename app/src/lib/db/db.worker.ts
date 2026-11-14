@@ -8,6 +8,7 @@ import type { Database } from './types.generated';
 import { createWorkerKysely } from './worker-kysely';
 import { LocalSqliteDatabase, type OpenIndexDatabaseResult } from './worker-sqlite';
 import { createCurrentIndexSchema } from './worker-schema';
+import { openWithRetry } from './open-retry';
 import { upgradeAlphaProjects, markAlphaUpgradesIndexed } from '$lib/storage/alpha-project-upgrade';
 import type { Kysely } from 'kysely';
 
@@ -142,7 +143,18 @@ async function init(): Promise<void> {
 async function openIndexDatabaseForStartup(): Promise<IndexStartupOpenResult> {
 	let openResult: OpenIndexDatabaseResult;
 	try {
-		openResult = await db.open();
+		// A reloaded page's previous worker can briefly keep the OPFS access handles.
+		openResult = await openWithRetry(
+			() => db.open(),
+			() => db.close(),
+			{
+				onRetry: (error, delayMs) =>
+					console.warn('[local-db] SQLite index open failed; retrying', {
+						error: errorMessage(error),
+						delayMs,
+					}),
+			}
+		);
 	} catch (error) {
 		const message = errorMessage(error);
 		console.warn('[local-db] SQLite index open failed; rebuilding from files', {

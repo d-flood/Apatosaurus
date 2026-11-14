@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { StoredTranscriptionDocument } from '$lib/transcription/content';
 import { MemoryStoreBackend } from '$lib/storage/memory-store-backend.spec-support';
@@ -6,7 +6,7 @@ import { createProject as createProjectRepository } from './projects';
 import {
 	createCommittedCollationCheckpoint,
 	createCommittedTranscriptionCheckpoint,
-	getTranscriptionCurrentContentHashes,
+	loadTranscriptionSourceState,
 } from './revisions';
 import { createTranscription, updateTranscriptionContent } from './transcriptions';
 import { createLocalDbTestHarness, type LocalDbTestHarness } from '$lib/testing/local-db-harness';
@@ -19,6 +19,14 @@ import {
 	saveCollationProjection,
 	updateCollationMetadata,
 } from './collations';
+
+vi.mock('./revisions', async importOriginal => {
+	const actual = await importOriginal<typeof import('./revisions')>();
+	return {
+		...actual,
+		loadTranscriptionSourceState: vi.fn(actual.loadTranscriptionSourceState),
+	};
+});
 
 let harness: LocalDbTestHarness;
 let backend: MemoryStoreBackend;
@@ -370,10 +378,8 @@ describe('collations repository', () => {
 			checkpointId: 'tx-2-cp-1',
 			createdAt: '2026-01-01T00:00:00.000Z',
 		});
-		const capturedHashes = await getTranscriptionCurrentContentHashes(harness.db, [
-			'tx-1',
-			'tx-2',
-		]);
+		const capturedHash = (await loadTranscriptionSourceState(harness.db, 'pt-1'))
+			.currentContentHash;
 		await createCollation(harness.db, {
 			id: 'col-1',
 			projectId: 'project-1',
@@ -390,7 +396,7 @@ describe('collations repository', () => {
 						kind: 'current',
 						transcriptionId: 'tx-1',
 						capturedAt: '2026-01-02T00:00:00.000Z',
-						contentHash: capturedHashes['tx-1'],
+						contentHash: capturedHash,
 					},
 					content: 'In principio',
 					position: 0,
@@ -439,6 +445,50 @@ describe('collations repository', () => {
 		expect(await states()).toEqual(['source-changed', 'source-changed']);
 	});
 
+	it('loads each source transcription once for all of its hands', async () => {
+		await createProject(harness.db, { id: 'project-1', name: 'Romans' });
+		await createTranscription(harness.db, {
+			...sourceTranscription('tx-1', '01'),
+			projectId: 'project-1',
+			projectTranscriptionId: 'pt-1',
+		});
+		const { currentContentHash } = await loadTranscriptionSourceState(harness.db, 'pt-1');
+		await createCollation(harness.db, {
+			id: 'col-1',
+			projectId: 'project-1',
+			title: 'Romans 1:1',
+			verseIdentifier: 'Rom 1:1',
+		});
+		const source = {
+			kind: 'current' as const,
+			transcriptionId: 'tx-1',
+			capturedAt: '2026-01-02T00:00:00.000Z',
+			contentHash: currentContentHash,
+		};
+		await saveCollationProjection(harness.db, {
+			collationId: 'col-1',
+			witnesses: ['01', '01C1', '01C2'].map((witnessId, position) => ({
+				witnessId,
+				transcriptionId: 'tx-1',
+				source,
+				content: 'In principio',
+				position,
+			})),
+			tokens: [],
+			variationUnits: [],
+		});
+		vi.mocked(loadTranscriptionSourceState).mockClear();
+
+		const statuses = await getCollationWitnessSourceStatuses(harness.db, 'col-1');
+
+		expect(statuses.map(witness => witness.versionState)).toEqual([
+			'up-to-date',
+			'up-to-date',
+			'up-to-date',
+		]);
+		expect(loadTranscriptionSourceState).toHaveBeenCalledTimes(1);
+	});
+
 	it('offers a Current witness refresh when its unchanged source gains a version', async () => {
 		await createProject(harness.db, { id: 'project-1', name: 'Romans' });
 		await createTranscription(harness.db, {
@@ -446,7 +496,8 @@ describe('collations repository', () => {
 			projectId: 'project-1',
 			projectTranscriptionId: 'pt-1',
 		});
-		const capturedHashes = await getTranscriptionCurrentContentHashes(harness.db, ['tx-1']);
+		const capturedHash = (await loadTranscriptionSourceState(harness.db, 'pt-1'))
+			.currentContentHash;
 		await createCollation(harness.db, {
 			id: 'col-1',
 			projectId: 'project-1',
@@ -463,7 +514,7 @@ describe('collations repository', () => {
 						kind: 'current',
 						transcriptionId: 'tx-1',
 						capturedAt: '2026-01-02T00:00:00.000Z',
-						contentHash: capturedHashes['tx-1'],
+						contentHash: capturedHash,
 					},
 					content: 'In principio',
 					position: 0,

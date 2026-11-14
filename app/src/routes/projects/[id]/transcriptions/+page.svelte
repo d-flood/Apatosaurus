@@ -43,7 +43,7 @@
 				listProjectTranscriptionStatuses(projectId),
 				listConflictCopies(projectId),
 			]);
-			if (runId !== loadRunId || data.project.id !== projectId) return;
+			if (runId !== loadRunId || data.project?.id !== projectId) return;
 			rows = statuses;
 			conflictCopyIds = new Set(copies.map(copy => copy.copyId));
 			error = null;

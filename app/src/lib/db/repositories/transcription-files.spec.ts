@@ -15,7 +15,8 @@ import {
 import {
 	createTranscriptionWithFilesResult,
 	createCommittedTranscriptionCheckpointWithFiles,
-	getTranscriptionsWithWorkingFilesByIds,
+	getCurrentTranscriptionsByIds,
+	getProjectTranscriptionCheckpointStatusWithFiles,
 	loadTranscriptionWithWorkingFile,
 	rebuildVerseIndexForTranscriptionsWithFiles,
 	reimportTranscriptionContent,
@@ -26,7 +27,8 @@ import {
 	updateTranscriptionVersionNote,
 } from './transcription-files';
 import { rebuildIndexFromStore } from './index-rebuild';
-import { listTranscriptionVersions } from './revisions';
+import { ensureManifestSourceWithFiles } from './iiif-files';
+import { listTranscriptionVersions, loadTranscriptionSourceState } from './revisions';
 import type { StoredTranscriptionDocument } from '$lib/transcription/content';
 import {
 	PROJECT_MANIFEST_FORMAT,
@@ -500,15 +502,43 @@ describe('transcription file persistence', () => {
 			.where('id', '=', 'tx-1')
 			.execute();
 
-		const loaded = await getTranscriptionsWithWorkingFilesByIds(
+		const loaded = await getCurrentTranscriptionsByIds(
 			harness.db,
 			['tx-1', 'tx-1', 'missing'],
-			{ backend }
+			{
+				backend,
+			}
 		);
 
 		expect(loaded).toHaveLength(1);
-		expect(loaded[0]).toMatchObject({ id: 'tx-1', title: 'Witness 1' });
-		expect(loaded[0].content_json).toContain('"verse":"1"');
+		expect(loaded[0].transcription).toMatchObject({ id: 'tx-1', title: 'Witness 1' });
+		expect(loaded[0].transcription.content_json).toContain('"verse":"1"');
+	});
+
+	it('hashes current transcriptions as the source-currency check does', async () => {
+		await createFixtureTranscription();
+		await createCommittedTranscriptionCheckpointWithFiles(
+			harness.db,
+			{ projectTranscriptionId: 'pt-1', checkpointId: 'tx-cp-1' },
+			{ backend, nonce: () => 'primary-write' }
+		);
+		await ensureManifestSourceWithFiles(
+			harness.db,
+			{ transcriptionId: 'tx-1', manifestUrl: 'https://example.test/manifest', label: 'MS' },
+			{ backend }
+		);
+		await saveWorkingTranscriptionContent(
+			harness.db,
+			{ id: 'tx-1', document: documentWithVerses(['Romans 1:2']) },
+			{ backend }
+		);
+
+		const [loaded] = await getCurrentTranscriptionsByIds(harness.db, ['tx-1'], { backend });
+
+		expect(loaded.contentHash).toMatch(/^sha256:/);
+		expect(loaded.contentHash).toBe(
+			(await loadTranscriptionSourceState(harness.db, 'pt-1')).currentContentHash
+		);
 	});
 
 	it('rebuilds the verse index from canonical files when the index cache is stale', async () => {
@@ -1224,6 +1254,60 @@ describe('transcription file persistence', () => {
 			based_on_checkpoint: basedOn,
 			draft: { saved_at: '2026-07-04T14:00:00.000Z' },
 		});
+	});
+
+	it('recomputes status whenever primary bytes change or a legacy working file appears', async () => {
+		await createFixtureTranscription();
+		await createCommittedTranscriptionCheckpointWithFiles(
+			harness.db,
+			{ projectTranscriptionId: 'pt-1', checkpointId: 'tx-cp-1' },
+			{ backend }
+		);
+		const status = () =>
+			getProjectTranscriptionCheckpointStatusWithFiles(harness.db, 'pt-1', { backend });
+		const primaryPath = transcriptionPrimaryFile('project-slug', 'pt-1');
+		const committedRaw = await readTextFile(primaryPath, { backend });
+		const committed = await readPrimaryPayload();
+		expect((await status()).commitState).toBe('clean');
+		expect((await status()).commitState).toBe('clean');
+
+		await writeTextFileAtomic(
+			primaryPath,
+			serializeSealedDocument(
+				await sealDocument(
+					PROJECT_TRANSCRIPTION_FORMAT,
+					PROJECT_TRANSCRIPTION_CURRENT_VERSION,
+					{
+						...committed,
+						content_json: documentWithVerses(['Romans 1:9']) as unknown as JsonValue,
+					}
+				)
+			),
+			{ backend }
+		);
+		expect((await status()).commitState).toBe('dirty');
+
+		await writeTextFileAtomic(primaryPath, committedRaw, { backend });
+		expect((await status()).commitState).toBe('clean');
+
+		const { based_on_checkpoint: basedOn, draft: _draft, ...content } = committed;
+		await writeTextFileAtomic(
+			transcriptionWorkingFile('project-slug', 'pt-1'),
+			serializeSealedDocument(
+				await sealDocument(WORKING_TRANSCRIPTION_FORMAT, 1, {
+					...content,
+					title: 'Draft title',
+					draft: {
+						base_revision_id: basedOn?.id ?? null,
+						base_content_hash: basedOn?.content_hash ?? null,
+						saved_at: '2026-07-04T14:00:00.000Z',
+						author_name: null,
+					},
+				} satisfies WorkingTranscriptionPayload)
+			),
+			{ backend }
+		);
+		expect((await status()).commitState).toBe('dirty');
 	});
 
 	it('runs committed transcription file writes under the project write lock', async () => {

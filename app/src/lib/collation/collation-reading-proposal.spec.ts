@@ -74,6 +74,32 @@ function makeColumn(cells: Array<[string, AlignmentCell]>): AlignmentColumn {
 }
 
 describe('reading proposal', () => {
+	it('keeps punctuation merged by ignore-punctuation out of reading distinctions', () => {
+		const segment = (text: string, isPunctuation = false) => ({
+			text,
+			hasUnclear: false,
+			isPunctuation,
+			isSupplied: false,
+		});
+		const columns = [
+			makeColumn([
+				['A', makeCell('θν', { originalSegments: [segment('θν')] })],
+				['B', makeCell('θν;', { originalSegments: [segment('θν'), segment(';', true)] })],
+				['C', makeCell('θν·', { originalSegments: [segment('θν'), segment('·', true)] })],
+			]),
+		];
+
+		const { readings } = buildReadingProposal({
+			columns,
+			spanColumnIds: ['col-1'],
+			sourceWitnessIds: ['A', 'B', 'C'],
+			baseWitnessId: 'A',
+		});
+
+		expect(readings).toHaveLength(1);
+		expect(readings[0]?.witnessIds).toEqual(['A', 'B', 'C']);
+	});
+
 	it('takes its lacuna fixture from the adapter, gap placeholder text and all', () => {
 		expect(makeLacunaCell()).toMatchObject({
 			text: '⊘',

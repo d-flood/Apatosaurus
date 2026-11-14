@@ -1,18 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { getTranscriptionCurrentContentHashes, getTranscriptionsByIds, getVerseIndexRowsForVerse } =
-	vi.hoisted(() => ({
-		getTranscriptionCurrentContentHashes: vi.fn(async (ids: string[]) =>
-			Object.fromEntries(ids.map(id => [id, `sha256:${id}-current`]))
-		),
-		getTranscriptionsByIds: vi.fn(),
-		getVerseIndexRowsForVerse: vi.fn(),
-	}));
+const { getCurrentTranscriptionsByIds, getTranscriptionRecords, getVerseIndexRowsForVerse } =
+	vi.hoisted(() => {
+		const getTranscriptionRecords = vi.fn();
+		return {
+			getTranscriptionRecords,
+			getCurrentTranscriptionsByIds: vi.fn(async (ids: string[]) =>
+				((await getTranscriptionRecords(ids)) as { id: string }[]).map(transcription => ({
+					transcription,
+					contentHash: `sha256:${transcription.id}-current`,
+				}))
+			),
+			getVerseIndexRowsForVerse: vi.fn(),
+		};
+	});
 
-vi.mock('$lib/db/client', () => ({
-	getTranscriptionCurrentContentHashes,
-	getTranscriptionsByIds,
-}));
+vi.mock('$lib/db/client', () => ({ getCurrentTranscriptionsByIds }));
 
 vi.mock('$lib/transcription/verse-index', () => ({
 	getVerseIndexRowsForVerse,
@@ -20,7 +23,11 @@ vi.mock('$lib/transcription/verse-index', () => ({
 		`${verse.book} ${verse.chapter}:${verse.verse}`,
 }));
 
-import { gatherWitnessesForSegment, gatherWitnessesForVerse } from './collation-runner';
+import {
+	findOrphanedSegmentMembers,
+	gatherWitnessesForSegment,
+	gatherWitnessesForVerse,
+} from './collation-runner';
 
 interface Passage {
 	book: string;
@@ -72,7 +79,7 @@ describe('gatherWitnessesForVerse', () => {
 			{ transcription_id: 'tx-1' },
 			{ transcription_id: 'tx-2' },
 		]);
-		getTranscriptionsByIds.mockResolvedValue([
+		getTranscriptionRecords.mockResolvedValue([
 			{
 				id: 'tx-1',
 				siglum: 'Gr. 1992',
@@ -206,7 +213,7 @@ describe('gatherWitnessesForVerse', () => {
 		const witnesses = await gatherWitnessesForVerse('Romans 1:1', ['tx-1', 'tx-2']);
 
 		expect(getVerseIndexRowsForVerse).toHaveBeenCalledWith('Romans 1:1', ['tx-1', 'tx-2']);
-		expect(getTranscriptionsByIds).toHaveBeenCalledWith(['tx-2', 'tx-1']);
+		expect(getCurrentTranscriptionsByIds).toHaveBeenCalledWith(['tx-2', 'tx-1']);
 		expect(witnesses.map(witness => witness.transcriptionUid)).toEqual(['tx-2', 'tx-1']);
 		expect(witnesses.map(witness => witness.id)).toEqual(['Shelfmark 02', '32495']);
 		expect(witnesses.map(witness => witness.siglum)).toEqual(['Shelfmark 02', '32495']);
@@ -214,7 +221,7 @@ describe('gatherWitnessesForVerse', () => {
 	});
 
 	it('merges wrapped words before building gathered witness content', async () => {
-		getTranscriptionsByIds.mockResolvedValue([
+		getTranscriptionRecords.mockResolvedValue([
 			{
 				id: 'tx-1',
 				siglum: 'Wrapped 01',
@@ -277,7 +284,7 @@ describe('gatherWitnessesForVerse', () => {
 	});
 
 	it('can ignore wrapped word-break markers when gathering witnesses', async () => {
-		getTranscriptionsByIds.mockResolvedValue([
+		getTranscriptionRecords.mockResolvedValue([
 			{
 				id: 'tx-1',
 				siglum: 'Wrapped 01',
@@ -339,7 +346,7 @@ describe('gatherWitnessesForVerse', () => {
 	});
 
 	it('builds gathered witness content with standalone punctuation tokens', async () => {
-		getTranscriptionsByIds.mockResolvedValue([
+		getTranscriptionRecords.mockResolvedValue([
 			{
 				id: 'tx-1',
 				siglum: 'Punct 01',
@@ -389,7 +396,7 @@ describe('gatherWitnessesForVerse', () => {
 	});
 
 	it('does not add a false leading page marker when the target verse starts after a wrapped page break', async () => {
-		getTranscriptionsByIds.mockResolvedValue([
+		getTranscriptionRecords.mockResolvedValue([
 			{
 				id: 'tx-1',
 				siglum: 'Wrapped 01',
@@ -471,7 +478,7 @@ describe('gatherWitnessesForVerse', () => {
 	});
 
 	it('emits correctors as separate witnesses with full and fragmentary source variants', async () => {
-		getTranscriptionsByIds.mockResolvedValue([
+		getTranscriptionRecords.mockResolvedValue([
 			{
 				id: 'tx-1',
 				siglum: 'Corrected 01',
@@ -580,7 +587,7 @@ describe('gatherWitnessesForVerse', () => {
 				? [{ transcription_id: 'tx-ignpt' }]
 				: [{ transcription_id: 'tx-rp' }]
 		);
-		getTranscriptionsByIds.mockImplementation(async (ids: string[]) =>
+		getTranscriptionRecords.mockImplementation(async (ids: string[]) =>
 			transcriptions.filter(transcription => ids.includes(transcription.id))
 		);
 
@@ -606,7 +613,7 @@ describe('gatherWitnessesForVerse', () => {
 		getVerseIndexRowsForVerse.mockImplementation(async (identifier: string) =>
 			identifier === 'A 1:1' ? [{ transcription_id: 'tx-resolved' }] : []
 		);
-		getTranscriptionsByIds.mockResolvedValue([resolvedWitness]);
+		getTranscriptionRecords.mockResolvedValue([resolvedWitness]);
 
 		const result = await gatherWitnessesForSegment(segment, ['tx-resolved']);
 
@@ -619,13 +626,25 @@ describe('gatherWitnessesForVerse', () => {
 
 	it('reports every member as orphaned for an explicitly empty transcription scope', async () => {
 		getVerseIndexRowsForVerse.mockResolvedValue([]);
-		getTranscriptionsByIds.mockResolvedValue([]);
+		getTranscriptionRecords.mockResolvedValue([]);
 
 		const result = await gatherWitnessesForSegment({ members: ['A 1:1', 'B 1:1'] }, []);
 
 		expect(result.error).toBeNull();
 		expect(result.orphanedMembers).toEqual(['A 1:1', 'B 1:1']);
 		expect(result.witnesses).toEqual([]);
+	});
+
+	it('finds orphaned members from the verse index without loading transcriptions', async () => {
+		getVerseIndexRowsForVerse.mockImplementation(async (identifier: string) =>
+			identifier === 'A 1:1' ? [{ transcription_id: 'tx-1' }] : []
+		);
+
+		const orphaned = await findOrphanedSegmentMembers(['A 1:1', 'B 1:1', 'B 1:1'], ['tx-1']);
+
+		expect(orphaned).toEqual(['B 1:1']);
+		expect(getVerseIndexRowsForVerse).toHaveBeenCalledWith('B 1:1', ['tx-1']);
+		expect(getCurrentTranscriptionsByIds).not.toHaveBeenCalled();
 	});
 
 	it('does not report a resolved member with no prepared content as orphaned', async () => {
@@ -639,7 +658,7 @@ describe('gatherWitnessesForVerse', () => {
 				? [{ transcription_id: 'tx-empty' }]
 				: [{ transcription_id: 'tx-resolved' }]
 		);
-		getTranscriptionsByIds.mockImplementation(async (ids: string[]) =>
+		getTranscriptionRecords.mockImplementation(async (ids: string[]) =>
 			[emptyWitness, resolvedWitness].filter(transcription => ids.includes(transcription.id))
 		);
 
@@ -663,7 +682,7 @@ describe('gatherWitnessesForVerse', () => {
 	it('reports every member when all segment members are orphaned', async () => {
 		const segment = { members: ['Missing A 1:1', 'Missing B 1:1'] };
 		getVerseIndexRowsForVerse.mockResolvedValue([]);
-		getTranscriptionsByIds.mockResolvedValue([]);
+		getTranscriptionRecords.mockResolvedValue([]);
 
 		const result = await gatherWitnessesForSegment(segment, ['tx-1']);
 
@@ -686,7 +705,7 @@ describe('gatherWitnessesForVerse', () => {
 				? [{ transcription_id: 'tx-first' }]
 				: [{ transcription_id: 'tx-second' }]
 		);
-		getTranscriptionsByIds.mockImplementation(async (ids: string[]) =>
+		getTranscriptionRecords.mockImplementation(async (ids: string[]) =>
 			transcriptions.filter(transcription => ids.includes(transcription.id))
 		);
 
@@ -724,7 +743,7 @@ describe('gatherWitnessesForVerse', () => {
 			{ book: 'A', chapter: '1', verse: '1', text: 'λογος' },
 		]);
 		getVerseIndexRowsForVerse.mockResolvedValue([{ transcription_id: 'tx-1' }]);
-		getTranscriptionsByIds.mockResolvedValue([transcription]);
+		getTranscriptionRecords.mockResolvedValue([transcription]);
 
 		const result = await gatherWitnessesForSegment({ members: ['A 1:1', 'A 1:1'] }, ['tx-1']);
 
@@ -739,7 +758,7 @@ describe('gatherWitnessesForVerse', () => {
 			{ book: 'B', chapter: '1', verse: '1', text: 'θεος' },
 		]);
 		getVerseIndexRowsForVerse.mockResolvedValue([{ transcription_id: 'tx-shared' }]);
-		getTranscriptionsByIds.mockResolvedValue([transcription]);
+		getTranscriptionRecords.mockResolvedValue([transcription]);
 
 		const result = await gatherWitnessesForSegment({ members: ['A 1:1', 'B 1:1'] }, [
 			'tx-shared',
@@ -762,7 +781,7 @@ describe('gatherWitnessesForVerse', () => {
 		getVerseIndexRowsForVerse.mockImplementation(async (identifier: string) =>
 			identifier === 'Missing 1:1' ? [] : [{ transcription_id: 'tx-shared' }]
 		);
-		getTranscriptionsByIds.mockResolvedValue([transcription]);
+		getTranscriptionRecords.mockResolvedValue([transcription]);
 
 		const result = await gatherWitnessesForSegment(
 			{ members: ['A 1:1', 'B 1:1', 'Missing 1:1'] },
@@ -805,7 +824,7 @@ describe('gatherWitnessesForVerse', () => {
 			},
 		];
 		transcription.content_json = JSON.stringify(document);
-		getTranscriptionsByIds.mockResolvedValue([transcription]);
+		getTranscriptionRecords.mockResolvedValue([transcription]);
 
 		const perIdentifier = await gatherWitnessesForVerse('Romans 1:1', ['tx-1']);
 		const segmentResult = await gatherWitnessesForSegment({ members: ['Romans 1:1'] }, [

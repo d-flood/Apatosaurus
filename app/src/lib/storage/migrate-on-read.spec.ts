@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import v1Payload from './__fixtures__/synthetic-v1-payload.json';
 import v2Payload from './__fixtures__/synthetic-v2-payload.json';
 import v3Payload from './__fixtures__/synthetic-v3-payload.json';
-import { openEnvelope, sealDocument, type JsonObject } from './envelope';
+import { sealDocument, type JsonObject } from './envelope';
 import {
 	createMigrationRegistry,
 	type DocumentUpgrader,
@@ -20,7 +20,7 @@ type SyntheticPayload = JsonObject & {
 };
 
 describe('migrate-on-read registry', () => {
-	it('chains v1 to v3 upgrades and returns a sealed current document', async () => {
+	it('chains v1 to v3 upgrades and returns the current payload', async () => {
 		const registry = syntheticRegistry();
 		const v1Document = await sealDocument(FORMAT, 1, v1Payload);
 
@@ -29,12 +29,6 @@ describe('migrate-on-read registry', () => {
 		expect(result).toMatchObject({ ok: true, upgraded: true, originalVersion: 1 });
 		if (!result.ok) throw new Error('Expected v1 document to upgrade.');
 		expect(result.payload).toEqual(v3Payload);
-		expect(result.document.schema_version).toBe(3);
-		await expect(
-			import('./envelope').then(({ assertEnvelopeHash }) =>
-				assertEnvelopeHash(openEnvelope(result.document))
-			)
-		).resolves.toBeUndefined();
 	});
 
 	it('upgrades v2 documents and passes current v3 documents through without upgrading', async () => {
@@ -49,7 +43,7 @@ describe('migrate-on-read registry', () => {
 		expect(current).toMatchObject({ ok: true, upgraded: false, originalVersion: 3 });
 		if (!upgraded.ok || !current.ok) throw new Error('Expected valid synthetic documents.');
 		expect(upgraded.payload).toEqual(v3Payload);
-		expect(current.document).toEqual(v3Document);
+		expect(current.payload).toEqual(v3Payload);
 	});
 
 	it('returns quarantine codes for invalid JSON, schema versions, shapes, and hashes', async () => {

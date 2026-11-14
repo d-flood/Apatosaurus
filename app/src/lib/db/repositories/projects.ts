@@ -391,7 +391,9 @@ export async function forkProject(
 			{
 				forkedFrom: {
 					source_project_id: input.sourceProjectId,
-					source_manifest_content_hash: sourceManifestRead.document.content_hash,
+					source_manifest_content_hash: await hashCanonicalPayload(
+						sourceManifestRead.payload
+					),
 					source_manifest_schema_version: PROJECT_MANIFEST_CURRENT_VERSION,
 				},
 			},

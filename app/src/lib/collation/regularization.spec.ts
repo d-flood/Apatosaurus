@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { deserializeAlignmentColumns } from './alignment-snapshot';
+import { collateToAlignmentSnapshot } from './collation-adapter';
 import type { RegularizationRule, WitnessConfig, WitnessSourceToken } from './collation-types';
 import { deriveCollationInput } from './regularization';
 
@@ -111,5 +113,43 @@ describe('deriveCollationInput', () => {
 				changed: false,
 			}),
 		]);
+	});
+	it('aligns inherited corrector placeholders on the words they stand in for', () => {
+		const inherited = (text: string): WitnessSourceToken => ({
+			...makeToken(text),
+			kind: 'untranscribed',
+			original: '⊘',
+			gap: { source: 'untranscribed', reason: 'inherited', unit: 'token', extent: '1' },
+		});
+		const witness = (witnessId: string, tokens: WitnessSourceToken[]): WitnessConfig => ({
+			...makeWitness(''),
+			witnessId,
+			siglum: witnessId,
+			tokens,
+			isBaseText: witnessId === 'A',
+		});
+		const text = ['οιδαμεν', 'δε', 'οτι', 'τοις', 'αγαπωσιν', 'τον', 'θν', 'παντα', 'συνεργει'];
+		const { witnessInputs } = deriveCollationInput(
+			[
+				witness('A', text.map(makeToken)),
+				witness('B', ['οιδαμε', 'γαρ', ...text.slice(2)].map(makeToken)),
+				witness('C', [makeToken('οιδαμεν'), ...['γαρ', ...text.slice(2)].map(inherited)]),
+				witness('D', [...text.slice(0, 8).map(inherited), makeToken('συνεργει')]),
+			],
+			defaultSettings,
+			[]
+		);
+
+		const { snapshot } = collateToAlignmentSnapshot({
+			witnesses: witnessInputs,
+			options: { segmentation: false },
+		});
+		const columns = deserializeAlignmentColumns(snapshot.columns);
+
+		expect(columns).toHaveLength(text.length);
+		for (const id of ['C', 'D']) {
+			expect(columns.every(column => column.cells.get(id)?.kind !== 'omission')).toBe(true);
+			expect(columns.filter(column => column.cells.get(id)?.kind === 'text')).toHaveLength(1);
+		}
 	});
 });

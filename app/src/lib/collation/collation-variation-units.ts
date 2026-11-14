@@ -124,9 +124,13 @@ function getOriginalReadingKey(cell: AlignmentCell | undefined): string {
 	}
 
 	if (Array.isArray(cell.originalSegments) && cell.originalSegments.length > 0) {
+		// Punctuation only shares a cell with words when ignore-punctuation merged it there.
+		const hasWords = cell.originalSegments.some(
+			segment => segment.text.length > 0 && !segment.isPunctuation
+		);
 		// Damage markers stay in the key, or restored text buckets with intact text.
 		const normalizedSegments = cell.originalSegments
-			.filter(segment => segment.text.length > 0)
+			.filter(segment => segment.text.length > 0 && !(hasWords && segment.isPunctuation))
 			.reduce<KeySegment[]>((acc, segment) => {
 				const previous = acc[acc.length - 1];
 				if (

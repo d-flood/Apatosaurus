@@ -11,6 +11,7 @@ import type {
 	DbWorkerMessage,
 } from './rpc';
 import { ensureLocalDbRuntime, getLocalDbWorker } from './runtime';
+import { coalesce } from './coalesce';
 
 type DbArgs<K extends DbMethod> = DbApi[K] extends (
 	context: DbApiContext,
@@ -49,7 +50,7 @@ export function emitLocalDbInvalidation(domain: string): void {
 export const listTranscriptionSummaries = call('listTranscriptionSummaries');
 export const getTranscriptionSummary = call('getTranscriptionSummary');
 export const getTranscription = call('getTranscription');
-export const getTranscriptionsByIds = call('getTranscriptionsByIds');
+export const getCurrentTranscriptionsByIds = call('getCurrentTranscriptionsByIds');
 export const createTranscription = call('createTranscription');
 export const createTranscriptions = call('createTranscriptions');
 export const updateTranscriptionMetadata = call('updateTranscriptionMetadata');
@@ -76,7 +77,7 @@ export const createProject = call('createProject');
 export const forkProject = call('forkProject');
 export const updateProjectMetadata = call('updateProjectMetadata');
 export const listProjectTranscriptionOptions = call('listProjectTranscriptionOptions');
-export const listProjectTranscriptionStatuses = call('listProjectTranscriptionStatuses');
+export const listProjectTranscriptionStatuses = coalesce(call('listProjectTranscriptionStatuses'));
 export const listProjectDocumentTitles = call('listProjectDocumentTitles');
 export const listProjectIdsWithContent = call('listProjectIdsWithContent');
 export const getProjectTranscriptionStatusForOwnedTranscription = call(
@@ -96,7 +97,7 @@ export const getNextCollationSortKey = call('getNextCollationSortKey');
 export const createCollation = call('createCollation');
 export const loadCollation = call('loadCollation');
 export const listProjectCollationVersionStatuses = call('listProjectCollationVersionStatuses');
-export const getCollationVersionStatus = call('getCollationVersionStatus');
+export const getCollationVersionStatus = coalesce(call('getCollationVersionStatus'));
 export const saveCollationArtifact = call('saveCollationArtifact');
 export const updateCollationMetadata = call('updateCollationMetadata');
 export const deleteCollation = call('deleteCollation');
@@ -139,7 +140,6 @@ export const createCommittedTranscriptionCheckpoint = call(
 export const createCommittedCollationCheckpoint = call('createCommittedCollationCheckpoint');
 export const listCommittedTranscriptionCheckpoints = call('listCommittedTranscriptionCheckpoints');
 export const listTranscriptionVersions = call('listTranscriptionVersions');
-export const getTranscriptionCurrentContentHashes = call('getTranscriptionCurrentContentHashes');
 export const getTranscriptionSourceOptions = call('getTranscriptionSourceOptions');
 export const listCollationVersions = call('listCollationVersions');
 export const restoreTranscriptionVersion = call('restoreTranscriptionVersion');

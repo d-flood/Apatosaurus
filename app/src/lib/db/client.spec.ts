@@ -23,7 +23,12 @@ vi.mock('./runtime', () => ({
 	getLocalDbWorker: () => worker,
 }));
 
-import { attachLocalDbClient, listProjects, moveProject } from './client';
+import {
+	attachLocalDbClient,
+	getCollationVersionStatus,
+	listProjects,
+	moveProject,
+} from './client';
 
 attachLocalDbClient(worker as unknown as Worker);
 
@@ -54,5 +59,21 @@ describe('local database client', () => {
 
 		expect(await move).toBe('resolved');
 		expect(await queued).toBe('resolved');
+	});
+
+	it('folds collation status requests made during a load into one follow-up', async () => {
+		const first = getCollationVersionStatus('col-1');
+		const afterSave = getCollationVersionStatus('col-1');
+		const afterMetadata = getCollationVersionStatus('col-1');
+		await vi.waitFor(() => expect(worker.requests).toHaveLength(1));
+
+		worker.respond(worker.requests[0], 'stale');
+		expect(await first).toBe('stale');
+		await vi.waitFor(() => expect(worker.requests).toHaveLength(2));
+		worker.respond(worker.requests[1], 'fresh');
+
+		expect(await afterSave).toBe('fresh');
+		expect(await afterMetadata).toBe('fresh');
+		expect(worker.requests).toHaveLength(2);
 	});
 });

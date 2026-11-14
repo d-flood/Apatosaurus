@@ -1,6 +1,6 @@
 # Canonical File Formats
 
-Canonical JSON documents evolve through pure migrate-on-read upgrades. Reads verify the original envelope hash, apply each version upgrade, validate the current shape and semantic integrity, and return a newly sealed in-memory document. Reading never rewrites the source file.
+Canonical JSON documents evolve through pure migrate-on-read upgrades. Reads verify the original envelope hash, apply each version upgrade, validate the current shape and semantic integrity, and return the validated payload. Reading never rewrites the source file.
 
 ## Collation Version 2
 
