@@ -2,8 +2,9 @@ import type { FormatRegistration } from '../migrate-on-read';
 import type { JsonObject } from '../envelope';
 import { invalidShape } from '../quarantine';
 import { upgradeAlphaCollationCheckpoint } from './alpha-collation';
-import { assertContentHashMatches } from './validation';
-import { readCollationContent, type CollationContent } from './collation';
+import { assertContentHashMatches } from '../formats/validation';
+import type { CollationContent } from '../formats/collation';
+import { readCollationContent } from './collation';
 import {
 	addVersionMetadata,
 	COLLATION_HISTORY_ENTITY_TYPE,

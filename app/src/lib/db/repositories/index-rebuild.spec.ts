@@ -1,9 +1,13 @@
 import {
 	createCollationWithFiles,
 	createLocalDbTestHarness,
+	createTranscriptionWithFiles,
 	type LocalDbTestHarness,
 } from '$lib/testing/local-db-harness';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { sql } from 'kysely';
+
+import { verseMilestones } from './verse-milestones.spec-support';
 
 import type { StoredTranscriptionDocument } from '$lib/transcription/content';
 import {
@@ -25,21 +29,23 @@ import {
 import {
 	readCanonicalDocument,
 	PROJECT_MANIFEST_FORMAT,
-	PROJECT_TRANSCRIPTION_FORMAT,
 	serializeCanonicalDocument,
-	WORKING_TRANSCRIPTION_FORMAT,
 	type ProjectManifestPayload,
-	type ProjectTranscriptionPayload,
-	type WorkingTranscriptionPayload,
 } from '$lib/storage/formats';
 import { hashCanonicalPayload } from '$lib/storage/canonical-json';
 
 import {
+	createCommittedCollationCheckpointWithFiles,
 	loadCollationWithWorkingFile,
 	saveWorkingCollationArtifact,
 	saveWorkingCollationMetadata,
+	updateCollationVersionNote,
 } from './collation-files';
-import { ensureManifestSourceWithFiles } from './iiif-files';
+import {
+	ensureManifestSourceWithFiles,
+	upsertCanvasAnnotationWithFiles,
+	upsertPageCanvasLinkWithFiles,
+} from './iiif-files';
 import { listManifestSources } from './iiif';
 import { rebuildIndexFromStore, restoreOrphanPrimaryToProject } from './index-rebuild';
 import {
@@ -53,9 +59,11 @@ import { listCommittedTranscriptionCheckpoints } from './revisions';
 import {
 	createCommittedTranscriptionCheckpointWithFiles,
 	loadTranscriptionWithWorkingFile,
+	saveWorkingTranscriptionContent,
 	saveWorkingTranscriptionMetadata,
+	updateTranscriptionVersionNote,
 } from './transcription-files';
-import { createTranscription, listVerseIndexRows } from './transcriptions';
+import { createTranscription, getCurrentVerseSources, listVerseIndexRows } from './transcriptions';
 import { COLLATION_FIXTURE } from '$lib/storage/formats/payload-fixtures';
 
 let harness: LocalDbTestHarness;
@@ -382,69 +390,264 @@ describe('rebuildIndexFromStore', () => {
 		).resolves.toEqual({ transcription_id: 'tx-1', project_transcription_id: 'pt-1' });
 	});
 
-	it('ignores a stale working transcription when rebuilding the live index', async () => {
+	it('rebuilds the same index rows from TEI files as live writes produced', async () => {
 		const backend = new MemoryStoreBackend();
-		const storeOptions = { backend, nonce: () => 'stale-working' };
+		const storeOptions = { backend };
 		await createProject(
 			harness.db,
 			{ id: 'project-1', storageSlug: 'project-slug', name: 'Project' },
 			storeOptions
 		);
-		await createTranscription(harness.db, {
-			id: 'tx-1',
-			projectId: 'project-1',
-			projectTranscriptionId: 'pt-1',
-			title: 'Committed title',
-			siglum: '01',
-			document: documentWithVerses(['Romans 1:1']),
-			transcriber: '',
-			repository: '',
-			settlement: '',
-			language: 'grc',
-		});
-		await createCommittedTranscriptionCheckpointWithFiles(
+		await createTranscriptionWithFiles(
 			harness.db,
-			{ projectTranscriptionId: 'pt-1' },
+			{
+				id: 'tx-1',
+				projectId: 'project-1',
+				projectTranscriptionId: 'pt-1',
+				title: 'Witness 1',
+				siglum: '01',
+				document: documentWithVerses(['Romans 1:1', 'Romans 1:2']),
+				transcriber: 'Editor',
+				repository: 'Library',
+				settlement: 'City',
+				language: 'grc',
+			},
 			storeOptions
 		);
-		const workingPath = transcriptionWorkingFile('project-slug', 'pt-1');
-		const primaryRead = await readCanonicalDocument<ProjectTranscriptionPayload>(
-			PROJECT_TRANSCRIPTION_FORMAT,
-			await backend.readTextFile(
-				joinStorePath(APP_STORE_ROOT, transcriptionPrimaryFile('project-slug', 'pt-1'))
-			)
+		const source = await ensureManifestSourceWithFiles(
+			harness.db,
+			{ transcriptionId: 'tx-1', manifestUrl: 'https://example.test/manifest', label: 'MS' },
+			storeOptions
 		);
-		if (!primaryRead.ok) throw new Error(primaryRead.quarantine.message);
-		const { based_on_checkpoint: _basedOn, draft, ...content } = primaryRead.payload;
-		const staleWorking: WorkingTranscriptionPayload = {
-			...content,
-			title: 'Stale draft title',
-			draft: {
-				base_revision_id: 'superseded',
-				base_content_hash: 'sha256:superseded',
-				saved_at: draft.saved_at,
-				author_name: null,
+		await upsertPageCanvasLinkWithFiles(
+			harness.db,
+			{
+				transcriptionId: 'tx-1',
+				pageId: 'page-1',
+				pageNameSnapshot: 'Page 1',
+				pageOrder: 0,
+				manifestSourceId: source.id,
+				manifestUrlSnapshot: 'https://example.test/manifest',
+				canvasId: 'canvas-1',
+				canvasOrder: 0,
+				canvasLabel: 'Canvas 1',
+				imageServiceUrl: null,
+				thumbnailUrl: null,
 			},
+			storeOptions
+		);
+		await upsertCanvasAnnotationWithFiles(
+			harness.db,
+			{
+				transcriptionId: 'tx-1',
+				manifestSourceId: source.id,
+				pageId: 'page-1',
+				canvasId: 'canvas-1',
+				anchor: { pageId: 'page-1' },
+				annotation: {
+					'@context': 'http://www.w3.org/ns/anno.jsonld',
+					id: 'anno-1',
+					type: 'Annotation',
+					body: [{ type: 'TextualBody', value: 'note', purpose: 'commenting' }],
+					target: { source: 'canvas-1' },
+				},
+			},
+			storeOptions
+		);
+		await createCommittedTranscriptionCheckpointWithFiles(
+			harness.db,
+			{ projectTranscriptionId: 'pt-1', checkpointId: 'cp-linked', authorName: 'Editor' },
+			storeOptions
+		);
+		await updateTranscriptionVersionNote(
+			harness.db,
+			'tx-1',
+			'cp-linked',
+			'Linked',
+			storeOptions
+		);
+		await saveWorkingTranscriptionContent(
+			harness.db,
+			{ id: 'tx-1', document: documentWithVerses(['Romans 1:1', 'Romans 1:3']) },
+			storeOptions
+		);
+		const live = await indexTables();
+		expect(live.document_file_fingerprints).toHaveLength(3);
+		expect(live.iiif_canvas_annotations).toHaveLength(1);
+		const verseSources = () =>
+			Promise.all(
+				['Romans 1:1', 'Romans 1:3'].map(verse =>
+					getCurrentVerseSources(harness.db, verse, ['tx-1'])
+				)
+			);
+		const liveSources = await verseSources();
+		expect(liveSources.flat().map(source => source.document.pages.length)).toEqual([1, 1]);
+
+		await rebuildIndexFromStore(harness.db, storeOptions);
+
+		expect(await indexTables()).toEqual(live);
+		expect(await verseSources()).toEqual(liveSources);
+	});
+
+	it('rebuilds the same collation index rows from TEI files as live writes produced', async () => {
+		const backend = new MemoryStoreBackend();
+		const storeOptions = { backend };
+		await createProject(
+			harness.db,
+			{ id: 'project-1', storageSlug: 'project-slug', name: 'Project' },
+			storeOptions
+		);
+		await createTranscriptionWithFiles(
+			harness.db,
+			{
+				id: 'tx-1',
+				projectId: 'project-1',
+				projectTranscriptionId: 'pt-1',
+				title: 'Witness 1',
+				siglum: '01',
+				document: documentWithVerses(['John 1:1']),
+				transcriber: 'Editor',
+				repository: 'Library',
+				settlement: 'City',
+				language: 'grc',
+			},
+			storeOptions
+		);
+		await createCollationWithFiles(
+			harness.db,
+			{
+				id: 'col-1',
+				projectId: 'project-1',
+				title: 'John 1:1',
+				verseIdentifier: 'John 1:1',
+				segment: { id: 'segment-1', name: 'John 1:1', members: ['John 1:1'] },
+			},
+			storeOptions
+		);
+		const document = structuredClone(COLLATION_FIXTURE.document);
+		document.setup.witnesses = [
+			{
+				type: 'witness',
+				id: '01',
+				siglum: '01',
+				transcriptionId: 'tx-1',
+				content: 'εν αρχη',
+				treatment: 'inherit',
+				isBaseText: true,
+				isExcluded: false,
+				overridesDefault: false,
+				source: {
+					kind: 'current',
+					transcriptionId: 'tx-1',
+					capturedAt: '2026-07-04T12:00:00.000Z',
+					contentHash: 'sha256:captured',
+				},
+				sourceTokens: [],
+			},
+		];
+		await saveWorkingCollationArtifact(
+			harness.db,
+			{
+				collationId: 'col-1',
+				artifactType: 'collation_document_v1',
+				payload: JSON.stringify(document),
+				metadata: { notes: 'Verse note', groupPath: 'Group' },
+			},
+			storeOptions
+		);
+		await createCommittedCollationCheckpointWithFiles(
+			harness.db,
+			{ collationId: 'col-1', checkpointId: 'col-cp-2', commitMessage: 'Second' },
+			storeOptions
+		);
+		await updateCollationVersionNote(harness.db, 'col-1', 'col-cp-2', 'Revised', storeOptions);
+		await saveWorkingCollationMetadata(
+			harness.db,
+			{ id: 'col-1', title: 'Renamed' },
+			storeOptions
+		);
+		const live = await collationIndexTables();
+		expect(live.collation_checkpoints).toHaveLength(2);
+		expect(
+			live.document_file_fingerprints.filter(row =>
+				(row as { path: string }).path.includes('collations/')
+			)
+		).toHaveLength(3);
+		expect(live.collation_witnesses).toEqual([
+			expect.objectContaining({ project_transcription_id: 'pt-1', source_kind: 'current' }),
+		]);
+
+		await rebuildIndexFromStore(harness.db, storeOptions);
+
+		expect(await collationIndexTables()).toEqual(live);
+		expect(
+			(await loadCollationWithWorkingFile(harness.db, 'col-1', storeOptions))?.row.title
+		).toBe('Renamed');
+	});
+
+	it('skips JSON heads awaiting conversion without reporting their files', async () => {
+		const backend = new MemoryStoreBackend();
+		const storeOptions = { backend, nonce: () => 'json-head' };
+		await createProject(
+			harness.db,
+			{ id: 'project-1', storageSlug: 'project-slug', name: 'Project' },
+			storeOptions
+		);
+		await createTranscriptionWithFiles(
+			harness.db,
+			{
+				id: 'tx-1',
+				projectId: 'project-1',
+				projectTranscriptionId: 'pt-1',
+				title: 'Awaiting conversion',
+				siglum: '01',
+				document: documentWithVerses(['Romans 1:1']),
+				transcriber: '',
+				repository: '',
+				settlement: '',
+				language: 'grc',
+			},
+			storeOptions
+		);
+		const manifestPath = projectManifestFile('project-slug');
+		const manifestRead = await readCanonicalDocument<ProjectManifestPayload>(
+			PROJECT_MANIFEST_FORMAT,
+			await backend.readTextFile(joinStorePath(APP_STORE_ROOT, manifestPath))
+		);
+		if (!manifestRead.ok) throw new Error(manifestRead.quarantine.message);
+		const transcriptions = manifestRead.payload.transcriptions.map(head => ({
+			...head,
+			primary_path: 'transcriptions/pt-1.json',
+		}));
+		const jsonHeadedManifest = {
+			...manifestRead.payload,
+			transcriptions,
+			manifest_content_hash: await hashCanonicalPayload({
+				project_id: 'project-1',
+				transcriptions,
+				collations: manifestRead.payload.collations,
+				tombstones: manifestRead.payload.tombstones,
+			}),
 		};
 		await backend.writeTextFile(
-			joinStorePath(APP_STORE_ROOT, workingPath),
-			await serializeCanonicalDocument(WORKING_TRANSCRIPTION_FORMAT, staleWorking)
+			joinStorePath(APP_STORE_ROOT, manifestPath),
+			await serializeCanonicalDocument(PROJECT_MANIFEST_FORMAT, jsonHeadedManifest as never)
 		);
+		for (const path of [
+			transcriptionPrimaryFile('project-slug', 'pt-1'),
+			transcriptionWorkingFile('project-slug', 'pt-1'),
+			'projects/project-slug/history/transcriptions/pt-1/cp-1.json',
+		])
+			await backend.writeTextFile(joinStorePath(APP_STORE_ROOT, path), '{}');
 
 		const report = await rebuildIndexFromStore(harness.db, storeOptions);
 
-		expect(
-			await loadTranscriptionWithWorkingFile(harness.db, 'tx-1', storeOptions)
-		).toMatchObject({
-			title: 'Committed title',
+		expect(report).toMatchObject({
+			projectsRestored: 1,
+			orphanedFiles: [],
+			quarantinedFiles: [],
 		});
-		expect(report.orphanedFiles).toContainEqual(
-			expect.objectContaining({
-				path: workingPath,
-				code: 'stale_working',
-				recoverable: false,
-			})
-		);
+		expect(await loadTranscriptionWithWorkingFile(harness.db, 'tx-1', storeOptions)).toBeNull();
 	});
 
 	it('reports every unsupported project file individually without mutating files', async () => {
@@ -579,7 +782,7 @@ describe('rebuildIndexFromStore', () => {
 		);
 
 		const orphanReport = await rebuildIndexFromStore(harness.db, storeOptions);
-		const orphan = orphanReport.orphanedFiles.find(file => file.path.endsWith('/pt-1.json'));
+		const orphan = orphanReport.orphanedFiles.find(file => file.path.endsWith('/pt-1.tei.xml'));
 		expect(orphan).toMatchObject({ recoverable: true, entityType: 'transcription' });
 		expect(await loadTranscriptionWithWorkingFile(harness.db, 'tx-1', storeOptions)).toBeNull();
 
@@ -606,6 +809,58 @@ describe('rebuildIndexFromStore', () => {
 	});
 });
 
+// Verse index ids and index times are regenerated on every write, so they are left out.
+async function collationIndexTables(): Promise<Record<string, unknown[]>> {
+	const snapshot = await snapshotTables([
+		['collations', []],
+		['collation_checkpoints', []],
+		['collation_artifacts', []],
+		['document_file_fingerprints', []],
+		['collation_witnesses', ['id']],
+		['collation_tokens', ['id']],
+		['collation_variation_units', ['id']],
+		['collation_readings', ['id', 'variation_unit_id']],
+		['collation_reading_witnesses', ['id', 'reading_id']],
+	]);
+	snapshot.collation_artifacts = snapshot.collation_artifacts.map(row => ({
+		...(row as Record<string, unknown>),
+		payload: JSON.parse(String((row as { payload: string }).payload)),
+	}));
+	return snapshot;
+}
+
+async function indexTables(): Promise<Record<string, unknown[]>> {
+	return snapshotTables([
+		['transcriptions', []],
+		['project_transcriptions', []],
+		['transcription_checkpoints', []],
+		['document_file_fingerprints', []],
+		['transcription_verse_index', ['id', 'last_indexed_at']],
+		['transcription_verse_index_state', ['last_indexed_at']],
+		['transcription_slice_chunks', []],
+		['iiif_manifest_sources', []],
+		['transcription_page_canvas_links', []],
+		['iiif_canvas_annotations', []],
+	]);
+}
+
+async function snapshotTables(
+	tables: Array<[string, string[]]>
+): Promise<Record<string, unknown[]>> {
+	const snapshot: Record<string, unknown[]> = {};
+	for (const [table, omitted] of tables) {
+		const { rows } = await sql<
+			Record<string, unknown>
+		>`select * from ${sql.table(table)}`.execute(harness.db);
+		snapshot[table] = rows
+			.map(row =>
+				Object.fromEntries(Object.entries(row).filter(([key]) => !omitted.includes(key)))
+			)
+			.sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
+	}
+	return snapshot;
+}
+
 function documentWithVerses(verses: string[]): StoredTranscriptionDocument {
 	return {
 		type: 'transcriptionDocument' as const,
@@ -621,15 +876,7 @@ function documentWithVerses(verses: string[]): StoredTranscriptionDocument {
 							{
 								type: 'line',
 								number: 1,
-								items: verses.map(identifier => {
-									const [book, chapterVerse] = identifier.split(' ');
-									const [chapter, verse] = chapterVerse.split(':');
-									return {
-										type: 'milestone' as const,
-										kind: 'verse' as const,
-										attrs: { book, chapter, verse },
-									};
-								}),
+								items: verseMilestones(verses),
 							},
 						],
 					},

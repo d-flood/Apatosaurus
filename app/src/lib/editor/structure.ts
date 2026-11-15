@@ -56,7 +56,10 @@ export function getChangedRanges(
 	return ranges;
 }
 
+let generatedNodeIdCount = 0;
+
 function createStableEditorNodeId(prefix: string): string {
+	generatedNodeIdCount += 1;
 	if (typeof crypto?.randomUUID === 'function') {
 		return `${prefix}-${crypto.randomUUID()}`;
 	}
@@ -110,6 +113,13 @@ function isAllowedMainLineContentNode(node: unknown): node is JsonNode {
 		isRecord(node) &&
 		typeof node.type === 'string' &&
 		MAIN_LINE_CONTENT_NODE_NAMES.has(node.type)
+	);
+}
+
+function hasLegacyFormWorkContent(node: JsonNode): boolean {
+	if (node.type === 'fw' && isRecord(node.attrs) && 'content' in node.attrs) return true;
+	return (Array.isArray(node.content) ? node.content : []).some(
+		child => isRecord(child) && hasLegacyFormWorkContent(child)
 	);
 }
 
@@ -190,7 +200,7 @@ function sanitizeLineContentNode(node: JsonNode): JsonNode | null {
 		if (text.length === 0) return null;
 	}
 
-	return cloneJsonNode(node);
+	return node;
 }
 
 function sanitizeLineNode(node: JsonNode, issues: string[], path: string): JsonNode {
@@ -207,7 +217,7 @@ function sanitizeLineNode(node: JsonNode, issues: string[], path: string): JsonN
 		.filter((child): child is JsonNode => child !== null);
 
 	return {
-		...cloneJsonNode(node),
+		...node,
 		type: 'line',
 		...(content.length > 0 ? { content } : {}),
 	};
@@ -282,10 +292,10 @@ function repairColumnNode(
 	}
 
 	return {
-		...cloneJsonNode(node),
+		...node,
 		type: 'column',
 		attrs: {
-			...(isRecord(node.attrs) ? cloneJsonNode(node.attrs) : {}),
+			...(isRecord(node.attrs) ? { ...node.attrs } : {}),
 			...(options.ensureNodeIds && !node.attrs?.columnId
 				? { columnId: createStableEditorNodeId('col') }
 				: {}),
@@ -293,7 +303,7 @@ function repairColumnNode(
 		content: lines.map(line => ({
 			...line,
 			attrs: {
-				...(isRecord(line.attrs) ? cloneJsonNode(line.attrs) : {}),
+				...(isRecord(line.attrs) ? { ...line.attrs } : {}),
 				...(options.ensureNodeIds && !line.attrs?.lineId
 					? { lineId: createStableEditorNodeId('line') }
 					: {}),
@@ -369,7 +379,7 @@ function repairPageNode(
 			: columns;
 
 	return {
-		...cloneJsonNode(node),
+		...node,
 		type: 'page',
 		content: orderedColumns.map((column, columnIndex) =>
 			repairColumnNode(column, issues, `${path}.column[${columnIndex}]`, options)
@@ -386,7 +396,13 @@ export function repairManuscriptStructureJson(
 		ensureNodeIds: options.ensureNodeIds ?? false,
 	};
 	const issues: string[] = [];
-	const doc = isRecord(input) ? cloneJsonNode(input) : { type: 'manuscript', content: [] };
+	// Only migration mutates the input; every other repair builds new objects.
+	const doc = isRecord(input)
+		? hasLegacyFormWorkContent(input)
+			? cloneJsonNode(input)
+			: input
+		: { type: 'manuscript', content: [] };
+	const generatedNodeIdsBefore = generatedNodeIdCount;
 
 	if (doc.type !== 'manuscript') {
 		issues.push(
@@ -462,7 +478,7 @@ export function repairManuscriptStructureJson(
 									`page[${pages.length}].column[0].line[0]`
 								),
 								attrs: {
-									...(isRecord(child.attrs) ? cloneJsonNode(child.attrs) : {}),
+									...(isRecord(child.attrs) ? { ...child.attrs } : {}),
 									...(normalizedOptions.ensureNodeIds
 										? { lineId: createStableEditorNodeId('line') }
 										: {}),
@@ -501,7 +517,10 @@ export function repairManuscriptStructureJson(
 
 	return {
 		doc: repairedDoc,
-		repaired: migrated || JSON.stringify(doc) !== JSON.stringify(repairedDoc),
+		repaired:
+			migrated ||
+			generatedNodeIdCount !== generatedNodeIdsBefore ||
+			JSON.stringify(doc) !== JSON.stringify(repairedDoc),
 		issues,
 	};
 }

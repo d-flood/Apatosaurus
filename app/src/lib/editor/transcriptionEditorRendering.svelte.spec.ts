@@ -1,9 +1,14 @@
+import { toProseMirror } from '@apatosaurus/tei-transcription';
 import { Editor, generateHTML } from '@tiptap/core';
+import { DOMSerializer } from '@tiptap/pm/model';
 import { NodeSelection } from '@tiptap/pm/state';
 import { beforeAll, describe, expect, it } from 'vitest';
 
+import { importTEIDocument } from '$lib/tei/tei-importer';
 import { editorDocument } from '$lib/testing/editorFixtures';
-import { createTestEditor } from '$lib/testing/editorHarnesses.svelte';
+import { createTestEditor, mountTranscriptionEditor } from '$lib/testing/editorHarnesses.svelte';
+import { coerceTranscriptionDocument } from '$lib/transcription/content';
+import witness2006Tei from '../../../static/igntp/Romans_Greek_transcriptions/NT_GRC_2006_Rom.xml?raw';
 import { getCorrectionRenderExtensions } from './schema/index';
 
 type Json = Record<string, any>;
@@ -565,4 +570,89 @@ describe('renderHTML round trip', () => {
 			editor.destroy();
 		}
 	});
+});
+
+const GENERATED_ID_ATTRS: Record<string, string> = { column: 'columnId', line: 'lineId' };
+
+function withoutGeneratedIds(node: Json): Json {
+	const idAttr = GENERATED_ID_ATTRS[node.type];
+	const attrs = idAttr && node.attrs ? { ...node.attrs, [idAttr]: null } : node.attrs;
+	return {
+		...node,
+		...(attrs ? { attrs } : {}),
+		...(Array.isArray(node.content) ? { content: node.content.map(withoutGeneratedIds) } : {}),
+	};
+}
+
+const isProseMirrorHack = (element: Element) =>
+	element.classList.contains('ProseMirror-trailingBreak') ||
+	element.classList.contains('ProseMirror-separator');
+
+function elementSignatures(root: Element): string[] {
+	return Array.from(root.querySelectorAll('*'))
+		.filter(element => !isProseMirrorHack(element))
+		.map(element =>
+			JSON.stringify([
+				element.tagName.toLowerCase(),
+				Array.from(element.attributes)
+					.filter(attribute => attribute.name !== 'contenteditable')
+					.map(attribute => [attribute.name, attribute.value])
+					.sort(([left], [right]) => left.localeCompare(right)),
+				Array.from(element.children).every(isProseMirrorHack) ? element.textContent : null,
+			])
+		);
+}
+
+describe('large transcription rendering', () => {
+	it('opens witness 2006 with the same document, structure and ids as its eager build', async () => {
+		const stored = coerceTranscriptionDocument(importTEIDocument(witness2006Tei))!;
+		const harness = await mountTranscriptionEditor({ document: stored });
+		try {
+			const editor = (harness.container.querySelector('.ProseMirror') as any)
+				.editor as Editor;
+			const loaded = editor.state.doc.toJSON();
+			const eager = editor.schema.nodeFromJSON(toProseMirror(stored)).toJSON();
+
+			expect(loaded.content.length).toBeGreaterThan(500);
+			expect(withoutGeneratedIds(loaded)).toEqual(withoutGeneratedIds(eager));
+
+			const ids = {
+				page: new Set<string>(),
+				column: new Set<string>(),
+				line: new Set<string>(),
+			};
+			let nodes = { page: 0, column: 0, line: 0 };
+			editor.state.doc.descendants(node => {
+				const type = node.type.name as keyof typeof ids;
+				if (!(type in ids)) return false;
+				nodes = { ...nodes, [type]: nodes[type] + 1 };
+				ids[type].add(node.attrs[`${type}Id`]);
+				return type !== 'line';
+			});
+			for (const type of ['page', 'column', 'line'] as const) {
+				expect(ids[type].size, type).toBe(nodes[type]);
+				expect([...ids[type]].every(Boolean), type).toBe(true);
+			}
+
+			const pages = Array.from(
+				harness.container.querySelectorAll<HTMLElement>('.ProseMirror > .page')
+			);
+			expect(pages.map(page => page.dataset.pageId)).toEqual(
+				eager.content.map((page: Json) => page.attrs.pageId)
+			);
+			const domLineIds = Array.from(
+				harness.container.querySelectorAll<HTMLElement>('.ProseMirror .line'),
+				line => line.dataset.lineId
+			);
+			expect(domLineIds).toEqual([...ids.line]);
+
+			const eagerDom = document.createElement('div');
+			eagerDom.appendChild(
+				DOMSerializer.fromSchema(editor.schema).serializeFragment(editor.state.doc.content)
+			);
+			expect(elementSignatures(editor.view.dom)).toEqual(elementSignatures(eagerDom));
+		} finally {
+			harness.dispose();
+		}
+	}, 120_000);
 });

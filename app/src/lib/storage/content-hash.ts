@@ -10,3 +10,21 @@ export async function hashContent(content: string | Uint8Array): Promise<string>
 		.map(byte => byte.toString(16).padStart(2, '0'))
 		.join('')}`;
 }
+
+export interface FileFingerprint {
+	contentHash: string;
+	size: number;
+	modifiedAt: string;
+}
+
+export async function fingerprintContent(
+	content: string | Uint8Array,
+	modifiedAt: string
+): Promise<FileFingerprint> {
+	const bytes = typeof content === 'string' ? new TextEncoder().encode(content) : content;
+	return {
+		contentHash: await hashContent(bytes),
+		size: bytes.byteLength,
+		modifiedAt,
+	};
+}

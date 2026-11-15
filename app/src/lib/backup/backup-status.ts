@@ -1,7 +1,7 @@
 import type { Selectable } from 'kysely';
 
 import type { SyncFileFingerprints } from '$lib/db/types.generated';
-import { projectRelativePaths } from '$lib/storage/layout';
+import { documentCanonicalPath } from '$lib/storage/document-files';
 import type { DbExecutor } from '$lib/db/worker-kysely';
 import type { PlacedProject } from '$lib/storage/project-locations';
 
@@ -101,10 +101,10 @@ export async function deriveEntityCloudBackupState(
 }
 
 function cloudPathForEntity(reference: SyncEntityReference): string {
-	const paths = projectRelativePaths();
-	return reference.entityType === 'project-transcription'
-		? paths.transcriptions(reference.entityId)
-		: paths.collations(reference.entityId);
+	return documentCanonicalPath(
+		reference.entityType === 'project-transcription' ? 'transcription' : 'collation',
+		reference.entityId
+	);
 }
 
 async function getSyncMetadata(

@@ -3,43 +3,41 @@ import { sql, type Insertable, type Kysely, type Transaction } from 'kysely';
 import {
 	CBGM_ANALYSIS_ENTITY_TYPE,
 	CBGM_ANALYSIS_FORMAT,
-	COLLATION_CHECKPOINT_FORMAT,
-	COLLATION_FORMAT,
 	PROJECT_MANIFEST_FORMAT,
-	PROJECT_TRANSCRIPTION_FORMAT,
 	TOMBSTONE_FORMAT,
-	TRANSCRIPTION_CHECKPOINT_FORMAT,
-	WORKING_COLLATION_FORMAT,
-	WORKING_TRANSCRIPTION_FORMAT,
-	mergeWorkingCollation,
-	mergeWorkingTranscription,
+	parseCollationPayloadTei,
+	parseCollationTeiVersionHeader,
+	parseTranscriptionTei,
+	parseTranscriptionTeiVersion,
 	readCanonicalDocument,
 	type CbgmAnalysisMetadata,
-	type CollationCheckpointPayload,
 	type CollationPayload,
 	type ProjectManifestPayload,
 	type ProjectTranscriptionPayload,
 	type TombstonePayload,
-	type TranscriptionCheckpointPayload,
-	type WorkingCollationPayload,
-	type WorkingTranscriptionPayload,
 } from '$lib/storage/formats';
+import { teiContentHash } from '$lib/storage/tei-content';
 import {
 	cbgmFolder,
-	collationWorkingFile,
 	collationHistoryFolder,
-	collationTeiFile,
 	joinStorePath,
 	projectFolder,
 	projectManifestFile,
 	projectsFolder,
 	transcriptionHistoryFolder,
-	transcriptionTeiFile,
-	transcriptionWorkingFile,
 } from '$lib/storage/layout';
+import {
+	classifyDocumentPath,
+	documentCanonicalPath,
+	documentStorageOfPath,
+	legacyDocumentPaths,
+	type DocumentKind,
+} from '$lib/storage/document-files';
+import { hashContent } from '$lib/storage/content-hash';
 import {
 	listDirectory,
 	readTextFile,
+	statFile,
 	type StoreDirectoryEntry,
 	type StoreOperationOptions,
 } from '$lib/storage/opfs-store';
@@ -61,6 +59,7 @@ import type {
 	CollationWitnesses,
 	Collations,
 	Database,
+	DocumentFileFingerprints,
 	IiifCanvasAnnotations,
 	IiifManifestSources,
 	ProjectTranscriptions,
@@ -74,6 +73,11 @@ import { replaceTranscriptionVerseIndexRows } from './transcriptions';
 import { buildSerializedCollationProjectionRows } from '$lib/collation/collation-projection';
 import { writeProjectManifestPayloadFile } from './project-files';
 import { cbgmAnalysisIndexRow } from './cbgm-analyses';
+import { collationIndexRowsFromPayload } from './collations';
+import {
+	documentFingerprintRow,
+	type DocumentFingerprintEntityType,
+} from './document-fingerprints';
 
 type DbTransaction = Transaction<Database>;
 
@@ -116,7 +120,11 @@ interface RebuildRows {
 	pageCanvasLinks: Insertable<TranscriptionPageCanvasLinks>[];
 	canvasAnnotations: Insertable<IiifCanvasAnnotations>[];
 	transcriptionCheckpoints: Insertable<TranscriptionCheckpoints>[];
-	transcriptionVerseInputs: Array<{ transcriptionId: string; contentJson: string }>;
+	transcriptionVerseInputs: Array<{
+		transcriptionId: string;
+		projectTranscriptionId: string;
+		contentJson: string;
+	}>;
 	collations: Insertable<Collations>[];
 	collationArtifacts: Insertable<CollationArtifacts>[];
 	collationWitnesses: Insertable<CollationWitnesses>[];
@@ -127,10 +135,13 @@ interface RebuildRows {
 	collationCheckpoints: Insertable<CollationCheckpoints>[];
 	cbgmAnalyses: Insertable<CbgmAnalyses>[];
 	tombstones: Insertable<SyncTombstones>[];
+	documentFingerprints: Insertable<DocumentFileFingerprints>[];
 }
 
 const INDEX_TABLE_DELETE_ORDER = [
 	'sync_file_fingerprints',
+	'document_file_problems',
+	'document_file_fingerprints',
 	'cbgm_analyses',
 	'collation_reading_witnesses',
 	'collation_readings',
@@ -143,6 +154,7 @@ const INDEX_TABLE_DELETE_ORDER = [
 	'iiif_canvas_annotations',
 	'transcription_page_canvas_links',
 	'iiif_manifest_sources',
+	'transcription_slice_chunks',
 	'transcription_verse_index',
 	'transcription_verse_index_state',
 	'transcription_checkpoints',
@@ -152,17 +164,46 @@ const INDEX_TABLE_DELETE_ORDER = [
 	'projects',
 ] as const satisfies ReadonlyArray<keyof Database>;
 
+export interface IndexRebuildProgress {
+	done: number;
+	total: number;
+	phase?: 'conversion';
+}
+
+class RebuildProgress {
+	done = 0;
+	total = 0;
+	constructor(private readonly onProgress?: (progress: IndexRebuildProgress) => void) {}
+
+	add(count: number) {
+		this.total += count;
+		this.onProgress?.({ done: this.done, total: this.total });
+	}
+
+	step() {
+		this.done += 1;
+		this.onProgress?.({ done: this.done, total: this.total });
+	}
+
+	finish() {
+		this.onProgress?.({ done: this.total, total: this.total });
+	}
+}
+
 export async function rebuildIndexFromStore(
 	db: Kysely<Database>,
-	storeOptions: StoreOperationOptions = {}
+	storeOptions: StoreOperationOptions = {},
+	onProgress?: (progress: IndexRebuildProgress) => void
 ): Promise<IndexRebuildReport> {
 	const report = createEmptyReport();
-	const rows = await collectIndexRowsFromStore(report, storeOptions);
+	const progress = new RebuildProgress(onProgress);
+	const rows = await collectIndexRowsFromStore(report, storeOptions, progress);
 
 	await db.transaction().execute(async trx => {
 		await clearIndexTables(trx);
-		await insertIndexRows(trx, rows);
+		await insertIndexRows(trx, rows, progress);
 	});
+	progress.finish();
 
 	report.projectsRestored = rows.projects.length;
 	report.transcriptionsRestored = rows.transcriptions.length;
@@ -178,9 +219,19 @@ export async function restoreOrphanPrimaryToProject(
 	path: string,
 	storeOptions: StoreOperationOptions = {}
 ): Promise<IndexRebuildReport> {
-	const match = /^projects\/([^/]+)\/(transcriptions|collations)\/([^/]+)\.json$/.exec(path);
-	if (!match) throw new Error('Only canonical orphan primary paths can be restored.');
-	const [, projectSlug, folderName, fileId] = match;
+	await addOrphanPrimaryToManifest(path, storeOptions);
+	return rebuildIndexFromStore(db, storeOptions);
+}
+
+export async function addOrphanPrimaryToManifest(
+	path: string,
+	storeOptions: StoreOperationOptions = {}
+): Promise<void> {
+	const [, projectSlug = '', relativePath = ''] = /^projects\/([^/]+)\/(.+)$/.exec(path) ?? [];
+	const file = classifyDocumentPath(relativePath);
+	if (!file || !(await isTeiDocumentPrimary(projectSlug, relativePath, storeOptions)))
+		throw new Error('Only canonical orphan primary paths can be restored.');
+	const fileId = file.entityId;
 	const manifestRead = await readCanonicalDocument<ProjectManifestPayload>(
 		PROJECT_MANIFEST_FORMAT,
 		await readTextFile(projectManifestFile(projectSlug), storeOptions)
@@ -189,14 +240,8 @@ export async function restoreOrphanPrimaryToProject(
 		throw new Error(`Project manifest is invalid: ${manifestRead.quarantine.message}`);
 	const manifest = manifestRead.payload;
 
-	if (folderName === 'transcriptions') {
-		const primaryRead = await readCanonicalDocument<ProjectTranscriptionPayload>(
-			PROJECT_TRANSCRIPTION_FORMAT,
-			await readTextFile(path, storeOptions)
-		);
-		if (!primaryRead.ok)
-			throw new Error(`Orphan primary is invalid: ${primaryRead.quarantine.message}`);
-		const payload = primaryRead.payload;
+	if (file.kind === 'transcription') {
+		const payload = parseTranscriptionTei(await readTextFile(path, storeOptions));
 		if (payload.project_transcription_id !== fileId) {
 			throw new Error('Orphan transcription identity does not match its canonical path.');
 		}
@@ -214,19 +259,13 @@ export async function restoreOrphanPrimaryToProject(
 				},
 				title: payload.title,
 				siglum: payload.siglum,
-				primary_path: `transcriptions/${fileId}.json`,
+				primary_path: documentCanonicalPath('transcription', fileId),
 			},
 		].sort((left, right) =>
 			left.project_transcription_id.localeCompare(right.project_transcription_id)
 		);
 	} else {
-		const primaryRead = await readCanonicalDocument<CollationPayload>(
-			COLLATION_FORMAT,
-			await readTextFile(path, storeOptions)
-		);
-		if (!primaryRead.ok)
-			throw new Error(`Orphan primary is invalid: ${primaryRead.quarantine.message}`);
-		const payload = primaryRead.payload;
+		const payload = parseCollationPayloadTei(await readTextFile(path, storeOptions));
 		if (payload.id !== fileId || payload.project_id !== manifest.id) {
 			throw new Error(
 				'Orphan collation identity does not match its project and canonical path.'
@@ -245,24 +284,43 @@ export async function restoreOrphanPrimaryToProject(
 				},
 				title: payload.title,
 				verse_identifier: payload.verse_identifier,
-				primary_path: `collations/${fileId}.json`,
+				primary_path: documentCanonicalPath('collation', fileId),
 			},
 		].sort((left, right) => left.collation_id.localeCompare(right.collation_id));
 	}
 
 	await writeProjectManifestPayloadFile(projectSlug, manifest, storeOptions);
-	return rebuildIndexFromStore(db, storeOptions);
+}
+
+// Beside a JSON document awaiting conversion, a TEI file is an older build's export.
+async function isTeiDocumentPrimary(
+	projectSlug: string,
+	relativePath: string,
+	storeOptions: StoreOperationOptions
+): Promise<boolean> {
+	const file = classifyDocumentPath(relativePath);
+	return (
+		file?.role === 'unlisted' &&
+		!(await storeFileExists(
+			joinStorePath(
+				projectFolder(projectSlug),
+				legacyDocumentPaths(file.kind, file.entityId).primary
+			),
+			storeOptions
+		))
+	);
 }
 
 async function collectIndexRowsFromStore(
 	report: IndexRebuildReport,
-	storeOptions: StoreOperationOptions
+	storeOptions: StoreOperationOptions,
+	progress: RebuildProgress
 ): Promise<RebuildRows> {
 	const rows = createEmptyRows();
 	const projectEntries = await listDirectoryIfExists(projectsFolder(), storeOptions);
 	for (const entry of projectEntries) {
 		if (entry.kind !== 'directory') continue;
-		await collectProjectRows(entry.name, rows, report, storeOptions);
+		await collectProjectRows(entry.name, rows, report, storeOptions, progress);
 	}
 	return rows;
 }
@@ -271,7 +329,8 @@ async function collectProjectRows(
 	projectSlug: string,
 	rows: RebuildRows,
 	report: IndexRebuildReport,
-	storeOptions: StoreOperationOptions
+	storeOptions: StoreOperationOptions,
+	progress: RebuildProgress
 ): Promise<void> {
 	const manifestPath = projectManifestFile(projectSlug);
 	const manifestExists = await storeFileExists(manifestPath, storeOptions);
@@ -306,26 +365,35 @@ async function collectProjectRows(
 		updated_at: manifest.updated_at,
 	});
 
+	// Count transcriptions twice: once when read, once when verse-indexed.
+	progress.add(manifest.transcriptions.length * 2 + manifest.collations.length);
+	// A JSON head awaits conversion to TEI, which indexes it when its project is opened.
 	for (const head of manifest.transcriptions) {
+		if (documentStorageOfPath(head.primary_path) !== 'tei') continue;
 		await collectTranscriptionRows(
 			projectSlug,
 			manifest.id,
 			head.primary_path,
 			rows,
 			report,
-			storeOptions
+			storeOptions,
+			progress
 		);
+		progress.step();
 	}
 
 	for (const head of manifest.collations) {
+		if (documentStorageOfPath(head.primary_path) !== 'tei') continue;
 		await collectCollationRows(
 			projectSlug,
 			manifest.id,
 			head.primary_path,
 			rows,
 			report,
-			storeOptions
+			storeOptions,
+			progress
 		);
+		progress.step();
 	}
 
 	for (const head of manifest.tombstones) {
@@ -371,45 +439,82 @@ async function collectTranscriptionRows(
 	primaryRelativePath: string,
 	rows: RebuildRows,
 	report: IndexRebuildReport,
-	storeOptions: StoreOperationOptions
+	storeOptions: StoreOperationOptions,
+	progress: RebuildProgress
 ): Promise<void> {
 	const primaryPath = joinStorePath(projectFolder(projectSlug), primaryRelativePath);
-	const payload = await readCanonicalFile<ProjectTranscriptionPayload>(
-		PROJECT_TRANSCRIPTION_FORMAT,
-		primaryPath,
-		report,
-		storeOptions
-	);
-	if (!payload) return;
-
-	const workingPayload = await readWorkingTranscriptionPayload(
+	const entityId = classifyDocumentPath(primaryRelativePath)?.entityId;
+	try {
+		const xml = await readTextFile(primaryPath, storeOptions);
+		const payload = parseTranscriptionTei(xml);
+		if (payload.project_transcription_id !== entityId) {
+			recordQuarantine(report, primaryPath, {
+				code: 'invalid_shape',
+				message: `Transcription TEI identity ${payload.project_transcription_id} does not match ${primaryRelativePath}.`,
+			});
+			return;
+		}
+		rows.documentFingerprints.push(
+			await readFingerprint(
+				primaryPath,
+				primaryRelativePath,
+				'transcription',
+				entityId,
+				xml,
+				storeOptions
+			)
+		);
+		pushTranscriptionRows(rows, projectId, payload, payload);
+	} catch (error) {
+		recordQuarantine(report, primaryPath, quarantineFromError(error));
+		return;
+	}
+	await collectTranscriptionCheckpointRows(
 		projectSlug,
-		payload,
+		entityId,
+		rows,
 		report,
-		storeOptions
+		storeOptions,
+		progress
 	);
-	const indexRows = transcriptionIndexRowsFromPrimary(
-		projectId,
-		payload,
-		workingPayload ?? payload
+}
+
+async function readFingerprint(
+	storePath: string,
+	path: string,
+	entityType: DocumentFingerprintEntityType,
+	entityId: string,
+	xml: string,
+	storeOptions: StoreOperationOptions
+): Promise<Insertable<DocumentFileFingerprints>> {
+	const [fileHash, contentHash, stat] = await Promise.all([
+		hashContent(xml),
+		teiContentHash(xml),
+		statFile(storePath, storeOptions),
+	]);
+	return documentFingerprintRow(
+		{ path, entityType, entityId, xml, fileHash, contentHash },
+		stat.lastModified
 	);
+}
+
+function pushTranscriptionRows(
+	rows: RebuildRows,
+	projectId: string,
+	payload: ProjectTranscriptionPayload,
+	indexPayload: ProjectTranscriptionPayload
+): void {
+	const indexRows = transcriptionIndexRowsFromPrimary(projectId, payload, indexPayload);
 	rows.transcriptions.push(indexRows.transcription);
 	rows.projectTranscriptions.push(indexRows.projectTranscription);
 	rows.transcriptionVerseInputs.push({
 		transcriptionId: payload.id,
+		projectTranscriptionId: payload.project_transcription_id,
 		contentJson: indexRows.transcription.content_json,
 	});
 	rows.iiifManifestSources.push(...indexRows.iiifManifestSources);
 	rows.pageCanvasLinks.push(...indexRows.pageCanvasLinks);
 	rows.canvasAnnotations.push(...indexRows.canvasAnnotations);
-
-	await collectTranscriptionCheckpointRows(
-		projectSlug,
-		payload.project_transcription_id,
-		rows,
-		report,
-		storeOptions
-	);
 }
 
 export function transcriptionIndexRowsFromPrimary(
@@ -460,7 +565,7 @@ export function transcriptionIndexRowsFromPrimary(
 		source_kind: source.source_kind,
 		default_canvas_id: source.default_canvas_id,
 		default_image_service_url: source.default_image_service_url,
-		metadata_json: JSON.stringify(source.metadata_json),
+		synthetic_canvases_json: JSON.stringify(source.synthetic_canvases),
 		created_at: indexPayload.created_at,
 		updated_at: indexPayload.updated_at,
 	}));
@@ -512,66 +617,81 @@ async function collectCollationRows(
 	primaryRelativePath: string,
 	rows: RebuildRows,
 	report: IndexRebuildReport,
-	storeOptions: StoreOperationOptions
+	storeOptions: StoreOperationOptions,
+	progress: RebuildProgress
 ): Promise<void> {
 	const primaryPath = joinStorePath(projectFolder(projectSlug), primaryRelativePath);
-	const payload = await readCanonicalFile<CollationPayload>(
-		COLLATION_FORMAT,
-		primaryPath,
-		report,
-		storeOptions
-	);
-	if (!payload) return;
-
-	const workingPayload = await readWorkingCollationPayload(
+	const entityId = classifyDocumentPath(primaryRelativePath)?.entityId ?? '';
+	try {
+		const xml = await readTextFile(primaryPath, storeOptions);
+		const payload = parseCollationPayloadTei(xml);
+		if (payload.id !== entityId || payload.project_id !== projectId) {
+			recordQuarantine(report, primaryPath, {
+				code: 'invalid_shape',
+				message: `Collation TEI identity ${payload.id} does not match ${primaryRelativePath} in project ${projectId}.`,
+			});
+			return;
+		}
+		rows.documentFingerprints.push(
+			await readFingerprint(
+				primaryPath,
+				primaryRelativePath,
+				'collation',
+				entityId,
+				xml,
+				storeOptions
+			)
+		);
+		const indexRows = collationIndexRowsFromPayload(projectId, payload);
+		rows.collations.push(indexRows.collation);
+		rows.collationArtifacts.push(indexRows.artifact);
+		pushCollationProjectionRows(rows, projectId, payload.id, payload);
+	} catch (error) {
+		recordQuarantine(report, primaryPath, quarantineFromError(error));
+		return;
+	}
+	await collectCollationCheckpointRows(
 		projectSlug,
-		payload,
+		entityId,
+		rows,
 		report,
-		storeOptions
+		storeOptions,
+		progress
 	);
-	const indexPayload = workingPayload ?? payload;
+}
 
-	rows.collations.push({
-		id: payload.id,
-		project_id: projectId,
-		current_revision_id: payload.based_on_checkpoint?.id ?? '',
-		current_content_hash: payload.based_on_checkpoint?.content_hash ?? '',
-		title: indexPayload.title,
-		verse_identifier: indexPayload.verse_identifier,
-		status: indexPayload.status,
-		group_path: indexPayload.group_path,
-		notes: indexPayload.notes,
-		sort_key: indexPayload.sort_key,
-		conflict_of_collation_id: payload.conflict_of_collation_id ?? '',
-		created_at: indexPayload.created_at,
-		updated_at: indexPayload.updated_at,
-	});
+function pushCollationProjectionRows(
+	rows: RebuildRows,
+	projectId: string,
+	collationId: string,
+	payload: CollationPayload
+): void {
 	const projectTranscriptionIds = new Map(
 		rows.projectTranscriptions
 			.filter(row => row.project_id === projectId)
 			.flatMap(row => (row.id ? [[row.transcription_id, row.id] as const] : []))
 	);
 	const projection = buildSerializedCollationProjectionRows(
-		payload.id,
-		indexPayload.document,
+		collationId,
+		payload.document,
 		projectTranscriptionIds
 	);
 	for (const witness of projection.witnesses) {
 		rows.collationWitnesses.push({
 			...witness,
-			collation_id: payload.id,
+			collation_id: collationId,
 		});
 	}
 	for (const token of projection.tokens) {
 		rows.collationTokens.push({
 			...token,
-			collation_id: payload.id,
+			collation_id: collationId,
 		});
 	}
 	for (const unit of projection.variation_units) {
 		rows.collationVariationUnits.push({
 			...unit,
-			collation_id: payload.id,
+			collation_id: collationId,
 		});
 	}
 	for (const reading of projection.readings) {
@@ -590,88 +710,6 @@ async function collectCollationRows(
 			...witness,
 		});
 	}
-
-	await collectCollationCheckpointRows(projectSlug, payload.id, rows, report, storeOptions);
-}
-
-async function readWorkingTranscriptionPayload(
-	projectSlug: string,
-	primaryPayload: ProjectTranscriptionPayload,
-	report: IndexRebuildReport,
-	storeOptions: StoreOperationOptions
-): Promise<ProjectTranscriptionPayload | null> {
-	const path = transcriptionWorkingFile(projectSlug, primaryPayload.project_transcription_id);
-	const payload = await readOptionalCanonicalFile<WorkingTranscriptionPayload>(
-		WORKING_TRANSCRIPTION_FORMAT,
-		path,
-		report,
-		storeOptions
-	);
-	if (!payload) return null;
-	if (
-		payload.id !== primaryPayload.id ||
-		payload.project_transcription_id !== primaryPayload.project_transcription_id
-	) {
-		recordQuarantine(report, path, {
-			code: 'invalid_shape',
-			message: `Working transcription does not match manifest primary ${primaryPayload.id}.`,
-		});
-		return null;
-	}
-	if (
-		payload.draft.base_revision_id !== primaryPayload.based_on_checkpoint?.id ||
-		payload.draft.base_content_hash !== primaryPayload.based_on_checkpoint?.content_hash
-	) {
-		report.orphanedFiles.push(
-			orphanRecord(
-				path,
-				projectSlug,
-				'stale_working',
-				'Working transcription is based on a superseded committed revision and was not indexed.'
-			)
-		);
-		return null;
-	}
-	return mergeWorkingTranscription(primaryPayload, payload);
-}
-
-async function readWorkingCollationPayload(
-	projectSlug: string,
-	primaryPayload: CollationPayload,
-	report: IndexRebuildReport,
-	storeOptions: StoreOperationOptions
-): Promise<CollationPayload | null> {
-	const path = collationWorkingFile(projectSlug, primaryPayload.id);
-	const payload = await readOptionalCanonicalFile<WorkingCollationPayload>(
-		WORKING_COLLATION_FORMAT,
-		path,
-		report,
-		storeOptions
-	);
-	if (!payload) return null;
-	if (payload.id !== primaryPayload.id || payload.project_id !== primaryPayload.project_id) {
-		recordQuarantine(report, path, {
-			code: 'invalid_shape',
-			message: `Working collation does not match manifest primary ${primaryPayload.id}.`,
-		});
-		return null;
-	}
-	if (
-		payload.draft.base_revision_id !== (primaryPayload.based_on_checkpoint?.id ?? null) ||
-		payload.draft.base_content_hash !==
-			(primaryPayload.based_on_checkpoint?.content_hash ?? null)
-	) {
-		report.orphanedFiles.push(
-			orphanRecord(
-				path,
-				projectSlug,
-				'stale_working',
-				'Working collation is based on a superseded committed revision and was not indexed.'
-			)
-		);
-		return null;
-	}
-	return mergeWorkingCollation(primaryPayload, payload);
 }
 
 async function collectTranscriptionCheckpointRows(
@@ -679,41 +717,80 @@ async function collectTranscriptionCheckpointRows(
 	projectTranscriptionId: string,
 	rows: RebuildRows,
 	report: IndexRebuildReport,
-	storeOptions: StoreOperationOptions
+	storeOptions: StoreOperationOptions,
+	progress: RebuildProgress
 ): Promise<void> {
 	const folder = transcriptionHistoryFolder(projectSlug, projectTranscriptionId);
 	const documentRows: Insertable<TranscriptionCheckpoints>[] = [];
-	for (const entry of await listDirectoryIfExists(folder, storeOptions)) {
-		if (!isJsonFile(entry)) continue;
-		const path = joinStorePath(folder, entry.name);
-		const payload = await readCanonicalFile<TranscriptionCheckpointPayload>(
-			TRANSCRIPTION_CHECKPOINT_FORMAT,
-			path,
+	const entries = await listDirectoryIfExists(folder, storeOptions);
+	// JSON Version files are strays from an unfinished conversion.
+	const teiEntries = entries.filter(isTeiFile);
+	progress.add(teiEntries.length);
+	for (const entry of teiEntries) {
+		const row = await readTeiTranscriptionVersionRow(
+			projectSlug,
+			projectTranscriptionId,
+			entry,
+			rows,
 			report,
 			storeOptions
 		);
-		if (!payload) continue;
-		if (payload.entity_id !== projectTranscriptionId) {
-			recordQuarantine(report, path, {
-				code: 'invalid_shape',
-				message: `Checkpoint entity_id ${payload.entity_id} does not match ${projectTranscriptionId}.`,
-			});
-			continue;
-		}
-		documentRows.push({
-			id: payload.checkpoint_id,
-			transcription_id: payload.payload_transcription_id,
-			parent_checkpoint_id: payload.parent_checkpoint_id,
-			format: payload.content_format,
-			content_hash: payload.payload_content_hash,
-			is_committed: 1,
-			label: payload.label,
-			commit_message: payload.commit_message,
-			author_name: payload.author_name,
-			created_at: payload.created_at,
-		});
+		if (row) documentRows.push(row);
+		progress.step();
 	}
 	rows.transcriptionCheckpoints.push(...numberUnlabelledVersions(documentRows));
+}
+
+async function readTeiTranscriptionVersionRow(
+	projectSlug: string,
+	projectTranscriptionId: string,
+	entry: StoreDirectoryEntry,
+	rows: RebuildRows,
+	report: IndexRebuildReport,
+	storeOptions: StoreOperationOptions
+): Promise<Insertable<TranscriptionCheckpoints> | null> {
+	const relativePath = entry.path.slice(projectFolder(projectSlug).length + 1);
+	const versionId = classifyDocumentPath(relativePath)?.versionId;
+	try {
+		const xml = await readTextFile(entry.path, storeOptions);
+		const header = parseTranscriptionTeiVersion(xml);
+		const version = header.version;
+		if (
+			!version ||
+			version.id !== versionId ||
+			header.projectTranscriptionId !== projectTranscriptionId
+		) {
+			recordQuarantine(report, entry.path, {
+				code: 'invalid_shape',
+				message: `Transcription Version file does not record Version ${versionId} of ${projectTranscriptionId}.`,
+			});
+			return null;
+		}
+		const fingerprint = await readFingerprint(
+			entry.path,
+			relativePath,
+			'version',
+			version.id,
+			xml,
+			storeOptions
+		);
+		rows.documentFingerprints.push(fingerprint);
+		return {
+			id: version.id,
+			transcription_id: header.transcriptionId,
+			parent_checkpoint_id: version.parent_id,
+			format: header.contentFormat,
+			content_hash: fingerprint.content_hash,
+			is_committed: 1,
+			label: version.label,
+			commit_message: version.note,
+			author_name: version.author_name,
+			created_at: version.created_at,
+		};
+	} catch (error) {
+		recordQuarantine(report, entry.path, quarantineFromError(error));
+		return null;
+	}
 }
 
 async function collectCollationCheckpointRows(
@@ -721,40 +798,73 @@ async function collectCollationCheckpointRows(
 	collationId: string,
 	rows: RebuildRows,
 	report: IndexRebuildReport,
-	storeOptions: StoreOperationOptions
+	storeOptions: StoreOperationOptions,
+	progress: RebuildProgress
 ): Promise<void> {
 	const folder = collationHistoryFolder(projectSlug, collationId);
 	const documentRows: Insertable<CollationCheckpoints>[] = [];
-	for (const entry of await listDirectoryIfExists(folder, storeOptions)) {
-		if (!isJsonFile(entry)) continue;
-		const path = joinStorePath(folder, entry.name);
-		const payload = await readCanonicalFile<CollationCheckpointPayload>(
-			COLLATION_CHECKPOINT_FORMAT,
-			path,
+	const entries = await listDirectoryIfExists(folder, storeOptions);
+	const teiEntries = entries.filter(isTeiFile);
+	progress.add(teiEntries.length);
+	for (const entry of teiEntries) {
+		const row = await readTeiCollationVersionRow(
+			projectSlug,
+			collationId,
+			entry,
+			rows,
 			report,
 			storeOptions
 		);
-		if (!payload) continue;
-		if (payload.entity_id !== collationId) {
-			recordQuarantine(report, path, {
-				code: 'invalid_shape',
-				message: `Checkpoint entity_id ${payload.entity_id} does not match ${collationId}.`,
-			});
-			continue;
-		}
-		documentRows.push({
-			id: payload.checkpoint_id,
-			collation_id: payload.entity_id,
-			parent_checkpoint_id: payload.parent_checkpoint_id,
-			content_hash: payload.payload_content_hash,
-			is_committed: 1,
-			label: payload.label,
-			commit_message: payload.commit_message,
-			author_name: payload.author_name,
-			created_at: payload.created_at,
-		});
+		if (row) documentRows.push(row);
+		progress.step();
 	}
 	rows.collationCheckpoints.push(...numberUnlabelledVersions(documentRows));
+}
+
+async function readTeiCollationVersionRow(
+	projectSlug: string,
+	collationId: string,
+	entry: StoreDirectoryEntry,
+	rows: RebuildRows,
+	report: IndexRebuildReport,
+	storeOptions: StoreOperationOptions
+): Promise<Insertable<CollationCheckpoints> | null> {
+	const relativePath = entry.path.slice(projectFolder(projectSlug).length + 1);
+	const versionId = classifyDocumentPath(relativePath)?.versionId;
+	try {
+		const xml = await readTextFile(entry.path, storeOptions);
+		const version = parseCollationTeiVersionHeader(xml);
+		if (!version || version.id !== versionId) {
+			recordQuarantine(report, entry.path, {
+				code: 'invalid_shape',
+				message: `Collation Version file does not record Version ${versionId} of ${collationId}.`,
+			});
+			return null;
+		}
+		const fingerprint = await readFingerprint(
+			entry.path,
+			relativePath,
+			'version',
+			version.id,
+			xml,
+			storeOptions
+		);
+		rows.documentFingerprints.push(fingerprint);
+		return {
+			id: version.id,
+			collation_id: collationId,
+			parent_checkpoint_id: version.parent_id,
+			content_hash: fingerprint.content_hash,
+			is_committed: 1,
+			label: version.label,
+			commit_message: version.note,
+			author_name: version.author_name,
+			created_at: version.created_at,
+		};
+	} catch (error) {
+		recordQuarantine(report, entry.path, quarantineFromError(error));
+		return null;
+	}
 }
 
 export function numberUnlabelledVersions<
@@ -797,7 +907,11 @@ async function collectTombstoneRow(
 	});
 }
 
-async function insertIndexRows(trx: DbTransaction, rows: RebuildRows): Promise<void> {
+async function insertIndexRows(
+	trx: DbTransaction,
+	rows: RebuildRows,
+	progress: RebuildProgress
+): Promise<void> {
 	if (rows.projects.length) await trx.insertInto('projects').values(rows.projects).execute();
 	if (rows.transcriptions.length)
 		await trx.insertInto('transcriptions').values(rows.transcriptions).execute();
@@ -812,6 +926,11 @@ async function insertIndexRows(trx: DbTransaction, rows: RebuildRows): Promise<v
 			.execute();
 	if (rows.canvasAnnotations.length)
 		await trx.insertInto('iiif_canvas_annotations').values(rows.canvasAnnotations).execute();
+	if (rows.documentFingerprints.length)
+		await trx
+			.insertInto('document_file_fingerprints')
+			.values(rows.documentFingerprints)
+			.execute();
 	const transcriptionCheckpoints = sortCheckpointRowsByParent(rows.transcriptionCheckpoints);
 	if (transcriptionCheckpoints.length)
 		await trx
@@ -820,6 +939,7 @@ async function insertIndexRows(trx: DbTransaction, rows: RebuildRows): Promise<v
 			.execute();
 	for (const input of rows.transcriptionVerseInputs) {
 		await replaceTranscriptionVerseIndexRows(trx, input.transcriptionId, input.contentJson);
+		progress.step();
 	}
 	if (rows.collations.length)
 		await trx.insertInto('collations').values(rows.collations).execute();
@@ -888,18 +1008,22 @@ async function recordProjectOrphans(
 ): Promise<void> {
 	const referencedFiles = new Set<string>([projectManifestFile(projectSlug)]);
 	const referencedHistoryFolders = new Set<string>();
+	const referenceDocument = (kind: DocumentKind, id: string, primaryPath: string) => {
+		for (const path of [
+			primaryPath,
+			documentCanonicalPath(kind, id),
+			legacyDocumentPaths(kind, id).working,
+		])
+			referencedFiles.add(joinStorePath(projectFolder(projectSlug), path));
+	};
 	for (const head of manifest?.transcriptions ?? []) {
-		referencedFiles.add(joinStorePath(projectFolder(projectSlug), head.primary_path));
-		referencedFiles.add(transcriptionWorkingFile(projectSlug, head.project_transcription_id));
-		referencedFiles.add(transcriptionTeiFile(projectSlug, head.project_transcription_id));
+		referenceDocument('transcription', head.project_transcription_id, head.primary_path);
 		referencedHistoryFolders.add(
 			transcriptionHistoryFolder(projectSlug, head.project_transcription_id)
 		);
 	}
 	for (const head of manifest?.collations ?? []) {
-		referencedFiles.add(joinStorePath(projectFolder(projectSlug), head.primary_path));
-		referencedFiles.add(collationWorkingFile(projectSlug, head.collation_id));
-		referencedFiles.add(collationTeiFile(projectSlug, head.collation_id));
+		referenceDocument('collation', head.collation_id, head.primary_path);
 		referencedHistoryFolders.add(collationHistoryFolder(projectSlug, head.collation_id));
 	}
 	for (const head of manifest?.tombstones ?? []) {
@@ -922,43 +1046,54 @@ async function classifyOrphan(
 	storeOptions: StoreOperationOptions
 ): Promise<OrphanedFileRecord | null> {
 	const relativePath = path.slice(`${projectFolder(projectSlug)}/`.length);
-	if (/^(transcriptions|collations)\/[^/]+\.working\.json$/.test(relativePath)) {
-		return orphanRecord(
-			path,
-			projectSlug,
-			'unreferenced_working',
-			'Working file has no manifest entity.'
-		);
+	const file = classifyDocumentPath(relativePath);
+	if (file?.role === 'legacy') {
+		if (file.versionId)
+			return orphanRecord(
+				path,
+				projectSlug,
+				'unreferenced_history',
+				'History file has no manifest entity.'
+			);
+		return relativePath === legacyDocumentPaths(file.kind, file.entityId).working
+			? orphanRecord(
+					path,
+					projectSlug,
+					'unreferenced_working',
+					'Working file has no manifest entity.'
+				)
+			: {
+					path,
+					code: 'unreferenced_primary',
+					message:
+						'Unreferenced primary cannot be restored automatically. It is a JSON document from before TEI.',
+					recoverable: false,
+					projectSlug,
+					entityType: file.kind,
+					entityId: file.entityId,
+				};
 	}
-	if (/^(transcriptions|collations)\/[^/]+\.json$/.test(relativePath)) {
-		const entityType = relativePath.startsWith('transcriptions/')
-			? 'transcription'
-			: 'collation';
-		const format =
-			entityType === 'transcription' ? PROJECT_TRANSCRIPTION_FORMAT : COLLATION_FORMAT;
+	if (file && (await isTeiDocumentPrimary(projectSlug, relativePath, storeOptions))) {
+		const entityType = file.kind;
 		let entityId: string | undefined;
 		let recoverable = false;
 		let validationMessage = '';
 		try {
-			const result = await readCanonicalDocument<
-				ProjectTranscriptionPayload | CollationPayload
-			>(format, await readTextFile(path, storeOptions));
-			if (!result.ok) {
-				recordQuarantine(report, path, result.quarantine);
-				validationMessage = ` ${result.quarantine.message}`;
-			} else {
-				entityId =
-					entityType === 'transcription'
-						? (result.payload as ProjectTranscriptionPayload).project_transcription_id
-						: (result.payload as CollationPayload).id;
-				const expectedPath = `${entityId}.json`;
-				const ownsProject =
-					entityType === 'transcription' ||
-					(result.payload as CollationPayload).project_id === manifest?.id;
-				recoverable = Boolean(manifest && path.endsWith(`/${expectedPath}`) && ownsProject);
-				if (!recoverable)
-					validationMessage = ' The file identity does not match this project path.';
-			}
+			const raw = await readTextFile(path, storeOptions);
+			const payload =
+				entityType === 'transcription'
+					? parseTranscriptionTei(raw)
+					: parseCollationPayloadTei(raw);
+			entityId =
+				entityType === 'transcription'
+					? (payload as ProjectTranscriptionPayload).project_transcription_id
+					: (payload as CollationPayload).id;
+			const ownsProject =
+				entityType === 'transcription' ||
+				(payload as CollationPayload).project_id === manifest?.id;
+			recoverable = Boolean(manifest && entityId === file.entityId && ownsProject);
+			if (!recoverable)
+				validationMessage = ' The file identity does not match this project path.';
 		} catch (error) {
 			const quarantine = quarantineFromError(error);
 			recordQuarantine(report, path, quarantine);
@@ -976,7 +1111,7 @@ async function classifyOrphan(
 			entityId,
 		};
 	}
-	if (/^history\/(transcriptions|collations)\/.+\.json$/.test(relativePath)) {
+	if (file?.role === 'version') {
 		return orphanRecord(
 			path,
 			projectSlug,
@@ -992,7 +1127,7 @@ async function classifyOrphan(
 			'Tombstone is not referenced by the project manifest.'
 		);
 	}
-	if (/^(transcriptions|collations)\/[^/]+\.tei\.xml$/.test(relativePath)) {
+	if (file?.role === 'unlisted') {
 		return orphanRecord(
 			path,
 			projectSlug,
@@ -1055,24 +1190,6 @@ async function readCanonicalFile<TPayload extends JsonObject>(
 	return null;
 }
 
-async function readOptionalCanonicalFile<TPayload extends JsonObject>(
-	format: string,
-	path: string,
-	report: IndexRebuildReport,
-	storeOptions: StoreOperationOptions
-): Promise<TPayload | null> {
-	try {
-		const raw = await readTextFile(path, storeOptions);
-		const result = await readCanonicalDocument<TPayload>(format, raw);
-		if (result.ok) return result.payload;
-		recordQuarantine(report, path, result.quarantine);
-	} catch (error) {
-		if (isMissingStoreEntryError(error)) return null;
-		recordQuarantine(report, path, quarantineFromError(error));
-	}
-	return null;
-}
-
 async function listDirectoryIfExists(
 	path: string,
 	storeOptions: StoreOperationOptions
@@ -1091,6 +1208,10 @@ function recordQuarantine(
 	quarantine: StoreQuarantineReason
 ): void {
 	report.quarantinedFiles.push({ path, timestamp: new Date().toISOString(), ...quarantine });
+}
+
+function isTeiFile(entry: StoreDirectoryEntry): boolean {
+	return entry.kind === 'file' && documentStorageOfPath(entry.name) === 'tei';
 }
 
 function isJsonFile(entry: StoreDirectoryEntry): boolean {
@@ -1137,6 +1258,7 @@ function createEmptyRows(): RebuildRows {
 		collationCheckpoints: [],
 		cbgmAnalyses: [],
 		tombstones: [],
+		documentFingerprints: [],
 	};
 }
 

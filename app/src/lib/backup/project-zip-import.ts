@@ -4,25 +4,16 @@ import { rebuildIndexFromStore, type IndexRebuildReport } from '$lib/db/reposito
 import type { Database } from '$lib/db/types.generated';
 import {
 	CBGM_ANALYSIS_FORMAT,
-	COLLATION_CHECKPOINT_FORMAT,
-	COLLATION_FORMAT,
-	PROJECT_MANIFEST_CURRENT_VERSION,
-	PROJECT_TRANSCRIPTION_FORMAT,
 	TOMBSTONE_FORMAT,
-	WORKING_COLLATION_FORMAT,
-	WORKING_TRANSCRIPTION_FORMAT,
-	mergeWorkingCollation,
-	mergeWorkingTranscription,
 	serializeCanonicalDocument,
-	transcriptionDocumentToTeiFromStore,
+	parseCollationTeiVersion,
+	parseTranscriptionTei,
+	projectManifestSchemaVersion,
+	serializeCollationPayloadTei,
+	serializeTranscriptionTei,
 	type CbgmAnalysisMetadata,
-	type CollationCheckpointPayload,
-	type CollationPayload,
 	type ProjectManifestPayload,
-	type ProjectTranscriptionPayload,
 	type TombstonePayload,
-	type WorkingCollationPayload,
-	type WorkingTranscriptionPayload,
 } from '$lib/storage/formats';
 import {
 	deleteDirectory,
@@ -35,12 +26,19 @@ import {
 } from '$lib/storage/opfs-store';
 import { joinStorePath, projectFolder } from '$lib/storage/layout';
 import {
+	classifyDocumentPath,
+	hasLegacyHeads,
+	teiPrimaryPathsOfManifest,
+} from '$lib/storage/document-files';
+import {
 	restoreUserReferenceEditions,
 	validateStoredUserReferenceEdition,
 } from '$lib/reference-editions/user-reference-editions';
-import type { JsonObject } from '$lib/storage/envelope';
 import type { StoreQuarantineRecord } from '$lib/storage/quarantine';
-import { ApparatusExportError, exportCollationDocumentTei } from '$lib/collation/collation-tei';
+import {
+	markAlphaUpgradesIndexed,
+	upgradeAlphaProjects,
+} from '$lib/storage/legacy-json/alpha-project-upgrade';
 import { parseProjectCollationSettings } from '$lib/collation/project-settings';
 import { hashCanonicalPayload } from '$lib/storage/canonical-json';
 import {
@@ -228,7 +226,15 @@ export async function importProjectFileTree(
 			return failedImport(staged.report.quarantinedFiles);
 		const prepared = await prepareImport(db, staged, options);
 		if ('collision' in prepared) return collisionImport(prepared.collision);
-		return await placePreparedImport(db, prepared, options.storeOptions ?? {});
+		const result = await placePreparedImport(db, prepared, options.storeOptions ?? {});
+		if (
+			hasLegacyHeads(prepared.manifest) &&
+			(await upgradeAlphaProjects(options.storeOptions))
+		) {
+			await rebuildIndexFromStore(db, options.storeOptions);
+			await markAlphaUpgradesIndexed(options.storeOptions);
+		}
+		return result;
 	} catch (error) {
 		return failedImport([quarantine('', errorMessage(error), options.now)]);
 	} finally {
@@ -281,10 +287,8 @@ async function prepareImport(
 	options: ProjectImportOptions
 ): Promise<PreparedImport | { collision: ProjectImportCollision }> {
 	const manifest = staged.manifest!;
-	const { entries, draftFilesRestored } = await foldLegacyWorkingEntries(
-		staged.entries,
-		options.storeOptions ?? {}
-	);
+	const entries = staged.entries;
+	const draftFilesRestored: string[] = [];
 	const existing = await db
 		.selectFrom('projects')
 		.select(['storage_slug', 'updated_at'])
@@ -292,7 +296,7 @@ async function prepareImport(
 		.executeTakeFirst();
 	if (!existing)
 		return {
-			entries: regenerateDerivedCollationTei(entries, manifest),
+			entries,
 			manifest,
 			storageSlug: deriveStorageSlug(manifest.name, manifest.id),
 			mode: 'created',
@@ -309,76 +313,25 @@ async function prepareImport(
 	}
 	if (options.collisionMode === 'replace')
 		return {
-			entries: regenerateDerivedCollationTei(entries, manifest),
+			entries,
 			manifest,
 			storageSlug: existing.storage_slug,
 			mode: 'replaced',
 			draftFilesRestored,
 		};
+	if (hasLegacyHeads(manifest))
+		throw new Error(
+			'This archive predates TEI storage. Replace the project with it, open it once, then copy it.'
+		);
 	return {
-		...(await copyProjectEntries(entries, manifest, options.storeOptions ?? {})),
+		...(await copyProjectEntries(entries, manifest)),
 		draftFilesRestored,
 	};
 }
 
-async function foldLegacyWorkingEntries(
-	stagedEntries: ValidatedStagedProjectEntry[],
-	storeOptions: StoreOperationOptions
-): Promise<{ entries: ValidatedStagedProjectEntry[]; draftFilesRestored: string[] }> {
-	const byPath = new Map(stagedEntries.map(entry => [entry.path, entry]));
-	const draftFilesRestored: string[] = [];
-	for (const entry of stagedEntries) {
-		if (entry.format === WORKING_COLLATION_FORMAT) {
-			const working = entry.payload as WorkingCollationPayload;
-			const path = `collations/${working.id}.json`;
-			const primary = byPath.get(path)?.payload as CollationPayload | undefined;
-			if (!primary || !draftMatchesBase(working.draft, primary.based_on_checkpoint)) continue;
-			const payload = mergeWorkingCollation(primary, working);
-			byPath.set(path, {
-				path,
-				format: COLLATION_FORMAT,
-				payload,
-				content: await serializeCanonicalDocument(COLLATION_FORMAT, payload),
-			});
-		} else if (entry.format === WORKING_TRANSCRIPTION_FORMAT) {
-			const working = entry.payload as WorkingTranscriptionPayload;
-			const path = `transcriptions/${working.project_transcription_id}.json`;
-			const primary = byPath.get(path)?.payload as ProjectTranscriptionPayload | undefined;
-			if (!primary || !draftMatchesBase(working.draft, primary.based_on_checkpoint)) continue;
-			const payload = mergeWorkingTranscription(primary, working);
-			const teiPath = path.replace(/\.json$/, '.tei.xml');
-			byPath.set(path, {
-				path,
-				format: PROJECT_TRANSCRIPTION_FORMAT,
-				payload,
-				content: await serializeCanonicalDocument(PROJECT_TRANSCRIPTION_FORMAT, payload),
-			});
-			byPath.set(teiPath, {
-				path: teiPath,
-				format: null,
-				content: await transcriptionDocumentToTeiFromStore(payload, storeOptions),
-			});
-		} else continue;
-		byPath.delete(entry.path);
-		draftFilesRestored.push(entry.path);
-	}
-	return { entries: [...byPath.values()], draftFilesRestored: draftFilesRestored.sort() };
-}
-
-function draftMatchesBase(
-	draft: WorkingCollationPayload['draft'],
-	base: CollationPayload['based_on_checkpoint']
-): boolean {
-	return (
-		draft.base_revision_id === (base?.id ?? null) &&
-		draft.base_content_hash === (base?.content_hash ?? null)
-	);
-}
-
 async function copyProjectEntries(
 	entries: ValidatedStagedProjectEntry[],
-	sourceManifest: ProjectManifestPayload,
-	storeOptions: StoreOperationOptions
+	sourceManifest: ProjectManifestPayload
 ): Promise<Omit<PreparedImport, 'draftFilesRestored'>> {
 	const copyId = createId();
 	const copyName = `${sourceManifest.name} Copy`;
@@ -392,56 +345,51 @@ async function copyProjectEntries(
 
 	for (const entry of entries) {
 		const payload = payloads.get(entry.path);
-		if (entry.format === PROJECT_TRANSCRIPTION_FORMAT) {
-			const transcription = payload as ProjectTranscriptionPayload;
-			transcription.origin = {
-				source_type: 'imported_project_copy',
-				source_project_id: sourceManifest.id,
-				source_transcription_id: transcription.id,
-				source_revision_id: transcription.based_on_checkpoint?.id ?? null,
-				source_content_hash: transcription.based_on_checkpoint?.content_hash ?? null,
-			};
-		} else if (entry.format === WORKING_TRANSCRIPTION_FORMAT) {
-			const transcription = payload as WorkingTranscriptionPayload;
-			transcription.origin = {
-				source_type: 'imported_project_copy',
-				source_project_id: sourceManifest.id,
-				source_transcription_id: transcription.id,
-				source_revision_id: transcription.draft.base_revision_id,
-				source_content_hash: transcription.draft.base_content_hash,
-			};
-		} else if (entry.format === COLLATION_FORMAT || entry.format === WORKING_COLLATION_FORMAT) {
-			const collation = payload as CollationPayload | WorkingCollationPayload;
-			collation.project_id = copyId;
-			collation.document.meta = {
-				...collation.document.meta,
-				projectId: copyId,
-				projectName: copyName,
-			};
-		} else if (entry.format === COLLATION_CHECKPOINT_FORMAT) {
-			const checkpoint = payload as CollationCheckpointPayload;
-			checkpoint.payload.project_id = copyId;
-			checkpoint.payload.document.meta = {
-				...checkpoint.payload.document.meta,
-				projectId: copyId,
-				projectName: copyName,
-			};
-			checkpoint.payload_content_hash = await hashCanonicalPayload(checkpoint.payload);
-			checkpointHashes.set(checkpoint.checkpoint_id, checkpoint.payload_content_hash);
-		} else if (entry.format === TOMBSTONE_FORMAT) {
+		if (entry.format === TOMBSTONE_FORMAT) {
 			(payload as TombstonePayload).project_id = copyId;
 		} else if (entry.format === CBGM_ANALYSIS_FORMAT) {
 			(payload as CbgmAnalysisMetadata).project_id = copyId;
 		}
 	}
 
-	for (const entry of entries.filter(entry => entry.format === COLLATION_FORMAT)) {
-		const collation = payloads.get(entry.path) as CollationPayload;
-		if (!collation.based_on_checkpoint) continue;
-		collation.based_on_checkpoint.content_hash =
-			checkpointHashes.get(collation.based_on_checkpoint.id) ??
-			(await hashCanonicalPayload(collationContent(collation)));
-		collationHashes.set(collation.id, collation.based_on_checkpoint.content_hash);
+	const collationVocab = parseProjectCollationSettings(sourceManifest.collation_settings);
+	const sourceTeiPaths = teiPrimaryPathsOfManifest(sourceManifest);
+	const copiedTei = new Map<string, string>();
+	const copyTeiCollation = async (content: ProjectFileContent) => {
+		const { payload, version } = parseCollationTeiVersion(projectFileText(content));
+		payload.project_id = copyId;
+		payload.document.meta = {
+			...payload.document.meta,
+			projectId: copyId,
+			projectName: copyName,
+		};
+		return { payload, version };
+	};
+	// Versions first: a copied Current's based-on hash is its copied Version's hash.
+	for (const entry of entries) {
+		const file = classifyDocumentPath(entry.path, sourceTeiPaths);
+		if (entry.format !== null || file?.kind !== 'collation' || file.role !== 'version')
+			continue;
+		const { payload, version } = await copyTeiCollation(entry.content);
+		const serialized = await serializeCollationPayloadTei(payload, collationVocab, version);
+		copiedTei.set(entry.path, serialized.xml);
+		if (version) checkpointHashes.set(version.id, serialized.contentHash);
+	}
+	for (const entry of entries) {
+		const file = classifyDocumentPath(entry.path, sourceTeiPaths);
+		if (entry.format !== null || file?.kind !== 'collation' || file.role !== 'canonical')
+			continue;
+		const { payload } = await copyTeiCollation(entry.content);
+		if (payload.based_on_checkpoint)
+			payload.based_on_checkpoint.content_hash =
+				checkpointHashes.get(payload.based_on_checkpoint.id) ??
+				payload.based_on_checkpoint.content_hash;
+		copiedTei.set(
+			entry.path,
+			(await serializeCollationPayloadTei(payload, collationVocab)).xml
+		);
+		if (payload.based_on_checkpoint)
+			collationHashes.set(payload.id, payload.based_on_checkpoint.content_hash);
 	}
 
 	const manifest = structuredClone(sourceManifest);
@@ -458,7 +406,7 @@ async function copyProjectEntries(
 				}
 			).content_hash
 		),
-		source_manifest_schema_version: PROJECT_MANIFEST_CURRENT_VERSION,
+		source_manifest_schema_version: projectManifestSchemaVersion(sourceManifest),
 	};
 	for (const head of manifest.collations) {
 		if (head.current_revision)
@@ -479,9 +427,27 @@ async function copyProjectEntries(
 
 	// Copied IDs stay stable: new container, not a fork.
 	const rewritten: ValidatedStagedProjectEntry[] = [];
+	const teiPrimaryPaths = teiPrimaryPathsOfManifest(manifest);
 	for (const entry of entries) {
 		if (entry.format === null) {
-			if (isCbgmSidecarFile(entry.path)) rewritten.push(entry);
+			const file = classifyDocumentPath(entry.path, teiPrimaryPaths);
+			const copied = copiedTei.get(entry.path);
+			if (copied !== undefined) rewritten.push({ ...entry, content: copied });
+			else if (file?.role === 'canonical' && file.kind === 'transcription') {
+				const transcription = parseTranscriptionTei(projectFileText(entry.content));
+				transcription.origin = {
+					source_type: 'imported_project_copy',
+					source_project_id: sourceManifest.id,
+					source_transcription_id: transcription.id,
+					source_revision_id: transcription.based_on_checkpoint?.id ?? null,
+					source_content_hash: transcription.based_on_checkpoint?.content_hash ?? null,
+				};
+				rewritten.push({
+					...entry,
+					content: (await serializeTranscriptionTei(transcription)).xml,
+				});
+			} else if (isCbgmSidecarFile(entry.path) || file?.role === 'version')
+				rewritten.push(entry);
 			continue;
 		}
 		const payload = payloads.get(entry.path)!;
@@ -491,46 +457,12 @@ async function copyProjectEntries(
 			content: await serializeCanonicalDocument(entry.format, payload),
 		});
 	}
-	for (const entry of rewritten.filter(entry => entry.format === PROJECT_TRANSCRIPTION_FORMAT)) {
-		const payload = entry.payload as ProjectTranscriptionPayload;
-		rewritten.push({
-			path: `transcriptions/${payload.project_transcription_id}.tei.xml`,
-			content: await transcriptionDocumentToTeiFromStore(payload, storeOptions),
-			format: null,
-		});
-	}
 	return {
-		entries: regenerateDerivedCollationTei(rewritten, manifest),
+		entries: rewritten,
 		manifest,
 		storageSlug: deriveStorageSlug(copyName, copyId),
 		mode: 'copied',
 	};
-}
-
-function regenerateDerivedCollationTei(
-	entries: ValidatedStagedProjectEntry[],
-	manifest: ProjectManifestPayload
-): ValidatedStagedProjectEntry[] {
-	const projectSettings = parseProjectCollationSettings(manifest.collation_settings);
-	const regenerated = entries.filter(entry => !/^collations\/[^/]+\.tei\.xml$/.test(entry.path));
-	for (const entry of entries) {
-		if (entry.format !== COLLATION_FORMAT) continue;
-		const payload = entry.payload as CollationPayload;
-		try {
-			regenerated.push({
-				path: `collations/${payload.id}.tei.xml`,
-				content: exportCollationDocumentTei(
-					payload.document,
-					projectSettings,
-					payload.notes
-				),
-				format: null,
-			});
-		} catch (error) {
-			if (!(error instanceof ApparatusExportError)) throw error;
-		}
-	}
-	return regenerated;
 }
 
 async function placePreparedImport(
@@ -662,20 +594,6 @@ function resolveLockManager(
 
 function importLeaseName(nonce: string): string {
 	return `apatosaurus:project-import:${nonce}`;
-}
-
-function collationContent(payload: CollationPayload): JsonObject {
-	return {
-		id: payload.id,
-		project_id: payload.project_id,
-		title: payload.title,
-		verse_identifier: payload.verse_identifier,
-		status: payload.status,
-		group_path: payload.group_path,
-		notes: payload.notes,
-		sort_key: payload.sort_key,
-		document: payload.document,
-	};
 }
 
 function parseStoreOnlyZip(bytes: Uint8Array): Array<{ path: string; bytes: Uint8Array }> {

@@ -12,7 +12,7 @@ The committed, working, and checkpoint collation formats evolve together:
 - `apatosaurus.working.collation` preserves draft metadata while extracting `document`.
 - `apatosaurus.checkpoint.collation` validates the nested v1 payload hash before upgrading that payload.
 
-Checked-in input and expected payload fixtures live in `app/src/lib/storage/formats/fixtures/`. Tests read every input through the public `readCanonicalDocument` API and compare the upgraded payload to its expected fixture.
+Checked-in input and expected payload fixtures for these JSON document formats live in `app/src/lib/storage/legacy-json/fixtures/`. Tests read every input through the frozen legacy reader's `readLegacyDocument` and compare the upgraded payload to its expected fixture.
 
 ## Project Transcription Version 2
 

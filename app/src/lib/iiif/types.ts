@@ -21,10 +21,21 @@ export interface ManifestSourceSummary {
 	sourceKind: 'external' | 'app';
 	defaultCanvasId: string | null;
 	defaultImageServiceUrl: string | null;
+	syntheticCanvases: IiifSyntheticCanvas[];
 	manifestJson: Record<string, any> | null;
 	metadata: Record<string, unknown>;
 	createdAt: string;
 	updatedAt: string;
+}
+
+export interface IiifSyntheticCanvas {
+	canvas_id: string;
+	label: string;
+	width: number;
+	height: number;
+	image_url: string;
+	thumbnail_url: string | null;
+	metadata: Array<{ label: string; value: string }>;
 }
 
 export type IiifSourceCategory = 'iiif' | 'intf' | 'urls';

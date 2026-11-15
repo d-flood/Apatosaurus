@@ -34,39 +34,19 @@ import {
 	joinStorePath,
 	projectFolder,
 	projectManifestFile,
-	transcriptionPrimaryFile,
+	transcriptionTeiFile,
 } from '$lib/storage/layout';
 import {
-	COLLATION_CHECKPOINT_CURRENT_VERSION,
-	COLLATION_CHECKPOINT_FORMAT,
-	COLLATION_CURRENT_VERSION,
-	COLLATION_FORMAT,
 	PROJECT_MANIFEST_CURRENT_VERSION,
 	PROJECT_MANIFEST_FORMAT,
-	PROJECT_TRANSCRIPTION_CURRENT_VERSION,
-	PROJECT_TRANSCRIPTION_FORMAT,
 	TOMBSTONE_CURRENT_VERSION,
 	TOMBSTONE_FORMAT,
-	TRANSCRIPTION_CHECKPOINT_CURRENT_VERSION,
-	TRANSCRIPTION_CHECKPOINT_FORMAT,
-	WORKING_COLLATION_CURRENT_VERSION,
-	WORKING_COLLATION_FORMAT,
-	WORKING_TRANSCRIPTION_CURRENT_VERSION,
-	WORKING_TRANSCRIPTION_FORMAT,
+	parseTranscriptionTei,
 	readCanonicalDocument,
 } from '$lib/storage/formats';
 import { moveFile, readTextFile, writeTextFileAtomic } from '$lib/storage/opfs-store';
 import { sealDocument, type JsonObject } from '$lib/storage/envelope';
-import {
-	COLLATION_CHECKPOINT_FIXTURE,
-	COLLATION_FIXTURE,
-	PROJECT_MANIFEST_FIXTURE,
-	PROJECT_TRANSCRIPTION_FIXTURE,
-	TOMBSTONE_FIXTURE,
-	TRANSCRIPTION_CHECKPOINT_FIXTURE,
-	WORKING_COLLATION_FIXTURE,
-	WORKING_TRANSCRIPTION_FIXTURE,
-} from '$lib/storage/formats/payload-fixtures';
+import { PROJECT_MANIFEST_FIXTURE, TOMBSTONE_FIXTURE } from '$lib/storage/formats/payload-fixtures';
 
 let harness: LocalDbTestHarness;
 let backend: MemoryStoreBackend;
@@ -86,11 +66,8 @@ afterEach(async () => {
 describe('data-safety invariants', () => {
 	it('Invariant 2: canonical replacements publish complete newer revisions atomically', async () => {
 		await seedCompleteProject();
-		const path = transcriptionPrimaryFile('project-slug', 'pt-1');
-		const before = await readCanonicalDocument(
-			PROJECT_TRANSCRIPTION_FORMAT,
-			await readTextFile(path, { backend })
-		);
+		const path = transcriptionTeiFile('project-slug', 'pt-1');
+		const before = parseTranscriptionTei(await readTextFile(path, { backend }));
 		backend.writeOperations.length = 0;
 		await saveWorkingTranscriptionContent(
 			harness.db,
@@ -103,22 +80,14 @@ describe('data-safety invariants', () => {
 			{ backend }
 		);
 		const rawAfter = await readTextFile(path, { backend });
-		const after = await readCanonicalDocument(PROJECT_TRANSCRIPTION_FORMAT, rawAfter);
+		const after = parseTranscriptionTei(rawAfter);
 
 		const targetPath = joinStorePath(APP_STORE_ROOT, path);
 		const targetOperations = backend.writeOperations.filter(
 			operation => operation.path === targetPath
 		);
-		expect(before).toMatchObject({ ok: true });
-		expect(after).toMatchObject({
-			ok: true,
-			payload: { based_on_checkpoint: { id: 'revision-2' } },
-		});
-		if (before.ok && after.ok) {
-			expect(after.payload.based_on_checkpoint).not.toEqual(
-				before.payload.based_on_checkpoint
-			);
-		}
+		expect(after).toMatchObject({ based_on_checkpoint: { id: 'revision-2' } });
+		expect(after.based_on_checkpoint).not.toEqual(before.based_on_checkpoint);
 		expect(targetOperations.map(operation => operation.type)).toEqual(['move', 'move']);
 		expect(targetOperations.at(-1)).toMatchObject({ content: rawAfter });
 		expect(
@@ -130,7 +99,7 @@ describe('data-safety invariants', () => {
 	});
 
 	it('Invariant 3: history is append-only through write and move paths', async () => {
-		const path = 'projects/invariants/history/transcriptions/entity/checkpoint.json';
+		const path = 'projects/invariants/history/transcriptions/entity/checkpoint.tei.xml';
 		await writeTextFileAtomic(path, 'original checkpoint', { backend, nonce: () => 'first' });
 
 		await expect(
@@ -201,33 +170,7 @@ describe('data-safety invariants', () => {
 	it('Invariant 5: quarantine preserves corrupt bytes for every canonical format', async () => {
 		const fixtures: Array<[string, number, JsonObject]> = [
 			[PROJECT_MANIFEST_FORMAT, PROJECT_MANIFEST_CURRENT_VERSION, PROJECT_MANIFEST_FIXTURE],
-			[
-				PROJECT_TRANSCRIPTION_FORMAT,
-				PROJECT_TRANSCRIPTION_CURRENT_VERSION,
-				PROJECT_TRANSCRIPTION_FIXTURE,
-			],
-			[COLLATION_FORMAT, COLLATION_CURRENT_VERSION, COLLATION_FIXTURE],
-			[
-				TRANSCRIPTION_CHECKPOINT_FORMAT,
-				TRANSCRIPTION_CHECKPOINT_CURRENT_VERSION,
-				TRANSCRIPTION_CHECKPOINT_FIXTURE,
-			],
-			[
-				COLLATION_CHECKPOINT_FORMAT,
-				COLLATION_CHECKPOINT_CURRENT_VERSION,
-				COLLATION_CHECKPOINT_FIXTURE,
-			],
 			[TOMBSTONE_FORMAT, TOMBSTONE_CURRENT_VERSION, TOMBSTONE_FIXTURE],
-			[
-				WORKING_TRANSCRIPTION_FORMAT,
-				WORKING_TRANSCRIPTION_CURRENT_VERSION,
-				WORKING_TRANSCRIPTION_FIXTURE,
-			],
-			[
-				WORKING_COLLATION_FORMAT,
-				WORKING_COLLATION_CURRENT_VERSION,
-				WORKING_COLLATION_FIXTURE,
-			],
 		];
 
 		for (const [format, version, fixture] of fixtures) {
@@ -295,7 +238,7 @@ describe('data-safety invariants', () => {
 
 	it('Invariant 7: an interrupted Current replacement recovers the previous Current', async () => {
 		await seedCompleteProject();
-		const path = transcriptionPrimaryFile('project-slug', 'pt-1');
+		const path = transcriptionTeiFile('project-slug', 'pt-1');
 		await saveWorkingTranscriptionContent(
 			harness.db,
 			{ id: 'tx-1', document: documentWithVerses(['Romans 1:2']) },
@@ -449,12 +392,12 @@ function crashFailurePath(
 	if (failureStep === 'manifest') return 'project.json.tmp-';
 	if (entityType === 'transcription') {
 		return failureStep === 'history'
-			? `history/transcriptions/pt-1/${checkpointId}.json.tmp-`
-			: 'transcriptions/pt-1.json.tmp-';
+			? `history/transcriptions/pt-1/${checkpointId}.tei.xml.tmp-`
+			: 'transcriptions/pt-1.tei.xml.tmp-';
 	}
 	return failureStep === 'history'
-		? `history/collations/col-1/${checkpointId}.json.tmp-`
-		: 'collations/col-1.json.tmp-';
+		? `history/collations/col-1/${checkpointId}.tei.xml.tmp-`
+		: 'collations/col-1.tei.xml.tmp-';
 }
 
 function projectFiles(storageSlug: string): Record<string, string> {

@@ -1,34 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-	buildTEIMetadataFromTranscription,
-	extractTranscriptionRecordMetadataPatch,
-} from './transcription-record-metadata';
+import { extractTranscriptionRecordMetadataPatch } from './transcription-record-metadata';
 
 describe('transcription record <-> TEI metadata mapping', () => {
-	it('builds export metadata from a transcription record', () => {
-		const metadata = buildTEIMetadataFromTranscription({
-			title: 'Romans in 01',
-			transcriber: 'Editor Name',
-			owner: 'owner',
-			created_at: '2024-01-02T12:00:00.000Z',
-			repository: 'British Library',
-			settlement: 'London',
-			siglum: 'MS Add. 43725',
-			language: 'grc',
-		} as any);
-
-		expect(metadata).toEqual({
-			title: 'Romans in 01',
-			transcriber: 'Editor Name',
-			date: '2024-01-02',
-			repository: 'British Library',
-			settlement: 'London',
-			idno: 'MS Add. 43725',
-			language: 'grc',
-		});
-	});
-
 	it('extracts database-backed metadata fields from an imported TEI document', () => {
 		const patch = extractTranscriptionRecordMetadataPatch({
 			metadata: {
@@ -58,5 +32,25 @@ describe('transcription record <-> TEI metadata mapping', () => {
 			siglum: 'MS Add. 43725',
 			language: 'grc',
 		});
+	});
+
+	it('takes the transcriber only from a "Transcribed by" responsibility', () => {
+		const responsibilities = [
+			{ resp: 'Created by', name: 'Creator' },
+			{ resp: 'Edited by', name: 'Editor' },
+		];
+		expect(extractTranscriptionRecordMetadataPatch({ header: { responsibilities } })).toEqual(
+			{}
+		);
+		expect(
+			extractTranscriptionRecordMetadataPatch({
+				header: {
+					responsibilities: [
+						...responsibilities,
+						{ resp: 'Transcribed by', name: 'Transcriber' },
+					],
+				},
+			})
+		).toEqual({ transcriber: 'Transcriber' });
 	});
 });

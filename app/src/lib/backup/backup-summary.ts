@@ -5,7 +5,7 @@ import { getCollationVersionStatusWithWorkingFile } from '$lib/db/repositories/c
 import type { StoreOperationOptions } from '$lib/storage/opfs-store';
 import type { SyncEntityHead } from './conflicts';
 import type { SyncEntityReference, SyncEntityType } from './backup-status';
-import { projectRelativePaths } from '$lib/storage/layout';
+import { documentCanonicalPath } from '$lib/storage/document-files';
 
 export interface LocalEntityState {
 	entityType: SyncEntityType;
@@ -79,10 +79,10 @@ export async function loadLocalEntity(
 }
 
 export function primaryPathFor(entityType: SyncEntityType, entityId: string): string {
-	const paths = projectRelativePaths();
-	return entityType === 'project-transcription'
-		? paths.transcriptions(entityId)
-		: paths.collations(entityId);
+	return documentCanonicalPath(
+		entityType === 'project-transcription' ? 'transcription' : 'collation',
+		entityId
+	);
 }
 
 function hasHead(head: SyncEntityHead): boolean {

@@ -9,14 +9,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { StoredTranscriptionDocument } from '$lib/transcription/content';
 import { createCollation, updateCollationMetadata } from '$lib/db/repositories/collations';
 import { createProject as createProjectRepository } from '$lib/db/repositories/projects';
-import { listCollationVersions, type CollationCheckpoint } from '$lib/db/repositories/revisions';
+import type { CollationCheckpoint } from '$lib/db/repositories/revisions';
 import {
 	createCommittedCollationCheckpointWithFiles,
 	loadCollationWithWorkingFile,
 	saveWorkingCollationArtifact,
-	updateCollationVersionNote,
+	saveWorkingCollationMetadata,
 } from '$lib/db/repositories/collation-files';
 import { createTranscription } from '$lib/db/repositories/transcriptions';
+import { convertProjectToTei } from '$lib/db/repositories/tei-conversion';
+import { rebuildIndexFromStore } from '$lib/db/repositories/index-rebuild';
+import jsonProject from '$lib/storage/legacy-json/fixtures/json-project.json';
 import {
 	createCommittedTranscriptionCheckpointWithFiles,
 	loadTranscriptionWithWorkingFile,
@@ -25,6 +28,7 @@ import {
 import {
 	deleteCbgmAnalysisWithFiles,
 	deleteCollationWithFiles,
+	deleteTranscriptionWithFiles,
 } from '$lib/db/repositories/entity-deletion';
 import {
 	completeCoherence,
@@ -43,16 +47,16 @@ import {
 } from '$lib/storage/opfs-store';
 import {
 	cbgmAnalysisRelativeFiles,
+	collationCheckpointTeiRelativeFile,
 	collationTeiFile,
-	collationPrimaryFile,
-	collationCheckpointFile,
 	joinStorePath,
 	projectFolder,
 	projectManifestFile,
-	transcriptionPrimaryFile,
+	transcriptionTeiFile,
 } from '$lib/storage/layout';
 import { sealDocument, serializeSealedDocument } from '$lib/storage/envelope';
 import { TOMBSTONE_CURRENT_VERSION, TOMBSTONE_FORMAT } from '$lib/storage/formats';
+import { teiContentHash } from '$lib/storage/tei-content';
 import { MockCloudStorageProvider, type MockProviderOperation } from './providers/mock-provider';
 import { FakeDirectoryHandle } from './providers/fake-file-system-access.spec-support';
 import { LocalFolderStorageProvider } from './providers/local-folder-provider';
@@ -68,7 +72,12 @@ import {
 	type CloudWriteResult,
 } from './providers/provider';
 import { browseFolder } from './folder-browser';
-import { backupProject, listPendingUploadPaths, type SyncManagerOptions } from './sync-manager';
+import {
+	backupProject,
+	listPendingUploadPaths,
+	recordSyncedFile,
+	type SyncManagerOptions,
+} from './sync-manager';
 import { reconcileConflictCopy } from './conflicts';
 import { ensureLocationMarker } from './location-marker';
 import { discoverLocationProjects } from './location-discovery';
@@ -135,7 +144,7 @@ describe('sync manager', () => {
 		).resolves.toMatchObject({
 			status: 'committed-pending-backup',
 			lastSyncedRevision: null,
-			cloudPath: 'collations/col-1.json',
+			cloudPath: 'collations/col-1.tei.xml',
 		});
 
 		await harness.db
@@ -143,7 +152,7 @@ describe('sync manager', () => {
 			.values({
 				target_id: context.connectionId,
 				project_id: context.projectId,
-				file_path: 'collations/col-1.json',
+				file_path: 'collations/col-1.tei.xml',
 				local_content_hash: '',
 				local_size: 0,
 				local_modified_at: '',
@@ -222,14 +231,14 @@ describe('sync manager', () => {
 		const primaryDelete = provider.calls.findIndex(call => call.operation === 'delete-file');
 		expect(tombstoneWrite).toBeGreaterThanOrEqual(0);
 		expect(primaryDelete).toBeGreaterThan(tombstoneWrite);
-		expect(result.deletedPaths).toContain('collations/col-1.json');
-		expect(await remoteFile(provider, context, 'collations/col-1.json')).toBeNull();
+		expect(result.deletedPaths).toContain('collations/col-1.tei.xml');
+		expect(await remoteFile(provider, context, 'collations/col-1.tei.xml')).toBeNull();
 		expect(
-			await remoteFile(provider, context, 'history/collations/col-1/col-cp-1.json')
-		).not.toBeNull();
+			await remoteFile(provider, context, 'history/collations/col-1/col-cp-1.tei.xml')
+		).toBeNull();
 	});
 
-	it('applies a remote tombstone, retains history, and heals an interrupted remote primary deletion', async () => {
+	it('applies a remote tombstone, removes history, and heals an interrupted remote primary deletion', async () => {
 		await createCommittedProjectCollation('Initial notes', 'col-cp-1');
 		const { provider, context } = await createConnectedProvider();
 		await backupProject(harness.db, provider, context, syncOptions());
@@ -238,7 +247,7 @@ describe('sync manager', () => {
 			project_id: 'project-1',
 			entity_type: 'collation',
 			entity_id: 'col-1',
-			cloud_path: 'collations/col-1.json',
+			cloud_path: 'collations/col-1.tei.xml',
 			deletion_revision_id: 'col-cp-1',
 			deleted_by: 'Remote editor',
 			deleted_at: '2026-06-10T13:01:00.000Z',
@@ -252,14 +261,20 @@ describe('sync manager', () => {
 		const result = await backupProject(harness.db, provider, context, syncOptions());
 
 		expect(result.downloadedPaths).toContain('tombstones/collation--col-1.json');
-		expect(result.deletedPaths).toContain('collations/col-1.json');
+		expect(result.deletedPaths).toContain('collations/col-1.tei.xml');
 		const projectSlug = await loadProjectStorageSlug('project-1');
 		await expect(
-			readTextFile(collationPrimaryFile(projectSlug, 'col-1'), storeOptions)
+			readTextFile(collationTeiFile(projectSlug, 'col-1'), storeOptions)
 		).rejects.toThrow();
 		await expect(
-			readTextFile(collationCheckpointFile(projectSlug, 'col-1', 'col-cp-1'), storeOptions)
-		).resolves.toContain('col-cp-1');
+			readTextFile(
+				joinStorePath(
+					projectFolder(projectSlug),
+					collationCheckpointTeiRelativeFile('col-1', 'col-cp-1')
+				),
+				storeOptions
+			)
+		).rejects.toThrow();
 		await expect(
 			harness.db
 				.selectFrom('collations')
@@ -267,7 +282,7 @@ describe('sync manager', () => {
 				.where('id', '=', 'col-1')
 				.executeTakeFirst()
 		).resolves.toBeUndefined();
-		expect(await remoteFile(provider, context, 'collations/col-1.json')).toBeNull();
+		expect(await remoteFile(provider, context, 'collations/col-1.tei.xml')).toBeNull();
 	});
 
 	it('checks a synced Drive project with a single request, recognising its own uploads', async () => {
@@ -286,7 +301,7 @@ describe('sync manager', () => {
 	it('runs a full sync when a synced file changes remotely', async () => {
 		const { api, sync, context, connect } = await quietDriveProject();
 		const other = connect();
-		const file = (await remoteFile(other, context, 'collations/col-1.json'))!;
+		const file = (await remoteFile(other, context, 'collations/col-1.tei.xml'))!;
 		await other.updateFile(file.id, await other.downloadFile(file.id), file.revision);
 		api.calls = [];
 
@@ -314,7 +329,7 @@ describe('sync manager', () => {
 		const result = await sync();
 
 		expect(result.uiState).toBe('synced');
-		expect(result.uploadedPaths).toContain('history/collations/col-1/col-cp-2.json');
+		expect(result.uploadedPaths).toContain('history/collations/col-1/col-cp-2.tei.xml');
 		api.calls = [];
 		expect((await sync()).uploadedPaths).toEqual([]);
 		expect(api.calls).not.toContain('GET /files');
@@ -404,13 +419,13 @@ describe('sync manager', () => {
 				storeOptionsB
 			);
 			expect((await syncB()).uploadedPaths).toContain(
-				'history/collations/col-1/col-cp-b.json'
+				'history/collations/col-1/col-cp-b.tei.xml'
 			);
 
 			const pulled = await syncA();
 
 			expect(pulled.uiState).toBe('synced');
-			expect(pulled.downloadedPaths).toContain('history/collations/col-1/col-cp-b.json');
+			expect(pulled.downloadedPaths).toContain('history/collations/col-1/col-cp-b.tei.xml');
 			expect(violations).toEqual([]);
 		} finally {
 			await storeB.destroy();
@@ -445,12 +460,12 @@ describe('sync manager', () => {
 			'synced'
 		);
 		expect(await listPendingUploadPaths(harness.db, context, storeOptions)).toContain(
-			'history/collations/col-1/col-cp-2.json'
+			'history/collations/col-1/col-cp-2.tei.xml'
 		);
 
 		const next = await backupProject(harness.db, provider, context, syncOptions());
 
-		expect(next.uploadedPaths).toContain('history/collations/col-1/col-cp-2.json');
+		expect(next.uploadedPaths).toContain('history/collations/col-1/col-cp-2.tei.xml');
 		expect(await listPendingUploadPaths(harness.db, context, storeOptions)).toEqual([]);
 	});
 
@@ -464,7 +479,7 @@ describe('sync manager', () => {
 			'2026-10-03T12:00:00.000Z'
 		);
 		await backupProject(harness.db, provider, context, syncOptions());
-		const broken = (await remoteFile(provider, context, 'collations/col-1.json'))!;
+		const broken = (await remoteFile(provider, context, 'collations/col-1.tei.xml'))!;
 		await provider.updateFile(broken.id, 'not json', broken.revision);
 		const storeB = createLocalDbTestHarness();
 		const failedImports = new Map<string, string>();
@@ -717,16 +732,14 @@ describe('sync manager', () => {
 		expect(result.uiState).toBe('synced');
 		expect(result.manifestUploaded).toBe(true);
 		expect(result.uploadedPaths).toEqual([
-			'history/collations/col-1/col-cp-1.json',
-			'collations/col-1.json',
+			'history/collations/col-1/col-cp-1.tei.xml',
 			'collations/col-1.tei.xml',
 			'project.json',
 		]);
 		expect(
 			provider.calls.filter(call => call.operation === 'create-file').map(call => call.path)
 		).toEqual([
-			'history/collations/col-1/col-cp-1.json',
-			'collations/col-1.json',
+			'history/collations/col-1/col-cp-1.tei.xml',
 			'collations/col-1.tei.xml',
 			'project.json',
 		]);
@@ -745,8 +758,7 @@ describe('sync manager', () => {
 
 		expect(result.uiState).toBe('synced');
 		expect(result.uploadedPaths).toEqual([
-			'history/collations/col-1/col-cp-1.json',
-			'collations/col-1.json',
+			'history/collations/col-1/col-cp-1.tei.xml',
 			'collations/col-1.tei.xml',
 			'project.json',
 		]);
@@ -758,12 +770,11 @@ describe('sync manager', () => {
 		});
 		expect(listing.entries.map(entry => entry.path)).toEqual([
 			'Apatosaurus/Projects/project-1/collations',
-			'Apatosaurus/Projects/project-1/collations/col-1.json',
 			'Apatosaurus/Projects/project-1/collations/col-1.tei.xml',
 			'Apatosaurus/Projects/project-1/history',
 			'Apatosaurus/Projects/project-1/history/collations',
 			'Apatosaurus/Projects/project-1/history/collations/col-1',
-			'Apatosaurus/Projects/project-1/history/collations/col-1/col-cp-1.json',
+			'Apatosaurus/Projects/project-1/history/collations/col-1/col-cp-1.tei.xml',
 			'Apatosaurus/Projects/project-1/project.json',
 		]);
 	});
@@ -802,18 +813,27 @@ describe('sync manager', () => {
 		const remotePrimary = await remoteFile(
 			provider,
 			context,
-			`transcriptions/${projectTranscriptionId}.json`
+			`transcriptions/${projectTranscriptionId}.tei.xml`
 		);
 		if (!remotePrimary) throw new Error('Expected remote transcription primary.');
 		await expect(provider.downloadFile(remotePrimary.id)).resolves.toBe(
 			await readTextFile(
-				transcriptionPrimaryFile(projectSlug, projectTranscriptionId),
+				transcriptionTeiFile(projectSlug, projectTranscriptionId),
 				storeOptions
 			)
 		);
 		expect(
-			await remoteFile(provider, context, `transcriptions/${projectTranscriptionId}.tei.xml`)
+			await remoteFile(
+				provider,
+				context,
+				`history/transcriptions/${projectTranscriptionId}/tx-cp-1.tei.xml`
+			)
 		).not.toBeNull();
+		expect(
+			(await listRemoteFiles(provider, context)).filter(
+				path => path.includes(projectTranscriptionId) && path.endsWith('.json')
+			)
+		).toEqual([]);
 		expect([...backend.files.keys()].filter(path => path.endsWith('.working.json'))).toEqual(
 			[]
 		);
@@ -837,13 +857,6 @@ describe('sync manager', () => {
 			'Remote committed notes',
 			'col-cp-remote'
 		);
-		const remoteTei = await remoteFile(provider, context, 'collations/col-1.tei.xml');
-		if (!remoteTei) throw new Error('Expected remote TEI file.');
-		await provider.updateFile(
-			remoteTei.id,
-			'<TEI>remote is not authoritative</TEI>',
-			remoteTei.revision
-		);
 
 		const result = await backupProject(harness.db, provider, context, {
 			now: () => '2026-06-10T13:05:00.000Z',
@@ -851,19 +864,15 @@ describe('sync manager', () => {
 		});
 
 		expect(result.uiState).toBe('synced');
-		expect(result.downloadedPaths).toContain('collations/col-1.json');
-		expect(result.downloadedPaths).toContain('history/collations/col-1/col-cp-remote.json');
+		expect(result.downloadedPaths).toContain('collations/col-1.tei.xml');
+		expect(result.downloadedPaths).toContain('history/collations/col-1/col-cp-remote.tei.xml');
 		await expect(loadCollationNotes('col-1')).resolves.toBe('Remote committed notes');
 		const projectSlug = await loadProjectStorageSlug('project-1');
-		const regeneratedTei = await readTextFile(
-			collationTeiFile(projectSlug, 'col-1'),
-			storeOptions
-		);
-		expect(regeneratedTei).toContain('<TEI');
-		expect(regeneratedTei).not.toContain('remote is not authoritative');
 		const mirroredTei = await remoteFile(provider, context, 'collations/col-1.tei.xml');
-		if (!mirroredTei) throw new Error('Expected regenerated remote TEI file.');
-		await expect(provider.downloadFile(mirroredTei.id)).resolves.toBe(regeneratedTei);
+		if (!mirroredTei) throw new Error('Expected remote TEI file.');
+		await expect(provider.downloadFile(mirroredTei.id)).resolves.toBe(
+			await readTextFile(collationTeiFile(projectSlug, 'col-1'), storeOptions)
+		);
 		expect(syncStagingEntries()).toEqual([]);
 	});
 
@@ -926,7 +935,7 @@ describe('sync manager', () => {
 		await harness.db
 			.deleteFrom('sync_file_fingerprints')
 			.where('target_id', '=', context.connectionId)
-			.where('file_path', '=', 'collations/col-2.json')
+			.where('file_path', '=', 'collations/col-2.tei.xml')
 			.execute();
 		await provider.createFile(context.cloudFolderId, 'collations/corrupt.json', '{not-json');
 
@@ -935,15 +944,18 @@ describe('sync manager', () => {
 		expect(result.uiState).toBe('conflict requires resolution');
 		expect(result.quarantines).toEqual(
 			expect.arrayContaining([
-				expect.objectContaining({ path: 'collations/corrupt.json', code: 'invalid_json' }),
-				expect.objectContaining({ path: 'collations/col-2.json', code: 'hash_mismatch' }),
+				expect.objectContaining({ path: 'collations/corrupt.json', code: 'invalid_shape' }),
+				expect.objectContaining({
+					path: 'collations/col-2.tei.xml',
+					code: 'hash_mismatch',
+				}),
 			])
 		);
 		await expect(loadCollationNotes('col-1')).resolves.toBe('Accepted remote notes');
 		expect(result.downloadedPaths).toEqual(
 			expect.arrayContaining([
-				'collations/col-1.json',
-				'history/collations/col-1/col-cp-remote.json',
+				'collations/col-1.tei.xml',
+				'history/collations/col-1/col-cp-remote.tei.xml',
 			])
 		);
 		expect(result.conflictCopyId).toBeTruthy();
@@ -955,17 +967,17 @@ describe('sync manager', () => {
 			.select('file_path')
 			.where('target_id', '=', context.connectionId)
 			.where('file_path', 'in', [
-				'collations/col-1.json',
-				'history/collations/col-1/col-cp-remote.json',
-				'collations/col-2.json',
+				'collations/col-1.tei.xml',
+				'history/collations/col-1/col-cp-remote.tei.xml',
+				'collations/col-2.tei.xml',
 				'collations/corrupt.json',
 			])
 			.orderBy('file_path')
 			.execute();
 		expect(completedPaths).toEqual([
-			{ file_path: 'collations/col-1.json' },
-			{ file_path: 'collations/col-2.json' },
-			{ file_path: 'history/collations/col-1/col-cp-remote.json' },
+			{ file_path: 'collations/col-1.tei.xml' },
+			{ file_path: 'collations/col-2.tei.xml' },
+			{ file_path: 'history/collations/col-1/col-cp-remote.tei.xml' },
 		]);
 		await expect(loadCollationNotes('col-2')).resolves.toBe('Remote conflicting notes');
 		await expect(
@@ -974,38 +986,6 @@ describe('sync manager', () => {
 				.select(({ fn }) => fn.countAll<number>().as('count'))
 				.executeTakeFirstOrThrow()
 		).resolves.toEqual({ count: 3 });
-	});
-
-	it('quarantines invalid remote mirror files without leaving per-file validation staging', async () => {
-		await createCommittedProjectCollation('Initial notes', 'col-cp-1');
-		const { provider, context } = await createConnectedProvider();
-		await backupProject(harness.db, provider, context, {
-			now: () => '2026-06-10T13:00:00.000Z',
-			storeOptions,
-		});
-		const primary = await remoteFile(provider, context, 'collations/col-1.json');
-		if (!primary) throw new Error('Expected remote primary file.');
-		const original = JSON.parse(await provider.downloadFile(primary.id)) as Record<
-			string,
-			unknown
-		>;
-		await provider.updateFile(
-			primary.id,
-			JSON.stringify({ ...original, notes: 'Tampered remote notes' }),
-			primary.revision
-		);
-
-		const result = await backupProject(harness.db, provider, context, {
-			now: () => '2026-06-10T13:05:00.000Z',
-			storeOptions,
-		});
-
-		expect(result.uiState).toBe('conflict requires resolution');
-		expect(result.quarantines).toMatchObject([
-			{ path: 'collations/col-1.json', code: 'hash_mismatch' },
-		]);
-		await expect(loadCollationNotes('col-1')).resolves.toBe('Initial notes');
-		expect(syncStagingEntries()).toEqual([]);
 	});
 
 	it('creates conflict copies when local and remote mirror files both change', async () => {
@@ -1021,13 +1001,6 @@ describe('sync manager', () => {
 			'Remote committed notes',
 			'col-cp-remote',
 			'Remote Primary'
-		);
-		const divergentRemoteTei = await remoteFile(provider, context, 'collations/col-1.tei.xml');
-		if (!divergentRemoteTei) throw new Error('Expected remote TEI file.');
-		await provider.updateFile(
-			divergentRemoteTei.id,
-			'<TEI>untrusted divergent bytes</TEI>',
-			divergentRemoteTei.revision
 		);
 		await updateCollationMetadata(harness.db, {
 			id: 'col-1',
@@ -1061,10 +1034,8 @@ describe('sync manager', () => {
 		expect(localTei).toContain('<title>Remote Primary Collation</title>');
 		await expect(loadCollationNotes('col-1')).resolves.toBe('Remote committed notes');
 		const remoteTei = await remoteFile(provider, context, 'collations/col-1.tei.xml');
-		if (!remoteTei) throw new Error('Expected regenerated remote TEI file.');
-		const remoteTeiContent = await provider.downloadFile(remoteTei.id);
-		expect(remoteTeiContent).toContain('<title>Remote Primary Collation</title>');
-		expect(remoteTeiContent).not.toContain('untrusted divergent bytes');
+		if (!remoteTei) throw new Error('Expected remote TEI file.');
+		await expect(provider.downloadFile(remoteTei.id)).resolves.toBe(localTei);
 	});
 
 	it('syncs two independent stores through push, pull, no-op, cache rebuild, and divergence', async () => {
@@ -1118,12 +1089,12 @@ describe('sync manager', () => {
 			);
 			const pushA = await backupProject(harness.db, provider, contextA, syncOptions());
 			expect(pushA.uiState).toBe('synced');
-			expect(pushA.uploadedPaths).toContain('transcriptions/pt-1.json');
+			expect(pushA.uploadedPaths).toContain('transcriptions/pt-1.tei.xml');
 			const pullB = await backupProject(storeB.db, provider, contextB, {
 				storeOptions: storeOptionsB,
 			});
-			expect(pullB.downloadedPaths).toContain('collations/col-1.json');
-			expect(pullB.downloadedPaths).toContain('transcriptions/pt-1.json');
+			expect(pullB.downloadedPaths).toContain('collations/col-1.tei.xml');
+			expect(pullB.downloadedPaths).toContain('transcriptions/pt-1.tei.xml');
 			expect(
 				(await loadCollationWithWorkingFile(storeB.db, 'col-1', storeOptionsB))?.row.notes
 			).toBe('A pushed notes');
@@ -1208,6 +1179,75 @@ describe('sync manager', () => {
 			expect((await harness.db.selectFrom('collations').select('id').execute()).length).toBe(
 				1
 			);
+		} finally {
+			await storeB.destroy();
+		}
+	});
+
+	it('re-indexes only the changed TEI transcription after a pull', async () => {
+		await createProject(harness.db, { id: 'project-1', name: 'Project' });
+		for (const n of [1, 2]) {
+			await createTranscriptionWithFiles(
+				harness.db,
+				{
+					id: `tx-${n}`,
+					projectId: 'project-1',
+					projectTranscriptionId: `pt-${n}`,
+					title: `Witness 0${n}`,
+					siglum: `0${n}`,
+					document: documentWithVerses(['Romans 1:1']),
+					transcriber: '',
+					repository: '',
+					settlement: '',
+					language: 'grc',
+				},
+				storeOptions
+			);
+		}
+		const { provider, context: contextA } = await createConnectedProvider();
+		const storeB = createLocalDbTestHarness();
+		const storeOptionsB = { backend: new MemoryStoreBackend() };
+		const contextB: SyncProjectContext = { ...contextA, connectionId: 'target-b' };
+		try {
+			const archive = await listProjectArchiveFiles(harness.db, 'project-1', {
+				storeOptions,
+			});
+			await importProjectFileTree(
+				storeB.db,
+				archive.map(file => ({ path: file.path, read: async () => file.content })),
+				{ storeOptions: storeOptionsB }
+			);
+			await backupProject(harness.db, provider, contextA, syncOptions());
+			await backupProject(storeB.db, provider, contextB, { storeOptions: storeOptionsB });
+			await saveWorkingTranscriptionContent(
+				harness.db,
+				{ id: 'tx-1', document: documentWithVerses(['Romans 1:2']) },
+				storeOptions
+			);
+			await backupProject(harness.db, provider, contextA, syncOptions());
+			// A full rebuild would restore this title from pt-2's file.
+			await storeB.db
+				.updateTable('transcriptions')
+				.set({ title: 'Untouched index row' })
+				.where('id', '=', 'tx-2')
+				.execute();
+
+			const pullB = await backupProject(storeB.db, provider, contextB, {
+				storeOptions: storeOptionsB,
+			});
+
+			expect(pullB.downloadedPaths).toEqual(['transcriptions/pt-1.tei.xml']);
+			expect(
+				(await loadTranscriptionWithWorkingFile(storeB.db, 'tx-1', storeOptionsB))
+					?.content_json
+			).toContain('"verse":"2"');
+			expect(
+				await storeB.db
+					.selectFrom('transcriptions')
+					.select('title')
+					.where('id', '=', 'tx-2')
+					.executeTakeFirst()
+			).toEqual({ title: 'Untouched index row' });
 		} finally {
 			await storeB.destroy();
 		}
@@ -1752,20 +1792,21 @@ describe('sync manager', () => {
 
 	it('keeps versions two stores name from the same parent without a conflict copy', async () => {
 		await createCommittedProjectCollation('Initial notes', 'col-cp-1');
-		await createTranscriptionWithFiles(
+		await createTranscription(harness.db, {
+			id: 'tx-1',
+			projectId: 'project-1',
+			projectTranscriptionId: 'pt-1',
+			title: 'Witness 01',
+			siglum: '01',
+			document: documentWithVerses(['Romans 1:1']),
+			transcriber: 'Editor',
+			repository: 'Library',
+			settlement: 'City',
+			language: 'grc',
+		});
+		await createCommittedTranscriptionCheckpointWithFiles(
 			harness.db,
-			{
-				id: 'tx-1',
-				projectId: 'project-1',
-				projectTranscriptionId: 'pt-1',
-				title: 'Witness 01',
-				siglum: '01',
-				document: documentWithVerses(['Romans 1:1']),
-				transcriber: 'Editor',
-				repository: 'Library',
-				settlement: 'City',
-				language: 'grc',
-			},
+			{ projectTranscriptionId: 'pt-1' },
 			storeOptions
 		);
 		const { provider, context: contextA } = await createConnectedProvider();
@@ -1822,63 +1863,6 @@ describe('sync manager', () => {
 		}
 	});
 
-	it('resolves concurrent note edits on one version by last write', async () => {
-		await createCommittedProjectCollation('Initial notes', 'col-cp-1');
-		const { provider, context: contextA } = await createConnectedProvider();
-		const storeB = createLocalDbTestHarness();
-		const storeOptionsB = { backend: new MemoryStoreBackend() };
-		const contextB: SyncProjectContext = { ...contextA, connectionId: 'target-b' };
-		const syncB = () =>
-			backupProject(storeB.db, provider, contextB, { storeOptions: storeOptionsB });
-		try {
-			const archive = await listProjectArchiveFiles(harness.db, 'project-1', {
-				storeOptions,
-			});
-			await importProjectFileTree(
-				storeB.db,
-				archive.map(file => ({ path: file.path, read: async () => file.content })),
-				{ storeOptions: storeOptionsB }
-			);
-			await backupProject(harness.db, provider, contextA, syncOptions());
-			await syncB();
-
-			vi.useFakeTimers({ toFake: ['Date'] });
-			vi.setSystemTime(new Date('2026-06-11T10:00:00.000Z'));
-			await updateCollationVersionNote(
-				harness.db,
-				'col-1',
-				'col-cp-1',
-				'Note from A',
-				storeOptions
-			);
-			vi.setSystemTime(new Date('2026-06-11T10:05:00.000Z'));
-			await updateCollationVersionNote(
-				storeB.db,
-				'col-1',
-				'col-cp-1',
-				'Note from B',
-				storeOptionsB
-			);
-			vi.useRealTimers();
-
-			await backupProject(harness.db, provider, contextA, syncOptions());
-			const resultB = await syncB();
-			const resultA = await backupProject(harness.db, provider, contextA, syncOptions());
-
-			for (const result of [resultA, resultB]) {
-				expect(result.uiState).toBe('synced');
-				expect(result.quarantines).toEqual([]);
-			}
-			for (const db of [harness.db, storeB.db]) {
-				const [version] = await listCollationVersions(db, 'col-1');
-				expect(version.note).toBe('Note from B');
-			}
-		} finally {
-			vi.useRealTimers();
-			await storeB.destroy();
-		}
-	});
-
 	it('backs up Current without any version named', async () => {
 		await createProject(harness.db, { id: 'project-1', name: 'Project' });
 		await createCollation(harness.db, {
@@ -1923,8 +1907,8 @@ describe('sync manager', () => {
 		expect(result.manifestUploaded).toBe(true);
 		const projectSlug = await loadProjectStorageSlug('project-1');
 		for (const [path, localPath] of [
-			['collations/col-1.json', collationPrimaryFile(projectSlug, 'col-1')],
-			['transcriptions/pt-1.json', transcriptionPrimaryFile(projectSlug, 'pt-1')],
+			['collations/col-1.tei.xml', collationTeiFile(projectSlug, 'col-1')],
+			['transcriptions/pt-1.tei.xml', transcriptionTeiFile(projectSlug, 'pt-1')],
 		]) {
 			const remote = await remoteFile(provider, context, path);
 			if (!remote) throw new Error(`Expected remote ${path}.`);
@@ -1933,7 +1917,7 @@ describe('sync manager', () => {
 			);
 		}
 		await expect(
-			readTextFile(collationPrimaryFile(projectSlug, 'col-1'), storeOptions)
+			readTextFile(collationTeiFile(projectSlug, 'col-1'), storeOptions)
 		).resolves.toContain('Unnamed notes');
 	});
 
@@ -1989,7 +1973,7 @@ describe('sync manager', () => {
 		expect(result.uploadedPaths).toEqual([]);
 		expect([...backend.files.keys()].filter(path => path.includes('device-2'))).toEqual([]);
 		const archived = await listProjectArchiveFiles(harness.db, 'project-1', { storeOptions });
-		expect(archived.map(file => file.path)).toContain('transcriptions/pt-1.json');
+		expect(archived.map(file => file.path)).toContain('transcriptions/pt-1.tei.xml');
 		expect(archived.filter(file => file.path.includes('.presence'))).toEqual([]);
 		const exported = await exportProjectZip(harness.db, 'project-1', { storeOptions });
 		expect(new TextDecoder().decode(exported.bytes)).not.toContain('.presence');
@@ -2079,7 +2063,7 @@ describe('sync manager', () => {
 			});
 			expect(archive.map(file => file.path)).toEqual(
 				expect.arrayContaining([
-					'history/transcriptions/pt-1/tx-cp-1.json',
+					'history/transcriptions/pt-1/tx-cp-1.tei.xml',
 					'cbgm/analysis-1.json',
 					'cbgm/analysis-1.input.xml',
 					'cbgm/analysis-1.sqlite',
@@ -2349,6 +2333,597 @@ describe('sync manager', () => {
 	});
 });
 
+describe('sync manager with TEI-canonical transcriptions', () => {
+	it('syncs the TEI primary byte for byte in both directions', async () => {
+		const stores = await teiTranscriptionOnTwoStores();
+		try {
+			await saveWorkingTranscriptionContent(
+				harness.db,
+				{ id: 'tx-1', document: documentWithVerses(['Romans 1:2']) },
+				storeOptions
+			);
+			const pushA = await stores.syncA();
+			expect(pushA.uploadedPaths).toContain(TEI_PATH);
+			const pullB = await stores.syncB();
+			expect(pullB.downloadedPaths).toContain(TEI_PATH);
+			const fromA = await stores.teiA();
+			expect(await stores.remoteTei()).toBe(fromA);
+			expect(await stores.teiB()).toBe(fromA);
+
+			await saveWorkingTranscriptionContent(
+				stores.storeB.db,
+				{ id: 'tx-1', document: documentWithVerses(['Romans 1:3']) },
+				stores.storeOptionsB
+			);
+			expect((await stores.syncB()).uploadedPaths).toContain(TEI_PATH);
+			expect((await stores.syncA()).downloadedPaths).toContain(TEI_PATH);
+			const fromB = await stores.teiB();
+			expect(await stores.remoteTei()).toBe(fromB);
+			expect(await stores.teiA()).toBe(fromB);
+			expect(
+				(await listRemoteFiles(stores.provider, stores.contextA)).filter(path =>
+					path.startsWith('transcriptions/')
+				)
+			).toEqual([TEI_PATH]);
+		} finally {
+			await stores.storeB.destroy();
+		}
+	});
+
+	it('takes the remote file without a conflict copy when two Currents differ only in save time', async () => {
+		const stores = await teiTranscriptionOnTwoStores();
+		try {
+			const resave = async (
+				db: LocalDbTestHarness['db'],
+				options: StoreOperationOptions,
+				updatedAt: string
+			) => {
+				const current = await loadTranscriptionWithWorkingFile(db, 'tx-1', options);
+				await saveWorkingTranscriptionContent(
+					db,
+					{ id: 'tx-1', document: JSON.parse(current?.content_json ?? ''), updatedAt },
+					options
+				);
+			};
+			await resave(harness.db, storeOptions, '2026-06-11T09:00:00.000Z');
+			await resave(stores.storeB.db, stores.storeOptionsB, '2026-06-11T09:05:00.000Z');
+			const [teiA, teiB] = [await stores.teiA(), await stores.teiB()];
+			expect(teiA).not.toBe(teiB);
+			expect(await teiContentHash(teiA)).toBe(await teiContentHash(teiB));
+
+			await stores.syncA();
+			const resultB = await stores.syncB({ authorName: 'B editor' });
+
+			expect(resultB.uiState).toBe('synced');
+			expect(resultB.quarantines).toEqual([]);
+			expect(resultB.conflictCopyId).toBeUndefined();
+			expect(resultB.downloadedPaths).toContain(TEI_PATH);
+			expect(await stores.teiB()).toBe(teiA);
+			expect(
+				await stores.storeB.db.selectFrom('project_transcriptions').select('id').execute()
+			).toEqual([{ id: 'pt-1' }]);
+		} finally {
+			await stores.storeB.destroy();
+		}
+	});
+
+	it('turns a real collision between two Currents into a TEI conflict copy', async () => {
+		const stores = await teiTranscriptionOnTwoStores();
+		try {
+			await saveWorkingTranscriptionContent(
+				harness.db,
+				{ id: 'tx-1', document: documentWithVerses(['Romans 1:2']) },
+				storeOptions
+			);
+			await saveWorkingTranscriptionContent(
+				stores.storeB.db,
+				{ id: 'tx-1', document: documentWithVerses(['Romans 1:3']) },
+				stores.storeOptionsB
+			);
+			await stores.syncA();
+			const conflictB = await stores.syncB({ authorName: 'B editor' });
+
+			expect(conflictB.uiState).toBe('conflict requires resolution');
+			const copyId = conflictB.conflictCopyId ?? '';
+			expect(copyId).toBeTruthy();
+			expect(conflictB.uploadedPaths).toContain(`transcriptions/${copyId}.tei.xml`);
+			expect(await stores.teiB()).toBe(await stores.teiA());
+			const contents = await stores.storeB.db
+				.selectFrom('project_transcriptions')
+				.innerJoin(
+					'transcriptions',
+					'transcriptions.id',
+					'project_transcriptions.transcription_id'
+				)
+				.select(['project_transcriptions.id as id', 'transcriptions.content_json'])
+				.orderBy('project_transcriptions.id')
+				.execute();
+			expect(contents).toHaveLength(2);
+			const verseOf = (id: string) =>
+				/"verse":"(\d+)"/.exec(
+					contents.find(row => row.id === id)?.content_json ?? ''
+				)?.[1];
+			expect(verseOf('pt-1')).toBe('2');
+			expect(verseOf(copyId)).toBe('3');
+			expect((await stores.syncB()).uiState).toBe('synced');
+		} finally {
+			await stores.storeB.destroy();
+		}
+	});
+
+	it('quarantines an unparseable remote Current and keeps the local file', async () => {
+		const stores = await teiTranscriptionOnTwoStores();
+		try {
+			const file = await remoteFile(stores.provider, stores.contextA, TEI_PATH);
+			const good = await stores.teiB();
+			const broken = (await stores.remoteTei()).replace('</text>', '');
+			expect(broken).not.toBe(good);
+			await stores.provider.updateFile(file!.id, broken, file!.revision);
+
+			const result = await stores.syncB();
+
+			expect(result.downloadedPaths).not.toContain(TEI_PATH);
+			expect(result.quarantines).toEqual([
+				expect.objectContaining({ path: TEI_PATH, code: 'invalid_tei' }),
+			]);
+			expect(await stores.teiB()).toBe(good);
+		} finally {
+			await stores.storeB.destroy();
+		}
+	});
+
+	it('does not sync a project with JSON heads until it is converted to TEI', async () => {
+		for (const [path, content] of Object.entries(jsonProject as Record<string, string>))
+			await writeTextFileAtomic(`projects/project-slug/${path}`, content, storeOptions);
+		await rebuildIndexFromStore(harness.db, storeOptions);
+		const { provider, context } = await createConnectedProvider();
+
+		const pending = await backupProject(harness.db, provider, context, syncOptions());
+
+		expect(pending).toMatchObject({
+			uiState: 'sync pending',
+			manifestUploaded: false,
+			uploadedPaths: [],
+		});
+		expect(provider.calls).toEqual([]);
+
+		expect(await convertProjectToTei(harness.db, 'project-1', storeOptions)).toMatchObject({
+			status: 'converted',
+		});
+		const synced = await backupProject(harness.db, provider, context, syncOptions());
+
+		expect(synced).toMatchObject({ uiState: 'synced', manifestUploaded: true });
+		expect(
+			(await listRemoteFiles(provider, context)).filter(path => !path.endsWith('.tei.xml'))
+		).toEqual(['project.json']);
+	});
+
+	it('takes the remote edit without a conflict copy when a second store converts the shared JSON project', async () => {
+		const stores = await jsonProjectOnTwoStores();
+		try {
+			expect(await convertProjectToTei(harness.db, 'project-1', storeOptions)).toMatchObject({
+				status: 'converted',
+			});
+			const firstA = await stores.syncA();
+			expect(firstA).toMatchObject({ uiState: 'synced', downloadedPaths: [] });
+			expect(firstA.uploadedPaths).toContain(TEI_PATH);
+			await saveWorkingTranscriptionContent(
+				harness.db,
+				{ id: 'tx-1', document: documentWithVerses(['Romans 1:2']) },
+				storeOptions
+			);
+			expect((await stores.syncA()).uploadedPaths).toContain(TEI_PATH);
+			expect(await stores.convertB()).toMatchObject({ status: 'converted' });
+
+			const resultB = await stores.syncB();
+
+			expect(resultB.quarantines).toEqual([]);
+			expect(resultB.conflictCopyId).toBeUndefined();
+			expect(resultB.downloadedPaths).toContain(TEI_PATH);
+			expect(await stores.teiB()).toBe(await stores.teiA());
+		} finally {
+			await stores.storeB.destroy();
+		}
+	});
+
+	it('still conflicts when the second store changed its JSON since the last sync before converting', async () => {
+		const stores = await jsonProjectOnTwoStores();
+		try {
+			await convertProjectToTei(harness.db, 'project-1', storeOptions);
+			await stores.syncA();
+			await saveWorkingTranscriptionContent(
+				harness.db,
+				{ id: 'tx-1', document: documentWithVerses(['Romans 1:2']) },
+				storeOptions
+			);
+			await stores.syncA();
+			const jsonB = 'projects/project-slug/transcriptions/pt-1.json';
+			await writeTextFileAtomic(
+				jsonB,
+				`${await readTextFile(jsonB, stores.storeOptionsB)}\n`,
+				stores.storeOptionsB
+			);
+			expect(await stores.convertB()).toMatchObject({ status: 'converted' });
+
+			const resultB = await stores.syncB({ authorName: 'B editor' });
+
+			expect(resultB.quarantines).toEqual([
+				expect.objectContaining({ path: TEI_PATH, code: 'hash_mismatch' }),
+			]);
+			expect(resultB.conflictCopyId).toBeTruthy();
+		} finally {
+			await stores.storeB.destroy();
+		}
+	});
+
+	it('deletes a TEI transcription with its Versions from both stores through its tombstone', async () => {
+		const stores = await teiTranscriptionOnTwoStores();
+		const entityPath = /(^|\/)(transcriptions\/pt-1\.|history\/transcriptions\/pt-1\/)/;
+		const storeFiles = (store: MemoryStoreBackend) =>
+			[...store.files.keys()].filter(path => entityPath.test(path));
+		try {
+			expect(storeFiles(stores.backendB)).not.toEqual([]);
+			await deleteTranscriptionWithFiles(harness.db, 'tx-1', {}, storeOptions);
+			expect(storeFiles(backend)).toEqual([]);
+
+			const pushA = await stores.syncA();
+			expect(pushA.uploadedPaths).toContain('tombstones/project-transcription--pt-1.json');
+			expect(pushA.deletedPaths).toContain(TEI_PATH);
+			expect(pushA.deletedPaths).toContain('history/transcriptions/pt-1/tx-cp-1.tei.xml');
+			const pullB = await stores.syncB();
+
+			expect(pullB.uiState).toBe('synced');
+			expect(storeFiles(stores.backendB)).toEqual([]);
+			expect(storeFiles(backend)).toEqual([]);
+			expect(
+				(await listRemoteFiles(stores.provider, stores.contextA)).filter(path =>
+					entityPath.test(path)
+				)
+			).toEqual([]);
+			expect(
+				await stores.storeB.db.selectFrom('transcriptions').select('id').execute()
+			).toEqual([]);
+			const tombstoneB = [...stores.backendB.files.entries()].find(([path]) =>
+				path.endsWith('tombstones/project-transcription--pt-1.json')
+			)?.[1];
+			expect(JSON.parse(String(tombstoneB)).cloud_path).toBe(TEI_PATH);
+		} finally {
+			await stores.storeB.destroy();
+		}
+	});
+});
+
+describe('sync manager with TEI-canonical collations', () => {
+	it('syncs the collation TEI byte for byte and re-indexes only it after a pull', async () => {
+		const stores = await teiCollationOnTwoStores();
+		try {
+			await saveWorkingCollationMetadata(
+				harness.db,
+				{ id: 'col-1', notes: 'From A', updatedAt: '2026-06-11T09:00:00.000Z' },
+				storeOptions
+			);
+			expect((await stores.syncA()).uploadedPaths).toContain(TEI_COLLATION_PATH);
+			await stores.storeB.db
+				.updateTable('projects')
+				.set({ description: 'Untouched index row' })
+				.execute();
+			const pullB = await stores.syncB();
+			expect(pullB.downloadedPaths).toEqual([TEI_COLLATION_PATH]);
+			expect(await stores.teiB()).toBe(await stores.teiA());
+			expect(await stores.remoteTei()).toBe(await stores.teiA());
+			expect(
+				(
+					await loadCollationWithWorkingFile(
+						stores.storeB.db,
+						'col-1',
+						stores.storeOptionsB
+					)
+				)?.row.notes
+			).toBe('From A');
+			expect(
+				await stores.storeB.db.selectFrom('projects').select('description').execute()
+			).toEqual([{ description: 'Untouched index row' }]);
+
+			await saveWorkingCollationMetadata(
+				stores.storeB.db,
+				{ id: 'col-1', notes: 'From B', updatedAt: '2026-06-11T10:00:00.000Z' },
+				stores.storeOptionsB
+			);
+			expect((await stores.syncB()).uploadedPaths).toContain(TEI_COLLATION_PATH);
+			expect((await stores.syncA()).downloadedPaths).toContain(TEI_COLLATION_PATH);
+			expect(await stores.teiA()).toBe(await stores.teiB());
+			expect(
+				(await listRemoteFiles(stores.provider, stores.contextA)).filter(path =>
+					path.startsWith('collations/')
+				)
+			).toEqual([TEI_COLLATION_PATH]);
+		} finally {
+			await stores.storeB.destroy();
+		}
+	});
+
+	it('takes the remote collation without a conflict copy when two Currents differ only in save time', async () => {
+		const stores = await teiCollationOnTwoStores();
+		try {
+			await saveCanonicalCollation(
+				harness.db,
+				storeOptions,
+				'Project',
+				'col-1',
+				'2026-06-11T09:00:00.000Z'
+			);
+			await saveCanonicalCollation(
+				stores.storeB.db,
+				stores.storeOptionsB,
+				'Project',
+				'col-1',
+				'2026-06-11T09:05:00.000Z'
+			);
+			const [teiA, teiB] = [await stores.teiA(), await stores.teiB()];
+			expect(teiA).not.toBe(teiB);
+			expect(await teiContentHash(teiA)).toBe(await teiContentHash(teiB));
+
+			await stores.syncA();
+			const resultB = await stores.syncB({ authorName: 'B editor' });
+
+			expect(resultB.uiState).toBe('synced');
+			expect(resultB.quarantines).toEqual([]);
+			expect(resultB.conflictCopyId).toBeUndefined();
+			expect(resultB.downloadedPaths).toContain(TEI_COLLATION_PATH);
+			expect(await stores.teiB()).toBe(teiA);
+			expect(await stores.storeB.db.selectFrom('collations').select('id').execute()).toEqual([
+				{ id: 'col-1' },
+			]);
+		} finally {
+			await stores.storeB.destroy();
+		}
+	});
+
+	it('turns a real collision between two collation Currents into a TEI conflict copy', async () => {
+		const stores = await teiCollationOnTwoStores();
+		try {
+			await saveWorkingCollationMetadata(
+				harness.db,
+				{ id: 'col-1', notes: 'From A' },
+				storeOptions
+			);
+			await saveWorkingCollationMetadata(
+				stores.storeB.db,
+				{ id: 'col-1', notes: 'From B' },
+				stores.storeOptionsB
+			);
+			await stores.syncA();
+			const conflictB = await stores.syncB({ authorName: 'B editor' });
+
+			expect(conflictB.uiState).toBe('conflict requires resolution');
+			const copyId = conflictB.conflictCopyId ?? '';
+			expect(copyId).toBeTruthy();
+			expect(conflictB.uploadedPaths).toContain(`collations/${copyId}.tei.xml`);
+			expect(
+				conflictB.uploadedPaths.some(
+					path => path.endsWith('.json') && path.startsWith('collations/')
+				)
+			).toBe(false);
+			expect(await stores.teiB()).toBe(await stores.teiA());
+			const notes = await stores.storeB.db
+				.selectFrom('collations')
+				.select(['id', 'notes'])
+				.orderBy('id')
+				.execute();
+			expect(notes).toHaveLength(2);
+			expect(notes.find(row => row.id === 'col-1')?.notes).toBe('From A');
+			expect(notes.find(row => row.id === copyId)?.notes).toBe('From B');
+			expect((await stores.syncB()).uiState).toBe('synced');
+		} finally {
+			await stores.storeB.destroy();
+		}
+	});
+
+	it('deletes a TEI collation with its Versions from both stores through its tombstone', async () => {
+		const stores = await teiCollationOnTwoStores();
+		const entityPath = /(^|\/)(collations\/col-1\.|history\/collations\/col-1\/)/;
+		const storeFiles = (store: MemoryStoreBackend) =>
+			[...store.files.keys()].filter(path => entityPath.test(path));
+		try {
+			expect(storeFiles(stores.backendB)).not.toEqual([]);
+			await deleteCollationWithFiles(harness.db, 'col-1', {}, storeOptions);
+			expect(storeFiles(backend)).toEqual([]);
+
+			const pushA = await stores.syncA();
+			expect(pushA.uploadedPaths).toContain('tombstones/collation--col-1.json');
+			expect(pushA.deletedPaths).toContain(TEI_COLLATION_PATH);
+			expect(pushA.deletedPaths).toContain('history/collations/col-1/col-cp-1.tei.xml');
+			const pullB = await stores.syncB();
+
+			expect(pullB.uiState).toBe('synced');
+			expect(storeFiles(stores.backendB)).toEqual([]);
+			expect(
+				(await listRemoteFiles(stores.provider, stores.contextA)).filter(path =>
+					entityPath.test(path)
+				)
+			).toEqual([]);
+			expect(await stores.storeB.db.selectFrom('collations').select('id').execute()).toEqual(
+				[]
+			);
+			const tombstoneB = [...stores.backendB.files.entries()].find(([path]) =>
+				path.endsWith('tombstones/collation--col-1.json')
+			)?.[1];
+			expect(JSON.parse(String(tombstoneB)).cloud_path).toBe(TEI_COLLATION_PATH);
+		} finally {
+			await stores.storeB.destroy();
+		}
+	});
+});
+
+const TEI_COLLATION_PATH = 'collations/col-1.tei.xml';
+
+async function createTeiCollation(): Promise<void> {
+	await createCollation(harness.db, {
+		id: 'col-1',
+		projectId: 'project-1',
+		title: 'Romans 1:1',
+		verseIdentifier: 'Romans 1:1',
+		now: '2026-06-10T12:00:00.000Z',
+	});
+	await saveCanonicalCollation(harness.db, storeOptions, 'Project', 'col-1');
+	await createCommittedCollationCheckpointWithFiles(
+		harness.db,
+		{ collationId: 'col-1', checkpointId: 'col-cp-1', createdAt: '2026-06-10T12:02:00.000Z' },
+		storeOptions
+	);
+}
+
+async function teiCollationOnTwoStores() {
+	await createProject(harness.db, { id: 'project-1', name: 'Project' });
+	await createTeiCollation();
+	const { provider, context: contextA } = await createConnectedProvider();
+	const storeB = createLocalDbTestHarness();
+	const backendB = new MemoryStoreBackend();
+	const storeOptionsB = { backend: backendB };
+	const contextB: SyncProjectContext = { ...contextA, connectionId: 'target-b' };
+	const archive = await listProjectArchiveFiles(harness.db, 'project-1', { storeOptions });
+	const imported = await importProjectFileTree(
+		storeB.db,
+		archive.map(file => ({ path: file.path, read: async () => file.content })),
+		{ storeOptions: storeOptionsB }
+	);
+	expect(imported.ok).toBe(true);
+	const syncA = () => backupProject(harness.db, provider, contextA, syncOptions());
+	const syncB = (options: SyncManagerOptions = {}) =>
+		backupProject(storeB.db, provider, contextB, { ...options, storeOptions: storeOptionsB });
+	const projectSlug = await loadProjectStorageSlug('project-1');
+	const slugB = (
+		await storeB.db.selectFrom('projects').select('storage_slug').executeTakeFirstOrThrow()
+	).storage_slug;
+	await syncA();
+	expect((await syncB()).uiState).toBe('synced');
+	return {
+		provider,
+		contextA,
+		storeB,
+		backendB,
+		storeOptionsB,
+		syncA,
+		syncB,
+		teiA: () => readTextFile(collationTeiFile(projectSlug, 'col-1'), storeOptions),
+		teiB: () => readTextFile(collationTeiFile(slugB, 'col-1'), storeOptionsB),
+		remoteTei: async () => {
+			const file = await remoteFile(provider, contextA, TEI_COLLATION_PATH);
+			if (!file) throw new Error('Expected remote TEI primary.');
+			return provider.downloadFile(file.id);
+		},
+	};
+}
+
+const TEI_PATH = 'transcriptions/pt-1.tei.xml';
+
+async function createTeiTranscription(): Promise<void> {
+	await createTranscriptionWithFiles(
+		harness.db,
+		{
+			id: 'tx-1',
+			projectId: 'project-1',
+			projectTranscriptionId: 'pt-1',
+			title: 'Witness 01',
+			siglum: '01',
+			document: documentWithVerses(['Romans 1:1']),
+			transcriber: 'Editor',
+			repository: 'Library',
+			settlement: 'City',
+			language: 'grc',
+		},
+		storeOptions
+	);
+	await createCommittedTranscriptionCheckpointWithFiles(
+		harness.db,
+		{ projectTranscriptionId: 'pt-1', checkpointId: 'tx-cp-1' },
+		storeOptions
+	);
+}
+
+async function teiTranscriptionOnTwoStores() {
+	await createProject(harness.db, { id: 'project-1', name: 'Project' });
+	await createTeiTranscription();
+	const { provider, context: contextA } = await createConnectedProvider();
+	const storeB = createLocalDbTestHarness();
+	const backendB = new MemoryStoreBackend();
+	const storeOptionsB = { backend: backendB };
+	const contextB: SyncProjectContext = { ...contextA, connectionId: 'target-b' };
+	const archive = await listProjectArchiveFiles(harness.db, 'project-1', { storeOptions });
+	const imported = await importProjectFileTree(
+		storeB.db,
+		archive.map(file => ({ path: file.path, read: async () => file.content })),
+		{ storeOptions: storeOptionsB }
+	);
+	expect(imported.ok).toBe(true);
+	const syncA = () => backupProject(harness.db, provider, contextA, syncOptions());
+	const syncB = (options: SyncManagerOptions = {}) =>
+		backupProject(storeB.db, provider, contextB, { ...options, storeOptions: storeOptionsB });
+	const projectSlug = await loadProjectStorageSlug('project-1');
+	const slugB = (
+		await storeB.db.selectFrom('projects').select('storage_slug').executeTakeFirstOrThrow()
+	).storage_slug;
+	await syncA();
+	expect((await syncB()).uiState).toBe('synced');
+	return {
+		provider,
+		contextA,
+		storeB,
+		backendB,
+		storeOptionsB,
+		syncA,
+		syncB,
+		teiA: () => readTextFile(transcriptionTeiFile(projectSlug, 'pt-1'), storeOptions),
+		teiB: () => readTextFile(transcriptionTeiFile(slugB, 'pt-1'), storeOptionsB),
+		remoteTei: async () => {
+			const file = await remoteFile(provider, contextA, TEI_PATH);
+			if (!file) throw new Error('Expected remote TEI primary.');
+			return provider.downloadFile(file.id);
+		},
+	};
+}
+
+// Both stores and the remote hold the JSON project as a build before TEI conversion synced it.
+async function jsonProjectOnTwoStores() {
+	const files = Object.entries(jsonProject as Record<string, string>);
+	const storeB = createLocalDbTestHarness();
+	const backendB = new MemoryStoreBackend();
+	const storeOptionsB = { backend: backendB };
+	const { provider, context: contextA } = await createConnectedProvider();
+	const contextB: SyncProjectContext = { ...contextA, connectionId: 'target-b' };
+	for (const [path, content] of files) {
+		const storePath = `projects/project-slug/${path}`;
+		await writeTextFileAtomic(storePath, content, storeOptions);
+		await writeTextFileAtomic(storePath, content, storeOptionsB);
+	}
+	await rebuildIndexFromStore(harness.db, storeOptions);
+	await rebuildIndexFromStore(storeB.db, storeOptionsB);
+	for (const [path, content] of files) {
+		const remote = {
+			...(await provider.createFile(contextA.cloudFolderId, path, content)),
+			name: path.split('/').pop()!,
+			isFolder: false,
+		};
+		const file = { path, storePath: `projects/project-slug/${path}`, content };
+		const syncedAt = '2026-06-01T00:00:00.000Z';
+		await recordSyncedFile(harness.db, contextA, file, remote, syncedAt);
+		await recordSyncedFile(storeB.db, contextB, file, remote, syncedAt);
+	}
+	return {
+		storeB,
+		storeOptionsB,
+		syncA: () => backupProject(harness.db, provider, contextA, syncOptions()),
+		syncB: (options: SyncManagerOptions = {}) =>
+			backupProject(storeB.db, provider, contextB, {
+				...options,
+				storeOptions: storeOptionsB,
+			}),
+		convertB: () => convertProjectToTei(storeB.db, 'project-1', storeOptionsB),
+		teiA: () => readTextFile(transcriptionTeiFile('project-slug', 'pt-1'), storeOptions),
+		teiB: () => readTextFile(transcriptionTeiFile('project-slug', 'pt-1'), storeOptionsB),
+	};
+}
+
 class RecordingMockProvider extends MockCloudStorageProvider {
 	calls: ProviderCall[] = [];
 
@@ -2466,7 +3041,8 @@ async function saveCanonicalCollation(
 	db: LocalDbTestHarness['db'],
 	options: StoreOperationOptions,
 	projectName = 'Project',
-	collationId = 'col-1'
+	collationId = 'col-1',
+	now = '2026-06-10T12:01:00.000Z'
 ): Promise<void> {
 	const document = structuredClone(COLLATION_FIXTURE.document);
 	document.meta.projectName = projectName;
@@ -2476,7 +3052,7 @@ async function saveCanonicalCollation(
 			collationId,
 			artifactType: 'collation_document_v1',
 			payload: JSON.stringify(document),
-			now: '2026-06-10T12:01:00.000Z',
+			now,
 		},
 		options
 	);
@@ -2558,21 +3134,24 @@ async function pushRemoteCollationRevision(
 			},
 			remoteStoreOptions
 		);
-		const historyPath = `history/collations/${collationId}/${checkpointId}.json`;
+		const historyPath = `history/collations/${collationId}/${checkpointId}.tei.xml`;
 		const remoteProject = await remoteHarness.db
 			.selectFrom('projects')
 			.select('storage_slug')
 			.where('id', '=', 'project-1')
 			.executeTakeFirstOrThrow();
 		const history = await readTextFile(
-			collationCheckpointFile(remoteProject.storage_slug, collationId, checkpointId),
+			joinStorePath(
+				projectFolder(remoteProject.storage_slug),
+				collationCheckpointTeiRelativeFile(collationId, checkpointId)
+			),
 			remoteStoreOptions
 		);
 		await provider.createFile(context.cloudFolderId, historyPath, history);
-		const primary = await remoteFile(provider, context, `collations/${collationId}.json`);
+		const primary = await remoteFile(provider, context, `collations/${collationId}.tei.xml`);
 		if (!primary) throw new Error('Expected remote primary file.');
 		const remotePrimary = await readTextFile(
-			collationPrimaryFile(remoteProject.storage_slug, collationId),
+			collationTeiFile(remoteProject.storage_slug, collationId),
 			remoteStoreOptions
 		);
 		await provider.updateFile(primary.id, remotePrimary, primary.revision);

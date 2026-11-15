@@ -12,6 +12,7 @@ function createManifestSource(id: string, canvasId: string, label: string): Mani
 		sourceKind: 'app',
 		defaultCanvasId: canvasId,
 		defaultImageServiceUrl: null,
+		syntheticCanvases: [],
 		manifestJson: {
 			'@context': 'http://iiif.io/api/presentation/3/context.json',
 			id: `https://example.org/${id}/manifest`,

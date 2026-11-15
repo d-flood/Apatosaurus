@@ -4,11 +4,11 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import {
 	buildApparatusTeiExportInput,
 	exportApparatusTei,
-	exportCollationDocumentTei,
 	getApparatusExportRefusals,
 	type ApparatusTeiExportInput,
 	type ApparatusTeiUnit,
 } from './collation-tei';
+import { exportCollationDocumentTei, serializeCollationApparatus } from './collation-apparatus-tei';
 import { applyDecisions } from './collation-decisions';
 import { buildCollationDocument } from './collation-document';
 import { collationState, type WitnessConfig } from './collation-state.svelte';
@@ -904,8 +904,11 @@ describe('apparatus TEI exporter', () => {
 			alignmentLayout: collationState.alignmentLayout,
 		});
 
-		expect(exportCollationDocumentTei(document)).toBe(
+		expect(exportApparatusTei(buildApparatusTeiExportInput(document))).toBe(
 			exportApparatusTei({ ...exportInput(), title: 'Apatosaurus Collation' })
+		);
+		expect(exportCollationDocumentTei(document)).toBe(
+			serializeCollationApparatus(document, {})
 		);
 		const manual = [
 			{ id: 'full', siglum: 'Syriac', treatment: 'full' as const, includeInCbgm: false },

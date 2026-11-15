@@ -14,7 +14,7 @@ const {
 	updateCollationMetadata,
 	getProject,
 	getProjectTranscriptionIds,
-	listVerseIndexRowsForTranscriptions,
+	getVerseIndexRowsForVerse,
 	createProject,
 	updateProjectMetadata,
 	getCollationVersionStatus,
@@ -32,7 +32,7 @@ const {
 	updateCollationMetadata: vi.fn(),
 	getProject: vi.fn(),
 	getProjectTranscriptionIds: vi.fn(),
-	listVerseIndexRowsForTranscriptions: vi.fn(),
+	getVerseIndexRowsForVerse: vi.fn(),
 	createProject: vi.fn(),
 	updateProjectMetadata: vi.fn(),
 	getCollationVersionStatus: vi.fn(),
@@ -52,7 +52,7 @@ vi.mock('$lib/db/client', () => ({
 	updateCollationMetadata,
 	getProject,
 	getProjectTranscriptionIds,
-	listVerseIndexRowsForTranscriptions,
+	getVerseIndexRowsForVerse,
 	createProject,
 	updateProjectMetadata,
 	getCollationVersionStatus,
@@ -355,7 +355,10 @@ describe('collationState artifact-first persistence', () => {
 			},
 		});
 		createCollation.mockResolvedValue('col-new');
-		saveCollationArtifact.mockResolvedValue('artifact-existing');
+		saveCollationArtifact.mockResolvedValue({
+			artifactId: 'artifact-existing',
+			versionStatus: makeVersionStatus([]),
+		});
 		saveCollationProjection.mockResolvedValue(undefined);
 		updateCollationMetadata.mockResolvedValue(undefined);
 		createProject.mockResolvedValue('proj-new');
@@ -379,7 +382,7 @@ describe('collationState artifact-first persistence', () => {
 			updatedAt: '2026-03-10T00:00:00.000Z',
 		});
 		getProjectTranscriptionIds.mockResolvedValue(['A-tx', 'B-tx']);
-		listVerseIndexRowsForTranscriptions.mockResolvedValue([
+		getVerseIndexRowsForVerse.mockResolvedValue([
 			{
 				id: 'verse-row-a',
 				transcription_id: 'A-tx',
@@ -626,7 +629,7 @@ describe('collationState artifact-first persistence', () => {
 
 	it('leaves the selected verse orphaned when its member is absent from the project index', async () => {
 		getProjectTranscriptionIds.mockResolvedValue([]);
-		listVerseIndexRowsForTranscriptions.mockResolvedValue([]);
+		getVerseIndexRowsForVerse.mockResolvedValue([]);
 		findOrphanedSegmentMembers.mockResolvedValue(['Romans 1:1']);
 		const collationState = await importState();
 		collationState.reset();
@@ -702,7 +705,8 @@ describe('collationState artifact-first persistence', () => {
 			['A-tx'],
 			{
 				ignoreWordBreaks: false,
-			}
+			},
+			'proj-1'
 		);
 		expect(collationState.witnesses[0]?.tokens[0]?.original).toBe('κλη\\nτος');
 		expect(collationState.orphanedMembers).toEqual(['Romans 1:1']);
@@ -746,9 +750,12 @@ describe('collationState artifact-first persistence', () => {
 		const changed = await collationState.refreshWitnessesFromSource([]);
 
 		expect(changed).toBe(false);
-		expect(gatherWitnessesForSegment).toHaveBeenCalledWith({ members: ['Romans 1:1'] }, [], {
-			ignoreWordBreaks: false,
-		});
+		expect(gatherWitnessesForSegment).toHaveBeenCalledWith(
+			{ members: ['Romans 1:1'] },
+			[],
+			{ ignoreWordBreaks: false },
+			'proj-1'
+		);
 		expect(collationState.orphanedMembers).toEqual(['Romans 1:1']);
 	}, 30000);
 
@@ -1125,7 +1132,8 @@ describe('collationState artifact-first persistence', () => {
 		expect(gatherWitnessesForSegment).toHaveBeenCalledWith(
 			{ members: ['Romans 1:1'] },
 			['A-tx'],
-			{ ignoreWordBreaks: false }
+			{ ignoreWordBreaks: false },
+			'proj-1'
 		);
 		expect(loadCommittedTranscriptionCheckpointPayload).not.toHaveBeenCalled();
 		expect(collationState.witnesses.map(witness => witness.content)).toEqual([
@@ -1224,7 +1232,8 @@ describe('collationState artifact-first persistence', () => {
 			['A-tx', 'B-tx'],
 			{
 				ignoreWordBreaks: true,
-			}
+			},
+			'proj-1'
 		);
 		expect(collationState.witnesses[0]?.tokens[0]?.original).toBe('κλητος');
 	});
@@ -1257,9 +1266,13 @@ describe('collationState artifact-first persistence', () => {
 		collationState.nextPhase();
 		await vi.advanceTimersByTimeAsync(801);
 
-		expect(updateCollationMetadata).toHaveBeenCalledWith(
-			expect.objectContaining({ id: collationId, status: 'alignment' })
+		expect(saveCollationArtifact).toHaveBeenCalledWith(
+			expect.objectContaining({
+				collationId,
+				metadata: expect.objectContaining({ status: 'alignment' }),
+			})
 		);
+		expect(updateCollationMetadata).not.toHaveBeenCalled();
 		expect(saveCollationProjection).not.toHaveBeenCalled();
 	});
 
@@ -1288,10 +1301,12 @@ describe('collationState artifact-first persistence', () => {
 		collationState.setSegmentName('Romans 1:1 (critical text)');
 		await collationState.flushPendingSave();
 
-		expect(updateCollationMetadata).toHaveBeenCalledWith(
+		expect(saveCollationArtifact).toHaveBeenCalledWith(
 			expect.objectContaining({
-				id: 'col-1',
-				verseIdentifier: 'Romans 1:1 (critical text)',
+				collationId: 'col-1',
+				metadata: expect.objectContaining({
+					verseIdentifier: 'Romans 1:1 (critical text)',
+				}),
 			})
 		);
 	});
@@ -1376,10 +1391,11 @@ describe('collationState artifact-first persistence', () => {
 
 		expect(saveCollationProjection).not.toHaveBeenCalled();
 		expect(saveCollationArtifact).toHaveBeenCalledWith(
-			expect.objectContaining({ collationId, artifactType: 'collation_document_v1' })
-		);
-		expect(updateCollationMetadata).toHaveBeenCalledWith(
-			expect.objectContaining({ id: collationId, status: 'complete' })
+			expect.objectContaining({
+				collationId,
+				artifactType: 'collation_document_v1',
+				metadata: expect.objectContaining({ status: 'complete' }),
+			})
 		);
 	});
 
@@ -1407,7 +1423,10 @@ describe('collationState artifact-first persistence', () => {
 			await Promise.resolve();
 			await Promise.resolve();
 			vi.clearAllMocks();
-			saveCollationArtifact.mockResolvedValue('artifact-existing');
+			saveCollationArtifact.mockResolvedValue({
+				artifactId: 'artifact-existing',
+				versionStatus: makeVersionStatus([]),
+			});
 			saveCollationProjection.mockResolvedValue(undefined);
 			updateCollationMetadata.mockResolvedValue(undefined);
 
@@ -1425,7 +1444,7 @@ describe('collationState artifact-first persistence', () => {
 			expect(result).toBe(true);
 			expect(collationState.saveStatus).toBe('saved');
 			expect(saveCollationArtifact).toHaveBeenCalledTimes(1);
-			expect(updateCollationMetadata).toHaveBeenCalledTimes(1);
+			expect(updateCollationMetadata).not.toHaveBeenCalled();
 		});
 
 		it('awaits an in-flight save instead of starting a concurrent save', async () => {
@@ -1438,8 +1457,8 @@ describe('collationState artifact-first persistence', () => {
 			saveCollationProjection.mockResolvedValue(undefined);
 			updateCollationMetadata.mockResolvedValue(undefined);
 
-			let resolveSave!: (value: string) => void;
-			const savePromise = new Promise<string>(resolve => {
+			let resolveSave!: (value: unknown) => void;
+			const savePromise = new Promise(resolve => {
 				resolveSave = resolve;
 			});
 			saveCollationArtifact.mockReturnValue(savePromise);
@@ -1465,7 +1484,7 @@ describe('collationState artifact-first persistence', () => {
 			expect(flushResolved).toBe(false);
 			expect(saveCollationArtifact).toHaveBeenCalledTimes(1);
 
-			resolveSave('artifact-existing');
+			resolveSave({ artifactId: 'artifact-existing', versionStatus: makeVersionStatus([]) });
 			const result = await flushPromise;
 
 			expect(result).toBe(true);
@@ -1498,5 +1517,162 @@ describe('collationState artifact-first persistence', () => {
 			expect(result).toBe(false);
 			expect(collationState.saveStatus).toBe('error');
 		});
+	});
+
+	describe('writes per state change', () => {
+		async function loadWith(payload: string) {
+			const loaded = await loadCollation();
+			loadCollation.mockResolvedValue({
+				...loaded,
+				artifact: { ...loaded.artifact, payload },
+			});
+			const state = await importState();
+			state.reset();
+			expect(await state.loadCollationById('col-1')).toBe(true);
+			await vi.advanceTimersByTimeAsync(0);
+			vi.clearAllMocks();
+			return state;
+		}
+
+		async function settle() {
+			await vi.advanceTimersByTimeAsync(2000);
+		}
+
+		it('writes once on Proceed after creating, even with a setup edit pending', async () => {
+			const state = await importState();
+			state.reset();
+			await state.selectProject('proj-1');
+			state.setWitnesses([makeWitness('A', 'και θεος', true), makeWitness('B', 'και λογος')]);
+			await vi.advanceTimersByTimeAsync(400);
+			vi.clearAllMocks();
+			createCollation.mockResolvedValue('col-new');
+
+			await state.createNewCollation('Romans 1:1', 'Romans 1:1', 'Romans 1:1');
+			await vi.advanceTimersByTimeAsync(800);
+			state.setPhase('alignment');
+			await state.flushPendingSave();
+			await settle();
+
+			expect(createCollation).toHaveBeenCalledOnce();
+			expect(saveCollationArtifact).toHaveBeenCalledOnce();
+			expect(getCollationVersionStatus).not.toHaveBeenCalled();
+		});
+
+		it('writes nothing when opened at its stored phase', async () => {
+			const state = await importState();
+			state.reset();
+			expect(await state.loadCollationById('col-1')).toBe(true);
+			state.showPhase('alignment');
+			await settle();
+
+			expect(saveCollationArtifact).not.toHaveBeenCalled();
+			expect(updateCollationMetadata).not.toHaveBeenCalled();
+			expect(createCollation).not.toHaveBeenCalled();
+			expect(getCollationVersionStatus).toHaveBeenCalledOnce();
+			expect(state.saveStatus).toBe('saved');
+		});
+
+		it('writes once when opened at another phase, taking status from the save', async () => {
+			const status = makeVersionStatus([]);
+			saveCollationArtifact.mockResolvedValue({
+				artifactId: 'artifact-1',
+				versionStatus: status,
+			});
+			const state = await loadWith(makeDocumentPayload());
+
+			state.showPhase('readings');
+			await settle();
+
+			expect(saveCollationArtifact).toHaveBeenCalledOnce();
+			expect(getCollationVersionStatus).not.toHaveBeenCalled();
+			expect(state.versionStatus).toBe(status);
+		});
+
+		it('writes once per phase change, skipping the status echo of its own save', async () => {
+			let resolveSave!: (value: unknown) => void;
+			saveCollationArtifact.mockReturnValue(new Promise(resolve => (resolveSave = resolve)));
+			const state = await loadWith(makeDecisionDocumentPayload());
+
+			state.setPhase('alignment');
+			state.nextPhase();
+			await vi.advanceTimersByTimeAsync(0);
+			expect(saveCollationArtifact).toHaveBeenCalledOnce();
+			state.handleCollationsInvalidated();
+			resolveSave({ artifactId: 'artifact-1', versionStatus: makeVersionStatus([]) });
+			await settle();
+
+			expect(state.phase).toBe('readings');
+			expect(saveCollationArtifact).toHaveBeenCalledOnce();
+			expect(getCollationVersionStatus).not.toHaveBeenCalled();
+			expect(JSON.parse(saveCollationArtifact.mock.lastCall![0].payload).flow.phase).toBe(
+				'readings'
+			);
+		});
+
+		it('saves a change made during an in-flight save once that save finishes', async () => {
+			let resolveSave!: (value: unknown) => void;
+			saveCollationArtifact.mockReturnValueOnce(
+				new Promise(resolve => (resolveSave = resolve))
+			);
+			const state = await loadWith(makeDecisionDocumentPayload());
+
+			state.showPhase('stemma');
+			await vi.advanceTimersByTimeAsync(0);
+			state.showPhase('review');
+			await vi.advanceTimersByTimeAsync(0);
+			resolveSave({ artifactId: 'artifact-1', versionStatus: makeVersionStatus([]) });
+			await settle();
+
+			expect(saveCollationArtifact).toHaveBeenCalledTimes(2);
+			expect(JSON.parse(saveCollationArtifact.mock.lastCall![0].payload).flow.phase).toBe(
+				'review'
+			);
+			expect(state.saveStatus).toBe('saved');
+		});
+
+		const unitId = (state: Awaited<ReturnType<typeof importState>>) =>
+			`unit:${state.alignmentColumns[0].id}`;
+		const reading = (state: Awaited<ReturnType<typeof importState>>, text: string) =>
+			state.getReadingsForUnit(unitId(state)).find(entry => entry.text === text)!;
+
+		it.each([
+			[
+				'reading type',
+				s => s.setReadingType(unitId(s), reading(s, 'beta').id, 'scribal-leap'),
+			],
+			[
+				'reading certainty',
+				s => s.setReadingCertainty(unitId(s), reading(s, 'beta').id, 'high'),
+			],
+			['reading note', s => s.setReadingNote(unitId(s), reading(s, 'beta').id, 'note')],
+			['lemma', s => s.setLemmaReading(unitId(s), reading(s, 'beta').id)],
+			[
+				'reading parent',
+				s => s.setReadingParent(unitId(s), reading(s, 'beta').id, reading(s, 'alpha').id),
+			],
+			['added reading', s => s.addReading(unitId(s))],
+			['connectivity', s => s.setConnectivity(unitId(s), 3)],
+			['declared unit', s => s.declareUnit([s.alignmentColumns[0].id])],
+			[
+				'undo',
+				s => {
+					s.setReadingNote(unitId(s), reading(s, 'beta').id, 'note');
+					s.undo();
+				},
+			],
+		] as Array<[string, (state: Awaited<ReturnType<typeof importState>>) => unknown]>)(
+			'writes once for a %s change',
+			async (_kind, act) => {
+				const state = await loadWith(makeReadingTypeDocumentPayload());
+
+				act(state);
+				expect(state.saveStatus).toBe('unsaved');
+				await settle();
+
+				expect(saveCollationArtifact).toHaveBeenCalledOnce();
+				expect(updateCollationMetadata).not.toHaveBeenCalled();
+				expect(getCollationVersionStatus).not.toHaveBeenCalled();
+			}
+		);
 	});
 });

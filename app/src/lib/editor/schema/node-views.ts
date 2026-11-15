@@ -102,8 +102,9 @@ export function createIncrementalNodeView(renderNode: NodeRenderer) {
 		HTMLAttributes: Record<string, any>;
 	}) => {
 		let currentNode = node;
-		const rendered = DOMSerializer.renderSpec(document, renderNode(node, HTMLAttributes));
-		let renderedTemplate = rendered.dom.cloneNode(true);
+		const initialSpec = renderNode(node, HTMLAttributes);
+		const rendered = DOMSerializer.renderSpec(document, initialSpec);
+		let renderedTemplate: globalThis.Node | null = null;
 		return {
 			dom: rendered.dom,
 			contentDOM: rendered.contentDOM,
@@ -122,7 +123,7 @@ export function createIncrementalNodeView(renderNode: NodeRenderer) {
 				}
 				patchRenderedDom(
 					rendered.dom,
-					renderedTemplate,
+					renderedTemplate ?? DOMSerializer.renderSpec(document, initialSpec).dom,
 					nextRendered.dom,
 					rendered.contentDOM
 				);

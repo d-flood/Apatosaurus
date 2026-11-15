@@ -1,5 +1,5 @@
 export type StoreQuarantineCode =
-	'invalid_json' | 'invalid_schema_version' | 'invalid_shape' | 'hash_mismatch';
+	'invalid_json' | 'invalid_schema_version' | 'invalid_shape' | 'invalid_tei' | 'hash_mismatch';
 
 export interface StoreQuarantineReason {
 	code: StoreQuarantineCode;

@@ -4,13 +4,12 @@ import {
 	getCollationVersionStatus,
 	getProject,
 	getProjectTranscriptionIds,
+	getVerseIndexRowsForVerse,
 	loadCollation,
 	loadCommittedTranscriptionCheckpointPayload,
 	listTranscriptionVersions,
-	listVerseIndexRowsForTranscriptions,
 	saveCollationArtifact,
 	updateProjectMetadata,
-	updateCollationMetadata,
 } from '$lib/db/client';
 import { coerceTranscriptionDocument } from '$lib/transcription/content';
 import {
@@ -128,6 +127,7 @@ import {
 	type VariationUnitSpan,
 } from './collation-variation-units';
 import type { CollationWitnessInput } from './collation-worker-types';
+import type { CollationVersionStatus } from '$lib/db/repositories/collations';
 import type { AggregatedVerse } from './gather-verses';
 import {
 	createProjectCollationSettings,
@@ -239,6 +239,8 @@ function createCollationState() {
 	let projectName = $state<string | null>(null);
 	let workspaceArtifactId = $state<string | null>(null);
 	let isLoading = $state(false);
+	let versionStatus = $state<CollationVersionStatus | null>(null);
+	let versionStatusError = $state<string | null>(null);
 
 	let segment = $state<CollationSegment | null>(null);
 	let orphanedMembers = $state<string[]>([]);
@@ -275,6 +277,7 @@ function createCollationState() {
 
 	let alignmentColumns = $state<AlignmentColumn[]>([]);
 	let declaredUnits = $state<DeclaredUnit[]>([]);
+	const variationUnitSpans = $derived(buildVariationUnitSpans(alignmentColumns, declaredUnits));
 	let witnessOrder = $state<string[]>([]);
 	let selectedColumnIds = $state<Set<string>>(new Set());
 	let selectedCells = $state<Set<string>>(new Set());
@@ -376,25 +379,31 @@ function createCollationState() {
 	}
 
 	async function persistDocument(): Promise<boolean> {
-		if (!collationId) return false;
+		const id = collationId;
+		if (!id) return false;
 		try {
 			if (!segment) throw new Error('Collation segment is required.');
 			const now = new Date().toISOString();
 			const payload = serializeCollationDocument(buildCollationDocumentPayload());
-			workspaceArtifactId = await saveCollationArtifact({
+			const saved = await saveCollationArtifact({
 				artifactId: workspaceArtifactId,
-				collationId,
+				collationId: id,
 				artifactType: COLLATION_DOCUMENT_ARTIFACT_TYPE,
 				payload,
 				now,
+				metadata: {
+					verseIdentifier: segment.name,
+					notes,
+					status: isFinalizedCollationPhase() ? 'complete' : phase,
+				},
 			});
-			await updateCollationMetadata({
-				id: collationId,
-				verseIdentifier: segment.name,
-				notes,
-				updatedAt: now,
-				status: isFinalizedCollationPhase() ? 'complete' : phase,
-			});
+			if (collationId === id) {
+				workspaceArtifactId = saved.artifactId;
+				if (saved.versionStatus) {
+					versionStatus = saved.versionStatus;
+					versionStatusError = null;
+				} else void refreshVersionStatus();
+			}
 			return true;
 		} catch (err) {
 			console.error('Failed to persist collation document:', err);
@@ -403,11 +412,32 @@ function createCollationState() {
 		}
 	}
 
+	async function refreshVersionStatus(): Promise<void> {
+		const id = collationId;
+		if (!id) return;
+		try {
+			const next = await getCollationVersionStatus(id);
+			if (collationId !== id) return;
+			versionStatus = next;
+			versionStatusError = null;
+		} catch (err) {
+			if (collationId !== id) return;
+			versionStatusError =
+				err instanceof Error ? err.message : 'Failed to load version status';
+			console.error('Failed to load collation version status:', err);
+		}
+	}
+
+	// Skips invalidations echoed by our own save, whose reply already carries the status.
+	function handleCollationsInvalidated() {
+		if (!inFlightSave) void refreshVersionStatus();
+	}
+
 	const editListeners = new Set<() => void>();
 
-	function markUnsaved() {
+	function markUnsaved(delay?: number) {
 		saveStatus = 'unsaved';
-		scheduleSave();
+		scheduleSave(delay);
 		if (collationId) for (const listener of editListeners) listener();
 	}
 
@@ -438,12 +468,12 @@ function createCollationState() {
 		}
 	}
 
-	function scheduleSave() {
+	function scheduleSave(delay = 800) {
 		if (saveTimeout) clearTimeout(saveTimeout);
 		saveTimeout = setTimeout(() => {
 			saveTimeout = null;
-			void runPersist();
-		}, 800);
+			void flushPendingSave();
+		}, delay);
 	}
 
 	async function flushPendingSave(): Promise<boolean> {
@@ -490,7 +520,7 @@ function createCollationState() {
 	function setPhase(p: CollationPhase) {
 		phase = p;
 		advanceFurthest(p);
-		markUnsaved();
+		markUnsaved(0);
 	}
 
 	function showPhase(p: CollationPhase) {
@@ -498,7 +528,7 @@ function createCollationState() {
 		phase = p;
 		advanceFurthest(p);
 		saveStatus = 'unsaved';
-		scheduleSave();
+		scheduleSave(0);
 	}
 
 	function advanceFurthest(p: CollationPhase) {
@@ -533,7 +563,7 @@ function createCollationState() {
 			const next = COLLATION_PHASES[idx + 1];
 			phase = next;
 			advanceFurthest(next);
-			markUnsaved();
+			markUnsaved(0);
 		}
 	}
 
@@ -655,8 +685,7 @@ function createCollationState() {
 		}
 
 		const transcriptionIds = await getProjectTranscriptionIds(projectId);
-		const rows = await listVerseIndexRowsForTranscriptions(transcriptionIds);
-		const matchingRows = rows.filter(row => row.verse_identifier === member);
+		const matchingRows = await getVerseIndexRowsForVerse(member, transcriptionIds);
 		const row = matchingRows[0];
 		if (!row) {
 			clearSelectedVerse();
@@ -1118,7 +1147,8 @@ function createCollationState() {
 		const gathered = await gatherWitnessesForSegment(
 			{ members: [...segment!.members] },
 			scopedTranscriptionIds,
-			{ ignoreWordBreaks }
+			{ ignoreWordBreaks },
+			projectId
 		);
 		if (options?.expectedCollationId && collationId !== options.expectedCollationId)
 			return false;
@@ -1260,9 +1290,12 @@ function createCollationState() {
 		transcriptionId: string,
 		members: string[]
 	): Promise<PreparedWitness[] | null> {
-		const gathered = await gatherWitnessesForSegment({ members }, [transcriptionId], {
-			ignoreWordBreaks,
-		});
+		const gathered = await gatherWitnessesForSegment(
+			{ members },
+			[transcriptionId],
+			{ ignoreWordBreaks },
+			projectId
+		);
 		return gathered.error ? null : gathered.witnesses;
 	}
 
@@ -2167,7 +2200,7 @@ function createCollationState() {
 	}
 
 	function getVariationUnitSpans() {
-		return buildVariationUnitSpans(alignmentColumns, declaredUnits);
+		return variationUnitSpans;
 	}
 
 	function getSegmentSequence(): Segment[] {
@@ -3578,6 +3611,8 @@ function createCollationState() {
 		projectName = null;
 		workspaceArtifactId = null;
 		isLoading = false;
+		versionStatus = null;
+		versionStatusError = null;
 		segment = null;
 		selectedVerse = null;
 		witnesses = [];
@@ -3680,7 +3715,9 @@ function createCollationState() {
 			now,
 		});
 		collationId = id;
-		await persistDocument();
+		if (saveTimeout) clearTimeout(saveTimeout);
+		saveTimeout = null;
+		saveStatus = 'unsaved';
 		return id;
 	}
 
@@ -3717,6 +3754,7 @@ function createCollationState() {
 			if (!repairedCollapsedAlignment) {
 				saveStatus = 'saved';
 			}
+			void refreshVersionStatus();
 			isLoading = false;
 			return true;
 		} catch (err) {
@@ -3771,6 +3809,12 @@ function createCollationState() {
 		},
 		get isLoading() {
 			return isLoading;
+		},
+		get versionStatus() {
+			return versionStatus;
+		},
+		get versionStatusError() {
+			return versionStatusError;
 		},
 		get segment() {
 			return segment;
@@ -4043,6 +4087,7 @@ function createCollationState() {
 		loadCollationById,
 		reloadCollation,
 		flushPendingSave,
+		handleCollationsInvalidated,
 		pushCommand,
 	};
 }

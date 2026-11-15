@@ -7,7 +7,7 @@
 -- are deleted (see Phase 6).
 --
 -- Notes:
---   * This is the current schema for INDEX_SCHEMA_VERSION = 6. Bumping the
+--   * This is the current schema for INDEX_SCHEMA_VERSION = 8. Bumping the
 --     index version creates a fresh disposable index and rebuilds it from
 --     files instead of migrating SQL in place.
 --   * `transcriptions.content_json` and `collation_artifacts.payload` are
@@ -49,7 +49,7 @@ CREATE TABLE IF NOT EXISTS transcriptions (
 	siglum TEXT NOT NULL,
 	description TEXT NOT NULL DEFAULT '',
 	-- Disposable cache: canonical transcription content lives in
-	-- `<storage_slug>/transcriptions/<id>.json` and `.working.json`.
+	-- `<storage_slug>/transcriptions/<id>.tei.xml`.
 	content_json TEXT NOT NULL,
 	format TEXT NOT NULL,
 	created_at TEXT NOT NULL,
@@ -76,17 +76,33 @@ CREATE TABLE IF NOT EXISTS transcription_verse_index (
 	chapter TEXT NOT NULL DEFAULT '',
 	verse TEXT NOT NULL DEFAULT '',
 	last_indexed_at TEXT NOT NULL,
+	-- Chunk range of the verse slice in `transcription_slice_chunks`; null when empty.
+	slice_first_chunk INTEGER,
+	slice_last_chunk INTEGER,
 	UNIQUE(transcription_id, verse_identifier)
 );
 
-CREATE INDEX IF NOT EXISTS idx_transcription_verse_index_transcription_id ON transcription_verse_index(transcription_id);
 CREATE INDEX IF NOT EXISTS idx_transcription_verse_index_verse_identifier ON transcription_verse_index(verse_identifier, transcription_id);
 
 CREATE TABLE IF NOT EXISTS transcription_verse_index_state (
 	transcription_id TEXT PRIMARY KEY REFERENCES transcriptions(id) ON DELETE CASCADE,
 	indexed_content_hash TEXT NOT NULL,
 	verse_count INTEGER NOT NULL,
-	last_indexed_at TEXT NOT NULL
+	last_indexed_at TEXT NOT NULL,
+	-- The document without pages; verse slices supply the pages.
+	document_shell_json TEXT NOT NULL DEFAULT '{}',
+	hands_json TEXT NOT NULL DEFAULT '[]'
+);
+
+-- Deflated runs of `transcriptions.content_json` lines, so gathering a verse
+-- inflates the few chunks its slice range covers instead of whole documents.
+CREATE TABLE IF NOT EXISTS transcription_slice_chunks (
+	transcription_id TEXT NOT NULL REFERENCES transcriptions(id) ON DELETE CASCADE,
+	chunk_index INTEGER NOT NULL,
+	-- Last 64 bits of the inflated chunk's SHA-256, so saves skip unchanged chunks without inflating them.
+	chunk_hash TEXT NOT NULL,
+	chunk_deflated BLOB NOT NULL,
+	PRIMARY KEY (transcription_id, chunk_index)
 );
 
 CREATE TABLE IF NOT EXISTS project_transcriptions (
@@ -121,9 +137,8 @@ CREATE TABLE IF NOT EXISTS collations (
 CREATE INDEX IF NOT EXISTS idx_collations_updated_at ON collations(updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_collations_project_id ON collations(project_id);
 
--- Disposable cache for the legacy `collation_document_v1` payload. Canonical
--- collation content lives in `<storage_slug>/collations/<id>.json` and
--- `.working.json`.
+-- Disposable cache of a collation's Current document, parsed from
+-- `<storage_slug>/collations/<id>.tei.xml`.
 CREATE TABLE IF NOT EXISTS collation_artifacts (
 	id TEXT PRIMARY KEY,
 	collation_id TEXT NOT NULL REFERENCES collations(id) ON DELETE CASCADE,
@@ -194,10 +209,17 @@ CREATE TABLE IF NOT EXISTS iiif_manifest_sources (
 	source_kind TEXT NOT NULL DEFAULT 'external',
 	default_canvas_id TEXT,
 	default_image_service_url TEXT,
-	metadata_json TEXT NOT NULL DEFAULT '{}',
+	synthetic_canvases_json TEXT NOT NULL DEFAULT '[]',
 	created_at TEXT NOT NULL,
 	updated_at TEXT NOT NULL,
 	UNIQUE(transcription_id, manifest_url)
+);
+
+-- Fetched manifests are provider data, not transcription content; a miss re-fetches.
+CREATE TABLE IF NOT EXISTS iiif_manifest_cache (
+	manifest_url TEXT PRIMARY KEY,
+	metadata_json TEXT NOT NULL,
+	fetched_at TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS transcription_page_canvas_links (
@@ -243,6 +265,37 @@ CREATE TABLE IF NOT EXISTS iiif_canvas_annotations (
 CREATE INDEX IF NOT EXISTS idx_canvas_annotations_canvas_id ON iiif_canvas_annotations(canvas_id);
 CREATE INDEX IF NOT EXISTS idx_canvas_annotations_page_id ON iiif_canvas_annotations(page_id);
 
+-- One row per TEI-canonical file the index was built from or last wrote.
+CREATE TABLE IF NOT EXISTS document_file_fingerprints (
+	path TEXT PRIMARY KEY,
+	entity_type TEXT NOT NULL,
+	entity_id TEXT NOT NULL,
+	size INTEGER NOT NULL,
+	last_modified INTEGER NOT NULL,
+	file_hash TEXT NOT NULL,
+	content_hash TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_document_file_fingerprints_entity
+	ON document_file_fingerprints(entity_type, entity_id);
+
+-- TEI files that stopped parsing after an outside edit. Size and last_modified
+-- belong to the broken file, so an unchanged broken file is not re-read.
+CREATE TABLE IF NOT EXISTS document_file_problems (
+	path TEXT PRIMARY KEY,
+	project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+	entity_type TEXT NOT NULL,
+	entity_id TEXT NOT NULL,
+	code TEXT NOT NULL,
+	message TEXT NOT NULL,
+	size INTEGER NOT NULL,
+	last_modified INTEGER NOT NULL,
+	detected_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_document_file_problems_project
+	ON document_file_problems(project_id);
+
 -- Rebuildable per-file sync cache. The canonical target binding lives in
 -- `app/sync-targets.json`; this table only remembers the last successful
 -- local/remote fingerprints for cheap mirror comparisons.
@@ -270,7 +323,7 @@ CREATE INDEX IF NOT EXISTS idx_sync_file_fingerprints_project ON sync_file_finge
 CREATE INDEX IF NOT EXISTS idx_sync_file_fingerprints_entity ON sync_file_fingerprints(project_id, entity_type, entity_id);
 
 -- Checkpoint listings only. Canonical checkpoint payloads live in
--- history/<entity>/<checkpoint>.json files.
+-- history/<kind>s/<id>/<checkpoint>.tei.xml files.
 CREATE TABLE IF NOT EXISTS transcription_checkpoints (
 	id TEXT PRIMARY KEY,
 	transcription_id TEXT NOT NULL REFERENCES transcriptions(id) ON DELETE CASCADE,

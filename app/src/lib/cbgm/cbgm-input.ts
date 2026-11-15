@@ -11,6 +11,11 @@ import {
 	type ApparatusTeiUnit,
 } from '$lib/collation/collation-tei';
 import { variationUnitId } from '$lib/collation/collation-unit-id';
+import {
+	apparatusUnitPrefix,
+	compactSiglum,
+	readingTypeTokens,
+} from '$lib/collation/collation-apparatus-tei';
 
 export type CbgmInput = {
 	tei: string | null;
@@ -27,7 +32,7 @@ export type CbgmInput = {
 };
 
 function claimUnitPrefix(segmentName: string, claimed: Set<string>): string {
-	const base = segmentName.replace(/\s+/g, '');
+	const base = apparatusUnitPrefix(segmentName);
 	let prefix = base;
 	for (let index = 2; claimed.has(prefix); index += 1) prefix = `${base}-${index}`;
 	claimed.add(prefix);
@@ -51,15 +56,11 @@ function serializeApp(
 
 	const readings = unit.stemma.nodes.map(node => {
 		const reading = readingById.get(node.readingId)!;
-		const readingType = reading.isOmission
-			? 'omission'
-			: recordedReadingTypeIds.has(reading.id)
-				? reading.readingType
-				: null;
-		const types = [
-			...(laterSplitMemberIds.has(reading.id) ? ['split'] : []),
-			...(readingType === null ? [] : [readingType]),
-		];
+		const types = readingTypeTokens(
+			reading,
+			recordedReadingTypeIds,
+			laterSplitMemberIds.has(reading.id)
+		);
 		const sigla = [
 			...new Set(node.witnessIds.flatMap(witnessId => siglumOf.get(witnessId) ?? [])),
 		];
@@ -98,7 +99,8 @@ export function buildCbgmInput(
 	settings: CoherenceSettings,
 	manualWitnesses: readonly ManualWitnessDefinition[] = []
 ): CbgmInput {
-	const includedCorrectors = new Set(settings.includedCorrectors);
+	const includedCorrectors = new Set(settings.includedCorrectors.map(compactSiglum));
+	const excludedWitnesses = new Set(settings.excludedWitnesses.map(compactSiglum));
 	const transcriptionIdsBySiglum = new Map<string, string[]>();
 	const availableCorrectors = new Set<string>();
 	const blockingUnits: CbgmInput['blockingUnits'] = [];
@@ -110,16 +112,17 @@ export function buildCbgmInput(
 		const siglumOf = new Map<string, string>();
 		for (const witness of document.setup.witnesses) {
 			if (witness.isExcluded) continue;
+			const siglum = compactSiglum(witness.siglum);
 			if (witness.kind === 'corrector') {
-				availableCorrectors.add(witness.siglum);
-				if (!includedCorrectors.has(witness.siglum)) continue;
+				availableCorrectors.add(siglum);
+				if (!includedCorrectors.has(siglum)) continue;
 			}
-			siglumOf.set(witness.id, witness.siglum);
-			const transcriptionIds = transcriptionIdsBySiglum.get(witness.siglum) ?? [];
+			siglumOf.set(witness.id, siglum);
+			const transcriptionIds = transcriptionIdsBySiglum.get(siglum) ?? [];
 			if (!transcriptionIds.includes(witness.transcriptionId)) {
 				transcriptionIds.push(witness.transcriptionId);
 			}
-			transcriptionIdsBySiglum.set(witness.siglum, transcriptionIds);
+			transcriptionIdsBySiglum.set(siglum, transcriptionIds);
 		}
 
 		const segmentName = document.setup.segment.name;
@@ -130,15 +133,16 @@ export function buildCbgmInput(
 		for (const witness of input.witnesses) {
 			if (witness.isExcluded || siglumOf.has(witness.witnessId)) continue;
 			if (!manualWitnesses.some(manual => manual.id === witness.witnessId)) continue;
-			siglumOf.set(witness.witnessId, witness.siglum);
-			const identities = transcriptionIdsBySiglum.get(witness.siglum) ?? [];
+			const siglum = compactSiglum(witness.siglum);
+			siglumOf.set(witness.witnessId, siglum);
+			const identities = transcriptionIdsBySiglum.get(siglum) ?? [];
 			const identity = `manual:${witness.witnessId}`;
 			if (!identities.includes(identity)) identities.push(identity);
-			transcriptionIdsBySiglum.set(witness.siglum, identities);
+			transcriptionIdsBySiglum.set(siglum, identities);
 		}
 		const isIncluded = (witnessId: string) => {
 			const siglum = siglumOf.get(witnessId);
-			return siglum !== undefined && !settings.excludedWitnesses.includes(siglum);
+			return siglum !== undefined && !excludedWitnesses.has(siglum);
 		};
 		const apps: string[] = [];
 		for (const segment of input.segments) {

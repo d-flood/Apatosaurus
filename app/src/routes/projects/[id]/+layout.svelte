@@ -2,8 +2,11 @@
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 
-	import type { Snippet } from 'svelte';
+	import { onMount, type Snippet } from 'svelte';
 	import type { ProjectRecord } from '$lib/db/repositories/projects';
+	import type { DocumentFileProblemListing } from '$lib/db/repositories/document-refresh';
+	import { listDocumentFileProblems, subscribeLocalDbInvalidations } from '$lib/db/client';
+	import DocumentFileProblemsReport from '$lib/project/components/DocumentFileProblemsReport.svelte';
 
 	let { data, children } = $props<{
 		data: { project: ProjectRecord };
@@ -12,6 +15,28 @@
 
 	let project = $derived(data.project);
 	let projectActionQuery = $derived(`?projectId=${encodeURIComponent(project.id)}`);
+	let fileProblems = $state.raw<DocumentFileProblemListing[]>([]);
+	let problemsRunId = 0;
+
+	$effect(() => {
+		void loadFileProblems(project.id);
+	});
+
+	onMount(() =>
+		subscribeLocalDbInvalidations(event => {
+			if (['projects', 'transcriptions', 'all'].includes(event.domain))
+				void loadFileProblems(project.id);
+		})
+	);
+
+	async function loadFileProblems(projectId: string) {
+		const runId = ++problemsRunId;
+		const problems = await listDocumentFileProblems(projectId).catch(error => {
+			console.error('[project] loading file problems failed', error);
+			return [];
+		});
+		if (runId === problemsRunId) fileProblems = problems;
+	}
 
 	function isActive(section: string): boolean {
 		return page.url.pathname.endsWith(`/${section}`);
@@ -92,6 +117,8 @@
 				</a>
 			</div>
 		</div>
+
+		<DocumentFileProblemsReport problems={fileProblems} />
 
 		{@render children()}
 	</div>

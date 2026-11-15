@@ -9,7 +9,10 @@ import { createWorkerKysely } from './worker-kysely';
 import { LocalSqliteDatabase, type OpenIndexDatabaseResult } from './worker-sqlite';
 import { createCurrentIndexSchema } from './worker-schema';
 import { openWithRetry } from './open-retry';
-import { upgradeAlphaProjects, markAlphaUpgradesIndexed } from '$lib/storage/alpha-project-upgrade';
+import {
+	upgradeAlphaProjects,
+	markAlphaUpgradesIndexed,
+} from '$lib/storage/legacy-json/alpha-project-upgrade';
 import type { Kysely } from 'kysely';
 
 const db = new LocalSqliteDatabase();
@@ -73,7 +76,7 @@ async function handleRequest(
 	request: DbRequest,
 	runExclusive: DbApiContext['exclusive']
 ): Promise<unknown> {
-	await init();
+	await init('type' in request && request.type === 'init' ? request.verifyIntegrity : true);
 	if ('method' in request) {
 		const method = dbApi[request.method] as (
 			context: DbApiContext,
@@ -97,14 +100,18 @@ function apiContext(runExclusive: DbApiContext['exclusive']): DbApiContext {
 		warn: (warnings: PersistenceWarning[]) => {
 			if (warnings.length) postMessage({ type: 'db:warnings', warnings });
 		},
+		progress: ({ done, total, phase }) =>
+			postMessage({ type: 'db:index-rebuild-progress', done, total, phase }),
 	};
 }
 
-async function init(): Promise<void> {
+async function init(verifyIntegrity = true): Promise<void> {
 	if (initialized) return;
 	const startedAt = now();
 	await timeWorkerStep('stale import cleanup', () => cleanStaleProjectImportStaging());
-	const openResult = await timeWorkerStep('db.open', () => openIndexDatabaseForStartup());
+	const openResult = await timeWorkerStep('db.open', () =>
+		openIndexDatabaseForStartup(verifyIntegrity)
+	);
 	if (openResult.created) {
 		await timeWorkerStep('schema create', () => createCurrentIndexSchema(db));
 	}
@@ -140,7 +147,9 @@ async function init(): Promise<void> {
 	console.debug('[local-db] worker init completed', { elapsedMs: elapsed(startedAt) });
 }
 
-async function openIndexDatabaseForStartup(): Promise<IndexStartupOpenResult> {
+async function openIndexDatabaseForStartup(
+	verifyIntegrity: boolean
+): Promise<IndexStartupOpenResult> {
 	let openResult: OpenIndexDatabaseResult;
 	try {
 		// A reloaded page's previous worker can briefly keep the OPFS access handles.
@@ -164,6 +173,7 @@ async function openIndexDatabaseForStartup(): Promise<IndexStartupOpenResult> {
 		return { created: true, rebuildReason: 'open-failed', rebuildDetails: [message] };
 	}
 	if (openResult.created) return { ...openResult, rebuildReason: 'missing', rebuildDetails: [] };
+	if (!verifyIntegrity) return { ...openResult, rebuildReason: null, rebuildDetails: [] };
 
 	const integrity = await checkIndexIntegrity();
 	if (integrity.ok) return { ...openResult, rebuildReason: null, rebuildDetails: [] };
@@ -177,12 +187,12 @@ async function openIndexDatabaseForStartup(): Promise<IndexStartupOpenResult> {
 
 async function checkIndexIntegrity(): Promise<{ ok: true } | { ok: false; details: string[] }> {
 	try {
-		const rows = await db.query('PRAGMA integrity_check');
+		const rows = await db.query('PRAGMA quick_check');
 		const details = rows.flatMap(row => Object.values(row).map(value => String(value)));
 		if (details.length === 1 && details[0].toLowerCase() === 'ok') return { ok: true };
 		return {
 			ok: false,
-			details: details.length ? details : ['integrity_check returned no rows'],
+			details: details.length ? details : ['quick_check returned no rows'],
 		};
 	} catch (error) {
 		return { ok: false, details: [errorMessage(error)] };
@@ -208,7 +218,11 @@ async function replaceCurrentIndexDatabase(): Promise<void> {
 }
 
 async function rebuildIndex() {
-	return timeWorkerStep('index rebuild', () => rebuildIndexFromStore(getKyselyDb()));
+	return timeWorkerStep('index rebuild', () =>
+		rebuildIndexFromStore(getKyselyDb(), {}, ({ done, total }) =>
+			postMessage({ type: 'db:index-rebuild-progress', done, total })
+		)
+	);
 }
 
 function getKyselyDb(): Kysely<Database> {

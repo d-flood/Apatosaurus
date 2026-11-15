@@ -487,7 +487,7 @@ describe('tei-transcription package', () => {
 		]);
 
 		const exported = serializeTei(fromProseMirror(pm));
-		expect(compactXml(exported)).toContain('<segtype="unconfirmed"><pc>.</pc></seg>');
+		expect(compactXml(exported)).toContain('<segtype="unconfirmed"><pcjoin="left">.</pc></seg>');
 
 		const roundTripped = toProseMirror(parseTei(exported));
 		const punctuation = roundTripped.content?.[0]?.content?.[0]?.content?.[0]?.content?.find(
@@ -1347,10 +1347,9 @@ describe('tei-transcription package', () => {
 		});
 
 		const exported = serializeTei(document);
-		expect(compactXml(exported)).toContain(compactXml('<surplus reason="repetition">'));
 		expect(compactXml(exported)).toContain(
 			compactXml(
-				'<rdg type="corr" hand="corrector"><w><surplus reason="repetition">beta</surplus></w></rdg>'
+				'<surplus reason="repetition"><app><rdg type="orig"><w>alpha</w></rdg><rdg type="corr" hand="corrector"><w>beta</w></rdg></app></surplus>'
 			)
 		);
 	});

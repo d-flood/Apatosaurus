@@ -1,8 +1,8 @@
 import { expect, test, type Page } from '@playwright/test';
-import alpha from '../src/lib/storage/formats/fixtures/alpha-collation-v2.json' with { type: 'json' };
+import alpha from '../src/lib/storage/legacy-json/fixtures/alpha-collation-v2.json' with { type: 'json' };
 import { sealDocument, serializeSealedDocument } from '../src/lib/storage/envelope';
 import { hashCanonicalPayload } from '../src/lib/storage/canonical-json';
-import { COLLATION_CURRENT_VERSION } from '../src/lib/storage/formats/collation';
+import { COLLATION_CURRENT_VERSION } from '../src/lib/storage/legacy-json/collation';
 import { SharedFolderServer } from './shared-folder-server';
 
 test('alpha upgrade opens existing OPFS collation edits and preserves them after reload', async ({
@@ -10,6 +10,15 @@ test('alpha upgrade opens existing OPFS collation edits and preserves them after
 }) => {
 	await page.goto('/about');
 	await writeOpfsFiles(page, await alphaProjectFiles());
+	await page.goto(`/projects/${alpha.project_id}/collations`);
+	await expect
+		.poll(() =>
+			readOpfsText(
+				page,
+				`apatosaurus/v1/projects/alpha/collations/${alpha.id}.tei.xml`
+			).catch(() => '')
+		)
+		.toContain('Unsaved alpha work');
 	await page.goto(`/collation/${alpha.id}/stemma`);
 	await expect(page.getByRole('combobox', { name: /Source of reading/ })).toHaveCount(2);
 	await expect(
@@ -25,34 +34,28 @@ test('alpha upgrade opens existing OPFS collation edits and preserves them after
 	await expect(
 		page.getByRole('combobox', { name: 'Source of reading a', exact: true })
 	).toHaveValue('derived:r-a');
-	const stored = await page.evaluate(async () => {
-		const root = await navigator.storage.getDirectory();
-		async function read(path: string) {
-			const parts = path.split('/');
-			const name = parts.pop()!;
-			let directory = root;
-			for (const part of parts) directory = await directory.getDirectoryHandle(part);
-			return JSON.parse(await (await (await directory.getFileHandle(name)).getFile()).text());
-		}
-		return {
-			primary: await read('apatosaurus/v1/projects/alpha/collations/col-alpha.json'),
-			working: await read(
-				'apatosaurus/v1/projects/alpha/collations/col-alpha.working.json'
-			).catch(() => null),
-			original: await read(
-				'apatosaurus/v1/upgrades/alpha-c7d94ee/alpha/original/collations/col-alpha.json'
-			),
-		};
-	});
-	expect(stored.primary.schema_version).toBe(COLLATION_CURRENT_VERSION);
-	expect(stored.original.schema_version).toBe(2);
-	expect(stored.working).toBeNull();
-	expect(stored.primary.notes).toBe('Unsaved alpha work');
-	expect(stored.primary.document.apparatus.units[0].readings).toHaveLength(3);
-	expect(stored.primary.document.apparatus.units[0].decisions.readingType).toEqual({
+	const legacy = JSON.parse(
+		await readOpfsText(page, `apatosaurus/v1/projects/alpha/legacy/collations/${alpha.id}.json`)
+	);
+	const original = JSON.parse(
+		await readOpfsText(
+			page,
+			`apatosaurus/v1/upgrades/alpha-c7d94ee/alpha/original/collations/${alpha.id}.json`
+		)
+	);
+	expect(original.schema_version).toBe(2);
+	expect(legacy.schema_version).toBe(COLLATION_CURRENT_VERSION);
+	expect(legacy.document.apparatus.units[0].readings).toHaveLength(3);
+	expect(legacy.document.apparatus.units[0].decisions.readingType).toEqual({
 		'r-b': 'substitute',
 		'split-c': 'orthographic',
 	});
+	await expect(
+		readOpfsText(page, `apatosaurus/v1/projects/alpha/collations/${alpha.id}.json`)
+	).rejects.toThrow();
+	expect(
+		await readOpfsText(page, `apatosaurus/v1/projects/alpha/collations/${alpha.id}.tei.xml`)
+	).toContain('Unsaved alpha work');
 });
 
 test('an alpha project that synced to a folder asks once where it lives, and Move clears it', async ({
@@ -116,10 +119,13 @@ test('an alpha project that synced to a folder asks once where it lives, and Mov
 	expect(sharedFolder.paths()).toEqual(
 		expect.arrayContaining([
 			'alpha/project.json',
-			`alpha/collations/${alpha.id}.json`,
-			`alpha/history/collations/${alpha.id}/cp-alpha.json`,
+			`alpha/collations/${alpha.id}.tei.xml`,
+			`alpha/history/collations/${alpha.id}/cp-alpha.tei.xml`,
 		])
 	);
+	expect(
+		sharedFolder.paths().filter(path => /legacy|\/collations\/.*\.json$/.test(path))
+	).toEqual([]);
 
 	await page.goto('/');
 	await expect(page.getByRole('heading', { name: 'Start something' })).toBeVisible();
@@ -245,4 +251,14 @@ async function writeOpfsFiles(
 			await writer.close();
 		}
 	}, files);
+}
+
+async function readOpfsText(page: Page, path: string): Promise<string> {
+	return page.evaluate(async path => {
+		const parts = path.split('/');
+		const name = parts.pop()!;
+		let directory = await navigator.storage.getDirectory();
+		for (const part of parts) directory = await directory.getDirectoryHandle(part);
+		return (await (await directory.getFileHandle(name)).getFile()).text();
+	}, path);
 }

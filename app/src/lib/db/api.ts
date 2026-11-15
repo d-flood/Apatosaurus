@@ -32,6 +32,7 @@ import {
 	writeEditingPresence,
 } from '$lib/backup/editing-presence';
 import type { SavePageCanvasLinkInput } from '$lib/iiif/types';
+import type { StoredTranscriptionDocument } from '$lib/transcription/content';
 import type {
 	CbgmGlobalStemmaState,
 	CollationPayload,
@@ -68,7 +69,17 @@ import {
 import * as cbgmAnalyses from './repositories/cbgm-analyses';
 import * as iiif from './repositories/iiif';
 import * as iiifFiles from './repositories/iiif-files';
-import { rebuildIndexFromStore, restoreOrphanPrimaryToProject } from './repositories/index-rebuild';
+import * as iiifManifestCache from './repositories/iiif-manifest-cache';
+import {
+	rebuildIndexFromStore,
+	restoreOrphanPrimaryToProject,
+	type IndexRebuildProgress,
+} from './repositories/index-rebuild';
+import {
+	listDocumentFileProblems,
+	refreshChangedDocumentFiles,
+} from './repositories/document-refresh';
+import { convertProjectToTei } from './repositories/tei-conversion';
 import {
 	addProjectTranscriptionFromProject,
 	createProject,
@@ -108,7 +119,7 @@ import {
 	createCommittedTranscriptionCheckpointWithFiles,
 	createTranscriptionsWithFilesResult,
 	createTranscriptionWithFilesResult,
-	getCurrentTranscriptionsByIds,
+	exportTranscriptionTeiWithFiles,
 	loadTranscriptionContentWithFiles,
 	loadTranscriptionWithWorkingFile,
 	rebuildVerseIndexForTranscriptionsWithFiles,
@@ -120,12 +131,13 @@ import {
 	updateTranscriptionVersionNote,
 } from './repositories/transcription-files';
 import {
+	getCurrentVerseSources,
 	getTranscriptionSummary,
 	getVerseIndexRowsForVerse,
 	listTranscriptionSummaries,
+	listVerseCountsForTranscriptions,
 	listVerseIndexRows,
 	listVerseIndexRowsForTranscription,
-	listVerseIndexRowsForTranscriptions,
 	type CreateTranscriptionInput,
 	type UpdateTranscriptionContentInput,
 	type UpdateTranscriptionMetadataInput,
@@ -136,6 +148,7 @@ export interface DbApiContext {
 	invalidate: (...domains: DbInvalidationDomain[]) => void;
 	warn: (warnings: PersistenceWarning[]) => void;
 	exclusive: <T>(work: () => Promise<T>) => Promise<T>;
+	progress?: (progress: IndexRebuildProgress) => void;
 }
 
 export type DbApi = typeof dbApi;
@@ -147,8 +160,10 @@ export const dbApi = defineApi({
 	listTranscriptionSummaries: ({ db }) => listTranscriptionSummaries(db),
 	getTranscriptionSummary: ({ db }, id: string) => getTranscriptionSummary(db, id),
 	getTranscription: ({ db }, id: string) => loadTranscriptionWithWorkingFile(db, id),
-	getCurrentTranscriptionsByIds: ({ db }, ids: string[]) =>
-		getCurrentTranscriptionsByIds(db, ids),
+	exportTranscriptionTei: ({ db }, id: string, document: StoredTranscriptionDocument) =>
+		exportTranscriptionTeiWithFiles(db, id, document),
+	getCurrentVerseSources: ({ db }, verseIdentifier: string, transcriptionIds: string[]) =>
+		getCurrentVerseSources(db, verseIdentifier, transcriptionIds),
 	async createTranscription({ db, invalidate, warn }, input: CreateTranscriptionInput) {
 		const result = await createTranscriptionWithFilesResult(db, input);
 		invalidate('transcriptions', 'projects');
@@ -188,8 +203,8 @@ export const dbApi = defineApi({
 	listVerseIndexRows: ({ db }) => listVerseIndexRows(db),
 	listVerseIndexRowsForTranscription: ({ db }, transcriptionId: string) =>
 		listVerseIndexRowsForTranscription(db, transcriptionId),
-	listVerseIndexRowsForTranscriptions: ({ db }, transcriptionIds: string[]) =>
-		listVerseIndexRowsForTranscriptions(db, transcriptionIds),
+	listVerseCountsForTranscriptions: ({ db }, transcriptionIds: string[]) =>
+		listVerseCountsForTranscriptions(db, transcriptionIds),
 	async rebuildVerseIndexForTranscriptions({ db, invalidate }, transcriptionIds: string[]) {
 		const result = await rebuildVerseIndexForTranscriptionsWithFiles(db, transcriptionIds);
 		invalidate('transcriptions');
@@ -238,8 +253,6 @@ export const dbApi = defineApi({
 			projectOwnedTranscriptionId,
 			options
 		),
-	loadProjectTranscriptionContent: ({ db }, transcriptionId: string) =>
-		loadTranscriptionContentWithFiles(db, transcriptionId),
 	getProjectTranscriptionIds: ({ db }, projectId: string) =>
 		getProjectTranscriptionIds(db, projectId),
 	async syncProjectTranscriptionIds({ db, invalidate }, projectId: string, nextIds: string[]) {
@@ -290,7 +303,11 @@ export const dbApi = defineApi({
 	async saveCollationArtifact({ db, invalidate }, input: SaveCollationArtifactInput) {
 		const artifactId = await saveWorkingCollationArtifact(db, input);
 		invalidate('collations');
-		return artifactId;
+		const versionStatus = await getCollationVersionStatusWithWorkingFile(
+			db,
+			input.collationId
+		).catch(() => null);
+		return { artifactId, versionStatus };
 	},
 	async updateCollationMetadata({ db, invalidate }, input: UpdateCollationMetadataInput) {
 		await saveWorkingCollationMetadata(db, input);
@@ -384,6 +401,10 @@ export const dbApi = defineApi({
 		const row = await iiifFiles.ensureManifestSourceWithFiles(db, input);
 		invalidate('iiif');
 		return row;
+	},
+	async cacheManifest({ db, invalidate }, input: iiifManifestCache.CacheManifestInput) {
+		await iiifManifestCache.cacheManifest(db, input);
+		invalidate('iiif');
 	},
 	getManifestSource: ({ db }, transcriptionId: string, manifestSourceId: string) =>
 		iiif.getManifestSource(db, { transcriptionId, manifestSourceId }),
@@ -546,13 +567,14 @@ export const dbApi = defineApi({
 
 	listPendingUploadPaths: ({ db }, context: SyncProjectContext) =>
 		listPendingUploadPaths(db, context),
-	async backupProject({ db, invalidate, exclusive }, context: SyncProjectContext) {
+	async backupProject({ db, invalidate, exclusive, progress }, context: SyncProjectContext) {
 		const provider = await createProviderForLocation(context.connectionId);
 		const key = `${context.connectionId}/${context.projectId}/${context.cloudFolderId}`;
 		const result = await backupProject(db, provider, context, {
 			authorName: (await effectiveAuthorName(context.projectId)) ?? undefined,
 			remoteCursor: lastBackups.get(key)?.remoteCursor,
 			exclusive,
+			onIndexProgress: progress,
 		});
 		const state = JSON.stringify([
 			result.uiState,
@@ -688,6 +710,19 @@ export const dbApi = defineApi({
 		invalidate('reference-editions');
 		return result;
 	},
+
+	async convertProjectToTei({ db, invalidate, progress }, projectId: string) {
+		const report = await convertProjectToTei(db, projectId, {}, progress);
+		if (report.status === 'converted') invalidate('all');
+		return report;
+	},
+	async refreshChangedDocumentFiles({ db, invalidate, progress }, projectId: string) {
+		const report = await refreshChangedDocumentFiles(db, projectId, {}, progress);
+		if (report.hashed > 0) invalidate('projects', 'transcriptions', 'iiif');
+		return report;
+	},
+	listDocumentFileProblems: ({ db }, projectId: string) =>
+		listDocumentFileProblems(db, projectId),
 
 	async rebuildLocalIndex({ db, invalidate }) {
 		const report = await rebuildIndexFromStore(db);

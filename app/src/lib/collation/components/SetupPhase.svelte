@@ -201,7 +201,8 @@
 				request.transcriptionIds,
 				{
 					ignoreWordBreaks: request.ignoreWordBreaks,
-				}
+				},
+				collationState.projectId
 			);
 			if (!isCurrentWitnessLoad(request)) return;
 			if (result.error) {
@@ -1119,6 +1120,7 @@
 								} catch (err) {
 									collateError =
 										err instanceof Error ? err.message : 'Collation failed';
+									await collationState.flushPendingSave();
 									return;
 								} finally {
 									isCollating = false;

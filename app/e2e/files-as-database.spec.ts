@@ -2,9 +2,16 @@ import { expect, test, type Browser, type BrowserContext, type Page } from '@pla
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { WELCOME_SKIPPED_STORAGE_KEY } from '../src/lib/shell/welcome-gate';
-import { PROJECT_MANIFEST_CURRENT_VERSION } from '../src/lib/storage/formats/project-manifest';
 import { placeCaretAtLineEnd } from './editor-helpers';
 import { SharedFolderServer } from './shared-folder-server';
+import {
+	sealDocument,
+	serializeSealedDocument,
+	type JsonObject,
+} from '../src/lib/storage/envelope';
+import { hashCanonicalPayload } from '../src/lib/storage/canonical-json';
+import { COLLATION_CURRENT_VERSION } from '../src/lib/storage/legacy-json/collation';
+import { COLLATION_FIXTURE } from '../src/lib/storage/formats/payload-fixtures';
 
 const TEI_FIXTURE_PATH = fileURLToPath(
 	new URL('../src/lib/tei/NT_GRC_P118_Rom.xml', import.meta.url)
@@ -30,11 +37,17 @@ test('fresh user creates, commits, collates, and exports a project', async ({ pa
 
 	expect(entries.has('project.json')).toBe(true);
 	expect(
-		[...entries.keys()].filter(path => /^transcriptions\/[^/]+\.json$/.test(path))
+		[...entries.keys()].filter(path => /^transcriptions\/[^/]+\.tei\.xml$/.test(path))
 	).toHaveLength(2);
-	expect([...entries.keys()].filter(path => /^collations\/[^/]+\.json$/.test(path))).toHaveLength(
-		1
-	);
+	expect(
+		[...entries.keys()].filter(path => /^(history\/)?transcriptions\/.*\.json$/.test(path))
+	).toEqual([]);
+	expect(
+		[...entries.keys()].filter(path => /^collations\/[^/]+\.tei\.xml$/.test(path))
+	).toHaveLength(1);
+	expect(
+		[...entries.keys()].filter(path => /^(history\/)?collations\/.*\.json$/.test(path))
+	).toEqual([]);
 	expect([...entries.keys()].some(path => path.startsWith('history/transcriptions/'))).toBe(true);
 	expect([...entries.keys()].some(path => path.startsWith('history/collations/'))).toBe(true);
 });
@@ -256,14 +269,24 @@ test('committee contexts propagate updates and reconcile divergent commits from 
 	}
 });
 
-test('upgrade fixture migrates on save and rebuilds after an index version bump', async ({
+test('upgrade fixture converts to TEI on open and rebuilds after an index version bump', async ({
 	page,
 }, testInfo) => {
-	const fixture = await readFile(UPGRADE_FIXTURE_PATH, 'utf8');
-	await seedUpgradeStore(page, fixture);
+	await page.addInitScript(() => {
+		new MutationObserver(() => {
+			if (document.body?.textContent?.includes('Converting project to TEI'))
+				(window as { sawTeiConversion?: boolean }).sawTeiConversion = true;
+		}).observe(document, { subtree: true, childList: true, characterData: true });
+	});
+	await seedUpgradeStore(page, await upgradeFixtureFiles());
 
 	await page.goto('/projects');
 	await selectProject(page, 'Upgrade Fixture');
+	await expect
+		.poll(() =>
+			page.evaluate(() => (window as { sawTeiConversion?: boolean }).sawTeiConversion)
+		)
+		.toBe(true);
 
 	await page.getByRole('link', { name: 'Settings' }).click();
 	await page
@@ -290,14 +313,160 @@ test('upgrade fixture migrates on save and rebuilds after an index version bump'
 		forked_from?: unknown;
 	};
 	expect(manifest).toMatchObject({
-		schema_version: PROJECT_MANIFEST_CURRENT_VERSION,
+		schema_version: 7,
 		description: 'Synthetic v1 fixture saved as v2',
 		forked_from: null,
 	});
+	expect([...entries.keys()].filter(path => path !== 'project.json').sort()).toEqual([
+		'collations/col-upgrade.tei.xml',
+		'transcriptions/pt-upgrade.tei.xml',
+	]);
 	await expect.poll(() => staleSyntheticIndexExists(page)).toBe(false);
 });
 
-async function seedUpgradeStore(page: Page, fixture: string): Promise<void> {
+async function upgradeFixtureFiles(): Promise<Array<{ path: string; content: string }>> {
+	const {
+		format: _format,
+		schema_version: _version,
+		content_hash: _hash,
+		...fixture
+	} = JSON.parse(await readFile(UPGRADE_FIXTURE_PATH, 'utf8'));
+	const at: string = fixture.created_at;
+	const transcriptions = [
+		{
+			project_transcription_id: 'pt-upgrade',
+			transcription_id: 'tx-upgrade',
+			current_revision: null,
+			title: 'Upgrade Witness',
+			siglum: 'UPG',
+			primary_path: 'transcriptions/pt-upgrade.json',
+		},
+	];
+	const collations = [
+		{
+			collation_id: 'col-upgrade',
+			current_revision: null,
+			title: 'Upgrade Collation',
+			verse_identifier: 'Romans 1:1',
+			primary_path: 'collations/col-upgrade.json',
+		},
+	];
+	const manifest = {
+		...fixture,
+		transcriptions,
+		collations,
+		manifest_content_hash: await hashCanonicalPayload({
+			project_id: fixture.id,
+			transcriptions,
+			collations,
+			tombstones: [],
+		}),
+	};
+	const verse = { book: 'Romans', chapter: '1', verse: '1' };
+	const transcription = {
+		project_transcription_id: 'pt-upgrade',
+		id: 'tx-upgrade',
+		canonical_transcription_id: null,
+		based_on_checkpoint: null,
+		draft: { saved_at: at, author_name: null },
+		origin: {
+			source_type: 'original',
+			source_project_id: null,
+			source_transcription_id: null,
+			source_revision_id: null,
+			source_content_hash: null,
+		},
+		title: 'Upgrade Witness',
+		siglum: 'UPG',
+		description: '',
+		content_json: {
+			type: 'transcriptionDocument',
+			pages: [
+				{
+					type: 'page',
+					id: 'page-1',
+					columns: [
+						{
+							type: 'column',
+							number: 1,
+							lines: [
+								{
+									type: 'line',
+									number: 1,
+									items: [
+										{
+											type: 'milestone',
+											kind: 'book',
+											attrs: { book: verse.book },
+										},
+										{
+											type: 'milestone',
+											kind: 'chapter',
+											attrs: { book: verse.book, chapter: verse.chapter },
+										},
+										{ type: 'milestone', kind: 'verse', attrs: verse },
+										{ type: 'text', text: 'παυλος δουλος' },
+									],
+								},
+							],
+						},
+					],
+				},
+			],
+		},
+		content_format: 'normalized_ast_v3',
+		created_at: at,
+		updated_at: at,
+		owner: null,
+		is_public: false,
+		tags: [],
+		transcriber: '',
+		repository: '',
+		settlement: '',
+		language: 'grc',
+		iiif_manifest_sources: [],
+		page_canvas_links: [],
+		canvas_annotations: [],
+	};
+	const collation = {
+		...structuredClone(COLLATION_FIXTURE),
+		id: 'col-upgrade',
+		project_id: fixture.id,
+		title: 'Upgrade Collation',
+		verse_identifier: 'Romans 1:1',
+		status: 'setup',
+		based_on_checkpoint: null,
+		created_at: at,
+		updated_at: at,
+		draft: { saved_at: at, author_name: null },
+	};
+	collation.document.meta = {
+		collationId: 'col-upgrade',
+		projectId: fixture.id,
+		projectName: fixture.name,
+	};
+	const sealed = async (format: string, version: number, payload: JsonObject) =>
+		serializeSealedDocument(await sealDocument(format, version, payload));
+	return [
+		{
+			path: 'project.json',
+			content: await sealed('apatosaurus.project-manifest', 1, manifest),
+		},
+		{
+			path: 'transcriptions/pt-upgrade.json',
+			content: await sealed('apatosaurus.project-transcription', 3, transcription),
+		},
+		{
+			path: 'collations/col-upgrade.json',
+			content: await sealed('apatosaurus.collation', COLLATION_CURRENT_VERSION, collation),
+		},
+	];
+}
+
+async function seedUpgradeStore(
+	page: Page,
+	files: Array<{ path: string; content: string }>
+): Promise<void> {
 	await page.route('**/__e2e-fixture-bootstrap', route =>
 		route.fulfill({
 			contentType: 'text/html',
@@ -306,13 +475,14 @@ async function seedUpgradeStore(page: Page, fixture: string): Promise<void> {
 	);
 	await page.goto('/__e2e-fixture-bootstrap');
 	await page.evaluate(
-		async ({ projectFolder, projectManifest }) => {
+		async ({ projectFolder, files }) => {
 			const root = await navigator.storage.getDirectory();
-			await writeFile(
-				root,
-				`apatosaurus/v1/projects/${projectFolder}/project.json`,
-				projectManifest
-			);
+			for (const file of files)
+				await writeFile(
+					root,
+					`apatosaurus/v1/projects/${projectFolder}/${file.path}`,
+					file.content
+				);
 			await writeFile(
 				root,
 				'apatosaurus/v1/index/apatosaurus-index-v0.db',
@@ -336,7 +506,7 @@ async function seedUpgradeStore(page: Page, fixture: string): Promise<void> {
 				await writable.close();
 			}
 		},
-		{ projectFolder: UPGRADE_PROJECT_FOLDER, projectManifest: fixture }
+		{ projectFolder: UPGRADE_PROJECT_FOLDER, files }
 	);
 	await page.unroute('**/__e2e-fixture-bootstrap');
 }

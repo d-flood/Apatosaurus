@@ -7,40 +7,49 @@ import {
 } from '$lib/db/repositories/collation-files';
 import { createCommittedTranscriptionCheckpointWithFiles } from '$lib/db/repositories/transcription-files';
 import {
-	canonicalFormatForProjectPath,
 	readCanonicalDocument,
-	transcriptionDocumentToTeiFromStore,
 	TOMBSTONE_FORMAT,
 	tombstonedProjectPaths,
 	type TombstonePayload,
-	type CollationPayload,
-	type ProjectTranscriptionPayload,
 } from '$lib/storage/formats';
+import { teiContentHash } from '$lib/storage/tei-content';
 import {
+	deleteDirectory,
 	deleteFile,
 	listDirectory,
 	readTextFile,
-	writeTextFileAtomic,
 	type StoreDirectoryEntry,
 	type StoreOperationOptions,
 } from '$lib/storage/opfs-store';
 import { joinStorePath } from '$lib/storage/layout';
+import {
+	classifyDocumentPath,
+	documentStorageOfPath,
+	hasLegacyHeads,
+	isCoveredByDeletionPaths,
+	isSupersededJsonDocumentPath,
+	teiPrimaryPathsOfManifest,
+	type DocumentKind,
+} from '$lib/storage/document-files';
+import {
+	getCollationContentHash,
+	getTranscriptionContentHash,
+} from '$lib/db/repositories/document-fingerprints';
 import { mapConcurrently } from './map-concurrently';
 import {
 	upsertProjectPlacements,
 	type DeletedNotice,
 	type MovedNotice,
 } from '$lib/storage/project-locations';
-import { canonicalJson } from '$lib/storage/canonical-json';
-import { hashContent } from '$lib/storage/content-hash';
+import { fingerprintContent, type FileFingerprint } from '$lib/storage/content-hash';
 import type { StoreQuarantineRecord, StoreQuarantineReason } from '$lib/storage/quarantine';
-import { ApparatusExportError, exportCollationDocumentTei } from '$lib/collation/collation-tei';
-import { parseProjectCollationSettings } from '$lib/collation/project-settings';
-import type { ProjectCollationSettings } from '$lib/collation/collation-types';
 import {
+	addOrphanPrimaryToManifest,
 	rebuildIndexFromStore,
 	restoreOrphanPrimaryToProject,
+	type IndexRebuildProgress,
 } from '$lib/db/repositories/index-rebuild';
+import { refreshChangedDocumentFiles } from '$lib/db/repositories/document-refresh';
 import { writeProjectManifestFile } from '$lib/db/repositories/project-files';
 import {
 	createCollationConflictCopy,
@@ -59,7 +68,7 @@ import {
 } from './providers/provider';
 import type { DbExecutor } from '$lib/db/worker-kysely';
 import { validateProjectFilesWithTemporaryStaging } from './project-file-staging';
-import { loadLocalEntity, primaryPathFor, type LocalEntityState } from './backup-summary';
+import { loadLocalEntity, type LocalEntityState } from './backup-summary';
 import {
 	loadProjectStoreRoot,
 	isBinaryProjectFile,
@@ -91,6 +100,7 @@ export interface SyncManagerOptions {
 	storeOptions?: StoreOperationOptions;
 	remoteCursor?: string;
 	exclusive?: Exclusive;
+	onIndexProgress?: (progress: IndexRebuildProgress) => void;
 }
 
 type Exclusive = <T>(work: () => Promise<T>) => Promise<T>;
@@ -128,12 +138,6 @@ export interface ProjectBackupResult extends SyncOperationResult {
 	entityResults: SyncOperationResult[];
 	hasConflictCopies?: boolean;
 	remoteCursor?: string;
-}
-
-interface FileFingerprint {
-	contentHash: string;
-	size: number;
-	modifiedAt: string;
 }
 
 interface LocalMirrorFile {
@@ -204,6 +208,14 @@ export async function backupProject(
 	options: SyncManagerOptions = {}
 ): Promise<ProjectBackupResult> {
 	const exclusive = options.exclusive ?? (work => work());
+	// Opening the project converts its JSON documents to TEI; until then it does not sync.
+	if (await exclusive(() => awaitsTeiConversion(db, context.projectId, options.storeOptions)))
+		return {
+			...baseResult('sync pending'),
+			projectId: context.projectId,
+			manifestUploaded: false,
+			entityResults: [],
+		};
 	const changes = options.remoteCursor
 		? await remoteChangesSince(provider, context, options.remoteCursor)
 		: null;
@@ -224,6 +236,21 @@ export async function backupProject(
 		if (unchanged) return unchanged;
 	}
 	return backupProjectFiles(db, provider, context, options, exclusive);
+}
+
+async function awaitsTeiConversion(
+	db: DbExecutor,
+	projectId: string,
+	storeOptions: StoreOperationOptions = {}
+): Promise<boolean> {
+	const root = await loadProjectStoreRoot(db, projectId);
+	const manifest = await readLocalMirrorFile(root, 'project.json', storeOptions);
+	const record = typeof manifest?.content === 'string' ? parseJsonRecord(manifest.content) : null;
+	return (
+		Array.isArray(record?.transcriptions) &&
+		Array.isArray(record.collations) &&
+		hasLegacyHeads(record as unknown as Parameters<typeof hasLegacyHeads>[0])
+	);
 }
 
 async function backupProjectFiles(
@@ -546,10 +573,18 @@ async function reconcileLocalMirror(
 	let localFiles = initialLocalFiles;
 	const pulledFiles: Array<{ localFile: LocalMirrorFile; remoteFile: RemoteMirrorFile }> = [];
 	const remoteOnlyPrimaryPaths: string[] = [];
-	const tombstonedPrimaryPaths = new Set<string>();
+	const tombstonedPaths: string[] = [];
+	const isTombstoned = (path: string) => isCoveredByDeletionPaths(tombstonedPaths, path);
+	const removeRemoteCoveredBy = (paths: string[]) => {
+		for (const file of [...remoteFiles.values()])
+			if (isCoveredByDeletionPaths(paths, file.path)) remove(file);
+	};
 	const conflicts: Array<{ reference: SyncEntityReference; remoteFile: RemoteMirrorFile }> = [];
-	const conflictingRemotePrimaries = new Map<string, RemoteMirrorFile>();
 	let pulledTombstone = false;
+	const teiPrimaryPaths = new Set([
+		...manifestTeiPrimaryPaths(localFiles.find(file => file.path === 'project.json')?.content),
+		...manifestTeiPrimaryPaths(remoteFiles.get('project.json')?.content),
+	]);
 
 	for (const localFile of localFiles.filter(file => file.path.startsWith('tombstones/'))) {
 		const parsed = await readCanonicalDocument<TombstonePayload>(
@@ -580,11 +615,9 @@ async function reconcileLocalMirror(
 			);
 		}
 
-		for (const path of tombstonedProjectPaths(parsed.payload)) {
-			tombstonedPrimaryPaths.add(path);
-			const remoteCovered = remoteFiles.get(path);
-			if (remoteCovered) remove(remoteCovered);
-		}
+		const paths = tombstonedProjectPaths(parsed.payload);
+		tombstonedPaths.push(...paths);
+		removeRemoteCoveredBy(paths);
 	}
 
 	for (const remoteFile of [...remoteFiles.values()].filter(file =>
@@ -609,21 +642,18 @@ async function reconcileLocalMirror(
 			continue;
 		}
 		const pulledLocalFile = await writePulledMirrorFile(projectRoot, remoteFile, storeOptions);
-		for (const path of tombstonedProjectPaths(parsed.payload)) {
-			tombstonedPrimaryPaths.add(path);
-			await deleteStoreFileIfExists(joinStorePath(projectRoot, path), storeOptions);
+		const paths = tombstonedProjectPaths(parsed.payload);
+		tombstonedPaths.push(...paths);
+		for (const path of paths) {
+			await (path.endsWith('/') ? deleteStoreDirectoryIfExists : deleteStoreFileIfExists)(
+				joinStorePath(projectRoot, path),
+				storeOptions
+			);
 		}
-		await deleteStoreFileIfExists(
-			joinStorePath(projectRoot, parsed.payload.cloud_path.replace(/\.json$/, '.tei.xml')),
-			storeOptions
-		);
 		pulledFiles.push({ localFile: pulledLocalFile, remoteFile });
 		result.downloadedPaths.push(remoteFile.path);
 		pulledTombstone = true;
-		for (const path of tombstonedProjectPaths(parsed.payload)) {
-			const remoteCovered = remoteFiles.get(path);
-			if (remoteCovered) remove(remoteCovered);
-		}
+		removeRemoteCoveredBy(paths);
 	}
 
 	if (pulledTombstone) {
@@ -653,11 +683,15 @@ async function reconcileLocalMirror(
 		if (
 			localFile.path === 'project.json' ||
 			localFile.path.startsWith('tombstones/') ||
-			localFile.path.endsWith('.tei.xml') ||
-			tombstonedPrimaryPaths.has(localFile.path)
+			classifyDocumentPath(localFile.path, teiPrimaryPaths)?.role === 'unlisted' ||
+			isTombstoned(localFile.path)
 		)
 			continue;
 		const remoteFile = remoteFiles.get(localFile.path) ?? null;
+		if (isSupersededJsonDocumentPath(localFile.path, teiPrimaryPaths)) {
+			if (remoteFile) remove(remoteFile);
+			continue;
+		}
 		const cached = await getFileFingerprint(db, context, localFile.path);
 		if (!remoteFile) {
 			upload(localFile.path, localFile.content, localFile, localFile.fingerprint, null);
@@ -691,15 +725,16 @@ async function reconcileLocalMirror(
 				? 'remote'
 				: remoteUnchanged || isBinaryProjectFile(localFile.path)
 					? 'local'
-					: resolveDivergentFile(
+					: await resolveDivergentFile(
 							localFile.path,
 							projectFileText(localFile.content),
-							projectFileText(remoteContent(remoteFile))
+							projectFileText(remoteContent(remoteFile)),
+							teiPrimaryPaths
 						));
 		if (winner === 'remote') {
 			const validation = await validateProjectFilesWithTemporaryStaging(
 				[{ path: remoteFile.path, content: remoteContent(remoteFile) }],
-				{ projectId: context.projectId, storeOptions }
+				{ projectId: context.projectId, storeOptions, teiPrimaryPaths }
 			);
 			if (validation.quarantinedFiles.length) {
 				result.quarantines.push(...validation.quarantinedFiles.map(storeQuarantineForSync));
@@ -727,7 +762,7 @@ async function reconcileLocalMirror(
 
 		const validation = await validateProjectFilesWithTemporaryStaging(
 			[{ path: remoteFile.path, content: remoteContent(remoteFile) }],
-			{ projectId: context.projectId, storeOptions }
+			{ projectId: context.projectId, storeOptions, teiPrimaryPaths }
 		);
 		if (validation.quarantinedFiles.length) {
 			result.quarantines.push(...validation.quarantinedFiles.map(storeQuarantineForSync));
@@ -740,30 +775,28 @@ async function reconcileLocalMirror(
 			expected: cached?.remoteContentHash ?? localFile.fingerprint.contentHash,
 			actual: remoteFile.fingerprint.contentHash,
 		});
-		const reference = primaryReferenceForMirrorPath(localFile.path);
-		if (reference) {
-			conflicts.push({ reference, remoteFile });
-			conflictingRemotePrimaries.set(
-				localFile.path.replace(/\.json$/, '.tei.xml'),
-				remoteFile
-			);
-		}
+		const reference = primaryReferenceForMirrorPath(localFile.path, teiPrimaryPaths);
+		if (reference) conflicts.push({ reference, remoteFile });
 	}
 
 	for (const remoteFile of [...remoteFiles.values()].sort((left, right) =>
 		left.path.localeCompare(right.path)
 	)) {
 		if (localPaths.has(remoteFile.path)) continue;
+		if (isSupersededJsonDocumentPath(remoteFile.path, teiPrimaryPaths)) {
+			remove(remoteFile);
+			continue;
+		}
 		if (
 			remoteFile.path === 'project.json' ||
 			remoteFile.path.startsWith('tombstones/') ||
-			remoteFile.path.endsWith('.tei.xml') ||
-			tombstonedPrimaryPaths.has(remoteFile.path)
+			classifyDocumentPath(remoteFile.path, teiPrimaryPaths)?.role === 'unlisted' ||
+			isTombstoned(remoteFile.path)
 		)
 			continue;
 		const validation = await validateProjectFilesWithTemporaryStaging(
 			[{ path: remoteFile.path, content: remoteContent(remoteFile) }],
-			{ projectId: context.projectId, storeOptions }
+			{ projectId: context.projectId, storeOptions, teiPrimaryPaths }
 		);
 		if (validation.quarantinedFiles.length) {
 			result.quarantines.push(...validation.quarantinedFiles.map(storeQuarantineForSync));
@@ -771,7 +804,7 @@ async function reconcileLocalMirror(
 		}
 		const pulledLocalFile = await writePulledMirrorFile(projectRoot, remoteFile, storeOptions);
 		pulledFiles.push({ localFile: pulledLocalFile, remoteFile });
-		if (primaryReferenceForMirrorPath(remoteFile.path)) {
+		if (primaryReferenceForMirrorPath(remoteFile.path, teiPrimaryPaths)) {
 			remoteOnlyPrimaryPaths.push(joinStorePath(projectRoot, remoteFile.path));
 		}
 		result.downloadedPaths.push(remoteFile.path);
@@ -781,9 +814,13 @@ async function reconcileLocalMirror(
 		const local = await loadLocalEntity(db, reference, options.storeOptions);
 		const copyId = await createConflictCopy(db, local, options);
 		result.conflictCopyId ??= copyId;
-		const copyFiles = (
-			await listLocalProjectMirrorFiles(db, context.projectId, storeOptions)
-		).filter(file => isConflictCopyFile(file.path, reference.entityType, copyId));
+		const mirrorFiles = await listLocalProjectMirrorFiles(db, context.projectId, storeOptions);
+		const copyPrimaryPaths = manifestTeiPrimaryPaths(
+			mirrorFiles.find(file => file.path === 'project.json')?.content
+		);
+		const copyFiles = mirrorFiles.filter(file =>
+			isConflictCopyFile(file.path, reference.entityType, copyId, copyPrimaryPaths)
+		);
 		for (const file of copyFiles) {
 			upload(file.path, file.content, file, file.fingerprint, null);
 		}
@@ -794,12 +831,27 @@ async function reconcileLocalMirror(
 		result.downloadedPaths.push(remoteFile.path);
 	}
 	if (pulledFiles.length > 0) {
-		await keepingFingerprints(db, async () => {
-			await rebuildIndexFromStore(db, storeOptions);
+		// Only TEI document pulls skip the rebuild.
+		if (
+			pulledFiles.every(({ localFile }) => isTeiDocumentFile(localFile.path, teiPrimaryPaths))
+		) {
 			for (const path of remoteOnlyPrimaryPaths) {
-				await restoreOrphanPrimaryToProject(db, path, storeOptions);
+				await addOrphanPrimaryToManifest(path, storeOptions);
 			}
-		});
+			await refreshChangedDocumentFiles(
+				db,
+				context.projectId,
+				storeOptions,
+				options.onIndexProgress
+			);
+		} else {
+			await keepingFingerprints(db, async () => {
+				await rebuildIndexFromStore(db, storeOptions);
+				for (const path of remoteOnlyPrimaryPaths) {
+					await restoreOrphanPrimaryToProject(db, path, storeOptions);
+				}
+			});
+		}
 		for (const pulled of pulledFiles) {
 			await upsertFileFingerprint(
 				db,
@@ -810,58 +862,6 @@ async function reconcileLocalMirror(
 				now
 			);
 		}
-	}
-
-	const project = await db
-		.selectFrom('projects')
-		.select('collation_settings')
-		.where('id', '=', context.projectId)
-		.executeTakeFirstOrThrow();
-	const projectSettings = parseProjectCollationSettings(project.collation_settings);
-	const { files: derivedTeiFiles, absentPaths } = await regenerateDerivedTeiFiles(
-		projectRoot,
-		storeOptions,
-		projectSettings
-	);
-	for (const path of absentPaths) {
-		const remoteFile = remoteFiles.get(path);
-		if (remoteFile) remove(remoteFile);
-	}
-	for (const localFile of derivedTeiFiles) {
-		const remoteFile = remoteFiles.get(localFile.path) ?? null;
-		const conflictingPrimary = conflictingRemotePrimaries.get(localFile.path);
-		let content: ProjectFileContent;
-		try {
-			content = conflictingPrimary
-				? await deriveTeiFromCanonicalPrimary(
-						conflictingPrimary.path,
-						projectFileText(remoteContent(conflictingPrimary)),
-						context.projectId,
-						storeOptions,
-						projectSettings
-					)
-				: localFile.content;
-		} catch (error) {
-			if (!(error instanceof ApparatusExportError)) throw error;
-			if (remoteFile) remove(remoteFile);
-			continue;
-		}
-		const remoteFingerprint = await fingerprintContent(
-			content,
-			remoteFile?.metadata.modifiedAt ?? ''
-		);
-		if (remoteFile?.fingerprint.contentHash === remoteFingerprint.contentHash) {
-			await upsertFileFingerprint(
-				db,
-				context,
-				localFile,
-				remoteFile.metadata,
-				remoteFingerprint,
-				now
-			);
-			continue;
-		}
-		upload(localFile.path, content, localFile, remoteFingerprint, remoteFile?.metadata ?? null);
 	}
 
 	await writeProjectManifestFile(db, context.projectId, {}, storeOptions);
@@ -1053,6 +1053,14 @@ async function markProjectRetired(
 		.execute();
 }
 
+function isTeiDocumentFile(path: string, teiPrimaryPaths: ReadonlySet<string>): boolean {
+	const file = classifyDocumentPath(path, teiPrimaryPaths);
+	return (
+		(file?.role === 'canonical' || file?.role === 'version') &&
+		documentStorageOfPath(path) === 'tei'
+	);
+}
+
 async function keepingFingerprints(
 	db: Kysely<Database>,
 	rebuild: () => Promise<unknown>
@@ -1103,83 +1111,15 @@ async function readLocalMirrorFile(
 	}
 }
 
-async function regenerateDerivedTeiFiles(
-	projectRoot: string,
-	storeOptions: StoreOperationOptions,
-	projectSettings: ProjectCollationSettings
-): Promise<{ files: LocalMirrorFile[]; absentPaths: string[] }> {
-	const files: LocalMirrorFile[] = [];
-	for (const folder of ['transcriptions', 'collations']) {
-		await collectLocalMirrorFiles(
-			joinStorePath(projectRoot, folder),
-			folder,
-			files,
-			storeOptions
-		);
-	}
-	const derived: LocalMirrorFile[] = [];
-	const absentPaths: string[] = [];
-	for (const primary of files) {
-		const transcriptionMatch = /^transcriptions\/([^/]+)\.json$/.exec(primary.path);
-		const collationMatch = /^collations\/([^/]+)\.json$/.exec(primary.path);
-		if (!transcriptionMatch && !collationMatch) continue;
-		const path = primary.path.replace(/\.json$/, '.tei.xml');
-		const storePath = joinStorePath(projectRoot, path);
-		let content: string;
-		try {
-			content = await deriveTeiFromCanonicalPrimary(
-				primary.path,
-				projectFileText(primary.content),
-				undefined,
-				storeOptions,
-				projectSettings
-			);
-		} catch (error) {
-			if (!(error instanceof ApparatusExportError)) throw error;
-			await deleteStoreFileIfExists(storePath, storeOptions);
-			absentPaths.push(path);
-			continue;
-		}
-		const existing = await readLocalMirrorFile(projectRoot, path, storeOptions);
-		if (existing?.content !== content) {
-			await writeTextFileAtomic(storePath, content, storeOptions);
-		}
-		derived.push({
-			path,
-			storePath,
-			content,
-			fingerprint: await fingerprintContent(content, ''),
-		});
-	}
-	return { files: derived, absentPaths };
-}
-
-async function deriveTeiFromCanonicalPrimary(
+async function deleteStoreDirectoryIfExists(
 	path: string,
-	content: string,
-	projectId?: string,
-	storeOptions: StoreOperationOptions = {},
-	projectSettings: ProjectCollationSettings = {}
-): Promise<string> {
-	const format = canonicalFormatForProjectPath(path);
-	if (!format) throw new Error(`No canonical format is registered for ${path}.`);
-	const parsed = await readCanonicalDocument<ProjectTranscriptionPayload | CollationPayload>(
-		format,
-		content,
-		{ projectPath: path, projectId }
-	);
-	if (!parsed.ok)
-		throw new Error(`Could not derive TEI from ${path}: ${parsed.quarantine.message}`);
-	return path.startsWith('transcriptions/')
-		? transcriptionDocumentToTeiFromStore(
-				parsed.payload as ProjectTranscriptionPayload,
-				storeOptions
-			)
-		: exportCollationDocumentTei(
-				(parsed.payload as CollationPayload).document,
-				projectSettings,
-				(parsed.payload as CollationPayload).notes
-			);
+	storeOptions: StoreOperationOptions
+): Promise<void> {
+	try {
+		await deleteDirectory(path, { ...storeOptions, recursive: true });
+	} catch (error) {
+		if (!isMissingStoreEntryError(error)) throw error;
+	}
 }
 
 async function deleteStoreFileIfExists(
@@ -1287,9 +1227,15 @@ async function upsertFileFingerprint(
 }
 
 async function mirrorPathEntityHead(db: DbExecutor, path: string): Promise<EntityHead> {
-	const transcriptionMatch = /^transcriptions\/([^/]+)\.json$/.exec(path);
-	if (transcriptionMatch) {
-		const entityId = transcriptionMatch[1];
+	const file = classifyDocumentPath(path);
+	const teiPrimary =
+		file?.role === 'unlisted' &&
+		(file.kind === 'transcription'
+			? await getTranscriptionContentHash(db, file.entityId)
+			: await getCollationContentHash(db, file.entityId)) !== null;
+	const reference = primaryReferenceForMirrorPath(path, teiPrimary ? new Set([path]) : undefined);
+	if (reference?.entityType === 'project-transcription') {
+		const entityId = reference.entityId;
 		const row = await db
 			.selectFrom('project_transcriptions')
 			.innerJoin(
@@ -1310,9 +1256,8 @@ async function mirrorPathEntityHead(db: DbExecutor, path: string): Promise<Entit
 			contentHash: row?.content_hash ?? '',
 		};
 	}
-	const collationMatch = /^collations\/([^/]+)\.json$/.exec(path);
-	if (collationMatch) {
-		const entityId = collationMatch[1];
+	if (reference?.entityType === 'collation') {
+		const entityId = reference.entityId;
 		const row = await db
 			.selectFrom('collations')
 			.select(['current_revision_id', 'current_content_hash'])
@@ -1349,45 +1294,48 @@ function mapSyncFileFingerprint(row: Selectable<SyncFileFingerprints>): SyncFile
 	};
 }
 
-function primaryReferenceForMirrorPath(path: string): SyncEntityReference | null {
-	const transcriptionMatch = /^transcriptions\/([^/]+)\.json$/.exec(path);
-	if (transcriptionMatch) {
-		return { entityType: 'project-transcription', entityId: transcriptionMatch[1] };
-	}
-	const collationMatch = /^collations\/([^/]+)\.json$/.exec(path);
-	if (collationMatch) return { entityType: 'collation', entityId: collationMatch[1] };
-	return null;
+const SYNC_ENTITY_TYPES: Record<DocumentKind, SyncEntityType> = {
+	transcription: 'project-transcription',
+	collation: 'collation',
+};
+
+function primaryReferenceForMirrorPath(
+	path: string,
+	teiPrimaryPaths?: ReadonlySet<string>
+): SyncEntityReference | null {
+	const file = classifyDocumentPath(path, teiPrimaryPaths);
+	return file?.role === 'canonical'
+		? { entityType: SYNC_ENTITY_TYPES[file.kind], entityId: file.entityId }
+		: null;
 }
 
 function cbgmAnalysisIdForPath(path: string): string | undefined {
 	return /^cbgm\/([^/]+?)\.(?:json|input\.xml|sqlite|global-stemma\.dot)$/.exec(path)?.[1];
 }
 
-function resolveDivergentFile(
+async function resolveDivergentFile(
 	path: string,
 	localContent: string,
-	remoteContent: string
-): 'local' | 'remote' | null {
-	const local = parseJsonRecord(localContent);
-	const remote = parseJsonRecord(remoteContent);
-	if (!local || !remote) return null;
-	if (path.startsWith('history/')) {
-		if (
-			local.checkpoint_id !== remote.checkpoint_id ||
-			local.payload_content_hash !== remote.payload_content_hash
-		)
-			return null;
-		return String(local.metadata_updated_at ?? '') > String(remote.metadata_updated_at ?? '')
-			? 'local'
-			: 'remote';
-	}
-	if (!primaryReferenceForMirrorPath(path)) return null;
-	const withoutBase = ({
-		based_on_checkpoint: _basedOn,
-		content_hash: _hash,
-		...rest
-	}: Record<string, unknown>) => canonicalJson(rest);
-	return withoutBase(local) === withoutBase(remote) ? 'remote' : null;
+	remoteContent: string,
+	teiPrimaryPaths: ReadonlySet<string>
+): Promise<'local' | 'remote' | null> {
+	const role = classifyDocumentPath(path, teiPrimaryPaths)?.role;
+	if (role !== 'canonical' && role !== 'version') return null;
+	const [local, remote] = await Promise.all([
+		teiContentHash(localContent),
+		teiContentHash(remoteContent),
+	]);
+	return local === remote ? 'remote' : null;
+}
+
+function manifestTeiPrimaryPaths(content: ProjectFileContent | null | undefined): Set<string> {
+	if (typeof content !== 'string') return new Set();
+	const manifest = parseJsonRecord(content);
+	return Array.isArray(manifest?.transcriptions) && Array.isArray(manifest.collations)
+		? teiPrimaryPathsOfManifest(
+				manifest as unknown as Parameters<typeof teiPrimaryPathsOfManifest>[0]
+			)
+		: new Set();
 }
 
 function parseJsonRecord(content: string): Record<string, unknown> | null {
@@ -1401,32 +1349,25 @@ function parseJsonRecord(content: string): Record<string, unknown> | null {
 	}
 }
 
-function isConflictCopyFile(path: string, entityType: SyncEntityType, entityId: string): boolean {
-	const primary = primaryPathFor(entityType, entityId);
-	const historyFolder =
-		entityType === 'project-transcription'
-			? `history/transcriptions/${entityId}/`
-			: `history/collations/${entityId}/`;
-	return path === primary || path.startsWith(historyFolder);
+function isConflictCopyFile(
+	path: string,
+	entityType: SyncEntityType,
+	entityId: string,
+	teiPrimaryPaths: ReadonlySet<string>
+): boolean {
+	const file = classifyDocumentPath(path, teiPrimaryPaths);
+	return (
+		(file?.role === 'canonical' || file?.role === 'version') &&
+		SYNC_ENTITY_TYPES[file.kind] === entityType &&
+		file.entityId === entityId
+	);
 }
 
 function mirrorWriteOrder(path: string): number {
 	if (path.startsWith('tombstones/')) return 0;
-	if (path.startsWith('history/')) return 1;
+	if (classifyDocumentPath(path)?.role === 'version') return 1;
 	if (path === 'project.json') return 3;
 	return 2;
-}
-
-async function fingerprintContent(
-	content: ProjectFileContent,
-	modifiedAt: string
-): Promise<FileFingerprint> {
-	const bytes = typeof content === 'string' ? new TextEncoder().encode(content) : content;
-	return {
-		contentHash: await hashContent(bytes),
-		size: bytes.byteLength,
-		modifiedAt,
-	};
 }
 
 async function createConflictCopy(

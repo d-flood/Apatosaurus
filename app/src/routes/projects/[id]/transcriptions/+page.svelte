@@ -6,6 +6,7 @@
 		listConflictCopies,
 		subscribeLocalDbInvalidations,
 		listProjectTranscriptionStatuses,
+		listDocumentFileProblems,
 	} from '$lib/db/client';
 	import { onMount } from 'svelte';
 	import type { ProjectRecord, ProjectTranscriptionStatus } from '$lib/db/repositories/projects';
@@ -14,6 +15,7 @@
 
 	let rows = $state.raw<ProjectTranscriptionStatus[]>([]);
 	let conflictCopyIds = $state.raw(new Set<string>());
+	let fileProblems = $state.raw(new Map<string, string>());
 	let isLoading = $state(true);
 	let deletingId = $state<string | null>(null);
 	let error = $state<string | null>(null);
@@ -39,13 +41,19 @@
 		const runId = ++loadRunId;
 		isLoading = true;
 		try {
-			const [statuses, copies] = await Promise.all([
+			const [statuses, copies, problems] = await Promise.all([
 				listProjectTranscriptionStatuses(projectId),
 				listConflictCopies(projectId),
+				listDocumentFileProblems(projectId),
 			]);
 			if (runId !== loadRunId || data.project?.id !== projectId) return;
 			rows = statuses;
 			conflictCopyIds = new Set(copies.map(copy => copy.copyId));
+			fileProblems = new Map(
+				problems
+					.filter(problem => problem.entityType === 'transcription')
+					.map(problem => [problem.projectTranscriptionId, problem.message])
+			);
 			error = null;
 		} catch (err) {
 			if (runId !== loadRunId) return;
@@ -119,7 +127,17 @@
 							<span class="font-mono">{row.siglum}</span>
 							<span class="text-base-content/20">|</span>
 							<span>Updated {formatDate(row.updatedAt)}</span>
+							{#if fileProblems.has(row.projectTranscriptionId)}
+								<span class="badge badge-sm badge-error">File doesn't parse</span>
+							{/if}
 						</div>
+						{#if fileProblems.has(row.projectTranscriptionId)}
+							<p class="mt-1 break-words text-xs text-error">
+								Saving is blocked until the file parses again: {fileProblems.get(
+									row.projectTranscriptionId
+								)}
+							</p>
+						{/if}
 					</div>
 					{#if conflictCopyIds.has(row.projectOwnedTranscriptionId)}
 						<span class="badge badge-sm badge-warning">Conflict copy</span>

@@ -39,6 +39,7 @@ function sqliteTypeToTs(type: string): string {
 	const normalized = type.toUpperCase();
 	if (normalized.includes('INT') || normalized.includes('REAL') || normalized.includes('NUM'))
 		return 'number';
+	if (normalized.includes('BLOB')) return 'Uint8Array';
 	return 'string';
 }
 

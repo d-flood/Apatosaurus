@@ -1,9 +1,10 @@
 import type { DocumentUpgrader, FormatRegistration } from '../migrate-on-read';
 import type { JsonObject } from '../envelope';
-import { readDraftMetadata, type CanonicalDraftMetadata } from './common';
+import { readDraftMetadata, type CanonicalDraftMetadata } from '../formats/common';
 import { upgradeAlphaWorkingCollation } from './alpha-collation';
-import { readCollationContent, type CollationContent } from './collation';
-import { readString } from './validation';
+import type { CollationContent } from '../formats/collation';
+import { readCollationContent } from './collation';
+import { readString } from '../formats/validation';
 
 export const WORKING_COLLATION_FORMAT = 'apatosaurus.working.collation';
 export const WORKING_COLLATION_CURRENT_VERSION = 4;

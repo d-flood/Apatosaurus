@@ -8,41 +8,23 @@ import {
 } from '../envelope';
 import {
 	cbgmAnalysisRelativeFiles,
-	collationCheckpointRelativeFile,
-	collationPrimaryRelativeFile,
-	collationWorkingRelativeFile,
 	projectManifestRelativeFile,
 	tombstoneRelativeFile,
-	transcriptionCheckpointRelativeFile,
-	transcriptionPrimaryRelativeFile,
-	transcriptionWorkingRelativeFile,
 } from '../layout';
 import { invalidShape, quarantineFromError } from '../quarantine';
-import { PROJECT_MANIFEST_FORMAT, projectManifestFormatRegistration } from './project-manifest';
 import {
-	PROJECT_TRANSCRIPTION_FORMAT,
-	projectTranscriptionFormatRegistration,
-} from './project-transcription';
-import { COLLATION_FORMAT, collationFormatRegistration } from './collation';
-import {
-	TRANSCRIPTION_CHECKPOINT_FORMAT,
-	transcriptionCheckpointFormatRegistration,
-} from './checkpoint-transcription';
-import {
-	COLLATION_CHECKPOINT_FORMAT,
-	collationCheckpointFormatRegistration,
-} from './checkpoint-collation';
+	PROJECT_MANIFEST_FORMAT,
+	projectManifestFormatRegistration,
+	projectManifestSchemaVersion,
+	type ProjectManifestPayload,
+} from './project-manifest';
 import { TOMBSTONE_FORMAT, tombstoneFormatRegistration } from './tombstone';
-import {
-	WORKING_TRANSCRIPTION_FORMAT,
-	workingTranscriptionFormatRegistration,
-} from './working-transcription';
-import { WORKING_COLLATION_FORMAT, workingCollationFormatRegistration } from './working-collation';
 import { CBGM_ANALYSIS_FORMAT, cbgmAnalysisFormatRegistration } from './cbgm-analysis';
 
 export {
 	PROJECT_MANIFEST_CURRENT_VERSION,
 	PROJECT_MANIFEST_FORMAT,
+	projectManifestSchemaVersion,
 	type ProjectManifestForkProvenance,
 	type ProjectManifestPayload,
 	type ProjectManifestCollationHead,
@@ -50,47 +32,23 @@ export {
 	type ProjectManifestTombstoneHead,
 	type ProjectManifestTranscriptionHead,
 } from './project-manifest';
+export type { ProjectTranscriptionPayload } from './project-transcription';
 export {
-	PROJECT_TRANSCRIPTION_CURRENT_VERSION,
-	PROJECT_TRANSCRIPTION_FORMAT,
-	mergeWorkingTranscription,
-	projectTranscriptionPayloadToSnapshot,
-	type ProjectTranscriptionPayload,
-} from './project-transcription';
-export {
-	COLLATION_CURRENT_VERSION,
-	COLLATION_FORMAT,
 	collationPayloadToContent,
-	mergeWorkingCollation,
+	parseCollationPayloadTei,
+	parseCollationTeiVersion,
+	parseCollationTeiVersionHeader,
+	serializeCollationPayloadTei,
 	type CollationContent,
 	type CollationPayload,
+	type CollationTeiVersion,
 } from './collation';
-export {
-	TRANSCRIPTION_CHECKPOINT_CURRENT_VERSION,
-	TRANSCRIPTION_CHECKPOINT_FORMAT,
-	type TranscriptionCheckpointPayload,
-} from './checkpoint-transcription';
-export {
-	COLLATION_CHECKPOINT_CURRENT_VERSION,
-	COLLATION_CHECKPOINT_FORMAT,
-	type CollationCheckpointPayload,
-} from './checkpoint-collation';
 export {
 	TOMBSTONE_CURRENT_VERSION,
 	TOMBSTONE_FORMAT,
 	tombstonedProjectPaths,
 	type TombstonePayload,
 } from './tombstone';
-export {
-	WORKING_TRANSCRIPTION_CURRENT_VERSION,
-	WORKING_TRANSCRIPTION_FORMAT,
-	type WorkingTranscriptionPayload,
-} from './working-transcription';
-export {
-	WORKING_COLLATION_CURRENT_VERSION,
-	WORKING_COLLATION_FORMAT,
-	type WorkingCollationPayload,
-} from './working-collation';
 export {
 	CBGM_ANALYSIS_CURRENT_VERSION,
 	CBGM_ANALYSIS_ENTITY_TYPE,
@@ -103,17 +61,20 @@ export {
 	type CbgmGlobalStemmaState,
 	type CbgmUndecidedReading,
 } from './cbgm-analysis';
-export { transcriptionDocumentToTei, transcriptionDocumentToTeiFromStore } from './tei';
+export {
+	parseTranscriptionTei,
+	parseTranscriptionTeiVersion,
+	rewriteTranscriptionTeiVersion,
+	serializeTranscriptionTei,
+	splitTranscriptionTeiIiif,
+	type SerializedTranscriptionTei,
+	type TranscriptionTeiRecord,
+	type TranscriptionTeiVersion,
+} from './transcription-tei';
 
 export const canonicalFormatRegistrations: FormatRegistration<JsonObject>[] = [
 	projectManifestFormatRegistration as unknown as FormatRegistration<JsonObject>,
-	projectTranscriptionFormatRegistration as unknown as FormatRegistration<JsonObject>,
-	collationFormatRegistration as unknown as FormatRegistration<JsonObject>,
-	transcriptionCheckpointFormatRegistration as unknown as FormatRegistration<JsonObject>,
-	collationCheckpointFormatRegistration as unknown as FormatRegistration<JsonObject>,
 	tombstoneFormatRegistration as unknown as FormatRegistration<JsonObject>,
-	workingTranscriptionFormatRegistration as unknown as FormatRegistration<JsonObject>,
-	workingCollationFormatRegistration as unknown as FormatRegistration<JsonObject>,
 	cbgmAnalysisFormatRegistration as unknown as FormatRegistration<JsonObject>,
 ];
 
@@ -162,16 +123,6 @@ export interface CanonicalReadContext {
 
 export function canonicalFormatForProjectPath(path: string): string | null {
 	if (path === projectManifestRelativeFile()) return PROJECT_MANIFEST_FORMAT;
-	if (/^transcriptions\/[^/]+\.working\.json$/.test(path)) return WORKING_TRANSCRIPTION_FORMAT;
-	if (/^transcriptions\/[^/]+\.json$/.test(path)) return PROJECT_TRANSCRIPTION_FORMAT;
-	if (/^collations\/[^/]+\.working\.json$/.test(path)) return WORKING_COLLATION_FORMAT;
-	if (/^collations\/[^/]+\.json$/.test(path)) return COLLATION_FORMAT;
-	if (/^history\/transcriptions\/[^/]+\/[^/]+\.json$/.test(path)) {
-		return TRANSCRIPTION_CHECKPOINT_FORMAT;
-	}
-	if (/^history\/collations\/[^/]+\/[^/]+\.json$/.test(path)) {
-		return COLLATION_CHECKPOINT_FORMAT;
-	}
 	if (/^tombstones\/[^/]+--[^/]+\.json$/.test(path)) return TOMBSTONE_FORMAT;
 	if (/^cbgm\/[^/]+\.json$/.test(path)) return CBGM_ANALYSIS_FORMAT;
 	return null;
@@ -196,13 +147,11 @@ function assertCanonicalReadContext(
 	}
 	if (
 		context.projectId &&
-		(format === COLLATION_FORMAT ||
-			format === WORKING_COLLATION_FORMAT ||
-			format === CBGM_ANALYSIS_FORMAT) &&
+		format === CBGM_ANALYSIS_FORMAT &&
 		record.project_id !== context.projectId
 	) {
 		throw invalidShape(
-			`${format === CBGM_ANALYSIS_FORMAT ? 'CBGM analysis' : 'Collation'} belongs to a different project.`,
+			'CBGM analysis belongs to a different project.',
 			context.projectId,
 			record.project_id
 		);
@@ -210,25 +159,7 @@ function assertCanonicalReadContext(
 	if (!context.projectPath) return;
 	let expected: string;
 	if (format === PROJECT_MANIFEST_FORMAT) expected = projectManifestRelativeFile();
-	else if (format === PROJECT_TRANSCRIPTION_FORMAT) {
-		expected = transcriptionPrimaryRelativeFile(String(record.project_transcription_id));
-	} else if (format === WORKING_TRANSCRIPTION_FORMAT) {
-		expected = transcriptionWorkingRelativeFile(String(record.project_transcription_id));
-	} else if (format === COLLATION_FORMAT) {
-		expected = collationPrimaryRelativeFile(String(record.id));
-	} else if (format === WORKING_COLLATION_FORMAT) {
-		expected = collationWorkingRelativeFile(String(record.id));
-	} else if (format === TRANSCRIPTION_CHECKPOINT_FORMAT) {
-		expected = transcriptionCheckpointRelativeFile(
-			String(record.entity_id),
-			String(record.checkpoint_id)
-		);
-	} else if (format === COLLATION_CHECKPOINT_FORMAT) {
-		expected = collationCheckpointRelativeFile(
-			String(record.entity_id),
-			String(record.checkpoint_id)
-		);
-	} else if (format === TOMBSTONE_FORMAT) {
+	else if (format === TOMBSTONE_FORMAT) {
 		expected = tombstoneRelativeFile(String(record.entity_type), String(record.entity_id));
 	} else if (format === CBGM_ANALYSIS_FORMAT) {
 		expected = cbgmAnalysisRelativeFiles(String(record.id)).metadata;
@@ -251,8 +182,12 @@ async function sealCanonicalDocument<TPayload extends JsonObject>(
 	);
 	if (!registration) throw new Error(`Format ${format} is not registered.`);
 	const validated = registration.validate(payload) as TPayload;
-	await registration.validateIntegrity?.(validated, registration.currentVersion);
-	return sealDocument(format, registration.currentVersion, validated);
+	const schemaVersion =
+		format === PROJECT_MANIFEST_FORMAT
+			? projectManifestSchemaVersion(validated as unknown as ProjectManifestPayload)
+			: registration.currentVersion;
+	await registration.validateIntegrity?.(validated, schemaVersion);
+	return sealDocument(format, schemaVersion, validated);
 }
 
 export async function serializeCanonicalDocument<TPayload extends JsonObject>(

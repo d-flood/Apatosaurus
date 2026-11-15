@@ -1,30 +1,25 @@
 import {
 	createCollationWithFiles,
+	createTranscriptionWithFiles,
 	createLocalDbTestHarness,
 	type LocalDbTestHarness,
 } from '$lib/testing/local-db-harness';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
-	COLLATION_CHECKPOINT_FORMAT,
-	COLLATION_CURRENT_VERSION,
-	COLLATION_FORMAT,
 	PROJECT_MANIFEST_FORMAT,
+	parseCollationPayloadTei,
+	parseCollationTeiVersion,
 	readCanonicalDocument,
-	type CollationCheckpointPayload,
 	type CollationPayload,
 	type ProjectManifestPayload,
-	WORKING_COLLATION_CURRENT_VERSION,
-	WORKING_COLLATION_FORMAT,
 } from '$lib/storage/formats';
-import { createQuarantineReport } from '$lib/storage/quarantine-report.spec-support';
+import { parseCollationTei } from '$lib/collation/collation-document-tei';
 import {
-	collationCheckpointFile,
-	collationPrimaryFile,
 	collationTeiFile,
-	collationWorkingFile,
 	joinStorePath,
 	normalizeStorePath,
+	projectFolder,
 	projectManifestFile,
 	storePathBasename,
 	storePathDirname,
@@ -34,9 +29,7 @@ import {
 	StoreMoveUnavailableError,
 	type StoreBackend,
 	type StoreBackendDirectoryEntry,
-	writeTextFileAtomic,
 } from '$lib/storage/opfs-store';
-import { sealDocument, serializeSealedDocument } from '$lib/storage/envelope';
 import { createProject as createProjectRepository } from './projects';
 import { projectWriteLockName } from './project-locks';
 import { createCollation, saveCollationProjection } from './collations';
@@ -49,13 +42,20 @@ import { importProjectZip } from '$lib/backup/project-zip-import';
 import { writeProjectManifestFile } from './project-files';
 import { MemoryStoreBackend as ImportStoreBackend } from '$lib/storage/memory-store-backend.spec-support';
 import {
-	createCollationWithFilesResult,
 	createCommittedCollationCheckpointWithFiles,
 	getCollationVersionStatusWithWorkingFile,
+	loadCollationVersionDocument,
 	loadCollationWithWorkingFile,
+	restoreCollationVersion,
 	saveWorkingCollationArtifact,
 	saveWorkingCollationMetadata,
+	updateCollationVersionNote,
 } from './collation-files';
+import { saveWorkingTranscriptionContent } from './transcription-files';
+import { loadTranscriptionContentHash } from './revisions';
+import { loadCollationSnapshots } from './cbgm-analyses';
+import { hashContent } from '$lib/storage/content-hash';
+import { teiContentText } from '$lib/storage/tei-content';
 
 let harness: LocalDbTestHarness;
 let backend: MemoryStoreBackend;
@@ -107,62 +107,6 @@ describe('collation file persistence', () => {
 		).resolves.toEqual({ updated_at: '2026-07-04T00:00:00.000Z' });
 	});
 
-	it('stores Current in the canonical primary and leaves collation_artifacts empty', async () => {
-		await createFixtureCollation();
-		await harness.db
-			.insertInto('collation_tokens')
-			.values({
-				id: 'stale-token',
-				collation_id: 'col-1',
-				witness_id: 'stale',
-				token_index: 0,
-				token_text: 'stale',
-			})
-			.execute();
-
-		await saveWorkingCollationArtifact(
-			harness.db,
-			{
-				collationId: 'col-1',
-				artifactType: 'collation_document_v1',
-				payload: JSON.stringify(collationDocument('alignment')),
-				now: '2026-07-04T12:00:00.000Z',
-			},
-			{ backend, nonce: () => 'working-write' }
-		);
-
-		const raw = await readTextFile(collationPrimaryFile('project-slug', 'col-1'), { backend });
-		const parsed = await readCanonicalDocument<CollationPayload>(COLLATION_FORMAT, raw);
-
-		expect(parsed).toMatchObject({
-			ok: true,
-			payload: {
-				id: 'col-1',
-				project_id: 'project-1',
-				title: 'Romans 1:1',
-				status: 'alignment',
-				updated_at: '2026-07-04T12:00:00.000Z',
-				based_on_checkpoint: null,
-				draft: { saved_at: '2026-07-04T12:00:00.000Z', author_name: null },
-				document: { type: 'collationDocument', flow: { phase: 'alignment' } },
-			},
-		});
-		if (!parsed.ok) throw new Error('primary file did not parse');
-		await expect(
-			readTextFile(collationWorkingFile('project-slug', 'col-1'), { backend })
-		).rejects.toThrow('was not found');
-		expect(parsed.payload).not.toHaveProperty('artifacts');
-		expect(parsed.payload).not.toHaveProperty('witnesses');
-		expect(parsed.payload).not.toHaveProperty('tokens');
-		expect(parsed.payload).not.toHaveProperty('variation_units');
-		await expect(
-			harness.db.selectFrom('collation_artifacts').selectAll().execute()
-		).resolves.toEqual([]);
-		await expect(
-			harness.db.selectFrom('collation_tokens').selectAll().execute()
-		).resolves.toEqual([]);
-	});
-
 	it('synchronizes renamed display metadata in the DB and Current without touching project.json', async () => {
 		await createProject(harness.db, {
 			id: 'project-1',
@@ -203,12 +147,8 @@ describe('collation file persistence', () => {
 				.where('id', '=', 'col-1')
 				.executeTakeFirst()
 		).resolves.toEqual({ verse_identifier: 'Romans 1:1 (critical text)' });
-		const raw = await readTextFile(collationPrimaryFile('project-slug', 'col-1'), { backend });
-		const parsed = await readCanonicalDocument<CollationPayload>(COLLATION_FORMAT, raw);
-
-		expect(parsed).toMatchObject({
-			ok: true,
-			payload: { verse_identifier: 'Romans 1:1 (critical text)' },
+		expect(await readPrimaryPayload()).toMatchObject({
+			verse_identifier: 'Romans 1:1 (critical text)',
 		});
 		await expect(readTextFile(projectManifestFile('project-slug'), { backend })).resolves.toBe(
 			manifestBefore
@@ -236,91 +176,6 @@ describe('collation file persistence', () => {
 		expect(loaded?.artifact?.payload).toContain('"phase":"readings"');
 		expect(loaded?.row.status).toBe('readings');
 		expect(loaded?.row.updatedAt).toBe('2026-07-04T12:00:00.000Z');
-	});
-
-	it('loads the committed primary file when no working file exists and the index cache is stale', async () => {
-		await createProject(harness.db, {
-			id: 'project-1',
-			storageSlug: 'project-slug',
-			name: 'Romans',
-			createdAt: '2026-07-04T00:00:00.000Z',
-			updatedAt: '2026-07-04T00:00:00.000Z',
-		});
-		await createCollationWithFiles(
-			harness.db,
-			{
-				id: 'col-1',
-				projectId: 'project-1',
-				title: 'Romans 1:3',
-				verseIdentifier: 'Rom 1:3',
-				segment: { id: 'segment-1', name: 'Romans 1:3', members: ['Rom 1:3'] },
-				now: '2026-07-04T00:00:00.000Z',
-			},
-			{ backend, nonce: () => 'create-write' }
-		);
-		await harness.db
-			.updateTable('collations')
-			.set({ title: 'Stale index title', status: 'alignment' })
-			.where('id', '=', 'col-1')
-			.execute();
-
-		const loaded = await loadCollationWithWorkingFile(harness.db, 'col-1', { backend });
-
-		expect(loaded?.row.title).toBe('Romans 1:3');
-		expect(loaded?.row.status).toBe('setup');
-		expect(loaded?.artifact?.payload).toContain('"phase":"setup"');
-		expect(loaded?.artifact?.payload).toContain('"projectName":"Romans"');
-	});
-
-	it('records every canonical validation failure without mutating the collation primary', async () => {
-		await createProject(harness.db, {
-			id: 'project-1',
-			storageSlug: 'project-slug',
-			name: 'Romans',
-			createdAt: '2026-07-04T00:00:00.000Z',
-			updatedAt: '2026-07-04T00:00:00.000Z',
-		});
-		await createCollationWithFiles(
-			harness.db,
-			{
-				id: 'col-1',
-				projectId: 'project-1',
-				title: 'Romans 1:3',
-				verseIdentifier: 'Rom 1:3',
-				segment: { id: 'segment-1', name: 'Romans 1:3', members: ['Rom 1:3'] },
-				now: '2026-07-04T00:00:00.000Z',
-			},
-			{ backend }
-		);
-		const path = collationPrimaryFile('project-slug', 'col-1');
-		const validRaw = await readTextFile(path, { backend });
-		const validDocument = JSON.parse(validRaw) as Record<string, unknown>;
-		const failures = [
-			{ code: 'invalid_json', raw: '{' },
-			{
-				code: 'invalid_schema_version',
-				raw: JSON.stringify({ ...validDocument, schema_version: 99 }),
-			},
-			{
-				code: 'invalid_shape',
-				raw: serializeSealedDocument(
-					await sealDocument(COLLATION_FORMAT, COLLATION_CURRENT_VERSION, {})
-				),
-			},
-			{ code: 'hash_mismatch', raw: JSON.stringify({ ...validDocument, title: 'tampered' }) },
-		] as const;
-
-		for (const failure of failures) {
-			await writeTextFileAtomic(path, failure.raw, { backend });
-			const quarantineSink = createQuarantineReport();
-
-			await loadCollationWithWorkingFile(harness.db, 'col-1', { backend, quarantineSink });
-
-			expect(quarantineSink.list()).toEqual([
-				expect.objectContaining({ path, code: failure.code, message: expect.any(String) }),
-			]);
-			expect(await readTextFile(path, { backend })).toBe(failure.raw);
-		}
 	});
 
 	it('uses the working file to compute dirty status', async () => {
@@ -391,7 +246,7 @@ describe('collation file persistence', () => {
 			.values({
 				target_id: syncContext.connectionId,
 				project_id: syncContext.projectId,
-				file_path: 'collations/col-1.json',
+				file_path: 'collations/col-1.tei.xml',
 				local_content_hash: '',
 				local_size: 0,
 				local_modified_at: '',
@@ -434,7 +289,7 @@ describe('collation file persistence', () => {
 		});
 	});
 
-	it('creates a collation through the initial committed file path', async () => {
+	it('creates a TEI-canonical collation through the initial committed file path', async () => {
 		await createProject(harness.db, {
 			id: 'project-1',
 			storageSlug: 'project-slug',
@@ -461,58 +316,43 @@ describe('collation file persistence', () => {
 			.where('id', '=', 'col-created')
 			.executeTakeFirstOrThrow();
 
-		const historyRaw = await readTextFile(
-			collationCheckpointFile('project-slug', 'col-created', head.current_revision_id),
-			{ backend }
+		const version = parseCollationTeiVersion(
+			await readTextFile(
+				joinStorePath(
+					projectFolder('project-slug'),
+					`history/collations/col-created/${head.current_revision_id}.tei.xml`
+				),
+				{ backend }
+			)
 		);
-		const primaryRaw = await readTextFile(collationPrimaryFile('project-slug', 'col-created'), {
-			backend,
-		});
-		const manifestRaw = await readTextFile(projectManifestFile('project-slug'), { backend });
 		const tei = await readTextFile(collationTeiFile('project-slug', 'col-created'), {
 			backend,
 		});
-		const history = await readCanonicalDocument<CollationCheckpointPayload>(
-			COLLATION_CHECKPOINT_FORMAT,
-			historyRaw
-		);
-		const primary = await readCanonicalDocument<CollationPayload>(COLLATION_FORMAT, primaryRaw);
+		const primary = parseCollationPayloadTei(tei);
 		const manifest = await readCanonicalDocument<ProjectManifestPayload>(
 			PROJECT_MANIFEST_FORMAT,
-			manifestRaw
+			await readTextFile(projectManifestFile('project-slug'), { backend })
 		);
 
 		expect(id).toBe('col-created');
 		expect(head.current_revision_id).toBeTruthy();
-		expect(history).toMatchObject({
-			ok: true,
-			payload: {
-				checkpoint_id: head.current_revision_id,
-				entity_id: 'col-created',
-				payload_content_hash: head.current_content_hash,
-			},
+		expect(version.version).toMatchObject({ id: head.current_revision_id, parent_id: null });
+		expect(version.payload.document).toMatchObject({
+			type: 'collationDocument',
+			flow: { phase: 'setup' },
 		});
-		if (history.ok) {
-			expect(history.payload.payload).toMatchObject({
-				document: { type: 'collationDocument', flow: { phase: 'setup' } },
-			});
-			expect(history.payload.payload).not.toHaveProperty('artifacts');
-			expect(history.payload.payload).not.toHaveProperty('variation_units');
-		}
 		expect(primary).toMatchObject({
-			ok: true,
-			payload: {
-				id: 'col-created',
-				project_id: 'project-1',
-				based_on_checkpoint: {
-					id: head.current_revision_id,
-					content_hash: head.current_content_hash,
-				},
-				document: {
-					type: 'collationDocument',
-					flow: { phase: 'setup' },
-					meta: { projectName: 'Romans' },
-				},
+			id: 'col-created',
+			project_id: 'project-1',
+			title: 'Romans 1:3',
+			based_on_checkpoint: {
+				id: head.current_revision_id,
+				content_hash: head.current_content_hash,
+			},
+			document: {
+				type: 'collationDocument',
+				flow: { phase: 'setup' },
+				meta: { projectName: 'Romans' },
 			},
 		});
 		expect(manifest).toMatchObject({
@@ -525,20 +365,21 @@ describe('collation file persistence', () => {
 							id: head.current_revision_id,
 							content_hash: head.current_content_hash,
 						},
+						primary_path: 'collations/col-created.tei.xml',
 					},
 				],
 			},
 		});
-		expect(tei).toContain('Romans 1:3');
-		expect(tei).not.toContain('Rom 1:3');
-		await expect(
-			harness.db.selectFrom('collation_artifacts').selectAll().execute()
-		).resolves.toEqual([]);
+		expect(tei.slice(0, tei.indexOf('<standOff'))).not.toContain('Rom 1:3');
+		expect(parseCollationTei(tei).setup.segment.members).toEqual(['Rom 1:3']);
+		expect(
+			collationStoreFiles(backend, 'col-created').filter(path => path.endsWith('.json'))
+		).toEqual([]);
 	});
 
 	it.each([
 		['history', 'history/collations/col-created/'],
-		['primary', 'collations/col-created.json.tmp-'],
+		['primary', 'collations/col-created.tei.xml.tmp-'],
 		['manifest', 'project.json.tmp-'],
 	])('does not publish a collation when the initial %s write fails', async (_step, path) => {
 		await createProject(harness.db, {
@@ -568,144 +409,6 @@ describe('collation file persistence', () => {
 				.where('id', '=', 'col-created')
 				.execute()
 		).resolves.toEqual([]);
-	});
-
-	it('returns a TEI warning while collation creation succeeds', async () => {
-		await createProject(harness.db, {
-			id: 'project-1',
-			storageSlug: 'project-slug',
-			name: 'Romans',
-		});
-		backend.failWritePathIncludes = '.tei.xml.tmp-';
-
-		const result = await createCollationWithFilesResult(
-			harness.db,
-			{
-				id: 'col-created',
-				projectId: 'project-1',
-				title: 'Romans 1:3',
-				verseIdentifier: 'Rom 1:3',
-				segment: { id: 'segment-1', name: 'Romans 1:3', members: ['Rom 1:3'] },
-			},
-			{ backend }
-		);
-
-		expect(result.value).toBe('col-created');
-		expect(result.warnings).toEqual([
-			expect.objectContaining({ code: 'tei_write_failed', entityType: 'collation' }),
-		]);
-		await expect(
-			harness.db
-				.selectFrom('collations')
-				.select('id')
-				.where('id', '=', 'col-created')
-				.executeTakeFirst()
-		).resolves.toEqual({ id: 'col-created' });
-	});
-
-	it('writes committed collation files before updating the index', async () => {
-		await createFixtureCollation();
-		await saveWorkingCollationArtifact(
-			harness.db,
-			{
-				collationId: 'col-1',
-				artifactId: 'artifact-1',
-				artifactType: 'collation_document_v1',
-				payload: JSON.stringify(collationDocument('readings')),
-				now: '2026-07-04T12:00:00.000Z',
-			},
-			{ backend, nonce: () => 'working-write' }
-		);
-
-		const checkpoint = await createCommittedCollationCheckpointWithFiles(
-			harness.db,
-			{
-				collationId: 'col-1',
-				checkpointId: 'col-cp-1',
-				commitMessage: 'Initial collation commit',
-				authorName: 'Editor',
-				createdAt: '2026-07-04T13:00:00.000Z',
-			},
-			{ backend, nonce: () => 'commit-write' }
-		);
-
-		const historyRaw = await readTextFile(
-			collationCheckpointFile('project-slug', 'col-1', 'col-cp-1'),
-			{ backend }
-		);
-		const history = await readCanonicalDocument<CollationCheckpointPayload>(
-			COLLATION_CHECKPOINT_FORMAT,
-			historyRaw
-		);
-		const primaryRaw = await readTextFile(collationPrimaryFile('project-slug', 'col-1'), {
-			backend,
-		});
-		const primary = await readCanonicalDocument<CollationPayload>(COLLATION_FORMAT, primaryRaw);
-		const manifestRaw = await readTextFile(projectManifestFile('project-slug'), { backend });
-		const manifest = await readCanonicalDocument<ProjectManifestPayload>(
-			PROJECT_MANIFEST_FORMAT,
-			manifestRaw
-		);
-		const tei = await readTextFile(collationTeiFile('project-slug', 'col-1'), { backend });
-		const head = await harness.db
-			.selectFrom('collations')
-			.select(['current_revision_id', 'current_content_hash'])
-			.where('id', '=', 'col-1')
-			.executeTakeFirstOrThrow();
-
-		expect(history).toMatchObject({
-			ok: true,
-			payload: {
-				checkpoint_id: 'col-cp-1',
-				entity_id: 'col-1',
-				payload_content_hash: checkpoint.contentHash,
-				commit_message: 'Initial collation commit',
-			},
-		});
-		expect(primary).toMatchObject({
-			ok: true,
-			payload: {
-				id: 'col-1',
-				project_id: 'project-1',
-				status: 'readings',
-				based_on_checkpoint: { id: 'col-cp-1', content_hash: checkpoint.contentHash },
-				document: { type: 'collationDocument', flow: { phase: 'readings' } },
-			},
-		});
-		if (primary.ok) {
-			expect(primary.payload).not.toHaveProperty('artifacts');
-			expect(primary.payload).not.toHaveProperty('witnesses');
-			expect(primary.payload).not.toHaveProperty('variation_units');
-		}
-		expect(manifest).toMatchObject({
-			ok: true,
-			payload: {
-				id: 'project-1',
-				collations: [
-					{
-						collation_id: 'col-1',
-						current_revision: { id: 'col-cp-1', content_hash: checkpoint.contentHash },
-						primary_path: 'collations/col-1.json',
-					},
-				],
-			},
-		});
-		expect(tei).toContain('<TEI');
-		expect(head).toEqual({
-			current_revision_id: 'col-cp-1',
-			current_content_hash: checkpoint.contentHash,
-		});
-		await expect(
-			harness.db.selectFrom('collation_artifacts').selectAll().execute()
-		).resolves.toEqual([]);
-
-		const status = await getCollationVersionStatusWithWorkingFile(
-			harness.db,
-			'col-1',
-			{},
-			{ backend }
-		);
-		expect(status.commitState).toBe('clean');
 	});
 
 	it('keeps custom subreading suffixes through persistence, sync and archive import', async () => {
@@ -749,7 +452,6 @@ describe('collation file persistence', () => {
 			{ backend }
 		);
 		expect(await readTextFile(path, { backend })).toContain('n="ai"');
-		await writeTextFileAtomic(path, '<stale/>', { backend });
 		const provider = new MockCloudStorageProvider();
 		const cloudFolderId = await provider.createFolder('Project');
 		const result = await backupProject(
@@ -807,23 +509,27 @@ describe('collation file persistence', () => {
 
 		expect(checkpoint.warnings).toEqual([]);
 		expect(tei).toContain('one');
-		expect(tei).toContain('<app xml:id="unit-variant" from="4"');
+		expect(tei).toContain('<app n="Romans1:1U1" sameAs="unit%3Avariant">');
+		expect(tei).toContain('<arc from="a" to="b" sameAs="variant-alpha-beta"/>');
 		expect(tei).toContain('two');
 		expect(tei).toContain('<graph type="directed">');
 	});
 
-	it('commits an incomplete collation with a warning and no derived TEI', async () => {
+	it('writes both TEI layers for an unfinished collation at every save', async () => {
 		await createFixtureCollation();
+		const document = incompleteCollationDocument();
 		await saveWorkingCollationArtifact(
 			harness.db,
 			{
 				collationId: 'col-1',
 				artifactType: 'collation_document_v1',
-				payload: JSON.stringify(incompleteCollationDocument()),
+				payload: JSON.stringify(document),
 				now: '2026-07-04T12:00:00.000Z',
 			},
 			{ backend }
 		);
+		const saved = await readTextFile(collationTeiFile('project-slug', 'col-1'), { backend });
+		expect(parseCollationTei(saved)).toEqual(document);
 
 		const checkpoint = await createCommittedCollationCheckpointWithFiles(
 			harness.db,
@@ -834,230 +540,14 @@ describe('collation file persistence', () => {
 			},
 			{ backend }
 		);
+		const tei = await readTextFile(collationTeiFile('project-slug', 'col-1'), { backend });
 
-		expect(checkpoint.warnings).toEqual([
-			expect.objectContaining({
-				code: 'tei_write_failed',
-				entityType: 'collation',
-				message: expect.stringContaining('Cannot export apparatus'),
-			}),
-		]);
-		await expect(
-			readTextFile(collationTeiFile('project-slug', 'col-1'), { backend })
-		).rejects.toThrow('not found');
-	});
-
-	it('allows manifest to advance while the collation index remains old if index insertion fails', async () => {
-		await createFixtureCollation();
-		await saveWorkingCollationArtifact(
-			harness.db,
-			{
-				collationId: 'col-1',
-				artifactId: 'artifact-1',
-				artifactType: 'collation_document_v1',
-				payload: JSON.stringify(collationDocument('readings')),
-				now: '2026-07-04T12:00:00.000Z',
-			},
-			{ backend, nonce: () => 'working-write' }
-		);
-		await harness.db
-			.insertInto('collation_checkpoints')
-			.values({
-				id: 'col-cp-index-fail',
-				collation_id: 'col-1',
-				parent_checkpoint_id: null,
-				content_hash: 'preexisting-content-hash',
-				is_committed: 1,
-				label: '',
-				commit_message: null,
-				author_name: 'Seed',
-				created_at: '2026-07-04T01:00:00.000Z',
-			})
-			.execute();
-
-		await expect(
-			createCommittedCollationCheckpointWithFiles(
-				harness.db,
-				{
-					collationId: 'col-1',
-					checkpointId: 'col-cp-index-fail',
-					createdAt: '2026-07-04T13:00:00.000Z',
-				},
-				{ backend, nonce: () => 'index-fail' }
-			)
-		).rejects.toThrow();
-
-		await expect(
-			readTextFile(collationCheckpointFile('project-slug', 'col-1', 'col-cp-index-fail'), {
-				backend,
-			})
-		).resolves.toContain('col-cp-index-fail');
-		await expect(
-			readTextFile(collationPrimaryFile('project-slug', 'col-1'), { backend })
-		).resolves.toContain('col-cp-index-fail');
-		await expect(
-			readTextFile(projectManifestFile('project-slug'), { backend })
-		).resolves.toContain('col-cp-index-fail');
-		await expect(
-			harness.db
-				.selectFrom('collations')
-				.select(['current_revision_id', 'current_content_hash'])
-				.where('id', '=', 'col-1')
-				.executeTakeFirstOrThrow()
-		).resolves.toEqual({ current_revision_id: '', current_content_hash: '' });
-		await expect(
-			harness.db
-				.selectFrom('collation_checkpoints')
-				.select(['content_hash'])
-				.where('id', '=', 'col-cp-index-fail')
-				.executeTakeFirstOrThrow()
-		).resolves.toEqual({ content_hash: 'preexisting-content-hash' });
-	});
-
-	it('returns a warning without failing the collation commit when derived TEI writing fails', async () => {
-		await createFixtureCollation();
-		await saveWorkingCollationArtifact(
-			harness.db,
-			{
-				collationId: 'col-1',
-				artifactId: 'artifact-1',
-				artifactType: 'collation_document_v1',
-				payload: JSON.stringify(collationDocument('readings')),
-				now: '2026-07-04T12:00:00.000Z',
-			},
-			{ backend, nonce: () => 'working-write' }
-		);
-		backend.failWritePathIncludes = '.tei.xml.tmp-';
-		const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-
-		try {
-			const checkpoint = await createCommittedCollationCheckpointWithFiles(
-				harness.db,
-				{
-					collationId: 'col-1',
-					checkpointId: 'col-cp-tei-fail',
-					createdAt: '2026-07-04T13:00:00.000Z',
-				},
-				{ backend, nonce: () => 'tei-fail' }
-			);
-
-			expect(checkpoint.id).toBe('col-cp-tei-fail');
-			expect(checkpoint.warnings).toEqual([
-				expect.objectContaining({ code: 'tei_write_failed', entityType: 'collation' }),
-			]);
-			await expect(
-				readTextFile(collationTeiFile('project-slug', 'col-1'), { backend })
-			).rejects.toThrow('not found');
-			await expect(
-				readTextFile(projectManifestFile('project-slug'), { backend })
-			).resolves.toContain('col-cp-tei-fail');
-			await expect(
-				harness.db
-					.selectFrom('collations')
-					.select(['current_revision_id', 'current_content_hash'])
-					.where('id', '=', 'col-1')
-					.executeTakeFirstOrThrow()
-			).resolves.toEqual({
-				current_revision_id: 'col-cp-tei-fail',
-				current_content_hash: checkpoint.contentHash,
-			});
-		} finally {
-			warn.mockRestore();
-		}
-	});
-
-	it.each([
-		['migrates', null],
-		[
-			'keeps the working file when the new primary cannot be written',
-			'collations/col-1.json.tmp-',
-		],
-	])('%s a legacy primary and working pair on load', async (_case, failWritePathIncludes) => {
-		await createFixtureCollation();
-		await saveWorkingCollationArtifact(
-			harness.db,
-			{
-				collationId: 'col-1',
-				artifactType: 'collation_document_v1',
-				payload: JSON.stringify(collationDocument('readings')),
-				now: '2026-07-04T12:00:00.000Z',
-			},
-			{ backend }
-		);
-		await createCommittedCollationCheckpointWithFiles(
-			harness.db,
-			{ collationId: 'col-1', checkpointId: 'col-cp-1' },
-			{ backend }
-		);
-		const committed = await readCanonicalDocument<CollationPayload>(
-			COLLATION_FORMAT,
-			await readTextFile(collationPrimaryFile('project-slug', 'col-1'), { backend })
-		);
-		if (!committed.ok || !committed.payload.based_on_checkpoint)
-			throw new Error('Expected a committed primary.');
-		const { based_on_checkpoint: basedOn, draft: _draft, ...content } = committed.payload;
-		const legacyPrimary = serializeSealedDocument(
-			await sealDocument(COLLATION_FORMAT, 6, {
-				...content,
-				current_revision: {
-					...basedOn,
-					created_at: '2026-07-04T13:00:00.000Z',
-					author_name: 'Editor',
-				},
-			})
-		);
-		await writeTextFileAtomic(collationPrimaryFile('project-slug', 'col-1'), legacyPrimary, {
-			backend,
-		});
-		await writeTextFileAtomic(
-			collationWorkingFile('project-slug', 'col-1'),
-			serializeSealedDocument(
-				await sealDocument(WORKING_COLLATION_FORMAT, WORKING_COLLATION_CURRENT_VERSION, {
-					...content,
-					notes: 'Uncommitted notes',
-					updated_at: '2026-07-04T14:00:00.000Z',
-					draft: {
-						base_revision_id: basedOn.id,
-						base_content_hash: basedOn.content_hash,
-						saved_at: '2026-07-04T14:00:00.000Z',
-						author_name: null,
-					},
-				})
-			),
-			{ backend }
-		);
-		backend.failWritePathIncludes = failWritePathIncludes;
-
-		const loading = loadCollationWithWorkingFile(harness.db, 'col-1', { backend });
-
-		if (failWritePathIncludes) {
-			await expect(loading).rejects.toThrow('simulated write failure');
-			await expect(
-				readTextFile(collationPrimaryFile('project-slug', 'col-1'), { backend })
-			).resolves.toBe(legacyPrimary);
-			await expect(
-				readTextFile(collationWorkingFile('project-slug', 'col-1'), { backend })
-			).resolves.toContain('Uncommitted notes');
-			return;
-		}
-		expect((await loading)?.row.notes).toBe('Uncommitted notes');
-		await expect(
-			readTextFile(collationWorkingFile('project-slug', 'col-1'), { backend })
-		).rejects.toThrow('not found');
-		const migratedRaw = await readTextFile(collationPrimaryFile('project-slug', 'col-1'), {
-			backend,
-		});
-		expect(JSON.parse(migratedRaw)).toMatchObject({
-			schema_version: COLLATION_CURRENT_VERSION,
-		});
-		await expect(readCanonicalDocument(COLLATION_FORMAT, migratedRaw)).resolves.toMatchObject({
-			ok: true,
-			payload: {
-				notes: 'Uncommitted notes',
-				based_on_checkpoint: basedOn,
-				draft: { saved_at: '2026-07-04T14:00:00.000Z' },
-			},
-		});
+		expect(checkpoint.warnings).toEqual([]);
+		expect(tei).toContain('<standOff type="apatosaurus-collation">');
+		expect(tei).toContain('type="untranscribed"');
+		expect(tei).toContain('<app n="Romans1:1U1" sameAs="unit%3Atwo">');
+		expect(parseCollationTei(tei)).toEqual(document);
+		expect(document.apparatus).toBeNull();
 	});
 
 	it('runs committed collation file writes under the project write lock', async () => {
@@ -1095,6 +585,290 @@ describe('collation file persistence', () => {
 	});
 });
 
+describe('TEI-canonical collation persistence', () => {
+	const teiPath = 'collations/col-1.tei.xml';
+	const readTei = () => readTextFile(collationTeiFile('project-slug', 'col-1'), { backend });
+	const fingerprint = (path: string) =>
+		harness.db
+			.selectFrom('document_file_fingerprints')
+			.selectAll()
+			.where('path', '=', path)
+			.executeTakeFirst();
+	const save = (document: unknown, now: string) =>
+		saveWorkingCollationArtifact(
+			harness.db,
+			{
+				collationId: 'col-1',
+				artifactType: 'collation_document_v1',
+				payload: JSON.stringify(document),
+				now,
+			},
+			{ backend }
+		);
+	const status = () =>
+		getCollationVersionStatusWithWorkingFile(harness.db, 'col-1', {}, { backend });
+
+	it('saves an unfinished collation as one TEI file, no JSON, indexed in the same request', async () => {
+		await createFixtureCollation();
+		const document = incompleteCollationDocument();
+		const writes = vi.spyOn(backend, 'writeTextFile');
+
+		await saveWorkingCollationArtifact(
+			harness.db,
+			{
+				collationId: 'col-1',
+				artifactType: 'collation_document_v1',
+				payload: JSON.stringify(document),
+				now: '2026-07-04T12:00:00.000Z',
+				metadata: { notes: 'Verse note', status: 'review' },
+			},
+			{ backend }
+		);
+
+		expect(collationStoreFiles(backend, 'col-1')).toEqual([
+			expect.stringMatching(/collations\/col-1\.tei\.xml$/),
+		]);
+		expect(writes.mock.calls.filter(([path]) => path.includes(`${teiPath}.tmp-`))).toHaveLength(
+			1
+		);
+		const xml = await readTei();
+		const payload = parseCollationPayloadTei(xml);
+		expect(payload).toMatchObject({
+			id: 'col-1',
+			project_id: 'project-1',
+			notes: 'Verse note',
+			status: 'review',
+			updated_at: '2026-07-04T12:00:00.000Z',
+			based_on_checkpoint: null,
+		});
+		expect(payload.document).toEqual(document);
+		await expect(fingerprint(teiPath)).resolves.toMatchObject({
+			entity_type: 'collation',
+			entity_id: 'col-1',
+			content_hash: await hashContent(teiContentText(xml)),
+			file_hash: await hashContent(xml),
+		});
+		await expect(
+			harness.db
+				.selectFrom('collations')
+				.select(['notes', 'status', 'updated_at'])
+				.executeTakeFirst()
+		).resolves.toEqual({
+			notes: 'Verse note',
+			status: 'review',
+			updated_at: '2026-07-04T12:00:00.000Z',
+		});
+		const loaded = await loadCollationWithWorkingFile(harness.db, 'col-1', { backend });
+		expect(JSON.parse(loaded?.artifact?.payload ?? '')).toEqual(document);
+		expect(loaded?.row.notes).toBe('Verse note');
+	});
+
+	it('creates with one Current write, then loads and reports status without file access', async () => {
+		await createProject(harness.db, {
+			id: 'project-1',
+			storageSlug: 'project-slug',
+			name: 'Project',
+			createdAt: '2026-07-04T00:00:00.000Z',
+			updatedAt: '2026-07-04T00:00:00.000Z',
+		});
+		const writes = vi.spyOn(backend, 'writeTextFile');
+
+		await createCollationWithFiles(
+			harness.db,
+			{
+				id: 'col-1',
+				projectId: 'project-1',
+				title: 'Romans 1:1',
+				verseIdentifier: 'Rom 1:1',
+				segment: { id: 'segment-1', name: 'Romans 1:1', members: ['Rom 1:1'] },
+				now: '2026-07-04T00:00:00.000Z',
+			},
+			{ backend }
+		);
+		expect(writes.mock.calls.filter(([path]) => path.includes(`${teiPath}.tmp-`))).toHaveLength(
+			1
+		);
+		expect((await status()).commitState).toBe('clean');
+
+		const touched = (
+			['readTextFile', 'readFileBytes', 'writeTextFile', 'moveFile'] as const
+		).map(method => vi.spyOn(backend, method));
+		await loadCollationWithWorkingFile(harness.db, 'col-1', { backend });
+		await status();
+		for (const spy of touched) expect(spy).not.toHaveBeenCalled();
+	});
+
+	it('stays clean across a save that changes only save time', async () => {
+		await createFixtureCollation();
+		await save(completeCollationDocument(), '2026-07-04T12:00:00.000Z');
+		const checkpoint = await createCommittedCollationCheckpointWithFiles(
+			harness.db,
+			{ collationId: 'col-1', checkpointId: 'col-cp-1' },
+			{ backend }
+		);
+		expect((await status()).commitState).toBe('clean');
+		const before = await readTei();
+
+		await save(completeCollationDocument(), '2026-07-05T12:00:00.000Z');
+
+		expect(await readTei()).not.toBe(before);
+		expect(teiContentText(await readTei())).toBe(teiContentText(before));
+		expect(await status()).toMatchObject({
+			commitState: 'clean',
+			workingContentHash: checkpoint.contentHash,
+		});
+		await saveWorkingCollationMetadata(
+			harness.db,
+			{ id: 'col-1', notes: 'Changed' },
+			{ backend }
+		);
+		expect((await status()).commitState).toBe('dirty');
+	});
+
+	it('stores Versions as TEI snapshots whose note edits leave their content alone', async () => {
+		await createFixtureCollation();
+		await save(completeCollationDocument(), '2026-07-04T12:00:00.000Z');
+		const checkpoint = await createCommittedCollationCheckpointWithFiles(
+			harness.db,
+			{
+				collationId: 'col-1',
+				checkpointId: 'col-cp-1',
+				label: 'First',
+				commitMessage: 'Initial',
+				authorName: 'Editor',
+				createdAt: '2026-07-04T13:00:00.000Z',
+			},
+			{ backend }
+		);
+		const versionPath = 'history/collations/col-1/col-cp-1.tei.xml';
+		const versionStorePath = joinStorePath(projectFolder('project-slug'), versionPath);
+		const before = await readTextFile(versionStorePath, { backend });
+		expect(parseCollationTeiVersion(before).version).toEqual({
+			id: 'col-cp-1',
+			label: 'First',
+			note: 'Initial',
+			author_name: 'Editor',
+			created_at: '2026-07-04T13:00:00.000Z',
+			parent_id: null,
+		});
+		expect(
+			collationStoreFiles(backend, 'col-1').filter(path => path.endsWith('.json'))
+		).toEqual([]);
+		const contentBefore = (await fingerprint(versionPath))?.content_hash;
+		expect(contentBefore).toBe(checkpoint.contentHash);
+
+		await updateCollationVersionNote(harness.db, 'col-1', 'col-cp-1', 'Revised', { backend });
+
+		const after = await readTextFile(versionStorePath, { backend });
+		const withoutRevisions = (xml: string) =>
+			xml.replace(/<revisionDesc>[\s\S]*<\/revisionDesc>/, '');
+		expect(after).not.toBe(before);
+		expect(withoutRevisions(after)).toBe(withoutRevisions(before));
+		expect(parseCollationTeiVersion(after).version?.note).toBe('Revised');
+		await expect(fingerprint(versionPath)).resolves.toMatchObject({
+			content_hash: contentBefore,
+			file_hash: await hashContent(after),
+		});
+		await expect(
+			harness.db
+				.selectFrom('collation_checkpoints')
+				.select(['label', 'commit_message'])
+				.executeTakeFirst()
+		).resolves.toEqual({ label: 'First', commit_message: 'Revised' });
+		await expect(
+			loadCollationVersionDocument(harness.db, 'col-1', 'col-cp-1', { backend })
+		).resolves.toEqual(parseCollationDocument(completeCollationDocument()));
+
+		await saveWorkingCollationMetadata(
+			harness.db,
+			{ id: 'col-1', notes: 'Changed' },
+			{ backend }
+		);
+		expect((await status()).commitState).toBe('dirty');
+		await restoreCollationVersion(harness.db, 'col-1', 'col-cp-1', { backend });
+		expect((await status()).commitState).toBe('clean');
+		expect(parseCollationPayloadTei(await readTei()).notes).toBe('');
+	});
+
+	it('stamps witness sources with the TEI content hash and keeps them up to date', async () => {
+		await createFixtureCollation();
+		const transcription = (id: string) => ({
+			id: `tx-${id}`,
+			projectId: 'project-1',
+			projectTranscriptionId: `pt-${id}`,
+			title: id,
+			siglum: id,
+			document: { type: 'transcriptionDocument' as const, pages: [] },
+			transcriber: '',
+			repository: '',
+			settlement: '',
+			language: 'grc',
+		});
+		await createTranscriptionWithFiles(harness.db, transcription('tei'), { backend });
+		const contentHash = await loadTranscriptionContentHash(harness.db, 'pt-tei');
+		expect(contentHash).toBe(
+			(await fingerprint('transcriptions/pt-tei.tei.xml'))?.content_hash
+		);
+		const capturedAt = new Date().toISOString();
+		const witness = {
+			...witnessNode('tei', 'one', true),
+			transcriptionId: 'tx-tei',
+			source: { kind: 'current', transcriptionId: 'tx-tei', capturedAt, contentHash },
+		};
+		const document = {
+			...collationDocument('alignment'),
+			setup: {
+				segment: { id: 'segment-1', name: 'Romans 1:1', members: ['Romans 1:1'] },
+				witnesses: [witness],
+			},
+		};
+		await save(document, '2026-07-04T12:00:00.000Z');
+		const states = async () =>
+			(await status()).witnesses.map(entry => [entry.witnessId, entry.versionState]);
+		expect(await states()).toEqual([['tei', 'up-to-date']]);
+
+		await saveWorkingTranscriptionContent(
+			harness.db,
+			{
+				id: 'tx-tei',
+				document: transcription('tei').document,
+				updatedAt: '2026-07-05T00:00:00.000Z',
+			},
+			{ backend }
+		);
+		await save(document, '2026-07-05T12:00:00.000Z');
+
+		expect(await states()).toEqual([['tei', 'up-to-date']]);
+	});
+
+	it('builds CBGM snapshots from the parsed canonical file', async () => {
+		await createFixtureCollation();
+		await save(completeCollationDocument(), '2026-07-04T12:00:00.000Z');
+
+		const snapshots = await loadCollationSnapshots(harness.db, 'project-1', undefined, {
+			backend,
+		});
+
+		const xml = await readTei();
+		expect(snapshots.unavailable).toEqual([]);
+		expect(snapshots.collations).toEqual([
+			expect.objectContaining({
+				collationId: 'col-1',
+				document: parseCollationTei(xml),
+				contentHash: await hashContent(teiContentText(xml)),
+			}),
+		]);
+	});
+});
+
+function collationStoreFiles(store: MemoryStoreBackend, collationId: string): string[] {
+	return [...store.files.keys()].filter(path =>
+		new RegExp(`(^|/)(collations/${collationId}\\.|history/collations/${collationId}/)`).test(
+			path
+		)
+	);
+}
+
 async function createFixtureCollation(): Promise<void> {
 	await createProject(harness.db, {
 		id: 'project-1',
@@ -1110,6 +884,12 @@ async function createFixtureCollation(): Promise<void> {
 		verseIdentifier: 'Rom 1:1',
 		now: '2026-07-04T00:00:00.000Z',
 	});
+}
+
+async function readPrimaryPayload(): Promise<CollationPayload> {
+	return parseCollationPayloadTei(
+		await readTextFile(collationTeiFile('project-slug', 'col-1'), { backend })
+	);
 }
 
 function collationDocument(phase: string) {
@@ -1228,6 +1008,7 @@ function incompleteCollationDocument() {
 						],
 					],
 				},
+				alignmentColumn('two', 1, 'two', 'deux'),
 			],
 		},
 	};

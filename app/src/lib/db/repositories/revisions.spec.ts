@@ -6,13 +6,17 @@ import { MemoryStoreBackend } from '$lib/storage/memory-store-backend.spec-suppo
 import { ensureManifestSource, upsertCanvasAnnotation, upsertPageCanvasLink } from './iiif';
 import { createCollation, saveCollationArtifact, updateCollationMetadata } from './collations';
 import { createProject as createProjectRepository } from './projects';
-import { createTranscription, updateTranscriptionContent } from './transcriptions';
+import { createTranscription as createIndexedTranscription } from './transcriptions';
+import {
+	createCommittedTranscriptionCheckpointWithFiles,
+	saveWorkingTranscriptionContent,
+	writeWorkingTranscriptionSnapshot,
+} from './transcription-files';
 import { createLocalDbTestHarness, type LocalDbTestHarness } from '$lib/testing/local-db-harness';
 import {
 	buildCollationHashPayload,
 	canonicalJson,
 	createCommittedCollationCheckpoint,
-	createCommittedTranscriptionCheckpoint,
 	getProjectTranscriptionCheckpointStatus,
 	hashCanonicalPayload,
 	isTranscriptionDirty,
@@ -43,6 +47,30 @@ function createProject(
 	input: Parameters<typeof createProjectRepository>[1]
 ) {
 	return createProjectRepository(db, input, { backend });
+}
+
+// Writes Current without the initial Version that file-backed creation commits.
+async function createTranscription(
+	db: Parameters<typeof createIndexedTranscription>[0],
+	input: Parameters<typeof createIndexedTranscription>[1]
+) {
+	const id = await createIndexedTranscription(db, input);
+	await writeWorkingTranscriptionSnapshot(db, id, new Date().toISOString(), { backend });
+	return id;
+}
+
+function updateTranscriptionContent(
+	db: Parameters<typeof saveWorkingTranscriptionContent>[0],
+	input: Parameters<typeof saveWorkingTranscriptionContent>[1]
+) {
+	return saveWorkingTranscriptionContent(db, input, { backend });
+}
+
+function createCommittedTranscriptionCheckpoint(
+	db: Parameters<typeof createCommittedTranscriptionCheckpointWithFiles>[0],
+	input: Parameters<typeof createCommittedTranscriptionCheckpointWithFiles>[1]
+) {
+	return createCommittedTranscriptionCheckpointWithFiles(db, input, { backend });
 }
 
 describe('revision hashing and checkpoints', () => {
@@ -182,7 +210,7 @@ describe('revision hashing and checkpoints', () => {
 		expect(first.payload).toMatchObject({
 			project_transcription_id: projectTranscriptionId,
 			id: snapshotId,
-			iiif_manifest_sources: [{ metadata_json: { a: 'first', b: 'second' } }],
+			iiif_manifest_sources: [{ label: 'Manifest', synthetic_canvases: [] }],
 		});
 		expect(first.contentHash).toMatch(/^sha256:[0-9a-f]{64}$/);
 		expect(

@@ -1,42 +1,44 @@
 import { describe, it, expect } from 'vitest';
-import alpha from './formats/fixtures/alpha-collation-v2.json';
+import alpha from './fixtures/alpha-collation-v2.json';
 import { upgradeAlphaProjects, markAlphaUpgradesIndexed } from './alpha-project-upgrade';
-import { MemoryStoreBackend } from './memory-store-backend.spec-support';
-import { hashCanonicalPayload } from './canonical-json';
-import { openEnvelope, sealDocument, serializeSealedDocument, type JsonObject } from './envelope';
-import { readTextFile, writeTextFileAtomic } from './opfs-store';
+import { MemoryStoreBackend } from '../memory-store-backend.spec-support';
+import { hashCanonicalPayload } from '../canonical-json';
+import { openEnvelope, sealDocument, serializeSealedDocument, type JsonObject } from '../envelope';
+import { readTextFile, writeTextFileAtomic } from '../opfs-store';
+import {
+	PROJECT_MANIFEST_FORMAT,
+	TOMBSTONE_FORMAT,
+	type CollationPayload,
+} from '$lib/storage/formats';
 import {
 	COLLATION_FORMAT,
 	WORKING_COLLATION_FORMAT,
 	COLLATION_CHECKPOINT_FORMAT,
-	PROJECT_MANIFEST_FORMAT,
 	PROJECT_TRANSCRIPTION_FORMAT,
 	WORKING_TRANSCRIPTION_FORMAT,
 	TRANSCRIPTION_CHECKPOINT_FORMAT,
-	TOMBSTONE_FORMAT,
 	projectTranscriptionPayloadToSnapshot,
-	readCanonicalDocument,
-	type CollationPayload,
+	readLegacyDocument,
 	type WorkingCollationPayload,
-} from './formats';
+} from '.';
 import {
 	hydrateCollationDocument,
 	buildCollationDocument,
 } from '$lib/collation/collation-document';
 import { deserializeAlignmentColumns } from '$lib/collation/alignment-snapshot';
 import { applyDecisions } from '$lib/collation/collation-decisions';
-import { joinStorePath, APP_STORE_ROOT } from './layout';
-import {
-	buildApparatusTeiExportInput,
-	exportCollationDocumentTei,
-} from '$lib/collation/collation-tei';
+import { joinStorePath, APP_STORE_ROOT } from '../layout';
+import { buildApparatusTeiExportInput } from '$lib/collation/collation-tei';
+import { exportCollationDocumentTei } from '$lib/collation/collation-apparatus-tei';
 import { createLocalDbTestHarness } from '$lib/testing/local-db-harness';
 import { rebuildIndexFromStore } from '$lib/db/repositories/index-rebuild';
 import {
+	loadCanonicalCollationPayloadWithFiles,
 	loadCollationWithWorkingFile,
 	createCommittedCollationCheckpointWithFiles,
 	saveWorkingCollationArtifact,
 } from '$lib/db/repositories/collation-files';
+import { convertProjectToTei } from '$lib/db/repositories/tei-conversion';
 import { importProjectFileTree, importProjectZip } from '$lib/backup/project-zip-import';
 import { exportProjectZip } from '$lib/backup/project-zip-export';
 import {
@@ -86,6 +88,12 @@ async function fixture(source = structuredClone(alpha), deleted = false) {
 								type: 'line',
 								number: 1,
 								items: [
+									{ type: 'milestone', kind: 'book', attrs: { book: 'John' } },
+									{
+										type: 'milestone',
+										kind: 'chapter',
+										attrs: { book: 'John', chapter: '1' },
+									},
 									{
 										type: 'milestone',
 										kind: 'verse',
@@ -248,15 +256,12 @@ describe('alpha project upgrade', () => {
 		const harness = createLocalDbTestHarness();
 		try {
 			await rebuildIndexFromStore(harness.db, options);
-			await loadCollationWithWorkingFile(harness.db, alpha.id, options);
-			const path = `projects/alpha/collations/${alpha.id}.json`;
+			await convertProjectToTei(harness.db, alpha.project_id, options);
 			for (const lemmaReadingId of [undefined, undefined, 'r-a']) {
-				const working = await readCanonicalDocument<CollationPayload>(
-					COLLATION_FORMAT,
-					await readTextFile(path, options)
+				const hydrated = hydrateCollationDocument(
+					(await loadCanonicalCollationPayloadWithFiles(harness.db, alpha.id, options))
+						.document
 				);
-				if (!working.ok) throw new Error('Draft unreadable');
-				const hydrated = hydrateCollationDocument(working.payload.document);
 				const [unitId, decisions] = hydrated.unitDecisions[0];
 				if (lemmaReadingId) decisions.lemmaReadingId = lemmaReadingId;
 				const view = applyDecisions(hydrated.classifiedReadings[0][1], decisions, {
@@ -292,19 +297,15 @@ describe('alpha project upgrade', () => {
 					},
 					options
 				);
-				const reloaded = await readCanonicalDocument<CollationPayload>(
-					COLLATION_FORMAT,
-					await readTextFile(path, options)
+				const reloaded = await loadCanonicalCollationPayloadWithFiles(
+					harness.db,
+					alpha.id,
+					options
 				);
-				if (!reloaded.ok) throw new Error('Saved draft unreadable');
 				expect(
-					hydrateCollationDocument(
-						reloaded.payload.document
-					).classifiedReadings[0][1].map(reading => [
-						reading.id,
-						reading.order,
-						reading.label,
-					])
+					hydrateCollationDocument(reloaded.document).classifiedReadings[0][1].map(
+						reading => [reading.id, reading.order, reading.label]
+					)
 				).toEqual(expected);
 			}
 		} finally {
@@ -326,6 +327,11 @@ describe('alpha project upgrade', () => {
 		}
 		const harness = createLocalDbTestHarness();
 		try {
+			await rebuildIndexFromStore(harness.db, options);
+			expect(await convertProjectToTei(harness.db, alpha.project_id, options)).toEqual({
+				status: 'converted',
+				files: expect.any(Number),
+			});
 			expect(await rebuildIndexFromStore(harness.db, options)).toMatchObject({
 				projectsRestored: 1,
 				transcriptionsRestored: 1,
@@ -351,11 +357,11 @@ describe('alpha project upgrade', () => {
 			file => file.path.startsWith('transcriptions/') || file.path.startsWith('history/')
 		))
 			expect(await readTextFile(`projects/alpha/${file.path}`, options)).toBe(file.content);
-		const primary = await readCanonicalDocument<CollationPayload>(
+		const primary = await readLegacyDocument<CollationPayload>(
 			COLLATION_FORMAT,
 			await readTextFile(`projects/alpha/collations/${alpha.id}.json`, options)
 		);
-		const working = await readCanonicalDocument<WorkingCollationPayload>(
+		const working = await readLegacyDocument<WorkingCollationPayload>(
 			WORKING_COLLATION_FORMAT,
 			await readTextFile(`projects/alpha/collations/${alpha.id}.working.json`, options)
 		);
@@ -394,6 +400,11 @@ describe('alpha project upgrade', () => {
 		expect(exportCollationDocumentTei(saved)).toContain('type="substitute"');
 		const harness = createLocalDbTestHarness();
 		try {
+			await rebuildIndexFromStore(harness.db, options);
+			expect(await convertProjectToTei(harness.db, alpha.project_id, options)).toEqual({
+				status: 'converted',
+				files: expect.any(Number),
+			});
 			const report = await rebuildIndexFromStore(harness.db, options);
 			expect(report).toMatchObject({
 				projectsRestored: 1,
@@ -517,7 +528,7 @@ describe('alpha project upgrade', () => {
 		sourceReadings[0].readingType = 'ns';
 		const { options } = await fixture(source);
 		await upgradeAlphaProjects(options);
-		const primary = await readCanonicalDocument<CollationPayload>(
+		const primary = await readLegacyDocument<CollationPayload>(
 			COLLATION_FORMAT,
 			await readTextFile(`projects/alpha/collations/${alpha.id}.json`, options)
 		);
@@ -561,10 +572,14 @@ describe('alpha project upgrade', () => {
 			expect(await readTextFile(path, options)).toBe(stale);
 			const harness = createLocalDbTestHarness();
 			try {
-				const report = await rebuildIndexFromStore(harness.db, options);
-				expect(report.orphanedFiles).toEqual(
-					expect.arrayContaining([expect.objectContaining({ code: 'stale_working' })])
-				);
+				await rebuildIndexFromStore(harness.db, options);
+				await convertProjectToTei(harness.db, alpha.project_id, options);
+				expect(
+					await readTextFile(
+						`projects/alpha/legacy/collations/${alpha.id}.working.json`,
+						options
+					)
+				).toBe(stale);
 				expect(
 					await harness.db.selectFrom('collations').select('notes').executeTakeFirst()
 				).toMatchObject({ notes: 'Editorial notes' });
@@ -584,14 +599,16 @@ describe('alpha project upgrade', () => {
 				files.map(file => ({ path: file.path, read: async () => file.content })),
 				{ storeOptions: { backend } }
 			);
-			expect(result).toMatchObject({
-				ok: true,
-				transcriptionsRestored: 1,
-				collationsRestored: 1,
-				collationCheckpointsRestored: 1,
-				quarantinedFiles: [],
-			});
-			expect(result.draftFilesRestored).toHaveLength(2);
+			expect(result).toMatchObject({ ok: true, quarantinedFiles: [] });
+			expect(
+				await convertProjectToTei(harness.db, alpha.project_id, { backend })
+			).toMatchObject({ status: 'converted' });
+			expect(
+				await harness.db.selectFrom('transcriptions').select('description').execute()
+			).toEqual([{ description: 'Transcription draft' }]);
+			expect(
+				(await loadCollationWithWorkingFile(harness.db, alpha.id, { backend }))?.row.notes
+			).toBe('Unsaved editorial work');
 			const archive = await exportProjectZip(harness.db, alpha.project_id, {
 				storeOptions: { backend },
 			});

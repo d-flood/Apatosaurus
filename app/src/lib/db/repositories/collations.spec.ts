@@ -3,12 +3,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { StoredTranscriptionDocument } from '$lib/transcription/content';
 import { MemoryStoreBackend } from '$lib/storage/memory-store-backend.spec-support';
 import { createProject as createProjectRepository } from './projects';
+import { createCommittedCollationCheckpoint, loadTranscriptionSourceState } from './revisions';
+import { createTranscription as createIndexedTranscription } from './transcriptions';
 import {
-	createCommittedCollationCheckpoint,
-	createCommittedTranscriptionCheckpoint,
-	loadTranscriptionSourceState,
-} from './revisions';
-import { createTranscription, updateTranscriptionContent } from './transcriptions';
+	createCommittedTranscriptionCheckpointWithFiles,
+	saveWorkingTranscriptionContent,
+	writeWorkingTranscriptionSnapshot,
+} from './transcription-files';
 import { createLocalDbTestHarness, type LocalDbTestHarness } from '$lib/testing/local-db-harness';
 import {
 	createCollation,
@@ -50,6 +51,30 @@ function createProject(
 	input: Parameters<typeof createProjectRepository>[1]
 ) {
 	return createProjectRepository(db, input, { backend });
+}
+
+// Writes Current without the initial Version that file-backed creation commits.
+async function createTranscription(
+	db: Parameters<typeof createIndexedTranscription>[0],
+	input: Parameters<typeof createIndexedTranscription>[1]
+) {
+	const id = await createIndexedTranscription(db, input);
+	await writeWorkingTranscriptionSnapshot(db, id, new Date().toISOString(), { backend });
+	return id;
+}
+
+function updateTranscriptionContent(
+	db: Parameters<typeof saveWorkingTranscriptionContent>[0],
+	input: Parameters<typeof saveWorkingTranscriptionContent>[1]
+) {
+	return saveWorkingTranscriptionContent(db, input, { backend });
+}
+
+function createCommittedTranscriptionCheckpoint(
+	db: Parameters<typeof createCommittedTranscriptionCheckpointWithFiles>[0],
+	input: Parameters<typeof createCommittedTranscriptionCheckpointWithFiles>[1]
+) {
+	return createCommittedTranscriptionCheckpointWithFiles(db, input, { backend });
 }
 
 describe('collations repository', () => {

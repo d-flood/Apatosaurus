@@ -7,7 +7,8 @@ import {
 	type StoreDirectoryEntry,
 	type StoreOperationOptions,
 } from '$lib/storage/opfs-store';
-import { isPresencePath, joinStorePath, projectFolder } from '$lib/storage/layout';
+import { isLegacyPath, isPresencePath, joinStorePath, projectFolder } from '$lib/storage/layout';
+import { classifyDocumentPath, documentStorageOfPath } from '$lib/storage/document-files';
 import type { DbExecutor } from '$lib/db/worker-kysely';
 
 export type ProjectFileContent = string | Uint8Array;
@@ -90,11 +91,18 @@ async function collectProjectArchiveFilePaths(
 
 export function shouldMirrorProjectFile(path: string): boolean {
 	const normalized = normalizeSlashes(path);
-	if (!normalized || normalized.includes('.tmp-') || isPresencePath(normalized)) return false;
+	if (
+		!normalized ||
+		normalized.includes('.tmp-') ||
+		isPresencePath(normalized) ||
+		isLegacyPath(normalized)
+	)
+		return false;
 	if (normalized.endsWith('.working.json')) return false;
 	return (
 		normalized.endsWith('.json') ||
-		normalized.endsWith('.tei.xml') ||
+		(documentStorageOfPath(normalized) === 'tei' &&
+			classifyDocumentPath(normalized) !== null) ||
 		isCbgmSidecarFile(normalized)
 	);
 }

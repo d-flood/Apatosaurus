@@ -1,7 +1,7 @@
 import type { DocumentUpgrader, FormatRegistration } from '../migrate-on-read';
 import type { JsonObject } from '../envelope';
 import { invalidShape } from '../quarantine';
-import { assertContentHashMatches, readString } from './validation';
+import { assertContentHashMatches, readString } from '../formats/validation';
 import {
 	addVersionMetadata,
 	readCheckpointBasePayload,

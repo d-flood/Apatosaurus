@@ -1,15 +1,8 @@
 import type { Kysely, Selectable } from 'kysely';
 
-import type {
-	Database,
-	IiifCanvasAnnotations,
-	IiifManifestSources,
-	Projects,
-	ProjectTranscriptions,
-	TranscriptionPageCanvasLinks,
-	Transcriptions,
-} from '../types.generated';
+import type { Database, Projects, ProjectTranscriptions, Transcriptions } from '../types.generated';
 import { createId, requireId } from './id';
+import { replaceIiifRows } from './iiif';
 import {
 	deriveEntityCloudBackupState,
 	type EntityCloudBackupState,
@@ -17,11 +10,12 @@ import {
 } from '$lib/backup/backup-status';
 import type { StoreOperationOptions } from '$lib/storage/opfs-store';
 import {
-	buildTranscriptionHashPayload,
 	deriveSourceFreshness,
+	getProjectTranscriptionCheckpointStatus,
 	hashCanonicalPayload,
 	listTranscriptionVersions,
 	loadCommittedTranscriptionCheckpointPayload,
+	loadTranscriptionContentHash,
 	type EntityCheckpointHead,
 	type ProjectTranscriptionSnapshot,
 	type SourceFreshness,
@@ -31,10 +25,10 @@ import {
 	type VersionSummary,
 } from './revisions';
 import type { WitnessSource } from '$lib/collation/collation-types';
+import type { ProjectTranscriptionHandOption } from '$lib/transcription/hands';
 import { resolveProjectStorageSlug } from './project-bootstrap';
 import {
 	createCommittedTranscriptionCheckpointWithFiles,
-	getProjectTranscriptionCheckpointStatusWithFiles,
 	loadProjectTranscriptionSnapshotWithFiles,
 } from './transcription-files';
 import { replaceTranscriptionVerseIndexRows } from './transcriptions';
@@ -45,20 +39,17 @@ import {
 } from './collation-files';
 import { deleteTranscriptionWithFiles } from './entity-deletion';
 import {
-	PROJECT_MANIFEST_CURRENT_VERSION,
 	PROJECT_MANIFEST_FORMAT,
-	COLLATION_FORMAT,
-	PROJECT_TRANSCRIPTION_FORMAT,
+	projectManifestSchemaVersion,
+	parseCollationPayloadTei,
+	parseTranscriptionTei,
 	readCanonicalDocument,
 	type CollationPayload,
 	type ProjectManifestPayload,
 	type ProjectTranscriptionPayload,
 } from '$lib/storage/formats';
-import {
-	collationPrimaryFile,
-	transcriptionPrimaryFile,
-	projectManifestFile,
-} from '$lib/storage/layout';
+import { joinStorePath, projectFolder, projectManifestFile } from '$lib/storage/layout';
+import { hasLegacyHeads } from '$lib/storage/document-files';
 import { readTextFile } from '$lib/storage/opfs-store';
 import type { DbExecutor } from '../worker-kysely';
 
@@ -84,6 +75,7 @@ export interface ProjectTranscriptionOption {
 	displayLabel: string;
 	title: string;
 	description: string;
+	hands: ProjectTranscriptionHandOption[];
 }
 
 interface TranscriptionSourceSummary {
@@ -285,32 +277,25 @@ export async function forkProject(
 	if (!sourceManifestRead.ok) {
 		throw new Error(`Canonical manifest for project ${input.sourceProjectId} is invalid.`);
 	}
+	if (hasLegacyHeads(sourceManifestRead.payload))
+		throw new Error(`Project ${input.sourceProjectId} has not been converted to TEI yet.`);
 	const sourceCollations = new Map<string, CollationPayload>();
 	const sourceTranscriptionPayloads = new Map<string, ProjectTranscriptionPayload>();
 	for (const head of sourceManifestRead.payload.transcriptions) {
-		const read = await readCanonicalDocument<ProjectTranscriptionPayload>(
-			PROJECT_TRANSCRIPTION_FORMAT,
-			await readTextFile(
-				transcriptionPrimaryFile(sourceProject.storageSlug, head.project_transcription_id),
-				storeOptions
-			)
+		const raw = await readTextFile(
+			joinStorePath(projectFolder(sourceProject.storageSlug), head.primary_path),
+			storeOptions
 		);
-		if (!read.ok) {
-			throw new Error(`Canonical transcription ${head.project_transcription_id} is invalid.`);
-		}
-		sourceTranscriptionPayloads.set(head.project_transcription_id, read.payload);
-		sourceTranscriptionPayloads.set(head.transcription_id, read.payload);
+		const payload = parseTranscriptionTei(raw);
+		sourceTranscriptionPayloads.set(head.project_transcription_id, payload);
+		sourceTranscriptionPayloads.set(head.transcription_id, payload);
 	}
 	for (const head of sourceManifestRead.payload.collations) {
-		const read = await readCanonicalDocument<CollationPayload>(
-			COLLATION_FORMAT,
-			await readTextFile(
-				collationPrimaryFile(sourceProject.storageSlug, head.collation_id),
-				storeOptions
-			)
+		const raw = await readTextFile(
+			joinStorePath(projectFolder(sourceProject.storageSlug), head.primary_path),
+			storeOptions
 		);
-		if (!read.ok) throw new Error(`Canonical collation ${head.collation_id} is invalid.`);
-		sourceCollations.set(head.collation_id, read.payload);
+		sourceCollations.set(head.collation_id, parseCollationPayloadTei(raw));
 	}
 	return db.transaction().execute(async trx => {
 		const now = input.createdAt ?? new Date().toISOString();
@@ -394,7 +379,9 @@ export async function forkProject(
 					source_manifest_content_hash: await hashCanonicalPayload(
 						sourceManifestRead.payload
 					),
-					source_manifest_schema_version: PROJECT_MANIFEST_CURRENT_VERSION,
+					source_manifest_schema_version: projectManifestSchemaVersion(
+						sourceManifestRead.payload
+					),
 				},
 			},
 			storeOptions
@@ -434,6 +421,11 @@ export async function listProjectTranscriptionOptions(
 					'transcriptions.id',
 					'project_transcriptions.transcription_id'
 				)
+				.leftJoin(
+					'transcription_verse_index_state',
+					'transcription_verse_index_state.transcription_id',
+					'transcriptions.id'
+				)
 				.select([
 					'transcriptions.id as id',
 					'transcriptions.siglum as siglum',
@@ -441,6 +433,7 @@ export async function listProjectTranscriptionOptions(
 					'transcriptions.description as description',
 					'transcriptions.origin_transcription_id as origin_transcription_id',
 					'project_transcriptions.canonical_transcription_id as canonical_transcription_id',
+					'transcription_verse_index_state.hands_json as hands_json',
 				])
 				.where('project_transcriptions.project_id', '=', projectId)
 				.orderBy('project_transcriptions.added_at')
@@ -794,7 +787,7 @@ async function loadSourceContent(
 	return {
 		payload: snapshot,
 		revisionId: '',
-		contentHash: await hashCanonicalPayload(buildTranscriptionHashPayload(snapshot)),
+		contentHash: await loadTranscriptionContentHash(db, sourceLink.id),
 		capturedAt: new Date().toISOString(),
 	};
 }
@@ -820,10 +813,9 @@ export async function refreshProjectTranscription(
 	if (!target) {
 		throw new Error(`Project transcription ${input.projectTranscriptionId} was not found.`);
 	}
-	const targetCheckpointStatus = await getProjectTranscriptionCheckpointStatusWithFiles(
+	const targetCheckpointStatus = await getProjectTranscriptionCheckpointStatus(
 		db,
-		input.projectTranscriptionId,
-		options.storeOptions
+		input.projectTranscriptionId
 	);
 	if (targetCheckpointStatus.dirtyToCheckpoint && !input.allowReplaceDirty) {
 		throw new RefreshDirtyProjectTranscriptionError(input.projectTranscriptionId);
@@ -910,7 +902,7 @@ export async function refreshProjectTranscription(
 			.executeTakeFirst();
 
 		await replaceTranscriptionVerseIndexRows(trx, targetTranscriptionId, contentJson, now);
-		await replaceIiifRowsFromPayload(trx, targetTranscriptionId, payload, now);
+		await replaceIiifRows(trx, targetTranscriptionId, payload, now);
 
 		await trx
 			.updateTable('projects')
@@ -1050,7 +1042,7 @@ async function forkProjectTranscriptions(
 			JSON.stringify(rewriteForkIdentifiers(sourcePayload.content_json, embeddedIdMap)),
 			now
 		);
-		await replaceIiifRowsFromPayload(db, targetTranscriptionId, sourcePayload, now);
+		await replaceIiifRows(db, targetTranscriptionId, sourcePayload, now);
 		await db
 			.insertInto('project_transcriptions')
 			.values({
@@ -1139,90 +1131,6 @@ function rewriteForkIdentifiers(value: unknown, idMap: Map<string, string>): unk
 	return Object.fromEntries(
 		Object.entries(value).map(([key, entry]) => [key, rewriteForkIdentifiers(entry, idMap)])
 	);
-}
-
-async function replaceIiifRowsFromPayload(
-	db: DbExecutor,
-	targetTranscriptionId: string,
-	payload: TranscriptionCheckpointPayload | ProjectTranscriptionPayload,
-	now: string
-): Promise<void> {
-	await db
-		.deleteFrom('iiif_canvas_annotations')
-		.where('transcription_id', '=', targetTranscriptionId)
-		.execute();
-	await db
-		.deleteFrom('transcription_page_canvas_links')
-		.where('transcription_id', '=', targetTranscriptionId)
-		.execute();
-	await db
-		.deleteFrom('iiif_manifest_sources')
-		.where('transcription_id', '=', targetTranscriptionId)
-		.execute();
-
-	const manifestIdMap = new Map<string, string>();
-	const manifestRows: Selectable<IiifManifestSources>[] = payload.iiif_manifest_sources.map(
-		source => {
-			const nextId = createId();
-			manifestIdMap.set(source.id, nextId);
-			return {
-				id: nextId,
-				transcription_id: targetTranscriptionId,
-				manifest_url: source.manifest_url,
-				label: source.label,
-				source_kind: source.source_kind,
-				default_canvas_id: source.default_canvas_id,
-				default_image_service_url: source.default_image_service_url,
-				metadata_json: JSON.stringify(source.metadata_json ?? {}),
-				created_at: now,
-				updated_at: now,
-			};
-		}
-	);
-	if (manifestRows.length > 0)
-		await db.insertInto('iiif_manifest_sources').values(manifestRows).execute();
-
-	const pageLinkRows: Selectable<TranscriptionPageCanvasLinks>[] =
-		payload.page_canvas_links.flatMap(row => {
-			const manifestSourceId = manifestIdMap.get(row.manifest_source_id);
-			return manifestSourceId
-				? [
-						{
-							...row,
-							id: createId(),
-							transcription_id: targetTranscriptionId,
-							manifest_source_id: manifestSourceId,
-							created_at: now,
-							updated_at: now,
-						},
-					]
-				: [];
-		});
-	if (pageLinkRows.length > 0)
-		await db.insertInto('transcription_page_canvas_links').values(pageLinkRows).execute();
-
-	const annotationRows: Selectable<IiifCanvasAnnotations>[] = payload.canvas_annotations.flatMap(
-		row => {
-			const manifestSourceId = manifestIdMap.get(row.manifest_source_id);
-			return manifestSourceId
-				? [
-						{
-							...row,
-							id: createId(),
-							transcription_id: targetTranscriptionId,
-							manifest_source_id: manifestSourceId,
-							body_json: JSON.stringify(row.body_json ?? {}),
-							target_json: JSON.stringify(row.target_json ?? {}),
-							anchor_json: JSON.stringify(row.anchor_json ?? {}),
-							created_at: now,
-							updated_at: now,
-						},
-					]
-				: [];
-		}
-	);
-	if (annotationRows.length > 0)
-		await db.insertInto('iiif_canvas_annotations').values(annotationRows).execute();
 }
 
 export interface AddProjectTranscriptionFromProjectInput {
@@ -1319,7 +1227,7 @@ export async function addProjectTranscriptionFromProject(
 		await trx.insertInto('transcriptions').values(targetRow).execute();
 
 		await replaceTranscriptionVerseIndexRows(trx, targetTranscriptionId, contentJson, now);
-		await replaceIiifRowsFromPayload(trx, targetTranscriptionId, payload, now);
+		await replaceIiifRows(trx, targetTranscriptionId, payload, now);
 
 		const projectTranscriptionId = createId();
 		const linkRow: Selectable<ProjectTranscriptions> = {
@@ -1449,13 +1357,12 @@ async function mapProjectTranscriptionStatus(
 		row.transcription_id,
 		'project-owned transcription'
 	);
-	const checkpointStatus = await getProjectTranscriptionCheckpointStatusWithFiles(
+	const checkpointStatus = await getProjectTranscriptionCheckpointStatus(
 		db,
-		projectTranscriptionId,
-		options.storeOptions
+		projectTranscriptionId
 	);
 	const canonicalSource = row.canonical_transcription_id
-		? await loadTranscriptionSourceSummary(db, row.canonical_transcription_id, options)
+		? await loadTranscriptionSourceSummary(db, row.canonical_transcription_id)
 		: null;
 	const sourceTranscriptionId =
 		row.canonical_transcription_id || nonEmptyStringOrNull(row.origin_transcription_id);
@@ -1463,7 +1370,7 @@ async function mapProjectTranscriptionStatus(
 		sourceTranscriptionId === row.canonical_transcription_id
 			? canonicalSource
 			: sourceTranscriptionId
-				? await loadTranscriptionSourceSummary(db, sourceTranscriptionId, options)
+				? await loadTranscriptionSourceSummary(db, sourceTranscriptionId)
 				: null;
 	const immediateSource = mapImmediateSource(row, sourceSummary);
 	const cloudBackupState = await deriveEntityCloudBackupState(
@@ -1501,8 +1408,7 @@ async function mapProjectTranscriptionStatus(
 
 async function loadTranscriptionSourceSummary(
 	db: DbExecutor,
-	transcriptionId: string,
-	options: ProjectContentLoadOptions
+	transcriptionId: string
 ): Promise<TranscriptionSourceSummary | null> {
 	const row = await db
 		.selectFrom('transcriptions')
@@ -1533,10 +1439,9 @@ async function loadTranscriptionSourceSummary(
 		state: row.project_transcription_id
 			? {
 					currentContentHash: (
-						await getProjectTranscriptionCheckpointStatusWithFiles(
+						await getProjectTranscriptionCheckpointStatus(
 							db,
-							row.project_transcription_id,
-							options.storeOptions
+							row.project_transcription_id
 						)
 					).workingContentHash,
 					versions: await listTranscriptionVersions(db, sourceId),
@@ -1631,7 +1536,9 @@ function mapProject(row: Selectable<Projects>): ProjectRecord {
 }
 
 function mapProjectTranscriptionOption(
-	row: Pick<Selectable<Transcriptions>, 'id' | 'siglum' | 'title' | 'description'>
+	row: Pick<Selectable<Transcriptions>, 'id' | 'siglum' | 'title' | 'description'> & {
+		hands_json: string | null;
+	}
 ): ProjectTranscriptionOption {
 	return {
 		id: requireId(row.id, 'transcription'),
@@ -1639,6 +1546,7 @@ function mapProjectTranscriptionOption(
 		displayLabel: getPreferredTranscriptionLabel(row),
 		title: row.title,
 		description: row.description,
+		hands: JSON.parse(row.hands_json ?? '[]'),
 	};
 }
 

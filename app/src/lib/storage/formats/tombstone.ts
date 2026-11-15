@@ -1,3 +1,4 @@
+import { classifyDocumentPath, documentDeletionPaths } from '../document-files';
 import type { DocumentUpgrader, FormatRegistration } from '../migrate-on-read';
 import type { JsonObject } from '../envelope';
 import { cbgmAnalysisRelativeFiles } from '../layout';
@@ -41,6 +42,10 @@ export const tombstoneFormatRegistration: FormatRegistration<TombstonePayload> =
 };
 
 export function tombstonedProjectPaths(tombstone: TombstonePayload): string[] {
-	if (tombstone.entity_type !== CBGM_ANALYSIS_ENTITY_TYPE) return [tombstone.cloud_path];
-	return Object.values(cbgmAnalysisRelativeFiles(tombstone.entity_id));
+	if (tombstone.entity_type === CBGM_ANALYSIS_ENTITY_TYPE)
+		return Object.values(cbgmAnalysisRelativeFiles(tombstone.entity_id));
+	const file = classifyDocumentPath(tombstone.cloud_path);
+	if (!file) return [tombstone.cloud_path];
+	const paths = documentDeletionPaths(file.kind, file.entityId);
+	return paths.includes(tombstone.cloud_path) ? paths : [tombstone.cloud_path, ...paths];
 }

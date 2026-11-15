@@ -12,7 +12,8 @@ import {
 } from '$lib/db/repositories/collation-files';
 import { deleteCollationWithFiles } from '$lib/db/repositories/entity-deletion';
 import { createProject } from '$lib/db/repositories/projects';
-import { collationPrimaryFile } from '$lib/storage/layout';
+import { collationTeiFile } from '$lib/storage/layout';
+import { refreshChangedDocumentFiles } from '$lib/db/repositories/document-refresh';
 import { MemoryStoreBackend } from '$lib/storage/memory-store-backend.spec-support';
 import { writeTextFileAtomic, type StoreOperationOptions } from '$lib/storage/opfs-store';
 import type { CbgmAnalysisMetadata } from '$lib/storage/formats';
@@ -192,9 +193,10 @@ describe('analysis staleness against canonical collation files', () => {
 		});
 	});
 
-	it('surfaces a corrupted primary as unavailable and only a deleted collation as deleted', async () => {
+	it('surfaces an unparseable collation as unavailable and only a deleted collation as deleted', async () => {
 		const frozen = await freeze();
-		await writeTextFileAtomic(collationPrimaryFile('romans', 'col-1'), '{', storeOptions);
+		await writeTextFileAtomic(collationTeiFile('romans', 'col-1'), '<TEI', storeOptions);
+		await refreshChangedDocumentFiles(harness.db, 'project-1', storeOptions);
 		await deleteCollationWithFiles(harness.db, 'col-2', {}, storeOptions);
 
 		expect(await staleness(frozen)).toEqual({

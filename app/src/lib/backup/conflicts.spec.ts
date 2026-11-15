@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { serializePlainText, type LineItem } from '@apatosaurus/tei-transcription';
 
 import type { ClassifiedReading } from '$lib/collation/collation-types';
 import type { CollationDocument } from '$lib/collation/collation-document';
@@ -27,7 +28,6 @@ import {
 	createCollationConflictCopy,
 	createProjectTranscriptionConflictCopy,
 	listConflictCopies,
-	loadConflictCopyContents,
 	reconcileConflictCopy,
 } from './conflicts';
 
@@ -51,30 +51,6 @@ function createProject(
 }
 
 describe('local sync conflicts and tombstones', () => {
-	it('refuses to load or reconcile a conflict copy without canonical content', async () => {
-		const projectTranscriptionId = await createCommittedProjectTranscription();
-		const copy = await createProjectTranscriptionConflictCopy(harness.db, {
-			projectTranscriptionId,
-			conflictTranscriptionId: 'tx-conflict',
-			conflictProjectTranscriptionId: 'pt-conflict',
-		});
-		await expect(
-			loadConflictCopyContents(harness.db, copy.transcriptionId, { backend })
-		).rejects.toThrow('Canonical transcription file for tx-conflict was not found.');
-		await expect(
-			reconcileConflictCopy(harness.db, copy.transcriptionId, {}, { backend })
-		).rejects.toThrow('Canonical transcription file for tx-conflict was not found.');
-		await expect(
-			harness.db
-				.selectFrom('transcriptions')
-				.select('content_json')
-				.where('id', '=', copy.transcriptionId)
-				.executeTakeFirst()
-		).resolves.toMatchObject({
-			content_json: expect.stringContaining('transcriptionDocument'),
-		});
-	});
-
 	it('creates project-scoped conflict copies without mutating primary records', async () => {
 		const projectTranscriptionId = await createCommittedProjectTranscription();
 		await createCollation(harness.db, {
@@ -180,16 +156,15 @@ describe('reconciling conflict copies', () => {
 			{ backend }
 		);
 
-		const current = await loadTranscriptionContentWithFiles(harness.db, 'tx-1', { backend });
-		expect(coerceTranscriptionDocument(current)).toEqual(
-			coerceTranscriptionDocument(
-				transcription([
-					['1', 'their one'],
-					['2', 'mine two'],
-					['3', 'shared three'],
-				])
-			)
+		const current = coerceTranscriptionDocument(
+			await loadTranscriptionContentWithFiles(harness.db, 'tx-1', { backend })
 		);
+		const expected = transcription([
+			['1', 'their one'],
+			['2', 'mine two'],
+			['3', 'shared three'],
+		]);
+		expect(serializePlainText(current!)).toBe(serializePlainText(expected));
 		await expect(listConflictCopies(harness.db, 'project-1')).resolves.toEqual([]);
 		await expect(
 			harness.db.selectFrom('transcriptions').select('id').execute()
@@ -346,6 +321,12 @@ function collation(choice: {
 	};
 }
 
+// Book and chapter milestones carry the context TEI needs to name each verse.
+const JOHN_1_OPENING: LineItem[] = [
+	{ type: 'milestone', kind: 'book', attrs: { book: 'John' } },
+	{ type: 'milestone', kind: 'chapter', attrs: { book: 'John', chapter: '1' } },
+];
+
 function transcription(verses: Array<[string, string]>): StoredTranscriptionDocument {
 	return {
 		type: 'transcriptionDocument',
@@ -362,6 +343,7 @@ function transcription(verses: Array<[string, string]>): StoredTranscriptionDocu
 							type: 'line' as const,
 							number: index + 1,
 							items: [
+								...(index === 0 ? JOHN_1_OPENING : []),
 								{
 									type: 'milestone' as const,
 									kind: 'verse' as const,

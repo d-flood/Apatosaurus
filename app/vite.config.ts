@@ -114,6 +114,7 @@ export default defineConfig({
 			'devalue',
 			'dompurify',
 			'esm-env',
+			'fflate',
 			'kysely',
 			'lucide-svelte',
 			'manifesto.js',

@@ -42,7 +42,7 @@ export function transcriptionTeiFile(projectSlug: string, transcriptionId: strin
 	return joinStorePath(projectFolder(projectSlug), transcriptionTeiRelativeFile(transcriptionId));
 }
 
-function transcriptionTeiRelativeFile(transcriptionId: string): string {
+export function transcriptionTeiRelativeFile(transcriptionId: string): string {
 	return joinStorePath('transcriptions', `${validateFileStem(transcriptionId)}.tei.xml`);
 }
 
@@ -66,7 +66,7 @@ export function collationTeiFile(projectSlug: string, collationId: string): stri
 	return joinStorePath(projectFolder(projectSlug), collationTeiRelativeFile(collationId));
 }
 
-function collationTeiRelativeFile(collationId: string): string {
+export function collationTeiRelativeFile(collationId: string): string {
 	return joinStorePath('collations', `${validateFileStem(collationId)}.tei.xml`);
 }
 
@@ -101,6 +101,29 @@ export function transcriptionCheckpointRelativeFile(
 	);
 }
 
+export function transcriptionCheckpointTeiFile(
+	projectSlug: string,
+	transcriptionId: string,
+	checkpointId: string
+): string {
+	return joinStorePath(
+		projectFolder(projectSlug),
+		transcriptionCheckpointTeiRelativeFile(transcriptionId, checkpointId)
+	);
+}
+
+export function transcriptionCheckpointTeiRelativeFile(
+	transcriptionId: string,
+	checkpointId: string
+): string {
+	return joinStorePath(
+		'history',
+		'transcriptions',
+		validateFileStem(transcriptionId),
+		`${validateFileStem(checkpointId)}.tei.xml`
+	);
+}
+
 export function collationHistoryFolder(projectSlug: string, collationId: string): string {
 	return joinStorePath(projectHistoryFolder(projectSlug), 'collations', collationId);
 }
@@ -122,6 +145,18 @@ export function collationCheckpointRelativeFile(collationId: string, checkpointI
 		'collations',
 		validateFileStem(collationId),
 		`${validateFileStem(checkpointId)}.json`
+	);
+}
+
+export function collationCheckpointTeiRelativeFile(
+	collationId: string,
+	checkpointId: string
+): string {
+	return joinStorePath(
+		'history',
+		'collations',
+		validateFileStem(collationId),
+		`${validateFileStem(checkpointId)}.tei.xml`
 	);
 }
 
@@ -176,24 +211,13 @@ export function isPresencePath(projectRelativePath: string): boolean {
 	);
 }
 
-export interface ProjectRelativePaths {
-	project: string;
-	transcriptions: (projectTranscriptionId: string) => string;
-	collations: (collationId: string) => string;
-	transcriptionHistory: (projectTranscriptionId: string, checkpointId: string) => string;
-	collationHistory: (collationId: string, checkpointId: string) => string;
-	tombstones: (entityType: string, entityId: string) => string;
-}
+// Holds the JSON documents conversion to TEI replaced; never synced, zipped or indexed.
+export const LEGACY_FOLDER = 'legacy';
 
-export function projectRelativePaths(): ProjectRelativePaths {
-	return {
-		project: projectManifestRelativeFile(),
-		transcriptions: transcriptionPrimaryRelativeFile,
-		collations: collationPrimaryRelativeFile,
-		transcriptionHistory: transcriptionCheckpointRelativeFile,
-		collationHistory: collationCheckpointRelativeFile,
-		tombstones: tombstoneRelativeFile,
-	};
+export function isLegacyPath(projectRelativePath: string): boolean {
+	return (
+		projectRelativePath === LEGACY_FOLDER || projectRelativePath.startsWith(`${LEGACY_FOLDER}/`)
+	);
 }
 
 function appFolder(): string {

@@ -31,6 +31,7 @@ interface ParsedIntfPageImage {
 	label: string;
 }
 
+export const INTF_MANIFEST_PREFIX = 'urn:apatopwa:iiif:intf:';
 const DEFAULT_INTF_IMAGE_DIMENSIONS = { width: 1500, height: 2000 } as const;
 const INTF_IMAGE_PROBE_TIMEOUT_MS = 8000;
 
@@ -139,7 +140,7 @@ export function buildIntfManifestUrl(input: {
 				`${image.pageId ?? 'x'}:${image.sortOrder ?? 'x'}:${image.surrId ?? 'x'}:${image.imageUrl}`
 		)
 		.join('\n');
-	return `urn:apatopwa:iiif:intf:${docPart}:${hashString(fingerprint)}`;
+	return `${INTF_MANIFEST_PREFIX}${docPart}:${hashString(fingerprint)}`;
 }
 
 export function createIntfImportMetadata(input: {
@@ -159,7 +160,10 @@ export function createIntfImportMetadata(input: {
 }
 
 export function isIntfManifestSource(source: ManifestSourceSummary | null | undefined): boolean {
-	return source?.metadata?.inputKind === 'intf-manuscript-json';
+	return (
+		source?.metadata?.inputKind === 'intf-manuscript-json' ||
+		Boolean(source?.manifestUrl.startsWith(INTF_MANIFEST_PREFIX))
+	);
 }
 
 export function parseIntfPageImages(input: string): {

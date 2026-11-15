@@ -1,4 +1,5 @@
 import { notificationCenter } from '$lib/shell/notification-center.svelte';
+import { indexRebuildProgress } from './index-rebuild-progress.svelte';
 import type { SyncProjectContext } from '$lib/backup/backup-status';
 import type { DbApi, DbApiContext } from './api';
 import type { PersistenceWarning } from './repositories/revisions';
@@ -50,7 +51,8 @@ export function emitLocalDbInvalidation(domain: string): void {
 export const listTranscriptionSummaries = call('listTranscriptionSummaries');
 export const getTranscriptionSummary = call('getTranscriptionSummary');
 export const getTranscription = call('getTranscription');
-export const getCurrentTranscriptionsByIds = call('getCurrentTranscriptionsByIds');
+export const exportTranscriptionTei = call('exportTranscriptionTei');
+export const getCurrentVerseSources = call('getCurrentVerseSources');
 export const createTranscription = call('createTranscription');
 export const createTranscriptions = call('createTranscriptions');
 export const updateTranscriptionMetadata = call('updateTranscriptionMetadata');
@@ -59,7 +61,7 @@ export const deleteTranscription = call('deleteTranscription');
 export const getVerseIndexRowsForVerse = call('getVerseIndexRowsForVerse');
 export const listVerseIndexRows = call('listVerseIndexRows');
 export const listVerseIndexRowsForTranscription = call('listVerseIndexRowsForTranscription');
-export const listVerseIndexRowsForTranscriptions = call('listVerseIndexRowsForTranscriptions');
+export const listVerseCountsForTranscriptions = call('listVerseCountsForTranscriptions');
 export const rebuildVerseIndexForTranscriptions = call('rebuildVerseIndexForTranscriptions');
 
 export async function updateTranscriptionContent(input: UpdateTranscriptionContentInput) {
@@ -83,7 +85,6 @@ export const listProjectIdsWithContent = call('listProjectIdsWithContent');
 export const getProjectTranscriptionStatusForOwnedTranscription = call(
 	'getProjectTranscriptionStatusForOwnedTranscription'
 );
-export const loadProjectTranscriptionContent = call('loadProjectTranscriptionContent');
 export const getProjectTranscriptionIds = call('getProjectTranscriptionIds');
 export const syncProjectTranscriptionIds = call('syncProjectTranscriptionIds');
 export const refreshProjectTranscription = call('refreshProjectTranscription');
@@ -120,6 +121,7 @@ export const deleteCbgmAnalysis = call('deleteCbgmAnalysis');
 
 export const listManifestSources = call('listManifestSources');
 export const ensureManifestSource = call('ensureManifestSource');
+export const cacheManifest = call('cacheManifest');
 export const getManifestSource = call('getManifestSource');
 export const listPageCanvasLinks = call('listPageCanvasLinks');
 export const upsertPageCanvasLink = call('upsertPageCanvasLink');
@@ -178,6 +180,9 @@ export const exportProjectZip = call('exportProjectZip');
 export const exportAllProjectsZip = call('exportAllProjectsZip');
 export const importProjectZip = call('importProjectZip');
 export const restoreReferenceEditionsArchive = call('restoreReferenceEditionsArchive');
+export const convertProjectToTei = call('convertProjectToTei');
+export const refreshChangedDocumentFiles = call('refreshChangedDocumentFiles');
+export const listDocumentFileProblems = call('listDocumentFileProblems');
 export const rebuildLocalIndex = call('rebuildLocalIndex');
 export const restoreOrphanPrimary = call('restoreOrphanPrimary');
 
@@ -199,7 +204,11 @@ export function attachLocalDbClient(worker: Worker): void {
 		if ('type' in message) {
 			if (message.type === 'db:invalidate') emitLocalDbInvalidation(message.domain);
 			else if (message.type === 'db:warnings') reportPersistenceWarnings(message.warnings);
-			else reportAutomaticIndexRebuild(message);
+			else if (message.type === 'db:index-rebuild-progress') {
+				indexRebuildProgress.done = message.done;
+				indexRebuildProgress.total = message.total;
+				indexRebuildProgress.phase = message.phase ?? 'rebuild';
+			} else reportAutomaticIndexRebuild(message);
 			return;
 		}
 		const pendingRequest = pending.get(message.id);

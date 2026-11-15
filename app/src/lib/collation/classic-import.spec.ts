@@ -11,11 +11,8 @@ import {
 	parseClassicCollationExport,
 } from './classic-import';
 import { prepareWitnessesFromDocument } from './collation-runner';
-import {
-	buildApparatusTeiExportInput,
-	exportApparatusTei,
-	exportCollationDocumentTei,
-} from './collation-tei';
+import { buildApparatusTeiExportInput, exportApparatusTei } from './collation-tei';
+import { exportCollationDocumentTei } from './collation-apparatus-tei';
 import { validateTeiP5 } from '../../../../test-support/validate-tei-p5';
 import {
 	hydrateCollationDocument,
@@ -294,10 +291,10 @@ describe('classic collation import', () => {
 		);
 		const readingNote = notes.find(note => note.getAttribute('type') === 'reading')!;
 		expect(readingNote.textContent).toBe('Reading remark');
-		const target = readingNote.getAttribute('target')!.slice(1);
+		const label = readingNote.getAttribute('n');
 		expect(
-			Array.from(document.getElementsByTagName('rdg'))
-				.find(rdg => rdg.getAttribute('xml:id') === target)
+			Array.from((readingNote.parentNode as unknown as Element).getElementsByTagName('rdg'))
+				.find(rdg => rdg.getAttribute('n') === label)
 				?.textContent?.trim()
 		).toBe('παυλος');
 		await expect(validateTeiP5(xml)).resolves.toBeUndefined();

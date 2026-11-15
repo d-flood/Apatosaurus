@@ -1,4 +1,11 @@
-import type { CollationSegment } from '$lib/collation/collation-document';
+import {
+	COLLATION_DOCUMENT_ARTIFACT_TYPE,
+	parseCollationDocument,
+	serializeCollationDocument,
+	type CollationSegment,
+} from '$lib/collation/collation-document';
+import type { CollationPayload } from '$lib/storage/formats';
+import type { JsonObject } from '$lib/storage/envelope';
 import { witnessSourceColumns } from '$lib/collation/collation-projection';
 import type { WitnessSource } from '$lib/collation/collation-types';
 import { type EntityCloudBackupState, type SyncProjectContext } from '$lib/backup/backup-status';
@@ -116,6 +123,7 @@ export interface SaveCollationArtifactInput {
 	payload: string;
 	artifactId?: string | null;
 	now?: string;
+	metadata?: Omit<UpdateCollationMetadataInput, 'id' | 'updatedAt'>;
 }
 
 export interface SaveCollationProjectionInput {
@@ -135,6 +143,87 @@ export interface SaveCollationProjectionInput {
 			witnessIds: string[];
 		}>;
 	}>;
+}
+
+/** The collations row and cached document of a TEI-canonical collation's Current. */
+export function collationIndexRowsFromPayload(projectId: string, payload: CollationPayload) {
+	return {
+		collation: {
+			id: payload.id,
+			project_id: projectId,
+			current_revision_id: payload.based_on_checkpoint?.id ?? '',
+			current_content_hash: payload.based_on_checkpoint?.content_hash ?? '',
+			title: payload.title,
+			verse_identifier: payload.verse_identifier,
+			status: payload.status,
+			group_path: payload.group_path,
+			notes: payload.notes,
+			sort_key: payload.sort_key,
+			conflict_of_collation_id: payload.conflict_of_collation_id ?? '',
+			created_at: payload.created_at,
+			updated_at: payload.updated_at,
+		},
+		artifact: {
+			id: `${payload.id}:document`,
+			collation_id: payload.id,
+			artifact_type: COLLATION_DOCUMENT_ARTIFACT_TYPE,
+			payload: serializeCollationDocument(payload.document),
+			created_at: payload.created_at,
+		},
+	};
+}
+
+export async function replaceCollationIndexRows(
+	trx: DbExecutor,
+	rows: ReturnType<typeof collationIndexRowsFromPayload>
+): Promise<void> {
+	const { id, ...collation } = rows.collation;
+	await trx.updateTable('collations').set(collation).where('id', '=', id).execute();
+	const { collation_id: _collationId, artifact_type: _type, ...artifact } = rows.artifact;
+	await trx
+		.insertInto('collation_artifacts')
+		.values(rows.artifact)
+		.onConflict(oc => oc.columns(['collation_id', 'artifact_type']).doUpdateSet(artifact))
+		.execute();
+}
+
+/** Rebuilds a TEI-canonical Current from its index rows; null when the cache is missing. */
+export async function loadIndexedCollationPayload(
+	db: DbExecutor,
+	collationId: string
+): Promise<CollationPayload | null> {
+	const [row, artifact] = await Promise.all([
+		db.selectFrom('collations').selectAll().where('id', '=', collationId).executeTakeFirst(),
+		db
+			.selectFrom('collation_artifacts')
+			.select('payload')
+			.where('collation_id', '=', collationId)
+			.where('artifact_type', '=', COLLATION_DOCUMENT_ARTIFACT_TYPE)
+			.executeTakeFirst(),
+	]);
+	const document = artifact && parseCollationDocument(artifact.payload);
+	if (!row || !document) return null;
+	return {
+		id: collationId,
+		project_id: row.project_id,
+		title: row.title,
+		verse_identifier: row.verse_identifier,
+		status: row.status,
+		group_path: row.group_path,
+		notes: row.notes,
+		sort_key: row.sort_key,
+		document: document as typeof document & JsonObject,
+		based_on_checkpoint:
+			row.current_revision_id && row.current_content_hash
+				? { id: row.current_revision_id, content_hash: row.current_content_hash }
+				: null,
+		draft: { saved_at: row.updated_at, author_name: null },
+		created_at: row.created_at,
+		updated_at: row.updated_at,
+		...(row.conflict_of_collation_id
+			? { conflict_of_collation_id: row.conflict_of_collation_id }
+			: {}),
+	};
 }
 
 export async function listCollationsWithProjectNames(db: DbExecutor): Promise<CollationListItem[]> {

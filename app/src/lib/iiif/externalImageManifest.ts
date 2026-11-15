@@ -10,6 +10,8 @@ export interface ExternalImageProbe {
 	annotationPageId: string;
 }
 
+export const EXTERNAL_IMAGE_MANIFEST_PREFIX = 'urn:apatopwa:iiif:external-images:';
+
 function normalizeWhitespace(value: string): string {
 	return value.replace(/\r\n?/g, '\n').trim();
 }
@@ -68,7 +70,7 @@ export function getExternalImageLabel(url: string, index: number): string {
 
 export function buildSyntheticManifestUrl(imageUrls: string[]): string {
 	const normalized = imageUrls.map(url => validateExternalImageUrl(url).toString());
-	return `urn:apatopwa:iiif:external-images:${hashString(normalized.join('\n'))}`;
+	return `${EXTERNAL_IMAGE_MANIFEST_PREFIX}${hashString(normalized.join('\n'))}`;
 }
 
 export function createExternalImageImportMetadata(
@@ -86,7 +88,10 @@ export function createExternalImageImportMetadata(
 export function isExternalImageManifestSource(
 	source: ManifestSourceSummary | null | undefined
 ): boolean {
-	return source?.metadata?.inputKind === 'external-image-list';
+	return (
+		source?.metadata?.inputKind === 'external-image-list' ||
+		Boolean(source?.manifestUrl.startsWith(EXTERNAL_IMAGE_MANIFEST_PREFIX))
+	);
 }
 
 export function buildExternalImageManifest(input: {
@@ -177,7 +182,7 @@ function probeImageDimensions(url: string): Promise<{ width: number; height: num
 	});
 }
 
-function guessImageFormat(url: string): string {
+export function guessImageFormat(url: string): string {
 	const pathname = (() => {
 		try {
 			return new URL(url).pathname.toLowerCase();

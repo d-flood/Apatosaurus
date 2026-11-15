@@ -1,6 +1,6 @@
 import {
-	PROJECT_MANIFEST_CURRENT_VERSION,
 	PROJECT_MANIFEST_FORMAT,
+	projectManifestSchemaVersion,
 	readCanonicalDocument,
 	type ProjectManifestCollationHead,
 	type ProjectManifestForkProvenance,
@@ -9,12 +9,8 @@ import {
 	type ProjectManifestTombstoneHead,
 	type ProjectManifestTranscriptionHead,
 } from '$lib/storage/formats';
-import {
-	projectManifestFile,
-	transcriptionPrimaryRelativeFile,
-	collationPrimaryRelativeFile,
-	tombstoneRelativeFile,
-} from '$lib/storage/layout';
+import { projectManifestFile, tombstoneRelativeFile } from '$lib/storage/layout';
+import { documentCanonicalPath, documentStorageOfPath } from '$lib/storage/document-files';
 import {
 	readTextFile,
 	writeTextFileAtomic,
@@ -52,35 +48,57 @@ export async function writeProjectManifestFile(
 	const project = projectOverride ?? (await loadProjectManifestRecord(db, projectId));
 	if (!project) throw new Error(`Project ${projectId} was not found.`);
 
-	const [transcriptions, collations, tombstones] = await Promise.all([
+	const [transcriptions, collations, tombstones, existing] = await Promise.all([
 		listProjectManifestTranscriptionHeads(db, projectId, overrides.transcriptions ?? {}),
 		listProjectManifestCollationHeads(db, projectId, overrides.collations ?? {}),
 		listProjectManifestTombstoneHeads(db, projectId),
+		readExistingManifest(project.storageSlug, storeOptions),
 	]);
 	const forkedFrom =
 		'forkedFrom' in overrides
 			? (overrides.forkedFrom ?? null)
-			: await readExistingForkProvenance(project.storageSlug, storeOptions);
+			: (existing?.forked_from ?? null);
 	return writeProjectManifestFromRows(
 		project,
-		transcriptions,
-		collations,
+		withUnconvertedHeads(
+			transcriptions,
+			existing?.transcriptions ?? [],
+			head => head.project_transcription_id
+		),
+		withUnconvertedHeads(collations, existing?.collations ?? [], head => head.collation_id),
 		tombstones,
 		forkedFrom,
 		storeOptions
 	);
 }
 
-async function readExistingForkProvenance(
+// The index leaves out JSON heads until conversion to TEI, so they are kept from the file.
+function withUnconvertedHeads<THead extends { primary_path: string }>(
+	indexed: THead[],
+	existing: THead[],
+	idOf: (head: THead) => string
+): THead[] {
+	const ids = new Set(indexed.map(idOf));
+	const unconverted = existing.filter(
+		head => documentStorageOfPath(head.primary_path) === 'json' && !ids.has(idOf(head))
+	);
+	return unconverted.length
+		? [...indexed, ...unconverted].sort((left, right) =>
+				idOf(left) < idOf(right) ? -1 : idOf(left) > idOf(right) ? 1 : 0
+			)
+		: indexed;
+}
+
+async function readExistingManifest(
 	storageSlug: string,
 	storeOptions: StoreOperationOptions
-): Promise<ProjectManifestForkProvenance | null> {
+): Promise<ProjectManifestPayload | null> {
 	try {
 		const read = await readCanonicalDocument<ProjectManifestPayload>(
 			PROJECT_MANIFEST_FORMAT,
 			await readTextFile(projectManifestFile(storageSlug), storeOptions)
 		);
-		return read.ok ? read.payload.forked_from : null;
+		return read.ok ? read.payload : null;
 	} catch {
 		return null;
 	}
@@ -162,7 +180,7 @@ export async function writeProjectManifestPayloadFile(
 	};
 	const document = await sealDocument(
 		PROJECT_MANIFEST_FORMAT,
-		PROJECT_MANIFEST_CURRENT_VERSION,
+		projectManifestSchemaVersion(updatedPayload),
 		updatedPayload
 	);
 	await writeTextFileAtomic(
@@ -206,7 +224,7 @@ async function listProjectManifestTranscriptionHeads(
 					: revisionHead(row.current_revision_id, row.current_content_hash),
 			title: row.title,
 			siglum: row.siglum,
-			primary_path: transcriptionPrimaryRelativeFile(projectTranscriptionId),
+			primary_path: documentCanonicalPath('transcription', projectTranscriptionId),
 		};
 	});
 }
@@ -232,7 +250,7 @@ async function listProjectManifestCollationHeads(
 					: revisionHead(row.current_revision_id, row.current_content_hash),
 			title: row.title,
 			verse_identifier: row.verse_identifier,
-			primary_path: collationPrimaryRelativeFile(collationId),
+			primary_path: documentCanonicalPath('collation', collationId),
 		};
 	});
 }

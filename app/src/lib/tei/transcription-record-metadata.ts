@@ -1,8 +1,4 @@
-import type {
-	TeiHeaderInfo,
-	TeiMetadata as TEIMetadata,
-	TranscriptionDocument,
-} from '@apatosaurus/tei-transcription';
+import type { TeiHeaderInfo, TranscriptionDocument } from '@apatosaurus/tei-transcription';
 
 import type { TranscriptionRecord } from '$lib/transcription/model';
 
@@ -13,22 +9,6 @@ export type TranscriptionRecordMetadataPatch = Partial<
 	Pick<TranscriptionRecord, MetadataPatchKeys>
 >;
 
-export function buildTEIMetadataFromTranscription(record: TranscriptionRecord): TEIMetadata {
-	const createdDate = new Date(record.created_at || new Date().toISOString())
-		.toISOString()
-		.split('T')[0];
-
-	return {
-		title: record.title || 'Untitled Transcription',
-		transcriber: record.transcriber || record.owner || 'Unknown',
-		date: createdDate,
-		repository: record.repository || 'Unknown Repository',
-		settlement: record.settlement || 'Unknown',
-		idno: record.siglum || 'Unknown Manuscript',
-		language: record.language || 'grc',
-	};
-}
-
 export function extractTranscriptionRecordMetadataPatch(
 	document: Pick<TranscriptionDocument, 'metadata' | 'header'>
 ): TranscriptionRecordMetadataPatch {
@@ -36,7 +16,7 @@ export function extractTranscriptionRecordMetadataPatch(
 	const header = document.header;
 	const title = firstNonEmpty(metadata?.title, findPreferredTitle(header)) || undefined;
 	const transcriber =
-		firstNonEmpty(metadata?.transcriber, findPreferredResponsibilityName(header)) || undefined;
+		firstNonEmpty(metadata?.transcriber, findTranscriberName(header)) || undefined;
 	const repository =
 		firstNonEmpty(metadata?.repository, header?.msIdentifier?.repository) || undefined;
 	const settlement =
@@ -63,13 +43,8 @@ function findPreferredTitle(header: TeiHeaderInfo | undefined): string | undefin
 	);
 }
 
-function findPreferredResponsibilityName(header: TeiHeaderInfo | undefined): string | undefined {
-	if (!header?.responsibilities?.length) return undefined;
-	return (
-		header.responsibilities.find(resp => /transcrib/i.test(resp.resp))?.name ||
-		header.responsibilities.find(resp => /created by/i.test(resp.resp))?.name ||
-		header.responsibilities[0]?.name
-	);
+function findTranscriberName(header: TeiHeaderInfo | undefined): string | undefined {
+	return header?.responsibilities?.find(resp => /transcrib/i.test(resp.resp))?.name;
 }
 
 function firstNonEmpty(...values: Array<string | null | undefined>): string | undefined {

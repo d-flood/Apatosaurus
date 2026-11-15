@@ -12,6 +12,7 @@ function createManifestSource(id: string): ManifestSourceSummary {
 		sourceKind: 'app',
 		defaultCanvasId: null,
 		defaultImageServiceUrl: null,
+		syntheticCanvases: [],
 		manifestJson: null,
 		metadata: {},
 		createdAt: '2026-03-25T00:00:00.000Z',

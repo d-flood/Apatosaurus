@@ -1,10 +1,11 @@
 import { notificationCenter } from '$lib/shell/notification-center.svelte';
 import { attachLocalDbClient } from './client';
 import { purgeLocalDbStorage } from './storage-reset';
-import type { DbRequest, DbResponse } from './rpc';
+import type { DbRequest, DbResponse, DbWorkerMessage } from './rpc';
 
 const RUNTIME_FAILURE_NOTIFICATION_ID = 'local-db-runtime-init-failed';
 const RUNTIME_INIT_TIMEOUT_MS = 60_000;
+const INDEX_VERIFIED_KEY = 'apatosaurus:index-verified';
 
 let worker: Worker | null = null;
 let initialized = false;
@@ -16,13 +17,7 @@ export async function ensureLocalDbRuntime(): Promise<void> {
 	initPromise = (async () => {
 		const startedAt = now();
 		const dbWorker = timeRuntimeStepSync('worker init', () => getLocalDbWorker());
-		await timeRuntimeStep('worker startup', () =>
-			withTimeout(
-				sendInit(dbWorker),
-				RUNTIME_INIT_TIMEOUT_MS,
-				'Timed out while starting the local SQLite database.'
-			)
-		);
+		await timeRuntimeStep('worker startup', () => sendInit(dbWorker));
 		initialized = true;
 		notificationCenter.remove(RUNTIME_FAILURE_NOTIFICATION_ID);
 		console.debug('[local-db] runtime ready', { elapsedMs: elapsed(startedAt) });
@@ -100,16 +95,33 @@ function reportRuntimeInitFailure(error: unknown): void {
 function sendInit(dbWorker: Worker): Promise<void> {
 	return new Promise((resolve, reject) => {
 		const id = Date.now();
+		let timeoutId: ReturnType<typeof setTimeout> | undefined;
+		const armTimeout = () => {
+			clearTimeout(timeoutId);
+			timeoutId = setTimeout(() => {
+				cleanup();
+				reject(new Error('Timed out while starting the local SQLite database.'));
+			}, RUNTIME_INIT_TIMEOUT_MS);
+		};
 		const cleanup = () => {
+			clearTimeout(timeoutId);
 			dbWorker.removeEventListener('message', onMessage);
 			dbWorker.removeEventListener('error', onError);
 			dbWorker.removeEventListener('messageerror', onMessageError);
 		};
-		const onMessage = (event: MessageEvent<DbResponse>) => {
-			if (event.data.id !== id) return;
+		const onMessage = (event: MessageEvent<DbWorkerMessage>) => {
+			const message = event.data;
+			// An index rebuild can outlast the timeout; each progress event proves the worker is alive.
+			if ('type' in message) {
+				if (message.type === 'db:index-rebuild-progress') armTimeout();
+				return;
+			}
+			if (message.id !== id) return;
 			cleanup();
-			if (event.data.ok) resolve();
-			else reject(new Error(event.data.error));
+			if (message.ok) {
+				writeIndexVerified();
+				resolve();
+			} else reject(new Error(message.error));
 		};
 		const onError = (event: ErrorEvent) => {
 			cleanup();
@@ -122,8 +134,29 @@ function sendInit(dbWorker: Worker): Promise<void> {
 		dbWorker.addEventListener('message', onMessage);
 		dbWorker.addEventListener('error', onError);
 		dbWorker.addEventListener('messageerror', onMessageError);
-		dbWorker.postMessage({ id, type: 'init' } satisfies DbRequest);
+		armTimeout();
+		dbWorker.postMessage({
+			id,
+			type: 'init',
+			verifyIntegrity: !readIndexVerified(),
+		} satisfies DbRequest);
 	});
+}
+
+function readIndexVerified(): boolean {
+	try {
+		return sessionStorage.getItem(INDEX_VERIFIED_KEY) === 'true';
+	} catch {
+		return false;
+	}
+}
+
+function writeIndexVerified(): void {
+	try {
+		sessionStorage.setItem(INDEX_VERIFIED_KEY, 'true');
+	} catch {
+		// Without session storage, every load verifies the index.
+	}
 }
 
 async function timeRuntimeStep<T>(label: string, step: () => Promise<T>): Promise<T> {
@@ -176,21 +209,5 @@ function postWorkerMessage(payload: Omit<DbRequest, 'id'>): Promise<void> {
 		};
 		dbWorker.addEventListener('message', onMessage);
 		dbWorker.postMessage({ id, ...payload });
-	});
-}
-
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
-	return new Promise((resolve, reject) => {
-		const timeoutId = setTimeout(() => reject(new Error(message)), timeoutMs);
-		promise.then(
-			value => {
-				clearTimeout(timeoutId);
-				resolve(value);
-			},
-			error => {
-				clearTimeout(timeoutId);
-				reject(error);
-			}
-		);
 	});
 }

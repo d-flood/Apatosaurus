@@ -7,56 +7,38 @@ import {
 	type StoredTranscriptionDocument,
 } from '$lib/transcription/content';
 import {
-	PROJECT_TRANSCRIPTION_CURRENT_VERSION,
-	PROJECT_TRANSCRIPTION_FORMAT,
-	TRANSCRIPTION_CHECKPOINT_CURRENT_VERSION,
-	TRANSCRIPTION_CHECKPOINT_FORMAT,
-	mergeWorkingTranscription,
-	readCanonicalDocument,
-	transcriptionDocumentToTeiFromStore,
-	WORKING_TRANSCRIPTION_FORMAT,
+	parseTranscriptionTei,
+	parseTranscriptionTeiVersion,
+	rewriteTranscriptionTeiVersion,
+	serializeTranscriptionTei,
+	splitTranscriptionTeiIiif,
 	type ProjectTranscriptionPayload,
-	type TranscriptionCheckpointPayload as CanonicalTranscriptionCheckpointPayload,
-	type WorkingTranscriptionPayload,
 } from '$lib/storage/formats';
-import {
-	readTextFile,
-	deleteFile,
-	writeTextFileAtomic,
-	type StoreOperationOptions,
-} from '$lib/storage/opfs-store';
-import { hashContent } from '$lib/storage/content-hash';
-import { recordStoreQuarantine, invalidShape, quarantineFromError } from '$lib/storage/quarantine';
-import {
-	sealDocument,
-	serializeSealedDocument,
-	type JsonObject,
-	type JsonValue,
-} from '$lib/storage/envelope';
-import {
-	transcriptionCheckpointFile,
-	transcriptionPrimaryFile,
-	transcriptionTeiFile,
-	transcriptionWorkingFile,
-} from '$lib/storage/layout';
+import { readTextFile, type StoreOperationOptions } from '$lib/storage/opfs-store';
+import type { JsonValue } from '$lib/storage/envelope';
+import { joinStorePath, projectFolder } from '$lib/storage/layout';
+import { documentCanonicalPath, documentVersionPath } from '$lib/storage/document-files';
 
 import type { Database } from '../types.generated';
 import { createId } from './id';
+import {
+	assertNoDocumentFileProblem,
+	getTranscriptionContentHash,
+	upsertDocumentFingerprint,
+	writeTeiFile,
+} from './document-fingerprints';
+import { replaceIiifRows } from './iiif';
 import { transcriptionIndexRowsFromPrimary } from './index-rebuild';
 import { writeProjectManifestFile } from './project-files';
 import { withProjectWriteLock } from './project-locks';
 import {
-	buildTranscriptionHashPayload,
 	createCommittedTranscriptionCheckpoint,
-	deriveCheckpointStatus,
-	getTranscriptionCommittedHead,
-	hashCanonicalPayload,
+	getProjectTranscriptionCheckpointStatus,
+	inTransaction,
 	loadCommittedTranscriptionCheckpointPayload,
 	loadProjectTranscriptionSnapshot,
 	nextTranscriptionVersionLabel,
-	rewriteVersionNote,
 	type CommitTranscriptionInput,
-	type ProjectTranscriptionCheckpointStatus,
 	type ProjectTranscriptionSnapshot,
 	type TranscriptionCheckpoint,
 	type PersistenceWarning,
@@ -66,8 +48,6 @@ import {
 	createTranscriptions,
 	getTranscription,
 	replaceTranscriptionVerseIndexRows,
-	updateTranscriptionContent,
-	updateTranscriptionMetadata,
 	type CreateTranscriptionInput,
 	type TranscriptionRecord,
 	type UpdateTranscriptionContentInput,
@@ -76,6 +56,7 @@ import {
 	type VerseIndexRebuildResult,
 } from './transcriptions';
 import type { DbExecutor } from '../worker-kysely';
+import type { TranscriptionIiif } from '$lib/storage/formats/transcription-tei-iiif';
 
 interface TranscriptionFileContext {
 	transcriptionId: string;
@@ -111,19 +92,17 @@ export async function saveWorkingTranscriptionContent(
 	const context = await loadTranscriptionFileContext(db, input.id);
 	const snapshot = await loadProjectTranscriptionSnapshot(db, context.projectTranscriptionId);
 	const format = input.format ?? snapshot.format ?? TRANSCRIPTION_FORMAT;
-	await writeCurrentTranscriptionFiles(
+	await writeTeiCurrent(
+		db,
 		context,
-		{ ...snapshot, content_json: content.jsonValue, format },
-		updatedAt,
+		currentPayload(
+			context,
+			{ ...snapshot, content_json: content.jsonValue, format },
+			updatedAt
+		),
 		storeOptions
 	);
-	await updateTranscriptionContent(db, {
-		id: input.id,
-		document: content.document,
-		contentJson: content.contentJson,
-		format,
-		updatedAt,
-	});
+	await touchProject(db, context.projectId, updatedAt);
 }
 
 export async function saveWorkingTranscriptionMetadata(
@@ -138,23 +117,18 @@ export async function saveWorkingTranscriptionMetadata(
 		context.projectTranscriptionId,
 		storeOptions
 	);
-	await writeCurrentTranscriptionFiles(
-		context,
-		{
-			...snapshot,
-			title: input.title.trim(),
-			siglum: input.siglum.trim(),
-			description: input.description.trim(),
-			tags: [...input.tags],
-			transcriber: input.transcriber.trim(),
-			repository: input.repository.trim(),
-			settlement: input.settlement.trim(),
-			language: input.language.trim(),
-		},
-		updatedAt,
-		storeOptions
-	);
-	await updateTranscriptionMetadata(db, { ...input, updatedAt });
+	const next = {
+		...snapshot,
+		title: input.title.trim(),
+		siglum: input.siglum.trim(),
+		description: input.description.trim(),
+		tags: [...input.tags],
+		transcriber: input.transcriber.trim(),
+		repository: input.repository.trim(),
+		settlement: input.settlement.trim(),
+		language: input.language.trim(),
+	};
+	await writeTeiCurrent(db, context, currentPayload(context, next, updatedAt), storeOptions);
 }
 
 export async function writeWorkingTranscriptionSnapshot(
@@ -165,33 +139,84 @@ export async function writeWorkingTranscriptionSnapshot(
 ): Promise<void> {
 	const context = await loadTranscriptionFileContext(db, transcriptionId);
 	const snapshot = await loadProjectTranscriptionSnapshot(db, context.projectTranscriptionId);
-	await writeCurrentTranscriptionFiles(context, snapshot, updatedAt, storeOptions);
+	await writeTeiCurrent(db, context, currentPayload(context, snapshot, updatedAt), storeOptions);
 }
 
-async function writeCurrentTranscriptionFiles(
+function currentPayload(
 	context: TranscriptionFileContext,
 	snapshot: ProjectTranscriptionSnapshot,
-	updatedAt: string,
-	storeOptions: StoreOperationOptions
-): Promise<void> {
+	updatedAt: string
+): ProjectTranscriptionPayload {
 	const basedOn =
 		context.currentRevisionId && context.currentContentHash
 			? { id: context.currentRevisionId, content_hash: context.currentContentHash }
 			: null;
-	const payload = buildCurrentTranscriptionPayload(context, snapshot, basedOn, updatedAt);
-	await writeSealedJsonFile(
-		transcriptionPrimaryFile(context.projectStorageSlug, context.projectTranscriptionId),
-		PROJECT_TRANSCRIPTION_FORMAT,
-		PROJECT_TRANSCRIPTION_CURRENT_VERSION,
-		payload,
+	return buildCurrentTranscriptionPayload(context, snapshot, basedOn, updatedAt);
+}
+
+// Indexes what parsing the written file yields, so a rebuild from files reproduces these rows.
+async function writeTeiCurrent(
+	db: DbExecutor,
+	context: TranscriptionFileContext,
+	payload: ProjectTranscriptionPayload,
+	storeOptions: StoreOperationOptions
+): Promise<void> {
+	const path = documentCanonicalPath('transcription', context.projectTranscriptionId);
+	await assertNoDocumentFileProblem(db, path);
+	const serialized = await serializeTranscriptionTei(payload);
+	const fingerprint = await writeTeiFile(
+		{
+			projectSlug: context.projectStorageSlug,
+			path,
+			entityType: 'transcription',
+			entityId: context.projectTranscriptionId,
+			...serialized,
+		},
 		storeOptions
 	);
-	await writeDerivedTranscriptionTei(
-		context.projectStorageSlug,
-		context.projectTranscriptionId,
-		payload,
-		storeOptions
+	const rows = transcriptionIndexRowsFromPrimary(
+		context.projectId,
+		parseTranscriptionTei(serialized.xml)
 	);
+	await inTransaction(db, async trx => {
+		await replaceTranscriptionIndexRows(trx, context.transcriptionId, rows);
+		await upsertDocumentFingerprint(trx, fingerprint);
+	});
+}
+
+async function touchProject(db: DbExecutor, projectId: string, updatedAt: string): Promise<void> {
+	await db
+		.updateTable('projects')
+		.set({ updated_at: updatedAt })
+		.where('id', '=', projectId)
+		.execute();
+}
+
+export async function replaceTranscriptionIndexRows(
+	trx: DbExecutor,
+	transcriptionId: string,
+	rows: ReturnType<typeof transcriptionIndexRowsFromPrimary>
+): Promise<void> {
+	const { id: _id, ...transcription } = rows.transcription;
+	await trx
+		.updateTable('transcriptions')
+		.set(transcription)
+		.where('id', '=', transcriptionId)
+		.execute();
+	await trx
+		.deleteFrom('iiif_manifest_sources')
+		.where('transcription_id', '=', transcriptionId)
+		.execute();
+	if (rows.iiifManifestSources.length)
+		await trx.insertInto('iiif_manifest_sources').values(rows.iiifManifestSources).execute();
+	if (rows.pageCanvasLinks.length)
+		await trx
+			.insertInto('transcription_page_canvas_links')
+			.values(rows.pageCanvasLinks)
+			.execute();
+	if (rows.canvasAnnotations.length)
+		await trx.insertInto('iiif_canvas_annotations').values(rows.canvasAnnotations).execute();
+	await replaceTranscriptionVerseIndexRows(trx, transcriptionId, rows.transcription.content_json);
 }
 
 function buildCurrentTranscriptionPayload(
@@ -230,7 +255,10 @@ function buildCurrentTranscriptionPayload(
 		language: snapshot.language,
 		iiif_manifest_sources: snapshot.iiif_manifest_sources.map(source => ({
 			...source,
-			metadata_json: source.metadata_json as JsonValue,
+			synthetic_canvases: source.synthetic_canvases.map(canvas => ({
+				...canvas,
+				metadata: canvas.metadata.map(item => ({ ...item })),
+			})),
 		})),
 		page_canvas_links: snapshot.page_canvas_links.map(link => ({
 			id: link.id,
@@ -270,8 +298,16 @@ export async function createTranscriptionsWithFilesResult(
 	storeOptions: StoreOperationOptions = {}
 ): Promise<PersistenceResult<string[]>> {
 	return db.transaction().execute(async trx => {
-		const ids = await createTranscriptions(trx, inputs);
+		const prepared = inputs.map(splitImportedIiif);
+		const ids = await createTranscriptions(
+			trx,
+			prepared.map(entry => entry.input)
+		);
 		const warnings: PersistenceWarning[] = [];
+		for (const [index, id] of ids.entries()) {
+			const iiif = prepared[index].iiif;
+			if (iiif) await replaceIiifRows(trx, id, iiif, new Date().toISOString());
+		}
 		for (const id of ids) {
 			const context = await loadTranscriptionFileContext(trx, id);
 			const checkpoint = await createCommittedTranscriptionCheckpointWithFiles(
@@ -286,6 +322,21 @@ export async function createTranscriptionsWithFilesResult(
 		}
 		return { value: ids, warnings };
 	});
+}
+
+// TEI exported by the app carries its IIIF data; turn it into rows so it stays editable.
+function splitImportedIiif(input: CreateTranscriptionInput): {
+	input: CreateTranscriptionInput;
+	iiif: TranscriptionIiif | null;
+} {
+	const document = coerceTranscriptionDocument(input.document ?? input.contentJson ?? null);
+	if (!document) return { input, iiif: null };
+	const split = splitTranscriptionTeiIiif(document);
+	if (split.iiif.iiif_manifest_sources.length === 0) return { input, iiif: null };
+	return {
+		input: { ...input, document: split.document, contentJson: undefined },
+		iiif: split.iiif,
+	};
 }
 
 export async function createCommittedTranscriptionCheckpointWithFiles(
@@ -303,96 +354,76 @@ export async function createCommittedTranscriptionCheckpointWithFiles(
 			input.projectTranscriptionId
 		);
 		const snapshot = await loadProjectTranscriptionSnapshot(db, input.projectTranscriptionId);
-		const payload = buildTranscriptionHashPayload(snapshot);
-		const contentHash = await hashCanonicalPayload(payload);
 		const checkpointId = input.checkpointId ?? createId();
 		const createdAt = input.createdAt ?? new Date().toISOString();
 		const authorName = input.authorName ?? '';
 		const commitMessage = input.commitMessage ?? null;
 		const label = input.label?.trim() || (await nextTranscriptionVersionLabel(db, snapshot.id));
-		const checkpointPayload: CanonicalTranscriptionCheckpointPayload = {
-			checkpoint_id: checkpointId,
-			entity_type: 'project-transcription',
-			entity_id: snapshot.project_transcription_id,
-			payload_transcription_id: snapshot.id,
-			parent_checkpoint_id: context.currentRevisionId,
-			payload_content_hash: contentHash,
-			content_format: snapshot.format,
-			label,
-			commit_message: commitMessage,
-			author_name: authorName,
-			created_at: createdAt,
-			metadata_updated_at: createdAt,
-			payload: payload as JsonObject,
-		};
-		const checkpointPath = transcriptionCheckpointFile(
-			context.projectStorageSlug,
-			context.projectTranscriptionId,
-			checkpointId
-		);
-		await assertFileMissing(checkpointPath, storeOptions);
-		await writeSealedJsonFile(
-			checkpointPath,
-			TRANSCRIPTION_CHECKPOINT_FORMAT,
-			TRANSCRIPTION_CHECKPOINT_CURRENT_VERSION,
-			checkpointPayload,
-			storeOptions
-		);
-
-		const primaryPayload = buildCurrentTranscriptionPayload(
-			context,
-			snapshot,
-			{ id: checkpointId, content_hash: contentHash },
-			context.updatedAt
-		);
-		await writeSealedJsonFile(
-			transcriptionPrimaryFile(context.projectStorageSlug, context.projectTranscriptionId),
-			PROJECT_TRANSCRIPTION_FORMAT,
-			PROJECT_TRANSCRIPTION_CURRENT_VERSION,
-			primaryPayload,
-			storeOptions
-		);
-		const teiWarning = await writeDerivedTranscriptionTei(
-			context.projectStorageSlug,
-			context.projectTranscriptionId,
-			primaryPayload,
-			storeOptions
-		);
-		await writeProjectManifestFile(
-			db,
-			context.projectId,
-			{
-				transcriptions: {
-					[context.projectTranscriptionId]: {
-						id: checkpointId,
-						content_hash: contentHash,
-					},
-				},
-			},
-			storeOptions
-		);
-
-		const checkpoint = await createCommittedTranscriptionCheckpoint(db, {
-			...input,
-			checkpointId,
-			label,
-			createdAt,
-			authorName,
-			commitMessage,
-		});
-		try {
-			await deleteFile(
-				transcriptionWorkingFile(
-					context.projectStorageSlug,
-					context.projectTranscriptionId
-				),
-				storeOptions
-			);
-		} catch (error) {
-			if (!isMissingFileError(error)) throw error;
-		}
-		return { ...checkpoint, warnings: teiWarning ? [teiWarning] : [] };
+		const commit = { ...input, checkpointId, label, createdAt, authorName, commitMessage };
+		return commitTeiTranscription(db, context, snapshot, commit, storeOptions);
 	});
+}
+
+async function commitTeiTranscription(
+	db: DbExecutor,
+	context: TranscriptionFileContext,
+	snapshot: ProjectTranscriptionSnapshot,
+	commit: CommitTranscriptionInput & {
+		checkpointId: string;
+		label: string;
+		createdAt: string;
+		authorName: string;
+		commitMessage: string | null;
+	},
+	storeOptions: StoreOperationOptions
+): Promise<TranscriptionCheckpoint> {
+	await assertNoDocumentFileProblem(
+		db,
+		documentCanonicalPath('transcription', context.projectTranscriptionId)
+	);
+	const current = buildCurrentTranscriptionPayload(context, snapshot, null, context.updatedAt);
+	const version = await serializeTranscriptionTei(current, {
+		id: commit.checkpointId,
+		label: commit.label,
+		note: commit.commitMessage,
+		author_name: commit.authorName,
+		created_at: commit.createdAt,
+		parent_id: context.currentRevisionId,
+	});
+	const versionPath = documentVersionPath(
+		'transcription',
+		context.projectTranscriptionId,
+		commit.checkpointId
+	);
+	await assertFileMissing(
+		joinStorePath(projectFolder(context.projectStorageSlug), versionPath),
+		storeOptions
+	);
+	const versionFingerprint = await writeTeiFile(
+		{
+			projectSlug: context.projectStorageSlug,
+			path: versionPath,
+			entityType: 'version',
+			entityId: commit.checkpointId,
+			...version,
+		},
+		storeOptions
+	);
+	const head = { id: commit.checkpointId, content_hash: version.contentHash };
+	await writeTeiCurrent(db, context, { ...current, based_on_checkpoint: head }, storeOptions);
+	await upsertDocumentFingerprint(db, versionFingerprint);
+	await writeProjectManifestFile(
+		db,
+		context.projectId,
+		{ transcriptions: { [context.projectTranscriptionId]: head } },
+		storeOptions
+	);
+	const checkpoint = await createCommittedTranscriptionCheckpoint(
+		db,
+		commit,
+		context.currentRevisionId
+	);
+	return { ...checkpoint, warnings: [] };
 }
 
 export async function restoreTranscriptionVersion(
@@ -402,7 +433,7 @@ export async function restoreTranscriptionVersion(
 	storeOptions: StoreOperationOptions = {}
 ): Promise<ProjectTranscriptionPayload> {
 	const context = await loadTranscriptionFileContext(db, transcriptionId);
-	const previous = await tryReadPrimaryTranscriptionPayload(context, storeOptions);
+	const previous = await readCurrentPayload(db, context, storeOptions);
 	if (!previous) throw new Error(`Current for transcription ${transcriptionId} was not found.`);
 	const version = await loadCommittedTranscriptionCheckpointPayload(
 		db,
@@ -434,52 +465,7 @@ export async function replaceTranscriptionCurrent(
 		throw new Error('Current does not belong to this transcription.');
 	}
 	await withProjectWriteLock(context.projectId, async () => {
-		await writeSealedJsonFile(
-			transcriptionPrimaryFile(context.projectStorageSlug, context.projectTranscriptionId),
-			PROJECT_TRANSCRIPTION_FORMAT,
-			PROJECT_TRANSCRIPTION_CURRENT_VERSION,
-			payload,
-			storeOptions
-		);
-		await writeDerivedTranscriptionTei(
-			context.projectStorageSlug,
-			context.projectTranscriptionId,
-			payload,
-			storeOptions
-		);
-		const rows = transcriptionIndexRowsFromPrimary(context.projectId, payload);
-		await db.transaction().execute(async trx => {
-			const { id: _id, ...transcription } = rows.transcription;
-			await trx
-				.updateTable('transcriptions')
-				.set(transcription)
-				.where('id', '=', transcriptionId)
-				.execute();
-			await trx
-				.deleteFrom('iiif_manifest_sources')
-				.where('transcription_id', '=', transcriptionId)
-				.execute();
-			if (rows.iiifManifestSources.length)
-				await trx
-					.insertInto('iiif_manifest_sources')
-					.values(rows.iiifManifestSources)
-					.execute();
-			if (rows.pageCanvasLinks.length)
-				await trx
-					.insertInto('transcription_page_canvas_links')
-					.values(rows.pageCanvasLinks)
-					.execute();
-			if (rows.canvasAnnotations.length)
-				await trx
-					.insertInto('iiif_canvas_annotations')
-					.values(rows.canvasAnnotations)
-					.execute();
-			await replaceTranscriptionVerseIndexRows(
-				trx,
-				transcriptionId,
-				rows.transcription.content_json
-			);
-		});
+		await writeTeiCurrent(db, context, payload, storeOptions);
 		await writeProjectManifestFile(db, context.projectId, {}, storeOptions);
 	});
 }
@@ -494,11 +480,7 @@ export async function reimportTranscriptionContent(
 	if (!document) throw new Error(`Transcription ${id} content is missing or invalid.`);
 	const { projectTranscriptionId } = await loadTranscriptionFileContext(db, id);
 	const commitIfDirty = async (commitMessage: string) => {
-		const status = await getProjectTranscriptionCheckpointStatusWithFiles(
-			db,
-			projectTranscriptionId,
-			storeOptions
-		);
+		const status = await getProjectTranscriptionCheckpointStatus(db, projectTranscriptionId);
 		if (!status.dirtyToCheckpoint) return [];
 		const checkpoint = await createCommittedTranscriptionCheckpointWithFiles(
 			db,
@@ -563,57 +545,64 @@ export async function updateTranscriptionVersionNote(
 		.executeTakeFirst();
 	if (!row) throw new Error(`Version ${checkpointId} was not found.`);
 	await withProjectWriteLock(context.projectId, async () => {
-		const updated = await rewriteVersionNote<CanonicalTranscriptionCheckpointPayload>(
-			transcriptionCheckpointFile(
-				context.projectStorageSlug,
-				context.projectTranscriptionId,
-				checkpointId
-			),
-			TRANSCRIPTION_CHECKPOINT_FORMAT,
-			TRANSCRIPTION_CHECKPOINT_CURRENT_VERSION,
-			{ label: row.label, note, updatedAt: new Date().toISOString() },
+		const updated = await rewriteTeiVersionNote(
+			db,
+			context.projectStorageSlug,
+			documentVersionPath('transcription', context.projectTranscriptionId, checkpointId),
+			row.label,
+			note,
 			storeOptions
 		);
 		await db
 			.updateTable('transcription_checkpoints')
-			.set({ label: updated.label, commit_message: updated.commit_message })
+			.set({ label: updated.label, commit_message: updated.note })
 			.where('id', '=', checkpointId)
 			.execute();
 	});
 }
 
+async function rewriteTeiVersionNote(
+	db: DbExecutor,
+	projectSlug: string,
+	path: string,
+	label: string,
+	note: string | null,
+	storeOptions: StoreOperationOptions
+): Promise<{ label: string; note: string | null }> {
+	await assertNoDocumentFileProblem(db, path);
+	const xml = await readTextFile(joinStorePath(projectFolder(projectSlug), path), storeOptions);
+	const { version } = parseTranscriptionTeiVersion(xml);
+	if (!version) throw new Error(`Invalid version file ${path}: no Version change.`);
+	const updated = { ...version, label: version.label || label, note };
+	const serialized = await rewriteTranscriptionTeiVersion(xml, updated);
+	await upsertDocumentFingerprint(
+		db,
+		await writeTeiFile(
+			{ projectSlug, path, entityType: 'version', entityId: version.id, ...serialized },
+			storeOptions
+		)
+	);
+	return updated;
+}
+
+// Reads the content column once; every other primary-payload field mirrors this same row.
 export async function loadTranscriptionWithWorkingFile(
 	db: DbExecutor,
 	transcriptionId: string,
-	storeOptions: StoreOperationOptions = {}
+	_storeOptions: StoreOperationOptions = {}
 ): Promise<TranscriptionRecord | null> {
-	return (await loadPrimaryTranscription(db, transcriptionId, storeOptions))?.record ?? null;
-}
-
-export interface CurrentTranscription {
-	transcription: TranscriptionRecord;
-	contentHash: string;
-}
-
-export async function getCurrentTranscriptionsByIds(
-	db: DbExecutor,
-	ids: string[],
-	storeOptions: StoreOperationOptions = {}
-): Promise<CurrentTranscription[]> {
-	const current: CurrentTranscription[] = [];
-	for (const id of uniqueNonEmpty(ids)) {
-		const loaded = await loadPrimaryTranscription(db, id, storeOptions);
-		if (!loaded) continue;
-		current.push({
-			transcription: loaded.record,
-			contentHash: await hashCanonicalPayload(
-				buildTranscriptionHashPayload(
-					projectTranscriptionSnapshotFromPayload(loaded.payload)
-				)
-			),
-		});
-	}
-	return current;
+	const record = await getTranscription(db, transcriptionId);
+	if (!record) return null;
+	const context = await loadTranscriptionFileContext(db, transcriptionId);
+	if ((await getTranscriptionContentHash(db, context.projectTranscriptionId)) === null)
+		return null;
+	const { currentRevisionId, currentContentHash } = context;
+	const basedOn = currentRevisionId && currentContentHash;
+	return {
+		...record,
+		current_revision_id: basedOn ? currentRevisionId : '',
+		current_content_hash: basedOn ? currentContentHash : '',
+	};
 }
 
 async function loadPrimaryTranscription(
@@ -624,9 +613,22 @@ async function loadPrimaryTranscription(
 	const record = await getTranscription(db, transcriptionId);
 	if (!record) return null;
 	const context = await loadTranscriptionFileContext(db, transcriptionId);
-	const payload = await tryReadPrimaryTranscriptionPayload(context, storeOptions);
+	const payload = await readCurrentPayload(db, context, storeOptions);
 	if (!payload) return null;
 	return { record: transcriptionRecordFromPrimaryPayload(record, context, payload), payload };
+}
+
+export async function exportTranscriptionTeiWithFiles(
+	db: DbExecutor,
+	transcriptionId: string,
+	document: StoredTranscriptionDocument,
+	storeOptions: StoreOperationOptions = {}
+): Promise<string> {
+	const primary = await loadPrimaryTranscription(db, transcriptionId, storeOptions);
+	if (!primary)
+		throw new Error(`Canonical transcription file for ${transcriptionId} was not found.`);
+	const payload = { ...primary.payload, content_json: document as unknown as JsonValue };
+	return (await serializeTranscriptionTei(payload)).xml;
 }
 
 export async function loadTranscriptionContentWithFiles(
@@ -685,95 +687,11 @@ export async function loadProjectTranscriptionSnapshotWithFiles(
 		db,
 		projectTranscriptionId
 	);
-	const primaryPayload = await tryReadPrimaryTranscriptionPayload(context, storeOptions);
+	const primaryPayload = await readCurrentPayload(db, context, storeOptions);
 	if (primaryPayload) return projectTranscriptionSnapshotFromPayload(primaryPayload);
 	throw new Error(
 		`Canonical transcription file for project transcription ${projectTranscriptionId} was not found.`
 	);
-}
-
-export async function getProjectTranscriptionCheckpointStatusWithFiles(
-	db: DbExecutor,
-	projectTranscriptionId: string,
-	storeOptions: StoreOperationOptions = {}
-): Promise<ProjectTranscriptionCheckpointStatus> {
-	const context = await loadTranscriptionFileContextByProjectTranscriptionId(
-		db,
-		projectTranscriptionId
-	);
-	const workingContentHash = await loadWorkingContentHash(context, storeOptions);
-	const currentCheckpoint = await getTranscriptionCommittedHead(db, context.transcriptionId);
-	return {
-		projectTranscriptionId,
-		projectOwnedTranscriptionId: context.transcriptionId,
-		...deriveCheckpointStatus(currentCheckpoint, workingContentHash),
-	};
-}
-
-const workingContentHashes = new Map<
-	string,
-	{ transcriptionId: string; rawDigest: string; hash: string }
->();
-
-async function loadWorkingContentHash(
-	context: TranscriptionFileContext,
-	storeOptions: StoreOperationOptions
-): Promise<string> {
-	const path = transcriptionPrimaryFile(
-		context.projectStorageSlug,
-		context.projectTranscriptionId
-	);
-	const raw = await tryReadPrimaryTranscriptionText(path, storeOptions);
-	// Memoize only when the hash depends solely on primary bytes; a legacy working file forces a merge.
-	const rawDigest =
-		raw !== null && !(await hasWorkingTranscriptionFile(context, storeOptions))
-			? await hashContent(raw)
-			: null;
-	const memo = workingContentHashes.get(path);
-	if (
-		rawDigest &&
-		memo?.rawDigest === rawDigest &&
-		memo.transcriptionId === context.transcriptionId
-	)
-		return memo.hash;
-	const primary =
-		raw === null
-			? null
-			: await parsePrimaryTranscriptionPayload(context, path, raw, storeOptions);
-	const payload =
-		primary && !rawDigest
-			? await migrateLegacyWorkingTranscription(context, primary, storeOptions)
-			: primary;
-	if (!payload) {
-		throw new Error(
-			`Canonical transcription file for project transcription ${context.projectTranscriptionId} was not found.`
-		);
-	}
-	const hash = await hashCanonicalPayload(
-		buildTranscriptionHashPayload(projectTranscriptionSnapshotFromPayload(payload))
-	);
-	if (rawDigest)
-		workingContentHashes.set(path, {
-			transcriptionId: context.transcriptionId,
-			rawDigest,
-			hash,
-		});
-	return hash;
-}
-
-async function hasWorkingTranscriptionFile(
-	context: TranscriptionFileContext,
-	storeOptions: StoreOperationOptions
-): Promise<boolean> {
-	try {
-		await readTextFile(
-			transcriptionWorkingFile(context.projectStorageSlug, context.projectTranscriptionId),
-			storeOptions
-		);
-		return true;
-	} catch (error) {
-		return !isMissingFileError(error);
-	}
 }
 
 function transcriptionRecordFromPrimaryPayload(
@@ -810,179 +728,16 @@ function transcriptionRecordFromPrimaryPayload(
 	};
 }
 
-async function tryReadPrimaryTranscriptionPayload(
+// The index mirrors a TEI Current, so it is read from SQLite instead of parsed.
+async function readCurrentPayload(
+	db: DbExecutor,
 	context: TranscriptionFileContext,
-	storeOptions: StoreOperationOptions
+	_storeOptions: StoreOperationOptions
 ): Promise<ProjectTranscriptionPayload | null> {
-	const path = transcriptionPrimaryFile(
-		context.projectStorageSlug,
-		context.projectTranscriptionId
-	);
-	const raw = await tryReadPrimaryTranscriptionText(path, storeOptions);
-	const payload =
-		raw === null
-			? null
-			: await parsePrimaryTranscriptionPayload(context, path, raw, storeOptions);
-	return payload && migrateLegacyWorkingTranscription(context, payload, storeOptions);
-}
-
-async function tryReadPrimaryTranscriptionText(
-	path: string,
-	storeOptions: StoreOperationOptions
-): Promise<string | null> {
-	try {
-		return await readTextFile(path, storeOptions);
-	} catch (error) {
-		recordStoreQuarantine(storeOptions.quarantineSink, path, quarantineFromError(error));
-		console.warn('[document-store] Could not read canonical transcription content.', {
-			path,
-			error: errorMessage(error),
-		});
+	if ((await getTranscriptionContentHash(db, context.projectTranscriptionId)) === null)
 		return null;
-	}
-}
-
-async function parsePrimaryTranscriptionPayload(
-	context: TranscriptionFileContext,
-	path: string,
-	raw: string,
-	storeOptions: StoreOperationOptions
-): Promise<ProjectTranscriptionPayload | null> {
-	const result = await readCanonicalDocument<ProjectTranscriptionPayload>(
-		PROJECT_TRANSCRIPTION_FORMAT,
-		raw
-	);
-	if (!result.ok) {
-		recordStoreQuarantine(storeOptions.quarantineSink, path, result.quarantine);
-		console.warn('[document-store] Ignoring unreadable transcription primary file.', {
-			path,
-			quarantine: result.quarantine,
-		});
-		return null;
-	}
-	const payload = result.payload;
-	if (
-		payload.id !== context.transcriptionId ||
-		payload.project_transcription_id !== context.projectTranscriptionId
-	) {
-		recordStoreQuarantine(
-			storeOptions.quarantineSink,
-			path,
-			quarantineFromError(
-				invalidShape(
-					'Transcription primary identity does not match its index context.',
-					{
-						transcriptionId: context.transcriptionId,
-						projectTranscriptionId: context.projectTranscriptionId,
-					},
-					{
-						transcriptionId: payload.id,
-						projectTranscriptionId: payload.project_transcription_id,
-					}
-				)
-			)
-		);
-		console.warn('[document-store] Ignoring mismatched transcription primary file.', {
-			path,
-			expectedTranscriptionId: context.transcriptionId,
-			actualTranscriptionId: payload.id,
-			expectedProjectTranscriptionId: context.projectTranscriptionId,
-			actualProjectTranscriptionId: payload.project_transcription_id,
-		});
-		return null;
-	}
-	return payload;
-}
-
-async function migrateLegacyWorkingTranscription(
-	context: TranscriptionFileContext,
-	primary: ProjectTranscriptionPayload,
-	storeOptions: StoreOperationOptions
-): Promise<ProjectTranscriptionPayload> {
-	const working = await tryReadWorkingTranscriptionPayload(context, storeOptions);
-	if (
-		!working ||
-		working.draft.base_revision_id !== primary.based_on_checkpoint?.id ||
-		working.draft.base_content_hash !== primary.based_on_checkpoint?.content_hash
-	) {
-		return primary;
-	}
-	const current = mergeWorkingTranscription(primary, working);
-	await writeSealedJsonFile(
-		transcriptionPrimaryFile(context.projectStorageSlug, context.projectTranscriptionId),
-		PROJECT_TRANSCRIPTION_FORMAT,
-		PROJECT_TRANSCRIPTION_CURRENT_VERSION,
-		current,
-		storeOptions
-	);
-	await writeDerivedTranscriptionTei(
-		context.projectStorageSlug,
-		context.projectTranscriptionId,
-		current,
-		storeOptions
-	);
-	await deleteFile(
-		transcriptionWorkingFile(context.projectStorageSlug, context.projectTranscriptionId),
-		storeOptions
-	);
-	return current;
-}
-
-async function tryReadWorkingTranscriptionPayload(
-	context: TranscriptionFileContext,
-	storeOptions: StoreOperationOptions
-): Promise<WorkingTranscriptionPayload | null> {
-	const path = transcriptionWorkingFile(
-		context.projectStorageSlug,
-		context.projectTranscriptionId
-	);
-	let raw: string;
-	try {
-		raw = await readTextFile(path, storeOptions);
-	} catch (error) {
-		if (!isMissingFileError(error)) {
-			recordStoreQuarantine(storeOptions.quarantineSink, path, quarantineFromError(error));
-			console.warn('[document-store] Could not read canonical transcription content.', {
-				path,
-				error: errorMessage(error),
-			});
-		}
-		return null;
-	}
-	const result = await readCanonicalDocument<WorkingTranscriptionPayload>(
-		WORKING_TRANSCRIPTION_FORMAT,
-		raw
-	);
-	if (result.ok) {
-		const payload = result.payload;
-		if (
-			payload.id !== context.transcriptionId ||
-			payload.project_transcription_id !== context.projectTranscriptionId
-		) {
-			recordStoreQuarantine(
-				storeOptions.quarantineSink,
-				path,
-				quarantineFromError(
-					invalidShape('Transcription working identity does not match its index context.')
-				)
-			);
-			console.warn('[document-store] Ignoring mismatched transcription working file.', {
-				path,
-				expectedTranscriptionId: context.transcriptionId,
-				actualTranscriptionId: payload.id,
-				expectedProjectTranscriptionId: context.projectTranscriptionId,
-				actualProjectTranscriptionId: payload.project_transcription_id,
-			});
-			return null;
-		}
-		return payload;
-	}
-	recordStoreQuarantine(storeOptions.quarantineSink, path, result.quarantine);
-	console.warn('[document-store] Ignoring unreadable transcription working file.', {
-		path,
-		quarantine: result.quarantine,
-	});
-	return null;
+	const snapshot = await loadProjectTranscriptionSnapshot(db, context.projectTranscriptionId);
+	return currentPayload(context, snapshot, context.updatedAt);
 }
 
 async function loadTranscriptionFileContext(
@@ -1049,49 +804,6 @@ async function loadTranscriptionFileContextByProjectTranscriptionId(
 		.executeTakeFirst();
 	if (!row) throw new Error(`Project transcription ${projectTranscriptionId} was not found.`);
 	return loadTranscriptionFileContext(db, row.transcription_id);
-}
-
-async function writeSealedJsonFile<
-	TPayload extends Record<string, JsonValue>,
-	TFormat extends string,
->(
-	path: string,
-	format: TFormat,
-	schemaVersion: number,
-	payload: TPayload,
-	storeOptions: StoreOperationOptions
-): Promise<void> {
-	const document = await sealDocument(format, schemaVersion, payload);
-	await writeTextFileAtomic(path, serializeSealedDocument(document), storeOptions);
-}
-
-async function writeDerivedTranscriptionTei(
-	projectStorageSlug: string,
-	projectTranscriptionId: string,
-	payload: ProjectTranscriptionPayload,
-	storeOptions: StoreOperationOptions
-): Promise<PersistenceWarning | null> {
-	try {
-		await writeTextFileAtomic(
-			transcriptionTeiFile(projectStorageSlug, projectTranscriptionId),
-			await transcriptionDocumentToTeiFromStore(payload, storeOptions),
-			storeOptions
-		);
-		return null;
-	} catch (error) {
-		const message = errorMessage(error);
-		console.warn('[document-store] Could not write derived transcription TEI.', {
-			projectTranscriptionId,
-			error: message,
-		});
-		return {
-			code: 'tei_write_failed',
-			entityType: 'transcription',
-			entityId: projectTranscriptionId,
-			message,
-			recoverable: true,
-		};
-	}
 }
 
 async function assertFileMissing(path: string, storeOptions: StoreOperationOptions): Promise<void> {

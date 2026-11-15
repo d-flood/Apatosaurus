@@ -9,6 +9,7 @@
 	import StorageSignInButtons from '$lib/backup/components/StorageSignInButtons.svelte';
 	import { syncService } from '$lib/backup/sync-service.svelte';
 	import { registerServiceWorker, scheduleCacheWarm } from '$lib/shell/sw-registration';
+	import IndexRebuildProgress from '$lib/shell/components/IndexRebuildProgress.svelte';
 	import Navbar from '$lib/shell/components/Navbar.svelte';
 	import StorageBanner from '$lib/shell/components/StorageBanner.svelte';
 	import { onMount } from 'svelte';
@@ -69,3 +70,5 @@
 <div class="bg-transparent rounded-lg">
 	{@render children?.()}
 </div>
+
+<IndexRebuildProgress />

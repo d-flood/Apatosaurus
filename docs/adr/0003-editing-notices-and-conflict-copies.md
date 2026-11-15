@@ -8,3 +8,5 @@ When two copies of a document's Current change independently — teammates in a 
 
 - **Locks / check-out** — Rejected: offline editing cannot take a lock, stale locks need expiry, and Drive and Dropbox offer no reliable atomic create-if-absent.
 - **Automatic merging (CRDT)** — Rejected for now: a large change to file formats and editors, and it would silently merge editorial decisions that are genuine disagreements. File formats stay plain JSON so this remains possible later.
+
+Superseded in part by [ADR 0009](0009-tei-files-are-the-source-of-truth.md): file formats are TEI, no longer plain JSON.

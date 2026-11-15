@@ -10,9 +10,10 @@ import {
 	storePathBasename,
 	storePathDirname,
 } from './layout';
+import { classifyDocumentPath } from './document-files';
 import type { StoreQuarantineSink } from './quarantine';
-import { canonicalJson } from './canonical-json';
 import { hashContent } from './content-hash';
+import { isTeiDocument, teiContentText } from './tei-content';
 
 type StoreEntryKind = 'file' | 'directory';
 
@@ -39,6 +40,13 @@ export interface StoreBackend {
 	listDirectory(path: string): Promise<StoreBackendDirectoryEntry[]>;
 	ensureDirectory(path: string): Promise<void>;
 	moveFile?(fromPath: string, toPath: string): Promise<void>;
+	statFile?(path: string): Promise<StoreFileStat>;
+	statTree?(path: string): Promise<Array<{ path: string; stat: StoreFileStat }>>;
+}
+
+export interface StoreFileStat {
+	size: number;
+	lastModified: number;
 }
 
 export interface StoreOperationOptions {
@@ -89,6 +97,46 @@ export async function readFileBytes(
 ): Promise<Uint8Array> {
 	const backend = await resolveBackend(options);
 	return backend.readFileBytes(toBackendPath(normalizeStoreFilePath(path)));
+}
+
+// Backends without stat report lastModified 0, which never matches a real file.
+export async function statFile(
+	path: string,
+	options: StoreOperationOptions = {}
+): Promise<StoreFileStat> {
+	const backend = await resolveBackend(options);
+	const backendPath = toBackendPath(normalizeStoreFilePath(path));
+	if (backend.statFile) return backend.statFile(backendPath);
+	return { size: (await backend.readFileBytes(backendPath)).byteLength, lastModified: 0 };
+}
+
+// Keys are store paths of every file under `path`; a missing folder yields an empty map.
+export async function statFilesUnder(
+	path: string,
+	options: StoreOperationOptions = {}
+): Promise<Map<string, StoreFileStat>> {
+	const backend = await resolveBackend(options);
+	const normalizedPath = normalizeStorePath(path);
+	const stats = new Map<string, StoreFileStat>();
+	try {
+		if (backend.statTree) {
+			for (const entry of await backend.statTree(toBackendPath(normalizedPath)))
+				stats.set(joinStorePath(normalizedPath, entry.path), entry.stat);
+			return stats;
+		}
+		const walk = async (folder: string): Promise<void> => {
+			await Promise.all(
+				(await listDirectory(folder, options)).map(async entry => {
+					if (entry.kind === 'directory') return walk(entry.path);
+					stats.set(entry.path, await statFile(entry.path, options));
+				})
+			);
+		};
+		await walk(normalizedPath);
+	} catch (error) {
+		if (!isMissingStoreEntryError(error)) throw error;
+	}
+	return stats;
 }
 
 export async function writeTextFileAtomic(
@@ -322,28 +370,13 @@ async function assertAppendOnlyHistoryWrite(
 	throw new Error(`History file ${targetPath} is append-only and cannot be rewritten.`);
 }
 
-const EDITABLE_VERSION_FIELDS = [
-	'schema_version',
-	'content_hash',
-	'label',
-	'commit_message',
-	'metadata_updated_at',
-];
-
 function versionContentKey(raw: string): string | null {
-	try {
-		const record = JSON.parse(raw) as Record<string, unknown>;
-		for (const field of EDITABLE_VERSION_FIELDS) delete record[field];
-		return canonicalJson(record);
-	} catch {
-		return null;
-	}
+	return isTeiDocument(raw) ? teiContentText(raw) : null;
 }
 
 function isCanonicalHistoryPath(path: string): boolean {
-	return /^projects\/[^/]+\/history\/(?:transcriptions|collations)\/[^/]+\/[^/]+\.json$/.test(
-		path
-	);
+	const [, relativePath = ''] = /^projects\/[^/]+\/(.+)$/.exec(path) ?? [];
+	return classifyDocumentPath(relativePath)?.role === 'version';
 }
 
 function isMissingStoreEntryError(error: unknown): boolean {
@@ -402,6 +435,35 @@ class OpfsStoreBackend implements StoreBackend {
 	async readFileBytes(path: string): Promise<Uint8Array> {
 		const handle = await this.requireFileHandle(path);
 		return new Uint8Array(await (await handle.getFile()).arrayBuffer());
+	}
+
+	async statFile(path: string): Promise<StoreFileStat> {
+		const file = await (await this.requireFileHandle(path)).getFile();
+		return { size: file.size, lastModified: file.lastModified };
+	}
+
+	// Walks handles once instead of resolving every file's path from the root.
+	async statTree(path: string): Promise<Array<{ path: string; stat: StoreFileStat }>> {
+		const results: Array<{ path: string; stat: StoreFileStat }> = [];
+		const walk = async (directory: FileSystemDirectoryHandle, prefix: string) => {
+			const pending: Promise<void>[] = [];
+			for await (const [name, handle] of directory.entries()) {
+				const relative = prefix ? `${prefix}/${name}` : name;
+				pending.push(
+					handle.kind === 'directory'
+						? walk(handle as FileSystemDirectoryHandle, relative)
+						: (handle as FileSystemFileHandle).getFile().then(file => {
+								results.push({
+									path: relative,
+									stat: { size: file.size, lastModified: file.lastModified },
+								});
+							})
+				);
+			}
+			await Promise.all(pending);
+		};
+		await walk(await this.requireDirectory(path), '');
+		return results;
 	}
 
 	async writeTextFile(path: string, content: string): Promise<void> {

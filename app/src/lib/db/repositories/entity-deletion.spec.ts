@@ -1,27 +1,25 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
-	COLLATION_FORMAT,
-	COLLATION_CHECKPOINT_FORMAT,
 	PROJECT_MANIFEST_FORMAT,
-	PROJECT_TRANSCRIPTION_FORMAT,
 	TOMBSTONE_FORMAT,
-	TRANSCRIPTION_CHECKPOINT_FORMAT,
+	parseTranscriptionTei,
+	parseTranscriptionTeiVersion,
 	readCanonicalDocument,
 	type ProjectManifestPayload,
 	type TombstonePayload,
 } from '$lib/storage/formats';
 import {
-	collationCheckpointFile,
-	collationPrimaryFile,
+	collationTeiFile,
 	joinStorePath,
 	normalizeStorePath,
+	projectFolder,
 	projectManifestFile,
 	storePathBasename,
 	storePathDirname,
 	tombstoneFile,
-	transcriptionCheckpointFile,
-	transcriptionPrimaryFile,
+	transcriptionCheckpointTeiFile,
+	transcriptionTeiFile,
 } from '$lib/storage/layout';
 import {
 	readTextFile,
@@ -61,7 +59,7 @@ function createProject(
 }
 
 describe('entity deletion file persistence', () => {
-	it('writes a transcription tombstone, updates the manifest, removes the primary, and preserves history', async () => {
+	it('writes a transcription tombstone naming the TEI, updates the manifest, and removes the TEI and its Versions', async () => {
 		await createCommittedFixtureTranscription();
 
 		await deleteTranscriptionWithFiles(
@@ -92,7 +90,7 @@ describe('entity deletion file persistence', () => {
 				project_id: 'project-1',
 				entity_type: 'project-transcription',
 				entity_id: 'pt-1',
-				cloud_path: 'transcriptions/pt-1.json',
+				cloud_path: 'transcriptions/pt-1.tei.xml',
 				deletion_revision_id: 'tx-cp-1',
 				deleted_by: 'Editor',
 				deleted_at: '2026-07-04T14:00:00.000Z',
@@ -108,13 +106,21 @@ describe('entity deletion file persistence', () => {
 			},
 		]);
 		await expect(
-			readTextFile(transcriptionPrimaryFile('project-slug', 'pt-1'), { backend })
+			readTextFile(transcriptionTeiFile('project-slug', 'pt-1'), { backend })
 		).rejects.toThrow('not found');
 		await expect(
-			readTextFile(transcriptionCheckpointFile('project-slug', 'pt-1', 'tx-cp-1'), {
+			readTextFile(transcriptionCheckpointTeiFile('project-slug', 'pt-1', 'tx-cp-1'), {
 				backend,
 			})
-		).resolves.toContain('tx-cp-1');
+		).rejects.toThrow('not found');
+		expect(
+			[...backend.files.keys(), ...backend.directories].filter(path =>
+				path.includes('/history/transcriptions/pt-1')
+			)
+		).toEqual([]);
+		await expect(
+			harness.db.selectFrom('document_file_fingerprints').selectAll().execute()
+		).resolves.toEqual([]);
 		await expect(
 			harness.db.selectFrom('transcriptions').selectAll().where('id', '=', 'tx-1').execute()
 		).resolves.toEqual([]);
@@ -128,12 +134,12 @@ describe('entity deletion file persistence', () => {
 			{
 				entity_type: 'project-transcription',
 				entity_id: 'pt-1',
-				cloud_path: 'transcriptions/pt-1.json',
+				cloud_path: 'transcriptions/pt-1.tei.xml',
 			},
 		]);
 	});
 
-	it('writes a collation tombstone, updates the manifest, removes the primary, and preserves history', async () => {
+	it('writes a collation tombstone, updates the manifest, and removes the TEI and its Versions', async () => {
 		await createCommittedFixtureCollation();
 
 		await deleteCollationWithFiles(
@@ -164,7 +170,7 @@ describe('entity deletion file persistence', () => {
 				id: 'tombstone-col-1',
 				entity_type: 'collation',
 				entity_id: 'col-1',
-				cloud_path: 'collations/col-1.json',
+				cloud_path: 'collations/col-1.tei.xml',
 				deletion_revision_id: 'col-cp-1',
 				deleted_at: '2026-07-04T14:30:00.000Z',
 			},
@@ -178,14 +184,18 @@ describe('entity deletion file persistence', () => {
 				primary_path: 'tombstones/collation--col-1.json',
 			},
 		]);
-		await expect(
-			readTextFile(collationPrimaryFile('project-slug', 'col-1'), { backend })
-		).rejects.toThrow('not found');
-		await expect(
-			readTextFile(collationCheckpointFile('project-slug', 'col-1', 'col-cp-1'), { backend })
-		).resolves.toContain('col-cp-1');
+		for (const path of [
+			'collations/col-1.tei.xml',
+			'history/collations/col-1/col-cp-1.tei.xml',
+		])
+			await expect(
+				readTextFile(joinStorePath(projectFolder('project-slug'), path), { backend })
+			).rejects.toThrow('not found');
 		await expect(
 			harness.db.selectFrom('collations').selectAll().where('id', '=', 'col-1').execute()
+		).resolves.toEqual([]);
+		await expect(
+			harness.db.selectFrom('document_file_fingerprints').select('path').execute()
 		).resolves.toEqual([]);
 	});
 
@@ -211,7 +221,7 @@ describe('entity deletion file persistence', () => {
 			})
 		).resolves.toContain('tombstone-pt-1');
 		await expect(
-			readTextFile(transcriptionPrimaryFile('project-slug', 'pt-1'), { backend })
+			readTextFile(transcriptionTeiFile('project-slug', 'pt-1'), { backend })
 		).resolves.toContain('tx-cp-1');
 		await expect(
 			harness.db.selectFrom('transcriptions').selectAll().where('id', '=', 'tx-1').execute()
@@ -230,7 +240,7 @@ describe('entity deletion file persistence', () => {
 
 	it('does not fail deletion when the primary file cannot be removed', async () => {
 		await createCommittedFixtureCollation();
-		backend.failDeletePathIncludes = 'collations/col-1.json';
+		backend.failDeletePathIncludes = 'collations/col-1.tei.xml';
 		const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
 		try {
@@ -252,7 +262,7 @@ describe('entity deletion file persistence', () => {
 			]);
 
 			await expect(
-				readTextFile(collationPrimaryFile('project-slug', 'col-1'), { backend })
+				readTextFile(collationTeiFile('project-slug', 'col-1'), { backend })
 			).resolves.toContain('col-cp-1');
 			await expect(
 				harness.db.selectFrom('collations').selectAll().where('id', '=', 'col-1').execute()
@@ -298,14 +308,18 @@ async function createCommittedFixtureTranscription(): Promise<void> {
 		},
 		{ backend, nonce: () => 'commit-write' }
 	);
-	await expectCanonicalFile(
-		transcriptionPrimaryFile('project-slug', 'pt-1'),
-		PROJECT_TRANSCRIPTION_FORMAT
-	);
-	await expectCanonicalFile(
-		transcriptionCheckpointFile('project-slug', 'pt-1', 'tx-cp-1'),
-		TRANSCRIPTION_CHECKPOINT_FORMAT
-	);
+	expect(
+		parseTranscriptionTei(
+			await readTextFile(transcriptionTeiFile('project-slug', 'pt-1'), { backend })
+		).project_transcription_id
+	).toBe('pt-1');
+	expect(
+		parseTranscriptionTeiVersion(
+			await readTextFile(transcriptionCheckpointTeiFile('project-slug', 'pt-1', 'tx-cp-1'), {
+				backend,
+			})
+		).version?.id
+	).toBe('tx-cp-1');
 }
 
 async function createCommittedFixtureCollation(): Promise<void> {
@@ -343,11 +357,6 @@ async function createCommittedFixtureCollation(): Promise<void> {
 		},
 		{ backend, nonce: () => 'commit-write' }
 	);
-	await expectCanonicalFile(collationPrimaryFile('project-slug', 'col-1'), COLLATION_FORMAT);
-	await expectCanonicalFile(
-		collationCheckpointFile('project-slug', 'col-1', 'col-cp-1'),
-		COLLATION_CHECKPOINT_FORMAT
-	);
 }
 
 async function readProjectManifest(): Promise<{ payload: ProjectManifestPayload }> {
@@ -358,12 +367,6 @@ async function readProjectManifest(): Promise<{ payload: ProjectManifestPayload 
 	);
 	if (!parsed.ok) throw new Error('project manifest did not parse');
 	return parsed;
-}
-
-async function expectCanonicalFile(path: string, format: string): Promise<void> {
-	const raw = await readTextFile(path, { backend });
-	const parsed = await readCanonicalDocument(format, raw);
-	expect(parsed).toMatchObject({ ok: true });
 }
 
 function documentWithVerses(verses: string[]): StoredTranscriptionDocument {
@@ -469,6 +472,16 @@ class MemoryStoreBackend implements StoreBackend {
 			throw new Error(`simulated delete failure for ${path}`);
 		}
 		if (!this.files.delete(normalized)) throw new Error(`File ${path} was not found.`);
+	}
+
+	async deleteDirectory(path: string): Promise<void> {
+		const normalized = normalizeStorePath(path);
+		if (!this.directories.has(normalized)) throw new Error(`Directory ${path} was not found.`);
+		for (const file of [...this.files.keys()])
+			if (file.startsWith(`${normalized}/`)) this.files.delete(file);
+		for (const directory of [...this.directories])
+			if (directory === normalized || directory.startsWith(`${normalized}/`))
+				this.directories.delete(directory);
 	}
 
 	async listDirectory(path: string): Promise<StoreBackendDirectoryEntry[]> {

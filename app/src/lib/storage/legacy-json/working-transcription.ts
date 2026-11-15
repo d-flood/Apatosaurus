@@ -1,10 +1,8 @@
 import type { DocumentUpgrader, FormatRegistration } from '../migrate-on-read';
 import type { JsonObject } from '../envelope';
-import { readDraftMetadata, type CanonicalDraftMetadata } from './common';
-import {
-	readProjectTranscriptionContent,
-	type ProjectTranscriptionContentPayload,
-} from './project-transcription';
+import { readDraftMetadata, type CanonicalDraftMetadata } from '../formats/common';
+import type { ProjectTranscriptionContentPayload } from '../formats/project-transcription';
+import { readProjectTranscriptionContent } from './project-transcription';
 
 export const WORKING_TRANSCRIPTION_FORMAT = 'apatosaurus.working.transcription';
 export const WORKING_TRANSCRIPTION_CURRENT_VERSION = 1;

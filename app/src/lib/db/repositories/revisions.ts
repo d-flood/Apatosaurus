@@ -2,21 +2,19 @@ import { sql, type Kysely, type Selectable, type Transaction } from 'kysely';
 
 import { canonicalJson, hashCanonicalPayload } from '$lib/storage/canonical-json';
 import {
-	TRANSCRIPTION_CHECKPOINT_FORMAT,
-	readCanonicalDocument,
-	type TranscriptionCheckpointPayload as CanonicalTranscriptionCheckpointPayload,
+	parseTranscriptionTei,
+	parseTranscriptionTeiVersion,
+	type ProjectTranscriptionPayload,
 } from '$lib/storage/formats';
-import {
-	readTextFile,
-	writeTextFileAtomic,
-	type StoreOperationOptions,
-} from '$lib/storage/opfs-store';
-import { sealDocument, serializeSealedDocument } from '$lib/storage/envelope';
-import type { CheckpointBasePayload } from '$lib/storage/formats/checkpoint-utils';
+import { teiContentHash } from '$lib/storage/tei-content';
+import { readTextFile, type StoreOperationOptions } from '$lib/storage/opfs-store';
 import type { WitnessSource } from '$lib/collation/collation-types';
-import { transcriptionCheckpointFile } from '$lib/storage/layout';
+import type { IiifSyntheticCanvas } from '$lib/iiif/types';
+import { joinStorePath, projectFolder } from '$lib/storage/layout';
+import { documentVersionPath } from '$lib/storage/document-files';
 import type { CollationCheckpoints, Database, TranscriptionCheckpoints } from '../types.generated';
 import { createId, requireId } from './id';
+import { getTranscriptionContentHash } from './document-fingerprints';
 import type { DbExecutor } from '../worker-kysely';
 
 export interface ProjectTranscriptionSnapshot {
@@ -46,7 +44,7 @@ export interface SerializedIiifManifestSource {
 	source_kind: string;
 	default_canvas_id: string | null;
 	default_image_service_url: string | null;
-	metadata_json: unknown;
+	synthetic_canvases: IiifSyntheticCanvas[];
 }
 
 export interface SerializedTranscriptionPageCanvasLink {
@@ -173,7 +171,7 @@ interface Checkpoint {
 }
 
 export interface PersistenceWarning {
-	code: 'tei_write_failed' | 'primary_cleanup_failed';
+	code: 'primary_cleanup_failed';
 	entityType: 'transcription' | 'collation' | 'cbgm_analysis';
 	entityId: string;
 	message: string;
@@ -239,7 +237,7 @@ export function buildTranscriptionHashPayload(input: ProjectTranscriptionSnapsho
 			source_kind: row.source_kind,
 			default_canvas_id: row.default_canvas_id,
 			default_image_service_url: row.default_image_service_url,
-			metadata_json: row.metadata_json,
+			synthetic_canvases: row.synthetic_canvases,
 		})),
 		page_canvas_links: [...input.page_canvas_links].sort(comparePageCanvasLinks).map(row => ({
 			id: row.id,
@@ -422,7 +420,8 @@ export async function loadSerializedCollation(
 
 export async function createCommittedTranscriptionCheckpoint(
 	db: DbExecutor,
-	input: CommitTranscriptionInput
+	input: CommitTranscriptionInput,
+	parentCheckpointId?: string | null
 ): Promise<TranscriptionCheckpoint> {
 	const record = async (trx: DbExecutor) => {
 		const snapshot = await loadProjectTranscriptionSnapshot(trx, input.projectTranscriptionId);
@@ -432,10 +431,12 @@ export async function createCommittedTranscriptionCheckpoint(
 			.where('id', '=', snapshot.id)
 			.executeTakeFirstOrThrow();
 		const payload = buildTranscriptionHashPayload(snapshot);
-		const contentHash = await hashCanonicalPayload(payload);
+		const contentHash = await loadTranscriptionContentHash(trx, input.projectTranscriptionId);
 		const checkpoint = buildTranscriptionCheckpointRow(
 			snapshot,
-			head.current_revision_id || null,
+			parentCheckpointId === undefined
+				? head.current_revision_id || null
+				: parentCheckpointId,
 			contentHash,
 			input
 		);
@@ -459,6 +460,13 @@ function isTransaction(db: DbExecutor): db is Transaction<Database> {
 	return 'isTransaction' in db && db.isTransaction === true;
 }
 
+export async function inTransaction<T>(
+	db: DbExecutor,
+	run: (trx: DbExecutor) => Promise<T>
+): Promise<T> {
+	return isTransaction(db) ? run(db) : db.transaction().execute(run);
+}
+
 export async function createCommittedCollationCheckpoint(
 	db: Kysely<Database>,
 	input: CommitCollationInput
@@ -474,7 +482,8 @@ export async function recordCommittedCollationCheckpoint(
 	collationId: string,
 	contentHash: string,
 	payload: unknown,
-	input: CommitCollationInput
+	input: CommitCollationInput,
+	parentCheckpointId?: string | null
 ): Promise<CollationCheckpoint> {
 	const record = async (trx: DbExecutor) => {
 		const head = await trx
@@ -484,7 +493,9 @@ export async function recordCommittedCollationCheckpoint(
 			.executeTakeFirstOrThrow();
 		const checkpoint = buildCollationCheckpointRow(
 			collationId,
-			head.current_revision_id || null,
+			parentCheckpointId === undefined
+				? head.current_revision_id || null
+				: parentCheckpointId,
 			contentHash,
 			input
 		);
@@ -546,14 +557,29 @@ export async function getProjectTranscriptionCheckpointStatus(
 	db: DbExecutor,
 	projectTranscriptionId: string
 ): Promise<ProjectTranscriptionCheckpointStatus> {
-	const snapshot = await loadProjectTranscriptionSnapshot(db, projectTranscriptionId);
-	const currentCheckpoint = await getTranscriptionCommittedHead(db, snapshot.id);
-	const workingContentHash = await hashCanonicalPayload(buildTranscriptionHashPayload(snapshot));
+	const row = await db
+		.selectFrom('project_transcriptions')
+		.select('transcription_id')
+		.where('id', '=', projectTranscriptionId)
+		.executeTakeFirst();
+	if (!row) throw new Error(`Project transcription ${projectTranscriptionId} was not found.`);
+	const workingContentHash = await loadTranscriptionContentHash(db, projectTranscriptionId);
+	const currentCheckpoint = await getTranscriptionCommittedHead(db, row.transcription_id);
 	return {
 		projectTranscriptionId,
-		projectOwnedTranscriptionId: snapshot.id,
+		projectOwnedTranscriptionId: row.transcription_id,
 		...deriveCheckpointStatus(currentCheckpoint, workingContentHash),
 	};
+}
+
+export async function loadTranscriptionContentHash(
+	db: DbExecutor,
+	projectTranscriptionId: string
+): Promise<string> {
+	const contentHash = await getTranscriptionContentHash(db, projectTranscriptionId);
+	if (!contentHash)
+		throw new Error(`Transcription ${projectTranscriptionId} has no indexed TEI file.`);
+	return contentHash;
 }
 
 export async function getTranscriptionCommittedHead(
@@ -798,32 +824,6 @@ export async function nextCollationVersionLabel(
 	return `Version ${Number(row.count) + 1}`;
 }
 
-export async function rewriteVersionNote<TPayload extends CheckpointBasePayload>(
-	path: string,
-	format: string,
-	schemaVersion: number,
-	input: { label: string; note: string | null; updatedAt: string },
-	storeOptions: StoreOperationOptions
-): Promise<TPayload> {
-	const read = await readCanonicalDocument<TPayload>(
-		format,
-		await readTextFile(path, storeOptions)
-	);
-	if (!read.ok) throw new Error(`Invalid version file ${path}: ${read.quarantine.code}`);
-	const payload: TPayload = {
-		...read.payload,
-		label: read.payload.label || input.label,
-		commit_message: input.note,
-		metadata_updated_at: input.updatedAt,
-	};
-	await writeTextFileAtomic(
-		path,
-		serializeSealedDocument(await sealDocument(format, schemaVersion, payload)),
-		storeOptions
-	);
-	return payload;
-}
-
 export async function getLatestProjectCommitTimestamp(
 	db: DbExecutor,
 	projectId: string
@@ -885,68 +885,65 @@ export async function loadCommittedTranscriptionCheckpointPayload(
 			`Committed transcription checkpoint ${checkpointId} for ${transcriptionId} was not found.`
 		);
 	}
-	const path = transcriptionCheckpointFile(
-		requireId(row.project_storage_slug, 'project storage slug'),
-		requireId(row.project_transcription_id, 'project transcription'),
-		requireId(row.id, 'transcription checkpoint')
+	const projectSlug = requireId(row.project_storage_slug, 'project storage slug');
+	const projectTranscriptionId = requireId(row.project_transcription_id, 'project transcription');
+	const versionId = requireId(row.id, 'transcription checkpoint');
+	return loadTeiTranscriptionVersion(
+		joinStorePath(
+			projectFolder(projectSlug),
+			documentVersionPath('transcription', projectTranscriptionId, versionId)
+		),
+		{ ...row, id: versionId, project_transcription_id: projectTranscriptionId },
+		transcriptionId,
+		storeOptions
 	);
-	const result = await readCanonicalDocument<CanonicalTranscriptionCheckpointPayload>(
-		TRANSCRIPTION_CHECKPOINT_FORMAT,
-		await readTextFile(path, storeOptions)
-	);
-	if (!result.ok) {
-		throw new Error(`Invalid transcription checkpoint file ${path}: ${result.quarantine.code}`);
-	}
-	const checkpointPayload = result.payload;
-	if (checkpointPayload.entity_id !== row.project_transcription_id) {
+}
+
+async function loadTeiTranscriptionVersion(
+	path: string,
+	row: {
+		id: string;
+		transcription_id: string;
+		project_transcription_id: string;
+		content_hash: string;
+		is_committed: number;
+	},
+	transcriptionId: string,
+	storeOptions: StoreOperationOptions
+): Promise<LoadedTranscriptionCheckpoint> {
+	const xml = await readTextFile(path, storeOptions);
+	const {
+		version,
+		projectTranscriptionId,
+		transcriptionId: fileTranscriptionId,
+	} = parseTranscriptionTeiVersion(xml);
+	if (!version || version.id !== row.id)
+		throw new Error(`Transcription Version file ${path} does not record Version ${row.id}.`);
+	if (projectTranscriptionId !== row.project_transcription_id)
 		throw new Error(
 			'Transcription checkpoint file project transcription id does not match the index row.'
 		);
-	}
-	if (checkpointPayload.payload_transcription_id !== transcriptionId) {
+	if (fileTranscriptionId !== transcriptionId)
 		throw new Error(
 			'Transcription checkpoint file transcription id does not match the requested transcription.'
 		);
-	}
-	if (checkpointPayload.payload_content_hash !== row.content_hash) {
+	if ((await teiContentHash(xml)) !== row.content_hash)
 		throw new Error('Transcription checkpoint file hash does not match the index row.');
-	}
 	return {
-		id: requireId(row.id, 'transcription checkpoint'),
+		id: row.id,
 		transcriptionId: row.transcription_id,
-		parentCheckpointId: checkpointPayload.parent_checkpoint_id,
+		parentCheckpointId: version.parent_id,
 		contentHash: row.content_hash,
 		isCommitted: row.is_committed === 1,
-		label: checkpointPayload.label,
-		commitMessage: checkpointPayload.commit_message,
-		authorName: checkpointPayload.author_name,
-		createdAt: checkpointPayload.created_at,
-		metadataUpdatedAt: checkpointPayload.metadata_updated_at,
-		payload: parseCheckpointPayload(
-			checkpointPayload.payload,
-			requireId(row.id, 'transcription checkpoint')
-		),
+		label: version.label,
+		commitMessage: version.note,
+		authorName: version.author_name,
+		createdAt: version.created_at,
+		metadataUpdatedAt: version.created_at,
+		payload: projectTranscriptionPayloadToSnapshot(
+			parseTranscriptionTei(xml)
+		) as TranscriptionCheckpointPayload,
 	};
-}
-
-function parseCheckpointPayload(
-	value: unknown,
-	checkpointId: string
-): TranscriptionCheckpointPayload {
-	try {
-		const parsed = typeof value === 'string' ? JSON.parse(value) : value;
-		if (!parsed || typeof parsed !== 'object') {
-			throw new Error('Checkpoint payload is not an object.');
-		}
-		return parsed as TranscriptionCheckpointPayload;
-	} catch (error) {
-		throw new Error(
-			`Invalid transcription checkpoint payload for ${checkpointId}: ${
-				error instanceof Error ? error.message : String(error)
-			}`,
-			{ cause: error }
-		);
-	}
 }
 
 async function loadManifestSources(
@@ -966,11 +963,35 @@ async function loadManifestSources(
 		source_kind: row.source_kind,
 		default_canvas_id: row.default_canvas_id,
 		default_image_service_url: row.default_image_service_url,
-		metadata_json: parseJson(
-			row.metadata_json,
-			`iiif_manifest_sources.metadata_json for ${row.id}`
-		),
+		synthetic_canvases: parseJson(
+			row.synthetic_canvases_json,
+			`iiif_manifest_sources.synthetic_canvases_json for ${row.id}`
+		) as IiifSyntheticCanvas[],
 	}));
+}
+
+export function projectTranscriptionPayloadToSnapshot(
+	payload: ProjectTranscriptionPayload
+): ProjectTranscriptionSnapshot {
+	return {
+		project_transcription_id: payload.project_transcription_id,
+		id: payload.id,
+		format: payload.content_format,
+		title: payload.title,
+		siglum: payload.siglum,
+		description: payload.description,
+		content_json: payload.content_json,
+		owner: payload.owner,
+		is_public: payload.is_public,
+		tags: [...payload.tags],
+		transcriber: payload.transcriber,
+		repository: payload.repository,
+		settlement: payload.settlement,
+		language: payload.language,
+		iiif_manifest_sources: payload.iiif_manifest_sources,
+		page_canvas_links: payload.page_canvas_links,
+		canvas_annotations: payload.canvas_annotations,
+	};
 }
 
 export function deriveCheckpointStatus(

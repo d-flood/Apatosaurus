@@ -1,18 +1,17 @@
 import { expect, it } from 'vitest';
-import fixture from '$lib/storage/formats/fixtures/collation-v16.expected.json';
+import fixture from '$lib/storage/legacy-json/fixtures/collation-v16.expected.json';
 import { parseCollationDocument } from '$lib/collation/collation-document';
 import { MockCloudStorageProvider } from '$lib/backup/providers/mock-provider';
 import { backupProject } from '$lib/backup/sync-manager';
 import { ensureLocationMarker } from '$lib/backup/location-marker';
 import { discoverLocationProjects } from '$lib/backup/location-discovery';
 import { MemoryStoreBackend } from '$lib/storage/memory-store-backend.spec-support';
-import { collationPrimaryFile, projectManifestFile } from '$lib/storage/layout';
+import { collationTeiFile, projectManifestFile } from '$lib/storage/layout';
 import { readTextFile } from '$lib/storage/opfs-store';
 import {
-	COLLATION_FORMAT,
 	PROJECT_MANIFEST_FORMAT,
+	parseCollationPayloadTei,
 	readCanonicalDocument,
-	type CollationPayload,
 	type ProjectManifestPayload,
 } from '$lib/storage/formats';
 import {
@@ -105,13 +104,10 @@ it('keeps every full-control field through save, load, two-store sync and index 
 			sourceOptions
 		);
 		const project = (await getProject(source.db, 'project-1'))!;
-		const primary = await readCanonicalDocument<CollationPayload>(
-			COLLATION_FORMAT,
-			await readTextFile(collationPrimaryFile(project.storageSlug, 'col-1'), sourceOptions)
+		const primary = parseCollationPayloadTei(
+			await readTextFile(collationTeiFile(project.storageSlug, 'col-1'), sourceOptions)
 		);
-		expect(primary.ok).toBe(true);
-		if (!primary.ok) throw new Error('Saved collation did not validate.');
-		expect(primary.payload.document).toEqual(document);
+		expect(primary.document).toEqual(document);
 		const manifest = await readCanonicalDocument<ProjectManifestPayload>(
 			PROJECT_MANIFEST_FORMAT,
 			await readTextFile(projectManifestFile(project.storageSlug), sourceOptions)
@@ -132,7 +128,7 @@ it('keeps every full-control field through save, load, two-store sync and index 
 		});
 		expect(pushed.uiState).toBe('synced');
 		expect(pushed.uploadedPaths).toEqual(
-			expect.arrayContaining(['collations/col-1.json', 'project.json'])
+			expect.arrayContaining(['collations/col-1.tei.xml', 'project.json'])
 		);
 		await assertLoaded(source, sourceOptions);
 		const discovery = await discoverLocationProjects(
@@ -165,7 +161,7 @@ it('keeps every full-control field through save, load, two-store sync and index 
 			storeOptions: destinationOptions,
 		});
 		expect(pulled.uiState).toBe('synced');
-		expect(pulled.downloadedPaths).toContain('collations/col-1.json');
+		expect(pulled.downloadedPaths).toContain('collations/col-1.tei.xml');
 		await assertLoaded(destination, destinationOptions);
 		const report = await rebuildIndexFromStore(rebuilt.db, destinationOptions);
 		expect(report.quarantinedFiles).toEqual([]);

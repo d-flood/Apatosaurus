@@ -16,6 +16,7 @@
 		probeExternalImageUrls,
 	} from '$lib/iiif/externalImageManifest';
 	import { importIntfManuscript, isIntfManifestSource } from '$lib/iiif/intfManifest';
+	import { restoreCachedManifest } from '$lib/iiif/manifestCache';
 	import { createIntfAutoLinkPlan, createSmartLinkPlan } from '$lib/iiif/linking';
 	import { createCompositeTranscriptionAnnotationExtension } from '$lib/iiif/createCompositeTranscriptionAnnotationExtension';
 	import { buildLinkedManifest } from '$lib/iiif/manifestBuilder';
@@ -25,6 +26,7 @@
 	} from '$lib/iiif/sourceClassification';
 	import { resolveIiifWorkspaceSelection } from '$lib/iiif/selection';
 	import {
+		cacheManifest,
 		deleteAllPageCanvasLinks,
 		deleteManifestSource,
 		deletePageCanvasLink,
@@ -733,24 +735,17 @@
 	}
 
 	async function hydrateManifestSource(source: ManifestSourceSummary) {
-		if (source.manifestJson) return source;
-		if (isExternalImageManifestSource(source) || isIntfManifestSource(source)) {
+		if (
+			(isExternalImageManifestSource(source) || isIntfManifestSource(source)) &&
+			source.syntheticCanvases.length === 0
+		) {
 			statusMessage = 'Saved synthetic sources are missing their local manifest snapshot.';
-			return source;
+			return;
 		}
 		hydratingManifest = true;
 		statusMessage = null;
 		try {
-			const manifestJson = await fetchManifestJson(source.manifestUrl);
-			await ensureManifestSource({
-				transcriptionId,
-				manifestUrl: source.manifestUrl,
-				label: source.label,
-				defaultCanvasId: source.defaultCanvasId,
-				defaultImageServiceUrl: source.defaultImageServiceUrl,
-				manifestJson,
-				metadata: { ...(source.metadata || {}), hydratedAt: new Date().toISOString() },
-			});
+			await restoreCachedManifest(source, { fetchManifestJson, cacheManifest });
 			await refreshStoredData();
 			statusMessage = 'Manifest snapshot stored locally for direct viewer loading.';
 		} catch (error) {

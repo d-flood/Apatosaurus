@@ -49,6 +49,7 @@ interface ParseContext {
 	currentLineParagraphStart?: boolean;
 	currentColumnWrapped?: boolean;
 	currentPageWrapped?: boolean;
+	pageWrapPending?: boolean;
 	pendingBookMilestone?: MilestoneItem;
 	pendingChapterMilestone?: MilestoneItem;
 	bookMilestoneEmitted?: string;
@@ -186,11 +187,7 @@ function processNode(node: Node, context: ParseContext): void {
 			case 'pc':
 				emitPendingMilestones(context);
 				ensureLineItems(context);
-				pushText(context.currentLineItems!, {
-					type: 'text',
-					text: element.textContent || '',
-					marks: [{ type: 'punctuation', attrs: collectAttributes(element) }],
-				});
+				pushPunctuation(context.currentLineItems!, element, []);
 				break;
 
 			case 'gap':
@@ -411,6 +408,7 @@ function handlePageBreak(element: Element, context: ParseContext, insideWord = f
 	context.currentColumn = 0;
 	context.currentLine = 1;
 	context.currentPageWrapped = element.getAttribute('break') === 'no' && insideWord;
+	context.pageWrapPending = context.currentPageWrapped;
 	ensurePageColumns(context);
 }
 
@@ -439,10 +437,12 @@ function handleColumnBreak(element: Element, context: ParseContext, insideWord: 
 	}
 
 	const isContinuation = element.getAttribute('break') === 'no' && insideWord;
-	if (isContinuation || context.currentPageWrapped) {
+	// Only the column right after a word-breaking page break continues that word.
+	if (isContinuation || context.pageWrapPending) {
 		context.currentColumnWrapped = true;
 		context.currentLineWrapped = true;
 	}
+	context.pageWrapPending = false;
 
 	ensureColumnLines(context);
 }
@@ -856,11 +856,7 @@ function processContainerContent(
 
 		if (tagName === 'pc') {
 			ensureLineItems(context);
-			pushText(context.currentLineItems!, {
-				type: 'text',
-				text: element.textContent || '',
-				marks: [...marks, { type: 'punctuation', attrs: collectAttributes(element) }],
-			});
+			pushPunctuation(context.currentLineItems!, element, marks);
 			continue;
 		}
 
@@ -961,11 +957,7 @@ function processInlineElementToInlineContent(
 	}
 
 	if (tagName === 'pc') {
-		pushText(content, {
-			type: 'text',
-			text: element.textContent || '',
-			marks: [...activeMarks, { type: 'punctuation', attrs: collectAttributes(element) }],
-		});
+		pushPunctuation(content, element, activeMarks);
 		return content;
 	}
 
@@ -1783,6 +1775,25 @@ function applyCorrectionMarkToInlineItems(
 				},
 			],
 		};
+	});
+}
+
+// join="left" means the mark continues the preceding word, so the boundary its </w> implied is dropped.
+function pushPunctuation(
+	items: Array<LineItem | InlineItem>,
+	element: Element,
+	marks: TextMark[]
+): void {
+	const { join, ...attrs } = collectAttributes(element);
+	if ((join === 'left' || join === 'both') && items[items.length - 1]?.type === 'boundary')
+		items.pop();
+	pushText(items, {
+		type: 'text',
+		text: element.textContent || '',
+		marks: [
+			...marks,
+			{ type: 'punctuation', attrs: join && join !== 'left' ? { ...attrs, join } : attrs },
+		],
 	});
 }
 

@@ -45,10 +45,13 @@ interface WordGroup {
 		| 'teiWrapper'
 		| 'pageBreak'
 		| 'lineBreak'
-		| 'columnBreak';
+		| 'columnBreak'
+		| 'breaks';
 	content?: ProseMirrorJSON[];
 	attrs?: Record<string, any>;
 	node?: ProseMirrorJSON;
+	// False when another element follows the word with no boundary, so the source had no </w>.
+	closed?: boolean;
 }
 
 export function serializeTei(document: TranscriptionDocument, metadata?: TeiMetadata): string {
@@ -88,7 +91,7 @@ export function serializeProseMirrorToTei(
 	context.xml.push(`<body${serializeAttrs(document?.bodyAttrs || {})}>`);
 
 	if (pmJSON.type === 'manuscript' && pmJSON.content) {
-		exportNodes(pmJSON.content, context);
+		exportBody(pmJSON.content, context);
 	}
 
 	closeAllDivs(context);
@@ -112,104 +115,136 @@ function generateHeader(
 	context.xml.push(generateTeiHeaderXml(metadata, document, { serializeAttrs, escapeXml }));
 }
 
-function exportNodes(nodes: ProseMirrorJSON[] | undefined, context: ExportContext): void {
-	if (!nodes) return;
-	for (const node of nodes) {
-		exportNode(node, context);
-	}
+interface BodyLine {
+	breaks: string[];
+	wrapped: boolean;
+	content: ProseMirrorJSON[];
 }
 
-function exportNode(node: ProseMirrorJSON, context: ExportContext): void {
-	switch (node.type) {
-		case 'page':
-			closeAllDivs(context);
-			context.xml.push(
-				`<pb${serializeAttrs(
-					mergeTeiAttrs(node.attrs, {
-						'xml:id': node.attrs?.pageId || node.attrs?.teiAttrs?.['xml:id'],
-						n: node.attrs?.teiAttrs?.n || node.attrs?.pageName || '',
-						type: node.attrs?.teiAttrs?.type || 'folio',
-						break: node.attrs?.wrapped ? 'no' : undefined,
-					})
-				)}/>`
-			);
-			exportNodes(node.content, context);
-			break;
-
-		case 'column':
-			closeAllDivs(context);
-			context.xml.push(
-				`<cb${serializeAttrs(
-					mergeTeiAttrs(node.attrs, {
-						n: node.attrs?.teiAttrs?.n,
-						break: node.attrs?.wrapped ? 'no' : undefined,
-						type: node.attrs?.zone ? 'frame' : undefined,
-						subtype: node.attrs?.zone || undefined,
-					})
-				)}/>`
-			);
-			exportNodes(node.content, context);
-			break;
-
-		case 'line':
-			context.xml.push(
-				`<lb${serializeAttrs(
-					mergeTeiAttrs(node.attrs, {
-						break: node.attrs?.wrapped ? 'no' : undefined,
-						rend: node.attrs?.['paragraph-start']
-							? node.attrs?.teiAttrs?.rend || 'hang'
-							: undefined,
-					})
-				)}/>`
-			);
-			exportLineContent(node.content, context);
-			break;
-
-		default:
-			if (node.content) exportNodes(node.content, context);
-			break;
-	}
+function collectBodyLines(nodes: ProseMirrorJSON[] | undefined): BodyLine[] {
+	const lines: BodyLine[] = [];
+	let breaks: string[] = [];
+	// A wrapped page or column break already wraps the lines that follow it.
+	let wrapImplied = false;
+	const visit = (node: ProseMirrorJSON) => {
+		if (node.type === 'line') {
+			breaks.push(lineBreakXml(node, wrapImplied));
+			lines.push({ breaks, wrapped: Boolean(node.attrs?.wrapped), content: node.content ?? [] });
+			breaks = [];
+			wrapImplied = false;
+			return;
+		}
+		if (node.type === 'page') {
+			breaks.push(pageBreakXml(node));
+			wrapImplied = Boolean(node.attrs?.wrapped);
+		}
+		if (node.type === 'column') {
+			breaks.push(columnBreakXml(node, wrapImplied));
+			wrapImplied ||= Boolean(node.attrs?.wrapped);
+		}
+		for (const child of node.content ?? []) visit(child);
+	};
+	for (const node of nodes ?? []) visit(node);
+	if (breaks.length > 0) lines.push({ breaks, wrapped: false, content: [] });
+	return lines;
 }
 
-function exportLineContent(nodes: ProseMirrorJSON[] | undefined, context: ExportContext): void {
-	if (!nodes) return;
+// A word broken across a line, column or page break stays one <w> with the breaks inside it.
+function exportBody(nodes: ProseMirrorJSON[] | undefined, context: ExportContext): void {
+	const groups: WordGroup[] = [];
+	for (const line of collectBodyLines(nodes)) {
+		const words = groupIntoWords(line.content);
+		const last = groups[groups.length - 1];
+		const previous =
+			line.wrapped && last?.type === 'gap' && last.node
+				? (groups[groups.length - 1] = { type: 'word', content: [last.node] })
+				: last;
+		const first = words[0];
+		if (line.wrapped && previous?.type === 'word') {
+			const continues = first?.type === 'word';
+			previous.content = [
+				...(previous.content ?? []),
+				structuralBreak(line.breaks.join(''), true),
+				...(continues ? (first.content ?? []) : []),
+			];
+			groups.push(...(continues ? words.slice(1) : words));
+			continue;
+		}
+		groups.push({ type: 'breaks', attrs: { xml: line.breaks.join('\n') } }, ...words);
+	}
+	exportWordGroups(groups, context);
+}
 
-	const words = groupIntoWords(nodes);
+function structuralBreak(xml: string, inWord: boolean): ProseMirrorJSON {
+	return { type: 'structuralBreak', attrs: { xml, inWord } };
+}
+
+function pageBreakXml(node: ProseMirrorJSON): string {
+	return `<pb${serializeAttrs(
+		mergeTeiAttrs(node.attrs, {
+			'xml:id': node.attrs?.pageId || node.attrs?.teiAttrs?.['xml:id'],
+			n: node.attrs?.teiAttrs?.n || node.attrs?.pageName || '',
+			type: node.attrs?.teiAttrs ? node.attrs.teiAttrs.type : 'folio',
+			break: node.attrs?.wrapped ? 'no' : undefined,
+		})
+	)}/>`;
+}
+
+function columnBreakXml(node: ProseMirrorJSON, wrapImplied: boolean): string {
+	return `<cb${serializeAttrs(
+		mergeTeiAttrs(node.attrs, {
+			n: node.attrs?.teiAttrs?.n,
+			break: node.attrs?.wrapped && !wrapImplied ? 'no' : undefined,
+			type: node.attrs?.zone ? 'frame' : undefined,
+			subtype: node.attrs?.zone || undefined,
+		})
+	)}/>`;
+}
+
+// Parsed lines keep the source's own break attribute; an <lb> inside <w> wraps without one.
+function lineBreakXml(node: ProseMirrorJSON, wrapImplied: boolean): string {
+	return `<lb${serializeAttrs(
+		mergeTeiAttrs(node.attrs, {
+			break: node.attrs?.wrapped && !wrapImplied && !node.attrs?.teiAttrs ? 'no' : undefined,
+			rend: node.attrs?.['paragraph-start'] ? node.attrs?.teiAttrs?.rend || 'hang' : undefined,
+		})
+	)}/>`;
+}
+
+function exportWordGroups(words: WordGroup[], context: ExportContext): void {
 	for (let index = 0; index < words.length; index += 1) {
 		const word = words[index];
 		if (word.type === 'verse') {
 			closeAnonymousAb(context);
 			const verseId = getSourceLabel(word.attrs) ?? buildVerseId(word.attrs);
-			if (context.insideVerse && context.currentVerse !== verseId) {
-				closeVerse(context);
-			}
+			closeVerse(context);
 			openVerse(context, verseId);
 			continue;
 		}
 
 		if (word.type === 'book') {
+			closeAllDivs(context);
 			context.currentBook = word.attrs?.book || '';
 			context.currentBookSourceLabel = getSourceLabel(word.attrs);
 			continue;
 		}
 
 		if (word.type === 'chapter') {
+			closeChapterDiv(context);
 			context.currentChapter = word.attrs?.chapter || '';
 			context.currentChapterSourceLabel = getSourceLabel(word.attrs);
+			continue;
+		}
+
+		if (word.type === 'breaks') {
+			context.xml.push(word.attrs?.xml ?? '');
 			continue;
 		}
 
 		const correctionMark = findGroupCorrectionMark(word);
 		if (correctionMark) {
 			const correctedGroups = [word];
-			while (
-				index + 1 < words.length &&
-				isSameCorrectionMark(findGroupCorrectionMark(words[index + 1]), correctionMark)
-			) {
-				correctedGroups.push(words[index + 1]);
-				index += 1;
-			}
-
+			index = collectCorrectedGroups(words, index, correctionMark, correctedGroups);
 			ensureAnonymousAb(context);
 			exportCorrection(correctedGroups, correctionMark, context);
 			continue;
@@ -313,7 +348,13 @@ function exportLineContent(nodes: ProseMirrorJSON[] | undefined, context: Export
 					if (group.type === 'fw') {
 						exportFormWork(group.attrs || {}, group.node?.content, context, false);
 					} else if (group.content) {
-						exportWord(removeWrapperMark(group.content, segmentWrapper), context);
+						const content = removeWrapperMark(group.content, segmentWrapper);
+						const inner = getWholeWordWrapperMark(content);
+						if (inner && group.closed === false) {
+							context.xml.push(buildWrappedWordSequenceXml([{ ...group, content }], inner));
+						} else {
+							exportWord(content, context);
+						}
 					}
 				}
 				context.xml.push(`</${tag}>`);
@@ -334,7 +375,9 @@ function exportLineContent(nodes: ProseMirrorJSON[] | undefined, context: Export
 		}
 
 		if (word.type === 'word' && word.content) {
-			const wrapper = getWholeWordWrapperMark(word.content);
+			const wrapper = isPunctuationOnly(word.content)
+				? null
+				: getWholeWordWrapperMark(word.content);
 			if (wrapper) {
 				const wrappedWords = [word];
 				while (
@@ -362,7 +405,32 @@ function groupIntoWords(nodes: ProseMirrorJSON[]): WordGroup[] {
 	const words: WordGroup[] = [];
 	let currentWord: ProseMirrorJSON[] = [];
 
-	for (const node of nodes) {
+	for (const [index, node] of nodes.entries()) {
+		if (node.type === 'gap' && currentWord.length > 0) {
+			currentWord.push(node);
+			continue;
+		}
+		// The parser records a boundary only where </w> closes, so a gap before one was a whole <w>.
+		if (node.type === 'gap' && isBoundary(nodes[index + 1])) {
+			words.push({ type: 'word', content: [node] });
+			continue;
+		}
+		if (node.type === 'structuralBreak') {
+			if (node.attrs?.inWord) {
+				currentWord.push(node);
+				continue;
+			}
+			if (currentWord.length > 0) {
+				words.push({ type: 'word', content: currentWord });
+				currentWord = [];
+			}
+			words.push({ type: 'breaks', attrs: { xml: node.attrs?.xml } });
+			continue;
+		}
+		if (isInlineBreak(node) && node.attrs?.teiAttrs?.break === 'no' && currentWord.length > 0) {
+			currentWord.push(structuralBreak(inlineBreakXml(node), true));
+			continue;
+		}
 		if (
 			node.type === 'verse' ||
 			node.type === 'pageBreak' ||
@@ -383,7 +451,7 @@ function groupIntoWords(nodes: ProseMirrorJSON[]): WordGroup[] {
 			node.type === 'fw'
 		) {
 			if (currentWord.length > 0) {
-				words.push({ type: 'word', content: currentWord });
+				words.push({ type: 'word', content: currentWord, closed: false });
 				currentWord = [];
 			}
 			words.push({
@@ -420,10 +488,20 @@ function groupIntoWords(nodes: ProseMirrorJSON[]): WordGroup[] {
 		if (node.type === 'text') {
 			if (node.text === ' ') {
 				if (currentWord.length > 0) {
-					words.push({ type: 'word', content: currentWord });
+					words.push({ type: 'word', content: currentWord, closed: true });
 					currentWord = [];
 				}
 				continue;
+			}
+			const previous = currentWord[currentWord.length - 1];
+			if (
+				previous?.type === 'text' &&
+				((isPunctuation(previous) !== isPunctuation(node) &&
+					correctionSignature(previous) !== correctionSignature(node)) ||
+					wrapperSignature(previous) !== wrapperSignature(node))
+			) {
+				words.push({ type: 'word', content: currentWord, closed: false });
+				currentWord = [];
 			}
 			currentWord.push(node);
 		}
@@ -436,28 +514,59 @@ function groupIntoWords(nodes: ProseMirrorJSON[]): WordGroup[] {
 	return words;
 }
 
+function isBoundary(node: ProseMirrorJSON | undefined): boolean {
+	return node?.type === 'text' && node.text === ' ';
+}
+
+function wrapperSignature(node: ProseMirrorJSON): string {
+	return JSON.stringify(
+		node.marks?.filter(mark => mark.type === 'teiSpan' && isWholeWordWrapperTag(mark.attrs?.tag)) ??
+			[]
+	);
+}
+
+function correctionSignature(node: ProseMirrorJSON): string {
+	return JSON.stringify(node.marks?.find(mark => mark.type === 'correction')?.attrs ?? null);
+}
+
+function isPunctuationOnly(nodes: ProseMirrorJSON[]): boolean {
+	return nodes.every(node => node.type === 'text' && isPunctuation(node));
+}
+
+function isPunctuation(node: ProseMirrorJSON): boolean {
+	return Boolean(node.marks?.some(mark => mark.type === 'punctuation'));
+}
+
+function gapXml(attrs: Record<string, any> = {}): string {
+	return `<gap${serializeAttrs(
+		mergeCarrierAttrs(attrs, { reason: attrs.reason, unit: attrs.unit, extent: attrs.extent })
+	)}/>`;
+}
+
+function isInlineBreak(node: ProseMirrorJSON): boolean {
+	return node.type === 'lineBreak' || node.type === 'columnBreak' || node.type === 'pageBreak';
+}
+
+function inlineBreakXml(node: ProseMirrorJSON): string {
+	const tag = node.type === 'pageBreak' ? 'pb' : node.type === 'columnBreak' ? 'cb' : 'lb';
+	return `<${tag}${serializeAttrs(extractTeiAttrs(node.attrs))}/>`;
+}
+
 function exportWord(nodes: ProseMirrorJSON[], context: ExportContext): void {
 	const hasPunctuation = nodes.some(node =>
 		node.marks?.some(mark => mark.type === 'punctuation')
 	);
 	if (hasPunctuation) {
 		// Marked and unmarked nodes can be adjacent with no split space; emit every run.
-		for (const run of splitOnPunctuation(nodes)) {
+		splitOnPunctuation(nodes).forEach((run, index) => {
 			if (!run.punctuation) {
 				exportWord(run.nodes, context);
-				continue;
+				return;
 			}
-			for (const node of run.nodes) {
-				const punctuationMark = node.marks?.find(mark => mark.type === 'punctuation');
-				const punctuation = `<pc${serializeAttrs(extractTeiAttrs(punctuationMark?.attrs))}>${escapeXml(node.text || '')}</pc>`;
-				const unconfirmedMark = node.marks?.find(mark => mark.type === 'unconfirmed');
-				context.xml.push(
-					unconfirmedMark
-						? `<seg${serializeAttrs({ ...extractTeiAttrs(unconfirmedMark.attrs), type: 'unconfirmed' })}>${punctuation}</seg>`
-						: punctuation
-				);
-			}
-		}
+			// A mark after word text in the same word has no boundary before it.
+			const joinsLeft = index > 0;
+			for (const node of run.nodes) context.xml.push(punctuationXml(node, joinsLeft));
+		});
 		return;
 	}
 
@@ -478,6 +587,16 @@ function exportWord(nodes: ProseMirrorJSON[], context: ExportContext): void {
 	context.xml.push(buildWordXml(nodes));
 }
 
+function punctuationXml(node: ProseMirrorJSON, joinsLeft = false): string {
+	const punctuationMark = node.marks?.find(mark => mark.type === 'punctuation');
+	const attrs = { ...extractTeiAttrs(punctuationMark?.attrs) };
+	if (joinsLeft) attrs.join = attrs.join === 'both' ? 'both' : 'left';
+	return wrapInMarks(
+		`<pc${serializeAttrs(attrs)}>${escapeXml(node.text || '')}</pc>`,
+		(node.marks ?? []).filter(mark => !['punctuation', 'correction', 'word'].includes(mark.type))
+	);
+}
+
 function splitOnPunctuation(
 	nodes: ProseMirrorJSON[]
 ): { punctuation: boolean; nodes: ProseMirrorJSON[] }[] {
@@ -495,8 +614,23 @@ function splitOnPunctuation(
 }
 
 function buildWordXml(nodes: ProseMirrorJSON[]): string {
-	let wordContent = `<w${serializeAttrs(extractWordAttrs(nodes))}>`;
+	return `<w${serializeAttrs(extractWordAttrs(nodes))}>${buildWordContentXml(nodes)}</w>`;
+}
+
+function buildWordContentXml(nodes: ProseMirrorJSON[]): string {
+	let wordContent = '';
 	for (const node of nodes) {
+		if (node.type === 'structuralBreak') {
+			wordContent += node.attrs?.xml ?? '';
+			continue;
+		}
+		if (node.type === 'gap') {
+			wordContent += wrapInMarks(
+				gapXml(node.attrs),
+				(node.marks ?? []).filter(mark => !['correction', 'word'].includes(mark.type))
+			);
+			continue;
+		}
 		if (node.type === 'metamark') {
 			wordContent += serializeMetamarkAttrs(extractTeiAttrs(node.attrs));
 			continue;
@@ -509,9 +643,10 @@ function buildWordXml(nodes: ProseMirrorJSON[]): string {
 			wordContent += serializeStructuredWrapper(node.attrs || {}, node.marks);
 			continue;
 		}
-		wordContent += exportTextWithMarksInline(node, ['correction', 'word', 'punctuation']);
+		wordContent += isPunctuation(node)
+			? punctuationXml(node)
+			: exportTextWithMarksInline(node, ['correction', 'word', 'punctuation']);
 	}
-	wordContent += '</w>';
 	return wordContent;
 }
 
@@ -530,8 +665,17 @@ function buildWrappedWordSequenceXml(
 		innerWrapper &&
 		innerWords.every(word => hasMatchingWholeWordWrapper(word.content || [], innerWrapper))
 			? buildWrappedWordSequenceXml(innerWords, innerWrapper)
-			: innerWords.map(word => buildWordXml(word.content || [])).join('');
+			: innerWords.map(wrappedWordXml).join('');
 	return [`<${tag}${attrs}>`, inner, `</${tag}>`].join('');
+}
+
+// <pc> cannot sit inside <w>, and a word with no boundary after it had no </w>.
+function wrappedWordXml(word: WordGroup): string {
+	const content = word.content || [];
+	if (word.closed === false || isPunctuationOnly(content)) return buildWordContentXml(content);
+	return splitOnPunctuation(content)
+		.map(run => (run.punctuation ? buildWordContentXml(run.nodes) : buildWordXml(run.nodes)))
+		.join('');
 }
 
 function removeWrapperMark(
@@ -569,6 +713,34 @@ function findGroupCorrectionMark(
 	return group.node?.marks?.find(mark => mark.type === 'correction');
 }
 
+// A correction may span line breaks between its words.
+function collectCorrectedGroups(
+	groups: WordGroup[],
+	index: number,
+	correctionMark: { attrs?: Record<string, any> },
+	into: WordGroup[]
+): number {
+	while (index + 1 < groups.length) {
+		const next = groups[index + 1];
+		if (isSameCorrectionMark(findGroupCorrectionMark(next), correctionMark)) {
+			into.push(next);
+			index += 1;
+			continue;
+		}
+		const after = groups[index + 2];
+		if (
+			next.type === 'breaks' &&
+			isSameCorrectionMark(findGroupCorrectionMark(after), correctionMark)
+		) {
+			into.push(next, after);
+			index += 2;
+			continue;
+		}
+		break;
+	}
+	return index;
+}
+
 function isSameCorrectionMark(
 	candidate: { attrs?: Record<string, any> } | undefined,
 	reference: { attrs?: Record<string, any> }
@@ -584,7 +756,10 @@ function exportCorrection(
 	context: ExportContext
 ): void {
 	const corrections = correctionMark.attrs?.corrections || [];
-	context.xml.push('<app>');
+	const outer = outerCorrectionMarks(groups);
+	if (outer.length > 0) groups = groups.map(group => stripGroupMarks(group, outer));
+	const wrapper = markWrapperTags(outer);
+	context.xml.push(wrapper.open + '<app>');
 
 	const originalContext: ExportContext = {
 		xml: [],
@@ -593,33 +768,53 @@ function exportCorrection(
 		bookDivOpen: false,
 		chapterDivOpen: false,
 	};
-	exportInlineContent(
-		stripMarks(flattenCorrectionGroups(groups), ['correction']),
+	exportInlineGroups(
+		groups.map(group => ({
+			...group,
+			content: group.content && stripMarks(group.content, ['correction']),
+			node: group.node && stripMarks([group.node], ['correction'])[0],
+		})),
 		originalContext
 	);
 	context.xml.push(`<rdg type="orig">${originalContext.xml.join('')}</rdg>`);
 
 	for (const correction of corrections) {
-		exportCorrectionReading(correction, context);
+		exportCorrectionReading(
+			outer.length > 0
+				? {
+						...correction,
+						content: correction.content?.map(
+							(node: ProseMirrorJSON) => stripGroupMarks({ type: 'word', node }, outer).node
+						),
+					}
+				: correction,
+			context
+		);
 	}
 
-	context.xml.push('</app>');
+	context.xml.push('</app>' + wrapper.close);
 }
 
-function flattenCorrectionGroups(groups: WordGroup[]): ProseMirrorJSON[] {
-	const content: ProseMirrorJSON[] = [];
-	for (let index = 0; index < groups.length; index += 1) {
-		const group = groups[index];
-		if (group.type === 'word' && group.content) {
-			if (groups[index - 1]?.type === 'word') {
-				content.push({ type: 'text', text: ' ' });
-			}
-			content.push(...group.content);
-			continue;
-		}
-		if (group.node) content.push(group.node);
-	}
-	return content;
+// Mark order mirrors nesting, so marks before the correction on every node wrapped the whole <app>.
+function outerCorrectionMarks(groups: WordGroup[]): Mark[] {
+	const leads = groups
+		.flatMap(group => group.content ?? (group.node ? [group.node] : []))
+		.map(node => node.marks ?? [])
+		.filter(marks => marks.some(mark => mark.type === 'correction'))
+		.map(marks => marks.slice(0, marks.findIndex(mark => mark.type === 'correction')));
+	if (leads.length === 0) return [];
+	return leads[0].filter(mark =>
+		leads.every(lead => lead.some(other => JSON.stringify(other) === JSON.stringify(mark)))
+	);
+}
+
+function stripGroupMarks(group: WordGroup, marks: Mark[]): WordGroup {
+	const signatures = new Set(marks.map(mark => JSON.stringify(mark)));
+	const strip = (node: ProseMirrorJSON) => ({
+		...node,
+		marks: node.marks?.filter(mark => !signatures.has(JSON.stringify(mark))),
+	});
+	return { ...group, content: group.content?.map(strip), node: group.node && strip(group.node) };
 }
 
 function exportCorrectionNode(attrs: Record<string, any>, context: ExportContext): void {
@@ -649,20 +844,21 @@ function serializeInlineItemsToTei(content: InlineItem[]): string {
 }
 
 function exportInlineContent(content: ProseMirrorJSON[], context: ExportContext): void {
-	const groups = groupIntoWords(content);
+	exportInlineGroups(groupIntoWords(content), context);
+}
+
+function exportInlineGroups(groups: WordGroup[], context: ExportContext): void {
 	for (let index = 0; index < groups.length; index += 1) {
 		const group = groups[index];
 		const node = group.node;
+		if (group.type === 'breaks') {
+			context.xml.push(group.attrs?.xml ?? '');
+			continue;
+		}
 		const correctionMark = findGroupCorrectionMark(group);
 		if (correctionMark) {
 			const correctedGroups = [group];
-			while (
-				index + 1 < groups.length &&
-				isSameCorrectionMark(findGroupCorrectionMark(groups[index + 1]), correctionMark)
-			) {
-				correctedGroups.push(groups[index + 1]);
-				index += 1;
-			}
+			index = collectCorrectedGroups(groups, index, correctionMark, correctedGroups);
 			exportCorrection(correctedGroups, correctionMark, context);
 			continue;
 		}
@@ -957,84 +1153,80 @@ function exportCorrectionReading(correction: Record<string, any>, context: Expor
 function exportTextWithMarksInline(node: ProseMirrorJSON, skipMarks: string[] = []): string {
 	const text = node.text || '';
 	const marks = (node.marks || []).filter(mark => !skipMarks.includes(mark.type));
-	if (marks.length === 0) {
-		return escapeXml(text);
-	}
-
 	let output = escapeXml(text);
 	const openTags: string[] = [];
 	const closeTags: string[] = [];
-
 	for (const mark of marks) {
-		switch (mark.type) {
-			case 'lacunose':
-				openTags.push(`<supplied${serializeAttrs(extractTeiAttrs(mark.attrs))}>`);
-				closeTags.unshift('</supplied>');
-				break;
-
-			case 'unclear':
-				openTags.push(`<unclear${serializeAttrs(extractTeiAttrs(mark.attrs))}>`);
-				closeTags.unshift('</unclear>');
-				break;
-
-			case 'hi':
-				openTags.push(`<hi${serializeAttrs(extractTeiAttrs(mark.attrs))}>`);
-				closeTags.unshift('</hi>');
-				break;
-
-			case 'damage':
-				openTags.push(`<damage${serializeAttrs(extractTeiAttrs(mark.attrs))}>`);
-				closeTags.unshift('</damage>');
-				break;
-
-			case 'surplus':
-				openTags.push(`<surplus${serializeAttrs(extractTeiAttrs(mark.attrs))}>`);
-				closeTags.unshift('</surplus>');
-				break;
-
-			case 'secl':
-				openTags.push(`<secl${serializeAttrs(extractTeiAttrs(mark.attrs))}>`);
-				closeTags.unshift('</secl>');
-				break;
-
-			case 'unconfirmed':
-				openTags.push(
-					`<seg${serializeAttrs({ ...extractTeiAttrs(mark.attrs), type: 'unconfirmed' })}>`
-				);
-				closeTags.unshift('</seg>');
-				break;
-
-			case 'teiSpan':
-				openTags.push(
-					`<${escapeXml(String(mark.attrs?.tag || 'seg'))}${serializeAttrs(mark.attrs?.teiAttrs || {})}>`
-				);
-				closeTags.unshift(`</${escapeXml(String(mark.attrs?.tag || 'seg'))}>`);
-				break;
-
-			case 'abbreviation': {
-				const type = mark.attrs?.type || '';
-				if (type === 'ligature') {
-					const rend = mark.attrs?.rend || text || '¯';
-					const expansion = mark.attrs?.expansion || '';
-					openTags.push(`<ex rend="${escapeXml(rend)}">`);
-					closeTags.unshift('</ex>');
-					output = escapeXml(expansion);
-					break;
-				}
-
-				openTags.push(`<abbr${type ? ` type="${escapeXml(type)}"` : ''}>`);
-				openTags.push('<hi rend="overline">');
-				closeTags.unshift('</abbr>');
-				if (mark.attrs?.expansion) {
-					closeTags.unshift(`<ex rend="¯">${escapeXml(mark.attrs.expansion)}</ex>`);
-				}
-				closeTags.unshift('</hi>');
-				break;
-			}
-		}
+		const tags = markTags(mark, text);
+		if (!tags) continue;
+		openTags.push(...tags.open);
+		closeTags.unshift(...tags.close);
+		if (tags.output !== undefined) output = tags.output;
 	}
-
 	return openTags.join('') + output + closeTags.join('');
+}
+
+type Mark = { type: string; attrs?: Record<string, any> };
+
+function wrapInMarks(inner: string, marks: Mark[]): string {
+	const { open, close } = markWrapperTags(marks);
+	return open + inner + close;
+}
+
+function markWrapperTags(marks: Mark[]): { open: string; close: string } {
+	const openTags: string[] = [];
+	const closeTags: string[] = [];
+	for (const mark of marks) {
+		const tags = markTags(mark, '');
+		if (!tags) continue;
+		openTags.push(...tags.open);
+		closeTags.unshift(...tags.close);
+	}
+	return { open: openTags.join(''), close: closeTags.join('') };
+}
+
+function markTags(
+	mark: { type: string; attrs?: Record<string, any> },
+	text: string
+): { open: string[]; close: string[]; output?: string } | null {
+	const simple = (tag: string, attrs: Record<string, any> = extractTeiAttrs(mark.attrs)) => ({
+		open: [`<${tag}${serializeAttrs(attrs)}>`],
+		close: [`</${tag}>`],
+	});
+	switch (mark.type) {
+		case 'lacunose':
+			return simple('supplied');
+		case 'unclear':
+		case 'hi':
+		case 'damage':
+		case 'surplus':
+		case 'secl':
+			return simple(mark.type);
+		case 'unconfirmed':
+			return simple('seg', { ...extractTeiAttrs(mark.attrs), type: 'unconfirmed' });
+		case 'teiSpan':
+			return simple(escapeXml(String(mark.attrs?.tag || 'seg')), mark.attrs?.teiAttrs || {});
+		case 'abbreviation': {
+			const type = mark.attrs?.type || '';
+			if (type === 'ligature') {
+				const rend = mark.attrs?.rend || text || '¯';
+				return {
+					open: [`<ex rend="${escapeXml(rend)}">`],
+					close: ['</ex>'],
+					output: escapeXml(mark.attrs?.expansion || ''),
+				};
+			}
+			const expansion = mark.attrs?.expansion
+				? [`<ex rend="¯">${escapeXml(mark.attrs.expansion)}</ex>`]
+				: [];
+			return {
+				open: [`<abbr${type ? ` type="${escapeXml(type)}"` : ''}>`, '<hi rend="overline">'],
+				close: ['</hi>', ...expansion, '</abbr>'],
+			};
+		}
+		default:
+			return null;
+	}
 }
 
 function getWholeWordWrapperMark(
@@ -1172,13 +1364,17 @@ function closeAnonymousAb(context: ExportContext): void {
 	context.anonymousAbOpen = false;
 }
 
-function closeAllDivs(context: ExportContext): void {
+function closeChapterDiv(context: ExportContext): void {
 	closeAnonymousAb(context);
 	closeVerse(context);
 	if (context.chapterDivOpen) {
 		context.xml.push('</div>');
 		context.chapterDivOpen = false;
 	}
+}
+
+function closeAllDivs(context: ExportContext): void {
+	closeChapterDiv(context);
 	if (context.bookDivOpen) {
 		context.xml.push('</div>');
 		context.bookDivOpen = false;
@@ -1326,9 +1522,10 @@ function serializeStructuredWrapper(
 }
 
 function wrapStructuredContentWithMarks(xml: string, marks?: ProseMirrorJSON['marks']): string {
-	const unconfirmed = marks?.find(mark => mark.type === 'unconfirmed');
-	if (!unconfirmed) return xml;
-	return `<seg${serializeAttrs({ ...extractTeiAttrs(unconfirmed.attrs), type: 'unconfirmed' })}>${xml}</seg>`;
+	return wrapInMarks(
+		xml,
+		(marks ?? []).filter(mark => !['correction', 'word', 'punctuation'].includes(mark.type))
+	);
 }
 
 function createTeiRootOpenTag(document?: TranscriptionDocument): string {

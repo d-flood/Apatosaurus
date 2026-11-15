@@ -3,11 +3,13 @@ import {
 	StoreMoveUnavailableError,
 	type StoreBackend,
 	type StoreBackendDirectoryEntry,
+	type StoreFileStat,
 } from './opfs-store';
 
 export class MemoryStoreBackend implements StoreBackend {
 	readonly files = new Map<string, string | Uint8Array>();
 	readonly directories = new Set<string>(['']);
+	readonly lastModified = new Map<string, number>();
 	readonly writeOperations: MemoryStoreWriteOperation[] = [];
 	failWrites = false;
 	failWritePathIncludes: string | null = null;
@@ -16,6 +18,7 @@ export class MemoryStoreBackend implements StoreBackend {
 	failReadPathIncludesAfter: { path: string; successfulReads: number } | null = null;
 	failMovePathIncludesOnce: string | null = null;
 	failReplacementPathIncludesOnce: string | null = null;
+	private clock = 1_700_000_000_000;
 
 	async readTextFile(path: string): Promise<string> {
 		const content = await this.readFile(path);
@@ -25,6 +28,23 @@ export class MemoryStoreBackend implements StoreBackend {
 	async readFileBytes(path: string): Promise<Uint8Array> {
 		const content = await this.readFile(path);
 		return typeof content === 'string' ? new TextEncoder().encode(content) : content.slice();
+	}
+
+	async statFile(path: string): Promise<StoreFileStat> {
+		const normalized = normalizeStorePath(path);
+		const content = this.files.get(normalized);
+		if (content === undefined) throw new Error(`File ${path} was not found.`);
+		return {
+			size:
+				typeof content === 'string'
+					? new TextEncoder().encode(content).byteLength
+					: content.byteLength,
+			lastModified: this.lastModified.get(normalized) ?? 0,
+		};
+	}
+
+	touch(path: string): void {
+		this.lastModified.set(normalizeStorePath(path), ++this.clock);
 	}
 
 	async writeTextFile(path: string, content: string): Promise<void> {
@@ -46,6 +66,7 @@ export class MemoryStoreBackend implements StoreBackend {
 	async deleteFile(path: string): Promise<void> {
 		const normalized = normalizeStorePath(path);
 		if (!this.files.delete(normalized)) throw new Error(`File ${path} was not found.`);
+		this.lastModified.delete(normalized);
 	}
 
 	async deleteDirectory(path: string, options: { recursive?: boolean } = {}): Promise<void> {
@@ -107,6 +128,8 @@ export class MemoryStoreBackend implements StoreBackend {
 		this.addDirectory(storePathDirname(normalizedTo));
 		this.files.delete(normalizedFrom);
 		this.files.set(normalizedTo, content);
+		this.lastModified.set(normalizedTo, this.lastModified.get(normalizedFrom) ?? 0);
+		this.lastModified.delete(normalizedFrom);
 		this.writeOperations.push({
 			type: 'move',
 			fromPath: normalizedFrom,
@@ -153,6 +176,7 @@ export class MemoryStoreBackend implements StoreBackend {
 		}
 		this.addDirectory(storePathDirname(normalized));
 		this.files.set(normalized, content);
+		this.touch(normalized);
 		this.writeOperations.push({ type: 'write', path: normalized, content });
 	}
 
@@ -167,6 +191,7 @@ export class MemoryStoreBackend implements StoreBackend {
 		}
 		this.addDirectory(storePathDirname(normalized));
 		this.files.set(normalized, content);
+		this.touch(normalized);
 		this.writeOperations.push({ type: 'replace', path: normalized, content });
 	}
 

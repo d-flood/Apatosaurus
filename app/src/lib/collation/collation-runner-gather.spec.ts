@@ -1,21 +1,30 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { getCurrentTranscriptionsByIds, getTranscriptionRecords, getVerseIndexRowsForVerse } =
-	vi.hoisted(() => {
+const { getCurrentVerseSources, getTranscriptionRecords, getVerseIndexRowsForVerse } = vi.hoisted(
+	() => {
 		const getTranscriptionRecords = vi.fn();
 		return {
 			getTranscriptionRecords,
-			getCurrentTranscriptionsByIds: vi.fn(async (ids: string[]) =>
-				((await getTranscriptionRecords(ids)) as { id: string }[]).map(transcription => ({
-					transcription,
+			getCurrentVerseSources: vi.fn(async (_verseIdentifier: string, ids: string[]) =>
+				(
+					(await getTranscriptionRecords(ids)) as {
+						id: string;
+						siglum: string;
+						content_json: string;
+					}[]
+				).map(transcription => ({
+					transcriptionId: transcription.id,
+					siglum: transcription.siglum,
+					document: JSON.parse(transcription.content_json),
 					contentHash: `sha256:${transcription.id}-current`,
 				}))
 			),
 			getVerseIndexRowsForVerse: vi.fn(),
 		};
-	});
+	}
+);
 
-vi.mock('$lib/db/client', () => ({ getCurrentTranscriptionsByIds }));
+vi.mock('$lib/db/client', () => ({ getCurrentVerseSources }));
 
 vi.mock('$lib/transcription/verse-index', () => ({
 	getVerseIndexRowsForVerse,
@@ -213,7 +222,7 @@ describe('gatherWitnessesForVerse', () => {
 		const witnesses = await gatherWitnessesForVerse('Romans 1:1', ['tx-1', 'tx-2']);
 
 		expect(getVerseIndexRowsForVerse).toHaveBeenCalledWith('Romans 1:1', ['tx-1', 'tx-2']);
-		expect(getCurrentTranscriptionsByIds).toHaveBeenCalledWith(['tx-2', 'tx-1']);
+		expect(getCurrentVerseSources).toHaveBeenCalledWith('Romans 1:1', ['tx-2', 'tx-1']);
 		expect(witnesses.map(witness => witness.transcriptionUid)).toEqual(['tx-2', 'tx-1']);
 		expect(witnesses.map(witness => witness.id)).toEqual(['Shelfmark 02', '32495']);
 		expect(witnesses.map(witness => witness.siglum)).toEqual(['Shelfmark 02', '32495']);
@@ -644,7 +653,7 @@ describe('gatherWitnessesForVerse', () => {
 
 		expect(orphaned).toEqual(['B 1:1']);
 		expect(getVerseIndexRowsForVerse).toHaveBeenCalledWith('B 1:1', ['tx-1']);
-		expect(getCurrentTranscriptionsByIds).not.toHaveBeenCalled();
+		expect(getCurrentVerseSources).not.toHaveBeenCalled();
 	});
 
 	it('does not report a resolved member with no prepared content as orphaned', async () => {

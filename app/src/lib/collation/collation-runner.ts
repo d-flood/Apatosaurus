@@ -1,8 +1,5 @@
-import { getCurrentTranscriptionsByIds } from '$lib/db/client';
-import {
-	coerceTranscriptionDocument,
-	type StoredTranscriptionDocument,
-} from '$lib/transcription/content';
+import { getCurrentVerseSources, refreshChangedDocumentFiles } from '$lib/db/client';
+import type { StoredTranscriptionDocument } from '$lib/transcription/content';
 import type { CorrectionReading, InlineItem, TextMark } from '@apatosaurus/tei-transcription';
 import { getPreferredTranscriptionLabel } from '$lib/transcription/display';
 import {
@@ -749,35 +746,24 @@ export async function gatherWitnessesForVerse(
 	}
 	if (orderedTranscriptionIds.length === 0) return [];
 
-	const currentTranscriptions = await getCurrentTranscriptionsByIds(orderedTranscriptionIds);
+	const sources = await getCurrentVerseSources(verseIdentifier, orderedTranscriptionIds);
+	const sourceById = new Map(sources.map(source => [source.transcriptionId, source]));
 	const capturedAt = new Date().toISOString();
-	const currentById = new Map(
-		currentTranscriptions.map(current => [current.transcription.id, current] as const)
-	);
-
 	const witnesses: PreparedWitness[] = [];
 	for (const transcriptionId of orderedTranscriptionIds) {
-		const current = currentById.get(transcriptionId);
-		if (!current) continue;
-		const { transcription, contentHash } = current;
-		const document = coerceTranscriptionDocument(transcription.content_json);
-		if (!document) continue;
-		const siglum = getPreferredTranscriptionLabel({
-			document,
-			siglum: typeof transcription.siglum === 'string' ? transcription.siglum : null,
-			fallbackId: transcription.id || transcriptionId,
-		});
+		const source = sourceById.get(transcriptionId);
+		if (!source) continue;
+		const { siglum, document, contentHash } = source;
 		const prepared = prepareWitnessesFromDocument({
 			document,
 			verseIdentifier,
-			transcriptionId: transcription.id || transcriptionId,
-			siglum,
-			source: {
-				kind: 'current',
-				transcriptionId: transcription.id || transcriptionId,
-				capturedAt,
-				contentHash,
-			},
+			transcriptionId,
+			siglum: getPreferredTranscriptionLabel({
+				document,
+				siglum,
+				fallbackId: transcriptionId,
+			}),
+			source: { kind: 'current', transcriptionId, capturedAt, contentHash },
 			options,
 			seenWitnessIds,
 		});
@@ -790,8 +776,10 @@ export async function gatherWitnessesForVerse(
 export async function gatherWitnessesForSegment(
 	segment: Pick<CollationSegment, 'members'>,
 	transcriptionIds?: string[],
-	options: WitnessExtractionOptions = {}
+	options: WitnessExtractionOptions = {},
+	projectId?: string | null
 ): Promise<SegmentGatherResult> {
+	if (projectId) await refreshChangedDocumentFiles(projectId);
 	const members = [...new Set(segment.members)];
 	const [orphanedMembers, witnessesByMember] = await Promise.all([
 		findOrphanedSegmentMembers(members, transcriptionIds),

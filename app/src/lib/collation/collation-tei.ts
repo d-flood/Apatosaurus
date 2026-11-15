@@ -516,6 +516,23 @@ function activeWitnessIds(
 	return ordered;
 }
 
+/** Saved readings already lack ambiguous witnesses, which applyDecisions would drop as not testifying. */
+function withAmbiguousWitnesses(
+	readings: ClassifiedReading[],
+	proposed: readonly ClassifiedReading[],
+	decisions: UnitDecisions
+): ClassifiedReading[] {
+	const testifying = new Set(readings.flatMap(reading => reading.witnessIds));
+	const missing = (decisions.ambiguousAttestations ?? [])
+		.flatMap(attestation => attestation.witnessIds)
+		.filter(
+			id => !testifying.has(id) && proposed.some(reading => reading.witnessIds.includes(id))
+		);
+	if (missing.length === 0 || readings.length === 0) return readings;
+	const [first, ...rest] = readings;
+	return [{ ...first, witnessIds: [...first.witnessIds, ...new Set(missing)] }, ...rest];
+}
+
 export function buildApparatusTeiExportInput(
 	document: CollationDocument,
 	projectSettings: ProjectCollationSettings = {}
@@ -559,11 +576,19 @@ export function buildApparatusTeiExportInput(
 			sourceWitnessIds: witnessIds,
 			baseWitnessId: baseTextWitnessId,
 		});
-		const view = applyDecisions(saved?.readings ?? proposal.readings, decisions, {
-			baseWitnessId: baseTextWitnessId,
-			vocabulary,
-			manualWitnesses: manualMembers,
-		});
+		const view = applyDecisions(
+			withAmbiguousWitnesses(
+				saved?.readings ?? proposal.readings,
+				proposal.readings,
+				decisions
+			),
+			decisions,
+			{
+				baseWitnessId: baseTextWitnessId,
+				vocabulary,
+				manualWitnesses: manualMembers,
+			}
+		);
 		const stemmaUnit = stemmaByUnitId.get(unitId);
 		units.set(unitId, {
 			view,
@@ -629,15 +654,4 @@ export function buildApparatusTeiExportInput(
 		units,
 		readingTags: projectSettings.readingTags ?? [],
 	};
-}
-
-export function exportCollationDocumentTei(
-	document: CollationDocument,
-	projectSettings: ProjectCollationSettings = {},
-	notes = ''
-): string {
-	return exportApparatusTei({
-		...buildApparatusTeiExportInput(document, projectSettings),
-		notes,
-	});
 }

@@ -1,26 +1,28 @@
-import { ALPHA_READING_TYPES } from './formats/alpha-collation';
-import { openEnvelope, type JsonObject } from './envelope';
-import { hashCanonicalPayload } from './canonical-json';
+import { ALPHA_READING_TYPES } from './alpha-collation';
+import { openEnvelope, type JsonObject } from '../envelope';
+import { hashCanonicalPayload } from '../canonical-json';
 import {
+	PROJECT_MANIFEST_FORMAT,
+	type CollationPayload,
+	type ProjectManifestPayload,
+} from '../formats';
+import {
+	COLLATION_CHECKPOINT_FORMAT,
 	COLLATION_FORMAT,
 	WORKING_COLLATION_FORMAT,
-	COLLATION_CHECKPOINT_FORMAT,
-	PROJECT_MANIFEST_FORMAT,
-	readCanonicalDocument,
-	serializeCanonicalDocument,
-	type CollationPayload,
+	legacyFormatForProjectPath,
+	readLegacyDocument,
+	serializeLegacyDocument,
 	type WorkingCollationPayload,
-	type ProjectManifestPayload,
-	canonicalFormatForProjectPath,
-} from './formats';
+} from '.';
 import {
 	listDirectory,
 	readTextFile,
 	writeTextFileAtomic,
 	withDocumentStoreWriterLock,
 	type StoreOperationOptions,
-} from './opfs-store';
-import { joinStorePath, projectFolder, projectsFolder } from './layout';
+} from '../opfs-store';
+import { joinStorePath, projectFolder, projectsFolder } from '../layout';
 
 interface ProjectEntry {
 	path: string;
@@ -73,7 +75,7 @@ export async function reconcileAlphaProjectUpgrade(entries: ProjectEntry[]): Pro
 				working.draft.base_content_hash === original.current_revision.content_hash
 			) {
 				working.draft.base_content_hash = upgraded.based_on_checkpoint!.content_hash;
-				candidate.content = await serializeCanonicalDocument(
+				candidate.content = await serializeLegacyDocument(
 					WORKING_COLLATION_FORMAT,
 					working
 				);
@@ -132,13 +134,13 @@ export async function reconcileAlphaProjectUpgrade(entries: ProjectEntry[]): Pro
 		collations: manifest.collations,
 		tombstones: manifest.tombstones,
 	});
-	manifestEntry.content = await serializeCanonicalDocument(PROJECT_MANIFEST_FORMAT, manifest);
+	manifestEntry.content = await serializeLegacyDocument(PROJECT_MANIFEST_FORMAT, manifest);
 	for (const entry of entries) {
 		if (
 			entry.format === COLLATION_FORMAT &&
 			manifest.collations.some(head => head.collation_id === entry.payload?.id)
 		)
-			entry.content = await serializeCanonicalDocument(COLLATION_FORMAT, entry.payload!);
+			entry.content = await serializeLegacyDocument(COLLATION_FORMAT, entry.payload!);
 	}
 }
 
@@ -188,9 +190,9 @@ export async function upgradeAlphaProjects(
 				const files = await readProjectFiles(projectFolder(project.name), options);
 				const entries: ProjectEntry[] = [];
 				for (const file of files) {
-					const format = canonicalFormatForProjectPath(file.path);
+					const format = legacyFormatForProjectPath(file.path);
 					if (!format) continue;
-					const result = await readCanonicalDocument(format, file.content, {
+					const result = await readLegacyDocument(format, file.content, {
 						projectPath: file.path,
 					});
 					if (!result.ok)

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { updateTranscriptionContent } from '$lib/db/client';
+	import { exportTranscriptionTei, updateTranscriptionContent } from '$lib/db/client';
 	import { ensureLocalDbRuntime } from '$lib/db/runtime';
 	import { fromProseMirror, toProseMirror } from '@apatosaurus/tei-transcription';
 	import {
@@ -20,8 +20,6 @@
 		createColumnSplitTransaction,
 		prepareManuscriptDocumentEntry,
 	} from '$lib/editor/structure';
-	import { exportTEIDocument } from '$lib/tei/tei-exporter';
-	import { listUserReferenceEditions } from '$lib/reference-editions/user-reference-editions';
 	import { Editor } from '@tiptap/core';
 	import { NodeSelection, TextSelection, type EditorState } from '@tiptap/pm/state';
 	import { createDebouncedSave } from '../debounced-save';
@@ -32,6 +30,7 @@
 		isNodeNearViewportTarget,
 		portal,
 		scrollNodeWithinHost,
+		smoothScrollNodeWithinHost,
 	} from '../editor-dom';
 	import { onMount } from 'svelte';
 	import AbbreviationPanel from './AbbreviationPanel.svelte';
@@ -66,7 +65,6 @@
 	import StatusBar from './StatusBar.svelte';
 	import TeiNodeInspector, { getNodeLabel } from './TeiNodeInspector.svelte';
 	import TranscriptionMetadataDialog from './TranscriptionMetadataDialog.svelte';
-	import { buildTEIMetadataFromTranscription } from '$lib/tei/transcription-record-metadata';
 	import type { Correction } from '../types';
 	import {
 		applyAbbreviationMark,
@@ -84,11 +82,7 @@
 		type TextMarkTarget,
 	} from '../editorInteractions';
 	import type { TranscriptionSelectionQuote } from '$lib/iiif/types';
-	import {
-		listReferenceEditions,
-		type ReferenceEditionCatalogEntry,
-	} from '$lib/reference-editions/catalog';
-	import { resolveReferenceEditionAttributions } from '$lib/reference-editions/attribution';
+	import type { ReferenceEditionCatalogEntry } from '$lib/reference-editions/catalog';
 	import type { ParsedReferenceEdition } from '$lib/reference-editions/source';
 	import { insertReferenceEditionRange } from '$lib/reference-editions/insertion';
 	import ReferenceEditionPicker from './ReferenceEditionPicker.svelte';
@@ -107,6 +101,7 @@
 		statusBarTarget = null,
 		scrollToPageRequest = null,
 		scrollToVerseRequest = null,
+		readOnly = false,
 	}: {
 		transcription: TranscriptionRecord | undefined | null;
 		data: any;
@@ -126,6 +121,7 @@
 			verse: string;
 			token: string;
 		} | null;
+		readOnly?: boolean;
 	} = $props();
 
 	let transcriptionElement = $state<HTMLElement | null>(null);
@@ -172,6 +168,7 @@
 	let pages = $state<PageEditorMetadata[]>([]);
 	let pagesNeedUpdate = $state(false);
 	let lastScrollToPageToken: number | null = null;
+	let pageJumpScroll: AbortController | null = null;
 	let lastScrollToVerseToken: string | null = null;
 
 	let cursorPosition = $state<CursorPosition>({});
@@ -411,6 +408,10 @@
 	}
 
 	$effect(() => {
+		editorState.editor?.setEditable(!readOnly, false);
+	});
+
+	$effect(() => {
 		if (drawerOpen && pagesNeedUpdate) {
 			rebuildPageList();
 			pagesNeedUpdate = false;
@@ -603,7 +604,8 @@
 			initializeEditorContent(editor, repairResult.doc, { emitUpdate: false });
 
 			editorState.editor = editor;
-			if (repairResult.repaired && repairResult.issues.length > 0) {
+			editor.setEditable(!readOnly, false);
+			if (repairResult.repaired && repairResult.issues.length > 0 && !readOnly) {
 				onSaveStateChange?.(false);
 				debouncedAutosave();
 			}
@@ -1090,16 +1092,7 @@
 					'Failed to convert editor content to canonical transcription document'
 				);
 			}
-			const sourceAttributions = resolveReferenceEditionAttributions(
-				getReferenceEditionsUsed(exportDocument),
-				listReferenceEditions(await listUserReferenceEditions()),
-				getReferenceEditionAttributions(exportDocument)
-			);
-			const metadata = {
-				...buildTEIMetadataFromTranscription(transcription),
-				...(sourceAttributions.length > 0 ? { sourceAttributions } : {}),
-			};
-			const teiXml = exportTEIDocument(exportDocument, metadata);
+			const teiXml = await exportTranscriptionTei(transcription.id, exportDocument);
 			if (hasUnconfirmedText(editorState.editor)) {
 				const count = unconfirmedVerseCount;
 				exportWarning = `${count} ${count === 1 ? 'verse' : 'verses'} unconfirmed. Exported anyway.`;
@@ -1143,9 +1136,8 @@
 			);
 			if (!target) return;
 
-			const scrollHost = getVerticalScrollHost(target);
-			scrollNodeWithinHost(target, scrollHost, {
-				behavior: 'smooth',
+			pageJumpScroll?.abort();
+			pageJumpScroll = smoothScrollNodeWithinHost(target, getVerticalScrollHost(target), {
 				block: 'center',
 				offset: 24,
 			});
@@ -1390,6 +1382,9 @@
 		width: 100%;
 		min-width: 0;
 		container-type: inline-size;
+		/* Skip layout and paint of off-screen pages; long manuscripts otherwise take seconds to lay out. */
+		content-visibility: auto;
+		contain-intrinsic-block-size: auto 60rem;
 	}
 
 	:global(.column) {

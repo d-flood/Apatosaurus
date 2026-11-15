@@ -160,6 +160,36 @@ export function scrollNodeWithinHost(
 	host.scrollTo({ top: Math.max(0, top), behavior: options.behavior });
 }
 
+// Off-screen pages keep a placeholder height until rendered, so a long smooth scroll can land
+// short; correct once it ends, unless the user takes over first.
+export function smoothScrollNodeWithinHost(
+	node: HTMLElement,
+	host: HTMLElement | Window,
+	options: { block: 'start' | 'center'; offset?: number }
+): AbortController {
+	const controller = new AbortController();
+	const { signal } = controller;
+	for (const type of ['wheel', 'touchstart', 'pointerdown', 'keydown'])
+		window.addEventListener(type, () => controller.abort(), {
+			signal,
+			capture: true,
+			passive: true,
+		});
+	const correct = (attempts: number) =>
+		requestAnimationFrame(() =>
+			requestAnimationFrame(() => {
+				if (signal.aborted) return;
+				const top = node.getBoundingClientRect().top;
+				scrollNodeWithinHost(node, host, { ...options, behavior: 'auto' });
+				if (attempts > 1 && node.getBoundingClientRect().top !== top) correct(attempts - 1);
+				else controller.abort();
+			})
+		);
+	host.addEventListener('scrollend', () => correct(5), { once: true, signal });
+	scrollNodeWithinHost(node, host, { ...options, behavior: 'smooth' });
+	return controller;
+}
+
 export function isNodeNearViewportTarget(
 	node: HTMLElement,
 	host: HTMLElement | Window,

@@ -1,7 +1,7 @@
 import {
 	getVerseIndexRowsForVerse as getDbVerseIndexRowsForVerse,
 	listVerseIndexRowsForTranscription as listDbVerseIndexRowsForTranscription,
-	listVerseIndexRowsForTranscriptions as listDbVerseIndexRowsForTranscriptions,
+	listVerseCountsForTranscriptions,
 	listVerseIndexRows,
 	rebuildVerseIndexForTranscriptions as rebuildDbVerseIndexForTranscriptions,
 } from '$lib/db/client';
@@ -45,10 +45,8 @@ export async function getVerseIndexRowsForTranscription(
 	return (await listDbVerseIndexRowsForTranscription(transcriptionId)).map(mapVerseIndexRow);
 }
 
-export async function getVerseIndexRowsForTranscriptions(
-	transcriptionIds: string[]
-): Promise<VerseIndexRow[]> {
-	return (await listDbVerseIndexRowsForTranscriptions(transcriptionIds)).map(mapVerseIndexRow);
+export async function getVerseCountsForTranscriptions(transcriptionIds: string[]) {
+	return listVerseCountsForTranscriptions(transcriptionIds);
 }
 
 export async function getVerseIndexRowsForVerse(

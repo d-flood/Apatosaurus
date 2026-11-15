@@ -10,13 +10,13 @@ import {
 import {
 	cbgmAnalysisFiles,
 	cbgmAnalysisRelativeFiles,
-	collationPrimaryFile,
-	collationPrimaryRelativeFile,
+	joinStorePath,
+	projectFolder,
 	tombstoneFile,
-	transcriptionPrimaryFile,
-	transcriptionPrimaryRelativeFile,
 } from '$lib/storage/layout';
+import { documentCanonicalPath, documentDeletionPaths } from '$lib/storage/document-files';
 import {
+	deleteDirectory,
 	deleteFile,
 	readTextFile,
 	writeTextFileAtomic,
@@ -153,8 +153,10 @@ async function loadTranscriptionDeletionContext(
 		indexEntityId: transcriptionId,
 		projectId: row.project_id,
 		currentRevisionId: row.current_revision_id || '',
-		cloudPath: transcriptionPrimaryRelativeFile(projectTranscriptionId),
-		filePaths: [transcriptionPrimaryFile(projectStorageSlug, projectTranscriptionId)],
+		cloudPath: documentCanonicalPath('transcription', projectTranscriptionId),
+		filePaths: documentDeletionPaths('transcription', projectTranscriptionId).map(path =>
+			projectStorePath(projectStorageSlug, path)
+		),
 		tombstonePath: tombstoneFile(
 			projectStorageSlug,
 			'project-transcription',
@@ -185,8 +187,10 @@ async function loadCollationDeletionContext(
 		indexEntityId: collationId,
 		projectId: row.project_id,
 		currentRevisionId: row.current_revision_id || '',
-		cloudPath: collationPrimaryRelativeFile(collationId),
-		filePaths: [collationPrimaryFile(projectStorageSlug, collationId)],
+		cloudPath: documentCanonicalPath('collation', collationId),
+		filePaths: documentDeletionPaths('collation', collationId).map(path =>
+			projectStorePath(projectStorageSlug, path)
+		),
 		tombstonePath: tombstoneFile(projectStorageSlug, 'collation', collationId),
 	};
 }
@@ -296,6 +300,37 @@ async function deleteEntityIndexRows(
 	context: EntityDeletionContext
 ): Promise<void> {
 	if (context.entityType === 'project-transcription') {
+		await trx
+			.deleteFrom('document_file_fingerprints')
+			.where(eb =>
+				eb.or([
+					eb.and([
+						eb('entity_type', '=', 'transcription'),
+						eb('entity_id', '=', context.entityId),
+					]),
+					eb.and([
+						eb('entity_type', '=', 'version'),
+						eb(
+							'entity_id',
+							'in',
+							eb
+								.selectFrom('transcription_checkpoints')
+								.select('id')
+								.where('transcription_id', '=', context.indexEntityId)
+						),
+					]),
+				])
+			)
+			.execute();
+		await trx
+			.deleteFrom('document_file_problems')
+			.where(eb =>
+				eb.or([
+					eb('path', '=', documentCanonicalPath('transcription', context.entityId)),
+					eb('path', 'like', `history/transcriptions/${context.entityId}/%`),
+				])
+			)
+			.execute();
 		const result = await trx
 			.deleteFrom('transcriptions')
 			.where('id', '=', context.indexEntityId)
@@ -308,6 +343,27 @@ async function deleteEntityIndexRows(
 		await trx.deleteFrom('cbgm_analyses').where('id', '=', context.indexEntityId).execute();
 		return;
 	}
+	await trx
+		.deleteFrom('document_file_fingerprints')
+		.where(eb =>
+			eb.or([
+				eb.and([
+					eb('entity_type', '=', 'collation'),
+					eb('entity_id', '=', context.entityId),
+				]),
+				eb('path', 'like', `history/collations/${context.entityId}/%`),
+			])
+		)
+		.execute();
+	await trx
+		.deleteFrom('document_file_problems')
+		.where(eb =>
+			eb.or([
+				eb('path', '=', documentCanonicalPath('collation', context.entityId)),
+				eb('path', 'like', `history/collations/${context.entityId}/%`),
+			])
+		)
+		.execute();
 	const result = await trx
 		.deleteFrom('collations')
 		.where('id', '=', context.indexEntityId)
@@ -323,7 +379,9 @@ async function deleteEntityFilesBestEffort(
 	const warnings: PersistenceWarning[] = [];
 	for (const path of context.filePaths) {
 		try {
-			await deleteFile(path, storeOptions);
+			if (path.endsWith('/'))
+				await deleteDirectory(path, { ...storeOptions, recursive: true });
+			else await deleteFile(path, storeOptions);
 		} catch (error) {
 			if (isMissingFileError(error)) continue;
 			const message = errorMessage(error);
@@ -346,6 +404,11 @@ async function deleteEntityFilesBestEffort(
 		}
 	}
 	return warnings;
+}
+
+function projectStorePath(projectStorageSlug: string, relativePath: string): string {
+	const path = joinStorePath(projectFolder(projectStorageSlug), relativePath);
+	return relativePath.endsWith('/') ? `${path}/` : path;
 }
 
 function requireString(value: string | null, label: string): string {

@@ -5,7 +5,6 @@
 	import { collationState } from '$lib/collation/collation-state.svelte';
 	import {
 		createCommittedCollationCheckpoint,
-		getCollationVersionStatus,
 		listCollationVersions,
 		loadCollationVersionDocument,
 		replaceCollationCurrent,
@@ -13,7 +12,6 @@
 		subscribeLocalDbInvalidations,
 		updateCollationVersionNote,
 	} from '$lib/db/client';
-	import type { CollationVersionStatus } from '$lib/db/repositories/collations';
 	import CollationStepper from './CollationStepper.svelte';
 	import AutoSaveIndicator from './AutoSaveIndicator.svelte';
 	import EntityHeader from '$lib/shell/components/EntityHeader.svelte';
@@ -33,8 +31,7 @@
 	import Note from 'phosphor-svelte/lib/Note';
 	import Warning from 'phosphor-svelte/lib/Warning';
 
-	let collationVersionStatus = $state<CollationVersionStatus | null>(null);
-	let versionStatusError = $state<string | null>(null);
+	const collationVersionStatus = $derived(collationState.versionStatus);
 	let bulkRefreshInFlight = $state(false);
 	let bulkRefreshError = $state<string | null>(null);
 
@@ -42,11 +39,6 @@
 		const flushed = await collationState.flushPendingSave();
 		if (!flushed) throw new Error('Local save failed. Try again.');
 		if (collationState.collationId !== id) throw new Error('Collation changed. Try again.');
-	}
-
-	async function reloadCollation(id: string) {
-		await collationState.reloadCollation();
-		await loadCollationVersionStatus(id);
 	}
 
 	function versionActionsFor(id: string): VersionActions {
@@ -59,17 +51,16 @@
 					label,
 					commitMessage: note,
 				});
-				await loadCollationVersionStatus(id);
 				return version.warnings?.map(warning => warning.message) ?? [];
 			},
 			async restore(versionId) {
 				await flushCollation(id);
 				const previous = await restoreCollationVersion(id, versionId);
-				await reloadCollation(id);
+				await collationState.reloadCollation();
 				return async () => {
 					await flushCollation(id);
 					await replaceCollationCurrent(id, previous);
-					await reloadCollation(id);
+					await collationState.reloadCollation();
 				};
 			},
 			editNote: (versionId, note) => updateCollationVersionNote(id, versionId, note),
@@ -123,31 +114,12 @@
 		).length ?? 0
 	);
 
-	async function loadCollationVersionStatus(
-		id: string,
-		isCancelled: () => boolean = () => false
-	) {
-		try {
-			const nextStatus = await getCollationVersionStatus(id);
-			if (isCancelled()) return;
-			if (collationState.collationId !== id) return;
-			collationVersionStatus = nextStatus;
-			versionStatusError = null;
-		} catch (err) {
-			if (isCancelled()) return;
-			versionStatusError =
-				err instanceof Error ? err.message : 'Failed to load version status';
-			console.error('Failed to load collation version status:', err);
-		}
-	}
-
 	async function refreshStaleWitnessSources() {
 		if (!collationState.collationId || staleWitnessCount === 0 || bulkRefreshInFlight) return;
 		const confirmed = window.confirm(
 			`Refresh ${staleWitnessCount} stale witness source${staleWitnessCount === 1 ? '' : 's'} from their source? Alignment/readings will be rebuilt.`
 		);
 		if (!confirmed) return;
-		const id = collationState.collationId;
 		bulkRefreshInFlight = true;
 		bulkRefreshError = null;
 		try {
@@ -157,7 +129,6 @@
 			} else {
 				const flushed = await collationState.flushPendingSave();
 				if (!flushed) throw new Error('Local save failed after refreshing witnesses.');
-				await loadCollationVersionStatus(id);
 			}
 		} catch (err) {
 			bulkRefreshError =
@@ -168,24 +139,11 @@
 	}
 
 	$effect(() => {
-		const id = collationState.collationId;
-		let cancelled = false;
-		collationVersionStatus = null;
-		versionStatusError = null;
+		if (!collationState.collationId) return;
 		bulkRefreshError = null;
-		if (!id) {
-			return;
-		}
-		void loadCollationVersionStatus(id, () => cancelled);
-		const unsubscribe = subscribeLocalDbInvalidations(event => {
-			if (event.domain === 'collations') {
-				void loadCollationVersionStatus(id, () => cancelled);
-			}
+		return subscribeLocalDbInvalidations(event => {
+			if (event.domain === 'collations') collationState.handleCollationsInvalidated();
 		});
-		return () => {
-			cancelled = true;
-			unsubscribe();
-		};
 	});
 
 	async function followPhase() {
@@ -318,8 +276,11 @@
 							changedSinceBase={collationVersionStatus.commitState !== 'clean'}
 						/>
 					</div>
-				{:else if versionStatusError}
-					<div class="border-l border-base-300 pl-3" title={versionStatusError}>
+				{:else if collationState.versionStatusError}
+					<div
+						class="border-l border-base-300 pl-3"
+						title={collationState.versionStatusError}
+					>
 						<span class="text-xs text-warning/80">Version status unavailable</span>
 					</div>
 				{/if}

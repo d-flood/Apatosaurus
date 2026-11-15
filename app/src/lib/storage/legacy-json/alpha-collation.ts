@@ -4,7 +4,7 @@ import type { UnitDecisions } from '$lib/collation/collation-decisions';
 import { variationUnitId } from '$lib/collation/collation-unit-id';
 import { hashCanonicalPayload } from '../canonical-json';
 import type { JsonObject } from '../envelope';
-import { readObjectValue, readString, assertContentHashMatches } from './validation';
+import { readObjectValue, readString, assertContentHashMatches } from '../formats/validation';
 
 export const ALPHA_READING_TYPES = [
 	{

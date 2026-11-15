@@ -1,30 +1,15 @@
+import type { CollationDocument as SemanticCollationDocument } from '$lib/collation/collation-document';
+import type { CollationVocabulary } from '$lib/collation/collation-apparatus-tei';
 import {
-	parseCollationDocument,
-	readWitnessSource,
-	type CollationDocument as SemanticCollationDocument,
-} from '$lib/collation/collation-document';
+	parseCollationTeiChanges,
+	parseCollationTeiParts,
+	serializeCollationTei,
+	type CollationRevisionChange,
+	type SerializedCollationTei,
+} from '$lib/collation/collation-document-tei';
 
-import type { DocumentUpgrader, FormatRegistration } from '../migrate-on-read';
 import type { JsonObject } from '../envelope';
-import {
-	readCurrentDraft,
-	readCurrentRevision,
-	readNullableCheckpointReference,
-	type CanonicalCheckpointReference,
-	type CanonicalCurrentDraft,
-	type CanonicalDraftMetadata,
-} from './common';
-import { upgradeAlphaCollation } from './alpha-collation';
-import {
-	assertContentHashMatches,
-	readFiniteNumber,
-	readObjectValue,
-	readString,
-} from './validation';
-
-export const COLLATION_FORMAT = 'apatosaurus.collation';
-export const COLLATION_CURRENT_VERSION = 17;
-const collationUpgraders: DocumentUpgrader[] = [];
+import type { CanonicalCheckpointReference, CanonicalCurrentDraft } from './common';
 
 export type CollationContent = JsonObject & {
 	id: string;
@@ -46,96 +31,6 @@ export type CollationPayload = CollationContent & {
 	conflict_of_collation_id?: string;
 };
 
-function validateCollationPayload(payload: JsonObject): CollationPayload {
-	const record = payload as Record<string, unknown>;
-	return {
-		...readCollationContent(record),
-		based_on_checkpoint: readNullableCheckpointReference(record, 'based_on_checkpoint'),
-		draft: readCurrentDraft(record, 'draft'),
-		created_at: readString(record, 'created_at'),
-		updated_at: readString(record, 'updated_at'),
-		...(record.conflict_of_collation_id === undefined
-			? {}
-			: { conflict_of_collation_id: readString(record, 'conflict_of_collation_id') }),
-	};
-}
-
-async function upgradeCollationV6(payload: JsonObject): Promise<JsonObject> {
-	const { current_revision: _currentRevision, ...content } = payload;
-	const revision = readCurrentRevision(payload, 'current_revision');
-	await assertContentHashMatches(
-		collationPayloadToContent(readCollationContent(content)),
-		revision.content_hash,
-		`Collation ${readString(payload, 'id')}`
-	);
-	return upgradeCollationV7({
-		...content,
-		based_on_checkpoint: { id: revision.id, content_hash: revision.content_hash },
-		draft: { saved_at: readString(payload, 'updated_at'), author_name: null },
-	});
-}
-
-function upgradeCollationV7(payload: JsonObject): JsonObject {
-	const document = readObjectValue(payload.document, 'document');
-	const setup = readObjectValue(document.setup, 'document.setup');
-	const witnesses = Array.isArray(setup.witnesses) ? setup.witnesses : [];
-	const capturedAt = readString(payload, 'updated_at');
-	return {
-		...payload,
-		document: {
-			...document,
-			setup: {
-				...setup,
-				witnesses: witnesses.map(node => {
-					if (!node || typeof node !== 'object' || Array.isArray(node)) return node;
-					const {
-						sourceVersion: _sourceVersion,
-						sourceContentHash: _sourceContentHash,
-						...rest
-					} = node as JsonObject;
-					const source = readWitnessSource(node as JsonObject, capturedAt);
-					return source ? { ...rest, source } : rest;
-				}),
-			},
-		},
-	} as JsonObject;
-}
-
-async function upgradeAlphaCollationToCurrent(payload: JsonObject): Promise<JsonObject> {
-	return upgradeCollationV6(await upgradeAlphaCollation(payload));
-}
-
-export function mergeWorkingCollation(
-	primary: CollationPayload,
-	working: CollationContent & {
-		created_at: string;
-		updated_at: string;
-		draft: CanonicalDraftMetadata;
-	}
-): CollationPayload {
-	return upgradeCollationV7({
-		...collationPayloadToContent(working),
-		based_on_checkpoint: primary.based_on_checkpoint,
-		draft: { saved_at: working.draft.saved_at, author_name: working.draft.author_name },
-		created_at: working.created_at,
-		updated_at: working.updated_at,
-	}) as CollationPayload;
-}
-
-export function readCollationContent(record: Record<string, unknown>): CollationContent {
-	return {
-		id: readString(record, 'id'),
-		project_id: readString(record, 'project_id'),
-		title: readString(record, 'title'),
-		verse_identifier: readString(record, 'verse_identifier'),
-		status: readString(record, 'status'),
-		group_path: readString(record, 'group_path'),
-		notes: readString(record, 'notes'),
-		sort_key: readFiniteNumber(record, 'sort_key'),
-		document: readSemanticDocument(record, 'document'),
-	};
-}
-
 export function collationPayloadToContent(payload: CollationContent): CollationContent {
 	return {
 		id: payload.id,
@@ -150,33 +45,148 @@ export function collationPayloadToContent(payload: CollationContent): CollationC
 	};
 }
 
-export const collationFormatRegistration: FormatRegistration<CollationPayload> = {
-	format: COLLATION_FORMAT,
-	currentVersion: COLLATION_CURRENT_VERSION,
-	upgraders: collationUpgraders,
-	directUpgraders: {
-		2: upgradeAlphaCollationToCurrent,
-		6: upgradeCollationV6,
-		7: upgradeCollationV7,
-		8: payload => payload,
-		9: payload => payload,
-		10: payload => payload,
-		11: payload => payload,
-		12: payload => payload,
-		13: payload => payload,
-		14: payload => payload,
-		15: payload => payload,
-		16: payload => payload,
-	},
-	validate: validateCollationPayload,
-};
+export interface CollationTeiVersion {
+	id: string;
+	label: string;
+	note: string | null;
+	author_name: string;
+	created_at: string;
+	parent_id: string | null;
+}
 
-function readSemanticDocument(
-	record: Record<string, unknown>,
-	key: string
-): SemanticCollationDocument & JsonObject {
-	const value = readObjectValue(record[key], key);
-	const document = parseCollationDocument(value);
-	if (!document) throw new Error(`${key} must be a collation_document_v1 document.`);
-	return document as SemanticCollationDocument & JsonObject;
+const IDNO = {
+	basedOn: 'apatosaurus-based-on',
+	basedOnHash: 'apatosaurus-based-on-hash',
+	version: 'apatosaurus-version',
+	parentVersion: 'apatosaurus-parent-version',
+} as const;
+const VERSION_CHANGE = 'version';
+const BASED_ON_CHANGE = 'based-on';
+
+/**
+ * The collation's TEI file. Record fields go in the working-state layer; the based-on Version
+ * sits in `<revisionDesc>` so it stays out of the content hash.
+ */
+export async function serializeCollationPayloadTei(
+	payload: CollationPayload,
+	vocab: CollationVocabulary,
+	version: CollationTeiVersion | null = null
+): Promise<SerializedCollationTei> {
+	const savedAt = payload.draft.saved_at;
+	const basedOn = payload.based_on_checkpoint;
+	return serializeCollationTei(payload.document, vocab, {
+		notes: payload.notes,
+		record: {
+			id: payload.id,
+			projectId: payload.project_id,
+			title: payload.title,
+			verseIdentifier: payload.verse_identifier,
+			status: payload.status,
+			groupPath: payload.group_path,
+			sortKey: payload.sort_key,
+			notes: payload.notes,
+			...(payload.conflict_of_collation_id
+				? { conflictOf: payload.conflict_of_collation_id }
+				: {}),
+		},
+		changes: [
+			...(payload.created_at ? [{ type: 'created', when: payload.created_at }] : []),
+			...(savedAt || payload.draft.author_name !== null
+				? [{ type: 'saved', when: savedAt, author: payload.draft.author_name }]
+				: []),
+			...(payload.updated_at !== savedAt
+				? [{ type: 'updated', when: payload.updated_at }]
+				: []),
+			...(basedOn
+				? [
+						{
+							type: BASED_ON_CHANGE,
+							idnos: [
+								[IDNO.basedOn, basedOn.id],
+								[IDNO.basedOnHash, basedOn.content_hash],
+							] as const,
+						},
+					]
+				: []),
+			...(version ? [versionChange(version)] : []),
+		],
+	});
+}
+
+export function parseCollationPayloadTei(xml: string): CollationPayload {
+	return parseCollationTeiVersion(xml).payload;
+}
+
+export function parseCollationTeiVersion(xml: string): {
+	payload: CollationPayload;
+	version: CollationTeiVersion | null;
+} {
+	const { document, record, changes } = parseCollationTeiParts(xml);
+	const change = (type: string) => changes.find(entry => entry.type === type);
+	const saved = change('saved');
+	const savedAt = saved?.when ?? '';
+	const basedOn = change(BASED_ON_CHANGE);
+	const basedOnId = idnoOf(basedOn, IDNO.basedOn);
+	const text = (key: string) => String(record[key] ?? '');
+	return {
+		payload: {
+			id: text('id'),
+			project_id: text('projectId'),
+			title: text('title'),
+			verse_identifier: text('verseIdentifier'),
+			status: text('status'),
+			group_path: text('groupPath'),
+			notes: text('notes'),
+			sort_key: Number(record.sortKey ?? 0),
+			document: document as SemanticCollationDocument & JsonObject,
+			based_on_checkpoint: basedOnId
+				? { id: basedOnId, content_hash: idnoOf(basedOn, IDNO.basedOnHash) ?? '' }
+				: null,
+			draft: { saved_at: savedAt, author_name: saved?.author ?? null },
+			created_at: change('created')?.when ?? '',
+			updated_at: change('updated')?.when ?? savedAt,
+			...(record.conflictOf ? { conflict_of_collation_id: text('conflictOf') } : {}),
+		},
+		version: readVersionChange(changes),
+	};
+}
+
+/** Reads the Version record from the header alone, without parsing the body. */
+export function parseCollationTeiVersionHeader(xml: string): CollationTeiVersion | null {
+	return readVersionChange(parseCollationTeiChanges(xml));
+}
+
+export function versionChange(version: CollationTeiVersion): CollationRevisionChange {
+	return {
+		type: VERSION_CHANGE,
+		when: version.created_at,
+		n: version.label,
+		idnos: [
+			[IDNO.version, version.id],
+			[IDNO.parentVersion, version.parent_id],
+		],
+		author: version.author_name || null,
+		note: version.note,
+	};
+}
+
+export function isVersionChange(change: CollationRevisionChange): boolean {
+	return change.type === VERSION_CHANGE;
+}
+
+function readVersionChange(changes: CollationRevisionChange[]): CollationTeiVersion | null {
+	const change = changes.find(isVersionChange);
+	if (!change) return null;
+	return {
+		id: idnoOf(change, IDNO.version) ?? '',
+		label: change.n ?? '',
+		note: change.note ?? null,
+		author_name: change.author ?? '',
+		created_at: change.when ?? '',
+		parent_id: idnoOf(change, IDNO.parentVersion),
+	};
+}
+
+function idnoOf(change: CollationRevisionChange | undefined, type: string): string | null {
+	return change?.idnos?.find(([idnoType]) => idnoType === type)?.[1] ?? null;
 }

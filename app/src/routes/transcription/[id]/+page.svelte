@@ -5,6 +5,7 @@
 		createCommittedTranscriptionCheckpoint,
 		getProjectTranscriptionStatusForOwnedTranscription,
 		getTranscription,
+		listDocumentFileProblems,
 		listTranscriptionVersions,
 		loadTranscriptionVersionContent,
 		replaceTranscriptionCurrent,
@@ -39,6 +40,8 @@
 	import type { PageEditorMetadata } from '$lib/editor/pageFormwork';
 	import TranscriptionEditor from '$lib/editor/components/TranscriptionEditor.svelte';
 	import CheckCircle from 'phosphor-svelte/lib/CheckCircle';
+	import Warning from 'phosphor-svelte/lib/Warning';
+	import type { DocumentFileProblemListing } from '$lib/db/repositories/document-refresh';
 	import { onMount } from 'svelte';
 
 	let { data } = $props();
@@ -88,6 +91,7 @@
 	let transcriptionVersionStatus = $state<ProjectTranscriptionStatus | null>(null);
 	let loadError = $state<string | null>(null);
 	let versionStatusError = $state<string | null>(null);
+	let fileProblem = $state<DocumentFileProblemListing | null>(null);
 	let unsubscribeInvalidations: (() => void) | null = null;
 	let nowMs = $state(Date.now());
 	let hasUnsavedChanges = $state(false);
@@ -277,8 +281,17 @@
 		try {
 			const nextStatus =
 				await getProjectTranscriptionStatusForOwnedTranscription(transcriptionId);
+			const problems = nextStatus?.projectId
+				? await listDocumentFileProblems(nextStatus.projectId)
+				: [];
 			if (isCancelled()) return;
 			transcriptionVersionStatus = nextStatus;
+			fileProblem =
+				problems.find(
+					problem =>
+						problem.entityType === 'transcription' &&
+						problem.projectTranscriptionId === nextStatus?.projectTranscriptionId
+				) ?? null;
 			versionStatusError = null;
 		} catch (err) {
 			if (isCancelled()) return;
@@ -566,6 +579,21 @@
 			</div>
 		</div>
 		<OfflineNotice />
+		{#if fileProblem}
+			<div class="alert alert-error mb-4 items-start text-sm" role="alert">
+				<Warning size={20} weight="fill" class="mt-0.5 shrink-0" aria-hidden="true" />
+				<div class="min-w-0">
+					<p class="font-semibold">Saving is blocked</p>
+					<p class="mt-1">
+						This transcription's TEI file was changed outside the app and no longer
+						parses. The app shows the last version that parsed and leaves the file as it
+						is. Fix the file in your XML editor, then reopen the project.
+					</p>
+					<p class="mt-1 break-all font-mono text-xs">{fileProblem.path}</p>
+					<p class="mt-1 break-words text-xs">{fileProblem.message}</p>
+				</div>
+			</div>
+		{/if}
 		{#if presenceProjectId && presenceDocumentId}
 			{#key `${presenceProjectId}/${presenceDocumentId}`}
 				<EditingNotice projectId={presenceProjectId} documentId={presenceDocumentId} />
@@ -661,6 +689,7 @@
 							statusBarTarget={statusBarHost}
 							{scrollToPageRequest}
 							{scrollToVerseRequest}
+							readOnly={fileProblem !== null}
 						/>
 					{/key}
 				</div>

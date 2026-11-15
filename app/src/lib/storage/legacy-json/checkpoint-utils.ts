@@ -1,5 +1,10 @@
 import type { JsonObject } from '../envelope';
-import { readLiteral, readNullableString, readObjectField, readString } from './validation';
+import {
+	readLiteral,
+	readNullableString,
+	readObjectField,
+	readString,
+} from '../formats/validation';
 
 export const TRANSCRIPTION_HISTORY_ENTITY_TYPE = 'project-transcription';
 export const COLLATION_HISTORY_ENTITY_TYPE = 'collation';

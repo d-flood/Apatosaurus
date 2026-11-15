@@ -40,9 +40,7 @@
 			"source_kind": "iiif",
 			"default_canvas_id": "canvas-1",
 			"default_image_service_url": null,
-			"metadata_json": {
-				"label": "Fixture manifest"
-			}
+			"synthetic_canvases": []
 		}
 	],
 	"page_canvas_links": [

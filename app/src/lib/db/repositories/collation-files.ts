@@ -1,38 +1,19 @@
 import type { Kysely } from 'kysely';
 
 import {
-	COLLATION_CHECKPOINT_CURRENT_VERSION,
-	COLLATION_CHECKPOINT_FORMAT,
-	COLLATION_CURRENT_VERSION,
-	COLLATION_FORMAT,
 	collationPayloadToContent,
-	mergeWorkingCollation,
-	readCanonicalDocument,
-	WORKING_COLLATION_FORMAT,
-	type CollationCheckpointPayload as CanonicalCollationCheckpointPayload,
+	parseCollationTeiVersion,
 	type CollationContent,
 	type CollationPayload,
-	type WorkingCollationPayload,
+	type CollationTeiVersion,
+	serializeCollationPayloadTei,
 } from '$lib/storage/formats';
-import {
-	collationCheckpointFile,
-	collationPrimaryFile,
-	collationTeiFile,
-	collationWorkingFile,
-} from '$lib/storage/layout';
-import {
-	deleteFile,
-	readTextFile,
-	writeTextFileAtomic,
-	type StoreOperationOptions,
-} from '$lib/storage/opfs-store';
+import { joinStorePath, projectFolder } from '$lib/storage/layout';
+import { documentCanonicalPath, documentVersionPath } from '$lib/storage/document-files';
+import { teiContentHash } from '$lib/storage/tei-content';
+import { readTextFile, type StoreOperationOptions } from '$lib/storage/opfs-store';
 import { recordStoreQuarantine, invalidShape, quarantineFromError } from '$lib/storage/quarantine';
-import {
-	sealDocument,
-	serializeSealedDocument,
-	type JsonObject,
-	type JsonValue,
-} from '$lib/storage/envelope';
+import type { JsonObject } from '$lib/storage/envelope';
 import {
 	COLLATION_DOCUMENT_ARTIFACT_TYPE,
 	buildCollationDocument,
@@ -40,22 +21,32 @@ import {
 	serializeCollationDocument,
 	type CollationDocument as SemanticCollationDocument,
 } from '$lib/collation/collation-document';
-import { exportCollationDocumentTei } from '$lib/collation/collation-tei';
+import {
+	rewriteCollationTeiChanges,
+	type CollationRevisionChange,
+} from '$lib/collation/collation-document-tei';
 import { parseProjectCollationSettings } from '$lib/collation/project-settings';
 import type { ProjectCollationSettings } from '$lib/collation/collation-types';
 import { buildCollationProjectionFromDocument } from '$lib/collation/collation-projection';
-import { hashCanonicalPayload } from '$lib/storage/canonical-json';
 import { deriveEntityCloudBackupState } from '$lib/backup/backup-status';
 
 import type { Database } from '../types.generated';
 import { createId } from './id';
+import {
+	assertNoDocumentFileProblem,
+	getCollationContentHash,
+	upsertDocumentFingerprint,
+	writeTeiFile,
+} from './document-fingerprints';
 import { writeProjectManifestFile } from './project-files';
 import { withProjectWriteLock } from './project-locks';
 import {
+	collationIndexRowsFromPayload,
 	createCollation,
 	getCollationWitnessSourceStatuses,
+	loadIndexedCollationPayload,
+	replaceCollationIndexRows,
 	saveCollationProjection,
-	updateCollationMetadata,
 	type CreateCollationInput,
 	type CollationArtifactRecord,
 	type CollationVersionStatus,
@@ -66,15 +57,12 @@ import {
 } from './collations';
 import {
 	getCollationCommittedHead,
+	inTransaction,
 	recordCommittedCollationCheckpoint,
-	loadSerializedCollation,
 	nextCollationVersionLabel,
-	rewriteVersionNote,
 	type CollationCheckpoint,
 	type CommitCollationInput,
-	type PersistenceWarning,
 	type PersistenceResult,
-	type SerializedCollation,
 } from './revisions';
 import type { DbExecutor } from '../worker-kysely';
 
@@ -86,9 +74,23 @@ interface CollationFileContext {
 	currentRevisionId: string | null;
 	currentContentHash: string | null;
 	conflictOfCollationId: string;
+	teiContentHash: string | null;
 	createdAt: string;
 	updatedAt: string;
 }
+
+type CollationRecordRow = Pick<
+	CollationContent,
+	'id' | 'project_id' | 'title' | 'verse_identifier' | 'group_path' | 'notes' | 'sort_key'
+>;
+
+type CollationCommit = CommitCollationInput & {
+	checkpointId: string;
+	label: string;
+	createdAt: string;
+	authorName: string;
+	commitMessage: string | null;
+};
 
 export async function saveWorkingCollationArtifact(
 	db: DbExecutor,
@@ -98,7 +100,7 @@ export async function saveWorkingCollationArtifact(
 	const updatedAt = input.now ?? new Date().toISOString();
 	const [context, collation] = await Promise.all([
 		loadCollationFileContext(db, input.collationId),
-		loadSerializedCollation(db, input.collationId),
+		loadCollationRecordRow(db, input.collationId),
 	]);
 	if (input.artifactType !== COLLATION_DOCUMENT_ARTIFACT_TYPE) {
 		throw new Error(`Unsupported canonical collation document type ${input.artifactType}.`);
@@ -106,16 +108,11 @@ export async function saveWorkingCollationArtifact(
 	const semanticDocument = parseCollationDocument(input.payload);
 	if (!semanticDocument) throw new Error('Invalid collation_document_v1 document.');
 	const artifactId = input.artifactId || crypto.randomUUID();
-	await writeCurrentCollationFiles(
-		context,
+	const content = withMetadata(
 		buildCurrentCollationContent(collation, semanticDocument),
-		updatedAt,
-		storeOptions
+		input.metadata ?? {}
 	);
-	await saveCollationProjection(db, {
-		collationId: input.collationId,
-		...buildCollationProjectionFromDocument(semanticDocument),
-	});
+	await writeTeiCurrent(db, context, currentPayload(context, content, updatedAt), storeOptions);
 	return artifactId;
 }
 
@@ -125,24 +122,116 @@ export async function saveWorkingCollationMetadata(
 	storeOptions: StoreOperationOptions = {}
 ): Promise<void> {
 	const context = await loadCollationFileContext(db, input.id);
-	const source = await tryReadPrimaryCollationPayload(context, storeOptions);
+	const source = await readCurrentPayload(db, context, storeOptions);
 	if (!source) throw new Error(`Canonical collation file for ${input.id} was not found.`);
 	const updatedAt = input.updatedAt ?? new Date().toISOString();
-	await writeCurrentCollationFiles(
-		context,
+	const content = withMetadata(collationPayloadToContent(source), input);
+	await writeTeiCurrent(db, context, currentPayload(context, content, updatedAt), storeOptions, {
+		projection: false,
+	});
+}
+
+function withMetadata(
+	content: CollationContent,
+	metadata: Omit<UpdateCollationMetadataInput, 'id' | 'updatedAt'>
+): CollationContent {
+	return {
+		...content,
+		title: metadata.title ?? content.title,
+		verse_identifier: metadata.verseIdentifier ?? content.verse_identifier,
+		status: metadata.status ?? content.status,
+		notes: metadata.notes ?? content.notes,
+		group_path: metadata.groupPath ?? content.group_path,
+		sort_key: metadata.sortKey ?? content.sort_key,
+	};
+}
+
+// Indexes the payload it writes; parsing the written file yields the same payload.
+async function writeTeiCurrent(
+	db: DbExecutor,
+	context: CollationFileContext,
+	payload: CollationPayload,
+	storeOptions: StoreOperationOptions,
+	{ projection = true }: { projection?: boolean } = {}
+): Promise<void> {
+	const path = documentCanonicalPath('collation', context.collationId);
+	await assertNoDocumentFileProblem(db, path);
+	const fingerprint = await writeTeiFile(
 		{
-			...collationPayloadToContent(source),
-			title: input.title ?? source.title,
-			verse_identifier: input.verseIdentifier ?? source.verse_identifier,
-			status: input.status ?? source.status,
-			notes: input.notes ?? source.notes,
-			group_path: input.groupPath ?? source.group_path,
-			sort_key: input.sortKey ?? source.sort_key,
+			projectSlug: context.projectStorageSlug,
+			path,
+			entityType: 'collation',
+			entityId: context.collationId,
+			...(await serializeCollationPayloadTei(payload, context.projectSettings)),
 		},
-		updatedAt,
 		storeOptions
 	);
-	await updateCollationMetadata(db, input);
+	await inTransaction(db, async trx => {
+		await replaceCollationIndexRows(
+			trx,
+			collationIndexRowsFromPayload(context.projectId, payload)
+		);
+		if (projection)
+			await saveCollationProjection(trx, {
+				collationId: context.collationId,
+				...buildCollationProjectionFromDocument(payload.document),
+			});
+		await upsertDocumentFingerprint(trx, fingerprint);
+	});
+}
+
+async function readCurrentPayload(
+	db: DbExecutor,
+	context: CollationFileContext,
+	storeOptions: StoreOperationOptions
+): Promise<CollationPayload | null> {
+	return (
+		(await loadIndexedCollationPayload(db, context.collationId)) ??
+		readTeiCurrentFile(context, storeOptions)
+	);
+}
+
+async function readTeiCurrentFile(
+	context: CollationFileContext,
+	storeOptions: StoreOperationOptions
+): Promise<CollationPayload | null> {
+	const path = joinStorePath(
+		projectFolder(context.projectStorageSlug),
+		documentCanonicalPath('collation', context.collationId)
+	);
+	try {
+		const payload = parseCollationTeiVersion(await readTextFile(path, storeOptions)).payload;
+		if (payload.id !== context.collationId || payload.project_id !== context.projectId)
+			throw invalidShape('Collation TEI identity does not match its index context.');
+		return payload;
+	} catch (error) {
+		recordStoreQuarantine(storeOptions.quarantineSink, path, quarantineFromError(error));
+		console.warn('[document-store] Could not read canonical collation TEI.', {
+			path,
+			error: errorMessage(error),
+		});
+		return null;
+	}
+}
+
+function currentPayload(
+	context: CollationFileContext,
+	content: CollationContent,
+	updatedAt: string
+): CollationPayload {
+	return {
+		...content,
+		based_on_checkpoint:
+			context.currentRevisionId && context.currentContentHash
+				? { id: context.currentRevisionId, content_hash: context.currentContentHash }
+				: null,
+		draft: { saved_at: updatedAt, author_name: null },
+		created_at: context.createdAt,
+		updated_at: updatedAt,
+		...(context.conflictOfCollationId
+			? { conflict_of_collation_id: context.conflictOfCollationId }
+			: {}),
+	};
 }
 
 export async function createCollationWithFilesResult(
@@ -155,7 +244,10 @@ export async function createCollationWithFilesResult(
 	return db.transaction().execute(async trx => {
 		const id = await createCollation(trx, input);
 		const context = await loadCollationFileContext(trx, id);
-		const projectName = await loadProjectName(trx, context.projectId);
+		const [collation, projectName] = await Promise.all([
+			loadCollationRecordRow(trx, id),
+			loadProjectName(trx, context.projectId),
+		]);
 		const document = buildCollationDocument({
 			collationId: id,
 			projectId: context.projectId,
@@ -180,21 +272,29 @@ export async function createCollationWithFilesResult(
 			alignmentLayout: 'grid',
 		});
 
-		await saveWorkingCollationArtifact(
-			trx,
-			{
-				collationId: id,
-				artifactId: createId(),
-				artifactType: COLLATION_DOCUMENT_ARTIFACT_TYPE,
-				payload: serializeCollationDocument(document),
-				now: context.createdAt,
-			},
-			storeOptions
+		const semanticDocument = parseCollationDocument(serializeCollationDocument(document));
+		if (!semanticDocument) throw new Error('Invalid collation_document_v1 document.');
+		const source = currentPayload(
+			context,
+			buildCurrentCollationContent(collation, semanticDocument),
+			context.createdAt
 		);
-		const checkpoint = await createCommittedCollationCheckpointWithFiles(
-			trx,
-			{ collationId: id, createdAt: context.createdAt },
-			storeOptions
+		const checkpoint = await withProjectWriteLock(context.projectId, async () =>
+			commitTeiCollation(
+				trx,
+				context,
+				source,
+				{
+					collationId: id,
+					checkpointId: createId(),
+					label: await nextCollationVersionLabel(trx, id),
+					createdAt: context.createdAt,
+					authorName: '',
+					commitMessage: null,
+				},
+				storeOptions,
+				{ projection: true }
+			)
 		);
 		return { value: id, warnings: checkpoint.warnings ?? [] };
 	});
@@ -208,101 +308,104 @@ export async function createCommittedCollationCheckpointWithFiles(
 	const lockContext = await loadCollationFileContext(db, input.collationId);
 	return withProjectWriteLock(lockContext.projectId, async () => {
 		const context = await loadCollationFileContext(db, input.collationId);
-		const source = await tryReadPrimaryCollationPayload(context, storeOptions);
+		const source = await readCurrentPayload(db, context, storeOptions);
 		if (!source)
 			throw new Error(`Canonical collation file for ${context.collationId} was not found.`);
-		const payload = collationPayloadToContent(source);
-		const contentHash = await hashCanonicalPayload(payload);
 		const checkpointId = input.checkpointId ?? createId();
 		const createdAt = input.createdAt ?? new Date().toISOString();
 		const authorName = input.authorName ?? '';
 		const commitMessage = input.commitMessage ?? null;
 		const label =
 			input.label?.trim() || (await nextCollationVersionLabel(db, context.collationId));
-		const checkpointPayload: CanonicalCollationCheckpointPayload = {
-			checkpoint_id: checkpointId,
-			entity_type: 'collation',
-			entity_id: payload.id,
-			parent_checkpoint_id: context.currentRevisionId,
-			payload_content_hash: contentHash,
-			label,
-			commit_message: commitMessage,
-			author_name: authorName,
-			created_at: createdAt,
-			metadata_updated_at: createdAt,
-			payload,
-		};
-		const checkpointPath = collationCheckpointFile(
-			context.projectStorageSlug,
-			context.collationId,
-			checkpointId
-		);
-		await assertFileMissing(checkpointPath, storeOptions);
-		await writeSealedJsonFile(
-			checkpointPath,
-			COLLATION_CHECKPOINT_FORMAT,
-			COLLATION_CHECKPOINT_CURRENT_VERSION,
-			checkpointPayload,
-			storeOptions
-		);
-
-		const primaryPayload: CollationPayload = {
-			...source,
-			based_on_checkpoint: { id: checkpointId, content_hash: contentHash },
-		};
-		await writeSealedJsonFile(
-			collationPrimaryFile(context.projectStorageSlug, context.collationId),
-			COLLATION_FORMAT,
-			COLLATION_CURRENT_VERSION,
-			primaryPayload,
-			storeOptions
-		);
-		const teiWarning = await writeDerivedCollationTei(context, primaryPayload, storeOptions);
-		await writeProjectManifestFile(
-			db,
-			context.projectId,
-			{
-				collations: {
-					[context.collationId]: { id: checkpointId, content_hash: contentHash },
-				},
-			},
-			storeOptions
-		);
-
-		const checkpoint = await recordCommittedCollationCheckpoint(
-			db,
-			payload.id,
-			contentHash,
-			payload,
-			{
-				...input,
-				checkpointId,
-				label,
-				createdAt,
-				authorName,
-				commitMessage,
-			}
-		);
-		return { ...checkpoint, warnings: teiWarning ? [teiWarning] : [] };
+		const commit = { ...input, checkpointId, label, createdAt, authorName, commitMessage };
+		return commitTeiCollation(db, context, source, commit, storeOptions);
 	});
 }
 
-async function readCollationVersion(
+async function commitTeiCollation(
+	db: DbExecutor,
 	context: CollationFileContext,
-	collationId: string,
+	source: CollationPayload,
+	commit: CollationCommit,
+	storeOptions: StoreOperationOptions,
+	{ projection = false }: { projection?: boolean } = {}
+): Promise<CollationCheckpoint> {
+	await assertNoDocumentFileProblem(db, documentCanonicalPath('collation', context.collationId));
+	const version = await serializeCollationPayloadTei(
+		{ ...source, based_on_checkpoint: null },
+		context.projectSettings,
+		{
+			id: commit.checkpointId,
+			label: commit.label,
+			note: commit.commitMessage,
+			author_name: commit.authorName,
+			created_at: commit.createdAt,
+			parent_id: context.currentRevisionId,
+		}
+	);
+	const versionPath = documentVersionPath('collation', context.collationId, commit.checkpointId);
+	await assertFileMissing(
+		joinStorePath(projectFolder(context.projectStorageSlug), versionPath),
+		storeOptions
+	);
+	const versionFingerprint = await writeTeiFile(
+		{
+			projectSlug: context.projectStorageSlug,
+			path: versionPath,
+			entityType: 'version',
+			entityId: commit.checkpointId,
+			...version,
+		},
+		storeOptions
+	);
+	const head = { id: commit.checkpointId, content_hash: version.contentHash };
+	await writeTeiCurrent(db, context, { ...source, based_on_checkpoint: head }, storeOptions, {
+		projection,
+	});
+	await upsertDocumentFingerprint(db, versionFingerprint);
+	await writeProjectManifestFile(
+		db,
+		context.projectId,
+		{ collations: { [context.collationId]: head } },
+		storeOptions
+	);
+	const checkpoint = await recordCommittedCollationCheckpoint(
+		db,
+		context.collationId,
+		version.contentHash,
+		collationPayloadToContent(source),
+		commit,
+		context.currentRevisionId
+	);
+	return { ...checkpoint, warnings: [] };
+}
+
+async function readCollationVersionContent(
+	db: DbExecutor,
+	context: CollationFileContext,
 	checkpointId: string,
 	storeOptions: StoreOperationOptions
-): Promise<CanonicalCollationCheckpointPayload> {
-	const path = collationCheckpointFile(context.projectStorageSlug, collationId, checkpointId);
-	const read = await readCanonicalDocument<CanonicalCollationCheckpointPayload>(
-		COLLATION_CHECKPOINT_FORMAT,
-		await readTextFile(path, storeOptions)
+): Promise<{ content: CollationContent; contentHash: string }> {
+	const teiPath = documentVersionPath('collation', context.collationId, checkpointId);
+	const row = await db
+		.selectFrom('collation_checkpoints')
+		.select('content_hash')
+		.where('id', '=', checkpointId)
+		.where('collation_id', '=', context.collationId)
+		.executeTakeFirst();
+	const xml = await readTextFile(
+		joinStorePath(projectFolder(context.projectStorageSlug), teiPath),
+		storeOptions
 	);
-	if (!read.ok) throw new Error(`Invalid version file ${path}: ${read.quarantine.code}`);
-	if (read.payload.entity_id !== collationId) {
-		throw new Error('Version does not belong to this collation.');
-	}
-	return read.payload;
+	const { payload, version } = parseCollationTeiVersion(xml);
+	if (version?.id !== checkpointId || payload.id !== context.collationId)
+		throw new Error(
+			`Collation Version file ${teiPath} does not record Version ${checkpointId}.`
+		);
+	const contentHash = await teiContentHash(xml);
+	if (contentHash !== row?.content_hash)
+		throw new Error('Collation Version file hash does not match the index row.');
+	return { content: collationPayloadToContent(payload), contentHash };
 }
 
 export async function loadCollationVersionDocument(
@@ -316,7 +419,7 @@ export async function loadCollationVersionDocument(
 			.document;
 	}
 	const context = await loadCollationFileContext(db, collationId);
-	return (await readCollationVersion(context, collationId, checkpointId, storeOptions)).payload
+	return (await readCollationVersionContent(db, context, checkpointId, storeOptions)).content
 		.document;
 }
 
@@ -327,19 +430,16 @@ export async function restoreCollationVersion(
 	storeOptions: StoreOperationOptions = {}
 ): Promise<CollationPayload> {
 	const context = await loadCollationFileContext(db, collationId);
-	const previous = await tryReadPrimaryCollationPayload(context, storeOptions);
+	const previous = await readCurrentPayload(db, context, storeOptions);
 	if (!previous) throw new Error(`Current for collation ${collationId} was not found.`);
-	const version = await readCollationVersion(context, collationId, checkpointId, storeOptions);
+	const version = await readCollationVersionContent(db, context, checkpointId, storeOptions);
 	const now = new Date().toISOString();
 	await replaceCollationCurrent(
 		db,
 		collationId,
 		{
-			...version.payload,
-			based_on_checkpoint: {
-				id: version.checkpoint_id,
-				content_hash: version.payload_content_hash,
-			},
+			...version.content,
+			based_on_checkpoint: { id: checkpointId, content_hash: version.contentHash },
 			draft: { saved_at: now, author_name: null },
 			created_at: previous.created_at,
 			updated_at: now,
@@ -363,35 +463,7 @@ export async function replaceCollationCurrent(
 		throw new Error('Current does not belong to this collation.');
 	}
 	await withProjectWriteLock(context.projectId, async () => {
-		await writeSealedJsonFile(
-			collationPrimaryFile(context.projectStorageSlug, collationId),
-			COLLATION_FORMAT,
-			COLLATION_CURRENT_VERSION,
-			payload,
-			storeOptions
-		);
-		await writeDerivedCollationTei(context, payload, storeOptions);
-		await db.transaction().execute(async trx => {
-			await trx
-				.updateTable('collations')
-				.set({
-					current_revision_id: payload.based_on_checkpoint?.id ?? '',
-					current_content_hash: payload.based_on_checkpoint?.content_hash ?? '',
-					title: payload.title,
-					verse_identifier: payload.verse_identifier,
-					status: payload.status,
-					group_path: payload.group_path,
-					notes: payload.notes,
-					sort_key: payload.sort_key,
-					updated_at: payload.updated_at,
-				})
-				.where('id', '=', collationId)
-				.execute();
-			await saveCollationProjection(trx, {
-				collationId,
-				...buildCollationProjectionFromDocument(payload.document),
-			});
-		});
+		await writeTeiCurrent(db, context, payload, storeOptions);
 		await writeProjectManifestFile(db, context.projectId, {}, storeOptions);
 	});
 }
@@ -412,19 +484,52 @@ export async function updateCollationVersionNote(
 		.executeTakeFirst();
 	if (!row) throw new Error(`Version ${checkpointId} was not found.`);
 	await withProjectWriteLock(context.projectId, async () => {
-		const updated = await rewriteVersionNote<CanonicalCollationCheckpointPayload>(
-			collationCheckpointFile(context.projectStorageSlug, collationId, checkpointId),
-			COLLATION_CHECKPOINT_FORMAT,
-			COLLATION_CHECKPOINT_CURRENT_VERSION,
-			{ label: row.label, note, updatedAt: new Date().toISOString() },
+		const updated = await rewriteTeiVersionNote(
+			db,
+			context.projectStorageSlug,
+			documentVersionPath('collation', collationId, checkpointId),
+			checkpointId,
+			row.label,
+			note,
 			storeOptions
 		);
 		await db
 			.updateTable('collation_checkpoints')
-			.set({ label: updated.label, commit_message: updated.commit_message })
+			.set({ label: updated.label, commit_message: updated.note })
 			.where('id', '=', checkpointId)
 			.execute();
 	});
+}
+
+async function rewriteTeiVersionNote(
+	db: DbExecutor,
+	projectSlug: string,
+	path: string,
+	checkpointId: string,
+	label: string,
+	note: string | null,
+	storeOptions: StoreOperationOptions
+): Promise<Pick<CollationTeiVersion, 'label' | 'note'>> {
+	await assertNoDocumentFileProblem(db, path);
+	const storePath = joinStorePath(projectFolder(projectSlug), path);
+	const xml = await readTextFile(storePath, storeOptions);
+	let updated: Pick<CollationTeiVersion, 'label' | 'note'> | null = null;
+	const serialized = await rewriteCollationTeiChanges(xml, changes =>
+		changes.map((change): CollationRevisionChange => {
+			if (change.type !== 'version') return change;
+			updated = { label: change.n || label, note };
+			return { ...change, n: updated.label, note };
+		})
+	);
+	if (!updated) throw new Error(`Invalid version file ${path}: no Version change.`);
+	await upsertDocumentFingerprint(
+		db,
+		await writeTeiFile(
+			{ projectSlug, path, entityType: 'version', entityId: checkpointId, ...serialized },
+			storeOptions
+		)
+	);
+	return updated;
 }
 
 export async function loadCollationWithWorkingFile(
@@ -439,7 +544,7 @@ export async function loadCollationWithWorkingFile(
 		.executeTakeFirst();
 	if (!row) return null;
 	const context = await loadCollationFileContext(db, collationId);
-	const primaryPayload = await tryReadPrimaryCollationPayload(context, storeOptions);
+	const primaryPayload = await readCurrentPayload(db, context, storeOptions);
 	if (primaryPayload) return loadedCollationFromPrimaryPayload(primaryPayload);
 	return null;
 }
@@ -450,17 +555,42 @@ export async function loadCommittedCollationPayloadWithFiles(
 	storeOptions: StoreOperationOptions = {}
 ): Promise<CollationPayload> {
 	const context = await loadCollationFileContext(db, collationId);
-	const payload = await tryReadPrimaryCollationPayload(context, storeOptions);
+	const payload = await readCurrentPayload(db, context, storeOptions);
 	if (!payload)
 		throw new Error(`Canonical committed collation file for ${collationId} was not found.`);
 	return payload;
+}
+
+/** Reads the canonical file itself, parsing TEI rather than using the index's cached document. */
+export async function loadCanonicalCollationPayloadWithFiles(
+	db: Kysely<Database>,
+	collationId: string,
+	storeOptions: StoreOperationOptions = {}
+): Promise<CollationPayload> {
+	const context = await loadCollationFileContext(db, collationId);
+	const payload = await readTeiCurrentFile(context, storeOptions);
+	if (!payload) throw new Error(`Canonical collation file for ${collationId} was not found.`);
+	return payload;
+}
+
+/** The content hash staleness and dirty state compare. */
+export async function loadCollationContentHashWithFiles(
+	db: Kysely<Database>,
+	collationId: string,
+	_storeOptions: StoreOperationOptions = {}
+): Promise<string> {
+	const teiContentHash = await getCollationContentHash(db, collationId);
+	if (teiContentHash === null)
+		throw new Error(`Canonical collation file for ${collationId} was not found.`);
+	await assertNoDocumentFileProblem(db, documentCanonicalPath('collation', collationId));
+	return teiContentHash;
 }
 
 export async function getCollationVersionStatusWithWorkingFile(
 	db: Kysely<Database>,
 	collationId: string,
 	options: CollationVersionStatusOptions = {},
-	storeOptions: StoreOperationOptions = {}
+	_storeOptions: StoreOperationOptions = {}
 ): Promise<CollationVersionStatus> {
 	const row = await db
 		.selectFrom('collations')
@@ -479,8 +609,8 @@ export async function getCollationVersionStatusWithWorkingFile(
 		.executeTakeFirst();
 	if (!row) throw new Error(`Collation ${collationId} was not found.`);
 	const context = await loadCollationFileContext(db, collationId);
-	const primaryPayload = await tryReadPrimaryCollationPayload(context, storeOptions);
-	if (!primaryPayload)
+	const workingContentHash = context.teiContentHash;
+	if (workingContentHash === null)
 		throw new Error(`Canonical collation file for ${collationId} was not found.`);
 	const base = {
 		projectId: row.project_id,
@@ -494,20 +624,18 @@ export async function getCollationVersionStatusWithWorkingFile(
 		currentCheckpoint: await getCollationCommittedHead(db, collationId),
 		witnesses: await getCollationWitnessSourceStatuses(db, collationId),
 	};
-	return collationVersionStatusFromSerialized(db, base, primaryPayload, options);
+	return collationVersionStatusFromHash(db, base, workingContentHash, options);
 }
 
-async function collationVersionStatusFromSerialized(
+async function collationVersionStatusFromHash(
 	db: Kysely<Database>,
 	base: Omit<
 		CollationVersionStatus,
 		'workingContentHash' | 'dirtyToCheckpoint' | 'commitState' | 'cloudBackupState'
 	>,
-	payload: CollationPayload,
+	workingContentHash: string,
 	options: CollationVersionStatusOptions
 ): Promise<CollationVersionStatus> {
-	const content = collationPayloadToContent(payload);
-	const workingContentHash = await hashCanonicalPayload(content);
 	const dirtyToCheckpoint = base.currentCheckpoint
 		? workingContentHash !== base.currentCheckpoint.contentHash
 		: true;
@@ -519,7 +647,7 @@ async function collationVersionStatusFromSerialized(
 	const cloudBackupState = await deriveEntityCloudBackupState(
 		db,
 		options.syncContext,
-		{ entityType: 'collation', entityId: content.id },
+		{ entityType: 'collation', entityId: base.collationId },
 		base.currentCheckpoint,
 		dirtyToCheckpoint
 	);
@@ -578,6 +706,7 @@ async function loadCollationFileContext(
 		.executeTakeFirst();
 	if (!row) throw new Error(`Collation ${collationId} was not found.`);
 	return {
+		teiContentHash: await getCollationContentHash(db, collationId),
 		collationId,
 		projectId: requireString(row.project_id, 'project id'),
 		projectStorageSlug: requireString(row.project_storage_slug, 'project storage slug'),
@@ -590,6 +719,27 @@ async function loadCollationFileContext(
 	};
 }
 
+async function loadCollationRecordRow(
+	db: DbExecutor,
+	collationId: string
+): Promise<CollationRecordRow> {
+	const row = await db
+		.selectFrom('collations')
+		.select([
+			'id',
+			'project_id',
+			'title',
+			'verse_identifier',
+			'group_path',
+			'notes',
+			'sort_key',
+		])
+		.where('id', '=', collationId)
+		.executeTakeFirst();
+	if (!row) throw new Error(`Collation ${collationId} was not found.`);
+	return { ...row, id: requireString(row.id, 'collation id') };
+}
+
 async function loadProjectName(db: DbExecutor, projectId: string): Promise<string | null> {
 	const row = await db
 		.selectFrom('projects')
@@ -597,60 +747,6 @@ async function loadProjectName(db: DbExecutor, projectId: string): Promise<strin
 		.where('id', '=', projectId)
 		.executeTakeFirst();
 	return row?.name ?? null;
-}
-
-async function writeSealedJsonFile<
-	TPayload extends Record<string, JsonValue>,
-	TFormat extends string,
->(
-	path: string,
-	format: TFormat,
-	schemaVersion: number,
-	payload: TPayload,
-	storeOptions: StoreOperationOptions
-): Promise<void> {
-	const document = await sealDocument(format, schemaVersion, payload);
-	await writeTextFileAtomic(path, serializeSealedDocument(document), storeOptions);
-}
-
-async function writeDerivedCollationTei(
-	context: CollationFileContext,
-	payload: CollationPayload,
-	storeOptions: StoreOperationOptions
-): Promise<PersistenceWarning | null> {
-	const { projectStorageSlug, collationId, projectSettings } = context;
-	const path = collationTeiFile(projectStorageSlug, collationId);
-	try {
-		await writeTextFileAtomic(
-			path,
-			exportCollationDocumentTei(payload.document, projectSettings, payload.notes),
-			storeOptions
-		);
-		return null;
-	} catch (error) {
-		try {
-			await deleteFile(path, storeOptions);
-		} catch (deleteError) {
-			if (!isMissingFileError(deleteError)) {
-				console.warn('[document-store] Could not remove stale derived collation TEI.', {
-					collationId,
-					error: errorMessage(deleteError),
-				});
-			}
-		}
-		const message = errorMessage(error);
-		console.warn('[document-store] Could not write derived collation TEI.', {
-			collationId,
-			error: message,
-		});
-		return {
-			code: 'tei_write_failed',
-			entityType: 'collation',
-			entityId: collationId,
-			message,
-			recoverable: true,
-		};
-	}
 }
 
 async function assertFileMissing(path: string, storeOptions: StoreOperationOptions): Promise<void> {
@@ -664,7 +760,7 @@ async function assertFileMissing(path: string, storeOptions: StoreOperationOptio
 }
 
 function buildCurrentCollationContent(
-	collation: SerializedCollation,
+	collation: CollationRecordRow,
 	document: SemanticCollationDocument
 ): CollationContent {
 	return {
@@ -678,159 +774,6 @@ function buildCurrentCollationContent(
 		sort_key: collation.sort_key,
 		document: document as SemanticCollationDocument & JsonObject,
 	};
-}
-
-async function writeCurrentCollationFiles(
-	context: CollationFileContext,
-	content: CollationContent,
-	updatedAt: string,
-	storeOptions: StoreOperationOptions
-): Promise<void> {
-	const payload: CollationPayload = {
-		...content,
-		based_on_checkpoint:
-			context.currentRevisionId && context.currentContentHash
-				? { id: context.currentRevisionId, content_hash: context.currentContentHash }
-				: null,
-		draft: { saved_at: updatedAt, author_name: null },
-		created_at: context.createdAt,
-		updated_at: updatedAt,
-		...(context.conflictOfCollationId
-			? { conflict_of_collation_id: context.conflictOfCollationId }
-			: {}),
-	};
-	await writeSealedJsonFile(
-		collationPrimaryFile(context.projectStorageSlug, context.collationId),
-		COLLATION_FORMAT,
-		COLLATION_CURRENT_VERSION,
-		payload,
-		storeOptions
-	);
-	await writeDerivedCollationTei(context, payload, storeOptions);
-}
-
-async function tryReadWorkingCollationPayload(
-	context: CollationFileContext,
-	storeOptions: StoreOperationOptions
-): Promise<WorkingCollationPayload | null> {
-	const path = collationWorkingFile(context.projectStorageSlug, context.collationId);
-	let raw: string;
-	try {
-		raw = await readTextFile(path, storeOptions);
-	} catch (error) {
-		if (!isMissingFileError(error)) {
-			recordStoreQuarantine(storeOptions.quarantineSink, path, quarantineFromError(error));
-			console.warn('[document-store] Could not read canonical collation content.', {
-				path,
-				error: errorMessage(error),
-			});
-		}
-		return null;
-	}
-	const result = await readCanonicalDocument<WorkingCollationPayload>(
-		WORKING_COLLATION_FORMAT,
-		raw
-	);
-	if (result.ok) {
-		const payload = result.payload;
-		if (payload.id !== context.collationId) {
-			recordStoreQuarantine(
-				storeOptions.quarantineSink,
-				path,
-				quarantineFromError(
-					invalidShape('Collation working identity does not match its index context.')
-				)
-			);
-			console.warn('[document-store] Ignoring mismatched collation working file.', {
-				path,
-				expectedCollationId: context.collationId,
-				actualCollationId: payload.id,
-			});
-			return null;
-		}
-		return payload;
-	}
-	recordStoreQuarantine(storeOptions.quarantineSink, path, result.quarantine);
-	console.warn('[document-store] Ignoring unreadable collation working file.', {
-		path,
-		quarantine: result.quarantine,
-	});
-	return null;
-}
-
-async function tryReadPrimaryCollationPayload(
-	context: CollationFileContext,
-	storeOptions: StoreOperationOptions
-): Promise<CollationPayload | null> {
-	const path = collationPrimaryFile(context.projectStorageSlug, context.collationId);
-	let raw: string;
-	try {
-		raw = await readTextFile(path, storeOptions);
-	} catch (error) {
-		recordStoreQuarantine(storeOptions.quarantineSink, path, quarantineFromError(error));
-		console.warn('[document-store] Could not read canonical collation content.', {
-			path,
-			error: errorMessage(error),
-		});
-		return null;
-	}
-	const result = await readCanonicalDocument<CollationPayload>(COLLATION_FORMAT, raw);
-	if (!result.ok) {
-		recordStoreQuarantine(storeOptions.quarantineSink, path, result.quarantine);
-		console.warn('[document-store] Ignoring unreadable collation primary file.', {
-			path,
-			quarantine: result.quarantine,
-		});
-		return null;
-	}
-	const payload = result.payload;
-	if (payload.id !== context.collationId || payload.project_id !== context.projectId) {
-		recordStoreQuarantine(
-			storeOptions.quarantineSink,
-			path,
-			quarantineFromError(
-				invalidShape('Collation primary identity does not match its index context.')
-			)
-		);
-		console.warn('[document-store] Ignoring mismatched collation primary file.', {
-			path,
-			expectedCollationId: context.collationId,
-			actualCollationId: payload.id,
-			expectedProjectId: context.projectId,
-			actualProjectId: payload.project_id,
-		});
-		return null;
-	}
-	return migrateLegacyWorkingCollation(context, payload, storeOptions);
-}
-
-async function migrateLegacyWorkingCollation(
-	context: CollationFileContext,
-	primary: CollationPayload,
-	storeOptions: StoreOperationOptions
-): Promise<CollationPayload> {
-	const working = await tryReadWorkingCollationPayload(context, storeOptions);
-	if (
-		!working ||
-		working.draft.base_revision_id !== (primary.based_on_checkpoint?.id ?? null) ||
-		working.draft.base_content_hash !== (primary.based_on_checkpoint?.content_hash ?? null)
-	) {
-		return primary;
-	}
-	const current = mergeWorkingCollation(primary, working);
-	await writeSealedJsonFile(
-		collationPrimaryFile(context.projectStorageSlug, context.collationId),
-		COLLATION_FORMAT,
-		COLLATION_CURRENT_VERSION,
-		current,
-		storeOptions
-	);
-	await writeDerivedCollationTei(context, current, storeOptions);
-	await deleteFile(
-		collationWorkingFile(context.projectStorageSlug, context.collationId),
-		storeOptions
-	);
-	return current;
 }
 
 function loadedCollationFromPrimaryPayload(payload: CollationPayload): LoadedCollation {

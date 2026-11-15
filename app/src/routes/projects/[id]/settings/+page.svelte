@@ -1,10 +1,6 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
-	import {
-		listTranscriptions,
-		loadTranscriptionHands,
-		type ProjectTranscriptionOption,
-	} from '$lib/project/projects';
+	import { listTranscriptions, type ProjectTranscriptionOption } from '$lib/project/projects';
 	import {
 		createProjectCollationSettings,
 		parseProjectCollationSettings,
@@ -33,7 +29,7 @@
 	import ProjectTranscriptionRefreshDialog from '$lib/project/components/ProjectTranscriptionRefreshDialog.svelte';
 	import ProjectTranscriptionsEditor from '$lib/project/components/ProjectTranscriptionsEditor.svelte';
 	import ProjectTranscriptionVersionsPanel from '$lib/project/components/ProjectTranscriptionVersionsPanel.svelte';
-	import { onDestroy, onMount, untrack } from 'svelte';
+	import { onMount, untrack } from 'svelte';
 	import type {
 		ProjectRecord,
 		ProjectTranscriptionSourceCandidate,
@@ -117,8 +113,6 @@
 			}
 		})
 	);
-
-	onDestroy(() => bootstrapRunId++);
 
 	function logProjects(
 		level: 'debug' | 'warn' | 'error',
@@ -228,7 +222,6 @@
 				runId,
 				transcriptionCount: transcriptionRows.length,
 			});
-			void loadHandsForSelectedTranscriptions(runId);
 		} catch (err) {
 			if (runId !== bootstrapRunId) return;
 			error = err instanceof Error ? err.message : 'Failed to load transcriptions';
@@ -502,28 +495,6 @@
 			error = err instanceof Error ? err.message : 'Failed to update project transcriptions';
 		} finally {
 			isSavingTranscriptions = false;
-		}
-	}
-
-	async function ensureTranscriptionHands(transcriptionId: string) {
-		const index = allTranscriptions.findIndex(
-			transcription => transcription.id === transcriptionId
-		);
-		if (index === -1 || allTranscriptions[index]!.hands.length > 0) return;
-		const hands = await loadTranscriptionHands(transcriptionId);
-		allTranscriptions = allTranscriptions.map(transcription =>
-			transcription.id === transcriptionId ? { ...transcription, hands } : transcription
-		);
-	}
-
-	async function loadHandsForSelectedTranscriptions(runId: number) {
-		const idsNeedingHands = selectedTranscriptionIds.filter(id => {
-			const transcription = allTranscriptions.find(candidate => candidate.id === id);
-			return transcription && transcription.hands.length === 0;
-		});
-		for (const id of idsNeedingHands) {
-			if (runId !== bootstrapRunId) return;
-			await ensureTranscriptionHands(id);
 		}
 	}
 

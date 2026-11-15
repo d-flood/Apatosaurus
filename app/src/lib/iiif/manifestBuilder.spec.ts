@@ -12,6 +12,7 @@ const manifestSources: ManifestSourceSummary[] = [
 		sourceKind: 'external',
 		defaultCanvasId: null,
 		defaultImageServiceUrl: null,
+		syntheticCanvases: [],
 		manifestJson: {
 			'@context': 'http://iiif.io/api/presentation/3/context.json',
 			id: 'https://example.org/manifest',

@@ -1,11 +1,11 @@
 import type { ProjectManifestPayload } from './project-manifest';
 import type { ProjectTranscriptionPayload } from './project-transcription';
 import type { CollationPayload } from './collation';
-import type { TranscriptionCheckpointPayload } from './checkpoint-transcription';
-import type { CollationCheckpointPayload } from './checkpoint-collation';
+import type { TranscriptionCheckpointPayload } from '../legacy-json/checkpoint-transcription';
+import type { CollationCheckpointPayload } from '../legacy-json/checkpoint-collation';
 import type { TombstonePayload } from './tombstone';
-import type { WorkingTranscriptionPayload } from './working-transcription';
-import type { WorkingCollationPayload } from './working-collation';
+import type { WorkingTranscriptionPayload } from '../legacy-json/working-transcription';
+import type { WorkingCollationPayload } from '../legacy-json/working-collation';
 
 export const PROJECT_MANIFEST_FIXTURE: ProjectManifestPayload = {
 	id: 'project-1',
@@ -78,7 +78,7 @@ export const PROJECT_TRANSCRIPTION_FIXTURE: ProjectTranscriptionPayload = {
 			source_kind: 'iiif',
 			default_canvas_id: 'canvas-1',
 			default_image_service_url: null,
-			metadata_json: { label: 'Fixture manifest' },
+			synthetic_canvases: [],
 		},
 	],
 	page_canvas_links: [

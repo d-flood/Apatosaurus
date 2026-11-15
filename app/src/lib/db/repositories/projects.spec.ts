@@ -1,3 +1,4 @@
+import { verseMilestones } from './verse-milestones.spec-support';
 import {
 	createCollationWithFiles,
 	createTranscriptionWithFiles,
@@ -10,16 +11,15 @@ import type { StoredTranscriptionDocument } from '$lib/transcription/content';
 import {
 	PROJECT_MANIFEST_FORMAT,
 	PROJECT_MANIFEST_CURRENT_VERSION,
-	COLLATION_FORMAT,
-	PROJECT_TRANSCRIPTION_FORMAT,
 	TOMBSTONE_FORMAT,
-	TRANSCRIPTION_CHECKPOINT_FORMAT,
+	parseCollationPayloadTei,
+	parseTranscriptionTei,
+	parseTranscriptionTeiVersion,
 	readCanonicalDocument,
 	type ProjectManifestPayload,
-	type ProjectTranscriptionPayload,
-	type TranscriptionCheckpointPayload,
 	type TombstonePayload,
 } from '$lib/storage/formats';
+import { teiContentHash } from '$lib/storage/tei-content';
 import {
 	StoreMoveUnavailableError,
 	readTextFile,
@@ -29,12 +29,10 @@ import {
 import {
 	normalizeStorePath,
 	projectManifestFile,
-	collationPrimaryFile,
 	collationTeiFile,
 	storePathBasename,
 	storePathDirname,
-	transcriptionCheckpointFile,
-	transcriptionPrimaryFile,
+	transcriptionCheckpointTeiFile,
 	transcriptionTeiFile,
 	transcriptionWorkingFile,
 	tombstoneFile,
@@ -270,6 +268,9 @@ describe('projects repository', () => {
 
 		expect(options.map(option => option.id)).toEqual(['tx-1', 'tx-2']);
 		expect(options[0]).not.toHaveProperty('content_json');
+		expect(options[0].hands).toEqual([
+			{ id: 'firsthand', label: 'firsthand', kind: 'firsthand', isBaseHand: true },
+		]);
 	});
 
 	it('lists project document titles by backup file identity', async () => {
@@ -366,18 +367,19 @@ describe('projects repository', () => {
 			.selectAll()
 			.where('id', '=', copiedId)
 			.executeTakeFirstOrThrow();
-		const primary = await readCanonicalDocument<ProjectTranscriptionPayload>(
-			PROJECT_TRANSCRIPTION_FORMAT,
-			await readTextFile(
-				transcriptionPrimaryFile('target-project', copiedLinkId),
-				storeOptions
-			)
+		const primary = parseTranscriptionTei(
+			await readTextFile(transcriptionTeiFile('target-project', copiedLinkId), storeOptions)
 		);
 		const manifest = await readCanonicalDocument<ProjectManifestPayload>(
 			PROJECT_MANIFEST_FORMAT,
 			await readTextFile(projectManifestFile('target-project'), storeOptions)
 		);
 
+		expect(
+			[...backend.files.keys()].filter(
+				path => path.includes(copiedLinkId) && path.endsWith('.json')
+			)
+		).toEqual([]);
 		expect(copied).toMatchObject({
 			project_id: 'target-project',
 			origin_project_id: 'source-project',
@@ -386,14 +388,11 @@ describe('projects repository', () => {
 			current_content_hash: expect.stringMatching(/^sha256:/),
 		});
 		expect(primary).toMatchObject({
-			ok: true,
-			payload: {
-				id: copiedId,
-				project_transcription_id: copiedLinkId,
-				origin: {
-					source_project_id: 'source-project',
-					source_transcription_id: 'tx-1',
-				},
+			id: copiedId,
+			project_transcription_id: copiedLinkId,
+			origin: {
+				source_project_id: 'source-project',
+				source_transcription_id: 'tx-1',
 			},
 		});
 		expect(manifest).toMatchObject({
@@ -402,7 +401,7 @@ describe('projects repository', () => {
 		});
 		await expect(
 			readTextFile(
-				transcriptionCheckpointFile(
+				transcriptionCheckpointTeiFile(
 					'target-project',
 					copiedLinkId,
 					copied.current_revision_id
@@ -652,7 +651,7 @@ describe('projects repository', () => {
 			.values({
 				target_id: syncContext.connectionId,
 				project_id: syncContext.projectId,
-				file_path: `transcriptions/${projectTranscriptionId}.json`,
+				file_path: `transcriptions/${projectTranscriptionId}.tei.xml`,
 				local_content_hash: '',
 				local_size: 0,
 				local_modified_at: '',
@@ -675,7 +674,7 @@ describe('projects repository', () => {
 				status: 'backed-up',
 				lastSyncedRevision: 'tx-cp-1',
 				lastSyncedHash: checkpoint.contentHash,
-				cloudPath: `transcriptions/${projectTranscriptionId}.json`,
+				cloudPath: `transcriptions/${projectTranscriptionId}.tei.xml`,
 			},
 		});
 
@@ -861,7 +860,9 @@ describe('projects repository', () => {
 			updated_at: '2026-06-20T12:00:00.000Z',
 		});
 		expect(refreshedRow.content_json).not.toBe('');
-		expect(JSON.parse(refreshedRow.content_json)).toEqual(JSON.parse(sourceRow.content_json));
+		expect(documentBody(refreshedRow.content_json)).toEqual(
+			documentBody(sourceRow.content_json)
+		);
 		expect(linkRows).toHaveLength(1);
 		expect(linkRows[0]).toMatchObject({
 			id: projectTranscriptionBId,
@@ -874,7 +875,7 @@ describe('projects repository', () => {
 			throw new Error('missing refresh files');
 		await expect(
 			readTextFile(
-				transcriptionCheckpointFile(
+				transcriptionCheckpointTeiFile(
 					targetProject.storageSlug,
 					projectTranscriptionBId,
 					refreshed.currentCheckpoint.revisionId
@@ -884,16 +885,10 @@ describe('projects repository', () => {
 		).resolves.toContain('Refresh from source');
 		await expect(
 			readTextFile(
-				transcriptionPrimaryFile(targetProject.storageSlug, projectTranscriptionBId),
-				storeOptions
-			)
-		).resolves.toContain(refreshed.currentCheckpoint.revisionId);
-		await expect(
-			readTextFile(
 				transcriptionTeiFile(targetProject.storageSlug, projectTranscriptionBId),
 				storeOptions
 			)
-		).resolves.toContain('<TEI');
+		).resolves.toContain(refreshed.currentCheckpoint.revisionId);
 		await expect(
 			readTextFile(projectManifestFile(targetProject.storageSlug), storeOptions)
 		).resolves.toContain(refreshed.currentCheckpoint.revisionId);
@@ -993,7 +988,7 @@ describe('projects repository', () => {
 
 	it.each([
 		['history', 'history/transcriptions/'],
-		['primary', '/transcriptions/', '.json.tmp-'],
+		['primary', '/transcriptions/', '.tei.xml.tmp-'],
 		['manifest', 'project.json.tmp-'],
 	])(
 		'keeps refresh index state old when the replacement %s write fails',
@@ -1046,7 +1041,7 @@ describe('projects repository', () => {
 		const storeOptions = { backend: projectBackend };
 		await createCommittedSourceProject(storeOptions);
 		await createProject(harness.db, { id: 'project-b', name: 'Project B' });
-		projectBackend.failWritePathParts = ['/transcriptions/', '.json.tmp-'];
+		projectBackend.failWritePathParts = ['/transcriptions/', '.tei.xml.tmp-'];
 
 		await expect(
 			addProjectTranscriptionFromProject(
@@ -1061,7 +1056,7 @@ describe('projects repository', () => {
 	it('does not publish a fork project when canonical entity creation fails', async () => {
 		const storeOptions = { backend: projectBackend };
 		await createCommittedSourceProject(storeOptions);
-		projectBackend.failWritePathParts = ['/transcriptions/', '.json.tmp-'];
+		projectBackend.failWritePathParts = ['/transcriptions/', '.tei.xml.tmp-'];
 
 		await expect(
 			forkProject(
@@ -1347,7 +1342,7 @@ describe('projects repository', () => {
 			current_revision_id: expect.any(String),
 			current_content_hash: expect.stringMatching(/^sha256:/),
 		});
-		expect(JSON.parse(targetRow.content_json)).toEqual(JSON.parse(sourceRow.content_json));
+		expect(documentBody(targetRow.content_json)).toEqual(documentBody(sourceRow.content_json));
 		expect(targetVerseRows.map(row => row.verse_identifier)).toEqual(['Romans 1:2']);
 		expect(linkRows).toHaveLength(1);
 		expect(linkRows[0]).toMatchObject({
@@ -1362,7 +1357,7 @@ describe('projects repository', () => {
 		const targetProject = await getProject(harness.db, 'project-b');
 		if (!targetProject) throw new Error('target project was not found');
 		const historyRaw = await readTextFile(
-			transcriptionCheckpointFile(
+			transcriptionCheckpointTeiFile(
 				targetProject.storageSlug,
 				result.projectTranscriptionId,
 				targetRow.current_revision_id
@@ -1370,43 +1365,29 @@ describe('projects repository', () => {
 			storeOptions
 		);
 		const primaryRaw = await readTextFile(
-			transcriptionPrimaryFile(targetProject.storageSlug, result.projectTranscriptionId),
+			transcriptionTeiFile(targetProject.storageSlug, result.projectTranscriptionId),
 			storeOptions
 		);
 		const manifestRaw = await readTextFile(
 			projectManifestFile(targetProject.storageSlug),
 			storeOptions
 		);
-		const history = await readCanonicalDocument<TranscriptionCheckpointPayload>(
-			TRANSCRIPTION_CHECKPOINT_FORMAT,
-			historyRaw
-		);
-		const primary = await readCanonicalDocument<ProjectTranscriptionPayload>(
-			PROJECT_TRANSCRIPTION_FORMAT,
-			primaryRaw
-		);
 		const manifest = await readCanonicalDocument<ProjectManifestPayload>(
 			PROJECT_MANIFEST_FORMAT,
 			manifestRaw
 		);
-		expect(history).toMatchObject({
-			ok: true,
-			payload: {
-				checkpoint_id: targetRow.current_revision_id,
-				entity_id: result.projectTranscriptionId,
-			},
+		expect(parseTranscriptionTeiVersion(historyRaw)).toMatchObject({
+			projectTranscriptionId: result.projectTranscriptionId,
+			version: { id: targetRow.current_revision_id },
 		});
-		expect(primary).toMatchObject({
-			ok: true,
-			payload: {
-				project_transcription_id: result.projectTranscriptionId,
-				id: result.projectOwnedTranscriptionId,
-				origin: {
-					source_project_id: 'project-a',
-					source_transcription_id: snapshotAId,
-					source_revision_id: 'src-cp-1',
-					source_content_hash: sourceCheckpoint.contentHash,
-				},
+		expect(parseTranscriptionTei(primaryRaw)).toMatchObject({
+			project_transcription_id: result.projectTranscriptionId,
+			id: result.projectOwnedTranscriptionId,
+			origin: {
+				source_project_id: 'project-a',
+				source_transcription_id: snapshotAId,
+				source_revision_id: 'src-cp-1',
+				source_content_hash: sourceCheckpoint.contentHash,
 			},
 		});
 		expect(manifest).toMatchObject({
@@ -1423,12 +1404,6 @@ describe('projects repository', () => {
 				],
 			},
 		});
-		await expect(
-			readTextFile(
-				transcriptionTeiFile(targetProject.storageSlug, result.projectTranscriptionId),
-				storeOptions
-			)
-		).resolves.toContain('<TEI');
 	});
 
 	it('does not mutate the source project during add-from-project', async () => {
@@ -1506,6 +1481,74 @@ describe('projects repository', () => {
 			.where('transcription_id', '=', copied.projectOwnedTranscriptionId)
 			.execute();
 		expect(verseRows.map(row => row.verse_identifier)).toEqual(['Romans 1:1']);
+	});
+
+	it('refreshes from a TEI-canonical source Current by its content hash', async () => {
+		const storeOptions = { backend: projectBackend };
+		await createCommittedSourceProject(storeOptions);
+		await createProject(
+			harness.db,
+			{ id: 'project-b', storageSlug: 'project-b', name: 'Project B' },
+			storeOptions
+		);
+		const copied = await addProjectTranscriptionFromProject(
+			harness.db,
+			{ targetProjectId: 'project-b', sourceProjectTranscriptionId: 'pt-a' },
+			{ storeOptions }
+		);
+		const sourceHash = async () =>
+			teiContentHash(
+				await readTextFile(transcriptionTeiFile('project-a', 'pt-a'), storeOptions)
+			);
+		const copiedStatus = () =>
+			getProjectTranscriptionStatus(harness.db, copied.projectTranscriptionId);
+
+		expect(await copiedStatus()).toMatchObject({
+			commitState: 'clean',
+			immediateSource: { sourceContentHash: await sourceHash() },
+			sourceState: { kind: 'up-to-date' },
+		});
+
+		await saveWorkingTranscriptionContent(
+			harness.db,
+			{ id: 'tx-1', document: documentWithVerses(['Romans 1:5']) },
+			storeOptions
+		);
+		expect((await copiedStatus()).sourceState.kind).toBe('source-changed');
+
+		const refreshed = await refreshProjectTranscription(
+			harness.db,
+			{
+				projectTranscriptionId: copied.projectTranscriptionId,
+				sourceTranscriptionId: 'tx-1',
+				sourceVersionId: null,
+			},
+			{ storeOptions }
+		);
+
+		expect(refreshed).toMatchObject({
+			commitState: 'clean',
+			immediateSource: { sourceContentHash: await sourceHash() },
+			sourceState: { kind: 'up-to-date' },
+		});
+		const targetSlug = (await getProject(harness.db, 'project-b'))!.storageSlug;
+		expect(
+			parseTranscriptionTei(
+				await readTextFile(
+					transcriptionTeiFile(targetSlug, copied.projectTranscriptionId),
+					storeOptions
+				)
+			).origin
+		).toMatchObject({
+			source_transcription_id: 'tx-1',
+			source_content_hash: await sourceHash(),
+		});
+		const verseRows = await harness.db
+			.selectFrom('transcription_verse_index')
+			.select('verse_identifier')
+			.where('transcription_id', '=', copied.projectOwnedTranscriptionId)
+			.execute();
+		expect(verseRows.map(row => row.verse_identifier)).toEqual(['Romans 1:5']);
 	});
 
 	it('blocks add-from-project when the source is in the same project', async () => {
@@ -1707,43 +1750,32 @@ describe('projects repository', () => {
 				},
 			},
 		});
-		const forkCollation = await readCanonicalDocument(
-			COLLATION_FORMAT,
+		const forkCollation = parseCollationPayloadTei(
 			await readTextFile(
-				collationPrimaryFile(forkedProject!.storageSlug, fork.collationIds[0]!),
+				collationTeiFile(forkedProject!.storageSlug, fork.collationIds[0]!),
 				storeOptions
 			)
 		);
 		expect(forkCollation).toMatchObject({
-			ok: true,
-			payload: {
-				id: fork.collationIds[0],
-				project_id: fork.projectId,
-				document: {
-					meta: { collationId: fork.collationIds[0], projectId: fork.projectId },
-				},
+			id: fork.collationIds[0],
+			project_id: fork.projectId,
+			document: {
+				meta: { collationId: fork.collationIds[0], projectId: fork.projectId },
 			},
 		});
-		const forkTranscription = await readCanonicalDocument<ProjectTranscriptionPayload>(
-			PROJECT_TRANSCRIPTION_FORMAT,
+		const forkTranscription = parseTranscriptionTei(
 			await readTextFile(
-				transcriptionPrimaryFile(
-					forkedProject!.storageSlug,
-					fork.projectTranscriptionIds[0]!
-				),
+				transcriptionTeiFile(forkedProject!.storageSlug, fork.projectTranscriptionIds[0]!),
 				storeOptions
 			)
 		);
 		expect(forkTranscription).toMatchObject({
-			ok: true,
-			payload: {
-				id: fork.projectOwnedTranscriptionIds[0],
-				project_transcription_id: fork.projectTranscriptionIds[0],
-				origin: {
-					source_type: '',
-					source_project_id: null,
-					source_transcription_id: null,
-				},
+			id: fork.projectOwnedTranscriptionIds[0],
+			project_transcription_id: fork.projectTranscriptionIds[0],
+			origin: {
+				source_type: '',
+				source_project_id: null,
+				source_transcription_id: null,
 			},
 		});
 		await expect(
@@ -1854,6 +1886,17 @@ function baseTranscription(id: string, siglum: string) {
 	};
 }
 
+// The parsed TEI header in content_json names each copy's own ids.
+function documentBody(contentJson: string): unknown {
+	const {
+		teiHeader: _teiHeader,
+		metadata: _metadata,
+		header: _header,
+		...body
+	} = JSON.parse(contentJson);
+	return body;
+}
+
 function documentWithVerses(verses: string[]): StoredTranscriptionDocument {
 	return {
 		type: 'transcriptionDocument' as const,
@@ -1869,15 +1912,7 @@ function documentWithVerses(verses: string[]): StoredTranscriptionDocument {
 							{
 								type: 'line',
 								number: 1,
-								items: verses.map(value => {
-									const [book = '', chapterVerse = ''] = value.split(' ');
-									const [chapter = '', verse = ''] = chapterVerse.split(':');
-									return {
-										type: 'milestone' as const,
-										kind: 'verse' as const,
-										attrs: { book, chapter, verse },
-									};
-								}),
+								items: verseMilestones(verses),
 							},
 						],
 					},

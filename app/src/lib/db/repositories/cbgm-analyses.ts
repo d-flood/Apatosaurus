@@ -31,7 +31,11 @@ import { effectiveAuthorName } from '$lib/backup/version-author';
 
 import type { CbgmAnalyses, Database } from '../types.generated';
 import type { DbExecutor } from '../worker-kysely';
-import { loadCommittedCollationPayloadWithFiles } from './collation-files';
+import {
+	loadCanonicalCollationPayloadWithFiles,
+	loadCollationContentHashWithFiles,
+} from './collation-files';
+import { getCollationContentHash } from './document-fingerprints';
 import { createId } from './id';
 import { withProjectWriteLock } from './project-locks';
 
@@ -239,12 +243,14 @@ export async function loadCollationSnapshots(
 	}
 	const results = await Promise.allSettled(
 		chosen.map(async row => {
-			const payload = await loadCommittedCollationPayloadWithFiles(db, row.id, storeOptions);
+			const payload = await loadCanonicalCollationPayloadWithFiles(db, row.id, storeOptions);
 			return {
 				collationId: payload.id,
 				title: payload.title,
 				segmentName: payload.document.setup.segment.name,
-				contentHash: await hashCanonicalPayload(collationPayloadToContent(payload)),
+				contentHash:
+					(await getCollationContentHash(db, row.id)) ??
+					(await hashCanonicalPayload(collationPayloadToContent(payload))),
 				document: payload.document,
 			};
 		})
@@ -298,13 +304,10 @@ export async function readCurrentCollationHashes(
 				return;
 			}
 			try {
-				const payload = await loadCommittedCollationPayloadWithFiles(
+				result.hashes[collationId] = await loadCollationContentHashWithFiles(
 					db,
 					collationId,
 					storeOptions
-				);
-				result.hashes[collationId] = await hashCanonicalPayload(
-					collationPayloadToContent(payload)
 				);
 			} catch {
 				result.unavailable.push(collationId);

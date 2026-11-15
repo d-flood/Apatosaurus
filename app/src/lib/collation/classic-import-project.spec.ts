@@ -5,6 +5,26 @@ import type { CollationDocument } from './collation-document';
 import { importClassicCollationProject } from './classic-import-project';
 import { parseClassicCollationExport, buildClassicBaseTranscription } from './classic-import';
 import { collationState } from './collation-state.svelte';
+import {
+	createLocalDbTestHarness,
+	createTranscriptionWithFiles,
+} from '$lib/testing/local-db-harness';
+import { MemoryStoreBackend } from '$lib/storage/memory-store-backend.spec-support';
+import { readTextFile } from '$lib/storage/opfs-store';
+import { collationTeiFile, projectManifestFile } from '$lib/storage/layout';
+import {
+	PROJECT_MANIFEST_FORMAT,
+	parseCollationPayloadTei,
+	readCanonicalDocument,
+	type ProjectManifestPayload,
+} from '$lib/storage/formats';
+import { createProject, updateProjectMetadata } from '$lib/db/repositories/projects';
+import {
+	createCollationWithFilesResult,
+	getCollationVersionStatusWithWorkingFile,
+	saveWorkingCollationArtifact,
+	saveWorkingCollationMetadata,
+} from '$lib/db/repositories/collation-files';
 
 const { db } = vi.hoisted(() => ({
 	db: {
@@ -12,9 +32,8 @@ const { db } = vi.hoisted(() => ({
 		getNextCollationSortKey: vi.fn(),
 		listProjectTranscriptionOptions: vi.fn(),
 		createTranscription: vi.fn(),
-		getCurrentTranscriptionsByIds: vi.fn(),
+		getCurrentVerseSources: vi.fn(),
 		getVerseIndexRowsForVerse: vi.fn(),
-		listVerseIndexRowsForTranscriptions: vi.fn(),
 		getProjectTranscriptionIds: vi.fn(),
 		createCollation: vi.fn(),
 		saveCollationArtifact: vi.fn(),
@@ -23,6 +42,7 @@ const { db } = vi.hoisted(() => ({
 		deleteCollation: vi.fn(),
 		deleteTranscription: vi.fn(),
 		loadCollation: vi.fn(),
+		refreshChangedDocumentFiles: vi.fn(),
 	},
 }));
 vi.mock('$lib/db/client', () => db);
@@ -90,18 +110,20 @@ beforeEach(() => {
 		records.push({ id, siglum: input.siglum, content_json: input.contentJson });
 		return id;
 	});
-	db.getCurrentTranscriptionsByIds.mockImplementation(async ids =>
+	db.getCurrentVerseSources.mockImplementation(async (_verse, ids) =>
 		records
 			.filter(record => ids.includes(record.id))
-			.map(transcription => ({ transcription, contentHash: 'hash' }))
+			.map(record => ({
+				transcriptionId: record.id,
+				siglum: record.siglum,
+				document: JSON.parse(record.content_json),
+				contentHash: 'hash',
+			}))
 	);
 	db.getVerseIndexRowsForVerse.mockImplementation(async (verse, ids) =>
 		indexRows().filter(
 			row => row.verse_identifier === verse && (!ids || ids.includes(row.transcription_id))
 		)
-	);
-	db.listVerseIndexRowsForTranscriptions.mockImplementation(async ids =>
-		indexRows().filter(row => ids.includes(row.transcription_id))
 	);
 	db.getProjectTranscriptionIds.mockImplementation(async () => records.map(record => record.id));
 	db.createCollation.mockImplementation(async input => input.id);
@@ -323,8 +345,10 @@ it('keeps classic sections, order, notes and descriptions with the imported coll
 		Object.values(saved.at(-1)!.apparatus!.units).find(unit => unit.decisions.readingNotes)
 			?.decisions.readingNotes
 	).toEqual({ [reading.id]: 'Revised' });
-	expect(db.updateCollationMetadata).toHaveBeenLastCalledWith(
-		expect.objectContaining({ notes: 'Edited verse note' })
+	expect(db.saveCollationArtifact).toHaveBeenLastCalledWith(
+		expect.objectContaining({
+			metadata: expect.objectContaining({ notes: 'Edited verse note' }),
+		})
 	);
 	collationState.setReadingNote(span.unitId, reading.id, ' ');
 	expect(
@@ -334,6 +358,76 @@ it('keeps classic sections, order, notes and descriptions with the imported coll
 	expect(
 		collationState.peekReadingsForUnit(span.unitId).find(item => item.id === reading.id)?.note
 	).toBe('Revised');
+});
+
+it('writes imported collations as TEI-canonical collations', async () => {
+	const source = parseClassicCollationExport(fixture);
+	await importClassicCollationProject({
+		projectId: 'project',
+		source,
+		baseSiglum: 'A',
+		title: 'Classic base',
+		defaults,
+	});
+	const harness = createLocalDbTestHarness();
+	const storeOptions = { backend: new MemoryStoreBackend() };
+	// The transcription TEI parser needs Node beside the stubbed DOMParser.
+	vi.stubGlobal('Node', { ELEMENT_NODE: 1, TEXT_NODE: 3 });
+	try {
+		await createProject(
+			harness.db,
+			{ id: 'project', storageSlug: 'project', name: 'Project' },
+			storeOptions
+		);
+		await updateProjectMetadata(
+			harness.db,
+			db.updateProjectMetadata.mock.calls[0][0],
+			storeOptions
+		);
+		for (const [index, [input]] of db.createTranscription.mock.calls.entries())
+			await createTranscriptionWithFiles(
+				harness.db,
+				{ ...input, id: records[index].id, projectId: 'project' },
+				storeOptions
+			);
+		for (const [input] of db.createCollation.mock.calls)
+			await createCollationWithFilesResult(harness.db, input, storeOptions);
+		for (const [input] of db.saveCollationArtifact.mock.calls)
+			await saveWorkingCollationArtifact(harness.db, input, storeOptions);
+		for (const [input] of db.updateCollationMetadata.mock.calls)
+			await saveWorkingCollationMetadata(harness.db, input, storeOptions);
+
+		const files = [...storeOptions.backend.files.keys()];
+		const manifest = await readCanonicalDocument<ProjectManifestPayload>(
+			PROJECT_MANIFEST_FORMAT,
+			await readTextFile(projectManifestFile('project'), storeOptions)
+		);
+		expect(saved).toHaveLength(2);
+		expect(manifest.ok && manifest.payload.collations.map(head => head.primary_path)).toEqual(
+			saved.map(document => `collations/${document.meta.collationId}.tei.xml`).sort()
+		);
+		for (const [index, document] of saved.entries()) {
+			const id = document.meta.collationId!;
+			expect(
+				files.filter(path => path.includes(`collations/${id}`) && path.endsWith('.json'))
+			).toEqual([]);
+			const payload = parseCollationPayloadTei(
+				await readTextFile(collationTeiFile('project', id), storeOptions)
+			);
+			expect(payload.document).toEqual(document);
+			expect(payload).toMatchObject({
+				status: 'complete',
+				group_path: source.verses[index].section ?? '',
+			});
+			expect(
+				(await getCollationVersionStatusWithWorkingFile(harness.db, id, {}, storeOptions))
+					.commitState
+			).toBe('dirty');
+		}
+	} finally {
+		Reflect.deleteProperty(globalThis, 'Node');
+		await harness.destroy();
+	}
 });
 
 it('keeps an existing project description', async () => {

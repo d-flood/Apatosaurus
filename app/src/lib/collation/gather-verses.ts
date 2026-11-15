@@ -1,7 +1,4 @@
-import {
-	getVerseIndexRows,
-	getVerseIndexRowsForTranscriptions,
-} from '$lib/transcription/verse-index';
+import { getVerseCountsForTranscriptions, getVerseIndexRows } from '$lib/transcription/verse-index';
 
 export interface VerseNode {
 	book: string;
@@ -70,15 +67,18 @@ export function sortVerses(verses: AggregatedVerse[]): AggregatedVerse[] {
 }
 
 export async function gatherVerses(transcriptionIds?: string[]): Promise<AggregatedVerse[]> {
-	const uniqueTranscriptionIds = Array.isArray(transcriptionIds)
-		? [...new Set(transcriptionIds.map(id => id.trim()).filter(Boolean))]
-		: [];
-	const rows =
-		transcriptionIds === undefined
-			? await getVerseIndexRows()
-			: uniqueTranscriptionIds.length > 0
-				? await getVerseIndexRowsForTranscriptions(uniqueTranscriptionIds)
-				: [];
-	const verses = rows.map(row => ({ book: row.book, chapter: row.chapter, verse: row.verse }));
-	return sortVerses([...aggregateVerses(verses).values()]);
+	if (transcriptionIds === undefined) {
+		const rows = await getVerseIndexRows();
+		const verses = rows.map(row => ({
+			book: row.book,
+			chapter: row.chapter,
+			verse: row.verse,
+		}));
+		return sortVerses([...aggregateVerses(verses).values()]);
+	}
+	const uniqueTranscriptionIds = [
+		...new Set(transcriptionIds.map(id => id.trim()).filter(Boolean)),
+	];
+	if (uniqueTranscriptionIds.length === 0) return [];
+	return sortVerses(await getVerseCountsForTranscriptions(uniqueTranscriptionIds));
 }

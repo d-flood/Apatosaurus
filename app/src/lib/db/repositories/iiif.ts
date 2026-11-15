@@ -1,8 +1,10 @@
 import type { Kysely, Selectable } from 'kysely';
 import type { W3CAnnotation, W3CAnnotationBody } from '@triiiceratops/plugin-annotation-editor';
 
+import { isSyntheticManifestUrl, syntheticCanvasesFromManifest } from '$lib/iiif/syntheticManifest';
 import type {
 	AnnotationAnchor,
+	IiifSyntheticCanvas,
 	ManifestSourceSummary,
 	PageCanvasLink,
 	SavePageCanvasLinkInput,
@@ -13,7 +15,9 @@ import type {
 	IiifManifestSources,
 	TranscriptionPageCanvasLinks,
 } from '../types.generated';
-import { requireId } from './id';
+import { createId, requireId } from './id';
+import type { ProjectTranscriptionSnapshot } from './revisions';
+import { cacheManifest, parseCachedManifestMetadata } from './iiif-manifest-cache';
 import type { DbExecutor } from '../worker-kysely';
 
 export interface EnsureManifestSourceInput {
@@ -67,11 +71,9 @@ export async function listManifestSources(
 	db: DbExecutor,
 	transcriptionId: string
 ): Promise<ManifestSourceSummary[]> {
-	const rows = await db
-		.selectFrom('iiif_manifest_sources')
-		.selectAll()
-		.where('transcription_id', '=', transcriptionId)
-		.orderBy('updated_at', 'desc')
+	const rows = await selectManifestSources(db)
+		.where('iiif_manifest_sources.transcription_id', '=', transcriptionId)
+		.orderBy('iiif_manifest_sources.updated_at', 'desc')
 		.execute();
 	return rows.map(rowToManifestSource);
 }
@@ -82,19 +84,14 @@ export async function ensureManifestSource(
 ): Promise<ManifestSourceSummary> {
 	const existing = await db
 		.selectFrom('iiif_manifest_sources')
-		.selectAll()
+		.select(['id', 'created_at', 'synthetic_canvases_json'])
 		.where('transcription_id', '=', input.transcriptionId)
 		.where('manifest_url', '=', input.manifestUrl)
 		.executeTakeFirst();
-	const existingMetadata = safeJsonParse<Record<string, unknown>>(
-		existing?.metadata_json || '{}',
-		{}
-	);
-	const metadata = {
-		...existingMetadata,
-		...(input.metadata || {}),
-		...(input.manifestJson ? { manifestJson: input.manifestJson } : {}),
-	};
+	const syntheticCanvasesJson =
+		input.manifestJson && isSyntheticManifestUrl(input.manifestUrl)
+			? JSON.stringify(syntheticCanvasesFromManifest(input.manifestJson))
+			: (existing?.synthetic_canvases_json ?? '[]');
 	const now = new Date().toISOString();
 	const id = existing?.id || crypto.randomUUID();
 	await db
@@ -107,7 +104,7 @@ export async function ensureManifestSource(
 			source_kind: input.sourceKind || 'external',
 			default_canvas_id: input.defaultCanvasId || null,
 			default_image_service_url: input.defaultImageServiceUrl || null,
-			metadata_json: JSON.stringify(metadata),
+			synthetic_canvases_json: syntheticCanvasesJson,
 			created_at: existing?.created_at || now,
 			updated_at: now,
 		})
@@ -117,15 +114,18 @@ export async function ensureManifestSource(
 				source_kind: input.sourceKind || 'external',
 				default_canvas_id: input.defaultCanvasId || null,
 				default_image_service_url: input.defaultImageServiceUrl || null,
-				metadata_json: JSON.stringify(metadata),
+				synthetic_canvases_json: syntheticCanvasesJson,
 				updated_at: now,
 			})
 		)
 		.execute();
-	const row = await db
-		.selectFrom('iiif_manifest_sources')
-		.selectAll()
-		.where('id', '=', id)
+	await cacheManifest(db, {
+		manifestUrl: input.manifestUrl,
+		manifestJson: input.manifestJson,
+		metadata: input.metadata,
+	});
+	const row = await selectManifestSources(db)
+		.where('iiif_manifest_sources.id', '=', id)
 		.executeTakeFirstOrThrow();
 	return rowToManifestSource(row);
 }
@@ -134,11 +134,9 @@ export async function getManifestSource(
 	db: DbExecutor,
 	input: ManifestSourceIdInput
 ): Promise<ManifestSourceSummary | null> {
-	const row = await db
-		.selectFrom('iiif_manifest_sources')
-		.selectAll()
-		.where('transcription_id', '=', input.transcriptionId)
-		.where('id', '=', input.manifestSourceId)
+	const row = await selectManifestSources(db)
+		.where('iiif_manifest_sources.transcription_id', '=', input.transcriptionId)
+		.where('iiif_manifest_sources.id', '=', input.manifestSourceId)
 		.executeTakeFirst();
 	return row ? rowToManifestSource(row) : null;
 }
@@ -407,8 +405,22 @@ function linkInputToRow(
 	};
 }
 
-function rowToManifestSource(row: Selectable<IiifManifestSources>): ManifestSourceSummary {
-	const metadata = safeJsonParse<Record<string, unknown>>(row.metadata_json || '{}', {});
+function selectManifestSources(db: DbExecutor) {
+	return db
+		.selectFrom('iiif_manifest_sources')
+		.leftJoin(
+			'iiif_manifest_cache',
+			'iiif_manifest_cache.manifest_url',
+			'iiif_manifest_sources.manifest_url'
+		)
+		.selectAll('iiif_manifest_sources')
+		.select('iiif_manifest_cache.metadata_json as cache_metadata_json');
+}
+
+function rowToManifestSource(
+	row: Selectable<IiifManifestSources> & { cache_metadata_json: string | null }
+): ManifestSourceSummary {
+	const metadata = parseCachedManifestMetadata(row.cache_metadata_json);
 	const manifestJson =
 		metadata.manifestJson && typeof metadata.manifestJson === 'object'
 			? (metadata.manifestJson as Record<string, any>)
@@ -421,6 +433,7 @@ function rowToManifestSource(row: Selectable<IiifManifestSources>): ManifestSour
 		sourceKind: row.source_kind as 'external' | 'app',
 		defaultCanvasId: row.default_canvas_id || null,
 		defaultImageServiceUrl: row.default_image_service_url || null,
+		syntheticCanvases: safeJsonParse<IiifSyntheticCanvas[]>(row.synthetic_canvases_json, []),
 		manifestJson,
 		metadata,
 		createdAt: row.created_at,
@@ -521,4 +534,91 @@ function safeJsonParse<T>(value: string, fallback: T): T {
 	} catch {
 		return fallback;
 	}
+}
+
+export async function replaceIiifRows(
+	db: DbExecutor,
+	targetTranscriptionId: string,
+	payload: Pick<
+		ProjectTranscriptionSnapshot,
+		'iiif_manifest_sources' | 'page_canvas_links' | 'canvas_annotations'
+	>,
+	now: string
+): Promise<void> {
+	await db
+		.deleteFrom('iiif_canvas_annotations')
+		.where('transcription_id', '=', targetTranscriptionId)
+		.execute();
+	await db
+		.deleteFrom('transcription_page_canvas_links')
+		.where('transcription_id', '=', targetTranscriptionId)
+		.execute();
+	await db
+		.deleteFrom('iiif_manifest_sources')
+		.where('transcription_id', '=', targetTranscriptionId)
+		.execute();
+
+	const manifestIdMap = new Map<string, string>();
+	const manifestRows: Selectable<IiifManifestSources>[] = payload.iiif_manifest_sources.map(
+		source => {
+			const nextId = createId();
+			manifestIdMap.set(source.id, nextId);
+			return {
+				id: nextId,
+				transcription_id: targetTranscriptionId,
+				manifest_url: source.manifest_url,
+				label: source.label,
+				source_kind: source.source_kind,
+				default_canvas_id: source.default_canvas_id,
+				default_image_service_url: source.default_image_service_url,
+				synthetic_canvases_json: JSON.stringify(source.synthetic_canvases ?? []),
+				created_at: now,
+				updated_at: now,
+			};
+		}
+	);
+	if (manifestRows.length > 0)
+		await db.insertInto('iiif_manifest_sources').values(manifestRows).execute();
+
+	const pageLinkRows: Selectable<TranscriptionPageCanvasLinks>[] =
+		payload.page_canvas_links.flatMap(row => {
+			const manifestSourceId = manifestIdMap.get(row.manifest_source_id);
+			return manifestSourceId
+				? [
+						{
+							...row,
+							id: createId(),
+							transcription_id: targetTranscriptionId,
+							manifest_source_id: manifestSourceId,
+							created_at: now,
+							updated_at: now,
+						},
+					]
+				: [];
+		});
+	if (pageLinkRows.length > 0)
+		await db.insertInto('transcription_page_canvas_links').values(pageLinkRows).execute();
+
+	const annotationRows: Selectable<IiifCanvasAnnotations>[] = payload.canvas_annotations.flatMap(
+		row => {
+			const manifestSourceId = manifestIdMap.get(row.manifest_source_id);
+			return manifestSourceId
+				? [
+						{
+							...row,
+							id: createId(),
+							transcription_id: targetTranscriptionId,
+							manifest_source_id: manifestSourceId,
+							body_json: JSON.stringify(row.body_json ?? {}),
+							target_json: JSON.stringify(row.target_json ?? {}),
+							anchor_json: JSON.stringify(row.anchor_json ?? {}),
+							created_at: now,
+							updated_at: now,
+						},
+					]
+				: [];
+		}
+	);
+	if (annotationRows.length > 0)
+		await db.insertInto('iiif_canvas_annotations').values(annotationRows).execute();
 }

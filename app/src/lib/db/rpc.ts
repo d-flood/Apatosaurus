@@ -18,7 +18,7 @@ export type DbInvalidationDomain =
 export type DbMethod = keyof DbApi;
 
 type DbSystemRequest =
-	| { type: 'init' }
+	| { type: 'init'; verifyIntegrity?: boolean }
 	| { type: 'checkpoint' }
 	| { type: 'query'; sql: string; params?: DbValue[] }
 	| { type: 'execute'; sql: string; params?: DbValue[] };
@@ -47,5 +47,16 @@ export type DbIndexRebuiltEvent = {
 	report: IndexRebuildReport;
 };
 
+export type DbIndexRebuildProgressEvent = {
+	type: 'db:index-rebuild-progress';
+	done: number;
+	total: number;
+	phase?: 'conversion';
+};
+
 export type DbWorkerMessage =
-	DbResponse | DbInvalidationEvent | DbWarningsEvent | DbIndexRebuiltEvent;
+	| DbResponse
+	| DbInvalidationEvent
+	| DbWarningsEvent
+	| DbIndexRebuiltEvent
+	| DbIndexRebuildProgressEvent;

@@ -1,11 +1,13 @@
 import type { DocumentUpgrader, FormatRegistration } from '../migrate-on-read';
 import type { JsonObject, JsonValue } from '../envelope';
 import { invalidShape } from '../quarantine';
+import { tombstoneRelativeFile } from '../layout';
 import {
-	collationPrimaryRelativeFile,
-	tombstoneRelativeFile,
-	transcriptionPrimaryRelativeFile,
-} from '../layout';
+	documentCanonicalPath,
+	documentStorageOfPath,
+	legacyDocumentPaths,
+	type DocumentKind,
+} from '../document-files';
 import {
 	assertContentHashMatches,
 	readArray,
@@ -15,14 +17,26 @@ import {
 } from './validation';
 
 export const PROJECT_MANIFEST_FORMAT = 'apatosaurus.project-manifest';
-export const PROJECT_MANIFEST_CURRENT_VERSION = 6;
+export const PROJECT_MANIFEST_CURRENT_VERSION = 7;
+// Projects awaiting conversion stay readable by builds that predate TEI-canonical documents.
+const PROJECT_MANIFEST_JSON_ONLY_VERSION = 6;
 const projectManifestUpgraders: DocumentUpgrader[] = [
 	upgradeProjectManifestV1,
 	payload => payload,
 	payload => payload,
 	payload => payload,
 	payload => payload,
+	payload => payload,
 ];
+
+export function projectManifestSchemaVersion(payload: ProjectManifestPayload): number {
+	const storages = [...payload.transcriptions, ...payload.collations].map(head =>
+		documentStorageOfPath(head.primary_path)
+	);
+	return storages.includes('json') && !storages.includes('tei')
+		? PROJECT_MANIFEST_JSON_ONLY_VERSION
+		: PROJECT_MANIFEST_CURRENT_VERSION;
+}
 
 export type ProjectManifestForkProvenance = JsonObject & {
 	source_project_id: string;
@@ -129,14 +143,14 @@ async function assertProjectManifestIntegrity(payload: ProjectManifestPayload): 
 	for (const head of payload.transcriptions) {
 		assertCanonicalPath(
 			head.primary_path,
-			transcriptionPrimaryRelativeFile(head.project_transcription_id),
+			headPrimaryPath('transcription', head.project_transcription_id, head.primary_path),
 			`Transcription ${head.project_transcription_id}`
 		);
 	}
 	for (const head of payload.collations) {
 		assertCanonicalPath(
 			head.primary_path,
-			collationPrimaryRelativeFile(head.collation_id),
+			headPrimaryPath('collation', head.collation_id, head.primary_path),
 			`Collation ${head.collation_id}`
 		);
 	}
@@ -157,6 +171,13 @@ async function assertProjectManifestIntegrity(payload: ProjectManifestPayload): 
 		payload.manifest_content_hash,
 		`Project manifest ${payload.id}`
 	);
+}
+
+// A JSON primary marks a document not yet converted to TEI.
+function headPrimaryPath(kind: DocumentKind, id: string, primaryPath: string): string {
+	return documentStorageOfPath(primaryPath) === 'tei'
+		? documentCanonicalPath(kind, id)
+		: legacyDocumentPaths(kind, id).primary;
 }
 
 function assertCanonicalPath(actual: string, expected: string, label: string): void {

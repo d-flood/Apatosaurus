@@ -8,7 +8,10 @@ export interface Database {
 	collation_variation_units: CollationVariationUnits;
 	collation_witnesses: CollationWitnesses;
 	collations: Collations;
+	document_file_fingerprints: DocumentFileFingerprints;
+	document_file_problems: DocumentFileProblems;
 	iiif_canvas_annotations: IiifCanvasAnnotations;
+	iiif_manifest_cache: IiifManifestCache;
 	iiif_manifest_sources: IiifManifestSources;
 	project_transcriptions: ProjectTranscriptions;
 	projects: Projects;
@@ -16,6 +19,7 @@ export interface Database {
 	sync_tombstones: SyncTombstones;
 	transcription_checkpoints: TranscriptionCheckpoints;
 	transcription_page_canvas_links: TranscriptionPageCanvasLinks;
+	transcription_slice_chunks: TranscriptionSliceChunks;
 	transcription_verse_index: TranscriptionVerseIndex;
 	transcription_verse_index_state: TranscriptionVerseIndexState;
 	transcriptions: Transcriptions;
@@ -115,6 +119,28 @@ export interface Collations {
 	updated_at: string;
 }
 
+export interface DocumentFileFingerprints {
+	path: string | null;
+	entity_type: string;
+	entity_id: string;
+	size: number;
+	last_modified: number;
+	file_hash: string;
+	content_hash: string;
+}
+
+export interface DocumentFileProblems {
+	path: string | null;
+	project_id: string;
+	entity_type: string;
+	entity_id: string;
+	code: string;
+	message: string;
+	size: number;
+	last_modified: number;
+	detected_at: string;
+}
+
 export interface IiifCanvasAnnotations {
 	id: string | null;
 	transcription_id: string;
@@ -132,6 +158,12 @@ export interface IiifCanvasAnnotations {
 	updated_at: string;
 }
 
+export interface IiifManifestCache {
+	manifest_url: string | null;
+	metadata_json: string;
+	fetched_at: string;
+}
+
 export interface IiifManifestSources {
 	id: string | null;
 	transcription_id: string;
@@ -140,7 +172,7 @@ export interface IiifManifestSources {
 	source_kind: string;
 	default_canvas_id: string | null;
 	default_image_service_url: string | null;
-	metadata_json: string;
+	synthetic_canvases_json: string;
 	created_at: string;
 	updated_at: string;
 }
@@ -225,6 +257,13 @@ export interface TranscriptionPageCanvasLinks {
 	updated_at: string;
 }
 
+export interface TranscriptionSliceChunks {
+	transcription_id: string;
+	chunk_index: number;
+	chunk_hash: string;
+	chunk_deflated: Uint8Array;
+}
+
 export interface TranscriptionVerseIndex {
 	id: string | null;
 	transcription_id: string;
@@ -233,6 +272,8 @@ export interface TranscriptionVerseIndex {
 	chapter: string;
 	verse: string;
 	last_indexed_at: string;
+	slice_first_chunk: number | null;
+	slice_last_chunk: number | null;
 }
 
 export interface TranscriptionVerseIndexState {
@@ -240,6 +281,8 @@ export interface TranscriptionVerseIndexState {
 	indexed_content_hash: string;
 	verse_count: number;
 	last_indexed_at: string;
+	document_shell_json: string;
+	hands_json: string;
 }
 
 export interface Transcriptions {

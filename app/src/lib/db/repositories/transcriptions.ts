@@ -6,15 +6,25 @@ import {
 	TRANSCRIPTION_FORMAT,
 	type StoredTranscriptionDocument,
 } from '$lib/transcription/content';
-import { hashCanonicalPayload } from '$lib/storage/canonical-json';
+import { hashContent } from '$lib/storage/content-hash';
+import { collectDocumentHandOptions } from '$lib/transcription/hands';
+import {
+	compressVerseSliceChunk,
+	decompressVerseSliceChunk,
+	indexVerseSlices,
+	sliceDocumentByVerse,
+	sliceVerseFromChunks,
+} from '$lib/transcription/verse-slices';
 import type {
 	Database,
 	ProjectTranscriptions,
+	TranscriptionSliceChunks,
 	TranscriptionVerseIndex,
 	Transcriptions,
 } from '../types.generated';
 import { ensureDefaultProject } from './project-bootstrap';
 import { createId, requireId } from './id';
+import { loadTranscriptionContentHash } from './revisions';
 import type { DbExecutor } from '../worker-kysely';
 
 export type TranscriptionSummary = Omit<
@@ -27,6 +37,9 @@ export type TranscriptionRecord = Omit<Selectable<Transcriptions>, 'is_public' |
 	is_public: boolean;
 	tags: string[];
 };
+
+// Larger chunks compress better but cost each gather more parsing.
+const SLICE_CHUNK_LENGTH = 8_000;
 
 export type VerseIndexRow = Selectable<TranscriptionVerseIndex> & { id: string };
 
@@ -302,6 +315,126 @@ export async function getVerseIndexRowsForVerse(
 	return rows.map(row => ({ ...row, id: requireId(row.id, 'verse index row') }));
 }
 
+export interface CurrentVerseSource {
+	transcriptionId: string;
+	siglum: string;
+	document: StoredTranscriptionDocument;
+	contentHash: string;
+}
+
+export async function getCurrentVerseSources(
+	db: DbExecutor,
+	verseIdentifier: string,
+	transcriptionIds: string[]
+): Promise<CurrentVerseSource[]> {
+	const ids = uniqueNonEmpty(transcriptionIds);
+	if (ids.length === 0) return [];
+	const rows = await db
+		.selectFrom('transcriptions')
+		.innerJoin('project_transcriptions', join =>
+			join
+				.onRef('project_transcriptions.transcription_id', '=', 'transcriptions.id')
+				.onRef('project_transcriptions.project_id', '=', 'transcriptions.project_id')
+		)
+		.leftJoin(
+			'transcription_verse_index_state',
+			'transcription_verse_index_state.transcription_id',
+			'transcriptions.id'
+		)
+		.leftJoin('transcription_verse_index', join =>
+			join
+				.onRef('transcription_verse_index.transcription_id', '=', 'transcriptions.id')
+				.on('transcription_verse_index.verse_identifier', '=', verseIdentifier)
+		)
+		.select([
+			'transcriptions.id as id',
+			'transcriptions.siglum as siglum',
+			'project_transcriptions.id as project_transcription_id',
+			'transcription_verse_index_state.document_shell_json as document_shell_json',
+			'transcription_verse_index.id as verse_index_id',
+			'transcription_verse_index.slice_first_chunk as slice_first_chunk',
+			'transcription_verse_index.slice_last_chunk as slice_last_chunk',
+		])
+		.where('transcriptions.id', 'in', ids)
+		.execute();
+	const chunksById = await loadSliceChunks(
+		db,
+		rows.flatMap(row =>
+			row.slice_first_chunk === null || row.slice_last_chunk === null
+				? []
+				: [
+						[
+							requireId(row.id, 'transcription'),
+							row.slice_first_chunk,
+							row.slice_last_chunk,
+						] as const,
+					]
+		)
+	);
+	const byId = new Map(rows.map(row => [row.id, row]));
+	const sources: CurrentVerseSource[] = [];
+	for (const id of ids) {
+		const row = byId.get(id);
+		if (!row) continue;
+		sources.push({
+			transcriptionId: id,
+			siglum: row.siglum,
+			document:
+				row.document_shell_json !== null && row.verse_index_id !== null
+					? {
+							...JSON.parse(row.document_shell_json),
+							pages: sliceVerseFromChunks(chunksById.get(id) ?? [], verseIdentifier),
+						}
+					: await sliceStoredContent(db, id, verseIdentifier),
+			contentHash: await loadTranscriptionContentHash(
+				db,
+				requireId(row.project_transcription_id, 'project transcription')
+			),
+		});
+	}
+	return sources;
+}
+
+/** Inflates, per transcription and in order, the chunks each range covers. */
+async function loadSliceChunks(
+	db: DbExecutor,
+	ranges: Array<readonly [transcriptionId: string, firstChunk: number, lastChunk: number]>
+): Promise<Map<string, string[]>> {
+	if (ranges.length === 0) return new Map();
+	const { rows } = await sql<
+		Pick<TranscriptionSliceChunks, 'transcription_id' | 'chunk_deflated'>
+	>`
+		SELECT chunk.transcription_id, chunk.chunk_deflated
+		FROM json_each(${JSON.stringify(ranges)}) AS range
+		JOIN transcription_slice_chunks AS chunk
+			ON chunk.transcription_id = range.value ->> 0
+			AND chunk.chunk_index BETWEEN range.value ->> 1 AND range.value ->> 2
+		ORDER BY chunk.transcription_id, chunk.chunk_index
+	`.execute(db);
+	const byId = new Map<string, string[]>();
+	for (const row of rows) {
+		const chunks = byId.get(row.transcription_id) ?? [];
+		chunks.push(decompressVerseSliceChunk(row.chunk_deflated));
+		byId.set(row.transcription_id, chunks);
+	}
+	return byId;
+}
+
+async function sliceStoredContent(
+	db: DbExecutor,
+	transcriptionId: string,
+	verseIdentifier: string
+): Promise<StoredTranscriptionDocument> {
+	const row = await db
+		.selectFrom('transcriptions')
+		.select('content_json')
+		.where('id', '=', transcriptionId)
+		.executeTakeFirstOrThrow();
+	const { document } = normalizeTranscriptionContent({ contentJson: row.content_json });
+	const pages = sliceDocumentByVerse(document, [verseIdentifier]).get(verseIdentifier) ?? [];
+	return { ...document, pages };
+}
+
 export async function listVerseIndexRows(db: DbExecutor): Promise<VerseIndexRow[]> {
 	const rows = await db
 		.selectFrom('transcription_verse_index')
@@ -333,6 +466,34 @@ export async function listVerseIndexRowsForTranscriptions(
 		.orderBy('verse_identifier')
 		.execute();
 	return rows.map(row => ({ ...row, id: requireId(row.id, 'verse index row') }));
+}
+
+export interface VerseCount {
+	identifier: string;
+	book: string;
+	chapter: string;
+	verse: string;
+	count: number;
+}
+
+export async function listVerseCountsForTranscriptions(
+	db: DbExecutor,
+	transcriptionIds: string[]
+): Promise<VerseCount[]> {
+	const uniqueIds = uniqueNonEmpty(transcriptionIds);
+	if (uniqueIds.length === 0) return [];
+	return db
+		.selectFrom('transcription_verse_index')
+		.select(eb => [
+			'verse_identifier as identifier',
+			'book',
+			'chapter',
+			'verse',
+			eb.fn.countAll<number>().as('count'),
+		])
+		.where('transcription_id', 'in', uniqueIds)
+		.groupBy('verse_identifier')
+		.execute();
 }
 
 export async function rebuildVerseIndexForTranscriptions(
@@ -429,7 +590,8 @@ async function replaceVerseIndexRows(
 	input: ReplaceVerseIndexRowsInput
 ): Promise<void> {
 	const indexedAt = input.indexedAt ?? new Date().toISOString();
-	const contentHash = await hashCanonicalPayload(input.document);
+	// A key-order change only costs a redundant reindex, so skip canonical JSON.
+	const contentHash = await hashContent(input.contentJson);
 	if (!input.force && (await isVerseIndexCurrent(db, transcriptionId, contentHash))) return;
 
 	await db
@@ -444,6 +606,7 @@ async function replaceVerseIndexRows(
 		uniqueByIdentifier.set(identifier, verse);
 	}
 
+	const slices = indexVerseSlices(input.document, uniqueByIdentifier.keys(), SLICE_CHUNK_LENGTH);
 	const rows: Selectable<TranscriptionVerseIndex>[] = [...uniqueByIdentifier].map(
 		([identifier, verse]) => ({
 			id: createId(),
@@ -453,26 +616,74 @@ async function replaceVerseIndexRows(
 			chapter: verse.chapter,
 			verse: verse.verse,
 			last_indexed_at: indexedAt,
+			slice_first_chunk: slices.ranges.get(identifier)?.[0] ?? null,
+			slice_last_chunk: slices.ranges.get(identifier)?.[1] ?? null,
 		})
 	);
 
 	if (rows.length > 0) await db.insertInto('transcription_verse_index').values(rows).execute();
+	await replaceSliceChunks(db, transcriptionId, slices.chunks);
+	const { pages: _pages, ...documentShell } = input.document;
+	const state = {
+		indexed_content_hash: contentHash,
+		verse_count: rows.length,
+		last_indexed_at: indexedAt,
+		document_shell_json: JSON.stringify(documentShell),
+		hands_json: JSON.stringify(collectDocumentHandOptions(input.document)),
+	};
 	await db
 		.insertInto('transcription_verse_index_state')
-		.values({
-			transcription_id: transcriptionId,
-			indexed_content_hash: contentHash,
-			verse_count: rows.length,
-			last_indexed_at: indexedAt,
-		})
-		.onConflict(oc =>
-			oc.column('transcription_id').doUpdateSet({
-				indexed_content_hash: contentHash,
-				verse_count: rows.length,
-				last_indexed_at: indexedAt,
-			})
-		)
+		.values({ transcription_id: transcriptionId, ...state })
+		.onConflict(oc => oc.column('transcription_id').doUpdateSet(state))
 		.execute();
+}
+
+async function replaceSliceChunks(
+	db: DbExecutor,
+	transcriptionId: string,
+	chunks: string[]
+): Promise<void> {
+	const stale = new Map(
+		(
+			await db
+				.selectFrom('transcription_slice_chunks')
+				.select(['chunk_index', 'chunk_hash'])
+				.where('transcription_id', '=', transcriptionId)
+				.execute()
+		).map(row => [row.chunk_index, row.chunk_hash])
+	);
+	const hashes = await Promise.all(
+		chunks.map(async json => (await hashContent(json)).slice(-16))
+	);
+	const changed: Selectable<TranscriptionSliceChunks>[] = [];
+	chunks.forEach((json, chunkIndex) => {
+		const previous = stale.get(chunkIndex);
+		stale.delete(chunkIndex);
+		if (previous === hashes[chunkIndex]) return;
+		changed.push({
+			transcription_id: transcriptionId,
+			chunk_index: chunkIndex,
+			chunk_hash: hashes[chunkIndex],
+			chunk_deflated: compressVerseSliceChunk(json),
+		});
+	});
+	if (stale.size > 0)
+		await db
+			.deleteFrom('transcription_slice_chunks')
+			.where('transcription_id', '=', transcriptionId)
+			.where('chunk_index', 'in', [...stale.keys()])
+			.execute();
+	if (changed.length > 0)
+		await db
+			.insertInto('transcription_slice_chunks')
+			.values(changed)
+			.onConflict(oc =>
+				oc.columns(['transcription_id', 'chunk_index']).doUpdateSet({
+					chunk_hash: eb => eb.ref('excluded.chunk_hash'),
+					chunk_deflated: eb => eb.ref('excluded.chunk_deflated'),
+				})
+			)
+			.execute();
 }
 
 async function isVerseIndexCurrent(

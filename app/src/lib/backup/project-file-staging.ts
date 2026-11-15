@@ -1,33 +1,32 @@
 import {
-	COLLATION_CHECKPOINT_FORMAT,
-	COLLATION_FORMAT,
 	PROJECT_MANIFEST_FORMAT,
-	PROJECT_TRANSCRIPTION_FORMAT,
 	TOMBSTONE_FORMAT,
-	TRANSCRIPTION_CHECKPOINT_FORMAT,
-	WORKING_COLLATION_FORMAT,
-	WORKING_TRANSCRIPTION_FORMAT,
 	canonicalFormatForProjectPath,
+	parseCollationTeiVersion,
+	parseTranscriptionTei,
 	readCanonicalDocument,
-	type CollationCheckpointPayload,
 	type CollationPayload,
 	type ProjectManifestPayload,
 	type ProjectTranscriptionPayload,
 	type TombstonePayload,
-	type TranscriptionCheckpointPayload,
-	type WorkingCollationPayload,
-	type WorkingTranscriptionPayload,
 } from '$lib/storage/formats';
+import { teiContentHash } from '$lib/storage/tei-content';
 import {
 	deleteDirectory,
 	writeTextFileAtomic,
 	type StoreOperationOptions,
 } from '$lib/storage/opfs-store';
 import { isPresencePath, joinStorePath } from '$lib/storage/layout';
+import {
+	classifyDocumentPath,
+	documentStorageOfPath,
+	documentVersionPath,
+	teiPrimaryPathsOfManifest,
+	type DocumentFile,
+} from '$lib/storage/document-files';
 import type { JsonObject } from '$lib/storage/envelope';
 import type { StoreQuarantineRecord } from '$lib/storage/quarantine';
 import { hashCanonicalPayload } from '$lib/storage/canonical-json';
-import { reconcileAlphaProjectUpgrade } from '$lib/storage/alpha-project-upgrade';
 import {
 	isCbgmSidecarFile,
 	projectFileText,
@@ -47,6 +46,7 @@ export interface ValidateProjectFileCandidatesOptions {
 	nonce?: () => string;
 	now?: () => Date;
 	ownerId?: string;
+	teiPrimaryPaths?: ReadonlySet<string>;
 }
 
 export interface ValidatedStagedProjectEntry extends ProjectFileCandidate {
@@ -67,6 +67,17 @@ export type ProjectFileValidationResult = Pick<
 	ValidatedProjectFileCandidates,
 	'entries' | 'valid' | 'manifest' | 'quarantinedFiles'
 >;
+
+interface ParsedTeiEntry {
+	record: ProjectTranscriptionPayload;
+	contentHash: string;
+}
+
+interface ParsedCollationTeiEntry {
+	payload: CollationPayload;
+	versionId: string | null;
+	contentHash: string;
+}
 
 export const PROJECT_IMPORT_STAGING_ROOT = 'staging';
 export const PROJECT_IMPORT_LEASE_FILE = '.lease.json';
@@ -131,6 +142,13 @@ export async function stageAndValidateProjectFiles(
 		);
 	}
 
+	const teiPrimaryPaths = new Set([
+		...teiPrimaryPathsOfManifest(manifest),
+		...(options.teiPrimaryPaths ?? []),
+	]);
+	const legacyHeads = legacyHeadsOfManifest(manifest);
+	const parsedTei = new Map<string, ParsedTeiEntry>();
+	const parsedCollationTei = new Map<string, ParsedCollationTeiEntry>();
 	for (const entry of normalized) {
 		if (entry === manifestEntry) continue;
 		if (isCbgmSidecarFile(entry.path)) {
@@ -139,11 +157,63 @@ export async function stageAndValidateProjectFiles(
 		}
 		const format = canonicalFormatForProjectPath(entry.path);
 		if (!format) {
-			if (isCanonicalTeiPath(entry.path)) entries.push({ ...entry, format: null });
-			else
+			const file = classifyDocumentPath(entry.path, teiPrimaryPaths);
+			// A project not yet converted to TEI keeps its JSON documents for conversion to read.
+			if (file?.role === 'legacy' && legacyHeads.has(legacyHeadKey(file))) {
+				entries.push({ ...entry, format: null });
+				continue;
+			}
+			if (!file || file.role === 'legacy') {
 				quarantinedFiles.push(
 					quarantine(entry.path, `Unsupported project file ${entry.path}.`, now)
 				);
+				continue;
+			}
+			if (file.kind === 'transcription' && file.role !== 'unlisted') {
+				const text = projectFileText(entry.content);
+				try {
+					parsedTei.set(entry.path, {
+						record: parseTranscriptionTei(text),
+						contentHash: await teiContentHash(text),
+					});
+				} catch (error) {
+					quarantinedFiles.push(
+						record(
+							entry.path,
+							{
+								code: 'invalid_tei',
+								message: `Transcription TEI does not parse: ${errorMessage(error)}`,
+							},
+							now
+						)
+					);
+					continue;
+				}
+			}
+			if (file.kind === 'collation' && file.role !== 'unlisted') {
+				const text = projectFileText(entry.content);
+				try {
+					const { payload, version } = parseCollationTeiVersion(text);
+					parsedCollationTei.set(entry.path, {
+						payload,
+						versionId: version?.id ?? null,
+						contentHash: await teiContentHash(text),
+					});
+				} catch (error) {
+					quarantinedFiles.push(
+						record(
+							entry.path,
+							{
+								code: 'invalid_tei',
+								message: `Collation TEI does not parse: ${errorMessage(error)}`,
+							},
+							now
+						)
+					);
+					continue;
+				}
+			}
+			entries.push({ ...entry, format: null });
 			continue;
 		}
 		const read = await readCanonicalDocument(format, projectFileText(entry.content), {
@@ -155,17 +225,14 @@ export async function stageAndValidateProjectFiles(
 	}
 
 	if (manifest && quarantinedFiles.length === 0) {
-		try {
-			await reconcileAlphaProjectUpgrade(
-				entries.filter(
-					(entry): entry is ValidatedStagedProjectEntry & { content: string } =>
-						typeof entry.content === 'string'
-				)
-			);
-		} catch (error) {
-			quarantinedFiles.push(quarantine('project.json', errorMessage(error), now));
-		}
-		await validateProjectSemantics(manifest, entries, quarantinedFiles, now);
+		await validateProjectSemantics(
+			manifest,
+			entries,
+			parsedTei,
+			parsedCollationTei,
+			quarantinedFiles,
+			now
+		);
 	}
 	return {
 		stagingPath,
@@ -247,54 +314,40 @@ function normalizeProjectTree(candidates: ProjectFileCandidate[]): ProjectFileCa
 async function validateProjectSemantics(
 	manifest: ProjectManifestPayload,
 	entries: ValidatedStagedProjectEntry[],
+	parsedTei: ReadonlyMap<string, ParsedTeiEntry>,
+	parsedCollationTei: ReadonlyMap<string, ParsedCollationTeiEntry>,
 	quarantined: StoreQuarantineRecord[],
 	now: () => Date
 ): Promise<void> {
 	const byPath = new Map(entries.map(entry => [entry.path, entry]));
 	for (const head of manifest.transcriptions) {
 		const entry = byPath.get(head.primary_path);
-		const payload = entry?.payload as ProjectTranscriptionPayload | undefined;
-		if (!payload || entry?.format !== PROJECT_TRANSCRIPTION_FORMAT) {
-			quarantined.push(
-				quarantine(head.primary_path, 'Manifest transcription primary is missing.', now)
-			);
+		if (documentStorageOfPath(head.primary_path) === 'tei') {
+			if (!entry)
+				quarantined.push(
+					quarantine(head.primary_path, 'Manifest transcription primary is missing.', now)
+				);
+			else validateTeiTranscriptionHead(head, parsedTei, quarantined, now);
 			continue;
 		}
-		if (
-			payload.project_transcription_id !== head.project_transcription_id ||
-			payload.id !== head.transcription_id ||
-			payload.based_on_checkpoint?.id !== head.current_revision?.id ||
-			payload.based_on_checkpoint?.content_hash !== head.current_revision?.content_hash
-		)
+		if (!entry)
 			quarantined.push(
-				quarantine(
-					head.primary_path,
-					'Manifest transcription head does not match its primary.',
-					now
-				)
+				quarantine(head.primary_path, 'Manifest transcription primary is missing.', now)
 			);
 	}
 	for (const head of manifest.collations) {
 		const entry = byPath.get(head.primary_path);
-		const payload = entry?.payload as CollationPayload | undefined;
-		if (!payload || entry?.format !== COLLATION_FORMAT) {
-			quarantined.push(
-				quarantine(head.primary_path, 'Manifest collation primary is missing.', now)
-			);
+		if (documentStorageOfPath(head.primary_path) === 'tei') {
+			if (!entry)
+				quarantined.push(
+					quarantine(head.primary_path, 'Manifest collation primary is missing.', now)
+				);
+			else validateTeiCollationHead(manifest.id, head, parsedCollationTei, quarantined, now);
 			continue;
 		}
-		if (
-			payload.project_id !== manifest.id ||
-			payload.id !== head.collation_id ||
-			payload.based_on_checkpoint?.id !== head.current_revision?.id ||
-			payload.based_on_checkpoint?.content_hash !== head.current_revision?.content_hash
-		)
+		if (!entry)
 			quarantined.push(
-				quarantine(
-					head.primary_path,
-					'Manifest collation head does not match its primary.',
-					now
-				)
+				quarantine(head.primary_path, 'Manifest collation primary is missing.', now)
 			);
 	}
 	for (const head of manifest.tombstones) {
@@ -330,60 +383,154 @@ async function validateProjectSemantics(
 	const collationHeads = new Map(manifest.collations.map(head => [head.collation_id, head]));
 	const tombstonePaths = new Set(manifest.tombstones.map(head => head.primary_path));
 	for (const entry of entries) {
-		const payload = entry.payload;
 		let message: string | null = null;
-		if (
-			entry.format === PROJECT_TRANSCRIPTION_FORMAT &&
-			!manifest.transcriptions.some(head => head.primary_path === entry.path)
-		)
-			message = 'Transcription primary is not present in the manifest.';
-		else if (
-			entry.format === COLLATION_FORMAT &&
-			!manifest.collations.some(head => head.primary_path === entry.path)
-		)
-			message = 'Collation primary is not present in the manifest.';
-		else if (entry.format === TOMBSTONE_FORMAT && !tombstonePaths.has(entry.path))
+		if (entry.format === TOMBSTONE_FORMAT && !tombstonePaths.has(entry.path))
 			message = 'Tombstone is not present in the manifest.';
 		else if (entry.format === null) {
-			const match = /^(transcriptions|collations)\/([^/]+)\.tei\.xml$/.exec(entry.path);
-			if (match?.[1] === 'transcriptions' && !transcriptionHeads.has(match[2]!))
+			const file = classifyDocumentPath(entry.path);
+			if (
+				file?.role === 'unlisted' &&
+				file.kind === 'transcription' &&
+				!transcriptionHeads.has(file.entityId)
+			)
 				message = 'TEI sibling has no manifest transcription.';
-			if (match?.[1] === 'collations' && !collationHeads.has(match[2]!))
+			if (
+				file?.role === 'unlisted' &&
+				file.kind === 'collation' &&
+				!collationHeads.has(file.entityId)
+			)
 				message = 'TEI sibling has no manifest collation.';
-		} else if (entry.format === WORKING_TRANSCRIPTION_FORMAT) {
-			const working = payload as WorkingTranscriptionPayload;
-			const head = transcriptionHeads.get(String(working.project_transcription_id));
 			if (
-				!head ||
-				working.id !== head.transcription_id ||
-				working.draft.base_revision_id !== head.current_revision?.id ||
-				working.draft.base_content_hash !== head.current_revision?.content_hash
+				file?.role === 'version' &&
+				file.kind === 'transcription' &&
+				!transcriptionHeads.has(file.entityId)
 			)
-				message = 'Working transcription does not match its committed primary.';
-		} else if (entry.format === WORKING_COLLATION_FORMAT) {
-			const working = payload as WorkingCollationPayload;
-			const head = collationHeads.get(working.id);
-			if (!head || working.project_id !== manifest.id)
-				message = 'Working collation does not match its committed primary.';
-		} else if (entry.format === TRANSCRIPTION_CHECKPOINT_FORMAT) {
-			const checkpoint = payload as TranscriptionCheckpointPayload;
-			const head = transcriptionHeads.get(checkpoint.entity_id);
-			if (!head || checkpoint.payload_transcription_id !== head.transcription_id)
-				message = 'Transcription checkpoint does not belong to a manifest transcription.';
-		} else if (entry.format === COLLATION_CHECKPOINT_FORMAT) {
-			const checkpoint = payload as CollationCheckpointPayload;
-			if (
-				!collationHeads.has(checkpoint.entity_id) ||
-				checkpoint.payload.project_id !== manifest.id
-			)
-				message = 'Collation checkpoint does not belong to this project.';
+				message = 'Transcription Version does not belong to a manifest transcription.';
+			if (file?.role === 'version' && file.kind === 'collation') {
+				const version = parsedCollationTei.get(entry.path);
+				if (
+					!collationHeads.has(file.entityId) ||
+					version?.payload.project_id !== manifest.id ||
+					version.payload.id !== file.entityId ||
+					version.versionId !== file.versionId
+				)
+					message = 'Collation Version does not belong to this project.';
+			}
 		}
 		if (message) quarantined.push(quarantine(entry.path, message, now));
 	}
 }
 
-function isCanonicalTeiPath(path: string): boolean {
-	return /^(transcriptions|collations)\/[^/]+\.tei\.xml$/.test(path);
+function validateTeiTranscriptionHead(
+	head: ProjectManifestPayload['transcriptions'][number],
+	parsedTei: ReadonlyMap<string, ParsedTeiEntry>,
+	quarantined: StoreQuarantineRecord[],
+	now: () => Date
+): void {
+	const current = parsedTei.get(head.primary_path)?.record;
+	if (!current) return;
+	if (
+		current.project_transcription_id !== head.project_transcription_id ||
+		current.id !== head.transcription_id ||
+		current.based_on_checkpoint?.id !== head.current_revision?.id
+	) {
+		quarantined.push(
+			quarantine(
+				head.primary_path,
+				'Manifest transcription head does not match its primary.',
+				now
+			)
+		);
+		return;
+	}
+	const expected = head.current_revision?.content_hash;
+	const mismatch = (path: string, actual: string | undefined) =>
+		quarantined.push(
+			record(
+				path,
+				{
+					code: 'hash_mismatch',
+					message: 'Transcription content hash does not match its manifest head.',
+					expected,
+					actual,
+				},
+				now
+			)
+		);
+	if (current.based_on_checkpoint?.content_hash !== expected)
+		mismatch(head.primary_path, current.based_on_checkpoint?.content_hash);
+	if (!head.current_revision) return;
+	const versionPath = documentVersionPath(
+		'transcription',
+		head.project_transcription_id,
+		head.current_revision.id
+	);
+	const version = parsedTei.get(versionPath);
+	if (version && version.contentHash !== expected) mismatch(versionPath, version.contentHash);
+}
+
+function validateTeiCollationHead(
+	projectId: string,
+	head: ProjectManifestPayload['collations'][number],
+	parsed: ReadonlyMap<string, ParsedCollationTeiEntry>,
+	quarantined: StoreQuarantineRecord[],
+	now: () => Date
+): void {
+	const current = parsed.get(head.primary_path)?.payload;
+	if (!current) return;
+	if (
+		current.project_id !== projectId ||
+		current.id !== head.collation_id ||
+		current.based_on_checkpoint?.id !== head.current_revision?.id
+	) {
+		quarantined.push(
+			quarantine(
+				head.primary_path,
+				'Manifest collation head does not match its primary.',
+				now
+			)
+		);
+		return;
+	}
+	const expected = head.current_revision?.content_hash;
+	const mismatch = (path: string, actual: string | undefined) =>
+		quarantined.push(
+			record(
+				path,
+				{
+					code: 'hash_mismatch',
+					message: 'Collation content hash does not match its manifest head.',
+					expected,
+					actual,
+				},
+				now
+			)
+		);
+	if (current.based_on_checkpoint?.content_hash !== expected)
+		mismatch(head.primary_path, current.based_on_checkpoint?.content_hash);
+	if (!head.current_revision) return;
+	const versionPath = documentVersionPath(
+		'collation',
+		head.collation_id,
+		head.current_revision.id
+	);
+	const version = parsed.get(versionPath);
+	if (version && version.contentHash !== expected) mismatch(versionPath, version.contentHash);
+}
+
+function legacyHeadsOfManifest(manifest: ProjectManifestPayload | null): Set<string> {
+	return new Set([
+		...(manifest?.transcriptions ?? [])
+			.filter(head => documentStorageOfPath(head.primary_path) === 'json')
+			.map(head => `transcription:${head.project_transcription_id}`),
+		...(manifest?.collations ?? [])
+			.filter(head => documentStorageOfPath(head.primary_path) === 'json')
+			.map(head => `collation:${head.collation_id}`),
+	]);
+}
+
+function legacyHeadKey(file: DocumentFile): string {
+	return `${file.kind}:${file.entityId}`;
 }
 
 function failedStaging(
