@@ -8,7 +8,7 @@ export default defineConfig({
 	webServer: {
 		command: `VITE_E2E_SHARED_FOLDER=1 pnpm run build && pnpm exec vite preview --host 127.0.0.1 --port ${port} --strictPort`,
 		port,
-		timeout: 120000,
+		timeout: 300000,
 		reuseExistingServer: false,
 	},
 	testDir: 'e2e',

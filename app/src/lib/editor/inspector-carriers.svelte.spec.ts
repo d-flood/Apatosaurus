@@ -1,5 +1,5 @@
 import { page } from '@vitest/browser/context';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 
 import { editorColumn, editorLine, editorPlainPage } from '$lib/testing/editorFixtures';
@@ -49,6 +49,23 @@ function setSelectValue(label: string, value: string) {
 async function replaceTextarea(label: string, value: string) {
 	const input = browserPage.getByLabelText(label);
 	await input.fill(value);
+}
+
+function replaceInlineEditorText(element: Element, value: string) {
+	const editor = (element as any).editor;
+	expect(editor).toBeTruthy();
+	let from = -1;
+	let to = -1;
+	editor.state.doc.descendants((node: any, pos: number) => {
+		if (from === -1 && node.type.name === 'marginaliaLine') {
+			from = pos + 1;
+			to = from + node.content.size;
+		}
+		return from === -1;
+	});
+	expect(from).toBeGreaterThanOrEqual(0);
+	editor.commands.setTextSelection({ from, to });
+	editor.commands.insertContent(value);
 }
 
 async function fillFormWorkContent(value: string) {
@@ -259,12 +276,8 @@ describe('transcription editor carrier inspectors', () => {
 			const correctionEditorElement = latestInlineEditor();
 			expect(correctionEditorElement).toBeTruthy();
 			const correctionEditor = browserPage.elementLocator(correctionEditorElement!);
-			await correctionEditor.click();
-			await correctionEditor.fill('beta');
-			// Editor applies keys in a later transaction; wait before saving.
-			await vi.waitFor(() => expect.element(correctionEditor).toHaveTextContent('beta'), {
-				timeout: 30_000,
-			});
+			replaceInlineEditorText(correctionEditorElement!, 'beta');
+			await expect.element(correctionEditor).toHaveTextContent('beta');
 			await browserPage.getByRole('button', { name: 'Save Reading' }).click();
 			await browserPage.getByRole('button', { name: 'Apply to Node' }).click();
 			expect(compactXml(await exportedXml())).toMatch(

@@ -75,6 +75,12 @@ function exportFirstAb(editor: any): string {
 	return firstAbXml(serializeTei(fromProseMirror(editor.getJSON() as any)));
 }
 
+function readBackFirstLine(editor: any): Json[] {
+	return firstLineContent(
+		toProseMirror(parseTei(serializeTei(fromProseMirror(editor.getJSON() as any)))) as Json
+	).map(({ marks, ...node }) => (marks?.length ? { ...node, marks } : node));
+}
+
 const TYPED_PERIOD_SHAPE = [
 	{ type: 'text', text: 'alpha' },
 	{ type: 'text', marks: [{ type: 'punctuation', attrs: { teiAttrs: {} } }], text: '.' },
@@ -233,15 +239,13 @@ describe('typed punctuation reaching TEI export', () => {
 		).toBe('<w>alpha</w><pc>.</pc>');
 	});
 
-	it('exports a period typed after a word exactly as the imported equivalent does', () => {
+	it('exports a period typed after a word as joined to it, and reads it back as typed', () => {
 		const editor = createTestEditor(documentWithLineContent([{ type: 'text', text: 'alpha' }]));
 		editor.commands.focus('end');
 		editor.commands.insertContent('.');
 
-		expect(exportFirstAb(editor)).toBe('<w>alpha</w><pc>.</pc>');
-		expect(exportFirstAb(editor)).toBe(
-			firstAbXml(serializeTei(fromProseMirror(toProseMirror(parseTei(IMPORTED_TEI)) as any)))
-		);
+		expect(exportFirstAb(editor)).toBe('<w>alpha</w><pc join="left">.</pc>');
+		expect(readBackFirstLine(editor)).toEqual(TYPED_PERIOD_SHAPE);
 	});
 
 	it('exports punctuation typed inside a word without losing either half', () => {
@@ -249,7 +253,8 @@ describe('typed punctuation reaching TEI export', () => {
 		editor.commands.focus('end');
 		editor.commands.insertContent('-operative');
 
-		expect(exportFirstAb(editor)).toBe('<w>co</w><pc>-</pc><w>operative</w>');
+		expect(exportFirstAb(editor)).toBe('<w>co</w><pc join="left">-</pc><w>operative</w>');
+		expect(readBackFirstLine(editor)).toEqual(firstLineContent(editor.getJSON()));
 	});
 
 	it('exports two punctuation marks in a row without losing the word', () => {
@@ -257,7 +262,8 @@ describe('typed punctuation reaching TEI export', () => {
 		editor.commands.focus('end');
 		editor.commands.insertContent('.,');
 
-		expect(exportFirstAb(editor)).toBe('<w>alpha</w><pc>.,</pc>');
+		expect(exportFirstAb(editor)).toBe('<w>alpha</w><pc join="left">.,</pc>');
+		expect(readBackFirstLine(editor)).toEqual(firstLineContent(editor.getJSON()));
 	});
 
 	it('keeps punctuation teiAttrs on a period typed after a word', () => {
@@ -272,7 +278,8 @@ describe('typed punctuation reaching TEI export', () => {
 			])
 		);
 
-		expect(exportFirstAb(editor)).toBe('<w>alpha</w><pc force="strong">.</pc>');
+		expect(exportFirstAb(editor)).toBe('<w>alpha</w><pc force="strong" join="left">.</pc>');
+		expect(readBackFirstLine(editor)).toEqual(firstLineContent(editor.getJSON()));
 	});
 
 	it('exports a word that follows typed punctuation on the same line', () => {
@@ -280,7 +287,8 @@ describe('typed punctuation reaching TEI export', () => {
 		editor.commands.focus('end');
 		editor.commands.insertContent('.beta');
 
-		expect(exportFirstAb(editor)).toBe('<w>alpha</w><pc>.</pc><w>beta</w>');
+		expect(exportFirstAb(editor)).toBe('<w>alpha</w><pc join="left">.</pc><w>beta</w>');
+		expect(readBackFirstLine(editor)).toEqual(firstLineContent(editor.getJSON()));
 	});
 });
 
@@ -306,7 +314,7 @@ describe('typed punctuation from a mounted editor', () => {
 			);
 
 			expect(firstAbXml(exportTEIDocument(fromProseMirror(editor.getJSON())))).toMatch(
-				/^<w>a1<\/w><pc>\.<\/pc><lb\/><w>a2<\/w>/
+				/^<w>a1<\/w><pc join="left">\.<\/pc><lb\/><w>a2<\/w>/
 			);
 		} finally {
 			harness.dispose();

@@ -1,6 +1,6 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { DOMParser } from '@xmldom/xmldom';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { beforeAll, afterEach, describe, expect, it, vi } from 'vitest';
 import {
 	buildClassicBaseTranscription,
 	buildClassicCollationDocument,
@@ -13,7 +13,7 @@ import {
 import { prepareWitnessesFromDocument } from './collation-runner';
 import { buildApparatusTeiExportInput, exportApparatusTei } from './collation-tei';
 import { exportCollationDocumentTei } from './collation-apparatus-tei';
-import { validateTeiP5 } from '../../../../test-support/validate-tei-p5';
+import { validateTeiP5, warmTeiP5Validator } from '../../../../test-support/validate-tei-p5';
 import {
 	hydrateCollationDocument,
 	buildCollationDocument,
@@ -21,6 +21,8 @@ import {
 } from './collation-document';
 import { resolveReadingTypeVocabulary, type ReadingTypeDefinition } from './reading-types';
 import { deserializeAlignmentColumns } from './alignment-snapshot';
+
+beforeAll(() => warmTeiP5Validator(), 300_000);
 
 vi.stubGlobal('DOMParser', DOMParser);
 afterEach(() => vi.restoreAllMocks());

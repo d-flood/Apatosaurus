@@ -12,6 +12,7 @@ vi.mock('$lib/db/client', () => ({
 	createTranscription: vi.fn(),
 	createTranscriptions: vi.fn(),
 	ensureDefaultProject: vi.fn(),
+	exportTranscriptionTei: vi.fn(),
 	getTranscription: vi.fn(),
 	listProjects: vi.fn(),
 	updateTranscriptionMetadata: vi.fn(),

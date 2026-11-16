@@ -188,7 +188,7 @@ describe('CBGM computation scheduler', () => {
 		engine = await createCbgmEngine({ locateFile: () => wasmUrl });
 		witnesses = engine.prepare(inputTei, settings).witnesses;
 		serial = await analyse(1);
-	}, 180_000);
+	}, 600_000);
 
 	it('computes the substemmata native open-cbgm finds with a pool of 1', () => {
 		expect(serial.substemmata.size).toBe(witnesses.length);

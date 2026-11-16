@@ -8,8 +8,10 @@ import { load as loadTranscriptionList } from './transcription/(library)/+page';
 import { getProject, listProjects } from '$lib/db/client';
 
 vi.mock('$lib/db/client', () => ({
+	convertProjectToTei: vi.fn(async () => ({ status: 'not-needed', files: 0 })),
 	getProject: vi.fn(),
 	listProjects: vi.fn(),
+	refreshChangedDocumentFiles: vi.fn(async () => undefined),
 }));
 
 type TestLoad = (event: { params?: { id: string }; url: URL }) => unknown;

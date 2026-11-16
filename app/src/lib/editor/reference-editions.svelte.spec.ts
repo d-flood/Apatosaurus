@@ -49,6 +49,7 @@ vi.mock('$lib/db/client', () => ({
 	createTranscription: vi.fn(),
 	createTranscriptions: vi.fn(),
 	ensureDefaultProject: vi.fn(),
+	exportTranscriptionTei: vi.fn(),
 	getTranscription: vi.fn(),
 	listProjects: vi.fn(),
 	updateTranscriptionMetadata: vi.fn(),
@@ -424,7 +425,7 @@ describe('reference edition seeding', () => {
 		await browserPage.getByTestId('insert-reference-edition').click();
 
 		expect(compactXml(await exportedXml())).toContain(
-			'<segtype="unconfirmed"><pc>.</pc></seg>'
+			'<segtype="unconfirmed"><pcjoin="left">.</pc></seg>'
 		);
 	});
 

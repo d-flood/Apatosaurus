@@ -4,6 +4,7 @@ import type { StoredTranscriptionDocument } from '$lib/transcription/content';
 import { readTextFile, writeTextFileAtomic } from './opfs-store';
 
 import { removeCurrentIndexFiles } from '$lib/db/index-files';
+import { INDEX_DATABASE_PATH } from '$lib/db/schema-version';
 import type { DbRequest, DbRequestPayload, DbWorkerMessage } from '$lib/db/rpc';
 import { purgeLocalDbStorage } from '$lib/db/storage-reset';
 
@@ -36,8 +37,8 @@ describe('data-safety invariants in browser storage', () => {
 		const beforeDeletion = await loadObservedState(client);
 		await insertDisposableSyncFingerprint(client);
 		await writeTextFileAtomic(
-			`projects/${PROJECT_SLUG}/transcriptions/corrupt.json`,
-			'{not-json'
+			`projects/${PROJECT_SLUG}/transcriptions/corrupt.tei.xml`,
+			'<TEI xmlns="http://www.tei-c.org/ns/1.0"><unclosed>'
 		);
 		expect(await countSyncFingerprints(client)).toBe(1);
 
@@ -46,9 +47,7 @@ describe('data-safety invariants in browser storage', () => {
 		client = null;
 		const removalReport = await removeIndexFilesAfterWorkerRelease();
 		expect(removalReport.failedPaths).toEqual([]);
-		expect(removalReport.removedPaths).toContain(
-			'apatosaurus/v1/index/apatosaurus-index-v7.db'
-		);
+		expect(removalReport.removedPaths).toContain(INDEX_DATABASE_PATH);
 
 		client = new WorkerClient();
 		await client.request({ type: 'init' });
@@ -61,12 +60,12 @@ describe('data-safety invariants in browser storage', () => {
 		expect(await countSyncFingerprints(client)).toBe(0);
 		expect(rebuildReport.quarantinedFiles).toContainEqual(
 			expect.objectContaining({
-				path: `projects/${PROJECT_SLUG}/transcriptions/corrupt.json`,
-				code: 'invalid_json',
+				path: `projects/${PROJECT_SLUG}/transcriptions/corrupt.tei.xml`,
+				code: 'invalid_shape',
 			})
 		);
-		expect(await readTextFile(`projects/${PROJECT_SLUG}/transcriptions/corrupt.json`)).toBe(
-			'{not-json'
+		expect(await readTextFile(`projects/${PROJECT_SLUG}/transcriptions/corrupt.tei.xml`)).toBe(
+			'<TEI xmlns="http://www.tei-c.org/ns/1.0"><unclosed>'
 		);
 		expect(afterRebuild).toMatchObject({
 			project: {
@@ -712,6 +711,12 @@ function documentWithVerse(identifier: string): StoredTranscriptionDocument {
 								type: 'line',
 								number: 1,
 								items: [
+									{ type: 'milestone', kind: 'book', attrs: { book } },
+									{
+										type: 'milestone',
+										kind: 'chapter',
+										attrs: { book, chapter },
+									},
 									{
 										type: 'milestone',
 										kind: 'verse',

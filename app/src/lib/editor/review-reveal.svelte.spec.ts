@@ -11,6 +11,25 @@ import {
 	waitFor,
 } from '$lib/testing/editorHarnesses.svelte';
 
+vi.mock('$lib/db/client', async () => {
+	const { exportTranscriptionTeiWithFixtureRecord } =
+		await import('$lib/testing/transcriptionTeiExport');
+	return {
+		createTranscription: vi.fn(),
+		createTranscriptions: vi.fn(),
+		ensureDefaultProject: vi.fn(),
+		exportTranscriptionTei: exportTranscriptionTeiWithFixtureRecord,
+		getTranscription: vi.fn(),
+		listProjects: vi.fn(),
+		updateTranscriptionMetadata: vi.fn(),
+		updateTranscriptionContent: vi.fn(async () => undefined),
+	};
+});
+vi.mock('$lib/db/runtime', () => ({
+	checkpointLocalDb: vi.fn(),
+	ensureLocalDbRuntime: vi.fn(async () => undefined),
+}));
+
 function markedText(text: string) {
 	return {
 		type: 'text' as const,

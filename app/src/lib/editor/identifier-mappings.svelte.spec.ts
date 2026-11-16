@@ -12,6 +12,25 @@ import {
 
 import { getSelectedTranscriptionQuote } from './editorInteractions';
 
+vi.mock('$lib/db/client', async () => {
+	const { exportTranscriptionTeiWithFixtureRecord } =
+		await import('$lib/testing/transcriptionTeiExport');
+	return {
+		createTranscription: vi.fn(),
+		createTranscriptions: vi.fn(),
+		ensureDefaultProject: vi.fn(),
+		exportTranscriptionTei: exportTranscriptionTeiWithFixtureRecord,
+		getTranscription: vi.fn(),
+		listProjects: vi.fn(),
+		updateTranscriptionMetadata: vi.fn(),
+		updateTranscriptionContent: vi.fn(async () => undefined),
+	};
+});
+vi.mock('$lib/db/runtime', () => ({
+	checkpointLocalDb: vi.fn(),
+	ensureLocalDbRuntime: vi.fn(async () => undefined),
+}));
+
 describe('editor identifier mappings', () => {
 	it('exports a paragraph start toggled in the mounted editor', async () => {
 		const harness = await mountTranscriptionEditor();

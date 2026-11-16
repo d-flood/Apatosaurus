@@ -180,7 +180,7 @@ describe('TEI round trip through the ProseMirror adapter', () => {
 				const xml = exportFromProseMirror(editor.getJSON());
 				expect(xml).toMatch(/<pb(?=[^>]*n="1v")(?=[^>]*break="no")[^>]*\/>/);
 				expect(xml).toMatch(/<cb(?=[^>]*n="C1")(?=[^>]*break="no")[^>]*\/>/);
-				expect(xml).toMatch(/<lb(?=[^>]*break="no")[^>]*\/>/);
+				expect(xml).toMatch(/<w>alpha<pb[^>]*\/><cb[^>]*\/><lb\/>beta<\/w>/);
 			} finally {
 				editor.destroy();
 			}

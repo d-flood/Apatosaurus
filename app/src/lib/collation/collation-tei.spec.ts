@@ -1,6 +1,6 @@
 import { DOMParser } from '@xmldom/xmldom';
 import type { Document as XmlDocument, Element as XmlElement } from '@xmldom/xmldom';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import {
 	buildApparatusTeiExportInput,
 	exportApparatusTei,
@@ -14,7 +14,9 @@ import { buildCollationDocument } from './collation-document';
 import { collationState, type WitnessConfig } from './collation-state.svelte';
 import type { AlignmentCell, AlignmentSnapshot } from './alignment-snapshot';
 import type { WitnessSourceToken } from './collation-types';
-import { validateTeiP5 } from '../../../../test-support/validate-tei-p5';
+import { validateTeiP5, warmTeiP5Validator } from '../../../../test-support/validate-tei-p5';
+
+beforeAll(() => warmTeiP5Validator(), 300_000);
 
 function tokens(content: string): WitnessSourceToken[] {
 	return content

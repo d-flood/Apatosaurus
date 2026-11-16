@@ -87,7 +87,7 @@ test('signing in from the banner offers to move the project, and Move puts it in
 	const paths = await apatosaurusFilePaths(harness);
 	expect(paths).toContainEqual(expect.stringMatching(/^move-romans-[^/]+\/project\.json$/));
 	expect(paths).toContainEqual(
-		expect.stringMatching(/^move-romans-[^/]+\/transcriptions\/[^/]+\.json$/)
+		expect.stringMatching(/^move-romans-[^/]+\/transcriptions\/[^/]+\.tei\.xml$/)
 	);
 	await expect(storageBanner(page)).toHaveCount(0);
 

@@ -23,7 +23,9 @@ import {
 	type ApparatusLayer,
 } from './collation-apparatus-tei';
 import { buildApparatusTeiExportInput, getApparatusExportRefusals } from './collation-tei';
-import { validateTeiP5 } from '../../../../test-support/validate-tei-p5';
+import { validateTeiP5, warmTeiP5Validator } from '../../../../test-support/validate-tei-p5';
+
+beforeAll(() => warmTeiP5Validator(), 300_000);
 
 vi.stubGlobal('DOMParser', DOMParser);
 
