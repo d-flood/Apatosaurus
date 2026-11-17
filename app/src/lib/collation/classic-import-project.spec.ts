@@ -5,6 +5,7 @@ import type { CollationDocument } from './collation-document';
 import { importClassicCollationProject } from './classic-import-project';
 import { parseClassicCollationExport, buildClassicBaseTranscription } from './classic-import';
 import { collationState } from './collation-state.svelte';
+import { COLLATION_PHASES } from './collation-types';
 import {
 	createLocalDbTestHarness,
 	createTranscriptionWithFiles,
@@ -189,8 +190,8 @@ describe('classic import into a project', () => {
 		expect(placed.witnessIds).toContain('New');
 		expect(placed.manualWitnessIds).toHaveLength(2);
 		expect(collationState.peekUnitView(span.unitId).unconfirmedWitnessIds).toEqual(['New']);
-		expect(collationState.phase).toBe('review');
-		expect(collationState.furthestPhase).toBe('review');
+		expect(collationState.phase).toBe('alignment');
+		expect(COLLATION_PHASES.every(phase => collationState.canNavigateTo(phase))).toBe(true);
 	});
 
 	it('makes cited witnesses full in the imported collations without promoting project entries', async () => {
@@ -416,7 +417,7 @@ it('writes imported collations as TEI-canonical collations', async () => {
 			);
 			expect(payload.document).toEqual(document);
 			expect(payload).toMatchObject({
-				status: 'complete',
+				status: 'draft',
 				group_path: source.verses[index].section ?? '',
 			});
 			expect(

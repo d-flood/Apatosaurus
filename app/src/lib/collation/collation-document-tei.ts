@@ -331,7 +331,6 @@ function standOffXml(document: CollationDocument, record?: CollationTeiRecord): 
 			},
 			' type="collation"'
 		),
-		fs(document.flow, ' type="workflow"'),
 		...(document.importNotes?.map(importNoteXml) ?? []),
 		...(record ? [fs(record, ' type="record"')] : []),
 	];
@@ -637,6 +636,10 @@ export function parseCollationTeiParts(xml: string): ParsedCollationTei {
 	};
 }
 
+function legacyFlow({ phase, alignmentDisplayMode, alignmentLayout }: Record<string, unknown>) {
+	return { phase, alignmentDisplayMode, alignmentLayout };
+}
+
 function readDocument(root: XmlElement, standOff: XmlElement): CollationDocument {
 	const tokenLists = new Map<string, XmlElement>(
 		byType(standOff, 'seg', 'witness-tokens').map(node => [
@@ -661,6 +664,7 @@ function readDocument(root: XmlElement, standOff: XmlElement): CollationDocument
 	});
 
 	const collation = readFs(byType(standOff, 'fs', 'collation')[0]);
+	const workflow = byType(standOff, 'fs', 'workflow')[0];
 	const alignmentFs = byType(standOff, 'fs', 'alignment')[0];
 	const alignmentFields = readFs(alignmentFs);
 	const alignmentSeg = byType(standOff, 'seg', 'alignment')[0];
@@ -692,7 +696,7 @@ function readDocument(root: XmlElement, standOff: XmlElement): CollationDocument
 			projectId: collation.projectId as string | null,
 			projectName: collation.projectName as string | null,
 		},
-		flow: readFs(byType(standOff, 'fs', 'workflow')[0]) as CollationDocument['flow'],
+		...(workflow ? { flow: legacyFlow(readFs(workflow)) } : {}),
 		setup: {
 			segment: collation.segment as CollationDocument['setup']['segment'],
 			witnesses,

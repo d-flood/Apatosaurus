@@ -25,7 +25,7 @@ test('project libraries are clean worklists and collation configuration lives in
 	await expect(page.getByRole('heading', { name: 'Project Details' })).toBeVisible();
 	await expect(page.getByRole('heading', { name: 'Project Collation Settings' })).toBeVisible();
 	await expect(page.getByText('Corrector treatment', { exact: true })).toBeVisible();
-	await expect(page.getByText('Included hands')).toBeVisible();
+	await expect(page.getByText('Included hands').first()).toBeVisible();
 	await expect(
 		page.getByRole('heading', { name: 'Project Transcription Versions' })
 	).toBeVisible();
@@ -33,7 +33,7 @@ test('project libraries are clean worklists and collation configuration lives in
 	const lowercaseToggle = page.getByRole('checkbox', { name: /Lowercase for alignment/ });
 	await lowercaseToggle.check();
 	await expect(page.getByText('Saving project settings')).toHaveCount(0, { timeout: 30_000 });
-	const treatmentToggle = page.locator('[data-treatment-control]').getByRole('checkbox');
+	const treatmentToggle = page.locator('[data-treatment-control]').first().getByRole('checkbox');
 	await treatmentToggle.check();
 	await expect(page.getByText('Saving project settings')).toHaveCount(0, { timeout: 30_000 });
 	const correctorToggle = page.locator('[data-hand-control]').getByRole('checkbox').last();
@@ -159,6 +159,14 @@ async function seedProjectDocuments(page: Page, projectId: string): Promise<void
 	await page.getByRole('checkbox', { name: 'NT_GRC_459_Rom.xml' }).check();
 	await page.getByRole('button', { name: 'Import Selected (1)' }).click();
 	await expect(page.getByText('Imported GA 459.').last()).toBeVisible({ timeout: 60_000 });
+	await page.goto(`/transcription/igntp?projectId=${projectId}`);
+	await page.getByRole('combobox', { name: 'Import into project' }).selectOption(projectId);
+	await page
+		.getByRole('searchbox', { name: 'Search provided transcriptions' })
+		.fill('NT_GRC_010_Rom.xml');
+	await page.getByRole('checkbox', { name: 'NT_GRC_010_Rom.xml' }).check();
+	await page.getByRole('button', { name: 'Import Selected (1)' }).click();
+	await expect(page.getByText(/^Imported (?!and ).+\.$/).last()).toBeVisible({ timeout: 60_000 });
 
 	await page.goto(`/collation/new?projectId=${projectId}`);
 	await expect(page.getByRole('heading', { name: 'Verse Selector' })).toBeVisible({
@@ -167,7 +175,10 @@ async function seedProjectDocuments(page: Page, projectId: string): Promise<void
 	await expect(page.getByText('GA 459', { exact: true }).first()).toBeVisible({
 		timeout: 30_000,
 	});
-	await page.getByRole('button', { name: /^Rom / }).first().click();
+	await page
+		.getByRole('button', { name: /^Rom .* 2 witness sources/ })
+		.first()
+		.click();
 	const memberName = await page.locator('span.min-w-0.truncate.font-mono').first().innerText();
 	await page.getByRole('textbox', { name: /Segment name/ }).fill(memberName);
 	const proceed = page.getByRole('button', { name: 'Proceed to Alignment' });

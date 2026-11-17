@@ -275,31 +275,49 @@
 		return collationState.getAttestingWitnessIdsForReading(unitId, reading.id);
 	}
 
-	function getDisplayedWitnessIds(reading: ClassifiedReading): string[] {
-		if (!unitId) return reading.witnessIds;
-		return collationState.getDisplayedWitnessIdsForReading(unitId, reading.id, displayMode);
-	}
-
 	function isManualWitness(id: string): boolean {
 		return manualWitnesses.some(witness => witness.id === id);
 	}
 
+	function displayWitnessesFor(reading: ClassifiedReading) {
+		const ids = !unitId
+			? reading.witnessIds
+			: collationState.getDisplayedWitnessIdsForReading(unitId, reading.id, displayMode);
+		return {
+			ids,
+			manual: ids.filter(isManualWitness),
+			transcribed: getSortedWitnesses(ids.filter(id => !isManualWitness(id))),
+		};
+	}
+
+	let displayWitnesses = $derived(
+		new Map(readings.map(reading => [reading.id, displayWitnessesFor(reading)]))
+	);
+
+	function displayWitnessesOf(reading: ClassifiedReading) {
+		return displayWitnesses.get(reading.id) ?? displayWitnessesFor(reading);
+	}
+
+	function getDisplayedWitnessIds(reading: ClassifiedReading): string[] {
+		return displayWitnessesOf(reading).ids;
+	}
+
 	function displayedManualWitnessIds(reading: ClassifiedReading): string[] {
-		return getDisplayedWitnessIds(reading).filter(isManualWitness);
+		return displayWitnessesOf(reading).manual;
 	}
 
 	function displayedTranscribedWitnessIds(reading: ClassifiedReading): string[] {
-		return getDisplayedWitnessIds(reading).filter(id => !isManualWitness(id));
+		return displayWitnessesOf(reading).transcribed.map(witness => witness.id);
 	}
 
 	function visibleWitnessesOf(reading: ClassifiedReading): { id: string; siglum: string }[] {
-		const sorted = getSortedWitnesses(displayedTranscribedWitnessIds(reading));
+		const sorted = displayWitnessesOf(reading).transcribed;
 		return expandedWitnesses.has(reading.id) ? sorted : sorted.slice(0, WITNESS_DISPLAY_LIMIT);
 	}
 
 	function hiddenWitnessCount(reading: ClassifiedReading): number {
 		if (expandedWitnesses.has(reading.id)) return 0;
-		return Math.max(0, displayedTranscribedWitnessIds(reading).length - WITNESS_DISPLAY_LIMIT);
+		return Math.max(0, displayWitnessesOf(reading).transcribed.length - WITNESS_DISPLAY_LIMIT);
 	}
 
 	let outsideManualIds = $derived([

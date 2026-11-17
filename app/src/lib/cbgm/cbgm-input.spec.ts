@@ -103,8 +103,6 @@ function saved(collationId: string, segmentName: string): CollationDocument {
 		collationId,
 		projectId: null,
 		projectName: null,
-		phase: collationState.phase,
-		furthestPhase: collationState.furthestPhase,
 		segment: { id: collationId, name: segmentName, members: [segmentName] },
 		witnesses: collationState.witnesses,
 		rules: collationState.rules,
@@ -120,8 +118,6 @@ function saved(collationId: string, segmentName: string): CollationDocument {
 		classifiedReadings: collationState.classifiedReadings,
 		unitDecisions: collationState.unitDecisions,
 		readingArcs: collationState.readingArcs,
-		alignmentDisplayMode: collationState.alignmentDisplayMode,
-		alignmentLayout: collationState.alignmentLayout,
 	});
 }
 
@@ -588,7 +584,8 @@ describe('CBGM input builder, as coherence sees it', () => {
 		collationState.getReadingsForUnit(UNIT);
 		const first = saved('c1', 'John 1:1');
 		const second = saved('c2', 'John 1:2');
-		second.setup.witnesses[0].siglum = 'Syriac';
+		const [renamed, ...others] = second.setup.witnesses;
+		second.setup.witnesses = [{ ...renamed, siglum: 'Syriac' }, ...others];
 		first.apparatus!.units[0].decisions.manualTestimony = {
 			manual: { kind: 'reading', readingId: reading('beta').id },
 		};

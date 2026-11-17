@@ -59,6 +59,10 @@ function getWorker(): Worker {
 	return worker;
 }
 
+export function warmCollationWorker(): void {
+	if (typeof window !== 'undefined' && typeof Worker !== 'undefined') getWorker();
+}
+
 function postWorkerRequest<T>(message: WorkerIncomingMessage): Promise<T> {
 	const runtime = getWorker();
 	return new Promise<T>((resolve, reject) => {

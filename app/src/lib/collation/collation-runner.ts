@@ -734,7 +734,18 @@ export async function gatherWitnessesForVerse(
 	transcriptionIds?: string[],
 	options: WitnessExtractionOptions = {}
 ): Promise<PreparedWitness[]> {
-	const verseRows = await getVerseIndexRowsForVerse(verseIdentifier, transcriptionIds);
+	return witnessesFromVerseRows(
+		verseIdentifier,
+		await getVerseIndexRowsForVerse(verseIdentifier, transcriptionIds),
+		options
+	);
+}
+
+async function witnessesFromVerseRows(
+	verseIdentifier: string,
+	verseRows: Awaited<ReturnType<typeof getVerseIndexRowsForVerse>>,
+	options: WitnessExtractionOptions
+): Promise<PreparedWitness[]> {
 	const seenWitnessIds = new Map<string, number>();
 	const orderedTranscriptionIds: string[] = [];
 	const seenTranscriptions = new Set<string>();
@@ -781,12 +792,13 @@ export async function gatherWitnessesForSegment(
 ): Promise<SegmentGatherResult> {
 	if (projectId) await refreshChangedDocumentFiles(projectId);
 	const members = [...new Set(segment.members)];
-	const [orphanedMembers, witnessesByMember] = await Promise.all([
-		findOrphanedSegmentMembers(members, transcriptionIds),
-		Promise.all(
-			members.map(member => gatherWitnessesForVerse(member, transcriptionIds, options))
-		),
-	]);
+	const rowsByMember = await Promise.all(
+		members.map(member => getVerseIndexRowsForVerse(member, transcriptionIds))
+	);
+	const orphanedMembers = members.filter((_, index) => rowsByMember[index].length === 0);
+	const witnessesByMember = await Promise.all(
+		members.map((member, index) => witnessesFromVerseRows(member, rowsByMember[index], options))
+	);
 	const memberByTranscription = new Map<string, string>();
 	const witnesses: PreparedWitness[] = [];
 

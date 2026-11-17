@@ -16,7 +16,6 @@ const { statuses } = vi.hoisted(() => ({
 		verseIdentifier: title,
 		groupPath,
 		sortKey,
-		workflowStatus: 'complete',
 	})),
 }));
 vi.mock('$lib/collation/components/ClassicCollationImportDialog.svelte', () => ({

@@ -8,6 +8,7 @@ test('Continue resumes a collation at its current phase and About preserves the 
 }) => {
 	const projectId = await createProject(page, 'Dashboard Romans');
 	await importRomansTranscription(page, projectId);
+	await importRomansTranscription(page, projectId, 'NT_GRC_010_Rom.xml');
 	const collationPath = await createRomansCollation(page, projectId);
 
 	await page.goto('/');
@@ -106,15 +107,17 @@ async function createProject(page: Page, name: string): Promise<string> {
 	return match[1];
 }
 
-async function importRomansTranscription(page: Page, projectId: string): Promise<void> {
+async function importRomansTranscription(
+	page: Page,
+	projectId: string,
+	file = 'NT_GRC_459_Rom.xml'
+): Promise<void> {
 	await page.goto(`/transcription/igntp?projectId=${projectId}`);
 	await page.getByRole('combobox', { name: 'Import into project' }).selectOption(projectId);
-	await page
-		.getByRole('searchbox', { name: 'Search provided transcriptions' })
-		.fill('NT_GRC_459_Rom.xml');
-	await page.getByRole('checkbox', { name: 'NT_GRC_459_Rom.xml' }).check();
+	await page.getByRole('searchbox', { name: 'Search provided transcriptions' }).fill(file);
+	await page.getByRole('checkbox', { name: file }).check();
 	await page.getByRole('button', { name: 'Import Selected (1)' }).click();
-	await expect(page.getByText('Imported GA 459.').last()).toBeVisible({ timeout: 60_000 });
+	await expect(page.getByText(/^Imported (?!and ).+\.$/).last()).toBeVisible({ timeout: 60_000 });
 }
 
 async function createRomansCollation(page: Page, projectId: string): Promise<string> {
@@ -125,7 +128,10 @@ async function createRomansCollation(page: Page, projectId: string): Promise<str
 	await expect(page.getByText('GA 459', { exact: true }).first()).toBeVisible({
 		timeout: 30_000,
 	});
-	await page.getByRole('button', { name: /^Rom / }).first().click();
+	await page
+		.getByRole('button', { name: /^Rom .* 2 witness sources/ })
+		.first()
+		.click();
 	const memberName = await page.locator('span.min-w-0.truncate.font-mono').first().innerText();
 	await page.getByRole('textbox', { name: /Segment name/ }).fill(memberName);
 	const proceed = page.getByRole('button', { name: 'Proceed to Alignment' });

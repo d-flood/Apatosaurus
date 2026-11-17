@@ -39,11 +39,8 @@ describe('collation TEI', () => {
 	it('round-trips the collation-state fixtures', async () => {
 		await expectRoundTrip(await stateFixture());
 		for (const fixture of stateLoadFixtures()) await expectRoundTrip(fixture);
-		await expectRoundTrip({
-			name: 'empty payload fixture',
-			document: COLLATION_FIXTURE.document,
-			vocab: {},
-		});
+		const { flow: _, ...document } = COLLATION_FIXTURE.document;
+		await expectRoundTrip({ name: 'empty payload fixture', document, vocab: {} });
 	});
 
 	it('round-trips a generated 100-witness collation with every decision kind', async () => {
@@ -106,6 +103,30 @@ describe('collation TEI', () => {
 		await expect(validateTeiP5(xml)).resolves.toBeUndefined();
 	}, 120_000);
 
+	it('writes no workflow block and reads a legacy one only as view state', async () => {
+		const { document, vocab } = await stateFixture();
+		const current = await serializeCollationTei(document, vocab);
+		expect(current.xml).not.toContain('type="workflow"');
+		const legacyXml = current.xml.replace(
+			'</standOff>',
+			'<fs type="workflow"><f name="phase"><string>readings</string></f>' +
+				'<f name="furthestPhase"><string>stemma</string></f>' +
+				'<f name="alignmentDisplayMode"><string>original</string></f>' +
+				'<f name="alignmentLayout"><string>variation-units</string></f></fs></standOff>'
+		);
+		const legacy = parseCollationTei(legacyXml);
+		expect(legacy.flow).toEqual({
+			phase: 'readings',
+			alignmentDisplayMode: 'original',
+			alignmentLayout: 'variation-units',
+		});
+		const { flow: _, ...content } = legacy;
+		expect(content).toEqual(parseCollationTei(current.xml));
+		const resaved = await serializeCollationTei(legacy, vocab);
+		expect(resaved.xml).toBe(current.xml);
+		expect(resaved.contentHash).toBe(current.contentHash);
+	});
+
 	it('keeps the content hash when only save metadata or a Version note changes', async () => {
 		const { document, vocab } = await stateFixture();
 		const saved = (when: string, note?: string) =>
@@ -120,7 +141,7 @@ describe('collation TEI', () => {
 		expect(later.fileHash).not.toBe(first.fileHash);
 		expect(later.contentHash).toBe(first.contentHash);
 		expect(later.contentHash).toBe((await serializeCollationTei(document, vocab)).contentHash);
-		document.flow.phase = 'review';
+		document.settings.lowercase = !document.settings.lowercase;
 		const edited = await saved('2026-11-02T00:00:00.000Z', 'First note');
 		expect(edited.contentHash).not.toBe(first.contentHash);
 	});

@@ -630,6 +630,7 @@ describe('gatherWitnessesForVerse', () => {
 		expect(result.orphanedMembers).toEqual(['B 1:1']);
 		expect(result.witnesses.map(witness => witness.transcriptionUid)).toEqual(['tx-resolved']);
 		expect(segment.members).toEqual(['A 1:1', 'B 1:1']);
+		expect(getVerseIndexRowsForVerse).toHaveBeenCalledTimes(2);
 		expect(result.witnesses[0]?.tokens.map(token => token.kind)).toEqual(['text']);
 	});
 

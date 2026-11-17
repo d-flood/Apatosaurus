@@ -215,7 +215,7 @@ describe('classic collation import', () => {
 				);
 			expect(readingCitations(exportApparatusTei(input))).toEqual(expected);
 			expect(document.setup.segment).toMatchObject({ name: verse.id, members: [verse.id] });
-			expect(document.flow).toMatchObject({ phase: 'review', furthestPhase: 'review' });
+			expect(document).not.toHaveProperty('flow');
 			expect(
 				document.apparatus?.units.every(
 					unit => !unit.decisions.unconfirmedWitnessIds?.length

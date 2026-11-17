@@ -5,11 +5,7 @@ import {
 	type SerializedAlignmentColumn,
 } from './alignment-snapshot';
 import {
-	COLLATION_PHASES,
-	type AlignmentLayout,
-	type AlignmentDisplayMode,
 	type ClassifiedReading,
-	type CollationPhase,
 	type RegularizationRule,
 	type ReadingArc,
 	type SuppliedTextMode,
@@ -24,7 +20,9 @@ import {
 	buildVariationUnitSpans,
 	validDeclaredUnits,
 	type DeclaredUnit,
+	type VariationUnitSpan,
 } from './collation-variation-units';
+import { normalizeViewState, type CollationViewState } from './collation-view-state';
 import type { ReadingTypeDefinition } from './reading-types';
 
 export const COLLATION_DOCUMENT_ARTIFACT_TYPE = 'collation_document_v1';
@@ -133,12 +131,8 @@ export interface CollationDocument {
 		projectId: string | null;
 		projectName: string | null;
 	};
-	flow: {
-		phase: CollationPhase;
-		furthestPhase: CollationPhase;
-		alignmentDisplayMode: AlignmentDisplayMode;
-		alignmentLayout: AlignmentLayout;
-	};
+	/** Legacy workflow block, read only to seed per-device view state; never written. */
+	flow?: Record<string, unknown>;
 	setup: {
 		segment: CollationSegment;
 		witnesses: CollationWitnessNode[];
@@ -163,8 +157,6 @@ export interface CollationDocumentSeed {
 	collationId: string | null;
 	projectId: string | null;
 	projectName: string | null;
-	phase: CollationPhase;
-	furthestPhase: CollationPhase;
 	segment: CollationSegment;
 	witnesses: WitnessConfig[];
 	manualWitnessOverrides?: ManualWitnessOverride[];
@@ -177,12 +169,12 @@ export interface CollationDocumentSeed {
 	segmentation: boolean;
 	alignmentColumns: AlignmentColumn[];
 	declaredUnits?: DeclaredUnit[];
+	/** Spans of `alignmentColumns` and `declaredUnits`; computed once when omitted. */
+	variationUnitSpans?: VariationUnitSpan[];
 	witnessOrder: string[];
 	classifiedReadings: Map<string, ClassifiedReading[]>;
 	unitDecisions: Map<string, UnitDecisions>;
 	readingArcs: Map<string, ReadingArc[]>;
-	alignmentDisplayMode: AlignmentDisplayMode;
-	alignmentLayout: AlignmentLayout;
 }
 
 export interface HydratedCollationDocument {
@@ -190,8 +182,6 @@ export interface HydratedCollationDocument {
 	collationId: string | null;
 	projectId: string | null;
 	projectName: string | null;
-	phase: CollationPhase;
-	furthestPhase: CollationPhase;
 	segment: CollationSegment;
 	witnesses: WitnessConfig[];
 	manualWitnessOverrides?: ManualWitnessOverride[];
@@ -208,27 +198,11 @@ export interface HydratedCollationDocument {
 	classifiedReadings: Array<[string, ClassifiedReading[]]>;
 	unitDecisions: Array<[string, UnitDecisions]>;
 	readingArcs: Array<[string, ReadingArc[]]>;
-	alignmentDisplayMode: AlignmentDisplayMode;
-	alignmentLayout: AlignmentLayout;
+	legacyView: CollationViewState | null;
 }
 
 function makeSourceTokenId(witnessId: string, index: number): string {
 	return `${witnessId}::source::${index}`;
-}
-
-/** Unknown phases come from newer builds, so clamp instead of resetting progress. */
-function normalizePhase(value: unknown): CollationPhase {
-	if (value === 'regularization') return 'alignment';
-	if (COLLATION_PHASES.includes(value as CollationPhase)) return value as CollationPhase;
-	return typeof value === 'string' ? 'review' : 'setup';
-}
-
-function normalizeDisplayMode(value: unknown): AlignmentDisplayMode {
-	return value === 'original' ? 'original' : 'regularized';
-}
-
-function normalizeAlignmentLayout(value: unknown): AlignmentLayout {
-	return value === 'variation-units' ? 'variation-units' : 'grid';
 }
 
 function normalizeSuppliedTextMode(value: unknown): SuppliedTextMode {
@@ -443,6 +417,18 @@ function assertCollationSegment(value: unknown): CollationSegment {
 	};
 }
 
+const witnessNodes = new WeakMap<WitnessConfig[], CollationWitnessNode[]>();
+const serializedColumns = new WeakMap<AlignmentColumn[], SerializedAlignmentColumn[]>();
+
+function memoize<K extends object, V>(cache: WeakMap<K, V>, key: K, build: (key: K) => V): V {
+	let value = cache.get(key);
+	if (value === undefined) {
+		value = build(key);
+		cache.set(key, value);
+	}
+	return value;
+}
+
 function normalizeWitnesses(witnesses: WitnessConfig[]): CollationWitnessNode[] {
 	return witnesses.map(witness => ({
 		type: 'witness',
@@ -651,21 +637,28 @@ export function findBaseTextWitnessId(
 	return designated.witnessId;
 }
 
+function byColumnOrder(alignmentColumns: AlignmentColumn[]) {
+	const indices = new Map<string | null, number>();
+	alignmentColumns.forEach((column, index) => {
+		if (!indices.has(column.id)) indices.set(column.id, index);
+	});
+	return (a: { columnId: string | null }, b: { columnId: string | null }) =>
+		(indices.get(a.columnId) ?? -1) - (indices.get(b.columnId) ?? -1);
+}
+
 function buildApparatus(
 	classifiedReadings: Map<string, ClassifiedReading[]>,
 	unitDecisions: Map<string, UnitDecisions>,
 	alignmentColumns: AlignmentColumn[],
 	baseWitnessId: string | null,
 	sourceWitnessIds: string[],
-	declaredUnits: DeclaredUnit[]
+	spans: Map<string, VariationUnitSpan>
 ): CollationApparatusNode | null {
 	if (classifiedReadings.size === 0 && unitDecisions.size === 0) return null;
 	const unitIds = new Set([...classifiedReadings.keys(), ...unitDecisions.keys()]);
 	const units = [...unitIds]
 		.map(unitId => {
-			const span = buildVariationUnitSpans(alignmentColumns, declaredUnits).find(
-				span => span.unitId === unitId
-			);
+			const span = spans.get(unitId);
 			const columnId = span?.columnIds[0] ?? null;
 			const { connectivity: _, ...decisions } = unitDecisions.get(unitId) ?? {};
 			return {
@@ -696,11 +689,7 @@ function buildApparatus(
 				decisions,
 			};
 		})
-		.sort(
-			(a, b) =>
-				alignmentColumns.findIndex(column => column.id === a.columnId) -
-				alignmentColumns.findIndex(column => column.id === b.columnId)
-		);
+		.sort(byColumnOrder(alignmentColumns));
 	return { type: 'apparatus', units };
 }
 
@@ -708,7 +697,7 @@ function buildStemma(
 	readingArcs: Map<string, ReadingArc[]>,
 	unitDecisions: Map<string, UnitDecisions>,
 	alignmentColumns: AlignmentColumn[],
-	declaredUnits: DeclaredUnit[]
+	spans: Map<string, VariationUnitSpan>
 ): CollationStemmaNode | null {
 	const unitIds = new Set([
 		...readingArcs.keys(),
@@ -719,10 +708,7 @@ function buildStemma(
 	if (unitIds.size === 0) return null;
 	const units = [...unitIds]
 		.map(unitId => {
-			const columnId =
-				buildVariationUnitSpans(alignmentColumns, declaredUnits).find(
-					span => span.unitId === unitId
-				)?.columnIds[0] ?? null;
+			const columnId = spans.get(unitId)?.columnIds[0] ?? null;
 			const connectivity = unitDecisions.get(unitId)?.connectivity;
 			return {
 				type: 'stemmaUnit' as const,
@@ -733,15 +719,21 @@ function buildStemma(
 				...(connectivity === undefined ? {} : { connectivity }),
 			};
 		})
-		.sort(
-			(a, b) =>
-				alignmentColumns.findIndex(column => column.id === a.columnId) -
-				alignmentColumns.findIndex(column => column.id === b.columnId)
-		);
+		.sort(byColumnOrder(alignmentColumns));
 	return { type: 'stemma', units };
 }
 
+function spansByUnit(seed: CollationDocumentSeed): Map<string, VariationUnitSpan> {
+	const spans = new Map<string, VariationUnitSpan>();
+	const list =
+		seed.variationUnitSpans ??
+		buildVariationUnitSpans(seed.alignmentColumns, seed.declaredUnits ?? []);
+	for (const span of list) if (!spans.has(span.unitId)) spans.set(span.unitId, span);
+	return spans;
+}
+
 export function buildCollationDocument(seed: CollationDocumentSeed): CollationDocument {
+	const spans = spansByUnit(seed);
 	return {
 		type: 'collationDocument',
 		version: 1,
@@ -753,15 +745,9 @@ export function buildCollationDocument(seed: CollationDocumentSeed): CollationDo
 			projectId: seed.projectId,
 			projectName: seed.projectName,
 		},
-		flow: {
-			phase: seed.phase,
-			furthestPhase: seed.furthestPhase,
-			alignmentDisplayMode: seed.alignmentDisplayMode,
-			alignmentLayout: seed.alignmentLayout,
-		},
 		setup: {
 			segment: assertCollationSegment(seed.segment),
-			witnesses: normalizeWitnesses(seed.witnesses),
+			witnesses: memoize(witnessNodes, seed.witnesses, normalizeWitnesses),
 			...(seed.manualWitnessOverrides?.length
 				? {
 						manualWitnessOverrides: seed.manualWitnessOverrides.map(entry => ({
@@ -784,7 +770,11 @@ export function buildCollationDocument(seed: CollationDocumentSeed): CollationDo
 				? {
 						type: 'alignment',
 						witnessOrder: seed.witnessOrder,
-						columns: serializeAlignmentColumns(seed.alignmentColumns),
+						columns: memoize(
+							serializedColumns,
+							seed.alignmentColumns,
+							serializeAlignmentColumns
+						),
 						...(seed.declaredUnits?.length
 							? {
 									declaredUnits: validDeclaredUnits(
@@ -801,14 +791,9 @@ export function buildCollationDocument(seed: CollationDocumentSeed): CollationDo
 			seed.alignmentColumns,
 			findBaseTextWitnessId(seed.witnesses),
 			seed.witnesses.filter(witness => !witness.isExcluded).map(witness => witness.witnessId),
-			seed.declaredUnits ?? []
+			spans
 		),
-		stemma: buildStemma(
-			seed.readingArcs,
-			seed.unitDecisions,
-			seed.alignmentColumns,
-			seed.declaredUnits ?? []
-		),
+		stemma: buildStemma(seed.readingArcs, seed.unitDecisions, seed.alignmentColumns, spans),
 	};
 }
 
@@ -877,8 +862,6 @@ export function hydrateCollationDocument(document: CollationDocument): HydratedC
 		collationId: document.meta.collationId ?? null,
 		projectId: document.meta.projectId ?? null,
 		projectName: document.meta.projectName ?? null,
-		phase: normalizePhase(document.flow?.phase),
-		furthestPhase: normalizePhase(document.flow?.furthestPhase),
 		segment: assertCollationSegment(document.setup?.segment),
 		witnesses: parseWitnesses(document.setup?.witnesses),
 		manualWitnessOverrides:
@@ -912,8 +895,7 @@ export function hydrateCollationDocument(document: CollationDocument): HydratedC
 			document.stemma?.units
 				?.filter(unit => typeof unit.unitId === 'string' && Array.isArray(unit.arcs))
 				.map(unit => [unit.unitId, unit.arcs] as [string, ReadingArc[]]) ?? [],
-		alignmentDisplayMode: normalizeDisplayMode(document.flow?.alignmentDisplayMode),
-		alignmentLayout: normalizeAlignmentLayout(document.flow?.alignmentLayout),
+		legacyView: document.flow ? normalizeViewState(document.flow) : null,
 	};
 }
 

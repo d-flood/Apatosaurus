@@ -93,26 +93,6 @@
 			deletingId = null;
 		}
 	}
-
-	function phaseLabel(status: string): string {
-		const labels: Record<string, string> = {
-			setup: 'Setup',
-			regularization: 'Alignment',
-			alignment: 'Alignment',
-			readings: 'Readings',
-			stemma: 'Stemma',
-			complete: 'Complete',
-		};
-		return labels[status] ?? status ?? 'Setup';
-	}
-
-	function phaseBadge(status: string): string {
-		if (status === 'complete') return 'badge-success';
-		if (status === 'stemma') return 'badge-info';
-		if (status === 'readings') return 'badge-secondary';
-		if (status === 'alignment') return 'badge-warning';
-		return 'badge-ghost';
-	}
 </script>
 
 {#snippet collationRow(status: CollationVersionStatus)}
@@ -135,9 +115,6 @@
 				Reconcile
 			</a>
 		{:else}
-			<span class="badge badge-sm {phaseBadge(status.workflowStatus)}">
-				{phaseLabel(status.workflowStatus)}
-			</span>
 			<a
 				href={resolve('/collation/[id]', { id: status.collationId })}
 				class="btn btn-ghost btn-sm"

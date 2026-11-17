@@ -595,7 +595,7 @@ async function readCollationCurrent(
 }
 
 function remapWitnessSources(conversion: Conversion, content: CollationContent): CollationContent {
-	const document = structuredClone(content.document);
+	const { flow: _viewState, ...document } = structuredClone(content.document);
 	for (const witness of document.setup.witnesses) {
 		const source = witness.source;
 		if (source?.kind !== 'current') continue;

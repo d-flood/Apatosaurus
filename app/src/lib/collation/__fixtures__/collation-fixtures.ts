@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from 'node:fs';
+import * as fs from 'node:fs';
 import { expect } from 'vitest';
 
 import { mergeColumnsIn } from '../alignment-edits';
@@ -38,11 +38,12 @@ export interface Fixture {
 const classicDir = new URL('./classic/', import.meta.url);
 
 export function classicFixtures(): Fixture[] {
-	return readdirSync(classicDir)
+	return fs
+		.readdirSync(classicDir)
 		.filter(file => file.endsWith('.xml'))
 		.flatMap(file => {
 			const source = parseClassicCollationExport(
-				readFileSync(new URL(file, classicDir), 'utf8')
+				fs.readFileSync(new URL(file, classicDir), 'utf8')
 			);
 			const editorial = classicEditorialVocabulary(source);
 			const transcription = buildClassicBaseTranscription(source);
@@ -190,8 +191,6 @@ export async function stateFixture(): Promise<Fixture> {
 		collationId: 'state',
 		projectId: null,
 		projectName: 'Project',
-		phase: collationState.phase,
-		furthestPhase: collationState.furthestPhase,
 		segment: { id: 'state', name: 'John 1:1', members: ['John 1:1'] },
 		witnesses: collationState.witnesses,
 		rules: collationState.rules,
@@ -203,12 +202,11 @@ export async function stateFixture(): Promise<Fixture> {
 		segmentation: collationState.segmentation,
 		alignmentColumns: collationState.alignmentColumns,
 		declaredUnits: collationState.declaredUnits,
+		variationUnitSpans: collationState.getVariationUnitSpans(),
 		witnessOrder: collationState.witnessOrder,
 		classifiedReadings: collationState.classifiedReadings,
 		unitDecisions: collationState.unitDecisions,
 		readingArcs: collationState.readingArcs,
-		alignmentDisplayMode: collationState.alignmentDisplayMode,
-		alignmentLayout: collationState.alignmentLayout,
 	});
 	return {
 		name: 'collation state',
@@ -517,8 +515,6 @@ export function generatedFixture(): Fixture {
 		collationId: 'generated',
 		projectId: 'project',
 		projectName: null,
-		phase: 'readings',
-		furthestPhase: 'stemma',
 		segment: { id: 'segment', name: 'Romans 1:1', members: ['Romans 1:1', 'Romans 1:2'] },
 		witnesses,
 		manualWitnessOverrides: [
@@ -537,8 +533,6 @@ export function generatedFixture(): Fixture {
 		classifiedReadings: new Map([[mergedUnit, mergedReadings]]),
 		unitDecisions,
 		readingArcs,
-		alignmentDisplayMode: 'original',
-		alignmentLayout: 'variation-units',
 	});
 	return {
 		name: 'generated 100 witnesses',
@@ -576,17 +570,11 @@ function stateLoadWitness(witnessId: string, content: string, isBaseText = false
 
 /** The documents the collation-state load spec persists, from setup through readings. */
 export function stateLoadFixtures(): Fixture[] {
-	const seed = (
-		phase: 'setup' | 'alignment' | 'readings',
-		alignmentColumns: AlignmentColumn[],
-		unitDecisions: Map<string, UnitDecisions>
-	) =>
+	const seed = (alignmentColumns: AlignmentColumn[], unitDecisions: Map<string, UnitDecisions>) =>
 		buildCollationDocument({
 			collationId: 'col-1',
 			projectId: 'proj-1',
 			projectName: 'Project 1',
-			phase,
-			furthestPhase: phase,
 			segment: { id: 'segment-1', name: 'Romans 1:1', members: ['Romans 1:1'] },
 			witnesses: [stateLoadWitness('A', 'alpha', true), stateLoadWitness('B', 'beta')],
 			rules: [],
@@ -601,8 +589,6 @@ export function stateLoadFixtures(): Fixture[] {
 			classifiedReadings: new Map(),
 			unitDecisions,
 			readingArcs: new Map(),
-			alignmentDisplayMode: 'regularized',
-			alignmentLayout: 'variation-units',
 		});
 	const columns = () =>
 		deserializeAlignmentColumns([
@@ -618,11 +604,10 @@ export function stateLoadFixtures(): Fixture[] {
 		]);
 	const beta = 'col-1::beta::original';
 	return [
-		{ name: 'state load: setup', document: seed('setup', [], new Map()), vocab: {} },
+		{ name: 'state load: setup', document: seed([], new Map()), vocab: {} },
 		{
 			name: 'state load: subreading decision',
 			document: seed(
-				'readings',
 				columns(),
 				new Map([['unit:col-1', { subreadingOf: { [beta]: 'col-1::alpha::original' } }]])
 			),
@@ -631,7 +616,6 @@ export function stateLoadFixtures(): Fixture[] {
 		{
 			name: 'state load: reading type',
 			document: seed(
-				'readings',
 				columns(),
 				new Map([
 					[

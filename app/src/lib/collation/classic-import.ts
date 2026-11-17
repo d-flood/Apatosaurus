@@ -693,8 +693,6 @@ export function buildClassicCollationDocument(input: {
 		collationId: input.collationId,
 		projectId: input.projectId,
 		projectName: input.projectName,
-		phase: 'review',
-		furthestPhase: 'review',
 		segment: { id: crypto.randomUUID(), name: verse.id, members: [verse.id] },
 		witnesses: [base],
 		manualWitnessOverrides: manualWitnesses.flatMap((witness): ManualWitnessOverride[] => {
@@ -712,7 +710,5 @@ export function buildClassicCollationDocument(input: {
 		importNotes,
 		unitDecisions,
 		readingArcs,
-		alignmentDisplayMode: 'original',
-		alignmentLayout: 'grid',
 	});
 }

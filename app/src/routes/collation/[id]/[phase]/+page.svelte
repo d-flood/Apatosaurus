@@ -24,11 +24,11 @@
 			void goto(`/collation/${id}/${collationState.phase}`, { replaceState: true });
 			return;
 		}
-		if (requestedPhase !== 'setup' && !collationState.canNavigateTo(requestedPhase)) {
-			void goto(`/collation/${id}/${collationState.furthestPhase}`, { replaceState: true });
+		if (!collationState.canNavigateTo(requestedPhase)) {
+			void goto(`/collation/${id}/setup`, { replaceState: true });
 			return;
 		}
-		collationState.showPhase(requestedPhase);
+		collationState.setPhase(requestedPhase);
 	}
 
 	$effect(() => {

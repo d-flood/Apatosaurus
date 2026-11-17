@@ -157,8 +157,7 @@ describe('collationState progress', () => {
 					witnesses: collationState.buildCollationWitnessInputs(),
 				}).snapshot
 			);
-			collationState.setPhase('review');
-			collationState.showPhase(phase);
+			collationState.setPhase(phase);
 
 			const gathered = vi.spyOn(collationRunner, 'gatherWitnessesForSegment');
 			const refreshed = makeWitness('B', 'κυριος');
@@ -182,7 +181,6 @@ describe('collationState progress', () => {
 				collationState.witnesses.find(witness => witness.witnessId === 'B')?.content
 			).toBe('κυριος');
 			expect(collationState.phase).toBe(phase);
-			expect(collationState.furthestPhase).toBe('review');
 
 			const added = makeWitness('C', 'πνευμα');
 			gathered.mockResolvedValue({
@@ -207,27 +205,45 @@ describe('collationState progress', () => {
 				'C',
 			]);
 			expect(collationState.phase).toBe(phase);
-			expect(collationState.furthestPhase).toBe('review');
 			expect(COLLATION_PHASES.every(target => collationState.canNavigateTo(target))).toBe(
 				true
 			);
 		}
 	);
 
-	it('keeps every phase navigable after Review even when the alignment becomes empty', () => {
+	function alignTwoWitnesses() {
+		collationState.setWitnesses([
+			makeWitness('A', 'λογος', { isBaseText: true }),
+			makeWitness('B', 'θεος'),
+		]);
+		collationState.setAlignmentSnapshot(
+			collateToAlignmentSnapshot({
+				witnesses: collationState.buildCollationWitnessInputs(),
+			}).snapshot
+		);
+	}
+
+	it('gates every phase but Setup again when the alignment becomes empty, even from Review', () => {
+		alignTwoWitnesses();
 		collationState.setPhase('review');
+		expect(COLLATION_PHASES.every(phase => collationState.canNavigateTo(phase))).toBe(true);
+
 		collationState.setAlignmentSnapshot({ witnessOrder: [], columns: [] });
 
-		expect(collationState.furthestPhase).toBe('review');
-		expect(COLLATION_PHASES.every(phase => collationState.canNavigateTo(phase))).toBe(true);
+		expect(COLLATION_PHASES.filter(phase => collationState.canNavigateTo(phase))).toEqual([
+			'setup',
+		]);
 	});
 
-	it('keeps Stemma gated when the furthest phase is Alignment', () => {
+	it('gates Stemma by the alignment, not by the phases visited', () => {
 		collationState.setPhase('alignment');
-
 		expect(collationState.canNavigateTo('setup')).toBe(true);
-		expect(collationState.canNavigateTo('alignment')).toBe(true);
 		expect(collationState.canNavigateTo('stemma')).toBe(false);
+
+		alignTwoWitnesses();
+
+		expect(collationState.canNavigateTo('stemma')).toBe(true);
+		expect(collationState.canNavigateTo('review')).toBe(true);
 	});
 });
 
@@ -3496,8 +3512,6 @@ describe('collationState witness placement', () => {
 			collationId: 'placement',
 			projectId: null,
 			projectName: null,
-			phase: collationState.phase,
-			furthestPhase: collationState.furthestPhase,
 			segment: collationState.segment!,
 			witnesses: collationState.witnesses,
 			rules: collationState.rules,
@@ -3513,8 +3527,6 @@ describe('collationState witness placement', () => {
 			classifiedReadings: collationState.classifiedReadings,
 			unitDecisions: collationState.unitDecisions,
 			readingArcs: collationState.readingArcs,
-			alignmentDisplayMode: collationState.alignmentDisplayMode,
-			alignmentLayout: collationState.alignmentLayout,
 		});
 	}
 
@@ -4729,8 +4741,7 @@ describe('collationState witness placement', () => {
 		const decisions = new Map(collationState.unitDecisions);
 		const arcs = new Map(collationState.readingArcs);
 		collationState.mergeColumns(['column-1', 'column-2']);
-		collationState.setPhase('review');
-		collationState.showPhase('stemma');
+		collationState.setPhase('stemma');
 		collationState.setAlignmentSnapshot(
 			collateToAlignmentSnapshot({
 				witnesses: collationState.buildCollationWitnessInputs({
@@ -4754,7 +4765,7 @@ describe('collationState witness placement', () => {
 			'unit:column-2',
 		]);
 		expect(collationState.phase).toBe('stemma');
-		expect(collationState.furthestPhase).toBe('review');
+		expect(COLLATION_PHASES.every(target => collationState.canNavigateTo(target))).toBe(true);
 	});
 
 	it('orphans the edited readings of a unit re-alignment cannot recognize', () => {
@@ -4797,8 +4808,7 @@ describe('collationState witness placement', () => {
 			collationState.setAlignmentSnapshot({ witnessOrder: ['A', 'B', 'C'], columns });
 			collationState.getReadingsForUnit(`unit:${collationState.alignmentColumns[0].id}`);
 			collationState.setConnectivity(`unit:${collationState.alignmentColumns[1].id}`, 3);
-			collationState.setPhase('review');
-			collationState.showPhase('readings');
+			collationState.setPhase('readings');
 			const before = collationState.alignmentColumns.slice(0, 2).map(column => ({
 				...column,
 				cells: new Map([...column.cells].filter(([id]) => id !== 'C')),
@@ -4829,7 +4839,9 @@ describe('collationState witness placement', () => {
 					.flatMap(reading => reading.witnessIds)
 			).not.toContain('C');
 			expect(collationState.phase).toBe('readings');
-			expect(collationState.furthestPhase).toBe('review');
+			expect(COLLATION_PHASES.every(target => collationState.canNavigateTo(target))).toBe(
+				true
+			);
 			if (action === 'exclude') {
 				collationState.toggleWitnessExclusion('C');
 				expect(
@@ -4856,8 +4868,7 @@ describe('collationState witness placement', () => {
 			collationState.mergeColumns(['column-0', 'column-1']);
 			const mergedId = collationState.alignmentColumns[0].id;
 			collationState.setConnectivity(`unit:${collationState.alignmentColumns[0].id}`, 3);
-			collationState.setPhase('review');
-			collationState.showPhase('setup');
+			collationState.setPhase('setup');
 			collationState.setSegmentMembers(['Romans 1:1', 'Rom.1.1']);
 			collationState.setWitnesses(
 				[
@@ -4888,7 +4899,9 @@ describe('collationState witness placement', () => {
 				});
 			}
 			expect(collationState.phase).toBe('setup');
-			expect(collationState.furthestPhase).toBe('review');
+			expect(COLLATION_PHASES.every(target => collationState.canNavigateTo(target))).toBe(
+				true
+			);
 		}
 	);
 
@@ -4930,7 +4943,7 @@ describe('collationState witness placement', () => {
 			decisions: { connectivity: 5 },
 		});
 		expect(collationState.phase).toBe('review');
-		expect(collationState.furthestPhase).toBe('review');
+		expect(COLLATION_PHASES.every(target => collationState.canNavigateTo(target))).toBe(true);
 	});
 
 	it('leaves export and CBGM input identical with unconfirmed marks', async () => {

@@ -2,7 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { computeWordDiff, type DiffSegment } from '$lib/collation/alignment-diff';
 	import { REALIGN_WARNING } from '$lib/collation/alignment-recognition';
-	import type { AlignmentCell } from '$lib/collation/alignment-snapshot';
+	import type { AlignmentCell, AlignmentColumn } from '$lib/collation/alignment-snapshot';
 	import { collationState } from '$lib/collation/collation-state.svelte';
 	import { variationUnitId } from '$lib/collation/collation-unit-id';
 	import type {
@@ -76,8 +76,12 @@
 	let activeWitnesses = $derived(collationState.witnesses.filter(w => !w.isExcluded));
 	let alignmentLayout = $derived(collationState.alignmentLayout);
 
+	let siglumById = $derived(
+		new Map(collationState.witnesses.toReversed().map(w => [w.witnessId, w.siglum]))
+	);
+
 	function getWitnessSiglum(witnessId: string): string {
-		return collationState.witnesses.find(w => w.witnessId === witnessId)?.siglum ?? witnessId;
+		return siglumById.get(witnessId) ?? witnessId;
 	}
 
 	function getWitnessTranscriptionId(witnessId: string): string | null {
@@ -262,66 +266,74 @@
 		};
 	}
 
-	function setCollapsibleWitnessRow(
-		rowId: string,
-		value: { hiddenCount: number; collapsedHeight: number } | null
-	) {
-		if (value && value.hiddenCount > 0) {
-			collapsibleWitnessRows = {
-				...collapsibleWitnessRows,
-				[rowId]: value,
-			};
-			return;
+	type CollapsibleRow = { hiddenCount: number; collapsedHeight: number };
+
+	function setCollapsibleWitnessRows(entries: Array<[string, CollapsibleRow | null]>) {
+		let collapsible = collapsibleWitnessRows;
+		let expanded = expandedWitnessRows;
+		for (const [rowId, value] of entries) {
+			if (value && value.hiddenCount > 0) {
+				const current = collapsible[rowId];
+				if (
+					current?.hiddenCount === value.hiddenCount &&
+					current.collapsedHeight === value.collapsedHeight
+				)
+					continue;
+				if (collapsible === collapsibleWitnessRows) collapsible = { ...collapsible };
+				collapsible[rowId] = value;
+				continue;
+			}
+			if (rowId in collapsible) {
+				if (collapsible === collapsibleWitnessRows) collapsible = { ...collapsible };
+				delete collapsible[rowId];
+			}
+			if (rowId in expanded) {
+				if (expanded === expandedWitnessRows) expanded = { ...expanded };
+				delete expanded[rowId];
+			}
 		}
+		if (collapsible !== collapsibleWitnessRows) collapsibleWitnessRows = collapsible;
+		if (expanded !== expandedWitnessRows) expandedWitnessRows = expanded;
+	}
 
-		if (!(rowId in collapsibleWitnessRows) && !(rowId in expandedWitnessRows)) return;
+	function measureWitnessChipList(node: HTMLDivElement): CollapsibleRow | null {
+		const witnessBadges = [...node.querySelectorAll<HTMLElement>('[data-witness-chip="true"]')];
+		if (witnessBadges.length === 0) return null;
 
-		const nextCollapsible = { ...collapsibleWitnessRows };
-		delete nextCollapsible[rowId];
-		collapsibleWitnessRows = nextCollapsible;
+		const lineTops = [...new Set(witnessBadges.map(badge => badge.offsetTop))].sort(
+			(a, b) => a - b
+		);
+		if (lineTops.length <= 2) return null;
 
-		if (rowId in expandedWitnessRows) {
-			const nextExpanded = { ...expandedWitnessRows };
-			delete nextExpanded[rowId];
-			expandedWitnessRows = nextExpanded;
-		}
+		const thirdLineTop = lineTops[2];
+		const visibleBadges = witnessBadges.filter(badge => badge.offsetTop < thirdLineTop);
+		const collapsedHeight = visibleBadges.reduce(
+			(maxBottom, badge) => Math.max(maxBottom, badge.offsetTop + badge.offsetHeight),
+			0
+		);
+		return { hiddenCount: witnessBadges.length - visibleBadges.length, collapsedHeight };
+	}
+
+	const pendingChipLists = new Map<HTMLDivElement, string>();
+	let chipListFrame = 0;
+
+	// Measures every pending row before writing, so one frame lays out once.
+	function measurePendingChipLists() {
+		chipListFrame = 0;
+		const entries = [...pendingChipLists].map(
+			([node, rowId]) =>
+				[rowId, measureWitnessChipList(node)] as [string, CollapsibleRow | null]
+		);
+		pendingChipLists.clear();
+		setCollapsibleWitnessRows(entries);
 	}
 
 	function witnessChipList(node: HTMLDivElement, rowId: string) {
 		let currentRowId = rowId;
 
-		const measure = () => {
-			const witnessBadges = [
-				...node.querySelectorAll<HTMLElement>('[data-witness-chip="true"]'),
-			];
-			if (witnessBadges.length === 0) {
-				setCollapsibleWitnessRow(currentRowId, null);
-				return;
-			}
-
-			const lineTops = [...new Set(witnessBadges.map(badge => badge.offsetTop))].sort(
-				(a, b) => a - b
-			);
-			if (lineTops.length <= 2) {
-				setCollapsibleWitnessRow(currentRowId, null);
-				return;
-			}
-
-			const thirdLineTop = lineTops[2];
-			const visibleBadges = witnessBadges.filter(badge => badge.offsetTop < thirdLineTop);
-			const collapsedHeight = visibleBadges.reduce(
-				(maxBottom, badge) => Math.max(maxBottom, badge.offsetTop + badge.offsetHeight),
-				0
-			);
-
-			setCollapsibleWitnessRow(currentRowId, {
-				hiddenCount: witnessBadges.length - visibleBadges.length,
-				collapsedHeight,
-			});
-		};
-
 		const scheduleMeasure = () => {
-			requestAnimationFrame(measure);
+			pendingChipLists.set(node, currentRowId);
+			chipListFrame ||= requestAnimationFrame(measurePendingChipLists);
 		};
 
 		const resizeObserver =
@@ -341,7 +353,8 @@
 			},
 			destroy() {
 				resizeObserver?.disconnect();
-				setCollapsibleWitnessRow(currentRowId, null);
+				pendingChipLists.delete(node);
+				setCollapsibleWitnessRows([[currentRowId, null]]);
 			},
 		};
 	}
@@ -446,16 +459,25 @@
 		document.removeEventListener('click', closeContextMenu);
 	});
 
-	function isVariationColumn(col: (typeof collationState.alignmentColumns)[0]): boolean {
-		const texts = new Set<string>();
-		let hasOmission = false;
-		for (const [, cell] of col.cells) {
-			const text = cell.alignmentValue ?? cell.regularizedText ?? cell.text;
-			if (text) texts.add(text);
-			else hasOmission = true;
+	const variationByColumn = new WeakMap<AlignmentColumn, boolean>();
+
+	function isVariationColumn(col: AlignmentColumn): boolean {
+		let isVariation = variationByColumn.get(col);
+		if (isVariation === undefined) {
+			const texts = new Set<string>();
+			let hasOmission = false;
+			for (const [, cell] of col.cells) {
+				const text = cell.alignmentValue ?? cell.regularizedText ?? cell.text;
+				if (text) texts.add(text);
+				else hasOmission = true;
+			}
+			isVariation = texts.size > 1 || (hasOmission && texts.size > 0);
+			variationByColumn.set(col, isVariation);
 		}
-		return texts.size > 1 || (hasOmission && texts.size > 0);
+		return isVariation;
 	}
+
+	let baseWitnessId = $derived(collationState.getBaseWitnessId());
 
 	function cellClasses(
 		col: (typeof collationState.alignmentColumns)[0],
@@ -468,8 +490,7 @@
 			collationState.focusedColumn === colIdx && collationState.focusedRow === rowIdx;
 		const isSelected = collationState.selectedColumnIds.has(col.id);
 		const isCellSelected = collationState.selectedCells.has(`${witnessId}::${col.id}`);
-		const baseId = collationState.getBaseWitnessId();
-		const isBaseRow = witnessId === baseId;
+		const isBaseRow = witnessId === baseWitnessId;
 		let cls =
 			'px-2.5 py-1.5 text-sm font-greek whitespace-nowrap border-r border-b border-base-300/40 transition-colors duration-100';
 		if (cell?.isOmission) cls += ' bg-base-300/30 text-base-content/20 italic';
@@ -489,8 +510,7 @@
 	): boolean {
 		if (!showDiffs) return false;
 		if (!isVariationColumn(col)) return false;
-		const baseId = collationState.getBaseWitnessId();
-		if (!baseId || witnessId === baseId) return false;
+		if (!baseWitnessId || witnessId === baseWitnessId) return false;
 		return true;
 	}
 
@@ -799,11 +819,13 @@
 						</tr>
 					</thead>
 					<tbody>
-						{#each groupedRows as row (row.id)}
+						{#each groupedRows as row (row.representativeId)}
+							{@const representativeId = row.representativeId}
+							{@const rowIndex = row.representativeRowIndex}
 							<tr class="group">
 								<td
 									class="sticky left-0 z-10 bg-base-200 px-3 py-1.5 font-mono text-xs font-bold text-base-content/70 border-r-2 border-b border-base-300 align-top {row.representativeId ===
-									collationState.getBaseWitnessId()
+									baseWitnessId
 										? 'bg-info/20 text-info-content'
 										: ''}"
 								>
@@ -840,7 +862,7 @@
 												{/if}
 											</span>
 										{/each}
-										{#if row.representativeId === collationState.getBaseWitnessId()}
+										{#if row.representativeId === baseWitnessId}
 											<span
 												class="rounded-full border border-info/30 bg-info/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-info-content/80"
 											>
@@ -863,36 +885,31 @@
 									{/if}
 								</td>
 								{#each collationState.alignmentColumns as col, colIdx (col.id)}
-									{@const cell = col.cells.get(row.representativeId)}
+									{@const cell = col.cells.get(representativeId)}
 									<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 									<td
-										class={cellClasses(
-											col,
-											row.representativeId,
-											colIdx,
-											row.representativeRowIndex
-										)}
+										class={cellClasses(col, representativeId, colIdx, rowIndex)}
 										onclick={e =>
 											handleCellClick(
 												col.id,
-												row.representativeId,
+												representativeId,
 												colIdx,
-												row.representativeRowIndex,
+												rowIndex,
 												e
 											)}
 										oncontextmenu={e =>
-											handleContextMenu(col.id, e, row.representativeId)}
+											handleContextMenu(col.id, e, representativeId)}
 										title={cell
 											? getCellHoverTitle(
-													getWitnessSiglum(row.representativeId),
+													getWitnessSiglum(representativeId),
 													cell
 												)
 											: undefined}
 									>
-										{#if shouldRenderDiffCell(col, row.representativeId)}
+										{#if shouldRenderDiffCell(col, representativeId)}
 											{@const diffSegments = getCellDiffSegments(
 												col,
-												row.representativeId
+												representativeId
 											)}
 											{#if diffSegments.length === 0}
 												<span class="text-[10px]">&mdash;</span>

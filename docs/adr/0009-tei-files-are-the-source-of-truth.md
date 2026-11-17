@@ -15,3 +15,4 @@ Each transcription and each collation is stored as exactly one TEI P5 file, and 
 - Serialization is deterministic: no generated dates, no placeholder values, NFC text, LF line endings and fixed attribute order, so the same document always writes the same bytes.
 - A content hash taken without `<revisionDesc>` lets a save that changes only the save time count as no change.
 - App-owned header fields are patched into an imported `<teiHeader>`, which is otherwise written back verbatim, and the output stays valid against the IGNTP schema.
+- Per-device view state (which phase is shown, how the alignment is displayed) is not document content and stays out of the TEI.

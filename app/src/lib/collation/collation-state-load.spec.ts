@@ -5,6 +5,8 @@ import {
 	parseCollationDocument,
 	serializeCollationDocument,
 } from './collation-document';
+import { readCollationViewState, writeCollationViewState } from './collation-view-state';
+import { COLLATION_PHASES } from './collation-types';
 
 const {
 	loadCollation,
@@ -185,7 +187,6 @@ function makeVersionStatus(witnesses: ReturnType<typeof makeWitnessStatus>[]) {
 		collationId: 'col-1',
 		title: 'Romans 1:1',
 		verseIdentifier: 'Romans 1:1',
-		workflowStatus: 'alignment',
 		currentCheckpoint: null,
 		workingContentHash: 'sha256:working',
 		dirtyToCheckpoint: true,
@@ -200,8 +201,6 @@ function makeDocumentPayload() {
 			collationId: 'col-1',
 			projectId: 'proj-1',
 			projectName: 'Project 1',
-			phase: 'alignment',
-			furthestPhase: 'alignment',
 			segment: { id: 'segment-1', name: 'Romans 1:1', members: ['Romans 1:1'] },
 			witnesses: [makeWitness('A', 'και θεος', true), makeWitness('B', 'και λογος')],
 			rules: [],
@@ -216,8 +215,6 @@ function makeDocumentPayload() {
 			classifiedReadings: new Map(),
 			unitDecisions: new Map(),
 			readingArcs: new Map(),
-			alignmentDisplayMode: 'regularized',
-			alignmentLayout: 'variation-units',
 		})
 	);
 }
@@ -227,8 +224,6 @@ function makeDecisionDocumentPayload(corruptPersistedReadings = false) {
 		collationId: 'col-1',
 		projectId: 'proj-1',
 		projectName: 'Project 1',
-		phase: 'readings',
-		furthestPhase: 'readings',
 		segment: { id: 'segment-1', name: 'Romans 1:1', members: ['Romans 1:1'] },
 		witnesses: [makeWitness('A', 'alpha', true), makeWitness('B', 'beta')],
 		rules: [],
@@ -262,8 +257,6 @@ function makeDecisionDocumentPayload(corruptPersistedReadings = false) {
 			],
 		]),
 		readingArcs: new Map(),
-		alignmentDisplayMode: 'regularized',
-		alignmentLayout: 'variation-units',
 	});
 	if (corruptPersistedReadings && document.apparatus?.units[0]) {
 		document.apparatus.units[0].readings = [];
@@ -285,8 +278,6 @@ function makeReadingTypeDocumentPayload() {
 			collationId: 'col-1',
 			projectId: 'proj-1',
 			projectName: 'Project 1',
-			phase: 'readings',
-			furthestPhase: 'readings',
 			segment: { id: 'segment-1', name: 'Romans 1:1', members: ['Romans 1:1'] },
 			witnesses: [makeWitness('A', 'alpha', true), makeWitness('B', 'beta')],
 			rules: [],
@@ -319,8 +310,6 @@ function makeReadingTypeDocumentPayload() {
 				],
 			]),
 			readingArcs: new Map(),
-			alignmentDisplayMode: 'regularized',
-			alignmentLayout: 'variation-units',
 		})
 	);
 }
@@ -330,10 +319,25 @@ async function importState() {
 	return mod.collationState;
 }
 
+function memoryStorage(): Storage {
+	const entries = new Map<string, string>();
+	return {
+		get length() {
+			return entries.size;
+		},
+		clear: () => entries.clear(),
+		getItem: key => entries.get(key) ?? null,
+		key: index => [...entries.keys()][index] ?? null,
+		removeItem: key => void entries.delete(key),
+		setItem: (key, value) => void entries.set(key, String(value)),
+	};
+}
+
 describe('collationState artifact-first persistence', () => {
 	beforeEach(() => {
 		vi.useFakeTimers();
 		vi.clearAllMocks();
+		vi.stubGlobal('localStorage', memoryStorage());
 		loadCollation.mockResolvedValue({
 			row: {
 				id: 'col-1',
@@ -423,6 +427,7 @@ describe('collationState artifact-first persistence', () => {
 		collationState.reset();
 
 		const loaded = await collationState.loadCollationById('col-1');
+		await vi.waitFor(() => expect(collationState.selectedVerse).not.toBeNull());
 
 		expect(loaded).toBe(true);
 		expect(collationState.segment).toEqual({
@@ -437,29 +442,28 @@ describe('collationState artifact-first persistence', () => {
 			verse: '1',
 			count: 2,
 		});
-		expect(collationState.alignmentLayout).toBe('variation-units');
+		expect(collationState.phase).toBe('setup');
+		expect(collationState.alignmentLayout).toBe('grid');
 		expect(collationState.ignoreWordBreaks).toBe(false);
 	}, 30000);
 
-	it('persists route phases without emitting presence edits', async () => {
+	it('remembers phase and alignment view on this device without saving or emitting presence edits', async () => {
 		const state = await importState();
 		state.reset();
 		expect(await state.loadCollationById('col-1')).toBe(true);
 		const listener = vi.fn();
 		const unsubscribe = state.onEdit(listener);
 		try {
-			state.showPhase('readings');
-			expect(state.phase).toBe('readings');
-			expect(state.furthestPhase).toBe('readings');
-			expect(state.saveStatus).toBe('unsaved');
-			expect(await state.flushPendingSave()).toBe(true);
-			state.showPhase('readings');
+			state.setPhase('readings');
+			state.setAlignmentDisplayMode('original');
+			state.setAlignmentLayout('variation-units');
 			expect(state.saveStatus).toBe('saved');
-			state.showPhase('alignment');
-			expect(state.furthestPhase).toBe('readings');
 			expect(listener).not.toHaveBeenCalled();
-			state.setPhase('stemma');
-			expect(listener).toHaveBeenCalledOnce();
+			expect(readCollationViewState('col-1')).toEqual({
+				phase: 'readings',
+				alignmentDisplayMode: 'original',
+				alignmentLayout: 'variation-units',
+			});
 		} finally {
 			unsubscribe();
 		}
@@ -630,19 +634,17 @@ describe('collationState artifact-first persistence', () => {
 	it('leaves the selected verse orphaned when its member is absent from the project index', async () => {
 		getProjectTranscriptionIds.mockResolvedValue([]);
 		getVerseIndexRowsForVerse.mockResolvedValue([]);
-		findOrphanedSegmentMembers.mockResolvedValue(['Romans 1:1']);
 		const collationState = await importState();
 		collationState.reset();
 
 		const loaded = await collationState.loadCollationById('col-1');
+		await vi.waitFor(() => expect(collationState.orphanedMembers).toEqual(['Romans 1:1']));
 
 		expect(loaded).toBe(true);
 		expect(collationState.selectedVerse).toBeNull();
 		expect(collationState.selectedBook).toBe('');
 		expect(collationState.selectedChapter).toBe('');
 		expect(collationState.selectedVerseNum).toBe('');
-		expect(collationState.orphanedMembers).toEqual(['Romans 1:1']);
-		expect(findOrphanedSegmentMembers).toHaveBeenCalledWith(['Romans 1:1'], []);
 		expect(gatherWitnessesForSegment).not.toHaveBeenCalled();
 		expect(collationState.saveStatus).toBe('saved');
 	}, 30000);
@@ -1269,7 +1271,7 @@ describe('collationState artifact-first persistence', () => {
 		expect(saveCollationArtifact).toHaveBeenCalledWith(
 			expect.objectContaining({
 				collationId,
-				metadata: expect.objectContaining({ status: 'alignment' }),
+				metadata: { verseIdentifier: 'Romans 1:1', notes: '' },
 			})
 		);
 		expect(updateCollationMetadata).not.toHaveBeenCalled();
@@ -1394,7 +1396,7 @@ describe('collationState artifact-first persistence', () => {
 			expect.objectContaining({
 				collationId,
 				artifactType: 'collation_document_v1',
-				metadata: expect.objectContaining({ status: 'complete' }),
+				metadata: { verseIdentifier: 'Romans 1:1', notes: '' },
 			})
 		);
 	});
@@ -1558,11 +1560,22 @@ describe('collationState artifact-first persistence', () => {
 			expect(getCollationVersionStatus).not.toHaveBeenCalled();
 		});
 
-		it('writes nothing when opened at its stored phase', async () => {
+		it.each(COLLATION_PHASES)('writes nothing when opened at %s', async phase => {
+			writeCollationViewState('col-1', {
+				phase,
+				alignmentDisplayMode: 'regularized',
+				alignmentLayout: 'grid',
+			});
+			const loaded = await loadCollation();
+			loadCollation.mockResolvedValue({
+				...loaded,
+				artifact: { ...loaded.artifact, payload: makeDecisionDocumentPayload() },
+			});
 			const state = await importState();
 			state.reset();
 			expect(await state.loadCollationById('col-1')).toBe(true);
-			state.showPhase('alignment');
+			expect(state.phase).toBe(phase);
+			state.setPhase(phase);
 			await settle();
 
 			expect(saveCollationArtifact).not.toHaveBeenCalled();
@@ -1572,41 +1585,161 @@ describe('collationState artifact-first persistence', () => {
 			expect(state.saveStatus).toBe('saved');
 		});
 
-		it('writes once when opened at another phase, taking status from the save', async () => {
-			const status = makeVersionStatus([]);
-			saveCollationArtifact.mockResolvedValue({
-				artifactId: 'artifact-1',
-				versionStatus: status,
+		it('paints after the collation and project load, then looks up verse links once each', async () => {
+			const loaded = await loadCollation();
+			loadCollation.mockResolvedValue({
+				...loaded,
+				artifact: { ...loaded.artifact, payload: makeDecisionDocumentPayload() },
 			});
-			const state = await loadWith(makeDocumentPayload());
+			getVerseIndexRowsForVerse.mockResolvedValue([
+				{
+					id: 'verse-row-a',
+					transcription_id: 'A-tx',
+					verse_identifier: 'Romans 1:1',
+					book: 'Romans',
+					chapter: '1',
+					verse: '1',
+					last_indexed_at: '2026-03-10T00:00:00.000Z',
+				},
+				{
+					id: 'verse-row-other-project',
+					transcription_id: 'other-tx',
+					verse_identifier: 'Romans 1:1',
+					book: 'Romans',
+					chapter: '1',
+					verse: '1',
+					last_indexed_at: '2026-03-10T00:00:00.000Z',
+				},
+			]);
+			let resolveIds!: (ids: string[]) => void;
+			getProjectTranscriptionIds.mockReturnValue(
+				new Promise(resolve => (resolveIds = resolve))
+			);
+			const state = await importState();
+			state.reset();
+			vi.clearAllMocks();
 
-			state.showPhase('readings');
+			expect(await state.loadCollationById('col-1')).toBe(true);
+
+			expect(state.isLoading).toBe(false);
+			expect(state.selectedVerse).toBeNull();
+			const [loadOrder] = loadCollation.mock.invocationCallOrder;
+			const [projectOrder] = getProject.mock.invocationCallOrder;
+			expect(loadOrder).toBeLessThan(projectOrder);
+			for (const lookup of [getProjectTranscriptionIds, getVerseIndexRowsForVerse]) {
+				expect(lookup).toHaveBeenCalledOnce();
+				expect(lookup.mock.invocationCallOrder[0]).toBeGreaterThan(projectOrder);
+			}
+			expect(getVerseIndexRowsForVerse).toHaveBeenCalledWith('Romans 1:1');
+			resolveIds(['A-tx', 'B-tx']);
+			await settle();
+
+			expect(state.selectedVerse).toMatchObject({ identifier: 'Romans 1:1', count: 1 });
+			expect(state.orphanedMembers).toEqual([]);
+			expect(getProjectTranscriptionIds).toHaveBeenCalledOnce();
+			expect(getVerseIndexRowsForVerse).toHaveBeenCalledOnce();
+			expect(findOrphanedSegmentMembers).not.toHaveBeenCalled();
+			expect(getCollationVersionStatus).toHaveBeenCalledOnce();
+			expect(saveCollationArtifact).not.toHaveBeenCalled();
+			expect(updateCollationMetadata).not.toHaveBeenCalled();
+			expect(createCollation).not.toHaveBeenCalled();
+		});
+
+		it('writes nothing when the phase, display mode or layout changes', async () => {
+			const state = await loadWith(makeDecisionDocumentPayload());
+
+			for (const phase of COLLATION_PHASES) state.setPhase(phase);
+			state.setPhase('alignment');
+			state.nextPhase();
+			state.setAlignmentDisplayMode('original');
+			state.setAlignmentLayout('variation-units');
+			await settle();
+
+			expect(state.phase).toBe('readings');
+			expect(saveCollationArtifact).not.toHaveBeenCalled();
+			expect(updateCollationMetadata).not.toHaveBeenCalled();
+			expect(getCollationVersionStatus).not.toHaveBeenCalled();
+			expect(state.saveStatus).toBe('saved');
+		});
+
+		it('navigates every phase with an alignment and only Setup without one', async () => {
+			const unaligned = await loadWith(makeDocumentPayload());
+			expect(COLLATION_PHASES.filter(phase => unaligned.canNavigateTo(phase))).toEqual([
+				'setup',
+			]);
+			const aligned = await loadWith(makeDecisionDocumentPayload());
+			expect(COLLATION_PHASES.every(phase => aligned.canNavigateTo(phase))).toBe(true);
+		});
+
+		it('opens at the remembered phase and view, or the default for the alignment', async () => {
+			const fresh = await loadWith(makeDecisionDocumentPayload());
+			expect(fresh.phase).toBe('alignment');
+			fresh.setPhase('stemma');
+			fresh.setAlignmentLayout('variation-units');
+
+			const reopened = await loadWith(makeDecisionDocumentPayload());
+			expect(reopened.phase).toBe('stemma');
+			expect(reopened.alignmentDisplayMode).toBe('regularized');
+			expect(reopened.alignmentLayout).toBe('variation-units');
+			expect(saveCollationArtifact).not.toHaveBeenCalled();
+		});
+
+		it('seeds view state from a legacy workflow block and saves without it', async () => {
+			const legacy = JSON.parse(makeDecisionDocumentPayload());
+			legacy.flow = {
+				phase: 'review',
+				furthestPhase: 'review',
+				alignmentDisplayMode: 'original',
+				alignmentLayout: 'variation-units',
+			};
+			const state = await loadWith(JSON.stringify(legacy));
+			const seeded = {
+				phase: 'review',
+				alignmentDisplayMode: 'original',
+				alignmentLayout: 'variation-units',
+			};
+			expect(state).toMatchObject(seeded);
+			expect(readCollationViewState('col-1')).toEqual(seeded);
+			await settle();
+			expect(saveCollationArtifact).not.toHaveBeenCalled();
+
+			state.setConnectivity(`unit:${state.alignmentColumns[0].id}`, 3);
 			await settle();
 
 			expect(saveCollationArtifact).toHaveBeenCalledOnce();
-			expect(getCollationVersionStatus).not.toHaveBeenCalled();
-			expect(state.versionStatus).toBe(status);
+			const saved = JSON.parse(saveCollationArtifact.mock.lastCall![0].payload);
+			expect(saved).not.toHaveProperty('flow');
+			expect(saved.stemma.units[0].connectivity).toBe(3);
 		});
 
-		it('writes once per phase change, skipping the status echo of its own save', async () => {
+		it('prefers the remembered view over a legacy workflow block', async () => {
+			writeCollationViewState('col-1', {
+				phase: 'readings',
+				alignmentDisplayMode: 'regularized',
+				alignmentLayout: 'grid',
+			});
+			const legacy = JSON.parse(makeDecisionDocumentPayload());
+			legacy.flow = { phase: 'review', alignmentDisplayMode: 'original' };
+			const state = await loadWith(JSON.stringify(legacy));
+
+			expect(state.phase).toBe('readings');
+			expect(state.alignmentDisplayMode).toBe('regularized');
+		});
+
+		it('writes once per edit, skipping the status echo of its own save', async () => {
 			let resolveSave!: (value: unknown) => void;
 			saveCollationArtifact.mockReturnValue(new Promise(resolve => (resolveSave = resolve)));
 			const state = await loadWith(makeDecisionDocumentPayload());
 
-			state.setPhase('alignment');
-			state.nextPhase();
-			await vi.advanceTimersByTimeAsync(0);
+			state.setConnectivity(`unit:${state.alignmentColumns[0].id}`, 3);
+			await vi.advanceTimersByTimeAsync(800);
 			expect(saveCollationArtifact).toHaveBeenCalledOnce();
 			state.handleCollationsInvalidated();
 			resolveSave({ artifactId: 'artifact-1', versionStatus: makeVersionStatus([]) });
 			await settle();
 
-			expect(state.phase).toBe('readings');
 			expect(saveCollationArtifact).toHaveBeenCalledOnce();
 			expect(getCollationVersionStatus).not.toHaveBeenCalled();
-			expect(JSON.parse(saveCollationArtifact.mock.lastCall![0].payload).flow.phase).toBe(
-				'readings'
-			);
 		});
 
 		it('saves a change made during an in-flight save once that save finishes', async () => {
@@ -1615,18 +1748,21 @@ describe('collationState artifact-first persistence', () => {
 				new Promise(resolve => (resolveSave = resolve))
 			);
 			const state = await loadWith(makeDecisionDocumentPayload());
+			const unit = `unit:${state.alignmentColumns[0].id}`;
 
-			state.showPhase('stemma');
+			state.setConnectivity(unit, 3);
+			void state.flushPendingSave();
 			await vi.advanceTimersByTimeAsync(0);
-			state.showPhase('review');
+			state.setConnectivity(unit, 5);
 			await vi.advanceTimersByTimeAsync(0);
 			resolveSave({ artifactId: 'artifact-1', versionStatus: makeVersionStatus([]) });
 			await settle();
 
 			expect(saveCollationArtifact).toHaveBeenCalledTimes(2);
-			expect(JSON.parse(saveCollationArtifact.mock.lastCall![0].payload).flow.phase).toBe(
-				'review'
-			);
+			expect(
+				JSON.parse(saveCollationArtifact.mock.lastCall![0].payload).stemma.units[0]
+					.connectivity
+			).toBe(5);
 			expect(state.saveStatus).toBe('saved');
 		});
 

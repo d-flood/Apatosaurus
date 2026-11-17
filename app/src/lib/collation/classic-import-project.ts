@@ -154,7 +154,6 @@ export async function importClassicCollationProject(input: {
 			});
 			await updateCollationMetadata({
 				id,
-				status: 'complete',
 				notes: classicVerseNotes(verse),
 				groupPath: verse.section,
 				sortKey: firstSortKey + index,

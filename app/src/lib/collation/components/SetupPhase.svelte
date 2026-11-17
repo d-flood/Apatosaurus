@@ -30,6 +30,7 @@
 	import Warning from 'phosphor-svelte/lib/Warning';
 	import X from 'phosphor-svelte/lib/X';
 	import { onMount } from 'svelte';
+	import { warmCollationWorker } from '$lib/collation/collation-service';
 	import type {
 		CollationWitnessSourceStatus,
 		CollationWitnessVersionState,
@@ -106,6 +107,13 @@
 	let activeWitnessCount = $derived(
 		collationState.witnesses.filter(witness => !witness.isExcluded).length
 	);
+	let cannotAlign = $derived(
+		collationState.alignmentColumns.length === 0 && activeWitnessCount < 2
+	);
+
+	function afterNextPaint(): Promise<void> {
+		return new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve)));
+	}
 
 	async function reloadVerses() {
 		verses = await gatherVerses(selectedTranscriptionIds);
@@ -276,6 +284,7 @@
 	}
 
 	onMount(() => {
+		warmCollationWorker();
 		const projectId = collationState.projectId;
 		if (!projectId) {
 			clearSetupProjectLoad();
@@ -1096,11 +1105,15 @@
 				<div class="mt-6 flex flex-wrap items-center justify-end gap-3">
 					{#if collateError}
 						<p class="text-sm text-error" role="alert">{collateError}</p>
+					{:else if cannotAlign && collationState.witnesses.length > 0}
+						<p class="text-sm text-base-content/60">
+							Choose at least two active witnesses to align.
+						</p>
 					{/if}
 					<button
 						type="button"
 						class="btn btn-primary gap-2"
-						disabled={!collationState.canAdvance() || isCollating}
+						disabled={!collationState.canAdvance() || isCollating || cannotAlign}
 						onclick={async () => {
 							collateError = null;
 							let targetId = collationState.collationId;
@@ -1127,6 +1140,7 @@
 								}
 							}
 							collationState.setPhase('alignment');
+							await afterNextPaint();
 							await collationState.flushPendingSave();
 							// The alignment workspace is live during the flush; don't pull back an editor who moved on.
 							if (targetId && collationState.phase === 'alignment') {

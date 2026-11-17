@@ -1,3 +1,4 @@
+import { sql } from 'kysely';
 import {
 	COLLATION_DOCUMENT_ARTIFACT_TYPE,
 	parseCollationDocument,
@@ -42,7 +43,6 @@ export interface UpdateCollationMetadataInput {
 	id: string;
 	title?: string;
 	verseIdentifier?: string;
-	status?: string;
 	notes?: string;
 	groupPath?: string;
 	sortKey?: number;
@@ -90,7 +90,6 @@ export interface CollationVersionStatus {
 	verseIdentifier: string;
 	groupPath: string;
 	sortKey: number;
-	workflowStatus: string;
 	currentCheckpoint: EntityCheckpointHead | null;
 	workingContentHash: string;
 	dirtyToCheckpoint: boolean;
@@ -226,6 +225,43 @@ export async function loadIndexedCollationPayload(
 	};
 }
 
+/** The index's collation row and cached document, its string passed through unparsed. */
+export async function loadIndexedCollation(
+	db: DbExecutor,
+	collationId: string
+): Promise<LoadedCollation | null> {
+	const [row, artifact] = await Promise.all([
+		db.selectFrom('collations').selectAll().where('id', '=', collationId).executeTakeFirst(),
+		db
+			.selectFrom('collation_artifacts')
+			.select(['id', 'payload'])
+			.where('collation_id', '=', collationId)
+			.where('artifact_type', '=', COLLATION_DOCUMENT_ARTIFACT_TYPE)
+			.executeTakeFirst(),
+	]);
+	if (!row || !artifact) return null;
+	return {
+		row: {
+			id: collationId,
+			projectId: row.project_id,
+			title: row.title,
+			verseIdentifier: row.verse_identifier,
+			status: row.status,
+			groupPath: row.group_path,
+			notes: row.notes,
+			sortKey: row.sort_key,
+			createdAt: row.created_at,
+			updatedAt: row.updated_at,
+		},
+		artifact: {
+			id: requireId(artifact.id, 'collation artifact'),
+			artifactType: COLLATION_DOCUMENT_ARTIFACT_TYPE,
+			payload: artifact.payload,
+			createdAt: row.updated_at,
+		},
+	};
+}
+
 export async function listCollationsWithProjectNames(db: DbExecutor): Promise<CollationListItem[]> {
 	const rows = await db
 		.selectFrom('collations')
@@ -286,7 +322,7 @@ export async function createCollation(
 			current_content_hash: '',
 			title: input.title,
 			verse_identifier: input.verseIdentifier,
-			status: 'setup',
+			status: 'draft',
 			group_path: '',
 			notes: '',
 			sort_key: 0,
@@ -339,100 +375,279 @@ export async function saveCollationProjection(
 			collation.project_id,
 			input.witnesses
 		);
+		const stored = await loadStoredProjection(trx, input.collationId);
 
-		await trx
-			.deleteFrom('collation_witnesses')
-			.where('collation_id', '=', input.collationId)
-			.execute();
-		await trx
-			.deleteFrom('collation_tokens')
-			.where('collation_id', '=', input.collationId)
-			.execute();
-		await trx
-			.deleteFrom('collation_variation_units')
-			.where('collation_id', '=', input.collationId)
-			.execute();
+		const witnesses = diffByKey(
+			stored.witnesses.map(({ id, ...row }) => ({ key: row.witness_id, id, row })),
+			input.witnesses.map(row => ({
+				key: row.witnessId,
+				row: {
+					collation_id: input.collationId,
+					witness_id: row.witnessId,
+					content: row.content,
+					position: row.position,
+					project_transcription_id: row.transcriptionId
+						? (projectTranscriptionIds.get(row.transcriptionId) ?? null)
+						: null,
+					transcription_id: row.transcriptionId,
+					...witnessSourceColumns(row.source),
+				},
+			})),
+			WITNESS_COLUMNS
+		);
+		const tokenKey = (witnessId: string, tokenIndex: number) => `${witnessId}\0${tokenIndex}`;
+		const tokens = diffByKey(
+			stored.tokens.map(({ id, ...row }) => ({
+				key: tokenKey(row.witness_id, row.token_index),
+				id,
+				row,
+			})),
+			input.tokens.map(row => ({
+				key: tokenKey(row.witnessId, row.tokenIndex),
+				row: {
+					collation_id: input.collationId,
+					witness_id: row.witnessId,
+					token_index: row.tokenIndex,
+					token_text: row.tokenText.slice(0, 255),
+				},
+			})),
+			['token_text']
+		);
 
-		if (input.witnesses.length > 0) {
-			await trx
-				.insertInto('collation_witnesses')
-				.values(
-					input.witnesses.map(row => ({
-						project_transcription_id: row.transcriptionId
-							? (projectTranscriptionIds.get(row.transcriptionId) ?? null)
-							: null,
-						transcription_id: row.transcriptionId,
-						...witnessSourceColumns(row.source),
-						id: crypto.randomUUID(),
-						collation_id: input.collationId,
-						witness_id: row.witnessId,
-						content: row.content,
-						position: row.position,
-					}))
-				)
-				.execute();
-		}
-
-		if (input.tokens.length > 0) {
-			await trx
-				.insertInto('collation_tokens')
-				.values(
-					input.tokens.map(row => ({
-						id: crypto.randomUUID(),
-						collation_id: input.collationId,
-						witness_id: row.witnessId,
-						token_index: row.tokenIndex,
-						token_text: row.tokenText.slice(0, 255),
-					}))
-				)
-				.execute();
-		}
-
-		for (const unit of input.variationUnits) {
-			const variationUnitId = crypto.randomUUID();
-			await trx
-				.insertInto('collation_variation_units')
-				.values({
-					id: variationUnitId,
+		const storedUnitKeys = occurrenceKeys(
+			stored.units.map(unit => `${unit.start_index}:${unit.end_index}`)
+		);
+		const storedUnitKeyById = new Map(
+			stored.units.map((unit, index) => [unit.id, storedUnitKeys[index]] as const)
+		);
+		const unitKeys = occurrenceKeys(
+			input.variationUnits.map(unit => `${unit.startIndex}:${unit.endIndex}`)
+		);
+		const units = diffByKey(
+			stored.units.map(({ id, ...row }, index) => ({ key: storedUnitKeys[index], id, row })),
+			input.variationUnits.map((unit, index) => ({
+				key: unitKeys[index],
+				row: {
 					collation_id: input.collationId,
 					start_index: unit.startIndex,
 					end_index: unit.endIndex,
 					unit_type: unit.unitType,
 					base_text: unit.baseText,
-				})
-				.execute();
+				},
+			})),
+			['unit_type', 'base_text']
+		);
 
-			for (const reading of unit.readings) {
-				const readingId = crypto.randomUUID();
-				await trx
-					.insertInto('collation_readings')
-					.values({
-						id: readingId,
-						variation_unit_id: variationUnitId,
+		const storedReadingKeyById = new Map<string, string>();
+		const readings = diffByKey(
+			stored.readings.map(({ id, ...row }) => {
+				const key = `${storedUnitKeyById.get(row.variation_unit_id)}/${row.reading_order}`;
+				storedReadingKeyById.set(id, key);
+				return { key, id, row };
+			}),
+			input.variationUnits.flatMap((unit, index) =>
+				unit.readings.map(reading => ({
+					key: `${unitKeys[index]}/${reading.readingOrder}`,
+					row: {
+						variation_unit_id: units.idByKey.get(unitKeys[index])!,
 						reading_order: reading.readingOrder,
 						reading_text: reading.readingText,
 						is_omission: reading.isOmission ? 1 : 0,
 						is_lacuna: reading.isLacuna ? 1 : 0,
-					})
-					.execute();
+					},
+				}))
+			),
+			['reading_text', 'is_omission', 'is_lacuna']
+		);
+		const readingWitnesses = diffByKey(
+			stored.readingWitnesses.map(({ id, ...row }) => ({
+				key: `${storedReadingKeyById.get(row.reading_id)}\0${row.witness_id}`,
+				id,
+				row,
+			})),
+			input.variationUnits.flatMap((unit, index) =>
+				unit.readings.flatMap(reading => {
+					const readingKey = `${unitKeys[index]}/${reading.readingOrder}`;
+					return reading.witnessIds.map(witnessId => ({
+						key: `${readingKey}\0${witnessId}`,
+						row: {
+							reading_id: readings.idByKey.get(readingKey)!,
+							witness_id: witnessId,
+						},
+					}));
+				})
+			),
+			[]
+		);
 
-				if (reading.witnessIds.length > 0) {
-					await trx
-						.insertInto('collation_reading_witnesses')
-						.values(
-							reading.witnessIds.map(witnessId => ({
-								id: crypto.randomUUID(),
-								reading_id: readingId,
-								witness_id: witnessId,
-							}))
-						)
-						.execute();
-				}
-			}
-		}
+		await deleteRows(trx, 'collation_reading_witnesses', readingWitnesses.deleteIds);
+		await deleteRows(trx, 'collation_readings', readings.deleteIds);
+		await deleteRows(trx, 'collation_variation_units', units.deleteIds);
+		await deleteRows(trx, 'collation_tokens', tokens.deleteIds);
+		await deleteRows(trx, 'collation_witnesses', witnesses.deleteIds);
+		await upsertRows(trx, 'collation_witnesses', witnesses.upserts, WITNESS_COLUMNS);
+		await upsertRows(trx, 'collation_tokens', tokens.upserts, ['token_text']);
+		await upsertRows(trx, 'collation_variation_units', units.upserts, [
+			'unit_type',
+			'base_text',
+		]);
+		await upsertRows(trx, 'collation_readings', readings.upserts, [
+			'reading_text',
+			'is_omission',
+			'is_lacuna',
+		]);
+		await upsertRows(trx, 'collation_reading_witnesses', readingWitnesses.upserts, []);
 	};
 	if ('isTransaction' in db && db.isTransaction === true) await save(db);
 	else await db.transaction().execute(save);
+}
+
+type ProjectionTable =
+	| 'collation_witnesses'
+	| 'collation_tokens'
+	| 'collation_variation_units'
+	| 'collation_readings'
+	| 'collation_reading_witnesses';
+type ProjectionRow = Record<string, string | number | null>;
+
+const WITNESS_COLUMNS = [
+	'content',
+	'position',
+	'project_transcription_id',
+	'transcription_id',
+	'source_kind',
+	'source_revision_id',
+	'source_content_hash',
+	'source_captured_at',
+];
+const ROWS_PER_STATEMENT = 500;
+
+async function loadStoredProjection(db: DbExecutor, collationId: string) {
+	const [witnesses, tokens, units, readings, readingWitnesses] = await Promise.all([
+		db
+			.selectFrom('collation_witnesses')
+			.select(['id', 'witness_id', ...(WITNESS_COLUMNS as ['content'])])
+			.where('collation_id', '=', collationId)
+			.execute(),
+		db
+			.selectFrom('collation_tokens')
+			.select(['id', 'witness_id', 'token_index', 'token_text'])
+			.where('collation_id', '=', collationId)
+			.execute(),
+		db
+			.selectFrom('collation_variation_units')
+			.select(['id', 'start_index', 'end_index', 'unit_type', 'base_text'])
+			.where('collation_id', '=', collationId)
+			.orderBy('start_index')
+			.orderBy('end_index')
+			.orderBy('id')
+			.execute(),
+		db
+			.selectFrom('collation_readings as r')
+			.innerJoin('collation_variation_units as u', 'u.id', 'r.variation_unit_id')
+			.select([
+				'r.id',
+				'r.variation_unit_id',
+				'r.reading_order',
+				'r.reading_text',
+				'r.is_omission',
+				'r.is_lacuna',
+			])
+			.where('u.collation_id', '=', collationId)
+			.execute(),
+		db
+			.selectFrom('collation_reading_witnesses as rw')
+			.innerJoin('collation_readings as r', 'r.id', 'rw.reading_id')
+			.innerJoin('collation_variation_units as u', 'u.id', 'r.variation_unit_id')
+			.select(['rw.id', 'rw.reading_id', 'rw.witness_id'])
+			.where('u.collation_id', '=', collationId)
+			.execute(),
+	]);
+	return {
+		witnesses: witnesses as Array<ProjectionRow & { id: string; witness_id: string }>,
+		tokens: tokens as Array<{
+			id: string;
+			witness_id: string;
+			token_index: number;
+			token_text: string;
+		}>,
+		units: units as Array<
+			ProjectionRow & { id: string; start_index: number; end_index: number }
+		>,
+		readings: readings as Array<
+			ProjectionRow & { id: string; variation_unit_id: string; reading_order: number }
+		>,
+		readingWitnesses: readingWitnesses as Array<{
+			id: string;
+			reading_id: string;
+			witness_id: string;
+		}>,
+	};
+}
+
+/** Suffixes repeated keys with their occurrence, so duplicates pair up in order. */
+function occurrenceKeys(keys: string[]): string[] {
+	const seen = new Map<string, number>();
+	return keys.map(key => {
+		const occurrence = seen.get(key) ?? 0;
+		seen.set(key, occurrence + 1);
+		return `${key}#${occurrence}`;
+	});
+}
+
+/** Pairs desired rows with stored rows by key, keeping stored ids. */
+function diffByKey(
+	stored: Array<{ key: string; id: string; row: ProjectionRow }>,
+	desired: Array<{ key: string; row: ProjectionRow }>,
+	columns: string[]
+) {
+	const storedByKey = new Map<string, { id: string; row: ProjectionRow }>();
+	const deleteIds: string[] = [];
+	for (const entry of stored) {
+		if (storedByKey.has(entry.key)) deleteIds.push(entry.id);
+		else storedByKey.set(entry.key, entry);
+	}
+	const upserts: ProjectionRow[] = [];
+	const idByKey = new Map<string, string>();
+	for (const { key, row } of desired) {
+		const match = storedByKey.get(key);
+		storedByKey.delete(key);
+		const id = match?.id ?? crypto.randomUUID();
+		idByKey.set(key, id);
+		if (!match || columns.some(column => match.row[column] !== row[column]))
+			upserts.push({ ...row, id });
+	}
+	for (const { id } of storedByKey.values()) deleteIds.push(id);
+	return { upserts, deleteIds, idByKey };
+}
+
+async function deleteRows(db: DbExecutor, table: ProjectionTable, ids: string[]): Promise<void> {
+	for (let start = 0; start < ids.length; start += ROWS_PER_STATEMENT)
+		await db
+			.deleteFrom(table)
+			.where('id', 'in', ids.slice(start, start + ROWS_PER_STATEMENT))
+			.execute();
+}
+
+async function upsertRows(
+	db: DbExecutor,
+	table: ProjectionTable,
+	rows: ProjectionRow[],
+	columns: string[]
+): Promise<void> {
+	const updates = Object.fromEntries(
+		columns.map(column => [column, sql.ref(`excluded.${column}`)])
+	);
+	for (let start = 0; start < rows.length; start += ROWS_PER_STATEMENT) {
+		const insert = db
+			.insertInto(table)
+			.values(rows.slice(start, start + ROWS_PER_STATEMENT) as any);
+		await (
+			columns.length
+				? insert.onConflict(oc => oc.column('id').doUpdateSet(updates as any))
+				: insert
+		).execute();
+	}
 }
 
 export async function updateCollationMetadata(
@@ -444,7 +659,6 @@ export async function updateCollationMetadata(
 	};
 	if (input.title !== undefined) update.title = input.title;
 	if (input.verseIdentifier !== undefined) update.verse_identifier = input.verseIdentifier;
-	if (input.status !== undefined) update.status = input.status;
 	if (input.notes !== undefined) update.notes = input.notes;
 	if (input.groupPath !== undefined) update.group_path = input.groupPath;
 	if (input.sortKey !== undefined) update.sort_key = input.sortKey;
@@ -468,7 +682,58 @@ interface CollationWitnessSourceStatusQueryRow {
 	source_captured_at: string;
 }
 
+const witnessStatusMemo = new Map<
+	string,
+	{ inputs: string; witnesses: CollationWitnessSourceStatus[] }
+>();
+
+/**
+ * Computes witness source statuses and remembers them with their inputs. With `reuse`, returns the
+ * remembered statuses while the inputs are unchanged.
+ */
 export async function getCollationWitnessSourceStatuses(
+	db: DbExecutor,
+	collationId: string,
+	{ reuse = false }: { reuse?: boolean } = {}
+): Promise<CollationWitnessSourceStatus[]> {
+	const inputs = await loadWitnessSourceStatusInputs(db, collationId);
+	const memo = witnessStatusMemo.get(collationId);
+	if (reuse && memo?.inputs === inputs) return memo.witnesses;
+	const witnesses = await computeCollationWitnessSourceStatuses(db, collationId);
+	witnessStatusMemo.set(collationId, { inputs, witnesses });
+	return witnesses;
+}
+
+// Selects everything the statuses derive from, so equal inputs always mean equal statuses.
+async function loadWitnessSourceStatusInputs(db: DbExecutor, collationId: string): Promise<string> {
+	const { rows } = await sql<Record<string, unknown>>`
+		select
+			cw.witness_id, cw.position, cw.project_transcription_id, cw.transcription_id,
+			cw.source_kind, cw.source_revision_id, cw.source_content_hash, cw.source_captured_at,
+			t.id as existing_transcription_id,
+			pt.transcription_id as owned_transcription_id,
+			(
+				select content_hash from document_file_fingerprints
+				where entity_type = 'transcription' and entity_id = cw.project_transcription_id
+			) as content_hash,
+			(
+				select group_concat(id || char(31) || label || char(31) || created_at, char(30))
+				from (
+					select id, label, created_at from transcription_checkpoints
+					where transcription_id = pt.transcription_id and is_committed = 1
+					order by created_at, id
+				)
+			) as versions
+		from collation_witnesses cw
+		left join project_transcriptions pt on pt.id = cw.project_transcription_id
+		left join transcriptions t on t.id = pt.transcription_id
+		where cw.collation_id = ${collationId}
+		order by cw.position asc, cw.id asc
+	`.execute(db);
+	return JSON.stringify(rows);
+}
+
+async function computeCollationWitnessSourceStatuses(
 	db: DbExecutor,
 	collationId: string
 ): Promise<CollationWitnessSourceStatus[]> {

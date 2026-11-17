@@ -885,8 +885,6 @@ describe('apparatus TEI exporter', () => {
 			collationId: collationState.collationId,
 			projectId: collationState.projectId,
 			projectName: collationState.projectName,
-			phase: collationState.phase,
-			furthestPhase: collationState.furthestPhase,
 			segment: collationState.segment,
 			witnesses: collationState.witnesses,
 			rules: collationState.rules,
@@ -902,8 +900,6 @@ describe('apparatus TEI exporter', () => {
 			classifiedReadings: collationState.classifiedReadings,
 			unitDecisions: collationState.unitDecisions,
 			readingArcs: collationState.readingArcs,
-			alignmentDisplayMode: collationState.alignmentDisplayMode,
-			alignmentLayout: collationState.alignmentLayout,
 		});
 
 		expect(exportApparatusTei(buildApparatusTeiExportInput(document))).toBe(

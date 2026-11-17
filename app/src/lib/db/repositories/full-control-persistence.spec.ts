@@ -34,6 +34,7 @@ it('keeps every full-control field through save, load, two-store sync and index 
 	const sourceOptions = { backend: new MemoryStoreBackend() };
 	const destinationOptions = { backend: new MemoryStoreBackend() };
 	const document = parseCollationDocument(fixture.document)!;
+	const { flow: _viewState, ...saved } = document;
 	const settings = {
 		manualWitnesses: [
 			{ id: 'father', siglum: 'Father', treatment: 'fragmentary', includeInCbgm: false },
@@ -107,7 +108,7 @@ it('keeps every full-control field through save, load, two-store sync and index 
 		const primary = parseCollationPayloadTei(
 			await readTextFile(collationTeiFile(project.storageSlug, 'col-1'), sourceOptions)
 		);
-		expect(primary.document).toEqual(document);
+		expect(primary.document).toEqual(saved);
 		const manifest = await readCanonicalDocument<ProjectManifestPayload>(
 			PROJECT_MANIFEST_FORMAT,
 			await readTextFile(projectManifestFile(project.storageSlug), sourceOptions)
@@ -119,7 +120,7 @@ it('keeps every full-control field through save, load, two-store sync and index 
 		const assertLoaded = async (store: typeof source, options: typeof sourceOptions) => {
 			const loaded = await loadCollationWithWorkingFile(store.db, 'col-1', options);
 			expect(loaded?.artifact).toBeDefined();
-			expect(JSON.parse(loaded!.artifact!.payload)).toEqual(document);
+			expect(JSON.parse(loaded!.artifact!.payload)).toEqual(saved);
 			expect((await getProject(store.db, 'project-1'))?.collationSettings).toEqual(settings);
 		};
 		await assertLoaded(source, sourceOptions);

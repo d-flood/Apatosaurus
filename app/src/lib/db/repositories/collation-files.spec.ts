@@ -173,8 +173,8 @@ describe('collation file persistence', () => {
 		expect(loaded?.artifact).toMatchObject({
 			artifactType: 'collation_document_v1',
 		});
-		expect(loaded?.artifact?.payload).toContain('"phase":"readings"');
-		expect(loaded?.row.status).toBe('readings');
+		expect(loaded?.artifact?.payload).toContain('"projectName":"Project (readings)"');
+		expect(loaded?.row.status).toBe('draft');
 		expect(loaded?.row.updatedAt).toBe('2026-07-04T12:00:00.000Z');
 	});
 
@@ -337,10 +337,8 @@ describe('collation file persistence', () => {
 		expect(id).toBe('col-created');
 		expect(head.current_revision_id).toBeTruthy();
 		expect(version.version).toMatchObject({ id: head.current_revision_id, parent_id: null });
-		expect(version.payload.document).toMatchObject({
-			type: 'collationDocument',
-			flow: { phase: 'setup' },
-		});
+		expect(version.payload.document).toMatchObject({ type: 'collationDocument' });
+		expect(version.payload.document).not.toHaveProperty('flow');
 		expect(primary).toMatchObject({
 			id: 'col-created',
 			project_id: 'project-1',
@@ -351,7 +349,6 @@ describe('collation file persistence', () => {
 			},
 			document: {
 				type: 'collationDocument',
-				flow: { phase: 'setup' },
 				meta: { projectName: 'Romans' },
 			},
 		});
@@ -620,7 +617,7 @@ describe('TEI-canonical collation persistence', () => {
 				artifactType: 'collation_document_v1',
 				payload: JSON.stringify(document),
 				now: '2026-07-04T12:00:00.000Z',
-				metadata: { notes: 'Verse note', status: 'review' },
+				metadata: { notes: 'Verse note' },
 			},
 			{ backend }
 		);
@@ -637,7 +634,7 @@ describe('TEI-canonical collation persistence', () => {
 			id: 'col-1',
 			project_id: 'project-1',
 			notes: 'Verse note',
-			status: 'review',
+			status: 'draft',
 			updated_at: '2026-07-04T12:00:00.000Z',
 			based_on_checkpoint: null,
 		});
@@ -655,7 +652,7 @@ describe('TEI-canonical collation persistence', () => {
 				.executeTakeFirst()
 		).resolves.toEqual({
 			notes: 'Verse note',
-			status: 'review',
+			status: 'draft',
 			updated_at: '2026-07-04T12:00:00.000Z',
 		});
 		const loaded = await loadCollationWithWorkingFile(harness.db, 'col-1', { backend });
@@ -892,17 +889,11 @@ async function readPrimaryPayload(): Promise<CollationPayload> {
 	);
 }
 
-function collationDocument(phase: string) {
+function collationDocument(variant: string) {
 	return {
 		type: 'collationDocument',
 		version: 1,
-		meta: { collationId: 'col-1', projectId: 'project-1', projectName: 'Project' },
-		flow: {
-			phase,
-			furthestPhase: phase,
-			alignmentDisplayMode: 'regularized',
-			alignmentLayout: 'grid',
-		},
+		meta: { collationId: 'col-1', projectId: 'project-1', projectName: `Project (${variant})` },
 		setup: {
 			segment: { id: 'segment-1', name: 'Romans 1:1', members: ['Romans 1:1'] },
 			witnesses: [],

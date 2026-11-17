@@ -66,8 +66,11 @@ function makeAlignmentCell(
 }
 
 function reindex(columns: Columns): Columns {
-	columns.forEach((column, index) => (column.index = index));
-	return columns;
+	return columns.map((column, index) => (column.index === index ? column : { ...column, index }));
+}
+
+function withCell(column: AlignmentColumn, witnessId: string, cell: AlignmentCell) {
+	return { ...column, cells: new Map(column.cells).set(witnessId, cell) };
 }
 
 type JoinablePart = { text: string; originalSegments?: WitnessSourceToken['segments'] };
@@ -166,10 +169,14 @@ export function mergeCellsIn(
 		indices.map(idx => columns[idx].cells.get(witnessId)),
 		true
 	);
-	const next = columns.map(col => ({ ...col, cells: new Map(col.cells) }));
-	next[indices[0]].cells.set(witnessId, makeAlignmentCell(rules, merged.text, merged.options));
+	const next = [...columns];
+	next[indices[0]] = withCell(
+		next[indices[0]],
+		witnessId,
+		makeAlignmentCell(rules, merged.text, merged.options)
+	);
 	for (const idx of indices.slice(1)) {
-		next[idx].cells.set(witnessId, makeAlignmentCell(rules, null));
+		next[idx] = withCell(next[idx], witnessId, makeAlignmentCell(rules, null));
 	}
 	return { columns: next, witnessId, count: indices.length };
 }
@@ -253,7 +260,7 @@ function insertEmptyColumn(columns: Columns, atIndex: number, context: Alignment
 	const cells = new Map<string, AlignmentCell>();
 	for (const witnessId of witnessIds)
 		cells.set(witnessId, makeAlignmentCell(context.rules, null));
-	const next = columns.map(cloneAlignmentColumn);
+	const next = [...columns];
 	next.splice(atIndex, 0, { id: crypto.randomUUID(), index: atIndex, cells, merged: false });
 	return reindex(next);
 }
@@ -263,11 +270,9 @@ function isColumnFullyEmpty(column: AlignmentColumn): boolean {
 }
 
 function pruneEmptyColumnById(columns: Columns, columnId: string): Columns {
-	const next = columns.map(cloneAlignmentColumn);
-	const index = next.findIndex(column => column.id === columnId);
-	if (index < 0 || !isColumnFullyEmpty(next[index])) return next;
-	next.splice(index, 1);
-	return reindex(next);
+	const index = columns.findIndex(column => column.id === columnId);
+	if (index < 0 || !isColumnFullyEmpty(columns[index])) return columns;
+	return reindex(columns.toSpliced(index, 1));
 }
 
 function resolveShiftTarget(
@@ -340,19 +345,15 @@ export function shiftTokenIn(
 	const sourceCell = columns[sourceSlot.columnIndex]?.cells.get(witnessId);
 	if (!sourceCell || sourceCell.isOmission || !sourceCell.text) return null;
 
-	const target = resolveShiftTarget(
-		columns.map(cloneAlignmentColumn),
-		columnId,
-		direction,
-		context
-	);
+	const target = resolveShiftTarget(columns, columnId, direction, context);
 	if (!target) return null;
-	const next = target.columns.map(cloneAlignmentColumn);
+	const next = [...target.columns];
 	const targetCell = next[target.targetIndex]?.cells.get(witnessId);
 	if (!targetCell || !targetCell.isOmission || targetCell.text) return null;
 
-	next[target.targetIndex].cells.set(witnessId, { ...sourceCell });
-	next[target.sourceIndex].cells.set(
+	next[target.targetIndex] = withCell(next[target.targetIndex], witnessId, { ...sourceCell });
+	next[target.sourceIndex] = withCell(
+		next[target.sourceIndex],
 		witnessId,
 		makeAlignmentCell(context.rules, null, { isLacuna: sourceCell.isLacuna })
 	);

@@ -44,6 +44,7 @@ import {
 	collationIndexRowsFromPayload,
 	createCollation,
 	getCollationWitnessSourceStatuses,
+	loadIndexedCollation,
 	loadIndexedCollationPayload,
 	replaceCollationIndexRows,
 	saveCollationProjection,
@@ -139,7 +140,6 @@ function withMetadata(
 		...content,
 		title: metadata.title ?? content.title,
 		verse_identifier: metadata.verseIdentifier ?? content.verse_identifier,
-		status: metadata.status ?? content.status,
 		notes: metadata.notes ?? content.notes,
 		group_path: metadata.groupPath ?? content.group_path,
 		sort_key: metadata.sortKey ?? content.sort_key,
@@ -150,10 +150,12 @@ function withMetadata(
 async function writeTeiCurrent(
 	db: DbExecutor,
 	context: CollationFileContext,
-	payload: CollationPayload,
+	source: CollationPayload,
 	storeOptions: StoreOperationOptions,
 	{ projection = true }: { projection?: boolean } = {}
 ): Promise<void> {
+	const { flow: _viewState, ...document } = source.document;
+	const payload = { ...source, document };
 	const path = documentCanonicalPath('collation', context.collationId);
 	await assertNoDocumentFileProblem(db, path);
 	const fingerprint = await writeTeiFile(
@@ -252,8 +254,6 @@ export async function createCollationWithFilesResult(
 			collationId: id,
 			projectId: context.projectId,
 			projectName,
-			phase: 'setup',
-			furthestPhase: 'setup',
 			segment,
 			witnesses: [],
 			rules: [],
@@ -268,8 +268,6 @@ export async function createCollationWithFilesResult(
 			classifiedReadings: new Map(),
 			unitDecisions: new Map(),
 			readingArcs: new Map(),
-			alignmentDisplayMode: 'regularized',
-			alignmentLayout: 'grid',
 		});
 
 		const semanticDocument = parseCollationDocument(serializeCollationDocument(document));
@@ -537,6 +535,8 @@ export async function loadCollationWithWorkingFile(
 	collationId: string,
 	storeOptions: StoreOperationOptions = {}
 ): Promise<LoadedCollation | null> {
+	const indexed = await loadIndexedCollation(db, collationId);
+	if (indexed) return indexed;
 	const row = await db
 		.selectFrom('collations')
 		.select('id')
@@ -544,7 +544,7 @@ export async function loadCollationWithWorkingFile(
 		.executeTakeFirst();
 	if (!row) return null;
 	const context = await loadCollationFileContext(db, collationId);
-	const primaryPayload = await readCurrentPayload(db, context, storeOptions);
+	const primaryPayload = await readTeiCurrentFile(context, storeOptions);
 	if (primaryPayload) return loadedCollationFromPrimaryPayload(primaryPayload);
 	return null;
 }
@@ -586,11 +586,28 @@ export async function loadCollationContentHashWithFiles(
 	return teiContentHash;
 }
 
-export async function getCollationVersionStatusWithWorkingFile(
+export function getCollationVersionStatusWithWorkingFile(
 	db: Kysely<Database>,
 	collationId: string,
 	options: CollationVersionStatusOptions = {},
 	_storeOptions: StoreOperationOptions = {}
+): Promise<CollationVersionStatus> {
+	return collationVersionStatus(db, collationId, options, false);
+}
+
+/** The Version status a save returns, reusing witness statuses whose inputs are unchanged. */
+export function getSavedCollationVersionStatus(
+	db: Kysely<Database>,
+	collationId: string
+): Promise<CollationVersionStatus> {
+	return collationVersionStatus(db, collationId, {}, true);
+}
+
+async function collationVersionStatus(
+	db: Kysely<Database>,
+	collationId: string,
+	options: CollationVersionStatusOptions,
+	reuseWitnessStatuses: boolean
 ): Promise<CollationVersionStatus> {
 	const row = await db
 		.selectFrom('collations')
@@ -603,7 +620,6 @@ export async function getCollationVersionStatusWithWorkingFile(
 			'collations.verse_identifier as verse_identifier',
 			'collations.group_path as group_path',
 			'collations.sort_key as sort_key',
-			'collations.status as status',
 		])
 		.where('collations.id', '=', collationId)
 		.executeTakeFirst();
@@ -620,9 +636,10 @@ export async function getCollationVersionStatusWithWorkingFile(
 		verseIdentifier: row.verse_identifier,
 		groupPath: row.group_path,
 		sortKey: row.sort_key,
-		workflowStatus: row.status,
 		currentCheckpoint: await getCollationCommittedHead(db, collationId),
-		witnesses: await getCollationWitnessSourceStatuses(db, collationId),
+		witnesses: await getCollationWitnessSourceStatuses(db, collationId, {
+			reuse: reuseWitnessStatuses,
+		}),
 	};
 	return collationVersionStatusFromHash(db, base, workingContentHash, options);
 }
@@ -768,7 +785,7 @@ function buildCurrentCollationContent(
 		project_id: collation.project_id,
 		title: collation.title,
 		verse_identifier: collation.verse_identifier,
-		status: document.flow.phase === 'stemma' ? 'complete' : document.flow.phase,
+		status: 'draft',
 		group_path: collation.group_path,
 		notes: collation.notes,
 		sort_key: collation.sort_key,

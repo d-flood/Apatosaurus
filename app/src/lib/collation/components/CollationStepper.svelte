@@ -1,34 +1,13 @@
 <script lang="ts">
-	import { COLLATION_PHASES } from '$lib/collation/collation-types';
 	import { collationState, type CollationPhase } from '$lib/collation/collation-state.svelte';
-	import Crosshair from 'phosphor-svelte/lib/Crosshair';
-	import ListBullets from 'phosphor-svelte/lib/ListBullets';
-	import Table from 'phosphor-svelte/lib/Table';
-	import TreeStructure from 'phosphor-svelte/lib/TreeStructure';
-	import Check from 'phosphor-svelte/lib/Check';
 
-	const steps: { phase: CollationPhase; label: string; icon: typeof Crosshair }[] = [
-		{ phase: 'setup', label: 'Setup', icon: Crosshair },
-		{ phase: 'alignment', label: 'Alignment', icon: Table },
-		{ phase: 'readings', label: 'Readings', icon: ListBullets },
-		{ phase: 'stemma', label: 'Stemma', icon: TreeStructure },
-		{ phase: 'review', label: 'Review', icon: Check },
+	const steps: { phase: CollationPhase; label: string }[] = [
+		{ phase: 'setup', label: 'Setup' },
+		{ phase: 'alignment', label: 'Alignment' },
+		{ phase: 'readings', label: 'Readings' },
+		{ phase: 'stemma', label: 'Stemma' },
+		{ phase: 'review', label: 'Review' },
 	];
-
-	function isCompleted(stepPhase: CollationPhase): boolean {
-		return (
-			COLLATION_PHASES.indexOf(stepPhase) <
-			COLLATION_PHASES.indexOf(collationState.furthestPhase)
-		);
-	}
-
-	function isCurrent(stepPhase: CollationPhase): boolean {
-		return stepPhase === collationState.phase;
-	}
-
-	function canNavigateTo(stepPhase: CollationPhase): boolean {
-		return collationState.canNavigateTo(stepPhase);
-	}
 
 	function phaseHref(stepPhase: CollationPhase): string {
 		if (collationState.collationId) {
@@ -40,16 +19,11 @@
 
 <div class="flex items-center gap-0 w-full" role="navigation" aria-label="Collation workflow steps">
 	{#each steps as step, i (step.phase)}
-		{@const completed = isCompleted(step.phase)}
-		{@const current = isCurrent(step.phase)}
-		{@const navigable = canNavigateTo(step.phase)}
+		{@const current = step.phase === collationState.phase}
+		{@const navigable = collationState.canNavigateTo(step.phase)}
 
 		{#if i > 0}
-			<div
-				class="flex-1 h-px mx-1 transition-colors duration-300"
-				class:bg-primary={completed}
-				class:bg-base-300={!completed}
-			></div>
+			<div class="flex-1 h-px mx-1 bg-base-300"></div>
 		{/if}
 
 		<a
@@ -73,15 +47,9 @@
 			<div
 				class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-200 shrink-0 {current
 					? 'bg-primary-content text-primary'
-					: completed
-						? 'bg-primary text-primary-content'
-						: 'bg-base-300 text-base-content/60'}"
+					: 'bg-base-300 text-base-content/60'}"
 			>
-				{#if step.phase === 'review' || completed}
-					<svelte:component this={step.icon} size={14} weight="bold" />
-				{:else}
-					{i + 1}
-				{/if}
+				{i + 1}
 			</div>
 			<span
 				class="text-sm font-medium hidden sm:inline whitespace-nowrap"

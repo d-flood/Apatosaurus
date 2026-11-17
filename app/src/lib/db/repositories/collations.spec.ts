@@ -160,7 +160,7 @@ describe('collations repository', () => {
 		});
 		await updateCollationMetadata(harness.db, {
 			id,
-			status: 'complete',
+			title: 'Romans 1:1 revised',
 			updatedAt: '2024-01-04T00:00:00.000Z',
 		});
 
@@ -174,10 +174,14 @@ describe('collations repository', () => {
 		await expect(
 			harness.db
 				.selectFrom('collations')
-				.select(['status', 'updated_at'])
+				.select(['title', 'status', 'updated_at'])
 				.where('id', '=', id)
 				.executeTakeFirst()
-		).resolves.toEqual({ status: 'complete', updated_at: '2024-01-04T00:00:00.000Z' });
+		).resolves.toEqual({
+			title: 'Romans 1:1 revised',
+			status: 'draft',
+			updated_at: '2024-01-04T00:00:00.000Z',
+		});
 	});
 
 	it('replaces derived projection rows in one transaction', async () => {

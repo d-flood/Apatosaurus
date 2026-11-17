@@ -47,6 +47,11 @@ test('a CBGM analysis computes while the scholar works elsewhere, answers every 
 			.filter({ hasText: 'Collation John 1:2' })
 			.getByRole('link', { name: 'Open' })
 			.click();
+		await expect(page).toHaveURL(/\/collation\/cbgm-e2e-john-1-2\/alignment$/);
+		await page
+			.getByRole('navigation', { name: 'Collation workflow steps' })
+			.getByRole('link', { name: 'Stemma', exact: true })
+			.click();
 		await expect(page).toHaveURL(/\/collation\/cbgm-e2e-john-1-2\/stemma$/);
 		const source = page.getByRole('combobox', { name: /Source of reading/ });
 		await expect(source).toHaveCount(2);

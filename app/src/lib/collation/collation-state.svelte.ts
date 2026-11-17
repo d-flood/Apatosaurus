@@ -13,7 +13,6 @@ import {
 } from '$lib/db/client';
 import { coerceTranscriptionDocument } from '$lib/transcription/content';
 import {
-	cloneAlignmentColumn,
 	deserializeAlignmentColumns,
 	serializeAlignmentColumns,
 	witnessInputFromAlignment,
@@ -84,6 +83,7 @@ import {
 	makeMainReadingIdOf,
 	relabelReadings,
 	type NonAttestation,
+	type ReadingProposal,
 } from './collation-reading-proposal';
 import {
 	applyDecisions,
@@ -118,6 +118,11 @@ import {
 	type StemmaViolation,
 } from './collation-stemma';
 import { variationUnitId } from './collation-unit-id';
+import {
+	defaultCollationViewState,
+	readCollationViewState,
+	writeCollationViewState,
+} from './collation-view-state';
 import {
 	buildReadingFamilyGroups,
 	buildVariationUnitSpans,
@@ -159,6 +164,18 @@ import {
 } from './reading-edits';
 
 export type { CollationPhase, WitnessConfig, WitnessTreatment };
+
+type DepsCache<T> = Map<string, { deps: unknown[]; value: T }>;
+
+function memoByDeps<T>(cache: DepsCache<T>, key: string, deps: unknown[], build: () => T): T {
+	const hit = cache.get(key);
+	if (hit && hit.deps.length === deps.length && hit.deps.every((dep, i) => dep === deps[i]))
+		return hit.value;
+	if (cache.size > 4096) cache.clear();
+	const value = build();
+	cache.set(key, { deps, value });
+	return value;
+}
 
 interface ReadingFamilyView {
 	id: string;
@@ -232,7 +249,6 @@ function removeAmbiguousWitness(decisions: UnitDecisions, witnessId: string) {
 
 function createCollationState() {
 	let phase = $state<CollationPhase>('setup');
-	let furthestPhase = $state<CollationPhase>('setup');
 	let saveStatus = $state<SaveStatus>('saved');
 	let collationId = $state<string | null>(null);
 	let projectId = $state<string | null>(null);
@@ -245,7 +261,7 @@ function createCollationState() {
 	let segment = $state<CollationSegment | null>(null);
 	let orphanedMembers = $state<string[]>([]);
 	let selectedVerse = $state<AggregatedVerse | null>(null);
-	let witnesses = $state<WitnessConfig[]>([]);
+	let witnesses = $state.raw<WitnessConfig[]>([]);
 	let selectedBook = $state('');
 	let selectedChapter = $state('');
 	let selectedVerseNum = $state('');
@@ -275,7 +291,7 @@ function createCollationState() {
 	let importNotes = $state<ImportNote[]>([]);
 	let notes = $state('');
 
-	let alignmentColumns = $state<AlignmentColumn[]>([]);
+	let alignmentColumns = $state.raw<AlignmentColumn[]>([]);
 	let declaredUnits = $state<DeclaredUnit[]>([]);
 	const variationUnitSpans = $derived(buildVariationUnitSpans(alignmentColumns, declaredUnits));
 	let witnessOrder = $state<string[]>([]);
@@ -292,6 +308,41 @@ function createCollationState() {
 	let unitDecisions = $state<Map<string, UnitDecisions>>(new Map());
 	let readingArcs = $state<Map<string, ReadingArc[]>>(new Map());
 
+	const spanByUnitId = $derived(
+		new Map(variationUnitSpans.toReversed().map(span => [span.unitId, span]))
+	);
+	const orderedActiveWitnessIds = $derived(orderActiveWitnessIds());
+	const baseTextWitnessId = $derived(findBaseTextWitnessId(witnesses));
+	const readingTypeVocabulary = $derived(resolveReadingTypeVocabulary(projectReadingTypes));
+	let lastManualMembers: ReturnType<typeof manualWitnessMembers> = [];
+	// Keeps the previous array while membership is unchanged, so unit views stay cached.
+	const manualMembers = $derived.by(() => {
+		const next = manualWitnessMembers(
+			projectManualWitnesses,
+			manualWitnessOverrides,
+			unitDecisions.values()
+		);
+		if (JSON.stringify(next) !== JSON.stringify(lastManualMembers)) lastManualMembers = next;
+		return lastManualMembers;
+	});
+	const decisionContext = $derived({
+		baseWitnessId: baseTextWitnessId,
+		vocabulary: readingTypeVocabulary,
+		manualWitnesses: manualMembers,
+	});
+	const spanningSourceSpans = $derived(
+		variationUnitSpans.filter(
+			span => unitDecisions.get(span.unitId)?.spanningReadingIds?.length
+		)
+	);
+	const alignmentInputSignature = $derived(buildAlignmentInputSignature());
+	const proposalCache: DepsCache<ReadingProposal | null> = new Map();
+	const baseViewCache: DepsCache<UnitView> = new Map();
+	const unitViewCache: DepsCache<UnitView> = new Map();
+	const nonAttestationCache: DepsCache<NonAttestation> = new Map();
+	const localStemmaCache: DepsCache<LocalStemma> = new Map();
+	const familiesByReadings = new WeakMap<ClassifiedReading[], ReadingFamilyView[]>();
+
 	let commandHistory = $state.raw<CommandEntry[]>([]);
 	let commandIndex = $state(-1);
 
@@ -303,8 +354,6 @@ function createCollationState() {
 		const document = parseCollationDocument(rawDocument);
 		if (!document) throw new Error('Invalid collation document artifact.');
 		const hydrated = hydrateCollationDocument(document);
-		phase = hydrated.phase;
-		furthestPhase = hydrated.furthestPhase;
 		segment = hydrated.segment;
 		orphanedMembers = [];
 		selectedVerse = null;
@@ -332,10 +381,16 @@ function createCollationState() {
 		classifiedReadings = new Map(hydrated.classifiedReadings);
 		unitDecisions = new Map(hydrated.unitDecisions);
 		readingArcs = new Map(hydrated.readingArcs);
-		alignmentDisplayMode = hydrated.alignmentDisplayMode;
-		alignmentLayout = hydrated.alignmentLayout;
-		lastAlignmentInputSignature =
-			alignmentColumns.length > 0 ? buildAlignmentInputSignature() : null;
+		const remembered = collationId ? readCollationViewState(collationId) : null;
+		const view =
+			remembered ??
+			hydrated.legacyView ??
+			defaultCollationViewState(alignmentColumns.length > 0);
+		phase = view.phase;
+		alignmentDisplayMode = view.alignmentDisplayMode;
+		alignmentLayout = view.alignmentLayout;
+		if (!remembered) rememberView();
+		lastAlignmentInputSignature = alignmentColumns.length > 0 ? alignmentInputSignature : null;
 		selectedColumnIds = new Set();
 		selectedCells = new Set();
 		focusedColumn = -1;
@@ -350,8 +405,6 @@ function createCollationState() {
 			collationId,
 			projectId,
 			projectName,
-			phase,
-			furthestPhase,
 			segment,
 			witnesses,
 			manualWitnessOverrides,
@@ -365,17 +418,12 @@ function createCollationState() {
 			segmentation,
 			alignmentColumns,
 			declaredUnits: validDeclaredUnits(alignmentColumns, declaredUnits),
+			variationUnitSpans,
 			witnessOrder,
 			classifiedReadings,
 			unitDecisions,
 			readingArcs,
-			alignmentDisplayMode,
-			alignmentLayout,
 		});
-	}
-
-	function isFinalizedCollationPhase(): boolean {
-		return phase === 'review';
 	}
 
 	async function persistDocument(): Promise<boolean> {
@@ -394,7 +442,6 @@ function createCollationState() {
 				metadata: {
 					verseIdentifier: segment.name,
 					notes,
-					status: isFinalizedCollationPhase() ? 'complete' : phase,
 				},
 			});
 			if (collationId === id) {
@@ -517,30 +564,18 @@ function createCollationState() {
 		markUnsaved();
 	}
 
+	function rememberView() {
+		if (collationId)
+			writeCollationViewState(collationId, { phase, alignmentDisplayMode, alignmentLayout });
+	}
+
 	function setPhase(p: CollationPhase) {
 		phase = p;
-		advanceFurthest(p);
-		markUnsaved(0);
-	}
-
-	function showPhase(p: CollationPhase) {
-		if (p === phase) return;
-		phase = p;
-		advanceFurthest(p);
-		saveStatus = 'unsaved';
-		scheduleSave(0);
-	}
-
-	function advanceFurthest(p: CollationPhase) {
-		if (COLLATION_PHASES.indexOf(p) > COLLATION_PHASES.indexOf(furthestPhase)) {
-			furthestPhase = p;
-		}
+		rememberView();
 	}
 
 	function canNavigateTo(targetPhase: CollationPhase): boolean {
-		if (furthestPhase === 'review') return true;
-		if (targetPhase === 'review') return alignmentColumns.length > 0;
-		return COLLATION_PHASES.indexOf(targetPhase) <= COLLATION_PHASES.indexOf(furthestPhase);
+		return targetPhase === 'setup' || alignmentColumns.length > 0;
 	}
 
 	function canAdvance(): boolean {
@@ -560,10 +595,7 @@ function createCollationState() {
 	function nextPhase() {
 		const idx = COLLATION_PHASES.indexOf(phase);
 		if (idx < COLLATION_PHASES.length - 1 && canAdvance()) {
-			const next = COLLATION_PHASES[idx + 1];
-			phase = next;
-			advanceFurthest(next);
-			markUnsaved(0);
+			setPhase(COLLATION_PHASES[idx + 1]);
 		}
 	}
 
@@ -677,31 +709,48 @@ function createCollationState() {
 		selectedVerseNum = '';
 	}
 
-	async function restoreSelectedVerseFromProjectIndex(): Promise<void> {
-		const member = segmentMember();
-		if (!projectId || !member) {
-			clearSelectedVerse();
+	// Requests verse rows unfiltered so they need not wait for the project's transcription ids.
+	async function refreshProjectIndexLinks(): Promise<void> {
+		const expectedCollationId = collationId;
+		const expectedProjectId = projectId;
+		const expectedSegment = segment;
+		if (!expectedProjectId || !expectedSegment?.members.length) {
+			if (expectedSegment) clearSelectedVerse();
+			orphanedMembers = [];
 			return;
 		}
-
-		const transcriptionIds = await getProjectTranscriptionIds(projectId);
-		const matchingRows = await getVerseIndexRowsForVerse(member, transcriptionIds);
-		const row = matchingRows[0];
-		if (!row) {
-			clearSelectedVerse();
+		const members = [...new Set(expectedSegment.members)];
+		const [transcriptionIds, rowsByMember] = await Promise.all([
+			getProjectTranscriptionIds(expectedProjectId),
+			Promise.all(members.map(member => getVerseIndexRowsForVerse(member))),
+		]);
+		if (
+			collationId !== expectedCollationId ||
+			projectId !== expectedProjectId ||
+			segment !== expectedSegment
+		) {
 			return;
 		}
-
-		selectedVerse = {
-			identifier: row.verse_identifier,
-			book: row.book,
-			chapter: row.chapter,
-			verse: row.verse,
-			count: matchingRows.length,
-		};
-		selectedBook = row.book;
-		selectedChapter = row.chapter;
-		selectedVerseNum = row.verse;
+		const inProject = new Set(transcriptionIds);
+		const projectRows = rowsByMember.map(rows =>
+			rows.filter(row => inProject.has(row.transcription_id))
+		);
+		const row = projectRows[0][0];
+		if (row) {
+			selectedVerse = {
+				identifier: row.verse_identifier,
+				book: row.book,
+				chapter: row.chapter,
+				verse: row.verse,
+				count: projectRows[0].length,
+			};
+			selectedBook = row.book;
+			selectedChapter = row.chapter;
+			selectedVerseNum = row.verse;
+		} else {
+			clearSelectedVerse();
+		}
+		orphanedMembers = members.filter((_, index) => projectRows[index].length === 0);
 	}
 
 	async function refreshOrphanedMembersFromProjectIndex(): Promise<void> {
@@ -1016,12 +1065,12 @@ function createCollationState() {
 
 	function setAlignmentDisplayMode(mode: AlignmentDisplayMode) {
 		alignmentDisplayMode = mode;
-		markUnsaved();
+		rememberView();
 	}
 
 	function setAlignmentLayout(layout: AlignmentLayout) {
 		alignmentLayout = layout;
-		markUnsaved();
+		rememberView();
 	}
 
 	function buildAlignmentInputSignature(): string {
@@ -1048,7 +1097,7 @@ function createCollationState() {
 
 	function isAlignmentStale(): boolean {
 		if (alignmentColumns.length === 0 || !lastAlignmentInputSignature) return false;
-		return buildAlignmentInputSignature() !== lastAlignmentInputSignature;
+		return alignmentInputSignature !== lastAlignmentInputSignature;
 	}
 
 	function getDerivedCollationInput(): DerivedCollationInput {
@@ -1065,7 +1114,7 @@ function createCollationState() {
 	}
 
 	function setColumnsWithUndo(next: AlignmentColumn[], type: string, description: string) {
-		const previous = alignmentColumns.map(cloneAlignmentColumn);
+		const previous = alignmentColumns;
 		const previousDeclarations = declaredUnits;
 		const nextDeclarations = validDeclaredUnits(next, declaredUnits);
 		alignmentColumns = next;
@@ -1074,11 +1123,11 @@ function createCollationState() {
 			type,
 			description,
 			undo: () => {
-				alignmentColumns = previous.map(cloneAlignmentColumn);
+				alignmentColumns = previous;
 				declaredUnits = previousDeclarations;
 			},
 			redo: () => {
-				alignmentColumns = next.map(cloneAlignmentColumn);
+				alignmentColumns = next;
 				declaredUnits = nextDeclarations;
 			},
 		});
@@ -1467,7 +1516,7 @@ function createCollationState() {
 		}
 		placeChangedWitnesses(previousActive);
 		declaredUnits = validDeclaredUnits(alignmentColumns, declaredUnits);
-		lastAlignmentInputSignature = buildAlignmentInputSignature();
+		lastAlignmentInputSignature = alignmentInputSignature;
 		selectedUnitId = normalizeVariationUnitId(selectedUnitId);
 	}
 
@@ -1989,9 +2038,8 @@ function createCollationState() {
 				preserveReadings: true,
 			});
 		}
-		lastAlignmentInputSignature = buildAlignmentInputSignature();
+		lastAlignmentInputSignature = alignmentInputSignature;
 		selectedUnitId = normalizeVariationUnitId(selectedUnitId);
-		advanceFurthest('alignment');
 		markUnsaved();
 	}
 
@@ -2158,10 +2206,14 @@ function createCollationState() {
 
 	/** Designated base text; never falls back. */
 	function getBaseTextWitnessId(): string | null {
-		return findBaseTextWitnessId(witnesses);
+		return baseTextWitnessId;
 	}
 
 	function getOrderedActiveWitnessIds(): string[] {
+		return orderedActiveWitnessIds;
+	}
+
+	function orderActiveWitnessIds(): string[] {
 		const activeIds = new Set(witnesses.filter(w => !w.isExcluded).map(w => w.witnessId));
 		const baseId = getBaseWitnessId();
 		const ordered: string[] = [];
@@ -2212,8 +2264,7 @@ function createCollationState() {
 	}
 
 	function getVariationUnitSpan(unitId: string): VariationUnitSpan | null {
-		const spans = getVariationUnitSpans();
-		if (spans.length > 0) return spans.find(span => span.unitId === unitId) ?? null;
+		if (variationUnitSpans.length > 0) return spanByUnitId.get(unitId) ?? null;
 		const index = alignmentColumns.findIndex(column => variationUnitId(column.id) === unitId);
 		if (index < 0) return null;
 		return {
@@ -2298,16 +2349,32 @@ function createCollationState() {
 		return collected;
 	}
 
-	function buildProposalForUnit(unitId: string) {
+	function buildProposalForUnit(unitId: string): ReadingProposal | null {
 		const span = getVariationUnitSpan(unitId);
 		if (!span) return null;
-		const columns = getColumnsForUnit(span.unitId);
-		return buildReadingProposal({
-			columns,
-			spanColumnIds: span.columnIds,
-			sourceWitnessIds: getSourceWitnessIdsForColumns(columns),
-			baseWitnessId: getBaseTextWitnessId(),
-		});
+		const columns = alignmentColumns.slice(span.startIndex, span.endIndex + 1);
+		return memoByDeps(
+			proposalCache,
+			span.unitId,
+			[
+				orderedActiveWitnessIds,
+				baseTextWitnessId,
+				rules,
+				lowercase,
+				ignoreTokenWhitespace,
+				ignorePunctuation,
+				suppliedTextMode,
+				segmentation,
+				...columns,
+			],
+			() =>
+				buildReadingProposal({
+					columns,
+					spanColumnIds: span.columnIds,
+					sourceWitnessIds: getSourceWitnessIdsForColumns(columns),
+					baseWitnessId: baseTextWitnessId,
+				})
+		);
 	}
 
 	function buildReadingsForUnit(unitId: string): ClassifiedReading[] {
@@ -2315,21 +2382,25 @@ function createCollationState() {
 	}
 
 	function getNonAttestationForUnit(unitId: string): NonAttestation {
-		const nonAttestation = buildProposalForUnit(unitId)?.nonAttestation ?? {
-			witnessIds: [],
-			untranscribedWitnessIds: [],
-		};
+		const key = getReadingUnitKey(unitId) ?? '';
+		const proposal = buildProposalForUnit(unitId);
 		const view = peekUnitView(unitId);
-		const overlaps = new Set(Object.keys(view.overlapTargets));
-		return {
-			witnessIds: [
-				...nonAttestation.witnessIds.filter(id => !overlaps.has(id)),
-				...view.nonAttestingManualWitnessIds,
-			],
-			untranscribedWitnessIds: nonAttestation.untranscribedWitnessIds.filter(
-				id => !overlaps.has(id)
-			),
-		};
+		return memoByDeps(nonAttestationCache, key, [proposal, view], () => {
+			const nonAttestation = proposal?.nonAttestation ?? {
+				witnessIds: [],
+				untranscribedWitnessIds: [],
+			};
+			const overlaps = new Set(Object.keys(view.overlapTargets));
+			return {
+				witnessIds: [
+					...nonAttestation.witnessIds.filter(id => !overlaps.has(id)),
+					...view.nonAttestingManualWitnessIds,
+				],
+				untranscribedWitnessIds: nonAttestation.untranscribedWitnessIds.filter(
+					id => !overlaps.has(id)
+				),
+			};
+		});
 	}
 
 	const EMPTY_UNIT_VIEW: UnitView = {
@@ -2350,28 +2421,59 @@ function createCollationState() {
 	};
 
 	function viewUnitWithoutOverlaps(key: string, proposal: ClassifiedReading[]): UnitView {
-		return applyDecisions(proposal, unitDecisions.get(key) ?? {}, {
-			baseWitnessId: getBaseTextWitnessId(),
-			vocabulary: getReadingTypeVocabulary(),
-			manualWitnesses: getManualWitnessMembers(),
-		});
+		return applyDecisions(proposal, unitDecisions.get(key) ?? {}, decisionContext);
+	}
+
+	function storedOrProposedReadings(key: string): ClassifiedReading[] {
+		return classifiedReadings.get(key) ?? buildReadingsForUnit(key);
+	}
+
+	function cachedViewWithoutOverlaps(key: string): UnitView {
+		const decisions = unitDecisions.get(key);
+		const readings = storedOrProposedReadings(key);
+		return memoByDeps(baseViewCache, key, [decisions, readings, decisionContext], () =>
+			viewUnitWithoutOverlaps(key, readings)
+		);
+	}
+
+	function spanningSources() {
+		return spanningSourceSpans.map(span => ({
+			span,
+			decisions: unitDecisions.get(span.unitId) ?? {},
+			view: cachedViewWithoutOverlaps(span.unitId),
+		}));
 	}
 
 	function viewUnit(key: string, proposal: ClassifiedReading[]): UnitView {
 		const view = viewUnitWithoutOverlaps(key, proposal);
 		const span = getVariationUnitSpan(key);
 		if (!span) return view;
-		const sources = getVariationUnitSpans()
-			.filter(source => unitDecisions.get(source.unitId)?.spanningReadingIds?.length)
-			.map(span => ({
-				span,
-				decisions: unitDecisions.get(span.unitId) ?? {},
-				view: viewUnitWithoutOverlaps(
-					span.unitId,
-					classifiedReadings.get(span.unitId) ?? buildReadingsForUnit(span.unitId)
-				),
-			}));
-		return applyOverlapDecisions(view, unitDecisions.get(key) ?? {}, span, sources);
+		return applyOverlapDecisions(view, unitDecisions.get(key) ?? {}, span, spanningSources());
+	}
+
+	/** Recomputes only when the unit's decisions, readings, span or an overlapping source changes. */
+	function cachedUnitView(key: string): UnitView {
+		const view = cachedViewWithoutOverlaps(key);
+		const span = getVariationUnitSpan(key);
+		if (!span) return view;
+		const sources = spanningSources();
+		return memoByDeps(
+			unitViewCache,
+			key,
+			[
+				view,
+				span.startIndex,
+				span.endIndex,
+				...sources.flatMap(source => [
+					source.span.unitId,
+					source.span.startIndex,
+					source.span.endIndex,
+					source.decisions,
+					source.view,
+				]),
+			],
+			() => applyOverlapDecisions(view, unitDecisions.get(key) ?? {}, span, sources)
+		);
 	}
 
 	function canMarkSpanning(unitId: string): boolean {
@@ -2431,19 +2533,14 @@ function createCollationState() {
 	}
 
 	function ensureReadingsForUnit(unitId: string): ClassifiedReading[] {
-		const key = getReadingUnitKey(unitId);
-		if (!key) return [];
-		const existing = classifiedReadings.get(key);
-		if (existing) return viewUnit(key, existing).readings;
-		const built = buildReadingsForUnit(unitId);
-		classifiedReadings = new Map(classifiedReadings).set(key, built);
-		return viewUnit(key, built).readings;
+		primeReadingsForUnit(unitId);
+		return peekReadingsForUnit(unitId);
 	}
 
 	function peekUnitView(unitId: string): UnitView {
 		const key = getReadingUnitKey(unitId);
 		if (!key) return EMPTY_UNIT_VIEW;
-		return viewUnit(key, classifiedReadings.get(key) ?? buildReadingsForUnit(unitId));
+		return cachedUnitView(key);
 	}
 
 	function peekReadingsForUnit(unitId: string): ClassifiedReading[] {
@@ -2468,6 +2565,15 @@ function createCollationState() {
 	function getReadingFamiliesForUnit(unitId: string): ReadingFamilyView[] {
 		// Already lemma-first; re-sorting would discard the lemma.
 		const readings = peekReadingsForUnit(unitId);
+		let families = familiesByReadings.get(readings);
+		if (!families) {
+			families = readingFamilies(readings);
+			familiesByReadings.set(readings, families);
+		}
+		return families;
+	}
+
+	function readingFamilies(readings: ClassifiedReading[]): ReadingFamilyView[] {
 		const mainReadingIdOf = makeMainReadingIdOf(readings);
 		const primaries = readings.filter(reading => reading.parentReadingId === null);
 		return primaries.map(parent => {
@@ -2549,7 +2655,10 @@ function createCollationState() {
 	}
 
 	function primeReadingsForUnit(unitId: string): void {
-		void ensureReadingsForUnit(unitId);
+		const key = getReadingUnitKey(unitId);
+		if (!key || classifiedReadings.has(key)) return;
+		// Stores in place without notifying: views already show this proposal and only saves read it.
+		classifiedReadings.set(key, buildReadingsForUnit(key));
 	}
 
 	function setReadingsForUnit(unitId: string, readings: ClassifiedReading[]) {
@@ -3042,15 +3151,11 @@ function createCollationState() {
 	}
 
 	function getReadingTypeVocabulary(): ReadingTypeDefinition[] {
-		return resolveReadingTypeVocabulary(projectReadingTypes);
+		return readingTypeVocabulary;
 	}
 
 	function getManualWitnessMembers() {
-		return manualWitnessMembers(
-			projectManualWitnesses,
-			manualWitnessOverrides,
-			unitDecisions.values()
-		);
+		return manualMembers;
 	}
 
 	function getManualWitnessOverride(id: string): ManualWitnessOverride {
@@ -3377,12 +3482,11 @@ function createCollationState() {
 	function getLocalStemma(unitId: string): LocalStemma {
 		const key = getReadingUnitKey(unitId);
 		if (!key) return { nodes: [], violations: [], orphanedArcs: [] };
-		const view = peekUnitView(unitId);
-		return projectLocalStemma(
-			view.readings,
-			readingArcs.get(key) ?? [],
-			view.lemmaReadingId,
-			unitDecisions.get(key)?.sourceDecision ?? {}
+		const view = cachedUnitView(key);
+		const arcs = readingArcs.get(key);
+		const sourceDecision = unitDecisions.get(key)?.sourceDecision;
+		return memoByDeps(localStemmaCache, key, [view, arcs, sourceDecision], () =>
+			projectLocalStemma(view.readings, arcs ?? [], view.lemmaReadingId, sourceDecision ?? {})
 		);
 	}
 
@@ -3426,14 +3530,9 @@ function createCollationState() {
 		unitId: string;
 		violations: StemmaViolation[];
 	}[] {
-		return forEachUnitView((_, span) => {
+		return getVariationUnitSpans().flatMap(span => {
 			const violations = getLocalStemma(span.unitId).violations;
-			return violations.length > 0
-				? {
-						unitId: span.unitId,
-						violations,
-					}
-				: null;
+			return violations.length > 0 ? [{ unitId: span.unitId, violations }] : [];
 		});
 	}
 
@@ -3604,7 +3703,6 @@ function createCollationState() {
 
 	function reset() {
 		phase = 'setup';
-		furthestPhase = 'setup';
 		saveStatus = 'saved';
 		collationId = null;
 		projectId = null;
@@ -3742,8 +3840,6 @@ function createCollationState() {
 			notes = loaded.row.notes ?? '';
 			applyCollationDocumentPayload(loaded.artifact.payload);
 			await hydrateProjectContext(loaded.row.projectId, alignmentColumns.length > 0);
-			if (segment) await restoreSelectedVerseFromProjectIndex();
-			await refreshOrphanedMembersFromProjectIndex();
 			const repairedCollapsedAlignment = hasCollapsedAlignmentRegression();
 			if (repairedCollapsedAlignment) {
 				realign();
@@ -3754,6 +3850,9 @@ function createCollationState() {
 			if (!repairedCollapsedAlignment) {
 				saveStatus = 'saved';
 			}
+			void refreshProjectIndexLinks().catch(err =>
+				console.error('Failed to load collation verse links:', err)
+			);
 			void refreshVersionStatus();
 			isLoading = false;
 			return true;
@@ -3775,8 +3874,7 @@ function createCollationState() {
 		workspaceArtifactId = loaded.artifact.id;
 		notes = loaded.row.notes ?? '';
 		applyCollationDocumentPayload(loaded.artifact.payload);
-		if (segment) await restoreSelectedVerseFromProjectIndex();
-		await refreshOrphanedMembersFromProjectIndex();
+		await refreshProjectIndexLinks();
 		saveStatus = 'saved';
 		return true;
 	}
@@ -3785,9 +3883,6 @@ function createCollationState() {
 		onEdit,
 		get phase() {
 			return phase;
-		},
-		get furthestPhase() {
-			return furthestPhase;
 		},
 		get saveStatus() {
 			return saveStatus;
@@ -3955,7 +4050,6 @@ function createCollationState() {
 		canAdvance,
 		canNavigateTo,
 		setPhase,
-		showPhase,
 		nextPhase,
 		selectProject,
 		clearProjectSelection,

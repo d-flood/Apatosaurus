@@ -1,5 +1,15 @@
-import { describe, expect, it } from 'vitest';
+import { createHash } from 'node:crypto';
+import { DOMParser } from '@xmldom/xmldom';
+import { describe, expect, it, vi } from 'vitest';
 import fixtures from '../../../e2e/fixtures/cbgm-collations.json';
+import {
+	classicFixtures,
+	generatedFixture,
+	stateFixture,
+	stateLoadFixtures,
+	text,
+	type Fixture,
+} from './__fixtures__/collation-fixtures';
 import { applyDecisions } from './collation-decisions';
 import { BUNDLED_READING_TYPES } from './reading-types';
 import { deserializeAlignmentColumns } from './alignment-snapshot';
@@ -73,8 +83,6 @@ describe('collation document', () => {
 			collationId: 'coll-1',
 			projectId: 'proj-1',
 			projectName: 'Project One',
-			phase: 'review',
-			furthestPhase: 'review',
 			segment: { id: 'segment-1', name: 'John 1:1', members: ['John 1:1'] },
 			witnesses: [makeWitness('A', 'θεος', true), makeWitness('B', 'θς')],
 			manualWitnessOverrides: [
@@ -202,8 +210,6 @@ describe('collation document', () => {
 					],
 				],
 			]),
-			alignmentDisplayMode: 'original',
-			alignmentLayout: 'variation-units',
 		});
 
 		const parsed = parseCollationDocument(serializeCollationDocument(document));
@@ -237,15 +243,13 @@ describe('collation document', () => {
 			name: 'John 1:1',
 			members: ['John 1:1'],
 		});
-		expect(hydrated.phase).toBe('review');
-		expect(hydrated.furthestPhase).toBe('review');
+		expect(parsed).not.toHaveProperty('flow');
+		expect(hydrated.legacyView).toBeNull();
 		expect(hydrated.ignoreWordBreaks).toBe(true);
 		expect(hydrated.lowercase).toBe(true);
 		expect(hydrated.ignoreTokenWhitespace).toBe(true);
 		expect(hydrated.ignorePunctuation).toBe(true);
 		expect(hydrated.suppliedTextMode).toBe('gap');
-		expect(hydrated.alignmentDisplayMode).toBe('original');
-		expect(hydrated.alignmentLayout).toBe('variation-units');
 		expect(hydrated.witnesses[1]?.tokens[0]?.original).toBe('θς');
 		expect(hydrated.alignmentColumns[0]?.cells[1]?.[1].sourceTokenIds).toEqual([
 			'B::source::0',
@@ -264,13 +268,11 @@ describe('collation document', () => {
 		expect(hydrated.readingArcs[0]?.[1][0]?.posteriorReadingId).toBe('r-b');
 	});
 
-	it('preserves setup and clamps an unknown persisted phase without resetting progress', () => {
+	it('reads a legacy workflow block as view state and clamps an unknown phase', () => {
 		const document = buildCollationDocument({
 			collationId: null,
 			projectId: null,
 			projectName: null,
-			phase: 'setup',
-			furthestPhase: 'review',
 			segment: { id: 'segment-1', name: 'John 1:1', members: ['John 1:1'] },
 			witnesses: [],
 			rules: [],
@@ -285,27 +287,26 @@ describe('collation document', () => {
 			classifiedReadings: new Map(),
 			unitDecisions: new Map(),
 			readingArcs: new Map(),
-			alignmentDisplayMode: 'regularized',
-			alignmentLayout: 'grid',
 		});
-		expect(hydrateCollationDocument(document)).toMatchObject({
-			phase: 'setup',
+		document.flow = {
+			phase: 'future-phase',
 			furthestPhase: 'review',
+			alignmentDisplayMode: 'original',
+			alignmentLayout: 'variation-units',
+		};
+
+		expect(hydrateCollationDocument(document).legacyView).toEqual({
+			phase: 'review',
+			alignmentDisplayMode: 'original',
+			alignmentLayout: 'variation-units',
 		});
-
-		(document.flow as { phase: unknown }).phase = 'future-phase';
-
-		expect(hydrateCollationDocument(document).phase).toBe('review');
-		expect(hydrateCollationDocument(document).furthestPhase).toBe('review');
 	});
 
-	it('hydrates a document without a flow record as unstarted rather than complete', () => {
+	it('hydrates a document without a workflow block without legacy view state', () => {
 		const document = buildCollationDocument({
 			collationId: null,
 			projectId: null,
 			projectName: null,
-			phase: 'setup',
-			furthestPhase: 'review',
 			segment: { id: 'segment-1', name: 'John 1:1', members: ['John 1:1'] },
 			witnesses: [],
 			rules: [],
@@ -320,15 +321,9 @@ describe('collation document', () => {
 			classifiedReadings: new Map(),
 			unitDecisions: new Map(),
 			readingArcs: new Map(),
-			alignmentDisplayMode: 'regularized',
-			alignmentLayout: 'grid',
 		});
-		delete (document as { flow?: unknown }).flow;
-
-		expect(hydrateCollationDocument(document)).toMatchObject({
-			phase: 'setup',
-			furthestPhase: 'setup',
-		});
+		expect(document).not.toHaveProperty('flow');
+		expect(hydrateCollationDocument(document).legacyView).toBeNull();
 	});
 
 	it('rejects persisted connectivity other than a positive integer or absolute', () => {
@@ -386,8 +381,6 @@ describe('collation document', () => {
 			collationId: null,
 			projectId: null,
 			projectName: null,
-			phase: 'readings',
-			furthestPhase: 'readings',
 			segment: { id: 'segment-1', name: 'John 1:1', members: ['John 1:1'] },
 			witnesses: [],
 			rules: [],
@@ -402,8 +395,6 @@ describe('collation document', () => {
 			classifiedReadings: new Map(),
 			unitDecisions: new Map([['unit:gone-column', { subreadingOf: { 'r-b': 'r-a' } }]]),
 			readingArcs: new Map(),
-			alignmentDisplayMode: 'regularized',
-			alignmentLayout: 'grid',
 		});
 
 		expect(document.apparatus?.units).toEqual([
@@ -437,8 +428,6 @@ describe('collation document', () => {
 				collationId: 'coll-1',
 				projectId: 'proj-1',
 				projectName: 'Project One',
-				phase: 'setup',
-				furthestPhase: 'setup',
 				segment: { id: 'segment-1', name: 'John 1:1', members: ['John 1:1'] },
 				witnesses: [corrector],
 				rules: [],
@@ -453,8 +442,6 @@ describe('collation document', () => {
 				classifiedReadings: new Map(),
 				unitDecisions: new Map(),
 				readingArcs: new Map(),
-				alignmentDisplayMode: 'regularized',
-				alignmentLayout: 'grid',
 			})
 		);
 
@@ -476,8 +463,6 @@ describe('collation document', () => {
 				collationId: null,
 				projectId: null,
 				projectName: null,
-				phase: 'setup',
-				furthestPhase: 'setup',
 				segment: { id: 'segment-1', name: '  ', members: ['John 1:1'] },
 				witnesses: [],
 				rules: [],
@@ -492,8 +477,6 @@ describe('collation document', () => {
 				classifiedReadings: new Map(),
 				unitDecisions: new Map(),
 				readingArcs: new Map(),
-				alignmentDisplayMode: 'regularized',
-				alignmentLayout: 'grid',
 			})
 		).toThrow('Collation segment name is required.');
 	});
@@ -503,8 +486,6 @@ describe('collation document', () => {
 			collationId: null,
 			projectId: null,
 			projectName: null,
-			phase: 'readings',
-			furthestPhase: 'readings',
 			segment: { id: 'segment-1', name: 'John 1:1', members: ['John 1:1'] },
 			witnesses: [makeWitness('A', 'θεος', true), makeWitness('B', 'κυριος')],
 			rules: [],
@@ -527,8 +508,6 @@ describe('collation document', () => {
 			]),
 			unitDecisions: new Map(),
 			readingArcs: new Map(),
-			alignmentDisplayMode: 'regularized',
-			alignmentLayout: 'grid',
 		});
 
 		expect(
@@ -548,8 +527,6 @@ describe('collation document', () => {
 			collationId: null,
 			projectId: null,
 			projectName: null,
-			phase: 'setup',
-			furthestPhase: 'setup',
 			segment: {
 				id: 'segment-1',
 				name: 'Romans 1:1',
@@ -568,8 +545,6 @@ describe('collation document', () => {
 			classifiedReadings: new Map(),
 			unitDecisions: new Map(),
 			readingArcs: new Map(),
-			alignmentDisplayMode: 'regularized',
-			alignmentLayout: 'grid',
 		});
 
 		expect(document.setup.segment.members).toEqual([
@@ -587,8 +562,6 @@ describe('legacy collation phases', () => {
 			collationId: null,
 			projectId: null,
 			projectName: null,
-			phase: 'setup',
-			furthestPhase: 'review',
 			segment: { id: 'segment-1', name: 'John 1:1', members: ['John 1:1'] },
 			witnesses: [],
 			rules: [],
@@ -603,15 +576,10 @@ describe('legacy collation phases', () => {
 			classifiedReadings: new Map(),
 			unitDecisions: new Map(),
 			readingArcs: new Map(),
-			alignmentDisplayMode: 'regularized',
-			alignmentLayout: 'grid',
 		});
-		(document.flow as { phase: string; furthestPhase: string }).phase = 'regularization';
-		(document.flow as { phase: string; furthestPhase: string }).furthestPhase =
-			'regularization';
-		expect(hydrateCollationDocument(document)).toMatchObject({
+		document.flow = { phase: 'regularization', furthestPhase: 'regularization' };
+		expect(hydrateCollationDocument(document).legacyView).toMatchObject({
 			phase: 'alignment',
-			furthestPhase: 'alignment',
 		});
 	});
 });
@@ -641,4 +609,118 @@ it('types preserved untyped subreadings from their source proposals and flags on
 		label: 'a?',
 	});
 	expect(countUntypedSubreadings(document, BUNDLED_READING_TYPES)).toBe(1);
+});
+
+describe('collation document build', () => {
+	vi.stubGlobal('DOMParser', DOMParser);
+
+	/** SHA-256 of each fixture's serialized build before the workflow block left the document. */
+	const builtBeforeViewStateLeft: Record<string, string> = {
+		'absent.xml Acts_1.2': '534a9b0d3d026dd1735ca7b138024d79fcf11f6b145177f15b047c368c703c3f',
+		'alphabet.xml Alphabet': 'a9fe97f0434cf71af314c90d8e25b7a02599f5d8a6c9fda5464e2a63ad376e55',
+		'core.xml Acts_1.1': 'bb6d38c075b2706ff8e19129b1aac8f9bb4b61b940680ebfb995aa1610eeb922',
+		'core.xml Unnormalized.verse_2':
+			'd61a1967efb20bf859c055c1e3328f160609a4b215e358648527cfb336eefe3d',
+		'crossing.xml Crossing': '9e545eee5d371064afe3c59dcad3f65980774c06524d2233b8dc94d816c44ff0',
+		'editorial.xml Editorial_1':
+			'cf77fe151b3ebebfdb7f1aa077f7e664aec9a55a28da827ae21e1b710432ccbd',
+		'labels.xml Gap': 'caae7d056f1b228d8969a5cac84df5dad262351ae2f860c1a5a8df3afec220a8',
+		'labels.xml Elevated': '75a3de42bd4b749686d76105118934f71684449307961682148beb18d39dd5db',
+		'labels.xml Split': '90fa12fff0a7c3aef5582839ddfd1e030ceb17604a2f9b19769ba04ee9318c0c',
+		'labels.xml Base_split': '10506c8b796a60c7fa37d63796a0187c5fc92669dd35847363d631d85f0a4a76',
+		'long-omission.xml Long_omission':
+			'fbf5d21c7e50d9753154a92f8867fac0d54937f3146ae0bbdcb5c2cac7f998cf',
+		'metadata.xml Rom_1.1': '8f0f81e4f335c3e5c42e5187a4bcde19238b7904535c8551e3a4ce926e77c538',
+		'metadata.xml Rom_2.1': '22e3433b48f5e46d25620661c45597ea06d5ac3939b6f9743f9522e411b488dd',
+		'recorded-nonreadings.xml Recorded_nonreadings':
+			'd93e5ee3b204bffe80a7629d76a1cc4de7fa4054973de6b04908aaf3b0797122',
+		'recorded-overlap.xml Recorded_overlap':
+			'eb42be249875bbb05bf42958223e114aff0d227fcbdfcc96a9f4b7a556d27063',
+		'collation state': '5e000cb28ec0f2c4fa9a8f55de558299d64e383c674f08025903b9c2fc6dfcc6',
+		'state load: setup': '3ce0f742681340ec9fb605bd28dd607d3efb28979d099b4cb793a1a7f5350e6d',
+		'state load: subreading decision':
+			'26d5ca85e9069d52449f7e7831b1100db29c7bf0a8f90beebd1d8250716bd9c7',
+		'state load: reading type':
+			'53560df458b4257df77dd10bd281fdcdf6320a24667a97a16cff3d0e88b8dd5d',
+		'generated 100 witnesses':
+			'eb7b26a3f1fc593e1171690e28d252570689582283ed17efd8b46d920441306b',
+	};
+
+	function deterministicIds(build: () => Fixture[] | Promise<Fixture[]>) {
+		let n = 0;
+		vi.spyOn(crypto, 'randomUUID').mockImplementation(
+			() => `00000000-0000-4000-8000-${String(++n).padStart(12, '0')}` as const
+		);
+		return build();
+	}
+
+	function hash(document: CollationDocument): string {
+		return createHash('sha256').update(serializeCollationDocument(document)).digest('hex');
+	}
+
+	it('builds every fixture byte-identically apart from the workflow block', async () => {
+		const fixtures = [
+			...(await deterministicIds(classicFixtures)),
+			...(await deterministicIds(async () => [await stateFixture()])),
+			...(await deterministicIds(stateLoadFixtures)),
+			...(await deterministicIds(() => [generatedFixture()])),
+		];
+		vi.restoreAllMocks();
+		expect(fixtures.map(fixture => fixture.name)).toEqual(
+			Object.keys(builtBeforeViewStateLeft)
+		);
+		for (const { name, document } of fixtures) {
+			expect(document, name).not.toHaveProperty('flow');
+			expect(hash(document), name).toBe(builtBeforeViewStateLeft[name]);
+		}
+	});
+
+	it('reuses the witness and alignment sections while their source arrays keep their identity', () => {
+		const witnesses = [makeWitness('A', 'alpha', true), makeWitness('B', 'beta')];
+		const alignmentColumns = deserializeAlignmentColumns([
+			{
+				id: 'col-1',
+				index: 0,
+				merged: false,
+				cells: [
+					['A', text('alpha')],
+					['B', text('beta')],
+				],
+			},
+		]);
+		const seed = {
+			collationId: 'c',
+			projectId: 'p',
+			projectName: 'P',
+			segment: { id: 's', name: 'Romans 1:1', members: ['Romans 1:1'] },
+			witnesses,
+			rules: [],
+			ignoreWordBreaks: false,
+			lowercase: false,
+			ignoreTokenWhitespace: true,
+			ignorePunctuation: false,
+			suppliedTextMode: 'clear' as const,
+			segmentation: true,
+			alignmentColumns,
+			witnessOrder: ['A', 'B'],
+			classifiedReadings: new Map(),
+			unitDecisions: new Map([['unit:col-1', {}]]),
+			readingArcs: new Map(),
+		};
+		vi.spyOn(crypto, 'randomUUID').mockReturnValue('00000000-0000-4000-8000-000000000000');
+		const first = buildCollationDocument(seed);
+		const again = buildCollationDocument(seed);
+		expect(again.setup.witnesses).toBe(first.setup.witnesses);
+		expect(again.alignment!.columns).toBe(first.alignment!.columns);
+
+		const copied = buildCollationDocument({
+			...seed,
+			witnesses: [...witnesses],
+			alignmentColumns: [...alignmentColumns],
+		});
+		expect(copied.setup.witnesses).not.toBe(first.setup.witnesses);
+		expect(copied.alignment!.columns).not.toBe(first.alignment!.columns);
+		expect(serializeCollationDocument(copied)).toBe(serializeCollationDocument(first));
+		vi.restoreAllMocks();
+	});
 });

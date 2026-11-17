@@ -109,13 +109,13 @@ describe('data-safety invariants in browser storage', () => {
 					id: COLLATION_ID,
 					projectId: PROJECT_ID,
 					title: 'Romans 1:2 Collation',
-					status: 'readings',
+					status: 'draft',
 				},
 			],
 			collationRow: {
 				id: COLLATION_ID,
 				projectId: PROJECT_ID,
-				status: 'readings',
+				status: 'draft',
 			},
 			collationProjectionWitnesses: [
 				{
@@ -446,7 +446,6 @@ async function createProjectTranscriptionAndCollation(db: WorkerClient): Promise
 		args: [
 			{
 				id: COLLATION_ID,
-				status: 'readings',
 				updatedAt: '2026-07-06T10:05:00.000Z',
 			},
 		],

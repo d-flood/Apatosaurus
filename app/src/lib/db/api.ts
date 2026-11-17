@@ -45,6 +45,7 @@ import {
 	createCollationWithFilesResult,
 	createCommittedCollationCheckpointWithFiles,
 	getCollationVersionStatusWithWorkingFile,
+	getSavedCollationVersionStatus,
 	listProjectCollationVersionStatusesWithWorkingFiles,
 	loadCollationVersionDocument,
 	loadCollationWithWorkingFile,
@@ -314,10 +315,9 @@ export const dbApi = defineApi({
 	async saveCollationArtifact({ db, invalidate }, input: SaveCollationArtifactInput) {
 		const artifactId = await saveWorkingCollationArtifact(db, input);
 		invalidate('collations');
-		const versionStatus = await getCollationVersionStatusWithWorkingFile(
-			db,
-			input.collationId
-		).catch(() => null);
+		const versionStatus = await getSavedCollationVersionStatus(db, input.collationId).catch(
+			() => null
+		);
 		return { artifactId, versionStatus };
 	},
 	async updateCollationMetadata({ db, invalidate }, input: UpdateCollationMetadataInput) {
