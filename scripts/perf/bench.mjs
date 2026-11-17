@@ -3,6 +3,7 @@ import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'nod
 
 const require = createRequire(new URL('../../app/package.json', import.meta.url));
 const { chromium } = require('playwright');
+const { tsImport } = require('tsx/esm/api');
 
 const BASE = process.env.BASE;
 const [NAME = 'bench', COUNT = '100'] = process.argv.slice(2);
@@ -35,6 +36,10 @@ const results = [];
 const requests = [];
 const writes = [];
 const startup = [];
+const initSteps = [];
+const queue = [];
+const typing = [];
+const typePauseType = [];
 const storage = {};
 let phase = 'init';
 
@@ -64,6 +69,20 @@ const PATCH = `(() => {
 	const worker = file.match(/^(.+?\\.worker)-/)?.[1] ?? file;
 	const unqueued = new Set(${JSON.stringify(UNQUEUED)});
 	const pending = new Map();
+	const epoch = ms => Math.round((performance.timeOrigin + ms) * 10) / 10;
+	self.__methods = () => [...pending.values()].map(([, method]) => method);
+	if (worker === 'db.worker')
+		new PerformanceObserver(list => {
+			for (const entry of list.getEntries())
+				if (entry.name === 'db-queue')
+					console.log('[queue]', JSON.stringify({
+						label: entry.detail.label,
+						priority: entry.detail.priority,
+						enqueuedAt: epoch(entry.detail.enqueuedAt),
+						startedAt: epoch(entry.startTime),
+						endedAt: epoch(entry.startTime + entry.duration),
+					}));
+		}).observe({ type: 'measure', buffered: true });
 	let lastReply = 0;
 	self.__inflight = 0;
 	self.__last = performance.now();
@@ -83,7 +102,7 @@ const PATCH = `(() => {
 			const queued = worker === 'db.worker' && !unqueued.has(started[1]);
 			const exclusiveMs = queued ? Math.round(now - Math.max(started[0], lastReply)) : null;
 			if (queued) lastReply = now;
-			console.log('[req]', JSON.stringify({ worker, method: started[1], ms: Math.round(now - started[0]), exclusiveMs }));
+			console.log('[req]', JSON.stringify({ worker, method: started[1], ms: Math.round(now - started[0]), exclusiveMs, at: epoch(started[0]) }));
 			pending.delete(id);
 			self.__inflight = pending.size;
 			self.__last = now;
@@ -153,32 +172,54 @@ const context = await chromium.launchPersistentContext(`${OUT}profile`, {
 });
 await context.addInitScript(() => localStorage.setItem('welcomeSkipped', 'true'));
 await context.addInitScript(WRITE_PATCH);
-const page = context.pages()[0] ?? (await context.newPage());
+// Times collation actions from the first click or select change after arming.
+await context.addInitScript(() => {
+	for (const type of ['click', 'input', 'change'])
+		addEventListener(
+			type,
+			event => {
+				if (!window.__armed) return;
+				window.__armed = false;
+				window.__actionStart = event.timeStamp;
+			},
+			true
+		);
+});
+let page = context.pages()[0] ?? (await context.newPage());
 
 const workers = new Set();
-page.on('worker', worker => {
-	workers.add(worker);
-	worker.on('close', () => workers.delete(worker));
-	const patch = attempts =>
-		worker
-			.evaluate(WRITE_PATCH)
-			.then(() => worker.evaluate(PATCH))
-			.catch(() => attempts > 0 && setTimeout(() => patch(attempts - 1), 10));
-	patch(500);
-});
-page.on('console', async message => {
-	const text = message.text();
-	if (/^\[local-db\] (worker|schema) .* completed/.test(text)) {
-		const detail = await message.args()[1]?.jsonValue().catch(() => null);
-		const label = text.replace(/^\[local-db\] /, '').replace(/ completed.*$/, '');
-		if (detail?.elapsedMs > 50) startup.push({ phase, label, ms: detail.elapsedMs });
-	} else if (text.startsWith('[req] ')) requests.push({ phase, ...JSON.parse(text.slice(6)) });
-	else if (text.startsWith('[write] ')) {
-		const write = JSON.parse(text.slice(8));
-		const path = write.path.replace(/\.tmp-[^/]*$/, '');
-		if (!path.startsWith(INDEX_DIRECTORY)) writes.push({ phase, ...write, path });
-	} else if (message.type() === 'error') console.log('console error:', text.slice(0, 200));
-});
+function watch(page) {
+	page.on('worker', worker => {
+		workers.add(worker);
+		worker.on('close', () => workers.delete(worker));
+		const patch = attempts =>
+			worker
+				.evaluate(WRITE_PATCH)
+				.then(() => worker.evaluate(PATCH))
+				.catch(() => attempts > 0 && setTimeout(() => patch(attempts - 1), 10));
+		patch(500);
+	});
+	page.on('console', async message => {
+		const text = message.text();
+		if (/^\[local-db\] (worker|schema) .* completed/.test(text)) {
+			const detail = await message
+				.args()[1]
+				?.jsonValue()
+				.catch(() => null);
+			const label = text.replace(/^\[local-db\] /, '').replace(/ completed.*$/, '');
+			if (detail?.elapsedMs > 50) startup.push({ phase, label, ms: detail.elapsedMs });
+			if (detail?.elapsedMs != null) initSteps.push({ phase, label, ms: detail.elapsedMs });
+		} else if (text.startsWith('[req] '))
+			requests.push({ phase, ...JSON.parse(text.slice(6)) });
+		else if (text.startsWith('[queue] ')) queue.push({ ...JSON.parse(text.slice(8)), phase });
+		else if (text.startsWith('[write] ')) {
+			const write = JSON.parse(text.slice(8));
+			const path = write.path.replace(/\.tmp-[^/]*$/, '');
+			if (!path.startsWith(INDEX_DIRECTORY)) writes.push({ phase, ...write, path });
+		} else if (message.type() === 'error') console.log('console error:', text.slice(0, 200));
+	});
+}
+watch(page);
 
 async function workerIdle(quietMs = 1500) {
 	const started = performance.now();
@@ -210,15 +251,18 @@ async function hardGoto(url) {
 	await page.goto(url);
 }
 
-async function step(name, action, { idle = true } = {}) {
+async function step(name, action, { idle = true, extra = () => ({}) } = {}) {
 	phase = name;
 	let started = performance.now();
 	await action();
 	if (navigationStart > started) started = navigationStart;
 	const visible = performance.now() - started;
-	if (!idle) return record(name, visible);
+	if (!idle) return record(name, visible, extra());
 	await workerIdle();
-	record(name, visible, { settledMs: Math.round(performance.now() - started - 1500) });
+	record(name, visible, {
+		settledMs: Math.round(performance.now() - started - 1500),
+		...extra(),
+	});
 	phase = `after ${name}`;
 }
 
@@ -257,6 +301,122 @@ const formatStorage = use =>
 
 const transcriptionRows = () =>
 	page.getByRole('list', { name: 'Transcriptions' }).getByRole('listitem');
+
+const round = ms => Math.round(ms * 10) / 10;
+const percentile = (values, fraction) => {
+	const sorted = [...values].sort((a, b) => a - b);
+	return sorted[Math.max(0, Math.ceil(fraction * sorted.length) - 1)] ?? null;
+};
+const epochNow = () => page.evaluate(() => performance.timeOrigin + performance.now());
+const isBackground = entry =>
+	entry.priority ? entry.priority === 'background' : entry.label.endsWith('/section');
+
+// Measures the union of time in which a wait interval overlaps a held interval.
+function overlapMs(waits, holds) {
+	const pieces = waits
+		.flatMap(([from, to]) =>
+			holds.map(([start, end]) => [Math.max(from, start), Math.min(to, end)])
+		)
+		.filter(([from, to]) => to > from)
+		.sort((a, b) => a[0] - b[0]);
+	let total = 0;
+	let reached = -Infinity;
+	for (const [from, to] of pieces) {
+		total += Math.max(0, to - Math.max(from, reached));
+		reached = Math.max(reached, to);
+	}
+	return round(total);
+}
+
+const waitBehindBackground = name =>
+	overlapMs(
+		queue
+			.filter(entry => entry.phase === name && !isBackground(entry))
+			.map(entry => [entry.enqueuedAt, entry.startedAt]),
+		queue.filter(isBackground).map(entry => [entry.startedAt, entry.endedAt])
+	);
+
+const settledFrame = () =>
+	page.evaluate(
+		() =>
+			new Promise(resolve =>
+				requestAnimationFrame(() =>
+					requestAnimationFrame(() => resolve(performance.now() - window.__actionStart))
+				)
+			)
+	);
+
+async function action(name, act, changed) {
+	await workerIdle();
+	phase = name;
+	const started = performance.now();
+	await page.evaluate(() => (window.__armed = true));
+	await act();
+	await changed();
+	const settledFrameMs = Math.round(await settledFrame());
+	const visible = performance.now() - started;
+	// Outlasts the collation autosave debounce so the action's save lands in this step.
+	await page.waitForTimeout(1000);
+	await workerIdle();
+	record(name, visible, {
+		settledMs: Math.round(performance.now() - started - 1500),
+		settledFrameMs,
+	});
+	phase = `after ${name}`;
+}
+
+async function waitForWorkerMethod(method, timeout = 10_000) {
+	const started = performance.now();
+	while (performance.now() - started < timeout) {
+		for (const worker of workers) {
+			const methods = await worker.evaluate('self.__methods?.() ?? []').catch(() => []);
+			if (methods.includes(method)) return true;
+		}
+		await page.waitForTimeout(20);
+	}
+	console.log(`no ${method} request seen within ${timeout} ms`);
+	return false;
+}
+
+const TYPED = 'abcdefghijklmnopqrst';
+const KEY_GAP_MS = 100;
+const SAVE_METHOD = 'updateTranscriptionContent';
+
+async function typeBurst() {
+	for (const key of TYPED) {
+		await page.keyboard.press(key);
+		await page.waitForTimeout(KEY_GAP_MS);
+	}
+}
+
+async function placeCursor(position) {
+	const pages = page.locator('.ProseMirror .page');
+	const count = await pages.count();
+	const target = pages.nth(
+		{ first: 0, middle: Math.floor(count / 2), last: count - 1 }[position]
+	);
+	await target.scrollIntoViewIfNeeded();
+	await page.evaluate(
+		() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+	);
+	const lines = target.locator('.line-content').filter({ hasText: /\S/ });
+	await ((await lines.count()) ? lines : target.locator('.line-content')).first().click();
+	await page.keyboard.press('End');
+}
+
+// Event Timing reports only events of 16 ms or more, so a key without entries counts as 0.
+function keystrokeTimes(keys, events) {
+	return keys.map((start, index) => {
+		const end = keys[index + 1] ?? Infinity;
+		const own = events.filter(event => event.startTime >= start && event.startTime < end);
+		return round(
+			own.reduce((total, event) => total + event.processingEnd - event.processingStart, 0)
+		);
+	});
+}
+
+const waitSaved = () =>
+	page.waitForFunction(() => window.__unsaved === false, null, { timeout: T, polling: 50 });
 
 try {
 	console.log('witnesses', WITS.length, WITS.join(' '));
@@ -394,6 +554,349 @@ try {
 	}
 	storage.end = await storageUse();
 	console.log('heap at end', await heapMb(), 'MB; storage', formatStorage(storage.end));
+
+	if (WITS.includes('2006')) {
+		await page.evaluate(() => {
+			window.__keys = [];
+			window.__events = [];
+			window.__longTasks = [];
+			window.__savedAt = [];
+			addEventListener('keydown', event => window.__keys.push(event.timeStamp), true);
+			new PerformanceObserver(list => {
+				for (const entry of list.getEntries())
+					window.__events.push({
+						name: entry.name,
+						startTime: entry.startTime,
+						duration: entry.duration,
+						processingStart: entry.processingStart,
+						processingEnd: entry.processingEnd,
+					});
+			}).observe({ type: 'event', durationThreshold: 16 });
+			new PerformanceObserver(list => {
+				for (const entry of list.getEntries())
+					window.__longTasks.push({
+						at: performance.timeOrigin + entry.startTime,
+						ms: entry.duration,
+					});
+			}).observe({ type: 'longtask' });
+		});
+		const watchSaved = () =>
+			page.evaluate(() => {
+				if (window.__statusWatched) return;
+				const status = [...document.querySelectorAll('span')].find(
+					span => span.textContent === 'Unsaved local edits'
+				);
+				if (!status) throw new Error('No "Unsaved local edits" status.');
+				window.__statusWatched = true;
+				window.__unsaved = true;
+				new MutationObserver(() => {
+					const unsaved = status.textContent === 'Unsaved local edits';
+					if (window.__unsaved && !unsaved)
+						window.__savedAt.push(performance.timeOrigin + performance.now());
+					window.__unsaved = unsaved;
+				}).observe(status, { characterData: true, childList: true, subtree: true });
+			});
+		const savedAfter = async at =>
+			(await page.evaluate(() => window.__savedAt)).find(savedAt => savedAt >= at) ?? null;
+
+		for (const position of ['first', 'middle', 'last']) {
+			await placeCursor(position);
+			await workerIdle();
+			phase = `typing: ${position}`;
+			await page.evaluate(() => {
+				window.__keys.length = 0;
+				window.__events.length = 0;
+			});
+			await typeBurst();
+			await page.waitForTimeout(300);
+			const { keys, events } = await page.evaluate(() => ({
+				keys: window.__keys,
+				events: window.__events,
+			}));
+			const keyMs = keystrokeTimes(keys, events);
+			typing.push({
+				position,
+				keyMs,
+				p50: percentile(keyMs, 0.5),
+				p95: percentile(keyMs, 0.95),
+			});
+			console.log(
+				`typing: ${position.padEnd(34)} p50 ${percentile(keyMs, 0.5)} ms, p95 ${percentile(keyMs, 0.95)} ms`,
+				JSON.stringify(keyMs)
+			);
+			await watchSaved();
+			const name = `typing: autosave (${position})`;
+			let savedAt = null;
+			await step(
+				name,
+				async () => {
+					await waitSaved();
+					savedAt = await page.evaluate(() => window.__savedAt.at(-1));
+				},
+				{
+					extra: () => {
+						const save = requests.find(
+							request => request.phase === name && request.method === SAVE_METHOD
+						);
+						return {
+							saveToSavedMs: save && savedAt ? Math.round(savedAt - save.at) : null,
+						};
+					},
+				}
+			);
+		}
+
+		await placeCursor('middle');
+		await workerIdle();
+		await page.evaluate(() => (window.__longTasks.length = 0));
+		const starts = [];
+		for (let cycle = 1; cycle <= 3; cycle++) {
+			phase = `type–pause–type ${cycle}`;
+			starts.push(await epochNow());
+			await typeBurst();
+			await page.waitForTimeout(1500);
+		}
+		await waitSaved();
+		await workerIdle();
+		const end = await epochNow();
+		const longTasks = await page.evaluate(() => window.__longTasks);
+		const saves = requests.filter(
+			request =>
+				request.worker === 'db.worker' &&
+				request.method === SAVE_METHOD &&
+				request.at >= starts[0]
+		);
+		for (const [index, from] of starts.entries()) {
+			const to = starts[index + 1] ?? end;
+			const tasks = longTasks
+				.filter(task => task.at >= from && task.at < to)
+				.map(task => task.ms);
+			const cycleSaves = saves.filter(save => save.at >= from && save.at < to);
+			const first = cycleSaves[0];
+			const nextSave = saves.find(
+				save => first && save.at > first.at && !cycleSaves.includes(save)
+			);
+			const until = nextSave?.at ?? Infinity;
+			const savedAt = first ? await savedAfter(first.at) : null;
+			const cycle = {
+				longestTaskMs: Math.round(Math.max(0, ...tasks)),
+				totalBlockingMs: Math.round(
+					tasks.reduce((total, ms) => total + Math.max(0, ms - 50), 0)
+				),
+				saveWorkerMs: Math.round(
+					cycleSaves.reduce((total, save) => total + (save.exclusiveMs ?? 0), 0)
+				),
+				saveToSavedMs:
+					savedAt != null && savedAt < until ? Math.round(savedAt - first.at) : null,
+				requestsAfterSave: first
+					? requests
+							.filter(
+								request =>
+									request.worker === 'db.worker' &&
+									request.at > first.at &&
+									request.at < until
+							)
+							.sort((a, b) => a.at - b.at)
+							.map(request => request.method)
+					: [],
+			};
+			typePauseType.push(cycle);
+			console.log(`type–pause–type ${index + 1}`.padEnd(42), JSON.stringify(cycle));
+		}
+	}
+
+	phase = 'collation actions: open readings';
+	await hardGoto(collationUrl.replace(/alignment$/, 'readings'));
+	const units = page.locator('button[data-unit-id]');
+	await units.first().waitFor({ timeout: T });
+	await workerIdle();
+	const readingGroups = page.locator('[role="group"][aria-label^="Reading "]');
+	const readingLabels = () =>
+		readingGroups.evaluateAll(groups =>
+			groups.map(group => group.getAttribute('aria-label').slice(8))
+		);
+	let unit = 0;
+	let mostReadings = 0;
+	for (let index = 0; index < (await units.count()) && mostReadings < 3; index++) {
+		await units.nth(index).click();
+		await page.evaluate(
+			() =>
+				new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+		);
+		const count = await readingGroups.count();
+		if (count > mostReadings) [unit, mostReadings] = [index, count];
+	}
+	await units.nth(unit === 0 ? 1 : 0).click();
+	await action(
+		'readings: select unit',
+		() => units.nth(unit).click(),
+		() => units.nth(unit).and(page.locator('[aria-pressed="true"]')).waitFor({ timeout: T })
+	);
+	const labels = await readingLabels();
+	const typeSelect = page.locator(`select[aria-label="Reading type for reading ${labels[1]}"]`);
+	await page
+		.locator(`[role="group"][aria-label="Reading ${labels[1]}"]`)
+		.click({ position: { x: 4, y: 4 } });
+	const readingType = await typeSelect.evaluate(
+		select =>
+			[...select.options].find(
+				option => option.value && !option.disabled && option.value !== select.value
+			)?.value
+	);
+	await action(
+		'readings: change reading type',
+		() => typeSelect.selectOption(readingType),
+		() =>
+			page.waitForFunction(
+				([label, value]) =>
+					document.querySelector(`select[aria-label="Reading type for reading ${label}"]`)
+						?.value === value,
+				[labels[1], readingType]
+			)
+	);
+	if (labels.length >= 3) {
+		const details = page.locator('details').filter({
+			has: page.locator(`summary[aria-label="More actions for reading ${labels[2]}"]`),
+		});
+		await details.locator('summary').click();
+		const labelled = text =>
+			details
+				.locator('label', { has: page.getByText(text, { exact: true }) })
+				.locator('select');
+		await labelled('Attach as subreading of').selectOption({ index: 1 });
+		await labelled('Subreading type').selectOption({ index: 1 });
+		const attach = page.getByRole('button', { name: 'Attach', exact: true });
+		await action(
+			'readings: attach subreading',
+			() => attach.click(),
+			() => attach.waitFor({ state: 'hidden', timeout: T })
+		);
+		const elevate = page.getByRole('button', { name: 'Elevate to lemma' });
+		await page
+			.locator('details')
+			.filter({
+				has: page.getByRole('button', { name: 'Elevate to lemma', includeHidden: true }),
+			})
+			.first()
+			.locator('summary')
+			.click();
+		await action(
+			'readings: elevate lemma',
+			() => elevate.click(),
+			() => elevate.waitFor({ state: 'hidden', timeout: T })
+		);
+	} else
+		console.log(`skipped attach and elevate: the busiest unit has ${labels.length} readings`);
+
+	await page
+		.getByRole('navigation', { name: 'Collation workflow steps' })
+		.getByRole('link', { name: 'Alignment', exact: true })
+		.click();
+	await page.getByRole('button', { name: 'Re-align', exact: true }).waitFor({ timeout: T });
+	await page.getByRole('radio', { name: 'Grid', exact: true }).check();
+	await workerIdle();
+	const headers = page.locator('thead th');
+	const columns = await headers.count();
+	const columnCount = count =>
+		page.waitForFunction(
+			count => document.querySelectorAll('thead th').length === count,
+			count,
+			{ timeout: T }
+		);
+	await headers.nth(1).click();
+	await headers.nth(2).click({ modifiers: ['Shift'] });
+	await action(
+		'alignment: merge columns',
+		() => page.getByRole('button', { name: 'Merge', exact: true }).click(),
+		() => columnCount(columns - 1)
+	);
+	await headers.nth(1).click({ button: 'right' });
+	await action(
+		'alignment: split column',
+		() => page.getByRole('button', { name: 'Split Unit' }).click(),
+		() => columnCount(columns)
+	);
+
+	await page.goto('about:blank');
+	await page.waitForTimeout(3000);
+	const previousPage = page;
+	page = await context.newPage();
+	watch(page);
+	const coldStart = 'cold start: new tab → transcriptions';
+	await step(
+		coldStart,
+		async () => {
+			navigationStart = performance.now();
+			await page.goto(`${BASE}/projects/${projectId}/transcriptions`);
+			await transcriptionRows()
+				.nth(WITS.length - 1)
+				.waitFor({ timeout: T });
+		},
+		{
+			extra: () => ({
+				init: Object.fromEntries(
+					initSteps
+						.filter(entry => entry.phase === coldStart)
+						.map(entry => [entry.label, entry.ms])
+				),
+			}),
+		}
+	);
+	await previousPage.close();
+
+	const { FakeGoogleSignIn } = await tsImport(
+		new URL('../../app/e2e/fake-google-sign-in.ts', import.meta.url).href,
+		import.meta.url
+	);
+	await new FakeGoogleSignIn().install(context);
+	await workerIdle();
+	await step('sync: move into project location', async () => {
+		await page
+			.getByRole('region', { name: 'Storage', exact: true })
+			.getByRole('button', { name: 'Sign in with Google Drive' })
+			.click();
+		const dialog = page.getByRole('dialog', { name: 'Back up projects' });
+		await dialog.waitFor({ timeout: T });
+		await dialog.getByRole('button', { name: 'Move', exact: true }).click();
+		await dialog.waitFor({ state: 'hidden', timeout: T });
+	});
+
+	const idle = 'sync: idle 60 s';
+	phase = idle;
+	await page.waitForTimeout(60_000);
+	await workerIdle();
+	const background = queue.filter(entry => entry.phase === idle && isBackground(entry));
+	const sectionMs = background.map(entry => entry.endedAt - entry.startedAt);
+	record(idle, 60_000, {
+		backgroundSections: background.length,
+		longestBackgroundSectionMs: Math.round(Math.max(0, ...sectionMs)),
+		totalBackgroundMs: Math.round(sectionMs.reduce((total, ms) => total + ms, 0)),
+	});
+	phase = `after ${idle}`;
+
+	await hardGoto(`${BASE}/projects/${projectId}/settings`);
+	await page.getByRole('heading', { name: 'Project Collation Settings' }).waitFor({ timeout: T });
+	await workerIdle();
+	const duringSync = 'sync: transcriptions page during sync';
+	await step(
+		duringSync,
+		async () => {
+			await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+			await waitForWorkerMethod('backupProject');
+			navigationStart = performance.now();
+			await page.evaluate(href => {
+				const link = document.createElement('a');
+				link.href = href;
+				document.body.append(link);
+				link.click();
+				link.remove();
+			}, `/projects/${projectId}/transcriptions`);
+			await transcriptionRows()
+				.nth(WITS.length - 1)
+				.waitFor({ timeout: T });
+		},
+		{ extra: () => ({ waitBehindBackgroundMs: waitBehindBackground(duringSync) }) }
+	);
 } catch (error) {
 	console.error('FAILED', error);
 	await page.screenshot({ path: `${OUT}error.png` }).catch(() => {});
@@ -402,7 +905,24 @@ try {
 	const slow = requests.filter(request => request.ms > 200);
 	writeFileSync(
 		`${OUT}results.json`,
-		JSON.stringify({ N, WITS, results, storage, requests, writes, slow, startup }, null, 1)
+		JSON.stringify(
+			{
+				N,
+				WITS,
+				results,
+				storage,
+				requests,
+				writes,
+				slow,
+				startup,
+				typing,
+				typePauseType,
+				queue,
+				initSteps,
+			},
+			null,
+			1
+		)
 	);
 	console.log('\nworker startup steps over 50 ms:');
 	for (const { phase, label, ms } of startup) console.log(`${phase.padEnd(40)} ${label.padEnd(30)} ${ms} ms`);
@@ -428,6 +948,29 @@ try {
 		request => request.worker === 'db.worker' && request.exclusiveMs == null
 	))
 		console.log(`${phase.padEnd(42)} ${method.padEnd(28)} ${ms} ms`);
+	console.log('\nlongest DB queue sections:');
+	for (const entry of [...queue]
+		.sort((a, b) => b.endedAt - b.startedAt - (a.endedAt - a.startedAt))
+		.slice(0, 10))
+		console.log(
+			`${entry.phase.padEnd(42)} ${entry.label.padEnd(36)} ${Math.round(entry.endedAt - entry.startedAt)} ms`
+		);
+	console.log('\nlongest DB queue waits (and what held the queue):');
+	for (const entry of [...queue]
+		.sort((a, b) => b.startedAt - b.enqueuedAt - (a.startedAt - a.enqueuedAt))
+		.slice(0, 10)) {
+		const holders = queue
+			.filter(
+				other =>
+					other !== entry &&
+					other.startedAt < entry.startedAt &&
+					other.endedAt > entry.enqueuedAt
+			)
+			.map(other => other.label);
+		console.log(
+			`${entry.phase.padEnd(42)} ${entry.label.padEnd(36)} ${Math.round(entry.startedAt - entry.enqueuedAt)} ms behind ${[...new Set(holders)].join(', ')}`
+		);
+	}
 	console.log('\nproject-file writes per step:');
 	for (const { name, writes: files } of results)
 		for (const [path, count] of Object.entries(files))

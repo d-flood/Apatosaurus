@@ -29,3 +29,69 @@ for (const [label, key] of [
 	['Project files', 'projectBytes'],
 ])
 	console.log(`| ${label} | ${mb(before, key)} | ${mb(after, key)} |`);
+
+const ms = value => (value == null ? '—' : `${value} ms`);
+console.log(
+	'\n| Typing, witness 2006 | Before: p50 | After: p50 | Before: p95 | After: p95 |\n|---|---|---|---|---|'
+);
+for (const position of ['first', 'middle', 'last']) {
+	const [b, a] = [before, after].map(run =>
+		run?.typing?.find(entry => entry.position === position)
+	);
+	console.log(`| ${position} | ${ms(b?.p50)} | ${ms(a?.p50)} | ${ms(b?.p95)} | ${ms(a?.p95)} |`);
+}
+
+console.log('\n| Type–pause–type | Field | Before | After |\n|---|---|---|---|');
+const cycles = Math.max(before.typePauseType?.length ?? 0, after?.typePauseType?.length ?? 0);
+for (let index = 0; index < cycles; index++)
+	for (const field of [
+		'longestTaskMs',
+		'totalBlockingMs',
+		'saveWorkerMs',
+		'saveToSavedMs',
+		'requestsAfterSave',
+	]) {
+		const [b, a] = [before, after].map(run => {
+			const value = run?.typePauseType?.[index]?.[field];
+			return Array.isArray(value) ? value.join(', ') || '—' : ms(value);
+		});
+		console.log(`| ${index + 1} | ${field} | ${b} | ${a} |`);
+	}
+
+const BASE_FIELDS = new Set(['name', 'ms', 'settledMs', 'workerMs', 'writeCount', 'writes']);
+const extra = value =>
+	value == null
+		? '—'
+		: typeof value === 'object'
+			? Object.entries(value)
+					.map(([k, v]) => `${k} ${v}`)
+					.join(', ')
+			: String(value);
+console.log('\n| Step | Field | Before | After |\n|---|---|---|---|');
+for (const name of new Set(
+	[...before.results, ...(after?.results ?? [])].map(result => result.name)
+)) {
+	const [b, a] = [find(before, name), find(after, name)];
+	for (const field of new Set(
+		[...Object.keys(b ?? {}), ...Object.keys(a ?? {})].filter(key => !BASE_FIELDS.has(key))
+	))
+		console.log(`| ${name.trim()} | ${field} | ${extra(b?.[field])} | ${extra(a?.[field])} |`);
+}
+
+const longest = run =>
+	[...(run?.queue ?? [])]
+		.sort((x, y) => y.endedAt - y.startedAt - (x.endedAt - x.startedAt))
+		.slice(0, 10);
+for (const [label, run] of [
+	['Before', before],
+	['After', after],
+]) {
+	if (!run?.queue) continue;
+	console.log(
+		`\n| ${label}: longest DB queue sections | Step | Held | Waited |\n|---|---|---|---|`
+	);
+	for (const entry of longest(run))
+		console.log(
+			`| ${entry.label}${entry.priority ? ` (${entry.priority})` : ''} | ${entry.phase} | ${Math.round(entry.endedAt - entry.startedAt)} ms | ${Math.round(entry.startedAt - entry.enqueuedAt)} ms |`
+		);
+}

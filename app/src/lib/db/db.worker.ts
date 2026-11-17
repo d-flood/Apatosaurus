@@ -1,5 +1,6 @@
 import type { DbInvalidationDomain, DbRequest, DbResponse } from './rpc';
-import { dbApi, unqueuedMethods, type DbApiContext } from './api';
+import { backgroundMethods, dbApi, unqueuedMethods, type DbApiContext } from './api';
+import { createExclusiveQueue, type QueuePriority } from './queue';
 import type { PersistenceWarning } from './repositories/revisions';
 import { rebuildIndexFromStore } from './repositories/index-rebuild';
 import { cleanStaleProjectImportStaging } from '$lib/backup/project-zip-import';
@@ -18,7 +19,7 @@ import type { Kysely } from 'kysely';
 const db = new LocalSqliteDatabase();
 let kyselyDb: Kysely<Database> | null = null;
 let initialized = false;
-let requestQueue = Promise.resolve();
+const queue = createExclusiveQueue(now);
 
 type IndexStartupRebuildReason = 'missing' | 'open-failed' | 'integrity-failed';
 
@@ -31,19 +32,32 @@ self.onmessage = async (event: MessageEvent<DbRequest>) => {
 	const request = event.data;
 	const receivedAt = now();
 	if (initialized && 'method' in request && unqueuedMethods.has(request.method)) {
-		void processRequest(request, receivedAt, exclusive);
+		const label = `${request.method}/section`;
+		const priority = backgroundMethods.has(request.method) ? 'background' : 'user';
+		void processRequest(request, receivedAt, work => exclusive(work, label, priority));
 		return;
 	}
-	void exclusive(() => processRequest(request, receivedAt, work => work()));
+	void exclusive(
+		() => processRequest(request, receivedAt, work => work()),
+		requestLabel(request),
+		'user'
+	);
 };
 
-function exclusive<T>(work: () => Promise<T>): Promise<T> {
-	const run = requestQueue.then(work);
-	requestQueue = run.then(
-		() => undefined,
-		() => undefined
-	);
-	return run;
+function exclusive<T>(work: () => Promise<T>, label: string, priority: QueuePriority): Promise<T> {
+	const enqueuedAt = now();
+	return queue(() => {
+		const startedAt = now();
+		return work().finally(() => {
+			performance.measure('db-queue', {
+				start: startedAt,
+				end: now(),
+				detail: { label, enqueuedAt, priority },
+			});
+			// Observers still receive cleared measures; clearing keeps the buffer from growing.
+			performance.clearMeasures('db-queue');
+		});
+	}, priority);
 }
 
 async function processRequest(
@@ -175,7 +189,7 @@ async function openIndexDatabaseForStartup(
 	if (openResult.created) return { ...openResult, rebuildReason: 'missing', rebuildDetails: [] };
 	if (!verifyIntegrity) return { ...openResult, rebuildReason: null, rebuildDetails: [] };
 
-	const integrity = await checkIndexIntegrity();
+	const integrity = await timeWorkerStep('quick_check', () => checkIndexIntegrity());
 	if (integrity.ok) return { ...openResult, rebuildReason: null, rebuildDetails: [] };
 
 	console.warn('[local-db] SQLite index integrity check failed; rebuilding from files', {

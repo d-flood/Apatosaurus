@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { afterNavigate } from '$app/navigation';
 	import { page } from '$app/state';
 	import favicon from '$lib/assets/favicon.ico';
 	import { persistCbgmComputations, refreshCbgmPresence } from '$lib/cbgm/cbgm-analysis-runs';
@@ -17,6 +18,8 @@
 	import '../app.css';
 
 	let { children } = $props();
+
+	afterNavigate(() => syncService.notePageRendered());
 
 	onMount(() => {
 		void initializeApp();

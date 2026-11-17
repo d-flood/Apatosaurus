@@ -155,6 +155,7 @@ export type DbApi = typeof dbApi;
 
 const lastBackups = new Map<string, { remoteCursor?: string; state: string }>();
 const failedImports = new Map<string, string>();
+const hashedProjects = new Set<string>();
 
 export const dbApi = defineApi({
 	listTranscriptionSummaries: ({ db }) => listTranscriptionSummaries(db),
@@ -575,6 +576,7 @@ export const dbApi = defineApi({
 			remoteCursor: lastBackups.get(key)?.remoteCursor,
 			exclusive,
 			onIndexProgress: progress,
+			hashedProjects,
 		});
 		const state = JSON.stringify([
 			result.uiState,
@@ -745,6 +747,12 @@ export const unqueuedMethods = new Set<keyof DbApi>([
 	'writeEditingPresence',
 	'clearEditingPresence',
 	'readEditingNotice',
+]);
+
+/** Unqueued methods whose `exclusive` sections yield to waiting user requests. */
+export const backgroundMethods = new Set<keyof DbApi>([
+	'backupProject',
+	'discoverLocationProjects',
 ]);
 
 function defineApi<T extends Record<string, (context: DbApiContext, ...args: never[]) => unknown>>(

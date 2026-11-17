@@ -51,6 +51,10 @@ class SyncService {
 	private runningDiscovery: Promise<void> | null = null;
 	private eventsAttached = false;
 	private uploadTimer: ReturnType<typeof setTimeout> | null = null;
+	private markPageRendered!: () => void;
+	private readonly pageRendered = new Promise<void>(resolve => {
+		this.markPageRendered = resolve;
+	});
 
 	async initLocalDB(_dbName: string): Promise<void> {
 		this.ready = true;
@@ -103,6 +107,11 @@ class SyncService {
 		this.runningSyncs.clear();
 		this.unsubscribeInvalidations?.();
 		this.unsubscribeInvalidations = null;
+	}
+
+	/** Lets pollers make their first sync once the first route has rendered. */
+	notePageRendered(): void {
+		this.markPageRendered();
 	}
 
 	isRunning(): boolean {
@@ -303,6 +312,7 @@ class SyncService {
 		existing?.poller.stop();
 		const poller = new OpenObjectSyncPoller({
 			poll: () => this.runTargetSync(target),
+			firstPollAfter: () => this.pageRendered.then(idleMoment),
 		});
 		this.pollers.set(target.projectId, { target, poller, key });
 		poller.start();
@@ -374,6 +384,15 @@ export const syncService = new SyncService();
 
 const DISCOVERY_INTERVAL_MS = 30_000;
 const UPLOAD_IDLE_MS = 5_000;
+const FIRST_POLL_IDLE_TIMEOUT_MS = 2_000;
+
+function idleMoment(): Promise<void> {
+	return new Promise(resolve => {
+		if ('requestIdleCallback' in window)
+			requestIdleCallback(() => resolve(), { timeout: FIRST_POLL_IDLE_TIMEOUT_MS });
+		else setTimeout(resolve, 0);
+	});
+}
 
 async function listSignedOutLocationIds(): Promise<Set<string>> {
 	const [locations, accounts] = await Promise.all([

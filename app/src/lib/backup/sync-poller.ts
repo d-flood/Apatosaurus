@@ -8,6 +8,8 @@ export interface OpenObjectSyncPollerOptions {
 	poll: () => Promise<SyncOperationResult>;
 	baseIntervalMs?: number;
 	maxIntervalMs?: number;
+	/** Delays the first scheduled poll; direct polls are not delayed. */
+	firstPollAfter?: () => Promise<void>;
 	setTimeout?: typeof globalThis.setTimeout;
 	clearTimeout?: typeof globalThis.clearTimeout;
 }
@@ -20,6 +22,7 @@ export class OpenObjectSyncPoller {
 	private readonly poll: () => Promise<SyncOperationResult>;
 	private readonly baseIntervalMs: number;
 	private readonly maxIntervalMs: number;
+	private readonly firstPollAfter?: () => Promise<void>;
 	private readonly setTimer: typeof globalThis.setTimeout;
 	private readonly clearTimer: typeof globalThis.clearTimeout;
 	private timer: ReturnType<typeof globalThis.setTimeout> | null = null;
@@ -29,6 +32,7 @@ export class OpenObjectSyncPoller {
 		this.poll = options.poll;
 		this.baseIntervalMs = options.baseIntervalMs ?? 30_000;
 		this.maxIntervalMs = options.maxIntervalMs ?? 60_000;
+		this.firstPollAfter = options.firstPollAfter;
 		this.nextDelayMs = this.baseIntervalMs;
 		this.setTimer = options.setTimeout ?? globalThis.setTimeout.bind(globalThis);
 		this.clearTimer = options.clearTimeout ?? globalThis.clearTimeout.bind(globalThis);
@@ -37,7 +41,10 @@ export class OpenObjectSyncPoller {
 	start(): void {
 		if (!this.stopped) return;
 		this.stopped = false;
-		this.schedule(0);
+		if (!this.firstPollAfter) return this.schedule(0);
+		void this.firstPollAfter().then(() => {
+			if (!this.timer && this.connectionState === 'idle') this.schedule(0);
+		});
 	}
 
 	stop(): void {

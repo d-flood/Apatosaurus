@@ -469,6 +469,109 @@ describe('sync manager', () => {
 		expect(await listPendingUploadPaths(harness.db, context, storeOptions)).toEqual([]);
 	});
 
+	it('uploads a file whose size or modification time changed since its last sync', async () => {
+		await createCommittedProjectCollation('Initial notes', 'col-cp-1');
+		const { provider, context } = await createConnectedProvider();
+		const hashedProjects = new Set<string>();
+		const sync = () =>
+			backupProject(harness.db, provider, context, syncOptions({ hashedProjects }));
+		expect((await sync()).uiState).toBe('synced');
+		expect(hashedProjects).toContain('project-1');
+
+		rewriteStoredFile(
+			'collations/col-1.tei.xml',
+			text => text.replace('Romans', 'Ramons'),
+			'touch'
+		);
+		rewriteStoredFile('history/collations/col-1/col-cp-1.tei.xml', text => `${text}\n`, 'keep');
+		const result = await sync();
+
+		expect(result.uiState).toBe('synced');
+		expect(result.uploadedPaths).toEqual(
+			expect.arrayContaining([
+				'collations/col-1.tei.xml',
+				'history/collations/col-1/col-cp-1.tei.xml',
+			])
+		);
+		expect(await listPendingUploadPaths(harness.db, context, storeOptions, true)).toEqual([]);
+	});
+
+	it('does not read files whose size and modification time match their last sync', async () => {
+		await createCommittedProjectCollation('Initial notes', 'col-cp-1');
+		const { provider, context } = await createConnectedProvider();
+		const hashedProjects = new Set<string>();
+		const sync = () =>
+			backupProject(harness.db, provider, context, syncOptions({ hashedProjects }));
+		await sync();
+		const synced = new Map(backend.lastModified);
+		await createCommittedCollationCheckpointWithFiles(
+			harness.db,
+			{
+				collationId: 'col-1',
+				checkpointId: 'col-cp-2',
+				createdAt: '2026-06-10T12:03:00.000Z',
+			},
+			storeOptions
+		);
+		const unchanged = [...synced]
+			.filter(([path, time]) => backend.lastModified.get(path) === time)
+			.map(([path]) => path)
+			.filter(path => !path.endsWith('/project.json'));
+		expect(unchanged).toContain(storedPath('history/collations/col-1/col-cp-1.tei.xml'));
+		const textReads = vi.spyOn(backend, 'readTextFile');
+		const byteReads = vi.spyOn(backend, 'readFileBytes');
+
+		const result = await sync();
+
+		expect(result.uploadedPaths).toContain('history/collations/col-1/col-cp-2.tei.xml');
+		const readPaths = [...textReads.mock.calls, ...byteReads.mock.calls].map(([path]) => path);
+		expect(readPaths.filter(path => unchanged.includes(path))).toEqual([]);
+		textReads.mockClear();
+		byteReads.mockClear();
+		expect(await listPendingUploadPaths(harness.db, context, storeOptions, true)).toEqual([]);
+		expect(textReads).not.toHaveBeenCalled();
+		expect(byteReads).not.toHaveBeenCalled();
+	});
+
+	it("hashes every file on a session's first sync, catching a change that kept size and time", async () => {
+		await createCommittedProjectCollation('Initial notes', 'col-cp-1');
+		const { provider, context } = await createConnectedProvider();
+		const firstSession = new Set<string>();
+		expect(
+			(
+				await backupProject(
+					harness.db,
+					provider,
+					context,
+					syncOptions({ hashedProjects: firstSession })
+				)
+			).uiState
+		).toBe('synced');
+
+		rewriteStoredFile(
+			'collations/col-1.tei.xml',
+			text => text.replace('Romans', 'Ramons'),
+			'keep'
+		);
+		const sameSession = await backupProject(
+			harness.db,
+			provider,
+			context,
+			syncOptions({ hashedProjects: firstSession })
+		);
+		const nextSession = await backupProject(
+			harness.db,
+			provider,
+			context,
+			syncOptions({ hashedProjects: new Set() })
+		);
+
+		expect(sameSession.uploadedPaths).not.toContain('collations/col-1.tei.xml');
+		expect(nextSession.uploadedPaths).toContain('collations/col-1.tei.xml');
+		const uploaded = await remoteFile(provider, context, 'collations/col-1.tei.xml');
+		expect(await provider.downloadFile(uploaded!.id)).toContain('Ramons');
+	});
+
 	it('does not download a project that failed to import again until it changes', async () => {
 		await createCommittedProjectCollation('Initial notes', 'col-cp-1');
 		const { provider, context } = await createConnectedProvider();
@@ -3330,6 +3433,26 @@ function relativeEntryPath(path: string, context: SyncProjectContext): string {
 
 function binaryCache(length: number, step: number): Uint8Array {
 	return Uint8Array.from({ length }, (_, index) => (index * step) % 256);
+}
+
+function storedPath(relativePath: string): string {
+	const path = [...backend.files.keys()].find(path => path.endsWith(`/${relativePath}`));
+	if (!path) throw new Error(`No stored file ends with ${relativePath}.`);
+	return path;
+}
+
+/** Edits a stored file in place, keeping or advancing its modification time. */
+function rewriteStoredFile(
+	relativePath: string,
+	edit: (text: string) => string,
+	time: 'keep' | 'touch'
+): void {
+	const path = storedPath(relativePath);
+	const content = backend.files.get(path)!;
+	const next = edit(typeof content === 'string' ? content : new TextDecoder().decode(content));
+	expect(next).not.toBe(content);
+	backend.files.set(path, next);
+	if (time === 'touch') backend.touch(path);
 }
 
 function syncOptions(options: SyncManagerOptions = {}): SyncManagerOptions {
