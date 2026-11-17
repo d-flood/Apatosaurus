@@ -1,10 +1,10 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import alpha from './fixtures/alpha-collation-v2.json';
 import { upgradeAlphaProjects, markAlphaUpgradesIndexed } from './alpha-project-upgrade';
 import { MemoryStoreBackend } from '../memory-store-backend.spec-support';
 import { hashCanonicalPayload } from '../canonical-json';
 import { openEnvelope, sealDocument, serializeSealedDocument, type JsonObject } from '../envelope';
-import { readTextFile, writeTextFileAtomic } from '../opfs-store';
+import { deleteDirectory, listDirectory, readTextFile, writeTextFileAtomic } from '../opfs-store';
 import {
 	PROJECT_MANIFEST_FORMAT,
 	TOMBSTONE_FORMAT,
@@ -471,6 +471,93 @@ describe('alpha project upgrade', () => {
 		expect(await upgradeAlphaProjects(options)).toBe(true);
 		await markAlphaUpgradesIndexed(options);
 		expect(await upgradeAlphaProjects(options)).toBe(false);
+	});
+
+	it('skips the scan when every project folder was already checked and scans new folders', async () => {
+		const { backend, options, files } = await fixture();
+		await writeTextFileAtomic('projects/plain/project.json', '{}', options);
+		backend.failMovePathIncludesOnce = 'projects/alpha/project.json';
+		await expect(upgradeAlphaProjects(options)).rejects.toThrow('simulated move failure');
+		expect(await upgradeAlphaProjects(options)).toBe(true);
+		const scanned = async () =>
+			JSON.parse(await readTextFile('upgrades/alpha-c7d94ee/scanned.json', options)).projects;
+		expect(await scanned()).toEqual(['plain']);
+		expect(await upgradeAlphaProjects(options)).toBe(true);
+		await markAlphaUpgradesIndexed(options);
+		expect(await upgradeAlphaProjects(options)).toBe(false);
+		expect(await scanned()).toEqual(['alpha', 'plain']);
+
+		const reads = vi.spyOn(backend, 'readTextFile');
+		const readPaths = () => reads.mock.calls.map(([path]) => path);
+		expect(await upgradeAlphaProjects(options)).toBe(false);
+		expect(readPaths()).toEqual([
+			joinStorePath(APP_STORE_ROOT, 'upgrades/alpha-c7d94ee/scanned.json'),
+		]);
+
+		for (const file of files)
+			await writeTextFileAtomic(`projects/beta/${file.path}`, file.content, options);
+		reads.mockClear();
+		expect(await upgradeAlphaProjects(options)).toBe(true);
+		expect(readPaths().some(path => path.includes('/projects/beta/'))).toBe(true);
+		expect(await readTextFile('upgrades/alpha-c7d94ee/beta/complete.json', options)).toBe(
+			JSON.stringify({ version: 1 })
+		);
+		expect(await scanned()).toEqual(['alpha', 'plain']);
+	});
+
+	it('still opens when the scanned marker cannot be written', async () => {
+		const backend = new MemoryStoreBackend();
+		const options = { backend };
+		await writeTextFileAtomic('projects/plain/project.json', '{}', options);
+		backend.failWrites = true;
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		await expect(upgradeAlphaProjects(options)).resolves.toBe(false);
+		expect(warn).toHaveBeenCalled();
+		warn.mockRestore();
+	});
+
+	it('converts an alpha backup imported into a folder the scanned marker lists', async () => {
+		const { files } = await fixture();
+		const backend = new MemoryStoreBackend();
+		const options = { backend };
+		const harness = createLocalDbTestHarness();
+		const tree = files.map(file => ({ path: file.path, read: async () => file.content }));
+		try {
+			expect(
+				await importProjectFileTree(harness.db, tree, { storeOptions: options })
+			).toMatchObject({
+				ok: true,
+			});
+			const [slug] = (await listDirectory('projects', options)).map(entry => entry.name);
+			await deleteDirectory(`projects/${slug}`, { ...options, recursive: true });
+			await deleteDirectory('upgrades/alpha-c7d94ee', { ...options, recursive: true });
+			await writeTextFileAtomic(`projects/${slug}/project.json`, '{}', options);
+			expect(await upgradeAlphaProjects(options)).toBe(false);
+			expect(
+				JSON.parse(await readTextFile('upgrades/alpha-c7d94ee/scanned.json', options))
+					.projects
+			).toEqual([slug]);
+			await deleteDirectory(`projects/${slug}`, { ...options, recursive: true });
+
+			const fresh = createLocalDbTestHarness();
+			try {
+				expect(
+					await importProjectFileTree(fresh.db, tree, { storeOptions: options })
+				).toMatchObject({
+					ok: true,
+				});
+				expect((await listDirectory('projects', options)).map(entry => entry.name)).toEqual(
+					[slug]
+				);
+				expect(
+					await readTextFile(`upgrades/alpha-c7d94ee/${slug}/complete.json`, options)
+				).toBe(JSON.stringify({ version: 1 }));
+			} finally {
+				await fresh.destroy();
+			}
+		} finally {
+			await harness.destroy();
+		}
 	});
 
 	it('leaves all project files untouched when a source hash is corrupt', async () => {

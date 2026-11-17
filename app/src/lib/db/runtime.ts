@@ -62,12 +62,15 @@ async function destroyLocalDbWorker(): Promise<void> {
 	dbWorker.terminate();
 }
 
-function reportRuntimeInitFailure(error: unknown): void {
+export function reportRuntimeInitFailure(
+	error: unknown,
+	title = 'Local database failed to start'
+): void {
 	const runtimeError = error instanceof Error ? error : new Error(String(error));
-	console.error('[local-db] local database failed to start', runtimeError);
+	console.error(`[local-db] ${title}`, runtimeError);
 	notificationCenter.upsert({
 		id: RUNTIME_FAILURE_NOTIFICATION_ID,
-		title: 'Local database failed to start',
+		title,
 		message: runtimeError.message,
 		tone: 'error',
 		persistent: true,
@@ -118,10 +121,8 @@ function sendInit(dbWorker: Worker): Promise<void> {
 			}
 			if (message.id !== id) return;
 			cleanup();
-			if (message.ok) {
-				writeIndexVerified();
-				resolve();
-			} else reject(new Error(message.error));
+			if (message.ok) resolve();
+			else reject(new Error(message.error));
 		};
 		const onError = (event: ErrorEvent) => {
 			cleanup();
@@ -151,7 +152,7 @@ function readIndexVerified(): boolean {
 	}
 }
 
-function writeIndexVerified(): void {
+export function markIndexVerified(): void {
 	try {
 		sessionStorage.setItem(INDEX_VERIFIED_KEY, 'true');
 	} catch {

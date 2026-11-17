@@ -11,8 +11,14 @@ import type {
 	DbRequestPayload,
 	DbWorkerMessage,
 } from './rpc';
-import { ensureLocalDbRuntime, getLocalDbWorker } from './runtime';
+import {
+	ensureLocalDbRuntime,
+	getLocalDbWorker,
+	markIndexVerified,
+	reportRuntimeInitFailure,
+} from './runtime';
 import { coalesce } from './coalesce';
+import { flushPendingSaves } from './pending-saves';
 
 type DbArgs<K extends DbMethod> = DbApi[K] extends (
 	context: DbApiContext,
@@ -204,6 +210,8 @@ export function attachLocalDbClient(worker: Worker): void {
 		if ('type' in message) {
 			if (message.type === 'db:invalidate') emitLocalDbInvalidation(message.domain);
 			else if (message.type === 'db:warnings') reportPersistenceWarnings(message.warnings);
+			else if (message.type === 'db:index-verified') markIndexVerified();
+			else if (message.type === 'db:index-damaged') void repairDamagedIndex(message.details);
 			else if (message.type === 'db:index-rebuild-progress') {
 				indexRebuildProgress.done = message.done;
 				indexRebuildProgress.total = message.total;
@@ -217,6 +225,17 @@ export function attachLocalDbClient(worker: Worker): void {
 		if (message.ok) pendingRequest.resolve(message.result);
 		else pendingRequest.reject(new Error(message.error));
 	});
+}
+
+async function repairDamagedIndex(details: string[]): Promise<void> {
+	await flushPendingSaves();
+	try {
+		await send({ type: 'rebuild-damaged-index', details });
+	} catch (error) {
+		indexRebuildProgress.done = 0;
+		indexRebuildProgress.total = 0;
+		reportRuntimeInitFailure(error, 'Local database repair failed');
+	}
 }
 
 function reportAutomaticIndexRebuild(message: DbIndexRebuiltEvent): void {

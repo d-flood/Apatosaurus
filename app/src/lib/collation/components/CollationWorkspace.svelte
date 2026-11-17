@@ -2,6 +2,7 @@
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
+	import { onMount } from 'svelte';
 	import { collationState } from '$lib/collation/collation-state.svelte';
 	import {
 		createCommittedCollationCheckpoint,
@@ -12,6 +13,7 @@
 		subscribeLocalDbInvalidations,
 		updateCollationVersionNote,
 	} from '$lib/db/client';
+	import { registerPendingSave } from '$lib/db/pending-saves';
 	import CollationStepper from './CollationStepper.svelte';
 	import AutoSaveIndicator from './AutoSaveIndicator.svelte';
 	import EntityHeader from '$lib/shell/components/EntityHeader.svelte';
@@ -35,6 +37,8 @@
 	let bulkRefreshInFlight = $state(false);
 	let bulkRefreshError = $state<string | null>(null);
 
+	onMount(() => registerPendingSave(collationState.flushPendingSave));
+
 	async function flushCollation(id: string) {
 		const flushed = await collationState.flushPendingSave();
 		if (!flushed) throw new Error('Local save failed. Try again.');
@@ -57,10 +61,12 @@
 				await flushCollation(id);
 				const previous = await restoreCollationVersion(id, versionId);
 				await collationState.reloadCollation();
+				await followPhase();
 				return async () => {
 					await flushCollation(id);
 					await replaceCollationCurrent(id, previous);
 					await collationState.reloadCollation();
+					await followPhase();
 				};
 			},
 			editNote: (versionId, note) => updateCollationVersionNote(id, versionId, note),

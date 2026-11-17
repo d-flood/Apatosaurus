@@ -1,14 +1,17 @@
 import { DOMParser as XmlDomParser } from '@xmldom/xmldom';
 import {
+	isWholeWordWrapperTag,
 	parseElementTree,
 	parseTei,
 	serializeTei,
 	serializeTeiNode,
 	type TeiElementNode,
 	type InlineItem,
+	type LineItem,
 	type TeiNode,
 	type TextMark,
 	type TranscriptionDocument,
+	type TranscriptionLine,
 	type TranscriptionPage,
 } from '@apatosaurus/tei-transcription';
 
@@ -101,7 +104,7 @@ export async function serializeTranscriptionTeiWithRecord(
 	const shell = withXmlDom(() => parseTei(finalizeXml(serializeTei({ ...document, pages: [] }))));
 	const { document: parsed, iiif } = splitTranscriptionTeiIiif({
 		...shell,
-		pages: withParsedCorrectionOrder(asParsedPages(document.pages)),
+		pages: asParsedPages(document.pages),
 	});
 	return { ...(await withHashes(xml)), record: transcriptionRecordFromTei(parsed, iiif) };
 }
@@ -111,8 +114,23 @@ const FRAME_ZONES = new Set(['top', 'left', 'center', 'right', 'bottom']);
 // Adds what the parser derives from serialized pb, cb, lb and milestones, which pages the editor
 // built lack. Mirrors pageBreakXml, columnBreakXml, lineBreakXml and the div and ab labels.
 function asParsedPages(pages: TranscriptionPage[]): TranscriptionPage[] {
+	const correctionLeads: CorrectionLeads = new WeakMap();
+	const parsedLines = parsedLineItems(
+		pages.flatMap(page => page.columns.flatMap(column => column.lines)),
+		correctionLeads
+	);
+	let nextLine = 0;
 	let book = '';
-	return pages.map(page => {
+	// The parser drops empty lines but keeps their hang for the next line with content, and the wrap
+	// their <lb> took inside a word for the next line in the column.
+	let carriedHang = false;
+	let carriedWrap = false;
+	// Book and chapter milestones open their <div> only before the next content, where they parse.
+	let pendingDivs: LineItem[] = [];
+	// Lists each line's items for correction spans, with an empty entry where an empty line writes
+	// its own break.
+	const written: LineItem[][] = [];
+	const parsedPages = pages.map(page => {
 		const pageAttrs = parsedAttrs(page.teiAttrs, {
 			'xml:id': page.pageId || page.teiAttrs?.['xml:id'] || page.id,
 			n: page.teiAttrs?.n || page.id || '',
@@ -136,7 +154,8 @@ function asParsedPages(pages: TranscriptionPage[]): TranscriptionPage[] {
 				delete columnAttrs.subtype;
 			}
 			wrapImplied ||= Boolean(column.wrapped);
-			const lines = column.lines.map((line, lineIndex) => {
+			const lines: TranscriptionLine[] = [];
+			column.lines.forEach((line, lineIndex) => {
 				const lineAttrs = parsedAttrs(line.teiAttrs, {
 					break:
 						line.wrapped && !(lineIndex === 0 && wrapImplied) && !line.teiAttrs
@@ -144,7 +163,8 @@ function asParsedPages(pages: TranscriptionPage[]): TranscriptionPage[] {
 							: undefined,
 					rend: line.paragraphStart ? line.teiAttrs?.rend || 'hang' : undefined,
 				});
-				const items = line.items.map(item => {
+				const { items: lineItems, wraps } = parsedLines[nextLine++];
+				const own = lineItems.map(item => {
 					if (item.type === 'teiAtom' && item.text === '') {
 						const { text: _text, ...rest } = item;
 						return rest;
@@ -156,28 +176,51 @@ function asParsedPages(pages: TranscriptionPage[]): TranscriptionPage[] {
 						? { ...item, sourceLabel: label }
 						: item;
 				});
+				if (lineIndex === 0) carriedWrap = false;
+				const hangs = lineAttrs?.rend === 'hang';
+				const items = pendingDivs.length > 0 ? [...pendingDivs, ...own] : own;
+				let end = items.length;
+				while (end > 0 && isDivMilestone(items[end - 1])) end -= 1;
+				pendingDivs = end < items.length ? items.splice(end) : [];
+				if (items[items.length - 1]?.type === 'boundary') items.pop();
+				if (items.length === 0) {
+					carriedHang ||= hangs;
+					carriedWrap ||= wraps;
+					if (!wraps) written.push(items);
+					return;
+				}
+				written.push(items);
 				const {
 					type,
-					number,
-					wrapped,
-					paragraphStart,
+					number: _n,
+					wrapped: _w,
+					paragraphStart: _p,
 					teiAttrs: _a,
 					items: _i,
 					...rest
 				} = line;
-				return {
+				lines.push({
 					type,
-					number,
-					wrapped,
-					paragraphStart,
+					number: lines.length + 1,
+					wrapped: wraps || carriedWrap || undefined,
+					paragraphStart: hangs || carriedHang || undefined,
 					teiAttrs: lineAttrs,
 					items,
 					...rest,
-				};
+				});
+				carriedHang = carriedWrap = false;
 			});
 			const { type, number: _n, wrapped, zone, teiAttrs: _a, lines: _l, ...rest } = column;
 			const teiAttrs = Object.keys(columnAttrs ?? {}).length ? columnAttrs : undefined;
-			return { type, number, wrapped, zone, teiAttrs, lines, ...rest };
+			return {
+				type,
+				number,
+				wrapped,
+				zone,
+				teiAttrs,
+				lines: lines.length ? lines : [{ type: 'line' as const, number: 1, items: [] }],
+				...rest,
+			};
 		});
 		const { type, id: _i, pageId: _p, wrapped, teiAttrs: _a, columns: _c, ...rest } = page;
 		return {
@@ -190,44 +233,286 @@ function asParsedPages(pages: TranscriptionPage[]): TranscriptionPage[] {
 			...rest,
 		};
 	});
+	withParsedCorrectionOrder(written, correctionLeads);
+	return parsedPages;
 }
+
+// A wrapped line's breaks go inside the <w> that ends the line before it, which then spans both
+// lines. `wraps` tells whether a line's break went there.
+function parsedLineItems(
+	lines: TranscriptionLine[],
+	correctionLeads: CorrectionLeads
+): Array<{ items: LineItem[]; wraps: boolean }> {
+	const stream: LineItem[] = [];
+	const wraps: boolean[] = [];
+	let endsInWord = false;
+	for (const line of lines) {
+		const wrapped: boolean = Boolean(line.wrapped) && endsInWord;
+		if (wraps.length > 0) stream.push(wrapped ? LINE_BREAK : LINE_END);
+		for (const item of line.items) stream.push(item);
+		wraps.push(wrapped);
+		const last = line.items.findLast(item => item.type !== 'boundary');
+		endsInWord = last ? isWordPart(last) : wrapped;
+	}
+	return parsedItems(stream, correctionLeads).map((items, index) => ({
+		items,
+		wraps: wraps[index],
+	}));
+}
+
+// Separate lines in the stream: a break inside a word, or the end of a line's words.
+const LINE_BREAK = { type: 'lineBreak' } as unknown as LineItem;
+const LINE_END = { type: 'lineEnd' } as unknown as LineItem;
+
+// Mirrors groupIntoWords and exportWord. The parser records a boundary only after a </w>, so one
+// precedes an element written between words and none follows a <pc>; it takes word marks from <w>
+// and whole-word wrappers from around it.
+function parsedItems(items: LineItem[], correctionLeads: CorrectionLeads): LineItem[][] {
+	let line: LineItem[] = [];
+	const lines = [line];
+	let word: LineItem[] = [];
+	const push = (item: LineItem) => {
+		if (item === LINE_BREAK || item === LINE_END) {
+			lines.push((line = []));
+			return;
+		}
+		const previous = line[line.length - 1];
+		if (item.type === 'boundary' && (!previous || previous.type === 'boundary')) return;
+		if (item.type !== 'text' || previous?.type !== 'text' || !sameMarks(previous, item)) {
+			line.push(item);
+			return;
+		}
+		const merged = { ...previous, text: previous.text + item.text };
+		if (correctionLeads.has(previous) || correctionLeads.has(item))
+			correctionLeads.set(merged, [
+				...leadsOf(previous, correctionLeads),
+				...leadsOf(item, correctionLeads),
+			]);
+		line[line.length - 1] = merged;
+	};
+	// Consecutive words with the same whole-word wrapper share one wrapper element.
+	let sequence: TextMark | undefined;
+	// `closed` is true at a boundary, false at another element and unset at a line end, which a word
+	// spanning lines keeps.
+	const close = (closed?: boolean) => {
+		if (word.length === 0) return;
+		if (word.includes(LINE_BREAK)) closed = undefined;
+		const own = wholeWordWrapper(word);
+		const punctuationOnly = word.every(isPunctuationText);
+		const wrapper =
+			sequence && own && sameMark(own, sequence)
+				? sequence
+				: punctuationOnly
+					? undefined
+					: own;
+		sequence = wrapper;
+		// A wrapped word that is not closed, or only punctuation, has no <w>.
+		const bare = wrapper !== undefined && (closed === false || punctuationOnly);
+		// One <app> holds the whole word, under its first correction.
+		const correction = wrapper ? undefined : firstMark(word, isCorrection);
+		const runs = punctuationRuns(word);
+		runs.forEach((run, index) => {
+			const inWord = !bare && !isPunctuationText(run[0]);
+			const wordMark = inWord ? firstMark(run, mark => mark.type === 'word') : undefined;
+			// exportWord wraps each run of word text on its own.
+			const runWrapper = wrapper ?? (inWord ? wholeWordWrapper(run) : undefined);
+			const lead: TextMark[] = runWrapper ? [runWrapper] : [];
+			if (wordMark && Object.keys(wordMark.attrs ?? {}).length > 0) lead.push(wordMark);
+			for (const item of run) {
+				const marked = withLeadMarks(item, lead);
+				if (!correction) push(marked);
+				else {
+					const corrected = withCorrection(marked, correction);
+					correctionLeads.set(corrected, leadsBefore(markList(item)));
+					push(corrected);
+				}
+			}
+			// A <pc> after it joins the word and drops the boundary, except inside a wrapper.
+			if (inWord && (wrapper || index === runs.length - 1)) push(WORD_BOUNDARY);
+		});
+		word = [];
+	};
+	for (let index = 0; index < items.length; index += 1) {
+		const item = items[index];
+		const next = items[index + 1];
+		const previous = word[word.length - 1];
+		// The serializer groups each line on its own, so a gap starting a line joins no word before it.
+		const joins =
+			item.type === 'gap'
+				? (previous !== undefined && previous !== LINE_BREAK) ||
+					next?.type === 'boundary' ||
+					next === LINE_BREAK
+				: item === LINE_BREAK || isWordPart(item);
+		if (item === LINE_END) {
+			close();
+			sequence = undefined;
+			push(item);
+		} else if (item.type === 'boundary') close(true);
+		// A wrapped line takes in a gap that ends the line before it as a word of its own.
+		else if (item.type === 'gap' && previous === LINE_BREAK && next === LINE_BREAK) {
+			close();
+			word.push(item);
+		} else if (joins) {
+			if (item.type === 'text' && previous?.type === 'text' && splitsWord(previous, item))
+				close(false);
+			word.push(item);
+		} else {
+			close(false);
+			sequence = undefined;
+			push(item);
+		}
+	}
+	close();
+	for (const items of lines) if (items[items.length - 1]?.type === 'boundary') items.pop();
+	return lines;
+}
+
+const WORD_BOUNDARY: LineItem = { type: 'boundary', kind: 'word' };
+
+const isDivMilestone = (item: LineItem) => item.type === 'milestone' && item.kind !== 'verse';
+
+function isWordPart(item: LineItem): boolean {
+	if (item.type === 'text' || item.type === 'gap') return true;
+	return (
+		(item.type === 'metamark' || item.type === 'teiAtom' || item.type === 'teiWrapper') &&
+		Boolean(item.wordInline)
+	);
+}
+
+function splitsWord(previous: TextItem, item: TextItem): boolean {
+	const correction = (entry: TextItem) => entry.marks?.find(isCorrection);
+	const wrappers = (entry: TextItem) => entry.marks?.filter(isWholeWordWrapper) ?? [];
+	const [a, b] = [correction(previous), correction(item)];
+	return (
+		(isPunctuationText(previous) !== isPunctuationText(item) &&
+			(a && b ? !sameMark(a, b) : a !== b)) ||
+		!sameMarkList(wrappers(previous), wrappers(item))
+	);
+}
+
+function wholeWordWrapper(word: LineItem[]): TextMark | undefined {
+	let wrapper: TextMark | undefined;
+	for (const item of word) {
+		if (item.type !== 'text' || !item.text) continue;
+		if (!wrapper) wrapper = item.marks?.find(isWholeWordWrapper);
+		if (!wrapper || !item.marks?.some(mark => sameMark(mark, wrapper!))) return undefined;
+	}
+	return wrapper;
+}
+
+function firstMark(items: LineItem[], matches: (mark: TextMark) => boolean) {
+	for (const item of items) {
+		const mark = markList(item).find(matches);
+		if (mark) return mark;
+	}
+}
+
+function punctuationRuns(word: LineItem[]): LineItem[][] {
+	if (!word.some(isPunctuationText)) return [word];
+	const runs: LineItem[][] = [];
+	for (const item of word) {
+		const run = runs[runs.length - 1];
+		if (run && isPunctuationText(run[0]) === isPunctuationText(item)) run.push(item);
+		else runs.push([item]);
+	}
+	return runs;
+}
+
+// Puts the wrapper and <w> marks first and drops other word marks, which <pc> and bare wrapper
+// content lose.
+function withLeadMarks(item: LineItem, lead: TextMark[]): LineItem {
+	if (item.type !== 'text' && item.type !== 'gap') return item;
+	const own = markList(item);
+	if (lead.length === 0 && !own.some(mark => mark.type === 'word')) return item;
+	const marks = [
+		...lead,
+		...own.filter(mark => mark.type !== 'word' && !lead.some(other => sameMark(mark, other))),
+	];
+	if (sameMarkList(marks, own)) return item;
+	if (item.type === 'text') return { ...item, marks };
+	const { marks: _marks, ...gap } = item;
+	return marks.length ? { ...gap, marks } : gap;
+}
+
+function withCorrection(item: LineItem, correction: TextMark): LineItem {
+	if (item.type !== 'text' && item.type !== 'gap') return item;
+	const own = markList(item).find(isCorrection);
+	if (own && sameMark(own, correction)) return item;
+	const marks = own
+		? markList(item).map(mark => (mark === own ? correction : mark))
+		: [...markList(item), correction];
+	return { ...item, marks };
+}
+
+// outerCorrectionMarks reads the marks each source node had before its correction, and none from a
+// node that only takes its word's correction.
+type CorrectionLeads = WeakMap<object, TextMark[][]>;
+
+function leadsBefore(marks: TextMark[]): TextMark[][] {
+	const index = marks.findIndex(isCorrection);
+	return index < 0 ? [] : [marks.slice(0, index)];
+}
+
+const leadsOf = (item: MarkedItem, correctionLeads: CorrectionLeads) =>
+	correctionLeads.get(item) ?? leadsBefore(item.marks ?? []);
+
+const NO_MARKS: TextMark[] = [];
+
+const markList = (item: LineItem): TextMark[] => ('marks' in item && item.marks) || NO_MARKS;
+
+const sameMark = (a: TextMark, b: TextMark) =>
+	a === b || (a.type === b.type && JSON.stringify(a.attrs) === JSON.stringify(b.attrs));
+
+const sameMarkList = (a: TextMark[], b: TextMark[]) =>
+	a.length === b.length && a.every((mark, index) => sameMark(mark, b[index]));
+
+type TextItem = Extract<LineItem, { type: 'text' }>;
+
+const isPunctuationText = (item: LineItem) =>
+	item.type === 'text' && Boolean(item.marks?.some(mark => mark.type === 'punctuation'));
+
+const isWholeWordWrapper = (mark: TextMark) =>
+	mark.type === 'teiSpan' && isWholeWordWrapperTag(mark.attrs.tag);
+
+const sameMarks = (a: TextItem, b: TextItem) => sameMarkList(a.marks ?? [], b.marks ?? []);
 
 type MarkedItem = { marks?: TextMark[] };
 
 // Mirrors outerCorrectionMarks: marks every node of an <app> span shares before its correction wrap
-// the <app>, so they parse before the correction and the rest after it.
-function withParsedCorrectionOrder(pages: TranscriptionPage[]): TranscriptionPage[] {
+// the <app>, so they parse before the correction and the rest after it. A span crosses one line
+// break but not the two around an empty line.
+function withParsedCorrectionOrder(lines: LineItem[][], correctionLeads: CorrectionLeads): void {
 	let span: Array<{ items: MarkedItem[]; index: number }> = [];
 	let signature: string | null = null;
 	const close = () => {
-		reorderCorrectionSpan(span);
+		reorderCorrectionSpan(span, correctionLeads);
 		span = [];
 		signature = null;
 	};
-	for (const page of pages)
-		for (const column of page.columns)
-			for (const line of column.lines)
-				line.items.forEach((item, index) => {
-					if (item.type === 'boundary') return;
-					const correction = (item as MarkedItem).marks?.find(isCorrection);
-					const next = correction ? JSON.stringify(correction.attrs ?? {}) : null;
-					if (next === null || next !== signature) close();
-					if (next === null) return;
-					signature = next;
-					span.push({ items: line.items as MarkedItem[], index });
-				});
+	for (const items of lines) {
+		if (items.length === 0) close();
+		items.forEach((item, index) => {
+			if (item.type === 'boundary') return;
+			const correction = (item as MarkedItem).marks?.find(isCorrection);
+			const next = correction ? JSON.stringify(correction.attrs ?? {}) : null;
+			if (next === null || next !== signature) close();
+			if (next === null) return;
+			signature = next;
+			span.push({ items: items as MarkedItem[], index });
+		});
+	}
 	close();
-	return pages;
 }
 
-function reorderCorrectionSpan(span: Array<{ items: MarkedItem[]; index: number }>): void {
+function reorderCorrectionSpan(
+	span: Array<{ items: MarkedItem[]; index: number }>,
+	correctionLeads: CorrectionLeads
+): void {
 	if (span.length === 0) return;
 	const marksOf = ({ items, index }: (typeof span)[number]) => items[index].marks!;
-	const leads = span.map(entry =>
-		marksOf(entry).slice(0, marksOf(entry).findIndex(isCorrection))
-	);
+	const leads = span.flatMap(({ items, index }) => leadsOf(items[index], correctionLeads));
 	const key = (mark: TextMark) => JSON.stringify(mark);
-	const outer = leads[0]
+	const outer = (leads[0] ?? [])
 		.map(key)
 		.filter(mark => leads.every(lead => lead.some(other => key(other) === mark)));
 	const outerMarks = outer.map(mark => leads[0].find(candidate => key(candidate) === mark)!);

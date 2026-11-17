@@ -5,7 +5,12 @@ import { load as loadProjectWorkspace } from './projects/[id]/+layout';
 import { load as loadProjectRoot } from './projects/[id]/+page';
 import { load as loadTranscriptionIgntp } from './transcription/(library)/igntp/+page';
 import { load as loadTranscriptionList } from './transcription/(library)/+page';
-import { getProject, listProjects } from '$lib/db/client';
+import {
+	convertProjectToTei,
+	getProject,
+	listProjects,
+	refreshChangedDocumentFiles,
+} from '$lib/db/client';
 
 vi.mock('$lib/db/client', () => ({
 	convertProjectToTei: vi.fn(async () => ({ status: 'not-needed', files: 0 })),
@@ -126,6 +131,38 @@ describe('project-first navigation redirects', () => {
 			})
 		).resolves.toEqual({ project });
 		expect(values.get('lastOpenedProjectId')).toBe('project-a');
+	});
+
+	it('resolves before TEI conversion and the changed-file refresh settle, still requesting both in order', async () => {
+		vi.stubGlobal('localStorage', { getItem: () => null, setItem: vi.fn() });
+		const project = {
+			id: 'project-a',
+			storageSlug: 'project-a',
+			name: 'Project A',
+			description: '',
+			charter: '',
+			collationSettings: {},
+			createdAt: '2026-01-01T00:00:00.000Z',
+			updatedAt: '2026-01-01T00:00:00.000Z',
+		};
+		vi.mocked(getProject).mockResolvedValue(project);
+		const requests: string[] = [];
+		vi.mocked(convertProjectToTei).mockImplementationOnce(id => {
+			requests.push(`convert:${id}`);
+			return new Promise(() => {});
+		});
+		vi.mocked(refreshChangedDocumentFiles).mockImplementationOnce(id => {
+			requests.push(`refresh:${id}`);
+			return new Promise(() => {});
+		});
+
+		await expect(
+			(loadProjectWorkspace as TestLoad)({
+				params: { id: 'project-a' },
+				url: new URL('https://apatosaurus.test/projects/project-a/transcriptions'),
+			})
+		).resolves.toEqual({ project });
+		expect(requests).toEqual(['convert:project-a', 'refresh:project-a']);
 	});
 
 	it('redirects a missing project to the valid last-opened project in the same section', async () => {

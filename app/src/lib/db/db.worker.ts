@@ -20,8 +20,11 @@ const db = new LocalSqliteDatabase();
 let kyselyDb: Kysely<Database> | null = null;
 let initialized = false;
 const queue = createExclusiveQueue(now);
+const INTEGRITY_CHECK_QUIET_MS = 1_000;
+let integrityCheckArmed = false;
+let integrityCheckTimer: ReturnType<typeof setTimeout> | undefined;
 
-type IndexStartupRebuildReason = 'missing' | 'open-failed' | 'integrity-failed';
+type IndexStartupRebuildReason = 'missing' | 'open-failed';
 
 interface IndexStartupOpenResult extends OpenIndexDatabaseResult {
 	rebuildReason: IndexStartupRebuildReason | null;
@@ -48,6 +51,7 @@ function exclusive<T>(work: () => Promise<T>, label: string, priority: QueuePrio
 	const enqueuedAt = now();
 	return queue(() => {
 		const startedAt = now();
+		if (priority === 'user') clearTimeout(integrityCheckTimer);
 		return work().finally(() => {
 			performance.measure('db-queue', {
 				start: startedAt,
@@ -56,6 +60,8 @@ function exclusive<T>(work: () => Promise<T>, label: string, priority: QueuePrio
 			});
 			// Observers still receive cleared measures; clearing keeps the buffer from growing.
 			performance.clearMeasures('db-queue');
+			// Skips init: the page posts its first requests only after the init response.
+			if (priority === 'user' && label !== 'init') scheduleIntegrityCheck();
 		});
 	}, priority);
 }
@@ -101,6 +107,7 @@ async function handleRequest(
 	if (request.type === 'query') return db.query(request.sql, request.params ?? []);
 	if (request.type === 'execute') return db.execute(request.sql, request.params ?? []);
 	if (request.type === 'checkpoint') await db.exec('PRAGMA wal_checkpoint(TRUNCATE)');
+	if (request.type === 'rebuild-damaged-index') await replaceDamagedIndex(request.details);
 	return null;
 }
 
@@ -124,9 +131,7 @@ async function init(verifyIntegrity = true): Promise<void> {
 	if (initialized) return;
 	const startedAt = now();
 	await timeWorkerStep('stale import cleanup', () => cleanStaleProjectImportStaging());
-	const openResult = await timeWorkerStep('db.open', () =>
-		openIndexDatabaseForStartup(verifyIntegrity)
-	);
+	const openResult = await timeWorkerStep('db.open', () => openIndexDatabaseForStartup());
 	if (openResult.created) {
 		await timeWorkerStep('schema create', () => createCurrentIndexSchema(db));
 	}
@@ -159,12 +164,50 @@ async function init(verifyIntegrity = true): Promise<void> {
 		}
 	}
 	initialized = true;
+	if (verifyIntegrity) {
+		if (openResult.created) postMessage({ type: 'db:index-verified' });
+		else integrityCheckArmed = true;
+	}
 	console.debug('[local-db] worker init completed', { elapsedMs: elapsed(startedAt) });
 }
 
-async function openIndexDatabaseForStartup(
-	verifyIntegrity: boolean
-): Promise<IndexStartupOpenResult> {
+function scheduleIntegrityCheck(): void {
+	if (!integrityCheckArmed) return;
+	clearTimeout(integrityCheckTimer);
+	integrityCheckTimer = setTimeout(() => {
+		integrityCheckArmed = false;
+		checkIndexIntegrityLater();
+	}, INTEGRITY_CHECK_QUIET_MS);
+}
+
+function checkIndexIntegrityLater(): void {
+	exclusive(
+		async () => {
+			const integrity = await timeWorkerStep('quick_check', () => checkIndexIntegrity());
+			if (integrity.ok) {
+				postMessage({ type: 'db:index-verified' });
+				return;
+			}
+			console.warn('[local-db] SQLite index integrity check failed; rebuilding from files', {
+				details: integrity.details,
+			});
+			postMessage({ type: 'db:index-damaged', details: integrity.details });
+		},
+		'quick_check',
+		'background'
+	).catch(error => console.error('[local-db] index integrity check failed to run', error));
+}
+
+async function replaceDamagedIndex(details: string[]): Promise<void> {
+	await replaceCurrentIndexDatabase();
+	await timeWorkerStep('schema create', () => createCurrentIndexSchema(db));
+	const report = await rebuildIndex();
+	postMessage({ type: 'db:index-rebuilt', reason: 'integrity-failed', details, report });
+	postMessage({ type: 'db:invalidate', domain: 'all' });
+	postMessage({ type: 'db:index-verified' });
+}
+
+async function openIndexDatabaseForStartup(): Promise<IndexStartupOpenResult> {
 	let openResult: OpenIndexDatabaseResult;
 	try {
 		// A reloaded page's previous worker can briefly keep the OPFS access handles.
@@ -188,16 +231,7 @@ async function openIndexDatabaseForStartup(
 		return { created: true, rebuildReason: 'open-failed', rebuildDetails: [message] };
 	}
 	if (openResult.created) return { ...openResult, rebuildReason: 'missing', rebuildDetails: [] };
-	if (!verifyIntegrity) return { ...openResult, rebuildReason: null, rebuildDetails: [] };
-
-	const integrity = await timeWorkerStep('quick_check', () => checkIndexIntegrity());
-	if (integrity.ok) return { ...openResult, rebuildReason: null, rebuildDetails: [] };
-
-	console.warn('[local-db] SQLite index integrity check failed; rebuilding from files', {
-		details: integrity.details,
-	});
-	await replaceCurrentIndexDatabase();
-	return { created: true, rebuildReason: 'integrity-failed', rebuildDetails: integrity.details };
+	return { ...openResult, rebuildReason: null, rebuildDetails: [] };
 }
 
 async function checkIndexIntegrity(): Promise<{ ok: true } | { ok: false; details: string[] }> {

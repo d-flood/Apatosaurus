@@ -15,6 +15,7 @@ const config = {
 	kit: {
 		adapter: staticAdapter({ fallback: '404.html' }),
 		alias: {
+			'$worker-precache': path.resolve(configDir, '.svelte-kit/worker-precache.js'),
 			'collatex-tsport': workspacePath('collatex', 'collatex-tsport', 'src', 'index.ts'),
 			'@apatosaurus/tei-transcription': workspacePath(
 				'packages',

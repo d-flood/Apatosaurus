@@ -1,8 +1,8 @@
 /// <reference types="@sveltejs/kit" />
 import { base, build, files, prerendered, version } from '$service-worker';
+import { build as workerBuild, shell as shellWorkers } from '$worker-precache';
 import {
 	cacheName,
-	cacheTierForUrl,
 	cachesToRetain,
 	classifyRequest,
 	partitionPrecache,
@@ -15,7 +15,16 @@ import {
 	type WarmProgress,
 } from '$lib/shell/offline-cache-policy';
 
-const manifest: PrecacheManifest = { base, build, files, prerendered, version };
+import { handleAssetRequest, matchTierCache } from '$lib/shell/offline-cache-assets';
+
+const manifest: PrecacheManifest = {
+	base,
+	build: [...build, ...workerBuild.map(url => `${base}${url}`)],
+	files,
+	prerendered,
+	version,
+	shellWorkers: shellWorkers.map(url => `${base}${url}`),
+};
 const tiers = partitionPrecache(manifest);
 const SHELL_URL = `${base}/`;
 const WARM_CONCURRENCY = 4;
@@ -30,6 +39,7 @@ self.addEventListener('install', event => {
 			await Promise.all(
 				tiers.shell.map(async url => {
 					const response = await fetch(url);
+					if (!response.ok) throw new Error(`HTTP ${response.status} for ${url}`);
 					await shellCache.put(url, response);
 				})
 			);
@@ -71,7 +81,7 @@ async function warmTier(conditions: WarmConditions): Promise<void> {
 	const pending: string[] = [];
 	let completed = 0;
 	for (const url of urls) {
-		if (await matchTierCache(conditions.tier, url)) completed += 1;
+		if (await matchTierCache(conditions.tier, url, version)) completed += 1;
 		else pending.push(url);
 	}
 
@@ -164,53 +174,6 @@ async function handleNavigation(event: FetchEvent): Promise<Response> {
 	}
 }
 
-async function handleAssetRequest(request: Request, url: URL): Promise<Response> {
-	const tier = cacheTierForUrl(url, manifest);
-	if (tier === null) return fetch(request);
-
-	const cache = await caches.open(cacheName(tier, version));
-	const cachedResponse = await matchTierCache(tier, request);
-
-	const networkUpdate = fetch(request)
-		.then(response => {
-			if (response.ok) {
-				cache.put(request, response.clone());
-			}
-			return response;
-		})
-		.catch(() => null);
-
-	if (cachedResponse) {
-		return cachedResponse;
-	}
-
-	const networkResponse = await networkUpdate;
-	if (networkResponse) {
-		return networkResponse;
-	}
-
-	return new Response('Offline', {
-		status: 503,
-		statusText: 'Service Unavailable',
-		headers: { 'Content-Type': 'text/plain' },
-	});
-}
-
-async function matchTierCache(
-	tier: CacheTier,
-	request: RequestInfo
-): Promise<Response | undefined> {
-	if (tier !== 'corpus') {
-		return caches.match(request, { cacheName: cacheName(tier, version) });
-	}
-
-	for (const name of (await caches.keys()).filter(name => /^apato-corpus-/.test(name))) {
-		const response = await caches.match(request, { cacheName: name });
-		if (response) return response;
-	}
-	return undefined;
-}
-
 self.addEventListener('fetch', event => {
 	const { request } = event;
 	const url = new URL(request.url);
@@ -219,5 +182,5 @@ self.addEventListener('fetch', event => {
 
 	const disposition = classifyRequest(url, self.location.origin, request.destination, manifest);
 	if (disposition === 'navigation') event.respondWith(handleNavigation(event));
-	if (disposition === 'asset') event.respondWith(handleAssetRequest(request, url));
+	if (disposition === 'asset') event.respondWith(handleAssetRequest(request, url, manifest));
 });

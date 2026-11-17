@@ -1,5 +1,6 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DOMParser } from '@xmldom/xmldom';
+import { getSchema } from '@tiptap/core';
 import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
@@ -14,12 +15,15 @@ import { readTextFile } from '$lib/storage/opfs-store';
 import { joinStorePath, projectFolder } from '$lib/storage/layout';
 import { documentCanonicalPath } from '$lib/storage/document-files';
 import { importTEIDocument } from '$lib/tei/tei-importer';
+import { createPageConversionCache } from '$lib/editor/page-conversion-cache';
+import { getProfileExtensions } from '$lib/editor/schema/index';
+import { prepareManuscriptDocumentEntry } from '$lib/editor/structure';
 import {
 	coerceTranscriptionDocument,
 	mergeWithCanonicalDocument,
 	type StoredTranscriptionDocument,
 } from '$lib/transcription/content';
-import { fromProseMirror, toProseMirror, type LineItem } from '@apatosaurus/tei-transcription';
+import { toProseMirror, type LineItem, type TextMark } from '@apatosaurus/tei-transcription';
 
 import { createProject } from './projects';
 import { rebuildIndexFromStore, transcriptionIndexRowsFromPrimary } from './index-rebuild';
@@ -68,7 +72,8 @@ const transcriptions = fileURLToPath(
 );
 const corpusFiles = process.env.IGNTP_ROWS_ALL
 	? readdirSync(transcriptions).filter(file => file.endsWith('.xml'))
-	: ['L60', 'P46', '2006'].map(witness => `NT_GRC_${witness}_Rom.xml`);
+	: ['L60', 'P26', 'P46', '2006'].map(witness => `NT_GRC_${witness}_Rom.xml`);
+const editorSchema = getSchema(getProfileExtensions('main-manuscript'));
 
 let harness: LocalDbTestHarness;
 let backend: MemoryStoreBackend;
@@ -141,6 +146,72 @@ describe('payload-built transcription index rows', () => {
 			expect(await rowsVerified()).toBe(1);
 		}
 	);
+
+	const text = (value: string, ...marks: TextMark[]): Extract<LineItem, { type: 'text' }> => ({
+		type: 'text',
+		text: value,
+		marks,
+	});
+	const space: LineItem = { type: 'boundary', kind: 'word' };
+	const punctuation: TextMark = { type: 'punctuation', attrs: {} };
+	const correction: TextMark = {
+		type: 'correction',
+		attrs: {
+			corrections: [
+				{ hand: 'corrector', content: [text('alfa')], readingAttrs: { type: 'corr' } },
+			],
+		},
+	};
+	const milestone = (kind: 'chapter' | 'verse', chapter: string, verse?: string): LineItem => ({
+		type: 'milestone',
+		kind,
+		attrs: { book: 'Romans', chapter, ...(verse ? { verse } : {}) },
+	});
+	it.each<[string, TypedLine[]]>([
+		['typing a blank line between two text lines', [[text('alpha')], [], [text('beta')]]],
+		[
+			'typing punctuation, a space and a word',
+			[[text('alpha'), text('.', punctuation), space, text('beta')]],
+		],
+		[
+			'inserting a verse milestone at a word end',
+			[[text('alpha'), milestone('verse', '1', '2'), space, text('beta')]],
+		],
+		[
+			'ending a line with a chapter milestone',
+			[
+				[text('alpha'), milestone('chapter', '2')],
+				[milestone('verse', '2', '1'), text('beta')],
+			],
+		],
+		[
+			'typing a letter before a corrected word',
+			[[text('beta'), space, text('x'), text('alpha', correction)]],
+		],
+		[
+			'marking a line as continuing a corrected word',
+			[
+				[text('beta'), space, text('al', correction)],
+				{ wrapped: true, items: [text('pha')] },
+			],
+		],
+	])('equal the rows parsed from the file after %s', async (_name, lines) => {
+		await createRichTranscription(versesDocument({ 'Romans 1:1': 'alpha' }));
+
+		await saveWorkingTranscriptionContent(
+			harness.db,
+			{
+				id: TRANSCRIPTION_ID,
+				document: throughEditor(await storedDocument(), typedDocument(lines)),
+			},
+			{ backend }
+		);
+
+		await expectRowsMatchFile();
+		expect(
+			await verifyTranscriptionIndexRows(harness.db, TRANSCRIPTION_ID, { backend })
+		).toMatchObject({ status: 'verified', warnings: [] });
+	});
 
 	it('read-back check replaces rows from a file the codec wrote differently', async () => {
 		await createRichTranscription(versesDocument({ 'Romans 1:1': 'alpha' }));
@@ -348,12 +419,48 @@ function versesDocument(texts: Record<string, string>): StoredTranscriptionDocum
 	};
 }
 
-// Converts through ProseMirror as the editor does, then adds a page and verse the editor creates bare.
+type TypedLine = LineItem[] | { wrapped: true; items: LineItem[] };
+
+// Starts Romans 1:1 on the first line.
+function typedDocument(lines: TypedLine[]): StoredTranscriptionDocument {
+	const typed = lines.map(line => (Array.isArray(line) ? { items: line } : line));
+	typed[0] = { ...typed[0], items: [...verseMilestones(['Romans 1:1']), ...typed[0].items] };
+	return {
+		type: 'transcriptionDocument',
+		pages: [
+			{
+				type: 'page',
+				id: '1r',
+				pageId: 'page-1r',
+				columns: [
+					{
+						type: 'column',
+						number: 1,
+						lines: typed.map((line, index) => ({
+							type: 'line',
+							number: index + 1,
+							...line,
+						})),
+					},
+				],
+			},
+		],
+	};
+}
+
+// Loads `shown` into the editor schema, which reorders marks, and saves its pages as the editor does.
+function throughEditor(
+	canonical: StoredTranscriptionDocument,
+	shown = canonical
+): StoredTranscriptionDocument {
+	const doc = editorSchema.nodeFromJSON(prepareManuscriptDocumentEntry(toProseMirror(shown)).doc);
+	const { pages } = createPageConversionCache()(doc);
+	return mergeWithCanonicalDocument(canonical, { type: 'transcriptionDocument', pages });
+}
+
+// Converts through the editor, then adds a page and verse the editor creates bare.
 function editLikeTheEditor(stored: StoredTranscriptionDocument): StoredTranscriptionDocument {
-	const edited = mergeWithCanonicalDocument(
-		stored,
-		fromProseMirror(toProseMirror(stored)) as StoredTranscriptionDocument
-	);
+	const edited = throughEditor(stored);
 	const textItem = edited.pages
 		.flatMap(page => page.columns.flatMap(column => column.lines.flatMap(line => line.items)))
 		.find(item => item.type === 'text' && item.text.trim());

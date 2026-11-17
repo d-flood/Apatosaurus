@@ -31,7 +31,7 @@ export const load = async ({ params, url }: { params: { id: string }; url: URL }
 	}
 
 	recordLastOpenedProject(project.id);
-	await convertProjectToTei(project.id).then(
+	void convertProjectToTei(project.id).then(
 		report => {
 			if (report.status !== 'failed' || !report.failure) return;
 			notificationCenter.upsert({
@@ -44,7 +44,7 @@ export const load = async ({ params, url }: { params: { id: string }; url: URL }
 		},
 		error => console.error('[project] converting the project to TEI failed', error)
 	);
-	await refreshChangedDocumentFiles(project.id).catch(error =>
+	void refreshChangedDocumentFiles(project.id).catch(error =>
 		console.error('[project] checking files changed outside the app failed', error)
 	);
 	return { project };

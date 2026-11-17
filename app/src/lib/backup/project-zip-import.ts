@@ -229,7 +229,7 @@ export async function importProjectFileTree(
 		const result = await placePreparedImport(db, prepared, options.storeOptions ?? {});
 		if (
 			hasLegacyHeads(prepared.manifest) &&
-			(await upgradeAlphaProjects(options.storeOptions))
+			(await upgradeAlphaProjects(options.storeOptions, { rescan: true }))
 		) {
 			await rebuildIndexFromStore(db, options.storeOptions);
 			await markAlphaUpgradesIndexed(options.storeOptions);

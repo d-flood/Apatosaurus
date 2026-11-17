@@ -11,13 +11,17 @@ interface Section {
 export function createExclusiveQueue(now: () => number = () => performance.now()) {
 	const waiting: Record<QueuePriority, Section[]> = { user: [], background: [] };
 	let running = false;
+	let backgroundEndedAt = -Infinity;
 
 	function next(): void {
 		const oldestBackground = waiting.background[0];
-		const section =
-			oldestBackground && now() - oldestBackground.enqueuedAt > BACKGROUND_AGING_MS
-				? waiting.background.shift()
-				: (waiting.user.shift() ?? waiting.background.shift());
+		// Ages from the last background turn too, so an aged backlog never runs back to back.
+		const aged =
+			oldestBackground &&
+			now() - Math.max(oldestBackground.enqueuedAt, backgroundEndedAt) > BACKGROUND_AGING_MS;
+		const section = aged
+			? waiting.background.shift()
+			: (waiting.user.shift() ?? waiting.background.shift());
 		running = Boolean(section);
 		section?.start();
 	}
@@ -30,7 +34,13 @@ export function createExclusiveQueue(now: () => number = () => performance.now()
 			waiting[priority].push({
 				enqueuedAt: now(),
 				start: () => {
-					Promise.resolve().then(work).then(resolve, reject).finally(next);
+					Promise.resolve()
+						.then(work)
+						.then(resolve, reject)
+						.finally(() => {
+							if (priority === 'background') backgroundEndedAt = now();
+							next();
+						});
 				},
 			});
 			if (!running) next();

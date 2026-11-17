@@ -50,6 +50,33 @@ test('boots and opens an unvisited route with the network offline', async ({ con
 	await expect(page.getByRole('heading', { name: 'Data & Storage', level: 1 })).toBeVisible();
 });
 
+test('opens the local database offline after clearing the HTTP cache', async ({
+	context,
+	page,
+}) => {
+	await page.goto('/projects');
+	await expect(page.getByRole('heading', { name: 'Projects' })).toBeVisible();
+	await page.getByPlaceholder('New project name').fill('Offline Database Project');
+	await expect(page.getByRole('button', { name: 'Create', exact: true })).toBeEnabled();
+	await page.getByPlaceholder('New project name').press('Enter');
+	await expect(page).toHaveURL(/\/projects\/[^/]+\/transcriptions$/);
+	await page.goto('/projects');
+	await expect(page.getByRole('heading', { name: 'Offline Database Project' })).toBeVisible();
+	await page.goto('/');
+	await waitForOfflineCache(page);
+
+	const session = await context.newCDPSession(page);
+	await session.send('Network.clearBrowserCache');
+	await session.detach();
+	await context.setOffline(true);
+	await page.reload();
+
+	await page.getByRole('button', { name: /^Open project switcher:/ }).click();
+	await page.getByRole('link', { name: 'Manage projects…' }).click();
+	await expect(page.getByRole('heading', { name: 'Projects' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'Offline Database Project' })).toBeVisible();
+});
+
 test('edits a transcription offline with a notice that clears online', async ({
 	context,
 	page,

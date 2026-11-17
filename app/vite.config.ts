@@ -3,6 +3,7 @@ import tailwindcss from '@tailwindcss/vite';
 import path from 'node:path';
 import devtoolsJson from 'vite-plugin-devtools-json';
 import { defineConfig } from 'vitest/config';
+import { workerPrecache } from './scripts/worker-precache';
 
 const repoRoot = path.resolve(__dirname, '..');
 
@@ -75,8 +76,11 @@ const authProxy = {
 	'/auth': process.env.AUTH_WORKER_ORIGIN ?? 'http://127.0.0.1:8787',
 };
 
+const precache = workerPrecache();
+
 export default defineConfig({
-	plugins: [tailwindcss(), sveltekit(), devtoolsJson()],
+	plugins: [tailwindcss(), sveltekit(), devtoolsJson(), precache.plugin],
+	worker: { plugins: precache.workers },
 	envPrefix: ['VITE_', 'PUBLIC_'],
 	server: {
 		...developmentServer(),
@@ -108,6 +112,7 @@ export default defineConfig({
 			'@tiptap/extension-history',
 			'@tiptap/extension-text',
 			'@tiptap/extensions',
+			'@tiptap/pm/history',
 			'@tiptap/pm/model',
 			'@tiptap/pm/state',
 			'@tiptap/pm/view',
@@ -145,7 +150,6 @@ export default defineConfig({
 			'phosphor-svelte/lib/ClockCounterClockwise',
 			'phosphor-svelte/lib/CloudArrowUp',
 			'phosphor-svelte/lib/CornersOut',
-			'phosphor-svelte/lib/Crosshair',
 			'phosphor-svelte/lib/DotsThreeVertical',
 			'phosphor-svelte/lib/DropboxLogo',
 			'phosphor-svelte/lib/Eye',
@@ -164,7 +168,6 @@ export default defineConfig({
 			'phosphor-svelte/lib/Lightning',
 			'phosphor-svelte/lib/LinkBreak',
 			'phosphor-svelte/lib/LinkSimple',
-			'phosphor-svelte/lib/ListBullets',
 			'phosphor-svelte/lib/Lock',
 			'phosphor-svelte/lib/MagnifyingGlassMinus',
 			'phosphor-svelte/lib/MagnifyingGlassPlus',
@@ -180,13 +183,11 @@ export default defineConfig({
 			'phosphor-svelte/lib/Sidebar',
 			'phosphor-svelte/lib/Stack',
 			'phosphor-svelte/lib/Sun',
-			'phosphor-svelte/lib/Table',
 			'phosphor-svelte/lib/TextColumns',
 			'phosphor-svelte/lib/TextIndent',
 			'phosphor-svelte/lib/ToggleLeft',
 			'phosphor-svelte/lib/ToggleRight',
 			'phosphor-svelte/lib/Trash',
-			'phosphor-svelte/lib/TreeStructure',
 			'phosphor-svelte/lib/UserPlus',
 			'phosphor-svelte/lib/Warning',
 			'phosphor-svelte/lib/WarningCircle',

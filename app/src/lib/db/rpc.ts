@@ -20,6 +20,7 @@ export type DbMethod = keyof DbApi;
 type DbSystemRequest =
 	| { type: 'init'; verifyIntegrity?: boolean }
 	| { type: 'checkpoint' }
+	| { type: 'rebuild-damaged-index'; details: string[] }
 	| { type: 'query'; sql: string; params?: DbValue[] }
 	| { type: 'execute'; sql: string; params?: DbValue[] };
 
@@ -54,8 +55,14 @@ export type DbIndexRebuildProgressEvent = {
 	phase?: 'conversion';
 };
 
+type DbIndexVerifiedEvent = { type: 'db:index-verified' };
+
+type DbIndexDamagedEvent = { type: 'db:index-damaged'; details: string[] };
+
 export type DbWorkerMessage =
 	| DbResponse
+	| DbIndexVerifiedEvent
+	| DbIndexDamagedEvent
 	| DbInvalidationEvent
 	| DbWarningsEvent
 	| DbIndexRebuiltEvent

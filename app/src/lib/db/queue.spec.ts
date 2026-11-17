@@ -87,6 +87,33 @@ describe('exclusive queue', () => {
 		]);
 	});
 
+	it('lets a waiting user section run after one aged background section, not after the backlog', async () => {
+		const { order, submit, release, advance } = harness();
+		const running = submit('user-long', 'user');
+		const backlog = [
+			submit('background-1', 'background'),
+			submit('background-2', 'background'),
+			submit('background-3', 'background'),
+		];
+		const user = submit('user-waiting', 'user');
+		advance(BACKGROUND_AGING_MS + 1_000);
+
+		await release('user-long');
+		await release('background-1');
+		await release('user-waiting');
+		await release('background-2');
+		await release('background-3');
+		await Promise.all([running, ...backlog, user]);
+
+		expect(order.filter(entry => entry.startsWith('start'))).toEqual([
+			'start user-long',
+			'start background-1',
+			'start user-waiting',
+			'start background-2',
+			'start background-3',
+		]);
+	});
+
 	it('runs sections of one class first in, first out', async () => {
 		const { order, submit, release } = harness();
 		const sections = [

@@ -386,10 +386,10 @@ function createCollationState() {
 			remembered ??
 			hydrated.legacyView ??
 			defaultCollationViewState(alignmentColumns.length > 0);
-		phase = view.phase;
+		phase = canNavigateTo(view.phase) ? view.phase : 'setup';
 		alignmentDisplayMode = view.alignmentDisplayMode;
 		alignmentLayout = view.alignmentLayout;
-		if (!remembered) rememberView();
+		if (!remembered || phase !== view.phase) rememberView();
 		lastAlignmentInputSignature = alignmentColumns.length > 0 ? alignmentInputSignature : null;
 		selectedColumnIds = new Set();
 		selectedCells = new Set();
@@ -482,9 +482,9 @@ function createCollationState() {
 
 	const editListeners = new Set<() => void>();
 
-	function markUnsaved(delay?: number) {
+	function markUnsaved() {
 		saveStatus = 'unsaved';
-		scheduleSave(delay);
+		scheduleSave();
 		if (collationId) for (const listener of editListeners) listener();
 	}
 

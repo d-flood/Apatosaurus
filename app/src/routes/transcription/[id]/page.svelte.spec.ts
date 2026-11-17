@@ -35,6 +35,8 @@ vi.mock('$lib/db/runtime', () => ({
 	ensureLocalDbRuntime: vi.fn(async () => undefined),
 	getLocalDbWorker: vi.fn(),
 	checkpointLocalDb: vi.fn(),
+	markIndexVerified: vi.fn(),
+	reportRuntimeInitFailure: vi.fn(),
 }));
 vi.mock('$lib/db/client', async importOriginal => {
 	const actual = await importOriginal<typeof import('$lib/db/client')>();

@@ -1,3 +1,4 @@
+import { NodeSelection } from '@tiptap/pm/state';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -13,6 +14,7 @@ import {
 	applyCorrectionMark,
 	captureAbbreviationTarget,
 	captureCorrectionTarget,
+	getPageAtPosition,
 	removeCorrectionMark,
 } from './editorInteractions';
 
@@ -199,5 +201,28 @@ describe('word-level correction interactions', () => {
 				.filter(node => node.correction)
 				.map(node => node.text)
 		).toEqual(['beta']);
+	});
+});
+
+describe('getPageAtPosition', () => {
+	it('resolves a selected later page to that page, and the document end to the last page', () => {
+		const editor = createTestEditor({
+			content: editorDocument({
+				pages: [
+					editorPlainPage({ pageId: 'first', pageName: '1r' }),
+					editorPlainPage({ pageId: 'second', pageName: '1v' }),
+				],
+			}),
+		});
+		const { doc } = editor.state;
+		const secondStart = doc.child(0).nodeSize;
+		editor.view.dispatch(editor.state.tr.setSelection(NodeSelection.create(doc, secondStart)));
+
+		const page = getPageAtPosition(doc, editor.state.selection.from);
+		expect(page?.node.attrs.pageId).toBe('second');
+		expect(page?.index).toBe(1);
+		expect(page?.pos).toBe(secondStart);
+		expect(getPageAtPosition(doc, 0)?.node.attrs.pageId).toBe('first');
+		expect(getPageAtPosition(doc, doc.content.size)?.node.attrs.pageId).toBe('second');
 	});
 });

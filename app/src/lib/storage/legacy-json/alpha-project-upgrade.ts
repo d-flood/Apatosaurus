@@ -149,10 +149,24 @@ interface UpgradeJournal {
 	files: Array<{ path: string; original: string; upgraded: string }>;
 }
 
-/** Originals and journal stay outside the synced tree. */
+const ALPHA_UPGRADE_FOLDER = 'upgrades/alpha-c7d94ee';
+const SCANNED_MARKER_PATH = `${ALPHA_UPGRADE_FOLDER}/scanned.json`;
+
+/**
+ * Originals and journal stay outside the synced tree. The scanned marker lists folders
+ * that need nothing further, so a start whose folders are all listed reads nothing else.
+ * `rescan` ignores the marker, for files just placed in a folder it may list.
+ */
 export async function upgradeAlphaProjects(
-	storeOptions: StoreOperationOptions = {}
+	storeOptions: StoreOperationOptions = {},
+	{ rescan = false } = {}
 ): Promise<boolean> {
+	if (!rescan) {
+		const folders = await listProjectFolderNames(storeOptions);
+		if (folders === null) return false;
+		const scanned = await readScannedMarker(storeOptions);
+		if (folders.every(name => scanned.has(name))) return false;
+	}
 	return withDocumentStoreWriterLock(async options => {
 		let projects;
 		try {
@@ -162,9 +176,10 @@ export async function upgradeAlphaProjects(
 			throw error;
 		}
 		let changed = false;
+		const checked: string[] = [];
 		for (const project of projects) {
 			if (project.kind !== 'directory') continue;
-			const backup = `upgrades/alpha-c7d94ee/${project.name}`;
+			const backup = `${ALPHA_UPGRADE_FOLDER}/${project.name}`;
 			const journalPath = `${backup}/journal.json`;
 			let journal: UpgradeJournal | null = null;
 			try {
@@ -177,6 +192,7 @@ export async function upgradeAlphaProjects(
 					await readTextFile(`${backup}/complete.json`, options);
 					try {
 						await readTextFile(`${backup}/indexed.json`, options);
+						checked.push(project.name);
 					} catch (error) {
 						if (!isMissing(error)) throw error;
 						changed = true;
@@ -186,7 +202,10 @@ export async function upgradeAlphaProjects(
 					if (!isMissing(error)) throw error;
 				}
 			} else {
-				if (!(await hasAlphaCollations(projectFolder(project.name), options))) continue;
+				if (!(await hasAlphaCollations(projectFolder(project.name), options))) {
+					checked.push(project.name);
+					continue;
+				}
 				const files = await readProjectFiles(projectFolder(project.name), options);
 				const entries: ProjectEntry[] = [];
 				for (const file of files) {
@@ -263,14 +282,48 @@ export async function upgradeAlphaProjects(
 			);
 			changed = true;
 		}
+		try {
+			await writeTextFileAtomic(
+				SCANNED_MARKER_PATH,
+				JSON.stringify({ version: 1, projects: checked }),
+				options
+			);
+		} catch (error) {
+			console.warn('[alpha-upgrade] could not record scanned project folders', error);
+		}
 		return changed;
 	}, storeOptions);
+}
+
+async function listProjectFolderNames(options: StoreOperationOptions): Promise<string[] | null> {
+	try {
+		return (await listDirectory(projectsFolder(), options))
+			.filter(entry => entry.kind === 'directory')
+			.map(entry => entry.name);
+	} catch (error) {
+		if (isMissing(error)) return null;
+		throw error;
+	}
+}
+
+async function readScannedMarker(options: StoreOperationOptions): Promise<Set<string>> {
+	try {
+		const marker = JSON.parse(await readTextFile(SCANNED_MARKER_PATH, options)) as {
+			version?: number;
+			projects?: unknown;
+		};
+		if (marker.version !== 1 || !Array.isArray(marker.projects)) return new Set();
+		return new Set(marker.projects.filter(name => typeof name === 'string'));
+	} catch (error) {
+		if (isMissing(error) || error instanceof SyntaxError) return new Set();
+		throw error;
+	}
 }
 
 export async function markAlphaUpgradesIndexed(options: StoreOperationOptions = {}): Promise<void> {
 	let projects;
 	try {
-		projects = await listDirectory('upgrades/alpha-c7d94ee', options);
+		projects = await listDirectory(ALPHA_UPGRADE_FOLDER, options);
 	} catch (error) {
 		if (isMissing(error)) return;
 		throw error;

@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { handleAssetRequest } from './offline-cache-assets';
 
 import {
 	CORPUS_APPROXIMATE_BYTES,
@@ -7,6 +8,7 @@ import {
 	hasCorpusStorageHeadroom,
 	partitionPrecache,
 	shouldWarm,
+	shouldRevalidateAsset,
 	type PrecacheManifest,
 } from './offline-cache-policy';
 
@@ -84,6 +86,66 @@ describe('offline cache policy', () => {
 		expect(
 			classifyRequest(new URL('https://images.test/page.jpg'), origin, 'image', manifest)
 		).toBe('bypass');
+	});
+
+	it('puts DB dependencies in shell and all other workers in routes', () => {
+		const shellWorkers = [
+			'/_app/immutable/workers/db.worker-hash.js',
+			'/_app/immutable/workers/chunks/db-hash.js',
+			'/_app/immutable/workers/assets/wa-sqlite-hash.wasm',
+		];
+		const routes = [
+			'/_app/immutable/workers/collation.worker-hash.js',
+			'/_app/immutable/workers/cbgm-query.worker-hash.js',
+			'/_app/immutable/workers/assets/open-cbgm-hash.wasm',
+		];
+		const tiers = partitionPrecache({
+			...manifest,
+			build: [...manifest.build, ...shellWorkers, ...routes],
+			shellWorkers,
+		});
+		expect(tiers.shell).toEqual([...partitionPrecache(manifest).shell, ...shellWorkers]);
+		expect(tiers.routes).toEqual([...partitionPrecache(manifest).routes, ...routes]);
+	});
+
+	it.each(['worker', 'sharedworker'])(
+		'serves precached %s scripts only on origin',
+		destination => {
+			const origin = 'https://apatosaurus.test';
+			const pathname = '/_app/immutable/workers/db.worker-hash.js';
+			const workerManifest = { ...manifest, build: [...manifest.build, pathname] };
+			expect(
+				classifyRequest(new URL(pathname, origin), origin, destination, workerManifest)
+			).toBe('asset');
+			expect(
+				classifyRequest(
+					new URL(pathname, 'https://other.test'),
+					origin,
+					destination,
+					workerManifest
+				)
+			).toBe('bypass');
+			expect(
+				classifyRequest(new URL('/unknown.js', origin), origin, destination, workerManifest)
+			).toBe('bypass');
+			expect(
+				classifyRequest(new URL(pathname, origin), origin, 'serviceworker', workerManifest)
+			).toBe('bypass');
+		}
+	);
+
+	it('revalidates mutable files but never immutable assets or worker scripts', () => {
+		const origin = 'https://apatosaurus.test';
+		for (const pathname of [
+			'/_app/immutable/chunks/runtime.hash.js',
+			'/base/_app/immutable/workers/assets/wa-sqlite-hash.wasm',
+		]) {
+			expect(shouldRevalidateAsset(new URL(pathname, origin), 'script')).toBe(false);
+		}
+		for (const destination of ['worker', 'sharedworker']) {
+			expect(shouldRevalidateAsset(new URL('/worker.js', origin), destination)).toBe(false);
+		}
+		expect(shouldRevalidateAsset(new URL('/manifest.json', origin), 'manifest')).toBe(true);
 	});
 
 	it('retains current caches, the previous app version, and corpus caches across versions', () => {
@@ -185,5 +247,69 @@ describe('offline cache policy', () => {
 			})
 		).toBe(true);
 		expect(hasCorpusStorageHeadroom({ usage: null, quota: null })).toBe(true);
+	});
+});
+
+describe('service worker asset requests', () => {
+	const put = vi.fn();
+	const match = vi.fn();
+	const networkFetch = vi.fn();
+
+	beforeEach(() => {
+		vi.clearAllMocks();
+		vi.stubGlobal('caches', { open: vi.fn(async () => ({ put })), match });
+		vi.stubGlobal('fetch', networkFetch);
+	});
+
+	afterEach(() => vi.unstubAllGlobals());
+
+	async function requestAsset(pathname: string, destination = 'script') {
+		const request = new Request(`https://apatosaurus.test${pathname}`);
+		Object.defineProperty(request, 'destination', { value: destination });
+		return handleAssetRequest(request, new URL(request.url), {
+			...manifest,
+			build: [...manifest.build, '/_app/immutable/workers/db.worker-hash.js'],
+		});
+	}
+
+	it.each([
+		['/_app/immutable/chunks/runtime.hash.js', 'script'],
+		['/_app/immutable/workers/db.worker-hash.js', 'worker'],
+		['/_app/immutable/workers/db.worker-hash.js', 'sharedworker'],
+	])('answers cached %s without a background fetch (%s)', async (pathname, destination) => {
+		const cached = new Response('cached');
+		match.mockResolvedValue(cached);
+		expect(await requestAsset(pathname, destination)).toBe(cached);
+		expect(networkFetch).not.toHaveBeenCalled();
+		expect(put).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		['/_app/immutable/chunks/runtime.hash.js', 'script'],
+		['/_app/immutable/workers/db.worker-hash.js', 'worker'],
+	])('fetches and stores missing %s', async (pathname, destination) => {
+		match.mockResolvedValue(undefined);
+		networkFetch.mockResolvedValue(new Response('network'));
+		expect(await (await requestAsset(pathname, destination))?.text()).toBe('network');
+		expect(networkFetch).toHaveBeenCalledOnce();
+		expect(put).toHaveBeenCalledOnce();
+	});
+
+	it('refetches and replaces a cached error response for an immutable worker', async () => {
+		match.mockResolvedValue(new Response('missing', { status: 404 }));
+		networkFetch.mockResolvedValue(new Response('network'));
+		const response = await requestAsset('/_app/immutable/workers/db.worker-hash.js', 'worker');
+		expect(await response.text()).toBe('network');
+		expect(networkFetch).toHaveBeenCalledOnce();
+		expect(put).toHaveBeenCalledOnce();
+	});
+
+	it('keeps background revalidation for mutable files', async () => {
+		const cached = new Response('cached');
+		match.mockResolvedValue(cached);
+		networkFetch.mockResolvedValue(new Response('network'));
+		expect(await requestAsset('/manifest.json')).toBe(cached);
+		expect(networkFetch).toHaveBeenCalledOnce();
+		expect(put).toHaveBeenCalledOnce();
 	});
 });

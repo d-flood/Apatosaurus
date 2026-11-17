@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { exportTranscriptionTei, updateTranscriptionContent } from '$lib/db/client';
 	import { ensureLocalDbRuntime } from '$lib/db/runtime';
+	import { registerPendingSave } from '$lib/db/pending-saves';
 	import { fromProseMirror, toProseMirror } from '@apatosaurus/tei-transcription';
 	import {
 		addReferenceEditionUsed,
@@ -1067,6 +1068,7 @@
 	});
 	const debouncedAutosave = autosave.schedule;
 	const flushAutosave = autosave.flush;
+	onMount(() => registerPendingSave(flushAutosave));
 
 	export function flushPendingAutosave(): Promise<boolean> {
 		return flushAutosave();

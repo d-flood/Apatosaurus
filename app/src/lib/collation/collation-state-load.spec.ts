@@ -469,6 +469,25 @@ describe('collationState artifact-first persistence', () => {
 		}
 	});
 
+	it('falls back to Setup when a reloaded document has no alignment', async () => {
+		const loaded = await loadCollation();
+		loadCollation.mockResolvedValue({
+			...loaded,
+			artifact: { ...loaded.artifact, payload: makeDecisionDocumentPayload() },
+		});
+		const state = await importState();
+		state.reset();
+		expect(await state.loadCollationById('col-1')).toBe(true);
+		state.setPhase('readings');
+
+		loadCollation.mockResolvedValue(loaded);
+		expect(await state.reloadCollation()).toBe(true);
+
+		expect(state.alignmentColumns).toHaveLength(0);
+		expect(state.phase).toBe('setup');
+		expect(readCollationViewState('col-1')?.phase).toBe('setup');
+	});
+
 	it('recomputes readings from alignment and decisions instead of loading persisted readings', async () => {
 		const loadedValue = await loadCollation();
 		loadCollation.mockResolvedValue({

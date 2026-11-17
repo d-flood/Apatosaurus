@@ -6,6 +6,7 @@ export interface PrecacheManifest {
 	prerendered: string[];
 	base: string;
 	version: string;
+	shellWorkers?: string[];
 }
 
 export type RequestDisposition = 'navigation' | 'asset' | 'bypass';
@@ -44,6 +45,7 @@ export function partitionPrecache(manifest: PrecacheManifest): Record<CacheTier,
 		...(manifest.files.includes(manifestUrl) ? [manifestUrl] : []),
 		...manifest.prerendered,
 		...shellBuild,
+		...(manifest.shellWorkers ?? []),
 	]);
 	const shellEntries = new Set(shell);
 
@@ -64,8 +66,6 @@ export function classifyRequest(
 		url.origin !== origin ||
 		url.pathname.startsWith('/@vite') ||
 		url.pathname.startsWith('/@fs/') ||
-		destination === 'worker' ||
-		destination === 'sharedworker' ||
 		destination === 'serviceworker'
 	) {
 		return 'bypass';
@@ -76,6 +76,14 @@ export function classifyRequest(
 	}
 
 	return cacheTierForUrl(url, manifest) === null ? 'bypass' : 'asset';
+}
+
+export function shouldRevalidateAsset(url: URL, destination: string): boolean {
+	return (
+		!url.pathname.includes('/_app/immutable/') &&
+		destination !== 'worker' &&
+		destination !== 'sharedworker'
+	);
 }
 
 export function cacheTierForUrl(url: URL, manifest: PrecacheManifest): CacheTier | null {

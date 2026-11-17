@@ -11,6 +11,7 @@ export {
 	proseMirrorToInlineItems,
 } from './pm-adapter';
 export { normalizeDocument } from './normalize';
+export { isWholeWordWrapperTag } from './tei-inline';
 export {
 	createStructuredFormWorkContent,
 	flattenStructuredFormWorkContent,

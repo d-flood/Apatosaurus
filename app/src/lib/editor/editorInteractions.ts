@@ -136,9 +136,8 @@ export function getPageAtPosition(
 ): { node: ProseMirrorNode; pos: number; index: number } | null {
 	if (doc.childCount === 0) return null;
 	const resolved = doc.resolve(position);
-	let index = resolved.index(0);
-	// A position between two pages belongs to the earlier one.
-	if (resolved.depth === 0 && index > 0) index -= 1;
+	// A position between two pages belongs to the later one; the document end to the last page.
+	const index = Math.min(resolved.index(0), doc.childCount - 1);
 	const node = doc.child(index);
 	if (node.type.name !== 'page') return null;
 	return { node, pos: resolved.posAtIndex(index, 0), index };
