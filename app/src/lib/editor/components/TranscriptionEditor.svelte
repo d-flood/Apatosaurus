@@ -8,7 +8,7 @@
 		EMPTY_TRANSCRIPTION_DOC,
 		getReferenceEditionAttributions,
 		getReferenceEditionsUsed,
-		serializeTranscriptionDocument,
+		serializeNormalizedPagesDocument,
 		TRANSCRIPTION_FORMAT,
 		mergeWithCanonicalDocument,
 		type StoredTranscriptionDocument,
@@ -16,6 +16,7 @@
 	import type { TranscriptionRecord } from '$lib/transcription/model';
 	import { getEditor } from '$lib/editor/schema/index';
 	import { initializeEditorContent } from '$lib/editor/content-initialization';
+	import { createPageConversionCache } from '$lib/editor/page-conversion-cache';
 	import {
 		createColumnSplitTransaction,
 		prepareManuscriptDocumentEntry,
@@ -72,6 +73,7 @@
 		captureAbbreviationTarget,
 		captureCorrectionTarget,
 		DEFAULT_INSPECTOR_CARRIER_TYPES,
+		getPageAtPosition,
 		getSelectedTranscriptionQuote,
 		getSelectedInspectorNode,
 		inspectorSelectionKey,
@@ -89,8 +91,10 @@
 
 	let {
 		transcription,
+		transcriptionDocument = null,
 		data,
 		onSaveStateChange,
+		onContentSave,
 		onPagesChange,
 		onActivePageChange,
 		onTextSelectionChange,
@@ -104,8 +108,10 @@
 		readOnly = false,
 	}: {
 		transcription: TranscriptionRecord | undefined | null;
+		transcriptionDocument?: StoredTranscriptionDocument | null;
 		data: any;
 		onSaveStateChange?: (saved: boolean) => void;
+		onContentSave?: (save: Promise<{ verseSetChanged: boolean }>, updatedAt: string) => void;
 		onPagesChange?: (pages: PageEditorMetadata[]) => void;
 		onActivePageChange?: (page: PageEditorMetadata | null) => void;
 		onTextSelectionChange?: (selection: TranscriptionSelectionQuote | null) => void;
@@ -274,27 +280,10 @@
 
 	function getActivePageMetadata(editor: Editor | null): PageEditorMetadata | null {
 		if (!editor) return null;
-		const cursorPos = editor.state.selection.from;
-		let pageOrder = 0;
-		let activePage: PageEditorMetadata | null = null;
-
-		editor.state.doc.descendants((node, pos) => {
-			if (node.type.name !== 'page') {
-				return true;
-			}
-
-			pageOrder += 1;
-			const pageStart = pos;
-			const pageEnd = pos + node.nodeSize;
-			if (cursorPos < pageStart || cursorPos > pageEnd) {
-				return false;
-			}
-
-			activePage = extractPageMetadata(node, pos);
-			activePage.pageOrder = pageOrder;
-			return false;
-		});
-
+		const page = getPageAtPosition(editor.state.doc, editor.state.selection.from);
+		if (!page) return null;
+		const activePage = extractPageMetadata(page.node, page.pos);
+		activePage.pageOrder = page.index + 1;
 		return activePage;
 	}
 
@@ -591,7 +580,9 @@
 			});
 			const editor = getEditor(transcriptionElement, bubbleMenu);
 			const initialDocument =
-				coerceTranscriptionDocument(transcription.content_json) ?? EMPTY_TRANSCRIPTION_DOC;
+				transcriptionDocument ??
+				coerceTranscriptionDocument(transcription.content_json) ??
+				EMPTY_TRANSCRIPTION_DOC;
 			canonicalDocument = initialDocument;
 			const initialPm = toProseMirror(initialDocument) as any;
 			const repairResult = prepareManuscriptDocumentEntry(initialPm);
@@ -610,6 +601,7 @@
 				debouncedAutosave();
 			}
 
+			let selectionUpdatedBy: unknown = null;
 			editor.on('update', ({ transaction }: { transaction: any }) => {
 				if (transaction.docChanged) {
 					unconfirmedVerseCount = countUnconfirmedVerses(editor);
@@ -625,10 +617,11 @@
 					if (pageCountChanged) hasPage = checkForPages(editor);
 					debouncedAutosave();
 				}
-				updateSelectionDerivedState(editor);
+				if (transaction !== selectionUpdatedBy) updateSelectionDerivedState(editor);
 			});
 
-			editor.on('selectionUpdate', () => {
+			editor.on('selectionUpdate', ({ transaction }: { transaction: unknown }) => {
+				selectionUpdatedBy = transaction;
 				updateSelectionDerivedState(editor);
 			});
 
@@ -981,38 +974,69 @@
 		reviewCurrentVerseCommand(editorState.editor);
 	}
 
+	function withCanonicalFields(
+		editorDocument: StoredTranscriptionDocument
+	): StoredTranscriptionDocument {
+		const mergedDocument = mergeWithCanonicalDocument(canonicalDocument, editorDocument);
+		return pendingReferenceEditionsUsed
+			? {
+					...mergedDocument,
+					referenceEditionsUsed: [...pendingReferenceEditionsUsed],
+					referenceEditionAttributions: {
+						...(pendingReferenceEditionAttributions || {}),
+					},
+				}
+			: mergedDocument;
+	}
+
 	function coerceEditorJsonToDocument(editorJson: unknown): StoredTranscriptionDocument | null {
 		try {
-			const editorDocument = fromProseMirror(editorJson as any);
-			const mergedDocument = mergeWithCanonicalDocument(canonicalDocument, editorDocument);
-			return pendingReferenceEditionsUsed
-				? {
-						...mergedDocument,
-						referenceEditionsUsed: [...pendingReferenceEditionsUsed],
-						referenceEditionAttributions: {
-							...(pendingReferenceEditionAttributions || {}),
-						},
-					}
-				: mergedDocument;
+			return withCanonicalFields(fromProseMirror(editorJson as any));
 		} catch (error) {
 			console.error('[Transcription] Failed to convert editor state to AST:', error);
 			return null;
 		}
 	}
 
-	async function persistDocument(document: StoredTranscriptionDocument): Promise<boolean> {
+	const convertPages = createPageConversionCache();
+
+	function readSavePayload(): {
+		document: StoredTranscriptionDocument;
+		contentJson: string;
+	} | null {
+		const editor = editorState.editor;
+		if (!editor) return null;
+		try {
+			const { pages, pageJson } = convertPages(editor.state.doc);
+			const document = withCanonicalFields({ type: 'transcriptionDocument', pages });
+			return { document, contentJson: serializeNormalizedPagesDocument(document, pageJson) };
+		} catch (error) {
+			console.error('[Transcription] Failed to convert editor state to AST:', error);
+			return null;
+		}
+	}
+
+	async function persistDocument({
+		document,
+		contentJson,
+	}: {
+		document: StoredTranscriptionDocument;
+		contentJson: string;
+	}): Promise<boolean> {
 		const currentTranscription = transcription;
 		if (!currentTranscription?.id) return false;
 		try {
 			const now = new Date().toISOString();
 			await ensureLocalDbRuntime();
-			await updateTranscriptionContent({
+			const save = updateTranscriptionContent({
 				id: currentTranscription.id,
 				document,
-				contentJson: serializeTranscriptionDocument(document),
+				contentJson,
 				format: TRANSCRIPTION_FORMAT,
 				updatedAt: now,
 			});
+			onContentSave?.(save, now);
+			await save;
 			const previousReferenceEditions = getReferenceEditionsUsed(canonicalDocument);
 			canonicalDocument = document;
 			if (
@@ -1037,10 +1061,7 @@
 	}
 
 	const autosave = createDebouncedSave({
-		read: () => {
-			const editorJson = editorState.editor?.getJSON();
-			return editorJson ? coerceEditorJsonToDocument(editorJson) : null;
-		},
+		read: readSavePayload,
 		save: persistDocument,
 		onSettled: () => onSaveStateChange?.(true),
 	});

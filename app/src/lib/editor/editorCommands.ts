@@ -2,6 +2,12 @@ import type { Editor } from '@tiptap/core';
 import { NodeSelection } from '@tiptap/pm/state';
 import { nanoid } from 'nanoid';
 
+import {
+	type MilestoneContext,
+	milestoneContextAt,
+	unconfirmedVerseCount,
+} from './schema/transcription-index';
+
 export const COMMON_ABBREVIATION_TYPES = [
 	'nomSac',
 	'ligature',
@@ -277,63 +283,8 @@ export function buildTeiMilestoneAttrs(
 
 export type MilestoneNodeType = 'book' | 'chapter' | 'verse';
 
-function resolveMilestoneContext(editor: Editor | null): {
-	book?: string;
-	chapter?: string;
-	verse?: string;
-} {
-	if (!editor) return {};
-
-	const result: { book?: string; chapter?: string; verse?: string } = {};
-	let fallbackBook: string | undefined;
-	let fallbackChapter: string | undefined;
-	let seekChapter = true;
-	let seekVerse = true;
-
-	function walkBackwards(node: any, contentStart: number, before: number): boolean {
-		let offset = node.content.size;
-		for (let index = node.childCount - 1; index >= 0; index -= 1) {
-			const child = node.child(index);
-			offset -= child.nodeSize;
-			const pos = contentStart + offset;
-			if (pos >= before) continue;
-
-			if (child.childCount && walkBackwards(child, pos + 1, before)) return true;
-
-			if (child.type.name === 'book') {
-				result.book = child.attrs.book;
-				return true;
-			}
-			if (child.type.name === 'chapter') {
-				if (seekChapter) {
-					result.chapter = child.attrs.chapter;
-					fallbackBook = child.attrs.book;
-				}
-				seekChapter = false;
-				seekVerse = false;
-			} else if (child.type.name === 'verse' && seekVerse) {
-				result.verse = child.attrs.verse;
-				fallbackBook = child.attrs.book;
-				fallbackChapter = child.attrs.chapter;
-				seekVerse = false;
-			}
-		}
-		return false;
-	}
-
-	walkBackwards(editor.state.doc, 0, editor.state.selection.from);
-	result.book ??= fallbackBook;
-	result.chapter ??= fallbackChapter;
-
-	return result;
-}
-
-export function getCurrentMilestoneValues(editor: Editor | null): {
-	book?: string;
-	chapter?: string;
-	verse?: string;
-} {
-	return resolveMilestoneContext(editor);
+export function getCurrentMilestoneValues(editor: Editor | null): MilestoneContext {
+	return editor ? milestoneContextAt(editor.state, editor.state.selection.from) : {};
 }
 
 interface VerseRange {
@@ -391,23 +342,7 @@ export function reviewCurrentVerse(editor: Editor | null): boolean {
 }
 
 export function countUnconfirmedVerses(editor: Editor | null): number {
-	if (!editor || !editor.state.schema.marks.unconfirmed) return 0;
-
-	let verseIndex = -1;
-	const unconfirmedVerseIndexes = new Set<number>();
-	editor.state.doc.descendants((node, _pos) => {
-		if (node.type.name === 'verse') {
-			verseIndex += 1;
-			return false;
-		}
-
-		if (verseIndex >= 0 && nodeHasUnconfirmedMark(node, editor)) {
-			unconfirmedVerseIndexes.add(verseIndex);
-		}
-		return undefined;
-	});
-
-	return unconfirmedVerseIndexes.size;
+	return editor ? unconfirmedVerseCount(editor.state) : 0;
 }
 
 export function hasUnconfirmedText(editor: Editor | null): boolean {
@@ -436,12 +371,12 @@ export function insertMilestoneNode(
 	if (type === 'book') {
 		attrs.book = value;
 	} else if (type === 'chapter') {
-		const context = resolveMilestoneContext(editor);
+		const context = getCurrentMilestoneValues(editor);
 		if (!context.book) return 'missing-book';
 		attrs.book = context.book;
 		attrs.chapter = value;
 	} else {
-		const context = resolveMilestoneContext(editor);
+		const context = getCurrentMilestoneValues(editor);
 		if (!context.book || !context.chapter) return 'missing-chapter';
 		attrs.book = context.book;
 		attrs.chapter = context.chapter;

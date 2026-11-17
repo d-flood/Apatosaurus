@@ -108,6 +108,7 @@ function apiContext(runExclusive: DbApiContext['exclusive']): DbApiContext {
 	return {
 		db: getKyselyDb(),
 		exclusive: runExclusive,
+		defer: (label, work) => exclusive(() => work(getKyselyDb()), label, 'background'),
 		invalidate: (...domains: DbInvalidationDomain[]) => {
 			for (const domain of domains) postMessage({ type: 'db:invalidate', domain });
 		},

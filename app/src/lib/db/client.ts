@@ -66,7 +66,7 @@ export const rebuildVerseIndexForTranscriptions = call('rebuildVerseIndexForTran
 
 export async function updateTranscriptionContent(input: UpdateTranscriptionContentInput) {
 	const { id, contentJson, format, updatedAt } = input;
-	await send({
+	return send<DbResult<'updateTranscriptionContent'>>({
 		method: 'updateTranscriptionContent',
 		args: [contentJson === undefined ? input : { id, contentJson, format, updatedAt }],
 	});

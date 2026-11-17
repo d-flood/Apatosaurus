@@ -20,9 +20,10 @@
 		type VerseIndexRow,
 	} from '$lib/transcription/verse-index';
 	import {
-		mapLocalTranscriptionRecord,
+		parseLocalTranscriptionRecord,
 		type TranscriptionRecord,
 	} from '$lib/transcription/model';
+	import type { StoredTranscriptionDocument } from '$lib/transcription/content';
 	import IiifWorkspace from '$lib/editor/components/IiifWorkspace.svelte';
 	import EntityHeader from '$lib/shell/components/EntityHeader.svelte';
 	import OfflineNotice from '$lib/shell/components/OfflineNotice.svelte';
@@ -88,6 +89,7 @@
 	};
 
 	let transcription = $state<TranscriptionRecord | null>(null);
+	let transcriptionDocument = $state.raw<StoredTranscriptionDocument | null>(null);
 	let transcriptionVersionStatus = $state<ProjectTranscriptionStatus | null>(null);
 	let loadError = $state<string | null>(null);
 	let versionStatusError = $state<string | null>(null);
@@ -272,8 +274,41 @@
 		await ensureLocalDbRuntime();
 		const nextTranscription = await getTranscription(transcriptionId);
 		if (isCancelled()) return;
-		transcription = nextTranscription ? mapLocalTranscriptionRecord(nextTranscription) : null;
+		const parsed = nextTranscription ? parseLocalTranscriptionRecord(nextTranscription) : null;
+		transcriptionDocument = parsed?.document ?? null;
+		transcription = parsed?.transcription ?? null;
 		loadError = nextTranscription ? null : 'Failed to load transcription';
+	}
+
+	let ownSavesInFlight = 0;
+	let invalidationsDuringOwnSaves = 0;
+
+	// The worker posts a save's invalidation before its reply, so each successful own save accounts for one.
+	function handleContentSave(save: Promise<{ verseSetChanged: boolean }>, updatedAt: string) {
+		ownSavesInFlight += 1;
+		void save
+			.then(
+				({ verseSetChanged }) => {
+					invalidationsDuringOwnSaves -= 1;
+					if (transcription) transcription.updated_at = updatedAt;
+					void loadTranscriptionVersionStatus();
+					if (verseSetChanged) void loadVerseIndex();
+				},
+				() => {}
+			)
+			.finally(() => {
+				ownSavesInFlight -= 1;
+				if (ownSavesInFlight > 0) return;
+				const missedExternalChange = invalidationsDuringOwnSaves > 0;
+				invalidationsDuringOwnSaves = 0;
+				if (missedExternalChange) reloadAfterExternalChange();
+			});
+	}
+
+	function reloadAfterExternalChange(isCancelled: () => boolean = () => false) {
+		void loadTranscriptionVersionStatus(isCancelled);
+		void loadTranscription(isCancelled);
+		void loadVerseIndex(isCancelled);
 	}
 
 	async function loadTranscriptionVersionStatus(isCancelled: () => boolean = () => false) {
@@ -503,13 +538,10 @@
 		void loadTranscriptionVersionStatus(() => cancelled);
 
 		unsubscribeInvalidations = subscribeLocalDbInvalidations(event => {
-			if (event.domain === 'transcriptions' || event.domain === 'projects') {
-				void loadTranscriptionVersionStatus(() => cancelled);
-			}
-			if (event.domain === 'transcriptions') {
-				void loadTranscription(() => cancelled);
-				void loadVerseIndex(() => cancelled);
-			}
+			if (event.domain === 'projects') void loadTranscriptionVersionStatus(() => cancelled);
+			if (event.domain !== 'transcriptions') return;
+			if (ownSavesInFlight > 0) invalidationsDuringOwnSaves += 1;
+			else reloadAfterExternalChange(() => cancelled);
 		});
 
 		void loadVerseIndex(() => cancelled).catch(err => {
@@ -670,8 +702,10 @@
 						<TranscriptionEditor
 							bind:this={transcriptionEditorRef}
 							{transcription}
+							{transcriptionDocument}
 							{data}
 							onSaveStateChange={handleSaveStateChange}
+							onContentSave={handleContentSave}
 							onPagesChange={pages => (editorPages = pages)}
 							onActivePageChange={page => (activePageId = page?.pageId || null)}
 							onTextSelectionChange={selection =>

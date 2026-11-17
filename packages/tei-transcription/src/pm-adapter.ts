@@ -816,7 +816,7 @@ function formWorkProseMirrorContent(node: ProseMirrorJSON): ProseMirrorJSON[] {
 
 function convertMark(mark: { type: string; attrs?: Record<string, any> }): TextMark {
 	if (mark.type === 'abbreviation') {
-		return { type: 'abbreviation', attrs: mark.attrs || {} };
+		return { type: 'abbreviation', attrs: abbreviationAttrs(mark.attrs || {}) };
 	}
 
 	if (
@@ -861,6 +861,14 @@ function convertMark(mark: { type: string; attrs?: Record<string, any> }): TextM
 	}
 
 	return { type: mark.type as TextMark['type'] } as TextMark;
+}
+
+// Keeps only what the serializer writes, in parsed order; editor defaults such as id are dropped.
+function abbreviationAttrs(attrs: Record<string, any>): Record<string, any> {
+	const { id: _id, rend, type, expansion, ...rest } = attrs;
+	return type === 'ligature'
+		? { type, ...(rend ? { rend } : {}), expansion: expansion ?? '', ...rest }
+		: { type, expansion: expansion ?? '', ...rest };
 }
 
 function marksToProseMirror(marks: TextMark[] | undefined): ProseMirrorJSON['marks'] {

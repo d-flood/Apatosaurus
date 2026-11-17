@@ -40,6 +40,7 @@ import type {
 } from '$lib/storage/formats';
 import type { DbInvalidationDomain } from './rpc';
 import type { Database } from './types.generated';
+import { checkTranscriptionRows, checkTranscriptionRowsLater } from './transcription-read-back';
 import {
 	createCollationWithFilesResult,
 	createCommittedCollationCheckpointWithFiles,
@@ -120,6 +121,7 @@ import {
 	createTranscriptionsWithFilesResult,
 	createTranscriptionWithFilesResult,
 	exportTranscriptionTeiWithFiles,
+	listUnverifiedTranscriptionIds,
 	loadTranscriptionContentWithFiles,
 	loadTranscriptionWithWorkingFile,
 	rebuildVerseIndexForTranscriptionsWithFiles,
@@ -148,6 +150,8 @@ export interface DbApiContext {
 	invalidate: (...domains: DbInvalidationDomain[]) => void;
 	warn: (warnings: PersistenceWarning[]) => void;
 	exclusive: <T>(work: () => Promise<T>) => Promise<T>;
+	/** Queues work at background priority. */
+	defer: <T>(label: string, work: (db: Kysely<Database>) => Promise<T>) => Promise<T>;
 	progress?: (progress: IndexRebuildProgress) => void;
 }
 
@@ -165,29 +169,35 @@ export const dbApi = defineApi({
 		exportTranscriptionTeiWithFiles(db, id, document),
 	getCurrentVerseSources: ({ db }, verseIdentifier: string, transcriptionIds: string[]) =>
 		getCurrentVerseSources(db, verseIdentifier, transcriptionIds),
-	async createTranscription({ db, invalidate, warn }, input: CreateTranscriptionInput) {
-		const result = await createTranscriptionWithFilesResult(db, input);
-		invalidate('transcriptions', 'projects');
-		warn(result.warnings);
+	async createTranscription(context, input: CreateTranscriptionInput) {
+		const result = await createTranscriptionWithFilesResult(context.db, input);
+		context.invalidate('transcriptions', 'projects');
+		context.warn(result.warnings);
+		checkTranscriptionRows(context, [result.value]);
 		return result.value;
 	},
-	async createTranscriptions({ db, invalidate, warn }, inputs: CreateTranscriptionInput[]) {
-		const result = await createTranscriptionsWithFilesResult(db, inputs);
-		invalidate('transcriptions', 'projects');
-		warn(result.warnings);
+	async createTranscriptions(context, inputs: CreateTranscriptionInput[]) {
+		const result = await createTranscriptionsWithFilesResult(context.db, inputs);
+		context.invalidate('transcriptions', 'projects');
+		context.warn(result.warnings);
+		checkTranscriptionRows(context, result.value);
 		return result.value;
 	},
-	async updateTranscriptionContent({ db, invalidate }, input: UpdateTranscriptionContentInput) {
-		await saveWorkingTranscriptionContent(db, input);
-		invalidate('transcriptions');
+	async updateTranscriptionContent(context, input: UpdateTranscriptionContentInput) {
+		const result = await saveWorkingTranscriptionContent(context.db, input);
+		context.invalidate('transcriptions');
+		checkTranscriptionRowsLater(context, input.id);
+		return result;
 	},
-	async updateTranscriptionMetadata({ db, invalidate }, input: UpdateTranscriptionMetadataInput) {
-		await saveWorkingTranscriptionMetadata(db, input);
-		invalidate('transcriptions');
+	async updateTranscriptionMetadata(context, input: UpdateTranscriptionMetadataInput) {
+		await saveWorkingTranscriptionMetadata(context.db, input);
+		context.invalidate('transcriptions');
+		checkTranscriptionRowsLater(context, input.id);
 	},
-	async reimportTranscriptionContent({ db, invalidate, warn }, id: string, contentJson: string) {
-		warn(await reimportTranscriptionContent(db, id, contentJson));
-		invalidate('transcriptions', 'projects');
+	async reimportTranscriptionContent(context, id: string, contentJson: string) {
+		context.warn(await reimportTranscriptionContent(context.db, id, contentJson));
+		context.invalidate('transcriptions', 'projects');
+		checkTranscriptionRows(context, [id]);
 	},
 	listConflictCopies: ({ db }, projectId?: string) => listConflictCopies(db, projectId),
 	loadConflictCopyContents: ({ db }, copyId: string) => loadConflictCopyContents(db, copyId),
@@ -459,20 +469,18 @@ export const dbApi = defineApi({
 		invalidate('iiif');
 	},
 
-	async createCommittedTranscriptionCheckpoint(
-		{ db, invalidate },
-		input: CommitTranscriptionInput
-	) {
-		const { project_id } = await db
+	async createCommittedTranscriptionCheckpoint(context, input: CommitTranscriptionInput) {
+		const { project_id, transcription_id } = await context.db
 			.selectFrom('project_transcriptions')
-			.select('project_id')
+			.select(['project_id', 'transcription_id'])
 			.where('id', '=', input.projectTranscriptionId)
 			.executeTakeFirstOrThrow();
-		const checkpoint = await createCommittedTranscriptionCheckpointWithFiles(db, {
+		const checkpoint = await createCommittedTranscriptionCheckpointWithFiles(context.db, {
 			...input,
 			authorName: input.authorName ?? (await effectiveAuthorName(project_id)) ?? undefined,
 		});
-		invalidate('transcriptions');
+		context.invalidate('transcriptions');
+		checkTranscriptionRows(context, [transcription_id]);
 		return checkpoint;
 	},
 	async createCommittedCollationCheckpoint({ db, invalidate }, input: CommitCollationInput) {
@@ -495,22 +503,24 @@ export const dbApi = defineApi({
 	getTranscriptionSourceOptions: ({ db }, transcriptionId: string) =>
 		getTranscriptionSourceOptions(db, transcriptionId),
 	listCollationVersions: ({ db }, collationId: string) => listCollationVersions(db, collationId),
-	async restoreTranscriptionVersion(
-		{ db, invalidate },
-		transcriptionId: string,
-		checkpointId: string
-	) {
-		const previous = await restoreTranscriptionVersion(db, transcriptionId, checkpointId);
-		invalidate('transcriptions', 'iiif');
+	async restoreTranscriptionVersion(context, transcriptionId: string, checkpointId: string) {
+		const previous = await restoreTranscriptionVersion(
+			context.db,
+			transcriptionId,
+			checkpointId
+		);
+		context.invalidate('transcriptions', 'iiif');
+		checkTranscriptionRowsLater(context, transcriptionId);
 		return previous;
 	},
 	async replaceTranscriptionCurrent(
-		{ db, invalidate },
+		context,
 		transcriptionId: string,
 		payload: ProjectTranscriptionPayload
 	) {
-		await replaceTranscriptionCurrent(db, transcriptionId, payload);
-		invalidate('transcriptions', 'iiif');
+		await replaceTranscriptionCurrent(context.db, transcriptionId, payload);
+		context.invalidate('transcriptions', 'iiif');
+		checkTranscriptionRowsLater(context, transcriptionId);
 	},
 	async updateTranscriptionVersionNote(
 		{ db, invalidate },
@@ -718,9 +728,16 @@ export const dbApi = defineApi({
 		if (report.status === 'converted') invalidate('all');
 		return report;
 	},
-	async refreshChangedDocumentFiles({ db, invalidate, progress }, projectId: string) {
-		const report = await refreshChangedDocumentFiles(db, projectId, {}, progress);
-		if (report.hashed > 0) invalidate('projects', 'transcriptions', 'iiif');
+	async refreshChangedDocumentFiles(context, projectId: string) {
+		const report = await refreshChangedDocumentFiles(
+			context.db,
+			projectId,
+			{},
+			context.progress
+		);
+		if (report.hashed > 0) context.invalidate('projects', 'transcriptions', 'iiif');
+		for (const id of await listUnverifiedTranscriptionIds(context.db, projectId))
+			checkTranscriptionRowsLater(context, id);
 		return report;
 	},
 	listDocumentFileProblems: ({ db }, projectId: string) =>

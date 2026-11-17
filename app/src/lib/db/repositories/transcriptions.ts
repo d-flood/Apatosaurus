@@ -105,7 +105,7 @@ interface VerseNode {
 	verse: string;
 }
 
-interface NormalizedTranscriptionContent {
+export interface NormalizedTranscriptionContent {
 	contentJson: string;
 	document: StoredTranscriptionDocument;
 }
@@ -542,11 +542,13 @@ export async function rebuildVerseIndexForTranscriptions(
 export async function replaceTranscriptionVerseIndexRows(
 	db: DbExecutor,
 	transcriptionId: string,
-	contentJson: string,
+	content: string | NormalizedTranscriptionContent,
 	indexedAt: string = new Date().toISOString()
-): Promise<void> {
-	await replaceVerseIndexRows(db, transcriptionId, {
-		...normalizeTranscriptionContent({ contentJson }),
+): Promise<{ verseSetChanged: boolean }> {
+	return replaceVerseIndexRows(db, transcriptionId, {
+		...(typeof content === 'string'
+			? normalizeTranscriptionContent({ contentJson: content })
+			: content),
 		indexedAt,
 	});
 }
@@ -588,16 +590,12 @@ async function replaceVerseIndexRows(
 	db: DbExecutor,
 	transcriptionId: string,
 	input: ReplaceVerseIndexRowsInput
-): Promise<void> {
+): Promise<{ verseSetChanged: boolean }> {
 	const indexedAt = input.indexedAt ?? new Date().toISOString();
 	// A key-order change only costs a redundant reindex, so skip canonical JSON.
 	const contentHash = await hashContent(input.contentJson);
-	if (!input.force && (await isVerseIndexCurrent(db, transcriptionId, contentHash))) return;
-
-	await db
-		.deleteFrom('transcription_verse_index')
-		.where('transcription_id', '=', transcriptionId)
-		.execute();
+	if (!input.force && (await isVerseIndexCurrent(db, transcriptionId, contentHash)))
+		return { verseSetChanged: false };
 
 	const uniqueByIdentifier = new Map<string, VerseNode>();
 	for (const verse of extractVersesFromDocument(input.document)) {
@@ -607,26 +605,72 @@ async function replaceVerseIndexRows(
 	}
 
 	const slices = indexVerseSlices(input.document, uniqueByIdentifier.keys(), SLICE_CHUNK_LENGTH);
-	const rows: Selectable<TranscriptionVerseIndex>[] = [...uniqueByIdentifier].map(
-		([identifier, verse]) => ({
-			id: createId(),
-			transcription_id: transcriptionId,
-			verse_identifier: identifier,
+	const stored = new Map<string, Omit<Selectable<TranscriptionVerseIndex>, 'last_indexed_at'>>();
+	const deleted: Array<string | null> = [];
+	for (const row of await db
+		.selectFrom('transcription_verse_index')
+		.select([
+			'id',
+			'transcription_id',
+			'verse_identifier',
+			'book',
+			'chapter',
+			'verse',
+			'slice_first_chunk',
+			'slice_last_chunk',
+		])
+		.where('transcription_id', '=', transcriptionId)
+		.execute()) {
+		if (stored.has(row.verse_identifier)) deleted.push(row.id);
+		else stored.set(row.verse_identifier, row);
+	}
+	const written: Selectable<TranscriptionVerseIndex>[] = [];
+	let inserted = 0;
+	for (const [identifier, verse] of uniqueByIdentifier) {
+		const range = slices.ranges.get(identifier);
+		const fields = {
 			book: verse.book,
 			chapter: verse.chapter,
 			verse: verse.verse,
+			slice_first_chunk: range?.[0] ?? null,
+			slice_last_chunk: range?.[1] ?? null,
+		};
+		const previous = stored.get(identifier);
+		stored.delete(identifier);
+		if (previous && verseRowUnchanged(previous, fields)) continue;
+		if (!previous) inserted += 1;
+		written.push({
+			id: previous?.id ?? createId(),
+			transcription_id: transcriptionId,
+			verse_identifier: identifier,
+			...fields,
 			last_indexed_at: indexedAt,
-			slice_first_chunk: slices.ranges.get(identifier)?.[0] ?? null,
-			slice_last_chunk: slices.ranges.get(identifier)?.[1] ?? null,
-		})
-	);
+		});
+	}
+	deleted.push(...[...stored.values()].map(row => row.id));
 
-	if (rows.length > 0) await db.insertInto('transcription_verse_index').values(rows).execute();
+	if (deleted.length > 0)
+		await db.deleteFrom('transcription_verse_index').where('id', 'in', deleted).execute();
+	if (written.length > 0)
+		await db
+			.insertInto('transcription_verse_index')
+			.values(written)
+			.onConflict(oc =>
+				oc.column('id').doUpdateSet({
+					book: eb => eb.ref('excluded.book'),
+					chapter: eb => eb.ref('excluded.chapter'),
+					verse: eb => eb.ref('excluded.verse'),
+					slice_first_chunk: eb => eb.ref('excluded.slice_first_chunk'),
+					slice_last_chunk: eb => eb.ref('excluded.slice_last_chunk'),
+					last_indexed_at: eb => eb.ref('excluded.last_indexed_at'),
+				})
+			)
+			.execute();
 	await replaceSliceChunks(db, transcriptionId, slices.chunks);
 	const { pages: _pages, ...documentShell } = input.document;
 	const state = {
 		indexed_content_hash: contentHash,
-		verse_count: rows.length,
+		verse_count: uniqueByIdentifier.size,
 		last_indexed_at: indexedAt,
 		document_shell_json: JSON.stringify(documentShell),
 		hands_json: JSON.stringify(collectDocumentHandOptions(input.document)),
@@ -636,6 +680,23 @@ async function replaceVerseIndexRows(
 		.values({ transcription_id: transcriptionId, ...state })
 		.onConflict(oc => oc.column('transcription_id').doUpdateSet(state))
 		.execute();
+	return { verseSetChanged: inserted > 0 || deleted.length > 0 };
+}
+
+function verseRowUnchanged(
+	previous: Pick<
+		Selectable<TranscriptionVerseIndex>,
+		'book' | 'chapter' | 'verse' | 'slice_first_chunk' | 'slice_last_chunk'
+	>,
+	next: typeof previous
+): boolean {
+	return (
+		previous.book === next.book &&
+		previous.chapter === next.chapter &&
+		previous.verse === next.verse &&
+		previous.slice_first_chunk === next.slice_first_chunk &&
+		previous.slice_last_chunk === next.slice_last_chunk
+	);
 }
 
 async function replaceSliceChunks(

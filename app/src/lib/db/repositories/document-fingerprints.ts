@@ -58,6 +58,7 @@ export function documentFingerprintRow(
 		last_modified: lastModified,
 		file_hash: write.fileHash,
 		content_hash: write.contentHash,
+		rows_verified: 1,
 	};
 }
 

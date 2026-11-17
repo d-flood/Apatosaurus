@@ -273,7 +273,9 @@ CREATE TABLE IF NOT EXISTS document_file_fingerprints (
 	size INTEGER NOT NULL,
 	last_modified INTEGER NOT NULL,
 	file_hash TEXT NOT NULL,
-	content_hash TEXT NOT NULL
+	content_hash TEXT NOT NULL,
+	-- 0 after a save that built rows from the payload; 1 after the read-back check or a rebuild.
+	rows_verified INTEGER NOT NULL DEFAULT 1
 );
 
 CREATE INDEX IF NOT EXISTS idx_document_file_fingerprints_entity

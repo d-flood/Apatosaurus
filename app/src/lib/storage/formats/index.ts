@@ -66,6 +66,7 @@ export {
 	parseTranscriptionTeiVersion,
 	rewriteTranscriptionTeiVersion,
 	serializeTranscriptionTei,
+	serializeTranscriptionTeiWithRecord,
 	splitTranscriptionTeiIiif,
 	type SerializedTranscriptionTei,
 	type TranscriptionTeiRecord,

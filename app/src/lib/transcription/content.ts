@@ -40,6 +40,19 @@ export function serializeTranscriptionDocument(document: StoredTranscriptionDocu
 	return JSON.stringify(normalizeStoredTranscriptionDocument(document));
 }
 
+const PAGES_PREFIX = '{"type":"transcriptionDocument","pages":[';
+
+/** Equals `serializeTranscriptionDocument` for a document whose pages are already normalized and serialized as `pageJson`. */
+export function serializeNormalizedPagesDocument(
+	document: StoredTranscriptionDocument,
+	pageJson: string[]
+): string {
+	const stored = normalizeDocumentFields(document);
+	const head = JSON.stringify({ ...stored, pages: [] });
+	if (!head.startsWith(`${PAGES_PREFIX}]`)) return JSON.stringify(stored);
+	return `${PAGES_PREFIX}${pageJson.join(',')}${head.slice(PAGES_PREFIX.length)}`;
+}
+
 export function getReferenceEditionsUsed(document: StoredTranscriptionDocument): string[] {
 	return [...(document.referenceEditionsUsed || [])];
 }
@@ -77,7 +90,12 @@ export function addReferenceEditionUsed(
 function normalizeStoredTranscriptionDocument(
 	document: StoredTranscriptionDocument
 ): StoredTranscriptionDocument {
-	const normalized = normalizeDocument(document);
+	return normalizeDocumentFields(normalizeDocument(document));
+}
+
+function normalizeDocumentFields(
+	normalized: StoredTranscriptionDocument
+): StoredTranscriptionDocument {
 	const referenceEditionsUsed = normalized.referenceEditionsUsed
 		?.filter((editionId): editionId is string => typeof editionId === 'string')
 		.map(editionId => editionId.trim())

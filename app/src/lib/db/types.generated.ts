@@ -127,6 +127,7 @@ export interface DocumentFileFingerprints {
 	last_modified: number;
 	file_hash: string;
 	content_hash: string;
+	rows_verified: number;
 }
 
 export interface DocumentFileProblems {

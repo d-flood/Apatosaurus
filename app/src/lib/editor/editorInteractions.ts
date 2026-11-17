@@ -1,4 +1,5 @@
 import type { Editor } from '@tiptap/core';
+import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
 import { nanoid } from 'nanoid';
 
 import type { TranscriptionSelectionQuote } from '$lib/iiif/types';
@@ -129,34 +130,31 @@ function resolveMarkTarget(
 	return { from: target.from, to: target.to };
 }
 
+export function getPageAtPosition(
+	doc: ProseMirrorNode,
+	position: number
+): { node: ProseMirrorNode; pos: number; index: number } | null {
+	if (doc.childCount === 0) return null;
+	const resolved = doc.resolve(position);
+	let index = resolved.index(0);
+	// A position between two pages belongs to the earlier one.
+	if (resolved.depth === 0 && index > 0) index -= 1;
+	const node = doc.child(index);
+	if (node.type.name !== 'page') return null;
+	return { node, pos: resolved.posAtIndex(index, 0), index };
+}
+
 function getPageContextForPosition(editor: Editor, position: number): PageSelectionContext | null {
-	let pageOrder = 0;
-	let resolved: PageSelectionContext | null = null;
-
-	editor.state.doc.descendants((node, pos) => {
-		if (node.type.name !== 'page') return true;
-		pageOrder += 1;
-		const pageStart = pos;
-		const pageEnd = pos + node.nodeSize;
-		if (position < pageStart || position > pageEnd) {
-			return false;
-		}
-		const pageId = typeof node.attrs.pageId === 'string' ? node.attrs.pageId : '';
-		resolved = pageId
-			? {
-					pageId,
-					pageName:
-						typeof node.attrs.pageName === 'string' &&
-						node.attrs.pageName.trim().length > 0
-							? node.attrs.pageName.trim()
-							: null,
-					pageOrder,
-				}
-			: null;
-		return false;
-	});
-
-	return resolved;
+	const page = getPageAtPosition(editor.state.doc, position);
+	const pageId = typeof page?.node.attrs.pageId === 'string' ? page.node.attrs.pageId : '';
+	if (!page || !pageId) return null;
+	const pageName = page.node.attrs.pageName;
+	return {
+		pageId,
+		pageName:
+			typeof pageName === 'string' && pageName.trim().length > 0 ? pageName.trim() : null,
+		pageOrder: page.index + 1,
+	};
 }
 
 export function getSelectedTranscriptionQuote(

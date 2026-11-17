@@ -339,13 +339,24 @@ function repairPageNode(
 
 		if (isRecord(child) && child.type === 'line') {
 			flushRecoveredColumn();
-			columns.push({
-				type: 'column',
-				attrs: {
-					...(options.ensureNodeIds ? { columnId: createStableEditorNodeId('col') } : {}),
-				},
-				content: [sanitizeLineNode(child, issues, `${path}.syntheticColumn.line[0]`)],
-			});
+			columns.push(
+				repairColumnNode(
+					{
+						type: 'column',
+						attrs: {
+							...(options.ensureNodeIds
+								? { columnId: createStableEditorNodeId('col') }
+								: {}),
+						},
+						content: [
+							sanitizeLineNode(child, issues, `${path}.syntheticColumn.line[0]`),
+						],
+					},
+					issues,
+					`${path}.column[${columns.length}]`,
+					options
+				)
+			);
 			issues.push(`${path}: wrapped stray line into a synthetic column`);
 			continue;
 		}
@@ -381,9 +392,7 @@ function repairPageNode(
 	return {
 		...node,
 		type: 'page',
-		content: orderedColumns.map((column, columnIndex) =>
-			repairColumnNode(column, issues, `${path}.column[${columnIndex}]`, options)
-		),
+		content: orderedColumns,
 	};
 }
 
@@ -397,8 +406,9 @@ export function repairManuscriptStructureJson(
 	};
 	const issues: string[] = [];
 	// Only migration mutates the input; every other repair builds new objects.
+	const legacyFormWork = isRecord(input) && hasLegacyFormWorkContent(input);
 	const doc = isRecord(input)
-		? hasLegacyFormWorkContent(input)
+		? legacyFormWork
 			? cloneJsonNode(input)
 			: input
 		: { type: 'manuscript', content: [] };
@@ -414,7 +424,7 @@ export function repairManuscriptStructureJson(
 			issues,
 		};
 	}
-	const migrated = migrateLegacyFormWorkContent(doc, issues);
+	const migrated = legacyFormWork && migrateLegacyFormWorkContent(doc, issues);
 
 	const rawPages = Array.isArray(doc.content) ? doc.content : [];
 	const pages: JsonNode[] = [];

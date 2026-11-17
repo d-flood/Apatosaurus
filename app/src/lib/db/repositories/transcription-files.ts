@@ -11,9 +11,11 @@ import {
 	parseTranscriptionTeiVersion,
 	rewriteTranscriptionTeiVersion,
 	serializeTranscriptionTei,
+	serializeTranscriptionTeiWithRecord,
 	splitTranscriptionTeiIiif,
 	type ProjectTranscriptionPayload,
 } from '$lib/storage/formats';
+import { hashContent } from '$lib/storage/content-hash';
 import { readTextFile, type StoreOperationOptions } from '$lib/storage/opfs-store';
 import type { JsonValue } from '$lib/storage/envelope';
 import { joinStorePath, projectFolder } from '$lib/storage/layout';
@@ -36,6 +38,7 @@ import {
 	getProjectTranscriptionCheckpointStatus,
 	inTransaction,
 	loadCommittedTranscriptionCheckpointPayload,
+	loadProjectTranscriptionMetadata,
 	loadProjectTranscriptionSnapshot,
 	nextTranscriptionVersionLabel,
 	type CommitTranscriptionInput,
@@ -76,33 +79,29 @@ interface TranscriptionFileContext {
 	updatedAt: string;
 }
 
-interface NormalizedWorkingTranscriptionContent {
-	contentJson: string;
-	document: StoredTranscriptionDocument;
-	jsonValue: JsonValue;
-}
-
 export async function saveWorkingTranscriptionContent(
 	db: Kysely<Database>,
 	input: UpdateTranscriptionContentInput,
 	storeOptions: StoreOperationOptions = {}
-): Promise<void> {
-	const content = normalizeWorkingTranscriptionContent(input, input.id);
+): Promise<{ verseSetChanged: boolean }> {
+	const document = normalizeWorkingTranscriptionContent(input, input.id);
 	const updatedAt = input.updatedAt ?? new Date().toISOString();
 	const context = await loadTranscriptionFileContext(db, input.id);
-	const snapshot = await loadProjectTranscriptionSnapshot(db, context.projectTranscriptionId);
-	const format = input.format ?? snapshot.format ?? TRANSCRIPTION_FORMAT;
-	await writeTeiCurrent(
+	const metadata = await loadProjectTranscriptionMetadata(db, context.projectTranscriptionId);
+	const format = input.format ?? metadata.format ?? TRANSCRIPTION_FORMAT;
+	const result = await writeTeiCurrent(
 		db,
 		context,
 		currentPayload(
 			context,
-			{ ...snapshot, content_json: content.jsonValue, format },
+			{ ...metadata, content_json: document as unknown as JsonValue, format },
 			updatedAt
 		),
-		storeOptions
+		storeOptions,
+		true
 	);
 	await touchProject(db, context.projectId, updatedAt);
+	return result;
 }
 
 export async function saveWorkingTranscriptionMetadata(
@@ -154,16 +153,20 @@ function currentPayload(
 	return buildCurrentTranscriptionPayload(context, snapshot, basedOn, updatedAt);
 }
 
-// Indexes what parsing the written file yields, so a rebuild from files reproduces these rows.
+// Indexes what parsing the written file yields, so a rebuild from files reproduces these rows;
+// the read-back check confirms it later.
 async function writeTeiCurrent(
 	db: DbExecutor,
 	context: TranscriptionFileContext,
 	payload: ProjectTranscriptionPayload,
-	storeOptions: StoreOperationOptions
-): Promise<void> {
+	storeOptions: StoreOperationOptions,
+	contentCoerced = false
+): Promise<{ verseSetChanged: boolean }> {
 	const path = documentCanonicalPath('transcription', context.projectTranscriptionId);
 	await assertNoDocumentFileProblem(db, path);
-	const serialized = await serializeTranscriptionTei(payload);
+	const { record, ...serialized } = await serializeTranscriptionTeiWithRecord(payload, {
+		contentCoerced,
+	});
 	const fingerprint = await writeTeiFile(
 		{
 			projectSlug: context.projectStorageSlug,
@@ -174,14 +177,116 @@ async function writeTeiCurrent(
 		},
 		storeOptions
 	);
-	const rows = transcriptionIndexRowsFromPrimary(
-		context.projectId,
-		parseTranscriptionTei(serialized.xml)
-	);
-	await inTransaction(db, async trx => {
-		await replaceTranscriptionIndexRows(trx, context.transcriptionId, rows);
-		await upsertDocumentFingerprint(trx, fingerprint);
+	const rows = transcriptionIndexRowsFromPrimary(context.projectId, record);
+	return inTransaction(db, async trx => {
+		const result = await replaceTranscriptionIndexRows(
+			trx,
+			context.transcriptionId,
+			rows,
+			record.content_json as unknown as StoredTranscriptionDocument
+		);
+		await upsertDocumentFingerprint(trx, { ...fingerprint, rows_verified: 0 });
+		return result;
 	});
+}
+
+export async function listUnverifiedTranscriptionIds(
+	db: DbExecutor,
+	projectId: string
+): Promise<string[]> {
+	const rows = await db
+		.selectFrom('document_file_fingerprints')
+		.innerJoin(
+			'project_transcriptions',
+			'project_transcriptions.id',
+			'document_file_fingerprints.entity_id'
+		)
+		.select('project_transcriptions.transcription_id')
+		.where('document_file_fingerprints.entity_type', '=', 'transcription')
+		.where('document_file_fingerprints.rows_verified', '=', 0)
+		.where('project_transcriptions.project_id', '=', projectId)
+		.execute();
+	return rows.map(row => row.transcription_id);
+}
+
+export type TranscriptionRowsCheck = 'verified' | 'corrected' | 'skipped';
+
+/** Indexes the Current file again when the rows a save built from its payload differ from it. */
+export async function verifyTranscriptionIndexRows(
+	db: Kysely<Database>,
+	transcriptionId: string,
+	storeOptions: StoreOperationOptions = {}
+): Promise<{ status: TranscriptionRowsCheck; warnings: PersistenceWarning[] }> {
+	const skipped = { status: 'skipped' as const, warnings: [] };
+	const context = await loadTranscriptionFileContext(db, transcriptionId).catch(() => null);
+	if (!context) return skipped;
+	const path = documentCanonicalPath('transcription', context.projectTranscriptionId);
+	const fingerprint = await db
+		.selectFrom('document_file_fingerprints')
+		.select(['file_hash', 'rows_verified'])
+		.where('path', '=', path)
+		.executeTakeFirst();
+	if (!fingerprint || fingerprint.rows_verified) return skipped;
+	const xml = await readTextFile(
+		joinStorePath(projectFolder(context.projectStorageSlug), path),
+		storeOptions
+	);
+	if ((await hashContent(xml)) !== fingerprint.file_hash) return skipped;
+	const payload = parseTranscriptionTei(xml);
+	const rows = transcriptionIndexRowsFromPrimary(context.projectId, payload);
+	const matches = await indexRowsMatch(db, transcriptionId, rows);
+	await inTransaction(db, async trx => {
+		if (!matches)
+			await replaceTranscriptionIndexRows(
+				trx,
+				transcriptionId,
+				rows,
+				payload.content_json as unknown as StoredTranscriptionDocument
+			);
+		await trx
+			.updateTable('document_file_fingerprints')
+			.set({ rows_verified: 1 })
+			.where('path', '=', path)
+			.execute();
+	});
+	if (matches) return { status: 'verified', warnings: [] };
+	return {
+		status: 'corrected',
+		warnings: [
+			{
+				code: 'index_rows_corrected',
+				entityType: 'transcription',
+				entityId: transcriptionId,
+				message: `${rows.transcription.siglum || rows.transcription.title || transcriptionId} did not read back from its file as saved. The local index now follows the file; check the transcription.`,
+				recoverable: true,
+			},
+		],
+	};
+}
+
+async function indexRowsMatch(
+	db: DbExecutor,
+	transcriptionId: string,
+	rows: TranscriptionIndexRows
+): Promise<boolean> {
+	const stored = await db
+		.selectFrom('transcriptions')
+		.selectAll()
+		.where('id', '=', transcriptionId)
+		.executeTakeFirst();
+	if (!stored || !sameFields(stored, rows.transcription)) return false;
+	const state = await db
+		.selectFrom('transcription_verse_index_state')
+		.select('indexed_content_hash')
+		.where('transcription_id', '=', transcriptionId)
+		.executeTakeFirst();
+	if (state?.indexed_content_hash !== (await hashContent(rows.transcription.content_json)))
+		return false;
+	for (const [table, expected] of iiifTables(rows)) {
+		const changes = await changedRowsById(db, table, transcriptionId, expected);
+		if (changes.changed.length || changes.stale.length) return false;
+	}
+	return true;
 }
 
 async function touchProject(db: DbExecutor, projectId: string, updatedAt: string): Promise<void> {
@@ -192,31 +297,107 @@ async function touchProject(db: DbExecutor, projectId: string, updatedAt: string
 		.execute();
 }
 
+type TranscriptionIndexRows = ReturnType<typeof transcriptionIndexRowsFromPrimary>;
+type IiifTable =
+	'iiif_manifest_sources' | 'transcription_page_canvas_links' | 'iiif_canvas_annotations';
+type IndexRow = { id: string } & Record<string, unknown>;
+
 export async function replaceTranscriptionIndexRows(
 	trx: DbExecutor,
 	transcriptionId: string,
-	rows: ReturnType<typeof transcriptionIndexRowsFromPrimary>
-): Promise<void> {
+	rows: TranscriptionIndexRows,
+	document?: StoredTranscriptionDocument
+): Promise<{ verseSetChanged: boolean }> {
 	const { id: _id, ...transcription } = rows.transcription;
 	await trx
 		.updateTable('transcriptions')
 		.set(transcription)
 		.where('id', '=', transcriptionId)
 		.execute();
-	await trx
-		.deleteFrom('iiif_manifest_sources')
-		.where('transcription_id', '=', transcriptionId)
-		.execute();
-	if (rows.iiifManifestSources.length)
-		await trx.insertInto('iiif_manifest_sources').values(rows.iiifManifestSources).execute();
-	if (rows.pageCanvasLinks.length)
+	const changes = [];
+	for (const [table, expected] of iiifTables(rows))
+		changes.push(await changedRowsById(trx, table, transcriptionId, expected));
+	const [sources, links, annotations] = changes;
+	// Links and annotations are replaced; sources are upserted so unchanged children survive the cascade.
+	for (const [table, leaf] of [
+		['iiif_canvas_annotations', annotations],
+		['transcription_page_canvas_links', links],
+	] as const) {
+		const ids = [...leaf.stale, ...leaf.changed.map(row => row.id)];
+		if (ids.length) await trx.deleteFrom(table).where('id', 'in', ids).execute();
+	}
+	if (sources.stale.length)
+		await trx.deleteFrom('iiif_manifest_sources').where('id', 'in', sources.stale).execute();
+	if (sources.changed.length)
+		await trx
+			.insertInto('iiif_manifest_sources')
+			.values(sources.changed as TranscriptionIndexRows['iiifManifestSources'])
+			.onConflict(oc =>
+				oc.column('id').doUpdateSet(eb => ({
+					manifest_url: eb.ref('excluded.manifest_url'),
+					label: eb.ref('excluded.label'),
+					source_kind: eb.ref('excluded.source_kind'),
+					default_canvas_id: eb.ref('excluded.default_canvas_id'),
+					default_image_service_url: eb.ref('excluded.default_image_service_url'),
+					synthetic_canvases_json: eb.ref('excluded.synthetic_canvases_json'),
+					created_at: eb.ref('excluded.created_at'),
+					updated_at: eb.ref('excluded.updated_at'),
+				}))
+			)
+			.execute();
+	if (links.changed.length)
 		await trx
 			.insertInto('transcription_page_canvas_links')
-			.values(rows.pageCanvasLinks)
+			.values(links.changed as TranscriptionIndexRows['pageCanvasLinks'])
 			.execute();
-	if (rows.canvasAnnotations.length)
-		await trx.insertInto('iiif_canvas_annotations').values(rows.canvasAnnotations).execute();
-	await replaceTranscriptionVerseIndexRows(trx, transcriptionId, rows.transcription.content_json);
+	if (annotations.changed.length)
+		await trx
+			.insertInto('iiif_canvas_annotations')
+			.values(annotations.changed as TranscriptionIndexRows['canvasAnnotations'])
+			.execute();
+	const contentJson = rows.transcription.content_json;
+	return replaceTranscriptionVerseIndexRows(
+		trx,
+		transcriptionId,
+		document ? { document, contentJson } : contentJson
+	);
+}
+
+function iiifTables(rows: TranscriptionIndexRows): Array<[IiifTable, IndexRow[]]> {
+	return [
+		['iiif_manifest_sources', rows.iiifManifestSources],
+		['transcription_page_canvas_links', rows.pageCanvasLinks],
+		['iiif_canvas_annotations', rows.canvasAnnotations],
+	];
+}
+
+async function changedRowsById(
+	db: DbExecutor,
+	table: IiifTable,
+	transcriptionId: string,
+	rows: IndexRow[]
+): Promise<{ changed: IndexRow[]; stale: string[] }> {
+	const stored = new Map<string, Record<string, unknown>>(
+		(
+			await db
+				.selectFrom(table)
+				.selectAll()
+				.where('transcription_id', '=', transcriptionId)
+				.execute()
+		).map(row => [row.id as string, row])
+	);
+	const changed = rows.filter(row => {
+		const previous = stored.get(row.id);
+		stored.delete(row.id);
+		return !previous || !sameFields(previous, row);
+	});
+	return { changed, stale: [...stored.keys()] };
+}
+
+function sameFields(stored: Record<string, unknown>, expected: Record<string, unknown>): boolean {
+	return Object.entries(expected).every(
+		([key, value]) => (stored[key] ?? null) === (value ?? null)
+	);
 }
 
 function buildCurrentTranscriptionPayload(
@@ -822,17 +1003,13 @@ function normalizeWorkingTranscriptionContent(
 		document?: StoredTranscriptionDocument | null;
 	},
 	transcriptionId: string
-): NormalizedWorkingTranscriptionContent {
+): StoredTranscriptionDocument {
 	const document = input.document
 		? coerceTranscriptionDocument(input.document)
 		: coerceTranscriptionDocument(input.contentJson || EMPTY_TRANSCRIPTION_DOC);
 	if (!document)
 		throw new Error(`Transcription ${transcriptionId} content is missing or invalid.`);
-	return {
-		contentJson: JSON.stringify(document),
-		document,
-		jsonValue: document as unknown as JsonValue,
-	};
+	return document;
 }
 
 function emptyToNull(value: string | null): string | null {

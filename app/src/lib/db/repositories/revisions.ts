@@ -171,7 +171,7 @@ interface Checkpoint {
 }
 
 export interface PersistenceWarning {
-	code: 'primary_cleanup_failed';
+	code: 'primary_cleanup_failed' | 'index_rows_corrected';
 	entityType: 'transcription' | 'collation' | 'cbgm_analysis';
 	entityId: string;
 	message: string;
@@ -341,6 +341,22 @@ export async function loadProjectTranscriptionSnapshot(
 	db: DbExecutor,
 	projectTranscriptionId: string
 ): Promise<ProjectTranscriptionSnapshot> {
+	const metadata = await loadProjectTranscriptionMetadata(db, projectTranscriptionId);
+	const row = await db
+		.selectFrom('transcriptions')
+		.select('content_json')
+		.where('id', '=', metadata.id)
+		.executeTakeFirstOrThrow();
+	return {
+		...metadata,
+		content_json: parseJson(row.content_json, `transcriptions.content_json for ${metadata.id}`),
+	};
+}
+
+export async function loadProjectTranscriptionMetadata(
+	db: DbExecutor,
+	projectTranscriptionId: string
+): Promise<Omit<ProjectTranscriptionSnapshot, 'content_json'>> {
 	const row = await db
 		.selectFrom('project_transcriptions')
 		.innerJoin('transcriptions', 'transcriptions.id', 'project_transcriptions.transcription_id')
@@ -351,7 +367,6 @@ export async function loadProjectTranscriptionSnapshot(
 			'transcriptions.title as title',
 			'transcriptions.siglum as siglum',
 			'transcriptions.description as description',
-			'transcriptions.content_json as content_json',
 			'transcriptions.owner as owner',
 			'transcriptions.is_public as is_public',
 			'transcriptions.tags as tags',
@@ -372,10 +387,6 @@ export async function loadProjectTranscriptionSnapshot(
 		title: row.title,
 		siglum: row.siglum,
 		description: row.description,
-		content_json: parseJson(
-			row.content_json,
-			`transcriptions.content_json for ${transcriptionId}`
-		),
 		owner: row.owner,
 		is_public: row.is_public === 1,
 		tags: parseStringArray(row.tags, `transcriptions.tags for ${transcriptionId}`),

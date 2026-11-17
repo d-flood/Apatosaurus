@@ -28,6 +28,7 @@ function apiContext() {
 		invalidate: (...domains) => invalidated.push(...domains),
 		warn: () => undefined,
 		exclusive: work => work(),
+		defer: (_label, work) => work({} as DbApiContext['db']),
 	};
 	return { context, invalidated };
 }

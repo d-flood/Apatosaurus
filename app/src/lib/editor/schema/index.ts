@@ -45,6 +45,7 @@ import {
 	MarginaliaLine,
 	CorrectionRenderDocument,
 } from './structure-nodes';
+import { TranscriptionIndex } from './transcription-index';
 
 const SHARED_MARK_EXTENSIONS = [
 	Lacunose,
@@ -111,6 +112,7 @@ function getSharedInlineExtensions() {
 		...SHARED_MARK_EXTENSIONS,
 		...SHARED_SELECTION_EXTENSIONS,
 		...SHARED_INLINE_NODE_EXTENSIONS,
+		TranscriptionIndex,
 		Text,
 	];
 }

@@ -5,14 +5,19 @@ import {
 	serializeTei,
 	serializeTeiNode,
 	type TeiElementNode,
+	type InlineItem,
 	type TeiNode,
+	type TextMark,
 	type TranscriptionDocument,
 	type TranscriptionPage,
 } from '@apatosaurus/tei-transcription';
 
 import { hashContent } from '$lib/storage/content-hash';
 import { teiContentHash } from '$lib/storage/tei-content';
-import { coerceTranscriptionDocument } from '$lib/transcription/content';
+import {
+	coerceTranscriptionDocument,
+	type StoredTranscriptionDocument,
+} from '$lib/transcription/content';
 
 import type { JsonValue } from '../envelope';
 import type { ProjectTranscriptionPayload } from './project-transcription';
@@ -80,20 +85,246 @@ export async function serializeTranscriptionTei(
 	record: TranscriptionTeiRecord,
 	version: TranscriptionTeiVersion | null = null
 ): Promise<SerializedTranscriptionTei> {
+	return withHashes(finalizeXml(serializeTei(teiDocument(record, version, false))));
+}
+
+/**
+ * Also returns the record that parsing the written XML yields: pages as written, the rest from
+ * parsing a page-less copy. `contentCoerced` skips coercing content that already was.
+ */
+export async function serializeTranscriptionTeiWithRecord(
+	record: TranscriptionTeiRecord,
+	{ contentCoerced = false } = {}
+): Promise<SerializedTranscriptionTei & { record: TranscriptionTeiRecord }> {
+	const document = teiDocument(record, null, contentCoerced);
+	const xml = finalizeXml(serializeTei(document));
+	const shell = withXmlDom(() => parseTei(finalizeXml(serializeTei({ ...document, pages: [] }))));
+	const { document: parsed, iiif } = splitTranscriptionTeiIiif({
+		...shell,
+		pages: withParsedCorrectionOrder(asParsedPages(document.pages)),
+	});
+	return { ...(await withHashes(xml)), record: transcriptionRecordFromTei(parsed, iiif) };
+}
+
+const FRAME_ZONES = new Set(['top', 'left', 'center', 'right', 'bottom']);
+
+// Adds what the parser derives from serialized pb, cb, lb and milestones, which pages the editor
+// built lack. Mirrors pageBreakXml, columnBreakXml, lineBreakXml and the div and ab labels.
+function asParsedPages(pages: TranscriptionPage[]): TranscriptionPage[] {
+	let book = '';
+	return pages.map(page => {
+		const pageAttrs = parsedAttrs(page.teiAttrs, {
+			'xml:id': page.pageId || page.teiAttrs?.['xml:id'] || page.id,
+			n: page.teiAttrs?.n || page.id || '',
+			type: page.teiAttrs ? page.teiAttrs.type : 'folio',
+			break: page.wrapped ? 'no' : undefined,
+		});
+		let previousColumn = 0;
+		const columns = page.columns.map((column, columnIndex) => {
+			let wrapImplied = columnIndex === 0 && Boolean(page.wrapped);
+			const columnAttrs = parsedAttrs(column.teiAttrs, {
+				n: column.teiAttrs?.n,
+				break: column.wrapped && !wrapImplied ? 'no' : undefined,
+				type: column.zone ? 'frame' : undefined,
+				subtype: column.zone || undefined,
+			});
+			const match = columnAttrs?.n?.match(/C(\d+)/);
+			const number = match ? parseInt(match[1], 10) : previousColumn + 1;
+			previousColumn = number;
+			if (columnAttrs?.type === 'frame' && FRAME_ZONES.has(columnAttrs.subtype ?? '')) {
+				delete columnAttrs.type;
+				delete columnAttrs.subtype;
+			}
+			wrapImplied ||= Boolean(column.wrapped);
+			const lines = column.lines.map((line, lineIndex) => {
+				const lineAttrs = parsedAttrs(line.teiAttrs, {
+					break:
+						line.wrapped && !(lineIndex === 0 && wrapImplied) && !line.teiAttrs
+							? 'no'
+							: undefined,
+					rend: line.paragraphStart ? line.teiAttrs?.rend || 'hang' : undefined,
+				});
+				const items = line.items.map(item => {
+					if (item.type === 'teiAtom' && item.text === '') {
+						const { text: _text, ...rest } = item;
+						return rest;
+					}
+					if (item.type !== 'milestone') return item;
+					const label = item.sourceLabel ?? milestoneLabel(item.kind, item.attrs, book);
+					if (item.kind === 'book') book = item.attrs.book || '';
+					return item.sourceLabel === undefined && label
+						? { ...item, sourceLabel: label }
+						: item;
+				});
+				const {
+					type,
+					number,
+					wrapped,
+					paragraphStart,
+					teiAttrs: _a,
+					items: _i,
+					...rest
+				} = line;
+				return {
+					type,
+					number,
+					wrapped,
+					paragraphStart,
+					teiAttrs: lineAttrs,
+					items,
+					...rest,
+				};
+			});
+			const { type, number: _n, wrapped, zone, teiAttrs: _a, lines: _l, ...rest } = column;
+			const teiAttrs = Object.keys(columnAttrs ?? {}).length ? columnAttrs : undefined;
+			return { type, number, wrapped, zone, teiAttrs, lines, ...rest };
+		});
+		const { type, id: _i, pageId: _p, wrapped, teiAttrs: _a, columns: _c, ...rest } = page;
+		return {
+			type,
+			id: pageAttrs?.n || '',
+			pageId: pageAttrs?.['xml:id'] || undefined,
+			wrapped,
+			teiAttrs: pageAttrs,
+			columns,
+			...rest,
+		};
+	});
+}
+
+type MarkedItem = { marks?: TextMark[] };
+
+// Mirrors outerCorrectionMarks: marks every node of an <app> span shares before its correction wrap
+// the <app>, so they parse before the correction and the rest after it.
+function withParsedCorrectionOrder(pages: TranscriptionPage[]): TranscriptionPage[] {
+	let span: Array<{ items: MarkedItem[]; index: number }> = [];
+	let signature: string | null = null;
+	const close = () => {
+		reorderCorrectionSpan(span);
+		span = [];
+		signature = null;
+	};
+	for (const page of pages)
+		for (const column of page.columns)
+			for (const line of column.lines)
+				line.items.forEach((item, index) => {
+					if (item.type === 'boundary') return;
+					const correction = (item as MarkedItem).marks?.find(isCorrection);
+					const next = correction ? JSON.stringify(correction.attrs ?? {}) : null;
+					if (next === null || next !== signature) close();
+					if (next === null) return;
+					signature = next;
+					span.push({ items: line.items as MarkedItem[], index });
+				});
+	close();
+	return pages;
+}
+
+function reorderCorrectionSpan(span: Array<{ items: MarkedItem[]; index: number }>): void {
+	if (span.length === 0) return;
+	const marksOf = ({ items, index }: (typeof span)[number]) => items[index].marks!;
+	const leads = span.map(entry =>
+		marksOf(entry).slice(0, marksOf(entry).findIndex(isCorrection))
+	);
+	const key = (mark: TextMark) => JSON.stringify(mark);
+	const outer = leads[0]
+		.map(key)
+		.filter(mark => leads.every(lead => lead.some(other => key(other) === mark)));
+	const outerMarks = outer.map(mark => leads[0].find(candidate => key(candidate) === mark)!);
+	const wrapped = (marks: TextMark[] = []) => [
+		...outerMarks,
+		...marks.filter(mark => !outer.includes(key(mark))),
+	];
+	for (const entry of span) {
+		const marks = marksOf(entry);
+		const correction = marks.find(isCorrection) as Extract<TextMark, { type: 'correction' }>;
+		const readings =
+			outer.length === 0
+				? correction.attrs.corrections
+				: correction.attrs.corrections.map(reading => ({
+						...reading,
+						content: mergeTexts(
+							reading.content.map(item =>
+								item.type === 'text'
+									? { ...item, marks: wrapped(item.marks) }
+									: item
+							)
+						),
+					}));
+		entry.items[entry.index] = {
+			...entry.items[entry.index],
+			marks: [
+				...outerMarks,
+				{ ...correction, attrs: { ...correction.attrs, corrections: readings } },
+				...marks.filter(mark => !isCorrection(mark) && !outer.includes(key(mark))),
+			],
+		};
+	}
+}
+
+const isCorrection = (mark: TextMark) => mark.type === 'correction';
+
+function mergeTexts(items: InlineItem[]): InlineItem[] {
+	const merged: InlineItem[] = [];
+	for (const item of items) {
+		const previous = merged.at(-1);
+		if (
+			item.type === 'text' &&
+			previous?.type === 'text' &&
+			JSON.stringify(previous.marks ?? []) === JSON.stringify(item.marks ?? [])
+		)
+			merged[merged.length - 1] = { ...previous, text: previous.text + item.text };
+		else merged.push(item);
+	}
+	return merged;
+}
+
+function milestoneLabel(
+	kind: 'book' | 'chapter' | 'verse',
+	attrs: Record<string, string>,
+	book: string
+): string {
+	if (kind === 'book') return attrs.book || '';
+	if (kind === 'verse')
+		return attrs.chapter && attrs.verse ? `${attrs.chapter}.${attrs.verse}` : attrs.verse || '';
+	const chapter = attrs.chapter || '';
+	return book && chapter && !chapter.startsWith(`${book}.`) ? `${book}.${chapter}` : chapter;
+}
+
+function parsedAttrs(
+	attrs: Record<string, string> | undefined,
+	overrides: Record<string, string | undefined>
+): Record<string, string> | undefined {
+	const merged: Record<string, string | undefined> = { ...attrs };
+	for (const [key, value] of Object.entries(overrides))
+		if (value !== undefined) merged[key] = value;
+	const kept = Object.entries(merged).filter((entry): entry is [string, string] =>
+		Boolean(entry[1])
+	);
+	return kept.length ? Object.fromEntries(kept) : undefined;
+}
+
+function teiDocument(
+	record: TranscriptionTeiRecord,
+	version: TranscriptionTeiVersion | null,
+	contentCoerced: boolean
+): TranscriptionDocument {
 	const normalized = nfcDeep(record) as TranscriptionTeiRecord;
-	const document = coerceTranscriptionDocument(normalized.content_json);
+	const document =
+		contentCoerced && normalized.content_json === record.content_json
+			? (record.content_json as unknown as StoredTranscriptionDocument)
+			: coerceTranscriptionDocument(structuredClone(normalized.content_json));
 	if (!document) {
 		throw new Error(
 			`Project transcription ${record.project_transcription_id} has invalid content.`
 		);
 	}
 	const header = buildHeader(
-		document.teiHeader,
+		document,
 		normalized,
-		version && (nfcDeep(version) as TranscriptionTeiVersion),
-		document.textAttrs?.['xml:lang']
+		version && (nfcDeep(version) as TranscriptionTeiVersion)
 	);
-	const raw = serializeTei({
+	return {
 		...document,
 		pages: withIiifPageFacs(withPageIds(document.pages), normalized.page_canvas_links),
 		teiHeader: header,
@@ -102,8 +333,10 @@ export async function serializeTranscriptionTei(
 		facsimile: undefined,
 		sourceDoc: undefined,
 		standOff: undefined,
-	});
-	const xml = finalizeXml(raw);
+	};
+}
+
+async function withHashes(xml: string): Promise<SerializedTranscriptionTei> {
 	const [fileHash, contentHash] = await Promise.all([hashContent(xml), teiContentHash(xml)]);
 	return { xml, fileHash, contentHash };
 }
@@ -134,7 +367,15 @@ export function splitTranscriptionTeiIiif<T extends TranscriptionDocument>(
 }
 
 export function parseTranscriptionTei(xml: string): TranscriptionTeiRecord {
-	const { document: parsed, iiif } = splitTranscriptionTeiIiif(withXmlDom(() => parseTei(xml)));
+	const { document, iiif } = splitTranscriptionTeiIiif(withXmlDom(() => parseTei(xml)));
+	const record = transcriptionRecordFromTei(document, iiif);
+	return { ...record, content_json: JSON.parse(JSON.stringify(record.content_json)) };
+}
+
+function transcriptionRecordFromTei(
+	parsed: TranscriptionDocument,
+	iiif: TranscriptionIiif
+): TranscriptionTeiRecord {
 	const header = parsed.teiHeader ?? element('teiHeader');
 	const fileDesc = child(header, 'fileDesc');
 	const titleStmt = child(fileDesc, 'titleStmt');
@@ -184,7 +425,7 @@ export function parseTranscriptionTei(xml: string): TranscriptionTeiRecord {
 		title: normalizedText(preferredTitle(titleStmt)),
 		siglum: normalizedText(child(msIdentifier, 'idno')),
 		description: textContent(noteOfType(notesStmt, DESCRIPTION_NOTE)),
-		content_json: JSON.parse(JSON.stringify(document)) as JsonValue,
+		content_json: document as unknown as JsonValue,
 		content_format: idnoText(publicationStmt, IDNO.contentFormat) ?? '',
 		created_at: change('created')?.attrs?.when ?? '',
 		updated_at: updated ? (updated.attrs?.when ?? '') : savedAt,
@@ -309,13 +550,12 @@ function pageXmlId(page: TranscriptionPage): string | undefined {
 }
 
 function buildHeader(
-	imported: TeiElementNode | undefined,
+	document: StoredTranscriptionDocument,
 	record: TranscriptionTeiRecord,
-	version: TranscriptionTeiVersion | null,
-	bodyLanguage: string | undefined
+	version: TranscriptionTeiVersion | null
 ): TeiElementNode {
-	const header = imported
-		? (structuredClone(imported) as TeiElementNode)
+	const header = document.teiHeader
+		? (structuredClone(document.teiHeader) as TeiElementNode)
 		: element('teiHeader', {}, [
 				element('fileDesc', {}, [
 					element('titleStmt'),
@@ -330,8 +570,8 @@ function buildHeader(
 		record
 	);
 	patchNotesStmt(fileDesc, record);
-	patchSourceDesc(ensureChild(fileDesc, 'sourceDesc', ['*']), record);
-	patchLanguage(header, record.language, bodyLanguage);
+	patchSourceDesc(ensureChild(fileDesc, 'sourceDesc', ['*']), record, document);
+	patchLanguage(header, record.language, document.textAttrs?.['xml:lang']);
 	patchRevisionDesc(header, record, version);
 	return header;
 }
@@ -436,7 +676,11 @@ function patchNotesStmt(fileDesc: TeiElementNode, record: TranscriptionTeiRecord
 	if (!children(notesStmt).length) removeChild(fileDesc, notesStmt);
 }
 
-function patchSourceDesc(sourceDesc: TeiElementNode, record: TranscriptionTeiRecord): void {
+function patchSourceDesc(
+	sourceDesc: TeiElementNode,
+	record: TranscriptionTeiRecord,
+	document: StoredTranscriptionDocument
+): void {
 	patchMsIdentifier(sourceDesc, record);
 
 	const { origin } = record;
@@ -465,8 +709,7 @@ function patchSourceDesc(sourceDesc: TeiElementNode, record: TranscriptionTeiRec
 		);
 		if (!children(listBibl).length) removeChild(sourceDesc, listBibl);
 	}
-	const document = coerceTranscriptionDocument(record.content_json);
-	const editionIds = document?.referenceEditionsUsed ?? [];
+	const editionIds = document.referenceEditionsUsed ?? [];
 	if (editionIds.length > 0) {
 		appendChild(
 			sourceDesc,
@@ -477,7 +720,7 @@ function patchSourceDesc(sourceDesc: TeiElementNode, record: TranscriptionTeiRec
 					element(
 						'bibl',
 						{ type: REFERENCE_EDITION, 'xml:id': id },
-						text(document?.referenceEditionAttributions?.[id] ?? '')
+						text(document.referenceEditionAttributions?.[id] ?? '')
 					)
 				)
 			)
@@ -590,15 +833,22 @@ function finalizeXml(xml: string): string {
 	return `${xml.replace(/\r\n?/g, '\n').replace(/\n+$/, '')}\n`;
 }
 
+// eslint-disable-next-line no-control-regex
+const ASCII = /^[\x00-\x7f]*$/;
+
+// Returns the input itself when nothing changes, so the save path skips copying a large document.
 function nfcDeep(value: unknown): unknown {
-	if (typeof value === 'string') return value.normalize('NFC');
-	if (Array.isArray(value)) return value.map(nfcDeep);
-	if (value && typeof value === 'object') {
-		return Object.fromEntries(
-			Object.entries(value).map(([key, child]) => [key, nfcDeep(child)])
-		);
+	if (typeof value === 'string') return ASCII.test(value) ? value : value.normalize('NFC');
+	if (!value || typeof value !== 'object') return value;
+	let copy: Record<string, unknown> | unknown[] | null = null;
+	for (const key of Object.keys(value)) {
+		const child = (value as Record<string, unknown>)[key];
+		const next = nfcDeep(child);
+		if (next === child) continue;
+		copy ??= Array.isArray(value) ? [...value] : { ...value };
+		(copy as Record<string, unknown>)[key] = next;
 	}
-	return value;
+	return copy ?? value;
 }
 
 function isAppChange(node: TeiElementNode): boolean {
