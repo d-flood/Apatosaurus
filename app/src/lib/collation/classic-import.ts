@@ -301,9 +301,9 @@ export function buildClassicBaseTranscription(source: {
 										type: 'text',
 										text,
 										marks: [
-											{ type: 'unconfirmed' },
+											{ type: 'unconfirmed', attrs: {} },
 											...(/^\p{P}+$/u.test(text)
-												? [{ type: 'punctuation' as const }]
+												? [{ type: 'punctuation' as const, attrs: {} }]
 												: []),
 										],
 									})),

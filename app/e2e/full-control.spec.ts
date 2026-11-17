@@ -37,8 +37,8 @@ test('a scholar imports, extends, reviews and exports a classic collation on a p
 	await dialog.getByRole('button', { name: 'Import collation', exact: true }).click();
 	await expect(dialog).toHaveCount(0, { timeout: 30_000 });
 	await page.getByRole('link', { name: 'Open', exact: true }).click();
-	await expect(page).toHaveURL(/\/review$/);
-	const collationUrl = page.url().replace(/\/review$/, '');
+	await expect(page).toHaveURL(/\/alignment$/);
+	const collationUrl = page.url().replace(/\/alignment$/, '');
 	await page.getByRole('link', { name: 'Readings', exact: true }).click();
 	await expect(page.getByRole('textbox', { name: 'Text of reading a', exact: true })).toHaveValue(
 		'αλφα'
@@ -184,7 +184,8 @@ test('a scholar migrates sections, notes and witness descriptions from a classic
 	await expect(page.getByText('Chapter 1 · 1')).toBeVisible();
 	await expect(page.getByText('Chapter 2 · 1')).toBeVisible();
 	await page.getByRole('link', { name: 'Open', exact: true }).first().click();
-	await expect(page).toHaveURL(/\/review$/);
+	await expect(page).toHaveURL(/\/alignment$/);
+	await page.getByRole('link', { name: 'Review', exact: true }).click();
 	await page.getByLabel('Verse note', { exact: true }).click();
 	await expect(page.getByRole('textbox', { name: 'Verse note text' })).toHaveValue(
 		'Verse remark\n\nClassic reading b at 4: Leaf damaged'

@@ -21,11 +21,16 @@ import {
 } from '$lib/storage/formats';
 import { createProject, updateProjectMetadata } from '$lib/db/repositories/projects';
 import {
+	getCurrentVerseSources,
+	getVerseIndexRowsForVerse,
+} from '$lib/db/repositories/transcriptions';
+import {
 	createCollationWithFilesResult,
 	getCollationVersionStatusWithWorkingFile,
 	saveWorkingCollationArtifact,
 	saveWorkingCollationMetadata,
 } from '$lib/db/repositories/collation-files';
+import { verifyTranscriptionIndexRows } from '$lib/db/repositories/transcription-files';
 
 const { db } = vi.hoisted(() => ({
 	db: {
@@ -359,6 +364,47 @@ it('keeps classic sections, order, notes and descriptions with the imported coll
 	expect(
 		collationState.peekReadingsForUnit(span.unitId).find(item => item.id === reading.id)?.note
 	).toBe('Revised');
+});
+
+it('gathers classic base verses from the persisted transcription', async () => {
+	const harness = createLocalDbTestHarness();
+	const storeOptions = { backend: new MemoryStoreBackend() };
+	vi.stubGlobal('Node', { ELEMENT_NODE: 1, TEXT_NODE: 3 });
+	try {
+		await createProject(
+			harness.db,
+			{ id: 'project', storageSlug: 'project', name: 'Project' },
+			storeOptions
+		);
+		db.createTranscription.mockImplementation(async input => {
+			const id = await createTranscriptionWithFiles(harness.db, input, storeOptions);
+			expect(await verifyTranscriptionIndexRows(harness.db, id, storeOptions)).toEqual({
+				status: 'verified',
+				warnings: [],
+			});
+			return id;
+		});
+		db.getVerseIndexRowsForVerse.mockImplementation((verse, ids) =>
+			getVerseIndexRowsForVerse(harness.db, verse, ids)
+		);
+		db.getCurrentVerseSources.mockImplementation((verse, ids) =>
+			getCurrentVerseSources(harness.db, verse, ids)
+		);
+		await importClassicCollationProject({
+			projectId: 'project',
+			source: parseClassicCollationExport(fixture),
+			baseSiglum: 'A',
+			title: 'Classic base',
+			defaults,
+		});
+		expect(saved.map(document => document.setup.segment.members)).toEqual([
+			['Acts_1.1'],
+			['Unnormalized.verse_2'],
+		]);
+	} finally {
+		Reflect.deleteProperty(globalThis, 'Node');
+		await harness.destroy();
+	}
 });
 
 it('writes imported collations as TEI-canonical collations', async () => {

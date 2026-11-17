@@ -582,6 +582,48 @@ describe('tei-transcription package', () => {
 		}
 	});
 
+	it('round-trips standalone verse identifiers without interpreting their punctuation', () => {
+		const identifiers = ['Acts_1.1', 'Unnormalized.verse_2'];
+		const document = fromProseMirror({
+			type: 'doc',
+			content: [
+				{
+					type: 'page',
+					attrs: { id: 'base' },
+					content: [
+						{
+							type: 'column',
+							content: identifiers.map(book => ({
+								type: 'line',
+								content: [
+									{ type: 'verse', attrs: { book, chapter: '', verse: '' } },
+									{ type: 'text', text: 'alpha' },
+								],
+							})),
+						},
+					],
+				},
+			],
+		});
+		const xml = serializeTei(document);
+		const parsed = parseTei(xml);
+		const milestones = parsed.pages.flatMap(page =>
+			page.columns.flatMap(column =>
+				column.lines.flatMap(line => line.items.filter(item => item.type === 'milestone'))
+			)
+		);
+
+		expect(milestones).toEqual(
+			identifiers.map(book => ({
+				type: 'milestone',
+				kind: 'verse',
+				attrs: { book, chapter: '', verse: '' },
+				sourceLabel: book,
+			}))
+		);
+		expect(serializeTei(parsed)).toBe(xml);
+	});
+
 	it('preserves dotted milestone values in opaque-label mode', () => {
 		const document = parseTei(
 			wrapInTei(`

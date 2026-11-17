@@ -387,12 +387,19 @@ function handleVerseBlock(element: Element, context: ParseContext): void {
 		ensureLineItems(context);
 		emitPendingMilestones(context);
 		context.currentLineItems!.push(
-			createVerseMilestone(
-				abN,
-				context.currentBook,
-				context.currentChapter,
-				context.opaqueMilestoneLabels
-			)
+			element.getAttribute('type') === 'verse-identifier'
+				? {
+						type: 'milestone',
+						kind: 'verse',
+						attrs: { book: abN, chapter: '', verse: '' },
+						sourceLabel: abN,
+					}
+				: createVerseMilestone(
+						abN,
+						context.currentBook,
+						context.currentChapter,
+						context.opaqueMilestoneLabels
+					)
 		);
 	}
 	processNode(element, context);

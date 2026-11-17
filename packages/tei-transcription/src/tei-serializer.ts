@@ -216,9 +216,11 @@ function exportWordGroups(words: WordGroup[], context: ExportContext): void {
 		const word = words[index];
 		if (word.type === 'verse') {
 			closeAnonymousAb(context);
-			const verseId = getSourceLabel(word.attrs) ?? buildVerseId(word.attrs);
+			const standalone =
+				!word.attrs?.chapter && !word.attrs?.verse ? word.attrs?.book : undefined;
+			const verseId = standalone || (getSourceLabel(word.attrs) ?? buildVerseId(word.attrs));
 			closeVerse(context);
-			openVerse(context, verseId);
+			openVerse(context, verseId, Boolean(standalone));
 			continue;
 		}
 
@@ -1331,14 +1333,16 @@ function exportFormWork(
 	}
 }
 
-function openVerse(context: ExportContext, verseId: string): void {
+function openVerse(context: ExportContext, verseId: string, standalone = false): void {
 	if (context.insideVerse && context.currentVerse !== verseId) {
 		closeVerse(context);
 	}
 
 	if (!context.insideVerse) {
 		ensureCurrentDivs(context);
-		context.xml.push(`<ab n="${escapeXml(verseId)}">`);
+		context.xml.push(
+			`<ab n="${escapeXml(verseId)}"${standalone ? ' type="verse-identifier"' : ''}>`
+		);
 		context.insideVerse = true;
 		context.currentVerse = verseId;
 	}

@@ -571,7 +571,9 @@ function milestoneLabel(
 ): string {
 	if (kind === 'book') return attrs.book || '';
 	if (kind === 'verse')
-		return attrs.chapter && attrs.verse ? `${attrs.chapter}.${attrs.verse}` : attrs.verse || '';
+		return attrs.chapter && attrs.verse
+			? `${attrs.chapter}.${attrs.verse}`
+			: attrs.verse || (!attrs.chapter ? attrs.book : '') || '';
 	const chapter = attrs.chapter || '';
 	return book && chapter && !chapter.startsWith(`${book}.`) ? `${book}.${chapter}` : chapter;
 }
